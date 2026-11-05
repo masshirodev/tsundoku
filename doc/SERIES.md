@@ -22,7 +22,8 @@ library's sheet.
   its own, and the list keeps the full height with its own scroll.
 - The order inside the metadata is the handoff's: identity, then rating and FAV,
   then CONTINUE, all within thumb reach. After that come direction, shelves,
-  tags, about, and the FILE row with HIDE, as far from CONTINUE as it can be.
+  tags, about, and the FILE row with RENAME and HIDE, as far from CONTINUE as
+  it can be.
   LISTS and COVER sit under SHELVES, and SOURCE after them ([`MOVE.md`](MOVE.md)).
 
 Like the library, the frame is CSS media queries, so the server's first paint
@@ -188,6 +189,63 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
 - **Suggestion counts only include visible series**, so the tag field can't be
   used to learn how many hidden series carry a tag.
 
+## FILE and RENAME (c526)
+
+**The row.** FILE (FOLDED on a book folded from editions) is its label, the
+text (the path, then `13 EPUB · 6.8 MB`), and its cells: RENAME, UNGROUP on a
+series of books or volumes, HIDE (UNHIDE), DELETE (UNFOLD in FOLDED's place).
+It follows LISTS' rule (`doc/handoffs/series-lists/`): where the panel is
+narrow (the phone, the 440px landscape panel and the TV's 352px column, the
+same query as the LINK row's) two or more cells drop under the line in equal
+columns, edge to edge, and the text has the whole line after the label; the
+tablet in portrait has the width and keeps them at the line's end. Before,
+the text was `flex: 1` beside three cells and got 136px at the 440 panel,
+155px at 390 and 74px on the TV, a word a line; now 319, 306 and 236
+(`tests/series-layout.e2e.ts` measures it per device on Tower of God,
+`tests/series-rename-flow.e2e.ts` on a novel of thirteen EPUBs at 390 and
+440). One DOM, no second copy of the cells: the row wraps
+(`flex-wrap`), and the cells' box takes a line of its own.
+
+**RENAME** is the Work screen's idiom on the series: the cell opens a field in
+place under the row (focused, the name selected), DONE writes it, CANCEL
+leaves it, and the answer is a band, `RENAMED · NEW NAME` / `WAS OLD NAME`,
+with UNDO. A rename to the same name says THE SAME NAME and offers nothing to
+undo; an empty one is refused (`A SERIES NEEDS A NAME · NOTHING CHANGED`).
+Spaces fold as a typed name's would. Every series has it, not only a grouped
+one: whatever a series was called by its importer, the owner may call it
+something else.
+
+- **It sticks, with no column of its own.** `series.title` is written at the
+  series' INSERT (the importers' writer, `import/write.ts`, and the grouping
+  doors in `books.ts`) and at one place after: `carryEdit`
+  (`import/fold.ts`), which carries an owner's name _onto_ the survivor when a
+  download folder's series folds into the one a backup names. Nothing else
+  writes it (`rg -nU "UPDATE\s+series\s+SET[^;\`]*" src -o | rg title`). Every
+door that meets a series again finds it by its key, its former keys, its
+files or its entries' URLs, never by its title, so
+`tests/series-rename-db.spec.ts` renames and then runs a rescan (the backup
+and tsundoku's own downloads), a newer backup that names the manga by its
+source's title, a REFRESH whose source answers its own title, a cover pass,
+and tsundoku's next download, which the engine files in a folder named after
+the *new* title (`engine/worker.ts`); each keeps the name and makes no twin.
+- **The old name joins `alt_titles`.** The catalogue's and Ranobe's title
+  matches read the alternative titles, so a link search still knows the series
+  by the name it came with. UNDO puts back the name and `alt_titles` exactly,
+  and only while the series still has the name that rename gave it: a second
+  tab's later rename is the owner's newer word, and the older band's UNDO says
+  RENAMED AGAIN SINCE.
+- **The library's search reads `title` and tags, not `alt_titles`**
+  (`library.ts`), so a renamed series is found by its new name, and by its old
+  one only if that is also a tag. That is the card's "or the alternative
+  titles hold it" (doc/handoff-notes/series.md, wave 22, Gaps).
+- **The colour stays.** `hueFor(title)` picks a series' hue once, at its
+  INSERT; the rename leaves `hue` alone.
+- **A Work keeps its own name.** A Work's name is `works.name`, renamed on the
+  Work screen; a series that is its face keeps the Work's name there and its
+  own here.
+- **The id is the identity.** A rename keeps the series' id, so every link,
+  shelf, Work part and reading stays with it; UNDO finds it by id.
+
 ## LISTS (c424)
 
 The handoff is `doc/handoffs/series-lists/` (`canvas.json`, five boards:
@@ -335,7 +393,8 @@ cells, with the house's inset focus mark.
   only drawn when there are duplicates to hide.
 - **The FILE row counts files, not entries.** A novel's chapters share one EPUB,
   so it reads "1 EPUB" (a novel grouped from six books reads "6 EPUB", with
-  UNGROUP beside it and a heading per volume in CONTENTS, [`BOOKS.md`](BOOKS.md)).
+  UNGROUP among its cells and a heading per volume in CONTENTS,
+  [`BOOKS.md`](BOOKS.md)).
   A Hentoid book is a folder of loose images, so it reads
   "1 FOLDER", not the handoff's "1 CBZ", which doesn't match what Hentoid stores
   (`IMPORT-FORMATS.md`).

@@ -315,6 +315,19 @@
 	// Rating and FAV show their new value at once and save behind it. A save
 	// that fails keeps the value, drawn dashed, with RETRY and PUT BACK in the
 	// layout's band (Loading States 1o).
+	// RENAME's field (c526), opened in place by its cell, as the Work screen's
+	// is. A rename that lands closes it; a refusal leaves it open with its word.
+	let renaming = $state(false);
+	const renamed: SubmitFunction = () => {
+		return async ({ result, update }) => {
+			await update();
+			if (result.type === 'success') renaming = false;
+		};
+	};
+	const focusField = (n: HTMLInputElement) => {
+		n.focus();
+		n.select();
+	};
 	const actionBase = $derived(resolve('/series/[id]', { id: String(series.id) }));
 	const moveHref = $derived(resolve('/series/[id]/move', { id: String(series.id) }));
 	/** "1 DEC": the last day MOVE BACK is offered. */
@@ -1032,27 +1045,40 @@
 						</div>{/if}
 				</div>
 			</div>
-			<div class="row file-row">
+			<!-- Its cells follow LISTS' rule (c526): two or more drop under the line in
+			     equal columns where the panel is narrow, so the text keeps its width. -->
+			<div class="row file-row many">
 				<div class="label">FOLDED</div>
 				<div class="file">{foldedOn ? `${foldedOn} · ` : ''}FROM THE DUPLICATES REVIEW</div>
-				<button type="button" class="edit" onclick={() => (unfolding = true)}>UNFOLD</button>
-				{#if work && !series.hidden}
-					<!-- A Work is hidden or shown whole (W4; Work-States 4): on a part, HIDE asks. -->
-					<button type="button" class="edit" onclick={() => (hiding = true)}>HIDE</button>
-				{:else if work && series.hidden}
-					<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
-					<form method="POST" action="?/showWork" use:enhance={replacing} class="hide-form">
-						<button type="submit" class="edit">UNHIDE</button>
-					</form>
-				{:else}
-					<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
-						<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
-						<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
-					</form>
-				{/if}
+				<div class="cells">
+					<button
+						type="button"
+						class="edit"
+						aria-expanded={renaming}
+						onclick={() => (renaming = !renaming)}>RENAME</button
+					>
+					<button type="button" class="edit" onclick={() => (unfolding = true)}>UNFOLD</button>
+					{#if work && !series.hidden}
+						<!-- A Work is hidden or shown whole (W4; Work-States 4): on a part, HIDE asks. -->
+						<button type="button" class="edit" onclick={() => (hiding = true)}>HIDE</button>
+					{:else if work && series.hidden}
+						<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
+						<form method="POST" action="?/showWork" use:enhance={replacing} class="hide-form">
+							<button type="submit" class="edit">UNHIDE</button>
+						</form>
+					{:else}
+						<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
+							<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
+							<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
+						</form>
+					{/if}
+				</div>
 			</div>
+			{#if renaming}{@render renameField()}{/if}
 		{:else}
-			<div class="row file-row">
+			<!-- FILE (c526): the text keeps the row's width; its cells drop under it in
+			     equal columns where the panel is narrow (LISTS' rule, doc/SERIES.md). -->
+			<div class="row file-row many">
 				<div class="label">FILE</div>
 				<div class="file">
 					{#if series.path}<div class="path">{series.path}</div>{/if}
@@ -1062,31 +1088,57 @@
 							: ''}{elsewhere}
 					</div>
 				</div>
-				{#if isBookSeries(series) || isVolumeSeries(series)}
-					<!-- Every book (or volume) back out on its own; the series goes. -->
-					<form method="POST" action="?/ungroup" use:enhance={replacing} class="hide-form">
-						<button type="submit" class="edit">UNGROUP</button>
-					</form>
-				{/if}
-				{#if work && !series.hidden}
-					<!-- A Work is hidden or shown whole (W4; Work-States 4): on a part, HIDE asks. -->
-					<button type="button" class="edit" onclick={() => (hiding = true)}>HIDE</button>
-				{:else if work && series.hidden}
-					<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
-					<form method="POST" action="?/showWork" use:enhance={replacing} class="hide-form">
-						<button type="submit" class="edit">UNHIDE</button>
-					</form>
-				{:else}
-					<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
-						<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
-						<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
-					</form>
-				{/if}
-				<button type="button" class="edit" onclick={ondelete}>DELETE</button>
+				<div class="cells">
+					<button
+						type="button"
+						class="edit"
+						aria-expanded={renaming}
+						onclick={() => (renaming = !renaming)}>RENAME</button
+					>
+					{#if isBookSeries(series) || isVolumeSeries(series)}
+						<!-- Every book (or volume) back out on its own; the series goes. -->
+						<form method="POST" action="?/ungroup" use:enhance={replacing} class="hide-form">
+							<button type="submit" class="edit">UNGROUP</button>
+						</form>
+					{/if}
+					{#if work && !series.hidden}
+						<!-- A Work is hidden or shown whole (W4; Work-States 4): on a part, HIDE asks. -->
+						<button type="button" class="edit" onclick={() => (hiding = true)}>HIDE</button>
+					{:else if work && series.hidden}
+						<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
+						<form method="POST" action="?/showWork" use:enhance={replacing} class="hide-form">
+							<button type="submit" class="edit">UNHIDE</button>
+						</form>
+					{:else}
+						<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
+							<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
+							<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
+						</form>
+					{/if}
+					<button type="button" class="edit" onclick={ondelete}>DELETE</button>
+				</div>
 			</div>
+			{#if renaming}{@render renameField()}{/if}
 		{/if}
 	{/if}
 </section>
+
+{#snippet renameField()}
+	<!-- The name in place (c526): DONE writes it, CANCEL leaves it. -->
+	<form method="POST" action="?/rename" use:enhance={renamed} class="rename" data-row="rename">
+		<input
+			type="text"
+			name="name"
+			value={series.title}
+			aria-label="The series' name"
+			class="field"
+			autocomplete="off"
+			use:focusField
+		/>
+		<button type="submit" class="edit acc">DONE</button>
+		<button type="button" class="edit" onclick={() => (renaming = false)}>CANCEL</button>
+	</form>
+{/snippet}
 
 {#if tagSource}
 	<TagSheet
@@ -1823,8 +1875,63 @@
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}
+	/* FILE and FOLDED (c526): the label, the text, then the cells. The line
+	   wraps, so where the cells drop (below) they take a line of their own. */
 	.file-row {
 		min-height: 64px;
+		flex-wrap: wrap;
+	}
+	.file-row > .label {
+		min-height: 64px;
+	}
+	.cells {
+		display: flex;
+	}
+	/* Narrow (the phone, the 440px landscape panel and the TV's 352px column),
+	   as LISTS' rule has it (doc/handoffs/series-lists/): two or more cells drop
+	   under the line in equal columns, so `13 EPUB · 6.8 MB` keeps the row's
+	   width instead of a word a line. One cell stays at the line's end. The
+	   tablet in portrait has the width, and keeps them inline. */
+	@media (max-width: 599px), (min-width: 1024px), (pointer: none) and (min-width: 900px) {
+		.file-row.many .cells {
+			flex-basis: 100%;
+			display: grid;
+			grid-auto-flow: column;
+			grid-auto-columns: minmax(0, 1fr);
+			min-height: 52px;
+			border-top: var(--hairline);
+		}
+		.file-row.many .cells .edit {
+			justify-content: center;
+			width: 100%;
+			padding: 0 8px;
+		}
+		.file-row.many .cells > :first-child,
+		.file-row.many .cells > :first-child .edit {
+			border-left: 0;
+		}
+	}
+	/* RENAME's field, a row of its own under FILE (the Work screen's). */
+	.rename {
+		display: flex;
+		align-items: stretch;
+		min-height: 52px;
+		border-bottom: var(--hairline);
+	}
+	.rename .field {
+		flex: 1;
+		min-width: 0;
+		margin: 0;
+		padding: 0 var(--pad);
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 400 16px var(--font-sans);
+	}
+	.edit.acc {
+		background: var(--accent);
+		color: var(--on-accent);
 	}
 	/* SOURCE and DOWNLOAD keep LINK's old row shape (Series Link): the mock's literals. */
 	.link-row {

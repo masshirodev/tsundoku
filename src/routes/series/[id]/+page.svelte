@@ -33,6 +33,7 @@
 	import { orderBooks } from '$lib/library/books';
 	import { partDone } from '$lib/library/works';
 	import type { TakeOutFacts } from '$lib/server/works';
+	import type { SeriesRenameFacts } from '$lib/server/series';
 	import { withParam, readHref } from '$lib/library/links';
 	import {
 		addedDetail,
@@ -117,6 +118,8 @@
 	const createdOrder = $derived(page.url.searchParams.get('order') ?? 'BY DATE ADDED');
 	const takenOut = $derived(form && 'takenOut' in form ? form.takenOut : null);
 	const markedThrough = $derived(form && 'markedThrough' in form ? form.markedThrough : null);
+	// RENAME's band (c526): the facts the action returned, so UNDO puts back exactly them.
+	const renamed = $derived(form && 'renamed' in form ? (form.renamed as SeriesRenameFacts) : null);
 	/**
 	 * REFRESH's answer (card c220): what the source lists that no entry was.
 	 * REFRESH never downloads, so the band says so and leaves NEXT or ALL to
@@ -536,6 +539,23 @@
 								value={id}
 							/>{/each}
 						<button type="submit" name="read" value="0">UNDO</button>
+					</form>
+				{/if}
+			{/snippet}
+		</Band>
+	{:else if renamed}
+		<!-- RENAME (c526): the Work screen's idiom, the new name and the old, with UNDO. -->
+		<Band
+			title="RENAMED · {renamed.name.toUpperCase()}"
+			detail={renamed.name === renamed.title
+				? 'THE SAME NAME'
+				: `WAS ${renamed.title.toUpperCase()}`}
+		>
+			{#snippet action()}
+				{#if renamed.name !== renamed.title}
+					<form method="POST" action="?/undoRename" use:enhance>
+						<input type="hidden" name="facts" value={JSON.stringify(renamed)} />
+						<button type="submit">UNDO</button>
 					</form>
 				{/if}
 			{/snippet}
