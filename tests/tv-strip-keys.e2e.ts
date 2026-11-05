@@ -46,7 +46,16 @@ test('with the controls hidden, a remote’s → and ← nudge the strip; with t
 	await expect(reading).toBeFocused();
 
 	// Controls up: → moves along the row, and the strip stays where it is.
-	const y = () => page.evaluate(() => Math.round(scrollY));
+	// A chapter arriving above under load scrolls the strip with it to keep
+	// the place (`keepPlaceBy`); that is taken away, as reader-flow's c192
+	// case does.
+	await page.evaluate(() => {
+		const w = window as unknown as { kept: number };
+		w.kept = 0;
+		addEventListener('tsundoku:kept-place', (e) => (w.kept += (e as CustomEvent<number>).detail));
+	});
+	const y = () =>
+		page.evaluate(() => Math.round(scrollY - ((window as unknown as { kept?: number }).kept ?? 0)));
 	let before = await y();
 	await expect
 		.poll(

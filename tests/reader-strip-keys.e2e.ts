@@ -28,6 +28,10 @@ async function open(page: import('@playwright/test').Page) {
 	await page.waitForLoadState('networkidle');
 }
 
+/** The strip's scroll, less what keeping its place added since `toStrip` began. */
+const place = (page: import('@playwright/test').Page) =>
+	page.evaluate(() => Math.round(scrollY - ((window as unknown as { kept?: number }).kept ?? 0)));
+
 const pageParam = (page: import('@playwright/test').Page) =>
 	Number(new URL(page.url()).searchParams.get('p') ?? '0');
 
@@ -45,8 +49,16 @@ async function toStrip(page: import('@playwright/test').Page) {
 	await page.keyboard.press('Escape');
 	await expect(page.getByRole('banner', { name: 'Reader' })).toHaveCount(0);
 	// The strip finds its place after the switch (pages above arrive and the
-	// place is kept): wait until it has held still for a second.
-	const y = () => page.evaluate(() => Math.round(scrollY));
+	// place is kept): wait until it has held still for a second. A chapter can
+	// still arrive later under load, and the strip then scrolls with it by
+	// thousands of pixels (`keepPlaceBy`); `place()` takes those away, as
+	// reader-flow's c192 case does.
+	await page.evaluate(() => {
+		const w = window as unknown as { kept: number };
+		w.kept = 0;
+		addEventListener('tsundoku:kept-place', (e) => (w.kept += (e as CustomEvent<number>).detail));
+	});
+	const y = () => place(page);
 	let before = await y();
 	await expect
 		.poll(
@@ -59,6 +71,8 @@ async function toStrip(page: import('@playwright/test').Page) {
 			{ intervals: [1000], timeout: 30_000 }
 		)
 		.toBe(true);
+	// Measured from here: what was kept while settling is the start.
+	await page.evaluate(() => ((window as unknown as { kept: number }).kept = 0));
 }
 
 test('a paged reader still turns on ← and →', async ({ page }) => {
@@ -80,7 +94,7 @@ test('on the strip, → and ← nudge as Ctrl + ↓ and Ctrl + ↑ do; Ctrl + �
 }) => {
 	await open(page);
 	await toStrip(page);
-	const y = () => page.evaluate(() => scrollY);
+	const y = () => place(page);
 	const y0 = await y();
 	expect(y0).toBeGreaterThan(40);
 
@@ -122,7 +136,7 @@ test('zoomed wider than the screen, ← and → pan the strip sideways instead',
 	const at = () =>
 		page.evaluate(() => ({
 			x: Math.round(document.querySelector('.lane.wider')!.scrollLeft),
-			y: Math.round(scrollY)
+			y: Math.round(scrollY - ((window as unknown as { kept?: number }).kept ?? 0))
 		}));
 	const before = await at();
 	await page.keyboard.press('ArrowRight');
