@@ -115,6 +115,28 @@ band reads as the page's edge, dark or light:
 Before any page has drawn, the band is the theme's: graphite, or the paper
 `#f5f4ef` the web app's `theme-color` says when the phone is set to light.
 
+### Drawn under the camera: the reader
+
+A page can ask to run under the camera: the bridge's `edge(true)` drops the
+cutout and gesture padding until the page says `edge(false)`, and every new
+document starts padded again. Whether padded or not, the page is told the
+band's and the gesture strip's sizes as `--app-inset-top`, `-right`,
+`-bottom` and `-left` (CSS px, `Insets.css`), since a WebView reports
+`env(safe-area-inset-*)` only on newer versions. `SHORT_EDGES` lets the app
+into the cutout on Android 14 and older too, where a fullscreen window is
+otherwise kept out of it.
+
+The reader's manga and manhwa pages use it (the owner, 2026-11-05):
+
+- **The pages run under the camera**, edge to edge, while the bars are down.
+- **The top bar stays where it is**, below the band, its background extended
+  up through the band (`padding-top: var(--app-inset-top)`), so the page
+  never shows above it while the bars are up.
+- **The bottom bar hugs the display's edge**, with no inset.
+
+The app side is built; the reader's side waits for wave 24, whose `series`
+slot holds `src/routes/read/`.
+
 ## Text size
 
 The WebView's `textZoom` follows Android's font size, up to 130%
