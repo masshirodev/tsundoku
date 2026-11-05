@@ -150,6 +150,51 @@ the Windows smoke covers the server's side. It was checked by eye on
 2026-10-30 against a dated build and a scratch-signed manifest, on the
 desktop and the phone.
 
+## The Android apps
+
+The phone and tablet app and the TV app are sideloaded, so nothing else
+updates them; they update themselves from the same host and the same signed
+`latest.json` (card c614, "The Android apps update themselves: a signed APK
+from the release host, offered in UPDATES and the library's modal";
+[`PHONE-APP.md`](PHONE-APP.md), [`TV-APP.md`](TV-APP.md)).
+
+- **Published with every release.** `ops/release/android-apk.sh <version>`
+  builds both beside the bundles, release-signed; `release:publish` refuses a
+  version without them, or with a `-debug` one (a debug-signed APK can't
+  update an installed app, whose certificate is the keystore's). They go up
+  as `tsundoku-app.apk` and `tsundoku-tv.apk`, in the manifest under
+  `files.android.app` and `files.android.tv`, size and SHA-256 signed with
+  the rest. **A friend's lasting link** for a first install is
+  `https://dl.tsundoku.masshiro.pro/latest/tsundoku-app.apk`.
+- **Looking** (`Updater.kt`): on launch at most once a day, never for a
+  build whose version is no release (a local `1.0.0`), and when asked. One
+  GET of `latest.json`, with a user agent of `tsundoku-app/<version>`.
+- **Trust, as on a computer** (`ReleaseCheck.kt`): the manifest's ed25519
+  signature checked against the same release key (`net.i2p.crypto:eddsa`,
+  since Android 6 has no ed25519; a JVM test reads `RELEASE_KEY` out of
+  `update-manifest.ts`, so the two copies can't drift), and the APK checked
+  against the signed size and SHA-256 before anything installs it.
+- **Newer** is the release-version order, and a dev build counts by its date
+  (`2026.11.05-dev2` is offered `2026.11.05.1` and later). Android's
+  `versionCode` is the date version as YYYYMMDDNN (`Versions.code`, and the
+  same rule in `app/build.gradle.kts`), so every release is newer to the
+  installer than the one before; before c614 it was always 1.
+- **Installing** is Android's PackageInstaller. Android 8 and later ask once
+  to allow installs from tsundoku (the app opens that switch and installs when
+  you come back), and Android shows its own "Update this app?" the first
+  time. From Android 12, an app that installed itself may update without
+  asking again (`USER_ACTION_NOT_REQUIRED`). Never silent the first time:
+  only an app store can be.
+- **Saying so** is the web app's: the bridge gives the page `appUpdate()`
+  (the version running, the phase, the release on offer), `appCheck()`, and
+  the guarded `appDownload()` and `appInstall()`, and posts every change as
+  `window.tsundokuAppUpdate(state)`. The owner chose (2026-11-05) to reuse
+  what the computer has rather than draw anything new: a THIS APP row under
+  SETTINGS' UPDATES, and the library's modal for the app. **Not built yet**:
+  SETTINGS, the library page and the i18n messages are wave 25's while it
+  runs, so the page side of c614 follows it. Until then the app checks and
+  can install, and nothing on screen offers it.
+
 ## Tests
 
 `tests/update-manifest.spec.ts` (signatures, tampering, malformed manifests,

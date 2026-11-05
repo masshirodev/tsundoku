@@ -64,11 +64,14 @@ ops/release/tv-apk.sh 2026.11.05                  # the TV app alone (--app tv)
 - The version is also each app's user agent: `TsundokuTV/<version>` names a
   paired TV a TV in the computer's DEVICES, `TsundokuApp/<version>` a phone or
   tablet the app (`PHONE · APP`).
-- **Not in a bundle**: each APK is downloaded and installed on its device
-  separately (adb over the network, or the file), since a bundle is a
-  friend's computer.
-- **Unsigned debug builds and signed releases cannot update each other**, and
-  `versionCode` stays 1 until a second APK ships.
+- **Not in a bundle, but in the release** (c614): `release:publish` puts both
+  APKs on the release host beside the bundles, signed into `latest.json`, and
+  refuses a version without them. So run `android-apk.sh` before
+  `release:publish`, with the keystore set. An installed app finds the next
+  one by itself ([`UPDATES.md`](UPDATES.md), "The Android apps").
+- **`versionCode` is the date version** (YYYYMMDDNN) since c614, so every
+  release installs over the one before.
+- **Unsigned debug builds and signed releases cannot update each other.**
 
 Nothing about the APKs runs in the smoke test: it needs a television or a
 phone, which the smoke machines have not got.

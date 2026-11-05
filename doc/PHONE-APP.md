@@ -78,6 +78,12 @@ The JVM tests run once per flavor: `FormTest`, `InsetsTest` and `NetworkTest`
 are this app's, beside the TV's. A release is `ops/release/android-apk.sh`
 ([`RELEASE.md`](RELEASE.md), "The Android apps"); one keystore signs both.
 
+## Updates
+
+The app updates itself from the release host, checked against tsundoku's
+release key, as a friend's computer does: [`UPDATES.md`](UPDATES.md), "The
+Android apps" (c614).
+
 ## Install it
 
 The APK, by `adb` (`adb install -r tsundoku-app-<version>.apk`) or as a file
