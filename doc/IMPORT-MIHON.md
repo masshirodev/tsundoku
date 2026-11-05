@@ -316,9 +316,12 @@ plan meets the series a backup names, including a pair that already exists.
   its place, and two parts of one Work stay in it: neither is a loss. No file moves. Its **title, kind and direction** are the one setting a fold cannot
   keep from both rows: a folder's series the owner renamed — its title no
   longer the name its folder builds — passes that name to the survivor, with
-  the kind and direction set beside it, since the backup's row would otherwise
+  the kind and direction set beside it (a novel's page direction,
+  `text_direction`, too, c551), since the backup's row would otherwise
   be the import's name over the owner's. A folder's series still named as its
-  folder carries no edit, and the survivor keeps its own.
+  folder carries no edit, and the survivor keeps its own, except that a page
+  direction fills in where the survivor has none, as a rating does: R→L set on
+  either row survives the fold.
 
 **A folder whose chapters the backup does not share waits beside it.** The
 source and title are not enough on their own: adopting would take the folder's

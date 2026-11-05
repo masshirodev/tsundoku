@@ -55,3 +55,60 @@ describe('a novel’s reading direction', () => {
 		expect(KINDS.filter((k) => dir.takesTextDirection(k))).toEqual(['novel']);
 	});
 });
+
+describe('a novel’s reading direction through GROUP and TAKE OUT (c551)', () => {
+	const books = () => import('$lib/server/books');
+	const novels = ['Villainess Level 99', 'Tensei Shitara Ken Deshita', 'Honzuki no Gekokujou'];
+	// Each case on a fresh seed: GROUP and TAKE OUT rename and re-make series.
+	const reset = () => {
+		const db = getDb();
+		db.exec(`DELETE FROM works; DELETE FROM work_dismissals; DELETE FROM roots;
+			DELETE FROM collections; DELETE FROM tags; DELETE FROM scan_jobs;
+			DELETE FROM suggestion_dismissals; DELETE FROM person_favourites; DELETE FROM history_removed;
+			DELETE FROM tracker_accounts;`);
+		seedSample(db, Date.UTC(2026, 8, 22));
+	};
+
+	it('a group of volumes reads R→L when its first volume did, and each volume taken out reads R→L again', async () => {
+		const { groupIntoSeries, takeOutVolumes } = await books();
+		reset();
+		const [a, b] = novels.map(idOf);
+		dir.setTextDirection(a, 'rtl');
+		const { seriesId } = groupIntoSeries({ seriesIds: [a, b], name: 'Grouped R→L' });
+		expect(stored(seriesId)).toBe('rtl');
+		expect(dir.textDirectionOf(seriesId)).toBe('rtl');
+		const out = takeOutVolumes(seriesId);
+		expect(out).toHaveLength(2);
+		expect(out.map(stored)).toEqual(['rtl', 'rtl']);
+	});
+
+	it('takes a later volume’s R→L when the first has none: NULL is the default, not a choice to keep', async () => {
+		const { groupIntoSeries } = await books();
+		reset();
+		const [a, b, c] = novels.map(idOf);
+		dir.setTextDirection(c, 'rtl');
+		const { seriesId } = groupIntoSeries({ seriesIds: [a, b, c], name: 'Third is R→L' });
+		expect(stored(seriesId)).toBe('rtl');
+	});
+
+	it('stays the default when no volume has a direction of its own', async () => {
+		const { groupIntoSeries, takeOutVolumes } = await books();
+		reset();
+		const [a, b] = novels.map(idOf);
+		const { seriesId } = groupIntoSeries({ seriesIds: [a, b], name: 'Plain' });
+		expect(stored(seriesId)).toBeNull();
+		expect(takeOutVolumes(seriesId).map(stored)).toEqual([null, null]);
+	});
+
+	it('a volume joining a series keeps the series’ own direction, as it keeps its layout', async () => {
+		const { groupIntoSeries } = await books();
+		reset();
+		const [a, b, c] = novels.map(idOf);
+		const { seriesId } = groupIntoSeries({ seriesIds: [a, b], name: 'Joined' });
+		dir.setTextDirection(c, 'rtl');
+		groupIntoSeries({ seriesIds: [c], into: seriesId });
+		expect(stored(seriesId)).toBeNull();
+		dir.setTextDirection(seriesId, 'rtl');
+		expect(stored(seriesId)).toBe('rtl');
+	});
+});
