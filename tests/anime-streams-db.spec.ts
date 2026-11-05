@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
@@ -164,7 +164,7 @@ const text = async (src: string, range: string | null = null) => {
 	};
 };
 
-videoAnswer = [
+const KWIK_AND_VIDSTREAM = [
 	{
 		quality: 'Kwik - 1080p',
 		videoUrl: `${ENGINE_SELF}/video/master.m3u8`,
@@ -180,6 +180,14 @@ videoAnswer = [
 		subtitleTracks: [{ url: 'https://site.example/subs/en.srt', lang: 'English' }]
 	}
 ];
+
+// Each case starts from the source's two servers and nothing kept: several
+// set an answer of their own, and a stream resolved by one was served from
+// memory to the next, so the order decided what a case saw (c293).
+beforeEach(() => {
+	videoAnswer = KWIK_AND_VIDSTREAM;
+	streams.forgetStreams();
+});
 
 describe('an episode’s streams', () => {
 	it('are servers whose every address is tsundoku’s, its opening and ending kept', async () => {

@@ -442,6 +442,38 @@ describe('rating and favourite', () => {
 		expect(library.get('w2')).toMatchObject({ favourite: true, rating: 9, rev: 41 });
 	});
 
+	// c95: the test above failed now and then with the FAV never sent. Its
+	// want came in the millisecond of the rating's send, and `sent_at <
+	// wanted_at` read it as sent. One clock tick for the whole test, later than
+	// any send before it, makes that every time; a want made while the PUT is
+	// out is the same race.
+	it('sends a want made in the same millisecond as the last send, or during it', async () => {
+		const tick = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 60_000);
+		try {
+			rb.afterRating([HONZUKI], 7);
+			await rb.flush();
+			rb.afterFavourite([HONZUKI], false);
+			await rb.flush();
+			expect(library.get('w2')).toMatchObject({ rating: 7, favourite: false });
+
+			let once = true;
+			rb.setRanobeFetch(async (input, init) => {
+				if (init?.method === 'PUT' && once) {
+					once = false;
+					rb.afterFavourite([HONZUKI], true);
+				}
+				return fake(input, init);
+			});
+			rb.afterRating([HONZUKI], 8);
+			await rb.flush();
+			await rb.flush();
+			expect(library.get('w2')).toMatchObject({ rating: 8, favourite: true });
+		} finally {
+			tick.mockRestore();
+			rb.setRanobeFetch(fake);
+		}
+	});
+
 	it('clears the rating for unrated, and says nothing for a series not linked', async () => {
 		rb.afterRating([HONZUKI, KEN], 0);
 		await rb.flush();

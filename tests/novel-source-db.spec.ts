@@ -115,6 +115,9 @@ beforeEach(() => {
 			('broken', 'Broken Novels', 'https://broken.example/', 'en', '1.0.0', 'h2', 0, 0, 'SyntaxError')`
 	).run();
 	forgetSourceUse();
+	// A novel parsed by one case was kept for the next, which then asked for
+	// none of its pages (c293).
+	source.forgetNovels();
 });
 
 describe('a plugin in BROWSE', () => {

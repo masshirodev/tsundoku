@@ -272,6 +272,8 @@ type Parsed = LnNovel & { totalPages?: number };
 // is a hundred calls. Kept briefly, then asked again.
 const KEEP_NOVEL_MS = 10 * 60 * 1000;
 const novels = new Map<string, { at: number; novel: Parsed }>();
+/** For tests: forget the novels kept. */
+export const forgetNovels = () => novels.clear();
 
 /**
  * A novel and every chapter it lists, every page of a paged plugin's, a
