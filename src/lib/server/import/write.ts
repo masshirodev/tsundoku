@@ -5,7 +5,7 @@ import { getDb } from '../db.ts';
 import { hueFor } from '../../library/cover.ts';
 import { linkFromTracker } from '../catalogue.ts';
 import type { PlannedEntry, PlannedSeries } from '../../import/plan.ts';
-import { adoptFolder, adoptFormer, adoptNamed } from './fold.ts';
+import { adoptFolder, adoptFormer, adoptNamed, type Dropped } from './fold.ts';
 import { hideIfAddedHidden } from '../engine/source-flags.ts';
 
 /**
@@ -92,6 +92,8 @@ export type WriteResult = {
 	filesAttached: number;
 	/** Created visible and hidden by its source's ADDED HIDDEN (`opts.addedHidden`). */
 	addedHidden?: boolean;
+	/** Works a fold of this write took a series out of (c472; `Dropped`, fold.ts). */
+	dropped?: Dropped[];
 };
 
 export function writeSeries(
@@ -139,7 +141,8 @@ export function writeSeries(
 	}
 	return db
 		.transaction((): WriteResult => {
-			adoptFormer(db, s, opts.now);
+			const dropped: Dropped[] = [];
+			adoptFormer(db, s, opts.now, dropped);
 			const byKey = db.prepare(`SELECT id FROM series WHERE origin_key = ?`);
 			let seriesId: number | null =
 				(byKey.get(s.originKey) as { id: number } | undefined)?.id ?? null;
@@ -168,7 +171,7 @@ export function writeSeries(
 			// found and the two are settled before anything is written.
 			const folderPlan = s.originKey.startsWith('mihon-dir:');
 			if (folderPlan) {
-				if (!leftKey) seriesId = adoptNamed(db, s, opts.rootId, opts.now) ?? seriesId;
+				if (!leftKey) seriesId = adoptNamed(db, s, opts.rootId, opts.now, dropped) ?? seriesId;
 			} else if (seriesId === null) {
 				seriesId = adoptFolder(db, s, opts.rootId, opts.now);
 			}
@@ -481,7 +484,13 @@ export function writeSeries(
 						db.prepare(`UPDATE entries SET available = 0 WHERE id = ?`).run(r.id);
 			}
 			const addedHidden = created && opts.addedHidden === true && hideIfAddedHidden(seriesId, db);
-			return { created, entriesAdded, filesAttached, ...(addedHidden ? { addedHidden } : {}) };
+			return {
+				created,
+				entriesAdded,
+				filesAttached,
+				...(addedHidden ? { addedHidden } : {}),
+				...(dropped.length ? { dropped } : {})
+			};
 		})
 		.immediate();
 }

@@ -22,7 +22,12 @@ import { setHiddenWhole } from '../works.ts';
  * as a move's old key does (doc/MOVE.md), so the device whose backup still
  * doesn't name the manga never makes it again.
  */
-export function adoptFormer(db: Database.Database, s: PlannedSeries, now: number): void {
+export function adoptFormer(
+	db: Database.Database,
+	s: PlannedSeries,
+	now: number,
+	dropped: Dropped[] = []
+): void {
 	if (!s.formerKey) return;
 	const former = seriesBy(db, s.formerKey);
 	if (!former) return;
@@ -33,7 +38,7 @@ export function adoptFormer(db: Database.Database, s: PlannedSeries, now: number
 	// the record would take a downloaded, rated, read series out of the library
 	// and let pruneRecords forget its reading. So the record's data moves into
 	// the folder's series, which keeps the library row, its id and its key.
-	if (current && current.in_library !== 1) foldSeries(db, current.id, former.id);
+	if (current && current.in_library !== 1) note(dropped, foldSeries(db, current.id, former.id));
 	// Both exist and the URL's is the library's: the folder's is folded into it,
 	// keeping whatever the owner did in either. No file is moved. A fold keeps
 	// only one side's title, kind and direction, so the folder's edit is carried
@@ -43,7 +48,7 @@ export function adoptFormer(db: Database.Database, s: PlannedSeries, now: number
 	else if (current) {
 		const parts = folderParts(s.formerKey);
 		if (parts) carryEdit(db, former.id, current.id, parts.dir);
-		foldSeries(db, former.id, current.id);
+		note(dropped, foldSeries(db, former.id, current.id));
 		rememberKey(db, current.id, s.formerKey, 'mihon', s.originKey, now);
 		return;
 	}
@@ -135,7 +140,8 @@ export function adoptNamed(
 	db: Database.Database,
 	s: PlannedSeries,
 	rootId: number,
-	now: number
+	now: number,
+	dropped: Dropped[] = []
 ): number | null {
 	const folder = s.folder;
 	const parts = folderParts(s.originKey);
@@ -160,7 +166,7 @@ export function adoptNamed(
 		if (best.row.path === '' && own.path !== '')
 			db.prepare(`UPDATE series SET path = ? WHERE id = ?`).run(own.path, best.row.id);
 		carryEdit(db, own.id, best.row.id, parts.dir);
-		foldSeries(db, own.id, best.row.id);
+		note(dropped, foldSeries(db, own.id, best.row.id));
 	}
 	rememberKey(db, best.row.id, s.originKey, 'mihon', best.row.origin_key, now);
 	return best.row.id;
@@ -364,6 +370,25 @@ function tablesWith(db: Database.Database, column: string): string[] {
 }
 
 /**
+ * A Work a fold took a series out of (card c472): `from` was a part of it and
+ * `into` a part of another, and a series is in one Work at most, so `from`'s
+ * membership went with its row. `series` is the survivor's title, as the
+ * library shows it after the fold; `ended` says the Work was left with one
+ * series and so ended (rung 61's trigger). Named in the import's summary as
+ * DROPPED FROM <WORK> (`droppedLine`), since the owner's grouping cannot be
+ * put back by the import.
+ */
+export type Dropped = { work: string; series: string; ended: boolean };
+
+const note = (into: Dropped[], d: Dropped | null) => {
+	if (d) into.push(d);
+};
+
+/** The summary's line for one dropped membership. */
+export const droppedLine = (d: Dropped) =>
+	`DROPPED FROM ${d.work.toUpperCase()} · ${d.series}${d.ended ? ' · THE WORK ENDED' : ''}`;
+
+/**
  * Fold series `from` into series `into`, then delete `from`. A chapter both
  * have (the same file, else the same URL, else the same label) is one: read
  * state moves forward as on a rescan, the newer place in it wins, a rating
@@ -374,9 +399,10 @@ function tablesWith(db: Database.Database, column: string): string[] {
  * and takes its Work with it (`setHiddenWhole`).
  *
  * Runs inside the writer's transaction, on `getDb()`'s connection, which is
- * the one `setHiddenWhole` writes through.
+ * the one `setHiddenWhole` writes through. Answers the Work `from` was
+ * dropped from, when `into` was a part of another one (`Dropped`), else null.
  */
-export function foldSeries(db: Database.Database, from: number, into: number): void {
+export function foldSeries(db: Database.Database, from: number, into: number): Dropped | null {
 	const pathOf = (id: number) =>
 		(db.prepare(`SELECT path FROM series WHERE id = ?`).get(id) as { path: string }).path;
 	const entriesOf = (id: number) =>
@@ -460,6 +486,13 @@ export function foldSeries(db: Database.Database, from: number, into: number): v
 
 	// Read before the row goes: hidden by its own flag, or by its root's.
 	const fromHidden = hiddenNow(db, from);
+	// And the Work each is a part of: two different ones mean `from`'s is lost.
+	const workOf = db.prepare(
+		`SELECT w.id, w.name FROM work_series ws JOIN works w ON w.id = ws.work_id WHERE ws.series_id = ?`
+	);
+	const fromWork = workOf.get(from) as { id: number; name: string } | undefined;
+	const intoWork = workOf.get(into) as { id: number; name: string } | undefined;
+	const lost = fromWork && intoWork && fromWork.id !== intoWork.id ? fromWork : null;
 	// `work_series` is one of these: `from`'s membership moves to `into` when
 	// `into` is in no Work, and is dropped when it is in one (a series is in
 	// one Work at most), the trigger ending a Work that leaves with one.
@@ -480,6 +513,11 @@ export function foldSeries(db: Database.Database, from: number, into: number): v
 	// Work `into` joined hidden -- the half-hidden Work no other door makes.
 	// Never the other way: a fold never shows anything.
 	if (fromHidden || hiddenNow(db, into)) setHiddenWhole([into], true);
+	if (!lost) return null;
+	const title = (db.prepare(`SELECT title FROM series WHERE id = ?`).get(into) as { title: string })
+		.title;
+	const ended = !db.prepare(`SELECT 1 FROM works WHERE id = ?`).get(lost.id);
+	return { work: lost.name, series: title, ended };
 }
 
 /** Whether SQL's rule reads this series as hidden: its own flag, or its root's. */

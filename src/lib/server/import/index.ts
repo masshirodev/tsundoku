@@ -18,6 +18,7 @@ import { epubBytes, epubRoot, planEpubFile, planEpubFolder } from './epub.ts';
 import { animeBytes, animeSeriesDirs, planAnimeFolders, planAnimeSeries } from './anime.ts';
 import { ANIME_FOLDER } from '../../library/anime-files.ts';
 import { closeDeadJobs, ensureRoot, ensureNamedRoot, finishJob, writeSeries } from './write.ts';
+import { droppedLine, type Dropped } from './fold.ts';
 import { reconcileDuplicates } from '../duplicates.ts';
 import { forgetSourceUse } from '../library-sources.ts';
 import { refreshCovers } from '../covers.ts';
@@ -281,6 +282,12 @@ export type SourceSummary = {
 	filesAttached: number;
 	skipped: number;
 	backup?: string | null;
+	/**
+	 * Works a fold took a series out of (card c472; doc/IMPORT-MIHON.md, "Both
+	 * exist"): the owner's grouping the import could not keep. `droppedLine`
+	 * (fold.ts) is the line the summary prints for each.
+	 */
+	dropped: Dropped[];
 };
 
 export type ImportSummary = { jobId: number; failedFiles: number; sources: SourceSummary[] };
@@ -430,7 +437,7 @@ export async function attachWritten(
 		for (const s of series) {
 			if (planned.has(s.path)) continue;
 			planned.add(s.path);
-			writeSeries(
+			const r = writeSeries(
 				s,
 				{
 					rootId,
@@ -442,6 +449,7 @@ export async function attachWritten(
 				},
 				db
 			);
+			for (const d of r.dropped ?? []) console.log(`[import] ${droppedLine(d)}`);
 			const id = db.prepare(`SELECT id FROM series WHERE origin_key = ?`).get(s.originKey) as
 				{ id: number } | undefined;
 			if (id) touched.add(id.id);
@@ -501,7 +509,8 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 				entriesAdded: 0,
 				filesAttached: 0,
 				skipped: plan.skipped,
-				backup: plan.backup
+				backup: plan.backup,
+				dropped: []
 			};
 			let written = 0;
 			for (const series of plan.series) {
@@ -523,6 +532,10 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 				if (source.counts === 'series') p.bytesDone += 1;
 				out.entriesAdded += r.entriesAdded;
 				out.filesAttached += r.filesAttached;
+				for (const d of r.dropped ?? []) {
+					out.dropped.push(d);
+					console.log(`[import] ${droppedLine(d)}`);
+				}
 				// The band counts arrivals ("N SERIES SO FAR") and is shown while
 				// reveal may be off: nothing hidden, by series or by root, counts.
 				// A series its source's ADDED HIDDEN hid (c503) is hidden too.

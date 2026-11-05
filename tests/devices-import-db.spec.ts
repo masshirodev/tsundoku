@@ -1345,6 +1345,8 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 	const ids: Record<string, { folder: number; named: number }> = {};
 	const partner: Record<string, number> = {};
 	const made: Record<string, number> = {};
+	/** What the run that folds the three pairs dropped, over its sources. */
+	let folding: { dropped: { work: string; series: string; ended: boolean }[] } | undefined;
 
 	beforeAll(async () => {
 		for (const [title, slug] of PAIRS) for (const n of [1, 2]) chapter(title, slug, n);
@@ -1408,7 +1410,10 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 
 		// tsundoku downloads chapter 5 of each: the pair now shares one, and folds.
 		for (const [title, slug] of PAIRS) chapter(title, slug, 5);
-		await runImport(library, { now: at + 10_000 });
+		// Every source's: the library's backup and tsundoku's downloads are two.
+		folding = {
+			dropped: (await runImport(library, { now: at + 10_000 })).sources.flatMap((x) => x.dropped)
+		};
 		for (const [title] of PAIRS) expect(byKey(DIR(title))).toBeUndefined();
 	});
 
@@ -1437,6 +1442,19 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 		expect(w.workOfSeries(partner['Fold Partner Three'])).toBeNull();
 		// `from` was hidden, so the survivor is, and its Work with it.
 		expect(await visibility(made.shownWork)).toEqual(['hidden', 'hidden']);
+	});
+
+	it('names the Work the third shape dropped in the import’s summary, and only that one (c472)', async () => {
+		const { droppedLine } = await import('$lib/server/import/fold');
+		// Reached through the importer's own door: the scan that folded the
+		// pairs. Shapes 1 and 2 kept every membership (one Work between them);
+		// shape 3 lost Hidden Work, which then ended with one series.
+		expect(folding?.dropped).toEqual([
+			{ work: 'Hidden Work', series: 'Fold Both Parts', ended: true }
+		]);
+		expect(folding!.dropped.map(droppedLine)).toEqual([
+			'DROPPED FROM HIDDEN WORK · Fold Both Parts · THE WORK ENDED'
+		]);
 	});
 
 	it('never leaves any Work in the library hidden in part', () => {

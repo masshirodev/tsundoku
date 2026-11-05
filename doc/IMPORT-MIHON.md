@@ -283,7 +283,13 @@ plan meets the series a backup names, including a pair that already exists.
   hidden whole, never left with one part hidden (c389, doc/WORKS.md, "The one
   rule"). A fold never shows anything. A survivor already in a Work keeps
   that Work; the folder's membership is dropped with its row, and a Work left
-  with one series ends. No file moves. Its **title, kind and direction** are the one setting a fold cannot
+  with one series ends. That loss is the owner's grouping and the import
+  cannot put it back, so it is named: each source's summary lists it
+  (`dropped`, card c472), as `DROPPED FROM <WORK> · <survivor's title>`, with
+  `· THE WORK ENDED` when the Work was left with one series, and the server's
+  log carries the same line (`[import] …`, from a scan and from what a
+  download attaches). A survivor in no Work takes the folder's membership in
+  its place, and two parts of one Work stay in it: neither is a loss. No file moves. Its **title, kind and direction** are the one setting a fold cannot
   keep from both rows: a folder's series the owner renamed — its title no
   longer the name its folder builds — passes that name to the survivor, with
   the kind and direction set beside it, since the backup's row would otherwise
