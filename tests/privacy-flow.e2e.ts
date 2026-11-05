@@ -57,6 +57,8 @@ test('reading while incognito is never written', async ({ page }) => {
 	// incognito since c499, so today's row is this file's one chapter, "P. 6
 	// OF …", not a day across several, "CH. 1 → 199 · P. 6"
 	// (src/lib/library/history.ts), which the c439 tolerance used to accept.
+	// The negative check below still matches P. 6 in either shape, so a written
+	// incognito page is caught even on a day that does span chapters.
 	const today = page.locator('.rows').first().locator('.row', { hasText: TITLE });
 
 	await command(page, '/incognito');
@@ -65,9 +67,9 @@ test('reading while incognito is never written', async ({ page }) => {
 	});
 	expect(await off.json()).toEqual({ saved: false });
 	await page.goto('/history');
-	await expect(
-		page.locator('.row', { hasText: TITLE }).filter({ hasText: /P\. 6 OF/ })
-	).toHaveCount(0);
+	await expect(page.locator('.row', { hasText: TITLE }).filter({ hasText: /P\. 6\b/ })).toHaveCount(
+		0
+	);
 
 	await page.getByRole('button', { name: 'END' }).click();
 	await expect(page.getByText('INCOGNITO · NOTHING SAVED')).toHaveCount(0);

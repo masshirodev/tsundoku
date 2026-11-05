@@ -36,13 +36,18 @@ async function open(page: import('@playwright/test').Page) {
  * scroll anchoring moved `scrollY` by thousands of pixels as images above came
  * in, with no event (4864 px on tablet-portrait, 10504 on the phone, wave 23's
  * loaded whole run; c439). A nudge moves the slot by its 40 px whatever
- * arrives above it.
+ * arrives above it. If that slot leaves the strip, `place()` throws rather
+ * than switch measures mid-case.
  */
 const place = (page: import('@playwright/test').Page) =>
 	page.evaluate(() => {
 		const w = window as unknown as { kept?: number; ref?: Element };
-		if (w.ref?.isConnected) return Math.round(-w.ref.getBoundingClientRect().top);
-		return Math.round(scrollY - (w.kept ?? 0));
+		if (!w.ref) return Math.round(scrollY - (w.kept ?? 0));
+		// Never fall back to the scroll once the slot is the measure: a start read
+		// off the slot against a scroll read now differs by thousands of pixels,
+		// which reads as a wrong nudge rather than as what it is.
+		if (!w.ref.isConnected) throw new Error('place(): the reference page slot left the strip');
+		return Math.round(-w.ref.getBoundingClientRect().top);
 	});
 
 const pageParam = (page: import('@playwright/test').Page) =>

@@ -62,6 +62,8 @@ test('a filter narrows the shelf: the URL, the label, the tab’s count and the 
 	// (library-flow, series-flow, delete-flow, volumes-flow), so the total read
 	// at the first load was another library's by the filtered one. Red in both
 	// of wave 22's gates, passing alone (c439).
+	// M is only bounded from below: the render states no total of ALL's to
+	// compare it with, and a total read on another load is another library's.
 	const shown = await page.locator('.grid .tile').count();
 	await expect(tab).toContainText(new RegExp(`\\b${shown} OF \\d+`));
 	const of = Number((await tab.textContent())!.match(/\d+ OF (\d+)/)![1]);
