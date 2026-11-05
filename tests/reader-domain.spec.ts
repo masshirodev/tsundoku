@@ -42,6 +42,7 @@ import {
 	textFont,
 	textSettings
 } from '$lib/reader/text';
+import { OnePointer } from '$lib/reader/pointer';
 
 describe('mouse buttons', () => {
 	it('click turns forward and right click back, whichever way the pages run', () => {
@@ -490,5 +491,44 @@ describe('the text reader’s fonts (c442)', () => {
 			'PAGED · SANS 20 · DARK',
 			'PAGED · DYSLEXIC 20 · DARK'
 		]);
+	});
+});
+
+describe('one finger turns a page (c515)', () => {
+	const first = { pointerId: 7, isPrimary: true };
+	const second = { pointerId: 8, isPrimary: false };
+
+	it('the primary pointer starts a press, and only its own events are the press’s', () => {
+		const one = new OnePointer();
+		expect(one.down(first)).toBe('start');
+		expect(one.owns(first)).toBe(true);
+		expect(one.owns(second)).toBe(false);
+		one.end();
+		expect(one.owns(first)).toBe(false);
+	});
+
+	it('a second finger mid-press cancels it, and neither finger is the press’s afterwards', () => {
+		const one = new OnePointer();
+		one.down(first);
+		expect(one.down(second)).toBe('cancel');
+		expect(one.owns(first)).toBe(false);
+		expect(one.owns(second)).toBe(false);
+		// A third finger, or the second again, starts nothing either.
+		expect(one.down({ pointerId: 9, isPrimary: false })).toBe('ignore');
+		expect(one.owns({ pointerId: 9 })).toBe(false);
+	});
+
+	it('a non-primary pointer with no press under way is ignored', () => {
+		expect(new OnePointer().down(second)).toBe('ignore');
+	});
+
+	it('a primary pointer always starts afresh, so a lift that never arrived holds nothing up', () => {
+		const one = new OnePointer();
+		one.down(first);
+		// The first press's lift was lost; the next touch is primary again.
+		const next = { pointerId: 12, isPrimary: true };
+		expect(one.down(next)).toBe('start');
+		expect(one.owns(next)).toBe(true);
+		expect(one.owns(first)).toBe(false);
 	});
 });

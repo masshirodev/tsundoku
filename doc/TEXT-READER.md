@@ -141,6 +141,18 @@ Paged turns slide and follow the finger, as a manga's do ([`READER.md`](READER.m
 - **Taps, arrows, Space and the wheel slide too**, in 220ms, and so does a
   TV's key turn. A turn asked for mid-slide is taken when it lands, so quick
   taps all count.
+- **Anything else that moves the reader mid-slide wins** (c515): the scrubber,
+  CONTENTS, a chapter opening. The slide stops where the newer ask put the
+  page, and the turn gives way to it; until c515 it chose its page when the
+  slide ended, one past wherever the scrub had left it (a remote's →, OK onto
+  the scrubber, ← within 220 ms did it). A relayout mid-slide is not a move:
+  it keeps the character being read, so the turn still lands on the page
+  after it.
+- **One finger drags** (c515). The press follows the pointer that began it; a
+  second finger going down (a pinch beginning) ends it as a cancel would, so
+  the page goes back instead of jerking towards the new finger, and neither
+  finger moves it until both lift (`src/lib/reader/pointer.ts`, shared with
+  the image reader).
 - **Across a chapter's end** the next chapter's first page slides in from
   where the next page lies, and back across it the previous chapter's last
   page slides in from the other side. Into another volume it slides in once

@@ -33,6 +33,7 @@
 		wheelForward
 	} from '$lib/reader/reader';
 	import { BookFailure, bookUrl, openBook, type OpenBook } from '$lib/reader/book';
+	import { OnePointer } from '$lib/reader/pointer';
 	import { focusScope, registerBack } from '$lib/focus';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { TV } from '$lib/device.svelte';
@@ -546,6 +547,9 @@
 	}
 
 	async function go(to: number) {
+		// A slide in flight is the old place's: the page shown is this one (c515).
+		sliding = false;
+		drag = 0;
 		atEnd = false;
 		page = Math.max(0, Math.min(pages - 1, to));
 		await tick();
@@ -637,12 +641,20 @@
 		}
 		turning = true;
 		if (pageThat(dir)) {
+			// The place this turn starts from. Anything else that moves the reader
+			// while it slides (the scrubber, CONTENTS, a chapter opening) is the
+			// newer ask, and the turn gives way to it (c515): turning from where
+			// that left off went one past it. A relayout moves `page` but not
+			// `pos`, the character being read, so it doesn't count: the page
+			// after that character is still the one to land on.
+			const from = { pos, index };
 			sliding = true;
 			drag = dir === 'next' ? step : -step;
 			await pause(TURN_MS);
 			sliding = false;
 			drag = 0;
-			await go(dir === 'next' ? page + 1 : page - 1);
+			if (pos === from.pos && index === from.index && !atEnd)
+				await go(dir === 'next' ? page + 1 : page - 1);
 		} else {
 			drag = 0;
 			if (dir === 'next') markFinished();
@@ -925,7 +937,12 @@
 	});
 
 	let down: { x: number; y: number } | null = null;
+	/** The press's own pointer: a second finger cancels it (c515, src/lib/reader/pointer.ts). */
+	const finger = new OnePointer();
 	function pointerdown(e: PointerEvent) {
+		const which = finger.down(e);
+		if (which === 'cancel') return dropPress();
+		if (which === 'ignore') return;
 		// A press on the controls, a sheet or an overlay is theirs, not the page's.
 		const t = e.target as HTMLElement;
 		down = t.closest(
@@ -948,6 +965,7 @@
 	 * page, and not with reduced motion.
 	 */
 	function pointermove(e: PointerEvent) {
+		if (!finger.owns(e)) return;
 		if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) clearTimeout(press);
 		if (!down || layout === 'scroll' || turning || lookup || atEnd || reduceMotion.current) return;
 		const dx = e.clientX - down.x;
@@ -956,13 +974,20 @@
 		dragging = true;
 		drag = dragGive(forwardBy(dx, mode), pageThat('next'), pageThat('prev'));
 	}
-	function pointercancel() {
+	function pointercancel(e: PointerEvent) {
+		if (finger.owns(e)) dropPress();
+	}
+	/** The press ends without a tap or a turn: a drag goes back into place. */
+	function dropPress() {
+		finger.end();
 		clearTimeout(press);
 		down = null;
 		if (dragging) void settleBack();
 		dragging = false;
 	}
 	function pointerup(e: PointerEvent) {
+		if (!finger.owns(e)) return;
+		finger.end();
 		clearTimeout(press);
 		if (pressed) {
 			pressed = false;

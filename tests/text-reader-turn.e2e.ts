@@ -202,6 +202,93 @@ test("across a chapter's end the next chapter's first page slides in, and back i
 	expect([lastAt, lastAt + first.step]).toContain((await flow(page)).at);
 });
 
+test('a scrub during a slide wins: the turn gives way instead of landing one past it (c515)', async ({
+	page
+}) => {
+	const id = await firstChapter(page);
+	await openAt(page, id);
+	const { step, pages } = await flow(page);
+	expect(pages).toBeGreaterThanOrEqual(3);
+	// Page 2, with the controls up: off a TV the arrows still turn under them.
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(async () => (await flow(page)).at).toBe(-step);
+	await landed(page);
+	await page.keyboard.press('Escape');
+	const track = page.locator('footer .track');
+	await expect(track).toHaveAttribute('aria-valuenow', '2');
+	const box = (await track.boundingBox())!;
+	// When each happened, read in the page: the scrub must land inside the slide.
+	await page.evaluate(() => {
+		const w = window as unknown as { keyAt: number; scrubAt: number };
+		addEventListener('keydown', () => (w.keyAt = performance.now()), {
+			once: true,
+			capture: true
+		});
+		document
+			.querySelector('footer .track')!
+			.addEventListener('pointerdown', () => (w.scrubAt = performance.now()), { once: true });
+	});
+	// → turns towards page 3; the scrubber's left end asks for page 1 mid-slide.
+	await page.keyboard.press('ArrowRight');
+	await page.mouse.click(box.x + 2, box.y + box.height / 2);
+	const gap = await page.evaluate(() => {
+		const w = window as unknown as { keyAt: number; scrubAt: number };
+		return w.scrubAt - w.keyAt;
+	});
+	expect(gap).toBeLessThan(220);
+	await landed(page);
+	// Page 1, where the scrub put it, not page 2 (one past it), and it stays there.
+	await page.waitForTimeout(500);
+	expect((await flow(page)).at).toBe(0);
+	await expect(track).toHaveAttribute('aria-valuenow', '1');
+});
+
+test('a second finger cancels a drag: the page goes back rather than jerking to it (c515)', async ({
+	page
+}) => {
+	test.skip(!test.info().project.use.hasTouch, 'two fingers need a touchscreen');
+	const id = await firstChapter(page);
+	await openAt(page, id);
+	const { step, pages } = await flow(page);
+	expect(pages).toBeGreaterThanOrEqual(3);
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(async () => (await flow(page)).at).toBe(-step);
+	await landed(page);
+	const { x, y } = middleOf(page);
+	const cdp = await page.context().newCDPSession(page);
+	const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', pts: { x: number; y: number }[]) =>
+		cdp.send('Input.dispatchTouchEvent', {
+			type,
+			touchPoints: pts.map((p, i) => ({ ...p, id: i }))
+		});
+	try {
+		// One finger drags 30 px left: the page follows it.
+		await touch('touchStart', [{ x, y }]);
+		for (const d of [10, 20, 30]) await touch('touchMove', [{ x: x - d, y }]);
+		await expect.poll(async () => (await flow(page)).at).toBe(-step - 30);
+		// A second finger 150 px to the right, then the first moves on: the
+		// press is over, so the page goes back and the first finger no longer
+		// moves it, where it took the second finger's point as its start.
+		await touch('touchStart', [
+			{ x: x - 30, y },
+			{ x: x + 150, y }
+		]);
+		for (const d of [40, 50, 60])
+			await touch('touchMove', [
+				{ x: x - d, y },
+				{ x: x + 150, y }
+			]);
+		await expect.poll(async () => (await flow(page)).at).toBe(-step);
+		await landed(page);
+		await touch('touchEnd', []);
+	} finally {
+		await cdp.detach();
+	}
+	// Lifting both turned nothing either.
+	await page.waitForTimeout(500);
+	expect((await flow(page)).at).toBe(-step);
+});
+
 test('with reduced motion a turn is instant and a drag does not move the page (c441)', async ({
 	page
 }) => {

@@ -126,6 +126,15 @@ Paged turns slide, as in Mihon; they don't pop (the owner asked on
   and both slide over in 220ms.
 - **Quick taps all count.** A turn asked for mid-slide is taken the moment the
   slide lands.
+- **A newer move wins** (c515). The scrubber, another chapter opening or
+  WIDE PAGES changing, moving the reader mid-slide, stops the slide where it put
+  the page, and the turn gives way; until c515 the turn chose its page when
+  the slide ended, one past wherever the scrub had left it.
+- **One finger turns.** A press follows the pointer that began it; a second
+  finger going down (a pinch beginning) ends it as a cancel would, so a drag
+  goes back rather than jerking towards the new finger, and on the strip a
+  pinch is never a long press (`src/lib/reader/pointer.ts`, shared with the
+  text reader; c515).
 - **Nothing redraws at the end.** The screens are keyed, so the neighbour's
   element becomes the page's own, with its image already decoded.
 - **Split wide pages slide half to half,** since each half is a screen.
@@ -134,7 +143,8 @@ Paged turns slide, as in Mihon; they don't pop (the owner asked on
   slide.
 
 The track is in `ImageReader.svelte` (`turn`, `after`, `screens`); tested in
-`tests/reader-flow.e2e.ts`. Its numbers (the 220ms slide and its curve, the 8px
+`tests/reader-flow.e2e.ts`, and c515's two rules in `tests/reader-layout.e2e.ts`
+on every device. Its numbers (the 220ms slide and its curve, the 8px
 before a drag is followed, the quarter an edge gives, the 40px release) are in
 `src/lib/reader/reader.ts`, shared with the text reader, whose paged turns
 slide the same way since c441 ([`TEXT-READER.md`](TEXT-READER.md), "Turning").
