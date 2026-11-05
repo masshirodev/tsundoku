@@ -7,12 +7,12 @@
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
-	import { addedDetail, count } from '$lib/library/downloads';
-	import { enhance } from '$app/forms';
+	import { count } from '$lib/library/downloads';
 	import { writeFilters } from '$lib/library/browse-filters';
 	import { backOriginLabel, keepOrigin } from '$lib/library/tag-search';
 	import { isSettled } from '$lib/library/settled';
 	import ResultTile from './ResultTile.svelte';
+	import AddedBand from '../AddedBand.svelte';
 	import { SiteCheck, checkLine } from '$lib/site-check.svelte';
 	import { askedLine } from '$lib/waiting';
 	import FilterForm from './FilterForm.svelte';
@@ -202,29 +202,9 @@
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
 	{#if data.addedHidden}
-		{@const a = data.addedHidden}
 		<!-- What the series page's band would have said (c505): what ADD AND
 		     DOWNLOAD queued, and UNDO while nothing of it is downloaded or read. -->
-		{@const refused =
-			form?.message ?? (a.touched ? 'something of it is downloaded or read now' : '')}
-		<Band
-			title="ADDED TO THE LIBRARY, AND HIDDEN"
-			detail="{name.toUpperCase()} ADDS ITS SERIES HIDDEN · {addedDetail(
-				a.entries,
-				a.queued,
-				a.video
-			)}{refused ? ` · NO UNDO: ${refused.toUpperCase()}` : ' · REVEAL SHOWS IT'}"
-		>
-			{#snippet action()}
-				{#if !refused}
-					<form method="POST" action="?/undoAdd" use:enhance>
-						<input type="hidden" name="series" value={a.seriesId} />
-						<input type="hidden" name="preview" value={a.preview} />
-						<button type="submit">UNDO</button>
-					</form>
-				{/if}
-			{/snippet}
-		</Band>
+		<AddedBand band={data.addedHidden} {name} undo="?/undoAdd" refusal={form?.message ?? null} />
 	{/if}
 
 	<nav class="tabs" aria-label="Lists">

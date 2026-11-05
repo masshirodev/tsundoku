@@ -562,6 +562,163 @@ describe('ADDED HIDDEN, and the ADD that hid it (c505)', () => {
 			afterEachCase();
 		}
 	});
+
+	// Round 2 of c505: the ADD itself can leave its source mostly hidden (more
+	// than half its series hidden), and a mostly-hidden source's page is not
+	// found outside reveal, so a band landed there would be a 404.
+	describe('on a source with nothing else here, so the ADD leaves it mostly hidden', () => {
+		const LONE = '310';
+		const added = () => import('../src/routes/browse/added.server');
+		const lone = (path: string) => ({ id: sourceMangaId(LONE, path), key: keyOf(LONE, path) });
+		const record = (path: string, hidden = false) => {
+			const { key } = lone(path);
+			writeSeries(
+				{ ...plan(key, `Lone ${path}`, 'manga'), hidden },
+				{ rootId: mihonRoot, jobId: null, now: NOW, browsing: !hidden },
+				db
+			);
+			db.prepare(`UPDATE entries SET available = 0 WHERE series_id = ?`).run(seriesOf(key));
+			return seriesOf(key);
+		};
+		const cleanUp = () => {
+			db.prepare(`DELETE FROM series WHERE origin_key LIKE ?`).run(`mihon:${LONE}:%`);
+			flags.setSourceFlag(LONE, 'addedHidden', false);
+			db.prepare(`DELETE FROM engine_sources WHERE id = ?`).run(LONE);
+			db.prepare(`DELETE FROM engine_extensions WHERE pkg = 'en.lone'`).run();
+			forgetSourceUse();
+		};
+		const install = () => {
+			db.prepare(
+				`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at)
+				VALUES ('en.lone', 'Lone Source', 'manga', 1, '1.0', '1.4', ?, 0, 0)`
+			).run('en.lone'.padEnd(64, 'x'));
+			db.prepare(
+				`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES (?, 'en.lone', 'Lone Source', 'en', 'https://lone.example')`
+			).run(LONE);
+			flags.setSourceFlag(LONE, 'addedHidden', true);
+			forgetSourceUse();
+		};
+		/** One ADD outside reveal, as the preview's ADD action runs it, and where it lands. */
+		const addOutsideReveal = async (path: string, queued?: string) => {
+			const { id, key } = lone(path);
+			const r = await flags.addWatchingHidden(key, () => addToLibrary(id, NOW));
+			const { addedLanding } = await added();
+			const params: Record<string, string> = { added: id };
+			if (queued) params.queued = queued;
+			return { r, id, key, to: addedLanding(r, id, `/browse/${LONE}?tab=latest`, false, params) };
+		};
+
+		it('lands on BROWSE with the band’s parameters, and the band is drawn and undone there', async () => {
+			try {
+				install();
+				const first = record('/manga/first');
+				// Found before the ADD: a browsing record is not a hidden series.
+				expect(browse.browseSource(LONE, false)).not.toBeNull();
+				const { r, id, key, to } = await addOutsideReveal('/manga/first', '2');
+				expect(r).toEqual({ seriesId: first, hidByThisAdd: true });
+				// The ADD made it 1 of 1 hidden: the source's page is not found any more.
+				expect(browse.browseSource(LONE, false)).toBeNull();
+				expect(browse.browseSource(LONE, true)?.mostlyHidden).toBe(true);
+				// So ADD does not land there: BROWSE, with the band and nothing of the source's page.
+				expect(to.startsWith(`/browse/${LONE}`)).toBe(false);
+				const at = new URL(to, 'http://x');
+				expect(at.pathname).toBe('/browse');
+				expect(Object.fromEntries(at.searchParams)).toEqual({
+					added: 'hidden',
+					series: String(first),
+					preview: id,
+					queued: '2'
+				});
+				// The band's series is still found by its id and key, and BROWSE draws it.
+				expect(flags.addedHere(first, key)).toEqual({ entries: 2, touched: false, kind: 'manga' });
+				const { addedBand, undoAdded } = await added();
+				expect(await addedBand(at.searchParams, null)).toEqual({
+					seriesId: first,
+					preview: id,
+					entries: 2,
+					video: false,
+					queued: '2',
+					touched: false,
+					sourceHidden: true
+				});
+				const form = () => {
+					const f = new FormData();
+					f.set('series', String(first));
+					f.set('preview', id);
+					return f;
+				};
+				// Read meanwhile: UNDO is refused, on BROWSE as on the source's page.
+				db.prepare(
+					`UPDATE entries SET read_at = ? WHERE id = (SELECT id FROM entries WHERE series_id = ? LIMIT 1)`
+				).run(NOW, first);
+				expect(await undoAdded(form(), null, false)).toEqual({
+					status: 409,
+					message: 'something of it is downloaded or read now'
+				});
+				// The source page's UNDO does not need the source found either (no 404 on a band it drew).
+				expect(await undoAdded(form(), LONE, false)).toEqual({
+					status: 409,
+					message: 'something of it is downloaded or read now'
+				});
+				db.prepare(`UPDATE entries SET read_at = NULL WHERE series_id = ?`).run(first);
+				// UNDO: out of the library; the source is found again, so the preview opens.
+				expect(await undoAdded(form(), null, false)).toEqual({ to: `/downloads/source/${id}` });
+				expect(flags.addedHere(first, key)).toBeNull();
+				expect(browse.browseSource(LONE, false)).not.toBeNull();
+				expect(await addedBand(at.searchParams, null)).toBeNull();
+				// UNDO twice: nothing undone, the same landing.
+				expect(await undoAdded(form(), null, false)).toEqual({ to: `/downloads/source/${id}` });
+				// A band of another source is not this source page's to undo.
+				expect(await undoAdded(form(), MANGA, false)).toEqual({ to: `/downloads/source/${id}` });
+			} finally {
+				cleanUp();
+			}
+		});
+
+		it('still lands on the source’s page while the source stays found, and UNDO lands on BROWSE once it is not', async () => {
+			try {
+				install();
+				// Two shown series here: one more hidden is 1 of 3, and the source is still found.
+				const shown = [
+					write(keyOf(LONE, '/manga/s1'), 'Lone Shown 1', 'manga'),
+					write(keyOf(LONE, '/manga/s2'), 'Lone Shown 2', 'manga')
+				];
+				const first = record('/manga/first');
+				const a = await addOutsideReveal('/manga/first');
+				expect(a.r.hidByThisAdd).toBe(true);
+				expect(new URL(a.to, 'http://x').pathname).toBe(`/browse/${LONE}`);
+				expect(new URL(a.to, 'http://x').searchParams.get('tab')).toBe('latest');
+				const { addedBand, undoAdded } = await added();
+				const band = await addedBand(new URL(a.to, 'http://x').searchParams, LONE);
+				expect(band?.sourceHidden).toBe(false);
+				// The second ADD makes it 2 of 4 hidden, and a third 3 of 5: mostly hidden now.
+				const second = record('/manga/second');
+				const b = await addOutsideReveal('/manga/second');
+				expect(new URL(b.to, 'http://x').pathname).toBe(`/browse/${LONE}`);
+				record('/manga/third');
+				const c = await addOutsideReveal('/manga/third');
+				expect(new URL(c.to, 'http://x').pathname).toBe('/browse');
+				// The first band, drawn on the source's page before the third ADD hid
+				// the source: its UNDO still runs from there (no 404), and leaves 2 of
+				// 4 hidden, which is not mostly hidden, so the preview opens.
+				const f = new FormData();
+				f.set('series', String(first));
+				f.set('preview', a.id);
+				expect(await undoAdded(f, LONE, false)).toEqual({ to: `/downloads/source/${a.id}` });
+				// Hide one shown series: 3 of 4 hidden, so the next UNDO lands on BROWSE.
+				db.prepare(`UPDATE series SET hidden = 1 WHERE id = ?`).run(shown[0]);
+				forgetSourceUse();
+				const g = new FormData();
+				g.set('series', String(second));
+				g.set('preview', b.id);
+				expect(browse.browseSource(LONE, false)).toBeNull();
+				expect(await undoAdded(g, LONE, false)).toEqual({ to: '/browse' });
+				expect(flags.addedHere(second, b.key)).toBeNull();
+			} finally {
+				cleanUp();
+			}
+		});
+	});
 });
 
 describe('CONCEAL ITS SERIES (c523)', () => {

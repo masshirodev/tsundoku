@@ -1,5 +1,12 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
-import { SOURCE, previewId, startTagWorld, type TagWorld } from './helpers/tag-world';
+import {
+	COLD,
+	SOURCE,
+	coldPreviewId,
+	previewId,
+	startTagWorld,
+	type TagWorld
+} from './helpers/tag-world';
 
 /**
  * A source's own switches (card c435; doc/BROWSE.md, "A source's own
@@ -223,6 +230,101 @@ test('ADDED HIDDEN: ADD AND DOWNLOAD outside reveal says what it queued, and UND
 	await expect(page).toHaveURL(new RegExp(`/downloads/source/${previewId}`));
 	await expect(page.getByRole('button', { name: /ADD TO LIBRARY/ })).toBeVisible();
 	await flip(page, 'Added hidden', false);
+});
+
+test('ADDED HIDDEN: the first ADD from a source with nothing else here leaves it mostly hidden, so the band and UNDO are on BROWSE, naming no source (c505)', async ({
+	page,
+	context
+}) => {
+	// COLD has no series in this world: the ADD makes it 1 of 1 hidden, more
+	// than half, so its own page is not found outside reveal (mostlyHidden).
+	const coldSettings = `/browse/${COLD.id}/settings`;
+	const coldPreview = `/downloads/source/${coldPreviewId}?from=${encodeURIComponent(`/browse/${COLD.id}`)}`;
+	const flipCold = async (on: boolean) => {
+		await page.goto(url(coldSettings));
+		await page.waitForLoadState('networkidle');
+		const sw = own(page, 'Added hidden').getByRole('switch');
+		await expect(sw).toHaveAttribute('aria-checked', String(!on));
+		await sw.click();
+		await expect(own(page, 'Added hidden')).toHaveClass(/\bsaved\b/);
+		await expect(sw).toHaveAttribute('aria-checked', String(on));
+	};
+	const band = page.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' });
+	// Every band the case lands on, so the cleanup can undo what is left.
+	const landed: URLSearchParams[] = [];
+	const addFromPreview = async () => {
+		expect((await page.goto(url(coldPreview)))?.status()).toBe(200);
+		await page.waitForLoadState('networkidle');
+		await page.getByRole('button', { name: /ADD TO LIBRARY/ }).click();
+		await page.waitForURL((u) => u.searchParams.has('series'));
+		landed.push(new URL(page.url()).searchParams);
+		await expect(page).toHaveURL(/\/browse\?.*added=hidden/);
+	};
+	await reveal(context, false);
+	await flipCold(true);
+	try {
+		await addFromPreview();
+		const bandUrl = page.url();
+		await expect(band).toContainText(
+			/ITS SOURCE ADDS ITS SERIES HIDDEN · \d+ CHAPTERS? · NONE DOWNLOADED · THE SOURCE IS HIDDEN WITH IT · REVEAL SHOWS BOTH/
+		);
+		await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
+		// Hidden means not named: the source is on no line of the page.
+		await expect(page.locator('body')).not.toContainText(COLD.name);
+		await expect(page.locator('body')).not.toContainText(COLD.name.toUpperCase());
+		// Its own page is what round 1 landed on, and it is not found.
+		expect((await page.goto(url(`/browse/${COLD.id}`)))?.status()).toBe(404);
+		// The band is its URL: a load of it is a page, with the band and UNDO.
+		expect((await page.goto(bandUrl))?.status()).toBe(200);
+		await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
+		// UNDO: out of the library, the source found again, and the preview opens.
+		await band.getByRole('button', { name: 'UNDO' }).click();
+		await expect(page).toHaveURL(new RegExp(`/downloads/source/${coldPreviewId}`));
+		await expect(page.getByRole('button', { name: /ADD TO LIBRARY/ })).toBeVisible();
+		expect((await page.goto(url(`/browse/${COLD.id}`)))?.status()).toBe(200);
+		// The band's URL after UNDO says nothing; UNDO twice undoes nothing and lands the same.
+		await page.goto(bandUrl);
+		await expect(page.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })).toHaveCount(0);
+		const params = new URL(bandUrl).searchParams;
+		const form = { series: params.get('series')!, preview: params.get('preview')! };
+		// Posted as a form without script is: a 303, whose location is where it lands.
+		const post = (path: string, f: Record<string, string>) =>
+			page.request.post(url(path), {
+				form: f,
+				headers: { origin: world.base, accept: 'text/html' },
+				maxRedirects: 0
+			});
+		const twice = await post('/browse?/undoAdd', form);
+		expect(twice.status()).toBe(303);
+		expect(twice.headers().location).toBe(`/downloads/source/${coldPreviewId}`);
+
+		// The source page's own UNDO, posted on a band while the source is hidden
+		// (drawn there, then the source hidden from another tab): it undoes, and
+		// is not a 404.
+		await addFromPreview();
+		const again = new URL(page.url()).searchParams;
+		expect((await page.goto(url(`/browse/${COLD.id}`)))?.status()).toBe(404);
+		const fromSourcePage = await post(`/browse/${COLD.id}?/undoAdd`, {
+			series: again.get('series')!,
+			preview: again.get('preview')!
+		});
+		expect(fromSourcePage.status()).toBe(303);
+		expect(fromSourcePage.headers().location).toBe(`/downloads/source/${coldPreviewId}`);
+		await page.goto(url(`/browse?${again}`));
+		await expect(page.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })).toHaveCount(0);
+		expect((await page.goto(url(`/browse/${COLD.id}`)))?.status()).toBe(200);
+	} finally {
+		// Put back: nothing of COLD's left in the library, and its switch off,
+		// inside reveal, where its settings page is found whatever is hidden.
+		for (const p of landed)
+			await page.request.post(url('/browse?/undoAdd'), {
+				form: { series: p.get('series')!, preview: p.get('preview')! },
+				headers: { origin: world.base }
+			});
+		await reveal(context, true);
+		await flipCold(false);
+		await reveal(context, false);
+	}
 });
 
 test('OFF HISTORY: a read from it is logged, but never in HISTORY, inside reveal too', async ({

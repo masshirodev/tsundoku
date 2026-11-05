@@ -20,6 +20,8 @@ import { forgetRecord, recordView } from '$lib/server/browsing';
 import { browseSource } from '$lib/server/engine/browse';
 import { addWatchingHidden } from '$lib/server/engine/source-flags';
 import { searchOrigin, seriesWithOrigin, sourceOrigin } from '$lib/library/origin';
+// Where ADD lands and the band it leaves (c435, c505): BROWSE's, since the band is drawn there.
+import { addedLanding, type Added } from '../../../browse/added.server';
 
 /**
  * A search result's preview (Download States 1e, state 7): the series
@@ -32,50 +34,6 @@ function mangaId(raw: string): string {
 	if (!configured() || !isSourceMangaId(raw)) error(404, 'not found');
 	return raw;
 }
-
-/**
- * Where ADD lands (card c435). Normally the new series. A source whose ADDED
- * HIDDEN switch is on makes it hidden at once, and with reveal off a hidden
- * series is not found, so ADD lands back on the source's page instead (the
- * BROWSE page it came from, its place kept), which says it was added hidden.
- * That page's band keeps what the series page's would have (c505): ADD AND
- * DOWNLOAD's `queued`, and UNDO, which needs the series (`series`) and the
- * preview it came from (`preview`, whose key proves the id still names it).
- * A series ADD only answered with (already here, hidden for its own reasons:
- * a stale preview) gets no band, since the band would claim this ADD hid it
- * and offer UNDO on a series the ADD did not make; the page is just the
- * source's again.
- */
-function afterAdd(
-	added: Added,
-	mangaId: string,
-	origin: string,
-	reveal: boolean,
-	params: Record<string, string>
-): string {
-	if (reveal || seriesPage(added.seriesId, false))
-		return seriesWithOrigin(added.seriesId, origin, params);
-	const safe = sourceOrigin(origin);
-	const source = sourceOfMangaId(mangaId);
-	const page = safe.startsWith('/browse/') ? safe : source ? `/browse/${source}` : '/browse';
-	// A band from an earlier ADD on the same page is replaced, not added to.
-	const [path, search = ''] = page.split('?');
-	const kept = new URLSearchParams(search);
-	for (const k of BAND_PARAMS) kept.delete(k);
-	if (added.hidByThisAdd) {
-		kept.set('added', 'hidden');
-		kept.set('series', String(added.seriesId));
-		kept.set('preview', mangaId);
-		if (params.queued) kept.set('queued', params.queued);
-	}
-	const q = kept.toString();
-	return q ? `${path}?${q}` : path;
-}
-
-/** The source page's ADDED band's own parameters (browse/[source]). */
-const BAND_PARAMS = ['added', 'series', 'preview', 'queued'];
-
-type Added = { seriesId: number; hidByThisAdd: boolean };
 
 /**
  * ADD, and whether it was this ADD that hid the series (c505;
@@ -173,7 +131,7 @@ export const actions: Actions = {
 			if (isAddError(e)) return fail(409, { message: (e as Error).message });
 			throw e;
 		}
-		redirect(303, afterAdd(added, id, origin, reveal, { added: id }));
+		redirect(303, addedLanding(added, id, origin, reveal, { added: id }));
 	},
 	/**
 	 * DOWNLOAD's FIRST 10 or ALL N, confirmed (card c205): a download lives in
@@ -208,6 +166,6 @@ export const actions: Actions = {
 			if (!isDownloadsError(e)) throw e;
 			queued = 'down';
 		}
-		redirect(303, afterAdd(added, id, origin, reveal, { added: id, queued }));
+		redirect(303, addedLanding(added, id, origin, reveal, { added: id, queued }));
 	}
 };
