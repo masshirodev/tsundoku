@@ -608,8 +608,13 @@ x, y)` in `tests/helpers/touch.ts` sends the four touch events together, so
   yarn run test:e2e:dependants
   ```
 
-  It runs `--project=duplicates --no-deps`, then `--project=gate --no-deps`,
-  and fails if either did. `--no-deps` is safe here because the two depend
+  It runs `--project=duplicates --no-deps`, then `--project=gate --no-deps`
+  (`scripts/e2e-dependants.ts`), and fails if either did, with the first
+  red's code. Arguments reach both runs, as in
+  `yarn run test:e2e:dependants --reporter=line`; until c564 the step was a
+  line in `package.json` that ended `&& exit $s`, where Yarn 1 appended them
+  to `exit`, which then exited 1 with both projects green. `--no-deps` is
+  safe here because the two depend
   on the device projects only for their order on the one seeded database,
   not for anything those write. They are **two runs, not one**:
   `--no-deps` drops the `duplicates` → `gate` order as well, so in one run
