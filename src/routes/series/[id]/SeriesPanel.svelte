@@ -2291,7 +2291,9 @@
 	   Where nothing folds the wrappers are no boxes at all and `order` puts each
 	   row back in today's order: DOWNLOAD under the WORK row (1), the bands (2),
 	   LANGUAGE to SCANLATOR (3), SHELVES (4), LISTS to TAGS (5), ABOUT (6),
-	   EDITIONS and FILE (7). Folded, the markup's order is the screen's. */
+	   EDITIONS and FILE (7). Folded, the markup's order is the screen's.
+	   `:global(*)`, because a scoped `*` matches this component's own elements
+	   only, and LISTS' row is ListsRow's: it sat above DIRECTION without it. */
 	.o,
 	.details {
 		display: contents;
@@ -2300,25 +2302,25 @@
 		display: none;
 	}
 	@media (min-width: 600px) and (not ((pointer: none) and (min-width: 900px))) {
-		.o1 > * {
+		.o1 > :global(*) {
 			order: 1;
 		}
-		.o2 > * {
+		.o2 > :global(*) {
 			order: 2;
 		}
-		.o3 > * {
+		.o3 > :global(*) {
 			order: 3;
 		}
-		.o4 > * {
+		.o4 > :global(*) {
 			order: 4;
 		}
-		.o5 > * {
+		.o5 > :global(*) {
 			order: 5;
 		}
-		.o6 > * {
+		.o6 > :global(*) {
 			order: 6;
 		}
-		.o7 > * {
+		.o7 > :global(*) {
 			order: 7;
 		}
 	}
@@ -2407,7 +2409,11 @@
 			height: 3px;
 			background: var(--accent);
 		}
-		/* ABOUT clamps to three lines where it sits above the fold (1A). */
+		/* ABOUT clamps to three lines where it sits above the fold (1A), and
+		   MORE ↓ is as wide as its word. */
+		.about {
+			align-items: flex-start;
+		}
 		.about p {
 			-webkit-line-clamp: 3;
 			line-clamp: 3;
