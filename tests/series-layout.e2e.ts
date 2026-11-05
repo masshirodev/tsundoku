@@ -84,7 +84,15 @@ test('hovering the fold keeps its stripes (c488)', async ({ page }, info) => {
  */
 async function openDetails(page: import('@playwright/test').Page) {
 	const line = page.locator('[data-row="details"]');
-	if (!(await line.isVisible())) return;
+	// Whether DETAILS folds rows here is SeriesPanel.svelte's media query (a
+	// phone's width, or a TV), known before the panel draws. Read once with
+	// `isVisible()`, a line not drawn yet read as "no fold" on a loaded phone
+	// and TV, and LAYOUT stayed folded away (c439, wave 24: 2 of 20).
+	const folds = await page.evaluate(
+		() => matchMedia('(max-width: 599px), (pointer: none) and (min-width: 900px)').matches
+	);
+	if (!folds) return;
+	await expect(line).toBeVisible();
 	await expect(async () => {
 		if ((await line.getAttribute('aria-expanded')) !== 'true') await line.click();
 		await expect(line).toHaveAttribute('aria-expanded', 'true', { timeout: 1_000 });
