@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { getDb } from '../db.ts';
-import { VISIBLE_SQL } from '../visibility.ts';
+import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL } from '../visibility.ts';
 import type { Kind } from '../../library/kinds.ts';
 
 /**
@@ -196,4 +197,103 @@ export function addedHere(
 		)
 		.get(seriesId, key) as { kind: Kind; entries: number; touched: number } | undefined;
 	return r ? { entries: r.entries, touched: r.touched > 0, kind: r.kind } : null;
+}
+
+// ---- CONCEAL ITS SERIES (c523) ------------------------------------------------------------------
+
+/**
+ * What CONCEAL would hide now, on a source's settings page (card c523;
+ * doc/BROWSE.md, "Conceal its series"): `own`, every series in the library
+ * from the source that the library shows, and `others`, the shown parts from
+ * other sources of the Works those are parts of, which go with them, since a
+ * Work is never left half hidden (doc/WORKS.md, "The one rule"; c389). The
+ * write itself is `setHiddenWhole`'s (works.ts), over `own`; this is only the
+ * count the cell and its question say. A series hidden already, for its own
+ * reasons or by its root, is in neither.
+ */
+export function concealable(sourceId: string, db = getDb()): { own: number[]; others: number[] } {
+	const own = (
+		db
+			.prepare(
+				`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id
+				WHERE ${IN_LIBRARY_SQL} AND ${VISIBLE_SQL} AND ${sourceIdSql('s.origin_key')} = ?
+				ORDER BY s.id`
+			)
+			.all(sourceId) as { id: number }[]
+	).map((r) => r.id);
+	if (own.length === 0) return { own, others: [] };
+	const others = (
+		db
+			.prepare(
+				`SELECT DISTINCT s.id FROM work_series ws
+				JOIN series s ON s.id = ws.series_id JOIN roots r ON r.id = s.root_id
+				WHERE ws.work_id IN (
+					SELECT work_id FROM work_series WHERE series_id IN (SELECT value FROM json_each(?))
+				)
+				AND s.id NOT IN (SELECT value FROM json_each(?)) AND ${VISIBLE_SQL}
+				ORDER BY s.id`
+			)
+			.all(JSON.stringify(own), JSON.stringify(own)) as { id: number }[]
+	).map((r) => r.id);
+	return { own, others };
+}
+
+/**
+ * A series' mark, for CONCEAL's UNDO (c523): six hex characters of its root,
+ * key and path (its title when it has neither). The band carries each id
+ * with its mark, because an id is given again once its series is gone, so an
+ * id alone could name a series added after the press; UNDO shows only an id
+ * whose mark still matches. A series renamed or moved meanwhile stays hidden:
+ * when in doubt, hidden.
+ */
+export function seriesMarks(ids: number[], db = getDb()): Map<number, string> {
+	if (ids.length === 0) return new Map();
+	const rows = db
+		.prepare(
+			`SELECT id, root_id, origin_key, path, title FROM series
+			WHERE id IN (SELECT value FROM json_each(?))`
+		)
+		.all(JSON.stringify(ids)) as {
+		id: number;
+		root_id: number;
+		origin_key: string | null;
+		path: string;
+		title: string;
+	}[];
+	return new Map(
+		rows.map((r) => [
+			r.id,
+			createHash('sha256')
+				.update(`${r.root_id}\n${r.origin_key ?? ''}\n${r.path || (r.origin_key ? '' : r.title)}`)
+				.digest('hex')
+				.slice(0, 6)
+		])
+	);
+}
+
+/** Of `ids`, those hidden now, by the one rule (`HIDDEN_SQL`): what CONCEAL's band still has to undo. */
+export function hiddenOf(ids: number[], db = getDb()): number[] {
+	if (ids.length === 0) return [];
+	return (
+		db
+			.prepare(
+				`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id
+				WHERE s.id IN (SELECT value FROM json_each(?)) AND ${HIDDEN_SQL} ORDER BY s.id`
+			)
+			.all(JSON.stringify(ids)) as { id: number }[]
+	).map((r) => r.id);
+}
+
+/** Of `ids`, those from `sourceId` (by their key, as `sourceIdSql` reads it): the band's "N FROM IT". */
+export function ofSource(ids: number[], sourceId: string, db = getDb()): number[] {
+	if (ids.length === 0) return [];
+	return (
+		db
+			.prepare(
+				`SELECT s.id FROM series s
+				WHERE s.id IN (SELECT value FROM json_each(?)) AND ${sourceIdSql('s.origin_key')} = ?
+				ORDER BY s.id`
+			)
+			.all(JSON.stringify(ids), sourceId) as { id: number }[]
+	).map((r) => r.id);
 }

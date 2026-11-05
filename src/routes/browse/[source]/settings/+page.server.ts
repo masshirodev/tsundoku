@@ -9,7 +9,8 @@ import { EngineError } from '$lib/server/engine/client';
 import { keepPreferences, preferences, setPreference } from '$lib/server/engine/extensions';
 import type { Preference } from '$lib/server/engine/protocol';
 import { settingOf, valueFromForm } from '$lib/library/source-settings';
-import { backOrigin } from '$lib/library/tag-search';
+import { backOrigin, keepOrigin } from '$lib/library/tag-search';
+import { conceal, concealBand, concealCount, undoConceal } from '../../conceal.server';
 
 /**
  * A source's settings (Index-Browse, settings; Browse Calls, "Settings, per
@@ -66,9 +67,28 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 		down,
 		change: url.searchParams.get('change') ?? '',
 		// The source page's tag origin (card c453): ← and every row keep it.
-		from: backOrigin(url.searchParams.get('from'))
+		from: backOrigin(url.searchParams.get('from')),
+		// CONCEAL ITS SERIES (card c523): what the press would hide, its
+		// question without script (`?ask=conceal`), and the band after it.
+		conceal: concealCount(s.id),
+		askConceal: url.searchParams.get('ask') === 'conceal',
+		concealed: url.searchParams.get('of') === s.id ? concealBand(url.searchParams) : null
 	};
 };
+
+/**
+ * Where CONCEAL and its UNDO land: this page while it is still found, with
+ * `query` (the band) and the tag origin kept; BROWSE once it is not. Outside
+ * reveal a source whose every series is hidden is mostly hidden, so CONCEAL
+ * there always lands on BROWSE, whose band names no source.
+ */
+function landing(sourceId: string, reveal: boolean, from: string | null, query: string): string {
+	if (browseSource(sourceId, reveal)) {
+		const page = `/browse/${encodeURIComponent(sourceId)}/settings${query ? `?${query}` : ''}`;
+		return keepOrigin(page, backOrigin(from));
+	}
+	return `/browse${query ? `?${query}` : ''}`;
+}
 
 export const actions: Actions = {
 	/** One of tsundoku's own switches (card c435): HIDDEN SOURCE, ADDED HIDDEN, OFF HISTORY. */
@@ -85,6 +105,26 @@ export const actions: Actions = {
 		// found, this page included, so the switch lands on BROWSE.
 		if (flag === 'hidden' && on && !isRevealed(cookies)) redirect(303, '/browse');
 		return { saved: `flag:${flag}` };
+	},
+	/**
+	 * CONCEAL ITS SERIES (card c523): every series from the source the library
+	 * shows, hidden now through the Work rule, with the band and UNDO. Refused
+	 * when nothing from it is shown (the cell is disabled then too).
+	 */
+	conceal: async ({ params, cookies, url }) => {
+		const reveal = isRevealed(cookies);
+		const s = source(params.source, reveal);
+		const done = conceal(s.id);
+		if (!done.ok) return fail(409, { message: done.message });
+		redirect(303, landing(s.id, reveal, url.searchParams.get('from'), done.query));
+	},
+	/** UNDO on CONCEAL's band: what it hid and is still hidden, shown again (`undoConceal`). */
+	undoConceal: async ({ params, cookies, request, url }) => {
+		const reveal = isRevealed(cookies);
+		const s = source(params.source, reveal);
+		const refused = undoConceal(await request.formData());
+		if (refused) return fail(409, { message: refused });
+		redirect(303, landing(s.id, reveal, url.searchParams.get('from'), ''));
 	},
 	/** One setting's new value. The source's page asks again on return: its kept answers are keyed by settings. */
 	set: async ({ params, cookies, request }) => {

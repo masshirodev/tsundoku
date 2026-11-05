@@ -7,6 +7,10 @@
 	import Switch from '$lib/components/controls/Switch.svelte';
 	import { CELLS_MAX } from '$lib/library/source-settings';
 	import { keepOrigin } from '$lib/library/tag-search';
+	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
+	import { goto } from '$app/navigation';
+	import { count } from '$lib/library/downloads';
+	import ConcealBand from '../../ConcealBand.svelte';
 
 	/**
 	 * A source's settings (Index-Browse, settings; Browse Calls, "Settings, per
@@ -50,6 +54,30 @@
 	const refusal = $derived(
 		form && 'message' in form && typeof form.message === 'string' ? form.message.toUpperCase() : ''
 	);
+	/**
+	 * CONCEAL ITS SERIES (card c523): one press, not a switch. More than one
+	 * series asks first, in a sheet; without script the sheet is a URL
+	 * (`?ask=conceal`), as CHANGE ▾ is.
+	 */
+	const c = $derived(data.conceal);
+	const total = $derived(c.own + c.others);
+	let asking = $state(false);
+	const askOpen = $derived(asking || data.askConceal);
+	function closeAsk() {
+		asking = false;
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve()
+		if (data.askConceal) void goto(keepOrigin(here, data.from), { replaceState: true });
+	}
+	const theirWorks = $derived(c.works === 1 ? 'their Work' : `their ${c.works} Works`);
+	const concealSummary = $derived(
+		c.own === 0
+			? 'Nothing from it is shown in the library now.'
+			: `Hides the ${count(c.own)} series here from it, once, now` +
+					(c.others
+						? `, and ${count(c.others)} more from other sources: the parts of ${theirWorks}, since a Work is hidden whole.`
+						: '.') +
+					' Unlike Hidden source, it changes the series themselves, and a series added later is not hidden by it.'
+	);
 	// Each form keeps its place: the page isn't scrolled to the top by a save.
 	const keep =
 		() =>
@@ -83,6 +111,9 @@
 		/>
 	{/if}
 	{#if refusal}<Band title={refusal} detail="NOTHING CHANGED" />{/if}
+	{#if data.concealed}
+		<ConcealBand band={data.concealed} name={s.name} undo={act('undoConceal')} />
+	{/if}
 
 	<!-- tsundoku's own switches for this source (card c435), every family's,
 	     above the extension's: the same rows, in a form of their own each. -->
@@ -108,6 +139,50 @@
 			</div>
 		</form>
 	{/each}
+	<!-- CONCEAL ITS SERIES (card c523): an action beside the switches, which
+	     stores nothing; its own words, so no locator for HIDDEN SOURCE or a
+	     HIDE button finds it. -->
+	<div class="own-act">
+		<div class="what">
+			<div class="t">Conceal its series</div>
+			<div class="s">{concealSummary}</div>
+		</div>
+		<div class="ctl">
+			{#if total === 0}
+				<button type="button" class="act-cell" disabled>CONCEAL</button>
+			{:else if total === 1}
+				<form method="POST" action={act('conceal')} use:enhance>
+					<button type="submit" class="act-cell">CONCEAL 1</button>
+				</form>
+			{:else}
+				<a
+					class="act-cell"
+					href={keepOrigin(`${here}?ask=conceal`, data.from)}
+					onclick={(e) => {
+						e.preventDefault();
+						asking = true;
+					}}>CONCEAL {count(total)}</a
+				>
+			{/if}
+		</div>
+	</div>
+	<ConfirmSheet
+		open={askOpen && total > 1}
+		title="CONCEAL {count(total)} SERIES?"
+		lines={[
+			`${count(c.own)} FROM ${s.name.toUpperCase()} ARE HIDDEN NOW.`,
+			...(c.others
+				? [
+						`${count(c.others)} MORE GO WITH THEM: THE PARTS OF ${theirWorks.toUpperCase()} FROM OTHER SOURCES. A WORK IS HIDDEN WHOLE.`
+					]
+				: []),
+			'NOTHING IS KEPT: A SERIES ADDED LATER IS NOT HIDDEN. UNDO SHOWS THEM AGAIN.'
+		]}
+		confirm="CONCEAL {count(total)} SERIES"
+		action={act('conceal')}
+		fields={{}}
+		onclose={closeAsk}
+	/>
 
 	{#if data.preferences}
 		<div class="label">
@@ -272,7 +347,8 @@
 		color: var(--text-2);
 	}
 	.set,
-	.own {
+	.own,
+	.own-act {
 		flex-shrink: 0;
 		display: flex;
 		align-items: center;
@@ -298,6 +374,24 @@
 		font: 400 14px/1.45 var(--font-sans);
 		color: var(--text-prose);
 		text-wrap: pretty;
+	}
+	.act-cell {
+		display: flex;
+		align-items: center;
+		height: 44px;
+		padding: 0 14px;
+		border: 1px solid var(--line-2);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 500 14px var(--font-mono);
+		white-space: nowrap;
+		text-decoration: none;
+		cursor: pointer;
+	}
+	.act-cell:disabled {
+		color: var(--text-2);
+		cursor: default;
 	}
 	.ctl {
 		flex-shrink: 0;

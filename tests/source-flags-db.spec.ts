@@ -563,3 +563,135 @@ describe('ADDED HIDDEN, and the ADD that hid it (c505)', () => {
 		}
 	});
 });
+
+describe('CONCEAL ITS SERIES (c523)', () => {
+	// The route's own module: what the settings page and BROWSE call.
+	const conceal = () => import('../src/routes/browse/conceal.server');
+	const works = () => import('$lib/server/works');
+	const hidden = (id: number) =>
+		(db.prepare(`SELECT hidden FROM series WHERE id = ?`).get(id) as { hidden: number } | undefined)
+			?.hidden;
+	const settingsRows = () =>
+		(db.prepare(`SELECT COUNT(*) AS n FROM settings`).get() as { n: number }).n;
+	const idsOf = (query: string) =>
+		new URLSearchParams(query)
+			.get('concealed')!
+			.split(',')
+			.map((p) => Number(p.split('.')[0]))
+			.sort((a, b) => a - b);
+	const form = (query: string) => {
+		const f = new FormData();
+		for (const [k, v] of new URLSearchParams(query)) f.set(k, v);
+		return f;
+	};
+
+	it('hides every shown series from the source and its Works whole, says so, and UNDO shows only those', async () => {
+		const { concealCount, conceal: press, concealBand, undoConceal } = await conceal();
+		const { createWork, ungroup } = await works();
+		const made: number[] = [];
+		let workId: number | null = null;
+		const settingsBefore = settingsRows();
+		try {
+			// From the source: two shown (one a Work's part) and one hidden for its own reasons.
+			const part = write(keyOf(MANGA, '/manga/part'), 'A Part From The Manga Source', 'manga');
+			const own = write(keyOf(MANGA, '/manga/own'), 'Hidden For Its Own Reasons', 'manga');
+			// The Work's other part, from no source at all.
+			const other = write('hentoid-dir:nhentai/The Other Part', 'The Other Part', 'doujin');
+			made.push(part, own, other);
+			db.prepare(`UPDATE series SET hidden = 1 WHERE id = ?`).run(own);
+			workId = createWork({ seriesIds: [part, other], name: 'The Concealed Work', now: NOW }).work
+				.id;
+			// The source's last series, the newest id: the one an id could be given again.
+			const last = write(keyOf(MANGA, '/manga/last'), 'The Last One Added', 'manga');
+			made.push(last);
+			forgetSourceUse();
+
+			// What will change: three from it (the hidden one is not), one more for the Work.
+			expect(concealCount(MANGA)).toEqual({ own: 3, others: 1, works: 1 });
+			const done = press(MANGA);
+			if (!done.ok) throw new Error(done.message);
+			expect(idsOf(done.query)).toEqual([mangaSeries, part, other, last].sort((a, b) => a - b));
+			for (const id of [mangaSeries, part, other, last, own]) expect(hidden(id)).toBe(1);
+			// It is an action, not a switch: nothing kept, and the switches untouched.
+			expect(settingsRows()).toBe(settingsBefore);
+			expect(flags.sourceFlags(MANGA)).toEqual({
+				hidden: false,
+				addedHidden: false,
+				offHistory: false
+			});
+			// The band, from its URL alone (what a reload reads).
+			expect(concealBand(new URLSearchParams(done.query))).toMatchObject({
+				hidden: 4,
+				own: 3,
+				others: 1,
+				works: 1
+			});
+			// Nothing shown is left: the cell is disabled, and a press anyway refused.
+			expect(concealCount(MANGA)).toEqual({ own: 0, others: 0, works: 0 });
+			expect(press(MANGA)).toEqual({ ok: false, message: 'nothing from it is shown' });
+			// The source is mostly hidden now: outside reveal it is not found.
+			expect(browse.browseSource(MANGA, false)).toBeNull();
+			expect(browse.browseSource(MANGA, true)).not.toBeNull();
+
+			// Between the press and UNDO: the last one deleted, and the id given to
+			// a series added since, hidden on its own. UNDO must not show it.
+			db.prepare(`DELETE FROM series WHERE id = ?`).run(last);
+			made.splice(made.indexOf(last), 1);
+			const later = write(keyOf(MANGA, '/manga/later'), 'Added After The Press', 'manga');
+			made.push(later);
+			expect(later).toBe(last);
+			db.prepare(`UPDATE series SET hidden = 1 WHERE id = ?`).run(later);
+
+			expect(undoConceal(form(done.query))).toBeNull();
+			for (const id of [mangaSeries, part, other]) expect(hidden(id)).toBe(0);
+			// Hidden before the press, and added after it: both stay hidden.
+			expect(hidden(own)).toBe(1);
+			expect(hidden(later)).toBe(1);
+			expect(browse.browseSource(MANGA, false)).not.toBeNull();
+			// The band's URL after UNDO says nothing; UNDO twice changes nothing.
+			expect(concealBand(new URLSearchParams(done.query))).toBeNull();
+			expect(undoConceal(form(done.query))).toBeNull();
+			for (const id of [mangaSeries, part, other]) expect(hidden(id)).toBe(0);
+			expect(hidden(later)).toBe(1);
+		} finally {
+			if (workId !== null) ungroup(workId);
+			for (const id of made) db.prepare(`DELETE FROM series WHERE id = ?`).run(id);
+			db.prepare(`UPDATE series SET hidden = 0 WHERE id = ?`).run(mangaSeries);
+			forgetSourceUse();
+		}
+	});
+
+	it('counts only what is still hidden: a Work shown again meanwhile is left as it is', async () => {
+		const { conceal: press, concealBand, undoConceal } = await conceal();
+		const { createWork, ungroup, setHiddenWhole } = await works();
+		const made: number[] = [];
+		let workId: number | null = null;
+		try {
+			const part = write(keyOf(MANGA, '/manga/part2'), 'A Second Part From It', 'manga');
+			const other = write('hentoid-dir:nhentai/Another Part', 'Another Part', 'doujin');
+			made.push(part, other);
+			workId = createWork({ seriesIds: [part, other], name: 'The Concealed Work', now: NOW }).work
+				.id;
+			forgetSourceUse();
+			const done = press(MANGA);
+			if (!done.ok) throw new Error(done.message);
+			// Shown again from the library, by its other part: the Work comes back whole.
+			setHiddenWhole([other], false);
+			expect(hidden(part)).toBe(0);
+			// The band counts what UNDO has left to show: the series in no Work.
+			expect(concealBand(new URLSearchParams(done.query))).toMatchObject({
+				hidden: 1,
+				own: 1,
+				others: 0,
+				works: 0
+			});
+			expect(undoConceal(form(done.query))).toBeNull();
+			for (const id of [mangaSeries, part, other]) expect(hidden(id)).toBe(0);
+		} finally {
+			if (workId !== null) ungroup(workId);
+			for (const id of made) db.prepare(`DELETE FROM series WHERE id = ?`).run(id);
+			db.prepare(`UPDATE series SET hidden = 0 WHERE id = ?`).run(mangaSeries);
+			forgetSourceUse();
+		}
+	});
+});

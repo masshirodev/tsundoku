@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import SourceRow from './SourceRow.svelte';
+	import ConcealBand from './ConcealBand.svelte';
 	import { ago } from '$lib/library/tracking';
 	import { count } from '$lib/library/downloads';
 
@@ -82,6 +83,11 @@
 	</TopBar>
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
+	<!-- CONCEAL ITS SERIES outside reveal (card c523): its source is mostly
+	     hidden now, so the band is here, and names no source. -->
+	{#if data.concealed}
+		<ConcealBand band={data.concealed} name={null} undo="?/undoConceal" />
+	{/if}
 
 	{#if total === 0}
 		<!-- The first run (Index-Browse, first; Browse Calls, "No repository ships"). -->
