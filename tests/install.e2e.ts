@@ -4,12 +4,26 @@ import { expect, test } from './fixtures';
  * Installable (doc/INSTALL.md): Chromium's own verdict, not a checklist. Read-only.
  */
 test('Chromium finds nothing stopping an install', async ({ page, browserName }) => {
+	// 90 s for the worker below, and the rest.
+	test.setTimeout(120_000);
 	test.skip(browserName !== 'chromium', 'installability is a Chromium question');
 	await page.goto('/');
-	// The worker caches every asset before it takes control, which under a full
-	// parallel run can take longer than 15s.
+	// The worker precaches the whole build first (about 1,400 files), from the
+	// preview every other test's context is precaching from: 10-16 s with six
+	// contexts alone at a load average of 25, and past the old 30 s on one to
+	// four device projects in every loaded whole run of waves 19 and 20. Slow,
+	// not stuck, so it gets offline-flow's measured 90 s (c439, c477). Wave 22
+	// (c497): 3.4-8.7 s alone, 5 runs per device project at a load of 20-25;
+	// the 90 s is for a whole run's contexts all precaching at once.
+	const asked = Date.now();
 	await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, null, {
-		timeout: 30000
+		timeout: 90_000
+	});
+	// On the result, so every loaded run reports the figure the 90 s is set
+	// against (c497; doc/TESTING.md, "Load"), not only the run that measured it.
+	test.info().annotations.push({
+		type: 'controlled after',
+		description: `${Date.now() - asked} ms`
 	});
 	const cdp = await page.context().newCDPSession(page);
 	const { installabilityErrors } = await cdp.send('Page.getInstallabilityErrors');

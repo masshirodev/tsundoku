@@ -23,10 +23,29 @@ async function open(page: import('@playwright/test').Page) {
 
 test('a spread is the default on a TV, not one page', async ({ page }) => {
 	await open(page);
-	// The cover stands alone; one page forward opens a spread of two.
+	// From the cover, explicitly: ▶ CONTINUE opens CH. 140 where the seed left
+	// it, page 5, already a spread, and the screen after it is page 6 alone,
+	// beside a wide page (src/lib/server/pages/sample.ts). The case used to
+	// press on from there and count two pages, which only the outgoing spread,
+	// still sliding out, ever gave it: 2 runs in 3 red alone, and 10 in 10 at a
+	// load of 40 (c479).
+	await page.goto(page.url().replace(/\?.*$/, '') + '?p=1');
+	await readerReady(page);
+	// The pages on the stage once a slide has landed: one screen, no neighbour.
+	const shown = () =>
+		page.evaluate(() => {
+			const screens = [...document.querySelectorAll('.stage .screen')];
+			if (screens.length !== 1 || screens[0].hasAttribute('aria-hidden')) return null;
+			return [...screens[0].querySelectorAll('[data-page]')].map((p) =>
+				p.getAttribute('data-page')
+			);
+		});
+	// The cover stands alone; one page forward opens a spread of two, 2 and 3
+	// (R→L, so 3 is on the left).
+	await expect.poll(shown).toEqual(['1']);
 	await page.keyboard.press('ArrowLeft');
-	const pages = page.locator('.stage .screen:not([aria-hidden="true"]) [data-page]');
-	await expect(pages).toHaveCount(2);
+	await expect.poll(shown).toEqual(['3', '2']);
+	const pages = page.locator('.stage .screen [data-page]');
 	// Each page is fitted to the height; two of them fill most of the 960.
 	const [a, b] = [(await pages.nth(0).boundingBox())!, (await pages.nth(1).boundingBox())!];
 	expect(Math.round(a.height)).toBeGreaterThan(500);

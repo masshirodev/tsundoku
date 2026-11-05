@@ -1,13 +1,31 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
+import { hydrated } from './helpers/hydration';
 
 /**
- * Every e2e spec imports `test` from here. Its `page.goto` waits for the
- * network to go quiet as well as for `load`: SvelteKit hydrates after
- * `load`, and under the full parallel run (four devices, a dozen workers) a
- * click can land on server-rendered markup whose handlers don't exist yet --
- * a tap that opens nothing, a form that posts without JavaScript. That was
- * the whole of this suite's flakiness, one spec at a time, until it was
- * fixed here once.
+ * Most e2e specs import `test` from here. How many, and which do not, is the
+ * block `yarn run e2e:table` writes into doc/TESTING.md ("E2E specs", between
+ * the `e2e-fixtures` markers), which `tests/e2e-table.spec.ts` checks; no
+ * count is typed here, since every new spec file would falsify it. Every full
+ * document load such a test makes
+ * -- `page.goto`, `page.reload`, `page.goBack` and `page.goForward` -- waits
+ * for the page to have hydrated (`hydrated()`, `tests/helpers/hydration.ts`),
+ * and `goto` waits for the network to go quiet first. SvelteKit hydrates
+ * after `load`, and under the full parallel run a click can land on
+ * server-rendered markup whose handlers don't exist yet -- a tap that opens
+ * nothing, a form that posts without JavaScript, an arrow key the focus
+ * layer never sees.
+ *
+ * Network quiet alone was this fixture's wait until wave 21 (c477): 500 ms
+ * without a request is a guess at hydration, and on a loaded box the last
+ * module arrives and then waits longer than that for the CPU. SvelteKit's
+ * route announcer is the page's own mark (doc/TESTING.md, "E2E specs":
+ * "Network quiet is a guess at hydration"). `tests/helpers/hydrated.ts`, which added the same wait
+ * for the specs that imported it, is now this `test` under another name.
+ *
+ * A spec that means to act before hydration, as a quick thumb does
+ * (`browse-tags`, `filters-layout`, `library-top-bar`'s FILTER case), imports
+ * `test` from `@playwright/test`. The others that do so only because nobody
+ * moved them over are listed in that generated block, and get no wait at all.
  */
 export const test = base.extend({
 	page: async ({ page }, use) => {
@@ -15,13 +33,22 @@ export const test = base.extend({
 		page.goto = async (url, options) => {
 			const res = await goto(url, options);
 			await page.waitForLoadState('networkidle');
+			await hydrated(page);
 			return res;
 		};
+		for (const name of ['reload', 'goBack', 'goForward'] as const) {
+			const navigate = page[name].bind(page) as Page['reload'];
+			page[name] = async (options) => {
+				const res = await navigate(options);
+				await hydrated(page);
+				return res;
+			};
+		}
 		await use(page);
 	}
 });
 
-export { expect };
+export { expect, hydrated };
 
 /**
  * The reader is ready: its stylesheet has applied (the ground is true black).

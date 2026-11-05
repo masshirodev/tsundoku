@@ -1,4 +1,5 @@
 import { expect, screenSettled, test } from './helpers/hydrated';
+test.use({ serviceWorkers: 'block' }); // the worker answers __data.json past page.route (c477)
 
 /**
  * Motion in the real app (doc/MOTION.md, card c396): every tap is drawn and

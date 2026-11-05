@@ -1,27 +1,13 @@
-import type { Page } from '@playwright/test';
-import { test as base, expect } from '../fixtures';
-import { hydrated } from './hydration';
-
 /**
- * `test` from `tests/fixtures.ts`, whose `page.goto` waits for the network to
- * settle, with every full document load also waiting for hydration: `goto`,
- * `reload`, `goBack` and `goForward`. The specs this slot owns import it
- * (c439); `tests/fixtures.ts` itself is nobody's this wave, so the same wait
- * there is a Gap in doc/handoff-notes/e2e.md.
+ * `tests/fixtures.ts` under the name eighteen spec files import it by.
+ *
+ * This file added the hydration wait to `goto`, `reload`, `goBack` and
+ * `goForward` for the specs that imported it (c439, wave 19), while the
+ * fixtures were another slot's. Since wave 21 the fixtures do that for every
+ * spec that takes their `test` (c477; not every spec does: doc/TESTING.md,
+ * "E2E specs", has the generated count), so what is left here is a
+ * pass-through: the same `test`, the
+ * same `hydrated()` and the same helpers, kept so no importer has to change.
+ * A new spec imports from `./fixtures`.
  */
-export const test = base.extend({
-	page: async ({ page }, use) => {
-		for (const name of ['goto', 'reload', 'goBack', 'goForward'] as const) {
-			const navigate = page[name].bind(page) as (...a: unknown[]) => ReturnType<Page['reload']>;
-			(page as unknown as Record<string, unknown>)[name] = async (...args: unknown[]) => {
-				const res = await navigate(...args);
-				await hydrated(page);
-				return res;
-			};
-		}
-		await use(page);
-	}
-});
-
-export { expect, hydrated };
-export { readerReady, screenSettled } from '../fixtures';
+export { expect, hydrated, readerReady, screenSettled, test } from '../fixtures';
