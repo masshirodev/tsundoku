@@ -5,24 +5,19 @@
  * when the Wi-Fi drops is not offline-capable. See doc/design/README.md.
  */
 @import './fonts-mono.css';
-@import '@fontsource/ibm-plex-sans/400.css';
-@import '@fontsource/ibm-plex-sans/500.css';
-@import '@fontsource/ibm-plex-sans/600.css';
-/* Body text in the text reader (Index Text Reader): its default FONT. */
-@import '@fontsource/ibm-plex-serif/400.css';
-@import '@fontsource/ibm-plex-serif/400-italic.css';
-@import '@fontsource/ibm-plex-serif/500.css';
 /*
- * Japanese and Korean for titles, from the series and reader handoffs. Each
- * weight is split into ~120 unicode-range chunks, so a page downloads only the
- * chunks holding characters it actually shows -- a raw's title costs a few
- * kilobytes, not the 39 MB the full family weighs. 400 and 500 only: the
+ * IBM Plex Sans (400, 500, 600), Serif (400, 400 italic, 500: body text in the
+ * text reader, Index Text Reader's default FONT), and Sans JP and Sans KR
+ * (400, 500) for titles, from the series and reader handoffs. Declared in
+ * fonts-plex.css, generated from @fontsource's CSS with woff2 only, rather than
+ * imported from it, whose woff fallbacks the service worker would precache on
+ * every device (c537).
+ * Each CJK weight is split into ~120 unicode-range chunks, so a page downloads
+ * only the chunks holding characters it actually shows -- a raw's title costs
+ * a few kilobytes, not the 39 MB the full family weighs. 400 and 500 only: the
  * design uses no other weight for CJK.
  */
-@import '@fontsource/ibm-plex-sans-jp/400.css';
-@import '@fontsource/ibm-plex-sans-jp/500.css';
-@import '@fontsource/ibm-plex-sans-kr/400.css';
-@import '@fontsource/ibm-plex-sans-kr/500.css';
+@import './fonts-plex.css';
 @import './colors.css';
 @import './typography.css';
 @import './spacing.css';

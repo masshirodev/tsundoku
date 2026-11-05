@@ -11,6 +11,13 @@ import { expect, readerReady, test } from './fixtures';
  * READING, whose mode is session state that only REMEMBER stores.
  */
 
+// 60 s, measured (c439, wave 24): each case opens the reader cold and switches
+// to the strip before its first key, and at a load of 35-50 (four burners
+// beside the slots, phone, `--repeat-each=10 --workers=4`) the passing copies
+// took 11-27 s of the 30 s; at 41-58, 6 of 80 copies ran the 30 s out in
+// `open()` or `toStrip()`'s menu steps, each waiting on the right state.
+test.describe.configure({ timeout: 60_000 });
+
 test.beforeEach(async ({ page }) => {
 	await page
 		.context()
@@ -64,8 +71,23 @@ async function toStrip(page: import('@playwright/test').Page) {
 	await page.keyboard.press('Escape');
 	await expect(sheet).toHaveCount(0);
 	await expect(page.locator('.reader')).toHaveClass(/vertical/);
-	await page.keyboard.press('Escape');
-	await expect(page.getByRole('banner', { name: 'Reader' })).toHaveCount(0);
+	// The mouse off the window's edge before the controls go, as a reader's
+	// would be: the reader shows them for a mouse within HOVER_EDGE of an edge
+	// (ImageReader's `hover`), and the clicks above left it on the bottom bar,
+	// where any pointermove brings them back after Escape (forced in wave 24;
+	// Chromium also sends one when the page moves under a still cursor).
+	const vp = page.viewportSize()!;
+	await page.mouse.move(vp.width / 2, vp.height / 2);
+	// Escape toggles the controls, so it is pressed only while they show: a
+	// navigation the strip makes as it settles can hide them first, and a
+	// blind press then brought them back (traced in wave 24: they went with
+	// a crossing to the next chapter and back, no key pressed, and the
+	// Escape after it showed them again).
+	const banner = page.getByRole('banner', { name: 'Reader' });
+	await expect(async () => {
+		if (await banner.count()) await page.keyboard.press('Escape');
+		await expect(banner).toHaveCount(0, { timeout: 1_000 });
+	}).toPass();
 	// The strip finds its place after the switch (pages above arrive and the
 	// place is kept): wait until it has held still for a second. A chapter can
 	// still arrive later under load, and the strip then scrolls with it by
