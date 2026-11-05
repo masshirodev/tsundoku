@@ -260,3 +260,137 @@ test('OFF HISTORY: a read from it is logged, but never in HISTORY, inside reveal
 	await page.goto(url('/history'));
 	await expect(rows).toHaveCount(1);
 });
+
+test('CONCEAL ITS SERIES hides what the source shows, a Work whole, says so, and UNDO brings back only that (c523)', async ({
+	page,
+	context
+}) => {
+	const post = (path: string, form: Record<string, string | string[]>) => {
+		const body = new URLSearchParams();
+		for (const [k, v] of Object.entries(form))
+			for (const x of Array.isArray(v) ? v : [v]) body.append(k, x);
+		return page.request.post(url(path), {
+			data: body.toString(),
+			headers: { origin: world.base, 'content-type': 'application/x-www-form-urlencoded' }
+		});
+	};
+	const found = async (id: number) => (await page.request.get(url(`/series/${id}`))).status();
+	const { twice, hentoid, gallery, tagged } = world.ids;
+	// A Work across sources, by the library's own GROUP: a part from this
+	// source and a Hentoid gallery, from none.
+	const made = await post('/?/work', {
+		series: [String(twice), String(hentoid)],
+		name: 'Concealed Across'
+	});
+	expect(made.ok()).toBe(true);
+	// Its id, from the series screen's link to it.
+	const workId = Number(
+		/\/work\/(\d+)/.exec(await (await page.request.get(url(`/series/${twice}`))).text())![1]
+	);
+	// One of the source's series hidden before, for its own reasons.
+	expect((await post('/?/hide', { id: String(gallery), on: '1' })).ok()).toBe(true);
+	const cell = page.locator('.own-act');
+	try {
+		// Inside reveal: the page stays, and the band is on it.
+		await reveal(context, true);
+		await page.goto(url(settings));
+		await expect(cell.locator('.t')).toHaveText('Conceal its series');
+		// Its own words: no HIDE control, and HIDDEN SOURCE's row is still the one switch so named.
+		// (Reveal's own banner has HIDE AGAIN; the rows have none.)
+		const rows = page.locator('form.own, .own-act');
+		await expect(rows.getByRole('button', { name: 'HIDE' })).toHaveCount(0);
+		await expect(rows.getByRole('link', { name: 'HIDE' })).toHaveCount(0);
+		await expect(own(page, 'Hidden source')).toHaveCount(1);
+		await expect(cell.locator('.s')).toContainText(
+			'and 1 more from other sources: the parts of their Work, since a Work is hidden whole.'
+		);
+		const ownCount = Number(
+			/Hides the (\d+) series here/.exec((await cell.locator('.s').textContent())!)![1]
+		);
+		expect(
+			ownCount,
+			'the source’s shown series, the hidden one not among them'
+		).toBeGreaterThanOrEqual(2);
+		const total = ownCount + 1;
+		await cell.getByRole('link', { name: `CONCEAL ${total}` }).click();
+		const sheet = page.getByRole('dialog', { name: `CONCEAL ${total} SERIES?` });
+		await expect(sheet).toContainText(`${ownCount} FROM TAG SOURCE ARE HIDDEN NOW.`);
+		await expect(sheet).toContainText('1 MORE GO WITH THEM');
+		await sheet.getByRole('button', { name: `CONCEAL ${total} SERIES` }).click();
+		await expect(page).toHaveURL(/\/settings\?.*concealed=/);
+		const band = page.locator('.band', { hasText: 'SERIES HIDDEN NOW' });
+		await expect(band).toContainText(`${total} SERIES HIDDEN NOW`);
+		await expect(band).toContainText(
+			`${ownCount} FROM TAG SOURCE · 1 MORE: PARTS OF THEIR WORK, HIDDEN WHOLE · REVEAL SHOWS THEM`
+		);
+		// Nothing of it is shown now: the cell is disabled, and a press anyway is refused.
+		await expect(cell.getByRole('button', { name: 'CONCEAL' })).toBeDisabled();
+		const again = await page.request.post(url(`${settings}?/conceal`), {
+			form: {},
+			headers: { origin: world.base, accept: 'text/html' }
+		});
+		expect(again.status()).toBe(409);
+		expect(await again.text()).toContain('NOTHING FROM IT IS SHOWN');
+		// The band is its URL: a reload says the same.
+		const bandUrl = page.url();
+		await page.reload();
+		await expect(band).toContainText(`${total} SERIES HIDDEN NOW`);
+		// Hidden: outside reveal the series, the Work's other part and the source are not found.
+		await reveal(context, false);
+		for (const id of [tagged, twice, hentoid]) expect(await found(id), `series ${id}`).toBe(404);
+		expect((await page.request.get(url(settings))).status()).toBe(404);
+		await reveal(context, true);
+
+		// UNDO: what it hid comes back; the one hidden before stays hidden.
+		await page.goto(bandUrl);
+		await band.getByRole('button', { name: 'UNDO' }).click();
+		await expect(page).toHaveURL(url(settings));
+		await expect(band).toHaveCount(0);
+		await reveal(context, false);
+		for (const id of [tagged, twice, hentoid]) expect(await found(id), `series ${id}`).toBe(200);
+		expect(await found(gallery)).toBe(404);
+		// The band's URL after UNDO says nothing; UNDO twice shows nothing more.
+		await reveal(context, true);
+		await page.goto(bandUrl);
+		await expect(band).toHaveCount(0);
+		const params = new URL(bandUrl).searchParams;
+		expect(
+			(
+				await post(`${settings}?/undoConceal`, {
+					concealed: params.get('concealed')!,
+					of: params.get('of')!
+				})
+			).ok()
+		).toBe(true);
+		await reveal(context, false);
+		expect(await found(gallery)).toBe(404);
+
+		// Outside reveal: the source is mostly hidden after, so CONCEAL lands on
+		// BROWSE, whose band names no source, and UNDO there brings it back.
+		await page.goto(url(settings));
+		await cell.getByRole('link', { name: `CONCEAL ${total}` }).click();
+		await page
+			.getByRole('dialog', { name: `CONCEAL ${total} SERIES?` })
+			.getByRole('button', { name: `CONCEAL ${total} SERIES` })
+			.click();
+		await expect(page).toHaveURL(/\/browse\?.*concealed=/);
+		await expect(band).toContainText(
+			`${ownCount} FROM ITS SOURCE · 1 MORE: PARTS OF THEIR WORK, HIDDEN WHOLE · THE SOURCE IS HIDDEN WITH THEM · REVEAL SHOWS BOTH`
+		);
+		await expect(page.locator('body')).not.toContainText(SOURCE.name.toUpperCase());
+		await expect(page.locator('a.row', { hasText: SOURCE.name })).toHaveCount(0);
+		await page.reload();
+		await band.getByRole('button', { name: 'UNDO' }).click();
+		await expect(page).toHaveURL(url('/browse'));
+		await expect(band).toHaveCount(0);
+		await expect(page.locator('a.row', { hasText: SOURCE.name }).first()).toBeVisible();
+		for (const id of [tagged, twice, hentoid]) expect(await found(id), `series ${id}`).toBe(200);
+		expect(await found(gallery)).toBe(404);
+	} finally {
+		// Put back what the case made: the hidden series shown, the Work ended.
+		await reveal(context, true);
+		await post('/?/hide', { id: String(gallery), on: '0' });
+		if (workId) await post(`/work/${workId}?/ungroup`, {});
+		await reveal(context, false);
+	}
+});

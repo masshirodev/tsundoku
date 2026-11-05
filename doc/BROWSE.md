@@ -460,7 +460,8 @@ cell and its page answered 404).
 ### A source's own switches
 
 Three rows above the extension's own (`01 — IN TSUNDOKU`), drawn as the
-page's switch rows are, each its own form posting `?/flag`. They are
+page's switch rows are, each its own form posting `?/flag`, and under them
+one action, CONCEAL ("Conceal its series", below). They are
 tsundoku's, not the extension's: nothing is sent to the source. Card c435,
 the owner's request of 2026-11-03.
 
@@ -544,6 +545,57 @@ own books, with no source.
 With reveal off, turning HIDDEN SOURCE on lands on BROWSE, since the page it
 was set on is no longer found. Turning it off again is done inside reveal.
 
+### Conceal its series
+
+**CONCEAL** (card c523, the owner's pick from c504, 2026-11-04; wave 24) is
+the other half of HIDDEN SOURCE. HIDDEN SOURCE hides the source and leaves
+its series' own state alone; CONCEAL hides the series, once, now, and leaves
+the source's switches alone. It is an action, not a switch: it stores nothing
+in `settings`, so a series added from the source afterwards is not hidden by
+it (ADDED HIDDEN is that switch), and it is a row of its own under the three
+switches with a cell on the right, `CONCEAL <n>`. Its words avoid HIDE and
+HIDDEN, because the page's HIDDEN SOURCE row and reveal's HIDE AGAIN are
+found by those words and a locator matches by substring.
+
+- **What it hides:** every series in the library from the source that the
+  library shows (`concealable`, `src/lib/server/engine/source-flags.ts`),
+  through `setHiddenWhole` (`src/lib/server/works.ts`), so a Work is never
+  left half hidden (c389): a Work with a part from the source is hidden
+  whole, its parts from other sources too. So the count can be more than the
+  source's own series, and the row says so: "Hides the 12 series here from
+  it, once, now, and 2 more from other sources: the parts of their Work,
+  since a Work is hidden whole." A series hidden already, for its own reasons
+  or by its root, is not counted and not touched.
+- **Asking:** more than one asks first in a `ConfirmSheet` ("CONCEAL 14
+  SERIES?", what goes with them, and that nothing is kept); without script
+  the sheet is a URL, `?ask=conceal`. One series is the cell's own press.
+- **Nothing shown:** the cell is drawn disabled, `CONCEAL`, and a post anyway
+  is refused with "NOTHING FROM IT IS SHOWN" in the page's refusal band. More
+  than 600 to hide is refused too, since the band carries every id in its
+  URL (Node's 16 KB for a request's head).
+- **The band:** "14 SERIES HIDDEN NOW · 12 FROM <SOURCE> · 2 MORE: PARTS OF
+  THEIR WORK, HIDDEN WHOLE · REVEAL SHOWS THEM", with UNDO. Inside reveal it
+  is on the settings page. Outside reveal a source whose every series is
+  hidden is mostly hidden, so its pages are not found: CONCEAL lands on
+  BROWSE, whose band names no source ("12 FROM ITS SOURCE · … · THE SOURCE
+  IS HIDDEN WITH THEM · REVEAL SHOWS BOTH"), and UNDO there brings both back.
+  The band is its URL (`?concealed=<id>.<mark>,…&of=<source>`), so a reload
+  says the same; it counts only what is still hidden of what it hid, and is
+  not drawn once nothing is.
+- **UNDO shows only what this press hid** (`undoConceal`,
+  `src/routes/browse/conceal.server.ts`, over `undoHideWhole`). The band
+  carries the ids the press changed, never "the series from this source", so
+  a series added between the press and UNDO is not shown; a series hidden
+  before the press for its own reasons was never among them and stays
+  hidden. Each id carries a mark (six hex characters of its root, key and
+  path, `seriesMarks`), because an id is given again once its series is
+  gone: an id whose mark no longer matches is left hidden, and so is a series
+  renamed or moved meanwhile (when in doubt, hidden). A Work comes back only
+  while every hidden part of it is one the press hid, as the library's UNDO
+  does (c390): a Work the library hid again with the same parts is the same
+  hidden state, and UNDO shows it. UNDO twice, or the band's URL after UNDO,
+  shows nothing more.
+
 ## Where it lives in the code
 
 | What                                                      | Where                                                                                                                                                                                                                                     |
@@ -555,7 +607,7 @@ was set on is no longer found. Turning it off again is done inside reveal.
 | BROWSE                                                    | `src/routes/browse/` (`+page.server.ts`, `+page.svelte`, `SourceRow.svelte`, shared with the empty search)                                                                                                                                |
 | An extension's icon                                       | `src/routes/api/browse/icon/[pkg]/+server.ts`                                                                                                                                                                                             |
 | A source's page                                           | `src/routes/browse/[source]/` (`+page.server.ts`, `+page.svelte`, `FilterForm.svelte`, `ResultTile.svelte`)                                                                                                                               |
-| A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`; tsundoku's own switches in `src/lib/server/engine/source-flags.ts`                                                                                          |
+| A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`; tsundoku's own switches in `src/lib/server/engine/source-flags.ts`; CONCEAL in `src/routes/browse/conceal.server.ts` and `ConcealBand.svelte`               |
 | Extensions and repositories                               | `src/routes/browse/extensions/` (`ExtRow.svelte`), `src/lib/server/engine/manage.ts`                                                                                                                                                      |
 | BROWSE's languages                                        | `src/routes/settings/` (03 — BROWSE)                                                                                                                                                                                                      |
 | A site's check                                            | `checkingSince` / `noteSolvedChecks` in `engine/browse.ts`, `novels/solver.ts` (the app's own solve, c152), `src/routes/api/browse/check/[source]/`, `src/lib/site-check.svelte.ts`; the fork's `ChallengeLog`                            |
