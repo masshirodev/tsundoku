@@ -861,17 +861,20 @@ pure parts in `src/lib/library/anime-files.ts`).
   c171): every track by default, or the original (the source's first audio)
   and the languages chosen under AUDIO KEPT; subtitles all, or AS AUDIO for
   those in a kept audio's language (`keptTracks`), by language alone: an
-  ES-419 track is kept by ES and tagged `spa`. New downloads only. The file is each track tagged with its language, written beside its
-  place and renamed. The NFOs are Jellyfin's (`tvshow`, `episodedetails`) and
-  carry tsundoku's keys as `<uniqueid type="tsundoku">`, with AniList and MAL
-  ids where the series is linked to an anime's entry (a manga's ids would
-  have Jellyfin's plugins fetch another work, c395). They are the show's ids
-  (`showEntry` in `season-links.ts`, c381): season 1's link, else the
-  earliest season linked, part 1 first, read from the season rows, so a show
-  with only season 2 linked names season 2's entry rather than none. A
-  season linked to a manga is passed over for the next one that is an
-  anime's. `series_links` answers only for a show linked before rung 62. An
-  `.nfo` already written is rewritten at the series' next download.
+  ES-419 track is kept by ES and tagged `spa`. New downloads only. Each
+  track is tagged with its language's ISO 639-2 code, from the player's one
+  table (`iso3`, c419: `hun`, `nob`; `und` only for a language it lacks).
+  The file is written beside its place and renamed. The NFOs are Jellyfin's
+  (`tvshow`, `episodedetails`) and carry tsundoku's keys as
+  `<uniqueid type="tsundoku">`, with AniList and MAL ids where the series
+  is linked to an anime's entry (a manga's ids would have Jellyfin's
+  plugins fetch another work, c395). They are the show's ids (`showEntry`
+  in `season-links.ts`, c381): season 1's link, else the earliest season
+  linked, part 1 first, read from the season rows, so a show with only
+  season 2 linked names season 2's entry rather than none. A season linked
+  to a manga is passed over for the next one that is an anime's.
+  `series_links` answers only for a show linked before rung 62. An `.nfo`
+  already written is rewritten at the series' next download.
   `poster.jpg` is the library's own cover.
 - **ffmpeg fetches nothing itself.** Its inputs are a loopback proxy inside
   the app that serves only the tokens `streams.ts` handed out, and only with a
