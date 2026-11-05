@@ -647,7 +647,7 @@ test('a burned code stays burned through a reload of SETTINGS’ data, and a rea
 /** MainActivity.kt's PAIRED_JS, the very literal the app runs on 9E. */
 const PAIRED_JS = (() => {
 	const kt = readFileSync(
-		join(process.cwd(), 'android/tv/app/src/main/java/dev/masshiro/tsundoku/tv/MainActivity.kt'),
+		join(process.cwd(), 'android/app/src/main/java/dev/masshiro/tsundoku/tv/MainActivity.kt'),
 		'utf8'
 	);
 	const m = kt.match(/PAIRED_JS =\s*"([^"\\$]*)"/);

@@ -16,5 +16,5 @@ dependencyResolutionManagement {
 	}
 }
 
-rootProject.name = "tsundoku-tv"
+rootProject.name = "tsundoku-android"
 include(":app")

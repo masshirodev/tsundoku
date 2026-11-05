@@ -37,7 +37,7 @@ download it and installs find it ([`UPDATES.md`](UPDATES.md)).
 
 The TV app ([`TV-APP.md`](TV-APP.md), c236) and the phone and tablet app
 ([`PHONE-APP.md`](PHONE-APP.md), c521) are two flavors of one Gradle build
-under `android/tv/`, and **`yarn run release` builds neither**: nothing a
+under `android/`, and **`yarn run release` builds neither**: nothing a
 bundle carries changes because of them. The APKs are made beside the
 bundles, with the release's own version:
 

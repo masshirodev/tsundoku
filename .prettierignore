@@ -13,7 +13,7 @@ yarn.lock
 /src/lib/paraglide/
 /project.inlang/*
 !/project.inlang/settings.json
-# The Android TV app's Gradle output (android/tv/.gitignore), never source.
-/android/tv/**/build/
+# The Android apps' Gradle output (android/.gitignore), never source.
+/android/**/build/
 # The website handoff, mirrored verbatim like the design project (doc/WEBSITE.md).
 /doc/handoffs/

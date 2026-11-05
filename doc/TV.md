@@ -5,7 +5,7 @@ the remote's keys (c235) and the Android app (c236) are built.** Every thing a
 finger or a keyboard letter reaches is reachable from a D-pad, OK pressed or
 held, MENU, BACK and the media keys; a WebView that keeps BACK to itself has
 `window.tsundokuBack()` to call; and on a TV that is the app's own back key.
-The app is a Kotlin WebView under `android/tv/`, with a launcher banner, the
+The app is a Kotlin WebView under `android/`, with a launcher banner, the
 remote's keys passed through, the screen kept awake, and a six-digit code a
 remote can type ([`TV-APP.md`](TV-APP.md)). The handoff is mirrored in
 `doc/design/handoff/TV*` (see "The design", below). Parent card c231 ("Android
@@ -187,13 +187,14 @@ The handoff stated these about the code or the app; both are built (c236).
   scale":** the app does that. `useWideViewPort=false` and
   `WebView.setInitialScale` take the display width in physical pixels (the
   unit `setInitialScale` counts in) and scale it to 960
-  (`android/tv/.../Scale.kt`, unit-tested): 133% on 1280×720, 200% on
+  (`android/.../Scale.kt`, unit-tested): 133% on 1280×720, 200% on
   1920×1080, at any density. Whether a particular panel honours it is
   unverified ([`TV-APP.md`](TV-APP.md), "What is not verified").
 - **A six-digit code typed on the TV:** `src/lib/server/pairing.ts` now has a
   second code beside the phone's link: six digits from `crypto.randomInt`,
   10 minutes, one TV, once, compared by digest, and **five wrong tries burn
-  it** (`TvPairing`). The computer's side is the panel's FOR A TV digits; the
+  it** (`TvPairing`). The computer's side is the panel's FOR THE APP digits
+  (FOR A TV before c521, when the phone app came to share them); the
   TV's is `/pair/tv` (9C and 9E).
 
 ## What is built (c238)
@@ -312,7 +313,7 @@ The Android app that holds the page, and the pairing a remote can type.
 [`TV-APP.md`](TV-APP.md) is the app's own document; this is what it adds to
 the TV.
 
-- **The app** (`android/tv/`, Kotlin): a leanback launcher entry and a 320×180
+- **The app** (`android/`, Kotlin): a leanback launcher entry and a 320×180
   wordmark banner drawn from `banner/tv-banner.svg`, a WebView that is the
   whole screen, `FLAG_KEEP_SCREEN_ON` while it is in front, cookies flushed on
   pause so a paired TV stays paired, fullscreen video through
@@ -341,7 +342,7 @@ the TV.
 - **The six digits** (`src/lib/server/pairing.ts`, `TvPairing`): one code
   beside the phone's, made with `crypto.randomInt`, 10 minutes, one TV, once,
   five wrong tries burn it, compared by digest. The Wi-Fi panel shows them in
-  two threes under FOR A TV · SIX DIGITS, with their own countdown; NEW CODE
+  two threes under FOR THE APP · SIX DIGITS, with their own countdown; NEW CODE
   and opening SETTINGS replace them. `/pair/tv` answers ok, wrong (with tries
   left), expired, used and burned, and a TV that opens the page before anyone
   opened SETTINGS gets a code made for it.

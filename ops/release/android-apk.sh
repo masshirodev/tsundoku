@@ -2,7 +2,7 @@
 #
 # Build tsundoku's Android apps (c236, c521; doc/TV-APP.md, doc/PHONE-APP.md,
 # doc/RELEASE.md): the TV's, the phone and tablet one, or both. They are two
-# flavors of one Gradle project (android/tv), so one build makes either.
+# flavors of one Gradle project (android), so one build makes either.
 #
 #   ops/release/android-apk.sh <version> [--app tv|phone|both] [--out DIR]
 #
@@ -57,7 +57,7 @@ case "$WHICH" in
 esac
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-APP="$ROOT/android/tv"
+APP="$ROOT/android"
 
 # The SDK this machine has (AGENTS.md); an environment one wins.
 : "${ANDROID_HOME:=$HOME/Android/Sdk}"

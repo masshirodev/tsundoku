@@ -18,16 +18,19 @@ http the page cannot ask for), and can show a code the page sets as a cookie.
 
 ## What it is
 
-`android/tv/` is a Gradle project in Kotlin DSL, the only Android in this
-repository:
+`android/` is a Gradle project in Kotlin DSL, the only Android in this
+repository. Since c521 it builds two apps as product flavors, this one (`tv`)
+and the phone and tablet one (`mobile`, [`PHONE-APP.md`](PHONE-APP.md)): every
+line of pairing is shared, and what differs is `Form.kt`'s. The folder was
+`android/tv/` until then.
 
-|                            |                                                                       |
-| -------------------------- | --------------------------------------------------------------------- |
-| Kotlin                     | 2.2.20                                                                |
-| AGP / Gradle               | 8.13.0 / 8.14.3 (the pair Kumiko's Capacitor app already builds with) |
-| `compileSdk` / `targetSdk` | 36                                                                    |
-| `minSdk`                   | 23: old TV boxes, and nothing here forces higher                      |
-| Package                    | `dev.masshiro.tsundoku.tv`                                            |
+|                            |                                                                           |
+| -------------------------- | ------------------------------------------------------------------------- |
+| Kotlin                     | 2.2.20                                                                    |
+| AGP / Gradle               | 8.13.0 / 8.14.3 (the pair Kumiko's Capacitor app already builds with)     |
+| `compileSdk` / `targetSdk` | 36                                                                        |
+| `minSdk`                   | 23: old TV boxes, and nothing here forces higher                          |
+| Package                    | `dev.masshiro.tsundoku.tv` (the phone app's: `dev.masshiro.tsundoku.app`) |
 
 One activity (`MainActivity.kt`) and a WebView. The parts worth testing are
 pure Kotlin and live beside it: `Keys.kt`, `Scale.kt`, `Address.kt`,
@@ -36,15 +39,15 @@ pure Kotlin and live beside it: `Keys.kt`, `Scale.kt`, `Address.kt`,
 ## Build it
 
 ```sh
-cd android/tv
-./gradlew assembleDebug test     # an APK and the JVM unit tests
+cd android
+./gradlew assembleTvDebug testTvDebugUnitTest   # the TV's APK and the JVM unit tests
 ./gradlew --stop                 # always: a daemon outlives the build otherwise
 ```
 
 JDK 21 is what this machine has, and AGP 8.13 needs 17 or newer. The SDK is
 `~/Android/Sdk` (`ANDROID_HOME` here); `local.properties` is gitignored.
 Gradle's downloads go to `~/.gradle`; everything the build writes stays under
-`android/tv/` and is gitignored. No APK is committed.
+`android/` and is gitignored. No APK is committed.
 
 The unit tests cover the pure pieces (`Tests`, below); there is no emulator
 system image on this machine, so nothing instrumented runs.
@@ -56,7 +59,7 @@ network debugging):
 
 ```sh
 adb connect <tv-address>:5555
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/tv/debug/app-tv-debug.apk
 ```
 
 or as a file: copy the APK to a USB stick, plug it into the TV, and open it in
@@ -65,7 +68,7 @@ once). Android TV also accepts `adb push` to `/sdcard/Download/` and a package
 installer app.
 
 The launcher shows **tsundoku** with the wordmark banner (320×180, drawn from
-`android/tv/banner/tv-banner.svg`); the icon is the app's own 積.
+`android/banner/tv-banner.svg`); the icon is the app's own 積.
 
 ## On launch
 
@@ -329,7 +332,7 @@ opened and when it was added. Pure apart from its key-value, so
   that host, so FORGET expires this origin's paired name, the old shared
   `tsundoku_paired`, and every cookie that is not a pairing, and never another
   origin's `tsundoku_paired_*` (c530; `Forget.pairedCookie` names it as the
-  server does, both read `android/tv/app/src/test/resources/paired-cookies.tsv`). The computer still lists the TV in SETTINGS ›
+  server does, both read `android/app/src/test/resources/paired-cookies.tsv`). The computer still lists the TV in SETTINGS ›
   08 — DEVICES until it is signed out there: the TV may be off the network
   when it forgets.
 - **The bridge** (`PairingBridge.kt`) grew `servers()` (JSON, the one in use
@@ -375,7 +378,7 @@ verified".
   "Switch from the name at the top of the library, or MORE › SERVERS". S1 is
   built since wave 24 (with two or more servers, which is every TV that sees
   S8), but the sentence is the app's own page
-  (`android/tv/app/src/main/assets/pair/index.html`), outside wave 24's tv
+  (`android/app/src/main/assets/pair/index.html`), outside wave 24's tv
   slot: the patch is under Gaps in `doc/handoff-notes/tv.md`, wave 24. Until it
   lands, S8 names one of the two doors.
 - **The wordmark is not an arrow stop while S1's cell is drawn** (above, "The
@@ -436,13 +439,16 @@ verified".
 ## Pairing, 9A to 9E
 
 On the computer: SETTINGS › 08 — DEVICES. A friend's install switches WI-FI ON
-there first, and the pairing panel then shows the phone's QR **and, under a
-FOR A TV · SIX DIGITS label, six digits in two threes**
-(`src/routes/settings/+page.svelte`), with their own countdown. The owner's own
+there first, and the pairing panel then shows THIS COMPUTER'S ADDRESS and,
+side by side under it, **six digits in two threes under FOR THE APP · SIX
+DIGITS** and the QR a phone's browser scans
+(`src/routes/settings/+page.svelte`), each with its countdown. The owner's own
 tailnet instance has no WI-FI row at all: there the same six digits are the
-section's first row, in the WI-FI row's shape and without the phone's QR
-(c245). A new code lives for 10 minutes, pairs one TV once, and **five wrong
-tries burn it**; NEW CODE makes another.
+section's first row, THE APP, without the QR and with the whole address the app
+types (c245, c521). A new code lives for 10 minutes, pairs one device once (a
+TV, or since c521 a phone or tablet in the phone app, [`PHONE-APP.md`](PHONE-APP.md)),
+and **five wrong tries burn it**; NEW CODE (NEW CODES on a friend's panel) makes
+another.
 
 On the TV:
 
@@ -698,10 +704,10 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 
 ## Tests
 
-- `android/tv/app/src/test/` — `AddressTest`, `AttemptsTest`, `BackTest`,
+- `android/app/src/test/` — `AddressTest`, `AttemptsTest`, `BackTest`,
   `BridgeGuardTest`, `FailedLoadTest`, `ForgetTest`, `IntentAddressTest`,
   `KeysTest`, `PairingBridgeTest`, `ProbeTest`, `ScaleTest`, `ServersTest`,
-  `ShortcutsTest` (90 tests in 13 classes at wave 22's round 2), run by `./gradlew test`.
+  `ShortcutsTest` (90 tests in 13 classes at wave 22's round 2), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
   `ServersTest` (19) is c261's store: the migration of a TV paired with one
   address (a list of one, opened, never asked to pair again), an add that
   never takes launch, the last used first and 9D's others, names, encode and
@@ -812,8 +818,8 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   (localhost, IPv4, IPv6, a tailnet name; legal cookie names; on its own
   output), `readPaired`'s move from the old name and what it leaves alone,
   and the report scrub of every paired name (c530).
-- `tests/friend-wifi.e2e.ts` — the Wi-Fi panel's FOR A TV digits, beside the
-  phone's QR.
+- `tests/friend-wifi.e2e.ts` — the Wi-Fi panel's FOR THE APP digits, beside
+  the browser's QR, under THIS COMPUTER'S ADDRESS (c521).
 
 ## BACK never left the app (2026-11-02)
 

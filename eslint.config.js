@@ -47,7 +47,7 @@ export default defineConfig(
 			'doc/design/handoff/**',
 			'doc/handoffs/**',
 			'tests/fixtures/lnreader/**',
-			'android/tv/**/build/**'
+			'android/**/build/**'
 		]
 	},
 	js.configs.recommended,

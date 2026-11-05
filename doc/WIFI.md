@@ -96,7 +96,9 @@ A television has no camera, so beside the phone's link there is a second code
 one at a time.
 
 - **Six digits**, made with `crypto.randomInt`, shown on the computer in two
-  threes under FOR A TV · SIX DIGITS, with their own countdown. Opening
+  threes under FOR THE APP · SIX DIGITS (FOR A TV before c521: the phone app
+  pairs with them too, [`PHONE-APP.md`](PHONE-APP.md)), with their own
+  countdown. Opening
   SETTINGS makes one when there is none; NEW CODE replaces it and the phone's
   together.
 - **Where they show** (c245): in the WI-FI panel's pairing block on a friend's
@@ -200,11 +202,16 @@ one at a time.
 
 - **SETTINGS › 08 — DEVICES** (`src/routes/settings/+page.svelte`): WI-FI
   between THEME and the devices; OFF | ON, the meta line, the strip; on, the
-  pairing panel: the code on an inverse cell (`QrCode.svelte`, encoded in the
-  browser with `uqr`), what to do, GOOD FOR N MIN (whole minutes), the address
-  in text and what typing it does, NEW CODE. Under the phone's address, the
-  TV's six digits in two threes (FOR A TV · SIX DIGITS) with their own
-  countdown. It polls `/api/wifi` every 5 s, so the code turns ✓ USED by
+  pairing panel, arranged around one address since c521
+  (PhoneApp-Computer.dc.html): THIS COMPUTER'S ADDRESS across the top, written
+  as the app types it (the app takes its last number, a browser all of it),
+  then the two ways in side by side. FOR THE APP · SIX DIGITS first and larger:
+  two threes, what they are for, their countdown, ONE DEVICE, ONCE. FOR A
+  BROWSER · THE PHONE'S CAMERA beside it: the code on a 182 px inverse cell
+  (`QrCode.svelte`, encoded in the browser with `uqr`), for a phone without the
+  app, and what typing the address in its browser does instead. Under both,
+  GOOD FOR N MIN (whole minutes) · EACH SIGNS IN ONE DEVICE, ONCE, and NEW
+  CODES, which makes both. It polls `/api/wifi` every 5 s, so the code turns ✓ USED by
   itself and the new phone's row appears, and a TV code five wrong tries
   burned turns BURNED with NO TRIES LEFT · MAKE A NEW CODE (an expired one
   EXPIRED · MAKE A NEW CODE), NEW CODE lit. That poll reads both codes as they
@@ -356,4 +363,4 @@ refocused, turning EXPIRED and then drawing the code the TV made, then ✓
 USED, c246),
 `tests/pairing-origins.spec.ts` (the per-origin names, the move from the old
 one, the scrub); `friend-wifi.e2e.ts` also pins
-the panel's FOR A TV digits.
+the panel's FOR THE APP digits and its arrangement around the address.

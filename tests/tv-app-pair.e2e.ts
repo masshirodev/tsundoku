@@ -3,11 +3,11 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 /**
- * The APK's own first screens (9A, 9B; android/tv/app/src/main/assets/pair),
+ * The APK's own first screens (9A, 9B; android/app/src/main/assets/pair),
  * opened from the file the app ships, with no bridge: a remote, 960x540.
  */
 const page9 = pathToFileURL(
-	join(process.cwd(), 'android/tv/app/src/main/assets/pair/index.html')
+	join(process.cwd(), 'android/app/src/main/assets/pair/index.html')
 ).href;
 
 type StubBridge = {

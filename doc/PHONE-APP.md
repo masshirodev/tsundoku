@@ -35,7 +35,7 @@ still needs https.
 
 ## One project, two apps
 
-`android/tv/` builds both, as two product flavors of one Gradle project:
+`android/` builds both, as two product flavors of one Gradle project:
 
 | Flavor   | Application id              | APK                          |
 | -------- | --------------------------- | ---------------------------- |
@@ -69,7 +69,7 @@ server list with no second bridge to keep in step.
 ## Build it
 
 ```sh
-cd android/tv
+cd android
 ./gradlew assembleMobileDebug assembleTvDebug testMobileDebugUnitTest testTvDebugUnitTest
 ./gradlew --stop                 # always: a daemon outlives the build otherwise
 ```
@@ -134,8 +134,10 @@ The reader's manga and manhwa pages use it (the owner, 2026-11-05):
   never shows above it while the bars are up.
 - **The bottom bar hugs the display's edge**, with no inset.
 
-The app side is built; the reader's side waits for wave 24, whose `series`
-slot holds `src/routes/read/`.
+The image reader asks with `drawUnderCamera()` (`src/lib/app/surface.ts`) on
+mount and gives the band back on leaving; `Chrome.svelte`'s top bar is
+`64px + var(--app-inset-top)` tall with the band as its top padding. In a
+browser the variable is unset and both bars are as they were.
 
 ## Text size
 
@@ -186,9 +188,17 @@ What the phone does that the TV doesn't:
   never does (c247: its pad covers the buttons); a phone's keyboard pushes the
   page up instead. On a phone `http://` is dropped from the written prefix, so
   the field fits 360 at 130%.
+- **The keyboard comes up by itself.** Android's WebView raises no keyboard
+  for focus a script gives on arrival, so a page that focuses a field asks the
+  bridge's `keyboard()` (`Form.raisesKeyboard`, never on a TV: c247). On 9C
+  the app does it itself once `/pair/tv` has hydrated (`CODE_FOCUS_JS`), so
+  the digits can be typed on any server, one older than this release
+  included: its 9C was drawn for a TV alone, a 960 px frame squeezed into a
+  phone, with a 1 px field no tap reached (found on the owner's phone,
+  2026-11-05).
 - **9C's PAIR → stays dim until the sixth digit**, which presses it; the TV's
-  is pressable with a short code and says SIX DIGITS. A tap on the cells is a
-  tap on the field they draw.
+  is pressable with a short code and says SIX DIGITS. On a phone the field
+  lies over the six cells, so a tap on any of them is a tap on it.
 - **9D says when the phone is on mobile data**: the bridge's `network()`
   answers `home`, `data` or `none` (`Network.kt`), and reason 3 names the two
   ways out.
@@ -207,6 +217,25 @@ the phone looking for the computer on the carrier's network. `Network.homeV4`
 skips cellular and tunnel interfaces by name (rmnet, ccmni, tun, wg, and the
 rest) before the private-address test, Wi-Fi first. The TV's behaviour is
 unchanged: it has nothing but `wlan` and `eth`.
+
+## On the computer: SETTINGS › 08 — DEVICES
+
+The six digits pair a TV, a phone or a tablet, so they are the app's:
+**FOR THE APP · SIX DIGITS**, **ONE DEVICE, ONCE**
+(PhoneApp-Computer.dc.html).
+
+- **A friend's panel** (WI-FI on) opens on **THIS COMPUTER'S ADDRESS**,
+  written as the app types it (the app takes its last number, a browser all
+  of it). Under it, side by side: **FOR THE APP**, the digits first and larger
+  (48 px), and **FOR A BROWSER · THE PHONE'S CAMERA**, the QR (182 px) for a
+  phone without the app, saying that typing the address in a browser opens
+  the sign-in page instead. **NEW CODES** makes both. On a phone's SETTINGS
+  the two stack. The states the panel had (starting, Windows asking, no
+  address, the address changed, used, expired, burned) are kept, in the new
+  places.
+- **The owner's tailnet row** is **THE APP**: the same block without the QR,
+  and it writes out **THE WHOLE ADDRESS** the app types, the request's own
+  origin, since a tailnet install has no last-number shortcut.
 
 ## In DEVICES
 
@@ -241,14 +270,10 @@ still says `Android TV · Chrome` and `TV` until the TV next checks in.
 
 ## What is not done yet
 
-- **SETTINGS' side of the design waits for wave 24**: FOR THE APP · SIX
-  DIGITS and ONE DEVICE, ONCE in the panel, a friend's panel led by THIS
-  COMPUTER'S ADDRESS with FOR THE APP and FOR A BROWSER side by side, and the
-  tailnet row writing out the whole address. `tests/friend-wifi.e2e.ts`, which
-  pins today's words, is that wave's.
-- **`android/tv/` becomes `android/`** once that wave's TV slot, which owns
-  `tests/tv-app-pair.e2e.ts`, `TV-APP.md` and `TV.md`, has landed.
 - **c591**, the two places the web app clips at 130%.
+- **9C's phone layout reaches a server with its release.** Until a friend's
+  install, or the owner's, runs a bundle with c521, its 9C is the TV's; the
+  app raises the keyboard there anyway (above).
 
 ## What is not verified
 
@@ -268,10 +293,19 @@ phone was at hand. Built, unit-tested and browser-tested only, specifically:
   appears wherever the bridge does; on a phone's MORE sheet it is untested.
 - **The 130% check** was a browser approximation (font sizes multiplied by
   1.3), not the WebView's own `textZoom`.
+- **The reader under the camera on a phone**: `edge()`, `SHORT_EDGES` and the
+  `--app-inset-*` variables are unit- and browser-tested; nothing here has
+  seen a page drawn into a real cutout.
+- **The friend's panel by eye**: its arrangement is asserted
+  (`friend-wifi.e2e.ts`: the address above, the digits and the QR side by
+  side, the QR's 182 px), but nobody has looked at it on a screen yet.
+
+What the owner's phone has confirmed (2026-11-05, the first build): the app
+installs and pairs, the page sits below the camera band, and zoom is off.
 
 ## Tests
 
-- `android/tv/app/src/test/`: `FormTest` (each row of Form.kt's table),
+- `android/app/src/test/`: `FormTest` (each row of Form.kt's table),
   `InsetsTest` (the padding in every combination, and which colours the band
   takes), `NetworkTest` (a carrier's 10.x never the home address), run for
   both flavors by `./gradlew testMobileDebugUnitTest testTvDebugUnitTest`.
@@ -285,6 +319,15 @@ phone was at hand. Built, unit-tested and browser-tested only, specifically:
 - `tests/phone-pair-route.e2e.ts`: `/pair/tv` as the phone app, 9C on a phone
   and a tablet and 9E reached with a seeded paired row, never spending the six
   digits the TV's specs pair with.
+- `tests/phone-app-reader.e2e.ts`: the reader asks for the band and gives it
+  back, its top bar reaches up through a 32 px band with its contents below
+  it, and the bottom bar hugs the edge; in a browser the top bar is 64.
+- The three run once, in the `phone` project (`PHONE_ONLY`,
+  `playwright.config.ts`): each sets its own viewport.
+- `tests/friend-wifi.e2e.ts`, `tests/settings-devices.e2e.ts`,
+  `tests/tv-pair.e2e.ts`, `tests/tv-pair-origins.e2e.ts` and
+  `tests/friend-tailnet.e2e.ts` follow SETTINGS' new words, and
+  `friend-wifi` measures the friend's new arrangement.
 - `tests/tv-app-pair.e2e.ts`, `tests/tv-pair.e2e.ts`,
   `tests/tv-pair-origins.e2e.ts` and `tests/tv-devices.e2e.ts` pass as they
   were (the last with the TV's new `Android TV · app` label): the TV is
