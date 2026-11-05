@@ -78,9 +78,10 @@ const underway = new Map<string, Promise<Clearance | null>>();
  *
  * A solve that failed is not remembered here. FlareSolverr 3.4.6 reports its
  * own `status: 'error'` as an HTTP 500 (measured 2026-11-02), which `ask`
- * throws on, and this app's 60 s budget can abort before that answer arrives at
- * all: either way the next call asks again, since a solver's trouble says
- * nothing about the host. A clearance the site then refused is a third failure,
+ * throws on, as it does on a 200 that is not a solver's `ok` answer at all (a
+ * `status: 'error'`, HTML from a proxy), and this app's 60 s budget can abort
+ * before that answer arrives at all: either way the next call asks again, since
+ * a solver's trouble says nothing about the host. A clearance the site then refused is a third failure,
  * remembered by the host (plugin-host.cjs), so this memo must not be read as
  * covering NovelFull or Scribble Hub.
  */
@@ -90,6 +91,15 @@ const failed = new Map<string, number>();
 /** Forgets the negative memo; a spec needs a clean one, as it needs `browse.forgetAll()`. */
 export function forgetFailedSolves(): void {
 	failed.clear();
+}
+
+/**
+ * Forgets the memo for [site]'s hosts only: TRY AGAIN on a check that could
+ * not be passed (c294), where the solver may just have been fixed or the
+ * site's check changed. The host's own refused memo is forgotten beside it.
+ */
+export function forgetFailedSolve(site: string): void {
+	for (const host of [...failed.keys()]) if (sameSite(host, site)) failed.delete(host);
 }
 
 const recentlyFailed = (host: string): boolean => {
@@ -157,7 +167,11 @@ async function ask(url: string, host: string): Promise<Clearance | null> {
 	// Not `null`: an answer of the solver's own that failed is the solver's
 	// trouble, not this host's, and must not be remembered against it.
 	if (!res.ok) throw new Error(`the solver answered ${res.status}`);
-	if (body?.status !== 'ok' || !body.solution) return null;
+	// Nor is a 200 that isn't a solver's `ok` answer (c334): Byparr speaks the
+	// same protocol and may send its error as a 200, and a proxy or a mistyped
+	// NOVEL_SOLVER_URL answers with a page of HTML. Neither says anything about
+	// the host, so it throws and is not remembered.
+	if (body?.status !== 'ok' || !body.solution) throw new Error('not a solver answer');
 	// A solution is the page its browser fetched. One the site refused (a WAF,
 	// a regional block, a challenge FlareSolverr didn't classify as one) is not
 	// a clearance, though it may still carry cookies and a user agent: the host

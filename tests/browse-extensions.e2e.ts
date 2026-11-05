@@ -166,6 +166,13 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	await expect(page.locator('.band')).toContainText('GOOD NOVELS DID NOT ANSWER');
 	await expect(page.locator('.band')).toContainText('IS NOT ON THE INTERNET');
 	await expect(page.locator('.band')).toContainText('TRY AGAIN');
+	// Not a site's check, so TRY AGAIN has nothing to forget and doesn't say it
+	// will (c294); `again` itself is never kept in the URL.
+	await expect(page.locator('.band')).not.toContainText('SOLVES THE CHECK AFRESH');
+	await expect(page.locator('.band a.again')).not.toHaveAttribute('href', /again=/);
+	await page.goto('/browse/ln:goodnovels?again=1');
+	await expect(page).toHaveURL(/\/browse\/ln:goodnovels$/);
+	await expect(page.locator('.band')).toContainText('GOOD NOVELS DID NOT ANSWER');
 	await page.goto('/browse/ln:goodnovels/settings');
 	await expect(page.locator('form.own .t')).toHaveText([
 		'Hidden source',
