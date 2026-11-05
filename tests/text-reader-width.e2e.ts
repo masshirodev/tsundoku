@@ -145,7 +145,10 @@ const placeShown = (page: Page) =>
 
 /**
  * Turn forward by a click on the edge that reads on (the right one, the left
- * in R→L), and wait for the URL to keep the new place (800 ms).
+ * in R→L) until the URL keeps a new place (800 ms after each turn). More than
+ * one turn when it must: which chapter ▶ opens follows Mushoku Tensei's
+ * progress in the shared seed, and a page that is an illustration alone has
+ * no character, so the place, rightly, doesn't move with it.
  */
 async function forward(page: Page, rtl = false) {
 	const before = new URL(page.url()).searchParams.get('at');
@@ -160,9 +163,13 @@ async function forward(page: Page, rtl = false) {
 		if (await bar.count()) await page.keyboard.press('Escape');
 		await expect(bar).toHaveCount(0, { timeout: 1_000 });
 	}).toPass();
-	await page.mouse.click(rtl ? 8 : v.width - 8, v.height / 2);
-	await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
-	await expect.poll(() => new URL(page.url()).searchParams.get('at')).not.toBe(before);
+	await expect(async () => {
+		await page.mouse.click(rtl ? 8 : v.width - 8, v.height / 2);
+		await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+		await expect
+			.poll(() => new URL(page.url()).searchParams.get('at'), { timeout: 2_500 })
+			.not.toBe(before);
+	}).toPass({ timeout: 15_000 });
 }
 
 test('each WIDTH draws its column, centred, and the place being read stays on the page', async ({
