@@ -233,12 +233,22 @@
 			>
 			<div class="failed all">
 				<span>NOTHING FROM THESE · ASKED ALONE, NOT THE REST</span>
-				<a href={href()} onclick={again(arranged.failed.map((f) => f.source.id))}>TRY ALL AGAIN</a>
+				<!-- The href is the way without script. With it, a hover must not
+				     preload it: that load asks every source again (c538). -->
+				<a
+					href={href()}
+					data-sveltekit-preload-data="off"
+					onclick={again(arranged.failed.map((f) => f.source.id))}>TRY ALL AGAIN</a
+				>
 			</div>
 			{#each arranged.failed as f (f.source.id)}
 				<div class="failed">
 					<span>{sourceTitle(f.source)} · DID NOT ANSWER IN 20 S</span>
-					<a href={href(f.source.id)} onclick={again([f.source.id])}>TRY AGAIN</a>
+					<a
+						href={href(f.source.id)}
+						data-sveltekit-preload-data="off"
+						onclick={again([f.source.id])}>TRY AGAIN</a
+					>
 				</div>
 			{/each}
 		</details>
