@@ -9,7 +9,8 @@ process.env.DATABASE_PATH = ':memory:';
 
 const { getDb } = await import('$lib/server/db');
 const { runImport, sourcesIn, startScan } = await import('$lib/server/import');
-const { CATEGORIES, writeMihonFolder } = await import('./helpers/mihon-fixture');
+const mihonFixture = await import('./helpers/mihon-fixture');
+const { CATEGORIES, writeMihonFolder } = mihonFixture;
 const { encode } = await import('./helpers/protobuf-writer');
 type Msg = import('./helpers/protobuf-writer').Msg;
 const { writeHentoidFolder } = await import('./helpers/hentoid-fixture');
@@ -666,5 +667,125 @@ describe('a backup from a source with ADDED HIDDEN (c503, the owner’s (a))', (
 		} finally {
 			setSourceFlag(String(HIDING), 'addedHidden', false, db());
 		}
+	});
+});
+
+describe('a novel’s R→L survives a backup’s fold (c551)', () => {
+	// Folder series imported before a backup knew them, set to R→L by the
+	// owner (series.text_direction, rung 69), then folded into the URL's series
+	// once a backup names them (import/fold.ts): one renamed, so `carryEdit`
+	// carries the owner's edit, and one still named as its folder, so only the
+	// fold's own fill-in can keep it.
+	const at = 1_800_003_000_000;
+	const { ASURA, backup, cbz, comicInfo } = mihonFixture;
+	const one = <T>(sql: string, ...args: unknown[]) =>
+		db()
+			.prepare(sql)
+			.get(...args) as T;
+	const byKey = (key: string) =>
+		one<{ id: number } | undefined>(`SELECT id FROM series WHERE origin_key = ?`, key)?.id;
+	const textDirection = (id: number) =>
+		one<{ text_direction: string | null }>(`SELECT text_direction FROM series WHERE id = ?`, id)
+			.text_direction;
+	// The third: renamed and read L→R (NULL) while the old URL series had R→L,
+	// so carryEdit's owner's edit must win over the survivor's own.
+	const folders = ['Novel Renamed', 'Novel Kept', 'Novel Turned'] as const;
+	const slug = (name: string) => name.toLowerCase().replace(/ /g, '-');
+	const dirKey = (name: string) => `mihon-dir:Asura Scans (EN)/${name}`;
+	const urlKey = (name: string) => `mihon:${ASURA}:/series/${slug(name)}`;
+	const urlSeries = new Map<string, number>();
+
+	beforeAll(async () => {
+		for (const name of folders) {
+			const dir = join(root, 'downloads', 'Asura Scans (EN)', name);
+			mkdirSync(dir, { recursive: true });
+			writeFileSync(
+				join(dir, 'Chapter 1.cbz'),
+				cbz(
+					comicInfo({
+						title: 'Chapter 1',
+						series: name,
+						number: 1,
+						web: `https://asura.example/series/${slug(name)}/1`,
+						source: 'Asura Scans'
+					})
+				)
+			);
+		}
+		await runImport(library, { now: at });
+		for (const name of folders) {
+			const id = byKey(dirKey(name));
+			expect(id, name).toBeTruthy();
+			// What the owner did while it was the only one: a novel, read R→L.
+			db()
+				.prepare(`UPDATE series SET kind = 'novel', text_direction = ? WHERE id = ?`)
+				.run(name === 'Novel Turned' ? null : 'rtl', id);
+			if (name !== 'Novel Kept')
+				db().prepare(`UPDATE series SET title = ? WHERE id = ?`).run(`My ${name}`, id);
+			// The old importer's second series under the URL key, on the same files.
+			const other = Number(
+				db()
+					.prepare(
+						`INSERT INTO series (root_id, title, kind, added_at, path, origin_key, source, rating)
+						SELECT root_id, ?, 'novel', added_at, path, ?, source, 0 FROM series WHERE id = ?`
+					)
+					.run(name, urlKey(name), id).lastInsertRowid
+			);
+			db()
+				.prepare(
+					`INSERT INTO entries (series_id, position, label, added_at, file, source_url, available)
+					SELECT ?, position, label, added_at, file, ?, 1 FROM entries WHERE series_id = ?`
+				)
+				.run(other, `/series/${slug(name)}/1`, id);
+			if (name === 'Novel Turned')
+				db().prepare(`UPDATE series SET text_direction = 'rtl' WHERE id = ?`).run(other);
+			urlSeries.set(name, other);
+		}
+		const manga = (name: string): Msg => [
+			[1, ASURA],
+			[2, `/series/${slug(name)}`],
+			[3, name],
+			[
+				16,
+				[
+					[1, `/series/${slug(name)}/1`],
+					[2, 'Chapter 1'],
+					[9, { f32: 1 }]
+				]
+			]
+		];
+		writeFileSync(
+			join(root, 'autobackup', 'app.mihon_2026-11-06_09-00.tachibk'),
+			gzipSync(backup([], folders.map(manga)))
+		);
+		await runImport(library, { now: at + 10_000 });
+	});
+
+	it('folds each folder into its URL’s series', () => {
+		for (const name of folders) {
+			expect(byKey(dirKey(name)), name).toBeUndefined();
+			expect(byKey(urlKey(name)), name).toBe(urlSeries.get(name));
+		}
+	});
+
+	it('carries a renamed folder’s R→L with its name, kind and layout (carryEdit)', () => {
+		const id = urlSeries.get('Novel Renamed')!;
+		expect(
+			one<{ title: string; kind: string }>(`SELECT title, kind FROM series WHERE id = ?`, id)
+		).toEqual({ title: 'My Novel Renamed', kind: 'novel' });
+		expect(textDirection(id)).toBe('rtl');
+	});
+
+	it('carries a renamed folder’s L→R over the survivor’s R→L: the owner’s edit wins whole', () => {
+		expect(textDirection(urlSeries.get('Novel Turned')!)).toBeNull();
+	});
+
+	it('keeps a folder’s R→L when the survivor had none, as a rating fills in (foldSeries)', () => {
+		const id = urlSeries.get('Novel Kept')!;
+		// Not renamed: the survivor keeps its own name, and only the fill-in carried R→L.
+		expect(one<{ title: string }>(`SELECT title FROM series WHERE id = ?`, id).title).toBe(
+			'Novel Kept'
+		);
+		expect(textDirection(id)).toBe('rtl');
 	});
 });

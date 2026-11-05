@@ -126,6 +126,12 @@ What grouping does (`groupVolumes` in `src/lib/server/books.ts`):
   (`Light novels/Frieren Vol 1.epub`);
 - the series takes the highest rating of its volumes, FAV if any had it, all
   their tags and shelves, and the first volume's cover (made off the request);
+- the series takes the first volume's layout (`direction`) and page direction
+  (`text_direction`, the text reader's R→L, c551): the first volume's own,
+  else the first later volume that has one. NULL is the default L→R and
+  `'rtl'` the only stored value, so a novel any volume of which was set to
+  R→L stays R→L. Volumes joining an existing series (ADD TO EXISTING) take
+  that series' direction, as they take its layout;
 - the emptied series are deleted.
 
 A novel doesn't keep a rating per volume the way a book in a series does: a
@@ -141,6 +147,8 @@ EPUB on its own, when reading reaches it ([`TEXT-READER.md`](TEXT-READER.md)).
 - its book's title;
 - its folder and file name;
 - the series' rating, FAV, tags and shelves;
+- the series' layout and page direction (`direction`, `text_direction`: an
+  R→L novel's volumes read R→L on their own, c551);
 - the date its entries arrived;
 - its original origin key, so the next scan finds it by its file as before.
 

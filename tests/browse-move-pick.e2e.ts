@@ -547,6 +547,22 @@ test('three quick picks on one slow source: one details call each at most, and a
 	state.held.set(CAND.a.url, new Promise<void>((r) => (releaseA = r)));
 	state.slow.set(CAND.b.url, 2500);
 	state.slow.set(CAND.c.url, 200);
+	// Which compare requests Chromium's network stack has put on the wire, by URL.
+	const cdp = await page.context().newCDPSession(page);
+	await cdp.send('Network.enable');
+	// The two events can come in either order, so each records its half.
+	const urls = new Map<string, string>();
+	const sent = new Set<string>();
+	const onWire = new Set<string>();
+	cdp.on('Network.requestWillBeSent', (e) => {
+		urls.set(e.requestId, e.request.url);
+		if (sent.has(e.requestId)) onWire.add(e.request.url);
+	});
+	cdp.on('Network.requestWillBeSentExtraInfo', (e) => {
+		sent.add(e.requestId);
+		const url = urls.get(e.requestId);
+		if (url) onWire.add(url);
+	});
 	const compares: string[] = [];
 	const dropped: string[] = [];
 	page.on('request', (r) => {
@@ -562,15 +578,22 @@ test('three quick picks on one slow source: one details call each at most, and a
 	await expect.poll(() => detailsFor(CAND.a.url)).toBe(1);
 	// The owner changes their mind twice, quickly, while A is being read: both
 	// picks reach the page's endpoint, and the page has dropped B's ask (C's
-	// pick aborts it), before A's call ends. B's abort is what the endpoint
-	// drops B on (`request.signal`), so A is let go only once the page has
-	// given B's request up; let go once C's had merely been sent, the engine
-	// still heard of B, even on a quiet box.
+	// pick aborts it), before A's call ends. The endpoint drops B on either
+	// sign: its abort (`request.signal`), or C, a newer pick of the series
+	// from the same source, queued behind it (c567). A is let go once the
+	// page has given B's request up; the case below lets it go sooner.
 	await page.locator('a.cand', { hasText: CAND.b.title }).click();
 	await page.locator('a.cand', { hasText: CAND.c.title }).click();
 	await expect.poll(() => asked(CAND.c).length).toBe(1);
 	expect(asked(CAND.b)).toHaveLength(1);
 	await expect.poll(() => dropped.filter(to(CAND.b)).length).toBe(1);
+	// The page's `request` event is the page asking, not the request on the
+	// wire: measured in wave 25, C reached the server up to 11 ms after A was
+	// let go on a loaded box, and a turn could reach B before either sign
+	// (c567). Chromium's network stack says when it sent a request's own
+	// headers (`requestWillBeSentExtraInfo`), the nearest outward mark of C
+	// leaving for the server.
+	await expect.poll(() => onWire.has(compares.find(to(CAND.c)) ?? '')).toBe(true);
 	releaseA();
 	// C waits for the call already running (A's), not for B's as well: the
 	// counts below prove that; the clock is left loose, as a loaded box
@@ -591,6 +614,114 @@ test('three quick picks on one slow source: one details call each at most, and a
 	await expect(page.getByRole('heading', { name: CAND.c.title })).toBeVisible();
 	await expect(page.locator('a.cand.on')).toHaveCount(1);
 	await expect(page.locator('a.cand.on')).toContainText(CAND.c.title);
+});
+
+/**
+ * The same three picks at wave 23's timing, the state the 1-in-10 red lived
+ * in (c567): A is let go as soon as C's ask is sent, before anything says
+ * B's was dropped. The server hears of B's abort only once its socket closes
+ * (wave 24 measured it 4-279 ms after the page gave B up), so a turn can
+ * come to B before then; B must still never ask, because C was queued
+ * behind it (`inTurn`, doc/MOVE.md "Picks take turns").
+ *
+ * This case pins a timing; it cannot falsify the rule. It passed 30 of 30
+ * on the base `inTurn` too: at this box's timing the server had not always
+ * queued C when B's turn came (C reached it up to 11 ms after A was let go),
+ * so it never reached the gap. "a waiting pick whose abort never arrives…" below
+ * is the case that falsifies the rule (red on the base, 3 of 3). Kept so the
+ * old timing stays green, as c567's Done-when asks; if it ever goes red,
+ * read the server's order of C's queueing against B's turn before calling
+ * it a regression.
+ */
+test('three quick picks at the old timing: A let go once C is sent, and the dropped B still never asks (c567)', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await open(page);
+	await settledList(page);
+	state.calls = [];
+	let releaseA!: () => void;
+	state.held.set(CAND.a.url, new Promise<void>((r) => (releaseA = r)));
+	state.slow.set(CAND.b.url, 2500);
+	state.slow.set(CAND.c.url, 200);
+	const compares: string[] = [];
+	page.on('request', (r) => {
+		if (r.url().includes('/compare?')) compares.push(r.url());
+	});
+	const to = (c: { url: string }) => (u: string) =>
+		new URL(u).searchParams.get('to') === candidateId('101', c.url);
+	const asked = (c: { url: string }) => compares.filter(to(c));
+	await page.locator('a.cand', { hasText: CAND.a.title }).click();
+	await expect.poll(() => detailsFor(CAND.a.url)).toBe(1);
+	await page.locator('a.cand', { hasText: CAND.b.title }).click();
+	await page.locator('a.cand', { hasText: CAND.c.title }).click();
+	await expect.poll(() => asked(CAND.c).length).toBe(1);
+	releaseA();
+	await expect(page.getByRole('heading', { name: CAND.c.title })).toBeVisible({ timeout: 15_000 });
+	expect(asked(CAND.b)).toHaveLength(1);
+	expect(detailsFor(CAND.a.url)).toBe(1);
+	expect(detailsFor(CAND.c.url)).toBe(1);
+	// B's slow answer would have come by now had it been asked.
+	await page.waitForTimeout(3000);
+	expect(detailsFor(CAND.b.url)).toBe(0);
+	await expect(page.locator('a.cand.on')).toContainText(CAND.c.title);
+});
+
+/**
+ * The rule at its limit (c567): a waiting pick whose abort never reaches the
+ * server at all. B is asked from the test's own request context, which never
+ * gives it up, the way a socket the server has not yet heard close looks to
+ * the server; then the page picks C. Only the newer pick can drop B here, so
+ * this case is red on an `inTurn` without the rule (every copy, not 1 in 10).
+ */
+test('a waiting pick whose abort never arrives is dropped by the newer pick behind it, without asking (c567)', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await open(page);
+	await settledList(page);
+	state.calls = [];
+	let releaseA!: () => void;
+	state.held.set(CAND.a.url, new Promise<void>((r) => (releaseA = r)));
+	state.slow.set(CAND.c.url, 200);
+	const cdp = await page.context().newCDPSession(page);
+	await cdp.send('Network.enable');
+	const urls = new Map<string, string>();
+	const sent = new Set<string>();
+	const onWire = new Set<string>();
+	cdp.on('Network.requestWillBeSent', (e) => {
+		urls.set(e.requestId, e.request.url);
+		if (sent.has(e.requestId)) onWire.add(e.request.url);
+	});
+	cdp.on('Network.requestWillBeSentExtraInfo', (e) => {
+		sent.add(e.requestId);
+		const url = urls.get(e.requestId);
+		if (url) onWire.add(url);
+	});
+	const compares: string[] = [];
+	page.on('request', (r) => {
+		if (r.url().includes('/compare?')) compares.push(r.url());
+	});
+	await page.locator('a.cand', { hasText: CAND.a.title }).click();
+	await expect.poll(() => detailsFor(CAND.a.url)).toBe(1);
+	// B, from outside the page: it waits behind A, and nothing will ever abort it.
+	const bUrl = new URL(compares[0]);
+	bUrl.searchParams.set('to', candidateId('101', CAND.b.url));
+	bUrl.searchParams.delete('offset');
+	const b = page.request.get(bUrl.toString());
+	// The page's newer pick, on the wire before A is let go.
+	await page.locator('a.cand', { hasText: CAND.c.title }).click();
+	const asksC = (u: string) => new URL(u).searchParams.get('to') === candidateId('101', CAND.c.url);
+	await expect.poll(() => compares.filter(asksC).length).toBe(1);
+	// B left first (the click alone takes longer); C is let go only once
+	// Chromium has put it on the wire, as in the case above.
+	await expect.poll(() => onWire.has(compares.find(asksC) ?? '')).toBe(true);
+	releaseA();
+	const answer = (await (await b).json()) as { ok: boolean; error?: string };
+	expect(answer).toEqual({ ok: false, error: 'Asked for another candidate' });
+	await expect(page.getByRole('heading', { name: CAND.c.title })).toBeVisible({ timeout: 15_000 });
+	expect(detailsFor(CAND.b.url)).toBe(0);
+	expect(detailsFor(CAND.c.url)).toBe(1);
 });
 
 test('a tap made while the URL has an offset asks once, without it (c539)', async ({ page }) => {

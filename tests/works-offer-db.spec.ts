@@ -401,3 +401,189 @@ describe('the series screen’s offer, through its own actions (c281)', () => {
 		).toBe(0);
 	});
 });
+
+describe('every UNDO on the series screen reads its posted facts before writing (c585)', () => {
+	/** The library as every UNDO here could change it, alt titles included (RENAME's). */
+	const state = () => ({
+		...snapshot(),
+		alts: getDb().prepare(`SELECT id, alt_titles FROM series ORDER BY id`).all()
+	});
+	/** Facts that are not JSON, not an object, or an object missing or mistyping a field. */
+	const malformed = (good: Record<string, unknown>, optional = ['workName']) => [
+		'{not json',
+		'',
+		'null',
+		'5',
+		'"facts"',
+		'[]',
+		'{}',
+		...Object.keys(good)
+			.filter((k) => !optional.includes(k))
+			.map((k) => {
+				const { [k]: _gone, ...rest } = good;
+				void _gone;
+				return JSON.stringify(rest);
+			}),
+		...Object.keys(good).map((k) => JSON.stringify({ ...good, [k]: { nested: true } }))
+	];
+	async function refusesAll(action: unknown, seriesId: number, list: string[]) {
+		const before = state();
+		for (const facts of list) {
+			const answer = await postSeries(action, seriesId, [['facts', facts]]);
+			expect(answer.status, facts).toBe(400);
+			expect((answer.data as { message: string }).message, facts).toBeTruthy();
+			expect(state(), facts).toEqual(before);
+		}
+		// And no facts field at all.
+		const none = await postSeries(action, seriesId);
+		expect(none.status).toBe(400);
+		expect(state()).toEqual(before);
+	}
+
+	it('UNDO of the WORK row’s TAKE OUT: malformed facts are 400 NOTHING TO UNDO, never a 500', async () => {
+		const { work } = breaker();
+		const waves = idOf('The Breaker: New Waves');
+		const force = idOf('The Breaker: Eternal Force');
+		works.addSeries(work.id, force);
+		const out = await postSeries(seriesScreen.actions.takeOutWork, force);
+		const facts = out.workTakenOut as Record<string, unknown>;
+		expect(facts.seriesId).toBe(force);
+		await refusesAll(seriesScreen.actions.undoTakeOutWork, force, malformed(facts));
+		const answer = await postSeries(seriesScreen.actions.undoTakeOutWork, force, [
+			['facts', '{not json']
+		]);
+		expect(answer).toMatchObject({ status: 400, data: { message: 'NOTHING TO UNDO' } });
+		// The good facts still put it back: the guard refuses only what is malformed.
+		expect(
+			await postSeries(seriesScreen.actions.undoTakeOutWork, force, [
+				['facts', JSON.stringify(facts)]
+			])
+		).toEqual({ ok: true });
+		expect(works.workOfSeries(force)?.id).toBe(work.id);
+		void waves;
+	});
+
+	it('UNDO of a TAKE OUT that ended the Work refuses an ended Work that is malformed or lacks this series', async () => {
+		const { work } = breaker();
+		const breakerId = idOf('The Breaker');
+		const out = await postSeries(seriesScreen.actions.takeOutWork, breakerId);
+		const facts = out.workTakenOut as { ended: { work: object; members: object[] } };
+		expect(facts.ended).not.toBeNull();
+		const bad = [
+			{ ...facts, ended: {} },
+			{ ...facts, ended: { ...facts.ended, work: { ...facts.ended.work, orderMode: 'nope' } } },
+			{ ...facts, ended: { ...facts.ended, members: [{ seriesId: 'x', position: 1 }] } },
+			// An ended Work that never held this series: another's take-out, dressed as ours.
+			{
+				...facts,
+				ended: {
+					...facts.ended,
+					members: [{ seriesId: idOf('Naruto'), position: 1 }]
+				}
+			}
+		].map((f) => JSON.stringify(f));
+		await refusesAll(seriesScreen.actions.undoTakeOutWork, breakerId, bad);
+		expect(
+			await postSeries(seriesScreen.actions.undoTakeOutWork, breakerId, [
+				['facts', JSON.stringify(facts)]
+			])
+		).toEqual({ ok: true });
+		expect(works.workOfSeries(breakerId)?.name).toBe(work.name);
+	});
+
+	it('UNDO of a TAKE OUT refuses another series’ take-out, and one whose Work has moved on, writing nothing', async () => {
+		const { work } = breaker();
+		const force = idOf('The Breaker: Eternal Force');
+		const waves = idOf('The Breaker: New Waves');
+		works.addSeries(work.id, force);
+		const theirs = (await postSeries(seriesScreen.actions.takeOutWork, waves))
+			.workTakenOut as object;
+		// Another series' facts, posted on this screen.
+		await refusesAll(seriesScreen.actions.undoTakeOutWork, force, [JSON.stringify(theirs)]);
+		expect(works.workOfSeries(waves)).toBeNull();
+		// Its own facts, but it is in another Work since: the writer's refusal, still a band.
+		const mine = (await postSeries(seriesScreen.actions.takeOutWork, force)).workTakenOut as object;
+		works.createWork({ seriesIds: [force, idOf('Naruto')], name: 'Elsewhere', now: NOW + 5 });
+		const before = state();
+		const answer = await postSeries(seriesScreen.actions.undoTakeOutWork, force, [
+			['facts', JSON.stringify(mine)]
+		]);
+		expect(answer.status).toBe(400);
+		expect(state()).toEqual(before);
+	});
+
+	it('UNDO of ADD TO A WORK: malformed facts and a Work changed since are refused, writing nothing', async () => {
+		const { work } = breaker();
+		const force = idOf('The Breaker: Eternal Force');
+		const facts = works.addSeries(work.id, force) as unknown as Record<string, unknown>;
+		await refusesAll(seriesScreen.actions.undoAddToWork, force, malformed(facts));
+		// Taken out since by hand: the add's UNDO has nothing left to undo.
+		works.takeOut(work.id, force);
+		const before = state();
+		const answer = await postSeries(seriesScreen.actions.undoAddToWork, force, [
+			['facts', JSON.stringify(facts)]
+		]);
+		expect(answer.status).toBe(400);
+		expect(state()).toEqual(before);
+	});
+
+	it('UNDO of RENAME: malformed facts, another series’ and a name changed since are refused, writing nothing', async () => {
+		const force = idOf('The Breaker: Eternal Force');
+		const naruto = idOf('Naruto');
+		const renamed = (
+			await postSeries(seriesScreen.actions.rename, force, [['name', 'Eternal Force (mine)']])
+		).renamed as Record<string, unknown>;
+		expect(renamed.seriesId).toBe(force);
+		await refusesAll(seriesScreen.actions.undoRename, force, malformed(renamed));
+		const theirs = (
+			await postSeries(seriesScreen.actions.rename, naruto, [['name', 'Naruto (mine)']])
+		).renamed as object;
+		await refusesAll(seriesScreen.actions.undoRename, force, [JSON.stringify(theirs)]);
+		await postSeries(seriesScreen.actions.rename, force, [['name', 'Eternal Force (again)']]);
+		const before = state();
+		const answer = await postSeries(seriesScreen.actions.undoRename, force, [
+			['facts', JSON.stringify(renamed)]
+		]);
+		expect(answer.status).toBe(400);
+		expect(state()).toEqual(before);
+	});
+
+	it('UNDO of a HIDE: malformed facts, another series’ and a Work ended since are refused, writing nothing', async () => {
+		const { work } = breaker();
+		const breakerId = idOf('The Breaker');
+		const force = idOf('The Breaker: Eternal Force');
+		works.addSeries(work.id, force);
+		const hid = (await postSeries(seriesScreen.actions.hidePart, breakerId)).hideFacts as {
+			hidden: number[];
+			out: Record<string, unknown>[];
+		};
+		expect(hid.hidden).toEqual([breakerId]);
+		const bad = [
+			...malformed({ hidden: hid.hidden, out: hid.out }),
+			JSON.stringify({ ...hid, hidden: ['x'] }),
+			JSON.stringify({ ...hid, out: [{ ...hid.out[0], position: 'first' }] }),
+			JSON.stringify({ ...hid, out: [{}] }),
+			// Neither hid nor took out this series.
+			JSON.stringify({ hidden: [force], out: [] }),
+			JSON.stringify({ hidden: [], out: [] })
+		];
+		await refusesAll(seriesScreen.actions.undoHide, breakerId, bad);
+		// Another series' HIDE, posted on this one's screen.
+		const theirs = (await postSeries(seriesScreen.actions.hidePart, force)).hideFacts;
+		await refusesAll(seriesScreen.actions.undoHide, breakerId, [JSON.stringify(theirs)]);
+		// Its own facts, but the Work has ended since (and a newer one took its id).
+		// (Taking Eternal Force out above left one part, which ended it.)
+		expect(works.workOfSeries(idOf('The Breaker: New Waves'))).toBeNull();
+		works.createWork({
+			seriesIds: [idOf('Naruto'), idOf('Naruto Gaiden')],
+			name: 'Newer',
+			now: NOW + 9
+		});
+		const before = state();
+		const answer = await postSeries(seriesScreen.actions.undoHide, breakerId, [
+			['facts', JSON.stringify(hid)]
+		]);
+		expect(answer.status).toBe(400);
+		expect(state()).toEqual(before);
+	});
+});

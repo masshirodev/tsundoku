@@ -29,7 +29,8 @@
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { postAction, saves } from '$lib/saves.svelte';
+	import { postAction, saves, type FailedSave } from '$lib/saves.svelte';
+	import { seriesSaves } from './serial-saves';
 	import type { Rating } from '$lib/library/types';
 	import type { BookEditions } from '$lib/server/editions';
 	import { baseToEdition, langName } from '$lib/library/editions';
@@ -72,6 +73,7 @@
 		type DownloadState
 	} from '$lib/library/downloads';
 	import { page } from '$app/state';
+	import { untrack } from 'svelte';
 
 	/**
 	 * The series' metadata: a header that scrolls away in portrait, a 440px
@@ -429,49 +431,111 @@
 	let favNow = $state<boolean | null>(null);
 	const rating = $derived(ratingNow ?? series.rating);
 	const favourite = $derived(favNow ?? series.favourite);
+	/**
+	 * FAV and the rating save one at a time per series, the last tap winning
+	 * (c566; `serial-saves.ts`, doc/SERIES.md, "FAV and the rating"). The local
+	 * value stands while any save of its field is pending or unsaved, so an
+	 * earlier answer's reload, or one from elsewhere, never puts the stored
+	 * value back over a newer tap. The queue is the app's, not this panel's, so
+	 * a panel mounted again (out to the library and back) still waits.
+	 */
+	const turns = seriesSaves;
 	$effect(() => {
 		// The stored values moved (the save landed, or the page changed): drop the local ones.
 		void series.rating;
 		void series.favourite;
-		void series.id;
-		if (!saves.unsaved(`rating:${series.id}`)) ratingNow = null;
-		if (!saves.unsaved(`fav:${series.id}`)) favNow = null;
+		const id = series.id;
+		untrack(() => {
+			if (!holds(`rating:${id}`)) ratingNow = null;
+			if (!holds(`fav:${id}`)) favNow = null;
+		});
 	});
-	async function rate(n: Rating) {
-		const was = series.rating;
-		ratingNow = n;
-		const save = () => postAction(`${actionBase}?/rate`, { rating: String(n) });
-		saves.clear(`rating:${series.id}`);
-		if (await save()) return void invalidateAll();
+	/** The field's local value is still the owner's word, not the stored one. */
+	const holds = (key: string) => turns.pending(key) || saves.unsaved(key);
+	/**
+	 * Save one tap in its turn. A superseded save does nothing more; the newest
+	 * reloads the page, or (when it fails) shows the band, naming the value
+	 * stored now, reloaded first if an earlier tap of the burst was stored.
+	 */
+	async function saveInTurn(
+		key: string,
+		id: number,
+		save: () => Promise<boolean>,
+		failed: () => Omit<FailedSave, 'key' | 'retry'>,
+		clear: () => void,
+		stored: () => boolean
+	) {
+		saves.clear(key);
+		const turn = await turns.run(key, save);
+		if (!turn.latest) return;
+		// The reload is this turn's: the next tap's save waits for it to land.
+		// `finally`, because the queue is the app's: a turn never settled
+		// would hold the key for the whole session.
+		try {
+			if (turn.ok || turn.earlierStored) await invalidateAll();
+		} finally {
+			turns.settle(key);
+		}
+		// A newer tap came during the reload, or the screen is another series': theirs now.
+		// Not `pending()`: that is true of an older turn still reloading too.
+		if (turn.newer() || series.id !== id) return;
+		// A failed save of the value already stored (FAV, then FAV again,
+		// both lost) leaves nothing unsaved and no band to show.
+		if (turn.ok || stored()) return clear();
 		saves.fail({
-			what: `RATING ${n} NOT SAVED`,
-			putBackLabel: `PUT BACK ${was}`,
-			key: `rating:${series.id}`,
+			...failed(),
+			key,
+			// RETRY (and the nudge) wait their turn too; a tap meanwhile clears the band.
 			retry: async () => {
-				const ok = await save();
-				if (ok) void invalidateAll();
-				return ok;
-			},
-			putBack: () => (ratingNow = null)
+				const again = await turns.run(key, save);
+				if (!again.latest) return again.ok;
+				try {
+					if (again.ok) await invalidateAll();
+				} finally {
+					turns.settle(key);
+				}
+				if (again.ok && !again.newer() && series.id === id) clear();
+				return again.ok;
+			}
 		});
 	}
-	async function toggleFav() {
+	function rate(n: Rating) {
+		const id = series.id;
+		const key = `rating:${id}`;
+		// Taken now: a save that waits its turn must still post to this series.
+		const url = `${actionBase}?/rate`;
+		ratingNow = n;
+		void saveInTurn(
+			key,
+			id,
+			() => postAction(url, { rating: String(n) }),
+			() => ({
+				what: `RATING ${n} NOT SAVED`,
+				putBackLabel: `PUT BACK ${series.rating}`,
+				putBack: () => (ratingNow = null)
+			}),
+			() => (ratingNow = null),
+			() => series.rating === n
+		);
+	}
+	function toggleFav() {
 		const on = !favourite;
+		const id = series.id;
+		const key = `fav:${id}`;
+		const url = `${actionBase}?/favourite`;
 		favNow = on;
-		const save = () => postAction(`${actionBase}?/favourite`, { on: on ? '1' : '0' });
-		saves.clear(`fav:${series.id}`);
-		if (await save()) return void invalidateAll();
-		saves.fail({
-			what: on ? 'FAV NOT SAVED' : 'UNFAV NOT SAVED',
-			putBackLabel: on ? 'PUT BACK · NOT FAV' : 'PUT BACK · FAV',
-			key: `fav:${series.id}`,
-			retry: async () => {
-				const ok = await save();
-				if (ok) void invalidateAll();
-				return ok;
-			},
-			putBack: () => (favNow = null)
-		});
+		void saveInTurn(
+			key,
+			id,
+			() => postAction(url, { on: on ? '1' : '0' }),
+			() => ({
+				what: on ? 'FAV NOT SAVED' : 'UNFAV NOT SAVED',
+				putBackLabel: series.favourite ? 'PUT BACK · FAV' : 'PUT BACK · NOT FAV',
+				putBack: () => (favNow = null)
+			}),
+			() => (favNow = null),
+			() => series.favourite === on
+		);
 	}
 	const ratingUnsaved = $derived(saves.unsaved(`rating:${series.id}`));
 	const favUnsaved = $derived(saves.unsaved(`fav:${series.id}`));
@@ -1550,6 +1614,10 @@
 		display: flex;
 		align-items: center;
 		width: var(--label-w);
+		/* Never narrower than its word (c591): at a larger text size (130% on
+		   the phone app) SHELVES ran past the rule into its chips. A one-word
+		   label cannot wrap, so the column widens on that row instead. */
+		min-width: min-content;
 		padding-left: var(--pad);
 		flex-shrink: 0;
 		font: 500 12px var(--font-mono);

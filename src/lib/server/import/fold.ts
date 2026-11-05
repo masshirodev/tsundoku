@@ -245,7 +245,8 @@ function addressMatches(db: Database.Database, seriesId: number, planned: Planne
 }
 
 /**
- * The one thing a fold cannot keep from both sides: title, kind and direction.
+ * The one thing a fold cannot keep from both sides: title, kind and direction,
+ * a novel's page direction (`text_direction`, c551) with them.
  * The folder's series wins them when the owner renamed it, which is the state
  * that made the backup's row a second one -- it no longer answers to its
  * folder's name, so `adoptFolder` could not have found it by name either, and
@@ -260,7 +261,8 @@ function carryEdit(db: Database.Database, from: number, into: number, dir: strin
 		`UPDATE series SET
 			title = (SELECT title FROM series WHERE id = @from),
 			kind = (SELECT kind FROM series WHERE id = @from),
-			direction = (SELECT direction FROM series WHERE id = @from)
+			direction = (SELECT direction FROM series WHERE id = @from),
+			text_direction = (SELECT text_direction FROM series WHERE id = @from)
 		WHERE id = @into`
 	).run({ from, into });
 }
@@ -464,7 +466,8 @@ export const droppedLine = (d: Dropped) =>
  * Fold series `from` into series `into`, then delete `from`. A chapter both
  * have (the same file, else the same URL, else the same label) is one: read
  * state moves forward as on a rescan, the newer place in it wins, a rating
- * or FAV fills in where `into` has none, and `into` takes the file if it had
+ * or FAV fills in where `into` has none, and so does a novel's R→L
+ * (`text_direction`, c551: NULL is L→R, the default), and `into` takes the file if it had
  * none. A chapter only `from` has moves across. Everything else that hangs
  * off either -- reading log, shelves, tags, links, lookups -- joins `into`,
  * which keeps its own where both have one. A hidden series stays hidden,
@@ -573,7 +576,8 @@ export function foldSeries(db: Database.Database, from: number, into: number): D
 	db.prepare(
 		`UPDATE series SET
 			rating = CASE WHEN rating = 0 THEN (SELECT rating FROM series WHERE id = @from) ELSE rating END,
-			favourite = MAX(favourite, (SELECT favourite FROM series WHERE id = @from))
+			favourite = MAX(favourite, (SELECT favourite FROM series WHERE id = @from)),
+			text_direction = COALESCE(text_direction, (SELECT text_direction FROM series WHERE id = @from))
 		WHERE id = @into`
 	).run({ from, into });
 	db.prepare(`DELETE FROM series WHERE id = ?`).run(from);

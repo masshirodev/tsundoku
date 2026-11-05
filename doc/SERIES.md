@@ -194,6 +194,114 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
 - **Suggestion counts only include visible series**, so the tag field can't be
   used to learn how many hidden series carry a tag.
 
+## FAV and the rating (c566)
+
+A tap on FAV or the rating shows at once and saves behind it (Loading States
+1o, [`WAITING.md`](WAITING.md), "Writes that fail"). Two quick taps used to
+post together, so the server could store them in either order, and the
+first answer's reload put the stored value back over the second tap: shown
+3 of 3 by wave 24's probe, and the cause of `series-flow`'s "rating fills
+up…" red under load. Since wave 25 (`src/routes/series/[id]/serial-saves.ts`):
+
+- **One save in flight per series and field.** A tap's save waits for the
+  one before it on the same key (`fav:<id>`, `rating:<id>`); FAV never waits
+  for the rating, nor one series for another. The queue is the app's, not
+  the panel's, so a panel mounted again (out to the library and back within
+  a slow save) still waits.
+- **A latest save's reload is part of its turn** (round 2). The next save on
+  the key waits until the newest one has answered _and_ its reload has
+  landed, so a tap made during that reload posts only after it, and is
+  judged against the value the reload brought (what is stored, PUT BACK's
+  label). The reload is awaited in a `finally` that lets the queue go, so a
+  reload that throws never holds the key for the session.
+- **A save superseded before its turn is not sent.** Three quick taps send
+  the first and the third: when the second's turn comes, a newer tap is
+  already queued and only the last value matters, so N taps are never N
+  round trips.
+- **The last tap wins.** Only the newest save reloads the page; a superseded
+  one, stored or not, does nothing more. "Newer" means a tap on the same key
+  made after this one, never "a save is pending": an older turn still
+  reloading is pending too, and its pending must not swallow the newest
+  tap's band. The local value stands while any
+  save of its field is pending (queued, running, or answered and reloading)
+  or unsaved, so neither an earlier answer's reload nor one from elsewhere
+  resets it. Once nothing is pending, the stored value is the one shown.
+- **A failure is the newest tap's alone.** A first save lost while a second
+  waits leaves no band: the second is what counts. When the newest fails, its
+  band names what is stored now: if an earlier tap of the burst was stored,
+  the page is reloaded first, so PUT BACK says `PUT BACK 6` (what tap one
+  stored), not the value the page loaded before both. A failed save of the
+  value already stored (tap 6 lost, then tap 0 lost, on an unrated series)
+  leaves nothing unsaved and shows no band.
+- **RETRY and the next request's retry wait their turn too**, and a tap while
+  the band shows clears it, as before.
+- **The URL is taken at the tap.** A save that waits its turn still posts to
+  the series it was tapped on, whatever the screen shows by then.
+
+Tested in `tests/series-domain.spec.ts` (the queue: order, three taps,
+failures, independence, a tap during the reload) and `tests/series-flow.e2e.ts`
+(two FAV taps and three rating taps with the first save held, a lost first
+save, and the newest failing after an earlier one was stored, each through a
+reload). The library tile's FAV and rating (`src/routes/+page.svelte`) still
+post each tap at once: see the wave 25 notes.
+
+## UNDO's facts (c585)
+
+A band carries what its action did as JSON in a hidden field, and its UNDO
+posts it back. What arrives is a claim (a stale page, a hand-made form, a
+truncated field), so each UNDO on this screen reads it with
+`src/routes/series/[id]/posted-facts.ts` before writing: parsed inside a
+guard, checked field by field (a missing number would reach SQLite as
+`undefined`), and checked to be this series' own. Anything else is 400
+`NOTHING TO UNDO` with nothing written. The four that post facts:
+
+| Action              | This series' own when                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------- |
+| `?/undoTakeOutWork` | `seriesId` is this series, and an ended Work (`ended`) had it among its members        |
+| `?/undoAddToWork`   | `seriesId` is this series, and every Work the add ended (`ended[]`) had it as a member |
+| `?/undoHide`        | it is among what the HIDE hid, or a take-out names it; every take-out is its own       |
+| `?/undoRename`      | `seriesId` is this series                                                              |
+
+HIDE ALL n hid every part of the Work, so `?/undoHide`'s other ids are not
+checked against the Work now: one ended since by another press is still
+undone part by part, as `undoHideWhole` does for a series in no Work. Facts
+that pass, but describe a library that has moved on, are refused by the
+writers as before ([`WORKS.md`](WORKS.md), "An UNDO puts back only what its
+press changed"). Tested in `tests/works-offer-db.spec.ts` ("every UNDO on
+the series screen…"), each action with every field missing or mistyped,
+another series' facts and a library moved on, against a whole snapshot.
+
+## At a larger text size (c591)
+
+The phone and tablet app follows Android's font size up to 130% through the
+WebView's `textZoom` (`doc/PHONE-APP.md`, on the `phone-app` branch until it
+lands), which scales every computed font size and nothing else. Two things
+were fixed in px and broke at 130% on a 360 px phone (checked 2026-11-05):
+
+- **A tile's title** (`CoverTile.svelte`, the library's and every grid's) is
+  a two-line clamp whose box was `height: 32px`, so the second line was cut
+  through the middle. The box is now `calc(32em / 13)`: exactly 32 px at the
+  tile's 13 px type, so every tile measures what it did, and it grows with
+  the type, two lines at any size.
+- **The rows' label column** (`.label`, every row of this panel: SHELVES,
+  TAGS, FILE, DIRECTION, LANGUAGE and the rest) is `--label-w` wide, and a
+  one-word label cannot wrap, so SHELVES ran past the rule into its chips
+  (and DETAILS, on the phone's fold, past its own).
+  The column is now never narrower than its word (`min-width: min-content`):
+  at 100% nothing moves, and at 130% only a row whose word is too wide
+  widens its own label.
+
+**How 130% is made in a browser** (`tests/text-zoom.e2e.ts`, the `phone`
+project): a browser has no text zoom, so the spec multiplies every element's
+computed `font-size` by 1.3 in place at 360 × 780, reading all of them first
+and then writing, so nothing is scaled twice. Unitless and `em` line heights
+follow, as under `textZoom`; px ones stay, as they do there. It asserts the
+tile boxes are 32 px at 100%, that at 130% Drawing's long title still has
+both lines' room (less at most the second's half-leading) and never three,
+and that no visible label's text runs past its column at either size.
+Whether it holds on a phone, with Android's font size at its largest step
+under 130%, is the owner's check.
+
 ## DETAILS (c425)
 
 The handoff is `doc/handoffs/series-phone/` (`canvas.json`, five boards: 1A a

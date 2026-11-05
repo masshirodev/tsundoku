@@ -268,6 +268,32 @@ the load reads tracked, so that one does run the load. So:
   each. SvelteKit's node adapter aborts `request.signal` when the socket
   closes before the request has ended (`@sveltejs/kit/node`, `getRequest`),
   which is a GET whose page went away.
+- **Picks take turns, and a newer pick drops a waiting one** (c567, wave
+  25). The socket is a late witness: wave 24 measured the server hearing of
+  B's abort 4-279 ms after the page gave B up, so a turn could come to B in
+  that gap and B asked the engine anyway (`browse-move-pick`'s "three quick
+  picks…", 1 run in 10 alone). So `inTurn` also numbers every ask per source
+  and series, and an ask that **waited** for its turn and finds, when the
+  turn comes, a newer ask of the **same series from the same source** queued
+  behind it answers `DROPPED` without asking, whatever its socket says.
+  Exactly:
+  - _Newer_ means queued later for the same source and series. A pick of the
+    same series from another source is in another lane and never behind it;
+    a pick of another series is another page's. Neither drops anything.
+  - Only an ask that waited can be overtaken. With nobody in front its turn
+    came as it arrived, and a pick queued a moment later is behind it.
+  - An ask with no signal (the page's own load, `?to=` without script or
+    on a reload) is never dropped, since nothing could read that it was;
+    it is still newer than the asks before it, and drops them.
+  - The same pick twice asks for the newer only. A newer pick that is itself
+    aborted before its turn still drops the older: the page that made both
+    has moved on, and its next pick asks afresh.
+  - TRY AGAIN after a `DROPPED` is a new ask, the newest, and asks.
+  - The cost: one series' move page open on two devices, both picking from
+    the same source at once, drops the first device's waiting compare, and
+    that page reads `Asked for another candidate` with TRY AGAIN. The server
+    cannot tell two pages of one series apart, and the case is rare enough
+    to take over a compare that asks the engine for a page that has left.
 - **A tap asks once.** The tapped row is kept with the offset it will land
   with (a candidate's link carries none), so a tap made while the URL had an
   `offset` no longer asked twice, with the old one and then with none. The
@@ -406,7 +432,11 @@ LATEST CH. 121 · 2 D AGO`, which costs a details call per candidate. The
   and its guess, the counts, the band's line.
 - `tests/move-db.spec.ts` — one transaction: re-key, matched/kept/added,
   reading and the log, the queue's two sides, FOLLOW, the old key, 30 days,
-  MOVE BACK, the tablet backup, a hidden series, NO SERVER failures.
+  MOVE BACK, the tablet backup, a hidden series, NO SERVER failures, and
+  `inTurn`'s queue (c567): a newer pick dropping a waiting one with no abort,
+  another series' and another source's picks dropping nothing, the same pick
+  twice, a newer pick itself aborted, an ask with no signal, TRY AGAIN after a
+  `DROPPED`, and a slow source's late answer.
 - `tests/move-rung57-db.spec.ts` — the rung on a file.
 - `tests/move-rung58-db.spec.ts` — rung 58 on a file: the copy, the
   current-one rule, the cascade.
@@ -427,7 +457,11 @@ LATEST CH. 121 · 2 D AGO`, which costs a details call per candidate. The
   a pick with no search and no `__data.json`, a later pick over an earlier
   one's late answer, BACK and a reload, a failed comparison with MOVE off,
   three quick picks on one slow source (one details call each at most, the
-  dropped one that was waiting none), a tap under an `offset` asking once, a
+  dropped one that was waiting none), the same three at wave 23's timing (A
+  let go as soon as C is sent, before B's abort can have reached the server:
+  c567), a waiting pick whose abort never reaches the server (B asked from
+  the test's own request context) dropped by the page's newer pick behind it
+  (red on an `inTurn` without the rule, every copy: c567), a tap under an `offset` asking once, a
   second tap on the picked candidate leaving a later `offset` in charge, a
   streamed comparison that throws becoming TRY AGAIN (c539), and a pick
   without script. A late answer on the _first paint_ is not watched

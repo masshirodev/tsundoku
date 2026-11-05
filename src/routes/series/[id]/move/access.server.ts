@@ -53,6 +53,12 @@ export const offsetOf = (raw: string | null | undefined): number | null =>
  * an ask dropped while it waits for its turn never reaches the engine, so the
  * last pick waits behind the one call already running, not behind every pick
  * made before it.
+ *
+ * And a waiting ask whose turn comes after a newer pick of the same series
+ * from the same source was queued is dropped too, whatever its socket says
+ * (c567, doc/MOVE.md, "Picks take turns"): the server hears of a dropped
+ * request's abort only when its socket closes, up to 279 ms after the page
+ * gave it up (wave 24's measure), and a turn could come in that gap.
  */
 export async function compared(
 	id: number,
@@ -61,7 +67,7 @@ export async function compared(
 	offset: number | null,
 	signal?: AbortSignal
 ): Promise<Settled<MoveComparison>> {
-	return inTurn(to.split('~')[0] ?? '', signal, async () => {
+	return inTurn({ source: to.split('~')[0] ?? '', series: id, signal }, async () => {
 		try {
 			const value = await moveComparison(id, to, reveal, offset);
 			return value ? { ok: true, value } : { ok: false, error: 'This series does not move' };
@@ -79,12 +85,38 @@ export const DROPPED: Settled<MoveComparison> = { ok: false, error: 'Asked for a
 /** The compare in front, per source: each waits for the one before it. */
 const turns = new Map<string, Promise<void>>();
 
-/** Run [ask] after the source's earlier compares; skip it if [signal] aborts while it waits. */
+/**
+ * The newest pick per source and series: the number of the last ask queued
+ * for that pair. "Newer" is exactly that, a later ask of the same series from
+ * the same source, which is a later pick on the same move page (or the same
+ * series' page on another device: see doc/MOVE.md). A pick of the same series
+ * from another source waits in another lane and is never behind this one, so
+ * it drops nothing here; a pick of another series is another page's.
+ */
+const newest = new Map<string, number>();
+let asks = 0;
+/** Asks in each source's lane, waiting or running: none means a new one's turn is now. */
+const inLane = new Map<string, number>();
+
+/**
+ * Run [ask] after the source's earlier compares. It is skipped, answering
+ * DROPPED without asking, when [signal] aborts while it waits, or when a
+ * newer ask of the same series from the same source was queued by the time
+ * its turn comes. An ask with no signal (the page's own load, which nothing
+ * can drop) is never skipped, but it is still newer than the ones before it.
+ */
 export async function inTurn<T>(
-	source: string,
-	signal: AbortSignal | undefined,
+	at: { source: string; series: number; signal?: AbortSignal },
 	ask: () => Promise<T | Settled<MoveComparison>>
 ): Promise<T | Settled<MoveComparison>> {
+	const { source, signal } = at;
+	const pick = `${source}\u0000${at.series}`;
+	const n = ++asks;
+	newest.set(pick, n);
+	// Only an ask that waited can be overtaken: with nobody in front its turn
+	// came as it arrived, and a pick queued a moment later is behind it.
+	const waits = (inLane.get(source) ?? 0) > 0;
+	inLane.set(source, (inLane.get(source) ?? 0) + 1);
 	const before = turns.get(source) ?? Promise.resolve();
 	let done!: () => void;
 	const mine = new Promise<void>((ok) => (done = ok));
@@ -100,8 +132,15 @@ export async function inTurn<T>(
 			]);
 		} else await before;
 		if (signal?.aborted) return DROPPED;
+		// A newer pick is queued behind this one: the page has moved on, even if
+		// its abort has not reached the server yet.
+		if (signal && waits && newest.get(pick) !== n) return DROPPED;
 		return await ask();
 	} finally {
+		if (newest.get(pick) === n) newest.delete(pick);
+		const left = (inLane.get(source) ?? 1) - 1;
+		if (left > 0) inLane.set(source, left);
+		else inLane.delete(source);
 		done();
 		void queue.then(() => {
 			if (turns.get(source) === queue) turns.delete(source);

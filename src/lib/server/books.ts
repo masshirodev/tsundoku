@@ -305,6 +305,16 @@ export function volumesOf<E extends { file: string }>(entries: E[]): E[][] {
 	return out;
 }
 
+/** The first of these series' own page directions, in their order, or NULL (c551). */
+function textDirectionAmong(db: Database.Database, ids: number[]): string | null {
+	const get = db.prepare(`SELECT text_direction FROM series WHERE id = ?`);
+	for (const id of ids) {
+		const own = (get.get(id) as { text_direction: string | null } | undefined)?.text_direction;
+		if (own != null) return own;
+	}
+	return null;
+}
+
 function pathOf(db: Database.Database, seriesId: number): string {
 	return (db.prepare(`SELECT path FROM series WHERE id = ?`).get(seriesId) as { path: string })
 		.path;
@@ -342,12 +352,20 @@ function groupVolumes(
 		const first = db
 			.prepare(`SELECT direction, description FROM series WHERE id = ?`)
 			.get(books[0].id) as { direction: string | null; description: string };
+		// The page direction (c551; series.text_direction, rung 69) rides with the
+		// layout: the first volume's own, else the first that has one. NULL is the
+		// default L→R, and 'rtl' its only stored value, so a novel any volume of
+		// which was set to R→L stays R→L once its volumes are one series.
+		const text = textDirectionAmong(
+			db,
+			books.map((b) => b.id)
+		);
 		const id = Number(
 			db
 				.prepare(
 					`INSERT INTO series (root_id, title, kind, rating, favourite, hidden, public, hue, added_at,
-						indexed_at, source, path, direction, description)
-					VALUES (?, ?, 'novel', ?, ?, ?, ?, ?, ?, ?, 'epub', ?, ?, ?)`
+						indexed_at, source, path, direction, description, text_direction)
+					VALUES (?, ?, 'novel', ?, ?, ?, ?, ?, ?, ?, 'epub', ?, ?, ?, ?)`
 				)
 				.run(
 					root,
@@ -371,7 +389,8 @@ function groupVolumes(
 					now,
 					path,
 					first.direction,
-					first.description
+					first.description,
+					text
 				).lastInsertRowid
 		);
 		target = seriesRow(db, id)!;
@@ -437,8 +456,13 @@ export function takeOutVolumes(seriesId: number, files?: string[], now = Date.no
 			if (!series || !bindsVolumes(series)) throw new GroupingError('no such novel');
 			const path = pathOf(db, seriesId);
 			const extra = db
-				.prepare(`SELECT public, direction, description FROM series WHERE id = ?`)
-				.get(seriesId) as { public: number; direction: string | null; description: string };
+				.prepare(`SELECT public, direction, description, text_direction FROM series WHERE id = ?`)
+				.get(seriesId) as {
+				public: number;
+				direction: string | null;
+				description: string;
+				text_direction: string | null;
+			};
 			const created: number[] = [];
 			for (const vol of volumesOf(volumeEntries(db, seriesId))) {
 				if (files && !files.includes(vol[0].file)) continue;
@@ -451,8 +475,8 @@ export function takeOutVolumes(seriesId: number, files?: string[], now = Date.no
 					db
 						.prepare(
 							`INSERT INTO series (root_id, title, kind, rating, favourite, hidden, public, hue, added_at,
-								indexed_at, source, path, direction, description, origin_key)
-							VALUES (?, ?, 'novel', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+								indexed_at, source, path, direction, description, text_direction, origin_key)
+							VALUES (?, ?, 'novel', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 						)
 						.run(
 							series.root_id,
@@ -475,6 +499,8 @@ export function takeOutVolumes(seriesId: number, files?: string[], now = Date.no
 							dirname(abs),
 							extra.direction,
 							extra.description,
+							// Each volume taken out reads as its series did (c551).
+							extra.text_direction,
 							// Its own again: the next scan finds it by its file.
 							origin && !db.prepare(`SELECT 1 FROM series WHERE origin_key = ?`).get(origin)
 								? origin

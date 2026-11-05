@@ -590,3 +590,157 @@ describe('PASTE A LINK asks the medium too (K4, c304)', () => {
 		expect(pastedSourceId('not a url', 'anime')).toBeNull();
 	});
 });
+
+describe('compares take turns per source, and a newer pick drops a waiting one (c539, c567)', () => {
+	const access = () => import('../src/routes/series/[id]/move/access.server');
+	/** An ask the test answers by hand, recording that it reached "the engine". */
+	function engine() {
+		const asked: string[] = [];
+		const answers = new Map<string, () => void>();
+		const ask = (name: string) => () => {
+			asked.push(name);
+			return new Promise<{ ok: true; value: never }>((ok) =>
+				answers.set(name, () => ok({ ok: true, value: name as never }))
+			);
+		};
+		const answer = (name: string) => answers.get(name)!();
+		return { asked, ask, answer };
+	}
+	const tick = () => new Promise((r) => setTimeout(r, 0));
+	let source = 0;
+	/** A fresh source per case: the queue is the module's, shared by every case. */
+	const fresh = () => `src-${++source}`;
+
+	it('a newer pick of the same series drops a waiting one before its socket says so', async () => {
+		const { inTurn, DROPPED } = await access();
+		const e = engine();
+		const src = fresh();
+		const live = () => new AbortController().signal;
+		const a = inTurn({ source: src, series: 1, signal: live() }, e.ask('A'));
+		const b = inTurn({ source: src, series: 1, signal: live() }, e.ask('B'));
+		const c = inTurn({ source: src, series: 1, signal: live() }, e.ask('C'));
+		await tick();
+		expect(e.asked).toEqual(['A']);
+		// B's page gave it up, but the server has not heard (no abort): C is newer.
+		e.answer('A');
+		expect(await b).toEqual(DROPPED);
+		await tick();
+		expect(e.asked).toEqual(['A', 'C']);
+		e.answer('C');
+		expect(await c).toMatchObject({ ok: true });
+		await a;
+	});
+
+	it('a newer pick of another series, or of the same series from another source, drops nothing', async () => {
+		const { inTurn } = await access();
+		const e = engine();
+		const src = fresh();
+		const sig = () => new AbortController().signal;
+		const a = inTurn({ source: src, series: 1, signal: sig() }, e.ask('A'));
+		const b = inTurn({ source: src, series: 1, signal: sig() }, e.ask('B'));
+		// Another series' page, on the same source: it waits its turn, and B stays B's.
+		const other = inTurn({ source: src, series: 2, signal: sig() }, e.ask('other series'));
+		// The same series, another source: its own lane, asked at once.
+		const lane = inTurn({ source: fresh(), series: 1, signal: sig() }, e.ask('other source'));
+		await tick();
+		expect(e.asked).toEqual(['A', 'other source']);
+		e.answer('A');
+		await tick();
+		expect(e.asked).toEqual(['A', 'other source', 'B']);
+		e.answer('B');
+		await tick();
+		expect(e.asked).toEqual(['A', 'other source', 'B', 'other series']);
+		e.answer('other series');
+		e.answer('other source');
+		await Promise.all([a, b, other, lane]);
+	});
+
+	it('the same pick twice asks once more, for the newer; a newer one that is itself aborted still drops the older', async () => {
+		const { inTurn, DROPPED } = await access();
+		const e = engine();
+		const src = fresh();
+		const sig = () => new AbortController().signal;
+		const a = inTurn({ source: src, series: 1, signal: sig() }, e.ask('A'));
+		const b1 = inTurn({ source: src, series: 1, signal: sig() }, e.ask('B1'));
+		const b2 = inTurn({ source: src, series: 1, signal: sig() }, e.ask('B2'));
+		await tick();
+		e.answer('A');
+		expect(await b1).toEqual(DROPPED);
+		await tick();
+		e.answer('B2');
+		expect(await b2).toMatchObject({ ok: true });
+		expect(e.asked).toEqual(['A', 'B2']);
+		await a;
+
+		// A newer pick aborted before its turn (the page left): neither asks.
+		const f = engine();
+		const x = inTurn({ source: src, series: 1, signal: sig() }, f.ask('X'));
+		const y = inTurn({ source: src, series: 1, signal: sig() }, f.ask('Y'));
+		const gone = new AbortController();
+		const z = inTurn({ source: src, series: 1, signal: gone.signal }, f.ask('Z'));
+		gone.abort();
+		expect(await z).toEqual(DROPPED);
+		await tick();
+		f.answer('X');
+		expect(await y).toEqual(DROPPED);
+		await x;
+		expect(f.asked).toEqual(['X']);
+	});
+
+	it('TRY AGAIN after a DROPPED is the newest pick and asks; an ask with no signal is never dropped but is newer', async () => {
+		const { inTurn, DROPPED } = await access();
+		const e = engine();
+		const src = fresh();
+		const sig = () => new AbortController().signal;
+		const a = inTurn({ source: src, series: 1, signal: sig() }, e.ask('A'));
+		// The page's own load (no signal): never dropped, though it is not the newest.
+		const load = inTurn({ source: src, series: 1 }, e.ask('load'));
+		const b = inTurn({ source: src, series: 1, signal: sig() }, e.ask('B'));
+		await tick();
+		e.answer('A');
+		await tick();
+		expect(e.asked).toEqual(['A', 'load']);
+		e.answer('load');
+		await tick();
+		e.answer('B');
+		expect(await b).toMatchObject({ ok: true });
+		await Promise.all([a, load]);
+
+		// A waiting ask a load supersedes is dropped: the load is a newer pick.
+		const c = inTurn({ source: src, series: 1, signal: sig() }, e.ask('C'));
+		const d = inTurn({ source: src, series: 1, signal: sig() }, e.ask('D'));
+		const reload = inTurn({ source: src, series: 1 }, e.ask('reload'));
+		await tick();
+		e.answer('C');
+		expect(await d).toEqual(DROPPED);
+		await tick();
+		e.answer('reload');
+		await Promise.all([c, reload]);
+		// TRY AGAIN on a page that read DROPPED: a fresh pick, the newest, asks.
+		const again = inTurn({ source: src, series: 1, signal: sig() }, e.ask('D again'));
+		await tick();
+		e.answer('D again');
+		expect(await again).toMatchObject({ ok: true });
+		expect(e.asked).toEqual(['A', 'load', 'B', 'C', 'reload', 'D again']);
+	});
+
+	it('a slow source answering an older ask after a newer one was dropped changes nothing for the newest', async () => {
+		const { inTurn, DROPPED } = await access();
+		const e = engine();
+		const src = fresh();
+		const sig = () => new AbortController().signal;
+		const a = inTurn({ source: src, series: 1, signal: sig() }, e.ask('A'));
+		const b = inTurn({ source: src, series: 1, signal: sig() }, e.ask('B'));
+		const c = inTurn({ source: src, series: 1, signal: sig() }, e.ask('C'));
+		await tick();
+		// A's page answer comes long after B and C were queued; B never asks.
+		await new Promise((r) => setTimeout(r, 20));
+		e.answer('A');
+		expect(await a).toMatchObject({ ok: true });
+		expect(await b).toEqual(DROPPED);
+		await tick();
+		e.answer('C');
+		expect(await c).toMatchObject({ ok: true });
+		expect(e.asked).toEqual(['A', 'C']);
+	});
+});

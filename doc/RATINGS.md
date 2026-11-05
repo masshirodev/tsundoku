@@ -32,8 +32,9 @@ the reader's end page and sheets, the text reader, and the tile.
   is a drag that didn't move. The 0 cell on the left clears, and so does
   dragging off the left end.
 - **It commits the way its caller needs:** a callback (the series row, which
-  saves behind the value and shows NOT SAVED with a dashed outline if the
-  write fails); submit buttons named `rating` (the library sheet and bulk bar,
+  saves behind the value, one save at a time with the last tap winning
+  ([`SERIES.md`](SERIES.md), "FAV and the rating"), and shows NOT SAVED with
+  a dashed outline if the write fails); submit buttons named `rating` (the library sheet and bulk bar,
   so it works in a plain form without script); or links (the RATED threshold).
 - The pure part (where a finger is, what fills, what the readout says) is in
   `src/lib/library/rating.ts` and tested in `tests/library-domain.spec.ts`.
