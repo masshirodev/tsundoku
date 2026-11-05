@@ -5,7 +5,7 @@
 	import { onMount, tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { beforeNavigate, replaceState } from '$app/navigation';
-	import { leavingReader } from '$lib/reader/leaving';
+	import { leavingReader, readerMovedTo } from '$lib/reader/leaving';
 	import { resolve } from '$app/paths';
 	import { page as appPage } from '$app/state';
 	import type { PageData } from './$types';
@@ -948,6 +948,9 @@
 			url.searchParams.set('at', formatAt(p, layout === 'scroll' ? posY : null));
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- the path is resolve()d above
 			replaceState(url, {});
+			// The chapter may be another than the page was opened at: the guard
+			// above must take this path as the reader's own (c565, round 2).
+			readerMovedTo(url.pathname);
 		}, 800);
 		return () => clearTimeout(settle);
 	});

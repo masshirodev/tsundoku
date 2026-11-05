@@ -520,3 +520,14 @@ export class WheelTurn {
 		return this.sum > 0 ? 'next' : 'prev';
 	}
 }
+
+/**
+ * Whether `pathname` is a reader's: `resolve('/read/[entry]', …)`'s shape, the
+ * app's base included, with exactly one non-empty segment after `/read/`.
+ * `prefix` is that route's path up to the entry (`<base>/read/`).
+ */
+export function isReaderPath(pathname: string, prefix: string): boolean {
+	if (!pathname.startsWith(prefix)) return false;
+	const rest = pathname.slice(prefix.length);
+	return rest.length > 0 && !rest.includes('/');
+}

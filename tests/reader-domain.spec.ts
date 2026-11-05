@@ -33,7 +33,8 @@ import {
 	TURN_MS,
 	dragGive,
 	dragStarts,
-	forwardBy
+	forwardBy,
+	isReaderPath
 } from '$lib/reader/reader';
 import {
 	DEFAULT_SETTINGS,
@@ -749,5 +750,18 @@ describe('the text reader’s place in the URL (c554)', () => {
 			expect(formatAt(p, p.y)).toBe(raw);
 			expect(parseAt(formatAt(p, p.y))).toEqual(p);
 		}
+	});
+});
+
+describe('isReaderPath (c565, round 2)', () => {
+	it('is a reader for any entry, whatever the text reader replaceStates in place', () => {
+		expect(isReaderPath('/read/385', '/read/')).toBe(true);
+		expect(isReaderPath('/read/386', '/read/')).toBe(true);
+		expect(isReaderPath('/app/read/386', '/app/read/')).toBe(true);
+	});
+	it('is not a reader once the window shows another screen', () => {
+		for (const p of ['/series/12', '/', '/read/', '/read/3/x', '/history', '/read/3/'])
+			expect(isReaderPath(p, '/read/')).toBe(false);
+		expect(isReaderPath('/read/386', '/app/read/')).toBe(false);
 	});
 });

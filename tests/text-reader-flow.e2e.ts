@@ -767,4 +767,130 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 			);
 		await expect.poll(async () => Math.abs(await fromMargin())).toBeLessThanOrEqual(1);
 	});
+
+	/**
+	 * Read on through the chapters (c565, round 2): the text reader moves
+	 * between chapters in place and writes `/read/<next id>` with
+	 * `replaceState`, which leaves SvelteKit's `page.url` at the entry it was
+	 * opened at. A guard that compared the two read every settle after the
+	 * first one in the second chapter as leaving, so `?at=` froze there and no
+	 * more progress was sent. Each chapter here is checked by its own entry: the
+	 * window names it, `?at=` moves, a `page` event carries it, and a reload
+	 * opens it, not the first chapter crossed into.
+	 */
+	type Sent = { entryId: number; kind: string };
+	function watchReading(page: Page) {
+		const sent: Sent[] = [];
+		page.on('request', (r) => {
+			if (r.url().endsWith('/api/reading') && r.method() === 'POST') {
+				const body = r.postDataJSON() as Sent | null;
+				if (body) sent.push(body);
+			}
+		});
+		return sent;
+	}
+	/** Open Honzuki in this block's own library, by the series screen's own door. */
+	async function openOwnBook(page: Page) {
+		await page.goto(`${base}/?sort=title`);
+		await page.locator('.grid .tile', { hasText: TITLE }).click();
+		await page.waitForURL(/\/series\//);
+		await page
+			.getByRole('link', { name: /READ AGAIN|CONTINUE|START/ })
+			.first()
+			.click();
+		await page.waitForURL(/\/read\//);
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+	}
+	/**
+	 * Move on until `heading` reads `title`, then check the window caught up:
+	 * the entry the reader opened for it (its `open` event) is the URL's, with
+	 * a place (entry and `?at=`) other than `before`, and a `page` event named it.
+	 */
+	async function readInto(
+		page: Page,
+		sent: Sent[],
+		heading: ReturnType<Page['locator']>,
+		title: string,
+		step: () => Promise<void>,
+		before: string
+	) {
+		for (let i = 0; i < 80 && (await heading.textContent()) !== title; i++) await step();
+		await expect(heading).toHaveText(title, { timeout: 15_000 });
+		await expect.poll(() => sent.filter((b) => b.kind === 'open').length).toBeGreaterThan(0);
+		const id = sent.filter((b) => b.kind === 'open').at(-1)!.entryId;
+		await expect.poll(() => new URL(page.url()).pathname).toBe(`/read/${id}`);
+		await expect.poll(() => placeOf(page)).not.toBe(before);
+		await expect.poll(() => sent.some((b) => b.kind === 'page' && b.entryId === id)).toBe(true);
+		return id;
+	}
+	/** The window's place: the entry and its `?at=` (two chapters' tops are both `0.0`). */
+	const placeOf = (page: Page) => {
+		const u = new URL(page.url());
+		return `${u.pathname}?at=${u.searchParams.get('at') ?? ''}`;
+	};
+
+	// After c554's case, which REMEMBERed SCROLL for this book: PAGED is set for
+	// the session, and the reload opens in SCROLL, which reads the same entry.
+	test('in PAGED, read on into a third chapter: the URL and progress follow every chapter, and a reload opens the last (c565, round 2)', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		const sent = watchReading(page);
+		await openOwnBook(page);
+		await middle(page);
+		await page.getByRole('button', { name: /^SCROLL · / }).click();
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		await sheet.getByRole('radio', { name: 'PAGED' }).click();
+		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).not.toHaveClass(/scroll/);
+		const heading = page.locator('.blocks h1');
+		const n = Number(((await heading.textContent()) ?? '').replace(/\D/g, ''));
+		const step = () => forward(page);
+		const first = await readInto(page, sent, heading, `Vol. ${n + 1}`, step, placeOf(page));
+		const second = await readInto(page, sent, heading, `Vol. ${n + 2}`, step, placeOf(page));
+		expect(second).not.toBe(first);
+		// A page further on: its settle is written too, wherever it landed.
+		const before = placeOf(page);
+		const count = sent.length;
+		await forward(page);
+		await expect.poll(() => placeOf(page)).not.toBe(before);
+		await expect
+			.poll(() => sent.slice(count).some((b) => b.kind === 'page' && b.entryId !== first))
+			.toBe(true);
+		const last = sent.filter((b) => b.kind === 'open').at(-1)!.entryId;
+		await expect.poll(() => new URL(page.url()).pathname).toBe(`/read/${last}`);
+		await page.reload();
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		expect(new URL(page.url()).pathname).toBe(`/read/${last}`);
+		const opened = page.locator('.blocks:not(.next) h1').first();
+		if (last === second) await expect(opened).toHaveText(`Vol. ${n + 2}`);
+		else await expect(opened).not.toHaveText(`Vol. ${n + 1}`);
+	});
+
+	// After c554's case, which REMEMBERed SCROLL for this book, so a reload opens in SCROLL.
+	test('in SCROLL, read on into a third chapter: the URL and progress follow every chapter, and a reload opens the last (c565, round 2)', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		const sent = watchReading(page);
+		await openOwnBook(page);
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+		const heading = page.locator('.blocks:not(.next) h1').first();
+		const start = (await heading.textContent()) ?? '';
+		const n = Number(start.replace(/\D/g, ''));
+		const v = page.viewportSize()!;
+		await page.mouse.move(v.width / 2, v.height / 2);
+		const step = async () => {
+			await page.mouse.wheel(0, 400);
+			await page.waitForTimeout(60);
+		};
+		const first = await readInto(page, sent, heading, `Vol. ${n + 1}`, step, placeOf(page));
+		const second = await readInto(page, sent, heading, `Vol. ${n + 2}`, step, placeOf(page));
+		expect(second).not.toBe(first);
+		await page.reload();
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+		expect(new URL(page.url()).pathname).toBe(`/read/${second}`);
+		await expect(heading).toHaveText(`Vol. ${n + 2}`);
+	});
 });
