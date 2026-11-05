@@ -4,7 +4,7 @@ import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
-import type { Browser, Page, TestInfo } from '@playwright/test';
+import { devices, type Browser, type Page, type TestInfo } from '@playwright/test';
 import { expect, test, readerReady } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
@@ -962,4 +962,124 @@ test('a novel’s last volume is the same end page, so it offers the Work too', 
 	// One ask: the rating row is below the block, and there is exactly one.
 	await expect(page.locator('.end .note')).toHaveCount(1);
 	await expect(page.getByRole('button', { name: 'Rate 1 of 10' })).toHaveCount(1);
+});
+
+/**
+ * The block on a phone (c535). Its cells are one line each (`white-space:
+ * nowrap`), and since c343 and c344 they can say DOWNLOAD FIRST 10 EPISODES and
+ * NOT QUEUED · TRY THE SERIES: on a phone the column beside the 64 px cover is
+ * about 270 px, and the frames above measure only the board's 1280. This file
+ * runs in `works-frame` alone (playwright.config.ts), so the phone project's
+ * own device (Pixel 7, 412 wide) is set here for these cases, on this file's
+ * own seeded world: the online-only block, the unreadable anime block, each
+ * with its refused cell, and the meanwhile row's cell.
+ */
+test.describe('on a phone', () => {
+	// The device less `defaultBrowserType`, which a describe may not set (it is Chromium anyway).
+	const { defaultBrowserType: _browser, ...pixel7 } = devices['Pixel 7'];
+	void _browser;
+	test.use(pixel7);
+
+	/** Every cell of the block's row, and the row itself, inside the column; no cell's words cut. */
+	async function fits(page: Page, row: string, box: string) {
+		const got = await page.locator(row).evaluate((el, boxSel) => {
+			const col = el.closest(boxSel)!.getBoundingClientRect();
+			const cells = [...el.children].map((c) => {
+				const r = c.getBoundingClientRect();
+				return {
+					text: (c.textContent ?? '').trim(),
+					left: Math.round(r.left - col.left),
+					right: Math.round(r.right - col.left),
+					cut: c.scrollWidth - c.clientWidth
+				};
+			});
+			return { width: Math.round(col.width), over: el.scrollWidth - el.clientWidth, cells };
+		}, box);
+		// A phone's block: 412 less the page's 24px either side.
+		expect(got.width, 'the block').toBeLessThanOrEqual(364);
+		expect(got.over, `the row overflows: ${JSON.stringify(got)}`).toBeLessThanOrEqual(0);
+		for (const c of got.cells) {
+			expect(c.left, `${c.text}: ${JSON.stringify(got)}`).toBeGreaterThanOrEqual(0);
+			expect(c.right, `${c.text}: ${JSON.stringify(got)}`).toBeLessThanOrEqual(got.width);
+			expect(c.cut, `${c.text} is cut: ${JSON.stringify(got)}`).toBeLessThanOrEqual(0);
+		}
+		return got;
+	}
+
+	test('the online-only block and its refused cell fit the column (c535)', async ({ page }) => {
+		await openEnd(page, 8);
+		const dl = page.locator('.end .nextw .go .dl');
+		await expect(dl).toHaveText('DOWNLOAD FIRST 10 CHAPTERS');
+		await fits(page, '.end .nextw .go', '.nextw');
+		// The real action queues nothing here (no engine): the refusal's words.
+		await dl.click();
+		await expect(dl).toHaveText('NOT QUEUED · TRY THE SERIES');
+		await fits(page, '.end .nextw .go', '.nextw');
+		await expect(page.locator(SEL.start)).toContainText('▶ READ ONLINE · CH. 1');
+		await expect(page.locator(SEL.workCell)).toHaveText('WORK →');
+	});
+
+	test('the unreadable anime block and its refused cell fit the column (c535)', async ({
+		page
+	}) => {
+		await openEnd(page, 19);
+		const dl = page.locator('.end .nextw .go .dl');
+		await expect(dl).toHaveText('DOWNLOAD FIRST 10 EPISODES');
+		await fits(page, '.end .nextw .go', '.nextw');
+		await page.route(/\?\/download$/, (route) =>
+			route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					type: 'failure',
+					status: 503,
+					data: '[{"message":1},"Downloading is not answering"]'
+				})
+			})
+		);
+		await dl.click();
+		await expect(dl).toHaveText('NOT QUEUED · TRY THE SERIES');
+		await fits(page, '.end .nextw .go', '.nextw');
+		await page.unroute(/\?\/download$/);
+	});
+
+	test('the meanwhile row’s cell fits the row, with no file and online (c535)', async ({
+		page
+	}) => {
+		// The meanwhile case above gave series 7 a source; this one needs it
+		// without first, as the seed has it, and puts back what it found.
+		const db = new Database(dbPath);
+		const was = db
+			.prepare(`SELECT origin_key, source_url, source FROM series WHERE id = 7`)
+			.get() as { origin_key: string | null; source_url: string | null; source: string | null };
+		db.prepare(`UPDATE series SET origin_key = NULL, source_url = '' WHERE id = 7`).run();
+		try {
+			await openEnd(page, 1);
+			const row = page.locator('.end .wrow');
+			const dl = row.locator('.dl');
+			await expect(dl).toHaveText('DOWNLOAD FIRST 10 CHAPTERS');
+			await fits(page, '.end .wrow', '.wrow');
+			await dl.click();
+			await expect(dl).toHaveText('NOT QUEUED · TRY THE SERIES');
+			const got = await fits(page, '.end .wrow', '.wrow');
+			// The row's own words keep room to be read beside it.
+			const words = got.cells.find((c) => c.text.includes('Greatest Estate'))!;
+			expect(words.right - words.left).toBeGreaterThanOrEqual(140);
+
+			db.prepare(
+				`UPDATE series SET origin_key = 'mihon:1:https://example.test/estate',
+					source_url = 'https://example.test/estate', source = 'Fake Source' WHERE id = 7`
+			).run();
+			await openEnd(page, 1);
+			await expect(page.locator('.end a.wrow .wr')).toHaveText('READ ONLINE →');
+			await fits(page, '.end .wrow', '.wrow');
+		} finally {
+			db.prepare(`UPDATE series SET origin_key = ?, source_url = ?, source = ? WHERE id = 7`).run(
+				was.origin_key,
+				was.source_url,
+				was.source
+			);
+			db.close();
+		}
+	});
 });

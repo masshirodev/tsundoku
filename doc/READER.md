@@ -360,6 +360,18 @@ scrollable screen, which took some of them at random.
   SCROLL its last volume's own end is the end page, so the block and the rating
   are there too. **On a TV the text reader's end page takes the pad**, as the
   image reader's does: the block, its WORK → and the rating are stops.
+  **On a phone** (under 600px; c535) the block's row of cells is one line
+  each, and beside the 64px cover the column is about 270px, while START,
+  DOWNLOAD FIRST 10 EPISODES (or NOT QUEUED · TRY THE SERIES) and WORK → are
+  over twice that. So on a phone the row leaves the column (`.col` is
+  `display: contents`) and spans the block under the cover, as Work-Phone
+  draws the phone's START under it, and wraps: START on a line of its own,
+  its note beside it or under it, and the other cells sharing the next line,
+  each a 64px stop. The MEANWHILE row's cell wraps to two lines there rather
+  than squeezing the row's words, and its MEANWHILE label is 84px, whole
+  (72px cut it). `tests/work-end-frame.e2e.ts`, "on a phone", measures every
+  cell inside the block at the phone project's Pixel 7 (412 wide), refused
+  cells included.
 - **The next chapter isn't downloaded** (imported from a backup, read online):
   the boundary says so, "○ NOT DOWNLOADED", and doesn't pretend it opens.
 - **Offline:** "○ OFFLINE · CACHED STILL OPENS" and "○ NOT CACHED" on the next
