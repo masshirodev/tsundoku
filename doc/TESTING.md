@@ -392,7 +392,13 @@ workstation during gates. What it assumes, and the rules that follow (c439):
   wait for the service worker to take control, 90 s; `install`'s same wait
   has the same 90 s since wave 21 (c477), after its 30 s ran out on one to
   four device projects in every loaded whole run of waves 19 and 20 and on
-  all four in this wave's baseline. Wave 20 raised `tv-player`'s
+  all four in wave 21's baseline. Wave 22 measured it (c497): 5 runs per
+  device project of the file alone at a load average of 20-25 (four other
+  slots at work), every one green, took 3.4-8.7 s to control (the slowest:
+  `tablet-landscape`). Each run puts its figure on the result
+  (`controlled after`, in the JSON or HTML report), so a loaded whole run
+  reports it as well; the 90 s stands for the whole run's contexts all
+  precaching at once, which is where the 30 s ran out. Wave 20 raised `tv-player`'s
   per-case budget to 90 s (c448): at a load average of 15-68 every case took
   24-30 s even when it passed, and all eight reds of that run were the default
   30 s running out, each case waiting on the right state (the bar's own 4 s,

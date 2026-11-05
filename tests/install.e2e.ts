@@ -12,7 +12,9 @@ test('Chromium finds nothing stopping an install', async ({ page, browserName })
 	// preview every other test's context is precaching from: 10-16 s with six
 	// contexts alone at a load average of 25, and past the old 30 s on one to
 	// four device projects in every loaded whole run of waves 19 and 20. Slow,
-	// not stuck, so it gets offline-flow's measured 90 s (c439, c477).
+	// not stuck, so it gets offline-flow's measured 90 s (c439, c477). Wave 22
+	// (c497): 3.4-8.7 s alone, 5 runs per device project at a load of 20-25;
+	// the 90 s is for a whole run's contexts all precaching at once.
 	const asked = Date.now();
 	await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, null, {
 		timeout: 90_000
