@@ -64,6 +64,138 @@ test('rating fills up to the choice, 0 clears it, and FAV toggles', async ({ pag
 	await expect(panel.getByRole('button', { name: 'FAV', exact: true })).toBeVisible();
 });
 
+/**
+ * Hold the first POST of `?/<action>` until `release()` (or abort it, or
+ * every one after the first), and count the answers the page got (c566).
+ * The held one reaches the server only once released, so on a page that sends
+ * both taps at once the second is stored first: the order a slow network gives.
+ */
+async function holdFirst(
+	page: Page,
+	action: 'favourite' | 'rate',
+	after: 'pass' | 'abort' = 'pass'
+) {
+	let release!: () => void;
+	const held = new Promise<void>((r) => (release = r));
+	let first = true;
+	let answered = 0;
+	let asked = 0;
+	let most = 0;
+	const isAction = (u: URL) => /^\/series\/\d+$/.test(u.pathname) && u.search === `?/${action}`;
+	await page.route(isAction, async (route) => {
+		asked++;
+		most = Math.max(most, asked - answered);
+		if (first) {
+			first = false;
+			await held;
+			return route.continue();
+		}
+		return after === 'abort' ? route.abort() : route.continue();
+	});
+	page.on('requestfinished', (r) => {
+		if (isAction(new URL(r.url()))) answered++;
+	});
+	page.on('requestfailed', (r) => {
+		if (isAction(new URL(r.url()))) answered++;
+	});
+	return {
+		release,
+		answered: () => answered,
+		/** The most saves the page had out at once. */
+		most: () => most,
+		done: async () => page.unroute(isAction)
+	};
+}
+
+test('two quick FAV taps with the first save slow end on the second tap, after a reload too (c566)', async ({
+	page
+}) => {
+	await open(page, 'Return of the Mount Hua Sect');
+	const panel = page.getByRole('region', { name: 'About this series' });
+	const fav = panel.getByRole('button', { name: 'FAV', exact: true });
+	const faved = panel.getByRole('button', { name: 'FAV ✓' });
+	await expect(fav).toBeVisible();
+	const h = await holdFirst(page, 'favourite');
+	await fav.click();
+	await faved.click();
+	await expect(fav).toBeVisible();
+	h.release();
+	await expect.poll(h.answered).toBe(2);
+	await expect(fav).toBeVisible();
+	await page.reload();
+	await expect(panel.getByRole('button', { name: 'FAV', exact: true })).toBeVisible();
+	await expect(panel.getByRole('button', { name: 'FAV ✓' })).toHaveCount(0);
+	// The second waited for the first: never two out at once.
+	expect(h.most()).toBe(1);
+	await h.done();
+});
+
+test('three quick rating taps with the first slow store the third, and a lost first save is no band (c566)', async ({
+	page
+}) => {
+	await open(page, 'Return of the Mount Hua Sect');
+	const panel = page.getByRole('region', { name: 'About this series' });
+	const pressed = (n: number) =>
+		expect(panel.getByRole('button', { name: `Rate ${n} of 10` })).toHaveAttribute(
+			'aria-pressed',
+			'true'
+		);
+	await expect(panel.getByText('UNRATED', { exact: true })).toBeVisible();
+	const h = await holdFirst(page, 'rate');
+	await panel.getByRole('button', { name: 'Rate 6 of 10' }).click();
+	await panel.getByRole('button', { name: 'Rate 8 of 10' }).click();
+	await panel.getByRole('button', { name: 'Rate 3 of 10' }).click();
+	await pressed(3);
+	h.release();
+	await expect.poll(h.answered).toBe(3);
+	await pressed(3);
+	await page.reload();
+	await pressed(3);
+	expect(h.most()).toBe(1);
+	await h.done();
+
+	// The first save lost (aborted) while the second waits: the second is stored, no band.
+	let first = true;
+	const isRate = (u: URL) => /^\/series\/\d+$/.test(u.pathname) && u.search === '?/rate';
+	await page.route(isRate, (route) => {
+		if (!first) return route.continue();
+		first = false;
+		return route.abort();
+	});
+	await panel.getByRole('button', { name: 'Rate 9 of 10' }).click();
+	await panel.getByRole('button', { name: 'Unrated' }).click();
+	await expect(panel.getByText('UNRATED', { exact: true })).toBeVisible();
+	await page.reload();
+	await expect(panel.getByText('UNRATED', { exact: true })).toBeVisible();
+	await expect(page.getByText(/NOT SAVED/)).toHaveCount(0);
+	await page.unroute(isRate);
+});
+
+test('the last of two taps failing names what is stored now, and PUT BACK shows it (c566)', async ({
+	page
+}) => {
+	await open(page, 'Return of the Mount Hua Sect');
+	const panel = page.getByRole('region', { name: 'About this series' });
+	await expect(panel.getByText('UNRATED', { exact: true })).toBeVisible();
+	const h = await holdFirst(page, 'rate', 'abort');
+	await panel.getByRole('button', { name: 'Rate 6 of 10' }).click();
+	await panel.getByRole('button', { name: 'Rate 3 of 10' }).click();
+	h.release();
+	// 6 was stored before 3 was lost: PUT BACK goes to 6, not to the 0 the page first loaded.
+	await expect(page.getByText('RATING 3 NOT SAVED')).toBeVisible();
+	await page.getByRole('button', { name: 'PUT BACK 6' }).click();
+	await expect(page.getByText('RATING 3 NOT SAVED')).toHaveCount(0);
+	await expect(panel.getByRole('button', { name: 'Rate 6 of 10' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await h.done();
+	await panel.getByRole('button', { name: 'Unrated' }).click();
+	await expect(panel.getByText('UNRATED', { exact: true })).toBeVisible();
+	await page.reload();
+	await expect(panel.getByText('UNRATED', { exact: true })).toBeVisible();
+});
+
 test('direction is stored per series', async ({ page }) => {
 	await open(page, 'Return of the Mount Hua Sect');
 	const ltr = page.getByRole('button', { name: 'L→R' });

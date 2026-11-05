@@ -194,6 +194,44 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
 - **Suggestion counts only include visible series**, so the tag field can't be
   used to learn how many hidden series carry a tag.
 
+## FAV and the rating (c566)
+
+A tap on FAV or the rating shows at once and saves behind it (Loading States
+1o, [`WAITING.md`](WAITING.md), "Writes that fail"). Two quick taps used to
+post together, so the server could store them in either order, and the
+first answer's reload put the stored value back over the second tap: shown
+3 of 3 by wave 24's probe, and the cause of `series-flow`'s "rating fills
+up…" red under load. Since wave 25 (`src/routes/series/[id]/serial-saves.ts`):
+
+- **One save in flight per series and field.** A tap's save waits for the
+  one before it on the same key (`fav:<id>`, `rating:<id>`); FAV never waits
+  for the rating, nor one series for another. The queue is the app's, not
+  the panel's, so a panel mounted again (out to the library and back within
+  a slow save) still waits.
+- **The last tap wins.** Only the newest save reloads the page; a superseded
+  one, stored or not, does nothing more. The local value stands while any
+  save of its field is pending (queued, running, or answered and reloading)
+  or unsaved, so neither an earlier answer's reload nor one from elsewhere
+  resets it. Once nothing is pending, the stored value is the one shown.
+- **A failure is the newest tap's alone.** A first save lost while a second
+  waits leaves no band: the second is what counts. When the newest fails, its
+  band names what is stored now: if an earlier tap of the burst was stored,
+  the page is reloaded first, so PUT BACK says `PUT BACK 6` (what tap one
+  stored), not the value the page loaded before both. A failed save of the
+  value already stored (tap 6 lost, then tap 0 lost, on an unrated series)
+  leaves nothing unsaved and shows no band.
+- **RETRY and the next request's retry wait their turn too**, and a tap while
+  the band shows clears it, as before.
+- **The URL is taken at the tap.** A save that waits its turn still posts to
+  the series it was tapped on, whatever the screen shows by then.
+
+Tested in `tests/series-domain.spec.ts` (the queue: order, three taps,
+failures, independence, a tap during the reload) and `tests/series-flow.e2e.ts`
+(two FAV taps and three rating taps with the first save held, a lost first
+save, and the newest failing after an earlier one was stored, each through a
+reload). The library tile's FAV and rating (`src/routes/+page.svelte`) still
+post each tap at once: see the wave 25 notes.
+
 ## DETAILS (c425)
 
 The handoff is `doc/handoffs/series-phone/` (`canvas.json`, five boards: 1A a

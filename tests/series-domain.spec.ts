@@ -25,6 +25,7 @@ import {
 	tagGroups,
 	type SeriesEntry
 } from '$lib/library/series';
+import { SerialSaves } from '../src/routes/series/[id]/serial-saves';
 
 /** A series of `n` chapters, the first `read` finished, the next one open at page `page`. */
 function chapters(n: number, read: number, page: number | null = null, pages = 54): SeriesEntry[] {
@@ -300,5 +301,136 @@ describe('volumes of a novel', () => {
 		expect(
 			isVolumeSeries({ kind: 'novel', entries: volumes().filter((e) => e.file === 'Vol 1.epub') })
 		).toBe(false);
+	});
+});
+
+describe('SerialSaves: one save in flight per field, the last tap winning (c566)', () => {
+	/** A save the test answers by hand, in any order it likes. */
+	function held() {
+		const order: string[] = [];
+		const answers = new Map<string, (ok: boolean) => void>();
+		const save = (name: string) => () => {
+			order.push(`sent ${name}`);
+			return new Promise<boolean>((done) =>
+				answers.set(name, (ok) => {
+					order.push(`answered ${name}`);
+					done(ok);
+				})
+			);
+		};
+		const answer = (name: string, ok = true) => answers.get(name)!(ok);
+		return { order, save, answer, sent: (name: string) => answers.has(name) };
+	}
+	const tick = () => new Promise((r) => setTimeout(r, 0));
+
+	it('a second tap waits for the first to answer, and only the second is the latest', async () => {
+		const q = new SerialSaves();
+		const h = held();
+		const one = q.run('fav:1', h.save('1'));
+		const two = q.run('fav:1', h.save('0'));
+		await tick();
+		expect(h.sent('0')).toBe(false);
+		h.answer('1');
+		expect(await one).toEqual({ ok: true, latest: false, earlierStored: false });
+		await tick();
+		expect(h.sent('0')).toBe(true);
+		expect(q.pending('fav:1')).toBe(true);
+		h.answer('0');
+		expect(await two).toEqual({ ok: true, latest: true, earlierStored: true });
+		expect(h.order).toEqual(['sent 1', 'answered 1', 'sent 0', 'answered 0']);
+		// Pending until the latest says its reload is done.
+		expect(q.pending('fav:1')).toBe(true);
+		q.settle('fav:1');
+		expect(q.pending('fav:1')).toBe(false);
+	});
+
+	it('three taps send in their order, and only the third is the latest', async () => {
+		const q = new SerialSaves();
+		const h = held();
+		const turns = ['5', '7', '2'].map((n) => q.run('rating:1', h.save(n)));
+		for (const n of ['5', '7', '2']) {
+			await tick();
+			h.answer(n);
+		}
+		const got = await Promise.all(turns);
+		expect(got.map((t) => t.latest)).toEqual([false, false, true]);
+		expect(h.order).toEqual([
+			'sent 5',
+			'answered 5',
+			'sent 7',
+			'answered 7',
+			'sent 2',
+			'answered 2'
+		]);
+	});
+
+	it('a first save that fails does not stop the second, and the second does not hear of an earlier store', async () => {
+		const q = new SerialSaves();
+		const h = held();
+		const one = q.run('fav:1', h.save('1'));
+		const two = q.run('fav:1', h.save('0'));
+		await tick();
+		h.answer('1', false);
+		expect((await one).ok).toBe(false);
+		await tick();
+		h.answer('0', false);
+		expect(await two).toEqual({ ok: false, latest: true, earlierStored: false });
+	});
+
+	it('a save that throws is not stored and still lets the next one run', async () => {
+		const q = new SerialSaves();
+		const h = held();
+		const one = q.run('fav:1', () => Promise.reject(new Error('offline')));
+		const two = q.run('fav:1', h.save('0'));
+		expect(await one).toEqual({ ok: false, latest: false, earlierStored: false });
+		await tick();
+		h.answer('0');
+		expect((await two).ok).toBe(true);
+	});
+
+	it('keys are independent: FAV does not wait for the rating, nor one series for another', async () => {
+		const q = new SerialSaves();
+		const h = held();
+		void q.run('rating:1', h.save('r'));
+		void q.run('fav:1', h.save('f'));
+		void q.run('rating:2', h.save('r2'));
+		await tick();
+		expect([h.sent('r'), h.sent('f'), h.sent('r2')]).toEqual([true, true, true]);
+	});
+
+	it('a tap after the last settled starts a fresh burst, which has heard of no earlier store', async () => {
+		const q = new SerialSaves();
+		const h = held();
+		const a = q.run('fav:1', h.save('a'));
+		const b = q.run('fav:1', h.save('b'));
+		await tick();
+		h.answer('a');
+		await tick();
+		h.answer('b');
+		expect((await b).earlierStored).toBe(true);
+		await a;
+		q.settle('fav:1');
+		const c = q.run('fav:1', h.save('c'));
+		await tick();
+		h.answer('c', false);
+		expect(await c).toEqual({ ok: false, latest: true, earlierStored: false });
+	});
+
+	it('a turn that was latest when it answered stays pending while a newer tap runs', async () => {
+		const q = new SerialSaves();
+		const h = held();
+		const one = q.run('fav:1', h.save('1'));
+		await tick();
+		h.answer('1');
+		expect((await one).latest).toBe(true);
+		// A tap during the first's reload.
+		void q.run('fav:1', h.save('0'));
+		q.settle('fav:1');
+		expect(q.pending('fav:1')).toBe(true);
+		await tick();
+		h.answer('0');
+		await tick();
+		q.settle('fav:1');
+		expect(q.pending('fav:1')).toBe(false);
 	});
 });
