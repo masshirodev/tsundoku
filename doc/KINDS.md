@@ -28,18 +28,27 @@ c153), and movies and TV shows are being considered (c295). Each kind was
 added by teaching the places that broke about it, one `kind === 'anime'` at a
 time. Nothing says, in one place, what a kind is or what it can do. So any
 place nobody remembered stays manga-shaped, and that only shows up as a bug.
-2026-11-02 alone turned up three:
+2026-11-02 alone turned up three, and c298 fixed all of them:
 
-- **The AniList catalogue only asks for `MANGA`** (`src/lib/server/catalogue.ts`,
-  `type: MANGA` in the search and the lookup by id; `tracking.ts` reads the
-  manga list only). No anime can be linked to its own entry, Ranma ½ (2024)
-  got linked to the manga, and AniSkip got a manga's MAL id (c298).
-- **The link review describes an anime as a manga.** It shows CHAPTERS where
-  it should show EPISODES, and says the cover came from Mihon for an Aniyomi
-  series (c298).
-- **Linking's kind rule knows only novel against comic** (`doc/LINKS.md`, "A
-  novel never matches a comic"). Anime against manga was never written down,
-  so it was never enforced.
+- **Fixed: the AniList catalogue only asked for `MANGA`**
+  (`src/lib/server/catalogue.ts`, `type: MANGA` in the search and the lookup by
+  id; `tracking.ts` read the manga list only). No anime could be linked to its
+  own entry, Ranma ½ (2024) got linked to the manga, and AniSkip got a manga's
+  MAL id. A series is now searched and resolved in its own catalogue
+  (`anilistType(kind)`), and both lists are read
+  ([`TRACKING.md`](TRACKING.md), "Reading the lists").
+- **Fixed: the link review described an anime as a manga.** It showed CHAPTERS
+  where it should show EPISODES, and said the cover came from Mihon for an
+  Aniyomi series. It now says EPISODES and FROM THE SOURCE'S COVER
+  ([`LINKS.md`](LINKS.md)).
+- **Fixed: linking's kind rule knew only novel against comic.** Anime against
+  manga was never written down, so it was never enforced. It is now `sameKind`,
+  which reads `matches` ([`LINKS.md`](LINKS.md): an anime never matches a
+  manga, a manhwa or a novel, nor any of those an anime).
+
+**Still open** is what let them happen: the rest of the migration ("The
+slices", below) and the disagreements K1 recorded and left ("The disagreements
+I kept"), among them a novel's unit in the same review.
 
 The owner asked (2026-11-02) whether tsundoku is becoming "tape on top of
 tape". The answer here: **the machinery is shared and sound, but what each

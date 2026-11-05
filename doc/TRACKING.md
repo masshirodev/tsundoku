@@ -80,8 +80,9 @@ anime's season sends alike (wave 17). What the list said stays, as of then.
 
 For each linked series, `tracker_state` keeps the list's status (in
 tsundoku's words: reading, planning, on hold, completed, dropped), chapter
-and score out of 10. A series no longer on a list loses its state. A series
-sent to after the read began keeps what the send made of it.
+and score out of 10; an anime's episodes are on its season rows, below. A
+series no longer on a list loses its state. A series sent to after the read
+began keeps what the send made of it.
 
 **An anime is one row a season** (c240): `season_tracker_state`, keyed by
 the series, the season and the part, keeps each season's own entry's status,

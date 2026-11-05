@@ -24,7 +24,9 @@ fails to load leaves the stripes.
 2. **A cover the files carry:** Hentoid's thumbnail, an EPUB's cover image.
    Real covers.
 3. **The source site's cover URL,** which Mihon's backup has for every series
-   (`series.cover_url`, rung 14). It's fetched with a browser's user agent and
+   (`series.cover_url`, rung 14). An Aniyomi series' comes from the engine, not
+   from Mihon, and its COVER row says FROM THE SOURCE'S COVER (`coverLines`).
+   The URL is fetched with a browser's user agent and
    the site's own origin as the referrer, three at a time, and only by the
    cover pass, never while a screen waits. The owner approved fetching them on
    2026-09-23. An address is fetched only when it's on the internet, every
