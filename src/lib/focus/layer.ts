@@ -14,7 +14,7 @@
  * rather than to the page.
  */
 
-import { directionOf, nextInDirection, type Direction } from './geometry';
+import { canScroll, directionOf, nextInDirection, type Direction } from './geometry';
 import { focusablesIn, isFocusable, isVisible, keepsArrow, rectOf } from './dom';
 import { isBackKey, isOkKey, isOptionsKey, OkPress } from './keys';
 import { TV } from '$lib/device.svelte';
@@ -373,13 +373,20 @@ const LINE_STEP = 40;
  * snaps a whole page for a step (a strip moved a page under its chrome).
  *
  * The scroller is what the browser would scroll: the nearest ancestor of the
- * focused thing that scrolls vertically, else the page.
+ * focused thing that scrolls vertically **and can still move that way**, else
+ * the page (c578). One at its end in the key's direction is passed over, as
+ * Chromium's own arrow scroll chains to the next scroller out; so is one
+ * with `overflow: hidden` or `visible`, which a key never scrolls, and one
+ * with nothing to scroll. "At its end" allows `SCROLL_SLACK` (`canScroll`,
+ * geometry.ts). The page at its own end scrolls nowhere, which is no error.
+ * Until c578 the nearest scroller was taken whether or not it could move, so
+ * ↓ in a list at its end inside a longer page did nothing at all.
  */
 function stepScroll(from: HTMLElement, direction: 'up' | 'down'): void {
 	let scroller: Element = document.scrollingElement ?? document.documentElement;
 	for (let n = from.parentElement; n && n !== document.body; n = n.parentElement) {
 		const overflow = getComputedStyle(n).overflowY;
-		if ((overflow === 'auto' || overflow === 'scroll') && n.scrollHeight > n.clientHeight) {
+		if ((overflow === 'auto' || overflow === 'scroll') && canScroll(n, direction)) {
 			scroller = n;
 			break;
 		}

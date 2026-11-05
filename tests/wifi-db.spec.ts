@@ -22,9 +22,12 @@ vi.mock('$lib/server/updates', () => ({ checkIfStale: () => {}, updateView: () =
 
 const { CODE_MS, TV_TRIES, TV_USED_SHOWN_MS, pairing, tvPairing } =
 	await import('$lib/server/pairing');
-const { settingsVisit, tvBlockHere, tvPanel, wifiView } = await import('$lib/server/wifi');
+const { settingsVisit, tvBlockHere, tvCodeNow, tvPanel, wifiView } =
+	await import('$lib/server/wifi');
 const api = await import('../src/routes/api/wifi/+server');
 const settingsPage = await import('../src/routes/settings/+page.server');
+const pairTvPage = await import('../src/routes/pair/tv/+page.server');
+const pairTvApi = await import('../src/routes/api/pair/tv/+server');
 
 type LanStatus = import('$lib/server/lan-listen').LanStatus;
 
@@ -299,5 +302,90 @@ describe('a real visit to SETTINGS, and a reload of its data (c531)', () => {
 		expect(tvPairing.current()!.code).not.toBe(code);
 		expect(tvPairing.state(Date.now())).toBe('live');
 		expect(tvPairing.triesLeft()).toBe(TV_TRIES);
+	});
+});
+
+/**
+ * c581: a burned code is burned for good, on both screens. `TvPairing.state`
+ * asked the clock first, so once a burned code's 10 minutes ran out the
+ * DEVICES row's refresh (`tvCodeNow`, `GET /settings/tv`) and the WI-FI
+ * panel said EXPIRED, and the row's 5 s poll (`tvPolls`: every state but
+ * burned) started again, while `/pair/tv` said NO TRIES LEFT by a rule of its
+ * own (`shown`). Every door reads `state` now; this asks each one, either side
+ * of the 10 minutes and long after them.
+ */
+describe('a burned code past its 10 minutes (c581)', () => {
+	const AT = [T0 + CODE_MS - 1, T0 + CODE_MS, T0 + CODE_MS + 1, T0 + CODE_MS * 6];
+
+	it('reads burned from the computer’s doors, and none of them makes a new one', async () => {
+		const code = burnTv(T0 + 1000);
+		for (const now of AT) {
+			const at = `${now - T0} ms after it was made`;
+			// The DEVICES row's refresh: what `GET /settings/tv` answers. Its
+			// state is what keys the row's 5 s poll, so `burned` keeps it off.
+			expect(tvCodeNow(now), at).toMatchObject({ code, state: 'burned', left: 0 });
+			// SETTINGS' load on a reload of its data, and the panel's poll.
+			expect(tvPanel({ now }), at).toMatchObject({ code, state: 'burned' });
+			expect(wifiView({ now })!.tv, at).toMatchObject({ code, state: 'burned', left: 0 });
+			expect(tvPairing.current()!.code, at).toBe(code);
+		}
+		// The computer's own read, at its real clock.
+		vi.useFakeTimers({ toFake: ['Date'] });
+		try {
+			for (const now of AT) {
+				vi.setSystemTime(now);
+				const r = await pairTvApi.GET({ url: new URL('http://localhost/api/pair/tv') } as never);
+				expect(await r.json()).toMatchObject({ code, state: 'burned', left: 0 });
+			}
+		} finally {
+			vi.useRealTimers();
+		}
+		// A real visit is still the owner's door that replaces it.
+		expect(wifiView({ renew: true, now: AT.at(-1)! })!.tv).toMatchObject({ state: 'live' });
+	});
+
+	it('reads burned from the TV’s page, the one rule both screens share', async () => {
+		const code = burnTv(T0 + 1000);
+		vi.useFakeTimers({ toFake: ['Date'] });
+		try {
+			for (const now of AT) {
+				vi.setSystemTime(now);
+				const at = `${now - T0} ms after it was made`;
+				const data = (await pairTvPage.load({
+					cookies: { get: () => undefined },
+					url: new URL('http://localhost/pair/tv')
+				} as never)) as { state: string };
+				// /pair/tv's load: NO TRIES LEFT, and no code made in its place.
+				expect(data.state, at).toBe('burned');
+				expect(data.state, at).toBe(tvCodeNow(now)!.state);
+				expect(tvPairing.current()!.code, at).toBe(code);
+				// PAIR with the right digits: the band says NO TRIES LEFT, not EXPIRED.
+				const form = new FormData();
+				form.set('code', code);
+				const posted = await Promise.resolve(
+					pairTvPage.actions.default!({
+						request: new Request('http://localhost/pair/tv', { method: 'POST', body: form }),
+						cookies: { get: () => undefined, set: () => {} },
+						url: new URL('http://localhost/pair/tv')
+					} as never)
+				).then(
+					() => null,
+					(e: { location?: string }) => e.location ?? String(e)
+				);
+				expect(posted, at).toBe('/pair/tv?r=burned');
+				expect(tvPairing.current()!.code, at).toBe(code);
+			}
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('an unburned code still expires: four wrong tries, then the clock', () => {
+		const c = tvPairing.current()!;
+		for (let i = 0; i < TV_TRIES - 1; i += 1)
+			expect(tvPairing.redeem(wrongFor(c.code), T0 + 1000, 'Android TV')).toBe('wrong');
+		expect(tvCodeNow(T0 + CODE_MS - 1)).toMatchObject({ state: 'live', left: 1 });
+		expect(tvCodeNow(T0 + CODE_MS)).toMatchObject({ state: 'expired', left: 1 });
+		expect(tvPairing.redeem(c.code, T0 + CODE_MS, 'Android TV')).toBe('expired');
 	});
 });

@@ -425,8 +425,14 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		)
 	}
 
+	/**
+	 * The origin of a URL WebView reports. Chromium already lower-cases the
+	 * scheme and the host; this does too, so it can never disagree with
+	 * Address.originOf, which every stored origin goes through (c548).
+	 */
 	private fun originOf(url: Uri): String {
-		return "${url.scheme}://${url.host}${Address.portSuffix(url.scheme, url.port)}"
+		val scheme = url.scheme?.lowercase()
+		return "$scheme://${url.host?.lowercase()}${Address.portSuffix(scheme, url.port)}"
 	}
 
 	private fun hideSystemUi() {

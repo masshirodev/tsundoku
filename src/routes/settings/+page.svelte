@@ -1373,6 +1373,10 @@
 					<div class="tvline">✓ USED · ONE TV, ONCE</div>
 				{:else if t?.state === 'burned'}
 					<div class="tvline">NO TRIES LEFT · MAKE A NEW CODE</div>
+				{:else if !t}
+					<!-- No code at all, which is not an expired one (c580): the server's
+					     memory after a restart, until a visit, NEW CODE or a TV makes one. -->
+					<div class="tvline">NO CODE YET · MAKE A NEW CODE</div>
 				{:else}
 					<div class="tvline">EXPIRED · MAKE A NEW CODE</div>
 				{/if}

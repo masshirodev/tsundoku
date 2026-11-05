@@ -77,14 +77,33 @@ keydown is one move.
 still scrolls, so prose (HELP, a series' ABOUT) can be read past the last
 stop. A desktop keyboard leaves it to the browser. **A TV's ↑ and ↓ are
 scrolled by the layer** (`stepScroll`, c543): the browser's own step
-(Chromium's 40 px line step) on the nearest ancestor that scrolls vertically,
-else the page, but instant, and only once the key has been through every
+(Chromium's 40 px line step) on the nearest ancestor that scrolls vertically
+**and can still move that way**, else the page, but instant, and only once the key has been through every
 listener with none taking it (the player and the readers read some arrows
 themselves). ← and → stay the browser's: a reader's sideways scroller snaps a
 whole page for one step. The browser's keyboard scroll is animated, and BACK's instant
 `scrollTo(0)` did not stop an animation already running: BACK pressed just
 after a ↓ past the library's last row landed 2 to 47 px under the top, still
 moving. Inside a sheet the key is swallowed: the scope keeps its keys.
+
+**A scroller at its end is passed over** (c578), as Chromium's own arrow
+scroll chains to the next scroller out and finally to the page. Until c578 the
+nearest scroller was taken whether it could move or not, so ↓ in a list at
+its end inside a longer page did nothing. An ancestor counts only with
+`overflow-y: auto` or `scroll` (a key never scrolls `hidden`), and only if it
+can move in the key's direction: `canScroll` in `geometry.ts`, `scrollTop >
+1` for ↑ and `scrollTop + clientHeight < scrollHeight - 1` for ↓. The pixel
+(`SCROLL_SLACK`) is rounding, not content: `scrollHeight` and `clientHeight`
+are integers each rounded from a fractional layout and `scrollTop` is not, so
+a scroller at its very end can read up to a pixel short of it. The page at
+its own end scrolls nowhere, and that is no error. What it reaches is every vertical scroller on a screen a TV opens
+(`rg -l "overflow(-y)?:\s*(auto|scroll)" src/routes src/lib/components`, 16
+files at wave 25): the series screen's panel and list columns, a Work's
+panel and list, MOVE's lists, `/links`' candidates and siblings, the
+layout's own scrollers, the readers' READING and text sheets and their
+views, the lookup panel and the page menu. A `Sheet.svelte` panel is one too,
+but a sheet is a scope, so its arrows are swallowed before they get here. The
+whole `tv` project ran on this rule (wave 25).
 
 ## Scopes
 
@@ -368,7 +387,9 @@ BACK climbs the screen before it leaves.
 
 ## Tests
 
-- `tests/focus-geometry.spec.ts` — the pure decision.
+- `tests/focus-geometry.spec.ts` — the pure decision, and `canScroll` (c578):
+  either end, the pixel of slack each way, and a scroller with nothing to
+  scroll at both ends.
 - `tests/focus-keys.spec.ts` — the remote's keys as decisions: which key is
   BACK, which is MENU, and a held OK that opens, clicks, or does neither when
   repeated or cancelled (c235); and the arrows a slider keeps (c259), every
@@ -381,7 +402,12 @@ BACK climbs the screen before it leaves.
   writes progress, so tablet-portrait only; it owns Hoshi no Umi no Tabibito).
 - `tests/tv-keys.e2e.ts` — OK held and MENU on a cover, a chapter row and a
   history row; BACK closing a sheet, climbing shelf tab → CONTINUE, and
-  `window.tsundokuBack()` answering false at the top (c235).
+  `window.tsundokuBack()` answering false at the top (c235). And c578's
+  chain, on a page of scrollers built for the case on the live layer: ↓ moving
+  the nearest scroller while it can, an inner one at its end handing ↓ to the
+  outer, both at their end to the page, a box with `overflow: hidden` passed
+  over, the page at its end moving nothing and throwing nothing, and ↑ at an
+  inner scroller's top scrolling the page up.
 - `tests/tv-library-top.e2e.ts` — the pinned rows never covering the first
   row's focus ring (`reveal()`'s bar step), and one BACK from deep in the
   grid landing on the first CONTINUE card at the top and staying there, every

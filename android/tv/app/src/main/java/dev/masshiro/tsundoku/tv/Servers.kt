@@ -110,7 +110,15 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 					.joinToString("\t", transform = ::escape)
 			}
 
-		/** A line that cannot be read is dropped, not guessed at: the rest still open. */
+		/**
+		 * A line that cannot be read is dropped, not guessed at: the rest still open.
+		 *
+		 * Every origin is read through [Address.originOf], so an entry stored
+		 * before a normalisation comes back normalised: one with its scheme's
+		 * own port (round 2 of c261), or one typed with capitals (c548). Two
+		 * lines that then name one origin are one server, and are folded by
+		 * [fold] rather than kept twice.
+		 */
 		fun decode(text: String): List<Server> =
 			text.split('\n').mapNotNull { line ->
 				if (line.isBlank()) return@mapNotNull null
@@ -123,7 +131,24 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 					opened = f.getOrNull(3)?.toLongOrNull() ?: 0,
 					added = f.getOrNull(4)?.toLongOrNull() ?: 0
 				)
-			}.distinctBy { it.origin }
+			}.groupBy { it.origin }.values.map(::fold)
+
+		/**
+		 * Entries that turned out to be one server (c548: `http://Zen.local`
+		 * stored beside `http://zen.local`). The one opened last wins, as the
+		 * list is ordered, then the one added last; a name the winner lacks
+		 * is taken from the others, as [move] carries the TV's name across
+		 * only when the entry it lands on has none. Nothing a single entry
+		 * held is changed.
+		 */
+		private fun fold(same: List<Server>): Server {
+			val order = same.sortedWith(compareByDescending<Server> { it.opened }.thenByDescending { it.added })
+			val win = order.first()
+			return win.copy(
+				name = win.name.ifBlank { order.firstOrNull { it.name.isNotBlank() }?.name.orEmpty() },
+				tvName = win.tvName.ifBlank { order.firstOrNull { it.tvName.isNotBlank() }?.tvName.orEmpty() }
+			)
+		}
 
 		private fun cleanName(s: String?): String =
 			s.orEmpty().replace(Regex("\\s+"), " ").trim().take(MAX_NAME)

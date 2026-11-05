@@ -62,4 +62,16 @@ class BridgeGuardTest {
 		// Only the scheme's own port goes: 443 over http is another server.
 		assertFalse(BridgeGuard.allows("http://lib.example.com/") { it in stored })
 	}
+
+	@Test
+	fun `a server typed with capitals is trusted on its lower-case pages (c548)`() {
+		// What 9B's TYPE THE WHOLE ADDRESS stored for http://Zen.local:42143,
+		// read back through Servers.decode; WebView's URL is lower case.
+		val stored = Servers.decode("http://Zen.local:42143\tZEN\t\t5\t5").map { it.origin }.toSet()
+		assertTrue(BridgeGuard.allows("http://zen.local:42143/") { it in stored })
+		assertTrue(BridgeGuard.allows("http://zen.local:42143/settings") { it in stored })
+		// And a page whose URL somehow kept the capitals is the same server.
+		assertTrue(BridgeGuard.allows("http://ZEN.local:42143/") { it in stored })
+		assertFalse(BridgeGuard.allows("http://zen.local:42144/") { it in stored })
+	}
 }

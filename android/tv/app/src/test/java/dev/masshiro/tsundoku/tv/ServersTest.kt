@@ -251,4 +251,53 @@ class ServersTest {
 		assertEquals(listOf("https://lib.example.com"), servers.all().map { it.origin })
 		assertEquals("LIB", servers.find("https://lib.example.com/")?.name)
 	}
+
+	@Test
+	fun `a mixed-case entry reads back lower case, and is found by its page's origin (c548)`() {
+		kv.put("servers", "http://Zen.Local:42143\tZEN\t\t5\t5")
+		assertEquals(listOf("http://zen.local:42143"), servers.all().map { it.origin })
+		assertEquals("ZEN", servers.find("http://zen.local:42143/")?.name)
+		assertTrue(servers.opened("http://zen.local:42143"))
+		assertTrue(kv.m["servers"]!!.startsWith("http://zen.local:42143\t"))
+		assertEquals("http://zen.local:42143", kv.m["address"])
+	}
+
+	@Test
+	fun `an address added with capitals is stored lower case (c548)`() {
+		assertTrue(servers.add("HTTP://Zen.local:42143"))
+		assertFalse(servers.add("http://zen.local:42143"))
+		assertEquals(listOf("http://zen.local:42143"), servers.all().map { it.origin })
+	}
+
+	@Test
+	fun `two entries that differ only in case are one server, the one opened last winning (c548)`() {
+		// The capitalised one was opened last; the lower-case one holds the TV's name.
+		kv.put(
+			"servers",
+			"http://zen.local:42143\tZEN\tSTUDY\t5\t1\n" +
+				"http://Zen.local:42143\t\t\t9\t2\n" +
+				home + "\tHOME\t\t7\t3"
+		)
+		val list = servers.all()
+		assertEquals(listOf("http://zen.local:42143", home), list.map { it.origin })
+		val zen = list.first()
+		assertEquals(9L, zen.opened)
+		assertEquals(2L, zen.added)
+		// Names the winner lacked come across from its twin.
+		assertEquals("ZEN", zen.name)
+		assertEquals("STUDY", zen.tvName)
+	}
+
+	@Test
+	fun `a twin's names never overwrite the winner's own (c548)`() {
+		kv.put(
+			"servers",
+			"http://zen.local:42143\tOLD\tOLDTV\t5\t1\n" +
+				"http://ZEN.local:42143\tNEW\tNEWTV\t9\t2"
+		)
+		val zen = servers.all().single()
+		assertEquals("NEW", zen.name)
+		assertEquals("NEWTV", zen.tvName)
+		assertEquals(9L, zen.opened)
+	}
 }

@@ -855,7 +855,7 @@
 			function origin() {
 				const raw = last.value.trim();
 				if (!raw) return '';
-				if (whole) return raw.startsWith('http') ? raw.replace(/\/$/, '') : 'http://' + raw;
+				if (whole) return /^https?:\/\//i.test(raw) ? raw.replace(/\/$/, '') : 'http://' + raw;
 				const n = Number(raw);
 				if (!Number.isInteger(n) || n < 0 || n > 255) return '';
 				const prefix = (bridge ? bridge.prefix() : '') || '192.168.1.';
