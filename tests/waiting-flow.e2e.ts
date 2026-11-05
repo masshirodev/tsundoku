@@ -7,6 +7,11 @@ import { expect, test } from './fixtures';
  * write it makes is refused on its way out.
  */
 test.describe.configure({ mode: 'serial' });
+// Three cases slow a screen's `__data.json` with page.route, and the service
+// worker answers every `__data.json` itself once it controls the page, past the
+// route (src/service-worker.ts; doc/TESTING.md, "Load"). Nothing here reads
+// offline; offline-flow owns that (c477).
+test.use({ serviceWorkers: 'block' });
 
 /** Hold a screen's data for `ms` before letting it through. */
 async function slow(page: Page, pattern: string, ms: number) {

@@ -103,6 +103,10 @@ const ringClear = (page: Page) =>
 test('the pinned bars never cover the first row’s focus ring, and BACK from deep in the grid is back at the top', async ({
 	page
 }) => {
+	// About twenty-five key presses after a cold load: measured at 34.6 s in a
+	// loaded run (load ~55: the goto 11.5 s, hydration 3.3 s, each press
+	// 0.1-0.8 s), every step on the right state, against the default 30 s (c439).
+	test.setTimeout(60_000);
 	await page.goto('/?sort=title');
 	await page.keyboard.press('ArrowDown'); // the screen's start
 	await page.keyboard.press('ArrowDown'); // the shelf tabs
