@@ -351,6 +351,62 @@ export function back(): boolean {
 	return climb();
 }
 
+/**
+ * Chromium's step for one arrow key (`kPixelsPerLineStep`), which is what the
+ * browser scrolled by when the key was left to it.
+ */
+const LINE_STEP = 40;
+
+/**
+ * An arrow with nothing that way, on a TV: the step the browser would have
+ * scrolled, but instant, as every scroll of the layer's is (c543). The
+ * browser's own keyboard scroll is animated, and `climb()`'s instant
+ * `scrollTo(0)` does not stop it: BACK pressed while it was still moving put
+ * the library at the top, and the animation's remaining distance was then
+ * applied from there (33 px in one loaded run, 47 alone), so BACK from deep in
+ * the grid landed off the top. Scrolled here, nothing is left moving. Only a
+ * key no screen took (`stepWhenUntaken`): the player and the readers read some
+ * arrows themselves without opting out.
+ *
+ * ↑ and ↓ only. ← and → stay the browser's: the climb is vertical, so no
+ * sideways animation moves where it lands, and a reader's sideways scroller
+ * snaps a whole page for a step (a strip moved a page under its chrome).
+ *
+ * The scroller is what the browser would scroll: the nearest ancestor of the
+ * focused thing that scrolls vertically, else the page.
+ */
+function stepScroll(from: HTMLElement, direction: 'up' | 'down'): void {
+	let scroller: Element = document.scrollingElement ?? document.documentElement;
+	for (let n = from.parentElement; n && n !== document.body; n = n.parentElement) {
+		const overflow = getComputedStyle(n).overflowY;
+		if ((overflow === 'auto' || overflow === 'scroll') && n.scrollHeight > n.clientHeight) {
+			scroller = n;
+			break;
+		}
+	}
+	scroller.scrollBy({ top: direction === 'up' ? -LINE_STEP : LINE_STEP, behavior: 'instant' });
+}
+
+/**
+ * ↑ or ↓ with nothing that way, on a TV: scrolled once the key has been
+ * through every listener and none took it. The screens read their keys on the
+ * window too (`<svelte:window onkeydown>`: the readers, the player), added
+ * after the layer was installed, so a listener the layer installed up front
+ * would run before theirs. This one is added while the key is being
+ * dispatched, which puts it after every window listener there is, and is
+ * bound to that one key: one left behind by a key a screen stopped removes
+ * itself on the next, doing nothing.
+ */
+function stepWhenUntaken(e: KeyboardEvent, from: HTMLElement, direction: 'up' | 'down'): void {
+	const after = (ev: KeyboardEvent) => {
+		window.removeEventListener('keydown', after);
+		if (ev !== e || ev.defaultPrevented) return;
+		ev.preventDefault();
+		stepScroll(from, direction);
+	};
+	window.addEventListener('keydown', after);
+}
+
 function trapTab(e: KeyboardEvent, scope: HTMLElement): void {
 	const stops = focusablesIn(scope);
 	if (stops.length === 0) return;
@@ -495,13 +551,19 @@ function handleKeydown(e: KeyboardEvent): void {
 		candidates.map((el) => ({ rect: rectOf(el), value: el }))
 	);
 
-	// Nothing that way: leave the key to the browser, so a desktop keyboard
-	// still scrolls prose (HELP, a series' ABOUT) past the last stop. In a
-	// sheet the key stays inside, as the scope promises.
+	// Nothing that way: a desktop keyboard still scrolls prose (HELP, a
+	// series' ABOUT) past the last stop, by the browser's own scroll. A TV's
+	// ↑ ↓ scroll too, but by the layer, instantly (`stepScroll`). In a sheet
+	// the key stays inside, as the scope promises.
 	if (!next) {
 		if (isManagedScope(scope)) {
 			e.preventDefault();
 			e.stopPropagation();
+		} else if ((direction === 'up' || direction === 'down') && window.matchMedia(TV).matches) {
+			// Not taken here: a screen may read this arrow itself (the player
+			// with SKIP up, a reader's chrome), so the step waits until the key
+			// has been through every listener.
+			stepWhenUntaken(e, current, direction);
 		}
 		return;
 	}

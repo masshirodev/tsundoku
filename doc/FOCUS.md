@@ -58,18 +58,33 @@ focus on the screen's start and does not also move it.
 CONTINUE card on the library, ▶ CONTINUE on a series); without one it is the
 first stop in the scope, or the top-left one on the page.
 
-**Scrolling** is `scrollIntoView({ block: 'nearest', inline: 'nearest',
-behavior: 'instant' })` — instant, never smooth. In a uniform grid that moves a
-whole row. The TV's focus line and pinned tabs are built (`doc/TV.md`,
-c238); whole-row scrolling is still the layer's nearest.
+**Scrolling** is `reveal()` in `layer.ts`: `scrollIntoView({ block: 'nearest',
+inline: 'nearest', behavior: 'instant' })` when the thing is off screen —
+instant, never smooth; in a uniform grid that moves a whole row — and then a
+`scrollBy` for whatever a pinned bar still covers. `nearest` counts a thing
+under a sticky or fixed bar as shown, so `uncovered()` finds the bars drawn
+over the thing's own top and bottom edges (stacked: the library's focus line
+under its KIND band, under the top bar) and the page moves on by the
+difference (the first real TV, 2026-11-02). A scrim or a sheet, half the
+screen or taller, is not a bar. The TV's focus line and pinned rows are built
+(`doc/TV.md`, c238; the KIND band pins since c436); whole-row scrolling is
+still the layer's nearest.
 
 **A held arrow** repeats at the remote's rate and we do nothing special: every
 keydown is one move.
 
-**Nothing that way.** On the page, an arrow with no stop in its direction is
-left to the browser, so a desktop keyboard still scrolls prose (HELP, a
-series' ABOUT) past the last stop. Inside a sheet it is swallowed: the scope
-keeps its keys.
+**Nothing that way.** On the page, an arrow with no stop in its direction
+still scrolls, so prose (HELP, a series' ABOUT) can be read past the last
+stop. A desktop keyboard leaves it to the browser. **A TV's ↑ and ↓ are
+scrolled by the layer** (`stepScroll`, c543): the browser's own step
+(Chromium's 40 px line step) on the nearest ancestor that scrolls vertically,
+else the page, but instant, and only once the key has been through every
+listener with none taking it (the player and the readers read some arrows
+themselves). ← and → stay the browser's: a reader's sideways scroller snaps a
+whole page for one step. The browser's keyboard scroll is animated, and BACK's instant
+`scrollTo(0)` did not stop an animation already running: BACK pressed just
+after a ↓ past the library's last row landed 2 to 47 px under the top, still
+moving. Inside a sheet the key is swallowed: the scope keeps its keys.
 
 ## Scopes
 
@@ -183,9 +198,20 @@ of them in `keys.ts`, and `tests/tv-keys.e2e.ts` walks them.
      the same Escape, because it is the page's own to close and not the
      climb's to take from it.
   4. **Climb.** From inside a `[data-back-climb="<selector>"]` container, to the
-     first stop that selector names — the library's grid climbs to the active
-     shelf tab. Otherwise to the screen's `[data-focus-start]`, or its top-left
-     stop. BACK never moves the mark downward. **On a TV only** (the `TV`
+     first stop that selector names — the library's grid climbs to the KIND
+     band's chosen cell (the active shelf tab until c436). Only to a place out
+     of full view: where that is already shown, BACK goes on to the screen's
+     `[data-focus-start]`, or its top-left stop, and the page goes to the very
+     top first (`scrollTo(0)`, header and all), then `reveal()`s the start.
+     BACK never moves the mark downward. That one `scrollTo(0)` is the only
+     script that scrolls after BACK (c543, wave 23: every `scrollTo`,
+     `scrollBy`, `scrollIntoView` and `scrollTop` write logged with its stack
+     for 6 s after BACK from deep in the grid). What moved the library off the
+     top in loaded runs was the browser's own animated scroll from a ↓ with
+     nothing below (see "Nothing that way"): an instant `scrollTo` does not
+     stop it, so its remaining distance was applied from the top. On a TV the
+     layer now scrolls for that key itself, and `tv-library-top.e2e.ts`
+     samples `scrollY` every frame for 2 s after BACK and holds it still. **On a TV only** (the `TV`
      query), and never inside a `[data-focus-off]` screen: on a keyboard,
      Escape belongs to whatever listens for it (a tile's rating picker, the
      lookup panel), and a climb that took it left those open. `focus.e2e.ts`
@@ -309,6 +335,12 @@ BACK climbs the screen before it leaves.
 - `tests/tv-keys.e2e.ts` — OK held and MENU on a cover, a chapter row and a
   history row; BACK closing a sheet, climbing shelf tab → CONTINUE, and
   `window.tsundokuBack()` answering false at the top (c235).
+- `tests/tv-library-top.e2e.ts` — the pinned rows never covering the first
+  row's focus ring (`reveal()`'s bar step), and one BACK from deep in the
+  grid landing on the first CONTINUE card at the top and staying there, every
+  frame for 2 s; and BACK pressed at once after a ↓ past the last row, which
+  went red eight times in ten before the layer scrolled that key itself
+  (c543).
 - `tests/tv-reader.e2e.ts` — the reader's chrome as a focus row: OK brings it
   with focus on the scrubber, ↓ reaches READING, and the mode changes by keys
   alone (c241).

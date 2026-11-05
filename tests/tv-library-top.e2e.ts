@@ -4,7 +4,9 @@ import { expect, test } from './fixtures';
 /**
  * The library's top on a TV (doc/LIBRARY.md, "Sort and direction" and "The
  * top bar"): SORT's menu walked by the remote alone (c432). The `tv` project
- * has no pointer, so every press is a key. Sorting only changes the URL:
+ * has no pointer, so every press is a key. BACK from deep in the grid lands
+ * at the top and stays there, sampled every frame for 2 s (c543). Sorting
+ * only changes the URL:
  * nothing here writes to the database the flow files share.
  */
 
@@ -147,11 +149,69 @@ test('the pinned bars never cover the first row’s focus ring, and BACK from de
 	await expect(page.getByRole('button', { name: 'BACK TO TOP ↑' })).toHaveCount(0);
 	await page.keyboard.press('Escape');
 	await expect.poll(() => focused(page)).toMatch(/^Resume /);
-	// At the top: within a few pixels of it, since the flow files beside this
-	// one hide and restore series on the same grid as it settles (2px once,
-	// under the loaded run, where 729 was the bottom).
-	await expect.poll(() => page.evaluate(() => scrollY)).toBeLessThanOrEqual(8);
+	// And it comes to rest there (c543): every frame for 2 s, not one read. A
+	// single poll passed the first time it caught the top, so it could not see
+	// a page that went on moving (wave 21 measured 0, 0, 3, 0, 0, 3… here).
+	// Within a few pixels of the top, as before, since the flow files beside
+	// this one hide and restore series on the same grid (2px once, under a
+	// loaded run on wave 22's base); but the same few pixels all the way.
+	const frames = await stillFor(page, 2_000);
+	expect(frames.length, 'frames sampled in 2 s').toBeGreaterThan(20);
+	expect([...new Set(frames)], 'scrollY over 2 s after BACK').toHaveLength(1);
+	expect(frames[0]).toBeLessThanOrEqual(8);
+	await expect.poll(() => focused(page)).toMatch(/^Resume /);
 });
+
+/**
+ * The loaded runs' red, made on purpose (c543): ↓ on the last row has no stop
+ * below it, and the page used to leave that key to the browser, whose own
+ * scroll is animated. BACK pressed while it was still moving put the page at
+ * the top (`climb()`'s instant `scrollTo(0)`), and then the animation's
+ * remaining distance was applied from there: 33 px in one loaded run, 2 in
+ * another. On a TV the layer now scrolls for that key itself, instantly.
+ */
+test('BACK pressed while ↓ past the last row still scrolls lands at the top and stays (c543)', async ({
+	page
+}) => {
+	test.setTimeout(60_000);
+	await page.goto('/?sort=title');
+	for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowDown');
+	// To the last row: ↓ until focus stops moving.
+	let last = '';
+	for (let i = 0; i < 12; i++) {
+		await page.keyboard.press('ArrowDown');
+		const now = await focused(page);
+		if (now === last) break;
+		last = now;
+	}
+	// Room below for the key to scroll into, as the loaded runs had.
+	await page.evaluate(() => scrollBy({ top: -200, behavior: 'instant' }));
+	const before = await page.evaluate(() => scrollY);
+	expect(before).toBeGreaterThan(200);
+	// ↓ with nothing below, then BACK at once: no wait between the two.
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('Escape');
+	await expect.poll(() => focused(page)).toMatch(/^Resume /);
+	const frames = await stillFor(page, 2_000);
+	expect([...new Set(frames)], 'scrollY over 2 s after BACK').toEqual([0]);
+});
+
+/** `scrollY` at every frame for `ms`, read in the page so no sample is missed between round trips. */
+const stillFor = (page: Page, ms: number) =>
+	page.evaluate(
+		(ms) =>
+			new Promise<number[]>((done) => {
+				const seen: number[] = [];
+				const until = performance.now() + ms;
+				const frame = () => {
+					seen.push(scrollY);
+					if (performance.now() < until) requestAnimationFrame(frame);
+					else done(seen);
+				};
+				requestAnimationFrame(frame);
+			}),
+		ms
+	);
 
 test('the library keeps the TV’s own bottom safe margin, and the last row ends above it', async ({
 	page
