@@ -275,7 +275,8 @@ export function scrubPage(fraction: number, total: number, mode: Mode): number {
  * a page overnight is not eight hours of reading.
  *
  * The cap is the longest a page can plausibly hold someone, so it is the
- * medium's (card c443), asked of the registry (`kindFacts(kind).medium`):
+ * medium's (card c443). Each reader is one medium and chooses its own: the
+ * text reader passes `IDLE_CAPS.text`, the image reader takes the default.
  *
  * - **pages**: 2 minutes, as since the log began. A manga page or a strip's
  *   screen is read in seconds.

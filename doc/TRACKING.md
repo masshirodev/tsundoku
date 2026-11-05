@@ -76,12 +76,16 @@ anime's season sends alike (wave 17). What the list said stays, as of then.
   `num_chapters_read`, and its ids are two sequences: the state is filed
   under `anime:<id>` or `comic:<id>` (`stateKey`, `family()`'s two words),
   never one map keyed by id
-  alone (wave 10's 23-is-both bug).
+  alone (wave 10's 23-is-both bug). The word is the linked entry's, from its
+  format, not the series' kind: a manga linked to a MAL anime entry reads the
+  anime list's row, not another work's on the manga list (c298). With no
+  format yet, the series' own kind decides.
 
 For each linked series, `tracker_state` keeps the list's status (in
 tsundoku's words: reading, planning, on hold, completed, dropped), chapter
-and score out of 10. A series no longer on a list loses its state. A series
-sent to after the read began keeps what the send made of it.
+and score out of 10; an anime's episodes are on its season rows, below. A
+series no longer on a list loses its state. A series sent to after the read
+began keeps what the send made of it.
 
 **An anime is one row a season** (c240): `season_tracker_state`, keyed by
 the series, the season and the part, keeps each season's own entry's status,

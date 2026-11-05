@@ -329,15 +329,15 @@ length is kept.
   part 2's EP. 1 under part 2's id. A season with no link of its own is not
   looked up, whatever another season has. The first-season mirror in
   `series_links` (`syncSeriesLink`) is not read: only a series with no season
-  rows at all, linked before rung 62, is asked under its `series_links` link,
-  for season 0 or 1 alone, since that one link is its first season's.
-  Answers stored before c349 were asked under the mirror, which is the
-  lowest season linked: right for a flat list, a pre-rung-62 link and a
-  season 1 linked alone, but wrong for a season-1 episode of a show whose
-  season 0 is linked too, and for part 2 of a split season 1 (asked under
-  part 1's id with the season's number). A found answer is never asked
-  again, so those stay until a rung forgets them (doc/handoff-notes/links.md,
-  "Gaps"); a relink clears them now, as it always did.
+  rows at all is asked under its `series_links` link, for season 0 or 1
+  alone, and since rung 68 (c383) no anime is such a series: a link from
+  before rung 62 is its season's row. Answers stored before c349 were asked
+  under the mirror, the lowest season linked: wrong for a season-1 episode
+  of a show whose season 0 is linked too, for a season-0 episode while only
+  season 1 is, and for part 2 of a split season (asked under part 1's id
+  with the season's number). Rung 67 (c463) forgot those, found or not, so
+  each is asked again on its next play; a relink clears them, as it always
+  did.
 - **Remembered.** A found answer is never asked again; a 404 is remembered
   for `ANISKIP_RETRY_MS` (7 days), since a running show's new episode may
   arrive late. A server that didn't answer is not remembered: the next
@@ -363,8 +363,9 @@ length is kept.
 seasons, no length, the 7-day retry, a failing server not remembered, and
 since c395 a link to the manga made through LINK, and every AniList format
 plus an unknown one, against a fake that answers any id with an opening),
-`tests/anime-rungs-db.spec.ts` (rung 64), `tests/anime-download-db.spec.ts`
-(the NFO's ids) and
+`tests/anime-rungs-db.spec.ts` (rung 64),
+`tests/aniskip-rung67-db.spec.ts` (rung 67, c463),
+`tests/anime-download-db.spec.ts` (the NFO's ids) and
 `tests/anime-streams-db.spec.ts` (the player's resolve asks it once, and the
 episode's `ending_at` follows).
 
@@ -544,9 +545,11 @@ screen but the video, and the subtitles, until a tap.
   sends a pixel or two of movement all the time, and the chrome flashed in on
   every one of them; it now takes 12px of travel — quickly from where the
   pointer was, or slowly from where the controls last left it. The middle
-  cluster (`−10`, pause, `+10`) does not fade with the bars: it is solid from
-  its first frame, where a half-faded black box over the picture read as a
-  translucent patch.
+  cluster (`−10`, pause, `+10`) does not fade with the bars: it is all there
+  from its first frame, where a box fading over the picture read as a patch
+  coming and going. Its ground is translucent, 70% of the page's, so the frame
+  shows through while the controls are up, and its glyphs keep AA over a white
+  frame and a black one (c429).
 - **Volume** (c385). VOL's label mutes, as before; hovering it (or clicking
   it) opens a slider above the cell, a column of the bar's surface with the
   scrubber's track upright, which a press or a drag sets; the wheel over the
@@ -814,8 +817,12 @@ none`), and it sits fixed under the picture with UP NEXT scrolling below it,
 - **Watching is reading.** The player sends the reader's events
   (`/api/reading`): `page` is seconds into the episode, and `length` its
   length as the player measured it, which is how an episode learns its length
-  (`duration_s`). Finished at the ending's start or the last 3 %. Incognito
-  sends nothing. A hidden series plays inside the 4px reveal frame.
+  (`duration_s`). Since c443 each event also carries `durationMs`, what
+  actually played (paused, buffering, a seek and a hidden page don't count;
+  [`READING-LOG.md`](READING-LOG.md), "The caps"), and rung 65 estimated it for
+  the episodes watched before. Finished at the ending's start or the last
+  3 %. Incognito sends nothing. A hidden series plays inside the 4px reveal
+  frame.
 - **Separate audio** (KickAssAnime's) is named as alternate audio in a master
   playlist tsundoku writes (`serveMaster`), so the player switches it as any
   HLS stream's.
@@ -873,7 +880,8 @@ pure parts in `src/lib/library/anime-files.ts`).
   linked, part 1 first, read from the season rows, so a show with only
   season 2 linked names season 2's entry rather than none. A season linked
   to a manga is passed over for the next one that is an anime's.
-  `series_links` answers only for a show linked before rung 62. An `.nfo`
+  `series_links` answers only for a show with no season rows, which
+  since rung 68 (c383) no linked anime is. An `.nfo`
   already written is rewritten at the series' next download.
   `poster.jpg` is the library's own cover.
 - **ffmpeg fetches nothing itself.** Its inputs are a loopback proxy inside

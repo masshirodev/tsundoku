@@ -152,12 +152,12 @@ Paged turns slide and follow the finger, as a manga's do ([`READER.md`](READER.m
   Scroll layout is untouched.
 
 The chapter is one CSS-columns flow, so the page either side is already laid
-out beside this one: a turn is a transition on the flow's transform, which is
-on a layer of its own, and the columns are never laid out again for it. The
-axis and its sign are one pair in `TextReader.svelte` (`pageAxis`,
+out beside this one: a turn is a transition on the flow's transform, on a
+layer of its own while it moves, and the columns are never laid out again for
+it. The axis and its sign are one pair in `TextReader.svelte` (`pageAxis`,
 `pageSign`), so a right-to-left horizontal book (the direction card, c440)
-changes the sign and nothing else. Tested in `tests/text-reader-turn.e2e.ts`
-on every device, and vertical Japanese in `tests/text-reader-flow.e2e.ts`.
+changes the sign, and `textMode`'s mode for that book. Tested in
+`tests/text-reader-turn.e2e.ts` on every device, and vertical Japanese in `tests/text-reader-flow.e2e.ts`.
 
 ## Touch
 
@@ -329,8 +329,9 @@ There's always ← SERIES and LIBRARY.
   has no Japanese serif. Whether FONT should offer a mincho is still open.
 - **More reading fonts.** Atkinson Hyperlegible and a book serif such as
   Literata were suggested beside OpenDyslexic (c442) and wait on the owner. A
-  new one is a row in `TEXT_FONTS`, its `@import` in `fonts-reading.css`, and
-  the TYPEFACE row's option.
+  new one is a row in `TEXT_FONTS`, hand-written woff2-only `@font-face` rules
+  in `fonts-reading.css` (not an `@import` of @fontsource's CSS, which would
+  put woff back in every device's precache), and the TYPEFACE row's option.
 - **Scroll doesn't carry back into the previous chapter.** Scrolling up past
   the top stops there, and `← CH.` goes back.
 - **The budget ignores books' weight after the first marker,** and letting go

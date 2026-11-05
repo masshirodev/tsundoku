@@ -399,6 +399,8 @@ content.
 - **Trackers** are read for one thing: a MyAnimeList tracker (tracker 1)
   links its series to the MAL entry, with its score for an unrated series'
   rating ([`LINKS.md`](LINKS.md)). Status and chapter aren't kept yet, and
-  other trackers are skipped. The phone's backup links 110 series to MAL,
-  all of which match a series here by URL. The tablet's Mihon is a debug
-  build whose backups carry none (measured 2026-09-24).
+  other trackers are skipped. Measured on 2026-09-24, when a device's
+  mirrored `Mihon/` was still read, the phone's backup linked 110 series to
+  MAL, all of which matched a series here by URL, and the tablet's Mihon was a
+  debug build whose backups carried none. A run now reads only a backup in the
+  library's own `Mihon/autobackup` (c191).
