@@ -426,8 +426,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	}
 
 	private fun originOf(url: Uri): String {
-		val port = if (url.port > 0) ":${url.port}" else ""
-		return "${url.scheme}://${url.host}$port"
+		return "${url.scheme}://${url.host}${Address.portSuffix(url.scheme, url.port)}"
 	}
 
 	private fun hideSystemUi() {

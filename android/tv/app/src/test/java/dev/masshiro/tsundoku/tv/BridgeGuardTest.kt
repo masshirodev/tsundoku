@@ -50,4 +50,16 @@ class BridgeGuardTest {
 		assertFalse(allows("file:///sdcard/Download/index.html"))
 		assertFalse(allows("file:///android_asset/pair/index.html.evil"))
 	}
+
+	@Test
+	fun `a server added with its scheme's own port is trusted on its pages (round 2)`() {
+		// WebView's URL drops :443 and :80; the stored origin must too, or
+		// the pages of an entry typed as https://host:443 are refused.
+		val stored = setOf(Address.originOf("https://lib.example.com:443"), Address.originOf("http://zen.local:80"))
+		assertTrue(BridgeGuard.allows("https://lib.example.com/") { it in stored })
+		assertTrue(BridgeGuard.allows("https://lib.example.com:443/series/3") { it in stored })
+		assertTrue(BridgeGuard.allows("http://zen.local/") { it in stored })
+		// Only the scheme's own port goes: 443 over http is another server.
+		assertFalse(BridgeGuard.allows("http://lib.example.com/") { it in stored })
+	}
 }

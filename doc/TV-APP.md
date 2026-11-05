@@ -642,11 +642,12 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 - `android/tv/app/src/test/` — `AddressTest`, `AttemptsTest`, `BackTest`,
   `BridgeGuardTest`, `FailedLoadTest`, `ForgetTest`, `IntentAddressTest`,
   `KeysTest`, `PairingBridgeTest`, `ProbeTest`, `ScaleTest`, `ServersTest`,
-  `ShortcutsTest` (87 tests in 13 classes at wave 22's round 2), run by `./gradlew test`.
-  `ServersTest` (18) is c261's store: the migration of a TV paired with one
+  `ShortcutsTest` (90 tests in 13 classes at wave 22's round 2), run by `./gradlew test`.
+  `ServersTest` (19) is c261's store: the migration of a TV paired with one
   address (a list of one, opened, never asked to pair again), an add that
   never takes launch, the last used first and 9D's others, names, encode and
-  decode as each other's inverse, forget down to 9A, a server that moved, and
+  decode as each other's inverse, an entry stored with its scheme's own port
+  (`:443`, `:80`) read back without it, as WebView's URL has it, forget down to 9A, a server that moved, and
   the JSON the pages read. `ShortcutsTest` (4) is c287's plan (one per
   server, four at most, each link read back through `givenAddress`'s decoding
   and `Address.intentOrigin` to the same origin). `ForgetTest` (5) is FORGET's
@@ -657,9 +658,10 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   next attempt ending a mark whose finish never came, and `onPageFinished`'s
   decision (`FailedLoad.finish`: a failed `/pair/tv` consumes its mark, a
   loaded one is read for 9E's name, an unknown server is never a visit).
-  `BridgeGuardTest` (4) is c529's rule (the asset page, a known origin, and
-  the refused: unknown origins, another port, the http/https twin, other
-  `file://` pages); `PairingBridgeTest` (5) calls each guarded method from an
+  `BridgeGuardTest` (5) is c529's rule (the asset page, a known origin, one
+  stored with its scheme's own port, and the refused: unknown origins,
+  another port, the http/https twin, other `file://` pages);
+  `PairingBridgeTest` (5) calls each guarded method from an
   unknown page and finds nothing changed, from the asset page and a known
   server's and finds it acted, and FORGET's `open` and `welcome` still
   answering the page it has just made unknown, and `forget()` from a known

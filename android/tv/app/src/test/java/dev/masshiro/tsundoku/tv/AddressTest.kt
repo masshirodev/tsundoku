@@ -58,4 +58,15 @@ class AddressTest {
 		assertFalse(Address.isPrivateV4("8.8.8.8"))
 		assertFalse(Address.isPrivateV4("nope"))
 	}
+
+	@Test
+	fun `the scheme's own port is dropped, as WebView's URL drops it (round 2)`() {
+		assertEquals("https://lib.example.com", Address.originOf("https://lib.example.com:443/"))
+		assertEquals("http://192.168.1.23", Address.originOf("192.168.1.23:80"))
+		assertEquals("https://lib.example.com", Address.intentOrigin("https://lib.example.com:443/x"))
+		assertEquals("http://zen.local", Address.intentOrigin("http://zen.local:80"))
+		// Not the other scheme's: 443 over http and 80 over https are kept.
+		assertEquals("http://lib.example.com:443", Address.originOf("http://lib.example.com:443"))
+		assertEquals("https://zen.local:80", Address.intentOrigin("https://zen.local:80"))
+	}
 }

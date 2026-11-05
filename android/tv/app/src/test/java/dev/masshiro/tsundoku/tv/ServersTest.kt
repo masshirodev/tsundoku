@@ -244,4 +244,11 @@ class ServersTest {
 	fun `json escapes what would end the string or the script`() {
 		assertEquals("\"a\\\"b\\\\c\\n\\u2028\"", json("a\"b\\c\n "))
 	}
+
+	@Test
+	fun `an entry stored with its scheme's own port is read without it (round 2)`() {
+		kv.put("servers", "https://lib.example.com:443\tLIB\t\t5\t5")
+		assertEquals(listOf("https://lib.example.com"), servers.all().map { it.origin })
+		assertEquals("LIB", servers.find("https://lib.example.com/")?.name)
+	}
 }
