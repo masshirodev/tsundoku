@@ -169,15 +169,20 @@ test('the bar with the name, search and SELECT stays on top as the grid scrolls,
 	expect(bg).not.toBe('rgba(0, 0, 0, 0)');
 });
 
-test('RESCAN in the sidebar starts a scan, and says so when there is nothing to import', async ({
+test('RESCAN in the sidebar starts a scan once asked, and says so when there is nothing to import', async ({
 	page
 }, info) => {
 	test.skip(!FRAMES[info.project.name].sidebar, 'the sidebar is the desktop’s');
 	await page.goto('/');
 	const sidebar = page.locator('aside.sidebar');
 	// playwright.config.ts points LIBRARY_ROOT at an empty folder, so this
-	// refuses rather than importing into the shared seeded database.
+	// refuses rather than importing into the shared seeded database. It asks
+	// first since c525 (tests/rescan-confirm.e2e.ts has the question's cases).
 	await sidebar.getByRole('button', { name: 'RESCAN' }).click();
+	await page
+		.getByRole('dialog', { name: 'RESCAN THE LIBRARY FOLDER?' })
+		.getByRole('button', { name: 'RESCAN' })
+		.click();
 	await expect(sidebar.getByRole('status')).toContainText('NOTHING TO IMPORT');
 });
 

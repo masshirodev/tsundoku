@@ -13,6 +13,7 @@ import {
 	type Filters
 } from '../library/filters.ts';
 import { naturalDir, type Dir, type Sort } from '../library/labels.ts';
+import { BACKUP_LABEL } from '../import/backup-preview.ts';
 import {
 	continuePart,
 	facePart,
@@ -1286,6 +1287,22 @@ export function currentScan(): ScanJob | null {
 		failedFiles: row.failed_files as number,
 		dismissedAt: row.dismissed_at as number | null
 	};
+}
+
+/**
+ * How long the last finished scan took, in ms, for RESCAN's question (c525):
+ * a library scan's job, not a backup's import, which runs as a job too and
+ * says so in its label. Null when none has finished.
+ */
+export function lastScanTook(): number | null {
+	const row = getDb()
+		.prepare(
+			`SELECT finished_at - started_at AS ms FROM scan_jobs
+			WHERE finished_at IS NOT NULL AND finished_at >= started_at AND source_label != ?
+			ORDER BY id DESC LIMIT 1`
+		)
+		.get(BACKUP_LABEL) as { ms: number } | undefined;
+	return row ? row.ms : null;
 }
 
 export function dismissScan(id: number, now = Date.now()): void {

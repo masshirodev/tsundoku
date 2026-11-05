@@ -1,6 +1,6 @@
 import { hostname } from 'node:os';
 import type { LayoutServerLoad } from './$types';
-import { currentScan, listShelves } from '$lib/server/library';
+import { currentScan, lastScanTook, listShelves } from '$lib/server/library';
 import { isIncognito, isRevealed, themeOf } from '$lib/server/prefs';
 import { favouritePeople } from '$lib/server/people';
 import { queueSummary } from '$lib/server/downloads';
@@ -35,6 +35,7 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends, request
 			updateOffer: null,
 			start: null,
 			toLink: 0,
+			lastScanMs: null,
 			computer: null
 		};
 	const scan = currentScan();
@@ -94,6 +95,8 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends, request
 		updateOffer,
 		start,
 		toLink,
+		// RESCAN's question says roughly how long the last scan took (c525).
+		lastScanMs: lastScanTook(),
 		computer
 	};
 };
