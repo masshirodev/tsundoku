@@ -166,7 +166,7 @@ describe('the rating and FAV rule', () => {
 		// server's rule runs over every member, hidden ones included.
 		const visible = [part({ seriesId: 1, position: 1, rating: 8 })];
 		expect(workRating(visible, 2)).toEqual({ shown: 8, settable: false, value: null });
-		expect(workFavourite(visible, 2)).toEqual({ value: null, settable: false, count: 0 });
+		expect(workFavourite(visible, 2)).toEqual({ value: null, settable: false, count: 0, of: 1 });
 	});
 
 	it('sets FAV only while every part agrees, and counts the ones that are', () => {
@@ -174,14 +174,29 @@ describe('the rating and FAV rule', () => {
 			part({ seriesId: 1, position: 1, favourite: true }),
 			part({ seriesId: 2, position: 2, favourite: true })
 		];
-		expect(workFavourite(all, all.length)).toEqual({ value: true, settable: true, count: 2 });
+		expect(workFavourite(all, all.length)).toEqual({
+			value: true,
+			settable: true,
+			count: 2,
+			of: 2
+		});
 		const none = [part({ seriesId: 1, position: 1 }), part({ seriesId: 2, position: 2 })];
-		expect(workFavourite(none, none.length)).toEqual({ value: false, settable: true, count: 0 });
+		expect(workFavourite(none, none.length)).toEqual({
+			value: false,
+			settable: true,
+			count: 0,
+			of: 2
+		});
 		const mixed = [
 			part({ seriesId: 1, position: 1, favourite: true }),
 			part({ seriesId: 2, position: 2 })
 		];
-		expect(workFavourite(mixed, mixed.length)).toEqual({ value: null, settable: false, count: 1 });
+		expect(workFavourite(mixed, mixed.length)).toEqual({
+			value: null,
+			settable: false,
+			count: 1,
+			of: 2
+		});
 	});
 });
 

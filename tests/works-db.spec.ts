@@ -10,7 +10,8 @@ const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');
 const lib = await import('$lib/server/library');
 const works = await import('$lib/server/works');
-const { continuePart, runStatus, workFoot, workRating } = await import('$lib/library/works');
+const { continuePart, runStatus, workFavourite, workFoot, workRating } =
+	await import('$lib/library/works');
 type Rating = import('$lib/library/types').Rating;
 
 /** A fresh library per test: grouping reshapes the data under test. */
@@ -387,6 +388,47 @@ describe('a Work’s rating and FAV', () => {
 		// Reveal on sees both and reaches the same answer for the same reason.
 		const all = works.workPage(work.id, { reveal: true })!;
 		expect(workRating(all.parts, all.total)).toEqual({ shown: 6, settable: false, value: null });
+	});
+
+	it('shows a partial read the visible parts’ own numbers, which a hidden part never moves (c309)', () => {
+		const [a, b] = AGREE.map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Seen', now: NOW });
+		lib.setRating([a], 8);
+		lib.setRating([b], 3);
+		expect([favouriteOf(a), favouriteOf(b)]).toEqual([true, true]);
+		lib.setHidden([b], true);
+
+		// The numbers are of the parts given, and say so: the FAV fraction is
+		// one set's, 1 OF 1, never "1 OF 2" while both parts are favourites.
+		const off = () => {
+			const page = works.workPage(work.id, { reveal: false })!;
+			return {
+				rating: workRating(page.parts, page.total),
+				fav: workFavourite(page.parts, page.total)
+			};
+		};
+		const before = off();
+		expect(before.rating).toEqual({ shown: 8, settable: false, value: null });
+		expect(before.fav).toEqual({ value: null, settable: false, count: 1, of: 1 });
+
+		// The leak check: rate and un-favourite the hidden part. A Work-wide
+		// number would move (8 and 10 average 9; the count would fall to 0 of
+		// 2), and so tell a reveal-off page what the hidden part holds.
+		lib.setRating([b], 10);
+		lib.setFavourite([b], false);
+		expect(off()).toEqual(before);
+		lib.setFavourite([b], true);
+		expect(off()).toEqual(before);
+
+		// Reveal on is the whole Work.
+		const all = works.workPage(work.id, { reveal: true })!;
+		expect(workRating(all.parts, all.total)).toEqual({ shown: 9, settable: false, value: null });
+		expect(workFavourite(all.parts, all.total)).toEqual({
+			value: true,
+			settable: true,
+			count: 2,
+			of: 2
+		});
 	});
 
 	it('sets FAV on every part while they agree, and refuses mixed parts', () => {

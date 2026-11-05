@@ -128,6 +128,14 @@ existing one.
   only some of the parts (reveal off, a hidden part) is never settable, because
   it cannot know they agree. **FAV** follows the same agreement rule, and mixed
   parts say how many are.
+- **Both numbers are of the parts given** (c309): the average is of the rated
+  parts the read can see, and FAV's `N OF M` counts the favourites among those
+  parts out of those parts (`WorkFavourite.of`). On a reveal-off read of a Work
+  with a hidden part, the screen shows the visible parts' numbers beside `THIS
+PAGE SEES ONLY SOME OF THE PARTS`, never the Work's own: a Work-wide average
+  or count would move when the hidden part is rated or favourited, which tells
+  a reveal-off page what that part holds. `tests/works-db.spec.ts` rates and
+  un-favourites the hidden part and asserts the reveal-off read unchanged.
 - **The default name** is the words every title starts with (`sharedStart` in
   `src/lib/library/books.ts`), or empty when they share none, which
   `defaultWorkName` (`src/lib/library/works.ts`) checks before keeping it. The
@@ -231,7 +239,8 @@ rating. A set writes that rating to every part through `library.setRating`, so
 a linked part still sends its tracker. FAV follows the same rule and never
 goes to a tracker; mixed parts show `PARTS DIFFER` and say how many are. A
 page that can see only some parts (reveal off, a hidden part) shows and does
-not offer: `workPage.total` is what tells it so.
+not offer: `workPage.total` is what tells it so. What it shows is the visible
+parts' average and `N OF M` over the visible parts (c309, the Rules above).
 
 ### Making one (W4)
 
@@ -297,7 +306,16 @@ is given its id, so an UNDO knows each Work by its id and the moment it was
 made (`created_at`, carried in the facts) and refuses a different Work under
 the same id. An ended Work it brings back under a new id takes the rest of the
 same UNDO with it: a second take-out, add or GROUP move in that press goes into
-the restored Work, never into the newer one holding the old id.
+the restored Work, never into the newer one holding the old id. A later,
+separate UNDO finds it too (c470): each fact carries the Work's name beside its
+id and moment, and `locate` (`src/lib/server/works.ts`) resolves a Work whose
+id now names another by the one Work made at that moment under that name, so
+an earlier band's UNDO pressed after the restore writes into the restored Work
+rather than refuse it as ended. It still refuses when no such Work exists, or
+when two could be meant. An add's UNDO also refuses when a take-out since has
+left the Work only one other part (`<WORK> WOULD BE LEFT WITH ONE SERIES ·
+TAKE <SERIES> OUT ON ITS SCREEN INSTEAD`), since taking the series out would
+leave a Work of one, and when the series is no longer in that Work at all.
 The route answers with the reason (`… IS IN <WORK> NOW · TAKE IT OUT THERE
 FIRST`), never a 500. Before, `INSERT OR REPLACE` took the series from the Work
 it had joined and left that Work with one member for good.

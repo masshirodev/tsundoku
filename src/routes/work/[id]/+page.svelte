@@ -266,7 +266,7 @@
 							disabled={!fav.settable}
 							aria-pressed={fav.value === true}
 							>FAV{#if fav.value === null}
-								<span class="n">{fav.count} OF {data.total}</span>
+								<span class="n">{fav.count} OF {fav.of}</span>
 							{/if}</button
 						>
 					</form>
@@ -276,7 +276,7 @@
 					<p class="mix">
 						{parts.length < data.total
 							? 'THIS PAGE SEES ONLY SOME OF THE PARTS, SO IT CANNOT SET THEM'
-							: `THE PARTS DIFFER · ${fav.count} OF ${data.total} FAVOURITE`}
+							: `THE PARTS DIFFER · ${fav.count} OF ${fav.of} FAVOURITE`}
 					</p>
 				{/if}
 
