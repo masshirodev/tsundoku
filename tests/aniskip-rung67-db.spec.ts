@@ -77,6 +77,19 @@ type Link = {
 	episodes?: number | null;
 };
 
+/**
+ * The row's columns that the v66 table has. The app's database stands at the
+ * top rung, so a later rung's column (rung 70's `series_links.country` and
+ * `year`) is in its rows and not in a v66 library; the rung climbs past them
+ * and adds them itself.
+ */
+const columnsAt66 = (old: Database.Database, table: string, row: Record<string, unknown>) => {
+	const has = new Set(
+		(old.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name)
+	);
+	return Object.keys(row).filter((c) => has.has(c));
+};
+
 let nextSeries = 100;
 let nextEntry = 1000;
 
@@ -117,7 +130,7 @@ function show(old: Database.Database, eps: Omit<Ep, 'id'>[], links: Link[]) {
 		).toBe(true);
 	for (const r of app.prepare(`SELECT * FROM series_season_links WHERE series_id = ?`).all(id)) {
 		const row = r as Record<string, unknown>;
-		const cols = Object.keys(row);
+		const cols = columnsAt66(old, 'series_season_links', row);
 		old
 			.prepare(
 				`INSERT INTO series_season_links (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`
@@ -127,7 +140,7 @@ function show(old: Database.Database, eps: Omit<Ep, 'id'>[], links: Link[]) {
 	const mirror = app.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(id) as
 		Record<string, unknown> | undefined;
 	if (mirror) {
-		const cols = Object.keys(mirror);
+		const cols = columnsAt66(old, 'series_links', mirror);
 		old
 			.prepare(
 				`INSERT INTO series_links (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`

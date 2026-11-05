@@ -229,7 +229,14 @@ describe('rung 68: a link from before rung 62 becomes its season’s row (c383)'
 	});
 
 	it('leaves the mirror as it was, so its readers read the same answer', () => {
-		expect(db.prepare(`SELECT * FROM series_links ORDER BY series_id`).all()).toEqual(mirrors);
+		// The columns it had at v67: a later rung's own (rung 70's country and
+		// year) are that rung's to add, and its own test says what they hold.
+		const atV67 = Object.keys(mirrors[0] as Record<string, unknown>);
+		const now = db.prepare(`SELECT * FROM series_links ORDER BY series_id`).all() as Record<
+			string,
+			unknown
+		>[];
+		expect(now.map((r) => Object.fromEntries(atV67.map((c) => [c, r[c]])))).toEqual(mirrors);
 		// The cover and the show's ids come from the season row now: the same entry.
 		expect(cat.linkCover(SEASONED)).toEqual({ anilistId: 101, url: 'https://img/101.jpg' });
 		expect(seasons.showEntry(SEASONED, () => true)).toEqual({ anilistId: 101, malId: 901 });
