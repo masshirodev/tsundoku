@@ -131,7 +131,16 @@ test.afterAll(() => {
  */
 async function openDetails(page: Page) {
 	const line = page.locator('[data-row="details"]');
-	if (!(await line.isVisible())) return;
+	// Whether DETAILS folds rows here is SeriesPanel.svelte's media query (a
+	// phone's width, or a TV), known before the panel draws. Read once with
+	// `isVisible()`, a line not drawn yet reads as "no fold", and FILE stays
+	// folded away (c439: series-layout's copy, 2 of 20 on a loaded phone and
+	// TV in wave 24).
+	const folds = await page.evaluate(
+		() => matchMedia('(max-width: 599px), (pointer: none) and (min-width: 900px)').matches
+	);
+	if (!folds) return;
+	await expect(line).toBeVisible();
 	await expect(async () => {
 		if ((await line.getAttribute('aria-expanded')) !== 'true') await line.click();
 		await expect(line).toHaveAttribute('aria-expanded', 'true', { timeout: 1_000 });

@@ -1111,8 +1111,50 @@ test.describe('the seek preview on a TV (c457)', () => {
 		expect(got).toMatchObject({ position: '-480px 0px', inside: true, above: true });
 	});
 
+	/**
+	 * Every server's qualities get one more, lower than any the fake engine
+	 * offers (its streams are 360p), at an address of its own: the one a
+	 * stream's seek preview reads (`previewQuality`, the lowest at or under
+	 * 480p). It is last, so the picture still starts on the first. Every
+	 * request for it is counted and then answered with the real clip, as the
+	 * engine's loopback would answer it. A preview that started would ask for
+	 * it, playlist or file, the moment it opened (c575).
+	 */
+	async function countedLowQuality(page: import('@playwright/test').Page): Promise<string[]> {
+		const LOW = '/__preview/tv-low.webm';
+		const asked: string[] = [];
+		let clip = '';
+		await page.route('**/api/anime/episode/*/videos**', async (route) => {
+			const res = await route.fetch();
+			const real = (await res.json()) as Answer;
+			clip = String(real.servers.find((x) => x.n === 2)!.qualities[0].src);
+			await route.fulfill({
+				response: res,
+				json: {
+					...real,
+					servers: real.servers.map((x) => ({
+						...x,
+						qualities: [...x.qualities, { ...x.qualities[0], label: '144p', height: 144, src: LOW }]
+					}))
+				}
+			});
+		});
+		await page.route(`**${LOW}`, (route) => {
+			asked.push(route.request().url());
+			return route.continue({ url: new URL(clip, route.request().url()).href });
+		});
+		return asked;
+	}
+
 	test('a stream keeps the time alone: no tip over the bar', async ({ page }) => {
+		const low = await countedLowQuality(page);
 		await onTheBar(page, 0.5);
+		// ← first (to the start), since → from here is the end, and past it the
+		// episode is over.
+		await page.keyboard.press('ArrowLeft');
+		await expect(page.locator('.flash .by')).toHaveText('−10 S');
+		await expect(page.locator('.flash')).toHaveCount(0);
+		await expect(page.locator('.scrubrow .track')).toBeFocused();
 		// Watched from inside the page while the move's flash is up: a retrying
 		// toHaveCount(0) would pass the moment a tip that came had gone again.
 		const watch = page.evaluate(
@@ -1134,7 +1176,12 @@ test.describe('the seek preview on a TV (c457)', () => {
 		expect(seen.flash).toBeGreaterThan(0);
 		expect(seen.tip).toBe(0);
 		await expect(page.locator('.scrubrow .track .tip')).toHaveCount(0);
-		// And no hidden second picture was started for it.
-		expect(await page.evaluate(() => document.querySelectorAll('video').length)).toBe(1);
+		// Until the → flash has gone: a preview is asked for 150 ms after a
+		// stop (PREVIEW_DEBOUNCE_MS), well inside the flash's 900 ms, so by
+		// then a started one has asked for its quality, for ← and → alike.
+		// Until c575 this counted the document's <video>s, which a preview's
+		// hidden picture is never one of, so it read 1 either way.
+		await expect(page.locator('.flash')).toHaveCount(0);
+		expect(low, 'a stream on a TV started a seek preview').toEqual([]);
 	});
 });

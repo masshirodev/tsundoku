@@ -4,8 +4,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
 	alternatives,
+	DELIBERATE,
 	documentedSkip,
 	deliberateList,
+	FIXTURE_PATTERN,
 	fixtureProblems,
 	fixtureUse,
 	problems,
@@ -156,10 +158,27 @@ describe('the e2e table', () => {
 					"import { test as plain } from '@playwright/test';\nimport { expect, test } from './fixtures';",
 				'e.e2e.ts':
 					"import { expect } from './fixtures';\nimport { test } from '@playwright/test';",
-				'f.spec.ts': "import { test } from './fixtures';"
+				'f.spec.ts': "import { test } from './fixtures';",
+				// Prettier's wrap of an import past the print width (c562).
+				'g.e2e.ts':
+					"import {\n\texpect,\n\tscreenSettled,\n\ttest,\n\ttype Page\n} from './fixtures';",
+				'h.e2e.ts': "import {\n\thydrated,\n\ttest\n} from './helpers/hydrated';\n",
+				// `type` only: no `test` at run time.
+				'i.e2e.ts':
+					"import type { test } from './fixtures';\nimport { expect } from '@playwright/test';",
+				'j.e2e.ts': "import { expect, type test } from './fixtures';",
+				'k.e2e.ts': "import {\n\texpect,\n\ttype test\n} from './fixtures';",
+				// A wrapped import of `expect` alone, beside `@playwright/test`'s `test`.
+				'l.e2e.ts':
+					"import {\n\texpect,\n\tscreenSettled\n} from './fixtures';\nimport { test } from '@playwright/test';",
+				// A name with `test` inside it is not `test`.
+				'm.e2e.ts': "import { expect, testInfo } from './fixtures';"
 			};
 			for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text);
-			expect(fixtureUse(dir)).toEqual({ using: ['a', 'b', 'd'], not: ['c', 'e'] });
+			expect(fixtureUse(dir)).toEqual({
+				using: ['a', 'b', 'd', 'g', 'h'],
+				not: ['c', 'e', 'i', 'j', 'k', 'l', 'm']
+			});
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -180,6 +199,12 @@ describe('the e2e table', () => {
 
 	it('writes the fixtures’ count, and lists as unmoved every file off them the doc does not name', () => {
 		expect(deliberateList(fixturesDoc(''))).toEqual(['c', 'e']);
+		// An "On purpose" bullet that names nobody is a list of none, not an error.
+		const none = fixturesDoc('').replace('`c` and `e`.', 'none.');
+		expect(deliberateList(none)).toEqual([]);
+		expect(writeFixtures(none, use)).toContain(
+			'with no reason to stay (4):** `c`, `e`, `g` and `h`.'
+		);
 		const written = writeFixtures(fixturesDoc('**77 of the 94** typed by hand'), use);
 		expect(written).toContain('**3 of the 7 e2e files take `test` from `tests/fixtures.ts`**');
 		expect(written).toContain('the other 4 take `@playwright/test`');
@@ -211,6 +236,30 @@ describe('the e2e table', () => {
 		expect(() => writeFixtures('no markers', use)).toThrow(/e2e-fixtures:start/);
 	});
 
+	it('the doc’s loop asks rg the generator’s own pattern', () => {
+		// Two copies of one pattern drift (c562: both missed a wrapped import).
+		const line = `for f in tests/*.e2e.ts; do rg -UPq '${FIXTURE_PATTERN}' "$f" || echo "$f"; done`;
+		expect(readFileSync('doc/TESTING.md', 'utf8').split('\n')).toContain(line);
+	});
+
+	it('the doc’s count of hydrated.ts’s importers counts importers, not mentions', () => {
+		// c562 r2: `rg -l "helpers/hydrated'" tests/` also counted this spec's
+		// fixture strings and hydrated.ts's own comment (20 for 18 importers).
+		const command = String.raw`rg -l "from '\./helpers/hydrated'" tests/*.e2e.ts | wc -l`;
+		expect(readFileSync('doc/TESTING.md', 'utf8').split('\n')).toContain(command);
+		expect(readFileSync('tests/helpers/hydrated.ts', 'utf8')).toContain(command);
+		// What the command's pattern selects is exactly the files with an import
+		// statement from it, wrapped or not.
+		const counted = new RegExp(String.raw`from '\./helpers/hydrated'`);
+		const imports = /^import\s[^;]*?from\s*'\.\/helpers\/hydrated'/m;
+		const files = fixtureUse();
+		for (const name of [...files.using, ...files.not]) {
+			const text = readFileSync(`tests/${name}.e2e.ts`, 'utf8');
+			expect(counted.test(text), name).toBe(imports.test(text));
+		}
+		expect(counted.test(readFileSync('tests/e2e-table.spec.ts', 'utf8'))).toBe(true);
+	});
+
 	it('the fixtures’ count in the doc is what the generator writes from the files', () => {
 		// It was a hand-typed "77 of the 94" (wave 21), which the sibling slots'
 		// new files falsified before it could merge (e2e r2): now it is written.
@@ -220,7 +269,9 @@ describe('the e2e table', () => {
 
 	it('every file the doc names as off the fixtures on purpose still is', () => {
 		const { deliberate } = fixtureProblems(readFileSync('doc/TESTING.md', 'utf8'), fixtureUse());
-		expect(deliberateList(readFileSync('doc/TESTING.md', 'utf8')).length).toBeGreaterThan(0);
+		// The bullet must be there, so a renamed one is not read as "none on
+		// purpose"; it may name no file (c562).
+		expect(readFileSync('doc/TESTING.md', 'utf8')).toContain(DELIBERATE);
 		expect(deliberate, 'doc/TESTING.md, "On purpose": take it off the list').toEqual([]);
 	});
 
