@@ -59,7 +59,7 @@
 	import type { SeriesDownloads } from '$lib/server/downloads';
 	import type { MoveState } from '$lib/server/move';
 	import { partDone, wholeBand } from '$lib/library/works';
-	import type { SeriesWorkRow, TakeOutFacts } from '$lib/server/works';
+	import type { SeriesWorkRow, TakeOutFacts, WorkOffer } from '$lib/server/works';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 	import { longpress } from '$lib/actions/longpress';
 	import HideSheet from '../../HideSheet.svelte';
@@ -90,6 +90,9 @@
 		suggestion = null,
 		dismissedKey = null,
 		onreview,
+		workOffer = null,
+		workOfferDismissed = null,
+		onworkreview,
 		cta = $bindable<HTMLElement | null>(null),
 		outline = false,
 		ocr = null,
@@ -124,6 +127,12 @@
 		/** Set just after NOT A SERIES, so the band can offer UNDO. */
 		dismissedKey?: string | null;
 		onreview?: () => void;
+		/** MIGHT CONTINUE <WORK> · AS PART N (W7): only for a series in no Work. */
+		workOffer?: WorkOffer | null;
+		/** Set just after NOT THIS, so its band can offer UNDO. */
+		workOfferDismissed?: string | null;
+		/** REVIEW → on the offer: the page opens the sheet in ADD TO A WORK. */
+		onworkreview?: () => void;
 		/** The CONTINUE bar, observed by the page to know when it scrolled away. */
 		cta?: HTMLElement | null;
 		/**
@@ -803,6 +812,34 @@
 				{#snippet action()}
 					<form method="POST" action="?/undoDismiss" use:enhance>
 						<input type="hidden" name="key" value={dismissedKey} />
+						<button type="submit">UNDO</button>
+					</form>
+				{/snippet}
+			</Band>
+		{/if}
+
+		{#if !outline && workOffer}
+			<!-- Work-States 1 (W7; Works Calls, question 6): under CONTINUE, on the
+			     newcomer's own screen only. It offers; nothing joins without
+			     REVIEW's sheet and its tap, and NOT THIS never asks again. -->
+			<section class="sugg offer" aria-label="Might continue {workOffer.name}">
+				<div class="sugg-head offer-head">
+					<span>MIGHT CONTINUE {workOffer.name.toUpperCase()} · AS PART {workOffer.part}</span>
+					<span class="dim offer-why">{workOffer.reason}</span>
+				</div>
+				<div class="sugg-actions">
+					<button type="button" onclick={() => onworkreview?.()}>REVIEW →</button>
+					<form method="POST" action="?/dismissWorkOffer" use:enhance>
+						<input type="hidden" name="key" value={workOffer.key} />
+						<button type="submit" class="dim">NOT THIS</button>
+					</form>
+				</div>
+			</section>
+		{:else if !outline && workOfferDismissed}
+			<Band title="NOT THIS · WON'T ASK AGAIN">
+				{#snippet action()}
+					<form method="POST" action="?/undoWorkOffer" use:enhance>
+						<input type="hidden" name="key" value={workOfferDismissed} />
 						<button type="submit">UNDO</button>
 					</form>
 				{/snippet}
@@ -1963,6 +2000,15 @@
 	}
 	.dim {
 		color: var(--text-2);
+	}
+	/* The offer's head stacks its reason under the line (Work-States 1). */
+	.offer-head {
+		flex-direction: column;
+		justify-content: flex-start;
+		gap: 6px;
+	}
+	.offer-why {
+		font: 400 11px/1.35 var(--font-mono);
 	}
 	.sugg-covers {
 		display: flex;

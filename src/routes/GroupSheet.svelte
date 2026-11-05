@@ -32,6 +32,11 @@
 	 * suggestion's REVIEW → with `suggested` set: then each row has a tick, and
 	 * the books left unticked are recorded as not belonging (the whole set is
 	 * stored as dismissed, so the suggestion doesn't return).
+	 *
+	 * Opened from MIGHT CONTINUE <WORK>'s REVIEW → with `offer` set (W7; Works
+	 * Calls, question 6): ADD TO A WORK into that Work, its run numbered above
+	 * and the newcomer last and ticked. Nothing joins until ADD 1 TO THE WORK
+	 * is tapped; NOT THIS stores the offer as dismissed instead.
 	 */
 	type Book = {
 		seriesId: number;
@@ -53,6 +58,7 @@
 		existingWorks = [],
 		answers = ['books'],
 		suggested = false,
+		offer = null,
 		noun = 'BOOKS',
 		ondone,
 		onclose
@@ -67,6 +73,12 @@
 		/** What the selection allows, from `groupAnswers()` (doc/BOOKS.md, "The AS row"). */
 		answers?: GroupAnswer[];
 		suggested?: boolean;
+		/**
+		 * A Work offer under review: the Work it would join, the place it would
+		 * take, its run as it stands, and the key NOT THIS stores. `books` is then
+		 * the newcomer alone, and `existingWorks` holds that Work.
+		 */
+		offer?: { workId: number; name: string; part: number; key: string; parts: Book[] } | null;
 		/** VOLUMES when the answer is volumes: the same sheet, the same steps. */
 		noun?: 'BOOKS' | 'VOLUMES';
 		/** After a Work is made or added to: the sheet closes and the selection ends. */
@@ -105,15 +117,16 @@
 	$effect(() => {
 		if (!open) return;
 		untrack(() => {
-			answer = answers[0] ?? 'work';
+			answer = offer ? 'work' : (answers[0] ?? 'work');
 			// A Work's ORDER starts BY HAND, in the order the series were selected;
 			// books and volumes start BY DATE ADDED, as they always have.
 			orderMode = answer === 'work' ? 'hand' : 'date';
 			rows = answer === 'work' ? asSelected(books) : orderBooks(books.map(withId), 'date');
-			mode = 'new';
+			// An offer is an add into one Work, never a new one (question 6).
+			mode = offer ? 'existing' : 'new';
 			// No target yet: `intoValue` takes the answer's own first, so a Work's
 			// id can never be read as a series' (they are both small integers).
-			into = null;
+			into = offer ? offer.workId : null;
 			ticked = books.map((b) => b.seriesId);
 			refused = '';
 			name = defaultName(answer);
@@ -155,9 +168,10 @@
 	const nouns = $derived(work ? 'SERIES' : answer === 'volumes' ? 'VOLUMES' : 'BOOKS');
 	const sheetNoun = $derived(work ? 'SERIES' : noun);
 	const chosen = $derived(rows.filter((b) => ticked.includes(b.seriesId)));
-	/** Reading positions for the ticked rows; an unticked row shows a dash. */
+	/** Reading positions for the ticked rows; an unticked row shows a dash. An
+	 * offer's newcomer counts on from the run it would join: it goes last. */
 	const numbers = $derived.by(() => {
-		let n = 0;
+		let n = offer ? offer.parts.length : 0;
 		const out: Record<number, string> = {};
 		for (const b of rows)
 			out[b.seriesId] = ticked.includes(b.seriesId) ? String(++n).padStart(2, '0') : '—';
@@ -190,10 +204,14 @@
 			: chosen.length >= 1 && intoValue !== null
 	);
 	const title = $derived(
-		suggested
-			? `SUGGESTED · ${chosen.length} OF ${books.length} TICKED`
-			: `GROUP ${books.length} ${sheetNoun}`
+		offer
+			? `INTO ${offer.name.toUpperCase()} · AS PART ${offer.part}`
+			: suggested
+				? `SUGGESTED · ${chosen.length} OF ${books.length} TICKED`
+				: `GROUP ${books.length} ${sheetNoun}`
 	);
+	/** Ticks on the rows: a books suggestion's, and an offer's one newcomer. */
+	const ticks = $derived(suggested || offer !== null);
 
 	/** "2 BOOKS, ONE SERIES"; "3 SERIES, KEPT APART": the answer's own line. */
 	function answerMeta(a: GroupAnswer): string {
@@ -229,8 +247,11 @@
 				// From a singleton's own screen, that series is gone once grouped: the
 				// new one takes its place in history, or back lands on a 404. From the
 				// library, the library stays to go back to.
-				if (page.route.id === '/series/[id]') await settleReplacing({ result, update });
-				else {
+				if (page.route.id === '/series/[id]') {
+					await settleReplacing({ result, update });
+					// An offer's add keeps the series: its screen stays, with its band.
+					if (offer) onclose();
+				} else {
 					await update();
 					// A Work is made or joined in place: the library stays, with its
 					// band, and the selection it came from ends (W4).
@@ -244,7 +265,7 @@
 			<button type="button" class="cancel" onclick={onclose}>CANCEL</button>
 		</div>
 
-		{#if !suggested}
+		{#if !suggested && !offer}
 			<!-- AS: only what the selection allows, and a Work always (Works Calls, Q7). -->
 			<div class="sl as"><span>AS</span><span>WHAT THEY BECOME</span></div>
 			<div class="seg tall answers" role="radiogroup" aria-label="Group as">
@@ -266,25 +287,27 @@
 			</div>
 		{/if}
 
-		<div class="sl into"><span>INTO</span><span></span></div>
-		<div class="seg into" role="radiogroup" aria-label="Group into">
-			<button
-				type="button"
-				role="radio"
-				aria-checked={mode === 'new'}
-				class:on={mode === 'new'}
-				onclick={() => (mode = 'new')}>{work ? 'NEW WORK' : 'NEW SERIES'}</button
-			>
-			<button
-				type="button"
-				role="radio"
-				aria-checked={mode === 'existing'}
-				class:on={mode === 'existing'}
-				disabled={intoList.length === 0}
-				onclick={() => (mode = 'existing')}
-				>{work ? 'ADD TO A WORK' : 'ADD TO EXISTING'} · {intoList.length}</button
-			>
-		</div>
+		{#if !offer}
+			<div class="sl into"><span>INTO</span><span></span></div>
+			<div class="seg into" role="radiogroup" aria-label="Group into">
+				<button
+					type="button"
+					role="radio"
+					aria-checked={mode === 'new'}
+					class:on={mode === 'new'}
+					onclick={() => (mode = 'new')}>{work ? 'NEW WORK' : 'NEW SERIES'}</button
+				>
+				<button
+					type="button"
+					role="radio"
+					aria-checked={mode === 'existing'}
+					class:on={mode === 'existing'}
+					disabled={intoList.length === 0}
+					onclick={() => (mode = 'existing')}
+					>{work ? 'ADD TO A WORK' : 'ADD TO EXISTING'} · {intoList.length}</button
+				>
+			</div>
+		{/if}
 
 		{#if mode === 'new'}
 			<div class="sl name-label">
@@ -326,40 +349,61 @@
 			</div>
 		{/if}
 
-		<div class="sl order-label">
-			<span>ORDER</span><span
-				>{work && orderMode === 'hand' ? 'BY HAND: AS SELECTED' : orderLabel}</span
-			>
-		</div>
-		<div class="seg order">
-			{#if work}
-				<button type="button" class:on={orderMode === 'hand'} onclick={() => setOrder('hand')}
-					>BY HAND</button
+		{#if !offer}
+			<div class="sl order-label">
+				<span>ORDER</span><span
+					>{work && orderMode === 'hand' ? 'BY HAND: AS SELECTED' : orderLabel}</span
 				>
-				<button type="button" class:on={orderMode === 'date'} onclick={() => setOrder('date')}
-					>BY DATE ADDED</button
-				>
-				<button type="button" class:on={orderMode === 'title'} onclick={() => setOrder('title')}
-					>BY TITLE</button
-				>
-			{:else}
-				<button type="button" class:on={orderMode === 'date'} onclick={() => setOrder('date')}
-					>BY DATE</button
-				>
-				<button type="button" class:on={orderMode === 'title'} onclick={() => setOrder('title')}
-					>BY TITLE</button
-				>
-				<button type="button" class:on={orderMode === 'hand'} onclick={() => setOrder('hand')}
-					>BY HAND</button
-				>
-			{/if}
-		</div>
+			</div>
+			<div class="seg order">
+				{#if work}
+					<button type="button" class:on={orderMode === 'hand'} onclick={() => setOrder('hand')}
+						>BY HAND</button
+					>
+					<button type="button" class:on={orderMode === 'date'} onclick={() => setOrder('date')}
+						>BY DATE ADDED</button
+					>
+					<button type="button" class:on={orderMode === 'title'} onclick={() => setOrder('title')}
+						>BY TITLE</button
+					>
+				{:else}
+					<button type="button" class:on={orderMode === 'date'} onclick={() => setOrder('date')}
+						>BY DATE</button
+					>
+					<button type="button" class:on={orderMode === 'title'} onclick={() => setOrder('title')}
+						>BY TITLE</button
+					>
+					<button type="button" class:on={orderMode === 'hand'} onclick={() => setOrder('hand')}
+						>BY HAND</button
+					>
+				{/if}
+			</div>
+		{/if}
 
 		<ol class="rows" class:grows={work}>
+			{#if offer}
+				<!-- The run it would join, as it stands: numbered, not ticked, not posted. -->
+				{#each offer.parts as p, i (p.seriesId)}
+					<li class="row gr run">
+						<span class="tick-gap" aria-hidden="true"></span>
+						<span class="num">{String(i + 1).padStart(2, '0')}</span>
+						<span class="cov"
+							><Cover
+								src={coverSrc(p.seriesId, p.cover)}
+								hue={p.hue}
+								width={34}
+								height={49}
+							/></span
+						>
+						<span class="t"><span class="a">{p.title}</span><span class="b">IN THE WORK</span></span
+						>
+					</li>
+				{/each}
+			{/if}
 			{#each rows as b, i (b.seriesId)}
 				{@const on = ticked.includes(b.seriesId)}
 				<li class="row" class:off={!on} class:gr={work}>
-					{#if suggested}
+					{#if ticks}
 						<button
 							type="button"
 							class="tick"
@@ -387,20 +431,22 @@
 						<span class="t">{b.title}</span>
 						<span class="d">{addedMonth(b.addedAt)}</span>
 					{/if}
-					<button
-						type="button"
-						class="nudge"
-						aria-label="Move {b.title} up"
-						disabled={i === 0}
-						onclick={() => nudge(i, -1)}>↑</button
-					>
-					<button
-						type="button"
-						class="nudge"
-						aria-label="Move {b.title} down"
-						disabled={i === rows.length - 1}
-						onclick={() => nudge(i, 1)}>↓</button
-					>
+					{#if !offer}
+						<button
+							type="button"
+							class="nudge"
+							aria-label="Move {b.title} up"
+							disabled={i === 0}
+							onclick={() => nudge(i, -1)}>↑</button
+						>
+						<button
+							type="button"
+							class="nudge"
+							aria-label="Move {b.title} down"
+							disabled={i === rows.length - 1}
+							onclick={() => nudge(i, 1)}>↓</button
+						>
+					{/if}
 				</li>
 			{/each}
 		</ol>
@@ -414,6 +460,7 @@
 		{/if}
 
 		{#each chosen as b (b.seriesId)}<input type="hidden" name="series" value={b.seriesId} />{/each}
+		{#if offer}<input type="hidden" name="key" value={offer.key} />{/if}
 		{#if suggested}
 			{#each books as b (b.seriesId)}<input
 					type="hidden"
@@ -454,7 +501,11 @@
 					ADD {chosen.length} TO THE WORK
 				{/if}
 			</button>
-			{#if suggested}
+			{#if offer}
+				<!-- NOT THIS, never "NOT A …": the books' NOT A SERIES is another
+				     cell, and a locator by name matches by substring. -->
+				<button type="submit" class="not" formaction="?/dismissWorkOffer">NOT THIS</button>
+			{:else if suggested}
 				<button type="submit" class="not" formaction="?/dismiss">NOT A SERIES</button>
 			{/if}
 		</div>
@@ -631,6 +682,14 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+	}
+	/* An offer's run: the tick column kept empty so its numbers line up with the newcomer's. */
+	.tick-gap {
+		width: 64px;
+		flex-shrink: 0;
+	}
+	.row.run {
+		color: var(--text-2);
 	}
 	.box {
 		width: 24px;

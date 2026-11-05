@@ -34,6 +34,9 @@ import {
 	workRating,
 	workRowLine,
 	continuePart,
+	offerMatch,
+	offerReason,
+	type OfferWork,
 	inOrder,
 	type AddablePage,
 	type AddableSeries,
@@ -1427,11 +1430,129 @@ export function undoHideWhole(facts: { hidden: number[]; out: TakeOutFacts[] }):
 // ---- offers (W7 stores and undoes one) ----------------------------------------
 
 /**
- * The key a dismissed Work offer is stored under. `work:` keeps it apart from
- * the books' sorted-id keys at a glance; the table is separate anyway, so no
- * reader of `suggestion_dismissals` ever sees one.
+ * The key a dismissed Work offer is stored under: the Work's moment of making
+ * and the series it was offered to. `work:` keeps it apart from the books'
+ * sorted-id keys at a glance; the table is separate anyway, so no reader of
+ * `suggestion_dismissals` ever sees one.
+ *
+ * Not the Work's id (W1 wrote `work:<workId>:<seriesId>`, and nothing stored
+ * one before W7): an id is not an identity across an UNDO. Once the newest
+ * Work ends the next one made is given its id, so a NOT THIS said to the old
+ * Work would silence a different Work's offer; and an ended Work an UNDO
+ * brings back under a new id is still the Work the owner said NOT THIS to.
+ * `created_at` is what `restore` keeps, so it is what the key names.
  */
-export const workDismissalKey = (workId: number, seriesId: number) => `work:${workId}:${seriesId}`;
+export const workDismissalKey = (work: { createdAt: number }, seriesId: number) =>
+	`work:${work.createdAt}:${seriesId}`;
+
+/** A key as a form posts it: `work:<moment>:<series id>`, or null for anything else. */
+export function parseWorkDismissalKey(key: string): string | null {
+	return /^work:\d{1,16}:\d{1,12}$/.test(key) ? key : null;
+}
+
+/** A series as the offer and the sheet's rows draw it. */
+export type OfferSeries = {
+	seriesId: number;
+	title: string;
+	hue: number;
+	addedAt: number;
+	cover: number | null;
+};
+
+/**
+ * MIGHT CONTINUE <WORK> · AS PART N (W7; Works Calls, question 6): the one
+ * Work a series' title continues (`offerMatch`), for the series' own screen.
+ * Nothing joins here: REVIEW opens the sheet, and only its tap adds.
+ */
+export type WorkOffer = {
+	workId: number;
+	name: string;
+	createdAt: number;
+	/** The place it would take: last, one after the Work's parts. */
+	part: number;
+	/** `ITS TITLE STARTS WITH THE WORK'S NAME · THE WORK HOLDS 2 SERIES`. */
+	reason: string;
+	/** What NOT THIS stores (`workDismissalKey`). */
+	key: string;
+	/** The run as it stands, for the sheet's numbered rows above the newcomer. */
+	parts: OfferSeries[];
+	/** The newcomer itself, the sheet's ticked last row. */
+	series: OfferSeries;
+};
+
+/**
+ * The offer for one series, or null. None for a series already in a Work, a
+ * browsing record, or a hidden series with reveal off; and none naming a Work
+ * the series could not join -- one hidden differently from it, which with
+ * reveal off is every Work with a hidden part, so a visible series' screen
+ * never names a hidden Work -- or one the owner has said NOT THIS to. One read
+ * of every Work's parts: a library holds few Works, and the stem rule has to
+ * see every name and part title to find the longest.
+ */
+export function workOfferFor(seriesId: number, reveal: boolean): WorkOffer | null {
+	const db = getDb();
+	const me = factsOf(db, seriesId);
+	if (!me || !me.inLibrary) return null;
+	if (me.hidden !== 0 && !reveal) return null;
+	if (db.prepare(`SELECT 1 FROM work_series WHERE series_id = ?`).get(seriesId)) return null;
+	const rows = db
+		.prepare(
+			`SELECT ws.work_id AS workId, w.name, w.created_at AS createdAt,
+				s.id AS seriesId, s.title, s.hue, s.added_at AS addedAt, s.cover_at AS cover,
+				${HIDDEN_SQL} AS hidden
+			FROM work_series ws JOIN works w ON w.id = ws.work_id
+			JOIN series s ON s.id = ws.series_id JOIN roots r ON r.id = s.root_id
+			ORDER BY ws.work_id, ws.position, ws.series_id`
+		)
+		.all() as (OfferSeries & {
+		workId: number;
+		name: string;
+		createdAt: number;
+		hidden: number;
+	})[];
+	const dismissed = new Set(
+		(db.prepare(`SELECT series_ids FROM work_dismissals`).all() as { series_ids: string }[]).map(
+			(r) => r.series_ids
+		)
+	);
+	const byWork = new Map<number, typeof rows>();
+	for (const r of rows) byWork.set(r.workId, [...(byWork.get(r.workId) ?? []), r]);
+	const candidates: (OfferWork & { rows: typeof rows })[] = [];
+	for (const [id, parts] of byWork) {
+		const { name, createdAt } = parts[0];
+		// Joinable only: `addSeries` refuses a Work hidden differently, and a
+		// mixed Work refuses every add, so neither is offered.
+		if (parts.some((p) => (p.hidden !== 0) !== (me.hidden !== 0))) continue;
+		if (dismissed.has(workDismissalKey({ createdAt }, seriesId))) continue;
+		candidates.push({ id, name, createdAt, parts: parts.map((p) => p.title), rows: parts });
+	}
+	const match = offerMatch(me.title, candidates);
+	if (!match) return null;
+	const work = candidates.find((c) => c.id === match.work.id)!;
+	const own = (r: OfferSeries): OfferSeries => ({
+		seriesId: r.seriesId,
+		title: r.title,
+		hue: r.hue,
+		addedAt: r.addedAt,
+		cover: r.cover
+	});
+	const self = db
+		.prepare(
+			`SELECT id AS seriesId, title, hue, added_at AS addedAt, cover_at AS cover
+			FROM series WHERE id = ?`
+		)
+		.get(seriesId) as OfferSeries;
+	return {
+		workId: work.id,
+		name: work.name,
+		createdAt: work.createdAt,
+		part: work.rows.length + 1,
+		reason: offerReason(match),
+		key: workDismissalKey(work, seriesId),
+		parts: work.rows.map(own),
+		series: own(self)
+	};
+}
 
 export function dismissWorkOffer(key: string, now = Date.now()): string {
 	getDb()

@@ -660,7 +660,7 @@ describe('offers a later slice stores and undoes', () => {
 	it('keeps a Work dismissal apart from the books’ table, and takes it back', () => {
 		const [a, b] = UNRATED.map(idOf) as number[];
 		const { work } = works.createWork({ seriesIds: [a, b], name: 'Isekai', now: NOW });
-		const key = works.workDismissalKey(work.id, idOf('Mushoku Tensei')!);
+		const key = works.workDismissalKey(work, idOf('Mushoku Tensei')!);
 		expect(key.startsWith('work:')).toBe(true);
 		expect(works.workOfferDismissed(key)).toBe(false);
 		works.dismissWorkOffer(key, NOW);

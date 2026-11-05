@@ -86,15 +86,22 @@ import { originLabel, sourceOrigin } from '$lib/library/origin';
 import { tagSourceOf } from './tag-source.server';
 import {
 	WorkError,
+	addSeries,
+	dismissWorkOffer,
 	hideWork,
+	parseWorkDismissalKey,
 	reorder,
 	seriesWorkRow,
 	takeOut as takeOutPart,
 	takeOutAndHide,
+	undoAdds,
 	undoHideWhole,
 	undoTakeOut,
+	undoWorkOffer,
 	workOfSeries,
+	workOfferFor,
 	workParts,
+	type AddFacts,
 	type TakeOutFacts
 } from '$lib/server/works';
 
@@ -189,6 +196,9 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// Where this series sits in its Work (W5; doc/WORKS.md): one row under
 		// CONTINUE, its neighbours, and what the run offers at the end of this part.
 		work: seriesWorkRow(series.id, reveal),
+		// MIGHT CONTINUE <WORK> · AS PART N (W7; doc/WORKS.md, "The offer"): the
+		// one Work this title continues, for a series in none. It only offers.
+		workOffer: workOfferFor(series.id, reveal),
 		editing: url.searchParams.get('edit') === 'tags',
 		// A book of a series of books opened on its own: its pages.
 		book: books ? (series.entries.find((e) => e.id === bookParam) ?? null) : null,
@@ -658,6 +668,63 @@ export const actions: Actions = {
 		} catch (e) {
 			return refused(e);
 		}
+		return { ok: true };
+	},
+
+	/**
+	 * REVIEW → on MIGHT CONTINUE <WORK>, then the sheet's ADD 1 TO THE WORK
+	 * (W7): this series, and only this series, joins the Work the owner
+	 * picked, last. The sheet posts here because its ADD TO A WORK cell posts
+	 * `?/addToWork` relative to the page it is open on. Nothing else moves --
+	 * no rating, FAV, FOLLOW or link crosses between series (Works Calls,
+	 * question 6's NEVER list) -- and the band's UNDO takes it out again.
+	 */
+	addToWork: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const form = await request.formData();
+		const workId = Number(form.get('work'));
+		if (!Number.isInteger(workId) || workId <= 0) return fail(400, { workMessage: 'PICK A WORK' });
+		const ids = form.getAll('series').map(Number);
+		// From this screen the sheet's one tickable row is this series: anything
+		// else is not this screen's to add.
+		if (ids.length !== 1 || ids[0] !== s.id)
+			return fail(400, { workMessage: 'ONLY THIS SERIES CAN BE ADDED FROM ITS SCREEN' });
+		try {
+			const facts = addSeries(workId, s.id);
+			return { workJoined: facts };
+		} catch (e) {
+			if (e instanceof WorkError) return fail(400, { workMessage: e.message.toUpperCase() });
+			throw e;
+		}
+	},
+
+	/** UNDO on the ADDED TO <WORK> band: the series leaves the Work again (`undoAdds`). */
+	undoAddToWork: async ({ request, params, cookies }) => {
+		target(params, cookies);
+		const facts = JSON.parse(String((await request.formData()).get('facts') ?? 'null'));
+		try {
+			undoAdds([facts as AddFacts]);
+		} catch (e) {
+			return refused(e);
+		}
+		return { ok: true };
+	},
+
+	/** NOT THIS on MIGHT CONTINUE <WORK>: never offered again (W1's `work_dismissals`). */
+	dismissWorkOffer: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const key = parseWorkDismissalKey(String((await request.formData()).get('key') ?? ''));
+		// The key names the series it was offered to: this screen dismisses its own.
+		if (!key || !key.endsWith(`:${s.id}`)) return fail(400, { message: 'NO SUCH OFFER' });
+		return { workOfferDismissed: dismissWorkOffer(key) };
+	},
+
+	/** UNDO on NOT THIS · WON'T ASK AGAIN: the offer comes back. */
+	undoWorkOffer: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const key = parseWorkDismissalKey(String((await request.formData()).get('key') ?? ''));
+		if (!key || !key.endsWith(`:${s.id}`)) return fail(400, { message: 'NO SUCH OFFER' });
+		undoWorkOffer(key);
 		return { ok: true };
 	},
 

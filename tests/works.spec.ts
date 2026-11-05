@@ -25,7 +25,11 @@ import {
 	workVerb,
 	partDone,
 	workRowLine,
-	type WorkPart
+	type WorkPart,
+	continuesStem,
+	offerMatch,
+	offerReason,
+	OFFER_STEM_LETTERS
 } from '$lib/library/works';
 import { groupAnswers } from '$lib/library/books';
 import { KINDS } from '$lib/library/kinds';
@@ -534,5 +538,69 @@ describe('the HIDE and UNHIDE bands are worded from the count (wave 16)', () => 
 		expect(wholeBand('HIDDEN', { ids: [1, 2], whole: [1, 2], works: 1 }).detail).toBe(
 			'2 SERIES · SHOWN AGAIN BY UNDO'
 		);
+	});
+});
+
+describe('MIGHT CONTINUE’s stem rule, over its whole domain (W7, c281)', () => {
+	// Every title against every stem: the table is the rule, so a pair the
+	// code decides differently fails by name. A hand-picked pair or two would
+	// prove only the pairs picked.
+	const STEMS = ['The Breaker', 'Naruto', 'Akira', 'One Piece', 'Kaori Mama'];
+	const TITLES: [string, string[]][] = [
+		['The Breaker', []], // the stem itself: a duplicate, never a sequel
+		['The Breaker: Eternal Force', ['The Breaker']],
+		['The Breaker - New Waves', ['The Breaker']],
+		['the breaker eternal force', ['The Breaker']], // case and punctuation are not words
+		['Breaker', []],
+		['The Breakers', []], // a word is whole or nothing
+		['Naruto', []],
+		['Naruto Gaiden', ['Naruto']],
+		['Boruto: Naruto Next Generations', []], // the board's never
+		['Narutopia', []],
+		['Akira Part 2', []], // five letters: under the floor, never offered
+		['One Piece Film Red', ['One Piece']],
+		['Kaori Mama on Night Duty', ['Kaori Mama']],
+		['Mama Kaori', []]
+	];
+	it.each(TITLES)('%s continues exactly %j', (title, expected) => {
+		expect(STEMS.filter((stem) => continuesStem(title, stem))).toEqual(expected);
+	});
+
+	it('holds the books’ floor of letters, and never matches an empty stem', () => {
+		expect(OFFER_STEM_LETTERS).toBe(6);
+		expect(continuesStem('Akira Part 2', 'Akira')).toBe(false);
+		expect(continuesStem('Naruto Gaiden', 'Naruto')).toBe(true);
+		expect(continuesStem('Anything at all', '')).toBe(false);
+		expect(continuesStem('Anything at all', ' : ')).toBe(false);
+	});
+
+	const work = (id: number, name: string, parts: string[], createdAt = id) => ({
+		id,
+		name,
+		parts,
+		createdAt
+	});
+
+	it('names the Work by its name first, then by a part’s title, and says which', () => {
+		const breaker = work(1, 'The Breaker', ['The Breaker', 'The Breaker: New Waves']);
+		const m = offerMatch('The Breaker: Eternal Force', [breaker])!;
+		expect(m).toEqual({ work: breaker, by: 'name' });
+		expect(offerReason(m)).toBe("ITS TITLE STARTS WITH THE WORK'S NAME · THE WORK HOLDS 2 SERIES");
+		const shelf = work(2, 'Shelf', ['Naruto', 'Bleach']);
+		const p = offerMatch('Naruto Gaiden', [shelf])!;
+		expect(p).toEqual({ work: shelf, by: 'part', part: 1 });
+		expect(offerReason(p)).toBe("ITS TITLE STARTS WITH PART 1'S TITLE · THE WORK HOLDS 2 SERIES");
+		expect(offerMatch('Boruto: Naruto Next Generations', [shelf])).toBeNull();
+	});
+
+	it('prefers the longest stem, then the newer Work, and is null when nothing matches', () => {
+		const breaker = work(1, 'The Breaker', ['The Breaker', 'Monster']);
+		const waves = work(2, 'Waves', ['The Breaker: New Waves', 'Pluto'], 0);
+		expect(offerMatch('The Breaker: New Waves 2', [breaker, waves])?.work).toBe(waves);
+		const twin = work(3, 'The Breaker', ['Akame', 'Bakuman'], 9);
+		expect(offerMatch('The Breaker: Eternal Force', [breaker, twin])?.work).toBe(twin);
+		expect(offerMatch('The Breaker: Eternal Force', [twin, breaker])?.work).toBe(twin);
+		expect(offerMatch('Something Else', [breaker, waves, twin])).toBeNull();
+		expect(offerMatch('The Breaker', [breaker])).toBeNull();
 	});
 });

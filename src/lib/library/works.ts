@@ -698,3 +698,80 @@ export function wholeBand(
 			.join(' · ')
 	};
 }
+
+// ---- MIGHT CONTINUE <WORK> (W7; Works Calls, question 6) ----------------------
+
+/**
+ * The fewest letters a stem may have before it offers anything: the books'
+ * floor (`stemKey`, src/lib/library/books.ts), so a one-word part called
+ * "Akira" or a Work called "Blue" does not offer itself to every title that
+ * happens to start with the word.
+ */
+export const OFFER_STEM_LETTERS = 6;
+
+/**
+ * Whether `title` continues `stem` by the books' stem rule: the stem's words
+ * are the title's first words, whole, and the title has more words after
+ * them. *The Breaker: Eternal Force* continues *The Breaker*; *Boruto: Naruto
+ * Next Generations* never continues *Naruto*, because its first word is not
+ * the stem's; and a title equal to the stem continues nothing, because two
+ * sources of one work are the duplicates review's, not a Work's. A stem with
+ * fewer than `OFFER_STEM_LETTERS` letters never matches.
+ */
+export function continuesStem(title: string, stem: string): boolean {
+	const s = titleWords(stem);
+	const t = titleWords(title);
+	if (s.length === 0 || s.join('').length < OFFER_STEM_LETTERS) return false;
+	return t.length > s.length && s.every((w, i) => t[i] === w);
+}
+
+/** A Work as the offer reads it: its name and its parts' titles in its order. */
+export type OfferWork = {
+	id: number;
+	name: string;
+	createdAt: number;
+	/** Its parts' titles, in the owner's order. */
+	parts: string[];
+};
+
+/**
+ * What a series' title continues, if anything: the Work, and whether the
+ * Work's own name or one of its parts' titles (`part`, 1-based) is the stem.
+ * The longest stem wins, since it says the most (*The Breaker: New Waves*
+ * beats *The Breaker* for *The Breaker: New Waves 2*), then the newest Work.
+ */
+export type OfferMatch =
+	{ work: OfferWork; by: 'name' } | { work: OfferWork; by: 'part'; part: number };
+
+export function offerMatch(title: string, works: OfferWork[]): OfferMatch | null {
+	let best: { match: OfferMatch; words: number } | null = null;
+	const better = (words: number, w: OfferWork) =>
+		!best ||
+		words > best.words ||
+		(words === best.words && w.createdAt > best.match.work.createdAt);
+	for (const w of works) {
+		if (continuesStem(title, w.name) && better(titleWords(w.name).length, w))
+			best = { match: { work: w, by: 'name' }, words: titleWords(w.name).length };
+		w.parts.forEach((p, i) => {
+			const words = titleWords(p).length;
+			// A tie never displaces: the name, read first, is the better reason
+			// when a part's title is the same stem.
+			if (continuesStem(title, p) && better(words, w))
+				best = { match: { work: w, by: 'part', part: i + 1 }, words };
+		});
+	}
+	return best?.match ?? null;
+}
+
+/**
+ * The offer's second line (Work-States 1): why it offers, then what the Work
+ * holds. `ITS TITLE STARTS WITH THE WORK'S NAME · THE WORK HOLDS 2 SERIES`, or
+ * `… WITH PART 1'S TITLE · …` when a part's title is the stem.
+ */
+export function offerReason(match: OfferMatch): string {
+	const why =
+		match.by === 'name'
+			? "ITS TITLE STARTS WITH THE WORK'S NAME"
+			: `ITS TITLE STARTS WITH PART ${match.part}'S TITLE`;
+	return `${why} · THE WORK HOLDS ${match.work.parts.length} SERIES`;
+}

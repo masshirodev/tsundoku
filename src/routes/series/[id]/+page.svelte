@@ -32,7 +32,7 @@
 	import { cacheMany, dropMany } from '$lib/cache/device';
 	import { orderBooks } from '$lib/library/books';
 	import { partDone } from '$lib/library/works';
-	import type { TakeOutFacts } from '$lib/server/works';
+	import type { AddFacts, TakeOutFacts } from '$lib/server/works';
 	import type { SeriesRenameFacts } from '$lib/server/series';
 	import { withParam, readHref } from '$lib/library/links';
 	import {
@@ -117,6 +117,14 @@
 	const unit = $derived(page.url.searchParams.get('unit') === 'volumes' ? 'VOLUMES' : 'BOOKS');
 	const createdOrder = $derived(page.url.searchParams.get('order') ?? 'BY DATE ADDED');
 	const takenOut = $derived(form && 'takenOut' in form ? form.takenOut : null);
+	/** MIGHT CONTINUE's REVIEW, once its sheet added this series (W7): the band and its UNDO. */
+	const workJoined = $derived(form && 'workJoined' in form ? (form.workJoined as AddFacts) : null);
+	/** NOT THIS's key, so its band can offer UNDO. */
+	const workOfferDismissed = $derived(
+		form && 'workOfferDismissed' in form ? String(form.workOfferDismissed) : null
+	);
+	/** REVIEW → on MIGHT CONTINUE <WORK>: the sheet, in ADD TO A WORK. */
+	let reviewingWork = $state(false);
 	const markedThrough = $derived(form && 'markedThrough' in form ? form.markedThrough : null);
 	// RENAME's band (c526): the facts the action returned, so UNDO puts back exactly them.
 	const renamed = $derived(form && 'renamed' in form ? (form.renamed as SeriesRenameFacts) : null);
@@ -543,6 +551,20 @@
 				{/if}
 			{/snippet}
 		</Band>
+	{:else if workJoined}
+		<!-- REVIEW's sheet added it (W7): the Work's name and the place it took, with UNDO. -->
+		<Band
+			title="ADDED TO {(workJoined.workName ?? 'THE WORK').toUpperCase()} · PART {data.work?.part ??
+				'?'}"
+			detail="EACH KEEPS ITS OWN RATING, FAV, FOLLOW, LINK AND FOLDER"
+		>
+			{#snippet action()}
+				<form method="POST" action="?/undoAddToWork" use:enhance>
+					<input type="hidden" name="facts" value={JSON.stringify(workJoined)} />
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
 	{:else if renamed}
 		<!-- RENAME (c526): the Work screen's idiom, the new name and the old, with UNDO. -->
 		<Band
@@ -606,6 +628,9 @@
 					suggestion={data.suggestion}
 					{dismissedKey}
 					onreview={() => (reviewing = true)}
+					workOffer={data.workOffer}
+					{workOfferDismissed}
+					onworkreview={() => (reviewingWork = true)}
 					ocr={data.ocr}
 					twin={data.twin}
 					words={data.words}
@@ -814,6 +839,31 @@
 		else await invalidateAll();
 	}}
 />
+
+{#if data.workOffer}
+	<!-- MIGHT CONTINUE's REVIEW → (W7): ADD TO A WORK, this series last and ticked. -->
+	<GroupSheet
+		open={reviewingWork}
+		books={[data.workOffer.series]}
+		existing={[]}
+		answers={['work']}
+		existingWorks={[
+			{
+				id: data.workOffer.workId,
+				name: data.workOffer.name,
+				series: data.workOffer.parts.length
+			}
+		]}
+		offer={{
+			workId: data.workOffer.workId,
+			name: data.workOffer.name,
+			part: data.workOffer.part,
+			key: data.workOffer.key,
+			parts: data.workOffer.parts
+		}}
+		onclose={() => (reviewingWork = false)}
+	/>
+{/if}
 
 {#if data.suggestion}
 	<GroupSheet
