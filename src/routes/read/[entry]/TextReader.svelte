@@ -235,6 +235,22 @@
 	 */
 	let ownTop = 0;
 	let readerMoved = false;
+	/**
+	 * SCROLL: how far below the top of the page `pos`'s character stood when
+	 * the place was read (c516). A relayout puts it back there. Read as the
+	 * line crossing the top margin, the character stood up to a line above that
+	 * margin, and putting it on the margin moved the reader a line on every
+	 * relayout after a scroll. Null: the margin, as a place opened from the URL
+	 * or the server has no finer offset than its character.
+	 */
+	let posY: number | null = null;
+	/**
+	 * PAGED: the reader is on a chapter's last page and it is the band alone
+	 * (c516). That page has no character, so `pos` stands for the one before it,
+	 * which is on the page before; a relayout keeps the reader on the band's
+	 * page instead of taking it a page back.
+	 */
+	let onBand = false;
 	let page = $state(0);
 	let pages = $state(1);
 	let atEnd = $state(false);
@@ -318,11 +334,20 @@
 		if (!pageEl) return null;
 		const box = pageEl.getBoundingClientRect();
 		if (layout === 'scroll') {
+			// The first line of text on screen (c516). Before c516 it was the
+			// first thing hit, which on an illustration is the figure's start,
+			// often a screen higher: a reload or relayout went back up to it.
+			// A screen with no text on it at all keeps the figure.
+			let figure: TextPosition | null = null;
 			for (let y = box.top + f.y; y < box.bottom; y += 12) {
 				const p = positionAt(box.left + f.x + 4, y);
-				if (p) return p;
+				if (!p) continue;
+				const r = flowEl ? rectOf(flowEl, p) : null;
+				// A character's box is a line high; a block without text answers its whole box.
+				if (r && r.height < f.fontSize * 3 && r.bottom > box.top && r.top < box.bottom) return p;
+				figure ??= p;
 			}
-			return null;
+			return figure;
 		}
 		// The caret snaps to the nearest text where a point has none, so on a
 		// page that is the band alone it named a character pages back (found
@@ -388,10 +413,10 @@
 			// Mid-scroll, the reader's own scroll is the place: `pos` is stale.
 			if (readerMoved || !pageEl) return;
 			const r = rectOf(flowEl, pos);
-			if (r) pageEl.scrollTop += r.top - pageEl.getBoundingClientRect().top - f.y;
+			if (r) pageEl.scrollTop += r.top - pageEl.getBoundingClientRect().top - (posY ?? f.y);
 			ownTop = pageEl.scrollTop;
 		} else {
-			page = pageOf(pos);
+			page = onBand ? pages - 1 : pageOf(pos);
 		}
 	}
 
@@ -452,6 +477,8 @@
 		if (pageEl) pageEl.scrollTop = 0;
 		ownTop = 0;
 		readerMoved = false;
+		posY = null;
+		onBand = false;
 		pos = at === 'start' || at === 'end' ? { block: 0, offset: 0 } : at;
 		await relayout();
 		if (at === 'end') {
@@ -464,8 +491,11 @@
 			// chapter's last one stands for it, so a relayout keeps the reader at
 			// the end rather than taking it back to the start (c441).
 			const last = ch.blocks.length - 1;
+			const here = positionOnPage();
+			// And the reader is on the band's page, which that character is not (c516).
+			onBand = !here && layout === 'paged';
 			pos =
-				positionOnPage() ??
+				here ??
 				(last >= 0
 					? { block: last, offset: Math.max(0, (ch.blocks[last].textContent ?? '').length - 1) }
 					: pos);
@@ -578,7 +608,12 @@
 		// Wide blocks are measured again as they come into view: one measured
 		// before its column had a width would otherwise never offer OPEN.
 		if (blocksEl) labelWide(blocksEl);
-		pos = positionOnPage() ?? pos;
+		const here = positionOnPage();
+		// The band's page alone has no character: `pos` stays the one before,
+		// and a relayout keeps the reader here (c516).
+		onBand = !here && layout === 'paged' && page === pages - 1;
+		posY = null;
+		pos = here ?? pos;
 		noteSpeed();
 		if (page >= pages - 1) markFinished();
 	}
@@ -776,6 +811,10 @@
 		clearTimeout(scrolling);
 		scrolling = setTimeout(() => {
 			pos = positionOnPage() ?? pos;
+			onBand = false;
+			// Where its character stands now, so a relayout leaves it there (c516).
+			const r = flowEl && pageEl ? rectOf(flowEl, pos) : null;
+			posY = r && pageEl ? r.top - pageEl.getBoundingClientRect().top : null;
 			readerMoved = false;
 			if (pageEl) ownTop = pageEl.scrollTop;
 			noteSpeed();

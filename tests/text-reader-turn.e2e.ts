@@ -88,6 +88,20 @@ async function countSlides(page: Page) {
 	return () => page.evaluate(() => (window as unknown as { slides: number }).slides);
 }
 
+/** The chapter's last page is the band alone: no character of the text is on it. */
+const bandOnly = (page: Page) =>
+	page.locator('.flow').evaluate((el: HTMLElement) => {
+		const box = el.parentElement!.getBoundingClientRect();
+		const walk = document.createTreeWalker(el.querySelector('.blocks')!, NodeFilter.SHOW_TEXT);
+		const r = document.createRange();
+		for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+			r.selectNodeContents(t);
+			for (const c of r.getClientRects())
+				if (c.width > 0 && c.right > box.left && c.left < box.right) return false;
+		}
+		return true;
+	});
+
 /** The middle of the page, where a drag starts: no strip, no illustration. */
 function middleOf(page: Page) {
 	const v = page.viewportSize()!;
@@ -179,6 +193,11 @@ test("across a chapter's end the next chapter's first page slides in, and back i
 		await expect.poll(async () => (await flow(page)).at).toBe(-i * first.step);
 		await landed(page);
 	}
+	// Turned onto it, a relayout keeps it there too, band alone or not (c516):
+	// tablet-portrait's seed chapter ends on a page that is the band alone.
+	await page.evaluate(() => window.dispatchEvent(new Event('load')));
+	await page.waitForTimeout(500);
+	expect((await flow(page)).at).toBe(lastAt);
 	const slides = await countSlides(page);
 
 	await page.keyboard.press('ArrowRight');
@@ -193,13 +212,16 @@ test("across a chapter's end the next chapter's first page slides in, and back i
 	await expect.poll(async () => (await flow(page)).at).toBe(lastAt);
 	await landed(page);
 	expect(await slides()).toBe(2);
-	// And it stays at the chapter's end when the chapter is laid out again, as
-	// an illustration arriving late lays it out (the reader listens for
-	// `load`): on the last page, or, where that page is the band alone and
-	// has no character to keep, the last page of text before it.
+	// And it stays on the chapter's last page when the chapter is laid out
+	// again, as an illustration arriving late lays it out (the reader listens
+	// for `load`), even where that page is the band alone and has no character
+	// to keep (c516): until c516 the reader went back to the page before it.
+	test
+		.info()
+		.annotations.push({ type: 'band-only last page', description: String(await bandOnly(page)) });
 	await page.evaluate(() => window.dispatchEvent(new Event('load')));
 	await page.waitForTimeout(500);
-	expect([lastAt, lastAt + first.step]).toContain((await flow(page)).at);
+	expect((await flow(page)).at).toBe(lastAt);
 });
 
 test('a scrub during a slide wins: the turn gives way instead of landing one past it (c515)', async ({

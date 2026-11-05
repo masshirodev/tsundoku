@@ -423,6 +423,60 @@ test('in SCROLL, a face arriving mid-scroll leaves the reader where they scrolle
 	expect(Math.abs((await top()) - at)).toBeLessThanOrEqual(1);
 });
 
+test('in SCROLL, a relayout after the reader settles leaves the line where it stood (c516)', async ({
+	page
+}) => {
+	await openBook(page);
+	await middle(page);
+	await page.getByRole('button', { name: /^PAGED · / }).click();
+	await page.getByRole('radio', { name: 'SCROLL' }).click();
+	await page.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+	const top = () => page.locator('.page').evaluate((n) => n.scrollTop);
+	// Somewhere a line is cut by the top margin, as a hand leaves it: not on a
+	// line's edge, which a relayout to the margin would have kept by luck.
+	for (const at of [0.4, 0.6]) {
+		await page.locator('.page').evaluate((n, at) => {
+			const lh = parseFloat(getComputedStyle(n.querySelector('.flow p')!).lineHeight) || 32;
+			n.scrollTop = Math.round((n.scrollHeight - n.clientHeight) * at) + Math.round(lh / 2);
+			n.dispatchEvent(new Event('scroll'));
+		}, at);
+		// The place is read 250 ms after the scroll stops; the URL follows.
+		await page.waitForTimeout(600);
+		const settled = await top();
+		await page.evaluate(() => window.dispatchEvent(new Event('load')));
+		await page.waitForTimeout(400);
+		// Until c516 the line was put on the top margin: up to a line back.
+		expect(Math.abs((await top()) - settled)).toBeLessThanOrEqual(1);
+		// The saved place (in the URL 800 ms after it is read) is a character on
+		// the screen, not the start of its paragraph a screen higher.
+		const shown = () =>
+			page.evaluate(() => {
+				const at = new URL(location.href).searchParams.get('at');
+				if (!at) return false;
+				const [b, o] = at.split('.').map(Number);
+				const block = document.querySelector<HTMLElement>(`.blocks [data-b="${b}"]`);
+				if (!block) return false;
+				const walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+				let left = o;
+				for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+					const len = t.textContent?.length ?? 0;
+					if (left < len) {
+						const r = document.createRange();
+						r.setStart(t, left);
+						r.setEnd(t, left + 1);
+						const box = document.querySelector('.page')!.getBoundingClientRect();
+						const c = r.getBoundingClientRect();
+						return c.top >= box.top - 1 && c.bottom <= box.bottom + 1;
+					}
+					left -= len;
+				}
+				return false;
+			});
+		await expect.poll(shown).toBe(true);
+	}
+});
+
 // ---- SCROLL across a volume's end (c347) ------------------------------------------------
 //
 // A novel grouped from two books is one download per volume (doc/TEXT-READER.md,

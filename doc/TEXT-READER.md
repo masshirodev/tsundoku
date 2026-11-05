@@ -117,6 +117,26 @@ scrolls the reader makes itself (opening a chapter, keeping the character,
 crossing into the next chapter) are remembered as its own, so a face arriving
 just after a chapter opens on a saved place still keeps that place.
 
+**What SCROLL saves is the first line of text on screen** (c516): the line
+crossing the top margin, or the next one with text. Before c516 it was the
+first thing found there, and on an illustration that is the figure itself,
+whose start can be a screen higher (`?at=5.0` with the figure's top 177 px
+above the screen, measured in wave 22): a reload went back up to the
+illustration's top. A screen with no text on it keeps the figure. And **a
+relayout leaves that line where it stood**: the reader notes how far below
+the top the character was when it read the place, and puts it back there.
+It used to put it on the top margin, and as the line crossing the margin
+starts up to a line above it, every relayout after a scroll moved the reader
+up to a line. A place opened from the URL or the server has only its
+character, so it opens on the margin, as before.
+
+**A page that is the band alone** (a chapter whose text ends exactly at a
+page's end) has no character of its own to keep, so its position is the
+chapter's last character, on the page before. The reader also remembers that
+it is on the band's page (c516), whether it got there by turning or by coming
+back from the next chapter, and a relayout keeps it there; until c516 it went
+a page back.
+
 It travels through `POST /api/reading` as before: `page` is the paragraph, and
 two new optional fields carry `offset` (the character) and `total` (paragraphs
 in the entry). The server stores them in `last_position`, `last_offset` (rung 11) and `page_count`, so the series screen's percentages work without the
