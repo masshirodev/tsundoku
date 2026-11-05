@@ -23,6 +23,12 @@ import { E2E_TOKEN } from '../playwright.config';
  *
  * - **c246**: `/pair/tv` opened with an expired code, the server's clock
  *   moved past the code's 10 minutes, makes a new one; a burned one stays.
+ *   And the computer's half: SETTINGS' DEVICES row, open in a browser of its
+ *   own, keeps asking about an expired code, so it draws the one the TV made
+ *   on its own 5 s tick, with no focus change.
+ * - **c531**: a burned code stays burned through a reload of SETTINGS' data
+ *   (an unrelated setting changed), and a real visit (the app's link, the
+ *   back button, the browser's reload) makes a new one.
  * - **c545**: 9E carries the server's name in `data-paired-name`, and the TV
  *   app's own `PAIRED_JS`, read out of MainActivity.kt, reads it there.
  * - **c530**: two tsundoku on one host, two ports, paired in one cookie jar as
@@ -147,7 +153,10 @@ async function clockAt(at: Server, ms: number) {
 }
 
 let browser: Browser;
+/** The computer's own browser: a pointer, no TV flags, for SETTINGS' DEVICES row. */
+let desk: Browser;
 const computers = new Map<Server, APIRequestContext>();
+const session = createHash('sha256').update(`tsundoku/v1:${E2E_TOKEN}`).digest('hex');
 
 test.beforeAll(async () => {
 	if (!tvProject()) return;
@@ -161,7 +170,7 @@ test.beforeAll(async () => {
 			'--blink-settings=availablePointerTypes=none,availableHoverTypes=none'
 		]
 	});
-	const session = createHash('sha256').update(`tsundoku/v1:${E2E_TOKEN}`).digest('hex');
+	desk = await chromium.launch();
 	for (const at of [A, B])
 		computers.set(
 			at,
@@ -175,6 +184,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
 	for (const c of computers.values()) await c.dispose().catch(() => {});
 	await browser?.close().catch(() => {});
+	await desk?.close().catch(() => {});
 	for (const at of [A, B]) {
 		at.child?.kill();
 		at.child = null;
@@ -238,6 +248,92 @@ async function signedIn(page: Page, at: Server) {
 }
 
 const paired = (port: number) => `tsundoku_paired_${port}`;
+
+// ---- c531 round 2: a client-side visit with no code at all ---------------------
+
+/**
+ * The library in the computer's browser, opened as a document: SETTINGS is
+ * then reached only by the app's own links, a client-side navigation whose
+ * load is a data request and makes no code (c531).
+ */
+async function libraryOn(at: Server) {
+	const context = await desk.newContext({
+		viewport: { width: 1280, height: 800 },
+		locale: 'en-US'
+	});
+	opened.push(context);
+	await context.addCookies([
+		{ name: 'tsundoku_session', value: session, domain: '127.0.0.1', path: '/' }
+	]);
+	const page = await context.newPage();
+	await page.goto(`${at.computer}/`);
+	await hydrated(page);
+	return page;
+}
+
+/** The library's MORE › SETTINGS, by click. */
+async function moreSettings(page: Page) {
+	await page.getByRole('button', { name: 'MORE', exact: true }).click();
+	await page.locator('a[href="/settings"]').filter({ visible: true }).first().click();
+	await page.waitForURL((u) => u.pathname === '/settings');
+	await hydrated(page);
+}
+
+const renewPost = (u: URL) => u.pathname === '/settings' && u.search === '?/renew';
+
+// First in the file, on purpose: server A has made no code yet, the state a
+// restart leaves the owner's tailnet install in.
+test('with no code at all, the library’s MORE › SETTINGS makes the code and draws it, and a reload of the data keeps it (c531 round 2)', async () => {
+	expect((await codeOn(A)).state, 'a fresh server has no code').toBe('none');
+	const page = await libraryOn(A);
+	expect((await codeOn(A)).state, 'the library makes no code').toBe('none');
+	await moreSettings(page);
+	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	await expect.poll(() => shownDigits(page)).toMatch(/^\d{6}$/);
+	const made = await codeOn(A);
+	expect(made).toMatchObject({ state: 'live', left: 5 });
+	expect(await shownDigits(page)).toBe(made.code);
+
+	// A reload of the page's data (an unrelated setting): the same code.
+	const mode = page
+		.locator('.row', { has: page.locator('.label', { hasText: /^MODE$/ }) })
+		.getByRole('group', { name: 'MANGA' });
+	for (const choice of ['L→R', 'R→L']) {
+		const reloaded = reloadOfData(page);
+		await mode.getByRole('button', { name: choice }).click();
+		await reloaded;
+		await expect(mode.getByRole('button', { name: choice })).toHaveAttribute(
+			'aria-pressed',
+			'true'
+		);
+		expect((await codeOn(A)).code, `after ${choice}`).toBe(made.code);
+		expect(await shownDigits(page)).toBe(made.code);
+	}
+});
+
+// On server B, which no case before c530's makes a code on.
+test('with no code and `?/renew` unanswered, the DEVICES row is still drawn, and its NEW CODE makes one (c531 round 2)', async () => {
+	expect((await codeOn(B)).state, 'B has made no code yet').toBe('none');
+	const page = await libraryOn(B);
+	// The page's own `?/renew` refused: what the row draws from the load
+	// alone, which made no code.
+	await page.route(renewPost, (r) => r.abort());
+	const refused = page.waitForRequest((r) => renewPost(new URL(r.url())));
+	await moreSettings(page);
+	await refused;
+	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('—');
+	await expect(page.getByText('EXPIRED · MAKE A NEW CODE')).toBeVisible();
+	await expect(page.getByLabel('Pairing code for a TV')).toHaveCount(0);
+	expect((await codeOn(B)).state).toBe('none');
+	await page.unroute(renewPost);
+
+	await page.locator('.pair-foot').getByRole('button', { name: 'NEW CODE' }).click();
+	await expect.poll(() => shownDigits(page)).toMatch(/^\d{6}$/);
+	const made = await codeOn(B);
+	expect(made.state).toBe('live');
+	expect(await shownDigits(page)).toBe(made.code);
+});
 
 // ---- c246 ---------------------------------------------------------------------
 
@@ -342,6 +438,208 @@ test('a burned code stays burned, even after its 10 minutes, until the computer 
 	await expect(page.locator('.band')).toHaveCount(0);
 	await typeCode(page, fresh.code!);
 	await expect(page.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
+});
+
+// ---- c246, the computer's half ----------------------------------------------
+
+/**
+ * The owner's SETTINGS on a server, in the computer's browser, signed in with
+ * the suite's token: the DEVICES row with the TV's six digits (c245). At
+ * 127.0.0.1, as the owner's own browser on the computer would be; the row
+ * itself is drawn wherever the server's ORIGIN makes a TV's cookie a door.
+ */
+async function settingsOn(at: Server) {
+	const context = await desk.newContext({
+		viewport: { width: 1280, height: 800 },
+		locale: 'en-US'
+	});
+	opened.push(context);
+	await context.addCookies([
+		{ name: 'tsundoku_session', value: session, domain: '127.0.0.1', path: '/' }
+	]);
+	const page = await context.newPage();
+	await page.goto(`${at.computer}/settings#s-devices`);
+	await hydrated(page);
+	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	return page;
+}
+
+/** The six digits the DEVICES row draws, or null when it draws none. */
+async function shownDigits(page: Page) {
+	const code = page.getByLabel('Pairing code for a TV');
+	if ((await code.count()) === 0) return null;
+	return ((await code.textContent()) ?? '').replace(/\D/g, '');
+}
+
+/**
+ * Counts every focus and visibility event the page sees from here on: the
+ * row also refreshes on those (c265), and this file's cases are about what
+ * its own tick does while the owner never leaves the window.
+ */
+async function countReturns(page: Page) {
+	await page.evaluate(() => {
+		const w = window as unknown as { returns: number };
+		w.returns = 0;
+		addEventListener('focus', () => (w.returns += 1), true);
+		document.addEventListener('visibilitychange', () => (w.returns += 1), true);
+	});
+	return () => page.evaluate(() => (window as unknown as { returns: number }).returns);
+}
+
+test('the DEVICES row draws the code the TV made in place of an expired one, on its own tick (c246)', async () => {
+	const made = await newCode(A);
+	const page = await settingsOn(A);
+	expect(await shownDigits(page)).toBe(made.code);
+	const returns = await countReturns(page);
+
+	// The code runs out while SETTINGS stays open: the row's tick says so.
+	await clockAt(A, 10 * 60_000 + 5_000);
+	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('EXPIRED', { timeout: 15_000 });
+	await expect(page.getByText('EXPIRED · MAKE A NEW CODE')).toBeVisible();
+
+	// The TV opens /pair/tv and makes a new one: THE NEW ONE IS ON THE COMPUTER.
+	const { page: onTv } = await tv();
+	await openPairing(onTv, A);
+	await expect(onTv.locator('.band')).toHaveCount(0);
+	const now = await codeOn(A);
+	expect(now.state).toBe('live');
+	expect(now.code).not.toBe(made.code);
+
+	// And the computer's row draws it by itself, within a tick or two.
+	await expect.poll(() => shownDigits(page), { timeout: 15_000 }).toBe(now.code);
+	await expect(page.getByText('EXPIRED · MAKE A NEW CODE')).toHaveCount(0);
+	expect(await returns(), 'no focus or visibility change helped').toBe(0);
+
+	// The next state: the TV types those digits, and the row turns ✓ USED.
+	await typeCode(onTv, now.code!);
+	await expect(onTv.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
+	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('✓ USED', { timeout: 15_000 });
+	expect(await returns()).toBe(0);
+
+	// Round 2: SETTINGS left on ✓ USED, and a second TV past the 2 minutes it
+	// stays up. /pair/tv replaces the used code and says THE NEW ONE IS ON THE
+	// COMPUTER, so the row must draw it on its own tick too.
+	await clockAt(A, 10 * 60_000 + 5_000 + 2 * 60_000 + 5_000);
+	const { page: second } = await tv();
+	await openPairing(second, A);
+	await expect(second.locator('.band')).toHaveCount(0);
+	const again = await codeOn(A);
+	expect(again.state).toBe('live');
+	expect(again.code).not.toBe(now.code);
+	await expect.poll(() => shownDigits(page), { timeout: 15_000 }).toBe(again.code);
+	expect(await returns(), 'no focus or visibility change helped').toBe(0);
+});
+
+// ---- c531: only a real visit renews ------------------------------------------
+
+/**
+ * Five wrong tries from a TV, as 9C posts them, at the computer's address: a
+ * request of its own, not a page, so no window's focus moves.
+ */
+async function burnOn(at: Server) {
+	const { code } = await codeOn(at);
+	const tvSide = await request.newContext({ baseURL: at.computer });
+	try {
+		for (let i = 0; i < 5; i++) {
+			const r = await tvSide.post('/pair/tv', {
+				form: { code: wrong(code!) },
+				headers: { origin: at.computer, accept: 'text/html' },
+				maxRedirects: 0
+			});
+			expect(r.status()).toBe(303);
+		}
+	} finally {
+		await tvSide.dispose();
+	}
+	expect(await codeOn(at)).toMatchObject({ code, state: 'burned', left: 0 });
+	return code!;
+}
+
+/** The row told the code is burned (a refresh on focus) and drawing it so. */
+async function rowBurned(page: Page) {
+	const asked = page.waitForResponse((r) => new URL(r.url()).pathname === '/settings/tv');
+	await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+	await asked;
+	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('BURNED');
+	await expect(page.getByText('NO TRIES LEFT · MAKE A NEW CODE')).toBeVisible();
+}
+
+/** The row drawing a live code that is the server's, and not `old`. */
+async function rowLive(page: Page, at: Server, old: string) {
+	await expect.poll(() => shownDigits(page)).toMatch(/^\d{6}$/);
+	const now = await codeOn(at);
+	expect(now).toMatchObject({ state: 'live', left: 5 });
+	expect(now.code).not.toBe(old);
+	expect(await shownDigits(page)).toBe(now.code);
+}
+
+/** SETTINGS' own ← LIBRARY: a client-side navigation away. */
+async function toLibrary(page: Page) {
+	await page.locator('a[href="/"]').filter({ visible: true }).first().click();
+	await page.waitForURL((u) => u.pathname === '/');
+	await hydrated(page);
+}
+
+const reloadOfData = (page: Page) =>
+	page.waitForResponse((r) => new URL(r.url()).pathname === '/settings/__data.json');
+
+test('a burned code stays burned through a reload of SETTINGS’ data, and a real visit makes a new one (c531)', async () => {
+	await newCode(A);
+	const page = await settingsOn(A);
+	let old = await burnOn(A);
+	await rowBurned(page);
+
+	// An unrelated setting changed on the page: `act()`, then `invalidateAll()`.
+	const mode = page
+		.locator('.row', { has: page.locator('.label', { hasText: /^MODE$/ }) })
+		.getByRole('group', { name: 'MANGA' });
+	for (const choice of ['L→R', 'R→L']) {
+		const reloaded = reloadOfData(page);
+		await mode.getByRole('button', { name: choice }).click();
+		await reloaded;
+		await expect(mode.getByRole('button', { name: choice })).toHaveAttribute(
+			'aria-pressed',
+			'true'
+		);
+		expect(await codeOn(A), `after ${choice}`).toMatchObject({ code: old, state: 'burned' });
+		await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('BURNED');
+	}
+
+	// A real visit, by the app's own doors from another screen (SETTINGS'
+	// ← LIBRARY, then the library's MORE › SETTINGS; this browser has no fine
+	// pointer, so no sidebar): a client-side navigation, whose load is a data
+	// request just like the reloads above.
+	await toLibrary(page);
+	expect(await codeOn(A), 'another screen makes no code').toMatchObject({
+		code: old,
+		state: 'burned'
+	});
+	await page.getByRole('button', { name: 'MORE', exact: true }).click();
+	await page.locator('a[href="/settings"]').filter({ visible: true }).first().click();
+	await page.waitForURL((u) => u.pathname === '/settings');
+	await rowLive(page, A, old);
+
+	// The browser's back button into SETTINGS is a visit too.
+	old = await burnOn(A);
+	await rowBurned(page);
+	await toLibrary(page);
+	await page.goBack();
+	await page.waitForURL((u) => u.pathname === '/settings');
+	await rowLive(page, A, old);
+
+	// And so is the browser's reload: a document, not the page's data.
+	old = await burnOn(A);
+	await rowBurned(page);
+	await page.reload();
+	await rowLive(page, A, old);
+
+	// A reload of the data after a visit renews nothing more: the new code is kept.
+	const kept = (await codeOn(A)).code;
+	const reloaded = reloadOfData(page);
+	await mode.getByRole('button', { name: 'L→R' }).click();
+	await reloaded;
+	expect((await codeOn(A)).code).toBe(kept);
+	await mode.getByRole('button', { name: 'R→L' }).click();
 });
 
 // ---- c545 ---------------------------------------------------------------------

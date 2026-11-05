@@ -17,11 +17,14 @@ process.env.DATABASE_PATH = ':memory:';
 process.env.TSUNDOKU_LOGIN = 'password';
 process.env.TSUNDOKU_SERVE = 'local';
 vi.mock('$env/dynamic/private', () => ({ env: process.env }));
+// SETTINGS' load asks GitHub for a friend's updates: never from a test.
+vi.mock('$lib/server/updates', () => ({ checkIfStale: () => {}, updateView: () => null }));
 
 const { CODE_MS, TV_TRIES, TV_USED_SHOWN_MS, pairing, tvPairing } =
 	await import('$lib/server/pairing');
-const { tvBlockHere, wifiView } = await import('$lib/server/wifi');
+const { settingsVisit, tvBlockHere, tvPanel, wifiView } = await import('$lib/server/wifi');
 const api = await import('../src/routes/api/wifi/+server');
+const settingsPage = await import('../src/routes/settings/+page.server');
 
 type LanStatus = import('$lib/server/lan-listen').LanStatus;
 
@@ -202,5 +205,99 @@ describe('the doors that may make a code', () => {
 		const code = burnTv(T0 + 1000);
 		expect(wifiView({ renew: true, now: T0 + 2000 })!.tv).toBeNull();
 		expect(tvPairing.current()!.code).toBe(code);
+	});
+});
+
+/**
+ * c531, the owner's call of 2026-11-04: a spent code renews only on a real
+ * visit to SETTINGS. The load runs for that visit and for every reload of the
+ * page's data alike (`invalidateAll()`, an enhanced form, the layout's RESCAN
+ * or theme); only the first may replace a code five wrong tries burned.
+ */
+describe('a real visit to SETTINGS, and a reload of its data (c531)', () => {
+	it('settingsVisit: a document GET only, over every request the load can run for', () => {
+		const seen: string[] = [];
+		for (const isDataRequest of [false, true])
+			for (const method of ['GET', 'HEAD', 'POST'])
+				if (settingsVisit({ isDataRequest, method })) seen.push(`${isDataRequest}:${method}`);
+		expect(seen).toEqual(['false:GET']);
+	});
+
+	/** SETTINGS' own load, on this friend's install at the computer, as SvelteKit runs it. */
+	async function load(isDataRequest: boolean, method = 'GET') {
+		const url = new URL('http://localhost/settings');
+		return (await settingsPage.load({
+			cookies: { get: () => undefined },
+			url,
+			locals: { via: 'local', paired: null },
+			isDataRequest,
+			request: new Request(url, { method })
+		} as never)) as { wifi: { tv: { code: string; state: string } | null } | null };
+	}
+
+	it('a reload of the data leaves a burned code burned; opening the page makes a new one', async () => {
+		const code = burnTv(T0 + 1000);
+		// Any number of reloads: a setting changed, a phone paired, RESCAN.
+		for (let i = 0; i < 3; i += 1) {
+			const data = await load(true);
+			expect(data.wifi!.tv).toMatchObject({ code, state: 'burned' });
+			expect(tvPairing.current()!.code).toBe(code);
+		}
+		// The load after a form posted without script is the form's, not a visit.
+		expect((await load(false, 'POST')).wifi!.tv).toMatchObject({ code, state: 'burned' });
+		// A real visit: the page opened, typed or reloaded by the browser.
+		const opened = await load(false);
+		expect(opened.wifi!.tv!.code).not.toBe(code);
+		expect(opened.wifi!.tv).toMatchObject({ state: 'live', left: TV_TRIES });
+		expect(tvPairing.current()!.code).toBe(opened.wifi!.tv!.code);
+	});
+
+	it('a reload leaves an expired code expired, and a used one used past its 2 minutes', () => {
+		// The load's own two calls, with what a reload passes them.
+		const code = tvPairing.current()!.code;
+		expect(wifiView({ renew: false, now: T0 + CODE_MS })!.tv).toMatchObject({
+			code,
+			state: 'expired'
+		});
+		expect(tvPanel({ renew: false, now: T0 + CODE_MS })).toMatchObject({ code, state: 'expired' });
+		tvPairing.fresh(T0);
+		const used = TV_STATES.used(T0 + 1000);
+		const later = T0 + 1000 + TV_USED_SHOWN_MS + 1;
+		expect(tvPanel({ renew: false, now: later })).toMatchObject({ code: used, state: 'used' });
+		expect(tvPairing.current()!.code).toBe(used);
+	});
+
+	it('tvPanel: renew replaces exactly what opening the page does, over every state', () => {
+		for (const state of Object.keys(TV_STATES) as (keyof typeof TV_STATES)[]) {
+			tvPairing.fresh(T0);
+			const now = nowFor(state);
+			const code = TV_STATES[state](now);
+			const read = tvPanel({ now });
+			expect(read, `${state}, nothing asked`).toMatchObject({ code, state });
+			expect(tvPairing.current()!.code, `${state}, nothing asked`).toBe(code);
+			const opened = tvPanel({ renew: true, now })!;
+			// As wifiView({ renew }) above: a live or just-used code kept, a spent one replaced.
+			if (state === 'live' || state === 'used')
+				expect(opened, state).toMatchObject({ code, state });
+			else
+				expect(opened, state).toMatchObject({
+					code: expect.not.stringMatching(code),
+					state: 'live'
+				});
+		}
+	});
+
+	it('?/renew, the page’s own word for a client-side visit, renews as a document visit does', async () => {
+		const code = burnTv(T0 + 1000);
+		const renew = settingsPage.actions.renew!;
+		// Over the Wi-Fi it renews nothing: a phone is shown no code.
+		await renew({ locals: { via: 'lan', paired: null } } as never);
+		expect(tvPairing.current()!.code).toBe(code);
+		expect(tvPairing.state(Date.now())).toBe('burned');
+		// At the computer it does.
+		await renew({ locals: { via: 'local', paired: null } } as never);
+		expect(tvPairing.current()!.code).not.toBe(code);
+		expect(tvPairing.state(Date.now())).toBe('live');
+		expect(tvPairing.triesLeft()).toBe(TV_TRIES);
 	});
 });

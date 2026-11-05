@@ -28,7 +28,7 @@ import { currentLogin, friendLogin, localOnly, setSession, slowDown } from '$lib
 import { dataPaths } from '$lib/server/data-dirs';
 import { MIN_PASSWORD, makeLogin, sessionFor, verifyPassword, writeLogin } from '$lib/server/login';
 import { checkIfStale, updateView } from '$lib/server/updates';
-import { wifiView, tvBlockHere, tvPanel } from '$lib/server/wifi';
+import { settingsVisit, wifiView, tvBlockHere, tvPanel } from '$lib/server/wifi';
 import { pairedDevices, signOutDevice } from '$lib/server/pairing';
 
 /** The languages the repositories list, most extensions first: the BROWSE row's cells. */
@@ -52,7 +52,7 @@ const LANGUAGE_CELLS = 12;
  * another device's (2C) are the workstation's copy, listed under DEVICES.
  * Counts follow reveal, as every list does: hidden series aren't counted.
  */
-export const load: PageServerLoad = async ({ cookies, url, locals }) => {
+export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest, request }) => {
 	const reveal = isRevealed(cookies);
 	const folded = (
 		getDb()
@@ -63,11 +63,15 @@ export const load: PageServerLoad = async ({ cookies, url, locals }) => {
 			)
 			.get(reveal ? 1 : 0) as { n: number }
 	).n;
+	// Opening the page on the computer renews a spent code, and only opening
+	// it: a reload of its data (every `invalidateAll()` and enhanced form)
+	// reads the codes as they are, so a burn stays burned (c531). A client-side
+	// navigation here sends `?/renew` itself (`settingsVisit`).
+	const visit = settingsVisit({ isDataRequest, method: request.method });
 	const wifi = (() => {
-		// Opening the page on the computer renews a spent code; a phone's
-		// SETTINGS over Wi-Fi is shown no code, so it makes none either (c460).
+		// A phone's SETTINGS over Wi-Fi is shown no code, so it makes none either (c460).
 		const lan = locals.via === 'lan';
-		const w = wifiView({ renew: !lan });
+		const w = wifiView({ renew: visit && !lan });
 		return w && lan ? { ...w, code: null, tv: null } : w;
 	})();
 	// With no WI-FI panel there is no row to carry the TV's six digits, so
@@ -76,7 +80,8 @@ export const load: PageServerLoad = async ({ cookies, url, locals }) => {
 	// panel and no door either: its TV signs in with the password. Nor has a
 	// token install with no ORIGIN (dev, preview, serve.ts's local mode):
 	// the hook refuses every TV's cookie there (c264).
-	const tv = tvBlockHere(locals) ? tvPanel() : null;
+	const tvHere = tvBlockHere(locals);
+	const tv = tvHere ? tvPanel({ renew: visit }) : null;
 	return {
 		values: libraryValues(),
 		counts: overrideCounts(reveal),
@@ -105,6 +110,11 @@ export const load: PageServerLoad = async ({ cookies, url, locals }) => {
 		viaLan: locals.via === 'lan',
 		// The TV's six digits where there is no WI-FI row to show them (c245).
 		tv,
+		// Whether that row is drawn here at all, code or none: a client-side
+		// visit's load is a data request that makes no code (c531), so after a
+		// restart `tv` is null until `?/renew` answers, and the row, its NEW
+		// CODE and the page's `?/renew` must not hang on it (round 2).
+		tvHere,
 		paired: Object.fromEntries(
 			[...pairedDevices()].map(([id, p]) => [id, { address: p.address, pairedAt: p.pairedAt }])
 		),
@@ -195,6 +205,20 @@ export const actions: Actions = {
 	tvCode: async ({ locals }) => {
 		if (!tvBlockHere(locals)) return fail(403, { message: 'set on the computer only' });
 		tvPanel({ fresh: true });
+		return { ok: true };
+	},
+	/**
+	 * A client-side navigation into SETTINGS (c531): a real visit, which the
+	 * load can't tell from a reload of the page's data, both being data
+	 * requests. The page sends this from `afterNavigate` when it has been
+	 * arrived at from another screen, then reloads its data to draw the result.
+	 * It renews exactly what the load does on a document visit: a spent code
+	 * on the computer, never over Wi-Fi, and the TV's only where its row is.
+	 */
+	renew: async ({ locals }) => {
+		const lan = locals.via === 'lan';
+		wifiView({ renew: !lan });
+		if (tvBlockHere(locals)) tvPanel({ renew: true });
 		return { ok: true };
 	},
 	/**
