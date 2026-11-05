@@ -52,6 +52,7 @@
 		kindCells,
 		matches,
 		NO_FILTERS,
+		parseFilters,
 		withFilters,
 		type FilterKind,
 		type Filters
@@ -1131,9 +1132,39 @@
 	afterNavigate(() => {
 		if (!landKind) return;
 		landKind = false;
+		landAtBand();
+	});
+	/** The band's own place: the band under the bar, the grid's first row under the band. */
+	function landAtBand() {
 		// A slow load draws the outline first, and a scroll then lands short:
 		// settled each frame until the grid is drawn and the page is there.
 		settleScroll(() => Math.max(0, placeUnderBar(bandMark)), true);
+	}
+
+	/**
+	 * A choice made in FILTER while the band is pinned (c557; FILTER at the
+	 * band's end, or the desktop's in the top bar): its links keep the scroll
+	 * as the band's cells do, so mid-grid the new results opened partway down
+	 * their list. It lands as a kind does. Noted with the page it was made on,
+	 * and kept to one navigation: it lands only when that page is the one
+	 * left, by a link or a goto (not BACK), and the filters really changed,
+	 * so a choice already on leaves the page where it is. Unpinned, nothing
+	 * moves. The rating blocks' own links scroll to the top, and land the
+	 * same way.
+	 */
+	let landFilterFrom: string | null = null;
+	function chooseFilter(e?: MouseEvent) {
+		const elsewhere = !!e && (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey);
+		landFilterFrom = bandPinned && !elsewhere ? location.href : null;
+	}
+	afterNavigate((nav) => {
+		const from = landFilterFrom;
+		landFilterFrom = null;
+		if (!from || !nav.from || !nav.to || nav.from.url.href !== from) return;
+		if (nav.type !== 'link' && nav.type !== 'goto') return;
+		const filtersOf = (u: URL) => JSON.stringify(filterParams(parseFilters(u.searchParams, true)));
+		if (filtersOf(nav.from.url) === filtersOf(nav.to.url)) return;
+		landAtBand();
 	});
 
 	const newOpen = $derived(page.url.searchParams.get('new') === 'shelf');
@@ -1354,6 +1385,7 @@
 							href={filterHref}
 							formAction={resolve('/')}
 							keep={keepParams}
+							onchoose={chooseFilter}
 						/>
 					</div>
 				{/if}
@@ -1788,6 +1820,7 @@
 							href={filterHref}
 							formAction={resolve('/')}
 							keep={keepParams}
+							onchoose={chooseFilter}
 						/>
 					</div>
 				{/if}

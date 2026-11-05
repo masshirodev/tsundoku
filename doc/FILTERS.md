@@ -85,6 +85,20 @@ many are on as a green badge, opens a panel with one row per filter:
   outside it, or FILTER again. ✕ CLEAR ALL drops every filter and keeps the
   shelf, the sort and the shuffle, and on the library the kind, which is the
   band's (c436).
+- **Made while the KIND band is pinned, a choice lands at the grid's start**
+  (c557), as a kind chosen there does: the band under the top bar, unpinned,
+  the new results' first row under it. The choices keep the scroll
+  (`noscroll`), so mid-grid the new results opened partway down their list
+  until then. FilterPanel's `onchoose` says a choice is being made (a row's
+  cell, CLEAR ALL, the date, a press or a key on the rating blocks); the
+  library notes the page it was made on and lands once the next screen has
+  drawn, only when that page is the one left, by a link or a goto, and the
+  filters really changed. So a choice already on, a choice made at the top
+  with the band where it lies, and BACK move nothing. The desktop's FILTER,
+  in the pinned top bar, lands the same way when the band is pinned under
+  it. The rating blocks' own links scroll to the top first, and land from
+  there. A person's page and BROWSE's filter pass no `onchoose`.
+  `tests/library-top-scroll.e2e.ts`, on all four devices.
 - **Where it sits:** pinned at the right end of the KIND band on the phone,
   tablet and TV (c436; until then, of the tabs), the band's cells scrolling
   under it, in the band's 13px with 14px a side; in the top bar beside SELECT

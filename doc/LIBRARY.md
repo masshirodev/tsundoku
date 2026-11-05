@@ -648,6 +648,12 @@ a band to select kinds on the library itself?" Designed in
   (`data-focus-down` on the strip), not the one under the cell. **Without
   script** the cells are plain links and a full load starts at the top, which
   shows the tabs, the band and the first row.
+- **A FILTER choice made while it is pinned opens at its start too** (c557):
+  the same landing, from FILTER at the band's end or the desktop's in the top
+  bar, once the filters have really changed ([`FILTERS.md`](FILTERS.md), "The
+  FILTER panel"). `landedAtBand` in `tests/library-top-scroll.e2e.ts`, which
+  both cases use, wants the band's top on the held bar's bottom (±1px) and
+  the band unpinned, as well as the first tile under the band.
 - **A shelf opens at its top** (c589, the owner, 2026-11-05: "clicking a
   shelf should set take me to the top"), unlike a kind. Until then every
   shelf link (`ShelfTabs`: the tabs, the desktop's sidebar, the waiting

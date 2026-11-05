@@ -60,6 +60,9 @@ function seed(): void {
 		);
 		for (let i = 1; i <= FILLERS; i++)
 			add.run(`Scroll Filler ${String(i).padStart(2, '0')}`, `filler:${i}`, like.id);
+		// Rated, so a rating chosen in FILTER leaves a list as tall as the
+		// fillers (c557's landing needs the room to put the band under the bar).
+		db.prepare(`UPDATE series SET rating = 8 WHERE origin_key LIKE 'filler:%'`).run();
 		// A shelf as tall as the fillers (c589): picking it mid-grid from ALL
 		// would land partway down it if a shelf kept the scroll.
 		const shelf = db
@@ -469,20 +472,42 @@ test('the KIND band sits under the tabs, over the grid, 40px, and pins under the
 	).toHaveCount(info.project.name === 'phone' ? 0 : 1);
 });
 
+/**
+ * Landed at the band's own place (c436's round 2, c557): the grid's first
+ * tile directly under the band, the band's top on the held bar's bottom
+ * (±1px), and the band no longer pinned.
+ */
+async function landedAtBand(page: Page, what = 'landed') {
+	await expect
+		.poll(
+			async () =>
+				page.evaluate(() => {
+					const band = document.querySelector('.kinds')!.getBoundingClientRect();
+					const tile = document.querySelector('.grid .tile')!.getBoundingClientRect();
+					const bar = document.querySelector('.library > header.bar')!.getBoundingClientRect();
+					return {
+						tileUnderBand: Math.abs(tile.top - band.bottom) <= 1,
+						bandUnderBar: Math.abs(band.top - bar.bottom) <= 1,
+						pinned: document.querySelector('.kinds')!.classList.contains('pinned')
+					};
+				}),
+			{ message: what }
+		)
+		.toEqual({ tileUnderBand: true, bandUnderBar: true, pinned: false });
+}
+
 test('a kind chosen from the pinned band opens at its start: the band under the bar, its first row under the band', async ({
 	page
 }) => {
 	const firstTile = (p: Page) => p.locator('.grid .tile').first();
 	const firstTitle = (p: Page) => p.locator('.grid .tile .title').first().textContent();
-	/** The grid's first tile sits directly under the band, wherever the band is. */
+	/**
+	 * The grid's first tile directly under the band, the band directly under
+	 * the held bar, and no longer pinned: the band's own place (c557 tightened
+	 * it; a tile under a band still pinned mid-list also met the first half).
+	 */
 	async function landedUnderBand() {
-		await expect
-			.poll(async () => {
-				const band = await kinds(page).evaluate((b) => b.getBoundingClientRect().bottom);
-				const tile = await firstTile(page).evaluate((t) => t.getBoundingClientRect().top);
-				return Math.abs(tile - band);
-			})
-			.toBeLessThanOrEqual(1);
+		await landedAtBand(page);
 	}
 	/** What a fresh load of the kind shows first. */
 	async function freshFirst(kind: string | null): Promise<string | null> {
@@ -507,7 +532,9 @@ test('a kind chosen from the pinned band opens at its start: the band under the 
 	const shelf = kinds(page).getByRole('button', { name: /^ALL/ });
 	await expect(shelf).toBeVisible();
 	await cell.click();
-	await expect(page).toHaveURL(new RegExp(`kind=${kind}`));
+	// The test's budget, not expect's 5 s: the URL moves once the data is in,
+	// which ran out at a load of 54 (doc/TESTING.md, "Load").
+	await page.waitForURL(new RegExp(`kind=${kind}`));
 	await expect(cell).toHaveAttribute('aria-current', 'true');
 	await landedUnderBand();
 	expect(await firstTitle(page)).toBe(want);
@@ -518,10 +545,85 @@ test('a kind chosen from the pinned band opens at its start: the band under the 
 	await expect(shelf).toBeVisible();
 	const all = kinds(page).locator('.kscroll a').first();
 	await all.click();
-	await expect(page).not.toHaveURL(/kind=/);
+	await page.waitForURL((u) => !u.searchParams.has('kind'));
 	await expect(all).toHaveAttribute('aria-current', 'true');
 	await landedUnderBand();
 	expect(await firstTitle(page)).toBe(wantAll);
+});
+
+// ---- c557: a FILTER choice from the pinned band lands at the grid's start ----------
+
+test('a FILTER choice from the pinned band opens the new results at their start; one already on, or made at the top, moves nothing (c557)', async ({
+	page
+}, info) => {
+	const firstTitle = (p: Page) => p.locator('.grid .tile .title').first().textContent();
+	// The desktop's FILTER is the top bar's, pinned with it; the others' the band's last cell.
+	const filter = page.locator(isDesktop(info.project.name) ? '.filter-desk' : '.kfilter');
+	const panel = filter.getByRole('group', { name: 'Filters' });
+	const form = (choice: string) =>
+		panel.locator('.row', { hasText: 'FORM' }).getByRole('link', { name: choice, exact: true });
+	async function open() {
+		if (!(await panel.isVisible())) await filter.locator('summary').click();
+		await expect(panel).toBeVisible();
+	}
+	/** What a fresh load shows first. */
+	async function freshFirst(query: string): Promise<string | null> {
+		const other = await page.context().newPage();
+		await other.goto(`${BASE}/?shelf=all&sort=title${query}`);
+		await expect(other.locator('.grid .tile').first()).toBeVisible();
+		const t = await firstTitle(other);
+		await other.close();
+		return t;
+	}
+	const want = await freshFirst('&form=series');
+
+	await page.goto(`${BASE}/?shelf=all&sort=title`);
+	await expect(page.locator('.grid .tile').first()).toBeVisible();
+	await scrollScreens(page, 1.5);
+	await expect(kinds(page)).toHaveClass(/pinned/);
+	await open();
+	await form('SERIES').click();
+	// A client-side navigation: the URL moves once the data is in, so the
+	// test's budget, not expect's 5 s (doc/TESTING.md, "Load").
+	await page.waitForURL(/form=series/);
+	await landedAtBand(page, 'FORM: SERIES');
+	expect(await firstTitle(page)).toBe(want);
+	// The panel stays open on the choice, over the grid; DONE shows the first row.
+	await panel.getByRole('button', { name: 'DONE' }).click();
+	await expect(panel).toBeHidden();
+	await expect(page.locator('.grid .tile').first()).toBeInViewport();
+
+	// The one already on, from the pinned band again: nothing changes, so
+	// nothing moves.
+	await scrollScreens(page, 1.5);
+	await expect(kinds(page)).toHaveClass(/pinned/);
+	await open();
+	const at = await windowY(page);
+	await form('SERIES').click();
+	await expect(form('SERIES')).toHaveAttribute('aria-current', 'true');
+	await page.waitForTimeout(600); // nothing is to happen: a while for it not to
+	expect(await windowY(page)).toBe(at);
+	await expect(page).toHaveURL(/form=series/);
+
+	// The rating blocks, the panel's other way to choose (their own links,
+	// which scroll to the top): lands the same.
+	const blocks = panel.locator('.blocks');
+	await blocks.getByRole('link', { name: 'At least 3+' }).click();
+	await page.waitForURL(/min=6/);
+	await landedAtBand(page, 'the rating blocks');
+	await panel.getByRole('button', { name: 'DONE' }).click();
+
+	// At the top, the band where it lies: a choice moves nothing. (FILTER's
+	// panel brings itself into view as it opens, so the place is read after.)
+	await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
+	await expect(kinds(page)).not.toHaveClass(/pinned/);
+	await open();
+	const top = await windowY(page);
+	await expect(kinds(page)).not.toHaveClass(/pinned/);
+	await form('ANY').click();
+	await page.waitForURL((u) => !u.searchParams.has('form'));
+	await page.waitForTimeout(600); // nothing is to happen: a while for it not to
+	expect(await windowY(page)).toBe(top);
 });
 
 // ---- c590: an open menu over the KIND band ------------------------------------------

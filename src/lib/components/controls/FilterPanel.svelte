@@ -45,7 +45,8 @@
 		band = false,
 		kindRow = true,
 		formRow = false,
-		countKind = true
+		countKind = true,
+		onchoose
 	}: {
 		filters: Filters;
 		/** Codes present on the shelf: LANGUAGE offers these, and doesn't exist without any. */
@@ -77,6 +78,14 @@
 		formRow?: boolean;
 		/** Whether the badge counts a kind: not where the band shows it (c436). */
 		countKind?: boolean;
+		/**
+		 * A choice is being made here (c557): a row's cell, CLEAR ALL, the date,
+		 * or the rating blocks, with the click when there is one. Called before
+		 * the navigation it starts, so the caller can say where the page should
+		 * land once it has drawn (the library's pinned band); it navigates
+		 * nothing itself. A person's page and BROWSE's filter pass none.
+		 */
+		onchoose?: (e?: MouseEvent) => void;
 	} = $props();
 
 	/**
@@ -114,6 +123,7 @@
 	const cleared = $derived(kindRow ? NO_FILTERS : { ...NO_FILTERS, kind: filters.kind });
 
 	function choose(f: Filters) {
+		onchoose?.();
 		if (onchange) onchange(f);
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- the caller's href resolves
 		else if (href) void goto(href(f), { noScroll: true, keepFocus: true });
@@ -155,7 +165,8 @@
 								href={href(c.to)}
 								aria-current={c.on ? 'true' : undefined}
 								data-sveltekit-noscroll
-								data-sveltekit-keepfocus>{c.label}</a
+								data-sveltekit-keepfocus
+								onclick={(e) => onchoose?.(e)}>{c.label}</a
 							>
 							<!-- eslint-enable svelte/no-navigation-without-resolve -->
 						{:else}
@@ -169,7 +180,18 @@
 						{/if}
 					{/each}
 					{#if row.key === 'rating'}
-						<div class="blocks">
+						<!-- The blocks are RatingSlider's own links and drag, which call
+						     nothing back: a press on them, or a key that moves them, is a
+						     choice being made (c557). -->
+						<div
+							class="blocks"
+							role="presentation"
+							onpointerdowncapture={() => onchoose?.()}
+							onkeydowncapture={(e) => {
+								if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter', ' '].includes(e.key))
+									onchoose?.();
+							}}
+						>
 							<RatingSlider
 								mode="min"
 								label={null}
@@ -205,10 +227,15 @@
 		{/each}
 		<div class="foot">
 			{#if href && !onchange}
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the caller's href resolves -->
-				<a class="clear" class:none={n === 0} href={href(cleared)} data-sveltekit-noscroll
-					>✕ CLEAR ALL</a
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- the caller's href resolves -->
+				<a
+					class="clear"
+					class:none={n === 0}
+					href={href(cleared)}
+					data-sveltekit-noscroll
+					onclick={(e) => onchoose?.(e)}>✕ CLEAR ALL</a
 				>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			{:else}
 				<button type="button" class="clear" class:none={n === 0} onclick={() => choose(cleared)}
 					>✕ CLEAR ALL</button
