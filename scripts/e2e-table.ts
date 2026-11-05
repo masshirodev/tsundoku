@@ -106,8 +106,19 @@ export function documentedSkip(doc: string): string | null {
 	return null;
 }
 
-/** The import that gives a spec the fixtures' `test` (doc/TESTING.md, "E2E specs"). */
-const FIXTURE_TEST = /^import .*\btest\b.* from '(\.\/fixtures|\.\/helpers\/hydrated)'/m;
+/**
+ * The import that gives a spec the fixtures' `test` (doc/TESTING.md, "E2E
+ * specs"), as one pattern that both this file and the doc's `rg -UP` loop use
+ * verbatim (`tests/e2e-table.spec.ts` holds them equal; c562). It spans lines,
+ * because Prettier wraps an import past the print width over several, one
+ * name a line, and until c562 a one-line pattern counted such a file as off
+ * the fixtures. A `type`-only import of `test` (`import type { test }`, or
+ * `{ type test }`) gives no `test` at run time, so it does not count. The
+ * quote is `\x27` so the doc can single-quote the whole pattern for the
+ * shell, where `!` would otherwise be history expansion.
+ */
+export const FIXTURE_PATTERN = String.raw`^import\s*\{[^}]*(?<!\btype\s)\btest\b[^}]*\}\s*from\s*\x27(\./fixtures|\./helpers/hydrated)\x27`;
+const FIXTURE_TEST = new RegExp(FIXTURE_PATTERN, 'm');
 
 /**
  * Every `tests/*.e2e.ts` by whether its `test` is the fixtures' (which waits
@@ -126,7 +137,8 @@ export function fixtureUse(dir = join(ROOT, 'tests')): { using: string[]; not: s
 
 const FIXTURES_START = '<!-- e2e-fixtures:start -->';
 const FIXTURES_END = '<!-- e2e-fixtures:end -->';
-const DELIBERATE = '- **On purpose, to act before hydration:**';
+/** The hand-written bullet's own words; it may name no file at all. */
+export const DELIBERATE = '- **On purpose, to act before hydration:**';
 
 /**
  * The files doc/TESTING.md names, by hand, as taking `@playwright/test`'s

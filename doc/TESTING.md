@@ -252,14 +252,20 @@ mounted: the element exists exactly when every handler does. A document that
 isn't SvelteKit's (an API's JSON, a page with script off) is not waited for.
 Until wave 21 only the specs importing `tests/helpers/hydrated.ts` had this
 wait; the fixtures have it since c477, and `hydrated.ts` is now a
-pass-through of `tests/fixtures.ts` under its old name, kept for its eighteen
-importers (`rg -ln "helpers/hydrated'" tests/`). `hydrated(page)` is
+pass-through of `tests/fixtures.ts` under its old name, kept for the files
+that still import it. Count them when you need the number,
+`rg -l "helpers/hydrated'" tests/ | wc -l`, rather than reading one here: a
+typed count goes stale with the next slot's file (it said eighteen until
+c562, when there were 19). `hydrated(page)` is
 exported from both for a page the fixture didn't make (a context of a spec's
 own: `tv-pair`'s TV). The files that do **not** take the fixture's `test`
-are the ones this prints:
+are the ones this prints (`-U` because Prettier wraps a long import over
+several lines, `-P` for the lookbehind that leaves out a `type`-only
+`test`; the pattern is `FIXTURE_PATTERN` in `scripts/e2e-table.ts`, and
+`tests/e2e-table.spec.ts` fails while the two differ, c562):
 
 ```sh
-for f in tests/*.e2e.ts; do rg -q "^import .*\btest\b.* from '(\./fixtures|\./helpers/hydrated)'" "$f" || echo "$f"; done
+for f in tests/*.e2e.ts; do rg -UPq '^import\s*\{[^}]*(?<!\btype\s)\btest\b[^}]*\}\s*from\s*\x27(\./fixtures|\./helpers/hydrated)\x27' "$f" || echo "$f"; done
 ```
 
 Their `test` is `@playwright/test`'s, whose `goto` waits for nothing more
