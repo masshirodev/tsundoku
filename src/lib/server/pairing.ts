@@ -215,12 +215,28 @@ export class TvPairing {
 		return Math.max(0, TV_TRIES - (this.code?.tries ?? 0));
 	}
 
+	/**
+	 * The one answer to "what is the TV's code now", which every door reads:
+	 * SETTINGS' DEVICES row and its refresh (`tvCodeNow`), the WI-FI panel
+	 * (`wifiView`), `/pair/tv`'s page and its PAIR (`redeem`), and the
+	 * computer's `/api/pair/tv`.
+	 *
+	 * **Burned is burned for good** (c581): a code five wrong tries burned
+	 * stays `burned` past its 10 minutes, rather than turning `expired`. Until
+	 * c581 the clock was asked first, so the DEVICES row's refresh turned
+	 * BURNED into EXPIRED once the 10 minutes ran out, and restarted the 5 s
+	 * poll a burned code never needs, while `/pair/tv` kept NO TRIES LEFT by a
+	 * rule of its own. EXPIRED's remedy is one the TV's page makes by itself
+	 * (`renewForTv`); a burned code's is the computer's alone, so the two must
+	 * never be told apart by the clock. A used code is `used` whatever its
+	 * tries: `redeem` never marks a burned code used.
+	 */
 	state(now: number): TvState {
 		const c = this.code;
 		if (!c) return 'none';
 		if (c.used) return 'used';
-		if (now - c.madeAt >= CODE_MS) return 'expired';
-		return c.tries >= TV_TRIES ? 'burned' : 'live';
+		if (c.tries >= TV_TRIES) return 'burned';
+		return now - c.madeAt >= CODE_MS ? 'expired' : 'live';
 	}
 
 	/**
@@ -231,9 +247,9 @@ export class TvPairing {
 	 *
 	 * - **None**: made.
 	 * - **Expired**, with tries left: replaced.
-	 * - **Burned** (five wrong tries): kept, expired or not -- `state` says
-	 *   `expired` for a burned code past its 10 minutes, so this reads the
-	 *   tries, not the state. Only the computer makes another (9D's reason).
+	 * - **Burned** (five wrong tries): kept, past its 10 minutes or not
+	 *   (`state` says `burned` either way since c581). Only the computer makes
+	 *   another (9D's reason).
 	 * - **Used**: replaced once it is older than the 2 minutes the computer
 	 *   keeps ✓ USED up (`TV_USED_SHOWN_MS`). A TV that is not paired and
 	 *   finds a used code is another device than the one that spent it, or the
@@ -262,13 +278,15 @@ export class TvPairing {
 	/**
 	 * A TV typed `code`: once, within its 10 minutes, with a try to spare.
 	 * `wrong` is a guess that still leaves tries; the last one burns the code.
+	 * Asked in `state`'s order (c581), so a burned code past its 10 minutes
+	 * answers `burned`, the band that says only the computer makes another.
 	 */
 	redeem(code: string, now: number, who: string): TvRedeemed {
 		const c = this.code;
 		if (!c) return 'expired';
 		if (c.used) return 'used';
-		if (now - c.madeAt >= CODE_MS) return 'expired';
 		if (c.tries >= TV_TRIES) return 'burned';
+		if (now - c.madeAt >= CODE_MS) return 'expired';
 		if (!sameCode(c.code, code)) {
 			c.tries += 1;
 			return c.tries >= TV_TRIES ? 'burned' : 'wrong';

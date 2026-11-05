@@ -642,6 +642,49 @@ test('a burned code stays burned through a reload of SETTINGS’ data, and a rea
 	await mode.getByRole('button', { name: 'R→L' }).click();
 });
 
+// ---- c581: burned is burned on both screens ----------------------------------
+
+/**
+ * The DEVICES row and `/pair/tv` once a burned code's 10 minutes have run
+ * out (c581). `TvPairing.state` asked the clock first, so the row's refresh
+ * turned BURNED into EXPIRED and its 5 s poll, which a burned code never
+ * needs, started again, while the TV's page still said NO TRIES LEFT.
+ */
+test('a burned code past its 10 minutes stays BURNED on the DEVICES row, with no 5 s poll, as /pair/tv says (c581)', async () => {
+	await newCode(A);
+	const page = await settingsOn(A);
+	const burned = await burnOn(A);
+	await rowBurned(page);
+
+	// Past the code's 10 minutes, and long past them.
+	for (const later of [10 * 60_000 + 5_000, 60 * 60_000]) {
+		await clockAt(A, later);
+		expect(await codeOn(A), `${later} ms on`).toMatchObject({ code: burned, state: 'burned' });
+		// The owner comes back to the window: the row asks, and still says BURNED.
+		await rowBurned(page);
+		await expect(page.getByText('EXPIRED · MAKE A NEW CODE')).toHaveCount(0);
+
+		// And the 5 s poll does not start again: more than two ticks, no ask.
+		let asks = 0;
+		const count = (r: { url(): string }) => {
+			if (new URL(r.url()).pathname === '/settings/tv') asks += 1;
+		};
+		page.on('request', count);
+		// The one fixed wait here asserts that nothing happens (doc/TESTING.md, "Load").
+		await page.waitForTimeout(11_000);
+		page.off('request', count);
+		expect(asks, `${later} ms on: the row's poll asked`).toBe(0);
+
+		// The TV's page says the same about the same code.
+		const { page: onTv } = await tv();
+		await openPairing(onTv, A);
+		await expect(onTv.locator('.band')).toContainText('NO TRIES LEFT');
+		await expect(onTv.getByRole('button', { name: 'PAIR →' })).toBeDisabled();
+		expect((await codeOn(A)).code).toBe(burned);
+	}
+	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('BURNED');
+});
+
 // ---- c545 ---------------------------------------------------------------------
 
 /** MainActivity.kt's PAIRED_JS, the very literal the app runs on 9E. */

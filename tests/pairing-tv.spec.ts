@@ -116,8 +116,11 @@ describe('a TV code (doc/TV.md)', () => {
 			const c = p.fresh(0);
 			burn(p, 1);
 			expect(p.renewForTv(2)).toBe(false);
-			// `state` says expired here: burned first, then the clock ran out.
-			expect(p.state(CODE_MS)).toBe('expired');
+			// Burned first, then the clock ran out: still burned (c581).
+			expect(p.state(CODE_MS)).toBe('burned');
+			expect(p.state(CODE_MS * 50)).toBe('burned');
+			// And PAIR with the right digits says so too, not THAT CODE EXPIRED.
+			expect(p.redeem(c.code, CODE_MS, 'tv')).toBe('burned');
 			expect(p.renewForTv(CODE_MS)).toBe(false);
 			expect(p.renewForTv(CODE_MS * 50)).toBe(false);
 			expect(p.current()).toBe(c);

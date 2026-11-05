@@ -38,14 +38,13 @@ const computerName = () => (hostname() || 'computer').toUpperCase();
 const ensureCode = (now: number) => tvPairing.renewForTv(now);
 
 /**
- * The state the page draws. A burned code is burned for good, so one past its
- * 10 minutes still says NO TRIES LEFT rather than THIS CODE EXPIRED, whose
- * remedy (a new code) this page would otherwise seem to owe it.
+ * The state the page draws: `TvPairing.state`, the one rule SETTINGS' DEVICES
+ * row and WI-FI panel read too (c581). A burned code is burned for good, so one
+ * past its 10 minutes still says NO TRIES LEFT rather than THIS CODE EXPIRED,
+ * whose remedy (a new code) this page would otherwise seem to owe it. Until
+ * c581 this page held that rule alone, and the computer said EXPIRED.
  */
-const shown = (now: number) =>
-	tvPairing.triesLeft() === 0 && tvPairing.state(now) === 'expired'
-		? ('burned' as const)
-		: tvPairing.state(now);
+const shown = (now: number) => tvPairing.state(now);
 
 export const load: PageServerLoad = ({ cookies, url }) => {
 	const now = Date.now();

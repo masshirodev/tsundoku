@@ -177,9 +177,15 @@ one at a time.
   merely expired (the first real TV found one 25 minutes old), and when it was
   used more than the 2 minutes the computer keeps ✓ USED up (by another
   device, or by this TV before it was signed out). A **burned** code is kept,
-  even once its 10 minutes have run out (when `state` says `expired`): five
-  wrong tries need the computer, and the page says NO TRIES LEFT · MAKE A NEW
-  CODE ON THE COMPUTER. A code made this way **keeps the old one's wrong
+  even once its 10 minutes have run out: five wrong tries need the computer,
+  and the page says NO TRIES LEFT · MAKE A NEW CODE ON THE COMPUTER.
+  **Burned is burned on both screens** (c581): `TvPairing.state` answers
+  `burned` before it asks the clock, and every door reads it (the DEVICES
+  row's refresh, `tvCodeNow`; the WI-FI panel, `wifiView`; `/pair/tv`'s page
+  and its PAIR, `redeem`; `/api/pair/tv`). Until c581 the clock was asked
+  first, so a burned code past its 10 minutes was EXPIRED on the computer,
+  whose row's 5 s poll then started again, and NO TRIES LEFT on the TV, by a
+  rule `/pair/tv` kept alone; digits typed then got THAT CODE EXPIRED. A code made this way **keeps the old one's wrong
   tries**: only the owner's doors (NEW CODE, ON, opening SETTINGS) give five
   again, so opening `/pair/tv` every 10 minutes buys no more guesses than
   before. Digits typed after their code ran out get THAT CODE EXPIRED · THE
@@ -312,7 +318,10 @@ visit, `tvPanel` with and without `renew` in every state, and `?/renew`
 renewing at the computer and not over Wi-Fi; c460: which doors may make a code; the door check,
 the poll and OFF leave a burned, expired or used code as it is, in every
 state a TV code can be in, and only the load's renew, NEW CODE and ON make
-one), and `tests/friend-wifi.e2e.ts` on the friend project's install, served by
+one; c581: a burned code read `burned` either side of its 10 minutes and long
+after, by `tvCodeNow`, `tvPanel`, `wifiView`, `/api/pair/tv`, `/pair/tv`'s
+load and its PAIR with the right digits, and an unburned one still expiring),
+and `tests/friend-wifi.e2e.ts` on the friend project's install, served by
 serve.ts so the listeners are the real ones on this machine's home address:
 off, ON with a code and the address, a TV code burned by five wrong tries
 over the Wi-Fi drawn BURNED by the panel's poll with the same burned code on
@@ -349,7 +358,9 @@ carrying only the paired cookie reaching `/` and `/settings` on the tailnet
 host and landing on `/login` at localhost),
 `tests/tv-pair-origins.e2e.ts` (servers of its own with their clocks moved:
 an expired code made new by `/pair/tv` and paired, a used one kept for ✓
-USED's 2 minutes, a burned one kept past its 10 minutes, c246; two servers
+USED's 2 minutes, a burned one kept past its 10 minutes, c246; the DEVICES
+row still BURNED past those 10 minutes, on a focus and with no 5 s poll, as
+`/pair/tv` says, c581; two servers
 on one host each keeping its own pairing, and the old name moved, c530;
 and the computer's DEVICES row, open in a browser of its own and never
 refocused, turning EXPIRED and then drawing the code the TV made, then ✓
