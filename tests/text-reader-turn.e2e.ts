@@ -265,6 +265,54 @@ test('a scrub during a slide wins: the turn gives way instead of landing one pas
 	await expect(track).toHaveAttribute('aria-valuenow', '1');
 });
 
+test('a scrub onto a band-only last page during a slide wins (c515)', async ({ page }) => {
+	const id = await firstChapter(page);
+	await openAt(page, id);
+	const { step, pages } = await flow(page);
+	expect(pages).toBeGreaterThanOrEqual(3);
+	// Is the last page the band alone? Look from there, then come back.
+	for (let i = 1; i < pages; i++) {
+		await page.keyboard.press('ArrowRight');
+		await expect.poll(async () => (await flow(page)).at).toBe(-i * step);
+		await landed(page);
+	}
+	const band = await bandOnly(page);
+	test.skip(!band, "this device's last page has text on it: the case needs the band alone");
+	await openAt(page, id);
+	// Page 2, with the controls up.
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(async () => (await flow(page)).at).toBe(-step);
+	await landed(page);
+	await page.keyboard.press('Escape');
+	const track = page.locator('footer .track');
+	await expect(track).toHaveAttribute('aria-valuenow', '2');
+	const box = (await track.boundingBox())!;
+	await page.evaluate(() => {
+		const w = window as unknown as { keyAt: number; scrubAt: number };
+		addEventListener('keydown', () => (w.keyAt = performance.now()), {
+			once: true,
+			capture: true
+		});
+		document
+			.querySelector('footer .track')!
+			.addEventListener('pointerdown', () => (w.scrubAt = performance.now()), { once: true });
+	});
+	// ← turns towards page 1; the track's right end asks for the last page, the
+	// band alone, mid-slide. That page has no character, so `pos` doesn't change
+	// there: until the move counter, the turn then went one back from it.
+	await page.keyboard.press('ArrowLeft');
+	await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+	const gap = await page.evaluate(() => {
+		const w = window as unknown as { keyAt: number; scrubAt: number };
+		return w.scrubAt - w.keyAt;
+	});
+	expect(gap).toBeLessThan(220);
+	await landed(page);
+	await page.waitForTimeout(500);
+	expect((await flow(page)).at).toBe(-(pages - 1) * step);
+	await expect(track).toHaveAttribute('aria-valuenow', String(pages));
+});
+
 test('a second finger cancels a drag: the page goes back rather than jerking to it (c515)', async ({
 	page
 }) => {

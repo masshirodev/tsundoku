@@ -252,6 +252,12 @@
 	 */
 	let onBand = false;
 	let page = $state(0);
+	/**
+	 * Counts the reader's own moves (`go`, `openChapter`), so a slide can tell
+	 * whether something newer moved it while it slid (c515). A relayout is not
+	 * a move and doesn't count.
+	 */
+	let moves = 0;
 	let pages = $state(1);
 	let atEnd = $state(false);
 	let scrollFraction = $state(0);
@@ -441,6 +447,7 @@
 	}
 
 	async function openChapter(i: number, at: 'start' | 'end' | TextPosition) {
+		moves++;
 		if (!book || !entries[i]) return;
 		if (entries[i].file !== bookFile) {
 			// Into another volume: its book downloads once, the OPENING screen over it.
@@ -599,6 +606,7 @@
 	}
 
 	async function go(to: number) {
+		moves++;
 		// A slide in flight is the old place's: the page shown is this one (c515).
 		sliding = false;
 		drag = 0;
@@ -699,19 +707,21 @@
 		}
 		turning = true;
 		if (pageThat(dir)) {
-			// The place this turn starts from. Anything else that moves the reader
-			// while it slides (the scrubber, CONTENTS, a chapter opening) is the
-			// newer ask, and the turn gives way to it (c515): turning from where
-			// that left off went one past it. A relayout moves `page` but not
-			// `pos`, the character being read, so it doesn't count: the page
-			// after that character is still the one to land on.
-			const from = { pos, index };
+			// Anything else that moves the reader while it slides (the scrubber,
+			// CONTENTS, a chapter opening) is the newer ask, and the turn gives way
+			// to it (c515): turning from where that left off went one past it. The
+			// move counter says so, not `pos`: a scrub onto the band's page alone
+			// leaves `pos` as it was. A relayout moves `page` without counting as
+			// a move, so the page after the character being read is still the one
+			// to land on.
+			const fromMoves = moves;
+			const fromIndex = index;
 			sliding = true;
 			drag = dir === 'next' ? step : -step;
 			await pause(TURN_MS);
 			sliding = false;
 			drag = 0;
-			if (pos === from.pos && index === from.index && !atEnd)
+			if (moves === fromMoves && index === fromIndex && !atEnd)
 				await go(dir === 'next' ? page + 1 : page - 1);
 		} else {
 			drag = 0;

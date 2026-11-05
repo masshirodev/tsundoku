@@ -167,8 +167,12 @@ Paged turns slide and follow the finger, as a manga's do ([`READER.md`](READER.m
   CONTENTS, a chapter opening. The slide stops where the newer ask put the
   page, and the turn gives way to it; until c515 it chose its page when the
   slide ended, one past wherever the scrub had left it (a remote's →, OK onto
-  the scrubber, ← within 220 ms did it). A relayout mid-slide is not a move:
-  it keeps the character being read, so the turn still lands on the page
+  the scrubber, ← within 220 ms did it). The reader counts its own
+  moves (each page it goes to, each chapter it opens), and the turn lands only
+  if the count is still the one it started with: comparing the character
+  being read missed a scrub onto the band's page alone, which has no
+  character, so the turn went one back from it. A relayout mid-slide is not a
+  move: it keeps the character being read, so the turn still lands on the page
   after it.
 - **One finger drags** (c515). The press follows the pointer that began it; a
   second finger going down (a pinch beginning) ends it as a cancel would, so

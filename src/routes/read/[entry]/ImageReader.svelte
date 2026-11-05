@@ -622,6 +622,12 @@
 	let drag = $state(0);
 	let slideTo = $state<string | null>(null);
 	let animating = $state(false);
+	/**
+	 * A turn is in flight, from its first frame to its tail. Not `animating`:
+	 * `go()` clears that mid-slide, and a second turn started then had its slide
+	 * cleared by the first one's tail (c515).
+	 */
+	let turning = false;
 	/** The side a neighbour is shown on, while dragging or sliding. */
 	let peek = $state<-1 | 1 | null>(null);
 
@@ -709,7 +715,7 @@
 	async function turn(dir: 'next' | 'prev') {
 		zones = false;
 		lookup = null;
-		if (animating) {
+		if (turning || animating) {
 			queued = dir;
 			return;
 		}
@@ -726,6 +732,7 @@
 		const from = { entry: data.entry.id, at, half, atEnd };
 		const still = () =>
 			data.entry.id === from.entry && at === from.at && half === from.half && atEnd === from.atEnd;
+		turning = true;
 		peek = sideOf(dir);
 		await tick();
 		await new Promise((r) => requestAnimationFrame(r));
@@ -743,6 +750,7 @@
 			if (dir === 'next') next();
 			else prev();
 		}
+		turning = false;
 		const then = queued;
 		queued = null;
 		if (then) void turn(then);

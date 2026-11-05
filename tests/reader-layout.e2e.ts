@@ -217,6 +217,58 @@ test('a scrub during a slide wins: the turn gives way instead of landing one pas
 	await expect(track).toHaveAttribute('aria-valuenow', '1');
 });
 
+test('a turn asked for right after a mid-slide scrub waits for the first, and slides whole (c515)', async ({
+	page
+}) => {
+	await open(page);
+	const track = page.locator('footer[aria-label="Reader controls"] .track');
+	const stage = page.locator('.stage .track');
+	await page.keyboard.press('Escape');
+	await expect(track).toBeVisible();
+	const box = (await track.boundingBox())!;
+	// Page 1 (R→L: the track's right end), then where one turn on from it lands,
+	// a spread or a page: ← reads on.
+	await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+	await expect(track).toHaveAttribute('aria-valuenow', '1');
+	await page.keyboard.press('ArrowLeft');
+	await expect
+		.poll(async () => Number(await track.getAttribute('aria-valuenow')))
+		.toBeGreaterThan(1);
+	await expect(stage).not.toHaveClass(/animating/);
+	const one = Number(await track.getAttribute('aria-valuenow'));
+	// How long each slide runs: the span the track holds `animating`.
+	await page.evaluate(() => {
+		const w = window as unknown as { spans: number[]; on: number | null; keys: number[] };
+		w.spans = [];
+		w.on = null;
+		w.keys = [];
+		addEventListener('keydown', () => w.keys.push(performance.now()), { capture: true });
+		const el = document.querySelector('.stage .track')!;
+		new MutationObserver(() => {
+			const now = el.classList.contains('animating');
+			if (now && w.on === null) w.on = performance.now();
+			else if (!now && w.on !== null) {
+				w.spans.push(performance.now() - w.on);
+				w.on = null;
+			}
+		}).observe(el, { attributes: true, attributeFilter: ['class'] });
+	});
+	// ← turns on; mid-slide the scrub asks for page 1, and ← again at once. The
+	// second turn is taken when the first's slide is done, from page 1.
+	await page.keyboard.press('ArrowLeft');
+	await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+	await page.keyboard.press('ArrowLeft');
+	const keys = await page.evaluate(() => (window as unknown as { keys: number[] }).keys);
+	expect(keys[1] - keys[0]).toBeLessThan(220);
+	await page.waitForTimeout(800);
+	await expect(stage).not.toHaveClass(/animating/);
+	await expect(track).toHaveAttribute('aria-valuenow', String(one));
+	// Its slide ran its whole 220 ms: until the turn had its own guard, the
+	// first turn's tail cut it short, and the page snapped there.
+	const spans = await page.evaluate(() => (window as unknown as { spans: number[] }).spans);
+	expect(spans.at(-1)!).toBeGreaterThanOrEqual(200);
+});
+
 test('a second finger cancels a drag: the page goes back rather than jerking to it (c515)', async ({
 	page
 }) => {
