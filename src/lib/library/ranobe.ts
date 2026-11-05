@@ -12,8 +12,8 @@ import { kindFacts } from './kinds.ts';
  * c98 (2026-10-14), once Ranobe's works counted their own chapters (its card
  * c226); anime since card c240 (2026-11-03), as one work for the whole show,
  * its episodes counted straight through the seasons (Ranobe c134,
- * doc/RANOBE.md, "Anime"). Doujinshi never: they're Hentoid's, and Hentoid
- * stays off Ranobe.
+ * doc/RANOBE.md, "Anime"). Doujinshi never, whichever importer made them:
+ * Hentoid's books, or a Mihon gallery source's series.
  */
 export const RANOBE_KINDS: readonly Kind[] = ['novel', 'manga', 'manhwa', 'anime'];
 

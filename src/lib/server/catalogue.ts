@@ -673,7 +673,11 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 	return n;
 }
 
-/** What a catalogue of manga, novels and anime holds: never a doujin, never Hentoid's. */
+/**
+ * The owner-facing queue, and the pass that fills it: what a catalogue of manga,
+ * novels and anime holds, never a doujin, never Hentoid's. An import's Mihon
+ * tracker is the other door, and it can link a doujin (`resolveLinks`).
+ */
 // A browsing record (doc/BROWSING.md) is never in the LINK queue: it isn't the library's.
 const LINKABLE = `s.kind IN ('manga', 'manhwa', 'novel', 'anime') AND s.source != 'hentoid' AND ${IN_LIBRARY_SQL}`;
 
@@ -1366,7 +1370,9 @@ export type LinkState = {
 };
 
 /**
- * The LINK and COVER rows (Series Link 1k–1s). Null for what's never linked: doujins.
+ * The LINK and COVER rows (Series Link 1k–1s). Null for a doujin: it is never
+ * offered a LINK row, although an import's Mihon tracker can link one
+ * (`resolveLinks`).
  * An anime answers for one season (c240): the one the screen asked about, or
  * the one CONTINUE is in.
  */
