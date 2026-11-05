@@ -15,8 +15,9 @@ import { pathToFileURL } from 'node:url';
  * frame are the app's padding (Insets.kt, InsetsTest.kt), so the page itself
  * starts at the header here.
  *
- * Every test sets its own viewport and screen, so the file says the same thing
- * in whichever device project runs it.
+ * Every test sets its own viewport, so the file says the same thing in
+ * whichever device project runs it. Chromium emulates the screen at the
+ * viewport's size, which is what the page's phone-or-tablet word reads.
  */
 const page9 = pathToFileURL(
 	join(process.cwd(), 'android/tv/app/src/main/assets/pair/index.html')
@@ -70,7 +71,7 @@ const css = (page: Page, selector: string, prop: string) =>
 	page.locator(selector).evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
 
 test.describe('on a phone, 360 x 780', () => {
-	test.use({ viewport: { width: 360, height: 780 }, screen: { width: 360, height: 780 } });
+	test.use({ viewport: { width: 360, height: 780 } });
 
 	test('9A is the phone column: the device word, the short header, START at the bottom', async ({
 		page
@@ -204,7 +205,7 @@ test.describe('on a phone, 360 x 780', () => {
 });
 
 test.describe('on a tablet, 1280 x 800', () => {
-	test.use({ viewport: { width: 1280, height: 800 }, screen: { width: 1280, height: 800 } });
+	test.use({ viewport: { width: 1280, height: 800 } });
 
 	test("9A is the TV's arrangement in flow: three steps across, START beside its line", async ({
 		page
@@ -269,7 +270,7 @@ test.describe('on a tablet, 1280 x 800', () => {
 });
 
 test.describe('on a tablet in portrait, 800 x 1280', () => {
-	test.use({ viewport: { width: 800, height: 1280 }, screen: { width: 800, height: 1280 } });
+	test.use({ viewport: { width: 800, height: 1280 } });
 
 	test('the page starts 48 below the header', async ({ page }) => {
 		await phoneBridge(page);
@@ -279,7 +280,7 @@ test.describe('on a tablet in portrait, 800 x 1280', () => {
 });
 
 test.describe('a phone turned on its side, 780 x 360', () => {
-	test.use({ viewport: { width: 780, height: 360 }, screen: { width: 780, height: 360 } });
+	test.use({ viewport: { width: 780, height: 360 } });
 
 	test("is still a phone in its words, laid out as a tablet's", async ({ page }) => {
 		await phoneBridge(page);
@@ -291,7 +292,7 @@ test.describe('a phone turned on its side, 780 x 360', () => {
 });
 
 test.describe('the TV, with no form from its bridge', () => {
-	test.use({ viewport: { width: 960, height: 540 }, screen: { width: 1920, height: 1080 } });
+	test.use({ viewport: { width: 960, height: 540 } });
 
 	test("keeps its words and its 960 frame; only step 02's label is the app's", async ({ page }) => {
 		await page.goto(page9);

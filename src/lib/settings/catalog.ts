@@ -959,6 +959,20 @@ export const isTvApp = (ua: string) => /TsundokuTV\//i.test(ua);
  */
 export const isTsundokuApp = (ua: string) => /Tsundoku(?:TV|App)\//i.test(ua);
 
+/**
+ * Which device the app's own pages are talking to, for their words and layout
+ * (c521): `/pair/tv` is the TV's and the phone app's 9C and 9E. Only the phone
+ * app's token makes a phone or a tablet, told apart as `pairedLabel` does (an
+ * Android WebView says Mobile on a phone, never on a tablet); the TV app, and
+ * anything else that opens the page, is the TV the page was drawn for.
+ */
+export function appDevice(ua: string): 'tv' | 'phone' | 'tablet' {
+	if (!/TsundokuApp\//i.test(ua)) return 'tv';
+	return /iPad|Tablet/i.test(ua) || (/Android/i.test(ua) && !/Mobile/i.test(ua))
+		? 'tablet'
+		: 'phone';
+}
+
 /** The app's version from its user agent token ("2026.11.05"), or "" for a browser. */
 export const appVersion = (ua: string) => /Tsundoku(?:TV|App)\/([^\s;)]+)/i.exec(ua)?.[1] ?? '';
 

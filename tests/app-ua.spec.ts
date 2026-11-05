@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	appDevice,
 	appVersion,
 	deviceKind,
 	deviceLabel,
@@ -40,6 +41,14 @@ describe("the app's user agent", () => {
 		expect(deviceKind({ width: 390, coarse: true, ua: PHONE })).toBe('phone');
 		expect(deviceKind({ width: 1280, coarse: true, ua: TABLET })).toBe('tablet');
 		expect(deviceKind({ width: 960, coarse: false, ua: TV })).toBe('tv');
+	});
+
+	it("tells the app's own pages a phone from a tablet, and anything else is the TV", () => {
+		expect(appDevice(PHONE)).toBe('phone');
+		expect(appDevice(TABLET)).toBe('tablet');
+		expect(appDevice(TV)).toBe('tv');
+		// /pair/tv was only ever the TV's; a browser that opens it gets the TV's page.
+		expect(appDevice(CHROME)).toBe('tv');
 	});
 
 	it('carries the version, and a browser has none', () => {
