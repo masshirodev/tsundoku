@@ -25,6 +25,10 @@ library's sheet.
   tags, about, and the FILE row with RENAME and HIDE, as far from CONTINUE as
   it can be.
   LISTS and COVER sit under SHELVES, and SOURCE after them ([`MOVE.md`](MOVE.md)).
+- **On a phone and a TV** the rows a visit rarely touches fold behind DETAILS
+  (c425; "DETAILS", below): SHELVES and ABOUT stay above it, so the order
+  there is identity, RATING, CONTINUE, the WORK row and the bands, SHELVES,
+  ABOUT, DETAILS, then the list.
 
 Like the library, the frame is CSS media queries, so the server's first paint
 is already right for the device. `tests/series-layout.e2e.ts` pins the panel
@@ -188,6 +192,117 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
   suggestions exist to prevent. `tests/series-flow.e2e.ts` holds that down.
 - **Suggestion counts only include visible series**, so the tag field can't be
   used to learn how many hidden series carry a tag.
+
+## DETAILS (c425)
+
+The handoff is `doc/handoffs/series-phone/` (`canvas.json`, five boards: 1A a
+manga before, folded and open, 1B a novel and an anime, `Phone.dc.html` the
+live screen, 1C what the folded line says, 1D the tablet in portrait and the
+TV), from the brief `doc/briefs/SERIES-PHONE.md`. On a phone every row of the
+panel came before the chapter list; now the settings-like rows fold behind one
+line.
+
+- **What stays above:** identity, RATING and FAV, ▶ CONTINUE, the WORK row and
+  every band (NO VIDEO, MIGHT BE ONE SERIES, SAME BOOK AS, the panel's own
+  UNDO bands), SHELVES, ABOUT. **What folds**, in today's order: DOWNLOAD
+  (with REFRESH and FOLLOW), LANGUAGE, DIRECTION or LAYOUT, OCR and WORDS,
+  SCANLATOR, LISTS, COVER, SOURCE, TAGS, EDITIONS, FILE (or FOLDED) and
+  RENAME's field. One fold, not one per group, and CONTINUE stays at the top.
+- **Where:** the phone (`max-width: 599px`) and the TV (`(pointer: none) and
+(min-width: 900px)`), by CSS media queries alone. The tablet in either
+  orientation and the desktop are unchanged. The handoff folds the tablet in
+  portrait too; that part is not built (below, "What it does not do yet").
+- **One DOM, two orders.** The markup is in the fold's order, rows grouped in
+  wrappers that are no boxes (`display: contents`); where nothing folds, CSS
+  `order` puts each group back where it always was (`.o1`–`.o7`:
+  DOWNLOAD under the WORK row, the bands, LANGUAGE to SCANLATOR, SHELVES,
+  LISTS to TAGS, ABOUT, EDITIONS and FILE). The rules are `> :global(*)`:
+  a scoped `*` matches this component's elements only, and LISTS' row is
+  ListsRow's, which then sat above DIRECTION. `tests/series-details.e2e.ts`
+  checks today's order on the tablet and the desktop. The focus layer moves
+  by geometry (`doc/FOCUS.md`), so the TV, which folds, walks the visual
+  order; a keyboard's Tab on the desktop walks the markup's, which puts
+  SHELVES and ABOUT before DOWNLOAD.
+- **The folded line** (1C) is one row, 64px at the least: DETAILS | a state
+  line over the names inside | SHOW ↓. Its words are `details.ts`'
+  `detailsLine`, from facts the panel already has, no query of its own:
+  - **quiet**, in text-2: FOLLOWING (the DOWNLOAD row's FOLLOW on) or else
+    the chosen direction (`R→L`, `PAGED`), then what was sent, `SENT CH.
+214`, built from LISTS' own line (its state's unit and the `SENT …` on
+    its right; the handoff's `SENT CH. 186` is that, read off a mock).
+  - **a mark**, in ink and 500 (SOURCE's idiom for trouble), when something
+    needs the owner: a send that failed (a LISTS state line in `alert`: the
+    line's `NOT SENT`, named by its list, `MAL · CH. 214 NOT SENT`), a list
+    not linked (AniList's or a season's `Not linked` line that offers FIND;
+    a hidden series' PASTE-only line and Ranobe's `Not on Ranobe` are not
+    marks), a fold of seasons in ink (`foldWord`), and a source not
+    answering (SOURCE's `move.trouble`, named by the source). Two or more
+    become a count, `2 TO LOOK AT · MAL · MANGADEX`.
+  - **running work** (a chapter downloading, from the DOWNLOAD states; else OCR
+    running, from `ocrLines`) takes the quiet line's first word (`CH. 9
+DOWNLOADING`, `OCR 128 OF 212 CHAPTERS`) and draws a 3px accent bar on the
+    bottom rule, its fill the download's or OCR's fraction.
+  - It never opens itself: the mark tells, the owner decides. Open, the state
+    line goes (the rows say it themselves), the cell inverts to HIDE ↑ and the
+    rule goes full ink.
+  - Its accessible name is `DETAILS`, or `DETAILS · <the state>` while
+    folded: never SHOW, HIDE or MORE, so no other control's locator finds it.
+- **Remembered for the device**, one localStorage key,
+  `tsundoku:series-details` (`DETAILS_KEY`), `1` for open: wanting the
+  settings showing is the owner's habit, not a fact about a series (the list's
+  newest-first flip stays per series, `tsundoku:series-sort:<id>`). Closed
+  by default. **The server draws it closed**, so the first paint is never a
+  flash of it open; a device that remembers it open opens it once the page
+  runs, a frame later. **Without script** a `<noscript>` rule shows every
+  row and no line, since nothing could open it.
+- **ABOUT** clamps to three lines with MORE ↓ / LESS ↑ on a phone (two
+  elsewhere, and two on the TV, as its board draws), never remembered.
+- **On the TV** (1D, B and C) DETAILS is one stop; OK opens or closes it in
+  place and the focus stays on it; ↓ goes into the first opened row. Folded,
+  nothing under it is a stop (a row with no box is not one), and → is the
+  list beside the column. Its text is a size up (state 14, names 12, the cell
+  14 with 18px sides), the cell reads `OK · SHOW ↓`, and the names are cut to
+  four and a count (`DIRECTION · LISTS · COVER · TAGS · 1 MORE`).
+- **FIRST READ's ring** on DOWNLOAD (doc/ONBOARDING.md) sits on the DETAILS
+  line while the fold is closed, the way in, since the fold never opens
+  itself.
+
+Specs: `tests/series-lists.spec.ts` (the marks over `listsRow`'s real output,
+the line, the names, the key), `tests/series-details.e2e.ts` (the phone, and
+today's order where nothing folds), `tests/tv-series-details.e2e.ts` (the TV
+stop) and `tests/series-phone-frame.e2e.ts` (the design tools' conformance
+file for ABOUT's body and the line's text at 390).
+
+### Where DETAILS departs from the handoff
+
+- **The quiet line's words are the repo's.** The mock's `SENT CH. 186` and
+  `MAL DIDN'T TAKE CH. 186` are drawn words; the line reads LISTS' own
+  (`SENT CH. 214` built from its state, `MAL · CH. 214 NOT SENT`), so the
+  folded line and the row it folds never say the same thing two ways.
+- **OCR's running word keeps what was sent.** The mock replaces the whole quiet
+  line (`OCR · 128 OF 212 · RUNNING`); here running work takes the first
+  word, as the anime's `EP. 9 DOWNLOADING · SENT EP. 6` does, so both kinds
+  of work read alike.
+- **The TV column keeps TV-Series' own measurements** (a 96px cover, a 22px
+  title, a 116px label column). 1D's TV frames redraw the column smaller (64,
+  18, 88); the brief asked for the fold, not a new TV panel, so only the
+  DETAILS line takes 1D's measurements, and `tests/tv-series-frame.e2e.ts`
+  still pins TV-Series for what the fold leaves alone.
+- **ABOUT's MORE stays on the TV.** 1D draws ABOUT with no MORE; it is a
+  control the TV already had, so it stays, one more stop.
+
+### What DETAILS does not do yet
+
+- **The tablet in portrait does not fold.** The handoff folds it (1D, A), and
+  the CSS is one query away (add `(min-width: 600px) and (max-width: 1023px)`
+  to the fold's media queries, and to their negation). It is left because
+  every flow spec runs at that size (`tablet-portrait`): the fold would close
+  DOWNLOAD, LISTS, FILE and the rest under a dozen specs this slot does not
+  own (doc/handoff-notes/series.md, wave 22, Gaps, has the list and the
+  one-line way to open it for them).
+- **A download that failed is not a mark.** The rows already say FAILED, and
+  the handoff's marks are the three above; a series with failed chapters
+  folds quiet.
 
 ## FILE and RENAME (c526)
 

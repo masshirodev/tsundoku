@@ -255,6 +255,25 @@ candidate. So:
   that arrives late is dropped. The right side draws an answer only when it
   is the pick's own, so an earlier comparison is never beside a new
   selection, not even for a frame.
+- **A dropped ask is dropped all the way down** (c539). A later pick aborts
+  the earlier `compare` fetch (an `AbortController` per ask), and the
+  endpoint takes the request's `signal`. The engine answers one call per
+  extension at a time (`inLane`, `engine/client.ts`), and neither it nor
+  `moveComparison` takes a signal, so a call that has started runs to its end
+  and its answer is dropped. What is spared is the wait: compares take turns
+  per source at the endpoint (`inTurn`, `access.server.ts`), and an ask
+  dropped while it waits never reaches the engine. Three quick picks on one
+  slow source cost the call already running and the last pick's, not one
+  each. SvelteKit's node adapter aborts `request.signal` when the socket
+  closes before the request has ended (`@sveltejs/kit/node`, `getRequest`),
+  which is a GET whose page went away.
+- **A tap asks once.** The tapped row is kept with the offset it will land
+  with (a candidate's link carries none), so a tap made while the URL had an
+  `offset` no longer asked twice, with the old one and then with none.
+- **The load's streamed comparison cannot hang.** An unexpected throw in
+  `moveComparison` rejected the streamed promise, nothing caught it, and
+  `ASKING THE SOURCE` stayed for good; it now becomes the failed state, `The
+workstation did not answer`, with TRY AGAIN.
 - **A failed comparison says so**, `That source wouldn't say.` with its reason
   and TRY AGAIN, and the MOVE button off. A MOVE confirmed against the wrong
   candidate is the worst outcome here, so the form's `to` is the comparison's
@@ -392,8 +411,11 @@ LATEST CH. 121 · 2 D AGO`, which costs a details call per candidate. The
   TRY ALL AGAIN asking only the failed (engine calls counted), a late answer
   leaving the hovered hit where it was, only the list scrolling at 1280 × 800,
   a pick with no search and no `__data.json`, a later pick over an earlier
-  one's late answer, BACK and a reload, a failed comparison with MOVE off, and
-  a pick without script. A late answer on the _first paint_ is not watched
+  one's late answer, BACK and a reload, a failed comparison with MOVE off,
+  three quick picks on one slow source (one details call each at most, the
+  dropped one that was waiting none), a tap under an `offset` asking once, a
+  streamed comparison that throws becoming TRY AGAIN (c539), and a pick
+  without script. A late answer on the _first paint_ is not watched
   there: `vite preview` gzips every response whole, so a streamed page arrives
   at once in the e2e (the served app, `scripts/serve.ts`, does not).
 - `tests/source-answers.spec.ts` — the order itself, every arrival order of

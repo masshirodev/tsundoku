@@ -32,8 +32,12 @@ test.use({ viewport: { width: 390, height: 844 } });
 async function go(page: import('@playwright/test').Page) {
 	test.skip(test.info().project.name !== 'phone', 'the board is the phone at 390');
 	await page.goto(`${base}/?sort=title`);
-	await page.locator('.grid .tile', { hasText: 'Tower of God' }).click();
-	await page.waitForURL(/\/series\/\d+/);
+	// A tile tapped before the library has hydrated does nothing (this base's
+	// goto does not wait for hydration yet): tap again until the URL moves.
+	await expect(async () => {
+		await page.locator('.grid .tile', { hasText: 'Tower of God' }).first().click();
+		await page.waitForURL(/\/series\/\d+/, { timeout: 2_000 });
+	}).toPass({ timeout: 20_000 });
 	await page.getByRole('heading', { name: 'Tower of God' }).waitFor();
 }
 

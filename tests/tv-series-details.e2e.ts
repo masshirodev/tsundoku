@@ -15,8 +15,12 @@ const TITLE = 'Boku no Kokoro no Yabai Yatsu';
 
 async function open(page: Page) {
 	await page.goto('/?sort=title');
-	await page.locator('.grid .tile', { hasText: TITLE }).click();
-	await page.waitForURL(/\/series\/\d+/);
+	// A tile tapped before the library has hydrated does nothing (this base's
+	// goto does not wait for hydration yet): tap again until the URL moves.
+	await expect(async () => {
+		await page.locator('.grid .tile', { hasText: TITLE }).first().click();
+		await page.waitForURL(/\/series\/\d+/, { timeout: 2_000 });
+	}).toPass({ timeout: 20_000 });
 	await expect(page.getByRole('heading', { name: TITLE })).toBeVisible();
 	await page.waitForLoadState('networkidle');
 }

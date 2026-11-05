@@ -127,13 +127,18 @@
 	const urlTo = $derived(
 		page.url.searchParams.get('to') ?? (page.url.searchParams.has('paste') ? data.to : null)
 	);
-	let tapped = $state<string | null>(null);
+	// The tap is kept with the offset it will land with (c539): a candidate's
+	// href carries none, so a tap made while the URL had one asked twice, with
+	// the old offset and then with none once the navigation landed.
+	let tapped = $state<{ to: string; offset: number | null } | null>(null);
 	$effect(() => {
 		void urlTo;
 		tapped = null;
 	});
-	const selected = $derived(tapped ?? urlTo);
+	const selected = $derived(tapped?.to ?? urlTo);
 	const urlOffset = $derived(offsetOf(page.url.searchParams.get('offset')));
+	/** The offset the pick's comparison is for: the tap's own, then the URL's. */
+	const pickOffset = $derived(tapped ? tapped.offset : urlOffset);
 	const sourceOf = (mangaId: string) => mangaId.split('~')[0] ?? '';
 	const arranged = $derived(arrangeAnswers(asked, answers, selected ? sourceOf(selected) : null));
 
@@ -158,19 +163,28 @@
 	let tries = $state(0);
 	/** Each ask's number: an answer to an earlier pick that arrives late is dropped. */
 	let compareSeq = 0;
-	async function fetchCompare(to: string, offset: number | null): Promise<Settled<MoveComparison>> {
+	/** What a streamed comparison that threw, or a fetch that failed, becomes: TRY AGAIN. */
+	const unanswered: Settled<MoveComparison> = {
+		ok: false,
+		error: 'The workstation did not answer'
+	};
+	async function fetchCompare(
+		to: string,
+		offset: number | null,
+		signal: AbortSignal
+	): Promise<Settled<MoveComparison>> {
 		const u = new URLSearchParams(offset === null ? { to } : { to, offset: String(offset) });
 		try {
-			const r = await fetch(`${base}/compare?${u}`, { cache: 'no-store' });
+			const r = await fetch(`${base}/compare?${u}`, { cache: 'no-store', signal });
 			if (!r.ok) return { ok: false, error: `The workstation answered ${r.status}` };
 			return (await r.json()) as Settled<MoveComparison>;
 		} catch {
-			return { ok: false, error: 'The workstation did not answer' };
+			return unanswered;
 		}
 	}
 	$effect(() => {
 		const to = selected;
-		const offset = urlOffset;
+		const offset = pickOffset;
 		void tries;
 		if (!to) return;
 		const key = `${to}|${offset ?? ''}`;
@@ -183,9 +197,17 @@
 			return;
 		}
 		const mine = ++compareSeq;
-		void (fromLoad ?? fetchCompare(to, offset)).then((s) => {
+		// A later pick aborts this ask (c539): the page stops waiting on it, and
+		// the endpoint never asks the engine for it if it was still waiting.
+		const asking = new AbortController();
+		// The load's streamed comparison can reject (an unexpected throw in
+		// `moveComparison`); unhandled, ASKING THE SOURCE stayed for good.
+		void (
+			fromLoad ? fromLoad.catch(() => unanswered) : fetchCompare(to, offset, asking.signal)
+		).then((s) => {
 			if (mine === compareSeq) answer = settledView(to, offset, s);
 		});
+		return () => asking.abort();
 	});
 	/**
 	 * What the right side draws: the answer only when it is the pick's own,
@@ -195,9 +217,9 @@
 	const view = $derived<View | null>(
 		!selected
 			? null
-			: answer && answer.to === selected && answer.offset === urlOffset
+			: answer && answer.to === selected && answer.offset === pickOffset
 				? answer
-				: { to: selected, offset: urlOffset, state: 'pending' }
+				: { to: selected, offset: pickOffset, state: 'pending' }
 	);
 	function compareAgain(e: MouseEvent) {
 		e.preventDefault();
@@ -367,7 +389,7 @@
 								class:on={selected === h.mangaId}
 								aria-current={selected === h.mangaId ? 'true' : undefined}
 								href={hrefWith(h.mangaId)}
-								onclick={() => (tapped = h.mangaId)}
+								onclick={() => (tapped = { to: h.mangaId, offset: null })}
 								data-sveltekit-noscroll
 								data-focus-mark="in"
 							>

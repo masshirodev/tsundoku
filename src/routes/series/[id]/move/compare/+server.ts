@@ -10,11 +10,15 @@ import { compared, movable, offsetOf } from '../access.server';
  * source again. Answers a Settled, `{ ok: false, error }` when the source
  * wouldn't say, so the page can draw TRY AGAIN with MOVE off.
  */
-export const GET: RequestHandler = async ({ params, url, cookies }) => {
+export const GET: RequestHandler = async ({ params, url, cookies, request }) => {
 	const { id, reveal } = movable(params.id, cookies);
 	const to = url.searchParams.get('to') ?? '';
 	if (!parseSourceMangaId(to)) error(400, 'not a candidate');
-	return json(await compared(id, to, reveal, offsetOf(url.searchParams.get('offset'))), {
-		headers: { 'cache-control': 'no-store' }
-	});
+	// The request's signal (c539): a pick the page dropped never asks the engine if it was still waiting.
+	return json(
+		await compared(id, to, reveal, offsetOf(url.searchParams.get('offset')), request.signal),
+		{
+			headers: { 'cache-control': 'no-store' }
+		}
+	);
 };
