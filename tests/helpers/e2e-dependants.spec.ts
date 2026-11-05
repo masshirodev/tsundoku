@@ -1,7 +1,7 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { dependants, RUNS } from '../../scripts/e2e-dependants.ts';
+import { dependants, refused, RUNS } from '../../scripts/e2e-dependants.ts';
 
 /**
  * `yarn run test:e2e:dependants` (c564): both runs get the caller's arguments,
@@ -50,6 +50,13 @@ describe('the dependants step', () => {
 		expect(dependants(run, [])).toBe(2);
 	});
 
+	it('refuses a caller’s --project, in either spelling, and nothing else', () => {
+		expect(refused(['--project=webkit'])).toMatch(/drop --project=webkit/);
+		expect(refused(['--reporter=line', '--project', 'webkit'])).toMatch(/drop --project\b/);
+		expect(refused(['--reporter=line', '--workers=1'])).toBeNull();
+		expect(refused([])).toBeNull();
+	});
+
 	it('is what package.json runs', () => {
 		const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
 			scripts: Record<string, string>;
@@ -57,6 +64,17 @@ describe('the dependants step', () => {
 		expect(pkg.scripts['test:e2e:dependants']).toBe(
 			'node --experimental-strip-types scripts/e2e-dependants.ts'
 		);
+	});
+
+	it('exits 2 on a caller’s --project before starting Playwright', () => {
+		const result = spawnSync(
+			process.execPath,
+			['--experimental-strip-types', 'scripts/e2e-dependants.ts', '--project=webkit'],
+			{ env: { ...process.env, NODE_NO_WARNINGS: '1' }, encoding: 'utf8' }
+		);
+		expect(result.status).toBe(2);
+		expect(result.stderr).toMatch(/drop --project=webkit/);
+		expect(result.stdout).toBe('');
 	});
 
 	it('loads under Node type stripping, as package.json runs it', () => {

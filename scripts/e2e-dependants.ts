@@ -16,6 +16,10 @@
  * became `exit $s --reporter=line`, which exits 1 with both projects green
  * (c564). Here every argument reaches both runs, and the exit code is the
  * first red's: non-zero when either project is red, whichever it was.
+ *
+ * Except `--project`: the caller's would put a second project into each run,
+ * the one-run race above, so the step refuses it (exit 2) before running
+ * anything.
  */
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -32,6 +36,16 @@ export const RUNS = [
  * passed.
  */
 export type Run = (args: string[]) => number;
+
+/**
+ * Why the step will not run these arguments, or null when it will: a caller's
+ * `--project` (either spelling) joins each run's own.
+ */
+export function refused(extra: readonly string[]): string | null {
+	const project = extra.find((a) => a === '--project' || a.startsWith('--project='));
+	if (!project) return null;
+	return `test:e2e:dependants chooses its own projects; drop ${project} (each run would take two projects, and they race in one run)`;
+}
 
 /**
  * Runs both projects, the second even when the first is red (each is worth
@@ -57,5 +71,8 @@ const playwright: Run = (args) => {
 };
 
 if (import.meta.main) {
-	process.exitCode = dependants(playwright, process.argv.slice(2));
+	const extra = process.argv.slice(2);
+	const why = refused(extra);
+	if (why) console.error(why);
+	process.exitCode = why ? 2 : dependants(playwright, extra);
 }
