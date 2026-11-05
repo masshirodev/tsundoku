@@ -185,6 +185,17 @@ db.prepare(
 	`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES ('101', 'en.open', 'Open Source', 'fr', ''), ('102', 'en.open', 'Open Source', 'ja', '')`
 ).run();
 
+// A case that installs an extension or a novel plugin of its own (pt.livre,
+// the K3 anime one, shelfish, junction) takes it with it, and no case inherits
+// the fake engine's checks: the lists and counts above are the two
+// extensions' alone, whatever order the cases run in (c293).
+beforeEach(() => {
+	db.prepare(`DELETE FROM engine_sources WHERE pkg NOT IN ('en.open', 'en.hidden')`).run();
+	db.prepare(`DELETE FROM engine_extensions WHERE pkg NOT IN ('en.open', 'en.hidden')`).run();
+	db.prepare(`DELETE FROM novel_plugins`).run();
+	challenges = { solving: {}, solved: {} };
+});
+
 describe('BROWSE’s list', () => {
 	it('lists the owner’s languages, names a language only where an extension has several', () => {
 		const list = browse.browseList(false);
