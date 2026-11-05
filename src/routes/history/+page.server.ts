@@ -14,11 +14,10 @@ import {
 	dayLabel,
 	historyMeta,
 	readTime,
-	sinceDay,
 	type HistoryRow
 } from '$lib/library/history';
-import { kindLabel } from '$lib/library/labels';
 import { previewIdOf } from '$lib/server/downloads';
+import { historyTotal } from './total';
 
 /** Days per page; `?before=` continues from the last one shown. */
 const PAGE_DAYS = 60;
@@ -69,30 +68,10 @@ export const load: PageServerLoad = ({ cookies, url }) => {
 	return { days, older, next: from + days.length, total: before ? null : total(reveal) };
 };
 
-/**
- * The total at the top of the first page (card c443): everything the viewer may
- * see, and each kind's, with SINCE where it starts, so a total is never read as
- * all the reading there ever was. A kind whose log starts with the total's says
- * nothing more; a later one (novels, logged since /api/reading) says its day.
- */
+/** The total at the top of the first page (c443, c483): `total.ts`. */
 function total(reveal: boolean) {
 	// Without the sources kept OFF HISTORY (card c435).
-	const t = historyTotals(reveal);
-	if (t.ms <= 0 || !t.since) return null;
-	return {
-		time: readTime(t.ms),
-		since: sinceDay(t.since),
-		kinds: t.kinds
-			.filter((k) => k.ms > 0)
-			.sort((a, b) => b.ms - a.ms)
-			.map((k) => ({
-				kind: k.kind,
-				label: [
-					`${kindLabel(k.kind)} ${readTime(k.ms)}`,
-					...(k.since === t.since ? [] : [sinceDay(k.since)])
-				].join(' · ')
-			}))
-	};
+	return historyTotal(historyTotals(reveal));
 }
 
 function target(form: FormData) {

@@ -75,7 +75,8 @@ screen that shows a time asks it, so none can disagree about what counts:
 - **The series screen** says `READ 12 H 40` (`WATCHED` for video, the
   registry's `unit.done`) beside the read progress ([`SERIES.md`](SERIES.md)).
 - **HISTORY** says each row's time under its clock, and a total at the top
-  with each kind's, `SINCE` its first day ([`HISTORY.md`](HISTORY.md)).
+  with each kind's, `SINCE` its first **timed** day, the first with
+  `duration_ms > 0` (c483; [`HISTORY.md`](HISTORY.md)).
 - **Later**: c35's reading stats for Kumiko's metrics, and the graphs (a new
   screen, so a design brief first), read the same function.
 
@@ -85,7 +86,9 @@ is off); and it ignores any event dated before **2015-01-01**
 (`FIRST_PLAUSIBLE_DAY`: the oldest history tsundoku can import is a
 Mihon/Tachiyomi backup, and Tachiyomi's first release was in 2015). One live row
 is dated `at = 0`, which would otherwise be a day in 1970. HISTORY's days use
-the same floor.
+the same floor. A group's `since` is its first day with time on it (c483), and
+a group holding no time at all is no row: every reader takes a missing group
+as 0, and no total is dated by events that carried no time.
 
 The numbers on 2026-11-03, for scale: manhwa 207.6 h, manga 61.1 h, doujin
 20.2 h, novel 1.1 h, anime 0 h before rung 65 and 2.9 h after. Novels are mostly

@@ -49,10 +49,20 @@ right side shows the year only where the year changes, so a long history says
 ## Time read (card c443)
 
 The first page opens with a total: `READ 289 H 30` and `SINCE 12 MAY 2023`, the
-first day of the log the viewer may see. Under it, each kind's total, largest
-first, and `· SINCE <day>` on a kind whose log starts later than the total's
-(novels: their reading is logged only since `/api/reading` arrived), so a
-kind's figure is never read as all of that kind's reading. Both come from
+first day the viewer may see that carried **time**. Under it, each kind's
+total, largest first, and `· SINCE <day>` on a kind whose first timed day is
+later than the total's (novels: their reading is logged only since
+`/api/reading` arrived), so a kind's figure is never read as all of that kind's
+reading. **Every SINCE is a first timed day** (card c483, the owner's choice
+(b), 2026-11-04): each kind's is its own first day with `duration_ms > 0`, and
+the total's is the earliest of those. A day logged with no time on it (anime
+before c443's rung 65, a novel's untimed rows) dates nothing, so the total
+never reads `SINCE 2023-05-12` over hours that only start later. A kind whose
+reading carried no time at all has no line and no SINCE. The words are made
+in `src/routes/history/total.ts` (`historyTotal`,
+`tests/history-domain.spec.ts`), the days in `readingTime()`
+(`tests/reading-time-db.spec.ts`, "SINCE is each kind's own first timed
+day"). Both come from
 `readingTime()` ([`READING-LOG.md`](READING-LOG.md), "Who reads it"), under
 the reveal filter: a hidden series' time is in no row and no total while
 reveal is off. A REMOVEd row's time still counts in the totals: removing a row
