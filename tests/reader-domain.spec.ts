@@ -4,6 +4,7 @@ import {
 	ProgressClock,
 	IDLE_CAP_MS,
 	IDLE_CAPS,
+	isWatching,
 	WatchClock,
 	WATCH_LAP_CAP_MS,
 	chapterCells,
@@ -328,6 +329,33 @@ describe('watching time (c443)', () => {
 		play(c, t, 5 * 60);
 		expect(c.lap()).toBe(WATCH_LAP_CAP_MS);
 		expect(c.lap()).toBe(0);
+	});
+});
+
+describe('what counts as watching (c481)', () => {
+	const playing = {
+		paused: false,
+		seeking: false,
+		visibility: 'visible' as DocumentVisibilityState,
+		pip: false
+	};
+	it('counts a picture playing on a page in view', () => {
+		expect(isWatching(playing)).toBe(true);
+	});
+	it('does not count a paused picture, even in a floating window', () => {
+		expect(isWatching({ ...playing, paused: true })).toBe(false);
+		expect(isWatching({ ...playing, paused: true, pip: true })).toBe(false);
+	});
+	it('does not count a seek, even in a floating window', () => {
+		expect(isWatching({ ...playing, seeking: true })).toBe(false);
+		expect(isWatching({ ...playing, seeking: true, pip: true })).toBe(false);
+	});
+	it('does not count a hidden page, unless the picture is in a floating window', () => {
+		expect(isWatching({ ...playing, visibility: 'hidden' })).toBe(false);
+		expect(isWatching({ ...playing, visibility: 'hidden', pip: true })).toBe(true);
+	});
+	it('counts a floating window over a page in view as it counts the page', () => {
+		expect(isWatching({ ...playing, pip: true })).toBe(true);
 	});
 });
 

@@ -335,6 +335,21 @@ export class ProgressClock {
 export const STEP_SLACK_MS = 1_000;
 export const WATCH_LAP_CAP_MS = 60_000;
 
+/**
+ * Whether a `timeupdate` counts as watching, for `WatchClock.tick` (c443,
+ * c481): playing, not in a seek, and on a page someone can see, unless the
+ * picture is in a floating window (Document or the video's own
+ * picture-in-picture), which is seen while the page is hidden.
+ */
+export function isWatching(s: {
+	paused: boolean;
+	seeking: boolean;
+	visibility: DocumentVisibilityState;
+	pip: boolean;
+}): boolean {
+	return !s.paused && !s.seeking && (s.visibility === 'visible' || s.pip);
+}
+
 export class WatchClock {
 	private at: number | null = null;
 	private position = 0;
