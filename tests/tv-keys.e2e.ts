@@ -25,11 +25,17 @@ const focusId = (page: import('@playwright/test').Page) =>
 			''
 	);
 
-/** The library's first row of covers, the screen's start first. */
-async function intoGrid(page: import('@playwright/test').Page): Promise<string> {
+/** The library's KIND band (c436), the last stop above the grid, the screen's start first. */
+async function toBand(page: import('@playwright/test').Page): Promise<void> {
 	await page.goto('/?sort=title');
 	await page.keyboard.press('ArrowDown'); // the first CONTINUE card
 	await page.keyboard.press('ArrowDown'); // the shelf tabs
+	await page.keyboard.press('ArrowDown'); // the KIND band
+}
+
+/** The library's first row of covers, the screen's start first. */
+async function intoGrid(page: import('@playwright/test').Page): Promise<string> {
+	await toBand(page);
 	await page.keyboard.press('ArrowDown'); // the first cover
 	return page.evaluate(
 		() =>
@@ -119,10 +125,13 @@ test('↑ through the grid keeps each row in sight, out from under the pinned ta
 test('BACK climbs only to what is out of sight: scrolled, to the top; at the top, it leaves', async ({
 	page
 }) => {
-	await intoGrid(page);
-	// The first row, CONTINUE still in full view: nothing to climb to.
+	// The KIND band, CONTINUE still in full view: nothing to climb to. (The
+	// first row of covers was that stop until c436: the band's 56px above the
+	// grid scroll it far enough to put CONTINUE under the pinned bar.)
+	await toBand(page);
 	expect(await page.evaluate(() => window.tsundokuBack!())).toBe(false);
 
+	await page.keyboard.press('ArrowDown'); // the first cover
 	await downThroughGrid(page);
 	// Scrolled: BACK goes back up to the page's own top, the first CONTINUE
 	// card (the pinned shelf tab is in sight, so it isn't a stop).

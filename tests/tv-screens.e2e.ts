@@ -19,8 +19,10 @@ test('the first arrow starts on CONTINUE; the second row of shelves names the co
 	const start = await page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
 	expect(start).toMatch(/^Resume /);
 
-	// ↓ to the shelf's tabs, ↓ into the grid: the focus line appears under the
-	// pinned tabs and names the focused cover (TV-Library, 3B).
+	// ↓ to the shelf's tabs, ↓ to the KIND band (c436), ↓ into the grid: the
+	// focus line appears under the pinned bar and names the focused cover
+	// (TV-Library, 3B).
+	await page.keyboard.press('ArrowDown');
 	await page.keyboard.press('ArrowDown');
 	await page.keyboard.press('ArrowDown');
 	const line = page.getByTestId('focus-line');
@@ -36,7 +38,7 @@ test('the first arrow starts on CONTINUE; the second row of shelves names the co
 	await expect(line).toContainText('HOLD OK');
 	await expect(line).toContainText('OPEN');
 
-	// It is pinned under the tabs (56px) at 64px tall.
+	// It is pinned under the band, in the tabs' place (56px), at 64px tall.
 	expect(await line.evaluate((n) => getComputedStyle(n).position)).toBe('sticky');
 	expect(await line.evaluate((n) => getComputedStyle(n).top)).toBe('56px');
 	expect((await line.boundingBox())!.height).toBe(64);
