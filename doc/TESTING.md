@@ -320,7 +320,7 @@ Hitorigoto", and one saw the other's rating. So `library-flow` owns Kusuriya and
 the two it multi-selects (Hoshi no Umi no Tabibito and Isekai Yakkyoku, rated
 10 and cleared again), `books-flow` owns every Kaori Mama title and the
 Hakka Kousha / Aoi Rin people, `history-flow` owns Mushoku Tensei's history
-rows, `privacy-flow` owns Yofukashi no Uta (its reading only),
+rows, `privacy-flow` owns Yofukashi no Uta (its reading only; `library-flow`'s ← case opens it as the last series by title, and reads it in incognito so it writes nothing there, c499),
 `reader-flow` owns Hikaru ga Shinda Natsu, The Greatest Estate Developer and
 Chainsaw Man, `reader-layout` reads Sousou no Frieren (incognito),
 `offline-flow` owns Drawing: Saikyou Mangaka, `japanese-flow` reads Drawing
@@ -374,6 +374,14 @@ wave 21 (c477). Their move off Tower of God was right either way, since
 The suite runs while the box is busy: a wave's gate runs beside six slots'
 builds and specs, and the load average has been 30 to 59 on the 12-thread
 workstation during gates. What it assumes, and the rules that follow (c439):
+
+- **The suite is held green at a gate's load, not at any load.** Measured in
+  wave 23: with the other four slots at work (load average 21-37) a whole
+  run passed every test it ran, and with six `node` burners on top of them
+  (59-69) 37 tests failed, nearly all of them the 30 s budget
+  running out mid-step in a case that passes alone. A red at a load past
+  about 60 is read as the box, not the case, unless it is an assertion that
+  also fails at a gate's load; the flake record below says which is which.
 
 - **Workers are half the logical cores, fixed** (`workers: '50%'` in
   `playwright.config.ts`, 6 here), not capped by load. Measured on
@@ -495,6 +503,42 @@ x, y)` in `tests/helpers/touch.ts` sends the four touch events together, so
   has installed: `text-reader-flow`'s Japanese book was set from the seed's
   English EPUB, which the worker fetched past the stub, 1 run in 34
   (wave 19, from the run's trace).
+- **A press held for the app's timer lets go on the app's state.** The
+  reader's long press opens the page menu from a 450 ms timer that the
+  release cancels; `cover-menu-flow`'s `hold()` let go after 600 ms of the
+  runner's time, which a starved page handled first. It now holds until the
+  menu shows (c498). The same goes for any gesture timed by the app.
+- **A delay in a fake is a race, too.** `browse-move-pick`'s fake held a
+  candidate's details for 2.5 s, and the case had to click twice inside it;
+  under load the clicks came after. The fake now holds that answer until the
+  case has seen its own state (both picks' requests sent, and B's given up by
+  the page, which is what the endpoint drops B on), then lets it go
+  (`state.held`, c439).
+- **A number read before an action is the shared database's of that
+  moment.** `filters-flow`'s case read ALL's total at its first load and
+  compared it with the filtered tab's `N OF M` on a later one, while other
+  flows hid and deleted series; it now reads both from one render (c439).
+- **`scrollY` moves without the app**: the browser's scroll anchoring shifts
+  it as images above arrive, with no event. `reader-strip-keys` measured its
+  nudges as `scrollY` less the app's `tsundoku:kept-place` events and read
+  4864 and 10504 px under load; it now reads how far one page slot's top has
+  moved (c439).
+- **A request context's pool keeps sockets the server has ended.** Node's
+  server closes an idle keep-alive socket after 5 s, and a request sent on
+  it as it closes reads `ECONNRESET`. `friend-wifi`'s check after OFF uses a
+  fresh `playwright.request.newContext()` (c439).
+- **The app's own URL rewrite can outlive its screen.** The image reader
+  writes `?p=` 800 ms after it settles on a page; left sooner, the timer
+  fired during the trip back and overwrote the series' history entry
+  (`library-flow`'s ← case, 2 in 5 at a load of about 45, the series screen
+  drawn at `/read/<id>?p=1`). The case waits for `?p=` first; the app's fix
+  is filed (doc/handoff-notes/e2e.md, wave 23).
+- **`--repeat-each` repeats the file, not its world.** Copies of a serial
+  file that writes the shared database run at once under `--workers` > 1
+  and read each other's writes, and a world set up once per run (the friend
+  install, the browse world) carries one copy's state into the next. Repeat
+  such a file with `--workers=1`, and read a repeat of a world-sharing file
+  for its first copy only.
 - **A flow's writes are a reader's race**: see "Each flow file owns its
   series" and "The readers beside the flows" above.
 - **`duplicates` and `gate` depend on every device project**, so any red in
@@ -594,6 +638,29 @@ x, y)` in `tests/helpers/touch.ts` sends the four touch events together, so
   `--grep-invert`, the same as with nothing, and 704 with `PLAYWRIGHT_SKIP`).
   Name what you left out beside the run's result: a test that was skipped
   has not passed.
+
+**The load flakes on record** (c439), by title, each with what became of
+it. Lines are at wave 23's head; a line moves, a title is the test. The
+handoff notes (`doc/handoff-notes/e2e.md`) carry each wave's runs and the
+older record (waves 5-20).
+
+| Test (file, title)                                                                        | Seen                                  | Now                                                                                                                 |
+| ----------------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `filters-flow:42`, "a filter narrows the shelf…"                                          | both wave-22 gates                    | Fixed (wave 23): `N OF M` read from one render.                                                                     |
+| `browse-move-pick:534`, "three quick picks on one slow source…"                           | wave-22 gate; wave 23 alone           | A's call is held until the page has dropped B's ask (wave 23). Still 1 in 10 alone, B asked after release; open.    |
+| `reader-strip-keys:112`, "on the strip, → and ← nudge…"                                   | wave-22 gate; wave 23 runs 1 and 4    | Scroll anchoring fixed (wave 23). Run 4's phone red is another symptom (← unanswered in 5 s), 10 of 10 alone; open. |
+| `friend-wifi:255`, "OFF stops listening on the Wi-Fi…"                                    | wave 22 (`ECONNRESET`); wave 23 run 1 | Fixed (wave 23): a fresh connection after OFF, and OFF's answer waited for.                                         |
+| `library-flow:333`, "the app's own ← buttons come back…"                                  | wave 23 (with c499's incognito)       | Fixed in the test (waits for the reader's `?p=`); the app's timer is filed.                                         |
+| `cover-menu-flow:55` and `:96`                                                            | wave 20                               | Fixed (c498): `hold()` lets go once the menu shows; `:55` presses one slot twice. 15 of 15 beside six burners.      |
+| `browse-extensions:125`, the LNReader case                                                | waves 21, 22; wave 23 run 1 (30 s)    | Its cleanup is in a `finally` (c507), so a red stays one red. The 30 s ran out only at a load of 59-69.             |
+| `series-flow:41`, "rating fills up to the choice, 0 clears it, and FAV toggles"           | wave 23 run 3                         | The app's: two quick FAV taps race their saves (`SeriesPanel.svelte`). 5 of 5 alone. Filed.                         |
+| `japanese-flow:108`, "NOT TEXT takes a block out…"                                        | wave 23 run 4 (30 s)                  | 5 of 5 alone. The budget, at a load of 15-33 with burners; not chased.                                              |
+| `reader-flow:597`, `tv-strip-keys:19`, `motion:11`, `tv-reader:212`, `start-flow:151`     | waves 21-22                           | Green in every wave-23 run that reached them.                                                                       |
+| `work-end-frame:847`, `browse-player-pip-firefox:155`, `books-flow:164`, `links-flow:719` | waves 20-22                           | Green in runs 2-4; `links-flow:719` ran out its 30 s in run 1 (load 59-69).                                         |
+| `text-reader-flow:92`, "the controls say where you are…"                                  | wave 21; wave 23 run 1                | An assertion (the paragraph left the screen as type grew), at a load of 59-69 only; green in runs 2-4. Open.        |
+| `reader-flow:238`, "vertical: nothing moves when chapters arrive above…"                  | wave 23 run 5                         | Fixed (wave 23): the page at the top is polled for, not read once.                                                  |
+| `series-layout:165`, "a novel shows its contents without numbers…"                        | wave 23 runs 1 (TV) and 5 (phone)     | DETAILS not open in 5 s; 10 of 10 alone. Nobody's file; not chased.                                                 |
+| `tv-library-top:117`, "the pinned bars never cover…"                                      | waves 20-22                           | `tv`'s (c500, the app's c543). Green in every wave-23 run.                                                          |
 
 **One folder per run.** `tests/helpers/run-dir.ts`, imported first by the
 config, makes `<TMPDIR>/tsundoku-e2e-run-<runner pid>` and points `TMPDIR` at
