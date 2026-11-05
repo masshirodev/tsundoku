@@ -300,6 +300,16 @@ file for ABOUT's body and the line's text at 390).
   DOWNLOAD, LISTS, FILE and the rest under a dozen specs this slot does not
   own (doc/handoff-notes/series.md, wave 22, Gaps, has the list and the
   one-line way to open it for them).
+- **Where nothing folds, Tab and a screen reader read the fold's order.** On
+  the tablet and the desktop the visual order comes from CSS `order` ("One
+  DOM, two orders", above), while the DOM order, which Tab and a screen
+  reader follow, is the fold's: the bands, SHELVES and ABOUT, then DOWNLOAD,
+  DIRECTION and on to FILE. So a keyboard on the desktop goes from ABOUT's
+  MORE back up to DOWNLOAD (WCAG 2.4.3, focus order). The TV and the phone
+  are not affected: there the DOM order is the screen's. The follow-up (a
+  card to file): render the rows in today's order and wrap only the folded
+  ones where the fold applies (or move them into it), so one DOM order holds
+  everywhere, with a spec that tabs through the desktop panel.
 - **A download that failed is not a mark.** The rows already say FAILED, and
   the handoff's marks are the three above; a series with failed chapters
   folds quiet.
