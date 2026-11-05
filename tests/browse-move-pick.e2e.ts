@@ -562,10 +562,10 @@ test('three quick picks on one slow source: one details call each at most, and a
 	await expect.poll(() => detailsFor(CAND.a.url)).toBe(1);
 	// The owner changes their mind twice, quickly, while A is being read: both
 	// picks reach the page's endpoint, and the page has dropped B's ask (C's
-	// pick aborts it), before A's call ends. B's abort is what the endpoint
-	// drops B on (`request.signal`), so A is let go only once the page has
-	// given B's request up; let go once C's had merely been sent, the engine
-	// still heard of B, even on a quiet box.
+	// pick aborts it), before A's call ends. The endpoint drops B on either
+	// sign: its abort (`request.signal`), or C, a newer pick of the series
+	// from the same source, queued behind it (c567). A is let go once the
+	// page has given B's request up; the case below lets it go sooner.
 	await page.locator('a.cand', { hasText: CAND.b.title }).click();
 	await page.locator('a.cand', { hasText: CAND.c.title }).click();
 	await expect.poll(() => asked(CAND.c).length).toBe(1);
@@ -590,6 +590,48 @@ test('three quick picks on one slow source: one details call each at most, and a
 	expect(detailsFor(CAND.b.url)).toBe(0);
 	await expect(page.getByRole('heading', { name: CAND.c.title })).toBeVisible();
 	await expect(page.locator('a.cand.on')).toHaveCount(1);
+	await expect(page.locator('a.cand.on')).toContainText(CAND.c.title);
+});
+
+/**
+ * The same three picks at wave 23's timing, the state the 1-in-10 red lived
+ * in (c567): A is let go as soon as C's ask is sent, before anything says
+ * B's was dropped. The server hears of B's abort only once its socket closes
+ * (wave 24 measured it 4-279 ms after the page gave B up), so a turn can
+ * come to B before then; B must still never ask, because C was queued
+ * behind it (`inTurn`, doc/MOVE.md "Picks take turns").
+ */
+test('three quick picks at the old timing: A let go once C is sent, and the dropped B still never asks (c567)', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await open(page);
+	await settledList(page);
+	state.calls = [];
+	let releaseA!: () => void;
+	state.held.set(CAND.a.url, new Promise<void>((r) => (releaseA = r)));
+	state.slow.set(CAND.b.url, 2500);
+	state.slow.set(CAND.c.url, 200);
+	const compares: string[] = [];
+	page.on('request', (r) => {
+		if (r.url().includes('/compare?')) compares.push(r.url());
+	});
+	const to = (c: { url: string }) => (u: string) =>
+		new URL(u).searchParams.get('to') === candidateId('101', c.url);
+	const asked = (c: { url: string }) => compares.filter(to(c));
+	await page.locator('a.cand', { hasText: CAND.a.title }).click();
+	await expect.poll(() => detailsFor(CAND.a.url)).toBe(1);
+	await page.locator('a.cand', { hasText: CAND.b.title }).click();
+	await page.locator('a.cand', { hasText: CAND.c.title }).click();
+	await expect.poll(() => asked(CAND.c).length).toBe(1);
+	releaseA();
+	await expect(page.getByRole('heading', { name: CAND.c.title })).toBeVisible({ timeout: 15_000 });
+	expect(asked(CAND.b)).toHaveLength(1);
+	expect(detailsFor(CAND.a.url)).toBe(1);
+	expect(detailsFor(CAND.c.url)).toBe(1);
+	// B's slow answer would have come by now had it been asked.
+	await page.waitForTimeout(3000);
+	expect(detailsFor(CAND.b.url)).toBe(0);
 	await expect(page.locator('a.cand.on')).toContainText(CAND.c.title);
 });
 
