@@ -10,7 +10,8 @@ const { ensureRoot, writeSeries } = await import('$lib/server/import/write');
 const { forgetSourceUse, libraryIndex } = await import('$lib/server/library-sources');
 const flags = await import('$lib/server/engine/source-flags');
 const browse = await import('$lib/server/engine/browse');
-const { searchSources } = await import('$lib/server/engine/backend');
+const { searchSources, addToLibrary, sourceMangaId, undoAdd } =
+	await import('$lib/server/engine/backend');
 const { installedView, novelsAvailable, pluginsShown } = await import('$lib/server/engine/manage');
 const { pluginView } = await import('$lib/server/novels/plugins');
 const { novelSearchSources } = await import('$lib/server/novels/source');
@@ -434,5 +435,131 @@ describe('OFF HISTORY', () => {
 		).toEqual({ last_position: 5 });
 		expect(seriesReadingTime(mangaSeries, false)).toBe(2 * 60_000 + 60_000);
 		expect(rows(true)).not.toContain(mangaSeries);
+	});
+});
+
+describe('ADDED HIDDEN, and the ADD that hid it (c505)', () => {
+	// ADD on a series the library already knows answers without the engine
+	// (`addToLibrary`'s `keepOrPromote`), so each state is reached by the door
+	// the preview's ADD AND DOWNLOAD calls.
+	const at = (path: string) => ({ id: sourceMangaId(MANGA, path), key: keyOf(MANGA, path) });
+	const hiddenOf = (id: number) =>
+		(db.prepare(`SELECT hidden FROM series WHERE id = ?`).get(id) as { hidden: number }).hidden;
+	const added: number[] = [];
+	const writeAs = (path: string, title: string, o: { browsing?: boolean; hidden?: boolean }) => {
+		const { key } = at(path);
+		writeSeries(
+			{ ...plan(key, title, 'manga'), hidden: o.hidden ?? false },
+			{ rootId: mihonRoot, jobId: null, now: NOW, browsing: o.browsing ?? false },
+			db
+		);
+		const id = seriesOf(key);
+		added.push(id);
+		return id;
+	};
+	const afterEachCase = () => {
+		for (const id of added.splice(0)) db.prepare(`DELETE FROM series WHERE id = ?`).run(id);
+		forgetSourceUse();
+	};
+
+	it('says a browsing record ADD promoted and hid was hidden by this ADD', async () => {
+		try {
+			const record = writeAs('/manga/record', 'A Record Of The Manga Source', { browsing: true });
+			flags.setSourceFlag(MANGA, 'addedHidden', true);
+			const { id, key } = at('/manga/record');
+			const r = await flags.addWatchingHidden(key, () => addToLibrary(id, NOW));
+			expect(r).toEqual({ seriesId: record, hidByThisAdd: true });
+			expect(hiddenOf(record)).toBe(1);
+		} finally {
+			afterEachCase();
+		}
+	});
+
+	it('says a series already here and hidden for its own reasons was not', async () => {
+		try {
+			const own = writeAs('/manga/own', 'Hidden For Its Own Reasons', { hidden: true });
+			flags.setSourceFlag(MANGA, 'addedHidden', true);
+			const { id, key } = at('/manga/own');
+			const r = await flags.addWatchingHidden(key, () => addToLibrary(id, NOW));
+			// ADD answered with it (keepOrPromote) and left it as it was: not this ADD's.
+			expect(r).toEqual({ seriesId: own, hidByThisAdd: false });
+			expect(hiddenOf(own)).toBe(1);
+			// The switch off, the same.
+			flags.setSourceFlag(MANGA, 'addedHidden', false);
+			expect(await flags.addWatchingHidden(key, () => addToLibrary(id, NOW))).toEqual({
+				seriesId: own,
+				hidByThisAdd: false
+			});
+		} finally {
+			afterEachCase();
+		}
+	});
+
+	it('says a visible series ADD answered with, and a record with the switch off, were not', async () => {
+		try {
+			flags.setSourceFlag(MANGA, 'addedHidden', true);
+			const shown = at('/manga/a');
+			expect(await flags.addWatchingHidden(shown.key, () => addToLibrary(shown.id, NOW))).toEqual({
+				seriesId: mangaSeries,
+				hidByThisAdd: false
+			});
+			expect(hiddenOf(mangaSeries)).toBe(0);
+
+			flags.setSourceFlag(MANGA, 'addedHidden', false);
+			const record = writeAs('/manga/record-off', 'A Record, Switch Off', { browsing: true });
+			const { id, key } = at('/manga/record-off');
+			expect(await flags.addWatchingHidden(key, () => addToLibrary(id, NOW))).toEqual({
+				seriesId: record,
+				hidByThisAdd: false
+			});
+			expect(hiddenOf(record)).toBe(0);
+		} finally {
+			afterEachCase();
+		}
+	});
+
+	it('reads nothing without a key: inside reveal the question is not asked', async () => {
+		try {
+			const record = writeAs('/manga/record-reveal', 'A Record, Reveal On', { browsing: true });
+			flags.setSourceFlag(MANGA, 'addedHidden', true);
+			const { id } = at('/manga/record-reveal');
+			expect(await flags.addWatchingHidden(null, () => addToLibrary(id, NOW))).toEqual({
+				seriesId: record,
+				hidByThisAdd: false
+			});
+			// It was still added hidden: reveal changes only what is asked.
+			expect(hiddenOf(record)).toBe(1);
+		} finally {
+			afterEachCase();
+		}
+	});
+
+	it('names the band’s series by its id and its key, and not after UNDO or under another key', async () => {
+		try {
+			const record = writeAs('/manga/band', 'The Band’s Series', { browsing: true });
+			// As ADD writes one: every chapter NOT DOWNLOADED.
+			db.prepare(`UPDATE entries SET available = 0 WHERE series_id = ?`).run(record);
+			flags.setSourceFlag(MANGA, 'addedHidden', true);
+			const { id, key } = at('/manga/band');
+			await addToLibrary(id, NOW);
+			expect(flags.addedHere(record, key)).toEqual({ entries: 2, touched: false, kind: 'manga' });
+			// Another key with the same id: not the band's series.
+			expect(flags.addedHere(record, keyOf(MANGA, '/manga/a'))).toBeNull();
+			// Read: UNDO would be refused, and the band says so.
+			db.prepare(
+				`UPDATE entries SET read_at = ? WHERE id = (SELECT id FROM entries WHERE series_id = ? LIMIT 1)`
+			).run(NOW, record);
+			expect(flags.addedHere(record, key)?.touched).toBe(true);
+			expect(undoAdd(record)).toBe(false);
+			db.prepare(`UPDATE entries SET read_at = NULL WHERE series_id = ?`).run(record);
+			// UNDO, then the same id given to a series added later: never the band's.
+			expect(undoAdd(record)).toBe(true);
+			added.splice(added.indexOf(record), 1);
+			expect(flags.addedHere(record, key)).toBeNull();
+			const later = writeAs('/manga/later', 'Added Later', {});
+			expect(flags.addedHere(later, key)).toBeNull();
+		} finally {
+			afterEachCase();
+		}
 	});
 });

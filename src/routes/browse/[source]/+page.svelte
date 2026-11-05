@@ -7,7 +7,8 @@
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
-	import { count } from '$lib/library/downloads';
+	import { addedDetail, count } from '$lib/library/downloads';
+	import { enhance } from '$app/forms';
 	import { writeFilters } from '$lib/library/browse-filters';
 	import { backOriginLabel, keepOrigin } from '$lib/library/tag-search';
 	import { isSettled } from '$lib/library/settled';
@@ -26,18 +27,20 @@
 	 * MORE ↓ is the same as a link (?pages=N), which is the no-script way on and
 	 * what back returns to.
 	 */
-	let { data } = $props();
+	let { data, form } = $props();
 
 	type Answer = Extract<Awaited<typeof data.answer>, { ok: true }>['value'];
 	type Shown = { key: string; ok: true; value: Answer } | { key: string; ok: false; error: string };
 
 	const base = $derived(resolve('/browse/[source]', { source: data.source.id }));
+	/** The ADDED band's parameters (c505): said once, and never part of which list this is. */
+	const ADDED_BAND = ['added', 'series', 'preview', 'queued'];
 	/** The current URL with some parameters changed; null removes one. */
 	function link(over: Record<string, string | null>): string {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
 		const p = new URLSearchParams(page.url.searchParams);
 		// The ADDED band is said once, not carried onto the next list.
-		p.delete('added');
+		for (const k of ADDED_BAND) p.delete(k);
 		for (const [k, v] of Object.entries(over)) {
 			if (v === null) p.delete(k);
 			else p.set(k, v);
@@ -56,7 +59,7 @@
 	const listKey = (u: URL) => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
 		const p = new URLSearchParams(u.searchParams);
-		for (const k of ['pages', 'panel', 'find', 'added']) p.delete(k);
+		for (const k of ['pages', 'panel', 'find', ...ADDED_BAND]) p.delete(k);
 		return `${u.pathname}?${p}`;
 	};
 
@@ -199,10 +202,29 @@
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
 	{#if data.addedHidden}
+		{@const a = data.addedHidden}
+		<!-- What the series page's band would have said (c505): what ADD AND
+		     DOWNLOAD queued, and UNDO while nothing of it is downloaded or read. -->
+		{@const refused =
+			form?.message ?? (a.touched ? 'something of it is downloaded or read now' : '')}
 		<Band
 			title="ADDED TO THE LIBRARY, AND HIDDEN"
-			detail="{name.toUpperCase()} ADDS ITS SERIES HIDDEN · REVEAL SHOWS IT"
-		/>
+			detail="{name.toUpperCase()} ADDS ITS SERIES HIDDEN · {addedDetail(
+				a.entries,
+				a.queued,
+				a.video
+			)}{refused ? ` · NO UNDO: ${refused.toUpperCase()}` : ' · REVEAL SHOWS IT'}"
+		>
+			{#snippet action()}
+				{#if !refused}
+					<form method="POST" action="?/undoAdd" use:enhance>
+						<input type="hidden" name="series" value={a.seriesId} />
+						<input type="hidden" name="preview" value={a.preview} />
+						<button type="submit">UNDO</button>
+					</form>
+				{/if}
+			{/snippet}
+		</Band>
 	{/if}
 
 	<nav class="tabs" aria-label="Lists">

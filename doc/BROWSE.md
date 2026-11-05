@@ -467,7 +467,7 @@ the owner's request of 2026-11-03.
 | Switch            | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Hidden source** | The source is listed, opened, searched and named only inside reveal, as a mostly-hidden one is: BROWSE and RECENT, EXTENSIONS (an extension whose every source is hidden, and an LNReader plugin: INSTALLED, its count, UPDATE ALL and AVAILABLE's NOVELS, filtered by the route through `pluginsShown` and `novelsAvailable`), its icon, its page, its settings and its previews, SEARCH THE SOURCES (`searchSources`, `novelSearchSources`), and SAME TITLE's "FROM <SOURCE>" (`nameable`). Its series keep their own hidden state. |
-| **Added hidden**  | A series added to the library from it starts hidden. Every ADD door of a source: `addToLibrary` (Mihon's), `addAnime`, `addNovel` and `keepOrPromote` (a browsing record promoted by ADD), and every import (a backup, a scan, IMPORT A BACKUP; below). With reveal off, ADD then lands on the source's page with "ADDED TO THE LIBRARY, AND HIDDEN", since the hidden series isn't found. A browsing record is not an add.                                                                                                           |
+| **Added hidden**  | A series added to the library from it starts hidden. Every ADD door of a source: `addToLibrary` (Mihon's), `addAnime`, `addNovel` and `keepOrPromote` (a browsing record promoted by ADD), and every import (a backup, a scan, IMPORT A BACKUP; below). With reveal off, ADD then lands on the source's page with "ADDED TO THE LIBRARY, AND HIDDEN", since the hidden series isn't found; that band says what ADD AND DOWNLOAD queued and offers UNDO ("ADD outside reveal", below). A browsing record is not an add.                |
 | **Off history**   | Its reads and watches never show in HISTORY, inside reveal or not, and its time is not in HISTORY's total ([`HISTORY.md`](HISTORY.md)). They are still logged: progress, CONTINUE, the series' own time and tracking are unchanged.                                                                                                                                                                                                                                                                                                   |
 
 **Kept** in the `settings` key/value table, one row per switch that is on
@@ -504,6 +504,37 @@ way, the owner can hide it inside reveal. What an attach creates also makes
 BROWSE ask its per-source counts again (`forgetSourceUse`, as a run does), so
 `mostlyHidden` does not wait out the cache's minute. `tests/import-db.spec.ts`
 holds every combination, the attach included.
+
+**ADD outside reveal** (card c505, wave 24). The source's page draws the
+band the series page would have: "ADDED TO THE LIBRARY, AND HIDDEN", then
+"<SOURCE> ADDS ITS SERIES HIDDEN · 12 CHAPTERS · 10 DOWNLOADING · REVEAL
+SHOWS IT" (ADD AND DOWNLOAD's `queued`, in `addedDetail`'s words), and UNDO.
+The band is its URL (`?added=hidden&series=<id>&preview=<preview id>&queued=`),
+so a reload says the same. The id alone is never trusted, since a series'
+id is given again once the series is gone: the band and its UNDO name the
+series only while its id **and** the key of the preview it came from both
+still match, it is in the library and the preview is this source's
+(`addedHere`, `src/lib/server/engine/source-flags.ts`). UNDO is the series
+page's (`undoAdd`): out of the library while nothing of it is downloaded or
+read, then the preview again. Once something is, the band draws no UNDO and
+says "NO UNDO: SOMETHING OF IT IS DOWNLOADED OR READ NOW", and an UNDO
+tapped after that happened is refused with the same words. UNDO twice, or
+the band's URL after UNDO, finds no series, says nothing and undoes nothing.
+
+**ADD AND DOWNLOAD queues only what its own ADD hid** (c505). Outside reveal
+a hidden series is not the viewer's, but the one ADDED HIDDEN has just hidden
+is: it is queued, and queueing it shows nothing. Every ADD door also answers
+with a series already here (`keepOrPromote`), and one hidden before, for its
+own reasons, is not queued outside reveal and gets no band (the page is the
+source's again), as before c435. Which is which is read before and after
+the ADD, under the key the preview knows the series by
+(`addWatchingHidden`): hidden after, not before, and the series the ADD
+answered with. The doors that hide on ADD (`hideIfAddedHidden`):
+`addToLibrary` (Mihon's, `engine/backend.ts`), `addNovel`
+(`novels/source.ts`), `addAnime` (`engine/anime-source.ts`) and
+`keepOrPromote` (`browsing.ts`), all reached by the preview's two actions
+through `downloads.ts`'s `addToLibrary`, which is why the question is the
+preview's, and the importer's `writeSeries`, which queues nothing.
 
 **What ADDED HIDDEN does not reach:** a follow's or a refresh's new chapters
 are not an add, and a download of a series already in the library neither.
