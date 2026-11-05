@@ -368,7 +368,10 @@ row still BURNED past those 10 minutes, on a focus and with no 5 s poll, as
 on one host each keeping its own pairing, and the old name moved, c530;
 and the computer's DEVICES row, open in a browser of its own and never
 refocused, turning EXPIRED and then drawing the code the TV made, then ✓
-USED, c246),
+USED, c246; with no code at all, after a start, the library's MORE ›
+SETTINGS making one, and the row with `?/renew` refused drawing NO CODE YET
+and NEW CODE, c531's round 2 and c580, each case on a server of its own
+started for it, so neither depends on its place in the file, c582),
 `tests/pairing-origins.spec.ts` (the per-origin names, the move from the old
 one, the scrub); `friend-wifi.e2e.ts` also pins
 the panel's FOR A TV digits.

@@ -28,7 +28,12 @@ import { E2E_TOKEN } from '../playwright.config';
  *   on its own 5 s tick, with no focus change.
  * - **c531**: a burned code stays burned through a reload of SETTINGS' data
  *   (an unrelated setting changed), and a real visit (the app's link, the
- *   back button, the browser's reload) makes a new one.
+ *   back button, the browser's reload) makes a new one. With no code at all
+ *   (a restart), the library's MORE › SETTINGS makes one, and the row with
+ *   `?/renew` refused still draws NO CODE YET (c580) and NEW CODE: each of
+ *   those two cases on a server of its own, just started (c582).
+ * - **c581**: a burned code past its 10 minutes stays BURNED on the DEVICES
+ *   row, with no 5 s poll, as `/pair/tv` says.
  * - **c545**: 9E carries the server's name in `data-paired-name`, and the TV
  *   app's own `PAIRED_JS`, read out of MainActivity.kt, reads it there.
  * - **c530**: two tsundoku on one host, two ports, paired in one cookie jar as
@@ -36,8 +41,8 @@ import { E2E_TOKEN } from '../playwright.config';
  *   after FORGET on the other, and a jar holding only the name used before
  *   c530 stays paired and is moved to the new one.
  *
- * Two `vite preview` of its own, each with a seeded database and a port from
- * the OS: the six digits live in a server's memory, one code at a time, and
+ * Two `vite preview` of its own, A and B, each with a seeded database and a
+ * port from the OS, plus one more for each no-code case (`ownServer`): the six digits live in a server's memory, one code at a time, and
  * `tv-pair.e2e.ts` spends the shared server's. Each server's `Date.now` is
  * moved by a file this spec writes (`--import`, below), since a code's 10
  * minutes cannot be waited out. Both answer at 127.0.0.1, and each has an
@@ -185,12 +190,7 @@ test.afterAll(async () => {
 	for (const c of computers.values()) await c.dispose().catch(() => {});
 	await browser?.close().catch(() => {});
 	await desk?.close().catch(() => {});
-	for (const at of [A, B]) {
-		at.child?.kill();
-		at.child = null;
-		for (const f of [at.db, `${at.db}-wal`, `${at.db}-shm`, at.clock]) rmSync(f, { force: true });
-		rmSync(`${at.db}.home`, { recursive: true, force: true });
-	}
+	for (const at of [A, B, ...ownServers.splice(0)]) stop(at);
 	rmSync(clockModule, { force: true });
 });
 
@@ -202,7 +202,46 @@ const opened: BrowserContext[] = [];
 test.afterEach(async () => {
 	for (const c of opened.splice(0)) await c.close().catch(() => {});
 	for (const at of [A, B]) await clockAt(at, 0);
+	for (const at of ownServers.splice(0)) {
+		await computers
+			.get(at)
+			?.dispose()
+			.catch(() => {});
+		computers.delete(at);
+		stop(at);
+	}
 });
+
+/** A server's process gone and its files with it. */
+function stop(at: Server) {
+	at.child?.kill();
+	at.child = null;
+	for (const f of [at.db, `${at.db}-wal`, `${at.db}-shm`, at.clock]) rmSync(f, { force: true });
+	rmSync(`${at.db}.home`, { recursive: true, force: true });
+}
+
+/** Servers a case stood up for itself (`ownServer`), stopped after it whatever happened. */
+const ownServers: Server[] = [];
+
+/**
+ * A server of the case's own, just started, so it holds no TV code at all:
+ * the state a restart leaves the owner's tailnet install in (c582). A or B
+ * would reach it only if no case before had made a code on them, which held
+ * only while these cases ran first, in a serial file.
+ */
+async function ownServer(name: string): Promise<Server> {
+	const at = server(await freePort(), `${name}-${ownServers.length}`);
+	ownServers.push(at);
+	await serve(at);
+	computers.set(
+		at,
+		await request.newContext({
+			baseURL: at.computer,
+			extraHTTPHeaders: { cookie: `tsundoku_session=${session}` }
+		})
+	);
+	return at;
+}
 
 /** A TV: an empty jar, 960x540, no pointer. */
 async function tv(): Promise<{ context: BrowserContext; page: Page }> {
@@ -281,16 +320,17 @@ async function moreSettings(page: Page) {
 
 const renewPost = (u: URL) => u.pathname === '/settings' && u.search === '?/renew';
 
-// First in the file, on purpose: server A has made no code yet, the state a
-// restart leaves the owner's tailnet install in.
+// Each on a server of its own (c582), so neither depends on its place in the file.
 test('with no code at all, the library’s MORE › SETTINGS makes the code and draws it, and a reload of the data keeps it (c531 round 2)', async () => {
-	expect((await codeOn(A)).state, 'a fresh server has no code').toBe('none');
-	const page = await libraryOn(A);
-	expect((await codeOn(A)).state, 'the library makes no code').toBe('none');
+	test.setTimeout(150_000);
+	const C = await ownServer('nocode');
+	expect((await codeOn(C)).state, 'a fresh server has no code').toBe('none');
+	const page = await libraryOn(C);
+	expect((await codeOn(C)).state, 'the library makes no code').toBe('none');
 	await moreSettings(page);
 	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
 	await expect.poll(() => shownDigits(page)).toMatch(/^\d{6}$/);
-	const made = await codeOn(A);
+	const made = await codeOn(C);
 	expect(made).toMatchObject({ state: 'live', left: 5 });
 	expect(await shownDigits(page)).toBe(made.code);
 
@@ -306,15 +346,16 @@ test('with no code at all, the library’s MORE › SETTINGS makes the code and 
 			'aria-pressed',
 			'true'
 		);
-		expect((await codeOn(A)).code, `after ${choice}`).toBe(made.code);
+		expect((await codeOn(C)).code, `after ${choice}`).toBe(made.code);
 		expect(await shownDigits(page)).toBe(made.code);
 	}
 });
 
-// On server B, which no case before c530's makes a code on.
 test('with no code and `?/renew` unanswered, the DEVICES row is still drawn, and its NEW CODE makes one (c531 round 2)', async () => {
-	expect((await codeOn(B)).state, 'B has made no code yet').toBe('none');
-	const page = await libraryOn(B);
+	test.setTimeout(150_000);
+	const D = await ownServer('renewless');
+	expect((await codeOn(D)).state, 'a fresh server has no code').toBe('none');
+	const page = await libraryOn(D);
 	// The page's own `?/renew` refused: what the row draws from the load
 	// alone, which made no code.
 	await page.route(renewPost, (r) => r.abort());
@@ -327,12 +368,12 @@ test('with no code and `?/renew` unanswered, the DEVICES row is still drawn, and
 	await expect(page.locator('.pair-tv .tvline')).toHaveText('NO CODE YET · MAKE A NEW CODE');
 	await expect(page.getByText('EXPIRED · MAKE A NEW CODE')).toHaveCount(0);
 	await expect(page.getByLabel('Pairing code for a TV')).toHaveCount(0);
-	expect((await codeOn(B)).state).toBe('none');
+	expect((await codeOn(D)).state).toBe('none');
 	await page.unroute(renewPost);
 
 	await page.locator('.pair-foot').getByRole('button', { name: 'NEW CODE' }).click();
 	await expect.poll(() => shownDigits(page)).toMatch(/^\d{6}$/);
-	const made = await codeOn(B);
+	const made = await codeOn(D);
 	expect(made.state).toBe('live');
 	expect(await shownDigits(page)).toBe(made.code);
 });
