@@ -133,7 +133,8 @@
 		{#each rows as row (row.type === 'episode' ? row.entry.id : `${row.type}-${row.season}`)}
 			{#if row.type === 'fold'}
 				<li class="fold">
-					<button type="button" onclick={() => (expanded = true)}>
+					<!-- The stripes are a stylesheet picture: the hover tint must not replace them (c488, doc/MOTION.md). -->
+					<button type="button" data-picture onclick={() => (expanded = true)}>
 						<span>↑ {seasonLabel(row.season, row.from, row.to)}</span>
 						<span>{row.count} WATCHED · SHOW</span>
 					</button>

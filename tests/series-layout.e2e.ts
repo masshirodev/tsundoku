@@ -59,6 +59,25 @@ test('the series frame matches the design for this device', async ({ page }, inf
 	expect(rail.width).toBe(frame.rail);
 });
 
+// c488: the hover tint (motion.css) is a background-image, so it replaces a
+// picture drawn by the element's own stylesheet unless the element says
+// `data-picture`. The fold's stripes are that picture. A hover needs a fine
+// pointer, which only the desktop project has.
+test('hovering the fold keeps its stripes (c488)', async ({ page }, info) => {
+	test.skip(info.project.name !== 'desktop', 'a hover needs a fine pointer');
+	await page.goto('/?sort=title');
+	await page.locator('.grid .tile', { hasText: 'Tower of God' }).click();
+	await page.waitForURL(/\/series\/\d+/);
+	const fold = page.locator('.fold button');
+	await expect(fold).toBeVisible();
+	const image = () => fold.evaluate((n) => getComputedStyle(n).backgroundImage);
+	expect(await image()).toMatch(/^repeating-linear-gradient/);
+	await fold.hover();
+	// Under the pointer, and still the stripes, not the flat 9% tint.
+	expect(await fold.evaluate((n) => n.matches(':hover'))).toBe(true);
+	expect(await image()).toMatch(/^repeating-linear-gradient/);
+});
+
 test('a doujin reads as a book: pages, not a chapter list', async ({ page }) => {
 	await page.goto('/?sort=title');
 	await page.locator('.grid .tile', { hasText: 'Hoshi no Umi no Tabibito' }).click();

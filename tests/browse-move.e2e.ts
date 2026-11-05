@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, devices, type Page } from '@playwright/test';
 
 /**
  * MOVE end to end (doc/MOVE.md; card c139): a series moves to another entry on
@@ -123,4 +123,30 @@ test('its frame is two panes at 1280 and one below 1024, at the handoff’s meas
 	expect(await style('.mv', 'flex-direction')).toBe('column');
 	await expect(page.locator('.cmp')).toBeVisible();
 	await expect(page.locator('.cands')).toBeHidden();
+});
+
+/*
+ * c488, the episode list's half: only the browse server's seed has an anime
+ * with a season watched through (Tsukiakari no Ryokōsha's season 1), so the
+ * episode fold's hover is checked here, in the one browse file this slot owns.
+ * A hover needs a fine pointer; the browse project is a touch tablet, so this
+ * describe is a desktop. series-layout.e2e.ts checks the chapter fold.
+ */
+test.describe('the episode fold under a fine pointer (c488)', () => {
+	const { defaultBrowserType: _b, ...desktop } = devices['Desktop Chrome'];
+	void _b;
+	test.use({ ...desktop, viewport: { width: 1440, height: 900 } });
+
+	test('hovering the episode fold keeps its stripes', async ({ page }) => {
+		await page.goto('/?sort=title');
+		await page.locator('.grid .tile', { hasText: 'Tsukiakari no Ryokōsha' }).click();
+		await page.waitForURL(/\/series\/\d+/);
+		const fold = page.getByRole('region', { name: 'Episodes' }).locator('.fold button');
+		await expect(fold).toContainText('WATCHED · SHOW');
+		const image = () => fold.evaluate((n) => getComputedStyle(n).backgroundImage);
+		expect(await image()).toMatch(/^repeating-linear-gradient/);
+		await fold.hover();
+		expect(await fold.evaluate((n) => n.matches(':hover'))).toBe(true);
+		expect(await image()).toMatch(/^repeating-linear-gradient/);
+	});
 });
