@@ -253,4 +253,16 @@ describe('UNDO', () => {
 		expect(() => undoRenameSeries(first)).toThrow('RENAMED AGAIN SINCE');
 		expect(row(lantern).title).toBe('Second');
 	});
+
+	it('refuses a blank name, and writes alternative titles only as a list of strings', () => {
+		const facts = renameSeries(lantern, 'Posted Back');
+		expect(() => undoRenameSeries({ ...facts, title: '   ' })).toThrow('A SERIES NEEDS A NAME');
+		expect(row(lantern).title).toBe('Posted Back');
+		undoRenameSeries({ ...facts, title: 'Second', altTitles: 'not json' });
+		expect(row(lantern).title).toBe('Second');
+		expect(JSON.parse(row(lantern).alt_titles)).toEqual([]);
+		const again = renameSeries(lantern, 'Posted Twice');
+		undoRenameSeries({ ...again, altTitles: JSON.stringify(['Kept', 7, null]) });
+		expect(JSON.parse(row(lantern).alt_titles)).toEqual(['Kept']);
+	});
 });

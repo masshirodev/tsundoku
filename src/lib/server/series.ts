@@ -421,8 +421,16 @@ export function renameSeries(seriesId: number, name: string): SeriesRenameFacts 
  * UNDO of a rename: the name and the alternative titles as they were. Only
  * while the series still carries the name this rename gave it; a later rename
  * is the owner's newer word, and an older band's UNDO must not undo it.
+ *
+ * The facts come back from the page as posted JSON, so they are checked as
+ * RENAME checks a typed name (c539 review, round 2): a blank title is
+ * refused, and `alt_titles` is written only as a JSON list of strings, since
+ * its readers (`ranobe-review.ts` among them) parse it bare.
  */
 export function undoRenameSeries(facts: SeriesRenameFacts): void {
+	const title = typeof facts.title === 'string' ? facts.title.trim() : '';
+	if (title === '') throw new RenameError('A SERIES NEEDS A NAME');
+	const altTitles = JSON.stringify(parseAlts(String(facts.altTitles ?? '')));
 	const db = getDb();
 	db.transaction(() => {
 		const row = db.prepare(`SELECT title FROM series WHERE id = ?`).get(facts.seriesId) as
@@ -430,8 +438,8 @@ export function undoRenameSeries(facts: SeriesRenameFacts): void {
 		if (!row) throw new RenameError('NO SUCH SERIES');
 		if (row.title !== facts.name) throw new RenameError('RENAMED AGAIN SINCE');
 		db.prepare(`UPDATE series SET title = ?, alt_titles = ? WHERE id = ?`).run(
-			facts.title,
-			facts.altTitles,
+			title,
+			altTitles,
 			facts.seriesId
 		);
 	}).immediate();
