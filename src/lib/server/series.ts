@@ -428,8 +428,11 @@ export function renameSeries(seriesId: number, name: string): SeriesRenameFacts 
  * its readers (`ranobe-review.ts` among them) parse it bare.
  */
 export function undoRenameSeries(facts: SeriesRenameFacts): void {
-	const title = typeof facts.title === 'string' ? facts.title.trim() : '';
-	if (title === '') throw new RenameError('A SERIES NEEDS A NAME');
+	// The name exactly as it was stored, spaces and all (c555): it is what a
+	// source, a scan and the series' other names were matched against, and a
+	// trimmed one was a name it never had. Only a blank one is refused.
+	const title = typeof facts.title === 'string' ? facts.title : '';
+	if (title.trim() === '') throw new RenameError('A SERIES NEEDS A NAME');
 	const altTitles = JSON.stringify(parseAlts(String(facts.altTitles ?? '')));
 	const db = getDb();
 	db.transaction(() => {

@@ -110,7 +110,11 @@ meta line in ink, `SAME TITLE · FROM ASURA SCANS`, and only of the same kind of
 source (`libraryIndex`'s `sameTitle`): a manga matches manga, a novel novels,
 an anime anime, since an adaptation under the same name isn't a copy from
 elsewhere (reported 2026-10-29: "Oshi no Ko" on KickAssAnime read SAME TITLE ·
-FROM WEEB CENTRAL). Anything else opens c94's
+FROM WEEB CENTRAL). A twin is known by every name a series goes by
+(c555): its title and the members of its `alt_titles`, where a rename keeps
+the old name, so a source still calling a renamed series by its old name
+still reads SAME TITLE. Where one series is titled so and another only
+was, the titled one's source is named. Anything else opens c94's
 preview (`/downloads/source/<manga>?from=<this page>`), whose back cell then
 says BROWSE and returns here.
 
