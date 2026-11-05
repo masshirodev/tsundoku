@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { registerBack } from '$lib/focus';
@@ -18,6 +18,7 @@
 	import { m } from '$lib/paraglide/messages';
 	import { num, upper } from '$lib/i18n/format';
 	import { getLocale } from '$lib/paraglide/runtime';
+	import { pageOrigin, withInUse } from './servers-in-use';
 
 	/**
 	 * MORE (Reach, tabletMore and phoneMore; doc/SETTINGS.md, "Getting there";
@@ -29,9 +30,15 @@
 		onclose,
 		queued,
 		start = null,
-		lastImport = null
+		lastImport = null,
+		initial = 'more'
 	}: {
 		open: boolean;
+		/**
+		 * What the sheet opens on: MORE's rows, or SERVERS straight away (the
+		 * library bar's server cell, S1; OK there opens S2). Read when it opens.
+		 */
+		initial?: 'more' | 'servers';
 		onclose: () => void;
 		queued: number | null;
 		/** GET STARTED's count, while it isn't finished: its row comes first (doc/ONBOARDING.md). */
@@ -87,6 +94,12 @@
 	let chosen = $state<Server | null>(null);
 	/** What each probe said: CHECKING until it answers. */
 	let answers = $state<Record<string, 'checking' | 'ok' | 'no'>>({});
+	/**
+	 * Opened on SERVERS by the bar's cell: BACK from the list then closes the
+	 * sheet, and focus goes back to the cell, rather than climbing to MORE's
+	 * rows nobody asked for (TV-Servers' calls, "BACK").
+	 */
+	let direct = $state(false);
 	/** FORGET is not pressable for its first 0.6 s, so a held OK can't fall through (S4). */
 	let armed = $state(false);
 
@@ -95,7 +108,9 @@
 		if (!b || typeof b.servers !== 'function') return null;
 		try {
 			const list = JSON.parse(b.servers()) as unknown;
-			return Array.isArray(list) ? (list as Server[]) : [];
+			// In use is this page's own server, not the bridge's newest opened,
+			// which right after a switch is the one just left (servers-in-use.ts).
+			return Array.isArray(list) ? withInUse(list as Server[], pageOrigin()) : [];
 		} catch {
 			return [];
 		}
@@ -108,7 +123,15 @@
 	/** SERIES TO LINK's count, from the layout (c475): its row shows while there are any. */
 	const toLink = $derived(Number(page.data.toLink ?? 0));
 
+	// `read` has already set `inUse` on the page's own server (withInUse).
 	const inUse = $derived(servers?.find((s) => s.inUse) ?? null);
+	/**
+	 * Where S2's mark lands: the first one not in use, the one most likely
+	 * come for; with only one server, + ADD A SERVER. Said in the markup too
+	 * (`data-focus-start`), because a sheet opened on SERVERS starts its scope
+	 * a frame after it opens (focusScope), after `land` has run.
+	 */
+	const arrival = $derived(servers?.find((s) => !s.inUse)?.origin ?? null);
 	const serversLine = $derived(
 		!servers
 			? ''
@@ -148,10 +171,13 @@
 	/** S2: the first one not in use has the mark; with one server, + ADD A SERVER. */
 	function openServers() {
 		servers = read();
+		// No bridge (or an APK with no list): there is no SERVERS to open.
+		if (!servers) return false;
 		view = 'servers';
 		probeAll();
-		const other = servers?.find((s) => !s.inUse);
+		const other = servers.find((s) => !s.inUse);
 		void land(other ? `[data-server="${CSS.escape(other.origin)}"]` : '[data-server-add]');
+		return true;
 	}
 
 	function choose(s: Server) {
@@ -183,7 +209,7 @@
 		if (!armed || !s || !b || typeof b.forgetServer !== 'function') return;
 		let left: Server[];
 		try {
-			left = JSON.parse(b.forgetServer(s.origin)) as Server[];
+			left = withInUse(JSON.parse(b.forgetServer(s.origin)) as Server[], pageOrigin());
 		} catch {
 			left = [];
 		}
@@ -216,6 +242,9 @@
 			const at = chosen;
 			view = 'servers';
 			void land(at ? `[data-server="${CSS.escape(at.origin)}"]` : '[data-server-add]');
+		} else if (direct) {
+			// The sheet's own Escape closes it, and its scope gives focus back to the cell.
+			return false;
 		} else {
 			view = 'more';
 			void land('[data-more-servers]');
@@ -224,12 +253,22 @@
 	}
 	onMount(() => registerBack(backStep));
 
-	// A sheet that closes opens again on MORE, not where it was left.
-	$effect(() => {
+	// A sheet that closes opens again on MORE (or on SERVERS, when its opener
+	// asks), not where it was left. `pre`, so the first paint is already the
+	// view asked for.
+	$effect.pre(() => {
 		if (!open) {
 			view = 'more';
 			chosen = null;
+			direct = false;
+			return;
 		}
+		untrack(() => {
+			// Read on every opening: the app can rename or forget one between two
+			// (RENAME is its own screen, S5), and the row's line names the one in use.
+			servers = read();
+			if (initial === 'servers' && view === 'more') direct = openServers();
+		});
 	});
 
 	/** OPENED: TODAY, YESTERDAY, 3 DAYS AGO; NEVER for one added and not opened. */
@@ -321,6 +360,7 @@
 						type="button"
 						class="srv"
 						data-focus-mark="in"
+						data-focus-start={s.origin === arrival ? '' : undefined}
 						data-server={s.origin}
 						onclick={() => choose(s)}
 						oncontextmenu={(e) => {
@@ -351,6 +391,7 @@
 					type="button"
 					class="srv add"
 					data-focus-mark="in"
+					data-focus-start={arrival === null ? '' : undefined}
 					data-server-add
 					onclick={() => bridge()?.addServer?.()}
 					><div class="g">+</div>

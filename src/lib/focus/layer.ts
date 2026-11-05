@@ -661,13 +661,13 @@ export function focusScope(
 	let start = options.start ?? [];
 	declaredStarts.set(node, () => start);
 
-	const opener =
+	const opener = () =>
 		document.activeElement instanceof HTMLElement &&
 		document.activeElement !== document.body &&
 		!node.contains(document.activeElement)
 			? document.activeElement
 			: null;
-	const entry: Scope = { node, restoreTo: opener, force: !!options.force };
+	const entry: Scope = { node, restoreTo: opener(), force: !!options.force };
 	let frame = 0;
 
 	const open = () => {
@@ -701,7 +701,13 @@ export function focusScope(
 	// the browser reflects as the attribute.
 	const leaving = new MutationObserver(() => {
 		if (node.inert) close();
-		else if (node.isConnected && !scopes.includes(entry)) open();
+		else if (node.isConnected && !scopes.includes(entry)) {
+			// Opened again before it was gone, maybe by another door (MORE after
+			// the library bar's server cell, c261): focus goes back to what
+			// opened it this time, not the first time.
+			entry.restoreTo = opener() ?? entry.restoreTo;
+			open();
+		}
 	});
 	leaving.observe(node, { attributes: true, attributeFilter: ['inert'] });
 	open();

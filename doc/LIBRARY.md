@@ -55,7 +55,11 @@ was. The rule is written once, in `src/lib/server/visibility.ts`, and every
 query uses it.
 
 The app's name (the wordmark, in the library header and the desktop sidebar)
-is a link to the library.
+is a link to the library. Inside the TV app with two or more servers, the
+cell after it says whose library this is, `ON LIVING ROOM`, and OK on it
+opens SERVERS (S1, c261; [`TV-APP.md`](TV-APP.md), "The bar's server cell");
+the wordmark is then not an arrow stop, so ↑ from the library lands on that
+cell.
 
 ## Rating
 
@@ -348,8 +352,14 @@ meant tapping through the others, and nothing ran the other way round.
   picks, BACK closes, and the mark goes back to the cell. The remote reaches
   the cell from the shelf tabs with ↑. Until c432 it was a native `<select>`,
   whose open list was the system's own and whose ←/→ changed the sort in
-  place on a TV. `tests/library-top-sort.e2e.ts` and
-  `tests/tv-library-top.e2e.ts`.
+  place on a TV. A sort that takes past 1 s puts the grid in outline, and
+  the label says LOADING where SORT and ↓ / ↑ were, taking the focused cell
+  with it: the page notes which of the two had the mark and gives it back
+  when SORT is drawn again, unless the mark has gone somewhere else in
+  between (wave 24; before it the mark was left on nothing, red 4 in 10 in
+  loaded runs). `tests/library-top-sort.e2e.ts` and
+  `tests/tv-library-top.e2e.ts`, which holds a sort's data 2.5 s to put the
+  outline up on purpose.
 - **PROGRESS** (`sort=progress`) is three tiers, as `progressOf` decides
   them: begun and not finished (one page opened is begun), by last read;
   then never opened, newest added first; then the rest, the finished, by
