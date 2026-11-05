@@ -3,14 +3,12 @@ import { expect, test } from '@playwright/test';
 /*
  * IMPORT A BACKUP's pick screen against its board (c438; doc/IMPORT.md). The
  * board is drawn at a 1440-wide desktop, beside the sidebar, so this runs in
- * the desktop project alone; playwright.config.ts's DEVICE_IGNORE is not this
- * slot's to change, so the file skips itself elsewhere. It only reads /import,
- * which writes nothing, so it runs on the shared seed.
+ * the desktop project alone: every other project ignores it
+ * (playwright.config.ts's DESKTOP_ONLY, c510), so it neither lists nor skips
+ * anywhere else. It only reads /import, which writes nothing, so it runs on
+ * the shared seed.
  */
 test.use({ viewport: { width: 1440, height: 2400 } });
-test.beforeEach(() => {
-	test.skip(test.info().project.name !== 'desktop', 'the board is the desktop’s');
-});
 
 /**
  * Import-Pick (00 — CHOOSE THE FILE), in a real browser.
