@@ -760,7 +760,7 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   mark, probes and frame (the extracted measurements); S3 and S4 with FORGET's
   0.6 s; forgetting the one in use and the last; the layout telling the app,
   and only the app, the server's name; MORE's TO LINK row reached by keys (c475).
-  S1 (wave 24, 12 cases): no cell without the bridge, with an APK older than
+  S1 (wave 24, 15 cases): no cell without the bridge, with an APK older than
   c261, with four kinds of answer that are not a list of servers, or with one
   server; two put the one in use after the wordmark, the TV's name first, the
   server's own without one, a long one clipped (the `bar` frame's 200 and
