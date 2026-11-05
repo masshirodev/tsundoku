@@ -347,7 +347,7 @@ none of these was "fixed" here.
   request says `type: MANGA`. The resolved entry then gives the series its
   cover (`linkCover`, `:970`). Only the owner-facing doors leave a doujin
   out: `LINKABLE` (`:547`) keeps it out of the LINK queue and the pass, and
-  `linkState` (`:944`) gives its series screen no LINK row.
+  `linkState` (`:944`) gives its series screen no LISTS row.
   `tests/kinds-db.spec.ts` ("a doujin's catalogue") goes through that import
   door. Separately, `candidateKind` never names a candidate `doujin`, so the
   `doujin` in a comic's `matches` is reached only by a series' own kind, which

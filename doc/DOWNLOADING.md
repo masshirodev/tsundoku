@@ -57,7 +57,7 @@ States.dc.html` (brief: [`briefs/done/DOWNLOADS.md`](briefs/done/DOWNLOADS.md)).
 
 ## The series screen
 
-- **DOWNLOAD** sits under CONTINUE, shaped like the LINK row: what's missing,
+- **DOWNLOAD** sits under CONTINUE, shaped like the SOURCE row: what's missing,
   what's under way, then **NEXT 10** (accent) and **ALL N**. NEXT 10 queues
   at once: the next unread chapters with no file, in reading order. When
   nothing of the series is on disk yet, it reads **FIRST 10**. ALL N asks

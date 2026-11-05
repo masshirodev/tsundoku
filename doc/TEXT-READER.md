@@ -152,12 +152,12 @@ Paged turns slide and follow the finger, as a manga's do ([`READER.md`](READER.m
   Scroll layout is untouched.
 
 The chapter is one CSS-columns flow, so the page either side is already laid
-out beside this one: a turn is a transition on the flow's transform, which is
-on a layer of its own, and the columns are never laid out again for it. The
-axis and its sign are one pair in `TextReader.svelte` (`pageAxis`,
+out beside this one: a turn is a transition on the flow's transform, on a
+layer of its own while it moves, and the columns are never laid out again for
+it. The axis and its sign are one pair in `TextReader.svelte` (`pageAxis`,
 `pageSign`), so a right-to-left horizontal book (the direction card, c440)
-changes the sign and nothing else. Tested in `tests/text-reader-turn.e2e.ts`
-on every device, and vertical Japanese in `tests/text-reader-flow.e2e.ts`.
+changes the sign, and `textMode`'s mode for that book. Tested in
+`tests/text-reader-turn.e2e.ts` on every device, and vertical Japanese in `tests/text-reader-flow.e2e.ts`.
 
 ## Touch
 

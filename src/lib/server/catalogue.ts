@@ -1371,7 +1371,7 @@ export type LinkState = {
 
 /**
  * The LINK and COVER rows (Series Link 1k–1s). Null for a doujin: it is never
- * offered a LINK row, although an import's Mihon tracker can link one
+ * offered a row, although an import's Mihon tracker can link one
  * (`resolveLinks`).
  * An anime answers for one season (c240): the one the screen asked about, or
  * the one CONTINUE is in.

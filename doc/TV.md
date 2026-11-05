@@ -218,7 +218,10 @@ The handoff stated these about the code or the app; both are built (c236).
   sits 32 px beside it with 56 px rows and its scrub rail. RATING keeps ← →:
   `data-focus-adjust` tells the focus layer (`src/lib/focus/dom.ts`) that a
   left or right moves its value by half a bar and ↑ ↓ leave. FAV and the rest
-  of the actions are still the panel's ruled rows (see Departures).
+  of the actions are still the panel's ruled rows (see Departures). LISTS
+  (c424): ↑ ↓ move a line at a time, ← → between a line's cells; a line drops
+  its meta on the TV (one OK away, in EDIT), and two cells drop under the line
+  in equal columns.
 - **Panels.** Every `Sheet` is a 420 px panel from the right, full height,
   with the strong rule on its left edge; the screen it opened over stays in
   view at the left. The scrim is still the whole screen.

@@ -544,9 +544,11 @@ screen but the video, and the subtitles, until a tap.
   sends a pixel or two of movement all the time, and the chrome flashed in on
   every one of them; it now takes 12px of travel — quickly from where the
   pointer was, or slowly from where the controls last left it. The middle
-  cluster (`−10`, pause, `+10`) does not fade with the bars: it is solid from
-  its first frame, where a half-faded black box over the picture read as a
-  translucent patch.
+  cluster (`−10`, pause, `+10`) does not fade with the bars: it is all there
+  from its first frame, where a box fading over the picture read as a patch
+  coming and going. Its ground is translucent, 70% of the page's, so the frame
+  shows through while the controls are up, and its glyphs keep AA over a white
+  frame and a black one (c429).
 - **Volume** (c385). VOL's label mutes, as before; hovering it (or clicking
   it) opens a slider above the cell, a column of the bar's surface with the
   scrubber's track upright, which a press or a drag sets; the wheel over the
