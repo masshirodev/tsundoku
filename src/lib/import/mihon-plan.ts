@@ -152,12 +152,30 @@ export function statusOf(status: number | string): string {
 	return ['', 'ongoing', 'completed', 'licensed', 'completed', 'cancelled', 'hiatus'][status] ?? '';
 }
 
-/** "Kim Hyunsoo", "BK_Moon/ Lee hyunmin" -> people, one each. */
+/** A name's own tail, never a name of its own: "Tanaka, Jr." is one person. */
+const SUFFIX = /^(jr|sr|ii|iii|iv)\.?$/i;
+
+/**
+ * "Kim Hyunsoo", "BK_Moon/ Lee hyunmin" -> people, one each: split on commas,
+ * `/`, `;` and ` & `, with no `_` or "unknown". A part that is only a
+ * generational suffix ("Jr.", "Sr.", "II", "III", "IV") stays with the name
+ * before it, so "Tanaka, Jr." is one person, written back as `Tanaka, Jr.`
+ * (c508). Every importer's author and artist split is this one (Mihon's,
+ * LNReader's, Aniyomi's) and so is the preview's (`splitPeople`,
+ * library/tag-search.ts), so a name the preview links is a tag the added
+ * series carries. It holds on its own output: the names joined with `, `
+ * split back into the same names.
+ */
 export function people(s: string): string[] {
-	return s
+	const out: string[] = [];
+	for (const name of s
 		.split(/\s*(?:,|\/|;|\s&\s)\s*/)
 		.map((p) => p.trim())
-		.filter((p) => p !== '' && p !== '_' && p.toLowerCase() !== 'unknown');
+		.filter((p) => p !== '' && p !== '_' && p.toLowerCase() !== 'unknown')) {
+		if (SUFFIX.test(name) && out.length > 0) out[out.length - 1] += `, ${name}`;
+		else out.push(name);
+	}
+	return out;
 }
 
 /** 98 -> "98", 10.5 -> "10.5", as Mihon shows them. */

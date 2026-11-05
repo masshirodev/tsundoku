@@ -105,29 +105,21 @@ export function tagSearchParams(schema: FilterField[], tag: TagQuery): [string, 
 /** Two people are one when only case and spacing tell them apart: the preview's lines compare by this. */
 export const personKey = (name: string) => fold(name);
 
-/** A name's own tail, never a name of its own: "Tanaka, Jr." is one person. */
-const SUFFIX = /^(jr|sr|ii|iii|iv)\.?$/i;
-
 /**
  * A source's author or artist string as the people in it (card c456): "A, B"
- * is two links, each searched on its own. The split is the importer's own
- * (`people`, import/mihon-plan.ts: commas, `/`, `;` and ` & `, and no `_` or
- * "unknown"), so a preview's names are the tags its series carries once
- * added, and the person pages they open. On top of it, a name met twice is
- * kept once (case and spacing aside), and a part that is only a generational
- * suffix ("Jr.", "Sr.", "II", "III", "IV") stays with the name before it, so
- * "Tanaka, Jr." is one person (the importer splits that one in two:
- * doc/handoff-notes/browse.md, wave 20, Gaps). A name written surname-first
- * ("Oda, Eiichiro") cannot be told from two people, and is two.
+ * is two links, each searched on its own. The split is the importers' own
+ * (`people`, import/mihon-plan.ts: commas, `/`, `;` and ` & `, no `_` or
+ * "unknown", and a part that is only a generational suffix -- "Jr.", "Sr.",
+ * "II", "III", "IV" -- kept with the name before it, so "Tanaka, Jr." is one
+ * person; c508 moved that rule into `people`, which every importer calls), so
+ * a preview's names are the tags its series carries once added, and the
+ * person pages they open. On top of it, a name met twice is kept once (case
+ * and spacing aside). A name written surname-first ("Oda, Eiichiro") cannot
+ * be told from two people, and is two.
  */
 export function splitPeople(raw: string | null | undefined): string[] {
-	const out: string[] = [];
-	for (const name of people(raw ?? '')) {
-		if (SUFFIX.test(name) && out.length > 0) out[out.length - 1] += `, ${name}`;
-		else out.push(name);
-	}
 	const seen = new Set<string>();
-	return out.filter((n) => {
+	return people(raw ?? '').filter((n) => {
 		const k = fold(n);
 		if (seen.has(k)) return false;
 		seen.add(k);

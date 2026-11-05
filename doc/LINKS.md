@@ -498,7 +498,13 @@ The link is AniList's line, a line a season on an anime (c240; above).
   `THE LINK HOLDS THE LATER HALF AT PART 1 · NEVER TICKED` (or
   `… THE EARLIER HALF AT PART 2 …`). The way out is UNDO and linking the
   earlier half instead, whose walk then offers the `Part 2` entry at part 2,
-  ticked (links round 2).
+  ticked (links round 2). When both halves are already stored that way round
+  (the `Part 2` entry at part 1 and the earlier one at part 2, written by the
+  round-1 walker or by hand), the other part is its slot's own link, but the
+  page does not draw it as settled: its why is
+  `ALREADY ITS LINK · THE HALVES ARE REVERSED`, never the plain
+  `ALREADY ITS LINK` a pair stored the right way round reads (c541). The way
+  out is the same: UNLINK both halves and link the earlier one.
   A pair is **one season** everywhere the page counts: `N OF M TICKED`,
   `LINK N SEASONS` and the band count distinct seasons (c418, round 2). The walk asks two rings: the linked entry, then
   its chain neighbours in one request, whose own PREQUEL and SEQUEL place
@@ -516,7 +522,8 @@ Sword Art Online: Extra Edition` and `SPIN-OFF Gun Gale Online`), whatever
   other kinds (ADAPTATION, CHARACTER, SUMMARY, ALTERNATIVE and the rest) are
   not listed. They come last, under the seasons. A season already linked
   says `REPLACES …` and is not ticked either; its own entry offered back to
-  it says `ALREADY ITS LINK`. **An entry another season or part already
+  it says `ALREADY ITS LINK` (or, for a pair stored reversed, `ALREADY ITS
+LINK · THE HALVES ARE REVERSED`, above). **An entry another season or part already
   holds** is listed unticked, saying which (`SEASON 3 HOLDS THIS ENTRY ·
 NEVER TICKED`; c418), since `linkSeason` would refuse it, and a split
   season with a held part is unticked whole. LINK N SEASONS writes the
@@ -532,7 +539,20 @@ HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. Under that band
   draws it with). The band's numbers
   are seasons, from the workstation's `linked` and `of` (`seasonsLinked`): a
   pair linked whole is one, and a pair with a part refused is that season
-  not linked, the refusal naming its part. **NOT NOW has two cases on one
+  not linked, the refusal naming its part. **A split season is linked whole
+  or not at all** (c466, the owner's decision (b)): `linkPicks` writes a
+  season's picks in one transaction, and when either part is held (or no
+  longer offered) neither is written, so a season never tracks half its
+  episodes and the band never reads `LINKED 0 OF 1 SEASON` over a part
+  that was written. The season's one refusal names the part and what holds
+  it, said once: `SEASON 2 NOT LINKED · SEASON 4 HOLDS PART 2’S ENTRY`
+  (`… PART 2 IS NO LONGER OFFERED`, `… BOTH PARTS PICKED ONE ENTRY`). The
+  other seasons in the same LINK are still linked; once the holder lets go,
+  the relations tick the pair again and it links. This is LINK N SEASONS'
+  rule, the one door that writes two parts at once: every other door
+  (LINK on the review, a pasted link, the owner's list, the pass's sure
+  match, `+ A SECOND PART`) writes one part through `linkSeason`, whose own
+  refusal writes nothing. **NOT NOW has two cases on one
   series.** After a LINK made on the page, it goes back to the series, the
   season just linked showing on its line on LISTS (c423, round 2). An offer that
   came with the page's load (CHANGE in EDIT's sheet on a linked season, while another season
@@ -542,6 +562,50 @@ HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. Under that band
   from EDIT (round 3). A season linked by a pasted link has no candidates,
   and its UNLINK stands among the actions then. In the queue NOT NOW closes
   the offer, and the band's UNDO stays.
+- **A season's second part by hand** (c350; Track Calls' BY HAND: `+ A
+SECOND PART` under a linked entry, the same search, then `FROM EP. 13`).
+  For a season a catalogue splits at an episode its relations do not show.
+  **Where it lives:** the season's own link page (`/links?series=N&season=S`,
+  which EDIT on the season's line on LISTS opens), as a `PART 2` row under
+  its LINKED row: `AFTER PART 1’S 12 EPISODES · + A SECOND PART`. It is
+  drawn only while part 1 is linked, its entry lists a count, that count
+  leaves episodes over (12 of 23 here), and part 2 has no link
+  (`secondPart`, `src/lib/server/season-links.ts`). It opens the same page on
+  part 2 (`&part=2`, a full load): `LINK · SEASON 2 · PART 2`, a `PART 1` row
+  naming part 1's entry and its episodes, and a `FROM EP.` field filled from
+  part 1's count + 1. The search is the season's own (its title), kept as
+  part 2's (`season_link_searches` and `season_link_candidates` at part 2;
+  run as the page opens when part 2 was never searched, as a season's FIND
+  is), and its candidates leave out part 1's own entry (held) and are set
+  against the episodes part 1 leaves (`11 · THIS HAS 11`). PASTE A LINK
+  reads an entry for part 2 the same way. LINK A TO SEASON 2 PART 2 writes
+  part 2's row through `linkSeason`, so an entry another season or part
+  holds is refused and nothing is written, and goes back to the series,
+  whose line then names both parts. NOT NOW stands where NONE OF THESE
+  would (a second part settles nothing of the season), and the page's
+  UNLINK, once part 2 is linked, takes part 2's row alone and writes no
+  decision (part 1 is still linked, so the season is). That UNLINK sits in
+  the tool row beside the candidates (SEARCH AGAIN, PASTE A LINK, UNLINK),
+  where every linked season's is, since part 2's own entry is always one of
+  its candidates; but once part 2 is linked `+ A SECOND PART` steps aside,
+  so the page is reached only at its `&part=2` address (no door on the
+  season's page leads back to it yet). A season whose only row is part 2
+  (part 1 unlinked, e.g. a CHANGE of part 1 then its UNDO) has no second
+  part to add: the page stands on part 2 and posts `part: 2`, and its
+  search and paste are drawn against the season's own item, as before c350.
+  The series screen's season line reads the season's own search, part 1's
+  (`season_link_searches` at part 1), so part 2's never counts as the
+  season's candidates or queue. A season never takes
+  a third part: the API answers 400 for any part past 2
+  (`CHECK (part IN (1, 2))`). **`FROM EP. n` is bound to part 1's count.**
+  `series_season_links` keeps no start for a part: part 2 begins after part
+  1's `episodes` (`partsOf`), and the send counts within it from there
+  (`targets()`, `reachedFor`), so part 1's last episode completes part 1 and
+  the season's EP. 13 is sent as part 2's EP. 1. A different `n` would have
+  nowhere to live, so the field says
+  `PART 2 STARTS WHERE PART 1’S 12 EPISODES END · FROM EP. 13`, LINK is
+  dimmed, and the workstation refuses one posted anyway (409,
+  `secondPartRefusal`). A free start needs a column; see "Not yet".
 - **Not linked:** what the last search found, in its own words (`4 FOUND ON
 ANILIST · NOT FOR CERTAIN`, `NOTHING FOUND ON ANILIST`), never which pass
   ran it: `link_searches.searched_at` can't say who searched, so the row
@@ -604,6 +668,12 @@ ANIME`, and its CHANGE, the line's accent, is the door.
   would need MAL's own API, which needs a client id (the tracking delivery).
 - **"2,318 LINKED"** in the mock's settings is invented. There were 110 links
   on 2026-09-24.
+- **`FROM EP. n` cannot be changed** (c350). Track Calls fills it from part
+  1's count, which implies another value could be typed; the schema keeps no
+  start for a part, so only part 1's count + 1 is taken, and another `n` is
+  refused with where part 2 does start. "The season's link page" is the
+  review page on that season (`/links?series=N&season=S`), where the row
+  sits under LINKED; part 2's search is that page opened on part 2.
 - **Tablet landscape** takes the desktop layout (1j). The mock drew only
   tablet portrait, phone and desktop.
 
@@ -613,6 +683,10 @@ ANIME`, and its CHANGE, the line's accent, is the door.
   its lines are LISTS' since c424. What this list still says of it (the
   owner's app registrations, the redirect on
   `https://workstation.example.ts.net:8443`) is TRACKING.md's to keep.
+- **A second part that starts anywhere but after part 1's count** (c350).
+  It needs a start column on `series_season_links` (a rung, and `partsOf`
+  and `targets()` reading it); until then `FROM EP. n` is part 1's count +
+  1 and nothing else.
 - **A score from a review or pasted link** fills nothing. The score comes from
   the owner's list, which needs the sign-in. Only Mihon's MAL score fills a
   rating today.

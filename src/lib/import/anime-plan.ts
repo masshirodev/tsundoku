@@ -1,4 +1,4 @@
-import { statusOf } from './mihon-plan.ts';
+import { people, statusOf } from './mihon-plan.ts';
 import type { PlannedEntry, PlannedSeries, PlannedTag } from './plan.ts';
 import { animeKeyOf } from '../library/downloads.ts';
 
@@ -149,8 +149,10 @@ export function planAnime(d: AnimeDetails, episodes: AnimeEpisode[], now: number
 			tags.push({ namespace, value: v });
 	};
 	for (const g of d.genres ?? []) add('genre', g.toLowerCase());
-	for (const a of (d.author ?? '').split(',')) add('author', a);
-	for (const a of (d.artist ?? '').split(',')) add('artist', a);
+	// The importers' one split (c508): `/`, `;` and ` & ` too, and "Tanaka, Jr."
+	// one person, as Mihon's, LNReader's and the preview's are.
+	for (const a of people(d.author ?? '')) add('author', a);
+	for (const a of people(d.artist ?? '')) add('artist', a);
 	add('source', d.sourceName);
 	return {
 		originKey: animeKeyOf(d.sourceId, d.url),

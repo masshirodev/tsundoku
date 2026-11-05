@@ -359,8 +359,12 @@ export function seriesSeasons(
 				watched: 0
 			});
 	}
+	// The season's own search is part 1's: a `+ A SECOND PART` visit writes
+	// part 2's row, which never stands for the season's (c350).
 	const searched = db
-		.prepare(`SELECT season, searched_at, found FROM season_link_searches WHERE series_id = ?`)
+		.prepare(
+			`SELECT season, searched_at, found FROM season_link_searches WHERE series_id = ? AND part = 1`
+		)
 		.all(seriesId) as { season: number; searched_at: number | null; found: number }[];
 	return {
 		kind: s.kind,
@@ -418,7 +422,9 @@ export function seriesSeasons(
 				queued:
 					!!search?.searched_at === false &&
 					!!db
-						.prepare(`SELECT 1 FROM season_link_searches WHERE series_id = ? AND season = ?`)
+						.prepare(
+							`SELECT 1 FROM season_link_searches WHERE series_id = ? AND season = ? AND part = 1`
+						)
 						.get(seriesId, span.season),
 				decision: seasonDecision(seriesId, span.season, db),
 				searchTitle: seasonSearchTitle(s.title, span.season)
@@ -593,6 +599,69 @@ export function syncSeriesLink(seriesId: number, now = Date.now()): void {
 	);
 }
 
+/**
+ * A season's second part by hand (c350; the design's `+ A SECOND PART`,
+ * `FROM EP. 13`): where it starts, or why there is none to link.
+ *
+ * `series_season_links` keeps no start for a part: part 2 begins after part
+ * 1's episode count (`partsOf`), and the send counts within it from there
+ * (`targets()`, tracking.ts). So `FROM EP. n` is part 1's count + 1, filled
+ * from part 1's entry as the design says, and a different `n` has nowhere to
+ * live: the door refuses it (`secondPartRefusal`) rather than store a start
+ * that every reader would ignore. A season can hold two parts at most
+ * (`CHECK (part IN (1, 2))`).
+ */
+export type SecondPart = {
+	/** Part 1's count: part 2 starts after it. */
+	after: number;
+	/** The season's own episode part 2 starts at: `FROM EP. 13`. */
+	from: number;
+	/** Part 1's entry, as its row names it. */
+	part1: string;
+	/** Part 2's link, when there is one: a LINK here replaces it. */
+	linked: SeasonLink | null;
+};
+
+export function secondPart(
+	seriesId: number,
+	season: number
+): { ok: SecondPart } | { refused: string } {
+	const view = seriesSeasons(seriesId);
+	const at = view?.seasons.find((s) => s.season === season);
+	if (!view || !at) return { refused: 'NO SUCH SEASON' };
+	const one = seasonLink(seriesId, season, 1);
+	if (!one) return { refused: 'PART 1 IS NOT LINKED · LINK IT FIRST' };
+	const n = one.episodes ?? 0;
+	if (n <= 0)
+		return {
+			refused: 'PART 1’S ENTRY LISTS NO EPISODE COUNT · A SECOND PART HAS NOWHERE TO START'
+		};
+	if (n >= at.aired)
+		return {
+			refused: `PART 1 LISTS ${n} EPISODES, ALL ${at.aired} HERE · NO EPISODE IS LEFT FOR A SECOND PART`
+		};
+	return {
+		ok: {
+			after: n,
+			from: n + 1,
+			part1: one.title || 'LINKED',
+			linked: seasonLink(seriesId, season, 2)
+		}
+	};
+}
+
+/**
+ * Why a second part asked to start at `from` is refused, or null: it must
+ * start where part 1's count ends, the one start the schema can keep (c350).
+ */
+export function secondPartRefusal(seriesId: number, season: number, from: number): string | null {
+	const p = secondPart(seriesId, season);
+	if ('refused' in p) return p.refused;
+	return from === p.ok.from
+		? null
+		: `PART 2 STARTS WHERE PART 1’S ${p.ok.after} EPISODES END · FROM EP. ${p.ok.from}, NOT ${from}`;
+}
+
 /** A season the relations page ticked: the entry, and the season and part it goes on. */
 export type SeasonPick = { season: number; part: number; anilistId: number };
 
@@ -624,12 +693,27 @@ function storedCandidate(
 	return r ? (JSON.parse(r.data) as Candidate) : null;
 }
 
+/** Thrown inside a season's write to undo every part of it (c466). */
+class PairRefused extends Error {}
+
 /**
  * LINK N SEASONS (c418): each pick read back through `offeredSeason`, at its
  * own part (a pair's part 2 is part 2's offer), then written by `linkSeason`.
  * What was linked and what was refused, so the page says the true count and
- * names the rest, rather than counting its own ticks. Picks are taken in
- * order, so two picks of one entry link the first and refuse the second.
+ * names the rest, rather than counting its own ticks. Seasons are taken in
+ * the order their first pick comes, so two seasons' picks of one entry link
+ * the first and refuse the second.
+ *
+ * **A season is written whole or not at all** (c466, the owner's (b)): its
+ * picks -- a split season's two parts -- go in one transaction, and when any
+ * part is refused (held by another season or part, or no longer offered) the
+ * others are taken back with it, so a season never tracks half its
+ * episodes. Every part of a season refused that way is in `refused`, each
+ * carrying the season's one why, which names the season, the part refused
+ * and what holds it: `SEASON 2 NOT LINKED · SEASON 4 HOLDS PART 2’S ENTRY`.
+ * A season picked alone at one part keeps its own words,
+ * `SEASON 2 NOT LINKED · SEASON 3 HOLDS ITS ENTRY`. The same pick twice is
+ * one pick.
  */
 export function linkPicks(
 	seriesId: number,
@@ -639,26 +723,71 @@ export function linkPicks(
 ): { linked: { season: number; part: number }[]; refused: RefusedPick[] } {
 	const linked: { season: number; part: number }[] = [];
 	const refused: RefusedPick[] = [];
+	const bySeason = new Map<number, SeasonPick[]>();
 	for (const p of picks) {
-		const c = offeredSeason(seriesId, p.season, kind, p.anilistId, p.part);
-		if (c && linkSeason(seriesId, p.season, p.part, c, 'relations', now)) {
-			linked.push({ season: p.season, part: p.part });
-			continue;
+		const g = bySeason.get(p.season) ?? [];
+		if (!g.some((q) => q.part === p.part && q.anilistId === p.anilistId)) g.push(p);
+		bySeason.set(p.season, g);
+	}
+	const db = getDb();
+	for (const [season, group] of bySeason) {
+		const pair = group.length > 1;
+		// Each refused part, and what it says: the holder, as the page names it.
+		const off: { pick: SeasonPick; heldBy: RefusedPick['heldBy']; reason: string }[] = [];
+		try {
+			// IMMEDIATE: the write lock is taken before the first check, so nothing
+			// another connection writes can land between a check and its write.
+			db.transaction(() => {
+				const written: SeasonPick[] = [];
+				for (const p of group) {
+					// A part picked twice with two entries is no season to write.
+					if (group.some((q) => q !== p && q.part === p.part)) {
+						off.push({ pick: p, heldBy: null, reason: `TWO ENTRIES PICKED FOR PART ${p.part}` });
+						continue;
+					}
+					const c = offeredSeason(seriesId, p.season, kind, p.anilistId, p.part);
+					if (c && linkSeason(seriesId, p.season, p.part, c, 'relations', now)) {
+						written.push(p);
+						continue;
+					}
+					// A held offer is never kept as a candidate (`rememberOffers`), so the
+					// pick's own id is asked too: whichever holds it is named.
+					const asked = c ??
+						storedCandidate(seriesId, p.season, p.part, p.anilistId) ?? {
+							anilistId: p.anilistId,
+							malId: null
+						};
+					const heldBy = seasonHolding(seriesId, p.season, p.part, asked);
+					// Held by the part just written in this same pick list: both parts
+					// were given one entry, which no stored row says.
+					const own = heldBy?.season === season && written.some((w) => w.part === heldBy.part);
+					off.push({
+						pick: p,
+						heldBy: own ? null : heldBy,
+						reason: own
+							? 'BOTH PARTS PICKED ONE ENTRY'
+							: heldBy
+								? `${seasonWords(heldBy)} HOLDS ${pair ? `PART ${p.part}’S` : 'ITS'} ENTRY`
+								: pair
+									? `PART ${p.part} IS NO LONGER OFFERED`
+									: 'NO LONGER OFFERED'
+					});
+				}
+				if (off.length) throw new PairRefused();
+			}).immediate();
+			for (const p of group) linked.push({ season: p.season, part: p.part });
+		} catch (e) {
+			if (!(e instanceof PairRefused)) throw e;
+			const reasons = [...new Set(off.map((o) => o.reason))];
+			const why = `${seasonWords(pair ? { season, part: 1 } : group[0])} NOT LINKED · ${reasons.join(' · ')}`;
+			for (const p of group)
+				refused.push({
+					season: p.season,
+					part: p.part,
+					heldBy: off.find((o) => o.pick === p)?.heldBy ?? null,
+					why
+				});
 		}
-		// A held offer is never kept as a candidate (`rememberOffers`), so the
-		// pick's own id is asked too: whichever holds it is named.
-		const asked = c ??
-			storedCandidate(seriesId, p.season, p.part, p.anilistId) ?? {
-				anilistId: p.anilistId,
-				malId: null
-			};
-		const heldBy = seasonHolding(seriesId, p.season, p.part, asked);
-		refused.push({
-			season: p.season,
-			part: p.part,
-			heldBy,
-			why: `${seasonWords(p)} NOT LINKED · ${heldBy ? `${seasonWords(heldBy)} HOLDS ITS ENTRY` : 'NO LONGER OFFERED'}`
-		});
 	}
 	return { linked, refused };
 }
@@ -668,6 +797,8 @@ export function linkPicks(
  * linked whole is one season, and a pair with a part refused is that one
  * season refused, its part named by the refusal's own line. `of` is every
  * season picked; `linked` the seasons every picked part of which was written.
+ * Since c466 `linkPicks` never writes half a pair, so a season is in one
+ * list or the other; a season in both still counts as refused.
  */
 export function seasonsLinked(
 	linked: { season: number }[],
@@ -1136,6 +1267,10 @@ export async function seasonRelations(
 		if (id !== start.id && !level.has(id))
 			put(-2, { node: v.node, at: 0, outside: true, how: v.how });
 	const offers: RelationOffer[] = [];
+	// The linked season's other part offered at the slot whose edge disagrees
+	// (c464 round 2): when that slot already holds it, the season's halves are
+	// stored reversed, and the closing pass says so rather than "settled" (c541).
+	const reversed = new Set<RelationOffer>();
 	// A season's own count is what a catalogue's entry is checked against.
 	const aired = (i: number) => view.seasons[i].aired;
 	for (const [key, list] of bySeason) {
@@ -1182,19 +1317,19 @@ export async function seasonRelations(
 					? `${start.episodes} + ${x.node.episodes} = ${have}: ONE SEASON HERE, TWO ENTRIES THERE`
 					: `${have} EP. HERE · ANILIST LISTS ${start.episodes ?? '—'} + ${x.node.episodes ?? '—'}`;
 				if (!agrees) {
-					offers.push(
-						offerOf(
-							view,
-							key,
-							other,
-							{ ...x, how: earlier ? 'THE EARLIER HALF' : 'THE LATER HALF' },
-							why,
-							false,
-							earlier
-								? 'THE LINK HOLDS THE LATER HALF AT PART 1 · NEVER TICKED'
-								: 'THE LINK HOLDS THE EARLIER HALF AT PART 2 · NEVER TICKED'
-						)
+					const o = offerOf(
+						view,
+						key,
+						other,
+						{ ...x, how: earlier ? 'THE EARLIER HALF' : 'THE LATER HALF' },
+						why,
+						false,
+						earlier
+							? 'THE LINK HOLDS THE LATER HALF AT PART 1 · NEVER TICKED'
+							: 'THE LINK HOLDS THE EARLIER HALF AT PART 2 · NEVER TICKED'
 					);
+					reversed.add(o);
+					offers.push(o);
 					continue;
 				}
 				offers.push(
@@ -1247,7 +1382,10 @@ export async function seasonRelations(
 		// The season's own entry, offered back to it: nothing to replace or tick.
 		if (mine && mine.anilistId === o.anilistId) {
 			o.ticked = false;
-			o.why = 'ALREADY ITS LINK';
+			// Already its link, but in the wrong half (c541): written by the
+			// round-1 walker or by hand, so each half's episodes go to the other
+			// entry. Drawn as settled, nobody would look again.
+			o.why = reversed.has(o) ? 'ALREADY ITS LINK · THE HALVES ARE REVERSED' : 'ALREADY ITS LINK';
 			continue;
 		}
 		// A season linked already says what its ticks would replace. On the
