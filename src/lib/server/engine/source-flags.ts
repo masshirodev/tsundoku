@@ -1,4 +1,7 @@
+import { createHash } from 'node:crypto';
 import { getDb } from '../db.ts';
+import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL } from '../visibility.ts';
+import type { Kind } from '../../library/kinds.ts';
 
 /**
  * A source's own switches in tsundoku (doc/BROWSE.md, "A source's own
@@ -127,4 +130,170 @@ export function hideIfAddedHidden(seriesId: number, db = getDb()): boolean {
 			)
 			.run(seriesId).changes > 0
 	);
+}
+
+/**
+ * A series' hidden state under the key a preview knows it by, in the library
+ * or a browsing record, or null when nothing here has that key. ADD AND
+ * DOWNLOAD reads it before and after its ADD (c505): only a series that was
+ * not hidden before and is after was hidden by *this* ADD, and only that one
+ * is queued outside reveal. Hidden is the one rule (`VISIBLE_SQL`), a hidden
+ * root included.
+ */
+export function hiddenByKey(key: string, db = getDb()): { id: number; hidden: boolean } | null {
+	const r = db
+		.prepare(
+			`SELECT s.id, NOT ${VISIBLE_SQL} AS hidden FROM series s JOIN roots r ON r.id = s.root_id
+			WHERE s.origin_key = ?`
+		)
+		.get(key) as { id: number; hidden: number } | undefined;
+	return r ? { id: r.id, hidden: r.hidden === 1 } : null;
+}
+
+/**
+ * An ADD, and whether it was this ADD that hid the series (c505). Every add
+ * door also answers with a series already here (`keepOrPromote`), so the
+ * hidden state under `key` (the preview's) is read before and after: only a
+ * series not hidden before and hidden after, and the one the ADD answered
+ * with, was hidden by this ADD (ADDED HIDDEN, `hideIfAddedHidden`). A null
+ * key reads nothing and answers false: the caller asks only outside reveal.
+ */
+export async function addWatchingHidden(
+	key: string | null,
+	add: () => Promise<number>,
+	db = getDb()
+): Promise<{ seriesId: number; hidByThisAdd: boolean }> {
+	const before = key ? hiddenByKey(key, db) : null;
+	const seriesId = await add();
+	const after = key ? hiddenByKey(key, db) : null;
+	return {
+		seriesId,
+		hidByThisAdd: !!after && after.id === seriesId && after.hidden && !(before?.hidden ?? false)
+	};
+}
+
+/**
+ * The source page's ADDED band after an ADD outside reveal landed there
+ * (c505): the series the band's URL names, only while it is still the one
+ * added from that preview (its id and its key both: an id is reused once its
+ * series is gone, so the id alone could name a series added later), still in
+ * the library and still from this source. `touched` is UNDO's own refusal
+ * (`undoAdd`): something of it is downloaded or read. Null when there is no
+ * such series any more (UNDO ran, or it was deleted), and the band is not
+ * drawn.
+ */
+export function addedHere(
+	seriesId: number,
+	key: string,
+	db = getDb()
+): { entries: number; touched: boolean; kind: Kind } | null {
+	const r = db
+		.prepare(
+			`SELECT s.kind,
+				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS entries,
+				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id
+					AND (e.available = 1 OR e.read_at IS NOT NULL)) AS touched
+			FROM series s WHERE s.id = ? AND s.origin_key = ? AND s.in_library = 1`
+		)
+		.get(seriesId, key) as { kind: Kind; entries: number; touched: number } | undefined;
+	return r ? { entries: r.entries, touched: r.touched > 0, kind: r.kind } : null;
+}
+
+// ---- CONCEAL ITS SERIES (c523) ------------------------------------------------------------------
+
+/**
+ * What CONCEAL would hide now, on a source's settings page (card c523;
+ * doc/BROWSE.md, "Conceal its series"): `own`, every series in the library
+ * from the source that the library shows, and `others`, the shown parts from
+ * other sources of the Works those are parts of, which go with them, since a
+ * Work is never left half hidden (doc/WORKS.md, "The one rule"; c389). The
+ * write itself is `setHiddenWhole`'s (works.ts), over `own`; this is only the
+ * count the cell and its question say. A series hidden already, for its own
+ * reasons or by its root, is in neither.
+ */
+export function concealable(sourceId: string, db = getDb()): { own: number[]; others: number[] } {
+	const own = (
+		db
+			.prepare(
+				`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id
+				WHERE ${IN_LIBRARY_SQL} AND ${VISIBLE_SQL} AND ${sourceIdSql('s.origin_key')} = ?
+				ORDER BY s.id`
+			)
+			.all(sourceId) as { id: number }[]
+	).map((r) => r.id);
+	if (own.length === 0) return { own, others: [] };
+	const others = (
+		db
+			.prepare(
+				`SELECT DISTINCT s.id FROM work_series ws
+				JOIN series s ON s.id = ws.series_id JOIN roots r ON r.id = s.root_id
+				WHERE ws.work_id IN (
+					SELECT work_id FROM work_series WHERE series_id IN (SELECT value FROM json_each(?))
+				)
+				AND s.id NOT IN (SELECT value FROM json_each(?)) AND ${VISIBLE_SQL}
+				ORDER BY s.id`
+			)
+			.all(JSON.stringify(own), JSON.stringify(own)) as { id: number }[]
+	).map((r) => r.id);
+	return { own, others };
+}
+
+/**
+ * A series' mark, for CONCEAL's UNDO (c523): six hex characters of its root,
+ * key and path (its title when it has neither). The band carries each id
+ * with its mark, because an id is given again once its series is gone, so an
+ * id alone could name a series added after the press; UNDO shows only an id
+ * whose mark still matches. A series renamed or moved meanwhile stays hidden:
+ * when in doubt, hidden.
+ */
+export function seriesMarks(ids: number[], db = getDb()): Map<number, string> {
+	if (ids.length === 0) return new Map();
+	const rows = db
+		.prepare(
+			`SELECT id, root_id, origin_key, path, title FROM series
+			WHERE id IN (SELECT value FROM json_each(?))`
+		)
+		.all(JSON.stringify(ids)) as {
+		id: number;
+		root_id: number;
+		origin_key: string | null;
+		path: string;
+		title: string;
+	}[];
+	return new Map(
+		rows.map((r) => [
+			r.id,
+			createHash('sha256')
+				.update(`${r.root_id}\n${r.origin_key ?? ''}\n${r.path || (r.origin_key ? '' : r.title)}`)
+				.digest('hex')
+				.slice(0, 6)
+		])
+	);
+}
+
+/** Of `ids`, those hidden now, by the one rule (`HIDDEN_SQL`): what CONCEAL's band still has to undo. */
+export function hiddenOf(ids: number[], db = getDb()): number[] {
+	if (ids.length === 0) return [];
+	return (
+		db
+			.prepare(
+				`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id
+				WHERE s.id IN (SELECT value FROM json_each(?)) AND ${HIDDEN_SQL} ORDER BY s.id`
+			)
+			.all(JSON.stringify(ids)) as { id: number }[]
+	).map((r) => r.id);
+}
+
+/** Of `ids`, those from `sourceId` (by their key, as `sourceIdSql` reads it): the band's "N FROM IT". */
+export function ofSource(ids: number[], sourceId: string, db = getDb()): number[] {
+	if (ids.length === 0) return [];
+	return (
+		db
+			.prepare(
+				`SELECT s.id FROM series s
+				WHERE s.id IN (SELECT value FROM json_each(?)) AND ${sourceIdSql('s.origin_key')} = ?
+				ORDER BY s.id`
+			)
+			.all(JSON.stringify(ids), sourceId) as { id: number }[]
+	).map((r) => r.id);
 }

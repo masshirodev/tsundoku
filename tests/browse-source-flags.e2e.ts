@@ -1,5 +1,12 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
-import { SOURCE, previewId, startTagWorld, type TagWorld } from './helpers/tag-world';
+import {
+	COLD,
+	SOURCE,
+	coldPreviewId,
+	previewId,
+	startTagWorld,
+	type TagWorld
+} from './helpers/tag-world';
 
 /**
  * A source's own switches (card c435; doc/BROWSE.md, "A source's own
@@ -115,7 +122,17 @@ test('ADDED HIDDEN: + ADD TO LIBRARY from it adds the series hidden, and says so
 	await page.getByRole('button', { name: /ADD TO LIBRARY/ }).click();
 	// The series is hidden and reveal is off, so ADD lands back on the source's page.
 	await expect(page).toHaveURL(new RegExp(`/browse/${SOURCE.id}\\?.*added=hidden`));
-	await expect(page.locator('.band')).toContainText('ADDED TO THE LIBRARY, AND HIDDEN');
+	const band = page.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' });
+	await expect(band).toBeVisible();
+	// What the series page's band would say (c505): its chapters, none downloading, and UNDO.
+	await expect(band).toContainText(
+		/TAG SOURCE ADDS ITS SERIES HIDDEN · \d+ CHAPTERS? · NONE DOWNLOADED · REVEAL SHOWS IT/
+	);
+	await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
+	const bandUrl = page.url();
+	// The band is its URL: a reload says the same.
+	await page.reload();
+	await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
 	// Hidden means hidden: its preview is now the series, which isn't found.
 	expect((await page.goto(url(previewPath)))?.status()).toBe(404);
 	// Inside reveal the preview opens the series it became.
@@ -124,7 +141,190 @@ test('ADDED HIDDEN: + ADD TO LIBRARY from it adds the series hidden, and says so
 	await expect(page).toHaveURL(/\/series\/\d+/);
 	await expect(page.getByRole('heading', { name: 'Preview Me Tagged' })).toBeVisible();
 	await reveal(context, false);
+
+	// UNDO, outside reveal, from the band: out of the library, and the preview again.
+	await page.goto(bandUrl);
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page).toHaveURL(new RegExp(`/downloads/source/${previewId}`));
+	await expect(page.getByRole('button', { name: /ADD TO LIBRARY/ })).toBeVisible();
+	// The band's URL again, after UNDO: nothing to say, and nothing to undo.
+	await page.goto(bandUrl);
+	await expect(page.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })).toHaveCount(0);
+	// UNDO twice (the same form posted again): it undoes nothing, and opens the preview.
+	const band2 = new URL(bandUrl);
+	const again = await page.request.post(url(`/browse/${SOURCE.id}?/undoAdd`), {
+		form: {
+			series: band2.searchParams.get('series')!,
+			preview: band2.searchParams.get('preview')!
+		},
+		headers: { origin: world.base }
+	});
+	expect(again.ok()).toBe(true);
+	expect((await page.goto(url(previewPath)))?.status()).toBe(200);
+	await expect(page.getByRole('button', { name: /ADD TO LIBRARY/ })).toBeVisible();
 	await flip(page, 'Added hidden', false);
+});
+
+test('ADDED HIDDEN: ADD AND DOWNLOAD outside reveal says what it queued, and UNDO is refused once it is read (c505)', async ({
+	page,
+	context
+}) => {
+	await flip(page, 'Added hidden', true);
+	await page.goto(url(previewPath));
+	const dl = page.locator('.dl-row .lcs.inline');
+	await dl
+		.getByRole('button', { name: /^FIRST \d+$|^ALL \d+$/ })
+		.first()
+		.click();
+	await page
+		.getByRole('dialog', { name: 'DOWNLOADING ADDS IT TO YOUR LIBRARY' })
+		.getByRole('button', { name: 'ADD AND DOWNLOAD' })
+		.click();
+	await expect(page).toHaveURL(new RegExp(`/browse/${SOURCE.id}\\?.*added=hidden`));
+	const at = new URL(page.url());
+	const queued = at.searchParams.get('queued');
+	const series = Number(at.searchParams.get('series'));
+	// The queue's answer is carried: the preview's one chapter, queued because
+	// this ADD hid it (c435), and the band says so, as the series page's does.
+	expect(queued).toBe('1');
+	const band = page.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' });
+	await expect(band).toContainText('ADDS ITS SERIES HIDDEN · 1 CHAPTER · 1 DOWNLOADING');
+	await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
+
+	// Read meanwhile (inside reveal, through the series' own MARK READ): UNDO is
+	// refused at the tap, and the band says why.
+	await reveal(context, true);
+	await page.goto(url(`/series/${series}`));
+	const entry = Number(
+		/\/read\/(\d+)/.exec(
+			(await page.locator('a[href^="/read/"]').first().getAttribute('href'))!
+		)![1]
+	);
+	const mark = (read: boolean) =>
+		page.request.post(url(`/series/${series}?/mark`), {
+			form: { read: read ? '1' : '0', entry: String(entry) },
+			headers: { origin: world.base }
+		});
+	await reveal(context, false);
+	await page.goto(at.href);
+	await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
+	await reveal(context, true);
+	expect((await mark(true)).ok()).toBe(true);
+	await reveal(context, false);
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(band).toContainText('NO UNDO: SOMETHING OF IT IS DOWNLOADED OR READ NOW');
+	await expect(band.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
+	// Still in the library, still hidden: the preview is still not found.
+	expect((await page.goto(url(previewPath)))?.status()).toBe(404);
+	// A reload of the band says the same, without UNDO.
+	await page.goto(at.href);
+	await expect(band).toContainText('NO UNDO: SOMETHING OF IT IS DOWNLOADED OR READ NOW');
+	await expect(band.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
+
+	// Put back: unread, then UNDO from the band takes it out of the library.
+	await reveal(context, true);
+	expect((await mark(false)).ok()).toBe(true);
+	await reveal(context, false);
+	await page.goto(at.href);
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page).toHaveURL(new RegExp(`/downloads/source/${previewId}`));
+	await expect(page.getByRole('button', { name: /ADD TO LIBRARY/ })).toBeVisible();
+	await flip(page, 'Added hidden', false);
+});
+
+test('ADDED HIDDEN: the first ADD from a source with nothing else here leaves it mostly hidden, so the band and UNDO are on BROWSE, naming no source (c505)', async ({
+	page,
+	context
+}) => {
+	// COLD has no series in this world: the ADD makes it 1 of 1 hidden, more
+	// than half, so its own page is not found outside reveal (mostlyHidden).
+	const coldSettings = `/browse/${COLD.id}/settings`;
+	const coldPreview = `/downloads/source/${coldPreviewId}?from=${encodeURIComponent(`/browse/${COLD.id}`)}`;
+	const flipCold = async (on: boolean) => {
+		await page.goto(url(coldSettings));
+		await page.waitForLoadState('networkidle');
+		const sw = own(page, 'Added hidden').getByRole('switch');
+		await expect(sw).toHaveAttribute('aria-checked', String(!on));
+		await sw.click();
+		await expect(own(page, 'Added hidden')).toHaveClass(/\bsaved\b/);
+		await expect(sw).toHaveAttribute('aria-checked', String(on));
+	};
+	const band = page.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' });
+	// Every band the case lands on, so the cleanup can undo what is left.
+	const landed: URLSearchParams[] = [];
+	const addFromPreview = async () => {
+		expect((await page.goto(url(coldPreview)))?.status()).toBe(200);
+		await page.waitForLoadState('networkidle');
+		await page.getByRole('button', { name: /ADD TO LIBRARY/ }).click();
+		await page.waitForURL((u) => u.searchParams.has('series'));
+		landed.push(new URL(page.url()).searchParams);
+		await expect(page).toHaveURL(/\/browse\?.*added=hidden/);
+	};
+	await reveal(context, false);
+	await flipCold(true);
+	try {
+		await addFromPreview();
+		const bandUrl = page.url();
+		await expect(band).toContainText(
+			/ITS SOURCE ADDS ITS SERIES HIDDEN · \d+ CHAPTERS? · NONE DOWNLOADED · THE SOURCE IS HIDDEN WITH IT · REVEAL SHOWS BOTH/
+		);
+		await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
+		// Hidden means not named: the source is on no line of the page.
+		await expect(page.locator('body')).not.toContainText(COLD.name);
+		await expect(page.locator('body')).not.toContainText(COLD.name.toUpperCase());
+		// Its own page is what round 1 landed on, and it is not found.
+		expect((await page.goto(url(`/browse/${COLD.id}`)))?.status()).toBe(404);
+		// The band is its URL: a load of it is a page, with the band and UNDO.
+		expect((await page.goto(bandUrl))?.status()).toBe(200);
+		await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
+		// UNDO: out of the library, the source found again, and the preview opens.
+		await band.getByRole('button', { name: 'UNDO' }).click();
+		await expect(page).toHaveURL(new RegExp(`/downloads/source/${coldPreviewId}`));
+		await expect(page.getByRole('button', { name: /ADD TO LIBRARY/ })).toBeVisible();
+		expect((await page.goto(url(`/browse/${COLD.id}`)))?.status()).toBe(200);
+		// The band's URL after UNDO says nothing; UNDO twice undoes nothing and lands the same.
+		await page.goto(bandUrl);
+		await expect(page.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })).toHaveCount(0);
+		const params = new URL(bandUrl).searchParams;
+		const form = { series: params.get('series')!, preview: params.get('preview')! };
+		// Posted as a form without script is: a 303, whose location is where it lands.
+		const post = (path: string, f: Record<string, string>) =>
+			page.request.post(url(path), {
+				form: f,
+				headers: { origin: world.base, accept: 'text/html' },
+				maxRedirects: 0
+			});
+		const twice = await post('/browse?/undoAdd', form);
+		expect(twice.status()).toBe(303);
+		expect(twice.headers().location).toBe(`/downloads/source/${coldPreviewId}`);
+
+		// The source page's own UNDO, posted on a band while the source is hidden
+		// (drawn there, then the source hidden from another tab): it undoes, and
+		// is not a 404.
+		await addFromPreview();
+		const again = new URL(page.url()).searchParams;
+		expect((await page.goto(url(`/browse/${COLD.id}`)))?.status()).toBe(404);
+		const fromSourcePage = await post(`/browse/${COLD.id}?/undoAdd`, {
+			series: again.get('series')!,
+			preview: again.get('preview')!
+		});
+		expect(fromSourcePage.status()).toBe(303);
+		expect(fromSourcePage.headers().location).toBe(`/downloads/source/${coldPreviewId}`);
+		await page.goto(url(`/browse?${again}`));
+		await expect(page.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })).toHaveCount(0);
+		expect((await page.goto(url(`/browse/${COLD.id}`)))?.status()).toBe(200);
+	} finally {
+		// Put back: nothing of COLD's left in the library, and its switch off,
+		// inside reveal, where its settings page is found whatever is hidden.
+		for (const p of landed)
+			await page.request.post(url('/browse?/undoAdd'), {
+				form: { series: p.get('series')!, preview: p.get('preview')! },
+				headers: { origin: world.base }
+			});
+		await reveal(context, true);
+		await flipCold(false);
+		await reveal(context, false);
+	}
 });
 
 test('OFF HISTORY: a read from it is logged, but never in HISTORY, inside reveal too', async ({
@@ -161,4 +361,138 @@ test('OFF HISTORY: a read from it is logged, but never in HISTORY, inside reveal
 	await flip(page, 'Off history', false);
 	await page.goto(url('/history'));
 	await expect(rows).toHaveCount(1);
+});
+
+test('CONCEAL ITS SERIES hides what the source shows, a Work whole, says so, and UNDO brings back only that (c523)', async ({
+	page,
+	context
+}) => {
+	const post = (path: string, form: Record<string, string | string[]>) => {
+		const body = new URLSearchParams();
+		for (const [k, v] of Object.entries(form))
+			for (const x of Array.isArray(v) ? v : [v]) body.append(k, x);
+		return page.request.post(url(path), {
+			data: body.toString(),
+			headers: { origin: world.base, 'content-type': 'application/x-www-form-urlencoded' }
+		});
+	};
+	const found = async (id: number) => (await page.request.get(url(`/series/${id}`))).status();
+	const { twice, hentoid, gallery, tagged } = world.ids;
+	// A Work across sources, by the library's own GROUP: a part from this
+	// source and a Hentoid gallery, from none.
+	const made = await post('/?/work', {
+		series: [String(twice), String(hentoid)],
+		name: 'Concealed Across'
+	});
+	expect(made.ok()).toBe(true);
+	// Its id, from the series screen's link to it.
+	const workId = Number(
+		/\/work\/(\d+)/.exec(await (await page.request.get(url(`/series/${twice}`))).text())![1]
+	);
+	// One of the source's series hidden before, for its own reasons.
+	expect((await post('/?/hide', { id: String(gallery), on: '1' })).ok()).toBe(true);
+	const cell = page.locator('.own-act');
+	try {
+		// Inside reveal: the page stays, and the band is on it.
+		await reveal(context, true);
+		await page.goto(url(settings));
+		await expect(cell.locator('.t')).toHaveText('Conceal its series');
+		// Its own words: no HIDE control, and HIDDEN SOURCE's row is still the one switch so named.
+		// (Reveal's own banner has HIDE AGAIN; the rows have none.)
+		const rows = page.locator('form.own, .own-act');
+		await expect(rows.getByRole('button', { name: 'HIDE' })).toHaveCount(0);
+		await expect(rows.getByRole('link', { name: 'HIDE' })).toHaveCount(0);
+		await expect(own(page, 'Hidden source')).toHaveCount(1);
+		await expect(cell.locator('.s')).toContainText(
+			'and 1 more from other sources: the parts of their Work, since a Work is hidden whole.'
+		);
+		const ownCount = Number(
+			/Hides the (\d+) series here/.exec((await cell.locator('.s').textContent())!)![1]
+		);
+		expect(
+			ownCount,
+			'the source’s shown series, the hidden one not among them'
+		).toBeGreaterThanOrEqual(2);
+		const total = ownCount + 1;
+		await cell.getByRole('link', { name: `CONCEAL ${total}` }).click();
+		const sheet = page.getByRole('dialog', { name: `CONCEAL ${total} SERIES?` });
+		await expect(sheet).toContainText(`${ownCount} FROM TAG SOURCE ARE HIDDEN NOW.`);
+		await expect(sheet).toContainText('1 MORE GO WITH THEM');
+		await sheet.getByRole('button', { name: `CONCEAL ${total} SERIES` }).click();
+		await expect(page).toHaveURL(/\/settings\?.*concealed=/);
+		const band = page.locator('.band', { hasText: 'SERIES HIDDEN NOW' });
+		await expect(band).toContainText(`${total} SERIES HIDDEN NOW`);
+		await expect(band).toContainText(
+			`${ownCount} FROM TAG SOURCE · 1 MORE: PARTS OF THEIR WORK, HIDDEN WHOLE · REVEAL SHOWS THEM`
+		);
+		// Nothing of it is shown now: the cell is disabled, and a press anyway is refused.
+		await expect(cell.getByRole('button', { name: 'CONCEAL' })).toBeDisabled();
+		const again = await page.request.post(url(`${settings}?/conceal`), {
+			form: {},
+			headers: { origin: world.base, accept: 'text/html' }
+		});
+		expect(again.status()).toBe(409);
+		expect(await again.text()).toContain('NOTHING FROM IT IS SHOWN');
+		// The band is its URL: a reload says the same.
+		const bandUrl = page.url();
+		await page.reload();
+		await expect(band).toContainText(`${total} SERIES HIDDEN NOW`);
+		// Hidden: outside reveal the series, the Work's other part and the source are not found.
+		await reveal(context, false);
+		for (const id of [tagged, twice, hentoid]) expect(await found(id), `series ${id}`).toBe(404);
+		expect((await page.request.get(url(settings))).status()).toBe(404);
+		await reveal(context, true);
+
+		// UNDO: what it hid comes back; the one hidden before stays hidden.
+		await page.goto(bandUrl);
+		await band.getByRole('button', { name: 'UNDO' }).click();
+		await expect(page).toHaveURL(url(settings));
+		await expect(band).toHaveCount(0);
+		await reveal(context, false);
+		for (const id of [tagged, twice, hentoid]) expect(await found(id), `series ${id}`).toBe(200);
+		expect(await found(gallery)).toBe(404);
+		// The band's URL after UNDO says nothing; UNDO twice shows nothing more.
+		await reveal(context, true);
+		await page.goto(bandUrl);
+		await expect(band).toHaveCount(0);
+		const params = new URL(bandUrl).searchParams;
+		expect(
+			(
+				await post(`${settings}?/undoConceal`, {
+					concealed: params.get('concealed')!,
+					of: params.get('of')!
+				})
+			).ok()
+		).toBe(true);
+		await reveal(context, false);
+		expect(await found(gallery)).toBe(404);
+
+		// Outside reveal: the source is mostly hidden after, so CONCEAL lands on
+		// BROWSE, whose band names no source, and UNDO there brings it back.
+		await page.goto(url(settings));
+		await cell.getByRole('link', { name: `CONCEAL ${total}` }).click();
+		await page
+			.getByRole('dialog', { name: `CONCEAL ${total} SERIES?` })
+			.getByRole('button', { name: `CONCEAL ${total} SERIES` })
+			.click();
+		await expect(page).toHaveURL(/\/browse\?.*concealed=/);
+		await expect(band).toContainText(
+			`${ownCount} FROM ITS SOURCE · 1 MORE: PARTS OF THEIR WORK, HIDDEN WHOLE · THE SOURCE IS HIDDEN WITH THEM · REVEAL SHOWS BOTH`
+		);
+		await expect(page.locator('body')).not.toContainText(SOURCE.name.toUpperCase());
+		await expect(page.locator('a.row', { hasText: SOURCE.name })).toHaveCount(0);
+		await page.reload();
+		await band.getByRole('button', { name: 'UNDO' }).click();
+		await expect(page).toHaveURL(url('/browse'));
+		await expect(band).toHaveCount(0);
+		await expect(page.locator('a.row', { hasText: SOURCE.name }).first()).toBeVisible();
+		for (const id of [tagged, twice, hentoid]) expect(await found(id), `series ${id}`).toBe(200);
+		expect(await found(gallery)).toBe(404);
+	} finally {
+		// Put back what the case made: the hidden series shown, the Work ended.
+		await reveal(context, true);
+		await post('/?/hide', { id: String(gallery), on: '0' });
+		if (workId) await post(`/work/${workId}?/ungroup`, {});
+		await reveal(context, false);
+	}
 });

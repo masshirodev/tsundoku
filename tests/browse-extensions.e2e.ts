@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { test, expect, hydrated } from './fixtures';
 import { bumpWebtoons, NOVEL_REPO, REPO, resetEngine } from './browse-world';
 
 /**
@@ -121,6 +121,50 @@ test('a repository is added, an extension installed, updated, taken back and rem
 	await sheet.getByRole('button', { name: 'REMOVE WEBTOONS.COM' }).click();
 	await expect(page).toHaveURL(/\/browse\/extensions$/);
 	await expect(row('Webtoons.com')).toHaveCount(0);
+});
+
+// A page of the context's own, not the fixture's: that one's goto waits for
+// hydration, which is exactly what this case must beat (library-top-bar's
+// FILTER case, c105).
+test('AVAILABLE’s FILTER tapped before the page hydrates stays open (c473)', async ({
+	context
+}) => {
+	const page = await context.newPage();
+	// Hold the app's scripts back, so the server's markup is all there is.
+	let release!: () => void;
+	const held = new Promise<void>((r) => (release = r));
+	await page.route('**/_app/immutable/**/*.js', async (route) => {
+		await held;
+		await route.continue();
+	});
+	await page.goto('/browse/extensions?tab=available', { waitUntil: 'commit' });
+	const cell = page.locator('summary', { hasText: 'FILTER' });
+	await cell.click();
+	const panel = page.getByRole('group', { name: 'Filters' });
+	await expect(panel).toBeVisible();
+	expect(await page.evaluate(() => document.cookie.includes('tsundoku_js=1'))).toBe(false);
+
+	release();
+	await page.waitForFunction(() => document.cookie.includes('tsundoku_js=1'));
+	await hydrated(page);
+	// Hydrated, the panel is still open, and the page knows it is (the caret).
+	await expect(panel).toBeVisible();
+	await expect(cell).toContainText('▴');
+	// And it still closes the way it always did, by DONE and by the scrim.
+	await panel.getByRole('button', { name: 'DONE' }).click();
+	await expect(panel).toBeHidden();
+	await expect(cell).toContainText('▾');
+	await cell.click();
+	await expect(panel).toBeVisible();
+	await expect(cell).toContainText('▴');
+	// The scrim covers the page; its bottom edge is below the panel (70dvh at most).
+	const { height } = page.viewportSize()!;
+	await page
+		.getByRole('button', { name: 'Close filters' })
+		.click({ position: { x: 10, y: height - 10 } });
+	await expect(panel).toBeHidden();
+	await expect(cell).toContainText('▾');
+	await page.close();
 });
 
 test('an extension not signed by its repository’s key is never installed, and both keys are shown', async ({

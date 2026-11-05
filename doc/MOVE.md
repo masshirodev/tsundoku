@@ -321,7 +321,11 @@ SOURCE → and NOT NOW are stops under CONTINUE, and on the move page the
 candidates, the comparison and the MOVE bar are stops with the mark drawn
 inside their cells. BACK climbs the comparison to its top bar, then leaves the
 page. The player's NO SERVER and the manga END page reach their ANOTHER SOURCE →
-the same way. MOVE has no TV layout of its own — it draws the one-pane shape
+the same way. The list's two folds are one stop each while closed, FOUND
+NOTHING and DID NOT ANSWER (a closed `<details>` offers its summary alone,
+`src/lib/focus/dom.ts`); OK opens one in place, and ↓ walks into it: TRY ALL
+AGAIN, then each source's TRY AGAIN, whose OK asks that source again without
+leaving the page (`tests/tv-move.e2e.ts`, c538). MOVE has no TV layout of its own — it draws the one-pane shape
 below 1024px, which a 960-wide TV gets, and the handoff set has no board for it.
 
 ## Schema (rungs 57 and 58)
@@ -409,6 +413,10 @@ LATEST CH. 121 · 2 D AGO`, which costs a details call per candidate. The
 - `tests/move-former-keys-db.spec.ts` — A → B → C answers a backup naming A
   (no twin, no second chapter), MOVE BACK takes the key returned to out of the
   record, and a deleted series takes its rows with it.
+- `tests/tv-move.e2e.ts` — a D-pad from the SOURCE row to the candidates
+  and the comparison, BACK climbing it, and (c538, in a world of its own with
+  a source that finds nothing and one that fails) each closed fold one stop
+  and TRY AGAIN in the opened one a stop that asks again.
 - `tests/browse-move.e2e.ts` — the flow end to end, against the fake engine:
   the SOURCE row, the candidates, the comparison, MOVE, the moved band, the
   kept chapter's badge, and MOVE BACK.

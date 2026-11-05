@@ -527,3 +527,67 @@ for (const [door, key, title] of [
 		await expect(page).toHaveURL(/\/\?tag=genre%3ARomance$/);
 		await expect(page.getByRole('dialog')).toHaveCount(0);
 	});
+
+/**
+ * c452's `pageshow` clear, pinned (c538). BACK above passes with the clear
+ * removed: a BACK that is not from the bfcache draws the page again, so the
+ * busy mark is gone either way. Here the page that set the mark is the one
+ * shown again, as the bfcache gives it back: the navigation the tap starts is
+ * held (the `tag-search` request answers nothing until the end), and the page
+ * is sent a `pageshow` with `persisted: true`. Every read happens inside the
+ * page, in one step, because Playwright waits on a started navigation before
+ * it reads the page again.
+ */
+async function busyThenPageshow(page: Page, link: string) {
+	let release!: () => void;
+	const held = new Promise<void>((r) => (release = r));
+	let answered!: () => void;
+	const done = new Promise<void>((r) => (answered = r));
+	await page.route('**/tag-search?**', async (route) => {
+		await held;
+		// No content: the browser stays on the page.
+		await route.fulfill({ status: 204 });
+		answered();
+	});
+	const seen = await page.evaluate(async (selector) => {
+		const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 50)));
+		const busy = () => document.querySelectorAll('[aria-busy="true"]').length;
+		document.querySelector<HTMLElement>(selector)!.click();
+		await frame();
+		const before = busy();
+		window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+		await frame();
+		return { before, after: busy() };
+	}, link);
+	release();
+	await done;
+	await page.unroute('**/tag-search?**');
+	return seen;
+}
+
+test('a page the bfcache shows again clears its busy mark: the series’ IN <SOURCE> (c538, c452)', async ({
+	page
+}) => {
+	world.reset();
+	await open(page, series(world.ids.tagged));
+	await tagsRow(page).getByRole('link', { name: 'Romance', exact: true }).click();
+	const sheet = page.getByRole('dialog', { name: 'Look for Romance' });
+	await expect(sheet).toBeVisible();
+	const seen = await busyThenPageshow(page, '[role="dialog"] a.row[data-sveltekit-reload]');
+	expect(seen).toEqual({ before: 1, after: 0 });
+	await expect(sheet.getByText(/FINDING .+'S FILTERS/)).toHaveCount(0);
+});
+
+test('a page the bfcache shows again clears its busy mark: the preview’s genre (c538, c452)', async ({
+	page
+}) => {
+	world.reset();
+	await open(page, `${world.base}${previewPath}`);
+	await expect(page.getByRole('heading', { name: 'Preview Me Tagged' })).toBeVisible();
+	const romance = page.getByRole('link', { name: 'Romance', exact: true });
+	const href = await romance.getAttribute('href');
+	const seen = await busyThenPageshow(page, `a[href="${href}"]`);
+	expect(seen).toEqual({ before: 1, after: 0 });
+	await expect(page.locator('.tag-wait')).toHaveCount(0);
+	await expect(romance).not.toHaveAttribute('aria-busy');
+});

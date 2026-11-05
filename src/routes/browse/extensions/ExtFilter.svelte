@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import {
 		NO_EXT_FILTERS,
 		activeExtFilters,
@@ -36,7 +37,21 @@
 		href: (f: ExtFilters) => string;
 	} = $props();
 
+	/**
+	 * The <details> is the truth and `open` only follows it, as in
+	 * FilterPanel.svelte (c105, c473). Before hydration a tap opens it
+	 * natively; `bind:open` then wrote its `false` back at hydration and shut
+	 * the panel under the finger. Read once on mount, kept by `toggle`, and
+	 * closed through the element.
+	 */
+	let details = $state<HTMLDetailsElement | null>(null);
 	let open = $state(false);
+	onMount(() => {
+		open = details?.open ?? false;
+	});
+	function close() {
+		if (details) details.open = false;
+	}
 	const n = $derived(activeExtFilters(filters));
 	const asked = $derived(filters.langs ?? mine);
 	// The languages there are, SETTINGS' first (they're the likely ones).
@@ -104,14 +119,13 @@
 	});
 </script>
 
-<details class="filter" bind:open>
+<details class="filter" bind:this={details} ontoggle={(e) => (open = e.currentTarget.open)}>
 	<summary class="cell" aria-label={n ? `Filter, ${n} on` : 'Filter'}>
 		<span>FILTER</span>
 		{#if n}<span class="badge">{n}</span>{/if}
 		<span aria-hidden="true">{open ? '▴' : '▾'}</span>
 	</summary>
-	<button type="button" class="scrim" aria-label="Close filters" onclick={() => (open = false)}
-	></button>
+	<button type="button" class="scrim" aria-label="Close filters" onclick={close}></button>
 	<div class="panel" role="group" aria-label="Filters">
 		<div class="head"><span>FILTER {title}</span><span class="count">{count}</span></div>
 		{#each rows as row (row.key)}
@@ -138,7 +152,7 @@
 			<a class="clear" class:none={n === 0} href={href(NO_EXT_FILTERS)} data-sveltekit-noscroll
 				>✕ CLEAR ALL</a
 			>
-			<button type="button" class="done" onclick={() => (open = false)}>DONE</button>
+			<button type="button" class="done" onclick={close}>DONE</button>
 		</div>
 	</div>
 </details>

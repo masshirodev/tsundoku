@@ -3,6 +3,8 @@
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import SourceRow from './SourceRow.svelte';
+	import ConcealBand from './ConcealBand.svelte';
+	import AddedBand from './AddedBand.svelte';
 	import { ago } from '$lib/library/tracking';
 	import { count } from '$lib/library/downloads';
 
@@ -16,7 +18,7 @@
 	 * Hidden means hidden: a mostly-hidden source is only here inside reveal,
 	 * marked HIDDEN on its icon, and every count is what reveal lets you see.
 	 */
-	let { data } = $props();
+	let { data, form } = $props();
 	const list = $derived(data.list);
 
 	type Row = (typeof data.list.manga)[number];
@@ -82,6 +84,21 @@
 	</TopBar>
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
+	<!-- CONCEAL ITS SERIES outside reveal (card c523): its source is mostly
+	     hidden now, so the band is here, and names no source. -->
+	{#if data.concealed}
+		<ConcealBand band={data.concealed} name={null} undo="?/undoConceal" />
+	{/if}
+	<!-- ADD outside reveal that left its source mostly hidden (card c505): the
+	     source's page is not found, so the band is here, and names no source. -->
+	{#if data.added}
+		<AddedBand
+			band={data.added}
+			name={null}
+			undo="?/undoAdd"
+			refusal={form && 'added' in form ? (form.added ?? null) : null}
+		/>
+	{/if}
 
 	{#if total === 0}
 		<!-- The first run (Index-Browse, first; Browse Calls, "No repository ships"). -->

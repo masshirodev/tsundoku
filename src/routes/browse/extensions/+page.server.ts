@@ -94,7 +94,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	const installedNow = installedView(reveal);
 	// Hidden means hidden: a plugin with HIDDEN SOURCE on, or mostly hidden, is
 	// drawn and counted only inside reveal, as a package is (card c435).
-	const pluginsNow = pluginsShown(pluginView(), reveal);
+	const pluginsNow = pluginsShown(pluginView(reveal), reveal);
 	const counts = {
 		installed:
 			installedNow.needsHand.length +
@@ -241,7 +241,7 @@ export const actions: Actions = {
 				failed.push(e.name);
 			}
 		}
-		for (const p of pluginsShown(pluginView(), isRevealed(cookies)).updates) {
+		for (const p of pluginsShown(pluginView(isRevealed(cookies)), isRevealed(cookies)).updates) {
 			try {
 				await installPlugin(p.id);
 			} catch {

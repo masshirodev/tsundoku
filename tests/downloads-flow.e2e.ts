@@ -33,6 +33,10 @@ let down = false;
 let grow = false;
 /** And a 32nd, for REFRESH over a selection (c221), which runs after it. */
 let grow32 = false;
+/** A source whose search fails while set: DOWNLOADS' DID NOT ANSWER (c538). */
+let searchFails: string | null = null;
+/** How many times each source was asked to search: what TRY AGAIN may add to. */
+const searchCalls: Record<string, number> = {};
 const ids = { linden: 0, hidden: 0, bato: 0 };
 /** Lindenborough's entry ids by chapter number. */
 const ch: Record<number, number> = {};
@@ -70,6 +74,9 @@ function startFake(): Promise<void> {
 			const url = b.mangaData?.url ?? '';
 			switch (b.method) {
 				case 'getSearchManga':
+					searchCalls[b.sourceId] = (searchCalls[b.sourceId] ?? 0) + 1;
+					if (searchFails === b.sourceId)
+						return res.writeHead(500).end(JSON.stringify({ error: 'fake: the site is down' }));
 					return json({
 						mangas:
 							b.sourceId === SOURCE
@@ -471,6 +478,71 @@ test('reveal on asks the mostly hidden source too', async ({ page }) => {
 	await expect(page.locator('.g-head')).toHaveCount(2);
 	await expect(page.getByText('Lindenborough After Dark')).toBeVisible();
 	await page.context().clearCookies({ name: 'tsundoku_reveal' });
+});
+
+test('TRY ALL AGAIN and TRY AGAIN ask only the source that did not answer, and ask opens no hidden source (c538)', async ({
+	page
+}) => {
+	const reveal = (on: boolean) =>
+		on
+			? page
+					.context()
+					.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }])
+			: page.context().clearCookies({ name: 'tsundoku_reveal' });
+	const calls = () => ({ asura: searchCalls[SOURCE] ?? 0, toonily: searchCalls[TOONILY] ?? 0 });
+	// Inside reveal both sources are asked; Asura Scans' site is down.
+	await reveal(true);
+	searchFails = SOURCE;
+	try {
+		await page.goto('/downloads/search?q=linden');
+		const failed = page.locator('details.fold.unanswered');
+		await expect(failed.locator('summary')).toContainText('1 DID NOT ANSWER');
+		await expect(page.getByText('Lindenborough After Dark')).toBeVisible();
+		await failed.locator('summary').click();
+		await expect(failed).toContainText('ASURA SCANS · EN · DID NOT ANSWER IN 20 S');
+
+		// TRY AGAIN while it is still down: Asura Scans is asked once more, Toonily not at all.
+		let before = calls();
+		const askedAgain = page.waitForResponse((r) => r.url().includes('/downloads/search/ask?'));
+		await failed.getByRole('link', { name: 'TRY AGAIN', exact: true }).click();
+		expect((await askedAgain).status()).toBe(200);
+		await expect(failed.locator('summary')).toContainText('1 DID NOT ANSWER');
+		expect(calls()).toEqual({ asura: before.asura + 1, toonily: before.toonily });
+		// In place: the page was not loaded again, and Toonily's answer is still drawn.
+		await expect(page).toHaveURL(/\/downloads\/search\?q=linden$/);
+		await expect(page.getByText('Lindenborough After Dark')).toBeVisible();
+
+		// Up again: TRY ALL AGAIN asks only the one that did not answer, and its answer joins the list.
+		searchFails = null;
+		before = calls();
+		// The fold came back as it was left, open (`foldOpen`).
+		await expect(failed).toHaveAttribute('open', '');
+		await failed.getByRole('link', { name: 'TRY ALL AGAIN' }).click();
+		await expect(page.locator('a.hit', { hasText: 'Lindenborough: Side Stories' })).toBeVisible();
+		await expect(failed).toHaveCount(0);
+		expect(calls()).toEqual({ asura: before.asura + 1, toonily: before.toonily });
+	} finally {
+		searchFails = null;
+		await reveal(false);
+	}
+
+	// `ask` is a door only to a source the page asks: Toonily, whose every
+	// series here is hidden, is not found outside reveal, and is asked inside it.
+	const ask = (source: string) =>
+		page.request.get(`/downloads/search/ask?${new URLSearchParams({ q: 'linden', source })}`);
+	const before = calls();
+	expect((await ask(TOONILY)).status()).toBe(404);
+	expect(calls().toonily).toBe(before.toonily);
+	expect((await ask(SOURCE)).status()).toBe(200);
+	await reveal(true);
+	try {
+		const inside = await ask(TOONILY);
+		expect(inside.status()).toBe(200);
+		expect(await inside.json()).toMatchObject({ ok: true });
+		expect(calls().toonily).toBe(before.toonily + 1);
+	} finally {
+		await reveal(false);
+	}
 });
 
 test('a preview adds to the library, lands on the series, and UNDO takes it back (1e)', async ({

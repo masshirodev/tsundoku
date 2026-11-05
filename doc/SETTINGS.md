@@ -149,7 +149,9 @@ from it starts hidden, whether by ADD or by an import: a backup can only add
 hiding) and **OFF HISTORY** (its reading never shows in HISTORY, and is
 still logged). They are kept per source in the `settings` table
 (`source.<switch>:<source id>`); [`BROWSE.md`](BROWSE.md), "A source's own
-switches".
+switches". Beside them is one action, not a switch: **CONCEAL** hides, once,
+every series from the source the library shows now (a Work whole), with UNDO,
+and keeps nothing in `settings` (BROWSE.md, "Conceal its series").
 
 ## 08 — Devices
 

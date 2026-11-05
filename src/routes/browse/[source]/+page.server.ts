@@ -1,5 +1,5 @@
-import { error, redirect } from '@sveltejs/kit';
-import type { PageServerLoad } from './$types';
+import { error, fail, redirect } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
 import { hasScript, isIncognito, isRevealed } from '$lib/server/prefs';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { EngineError } from '$lib/server/engine/client';
@@ -16,6 +16,7 @@ import { changedCount, readFilters, type FilterField } from '$lib/library/browse
 import { backOrigin } from '$lib/library/tag-search';
 import { forgetSiteCheck } from '$lib/server/novels/source';
 import type { Settled } from '$lib/library/settled';
+import { addedBand, undoAdded } from '../added.server';
 
 /**
  * A source's page in BROWSE (Index-Browse, states popular, filters, phoneGrid;
@@ -101,11 +102,30 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		panel: url.searchParams.get('panel') === '1',
 		find: url.searchParams.get('find') === '1',
 		// ADD from a source that adds hidden, with reveal off (card c435): the
-		// preview lands here, since the hidden series isn't found, and says so.
-		addedHidden: url.searchParams.get('added') === 'hidden',
+		// preview lands here, since the hidden series isn't found, and says so,
+		// with what ADD AND DOWNLOAD queued and UNDO (c505).
+		addedHidden: await addedBand(url.searchParams, source.id),
 		// Arrived from a tag (c313): ← returns to where it was tapped, never anywhere else.
 		back: backOrigin(url.searchParams.get('from')),
 		// Without script a streamed promise never resolves, so the page waits for it instead.
 		answer: hasScript(cookies) ? answer : await answer
 	};
+};
+
+export const actions: Actions = {
+	/**
+	 * UNDO on the ADDED band (c505; `undoAdded`, shared with BROWSE's band):
+	 * the series added hidden from this source's preview leaves the library
+	 * again while nothing of it is downloaded or read, and the preview opens
+	 * again. It asks the band's own facts, never whether the source is found
+	 * outside reveal: a band this page drew is undone even if the source has
+	 * become mostly hidden since (another ADD, another tab), and UNDO then
+	 * lands on BROWSE, since the preview would not be found either.
+	 */
+	undoAdd: async ({ params, request, cookies }) => {
+		if (downloadsBackend() !== 'engine') error(404, 'not found');
+		const r = await undoAdded(await request.formData(), params.source, isRevealed(cookies));
+		if ('to' in r) redirect(303, r.to);
+		return fail(r.status, { message: r.message });
+	}
 };

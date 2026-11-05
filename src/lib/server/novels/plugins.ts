@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:f
 import { join } from '../fspath.ts';
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
-import { IN_LIBRARY_SQL, VISIBLE_SQL } from '../visibility.ts';
+import { IN_LIBRARY_SQL, VISIBLE_SQL, visibleWhere } from '../visibility.ts';
 import {
 	newer,
 	NovelRepoError,
@@ -372,26 +372,40 @@ export function installedPlugins(db: Database.Database = getDb()): InstalledPlug
 export type PluginRow = InstalledPlugin & {
 	/** BACK TO this version, within its week; null when there's none. */
 	backTo: string | null;
-	/** Series here from it. */
+	/** Series here from it, as reveal lets the viewer see them. */
 	series: number;
+	/** Of those, how many are hidden: 0 with reveal off, as `installedView`'s. */
+	hidden: number;
 };
 
-/** INSTALLED's plugins, in its three sections: NEEDS A HAND, UPDATES, INSTALLED. */
-export function pluginView(now = Date.now(), db: Database.Database = getDb()) {
-	const counts = new Map<string, number>();
+/**
+ * INSTALLED's plugins, in its three sections: NEEDS A HAND, UPDATES, INSTALLED.
+ * Each counts its series as reveal lets the viewer see them (c506), as
+ * `installedView` counts a Mihon package's: outside reveal a hidden series is
+ * not one of its "N SERIES HERE". Which plugins are drawn at all is
+ * `pluginsShown`'s (engine/manage.ts).
+ */
+export function pluginView(reveal: boolean, now = Date.now(), db: Database.Database = getDb()) {
+	const counts = new Map<string, { series: number; hidden: number }>();
 	for (const r of db
 		.prepare(
-			`SELECT origin_key AS k FROM series WHERE in_library = 1 AND origin_key LIKE 'lnreader:%'`
+			`SELECT s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden
+			FROM series s JOIN roots r ON r.id = s.root_id
+			WHERE ${IN_LIBRARY_SQL} AND ${visibleWhere(reveal)} AND s.origin_key LIKE 'lnreader:%'`
 		)
-		.all() as { k: string }[]) {
+		.all() as { k: string; hidden: number }[]) {
 		const id = r.k.split(':')[1];
-		counts.set(id, (counts.get(id) ?? 0) + 1);
+		const c = counts.get(id) ?? { series: 0, hidden: 0 };
+		c.series++;
+		c.hidden += r.hidden;
+		counts.set(id, c);
 	}
 	const rows: PluginRow[] = installedPlugins(db).map((p) => ({
 		...p,
 		backTo:
 			p.previousVersion && p.previousUntil && p.previousUntil > now ? p.previousVersion : null,
-		series: counts.get(p.id) ?? 0
+		series: counts.get(p.id)?.series ?? 0,
+		hidden: counts.get(p.id)?.hidden ?? 0
 	}));
 	return {
 		needsHand: rows.filter((r) => r.failed || r.obsolete),
