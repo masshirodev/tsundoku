@@ -774,6 +774,59 @@ test('a HIDE and an UNDO past the first page read the loaded pages once each too
 	await endWork(page);
 });
 
+test('a URL band’s UNDO is a redirect, and the loaded pages are read once (c660, round 2)', async ({
+	page
+}) => {
+	// Ending a Work of two on its screen with reveal off leaves the library
+	// carrying the band in its URL: `?/undoWork` with `from=band` answers with a
+	// redirect, and `update({ invalidateAll: false })` does not govern that --
+	// applyAction sends it through `goto` with `invalidateAll`. The band lands
+	// on the default shelf, so the redirect comes back to the same list: its
+	// re-read must not refill the loaded pages a second time.
+	const name = 'Zzz Redirect Run';
+	await makeWork(
+		page,
+		[
+			'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
+			"Omniscient Reader's Viewpoint"
+		],
+		name
+	);
+	const id = await openWork(page, name);
+
+	// A page of two, so the library has pages to load at all (the seed fits in
+	// one at the grid's own size).
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_grid_page', value: '2', url: 'http://localhost' }]);
+	await page.goto(`/work/${id}`);
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.locator('.run .part .rowlink').first().click();
+	await page.getByRole('button', { name: 'TAKE OUT' }).click();
+	await expect(page).toHaveURL(/band=ended/);
+	const band = page.locator('.band', { hasText: `${name.toUpperCase()} IS NO LONGER A WORK` });
+	await expect(band).toBeVisible();
+	await expect(workTile(page, name)).toHaveCount(0);
+
+	const list = watchList(page);
+	// The load's own re-read, which the redirect's `goto` sends; the refills
+	// above are the list's pages.
+	let loads = 0;
+	page.on('request', (r) => {
+		if (new URL(r.url()).pathname.endsWith('/__data.json')) loads++;
+	});
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(workTile(page, name)).toBeVisible();
+	await list.settled();
+	expect(list.refills()).toHaveLength(1);
+	expect(loads).toBe(1);
+
+	// Done: the Work is back, so end it and the seed is what the next case expects.
+	await workTile(page, name).click();
+	await page.waitForURL(/\/work\/\d+/);
+	await endWork(page);
+});
+
 // ---- W4: GROUP AS A WORK, the person page, HIDE on a part (c278) ------------
 
 test('GROUP AS A WORK from the library: the AS row, the name, the band and UNDO', async ({

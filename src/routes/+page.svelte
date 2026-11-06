@@ -299,7 +299,20 @@
 	let moreFailed = $state(false);
 	/** Bumped whenever the list changes under a request, so a late answer is dropped. */
 	let generation = 0;
-	const series = $derived(data.series.length ? [...data.series, ...more] : more);
+	/**
+	 * The grid's cards: the load's first page, then the pages drawn after it.
+	 * A tile in both is drawn once. A load's first page can change under pages
+	 * already drawn -- a Work made over two series it listed, a part hidden --
+	 * and the grid keys its blocks by `id`, so the same id twice stops the
+	 * whole render and the grid keeps what it had (c660, r2, the URL band's
+	 * UNDO with the pages loaded). The first page's copy wins: it is the one
+	 * the load just said.
+	 */
+	const series = $derived.by(() => {
+		if (data.series.length === 0) return more;
+		const have = new Set(data.series.map((c) => c.id));
+		return [...data.series, ...more.filter((c) => !have.has(c.id))];
+	});
 	/**
 	 * A page shorter than asked for is the end, whatever `total` said: the shelf
 	 * can shrink after the first page (a series hidden, volumes grouped).
@@ -359,8 +372,9 @@
 	/**
 	 * The pages after the first, read again: queued one at a time, and a write
 	 * can await them (c615, round 2). `force` asks even when they were already
-	 * read for this first page -- a write's own reload, and a hide or UNDO that
-	 * moves only tiles past the first page, both need the answer after it.
+	 * read for this first page, which `reloadList` does only when that page came
+	 * back identical (c660, r2): nothing was queued for it, and a hide or UNDO
+	 * past the first page still needs its answer.
 	 *
 	 * Why read them again at all: a write changed which tiles a loaded page
 	 * holds -- a Work hidden whole, one taken out of it -- and the load's
@@ -408,9 +422,9 @@
 	 * resolves after the effect has queued its own for the new `data.series`,
 	 * so this awaits that one rather than asking again (c615, r3). Only a first
 	 * page that came back identical leaves nothing queued, and then the pages
-	 * past it are asked for here. The HIDE and UNDO callers keep their forced
-	 * call: their change can land only on tiles past the first page, which the
-	 * effect's `refilledFor` guard would not re-read.
+	 * past it are asked for here -- the one forced call, for the one case: a
+	 * hide or UNDO past the first page moves nothing that page shows, so all of
+	 * its change is in the pages after it.
 	 */
 	async function reloadList() {
 		const before = data.series;
@@ -941,9 +955,14 @@
 	 * pages are read again (see `refillPages`).
 	 *
 	 * One re-read, not two (c660): `reloadList` is the load's own, and the
-	 * sheet's `update` is asked not to re-read on success so this is the only
+	 * form's `update` is asked not to re-read on success so this is the only
 	 * one. Before that, every UNDO refreshed the first page twice and refilled
 	 * the loaded pages twice behind it.
+	 *
+	 * A redirect is the exception `invalidateAll: false` does not govern:
+	 * `applyAction` sends it through `goto` with `invalidateAll: true`, so the
+	 * page is re-read there and its effect queues the one refill. Asking for
+	 * `reloadList` here would re-read and refill a second time (c660, r2).
 	 */
 	const undoAfter: SubmitFunction =
 		() =>
@@ -951,6 +970,7 @@
 			await update({ invalidateAll: false });
 			// The answer `update` just put in `form`: drawn as the band below.
 			if (result.type === 'failure') undoAnswer = form;
+			if (result.type === 'redirect') return;
 			await reloadList();
 		};
 	/**
