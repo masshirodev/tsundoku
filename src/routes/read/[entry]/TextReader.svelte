@@ -6,6 +6,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { afterNavigate, beforeNavigate, replaceState } from '$app/navigation';
 	import { forgetReaderMove, leavingReader, readerMovedTo } from '$lib/reader/leaving';
+	import { keepHistoryUrl } from '$lib/reader/history';
 	import { resolve } from '$app/paths';
 	import { page as appPage } from '$app/state';
 	import type { PageData } from './$types';
@@ -521,6 +522,10 @@
 		if (pageEl) pageEl.scrollTop = 0;
 		ownTop = 0;
 		readerMoved = false;
+		// A saved or linked place this chapter no longer has, because its text
+		// changed under it: the top is where it opens, and what it settles on,
+		// rather than carrying a block number nothing answers (c622).
+		if (typeof at === 'object' && !ch.blocks[at.block]) at = 'start';
 		// Kept on screen whatever the URL says: no higher than a line above the
 		// top, no lower than a line above the bottom.
 		const line = f.fontSize * f.lineHeight;
@@ -588,10 +593,13 @@
 		untrack(() => {
 			const at = appPage.url.searchParams.get('at');
 			const p = appPage.url.searchParams.get('p');
-			// No `?at=` reads as the chapter's first character, as it always has:
-			// the old split read '' as paragraph 0, so the server's place below is
-			// reached only by an `?at=` that isn't a place (reader notes, wave 25).
-			const place = at === null ? { block: 0, offset: 0, y: null } : parseAt(at);
+			// A URL with no `?at=` is every door's: CONTINUE (the series and the
+			// library), history, the end page and a chapter row all link without
+			// one (readHref(), doc/TEXT-READER.md, "Position"). It resumes from
+			// the server's saved place for this chapter, unless the chapter is
+			// already read, which opens at its top. Until c622 an absent `?at=`
+			// read as the first character, so every door opened at the top.
+			const place = at === null ? null : parseAt(at);
 			const start: 'start' | 'end' | TextPosition =
 				p === 'last'
 					? 'end'
@@ -951,6 +959,9 @@
 			// The chapter may be another than the page was opened at: the guard
 			// above must take this path as the reader's own (c565, round 2).
 			readerMovedTo(url.pathname);
+			// And history must name it too, or a popstate back into this entry
+			// opens the chapter the reader was opened at (c623).
+			keepHistoryUrl();
 		}, 800);
 		return () => clearTimeout(settle);
 	});

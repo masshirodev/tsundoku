@@ -611,6 +611,13 @@ Everything goes through `POST /api/reading` ([`READING-LOG.md`](READING-LOG.md))
 - `finish` on reaching the last page or crossing out of the chapter;
 - `close` on leaving (a beacon).
 
+**A history entry into the reader opens the page it was left on**, incognito
+included: the reader keeps `?p=` in the entry as well as in the address bar
+(`keepHistoryUrl`, `src/lib/reader/history.ts`, c623;
+[`NAVIGATION.md`](NAVIGATION.md), "A screen being left writes nothing"). Before
+c623 a popstate into the entry opened the page the last real navigation named;
+incognito, with nothing saved, that is page 1.
+
 Durations are the gap since the last event, capped at two minutes, and time in
 the background isn't reading (`ProgressClock`). The text reader's cap is five
 minutes, and the player counts only what played

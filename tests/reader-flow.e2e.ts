@@ -217,6 +217,44 @@ test('left at once, the reader never writes its URL onto the series it went back
 	await expect(page).toHaveURL(/\/\?sort=title/);
 });
 
+test('history into an image reader entry opens the page it settled on, in incognito too (c623)', async ({
+	page
+}) => {
+	// Incognito: nothing this case reads is stored, so only the entry's own URL
+	// can bring the page with it.
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_incognito', value: '1', url: 'http://localhost' }]);
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	// Into the reader by the app's own door, so the series is a history entry
+	// to go back to (the link's BACK is a history step, not a fresh copy).
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	// Its page, from where the seed left the chapter (page 5), while the
+	// entry's own URL was still `/read/<id>`.
+	await tap(page, 0.5);
+	await expect(meta(page)).toContainText('P. 5 OF');
+	await tap(page, 0.5);
+	const v = page.viewportSize()!;
+	await page.mouse.click(v.width / 2, v.height / 2);
+	// The reader keeps the page it settled on in the address bar, 800 ms on.
+	await expect(page).toHaveURL(/p=6/, { timeout: 5000 });
+	// To the series by the reader's own link (history back), then forward into
+	// the reader entry: it opens on page 6, not the page 5 it arrived at.
+	await tap(page, 0.5);
+	await page.getByRole('link', { name: 'Back to the series' }).click();
+	await expect(page.getByRole('link', { name: /▶ CONTINUE/ }).first()).toBeVisible();
+	await page.goForward();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	await tap(page, 0.5);
+	await expect(meta(page)).toContainText('P. 6 OF');
+});
+
 test('the READING sheet switches mode for the session and offers REMEMBER', async ({ page }) => {
 	await seriesId(page, 'Hikaru ga Shinda Natsu');
 	await page
