@@ -1542,7 +1542,12 @@
 		{workMade}
 		actionAll="?/hideWork"
 		actionPart="?/hidePart"
-		ondone={() => (hiding = false)}
+		ondone={async () => {
+			// The sheet's `update` no longer re-reads on success (c660): the
+			// screen still must, since HIDE ALL n changes the Work it draws.
+			hiding = false;
+			await invalidateAll();
+		}}
 		onclose={() => (hiding = false)}
 	/>
 {/if}

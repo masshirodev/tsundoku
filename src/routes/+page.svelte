@@ -939,15 +939,19 @@
 	 * UNDO after a Work was made, added to, ended or hidden: the tiles a loaded
 	 * page holds change back, and the load's first page may not move, so the
 	 * pages are read again (see `refillPages`).
+	 *
+	 * One re-read, not two (c660): `reloadList` is the load's own, and the
+	 * sheet's `update` is asked not to re-read on success so this is the only
+	 * one. Before that, every UNDO refreshed the first page twice and refilled
+	 * the loaded pages twice behind it.
 	 */
 	const undoAfter: SubmitFunction =
 		() =>
 		async ({ result, update }) => {
-			await update();
+			await update({ invalidateAll: false });
 			// The answer `update` just put in `form`: drawn as the band below.
 			if (result.type === 'failure') undoAnswer = form;
-			await invalidateAll();
-			await refillPages(true);
+			await reloadList();
 		};
 	/**
 	 * Which drawn series are hidden, by id: a Work's parts as well as the cards
@@ -2367,8 +2371,9 @@
 		ondone={async () => {
 			hiding = false;
 			stopSelecting();
-			await invalidateAll();
-			await refillPages(true);
+			// The sheet's `update` did not re-read (c660): this is the one
+			// reload, and `reloadList` asks for the loaded pages once behind it.
+			await reloadList();
 		}}
 		onclose={() => (hiding = false)}
 	/>

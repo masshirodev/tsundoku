@@ -53,15 +53,15 @@
 	const after: SubmitFunction =
 		() =>
 		async ({ result, update }) => {
-			await update();
+			// One re-read per answer (c660): a success hands the re-read to the
+			// screen that opened the sheet (`ondone`), so `update` must not do
+			// one too. A failure writes nothing, so only the stale branch below
+			// re-reads -- and it does, because the Work this sheet was drawn on
+			// has moved on (c640). That includes a Work that ended in another
+			// tab, now that `?/hideWork` answers `stale` for it too (c661).
+			await update({ invalidateAll: false });
 			if (result.type === 'failure') {
 				const data = result.data as Record<string, unknown> | undefined;
-				// The Work this sheet was drawn on has moved on (c640): the sheet
-				// cannot answer for it any more, so it closes, and the page is read
-				// again so its band is drawn over the Work there is now. GroupSheet
-				// does the same for c583's refusal (c584). The library's own use of
-				// this sheet acts on ids and never gets `stale`, so nothing changes
-				// there.
 				if (data?.stale === true) {
 					await invalidateAll();
 					onclose();
