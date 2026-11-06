@@ -206,7 +206,7 @@ export const isVolumeSeries = (s: Pick<SeriesPage, 'kind' | 'entries'>) =>
 
 /** A doujin series of two or more books: its contents are a cover grid of books. */
 export const isBookSeries = (s: Pick<SeriesPage, 'kind' | 'entries'>) =>
-	s.kind === 'doujin' && s.entries.length > 1;
+	s.kind === 'doujin' && s.entries.filter((e) => e.matter === '').length > 1;
 
 export type BookState = 'read' | 'progress' | 'unread';
 

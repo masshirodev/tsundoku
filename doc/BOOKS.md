@@ -28,7 +28,23 @@ rather than naming either kind; the series it writes are still made as
 These are shapes of the existing tables, not new ones. No flag says "series of
 books": `isBookSeries()` in `src/lib/library/series.ts` asks the question,
 `isSingleton()` in `src/lib/server/books.ts` asks its mirror, and the two
-must agree.
+agree. Since c558 both count books as FILTER's ONE-OFF does (`isBookSql`: no
+shadowed entry, no front or back matter,
+[`FILTERS.md`](FILTERS.md), FORM, lists every reader and the `rg` that finds
+them), and so do MOVE TO… and ADD TO EXISTING's targets (`seriesOfBooks`), a
+person's page and the books a suggestion may name: a book with an extra beside
+it is one book. FOLD AS LANGUAGES is the one reader with a stricter rule, from
+the review it ends in: `foldEditions` folds one `edition_of IS NULL` entry, so
+a folded edition beside the book is fine and an extra or a set-aside duplicate
+is refused up front ([`FILTERS.md`](FILTERS.md), FORM).
+
+A book with an extra or a duplicate beside it is still one book, and GROUP
+refuses to bind it (`"…" holds an extra or a duplicate beside its book, which
+grouping can't carry`): it moves the book alone, and the emptied singleton's
+delete would take the rest with it. So neither a suggestion nor a person's
+page offers it to GROUP. No importer writes front or back matter on a doujin
+today -- only the EPUB plans set `matter` -- so the state comes from a hand-made
+extra or the duplicates review.
 
 ### Every book keeps its own
 
@@ -88,7 +104,7 @@ series screen as a band ("… · NOTHING CHANGED").
 Every EPUB imports as a series of its own ([`IMPORT-EPUB.md`](IMPORT-EPUB.md)),
 so a work in several books arrives as several series: six Beginning After The
 End books are six tiles. GROUP gathers them into one. Select the novels on the
-library grid (the NOVELS shelf helps), or on their author's page, and tap
+library grid (the KIND band's NOVELS helps), or on their author's page, and tap
 GROUP. The same group sheet reads VOLUMES instead of BOOKS: name the series,
 order the volumes by date added, by title or by hand, then CREATE SERIES, or
 ADD TO EXISTING to put them after another novel.

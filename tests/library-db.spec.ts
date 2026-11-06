@@ -1,4 +1,16 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+
+// FOLD AS LANGUAGES ends in the duplicates review, which reads the books'
+// pages; the seed has none on disk. What the action asks it to fold is the
+// answer under test (c558's round 2), so the review's door only records it.
+const folded = vi.hoisted(() => [] as number[][]);
+vi.mock('$lib/server/dupes', async (original) => ({
+	...(await original<typeof import('$lib/server/dupes')>()),
+	offerFold: async (entryIds: number[]) => {
+		folded.push(entryIds);
+		return 'pair';
+	}
+}));
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
@@ -561,5 +573,375 @@ describe('new chapters', () => {
 			old.read_at,
 			old.id
 		);
+	});
+});
+
+/**
+ * c558: FILTER's FORM had three rules for ONE-OFF -- the server's
+ * (`ONE_OFF_SQL`) counted an extra as a book, the device's (`isOneOff`, over
+ * the card's `entryCount`) did not, and the binder's (`isSingleton`) counted
+ * a shadowed duplicate. The owner decided (2026-11-05) that an extra doesn't
+ * make a series, so a doujin with one book and one extra is a ONE-OFF on the
+ * shelf's count, its grid, the device's filter and the binder alike. A
+ * shadowed entry (an edition, a duplicate set aside) is no book either.
+ */
+describe('ONE-OFF counts one book the same way everywhere (c558)', () => {
+	/** A visible doujin single from the seed, by the server's own rule. */
+	const single = () => {
+		const card = lib
+			.listSeries({ reveal: false, filters: only({ form: 'oneoff' }) })
+			.find((c) => c.entryCount === 1);
+		if (!card) throw new Error('the seed has no visible single book');
+		return card;
+	};
+
+	/** Adds an entry beside the book, runs `check`, and takes the entry away again. */
+	async function beside(
+		seriesId: number,
+		row: { matter: string; shadowed: number },
+		check: () => Promise<void> | void
+	) {
+		const db = getDb();
+		// A copy of the book's own row, as an importer would write a second
+		// entry, with only what makes it an extra or a shadow changed.
+		const cols = (db.prepare(`PRAGMA table_info(entries)`).all() as { name: string }[])
+			.map((c) => c.name)
+			.filter((c) => c !== 'id');
+		const set: Record<string, string> = {
+			title: `'Afterword'`,
+			label: `'Afterword'`,
+			position: '2',
+			matter: '@matter',
+			shadowed: '@shadowed',
+			edition_of: 'NULL',
+			read_at: 'NULL'
+		};
+		const id = Number(
+			db
+				.prepare(
+					`INSERT INTO entries (${cols.join(', ')})
+						SELECT ${cols.map((c) => set[c] ?? c).join(', ')} FROM entries
+						WHERE series_id = @series ORDER BY id LIMIT 1`
+				)
+				.run({ matter: row.matter, shadowed: row.shadowed, series: seriesId }).lastInsertRowid
+		);
+		try {
+			await check();
+		} finally {
+			db.prepare(`DELETE FROM entries WHERE id = ?`).run(id);
+		}
+	}
+
+	/** The series' book entry: the one a folded edition leaves out. */
+	const bookOf = (seriesId: number) =>
+		(
+			getDb()
+				.prepare(`SELECT MIN(id) AS id FROM entries WHERE series_id = ? AND edition_of IS NULL`)
+				.get(seriesId) as { id: number }
+		).id;
+
+	/** Adds a folded edition beside the book (shadowed, `edition_of` set), and leaves it there. */
+	function addEdition(seriesId: number, book: number): number {
+		const db = getDb();
+		const cols = (db.prepare(`PRAGMA table_info(entries)`).all() as { name: string }[])
+			.map((c) => c.name)
+			.filter((c) => c !== 'id');
+		const set: Record<string, string> = {
+			title: `'Edition'`,
+			label: `'Edition'`,
+			position: '1',
+			matter: `''`,
+			shadowed: '1',
+			edition_of: '@book',
+			read_at: 'NULL'
+		};
+		return Number(
+			db
+				.prepare(
+					`INSERT INTO entries (${cols.join(', ')})
+						SELECT ${cols.map((c) => set[c] ?? c).join(', ')} FROM entries WHERE id = @book`
+				)
+				.run({ book }).lastInsertRowid
+		);
+	}
+
+	/** The same, around `check`, taking the edition away again. */
+	async function besideEdition(seriesId: number, check: () => Promise<void> | void) {
+		const id = addEdition(seriesId, bookOf(seriesId));
+		try {
+			await check();
+		} finally {
+			getDb().prepare(`DELETE FROM entries WHERE id = ?`).run(id);
+		}
+	}
+
+	const entryPages = (id: number) =>
+		(getDb().prepare(`SELECT page_count AS n FROM entries WHERE id = ?`).get(id) as { n: number })
+			.n;
+
+	it.each([
+		['an extra (back matter)', { matter: 'back', shadowed: 0 }],
+		['a duplicate set aside (shadowed)', { matter: '', shadowed: 1 }]
+	])('keeps a doujin with one book and %s a ONE-OFF', async (_, row) => {
+		const { isSingleton } = await import('$lib/server/books');
+		const { isOneOff } = filtersMod;
+		const book = single();
+		const oneoff = only({ form: 'oneoff' });
+		const series = only({ form: 'series' });
+		const before = {
+			oneoff: lib.countListed({ reveal: false, filters: oneoff }),
+			series: lib.countListed({ reveal: false, filters: series })
+		};
+		await beside(book.id, row, () => {
+			// FORM's count and its filtered grid, on the server.
+			const grid = lib.listTiles({ reveal: false, filters: oneoff, limit: 1000 });
+			expect(grid.map((c) => c.id)).toContain(book.id);
+			expect(lib.countListed({ reveal: false, filters: oneoff })).toBe(grid.length);
+			expect(lib.countListed({ reveal: false, filters: oneoff })).toBe(before.oneoff);
+			const rest = lib.listTiles({ reveal: false, filters: series, limit: 1000 });
+			expect(rest.map((c) => c.id)).not.toContain(book.id);
+			expect(lib.countListed({ reveal: false, filters: series })).toBe(before.series);
+			// The device's rule over the same card, as CACHED filters it.
+			const card = grid.find((c) => c.id === book.id)!;
+			expect(card.entryCount).toBe(1);
+			expect(isOneOff(card)).toBe(true);
+			// And the binder's.
+			expect(isSingleton(book.id)).toBe(true);
+		});
+	});
+
+	it('makes a second book a SERIES on all three', async () => {
+		const { isSingleton } = await import('$lib/server/books');
+		const book = single();
+		await beside(book.id, { matter: '', shadowed: 0 }, () => {
+			const grid = lib.listTiles({ reveal: false, filters: only({ form: 'series' }), limit: 1000 });
+			const card = grid.find((c) => c.id === book.id);
+			expect(card?.entryCount).toBe(2);
+			expect(filtersMod.isOneOff(card!)).toBe(false);
+			expect(isSingleton(book.id)).toBe(false);
+		});
+	});
+
+	it('refuses to bind a book with an extra beside it, rather than lose the extra', async () => {
+		const { groupIntoSeries } = await import('$lib/server/books');
+		const [a, b] = lib
+			.listSeries({ reveal: false, filters: only({ form: 'oneoff' }) })
+			.filter((c) => c.entryCount === 1);
+		await beside(a.id, { matter: 'back', shadowed: 0 }, () => {
+			expect(() => groupIntoSeries({ seriesIds: [a.id, b.id], name: 'Bound' })).toThrow(
+				/holds an extra or a duplicate beside its book/
+			);
+			expect(
+				(
+					getDb().prepare(`SELECT COUNT(*) AS n FROM entries WHERE series_id = ?`).get(a.id) as {
+						n: number;
+					}
+				).n
+			).toBe(2);
+		});
+	});
+
+	// c558's round 2: the rule's other readers in this slot's files.
+
+	// c558's round 3, Gap 2: a person's page counts a series by the same rule,
+	// and offers GROUP only where GROUP can take the book.
+	it('draws a person’s page by the same count, and offers GROUP only where GROUP can take it', async () => {
+		const { tagPage } = await import('$lib/server/people');
+		const grouped = lib.listSeries({ reveal: true }).find((c) => c.title === BOOK_SERIES_TITLE)!;
+		const page = () => tagPage('circle:Hakka Kousha', true)!;
+		const tileOf = (id: number) =>
+			page().items.find((i) => i.seriesId === id && i.entryId === null)!;
+		// The grouped series' books each wear the series' count, and it is the
+		// books' count: an extra beside one of them is not a fifth book.
+		const total = () =>
+			page().items.find((i) => i.seriesId === grouped.id && i.entryId !== null)!.total;
+		const books = total();
+		expect(books).toBeGreaterThan(1);
+		await beside(grouped.id, { matter: 'back', shadowed: 0 }, () => {
+			expect(total()).toBe(books);
+		});
+		// The lone book on the same page: one book, whatever sits beside it, and
+		// a singleton only when nothing does (what `groupIntoSeries` binds).
+		const alone = page().items.find((i) => i.entryId === null && i.kind === 'doujin')!;
+		expect(alone.entries).toBe(1);
+		expect(alone.groupable).toBe(true);
+		await beside(alone.seriesId, { matter: 'back', shadowed: 0 }, () => {
+			expect(tileOf(alone.seriesId).entries).toBe(1);
+			expect(tileOf(alone.seriesId).groupable).toBe(false);
+		});
+		await beside(alone.seriesId, { matter: '', shadowed: 1 }, () => {
+			expect(tileOf(alone.seriesId).entries).toBe(1);
+			expect(tileOf(alone.seriesId).groupable).toBe(false);
+		});
+		// A folded edition is the book's own, not something beside it.
+		await besideEdition(alone.seriesId, () => {
+			expect(tileOf(alone.seriesId).entries).toBe(1);
+			expect(tileOf(alone.seriesId).groupable).toBe(true);
+		});
+	});
+
+	it('offers a book with an extra to no MOVE TO or ADD TO EXISTING as a series of 2 BOOKS', async () => {
+		const { seriesOfBooks } = await import('$lib/server/books');
+		const book = single();
+		for (const row of [
+			{ matter: 'back', shadowed: 0 },
+			{ matter: '', shadowed: 1 }
+		])
+			await beside(book.id, row, () => {
+				expect(seriesOfBooks(true).map((s) => s.id)).not.toContain(book.id);
+			});
+		// A real series of books keeps its count with an extra beside it.
+		const bound = lib.listSeries({ reveal: true }).find((c) => c.title === BOOK_SERIES_TITLE)!;
+		const count = () => seriesOfBooks(true).find((s) => s.id === bound.id)?.books;
+		const books = count();
+		expect(books).toBeGreaterThan(1);
+		await beside(bound.id, { matter: 'back', shadowed: 0 }, () => {
+			expect(count()).toBe(books);
+		});
+	});
+
+	it('suggests no book with an extra or a set-aside duplicate beside it', async () => {
+		const { suggestionFor } = await import('$lib/server/books');
+		// Two hidden books that share a stem: the seed's own suggestion.
+		const pair = lib
+			.listSeries({ reveal: true })
+			.filter((c) => c.title.startsWith('Kaori Mama') && c.entryCount === 1);
+		const one = pair.find((c) => suggestionFor(c.id, true) !== null);
+		if (!one) throw new Error('the seed suggests no pair of books');
+		const before = suggestionFor(one.id, true)!.books.map((b) => b.seriesId);
+		expect(before.length).toBeGreaterThan(1);
+		// c558's round 3: a suggestion has to be something GROUP can bind, and
+		// GROUP refuses a book with anything beside it, so neither is offered.
+		for (const row of [
+			{ matter: 'back', shadowed: 0 },
+			{ matter: '', shadowed: 1 }
+		])
+			await beside(one.id, row, () => {
+				expect(suggestionFor(one.id, true)).toBeNull();
+			});
+		// A folded edition is not beside the book for this: it is the book's.
+		await besideEdition(one.id, () => {
+			expect(suggestionFor(one.id, true)?.books.map((b) => b.seriesId)).toEqual(before);
+		});
+	});
+
+	it('refuses FOLD over a book with an extra or a set-aside duplicate beside it', async () => {
+		const library = await import('../src/routes/+page.server');
+		const [a, b] = lib
+			.listSeries({ reveal: false, filters: only({ form: 'oneoff' }) })
+			.filter((c) => c.entryCount === 1);
+		const fold = async () => {
+			const body = new FormData();
+			for (const id of [a.id, b.id]) body.append('id', String(id));
+			try {
+				return await (library.actions.fold as (e: unknown) => Promise<unknown>)({
+					request: new Request('http://localhost/', { method: 'POST', body })
+				});
+			} catch (e) {
+				// The review's own page is SvelteKit's success for FOLD.
+				if (e && typeof e === 'object' && 'location' in e) return { location: e.location };
+				throw e;
+			}
+		};
+		// `foldEditions` (books.ts) folds one `edition_of IS NULL` entry, so a
+		// book with an extra or a set-aside duplicate beside it cannot be
+		// folded; the review would swallow it (`applyPending`), so FOLD refuses
+		// it here, with a sentence, instead (`doc/FILTERS.md`).
+		for (const row of [
+			{ matter: 'back', shadowed: 0 },
+			{ matter: '', shadowed: 1 }
+		])
+			await beside(a.id, row, async () => {
+				folded.length = 0;
+				expect(await fold()).toMatchObject({
+					status: 400,
+					data: { foldMessage: 'A BOOK WITH AN EXTRA OR A DUPLICATE BESIDE IT CAN’T FOLD' }
+				});
+				expect(folded).toEqual([]);
+			});
+		// The extra written before the book is still an extra, not the book.
+		await beside(a.id, { matter: '', shadowed: 0 }, async () => {
+			const db = getDb();
+			const own = bookOf(a.id);
+			db.prepare(`UPDATE entries SET matter = 'front' WHERE id = ?`).run(own);
+			try {
+				folded.length = 0;
+				expect(await fold()).toMatchObject({ status: 400 });
+				expect(folded).toEqual([]);
+			} finally {
+				db.prepare(`UPDATE entries SET matter = '' WHERE id = ?`).run(own);
+			}
+		});
+	});
+
+	it('takes a book with a folded edition beside it, through FOLD and the review’s own fold', async () => {
+		const library = await import('../src/routes/+page.server');
+		const db = getDb();
+		// Two visible singles, the one with the lower book entry first: the pair
+		// key orders by entry id, and `fold` folds the first into the second's
+		// series. The first gets a folded edition (shadowed, as `foldEditions`
+		// leaves one), which `entryIdsOf` leaves out.
+		const singles = lib
+			.listSeries({ reveal: false, filters: only({ form: 'oneoff' }) })
+			.filter((c) => c.entryCount === 1)
+			.map((c) => ({ card: c, entry: bookOf(c.id) }))
+			.sort((x, y) => x.entry - y.entry);
+		const a = singles[0];
+		const b = singles[1];
+		const own = a.entry;
+		const other = b.entry;
+		const edition = addEdition(a.card.id, own);
+		const body = new FormData();
+		for (const id of [a.card.id, b.card.id]) body.append('id', String(id));
+		folded.length = 0;
+		const answer = await (library.actions.fold as (e: unknown) => Promise<unknown>)({
+			request: new Request('http://localhost/', { method: 'POST', body })
+		}).catch((e: unknown) => {
+			if (e && typeof e === 'object' && 'location' in e) return { location: e.location };
+			throw e;
+		});
+		expect(answer).toEqual({ location: '/duplicates?pair=pair' });
+		expect(folded).toEqual([[own, other]]);
+
+		// Now drive the review's own fold for that accepted pair, from a pair row
+		// as the review would have made it (`decide` -> `applyPending` -> `fold`
+		// -> `foldEditions`), and the two really become one book.
+		const lang = (id: number, value: string) => {
+			db.prepare(
+				`INSERT INTO tags (namespace, value) VALUES ('language', ?) ON CONFLICT DO UPDATE SET value = value`
+			).run(value);
+			const tagId = (
+				db.prepare(`SELECT id FROM tags WHERE namespace = 'language' AND value = ?`).get(value) as {
+					id: number;
+				}
+			).id;
+			db.prepare(`INSERT OR IGNORE INTO series_tags (series_id, tag_id) VALUES (?, ?)`).run(
+				id,
+				tagId
+			);
+		};
+		lang(a.card.id, 'english');
+		lang(b.card.id, 'japanese');
+		const pages = Math.min(entryPages(own), entryPages(other));
+		const rows = Array.from({ length: pages }, (_, i) => ({ a: i + 1, b: i + 1 }));
+		db.prepare(
+			`INSERT OR REPLACE INTO dupe_pairs (a, b, bits, rows, found_at) VALUES (?, ?, -1, ?, ?)`
+		).run(own, other, JSON.stringify({ rows, sizes: { [own]: [0, 0], [other]: [0, 0] } }), 1);
+		const dupes = await import('$lib/server/dupes');
+		await dupes.decide(`${own},${other}`, 'fold', null, true);
+		expect(await dupes.applyPending()).toBe(1);
+		// The pair is one series now, the other's entry an edition of the book.
+		const where = db.prepare(`SELECT series_id FROM entries WHERE id = ?`);
+		expect((where.get(own) as { series_id: number }).series_id).toBe(
+			(where.get(other) as { series_id: number }).series_id
+		);
+		expect(
+			db.prepare(`SELECT edition_of, shadowed FROM entries WHERE id = ?`).get(other)
+		).toMatchObject({
+			edition_of: own,
+			shadowed: 1
+		});
+		// The edition this case added is not part of what the fold carried.
+		db.prepare(`DELETE FROM entries WHERE id = ?`).run(edition);
 	});
 });

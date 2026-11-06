@@ -47,7 +47,7 @@ the panel is 352px beside the list, rows are 56px and the rail stays 56px
 | Multi-select          | SELECT. Tap rows, or tap one, then RANGE and the other end. ALL UNREAD. Each bulk action shows how many rows it will change.                                                                                                                                                                                                                                                                                                                                  |
 | Shelves & tags        | EDIT on either row. Shelves are toggles in the owner's order. Tags are typed as `namespace:value` with suggestions from existing tags.                                                                                                                                                                                                                                                                                                                        |
 | Hidden, reveal on     | The magenta banner and frame from the layout, HIDDEN on the cover, and UNHIDE instead of HIDE. With reveal off the route answers 404, the same as a series that doesn't exist.                                                                                                                                                                                                                                                                                |
-| Series of books       | A doujin series with two or more entries. BOOKS replaces the contents as a cover grid, `?book=` shows one book's pages, long-press opens its sheet, ORDER reorders. See [`BOOKS.md`](BOOKS.md).                                                                                                                                                                                                                                                               |
+| Series of books       | A doujin series with two or more books (an extra is not one, c558). BOOKS replaces the contents as a cover grid, `?book=` shows one book's pages, long-press opens its sheet, ORDER reorders. See [`BOOKS.md`](BOOKS.md).                                                                                                                                                                                                                                     |
 | Might be one series   | A single book whose title stem matches other singles. The suggestion band offers REVIEW → and NOT A SERIES ([`BOOKS.md`](BOOKS.md)).                                                                                                                                                                                                                                                                                                                          |
 | Might continue a Work | A series in no Work whose title continues a Work's name or a part's title: MIGHT CONTINUE <WORK> · AS PART N under CONTINUE, with REVIEW → (the GROUP sheet in ADD TO A WORK, this series last and ticked) and NOT THIS, which never asks again. See [`WORKS.md`](WORKS.md), "MIGHT CONTINUE <WORK>".                                                                                                                                                         |
 | Created / taken out   | `?created=N` after grouping, and a take-out, each show a band with UNDO.                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -415,10 +415,14 @@ file for ABOUT's body and the line's text at 390).
   reader follow, is the fold's: the bands, SHELVES and ABOUT, then DOWNLOAD,
   DIRECTION and on to FILE. So a keyboard on the desktop goes from ABOUT's
   MORE back up to DOWNLOAD (WCAG 2.4.3, focus order). The TV and the phone
-  are not affected: there the DOM order is the screen's. The follow-up (a
-  card to file): render the rows in today's order and wrap only the folded
-  ones where the fold applies (or move them into it), so one DOM order holds
-  everywhere, with a spec that tabs through the desktop panel.
+  are not affected: there the DOM order is the screen's. That is c556,
+  which wave 26 measured and left open: the fold's order (the bands,
+  SHELVES, ABOUT, the line, then DOWNLOAD, LANGUAGE…, LISTS…, EDITIONS and
+  FILE) and the screen's (DOWNLOAD first) agree on the relative order of at most four of the seven groups, so one markup cannot hold both, and any two markups -- each hidden by the
+  other's media query -- render DOWNLOAD or the bands twice, which specs
+  other slots own find by class (`.dl-row`, `.twin`, `.panel .about`) and
+  would then find twice. The options, with what each costs, are in
+  `doc/handoff-notes/works.md`, wave 26.
 - **A download that failed is not a mark.** The rows already say FAILED, and
   the handoff's marks are the three above; a series with failed chapters
   folds quiet.
@@ -464,14 +468,11 @@ and tsundoku's next download, which the engine files in a folder named after
 the *new* title (`engine/worker.ts`); each keeps the name and makes no twin.
 - **The old name joins `alt_titles`.** The catalogue's and Ranobe's title
   matches read the alternative titles, so a link search still knows the series
-  by the name it came with. UNDO puts back the name and `alt_titles` exactly,
+  by the name it came with; so do the library's search (`ALSO <old name>`), browse's SAME TITLE and a source's chapter numbers (c555). UNDO puts back the name and `alt_titles` exactly,
   and only while the series still has the name that rename gave it: a second
   tab's later rename is the owner's newer word, and the older band's UNDO says
   RENAMED AGAIN SINCE.
-- **The library's search reads `title` and tags, not `alt_titles`**
-  (`library.ts`), so a renamed series is found by its new name, and by its old
-  one only if that is also a tag. That is the card's "or the alternative
-  titles hold it" (doc/handoff-notes/series.md, wave 22, Gaps).
+- **The library's search reads `title`, then each name in `alt_titles`, then tags** (`library.ts`, c555), so a renamed series is found by its new name as TITLE and by its old one as `ALSO <old name>`.
 - **The colour stays.** `hueFor(title)` picks a series' hue once, at its
   INSERT; the rename leaves `hue` alone.
 - **A Work keeps its own name.** A Work's name is `works.name`, renamed on the

@@ -420,6 +420,12 @@ function seriesOfEntries(ids: number[]): number[] {
  * The covers of every series a decision touched are remade after, off the
  * request, from the files: GROUP makes a series of books, which wears its
  * first book's cover; FOLD and KEEP change what a series holds (card c63).
+ *
+ * A decision that is refused is NOT marked applied (c558's round 3): marking
+ * it would say it was carried out when nothing happened, and the pair would
+ * be settled for good with the books still apart. Left waiting, it is tried
+ * again (the state may change: an extra removed, a duplicate resolved) and
+ * UNDO can still forget it. The count returned is what was carried out.
  */
 export async function applyPending(now = Date.now()): Promise<number> {
 	const db = getDb();
@@ -431,13 +437,17 @@ export async function applyPending(now = Date.now()): Promise<number> {
 	for (const d of waiting) {
 		const [a, b] = d.pair.split(',').map(Number);
 		for (const id of seriesOfEntries([a, b])) touched.add(id);
+		let carried = false;
 		try {
 			if (d.decision === 'keep' && d.keep) await keepOne(d.keep, d.keep === a ? b : a, now);
 			if (d.decision === 'group') await group(a, b, now);
 			if (d.decision === 'fold') await fold(a, b);
+			carried = true;
 		} catch {
-			// A book gone since, or a grouping or fold refused: the decision stands, nothing more to do.
+			// A fold this state can't carry (a book with an extra or a set-aside
+			// duplicate beside it) stays waiting: see above.
 		}
+		if (!carried) continue;
 		db.prepare(`UPDATE dupe_decisions SET applied_at = ? WHERE pair = ?`).run(now, d.pair);
 		for (const id of seriesOfEntries([a, b])) touched.add(id);
 		n += 1;

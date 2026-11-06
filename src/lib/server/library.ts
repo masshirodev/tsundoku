@@ -24,6 +24,9 @@ import {
 	type WorkTile
 } from '../library/works.ts';
 import { partsOfWorks, workRecords } from './works.ts';
+// ONE-OFF is books.ts's (c558): one rule for the shelf, the device and the
+// binder. A Mihon series with one chapter so far is still a series.
+import { ONE_OFF_SQL } from './books.ts';
 import type {
 	Kind,
 	Rating,
@@ -298,14 +301,6 @@ export const NEW_DAYS = 14;
 const NEW_SQL = `(s.arrived_at > ? AND NOT EXISTS (SELECT 1 FROM entries e
 	WHERE e.series_id = s.id AND e.last_opened_at >= s.arrived_at))`;
 const newSince = (now = Date.now()) => now - NEW_DAYS * 86_400_000;
-
-/**
- * A single book: a doujin series holding one (isSingleton, src/lib/server/books.ts).
- * ONE-OFF is these; SERIES is everything else (Library Filters turn 3). A
- * Mihon series with one chapter so far is still a series.
- */
-const ONE_OFF_SQL = `(s.kind = 'doujin' AND (SELECT COUNT(*) FROM entries e
-	WHERE e.series_id = s.id AND e.shadowed = 0) <= 1)`;
 
 /** Something to read without the internet: a chapter on disk. */
 const DOWNLOADED_SQL =

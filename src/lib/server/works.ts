@@ -55,6 +55,20 @@ import type { Kind, Rating } from '../library/types.ts';
 
 export class WorkError extends Error {}
 
+/**
+ * A write that named a Work by its id and its moment of making, and found
+ * another Work under that id, or none (c583). `works.id` is reused once the
+ * newest Work ends, so a screen loaded before an UNGROUP would otherwise act on
+ * whatever Work holds the id now. The routes answer it as `THAT WORK HAS
+ * CHANGED · LOOK AGAIN`, with `stale: true` so a sheet can tell it apart from
+ * a refusal it should keep open on (c584).
+ */
+export class StaleWorkError extends WorkError {
+	constructor() {
+		super('that Work has changed · look again');
+	}
+}
+
 export type WorkRecord = {
 	id: number;
 	name: string;
@@ -125,7 +139,8 @@ export type TakeOutFacts = {
 
 export type ReorderFacts = { workId: number; before: SeriesPlace[] };
 
-export type RenameFacts = { workId: number; name: string };
+/** A rename's UNDO: the old name, and the Work by its id and moment (c583). */
+export type RenameFacts = { workId: number; createdAt: number; name: string };
 
 export type UngroupFacts = { work: WorkRecord; members: SeriesPlace[] };
 
@@ -180,6 +195,36 @@ function workRow(db: Database.Database, id: number): WorkRecord | undefined {
 			`SELECT id, name, created_at AS createdAt, order_mode AS orderMode FROM works WHERE id = ?`
 		)
 		.get(id) as WorkRecord | undefined;
+}
+
+/**
+ * The Work a screen's form names, or a refusal (c583). `made` is the moment
+ * the screen read it at (`works.created_at`); given, a Work under the id made
+ * at another moment is another Work, and an ended one is no Work, and both
+ * refuse as stale. Absent, it is the id alone, for the callers that read the
+ * id in the same request (`workOfSeries`, a db spec).
+ */
+function mustBeWork(db: Database.Database, workId: number, made?: number): WorkRecord {
+	const work = workRow(db, workId);
+	if (made !== undefined && work?.createdAt !== made) throw new StaleWorkError();
+	if (!work) throw new WorkError('no such Work');
+	return work;
+}
+
+/**
+ * When the app makes a Work, a moment no Work made by this process has had
+ * (c583). A Work is known by its id and its moment, and the id is reused once
+ * the newest Work ends; were two Works made in one millisecond, a Work ended
+ * and another made under its id in that millisecond would be the same Work to
+ * every check that reads both (`mustBeWork`, `locate`, an offer's key). So the
+ * clock only moves forward, a millisecond at a time when it has to. A restart
+ * takes longer than a millisecond, so a Work made after one is later still. A
+ * caller that passes its own `now` (a spec's fixed clock) is given exactly it.
+ */
+let lastMoment = 0;
+function nextMoment(): number {
+	lastMoment = Math.max(Date.now(), lastMoment + 1);
+	return lastMoment;
 }
 
 function membersOf(db: Database.Database, workId: number): SeriesPlace[] {
@@ -561,15 +606,16 @@ export function workRecords(ids: number[]): WorkRecord[] {
 
 /**
  * The Works a GROUP sheet can add to (W4; Works Calls, "Making and breaking a
- * Work"): each name and how many series it holds. One query, for the sheet's
+ * Work"): each name, its moment of making (which the sheet posts back, so an
+ * id reused since refuses: c583) and how many series it holds. One query, for the sheet's
  * ADD TO A WORK · N.
  */
-export type WorkChoice = { id: number; name: string; series: number };
+export type WorkChoice = { id: number; name: string; createdAt: number; series: number };
 
 export function workChoices(): WorkChoice[] {
 	return getDb()
 		.prepare(
-			`SELECT w.id, w.name, COUNT(ws.series_id) AS series FROM works w
+			`SELECT w.id, w.name, w.created_at AS createdAt, COUNT(ws.series_id) AS series FROM works w
 				LEFT JOIN work_series ws ON ws.work_id = w.id
 				GROUP BY w.id ORDER BY w.name COLLATE NOCASE, w.id`
 		)
@@ -856,7 +902,7 @@ export function createWork(opts: {
 	now?: number;
 }): CreateFacts {
 	const db = getDb();
-	const now = opts.now ?? Date.now();
+	const now = opts.now ?? nextMoment();
 	const order = opts.order ?? 'hand';
 	const ids = [...opts.seriesIds];
 	if (new Set(ids).size !== ids.length) throw new WorkError('a series can only be in a Work once');
@@ -967,12 +1013,11 @@ export function undoCreate(facts: CreateFacts): void {
  * another Work -- a series belongs to one Work at most -- and that Work ends
  * if the move leaves it with one series. Visibility must still match.
  */
-export function addSeries(workId: number, seriesId: number): AddFacts {
+export function addSeries(workId: number, seriesId: number, made?: number): AddFacts {
 	const db = getDb();
 	return db
 		.transaction((): AddFacts => {
-			const work = workRow(db, workId);
-			if (!work) throw new WorkError('no such Work');
+			const work = mustBeWork(db, workId, made);
 			const facts = factsOf(db, seriesId);
 			if (!facts) throw new WorkError('a series no longer exists');
 			if (!facts.inLibrary) throw new WorkError('a browsing record cannot join a Work');
@@ -1102,12 +1147,11 @@ export function undoAdds(list: AddFacts[]): void {
  * goes and UNDO gets the name, the order and every member back, the removed
  * one included.
  */
-export function takeOut(workId: number, seriesId: number): TakeOutFacts {
+export function takeOut(workId: number, seriesId: number, made?: number): TakeOutFacts {
 	const db = getDb();
 	return db
 		.transaction((): TakeOutFacts => {
-			const work = workRow(db, workId);
-			if (!work) throw new WorkError('no such Work');
+			const work = mustBeWork(db, workId, made);
 			const before = membersOf(db, workId);
 			const member = before.find((m) => m.seriesId === seriesId);
 			if (!member) throw new WorkError('that series is not in this Work');
@@ -1176,11 +1220,11 @@ export function undoTakeOuts(list: TakeOutFacts[]): void {
  * is a bug, not a convenience: it would leave the parts it names first and the
  * rest wherever they fell.
  */
-export function reorder(workId: number, seriesIds: number[]): ReorderFacts {
+export function reorder(workId: number, seriesIds: number[], made?: number): ReorderFacts {
 	const db = getDb();
 	return db
 		.transaction((): ReorderFacts => {
-			if (!workRow(db, workId)) throw new WorkError('no such Work');
+			mustBeWork(db, workId, made);
 			const before = membersOf(db, workId);
 			const have = new Set(before.map((m) => m.seriesId));
 			if (
@@ -1209,32 +1253,38 @@ export function undoReorder(facts: ReorderFacts): void {
 	}).immediate();
 }
 
-export function rename(workId: number, name: string): RenameFacts {
+export function rename(workId: number, name: string, made?: number): RenameFacts {
 	const db = getDb();
 	const trimmed = name.trim();
 	if (trimmed === '') throw new WorkError('a Work needs a name');
 	return db
 		.transaction((): RenameFacts => {
-			const work = workRow(db, workId);
-			if (!work) throw new WorkError('no such Work');
+			const work = mustBeWork(db, workId, made);
 			db.prepare(`UPDATE works SET name = ? WHERE id = ?`).run(trimmed, workId);
-			return { workId, name: work.name };
+			return { workId, createdAt: work.createdAt, name: work.name };
 		})
 		.immediate();
 }
 
-/** UNDO of a rename: the old name, by the same function the screen would call. */
+/**
+ * UNDO of a rename: the old name, onto the Work the rename named, and only it
+ * (c583). A band pressed after that Work ended and a newer one took its id
+ * would otherwise give the newer Work the old name.
+ */
 export function undoRename(facts: RenameFacts): void {
-	getDb().prepare(`UPDATE works SET name = ? WHERE id = ?`).run(facts.name, facts.workId);
+	const db = getDb();
+	db.transaction(() => {
+		mustBeWork(db, facts.workId, facts.createdAt);
+		db.prepare(`UPDATE works SET name = ? WHERE id = ?`).run(facts.name, facts.workId);
+	}).immediate();
 }
 
 /** Take every series out and end the Work: the facts carry the whole row for UNDO. */
-export function ungroup(workId: number): UngroupFacts {
+export function ungroup(workId: number, made?: number): UngroupFacts {
 	const db = getDb();
 	return db
 		.transaction((): UngroupFacts => {
-			const work = workRow(db, workId);
-			if (!work) throw new WorkError('no such Work');
+			const work = mustBeWork(db, workId, made);
 			const members = membersOf(db, workId);
 			db.prepare(`DELETE FROM works WHERE id = ?`).run(workId);
 			return { work, members };
@@ -1256,9 +1306,9 @@ export function undoUngroup(facts: UngroupFacts): void {
  * overwrite ratings given apart. The write goes through `library.setRating`,
  * so each part's tracker hears exactly what its own RATING row would send.
  */
-export function setWorkRating(workId: number, rating: Rating): number {
+export function setWorkRating(workId: number, rating: Rating, made?: number): number {
 	const db = getDb();
-	if (!workRow(db, workId)) throw new WorkError('no such Work');
+	mustBeWork(db, workId, made);
 	if (!Number.isInteger(rating) || rating < 0 || rating > RATING_MAX)
 		throw new WorkError('a rating is 0-10');
 	const ids = allIds(db, workId);
@@ -1268,9 +1318,9 @@ export function setWorkRating(workId: number, rating: Rating): number {
 }
 
 /** Set every part's FAV, but only while the parts agree. FAV never goes to a tracker. */
-export function setWorkFavourite(workId: number, favourite: boolean): number {
+export function setWorkFavourite(workId: number, favourite: boolean, made?: number): number {
 	const db = getDb();
-	if (!workRow(db, workId)) throw new WorkError('no such Work');
+	mustBeWork(db, workId, made);
 	const ids = allIds(db, workId);
 	if (!workFavourite(allParts(workId), ids.length).settable)
 		throw new WorkError('only some parts are a favourite; set them one at a time');

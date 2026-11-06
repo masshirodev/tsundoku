@@ -90,6 +90,7 @@ import { join } from '$lib/server/fspath';
 import { originLabel, sourceOrigin } from '$lib/library/origin';
 import { tagSourceOf } from './tag-source.server';
 import {
+	StaleWorkError,
 	WorkError,
 	addSeries,
 	dismissWorkOffer,
@@ -544,12 +545,23 @@ export const actions: Actions = {
 	 * HIDE ALL n on a series in a Work (W4; Work-States 4): a Work is hidden or
 	 * shown whole, so one part never leaves it half-hidden. With reveal off this
 	 * screen no longer exists afterwards: the library carries the band and UNDO.
+	 *
+	 * The facts are what the press changed (c390), and a press that changed
+	 * nothing an UNDO may put back has no band (c469): a Work hidden in part
+	 * before it is settled hidden with no UNDO (decision 6 of wave 19, since an
+	 * UNDO could only half-hide it again), and a Work already hidden whole
+	 * changes nothing. A band there would say HIDDEN over an UNDO that answers
+	 * NOTHING TO UNDO; with reveal off it was `/?band=hidden&n=0`.
 	 */
 	hideWork: async ({ params, cookies }) => {
 		const s = target(params, cookies);
 		const work = workOfSeries(s.id);
 		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK' });
 		const { ids } = hideWork(work.id, true);
+		if (ids.length === 0) {
+			if (!isRevealed(cookies)) redirect(303, '/');
+			return { ok: true };
+		}
 		const facts = { hidden: ids, out: [], whole: ids, works: 1 };
 		if (!isRevealed(cookies)) {
 			const gone = new URLSearchParams({
@@ -717,11 +729,13 @@ export const actions: Actions = {
 		const key = parseWorkDismissalKey(String(form.get('key') ?? ''));
 		const now = workOfferFor(s.id, isRevealed(cookies));
 		if (!key || !key.endsWith(`:${s.id}`) || now?.workId !== workId || now.key !== key)
-			return fail(400, { workMessage: 'THAT WORK HAS CHANGED · LOOK AGAIN' });
+			return fail(400, { workMessage: 'THAT WORK HAS CHANGED · LOOK AGAIN', stale: true });
 		try {
-			const facts = addSeries(workId, s.id);
+			const facts = addSeries(workId, s.id, now.createdAt);
 			return { workJoined: facts };
 		} catch (e) {
+			if (e instanceof StaleWorkError)
+				return fail(400, { workMessage: e.message.toUpperCase(), stale: true });
 			if (e instanceof WorkError) return fail(400, { workMessage: e.message.toUpperCase() });
 			throw e;
 		}

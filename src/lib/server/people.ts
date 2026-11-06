@@ -38,11 +38,11 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 			`SELECT e.id AS entryId, s.id AS seriesId, e.title, s.title AS seriesTitle, e.rating, e.favourite,
 				${HIDDEN_SQL} AS hidden, e.page_count AS pages, e.read_at, e.last_position, e.position,
 				e.added_at AS addedAt, e.cover_page AS coverPage, e.available AS downloaded,
-				(SELECT COUNT(*) FROM entries x WHERE x.edition_of IS NULL AND x.series_id = s.id) AS total
+				(SELECT COUNT(*) FROM entries x WHERE x.shadowed = 0 AND x.matter = '' AND x.series_id = s.id) AS total
 			FROM entry_tags et JOIN entries e ON e.id = et.entry_id
 			JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
 			WHERE et.tag_id = ? AND ${where}
-			AND (SELECT COUNT(*) FROM entries x WHERE x.edition_of IS NULL AND x.series_id = s.id) > 1`
+			AND (SELECT COUNT(*) FROM entries x WHERE x.shadowed = 0 AND x.matter = '' AND x.series_id = s.id) > 1`
 		)
 		.all(tag.id) as {
 		entryId: number;
@@ -69,14 +69,15 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 				${HIDDEN_SQL} AS hidden, s.added_at AS addedAt,
 				s.cover_at AS cover,
 				EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.available = 1) AS downloaded,
-				(SELECT COUNT(*) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id) AS entries,
-				(SELECT COUNT(*) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id AND e.read_at IS NOT NULL) AS readCount,
-				(SELECT COALESCE(SUM(page_count), 0) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id) AS pages,
-				(SELECT e.last_position FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id AND e.read_at IS NULL
-					AND e.last_opened_at IS NOT NULL ORDER BY e.last_opened_at DESC LIMIT 1) AS lastPosition
+				(SELECT COUNT(*) FROM entries e WHERE e.shadowed = 0 AND e.matter = '' AND e.series_id = s.id) AS entries,
+				(SELECT COUNT(*) FROM entries e WHERE e.shadowed = 0 AND e.matter = '' AND e.series_id = s.id AND e.read_at IS NOT NULL) AS readCount,
+				(SELECT COALESCE(SUM(page_count), 0) FROM entries e WHERE e.shadowed = 0 AND e.matter = '' AND e.series_id = s.id) AS pages,
+				(SELECT e.last_position FROM entries e WHERE e.shadowed = 0 AND e.matter = '' AND e.series_id = s.id AND e.read_at IS NULL
+					AND e.last_opened_at IS NOT NULL ORDER BY e.last_opened_at DESC LIMIT 1) AS lastPosition,
+				(SELECT COUNT(*) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id) AS whole
 			FROM series_tags st JOIN series s ON s.id = st.series_id JOIN roots r ON r.id = s.root_id
 			WHERE st.tag_id = ? AND ${where}
-			AND NOT (s.kind = 'doujin' AND (SELECT COUNT(*) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id) > 1)`
+			AND NOT (s.kind = 'doujin' AND (SELECT COUNT(*) FROM entries e WHERE e.shadowed = 0 AND e.matter = '' AND e.series_id = s.id) > 1)`
 		)
 		.all(tag.id) as {
 		seriesId: number;
@@ -87,6 +88,8 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 		hidden: number;
 		addedAt: number;
 		entries: number;
+		/** Entries with no edition either: a set-aside duplicate or an extra counts here. */
+		whole: number;
 		readCount: number;
 		pages: number;
 		lastPosition: number | null;
@@ -184,7 +187,9 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 			seriesTitle: null,
 			position: null,
 			total: null,
-			groupable: s.kind === 'doujin' && s.entries === 1,
+			// GROUP takes one book with nothing beside it (`groupIntoSeries`), so a
+			// book with an extra or a set-aside duplicate is no singleton here (c558).
+			groupable: s.kind === 'doujin' && s.entries === 1 && s.whole === 1,
 			addedAt: s.addedAt,
 			entries: s.entries,
 			languages: seriesLangs.get(s.seriesId) ?? [],
@@ -210,8 +215,8 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 			const s = db
 				.prepare(
 					`SELECT s.id, s.title, s.favourite, s.cover_at AS cover,
-						(SELECT COUNT(*) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id) AS books,
-						(SELECT COUNT(*) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id AND e.read_at IS NOT NULL) AS read
+						(SELECT COUNT(*) FROM entries e WHERE e.shadowed = 0 AND e.matter = '' AND e.series_id = s.id) AS books,
+						(SELECT COUNT(*) FROM entries e WHERE e.shadowed = 0 AND e.matter = '' AND e.series_id = s.id AND e.read_at IS NOT NULL) AS read
 					FROM series s WHERE s.id = ?`
 				)
 				.get(b.seriesId) as {

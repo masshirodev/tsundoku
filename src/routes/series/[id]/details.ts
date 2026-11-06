@@ -1,8 +1,9 @@
 import type { Lists } from './lists';
 
 /**
- * DETAILS, the fold on a phone, a tablet in portrait and a TV (c425;
- * doc/SERIES.md, "DETAILS"; `doc/handoffs/series-phone/`, 1C): the rows a
+ * DETAILS, the fold on a phone and a TV (c425; doc/SERIES.md, "DETAILS";
+ * `doc/handoffs/series-phone/`, 1C; the handoff folds the tablet in portrait
+ * too, which is not built, and SERIES.md says why): the rows a
  * visit rarely touches fold behind one 64px line, and the line says enough
  * that a problem isn't hidden. Everything here is read from facts the panel
  * already has (each mark's source is named on its function); nothing asks the
