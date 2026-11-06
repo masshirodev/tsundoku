@@ -98,7 +98,15 @@ Rung 61 of `src/lib/server/db.ts` (c275, W1) adds three tables and changes no
 existing one.
 
 - `works (id, name, created_at, order_mode)`, where `order_mode` is `hand`,
-  `added` or `title`.
+  `added` or `title`. `works.id` is a plain INTEGER PRIMARY KEY, so once the
+  newest Work ends the next one made is given its id: a Work is known by its
+  id **and** `created_at`, its moment of making, everywhere a write is named
+  from a page or a band (below). The app's clock gives every Work it makes a
+  moment no other Work made by the same process has had (`nextMoment` in
+  `src/lib/server/works.ts`, c583), so a Work ended and another made under its
+  id in one millisecond are still two moments; a restart takes longer than a
+  millisecond. A caller that passes its own `now` (a spec's fixed clock) is
+  given exactly that.
 - `work_series (work_id, series_id UNIQUE, position)`: positions start at 1 and
   a gap is harmless, because order is by position. A take-out leaves one, and
   UNDO puts the series back at its own position, so a part's number is never
@@ -240,6 +248,22 @@ LONGER A WORK · ONE SERIES WAS LEFT` with UNDO, which restores the same id,
   since has been given the old one (`works.id` is a plain INTEGER PRIMARY KEY). UNGROUP goes the same way (`UNGROUPED · <NAME>`). Both
   replace the gone screen in history (`replacing`), so the system's back
   returns to the library and not to a 404.
+- **Every form names the Work by its id and its moment** (c583). The screen's
+  writers -- ORDER's DONE (`?/reorder`), TAKE OUT, + ADD A SERIES (`?/add`),
+  RENAME, UNGROUP, RATING (`?/rate`) and FAV (`?/favourite`) -- each post the
+  Work's `created_at` as `made`, and the write refuses a Work under the URL's
+  id made at another moment, or none, as `THAT WORK HAS CHANGED · LOOK AGAIN`
+  with nothing written (`StaleWorkError`; the band says `NOTHING CHANGED`). A
+  tab left on `/work/1` after its Work ended, with a newer Work given id 1,
+  would otherwise reorder, rate or ungroup the newer one. A post with no
+  `made` cannot say which Work it means and refuses the same way. The
+  RENAMED band's UNDO carries the moment in its facts and refuses the same
+  way; TAKE OUT's and ADD's UNDOs already found their Work by its moment
+  (`locate`, below). The library's ADD TO A WORK (`?/addToWork`, the GROUP
+  sheet's existing-Work mode) posts the moment too, from `workChoices`. The
+  db cases are `tests/works-db.spec.ts`, "the Work screen refuses a Work its
+  id now names (c583)": each action's old form against a newer Work holding
+  the same series, so only the moment tells them apart.
 - **+ ADD A SERIES** opens a library picker; a series already in another Work
   says `IN <WORK> · MOVES HERE` and moves, ending that Work if one is left.
   The picker reads its own page when it opens (`GET /work/N/addable?q=&offset=`,
@@ -307,11 +331,18 @@ was left with one.
 **An UNDO puts back only what its press changed, and only where the library
 has not moved on** (wave 19, c390 and c308). HIDE's and UNHIDE's facts name
 the series whose visibility the write changed, read inside its transaction, so
-a series that was already hidden is never shown by UNDO. A press that changed
-no Work -- a selection whose Work was hidden already -- has no band, like the
-plain HIDE of series on their own. HIDE ALL n on a Work hidden in part settles
-it hidden and offers no UNDO either: an UNDO could only leave it half-hidden
-again or show the part the owner had hidden, so when in doubt it stays hidden.
+a series that was already hidden is never shown by UNDO. A plain HIDE that
+changed no Work has no band, as the HIDE of series on their own never had.
+HIDE ALL n, which asked about a Work, answers a band whenever it hid anything
+its UNDO may show (c469): beside a Work it only settled, the loose series it
+hid get `HIDDEN · 1 SERIES · SHOWN AGAIN BY UNDO`, and its UNDO shows them and
+leaves the Work hidden. HIDE ALL n on a Work hidden in part settles it hidden
+and offers no UNDO for it: an UNDO could only leave it half-hidden again or
+show the part the owner had hidden, so when in doubt it stays hidden. On the
+series screen such a press -- or one on a Work hidden whole already -- draws no
+band at all, and with reveal off goes back to the library with none (c469):
+it used to draw `HIDDEN` over an UNDO that answered `NOTHING TO UNDO`, and
+redirect to `/?band=hidden&n=0`.
 For the same reason HIDE's UNDO shows a part only while every hidden part of its
 Work is one that HIDE hid. Every UNDO that puts a series back into a Work
 (`putBack` and `restore` in `src/lib/server/works.ts`: TAKE OUT's, ADD's,
@@ -378,6 +409,22 @@ that touched two, with the Works' own series counted in the detail and the
 selected series in no Work named apart (`4 SERIES · 6 MORE ON THEIR OWN ·
 SHOWN AGAIN BY UNDO`). UNHIDE's band is the same with `SHOWN`. Every count is
 of series the press changed, which is what its UNDO puts back.
+
+A HIDE band that hid no Work's part says only what the press did (c469):
+`HIDDEN · N SERIES` for the series it hid, `TAKEN OUT OF THE WORK · A SERIES
+ON ITS OWN AGAIN` (or `… OF 2 WORKS · 3 SERIES ON THEIR OWN AGAIN`) only when
+TAKE OUT, THEN HIDE took something out, and `SHOWN AGAIN BY UNDO`, or `PUT
+BACK BY UNDO` when it hid nothing (a part hidden already, taken out). Until
+then the library's fallback said `TAKEN OUT OF THE WORK` for every such band
+and could say `HIDDEN · 0 SERIES`; the series screen's TAKE OUT of a part
+hidden already now says `TAKEN OUT · ALREADY HIDDEN`.
+
+**A refused UNDO is said where it was pressed** (c469). On the library, an
+UNDO the library has moved past (c308) answers `workMessage`, which the page
+drew only in the bulk bar's `.fold-refused` line, so with SELECT off a band's
+UNDO refused in silence. With no selection open the refusal is now a band of
+its own in the shape the series and Work screens use (`<REASON> · NOTHING
+CHANGED`); while selecting, the bar's line says it as before.
 
 With reveal off, the series screen no longer exists after either answer, so the
 library carries the band: `HIDE ALL n` says the Work was hidden whole, and
@@ -543,7 +590,14 @@ LIBRARY band a source search leads to is on the same screen, above it.
   `works.id` is reused once the newest Work ends, so a page loaded before an
   ungroup would otherwise add the series to whatever Work holds the id now;
   an offer dismissed, or a Work that stopped matching, since the load refuses
-  too, as `THAT WORK HAS CHANGED · LOOK AGAIN`, writing nothing. The band
+  too, as `THAT WORK HAS CHANGED · LOOK AGAIN`, writing nothing. That refusal
+  says `stale: true` beside its words, and on it the sheet closes and the
+  page is read again (c584): the screen's band says why, and MIGHT CONTINUE
+  shows the offer there is now (a newer Work's, under the same id or not) or
+  none. Every other refusal keeps the sheet open on its reason, since a
+  second try from the same sheet can succeed. The library's ADD TO A WORK
+  answers a stale Work the same way, and its sheet closes on it too, with the
+  selection kept and the Works listed again. The band
   says `ADDED TO <WORK> · PART N` with UNDO (`?/undoAddToWork`), which undoes
   this series' add only and answers malformed facts with a band, not a 500.
 - **NOT THIS** stores `work_dismissals` (`?/dismissWorkOffer`), from the
@@ -618,9 +672,11 @@ stale `from=work:` id, MOVE and TAKE OUT with its band and UNDO.
 
 ### The flow
 
-`tests/works-flow.e2e.ts` is W2's, W3's, W4's and W7's end to end. W7's two
+`tests/works-flow.e2e.ts` is W2's, W3's, W4's and W7's end to end. W7's
 cases are the offer (REVIEW, the sheet, the add and its UNDO, NOT THIS from
-the band and from the sheet) and the one flow HANDOFF.md asks for: three
+the band and from the sheet), the offer gone stale under an open sheet (c584:
+the Work ungrouped, and made again under the same id, in a second tab) and
+the one flow HANDOFF.md asks for: three
 series grouped from an artist's page, part 1 read to its end, START on the
 end page into part 2, CONTINUE and the tile on part 2, a take-out, the
 second-to-last's take-out and its UNDO, and UNGROUP. Before that: the tile, the

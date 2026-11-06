@@ -286,7 +286,7 @@ describe('the series screen’s offer, through its own actions (c281)', () => {
 			['key', offer.key]
 		]);
 		expect(answer.status).toBe(400);
-		expect(answer.data).toEqual({ workMessage: 'THAT WORK HAS CHANGED · LOOK AGAIN' });
+		expect(answer.data).toEqual({ workMessage: 'THAT WORK HAS CHANGED · LOOK AGAIN', stale: true });
 		expect(snapshot()).toEqual(before);
 		expect(works.workOfSeries(force)).toBeNull();
 	});
@@ -304,7 +304,7 @@ describe('the series screen’s offer, through its own actions (c281)', () => {
 			['key', offer.key]
 		]);
 		expect(answer.status).toBe(400);
-		expect(answer.data).toEqual({ workMessage: 'THAT WORK HAS CHANGED · LOOK AGAIN' });
+		expect(answer.data).toEqual({ workMessage: 'THAT WORK HAS CHANGED · LOOK AGAIN', stale: true });
 		expect(snapshot()).toEqual(before);
 	});
 

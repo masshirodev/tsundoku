@@ -40,6 +40,7 @@ import { refreshMany } from '$lib/server/refresh';
 import { deleteSeries } from '$lib/server/delete';
 import { isGated } from '$lib/server/unlock';
 import {
+	StaleWorkError,
 	WorkError,
 	addSeries,
 	createWork,
@@ -276,6 +277,10 @@ function wholeAnswer(facts: WholeFacts, hidden: boolean) {
  * refusals from. Anything else is a real failure and is thrown.
  */
 function refused(e: unknown) {
+	// A Work named by an id another Work holds now (c583) also says `stale`,
+	// which the GROUP sheet reads to close and read the library again (c584).
+	if (e instanceof StaleWorkError)
+		return fail(400, { workMessage: e.message.toUpperCase(), stale: true });
 	if (e instanceof WorkError) return fail(400, { workMessage: e.message.toUpperCase() });
 	throw e;
 }
@@ -313,11 +318,21 @@ export const actions: Actions = {
 	 * rule"), so a selection that holds part of one asks before it leaves a
 	 * Work half-hidden. This answer hides every part of every Work the
 	 * selection touches, and the selected series that are in none.
+	 *
+	 * It answers a band whenever the press hid anything an UNDO may show
+	 * (c469; wave 19's decision 12 and Gap 7): the selection's Work may be
+	 * one it only settled (hidden in part before, so no UNDO for it), with
+	 * loose series beside it that it did hide, and those deserve their UNDO
+	 * as much as a Work's parts do. The band's words are of what changed
+	 * (`HIDDEN · 2 SERIES`), never a Work it did not hide. A press that
+	 * changed nothing UNDO could put back has no band.
 	 */
 	hideAll: async ({ request }) => {
 		const target = ids(await request.formData());
 		if (target.length === 0) return fail(400, { message: 'nothing selected' });
-		return wholeAnswer(setHiddenWhole(target, true), true);
+		const facts = setHiddenWhole(target, true);
+		if (facts.ids.length === 0) return { ok: true };
+		return { hideFacts: { hidden: facts.ids, out: [], whole: facts.whole, works: facts.works } };
 	},
 
 	/**
@@ -522,11 +537,18 @@ export const actions: Actions = {
 	/**
 	 * ADD TO A WORK · N: the sheet's existing Work, each chosen series moving in
 	 * at the end of the run (a Work left with one ends, and UNDO puts it back).
+	 * The sheet posts the Work's id and its moment of making (`made`), and the
+	 * add refuses a Work under that id made at another moment, or none (c583):
+	 * `works.id` is reused once the newest Work ends, so a sheet drawn before an
+	 * UNGROUP elsewhere would otherwise move the selection into a newer Work.
+	 * A post with no moment cannot say which Work it means and refuses too.
 	 */
 	addToWork: async ({ request }) => {
 		const form = await request.formData();
 		const workId = Number(form.get('work'));
 		if (!Number.isInteger(workId) || workId <= 0) return fail(400, { workMessage: 'PICK A WORK' });
+		const posted = Number(form.get('made'));
+		const made = Number.isSafeInteger(posted) && posted > 0 ? posted : -1;
 		const seriesIds = form
 			.getAll('series')
 			.map(Number)
@@ -534,10 +556,10 @@ export const actions: Actions = {
 		const facts: AddFacts[] = [];
 		for (const id of seriesIds) {
 			try {
-				facts.push(addSeries(workId, id));
+				facts.push(addSeries(workId, id, made));
 			} catch (e) {
 				if (!(e instanceof WorkError)) throw e;
-				if (facts.length === 0) return fail(400, { workMessage: e.message.toUpperCase() });
+				if (facts.length === 0) return refused(e);
 				break;
 			}
 		}

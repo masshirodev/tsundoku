@@ -142,6 +142,7 @@
 				>BY TITLE</button
 			>
 			{#each order as id (id)}<input type="hidden" name="part" value={id} />{/each}
+			<input type="hidden" name="made" value={work.createdAt} />
 			<button type="submit" class="cell done" data-focus-mark="in">DONE</button>
 		</form>
 	{:else if selecting}
@@ -161,6 +162,7 @@
 			>
 			<div class="mid count" aria-live="polite">{selected.size} SELECTED</div>
 			{#each [...selected] as id (id)}<input type="hidden" name="part" value={id} />{/each}
+			<input type="hidden" name="made" value={work.createdAt} />
 			<button type="submit" class="cell done" data-focus-mark="in" disabled={selected.size === 0}
 				>TAKE OUT</button
 			>
@@ -245,6 +247,7 @@
 				<!-- RATING and FAV are the parts', set together while they agree (doc/WORKS.md). -->
 				<div class="rrow">
 					<form method="POST" action="?/rate" use:enhance class="rs-form">
+						<input type="hidden" name="made" value={work.createdAt} />
 						<RatingSlider
 							value={rating.shown}
 							label={rating.settable ? 'RATING' : 'PARTS DIFFER'}
@@ -261,6 +264,7 @@
 					</form>
 					<form method="POST" action="?/favourite" use:enhance class="fav-form">
 						<input type="hidden" name="on" value={fav.value ? '0' : '1'} />
+						<input type="hidden" name="made" value={work.createdAt} />
 						<button
 							type="submit"
 							class="fav"
@@ -321,11 +325,13 @@
 					</div>
 					<button type="button" class="lc" onclick={() => (renaming = !renaming)}>RENAME</button>
 					<form method="POST" action="?/ungroup" use:enhance={replacing}>
+						<input type="hidden" name="made" value={work.createdAt} />
 						<button type="submit" class="lc">UNGROUP</button>
 					</form>
 				</div>
 				{#if renaming}
 					<form method="POST" action="?/rename" use:enhance class="rename">
+						<input type="hidden" name="made" value={work.createdAt} />
 						<input
 							type="text"
 							name="name"
@@ -375,7 +381,12 @@
 	</div>
 </div>
 
-<AddSeriesSheet open={adding} workId={work.id} onclose={() => (adding = false)} />
+<AddSeriesSheet
+	open={adding}
+	workId={work.id}
+	made={work.createdAt}
+	onclose={() => (adding = false)}
+/>
 
 <style>
 	.work {

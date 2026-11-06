@@ -5,6 +5,7 @@ import { parseRating } from '$lib/library/rating';
 import { continuePart } from '$lib/library/works';
 import { resumeEntry } from '$lib/server/library';
 import {
+	StaleWorkError,
 	WorkError,
 	addSeries,
 	rename,
@@ -47,10 +48,49 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
 
 const idOf = (params: { id: string }) => Number(params.id);
 
-/** A refusal the screen can say: W1's actions throw, and the band reads the reason. */
+/**
+ * The moment of making the screen read its Work at (c583): every form here
+ * posts it as `made`, and every writer refuses a Work under the URL's id made
+ * at another moment. `works.id` is reused once the newest Work ends, so a tab
+ * left on `/work/1` after its Work ended would otherwise act on the next Work
+ * given id 1. A form with no moment (a page from before it was posted, a
+ * hand-made post) cannot say which Work it means, so it is refused the same
+ * way, by a moment no Work has.
+ */
+function madeOf(form: FormData): number {
+	const made = Number(form.get('made'));
+	return Number.isSafeInteger(made) && made > 0 ? made : -1;
+}
+
+/**
+ * A refusal the screen can say: W1's actions throw, and the band reads the
+ * reason. A stale Work also says so as `stale`, the field the GROUP sheet
+ * reads (c584), so every door that refuses one answers in the same shape.
+ */
 function refused(e: unknown) {
+	if (e instanceof StaleWorkError)
+		return fail(400, { message: e.message.toUpperCase(), stale: true });
 	if (e instanceof WorkError) return fail(400, { message: e.message.toUpperCase() });
 	throw e;
+}
+
+/** A band's facts as posted back, or null when they are not JSON. */
+function posted(form: FormData): unknown {
+	try {
+		return JSON.parse(String(form.get('facts')));
+	} catch {
+		return null;
+	}
+}
+
+/** A rename's facts, when they are whole: the Work by id and moment, and the old name. */
+function renameFacts(v: unknown): RenameFacts | null {
+	if (typeof v !== 'object' || v === null) return null;
+	const f = v as Record<string, unknown>;
+	const id = (n: unknown) => Number.isSafeInteger(n) && (n as number) > 0;
+	if (!id(f.workId) || !id(f.createdAt) || typeof f.name !== 'string' || f.name.trim() === '')
+		return null;
+	return { workId: f.workId as number, createdAt: f.createdAt as number, name: f.name };
 }
 
 export const actions: Actions = {
@@ -58,7 +98,7 @@ export const actions: Actions = {
 	reorder: async ({ request, params }) => {
 		const form = await request.formData();
 		try {
-			reorder(idOf(params), form.getAll('part').map(Number).filter(Number.isInteger));
+			reorder(idOf(params), form.getAll('part').map(Number).filter(Number.isInteger), madeOf(form));
 		} catch (e) {
 			return refused(e);
 		}
@@ -76,7 +116,7 @@ export const actions: Actions = {
 		const facts = [];
 		for (const seriesId of form.getAll('part').map(Number)) {
 			try {
-				const one = takeOut(idOf(params), seriesId);
+				const one = takeOut(idOf(params), seriesId, madeOf(form));
 				facts.push(one);
 				if (one.ended) break;
 			} catch (e) {
@@ -116,7 +156,7 @@ export const actions: Actions = {
 	add: async ({ request, params }) => {
 		const form = await request.formData();
 		try {
-			const facts = addSeries(idOf(params), Number(form.get('series')));
+			const facts = addSeries(idOf(params), Number(form.get('series')), madeOf(form));
 			return { added: facts };
 		} catch (e) {
 			return refused(e);
@@ -139,16 +179,25 @@ export const actions: Actions = {
 		try {
 			const name = String(form.get('name') ?? '').trim();
 			if (name === '') return fail(400, { message: 'A WORK NEEDS A NAME' });
-			return { renamed: rename(idOf(params), name) };
+			return { renamed: rename(idOf(params), name, madeOf(form)) };
 		} catch (e) {
 			return refused(e);
 		}
 	},
 
+	/**
+	 * The RENAMED band's UNDO: the old name back onto the Work the rename
+	 * named, by its id and moment (c583), never onto a newer Work given the id
+	 * since. Facts that are not whole undo nothing, as a band, not a 500.
+	 */
 	undoRename: async ({ request }) => {
-		const form = await request.formData();
-		const facts = JSON.parse(String(form.get('facts'))) as RenameFacts;
-		undoRename(facts);
+		const facts = renameFacts(posted(await request.formData()));
+		if (!facts) return fail(400, { message: 'NOTHING TO UNDO' });
+		try {
+			undoRename(facts);
+		} catch (e) {
+			return refused(e);
+		}
 		return { ok: true };
 	},
 
@@ -156,10 +205,11 @@ export const actions: Actions = {
 	 * UNGROUP takes every series out and ends the Work, so the screen goes too:
 	 * the library shows the band and UNDO restores the same id, name and order.
 	 */
-	ungroup: async ({ params }) => {
+	ungroup: async ({ request, params }) => {
+		const form = await request.formData();
 		let facts;
 		try {
-			facts = ungroup(idOf(params));
+			facts = ungroup(idOf(params), madeOf(form));
 		} catch (e) {
 			return refused(e);
 		}
@@ -182,7 +232,7 @@ export const actions: Actions = {
 		const rating = parseRating(form.get('rating'));
 		if (rating === undefined) return fail(400, { message: 'RATING MUST BE 0-10' });
 		try {
-			setWorkRating(idOf(params), rating);
+			setWorkRating(idOf(params), rating, madeOf(form));
 		} catch (e) {
 			return refused(e);
 		}
@@ -192,7 +242,7 @@ export const actions: Actions = {
 	favourite: async ({ request, params }) => {
 		const form = await request.formData();
 		try {
-			setWorkFavourite(idOf(params), form.get('on') === '1');
+			setWorkFavourite(idOf(params), form.get('on') === '1', madeOf(form));
 		} catch (e) {
 			return refused(e);
 		}

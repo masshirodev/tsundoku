@@ -64,8 +64,14 @@
 			trailHere(trail.step, page.url.pathname)
 	);
 	const ring = $derived(trail.ring(data.start, page.url.pathname));
+	// A refusal from MIGHT CONTINUE's sheet (`workMessage`) lands here only when
+	// the sheet closed on it: the offer it was drawn with has gone (c584).
 	const refusal = $derived(
-		form && 'message' in form && typeof form.message === 'string' ? form.message.toUpperCase() : ''
+		form && 'message' in form && typeof form.message === 'string'
+			? form.message.toUpperCase()
+			: form && 'workMessage' in form && typeof form.workMessage === 'string'
+				? form.workMessage.toUpperCase()
+				: ''
 	);
 
 	const series = $derived(data.series);
@@ -867,6 +873,7 @@
 			{
 				id: data.workOffer.workId,
 				name: data.workOffer.name,
+				createdAt: data.workOffer.createdAt,
 				series: data.workOffer.parts.length
 			}
 		]}
