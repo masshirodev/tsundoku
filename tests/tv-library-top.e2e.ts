@@ -156,20 +156,18 @@ test('← from the first collection’s tab reaches ALL (c624)', async ({ page }
 	await page.keyboard.press('ArrowRight');
 	const picked = await onTab();
 	expect(picked).toMatch(/^shelf-c:/);
-	// The first collection, not one further along: no collection before it.
-	const before = await page.evaluate(
-		(id) =>
-			[...document.querySelectorAll<HTMLElement>('.tabs .tab')]
-				.map((t) => t.dataset.focusId)
-				.indexOf(id),
-		picked
-	);
-	const firstCollection = await page.evaluate(() =>
-		[...document.querySelectorAll<HTMLElement>('.tabs .tab')].findIndex((t) =>
-			t.dataset.focusId?.startsWith('shelf-c:')
-		)
-	);
-	expect(before).toBe(firstCollection);
+	// The first collection, not one further along: no collection before it in
+	// the row a TV draws (the desktop sidebar's own tabs are in the DOM too).
+	const order = await page.evaluate((id) => {
+		const row = [...document.querySelectorAll<HTMLElement>('.tabs nav')].find(
+			(nav) => nav.getBoundingClientRect().width > 0
+		);
+		const ids = [...(row?.querySelectorAll<HTMLElement>('.tab') ?? [])].map(
+			(t) => t.dataset.focusId
+		);
+		return { at: ids.indexOf(id), first: ids.findIndex((k) => k?.startsWith('shelf-c:')) };
+	}, picked);
+	expect(order.at).toBe(order.first);
 	// OK picks it, and ← goes back to ALL.
 	await page.keyboard.press('Enter');
 	await expect(page).toHaveURL(/shelf=c/);
