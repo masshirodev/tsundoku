@@ -714,9 +714,15 @@ test("S9: 9D's 5 s retries keep the mark on another server and its answer (c261,
 	// took the mark back to TRY AGAIN, put every row back to CHECKING and
 	// probed every other server again, on every tick.
 	// Paused, so only runFor moves time: a slow assertion must not add a tick.
+	// install() starts a running clock (Playwright's reference: install before
+	// navigating and let `Date.now` progress while the page loads, then pause).
+	// Under load it has moved past t0 before pauseAt runs, and pauseAt "cannot
+	// fast-forward to the past", so a pause at t0 + 1 ms lands in the past on a
+	// loaded box (c619). Read the page's own clock and pause a margin of
+	// seconds ahead of it, as settings-devices does at install + 30 s.
 	const t0 = new Date('2026-11-04T10:00:00Z');
 	await page.clock.install({ time: t0 });
-	await page.clock.pauseAt(new Date(t0.getTime() + 1));
+	await page.clock.pauseAt(new Date((await page.evaluate(() => Date.now())) + 30_000));
 	await stubServers(page, three, {
 		[ZEN]: { ok: true, after: 300 },
 		[STUDIO]: { ok: false, after: 100 }
