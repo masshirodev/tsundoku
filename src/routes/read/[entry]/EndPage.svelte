@@ -8,7 +8,8 @@
 	import type { Kind } from '$lib/library/types';
 	import { offline } from '$lib/offline.svelte';
 	import type { Mode } from '$lib/reader/reader';
-	import { deserialize } from '$app/forms';
+	import { libraryCell } from '$lib/reader/library-row';
+	import { deserialize, enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
 
 	/**
@@ -16,8 +17,8 @@
 	 * offline; the addendum's incogEnd). In paged modes the chapter boundary
 	 * is a full page of its own, so crossing it is noticed; a tap or swipe
 	 * forward carries on. At the end of what is available it is where the
-	 * series is rated -- the rating block shows only while the series is
-	 * unrated, so it never interrupts anyone twice.
+	 * series is rated -- the block stays once the rating is set, showing what
+	 * was chosen, so rating it does not empty the page the reader is on (c655).
 	 *
 	 * A series in a Work offers the next part here (doc/WORKS.md, W6): the
 	 * block is a tap, never a swipe, because a chapter boundary swipes on while
@@ -56,7 +57,9 @@
 		moveHref = '',
 		work = null,
 		workHref = '',
-		unit = ''
+		unit = '',
+		inLibrary,
+		addHref = null
 	}: {
 		/** chapter: next is readable; missing: next has no file; offline: no network; series: nothing next. */
 		variant: 'chapter' | 'missing' | 'offline' | 'series';
@@ -101,6 +104,17 @@
 		workHref?: string;
 		/** "CH" for pages, "VOL" for a novel's volumes: the kicker adds the dot itself. */
 		unit?: string;
+		/**
+		 * In the library, so the end offers HIDE (the series screen's own HIDE,
+		 * which is what takes it off every shelf; it stays in the library and
+		 * `/reveal` brings it back). False for a browsing record
+		 * (doc/BROWSING.md), whose end offers + ADD through `addHref`. Required,
+		 * with no default: a reader that forgets it must fail `yarn run check`
+		 * rather than quietly offer the wrong cell (c655, round 2).
+		 */
+		inLibrary: boolean;
+		/** A browsing record's ADD: the source preview's own `?/add` action. */
+		addHref?: string | null;
 	} = $props();
 
 	const back = $derived(mode === 'rtl' ? '→' : '←');
@@ -211,6 +225,24 @@
 	let queue = $state<'idle' | 'asking' | 'queued' | 'already' | 'failed'>('idle');
 	/** Done: a queue that took, or one already there; neither is pressed again. */
 	const queueDone = $derived(queue === 'queued' || queue === 'already');
+	// ---- the library row (c655) -------------------------------------------------
+	// A record's ADD takes it in; a library series' HIDE is the series screen's
+	// own, which is what takes it off every shelf. Neither lands elsewhere:
+	// ADD's band and HIDE's redirect belong to the screens that asked for them.
+	// A series in a Work draws no cell: its HIDE is the Work's own (round 2).
+	let adding = $state(false);
+	let added = $state(false);
+	let removing = $state(false);
+	let removed = $state(false);
+	const cell = $derived(
+		libraryCell({
+			inLibrary,
+			inWork: !!work,
+			hasAddHref: !!addHref,
+			added,
+			hidden: removed
+		})
+	);
 	const downloadCell = $derived(
 		queue === 'queued'
 			? 'QUEUED ✓'
@@ -419,34 +451,74 @@
 					<span class="wr">WORK →</span>
 				</a>
 			{/if}
-			{#if rating === 0}
-				<div class="rate-block">
-					<!-- Ratings out of 10 1d: the blocky slider; it saves when the finger lifts. -->
-					<RatingSlider
-						value={rating}
-						height={72}
-						phoneHeight={72}
-						pad={0}
-						phonePad={0}
-						phoneLabelWidth={72}
-						borderTop={false}
-						onchange={onrate}
-					/>
-					<div class="rrow">
-						<div class="rlabel">FAV</div>
-						<button
-							type="button"
-							class="switch"
-							role="switch"
-							aria-checked={favourite}
-							onclick={onfav}
-						>
-							<span class="track" class:on={favourite}><span class="knob"></span></span>
-							<span>{favourite ? 'ON' : 'OFF'}</span>
-						</button>
-					</div>
+			<div class="rate-block">
+				<!-- Ratings out of 10 1d: the blocky slider; it saves when the finger lifts.
+				     HIDDEN with reveal off leaves the series unreachable, so the block
+				     stops taking input rather than posting to a page that now 404s (c655). -->
+				<RatingSlider
+					value={rating}
+					height={72}
+					phoneHeight={72}
+					pad={0}
+					phonePad={0}
+					phoneLabelWidth={72}
+					borderTop={false}
+					disabled={cell === 'hidden'}
+					onchange={onrate}
+				/>
+				<div class="rrow">
+					<div class="rlabel">FAV</div>
+					<button
+						type="button"
+						class="switch"
+						role="switch"
+						aria-checked={favourite}
+						disabled={cell === 'hidden'}
+						onclick={onfav}
+					>
+						<span class="track" class:on={favourite}><span class="knob"></span></span>
+						<span>{favourite ? 'ON' : 'OFF'}</span>
+					</button>
 				</div>
-				<div class="note">{note}</div>
+			</div>
+			{#if rating === 0}<div class="note">{note}</div>{/if}
+			{#if cell === 'hide' || cell === 'hidden'}
+				<div class="lib">
+					<form
+						method="POST"
+						action="{seriesHref}?/hide"
+						use:enhance={() => {
+							removing = true;
+							return async ({ result }) => {
+								removing = false;
+								if (result.type === 'success' || result.type === 'redirect') removed = true;
+							};
+						}}
+					>
+						<input type="hidden" name="on" value="1" />
+						<button type="submit" disabled={removing || cell === 'hidden'} data-focus-mark="in"
+							>{cell === 'hidden' ? 'HIDDEN ✓' : removing ? 'HIDING…' : 'HIDE'}</button
+						>
+					</form>
+				</div>
+			{:else if (cell === 'add' || cell === 'added') && addHref}
+				<div class="lib">
+					<form
+						method="POST"
+						action={addHref}
+						use:enhance={() => {
+							adding = true;
+							return async ({ result }) => {
+								adding = false;
+								if (result.type === 'redirect') added = true;
+							};
+						}}
+					>
+						<button type="submit" disabled={adding || cell === 'added'} data-focus-mark="in"
+							>{cell === 'added' ? 'IN LIBRARY ✓' : adding ? 'ADDING…' : '+ ADD TO LIBRARY'}</button
+						>
+					</form>
+				</div>
 			{/if}
 		{:else if next}
 			<div class="next">
@@ -826,6 +898,27 @@
 		display: flex;
 		flex-direction: column;
 		border-top: var(--hairline);
+	}
+	/* The library row (c655): one cell, ADD for a record or HIDE for a series. */
+	.lib {
+		display: flex;
+		border: var(--hairline);
+	}
+	.lib form {
+		flex: 1;
+		display: flex;
+	}
+	.lib button {
+		flex: 1;
+		min-height: 56px;
+		padding: 0 20px;
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		text-align: left;
+		color: var(--text-2);
+	}
+	.lib button:disabled {
+		cursor: default;
 	}
 	.rrow {
 		display: flex;

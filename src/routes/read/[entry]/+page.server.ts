@@ -143,6 +143,12 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			: series;
 		const here = reading.entries[index] ?? entry;
 		const version = versions[here.file] ?? null;
+		// A browsing record (doc/BROWSING.md): its preview, where the end page's
+		// + ADD posts (c655). The image branch below computes the same row.
+		const libraryRow = getDb()
+			.prepare(`SELECT in_library, origin_key FROM series WHERE id = ?`)
+			.get(series.id) as { in_library: number; origin_key: string | null };
+		const recordPreview = libraryRow.in_library === 0 ? previewIdOf(libraryRow.origin_key) : null;
 		return {
 			text: true as const,
 			series: reading,
@@ -167,6 +173,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			bytes: version && /^\d+-/.test(version) ? Number(version.split('-')[0]) : 0,
 			versions,
 			incognito: isIncognito(cookies),
+			// A browsing record (doc/BROWSING.md): its preview, where the end page's
+			// + ADD posts (c655).
+			record: recordPreview,
 			// The Work's next part, at the end of a novel's last volume (doc/WORKS.md, W6).
 			work: workEndOf(series.id, reveal)
 		};

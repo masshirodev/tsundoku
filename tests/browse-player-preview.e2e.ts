@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
+import { SOURCES } from './browse-world';
 
 /**
  * The seek preview over the scrubber (c385, doc/ANIME.md "The player"): a
@@ -600,6 +601,50 @@ test.describe('a stream', () => {
 		expect(segments).toEqual(['seg2.m4s']);
 	});
 
+	test('a stop made after the page began leaving is cancelled by the player’s own teardown, not only by beforeNavigate (c638)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		const segments: string[] = [];
+		await serveHls(page, segments);
+		const playlists = await countPlaylists(page);
+		await lowHls(page);
+		await knownLength(page);
+		const held = await holdHls(page);
+		await openCold(page, held);
+		const tip = page.locator('.scrubrow .track .tip');
+
+		// The series page's data held: the way back has begun and not landed,
+		// so the player is still mounted while it waits.
+		let landed!: () => void;
+		const land = new Promise<void>((ok) => (landed = ok));
+		let left!: () => void;
+		const leaving = new Promise<void>((ok) => (left = ok));
+		await page.route('**/series/*/__data.json**', async (route) => {
+			left();
+			await land;
+			await route.fallback();
+		});
+
+		// Leave first, then find the bar again while the load is held: the stop
+		// is scheduled *after* `beforeNavigate`'s leave, so that bump cannot
+		// cancel it. Only the player's teardown stands between it and a
+		// preview fetched for a page nobody is on.
+		await page.evaluate(() => history.back());
+		await leaving;
+		await hover(page, 2.5 / 8);
+		await expect(tip.locator('.at')).toHaveText('0:02');
+		// Past the debounce: the stop is waiting on hls.js's chunk.
+		await page.waitForTimeout(600);
+		// The player goes first, with the chunk still held; then the chunk comes.
+		landed();
+		await expect(page.locator('.stage video')).toHaveCount(0);
+		held.release();
+		await page.waitForTimeout(2500);
+		expect(playlists.n).toBe(0);
+		expect(segments).toEqual([]);
+	});
+
 	test('the page left while the first stop waits on hls.js’s chunk: no preview opens behind it (c574)', async ({
 		page
 	}) => {
@@ -852,5 +897,61 @@ test.describe('a stream whose lowest quality is a plain file', () => {
 		await pictureLoaded(page);
 		await page.waitForTimeout(2500);
 		expect(ranges.length).toBe(atSecondLeave);
+	});
+});
+
+/**
+ * c655's record half (round 2): the end page's library row for a browsing
+ * record, in the paged reader. The shared seed has no record (fixtures make
+ * none), so this needs the browse world; the reader slot owns no other file
+ * that runs in that project — its flow files run in tablet-portrait against
+ * the shared seed — so the case lives here, beside the player's.
+ *
+ * The bug it pins: ImageReader draws EndPage twice, and only the strip's
+ * instance passed `inLibrary`/`addHref`. The paged one kept EndPage's default
+ * `inLibrary = true`, so a record's end offered REMOVE for a series that was
+ * not in the library, with no + ADD.
+ */
+test.describe('the reader end page for a browsing record (c655)', () => {
+	test('a record in a paged read offers + ADD and never HIDE', async ({ page }) => {
+		test.setTimeout(90_000);
+		await page.goto(`/browse/${SOURCES.open.id}`);
+		// A tile no other browse spec opens: browse-online adds 1-4 to the
+		// library and reads 1-5, browse-flow reads 1-2, and an added series
+		// would open its series screen instead of a preview on the next run.
+		await page.locator('.grid .tile', { hasText: 'Open Source 1-7' }).click();
+		await expect(page).toHaveURL(/\/downloads\/source\//);
+		const preview = page.url();
+		// Its last chapter, opened online from the preview: a record, not added.
+		const list = page.getByRole('region', { name: /Chapters/ });
+		await list.getByRole('button', { name: 'Read Chapter 3' }).click();
+		await expect(page).toHaveURL(/\/read\/\d+/);
+		await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
+			timeout: 20_000
+		});
+		// Esc shows the controls: the meta line is what says it is a record.
+		await page.keyboard.press('Escape');
+		await expect(page.locator('header[aria-label="Reader"] .meta')).toContainText('NOT IN LIBRARY');
+		const entry = page.url().match(/\/read\/(\d+)/)![1];
+		// Paged: `?p=last` plus one turn forward (left, this source reads R→L)
+		// is the paged end page's door — the instance that was missing the props.
+		await page.goto(`/read/${entry}?p=last`);
+		await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
+			timeout: 20_000
+		});
+		await page.keyboard.press('ArrowLeft');
+		const end = page.locator('[data-end-page]');
+		await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
+		await expect(end.getByRole('button', { name: '+ ADD TO LIBRARY' })).toBeVisible();
+		await expect(end.getByRole('button', { name: 'HIDE', exact: true })).toHaveCount(0);
+		await expect(end.getByRole('button', { name: /REMOVE/ })).toHaveCount(0);
+		// Leave the world as it was: FORGET the record this case made, through
+		// the preview's own action (the browse world is one database for the
+		// whole project).
+		const forgotten = await page.request.post(`${new URL(preview).pathname}?/forget`, {
+			headers: { origin: new URL(preview).origin, 'x-sveltekit-action': 'true' },
+			form: {}
+		});
+		expect.soft(forgotten.ok()).toBe(true);
 	});
 });

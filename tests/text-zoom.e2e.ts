@@ -106,3 +106,113 @@ test('at 130% text every series row’s label fits its column, SHELVES included'
 	await zoomText(page, 1.3);
 	expect(await overflowing()).toEqual([]);
 });
+
+/**
+ * The reader's bottom bar at 360 px (c616): every cell of it reachable and
+ * fully on screen, and a tap at each cell's centre landing on that cell, at
+ * 100% and at 130% text, on both readers. The card measured FULL SCREEN off
+ * the right edge on the text reader at 100%, and CH. 28 → off it on the image
+ * reader at 130%, with SETTINGS a sliver between two cells: the row was wider
+ * than the phone and clipped its last cells with no way to reach them. The
+ * cells keep their size and order and the row scrolls (the card's own first
+ * fix), so each is brought into view before it is checked. The bar keeps its
+ * 64 px, and so the reading area under it.
+ */
+const BAR = 'footer.bottom .cells';
+const BAR_CELLS = `${BAR} .cell`;
+
+async function expectBarReachable(page: Page, where: string) {
+	const v = page.viewportSize()!;
+	const row = page.locator(BAR);
+	// One row, not two: the bar's height is what the reading area measured,
+	// and a second row of cells would double it.
+	const height = await row.evaluate((el) => el.clientHeight);
+	expect(height, where).toBeGreaterThan(32);
+	expect(height, where).toBeLessThan(80);
+	const cells = page.locator(BAR_CELLS);
+	const count = await cells.count();
+	expect(count, where).toBeGreaterThan(3);
+	const labels = await cells.evaluateAll((els) =>
+		els.map((el) => (el as HTMLElement).innerText.trim())
+	);
+	// The summary's cell is the one that says what it opens; its text is
+	// clipped on a phone, so it ends there rather than reading only that.
+	expect(
+		labels.some((l) => l.includes('SETTINGS ↑')),
+		where
+	).toBe(true);
+	// And the label it ends in is whole: the summary gives way on a phone,
+	// never SETTINGS ↑ itself (the card's "sliver").
+	const label = await page.locator(`${BAR_CELLS} .opens-k`).evaluate((el) => {
+		const k = el.getBoundingClientRect();
+		const c = el.closest('.cell')!.getBoundingClientRect();
+		return { left: k.left - c.left, right: c.right - k.right };
+	});
+	expect(label.left, `${where}: SETTINGS`).toBeGreaterThanOrEqual(-0.5);
+	expect(label.right, `${where}: SETTINGS`).toBeGreaterThanOrEqual(-0.5);
+	for (let i = 0; i < count; i++) {
+		const cell = cells.nth(i);
+		const label = labels[i];
+		// Bring it into the bar's view, as a thumb does, then measure it: a
+		// cell past the edge is the bug, and a row that cannot scroll to it
+		// leaves it past the edge.
+		await cell.evaluate((el) => el.scrollIntoView({ block: 'nearest', inline: 'center' }));
+		await expect
+			.poll(
+				async () => {
+					const b = await cell.boundingBox();
+					return !!b && b.x >= -0.5 && b.x + b.width <= v.width + 0.5;
+				},
+				{ message: `${where}: ${label}` }
+			)
+			.toBe(true);
+		const hit = await cell.evaluate((el) => {
+			const r = el.getBoundingClientRect();
+			const at = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+			return (at?.closest<HTMLElement>('.cell')?.innerText ?? '').trim();
+		});
+		expect(hit, `${where}: ${label}`).toBe(label);
+	}
+}
+
+/** The chrome, on a reader: a tap in the top margin shows it (a word or an
+ * illustration is never there, and the image reader's strips run full height). */
+async function showControls(page: Page) {
+	const v = page.viewportSize()!;
+	await page.mouse.click(v.width / 2, 30);
+	await expect(page.locator(BAR)).toBeVisible();
+}
+
+async function openReaderBy(page: Page, title: string) {
+	await page.goto('/?sort=title');
+	await page.locator('.grid .tile', { hasText: title }).click();
+	await page.waitForURL(/\/series\/\d+/);
+	await page
+		.getByRole('link', { name: /^(?!GET).*(READ AGAIN|CONTINUE|START|▶)/ })
+		.first()
+		.click();
+	await page.waitForURL(/\/read\/\d+/);
+	await expect(page.locator('.text-reader, .reader').first()).toBeVisible({ timeout: 15_000 });
+}
+
+test('the bottom bar keeps every cell reachable on a 360 px phone, on both readers, at 100% and 130% text (c616)', async ({
+	page
+}) => {
+	test.setTimeout(120_000);
+	// Incognito: a layout case, and the seed's history and progress are other
+	// specs'; nothing here should be written.
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_incognito', value: '1', url: 'http://localhost' }]);
+	await openReaderBy(page, 'Mushoku Tensei');
+	await showControls(page);
+	await expectBarReachable(page, 'text, 100%');
+	await zoomText(page, 1.3);
+	await expectBarReachable(page, 'text, 130%');
+
+	await openReaderBy(page, 'Hikaru ga Shinda Natsu');
+	await showControls(page);
+	await expectBarReachable(page, 'image, 100%');
+	await zoomText(page, 1.3);
+	await expectBarReachable(page, 'image, 130%');
+});

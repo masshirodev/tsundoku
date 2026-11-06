@@ -828,6 +828,26 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 		const u = new URL(page.url());
 		return `${u.pathname}?at=${u.searchParams.get('at') ?? ''}`;
 	};
+	/** `?at=` alone, which the reader keeps 800 ms after it settles on a place. */
+	const atOf = (page: Page) => new URL(page.url()).searchParams.get('at') ?? '';
+	/** The place the reader has settled on, once its 800 ms write is behind it. */
+	async function settledAt(page: Page) {
+		let last = '';
+		await expect
+			.poll(
+				() => {
+					const now = atOf(page);
+					const same = now !== '' && now === last;
+					last = now;
+					return same;
+				},
+				{ intervals: [1000], timeout: 15_000 }
+			)
+			.toBe(true);
+		return atOf(page);
+	}
+	const continueLink = (page: Page) =>
+		page.getByRole('link', { name: /READ AGAIN|CONTINUE|START/ }).first();
 
 	// After c554's case, which REMEMBERed SCROLL for this book: PAGED is set for
 	// the session, and the reload opens in SCROLL, which reads the same entry.
@@ -926,5 +946,126 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
 		expect(new URL(page.url()).pathname).toBe(`/read/${second}`);
 		await expect(heading).toHaveText(`Vol. ${n + 2}`);
+	});
+
+	// c623: a chapter moving in place is written with `replaceState`, whose
+	// history entry keeps the URL of the last real navigation: a popstate into
+	// it (BACK from the series, then forward) loaded the chapter the reader was
+	// opened at, not the one it read on to.
+	test('history into the reader entry after an in-place chapter move opens the chapter read on to, at its place (c623)', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		const sent = watchReading(page);
+		await openOwnBook(page);
+		await middle(page);
+		await page.getByRole('button', { name: /^(PAGED|SCROLL) · / }).click();
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		await sheet.getByRole('radio', { name: 'PAGED' }).click();
+		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).not.toHaveClass(/scroll/);
+		const heading = page.locator('.blocks:not(.next) h1').first();
+		const n = Number(((await heading.textContent()) ?? '').replace(/\D/g, ''));
+		const step = () => forward(page);
+		await readInto(page, sent, heading, `Vol. ${n + 1}`, step, placeOf(page));
+		await readInto(page, sent, heading, `Vol. ${n + 2}`, step, placeOf(page));
+		// A place further into the third chapter, so the entry's URL is not its
+		// top either. Larger type and half the page, as in c622: one paged turn
+		// in a seed chapter's single page would reach its end and mark it read.
+		await middle(page);
+		await page.getByRole('button', { name: /^(PAGED|SCROLL) · / }).click();
+		const reading = page.getByRole('dialog', { name: 'Reading settings' });
+		await reading.getByRole('radio', { name: 'PAGED' }).click();
+		for (let i = 0; i < 14; i++) {
+			const larger = reading.getByRole('button', { name: 'Larger' });
+			if (await larger.isDisabled()) break;
+			await larger.click();
+		}
+		await reading
+			.getByRole('radiogroup', { name: 'Width' })
+			.getByRole('radio', { name: '50%', exact: true })
+			.click();
+		await reading.getByRole('button', { name: 'Close', exact: true }).click();
+		expect(await pagesNow(page)).toBeGreaterThan(2);
+		const before = await settledAt(page);
+		await forward(page);
+		await expect.poll(() => atOf(page), { timeout: 10_000 }).not.toBe(before);
+		const place = atOf(page);
+		expect(place).not.toBe('0.0');
+		const third = Number(new URL(page.url()).pathname.split('/').pop());
+
+		// To the series by the reader's own link (which goes back in history),
+		// and back into the reader entry by history's forward.
+		await middle(page);
+		await page.getByRole('link', { name: 'Back to the series' }).click();
+		await expect(continueLink(page)).toBeVisible();
+		await page.goForward();
+		await page.waitForURL(/\/read\//);
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		// The screen, not the address bar: a popstate that loads another chapter
+		// leaves `location` naming the entry's own URL while the data loaded is
+		// the stored one, so on the old code the window said the third chapter
+		// and the page drew the first.
+		await expect(page.locator('.blocks:not(.next) h1').first()).toHaveText(`Vol. ${n + 2}`);
+		await expect
+			.poll(() => new URL(page.url()).pathname, { timeout: 10_000 })
+			.toBe(`/read/${third}`);
+		await expect.poll(() => atOf(page), { timeout: 10_000 }).toBe(place);
+	});
+
+	// c655: a rated series lost its rating block on the end page, leaving only
+	// the name in the middle (the block was drawn only while `rating === 0`).
+	// The text reader's last volume ends on the shared EndPage, so this is that
+	// page, reached by the reader's own doors.
+	test("a novel's end page keeps its rating block and offers the library row (c655)", async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		await openOwnBook(page);
+		await middle(page);
+		const seriesHref = await page
+			.getByRole('link', { name: 'Back to the series' })
+			.getAttribute('href');
+		const seriesId = Number(seriesHref!.match(/\/series\/(\d+)/)![1]);
+		// PAGED, so the last page has a scrubber and one turn past it is the
+		// end page's door (in SCROLL that is a scroll, not a click).
+		await page.getByRole('button', { name: /^(PAGED|SCROLL) · / }).click();
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		await sheet.getByRole('radio', { name: 'PAGED' }).click();
+		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).not.toHaveClass(/scroll/);
+		await middle(page);
+		await page.getByRole('button', { name: 'CONTENTS' }).click();
+		await page.locator('.contents .entry-btn').last().click();
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		const track = page.locator('[role="slider"][aria-label="Page in chapter"]');
+		const box = (await track.boundingBox())!;
+		await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+		await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+		// One turn past the last page is the end page's door (a turn that stays
+		// on the same heading, which is why `forward` is not the helper here).
+		const v = page.viewportSize()!;
+		await page.mouse.click(v.width - 8, v.height / 2);
+		const end = page.locator('[data-end-page]');
+		await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
+		await expect(end.locator('.big')).toHaveText(TITLE);
+		// Honzuki is rated 10 and a favourite in the seed: the block shows both,
+		// where before the fix a rated series drew neither.
+		await expect(end.getByRole('button', { name: 'Rate 10 of 10' })).toBeVisible();
+		await expect(end.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+		// Re-rating stays on the page: the block, the title and the foot remain.
+		await end.getByRole('button', { name: 'Rate 8 of 10' }).click();
+		await expect(end.getByRole('button', { name: 'Rate 8 of 10' })).toBeVisible();
+		await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
+		await expect(end.locator('.big')).toHaveText(TITLE);
+		await expect(end.getByRole('link', { name: 'LIBRARY' })).toBeVisible();
+		// In the library, so the row offers HIDE rather than + ADD.
+		await expect(end.getByRole('button', { name: '+ ADD TO LIBRARY' })).toHaveCount(0);
+		await expect(end.getByRole('button', { name: 'HIDE', exact: true })).toBeVisible();
+		// The file owns Honzuki: put its rating back.
+		await page.request.post(`/series/${seriesId}?/rate`, {
+			headers: { origin: new URL(base).origin, 'x-sveltekit-action': 'true' },
+			form: { rating: '10' }
+		});
 	});
 });

@@ -6,6 +6,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { afterNavigate, beforeNavigate, replaceState } from '$app/navigation';
 	import { forgetReaderMove, leavingReader, readerMovedTo } from '$lib/reader/leaving';
+	import { keepHistoryUrl } from '$lib/reader/history';
 	import { resolve } from '$app/paths';
 	import { page as appPage } from '$app/state';
 	import type { PageData } from './$types';
@@ -951,6 +952,9 @@
 			// The chapter may be another than the page was opened at: the guard
 			// above must take this path as the reader's own (c565, round 2).
 			readerMovedTo(url.pathname);
+			// And history must name it too, or a popstate back into this entry
+			// opens the chapter the reader was opened at (c623).
+			keepHistoryUrl();
 		}, 800);
 		return () => clearTimeout(settle);
 	});
@@ -1392,6 +1396,10 @@
 	// ---- what the controls say --------------------------------------------------------------------
 	const seriesHref = $derived(resolve('/series/[id]', { id: String(series.id) }));
 	const workHref = $derived(data.work ? resolve('/work/[id]', { id: String(data.work.id) }) : '');
+	/** A browsing record's ADD, where its rating is asked (c655): the same door BROWSE uses. */
+	const recordAddHref = $derived(
+		data.record ? `${resolve('/downloads/source/[id]', { id: data.record })}?/add` : null
+	);
 	const libraryHref = resolve('/');
 	const inChapter = $derived(
 		layout === 'scroll' ? scrollFraction : pages <= 1 ? 1 : page / (pages - 1)
@@ -1693,6 +1701,8 @@
 					onback={() => (atEnd = false)}
 					work={data.work}
 					{workHref}
+					inLibrary={!data.record}
+					addHref={recordAddHref}
 				/>
 			</div>
 		{/if}

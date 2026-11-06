@@ -427,6 +427,15 @@
 		align-items: stretch;
 		height: 64px;
 		border-top: var(--hairline);
+		/* A phone's bar is narrower than its cells (c616): the row scrolls
+		   rather than hiding a cell past the edge, and no cell shrinks to a
+		   sliver. The bar's height is the reading area's, so no second row. */
+		overflow-x: auto;
+		overflow-y: hidden;
+		scrollbar-width: none;
+	}
+	.cells::-webkit-scrollbar {
+		display: none;
 	}
 	.cell {
 		display: flex;
@@ -491,6 +500,12 @@
 		.cell {
 			padding: 0 14px;
 			font-size: 13px;
+		}
+		/* The read summary gives way on a phone but SETTINGS ↑ keeps its whole
+		   width, and the row scrolls for the cells past the edge. */
+		.cell.grow {
+			flex: 0 1 auto;
+			min-width: 160px;
 		}
 		.rating {
 			width: 84px;

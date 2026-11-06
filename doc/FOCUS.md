@@ -47,6 +47,14 @@ An off-screen candidate still counts; focusing it scrolls it into view. An
 element that is hidden (`display:none`, `hidden`, `inert`, a closed `<details>`,
 a zero rect) is not a stop, and neither is one inside `[aria-hidden="true"]`.
 
+**`tabindex="-1"` is not an opt-out.** It takes an element out of the browser's
+own Tab order, but it does not hide it from the layer: a stop is
+`button:not([disabled])` (beside `a[href]`, the form controls, `summary`, and
+`[tabindex]:not([tabindex="-1"])`), so an enabled button is a stop whatever its
+tabindex. `data-focus-skip` is the opt-out: `isVisible` refuses anything inside
+it, as it does inside `inert`, `hidden`, `data-focus-off` and
+`[aria-hidden="true"]` (`src/lib/focus/dom.ts`).
+
 `tests/focus-geometry.spec.ts` pins these: rows, a ragged last row, a card over
 two cells, an overlapping candidate, nothing that way, a candidate scrolled
 off-screen.
@@ -312,7 +320,7 @@ finger never sees a mark, and a desktop keyboard sees exactly what a TV does.
 
 - **Outside** a thing that stands alone: a cover, a button, a chip, a field.
 - **Inside** a cell of a ruled block, so the frame never crosses the hairline: a
-  shelf tab, a bar cell, a list row. Those say so with `data-focus-mark="in"`.
+  band cell, a bar cell, a list row. Those say so with `data-focus-mark="in"`.
 - **On a cover tile**, the mark frames the cover, not the tile's title and
   rating bar: `CoverTile` and `BookTile` move it to the `.cover` child.
 - On a selected cover the mark replaces the accent select ring while focused;
@@ -412,7 +420,7 @@ BACK climbs the screen before it leaves.
   and, on the desktop, the page scrubber at the end page steps the page with
   the mark still on it (c611).
 - `tests/tv-keys.e2e.ts` — OK held and MENU on a cover, a chapter row and a
-  history row; BACK closing a sheet, climbing shelf tab → CONTINUE, and
+  history row; BACK closing a sheet, climbing the KIND band → CONTINUE, and
   `window.tsundokuBack()` answering false at the top (c235). And c578's
   chain, on a page of scrollers built for the case on the live layer: ↓ moving
   the nearest scroller while it can, an inner one at its end handing ↓ to the

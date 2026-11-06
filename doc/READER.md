@@ -349,11 +349,19 @@ scrollable screen, which took some of them at random.
 - **Vertical:** the strip carries on, both ways, as in Mihon's webtoon
   reader. See "Vertical", below.
 - **The end of what's available:** "END · LAST AVAILABLE", the series' title,
-  and, only while the series is unrated, RATING and FAV. The rating prompt
-  never interrupts twice. An ongoing series whose source has added nothing for
-  eight weeks adds one line — `ASURA SCANS HAS ADDED NOTHING SINCE 6 SEP` —
-  and a cell ANOTHER SOURCE → that opens MOVE ([`MOVE.md`](MOVE.md)). No band:
-  a quiet source isn't a broken one.
+  RATING with FAV, and a row under them that hides the series (HIDE) or adds a
+  browsing record to the library (+ ADD) — the same doors the series screen's
+  HIDE and BROWSE's ADD use, and the page stays while they answer (c655). HIDE
+  is the privacy door, not a removal: the series leaves every shelf but stays
+  in the library (`in_library` stays 1) and `/reveal` brings it back
+  ([`LIBRARY.md`](LIBRARY.md), "Hidden means hidden"). A series in a Work draws
+  neither cell — its Work is hidden or taken out whole from the series screen.
+  The block stays once the rating is set, showing what was chosen, so rating on
+  this page never empties it; the note, `SHOWN WHILE UNRATED`, goes with the
+  first rating. An ongoing series whose source has added nothing for eight
+  weeks adds one line — `ASURA SCANS HAS ADDED NOTHING SINCE 6 SEP` — and a
+  cell ANOTHER SOURCE → that opens MOVE ([`MOVE.md`](MOVE.md)). No band: a
+  quiet source isn't a broken one.
 - **The end of a series in a Work** offers the next part
   ([`WORKS.md`](WORKS.md), W6): a NEXT IN THE WORK block with the next part's
   cover, title, its own kind's line, `▶ START · CH. 1` and WORK →, between the
@@ -566,6 +574,14 @@ full screen already. Decided after hydration: the server can't know.
 (R→L · FIT SCREEN) and read as a status line; it now ends in SETTINGS ↑, which
 stays when a phone's width cuts the summary short.
 
+**A phone's bottom row scrolls** (c616). At 360 px its cells are wider than
+the screen, and the row used to clip the last ones: on the text reader FULL
+SCREEN was off the right edge at 100% text, and on the image reader `CH. 28 →`
+at 130%. The cells keep their size and order and the bar keeps its 64 px (a
+second row would take the reading area's); SETTINGS ↑ keeps its whole width,
+with the summary ellipsized beside it, and a sideways drag on the row reaches
+the rest.
+
 ## Loading, failure, missing
 
 **A page that didn't load says so from its top**, and keeps the message in
@@ -610,6 +626,13 @@ Everything goes through `POST /api/reading` ([`READING-LOG.md`](READING-LOG.md))
   nothing"), when `close` carries the page;
 - `finish` on reaching the last page or crossing out of the chapter;
 - `close` on leaving (a beacon).
+
+**A history entry into the reader opens the page it was left on**, incognito
+included: the reader keeps `?p=` in the entry as well as in the address bar
+(`keepHistoryUrl`, `src/lib/reader/history.ts`, c623;
+[`NAVIGATION.md`](NAVIGATION.md), "A screen being left writes nothing"). Before
+c623 a popstate into the entry opened the page the last real navigation named;
+incognito, with nothing saved, that is page 1.
 
 Durations are the gap since the last event, capped at two minutes, and time in
 the background isn't reading (`ProgressClock`). The text reader's cap is five

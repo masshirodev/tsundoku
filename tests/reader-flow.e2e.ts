@@ -217,6 +217,45 @@ test('left at once, the reader never writes its URL onto the series it went back
 	await expect(page).toHaveURL(/\/\?sort=title/);
 });
 
+test('history into an image reader entry opens the page it settled on, in incognito too (c623)', async ({
+	page
+}) => {
+	// Incognito: nothing this case reads is stored, so only the entry's own URL
+	// can bring the page with it.
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_incognito', value: '1', url: 'http://localhost' }]);
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	// Into the reader by the app's own door, so the series is a history entry
+	// to go back to (the link's BACK is a history step, not a fresh copy).
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	// Its page is wherever the library left the chapter (the seed's, or a
+	// previous flow file's); the case only needs one more.
+	await tap(page, 0.5);
+	const metaText = (await meta(page).textContent()) ?? '';
+	const pageNo = Number(metaText.match(/P\. (\d+) OF/)![1]);
+	await tap(page, 0.5);
+	const v = page.viewportSize()!;
+	await page.mouse.click(v.width / 2, v.height / 2);
+	// The reader keeps the page it settled on in the address bar, 800 ms on.
+	await expect(page).toHaveURL(new RegExp(`p=${pageNo + 1}`), { timeout: 5000 });
+	// To the series by the reader's own link (history back), then forward into
+	// the reader entry: it opens on that page, not the one it arrived at.
+	await tap(page, 0.5);
+	await page.getByRole('link', { name: 'Back to the series' }).click();
+	await expect(page.getByRole('link', { name: /▶ CONTINUE/ }).first()).toBeVisible();
+	await page.goForward();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	await tap(page, 0.5);
+	await expect(meta(page)).toContainText(`P. ${pageNo + 1} OF`);
+});
+
 test('the READING sheet switches mode for the session and offers REMEMBER', async ({ page }) => {
 	await seriesId(page, 'Hikaru ga Shinda Natsu');
 	await page
@@ -361,6 +400,83 @@ test('the end of the series asks for a rating while unrated, and it saves', asyn
 			.getByRole('region', { name: 'About this series' })
 			.getByRole('button', { name: 'Rate 8 of 10' })
 	).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('rating at the end of a series keeps the screen, and the library row hides it (c655)', async ({
+	page
+}) => {
+	const id = await seriesId(page, 'Chainsaw Man');
+	const rate = (n: number) =>
+		page.request.post(`/series/${id}?/rate`, {
+			headers: { origin: sameOrigin(), 'x-sveltekit-action': 'true' },
+			form: { rating: String(n) }
+		});
+	await rate(0);
+	await page.goto(`/series/${id}`);
+	await page.getByRole('button', { name: 'Go to chapter number' }).click();
+	await page.getByLabel('GO TO #').fill('200');
+	await page.keyboard.press('Enter');
+	await page.locator('.entry:has(.num:text-is("200")) .entry-btn').click();
+	await readerReady(page);
+	const entry = page.url().match(/\/read\/(\d+)/)![1];
+	await page.goto(`/read/${entry}?p=last`);
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	await tap(page, 0.05);
+	const end = page.locator('[data-end-page]');
+	await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
+	await expect(end.locator('.big')).toHaveText('Chainsaw Man');
+	await expect(end.getByRole('button', { name: 'Rate 8 of 10' })).toBeVisible();
+	await expect(end.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+
+	await end.getByRole('button', { name: 'Rate 8 of 10' }).click();
+
+	// The rating is saved (the series screen says so below) and the page it was
+	// set on stays: the block, its FAV switch, the kicker and the title.
+	await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
+	await expect(end.locator('.big')).toHaveText('Chainsaw Man');
+	await expect(end.getByRole('button', { name: 'Rate 8 of 10' })).toBeVisible();
+	await expect(end.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+	await expect(end.getByText('SHOWN WHILE UNRATED · RATING SAVES WHEN YOU LET GO')).toHaveCount(0);
+	await expect(end.getByRole('link', { name: '← SERIES' })).toBeVisible();
+	await expect(end.getByRole('link', { name: 'LIBRARY' })).toBeVisible();
+
+	// The library row: the series is in the library, so it offers HIDE — the
+	// series screen's own word, because that is what the action does: it takes
+	// the series off every shelf behind /reveal, and in_library stays 1.
+	await expect(end.getByRole('button', { name: '+ ADD TO LIBRARY' })).toHaveCount(0);
+	const hide = end.getByRole('button', { name: 'HIDE', exact: true });
+	await expect(hide).toBeVisible();
+	await hide.click();
+	// The restore runs even when an assertion below fails, and its own failure
+	// is soft so it cannot hide the body's (c649).
+	let failed: unknown;
+	try {
+		await expect(end.getByRole('button', { name: 'HIDDEN ✓' })).toBeVisible();
+		// It really left every shelf: with reveal off, no tile is left to show.
+		await page.goto('/?sort=title');
+		await expect(page.locator('.grid .tile', { hasText: 'Chainsaw Man' })).toHaveCount(0);
+	} catch (e) {
+		failed = e;
+	}
+	// Put back what the case changed: reveal so the hidden series still loads,
+	// then the same HIDE action the other way.
+	await expect
+		.soft(
+			page.context().addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }])
+		)
+		.resolves.toBeUndefined();
+	const putBack = (form: Record<string, string>) =>
+		page.request.post(`/series/${id}?/hide`, {
+			headers: { origin: sameOrigin(), 'x-sveltekit-action': 'true' },
+			form
+		});
+	// A response is always truthy, so ask whether the action took (c655's low).
+	expect.soft((await putBack({ on: '0' })).ok()).toBe(true);
+	await page.context().clearCookies({ name: 'tsundoku_reveal' });
+	// The seed's own rating is 8 (src/lib/server/fixtures.ts), not unrated.
+	expect.soft((await rate(8)).ok()).toBe(true);
+	if (failed) throw failed;
 });
 
 test('incognito shows a dashed rule, INCOGNITO, and NOT SAVED', async ({ page }) => {

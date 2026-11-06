@@ -214,6 +214,10 @@ and the end page link to the entry without `?at=` (`rg -n
 without one starts at its first character (the server's `last_offset` is read
 only behind an `?at=` that names no place; the reader's notes, wave 25).
 
+The URL is the reader's only writer; `keepHistoryUrl()` copies it into the
+history entry too, so a popstate back into that entry opens what the reader was
+left on (`doc/NAVIGATION.md`, "A screen being left writes nothing", c623).
+
 Each event's `durationMs` is capped at **five minutes** a page, not the image
 reader's two: a page of prose at the default size is 352–391 words, which a
 slow, careful reader takes up to five minutes over (card c443;
@@ -314,7 +318,8 @@ focus scope that starts on the row being read (c250), the arrows stay in it,
 and BACK gives the pad to CONTENTS again. At the end of what is downloaded
 (END · LAST AVAILABLE, a volume that isn't the last) the pad reaches the
 rating, FAV, ← SERIES and LIBRARY, marked inside (c251); the last volume's end
-is the end page, which takes the pad the same way. Off a TV the arrows stay
+is the end page, which takes the pad the same way, and its library row
+(REMOVE, or + ADD for a record, c655) is a stop of its own. Off a TV the arrows stay
 the reader's whatever the controls.
 
 ## Direction
@@ -373,7 +378,12 @@ reload, SCROLL untouched, vertical Japanese's row),
 - **Bottom:** the chapter with "P. 5 OF 13 · 7 MIN LEFT", a scrubber across the
   chapter's pages, then `← CH. 211`, CONTENTS, READING and `CH. 213 →`. In
   vertical, and in R→L, the cells and the scrubber mirror (one path,
-  `TextChrome`'s `rtl`).
+  `TextChrome`'s `rtl`). **On a phone the row scrolls** (c616): at 360 px its
+  cells are wider than the screen, and the row used to clip the last ones
+  (FULL SCREEN was unreachable at 100% text). The cells keep their size and
+  order, READING's summary ellipsizes but SETTINGS ↑ keeps its width, and a
+  sideways drag on the row reaches the rest; the bar keeps its height, so the
+  reading area under it does too.
 - **READING** is the image reader's sheet with rows for text: LAYOUT (the
   series', with REMEMBER), DIRECTION (the series', with REMEMBER; c440),
   COLUMNS, THEME, FONT, SIZE, LINE, MARGINS, WIDTH (c437, "Pages" above),
