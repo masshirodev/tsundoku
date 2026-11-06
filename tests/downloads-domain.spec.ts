@@ -23,6 +23,12 @@ import {
 	type QueueSeries
 } from '$lib/library/downloads';
 
+// The one block below calls the real downloader (c613): the smallest database
+// the other downloads specs use, in memory, before `db.ts` is first imported.
+process.env.DATABASE_PATH = ':memory:';
+const { getDb } = await import('$lib/server/db');
+const downloads = await import('$lib/server/downloads');
+
 /** Chapters 1–30: 1–10 on disk at 40 MB each, 1–5 read. */
 const entries = Array.from({ length: 30 }, (_, i) => ({
 	id: i + 1,
@@ -418,5 +424,85 @@ describe('searching the sources', () => {
 		expect(highlight('Kingdom', 'linden')).toEqual({ pre: 'Kingdom', mid: '', post: '' });
 		expect(normTitle('The Spark in Your Eyes!')).toBe(normTitle('the spark in your  eyes'));
 		expect(normTitle('Pokémon')).toBe('pokemon');
+	});
+});
+
+describe('DOWNLOAD FIRST 10 on a series (c613)', () => {
+	const db = getDb();
+	const root = Number(
+		db.prepare(`INSERT INTO roots (name, path, hidden) VALUES ('Manga', '/nowhere', 0)`).run()
+			.lastInsertRowid
+	);
+	let n = 0;
+	/** An Aniyomi series of [count] unread episodes with no file, and nothing queued. */
+	const show = (count: number) => {
+		const id = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, origin_key, source, in_library)
+					VALUES (?, ?, 'anime', 0, ?, 'AnimePahe', 1)`
+				)
+				.run(root, `First Ten ${++n}`, `aniyomi:1:/first-ten-${n}`).lastInsertRowid
+		);
+		const put = db.prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, source_url, season, episode_number, available)
+			VALUES (?, ?, ?, 0, ?, 1, ?, 0)`
+		);
+		for (let e = 1; e <= count; e++) put.run(id, e, `Episode ${e}`, `/ep/${e}`, e);
+		return {
+			id,
+			entries: (
+				db
+					.prepare(
+						`SELECT id, position AS number, read_at AS readAt, available, 0 AS bytes, '' AS matter
+						FROM entries WHERE series_id = ? ORDER BY position`
+					)
+					.all(id) as {
+					id: number;
+					number: number;
+					readAt: number | null;
+					available: number;
+					bytes: number;
+					matter: '';
+				}[]
+			).map((e) => ({ ...e, available: e.available === 1 }))
+		};
+	};
+	const queued = (id: number) =>
+		db
+			.prepare(`SELECT q.entry_id FROM download_queue q WHERE q.series_id = ? ORDER BY q.entry_id`)
+			.all(id) as { entry_id: number }[];
+
+	it('queues the first ten once, and counts them as already under way on the next press', async () => {
+		// A part with more than ten unread, file-less entries: the count is tested
+		// past its own size, which is what FIRST 10 gets wrong when it means NEXT.
+		const { id, entries } = show(12);
+		expect(await downloads.queueSeries(id, entries, 'first')).toEqual({
+			queued: 10,
+			missing: 0,
+			already: 0
+		});
+		expect(queued(id).map((q) => q.entry_id)).toEqual(entries.slice(0, 10).map((e) => e.id));
+		// The second press: the same ten, already under way, and entry 11 untouched.
+		expect(await downloads.queueSeries(id, entries, 'first')).toEqual({
+			queued: 0,
+			missing: 0,
+			already: 10
+		});
+		expect(queued(id).map((q) => q.entry_id)).not.toContain(entries[10].id);
+	});
+
+	it('does the same at exactly ten', async () => {
+		const { id, entries } = show(10);
+		expect(await downloads.queueSeries(id, entries, 'first')).toEqual({
+			queued: 10,
+			missing: 0,
+			already: 0
+		});
+		expect(await downloads.queueSeries(id, entries, 'first')).toEqual({
+			queued: 0,
+			missing: 0,
+			already: 10
+		});
 	});
 });
