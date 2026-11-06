@@ -424,7 +424,14 @@ UNDO the library has moved past (c308) answers `workMessage`, which the page
 drew only in the bulk bar's `.fold-refused` line, so with SELECT off a band's
 UNDO refused in silence. With no selection open the refusal is now a band of
 its own in the shape the series and Work screens use (`<REASON> · NOTHING
-CHANGED`); while selecting, the bar's line says it as before.
+CHANGED`). Each refusal stays where it was answered, and only until the owner
+moves on (c469's round 2): the band draws only an answer a band's UNDO
+brought, and goes with SELECT or any other form sent; a refusal answered over
+the bulk bar (FOLD AS LANGUAGES, GROUP's stale ADD TO A WORK) stays in the
+bar's `.fold-refused` line and goes with ✕, never turning into a band. The
+page keeps both apart itself, since SvelteKit keeps an action's answer in
+`form` until the next one (`src/routes/+page.svelte`, `passed` and
+`undoAnswer`).
 
 With reveal off, the series screen no longer exists after either answer, so the
 library carries the band: `HIDE ALL n` says the Work was hidden whole, and
