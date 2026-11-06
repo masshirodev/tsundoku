@@ -60,23 +60,29 @@ export function wheelPixels(
 }
 
 /**
- * Ctrl + ↑ / ↓: a nudge, about what an arrow did before it moved a screen, to
- * bring a panel the screen cut in two into view without the mouse (the owner,
- * 2026-10-30).
+ * Ctrl + ↑ / ↓: a nudge, to bring a panel the screen cut in two into view
+ * without the mouse (the owner, 2026-10-30). The owner, 2026-11-06: "we can
+ * up the amoun a ctrl+arrow or side arrow moves too". It also sets how far
+ * ← / → pan a strip zoomed wider than the screen.
  */
-export const NUDGE = 40;
+export const NUDGE = 100;
 
 /**
  * How long a key's move takes. The wheel's approach starts at full speed so a
  * notch feels instant, which over a whole screen was a lurch (the owner,
  * 2026-10-30: "its attacking my anxiety"): keys glide instead, starting
- * gently and settling, the longer the move the longer the glide.
+ * gently and settling, the longer the move the longer the glide. The owner,
+ * 2026-11-06, seeing it on a PC whose animations had been off: "i think 320ms
+ * is too much now", so a screen takes 220 ms.
  */
-export const GLIDE_SCREEN = 320;
+export const GLIDE_SCREEN = 220;
 export const GLIDE_NUDGE = 160;
 
 /** Ease in and out: no jolt at the start, none at the end. */
 export const easeInOut = (p: number) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+
+/** Ease out only: fast at first, slower to the end (a held key coming up). */
+export const easeOut = (p: number) => 1 - Math.pow(1 - p, 3);
 
 /** ↑ / ↓, PageUp / PageDown, Space: a screen, less a little, so the last line read stays in sight. */
 export const screenStep = (height: number) => Math.round(height * 0.85);
@@ -96,8 +102,18 @@ export class SmoothScroll {
 	private shown = 0;
 	private last = 0;
 	private id = 0;
-	/** A key's glide in flight: from where, when, for how long. Null for the wheel's approach. */
-	private glider: { from: number; t0: number; ms: number } | null = null;
+	/** A key's glide in flight: from where, when, for how long, easing how. */
+	private glider: {
+		from: number;
+		t0: number;
+		ms: number;
+		ease: (p: number) => number;
+	} | null = null;
+	/**
+	 * A held key's steady speed in px per ms, signed, while one is down (c668).
+	 * Null when nothing is held and when a glide is a press's own.
+	 */
+	private held: number | null = null;
 	constructor(private host: Host) {}
 
 	get moving(): boolean {
@@ -110,6 +126,7 @@ export class SmoothScroll {
 		this.target = Math.min(Math.max(0, from + by), this.host.max());
 		// A glide in flight becomes the approach from where it is.
 		this.glider = null;
+		this.held = null;
 		this.start();
 	}
 
@@ -120,7 +137,43 @@ export class SmoothScroll {
 	glide(by: number, ms: number) {
 		const from = this.moving ? this.target : this.host.y;
 		this.target = Math.min(Math.max(0, from + by), this.host.max());
-		this.glider = { from: this.host.y, t0: this.host.now(), ms };
+		this.glider = { from: this.host.y, t0: this.host.now(), ms, ease: easeInOut };
+		// A fresh press is not a held one, even if one was going.
+		this.held = null;
+		this.start();
+	}
+
+	/**
+	 * A key held down (c668): its repeats must not stack steps, or the aim runs
+	 * far ahead of the strip and it keeps travelling after the key comes up.
+	 * From the first repeat the strip moves at the speed one press covers in
+	 * its glide — `by` over `ms`, not a new number — until `letGo`.
+	 */
+	hold(by: number, ms: number) {
+		if (!by || ms <= 0) return;
+		this.held = by / ms;
+		this.glider = null;
+		this.target = this.host.y;
+		this.start();
+	}
+
+	/**
+	 * The key came up, or something else ended the hold: ease to a stop, one
+	 * `GLIDE_NUDGE` long. A cubic ease-out starts at three times its average
+	 * speed, so a third of the held speed times the glide keeps the speed it
+	 * had and stops 33 px (a nudge's) later for a 100 px nudge.
+	 */
+	letGo() {
+		const speed = this.held;
+		if (speed === null) return;
+		this.held = null;
+		const from = this.host.y;
+		const to = Math.min(
+			Math.max(0, from + (Math.sign(speed) * Math.abs(speed) * GLIDE_NUDGE) / 3),
+			this.host.max()
+		);
+		this.target = to;
+		this.glider = { from, t0: this.host.now(), ms: GLIDE_NUDGE, ease: easeOut };
 		this.start();
 	}
 
@@ -147,11 +200,23 @@ export class SmoothScroll {
 	stop() {
 		if (this.id) this.host.cancel(this.id);
 		this.id = 0;
+		this.held = null;
 	}
 
 	private step = (t: number) => {
 		// Something else scrolled since the last frame: it wins.
 		if (Math.abs(this.host.y - this.shown) > 1) return void (this.id = 0);
+		if (this.held !== null) {
+			// The held key's steady scroll. It stops at either end, where a
+			// release has nothing left to ease out of.
+			const y = Math.min(Math.max(0, this.host.y + this.held * (t - this.last)), this.host.max());
+			this.last = t;
+			this.host.y = y;
+			this.shown = y;
+			this.target = y;
+			this.id = y === 0 || y === this.host.max() ? 0 : this.host.frame(this.step);
+			return;
+		}
 		const g = this.glider;
 		const y = g
 			? (() => {
@@ -159,7 +224,7 @@ export class SmoothScroll {
 					// under load can be before the key, and a negative p eased the
 					// strip the wrong way first.
 					const p = Math.min(1, Math.max(0, (t - g.t0) / g.ms));
-					return p >= 1 ? this.target : g.from + (this.target - g.from) * easeInOut(p);
+					return p >= 1 ? this.target : g.from + (this.target - g.from) * g.ease(p);
 				})()
 			: approach(this.shown, this.target, t - this.last);
 		this.last = t;

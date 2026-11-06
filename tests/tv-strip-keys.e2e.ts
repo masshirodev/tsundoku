@@ -78,7 +78,7 @@ test('with the controls hidden, a remote’s → and ← nudge the strip; with t
 	await expect(page.getByRole('banner', { name: 'Reader' })).toHaveCount(0);
 	const y0 = await y();
 	await page.keyboard.press('ArrowRight');
-	await expect.poll(async () => Math.abs((await y()) - y0 - 40)).toBeLessThanOrEqual(1);
+	await expect.poll(async () => Math.abs((await y()) - y0 - 100)).toBeLessThanOrEqual(1);
 	await page.keyboard.press('ArrowLeft');
 	await expect.poll(async () => Math.abs((await y()) - y0)).toBeLessThanOrEqual(1);
 });

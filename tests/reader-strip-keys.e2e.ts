@@ -4,11 +4,13 @@ import { expect, readerReady, test } from './fixtures';
  * The vertical strip's ← and → (c527; doc/READER.md, "Scrolling on a PC"):
  * they nudge like Ctrl + ↑ / ↓, follow the mode rather than the kind, keep
  * panning sideways while the strip is zoomed wider than the screen, and a
- * paged reader still turns on them. Runs on every device because the keys are
- * the same on each and the strip's width is not. Read-only: it reads in
- * incognito, so nothing is written to the shared database, and it reads the
- * series reader-layout reads (Sousou no Frieren), switched to the strip from
- * READING, whose mode is session state that only REMEMBER stores.
+ * paged reader still turns on them. Also a held ↓ (c668): its repeats scroll
+ * steadily rather than stacking steps, and every door that can take the keyup
+ * away ends it. Runs on every device because the keys are the same on each and
+ * the strip's width is not. Read-only: it reads in incognito, so nothing is
+ * written to the shared database, and it reads the series reader-layout reads
+ * (Sousou no Frieren), switched to the strip from READING, whose mode is
+ * session state that only REMEMBER stores.
  */
 
 // 60 s, measured (c439, wave 24): each case opens the reader cold and switches
@@ -200,20 +202,20 @@ test('on the strip, → and ← nudge as Ctrl + ↓ and Ctrl + ↑ do; Ctrl + �
 	expect(await page.evaluate(() => scrollY)).toBeGreaterThan(40);
 
 	await page.keyboard.press('ArrowRight');
-	await expect.poll(async () => Math.abs((await y()) - y0 - 40)).toBeLessThanOrEqual(1);
+	await expect.poll(async () => Math.abs((await y()) - y0 - 100)).toBeLessThanOrEqual(1);
 	await page.keyboard.press('ArrowLeft');
 	await expect.poll(async () => Math.abs((await y()) - y0)).toBeLessThanOrEqual(1);
 
 	// The same distance as the Ctrl nudge, both ways.
 	await page.keyboard.press('Control+ArrowDown');
-	await expect.poll(async () => Math.abs((await y()) - y0 - 40)).toBeLessThanOrEqual(1);
+	await expect.poll(async () => Math.abs((await y()) - y0 - 100)).toBeLessThanOrEqual(1);
 	await page.keyboard.press('Control+ArrowUp');
 	await expect.poll(async () => Math.abs((await y()) - y0)).toBeLessThanOrEqual(1);
 
 	// Twice: a second press mid-glide adds a nudge, it doesn't restart one.
 	await page.keyboard.press('ArrowRight');
 	await page.keyboard.press('ArrowRight');
-	await expect.poll(async () => Math.abs((await y()) - y0 - 80)).toBeLessThanOrEqual(1);
+	await expect.poll(async () => Math.abs((await y()) - y0 - 200)).toBeLessThanOrEqual(1);
 	await page.keyboard.press('ArrowLeft');
 	await page.keyboard.press('ArrowLeft');
 	await expect.poll(async () => Math.abs((await y()) - y0)).toBeLessThanOrEqual(1);
@@ -247,4 +249,205 @@ test('zoomed wider than the screen, ← and → pan the strip sideways instead',
 	await page.keyboard.press('ArrowLeft');
 	await expect.poll(async () => (await at()).x).toBeLessThan(right.x);
 	expect((await at()).y).toBe(before.y);
+});
+
+// ---- a held arrow (c668) ----------------------------------------------------------------
+// Playwright's `keyboard.down` sends one keydown, not the browser's repeats, so
+// a held key here is `keyboard.down` plus its repeats dispatched at the OS's
+// ~30/s. The reader reads its keys on the window, which is where they go.
+
+/** The window's scroll, less what keeping the place added (as tv-strip-keys reads it). */
+const scrollAt = (page: import('@playwright/test').Page) =>
+	page.evaluate(() => Math.round(scrollY - ((window as unknown as { kept?: number }).kept ?? 0)));
+
+/** Send `count` repeats of a held `key`, at the OS's ~30/s. */
+async function repeats(page: import('@playwright/test').Page, key: string, count: number) {
+	await page.evaluate(
+		async ({ key, count }) => {
+			const code = key === 'ArrowDown' ? 40 : key === 'ArrowUp' ? 38 : 0;
+			for (let i = 0; i < count; i++) {
+				await new Promise((r) => setTimeout(r, 33));
+				window.dispatchEvent(
+					new KeyboardEvent('keydown', {
+						key,
+						code: key,
+						keyCode: code,
+						which: code,
+						repeat: true,
+						bubbles: true,
+						cancelable: true
+					})
+				);
+			}
+		},
+		{ key, count }
+	);
+}
+
+/** Wait until the strip has held still over two reads, and say where it stopped. */
+async function still(read: () => Promise<number>, timeout = 15_000): Promise<number> {
+	let before = await read();
+	await expect
+		.poll(
+			async () => {
+				const now = await read();
+				const same = now === before;
+				before = now;
+				return same;
+			},
+			{ intervals: [100, 200, 300, 500], timeout }
+		)
+		.toBe(true);
+	return before;
+}
+
+/**
+ * The strip from the series' first seeded chapter. The continue link opens the
+ * series at the last place read, near its end, where a held ↓ has nowhere to
+ * go; the owner's own case is mid-series, so the hold cases start at chapter
+ * 139's first page and hold down through it.
+ */
+async function openForHold(page: import('@playwright/test').Page) {
+	await open(page);
+	const from = new URL(page.url()).pathname;
+	const banner = page.getByRole('banner', { name: 'Reader' });
+	// The chrome, then the chapter cell: the adjacent chapter opens at page 1.
+	await page.keyboard.press('Escape');
+	const chapter = page
+		.locator('footer[aria-label="Reader controls"] button.cell')
+		.filter({ hasText: 'CH.' })
+		.first();
+	await chapter.click();
+	await expect.poll(() => new URL(page.url()).pathname).not.toBe(from);
+	// The chrome may stay up across the chapter; it is hidden before the switch.
+	await expect(async () => {
+		if (await banner.count()) await page.keyboard.press('Escape');
+		await expect(banner).toHaveCount(0, { timeout: 1_000 });
+	}).toPass();
+	await page.waitForLoadState('networkidle');
+	await toStrip(page);
+}
+
+test.describe('a held arrow', () => {
+	test('a held ↓ moves steadily, and stops soon after the key comes up (c668)', async ({
+		page
+	}) => {
+		await openForHold(page);
+		const y = () => scrollAt(page);
+		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
+		const y0 = await y();
+		await page.keyboard.down('ArrowDown');
+		await repeats(page, 'ArrowDown', 30);
+		// It moved while the key was down (a steady scroll, never thirty steps:
+		// `smooth-scroll.spec.ts` holds the speed itself).
+		expect((await y()) - y0).toBeGreaterThan(100);
+		await page.keyboard.up('ArrowDown');
+		// Read once the keyup is in, so a busy frame before its handler is not
+		// counted as travel after the release: what the ease out adds is short.
+		const atKeyup = await y();
+		const stopped = await still(y);
+		expect(stopped - atKeyup).toBeLessThan(step);
+	});
+
+	test('a second key during the hold takes over from where the strip is (c668)', async ({
+		page
+	}) => {
+		await openForHold(page);
+		const y = () => scrollAt(page);
+		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
+		await page.keyboard.down('ArrowDown');
+		await repeats(page, 'ArrowDown', 10);
+		// ↓ is still down; ↑ is its own press, not another ↓ step. Read once the
+		// press is in, so the ↓ hold's last busy frame is not counted.
+		await page.keyboard.down('ArrowUp');
+		await page.keyboard.up('ArrowUp');
+		const atSecond = await y();
+		await page.keyboard.up('ArrowDown');
+		const stopped = await still(y);
+		expect(Math.abs(stopped - atSecond)).toBeLessThanOrEqual(step * 1.5);
+	});
+
+	test('the window losing focus ends the hold (c668)', async ({ page }) => {
+		await openForHold(page);
+		const y = () => scrollAt(page);
+		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
+		await page.keyboard.down('ArrowDown');
+		await repeats(page, 'ArrowDown', 15);
+		await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+		// Read after the door has been handled.
+		const atBlur = await y();
+		const stopped = await still(y);
+		expect(stopped - atBlur).toBeLessThan(step);
+		await page.keyboard.up('ArrowDown');
+	});
+
+	test('the page being hidden ends the hold (c668)', async ({ page }) => {
+		await openForHold(page);
+		const y = () => scrollAt(page);
+		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
+		await page.keyboard.down('ArrowDown');
+		await repeats(page, 'ArrowDown', 15);
+		await page.evaluate(() => {
+			Object.defineProperty(document, 'visibilityState', {
+				value: 'hidden',
+				configurable: true
+			});
+			document.dispatchEvent(new Event('visibilitychange'));
+		});
+		const atHidden = await y();
+		const stopped = await still(y);
+		expect(stopped - atHidden).toBeLessThan(step);
+		await page.evaluate(() => {
+			delete (document as unknown as { visibilityState?: unknown }).visibilityState;
+		});
+		await page.keyboard.up('ArrowDown');
+	});
+
+	test('the page menu opening ends the hold (c668)', async ({ page }) => {
+		await openForHold(page);
+		const y = () => scrollAt(page);
+		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
+		await page.keyboard.down('ArrowDown');
+		await repeats(page, 'ArrowDown', 15);
+		await page.keyboard.press('ContextMenu');
+		// The menu's own lock: the effect that ends the hold is the one that
+		// holds the page still.
+		await expect
+			.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).overflowY))
+			.toBe('hidden');
+		const atMenu = await y();
+		const stopped = await still(y);
+		expect(stopped - atMenu).toBeLessThan(step);
+		await page.keyboard.up('ArrowDown');
+		await page.keyboard.press('Escape');
+	});
+
+	test('leaving the chapter ends the hold, so its repeats do not scroll the next one (c668)', async ({
+		page
+	}) => {
+		await openForHold(page);
+		const read = () => scrollAt(page);
+		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
+		const path = () => new URL(page.url()).pathname;
+		const from = path();
+		await page.keyboard.down('ArrowDown');
+		await repeats(page, 'ArrowDown', 10);
+		// The chrome, then a chapter cell: the reader leaves this chapter while
+		// the key is still down, and the repeats that follow are not the new
+		// strip's.
+		await page.keyboard.press('Escape');
+		const chapter = page
+			.locator('footer[aria-label="Reader controls"] button.cell')
+			.filter({ hasText: 'CH.' })
+			.last();
+		await expect(chapter).toBeVisible();
+		await chapter.click();
+		await expect.poll(path).not.toBe(from);
+		await page.waitForLoadState('networkidle');
+		const atCross = await still(read);
+		await repeats(page, 'ArrowDown', 10);
+		await page.waitForTimeout(400);
+		expect(Math.abs((await read()) - atCross)).toBeLessThanOrEqual(step * 1.5);
+		await page.keyboard.up('ArrowDown');
+	});
 });

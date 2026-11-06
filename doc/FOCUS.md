@@ -79,7 +79,9 @@ screen or taller, is not a bar. The TV's focus line and pinned rows are built
 still the layer's nearest.
 
 **A held arrow** repeats at the remote's rate and we do nothing special: every
-keydown is one move.
+keydown is one move. (The vertical strip's own held arrow is the reader's, not
+the layer's: c668 makes its repeats scroll steadily instead of stacking steps —
+`doc/READER.md`, "Scrolling on a PC".)
 
 **Nothing that way.** On the page, an arrow with no stop in its direction
 still scrolls, so prose (HELP, a series' ABOUT) can be read past the last
