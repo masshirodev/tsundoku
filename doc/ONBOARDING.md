@@ -42,7 +42,10 @@ Portuguese ([`I18N.md`](I18N.md)).
 - **03's done row names the import** (c511; Import-Doors B) on `/start`:
   `Done · Mihon backup · 382 series`, the last import that came in, counted
   as the viewer may see it (`lastImport`, so a hidden series is not counted
-  with reveal off), and its quiet link is **IMPORT LOG →**, which opens that
+  with reveal off). It is the last import that brought series **whatever
+  ticked the step**: a library scanned in first and a backup imported later
+  shows the backup's line and count, not the library's (a rule chosen in
+  wave 26; telling the doors apart is a follow-up). Its quiet link is **IMPORT LOG →**, which opens that
   import's entry in the log, already open (`/import/log?open=backup:<id>`).
   When no import has brought a series the viewer sees (a scan ticked it),
   the row says what it said, `Done · 4 series` and LIBRARY →. On the empty
