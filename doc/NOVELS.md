@@ -341,10 +341,12 @@ error, fixed? }`, a sentence, marked `fixed` when no new solve can change it
     with a sentence, as is any method but GET and POST (a HEAD goes as a GET).
     Scribble Hub's chapter list is a `FormData` of strings
     (`plugins/english/scribblehub.ts`, `wi_getreleases_pagination`), so it
-    goes as a url-encoded form. The plugin's headers are dropped (below), so a
-    POST that needs one, as NovelFull's chapter archive sets
-    `X-Requested-With`, goes without it: measured on 2026-11-06, the archive
-    answers its chapter list without the header ("Measured live", below).
+    goes as a url-encoded form. The plugin's headers are dropped (below), and
+    a POST that needs one is still unmeasured live: NovelFull 2.3.4 sets
+    `X-Requested-With` on its chapter archive only in its `y` branch, the one
+    taken when the novel page exposes a chapter count, and novelfull.com took
+    its other branch — a plain GET with no header (2026-11-06, "Measured
+    live", below).
   - A picture or a file is not a page: `fetchFile` (and so `fetchProto`'s
     binary body) is refused with a sentence before anything is asked, and a
     `fetchApi` that turns out to be Chromium's image page is refused by the
@@ -410,11 +412,14 @@ plugin):
 - **Both hosts page mode was built for are past their check.** Every page came
   back 200, and the run paid one solve per plugin and no second: NovelFull
   asked the browser for four pages, Scribble Hub four, Royal Road none.
-- **NovelFull's preview lists chapters though page mode drops
-  `X-Requested-With`.** The plugin posts its chapter archive
-  (`/ajax-chapter-option?novelId=237`) with that header; the browser sent its
-  own, and the archive answered `200`, 668,537 bytes, for 3,956 chapters. The
-  endpoint does not need the header.
+- **NovelFull's preview lists chapters, and the run did not exercise its
+  `X-Requested-With` branch.** The plugin asks that archive
+  (`/ajax-chapter-option?novelId=237`) as a plain `GET` on novelfull.com,
+  without the header, and the browser's `GET` answered `200`, 668,537 bytes,
+  for 3,956 chapters. Its other branch, taken when the novel page exposes a
+  chapter count, POSTs the same archive with the `X-Requested-With` header:
+  page mode had nothing to drop here, and a POST needing a header is still
+  unmeasured live.
 - **Scribble Hub's chapter list carried its `FormData`.** The url-encoded form
   page mode sends reached `/wp-admin/admin-ajax.php` as a `POST` and answered
   `200`, 372 bytes, for the one chapter the novel its POPULAR lists first has.
