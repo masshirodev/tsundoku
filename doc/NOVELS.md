@@ -357,7 +357,7 @@ error, fixed? }`, a sentence, marked `fixed` when no new solve can change it
   What page mode won't send at all (a method but GET or POST, a JSON or binary
   body, a `FormData` holding a file, a `fetchFile`) is refused before anything
   is asked, as `"<host>'s page can't come through the solver: <why>"`.
-  What the solver answered, but could never have answered with a page, is
+  What no new solve can change is
   `"<host>'s page can't come through the solver, and no solve changes that:
 <why>"`: an address `checkPublic` refuses (`refused: …`), one the browser was
   redirected to off the internet (`the solver's browser ended at …, which is

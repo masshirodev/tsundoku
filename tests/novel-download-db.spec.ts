@@ -25,7 +25,8 @@ const fakeHost = {
 	info: async () => ({ id: 'good', name: 'Good Novels', site: 'https://good.example/' }),
 	// The chapter and the page its request ended at (c631). A Node fetch's
 	// `Response.url` and page mode's last hop are both `url` here, as the host
-	// hands them over; only `/c/moved` has ended anywhere but where it was asked.
+	// hands them over: `/c/moved` ended on another path, the rest ended where
+	// they were asked, and a chapter a plugin reads elsewhere answers null.
 	chapter: async (_file: string, path: string) => {
 		chapterCalls.push(path);
 		if (path === '/c/broken') throw new Error('www.good.example answered 503');
@@ -416,10 +417,13 @@ describe('a chapter’s pictures resolve against the page it came from (c631)', 
 		]);
 	});
 
-	it('resolves as it always did when the plugin’s chapter request ended where it asked', async () => {
+	it('falls back to the plugin’s site when the plugin asked it for something else', async () => {
 		await one('Chapter 10', '/c/self');
-		// `url` is null — the plugin asked the site for something else — so the
-		// downloader falls back to the chapter's path on the plugin's site.
+		// `url` is null — the plugin read its chapter elsewhere — so the
+		// downloader resolves against the chapter's path on the plugin's site,
+		// exactly the line it used before c631. A chapter that ended where it
+		// asked lands on the same base: the picture of `/c/1` in the book above
+		// is `https://good.example/i/plate.png` either way.
 		expect(imagesAsked).toEqual(['https://good.example/i/plate.png']);
 	});
 });
