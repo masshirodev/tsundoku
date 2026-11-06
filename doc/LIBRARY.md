@@ -92,6 +92,19 @@ the sheet. They're gone while selecting (every tap is a pick then) and while
 offline (writes need the workstation). `CoverTile` takes them as `onfavourite`
 and `onrate`; without those it draws the plain badge and bars.
 
+**Two quick taps take turns** (c615). The tile's saves are on the series
+screen's own queue (`seriesSaves`, `src/routes/series/[id]/serial-saves.ts`)
+under the same `fav:<id>` and `rating:<id>` keys, so a tile tap and a
+series-screen tap on one series wait for each other too (doc/SERIES.md, "FAV
+and the rating"; c566's rule). One save in flight per field, the last tap
+winning: a superseded save is not sent, only the newest retries the page and
+shows a failure band, and PUT BACK names the value the reload found stored.
+`tests/library-flow.e2e.ts` holds the first FAV and rating POSTs, taps twice,
+and wants the second tap after a reload; a newer tap that fails during the
+earlier tap's reload keeps its band with `PUT BACK · FAV`; and a tile tap
+followed by the series opened before it settles shows the screen's tap
+waiting on the same key.
+
 ## Works
 
 A **Work** is a level above series that merges nothing: a name, an order the
@@ -299,7 +312,20 @@ Work's parts sit across the boundary (`doc/WORKS.md`).
 - **A re-read of the same shelf** (a rating saved, a scan in progress) re-reads
   every loaded page after the first as well, in one request, so a tile deep in
   the grid shows the server's value. A new shelf, tag or sort starts again from
-  its first page. A request answered after the list changed is dropped.
+  its first page. A request answered after the list changed is dropped. A
+  re-read that answers nothing keeps the pages already drawn: a blip must not
+  fold a deep grid back to its first page.
+- **One re-read per reload.** A write's reload is the load's first page and
+  then the loaded pages, and the first page's refresh is what queues the
+  second: the reload waits for that one rather than asking again. Only a first
+  page that came back identical leaves nothing queued, and then the reload
+  asks for the pages itself. Two of them in a row would refetch every loaded
+  page twice.
+- **A re-read drops any page that was still on its way, and lets go of the
+  loading flag with it.** A page requested before the re-read has a stale
+  position, so its answer is dropped; the flag said a page was out, and the
+  re-read clears it in the same breath, or every page after it would be
+  refused and the row below the grid would read LOADING for good (c615, r3).
 - **SELECT ALL** means the whole shelf, tiles and all. The ids of pages not yet
   loaded come from `/api/library?ids`, without their cards, and a Work's every
   part is among them even when a kind, collection, NEW or FAV shelf picked only
@@ -691,16 +717,7 @@ a band to select kinds on the library itself?" Designed in
   section label, the tabs, then the band, and nothing between the band and
   the grid. The waiting outline draws the band's row too (`WaitingScreen`),
   and a band tap outlines the grid from 1 s as a tab does.
-- **A tile that holds the mark when the outline draws is unmounted** (c612).
-  The grid and `GridOutline` are one `{#if outlined}` branch, so a navigation
-  the screen starts under a focused tile (a filter chosen while the mark is
-  in the grid) takes the tile off the page and the mark falls to `<body>`;
-  nothing gives it back when the grid is drawn. The repro is in
-  `tests/tv-library-top.e2e.ts` as `test.fail()` (it holds `__data.json` for
-  2.5 s, chooses a KIND cell under a focused tile, and wants the mark back on
-  the tile, or on the chosen KIND cell if the filter took it away). The fix
-  is this page's, so its patch is in `doc/handoff-notes/tv.md`, wave 27,
-  under Gaps; flipping the case is the merge's test.
+- **A tile that holds the mark when the outline draws is unmounted, and given back** (c612). The grid and `GridOutline` are one `{#if outlined}` branch, so a navigation the screen starts under a focused tile (a filter chosen while the mark is in the grid) took the tile off the page and the mark fell to `<body>`; nothing gave it back when the grid was drawn. Now the page notes the tile's focus id before the outline is drawn (`$effect.pre`) and, once the grid is drawn, gives the mark back to that tile, or to the KIND band's chosen cell when the filter took the tile away, but only while `<body>` still holds it: a press made during the outline (a second filter, BACK) keeps its own mark. A mark on a band cell or on SORT is never noted; those keep their own focus (`data-sveltekit-keepfocus`, c560). Two cases in `tests/tv-library-top.e2e.ts`: ALL from DOUJINS keeps the tile and gives it the mark back, and NOVELS from MANGA takes it away and the mark lands on `kind-novel`. **Only a pointer or a script reaches the state**: every pad press that starts a library navigation keeps the mark on its own cell, and a BACK into the library starts with the mark on `<body>` (measured on the `tv` project; [`TV.md`](TV.md), "What already works").
 
 ### Where it departs from the handoff
 
@@ -778,8 +795,11 @@ sidebar, so it is a band at the top of the screen (`.rescan-band`, the
 layout's, hidden where the sidebar shows): a refusal, whole and wrapped,
 put away with ✕ (it would otherwise stay until the next press, as the
 sidebar's note does; on a TV the ✕ is a stop ↑ from the bar reaches, and
-putting the band away hands the mark back to where it came from, not to the
-page's body), and SCAN_WAITS while the server's queue holds a scan,
+putting the band away with a key's press -- a remote's OK, a keyboard's Enter
+-- hands the mark back to where it came from, not to the page's body, while a
+tap does not (c639: a tap focuses the ✕ on Chrome for Android and the phone
+app's WebView too, and a hand-back would bring a text field's soft keyboard
+back with it), and SCAN_WAITS while the server's queue holds a scan,
 with no ✕, gone when the scan starts. That band follows `scanWaits` like the
 sidebar's note, so a scan queued by any door (`/scan`, GET STARTED) shows it
 on a phone too. MORE needs script, so it has no no-script path; the

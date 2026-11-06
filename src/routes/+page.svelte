@@ -37,6 +37,7 @@
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { waiting } from '$lib/waiting.svelte';
 	import { postAction, saves } from '$lib/saves.svelte';
+	import { seriesSaves } from './series/[id]/serial-saves';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
 	import ChoiceMenu from '$lib/components/controls/ChoiceMenu.svelte';
@@ -327,22 +328,65 @@
 	}
 
 	/**
-	 * A write changed which tiles a page already loaded holds -- a Work hidden
-	 * whole, one taken out of it -- and the load's *first* page can come back
-	 * identical, so SvelteKit keeps `data` and no effect re-reads the rest. The
-	 * page then still draws a tile the server has stopped listing (W4's HIDE,
-	 * and its UNDO). Ask for the loaded pages again by position: the answer is
-	 * the list as it is now, and the grid keeps its scroll.
+	 * The pages after the first, read again: queued one at a time, and a write
+	 * can await them (c615, round 2). `force` asks even when they were already
+	 * read for this first page -- a write's own reload, and a hide or UNDO that
+	 * moves only tiles past the first page, both need the answer after it.
+	 *
+	 * Why read them again at all: a write changed which tiles a loaded page
+	 * holds -- a Work hidden whole, one taken out of it -- and the load's
+	 * *first* page can come back identical, so SvelteKit keeps `data` and no
+	 * effect re-reads the rest. The page then still draws a tile the server has
+	 * stopped listing (W4's HIDE, and its UNDO). The pages are asked for again
+	 * by position, so the answer is the list as it is now and the grid keeps
+	 * its scroll.
 	 */
-	async function refillPages() {
-		if (more.length === 0) return;
-		const gen = ++generation;
-		const pageAgain = await fetchPage(data.series.length, more.length);
-		if (gen !== generation) return;
-		const have = new Set(data.series.map((c) => c.id));
-		more = pageAgain ? pageAgain.filter((c) => !have.has(c.id)) : [];
-		ended = false;
-		void keepGoing();
+	let refilling: Promise<void> = Promise.resolve();
+	let refilledFor: LibraryCard[] | null = null;
+	function refillPages(force = false): Promise<void> {
+		const first = data.series;
+		if (more.length === 0) return refilling;
+		if (!force && refilledFor === first) return refilling;
+		refilledFor = first;
+		refilling = refilling.then(async () => {
+			// The list may have gone under it while it waited.
+			if (more.length === 0) return;
+			// The bump and the release go together, as the effect's own refill
+			// did before it was queued (base :355-356): the bump drops a page
+			// request already out, and one this refill's `keepGoing` starts must
+			// not be left holding the flag with its answer dropped (c615, r3).
+			const gen = ++generation;
+			loadingMore = false;
+			const offset = data.series.length;
+			const limit = more.length;
+			const pageAgain = await fetchPage(offset, limit);
+			if (gen !== generation) return;
+			const have = new Set(data.series.map((c) => c.id));
+			// Nothing came back: keep the pages already drawn. Emptying them
+			// would fold a deep grid to its first page on a blip, and a write
+			// that failed to reload would read its band off a tile now gone.
+			if (pageAgain) more = pageAgain.filter((c) => !have.has(c.id));
+			ended = false;
+			void keepGoing();
+		});
+		return refilling;
+	}
+
+	/**
+	 * A write's reload: the load's first page, then the loaded pages after it,
+	 * so a tile anywhere in the grid reads what the server stored before the
+	 * turn settles (c615, round 2). One refill per write: `invalidateAll`
+	 * resolves after the effect has queued its own for the new `data.series`,
+	 * so this awaits that one rather than asking again (c615, r3). Only a first
+	 * page that came back identical leaves nothing queued, and then the pages
+	 * past it are asked for here. The HIDE and UNDO callers keep their forced
+	 * call: their change can land only on tiles past the first page, which the
+	 * effect's `refilledFor` guard would not re-read.
+	 */
+	async function reloadList() {
+		const before = data.series;
+		await invalidateAll();
+		await refillPages(data.series === before);
 	}
 
 	// A new shelf, tag or sort starts again from its first page. The same one
@@ -350,28 +394,24 @@
 	// first again too, so a tile deep in the grid shows what the server says.
 	$effect(() => {
 		const key = listKey;
-		const first = data.series;
+		void data.series;
 		untrack(() => {
-			generation += 1;
 			loadingMore = false;
 			moreFailed = false;
 			ended = false;
 			if (key !== shownKey) {
 				shownKey = key;
+				generation += 1;
+				refilledFor = null;
 				more = [];
 				void keepGoing();
 				return;
 			}
-			if (more.length === 0) return void keepGoing();
-			const gen = generation;
-			void fetchPage(first.length, more.length).then((pageAgain) => {
-				if (gen !== generation) return;
-				if (pageAgain) {
-					const have = new Set(data.series.map((c) => c.id));
-					more = pageAgain.filter((c) => !have.has(c.id));
-				}
-				void keepGoing();
-			});
+			if (more.length === 0) {
+				generation += 1;
+				return void keepGoing();
+			}
+			void refillPages();
 		});
 	});
 
@@ -849,7 +889,7 @@
 			// The answer `update` just put in `form`: drawn as the band below.
 			if (result.type === 'failure') undoAnswer = form;
 			await invalidateAll();
-			await refillPages();
+			await refillPages(true);
 		};
 	/**
 	 * Which drawn series are hidden, by id: a Work's parts as well as the cards
@@ -917,6 +957,37 @@
 		(waiting.phase === 'outline' || waiting.phase === 'stalled') && waiting.to.kind === 'library'
 	);
 
+	/**
+	 * c612: while `outlined` the grid is drawn as `GridOutline` instead of the
+	 * tiles (`{#if outlined}` below), so a tile holding the mark is unmounted
+	 * and the mark falls to `<body>`. Note it before the outline draws, and give
+	 * it back once the grid is drawn again -- or the KIND band's chosen cell
+	 * when the filter has taken the tile away.
+	 *
+	 * Only a mark on a *tile* is noted: a filter or a sort chosen with the pad
+	 * keeps the mark on its own cell (`data-sveltekit-keepfocus`), and that is
+	 * not the screen's to move. The give-back stands down whenever anything
+	 * else holds the mark by then (a second press during the outline, BACK
+	 * closing a panel over it), so it never pulls the mark off a control the
+	 * reader reached in the meantime.
+	 */
+	let tileBeforeOutline = $state<string | null>(null);
+	$effect.pre(() => {
+		if (!outlined) return;
+		const at = document.activeElement;
+		const held =
+			at instanceof HTMLElement ? at.closest<HTMLElement>('.grid [data-focus-id]') : null;
+		if (held?.dataset.focusId) tileBeforeOutline = held.dataset.focusId;
+	});
+	$effect(() => {
+		if (outlined || !tileBeforeOutline) return;
+		const id = tileBeforeOutline;
+		tileBeforeOutline = null;
+		if (document.activeElement !== document.body) return;
+		const back = document.querySelector<HTMLElement>(`[data-focus-id="${id}"]`);
+		(back ?? document.querySelector<HTMLElement>('.kinds .kc.on'))?.focus();
+	});
+
 	// ---- on the tile ------------------------------------------------------
 	// FAV and the rating are edited on the cover itself (see CoverTile). The
 	// tile shows the change at once and saves behind it. A write that fails
@@ -925,23 +996,50 @@
 	const favNow = new SvelteMap<number, boolean>();
 	const ratingNow = new SvelteMap<number, Rating>();
 
+	/**
+	 * One save in flight per series and field, the last tap winning, on the
+	 * series screen's queue (`seriesSaves`, doc/SERIES.md "FAV and the
+	 * rating", c566): the same keys, so a tile tap and a series screen tap on
+	 * one series wait for each other too (c615).
+	 */
 	async function write(
 		action: 'favourite' | 'rate',
 		key: string,
 		fields: Record<string, string>,
-		failure: { what: string; putBackLabel: string; putBack: () => void },
+		failure: () => { what: string; putBackLabel: string; putBack: () => void },
 		settle: () => void
 	) {
-		const save = async () => {
-			const ok = await postAction(`/?/${action}`, fields);
-			if (ok) {
-				await invalidateAll();
-				settle();
-			}
-			return ok;
-		};
+		const save = () => postAction(`/?/${action}`, fields);
 		saves.clear(key);
-		if (!(await save())) saves.fail({ ...failure, key, retry: save });
+		const turn = await seriesSaves.run(key, save);
+		if (!turn.latest) return;
+		// The reload is this turn's: the next tap's save waits for it to land,
+		// the loaded pages after the first included. `finally`, because the
+		// queue is the app's: a turn never settled would hold the key for the
+		// whole session.
+		try {
+			if (turn.ok || turn.earlierStored) await reloadList();
+		} finally {
+			seriesSaves.settle(key);
+		}
+		// Not `pending()`: an older turn still reloading is pending too.
+		if (turn.newer()) return;
+		if (turn.ok) return settle();
+		saves.fail({
+			...failure(),
+			key,
+			retry: async () => {
+				const again = await seriesSaves.run(key, save);
+				if (!again.latest) return again.ok;
+				try {
+					if (again.ok) await reloadList();
+				} finally {
+					seriesSaves.settle(key);
+				}
+				if (again.ok && !again.newer()) settle();
+				return again.ok;
+			}
+		});
 	}
 
 	function favourite(id: number, on: boolean) {
@@ -950,28 +1048,35 @@
 			'favourite',
 			`fav:${id}`,
 			{ id: String(id), on: on ? '1' : '0' },
-			{
+			() => ({
 				what: on ? 'FAV NOT SAVED' : 'UNFAV NOT SAVED',
-				putBackLabel: on ? 'PUT BACK · NOT FAV' : 'PUT BACK · FAV',
+				putBackLabel: series.find((s) => s.id === id)?.favourite
+					? 'PUT BACK · FAV'
+					: 'PUT BACK · NOT FAV',
 				putBack: () => favNow.delete(id)
-			},
-			() => favNow.delete(id)
+			}),
+			() => {
+				// A newer tap of this field may still be queued: its value stands
+				// until its own turn settles (the series screen's rule).
+				if (!seriesSaves.pending(`fav:${id}`)) favNow.delete(id);
+			}
 		);
 	}
 
 	function rate(id: number, rating: Rating) {
-		const was = series.find((s) => s.id === id)?.rating ?? 0;
 		ratingNow.set(id, rating);
 		void write(
 			'rate',
 			`rating:${id}`,
 			{ id: String(id), rating: String(rating) },
-			{
+			() => ({
 				what: `RATING ${rating} NOT SAVED`,
-				putBackLabel: `PUT BACK ${was}`,
+				putBackLabel: `PUT BACK ${series.find((s) => s.id === id)?.rating ?? 0}`,
 				putBack: () => ratingNow.delete(id)
-			},
-			() => ratingNow.delete(id)
+			}),
+			() => {
+				if (!seriesSaves.pending(`rating:${id}`)) ratingNow.delete(id);
+			}
 		);
 	}
 
@@ -1615,13 +1720,17 @@
 
 	{#if data.scan && scanning && data.scan.sourceLabel === BACKUP_LABEL}
 		<!-- A backup importing (c438; Import-Progress, "on the library, meanwhile"):
-		     the scan's band, named, counting series rather than bytes. -->
+		     the scan's band, named, counting series rather than bytes. LOG → opens
+		     the job's own entry in IMPORT LOG (c511), which the band knows by its
+		     id (`?job=`). -->
 		<Banner
 			kind="progress"
 			title="IMPORTING · {BACKUP_LABEL}"
 			detail="{count(data.scan.bytesDone)} OF {count(data.scan.bytesTotal)} SERIES"
 			progress={data.scan.bytesTotal > 0 ? data.scan.bytesDone / data.scan.bytesTotal : 0}
 			meta="{count(data.scan.seriesFound)} SO FAR ON NEW"
+			metaRight="LOG →"
+			metaHref="/import/log?job={data.scan.id}"
 		/>
 	{:else if data.scan && scanning}
 		<Banner
@@ -1635,12 +1744,15 @@
 				: undefined}
 		/>
 	{:else if data.scan && justImported}
+		<!-- SEE LOG (c511) opens the job's entry, the same `?job=` the importing
+		     band's LOG → uses. -->
 		<Banner
 			kind="action"
 			title="IMPORT FINISHED · {count(data.scan.seriesFound)} SERIES"
 			detail={data.scan.failedFiles > 0
 				? `${count(data.scan.failedFiles)} FILES FAILED · SEE LOG`
 				: undefined}
+			detailHref={data.scan.failedFiles > 0 ? `/import/log?job=${data.scan.id}` : undefined}
 		>
 			{#snippet action()}
 				<form method="POST" action="?/dismissScan" use:enhance>
@@ -1754,7 +1866,12 @@
 				<h1>{readLeads(data.start) ? m.start_read_title() : m.start_empty_title()}</h1>
 				<p class="lede">{readLeads(data.start) ? m.start_read_lede() : m.start_empty_lede()}</p>
 				<div class="ob-list">
-					<StartList view={data.start} libraryRoot={data.libraryRoot} extras={data.firstRead} />
+					<StartList
+						view={data.start}
+						libraryRoot={data.libraryRoot}
+						extras={data.firstRead}
+						imported={data.imported}
+					/>
 				</div>
 				{#if form && 'scanMessage' in form}<div class="scan-message">{form.scanMessage}</div>{/if}
 			</section>
@@ -2192,7 +2309,7 @@
 			hiding = false;
 			stopSelecting();
 			await invalidateAll();
-			await refillPages();
+			await refillPages(true);
 		}}
 		onclose={() => (hiding = false)}
 	/>

@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { visibleWhere } from '../visibility.ts';
 import { droppedLine, type Dropped } from './fold.ts';
+import type { StartImport } from '../../library/start.ts';
 import {
 	closeDeadImports,
 	importRow,
@@ -261,6 +262,46 @@ export function lastImport(reveal: boolean, db: Database.Database = getDb()) {
 		.get() as { id: number } | undefined;
 	const row = r ? importRow(r.id, db) : null;
 	return row ? backupEntry(row, reveal) : null;
+}
+
+/**
+ * The import that ticked GET STARTED's 03, as its done row names it (c634;
+ * c511 put the row there). "The series that first ticked 03" is not recorded
+ * anywhere: nothing keeps the moment a step ticks. It is derived from the
+ * first series 03 still counts -- the lowest insertion id among the visible
+ * series a scan or a backup brought in (`startFacts`'s own rule) -- and that
+ * series' job. SQLite hands a new row the highest id plus one, so the first
+ * row that made the count non-zero is the lowest id still there; a row
+ * deleted since cannot be read either way. When the job is an import's, the
+ * row names that import and its count; a scan's job, a series with no job at
+ * all (written before jobs, or by hand), or no series at all answers null,
+ * and the step keeps the scan's line. Only a finished import names it: one
+ * still running, or one that failed partway, has a partial count and has not
+ * ticked anything as done yet, so the step keeps the scan's line until it is
+ * `done` (the same rule `lastImport` holds).
+ */
+export function tickingImport(
+	reveal: boolean,
+	db: Database.Database = getDb()
+): StartImport | null {
+	const first = db
+		.prepare(
+			`SELECT s.scan_job_id AS job FROM series s JOIN roots r ON r.id = s.root_id
+			WHERE s.in_library = 1
+				AND NOT (s.scan_job_id IS NULL AND s.origin_key IS NOT NULL)
+				AND ${visibleWhere(reveal)}
+			ORDER BY s.id LIMIT 1`
+		)
+		.get() as { job: number | null } | undefined;
+	if (!first?.job) return null;
+	const imp = db
+		.prepare(`SELECT id FROM imports WHERE job_id = ? AND state = 'done' ORDER BY id DESC LIMIT 1`)
+		.get(first.job) as { id: number } | undefined;
+	if (!imp) return null;
+	const row = importRow(imp.id, db);
+	if (!row) return null;
+	const counts = importCounts(imp.id, reveal, db);
+	return { id: row.id, app: row.app, series: counts.fresh + counts.merged };
 }
 
 /** The import running or waiting, if one is: the sidebar's IMPORT LOG row counts it. */

@@ -70,10 +70,17 @@
 	let bandFrom: HTMLElement | null = null;
 	async function closeBand(e: MouseEvent) {
 		const held = e.currentTarget === document.activeElement;
+		// A key's press hands the mark back (a remote's OK, a keyboard's Enter);
+		// a tap must not (c639). `detail` is the click count: 0 for a key's
+		// press (and a screen reader's activation), 1 or more for a pointer's.
+		// On Chrome for Android and the phone app's WebView a tap also focuses
+		// the ✕, so on a tap the hand-back would put the mark back in whatever
+		// field the reader left -- and the soft keyboard with it.
+		const byKey = e.detail === 0;
 		rescanNote = '';
 		const to = bandFrom;
 		bandFrom = null;
-		if (!held || !to) return;
+		if (!held || !byKey || !to) return;
 		await tick();
 		if (to.isConnected && isFocusable(to) && document.activeElement === document.body) to.focus();
 	}

@@ -34,7 +34,7 @@ import {
 } from '$lib/server/books';
 import { setPersonFavourite, tagPage } from '$lib/server/people';
 import { libraryRoot, SCAN_WAITS, startScan } from '$lib/server/import';
-import { lastImport } from '$lib/server/import/log';
+import { lastImport, tickingImport } from '$lib/server/import/log';
 import { firstReadExtras, readSources } from '$lib/server/start';
 import { refreshCovers } from '$lib/server/covers';
 import { refreshMany } from '$lib/server/refresh';
@@ -130,6 +130,14 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// RANDOM's shuffle: one per choice of RANDOM, kept in the URL.
 	const seed = parseSeed(url.searchParams.get('seed'));
 	const pageSize = pageSizeOf(cookies.get('tsundoku_grid_page'));
+	// The last import, read once: IMPORT LOG under MORE says when it came in
+	// (c438). 03's done row names the import that ticked it, not the last one
+	// (c634), so that is its own read.
+	const last = lastImport(reveal);
+	// 03's done row is drawn only by the empty library's start list (this page)
+	// and by GET STARTED; here that list shows only with no tiles at all, so
+	// the busiest page's load does not pay for a value nothing can draw.
+	const tick = total === 0 && !scan ? tickingImport(reveal) : null;
 	// PEOPLE lists favourite people (from the layout), not series.
 	// The first page; the grid asks /api/library for the rest as it scrolls.
 	// CACHED is the exception: only the tablet knows which series it holds,
@@ -191,7 +199,14 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		following: anyFollowed(reveal),
 		libraryRoot: libraryRoot(),
 		// IMPORT LOG under MORE says when the last backup came in (c438).
-		lastImportAt: lastImport(reveal)?.at ?? null,
+		lastImportAt: last?.at ?? null,
+		// 03's done row on the empty library names the import that ticked it, as
+		// /start's does (c511, c634). It can never draw here today -- 03 done
+		// means a visible series, and this list only shows with no tiles at all
+		// (`data.empty`) -- so it is read only when that list can draw (`empty`
+		// alone: a scan turns the list off too). Both loads pass the same facts,
+		// so the line is the same wherever the row is drawn.
+		imported: tick,
 		cont: continueReading(reveal),
 		// A Work that ended (TAKE OUT of the second-to-last, UNGROUP) has no
 		// screen of its own any more: the library carries its band and its UNDO.

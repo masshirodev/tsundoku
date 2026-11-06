@@ -17,6 +17,7 @@
 		kind,
 		title,
 		detail,
+		detailHref,
 		meta,
 		metaRight,
 		metaHref,
@@ -27,6 +28,8 @@
 		kind: Kind;
 		title: string;
 		detail?: string;
+		/** Where an action band's detail line leads, when it is a link ("SEE LOG"). */
+		detailHref?: string;
 		/** Second row of a progress band. */
 		meta?: string;
 		metaRight?: string;
@@ -63,7 +66,10 @@
 	<div class="band act" role="status">
 		<div class="stack">
 			<div class="strong">{title}</div>
-			{#if detail}<div class="meta">{detail}</div>{/if}
+			{#if detail && detailHref}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the caller resolves it -->
+				<a class="meta" href={detailHref}>{detail}</a>
+			{:else if detail}<div class="meta">{detail}</div>{/if}
 		</div>
 		{@render action?.()}
 	</div>

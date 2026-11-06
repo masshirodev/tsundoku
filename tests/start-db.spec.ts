@@ -1,10 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import Database from 'better-sqlite3';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
 
-const { getDb } = await import('$lib/server/db');
+const { getDb, climb } = await import('$lib/server/db');
 const { startFacts } = await import('$lib/server/start');
+const { tickingImport } = await import('$lib/server/import/log');
 
 /**
  * GET STARTED's facts (doc/ONBOARDING.md, "What ticks a step"; card c209):
@@ -119,5 +121,168 @@ describe('the facts', () => {
 			queued: before.queued + 1,
 			records: before.records + 1
 		});
+	});
+});
+
+/**
+ * 03's done row names the door that ticked the step (c634; c511 put the row
+ * there): the import's line only when the series that first ticked 03 came
+ * from an import's job, else the scan's own count. Nothing records the tick,
+ * so it is read from the lowest id among the series 03 counts -- the first
+ * row still there that made the count non-zero -- and that row's job.
+ * Each case builds a database of its own, climbed to the code's top rung.
+ */
+describe('the import that ticked 03 (c634)', () => {
+	const fresh = () => {
+		const conn = new Database(':memory:');
+		climb(conn);
+		// A discarded scan job first, so the first import's id and the first
+		// job's id differ: a case that passed the import's id where a job's
+		// belongs would then answer no import and go red.
+		job(conn, 'EARLIER SCAN');
+		return conn;
+	};
+	let n = 0;
+	function rootOf(conn: Database.Database): number {
+		n += 1;
+		return Number(
+			conn.prepare(`INSERT INTO roots (name, path) VALUES ('Mihon', ?)`).run(`/l/c634-${n}`)
+				.lastInsertRowid
+		);
+	}
+	function job(conn: Database.Database, label = 'MIHON BACKUP'): number {
+		return Number(
+			conn
+				.prepare(`INSERT INTO scan_jobs (started_at, finished_at, source_label) VALUES (1, 2, ?)`)
+				.run(label).lastInsertRowid
+		);
+	}
+	function importOf(conn: Database.Database, jobId: number, app = 'mihon'): number {
+		return Number(
+			conn
+				.prepare(
+					`INSERT INTO imports (created_at, app, file_name, state, job_id, series_total, series_done)
+					VALUES (1, ?, 'a.tachibk', 'done', ?, 0, 0)`
+				)
+				.run(app, jobId).lastInsertRowid
+		);
+	}
+	/** A series as a scan or a backup wrote it; `created` is its place in the import. */
+	function row(
+		conn: Database.Database,
+		root: number,
+		o: { job?: number | null; key?: string | null; hidden?: 0 | 1; of?: number } = {}
+	): number {
+		n += 1;
+		const id = Number(
+			conn
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, indexed_at, origin_key, scan_job_id, in_library, hidden)
+					VALUES (?, ?, 'manga', 0, 0, ?, ?, 1, ?)`
+				)
+				.run(root, `S${n}`, o.key ?? null, o.job ?? null, o.hidden ?? 0).lastInsertRowid
+		);
+		if (o.of) {
+			conn
+				.prepare(`INSERT INTO import_series (import_id, series_id, created) VALUES (?, ?, 1)`)
+				.run(o.of, id);
+		}
+		return id;
+	}
+
+	it('a library scanned first keeps the scan’s line though a backup came later', () => {
+		const conn = fresh();
+		const root = rootOf(conn);
+		const scan = job(conn, 'LIBRARY');
+		row(conn, root, { job: scan });
+		const impJob = job(conn);
+		const imp = importOf(conn, impJob);
+		// An import writes its series with its job's id (`write.ts`), not
+		// ADD-shaped with the source's key and no job.
+		row(conn, root, { job: impJob, key: 'mihon:1:/late', of: imp });
+		expect(tickingImport(false, conn)).toBeNull();
+	});
+
+	it('a backup that came first names itself and its own count', () => {
+		const conn = fresh();
+		const root = rootOf(conn);
+		const impJob = job(conn);
+		const imp = importOf(conn, impJob);
+		// Two series 03 counts, both the import's: one it made, one it merged.
+		const made = row(conn, root, { job: impJob });
+		const merged = row(conn, root, { job: impJob });
+		conn
+			.prepare(`INSERT INTO import_series (import_id, series_id, created) VALUES (?, ?, 1)`)
+			.run(imp, made);
+		conn
+			.prepare(`INSERT INTO import_series (import_id, series_id, created) VALUES (?, ?, 0)`)
+			.run(imp, merged);
+		// A scan later counts for 03 too, but not for the line.
+		row(conn, root, { job: job(conn, 'LIBRARY') });
+		expect(tickingImport(false, conn)).toEqual({ id: imp, app: 'mihon', series: 2 });
+		expect(tickingImport(true, conn)).toEqual({ id: imp, app: 'mihon', series: 2 });
+	});
+
+	it('a backup whose series are all hidden later leaves the scan’s line, until reveal', () => {
+		const conn = fresh();
+		const root = rootOf(conn);
+		const impJob = job(conn);
+		const imp = importOf(conn, impJob);
+		row(conn, root, { job: impJob, hidden: 1, of: imp });
+		row(conn, root, { job: impJob, hidden: 1, of: imp });
+		const scan = job(conn, 'LIBRARY');
+		row(conn, root, { job: scan });
+		// Reveal off, only the scan's series is seen: the line is the scan's.
+		expect(tickingImport(false, conn)).toBeNull();
+		// Reveal on, the backup's own series are the first 03 counted.
+		expect(tickingImport(true, conn)).toEqual({ id: imp, app: 'mihon', series: 2 });
+	});
+
+	it('the count is what the viewer sees, and a first row with no job keeps the scan’s line', () => {
+		const conn = fresh();
+		const root = rootOf(conn);
+		const impJob = job(conn);
+		const imp = importOf(conn, impJob);
+		row(conn, root, { job: impJob, hidden: 1, of: imp });
+		row(conn, root, { job: impJob, of: imp });
+		expect(tickingImport(false, conn)).toEqual({ id: imp, app: 'mihon', series: 1 });
+
+		// A series written before jobs (no key, no job) ticks 03 and has no door.
+		const other = fresh();
+		const otherRoot = rootOf(other);
+		row(other, otherRoot, {});
+		const laterJob = job(other);
+		const later = importOf(other, laterJob);
+		row(other, otherRoot, { job: laterJob, of: later });
+		expect(tickingImport(false, other)).toBeNull();
+
+		// An ADD made first (its key, no job) is not 03's, so the backup still names it.
+		const added = fresh();
+		const addedRoot = rootOf(added);
+		row(added, addedRoot, { key: 'mihon:9:/added' });
+		const backupJob = job(added);
+		const backup = importOf(added, backupJob, 'aniyomi');
+		row(added, addedRoot, { job: backupJob, of: backup });
+		expect(tickingImport(false, added)).toEqual({ id: backup, app: 'aniyomi', series: 1 });
+
+		// Nothing counted at all: no line.
+		expect(tickingImport(false, fresh())).toBeNull();
+	});
+
+	it('a backup still running, or one that failed, keeps the scan’s line until it is done', () => {
+		const conn = fresh();
+		const root = rootOf(conn);
+		const impJob = job(conn);
+		const imp = importOf(conn, impJob);
+		row(conn, root, { job: impJob, of: imp });
+		const set = (state: string) =>
+			conn.prepare(`UPDATE imports SET state = ? WHERE id = ?`).run(state, imp);
+		// A partial count is not a done line: only `done` may name the step.
+		for (const state of ['waiting', 'running', 'failed']) {
+			set(state);
+			expect(tickingImport(false, conn)).toBeNull();
+		}
+		set('done');
+		expect(tickingImport(false, conn)).toEqual({ id: imp, app: 'mihon', series: 1 });
 	});
 });
