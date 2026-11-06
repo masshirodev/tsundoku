@@ -279,4 +279,30 @@ describe('a hand-made extra beside a doujin (c650)', () => {
 		expect(continueAction(s).meta).toMatch(/^BOOK \d/);
 		expect(continueAction(s).entry?.matter).toBe('');
 	});
+
+	it('opens ?book= for a doujin’s extra, and still ignores it on a novel', async () => {
+		const { load } = await import('../src/routes/series/[id]/+page.server');
+		const doujin = idOf(BOOK_ROWS[4].title)!;
+		const extra = addExtra(doujin, 'An Extra', -1);
+		// A novel's front matter is its own (the EPUB plans write it); it is not
+		// a doujin's extra, and `?book=` was ignored for a novel before c650.
+		const novel = idOf('Mushoku Tensei')!;
+		const front = Number(
+			getDb()
+				.prepare(
+					`INSERT INTO entries (series_id, position, label, title, added_at, page_count, file, bytes, matter)
+					VALUES (?, -1, 'Front', 'Front Matter', 0, 1, '', 0, 'front')`
+				)
+				.run(novel).lastInsertRowid
+		);
+		const ask = async (seriesId: number, book: number) =>
+			(await load({
+				params: { id: String(seriesId) },
+				cookies: { get: (n: string) => (n === 'tsundoku_reveal' ? '1' : undefined) },
+				url: new URL(`http://localhost/series/${seriesId}?book=${book}`),
+				parent: async () => ({ shelves: [] })
+			} as never)) as { book: { id: number } | null };
+		expect((await ask(doujin, extra)).book?.id).toBe(extra);
+		expect((await ask(novel, front)).book).toBeNull();
+	});
 });

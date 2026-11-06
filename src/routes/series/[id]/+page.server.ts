@@ -45,6 +45,7 @@ import { seriesReadingTime } from '$lib/server/reading-time';
 import { setScanlator } from '$lib/server/duplicates';
 import { parseRating } from '$lib/library/rating';
 import { isBookSeries, parseDirection, parseTag } from '$lib/library/series';
+import { kindFacts } from '$lib/library/kinds';
 import {
 	GroupingError,
 	dismissSuggestion,
@@ -212,9 +213,13 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 	/**
 	 * A hand-made extra beside a doujin's books (c650): one entry of `?book=`,
 	 * so the extra opens its own pages. Without one the series shows its books
-	 * (or its single book), as before.
+	 * (or its single book), as before. A novel's front matter is not this: its
+	 * chapters are the entry list, and `?book=` was ignored for it before c650,
+	 * so it stays ignored. `grouping` is the registry's question (the kinds
+	 * GROUP binds into books), not a kind's name (`doc/KINDS.md`).
 	 */
-	const hasExtras = series.entries.some((e) => e.matter !== '');
+	const hasExtras =
+		kindFacts(series.kind).grouping === 'books' && series.entries.some((e) => e.matter !== '');
 	// Only a single book can be suggested into a series, and only one with
 	// nothing beside it: `singletonCandidates` counts the `isBookSql` entries
 	// and the entries with no `edition_of`, so a book with a hand-made extra is
