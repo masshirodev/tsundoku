@@ -16,6 +16,7 @@
 	import { defaultWorkName } from '$lib/library/works';
 	import { addedMonth } from '$lib/library/series';
 	import { coverSrc } from '$lib/library/links';
+	import { m } from '$lib/paraglide/messages';
 
 	/**
 	 * Grouping by hand (Index Books, state 6; Works Calls, "Making and breaking
@@ -211,7 +212,7 @@
 	);
 	const title = $derived(
 		offer
-			? `INTO ${offer.name.toUpperCase()} · AS PART ${offer.part}`
+			? m.offer_into_part({ name: offer.name.toUpperCase(), part: offer.part })
 			: suggested
 				? `SUGGESTED · ${chosen.length} OF ${books.length} TICKED`
 				: `GROUP ${books.length} ${sheetNoun}`
@@ -530,9 +531,11 @@
 			{#if offer}
 				<!-- NOT THIS, never "NOT A …": the books' NOT A SERIES is another
 				     cell, and a locator by name matches by substring. -->
-				<button type="submit" class="not" formaction="?/dismissWorkOffer">NOT THIS</button>
+				<button type="submit" class="not" formaction="?/dismissWorkOffer"
+					>{m.offer_not_this()}</button
+				>
 			{:else if suggested}
-				<button type="submit" class="not" formaction="?/dismiss">NOT A SERIES</button>
+				<button type="submit" class="not" formaction="?/dismiss">{m.offer_not_a_series()}</button>
 			{/if}
 		</div>
 	</form>

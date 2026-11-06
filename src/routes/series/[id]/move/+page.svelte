@@ -12,6 +12,7 @@
 	import type { SearchHit } from '$lib/server/download-types';
 	import type { MoveComparison } from '$lib/server/move';
 	import { comparedKind, searchedSources } from '../move-words';
+	import { m } from '$lib/paraglide/messages';
 
 	/**
 	 * MOVE TO ANOTHER SOURCE (doc/MOVE.md; Migrate Calls Q1–Q4, boards 2–4).
@@ -702,7 +703,7 @@
 							<span class="ink"
 								>THAT IS ALREADY {c.conflict.title.toUpperCase()} IN THE LIBRARY</span
 							>
-							<span>TWO SERIES FROM ONE ENTRY · JOIN THEM IN MIGHT BE ONE SERIES</span>
+							<span>{m.offer_move_join({ offer: m.offer_might_be_one_series() })}</span>
 						</div>
 					</div>
 				{:else}
