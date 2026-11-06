@@ -1,7 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { concealBand, undoConceal } from './conceal.server';
-import { addedBand, undoAdded } from './added.server';
+import { addedBand, refusedWords, undoAdded } from './added.server';
 import { isRevealed } from '$lib/server/prefs';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { browseList, noteSolvedChecks } from '$lib/server/engine/browse';
@@ -26,7 +26,10 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 		// ADD outside reveal that left its source mostly hidden (c505): the
 		// source's page is not found, so the ADDED band is here. It names the
 		// source only when this viewer may see it (c605).
-		added: await addedBand(url.searchParams, null, reveal)
+		added: await addedBand(url.searchParams, null, reveal),
+		// A refused UNDO from a source's page, which can no longer draw its own
+		// band (c605): the refusal's code is the URL's, its words are here.
+		refused: refusedWords(url.searchParams.get('refused'))
 	};
 };
 

@@ -98,7 +98,7 @@
 			name={data.added.sourceName}
 			reveal={data.reveal}
 			undo="?/undoAdd"
-			refusal={form && 'added' in form ? (form.added ?? null) : null}
+			refusal={form && 'added' in form ? (form.added ?? null) : data.refused}
 		/>
 	{/if}
 

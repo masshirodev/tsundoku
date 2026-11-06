@@ -152,6 +152,34 @@ export function afterUndo(preview: string, reveal: boolean): string {
 /** The refusal words the band shows, and the e2e reads. */
 export const UNDO_REFUSED = 'something of it is downloaded or read now';
 
+/** A downloads backend that will not answer (a refused UNDO's 503), in the band's words. */
+export const UNDO_DOWN = 'downloads are not answering now';
+
+/**
+ * Where a refused UNDO lands when the page that drew the band can no longer
+ * answer for it (c605): BROWSE, which draws any band, with the band's own
+ * parameters and the refusal's **code**. The words are never carried in the
+ * URL (a 503's are the engine's own, free text); BROWSE's load turns the code
+ * back into them (`refusedWords`).
+ */
+export function refusedLanding(form: FormData, queued: string | null, status: 409 | 503): string {
+	const p = new URLSearchParams({
+		added: 'hidden',
+		series: String(form.get('series') ?? ''),
+		preview: String(form.get('preview') ?? ''),
+		refused: String(status)
+	});
+	if (queued && /^(\d+|down)$/.test(queued)) p.set('queued', queued);
+	return `/browse?${p}`;
+}
+
+/** A `refused` code in BROWSE's URL as the band's words, or null when there is none. */
+export function refusedWords(code: string | null): string | null {
+	if (code === '409') return UNDO_REFUSED;
+	if (code === '503') return UNDO_DOWN;
+	return null;
+}
+
 /**
  * UNDO on the band: the series added hidden leaves the library again, as the
  * series page's UNDO does (`undoAdd`), while nothing of it is downloaded or
