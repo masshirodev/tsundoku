@@ -57,7 +57,8 @@ function endedWork(v: unknown): EndedWork | null {
  */
 function takeOutFactsAny(v: unknown): TakeOutFacts | null {
 	if (!isObj(v)) return null;
-	if (!isId(v.workId) || !isNum(v.workCreatedAt) || !optStr(v.workName)) return null;
+	if (!isId(v.seriesId) || !isId(v.workId) || !isNum(v.workCreatedAt) || !optStr(v.workName))
+		return null;
 	if (!isStr(v.title) || !isNum(v.position)) return null;
 	if (v.ended !== null && !endedWork(v.ended)) return null;
 	return v as TakeOutFacts;
@@ -94,7 +95,8 @@ export function takeOutFactsList(v: unknown): TakeOutFacts[] | null {
  */
 function addFactsAny(v: unknown): AddFacts | null {
 	if (!isObj(v)) return null;
-	if (!isId(v.workId) || !isNum(v.workCreatedAt) || !optStr(v.workName)) return null;
+	if (!isId(v.seriesId) || !isId(v.workId) || !isNum(v.workCreatedAt) || !optStr(v.workName))
+		return null;
 	if (!isStr(v.title) || !isNum(v.position)) return null;
 	const f = v.former;
 	if (f !== null) {

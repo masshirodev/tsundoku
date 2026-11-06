@@ -2062,6 +2062,22 @@ describe('the Work screen answers a malformed UNDO with a sentence, not a 500 (c
 		).toEqual({ ok: true });
 	});
 
+	it('?/undoTakeOut refuses a real band with no seriesId, and changes nothing (c641)', async () => {
+		const { facts } = takenOut();
+		const before = snapshot();
+		const bare = { ...facts } as Record<string, unknown>;
+		delete bare.seriesId;
+		const answer = await post(workScreen.actions.undoTakeOut, [['facts', JSON.stringify([bare])]]);
+		expect(answer.status).toBe(400);
+		expect(answer.data).toEqual(NOTHING);
+		expect(snapshot()).toEqual(before);
+		// The same band with its series still undoes: the row above is the
+		// field that was missing, not the write.
+		expect(
+			await post(workScreen.actions.undoTakeOut, [['facts', JSON.stringify([facts])]])
+		).toEqual({ ok: true });
+	});
+
 	it.each(JUNK)('?/undoAdd refuses %s, and changes nothing', async (_what, posted) => {
 		const [a, b, c] = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita', 'Mushoku Tensei'].map(
 			idOf
@@ -2076,6 +2092,26 @@ describe('the Work screen answers a malformed UNDO with a sentence, not a 500 (c
 		expect(answer.status).toBe(400);
 		expect(answer.data).toEqual(NOTHING);
 		expect(snapshot()).toEqual(before);
+		expect(await post(workScreen.actions.undoAdd, [['facts', JSON.stringify(added)]])).toEqual({
+			ok: true
+		});
+		expect(membersNow(work.id)).toEqual([a, b]);
+	});
+
+	it('?/undoAdd refuses a real band with no seriesId, and changes nothing (c641)', async () => {
+		const [a, b, c] = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita', 'Mushoku Tensei'].map(
+			idOf
+		) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Run', now: NOW });
+		const added = works.addSeries(work.id, c, work.createdAt);
+		const before = snapshot();
+		const bare = { ...added } as Record<string, unknown>;
+		delete bare.seriesId;
+		const answer = await post(workScreen.actions.undoAdd, [['facts', JSON.stringify(bare)]]);
+		expect(answer.status).toBe(400);
+		expect(answer.data).toEqual(NOTHING);
+		expect(snapshot()).toEqual(before);
+		// The band with its series still undoes: the missing field is the refusal.
 		expect(await post(workScreen.actions.undoAdd, [['facts', JSON.stringify(added)]])).toEqual({
 			ok: true
 		});
