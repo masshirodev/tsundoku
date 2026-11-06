@@ -199,7 +199,10 @@ round 2, `origin()`'s case-sensitive `startsWith('http')` turned
 the scheme from what they print with the same case-blind regex (c621), so a
 capitalised scheme reads as its host on both, not as `HTTP://…`. Every place the APK compares an origin goes through
 `originOf` or agrees with it: `BridgeGuard.allows` (the top-level URL through
-`originOf`), `Servers.find`, `others`, `add`, `forget`, `move` and every
+`originOf`; its scheme test alone is case-sensitive and fail-closed, so
+`HTTP://…` is refused there though `originOf` would read it — a follow-up,
+not a page any WebView loads), `BridgeGuard.allowsMessage` (origin-shaped:
+`ASSET_ORIGIN`, or `originOf` of a known origin), `Servers.find`, `others`, `add`, `forget`, `move` and every
 update (each cleans its argument through `originOf`), `FailedLoad` (fed by
 `MainActivity.originOf(Uri)`, which lower-cases too, though Chromium's URL
 already is), `PairingBridge.remember`, `probe` and `forgetOne`, and the
@@ -511,12 +514,16 @@ verified".
      message refused unless `isMainFrame` is true and its `sourceOrigin` is
      the asset page or `servers.find` knows it: a pure function
      (origin, isMainFrame, known) → allow, next to `BridgeGuard.allows`.
-     **That rule is built** (wave 27): `BridgeGuard.allowsMessage` refuses
-     every sub-frame, trusts the asset page's own URL as the main frame and
-     any known server's origin through `Address.originOf`, and answers the
-     opaque `"null"` (a `file://` page's likely report) as no page at all.
-     `MessageGuardTest` pins it over every combination, a third-party frame
-     inside a known server's page included; nothing calls it yet. Every call
+     **That rule is built** (wave 27; round 2 corrected it to judge an origin,
+     not a URL): `BridgeGuard.allowsMessage` refuses every sub-frame, trusts a
+     main frame whose `sourceOrigin` is exactly `BridgeGuard.ASSET_ORIGIN`
+     (`https://appassets.androidplatform.net`, the asset page after the move)
+     or a known server's origin through `Address.originOf`, and refuses
+     everything else: the opaque `"null"`, `about:`, `data:`, `javascript:`,
+     and any string that is not an origin (a path, query or fragment, the
+     `file://` asset URL included). `MessageGuardTest` pins it over every
+     origin-shaped combination, a third-party frame inside a known server's
+     page included; nothing calls it yet. Every call
      becomes a message with an id and every
      reply a promise keyed by it, so two calls answered out of order land
      on their own callers, a reply after the page navigated is dropped by
@@ -830,12 +837,15 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   `BridgeGuardTest`, `FailedLoadTest`, `ForgetTest`, `FormTest`,
   `InsetsTest`, `IntentAddressTest`, `KeysTest`, `MessageGuardTest`,
   `NetworkTest`, `PairingBridgeTest`, `ProbeTest`, `ScaleTest`, `ServersTest`,
-  `ShortcutsTest` (134 tests in 17 classes per flavor at wave 27), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
-  `MessageGuardTest` (6) is c549's part (b), the per-message rule
-  `BridgeGuard.allowsMessage`: a third-party frame inside a known server's
-  page is refused, a known origin and the asset page are trusted only as the
-  main frame, a host typed in capitals is the same server by `Address.originOf`'s
-  rule, and the opaque `null` is no page at all. Nothing calls the rule yet.
+  `ShortcutsTest` (136 tests in 17 classes per flavor at wave 27), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
+  `MessageGuardTest` (8) is c549's part (b), the per-message rule
+  `BridgeGuard.allowsMessage`, every input an origin as the listener delivers
+  one: a third-party frame inside a known server's page is refused, a known
+  origin and `ASSET_ORIGIN` are trusted only as the main frame, a host or
+  scheme typed in capitals is the same server by `Address.originOf`'s rule, a
+  path or trailing slash in place of an origin is refused, the `file://` asset
+  URL cannot pass until the move, and the opaque `null` is no page at all.
+  Nothing calls the rule yet.
   `AddressTest` (8) includes c548's case: a host and a scheme typed in
   capitals come back lower case, the same origin `intentOrigin` gives, and
   `originOf` holds on its own output.

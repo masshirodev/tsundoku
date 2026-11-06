@@ -7,12 +7,14 @@ import org.junit.Test
 /**
  * The per-message rule c549's part (b) would install (`BridgeGuard.allowsMessage`):
  * a message from a frame may reach the bridge only when the frame is the main
- * one and its origin is the app's own page or a server the TV knows.
+ * one and its origin is the app's own page's origin or a server the TV knows.
  *
- * A `WebViewCompat.addWebMessageListener` callback is what would hand these in;
- * nothing calls the rule yet (doc/TV-APP.md, "What it does not do yet"), so
- * these cases are the whole of it for now. A JavaScript interface's
- * `PairingBridgeTest` cannot reach a frame at all, which is the hole.
+ * `WebViewCompat.addWebMessageListener` hands the rule a frame's `sourceOrigin`,
+ * which is an **origin** (`scheme://host[:port]`) and never a URL with a path or
+ * a fragment (round 2 of wave 27: every input here is origin-shaped, because the
+ * rule judges the origin and not the URL a page was loaded from). Nothing calls
+ * the rule yet (doc/TV-APP.md, "What it does not do yet"), so these cases are
+ * the whole of it for now.
  */
 class MessageGuardTest {
 	private val home = "http://192.168.1.23:42143"
@@ -40,44 +42,68 @@ class MessageGuardTest {
 
 	@Test
 	fun `a known server's origin is trusted as the main frame and refused as a sub-frame`() {
-		for (at in listOf(home, zen, "$home/", "$home/series/12?x=1#top", "$zen/pair/tv")) {
+		for (at in listOf(home, zen, "http://zen.local:42143")) {
 			assertTrue("$at as the main frame", allows(at, true))
 			assertFalse("$at as a sub-frame", allows(at, false))
 		}
 	}
 
 	@Test
-	fun `the app's own page is trusted as the main frame and refused as a sub-frame`() {
-		assertTrue(allows(BridgeGuard.ASSET, true))
-		assertTrue(allows(BridgeGuard.ASSET + "#lost=x", true))
-		assertFalse(allows(BridgeGuard.ASSET, false))
+	fun `the asset page's origin is trusted as the main frame and refused as a sub-frame`() {
+		assertTrue(allows(BridgeGuard.ASSET_ORIGIN, true))
+		assertFalse(allows(BridgeGuard.ASSET_ORIGIN, false))
+		// Not the same origin: the wrong scheme, another port, another host.
+		for (at in
+			listOf(
+				"http://appassets.androidplatform.net",
+				"https://appassets.androidplatform.net:8443",
+				"https://evil.appassets.androidplatform.net"
+			)) {
+			assertFalse("$at as the main frame", allows(at, true))
+			assertFalse("$at as a sub-frame", allows(at, false))
+		}
+	}
+
+	@Test
+	fun `the file asset URL is refused until the page moves to WebViewAssetLoader`() {
+		// The page loads from file:///android_asset/pair/index.html today, and a
+		// file:// page reports the opaque origin "null"; a message never carries
+		// the URL the WebView loaded anyway. Only ASSET_ORIGIN, after item 1 of
+		// doc/TV-APP.md's order, can pass.
+		assertFalse(allows(BridgeGuard.ASSET, true))
+		assertFalse(allows(BridgeGuard.ASSET + "#lost=x", true))
 		// Another file the WebView could reach is nobody's page.
 		assertFalse(allows("file:///android_asset/pair/other.html", true))
 		assertFalse(allows("file:///sdcard/Download/index.html", true))
 	}
 
 	@Test
-	fun `a known host typed with capitals is the same server, by Address originOf's rule`() {
-		// Decided by Address.originOf, which lower-cases the scheme and the host
-		// (c548): a message whose sourceOrigin kept the host's capitals is the
-		// server whose pages load lower case, exactly as BridgeGuard.allows
-		// treats a top-level URL. Allowed as the main frame, refused below one.
+	fun `a known server written with a path or a trailing slash is not an origin`() {
+		// Decided in round 2: refused, a bare trailing slash included. The
+		// listener's sourceOrigin is an origin by the API's contract, so a
+		// string with any path, query or fragment is not one and is not trusted.
+		for (at in listOf("$home/", "$home/series/12", "$zen/pair/tv", "$home?x=1", "$home#top")) {
+			assertFalse("$at as the main frame", allows(at, true))
+		}
+	}
+
+	@Test
+	fun `a known host or scheme typed with capitals is the same origin, by Address originOf's rule`() {
+		// Address.originOf lower-cases the scheme and the host (c548), so a
+		// sourceOrigin that kept a capital is the same server. Allowed as the
+		// main frame, refused below one. (The top-level URL rule, BridgeGuard
+		// .allows, still tests the scheme case-sensitively; see the notes.)
 		assertTrue(allows("http://ZEN.local:42143", true))
 		assertTrue(allows("https://ZEN.tailnet.ts.net:8443", true))
+		assertTrue(allows("HTTP://zen.local:42143", true))
 		assertFalse(allows("http://ZEN.local:42143", false))
-		// A scheme typed in capitals is refused by the guard's own scheme test
-		// (`startsWith("http://")`, case-sensitive), which is fail-closed and is
-		// what the top-level guard answers for such a URL too; no page's real
-		// sourceOrigin is expected to need it.
-		assertFalse(allows("HTTP://zen.local:42143", true))
 	}
 
 	@Test
 	fun `the opaque origins are refused, null, absent, about blank and data`() {
-		// A file:// page's sourceOrigin is the question the asset loader settles;
-		// the reference gives no origin for one, and Android reports "null" for
-		// an opaque origin. Neither is the asset page's own URL, so neither is
-		// trusted (doc/TV-APP.md, "What it does not do yet", item 1).
+		// Android reports "null" for an opaque origin, and none of these is the
+		// asset page's origin, so none is trusted (doc/TV-APP.md, "What it does
+		// not do yet", item 1).
 		for (at in listOf("null", null, "", "about:blank", "data:text/html,<p>x", "javascript:alert(1)")) {
 			assertFalse("$at as the main frame", allows(at, true))
 			assertFalse("$at as a sub-frame", allows(at, false))
@@ -91,6 +117,7 @@ class MessageGuardTest {
 		// the bridge through it either.
 		val origins =
 			listOf(
+				BridgeGuard.ASSET_ORIGIN,
 				BridgeGuard.ASSET,
 				home,
 				zen,
