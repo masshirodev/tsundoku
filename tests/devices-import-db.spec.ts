@@ -1561,6 +1561,59 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 			expect(droppedOf(bad, true)).toEqual([]);
 	});
 
+	it('draws no dropped line, reveal off, once the Work it names is hidden after the fold (c570 r2)', async () => {
+		const w = await works();
+		const { droppedOf } = await import('$lib/server/import/log');
+		const free = db()
+			.prepare(
+				`SELECT s.id, s.added_at FROM series s JOIN roots r ON r.id = s.root_id
+				WHERE s.hidden = 0 AND r.hidden = 0 AND s.in_library = 1
+					AND s.id NOT IN (SELECT series_id FROM work_series)
+				ORDER BY s.id LIMIT 3`
+			)
+			.all() as { id: number; added_at: number }[];
+		expect(free).toHaveLength(3);
+		// The Work the fold left: still alive, with two other visible parts.
+		const secret = w.createWork({
+			seriesIds: [free[0].id, free[1].id],
+			name: 'Secret Work',
+			now: at + 40_000
+		}).work;
+		const stored = (ended: boolean) =>
+			JSON.stringify([
+				{
+					work: 'Secret Work',
+					series: 'Survivor',
+					ended,
+					workId: secret.id,
+					workAt: at + 40_000,
+					seriesId: free[2].id,
+					seriesAt: free[2].added_at
+				}
+			]);
+		const line = 'DROPPED FROM SECRET WORK · Survivor';
+		try {
+			// Visible survivor, visible Work: drawn and linked, reveal off.
+			expect(droppedOf(stored(false), false)).toEqual([{ line, workId: secret.id }]);
+			// HIDE ALL on that Work, through works' own door; the survivor stays shown.
+			expect(w.hideWork(secret.id, true).changed).toBe(2);
+			expect(
+				one<{ hidden: number }>(`SELECT hidden FROM series WHERE id = ?`, free[2].id).hidden
+			).toBe(0);
+			// Reveal off: the hidden Work's name is not drawn.
+			expect(droppedOf(stored(false), false)).toEqual([]);
+			// Reveal on: drawn, and linked by the existing rule.
+			expect(droppedOf(stored(false), true)).toEqual([{ line, workId: secret.id }]);
+		} finally {
+			w.hideWork(secret.id, false);
+			w.ungroup(secret.id);
+		}
+		// A Work that ended adds no condition: a visible survivor's line is drawn, reveal off.
+		expect(droppedOf(stored(true), false)).toEqual([
+			{ line: `${line} · THE WORK ENDED`, workId: null }
+		]);
+	});
+
 	it('never leaves any Work in the library hidden in part', () => {
 		expect(
 			one<{ n: number }>(

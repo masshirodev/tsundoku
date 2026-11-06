@@ -84,15 +84,20 @@ export function sourcesLacking(
 export type DroppedEntry = { line: string; workId: number | null };
 
 /**
- * What a job's folds dropped, as the viewer may see it. Hidden means hidden:
- * the survivor is the fold's own series, and a Work is hidden or shown whole
- * (doc/WORKS.md), so a line whose survivor is hidden now is not shown with
- * reveal off (`from` hidden made the survivor hidden too, so this also
- * covers the Work it left). A survivor deleted since, or whose id another
- * series has taken (`series.id` is reused, so the id counts only with its
- * `added_at`), cannot be read either way, and is shown only with reveal on.
- * The link is to the Work by its id **and** `created_at`, so a Work that
- * ended is never linked through the id a new Work took (c583's class).
+ * What a job's folds dropped, as the viewer may see it. Hidden means hidden,
+ * and with reveal off a line is drawn only when two things hold. First, its
+ * survivor (the fold's own series) is visible now: a survivor deleted since,
+ * or whose id another series has taken (`series.id` is reused, so the id
+ * counts only with its `added_at`), cannot be read either way, and is shown
+ * only with reveal on. Second, when the dropped Work still exists (its id
+ * **and** `created_at` match a `works` row, and it did not end at the fold),
+ * it has a visible part now. The second exists because a Work can be hidden
+ * after its fold: the line prints that Work's name, and a Work that kept
+ * three or more parts can be HIDE ALL'd later while the survivor stays
+ * shown. A Work that ended, or whose id another Work now holds, adds no
+ * condition, so the survivor's rule alone decides. The link is to the Work
+ * by the same id and `created_at`, so a Work that ended is never linked
+ * through the id a new Work took (c583's class).
  */
 export function droppedOf(
 	json: string,
@@ -115,9 +120,17 @@ export function droppedOf(
 			SELECT 1 FROM work_series ws JOIN series s ON s.id = ws.series_id JOIN roots r ON r.id = s.root_id
 			WHERE ws.work_id = w.id AND ${visibleWhere(false)}))`
 	);
+	const alive = db.prepare(`SELECT 1 FROM works WHERE id = ? AND created_at = ?`);
 	return (list as Partial<Dropped>[])
 		.filter((d): d is Dropped => !!d && typeof d.work === 'string' && typeof d.series === 'string')
 		.filter((d) => reveal || !!seen.get(d.seriesId ?? -1, d.seriesAt ?? -1))
+		.filter(
+			(d) =>
+				reveal ||
+				d.ended ||
+				!alive.get(d.workId ?? -1, d.workAt ?? -1) ||
+				!!work.get(d.workId ?? -1, d.workAt ?? -1, 0)
+		)
 		.map((d) => ({
 			line: droppedLine(d),
 			workId: !d.ended && work.get(d.workId ?? -1, d.workAt ?? -1, reveal ? 1 : 0) ? d.workId : null

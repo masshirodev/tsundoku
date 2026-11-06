@@ -292,12 +292,17 @@ prints it: `DROPPED FROM <WORK> · <survivor's title>`, with `· THE WORK ENDED`
 when it was left with one series. The line opens the Work while that Work
 still exists: the job keeps its id **with its `created_at`**, because
 `works.id` is reused once the newest Work ends, and an id alone would open
-whichever Work took it. **Hidden means hidden**: with reveal off, a line whose
-survivor is hidden now is not drawn (a hidden `from` makes the survivor
-hidden, and a Work is hidden or shown whole, so this hides the dropped
-Work's name too), and neither is one whose survivor has since been deleted
-or whose id another series took (kept with its `added_at` for the same
-reason), since nothing kept says whether it was hidden. With reveal on,
+whichever Work took it. **Hidden means hidden**: with reveal off, a line is
+drawn only when both hold. Its survivor is visible now: a line whose
+survivor is hidden, has since been deleted, or whose id another series took
+(kept with its `added_at` for that reason) is not drawn, since nothing kept
+says whether it was hidden. And when the dropped Work still exists (by its
+id **and** `created_at`, and it did not end at the fold), it has a visible
+part now. The second condition exists because a Work can be hidden after
+its fold: the line prints the Work's name, and a Work that kept three or
+more parts can be hidden with HIDE ALL later while the survivor stays
+shown. A Work that ended, or whose id another Work now holds, adds no
+condition: the survivor's rule alone decides. With reveal on,
 every line is drawn. A run that throws part-way still records the folds it
 made (each series is its own transaction); a job a dead process left lists
 none.
