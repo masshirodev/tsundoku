@@ -258,6 +258,12 @@ test('03’s IMPORT A BACKUP → starts a trip: the band on the import pages, �
 		).toBeVisible();
 		// The log is not the trip's screen: no band there.
 		await expect(band).toHaveCount(0);
+		// By its job, as the library's band knows an import, the same entry opens.
+		await page.goto('/import/log?job=5110');
+		await expect(page.getByRole('button', { name: 'CLOSE ↑' })).toHaveCount(1);
+		await expect(page.locator('.entry', { hasText: 'CLOSE ↑' })).toContainText('MIHON BACKUP');
+		await page.goto('/import/log?job=999999');
+		await expect(page.getByRole('button', { name: 'CLOSE ↑' })).toHaveCount(0);
 	} finally {
 		sql(`DELETE FROM import_series WHERE import_id = 5110`);
 		sql(`DELETE FROM imports WHERE id = 5110`);

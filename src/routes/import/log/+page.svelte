@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
@@ -13,9 +14,20 @@
 	 * An entry opens in place; a running one asks again every second.
 	 */
 	let { data } = $props();
-	// `?open=backup:<id>` opens that entry on arrival: GET STARTED's 03, done by
-	// an import, links its entry here (c511, Import-Doors B).
-	let open = $state<string | null>(page.url.searchParams.get('open'));
+	// `?open=backup:<id>` (or `scan:<id>`) opens that entry on arrival: GET
+	// STARTED's 03, done by an import, links its entry here (c511,
+	// Import-Doors B). `?job=<scan job id>` opens the entry of that job, a
+	// scan's or a backup's, which is all the library's band knows of it.
+	const job = Number(page.url.searchParams.get('job'));
+	// Read once, on arrival: later polls must not reopen what was closed.
+	const ofJob = untrack(() =>
+		data.entries.find((e) =>
+			e.kind === 'scan' ? e.id === job : e.jobId !== null && e.jobId === job
+		)
+	);
+	let open = $state<string | null>(
+		page.url.searchParams.get('open') ?? (ofJob ? `${ofJob.kind}:${ofJob.id}` : null)
+	);
 	const key = (e: LogEntry) => `${e.kind}:${e.id}`;
 
 	const WEEK = 7 * 24 * 60 * 60 * 1000;

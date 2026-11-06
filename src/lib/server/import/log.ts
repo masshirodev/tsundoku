@@ -128,6 +128,8 @@ export type LogEntry =
 	| {
 			kind: 'backup';
 			id: number;
+			/** Its scan job, which the library's band knows it by (`?job=`). */
+			jobId: number | null;
 			at: number;
 			app: string;
 			fileName: string;
@@ -167,6 +169,7 @@ export function backupEntry(row: ImportRow, reveal: boolean): LogEntry & { kind:
 	return {
 		kind: 'backup',
 		id: row.id,
+		jobId: row.jobId,
 		at: row.finishedAt ?? row.startedAt ?? row.createdAt,
 		app: row.app,
 		fileName: row.fileName,
