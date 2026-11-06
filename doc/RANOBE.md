@@ -118,7 +118,9 @@ maps onto is ever sent or unsent.
 
 **NEVER TRACKED is narrower than hidden** (c522, a switch on a source's
 settings page, [`BROWSE.md`](BROWSE.md), "A source's own switches"). Nothing
-is **written** to Ranobe for it: `worksOf` finds no work to send for, `flush`
+is **written** or **offered** to Ranobe for it: `resolveEditions` skips a work
+only its series link (no lookup, no edition suggestion, and its volumes never
+build another series' reason), `worksOf` finds no work to send for, `flush`
 skips its units and a work only it read, and SUGGEST TO RANOBE is refused
 (`fromFile`), so no bundle is posted. A queued read or a work's rating is
 **kept**, as a hidden series' is, and goes once the switch is off. A search or

@@ -16,10 +16,11 @@ import type { Kind } from '../../library/kinds.ts';
  * - `offHistory`, OFF HISTORY: its reads and watches never show in HISTORY.
  *   They are still recorded, so progress, CONTINUE and tracking are unchanged.
  * - `neverTracked`, NEVER TRACKED (c522): nothing from this source is sent to
- *   AniList, MAL or Ranobe. Reads still count locally (progress, CONTINUE and
- *   HISTORY are unchanged); only the catalogues hear nothing. The send doors
- *   ask it where a send is queued and where the queue is drained
- *   (`tracking.ts`'s `targets`, `ranobe.ts`'s sends), and the series screen's
+ *   AniList, MAL or Ranobe, and no edition is suggested for one of its novels.
+ *   Reads still count locally (progress, CONTINUE and HISTORY are unchanged);
+ *   only the catalogues hear nothing. The send doors ask it where a send is
+ *   queued and where the queue is drained (`tracking.ts`'s `targets`,
+ *   `ranobe.ts`'s sends and its edition suggestion), and the series screen's
  *   LISTS row says why instead of offering a send.
  *
  * Stored in the `settings` key/value table, one row per switch that is on

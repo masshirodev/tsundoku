@@ -530,10 +530,15 @@ export async function resolveEditions(now = Date.now()): Promise<{
 	waiting: number;
 }> {
 	const db = getDb();
+	// NEVER TRACKED (c522) stops the whole step for a work only its series link:
+	// no `GET /works/{ref}` and, above all, no suggestion. A work another
+	// linked series still wants is looked up and may be suggested, but that
+	// series' volumes alone build the reason (`suggestEdition`).
 	const wanted = db
 		.prepare(
 			`SELECT DISTINCT l.work, l.lang FROM ranobe_links l JOIN series s ON s.id = l.series_id
-			JOIN roots r ON r.id = s.root_id WHERE l.edition IS NULL AND ${ELIGIBLE_NOVEL_SQL}`
+			JOIN roots r ON r.id = s.root_id WHERE l.edition IS NULL AND ${ELIGIBLE_NOVEL_SQL}
+				AND NOT ${sourceFlagSql('neverTracked', 's.origin_key')}`
 		)
 		.all() as { work: string; lang: string }[];
 	const out = { found: 0, suggested: 0, waiting: 0 };
@@ -601,7 +606,8 @@ async function suggestEdition(work: string, lang: string, now: number): Promise<
 		getDb()
 			.prepare(
 				`SELECT l.volume FROM ranobe_links l JOIN series s ON s.id = l.series_id JOIN roots r ON r.id = s.root_id
-				WHERE l.work = ? AND l.lang = ? AND l.volume IS NOT NULL AND ${ELIGIBLE_NOVEL_SQL}`
+				WHERE l.work = ? AND l.lang = ? AND l.volume IS NOT NULL AND ${ELIGIBLE_NOVEL_SQL}
+					AND NOT ${sourceFlagSql('neverTracked', 's.origin_key')}`
 			)
 			.all(work, lang) as { volume: string }[]
 	).map((r) => r.volume);
