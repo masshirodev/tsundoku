@@ -442,6 +442,7 @@
 					<form
 						method="POST"
 						action="/?/scan"
+						data-rescan
 						use:enhance={({ cancel }) => {
 							// Asks first, unless one is running already (c525).
 							if (!scanRunning) {
@@ -507,6 +508,23 @@
 						</form>
 					{/snippet}
 				</Band>
+			{/if}
+			{#if rescanShown}
+				<!-- RESCAN's answer where there is no sidebar (c561): MORE's RESCAN
+				     closes MORE before it asks, so its note has no row to sit under.
+				     Band's shape, but the line wraps: a refusal names the folders it
+				     looked in, which a phone's width would cut. The desktop draws it
+				     under the sidebar's row instead (CSS, below).
+				     A refusal is put away with ✕; SCAN_WAITS is the server's queue and
+				     goes when the scan starts. -->
+				<div class="rescan-band" role="status">
+					<span>{rescanShown}</span>
+					{#if !data.scanWaits}
+						<button type="button" aria-label={m.chrome_close()} onclick={() => (rescanNote = '')}
+							>✕</button
+						>
+					{/if}
+				</div>
 			{/if}
 			<StalledBand onback={stay} />
 			{#if cover === 'series'}
@@ -574,7 +592,38 @@
 	.sidebar {
 		display: none;
 	}
+	.rescan-band {
+		flex-shrink: 0;
+		display: flex;
+		align-items: stretch;
+		justify-content: space-between;
+		min-height: 48px;
+		border-bottom: var(--hairline);
+		background: var(--surface-panel);
+		font: var(--type-control);
+	}
+	.rescan-band > span {
+		flex: 1;
+		min-width: 0;
+		align-self: center;
+		padding: 12px var(--pad);
+		overflow-wrap: anywhere;
+	}
+	.rescan-band > button {
+		width: 56px;
+		flex-shrink: 0;
+		border: 0;
+		border-left: var(--hairline);
+		background: none;
+		color: var(--text-1);
+		font: var(--type-control);
+		cursor: pointer;
+	}
 	@media (min-width: 1024px) and (pointer: fine) {
+		/* The sidebar's row carries the note here. */
+		.rescan-band {
+			display: none;
+		}
 		.sidebar {
 			position: sticky;
 			top: 0;

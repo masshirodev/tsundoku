@@ -281,6 +281,21 @@
 	}
 	const hostOf = (origin: string) => origin.replace(/^https?:\/\//i, '');
 
+	/**
+	 * RESCAN (c561; doc/LIBRARY.md, "RESCAN asks first"): the desktop sidebar's
+	 * form is the one door, and this row only presses it. MORE closes first,
+	 * so the question is the only sheet open (two sheets would both take one
+	 * Escape) and focus is back on the bar's MORE cell when the question opens:
+	 * that cell is where CANCEL then returns it. The form is in the layout on
+	 * every device, drawn only on the desktop, and its own handler decides:
+	 * the question, CANCEL focused, or joining a scan already running.
+	 */
+	async function rescan() {
+		onclose();
+		await tick();
+		document.querySelector<HTMLFormElement>('form[data-rescan]')?.requestSubmit();
+	}
+
 	let changed = $state(0);
 	onMount(() => {
 		const store = Object.fromEntries(
@@ -335,6 +350,11 @@
 			><span>{m.name_help()} →</span><span class="n"
 				>{m.more_topics({ count: topics().length, n: num(topics().length) })}</span
 			></a
+		>
+		<!-- RESCAN (c561): the sidebar's own form, asked through the same question, beside
+		     IMPORT LOG as in the sidebar. No arrow: it asks, it does not go anywhere. -->
+		<button type="button" class="row" data-focus-mark="in" data-more-rescan onclick={rescan}
+			><span>{m.nav_rescan()}</span><span class="n"></span></button
 		>
 		<!-- IMPORT LOG (c438; Import-Doors E, right): live, with when the last import came in. -->
 		<a class="row" data-focus-mark="in" href={resolve('/import/log')}

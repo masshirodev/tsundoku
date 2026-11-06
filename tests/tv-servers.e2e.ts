@@ -422,6 +422,35 @@ test('a browser that is not the app is never told the name', async ({ page }) =>
 	expect((await calls(page)).named).toEqual([]);
 });
 
+test('RESCAN in MORE: the remote reaches it, the question opens on CANCEL, and OK there starts nothing (c561)', async ({
+	page
+}) => {
+	const posted: string[] = [];
+	page.on('request', (r) => {
+		if (r.method() === 'POST' && new URL(r.url()).search === '?/scan') posted.push(r.url());
+	});
+	const sheet = await openMore(page);
+	await sheet.locator('.row').first().focus();
+	let found = false;
+	for (let i = 0; i < 12 && !found; i++) {
+		if ((await focusedText(page)) === 'RESCAN') found = true;
+		else await page.keyboard.press('ArrowDown');
+	}
+	expect(found).toBe(true);
+	await page.keyboard.press('Enter');
+	const ask = page.getByRole('dialog', { name: 'RESCAN THE LIBRARY FOLDER?' });
+	await expect(ask).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
+	// The safe answer is where the remote lands: OK at once cancels.
+	await expect(ask.getByRole('button', { name: 'CANCEL' })).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(ask).toBeHidden();
+	// Back on the bar's MORE, the door it came through.
+	await expect(page.locator('[data-focus-id="library-more"]')).toBeFocused();
+	await page.waitForTimeout(300);
+	expect(posted).toEqual([]);
+});
+
 test('TO LINK is a stop the remote reaches in MORE (c475)', async ({ page }) => {
 	const sheet = await openMore(page);
 	const row = sheet.locator('.row', { hasText: 'TO LINK' });

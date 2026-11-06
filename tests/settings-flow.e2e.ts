@@ -293,6 +293,9 @@ test('MORE in the library’s bar: the sidebar’s foot as a sheet', async ({ pa
 		/DOWNLOADS →/,
 		/SETTINGS →/,
 		/HELP →\s*7 TOPICS/,
+		// The sidebar's RESCAN, asked through the same question (c561): no
+		// arrow, since it asks rather than goes.
+		/^RESCAN$/,
 		// Live since c438: a link to the log, dated once a backup has come in.
 		/IMPORT LOG →/
 	]);
