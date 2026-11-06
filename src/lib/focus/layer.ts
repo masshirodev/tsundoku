@@ -72,9 +72,9 @@ function take(el: HTMLElement): void {
  * a uniform grid is a whole row; the TV's own header and focus line are the
  * layout's business (c238).
  *
- * `nearest` counts a thing under a pinned bar as shown: the TV's shelf tabs
- * stay at the top of the screen, and going ↑ through the grid put each row
- * under them, focused and out of sight (2026-11-02, the first real TV). So
+ * `nearest` counts a thing under a pinned bar as shown: the TV's KIND band
+ * stays at the top of the screen, and going ↑ through the grid put each row
+ * under it, focused and out of sight (2026-11-02, the first real TV). So
  * after it, the page moves on by whatever a pinned bar still covers.
  */
 function reveal(el: HTMLElement): void {
@@ -92,13 +92,13 @@ function reveal(el: HTMLElement): void {
 }
 
 /**
- * The band of the screen a pinned bar (sticky or fixed: the TV's shelf tabs,
+ * The band of the screen a pinned bar (sticky or fixed: the TV's KIND band,
  * a bottom bar) leaves `el` to be seen in. A bar is found at the element's
  * own top and bottom edges, so one that doesn't cover it doesn't count.
  */
 function uncovered(el: HTMLElement, r: DOMRect, height: number): { top: number; bottom: number } {
 	const x = Math.min(Math.max(r.left + r.width / 2, 0), window.innerWidth - 1);
-	// Bars stack: the library's focus line is pinned under its shelf tabs, so
+	// Bars stack: the library's focus line is pinned under its KIND band, so
 	// each one found is looked under (or over) again.
 	let top = 0;
 	for (let i = 0; i < 4; i++) {
@@ -284,13 +284,14 @@ function sendEscape(node: HTMLElement): void {
 
 /**
  * BACK climbs before it leaves (TV Calls, "BACK climbs before it leaves"): to
- * the shelf's tab from a grid (its container names the target), else to the
- * screen's own start, else nowhere and the screen is left.
+ * the KIND band's chosen cell from a library grid (its container names the
+ * target: `data-back-climb`), else to the screen's own start, else nowhere and
+ * the screen is left.
  *
  * Only to a place out of sight (the owner's call, 2026-11-02): the climb is
  * the way back up a long screen. Where it would land is already in full view
- * (the series' ▶ CONTINUE above a short panel, the pinned shelf tab), BACK
- * leaves at once instead of costing a press to move focus.
+ * (the series' ▶ CONTINUE above a short panel, the pinned KIND band's chosen
+ * cell), BACK leaves at once instead of costing a press to move focus.
  */
 function climb(): boolean {
 	// Climbing is a remote's idea. On a keyboard, Escape belongs to whatever

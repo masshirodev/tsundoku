@@ -136,8 +136,9 @@ describe('the registry', () => {
 
 	it('derives the FILTER panel\u2019s list from the one list, in the same order', () => {
 		// The order is load-bearing: the panel lists chips in it (kindsAmong) and
-		// the library counts by it (src/lib/server/library.ts:440). The literal
-		// list is what can go red; `FILTER_KINDS` being `KINDS` is a tautology.
+		// the library counts by it (`kindCounts`, src/lib/server/library.ts). The
+		// literal list is what can go red; `FILTER_KINDS` being `KINDS` is a
+		// tautology.
 		expect(FILTER_KINDS).toEqual(['manga', 'manhwa', 'doujin', 'novel', 'anime']);
 	});
 });
