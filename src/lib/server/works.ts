@@ -1401,8 +1401,8 @@ function hiddenNow(db: Database.Database, ids: number[]): Map<number, boolean> {
  *
  * Every door that hides or shows series by id goes through here (the library's
  * `?/hide`, `?/bulk`, `?/hideAll`, `?/showAll` and their UNDOs, the series
- * screen's TAKE OUT and its UNDO, and an import's fold, `foldSeries`), so the
- * rule has one home. `hideWork` is the same write for a caller that already
+ * screen's TAKE OUT and its UNDO, an import's fold, `foldSeries`, and a
+ * source's CONCEAL, `browse/conceal.server.ts`), so the rule has one home. `hideWork` is the same write for a caller that already
  * holds a Work's id.
  *
  * Visibility is read before and after, inside the transaction, so the facts

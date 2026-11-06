@@ -386,7 +386,8 @@ which takes each part's Work with it, every part, in either direction: the
 library's plain `?/hide` (the long-press series sheet's, on the library and on
 the search page, where any hit opens it -- a Work's part included), `?/bulk`'s
 HIDE and UNHIDE, `?/hideAll`, `?/showAll`, both UNDOs, TAKE OUT's own hide
-on both screens, and an import's fold. A series in no Work is written exactly as before. The series
+on both screens, an import's fold, and a source's CONCEAL and its UNDO
+(`src/routes/browse/conceal.server.ts`, c523). A series in no Work is written exactly as before. The series
 sheet does not ask a new question: on a part its cell says `HIDE ALL n` (or
 `UNHIDE ALL n`), the HIDE sheet's words, and the band says the Work went
 whole -- the library's own, and on the search page the same band and UNDO

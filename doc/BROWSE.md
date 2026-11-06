@@ -156,11 +156,13 @@ five real schemas (`tests/tag-search.spec.ts`):
   `&`), so each link is a tag its series carries once added. Each name is
   its own link, searched on its own. A part that is only a generational
   suffix ("Jr.", "Sr.", "II", "III", "IV") stays with the name before it, so
-  "Tanaka, Jr." is one person; the importer still makes two tags of it. A
-  name written surname-first ("Oda, Eiichiro") cannot be told from two
-  people, and is two links. A name on both lines is drawn once, as an
-  author. A library series' person tags were split by the same importer
-  when they were written, so its sheet needs nothing here.
+  "Tanaka, Jr." is one person, and since c508 the importers make it one tag
+  too (`people` holds the rule; doc/IMPORT-MIHON.md, "One split for
+  people"). A name written surname-first ("Oda, Eiichiro") cannot be told
+  from two people, and is two links. A name on both lines is drawn once, as
+  an author. A library series' person tags were split by the importer when
+  they were written; one imported before c508 may still carry `author:Jr.`
+  beside `author:Tanaka`, since stored tags are not rewritten.
 - **"No schema" is never a kind.** An Aniyomi source answers
   `filterSchemaAnime` and an LNReader plugin its filters, so every family is
   asked the same question; an empty schema, or a call that failed, is a

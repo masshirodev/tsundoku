@@ -178,7 +178,9 @@ is another work under the same name. A pasted manga link on a novel is the
 same, and so is the other way round (a comic linked to a novel's entry).
 
 The link keeps the entry's format (`series_links.format`, rung 26), and
-`coverOnly` tells such a link from the rest. Its line on LISTS says **THE
+since rung 70 (c520) it also keeps the entry's `country` and start `year`,
+which a comic's LISTS line names (`MANHWA · 2020`); `coverOnly` tells such a
+link from the rest. Its line on LISTS says **THE
 COMIC’S ENTRY · …** and **COVER AND DETAILS ONLY · NEVER TRACKED** (c424). **Tracking must
 never send progress through one:** a novel's chapter 300 isn't the
 manhwa's.

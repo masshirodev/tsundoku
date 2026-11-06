@@ -634,8 +634,6 @@ cells, with the house's inset focus mark.
 
 - The fold in the phone's series header (c425, `doc/handoffs/series-phone/`):
   the next wave folds these rows.
-- `doc/TV.md` (not this slot's) doesn't say yet that the TV's focus moves
-  through LISTS a line at a time.
 
 ## Where it departs from the handoff
 
