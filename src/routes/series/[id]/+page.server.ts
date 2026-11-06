@@ -591,7 +591,7 @@ export const actions: Actions = {
 	hideWork: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const work = workOfSeries(s.id);
-		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK' });
+		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK', stale: true });
 		let ids: number[];
 		try {
 			ids = hideWork(work.id, true, madeOf(await request.formData())).ids;
@@ -681,7 +681,7 @@ export const actions: Actions = {
 	showWork: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const work = workOfSeries(s.id);
-		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK' });
+		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK', stale: true });
 		try {
 			const { ids } = hideWork(work.id, false, madeOf(await request.formData()));
 			return { shown: { ids } };
@@ -699,7 +699,7 @@ export const actions: Actions = {
 	moveWork: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const work = workOfSeries(s.id);
-		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK' });
+		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK', stale: true });
 		const form = await request.formData();
 		const dir = String(form.get('dir') ?? '');
 		if (dir !== 'up' && dir !== 'down') return fail(400, { message: 'NO SUCH DIRECTION' });
@@ -728,7 +728,7 @@ export const actions: Actions = {
 	takeOutWork: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const work = workOfSeries(s.id);
-		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK' });
+		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK', stale: true });
 		let facts: ReturnType<typeof takeOutPart>;
 		try {
 			facts = takeOutPart(work.id, s.id, madeOf(await request.formData()));

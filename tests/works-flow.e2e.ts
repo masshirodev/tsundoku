@@ -1115,6 +1115,60 @@ test('a stale HIDE ALL n and UNHIDE close the sheet and re-read the screen too (
 	await endWork(page);
 });
 
+test('a Work ended in another tab re-reads on MOVE and HIDE ALL n, and its row goes (c661)', async ({
+	page,
+	context
+}) => {
+	// The screen is drawn while the series is in a Work. In the owner's other
+	// tab the Work ends, so the series is in no Work: the refusal before the
+	// `made` check (c640) used to come back without `stale`, and no handler
+	// re-read the page -- the sheet stayed open and the WORK row and UNHIDE
+	// stayed drawn over a Work that no longer exists.
+	const pair = ['Isekai Ojisan', 'Isekai Yakkyoku'];
+	const other = await context.newPage();
+	await makeWork(page, pair, 'Ended Run');
+	await openWork(page, 'Ended Run');
+	await page.locator('.run .part .rowlink').nth(1).click();
+	await page.waitForURL(/\/series\/\d+\?from=work/);
+	const seriesUrl = page.url();
+	const sheet = page.getByRole('dialog', { name: /WORK$/ });
+	const refusal = page.locator('.band', { hasText: 'THIS SERIES IS IN NO WORK' });
+
+	// MOVE ↑, drawn on the Work another tab ends.
+	await page.locator('.prow.work-row .lk').click({ button: 'right' });
+	await expect(sheet).toBeVisible();
+	await other.goto('/');
+	await openWork(other, 'Ended Run');
+	await endWork(other);
+	await sheet.getByRole('button', { name: '↑', exact: true }).click();
+	await expect(refusal).toBeVisible();
+	await expect(refusal).toContainText('NOTHING CHANGED');
+	// Nothing in the sheet can answer for a Work that is gone, so it closes,
+	// and the screen is read again: the WORK row is not drawn any more.
+	await expect(sheet).toHaveCount(0);
+	await expect(page.locator('.prow.work-row')).toHaveCount(0);
+	await expect(page.locator('form[action="?/showWork"]')).toHaveCount(0);
+
+	// HIDE ALL n, the sheet's own door: a fresh screen drawn on a new Work,
+	// which the other tab ends before the press.
+	await makeWorkExact(other, pair, 'Ended Again');
+	await page.goto(seriesUrl);
+	await expect(page.locator('.prow.work-row')).toHaveCount(1);
+	await page.locator('.file-row').getByRole('button', { name: 'HIDE', exact: true }).click();
+	const hide = page.getByRole('dialog', { name: 'Hide' });
+	await expect(hide).toBeVisible();
+	await other.goto('/');
+	await openWork(other, 'Ended Again');
+	await endWork(other);
+	await hide.getByRole('button', { name: /HIDE ALL 2/ }).click();
+	await expect(refusal).toBeVisible();
+	await expect(hide).toHaveCount(0);
+	await expect(page.locator('.prow.work-row')).toHaveCount(0);
+
+	// Done: both Works are gone, and the pair is visible as the seed has it.
+	await other.close();
+});
+
 test('a selection that touches two Works is refused: SELECT ALL cannot collapse them', async ({
 	page
 }) => {

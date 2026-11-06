@@ -273,7 +273,12 @@ LONGER A WORK · ONE SERIES WAS LEFT` with UNDO, which restores the same id,
   not on a Work, and posts none. A refusal there re-reads the screen, so the
   band is drawn over the Work the series is in now and the next press posts
   that Work's moment; the WORK row sheet closes on it, as GroupSheet does on
-  the Work screen's refusal (c584).
+  the Work screen's refusal (c584). A Work that simply **ended** is the case
+  before that check: the series is in no Work, so the four actions answer
+  `THIS SERIES IS IN NO WORK` with nothing written, and since c661 that
+  refusal says `stale: true` as well -- the screen re-reads, both the WORK
+  row's sheet and the HIDE sheet close, and the row and UNHIDE are no longer
+  drawn.
 - **+ ADD A SERIES** opens a library picker; a series already in another Work
   says `IN <WORK> · MOVES HERE` and moves, ending that Work if one is left.
   The picker reads its own page when it opens (`GET /work/N/addable?q=&offset=`,
