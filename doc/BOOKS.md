@@ -95,7 +95,7 @@ series screen as a band ("… · NOTHING CHANGED").
 Every EPUB imports as a series of its own ([`IMPORT-EPUB.md`](IMPORT-EPUB.md)),
 so a work in several books arrives as several series: six Beginning After The
 End books are six tiles. GROUP gathers them into one. Select the novels on the
-library grid (the NOVELS shelf helps), or on their author's page, and tap
+library grid (the KIND band's NOVELS helps), or on their author's page, and tap
 GROUP. The same group sheet reads VOLUMES instead of BOOKS: name the series,
 order the volumes by date added, by title or by hand, then CREATE SERIES, or
 ADD TO EXISTING to put them after another novel.

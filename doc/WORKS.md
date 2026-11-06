@@ -203,7 +203,7 @@ most (`rg -l '\blistSeries\(' tests`).
   the Works the section shows have their parts read (c332; doc/LIBRARY.md,
   "Works").
 - **A Work sorts by its most recent part**, as aggregates over every part
-  (`keys` in `unitQuery`): latest read, newest chapter, latest added. The
+  (`keys` in `unitQuery`): latest read (or, never opened, its add: `touched`, c524), newest chapter, latest added. The
   order lives in SQL rather than a `sortKey` on the part facts (W1's
   suggestion), because the page sorts units before it knows which tiles they
   are; no `works.updated_at` and so no rung.
@@ -692,8 +692,7 @@ beside this file on the shared database, would time out (the reader's
 arrangement: its own seeded database, its own preview port taken from the OS,
 and the `works-flow` project, one worker. Nothing it writes can be seen by
 another spec, and a case that fails halfway leaves the suite's database as it
-was. The one destructive step that is not a browser case -- SELECT ALL over a
-kind shelf takes a Work's off-shelf part, and a bulk HIDE hides the run whole --
+was. The one destructive step that is not a browser case -- SELECT ALL under a kind of the KIND band takes a Work's part of another kind, and a bulk HIDE hides the run whole --
 is in `tests/works-library-db.spec.ts`, which reseeds before every case.
 
 ## What it does not do yet
