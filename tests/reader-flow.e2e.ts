@@ -442,15 +442,15 @@ test('rating at the end of a series keeps the screen, and the library row takes 
 	await expect(end.getByRole('link', { name: 'LIBRARY' })).toBeVisible();
 
 	// The library row: the series is in the library, so it offers REMOVE.
-	await expect(end.getByRole('button', { name: '+ ADD TO THE LIBRARY' })).toHaveCount(0);
-	const remove = end.getByRole('button', { name: 'REMOVE FROM THE LIBRARY' });
+	await expect(end.getByRole('button', { name: '+ ADD TO LIBRARY' })).toHaveCount(0);
+	const remove = end.getByRole('button', { name: 'REMOVE FROM LIBRARY' });
 	await expect(remove).toBeVisible();
 	await remove.click();
 	// The restore runs even when an assertion below fails, and its own failure
 	// is soft so it cannot hide the body's (c649).
 	let failed: unknown;
 	try {
-		await expect(end.getByRole('button', { name: 'REMOVED FROM THE LIBRARY ✓' })).toBeVisible();
+		await expect(end.getByRole('button', { name: 'REMOVED FROM LIBRARY ✓' })).toBeVisible();
 		// It really left the library: with reveal off, no tile is left to show.
 		await page.goto('/?sort=title');
 		await expect(page.locator('.grid .tile', { hasText: 'Chainsaw Man' })).toHaveCount(0);

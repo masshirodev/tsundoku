@@ -482,10 +482,10 @@
 						<input type="hidden" name="on" value="1" />
 						<button type="submit" disabled={removing || removed} data-focus-mark="in"
 							>{removed
-								? 'REMOVED FROM THE LIBRARY ✓'
+								? 'REMOVED FROM LIBRARY ✓'
 								: removing
 									? 'REMOVING…'
-									: 'REMOVE FROM THE LIBRARY'}</button
+									: 'REMOVE FROM LIBRARY'}</button
 						>
 					</form>
 				{:else if addHref}
@@ -501,7 +501,7 @@
 						}}
 					>
 						<button type="submit" disabled={adding || added} data-focus-mark="in"
-							>{added ? 'IN THE LIBRARY ✓' : adding ? 'ADDING…' : '+ ADD TO THE LIBRARY'}</button
+							>{added ? 'IN LIBRARY ✓' : adding ? 'ADDING…' : '+ ADD TO LIBRARY'}</button
 						>
 					</form>
 				{/if}
