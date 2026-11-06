@@ -181,6 +181,27 @@ export function refusedWords(code: string | null): string | null {
 }
 
 /**
+ * The refusal a `refused=` code still stands for, or null once it no longer
+ * does (c664). A reload used to keep "NO UNDO" and draw no UNDO after the
+ * cause had gone, although UNDO would have succeeded. So the load asks again:
+ * a 409 is "something of it is downloaded or read now", which the band's own
+ * `touched` is (the same query `undoAdd` refuses on), and a 503 is "downloads
+ * are not answering now", which `engineDownSince()` is (an engine that has
+ * answered since clears it). With no band drawn there is no place for the
+ * words, and the code is the URL's alone.
+ */
+export function standingRefusal(
+	code: string | null,
+	band: AddedBand | null,
+	engineDown: boolean
+): string | null {
+	const words = refusedWords(code);
+	if (!words || !band) return null;
+	if (code === '409') return band.touched ? words : null;
+	return engineDown ? words : null;
+}
+
+/**
  * UNDO on the band: the series added hidden leaves the library again, as the
  * series page's UNDO does (`undoAdd`), while nothing of it is downloaded or
  * read, and the preview opens again. A band whose series is gone (UNDO twice,

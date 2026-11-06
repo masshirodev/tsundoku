@@ -60,8 +60,8 @@ export default async function setup() {
 	let up = false;
 	for (let i = 0; i < 120 && !up; i++) {
 		try {
-			// tsundoku's own manifest, not just anything on the port (4195 is BROWSE's
-			// fake engine, which once passed for this server).
+			// tsundoku's own manifest, not just anything on the port (BROWSE's
+			// fake engine has its own, from the OS unless assigned, c625).
 			const r = await fetch(`${origin}/manifest.webmanifest`);
 			up = r.ok && ((await r.json()) as { short_name?: string }).short_name === 'tsundoku';
 			if (!up) throw new Error(`port ${FRIEND_PORT} answers, but not as tsundoku`);

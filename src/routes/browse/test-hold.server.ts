@@ -17,7 +17,7 @@
  */
 
 /** The longest a forgotten hold can last: a case holds 3 s, and no door may hang a later file. */
-const HOLD_MAX_MS = 5000;
+export const HOLD_MAX_MS = 5000;
 
 /** Whether the browse world turned the door on. Read per call, so a spec's own server can set it. */
 const enabled = () => process.env.TSUNDOKU_TEST_HOLD === '1';
