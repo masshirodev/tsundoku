@@ -251,8 +251,12 @@ Tested in `tests/series-domain.spec.ts` (the queue: order, three taps,
 failures, independence, a tap during the reload) and `tests/series-flow.e2e.ts`
 (two FAV taps and three rating taps with the first save held, a lost first
 save, and the newest failing after an earlier one was stored, each through a
-reload). The library tile's FAV and rating (`src/routes/+page.svelte`) still
-post each tap at once: see the wave 25 notes.
+reload). The library tile's FAV and rating (`src/routes/+page.svelte`) run on the
+same queue since wave 28 (c615), with the same `fav:<id>`/`rating:<id>`
+keys, so a tile tap and a series-screen tap on one series wait for each
+other too. `tests/library-flow.e2e.ts` holds the first tap and covers two
+quick taps, the screen's tap after a tile tap, and a newer tap failing
+during the earlier tap's reload.
 
 ## UNDO's facts (c585)
 

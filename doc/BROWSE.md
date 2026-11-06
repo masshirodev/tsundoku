@@ -568,9 +568,10 @@ for a source someone switched ADDED HIDDEN on for, not an edge. So ADD asks
 after it has run (`addedLanding`, `src/routes/browse/added.server.ts`):
 while the source is still found, the band is on its page, its place kept;
 once it is not, the band is on BROWSE (`/browse?added=hidden&…`, the same
-parameters), as CONCEAL's is (c523), and names no source, since hidden
-means not named: "ITS SOURCE ADDS ITS SERIES HIDDEN · … · THE SOURCE IS
-HIDDEN WITH IT · REVEAL SHOWS BOTH". BROWSE has its own UNDO (`?/undoAdd`),
+parameters), as CONCEAL's is (c523), and names no source outside reveal,
+since hidden means not named: "ITS SOURCE ADDS ITS SERIES HIDDEN · … · THE
+SOURCE IS HIDDEN WITH IT · REVEAL SHOWS BOTH". Inside reveal the source is
+here, so the band names it and has no tail (c605). BROWSE has its own UNDO (`?/undoAdd`),
 and both UNDOs ask only the band's facts (the series' id and key, and the
 preview), never whether the source is found, so a band drawn on the
 source's page is undone there even after the source became mostly hidden
