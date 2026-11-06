@@ -195,7 +195,9 @@ second `http://`: 9B's `origin()` tests it without case
 `remember` see it, and `originOf` reads it without case after (before
 round 2, `origin()`'s case-sensitive `startsWith('http')` turned
 `HTTP://Zen.local:42143` into `http://HTTP://Zen.local:42143`, a host named
-`HTTP`, and 9B said NOTHING ANSWERS). Every place the APK compares an origin goes through
+`HTTP`, and 9B said NOTHING ANSWERS). 9B's CHECKING line and 9D's title strip
+the scheme from what they print with the same case-blind regex (c621), so a
+capitalised scheme reads as its host on both, not as `HTTP://…`. Every place the APK compares an origin goes through
 `originOf` or agrees with it: `BridgeGuard.allows` (the top-level URL through
 `originOf`), `Servers.find`, `others`, `add`, `forget`, `move` and every
 update (each cleans its argument through `originOf`), `FailedLoad` (fed by
@@ -391,6 +393,10 @@ opened and when it was added. Pure apart from its key-value, so
   list: not `[]`, which MoreSheet would read as "the last one is gone" and
   send the TV to 9A with every server still stored. MoreSheet reads anything
   that is not a list as a refusal and changes nothing. The app's own page and a known server's read exactly as before.
+  A frame inside a known server's page still reaches every call, read or write:
+  a JavaScript interface cannot say which frame called (c549's part (b), "What
+  it does not do yet"); the per-message rule that would close it is built and
+  unit-tested (`BridgeGuard.allowsMessage`), and not wired.
   `form` and `defaultPort` stay open (the user agent already says which app
   this is, and the port is a constant), and so do `open` and `welcome`:
   FORGET of the server in use calls one of them from the page of the server
@@ -478,7 +484,14 @@ verified".
      origin a rule can name, and a change to every `loadAsset`, `BridgeGuard.ASSET`,
      `Back.kt` and `FailedLoad`'s file checks), or the listener allows `*`
      and refuses per message, measuring on a device what a `file://` page's
-     `sourceOrigin` is before trusting it.
+     `sourceOrigin` is before trusting it. **This step is left** (wave 27):
+     `androidx.webkit` resolves offline here — the Gradle cache holds 1.14.0
+     and 1.12.1 with their metadata — so it is not blocked on the network;
+     it is a change to every asset load and its file checks, and it is worth
+     nothing until item 2's page accepts a late answer. Nothing in the page's
+     own scripts depends on `location.protocol === 'file:'` (the one `file:`
+     hit under `assets/pair` is a comment), so the move itself has no page
+     script to change.
   2. **The library's server cell reads the list synchronously.** The brief
      said `src/routes/+page.svelte:~488` only checks that `servers` exists;
      it calls `servers()` and `JSON.parse`s the string in its `onMount` and
@@ -489,14 +502,22 @@ verified".
      `WebViewCompat.addDocumentStartJavaScript` with the list in the
      script, registered again whenever the list changes) and an event when
      it changes. MoreSheet's `forgetServer` also uses the list it returns.
+     The exact patch for that page is under Gaps in
+     `doc/handoff-notes/tv-app.md`, wave 27.
   3. **The rule is decided per message, not per registration.** Origin
      rules are fixed when the listener is added, and the list changes at
      runtime (pairing, FORGET, `move`), so the sound shape is one listener,
      the object named `TsundokuTV` injected where the rule allows, and each
      message refused unless `isMainFrame` is true and its `sourceOrigin` is
      the asset page or `servers.find` knows it: a pure function
-     (origin, isMainFrame, known) → allow, next to `BridgeGuard.allows`,
-     pinned in JVM tests. Every call becomes a message with an id and every
+     (origin, isMainFrame, known) → allow, next to `BridgeGuard.allows`.
+     **That rule is built** (wave 27): `BridgeGuard.allowsMessage` refuses
+     every sub-frame, trusts the asset page's own URL as the main frame and
+     any known server's origin through `Address.originOf`, and answers the
+     opaque `"null"` (a `file://` page's likely report) as no page at all.
+     `MessageGuardTest` pins it over every combination, a third-party frame
+     inside a known server's page included; nothing calls it yet. Every call
+     becomes a message with an id and every
      reply a promise keyed by it, so two calls answered out of order land
      on their own callers, a reply after the page navigated is dropped by
      the page that no longer exists, and a call made before the object is
@@ -785,8 +806,9 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   `TsundokuTV.servers()` must print `[]`, and `TsundokuTV.tvAddress()`,
   `TsundokuTV.remembered()` and `TsundokuTV.network()` an empty string,
   with no exception. A third-party frame inside a server's page is not
-  closed yet ("What it does not do yet"), so there is no frame check to
-  make.
+  closed yet ("What it does not do yet"): the per-message rule is JVM-tested
+  (`MessageGuardTest`) but no listener calls it, so there is no frame check to
+  make on a TV.
 - **Launcher shortcuts (c287).** Built and planned in a JVM test, never seen
   on a launcher. Check: long-press tsundoku's icon on the TV's home screen
   (and on a phone, where Android's launcher does show app shortcuts). One
@@ -806,8 +828,13 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 
 - `android/app/src/test/` — `AddressTest`, `AttemptsTest`, `BackTest`,
   `BridgeGuardTest`, `FailedLoadTest`, `ForgetTest`, `IntentAddressTest`,
-  `KeysTest`, `PairingBridgeTest`, `ProbeTest`, `ScaleTest`, `ServersTest`,
-  `ShortcutsTest` (97 tests in 13 classes at wave 25), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
+  `KeysTest`, `MessageGuardTest`, `PairingBridgeTest`, `ProbeTest`, `ScaleTest`,
+  `ServersTest`, `ShortcutsTest` (134 tests in 17 classes at wave 27), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
+  `MessageGuardTest` (6) is c549's part (b), the per-message rule
+  `BridgeGuard.allowsMessage`: a third-party frame inside a known server's
+  page is refused, a known origin and the asset page are trusted only as the
+  main frame, a host typed in capitals is the same server by `Address.originOf`'s
+  rule, and the opaque `null` is no page at all. Nothing calls the rule yet.
   `AddressTest` (8) includes c548's case: a host and a scheme typed in
   capitals come back lower case, the same origin `intentOrigin` gives, and
   `originOf` holds on its own output.
