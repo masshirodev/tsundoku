@@ -146,30 +146,44 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		// A chapter marked unread keeps the place it was left at, and a finished
 		// chapter's place is its last page (the finish event posts the block it
 		// ended on): resuming there would reopen a chapter the reader asked to
-		// start over at its bottom (c622, round 2). But `?/mark` also serves the
-		// series screen's UNDO of a long-press MARK READ THROUGH, which writes
-		// the same `unread_at` over a mark that only took a *read* back, not a
-		// finish: that place is still where reading had it, so the log, not the
-		// stamp, says which one the mark undid. Only a finish before the mark
-		// starts the chapter over; only when nothing has been read since does it
-		// stay over (an import makes reads of its own, in this same log).
+		// start over at its bottom (c622, round 2). The place is the log's, not
+		// the marks': `?/mark` also serves the series screen's UNDO of a
+		// long-press MARK READ THROUGH, which writes the same `unread_at` over a
+		// mark that took a read back rather than a finish. So the saved place is
+		// an end place when every reading event since the last `finish` at or
+		// before the mark is at that finish's own block — the `page` the reader
+		// settles 800 ms after finishing and the `close` on leaving both repeat
+		// it (measured), while a read that moved the place does not. Any number
+		// of read/unread marks after a finish leaves it an end place. Only when
+		// nothing has been read since the last mark does it stay over; an
+		// import's own history rows carry the source's older `at`, so they do
+		// not count as reading since (c622's low), and a row that moved the
+		// place after the mark keeps the new place.
 		const marked = getDb()
 			.prepare(
 				`SELECT
-					(SELECT r.kind FROM reading_events r
-					 WHERE r.entry_id = e.id AND r.kind IN ('finish', 'mark_read')
-						AND r.at <= e.unread_at
-					 ORDER BY r.at DESC, r.id DESC LIMIT 1) AS taken_back,
+					EXISTS (
+						SELECT 1 FROM reading_events f
+						WHERE f.entry_id = e.id AND f.kind = 'finish' AND f.at <= e.unread_at
+							AND NOT EXISTS (
+								SELECT 1 FROM reading_events r
+								WHERE r.entry_id = e.id
+									AND r.kind IN ('open', 'page', 'finish', 'close')
+									AND r.at <= e.unread_at
+									AND r.page IS NOT f.page
+									AND (r.at > f.at OR (r.at = f.at AND r.id > f.id))
+							)
+					) AS end_place,
 					(SELECT 1 FROM reading_events r
 					 WHERE r.entry_id = e.id AND r.kind IN ('open', 'page', 'finish', 'close')
 						AND r.id > COALESCE((SELECT MAX(m.id) FROM reading_events m
 							WHERE m.entry_id = e.id AND m.kind = 'mark_unread'), 0)
+						AND r.at >= e.unread_at
 					 LIMIT 1) AS read_since
 				FROM entries e WHERE e.id = ?`
 			)
-			.get(entryId) as { taken_back: string | null; read_since: number | null } | undefined;
-		const resume =
-			marked?.taken_back === 'finish' && !marked.read_since ? null : entry.lastPosition;
+			.get(entryId) as { end_place: number; read_since: number | null } | undefined;
+		const resume = marked?.end_place && !marked.read_since ? null : entry.lastPosition;
 		return {
 			text: true as const,
 			series: reading,
