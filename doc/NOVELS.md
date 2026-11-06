@@ -341,12 +341,14 @@ error, fixed? }`, a sentence, marked `fixed` when no new solve can change it
     with a sentence, as is any method but GET and POST (a HEAD goes as a GET).
     Scribble Hub's chapter list is a `FormData` of strings
     (`plugins/english/scribblehub.ts`, `wi_getreleases_pagination`), so it
-    goes as a url-encoded form. The plugin's headers are dropped (below), and
-    a POST that needs one is still unmeasured live: NovelFull 2.3.4 sets
+    goes as a url-encoded form. The plugin's headers are dropped (next): a
+    POST that _needs_ one is still unmeasured live. NovelFull 2.3.4 sets
     `X-Requested-With` on its chapter archive only in its `y` branch, the one
-    taken when the novel page exposes a chapter count, and novelfull.com took
-    its other branch — a plain GET with no header (2026-11-06, "Measured
-    live", below).
+    taken when the novel page exposes a chapter count, and novelfull.com
+    took its other branch — a plain GET with no header — on every novel
+    tried (2026-11-06). Free Web Novel 2.3.10, which is the same template,
+    did take the POST branch, and its list came back whole without the header
+    ("Measured live", below).
   - A picture or a file is not a page: `fetchFile` (and so `fetchProto`'s
     binary body) is refused with a sentence before anything is asked, and a
     `fetchApi` that turns out to be Chromium's image page is refused by the
@@ -406,13 +408,16 @@ closed twice (…)` if it dies again. Nothing is retried beyond that; the
 publishes at v3.0.0 — NovelFull 2.3.4, Scribble Hub 1.0.2, Royal Road 2.3.4,
 one file per plugin named by its id — each asked POPULAR, a preview and a first
 chapter through the real host (`doc/probes/novel-live.ts`, one solve per
-plugin):
+plugin). Free Web Novel 2.3.10, the same template, was measured on the same
+solver for c663, with `doc/probes/novel-archive.ts` printing which archive
+branch each of its novels took:
 
-| Plugin       | POPULAR                     | Preview                 | First chapter                                     |
-| ------------ | --------------------------- | ----------------------- | ------------------------------------------------- |
-| NovelFull    | 20 in 6.8 s (solve 2.2 s)   | 3,956 chapters in 5.8 s | 18,839 bytes in 3.7 s, at the chapter's own page  |
-| Scribble Hub | 25 in 8.7 s (solve 4.1 s)   | 1 chapter in 17.6 s     | 18,157 bytes in 13.8 s, at the chapter's own page |
-| Royal Road   | 20 in 14.8 s (solve 13.3 s) | 109 chapters in 0.8 s   | 54,606 bytes in 0.9 s, at the chapter's own page  |
+| Plugin         | POPULAR                     | Preview                 | First chapter                                     |
+| -------------- | --------------------------- | ----------------------- | ------------------------------------------------- |
+| NovelFull      | 20 in 6.8 s (solve 2.2 s)   | 3,956 chapters in 5.8 s | 18,839 bytes in 3.7 s, at the chapter's own page  |
+| Scribble Hub   | 25 in 8.7 s (solve 4.1 s)   | 1 chapter in 17.6 s     | 18,157 bytes in 13.8 s, at the chapter's own page |
+| Royal Road     | 20 in 14.8 s (solve 13.3 s) | 109 chapters in 0.8 s   | 54,606 bytes in 0.9 s, at the chapter's own page  |
+| Free Web Novel | 20 in 8.4 s (solve 4.3 s)   | 3,237 chapters in 7.5 s | the solver's browser timed out at its 50 s, twice |
 
 - **Both hosts page mode was built for are past their check.** Every page came
   back 200, and the run paid one solve per plugin and no second: NovelFull
@@ -423,8 +428,9 @@ plugin):
   without the header, and the browser's `GET` answered `200`, 668,537 bytes,
   for 3,956 chapters. Its other branch, taken when the novel page exposes a
   chapter count, POSTs the same archive with the `X-Requested-With` header:
-  page mode had nothing to drop here, and a POST needing a header is still
-  unmeasured live.
+  page mode had nothing to drop here. Free Web Novel's branch was measured
+  instead (below), and the header it sets is not needed there; a POST that
+  _needs_ the header is still unmeasured live.
 - **Scribble Hub's chapter list carried its `FormData`.** The url-encoded form
   page mode sends reached `/wp-admin/admin-ajax.php` as a `POST` and answered
   `200`, 372 bytes, for the one chapter the novel its POPULAR lists first has.
@@ -434,6 +440,28 @@ plugin):
 - **Every chapter's request ended where the plugin asked it to**, so the page
   a chapter's pictures resolve against (c631) is the one the downloader
   computed before it: none of these three hosts redirected a chapter.
+- **Free Web Novel took the POST branch, and did not need the header it sets
+  (c663).** `FWN.com` 2.3.10 uses the same `readnovelfull` template as
+  NovelFull; its novel page carries `id="indexListPage" …
+data-total-chapters="3237"`, so the plugin's `y` is truthy and it POSTs its
+  archive (`api/chapterlist.php`) rather than GETting it. Page mode sent what
+  a `PageRequest` can carry — the method and a url-encoded `postData`, no
+  headers at all — and the archive answered `200`, 272,477 bytes, for 3,237
+  chapters in 7.5 s. Its `X-Requested-With: XMLHttpRequest` was therefore
+  dropped and the list came back whole, so this host does not need it. A host
+  that does is still unmeasured, and page mode has no field to send one
+  (`PageRequest` is `{ url, method?, postData? }`): that is a shape it cannot
+  carry, not a check it claims to have passed. Its chapter page did not come
+  in this run, twice: the solver's browser timed out at its own 50 s
+  (`the solver did not answer in 60 s`), which is the solver's trouble and
+  not the site's check. `doc/probes/novel-archive.ts` prints each branch it
+  met. Its own line, and the solver's receipt of the same request (a
+  different run, so `cid` differs; the plugin picks it):
+
+  ```text
+  #1 Shadow Slave | POST https://freewebnovel.com/api/chapterlist.php body="aid=1991&acode=shadow-slave&cid=436" (fields=url+method+postData) -> 200 272477 bytes at https://freewebnovel.com/api/chapterlist.php in 2.8s
+  Incoming request => POST /v1 body: {'cmd': 'request.post', 'url': 'https://freewebnovel.com/api/chapterlist.php', 'maxTimeout': 50000, 'postData': 'aid=1991&acode=shadow-slave&cid=1090'}
+  ```
 
 A row that no longer matches is a measurement that has moved, not a bug: run
 the probe again before trusting it.
@@ -445,7 +473,8 @@ Chromium's `<pre>`, a form POST and a refused PUT, a picture's image page, a
 site's own 403, the solver's 500, a browser that dies once and twice, a
 timeout, an unreachable solver, a local address refused before the solver
 hears of it and again when a name moves inside, a redirect ending on a local
-address not read back, and one page per host at a time with the same request
+address not read back, a lookup of the address the browser ended on failing
+(c662), and one page per host at a time with the same request
 answered once and two hosts at once. `tests/novel-host.spec.ts`, "a check
 bound to the browser that solved it: page mode (c335)", is the host's half,
 with a site that refuses the host's clearance and passes only the stub
