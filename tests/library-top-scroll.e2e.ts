@@ -618,6 +618,15 @@ test('a FILTER choice from the pinned band opens the new results at their start;
 	await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
 	await expect(kinds(page)).not.toHaveClass(/pinned/);
 	await open();
+	// It scrolls itself in a moment after it shows, by how much each device
+	// needs: the place is the one it comes to rest at.
+	await expect
+		.poll(async () => {
+			const before = await windowY(page);
+			await page.waitForTimeout(150);
+			return before === (await windowY(page));
+		})
+		.toBe(true);
 	const top = await windowY(page);
 	await expect(kinds(page)).not.toHaveClass(/pinned/);
 	await form('ANY').click();

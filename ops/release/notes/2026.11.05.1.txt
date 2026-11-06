@@ -1,0 +1,7 @@
+The library: the sidebar now holds your shelves, and a band above the grid picks the kind (MANGA, MANHWA, NOVELS, ANIME), so "the anime on TO READ" is two taps. The search bar stays on top, and BACK TO TOP appears as you scroll.
+IMPORT A BACKUP: bring a Mihon backup in from the browser, from your phone too, and see what it holds before anything is written. IMPORT LOG keeps what came in.
+The series screen: LINK and TRACKING are one LISTS row, and on a phone the settings fold under DETAILS, so the chapters are closer. A group can be renamed.
+Novels: choose the text's WIDTH in READING, as a percentage or a centred page, and the reading direction. Pages follow your finger, and OpenDyslexic is a font.
+The player: a volume slider, a preview over the seek bar, and subtitles in picture-in-picture.
+Reading time shows on a series and in HISTORY. MOVE is faster and puts its matches first. A source can be hidden, or kept out of HISTORY, on its own settings page.
+If you copied chapter files into Mihon/downloads yourself: series you already have stay, but a rescan no longer picks up new ones there. A backup in Mihon/autobackup is still read.
