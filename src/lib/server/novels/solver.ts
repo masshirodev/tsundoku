@@ -203,3 +203,211 @@ function noteChecked(host: string, at: number): void {
 		)
 		.run(host, at);
 }
+
+// ---- a page through the solver's browser (doc/NOVELS.md, "A check bound to the browser"; c335) ----
+//
+// NovelFull and Scribble Hub hand a solve a clearance and then refuse it to
+// any client but the browser that solved it (measured 2026-11-02, twice). For
+// such a host the plugin host asks for the page itself, and this fetches it
+// through FlareSolverr's browser. What comes back is that browser's DOM after
+// its scripts ran, its status the browser's, after any redirects it followed.
+
+/** What the plugin host asks for: GET, or POST with a url-encoded form, the only body the solver sends. */
+export type PageRequest = { url: string; method?: string; postData?: string };
+
+/** A page as the solver's browser ended on it: [url] after redirects, the base its links resolve against. */
+export type Page = { url: string; status: number; contentType: string; body: string };
+
+/** A page, or a sentence saying why there is none: the host notes it as the call's trouble. */
+export type PageAnswer = { page: Page } | { error: string };
+
+/** The solve budget again: the browser's first visit to a host still passes its check. */
+const PAGE_MS = 60_000;
+
+/**
+ * Chromium dying under FlareSolverr (c492, filed 2026-11-04): about every 25 s
+ * under load a request answers "invalid session id … browser has closed the
+ * connection". That is the solver's browser, not the site, so it is asked once
+ * more; any other failure is not.
+ */
+const BROWSER_DIED = /invalid session id|browser has closed the connection|session deleted/i;
+
+/** One page per host at a time: a plugin firing ten requests must not start ten browsers. */
+const pageTurn = new Map<string, Promise<PageAnswer>>();
+/** The same request already underway: answered once, for both askers. */
+const pageAsked = new Map<string, Promise<PageAnswer>>();
+
+/**
+ * [req]'s page through the solver's browser, or why not. The address is
+ * checked to be on the internet first, every time, before the solver hears of
+ * it, and so is the address the browser ended on: a redirect to a local
+ * address is not read back. No solver exception for a local address exists,
+ * so the host's test ports never reach here.
+ */
+export function fetchPage(
+	req: PageRequest,
+	opts: { timeoutMs?: number } = {}
+): Promise<PageAnswer> {
+	let host: string;
+	try {
+		host = new URL(req.url).hostname.toLowerCase();
+	} catch {
+		return Promise.resolve({ error: 'not an address' });
+	}
+	const method = (req.method ?? 'GET').toUpperCase();
+	if (method !== 'GET' && method !== 'POST')
+		return Promise.resolve({
+			error: `the solver's browser sends GET and POST only, not ${method}`
+		});
+	const key = `${method} ${req.url}\n${req.postData ?? ''}`;
+	const same = pageAsked.get(key);
+	if (same) return same;
+	const before = pageTurn.get(host) ?? Promise.resolve();
+	// Forgotten before anyone awaiting it resumes: a request made the moment an
+	// answer lands is a new request, not the old answer again.
+	const one: Promise<PageAnswer> = before
+		.then(() => pageOne({ ...req, method }, host, opts.timeoutMs ?? PAGE_MS))
+		.catch((e: unknown) => ({ error: String((e as Error)?.message ?? e) }))
+		.finally(() => {
+			if (pageTurn.get(host) === one) pageTurn.delete(host);
+			if (pageAsked.get(key) === one) pageAsked.delete(key);
+		});
+	pageTurn.set(host, one);
+	pageAsked.set(key, one);
+	return one;
+}
+
+async function pageOne(req: PageRequest, host: string, budget: number): Promise<PageAnswer> {
+	try {
+		await checkPublic(req.url);
+	} catch (e) {
+		return { error: `refused: ${(e as Error).message || `${host} is not on the internet`}` };
+	}
+	const deadline = AbortSignal.timeout(budget);
+	let answer = await askPage(req, deadline, budget);
+	if ('died' in answer) answer = await askPage(req, deadline, budget);
+	if ('died' in answer) return { error: `the solver's browser closed twice (${answer.died})` };
+	if ('error' in answer) return answer;
+	try {
+		await checkPublic(answer.page.url);
+	} catch {
+		return {
+			error: `the solver's browser ended at ${hostLabel(answer.page.url)}, which is not on the internet`
+		};
+	}
+	if (answer.page.status < 400) noteChecked(host, Date.now());
+	return answer;
+}
+
+const hostLabel = (url: string) => {
+	try {
+		return new URL(url).hostname;
+	} catch {
+		return 'an address it could not name';
+	}
+};
+
+type PageSolution = {
+	status?: string;
+	message?: string;
+	solution?: {
+		url?: string;
+		status?: number;
+		response?: unknown;
+		headers?: Record<string, string>;
+	};
+};
+
+async function askPage(
+	req: PageRequest,
+	deadline: AbortSignal,
+	budget: number
+): Promise<PageAnswer | { died: string }> {
+	const post = req.method === 'POST';
+	let res: Response;
+	try {
+		res = await fetch(novelSolverUrl(), {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				cmd: post ? 'request.post' : 'request.get',
+				url: req.url,
+				maxTimeout: Math.min(MAX_TIMEOUT_MS, budget),
+				...(post ? { postData: req.postData ?? '' } : {})
+			}),
+			signal: deadline
+		});
+	} catch (e) {
+		if (deadline.aborted) return { error: `the solver did not answer in ${budget / 1000} s` };
+		return { error: `the solver could not be reached (${(e as Error).message})` };
+	}
+	let body: PageSolution | null;
+	try {
+		body = (await res.json()) as PageSolution;
+	} catch {
+		if (deadline.aborted) return { error: `the solver did not answer in ${budget / 1000} s` };
+		body = null;
+	}
+	const message = String(body?.message ?? '');
+	if (BROWSER_DIED.test(message)) return { died: message };
+	if (!res.ok)
+		return { error: `the solver answered ${res.status}${message ? ` (${message})` : ''}` };
+	if (body?.status !== 'ok' || !body.solution) return { error: 'the solver gave no page' };
+	const s = body.solution;
+	if (typeof s.response !== 'string') return { error: 'the solver gave no page' };
+	const status = s.status ?? 200;
+	if (!Number.isInteger(status) || status < 200 || status > 599)
+		return { error: `the solver's browser reported status ${status}` };
+	const url = typeof s.url === 'string' && s.url ? s.url : req.url;
+	if (isImageViewer(s.response))
+		return {
+			error: `${hostLabel(url)} sent a picture, not a page: the solver's browser hands back pages only`
+		};
+	const text = unwrapText(s.response);
+	if (text !== null)
+		return {
+			page: {
+				url,
+				status,
+				contentType: jsonish(text) ? 'application/json' : 'text/plain',
+				body: text
+			}
+		};
+	return { page: { url, status, contentType: 'text/html; charset=utf-8', body: s.response } };
+}
+
+/**
+ * Chromium shows a document that isn't HTML (JSON, plain text) as a page
+ * holding one `<pre>`, and FlareSolverr hands back that page: the text inside
+ * it, unescaped, is what the site sent.
+ */
+const WRAPPED =
+	/^\s*<html[^>]*>\s*<head>[\s\S]*?<\/head>\s*<body[^>]*>\s*<pre[^>]*>([\s\S]*?)<\/pre>\s*(?:<div class="json-formatter-container"><\/div>\s*)?<\/body>\s*<\/html>\s*$/i;
+
+export function unwrapText(html: string): string | null {
+	const m = WRAPPED.exec(html);
+	if (!m) return null;
+	return m[1].replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi, (all, e: string) => {
+		const k = e.toLowerCase();
+		if (k === 'amp') return '&';
+		if (k === 'lt') return '<';
+		if (k === 'gt') return '>';
+		if (k === 'quot') return '"';
+		if (k === 'apos') return "'";
+		if (k === 'nbsp') return ' ';
+		const n = k.startsWith('#x') ? parseInt(k.slice(2), 16) : parseInt(k.slice(1), 10);
+		return Number.isFinite(n) && n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : all;
+	});
+}
+
+const jsonish = (text: string) => {
+	try {
+		JSON.parse(text);
+		return true;
+	} catch {
+		return false;
+	}
+};
+
+/** Chromium's page for a picture: a body holding one `<img>` and nothing else. */
+const isImageViewer = (html: string) => /<body[^>]*>\s*<img\b[^>]*>\s*<\/body>/i.test(html);
