@@ -1409,7 +1409,10 @@
 				attempts = 1;
 				lastAt = Date.now();
 				stopRetry();
-				checking.textContent = 'CHECKING ' + at.replace('http://', '') + '…';
+				// The scheme is stripped without case, as hostOf and connect() do:
+				// a TV keyboard that capitalises the first letter types HTTP://,
+				// and the line must read the host, not the scheme (c621).
+				checking.textContent = 'CHECKING ' + at.replace(/^https?:\/\//i, '') + '…';
 				next.disabled = true;
 				if (bridge) bridge.probe(at);
 				else checking.textContent = 'THE APP BRIDGE IS MISSING · THIS PAGE OPENS FROM THE APK';
@@ -1566,10 +1569,9 @@
 			function lost(at) {
 				lastOrigin = at;
 				lostFor = at;
-				lostTitle.textContent =
-					'○ NOTHING ANSWERS AT ' + at.replace('http://', '').replace('https://', '');
+				lostTitle.textContent = '○ NOTHING ANSWERS AT ' + hostOf(at);
 				const prefix = prefixOf(own);
-				const wanted = prefixOf(at.replace(/^https?:\/\//, '').replace(/:\d+.*$/, ''));
+				const wanted = prefixOf(hostOf(at).replace(/:\d+.*$/, ''));
 				// A phone may be on mobile data, with no Wi-Fi to be "another" one
 				// (9D · ON MOBILE DATA); the bridge says which (Network.kt).
 				const network = bridge && typeof bridge.network === 'function' ? bridge.network() : '';

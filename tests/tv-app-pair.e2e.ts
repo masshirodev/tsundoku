@@ -418,6 +418,36 @@ test('a whole address typed with its scheme in capitals is probed with one schem
 	}
 });
 
+test('CHECKING and the lost line strip a scheme typed in capitals, as a lower-case one (c621)', async ({
+	page
+}) => {
+	// 9B's origin() keeps what was typed, capitals included (it tests the scheme
+	// without case since c548). The status line used to strip `http://` with a
+	// case-sensitive replace, so a keyboard that capitalised the first letter
+	// read `CHECKING HTTP://Zen.local:42143…` where a lower-case address read
+	// its host; 9D had the same strip on its title (c621).
+	const typed = 'HTTP://Zen.local:42143';
+	await stubBridge(page, { hold: true });
+	await page.goto(page9);
+	await page.keyboard.press('Enter'); // START → 9B
+	await page.locator('#whole-toggle').focus();
+	await page.keyboard.press('Enter'); // TYPE THE WHOLE ADDRESS
+	await page.locator('#last').fill(typed);
+	await page.locator('#next').click();
+
+	// The probe is held, so CHECKING is the attempt in hand. The host is shown
+	// as typed, without the scheme and without a second one put in front.
+	await expect.poll(() => page.evaluate(() => window.__bridge!.pending)).toBe(typed);
+	await expect(page.locator('#checking')).toHaveText('CHECKING Zen.local:42143…');
+
+	// The answer is the unreachable one, the way a real bridge answers a probe
+	// that found no tsundoku. A failure for the attempt in hand enters 9D, whose
+	// title names the same host, lower-case scheme stripped all the same.
+	await page.evaluate((at) => window.tsundokuProbe?.(at, false), typed);
+	await expect(page.locator('#lost-title')).toHaveText('○ NOTHING ANSWERS AT Zen.local:42143');
+	await expect(page.locator('#lost-title')).not.toContainText('HTTP://');
+});
+
 test('a typed whole address with a query fails at its origin (c260)', async ({ page }) => {
 	await stubBridge(page);
 	await page.goto(page9);
