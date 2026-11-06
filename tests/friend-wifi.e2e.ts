@@ -198,7 +198,8 @@ test('the phone scans it, is signed in, and the computer lists it with SIGN OUT'
  * could reopen SETTINGS to swap a TV code five wrong tries burned for a fresh
  * one, and buy five more. A case of its own, with no computer page open:
  * the panel's poll reruns the computer's load when a phone pairs, and that
- * load does renew (doc/WIFI.md), which would replace the burn under the test.
+ * load renewed until c531 (doc/WIFI.md), which would have replaced the burn
+ * under the test.
  */
 test('a paired phone opening SETTINGS over Wi-Fi leaves a burned TV code burned (c460)', async ({
 	browser,

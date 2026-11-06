@@ -718,8 +718,10 @@ one has finished (`lastScanTook`: the newest finished job that isn't a
 backup's import). **CANCEL** and **RESCAN**, CANCEL where the sheet opens, so
 OK or Enter at once is the safe answer; Esc and the scrim cancel too. The
 sheet posts the same `?/scan` the sidebar's form did, and its answer is taken
-as before: the note under the row (`rescanNote`, the same lifetime, SCAN_WAITS
-included), then the library. **A scan already running is joined at once**,
+as before: a refusal is the note under the row (`rescanNote`), then the
+library; a scan that waits behind a backup's import shows SCAN_WAITS there
+from the server's own queue (`scanWaits` on the layout's data, set only
+while a scan someone asked for is queued, c512), until the scan starts. **A scan already running is joined at once**,
 without the question: there is nothing new to agree to. **Without script** the
 sidebar's form is the plain form it was, and posts. `tests/rescan-confirm.e2e.ts`
 (its own seeded database, since one case stages a running scan) and
