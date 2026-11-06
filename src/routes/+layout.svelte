@@ -17,11 +17,12 @@
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import { shelfHref, withParam } from '$lib/library/links';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { afterNavigate, beforeNavigate, goto, invalidate, invalidateAll } from '$app/navigation';
 	import { installPress } from '$lib/press';
 	import { screenMove, type ScreenMove } from '$lib/motion';
 	import { saveFocus, restoreFocus, installFocusLayer } from '$lib/focus';
+	import { isFocusable } from '$lib/focus/dom';
 	import { noteVisit } from '$lib/back';
 	import { trail } from '$lib/start-trail.svelte';
 	import { waiting } from '$lib/waiting.svelte';
@@ -63,6 +64,19 @@
 	// stayed until the next press, on every page.
 	let rescanNote = $state('');
 	const rescanShown = $derived(data.scanWaits ?? rescanNote);
+	// Where the remote came from to reach the band's ✕ (the bar, on a TV): the
+	// ✕ goes with the band, and the mark goes back there rather than to the
+	// page's body, where nothing shows it until the next arrow.
+	let bandFrom: HTMLElement | null = null;
+	async function closeBand(e: MouseEvent) {
+		const held = e.currentTarget === document.activeElement;
+		rescanNote = '';
+		const to = bandFrom;
+		bandFrom = null;
+		if (!held || !to) return;
+		await tick();
+		if (to.isConnected && isFocusable(to) && document.activeElement === document.body) to.focus();
+	}
 	// Only this load is asked again, every two seconds, while a scan is queued:
 	// no other page follows the queue, and the line must not outlive the wait.
 	$effect(() => {
@@ -520,8 +534,12 @@
 				<div class="rescan-band" role="status">
 					<span>{rescanShown}</span>
 					{#if !data.scanWaits}
-						<button type="button" aria-label={m.chrome_close()} onclick={() => (rescanNote = '')}
-							>✕</button
+						<button
+							type="button"
+							aria-label={m.chrome_close()}
+							onfocus={(e) =>
+								(bandFrom = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : null)}
+							onclick={closeBand}>✕</button
 						>
 					{/if}
 				</div>

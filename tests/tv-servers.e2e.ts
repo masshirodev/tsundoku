@@ -540,6 +540,49 @@ test('RESCAN in MORE: the remote reaches it, the question opens on CANCEL, and O
 	expect(posted).toEqual([]);
 });
 
+test('RESCAN in MORE, confirmed on an empty library: the band, its ✕ reached by arrows, and OK puts it away (c561)', async ({
+	page
+}) => {
+	// The shared server's library folder is empty (playwright.config.ts), so
+	// the scan is refused with where it looked, and nothing is imported.
+	const sheet = await openMore(page);
+	await sheet.locator('.row').first().focus();
+	let found = false;
+	for (let i = 0; i < 12 && !found; i++) {
+		if ((await focusedText(page)) === 'RESCAN') found = true;
+		else await page.keyboard.press('ArrowDown');
+	}
+	expect(found).toBe(true);
+	await page.keyboard.press('Enter');
+	const ask = page.getByRole('dialog', { name: 'RESCAN THE LIBRARY FOLDER?' });
+	await expect(ask.getByRole('button', { name: 'CANCEL' })).toBeFocused();
+	// The remote's way to the confirming answer: an arrow off CANCEL.
+	const yes = ask.getByRole('button', { name: 'RESCAN' });
+	for (const key of ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp']) {
+		if (await yes.evaluate((b) => b === document.activeElement)) break;
+		await page.keyboard.press(key);
+	}
+	await expect(yes).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(ask).toBeHidden();
+	const band = page.locator('.rescan-band');
+	await expect(band).toBeVisible();
+	await expect(band).toContainText('NOTHING TO IMPORT');
+	// The ✕ is a stop the remote reaches: up from the bar.
+	const more = page.locator('[data-focus-id="library-more"]');
+	await expect(more).toBeFocused();
+	const close = band.getByRole('button', { name: 'Close' });
+	for (let i = 0; i < 6; i++) {
+		if (await close.evaluate((b) => b === document.activeElement)) break;
+		await page.keyboard.press('ArrowUp');
+	}
+	await expect(close).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(band).toHaveCount(0);
+	// The mark is not lost with the button: it is back on the bar, where it came from.
+	await expect(more).toBeFocused();
+});
+
 test('TO LINK is a stop the remote reaches in MORE (c475)', async ({ page }) => {
 	const sheet = await openMore(page);
 	const row = sheet.locator('.row', { hasText: 'TO LINK' });
