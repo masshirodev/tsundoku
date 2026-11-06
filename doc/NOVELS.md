@@ -362,7 +362,12 @@ error, fixed? }`, a sentence, marked `fixed` when no new solve can change it
   address this app could not look up — a DNS failure, not the site's answer —
   lands there too (`the address could not be checked (getaddrinfo EAI_AGAIN
 …)`, marked `unsent`): the browser was never asked, and asking again asks the
-  lookup again rather than paying a solve for a hiccup (c630).
+  lookup again rather than paying a solve for a hiccup (c630). The same
+  lookup of the address the browser **ended on**, after it already answered,
+  is neither: the browser was asked, so not `unsent`, and a retry may succeed,
+  so not `fixed`. It goes unmarked, so it takes the third sentence below, and
+  TRY AGAIN asks afresh rather than calling the address permanently off the
+  internet (c662).
   What no new solve can change is
   `"<host>'s page can't come through the solver, and no solve changes that:
 <why>"`: an address `checkPublic` refuses (`refused: …`), one the browser was

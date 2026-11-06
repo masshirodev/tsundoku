@@ -312,10 +312,24 @@ async function pageOne(req: PageRequest, host: string, budget: number): Promise<
 	if ('error' in answer) return answer;
 	try {
 		await checkPublic(answer.page.url);
-	} catch {
+	} catch (e) {
+		// The first check ran before the browser was asked; this one runs after,
+		// on the address it ended on. Only an address `checkPublic` refuses is
+		// permanent here (c630, c662): a lookup that failed (EAI_AGAIN, ENOTFOUND)
+		// is the network's and a retry may succeed, so it is not `fixed`. It is
+		// not `unsent` either, since the browser was asked and this is its page's
+		// address: that flag is for a request the browser never saw, and the host
+		// words it "can't come through the solver" with TRY AGAIN leaving the
+		// memos alone. Unmarked, TRY AGAIN forgets them and asks afresh, which is
+		// the honest answer to "we fetched a page but could not check where it
+		// ended". No site_check is written: the host was not reached.
+		if (e instanceof NotPublicError)
+			return {
+				error: `the solver's browser ended at ${hostLabel(answer.page.url)}, which is not on the internet`,
+				fixed: true
+			};
 		return {
-			error: `the solver's browser ended at ${hostLabel(answer.page.url)}, which is not on the internet`,
-			fixed: true
+			error: `the solver's browser ended at ${hostLabel(answer.page.url)}, and its address could not be checked (${(e as Error).message || 'the lookup failed'})`
 		};
 	}
 	if (answer.page.status < 400) noteChecked(host, Date.now());

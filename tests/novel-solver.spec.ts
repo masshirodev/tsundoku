@@ -17,11 +17,12 @@ const ADDRESSES: Record<string, string[]> = {
 };
 vi.mock('node:dns/promises', () => ({
 	lookup: async (host: string) => {
-		// One name whose lookup fails as a transient DNS error does (c630).
-		if (host === 'flaky.example')
-			throw Object.assign(new Error('getaddrinfo EAI_AGAIN flaky.example'), {
-				code: 'EAI_AGAIN'
-			});
+		// Names whose lookup fails as a transient DNS error does (c630), before
+		// the browser is asked and after it answers (c662).
+		if (host === 'flaky.example' || host === 'lost.example') {
+			const code = host === 'flaky.example' ? 'EAI_AGAIN' : 'ENOTFOUND';
+			throw Object.assign(new Error(`getaddrinfo ${code} ${host}`), { code });
+		}
 		return (ADDRESSES[host] ?? []).map((address) => ({
 			address,
 			family: address.includes(':') ? 6 : 4
@@ -544,6 +545,28 @@ describe('a page through the solver’s browser (c335)', () => {
 		// The solver was never asked, and no check was recorded for a host that
 		// was never reached.
 		expect(asked).toEqual([]);
+		expect(checked()).toEqual([]);
+	});
+
+	it('calls a failed lookup of the address the browser ended on the network’s, not a refusal (c662)', async () => {
+		// This is the second `checkPublic`: the browser was asked and answered,
+		// and the lookup of the URL it ended on failed. A new solve is not the
+		// cure, but neither is the address permanently off the internet, so the
+		// answer is neither fixed nor unsent.
+		for (const [name, code] of [
+			['flaky.example', 'EAI_AGAIN'],
+			['lost.example', 'ENOTFOUND']
+		]) {
+			reply = () => ({ status: 200, body: page(BODY, { url: `https://${name}/moved` }) });
+			const answer = await fetchPage({ url: 'https://www.novel.example/c/1' });
+			expect(answer, name).toEqual({
+				error: `the solver's browser ended at ${name}, and its address could not be checked (getaddrinfo ${code} ${name})`
+			});
+			expect(answer).not.toHaveProperty('fixed');
+			expect(answer).not.toHaveProperty('unsent');
+		}
+		// The page came, but its address was never checked, so the host was not
+		// recorded as checked.
 		expect(checked()).toEqual([]);
 	});
 
