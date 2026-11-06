@@ -1,5 +1,6 @@
 import { test, expect, hydrated } from './fixtures';
 import { bumpWebtoons, NOVEL_REPO, REPO, resetEngine } from './browse-world';
+import { HOLD_MAX_MS } from '../src/routes/browse/test-hold.server';
 
 /**
  * EXTENSIONS (Index-Extensions; doc/BROWSE.md, "Extensions and
@@ -20,6 +21,14 @@ let writes = new Set<import('@playwright/test').Request>();
 /** Webtoons.com, the extension the first case installs and updates: a failed copy can leave it. */
 const WEBTOONS = 'eu.kanade.tachiyomi.extension.all.webtoons';
 
+/**
+ * Whether this case asked the browse world to hold a form post (c636), read
+ * off the requests themselves: the teardown's late check only means something
+ * where a hold was sent, and waiting for it in every case that installs Good
+ * Novels was 5.2 s of nothing (c665).
+ */
+let holdSent = false;
+
 test.beforeEach(async ({ page, baseURL }) => {
 	await resetEngine();
 	// A copy that failed before its own REMOVE still has Webtoons.com installed,
@@ -27,15 +36,28 @@ test.beforeEach(async ({ page, baseURL }) => {
 	// 1.6.2 (c607 (b), c636). REMOVE is idempotent and keeps a source's switches,
 	// which this case never turns on.
 	const origin = new URL(baseURL!).origin;
-	await page.request.post(`${origin}/browse/extensions?/remove`, {
+	const reset = await page.request.post(`${origin}/browse/extensions?/remove`, {
 		form: { pkg: WEBTOONS },
-		headers: { origin },
+		// Without `accept: text/html` SvelteKit answers the action 200, not 303,
+		// and the check below would never see the redirect it wants (c665).
+		headers: { origin, accept: 'text/html' },
 		maxRedirects: 0
 	});
+	// A refused reset would leave the leftover in place and the case would fail
+	// later at INSTALL, which is the confusing symptom c607 fixed (c665).
+	expect.soft(reset.status(), 'leftover Webtoons removed').toBe(303);
+	// The stronger half: whatever the answer, it is not installed now. Asked of
+	// the server's own markup, not through a page: a hydrated page here would
+	// set tsundoku_js=1 before c473's case, which asserts it is not set.
+	const installed = await page.request.get(`${origin}/browse/extensions`);
+	expect.soft(installed.ok(), `installed list answers: ${installed.status()}`).toBe(true);
+	expect.soft(await installed.text(), 'Webtoons.com absent').not.toContain('Webtoons.com');
+	holdSent = false;
 	writes = new Set();
 	const own = writes;
 	page.on('request', (r) => {
 		if (r.method() !== 'GET') own.add(r);
+		if (r.headers()['x-tsundoku-hold']) holdSent = true;
 	});
 	page.on('requestfinished', (r) => own.delete(r));
 	page.on('requestfailed', (r) => own.delete(r));
@@ -100,15 +122,21 @@ test.afterEach(async ({ page }, testInfo) => {
 		on = await switchesOn();
 	}
 	// Past the longest hold the world allows (`test-hold.server.ts`'s
-	// HOLD_MAX_MS, 5 s): a write that outlived the put-back lands inside this
-	// wait, and the switches read back on. The c636 case's evidence is here, in
-	// the teardown that holds it, not in the case that runs next (review 2).
-	await new Promise((r) => setTimeout(r, 5_200));
-	const late = await switchesOn();
+	// HOLD_MAX_MS, from the one value, not a second 5.2 s): a write that
+	// outlived the put-back lands inside this wait, and the switches read back
+	// on. The c636 case's evidence is here, in the teardown that holds it, not
+	// in the case that runs next (review 2). Only where a hold was sent: no
+	// other case can leave one in flight, and the wait was 5.2 s of nothing in
+	// all of them (c665).
+	let late = -1;
+	if (holdSent) {
+		await new Promise((r) => setTimeout(r, HOLD_MAX_MS + 200));
+		late = await switchesOn();
+	}
 	const removed = await post('/browse/extensions?/remove', { pkg: 'ln:goodnovels' });
 	await page.context().clearCookies({ name: 'tsundoku_reveal' });
 	expect.soft(on, 'Good Novels’ switches read back off before REMOVE').toBe(0);
-	expect.soft(late, 'nothing landed after the put-back').toBe(0);
+	if (holdSent) expect.soft(late, 'nothing landed after the put-back').toBe(0);
 	expect
 		.soft(removed.status() === 303 || removed.ok(), `Good Novels removed: ${removed.status()}`)
 		.toBe(true);
