@@ -673,6 +673,17 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		return () => page.unroute(isAction);
 	}
 
+	/**
+	 * Lose every POST of this action. The nudge on the next navigation retries
+	 * a failed save (`+layout.svelte`, `afterNavigate`), so a case that leaves
+	 * the page needs this rather than `loseFirst`.
+	 */
+	async function loseAll(page: Page, action: 'favourite' | 'rate') {
+		const isAction = (u: URL) => u.pathname === '/' && u.search === `?/${action}`;
+		await page.route(isAction, (route) => route.abort());
+		return () => page.unroute(isAction);
+	}
+
 	test('FAV PUT BACK: the tile draws it dashed until the stored value comes back (c659)', async ({
 		page
 	}) => {
@@ -719,24 +730,191 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await expect(fav).toHaveAttribute('aria-pressed', 'false');
 	});
 
-	test('FAV tapped again: the later save that lands ends it too (c659)', async ({ page }) => {
+	test('a later tap: the one that lands ends it, and one that fails marks it again (c659)', async ({
+		page
+	}) => {
+		await page.goto('/?sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const bars = tile.getByRole('img');
+		const rate = tile.getByRole('button', { name: /^Rate, / });
+		await expect(bars).toHaveAttribute('aria-label', 'Unrated');
+		// The rating, not FAV: a FAV tap sends the value back to the seed's, so a
+		// reload cannot show whether the later POST was stored. Any rating can,
+		// so this one sends 4 -- neither the seed's 0 nor the lost 6.
+		const isRate = (u: URL) => u.pathname === '/' && u.search === '?/rate';
+		let lose = true;
+		await page.route(isRate, (route) => (lose ? route.abort() : route.continue()));
+		const pick = async (name: string) => {
+			await rate.click();
+			await tile.getByRole('button', { name }).click();
+		};
+
+		await pick('Rate 6 of 10');
+		await expect(bars).toHaveAttribute('aria-label', 'Rated 6 of 10');
+		await expect(page.getByText('RATING 6 NOT SAVED')).toBeVisible();
+		await expect(rate).toHaveClass(/unsaved/);
+
+		// The same field's next tap clears the failure before it saves. This one
+		// lands: wait for its own answer, then read the stored value back off a
+		// reload rather than trusting the tap.
+		lose = false;
+		const answered = page.waitForResponse((r) => {
+			const u = new URL(r.url());
+			return u.pathname === '/' && u.search === '?/rate' && r.ok();
+		});
+		await pick('Rate 4 of 10');
+		expect(((await (await answered).json()) as { type?: string }).type).toBe('success');
+		await expect(page.getByText('RATING 6 NOT SAVED')).toHaveCount(0);
+		await expect(rate).not.toHaveClass(/unsaved/);
+		await page.reload();
+		await expect(bars).toHaveAttribute('aria-label', 'Rated 4 of 10');
+
+		// A later tap that fails brings the mark back, and PUT BACK reads the
+		// value the reload stored.
+		lose = true;
+		await pick('Rate 8 of 10');
+		await expect(page.getByText('RATING 8 NOT SAVED')).toBeVisible();
+		await expect(rate).toHaveClass(/unsaved/);
+		await page.getByRole('button', { name: 'PUT BACK 4' }).click();
+		await expect(page.getByText('RATING 8 NOT SAVED')).toHaveCount(0);
+		await expect(rate).not.toHaveClass(/unsaved/);
+		await expect(bars).toHaveAttribute('aria-label', 'Rated 4 of 10');
+
+		// Back to the seed: unrated.
+		lose = false;
+		const cleared = page.waitForResponse((r) => {
+			const u = new URL(r.url());
+			return u.pathname === '/' && u.search === '?/rate' && r.ok();
+		});
+		await rate.click();
+		await tile.getByRole('button', { name: 'Unrated' }).click();
+		await cleared;
+		await page.reload();
+		await expect(bars).toHaveAttribute('aria-label', 'Unrated');
+		await page.unroute(isRate);
+	});
+
+	test('two failed taps: both tiles stay dashed, and each has its own way back (c659, round 2)', async ({
+		page
+	}) => {
+		// `saves` holds one failure, so a second lost tap used to leave the
+		// first tile drawn as if its value were stored, with no band to put it
+		// back. The mark is the tile's own value now, and the displaced failure
+		// is kept and raised as the band clears.
+		await page.goto('/?sort=title');
+		const tiles = page
+			.locator('.grid .tile')
+			.filter({ has: page.getByRole('button', { name: 'Favourite' }) });
+		await expect(tiles.nth(1)).toBeAttached();
+		const first = tiles.nth(0);
+		const second = tiles.nth(1);
+		const favA = first.getByRole('button', { name: 'Favourite' });
+		const favB = second.getByRole('button', { name: 'Favourite' });
+		const wasA = await favA.getAttribute('aria-pressed');
+		const wasB = await favB.getAttribute('aria-pressed');
+		const done = await loseAll(page, 'favourite');
+
+		await favA.click();
+		await expect(favA).toHaveClass(/unsaved/);
+		await favB.click();
+		await expect(favB).toHaveClass(/unsaved/);
+		// Both are unstored whichever band the second tap left up.
+		await expect(favA).toHaveClass(/unsaved/);
+		await expect(page.getByText(/FAV NOT SAVED|UNFAV NOT SAVED/)).toBeVisible();
+
+		// PUT BACK ends the band's own failure; the one it displaced takes the
+		// band, so the first tile keeps its way back.
+		await page.getByRole('button', { name: /PUT BACK/ }).click();
+		await expect(favB).not.toHaveClass(/unsaved/);
+		await expect(favA).toHaveClass(/unsaved/);
+		await expect(page.getByText(/FAV NOT SAVED|UNFAV NOT SAVED/)).toBeVisible();
+		await page.getByRole('button', { name: /PUT BACK/ }).click();
+		await expect(page.getByText(/FAV NOT SAVED|UNFAV NOT SAVED/)).toHaveCount(0);
+		await expect(favA).not.toHaveClass(/unsaved/);
+		await expect(favA).toHaveAttribute('aria-pressed', wasA!);
+		await expect(favB).toHaveAttribute('aria-pressed', wasB!);
+		await done();
+
+		// Neither was stored: a reload draws the seed's values.
+		await page.reload();
+		await expect(tiles.nth(0).getByRole('button', { name: 'Favourite' })).toHaveAttribute(
+			'aria-pressed',
+			wasA!
+		);
+		await expect(tiles.nth(1).getByRole('button', { name: 'Favourite' })).toHaveAttribute(
+			'aria-pressed',
+			wasB!
+		);
+	});
+
+	test('FAV then a rating on one tile: the displaced failure keeps its way back (c659, round 2)', async ({
+		page
+	}) => {
+		await page.goto('/?sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const fav = tile.getByRole('button', { name: 'Favourite' });
+		const bars = tile.getByRole('img');
+		const rate = tile.getByRole('button', { name: /^Rate, / });
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await expect(bars).toHaveAttribute('aria-label', 'Unrated');
+		const noFav = await loseAll(page, 'favourite');
+		const noRate = await loseAll(page, 'rate');
+
+		await fav.click();
+		await rate.click();
+		await tile.getByRole('button', { name: 'Rate 6 of 10' }).click();
+		await expect(fav).toHaveClass(/unsaved/);
+		await expect(rate).toHaveClass(/unsaved/);
+		await expect(page.getByText('RATING 6 NOT SAVED')).toBeVisible();
+
+		// The rating's band first; putting it back raises the FAV failure under it.
+		await page.getByRole('button', { name: 'PUT BACK 0' }).click();
+		await expect(page.getByText('RATING 6 NOT SAVED')).toHaveCount(0);
+		await expect(rate).not.toHaveClass(/unsaved/);
+		await expect(fav).toHaveClass(/unsaved/);
+		await expect(page.getByText('FAV NOT SAVED')).toBeVisible();
+		await page.getByRole('button', { name: 'PUT BACK · NOT FAV' }).click();
+		await expect(page.getByText('FAV NOT SAVED')).toHaveCount(0);
+		await expect(fav).not.toHaveClass(/unsaved/);
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await expect(bars).toHaveAttribute('aria-label', 'Unrated');
+		await noFav();
+		await noRate();
+	});
+
+	test('a tile read again after a trip away draws the stored value, not a mark (c659, round 2)', async ({
+		page
+	}) => {
+		// `saves` outlives the page and `favNow` does not: the failure is still
+		// the band's, but the tile that comes back holds the stored value, so
+		// nothing on it is "not stored yet".
 		await page.goto('/?sort=title');
 		const tile = page.locator('.grid .tile', { hasText: TITLE });
 		const fav = tile.getByRole('button', { name: 'Favourite' });
 		await expect(fav).toHaveAttribute('aria-pressed', 'false');
-		const done = await loseFirst(page, 'favourite');
+		const done = await loseAll(page, 'favourite');
 
 		await fav.click();
-		await expect(page.getByText('FAV NOT SAVED')).toBeVisible();
 		await expect(fav).toHaveClass(/unsaved/);
-		await done();
-		// The same field's next tap clears the failure before it saves.
-		await fav.click();
+		await expect(page.getByText('FAV NOT SAVED')).toBeVisible();
+
+		// The series and back, as the owner does; the nudge retries on the way and
+		// loses too.
+		await tile.locator('.open').click();
+		await page.waitForURL(/\/series\//);
+		await page.goBack();
+		await expect(page.locator('.grid .tile', { hasText: TITLE })).toBeAttached();
+
+		const back = page.locator('.grid .tile', { hasText: TITLE });
+		const backFav = back.getByRole('button', { name: 'Favourite' });
+		await expect(backFav).toHaveAttribute('aria-pressed', 'false');
+		await expect(backFav).not.toHaveClass(/unsaved/);
+		// The band is the app's, not the page's: it still offers the way back.
+		await expect(page.getByText('FAV NOT SAVED')).toBeVisible();
+		await page.getByRole('button', { name: 'PUT BACK · NOT FAV' }).click();
 		await expect(page.getByText('FAV NOT SAVED')).toHaveCount(0);
-		await expect(fav).not.toHaveClass(/unsaved/);
-		await expect(fav).toHaveAttribute('aria-pressed', 'false');
-		await page.reload();
-		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await expect(backFav).not.toHaveClass(/unsaved/);
+		await done();
 	});
 
 	test('the rating draws dashed as well, and PUT BACK ends it (c659)', async ({ page }) => {

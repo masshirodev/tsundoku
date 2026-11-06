@@ -38,7 +38,7 @@
 	import FocusLine from '$lib/components/content/FocusLine.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { waiting } from '$lib/waiting.svelte';
-	import { postAction, saves } from '$lib/saves.svelte';
+	import { postAction, saves, type FailedSave } from '$lib/saves.svelte';
 	import { seriesSaves } from '$lib/serial-saves';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
@@ -1079,6 +1079,76 @@
 	const ratingNow = new SvelteMap<number, Rating>();
 
 	/**
+	 * Whether what the tile draws for this field is an owner's tap that is not
+	 * stored (c659, round 2). Read from the page, not from the band: the band
+	 * carries one failure, and a second failed tap takes it, but the first
+	 * tile still shows a value nothing stored. A value the page does not hold
+	 * is the stored one -- a tile re-drawn after a trip away shows what the
+	 * server had, so it is not marked -- and a field with a save still in
+	 * flight is left alone until its turn says which it is.
+	 */
+	function unsaved(field: 'fav' | 'rating', id: number, stored: boolean | Rating): boolean {
+		// Read for its signal alone: a failure raised after the tap has to redraw
+		// the tile, and neither `pending()` (a plain Map) nor the value maps
+		// change when it is raised. What the band shows does not decide the mark.
+		void saves.failed;
+		if (seriesSaves.pending(`${field}:${id}`)) return false;
+		const now = field === 'fav' ? favNow.get(id) : ratingNow.get(id);
+		return now !== undefined && now !== stored;
+	}
+
+	/** Whether the value `key` names is still one this page draws as not stored. */
+	function unsavedKey(key: string): boolean {
+		const cut = key.indexOf(':');
+		const field = key.slice(0, cut) === 'fav' ? 'fav' : 'rating';
+		const id = Number(key.slice(cut + 1));
+		const card = series.find((s) => s.id === id);
+		// A tile the grid no longer draws cannot be asked; its failure keeps its
+		// way out rather than going with the tile.
+		if (!card) return true;
+		return unsaved(field, id, field === 'fav' ? card.favourite : card.rating);
+	}
+
+	/**
+	 * Failures a later one took the band from (c659, round 2). `saves` holds
+	 * one, so a second failed tap would leave the first value unsaved with no
+	 * band offering RETRY or PUT BACK. Kept here in tap order and raised again
+	 * as the band clears, so every unstored value keeps its way out. A
+	 * multi-failure store in `saves` itself would be the better home; that file
+	 * is another slot's this wave (see the notes' Gaps).
+	 */
+	let displaced: FailedSave[] = [];
+
+	/**
+	 * Put a failure in the band, keeping any it displaces. A newer failure of
+	 * the same field replaces the older one: its value is superseded, and the
+	 * band would name a value the tile no longer draws.
+	 */
+	function raise(failed: FailedSave) {
+		displaced = displaced.filter((f) => f.key !== failed.key);
+		const held = saves.failed;
+		if (held && held.key !== failed.key) {
+			displaced = [...displaced.filter((f) => f.key !== held.key), held];
+		}
+		saves.fail(failed);
+	}
+
+	/** The value `key` names was stored: no failure of it has anything left to say. */
+	function forget(key: string) {
+		displaced = displaced.filter((f) => f.key !== key);
+	}
+
+	// The band is one and the failures can be more: when it clears, the next
+	// one takes it. A displaced failure whose value has since been stored (a
+	// later tap that landed) is dropped rather than raised over a stored value.
+	$effect(() => {
+		if (saves.failed) return;
+		let next = displaced.shift();
+		while (next && !unsavedKey(next.key)) next = displaced.shift();
+		if (next) saves.fail(next);
+	});
+
+	/**
 	 * One save in flight per series and field, the last tap winning, on the
 	 * series screen's queue (`seriesSaves`, doc/SERIES.md "FAV and the
 	 * rating", c566): the same keys, so a tile tap and a series screen tap on
@@ -1106,8 +1176,11 @@
 		}
 		// Not `pending()`: an older turn still reloading is pending too.
 		if (turn.newer()) return;
-		if (turn.ok) return settle();
-		saves.fail({
+		if (turn.ok) {
+			forget(key);
+			return settle();
+		}
+		raise({
 			...failure(),
 			key,
 			retry: async () => {
@@ -1118,7 +1191,10 @@
 				} finally {
 					seriesSaves.settle(key);
 				}
-				if (again.ok && !again.newer()) settle();
+				if (again.ok && !again.newer()) {
+					forget(key);
+					settle();
+				}
 				return again.ok;
 			}
 		});
@@ -2154,8 +2230,8 @@
 							hue={s.hue}
 							rating={ratingNow.get(s.id) ?? s.rating}
 							favourite={favNow.get(s.id) ?? s.favourite}
-							favUnsaved={saves.unsaved(`fav:${s.id}`)}
-							ratingUnsaved={saves.unsaved(`rating:${s.id}`)}
+							favUnsaved={unsaved('fav', s.id, s.favourite)}
+							ratingUnsaved={unsaved('rating', s.id, s.rating)}
 							newCount={s.newCount}
 							hidden={s.hidden}
 							indexing={!s.indexed}
