@@ -15,6 +15,7 @@ import {
 	type Values
 } from '../settings/catalog.ts';
 import type { Kind } from '../library/types.ts';
+import { KINDS, kindFacts } from '../library/kinds.ts';
 
 /**
  * The SETTINGS page's library half (doc/SETTINGS.md; card c171): the values
@@ -95,9 +96,10 @@ export function overrideCounts(reveal: boolean): OverrideCounts {
 			db
 				.prepare(
 					`SELECT COUNT(*) AS n FROM series s JOIN roots r ON r.id = s.root_id
-					WHERE ${libraryWhere(reveal)} AND s.kind = ? AND s.direction IS NOT NULL AND s.direction != ?`
+					WHERE ${libraryWhere(reveal)} AND s.kind = ?
+					AND ((s.direction IS NOT NULL AND s.direction != ?) OR (? AND s.text_direction = 'rtl'))`
 				)
-				.get(kind, def ?? '') as { n: number }
+				.get(kind, def ?? '', takesTextDirection(kind) ? 1 : 0) as { n: number }
 		).n;
 	}
 	const edition = (
@@ -117,25 +119,68 @@ export function overrideCounts(reveal: boolean): OverrideCounts {
 	};
 }
 
-/** MODE's N SERIES DIFFER → opened: each series reading against its kind's default. */
-export function modeOverrides(
-	reveal: boolean
-): { seriesId: number; title: string; kind: Kind; direction: string }[] {
+/**
+ * A book of text keeps its page direction in a column of its own
+ * (`series.text_direction`, c440; doc/TEXT-READER.md, "Direction"): NULL is
+ * L→R, the only default, since the owner chose no SETTINGS default for it
+ * (c552). So a novel differs when it is kept R→L; a stored 'ltr' reads as
+ * NULL does and is not counted. The registry says which kinds read text.
+ */
+const TEXT_KINDS = KINDS.filter((k) => kindFacts(k).medium === 'text');
+const takesTextDirection = (kind: Kind) => TEXT_KINDS.includes(kind);
+
+export type ModeOverride = {
+	seriesId: number;
+	title: string;
+	kind: Kind;
+	/** Its own mode (a comic) or layout (a novel), where it differs from the kind's default. */
+	direction: string | null;
+	/** A novel kept R→L (c552): its page direction differs from L→R. */
+	rtl: boolean;
+};
+
+/**
+ * MODE's and LAYOUT's N SERIES DIFFER → opened: each series reading against
+ * its kind's default, a novel kept R→L among them (c552).
+ */
+export function modeOverrides(reveal: boolean): ModeOverride[] {
 	return (
 		getDb()
 			.prepare(
-				`SELECT s.id, s.title, s.kind, s.direction FROM series s JOIN roots r ON r.id = s.root_id
+				`SELECT s.id, s.title, s.kind, s.direction, s.text_direction FROM series s
+				JOIN roots r ON r.id = s.root_id
 				WHERE ${libraryWhere(reveal)} AND s.kind IN ('manga', 'manhwa', 'doujin', 'novel')
-				AND s.direction IS NOT NULL ORDER BY s.title COLLATE NOCASE`
+				AND (s.direction IS NOT NULL OR s.text_direction = 'rtl') ORDER BY s.title COLLATE NOCASE`
 			)
-			.all() as { id: number; title: string; kind: Kind; direction: string }[]
+			.all() as {
+			id: number;
+			title: string;
+			kind: Kind;
+			direction: string | null;
+			text_direction: string | null;
+		}[]
 	)
-		.filter((r) => r.direction !== kindDirection(r.kind))
-		.map((r) => ({ seriesId: r.id, title: r.title, kind: r.kind, direction: r.direction }));
+		.map((r) => ({
+			seriesId: r.id,
+			title: r.title,
+			kind: r.kind,
+			direction: r.direction !== null && r.direction !== kindDirection(r.kind) ? r.direction : null,
+			rtl: takesTextDirection(r.kind) && r.text_direction === 'rtl'
+		}))
+		.filter((o) => o.direction !== null || o.rtl);
 }
 
-/** ✕ on a series that reads its own way: back to its kind's default. */
+/**
+ * ✕ on a series that reads its own way: back to its kind's defaults, both
+ * of them for a novel (its layout, and L→R: c552). A comic's
+ * `text_direction`, left from a time it was a novel, is not its to clear.
+ */
 export function clearModes(seriesIds: number[]): void {
-	const put = getDb().prepare(`UPDATE series SET direction = NULL WHERE id = ?`);
-	getDb().transaction(() => seriesIds.forEach((id) => put.run(id)))();
+	const text = TEXT_KINDS.map(() => '?').join(', ') || 'NULL';
+	const put = getDb().prepare(
+		`UPDATE series SET direction = NULL,
+			text_direction = CASE WHEN kind IN (${text}) THEN NULL ELSE text_direction END
+		WHERE id = ?`
+	);
+	getDb().transaction(() => seriesIds.forEach((id) => put.run(...TEXT_KINDS, id)))();
 }

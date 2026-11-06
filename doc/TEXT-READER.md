@@ -348,8 +348,11 @@ left. It decides which way the pages turn, never how the text runs.
   REMEMBER posts to the reader's own action
   (`/read/<entry>?/textDirection`), which only a book of text takes
   (`kindFacts(kind).medium`) and which, like the page, answers 404 for a
-  hidden series with reveal off. There is no SETTINGS default per kind for it
-  yet: L→R is the default everywhere.
+  hidden series with reveal off. There is no SETTINGS default for it, by the
+  owner's choice (c552, 2026-11-05): L→R is the default everywhere. A novel
+  kept R→L is counted under SETTINGS' LAYOUT, N SERIES DIFFER →, whose ✕
+  puts it back on L→R ([`SETTINGS.md`](SETTINGS.md), "02 — Reading ·
+  novels").
 - **On a TV** the row is a stop in READING's panel: ↓ from LAYOUT lands on it,
   ← → move along it, OK takes a value; with the panel and the controls gone,
   the remote's ← reads on in R→L.

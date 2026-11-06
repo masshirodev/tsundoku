@@ -27,6 +27,7 @@ import {
 } from '$lib/settings/stamped';
 import { audioLine, differ, inUse, overrideLine, subsLine, when } from '$lib/settings/lines';
 import { DEFAULT_SETTINGS, TEXT_FONTS } from '$lib/reader/text';
+import { modeLine } from '../src/routes/settings/mode-line';
 
 const section = (id: string) => SECTIONS.find((s) => s.id === id)!;
 
@@ -248,5 +249,27 @@ describe('the page’s lines', () => {
 		expect(inUse('PAGED · WIDER', false)).toBe(true);
 		expect(inUse('PAGED · PHONE', false)).toBe(false);
 		expect(inUse('VERTICAL · PHONE', true)).toBe(true);
+	});
+});
+
+describe('MODE’s and LAYOUT’s N SERIES DIFFER → list (2A)', () => {
+	it('says what the series reads by, a novel kept R→L included, beside or without its layout (c552)', () => {
+		// Every combination of the two things a series can differ by.
+		expect(modeLine({ kind: 'manga', direction: 'ltr', rtl: false })).toBe(
+			'L→R · MANGA · CHOSEN IN THE READER'
+		);
+		expect(modeLine({ kind: 'novel', direction: 'scroll', rtl: false })).toBe(
+			'SCROLL · NOVEL · CHOSEN IN THE READER'
+		);
+		expect(modeLine({ kind: 'novel', direction: null, rtl: true })).toBe(
+			'R→L · NOVEL · CHOSEN IN THE READER'
+		);
+		expect(modeLine({ kind: 'novel', direction: 'paged', rtl: true })).toBe(
+			'PAGED · R→L · NOVEL · CHOSEN IN THE READER'
+		);
+		// A word the table lacks is said as it is stored.
+		expect(modeLine({ kind: 'manhwa', direction: 'sideways', rtl: false })).toBe(
+			'SIDEWAYS · MANHWA · CHOSEN IN THE READER'
+		);
 	});
 });
