@@ -2,7 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { isRevealed } from '$lib/server/prefs';
 import { linkQueue, reviewItem, seriesAccess } from '$lib/server/catalogue';
-import { partItem, seasonReview } from './review-state.server';
+import { seasonReview } from './review-state.server';
 import { configured, suggestConfigured } from '$lib/server/ranobe';
 import { ranobeItem, ranobeQueue, ranobeSeries } from '$lib/server/ranobe-review';
 import {
@@ -75,14 +75,15 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 			url.searchParams.get('part') === '2' && at
 				? (() => {
 						const drawn = seasonReview(id, at, view?.seasons.length ?? 0, access.hidden, 2);
-						const item = partItem(id, reveal, at.season);
+						const item = reviewItem(id, reveal, at.season, 2);
 						return drawn && item ? { drawn, item } : null;
 					})()
 				: null;
 		// The season's own item: its search, its candidates checked against its
 		// own title and episode count (24 here, 24 there), never the whole show's
-		// and never the series-level search (c240, wave 17).
-		const item = second?.item ?? reviewItem(id, reveal, at?.season);
+		// and never the series-level search (c240, wave 17). A season whose only
+		// row is part 2 (c592) stands on part 2, and its item is part 2's.
+		const item = second?.item ?? reviewItem(id, reveal, at?.season, at?.link?.part ?? 1);
 		if (!item) error(404, 'not found');
 		// The LINK row is the season's own, never the open season's or the
 		// series' mirror: a season with no row of its own is not linked (c240).

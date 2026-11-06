@@ -268,7 +268,11 @@ node node_modules/kotoba/scripts/sync-dict.js static/dict
 
 # 3. Put back the lock entries of kotoba's dependencies that yarn dropped,
 #    each where it stood in HEAD's lock. Prints what it restored; a second
-#    run restores nothing.
+#    run restores nothing. The script follows kotoba's direct dependencies
+#    only: a dependency of one of those is pruned the same way, and its
+#    block is put back from `git show HEAD:yarn.lock` too (nothing kotoba
+#    depends on has one today -- `@patdx/kuromoji` has no dependencies --
+#    so this is the rule for the first that does).
 node - <<'JS'
 const { execFileSync } = require('node:child_process');
 const { readFileSync, writeFileSync } = require('node:fs');
@@ -301,8 +305,11 @@ yarn run check
 
 How to tell it went wrong: step 4's second command prints a line. A
 `-"@patdx/kuromoji@…"` (or another of kotoba's dependencies) means step 3 did
-not run or ran before step 2. Any other removed line is the new package
-changing an existing entry (a range it shares, now resolved to a newer
+not run or ran before step 2. A removed entry belonging to a **dependency of
+one of kotoba's dependencies** is the same prune, not the new package changing
+an entry: the script could not read that deeper tree either, so put its block
+back from `git show HEAD:yarn.lock` as well. Any other removed line is the new
+package changing an existing entry (a range it shares, now resolved to a newer
 version): read it, and say so in the commit. `yarn run check` failing to
 resolve `kotoba` means step 2 did not follow the last yarn command, a
 `yarn remove` or a `yarn install` included.

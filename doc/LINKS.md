@@ -386,7 +386,8 @@ on desktop and in tablet landscape.
 - Every decision is carried out at once. UNDO takes back LINK (and a rating it
   gave), NONE OF THESE and SEARCH AGAIN. A search's UNDO puts back the search
   and the candidates it replaced; it never made a link, so it takes none back.
-  SKIP has no UNDO, as in the mock.
+  LINK N SEASONS' band has an UNDO too (c595), taking back every season that
+  post wrote (below, "The series screen"). SKIP has no UNDO, as in the mock.
 - `?series=N` is one series only: FIND or CHANGE on its screen. It has no
   SKIP, and deciding goes back to the series, but for a season's LINK on an
   anime with more seasons whose answer has the rest of the show to offer,
@@ -552,7 +553,15 @@ HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. Under that band
   rule, the one door that writes two parts at once: every other door
   (LINK on the review, a pasted link, the owner's list, the pass's sure
   match, `+ A SECOND PART`) writes one part through `linkSeason`, whose own
-  refusal writes nothing. **NOT NOW has two cases on one
+  refusal writes nothing. **Its band has an UNDO** (c595): it takes back
+  every season that post wrote, and only those, each part as it stood before
+  (the link and the decision the post replaced). The band carries those
+  facts, never a fresh read, and the UNDO is one transaction -- a band that
+  said UNDO and took back half a post would be a lie. It refuses whole, with
+  nothing changed, if any part it wrote or read was linked, unlinked or
+  decided again since (`LINKED OR DECIDED AGAIN SINCE`), and says
+  `ALREADY UNDONE` to a second press. A reload drops the band, as single
+  LINK's: it is the page's own state. **NOT NOW has two cases on one
   series.** After a LINK made on the page, it goes back to the series, the
   season just linked showing on its line on LISTS (c423, round 2). An offer that
   came with the page's load (CHANGE in EDIT's sheet on a linked season, while another season
@@ -590,16 +599,26 @@ SECOND PART` under a linked entry, the same search, then `FROM EP. 13`).
   its candidates; but once part 2 is linked `+ A SECOND PART` steps aside,
   so the page is reached only at its `&part=2` address (no door on the
   season's page leads back to it yet). A season whose only row is part 2
-  (part 1 unlinked, e.g. a CHANGE of part 1 then its UNDO) has no second
-  part to add: the page stands on part 2 and posts `part: 2`, and its
-  search and paste are drawn against the season's own item, as before c350.
+  (part 1 unlinked) has no second part to add: the page stands on part 2 and
+  posts `part: 2`, and its search, its candidates and its paste are part 2's
+  own (c592, `reviewItem`'s `part`), never part 1's. An orphaned part 2 has
+  no span and sends nothing until part 1 is linked again: part 1's count is
+  what places it, and nothing records that count once its row is gone. Its
+  own count cannot place it either -- a list shorter than the season (part 2
+  still airing, which is when part 2 gets linked alone) would start it inside
+  part 1. UNDO of part 1 is refused while part 2 is
+  linked (`PART 2 IS LINKED · UNLINK IT BEFORE UNDOING PART 1`), so a CHANGE
+  of part 1 followed by its UNDO no longer makes such a season; a library
+  that already holds one is read this way.
   The series screen's season line reads the season's own search, part 1's
   (`season_link_searches` at part 1), so part 2's never counts as the
   season's candidates or queue. A season never takes
   a third part: the API answers 400 for any part past 2
   (`CHECK (part IN (1, 2))`). **`FROM EP. n` is bound to part 1's count.**
   `series_season_links` keeps no start for a part: part 2 begins after part
-  1's `episodes` (`partsOf`), and the send counts within it from there
+  1's `episodes` (`partsOf`) -- and with part 1's row gone it has no start at
+  all, so it sends nothing until part 1 is linked again -- and the send
+  counts within it from there
   (`targets()`, `reachedFor`), so part 1's last episode completes part 1 and
   the season's EP. 13 is sent as part 2's EP. 1. A different `n` would have
   nowhere to live, so the field says

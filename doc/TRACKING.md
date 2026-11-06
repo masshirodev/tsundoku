@@ -125,7 +125,11 @@ every door, wave 17 round 2; [`LINKS.md`](LINKS.md), "One season, one entry").
   split one season in two. EP. 15 of a season whose part 1 is 12 episodes is
   part 2's EP. 3, and part 1 completes itself at 12. A recap and a half
   number (S3's 14.5) are never sent, and an episode past the last part's
-  count waits: `EP. 13 WAITS · ANILIST LISTS 12`.
+  count waits: `EP. 13 WAITS · ANILIST LISTS 12`. A part 2 with no part 1
+  beside it (a library may hold one, c592) sends nothing until part 1 is
+  linked again: part 1's count is what places it, and that count is recorded
+  nowhere once its row is gone. Its own count cannot place it either, since
+  the list may hold only part of a season still airing.
 - **Where:** AniList's `ANIME` entry (`SaveMediaListEntry`), and MAL's
   `/anime/<id>/my_list_status` with `num_watched_episodes` -- never the
   manga's endpoint or `num_chapters_read` (c240). An anime's target is one

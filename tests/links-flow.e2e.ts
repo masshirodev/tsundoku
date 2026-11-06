@@ -597,6 +597,14 @@ const ids = seedAnime();
 
 test.describe('a catalogue that answers', () => {
 	test.beforeAll(async () => {
+		// This hook seeds a database and spawns a stand-in catalogue and a
+		// preview, then polls up to 60 s for it: all inside the default 30 s hook
+		// budget, where `work-end-frame`'s same shape ran past 30 s in wave 20's
+		// gate (c477). Measured at 2 s here, at a load average of 20 with the
+		// other slots at work; the house budget is 120 s so a loaded gate fails a
+		// case, never the hook (c599). In a hook, `test.setTimeout` sets the
+		// hook's own budget (Playwright's test.d.ts).
+		test.setTimeout(120_000);
 		const fakePort = await freePort();
 		fakeCatalogue = createServer((req: IncomingMessage, res: ServerResponse) => {
 			let body = '';
@@ -1215,12 +1223,16 @@ test.describe('a catalogue that answers', () => {
 			await expect(page.locator('.band .line').nth(1)).toHaveText(
 				'SEASON 2 NOT LINKED · SEASON 4 HOLDS PART 2’S ENTRY'
 			);
-			await expect(page.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
-			expect(partsOf(id)).toEqual([
-				{ season: 1, part: 1, anilist_id: 9501 },
-				{ season: 3, part: 1, anilist_id: 9504 },
-				{ season: 4, part: 1, anilist_id: 9503 }
-			]);
+			// The band has an UNDO for the season it did write (c595), and only
+			// that one: season 1 and season 4 are not its post's.
+			await expect(page.getByRole('button', { name: 'UNDO' })).toBeVisible();
+			await page.getByRole('button', { name: 'UNDO' }).click();
+			await expect
+				.poll(() => partsOf(id))
+				.toEqual([
+					{ season: 1, part: 1, anilist_id: 9501 },
+					{ season: 4, part: 1, anilist_id: 9503 }
+				]);
 		} finally {
 			forgetFlatList(id);
 		}

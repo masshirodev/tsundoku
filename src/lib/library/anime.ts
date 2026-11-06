@@ -256,6 +256,17 @@ export function partsOf(
 	for (const p of [...parts].sort((a, b) => a.part - b.part)) {
 		const count = p.episodes && p.episodes > 0 ? p.episodes : Math.max(0, of - next + 1);
 		if (count <= 0) continue;
+		// A later part with no earlier part beside it (part 1 unlinked) has no
+		// start anyone recorded (c592): part 1's count is what places it, and
+		// once that row is gone the number is nowhere. Its own count cannot
+		// place it either -- `of` is what the list holds, which may be part of
+		// a season still airing, so counting back from it would begin inside
+		// part 1. It gets the empty span and sends nothing until part 1 is
+		// linked again.
+		if (p.part > 1 && next === 1) {
+			out.push({ part: p.part, from: of + 1, to: of });
+			continue;
+		}
 		out.push({ part: p.part, from: next, to: next + count - 1 });
 		next += count;
 	}

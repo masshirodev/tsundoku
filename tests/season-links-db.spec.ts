@@ -148,6 +148,9 @@ add(node(412, 'Parts Show Part 2', 'TV', 12, 2014), [['PREQUEL', 411]]);
 // what `+ A SECOND PART` asks.
 add(node(501, 'Hand Show Season 2', 'TV', 12, 2020));
 add(node(502, 'Hand Show Final Chapter', 'TV', 11, 2021));
+// An entry whose own count is close to the season's listed 23, so the check a
+// part's candidates are made against shows in the EPISODES row (c592's round 2).
+add(node(503, 'Hand Show Final Chapter II', 'TV', 21, 2022));
 /** What a title search answers (any title): the walk's fake answers no search. */
 let SEARCH: number[] = [];
 
@@ -397,7 +400,7 @@ describe('the relation walk (c351)', () => {
 		// never an offer of that season.
 		const spinOff = 301 + RELATION_TYPES.indexOf('SPIN_OFF');
 		const r = seasons.linkPicks(id, 'anime', [{ season: 3, part: 1, anilistId: spinOff }], NOW);
-		expect(r).toEqual({
+		expect(r).toMatchObject({
 			linked: [],
 			refused: [
 				{ season: 3, part: 1, heldBy: null, why: 'SEASON 3 NOT LINKED · NO LONGER OFFERED' }
@@ -444,7 +447,7 @@ describe('the relation walk (c351)', () => {
 			offers.map((o) => ({ season: o.season, part: o.part, anilistId: o.anilistId })),
 			NOW
 		);
-		expect(r).toEqual({
+		expect(r).toMatchObject({
 			linked: [
 				{ season: 2, part: 1 },
 				{ season: 2, part: 2 }
@@ -828,7 +831,7 @@ describe('an entry another season holds (c418)', () => {
 			],
 			NOW
 		);
-		expect(r).toEqual({
+		expect(r).toMatchObject({
 			linked: [{ season: 4, part: 1 }],
 			refused: [
 				{
@@ -904,7 +907,7 @@ describe('a split season is linked whole or not at all (c466, the owner’s (b))
 		// Meanwhile (a second tab) season 4 is given part 2's entry.
 		link(id, 4, 403);
 		const r = seasons.linkPicks(id, 'anime', picks, NOW);
-		expect(r).toEqual({
+		expect(r).toMatchObject({
 			linked: [{ season: 3, part: 1 }],
 			refused: [
 				{ season: 2, part: 1, heldBy: null, why: WHY },
@@ -945,7 +948,7 @@ describe('a split season is linked whole or not at all (c466, the owner’s (b))
 			.map((o) => ({ season: o.season, part: o.part, anilistId: o.anilistId }));
 		expect(again).toEqual(picks.slice(0, 2));
 		const r = seasons.linkPicks(id, 'anime', again, NOW);
-		expect(r).toEqual({
+		expect(r).toMatchObject({
 			linked: [
 				{ season: 2, part: 1 },
 				{ season: 2, part: 2 }
@@ -961,7 +964,7 @@ describe('a split season is linked whole or not at all (c466, the owner’s (b))
 	it('takes the same pair picked twice in one post as one pick', async () => {
 		const { id, picks } = await offered([12, 23, 12]);
 		const r = seasons.linkPicks(id, 'anime', [...picks, ...picks], NOW);
-		expect(r).toEqual({
+		expect(r).toMatchObject({
 			linked: [
 				{ season: 2, part: 1 },
 				{ season: 2, part: 2 },
@@ -1031,7 +1034,9 @@ describe('a split season is linked whole or not at all (c466, the owner’s (b))
 	it('a season picked at one part alone keeps its own words', async () => {
 		const { id } = await offered([12, 23, 12, 11]);
 		link(id, 4, 404);
-		expect(seasons.linkPicks(id, 'anime', [{ season: 3, part: 1, anilistId: 404 }], NOW)).toEqual({
+		expect(
+			seasons.linkPicks(id, 'anime', [{ season: 3, part: 1, anilistId: 404 }], NOW)
+		).toMatchObject({
 			linked: [],
 			refused: [
 				{
@@ -1227,23 +1232,43 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n (c350)',
 		});
 	});
 
-	it('a season whose only row is part 2 still searches and pastes against the season’s item', async () => {
-		// The app's own doors reach it: both parts linked, CHANGE part 1 on the
-		// season's page, then the band's UNDO, which takes part 1's row alone.
+	it('a season whose only row is part 2 searches and pastes against part 2’s own item (c592)', async () => {
+		// A library may already hold the state (c592): a CHANGE of part 1 followed
+		// by the band's UNDO left it, before UNDO refused that. Part 2's row alone.
 		const id = show([12, 23]);
-		link(id, 2, 501);
 		link(id, 2, 502, 2);
-		seasons.undoSeasonLink(id, 2, 1);
 		expect(linked(id)).toEqual([[2, 2, 502]]);
 		// The page stands on part 2 (its one row), with no second part to offer.
 		const at = await page(id, 2);
 		expect(at.season.part).toBe(2);
 		expect(at.season.second).toBe(null);
-		// So it posts part: 2, and part 2 has no item of its own (part 1 is not
-		// linked): the search and the paste are the season's, as before c350.
+		// So it posts part: 2, and the answer is part 2's own item: the search it
+		// just wrote, with its candidates -- never part 1's empty one.
+		SEARCH = [501, 502, 503];
 		const found = await api({ series: id, search: 'Hand Show Season 2', season: 2, part: 2 });
 		expect(found.status).toBe(200);
-		expect(found.body.item).not.toBe(null);
+		const item = found.body.item as {
+			part: number;
+			found: number;
+			candidates: { anilistId: number; rows?: { label: string; value: string }[] }[];
+		};
+		expect(item.part).toBe(2);
+		expect(item.found).toBe(3);
+		expect(item.candidates.map((c) => c.anilistId)).toEqual([501, 502, 503]);
+		// Checked against the season's own listed count (23), not part 2's
+		// guessed 11: part 1's count is what would place part 2, and it is gone
+		// (c592's round 2). 501 and 502 are far from 23; 503 is close, and its
+		// row is the one that says what the check was against.
+		expect(item.candidates.map((c) => c.rows?.find((r) => r.label === 'EPISODES')?.value)).toEqual([
+			'12',
+			'11',
+			'21 · THIS HAS 23'
+		]);
+		// The page reloaded at the season stands on the same item and draws them.
+		const drawn = await page(id, 2);
+		expect(drawn.items[0].part).toBe(2);
+		expect(drawn.items[0].candidates.map((c) => c.anilistId)).toEqual([501, 502, 503]);
+		// A paste reads against part 2's item too.
 		const pasted = await api({
 			series: id,
 			paste: 'https://anilist.co/anime/502',
@@ -1252,6 +1277,62 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n (c350)',
 		});
 		expect(pasted.status).toBe(200);
 		expect((pasted.body.candidate as { anilistId: number }).anilistId).toBe(502);
+	});
+
+	it('an orphaned part 2 has no start: nothing is sent from EP. 1 or anywhere (c592)', () => {
+		// The state a library may hold: part 2's row, no part 1 beside it.
+		const id = show([12, 23]);
+		link(id, 2, 502, 2);
+		// Part 1's count is what places part 2, and it is not recorded: the
+		// season's 23 listed episodes could all be part 1's, for all this knows.
+		expect(seasons.seriesSeasons(id)!.seasons[1].parts).toMatchObject([
+			{ part: 2, from: 24, to: 23 }
+		]);
+		// EP. 1-12 are part 1's, and part 1 is not linked: nothing goes to part 2.
+		watch(id, 2, 1);
+		expect(tr.queueProgress(id, NOW)).toBe(0);
+		watch(id, 2, 12);
+		expect(tr.queueProgress(id, NOW)).toBe(0);
+		// Nor does an episode part 2's entry does list get sent anywhere: without
+		// part 1's count there is no way to know it is part 2's EP. 1, let alone
+		// its EP. 13.
+		watch(id, 2, 13);
+		expect(tr.queueProgress(id, NOW)).toBe(0);
+		watch(id, 2, 23);
+		expect(tr.queueProgress(id, NOW)).toBe(0);
+		expect(sends(id)).toEqual([]);
+	});
+
+	it('an orphaned part 2 on a list shorter than the season sends nothing (c592, round 2)', () => {
+		// 18 of a 23-episode season listed: part 2 is still airing, which is
+		// exactly when it gets linked alone. Counting back from the list's 18 by
+		// part 2's 11 would begin at EP. 8, inside part 1, and send EP. 8-12 as
+		// part 2's progress -- the fault the card is about (c592's round 2).
+		const id = show([12, 18]);
+		link(id, 2, 502, 2);
+		expect(seasons.seriesSeasons(id)!.seasons[1].parts).toMatchObject([
+			{ part: 2, from: 19, to: 18 }
+		]);
+		watch(id, 2, 8);
+		expect(tr.queueProgress(id, NOW)).toBe(0);
+		watch(id, 2, 18);
+		expect(tr.queueProgress(id, NOW)).toBe(0);
+		expect(sends(id)).toEqual([]);
+	});
+
+	it('UNDO of part 1 is refused while part 2 stands, so the orphan is never made (c592)', () => {
+		const id = show([12, 23]);
+		link(id, 2, 501);
+		link(id, 2, 502, 2);
+		expect(() => seasons.undoSeasonLink(id, 2, 1)).toThrow('PART 2 IS LINKED');
+		expect(linked(id)).toEqual([
+			[2, 1, 501],
+			[2, 2, 502]
+		]);
+		// Part 2's own UNLINK is not the refusal, and then part 1's UNDO is its own.
+		expect(seasons.undoSeasonLink(id, 2, 2)).toBe(true);
+		expect(seasons.undoSeasonLink(id, 2, 1)).toBe(true);
+		expect(linked(id)).toEqual([]);
 	});
 
 	it('a part 2 search never stands for the season’s own search on the series screen', async () => {
@@ -1288,5 +1369,186 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n (c350)',
 		expect(linked(id)).toEqual([[2, 1, 501]]);
 		expect(seasons.seasonDecision(id, 2)).toBe(null);
 		expect((await page(id, 2)).season.second).toMatchObject({ from: 13, linked: false });
+	});
+});
+
+describe('LINK N SEASONS’ UNDO (c595)', () => {
+	const cookies = { get: () => undefined } as never;
+	const api = async (body: object): Promise<{ status: number; body: Record<string, unknown> }> => {
+		try {
+			const r = await POST({
+				request: new Request('http://x/api/links', {
+					method: 'POST',
+					body: JSON.stringify(body)
+				}),
+				cookies
+			} as never);
+			return { status: r.status, body: (await r.json()) as Record<string, unknown> };
+		} catch (e) {
+			const x = e as { status: number; body: { message: string } };
+			if (typeof x?.status !== 'number') throw e;
+			return { status: x.status, body: { message: x.body.message } };
+		}
+	};
+	/** A season's search and its one candidate, as the pass leaves them. */
+	const seed = (id: number, season: number, entry: number, part = 1) =>
+		expect(
+			seasons.saveSeasonSearch(id, season, part, `Show Season ${season}`, [entryOf(entry)], NOW)
+		).toBe(1);
+	const post = (id: number, picks: { season: number; part: number; anilistId: number }[]) =>
+		api({ series: id, seasons: picks });
+	const undo = (id: number, facts: unknown) => api({ series: id, undo: 'seasons', facts });
+
+	beforeEach(() => {
+		// The covers' refresh after a LINK runs in the background: nothing it
+		// asks the network for is part of this.
+		vi.stubGlobal('fetch', async () => new Response('', { status: 404 }));
+	});
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('takes back every season the post wrote, and only those', async () => {
+		const id = show([12, 23, 12]);
+		seed(id, 1, 501);
+		seed(id, 2, 502);
+		// Linked before the post: its band's UNDO is not this one's business.
+		link(id, 3, 404);
+		const r = await post(id, [
+			{ season: 1, part: 1, anilistId: 501 },
+			{ season: 2, part: 1, anilistId: 502 }
+		]);
+		expect([r.status, r.body.linked, r.body.of]).toEqual([200, 2, 2]);
+		expect(linked(id)).toEqual([
+			[1, 1, 501],
+			[2, 1, 502],
+			[3, 1, 404]
+		]);
+		const undone = await undo(id, r.body.facts);
+		expect(undone.status).toBe(200);
+		// Every season the post wrote is gone; season 3, which it did not, stays.
+		expect(linked(id)).toEqual([[3, 1, 404]]);
+	});
+
+	it('takes back both parts of a split season the post wrote', async () => {
+		const id = show([23]);
+		seed(id, 1, 501, 1);
+		seed(id, 1, 502, 2);
+		const r = await post(id, [
+			{ season: 1, part: 1, anilistId: 501 },
+			{ season: 1, part: 2, anilistId: 502 }
+		]);
+		expect([r.status, r.body.linked, r.body.of]).toEqual([200, 1, 1]);
+		expect(linked(id)).toEqual([
+			[1, 1, 501],
+			[1, 2, 502]
+		]);
+		expect((await undo(id, r.body.facts)).status).toBe(200);
+		expect(linked(id)).toEqual([]);
+	});
+
+	it('refuses whole when a season was linked again since, and changes nothing', async () => {
+		const id = show([12, 23, 12]);
+		seed(id, 1, 501);
+		seed(id, 2, 502);
+		const r = await post(id, [
+			{ season: 1, part: 1, anilistId: 501 },
+			{ season: 2, part: 1, anilistId: 502 }
+		]);
+		// The series screen (or a second tab): season 2 is given another entry.
+		link(id, 2, 404);
+		const undone = await undo(id, r.body.facts);
+		expect(undone).toEqual({ status: 409, body: { message: 'LINKED OR DECIDED AGAIN SINCE' } });
+		// Not half undone: season 1's row is the post's, and it stays too.
+		expect(linked(id)).toEqual([
+			[1, 1, 501],
+			[2, 1, 404]
+		]);
+	});
+
+	it('refuses a restore the entry another season took since, and changes nothing (c595 round 2)', async () => {
+		const id = show([12, 23, 12]);
+		// Season 2 holds 501 before the post; the post moves it to 502, and its
+		// facts carry the row it replaced.
+		link(id, 2, 501);
+		seed(id, 2, 502);
+		const r = await post(id, [{ season: 2, part: 1, anilistId: 502 }]);
+		expect([r.status, r.body.linked]).toEqual([200, 1]);
+		expect(linked(id)).toEqual([[2, 1, 502]]);
+		// 501 is free now, and a season outside the post's facts takes it: the
+		// state every link door refuses is one no door here can see.
+		link(id, 3, 501);
+		// UNDO would put 501 back on season 2, with season 3 still holding it.
+		const undone = await undo(id, r.body.facts);
+		expect(undone).toEqual({
+			status: 409,
+			body: { message: 'SEASON 3 HOLDS ITS ENTRY NOW' }
+		});
+		// Nothing changed: not half undone, and never two seasons on one entry.
+		expect(linked(id)).toEqual([
+			[2, 1, 502],
+			[3, 1, 501]
+		]);
+	});
+
+	it('refuses whole when a season was decided again since', async () => {
+		const id = show([12, 23]);
+		seed(id, 1, 501);
+		seed(id, 2, 502);
+		const r = await post(id, [
+			{ season: 1, part: 1, anilistId: 501 },
+			{ season: 2, part: 1, anilistId: 502 }
+		]);
+		cat.noneOfThese(id, NOW + 1, 1);
+		const undone = await undo(id, r.body.facts);
+		expect(undone.status).toBe(409);
+		expect(linked(id)).toEqual([
+			[1, 1, 501],
+			[2, 1, 502]
+		]);
+	});
+
+	it('a second UNDO of the same facts says so and changes nothing', async () => {
+		const id = show([12, 23]);
+		seed(id, 1, 501);
+		seed(id, 2, 502);
+		const r = await post(id, [
+			{ season: 1, part: 1, anilistId: 501 },
+			{ season: 2, part: 1, anilistId: 502 }
+		]);
+		expect((await undo(id, r.body.facts)).status).toBe(200);
+		expect(await undo(id, r.body.facts)).toEqual({
+			status: 409,
+			body: { message: 'ALREADY UNDONE' }
+		});
+		expect(linked(id)).toEqual([]);
+	});
+
+	it('two posts’ bands each take back their own seasons', async () => {
+		const id = show([12, 23, 12]);
+		seed(id, 1, 501);
+		seed(id, 2, 502);
+		seed(id, 3, 404);
+		const first = await post(id, [
+			{ season: 1, part: 1, anilistId: 501 },
+			{ season: 2, part: 1, anilistId: 502 }
+		]);
+		const second = await post(id, [{ season: 3, part: 1, anilistId: 404 }]);
+		expect((await undo(id, second.body.facts)).status).toBe(200);
+		// The second band's UNDO takes season 3 only; the first post's stay.
+		expect(linked(id)).toEqual([
+			[1, 1, 501],
+			[2, 1, 502]
+		]);
+		expect((await undo(id, first.body.facts)).status).toBe(200);
+		expect(linked(id)).toEqual([]);
+	});
+
+	it('refuses facts another series posted, and writes nothing', async () => {
+		const id = show([12, 23]);
+		const other = show([12]);
+		seed(id, 1, 501);
+		const r = await post(id, [{ season: 1, part: 1, anilistId: 501 }]);
+		const undone = await undo(other, r.body.facts);
+		expect(undone.status).toBe(400);
+		expect(linked(id)).toEqual([[1, 1, 501]]);
 	});
 });
