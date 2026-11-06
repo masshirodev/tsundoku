@@ -361,10 +361,12 @@ back from anything kept.
 - **The trail** reads `03 OF 07`, not the board's "03 OF 04": GET STARTED
   has seven steps since FIRST READ (c209). It is drawn on `/import` and
   `/import/<id>` (c511).
-- **STEP 03 DONE BY AN IMPORT** (Import-Doors B) is drawn on `/start` only:
-  the empty library's list is `src/routes/+page.svelte`'s, which does not
-  hand the list the last import yet (c511; `doc/handoff-notes/import.md`,
-  wave 26, Gaps, has the patch). Its link opens the import's entry in the
+- **STEP 03 DONE BY AN IMPORT** (Import-Doors B) is drawn on `/start`, and
+  the library's load hands its own list the same import (c511's third part,
+  c634: `tickingImport`, the import whose job brought the first series 03
+  counts). The empty library never draws that row in practice -- 03 done needs
+  a visible series, and the list shows only with no tiles at all -- so
+  `/start` is where it is seen. Its link opens the import's entry in the
   log, as the board's note asks, through `?open=backup:<id>`.
 
 ## Premises
