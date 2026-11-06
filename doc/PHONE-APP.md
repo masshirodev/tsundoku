@@ -43,7 +43,11 @@ still needs https.
 | `mobile` | `dev.masshiro.tsundoku.app` | `tsundoku-app-<version>.apk` |
 
 Every line of pairing is shared (`src/main`): the address, the probe, the
-attempts, the server list (c261), the bridge, BACK, the pairing page. What
+attempts, the server list (c261), the bridge, BACK, the pairing page. The
+pairing page is served by `WebViewAssetLoader` at
+`https://appassets.androidplatform.net/pair/index.html` on both flavors (c549;
+the same Kotlin and the same `assets/pair/index.html`), so neither app loads a
+`file://` page. What
 differs is decided in one place, `Form.kt`, from the flavor's
 `BuildConfig.FORM`, one tested function per difference:
 

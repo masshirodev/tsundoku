@@ -15,6 +15,7 @@ import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -28,7 +29,9 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.webkit.WebViewAssetLoader
 import org.json.JSONObject
+import java.io.ByteArrayInputStream
 import java.util.concurrent.Executors
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
@@ -58,6 +61,37 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	/** The updater's own thread: a download never holds up the launch's probe. */
 	private val updateIo = Executors.newSingleThreadExecutor()
 	private val ui = Handler(Looper.getMainLooper())
+
+	/**
+	 * The app's own page, served at [BridgeGuard.ASSET] instead of
+	 * `file:///android_asset/` (c549): an https origin is one a message
+	 * listener's origin rule can name, and one this host's every request is
+	 * answered from (the client below), so a network answer at it is never
+	 * trusted. `/pair/index.html` is `assets/pair/index.html`.
+	 *
+	 * The handler is mounted at `/`, so it maps the request path straight onto
+	 * `assets/` (`/pair/index.html` → `assets/pair/index.html`). Mounting it at
+	 * `/pair/` would strip that prefix and ask for `assets/index.html`, which
+	 * does not exist, so `/` is the mount and the client, not the loader, is
+	 * what limits which requests reach it ([BridgeGuard.refusesAssetRequest]).
+	 */
+	private val assets by lazy {
+		WebViewAssetLoader.Builder()
+			.addPathHandler("/", WebViewAssetLoader.AssetsPathHandler(this))
+			.build()
+	}
+
+	/**
+	 * The pair page's capability for this activity's life (c549, round 4): a
+	 * random `?t=…` that [loadAsset] writes into the URL and
+	 * [BridgeGuard.refusesAssetRequest] requires before the loader answers it.
+	 * A page can write the asset URL but cannot know this token, so a link, a
+	 * redirect or a form that reaches the host is a 404 without depending on
+	 * which `shouldOverrideUrlLoading` overload the WebView version calls. It
+	 * is a fresh value per activity, never stored, and a reload keeps it
+	 * because a reload reloads the document's own URL.
+	 */
+	private val assetToken = java.util.UUID.randomUUID().toString()
 
 	/** Which app this build is (c521): every TV-or-phone difference asks it. */
 	private val form = Form.of(BuildConfig.FORM)
@@ -349,7 +383,10 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		// The player starts without an OK press: a TV has no "tap to play".
 		s.mediaPlaybackRequiresUserGesture = false
 		s.cacheMode = WebSettings.LOAD_DEFAULT
-		s.allowFileAccess = true
+		// The app's own page is served by WebViewAssetLoader now (c549), so no
+		// file:// URL needs reaching; a page that loads one is a page this app
+		// does not have.
+		s.allowFileAccess = false
 		// What the server's device list reads (catalog.ts, isTsundokuApp): a TV
 		// as a TV, a phone or tablet as the app over its screen's kind.
 		s.userAgentString = s.userAgentString + " " + form.userAgentToken(BuildConfig.VERSION_NAME)
@@ -360,14 +397,77 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 
 	private fun client() =
 		object : WebViewClient() {
+			/**
+			 * The app's own page is served here, never by the network (c549):
+			 * [BridgeGuard.ASSET_HOST]'s every request goes through the loader,
+			 * and a path it does not hold is 404 rather than a request that
+			 * could reach a real host. Only the main frame's GET of this
+			 * activity's own token is served ([BridgeGuard.refusesAssetRequest]):
+			 * `shouldOverrideUrlLoading` never sees a POST, a WebView without
+			 * the redirect feature does not see a 302, and a frame's request
+			 * for the host is an embed. All are 404. The rest of the WebView is
+			 * untouched.
+			 */
+			override fun shouldInterceptRequest(
+				view: WebView,
+				request: WebResourceRequest
+			): WebResourceResponse? {
+				if (!BridgeGuard.isAssetHost(request.url.toString())) return null
+				if (BridgeGuard.refusesAssetRequest(
+						request.url.toString(),
+						request.isForMainFrame,
+						request.method,
+						assetToken
+					)
+				) return notFound()
+				return assets.shouldInterceptRequest(request.url) ?: notFound()
+			}
+
+			/**
+			 * Nothing navigates into the app's own page (c549, round 2). Since
+			 * the page moved to [BridgeGuard.ASSET] it is an ordinary https URL,
+			 * so a server's page — or an external link followed from one — could
+			 * set `location` to it with `#connect=` and have the pair page add
+			 * an attacker's server. The app's own `loadUrl` never reaches this
+			 * callback, and the page's own hash changes are same-document, so
+			 * only somebody else's navigation is refused here.
+			 *
+			 * The deprecated overload below is the half API 23 calls: this one
+			 * was added in API 24, and `minSdk` is 23.
+			 */
+			override fun shouldOverrideUrlLoading(
+				view: WebView,
+				request: WebResourceRequest
+			): Boolean = BridgeGuard.refusesNavigation(request.url.toString())
+
+			/**
+			 * API 23 and below call only this overload; the [WebResourceRequest]
+			 * one above was added in API 24 and `minSdk` is 23 ("old TV boxes",
+			 * `doc/TV-APP.md`). Without this override the navigation guard would
+			 * simply not run on an Android 6 television.
+			 *
+			 * `androidx.webkit.WebViewClientCompat` is not the shortcut it
+			 * looks like: it overrides the API-24 method and delegates it to
+			 * this one, so on API 23 it is never entered either (its own source;
+			 * its features list has no `shouldOverrideUrlLoading` compat entry).
+			 * The sub-frame/POST/redirect shapes stay covered by
+			 * [BridgeGuard.refusesAssetRequest]'s token, which does not depend
+			 * on a callback.
+			 */
+			@Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+			@Deprecated("API 23 calls this overload; the WebResourceRequest one is API 24 and up.")
+			override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean =
+				BridgeGuard.refusesNavigation(url)
+
 			override fun onReceivedError(
 				view: WebView,
 				request: WebResourceRequest,
 				error: WebResourceError
 			) {
 				// A remembered address that stopped answering: 9D, not the
-				// WebView's own grey page. Subresources are the page's business.
-				if (!request.isForMainFrame || request.url.scheme == "file") return
+				// WebView's own grey page. Subresources are the page's business,
+				// and so is the app's own page: it has no server to lose.
+				if (!request.isForMainFrame || !isServerPage(request.url)) return
 				failedLoad.failed(originOf(request.url))
 				showLost(originOf(request.url))
 			}
@@ -377,7 +477,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 				// load never got to say edge(false).
 				if (edge) setEdge(false)
 				val uri = Uri.parse(url)
-				if (uri.scheme == "http" || uri.scheme == "https") failedLoad.started(originOf(uri))
+				if (isServerPage(uri)) failedLoad.started(originOf(uri))
 			}
 
 			/**
@@ -398,7 +498,9 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 				// c521 never focuses it on a phone, and its 1 px field can't be
 				// tapped, so without this no digit could be typed there at all.
 				if (form.raisesKeyboard && uri.path == "/pair/tv") view.evaluateJavascript(CODE_FOCUS_JS, null)
-				if (uri.scheme != "http" && uri.scheme != "https") return
+				// The app's own page (c549) is no server's: it is neither a
+				// visit nor a 9E, and its URL is not an origin.
+				if (!isServerPage(uri)) return
 				val origin = originOf(uri)
 				val known = servers.find(origin)
 				// A failed load finishes too: it must not become the last used,
@@ -535,7 +637,10 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	}
 
 	private fun loadAsset(hash: String = "") {
-		webView.loadUrl("file:///android_asset/pair/index.html$hash")
+		// The token is this activity's own (c549, round 4): the client serves
+		// the host only to a URL carrying it, so a page cannot reach the pair
+		// page even where the WebView calls no navigation callback.
+		webView.loadUrl(BridgeGuard.ASSET + "?t=" + assetToken + hash)
 	}
 
 	private fun showLost(origin: String) {
@@ -582,6 +687,28 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		val scheme = url.scheme?.lowercase()
 		return "$scheme://${url.host?.lowercase()}${Address.portSuffix(scheme, url.port)}"
 	}
+
+	/**
+	 * An http(s) page that belongs to a server: the app's own page (c549,
+	 * served at [BridgeGuard.ASSET_HOST]) is not one, so it is never counted as
+	 * a visit and never shows 9D.
+	 */
+	private fun isServerPage(url: Uri): Boolean {
+		val scheme = url.scheme?.lowercase()
+		if (scheme != "http" && scheme != "https") return false
+		return !url.host.equals(BridgeGuard.ASSET_HOST, ignoreCase = true)
+	}
+
+	/** Any path the app's own host does not serve: 404, never a network request (c549). */
+	private fun notFound() =
+		WebResourceResponse(
+			"text/plain",
+			"utf-8",
+			404,
+			"Not Found",
+			mapOf("Cache-Control" to "no-store"),
+			ByteArrayInputStream(ByteArray(0))
+		)
 
 	private fun hideSystemUi() {
 		WindowInsetsControllerCompat(window, window.decorView).apply {

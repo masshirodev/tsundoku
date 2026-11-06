@@ -29,7 +29,7 @@ class BackTest {
 	fun `sign-in, pairing and the app's first screens are passed over`() {
 		val history =
 			listOf(
-				"file:///android_asset/pair/index.html",
+				BridgeGuard.ASSET + "#lost=x",
 				"$host/pair/tv",
 				"$host/settings",
 				"$host/login",
@@ -48,6 +48,11 @@ class BackTest {
 	fun `what counts as home and what is passed over`() {
 		assertTrue(Back.isHome("http://192.168.1.23:42143/"))
 		assertFalse(Back.isHome("http://192.168.1.23:42143/series/1"))
+		// The app's own page is never home and never a history stop, whatever
+		// its URL was before the asset loader (c549).
+		assertFalse(Back.isHome(BridgeGuard.ASSET))
+		assertTrue(Back.passedOver(BridgeGuard.ASSET))
+		assertTrue(Back.passedOver(BridgeGuard.ASSET + "#add"))
 		assertFalse(Back.isHome("file:///android_asset/pair/index.html"))
 		assertTrue(Back.passedOver("$host/pair/abc123"))
 		assertTrue(Back.passedOver("not a url"))

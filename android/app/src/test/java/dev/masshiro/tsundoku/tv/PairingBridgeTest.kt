@@ -75,7 +75,7 @@ class PairingBridgeTest {
 
 	private val home = "http://192.168.1.23:42143"
 	private val zen = "https://zen.tailnet.ts.net:8443"
-	private val asset = "file:///android_asset/pair/index.html#lost=x"
+	private val asset = BridgeGuard.ASSET + "#lost=x"
 
 	private class World(top: String?) {
 		val kv = Map()

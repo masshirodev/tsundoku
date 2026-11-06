@@ -11,34 +11,124 @@ package dev.masshiro.tsundoku.tv
  *
  * The rule is asked about the WebView's top-level URL, read on the UI thread
  * (`PairingBridge.Host.topUrl`). A frame cannot change that URL; a top-level
- * navigation can, and that is what the rule is about. A frame inside a known
+ * navigation can, and that is what the rule is about. The scheme test is
+ * case-blind, as [Address.originOf]'s is (c646): `HTTP://zen.local:42143` is
+ * the same page as `http://zen.local:42143`, not a scheme of its own, and a
+ * capitalised scheme on an unknown host is still refused by the origin
+ * comparison. A frame inside a known
  * server's page is not told apart by it (a JavaScript interface does not say
  * which frame called): tsundoku draws no third-party frames, and the way to
  * close that too is `WebViewCompat.addWebMessageListener` with origin rules
  * ([allowsMessage], below, is the rule such a listener would ask; it is
  * pinned by `MessageGuardTest` and not wired to anything yet).
  * `doc/TV-APP.md`, "What it does not do yet", says what that move still
- * needs; wave 26 stopped short of it.
+ * needs; wave 29 moved the app's own page to `WebViewAssetLoader` (step 1),
+ * and the listener itself is step 3.
  *
  * Pure, so BridgeGuardTest and PairingBridgeTest pin it.
  */
 object BridgeGuard {
-	/** The app's own page (9A, 9B, 9D, S5, S7, S8, S9), whatever its fragment. */
-	const val ASSET = "file:///android_asset/pair/index.html"
+	/** The host `WebViewAssetLoader` serves the app's own page from (c549). */
+	const val ASSET_HOST = "appassets.androidplatform.net"
+
+	/** The app's own page (9A, 9B, 9D, S5, S7, S8, S9), whatever its launch token and fragment. */
+	const val ASSET = "https://$ASSET_HOST/pair/index.html"
 
 	/**
-	 * The origin `WebViewAssetLoader` serves the pair page from once item 1 of
-	 * `doc/TV-APP.md`'s order lands (`https://appassets.androidplatform.net/pair/index.html`).
-	 * The move has not happened yet: the page still loads from [ASSET], whose
-	 * `file://` origin is opaque, so no message from it can pass
-	 * [allowsMessage] until the move.
+	 * The origin the pair page loads from since c549: `WebViewAssetLoader`
+	 * serves [ASSET] there in `MainActivity.shouldInterceptRequest`, and a real
+	 * network answer at that host is never trusted. The loader is mounted at
+	 * `/`, so any file under `assets/` is served there to a main-frame GET that
+	 * carries the launch's token (round 4); a path the loader does not hold is
+	 * 404, and every other request for the host is 404 before the loader is
+	 * asked. A message from the page carries this as its `sourceOrigin`, which
+	 * is what [allowsMessage] trusts.
 	 */
-	const val ASSET_ORIGIN = "https://appassets.androidplatform.net"
+	const val ASSET_ORIGIN = "https://$ASSET_HOST"
+
+	/** The app's own page, and nothing else: [ASSET] with a query (its launch token) or a fragment. */
+	fun isAsset(url: String?): Boolean {
+		val u = url?.trim().orEmpty()
+		return u == ASSET || u.startsWith("$ASSET#") || u.startsWith("$ASSET?")
+	}
+
+	/**
+	 * True for a navigation the WebView must not carry out: anything addressed
+	 * to [ASSET_HOST], case-blind, whatever its scheme, path, query or
+	 * fragment (c549, round 2).
+	 *
+	 * [ASSET] is an ordinary https URL since wave 29, so any page the WebView
+	 * shows — a server's page, an external link followed from one, a frame in
+	 * either — can set `location` to it with a `#connect=` fragment and make
+	 * the pair page probe and `remember` an attacker's server. A `file://`
+	 * page could not be reached that way, which is what made the old URL safe.
+	 * `shouldOverrideUrlLoading` asks this of every navigation (the app's own
+	 * `loadUrl` never reaches that callback, and the page's own hash changes
+	 * are same-document).
+	 */
+	fun refusesNavigation(url: String?): Boolean = isAssetHost(url)
+
+	/**
+	 * True for a request the asset loader must not answer (c549, rounds 3 and
+	 * 4): anything addressed to [ASSET_HOST] that is not the main frame's GET of
+	 * the launch's own [ASSET] URL.
+	 *
+	 * [refusesNavigation] cannot close this by itself: `shouldOverrideUrlLoading`
+	 * is not called for POST requests, and on a WebView that does not report a
+	 * redirect (androidx's `SHOULD_OVERRIDE_WITH_REDIRECTS` is a WebView-APK
+	 * feature, not an API level) it does not see a 302 either. A form submission
+	 * keeps its action URL's fragment, so a page could `submit()` a form to
+	 * `ASSET#connect=http://evil:42143` and the loader would serve the pair
+	 * page as the main document. The method is compared without case, and an
+	 * absent one is not a GET. A sub-frame's request for the host is refused
+	 * here too (round 2's embed), and every other host is somebody else's and
+	 * is not refused.
+	 *
+	 * The last test is a **per-launch capability** rather than a navigation
+	 * callback: `MainActivity.loadAsset` writes a random `?t=…` into the URL it
+	 * loads (round 4), and a request is served only when its query is exactly
+	 * that token. Only the app knows it, so a URL a page can write — a link,
+	 * `location =`, a meta refresh, a 302, a form submit, `window.open` —
+	 * arrives without it and is 404 whatever the WebView version calls. It
+	 * does not depend on `shouldOverrideUrlLoading`, and it costs no reload:
+	 * a reload reloads the same document, token included. The navigation rule
+	 * stays as well, so a page-initiated navigation is stopped before it
+	 * becomes a 404 page.
+	 *
+	 * `MainActivity.shouldInterceptRequest` asks this before the loader.
+	 */
+	fun refusesAssetRequest(
+		url: String?,
+		isMainFrame: Boolean,
+		method: String?,
+		token: String?
+	): Boolean {
+		if (!isAssetHost(url)) return false
+		if (!isMainFrame) return true
+		if (!"GET".equals(method, ignoreCase = true)) return true
+		return !carriesAssetToken(url, token)
+	}
+
+	/** True when [url]'s query is exactly the launch's own `t=<token>` (round 4). */
+	fun carriesAssetToken(url: String?, token: String?): Boolean {
+		val t = token?.trim().orEmpty()
+		if (t.isEmpty()) return false
+		val query = runCatching { java.net.URI(url.orEmpty()) }.getOrNull()?.rawQuery ?: return false
+		return query == "t=$t"
+	}
+
+	/** True when [url]'s host is [ASSET_HOST], read case-blind, whatever its scheme or path. */
+	fun isAssetHost(url: String?): Boolean {
+		val u = url?.trim().orEmpty()
+		if (u.isEmpty()) return false
+		val host = runCatching { java.net.URI(u) }.getOrNull()?.host ?: return false
+		return host.equals(ASSET_HOST, ignoreCase = true)
+	}
 
 	fun allows(url: String?, known: (String) -> Boolean): Boolean {
 		val u = url?.trim().orEmpty()
-		if (u == ASSET || u.startsWith("$ASSET#") || u.startsWith("$ASSET?")) return true
-		if (!u.startsWith("http://") && !u.startsWith("https://")) return false
+		if (isAsset(u)) return true
+		if (!u.startsWith("http://", ignoreCase = true) && !u.startsWith("https://", ignoreCase = true)) return false
 		val origin = Address.originOf(u) ?: return false
 		return known(origin)
 	}
@@ -61,8 +151,10 @@ object BridgeGuard {
 	 * and `http://host/series/12` are refused as well as `http://host?x=1`.
 	 * Everything else is refused: the opaque `"null"` (a `file://` page's
 	 * report), an absent origin, `""`, `about:`, `data:`, `javascript:`, and
-	 * [ASSET] itself. That is why the asset page has to move to
-	 * `WebViewAssetLoader` before this rule can be wired to a listener.
+	 * [ASSET] itself (a URL with a path is not an origin). The asset page now
+	 * loads from [ASSET_ORIGIN] through `WebViewAssetLoader` (c549, item 1 of
+	 * `doc/TV-APP.md`'s order), which is what makes this rule's asset branch
+	 * reachable; the listener itself is still item 3 and not built.
 	 *
 	 * A known server is compared through [Address.originOf], as the top-level
 	 * guard's is, and [Address.originOf] lower-cases the scheme and the host

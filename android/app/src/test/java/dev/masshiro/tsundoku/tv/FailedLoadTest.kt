@@ -61,7 +61,7 @@ class FailedLoadTest {
 		val f = FailedLoad()
 		f.started(home)
 		f.failed(home)
-		f.started("file:///android_asset")
+		f.started(BridgeGuard.ASSET)
 		assertFalse(f.finished(home))
 	}
 

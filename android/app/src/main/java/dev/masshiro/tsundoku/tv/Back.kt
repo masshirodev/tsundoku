@@ -43,6 +43,9 @@ object Back {
 
 	/** A page nobody goes back to: it signs in, pairs, sets up, or is the app's own. */
 	fun passedOver(url: String): Boolean {
+		// The app's own page, served from WebViewAssetLoader since c549: its
+		// https path would otherwise read as an ordinary page of a computer.
+		if (BridgeGuard.isAsset(url)) return true
 		val path = pathOf(url) ?: return true
 		return path == "/login" ||
 			path == "/setup" ||

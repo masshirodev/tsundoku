@@ -5,6 +5,13 @@ import { pathToFileURL } from 'node:url';
 /**
  * The APK's own first screens (9A, 9B; android/app/src/main/assets/pair),
  * opened from the file the app ships, with no bridge: a remote, 960x540.
+ *
+ * This is **not** the app's loader. On a TV the page is served by
+ * `WebViewAssetLoader` at `https://appassets.androidplatform.net/pair/index.html`
+ * (c549); here it is opened from the asset file itself, because a browser has
+ * no loader and the page's scripts do not read `location.protocol`. What the
+ * loader changes — `BridgeGuard`, `Back.kt` and the WebView client — is pinned
+ * by the JVM tests and the owner's check on a TV (`doc/TV-APP.md`).
  */
 const page9 = pathToFileURL(
 	join(process.cwd(), 'android/app/src/main/assets/pair/index.html')
