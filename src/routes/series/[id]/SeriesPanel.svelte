@@ -23,6 +23,7 @@
 	import type { Shelf } from '$lib/library/types';
 	import { booksOf, isBookSeries, isVolumeSeries } from '$lib/library/series';
 	import { m } from '$lib/paraglide/messages';
+	import { num } from '$lib/i18n/format';
 	import { suggestionLabel, type Suggestion } from '$lib/library/books';
 	import { readTime } from '$lib/library/history';
 	import { kindFacts } from '$lib/library/kinds';
@@ -894,7 +895,10 @@
 				<div class="sugg-head">
 					<span>{m.offer_might_be_one_series()}</span>
 					<span class="dim"
-						>{suggestion.books.length} BOOKS · {suggestionLabel(suggestion.books)}</span
+						>{m.offer_suggestion_books({
+							count: suggestion.books.length,
+							n: num(suggestion.books.length)
+						})} · {suggestionLabel(suggestion.books)}</span
 					>
 				</div>
 				<div class="sugg-covers">

@@ -1707,8 +1707,8 @@
 		<div class="lib-band">
 			<Band
 				title={made
-					? `${made.work.name.toUpperCase()} IS A WORK`
-					: `ADDED TO ${addedWork!.name.toUpperCase()}`}
+					? m.offer_work_made({ name: made.work.name.toUpperCase() })
+					: m.offer_added_to({ name: addedWork!.name.toUpperCase() })}
 				detail={made
 					? `${made.members.length} SERIES · EACH KEEPS ITS OWN`
 					: `${addedWork!.facts.length} SERIES · AT THE END OF THE RUN`}

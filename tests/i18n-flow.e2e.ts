@@ -72,6 +72,13 @@ test.describe('a browser that speaks Portuguese', () => {
 			await expect(
 				page.locator('.sugg.offer').getByText('PODE CONTINUAR KAZE NO UTA · COMO PARTE 3')
 			).toBeVisible();
+			// Its second lines too: the count (a plural) and the reason (wave 30).
+			await expect(page.locator('.sugg:not(.offer) .sugg-head .dim')).toHaveText(
+				'3 LIVROS · "KAZE NO UTA …"'
+			);
+			await expect(page.locator('.sugg.offer .offer-why')).toHaveText(
+				'O TÍTULO DELA COMEÇA COM O NOME DA OBRA · A OBRA TEM 2 SÉRIES'
+			);
 			// Its cells too, so the offer is usable in the language it is drawn in.
 			await expect(page.getByRole('button', { name: 'NÃO É ESTA' })).toBeVisible();
 			await expect(page.getByRole('button', { name: 'NÃO É UMA SÉRIE' })).toBeVisible();
