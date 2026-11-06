@@ -8,6 +8,8 @@ const { seedSample, BOOK_ROWS, BOOK_SERIES_TITLE } = await import('$lib/server/f
 const lib = await import('$lib/server/library');
 const series = await import('$lib/server/series');
 const books = await import('$lib/server/books');
+const { booksCount, booksOf, continueAction, extrasOf, isBookSeries, seriesMeta } =
+	await import('$lib/library/series');
 
 /** A fresh library per test: grouping reshapes the data under test. */
 beforeEach(() => {
@@ -213,5 +215,51 @@ describe('a book’s own tags', () => {
 		const onB = series.suggestTags(id, { namespace: 'tag', value: 'bea' }, true, 6, b.id);
 		expect(onA.find((s) => s.value === 'beach')?.onThis).toBe(true);
 		expect(onB.find((s) => s.value === 'beach')?.onThis).toBe(false);
+	});
+});
+
+describe('a hand-made extra beside a doujin (c650)', () => {
+	/** An entry carrying front matter: what only a hand-made row writes on a doujin. */
+	const addExtra = (seriesId: number, title = 'An Extra') =>
+		Number(
+			getDb()
+				.prepare(
+					`INSERT INTO entries (series_id, position, label, title, added_at, page_count, file, bytes, matter)
+					VALUES (?, 99, 'Extra', ?, 0, 1, '', 0, 'front')`
+				)
+				.run(seriesId, title).lastInsertRowid
+		);
+
+	it('is not a book: a single book beside it says 1 BOOK and is not a series of books', () => {
+		const single = idOf(BOOK_ROWS[4].title)!;
+		expect(single).toBeGreaterThan(0);
+		const extra = addExtra(single);
+		const s = series.seriesPage(single, true)!;
+		expect(s.entries.map((e) => e.id)).toContain(extra);
+		expect(isBookSeries(s)).toBe(false);
+		expect(seriesMeta(s)).toBe('DOUJIN · HENTOID · 1 BOOK');
+		expect(booksCount(s.entries)).toBe('1 · 0 READ');
+		// And the extra is not where CONTINUE is: the book is.
+		const cta = continueAction(s);
+		expect(cta.entry?.id).toBe(s.entries[0].id);
+		// The two that are apart are exactly the book and the extra.
+		expect(booksOf(s.entries).map((e) => e.id)).toEqual([s.entries[0].id]);
+		expect(extrasOf(s.entries).map((e) => e.id)).toEqual([extra]);
+	});
+
+	it('is not counted in a series of books: four books and an extra say 4 BOOKS', () => {
+		const km = idOf(BOOK_SERIES_TITLE)!;
+		const extra = addExtra(km);
+		const s = series.seriesPage(km, true)!;
+		expect(s.entries).toHaveLength(5);
+		expect(isBookSeries(s)).toBe(true);
+		expect(seriesMeta(s)).toBe('DOUJIN SERIES · 4 BOOKS');
+		expect(booksCount(s.entries)).toBe('4 · 2 READ');
+		expect(extrasOf(s.entries).map((e) => e.id)).toEqual([extra]);
+		// BOOK n numbers the books: the extra has no place in the order.
+		expect(booksOf(s.entries).map((e) => e.number)).toEqual([1, 2, 3, 4]);
+		// Nothing read on the series is the extra's: CONTINUE reads a book.
+		expect(continueAction(s).meta).toMatch(/^BOOK \d/);
+		expect(continueAction(s).entry?.matter).toBe('');
 	});
 });

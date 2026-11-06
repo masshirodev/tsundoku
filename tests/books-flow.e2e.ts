@@ -1,4 +1,5 @@
 import { type Page } from '@playwright/test';
+import Database from 'better-sqlite3';
 import { expect, test } from './fixtures';
 
 /**
@@ -250,4 +251,77 @@ test('grouping from a single book’s own screen, then back: where it was opened
 	// UNGROUP replaced the gone series too: back is the circle again, not a 404.
 	await page.goBack();
 	await expect(page).toHaveURL(new RegExp(`${CIRCLE.replace(/[?]/g, '\\?')}$`));
+});
+
+/**
+ * c650: an entry carrying front matter is an *extra*, not a book. No importer
+ * writes `matter` on a doujin (only the EPUB plans set it, for novels), so the
+ * seed stands in for a **hand-made row** -- the other door the card names, the
+ * duplicates review, folds a copy rather than writing matter. The rows are
+ * inserted into this run's own database (the one `yarn run seed` wrote) and
+ * removed again in a finally, so nothing a later case reads changes.
+ */
+test('a hand-made extra beside a doujin is drawn apart, is not counted, and opens its pages (c650)', async ({
+	page
+}) => {
+	await reveal(page);
+	const db = new Database(process.env.PLAYWRIGHT_DATABASE_PATH!);
+	const addExtra = (seriesTitle: string, title: string) =>
+		Number(
+			db
+				.prepare(
+					`INSERT INTO entries (series_id, position, label, title, added_at, page_count, file, bytes, matter)
+					SELECT id, 99, 'Extra', ?, 0, 1, '', 0, 'front' FROM series WHERE title = ?`
+				)
+				.run(title, seriesTitle).lastInsertRowid
+		);
+	const extraSingle = addExtra('Kaori Mama on Holiday Duty', 'A Hand-Made Extra');
+	const extraBooks = addExtra('Kaori Mama', 'A Second Extra');
+	try {
+		// A single book beside its extra: the book's pages are still the screen,
+		// `1 BOOK` counts the book, and the extra is listed apart and opens.
+		await page.goto('/?shelf=all&sort=title');
+		await page.waitForLoadState('networkidle');
+		await page.locator('.grid .tile', { hasText: 'Kaori Mama on Holiday Duty' }).click();
+		await page.waitForURL(/\/series\/\d+/);
+		await expect(
+			page.getByRole('heading', { name: 'Kaori Mama on Holiday Duty', exact: true })
+		).toBeVisible();
+		await expect(page.locator('.names .meta')).toContainText('1 BOOK');
+		await expect(page.getByRole('region', { name: 'Pages' })).toBeVisible();
+		const extras = page.locator('a[data-extra]');
+		await expect(extras).toHaveText([/A Hand-Made Extra/]);
+		await extras.first().click();
+		await expect(page).toHaveURL(new RegExp(`[?&]book=${extraSingle}(&|$)`));
+		// The extra's own pages, not the book's: it holds one page (`addExtra`).
+		const pages = page.getByRole('region', { name: 'Pages' });
+		await expect(pages).toBeVisible();
+		await expect(pages.locator('.grid .page')).toHaveCount(1);
+		await expect(pages.locator('.head span').nth(1)).toHaveText('1');
+		// Back to the book's own pages, the way the screen's own URL does it.
+		await page.goBack();
+		await expect(page.getByRole('region', { name: 'Pages' })).toBeVisible();
+
+		// A series of four books with an extra: still four, not five, and the
+		// extra is under the grid, outside the numbered order.
+		await page.goto('/?shelf=all&sort=title');
+		await page.waitForLoadState('networkidle');
+		await page
+			.locator('.grid .tile', { hasText: 'Kaori Mama' })
+			.filter({ hasNotText: /Duty|Illustrations/ })
+			.click();
+		await page.waitForURL(/\/series\/\d+/);
+		await expect(page.getByRole('heading', { name: 'Kaori Mama', exact: true })).toBeVisible();
+		await expect(page.locator('.names .meta')).toContainText('4 BOOKS');
+		await expect(page.getByRole('region', { name: 'Books' })).toBeVisible();
+		await expect(page.getByRole('region', { name: 'Books' }).locator('.cell')).toHaveCount(4);
+		await expect(page.locator('a[data-extra]')).toHaveText([/A Second Extra/]);
+		// ORDER keeps to the books: the extra is not a number in the reading order.
+		await page.getByRole('button', { name: 'ORDER' }).click();
+		await expect(page.locator('a[data-extra]')).toHaveCount(0);
+		await page.getByRole('button', { name: /DONE/ }).click();
+	} finally {
+		db.prepare(`DELETE FROM entries WHERE id IN (?, ?)`).run(extraSingle, extraBooks);
+		db.close();
+	}
 });

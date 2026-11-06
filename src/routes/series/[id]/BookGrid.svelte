@@ -8,10 +8,13 @@
 		addedMonth,
 		bookMeta,
 		booksCount,
+		booksOf,
 		currentEntry,
+		extrasOf,
 		type SeriesEntry,
 		type SeriesPage
 	} from '$lib/library/series';
+	import ExtrasList from './ExtrasList.svelte';
 
 	/**
 	 * A series of books: BOOKS replaces CHAPTERS as a cover grid in the owner's
@@ -38,11 +41,12 @@
 	} = $props();
 
 	const current = $derived(currentEntry(series.entries));
-	const byId = $derived(new Map(series.entries.map((e) => [e.id, e])));
+	/** The books alone: a hand-made extra is drawn apart, and is never numbered (c650). */
+	const books = $derived(booksOf(series.entries));
+	const extras = $derived(extrasOf(series.entries));
+	const byId = $derived(new Map(books.map((e) => [e.id, e])));
 	const shown = $derived(
-		reordering
-			? order.map((id) => byId.get(id)).filter((e): e is SeriesEntry => !!e)
-			: series.entries
+		reordering ? order.map((id) => byId.get(id)).filter((e): e is SeriesEntry => !!e) : books
 	);
 
 	// ---- dragging ------------------------------------------------------------------
@@ -97,9 +101,7 @@
 	<div class="head">
 		<div class="title">
 			<span>01 — BOOKS</span>
-			<span
-				>{reordering ? `${series.entries.length} · YOUR ORDER` : booksCount(series.entries)}</span
-			>
+			<span>{reordering ? `${books.length} · YOUR ORDER` : booksCount(books)}</span>
 		</div>
 		{#if !reordering}
 			<button type="button" class="tool" onclick={onorder}>ORDER</button>
@@ -150,6 +152,9 @@
 		{/each}
 		{#each { length: fillers }, i (i)}<li class="filler" aria-hidden="true"></li>{/each}
 	</ol>
+
+	<!-- The extras, drawn apart: not a book, not numbered, not reordered (c650). -->
+	{#if !reordering}<ExtrasList entries={extras} />{/if}
 
 	{#if reordering}
 		<div class="foot">
