@@ -647,6 +647,130 @@ test.describe('without script', () => {
 		);
 	});
 
+	test('a no-script UNDO refused on a source page keeps the tag origin in ← (c664)', async ({
+		page,
+		context,
+		browser
+	}) => {
+		// A source page, a preview, a read and a no-script tap: the slow budget.
+		test.slow();
+		// The tag's origin, the address a tag was tapped on: a `from` backOrigin accepts.
+		const origin = `/series/${world.ids.tagged}`;
+		const band = page.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' });
+		const back = page.locator('a.cell.back');
+		const mark = (series: number, entry: number, read: boolean) =>
+			page.request.post(url(`/series/${series}?/mark`), {
+				form: { read: read ? '1' : '0', entry: String(entry) },
+				headers: { origin: world.base }
+			});
+		let series = 0;
+		let entry = 0;
+		let preview = '';
+		// Declared here, not in the try: a step that throws before its own close
+		// would leave the context open for the rest of the file (c665).
+		let setup: BrowserContext | undefined;
+		await reveal(context, false);
+		await flipAddedHidden(page, SOURCE.id, true);
+		await settle(
+			async () => {
+				// The preview's ADD is a promise in its data, so a browser without
+				// script never draws its button; the ADD and the read are the state
+				// this case needs, so they are made with script, as the cases above do.
+				setup = await browser.newContext({
+					javaScriptEnabled: true,
+					storageState: await context.storageState()
+				});
+				const sp = await setup.newPage();
+				// The app's own door: the source page opened on a tag's origin, and a
+				// result's tile tapped from it, so the preview is opened with that
+				// origin and its ADD answers with the source page again, `from` kept.
+				// One ADD of five leaves the source found, so the band is drawn here
+				// rather than on BROWSE (c664).
+				await sp.goto(url(`/browse/${SOURCE.id}?from=${encodeURIComponent(origin)}`));
+				const tile = sp.locator('a.tile[href^="/downloads/source/"]').first();
+				await expect(tile).toBeVisible();
+				await tile.click();
+				await sp.getByRole('button', { name: /ADD TO LIBRARY/ }).click();
+				await sp.waitForURL((u) => u.searchParams.has('series'));
+				const bandUrl = sp.url();
+				const at = new URL(bandUrl);
+				expect(at.pathname).toBe(`/browse/${SOURCE.id}`);
+				expect(at.searchParams.get('from')).toBe(origin);
+				series = Number(at.searchParams.get('series'));
+				preview = at.searchParams.get('preview') ?? '';
+				expect(series).toBeGreaterThan(0);
+				expect(preview).not.toBe('');
+
+				// The entry to mark read, off the series screen: with no script the
+				// screen draws no reader link at all, so this too is asked of a page
+				// with script, as the cases above do.
+				await reveal(setup, true);
+				await sp.goto(url(`/series/${series}`));
+				entry = Number(
+					/\/read\/(\d+)/.exec(
+						(await sp.locator('a[href^="/read/"]').first().getAttribute('href'))!
+					)![1]
+				);
+				expect(entry).toBeGreaterThan(0);
+
+				// Everything below is the browser with no script. The band is drawn
+				// on the source's page, which is still found, and ← answers the
+				// origin the tag was tapped on.
+				await page.goto(bandUrl);
+				await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
+				await expect(back).toHaveAttribute('href', origin);
+
+				// A refused origin adds nothing to the action: ← would be an open
+				// redirect (c664). The band is the same; only the `from` is refused.
+				const evil = new URL(bandUrl);
+				evil.searchParams.set('from', '//evil.example');
+				await page.goto(evil.href);
+				const action = await band.locator('form').getAttribute('action');
+				expect(action).toContain('/undoAdd');
+				expect(action).not.toContain('from=');
+
+				// Drawn untouched while the series is unread, so its UNDO is there to
+				// tap; read now, and the tap is refused -- and the answer is this
+				// source page, still found, so the words are drawn here, with ← still
+				// the tag's rather than the default cell.
+				await page.goto(bandUrl);
+				await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
+				await reveal(context, true);
+				expect((await mark(series, entry, true)).ok()).toBe(true);
+				await reveal(context, false);
+				const [answer] = await Promise.all([
+					page.waitForResponse((r) => r.url().includes(`/browse/${SOURCE.id}?/undoAdd`)),
+					band.getByRole('button', { name: 'UNDO' }).click()
+				]);
+				expect(answer.status()).toBe(409);
+				expect(new URL(page.url()).pathname).toBe(`/browse/${SOURCE.id}`);
+				await expect(band).toContainText('NO UNDO: SOMETHING OF IT IS DOWNLOADED OR READ NOW');
+				await expect(band.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
+				await expect(back).toHaveAttribute('href', origin);
+			},
+			async () => {
+				// Put back: unread, the ADD undone, and the switch off. The context
+				// this case opened is closed here whatever happened above; soft, so
+				// its own failure does not hide the body's (c649, c665).
+				await setup
+					?.close()
+					.catch((e) => expect.soft(e, 'the setup context closed').toBeUndefined());
+				await reveal(context, true);
+				if (entry) await mark(series, entry, false);
+				if (series && preview)
+					await page.request.post(url('/browse?/undoAdd'), {
+						form: { series: String(series), preview },
+						headers: { origin: world.base }
+					});
+				await page.request.post(url(`/browse/${SOURCE.id}/settings?/flag`), {
+					form: { flag: 'addedHidden', value: 'false' },
+					headers: { origin: world.base }
+				});
+				await reveal(context, false);
+			}
+		);
+	});
+
 	test('CONCEAL asks through ?ask=conceal and its band draws, both without a handler (c606)', async ({
 		page,
 		context
