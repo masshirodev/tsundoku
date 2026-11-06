@@ -67,7 +67,16 @@ paged reader's zones drawn as a chapter opens, by finger ([`READER.md`](READER.m
 ## 02 — Reading · novels
 
 - **LAYOUT**: a novel's default, PAGED or SCROLL (`mode_novel`). It is counted
-  like MODE.
+  like MODE, and a novel kept **R→L** counts too (c552): a novel's page
+  direction is per series only (`series.text_direction`, c440;
+  [`TEXT-READER.md`](TEXT-READER.md), "Direction"), and the owner chose no
+  SETTINGS default for it (2026-11-05), so NULL, L→R, is what it differs
+  from. A stored `'ltr'` reads as NULL does and is not counted. A novel that
+  differs in both is counted once, and its line says both (`PAGED · R→L ·
+NOVEL · CHOSEN IN THE READER`, `src/routes/settings/mode-line.ts`). ✕ and
+  CLEAR ALL N put both back (`direction` and `text_direction` NULL); a
+  comic's `text_direction`, left from a time it was a novel, is neither
+  counted nor cleared.
 - **PAGE, TYPEFACE, SIZE, MARGINS, COLUMNS, JUSTIFY, FURIGANA**: fields of the
   text reader's `tsundoku.text.settings` object
   ([`TEXT-READER.md`](TEXT-READER.md)).

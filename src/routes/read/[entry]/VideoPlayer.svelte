@@ -3,7 +3,7 @@
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
 	import { onDestroy, onMount, tick } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { beforeNavigate, goto } from '$app/navigation';
 	import { leavingReader } from '$lib/reader/leaving';
 	import { backLink, goBackTo } from '$lib/back';
 	import { resolve } from '$app/paths';
@@ -1012,13 +1012,18 @@
 		if (!q) return;
 		clearTimeout(previewTimer);
 		previewTimer = setTimeout(async () => {
+			// Taken before anything is awaited (c574): the first stop may wait on
+			// hls.js's chunk, and a leave, a later stop or the player going away
+			// meanwhile must find this stop already counted, so it is over.
+			const ask = ++previewAsk;
 			if (!preview || previewOf !== q.src) {
+				// A plain file's preview is the browser's own <video>: hls.js only for a playlist.
+				const HlsClass = q.kind === 'hls' ? (await import('hls.js')).default : null;
+				if (ask !== previewAsk || hoverAt === null) return;
 				preview?.destroy();
-				const { default: HlsClass } = await import('hls.js');
 				preview = new StreamPreview(q, HlsClass);
 				previewOf = q.src;
 			}
-			const ask = ++previewAsk;
 			const pic = await preview.frameAt(at);
 			// A later stop, or the pointer gone: this one is nobody's now.
 			if (ask !== previewAsk || hoverAt === null) return;
@@ -1152,6 +1157,13 @@
 		preview?.leave();
 		streamPic = null;
 	}
+	// Leaving the page is leaving the bar, from the moment it starts (c574):
+	// the player stays mounted through its way out (`out:leave`), and a stop
+	// whose hls.js chunk came meanwhile would open a preview behind the next
+	// page until onDestroy caught up.
+	beforeNavigate(({ from, to }) => {
+		if (to?.url.pathname !== from?.url.pathname) leaveScrub();
+	});
 
 	// Taps on the picture: on a touch screen one shows or hides the controls,
 	// and two on a side third seek 10 s, each further tap 10 more (Anime Calls,
@@ -1483,6 +1495,8 @@
 	onDestroy(() => {
 		if (opened) void send('close');
 		detach();
+		// A stop still waiting on hls.js's chunk must not open a preview on a gone player (c574).
+		previewAsk++;
 		preview?.destroy();
 		for (const t of [waitTimer, checkTimer, stallTimer, countTimer]) clearInterval(t);
 		for (const t of [hideTimer, flashTimer, previewTimer]) clearTimeout(t);

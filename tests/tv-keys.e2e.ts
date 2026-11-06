@@ -110,7 +110,7 @@ async function downThroughGrid(page: import('@playwright/test').Page): Promise<v
 		.toBeGreaterThan(0);
 }
 
-test('↑ through the grid keeps each row in sight, out from under the pinned tabs', async ({
+test('↑ through the grid keeps each row in sight, out from under the pinned band', async ({
 	page
 }) => {
 	await intoGrid(page);
@@ -118,7 +118,8 @@ test('↑ through the grid keeps each row in sight, out from under the pinned ta
 	expect(await focusedInSight(page)).toBe(true);
 	for (let i = 0; i < 3; i++) {
 		await page.keyboard.press('ArrowUp');
-		// Before 2026-11-02 the row went under the tabs and stayed there.
+		// Before 2026-11-02 the row went under the pinned tabs (the KIND band
+		// pins in their place since c436) and stayed there.
 		expect(await focusedInSight(page)).toBe(true);
 	}
 });
@@ -135,7 +136,7 @@ test('BACK climbs only to what is out of sight: scrolled, to the top; at the top
 	await page.keyboard.press('ArrowDown'); // the first cover
 	await downThroughGrid(page);
 	// Scrolled: BACK goes back up to the page's own top, the first CONTINUE
-	// card (the pinned shelf tab is in sight, so it isn't a stop).
+	// card (the pinned KIND band's chosen cell is in sight, so it isn't a stop).
 	await page.keyboard.press('Escape');
 	expect(await focusId(page)).toMatch(/^continue-/);
 	expect(await page.evaluate(() => window.scrollY)).toBe(0);

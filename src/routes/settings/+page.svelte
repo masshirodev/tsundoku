@@ -52,6 +52,7 @@
 	} from '$lib/settings/local';
 	import { audioLine, differ, inUse, overrideLine, subsLine, when } from '$lib/settings/lines';
 	import { clampZoom, stepZoom, zoomLabel } from '$lib/reader/zoom';
+	import { modeLine } from './mode-line';
 	import { SIZE_MAX, SIZE_MIN, baseFontSize, deviceOf } from '$lib/reader/text';
 
 	/**
@@ -419,13 +420,6 @@
 	// ---- lists behind N SERIES DIFFER → (2A) ---------------------------------------------------
 	let open = $state<string | null>(null);
 	type Item = { href: string; t: string; v: string; ids: number[] };
-	const MODE_WORD: Record<string, string> = {
-		rtl: 'R→L',
-		ltr: 'L→R',
-		vertical: 'VERTICAL',
-		paged: 'PAGED',
-		scroll: 'SCROLL'
-	};
 	function itemsOf(row: RowDef): { what: string; items: Item[] } | null {
 		const href = (id: number) => resolve('/series/[id]', { id: String(id) });
 		if (row.overrides === 'audio' || row.overrides === 'subs') {
@@ -449,7 +443,7 @@
 					.map((o) => ({
 						href: href(o.seriesId),
 						t: o.title,
-						v: `${MODE_WORD[o.direction] ?? o.direction.toUpperCase()} · ${o.kind.toUpperCase()} · CHOSEN IN THE READER`,
+						v: modeLine(o),
 						ids: [o.seriesId]
 					}))
 			};

@@ -10,6 +10,7 @@ const choices = await import('$lib/server/anime/choices');
 const page = await import('$lib/server/settings-page');
 const { getSetting } = await import('$lib/server/settings');
 const { kindDirection } = await import('$lib/server/series');
+const textDir = await import('../src/routes/read/[entry]/text-direction.server');
 
 /**
  * The SETTINGS page's server side (doc/SETTINGS.md; card c171): devices'
@@ -219,6 +220,106 @@ describe('the library’s values', () => {
 		expect(page.modeOverrides(false).map((o) => o.seriesId)).toEqual([ids[0]]);
 		page.clearModes([ids[0]]);
 		expect(page.overrideCounts(false).mode.manga).toBe(0);
+	});
+
+	it('counts and lists a novel kept R→L, once beside its layout, and ✕ puts both back (c552)', () => {
+		const novels = (
+			db
+				.prepare(
+					`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id
+					WHERE s.kind = 'novel' AND r.hidden = 0 ORDER BY s.id LIMIT 4`
+				)
+				.all() as { id: number }[]
+		).map((r) => r.id);
+		expect(novels).toHaveLength(4);
+		const [rtl, both, ltr, storedLtr] = novels;
+		const layoutDef = kindDirection('novel');
+		const otherLayout = layoutDef === 'scroll' ? 'paged' : 'scroll';
+		const before = page.overrideCounts(false).mode.novel ?? 0;
+		expect(before).toBe(0);
+
+		// The text reader's REMEMBER, as its DIRECTION row writes it.
+		textDir.setTextDirection(rtl, 'rtl');
+		textDir.setTextDirection(both, 'rtl');
+		db.prepare(`UPDATE series SET direction = ? WHERE id = ?`).run(otherLayout, both);
+		// REMEMBER on L→R stores NULL, what the default already means: nothing differs.
+		textDir.setTextDirection(ltr, 'rtl');
+		textDir.setTextDirection(ltr, 'ltr');
+		// A stored 'ltr' (GROUP, TAKE OUT and the import's fold copy the column as
+		// it is) reads as NULL does: not differing either.
+		db.prepare(`UPDATE series SET text_direction = 'ltr' WHERE id = ?`).run(storedLtr);
+		expect(textDir.textDirectionOf(storedLtr)).toBe('ltr');
+
+		// Counted once each, the novel that differs twice included.
+		expect(page.overrideCounts(false).mode.novel).toBe(2);
+		const listed = page.modeOverrides(false).filter((o) => o.kind === 'novel');
+		expect(listed.map((o) => [o.seriesId, o.direction, o.rtl]).sort()).toEqual(
+			[
+				[rtl, null, true],
+				[both, otherLayout, true]
+			].sort()
+		);
+
+		// ✕ on the one kept R→L alone: L→R again, and it differs no more.
+		page.clearModes([rtl]);
+		expect(textDir.textDirectionOf(rtl)).toBe('ltr');
+		expect(page.overrideCounts(false).mode.novel).toBe(1);
+		// CLEAR ALL: the other's layout and direction, both.
+		page.clearModes(listed.map((o) => o.seriesId));
+		expect(textDir.textDirectionOf(both)).toBe('ltr');
+		expect(
+			(db.prepare(`SELECT direction FROM series WHERE id = ?`).get(both) as { direction: unknown })
+				.direction
+		).toBeNull();
+		expect(page.overrideCounts(false).mode.novel).toBe(0);
+		expect(page.modeOverrides(false).filter((o) => o.kind === 'novel')).toEqual([]);
+		db.prepare(`UPDATE series SET text_direction = NULL WHERE id = ?`).run(storedLtr);
+	});
+
+	it('leaves a comic’s text_direction alone: it is not what makes a comic differ, and not its ✕’s (c552)', () => {
+		const id = (
+			db
+				.prepare(
+					`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id
+					WHERE s.kind = 'manga' AND r.hidden = 0 LIMIT 1`
+				)
+				.get() as { id: number }
+		).id;
+		// Left from a time it was a novel (EDIT's KIND keeps the column).
+		db.prepare(`UPDATE series SET text_direction = 'rtl' WHERE id = ?`).run(id);
+		expect(page.overrideCounts(false).mode.manga).toBe(0);
+		expect(page.modeOverrides(false).map((o) => o.seriesId)).not.toContain(id);
+		db.prepare(`UPDATE series SET direction = 'ltr' WHERE id = ?`).run(id);
+		expect(page.modeOverrides(false).find((o) => o.seriesId === id)).toMatchObject({
+			direction: 'ltr',
+			rtl: false
+		});
+		page.clearModes([id]);
+		expect(db.prepare(`SELECT direction, text_direction FROM series WHERE id = ?`).get(id)).toEqual(
+			{ direction: null, text_direction: 'rtl' }
+		);
+		db.prepare(`UPDATE series SET text_direction = NULL WHERE id = ?`).run(id);
+	});
+
+	it('counts a hidden novel kept R→L only while revealed (c552)', () => {
+		const id = (
+			db
+				.prepare(
+					`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id
+					WHERE s.kind = 'novel' AND r.hidden = 0 AND s.hidden = 0 ORDER BY s.id DESC LIMIT 1`
+				)
+				.get() as { id: number }
+		).id;
+		// HIDE's own column: hidden means hidden, in SQL.
+		db.prepare(`UPDATE series SET hidden = 1 WHERE id = ?`).run(id);
+		textDir.setTextDirection(id, 'rtl');
+		expect(page.overrideCounts(false).mode.novel).toBe(0);
+		expect(page.modeOverrides(false).map((o) => o.seriesId)).not.toContain(id);
+		expect(page.overrideCounts(true).mode.novel).toBe(1);
+		expect(page.modeOverrides(true).map((o) => o.seriesId)).toContain(id);
+		page.clearModes([id]);
+		db.prepare(`UPDATE series SET hidden = 0 WHERE id = ?`).run(id);
+		expect(page.overrideCounts(true).mode.novel).toBe(0);
 	});
 });
 

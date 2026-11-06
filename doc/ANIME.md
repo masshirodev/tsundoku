@@ -90,8 +90,9 @@ Pure, and what every screen reads (`tests/anime.spec.ts`):
 
 ## The screens
 
-- **The library**: an ANIME shelf after NOVELS, while the library has some,
-  as every kind shelf (`KIND_SHELVES`, `server/library.ts`).
+- **The library**: an ANIME cell on the KIND band while the shelf has some,
+  as every kind (`kindCounts`, `server/library.ts`; c436 retired the kind
+  shelves).
 - **The series screen** is c94's (Index Anime Series): the meta line "ANIME ·
   ANIMEPAHE · ONGOING", the count "24 EPISODES · 2 SEASONS · 18 WATCHED" under
   the titles, RATING, FAV, CONTINUE, DOWNLOAD, SHELVES, LINK, FILE. No
@@ -613,7 +614,16 @@ screen but the video, and the subtitles, until a tap.
     MANIFEST_PARSED never came and the preview showed the time alone for
     the rest of the episode. A playlist that fails past hls.js's own retry
     (a fatal error) gives that stop up, and the next stop opens a fresh
-    player and asks again. **A plain file as the lowest quality** (a
+    player and asks again; its rejection is answered (the stop's race
+    observes it), so it never reaches the page as an unhandled one, and
+    the case asserts no `pageerror` (c573). **The first stop on a fresh
+    page** (c574) may wait on hls.js's chunk: it counts itself before
+    that wait, and when the chunk comes it opens nothing if the pointer
+    left, a later stop began, or the page is being left (`beforeNavigate`
+    ends the stop as the way out starts, since the player stays mounted
+    through its `out:leave`; `onDestroy` too). hls.js is loaded only for a
+    playlist: a plain file's preview is the browser's own picture and
+    never waits on it. **A plain file as the lowest quality** (a
     hoster's MP4 or WebM): the hidden picture reads its header
     (`preload = 'metadata'`; `none` held even the seek's own read, so such a
     stream never had a frame) and then the bytes at the time asked, a few

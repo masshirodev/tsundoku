@@ -157,7 +157,7 @@ What it decided, in short:
   cover, button, chip or field and inside a ruled cell. It jumps and never
   animates or grows. Never the accent (which means "yours") and never magenta.
   Desktop keyboards get the same mark on `:focus-visible`.
-- **A cover is its picture;** a focus line under the shelf tabs names the
+- **A cover is its picture;** a focus line under the pinned KIND band names the
   focused one in full, with HOLD OK · OPTIONS where it has options.
 - **The library stays a grid, one shelf at a time**, not a row per shelf.
   Top bar, no sidebar, no SELECT.
@@ -211,12 +211,12 @@ The handoff stated these about the code or the app; both are built (c236).
 - **Focus.** The layer is c234's; this card gives it the focus line and the
   rating row. A tile carries `data-focus-line`, its name, its meta and its
   rating; `src/lib/components/content/FocusLine.svelte` follows focus and
-  draws the 64 px bar under the pinned tabs (name, kind and counts, rating
+  draws the 64 px bar under the pinned KIND band (name, kind and counts, rating
   bars, `OK OPEN`, `HOLD OK OPTIONS`). It exists only on a TV.
 - **The library.** Top bar under the safe top, no sidebar, no SELECT. CONTINUE
   is three 288×120 cards, each one button (the ▶ cell becomes the overlay, the
-  mark is drawn inside the card). The shelf tabs pin; a focus line under them
-  pins with them. The grid is six 144 px cells inside the safe margin; a tile
+  mark is drawn inside the card). The KIND band pins in the tabs' place
+  (c436); a focus line under it pins with it. The grid is six 144 px cells inside the safe margin; a tile
   is its cover, its badges and nothing else -- a coverless book sets its title
   on the stripes. The sort menu stays in the section label.
 - **The series screen.** The metadata is a 352 px column at the left, with
@@ -404,20 +404,20 @@ decisions (`isBackKey`, `isOptionsKey`, `OkPress`) and `layer.ts` wires them;
 - **BACK** is Escape, `BrowserBack` and `GoBack`. It closes the open sheet or
   panel first (a scope closes itself; the player, the reader, the page menu and
   a history row's REMOVE register a step instead), then climbs — a grid's
-  tiles to the active shelf tab, anything else to `[data-focus-start]` (the
+  tiles to the KIND band's chosen cell (the shelf tab's until c436), anything else to `[data-focus-start]` (the
   first CONTINUE card, the series' ▶ CONTINUE; the climb is the TV's only, a
   keyboard's Escape is not taken for it) — and at the top of the screen
   says nothing took it. **A climb only lands out of sight** (`inFullView` in
   `src/lib/focus/layer.ts`; the owner's call after the first real TV,
   2026-11-02, where BACK on a series cost a press to reach ▶ CONTINUE that was
-  already on screen). The pinned shelf tab is always in sight, so on a
-  scrolled library BACK goes straight to the first CONTINUE card and the page's
-  top; with the top in full view it leaves.
+  already on screen). The pinned KIND band's chosen cell is always in sight
+  (the grid's climb target since c436), so on a scrolled library BACK goes
+  straight to the first CONTINUE card and the page's top; with the top in full view it leaves.
 - **Focus stays in sight under pinned bars.** `reveal` scrolls the focused
   thing on screen, then out from under whatever sticky or fixed bars cover it
   (found with `elementFromPoint` at its edges, stacked bars included: the
-  library's focus line is pinned under its shelf tabs). Before 2026-11-02, ↑
-  through the grid left each row under the tabs. `tests/tv-keys.e2e.ts` pins
+  library's focus line is pinned under its KIND band). Before 2026-11-02, ↑
+  through the grid left each row under the then-pinned tabs. `tests/tv-keys.e2e.ts` pins
   it.
 - **OK held** is any keydown while OK is already down, whatever its `repeat`
   says: Android TV's WebView sends a held centre as a stream of keydowns, and

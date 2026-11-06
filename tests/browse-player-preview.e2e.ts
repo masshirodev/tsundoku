@@ -89,6 +89,75 @@ async function lineAt(page: Page, f: number) {
 	return { x: box.x + box.width * f, y: box.y };
 }
 
+/**
+ * The episode's length is stored, as it is once it has been watched: the
+ * player's first report carries it. A player whose hls.js is still loading
+ * has no picture to say how long the file is, so only a stored length gives
+ * its bar a time to hover (c574).
+ */
+async function knownLength(page: Page) {
+	const told = page.waitForRequest(
+		(r) =>
+			r.method() === 'POST' &&
+			r.url().endsWith('/api/reading') &&
+			((r.postDataJSON() as { length?: number }).length ?? 0) > 0,
+		{ timeout: 20_000 }
+	);
+	await openEpisode(page);
+	await page.evaluate(() => (document.querySelector('.stage video') as HTMLVideoElement).play());
+	await told;
+}
+
+/**
+ * hls.js's chunk, held until [release]: the first, uncached `import('hls.js')`
+ * of a fresh page (c574). Its name is a hash, so it is known by its body.
+ * Routing turns the browser's cache off, so a page loaded after this asks
+ * for the chunk again.
+ */
+async function holdHls(page: Page) {
+	let release!: () => void;
+	const released = new Promise<void>((ok) => (release = ok));
+	let asked!: () => void;
+	const requested = new Promise<void>((ok) => (asked = ok));
+	await page.route('**/_app/immutable/chunks/*.js', async (route) => {
+		const res = await route.fetch();
+		const body = await res.text();
+		if (body.includes('hlsManifestParsed')) {
+			asked();
+			await released;
+		}
+		await route.fulfill({ response: res, body }).catch(() => undefined);
+	});
+	return { requested, release };
+}
+
+/** The episode opened on a fresh page, its player still waiting on hls.js's chunk. */
+async function openCold(page: Page, held: { requested: Promise<void> }) {
+	await page.goto('/');
+	await page.getByRole('link', { name: /^ANIME/ }).click();
+	await page.locator('.grid .tile', { hasText: 'Tsukiakari no Ryokōsha' }).click();
+	await page
+		.getByRole('region', { name: 'Episodes' })
+		.locator('.entry', { hasText: 'A Letter from Hollin' })
+		.locator('.entry-btn')
+		.click();
+	await expect(page).toHaveURL(/\/read\/\d+/);
+	await held.requested;
+	await expect(page.locator('.scrubrow .track')).toBeVisible();
+}
+
+/** The picture has its file: hls.js's chunk came, and the player's own import with it. */
+async function pictureLoaded(page: Page) {
+	await page.waitForFunction(
+		() => {
+			const v = document.querySelector('.stage video') as HTMLVideoElement | null;
+			return !!v && Number.isFinite(v.duration) && v.duration > 0;
+		},
+		undefined,
+		{ timeout: 20_000 }
+	);
+}
+
 async function hover(page: Page, f: number) {
 	await page.mouse.move(120, 120);
 	await page.mouse.move(640, 300 + Math.random() * 10);
@@ -425,6 +494,11 @@ test.describe('a stream', () => {
 		const segments: string[] = [];
 		let playlists = 0;
 		let healthy = false;
+		// The playlist's failure comes after the stop's second has given up
+		// (hls.js retries once, a second later): nothing may be left to throw it
+		// at the page as an unhandled rejection (c573).
+		const errors: string[] = [];
+		page.on('pageerror', (e) => errors.push(e.message));
 		await serveHls(page, segments);
 		// A hoster's 503 on every playlist until the test says otherwise, so
 		// hls.js's own retry fails too and the error is fatal. (Routed after
@@ -445,6 +519,7 @@ test.describe('a stream', () => {
 		await expect(tip.locator('.at')).toHaveText('0:02');
 		await expect(tip.locator('.frame')).toHaveCount(0);
 		expect(segments).toEqual([]);
+		expect(errors).toEqual([]);
 		const refused = playlists;
 
 		healthy = true;
@@ -453,6 +528,118 @@ test.describe('a stream', () => {
 		await expect(tip.locator('.frame')).toBeVisible({ timeout: 5000 });
 		expect(playlists).toBeGreaterThan(refused);
 		expect(segments).toEqual(['seg2.m4s']);
+		expect(errors).toEqual([]);
+	});
+
+	/** Counts every ask for the preview's playlist (routed after serveHls, so asked first). */
+	async function countPlaylists(page: Page) {
+		const asked = { n: 0 };
+		await page.route('**/__preview/hls/low.m3u8', async (route) => {
+			asked.n++;
+			return route.fallback();
+		});
+		return asked;
+	}
+
+	test('a leave while the first stop waits on hls.js’s chunk: nothing is fetched when it comes, and the next hover previews (c574)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		const segments: string[] = [];
+		await serveHls(page, segments);
+		const playlists = await countPlaylists(page);
+		await lowHls(page);
+		await knownLength(page);
+		const held = await holdHls(page);
+		await openCold(page, held);
+		const tip = page.locator('.scrubrow .track .tip');
+
+		await hover(page, 2.5 / 8);
+		await expect(tip.locator('.at')).toHaveText('0:02');
+		// Past the debounce: the stop is waiting on the chunk. Then the pointer leaves.
+		await page.waitForTimeout(600);
+		await page.mouse.move(640, 300);
+		await expect(tip).toHaveCount(0);
+		held.release();
+		await pictureLoaded(page);
+		await page.waitForTimeout(2500);
+		expect(playlists.n).toBe(0);
+		expect(segments).toEqual([]);
+
+		// Past the first tick: the next hover opens the preview and has its frame.
+		await hover(page, 4.5 / 8);
+		await expect(tip.locator('.frame')).toBeVisible({ timeout: 5000 });
+		expect(playlists.n).toBe(1);
+		expect(segments).toEqual(['seg2.m4s']);
+	});
+
+	test('a later stop while the first waits on hls.js’s chunk: one preview opens, for the later stop alone (c574)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		const segments: string[] = [];
+		await serveHls(page, segments);
+		const playlists = await countPlaylists(page);
+		await lowHls(page);
+		await knownLength(page);
+		const held = await holdHls(page);
+		await openCold(page, held);
+		const tip = page.locator('.scrubrow .track .tip');
+
+		await hover(page, 2.5 / 8);
+		await page.waitForTimeout(600);
+		const p = await lineAt(page, 4.5 / 8);
+		await page.mouse.move(p.x, p.y);
+		await expect(tip.locator('.at')).toHaveText('0:04');
+		await page.waitForTimeout(600);
+		held.release();
+		await expect(tip.locator('.frame')).toBeVisible({ timeout: 10_000 });
+		await page.waitForTimeout(1500);
+		// Two players would each ask for the playlist, and the earlier stop for its segment.
+		expect(playlists.n).toBe(1);
+		expect(segments).toEqual(['seg2.m4s']);
+	});
+
+	test('the page left while the first stop waits on hls.js’s chunk: no preview opens behind it (c574)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		const segments: string[] = [];
+		await serveHls(page, segments);
+		const playlists = await countPlaylists(page);
+		await lowHls(page);
+		await knownLength(page);
+		const held = await holdHls(page);
+		await openCold(page, held);
+
+		// The series page's data held: the way back has begun and not landed,
+		// so the player is still mounted when hls.js's chunk comes.
+		let landed!: () => void;
+		const land = new Promise<void>((ok) => (landed = ok));
+		let left!: () => void;
+		const leaving = new Promise<void>((ok) => (left = ok));
+		await page.route('**/series/*/__data.json**', async (route) => {
+			left();
+			await land;
+			await route.fallback();
+		});
+
+		await hover(page, 2.5 / 8);
+		await expect(page.locator('.scrubrow .track .tip .at')).toHaveText('0:02');
+		await page.waitForTimeout(600);
+		// Away by the browser's back, the pointer still where the bar was.
+		await page.evaluate(() => history.back());
+		await leaving;
+		held.release();
+		// The picture's own import of the same chunk has resolved, so has the
+		// stop's, and the player is still on the page (a popstate has already
+		// changed the address, so the address can't say so).
+		await pictureLoaded(page);
+		landed();
+		await expect(page.locator('.stage video')).toHaveCount(0);
+		await page.waitForTimeout(2500);
+		expect(playlists.n).toBe(0);
+		expect(segments).toEqual([]);
 	});
 });
 
@@ -628,5 +815,42 @@ test.describe('a stream whose lowest quality is a plain file', () => {
 		await expect(page.locator('.scrubrow .track .tip')).toHaveCount(0);
 		await page.waitForTimeout(3000);
 		expect(ranges.length).toBe(atLeave);
+	});
+
+	test('a leave while hls.js’s chunk is still loading: no Range after it, and a plain file previews without hls.js at all (c574)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		const ranges: string[] = [];
+		await serveFile(page, ranges);
+		await lowFile(page);
+		await knownLength(page);
+		const held = await holdHls(page);
+		await openCold(page, held);
+		const tip = page.locator('.scrubrow .track .tip');
+
+		await hover(page, 2.5 / 8);
+		await page.waitForTimeout(600);
+		await page.mouse.move(640, 300);
+		await expect(tip).toHaveCount(0);
+		const atLeave = ranges.length;
+		await page.waitForTimeout(2000);
+		expect(ranges.length).toBe(atLeave);
+
+		// The chunk still held: a plain file's stop needs none of it, reads its
+		// header and has its frame.
+		await hover(page, 6.5 / 8);
+		await expect(tip.locator('.frame')).toBeVisible({ timeout: 5000 });
+		expect(ranges[atLeave]).toBe('bytes=0-');
+		await page.mouse.move(640, 300);
+		await expect(tip).toHaveCount(0);
+		await page.waitForTimeout(1000);
+		const atSecondLeave = ranges.length;
+
+		// The chunk comes (the picture's own player): still nothing off the bar.
+		held.release();
+		await pictureLoaded(page);
+		await page.waitForTimeout(2500);
+		expect(ranges.length).toBe(atSecondLeave);
 	});
 });

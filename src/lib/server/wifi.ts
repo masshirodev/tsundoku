@@ -92,13 +92,15 @@ export type WifiView = {
 
 /**
  * Whether a code is past showing: expired, burned, or used longer ago than the
- * 2 minutes the ✓ USED stays up. Then a fresh one is made when SETTINGS is
- * opened on the computer (`wifiView({ renew })`, `tvPanel({ renew })`, on a
- * real visit only, `settingsVisit`, c531), and nowhere else:
- * neither the WI-FI panel's poll (`GET /api/wifi`, c460) nor the DEVICES row's
- * refresh (`tvCodeNow`, c265) makes one, and the TV's own page makes one only
- * when there is none, or the only one has merely expired or was used over
- * these 2 minutes ago, never over a burned one (`TvPairing.renewForTv`, c246).
+ * 2 minutes the ✓ USED stays up. Then opening SETTINGS on the computer
+ * replaces it (`wifiView({ renew })`, `tvPanel({ renew })`, on a real visit
+ * only, `settingsVisit`, c531); NEW CODE and ON make one whatever the code
+ * (`fresh`), and so does the computer's own `POST /api/pair/tv`. Neither the
+ * WI-FI panel's poll (`GET /api/wifi`, c460) nor the DEVICES row's refresh
+ * (`tvCodeNow`, c265) makes one, and the TV's own page makes one only when
+ * there is none, or the only one has merely expired or was used over these
+ * 2 minutes ago, never over a burned one (`TvPairing.renewForTv`, c246).
+ * doc/WIFI.md, "Which doors make a code", is the list.
  */
 const CODES: ('none' | 'live' | 'used' | 'expired' | 'burned')[] = ['none', 'expired', 'burned'];
 
