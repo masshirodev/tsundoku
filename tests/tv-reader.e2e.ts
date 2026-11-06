@@ -90,13 +90,14 @@ test('the end page takes the pad: its cells are reachable, and its ANOTHER SOURC
 		false
 	);
 
-	// The first arrow lands on a cell of its foot, and OK presses it.
+	// The first arrow lands on the rating's first tick (c655: the block stays
+	// once rated, so it is there on any series), and every cell is the pad's.
 	await page.keyboard.press('ArrowDown');
 	const text = await page.evaluate(
 		() => document.activeElement?.textContent?.replace(/\s+/g, ' ').trim() ?? ''
 	);
 	expect(text.length).toBeGreaterThan(0);
-	expect(text).toMatch(/SERIES|LIBRARY|BACK|RATE|FAV/i);
+	expect(text).toMatch(/SERIES|LIBRARY|BACK|RATE|FAV|REMOVE|^\d+$/i);
 });
 
 test('OK brings the chrome as a focus row, and READING opens, changes the mode, and goes back', async ({
