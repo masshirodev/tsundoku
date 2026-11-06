@@ -226,7 +226,9 @@ export type Page = { url: string; status: number; contentType: string; body: str
  * memos alone (c630). `unsent` marks one made before the browser was asked at
  * all, an address this app could not look up: a new solve is not the cure, so
  * the host words it as something it would not send and TRY AGAIN asks again
- * without forgetting the memos (c630).
+ * without forgetting the memos (c630). Neither mark covers a page the browser
+ * did fetch whose last address this app could not check (c662): it is left
+ * unmarked, so TRY AGAIN forgets the memos and asks afresh.
  */
 export type PageAnswer = { page: Page } | { error: string; fixed?: true; unsent?: true };
 
@@ -322,7 +324,11 @@ async function pageOne(req: PageRequest, host: string, budget: number): Promise<
 		// words it "can't come through the solver" with TRY AGAIN leaving the
 		// memos alone. Unmarked, TRY AGAIN forgets them and asks afresh, which is
 		// the honest answer to "we fetched a page but could not check where it
-		// ended". No site_check is written: the host was not reached.
+		// ended". The host's refusePage sentence for it borrows "its check could
+		// not be passed", which is not true of this app's own DNS; that was
+		// accepted because the same sentence already carries the solver's own 500
+		// and timeout, and the cost is one solve a retry would pay anyway. No
+		// site_check is written: its last address is unverified.
 		if (e instanceof NotPublicError)
 			return {
 				error: `the solver's browser ended at ${hostLabel(answer.page.url)}, which is not on the internet`,
