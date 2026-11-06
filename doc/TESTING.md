@@ -786,12 +786,14 @@ databases in `/tmp`, which is RAM here. Keep `TMPDIR` on the worktree's
 next.
 
 **Ports.** The gate and each slot assign the eight `PLAYWRIGHT_*_PORT`
-variables, and a run uses the value it is given. Four ports no one assigns —
-the browse world's own preview, its fake engine, the fake extension
-repositories, and the friend world's install — are taken from the OS once per
-run by the runner, which pins them where the setup and every worker read them
-(`tests/browse-world.ts`, c340 and c625; `tests/friend-world.ts`, c656), and
-the browse world's servers name the port they could not take instead of
+variables, and a run uses the value it is given. Four ports fall back to the
+OS when nothing assigns them — the browse world's own preview
+(`PLAYWRIGHT_BROWSE_PORT`), its fake engine (`PLAYWRIGHT_ENGINE_PORT`), the
+fake extension repositories (no variable of its own: always the OS), and the
+friend world's install (`PLAYWRIGHT_FRIEND_PORT`) — and the runner takes each
+from the OS once per run, pinning it where the setup and every worker read
+them (`tests/browse-world.ts`, c340 and c625; `tests/friend-world.ts`, c656).
+The browse world's servers name the port they could not take instead of
 waiting forever. The friend world's data folder is named after its port, so
 it moves with it, and its setup, specs and teardown read the one pinned
 value. The two specs of nobody's that still fall back to a written-in `'4194'`
