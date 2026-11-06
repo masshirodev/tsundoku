@@ -134,7 +134,10 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// (c438). 03's done row names the import that ticked it, not the last one
 	// (c634), so that is its own read.
 	const last = lastImport(reveal);
-	const tick = tickingImport(reveal);
+	// 03's done row is drawn only by the empty library's start list (this page)
+	// and by GET STARTED; here that list shows only with no tiles at all, so
+	// the busiest page's load does not pay for a value nothing can draw.
+	const tick = total === 0 && !scan ? tickingImport(reveal) : null;
 	// PEOPLE lists favourite people (from the layout), not series.
 	// The first page; the grid asks /api/library for the rest as it scrolls.
 	// CACHED is the exception: only the tablet knows which series it holds,
@@ -200,8 +203,9 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		// 03's done row on the empty library names the import that ticked it, as
 		// /start's does (c511, c634). It can never draw here today -- 03 done
 		// means a visible series, and this list only shows with no tiles at all
-		// (`data.empty`) -- but both loads pass the same facts, so the line is
-		// the same wherever the row is drawn.
+		// (`data.empty`) -- so it is read only when that list can draw (`empty`
+		// alone: a scan turns the list off too). Both loads pass the same facts,
+		// so the line is the same wherever the row is drawn.
 		imported: tick,
 		cont: continueReading(reveal),
 		// A Work that ended (TAKE OUT of the second-to-last, UNGROUP) has no

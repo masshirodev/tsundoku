@@ -275,7 +275,10 @@ export function lastImport(reveal: boolean, db: Database.Database = getDb()) {
  * deleted since cannot be read either way. When the job is an import's, the
  * row names that import and its count; a scan's job, a series with no job at
  * all (written before jobs, or by hand), or no series at all answers null,
- * and the step keeps the scan's line.
+ * and the step keeps the scan's line. Only a finished import names it: one
+ * still running, or one that failed partway, has a partial count and has not
+ * ticked anything as done yet, so the step keeps the scan's line until it is
+ * `done` (the same rule `lastImport` holds).
  */
 export function tickingImport(
 	reveal: boolean,
@@ -292,7 +295,7 @@ export function tickingImport(
 		.get() as { job: number | null } | undefined;
 	if (!first?.job) return null;
 	const imp = db
-		.prepare(`SELECT id FROM imports WHERE job_id = ? ORDER BY id DESC LIMIT 1`)
+		.prepare(`SELECT id FROM imports WHERE job_id = ? AND state = 'done' ORDER BY id DESC LIMIT 1`)
 		.get(first.job) as { id: number } | undefined;
 	if (!imp) return null;
 	const row = importRow(imp.id, db);

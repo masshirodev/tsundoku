@@ -48,7 +48,11 @@ series` when the series that first ticked 03 came from an import's job,
   plus one, so that is the first one still there), and its `scan_job_id`
   where an `imports` row has that job (`tickingImport`,
   `src/lib/server/import/log.ts`). A scan's job, a series with no job at all
-  (written before jobs, or by hand), or none, keeps the scan's line. So a
+  (written before jobs, or by hand), or none, keeps the scan's line. Only a
+  finished import names it: one still running, or one that failed partway,
+  has a partial count and has not ticked anything as done, so the row takes
+  only an `imports` row whose `state = 'done'` (the rule `lastImport` holds)
+  and keeps the scan's line until then. So a
   later import no longer takes the row over: a library scanned in first (300
   series) and a 2-series backup after it reads the scan's line, `Done · 302
 series`, and only a backup that came first names itself. The count is the
