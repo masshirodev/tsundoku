@@ -143,6 +143,19 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			: series;
 		const here = reading.entries[index] ?? entry;
 		const version = versions[here.file] ?? null;
+		// A chapter marked unread keeps the place it was left at, and a finished
+		// chapter's place is its last page (the finish event posts the block it
+		// ended on): resuming there would reopen a chapter the reader asked to
+		// start over at its bottom (c622, round 2). Only a place saved after the
+		// mark resumes, which is one they read on to since. The mark is
+		// `series.ts`'s, so this reads the row rather than changing it.
+		const marked = getDb()
+			.prepare(`SELECT unread_at, last_opened_at FROM entries WHERE id = ?`)
+			.get(entryId) as { unread_at: number | null; last_opened_at: number | null } | undefined;
+		const resume =
+			marked && marked.unread_at !== null && (marked.last_opened_at ?? 0) <= marked.unread_at
+				? null
+				: entry.lastPosition;
 		return {
 			text: true as const,
 			series: reading,
@@ -153,8 +166,8 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 				locator: here.locator,
 				matter: entry.matter,
 				readAt: entry.readAt,
-				lastPosition: entry.lastPosition,
-				lastOffset: entry.lastOffset
+				lastPosition: resume,
+				lastOffset: resume === null ? null : entry.lastOffset
 			},
 			layout:
 				effectiveDirection(series, series.kindDirection) === 'scroll'
