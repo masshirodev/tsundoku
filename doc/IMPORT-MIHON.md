@@ -312,7 +312,11 @@ plan meets the series a backup names, including a pair that already exists.
   (`dropped`, card c472), as `DROPPED FROM <WORK> · <survivor's title>`, with
   `· THE WORK ENDED` when the Work was left with one series, and the server's
   log carries the same line (`[import] …`, from a scan and from what a
-  download attaches). A survivor in no Work takes the folder's membership in
+  download attaches). A scan's or an import's job keeps the list
+  (`scan_jobs.dropped`, rung 71, c570), and the IMPORT LOG draws it under the
+  entry's WORKS ([`IMPORT.md`](IMPORT.md), "The log"); `yarn run import`
+  prints it under each source. What a download attaches has no job, so only
+  the server's log has its line. A survivor in no Work takes the folder's membership in
   its place, and two parts of one Work stay in it: neither is a loss. No file moves. Its **title, kind and direction** are the one setting a fold cannot
   keep from both rows: a folder's series the owner renamed — its title no
   longer the name its folder builds — passes that name to the survivor, with

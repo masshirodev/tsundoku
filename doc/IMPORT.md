@@ -267,6 +267,25 @@ extensions it lacked, the shelves it made and the categories left out, the
 series refused. A refused file is listed (NOT READ). A preview nobody
 imported is not an import and is not listed.
 
+**WORKS: what a fold dropped** (c570). When an import or a scan folds a
+download folder's series into the series a backup names, and both were
+parts of different Works, the folder's Work loses that part
+([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Both exist"). The entry's head counts
+them (`· 1 WORK DROPPED`) and, open, lists each under WORKS as the summary
+prints it: `DROPPED FROM <WORK> · <survivor's title>`, with `· THE WORK ENDED`
+when it was left with one series. The line opens the Work while that Work
+still exists: the job keeps its id **with its `created_at`**, because
+`works.id` is reused once the newest Work ends, and an id alone would open
+whichever Work took it. **Hidden means hidden**: with reveal off, a line whose
+survivor is hidden now is not drawn (a hidden `from` makes the survivor
+hidden, and a Work is hidden or shown whole, so this hides the dropped
+Work's name too), and neither is one whose survivor has since been deleted
+or whose id another series took (kept with its `added_at` for the same
+reason), since nothing kept says whether it was hidden. With reveal on,
+every line is drawn. A run that throws part-way still records the folds it
+made (each series is its own transaction); a job a dead process left lists
+none.
+
 **Rung 66** (`src/lib/server/db.ts`) keeps it:
 
 - `imports`: one row per file chosen: when, which app, its name, size, when
@@ -281,7 +300,11 @@ imported is not an import and is not listed.
   series deleted since stops counting. A series deleted takes its row with it;
   a job forgotten leaves the import unlinked.
 
-A scan stays a `scan_jobs` row alone; the log reads both.
+A scan stays a `scan_jobs` row alone; the log reads both. **Rung 71** adds
+`scan_jobs.dropped` (JSON, `'[]'` by default): the Works its folds dropped,
+written as the job finishes (`finishJob`). Every job stored before the rung
+has `'[]'`, which is right: nothing recorded them, and they cannot be read
+back from anything kept.
 
 ## Where it departs from the handoff
 

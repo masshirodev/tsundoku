@@ -556,13 +556,20 @@ function placeVolume(
 
 /**
  * Close a job: a run that brought no new series has nothing to tidy, so it
- * leaves no band.
+ * leaves no band. `dropped` is every Work its folds took a series out of
+ * (c570, rung 71), which the IMPORT LOG names.
  */
-export function finishJob(db: Database.Database, jobId: number, seriesCreated: number): void {
+export function finishJob(
+	db: Database.Database,
+	jobId: number,
+	seriesCreated: number,
+	dropped: Dropped[] = []
+): void {
 	const done = Date.now();
 	db.prepare(
-		`UPDATE scan_jobs SET finished_at = ?, dismissed_at = CASE WHEN ? = 0 THEN ? END WHERE id = ?`
-	).run(done, seriesCreated, done, jobId);
+		`UPDATE scan_jobs SET finished_at = ?, dismissed_at = CASE WHEN ? = 0 THEN ? END, dropped = ?
+		WHERE id = ?`
+	).run(done, seriesCreated, done, JSON.stringify(dropped), jobId);
 }
 
 /**

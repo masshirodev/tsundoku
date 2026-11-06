@@ -450,9 +450,25 @@ function tablesWith(db: Database.Database, column: string): string[] {
  * library shows it after the fold; `ended` says the Work was left with one
  * series and so ended (rung 61's trigger). Named in the import's summary as
  * DROPPED FROM <WORK> (`droppedLine`), since the owner's grouping cannot be
- * put back by the import.
+ * put back by the import, and kept on the job's row (`scan_jobs.dropped`,
+ * rung 71, card c570) for the IMPORT LOG.
+ *
+ * Ids are not identities here: `works.id` and `series.id` are reused once the
+ * newest row ends (no AUTOINCREMENT), so each is kept with the row's own
+ * creation time, and the log trusts an id only while both still match
+ * (`droppedOf`, log.ts).
  */
-export type Dropped = { work: string; series: string; ended: boolean };
+export type Dropped = {
+	work: string;
+	series: string;
+	ended: boolean;
+	/** The Work's id and `created_at`, for the log's link while it exists. */
+	workId: number;
+	workAt: number;
+	/** The survivor's id and `added_at`, for the log's reveal rule. */
+	seriesId: number;
+	seriesAt: number;
+};
 
 const note = (into: Dropped[], d: Dropped | null) => {
 	if (d) into.push(d);
@@ -563,10 +579,12 @@ export function foldSeries(db: Database.Database, from: number, into: number): D
 	const fromHidden = hiddenNow(db, from);
 	// And the Work each is a part of: two different ones mean `from`'s is lost.
 	const workOf = db.prepare(
-		`SELECT w.id, w.name FROM work_series ws JOIN works w ON w.id = ws.work_id WHERE ws.series_id = ?`
+		`SELECT w.id, w.name, w.created_at AS at FROM work_series ws JOIN works w ON w.id = ws.work_id
+		WHERE ws.series_id = ?`
 	);
-	const fromWork = workOf.get(from) as { id: number; name: string } | undefined;
-	const intoWork = workOf.get(into) as { id: number; name: string } | undefined;
+	type Lost = { id: number; name: string; at: number };
+	const fromWork = workOf.get(from) as Lost | undefined;
+	const intoWork = workOf.get(into) as Lost | undefined;
 	const lost = fromWork && intoWork && fromWork.id !== intoWork.id ? fromWork : null;
 	// `work_series` is one of these: `from`'s membership moves to `into` when
 	// `into` is in no Work, and is dropped when it is in one (a series is in
@@ -590,10 +608,20 @@ export function foldSeries(db: Database.Database, from: number, into: number): D
 	// Never the other way: a fold never shows anything.
 	if (fromHidden || hiddenNow(db, into)) setHiddenWhole([into], true);
 	if (!lost) return null;
-	const title = (db.prepare(`SELECT title FROM series WHERE id = ?`).get(into) as { title: string })
-		.title;
+	const survivor = db.prepare(`SELECT title, added_at FROM series WHERE id = ?`).get(into) as {
+		title: string;
+		added_at: number;
+	};
 	const ended = !db.prepare(`SELECT 1 FROM works WHERE id = ?`).get(lost.id);
-	return { work: lost.name, series: title, ended };
+	return {
+		work: lost.name,
+		series: survivor.title,
+		ended,
+		workId: lost.id,
+		workAt: lost.at,
+		seriesId: into,
+		seriesAt: survivor.added_at
+	};
 }
 
 /** Whether SQL's rule reads this series as hidden: its own flag, or its root's. */

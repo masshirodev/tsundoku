@@ -10,6 +10,7 @@
 import { fileURLToPath } from 'node:url';
 import { databasePath } from '../src/lib/server/db.ts';
 import { libraryRoot, runImport, sourcesIn } from '../src/lib/server/import/index.ts';
+import { droppedLine } from '../src/lib/server/import/fold.ts';
 
 // DATABASE_PATH and LIBRARY_ROOT live in .env; without it this would import
 // into the dev database. Shell variables still win.
@@ -36,6 +37,8 @@ for (const s of summary.sources) {
 	console.log(`  series updated:  ${s.seriesUpdated}`);
 	console.log(`  entries added:   ${s.entriesAdded}`);
 	console.log(`  files attached:  ${s.filesAttached}`);
+	// The Works a fold took a series out of (c472, c570), as IMPORT LOG names them.
+	for (const d of s.dropped) console.log(`  ${droppedLine(d)}`);
 	if (s.skipped) console.log(`  browsed only:    ${s.skipped} (not imported)`);
 }
 console.log(`\nunreadable:        ${summary.failedFiles}`);

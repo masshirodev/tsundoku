@@ -1637,6 +1637,15 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	`
 	ALTER TABLE series_links ADD COLUMN country TEXT;
 	ALTER TABLE series_links ADD COLUMN year INTEGER;
+	`,
+	// v71: the Works a scan's or an import's folds took a series out of (card
+	// c570; doc/IMPORT.md, "The log"), as JSON (`Dropped[]`, import/fold.ts),
+	// so the IMPORT LOG can say DROPPED FROM <WORK>. Until now only the
+	// summary and the server's log had them. '[]' is right for every job
+	// already stored: nothing recorded them, and what a fold dropped then
+	// cannot be read back from anything kept, so an old job lists none.
+	`
+	ALTER TABLE scan_jobs ADD COLUMN dropped TEXT NOT NULL DEFAULT '[]';
 	`
 ];
 

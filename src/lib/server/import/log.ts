@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { visibleWhere } from '../visibility.ts';
+import { droppedLine, type Dropped } from './fold.ts';
 import {
 	closeDeadImports,
 	importRow,
@@ -75,6 +76,54 @@ export function sourcesLacking(
 		.map((x) => x.name);
 }
 
+/**
+ * One Work a job's folds took a series out of (c570, rung 71): the line the
+ * summary printed (`droppedLine`), and the Work's id while that Work still
+ * exists and the viewer may see it, so the line can open it.
+ */
+export type DroppedEntry = { line: string; workId: number | null };
+
+/**
+ * What a job's folds dropped, as the viewer may see it. Hidden means hidden:
+ * the survivor is the fold's own series, and a Work is hidden or shown whole
+ * (doc/WORKS.md), so a line whose survivor is hidden now is not shown with
+ * reveal off (`from` hidden made the survivor hidden too, so this also
+ * covers the Work it left). A survivor deleted since, or whose id another
+ * series has taken (`series.id` is reused, so the id counts only with its
+ * `added_at`), cannot be read either way, and is shown only with reveal on.
+ * The link is to the Work by its id **and** `created_at`, so a Work that
+ * ended is never linked through the id a new Work took (c583's class).
+ */
+export function droppedOf(
+	json: string,
+	reveal: boolean,
+	db: Database.Database = getDb()
+): DroppedEntry[] {
+	let list: unknown;
+	try {
+		list = JSON.parse(json);
+	} catch {
+		return [];
+	}
+	if (!Array.isArray(list)) return [];
+	const seen = db.prepare(
+		`SELECT 1 FROM series s JOIN roots r ON r.id = s.root_id
+		WHERE s.id = ? AND s.added_at = ? AND ${visibleWhere(reveal)}`
+	);
+	const work = db.prepare(
+		`SELECT 1 FROM works w WHERE w.id = ? AND w.created_at = ? AND (? OR EXISTS (
+			SELECT 1 FROM work_series ws JOIN series s ON s.id = ws.series_id JOIN roots r ON r.id = s.root_id
+			WHERE ws.work_id = w.id AND ${visibleWhere(false)}))`
+	);
+	return (list as Partial<Dropped>[])
+		.filter((d): d is Dropped => !!d && typeof d.work === 'string' && typeof d.series === 'string')
+		.filter((d) => reveal || !!seen.get(d.seriesId ?? -1, d.seriesAt ?? -1))
+		.map((d) => ({
+			line: droppedLine(d),
+			workId: !d.ended && work.get(d.workId ?? -1, d.workAt ?? -1, reveal ? 1 : 0) ? d.workId : null
+		}));
+}
+
 export type LogEntry =
 	| {
 			kind: 'backup';
@@ -90,6 +139,8 @@ export type LogEntry =
 			seriesDone: number;
 			counts: ImportCounts;
 			outcome: ImportOutcome;
+			/** Works its folds took a series out of (c570). */
+			dropped: DroppedEntry[];
 	  }
 	| {
 			kind: 'scan';
@@ -100,7 +151,16 @@ export type LogEntry =
 			progress: number;
 			series: number;
 			failedFiles: number;
+			/** Works its folds took a series out of (c570). */
+			dropped: DroppedEntry[];
 	  };
+
+/** What a job's folds dropped (`droppedOf`); none for a job forgotten since. */
+function jobDropped(jobId: number, reveal: boolean, db: Database.Database = getDb()) {
+	const r = db.prepare(`SELECT dropped FROM scan_jobs WHERE id = ?`).get(jobId) as
+		{ dropped: string } | undefined;
+	return r ? droppedOf(r.dropped, reveal, db) : [];
+}
 
 /** One import's entry, as the log and the result page draw it. */
 export function backupEntry(row: ImportRow, reveal: boolean): LogEntry & { kind: 'backup' } {
@@ -117,7 +177,8 @@ export function backupEntry(row: ImportRow, reveal: boolean): LogEntry & { kind:
 		seriesTotal: row.seriesTotal,
 		seriesDone: row.seriesDone,
 		counts: importCounts(row.id, reveal),
-		outcome: row.outcome
+		outcome: row.outcome,
+		dropped: row.jobId === null ? [] : jobDropped(row.jobId, reveal)
 	};
 }
 
@@ -139,7 +200,7 @@ export function importLog(reveal: boolean, db: Database.Database = getDb()): Log
 		db
 			.prepare(
 				`SELECT j.id, j.started_at, j.finished_at, j.source_label, j.bytes_done, j.bytes_total,
-					j.failed_files,
+					j.failed_files, j.dropped,
 					(SELECT COUNT(*) FROM series s JOIN roots r ON r.id = s.root_id
 						WHERE s.scan_job_id = j.id AND ${visibleWhere(reveal)}) AS series
 				FROM scan_jobs j
@@ -154,6 +215,7 @@ export function importLog(reveal: boolean, db: Database.Database = getDb()): Log
 			bytes_done: number;
 			bytes_total: number;
 			failed_files: number;
+			dropped: string;
 			series: number;
 		}[]
 	).map((j): LogEntry => ({
@@ -164,7 +226,8 @@ export function importLog(reveal: boolean, db: Database.Database = getDb()): Log
 		running: j.finished_at === null,
 		progress: j.bytes_total > 0 ? j.bytes_done / j.bytes_total : 0,
 		series: j.series,
-		failedFiles: j.failed_files
+		failedFiles: j.failed_files,
+		dropped: droppedOf(j.dropped, reveal, db)
 	}));
 	const live = (e: LogEntry) =>
 		e.kind === 'scan' ? e.running : e.state === 'running' || e.state === 'waiting';
