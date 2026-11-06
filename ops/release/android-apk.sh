@@ -5,8 +5,15 @@
 # flavors of one Gradle project (android), so one build makes either.
 #
 #   ops/release/android-apk.sh <version> [--app tv|phone|both] [--out DIR]
+#   ops/release/android-apk.sh <version> --ref <commit> --out DIR [--app ...]
 #
 # `--app both` is the default. ops/release/tv-apk.sh is this with --app tv.
+#
+# What ships is a commit, as for the bundles: the APKs are built from a clean
+# worktree of the tag release/<version>, never from this working tree, and a
+# version with no tag is refused. `--ref` builds a trial from any commit, and
+# needs its own --out, so a trial can't land in a release's folder under the
+# names publish.ts ships.
 #
 # A release-signed APK when the four keystore variables are set, a debug-signed
 # one called `-debug` when they are not: the real keystore is the owner's and
@@ -20,14 +27,17 @@
 
 set -eu
 
+USAGE="usage: ops/release/android-apk.sh <version> [--app tv|phone|both] [--out DIR] [--ref COMMIT]"
 VERSION=${1:-}
 if [ -z "$VERSION" ]; then
-	echo "usage: ops/release/android-apk.sh <version> [--app tv|phone|both] [--out DIR]" >&2
+	echo "$USAGE" >&2
 	exit 2
 fi
 shift
 
-OUT="/mnt/hdd2/tsundoku/release/out/$VERSION"
+BASE=${RELEASE_DIR:-/mnt/hdd2/tsundoku/release}
+OUT=""
+REF=""
 WHICH=both
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -37,6 +47,10 @@ while [ $# -gt 0 ]; do
 			;;
 		--out)
 			OUT=${2:?--out needs a directory}
+			shift 2
+			;;
+		--ref)
+			REF=${2:?--ref needs a commit}
 			shift 2
 			;;
 		*)
@@ -57,9 +71,32 @@ case "$WHICH" in
 esac
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-APP="$ROOT/android"
 
-# The SDK this machine has (AGENTS.md); an environment one wins.
+if [ -n "$REF" ]; then
+	if [ -z "$OUT" ]; then
+		echo "--ref builds a trial, which needs its own --out: it never goes in $BASE/out/$VERSION." >&2
+		exit 2
+	fi
+	COMMIT=$(git -C "$ROOT" rev-parse -q --verify "$REF^{commit}") || {
+		echo "--ref $REF is no commit here." >&2
+		exit 1
+	}
+else
+	COMMIT=$(git -C "$ROOT" rev-parse -q --verify "refs/tags/release/$VERSION^{commit}") || {
+		echo "no tag release/$VERSION: APKs are built from the tag (doc/RELEASE.md). For a trial from a commit: --ref HEAD --out DIR." >&2
+		exit 1
+	}
+fi
+
+# Named now: the build below runs from the worktree, and a relative --out means
+# where this was called from.
+case "${OUT:=$BASE/out/$VERSION}" in
+	/*) ;;
+	*) OUT="$PWD/$OUT" ;;
+esac
+
+# The SDK this machine has (AGENTS.md); an environment one wins. A worktree has
+# no local.properties, so this is what Gradle finds it by.
 : "${ANDROID_HOME:=$HOME/Android/Sdk}"
 export ANDROID_HOME
 
@@ -71,17 +108,36 @@ signed() {
 		[ -n "${TSUNDOKU_TV_KEY_PASSWORD:-}" ]
 }
 
+SRC="$BASE/work/android-$VERSION"
+
 # A Gradle daemon outlives a failed build, and this machine's java processes
 # are not ours to kill by name (AGENTS.md): --stop, and by pid only if needed.
-cd "$APP"
-trap './gradlew --stop >/dev/null 2>&1 || true' EXIT INT TERM
+cleanup() {
+	status=$?
+	trap - EXIT
+	cd "$ROOT"
+	if [ -x "$SRC/android/gradlew" ]; then
+		(cd "$SRC/android" && ./gradlew --stop >/dev/null 2>&1) || true
+	fi
+	git -C "$ROOT" worktree remove --force "$SRC" >/dev/null 2>&1 || true
+	exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+mkdir -p "$BASE/work"
+rm -rf "$SRC"
+git -C "$ROOT" worktree prune
+git -C "$ROOT" worktree add -q --detach "$SRC" "$COMMIT"
+cd "$SRC/android"
 
 if signed; then
 	TYPE=release
-	echo "building release-signed APKs for $VERSION: $WHICH"
+	echo "building release-signed APKs for $VERSION from $COMMIT: $WHICH"
 else
 	TYPE=debug
-	echo "no keystore in TSUNDOKU_TV_*: building debug-signed APKs called -debug: $WHICH"
+	echo "no keystore in TSUNDOKU_TV_*: building debug-signed APKs called -debug for $VERSION from $COMMIT: $WHICH"
 fi
 TASKS=""
 for f in $FLAVORS; do
@@ -98,10 +154,10 @@ for f in $FLAVORS; do
 	# The phone app is tsundoku-app: the flavor is "mobile", the file is
 	# named for what a friend downloads.
 	case "$f" in
-		tv) BASE="tsundoku-tv" ;;
-		mobile) BASE="tsundoku-app" ;;
+		tv) BASE_NAME="tsundoku-tv" ;;
+		mobile) BASE_NAME="tsundoku-app" ;;
 	esac
-	if [ "$TYPE" = release ]; then NAME="$BASE-$VERSION.apk"; else NAME="$BASE-$VERSION-debug.apk"; fi
+	if [ "$TYPE" = release ]; then NAME="$BASE_NAME-$VERSION.apk"; else NAME="$BASE_NAME-$VERSION-debug.apk"; fi
 	DEST="$OUT/$NAME"
 	cp "$SOURCE" "$DEST"
 

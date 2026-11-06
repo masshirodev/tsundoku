@@ -371,8 +371,8 @@ the TV.
   ADD A SERVER, and a launcher shortcut per server opens it (c287).
   [`TV-APP.md`](TV-APP.md), "Servers", has the screens, the store and what is
   not verified.
-- **Release**: `ops/release/tv-apk.sh <version>` builds the APK beside the
-  bundles (release-signed from `TSUNDOKU_TV_*` when the keystore is there, a
+- **Release**: `ops/release/tv-apk.sh <version>` builds the APK from the tag,
+  beside the bundles (release-signed from `TSUNDOKU_TV_*` when the keystore is there, a
   `-debug` APK otherwise) and adds it to the release folder's `SHA256SUMS`
   ([`RELEASE.md`](RELEASE.md)). `yarn run release` is unchanged.
 

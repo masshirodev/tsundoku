@@ -47,8 +47,20 @@ ops/release/android-apk.sh 2026.11.05 --app phone # the phone and tablet app alo
 ops/release/tv-apk.sh 2026.11.05                  # the TV app alone (--app tv)
 # /mnt/hdd2/tsundoku/release/out/2026.11.05/tsundoku-tv-2026.11.05.apk
 # /mnt/hdd2/tsundoku/release/out/2026.11.05/tsundoku-app-2026.11.05.apk
+
+ops/release/android-apk.sh 0.0.0-trial --ref HEAD --out temp/apk # a trial
 ```
 
+- **Built from the tag**, as the bundles are: a clean worktree of
+  `release/<version>` under `/mnt/hdd2/tsundoku/release/work/android-<version>`,
+  whatever this checkout holds, and a version with no tag is refused. Until
+  2026-11-06 the script built the working tree it stood in, so an APK could
+  carry a later commit, or someone's uncommitted edits, signed under the tag's
+  version. `--ref <commit>` builds a **trial**, which needs its own `--out`, so
+  it can't land in a release's folder under the names `release:publish` ships.
+  To try uncommitted work on a device, run Gradle directly
+  ([`PHONE-APP.md`](PHONE-APP.md)). `tests/release-apk.spec.ts` runs the script
+  against a pretend gradlew in a throwaway repository.
 - **Signed** when `TSUNDOKU_TV_KEYSTORE`, `TSUNDOKU_TV_KEYSTORE_PASSWORD`,
   `TSUNDOKU_TV_KEY_ALIAS` and `TSUNDOKU_TV_KEY_PASSWORD` are set and the
   keystore exists; the keystore is the owner's and never in the repository

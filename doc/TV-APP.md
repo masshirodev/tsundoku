@@ -685,6 +685,9 @@ ops/release/tv-apk.sh 2026.11.02
 # /mnt/hdd2/tsundoku/release/out/2026.11.02/tsundoku-tv-2026.11.02.apk
 ```
 
+It builds the tag `release/<version>`, never the working tree, and refuses a
+version with no tag ([`RELEASE.md`](RELEASE.md), "The Android apps").
+
 The version also becomes `TsundokuTV/<version>`, the app's user agent. With no
 keystore the file is `tsundoku-tv-<version>-debug.apk`; it installs over the
 same app only if it is signed with the same key, so a debug build and a release
