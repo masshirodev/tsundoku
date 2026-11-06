@@ -487,6 +487,16 @@ which is how HISTORY filters in SQL. A series' source in SQL is
 `sourceIdSql(origin_key)`, held to `sourceOfKey` over every key a writer
 stores (`tests/source-flags-db.spec.ts`).
 
+**REMOVE keeps them** (card c569, the owner's (b), 2026-11-05): removing an
+extension or a novel plugin deletes only its row (`removeExtension`,
+`removePlugin`), and its switches stay in `settings`, so a source installed
+again comes back with HIDDEN SOURCE, ADDED HIDDEN and OFF HISTORY as the owner
+left them: they were set on purpose, and REMOVE's sheet already says ITS
+SETTINGS ARE KEPT. To start a source afresh, turn its switches off before
+REMOVE; once it is removed its settings page is gone with it, so they can be
+reached again only by installing it. `tests/browse-extensions.e2e.ts` holds
+it (REMOVE, INSTALL again, the switches still on).
+
 **ADDED HIDDEN at the importer** (card c503, the owner's (a), wave 23): a
 series an import creates in the library from a source with the switch on
 arrives hidden too, so **a backup can only add hiding**. A series the backup

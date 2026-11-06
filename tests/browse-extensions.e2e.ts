@@ -9,8 +9,23 @@ import { bumpWebtoons, NOVEL_REPO, REPO, resetEngine } from './browse-world';
  * it would be. One test, in order: each step stands on the last.
  */
 
-test.beforeEach(async () => {
+/**
+ * This page's writes still waiting for their answer (every request but a
+ * GET), so the afterEach can wait for them before it puts anything back:
+ * a HIDDEN SOURCE or an INSTALL a timed-out case left on the server would
+ * otherwise land after the put-back and undo it (c569).
+ */
+let writes = new Set<import('@playwright/test').Request>();
+
+test.beforeEach(async ({ page }) => {
 	await resetEngine();
+	writes = new Set();
+	const own = writes;
+	page.on('request', (r) => {
+		if (r.method() !== 'GET') own.add(r);
+	});
+	page.on('requestfinished', (r) => own.delete(r));
+	page.on('requestfailed', (r) => own.delete(r));
 });
 
 const revealCookie = (origin: string) => ({
@@ -20,35 +35,58 @@ const revealCookie = (origin: string) => ({
 	httpOnly: true
 });
 
-/** Set by the LNReader case once it is about to INSTALL; the afterEach puts back what it left. */
+/** Set by an LNReader case once it is about to INSTALL; the afterEach puts back what it left. */
 let lnPluginInstalled = false;
+
+const SWITCHES = ['hidden', 'addedHidden', 'offHistory'] as const;
 
 // Teardown has its own budget, so this runs and reaches the server even when
 // the case timed out (c507; a finally in the body does not: its requests throw
-// "Test timeout exceeded" before they are sent). Both requests are harmless
-// when there is nothing to undo: off deletes the switch's row, and REMOVE of a
-// plugin that isn't there does nothing. A failed put-back is soft, so the
-// body's own error stays the one reported.
+// "Test timeout exceeded" before they are sent). A failed put-back is soft,
+// so the body's own error stays the one reported.
+//
+// REMOVE keeps a source's switches (c569, the owner's (b)), so a switch left
+// on outlives the plugin and the next INSTALL comes back with it: every
+// switch goes off **before** REMOVE, read back from the server, and a switch
+// can only be reached while the plugin is installed. And it waits first for
+// the page's own writes to be answered (`writes`): a HIDDEN SOURCE or an
+// INSTALL still on the server when the case timed out would otherwise land
+// after the put-back (c569's test side).
 test.afterEach(async ({ page }, testInfo) => {
 	if (!lnPluginInstalled) return;
 	lnPluginInstalled = false;
 	const origin = new URL(testInfo.project.use.baseURL!).origin;
+	const settings = `${origin}/browse/ln:goodnovels/settings`;
+	// Each pending write's own answer, or 10 s for one that never comes.
+	await Promise.race([
+		Promise.allSettled([...writes].map((r) => r.response())),
+		new Promise((r) => setTimeout(r, 10_000))
+	]);
 	// Reveal on, so the hidden source's settings page is found at all.
 	await page.context().addCookies([revealCookie(origin)]);
-	const off = await page.request.post(`${origin}/browse/ln:goodnovels/settings?/flag`, {
-		form: { flag: 'hidden', value: 'false' },
-		headers: { origin }
-	});
-	const removed = await page.request.post(`${origin}/browse/extensions?/remove`, {
-		form: { pkg: 'ln:goodnovels' },
-		headers: { origin }
-	});
+	const post = (path: string, form: Record<string, string>) =>
+		page.request.post(`${origin}${path}`, { form, headers: { origin }, maxRedirects: 0 });
+	const switchesOn = async () => {
+		const r = await page.request.get(settings);
+		return r.ok() ? ((await r.text()).match(/aria-checked="true"/g) ?? []).length : -1;
+	};
+	// Removed already with a switch maybe on: installed again, so the
+	// switches can be reached (the settings page answers 404 without it).
+	if ((await switchesOn()) === -1)
+		await post('/browse/extensions?/install', { pkg: 'ln:goodnovels' });
+	let on = -1;
+	for (let i = 0; i < 3 && on !== 0; i++) {
+		for (const flag of SWITCHES)
+			await post('/browse/ln:goodnovels/settings?/flag', { flag, value: 'false' });
+		on = await switchesOn();
+	}
+	const removed = await post('/browse/extensions?/remove', { pkg: 'ln:goodnovels' });
 	await page.context().clearCookies({ name: 'tsundoku_reveal' });
-	// 404 once REMOVE has run: no such source, and so no switch to put back.
+	expect.soft(on, 'Good Novels’ switches read back off before REMOVE').toBe(0);
 	expect
-		.soft(off.ok() || off.status() === 404, `HIDDEN SOURCE put back off: ${off.status()}`)
+		.soft(removed.status() === 303 || removed.ok(), `Good Novels removed: ${removed.status()}`)
 		.toBe(true);
-	expect.soft(removed.ok(), `Good Novels removed: ${removed.status()}`).toBe(true);
+	expect.soft((await page.request.get(settings)).status(), 'Good Novels gone').toBe(404);
 });
 
 test('a repository is added, an extension installed, updated, taken back and removed', async ({
@@ -303,4 +341,51 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	await expect(sheet).toContainText('REMOVE GOOD NOVELS?');
 	await sheet.getByRole('button', { name: 'REMOVE GOOD NOVELS' }).click();
 	await expect(row('Good Novels')).toHaveCount(0);
+});
+
+test('REMOVE keeps a source’s switches: a reinstalled plugin comes back with them (c569, the owner’s (b))', async ({
+	page
+}) => {
+	const row = (name: string) => page.locator('.rows .row', { hasText: name });
+	const own = (title: string) => page.locator('form.own', { hasText: title }).getByRole('switch');
+	// The novel repository, as the LNReader case adds it (kept if it is there).
+	await page.goto(`/browse/extensions?tab=repos&add=${encodeURIComponent(NOVEL_REPO)}`);
+	await expect(page.locator('.found')).toContainText('1 NOVEL PLUGIN');
+	if (await page.locator('.found button').count()) {
+		await page.locator('.found button').click();
+		await expect(row('127.0.0.1').filter({ hasText: 'NOVELS' })).toContainText('1 PLUGIN');
+	}
+	lnPluginInstalled = true;
+	const install = async () => {
+		await page.goto('/browse/extensions?tab=available&kind=novels');
+		await row('Good Novels').getByRole('button', { name: 'INSTALL' }).click();
+		await expect(row('Good Novels')).toContainText('INSTALLED ✓');
+	};
+	await install();
+
+	// Two switches on, each read back from the server's own answer.
+	await page.goto('/browse/ln:goodnovels/settings');
+	for (const t of ['Added hidden', 'Off history']) {
+		await expect(own(t)).toHaveAttribute('aria-checked', 'false');
+		await own(t).click();
+		await expect(own(t)).toHaveAttribute('aria-checked', 'true');
+	}
+	await page.reload();
+	await expect(own('Added hidden')).toHaveAttribute('aria-checked', 'true');
+
+	// REMOVE, as EXTENSIONS does it: the sheet says the settings stay.
+	await page.goto('/browse/extensions');
+	await row('Good Novels').getByRole('link', { name: 'REMOVE…' }).click();
+	const sheet = page.getByRole('dialog');
+	await expect(sheet).toContainText('ITS SETTINGS ARE KEPT');
+	await sheet.getByRole('button', { name: 'REMOVE GOOD NOVELS' }).click();
+	await expect(row('Good Novels')).toHaveCount(0);
+
+	// Installed again: the owner's switches are as they were left.
+	await install();
+	await page.goto('/browse/ln:goodnovels/settings');
+	await expect(own('Added hidden')).toHaveAttribute('aria-checked', 'true');
+	await expect(own('Off history')).toHaveAttribute('aria-checked', 'true');
+	await expect(own('Hidden source')).toHaveAttribute('aria-checked', 'false');
+	// The afterEach turns them off, reads them back, and removes it again.
 });
