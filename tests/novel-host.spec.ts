@@ -140,6 +140,9 @@ Bound.prototype.parseChapter = async function (path) {
 			body: JSON.stringify({ id: 1 })
 		});
 	if (path === 'put') return fetch.fetchText(this.site + 'bound/form', { method: 'PUT', body: 'x=1' });
+	// A chapter that is not the page it was asked about: some plugins read one
+	// through an API, and there is no page address to resolve pictures against.
+	if (path === 'api') return fetch.fetchText(this.site + 'plainapi.json?q=chapter');
 	if (path === 'file') return fetch.fetchFile(this.site + 'bound/cover.jpg');
 	if (path === 'form-file') {
 		// The sandbox has no Blob of its own; a response's body is one a plugin can reach.
@@ -229,8 +232,28 @@ beforeAll(async () => {
 			}
 			if (u.pathname === '/bound/always')
 				return res.writeHead(403, { 'cf-mitigated': 'challenge' }).end(CHALLENGE_PAGE);
+			// A chapter whose page moved: the solver's browser follows it and
+			// answers the address it ended on (c631).
+			if (u.pathname === '/bound/old/chapter/1')
+				return res.writeHead(302, { location: '/bound/new/chapter/1' }).end();
+			if (u.pathname === '/bound/new/chapter/1')
+				return res.writeHead(200, { 'content-type': 'text/html' }).end('<p>moved chapter</p>');
 			return res.writeHead(200, { 'content-type': 'text/html' }).end(`<p>${u.pathname}</p>`);
 		}
+		// A chapter this host itself follows a redirect for: the shape is a real
+		// host's, measured on 2026-11-06 — wuxiaworld.com's apex answers
+		// `301 location: https://www.wuxiaworld.com/novel/martial-god-asura/chapter-1`
+		// for the same path on www (c631). Here it also moves the path, so the
+		// address and a chapter's relative pictures differ.
+		if (u.pathname === '/moved/chapter/1')
+			return res.writeHead(301, { location: '/moved/deep/chapter-1' }).end();
+		if (u.pathname === '/moved/deep/chapter-1')
+			return res.writeHead(200, { 'content-type': 'text/html' }).end('<p>moved, no check</p>');
+		// A chapter a plugin reads through an API instead: no page address at all.
+		if (u.pathname === '/plainapi.json')
+			return res
+				.writeHead(200, { 'content-type': 'application/json' })
+				.end(JSON.stringify(['chapter-a']));
 		// A hop to another host, which must not be sent the first host's clearance.
 		if (u.pathname === '/away')
 			return res.writeHead(302, { location: `http://localhost:${otherPort}/leak` }).end();
@@ -320,6 +343,27 @@ describe('a plugin, through the host', () => {
 			chapters: [{ name: 'Chapter 1', path: '/n/one/1', releaseTime: '2026-10-28' }]
 		});
 		expect(await host.call(good, 'parseChapter', ['/n/one/1'])).toBe('<p>/n/one/1</p>');
+	});
+
+	it('gives a chapter and the address its request ended at, after a Node fetch’s redirect (c631)', async () => {
+		// A Node fetch follows a host's redirect by hand, hop by hop, and this is
+		// the last hop: the page a chapter's relative pictures belong to.
+		expect(await host.chapter(bound, '/moved/chapter/1')).toEqual({
+			html: '<p>moved, no check</p>',
+			url: `http://127.0.0.1:${checkPort}/moved/deep/chapter-1`
+		});
+		// A request that ended where it asked is that address (which is what the
+		// downloader computed itself before c631), and a plugin that asked the
+		// site for something else answers null, so the caller falls back as it
+		// always did.
+		expect(await host.chapter(bound, '/moved/deep/chapter-1')).toEqual({
+			html: '<p>moved, no check</p>',
+			url: `http://127.0.0.1:${checkPort}/moved/deep/chapter-1`
+		});
+		expect(await host.chapter(bound, 'api')).toEqual({
+			html: JSON.stringify(['chapter-a']),
+			url: null
+		});
 	});
 });
 
@@ -585,6 +629,24 @@ describe('a check bound to the browser that solved it: page mode (c335)', () => 
 		expect([a, b]).toEqual(['<p>/bound/chapter/1</p>', '<p>/bound/chapter/2</p>']);
 		expect(solved).toHaveLength(1);
 		expect(paged).toHaveLength(2);
+	});
+
+	it('gives a page-mode chapter the address the browser ended on, after its redirect (c631)', async () => {
+		await host.call(bound, 'popularNovels', [1, {}]);
+		expect(await host.chapter(bound, '/bound/old/chapter/1')).toEqual({
+			html: '<p>moved chapter</p>',
+			url: `${SITE()}bound/new/chapter/1`
+		});
+	});
+
+	it('asks the chapter’s page once, and gives the same address a Node fetch would (c631)', async () => {
+		await host.call(bound, 'popularNovels', [1, {}]);
+		const before = paged.length;
+		expect(await host.chapter(bound, '/bound/chapter/1')).toEqual({
+			html: '<p>/bound/chapter/1</p>',
+			url: `${SITE()}bound/chapter/1`
+		});
+		expect(paged).toHaveLength(before + 1);
 	});
 
 	it('hands a JSON answer over as JSON, and posts a FormData of strings as a url-encoded form', async () => {

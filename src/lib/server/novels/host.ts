@@ -241,6 +241,24 @@ export class NovelHost {
 	}
 
 	/**
+	 * A chapter's HTML (`parseChapter`) and the address its own request ended at
+	 * (c631): a Node fetch's last hop, or — in page mode — the page the solver's
+	 * browser ended on. A chapter's relative pictures are that page's, which a
+	 * redirect moves, not the plugin's site's. `url` is null when the plugin
+	 * asked the site for something else, and the caller falls back as it did.
+	 */
+	chapter(
+		file: string,
+		path: string,
+		timeoutMs?: number
+	): Promise<{ html: unknown; url: string | null }> {
+		return this.#send<{ html: unknown; url: string | null }>(
+			{ op: 'chapter', file, path },
+			timeoutMs
+		);
+	}
+
+	/**
 	 * Forgets the hosts of [site] whose clearance the site refused (c294):
 	 * TRY AGAIN on the source page, so the next call solves afresh instead of
 	 * waiting out the ten minutes. A host that isn't running remembers nothing,

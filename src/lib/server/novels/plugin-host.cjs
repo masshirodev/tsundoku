@@ -10,7 +10,7 @@
  *
  * Plain CommonJS, not TypeScript, and never bundled: it's started as a file.
  *
- * Messages (IPC): { id, op: 'info' | 'call', file, method?, args? } in;
+ * Messages (IPC): { id, op: 'info' | 'call' | 'chapter', file, method?, args?, path? } in;
  * { id, ok: true, value } or { id, ok: false, error } out. The first message
  * may be { op: 'config', allow: ['127.0.0.1:4170'] }: loopback ports the
  * parent opens on purpose, for tests. Nothing else can open one. When a site
@@ -43,12 +43,21 @@ let allowed = new Set();
  * on any failure, as LNReader's runtime does, so a plugin whose site refused
  * it answers an empty list. When a call comes back empty, this is why
  * (`explained` below) — a refused address, a bot check's 403, a site down.
+ * `urls` is where each request in the call ended, for a chapter's pictures
+ * (c631): `{ asked, at }`, the address the plugin asked for and the one it
+ * finally read.
  */
 const trouble = new AsyncLocalStorage();
 const note = (why) => {
 	const t = trouble.getStore();
 	if (t && !t.why) t.why = why;
 };
+
+/** Keeps where [asked]'s request ended, for the call that made it. */
+function noteAt(asked, at) {
+	const t = trouble.getStore();
+	if (t) t.urls.push({ asked, at });
+}
 
 // ---- a fetch that stays on the internet ---------------------------------------------------
 
@@ -97,6 +106,9 @@ async function checkUrl(url) {
 /** fetch, with every hop of a redirect checked: an automatic one would skip the check. */
 async function guardedFetch(input, init = {}) {
 	let url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+	// Where the plugin's own request began: a chapter's pictures are relative to
+	// the page this address ended at, not to the plugin's site (c631).
+	const asked = url;
 	const headers = new Headers(init.headers || {});
 	if (!headers.has('user-agent')) headers.set('user-agent', USER_AGENT);
 	const opts = {
@@ -122,7 +134,7 @@ async function guardedFetch(input, init = {}) {
 		}
 		// A host whose check is bound to the browser that solved it: its own
 		// fetch is a check every time, so only the solver's browser asks it.
-		if (inPageMode(hostOf(url))) return pageFetch(url, opts, init[WANTS_FILE] === true);
+		if (inPageMode(hostOf(url))) return pageFetch(asked, url, opts, init[WANTS_FILE] === true);
 		let res;
 		try {
 			res = await fetch(url, withJar(attempt(), url));
@@ -158,12 +170,15 @@ async function guardedFetch(input, init = {}) {
 		// The host has just entered page mode: this same request is the first
 		// to go through the solver's browser, so the call that taught the host
 		// is answered too, not only the ones after it.
-		if (refusedNow) return pageFetch(url, opts, init[WANTS_FILE] === true);
+		if (refusedNow) return pageFetch(asked, url, opts, init[WANTS_FILE] === true);
 		if (challenge)
 			note(`${new URL(url).hostname} answered ${res.status} (its check could not be passed)`);
 		else if (res.status >= 400) note(`${new URL(url).hostname} answered ${res.status}`);
 		const to = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null;
-		if (!to) return res;
+		if (!to) {
+			noteAt(asked, url);
+			return res;
+		}
 		url = new URL(to, url).href;
 		if (
 			res.status === 303 ||
@@ -344,7 +359,7 @@ function pageForm(host, opts) {
 }
 
 /** [url]'s page through the solver, as a Response whose url is where the browser ended. */
-async function pageFetch(url, opts, wantsFile) {
+async function pageFetch(asked, url, opts, wantsFile) {
 	const host = hostOf(url);
 	if (wantsFile)
 		refuseShape(host, "a file is not a page, and the solver's browser hands back pages only");
@@ -379,6 +394,7 @@ async function pageFetch(url, opts, wantsFile) {
 	// one the browser ended on after its redirects, not the URL it asked.
 	Object.defineProperty(res, 'url', { value: at });
 	Object.defineProperty(res, 'redirected', { value: at !== url });
+	noteAt(asked, at);
 	if (await isChallenge(res))
 		note(`${hostOf(at)} answered ${res.status} (its check could not be passed)`);
 	else if (res.status >= 400) note(`${hostOf(at)} answered ${res.status}`);
@@ -630,6 +646,23 @@ function defaults(filters) {
 	return out;
 }
 
+/**
+ * The address the chapter's own request ended at, or null when the plugin
+ * asked for something else (an API, a cover): a chapter's pictures are
+ * relative to the page it was read from, and a redirect moves that page
+ * (c631). [path] is the chapter, as the plugin was given it.
+ */
+function chapterBase(t, site, path) {
+	let own;
+	try {
+		own = new URL(path, site).href;
+	} catch {
+		return null;
+	}
+	for (let i = t.urls.length - 1; i >= 0; i--) if (t.urls[i].asked === own) return t.urls[i].at;
+	return null;
+}
+
 /** Nothing: an empty list, no chapters, no text. */
 const empty = (v) =>
 	v === null ||
@@ -644,7 +677,7 @@ const empty = (v) =>
 
 /** A call's answer, or, when it's empty and a request failed on the way, why. */
 async function explained(m) {
-	const t = { why: null };
+	const t = { why: null, urls: [] };
 	const value = await trouble.run(t, () => handle(m));
 	if (t.why && empty(value)) throw new Error(t.why);
 	return value;
@@ -659,6 +692,17 @@ async function handle(m) {
 	if (m.op === 'forget') return forgetRefused(m.site);
 	if (m.op === 'modes') return modes();
 	const p = load(m.file);
+	// A chapter and the page it came from (c631). Its HTML is the plugin's own
+	// answer; the address is the one the chapter's request ended at, after any
+	// redirect, so the server can resolve the chapter's relative pictures.
+	if (m.op === 'chapter') {
+		const path = String(m.path ?? '');
+		const html = await p.parseChapter(path);
+		const t = trouble.getStore();
+		// fetchText answers '' on a site that failed it: the call's trouble is why.
+		if (t.why && (typeof html !== 'string' || html === '')) throw new Error(t.why);
+		return { html, url: chapterBase(t, p.site, path) };
+	}
 	if (m.op === 'info')
 		return {
 			id: p.id,

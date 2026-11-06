@@ -406,10 +406,12 @@ browser's cookie: entering on the refused retry and answering that call,
 staying out for every other check, no request of its own and no solve after,
 two calls entering once, JSON and a form, the bodies refused unasked, each
 failure's sentence with the mode kept, a refusal no new solve can change
-worded without a failed check (c630), a page that is still a check, the
-host's own rule holding for a page and its last address, the ten minutes,
-leaving by TRY AGAIN, by a restart and by time (not extended by use), and a
-host with no page to ask answering with a sentence. `tests/novel-plugins-db.spec.ts`
+worded without a failed check (c630), a chapter's own page address after a
+redirect and one that ended where it asked (c631), a page that is still a
+check, the host's own rule holding for a page and its last address, the ten
+minutes, leaving by TRY AGAIN, by a restart and by time (not extended by use),
+and a host with no page to ask answering with a sentence.
+`tests/novel-plugins-db.spec.ts`
 pins the wiring: the app's host fetches pages with `fetchPage`.
 
 ## Repositories and plugins
@@ -542,8 +544,10 @@ reader path.
   alone, so an engine that stopped answering doesn't hold novels up. The
   worker starts beside the engine's (`engine/run.ts`): everything that queues a
   novel is behind the engine being set up anyway.
-- **A chapter** is the plugin's `parseChapter(path)`, through the host. Its
-  HTML is rebuilt from an allowlist into XHTML
+- **A chapter** is the plugin's `parseChapter(path)`, through the host, with
+  the address its own request ended at: a page that redirected moves the base
+  its pictures are relative to, in either fetch mode (c631). Its HTML is
+  rebuilt from an allowlist into XHTML
   (`src/lib/server/novels/chapter-html.ts`): the reader's own list on the way
   in, so nothing of the site's page (a script, a style, an ad's frame, a link)
   is kept, and the file is well formed for any reader. Its pictures are
@@ -613,9 +617,11 @@ to one, and opening one directly says the same instead of looking for a file.
 chapter allowlist and its pictures), `tests/novel-download-db.spec.ts` (the
 queue shared and kept apart, a batch into the book, IMPORTING, the import onto
 the series without a second one, a rewrite keeping what it held, a rename,
-failures, PAUSE, recovery) and `tests/browse-novels.e2e.ts` (a plugin through
-the real host, `tests/fixtures/lnreader/shelf.js`: added from BROWSE, two of
-three chapters downloaded and imported, read up to the third).
+failures, PAUSE, recovery, and a chapter's pictures resolved against the page
+it came from rather than the plugin's site, c631) and
+`tests/browse-novels.e2e.ts` (a plugin through the real host,
+`tests/fixtures/lnreader/shelf.js`: added from BROWSE, two of three chapters
+downloaded and imported, read up to the third).
 
 ## FOLLOW
 
