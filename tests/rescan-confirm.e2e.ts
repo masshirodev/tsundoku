@@ -318,3 +318,28 @@ test('MORE’s RESCAN joins a scan already running at once, without the question
 		db.close();
 	}
 });
+
+test('a tap on the band’s ✕ does not hand the mark back, so a phone’s keyboard stays down (c639)', async ({
+	page
+}, info) => {
+	test.skip(info.project.name !== 'phone', 'a tap only focuses a button on a touch device');
+	await page.goto(`${BASE}/`);
+	// A refusal: the library folder is empty.
+	await rescanFromMore(page);
+	await sheet(page).getByRole('button', { name: 'RESCAN' }).click();
+	await expect(band(page)).toBeVisible();
+	// The reader is typing on the search screen; the band is the layout's and
+	// stays up until the next press, so the ✕ is tapped with the field holding
+	// the mark.
+	await page.getByRole('link', { name: 'Search' }).click();
+	await expect(page).toHaveURL(/\/search/);
+	const field = page.getByRole('searchbox');
+	await field.tap();
+	await expect(field).toBeFocused();
+	await expect(band(page)).toBeVisible();
+	await band(page).getByRole('button', { name: 'Close' }).tap();
+	await expect(band(page)).toHaveCount(0);
+	// Focus did not go back to the field: a tap is not a key's press, and a
+	// hand-back would bring the field's soft keyboard back with it.
+	await expect(field).not.toBeFocused();
+});

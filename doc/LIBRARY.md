@@ -782,8 +782,11 @@ sidebar, so it is a band at the top of the screen (`.rescan-band`, the
 layout's, hidden where the sidebar shows): a refusal, whole and wrapped,
 put away with ✕ (it would otherwise stay until the next press, as the
 sidebar's note does; on a TV the ✕ is a stop ↑ from the bar reaches, and
-putting the band away hands the mark back to where it came from, not to the
-page's body), and SCAN_WAITS while the server's queue holds a scan,
+putting the band away with a key's press -- a remote's OK, a keyboard's Enter
+-- hands the mark back to where it came from, not to the page's body, while a
+tap does not (c639: a tap focuses the ✕ on Chrome for Android and the phone
+app's WebView too, and a hand-back would bring a text field's soft keyboard
+back with it), and SCAN_WAITS while the server's queue holds a scan,
 with no ✕, gone when the scan starts. That band follows `scanWaits` like the
 sidebar's note, so a scan queued by any door (`/scan`, GET STARTED) shows it
 on a phone too. MORE needs script, so it has no no-script path; the
