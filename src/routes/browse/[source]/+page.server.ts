@@ -16,7 +16,7 @@ import { changedCount, readFilters, type FilterField } from '$lib/library/browse
 import { backOrigin } from '$lib/library/tag-search';
 import { forgetSiteCheck } from '$lib/server/novels/source';
 import type { Settled } from '$lib/library/settled';
-import { addedBand, undoAdded } from '../added.server';
+import { addedBand, refusedLanding, undoAdded } from '../added.server';
 
 /**
  * A source's page in BROWSE (Index-Browse, states popular, filters, phoneGrid;
@@ -96,6 +96,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 
 	return {
 		source,
+		reveal,
 		mode,
 		pages,
 		q,
@@ -104,7 +105,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		// ADD from a source that adds hidden, with reveal off (card c435): the
 		// preview lands here, since the hidden series isn't found, and says so,
 		// with what ADD AND DOWNLOAD queued and UNDO (c505).
-		addedHidden: await addedBand(url.searchParams, source.id),
+		addedHidden: await addedBand(url.searchParams, source.id, reveal),
 		// Arrived from a tag (c313): ← returns to where it was tapped, never anywhere else.
 		back: backOrigin(url.searchParams.get('from')),
 		// Without script a streamed promise never resolves, so the page waits for it instead.
@@ -122,10 +123,18 @@ export const actions: Actions = {
 	 * become mostly hidden since (another ADD, another tab), and UNDO then
 	 * lands on BROWSE, since the preview would not be found either.
 	 */
-	undoAdd: async ({ params, request, cookies }) => {
+	undoAdd: async ({ params, request, cookies, url }) => {
 		if (downloadsBackend() !== 'engine') error(404, 'not found');
-		const r = await undoAdded(await request.formData(), params.source, isRevealed(cookies));
+		const reveal = isRevealed(cookies);
+		const form = await request.formData();
+		const r = await undoAdded(form, params.source, reveal);
 		if ('to' in r) redirect(303, r.to);
+		// A refusal is drawn in the band it belongs to, and this page cannot draw
+		// one any more once the source is mostly hidden: its load 404s. Without
+		// script the answer would be "not found" instead of NO UNDO, so it lands
+		// on BROWSE, which draws every band, carrying the band and the code (c605).
+		if (!browseSource(params.source, reveal))
+			redirect(303, refusedLanding(form, url.searchParams.get('queued'), r.status));
 		return fail(r.status, { message: r.message });
 	}
 };

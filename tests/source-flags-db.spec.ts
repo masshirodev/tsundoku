@@ -632,14 +632,21 @@ describe('ADDED HIDDEN, and the ADD that hid it (c505)', () => {
 				// The band's series is still found by its id and key, and BROWSE draws it.
 				expect(flags.addedHere(first, key)).toEqual({ entries: 2, touched: false, kind: 'manga' });
 				const { addedBand, undoAdded } = await added();
-				expect(await addedBand(at.searchParams, null)).toEqual({
+				expect(await addedBand(at.searchParams, null, false)).toEqual({
 					seriesId: first,
 					preview: id,
 					entries: 2,
 					video: false,
 					queued: '2',
 					touched: false,
-					sourceHidden: true
+					sourceHidden: true,
+					sourceName: null
+				});
+				// Inside reveal the source is here, so the band names it (c605);
+				// `sourceHidden` still says what outside reveal would be.
+				expect(await addedBand(at.searchParams, null, true)).toMatchObject({
+					sourceHidden: true,
+					sourceName: 'Lone Source'
 				});
 				const form = () => {
 					const f = new FormData();
@@ -665,7 +672,7 @@ describe('ADDED HIDDEN, and the ADD that hid it (c505)', () => {
 				expect(await undoAdded(form(), null, false)).toEqual({ to: `/downloads/source/${id}` });
 				expect(flags.addedHere(first, key)).toBeNull();
 				expect(browse.browseSource(LONE, false)).not.toBeNull();
-				expect(await addedBand(at.searchParams, null)).toBeNull();
+				expect(await addedBand(at.searchParams, null, false)).toBeNull();
 				// UNDO twice: nothing undone, the same landing.
 				expect(await undoAdded(form(), null, false)).toEqual({ to: `/downloads/source/${id}` });
 				// A band of another source is not this source page's to undo.
@@ -689,8 +696,10 @@ describe('ADDED HIDDEN, and the ADD that hid it (c505)', () => {
 				expect(new URL(a.to, 'http://x').pathname).toBe(`/browse/${LONE}`);
 				expect(new URL(a.to, 'http://x').searchParams.get('tab')).toBe('latest');
 				const { addedBand, undoAdded } = await added();
-				const band = await addedBand(new URL(a.to, 'http://x').searchParams, LONE);
+				const band = await addedBand(new URL(a.to, 'http://x').searchParams, LONE, false);
 				expect(band?.sourceHidden).toBe(false);
+				// The source is found, so it is named outside reveal too.
+				expect(band?.sourceName).toBe('Lone Source');
 				// The second ADD makes it 2 of 4 hidden, and a third 3 of 5: mostly hidden now.
 				const second = record('/manga/second');
 				const b = await addOutsideReveal('/manga/second');
@@ -849,6 +858,114 @@ describe('CONCEAL ITS SERIES (c523)', () => {
 			for (const id of made) db.prepare(`DELETE FROM series WHERE id = ?`).run(id);
 			db.prepare(`UPDATE series SET hidden = 0 WHERE id = ?`).run(mangaSeries);
 			forgetSourceUse();
+		}
+	});
+
+	// A count on a size past it (COMMON.md): 600 conceals, 601 is refused, and
+	// the count is the source's own shown series plus the other parts of their
+	// Works (`conceal.server.ts`), so the mix is 599 + 1 and then 600 + 1.
+	it('conceals 600 and refuses 601, counting a Work’s other parts too (c606)', async () => {
+		const { concealCount, conceal: press, concealBand, undoConceal } = await conceal();
+		const { createWork, ungroup } = await works();
+		const CAP = '320';
+		const capKey = (i: number) => keyOf(CAP, `/manga/cap${i}`);
+		const series = (key: string, title: string) => {
+			writeSeries(plan(key, title, 'manga'), { rootId: mihonRoot, jobId: null, now: NOW }, db);
+			return seriesOf(key);
+		};
+		let workId: number | null = null;
+		let other: number | null = null;
+		const made: number[] = [];
+		try {
+			db.prepare(
+				`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at)
+				VALUES ('en.cap', 'Cap Source', 'manga', 1, '1.0', '1.4', ?, 0, 0)`
+			).run('en.cap'.padEnd(64, 'x'));
+			db.prepare(
+				`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES (?, 'en.cap', 'Cap Source', 'en', 'https://cap.example')`
+			).run(CAP);
+			// 599 from it, the last of them a Work's part; and one part from no
+			// source at all. Its own shown series are 599, its Work's part 1.
+			for (let i = 0; i < 599; i++) made.push(series(capKey(i), `Cap Series ${i}`));
+			const part = made[made.length - 1];
+			other = series('hentoid-dir:nhentai/Cap Part', 'The Cap Work’s Other Part');
+			workId = createWork({ seriesIds: [part, other], name: 'The Cap Work', now: NOW }).work.id;
+			forgetSourceUse();
+			expect(concealCount(CAP)).toEqual({ own: 599, others: 1, works: 1 });
+			const done = press(CAP);
+			if (!done.ok) throw new Error(done.message);
+			// 600 hidden: 599 from the source and the Work's part with them.
+			expect(concealBand(new URLSearchParams(done.query))).toMatchObject({
+				hidden: 600,
+				own: 599,
+				others: 1,
+				works: 1
+			});
+			expect(undoConceal(form(done.query))).toBeNull();
+			// One more shown series, and the same press is refused rather than
+			// putting an id past the cap into the band's URL.
+			made.push(series(capKey(599), 'Cap Series 599'));
+			forgetSourceUse();
+			expect(concealCount(CAP)).toEqual({ own: 600, others: 1, works: 1 });
+			expect(press(CAP)).toEqual({
+				ok: false,
+				message: 'more than 600 series: hide them from the library'
+			});
+			// Nothing was hidden by the refusal.
+			expect(made.filter((id) => hidden(id) === 1)).toEqual([]);
+		} finally {
+			if (workId !== null) ungroup(workId);
+			for (const id of made) db.prepare(`DELETE FROM series WHERE id = ?`).run(id);
+			if (other !== null) db.prepare(`DELETE FROM series WHERE id = ?`).run(other);
+			db.prepare(`DELETE FROM engine_sources WHERE id = ?`).run(CAP);
+			db.prepare(`DELETE FROM engine_extensions WHERE pkg = 'en.cap'`).run();
+			forgetSourceUse();
+		}
+	});
+});
+
+describe('BROWSE’s own band actions off the engine backend (c605)', () => {
+	// `downloadsBackend()` is ENGINE_URL and ENGINE_TOKEN both set; this spec's
+	// own environment has the token and no URL, and only a case that needs the
+	// engine puts one there.
+	const route = () => import('../src/routes/browse/+page.server');
+	// A form post with nothing in it: what a stale band's UNDO sends when its
+	// series is gone. Its body is a form one, or `formData()` is not the door.
+	const post = () =>
+		new Request('http://x/browse?/undoAdd', {
+			method: 'POST',
+			body: new URLSearchParams()
+		});
+	const cookies = { get: () => undefined };
+
+	it('answer 404, as the load does, before they reach anything to undo', async () => {
+		const { downloadsBackend } = await import('$lib/server/engine/run');
+		expect(downloadsBackend()).toBe('none');
+		const { actions } = await route();
+		await expect(actions.undoConceal({ request: post() } as never)).rejects.toMatchObject({
+			status: 404
+		});
+		await expect(actions.undoAdd({ request: post(), cookies } as never)).rejects.toMatchObject({
+			status: 404
+		});
+	});
+
+	it('run on the engine backend, and land as their own bands do', async () => {
+		const before = process.env.ENGINE_URL;
+		process.env.ENGINE_URL = 'http://127.0.0.1:1';
+		try {
+			const { actions } = await route();
+			// An empty post undoes nothing and lands on BROWSE: a redirect, not a 404.
+			await expect(actions.undoConceal({ request: post() } as never)).rejects.toMatchObject({
+				status: 303,
+				location: '/browse'
+			});
+			await expect(actions.undoAdd({ request: post(), cookies } as never)).rejects.toMatchObject({
+				status: 303,
+				location: '/browse'
+			});
+		} finally {
+			process.env.ENGINE_URL = before;
 		}
 	});
 });

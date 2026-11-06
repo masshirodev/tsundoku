@@ -10,18 +10,21 @@
 	 * What the series page's band would have said: the chapters, what ADD AND
 	 * DOWNLOAD queued, and UNDO while nothing of it is downloaded or read. On
 	 * the source's page it names the source; on BROWSE, where it lands once the
-	 * ADD left the source mostly hidden, it does not (hidden means not named,
-	 * as CONCEAL's band).
+	 * ADD left the source mostly hidden, it does not outside reveal (hidden
+	 * means not named, as CONCEAL's band), and inside reveal it does (c605).
 	 */
 	let {
 		band,
 		name,
+		reveal,
 		undo,
 		refusal
 	}: {
 		band: AddedBand;
 		/** The source's name, or null where reveal hides it. */
 		name: string | null;
+		/** Reveal on: nothing of the source is hidden from this viewer, so there is no tail to point at it. */
+		reveal: boolean;
 		/** UNDO's form action. */
 		undo: string;
 		/** Why the last UNDO was refused, if it was. */
@@ -34,9 +37,21 @@
 	const tail = $derived(
 		refused
 			? ` · NO UNDO: ${refused.toUpperCase()}`
-			: name || !band.sourceHidden
-				? ' · REVEAL SHOWS IT'
-				: ' · THE SOURCE IS HIDDEN WITH IT · REVEAL SHOWS BOTH'
+			: reveal
+				? ''
+				: name || !band.sourceHidden
+					? ' · REVEAL SHOWS IT'
+					: ' · THE SOURCE IS HIDDEN WITH IT · REVEAL SHOWS BOTH'
+	);
+	/**
+	 * UNDO without script posts to `?/undoAdd`, which is the band's own URL with
+	 * its parameters replaced: the page would load with no band, and the 409/503
+	 * refusal, drawn only inside one, would have nowhere to be read (c605). So
+	 * the action carries them, and the answer is this band again, refusing.
+	 */
+	const submit = $derived(
+		`${undo}&added=hidden&series=${band.seriesId}&preview=${encodeURIComponent(band.preview)}` +
+			(band.queued ? `&queued=${encodeURIComponent(band.queued)}` : '')
 	);
 </script>
 
@@ -50,7 +65,7 @@
 >
 	{#snippet action()}
 		{#if !refused}
-			<form method="POST" action={undo} use:enhance>
+			<form method="POST" action={submit} use:enhance>
 				<input type="hidden" name="series" value={band.seriesId} />
 				<input type="hidden" name="preview" value={band.preview} />
 				<button type="submit">UNDO</button>

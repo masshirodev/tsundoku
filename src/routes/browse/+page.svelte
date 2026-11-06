@@ -90,13 +90,15 @@
 		<ConcealBand band={data.concealed} name={null} undo="?/undoConceal" />
 	{/if}
 	<!-- ADD outside reveal that left its source mostly hidden (card c505): the
-	     source's page is not found, so the band is here, and names no source. -->
+	     source's page is not found, so the band is here. Outside reveal it
+	     names no source; inside reveal it is here and does (c605). -->
 	{#if data.added}
 		<AddedBand
 			band={data.added}
-			name={null}
+			name={data.added.sourceName}
+			reveal={data.reveal}
 			undo="?/undoAdd"
-			refusal={form && 'added' in form ? (form.added ?? null) : null}
+			refusal={form && 'added' in form ? (form.added ?? null) : data.refused}
 		/>
 	{/if}
 

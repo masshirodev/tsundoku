@@ -17,8 +17,21 @@ import { bumpWebtoons, NOVEL_REPO, REPO, resetEngine } from './browse-world';
  */
 let writes = new Set<import('@playwright/test').Request>();
 
-test.beforeEach(async ({ page }) => {
+/** Webtoons.com, the extension the first case installs and updates: a failed copy can leave it. */
+const WEBTOONS = 'eu.kanade.tachiyomi.extension.all.webtoons';
+
+test.beforeEach(async ({ page, baseURL }) => {
 	await resetEngine();
+	// A copy that failed before its own REMOVE still has Webtoons.com installed,
+	// and the copy after it would find 1.6.3 already here instead of installing
+	// 1.6.2 (c607 (b), c636). REMOVE is idempotent and keeps a source's switches,
+	// which this case never turns on.
+	const origin = new URL(baseURL!).origin;
+	await page.request.post(`${origin}/browse/extensions?/remove`, {
+		form: { pkg: WEBTOONS },
+		headers: { origin },
+		maxRedirects: 0
+	});
 	writes = new Set();
 	const own = writes;
 	page.on('request', (r) => {
@@ -85,9 +98,16 @@ test.afterEach(async ({ page }, testInfo) => {
 			await post('/browse/ln:goodnovels/settings?/flag', { flag, value: 'false' });
 		on = await switchesOn();
 	}
+	// Past the longest hold the world allows (`test-hold.server.ts`'s
+	// HOLD_MAX_MS, 5 s): a write that outlived the put-back lands inside this
+	// wait, and the switches read back on. The c636 case's evidence is here, in
+	// the teardown that holds it, not in the case that runs next (review 2).
+	await new Promise((r) => setTimeout(r, 5_200));
+	const late = await switchesOn();
 	const removed = await post('/browse/extensions?/remove', { pkg: 'ln:goodnovels' });
 	await page.context().clearCookies({ name: 'tsundoku_reveal' });
 	expect.soft(on, 'Good Novels’ switches read back off before REMOVE').toBe(0);
+	expect.soft(late, 'nothing landed after the put-back').toBe(0);
 	expect
 		.soft(removed.status() === 303 || removed.ok(), `Good Novels removed: ${removed.status()}`)
 		.toBe(true);
@@ -346,6 +366,41 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	await expect(sheet).toContainText('REMOVE GOOD NOVELS?');
 	await sheet.getByRole('button', { name: 'REMOVE GOOD NOVELS' }).click();
 	await expect(row('Good Novels')).toHaveCount(0);
+});
+
+test('a switch still being written when the case ends is put back after it (c636)', async ({
+	page
+}) => {
+	const row = (name: string) => page.locator('.rows .row', { hasText: name });
+	const own = (title: string) => page.locator('form.own', { hasText: title }).getByRole('switch');
+	// The plugin, so the afterEach's put-back has switches to reach at all
+	// (it returns early for a case that never installed one).
+	await page.goto(`/browse/extensions?tab=repos&add=${encodeURIComponent(NOVEL_REPO)}`);
+	await expect(page.locator('.found')).toContainText('1 NOVEL PLUGIN');
+	if (await page.locator('.found button').count()) await page.locator('.found button').click();
+	await expect(row('127.0.0.1').filter({ hasText: 'NOVELS' })).toContainText('1 PLUGIN');
+	lnPluginInstalled = true;
+	await page.goto('/browse/extensions?tab=available&kind=novels');
+	await row('Good Novels').getByRole('button', { name: 'INSTALL' }).click();
+	await expect(row('Good Novels')).toContainText('INSTALLED ✓');
+	await page.goto('/browse/ln:goodnovels/settings');
+	await expect(own('Off history')).toHaveAttribute('aria-checked', 'false');
+
+	// HIDDEN SOURCE, sent as the page's own write and left in flight when this
+	// case ends: the browse world holds the action's write on the server
+	// (tests/browse-setup.ts's TSUNDOKU_TEST_HOLD, `x-tsundoku-hold`). The
+	// afterEach must wait for it before its put-back, or the write lands after
+	// the switches were turned off and leaves HIDDEN SOURCE on for the next
+	// case -- whose last assertion says it is off (c569, below).
+	await page.evaluate(() => {
+		void fetch('/browse/ln:goodnovels/settings?/flag', {
+			method: 'POST',
+			headers: { 'x-tsundoku-hold': 'flag:3000' },
+			body: new URLSearchParams({ flag: 'hidden', value: 'true' })
+		});
+	});
+	// Nothing read here: the write is the next thing to happen, and it is the
+	// afterEach's job to wait for it (`writes`), not this case's.
 });
 
 test('REMOVE keeps a source’s switches: a reinstalled plugin comes back with them (c569, the owner’s (b))', async ({

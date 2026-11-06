@@ -40,6 +40,7 @@ import {
 	removePlugin
 } from '$lib/server/novels/plugins';
 import { isNovelRepoAddress, NovelRepoError } from '$lib/library/lnreader-index';
+import { holdPost } from '../test-hold.server';
 
 /**
  * EXTENSIONS, BROWSE's back room (Index-Extensions: installed, remove,
@@ -208,6 +209,9 @@ export const actions: Actions = {
 	install: async ({ request }) => {
 		guard();
 		const pkg = pkgOf(await request.formData());
+		// The browse world's hold (tests/browse-setup.ts, c636): off in any build
+		// the owner runs, and only the post that asks for it waits.
+		await holdPost('install', request);
 		try {
 			if (pluginOf(pkg)) await installPlugin(pluginOf(pkg)!);
 			else await install(pkg);

@@ -379,6 +379,10 @@ function startEngine(): Promise<Server> {
 			calls = [];
 			down = false;
 			checkMs = 0;
+			// c636: what /__bump moved, put back, so a case repeated in this
+			// world meets the repository's 1.6.2 again (browse-extensions'
+			// first case installs 1.6.2, then moves it to 1.6.3).
+			webtoonsVersion = 2;
 			return json(200, {});
 		}
 		if (req.url === '/__down') {
@@ -450,17 +454,19 @@ function startEngine(): Promise<Server> {
 			return a === null ? json(404, { error: 'unknown' }) : json(200, a);
 		});
 	});
-	return listen(server, ENGINE_PORT, 'PLAYWRIGHT_ENGINE_PORT');
+	return listen(server, ENGINE_PORT, 'the fake engine');
 }
 
 /**
  * Listen, or say which port was taken: a server that can't listen emits
  * `error` and never calls back, which left a run waiting on nothing (c340).
+ * The port is the OS's unless a slot assigned one (`browse-world.ts`), so the
+ * message names the server rather than a variable.
  */
-function listen(server: Server, port: number, name: string): Promise<Server> {
+function listen(server: Server, port: number, what: string): Promise<Server> {
 	return new Promise((ok, no) => {
 		server.once('error', (e) =>
-			no(new Error(`the browse world cannot listen on ${port} (${name}): ${e.message}`))
+			no(new Error(`the browse world cannot listen on ${port} (${what}): ${e.message}`))
 		);
 		server.listen(port, '127.0.0.1', () => ok(server));
 	});
@@ -513,7 +519,7 @@ function startRepos(dir: string): Promise<Server> {
 			res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(f));
 		}
 	);
-	return listen(server as unknown as Server, REPO_PORT, 'PLAYWRIGHT_REPO_PORT');
+	return listen(server as unknown as Server, REPO_PORT, 'the fake repositories');
 }
 
 function seed(dbPath: string, store: string): void {
@@ -706,7 +712,13 @@ export default async function setup() {
 				COVER_DIR: join(tmpdir(), `tsundoku-e2e-browse-covers-${process.pid}`),
 				ENGINE_STORE: store,
 				NODE_EXTRA_CA_CERTS: join(store, 'cert.pem'),
-				BACKUP_DIR: join(tmpdir(), 'tsundoku-e2e-backups')
+				BACKUP_DIR: join(tmpdir(), 'tsundoku-e2e-backups'),
+				// The world's own hold on a form post (c636): browse-extensions'
+				// afterEach waits for the page's unanswered writes, and only a
+				// server-side hold can put one past a case's end. Nothing but this
+				// setup sets it, so a build the owner runs never reads the header
+				// (`src/routes/browse/test-hold.server.ts`).
+				TSUNDOKU_TEST_HOLD: '1'
 			},
 			stdio: 'ignore'
 		}

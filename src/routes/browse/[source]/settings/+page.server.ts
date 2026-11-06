@@ -11,6 +11,7 @@ import type { Preference } from '$lib/server/engine/protocol';
 import { settingOf, valueFromForm } from '$lib/library/source-settings';
 import { backOrigin, keepOrigin } from '$lib/library/tag-search';
 import { conceal, concealBand, concealCount, undoConceal } from '../../conceal.server';
+import { holdPost } from '../../test-hold.server';
 
 /**
  * A source's settings (Index-Browse, settings; Browse Calls, "Settings, per
@@ -100,6 +101,9 @@ export const actions: Actions = {
 		if (!isSourceFlag(flag)) return fail(400, { message: 'No such switch' });
 		if (value !== 'true' && value !== 'false') return fail(400, { message: 'Not on or off' });
 		const on = value === 'true';
+		// The browse world's hold (tests/browse-setup.ts, c636): off in any build
+		// the owner runs, and only the post that asks for it waits.
+		await holdPost('flag', request);
 		setSourceFlag(s.id, flag, on);
 		// Hidden means hidden: hidden with reveal off, the source is no longer
 		// found, this page included, so the switch lands on BROWSE.
