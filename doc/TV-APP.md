@@ -199,9 +199,9 @@ round 2, `origin()`'s case-sensitive `startsWith('http')` turned
 the scheme from what they print with the same case-blind regex (c621), so a
 capitalised scheme reads as its host on both, not as `HTTP://…`. Every place the APK compares an origin goes through
 `originOf` or agrees with it: `BridgeGuard.allows` (the top-level URL through
-`originOf`; its scheme test alone is case-sensitive and fail-closed, so
-`HTTP://…` is refused there though `originOf` would read it — a follow-up,
-not a page any WebView loads), `BridgeGuard.allowsMessage` (origin-shaped:
+`originOf`; its scheme test reads the scheme without case too, as `originOf`
+does, so `HTTP://…` is the same page as `http://…` — c646),
+`BridgeGuard.allowsMessage` (origin-shaped:
 `ASSET_ORIGIN`, or `originOf` of a known origin), `Servers.find`, `others`, `add`, `forget`, `move` and every
 update (each cleans its argument through `originOf`), `FailedLoad` (fed by
 `MainActivity.originOf(Uri)`, which lower-cases too, though Chromium's URL

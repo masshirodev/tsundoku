@@ -11,7 +11,11 @@ package dev.masshiro.tsundoku.tv
  *
  * The rule is asked about the WebView's top-level URL, read on the UI thread
  * (`PairingBridge.Host.topUrl`). A frame cannot change that URL; a top-level
- * navigation can, and that is what the rule is about. A frame inside a known
+ * navigation can, and that is what the rule is about. The scheme test is
+ * case-blind, as [Address.originOf]'s is (c646): `HTTP://zen.local:42143` is
+ * the same page as `http://zen.local:42143`, not a scheme of its own, and a
+ * capitalised scheme on an unknown host is still refused by the origin
+ * comparison. A frame inside a known
  * server's page is not told apart by it (a JavaScript interface does not say
  * which frame called): tsundoku draws no third-party frames, and the way to
  * close that too is `WebViewCompat.addWebMessageListener` with origin rules
@@ -38,7 +42,7 @@ object BridgeGuard {
 	fun allows(url: String?, known: (String) -> Boolean): Boolean {
 		val u = url?.trim().orEmpty()
 		if (u == ASSET || u.startsWith("$ASSET#") || u.startsWith("$ASSET?")) return true
-		if (!u.startsWith("http://") && !u.startsWith("https://")) return false
+		if (!u.startsWith("http://", ignoreCase = true) && !u.startsWith("https://", ignoreCase = true)) return false
 		val origin = Address.originOf(u) ?: return false
 		return known(origin)
 	}

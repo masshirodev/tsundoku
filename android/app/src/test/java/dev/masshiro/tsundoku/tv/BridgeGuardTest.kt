@@ -64,8 +64,7 @@ class BridgeGuardTest {
 	}
 
 	@Test
-	fun `a server typed with capitals is trusted on its lower-case pages (c548)`() {
-		// What 9B's TYPE THE WHOLE ADDRESS stored for http://Zen.local:42143,
+	fun `a server typed with capitals is trusted on its lower-case pages (c548)`() {		// What 9B's TYPE THE WHOLE ADDRESS stored for http://Zen.local:42143,
 		// read back through Servers.decode; WebView's URL is lower case.
 		val stored = Servers.decode("http://Zen.local:42143\tZEN\t\t5\t5").map { it.origin }.toSet()
 		assertTrue(BridgeGuard.allows("http://zen.local:42143/") { it in stored })
@@ -73,5 +72,24 @@ class BridgeGuardTest {
 		// And a page whose URL somehow kept the capitals is the same server.
 		assertTrue(BridgeGuard.allows("http://ZEN.local:42143/") { it in stored })
 		assertFalse(BridgeGuard.allows("http://zen.local:42144/") { it in stored })
+	}
+
+	@Test
+	fun `a scheme typed in capitals is the same scheme, and widens nothing else (c646)`() {
+		val stored =
+			setOf(
+				Address.originOf("http://zen.local:42143"),
+				Address.originOf("https://zen.tailnet.ts.net:8443")
+			)
+		// A known server typed with a capitalised scheme is its own page, at
+		// any path, exactly as originOf reads it (the card's done line).
+		assertTrue(BridgeGuard.allows("HTTP://zen.local:42143/") { it in stored })
+		assertTrue(BridgeGuard.allows("HtTpS://ZEN.tailnet.ts.net:8443/series/3") { it in stored })
+		// A capitalised scheme does not widen the rule: an unknown host is
+		// still refused, and so is the known origin's http/https twin.
+		assertFalse(BridgeGuard.allows("HTTP://example.com/") { it in stored })
+		assertFalse(BridgeGuard.allows("HTTPS://192.168.1.23:42143/") { it in stored })
+		// originOf reads a file URL to no host, so no capitalisation makes it a page.
+		assertFalse(BridgeGuard.allows("FILE:///android_asset/pair/index.html") { it in stored })
 	}
 }
