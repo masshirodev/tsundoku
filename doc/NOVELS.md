@@ -329,10 +329,17 @@ error }`, a sentence. `{ op: 'modes' }` answers the hosts in page mode and
     the app unwraps it, unescaped, as `application/json` (when it parses) or
     `text/plain`, and `res.json()` works.
   - POST: FlareSolverr's `request.post` sends a url-encoded `postData` and
-    nothing else, so a `URLSearchParams` or a string body without a type or
-    typed `application/x-www-form-urlencoded` goes; a JSON, multipart or binary
-    body is refused with a sentence, as is any method but GET and POST
-    (a HEAD goes as a GET). Scribble Hub's chapter list is such a form.
+    nothing else, so a `URLSearchParams`, a `FormData` whose entries are all
+    strings (sent url-encoded), or a string body without a type or typed
+    `application/x-www-form-urlencoded` goes; a JSON or binary body, or a
+    `FormData` holding a file or `Blob` ("a file can't go in one"), is refused
+    with a sentence, as is any method but GET and POST (a HEAD goes as a GET).
+    Scribble Hub's chapter list is a `FormData` of strings
+    (`plugins/english/scribblehub.ts`, `wi_getreleases_pagination`), so it
+    goes as a url-encoded form. The plugin's headers are dropped (below), so a
+    POST that needs one, as NovelFull's chapter archive sets
+    `X-Requested-With`, goes without it: unmeasured, and on the owner's live
+    check.
   - A picture or a file is not a page: `fetchFile` (and so `fetchProto`'s
     binary body) is refused with a sentence before anything is asked, and a
     `fetchApi` that turns out to be Chromium's image page is refused by the
@@ -341,7 +348,12 @@ error }`, a sentence. `{ op: 'modes' }` answers the hosts in page mode and
     would leave them out, as any picture that doesn't come is.
   - The plugin's own headers and cookies are not sent: the browser sends its
     own.
-- **When it doesn't come**, the call's trouble is
+- **When it doesn't come**, the call's trouble is one of two sentences.
+  What page mode won't send at all (a method but GET or POST, a JSON or binary
+  body, a `FormData` holding a file, a `fetchFile`) is refused before anything
+  is asked, as `"<host>'s page can't come through the solver: <why>"`, which
+  claims no check: the source page offers no TRY AGAIN for it, since a new
+  solve would end the same way. Everything else is
   `"<host>'s page did not come through the solver (its check could not be
 passed): <why>"`, which the source page bands with TRY AGAIN: the solver's
   own failure (`the solver answered 500 (…)`), a timeout (`the solver did not
