@@ -566,6 +566,14 @@ full screen already. Decided after hydration: the server can't know.
 (R→L · FIT SCREEN) and read as a status line; it now ends in SETTINGS ↑, which
 stays when a phone's width cuts the summary short.
 
+**A phone's bottom row scrolls** (c616). At 360 px its cells are wider than
+the screen, and the row used to clip the last ones: on the text reader FULL
+SCREEN was off the right edge at 100% text, and on the image reader `CH. 28 →`
+at 130%. The cells keep their size and order and the bar keeps its 64 px (a
+second row would take the reading area's); SETTINGS ↑ keeps its whole width,
+with the summary ellipsized beside it, and a sideways drag on the row reaches
+the rest.
+
 ## Loading, failure, missing
 
 **A page that didn't load says so from its top**, and keeps the message in

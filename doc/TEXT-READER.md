@@ -422,7 +422,12 @@ reload, SCROLL untouched, vertical Japanese's row),
 - **Bottom:** the chapter with "P. 5 OF 13 · 7 MIN LEFT", a scrubber across the
   chapter's pages, then `← CH. 211`, CONTENTS, READING and `CH. 213 →`. In
   vertical, and in R→L, the cells and the scrubber mirror (one path,
-  `TextChrome`'s `rtl`).
+  `TextChrome`'s `rtl`). **On a phone the row scrolls** (c616): at 360 px its
+  cells are wider than the screen, and the row used to clip the last ones
+  (FULL SCREEN was unreachable at 100% text). The cells keep their size and
+  order, READING's summary ellipsizes but SETTINGS ↑ keeps its width, and a
+  sideways drag on the row reaches the rest; the bar keeps its height, so the
+  reading area under it does too.
 - **READING** is the image reader's sheet with rows for text: LAYOUT (the
   series', with REMEMBER), DIRECTION (the series', with REMEMBER; c440),
   COLUMNS, THEME, FONT, SIZE, LINE, MARGINS, WIDTH (c437, "Pages" above),
