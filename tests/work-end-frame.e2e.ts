@@ -1196,7 +1196,11 @@ test('the last part says the Work is read, what it held, and WORK → where STAR
 	await expect(page.locator(SEL.foot)).toContainText('HIKARU RUN · WORK');
 });
 
-test('the rating is asked once: it sits below the block, and goes when rated', async ({ page }) => {
+// The block stays once rated, showing what was chosen (c655, doc/READER.md):
+// only the note, SHOWN WHILE UNRATED, goes with the first rating.
+test('the rating is asked once: it sits below the block, and its note goes when rated', async ({
+	page
+}) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.nextw)).toBeVisible();
 	await expect(page.locator('.end .note')).toContainText('SHOWN WHILE UNRATED');
@@ -1205,7 +1209,10 @@ test('the rating is asked once: it sits below the block, and goes when rated', a
 	await expect(rate).toBeVisible();
 	await rate.click();
 	await expect(page.locator('.end .note')).toHaveCount(0);
-	await expect(page.getByRole('button', { name: 'Rate 8 of 10' })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Rate 8 of 10' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
 });
 
 test('the last episode ends on the Work: no countdown, and nothing plays by itself', async ({

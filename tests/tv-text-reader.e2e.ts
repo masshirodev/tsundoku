@@ -277,11 +277,15 @@ test('the end of the book takes the pad: its cells are reachable, as the image r
 	// The end page lifts the reader's opt-out, as the image reader's has since
 	// c235: before it, every arrow was the reader's.
 	expect(await reader.evaluate((n) => n.hasAttribute('data-focus-off'))).toBe(false);
+	// The first arrow lands on the rating's first cell, UNRATED, whose text is
+	// only its "0" (c655: the block stays once rated, so it is there on any
+	// series): the cell's accessible name, then, not its text.
 	await page.keyboard.press('ArrowDown');
-	const cell = await page.evaluate(
-		() => document.activeElement?.textContent?.replace(/\s+/g, ' ').trim() ?? ''
-	);
-	expect(cell).toMatch(/SERIES|LIBRARY|RATE|FAV/i);
+	const cell = await page.evaluate(() => {
+		const a = document.activeElement;
+		return (a?.getAttribute('aria-label') || a?.textContent || '').replace(/\s+/g, ' ').trim();
+	});
+	expect(cell).toMatch(/SERIES|LIBRARY|RATE|FAV|HIDE/i);
 });
 
 // ---- a novel downloaded so far (c251) ---------------------------------------------------

@@ -83,7 +83,7 @@ describe('deciding', () => {
 		);
 		const keep = entryOf(ONE);
 		await dupes.decide(key(), 'keep', keep, true);
-		expect(await dupes.applyPending()).toBe(1);
+		expect(await dupes.applyPending()).toEqual({ applied: 1, refused: [], failed: [] });
 		expect(seriesOf(TWO)).toBeUndefined();
 		const s = db
 			.prepare(`SELECT rating, favourite FROM series WHERE id = ?`)

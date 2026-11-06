@@ -22,7 +22,7 @@ describe('GROUP AS A SERIES', () => {
 	it('makes the two one series of books, and the pair is settled', async () => {
 		const [p] = dupes.reviewQueue(true);
 		await dupes.decide(p.key, 'group', null, true);
-		expect(await dupes.applyPending()).toBe(1);
+		expect(await dupes.applyPending()).toEqual({ applied: 1, refused: [], failed: [] });
 		const seriesOf = (id: number) =>
 			(db.prepare(`SELECT series_id FROM entries WHERE id = ?`).get(id) as { series_id: number })
 				.series_id;

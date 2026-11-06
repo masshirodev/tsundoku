@@ -51,7 +51,8 @@ const revealCookie = (origin: string) => ({
 /** Set by an LNReader case once it is about to INSTALL; the afterEach puts back what it left. */
 let lnPluginInstalled = false;
 
-const SWITCHES = ['hidden', 'addedHidden', 'offHistory'] as const;
+// The settings page's own switches, NEVER TRACKED among them since c522.
+const SWITCHES = ['hidden', 'addedHidden', 'offHistory', 'neverTracked'] as const;
 
 // Teardown has its own budget, so this runs and reaches the server even when
 // the case timed out (c507; a finally in the body does not: its requests throw
@@ -79,8 +80,8 @@ test.afterEach(async ({ page }, testInfo) => {
 	await page.context().addCookies([revealCookie(origin)]);
 	const post = (path: string, form: Record<string, string>) =>
 		page.request.post(`${origin}${path}`, { form, headers: { origin }, maxRedirects: 0 });
-	// Only tsundoku's own three switches (`form.own`), not a plugin preference
-	// the page also draws; NaN when the page does not draw exactly those three.
+	// Only tsundoku's own switches (`form.own`), not a plugin preference the
+	// page also draws; NaN when the page does not draw exactly SWITCHES.
 	const switchesOn = async () => {
 		const r = await page.request.get(settings);
 		if (!r.ok()) return -1;
@@ -333,7 +334,8 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	await expect(page.locator('form.own .t')).toHaveText([
 		'Hidden source',
 		'Added hidden',
-		'Off history'
+		'Off history',
+		'Never tracked'
 	]);
 	await expect(page.locator('form.set')).toHaveCount(0);
 	await expect(page.getByText(/only tsundoku's switches above/)).toBeVisible();

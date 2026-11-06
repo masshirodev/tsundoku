@@ -929,7 +929,7 @@ describe('ONE-OFF counts one book the same way everywhere (c558)', () => {
 		).run(own, other, JSON.stringify({ rows, sizes: { [own]: [0, 0], [other]: [0, 0] } }), 1);
 		const dupes = await import('$lib/server/dupes');
 		await dupes.decide(`${own},${other}`, 'fold', null, true);
-		expect(await dupes.applyPending()).toBe(1);
+		expect(await dupes.applyPending()).toEqual({ applied: 1, refused: [], failed: [] });
 		// The pair is one series now, the other's entry an edition of the book.
 		const where = db.prepare(`SELECT series_id FROM entries WHERE id = ?`);
 		expect((where.get(own) as { series_id: number }).series_id).toBe(
