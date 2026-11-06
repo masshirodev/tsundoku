@@ -404,9 +404,8 @@ plugin):
 | Royal Road   | 20 in 14.8 s (solve 13.3 s) | 109 chapters in 0.8 s   | 54,606 bytes in 0.9 s, at the chapter's own page  |
 
 - **Both hosts page mode was built for are past their check.** Every page came
-  back 200, after one solve each; the host made no request of its own after
-  the refusal and paid no second solve. NovelFull took four pages for its
-  whole run and Scribble Hub four, Royal Road none.
+  back 200, and the run paid one solve per plugin and no second: NovelFull
+  asked the browser for four pages, Scribble Hub four, Royal Road none.
 - **NovelFull's preview lists chapters though page mode drops
   `X-Requested-With`.** The plugin posts its chapter archive
   (`/ajax-chapter-option?novelId=237`) with that header; the browser sent its
