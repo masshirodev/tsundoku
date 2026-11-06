@@ -136,9 +136,10 @@ class PairingBridgeTest {
 	@Test
 	fun `forgetServer from an unknown page forgets nothing and answers no list (c549)`() {
 		// Until c549 it answered the list as it was, which was a read of the
-		// owner's servers by any page.
+		// owner's servers by any page; in round 1 of c549 it answered "[]",
+		// which MoreSheet read as "the last one is gone" and sent the TV to 9A.
 		val w = world("https://example.com/")
-		assertEquals("[]", w.bridge.forgetServer(home))
+		assertEquals("", w.bridge.forgetServer(home))
 		assertEquals(2, w.servers.all().size)
 	}
 

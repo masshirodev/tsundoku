@@ -264,7 +264,11 @@ whole screens, before or beside pairing, so they are the app's own page, as
   OK; for the first 0.6 s FORGET is disabled and KEEP IT ignores OK, so the
   tail of an OK held to open the options presses nothing. Forgetting the one
   in use opens the next that answers (else the next by when it was opened,
-  whose 9D offers the rest); forgetting the last returns to 9A.
+  whose 9D offers the rest); forgetting the last returns to 9A. FORGET
+  disarms the moment it is pressed, so a second press (a double tap, a second
+  OK) before the next server's page commits does nothing; and an answer that
+  is not a list (the bridge's refusal, `""`, c549) changes nothing and calls
+  neither `open` nor `welcome`: only a real empty list is "the last one".
 - **BACK** climbs: FORGET to the options (on FORGET), the options to the list
   (on that row), the list to MORE (on SERVERS), MORE closed. Opened from the
   bar's cell, the list has no MORE under it: BACK closes the panel and the
@@ -383,8 +387,10 @@ opened and when it was added. Pure apart from its key-value, so
   (a), 2026-11-05: the list of servers is the owner's): `servers`,
   `remembered`, `tvAddress`, `prefix` and `network` answer any other page as
   a TV that knows nothing would (`[]`, `""`), never with an exception, and
-  `forgetServer` refused answers `[]` where it used to hand back the whole
-  list. The app's own page and a known server's read exactly as before.
+  `forgetServer` refused answers `""` where it used to hand back the whole
+  list: not `[]`, which MoreSheet would read as "the last one is gone" and
+  send the TV to 9A with every server still stored. MoreSheet reads anything
+  that is not a list as a refusal and changes nothing. The app's own page and a known server's read exactly as before.
   `form` and `defaultPort` stay open (the user agent already says which app
   this is, and the port is a constant), and so do `open` and `welcome`:
   FORGET of the server in use calls one of them from the page of the server
@@ -840,7 +846,7 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   server's and finds it acted; each guarded read (c549) from an unknown page
   reads `[]` or `""` and writes nothing, and from the asset page and a known
   server's reads the list, the server in use, the address, the prefix and
-  the network; `forgetServer` refused answers `[]`; `form` and `defaultPort`
+  the network; `forgetServer` refused answers `""`; `form` and `defaultPort`
   answer anyone; and FORGET's `open` and `welcome` still
   answering the page it has just made unknown, and `forget()` from a known
   server's page forgetting every server, its own included. `AttemptsTest` plays the activity's two launch doors in
@@ -896,7 +902,9 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 - `tests/tv-servers.e2e.ts` — the web half in the `tv` project with a stand-in
   bridge: no SERVERS row without the bridge; S6 with one server; S2's order,
   mark, probes and frame (the extracted measurements); S3 and S4 with FORGET's
-  0.6 s; forgetting the one in use and the last; the layout telling the app,
+  0.6 s; forgetting the one in use and the last; a refused FORGET changing
+  nothing, and FORGET of the one in use pressed twice opening the next once
+  and never 9A (c549, round 2); the layout telling the app,
   and only the app, the server's name; MORE's TO LINK row reached by keys (c475).
   S1 (wave 24, 20 cases): no cell without the bridge, with an APK older than
   c261, with five kinds of answer that are not a list of servers, with two

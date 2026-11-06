@@ -34,7 +34,7 @@ import java.util.concurrent.Executors
  * | `servers`        | reads the list                         | yes: [] |
  * | `remember`       | writes: adds a server                  | yes     |
  * | `forget`         | writes: forgets every server, cookies  | yes     |
- * | `forgetServer`   | writes: forgets one, and its cookies   | yes: [] |
+ * | `forgetServer`   | writes: forgets one, and its cookies   | yes: "" |
  * | `move`           | writes: an entry takes a new origin    | yes     |
  * | `rename`         | writes: the TV's name for a server     | yes     |
  * | `named`          | writes: the server's own name          | yes     |
@@ -241,12 +241,15 @@ class PairingBridge(
 	/**
 	 * FORGET (S4): the entry, and that origin's cookies, so adding it back
 	 * pairs again. Answers the list as it is now, for the page to decide where
-	 * to go (the next that answers, or 9A).
+	 * to go (the next that answers, or 9A); refused, it answers "", which the
+	 * page reads as "nothing happened".
 	 */
 	@JavascriptInterface
 	fun forgetServer(origin: String): String {
-		// Refused, it answers what an unknown page may read: no list (c549).
-		if (!trusted()) return NO_SERVERS
+		// Refused, it answers no list at all (c549): not "[]", which the page
+		// would read as "that was the last one" and send the TV to 9A while
+		// every server is still stored. "" leaks nothing and is not a list.
+		if (!trusted()) return NOTHING
 		forgetOne(origin)
 		return servers.toJson()
 	}
