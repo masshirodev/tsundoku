@@ -1016,6 +1016,18 @@ describe('a refused UNDO’s landing and words (c664)', () => {
 		}
 	});
 
+	it('falls back to an empty series and preview when the form carries none', async () => {
+		const { refusedLanding } = await import('../src/routes/browse/added.server');
+		const u = new URL(refusedLanding(new FormData(), null, 409), 'http://x');
+		expect(Object.fromEntries(u.searchParams)).toEqual({
+			added: 'hidden',
+			series: '',
+			preview: '',
+			refused: '409'
+		});
+		expect(u.searchParams.has('queued')).toBe(false);
+	});
+
 	it('keeps a queued count the band accepts, and drops one it does not', async () => {
 		for (const [queued, kept] of [
 			['down', true],
