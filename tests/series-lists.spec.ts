@@ -6,6 +6,7 @@ import {
 	listsRow,
 	listState,
 	mainList,
+	NEVER_TRACKED_WHY,
 	OFFLINE_NOTE,
 	seasonCellTag,
 	seasonWords,
@@ -94,6 +95,7 @@ function tracking(facts: TrackFacts[], o: Partial<Tracking> = {}): Tracking {
 	return {
 		facts,
 		hidden: false,
+		neverTracked: false,
 		coverOnly: false,
 		catalogueTracks: true,
 		links: [],
@@ -109,6 +111,7 @@ function input(o: Partial<ListsInput>): ListsInput {
 		tracking: null,
 		ranobe: null,
 		seasons: null,
+		neverTracked: false,
 		expanded: false,
 		offline: false,
 		now: NOW,
@@ -1099,5 +1102,81 @@ describe('a comic’s line says where its entry comes from, and its year (c520, 
 		// A link from before rung 70: neither column, and never `MANGA · null`.
 		expect(meta({ country: null, year: null })).toBe('MANGA · MAL 132214');
 		expect(meta({ country: '', year: null })).toBe('MANGA · MAL 132214');
+	});
+});
+
+describe('a NEVER TRACKED source (c522)', () => {
+	const why = { l: NEVER_TRACKED_WHY, r: '', quiet: true, alert: false };
+
+	it('says why on a linked comic’s line, and offers no send: no EDIT, no TRY AGAIN', () => {
+		const row = listsRow(
+			input({
+				neverTracked: true,
+				link: linked(),
+				tracking: tracking(
+					[
+						fact('anilist', {
+							state: { status: 'reading', progress: 214, score: 9 },
+							waiting: { progress: 215, failedAt: NOW, error: 'ANILIST DID NOT ANSWER' }
+						}),
+						fact('mal', { linked: false })
+					],
+					{ neverTracked: true }
+				)
+			})
+		)!;
+		const [l] = lines(
+			input({
+				neverTracked: true,
+				link: linked(),
+				tracking: tracking(
+					[
+						fact('anilist', {
+							state: { status: 'reading', progress: 214, score: 9 },
+							waiting: { progress: 215, failedAt: NOW, error: 'ANILIST DID NOT ANSWER' }
+						}),
+						fact('mal', { linked: false })
+					],
+					{ neverTracked: true }
+				)
+			})
+		);
+		// One line, the reason: not what was sent, not what failed, not MAL's quiet line.
+		expect(l.states).toEqual([why]);
+		expect(l.cells).toEqual([]);
+		expect(row.note).toBe('NOTHING SENT · NEVER TRACKED');
+	});
+
+	it('says it on every season’s line of an anime, and on Ranobe’s', () => {
+		const input2 = input({
+			kind: 'anime',
+			neverTracked: true,
+			link: linked({ kind: 'anime', format: 'TV' }),
+			seasons: [seasonRow(1), seasonRow(2)],
+			tracking: tracking([], {
+				neverTracked: true,
+				openSeason: 1,
+				seasons: [seasonTrack(1, [fact('anilist')]), seasonTrack(2, [fact('anilist')])]
+			}),
+			ranobe: ranobe()
+		});
+		const rows = lines(input2);
+		expect(rows.map((l) => l.tag)).toEqual(['S1', 'S2', 'RNB']);
+		for (const l of rows) {
+			expect(l.states).toEqual([why]);
+			expect(l.cells).toEqual([]);
+		}
+	});
+
+	it('still says it on a line nothing is linked to, and keeps FIND: a search is not a send', () => {
+		const [l] = lines(
+			input({
+				neverTracked: true,
+				link: unlinked(),
+				tracking: tracking([], { neverTracked: true })
+			})
+		);
+		expect(l.states).toEqual([why]);
+		expect(labels(l.cells)).toEqual(['FIND', 'PASTE A LINK']);
 	});
 });

@@ -100,6 +100,8 @@ export type ListsInput = {
 	ranobe: RanobeSeries | null;
 	/** An anime's seasons; null for anything else. */
 	seasons: SeasonRow[] | null;
+	/** Its source is NEVER TRACKED (c522): every line says why, and no line offers a send. */
+	neverTracked: boolean;
 	/** SHOW on a fold: every season drawn. */
 	expanded: boolean;
 	offline: boolean;
@@ -112,6 +114,20 @@ export type ListsInput = {
 const CELL_ORDER: Cell['key'][] = ['retry', 'signin', 'find', 'change', 'paste', 'open', 'edit'];
 const sortCells = (cells: Cell[]) =>
 	cells.sort((a, b) => CELL_ORDER.indexOf(a.key) - CELL_ORDER.indexOf(b.key));
+
+/**
+ * Why a NEVER TRACKED series' line sends nothing (c522): the switch is its
+ * source's, set on that source's settings page, so it is said on every line
+ * that has a catalogue behind it instead of a send that would not happen.
+ * One spelling, so the panel's row and its spec cannot drift apart.
+ */
+export const NEVER_TRACKED_WHY = 'NOTHING SENT · ITS SOURCE IS NEVER TRACKED';
+const neverTrackedLine = (): StateLine => ({
+	l: NEVER_TRACKED_WHY,
+	r: '',
+	quiet: true,
+	alert: false
+});
 
 /** The strip's words offline (1B, 8): the one place the row says why every cell dims. */
 export const OFFLINE_NOTE = '○ OFFLINE · CHANGES NEED THE WORKSTATION';
@@ -488,6 +504,10 @@ function anilistLine(i: ListsInput, season: SeasonTrack | null, oneSeason: Seaso
 					}
 				: link
 		);
+		// Nothing is linked, so there is no send to take away; the row still says
+		// why it would never send (c522). FIND stays: a search is an ask, not a
+		// send, and a link is still what gives it its cover and details.
+		if (i.neverTracked) states.push(neverTrackedLine());
 		cells.push(
 			...findCells({
 				href: findHref,
@@ -512,7 +532,8 @@ function anilistLine(i: ListsInput, season: SeasonTrack | null, oneSeason: Seaso
 			.filter(Boolean)
 			.join(' · ');
 		const tracked = !!t && t.catalogueTracks;
-		if (hidden)
+		if (i.neverTracked) states.push(neverTrackedLine());
+		else if (hidden)
 			states.push({
 				l: 'NOTHING SENT · HIDDEN SERIES STAY OFF EVERY LIST',
 				r: '',
@@ -570,11 +591,16 @@ function anilistLine(i: ListsInput, season: SeasonTrack | null, oneSeason: Seaso
 				})
 			);
 		}
-		const edit = editCell(
-			{ list: 'anilist', season: season ? season.season : null },
-			i.offline,
-			entryHref(l, i.kind)
-		);
+		// EDIT opens the sheet that sets STATUS and SCORE, which is a send: a
+		// NEVER TRACKED series (c522) keeps only OPEN ↗, the cell offline gives.
+		const edit =
+			i.neverTracked && !i.offline
+				? null
+				: editCell(
+						{ list: 'anilist', season: season ? season.season : null },
+						i.offline,
+						entryHref(l, i.kind)
+					);
 		if (edit) cells.push(edit);
 	}
 	return {
@@ -621,6 +647,8 @@ function seasonLineOf(i: ListsInput, sv: SeasonRow, open: boolean): Line {
 			searched: sv.searched,
 			decision: sv.decision
 		});
+		// Unlinked, so no send to take away; the line still says why it never would (c522).
+		if (i.neverTracked) states.push(neverTrackedLine());
 		cells.push(
 			...findCells({
 				href: findHref,
@@ -645,7 +673,8 @@ function seasonLineOf(i: ListsInput, sv: SeasonRow, open: boolean): Line {
 			]
 				.filter(Boolean)
 				.join(' · ');
-		if (t && !hidden) {
+		if (i.neverTracked) states.push(neverTrackedLine());
+		else if (t && !hidden) {
 			if (t.wrongKind) {
 				states.push({
 					l: 'LINKED TO THE WRONG KIND · NOTHING SENT',
@@ -682,11 +711,15 @@ function seasonLineOf(i: ListsInput, sv: SeasonRow, open: boolean): Line {
 				);
 			}
 		}
-		const edit = editCell(
-			{ list: 'anilist', season: sv.season },
-			i.offline,
-			entryHref({ ...l, kind: null }, i.kind)
-		);
+		// A season's EDIT sets its STATUS and SCORE, a send: NEVER TRACKED keeps OPEN ↗ alone.
+		const edit =
+			i.neverTracked && !i.offline
+				? null
+				: editCell(
+						{ list: 'anilist', season: sv.season },
+						i.offline,
+						entryHref({ ...l, kind: null }, i.kind)
+					);
 		if (edit) cells.push(edit);
 	}
 	return {
@@ -724,22 +757,29 @@ function ranobeLine(i: ListsInput, under: boolean): Line {
 					.filter(Boolean)
 					.join(' · ')
 			: r.link.meta;
-		for (const t of track?.lines ?? [])
-			states.push({ l: bare(t.l), r: t.r, quiet: !t.strong, alert: t.rStrong });
-		if (track?.retry)
-			cells.push({
-				key: 'retry',
-				label: 'TRY AGAIN',
-				accent: false,
-				dim: i.offline,
-				post: { action: '?/retryRanobe', fields: {} }
-			});
-		const edit = editCell({ list: 'ranobe' }, i.offline, r.link.href);
+		// NEVER TRACKED (c522): the reason, instead of what was sent and the cells
+		// that send it. FIND and PASTE a link stay: a search is an ask, not a send.
+		if (i.neverTracked) states.push(neverTrackedLine());
+		else {
+			for (const t of track?.lines ?? [])
+				states.push({ l: bare(t.l), r: t.r, quiet: !t.strong, alert: t.rStrong });
+			if (track?.retry)
+				cells.push({
+					key: 'retry',
+					label: 'TRY AGAIN',
+					accent: false,
+					dim: i.offline,
+					post: { action: '?/retryRanobe', fields: {} }
+				});
+		}
+		const edit =
+			i.neverTracked && !i.offline ? null : editCell({ list: 'ranobe' }, i.offline, r.link.href);
 		if (edit) cells.push(edit);
 	} else {
 		meta = r.unlinkedMeta;
 		// Not linked, only a suggestion waiting says more than the title does.
-		if (r.facts.suggested)
+		if (i.neverTracked) states.push(neverTrackedLine());
+		else if (r.facts.suggested)
 			for (const t of track?.lines ?? [])
 				states.push({ l: bare(t.l), r: t.r, quiet: !t.strong, alert: t.rStrong });
 		cells.push(
@@ -826,7 +866,13 @@ export function listsRow(i: ListsInput): Lists | null {
 		items.push(...lines.map((line): Item => ({ type: 'line', line })));
 	}
 	return {
-		note: i.offline ? OFFLINE_NOTE : hidden && many ? 'NOTHING SENT · HIDDEN' : '',
+		note: i.offline
+			? OFFLINE_NOTE
+			: i.neverTracked
+				? 'NOTHING SENT · NEVER TRACKED'
+				: hidden && many
+					? 'NOTHING SENT · HIDDEN'
+					: '',
 		items
 	};
 }

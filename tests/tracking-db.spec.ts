@@ -12,6 +12,7 @@ const { seedSample } = await import('$lib/server/fixtures');
 const cat = await import('$lib/server/catalogue');
 const tr = await import('$lib/server/tracking');
 const seasonLinks = await import('$lib/server/season-links');
+const { setSourceFlag } = await import('$lib/server/engine/source-flags');
 
 const db = getDb();
 const NOW = Date.UTC(2026, 8, 25);
@@ -496,6 +497,41 @@ describe('sending', () => {
 			VALUES (?, 1, 'review', ?, ?, 'NOVEL')`
 		).run(novel, NOW, NOW);
 		expect(tr.queueProgress(novel, NOW)).toBe(0);
+	});
+
+	it('sends nothing for a series from a NEVER TRACKED source, and drops what waited (c522)', async () => {
+		const tog = linkTog();
+		await signIn('anilist');
+		// The series' own source, as an engine key names it; the seed writes none.
+		db.prepare(`UPDATE series SET origin_key = 'mihon:100:/manga/tog' WHERE id = ?`).run(tog);
+		try {
+			// A send queued before the switch went on: it is what must not go out.
+			expect(tr.queueProgress(tog, NOW)).toBe(1);
+			expect(waiting(tog, 'anilist')).toMatchObject({ progress: 593 });
+			setSourceFlag('100', 'neverTracked', true);
+			sent = [];
+			// The drain asks the door again, and drops the row rather than keep it.
+			expect(await tr.sendPending({ seriesId: tog, now: NOW })).toEqual({
+				sent: 0,
+				failed: 0
+			});
+			expect(sent).toEqual([]);
+			expect(waiting(tog, 'anilist')).toBeUndefined();
+			// And it is not queued again: progress, status and score all find no target.
+			expect(tr.queueProgress(tog, NOW)).toBe(0);
+			expect(tr.editTracking(tog, { status: 'on_hold', score: 9 }, NOW)).toBe(0);
+			expect(waiting(tog, 'anilist')).toBeUndefined();
+			expect(tr.trackingOf(tog)).toMatchObject({ neverTracked: true });
+		} finally {
+			setSourceFlag('100', 'neverTracked', false);
+			db.prepare(`UPDATE series SET origin_key = NULL WHERE id = ?`).run(tog);
+		}
+		// Switched off again: nothing is sent retroactively, since the drain dropped
+		// the row (a new read queues again and is sent, as any read is).
+		sent = [];
+		expect(await tr.sendPending({ seriesId: tog, now: NOW })).toEqual({ sent: 0, failed: 0 });
+		expect(sent).toEqual([]);
+		expect(tr.trackingOf(tog)).toMatchObject({ neverTracked: false });
 	});
 
 	it('shows what it knows on the TRACKING row', async () => {

@@ -15,6 +15,12 @@ import type { Kind } from '../../library/kinds.ts';
  *   hidden.
  * - `offHistory`, OFF HISTORY: its reads and watches never show in HISTORY.
  *   They are still recorded, so progress, CONTINUE and tracking are unchanged.
+ * - `neverTracked`, NEVER TRACKED (c522): nothing from this source is sent to
+ *   AniList, MAL or Ranobe. Reads still count locally (progress, CONTINUE and
+ *   HISTORY are unchanged); only the catalogues hear nothing. The send doors
+ *   ask it where a send is queued and where the queue is drained
+ *   (`tracking.ts`'s `targets`, `ranobe.ts`'s sends), and the series screen's
+ *   LISTS row says why instead of offering a send.
  *
  * Stored in the `settings` key/value table, one row per switch that is on
  * (`source.<flag>:<source id>` = '1'; off is no row), with no rung:
@@ -25,7 +31,7 @@ import type { Kind } from '../../library/kinds.ts';
  * The source id is BROWSE's: an engine source's number, or `ln:<plugin>`.
  */
 
-export const SOURCE_FLAGS = ['hidden', 'addedHidden', 'offHistory'] as const;
+export const SOURCE_FLAGS = ['hidden', 'addedHidden', 'offHistory', 'neverTracked'] as const;
 export type SourceFlag = (typeof SOURCE_FLAGS)[number];
 export type SourceFlags = Record<SourceFlag, boolean>;
 
@@ -33,7 +39,8 @@ export type SourceFlags = Record<SourceFlag, boolean>;
 const PREFIX: Record<SourceFlag, string> = {
 	hidden: 'source.hidden:',
 	addedHidden: 'source.added-hidden:',
-	offHistory: 'source.off-history:'
+	offHistory: 'source.off-history:',
+	neverTracked: 'source.never-tracked:'
 };
 
 export const isSourceFlag = (v: string): v is SourceFlag =>
@@ -44,11 +51,14 @@ export const sourceFlagKey = (flag: SourceFlag, sourceId: string) => `${PREFIX[f
 
 /** One source's switches; every one off for a source nothing was set on. */
 export function sourceFlags(sourceId: string, db = getDb()): SourceFlags {
+	const keys = SOURCE_FLAGS.map((f) => sourceFlagKey(f, sourceId));
 	const on = new Set(
 		(
 			db
-				.prepare(`SELECT key FROM settings WHERE key IN (?, ?, ?) AND value = '1'`)
-				.all(...SOURCE_FLAGS.map((f) => sourceFlagKey(f, sourceId))) as { key: string }[]
+				.prepare(
+					`SELECT key FROM settings WHERE key IN (${SOURCE_FLAGS.map(() => '?').join(', ')}) AND value = '1'`
+				)
+				.all(...keys) as { key: string }[]
 		).map((r) => r.key)
 	);
 	return Object.fromEntries(

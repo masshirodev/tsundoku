@@ -133,26 +133,32 @@ describe('where the switches are kept', () => {
 		expect(flags.sourceFlags(MANGA)).toEqual({
 			hidden: false,
 			addedHidden: false,
-			offHistory: false
+			offHistory: false,
+			neverTracked: false
 		});
 		flags.setSourceFlag(MANGA, 'offHistory', true);
 		flags.setSourceFlag(NOVEL, 'hidden', true);
+		flags.setSourceFlag(NOVEL, 'neverTracked', true);
 		expect(flags.sourceFlags(MANGA)).toEqual({
 			hidden: false,
 			addedHidden: false,
-			offHistory: true
+			offHistory: true,
+			neverTracked: false
 		});
 		expect(flags.sourceFlags(NOVEL).hidden).toBe(true);
+		expect(flags.sourceFlags(NOVEL).neverTracked).toBe(true);
 		expect(
 			db.prepare(`SELECT key, value FROM settings WHERE key LIKE 'source.%' ORDER BY key`).all()
 		).toEqual([
 			{ key: 'source.hidden:ln:good', value: '1' },
+			{ key: 'source.never-tracked:ln:good', value: '1' },
 			{ key: 'source.off-history:300', value: '1' }
 		]);
 		// Turned on twice is one row; off leaves none behind.
 		flags.setSourceFlag(MANGA, 'offHistory', true);
 		flags.setSourceFlag(MANGA, 'offHistory', false);
 		flags.setSourceFlag(NOVEL, 'hidden', false);
+		flags.setSourceFlag(NOVEL, 'neverTracked', false);
 		expect(
 			db.prepare(`SELECT COUNT(*) AS n FROM settings WHERE key LIKE 'source.%'`).get()
 		).toEqual({ n: 0 });
@@ -167,8 +173,8 @@ describe('where the switches are kept', () => {
 		expect(flags.sourcesWith('offHistory')).toEqual(new Set());
 	});
 
-	it('knows its three switches and nothing else', () => {
-		expect(flags.SOURCE_FLAGS).toEqual(['hidden', 'addedHidden', 'offHistory']);
+	it('knows its four switches and nothing else', () => {
+		expect(flags.SOURCE_FLAGS).toEqual(['hidden', 'addedHidden', 'offHistory', 'neverTracked']);
 		for (const f of flags.SOURCE_FLAGS) expect(flags.isSourceFlag(f)).toBe(true);
 		for (const f of ['', 'Hidden', 'added-hidden', 'tracked'])
 			expect(flags.isSourceFlag(f)).toBe(false);
@@ -783,7 +789,8 @@ describe('CONCEAL ITS SERIES (c523)', () => {
 			expect(flags.sourceFlags(MANGA)).toEqual({
 				hidden: false,
 				addedHidden: false,
-				offHistory: false
+				offHistory: false,
+				neverTracked: false
 			});
 			// The band, from its URL alone (what a reload reads).
 			expect(concealBand(new URLSearchParams(done.query))).toMatchObject({

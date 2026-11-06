@@ -337,6 +337,9 @@
 					tracking,
 					ranobe,
 					seasons,
+					// NEVER TRACKED is the source's switch (c522): the row says why, and
+					// offers no send, instead of a line per list that would never move.
+					neverTracked: !!tracking?.neverTracked,
 					expanded: seasonsOpen,
 					offline: linkOff,
 					now: Date.now(),

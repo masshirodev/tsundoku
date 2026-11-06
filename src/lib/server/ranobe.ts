@@ -1,6 +1,7 @@
 import { basename } from './fspath.ts';
 import { getDb } from './db.ts';
 import { IN_LIBRARY_SQL, VISIBLE_SQL } from './visibility.ts';
+import { sourceFlagSql } from './engine/source-flags.ts';
 import { SignedOut, Unreachable } from './catalogue.ts';
 import { cleanTitle, coverOnly, isAnime } from '../library/catalogue.ts';
 import {
@@ -852,9 +853,12 @@ async function flushNow(o: { backfill?: boolean; now?: number }) {
 	const out = { read: 0, unread: 0, works: 0, failed: 0 };
 	// Only units some series Ranobe may hear of still maps: a series hidden
 	// since its read was queued sends nothing.
+	// NEVER TRACKED (c522) is asked here too, where the queue is drained: a unit
+	// queued before the switch went on waits, as a hidden series' does, and goes
+	// only if the switch is turned off again (the same rule as shown again).
 	const live = `EXISTS (SELECT 1 FROM entries e JOIN ranobe_links l ON l.series_id = e.series_id
 		JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
-		WHERE e.ranobe_unit = u.unit AND ${ELIGIBLE_SQL})`;
+		WHERE e.ranobe_unit = u.unit AND ${ELIGIBLE_SQL} AND NOT ${sourceFlagSql('neverTracked', 's.origin_key')})`;
 	let reads = db
 		.prepare(
 			`SELECT unit, read_at FROM ranobe_units u WHERE read_at IS NOT NULL AND sent_at IS NULL AND ${live}`
@@ -918,10 +922,16 @@ async function flushNow(o: { backfill?: boolean; now?: number }) {
 		).run(unit);
 		out.unread += 1;
 	}
+	// A work is wanted by the series that read it, so it goes only while one of
+	// them may still be sent: NEVER TRACKED (c522) and a hidden series both hold
+	// a rating or FAV back, and it goes if one is shown or switched off again.
 	const works = db
 		.prepare(
-			`SELECT work, rating, favourite FROM ranobe_works
-			WHERE wanted_at IS NOT NULL AND (sent_at IS NULL OR sent_at < wanted_at)`
+			`SELECT work, rating, favourite FROM ranobe_works w
+			WHERE wanted_at IS NOT NULL AND (sent_at IS NULL OR sent_at < wanted_at)
+				AND EXISTS (SELECT 1 FROM ranobe_links l JOIN series s ON s.id = l.series_id
+					JOIN roots r ON r.id = s.root_id
+					WHERE l.work = w.work AND ${ELIGIBLE_SQL} AND NOT ${sourceFlagSql('neverTracked', 's.origin_key')})`
 		)
 		.all() as { work: string; rating: number | null; favourite: number | null }[];
 	for (const w of works) {
@@ -981,7 +991,8 @@ function worksOf(seriesIds: number[]): string[] {
 			.prepare(
 				`SELECT DISTINCT l.work FROM ranobe_links l JOIN series s ON s.id = l.series_id
 				JOIN roots r ON r.id = s.root_id
-				WHERE l.series_id IN (${seriesIds.map(() => '?').join(',')}) AND ${ELIGIBLE_SQL}`
+				WHERE l.series_id IN (${seriesIds.map(() => '?').join(',')}) AND ${ELIGIBLE_SQL}
+					AND NOT ${sourceFlagSql('neverTracked', 's.origin_key')}`
 			)
 			.all(...seriesIds) as { work: string }[]
 	).map((r) => r.work);
