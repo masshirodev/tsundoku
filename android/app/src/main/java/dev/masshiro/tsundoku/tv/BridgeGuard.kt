@@ -1,8 +1,9 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * Whose page may make the bridge write (c529): the app's own asset page, or a
- * page of a server this TV already knows. `window.TsundokuTV` is injected into
+ * Whose page may make the bridge write (c529), and since c549 read the owner's
+ * things (the list, the TV's address, its network): the app's own asset page,
+ * or a page of a server this TV already knows. `window.TsundokuTV` is injected into
  * every page and frame the WebView loads, and nothing keeps the WebView on
  * those two, so an external link followed from a server's page would
  * otherwise be able to forget every server and its cookies, or `move()` a
@@ -14,7 +15,8 @@ package dev.masshiro.tsundoku.tv
  * server's page is not told apart by it (a JavaScript interface does not say
  * which frame called): tsundoku draws no third-party frames, and the way to
  * close that too is `WebViewCompat.addWebMessageListener` with origin rules
- * (doc/TV-APP.md, "What it does not do yet").
+ * (doc/TV-APP.md, "What it does not do yet", says what that move still
+ * needs; wave 26 stopped short of it).
  *
  * Pure, so BridgeGuardTest and PairingBridgeTest pin it.
  */

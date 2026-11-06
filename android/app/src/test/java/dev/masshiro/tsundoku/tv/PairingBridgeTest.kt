@@ -82,7 +82,9 @@ class PairingBridgeTest {
 		val servers = Servers(kv) { 1_000L }
 		val host = FakeHost(top)
 		val io = Held()
-		val bridge = PairingBridge(host, servers, io)
+
+		/** A TV on its home Wi-Fi, so every read has something real to refuse. */
+		val bridge = PairingBridge(host, servers, io, interfaces = { listOf("wlan0" to "192.168.1.40") })
 
 		/** The store and every call the host saw: what a refused call must leave as it was. */
 		fun snapshot() = Triple(kv.m.toMap(), host.calls.toList(), io.tasks.size)
@@ -132,10 +134,70 @@ class PairingBridgeTest {
 	}
 
 	@Test
-	fun `forgetServer from an unknown page answers the list as it is`() {
+	fun `forgetServer from an unknown page forgets nothing and answers no list (c549)`() {
+		// Until c549 it answered the list as it was, which was a read of the
+		// owner's servers by any page.
 		val w = world("https://example.com/")
-		assertEquals(w.servers.toJson(), w.bridge.forgetServer(home))
+		assertEquals("[]", w.bridge.forgetServer(home))
 		assertEquals(2, w.servers.all().size)
+	}
+
+	/** Each guarded read, by name, and what a trusted page reads from [world]. */
+	private val reads: List<Triple<String, (PairingBridge) -> String, String>> =
+		listOf(
+			Triple("servers", { b -> b.servers() }, "the list"),
+			Triple("remembered", { b -> b.remembered() }, "the server in use"),
+			Triple("tvAddress", { b -> b.tvAddress() }, "192.168.1.40"),
+			Triple("prefix", { b -> b.prefix() }, "192.168.1."),
+			Triple("network", { b -> b.network() }, "home")
+		)
+
+	@Test
+	fun `an unknown page reads what a TV that knows nothing would, never an exception (c549)`() {
+		val unknown =
+			listOf(
+				"https://example.com/",
+				"http://192.168.1.23:42144/",
+				"https://192.168.1.23:42143/",
+				"about:blank",
+				"file:///android_asset/pair/other.html",
+				null
+			)
+		for (top in unknown) {
+			for ((name, read, _) in reads) {
+				val w = world(top)
+				val before = w.snapshot()
+				val got = read(w.bridge)
+				assertEquals("$name from $top", if (name == "servers") "[]" else "", got)
+				assertEquals("$name from $top wrote", before, w.snapshot())
+			}
+		}
+	}
+
+	@Test
+	fun `the app's own page and a known server's page read as before (c549)`() {
+		for (top in listOf(asset, "$home/series/3", "$zen/")) {
+			for ((name, read, want) in reads) {
+				val w = world(top)
+				val expected =
+					when (name) {
+						"servers" -> w.servers.toJson()
+						"remembered" -> w.servers.lastUsed()!!.origin
+						else -> want
+					}
+				assertTrue("$name from $top read nothing", expected.isNotEmpty() && expected != "[]")
+				assertEquals("$name from $top", expected, read(w.bridge))
+			}
+			// The list really is the two servers, not an empty one that happens to match.
+			assertEquals(2, Regex("\"origin\"").findAll(world(top).bridge.servers()).count())
+		}
+	}
+
+	@Test
+	fun `form and defaultPort stay open, since the user agent and the source already say them (c549)`() {
+		val w = world("https://example.com/")
+		assertEquals("tv", w.bridge.form())
+		assertEquals(PairingBridge.DEFAULT_PORT, w.bridge.defaultPort())
 	}
 
 	@Test

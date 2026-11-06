@@ -201,7 +201,9 @@ What the phone does that the TV doesn't:
   lies over the six cells, so a tap on any of them is a tap on it.
 - **9D says when the phone is on mobile data**: the bridge's `network()`
   answers `home`, `data` or `none` (`Network.kt`), and reason 3 names the two
-  ways out.
+  ways out. It answers only the app's own page and a known server's, as the
+  list and the address do (c549; [`TV-APP.md`](TV-APP.md), "The store"):
+  any other page reads an empty string.
 - **A tablet's hardware keyboard** types digits wherever focus is, as a
   remote's number keys do, and Enter with nothing focused presses the
   screen's first button.
