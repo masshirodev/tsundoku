@@ -1409,7 +1409,10 @@
 				attempts = 1;
 				lastAt = Date.now();
 				stopRetry();
-				checking.textContent = 'CHECKING ' + at.replace('http://', '') + '…';
+				// The scheme is stripped without case, as hostOf and connect() do:
+				// a TV keyboard that capitalises the first letter types HTTP://,
+				// and the line must read the host, not the scheme (c621).
+				checking.textContent = 'CHECKING ' + at.replace(/^https?:\/\//i, '') + '…';
 				next.disabled = true;
 				if (bridge) bridge.probe(at);
 				else checking.textContent = 'THE APP BRIDGE IS MISSING · THIS PAGE OPENS FROM THE APK';
@@ -1566,10 +1569,9 @@
 			function lost(at) {
 				lastOrigin = at;
 				lostFor = at;
-				lostTitle.textContent =
-					'○ NOTHING ANSWERS AT ' + at.replace('http://', '').replace('https://', '');
+				lostTitle.textContent = '○ NOTHING ANSWERS AT ' + hostOf(at);
 				const prefix = prefixOf(own);
-				const wanted = prefixOf(at.replace(/^https?:\/\//, '').replace(/:\d+.*$/, ''));
+				const wanted = prefixOf(hostOf(at).replace(/:\d+.*$/, ''));
 				// A phone may be on mobile data, with no Wi-Fi to be "another" one
 				// (9D · ON MOBILE DATA); the bridge says which (Network.kt).
 				const network = bridge && typeof bridge.network === 'function' ? bridge.network() : '';
@@ -1706,11 +1708,11 @@
 						: others.length === 1
 							? `${others[0].shown} is still here. `
 							: `${others[0].shown} and ${others.length - 1} more are still here. `;
-				// No name at the top of the library yet: that cell is the
-				// library page's (doc/TV-APP.md, "Servers"), so MORE is the door.
+				// S8 is shown with two or more servers, so the library's bar has
+				// its server cell (S1, wave 24) as well as MORE › SERVERS.
 				document.getElementById('added-prose').textContent =
 					still +
-					'Switch from MORE › SERVERS. Each keeps its own pairing, so switching never asks for digits again.';
+					'Switch from the name at the top of the library, or MORE › SERVERS. Each keeps its own pairing, so switching never asks for digits again.';
 				document.getElementById('added-open').textContent =
 					`OPEN ${String(s.shown).toUpperCase()} →`;
 				document.getElementById('added-meta').textContent = s.name

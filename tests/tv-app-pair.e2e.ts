@@ -418,6 +418,36 @@ test('a whole address typed with its scheme in capitals is probed with one schem
 	}
 });
 
+test('CHECKING and the lost line strip a scheme typed in capitals, as a lower-case one (c621)', async ({
+	page
+}) => {
+	// 9B's origin() keeps what was typed, capitals included (it tests the scheme
+	// without case since c548). The status line used to strip `http://` with a
+	// case-sensitive replace, so a keyboard that capitalised the first letter
+	// read `CHECKING HTTP://Zen.local:42143…` where a lower-case address read
+	// its host; 9D had the same strip on its title (c621).
+	const typed = 'HTTP://Zen.local:42143';
+	await stubBridge(page, { hold: true });
+	await page.goto(page9);
+	await page.keyboard.press('Enter'); // START → 9B
+	await page.locator('#whole-toggle').focus();
+	await page.keyboard.press('Enter'); // TYPE THE WHOLE ADDRESS
+	await page.locator('#last').fill(typed);
+	await page.locator('#next').click();
+
+	// The probe is held, so CHECKING is the attempt in hand. The host is shown
+	// as typed, without the scheme and without a second one put in front.
+	await expect.poll(() => page.evaluate(() => window.__bridge!.pending)).toBe(typed);
+	await expect(page.locator('#checking')).toHaveText('CHECKING Zen.local:42143…');
+
+	// The answer is the unreachable one, the way a real bridge answers a probe
+	// that found no tsundoku. A failure for the attempt in hand enters 9D, whose
+	// title names the same host, lower-case scheme stripped all the same.
+	await page.evaluate((at) => window.tsundokuProbe?.(at, false), typed);
+	await expect(page.locator('#lost-title')).toHaveText('○ NOTHING ANSWERS AT Zen.local:42143');
+	await expect(page.locator('#lost-title')).not.toContainText('HTTP://');
+});
+
 test('a typed whole address with a query fails at its origin (c260)', async ({ page }) => {
 	await stubBridge(page);
 	await page.goto(page9);
@@ -684,9 +714,15 @@ test("S9: 9D's 5 s retries keep the mark on another server and its answer (c261,
 	// took the mark back to TRY AGAIN, put every row back to CHECKING and
 	// probed every other server again, on every tick.
 	// Paused, so only runFor moves time: a slow assertion must not add a tick.
+	// install() starts a running clock (Playwright's reference: install before
+	// navigating and let `Date.now` progress while the page loads, then pause).
+	// Under load it has moved past t0 before pauseAt runs, and pauseAt "cannot
+	// fast-forward to the past", so a pause at t0 + 1 ms lands in the past on a
+	// loaded box (c619). Read the page's own clock and pause a margin of
+	// seconds ahead of it, as settings-devices does at install + 30 s.
 	const t0 = new Date('2026-11-04T10:00:00Z');
 	await page.clock.install({ time: t0 });
-	await page.clock.pauseAt(new Date(t0.getTime() + 1));
+	await page.clock.pauseAt(new Date((await page.evaluate(() => Date.now())) + 30_000));
 	await stubServers(page, three, {
 		[ZEN]: { ok: true, after: 300 },
 		[STUDIO]: { ok: false, after: 100 }
@@ -836,6 +872,7 @@ test('S8: after an add, the app says who is still here, OPEN focused', async ({ 
 	);
 	await expect(page.locator('#added-title')).toHaveText("ZEN is one of this TV's servers");
 	await expect(page.locator('#added-prose')).toContainText('Living room is still here.');
+	await expect(page.locator('#added-prose')).toContainText('the name at the top of the library');
 	await expect(page.locator('#added-prose')).toContainText('MORE › SERVERS');
 	await expect(page.locator('#added-meta')).toHaveText('ZEN IS WHAT THE COMPUTER CALLS ITSELF');
 	await expect(page.locator('#added-open')).toHaveText('OPEN ZEN →');
