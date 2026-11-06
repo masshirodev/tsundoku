@@ -234,17 +234,18 @@ test('history into an image reader entry opens the page it settled on, in incogn
 		.click();
 	await readerReady(page);
 	await page.waitForLoadState('networkidle');
-	// Its page, from where the seed left the chapter (page 5), while the
-	// entry's own URL was still `/read/<id>`.
+	// Its page is wherever the library left the chapter (the seed's, or a
+	// previous flow file's); the case only needs one more.
 	await tap(page, 0.5);
-	await expect(meta(page)).toContainText('P. 5 OF');
+	const metaText = (await meta(page).textContent()) ?? '';
+	const pageNo = Number(metaText.match(/P\. (\d+) OF/)![1]);
 	await tap(page, 0.5);
 	const v = page.viewportSize()!;
 	await page.mouse.click(v.width / 2, v.height / 2);
 	// The reader keeps the page it settled on in the address bar, 800 ms on.
-	await expect(page).toHaveURL(/p=6/, { timeout: 5000 });
+	await expect(page).toHaveURL(new RegExp(`p=${pageNo + 1}`), { timeout: 5000 });
 	// To the series by the reader's own link (history back), then forward into
-	// the reader entry: it opens on page 6, not the page 5 it arrived at.
+	// the reader entry: it opens on that page, not the one it arrived at.
 	await tap(page, 0.5);
 	await page.getByRole('link', { name: 'Back to the series' }).click();
 	await expect(page.getByRole('link', { name: /▶ CONTINUE/ }).first()).toBeVisible();
@@ -252,7 +253,7 @@ test('history into an image reader entry opens the page it settled on, in incogn
 	await readerReady(page);
 	await page.waitForLoadState('networkidle');
 	await tap(page, 0.5);
-	await expect(meta(page)).toContainText('P. 6 OF');
+	await expect(meta(page)).toContainText(`P. ${pageNo + 1} OF`);
 });
 
 test('the READING sheet switches mode for the session and offers REMEMBER', async ({ page }) => {
