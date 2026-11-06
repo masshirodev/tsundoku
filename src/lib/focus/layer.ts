@@ -414,7 +414,8 @@ function stepScroll(from: HTMLElement, direction: 'up' | 'down'): void {
  * says `visible` (the root's `overflow` propagates to the viewport, and a
  * visible one hands that on). A screen locks one or the other, so both read
  * as the page's lock here. A lock is `hidden` or `clip` (c647): Chromium
- * computes the latter as `clip` and a key scroll reaches it just the same.
+ * computes the latter as `clip`, and a script's `scrollBy` still moves it,
+ * which is what makes it a lock worth checking for here.
  */
 function viewportOverflowY(): string {
 	const root = getComputedStyle(document.documentElement).overflowY;

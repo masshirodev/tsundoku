@@ -277,47 +277,7 @@
 		max: () => document.documentElement.scrollHeight - innerHeight
 	});
 	const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-	/**
-	 * The scroll key whose repeats are the held scroll, if one is down (c668).
-	 * Not reactive: no markup depends on it.
-	 */
-	let heldKey: string | null = null;
-
-	/**
-	 * A scroll key's move (c668). A first press glides one step. While it is
-	 * held, its repeats must not add steps to the aim — that ran the target far
-	 * ahead of the strip, which then kept travelling after the key came up — so
-	 * the strip scrolls at a steady speed instead. The release eases to a stop.
-	 * Reduced motion keeps its own path: every key moves at once.
-	 */
-	function moveKey(e: KeyboardEvent, d: number, ms: number) {
-		if (reducedMotion()) {
-			endHold();
-			scrollBy(0, d);
-			return;
-		}
-		if (e.repeat) {
-			if (heldKey === e.key) smooth.hold(d, ms);
-			return;
-		}
-		endHold();
-		heldKey = e.key;
-		smooth.glide(d, ms);
-	}
-
-	/**
-	 * A held key ends. Every door that can take its keyup away calls this: the
-	 * key's own release, a second key pressed, the window losing focus or the
-	 * page being hidden, a panel locking the page, and the reader leaving the
-	 * chapter. `instant` is for a strip that is no longer the one on screen.
-	 */
-	function endHold(instant = false) {
-		heldKey = null;
-		if (instant) smooth.stop();
-		else smooth.letGo();
-	}
-
-	/** A move that is not a key's (TO THE TOP): a glide, at once if motion is reduced. */
+	/** A key's move: the strip glides `d` pixels over `ms`, at once if motion is reduced. */
 	function move(d: number, ms: number) {
 		if (reducedMotion()) scrollBy(0, d);
 		else smooth.glide(d, ms);
@@ -1081,14 +1041,6 @@
 		placeAt = null;
 	});
 
-	// A held key ends with the chapter it was scrolling (c668). A strip crossing
-	// loads the next chapter; the strip the key was moving is not the one on
-	// screen any more, and its repeats until then are not the new one's.
-	$effect(() => {
-		void data.entry.id;
-		endHold(true);
-	});
-
 	/** A page crossed the middle of the screen, maybe in another chapter. */
 	function stripPage(chapter: number, i: number) {
 		if (chapter === data.entry.id) {
@@ -1220,8 +1172,6 @@
 	// Vertical: the strip holds still while the panel is open.
 	$effect(() => {
 		if (mode !== 'vertical' || !lookup) return;
-		// The panel has the keyboard now: a held key must not scroll under it (c668).
-		endHold();
 		const html = document.documentElement;
 		html.style.overflow = 'hidden';
 		return () => {
@@ -1379,8 +1329,6 @@
 	// The strip holds still while the menu is open.
 	$effect(() => {
 		if (mode !== 'vertical' || !menu) return;
-		// The menu has the keyboard, and locks the page: a held key stops (c668).
-		endHold();
 		const html = document.documentElement;
 		html.style.overflow = 'hidden';
 		return () => {
@@ -1605,10 +1553,7 @@
 	}
 
 	function releaseKeys(e: KeyboardEvent) {
-		if (e.key !== 'Enter') {
-			if (e.key === heldKey) endHold();
-			return;
-		}
+		if (e.key !== 'Enter') return;
 		clearTimeout(holdTimer);
 		holdTimer = undefined;
 		if (held) {
@@ -1755,7 +1700,7 @@
 			// Ctrl + ↑ / ↓ nudges, to read a panel the screen cut without the mouse.
 			if (arrow && e.ctrlKey) {
 				e.preventDefault();
-				return moveKey(e, NUDGE * arrow, GLIDE_NUDGE);
+				return move(NUDGE * arrow, GLIDE_NUDGE);
 			}
 			// ← / → nudge too, with one hand and no modifier (c527): reading on is
 			// to the right, as in a paged L→R reader. Ctrl + ← / → add nothing.
@@ -1771,13 +1716,13 @@
 						left: NUDGE * side,
 						behavior: reducedMotion() ? 'instant' : 'smooth'
 					});
-				return moveKey(e, NUDGE * side, GLIDE_NUDGE);
+				return move(NUDGE * side, GLIDE_NUDGE);
 			}
 			const down = arrow === 1 || e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey);
 			const up = arrow === -1 || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey);
 			if (down || up) {
 				e.preventDefault();
-				moveKey(e, screenStep(innerHeight) * (down ? 1 : -1), GLIDE_SCREEN);
+				move(screenStep(innerHeight) * (down ? 1 : -1), GLIDE_SCREEN);
 			}
 			return;
 		}
@@ -1812,11 +1757,10 @@
 			}
 		};
 		const visible = () => {
-			// A page going away can take the keyup with it: the strip must not
-			// keep scrolling behind another window (c668).
-			if (document.visibilityState !== 'visible') return endHold();
-			clock.resume(Date.now());
-			void wake();
+			if (document.visibilityState === 'visible') {
+				clock.resume(Date.now());
+				void wake();
+			}
 		};
 		void wake();
 		document.addEventListener('visibilitychange', visible);
@@ -1873,12 +1817,7 @@
 </script>
 
 <svelte:head><title>{data.series.title} · {data.entry.name}</title></svelte:head>
-<svelte:window
-	onkeydown={keydown}
-	onkeyup={releaseKeys}
-	onblur={() => endHold()}
-	onpointermove={hover}
-/>
+<svelte:window onkeydown={keydown} onkeyup={releaseKeys} onpointermove={hover} />
 
 <div
 	class="reader"
