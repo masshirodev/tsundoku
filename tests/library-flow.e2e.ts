@@ -364,6 +364,91 @@ test.describe('two quick taps on a tile (c615)', () => {
 		await page.reload();
 		await expect(fav).toHaveAttribute('aria-pressed', 'false');
 	});
+
+	test('a tile past the first page reads what FAV stored, so PUT BACK goes to FAV (c615)', async ({
+		page
+	}) => {
+		// A page of two: the seed's titles after those two live in `more`, which
+		// `invalidateAll` does not refresh and only the loaded pages' refill does.
+		await page
+			.context()
+			.addCookies([{ name: 'tsundoku_grid_page', value: '2', url: 'http://localhost' }]);
+		await page.goto('/?shelf=all&sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		/** Scroll until the tile's page is in: the pages come as the end comes near. */
+		const drawTile = async () => {
+			const more = page.locator('.more');
+			for (let i = 0; i < 20 && (await tile.count()) === 0; i++) {
+				await more.scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => undefined);
+				await page.waitForTimeout(150);
+			}
+			await expect(tile).toHaveCount(1);
+			await tile.scrollIntoViewIfNeeded();
+		};
+		await drawTile();
+		// The tile is past the first page, not in it: the two titles before it
+		// fill the page the cookie asks for.
+		const beyond = await page
+			.locator('.grid .tile')
+			.evaluateAll(
+				(els, title) => els.findIndex((el) => (el.textContent ?? '').includes(title)),
+				TITLE
+			);
+		expect(beyond).toBeGreaterThan(1);
+
+		const fav = tile.getByRole('button', { name: 'Favourite' });
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+
+		// The first FAV POST goes through; every later one is lost on the wire.
+		const isFav = (u: URL) => u.pathname === '/' && u.search === '?/favourite';
+		let posts = 0;
+		let firstAnswered = false;
+		await page.route(isFav, (route) => (++posts === 1 ? route.continue() : route.abort()));
+		page.on('requestfinished', (r) => {
+			if (isFav(new URL(r.url()))) firstAnswered = true;
+		});
+		// FAV's reload is held, so UNFAV is tapped while it is still out.
+		let releaseReload!: () => void;
+		const reloadHeld = new Promise<void>((r) => (releaseReload = r));
+		let reloadAsked = false;
+		const isData = (u: URL) => u.pathname === '/__data.json';
+		await page.route(isData, async (route) => {
+			if (reloadAsked) return route.continue();
+			reloadAsked = true;
+			await reloadHeld;
+			return route.continue();
+		});
+
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+		await expect.poll(() => firstAnswered && reloadAsked).toBe(true);
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await expect.poll(() => posts).toBe(1);
+		await expect(page.getByText('UNFAV NOT SAVED')).toHaveCount(0);
+		releaseReload();
+
+		// FAV is what is stored, past the first page too: the band says UNFAV
+		// was not, and PUT BACK goes to FAV. Without the loaded pages' refill
+		// the band reads the tile's value from before FAV and offers NOT FAV.
+		await expect(page.getByText('UNFAV NOT SAVED')).toBeVisible();
+		await page.getByRole('button', { name: 'PUT BACK · FAV' }).click();
+		await expect(page.getByText('UNFAV NOT SAVED')).toHaveCount(0);
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+		expect(posts).toBe(2);
+		await page.unroute(isFav);
+		await page.unroute(isData);
+		await page.reload();
+		await drawTile();
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+
+		// Put it back as the seed has it.
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await page.reload();
+		await drawTile();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+	});
 });
 
 test('the app’s name goes home, and SERIES, once a shelf, is FILTER’s FORM (c436)', async ({

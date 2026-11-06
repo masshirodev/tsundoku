@@ -328,22 +328,50 @@
 	}
 
 	/**
-	 * A write changed which tiles a page already loaded holds -- a Work hidden
-	 * whole, one taken out of it -- and the load's *first* page can come back
-	 * identical, so SvelteKit keeps `data` and no effect re-reads the rest. The
-	 * page then still draws a tile the server has stopped listing (W4's HIDE,
-	 * and its UNDO). Ask for the loaded pages again by position: the answer is
-	 * the list as it is now, and the grid keeps its scroll.
+	 * The pages after the first, read again: queued one at a time, and a write
+	 * can await them (c615, round 2). `force` asks even when they were already
+	 * read for this first page -- a write's own reload, and a hide or UNDO that
+	 * moves only tiles past the first page, both need the answer after it.
+	 *
+	 * Why read them again at all: a write changed which tiles a loaded page
+	 * holds -- a Work hidden whole, one taken out of it -- and the load's
+	 * *first* page can come back identical, so SvelteKit keeps `data` and no
+	 * effect re-reads the rest. The page then still draws a tile the server has
+	 * stopped listing (W4's HIDE, and its UNDO). The pages are asked for again
+	 * by position, so the answer is the list as it is now and the grid keeps
+	 * its scroll.
 	 */
-	async function refillPages() {
-		if (more.length === 0) return;
-		const gen = ++generation;
-		const pageAgain = await fetchPage(data.series.length, more.length);
-		if (gen !== generation) return;
-		const have = new Set(data.series.map((c) => c.id));
-		more = pageAgain ? pageAgain.filter((c) => !have.has(c.id)) : [];
-		ended = false;
-		void keepGoing();
+	let refilling: Promise<void> = Promise.resolve();
+	let refilledFor: LibraryCard[] | null = null;
+	function refillPages(force = false): Promise<void> {
+		const first = data.series;
+		if (more.length === 0) return refilling;
+		if (!force && refilledFor === first) return refilling;
+		refilledFor = first;
+		refilling = refilling.then(async () => {
+			// The list may have gone under it while it waited.
+			if (more.length === 0) return;
+			const gen = ++generation;
+			const offset = data.series.length;
+			const limit = more.length;
+			const pageAgain = await fetchPage(offset, limit);
+			if (gen !== generation) return;
+			const have = new Set(data.series.map((c) => c.id));
+			more = pageAgain ? pageAgain.filter((c) => !have.has(c.id)) : [];
+			ended = false;
+			void keepGoing();
+		});
+		return refilling;
+	}
+
+	/**
+	 * A write's reload: the load's first page, then the loaded pages after it,
+	 * so a tile anywhere in the grid reads what the server stored before the
+	 * turn settles (c615, round 2).
+	 */
+	async function reloadList() {
+		await invalidateAll();
+		await refillPages(true);
 	}
 
 	// A new shelf, tag or sort starts again from its first page. The same one
@@ -351,28 +379,24 @@
 	// first again too, so a tile deep in the grid shows what the server says.
 	$effect(() => {
 		const key = listKey;
-		const first = data.series;
+		void data.series;
 		untrack(() => {
-			generation += 1;
 			loadingMore = false;
 			moreFailed = false;
 			ended = false;
 			if (key !== shownKey) {
 				shownKey = key;
+				generation += 1;
+				refilledFor = null;
 				more = [];
 				void keepGoing();
 				return;
 			}
-			if (more.length === 0) return void keepGoing();
-			const gen = generation;
-			void fetchPage(first.length, more.length).then((pageAgain) => {
-				if (gen !== generation) return;
-				if (pageAgain) {
-					const have = new Set(data.series.map((c) => c.id));
-					more = pageAgain.filter((c) => !have.has(c.id));
-				}
-				void keepGoing();
-			});
+			if (more.length === 0) {
+				generation += 1;
+				return void keepGoing();
+			}
+			void refillPages();
 		});
 	});
 
@@ -850,7 +874,7 @@
 			// The answer `update` just put in `form`: drawn as the band below.
 			if (result.type === 'failure') undoAnswer = form;
 			await invalidateAll();
-			await refillPages();
+			await refillPages(true);
 		};
 	/**
 	 * Which drawn series are hidden, by id: a Work's parts as well as the cards
@@ -974,11 +998,12 @@
 		saves.clear(key);
 		const turn = await seriesSaves.run(key, save);
 		if (!turn.latest) return;
-		// The reload is this turn's: the next tap's save waits for it to land.
-		// `finally`, because the queue is the app's: a turn never settled
-		// would hold the key for the whole session.
+		// The reload is this turn's: the next tap's save waits for it to land,
+		// the loaded pages after the first included. `finally`, because the
+		// queue is the app's: a turn never settled would hold the key for the
+		// whole session.
 		try {
-			if (turn.ok || turn.earlierStored) await invalidateAll();
+			if (turn.ok || turn.earlierStored) await reloadList();
 		} finally {
 			seriesSaves.settle(key);
 		}
@@ -992,7 +1017,7 @@
 				const again = await seriesSaves.run(key, save);
 				if (!again.latest) return again.ok;
 				try {
-					if (again.ok) await invalidateAll();
+					if (again.ok) await reloadList();
 				} finally {
 					seriesSaves.settle(key);
 				}
@@ -2269,7 +2294,7 @@
 			hiding = false;
 			stopSelecting();
 			await invalidateAll();
-			await refillPages();
+			await refillPages(true);
 		}}
 		onclose={() => (hiding = false)}
 	/>
