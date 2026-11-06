@@ -1713,3 +1713,122 @@ describe('a backup that names no source (c258)', () => {
 		expect(snapshot()).toEqual(before);
 	});
 });
+
+/**
+ * c571 through the library's backup (doc/BROWSE.md, "ADDED HIDDEN at the
+ * importer"): tsundoku's download arrives first and is created as a
+ * `mihon-dir:` series, then the library's own backup names the manga and
+ * `adoptFolder` re-keys that series rather than creating one. Its source is
+ * installed with ADDED HIDDEN on, so the folder's series arrives hidden and
+ * stays hidden once adopted; one from an installed source with the switch off
+ * arrives and stays visible. (import-db.spec.ts holds the other orders, the
+ * shared name and the language.)
+ */
+describe('ADDED HIDDEN reaches a download folder before the library’s backup names it (c571)', () => {
+	const at = 1_800_005_000_000;
+	const SWITCHED = 9_300_000_000_000_000_011n;
+	const UNSWITCHED = 9_300_000_000_000_000_012n;
+	const rows = (title: string) =>
+		db()
+			.prepare(`SELECT id, origin_key, hidden FROM series WHERE title = ? ORDER BY id`)
+			.all(title) as { id: number; origin_key: string; hidden: number }[];
+	const download = (sourceDir: string, title: string, slug: string) => {
+		const dir = join(tsundokuMihon, 'downloads', sourceDir, title);
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(
+			join(dir, 'Chapter 1.cbz'),
+			cbz(
+				comicInfo({
+					title: 'Chapter 1',
+					series: title,
+					number: 1,
+					web: `https://c571.example/chapters/${slug}-1`,
+					source: sourceDir.replace(/ \(.*\)$/, '')
+				})
+			)
+		);
+	};
+	const first: Record<string, number> = {};
+
+	beforeAll(async () => {
+		const { setSourceFlag } = await import('$lib/server/engine/source-flags');
+		db()
+			.prepare(
+				`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at)
+				VALUES ('c571.devices', 'C571', 'manga', 1, '1', '1.5', 'h571', ?, ?)`
+			)
+			.run(at, at);
+		const add = db().prepare(
+			`INSERT INTO engine_sources (id, pkg, name, lang) VALUES (?, 'c571.devices', ?, 'en')`
+		);
+		add.run(String(SWITCHED), 'Switched Scans');
+		add.run(String(UNSWITCHED), 'Unswitched Scans');
+		setSourceFlag(String(SWITCHED), 'addedHidden', true, db());
+
+		download('Switched Scans (EN)', 'Switched Folder', 'switched');
+		download('Unswitched Scans (EN)', 'Unswitched Folder', 'unswitched');
+		await runImport(library, { now: at });
+		for (const t of ['Switched Folder', 'Unswitched Folder']) first[t] = rows(t)[0].id;
+		expect(rows('Switched Folder')).toEqual([
+			{
+				id: first['Switched Folder'],
+				origin_key: 'mihon-dir:Switched Scans (EN)/Switched Folder',
+				hidden: 1
+			}
+		]);
+		expect(rows('Unswitched Folder')[0].hidden).toBe(0);
+
+		// Then the library's backup names both manga.
+		const { encode } = await import('./helpers/protobuf-writer');
+		writeFileSync(
+			join(rootMihon, 'autobackup', 'app.mihon_2026-11-05_13-00.tachibk'),
+			gzipSync(
+				encode([
+					[
+						1,
+						manga(SWITCHED, '/series/switched', 'Switched Folder', [
+							{ n: 1, url: '/chapters/switched-1' }
+						])
+					],
+					[
+						1,
+						manga(UNSWITCHED, '/series/unswitched', 'Unswitched Folder', [
+							{ n: 1, url: '/chapters/unswitched-1' }
+						])
+					],
+					[
+						101,
+						[
+							[1, 'Switched Scans'],
+							[2, SWITCHED]
+						]
+					],
+					[
+						101,
+						[
+							[1, 'Unswitched Scans'],
+							[2, UNSWITCHED]
+						]
+					]
+				])
+			)
+		);
+		await runImport(library, { now: at + 10_000 });
+	});
+
+	it('the backup adopts the hidden folder series, which stays the one series and stays hidden', () => {
+		expect(rows('Switched Folder')).toEqual([
+			{ id: first['Switched Folder'], origin_key: `mihon:${SWITCHED}:/series/switched`, hidden: 1 }
+		]);
+	});
+
+	it('a folder from a source with the switch off is adopted visible', () => {
+		expect(rows('Unswitched Folder')).toEqual([
+			{
+				id: first['Unswitched Folder'],
+				origin_key: `mihon:${UNSWITCHED}:/series/unswitched`,
+				hidden: 0
+			}
+		]);
+	});
+});

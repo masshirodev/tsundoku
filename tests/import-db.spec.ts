@@ -789,3 +789,221 @@ describe('a novel’s R→L survives a backup’s fold (c551)', () => {
 		expect(textDirection(id)).toBe('rtl');
 	});
 });
+
+describe('ADDED HIDDEN reaches a Mihon download folder imported before its backup (c571)', () => {
+	// Each case a library of its own: tsundoku's downloads hold one folder, and
+	// tsundoku's own backup beside them (when it comes) names the same manga,
+	// as in c503's attach case: one Mihon root. (The library's backup in
+	// `Mihon/` and `adoptFolder` are devices-import-db.spec.ts's c571 case,
+	// whose library has one Mihon root for both.) The sources
+	// are installed (engine_sources), as the switch's own screen needs them:
+	// HIDING has ADDED HIDDEN on, PLAIN off; TWIN is two installed sources of
+	// one name and one language, one switched; LANG is one name in two
+	// languages, only Japanese switched.
+	const HIDING = 9_100_000_000_000_000_011n;
+	const PLAIN = 9_100_000_000_000_000_012n;
+	const TWIN_A = 9_100_000_000_000_000_013n;
+	const TWIN_B = 9_100_000_000_000_000_014n;
+	const LANG_EN = 9_100_000_000_000_000_015n;
+	const LANG_JA = 9_100_000_000_000_000_016n;
+	const NAMES = new Map<bigint, [string, string]>([
+		[HIDING, ['C571 Hiding', 'en']],
+		[PLAIN, ['C571 Plain', 'en']],
+		[TWIN_A, ['C571 Twin', 'en']],
+		[TWIN_B, ['C571 Twin', 'en']],
+		[LANG_EN, ['C571 Lang', 'en']],
+		[LANG_JA, ['C571 Lang', 'ja']]
+	]);
+	const slug = (title: string) => title.replace(/\s/g, '-').toLowerCase();
+	const dirOf = (src: bigint) => {
+		const [name, lang] = NAMES.get(src)!;
+		return `${name} (${lang.toUpperCase()})`;
+	};
+	const hidden = (title: string) =>
+		(
+			db().prepare(`SELECT hidden FROM series WHERE title = ? AND in_library = 1`).all(title) as {
+				hidden: number;
+			}[]
+		).map((r) => r.hidden);
+	const keyOf = (title: string) =>
+		(
+			db().prepare(`SELECT origin_key FROM series WHERE title = ?`).all(title) as {
+				origin_key: string;
+			}[]
+		).map((r) => r.origin_key);
+
+	let flags: typeof import('$lib/server/engine/source-flags');
+	beforeAll(async () => {
+		flags = await import('$lib/server/engine/source-flags');
+		db()
+			.prepare(
+				`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at, failed)
+				VALUES ('c571.ext', 'C571', 'manga', 1, '1.0', '1.5', ?, 0, 0, '')`
+			)
+			.run('c571.ext'.padEnd(64, '0'));
+		const add = db().prepare(
+			`INSERT INTO engine_sources (id, pkg, name, lang) VALUES (?, 'c571.ext', ?, ?)`
+		);
+		for (const [id, [name, lang]] of NAMES) add.run(String(id), name, lang);
+		for (const id of [HIDING, TWIN_A, LANG_JA])
+			flags.setSourceFlag(String(id), 'addedHidden', true, db());
+	});
+
+	/** A library whose tsundoku device downloaded chapter 1 of `title` from `src`. */
+	const folderLibrary = (src: bigint, title: string) => {
+		const lib = mkdtempSync(join(tmpdir(), 'tsundoku-c571-'));
+		mkdirSync(join(lib, 'Mihon', 'autobackup'), { recursive: true });
+		const dir = join(lib, 'devices', 'tsundoku', 'Mihon', 'downloads', dirOf(src), title);
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(
+			join(dir, 'Chapter 1.cbz'),
+			mihonFixture.cbz(
+				mihonFixture.comicInfo({
+					series: title,
+					title: 'Chapter 1',
+					number: 1,
+					web: `https://c571.example/c571/${slug(title)}/1`,
+					source: NAMES.get(src)![0]
+				})
+			)
+		);
+		return lib;
+	};
+	/** tsundoku's own backup, naming `title` from `src`, its chapter 1 the same. */
+	const writeBackup = (lib: string, src: bigint, title: string) => {
+		const msg: Msg = [
+			[
+				1,
+				[
+					[1, src],
+					[2, `/c571/${slug(title)}`],
+					[3, title],
+					[
+						16,
+						[
+							[1, `/c571/${slug(title)}/1`],
+							[2, 'Chapter 1'],
+							[9, { f32: 1 }]
+						]
+					],
+					[17, 1]
+				]
+			],
+			...CATEGORIES.map((name, i): [number, Msg] => [
+				2,
+				[[1, name], ...(i ? ([[2, i]] as Msg) : []), [3, i + 1]]
+			]),
+			[
+				101,
+				[
+					[1, NAMES.get(src)![0]],
+					[2, src]
+				]
+			]
+		];
+		const dir = join(lib, 'devices', 'tsundoku', 'Mihon', 'autobackup');
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(join(dir, 'app.mihon_2026-11-05_12-00.tachibk'), gzipSync(encode(msg)));
+	};
+	const at = 1_800_004_000_000;
+
+	it('folder first, then the backup, from a switched source: hidden from the start, and still one hidden series', async () => {
+		const title = 'C571 Folder First';
+		const lib = folderLibrary(HIDING, title);
+		const r = await runImport(lib, { now: at });
+		expect(keyOf(title)).toEqual([`mihon-dir:${dirOf(HIDING)}/${title}`]);
+		expect(hidden(title)).toEqual([1]);
+		// The band counts what reveal-off can see: not this one.
+		expect(
+			(
+				db().prepare(`SELECT series_found FROM scan_jobs WHERE id = ?`).get(r.jobId) as {
+					series_found: number;
+				}
+			).series_found
+		).toBe(0);
+		writeBackup(lib, HIDING, title);
+		await runImport(lib, { now: at + 1000 });
+		// The backup adopted the folder's series (re-keyed, not created again).
+		expect(keyOf(title)).toEqual([`mihon:${HIDING}:/c571/${slug(title)}`]);
+		expect(hidden(title)).toEqual([1]);
+		rmSync(lib, { recursive: true });
+	});
+
+	it('backup first, then the folder, from a switched source: hidden too', async () => {
+		const title = 'C571 Backup First';
+		const lib = mkdtempSync(join(tmpdir(), 'tsundoku-c571-'));
+		writeBackup(lib, HIDING, title);
+		await runImport(lib, { now: at + 2000 });
+		expect(keyOf(title)).toEqual([`mihon:${HIDING}:/c571/${slug(title)}`]);
+		expect(hidden(title)).toEqual([1]);
+		// Then the download lands beside it: the same series, still hidden.
+		const withFolder = folderLibrary(HIDING, title);
+		writeBackup(withFolder, HIDING, title);
+		rmSync(lib, { recursive: true });
+		await runImport(withFolder, { now: at + 3000 });
+		expect(keyOf(title)).toEqual([`mihon:${HIDING}:/c571/${slug(title)}`]);
+		expect(hidden(title)).toEqual([1]);
+		rmSync(withFolder, { recursive: true });
+	});
+
+	it('a folder from a source without the switch arrives visible, and stays so when its backup comes', async () => {
+		const title = 'C571 Plain Folder';
+		const lib = folderLibrary(PLAIN, title);
+		await runImport(lib, { now: at + 4000 });
+		expect(hidden(title)).toEqual([0]);
+		writeBackup(lib, PLAIN, title);
+		await runImport(lib, { now: at + 5000 });
+		expect(keyOf(title)).toEqual([`mihon:${PLAIN}:/c571/${slug(title)}`]);
+		expect(hidden(title)).toEqual([0]);
+		rmSync(lib, { recursive: true });
+	});
+
+	it('two installed sources of one name and language: the folder cannot say which, and stays visible', async () => {
+		const { folderSourceId } = await import('$lib/server/import/fold');
+		expect(folderSourceId(db(), `mihon-dir:${dirOf(TWIN_A)}/X`)).toBeNull();
+		const title = 'C571 Twin Folder';
+		const lib = folderLibrary(TWIN_A, title);
+		await runImport(lib, { now: at + 6000 });
+		expect(hidden(title)).toEqual([0]);
+		rmSync(lib, { recursive: true });
+	});
+
+	it('one name in two languages is told apart by the folder’s language', async () => {
+		const { folderSourceId } = await import('$lib/server/import/fold');
+		expect(folderSourceId(db(), `mihon-dir:C571 Lang (JA)/X`)).toBe(String(LANG_JA));
+		expect(folderSourceId(db(), `mihon-dir:C571 Lang (EN)/X`)).toBe(String(LANG_EN));
+		// A bare name is one source only when one source has it: these are two.
+		expect(folderSourceId(db(), `mihon-dir:C571 Lang/X`)).toBeNull();
+		expect(folderSourceId(db(), `mihon-dir:C571 Hiding/X`)).toBe(String(HIDING));
+		// A language nobody installed under that name is no source.
+		expect(folderSourceId(db(), `mihon-dir:C571 Hiding (JA)/X`)).toBeNull();
+		const ja = folderLibrary(LANG_JA, 'C571 Japanese Folder');
+		await runImport(ja, { now: at + 7000 });
+		expect(hidden('C571 Japanese Folder')).toEqual([1]);
+		rmSync(ja, { recursive: true });
+		const en = folderLibrary(LANG_EN, 'C571 English Folder');
+		await runImport(en, { now: at + 8000 });
+		expect(hidden('C571 English Folder')).toEqual([0]);
+		rmSync(en, { recursive: true });
+	});
+
+	it('hides only what it creates: a folder series shown before the switch went on stays shown', async () => {
+		const title = 'C571 Shown Before';
+		const lib = folderLibrary(PLAIN, title);
+		flags.setSourceFlag(String(PLAIN), 'addedHidden', false, db());
+		await runImport(lib, { now: at + 9000 });
+		expect(hidden(title)).toEqual([0]);
+		flags.setSourceFlag(String(PLAIN), 'addedHidden', true, db());
+		try {
+			// A rescan, then the backup that adopts it: updated twice, never created.
+			await runImport(lib, { now: at + 10_000 });
+			writeBackup(lib, PLAIN, title);
+			await runImport(lib, { now: at + 11_000 });
+			expect(keyOf(title)).toEqual([`mihon:${PLAIN}:/c571/${slug(title)}`]);
+			expect(hidden(title)).toEqual([0]);
+		} finally {
+			flags.setSourceFlag(String(PLAIN), 'addedHidden', false, db());
+			rmSync(lib, { recursive: true });
+		}
+	});
+});

@@ -80,6 +80,34 @@ function folderParts(key: string): { sourceDir: string; dir: string } | null {
 	return { sourceDir: rest.slice(0, slash), dir: rest.slice(slash + 1) };
 }
 
+/**
+ * The installed source a Mihon download folder's series is from (card c571;
+ * doc/BROWSE.md, "ADDED HIDDEN at the importer"), by the engine's own name
+ * for it, or null. A `mihon-dir:` key names no source id (`sourceIdSql`
+ * answers NULL), only the folder Mihon filed it under, which Mihon names
+ * `<name> (<LANG>)` (its `Source.toString()`). So the folder is a source's
+ * when it is exactly that source's name and language; failing any such
+ * source, when it is exactly a source's bare name. **Only one source may
+ * answer**: two installed sources with one name and one language (two
+ * extensions both calling themselves "Asura Scans", EN) cannot be told
+ * apart from the folder, and the answer is null, so nothing is decided by a
+ * guess. Two of one name in different languages are told apart by the
+ * folder's language. A source not installed has no row, and answers null.
+ */
+export function folderSourceId(db: Database.Database, key: string): string | null {
+	const parts = folderParts(key);
+	if (!parts) return null;
+	const dir = parts.sourceDir.toLowerCase();
+	const rows = db.prepare(`SELECT id, name, lang FROM engine_sources`).all() as {
+		id: string;
+		name: string;
+		lang: string;
+	}[];
+	const exact = rows.filter((r) => dir === `${r.name} (${r.lang})`.toLowerCase());
+	const one = exact.length > 0 ? exact : rows.filter((r) => dir === r.name.toLowerCase());
+	return one.length === 1 ? one[0].id : null;
+}
+
 type KeyedRow = {
 	id: number;
 	origin_key: string;
