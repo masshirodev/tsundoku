@@ -786,26 +786,29 @@ databases in `/tmp`, which is RAM here. Keep `TMPDIR` on the worktree's
 next.
 
 **Ports.** The gate and each slot assign the eight `PLAYWRIGHT_*_PORT`
-variables, and a run uses the value it is given. The three ports no one
-assigns — the browse world's own preview, its fake engine, and the fake
-extension repositories — are taken from the OS once per run by the runner,
-which pins them where the setup and every worker read them
-(`tests/browse-world.ts`, c340 and c625), and the browse world's servers name
-the port they could not take instead of waiting forever. The two specs of
-nobody's that still fall back to a written-in `'4194'` for the browse
-preview (`tests/tv-move.e2e.ts:26`, `tests/tv-player.e2e.ts:24`) are handed
-the pinned value through the environment before any worker starts, so the
-fallback is never the one a run uses.
+variables, and a run uses the value it is given. Four ports no one assigns —
+the browse world's own preview, its fake engine, the fake extension
+repositories, and the friend world's install — are taken from the OS once per
+run by the runner, which pins them where the setup and every worker read them
+(`tests/browse-world.ts`, c340 and c625; `tests/friend-world.ts`, c656), and
+the browse world's servers name the port they could not take instead of
+waiting forever. The friend world's data folder is named after its port, so
+it moves with it, and its setup, specs and teardown read the one pinned
+value. The two specs of nobody's that still fall back to a written-in `'4194'`
+for the browse preview (`tests/tv-move.e2e.ts:26`, `tests/tv-player.e2e.ts:24`)
+are handed the pinned value through the environment before any worker starts,
+so the fallback is never the one a run uses.
 
 **One worktree runs one Playwright invocation at a time** (c625). Draw from
 that: the shared preview's `webServer` builds the app into `.svelte-kit/`
 before it serves, and two builds at once write one output folder (wave 25: one
 run failed with `ENOENT … .svelte-kit/output/server/manifest-full.js`, and the
-other's preview served pages that never hydrated); the friend world's install
-takes one fixed port and refuses a second run (`tests/friend-setup.ts`). A
-second invocation started once the first one is serving reuses the shared
-preview and the browse world's own ports are the OS's, but nothing makes its
-build safe, so the rule is the rule.
+other's preview served pages that never hydrated). The ports are no longer a
+reason where nothing assigns them: two invocations take their own browse and
+friend worlds (c625, c656). A second invocation started once the first one is
+serving reuses the shared preview, but nothing makes its build safe, so the
+rule is the rule. In a Kantoku slot or the gate every port is assigned, so
+two invocations there still meet the same values as well.
 
 ### Regenerating the frame spec
 
