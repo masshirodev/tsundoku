@@ -780,6 +780,20 @@ test('HIDE on a part asks: the Work whole, or take it out and hide it', async ({
 	await expect(page.locator('a.back .back-label')).toHaveText('ISEKAI');
 	await expect(page.locator('.prow.work-row')).toBeVisible();
 
+	// Every control that acts on the Work posts the Work it was drawn on (c640),
+	// in the markup rather than added by script: a screen left open while the
+	// series joined another Work refuses, and the next press posts the new one.
+	const sheet = page.getByRole('dialog', { name: /WORK$/ });
+	await page.locator('.prow.work-row .lk').click({ button: 'right' });
+	await expect(sheet).toBeVisible();
+	const workMade = await sheet.locator('form[action="?/moveWork"] input[name="made"]').inputValue();
+	expect(workMade).toMatch(/^\d+$/);
+	await expect(sheet.locator('form[action="?/takeOutWork"] input[name="made"]')).toHaveValue(
+		workMade
+	);
+	await page.keyboard.press('Escape');
+	await expect(sheet).toHaveCount(0);
+
 	// The plain HIDE action is not a second door: posted for a part, it refuses
 	// rather than leaving the Work hidden in one series.
 	const here = new URL(page.url());
@@ -800,6 +814,7 @@ test('HIDE on a part asks: the Work whole, or take it out and hide it', async ({
 	await expect(hide).toBeVisible();
 	await expect(hide).toContainText("IT'S PART 2 OF ISEKAI");
 	await expect(hide.getByRole('button', { name: /HIDE ALL 2/ })).toBeVisible();
+	await expect(hide.locator('form[action="?/hideWork"] input[name="made"]')).toHaveValue(workMade);
 	await hide.getByRole('button', { name: 'TAKE OUT' }).click();
 	// Taken out and hidden: it is its own series again, and the Work of one ended.
 	const band = page.locator('.band', { hasText: 'HIDDEN · TAKEN OUT' });
@@ -816,6 +831,9 @@ test('HIDE on a part asks: the Work whole, or take it out and hide it', async ({
 	const whole = page.locator('.band', { hasText: 'HIDDEN · THE WORK, WHOLE' });
 	await expect(whole).toBeVisible();
 	await expect(whole).toContainText('2 SERIES');
+	// UNHIDE shows the Work whole, and names the same Work: the screen's form
+	// carries the moment it was drawn on, not one script looked up later.
+	await expect(page.locator('form[action="?/showWork"] input[name="made"]')).toHaveValue(workMade);
 	await whole.getByRole('button', { name: 'UNDO' }).click();
 	await expect(page.locator('.badge', { hasText: 'HIDDEN' })).toHaveCount(0);
 

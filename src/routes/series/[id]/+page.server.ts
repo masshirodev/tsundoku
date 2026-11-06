@@ -112,8 +112,27 @@ import { addFacts, hideFacts, parsePosted, renameFacts, takeOutFacts } from './p
 
 /** A Work's refusal (a part gone, a Work ended since), as a band on this screen, never a 500. */
 function refused(e: unknown) {
+	// A Work the screen read at another moment, or one that ended since, is
+	// c583's refusal: the band says LOOK AGAIN and `stale` lets a sheet tell it
+	// apart from a refusal it should keep open on (c584, c640).
+	if (e instanceof StaleWorkError)
+		return fail(400, { message: e.message.toUpperCase(), stale: true });
 	if (e instanceof WorkError) return fail(400, { message: e.message.toUpperCase() });
 	throw e;
+}
+
+/**
+ * The moment of making the screen read its Work at (c640): every Work control
+ * here posts it as `made`, and every writer refuses a Work under that id made
+ * at another moment. `works.id` is reused once the newest Work ends, so a
+ * screen drawn while the series was in Work A, posted after the series joined
+ * Work B, would otherwise hide, reorder or ungroup B. A form with no moment (a
+ * page from before it was posted, a hand-made post) cannot say which Work it
+ * means, so it is refused the same way, by a moment no Work has.
+ */
+function madeOf(form: FormData): number {
+	const made = Number(form.get('made'));
+	return Number.isSafeInteger(made) && made > 0 ? made : -1;
 }
 
 /** Where an anime's episodes go: its folder once it has one, else where its first will. */
@@ -553,11 +572,16 @@ export const actions: Actions = {
 	 * changes nothing. A band there would say HIDDEN over an UNDO that answers
 	 * NOTHING TO UNDO; with reveal off it was `/?band=hidden&n=0`.
 	 */
-	hideWork: async ({ params, cookies }) => {
+	hideWork: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const work = workOfSeries(s.id);
 		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK' });
-		const { ids } = hideWork(work.id, true);
+		let ids: number[];
+		try {
+			ids = hideWork(work.id, true, madeOf(await request.formData())).ids;
+		} catch (e) {
+			return refused(e);
+		}
 		if (ids.length === 0) {
 			if (!isRevealed(cookies)) redirect(303, '/');
 			return { ok: true };
@@ -638,12 +662,16 @@ export const actions: Actions = {
 	 * part visible among hidden ones is the diverged state W4's HIDE settles, and
 	 * the rule is a Work is hidden or shown whole at every door.
 	 */
-	showWork: async ({ params, cookies }) => {
+	showWork: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const work = workOfSeries(s.id);
 		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK' });
-		const { ids } = hideWork(work.id, false);
-		return { shown: { ids } };
+		try {
+			const { ids } = hideWork(work.id, false, madeOf(await request.formData()));
+			return { shown: { ids } };
+		} catch (e) {
+			return refused(e);
+		}
 	},
 
 	/**
@@ -656,7 +684,8 @@ export const actions: Actions = {
 		const s = target(params, cookies);
 		const work = workOfSeries(s.id);
 		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK' });
-		const dir = String((await request.formData()).get('dir') ?? '');
+		const form = await request.formData();
+		const dir = String(form.get('dir') ?? '');
 		if (dir !== 'up' && dir !== 'down') return fail(400, { message: 'NO SUCH DIRECTION' });
 		const order = workParts(work.id, true)
 			.slice()
@@ -666,7 +695,11 @@ export const actions: Actions = {
 		const j = dir === 'up' ? i - 1 : i + 1;
 		if (i < 0 || j < 0 || j >= order.length) return fail(400, { message: 'NO PART THAT WAY' });
 		[order[i], order[j]] = [order[j], order[i]];
-		reorder(work.id, order);
+		try {
+			reorder(work.id, order, madeOf(form));
+		} catch (e) {
+			return refused(e);
+		}
 		return { ok: true };
 	},
 
@@ -676,11 +709,16 @@ export const actions: Actions = {
 	 * the series itself is still here; the Work's name rides in the facts'
 	 * owner (`takenFrom`).
 	 */
-	takeOutWork: async ({ params, cookies }) => {
+	takeOutWork: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const work = workOfSeries(s.id);
 		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK' });
-		const facts = takeOutPart(work.id, s.id);
+		let facts: ReturnType<typeof takeOutPart>;
+		try {
+			facts = takeOutPart(work.id, s.id, madeOf(await request.formData()));
+		} catch (e) {
+			return refused(e);
+		}
 		return { workTakenOut: facts, workFrom: work.name };
 	},
 

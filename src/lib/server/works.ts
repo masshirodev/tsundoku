@@ -685,6 +685,10 @@ export type SeriesWorkPart = { seriesId: number; title: string };
 export type SeriesWorkRow = {
 	id: number;
 	name: string;
+	/** When this Work was made: what each of the screen's Work controls posts
+	 * back as `made`, so one drawn before the Work ended cannot act on the
+	 * Work its id names now (c640; `mustBeWork`, c583). */
+	createdAt: number;
 	part: number;
 	of: number;
 	/** Where this part is: not started, in progress, caught up, read through. */
@@ -719,6 +723,7 @@ export function seriesWorkRow(seriesId: number, reveal: boolean): SeriesWorkRow 
 	return {
 		id: work.id,
 		name: work.name,
+		createdAt: work.createdAt,
 		part: place.part,
 		of: place.of,
 		state: partState(current),
@@ -1331,10 +1336,19 @@ export function setWorkFavourite(workId: number, favourite: boolean, made?: numb
  * HIDE or SHOW a whole Work: the same write as `setHiddenWhole`, from the
  * Work's id. `ids` is what the write changed (c390), which is what an UNDO of
  * it may put back; a part already as asked is not one of them.
+ *
+ * `made` is the Work's moment of making, as the screen that posts read it
+ * (c640): `works.id` is reused once the newest Work ends, so a screen drawn
+ * while the series was in another Work would otherwise hide or show whatever
+ * Work holds the id now (`mustBeWork`, c583).
  */
-export function hideWork(workId: number, hidden: boolean): { ids: number[]; changed: number } {
+export function hideWork(
+	workId: number,
+	hidden: boolean,
+	made?: number
+): { ids: number[]; changed: number } {
 	const db = getDb();
-	if (!workRow(db, workId)) throw new WorkError('no such Work');
+	mustBeWork(db, workId, made);
 	const { ids } = setHiddenWhole(allIds(db, workId), hidden);
 	return { ids, changed: ids.length };
 }

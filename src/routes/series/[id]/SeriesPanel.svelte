@@ -206,6 +206,8 @@
 	let workSheet = $state(false);
 	/** HIDE on a part asks first (W4; Work-States 4). */
 	let hiding = $state(false);
+	/** The moment this Work was made, as the Work controls post it back (c640). */
+	const workMade = $derived(work?.createdAt ?? null);
 	/** HIDE ALL n's band, worded from the count (`wholeBand`); TAKE OUT has its own words. */
 	const hiddenBand = $derived(
 		hideFacts && hideFacts.whole.length > 0
@@ -1269,6 +1271,7 @@
 							{:else if work && series.hidden}
 								<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
 								<form method="POST" action="?/showWork" use:enhance={replacing} class="hide-form">
+									<input type="hidden" name="made" value={work.createdAt} />
 									<button type="submit" class="edit">UNHIDE</button>
 								</form>
 							{:else}
@@ -1312,6 +1315,7 @@
 							{:else if work && series.hidden}
 								<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
 								<form method="POST" action="?/showWork" use:enhance={replacing} class="hide-form">
+									<input type="hidden" name="made" value={work.createdAt} />
 									<button type="submit" class="edit">UNHIDE</button>
 								</form>
 							{:else}
@@ -1449,6 +1453,8 @@
 			<div class="lk">
 				<div class="lk-a">Earlier or later in the run</div>
 			</div>
+			<!-- The Work this sheet was drawn on, not whatever holds its id now (c640). -->
+			<input type="hidden" name="made" value={work.createdAt} />
 			<button type="submit" name="dir" value="up" class="lc" disabled={!work.prev}>↑</button>
 			<button type="submit" name="dir" value="down" class="lc" disabled={!work.next}>↓</button>
 		</form>
@@ -1467,6 +1473,7 @@
 				<div class="lk-a">Out of the Work</div>
 				<div class="lk-b">A SERIES ON ITS OWN AGAIN · UNDO</div>
 			</div>
+			<input type="hidden" name="made" value={work.createdAt} />
 			<button type="submit" class="lc">TAKE OUT</button>
 		</form>
 	</Sheet>
@@ -1480,6 +1487,7 @@
 		ids={[String(series.id)]}
 		wholeCount={work.of}
 		remainCount={work.of - 1}
+		{workMade}
 		actionAll="?/hideWork"
 		actionPart="?/hidePart"
 		ondone={() => (hiding = false)}
