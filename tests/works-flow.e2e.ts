@@ -1370,6 +1370,64 @@ test('a refused UNDO on the library says why with no selection open (c469)', asy
 	await expect(page.locator('.fold-refused')).toHaveCount(0);
 	// The take-out ended the Work, so nothing is left to put back.
 	await expect(workTile(page, 'Refused Run')).toHaveCount(0);
+
+	// The owner moves on (c469's round 2): SELECT does not carry the refusal
+	// into the bar, and ✕ does not bring the band back. `form` still holds the
+	// answer all along, which is what both used to draw from.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
+	await expect(refusal).toHaveCount(0);
+	await expect(page.locator('.fold-refused')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toBeVisible();
+	await expect(refusal).toHaveCount(0);
+	await expect(page.locator('.lib-band .band')).toHaveCount(0);
+});
+
+/**
+ * c469's round 2: a refusal answered over the bulk bar stays in the bar's
+ * `.fold-refused` line and goes with the selection. Reached through the app:
+ * GROUP's ADD TO A WORK is open on a Work that the other tab ends, so the add
+ * refuses as stale (c584), the sheet closes and the selection stays. Before
+ * the fix, ✕ turned the line into a library band, `NOTHING CHANGED`, over a
+ * library where nothing had been asked.
+ */
+test('a refusal over the bulk bar goes with ✕, and is not drawn as a library band (c469)', async ({
+	page,
+	context
+}) => {
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Stale Run');
+	await select(page, ['Dungeon Meshi']);
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = groupSheet(page);
+	await sheet.getByRole('radio', { name: /ADD TO A WORK · 1/ }).click();
+	await sheet.getByText('Stale Run', { exact: true }).click();
+
+	const other = await context.newPage();
+	await other.goto('/');
+	await openWork(other, 'Stale Run');
+	await endWork(other);
+	await other.close();
+
+	await sheet.getByRole('button', { name: /ADD 1 TO THE WORK/ }).click();
+	await expect(sheet).toBeHidden();
+	const line = page.locator('.fold-refused');
+	await expect(line).toHaveText('THAT WORK HAS CHANGED · LOOK AGAIN');
+	await expect(page.locator('.lib-band .band')).toHaveCount(0);
+
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toBeVisible();
+	await expect(line).toHaveCount(0);
+	await expect(page.locator('.band', { hasText: 'THAT WORK HAS CHANGED' })).toHaveCount(0);
+	await expect(page.locator('.lib-band .band')).toHaveCount(0);
+
+	// Nor does the next selection start on it.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
+	await expect(line).toHaveCount(0);
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	// The Work ended in the other tab, and Dungeon Meshi joined nothing.
+	await expect(workTile(page, 'Stale Run')).toHaveCount(0);
 });
 
 /**
