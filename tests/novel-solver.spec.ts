@@ -21,13 +21,23 @@ vi.mock('node:dns/promises', () => ({
 }));
 
 const { getDb } = await import('$lib/server/db');
-const { forgetFailedSolve, forgetFailedSolves, novelSolverUrl, solveChallenge, solvingSince } =
-	await import('$lib/server/novels/solver');
+const {
+	fetchPage,
+	forgetFailedSolve,
+	forgetFailedSolves,
+	novelSolverUrl,
+	solveChallenge,
+	solvingSince,
+	unwrapText
+} = await import('$lib/server/novels/solver');
 
-type Asked = { cmd?: string; url?: string; maxTimeout?: number };
+type Asked = { cmd?: string; url?: string; maxTimeout?: number; postData?: string };
 let asked: Asked[] = [];
-let reply: () => { status: number; body: string } = () => ({ status: 200, body: ok() });
+let reply: (a: Asked) => { status: number; body: string } = () => ({ status: 200, body: ok() });
 let delay = 0;
+/** Requests the stub is answering right now, and the most at once: one browser per host. */
+let open = 0;
+let most = 0;
 let server: Server;
 let port = 0;
 
@@ -54,9 +64,13 @@ beforeAll(async () => {
 		let raw = '';
 		req.on('data', (c) => (raw += c));
 		req.on('end', () => {
-			asked.push(JSON.parse(raw) as Asked);
+			const one = JSON.parse(raw) as Asked;
+			asked.push(one);
+			open++;
+			most = Math.max(most, open);
 			const send = () => {
-				const r = reply();
+				open--;
+				const r = reply(one);
 				res.writeHead(r.status, { 'content-type': 'application/json' }).end(r.body);
 			};
 			if (delay) setTimeout(send, delay);
@@ -76,6 +90,8 @@ afterAll(async () => {
 beforeEach(() => {
 	asked = [];
 	delay = 0;
+	open = 0;
+	most = 0;
 	reply = () => ({ status: 200, body: ok() });
 	forgetFailedSolves();
 	getDb().prepare(`DELETE FROM site_checks`).run();
@@ -263,6 +279,277 @@ describe('the app’s solve for a site’s check', () => {
 		} finally {
 			process.env.NOVEL_SOLVER_URL = `http://127.0.0.1:${port}/v1`;
 		}
+	});
+});
+
+/** FlareSolverr's answer to a request.get or request.post: the page its browser ended on. */
+const page = (response: string, solution: Record<string, unknown> = {}) =>
+	JSON.stringify({
+		status: 'ok',
+		message: '',
+		solution: {
+			url: 'https://www.novel.example/',
+			status: 200,
+			headers: {},
+			response,
+			cookies: [],
+			userAgent: 'StubBrowser/2.0',
+			...solution
+		}
+	});
+
+/** How Chromium shows a document that isn't HTML, which is what FlareSolverr hands back. */
+const wrapped = (text: string, json = false) =>
+	`<html><head><meta name="color-scheme" content="light dark">${json ? '<meta charset="utf-8">' : ''}</head><body><pre${json ? '' : ' style="word-wrap: break-word; white-space: pre-wrap;"'}>${text}</pre>${json ? '<div class="json-formatter-container"></div>' : ''}</body></html>`;
+
+describe('a page through the solver’s browser (c335)', () => {
+	// For a host whose check is bound to the browser that solved it, the host
+	// asks for the page, not a clearance. The stub answers as FlareSolverr 3.4.6
+	// does: the browser's DOM, its status, the URL it ended on after redirects,
+	// a JSON or text document wrapped in Chromium's <pre>, a picture as
+	// Chromium's image page, its own failure as an HTTP 500, and Chromium dying
+	// under load (c492) as "invalid session id".
+	const BODY = '<html><head></head><body><a href="next">Next</a></body></html>';
+
+	it('is the page the browser ended on, after its redirects, with that URL to resolve against', async () => {
+		reply = () => ({
+			status: 200,
+			body: page(BODY, { url: 'https://www.novel.example/moved/chapter-1' })
+		});
+		const got = await fetchPage({ url: 'https://www.novel.example/c/1' });
+		expect(got).toEqual({
+			page: {
+				url: 'https://www.novel.example/moved/chapter-1',
+				status: 200,
+				contentType: 'text/html; charset=utf-8',
+				body: BODY
+			}
+		});
+		expect(asked).toEqual([
+			{ cmd: 'request.get', url: 'https://www.novel.example/c/1', maxTimeout: 50_000 }
+		]);
+		// A relative link on it is the moved page's, not the asked one's.
+		expect(new URL('next', (got as { page: { url: string } }).page.url).href).toBe(
+			'https://www.novel.example/moved/next'
+		);
+		// The browser passed the host's check: BROWSE's past-tense line.
+		expect(checked()).toEqual([{ host: 'www.novel.example', seen_at: expect.any(Number) }]);
+	});
+
+	it('unwraps a JSON or text document from Chromium’s <pre>, and keeps a page that only looks like one', async () => {
+		reply = () => ({ status: 200, body: page(wrapped('{"a":"&lt;b&gt; &amp; c"}', true)) });
+		expect(await fetchPage({ url: 'https://www.novel.example/api.json' })).toMatchObject({
+			page: { contentType: 'application/json', body: '{"a":"<b> & c"}' }
+		});
+		reply = () => ({ status: 200, body: page(wrapped('plain &amp; simple&#33;')) });
+		expect(await fetchPage({ url: 'https://www.novel.example/robots.txt' })).toMatchObject({
+			page: { contentType: 'text/plain', body: 'plain & simple!' }
+		});
+		// A real page with a <pre> among other things is HTML, untouched.
+		const html = '<html><head></head><body><h1>x</h1><pre>&lt;code&gt;</pre></body></html>';
+		reply = () => ({ status: 200, body: page(html) });
+		expect(await fetchPage({ url: 'https://www.novel.example/code' })).toMatchObject({
+			page: { contentType: 'text/html; charset=utf-8', body: html }
+		});
+		// A normaliser holds on its own output: unwrapping what it unwrapped changes nothing.
+		expect(unwrapText('{"a":"<b> & c"}')).toBeNull();
+	});
+
+	it('posts only a url-encoded form, which is all request.post sends, and refuses other methods unasked', async () => {
+		reply = () => ({ status: 200, body: page('<html><head></head><body>ok</body></html>') });
+		expect(
+			await fetchPage({
+				url: 'https://www.novel.example/wp-admin/admin-ajax.php',
+				method: 'post',
+				postData: 'action=list&id=7'
+			})
+		).toMatchObject({ page: { status: 200 } });
+		expect(asked).toEqual([
+			{
+				cmd: 'request.post',
+				url: 'https://www.novel.example/wp-admin/admin-ajax.php',
+				maxTimeout: 50_000,
+				postData: 'action=list&id=7'
+			}
+		]);
+		expect(await fetchPage({ url: 'https://www.novel.example/x', method: 'PUT' })).toEqual({
+			error: "the solver's browser sends GET and POST only, not PUT"
+		});
+		expect(asked).toHaveLength(1);
+	});
+
+	it('refuses a picture: what the browser hands back for one is its image page, not the bytes', async () => {
+		reply = () => ({
+			status: 200,
+			body: page(
+				'<html><head><meta name="viewport" content="width=device-width, minimum-scale=0.1"><title>cover.jpg (300×450)</title></head><body style="margin: 0px; height: 100%; background-color: rgb(14, 14, 14);"><img style="display: block;" src="https://www.novel.example/cover.jpg"></body></html>',
+				{ url: 'https://www.novel.example/cover.jpg' }
+			)
+		});
+		expect(await fetchPage({ url: 'https://www.novel.example/cover.jpg' })).toEqual({
+			error:
+				"www.novel.example sent a picture, not a page: the solver's browser hands back pages only"
+		});
+		expect(checked()).toEqual([]);
+	});
+
+	it('keeps the site’s own refusal as the page’s status, and writes no check for it', async () => {
+		reply = () => ({
+			status: 200,
+			body: page('<html><body>members only</body></html>', { status: 403 })
+		});
+		expect(await fetchPage({ url: 'https://www.novel.example/locked' })).toMatchObject({
+			page: { status: 403 }
+		});
+		expect(checked()).toEqual([]);
+	});
+
+	it('says the solver’s own failure, an HTTP 500, and asks it once', async () => {
+		reply = () => ({
+			status: 500,
+			body: JSON.stringify({
+				status: 'error',
+				message: 'Error solving the challenge. Timeout after 50.0 seconds.'
+			})
+		});
+		expect(await fetchPage({ url: 'https://www.novel.example/c/1' })).toEqual({
+			error: 'the solver answered 500 (Error solving the challenge. Timeout after 50.0 seconds.)'
+		});
+		expect(asked).toHaveLength(1);
+		reply = () => ({ status: 200, body: JSON.stringify({ status: 'ok' }) });
+		expect(await fetchPage({ url: 'https://www.novel.example/c/1' })).toEqual({
+			error: 'the solver gave no page'
+		});
+		reply = () => ({ status: 200, body: page('<html></html>', { status: 0 }) });
+		expect(await fetchPage({ url: 'https://www.novel.example/c/1' })).toEqual({
+			error: "the solver's browser reported status 0"
+		});
+	});
+
+	it('asks once more when the solver’s browser died under it (c492), and says so when it dies twice', async () => {
+		const died = () => ({
+			status: 500,
+			body: JSON.stringify({
+				status: 'error',
+				message:
+					'Error: Error solving the challenge. Message: invalid session id: session deleted as the browser has closed the connection\nfrom disconnected: not connected to DevTools'
+			})
+		});
+		let n = 0;
+		reply = () => (n++ === 0 ? died() : { status: 200, body: page(BODY) });
+		expect(await fetchPage({ url: 'https://www.novel.example/c/1' })).toMatchObject({
+			page: { body: BODY }
+		});
+		expect(asked).toHaveLength(2);
+		reply = died;
+		const twice = await fetchPage({ url: 'https://www.novel.example/c/2' });
+		expect(twice).toMatchObject({
+			error: expect.stringMatching(/^the solver's browser closed twice \(.*invalid session id/)
+		});
+		expect(asked).toHaveLength(4);
+	});
+
+	it('says a solver that did not answer in time, or could not be reached', async () => {
+		delay = 300;
+		expect(await fetchPage({ url: 'https://www.novel.example/slow' }, { timeoutMs: 60 })).toEqual({
+			error: 'the solver did not answer in 0.06 s'
+		});
+		// The stub still answers, late: wait for it here, or its count lands in the next test.
+		await vi.waitFor(
+			() => {
+				if (open !== 0) throw new Error('the stub is still answering');
+			},
+			{ timeout: 3_000 }
+		);
+		delay = 0;
+		process.env.NOVEL_SOLVER_URL = 'http://127.0.0.1:1/v1';
+		try {
+			expect(await fetchPage({ url: 'https://www.novel.example/x' })).toMatchObject({
+				error: expect.stringMatching(/^the solver could not be reached/)
+			});
+		} finally {
+			process.env.NOVEL_SOLVER_URL = `http://127.0.0.1:${port}/v1`;
+		}
+	});
+
+	it('refuses a loopback or private address before the solver hears of it, every time', async () => {
+		for (const url of [
+			'http://127.0.0.1:8193/v1',
+			'http://[::1]/',
+			'https://inside.example/',
+			'https://mixed.example/',
+			'https://unknown.example/',
+			'file:///etc/passwd'
+		])
+			expect(await fetchPage({ url }), url).toMatchObject({
+				error: expect.stringMatching(/^refused: /)
+			});
+		expect(await fetchPage({ url: 'not a url' })).toEqual({ error: 'not an address' });
+		expect(asked).toEqual([]);
+		// Checked every time, not once per host: a name that moves inside is refused at once.
+		reply = () => ({ status: 200, body: page(BODY) });
+		expect(await fetchPage({ url: 'https://novel.example/a' })).toHaveProperty('page');
+		ADDRESSES['novel.example'] = ['192.168.1.20'];
+		try {
+			expect(await fetchPage({ url: 'https://novel.example/b' })).toEqual({
+				error: 'refused: novel.example is not on the internet'
+			});
+		} finally {
+			ADDRESSES['novel.example'] = ['93.184.215.14'];
+		}
+		expect(asked).toHaveLength(1);
+	});
+
+	it('does not read back a page the browser was redirected to on a local address', async () => {
+		reply = () => ({
+			status: 200,
+			body: page('<html>the router</html>', { url: 'https://inside.example/admin' })
+		});
+		expect(await fetchPage({ url: 'https://www.novel.example/away' })).toEqual({
+			error: "the solver's browser ended at inside.example, which is not on the internet"
+		});
+		expect(checked()).toEqual([]);
+	});
+
+	it('fetches one page per host at a time, answers the same request once, and lets two hosts run together', async () => {
+		delay = 40;
+		reply = (a) => ({ status: 200, body: page(`<html>${a.url}</html>`, { url: a.url }) });
+		const [a, b, c] = await Promise.all([
+			fetchPage({ url: 'https://www.novel.example/one' }),
+			fetchPage({ url: 'https://www.novel.example/two' }),
+			fetchPage({ url: 'https://www.novel.example/one' })
+		]);
+		expect(asked.map((x) => x.url)).toEqual([
+			'https://www.novel.example/one',
+			'https://www.novel.example/two'
+		]);
+		expect(most).toBe(1);
+		expect(a).toEqual(c);
+		expect(b).toMatchObject({ page: { url: 'https://www.novel.example/two' } });
+		// A failure in the first doesn't hold the host's turn: the next is asked.
+		asked = [];
+		most = 0;
+		let n = 0;
+		reply = (x) =>
+			n++ === 0
+				? { status: 500, body: JSON.stringify({ status: 'error', message: 'nope' }) }
+				: { status: 200, body: page('<html>ok</html>', { url: x.url }) };
+		const [bad, good] = await Promise.all([
+			fetchPage({ url: 'https://www.novel.example/bad' }),
+			fetchPage({ url: 'https://www.novel.example/good' })
+		]);
+		expect(bad).toEqual({ error: 'the solver answered 500 (nope)' });
+		expect(good).toHaveProperty('page');
+		expect(most).toBe(1);
+		// Two hosts are two browsers' worth, at once.
+		asked = [];
+		most = 0;
+		reply = (x) => ({ status: 200, body: page('<html>ok</html>', { url: x.url }) });
+		await Promise.all([
+			fetchPage({ url: 'https://www.novel.example/three' }),
+			fetchPage({ url: 'https://other.example/three' })
+		]);
+		expect(most).toBe(2);
 	});
 });
 

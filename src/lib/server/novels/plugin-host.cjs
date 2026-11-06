@@ -18,6 +18,12 @@
  * the parent answers { op: 'challenge-result', id, ok, value } (card c152).
  * { id, op: 'forget', site } clears the refused memo below for that site's
  * hosts, and answers how many it cleared: TRY AGAIN on the source page (c294).
+ * A host in that memo is in page mode (card c335): its requests go to the
+ * parent as { op: 'page', id, url, method, postData? }, answered
+ * { op: 'page-result', id, ok, value: { url, status, contentType, body } } or
+ * { op: 'page-result', id, ok: false, error }. { id, op: 'modes' } answers the
+ * hosts in page mode and until when. The config message may carry refusedMs,
+ * page mode's length, for tests.
  */
 const vm = require('node:vm');
 const fs = require('node:fs');
@@ -113,6 +119,9 @@ async function guardedFetch(input, init = {}) {
 			note(e.message);
 			throw e;
 		}
+		// A host whose check is bound to the browser that solved it: its own
+		// fetch is a check every time, so only the solver's browser asks it.
+		if (inPageMode(hostOf(url))) return pageFetch(url, opts, init[WANTS_FILE] === true);
 		let res;
 		try {
 			res = await fetch(url, withJar(attempt(), url));
@@ -121,6 +130,7 @@ async function guardedFetch(input, init = {}) {
 			throw e;
 		}
 		let challenge = await isChallenge(res);
+		let refusedNow = false;
 		if (challenge && !retried) {
 			retried = true;
 			const clearance = await challengeFor(url);
@@ -138,10 +148,16 @@ async function guardedFetch(input, init = {}) {
 				// The site refused the clearance it was just given. Remember that
 				// where it is seen: the next chapter would otherwise pay the same
 				// solve and retry for a check this host cannot pass.
-				if (challenge) refused.set(hostOf(url), Date.now());
-				else refused.delete(hostOf(url));
+				if (challenge) {
+					refused.set(hostOf(url), Date.now());
+					refusedNow = true;
+				} else refused.delete(hostOf(url));
 			}
 		}
+		// The host has just entered page mode: this same request is the first
+		// to go through the solver's browser, so the call that taught the host
+		// is answered too, not only the ones after it.
+		if (refusedNow) return pageFetch(url, opts, init[WANTS_FILE] === true);
 		if (challenge)
 			note(`${new URL(url).hostname} answered ${res.status} (its check could not be passed)`);
 		else if (res.status >= 400) note(`${new URL(url).hostname} answered ${res.status}`);
@@ -171,7 +187,7 @@ const jars = new Map();
  * for nothing — a 148-chapter download would pay 148 times.
  */
 const refused = new Map();
-const REFUSED_MS = 10 * 60_000;
+let refusedMs = 10 * 60_000;
 let challengeId = 1;
 const asked = new Map();
 const solving = new Map();
@@ -207,7 +223,8 @@ function forgetRefused(site) {
 /** The app's own timeout is shorter; this only stops a plugin waiting on nobody. */
 const CHALLENGE_MS = 70_000;
 
-function askChallenge(url) {
+/** Asks the parent [msg] and waits for its answer's message, or null: a timeout or a closed channel. */
+function askParent(msg) {
 	const id = challengeId++;
 	return new Promise((resolve) => {
 		const timer = setTimeout(() => {
@@ -216,7 +233,7 @@ function askChallenge(url) {
 		}, CHALLENGE_MS);
 		asked.set(id, { resolve, timer });
 		try {
-			process.send({ op: 'challenge', id, url });
+			process.send({ ...msg, id });
 		} catch {
 			clearTimeout(timer);
 			asked.delete(id);
@@ -225,13 +242,131 @@ function askChallenge(url) {
 	});
 }
 
+const askChallenge = (url) =>
+	askParent({ op: 'challenge', url }).then((m) => (m && m.ok && m.value ? m.value : null));
+
+// ---- page mode: a check bound to the browser that solved it (doc/NOVELS.md; c335) ----------
+// NovelFull and Scribble Hub refuse the clearance they just issued to any
+// client but the solver's own browser (measured 2026-11-02). A host whose
+// retry with a fresh clearance was still a check enters page mode then, for
+// the refused memo's ten minutes (from that refusal, not extended by use):
+// every request to it is a page the parent fetches through the solver, which
+// checks the address first. It leaves when the ten minutes are up (the next
+// request is the host's own again, and pays a solve and a retry), when TRY
+// AGAIN forgets the site, or when the host process restarts. A page that is
+// still a check, or that doesn't come, leaves it where it is: the ten minutes
+// are what keep a download from paying a solve and a retry per chapter.
+
+/** Set by fetchFile: a picture or a file can't come through the solver's browser, which renders pages. */
+const WANTS_FILE = Symbol('wants a file');
+
+function inPageMode(host) {
+	const at = refused.get(host);
+	return at !== undefined && Date.now() - at < refusedMs;
+}
+
+/** The hosts in page mode, and until when. */
+function modes() {
+	const out = {};
+	for (const [host, at] of refused) if (Date.now() - at < refusedMs) out[host] = at + refusedMs;
+	return out;
+}
+
+const pageTrouble = (host, why) =>
+	`${host}'s page did not come through the solver (its check could not be passed): ${why}`;
+
+/**
+ * Fails a page-mode request the solver was asked for and did not answer with
+ * a page. The phrase "its check could not be passed" is what the browse page
+ * reads as a refused check, and offers TRY AGAIN for.
+ */
+function refusePage(host, why) {
+	const message = pageTrouble(host, why);
+	note(message);
+	throw new Error(message);
+}
+
+/**
+ * Fails a request page mode won't send at all, before anything is asked. No
+ * check was involved, so the sentence doesn't claim one: a TRY AGAIN would pay
+ * a solve and a retry and land here the same way.
+ */
+function refuseShape(host, why) {
+	const message = `${host}'s page can't come through the solver: ${why}`;
+	note(message);
+	throw new Error(message);
+}
+
+const FORM_ONLY = "the solver's browser posts a url-encoded form only";
+
+/**
+ * What the solver's browser can send for [opts]: GET, or POST with a
+ * url-encoded form (FlareSolverr's request.post takes postData and nothing
+ * else). A FormData of strings is that form (Scribble Hub's chapter list posts
+ * one); a JSON, multipart or binary body, or a FormData holding a file, is
+ * refused with a sentence, never sent as something it wasn't.
+ */
+function pageForm(host, opts) {
+	const method = String(opts.method || 'GET').toUpperCase();
+	if (method === 'GET' || method === 'HEAD') return { method: 'GET' };
+	if (method !== 'POST')
+		refuseShape(host, `the solver's browser sends GET and POST only, not ${method}`);
+	const body = opts.body;
+	if (body === undefined || body === null) return { method, postData: '' };
+	if (body instanceof URLSearchParams) return { method, postData: body.toString() };
+	if (body instanceof FormData) {
+		for (const [, value] of body)
+			if (typeof value !== 'string') refuseShape(host, `${FORM_ONLY}, and a file can't go in one`);
+		return { method, postData: new URLSearchParams(body).toString() };
+	}
+	const type = (opts.headers && opts.headers.get('content-type')) || '';
+	if (typeof body === 'string' && (!type || /application\/x-www-form-urlencoded/i.test(type)))
+		return { method, postData: body };
+	return refuseShape(host, `${FORM_ONLY}, not ${typeof body === 'string' ? type : 'this body'}`);
+}
+
+/** [url]'s page through the solver, as a Response whose url is where the browser ended. */
+async function pageFetch(url, opts, wantsFile) {
+	const host = hostOf(url);
+	if (wantsFile)
+		refuseShape(host, "a file is not a page, and the solver's browser hands back pages only");
+	const form = pageForm(host, opts);
+	const m = await askParent({ op: 'page', url, ...form });
+	if (!m) refusePage(host, 'the app did not answer');
+	if (!m.ok || !m.value) refusePage(host, String(m.error || 'the solver gave no page'));
+	const page = m.value;
+	const at = typeof page.url === 'string' && page.url ? page.url : url;
+	// The parent checked the browser's last address is on the internet; this
+	// host's own rule (its test ports included) holds for it too.
+	try {
+		await checkUrl(at);
+	} catch (e) {
+		note(e.message);
+		throw e;
+	}
+	const status = Number(page.status) || 200;
+	const empty = status === 204 || status === 205 || status === 304;
+	const res = new Response(empty ? null : String(page.body ?? ''), {
+		status,
+		headers: { 'content-type': String(page.contentType || 'text/html; charset=utf-8') }
+	});
+	// A plugin resolves relative links against the page it got, which is the
+	// one the browser ended on after its redirects, not the URL it asked.
+	Object.defineProperty(res, 'url', { value: at });
+	Object.defineProperty(res, 'redirected', { value: at !== url });
+	if (await isChallenge(res))
+		note(`${hostOf(at)} answered ${res.status} (its check could not be passed)`);
+	else if (res.status >= 400) note(`${hostOf(at)} answered ${res.status}`);
+	return res;
+}
+
 /** One solve per host at a time: a plugin asking in a loop waits on the first, not a queue. */
 function challengeFor(url) {
 	const host = hostOf(url);
 	// A clearance this host just refused is not asked for again: the one request
 	// the call makes is already a check, and there is nothing to retry with.
 	const at = refused.get(host);
-	if (at !== undefined && Date.now() - at < REFUSED_MS) return Promise.resolve(null);
+	if (at !== undefined && Date.now() - at < refusedMs) return Promise.resolve(null);
 	let one = solving.get(host);
 	if (!one) {
 		one = askChallenge(url)
@@ -309,7 +444,7 @@ const libFetch = {
 	},
 	fetchFile: async (url, init) => {
 		try {
-			const res = await guardedFetch(url, withDefaults(init));
+			const res = await guardedFetch(url, { ...withDefaults(init), [WANTS_FILE]: true });
 			if (!res.ok) return '';
 			return Buffer.from(await res.arrayBuffer()).toString('base64');
 		} catch {
@@ -493,9 +628,11 @@ async function explained(m) {
 async function handle(m) {
 	if (m.op === 'config') {
 		allowed = new Set(m.allow || []);
+		if (typeof m.refusedMs === 'number' && m.refusedMs >= 0) refusedMs = m.refusedMs;
 		return null;
 	}
 	if (m.op === 'forget') return forgetRefused(m.site);
+	if (m.op === 'modes') return modes();
 	const p = load(m.file);
 	if (m.op === 'info')
 		return {
@@ -532,13 +669,14 @@ async function handle(m) {
 }
 
 process.on('message', (m) => {
-	// The app's answer to a site's check: a clearance for the host asked about, or nothing.
-	if (m && m.op === 'challenge-result') {
+	// The app's answer to a site's check (a clearance for the host asked about,
+	// or nothing) or to a page asked in page mode (the page, or why not).
+	if (m && (m.op === 'challenge-result' || m.op === 'page-result')) {
 		const wait = asked.get(m.id);
 		if (!wait) return;
 		asked.delete(m.id);
 		clearTimeout(wait.timer);
-		wait.resolve(m.ok && m.value ? m.value : null);
+		wait.resolve(m);
 		return;
 	}
 	Promise.resolve()
