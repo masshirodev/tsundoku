@@ -226,7 +226,9 @@ export type Page = { url: string; status: number; contentType: string; body: str
  * memos alone (c630). `unsent` marks one made before the browser was asked at
  * all, an address this app could not look up: a new solve is not the cure, so
  * the host words it as something it would not send and TRY AGAIN asks again
- * without forgetting the memos (c630).
+ * without forgetting the memos (c630). Neither mark covers a page the browser
+ * did fetch whose last address this app could not check (c662): it is left
+ * unmarked, so TRY AGAIN forgets the memos and asks afresh.
  */
 export type PageAnswer = { page: Page } | { error: string; fixed?: true; unsent?: true };
 
@@ -312,10 +314,28 @@ async function pageOne(req: PageRequest, host: string, budget: number): Promise<
 	if ('error' in answer) return answer;
 	try {
 		await checkPublic(answer.page.url);
-	} catch {
+	} catch (e) {
+		// The first check ran before the browser was asked; this one runs after,
+		// on the address it ended on. Only an address `checkPublic` refuses is
+		// permanent here (c630, c662): a lookup that failed (EAI_AGAIN, ENOTFOUND)
+		// is the network's and a retry may succeed, so it is not `fixed`. It is
+		// not `unsent` either, since the browser was asked and this is its page's
+		// address: that flag is for a request the browser never saw, and the host
+		// words it "can't come through the solver" with TRY AGAIN leaving the
+		// memos alone. Unmarked, TRY AGAIN forgets them and asks afresh, which is
+		// the honest answer to "we fetched a page but could not check where it
+		// ended". The host's refusePage sentence for it borrows "its check could
+		// not be passed", which is not true of this app's own DNS; that was
+		// accepted because the same sentence already carries the solver's own 500
+		// and timeout, and the cost is one solve a retry would pay anyway. No
+		// site_check is written: its last address is unverified.
+		if (e instanceof NotPublicError)
+			return {
+				error: `the solver's browser ended at ${hostLabel(answer.page.url)}, which is not on the internet`,
+				fixed: true
+			};
 		return {
-			error: `the solver's browser ended at ${hostLabel(answer.page.url)}, which is not on the internet`,
-			fixed: true
+			error: `the solver's browser ended at ${hostLabel(answer.page.url)}, and its address could not be checked (${(e as Error).message || 'the lookup failed'})`
 		};
 	}
 	if (answer.page.status < 400) noteChecked(host, Date.now());

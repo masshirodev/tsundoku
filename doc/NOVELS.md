@@ -341,12 +341,14 @@ error, fixed? }`, a sentence, marked `fixed` when no new solve can change it
     with a sentence, as is any method but GET and POST (a HEAD goes as a GET).
     Scribble Hub's chapter list is a `FormData` of strings
     (`plugins/english/scribblehub.ts`, `wi_getreleases_pagination`), so it
-    goes as a url-encoded form. The plugin's headers are dropped (below), and
-    a POST that needs one is still unmeasured live: NovelFull 2.3.4 sets
+    goes as a url-encoded form. The plugin's headers are dropped (next): a
+    POST that _needs_ one is still unmeasured live. NovelFull 2.3.4 sets
     `X-Requested-With` on its chapter archive only in its `y` branch, the one
-    taken when the novel page exposes a chapter count, and novelfull.com took
-    its other branch — a plain GET with no header (2026-11-06, "Measured
-    live", below).
+    taken when the novel page exposes a chapter count, and novelfull.com
+    took its other branch — a plain GET with no header — on every novel
+    tried (2026-11-06). Free Web Novel 2.3.10, which is the same template,
+    did take the POST branch, and its list came back whole without the header
+    ("Measured live", below).
   - A picture or a file is not a page: `fetchFile` (and so `fetchProto`'s
     binary body) is refused with a sentence before anything is asked, and a
     `fetchApi` that turns out to be Chromium's image page is refused by the
@@ -362,7 +364,12 @@ error, fixed? }`, a sentence, marked `fixed` when no new solve can change it
   address this app could not look up — a DNS failure, not the site's answer —
   lands there too (`the address could not be checked (getaddrinfo EAI_AGAIN
 …)`, marked `unsent`): the browser was never asked, and asking again asks the
-  lookup again rather than paying a solve for a hiccup (c630).
+  lookup again rather than paying a solve for a hiccup (c630). The same
+  lookup of the address the browser **ended on**, after it already answered,
+  is neither: the browser was asked, so not `unsent`, and a retry may succeed,
+  so not `fixed`. It goes unmarked, so it takes the third sentence below, and
+  TRY AGAIN asks afresh rather than calling the address permanently off the
+  internet (c662).
   What no new solve can change is
   `"<host>'s page can't come through the solver, and no solve changes that:
 <why>"`: an address `checkPublic` refuses (`refused: …`), one the browser was
@@ -401,13 +408,16 @@ closed twice (…)` if it dies again. Nothing is retried beyond that; the
 publishes at v3.0.0 — NovelFull 2.3.4, Scribble Hub 1.0.2, Royal Road 2.3.4,
 one file per plugin named by its id — each asked POPULAR, a preview and a first
 chapter through the real host (`doc/probes/novel-live.ts`, one solve per
-plugin):
+plugin). Free Web Novel 2.3.10, the same template, was measured on the same
+solver for c663, with `doc/probes/novel-archive.ts` printing which archive
+branch each of its novels took:
 
-| Plugin       | POPULAR                     | Preview                 | First chapter                                     |
-| ------------ | --------------------------- | ----------------------- | ------------------------------------------------- |
-| NovelFull    | 20 in 6.8 s (solve 2.2 s)   | 3,956 chapters in 5.8 s | 18,839 bytes in 3.7 s, at the chapter's own page  |
-| Scribble Hub | 25 in 8.7 s (solve 4.1 s)   | 1 chapter in 17.6 s     | 18,157 bytes in 13.8 s, at the chapter's own page |
-| Royal Road   | 20 in 14.8 s (solve 13.3 s) | 109 chapters in 0.8 s   | 54,606 bytes in 0.9 s, at the chapter's own page  |
+| Plugin         | POPULAR                     | Preview                 | First chapter                                     |
+| -------------- | --------------------------- | ----------------------- | ------------------------------------------------- |
+| NovelFull      | 20 in 6.8 s (solve 2.2 s)   | 3,956 chapters in 5.8 s | 18,839 bytes in 3.7 s, at the chapter's own page  |
+| Scribble Hub   | 25 in 8.7 s (solve 4.1 s)   | 1 chapter in 17.6 s     | 18,157 bytes in 13.8 s, at the chapter's own page |
+| Royal Road     | 20 in 14.8 s (solve 13.3 s) | 109 chapters in 0.8 s   | 54,606 bytes in 0.9 s, at the chapter's own page  |
+| Free Web Novel | 20 in 8.4 s (solve 4.3 s)   | 3,237 chapters in 7.5 s | no answer in 60 s (three novels); cause unknown   |
 
 - **Both hosts page mode was built for are past their check.** Every page came
   back 200, and the run paid one solve per plugin and no second: NovelFull
@@ -418,8 +428,9 @@ plugin):
   without the header, and the browser's `GET` answered `200`, 668,537 bytes,
   for 3,956 chapters. Its other branch, taken when the novel page exposes a
   chapter count, POSTs the same archive with the `X-Requested-With` header:
-  page mode had nothing to drop here, and a POST needing a header is still
-  unmeasured live.
+  page mode had nothing to drop here. Free Web Novel's branch was measured
+  instead (below), and the header it sets is not needed there; a POST that
+  _needs_ the header is still unmeasured live.
 - **Scribble Hub's chapter list carried its `FormData`.** The url-encoded form
   page mode sends reached `/wp-admin/admin-ajax.php` as a `POST` and answered
   `200`, 372 bytes, for the one chapter the novel its POPULAR lists first has.
@@ -429,6 +440,85 @@ plugin):
 - **Every chapter's request ended where the plugin asked it to**, so the page
   a chapter's pictures resolve against (c631) is the one the downloader
   computed before it: none of these three hosts redirected a chapter.
+- **Free Web Novel took the POST branch, and did not need the header it sets
+  (c663).** `FWN.com` 2.3.10 uses the same `readnovelfull` template as
+  NovelFull; its novel page carries `id="indexListPage" …
+data-total-chapters="3237"`, so the plugin's `y` is truthy and it POSTs its
+  archive (`api/chapterlist.php`) rather than GETting it. Page mode sent what
+  a `PageRequest` can carry — the method and a url-encoded `postData`, no
+  headers at all — and the archive answered `200`, 272,477 bytes, for 3,237
+  chapters in 7.5 s. Its `X-Requested-With: XMLHttpRequest` was therefore
+  dropped and the list came back whole, so this host does not need it. A host
+  that does is still unmeasured, and page mode has no field to send one
+  (`PageRequest` is `{ url, method?, postData? }`): that is a shape it cannot
+  carry, not a check it claims to have passed. `doc/probes/novel-archive.ts`
+  walks the first N novels and prints the branch each took. Its own line, and
+  the solver's receipt of the same request (a different run, so `cid` differs;
+  the plugin picks it):
+
+  ```text
+  #1 Shadow Slave | POST https://freewebnovel.com/api/chapterlist.php body="aid=1991&acode=shadow-slave&cid=436" (fields=url+method+postData) -> 200 272477 bytes at https://freewebnovel.com/api/chapterlist.php in 2.8s
+  Incoming request => POST /v1 body: {'cmd': 'request.post', 'url': 'https://freewebnovel.com/api/chapterlist.php', 'maxTimeout': 50000, 'postData': 'aid=1991&acode=shadow-slave&cid=1090'}
+  ```
+
+  Its chapter page is a different matter: page mode did not get one through
+  on 2026-11-06, and why is not known. Three novels were asked (Shadow Slave
+  once more, Invincible and Emperor's Domination), each on its first chapter,
+  and each printed the same line:
+
+  ```text
+  #1 Shadow Slave | GET https://freewebnovel.com/novel/shadow-slave/chapter-1 (fields=url+method) -> the solver did not answer in 60 s in 60.1s
+  #2 Invincible | GET https://freewebnovel.com/novel/invincible-novel/chapter-1 (fields=url+method) -> the solver did not answer in 60 s in 60.1s
+  #3 Emperor's Domination | GET https://freewebnovel.com/novel/emperors-domination/chapter-1 (fields=url+method) -> the solver did not answer in 60 s in 60.1s
+  ```
+
+  The solver's own lines for the first. FlareSolverr logs `Challenge detected`
+  or `Challenge not detected!` once `driver.get` returns, so its log says
+  whether its browser got past navigation to a title at all. Neither line
+  appears for these requests (`grep -c 'Challenge detected'
+temp/novels/round2-solver.log` prints 0), and `Navigating to...` is followed
+  straight by the timeout:
+
+  ```text
+  2026-11-06 18:40:26 INFO     ReqId 139855970195136 Incoming request => POST /v1 body: {'cmd': 'request.get', 'url': 'https://freewebnovel.com/novel/shadow-slave/chapter-1', 'maxTimeout': 50000}
+  2026-11-06 18:40:26 DEBUG    ReqId 139855736596160 Navigating to... https://freewebnovel.com/novel/shadow-slave/chapter-1
+  2026-11-06 18:41:28 ERROR    ReqId 139855970195136 Error: Error solving the challenge. Timeout after 50.0 seconds.
+  ```
+
+  A separate driver, started with `docker exec` in that container, given a 20 s
+  page-load timeout and read straight after load with no wait — not the failing
+  run, whose `get` did not return — saw the same chapter as:
+
+  ```text
+  load: returned
+  current_url: https://freewebnovel.com/novel/shadow-slave/chapter-1
+  title: Just a moment...
+  readyState: complete
+  html length: 44660
+  ```
+
+  That snapshot cannot tell a page that passes from one that fails. Its control
+  was `https://freewebnovel.com/novel/shadow-slave`, the novel page page mode
+  answers `200` in 4.1 s with `Challenge not detected!` and 79,631 bytes, and it
+  saw the same there:
+
+  ```text
+  {"url": "https://freewebnovel.com/novel/shadow-slave", "load": "returned", "landed": "https://freewebnovel.com/novel/shadow-slave", "title": "Just a moment...", "readyState": "complete", "html": 44608, "marker": "no challenge marker"}
+  ```
+
+  The two other chapter pages that driver asked, and that control, each
+  reported `"marker": "no challenge marker"`, so the marker does not separate
+  them either.
+
+  Asked directly with `maxTimeout` 120000, the same address answered
+  `'message': 'Error: Error solving the challenge. Timeout after 120.0 seconds.'`,
+  and with `disableMedia` at 60000, `'Timeout after 60.0 seconds.'`. A plain
+  `curl` with a Chrome user agent answered `200`, 69,509 bytes in 0.7 s, titled
+  `Shadow Slave - Chapter 1: Nightmare Begins`. The host's own fetch of a chapter
+  was not tried. The article is served to a plain request. The solver's browser
+  does not return from navigation within 50 s on a chapter, and does on the
+  novel page. Why is unknown: a check, or a load that never finishes, would both
+  fit what was measured.
 
 A row that no longer matches is a measurement that has moved, not a bug: run
 the probe again before trusting it.
@@ -440,7 +530,8 @@ Chromium's `<pre>`, a form POST and a refused PUT, a picture's image page, a
 site's own 403, the solver's 500, a browser that dies once and twice, a
 timeout, an unreachable solver, a local address refused before the solver
 hears of it and again when a name moves inside, a redirect ending on a local
-address not read back, and one page per host at a time with the same request
+address not read back, a lookup of the address the browser ended on failing
+(c662), and one page per host at a time with the same request
 answered once and two hosts at once. `tests/novel-host.spec.ts`, "a check
 bound to the browser that solved it: page mode (c335)", is the host's half,
 with a site that refuses the host's clearance and passes only the stub
