@@ -351,13 +351,21 @@
 		refilling = refilling.then(async () => {
 			// The list may have gone under it while it waited.
 			if (more.length === 0) return;
+			// The bump and the release go together, as the effect's own refill
+			// did before it was queued (base :355-356): the bump drops a page
+			// request already out, and one this refill's `keepGoing` starts must
+			// not be left holding the flag with its answer dropped (c615, r3).
 			const gen = ++generation;
+			loadingMore = false;
 			const offset = data.series.length;
 			const limit = more.length;
 			const pageAgain = await fetchPage(offset, limit);
 			if (gen !== generation) return;
 			const have = new Set(data.series.map((c) => c.id));
-			more = pageAgain ? pageAgain.filter((c) => !have.has(c.id)) : [];
+			// Nothing came back: keep the pages already drawn. Emptying them
+			// would fold a deep grid to its first page on a blip, and a write
+			// that failed to reload would read its band off a tile now gone.
+			if (pageAgain) more = pageAgain.filter((c) => !have.has(c.id));
 			ended = false;
 			void keepGoing();
 		});
@@ -367,11 +375,18 @@
 	/**
 	 * A write's reload: the load's first page, then the loaded pages after it,
 	 * so a tile anywhere in the grid reads what the server stored before the
-	 * turn settles (c615, round 2).
+	 * turn settles (c615, round 2). One refill per write: `invalidateAll`
+	 * resolves after the effect has queued its own for the new `data.series`,
+	 * so this awaits that one rather than asking again (c615, r3). Only a first
+	 * page that came back identical leaves nothing queued, and then the pages
+	 * past it are asked for here. The HIDE and UNDO callers keep their forced
+	 * call: their change can land only on tiles past the first page, which the
+	 * effect's `refilledFor` guard would not re-read.
 	 */
 	async function reloadList() {
+		const before = data.series;
 		await invalidateAll();
-		await refillPages(true);
+		await refillPages(data.series === before);
 	}
 
 	// A new shelf, tag or sort starts again from its first page. The same one

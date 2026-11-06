@@ -1,4 +1,4 @@
-import { type Page } from '@playwright/test';
+import { type Page, type Request } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
@@ -447,6 +447,212 @@ test.describe('two quick taps on a tile (c615)', () => {
 		await expect(fav).toHaveAttribute('aria-pressed', 'false');
 		await page.reload();
 		await drawTile();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+	});
+
+	/**
+	 * A phone and a page of six: the seed runs past what loads on arrival, so
+	 * the grid still has pages to ask for after the first page and a tile past
+	 * it can be tapped. The library's own load is the same one; only the
+	 * viewport and the page size are pinned for the case.
+	 */
+	async function gridOnAPhone(page: Page) {
+		// 360x600: three columns, so a page of six is two rows. Taller and the
+		// end stays in reach until the shelf is whole; shorter and only the
+		// first two pages come, which a refill cannot be told from a loadMore by.
+		await page.setViewportSize({ width: 360, height: 600 });
+		await page
+			.context()
+			.addCookies([{ name: 'tsundoku_grid_page', value: '6', url: 'http://localhost' }]);
+		const pages = (u: URL) => u.pathname === '/api/library' && !u.searchParams.has('ids');
+		// `waitForLoadState('networkidle')` answers at once once it has fired for
+		// the document, so the pages' own requests are what says they are in:
+		// nothing asked for a moment (`settled`).
+		const inFlight = new Set<Request>();
+		const isPage = (r: Request) => pages(new URL(r.url()));
+		page.on('request', (r) => isPage(r) && inFlight.add(r));
+		const done = (r: Request) => inFlight.delete(r);
+		page.on('requestfinished', done);
+		page.on('requestfailed', done);
+		/** Nothing asked for a moment: the pages that were coming have come. */
+		const settled = async () => {
+			let quiet = 0;
+			await expect
+				.poll(() => (quiet = inFlight.size === 0 ? quiet + 1 : 0), {
+					intervals: [250],
+					timeout: 20_000
+				})
+				.toBeGreaterThanOrEqual(4);
+		};
+
+		await page.goto('/?shelf=all&sort=title');
+		// The pages come in as the end comes near, until it moves out of reach.
+		await settled();
+		const tiles = page.locator('.grid .tile');
+		const more = page.locator('.more');
+		const loaded = await tiles.count();
+		// Two pages past the first, so a refill's `limit` (the loaded pages'
+		// count) is not a page size: that is how the cases below tell a refill
+		// from a loadMore, which always asks for six.
+		expect(loaded).toBeGreaterThan(12);
+		// A tile unfavourited, so a tap turns FAV on, by index: a locator on
+		// `[aria-pressed="false"]` would move on to the next one when it is tapped.
+		const favs = page.locator('.grid .tile button.fav');
+		const favIdx = await favs.evaluateAll((els) =>
+			els.findIndex((el) => el.getAttribute('aria-pressed') === 'false')
+		);
+		expect(favIdx).toBeGreaterThanOrEqual(0);
+		const fav = favs.nth(favIdx);
+		/** A refill: the write's reload of the pages after the first. */
+		const isRefill = (u: URL) =>
+			u.pathname === '/api/library' &&
+			Number(u.searchParams.get('offset')) === 6 &&
+			Number(u.searchParams.get('limit')) > 6;
+		return { tiles, more, loaded, fav, isRefill, pages };
+	}
+
+	test('a save does not leave the grid unable to load more pages (c615)', async ({ page }) => {
+		const { tiles, more, loaded, isRefill, pages } = await gridOnAPhone(page);
+		// A little down the grid (nowhere near the end), so a row is in view.
+		await page.evaluate(() => scrollTo({ top: 300, behavior: 'instant' }));
+		const at = await tiles.evaluateAll((els) =>
+			els.findIndex((el) => {
+				const top = el.getBoundingClientRect().top;
+				return (
+					top > 0 &&
+					top < innerHeight &&
+					el.querySelector('button.fav[aria-pressed="false"]') !== null &&
+					el.querySelector('[aria-label^="Rate, "]') !== null
+				);
+			})
+		);
+		expect(at).toBeGreaterThanOrEqual(0);
+		const tile = tiles.nth(at);
+		const fav = tile.locator('button.fav');
+		const bars = tile.getByRole('button', { name: /^Rate, / });
+		// Its own rating, put back after: the seed rates most tiles.
+		const wasRated = await bars.getAttribute('aria-label');
+		// The grid still has pages to ask for, or the case proves nothing.
+		await expect(more).toHaveCount(1);
+
+		// Hold the first save's reload of the pages, and the page the grid asks
+		// for once the second save's data has landed: both are still out when
+		// the second refill's bump comes. A bump that does not release
+		// `loadingMore` leaves every page after it refused (c615, r3).
+		let release!: () => void;
+		const held = new Promise<void>((r) => (release = r));
+		let refillHeld = false;
+		let pageHeld = false;
+		let refills = 0;
+		await page.route(pages, async (route) => {
+			const u = new URL(route.request().url());
+			if (isRefill(u)) {
+				refills++;
+				if (!refillHeld) {
+					refillHeld = true;
+					await held;
+				}
+			} else if (Number(u.searchParams.get('offset')) > 6 && !pageHeld) {
+				pageHeld = true;
+				await held;
+			}
+			return route.continue();
+		});
+
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+		await expect.poll(() => refillHeld).toBe(true);
+		// The rating is a second save on its own key, so it does not wait for the
+		// first: its reload is queued behind that one.
+		const reloaded = page.waitForResponse((r) => new URL(r.url()).pathname === '/__data.json');
+		await bars.click();
+		await tile.getByRole('button', { name: 'Rate 5 of 10' }).click();
+		await reloaded;
+		// The end brought into view after that reload's own release, so the page
+		// it asks for is out when the second refill starts.
+		await more.scrollIntoViewIfNeeded();
+		await expect.poll(() => pageHeld).toBe(true);
+		release();
+		// Two refills: the second has bumped over the page asked for above.
+		await expect.poll(() => refills).toBeGreaterThan(1);
+
+		for (let i = 0; i < 20 && (await more.count()) > 0; i++) {
+			await more.scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => undefined);
+			await page.waitForTimeout(150);
+		}
+		await expect(more).toHaveCount(0);
+		expect(await tiles.count()).toBeGreaterThan(loaded);
+		await expect(page.getByText('LOADING', { exact: true })).toHaveCount(0);
+		await page.unroute(pages);
+
+		// Put it back as the seed has it.
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await bars.click();
+		const back = /(\d+) of 10/.exec(wasRated ?? '')?.[1];
+		await tile.getByRole('button', { name: back ? `Rate ${back} of 10` : 'Unrated' }).click();
+		await expect(bars).toHaveAttribute('aria-label', wasRated!);
+		await page.reload();
+		await expect(tiles.nth(at).locator('button.fav')).toHaveAttribute('aria-pressed', 'false');
+	});
+
+	test('a tile save refills the loaded pages once, and no more (c615)', async ({ page }) => {
+		const { loaded, fav, isRefill, pages } = await gridOnAPhone(page);
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+
+		// Every refill the save sends, by its `limit`: the loaded pages' count.
+		const refills: number[] = [];
+		await page.route(pages, async (route) => {
+			const u = new URL(route.request().url());
+			if (isRefill(u)) refills.push(Number(u.searchParams.get('limit')));
+			return route.continue();
+		});
+		// A second tap on the same key, lost on the wire: its save is sent only
+		// after the first turn has settled -- its reload included -- so its own
+		// band is the mark that everything the first turned sent is in.
+		const isFav = (u: URL) => u.pathname === '/' && u.search === '?/favourite';
+		let posts = 0;
+		await page.route(isFav, (route) => (++posts === 1 ? route.continue() : route.abort()));
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await expect(page.getByText('UNFAV NOT SAVED')).toBeVisible();
+		// One, not the effect's refill and a forced one behind it (c615, r3).
+		expect(refills).toEqual([loaded - 6]);
+		await page.unroute(isFav);
+		await page.unroute(pages);
+
+		// Put it back as the seed has it: FAV is what turn 1 stored.
+		await page.reload();
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await page.reload();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+	});
+
+	test('a refill that fails keeps the pages already drawn (c615)', async ({ page }) => {
+		const { tiles, loaded, fav, isRefill, pages } = await gridOnAPhone(page);
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+
+		// The write's own refill is lost on the wire, and so is every page after
+		// it (the grid would otherwise put the collapsed pages straight back).
+		await page.route(pages, (route) => route.abort());
+		const lost = page.waitForEvent('requestfailed', {
+			predicate: (r) => isRefill(new URL(r.url()))
+		});
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+		await lost;
+		// A blip must not fold a deep grid back to its first page.
+		await expect(tiles).toHaveCount(loaded);
+		await page.unroute(pages);
+
+		// Put it back as the seed has it.
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await page.reload();
 		await expect(fav).toHaveAttribute('aria-pressed', 'false');
 	});
 });

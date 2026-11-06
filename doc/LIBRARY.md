@@ -312,7 +312,20 @@ Work's parts sit across the boundary (`doc/WORKS.md`).
 - **A re-read of the same shelf** (a rating saved, a scan in progress) re-reads
   every loaded page after the first as well, in one request, so a tile deep in
   the grid shows the server's value. A new shelf, tag or sort starts again from
-  its first page. A request answered after the list changed is dropped.
+  its first page. A request answered after the list changed is dropped. A
+  re-read that answers nothing keeps the pages already drawn: a blip must not
+  fold a deep grid back to its first page.
+- **One re-read per reload.** A write's reload is the load's first page and
+  then the loaded pages, and the first page's refresh is what queues the
+  second: the reload waits for that one rather than asking again. Only a first
+  page that came back identical leaves nothing queued, and then the reload
+  asks for the pages itself. Two of them in a row would refetch every loaded
+  page twice.
+- **A re-read drops any page that was still on its way, and lets go of the
+  loading flag with it.** A page requested before the re-read has a stale
+  position, so its answer is dropped; the flag said a page was out, and the
+  re-read clears it in the same breath, or every page after it would be
+  refused and the row below the grid would read LOADING for good (c615, r3).
 - **SELECT ALL** means the whole shelf, tiles and all. The ids of pages not yet
   loaded come from `/api/library?ids`, without their cards, and a Work's every
   part is among them even when a kind, collection, NEW or FAV shelf picked only
