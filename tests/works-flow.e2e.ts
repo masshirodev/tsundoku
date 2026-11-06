@@ -1532,10 +1532,12 @@ test('a refused UNDO on the library says why with no selection open (c469)', asy
  * under SELECT showed nowhere and UNDO looked as if it had worked. Reached
  * through the app as the case above: GROUP's band is up in one tab while the
  * other takes a part out and ends the Work, but here SELECT is pressed before
- * the band's UNDO. The refusal is the band (not the bar's line), and ✕ retires
- * it without bringing it back.
+ * the band's UNDO. The refusal is the band (not the bar's line), and the next
+ * form sent -- a bulk HIDE here -- retires it. ✕ then moves the owner on
+ * without bringing it back; a ✕ pressed with the refusal still drawn is the
+ * case below (c649).
  */
-test('a band’s UNDO refused while a selection is open says so, and ✕ retires it (c469)', async ({
+test('a band’s UNDO refused while a selection is open says so, and the form sent after it retires it (c469)', async ({
 	page,
 	context
 }) => {
@@ -1592,6 +1594,61 @@ test('a band’s UNDO refused while a selection is open says so, and ✕ retires
 	await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
 	await expect(refusal).toHaveCount(0);
 	await page.getByRole('button', { name: 'Stop selecting' }).click();
+});
+
+/**
+ * c649 (works review r1, low 1): the case above says "✕ retires it", but by the
+ * time ✕ was pressed the HIDE step had already retired the refusal, so no copy
+ * had ever seen ✕ meet one. This is that state, reached the same way: a band's
+ * UNDO is refused while a selection is open, and ✕ is pressed with the refusal
+ * drawn under it. If ✕ stopped setting `passed`, the band would still be drawn
+ * right after the press, which is what the first assertion below would catch.
+ */
+test('✕ retires a refusal that is visible under a selection, and the next SELECT does not bring it back (c649)', async ({
+	page,
+	context
+}) => {
+	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren'], 'Refused Run Three');
+	const made = page.locator('.band', { hasText: 'REFUSED RUN THREE IS A WORK' });
+	await expect(made).toBeVisible();
+
+	const other = await context.newPage();
+	await other.goto('/');
+	await openWork(other, 'Refused Run Three');
+	await other.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await other.locator('.run .part', { hasText: 'Sousou no Frieren' }).locator('.rowlink').click();
+	await other.getByRole('button', { name: 'TAKE OUT' }).click();
+	await expect(
+		other.locator('.band', { hasText: 'REFUSED RUN THREE IS NO LONGER A WORK' })
+	).toBeVisible();
+	await other.close();
+
+	// SELECT, then the band's UNDO: the refusal is drawn, and still selecting.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
+	await expect(made).toBeVisible();
+	await made.getByRole('button', { name: 'UNDO' }).click();
+	const refusal = page.locator('.band', {
+		hasText: 'REFUSED RUN THREE HAS CHANGED SINCE IT WAS MADE'
+	});
+	// The state the card names, asserted right before the press.
+	await expect(refusal).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
+
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toBeVisible();
+	await expect(refusal).toHaveCount(0);
+	await expect(page.locator('.lib-band .band')).toHaveCount(0);
+
+	// Nor on the next selection: the answer was passed, not merely hidden.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
+	await expect(refusal).toHaveCount(0);
+	await expect(page.locator('.lib-band .band')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+
+	// The take-out ended the Work, so nothing is left to put back.
+	await expect(workTile(page, 'Refused Run Three')).toHaveCount(0);
 });
 
 /**
