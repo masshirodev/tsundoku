@@ -15,7 +15,9 @@
 #
 # The data folder (/mnt/hdd2/tsundoku: its .env, the database, the library)
 # is the release's own business and isn't touched here. Older bundles stay
-# beside the new one, so going back is pointing `current` at one again.
+# beside the new one. Going back is this script with the older version, never
+# `current` moved by hand: the timers' checkout and their units have to move too
+# (doc/SERVING.md, "Going back").
 set -eu
 
 version=${1:?usage: install-release.sh <version>}

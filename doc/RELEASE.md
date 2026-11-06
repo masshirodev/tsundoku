@@ -9,15 +9,29 @@ workstation runs a release too, the same Linux bundle, installed with
 ## Making one
 
 ```sh
+git push origin main                  # the commit to ship, on origin first
 git tag release/2026.10.29            # the commit to ship
+git push origin release/2026.10.29    # the tag too: git push never sends one by itself
 yarn run release 2026.10.29           # both platforms, from that tag
+ops/release/android-apk.sh 2026.10.29 # both apps, from that tag, with the keystore
 ops/release/smoke.sh 2026.10.29       # every bundle, where tsundoku has never been
+$EDITOR ops/release/notes/2026.10.29.txt
+yarn run release:publish 2026.10.29   # the owner's call: this reaches friends
 ```
 
 `yarn run release <version> --ref HEAD` builds a **trial** from a commit with
 no tag (its `release.json` says `"trial": true`); `--platform win-x64` builds
 one. Versions are dates, `YYYY.MM.DD[.N]`, as Lattice's are, and tags are
 `release/<version>`, never `v*`.
+
+**The tag goes to origin as soon as it is made**, before anything is built.
+No build depends on it (`release`, `android-apk.sh` and `smoke.sh` read the
+local tag, and nothing on GitHub listens for one: `site.yml` is the only
+workflow). It is pushed because it is the release's only record of its source:
+it says which commit a friend's bundle came from, `install-release.sh` fetches
+it from origin for the timers' checkout, and a tag on this disk alone is lost
+with this disk. A version whose build or smoke test fails keeps its tag, and the
+fix is the next `.N` (2026.11.06 was followed by 2026.11.06.1).
 
 Out come, under `/mnt/hdd2/tsundoku/release/out/<version>/`:
 
