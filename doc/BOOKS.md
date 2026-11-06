@@ -30,8 +30,10 @@ books": `isBookSeries()` in `src/lib/library/series.ts` asks the question,
 `isSingleton()` in `src/lib/server/books.ts` asks its mirror, and the two
 must agree. Since c558 `isSingleton()` counts books as FILTER's ONE-OFF does
 (`isBookSql`: no shadowed entry, no front or back matter;
-[`FILTERS.md`](FILTERS.md), FORM), so a book with an extra beside it is one
-book. `isBookSeries()` still counts the series screen's entries, extras
+[`FILTERS.md`](FILTERS.md), FORM, lists every reader and the `rg` that finds
+them), and so do MOVE TO… and ADD TO EXISTING's targets (`seriesOfBooks`),
+the books a suggestion may name, and FOLD AS LANGUAGES: a book with an extra
+beside it is one book. `isBookSeries()` still counts the series screen's entries, extras
 included, so on that one shape -- a book and an extra, which no importer writes on a
 doujin today (only the EPUB plans set matter) -- the screen draws a series of books while FORM and
 `isSingleton()` call it a single book; its patch is in

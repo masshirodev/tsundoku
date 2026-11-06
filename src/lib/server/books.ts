@@ -719,7 +719,11 @@ export function setBookFavourite(seriesId: number, entryId: number, on: boolean)
 
 // ---- suggestions -------------------------------------------------------------
 
-/** Visible doujin singletons: the only things a suggestion may name. */
+/**
+ * Visible one-book series: the only things a suggestion may name. One book
+ * as ONE-OFF counts it (`isBookSql`, c558), so a book with an extra or a
+ * folded edition beside it is a candidate too.
+ */
 function singletonCandidates(
 	reveal: boolean
 ): (Candidate & { hue: number; addedAt: number; cover: number | null })[] {
@@ -728,7 +732,7 @@ function singletonCandidates(
 			`SELECT s.id AS seriesId, s.title, s.hue, s.added_at AS addedAt, s.cover_at AS cover
 			FROM series s JOIN roots r ON r.id = s.root_id
 			WHERE ${kindsIn('books')} AND ${libraryWhere(reveal)}
-			AND (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) = 1`
+			AND (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND ${isBookSql('e')}) = 1`
 		)
 		.all() as (Candidate & { hue: number; addedAt: number; cover: number | null })[];
 }
@@ -773,16 +777,19 @@ export type BookSeriesOption = { id: number; title: string; books: number; rootI
 
 /**
  * Series of books the viewer can see: where MOVE TO… and ADD TO EXISTING can
- * send a book. Grouping still refuses a target in another root.
+ * send a book. Grouping still refuses a target in another root. A series is
+ * two books or more, and `books` counts them, as ONE-OFF does (`isBookSql`,
+ * c558): a book with an extra or a folded edition is a one-off, not a series
+ * of 2 BOOKS.
  */
 export function seriesOfBooks(reveal: boolean): BookSeriesOption[] {
 	return getDb()
 		.prepare(
 			`SELECT s.id, s.title, s.root_id AS rootId,
-				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS books
+				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND ${isBookSql('e')}) AS books
 			FROM series s JOIN roots r ON r.id = s.root_id
 			WHERE ${kindsIn('books')} AND ${libraryWhere(reveal)}
-			AND (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) > 1
+			AND (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND ${isBookSql('e')}) > 1
 			ORDER BY s.title COLLATE NOCASE`
 		)
 		.all() as BookSeriesOption[];

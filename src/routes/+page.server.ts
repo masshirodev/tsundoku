@@ -28,6 +28,7 @@ import {
 	GroupingError,
 	dismissSuggestion,
 	groupIntoSeries,
+	isBookSql,
 	seriesOfBooks,
 	seriesOfVolumes
 } from '$lib/server/books';
@@ -457,7 +458,10 @@ export const actions: Actions = {
 	/**
 	 * FOLD AS LANGUAGES (doc/EDITIONS.md): two or three single books, one per
 	 * language, go to the duplicates review as a pair to fold -- the review is
-	 * where editions are folded, whoever found them.
+	 * where editions are folded, whoever found them. A single book is one as
+	 * ONE-OFF counts it (`isBookSql`, c558), which is also how the bar's
+	 * `entryCount` offers FOLD: an extra beside the book stays where it is, and
+	 * the book's own entry is the one offered to fold.
 	 */
 	fold: async ({ request }) => {
 		const target = ids(await request.formData());
@@ -465,8 +469,8 @@ export const actions: Actions = {
 			return fail(400, { foldMessage: 'FOLD TWO OR THREE BOOKS' });
 		const rows = getDb()
 			.prepare(
-				`SELECT s.id, s.kind, (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS n,
-					(SELECT MIN(e.id) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS entry
+				`SELECT s.id, s.kind, (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND ${isBookSql('e')}) AS n,
+					(SELECT MIN(e.id) FROM entries e WHERE e.series_id = s.id AND ${isBookSql('e')}) AS entry
 				FROM series s WHERE s.id IN (${target.map(() => '?').join(',')})`
 			)
 			.all(...target) as { id: number; kind: string; n: number; entry: number }[];

@@ -1,4 +1,16 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+
+// FOLD AS LANGUAGES ends in the duplicates review, which reads the books'
+// pages; the seed has none on disk. What the action asks it to fold is the
+// answer under test (c558's round 2), so the review's door only records it.
+const folded = vi.hoisted(() => [] as number[][]);
+vi.mock('$lib/server/dupes', async (original) => ({
+	...(await original<typeof import('$lib/server/dupes')>()),
+	offerFold: async (entryIds: number[]) => {
+		folded.push(entryIds);
+		return 'pair';
+	}
+}));
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
@@ -679,6 +691,96 @@ describe('ONE-OFF counts one book the same way everywhere (c558)', () => {
 					}
 				).n
 			).toBe(2);
+		});
+	});
+
+	// c558's round 2: the rule's other readers in this slot's files.
+
+	it('offers a book with an extra to no MOVE TO or ADD TO EXISTING as a series of 2 BOOKS', async () => {
+		const { seriesOfBooks } = await import('$lib/server/books');
+		const book = single();
+		for (const row of [
+			{ matter: 'back', shadowed: 0 },
+			{ matter: '', shadowed: 1 }
+		])
+			await beside(book.id, row, () => {
+				expect(seriesOfBooks(true).map((s) => s.id)).not.toContain(book.id);
+			});
+		// A real series of books keeps its count with an extra beside it.
+		const bound = lib.listSeries({ reveal: true }).find((c) => c.title === BOOK_SERIES_TITLE)!;
+		const count = () => seriesOfBooks(true).find((s) => s.id === bound.id)?.books;
+		const books = count();
+		expect(books).toBeGreaterThan(1);
+		await beside(bound.id, { matter: 'back', shadowed: 0 }, () => {
+			expect(count()).toBe(books);
+		});
+	});
+
+	it('suggests a book with an extra beside it, as a one-off', async () => {
+		const { suggestionFor } = await import('$lib/server/books');
+		// Two hidden books that share a stem: the seed's own suggestion.
+		const pair = lib
+			.listSeries({ reveal: true })
+			.filter((c) => c.title.startsWith('Kaori Mama') && c.entryCount === 1);
+		const one = pair.find((c) => suggestionFor(c.id, true) !== null);
+		if (!one) throw new Error('the seed suggests no pair of books');
+		const before = suggestionFor(one.id, true)!.books.map((b) => b.seriesId);
+		await beside(one.id, { matter: 'back', shadowed: 0 }, () => {
+			expect(suggestionFor(one.id, true)?.books.map((b) => b.seriesId)).toEqual(before);
+		});
+	});
+
+	it('folds a book with an extra beside it, and offers the book, not the extra', async () => {
+		const library = await import('../src/routes/+page.server');
+		const [a, b] = lib
+			.listSeries({ reveal: false, filters: only({ form: 'oneoff' }) })
+			.filter((c) => c.entryCount === 1);
+		const fold = async () => {
+			const body = new FormData();
+			for (const id of [a.id, b.id]) body.append('id', String(id));
+			try {
+				return await (library.actions.fold as (e: unknown) => Promise<unknown>)({
+					request: new Request('http://localhost/', { method: 'POST', body })
+				});
+			} catch (e) {
+				// The review's own page is SvelteKit's success for FOLD.
+				if (e && typeof e === 'object' && 'location' in e) return { location: e.location };
+				throw e;
+			}
+		};
+		const bookOf = (id: number) =>
+			(
+				getDb().prepare(`SELECT MIN(id) AS id FROM entries WHERE series_id = ?`).get(id) as {
+					id: number;
+				}
+			).id;
+		const own = bookOf(a.id);
+		for (const row of [
+			{ matter: 'back', shadowed: 0 },
+			{ matter: '', shadowed: 1 }
+		])
+			await beside(a.id, row, async () => {
+				folded.length = 0;
+				expect(await fold()).toEqual({ location: '/duplicates?pair=pair' });
+				expect(folded).toEqual([[own, bookOf(b.id)]]);
+			});
+		// The extra written before the book: MIN(id) over the series is the
+		// extra's, and the book's own entry is still the one offered.
+		await beside(a.id, { matter: '', shadowed: 0 }, async () => {
+			const db = getDb();
+			const added = (
+				db.prepare(`SELECT MAX(id) AS id FROM entries WHERE series_id = ?`).get(a.id) as {
+					id: number;
+				}
+			).id;
+			db.prepare(`UPDATE entries SET matter = 'front' WHERE id = ?`).run(own);
+			try {
+				folded.length = 0;
+				expect(await fold()).toEqual({ location: '/duplicates?pair=pair' });
+				expect(folded).toEqual([[added, bookOf(b.id)]]);
+			} finally {
+				db.prepare(`UPDATE entries SET matter = '' WHERE id = ?`).run(own);
+			}
 		});
 	});
 });
