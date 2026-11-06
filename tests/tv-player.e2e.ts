@@ -212,6 +212,51 @@ test('the settings cell opens the 420px panel, ← → changes a row, BACK gives
 	await expect(settings).toBeFocused();
 });
 
+test('the DIM range keeps ← → and lets ↑ leave it on a TV (c611)', async ({ page }) => {
+	await openEpisode(page);
+	await play(page);
+	// Paused, so the clip cannot end under the panel and the bar stays up
+	// (c448, as the settings case above).
+	await page.locator('video').evaluate((v: HTMLVideoElement) => v.pause());
+	await expect(page.locator('.cells .pause')).toHaveAttribute('aria-label', 'Play');
+	await page.locator('.cells .grow').focus();
+	await page.keyboard.press('Enter');
+	const panel = page.getByRole('dialog', { name: 'Playback settings' });
+	await expect(panel).toBeVisible();
+
+	const dim = panel.getByRole('slider', { name: 'Dim' });
+	const at = () => dim.inputValue();
+	await dim.focus();
+	expect(await at()).toBe('0');
+	// A native range with no attribute keeps the arrows along its axis (c259):
+	// the browser's own step, 0.05 here.
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(at).toBe('0.05');
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(at).toBe('0.1');
+	await page.keyboard.press('ArrowLeft');
+	await expect.poll(at).toBe('0.05');
+	await page.keyboard.press('ArrowLeft');
+	await expect.poll(at).toBe('0');
+
+	// ↑ leaves it. Before c259 a native range kept all four arrows, so the pad
+	// was trapped in DIM (↑ stepped the value and nothing got out).
+	await page.keyboard.press('ArrowUp');
+	await expect(dim).not.toBeFocused();
+	await expect
+		.poll(() =>
+			page.evaluate(() => {
+				const a = document.activeElement as HTMLElement | null;
+				return {
+					inPanel: !!a?.closest('[role="dialog"]'),
+					isDim: a?.getAttribute('aria-label') === 'Dim'
+				};
+			})
+		)
+		.toEqual({ inPanel: true, isDim: false });
+	await expect.poll(at).toBe('0');
+});
+
 test('the media keys a remote sends: ▶❚❚, ⏩ and ⏪', async ({ page }) => {
 	await openEpisode(page);
 	await play(page);
