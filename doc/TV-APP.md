@@ -207,7 +207,8 @@ update (each cleans its argument through `originOf`), `FailedLoad` (fed by
 `MainActivity.originOf(Uri)`, which lower-cases too, though Chromium's URL
 already is), `PairingBridge.remember`, `probe` and `forgetOne`, and the
 cookie's (`Forget.pairedCookie` reads only the scheme, lower-cased, and the
-port; `CookieManager` matches hosts without case).
+port; `CookieManager` matches hosts without case). `BridgeGuard.refusesNavigation`
+and `refusesEmbedding` (c549, round 2) read the asset host without case too.
 
 The check is 9B's own: the web app manifest, through `PairingBridge`. A given
 address goes through the same `#connect=` path in the asset page, remembers
@@ -493,6 +494,15 @@ verified".
      never trusted; `BridgeGuard.ASSET`, `Back.kt` and the client's failed-load
      and visit checks recognise the page by that https URL and nothing else,
      and `allowFileAccess` is off now that nothing loads a `file://` page.
+     Because the page is an ordinary https URL now, the client also refuses
+     every navigation into that host (`shouldOverrideUrlLoading`, through
+     `BridgeGuard.refusesNavigation`) and answers a sub-frame's request for it
+     404 (`BridgeGuard.refusesEmbedding`): otherwise a server's page — or an
+     external link followed from one — could set `location` to the asset URL
+     with `#connect=`, and the pair page would probe and remember an
+     attacker's server with no input from the owner. The app's own `loadUrl`
+     never reaches `shouldOverrideUrlLoading`, and the page's own hash changes
+     are same-document, so the screens' navigation is unchanged.
      `androidx.webkit:webkit:1.14.0` resolves offline from this machine's
      Gradle cache. `tests/tv-app-pair.e2e.ts` still opens the asset file in a
      browser and is not the loader: the WebView half is JVM-tested where it is
@@ -829,7 +839,15 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   must land on the screen before it, not on the app's own page; and with the
   computer switched off, open that server from SERVERS, so 9D draws — the
   failed load's page, not the WebView's grey one. If any of those is blank,
-  the loader's path handler is what to look at first.
+  the loader's path handler is what to look at first. **Then the navigation
+  guard (c549, round 2):** from a server's library, open (or type into the
+  console) a link to
+  `https://appassets.androidplatform.net/pair/index.html#connect=http://example.com:42143`;
+  nothing may happen — the page stays where it was, no 9B, no CHECKING, and
+  MORE › SERVERS must gain no `example.com` entry. The same URL typed into a
+  page's console as `location.href` must be refused the same way, and a
+  server page that tries to embed the asset page in a frame must show a 404
+  rather than the pair screen.
 - **Launcher shortcuts (c287).** Built and planned in a JVM test, never seen
   on a launcher. Check: long-press tsundoku's icon on the TV's home screen
   (and on a phone, where Android's launcher does show app shortcuts). One
@@ -851,7 +869,12 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   `BridgeGuardTest`, `FailedLoadTest`, `ForgetTest`, `FormTest`,
   `InsetsTest`, `IntentAddressTest`, `KeysTest`, `MessageGuardTest`,
   `NetworkTest`, `PairingBridgeTest`, `ProbeTest`, `ScaleTest`, `ServersTest`,
-  `ShortcutsTest` (138 tests in 17 classes per flavor at wave 29), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
+  `ShortcutsTest` (139 tests in 17 classes per flavor at wave 29), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
+  `BridgeGuardTest` (9) includes c549's round-2 case: a navigation to the
+  asset host with `#connect=`, `#add` or `#rename=` is refused, a frame's
+  request for it is refused, the host is read case-blind, and a known or an
+  unknown server's page — and a URL that merely carries the host in a query —
+  is not.
   `MessageGuardTest` (8) is c549's part (b), the per-message rule
   `BridgeGuard.allowsMessage`, every input an origin as the listener delivers
   one: a third-party frame inside a known server's page is refused, a known

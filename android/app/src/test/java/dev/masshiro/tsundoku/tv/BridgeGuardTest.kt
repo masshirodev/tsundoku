@@ -79,7 +79,8 @@ class BridgeGuardTest {
 	}
 
 	@Test
-	fun `a server typed with capitals is trusted on its lower-case pages (c548)`() {		// What 9B's TYPE THE WHOLE ADDRESS stored for http://Zen.local:42143,
+	fun `a server typed with capitals is trusted on its lower-case pages (c548)`() {
+		// What 9B's TYPE THE WHOLE ADDRESS stored for http://Zen.local:42143,
 		// read back through Servers.decode; WebView's URL is lower case.
 		val stored = Servers.decode("http://Zen.local:42143\tZEN\t\t5\t5").map { it.origin }.toSet()
 		assertTrue(BridgeGuard.allows("http://zen.local:42143/") { it in stored })
@@ -106,5 +107,36 @@ class BridgeGuardTest {
 		assertFalse(BridgeGuard.allows("HTTPS://192.168.1.23:42143/") { it in stored })
 		// originOf reads a file URL to no host, so no capitalisation makes it a page.
 		assertFalse(BridgeGuard.allows("FILE:///android_asset/pair/index.html") { it in stored })
+	}
+
+	@Test
+	fun `nothing navigates into the app's own page, and only its host is refused (c549, round 2)`() {
+		// A page setting `location` to the pair page with a fragment that makes
+		// it act: the hole the move to https opened, closed at the navigation.
+		assertTrue(
+			BridgeGuard.refusesNavigation(BridgeGuard.ASSET + "#connect=http%3A%2F%2Fevil%3A42143")
+		)
+		assertTrue(BridgeGuard.refusesNavigation(BridgeGuard.ASSET + "#add"))
+		assertTrue(BridgeGuard.refusesNavigation(BridgeGuard.ASSET + "#rename=x"))
+		// The host is read case-blind, whatever the scheme and path.
+		assertTrue(BridgeGuard.refusesNavigation("HTTPS://APPASSETS.androidplatform.net/pair/index.html"))
+		assertTrue(BridgeGuard.refusesNavigation("http://${BridgeGuard.ASSET_HOST}/anything?x=1#y"))
+		// A frame's request for the host is an embed; the main frame's is the
+		// app's own load, which the loader answers.
+		assertTrue(BridgeGuard.refusesEmbedding(BridgeGuard.ASSET, false))
+		assertTrue(BridgeGuard.refusesEmbedding("HTTPS://${BridgeGuard.ASSET_HOST}/pair/index.html", false))
+		assertFalse(BridgeGuard.refusesEmbedding(BridgeGuard.ASSET, true))
+		// Every other page is somebody's to navigate to, known or not.
+		assertFalse(BridgeGuard.refusesNavigation("$home/"))
+		assertFalse(BridgeGuard.refusesNavigation("$zen/series/12"))
+		assertFalse(BridgeGuard.refusesNavigation("https://example.com/"))
+		// The host in a path or a query is not the host of the page.
+		assertFalse(
+			BridgeGuard.refusesNavigation(
+				"https://example.com/?next=https://${BridgeGuard.ASSET_HOST}/pair/index.html"
+			)
+		)
+		assertFalse(BridgeGuard.refusesNavigation(null))
+		assertFalse(BridgeGuard.refusesNavigation(""))
 	}
 }

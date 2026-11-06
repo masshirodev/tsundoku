@@ -383,15 +383,32 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			 * The app's own page is served here, never by the network (c549):
 			 * [BridgeGuard.ASSET_HOST]'s every request goes through the loader,
 			 * and a path it does not hold is 404 rather than a request that
-			 * could reach a real host. The rest of the WebView is untouched.
+			 * could reach a real host. A sub-frame's request for the host is
+			 * 404 too ([BridgeGuard.refusesEmbedding]): no page may embed the
+			 * app's own page. The rest of the WebView is untouched.
 			 */
 			override fun shouldInterceptRequest(
 				view: WebView,
 				request: WebResourceRequest
 			): WebResourceResponse? {
-				if (!request.url.host.equals(BridgeGuard.ASSET_HOST, ignoreCase = true)) return null
+				if (!BridgeGuard.refusesNavigation(request.url.toString())) return null
+				if (BridgeGuard.refusesEmbedding(request.url.toString(), request.isForMainFrame)) return notFound()
 				return assets.shouldInterceptRequest(request.url) ?: notFound()
 			}
+
+			/**
+			 * Nothing navigates into the app's own page (c549, round 2). Since
+			 * the page moved to [BridgeGuard.ASSET] it is an ordinary https URL,
+			 * so a server's page — or an external link followed from one — could
+			 * set `location` to it with `#connect=` and have the pair page add
+			 * an attacker's server. The app's own `loadUrl` never reaches this
+			 * callback, and the page's own hash changes are same-document, so
+			 * only somebody else's navigation is refused here.
+			 */
+			override fun shouldOverrideUrlLoading(
+				view: WebView,
+				request: WebResourceRequest
+			): Boolean = BridgeGuard.refusesNavigation(request.url.toString())
 
 			override fun onReceivedError(
 				view: WebView,

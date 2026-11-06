@@ -49,6 +49,38 @@ object BridgeGuard {
 		return u == ASSET || u.startsWith("$ASSET#") || u.startsWith("$ASSET?")
 	}
 
+	/**
+	 * True for a navigation the WebView must not carry out: anything addressed
+	 * to [ASSET_HOST], case-blind, whatever its scheme, path, query or
+	 * fragment (c549, round 2).
+	 *
+	 * [ASSET] is an ordinary https URL since wave 29, so any page the WebView
+	 * shows — a server's page, an external link followed from one, a frame in
+	 * either — can set `location` to it with a `#connect=` fragment and make
+	 * the pair page probe and `remember` an attacker's server. A `file://`
+	 * page could not be reached that way, which is what made the old URL safe.
+	 * `shouldOverrideUrlLoading` asks this of every navigation (the app's own
+	 * `loadUrl` never reaches that callback, and the page's own hash changes
+	 * are same-document).
+	 */
+	fun refusesNavigation(url: String?): Boolean = isAssetHost(url)
+
+	/**
+	 * True for a request the asset loader must not answer: a frame embedding
+	 * the app's own page (c549, round 2). The main frame's request is the
+	 * app's own load, which `shouldInterceptRequest` serves; anything else
+	 * asking for [ASSET_HOST] is somebody else's frame, and is 404.
+	 */
+	fun refusesEmbedding(url: String?, isMainFrame: Boolean): Boolean = !isMainFrame && isAssetHost(url)
+
+	/** True when [url]'s host is [ASSET_HOST], read case-blind, whatever its scheme or path. */
+	private fun isAssetHost(url: String?): Boolean {
+		val u = url?.trim().orEmpty()
+		if (u.isEmpty()) return false
+		val host = runCatching { java.net.URI(u) }.getOrNull()?.host ?: return false
+		return host.equals(ASSET_HOST, ignoreCase = true)
+	}
+
 	fun allows(url: String?, known: (String) -> Boolean): Boolean {
 		val u = url?.trim().orEmpty()
 		if (isAsset(u)) return true
