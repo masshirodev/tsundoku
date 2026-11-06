@@ -917,6 +917,37 @@
 		(waiting.phase === 'outline' || waiting.phase === 'stalled') && waiting.to.kind === 'library'
 	);
 
+	/**
+	 * c612: while `outlined` the grid is drawn as `GridOutline` instead of the
+	 * tiles (`{#if outlined}` below), so a tile holding the mark is unmounted
+	 * and the mark falls to `<body>`. Note it before the outline draws, and give
+	 * it back once the grid is drawn again -- or the KIND band's chosen cell
+	 * when the filter has taken the tile away.
+	 *
+	 * Only a mark on a *tile* is noted: a filter or a sort chosen with the pad
+	 * keeps the mark on its own cell (`data-sveltekit-keepfocus`), and that is
+	 * not the screen's to move. The give-back stands down whenever anything
+	 * else holds the mark by then (a second press during the outline, BACK
+	 * closing a panel over it), so it never pulls the mark off a control the
+	 * reader reached in the meantime.
+	 */
+	let tileBeforeOutline = $state<string | null>(null);
+	$effect.pre(() => {
+		if (!outlined) return;
+		const at = document.activeElement;
+		const held =
+			at instanceof HTMLElement ? at.closest<HTMLElement>('.grid [data-focus-id]') : null;
+		if (held?.dataset.focusId) tileBeforeOutline = held.dataset.focusId;
+	});
+	$effect(() => {
+		if (outlined || !tileBeforeOutline) return;
+		const id = tileBeforeOutline;
+		tileBeforeOutline = null;
+		if (document.activeElement !== document.body) return;
+		const back = document.querySelector<HTMLElement>(`[data-focus-id="${id}"]`);
+		(back ?? document.querySelector<HTMLElement>('.kinds .kc.on'))?.focus();
+	});
+
 	// ---- on the tile ------------------------------------------------------
 	// FAV and the rating are edited on the cover itself (see CoverTile). The
 	// tile shows the change at once and saves behind it. A write that fails

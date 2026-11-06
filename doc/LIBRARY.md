@@ -691,16 +691,7 @@ a band to select kinds on the library itself?" Designed in
   section label, the tabs, then the band, and nothing between the band and
   the grid. The waiting outline draws the band's row too (`WaitingScreen`),
   and a band tap outlines the grid from 1 s as a tab does.
-- **A tile that holds the mark when the outline draws is unmounted** (c612).
-  The grid and `GridOutline` are one `{#if outlined}` branch, so a navigation
-  the screen starts under a focused tile (a filter chosen while the mark is
-  in the grid) takes the tile off the page and the mark falls to `<body>`;
-  nothing gives it back when the grid is drawn. The repro is in
-  `tests/tv-library-top.e2e.ts` as `test.fail()` (it holds `__data.json` for
-  2.5 s, chooses a KIND cell under a focused tile, and wants the mark back on
-  the tile, or on the chosen KIND cell if the filter took it away). The fix
-  is this page's, so its patch is in `doc/handoff-notes/tv.md`, wave 27,
-  under Gaps; flipping the case is the merge's test.
+- **A tile that holds the mark when the outline draws is unmounted, and given back** (c612). The grid and `GridOutline` are one `{#if outlined}` branch, so a navigation the screen starts under a focused tile (a filter chosen while the mark is in the grid) took the tile off the page and the mark fell to `<body>`; nothing gave it back when the grid was drawn. Now the page notes the tile's focus id before the outline is drawn (`$effect.pre`) and, once the grid is drawn, gives the mark back to that tile, or to the KIND band's chosen cell when the filter took the tile away, but only while `<body>` still holds it: a press made during the outline (a second filter, BACK) keeps its own mark. A mark on a band cell or on SORT is never noted; those keep their own focus (`data-sveltekit-keepfocus`, c560). Two cases in `tests/tv-library-top.e2e.ts`: ALL from DOUJINS keeps the tile and gives it the mark back, and NOVELS from MANGA takes it away and the mark lands on `kind-novel`. **Only a pointer or a script reaches the state**: every pad press that starts a library navigation keeps the mark on its own cell, and a BACK into the library starts with the mark on `<body>` (measured on the `tv` project; [`TV.md`](TV.md), "What already works").
 
 ### Where it departs from the handoff
 

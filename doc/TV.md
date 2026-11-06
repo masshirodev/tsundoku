@@ -41,6 +41,18 @@ start but was drawn for fingers.
 
 - D-pad focus: the arrows move to the nearest focusable thing, a sheet is a
   scope, and one ink frame shows where you are ([`FOCUS.md`](FOCUS.md)).
+- **A tile keeps the mark through a library filter's outline** (c612), and
+  gets it back when the grid is drawn again, or the KIND band's chosen cell
+  when the filter took the tile away ([`LIBRARY.md`](LIBRARY.md), "The KIND
+  band"). **The pad alone does not reach the state the guard is for**: every
+  navigation a pad press starts keeps the mark on its own cell (the KIND
+  cells and the shelf tabs carry `data-sveltekit-keepfocus`; SORT's cell is
+  kept drawn, c560), and a BACK into the library starts with the mark on
+  `<body>` — measured, BACK from a series: body while LOADING and a tile once
+  the grid settled; BACK from `?kind=manga` to ALL: the KIND cell
+  throughout. A pointer's tap on a band cell (or a script's click, the case's
+  path) is what leaves a tile holding the mark while the navigation it starts
+  outlines the grid, so the bug was reachable by a finger, not by a remote.
 - **Its own kind in DEVICES**: the app's user agent makes the TV a `tv` in the
   workstation's `devices` table (rung 59, c244), so SETTINGS names it
   "Android TV · Chrome" and `/start` counts it as another device.

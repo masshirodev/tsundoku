@@ -179,53 +179,88 @@ test('← from the first collection’s tab reaches ALL (c624)', async ({ page }
 /**
  * c612: the outline is drawn instead of the grid (`{#if outlined}`), so a
  * tile that holds the mark when a filter starts is unmounted and the mark
- * falls to `<body>`. The repro is the card's: a tile focused, a KIND cell
- * pressed while the navigation's data is held, and where the mark is once the
- * grid is back. Red at aa6a7b22 (the library page's, `works`'): the patch is
- * in this wave's notes under Gaps, and flipping this case is its test.
+ * falls to `<body>`. The library page notes the tile and gives it back, or the
+ * KIND band's chosen cell when the filter takes the tile away (c612; the
+ * patch was written in doc/handoff-notes/tv.md, wave 27, Gaps). Each step is
+ * asserted, so a setup that never put the mark on a tile cannot pass.
  */
 test.describe('a tile focused while the grid becomes an outline (c612)', () => {
 	test.use({ serviceWorkers: 'block' });
 
-	test('a KIND filter chosen under a focused tile gives the mark back (c612)', async ({ page }) => {
-		// Expected to fail until the library page notes the tile and gives it
-		// back (the patch is in doc/handoff-notes/tv.md, wave 27, Gaps).
-		test.fail(true, 'c612: the library page gives the tile’s mark back after the outline');
-		await page.goto('/?sort=title');
+	/** Hold the library's data (for a KIND filter, or the bare URL), from now on, once. */
+	async function holdData(page: Page, pattern: string) {
+		let release: () => void = () => undefined;
+		const held = new Promise<void>((r) => (release = r));
+		await page.route(pattern, async (route) => {
+			await held;
+			await route.continue().catch(() => undefined);
+		});
+		return { release };
+	}
+
+	const mark = (page: Page) =>
+		page.evaluate(() => document.activeElement?.getAttribute('data-focus-id') ?? '');
+
+	/** From the screen's start, past the tabs and the KIND band, to the grid's first tile. */
+	async function toFirstTile(page: Page, url: string) {
+		await page.goto(url);
 		await page.keyboard.press('ArrowDown'); // the screen's start
 		await page.keyboard.press('ArrowDown'); // the shelf tabs
 		await page.keyboard.press('ArrowDown'); // the KIND band
 		await page.keyboard.press('ArrowDown'); // the first tile
-		const tile = await page.evaluate(
-			() => document.activeElement?.getAttribute('data-focus-id') ?? ''
-		);
-		expect(tile).toMatch(/^(series|work)-/);
+		await expect.poll(() => mark(page)).toMatch(/^(series|work)-/);
+		return mark(page);
+	}
 
-		let release: () => void = () => undefined;
-		const held = new Promise<void>((r) => (release = r));
-		await page.route('**/__data.json?*kind=manga*', async (route) => {
-			await held;
-			await route.continue().catch(() => undefined);
-		});
+	test('a KIND filter chosen under a focused tile gives the mark back (c612)', async ({ page }) => {
+		// At DOUJINS, so the first tile is a doujin, and ALL keeps it: the
+		// give-back's first branch, the tile itself.
+		const tile = await toFirstTile(page, '/?shelf=all&kind=doujin&sort=title');
+		// ALL's link from a kind shelf is the bare library URL.
+		const { release } = await holdData(page, '**/__data.json*');
+
 		// A press on a band cell starts the navigation without moving the mark
-		// off the tile (a pointer's tap focuses nothing on a TV, and an
-		// element-made click is the pad's own path).
+		// off the tile (the pad's own cell keeps the mark only when it is the
+		// pad that presses it; a pointer's tap focuses nothing on a TV, and an
+		// element-made click is that tap's path).
 		await page.evaluate(() =>
-			(document.querySelector('[data-focus-id="kind-manga"]') as HTMLElement | null)?.click()
+			(document.querySelector('[data-focus-id="kind-all"]') as HTMLElement | null)?.click()
 		);
+		// Still on the tile until the outline draws: the navigation has not
+		// unmounted the grid yet.
+		expect(await mark(page)).toBe(tile);
 		// The outline is the library's own waiting state: LOADING beside SORT,
 		// and the real tiles gone (c560 kept SORT drawn; the grid is outline).
 		await expect(page.getByText('LOADING', { exact: true })).toBeVisible({ timeout: 15_000 });
 		await expect(page.locator('.grid .tile .open')).toHaveCount(0);
+		// The red: nothing else is left to hold it.
+		expect(await mark(page)).toBe('');
 		release();
-		await expect(page).toHaveURL(/kind=manga/);
+		await expect(page).not.toHaveURL(/kind=/);
+		await expect(page).toHaveURL(/sort=title/);
 		await expect(page.locator('.grid .tile .open').first()).toBeVisible();
-		// Where the mark should be: the tile it was on, or the chosen KIND cell
-		// when the filter has taken that tile away.
-		const after = await page.evaluate(
-			() => document.activeElement?.getAttribute('data-focus-id') ?? ''
+		// The tile the filter kept is where the mark goes back.
+		await expect.poll(() => mark(page)).toBe(tile);
+	});
+
+	test('a KIND filter that takes the tile away leaves the mark on its cell (c612)', async ({
+		page
+	}) => {
+		// At MANGA, so the first tile is a manga and NOVELS takes it away.
+		const tile = await toFirstTile(page, '/?shelf=all&kind=manga&sort=title');
+		const { release } = await holdData(page, '**/__data.json?*kind=novel*');
+		await page.evaluate(() =>
+			(document.querySelector('[data-focus-id="kind-novel"]') as HTMLElement | null)?.click()
 		);
-		expect([tile, 'kind-manga']).toContain(after);
+		expect(await mark(page)).toBe(tile);
+		await expect(page.getByText('LOADING', { exact: true })).toBeVisible({ timeout: 15_000 });
+		await expect(page.locator('.grid .tile .open')).toHaveCount(0);
+		expect(await mark(page)).toBe('');
+		release();
+		await expect(page).toHaveURL(/kind=novel/);
+		await expect(page.locator('.grid .tile .open').first()).toBeVisible();
+		await expect(page.locator(`[data-focus-id="${tile}"]`)).toHaveCount(0);
+		await expect.poll(() => mark(page)).toBe('kind-novel');
 	});
 });
 
