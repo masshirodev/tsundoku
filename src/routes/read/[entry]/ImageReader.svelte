@@ -1785,6 +1785,10 @@
 	// ---- what the chrome says -----------------------------------------------------------
 	const seriesHref = $derived(resolve('/series/[id]', { id: String(data.series.id) }));
 	const workHref = $derived(data.work ? resolve('/work/[id]', { id: String(data.work.id) }) : '');
+	/** A browsing record's ADD, where its rating is asked (c655): the top bar's own door. */
+	const recordAddHref = $derived(
+		data.record ? `${resolve('/downloads/source/[id]', { id: data.record })}?/add` : null
+	);
 	const unitOf = (k: Kind) => unitLabel(k);
 	const moveHref = $derived(resolve('/series/[id]/move', { id: String(data.series.id) }));
 	const libraryHref = resolve('/');
@@ -1913,6 +1917,8 @@
 					work={data.work}
 					{workHref}
 					unit={unitOf(data.series.kind)}
+					inLibrary={!data.record}
+					addHref={recordAddHref}
 				/>
 			</div>
 		{/if}

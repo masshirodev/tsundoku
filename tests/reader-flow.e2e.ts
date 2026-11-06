@@ -402,6 +402,79 @@ test('the end of the series asks for a rating while unrated, and it saves', asyn
 	).toHaveAttribute('aria-pressed', 'true');
 });
 
+test('rating at the end of a series keeps the screen, and the library row takes it out (c655)', async ({
+	page
+}) => {
+	const id = await seriesId(page, 'Chainsaw Man');
+	const rate = (n: number) =>
+		page.request.post(`/series/${id}?/rate`, {
+			headers: { origin: sameOrigin(), 'x-sveltekit-action': 'true' },
+			form: { rating: String(n) }
+		});
+	await rate(0);
+	await page.goto(`/series/${id}`);
+	await page.getByRole('button', { name: 'Go to chapter number' }).click();
+	await page.getByLabel('GO TO #').fill('200');
+	await page.keyboard.press('Enter');
+	await page.locator('.entry:has(.num:text-is("200")) .entry-btn').click();
+	await readerReady(page);
+	const entry = page.url().match(/\/read\/(\d+)/)![1];
+	await page.goto(`/read/${entry}?p=last`);
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	await tap(page, 0.05);
+	const end = page.locator('[data-end-page]');
+	await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
+	await expect(end.locator('.big')).toHaveText('Chainsaw Man');
+	await expect(end.getByRole('button', { name: 'Rate 8 of 10' })).toBeVisible();
+	await expect(end.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+
+	await end.getByRole('button', { name: 'Rate 8 of 10' }).click();
+
+	// The rating is saved (the series screen says so below) and the page it was
+	// set on stays: the block, its FAV switch, the kicker and the title.
+	await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
+	await expect(end.locator('.big')).toHaveText('Chainsaw Man');
+	await expect(end.getByRole('button', { name: 'Rate 8 of 10' })).toBeVisible();
+	await expect(end.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+	await expect(end.getByText('SHOWN WHILE UNRATED · RATING SAVES WHEN YOU LET GO')).toHaveCount(0);
+	await expect(end.getByRole('link', { name: '← SERIES' })).toBeVisible();
+	await expect(end.getByRole('link', { name: 'LIBRARY' })).toBeVisible();
+
+	// The library row: the series is in the library, so it offers REMOVE.
+	await expect(end.getByRole('button', { name: '+ ADD TO THE LIBRARY' })).toHaveCount(0);
+	const remove = end.getByRole('button', { name: 'REMOVE FROM THE LIBRARY' });
+	await expect(remove).toBeVisible();
+	await remove.click();
+	// The restore runs even when an assertion below fails, and its own failure
+	// is soft so it cannot hide the body's (c649).
+	let failed: unknown;
+	try {
+		await expect(end.getByRole('button', { name: 'REMOVED FROM THE LIBRARY ✓' })).toBeVisible();
+		// It really left the library: with reveal off, no tile is left to show.
+		await page.goto('/?sort=title');
+		await expect(page.locator('.grid .tile', { hasText: 'Chainsaw Man' })).toHaveCount(0);
+	} catch (e) {
+		failed = e;
+	}
+	// Put back what the case changed: reveal so the hidden series still loads,
+	// then the same HIDE action the other way.
+	await expect
+		.soft(
+			page.context().addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }])
+		)
+		.resolves.toBeUndefined();
+	const putBack = (form: Record<string, string>) =>
+		page.request.post(`/series/${id}?/hide`, {
+			headers: { origin: sameOrigin(), 'x-sveltekit-action': 'true' },
+			form
+		});
+	await expect.soft(putBack({ on: '0' })).resolves.toBeTruthy();
+	await page.context().clearCookies({ name: 'tsundoku_reveal' });
+	await expect.soft(rate(0)).resolves.toBeTruthy();
+	if (failed) throw failed;
+});
+
 test('incognito shows a dashed rule, INCOGNITO, and NOT SAVED', async ({ page }) => {
 	await page
 		.context()

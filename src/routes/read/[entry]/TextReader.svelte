@@ -1396,6 +1396,10 @@
 	// ---- what the controls say --------------------------------------------------------------------
 	const seriesHref = $derived(resolve('/series/[id]', { id: String(series.id) }));
 	const workHref = $derived(data.work ? resolve('/work/[id]', { id: String(data.work.id) }) : '');
+	/** A browsing record's ADD, where its rating is asked (c655): the same door BROWSE uses. */
+	const recordAddHref = $derived(
+		data.record ? `${resolve('/downloads/source/[id]', { id: data.record })}?/add` : null
+	);
 	const libraryHref = resolve('/');
 	const inChapter = $derived(
 		layout === 'scroll' ? scrollFraction : pages <= 1 ? 1 : page / (pages - 1)
@@ -1697,6 +1701,8 @@
 					onback={() => (atEnd = false)}
 					work={data.work}
 					{workHref}
+					inLibrary={!data.record}
+					addHref={recordAddHref}
 				/>
 			</div>
 		{/if}

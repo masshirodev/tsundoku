@@ -1012,4 +1012,60 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 			.toBe(`/read/${third}`);
 		await expect.poll(() => atOf(page), { timeout: 10_000 }).toBe(place);
 	});
+
+	// c655: a rated series lost its rating block on the end page, leaving only
+	// the name in the middle (the block was drawn only while `rating === 0`).
+	// The text reader's last volume ends on the shared EndPage, so this is that
+	// page, reached by the reader's own doors.
+	test("a novel's end page keeps its rating block and offers the library row (c655)", async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		await openOwnBook(page);
+		await middle(page);
+		const seriesHref = await page
+			.getByRole('link', { name: 'Back to the series' })
+			.getAttribute('href');
+		const seriesId = Number(seriesHref!.match(/\/series\/(\d+)/)![1]);
+		// PAGED, so the last page has a scrubber and one turn past it is the
+		// end page's door (in SCROLL that is a scroll, not a click).
+		await page.getByRole('button', { name: /^(PAGED|SCROLL) · / }).click();
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		await sheet.getByRole('radio', { name: 'PAGED' }).click();
+		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).not.toHaveClass(/scroll/);
+		await middle(page);
+		await page.getByRole('button', { name: 'CONTENTS' }).click();
+		await page.locator('.contents .entry-btn').last().click();
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		const track = page.locator('[role="slider"][aria-label="Page in chapter"]');
+		const box = (await track.boundingBox())!;
+		await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+		await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+		// One turn past the last page is the end page's door (a turn that stays
+		// on the same heading, which is why `forward` is not the helper here).
+		const v = page.viewportSize()!;
+		await page.mouse.click(v.width - 8, v.height / 2);
+		const end = page.locator('[data-end-page]');
+		await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
+		await expect(end.locator('.big')).toHaveText(TITLE);
+		// Honzuki is rated 10 and a favourite in the seed: the block shows both,
+		// where before the fix a rated series drew neither.
+		await expect(end.getByRole('button', { name: 'Rate 10 of 10' })).toBeVisible();
+		await expect(end.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+		// Re-rating stays on the page: the block, the title and the foot remain.
+		await end.getByRole('button', { name: 'Rate 8 of 10' }).click();
+		await expect(end.getByRole('button', { name: 'Rate 8 of 10' })).toBeVisible();
+		await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
+		await expect(end.locator('.big')).toHaveText(TITLE);
+		await expect(end.getByRole('link', { name: 'LIBRARY' })).toBeVisible();
+		// In the library, so the row offers REMOVE rather than + ADD.
+		await expect(end.getByRole('button', { name: '+ ADD TO THE LIBRARY' })).toHaveCount(0);
+		await expect(end.getByRole('button', { name: 'REMOVE FROM THE LIBRARY' })).toBeVisible();
+		// The file owns Honzuki: put its rating back.
+		await page.request.post(`/series/${seriesId}?/rate`, {
+			headers: { origin: new URL(base).origin, 'x-sveltekit-action': 'true' },
+			form: { rating: '10' }
+		});
+	});
 });
