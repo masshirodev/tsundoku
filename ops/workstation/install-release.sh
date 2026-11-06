@@ -29,6 +29,12 @@ archive=tsundoku-$version-linux-x64.tar.xz
 	echo "$version wasn't smoke-tested whole (no $out/.smoked): run ops/release/smoke.sh first." >&2
 	exit 1
 }
+# The mark speaks for the bundles it tested (ops/release/smoked.ts, the same rule).
+rebuilt=$(find "$out" -maxdepth 1 -type f -name "tsundoku-$version-*" -newer "$out/.smoked")
+[ -z "$rebuilt" ] || {
+	echo "$version changed after its smoke test: run ops/release/smoke.sh again. $rebuilt" >&2
+	exit 1
+}
 (cd "$out" && grep " $archive\$" SHA256SUMS | sha256sum -c --quiet -) || {
 	echo "$archive doesn't match its SHA256SUMS." >&2
 	exit 1

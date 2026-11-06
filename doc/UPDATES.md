@@ -63,14 +63,17 @@ friend reads, and each file's name, size and SHA-256
 
 ```sh
 git tag release/2026.10.30.4
+git push origin release/2026.10.30.4
 yarn run release 2026.10.30.4
+ops/release/android-apk.sh 2026.10.30.4     # both apps, from the tag, with the keystore
 ops/release/smoke.sh 2026.10.30.4           # writes out/<v>/.smoked when every platform passed
 $EDITOR ops/release/notes/2026.10.30.4.txt  # what a friend reads: a few plain lines
 yarn run release:publish 2026.10.30.4       # --dry-run signs and checks, uploads nothing
 ```
 
 `publish` (`ops/release/publish.ts`) refuses a version smoke.sh didn't pass
-whole (its `.smoked` mark), one without notes, and one already on the host. It
+whole (its `.smoked` mark), one rebuilt since it did, one without notes, one
+without both release-signed APKs, and one already on the host. It
 hard-links the files under their published names, signs `latest.json` and
 opens it with the builds' public key (a mismatched key would publish a release
 nobody can install), rsyncs the folder to `vps:tsundoku-releases/.<v>.part`,

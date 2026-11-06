@@ -394,7 +394,16 @@ console by itself after it logs out.
 "Tests"): offered a signed pretend 9999.01.01 by Zen itself, UPDATE downloads,
 checks and runs the installer, and tsundoku comes back by itself on the same
 data. A run of smoke.sh that passes on every platform writes `out/<v>/.smoked`,
-which publishing requires.
+which publishing and `install-release.sh` require.
+
+**The mark speaks for the bundles it tested** (`ops/release/smoked.ts`,
+`tests/release-smoked.spec.ts`). `yarn run release` deletes it before building,
+and both readers also refuse a bundle newer than it, which catches a bundle
+replaced any other way. Rebuilding a version therefore means smoke-testing it
+again. The APKs don't count, since no smoke test runs them: `android-apk.sh` can
+run before or after smoke.sh, and leaves the mark alone. The line stays
+`<version> <when>`, with no checksums, because smoke.sh runs the tag's own copy
+and the tags already made write exactly that.
 
 ## Not in a release yet
 
