@@ -90,9 +90,10 @@ Pure, and what every screen reads (`tests/anime.spec.ts`):
 
 ## The screens
 
-- **The library**: an ANIME cell on the KIND band while the shelf has some,
-  as every kind (`kindCounts`, `server/library.ts`; c436 retired the kind
-  shelves).
+- **The library**: an ANIME cell on the KIND band while the shelf has anime
+  beside another kind (or ANIME is chosen), as every kind (`kindCounts`,
+  `server/library.ts`; c436 retired the kind shelves). A shelf of one kind
+  draws ALL alone.
 - **The series screen** is c94's (Index Anime Series): the meta line "ANIME ·
   ANIMEPAHE · ONGOING", the count "24 EPISODES · 2 SEASONS · 18 WATCHED" under
   the titles, RATING, FAV, CONTINUE, DOWNLOAD, SHELVES, LINK, FILE. No
@@ -620,8 +621,11 @@ screen but the video, and the subtitles, until a tap.
     page** (c574) may wait on hls.js's chunk: it counts itself before
     that wait, and when the chunk comes it opens nothing if the pointer
     left, a later stop began, or the page is being left (`beforeNavigate`
-    ends the stop as the way out starts, since the player stays mounted
-    through its `out:leave`; `onDestroy` too). hls.js is loaded only for a
+    ends the stop as the way out starts; `onDestroy` too). The player stays
+    mounted until the next page's data has loaded — SvelteKit swaps the page
+    only after its load, so a chunk arriving in that window would open a
+    preview behind the way out; `out:leave` is on the player's sheets, not on
+    the player. hls.js is loaded only for a
     playlist: a plain file's preview is the browser's own picture and
     never waits on it. **A plain file as the lowest quality** (a
     hoster's MP4 or WebM): the hidden picture reads its header

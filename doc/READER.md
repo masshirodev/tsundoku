@@ -566,6 +566,14 @@ full screen already. Decided after hydration: the server can't know.
 (R→L · FIT SCREEN) and read as a status line; it now ends in SETTINGS ↑, which
 stays when a phone's width cuts the summary short.
 
+**A phone's bottom row scrolls** (c616). At 360 px its cells are wider than
+the screen, and the row used to clip the last ones: on the text reader FULL
+SCREEN was off the right edge at 100% text, and on the image reader `CH. 28 →`
+at 130%. The cells keep their size and order and the bar keeps its 64 px (a
+second row would take the reading area's); SETTINGS ↑ keeps its whole width,
+with the summary ellipsized beside it, and a sideways drag on the row reaches
+the rest.
+
 ## Loading, failure, missing
 
 **A page that didn't load says so from its top**, and keeps the message in
@@ -610,6 +618,13 @@ Everything goes through `POST /api/reading` ([`READING-LOG.md`](READING-LOG.md))
   nothing"), when `close` carries the page;
 - `finish` on reaching the last page or crossing out of the chapter;
 - `close` on leaving (a beacon).
+
+**A history entry into the reader opens the page it was left on**, incognito
+included: the reader keeps `?p=` in the entry as well as in the address bar
+(`keepHistoryUrl`, `src/lib/reader/history.ts`, c623;
+[`NAVIGATION.md`](NAVIGATION.md), "A screen being left writes nothing"). Before
+c623 a popstate into the entry opened the page the last real navigation named;
+incognito, with nothing saved, that is page 1.
 
 Durations are the gap since the last event, capped at two minutes, and time in
 the background isn't reading (`ProgressClock`). The text reader's cap is five

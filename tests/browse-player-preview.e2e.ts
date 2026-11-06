@@ -600,6 +600,50 @@ test.describe('a stream', () => {
 		expect(segments).toEqual(['seg2.m4s']);
 	});
 
+	test('a stop made after the page began leaving is cancelled by the player’s own teardown, not only by beforeNavigate (c638)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		const segments: string[] = [];
+		await serveHls(page, segments);
+		const playlists = await countPlaylists(page);
+		await lowHls(page);
+		await knownLength(page);
+		const held = await holdHls(page);
+		await openCold(page, held);
+		const tip = page.locator('.scrubrow .track .tip');
+
+		// The series page's data held: the way back has begun and not landed,
+		// so the player is still mounted while it waits.
+		let landed!: () => void;
+		const land = new Promise<void>((ok) => (landed = ok));
+		let left!: () => void;
+		const leaving = new Promise<void>((ok) => (left = ok));
+		await page.route('**/series/*/__data.json**', async (route) => {
+			left();
+			await land;
+			await route.fallback();
+		});
+
+		// Leave first, then find the bar again while the load is held: the stop
+		// is scheduled *after* `beforeNavigate`'s leave, so that bump cannot
+		// cancel it. Only the player's teardown stands between it and a
+		// preview fetched for a page nobody is on.
+		await page.evaluate(() => history.back());
+		await leaving;
+		await hover(page, 2.5 / 8);
+		await expect(tip.locator('.at')).toHaveText('0:02');
+		// Past the debounce: the stop is waiting on hls.js's chunk.
+		await page.waitForTimeout(600);
+		// The player goes first, with the chunk still held; then the chunk comes.
+		landed();
+		await expect(page.locator('.stage video')).toHaveCount(0);
+		held.release();
+		await page.waitForTimeout(2500);
+		expect(playlists.n).toBe(0);
+		expect(segments).toEqual([]);
+	});
+
 	test('the page left while the first stop waits on hls.js’s chunk: no preview opens behind it (c574)', async ({
 		page
 	}) => {

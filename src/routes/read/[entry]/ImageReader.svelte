@@ -75,6 +75,7 @@
 	import { skipOffscreen } from '$lib/reader/offscreen';
 	import { stripSlotAtMiddle } from '$lib/reader/strip-slot';
 	import { leavingReader } from '$lib/reader/leaving';
+	import { keepHistoryUrl } from '$lib/reader/history';
 	import { OnePointer } from '$lib/reader/pointer';
 	import PageImage from './PageImage.svelte';
 	import Chrome from './Chrome.svelte';
@@ -892,6 +893,9 @@
 			url.searchParams.set('p', String(group[0] + 1));
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- the current URL, with ?p
 			replaceState(url, {});
+			// History has to name the page too: a popstate back into this entry
+			// otherwise opens the page the last real navigation named (c623).
+			keepHistoryUrl();
 			if (page >= pages.length - 1 && mode !== 'vertical') markFinished();
 		}, 800);
 		return () => clearTimeout(settle);

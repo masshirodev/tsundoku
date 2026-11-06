@@ -4,7 +4,7 @@
 
 	/**
 	 * The TV's focus line (c238; doc/TV.md; TV-Library, "The cover is the
-	 * tile"). Under the shelf tabs, a 64px bar names the focused cover in
+	 * tile"). Under the pinned KIND band, a 64px bar names the focused cover in
 	 * full, because at 144px a tile's own title is neither readable from the
 	 * couch nor ever the whole of a romanised title. It carries the kind,
 	 * where you are, the rating, and what the remote does here.
@@ -69,7 +69,8 @@
 	@media (pointer: none) and (min-width: 900px) {
 		.focus-line {
 			position: sticky;
-			/* Under the pinned shelf tabs (TV-Library, state 3B). */
+			/* Under the pinned KIND band, in the tabs' place since c436
+			   (TV-Library, state 3B). */
 			top: var(--tv-tab-h);
 			z-index: 9;
 			display: flex;

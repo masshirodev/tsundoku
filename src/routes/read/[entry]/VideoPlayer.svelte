@@ -1157,10 +1157,11 @@
 		preview?.leave();
 		streamPic = null;
 	}
-	// Leaving the page is leaving the bar, from the moment it starts (c574):
-	// the player stays mounted through its way out (`out:leave`), and a stop
-	// whose hls.js chunk came meanwhile would open a preview behind the next
-	// page until onDestroy caught up.
+	// Leaving the page is leaving the bar, from the moment it starts (c574).
+	// The player stays mounted until the next page's data has loaded: SvelteKit
+	// swaps the page only after its load, so a stop whose hls.js chunk came in
+	// that window would open a preview behind the way out (the player's sheets
+	// carry the only `out:leave`).
 	beforeNavigate(({ from, to }) => {
 		if (to?.url.pathname !== from?.url.pathname) leaveScrub();
 	});

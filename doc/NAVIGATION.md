@@ -161,6 +161,19 @@ second chapter it read into (round 2 of wave 25). Each reader's
 `/read`, is not leaving. The writers it covers, every one in
 `src/routes/read/`:
 
+**An in-place write keeps the history entry's own URL too** (c623).
+SvelteKit stores each history entry's URL in its state (`sveltekit:pageurl`,
+set by `replaceState` at `client.js:2573`, @sveltejs/kit 2.70.3), and a
+popstate into the entry navigates to that URL, not to `location`
+(`client.js:2883`). `replaceState` writes it from `page.url`, which stays at
+the last **real** navigation, so a reader that moves its chapter (the text
+reader) or its page (either reader) in place left history naming the old one:
+BACK to the series and forward again loaded the chapter the reader was opened
+at, not the one read on to. `keepHistoryUrl()` (`src/lib/reader/history.ts`)
+patches that key after each of the readers' own writes. Until it did, the
+address bar kept saying the right chapter while the page drew the first: a
+popstate navigation never rewrites the entry itself (`client.js:1873`).
+
 | Writer                                                 | Late?                         | Guarded |
 | ------------------------------------------------------ | ----------------------------- | ------- |
 | Image reader's settle (`?p=`)                          | a timer, 800 ms               | yes     |
@@ -178,3 +191,8 @@ which hold the series' data past the 800 ms and fail without it.
 and in SCROLL ("…read on into a third chapter: the URL and progress follow
 every chapter…"): the window names each chapter's entry, a `page` event carries
 it, and a reload opens the last one. Both fail with the `page.url` comparison.
+c623's own cases go to the series and back by history: the text reader's
+("history into the reader entry after an in-place chapter move opens the
+chapter read on to, at its place") and the image reader's in incognito
+("history into an image reader entry opens the page it settled on, in
+incognito too"), where only the entry's URL can carry the page.
