@@ -827,9 +827,10 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 ## Tests
 
 - `android/app/src/test/` — `AddressTest`, `AttemptsTest`, `BackTest`,
-  `BridgeGuardTest`, `FailedLoadTest`, `ForgetTest`, `IntentAddressTest`,
-  `KeysTest`, `MessageGuardTest`, `PairingBridgeTest`, `ProbeTest`, `ScaleTest`,
-  `ServersTest`, `ShortcutsTest` (134 tests in 17 classes at wave 27), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
+  `BridgeGuardTest`, `FailedLoadTest`, `ForgetTest`, `FormTest`,
+  `InsetsTest`, `IntentAddressTest`, `KeysTest`, `MessageGuardTest`,
+  `NetworkTest`, `PairingBridgeTest`, `ProbeTest`, `ScaleTest`, `ServersTest`,
+  `ShortcutsTest` (134 tests in 17 classes per flavor at wave 27), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
   `MessageGuardTest` (6) is c549's part (b), the per-message rule
   `BridgeGuard.allowsMessage`: a third-party frame inside a known server's
   page is refused, a known origin and the asset page are trusted only as the
