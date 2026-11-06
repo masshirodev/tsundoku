@@ -18,10 +18,9 @@ import {
 	undoRename,
 	undoTakeOuts,
 	workPage,
-	type AddFacts,
-	type RenameFacts,
-	type TakeOutFacts
+	type RenameFacts
 } from '$lib/server/works';
+import { parsePosted, takeOutFactsList, workAddFacts } from '../../series/[id]/posted-facts';
 
 /**
  * A Work's own screen (Work-Screen; doc/WORKS.md, question 2). `workPage` is
@@ -72,15 +71,6 @@ function refused(e: unknown) {
 		return fail(400, { message: e.message.toUpperCase(), stale: true });
 	if (e instanceof WorkError) return fail(400, { message: e.message.toUpperCase() });
 	throw e;
-}
-
-/** A band's facts as posted back, or null when they are not JSON. */
-function posted(form: FormData): unknown {
-	try {
-		return JSON.parse(String(form.get('facts')));
-	} catch {
-		return null;
-	}
 }
 
 /** A rename's facts, when they are whole: the Work by id and moment, and the old name. */
@@ -137,8 +127,12 @@ export const actions: Actions = {
 	},
 
 	undoTakeOut: async ({ request }) => {
-		const form = await request.formData();
-		const facts = JSON.parse(String(form.get('facts') ?? '[]')) as TakeOutFacts[];
+		// Whatever arrives is a claim: a stale page, a hand-made form or a
+		// truncated field can send anything, so the facts are read inside a
+		// guard and checked field by field before the write (c585's readers,
+		// c641). Malformed ones undo nothing, as a band, never a 500.
+		const facts = takeOutFactsList(parsePosted((await request.formData()).get('facts')));
+		if (!facts) return fail(400, { message: 'NOTHING TO UNDO' });
 		// Last first, as one write (`undoTakeOuts`): the second take-out is the
 		// one that ended the Work, and it restores every member the ending left
 		// behind. A series the library has moved on with since -- added to
@@ -164,8 +158,9 @@ export const actions: Actions = {
 	},
 
 	undoAdd: async ({ request }) => {
-		const form = await request.formData();
-		const facts = JSON.parse(String(form.get('facts'))) as AddFacts;
+		// As TAKE OUT's UNDO above: a malformed band undoes nothing (c641).
+		const facts = workAddFacts(parsePosted((await request.formData()).get('facts')));
+		if (!facts) return fail(400, { message: 'NOTHING TO UNDO' });
 		try {
 			undoAdd(facts);
 		} catch (e) {
@@ -191,7 +186,7 @@ export const actions: Actions = {
 	 * since. Facts that are not whole undo nothing, as a band, not a 500.
 	 */
 	undoRename: async ({ request }) => {
-		const facts = renameFacts(posted(await request.formData()));
+		const facts = renameFacts(parsePosted((await request.formData()).get('facts')));
 		if (!facts) return fail(400, { message: 'NOTHING TO UNDO' });
 		try {
 			undoRename(facts);

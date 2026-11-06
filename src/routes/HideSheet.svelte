@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 
@@ -21,6 +22,7 @@
 		remainCount,
 		actionAll,
 		actionPart,
+		workMade = null,
 		ondone,
 		onclose
 	}: {
@@ -36,6 +38,14 @@
 		/** The route actions: the whole Work, and the one series. */
 		actionAll: string;
 		actionPart: string;
+		/**
+		 * The Work's moment of making, when this sheet was drawn on one Work
+		 * (the series screen): HIDE ALL n posts it as `made`, so a sheet drawn
+		 * while the series was in another Work cannot hide whatever Work holds
+		 * its id now (c640). Null on the library's, where a selection can hold
+		 * parts of several Works and `?/hideAll` writes by id.
+		 */
+		workMade?: number | null;
 		ondone?: () => void;
 		onclose: () => void;
 	} = $props();
@@ -44,6 +54,20 @@
 		() =>
 		async ({ result, update }) => {
 			await update();
+			if (result.type === 'failure') {
+				const data = result.data as Record<string, unknown> | undefined;
+				// The Work this sheet was drawn on has moved on (c640): the sheet
+				// cannot answer for it any more, so it closes, and the page is read
+				// again so its band is drawn over the Work there is now. GroupSheet
+				// does the same for c583's refusal (c584). The library's own use of
+				// this sheet acts on ids and never gets `stale`, so nothing changes
+				// there.
+				if (data?.stale === true) {
+					await invalidateAll();
+					onclose();
+					return;
+				}
+			}
 			if (result.type === 'success') ondone?.();
 		};
 </script>
@@ -59,6 +83,7 @@
 
 	<form method="POST" action={actionAll} use:enhance={after} class="row">
 		{#each ids as id (id)}<input type="hidden" name="id" value={id} />{/each}
+		{#if workMade !== null}<input type="hidden" name="made" value={workMade} />{/if}
 		<div class="lb">THE WORK</div>
 		<div class="lk">
 			<div class="a">All {wholeCount} series</div>

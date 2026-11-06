@@ -35,7 +35,7 @@ rule holds in help too.
 Backups' THE LIBRARY FOLDER line said RESCAN was in the sidebar "(MORE on a
 phone)" from the day it was written (c210): MORE never had a RESCAN. Since
 c525 it says RESCAN in the sidebar reads the folder again after it asks, and
-that a phone or tablet types `/scan` in search instead
+since c561 that MORE's RESCAN does too, and `/scan` in search
 (`help_backups_folder_para`; [`LIBRARY.md`](LIBRARY.md), "RESCAN asks
 first"). Its short line, "RESCAN reads the folder again; new series appear
 as they are found", is still true, and stays.

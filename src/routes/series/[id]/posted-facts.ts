@@ -8,9 +8,11 @@
  * its own guard, checks the shape field by field (a missing number would
  * reach SQLite as `undefined` and be a 500, not a refusal), and checks the
  * facts are this screen's own series: the series screen undoes what was done
- * to the series it shows, never one the facts name elsewhere. Any failure is
- * `null`, which the action answers as 400 NOTHING TO UNDO with nothing
- * written. Facts that are well formed and this series' own, but describe a
+ * to the series it shows, never one the facts name elsewhere. Two readers are
+ * the Work screen's instead (`takeOutFactsList`, `workAddFacts`, c641): its
+ * route names a Work, so the facts are checked for their shape and the
+ * writer refuses a library that moved on. Any failure is `null`, which the
+ * action answers as 400 NOTHING TO UNDO with nothing written. Facts that are well formed and this series' own, but describe a
  * library that has moved on (a Work ended or made since), are the writers'
  * to refuse (`putBack`, `locate`, c308), as before.
  */
@@ -50,18 +52,60 @@ function endedWork(v: unknown): EndedWork | null {
 }
 
 /**
+ * A TAKE OUT's facts, when they are whole: the Work by id and moment, the
+ * series and where it sat, and any Work the take-out ended.
+ */
+function takeOutFactsAny(v: unknown): TakeOutFacts | null {
+	if (!isObj(v)) return null;
+	if (!isId(v.seriesId) || !isId(v.workId) || !isNum(v.workCreatedAt) || !optStr(v.workName))
+		return null;
+	if (!isStr(v.title) || !isNum(v.position)) return null;
+	if (v.ended !== null && !endedWork(v.ended)) return null;
+	return v as TakeOutFacts;
+}
+
+/**
  * A TAKE OUT's facts, when they are this series' own: it is the series taken
  * out, and a Work the take-out ended had it among its members.
  */
 export function takeOutFacts(v: unknown, seriesId: number): TakeOutFacts | null {
 	if (!isObj(v) || v.seriesId !== seriesId) return null;
-	if (!isId(v.workId) || !isNum(v.workCreatedAt) || !optStr(v.workName)) return null;
+	const facts = takeOutFactsAny(v);
+	if (!facts) return null;
+	if (facts.ended && !facts.ended.members.some((m) => m.seriesId === seriesId)) return null;
+	return facts;
+}
+
+/**
+ * The Work screen's TAKE OUT band (`undoTakeOut`): one take-out per part the
+ * press took out, as one write (`undoTakeOuts`). Any series may be in it --
+ * the band is the Work's, not one series' -- so every entry is checked for
+ * its shape and nothing is checked against a series. An empty list is no
+ * UNDO: a band always names what it took out.
+ */
+export function takeOutFactsList(v: unknown): TakeOutFacts[] | null {
+	if (!Array.isArray(v) || v.length === 0) return null;
+	const list = v.map(takeOutFactsAny);
+	return list.some((f) => f === null) ? null : (list as TakeOutFacts[]);
+}
+
+/**
+ * An ADD TO A WORK's facts, when they are whole: the Work it joined, the
+ * series, where it came from (`former`) and any Work the add ended.
+ */
+function addFactsAny(v: unknown): AddFacts | null {
+	if (!isObj(v)) return null;
+	if (!isId(v.seriesId) || !isId(v.workId) || !isNum(v.workCreatedAt) || !optStr(v.workName))
+		return null;
 	if (!isStr(v.title) || !isNum(v.position)) return null;
-	if (v.ended !== null) {
-		const ended = endedWork(v.ended);
-		if (!ended || !ended.members.some((m) => m.seriesId === seriesId)) return null;
+	const f = v.former;
+	if (f !== null) {
+		if (!isObj(f) || !isId(f.workId) || !isNum(f.createdAt) || !optStr(f.name)) return null;
+		if (!isNum(f.position)) return null;
 	}
-	return v as TakeOutFacts;
+	if (!Array.isArray(v.ended)) return null;
+	if (v.ended.some((e) => !endedWork(e))) return null;
+	return v as AddFacts;
 }
 
 /**
@@ -70,19 +114,20 @@ export function takeOutFacts(v: unknown, seriesId: number): TakeOutFacts | null 
  */
 export function addFacts(v: unknown, seriesId: number): AddFacts | null {
 	if (!isObj(v) || v.seriesId !== seriesId) return null;
-	if (!isId(v.workId) || !isNum(v.workCreatedAt) || !optStr(v.workName)) return null;
-	if (!isStr(v.title) || !isNum(v.position)) return null;
-	const f = v.former;
-	if (f !== null) {
-		if (!isObj(f) || !isId(f.workId) || !isNum(f.createdAt) || !optStr(f.name)) return null;
-		if (!isNum(f.position)) return null;
-	}
-	if (!Array.isArray(v.ended)) return null;
-	for (const e of v.ended) {
-		const ended = endedWork(e);
-		if (!ended || !ended.members.some((m) => m.seriesId === seriesId)) return null;
-	}
-	return v as AddFacts;
+	const facts = addFactsAny(v);
+	if (!facts) return null;
+	if (facts.ended.some((e) => !e.members.some((m) => m.seriesId === seriesId))) return null;
+	return facts;
+}
+
+/**
+ * The Work screen's ADDED band (`undoAdd`): the one add its own screen made,
+ * whatever series it names. The Work route's id is the Work, not the series,
+ * so there is no series to check the facts against; the shape is all that is
+ * known here, and the writer refuses a library that moved on (`undoAdds`).
+ */
+export function workAddFacts(v: unknown): AddFacts | null {
+	return addFactsAny(v);
 }
 
 /** A RENAME's facts, when it is this series that was renamed. */

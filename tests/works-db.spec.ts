@@ -1282,12 +1282,15 @@ describe('a HIDE’s UNDO puts back only what the HIDE changed (c390)', () => {
 	 */
 	it('draws no band from the series screen’s HIDE ALL n when it changed nothing UNDO may show (c469)', async () => {
 		const [p, q, r] = W.map(idOf) as number[];
-		works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
+		const { work } = works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
 		const series = await import('../src/routes/series/[id]/+page.server');
 		const hideAll = async (on: number, reveal: boolean) => {
+			// The screen posts the Work it was drawn on (c640): this one, at its own moment.
+			const body = new FormData();
+			body.append('made', String(work.createdAt));
 			try {
 				return (await (series.actions.hideWork as (e: unknown) => Promise<unknown>)({
-					request: new Request('http://localhost/', { method: 'POST', body: new FormData() }),
+					request: new Request('http://localhost/', { method: 'POST', body }),
 					params: { id: String(on) },
 					url: new URL(`http://localhost/series/${on}`),
 					cookies: { get: () => (reveal ? '1' : undefined) }
@@ -1503,7 +1506,9 @@ describe('the series screen’s WORK row TAKE OUT and its UNDO, through its own 
 	it('puts the series back where it was', async () => {
 		const [p, q, r] = [P, Q, R].map(idOf) as number[];
 		const { work } = works.createWork({ seriesIds: [p, q, r], name: 'Take Run', now: NOW });
-		const out = await postSeries(seriesScreen.actions.takeOutWork, p);
+		const out = await postSeries(seriesScreen.actions.takeOutWork, p, [
+			['made', String(work.createdAt)]
+		]);
 		expect(membersNow(work.id)).toEqual([q, r]);
 		expect(
 			await postSeries(seriesScreen.actions.undoTakeOutWork, p, [
@@ -1517,7 +1522,9 @@ describe('the series screen’s WORK row TAKE OUT and its UNDO, through its own 
 	it('answers a refused UNDO as a band on the screen, never a 500, and changes nothing', async () => {
 		const [p, q, r, x] = [P, Q, R, X].map(idOf) as number[];
 		const { work } = works.createWork({ seriesIds: [p, q, r], name: 'Take Run', now: NOW });
-		const out = await postSeries(seriesScreen.actions.takeOutWork, p);
+		const out = await postSeries(seriesScreen.actions.takeOutWork, p, [
+			['made', String(work.createdAt)]
+		]);
 		// Since: the series joined another Work, in another tab.
 		const other = works.createWork({ seriesIds: [p, x], name: 'Other Run', now: NOW + 1 });
 
@@ -1785,7 +1792,9 @@ describe('the Work screen refuses a Work its id now names (c583)', () => {
 		const w = reused(7);
 		const before = snapshot();
 		const acts = workScreen.actions as Record<string, unknown>;
-		const answer = await post(acts[action], [...fields(w), ['made', w.old]], { id: String(w.id) });
+		const answer = await post(acts[action], [...fields(w), ['made', String(w.old)]], {
+			id: String(w.id)
+		});
 		expect(answer.status).toBe(400);
 		expect(answer.data).toEqual(STALE);
 		expect(snapshot()).toEqual(before);
@@ -1795,7 +1804,9 @@ describe('the Work screen refuses a Work its id now names (c583)', () => {
 		expect(bare.data).toEqual(STALE);
 		expect(snapshot()).toEqual(before);
 		// The newer Work's own form, the same fields, goes through.
-		const own = await post(acts[action], [...fields(w), ['made', w.now]], { id: String(w.id) });
+		const own = await post(acts[action], [...fields(w), ['made', String(w.now)]], {
+			id: String(w.id)
+		});
 		expect(own.status).toBeUndefined();
 		expect(snapshot()).not.toEqual(before);
 	});
@@ -1913,6 +1924,211 @@ describe('the Work screen refuses a Work its id now names (c583)', () => {
 			expect(works.workDismissalKey(newer.work, a)).not.toBe(works.workDismissalKey(old.work, a));
 		} finally {
 			still.mockRestore();
+		}
+	});
+});
+
+describe('the series screen’s Work controls act on the Work their screen was drawn on (c640)', () => {
+	const STALE = { message: 'THAT WORK HAS CHANGED · LOOK AGAIN', stale: true };
+	/** Everything a series-screen Work action may write, as one comparable value. */
+	const snapshot = () => {
+		const db = getDb();
+		return {
+			works: db.prepare(`SELECT id, name, created_at, order_mode FROM works ORDER BY id`).all(),
+			members: db
+				.prepare(`SELECT work_id, series_id, position FROM work_series ORDER BY work_id, series_id`)
+				.all(),
+			series: db.prepare(`SELECT id, rating, favourite, hidden FROM series ORDER BY id`).all()
+		};
+	};
+
+	const parts = () => ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita', 'Mushoku Tensei'];
+	/**
+	 * The screen was drawn with the series in Work A. A ended, and in another
+	 * tab the series joined Work B, which the reused id now names: the facts
+	 * the old screen posts name A's moment.
+	 */
+	function regroup() {
+		const [p, q, r] = parts().map(idOf) as number[];
+		const old = works.createWork({ seriesIds: [p, q, r], name: 'Older', now: NOW });
+		works.ungroup(old.work.id);
+		const newer = works.createWork({ seriesIds: [p, q, r], name: 'Newer', now: NOW + 7 });
+		expect(newer.work.id).toBe(old.work.id);
+		return { id: newer.work.id, old: old.work.createdAt, now: newer.work.createdAt, p, q, r };
+	}
+
+	/** Each control of the screen that acts on `workOfSeries`, as its form posts it. */
+	const FORMS: [
+		string,
+		(w: ReturnType<typeof regroup>) => [string, string][],
+		/** What makes the newer Work change if its own form goes through. */
+		((w: ReturnType<typeof regroup>) => void)?
+	][] = [
+		['hideWork', () => []],
+		// UNHIDE only changes a hidden Work, so the newer one is hidden first.
+		['showWork', () => [], (w) => works.hideWork(w.id, true, w.now)],
+		['moveWork', () => [['dir', 'down']]],
+		['takeOutWork', () => []]
+	];
+
+	it.each(FORMS)(
+		'?/%s refuses the Work its screen was drawn on, and writes nothing',
+		async (action, fields, prepare) => {
+			const w = regroup();
+			prepare?.(w);
+			const before = snapshot();
+			const acts = seriesScreen.actions as Record<string, unknown>;
+			const answer = await postSeries(acts[action], w.p, [...fields(w), ['made', String(w.old)]]);
+			expect(answer.status).toBe(400);
+			expect(answer.data).toEqual(STALE);
+			expect(snapshot()).toEqual(before);
+			// A form with no moment (a page from before it was posted, a hand-made
+			// post) cannot say which Work it means, and refuses the same way.
+			const bare = await postSeries(acts[action], w.p, fields(w));
+			expect(bare.data).toEqual(STALE);
+			expect(snapshot()).toEqual(before);
+			// The Work its id names now, with its own moment, goes through.
+			const own = await postSeries(acts[action], w.p, [...fields(w), ['made', String(w.now)]]);
+			expect(own.status).toBeUndefined();
+			expect(snapshot()).not.toEqual(before);
+		}
+	);
+
+	it('a series taken out of its Work since is in no Work, not a stale one', async () => {
+		const [p, q, r] = parts().map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
+		// Another tab takes this series out: the screen's Work is gone from it.
+		works.takeOut(work.id, p, work.createdAt);
+		const before = snapshot();
+		const answer = await postSeries(seriesScreen.actions.hideWork, p, [
+			['made', String(work.createdAt)]
+		]);
+		expect(answer.status).toBe(400);
+		expect(answer.data).toEqual({ message: 'THIS SERIES IS IN NO WORK' });
+		expect(snapshot()).toEqual(before);
+	});
+});
+
+describe('the Work screen answers a malformed UNDO with a sentence, not a 500 (c641)', () => {
+	const snapshot = () => {
+		const db = getDb();
+		return {
+			works: db.prepare(`SELECT id, name, created_at, order_mode FROM works ORDER BY id`).all(),
+			members: db
+				.prepare(`SELECT work_id, series_id, position FROM work_series ORDER BY work_id, series_id`)
+				.all(),
+			series: db.prepare(`SELECT id, rating, favourite, hidden FROM series ORDER BY id`).all()
+		};
+	};
+	const NOTHING = { message: 'NOTHING TO UNDO' };
+
+	/** A Work of three with one part taken out: a real TAKE OUT band to compare against. */
+	function takenOut() {
+		const [a, b, c] = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita', 'Mushoku Tensei'].map(
+			idOf
+		) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b, c], name: 'Run', now: NOW });
+		const facts = works.takeOut(work.id, c, work.createdAt);
+		return { work, facts, c };
+	}
+
+	const JUNK: [string, string[]][] = [
+		// A field that is not JSON at all.
+		['not json', ['not json']],
+		// Valid JSON of the wrong shape: an empty list is no UNDO, and an object
+		// where the band posts a list is not one either.
+		['an empty list', ['[]']],
+		['an object', ['{"workId":1}']],
+		// A list of things that are not take-outs.
+		['a list of junk', ['[{"workId":"one"}]']],
+		// A field that is not there at all.
+		['no field', []]
+	];
+
+	it.each(JUNK)('?/undoTakeOut refuses %s, and changes nothing', async (_what, posted) => {
+		const { facts } = takenOut();
+		const before = snapshot();
+		const answer = await post(
+			workScreen.actions.undoTakeOut,
+			posted.length === 0 ? [] : [['facts', posted[0]!]]
+		);
+		expect(answer.status).toBe(400);
+		expect(answer.data).toEqual(NOTHING);
+		expect(snapshot()).toEqual(before);
+		// The band's own facts, well formed, still undo it: the guard refuses
+		// junk, not the answer the screen sends.
+		expect(
+			await post(workScreen.actions.undoTakeOut, [['facts', JSON.stringify([facts])]])
+		).toEqual({ ok: true });
+	});
+
+	it('?/undoTakeOut refuses a real band with no seriesId, and changes nothing (c641)', async () => {
+		const { facts } = takenOut();
+		const before = snapshot();
+		const bare = { ...facts } as Record<string, unknown>;
+		delete bare.seriesId;
+		const answer = await post(workScreen.actions.undoTakeOut, [['facts', JSON.stringify([bare])]]);
+		expect(answer.status).toBe(400);
+		expect(answer.data).toEqual(NOTHING);
+		expect(snapshot()).toEqual(before);
+		// The same band with its series still undoes: the row above is the
+		// field that was missing, not the write.
+		expect(
+			await post(workScreen.actions.undoTakeOut, [['facts', JSON.stringify([facts])]])
+		).toEqual({ ok: true });
+	});
+
+	it.each(JUNK)('?/undoAdd refuses %s, and changes nothing', async (_what, posted) => {
+		const [a, b, c] = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita', 'Mushoku Tensei'].map(
+			idOf
+		) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Run', now: NOW });
+		const added = works.addSeries(work.id, c, work.createdAt);
+		const before = snapshot();
+		const answer = await post(
+			workScreen.actions.undoAdd,
+			posted.length === 0 ? [] : [['facts', posted[0]!]]
+		);
+		expect(answer.status).toBe(400);
+		expect(answer.data).toEqual(NOTHING);
+		expect(snapshot()).toEqual(before);
+		expect(await post(workScreen.actions.undoAdd, [['facts', JSON.stringify(added)]])).toEqual({
+			ok: true
+		});
+		expect(membersNow(work.id)).toEqual([a, b]);
+	});
+
+	it('?/undoAdd refuses a real band with no seriesId, and changes nothing (c641)', async () => {
+		const [a, b, c] = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita', 'Mushoku Tensei'].map(
+			idOf
+		) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Run', now: NOW });
+		const added = works.addSeries(work.id, c, work.createdAt);
+		const before = snapshot();
+		const bare = { ...added } as Record<string, unknown>;
+		delete bare.seriesId;
+		const answer = await post(workScreen.actions.undoAdd, [['facts', JSON.stringify(bare)]]);
+		expect(answer.status).toBe(400);
+		expect(answer.data).toEqual(NOTHING);
+		expect(snapshot()).toEqual(before);
+		// The band with its series still undoes: the missing field is the refusal.
+		expect(await post(workScreen.actions.undoAdd, [['facts', JSON.stringify(added)]])).toEqual({
+			ok: true
+		});
+		expect(membersNow(work.id)).toEqual([a, b]);
+	});
+
+	it('?/undoRename refuses junk too: it parsed its facts outside a guard before (c641)', async () => {
+		const [a, b] = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita'].map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Run', now: NOW });
+		const before = snapshot();
+		for (const facts of ['not json', '[]', '{}', '{"workId":"x"}']) {
+			const answer = await post(workScreen.actions.undoRename, [['facts', facts]], {
+				id: String(work.id)
+			});
+			expect(answer.status).toBe(400);
+			expect(answer.data).toEqual(NOTHING);
+			expect(snapshot()).toEqual(before);
 		}
 	});
 });

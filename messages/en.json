@@ -488,7 +488,7 @@
 	"help_backups_folder_epub_what": "Novels, anywhere in the folder.",
 	"help_backups_folder_not_yet": "NOT YET",
 	"help_backups_folder_not_yet_what": "Aniyomi and LNReader backups.",
-	"help_backups_folder_para": "START SCAN on the empty library, or RESCAN in the sidebar after it asks, reads the folder again. A phone or tablet has no sidebar and no RESCAN in {more}: type /scan in the search instead.",
+	"help_backups_folder_para": "START SCAN on the empty library, or RESCAN in the sidebar or in {more} after it asks, reads the folder again. /scan in the search does too.",
 	"help_report_title": "When something breaks",
 	"help_report_meta": "SAVE A REPORT · WHAT'S IN IT · WHO GETS IT",
 	"help_report_short_1": "{settings} › {library} › REPORT › SAVE writes one text file about what went wrong.",

@@ -89,6 +89,15 @@ CH. 1`, one tap into the next series' first chapter, and CONTINUE above it
   (`?from=work:<id>`): `← THE BREAKER`, and `← LIBRARY` otherwise. The id is
   validated and the series' own membership checked, so a stale id is not a
   claim the cell repeats ([`NAVIGATION.md`](NAVIGATION.md), "From a Work").
+- **Every Work control posts the Work it was drawn on** (c640). MOVE and TAKE
+  OUT in the row's sheet, the screen's UNHIDE, and the HIDE sheet's HIDE ALL n
+  each post the Work's `created_at` as `made`; a Work under that id made at
+  another moment (ended, its id given to another) or a post with no moment is
+  refused with `THAT WORK HAS CHANGED · LOOK AGAIN` and nothing written. The
+  screen then re-reads its load, so the band is drawn over the Work the series
+  is in now and the next press posts that Work's moment; the row's sheet
+  closes on the refusal. [`WORKS.md`](WORKS.md), "Every form names the Work by
+  its id and its moment".
 
 Tested in `tests/work-row-frame.e2e.ts` (the three states' measurements, the
 links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
@@ -634,8 +643,6 @@ cells, with the house's inset focus mark.
 
 - The fold in the phone's series header (c425, `doc/handoffs/series-phone/`):
   the next wave folds these rows.
-- `doc/TV.md` (not this slot's) doesn't say yet that the TV's focus moves
-  through LISTS a line at a time.
 
 ## Where it departs from the handoff
 

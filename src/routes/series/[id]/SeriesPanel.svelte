@@ -4,8 +4,8 @@
 	import { animeContinue, seriesCountLine } from '$lib/library/anime';
 	import { ocrLines, type OcrPlace } from '$lib/japanese/ocr';
 	import { enhance } from '$app/forms';
-	import type { SubmitFunction } from '@sveltejs/kit';
-	import { replacing } from '$lib/back';
+	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
+	import { replacing, settleReplacing } from '$lib/back';
 	import Badge from '$lib/components/content/Badge.svelte';
 	import { coverPlaceholder } from '$lib/library/cover';
 	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
@@ -206,6 +206,48 @@
 	let workSheet = $state(false);
 	/** HIDE on a part asks first (W4; Work-States 4). */
 	let hiding = $state(false);
+	/** The moment this Work was made, as the Work controls post it back (c640). */
+	const workMade = $derived(work?.createdAt ?? null);
+	/**
+	 * Whether an answer refused because this screen's Work has moved on since
+	 * it was drawn -- ended, or its id given to another (c583's `StaleWorkError`).
+	 * SvelteKit's `update()` applies the action's `form` on a failure; it
+	 * re-reads the page only on a success, so a route that keeps drawing the
+	 * Work it read must invalidate here (c640).
+	 */
+	function staleWork(result: ActionResult): boolean {
+		return (
+			result.type === 'failure' &&
+			(result.data as Record<string, unknown> | undefined)?.stale === true
+		);
+	}
+	/**
+	 * `use:enhance` for the WORK row sheet's MOVE and TAKE OUT: other answers
+	 * behave as before; a stale refusal closes the sheet and reads the page
+	 * again, so the band says LOOK AGAIN over the Work the series is in now and
+	 * the next press posts that Work's moment (c640).
+	 */
+	const workAfter =
+		(close: boolean): SubmitFunction =>
+		() =>
+		async ({ result, update }) => {
+			// On a success `update()` re-reads the page already (SvelteKit's
+			// fallback); on a failure it only applies the action's `form`.
+			await update();
+			if (close || staleWork(result)) workSheet = false;
+			if (staleWork(result)) await invalidateAll();
+		};
+	/**
+	 * `replacing` for the two UNHIDE forms, plus a read of the page on a stale
+	 * refusal (c640): the Work the screen drew is gone or its id names another,
+	 * so the band must be drawn over the Work there is now.
+	 */
+	const replacingStale: SubmitFunction =
+		() =>
+		async ({ result, update }) => {
+			await settleReplacing({ result, update });
+			if (staleWork(result)) await invalidateAll();
+		};
 	/** HIDE ALL n's band, worded from the count (`wholeBand`); TAKE OUT has its own words. */
 	const hiddenBand = $derived(
 		hideFacts && hideFacts.whole.length > 0
@@ -1268,7 +1310,13 @@
 								<button type="button" class="edit" onclick={() => (hiding = true)}>HIDE</button>
 							{:else if work && series.hidden}
 								<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
-								<form method="POST" action="?/showWork" use:enhance={replacing} class="hide-form">
+								<form
+									method="POST"
+									action="?/showWork"
+									use:enhance={replacingStale}
+									class="hide-form"
+								>
+									<input type="hidden" name="made" value={work.createdAt} />
 									<button type="submit" class="edit">UNHIDE</button>
 								</form>
 							{:else}
@@ -1311,7 +1359,13 @@
 								<button type="button" class="edit" onclick={() => (hiding = true)}>HIDE</button>
 							{:else if work && series.hidden}
 								<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
-								<form method="POST" action="?/showWork" use:enhance={replacing} class="hide-form">
+								<form
+									method="POST"
+									action="?/showWork"
+									use:enhance={replacingStale}
+									class="hide-form"
+								>
+									<input type="hidden" name="made" value={work.createdAt} />
 									<button type="submit" class="edit">UNHIDE</button>
 								</form>
 							{:else}
@@ -1444,29 +1498,23 @@
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve() builds the Work's URL -->
 			<a class="lc" href={resolve('/work/[id]', { id: String(work.id) })}>→</a>
 		</div>
-		<form method="POST" action="?/moveWork" use:enhance class="prow">
+		<form method="POST" action="?/moveWork" use:enhance={workAfter(false)} class="prow">
 			<div class="label">MOVE</div>
 			<div class="lk">
 				<div class="lk-a">Earlier or later in the run</div>
 			</div>
+			<!-- The Work this sheet was drawn on, not whatever holds its id now (c640). -->
+			<input type="hidden" name="made" value={work.createdAt} />
 			<button type="submit" name="dir" value="up" class="lc" disabled={!work.prev}>↑</button>
 			<button type="submit" name="dir" value="down" class="lc" disabled={!work.next}>↓</button>
 		</form>
-		<form
-			method="POST"
-			action="?/takeOutWork"
-			use:enhance={() =>
-				async ({ update }) => {
-					await update();
-					workSheet = false;
-				}}
-			class="prow"
-		>
+		<form method="POST" action="?/takeOutWork" use:enhance={workAfter(true)} class="prow">
 			<div class="label">TAKE OUT</div>
 			<div class="lk">
 				<div class="lk-a">Out of the Work</div>
 				<div class="lk-b">A SERIES ON ITS OWN AGAIN · UNDO</div>
 			</div>
+			<input type="hidden" name="made" value={work.createdAt} />
 			<button type="submit" class="lc">TAKE OUT</button>
 		</form>
 	</Sheet>
@@ -1480,6 +1528,7 @@
 		ids={[String(series.id)]}
 		wholeCount={work.of}
 		remainCount={work.of - 1}
+		{workMade}
 		actionAll="?/hideWork"
 		actionPart="?/hidePart"
 		ondone={() => (hiding = false)}

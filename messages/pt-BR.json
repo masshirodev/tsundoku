@@ -488,7 +488,7 @@
 	"help_backups_folder_epub_what": "Novels, em qualquer lugar da pasta.",
 	"help_backups_folder_not_yet": "AINDA NÃO",
 	"help_backups_folder_not_yet_what": "Backups do Aniyomi e do LNReader.",
-	"help_backups_folder_para": "LER A PASTA na biblioteca vazia, ou LER A PASTA DE NOVO na barra lateral depois de confirmar, lê a pasta outra vez. Celular e tablet não têm barra lateral nem essa opção em {more}: digite /scan na busca.",
+	"help_backups_folder_para": "LER A PASTA na biblioteca vazia, ou LER A PASTA DE NOVO na barra lateral ou em {more} depois de confirmar, lê a pasta outra vez. /scan na busca também.",
 	"help_report_title": "Quando algo quebra",
 	"help_report_meta": "SALVAR UM RELATÓRIO · O QUE TEM NELE · QUEM RECEBE",
 	"help_report_short_1": "{settings} › {library} › RELATÓRIO › SALVAR grava um arquivo de texto sobre o que deu errado.",

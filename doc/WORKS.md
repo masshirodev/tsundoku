@@ -263,7 +263,17 @@ LONGER A WORK · ONE SERIES WAS LEFT` with UNDO, which restores the same id,
   sheet's existing-Work mode) posts the moment too, from `workChoices`. The
   db cases are `tests/works-db.spec.ts`, "the Work screen refuses a Work its
   id now names (c583)": each action's old form against a newer Work holding
-  the same series, so only the moment tells them apart.
+  the same series, so only the moment tells them apart. The **series screen's**
+  Work controls post it the same way (c640): HIDE ALL n (`?/hideWork`), UNHIDE
+  (`?/showWork`), MOVE (`?/moveWork`) and TAKE OUT (`?/takeOutWork`) carry the
+  Work's `created_at` from the row the screen drew, and a Work under that id
+  made at another moment -- or a post with none -- is refused as the same
+  `THAT WORK HAS CHANGED · LOOK AGAIN` with nothing written. The HIDE sheet's
+  HIDE ALL n posts it too (`workMade`); the library's bulk HIDE acts on ids,
+  not on a Work, and posts none. A refusal there re-reads the screen, so the
+  band is drawn over the Work the series is in now and the next press posts
+  that Work's moment; the WORK row sheet closes on it, as GroupSheet does on
+  the Work screen's refusal (c584).
 - **+ ADD A SERIES** opens a library picker; a series already in another Work
   says `IN <WORK> · MOVES HERE` and moves, ending that Work if one is left.
   The picker reads its own page when it opens (`GET /work/N/addable?q=&offset=`,
@@ -386,7 +396,8 @@ which takes each part's Work with it, every part, in either direction: the
 library's plain `?/hide` (the long-press series sheet's, on the library and on
 the search page, where any hit opens it -- a Work's part included), `?/bulk`'s
 HIDE and UNHIDE, `?/hideAll`, `?/showAll`, both UNDOs, TAKE OUT's own hide
-on both screens, and an import's fold. A series in no Work is written exactly as before. The series
+on both screens, an import's fold, and a source's CONCEAL and its UNDO
+(`src/routes/browse/conceal.server.ts`, c523). A series in no Work is written exactly as before. The series
 sheet does not ask a new question: on a part its cell says `HIDE ALL n` (or
 `UNHIDE ALL n`), the HIDE sheet's words, and the band says the Work went
 whole -- the library's own, and on the search page the same band and UNDO

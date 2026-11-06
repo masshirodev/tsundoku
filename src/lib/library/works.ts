@@ -518,7 +518,7 @@ export type NextPartWords = {
 	online: (source: string) => string;
 	/** Under `▶ READ ONLINE` / `▶ WATCH ONLINE`: what arrives over the network. */
 	streamed: string;
-	/** The cell that queues the next part's first ten entries (`?/download`, `which=next`). */
+	/** The cell that queues the next part's first ten entries (`?/download`, `which=first`). */
 	downloadFirst: string;
 };
 
