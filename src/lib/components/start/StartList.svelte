@@ -3,10 +3,12 @@
 	import { resolve } from '$app/paths';
 	import {
 		firstOpen,
+		importDoneLine,
 		partOf,
 		TRAIL,
 		type FirstReadExtras,
 		type PartId,
+		type StartImport,
 		type StartView,
 		type Step,
 		type StepId
@@ -29,8 +31,19 @@
 	let {
 		view,
 		libraryRoot,
-		extras = null
-	}: { view: StartView; libraryRoot: string; extras?: FirstReadExtras | null } = $props();
+		extras = null,
+		imported = null
+	}: {
+		view: StartView;
+		libraryRoot: string;
+		extras?: FirstReadExtras | null;
+		/** The last import that came in, so 03's done row can name it (c511, Import-Doors B). */
+		imported?: StartImport | null;
+	} = $props();
+
+	/** 03 done by an import: its name and count, and IMPORT LOG → to its entry. */
+	const importLine = $derived(importDoneLine(imported));
+	const metaOf = (s: Step) => (s.id === 'library' && s.state === 'done' && importLine) || s.meta;
 
 	let opened = $state<StepId | null | undefined>(undefined);
 	// The first step to do opens until the friend opens or closes one themselves.
@@ -118,7 +131,7 @@
 									{s.title}{#if s.optional}<span class="opt">{m.start_optional()}</span>{/if}
 								</div>
 								<div class="st-meta">
-									<span class="long">{s.meta}</span><span class="short">{s.short}</span>
+									<span class="long">{metaOf(s)}</span><span class="short">{s.short}</span>
 								</div>
 							</div>
 							{@render acts(s, isOpen)}
@@ -136,8 +149,16 @@
 {#snippet acts(s: Step, isOpen: boolean)}
 	{#if s.state === 'done'}
 		<div class="st-acts">
-			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- fixed app paths -->
-			<a class="quiet" href={doneLink[s.id].href}>{doneLink[s.id].label()}</a>
+			{#if s.id === 'library' && importLine && imported}
+				<!-- Import-Doors B: the quiet link opens the import's own entry in the log. -->
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a fixed app path and its query -->
+				<a class="quiet" href={`${resolve('/import/log')}?open=backup:${imported.id}`}
+					>{m.start_done_link_import()}</a
+				>
+			{:else}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- fixed app paths -->
+				<a class="quiet" href={doneLink[s.id].href}>{doneLink[s.id].label()}</a>
+			{/if}
 		</div>
 	{:else if s.state === 'skipped' && !s.with}
 		<form method="POST" action="/start?/unskip" use:enhance class="st-acts">
@@ -240,7 +261,7 @@
 					></span
 				>
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a fixed app path -->
-				<a class="go" href={resolve('/import')}>{m.start_import_go()}</a>
+				<a class="go" href={resolve('/import')} onclick={go('library')}>{m.start_import_go()}</a>
 			</div>
 			<div class="later">
 				<span class="tx"

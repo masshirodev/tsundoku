@@ -46,6 +46,16 @@
 			}
 		}
 	],
+	"start_meta_done_import": [
+		{
+			"declarations": ["input app", "input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Feito · backup do {app} · {n} série",
+				"countPlural=*": "Feito · backup do {app} · {n} séries"
+			}
+		}
+	],
 	"start_meta_done_phone": "Feito · um celular ou tablet já lê aqui",
 	"start_meta_todo_repo": "De onde vêm as extensões · o tsundoku não traz nenhuma",
 	"start_meta_todo_ext": "Uma fonte para explorar e ler",
@@ -144,6 +154,7 @@
 	"start_done_link_repo": "EXTENSÕES →",
 	"start_done_link_ext": "EXPLORAR →",
 	"start_done_link_library": "BIBLIOTECA →",
+	"start_done_link_import": "REGISTRO DE IMPORTAÇÃO →",
 	"start_done_link_phone": "CONFIGURAÇÕES →",
 	"start_head": "00 — PRIMEIROS PASSOS",
 	"start_empty_title": "Nada aqui ainda.",

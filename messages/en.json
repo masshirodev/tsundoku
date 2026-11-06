@@ -46,6 +46,16 @@
 			}
 		}
 	],
+	"start_meta_done_import": [
+		{
+			"declarations": ["input app", "input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Done · {app} backup · {n} series",
+				"countPlural=*": "Done · {app} backup · {n} series"
+			}
+		}
+	],
 	"start_meta_done_phone": "Done · a phone or tablet reads here",
 	"start_meta_todo_repo": "Where extensions come from · tsundoku ships none",
 	"start_meta_todo_ext": "A source to browse and read from",
@@ -144,6 +154,7 @@
 	"start_done_link_repo": "EXTENSIONS →",
 	"start_done_link_ext": "BROWSE →",
 	"start_done_link_library": "LIBRARY →",
+	"start_done_link_import": "IMPORT LOG →",
 	"start_done_link_phone": "SETTINGS →",
 	"start_head": "00 — GET STARTED",
 	"start_empty_title": "Nothing here yet.",

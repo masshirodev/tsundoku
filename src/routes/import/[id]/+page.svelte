@@ -3,6 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
+	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import {
 		clock,
 		dayMonth,
@@ -100,7 +101,29 @@
 
 <svelte:head><title>Import a backup · tsundoku</title></svelte:head>
 
-{#if data.view === 'preview'}
+{#if data.view === 'tv'}
+	<!-- The TV never imports (c511): the server refuses, and says so here. -->
+	<TopBar label="Import a backup">
+		{#snippet left()}
+			<a class="cellx back" href={resolve('/')}><span>←</span><span class="word">LIBRARY</span></a>
+		{/snippet}
+		{#snippet middle()}
+			<div class="bar-title">
+				<h1 class="t">IMPORT A BACKUP</h1>
+			</div>
+		{/snippet}
+	</TopBar>
+	<section class="pg" aria-label="Not on a TV">
+		<div class="drop" role="alert">
+			<div class="r ruled">
+				<div class="tx">
+					<div class="am">{data.reason.split(' · ')[0]}</div>
+					<div class="b">{data.reason.split(' · ').slice(1).join(' · ')}</div>
+				</div>
+			</div>
+		</div>
+	</section>
+{:else if data.view === 'preview'}
 	{@const p = data.preview}
 	{@const found = p.missing.filter((m) => m.found && !installing[m.id])}
 	{@const without = p.missing.reduce((a, m) => a + m.series, 0)}
@@ -125,6 +148,8 @@
 			<a class="cellx wide" href={resolve('/import')}>CHOOSE ANOTHER</a>
 		{/snippet}
 	</TopBar>
+	<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md, c511). -->
+	<StartTrail start={data.start} />
 
 	<section class="pg" aria-label="What the backup holds">
 		<div class="lab first">
@@ -433,6 +458,8 @@
 			</div>
 		{/snippet}
 	</TopBar>
+	<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md, c511). -->
+	<StartTrail start={data.start} />
 	<section class="pg" aria-label="Not a backup">
 		<div class="drop" role="alert">
 			<div class="r ruled">
@@ -462,6 +489,8 @@
 			</div>
 		{/snippet}
 	</TopBar>
+	<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md, c511). -->
+	<StartTrail start={data.start} />
 	<section class="pg" aria-label="Importing">
 		<div class="lab first">
 			<span>00 — IMPORTING</span><span class="r">YOU CAN LEAVE THIS PAGE</span>
@@ -527,6 +556,8 @@
 			</div>
 		{/snippet}
 	</TopBar>
+	<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md, c511). -->
+	<StartTrail start={data.start} />
 	<section class="pg" aria-label="The result">
 		<div class="lab first">
 			<span>00 — {failed ? 'STOPPED' : 'IMPORTED'}</span><span class="r"

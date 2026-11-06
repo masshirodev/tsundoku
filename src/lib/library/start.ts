@@ -226,6 +226,28 @@ function metaOf(
 	}[id]();
 }
 
+/**
+ * The import that ticked 03, as GET STARTED's done row names it (c511; the
+ * import handoff's Import-Doors B, `DONE · MIHON BACKUP · 382 SERIES` with
+ * IMPORT LOG →): the last import that came in, counted as the viewer may see
+ * it. Null when no import has brought a series the viewer can see, so a step
+ * ticked by a scan alone keeps the scan's line.
+ */
+export type StartImport = { id: number; app: string; series: number };
+
+const APP_NAMES: Record<string, string> = {
+	mihon: 'Mihon',
+	aniyomi: 'Aniyomi',
+	lnreader: 'LNReader'
+};
+
+/** 03's done line when an import brought series in, else null (the step's own line stands). */
+export function importDoneLine(imp: StartImport | null): string | null {
+	if (!imp || imp.series <= 0) return null;
+	const app = APP_NAMES[imp.app] ?? (imp.app || '?');
+	return m.start_meta_done_import({ app, count: imp.series, n: num(imp.series) });
+}
+
 const shortOf = (id: StepId): string | null =>
 	({
 		find: m.start_meta_short_find,
@@ -378,6 +400,19 @@ export const TRAIL: Partial<Record<StepId, TrailDef>> = {
 		paths: ['/browse/extensions'],
 		href: '/browse/extensions?tab=available',
 		doing: m.start_ticks_ext
+	},
+	// 03's IMPORT A BACKUP → (c511; the import handoff's Import-Doors A): the
+	// pick screen and the file's own page (`/import/<id>`: its preview, its
+	// progress, its result, where the step ticks). Uploading posts to
+	// `/import/upload` and lands on `/import/<id>`, so the trip lasts across
+	// it. IMPORT LOG is not the trip's screen and draws no band, but a look
+	// at it from the result does not end the trip.
+	library: {
+		paths: ['/import'],
+		not: ['/import/log'],
+		through: ['/import/log'],
+		href: '/import',
+		doing: m.start_ticks_scan
 	},
 	phone: {
 		paths: ['/settings'],

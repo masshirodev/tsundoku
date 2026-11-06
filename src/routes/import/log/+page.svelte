@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import { clock, dayMonth, n, refusalLines, sizeWords } from '$lib/import/backup-preview';
@@ -12,7 +13,9 @@
 	 * An entry opens in place; a running one asks again every second.
 	 */
 	let { data } = $props();
-	let open = $state<string | null>(null);
+	// `?open=backup:<id>` opens that entry on arrival: GET STARTED's 03, done by
+	// an import, links its entry here (c511, Import-Doors B).
+	let open = $state<string | null>(page.url.searchParams.get('open'));
 	const key = (e: LogEntry) => `${e.kind}:${e.id}`;
 
 	const WEEK = 7 * 24 * 60 * 60 * 1000;

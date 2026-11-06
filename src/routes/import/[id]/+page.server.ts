@@ -6,6 +6,7 @@ import { backupEntry, sourcesLacking } from '$lib/server/import/log';
 import { getDb } from '$lib/server/db';
 import { libraryRoot } from '$lib/server/import';
 import { join } from '$lib/server/fspath';
+import { fromTv, TV_REFUSAL } from '$lib/server/import/tv';
 
 /**
  * One chosen file (c438): its preview while nothing is written
@@ -13,7 +14,10 @@ import { join } from '$lib/server/fspath';
  * Import-File-States E), its result once it has (Import-Result). The page
  * follows the row's state; a refused file shows why.
  */
-export const load: PageServerLoad = ({ params, cookies }) => {
+export const load: PageServerLoad = ({ params, cookies, request }) => {
+	// The TV never imports (c511): refused before anything is read, its
+	// preview, its IMPORT and its result alike.
+	if (fromTv(request)) return { view: 'tv' as const, reason: TV_REFUSAL };
 	const id = Number(params.id);
 	const row = Number.isInteger(id) ? importRow(id) : null;
 	if (!row) error(404, 'no such import');
@@ -69,6 +73,7 @@ function otherJob(id: number): { label: string; progress: number } | null {
 export const actions: Actions = {
 	/** IMPORT: with the categories left out. Runs on the computer; the page follows it. */
 	import: async ({ params, request }) => {
+		if (fromTv(request)) return fail(403, { message: TV_REFUSAL });
 		const form = await request.formData();
 		const leaveOut = form.getAll('leaveOut').map(String);
 		const r = startBackupImport(Number(params.id), {

@@ -5,8 +5,10 @@ import {
 	CHUNK_BYTES,
 	ORIGINS,
 	receiveChunk,
+	type ChunkAnswer,
 	type ImportOrigin
 } from '$lib/server/import/backup';
+import { fromTv, TV_REFUSAL } from '$lib/server/import/tv';
 
 /**
  * IMPORT A BACKUP's upload (c438, doc/IMPORT.md, "The upload"): a file in
@@ -17,6 +19,12 @@ import {
  * Behind the session like every route.
  */
 export const POST: RequestHandler = async ({ request, url }) => {
+	// The TV never imports (c511): refused before a byte is kept, as the pick
+	// screen draws any refusal.
+	if (fromTv(request))
+		return json({ state: 'refused', id: null, reason: TV_REFUSAL } satisfies ChunkAnswer, {
+			status: 403
+		});
 	const q = url.searchParams;
 	const origin = (q.get('from') ?? 'desktop') as ImportOrigin;
 	const body = new Uint8Array(await request.arrayBuffer());
