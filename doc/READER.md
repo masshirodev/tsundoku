@@ -542,8 +542,15 @@ and "when I click down or up it pans to the next sections").
   further (33 px on a 100 px nudge, 185 px on a screen). A tap still glides
   one step and two separate presses still add two. Every door that can take
   the keyup away ends it the same way: the window losing focus, the page being
-  hidden, the lookup panel or page menu opening (its lock), and the chapter
-  changing, which stops it at once so the repeats are not the next chapter's.
+  hidden, the READING sheet, the lookup panel or page menu opening (its lock),
+  and a jump to another chapter, which stops it at once so the repeats are not
+  the new chapter's. **A strip crossing is not a jump**: scrolling on across a
+  band keeps the strip and the pages around it, so the glide, the wheel's ease
+  and a held arrow all read on through it (c668).
+- **The speed and direction are the press's own** (c668). A repeat re-reads
+  its own modifiers, so releasing Ctrl mid-hold would jump a nudge to a
+  screen's speed and Shift mid-Space would turn it round; the first press's
+  step is what the hold keeps until the key comes up.
 - **Ctrl + ↑ / ↓ nudge** 100 px: to bring a panel the screen cut in two into
   view without the mouse (the owner, 2026-10-30; "we can up the amoun a
   ctrl+arrow or side arrow moves too", 2026-11-06).
@@ -566,13 +573,15 @@ and "when I click down or up it pans to the next sections").
 - **Reduced motion**: the wheel stays native and a key moves at once.
 
 Tested in `tests/smooth-scroll.spec.ts` (the approach, notches at any scale,
-place-keeping, and c668's steady hold and its stop), `tests/reader-flow.e2e.ts`
-(a notch eased through the real strip to where it aimed, ↓ and ↑ by a screen)
-and `tests/reader-strip-keys.e2e.ts` (c527 on all four devices: → and ← against
+place-keeping, and c668's steady hold, its stop and its first frame not
+running backwards), `tests/reader-flow.e2e.ts` (a notch eased through the real
+strip to where it aimed, ↓ and ↑ by a screen) and
+`tests/reader-strip-keys.e2e.ts` (c527 on all four devices: → and ← against
 Ctrl + ↓ and Ctrl + ↑, Ctrl + → / ← doing nothing, the zoomed pan, a paged
 reader still turning; and c668's held ↓, which stops on the keyup, on a second
-key, on blur, on the page being hidden, on the page menu, and on a chapter
-change).
+key, on blur, on the page being hidden, on the page menu, on the READING
+sheet and on a jump to another chapter, and which reads on across a band —
+those cases measured on a page slot, since a crossing reshapes the strip).
 
 ## Full screen
 

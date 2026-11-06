@@ -44,7 +44,7 @@ async function open(page: import('@playwright/test').Page) {
  * `kept` counts only the app's own place-keeping, and under load the browser's
  * scroll anchoring moved `scrollY` by thousands of pixels as images above came
  * in, with no event (4864 px on tablet-portrait, 10504 on the phone, wave 23's
- * loaded whole run; c439). A nudge moves the slot by its 40 px whatever
+ * loaded whole run; c439). A nudge moves the slot by its 100 px whatever
  * arrives above it. If that slot leaves the strip, `place()` throws rather
  * than switch measures mid-case.
  */
@@ -284,21 +284,25 @@ async function repeats(page: import('@playwright/test').Page, key: string, count
 	);
 }
 
-/** Wait until the strip has held still over two reads, and say where it stopped. */
-async function still(read: () => Promise<number>, timeout = 15_000): Promise<number> {
-	let before = await read();
-	await expect
-		.poll(
-			async () => {
-				const now = await read();
-				const same = now === before;
-				before = now;
-				return same;
-			},
-			{ intervals: [100, 200, 300, 500], timeout }
-		)
-		.toBe(true);
-	return before;
+/**
+ * Wait until the strip has held still for half a second, and say where it
+ * stopped. Two equal reads are not enough: the window can be a frame or two
+ * behind (a 46,000 px reflow under load starves the frames), and a read taken
+ * then sees the ease paused rather than finished.
+ */
+async function still(read: () => Promise<number>, timeout = 20_000): Promise<number> {
+	const started = Date.now();
+	let last = await read();
+	let unchanged = Date.now();
+	while (Date.now() - started < timeout) {
+		await new Promise((r) => setTimeout(r, 100));
+		const now = await read();
+		if (now !== last) {
+			last = now;
+			unchanged = Date.now();
+		} else if (Date.now() - unchanged >= 500) return now;
+	}
+	throw new Error(`still: the strip kept moving (at ${last} after ${timeout} ms)`);
 }
 
 /**
@@ -406,7 +410,6 @@ test.describe('a held arrow', () => {
 	test('the page menu opening ends the hold (c668)', async ({ page }) => {
 		await openForHold(page);
 		const y = () => scrollAt(page);
-		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
 		await page.keyboard.down('ArrowDown');
 		await repeats(page, 'ArrowDown', 15);
 		await page.keyboard.press('ContextMenu');
@@ -417,7 +420,27 @@ test.describe('a held arrow', () => {
 			.toBe('hidden');
 		const atMenu = await y();
 		const stopped = await still(y);
-		expect(stopped - atMenu).toBeLessThan(step);
+		// At once, not an ease on under the lock: 185 px would be a screen's
+		// release gliding on after the menu took the keyboard.
+		expect(stopped - atMenu).toBeLessThan(10);
+		await page.keyboard.up('ArrowDown');
+		await page.keyboard.press('Escape');
+	});
+
+	test('the READING sheet ends the hold (c668)', async ({ page }) => {
+		await openForHold(page);
+		const y = () => scrollAt(page);
+		await page.keyboard.down('ArrowDown');
+		await repeats(page, 'ArrowDown', 10);
+		// The controls, then the cell that opens the sheet over the strip.
+		const banner = page.getByRole('banner', { name: 'Reader' });
+		if (!(await banner.count())) await page.keyboard.press('Escape');
+		await expect(banner).toHaveCount(1);
+		await page.locator('footer[aria-label="Reader controls"] .cell.grow').click();
+		await expect(page.getByRole('dialog', { name: 'Reading settings' })).toBeVisible();
+		const atSheet = await y();
+		const stopped = await still(y);
+		expect(stopped - atSheet).toBeLessThan(10);
 		await page.keyboard.up('ArrowDown');
 		await page.keyboard.press('Escape');
 	});
@@ -449,5 +472,133 @@ test.describe('a held arrow', () => {
 		await page.waitForTimeout(400);
 		expect(Math.abs((await read()) - atCross)).toBeLessThanOrEqual(step * 1.5);
 		await page.keyboard.up('ArrowDown');
+	});
+});
+
+// ---- a crossing is not a jump (c668) ------------------------------------------------------
+// The strip's band between two chapters is 320 px of chapter boundary, and
+// reading on across it is the strip's own move: `stripPage` navigates with
+// `replaceState` and `noScroll`, so `data.entry.id` changes and the strip
+// stays. Round 1 ended a hold on any change of the entry, so every glide, wheel
+// ease and held key died at every band (measured on that head: one ↓ from 15 px
+// above the crossing moved 717, 83 and 58 px of its 765; a double ↓ 786, 704
+// and 984 of 1530; two notches 196, 109 and 109 of 240; a held ↓ stayed put
+// through 80 further repeats). Only a real jump ends a hold now.
+//
+// The ruler is the next chapter's first page slot, never `scrollY`: a crossing
+// adds and drops chapters around it and reshapes the strip.
+
+/** The chapter after `entry` on the strip, read off the band between them. */
+const nextOnStrip = (page: import('@playwright/test').Page, entry: number) =>
+	page.evaluate((entry) => {
+		const band = document.querySelector<HTMLElement>(`section.band[data-between^="${entry}-"]`);
+		const next = band?.dataset.between?.split('-')[1];
+		return next === undefined ? null : Number(next);
+	}, entry);
+
+/**
+ * Put the next chapter's first page `gap` px below the middle line: the
+ * crossing (that page reaching the middle) is then `gap` px of scroll away.
+ */
+async function aboveCrossing(page: import('@playwright/test').Page, gap: number) {
+	const entry = Number(new URL(page.url()).pathname.split('/').pop());
+	const next = await nextOnStrip(page, entry);
+	expect(next, 'the next chapter is on the strip').not.toBeNull();
+	await expect
+		.poll(() => page.locator(`[data-role="page"][data-entry="${next}"]`).count())
+		.toBeGreaterThan(0);
+	await page.evaluate(
+		({ next, gap }) => {
+			const el = document.querySelector(`[data-role="page"][data-entry="${next}"]`)!;
+			scrollBy(0, el.getBoundingClientRect().top - innerHeight / 2 - gap);
+		},
+		{ next: next!, gap }
+	);
+	// The strip notes the place a frame after the scroll: let it, so a crossing
+	// is the key's, not the positioning's.
+	await page.waitForTimeout(100);
+	return next!;
+}
+
+/** The URL's chapter and the ruler's distance from the middle, read together. */
+const crossed = (page: import('@playwright/test').Page, next: number) =>
+	page.evaluate((next) => {
+		const el = document.querySelector<HTMLElement>(`[data-role="page"][data-entry="${next}"]`);
+		return {
+			path: location.pathname,
+			at: el ? Math.round(el.getBoundingClientRect().top - innerHeight / 2) : null
+		};
+	}, next);
+
+test.describe('a crossing the band', () => {
+	test('one ↓ across a band reaches its whole step (c668)', async ({ page }) => {
+		await openForHold(page);
+		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
+		const gap = 15;
+		const next = await aboveCrossing(page, gap);
+		const from = new URL(page.url()).pathname;
+		await page.keyboard.press('ArrowDown');
+		// The crossing happened, and the glide carried on through it.
+		await expect.poll(async () => (await crossed(page, next)).path).not.toBe(from);
+		const settled = await still(async () => (await crossed(page, next)).at!);
+		expect(Math.abs(settled - (gap - step))).toBeLessThanOrEqual(3);
+	});
+
+	test('a double ↓ across a band reaches both steps (c668)', async ({ page }) => {
+		await openForHold(page);
+		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
+		const gap = 300;
+		const next = await aboveCrossing(page, gap);
+		const from = new URL(page.url()).pathname;
+		await page.keyboard.press('ArrowDown');
+		await page.keyboard.press('ArrowDown');
+		await expect.poll(async () => (await crossed(page, next)).path).not.toBe(from);
+		const settled = await still(async () => (await crossed(page, next)).at!);
+		expect(Math.abs(settled - (gap - 2 * step))).toBeLessThanOrEqual(3);
+	});
+
+	test('a wheel notch across a band reaches its aim (c668)', async ({ page }) => {
+		test.skip(test.info().project.name !== 'desktop', 'a wheel notch is the desktop’s (scale 1)');
+		await openForHold(page);
+		const gap = 15;
+		const next = await aboveCrossing(page, gap);
+		const from = new URL(page.url()).pathname;
+		// A notch says its own distance; the strip aims by what the event says,
+		// so the aim is read off the two events rather than assumed.
+		await page.evaluate(() => {
+			const w = window as unknown as { deltas: number[] };
+			w.deltas = [];
+			addEventListener('wheel', (e) => w.deltas.push(e.deltaY), { passive: true });
+		});
+		await page.mouse.wheel(0, 120);
+		await page.mouse.wheel(0, 120);
+		const aim = await page.evaluate(() =>
+			(window as unknown as { deltas: number[] }).deltas.reduce((a, b) => a + b, 0)
+		);
+		expect(aim).toBeGreaterThan(gap);
+		await expect.poll(async () => (await crossed(page, next)).path).not.toBe(from);
+		const settled = await still(async () => (await crossed(page, next)).at!);
+		expect(Math.abs(settled - (gap - aim))).toBeLessThanOrEqual(3);
+	});
+
+	test('a held ↓ reads on across a band, and stops on the keyup (c668)', async ({ page }) => {
+		await openForHold(page);
+		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
+		const gap = 15;
+		const next = await aboveCrossing(page, gap);
+		const from = new URL(page.url()).pathname;
+		await page.keyboard.down('ArrowDown');
+		await expect
+			.poll(async () => (await crossed(page, next)).path, { timeout: 10_000 })
+			.not.toBe(from);
+		// Past the band, with the key still down, the strip is still moving.
+		await repeats(page, 'ArrowDown', 10);
+		const moving = (await crossed(page, next)).at!;
+		await repeats(page, 'ArrowDown', 10);
+		expect(moving - (await crossed(page, next)).at!).toBeGreaterThan(100);
+		await page.keyboard.up('ArrowDown');
+		const atKeyup = (await crossed(page, next)).at!;
+		const stopped = await still(async () => (await crossed(page, next)).at!);
+		expect(atKeyup - stopped).toBeLessThan(step);
 	});
 });

@@ -191,6 +191,46 @@ describe('smooth scrolling on a PC (c192)', () => {
 		expect(Math.max(...seen)).toBeLessThanOrEqual(600);
 	});
 
+	it('never holds the wrong way first, when a frame is stamped before the key (c668)', () => {
+		// The held path's delta is a rAF timestamp minus start()'s now(), which
+		// under load can be negative: 12 ms before the key moved a downward hold
+		// -41.7 px (the review's reproduction), and in Chromium a held ↑ went
+		// down on its first frame in 6 of 8 tries, by up to 94 px.
+		let now = 1000;
+		let y = 500;
+		const seen: number[] = [];
+		const queue: ((t: number) => void)[] = [];
+		const host = {
+			now: () => now,
+			frame: (cb: (t: number) => void) => queue.push(cb),
+			cancel: () => void queue.splice(0),
+			get y() {
+				return y;
+			},
+			set y(v: number) {
+				y = v;
+				seen.push(v);
+			},
+			max: () => 10_000
+		};
+		const s = new SmoothScroll(host);
+		s.hold(765, 220);
+		// Stamped 12 ms before the key, then on as usual.
+		queue.shift()!(now - 12);
+		for (let i = 0; i < 100 && queue.length; i++) queue.shift()!((now += 16));
+		// Downward: never above where it began.
+		expect(Math.min(...seen)).toBeGreaterThanOrEqual(500);
+		// And up: never below where it began.
+		const top = y;
+		s.stop();
+		seen.length = 0;
+		s.hold(-765, 220);
+		queue.shift()!(now - 12);
+		for (let i = 0; i < 100 && queue.length; i++) queue.shift()!((now += 16));
+		expect(Math.max(...seen)).toBeLessThanOrEqual(top);
+		expect(y).toBeLessThan(top);
+	});
+
 	it('smooths a mouse wheel’s notches, never a trackpad’s stream or a sideways wheel', () => {
 		expect(isNotch({ deltaMode: 1, deltaX: 0, deltaY: 3 })).toBe(true);
 		expect(isNotch({ deltaMode: 0, deltaX: 0, deltaY: 100 })).toBe(true);
