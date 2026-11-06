@@ -205,6 +205,52 @@ test('on the phone, / opens the search in the title’s place, and the grid is t
 	await expect(page.locator('header.bar .title')).toBeHidden();
 });
 
+/**
+ * c654 (the owner, 2026-11-06, on a phone): "the back button at the top of a
+ * browsed entry goes back and opens the search bar". Measured on this base by
+ * the owner's own steps — BROWSE, a source, a tile, the preview's ← — it does
+ * not: with real taps the return is the source page's URL with no `find` or
+ * `q`, its search form hidden, and focus on `body`. The two causes the card
+ * named are both out of reach of those steps: the tile's `from` is the source
+ * page's own URL (which has no `find` unless the search was already open,
+ * `doc/handoff-notes/series.md`, wave 29), and a tap cannot be dispatched a
+ * second time onto the page it navigates to (a click navigates on `click`,
+ * and the link is inside the client-side router). So this case is a guard,
+ * not a fix: it pins the expected return, and goes red if the return ever
+ * starts drawing the search.
+ *
+ * The browse world runs once, in the `browse` project (Galaxy Tab S4 at
+ * 800 × 1280), so the describe takes the Pixel 7 and skips itself elsewhere.
+ */
+test.describe('on a phone, the back from a browsed entry (c654)', () => {
+	// A Pixel 7's own viewport, touch and mobile flag. `defaultBrowserType` is
+	// left out: a describe may not set it (Playwright would need a new worker).
+	const { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch } = devices['Pixel 7'];
+	test.use({ viewport, userAgent, deviceScaleFactor, isMobile, hasTouch });
+
+	test('← goes back to the source’s own URL, and the search stays as it was', async ({
+		page
+	}, testInfo) => {
+		test.skip(testInfo.project.name !== 'browse', 'the browse world runs in the `browse` project');
+		await page.goto(OPEN);
+		// A real tap, as the owner made: a click cannot reproduce a tap-through.
+		await page.locator('.tile', { hasText: 'Open Source 1-2' }).tap();
+		await page.waitForURL(/\/downloads\/source\//);
+		await page.locator('a.back').tap();
+
+		await page.waitForURL(/\/browse\/100/);
+		const u = new URL(page.url());
+		expect(u.pathname).toBe('/browse/100');
+		expect(u.searchParams.has('find')).toBe(false);
+		expect(u.searchParams.get('q')).toBeNull();
+		// Both halves of what the owner expected: the source page, its search shut.
+		await expect(page.locator('header.bar .find')).toBeHidden();
+		await expect(page.locator('header.bar .title')).toBeVisible();
+		await expect(page.locator('header.bar .slash')).toBeVisible();
+		expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('INPUT');
+	});
+});
+
 test('BROWSE lists the sources by kind, RECENT once one is visited, and no hidden source', async ({
 	page
 }) => {

@@ -6,7 +6,7 @@
 	import Cover from '$lib/components/content/Cover.svelte';
 	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
 	import { hueFor } from '$lib/library/cover';
-	import { entryProgress, type SeriesEntry, type SeriesPage } from '$lib/library/series';
+	import { booksOf, entryProgress, type SeriesEntry, type SeriesPage } from '$lib/library/series';
 	import { readHref } from '$lib/library/links';
 	import type { SubmitFunction } from '@sveltejs/kit';
 
@@ -37,7 +37,9 @@
 	} = $props();
 
 	let moving = $state(false);
-	const index = $derived(book ? series.entries.findIndex((e) => e.id === book.id) : -1);
+	/** The books alone: an extra beside them is not numbered as one (c650). */
+	const books = $derived(booksOf(series.entries));
+	const index = $derived(book ? books.findIndex((e) => e.id === book.id) : -1);
 	const page = $derived(book ? entryProgress(book)?.page : undefined);
 	const people = $derived(
 		book ? book.tags.filter((t) => ['circle', 'artist', 'author'].includes(t.namespace)) : []
@@ -61,7 +63,7 @@
 			<div class="text">
 				<h2>{book.title}</h2>
 				<div class="meta">
-					DOUJIN · BOOK {index + 1} OF {series.entries.length} · {book.pageCount} PAGES{page
+					DOUJIN · BOOK {index + 1} OF {books.length} · {book.pageCount} PAGES{page
 						? ` · P. ${page}`
 						: book.readAt !== null
 							? ' · READ'
@@ -99,7 +101,7 @@
 		<div class="series-row">
 			<div class="label">SERIES</div>
 			<div class="series-name">
-				{series.title}<span>{index + 1} OF {series.entries.length}</span>
+				{series.title}<span>{index + 1} OF {books.length}</span>
 			</div>
 			<button
 				type="button"

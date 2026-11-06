@@ -151,10 +151,27 @@ every door, wave 17 round 2; [`LINKS.md`](LINKS.md), "One season, one entry").
   series has one rating and four entries, and sending it to all of them
   would overwrite the scores earlier seasons already have. The sheet shows
   each other season's own score as it read it.
-- **Never:** for a hidden series; while incognito (the reading is never
-  recorded, so nothing follows); through a cover-only link (a novel to its
-  comic's entry, [`LINKS.md`](LINKS.md)); through a link whose entry is the
-  other kind; for a season with no link; or for a novel (see "Not yet").
+- **Never:** for a hidden series; for a series whose source is **NEVER
+  TRACKED** (c522, a switch on that source's settings page,
+  [`BROWSE.md`](BROWSE.md), "A source's own switches"); while incognito (the
+  reading is never recorded, so nothing follows); through a cover-only link (a
+  novel to its comic's entry, [`LINKS.md`](LINKS.md)); through a link whose
+  entry is the other kind; for a season with no link; or for a novel (see "Not
+  yet").
+
+  NEVER TRACKED is asked at the one gate every send is queued through —
+  `targets()` in `src/lib/server/tracking.ts` — and again where the queue is
+  drained: `sendPending` asks it per series and prunes what waits for a target
+  that is gone, so a row queued before the switch went on is **dropped** at the
+  next drain, not sent and not kept; turning the switch off again sends nothing
+  retroactively, and the next chapter read queues from what the list says then.
+  Ranobe asks the same switch in `worksOf`, in `refreshUnits` (a unit another
+  series shares counts no read from it), in `resolveEditions` (no edition is
+  suggested for its novels) and in `flush`'s drain: its unsent reads and a
+  work's rating or FAV are **kept**, as a hidden series' are, and go once the
+  switch is off (each follows the door it shares with hidden). The series
+  screen's LISTS row says `NOTHING SENT · ITS SOURCE IS NEVER TRACKED` on every
+  line and offers no EDIT or TRY AGAIN.
 
 `tracker_sends` holds one row per series and catalogue: the furthest wanted.
 It's gone once sent, and `tracker_state` takes the new chapter and

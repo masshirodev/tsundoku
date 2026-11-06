@@ -21,7 +21,8 @@
 		type SeriesPage
 	} from '$lib/library/series';
 	import type { Shelf } from '$lib/library/types';
-	import { isBookSeries, isVolumeSeries } from '$lib/library/series';
+	import { booksOf, isBookSeries, isVolumeSeries } from '$lib/library/series';
+	import { m } from '$lib/paraglide/messages';
 	import { suggestionLabel, type Suggestion } from '$lib/library/books';
 	import { readTime } from '$lib/library/history';
 	import { kindFacts } from '$lib/library/kinds';
@@ -337,6 +338,9 @@
 					tracking,
 					ranobe,
 					seasons,
+					// NEVER TRACKED is the source's switch (c522): the row says why, and
+					// offers no send, instead of a line per list that would never move.
+					neverTracked: !!tracking?.neverTracked,
 					expanded: seasonsOpen,
 					offline: linkOff,
 					now: Date.now(),
@@ -888,7 +892,7 @@
 			<!-- Index Books, state 7: under CONTINUE, on this book's screen only. -->
 			<section class="sugg" aria-label="Might be one series">
 				<div class="sugg-head">
-					<span>MIGHT BE ONE SERIES</span>
+					<span>{m.offer_might_be_one_series()}</span>
 					<span class="dim"
 						>{suggestion.books.length} BOOKS · {suggestionLabel(suggestion.books)}</span
 					>
@@ -913,12 +917,12 @@
 								name="series"
 								value={b.seriesId}
 							/>{/each}
-						<button type="submit" class="dim">NOT A SERIES</button>
+						<button type="submit" class="dim">{m.offer_not_a_series()}</button>
 					</form>
 				</div>
 			</section>
 		{:else if dismissedKey}
-			<Band title="NOT A SERIES · WON'T ASK AGAIN">
+			<Band title={m.offer_not_a_series_again()}>
 				{#snippet action()}
 					<form method="POST" action="?/undoDismiss" use:enhance>
 						<input type="hidden" name="key" value={dismissedKey} />
@@ -934,19 +938,24 @@
 			     REVIEW's sheet and its tap, and NOT THIS never asks again. -->
 			<section class="sugg offer" aria-label="Might continue {workOffer.name}">
 				<div class="sugg-head offer-head">
-					<span>MIGHT CONTINUE {workOffer.name.toUpperCase()} · AS PART {workOffer.part}</span>
+					<span
+						>{m.offer_might_continue({
+							name: workOffer.name.toUpperCase(),
+							part: workOffer.part
+						})}</span
+					>
 					<span class="dim offer-why">{workOffer.reason}</span>
 				</div>
 				<div class="sugg-actions">
 					<button type="button" onclick={() => onworkreview?.()}>REVIEW →</button>
 					<form method="POST" action="?/dismissWorkOffer" use:enhance>
 						<input type="hidden" name="key" value={workOffer.key} />
-						<button type="submit" class="dim">NOT THIS</button>
+						<button type="submit" class="dim">{m.offer_not_this()}</button>
 					</form>
 				</div>
 			</section>
 		{:else if !outline && workOfferDismissed}
-			<Band title="NOT THIS · WON'T ASK AGAIN">
+			<Band title={m.offer_not_this_again()}>
 				{#snippet action()}
 					<form method="POST" action="?/undoWorkOffer" use:enhance>
 						<input type="hidden" name="key" value={workOfferDismissed} />
@@ -1257,7 +1266,9 @@
 						{#if tags.groups.length === 0}<span class="none">NO TAGS</span>{/if}
 						{#if tags.more > 0}<div class="more">+ {tags.more} MORE</div>{/if}
 						{#if isBookSeries(series)}
-							<div class="more">FROM ITS {series.entries.length} BOOKS · EACH KEEPS ITS OWN</div>
+							<div class="more">
+								FROM ITS {booksOf(series.entries).length} BOOKS · EACH KEEPS ITS OWN
+							</div>
 						{/if}
 					</div>
 					<button type="button" class="edit" onclick={onedit}>EDIT</button>

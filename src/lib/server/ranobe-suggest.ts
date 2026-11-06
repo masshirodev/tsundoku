@@ -10,6 +10,7 @@ import {
 	searchOne,
 	suggestConfigured
 } from './ranobe.ts';
+import { sourceFlagSql } from './engine/source-flags.ts';
 import { bracketed, cleanTitle, normaliseTitle } from '../library/catalogue.ts';
 import { epubLang, suggestedPeople, volumeOf, workBundle } from '../library/ranobe.ts';
 
@@ -32,6 +33,13 @@ export class CannotSuggest extends Error {}
 /** What a series' EPUB says, for the bundle: its first file with a package. */
 async function fromFile(seriesId: number) {
 	const db = getDb();
+	// NEVER TRACKED (c522): a suggestion is a write to Ranobe, so nothing of the
+	// series leaves the workstation. Saying it here keeps the bundle from being
+	// built and POSTed for a work that could never be tracked.
+	const never = db
+		.prepare(`SELECT 1 FROM series s WHERE s.id = ? AND ${sourceFlagSql('neverTracked')}`)
+		.get(seriesId);
+	if (never) throw new CannotSuggest('its source is never tracked');
 	const s = db
 		.prepare(
 			`SELECT s.title, s.path FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ? AND ${ELIGIBLE_NOVEL_SQL}`

@@ -45,6 +45,7 @@ import { seriesReadingTime } from '$lib/server/reading-time';
 import { setScanlator } from '$lib/server/duplicates';
 import { parseRating } from '$lib/library/rating';
 import { isBookSeries, parseDirection, parseTag } from '$lib/library/series';
+import { kindFacts } from '$lib/library/kinds';
 import {
 	GroupingError,
 	dismissSuggestion,
@@ -209,6 +210,20 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		wantPictures(series.entries.filter((e) => !e.episode?.thumb).map((e) => e.id));
 	const { shelves } = await parent();
 	const books = isBookSeries(series);
+	/**
+	 * A hand-made extra beside a doujin's books (c650): one entry of `?book=`,
+	 * so the extra opens its own pages. Without one the series shows its books
+	 * (or its single book), as before. A novel's front matter is not this: its
+	 * chapters are the entry list, and `?book=` was ignored for it before c650,
+	 * so it stays ignored. `grouping` is the registry's question (the kinds
+	 * GROUP binds into books), not a kind's name (`doc/KINDS.md`).
+	 */
+	const hasExtras =
+		kindFacts(series.kind).grouping === 'books' && series.entries.some((e) => e.matter !== '');
+	// Only a single book can be suggested into a series, and only one with
+	// nothing beside it: `singletonCandidates` counts the `isBookSql` entries
+	// and the entries with no `edition_of`, so a book with a hand-made extra is
+	// not suggested whatever this says (c650). Counted by entry, as before.
 	const single = series.kind === 'doujin' && series.entries.length === 1;
 	const bookParam = Number(url.searchParams.get('book'));
 	const root = rootOf(series.id);
@@ -224,8 +239,9 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// one Work this title continues, for a series in none. It only offers.
 		workOffer: workOfferFor(series.id, reveal),
 		editing: url.searchParams.get('edit') === 'tags',
-		// A book of a series of books opened on its own: its pages.
-		book: books ? (series.entries.find((e) => e.id === bookParam) ?? null) : null,
+		// A book of a series of books opened on its own: its pages. A doujin with
+		// an extra beside it takes one too (c650), which is how the extra is reached.
+		book: books || hasExtras ? (series.entries.find((e) => e.id === bookParam) ?? null) : null,
 		// Only a single book can be suggested into a series.
 		suggestion: single ? suggestionFor(series.id, reveal) : null,
 		// Where a book can move to, or singles can be added: same root only.

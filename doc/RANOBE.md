@@ -116,6 +116,27 @@ so there is nothing for a send to follow.
 there, and nothing more is sent for it. Only what a series Ranobe may hear of
 maps onto is ever sent or unsent.
 
+**NEVER TRACKED is narrower than hidden** (c522, a switch on a source's
+settings page, [`BROWSE.md`](BROWSE.md), "A source's own switches"). Nothing
+is **written** or **offered** to Ranobe for it: `resolveEditions` skips a work
+only its series link (no lookup, no edition suggestion, and its volumes never
+build another series' reason), `worksOf` finds no work to send for, `flush`
+skips its units and a work only it read, and SUGGEST TO RANOBE is refused
+(`fromFile`), so no bundle is posted. A queued read or a work's rating is
+**kept**, as a hidden series' is, and goes once the switch is off. A search or
+a lookup by id still asks, because neither writes anything and a link is how a
+cover and its details arrive; that is the one thing this switch lets out.
+
+A unit another series shares is not a way round it: `refreshUnits` counts no
+read from a never-tracked series, even when an eligible series maps the same
+unit, so the unit is only as read as that other series holds it. A unit
+already sent before the switch went on, with no read left from a series Ranobe
+may hear of, is **withdrawn** (a `DELETE`) while another series keeps it live:
+that takes back the very read the switch forbids, and its `sent_at` is cleared
+so it is not withdrawn twice (turning the switch off sends the read again from
+what that series holds then). With no other series mapping the unit, the
+drain's `live` guard leaves the row alone, as it leaves a hidden series'.
+
 ## The pass
 
 After every import (after the links and the AniList and MAL lists), and from

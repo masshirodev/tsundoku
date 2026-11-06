@@ -319,6 +319,13 @@ workstation did not answer`, with TRY AGAIN.
 A link that picks keeps every other parameter as it is (a URL with no `q`
 keeps none), because changing one the load tracks would run it again.
 
+**A candidate that is already another series** says `THAT IS ALREADY <TITLE> IN
+THE LIBRARY` and, under it, `TWO SERIES FROM ONE ENTRY · JOIN THEM IN MIGHT BE
+ONE SERIES`. That second line names the books' offer, so since c587 it is a
+message and the offer's name comes from `messages/` too (`offer_move_join`,
+`offer_might_be_one_series`): a Portuguese screen points at the name the
+series screen draws.
+
 **The `file:///` in the owner's console** (seen with c491) was looked for and
 not found: every cover MOVE draws is made on the server as one of tsundoku's
 own routes (`imageRoute`, which only takes the engine's `/image/` addresses,

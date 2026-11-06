@@ -49,6 +49,12 @@
 			title: 'Off history',
 			summary:
 				'Its reads and watches never show in HISTORY. They still count for progress, CONTINUE and tracking.'
+		},
+		{
+			flag: 'neverTracked',
+			title: 'Never tracked',
+			summary:
+				'Nothing from it is sent to AniList, MAL or Ranobe. Its reads still count here: progress, CONTINUE and HISTORY are unchanged.'
 		}
 	] as const;
 	const refusal = $derived(

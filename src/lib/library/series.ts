@@ -208,6 +208,16 @@ export const isVolumeSeries = (s: Pick<SeriesPage, 'kind' | 'entries'>) =>
 export const isBookSeries = (s: Pick<SeriesPage, 'kind' | 'entries'>) =>
 	s.kind === 'doujin' && s.entries.filter((e) => e.matter === '').length > 1;
 
+/**
+ * A doujin's books: its entries that are not front or back matter (c650). The
+ * rest are hand-made extras, which are drawn apart and never counted or
+ * numbered as a book (`extrasOf`). No importer writes `matter` on a doujin --
+ * only the EPUB plans set it, for novels -- so a doujin's extras come from a
+ * hand-made row or the duplicates review (doc/BOOKS.md).
+ */
+export const booksOf = (entries: SeriesEntry[]) => entries.filter((e) => e.matter === '');
+export const extrasOf = (entries: SeriesEntry[]) => entries.filter((e) => e.matter !== '');
+
 export type BookState = 'read' | 'progress' | 'unread';
 
 /** A book tile's meta line: "28 P · READ", "P. 12 / 30" (in accent, with a bar), or "24 P". */
@@ -227,9 +237,10 @@ export function bookMeta(
 	return { text: `${e.pageCount} P`, state: 'unread' };
 }
 
-/** "6 · 3 READ" for a series of books. */
+/** "6 · 3 READ" for a series of books: its books, never an extra beside them (c650). */
 export function booksCount(entries: SeriesEntry[]): string {
-	return `${entries.length} · ${entries.filter((e) => e.readAt !== null).length} READ`;
+	const books = booksOf(entries);
+	return `${books.length} · ${books.filter((e) => e.readAt !== null).length} READ`;
 }
 
 /** "2023-05": when a book was added, for the reorder screen and the grouping sheet. */
@@ -248,11 +259,18 @@ export function continueAction(series: Pick<SeriesPage, 'kind' | 'entries'>): {
 	const { kind, entries } = series;
 	const cur = currentEntry(entries);
 	if (isBookSeries(series)) {
+		// The books alone: an extra beside them is not a book, and is not numbered (c650).
+		const books = booksOf(entries);
 		if (!cur)
-			return { label: 'READ AGAIN', meta: `${entries.length} BOOKS`, short: '', entry: entries[0] };
-		const n = entries.indexOf(cur) + 1;
+			return {
+				label: 'READ AGAIN',
+				meta: `${books.length} BOOKS`,
+				short: '',
+				entry: books[0] ?? null
+			};
+		const n = books.indexOf(cur) + 1;
 		const p = entryProgress(cur);
-		const started = entries.some((e) => e.readAt !== null || e.lastOpenedAt !== null);
+		const started = books.some((e) => e.readAt !== null || e.lastOpenedAt !== null);
 		return {
 			label: started ? 'CONTINUE' : 'START',
 			meta: p ? `BOOK ${n} · P. ${p.page} OF ${cur.pageCount}` : `BOOK ${n}`,
@@ -261,7 +279,9 @@ export function continueAction(series: Pick<SeriesPage, 'kind' | 'entries'>): {
 		};
 	}
 	if (kind === 'doujin') {
-		const book = entries[0] ?? null;
+		// The book alone: an extra beside it is never what READ opens (c650),
+		// even when its row sorts before the book's.
+		const book = booksOf(entries)[0] ?? null;
 		const pages = book?.pageCount ?? 0;
 		if (!book) return { label: 'READ', meta: '', short: '', entry: null };
 		if (book.readAt !== null)
@@ -489,12 +509,13 @@ export function railTicks(entries: SeriesEntry[]): { label: string; fraction: nu
 
 /** "MANHWA · MIHON · ONGOING" */
 export function seriesMeta(s: Pick<SeriesPage, 'kind' | 'source' | 'status' | 'entries'>): string {
-	if (isBookSeries(s)) return `DOUJIN SERIES · ${s.entries.length} BOOKS`;
+	// A doujin's books, never the hand-made extras beside them (c650).
+	const books = booksOf(s.entries).length;
+	if (isBookSeries(s)) return `DOUJIN SERIES · ${books} BOOKS`;
 	const kind = s.kind === 'novel' ? 'WEB NOVEL' : s.kind.toUpperCase();
 	const parts = [kind];
 	if (s.source) parts.push(s.source.toUpperCase());
-	if (s.kind === 'doujin')
-		parts.push(s.entries.length === 1 ? '1 BOOK' : `${s.entries.length} BOOKS`);
+	if (s.kind === 'doujin') parts.push(books === 1 ? '1 BOOK' : `${books} BOOKS`);
 	else if (s.status) parts.push(s.status.toUpperCase());
 	return parts.join(' · ');
 }

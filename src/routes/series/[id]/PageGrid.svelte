@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { coverPlaceholder } from '$lib/library/cover';
-	import { entryProgress, type SeriesEntry, type SeriesPage } from '$lib/library/series';
+	import {
+		booksOf,
+		entryProgress,
+		extrasOf,
+		type SeriesEntry,
+		type SeriesPage
+	} from '$lib/library/series';
 	import { pageThumbSrc, readHref } from '$lib/library/links';
 	import { resolve } from '$app/paths';
 	import { invalidateAll } from '$app/navigation';
@@ -12,6 +18,7 @@
 	import { bandFor, menuRows, type Automatic, type MenuRow } from '$lib/library/cover-menu';
 	import type { BookEditions } from '$lib/server/editions';
 	import { baseToEdition } from '$lib/library/editions';
+	import ExtrasList from './ExtrasList.svelte';
 
 	/**
 	 * A doujin reads as a book, so its contents are its pages rather than a
@@ -44,10 +51,12 @@
 	);
 	/**
 	 * A one-book doujin shows its book; a book of a series is passed in. A
-	 * folded book shows the edition it opens in, at the book's place in it.
+	 * hand-made extra beside the book is not the book, even when its row sorts
+	 * first (c650): the books are what the screen draws. A folded book shows the
+	 * edition it opens in, at the book's place in it.
 	 */
 	const book = $derived.by(() => {
-		const b = only ?? series.entries[0];
+		const b = only ?? booksOf(series.entries)[0];
 		if (!b || !opening || opening.base) return b;
 		return {
 			...b,
@@ -139,6 +148,13 @@
 				putBack: () => undefined
 			});
 	}
+	/**
+	 * A hand-made extra beside the book (c650): its pages are not this book's,
+	 * so it is listed apart under the grid, where it stays reachable. No
+	 * importer writes `matter` on a doujin (doc/BOOKS.md).
+	 */
+	const extras = $derived(extrasOf(series.entries));
+
 	async function undoBand() {
 		const u = band?.undo;
 		band = null;
@@ -198,6 +214,7 @@
 			</li>
 		{/each}
 	</ol>
+	<ExtrasList entries={extras} />
 </section>
 
 {#if menu && book}

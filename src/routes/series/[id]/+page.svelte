@@ -44,6 +44,7 @@
 		type DownloadState
 	} from '$lib/library/downloads';
 	import {
+		booksOf,
 		bulkCounts,
 		continueAction,
 		fileMeta,
@@ -96,12 +97,14 @@
 	let reviewing = $state(false);
 
 	function startOrder() {
-		order = series.entries.map((e) => e.id);
+		// The books alone (c650): reorderBooks appends an entry it was not given,
+		// so an extra keeps its place behind the ordered books.
+		order = booksOf(series.entries).map((e) => e.id);
 		reordering = true;
 	}
 
 	function orderBy(mode: 'date' | 'title') {
-		const byId = new Map(series.entries.map((e) => [e.id, e]));
+		const byId = new Map(booksOf(series.entries).map((e) => [e.id, e]));
 		order = orderBooks(
 			order
 				.map((id) => byId.get(id)!)
@@ -421,7 +424,8 @@
 				onclick={() => (reordering = false)}>✕</button
 			>
 			<div class="mid count">
-				<span class="long">REORDER · {series.entries.length}</span><span class="short">REORDER</span
+				<span class="long">REORDER · {booksOf(series.entries).length}</span><span class="short"
+					>REORDER</span
 				>
 			</div>
 			<button type="button" class="cell" data-focus-mark="in" onclick={() => orderBy('date')}

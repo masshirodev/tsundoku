@@ -108,6 +108,37 @@ describe('in Portuguese', () => {
 		);
 		expect(m.start_done_link_import()).toBe('REGISTRO DE IMPORTAÇÃO →');
 	});
+	it('the series screen’s two offers say their words from messages/ (c587)', () => {
+		// English is the copy as it was: a phone screen's locators match it.
+		expect(m.offer_might_be_one_series()).toBe('MIGHT BE ONE SERIES');
+		expect(m.offer_not_a_series()).toBe('NOT A SERIES');
+		expect(m.offer_not_a_series_again()).toBe("NOT A SERIES · WON'T ASK AGAIN");
+		expect(m.offer_might_continue({ name: 'KAORI MAMA', part: 3 })).toBe(
+			'MIGHT CONTINUE KAORI MAMA · AS PART 3'
+		);
+		expect(m.offer_not_this()).toBe('NOT THIS');
+		expect(m.offer_not_this_again()).toBe("NOT THIS · WON'T ASK AGAIN");
+		expect(m.offer_into_part({ name: 'KAORI MAMA', part: 3 })).toBe('INTO KAORI MAMA · AS PART 3');
+		// MOVE names the same offer, so the pointer and the place say one word.
+		expect(m.offer_move_join({ offer: m.offer_might_be_one_series() })).toBe(
+			'TWO SERIES FROM ONE ENTRY · JOIN THEM IN MIGHT BE ONE SERIES'
+		);
+		overwriteGetLocale(() => 'pt-BR');
+		expect(m.offer_might_be_one_series()).toBe('PODE SER UMA SÉRIE');
+		expect(m.offer_might_continue({ name: 'KAORI MAMA', part: 3 })).toBe(
+			'PODE CONTINUAR KAORI MAMA · COMO PARTE 3'
+		);
+		expect(m.offer_not_this()).toBe('NÃO É ESTA');
+		expect(m.offer_not_this_again()).toBe('NÃO É ESTA · NÃO PERGUNTO DE NOVO');
+		expect(m.offer_not_a_series()).toBe('NÃO É UMA SÉRIE');
+		expect(m.offer_into_part({ name: 'KAORI MAMA', part: 3 })).toBe(
+			'PARA KAORI MAMA · COMO PARTE 3'
+		);
+		expect(m.offer_move_join({ offer: m.offer_might_be_one_series() })).toBe(
+			'DUAS SÉRIES DE UMA ENTRADA · JUNTE-AS EM PODE SER UMA SÉRIE'
+		);
+	});
+
 	it('GET STARTED speaks it, plurals and all', () => {
 		overwriteGetLocale(() => 'pt-BR');
 		const f = {

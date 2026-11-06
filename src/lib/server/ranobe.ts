@@ -1,6 +1,7 @@
 import { basename } from './fspath.ts';
 import { getDb } from './db.ts';
 import { IN_LIBRARY_SQL, VISIBLE_SQL } from './visibility.ts';
+import { sourceFlagSql } from './engine/source-flags.ts';
 import { SignedOut, Unreachable } from './catalogue.ts';
 import { cleanTitle, coverOnly, isAnime } from '../library/catalogue.ts';
 import {
@@ -529,10 +530,15 @@ export async function resolveEditions(now = Date.now()): Promise<{
 	waiting: number;
 }> {
 	const db = getDb();
+	// NEVER TRACKED (c522) stops the whole step for a work only its series link:
+	// no `GET /works/{ref}` and, above all, no suggestion. A work another
+	// linked series still wants is looked up and may be suggested, but that
+	// series' volumes alone build the reason (`suggestEdition`).
 	const wanted = db
 		.prepare(
 			`SELECT DISTINCT l.work, l.lang FROM ranobe_links l JOIN series s ON s.id = l.series_id
-			JOIN roots r ON r.id = s.root_id WHERE l.edition IS NULL AND ${ELIGIBLE_NOVEL_SQL}`
+			JOIN roots r ON r.id = s.root_id WHERE l.edition IS NULL AND ${ELIGIBLE_NOVEL_SQL}
+				AND NOT ${sourceFlagSql('neverTracked', 's.origin_key')}`
 		)
 		.all() as { work: string; lang: string }[];
 	const out = { found: 0, suggested: 0, waiting: 0 };
@@ -600,7 +606,8 @@ async function suggestEdition(work: string, lang: string, now: number): Promise<
 		getDb()
 			.prepare(
 				`SELECT l.volume FROM ranobe_links l JOIN series s ON s.id = l.series_id JOIN roots r ON r.id = s.root_id
-				WHERE l.work = ? AND l.lang = ? AND l.volume IS NOT NULL AND ${ELIGIBLE_NOVEL_SQL}`
+				WHERE l.work = ? AND l.lang = ? AND l.volume IS NOT NULL AND ${ELIGIBLE_NOVEL_SQL}
+					AND NOT ${sourceFlagSql('neverTracked', 's.origin_key')}`
 			)
 			.all(work, lang) as { volume: string }[]
 	).map((r) => r.volume);
@@ -788,7 +795,9 @@ export async function mapSeries(o: { seriesId?: number; now?: number } = {}): Pr
  * What each unit of a work is here: read once every entry mapped onto it is,
  * in any series of the work that Ranobe may hear of (two copies of a volume
  * count once). A unit only ever mapped from a series hidden since is left
- * alone: hiding a series takes nothing back.
+ * alone: hiding a series takes nothing back. A series from a NEVER TRACKED
+ * source (c522) never contributes a read here, even when another series maps
+ * the same unit: the switch is about the source, not the work.
  */
 export function refreshUnits(work?: string): void {
 	const db = getDb();
@@ -798,6 +807,7 @@ export function refreshUnits(work?: string): void {
 			FROM entries e JOIN ranobe_links l ON l.series_id = e.series_id
 			JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
 			WHERE e.ranobe_unit IS NOT NULL AND e.shadowed = 0 AND ${ELIGIBLE_SQL}
+				AND NOT ${sourceFlagSql('neverTracked', 's.origin_key')}
 				${work !== undefined ? 'AND l.work = ?' : ''}`
 		)
 		.all(...(work !== undefined ? [work] : [])) as {
@@ -852,9 +862,12 @@ async function flushNow(o: { backfill?: boolean; now?: number }) {
 	const out = { read: 0, unread: 0, works: 0, failed: 0 };
 	// Only units some series Ranobe may hear of still maps: a series hidden
 	// since its read was queued sends nothing.
+	// NEVER TRACKED (c522) is asked here too, where the queue is drained: a unit
+	// queued before the switch went on waits, as a hidden series' does, and goes
+	// only if the switch is turned off again (the same rule as shown again).
 	const live = `EXISTS (SELECT 1 FROM entries e JOIN ranobe_links l ON l.series_id = e.series_id
 		JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
-		WHERE e.ranobe_unit = u.unit AND ${ELIGIBLE_SQL})`;
+		WHERE e.ranobe_unit = u.unit AND ${ELIGIBLE_SQL} AND NOT ${sourceFlagSql('neverTracked', 's.origin_key')})`;
 	let reads = db
 		.prepare(
 			`SELECT unit, read_at FROM ranobe_units u WHERE read_at IS NOT NULL AND sent_at IS NULL AND ${live}`
@@ -918,10 +931,16 @@ async function flushNow(o: { backfill?: boolean; now?: number }) {
 		).run(unit);
 		out.unread += 1;
 	}
+	// A work is wanted by the series that read it, so it goes only while one of
+	// them may still be sent: NEVER TRACKED (c522) and a hidden series both hold
+	// a rating or FAV back, and it goes if one is shown or switched off again.
 	const works = db
 		.prepare(
-			`SELECT work, rating, favourite FROM ranobe_works
-			WHERE wanted_at IS NOT NULL AND (sent_at IS NULL OR sent_at < wanted_at)`
+			`SELECT work, rating, favourite FROM ranobe_works w
+			WHERE wanted_at IS NOT NULL AND (sent_at IS NULL OR sent_at < wanted_at)
+				AND EXISTS (SELECT 1 FROM ranobe_links l JOIN series s ON s.id = l.series_id
+					JOIN roots r ON r.id = s.root_id
+					WHERE l.work = w.work AND ${ELIGIBLE_SQL} AND NOT ${sourceFlagSql('neverTracked', 's.origin_key')})`
 		)
 		.all() as { work: string; rating: number | null; favourite: number | null }[];
 	for (const w of works) {
@@ -981,7 +1000,8 @@ function worksOf(seriesIds: number[]): string[] {
 			.prepare(
 				`SELECT DISTINCT l.work FROM ranobe_links l JOIN series s ON s.id = l.series_id
 				JOIN roots r ON r.id = s.root_id
-				WHERE l.series_id IN (${seriesIds.map(() => '?').join(',')}) AND ${ELIGIBLE_SQL}`
+				WHERE l.series_id IN (${seriesIds.map(() => '?').join(',')}) AND ${ELIGIBLE_SQL}
+					AND NOT ${sourceFlagSql('neverTracked', 's.origin_key')}`
 			)
 			.all(...seriesIds) as { work: string }[]
 	).map((r) => r.work);

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { getDb } from './db.ts';
 import { HIDDEN_SQL } from './visibility.ts';
+import { sourceFlagSql } from './engine/source-flags.ts';
 import {
 	MEDIA,
 	SignedOut,
@@ -651,15 +652,23 @@ function watchedRows(seriesId: number) {
 
 /**
  * Where a series' progress may go: each catalogue signed in whose entry the
- * link names. None for a hidden series, a cover-only link, or a season whose
- * own link names nothing. Both kinds whose unit is an episode or a chapter
- * send (c240 widened this from comics alone): an anime sends the episode
- * within its season, a comic its chapter.
+ * link names. None for a hidden series, a series whose source is NEVER TRACKED
+ * (c522), a cover-only link, or a season whose own link names nothing. Both
+ * kinds whose unit is an episode or a chapter send (c240 widened this from
+ * comics alone): an anime sends the episode within its season, a comic its
+ * chapter.
+ *
+ * This is the one gate every send is queued through (`queueProgress`,
+ * `editTracking`, a rating's `afterRating`, a season's), and the one the queue
+ * is drained through: `sendPending` asks it per series and prunes what waits
+ * for a target that is gone, so a row queued before NEVER TRACKED went on is
+ * dropped at the next drain, not sent and not kept.
  */
 function targets(seriesId: number): Target[] {
 	const r = getDb()
 		.prepare(
-			`SELECT s.kind, ${HIDDEN_SQL} AS hidden FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ?`
+			`SELECT s.kind, ${HIDDEN_SQL} AS hidden FROM series s JOIN roots r ON r.id = s.root_id
+			WHERE s.id = ? AND NOT ${sourceFlagSql('neverTracked')}`
 		)
 		.get(seriesId) as { kind: Kind; hidden: number } | undefined;
 	if (!r || r.hidden) return [];
@@ -1064,6 +1073,8 @@ export type Tracking = {
 	facts: TrackFacts[];
 	/** Hidden: nothing is sent (Series Link 1s). */
 	hidden: boolean;
+	/** Its source is NEVER TRACKED (c522): nothing is sent, at every door. */
+	neverTracked: boolean;
 	/** Cover-only link: never tracked. */
 	coverOnly: boolean;
 	/** AniList and MAL take this kind's progress (`catalogueTracks`): false for a novel. */
@@ -1107,13 +1118,15 @@ export function trackingOf(seriesId: number): Tracking | null {
 	const db = getDb();
 	const r = db
 		.prepare(
-			`SELECT s.kind, ${HIDDEN_SQL} AS hidden, l.anilist_id, l.mal_id, l.format
+			`SELECT s.kind, ${HIDDEN_SQL} AS hidden, ${sourceFlagSql('neverTracked')} AS neverTracked,
+				l.anilist_id, l.mal_id, l.format
 			FROM series s JOIN roots r ON r.id = s.root_id LEFT JOIN series_links l ON l.series_id = s.id WHERE s.id = ?`
 		)
 		.get(seriesId) as
 		| {
 				kind: Kind;
 				hidden: number;
+				neverTracked: number;
 				anilist_id: number | null;
 				mal_id: number | null;
 				format: string | null;
@@ -1127,6 +1140,7 @@ export function trackingOf(seriesId: number): Tracking | null {
 		return {
 			facts: at?.facts ?? [],
 			hidden: !!r.hidden,
+			neverTracked: r.neverTracked === 1,
 			coverOnly: !!at?.coverOnly,
 			catalogueTracks: true,
 			links: factsLinks(at?.facts ?? [], at?.link ?? null),
@@ -1167,6 +1181,7 @@ export function trackingOf(seriesId: number): Tracking | null {
 	return {
 		facts,
 		hidden: !!r.hidden,
+		neverTracked: r.neverTracked === 1,
 		coverOnly: coverOnly(r.kind, r.format ?? ''),
 		catalogueTracks: catalogueTracks(r.kind),
 		links: [

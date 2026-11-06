@@ -6,12 +6,17 @@ process.env.ANILIST_CLIENT_ID = '42';
 process.env.ANILIST_CLIENT_SECRET = 'al-secret';
 process.env.MAL_CLIENT_ID = 'mal-id';
 process.env.MAL_CLIENT_SECRET = 'mal-secret';
+// Ranobe's own fakes below: the two doors c522's round 2 guards.
+process.env.RANOBE_TOKEN = 'rb_test';
+process.env.RANOBE_URL = 'https://ranobe.test/api/v1';
 
 const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');
 const cat = await import('$lib/server/catalogue');
 const tr = await import('$lib/server/tracking');
 const seasonLinks = await import('$lib/server/season-links');
+const { setSourceFlag } = await import('$lib/server/engine/source-flags');
+const rb = await import('$lib/server/ranobe');
 
 const db = getDb();
 const NOW = Date.UTC(2026, 8, 25);
@@ -498,6 +503,41 @@ describe('sending', () => {
 		expect(tr.queueProgress(novel, NOW)).toBe(0);
 	});
 
+	it('sends nothing for a series from a NEVER TRACKED source, and drops what waited (c522)', async () => {
+		const tog = linkTog();
+		await signIn('anilist');
+		// The series' own source, as an engine key names it; the seed writes none.
+		db.prepare(`UPDATE series SET origin_key = 'mihon:100:/manga/tog' WHERE id = ?`).run(tog);
+		try {
+			// A send queued before the switch went on: it is what must not go out.
+			expect(tr.queueProgress(tog, NOW)).toBe(1);
+			expect(waiting(tog, 'anilist')).toMatchObject({ progress: 593 });
+			setSourceFlag('100', 'neverTracked', true);
+			sent = [];
+			// The drain asks the door again, and drops the row rather than keep it.
+			expect(await tr.sendPending({ seriesId: tog, now: NOW })).toEqual({
+				sent: 0,
+				failed: 0
+			});
+			expect(sent).toEqual([]);
+			expect(waiting(tog, 'anilist')).toBeUndefined();
+			// And it is not queued again: progress, status and score all find no target.
+			expect(tr.queueProgress(tog, NOW)).toBe(0);
+			expect(tr.editTracking(tog, { status: 'on_hold', score: 9 }, NOW)).toBe(0);
+			expect(waiting(tog, 'anilist')).toBeUndefined();
+			expect(tr.trackingOf(tog)).toMatchObject({ neverTracked: true });
+		} finally {
+			setSourceFlag('100', 'neverTracked', false);
+			db.prepare(`UPDATE series SET origin_key = NULL WHERE id = ?`).run(tog);
+		}
+		// Switched off again: nothing is sent retroactively, since the drain dropped
+		// the row (a new read queues again and is sent, as any read is).
+		sent = [];
+		expect(await tr.sendPending({ seriesId: tog, now: NOW })).toEqual({ sent: 0, failed: 0 });
+		expect(sent).toEqual([]);
+		expect(tr.trackingOf(tog)).toMatchObject({ neverTracked: false });
+	});
+
 	it('shows what it knows on the TRACKING row', async () => {
 		const tog = linkTog();
 		await signIn('anilist');
@@ -606,6 +646,189 @@ describe('a season’s other part speaks for the list signed in (c518)', () => {
 				db.prepare(`DELETE FROM ${t} WHERE series_id = ?`).run(show);
 			db.prepare(`DELETE FROM entries WHERE series_id = ?`).run(show);
 			db.prepare(`DELETE FROM series WHERE id = ?`).run(show);
+		}
+	});
+});
+
+// ---- Ranobe, faked: NEVER TRACKED's two doors (c522, round 2) ------------------------------
+
+type RanobeCall = { method: string; path: string; body: unknown };
+let ranobeCalls: RanobeCall[] = [];
+/** The works these cases link: no edition in English, so an offer would be made. */
+const RANOBE_WORKS: Record<string, { ref: string; title: string; editions: unknown[] }> = {
+	wNT: {
+		ref: 'wNT',
+		title: 'Never Tracked',
+		editions: [{ ref: 'eNT-ja', lang: 'ja', origin: 'original', format: 'bunkobon', units: {} }]
+	},
+	wNT2: { ref: 'wNT2', title: 'Shared Unit', editions: [] }
+};
+const ranobeFake: typeof fetch = async (input, init) => {
+	const url = new URL(String(input));
+	const path = url.pathname.replace('/api/v1', '');
+	const method = init?.method ?? 'GET';
+	const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+	ranobeCalls.push({ method, path, body });
+	const work = path.match(/^\/works\/([\w-]+)$/);
+	if (work)
+		return RANOBE_WORKS[work[1]]
+			? json(RANOBE_WORKS[work[1]])
+			: json({ error: { code: 'not_found', message: 'not_found', details: {} } }, 404);
+	if (path === '/bundles' && method === 'POST')
+		return json(
+			{ bundle: 91, status: 'pending', items: [{ key: 'edition', ref: null, status: 'pending' }] },
+			201
+		);
+	if (path === '/bundles/91')
+		return json({
+			bundle: 91,
+			status: 'pending',
+			items: [{ key: 'edition', ref: null, status: 'pending' }]
+		});
+	if (path === '/me/reads' && method === 'POST')
+		return json({ recorded: (body.reads as unknown[]).length, duplicates: 0, entries: [] });
+	if (path.startsWith('/me/reads/') && method === 'DELETE')
+		return json({ removed: 1, progress: null });
+	return json({});
+};
+rb.setRanobeFetch(ranobeFake);
+
+describe('Ranobe: a NEVER TRACKED source sends nothing (c522)', () => {
+	const MUSHOKU = idOf('Mushoku Tensei');
+	const KEN = idOf('Tensei Shitara Ken Deshita');
+
+	const linkRanobe = (seriesId: number, work: string, volume: string | null) =>
+		db
+			.prepare(
+				`INSERT INTO ranobe_links (series_id, work, edition, lang, volume, via, title, linked_at)
+				VALUES (?, ?, NULL, 'en', ?, 'lookup', '', ?)`
+			)
+			.run(seriesId, work, volume, NOW);
+	const clear = (work: string, ...seriesIds: number[]) => {
+		db.prepare(`DELETE FROM ranobe_links WHERE work = ?`).run(work);
+		db.prepare(`DELETE FROM ranobe_suggestions WHERE work = ?`).run(work);
+		db.prepare(`DELETE FROM ranobe_units WHERE work = ?`).run(work);
+		for (const id of seriesIds) {
+			db.prepare(`UPDATE series SET origin_key = NULL WHERE id = ?`).run(id);
+			db.prepare(`UPDATE entries SET ranobe_unit = NULL WHERE series_id = ?`).run(id);
+		}
+	};
+	const posts = () => ranobeCalls.filter((c) => c.method === 'POST');
+	const postsTo = (path: string) => posts().filter((c) => c.path === path);
+
+	beforeEach(() => {
+		ranobeCalls = [];
+	});
+
+	it('offers no edition for a work only its never-tracked series links, and lists its volumes for no one (c522)', async () => {
+		setSourceFlag('301', 'neverTracked', true);
+		db.prepare(`UPDATE series SET origin_key = 'mihon:301:/novel/mushoku' WHERE id = ?`).run(
+			MUSHOKU
+		);
+		linkRanobe(MUSHOKU, 'wNT', '5');
+		try {
+			// Only the never-tracked series wants it: the step does not even ask.
+			const out = await rb.resolveEditions(NOW);
+			expect(out).toEqual({ found: 0, suggested: 0, waiting: 0 });
+			expect(ranobeCalls).toEqual([]);
+
+			// A visible series of the same work, same language, wants it too: the
+			// lookup and the offer happen, but never for the flagged series' volume.
+			linkRanobe(KEN, 'wNT', '2');
+			const shared = await rb.resolveEditions(NOW);
+			expect(shared.suggested).toBe(1);
+			expect(postsTo('/bundles')).toHaveLength(1);
+			const reason = (postsTo('/bundles')[0].body as { reason: string }).reason;
+			expect(reason).toContain('volumes 2');
+			expect(reason).not.toContain('5');
+		} finally {
+			setSourceFlag('301', 'neverTracked', false);
+			clear('wNT', MUSHOKU, KEN);
+		}
+	});
+
+	it('does not read a unit through another series that shares it (c522)', async () => {
+		setSourceFlag('302', 'neverTracked', true);
+		db.prepare(`UPDATE series SET origin_key = 'mihon:302:/novel/mushoku' WHERE id = ?`).run(
+			MUSHOKU
+		);
+		linkRanobe(MUSHOKU, 'wNT2', null);
+		linkRanobe(KEN, 'wNT2', null);
+		const entry = (seriesId: number, position: number) =>
+			(
+				db
+					.prepare(`SELECT id FROM entries WHERE series_id = ? AND position = ?`)
+					.get(seriesId, position) as { id: number }
+			).id;
+		// Two copies of one volume, mapped onto the same unit; only one is read.
+		const mine = entry(MUSHOKU, 20);
+		const theirs = entry(KEN, 1);
+		db.prepare(`UPDATE entries SET ranobe_unit = 'wNT2:volume:5' WHERE id IN (?, ?)`).run(
+			mine,
+			theirs
+		);
+		db.prepare(`UPDATE entries SET read_at = ? WHERE id = ?`).run(NOW, mine);
+		try {
+			rb.refreshUnits('wNT2');
+			expect(
+				db.prepare(`SELECT read_at FROM ranobe_units WHERE unit = 'wNT2:volume:5'`).get()
+			).toEqual({ read_at: null });
+			const out = await rb.flush({ now: NOW });
+			expect(out.read).toBe(0);
+			// The other copy keeps the unit live, but nothing was read there.
+			expect(postsTo('/me/reads')).toEqual([]);
+		} finally {
+			db.prepare(`UPDATE entries SET read_at = NULL WHERE id IN (?, ?)`).run(mine, theirs);
+			setSourceFlag('302', 'neverTracked', false);
+			clear('wNT2', MUSHOKU, KEN);
+		}
+	});
+
+	it('takes back a read already sent, once only, when the other copy leaves it unread (c522)', async () => {
+		// The decision written in doc/RANOBE.md: a unit sent before the switch is
+		// withdrawn (a DELETE), because leaving it would keep the never-tracked
+		// read on Ranobe; sent_at is cleared, so it is not withdrawn twice.
+		setSourceFlag('303', 'neverTracked', true);
+		db.prepare(`UPDATE series SET origin_key = 'mihon:303:/novel/mushoku' WHERE id = ?`).run(
+			MUSHOKU
+		);
+		linkRanobe(MUSHOKU, 'wNT2', null);
+		linkRanobe(KEN, 'wNT2', null);
+		const entry = (seriesId: number, position: number) =>
+			(
+				db
+					.prepare(`SELECT id FROM entries WHERE series_id = ? AND position = ?`)
+					.get(seriesId, position) as { id: number }
+			).id;
+		const mine = entry(MUSHOKU, 20);
+		const theirs = entry(KEN, 1);
+		db.prepare(`UPDATE entries SET ranobe_unit = 'wNT2:volume:6' WHERE id IN (?, ?)`).run(
+			mine,
+			theirs
+		);
+		db.prepare(`UPDATE entries SET read_at = ? WHERE id = ?`).run(NOW, mine);
+		db.prepare(
+			`INSERT INTO ranobe_units (unit, work, read_at, sent_at) VALUES ('wNT2:volume:6', 'wNT2', ?, ?)`
+		).run(NOW - 1000, NOW - 2000);
+		try {
+			rb.refreshUnits('wNT2');
+			await rb.flush({ now: NOW });
+			expect(ranobeCalls.filter((c) => c.method === 'DELETE').map((c) => c.path)).toEqual([
+				'/me/reads/wNT2%3Avolume%3A6'
+			]);
+			expect(postsTo('/me/reads')).toEqual([]);
+			expect(
+				db.prepare(`SELECT read_at, sent_at FROM ranobe_units WHERE unit = 'wNT2:volume:6'`).get()
+			).toEqual({ read_at: null, sent_at: null });
+			// The next pass has nothing left to withdraw.
+			ranobeCalls = [];
+			rb.refreshUnits('wNT2');
+			await rb.flush({ now: NOW });
+			expect(ranobeCalls).toEqual([]);
+		} finally {
+			db.prepare(`UPDATE entries SET read_at = NULL WHERE id IN (?, ?)`).run(mine, theirs);
+			setSourceFlag('303', 'neverTracked', false);
+			clear('wNT2', MUSHOKU, KEN);
 		}
 	});
 });
