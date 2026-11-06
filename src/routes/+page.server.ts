@@ -116,8 +116,15 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 
 	const total = countTiles(reveal);
 	// Duplicate books (doc/DUPLICATE-BOOKS.md): a decision the review left
-	// waiting is carried out, then the pairs still to review are counted.
-	await applyPending();
+	// waiting is carried out, then the pairs still to review are counted. A
+	// decision that cannot be carried out is answered and logged by
+	// `applyPending` itself; this is the belt to that braces -- the library's
+	// own load is never the place a review's fault becomes a 500 (c648).
+	try {
+		await applyPending();
+	} catch (e) {
+		console.error('tsundoku: carrying out the duplicates review failed:', e);
+	}
 	const dupes = reviewQueue(reveal).length;
 	// Catalogue links AniList found, not for certain (doc/LINKS.md).
 	// One review for both catalogues (doc/RANOBE.md, "The review").

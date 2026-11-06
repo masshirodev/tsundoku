@@ -127,6 +127,8 @@
 
 	// ---- deciding -----------------------------------------------------------------------------
 	type Refusal = { pair: string; decision: string; reason: string };
+	/** A decision a bug or the disk stopped, answered by `applyPending` (c648). */
+	type Stuck = { pair: string; decision: string; error: string };
 	/**
 	 * A decision the library's state could not carry, as the workstation
 	 * answers it (c648): the pair is back in the review undecided, and the band
@@ -139,8 +141,9 @@
 		keep: 'A BOOK CAN’T GO TO THE TRASH · THE PAIR ISN’T WHAT IT WAS'
 	};
 	let refused = $state<Refusal[]>([]);
+	let stuck = $state<Stuck[]>([]);
 
-	async function post(body: object): Promise<{ refused?: Refusal[] } | null> {
+	async function post(body: object): Promise<{ refused?: Refusal[]; failed?: Stuck[] } | null> {
 		try {
 			const r = await fetch(resolve('/api/dupes'), {
 				method: 'POST',
@@ -148,10 +151,32 @@
 				body: JSON.stringify(body)
 			});
 			if (!r.ok) return null;
-			return (await r.json().catch(() => ({}))) as { refused?: Refusal[] };
+			return (await r.json().catch(() => ({}))) as { refused?: Refusal[]; failed?: Stuck[] };
 		} catch {
 			return null;
 		}
+	}
+
+	/**
+	 * A decision the library refused is dropped there (c648), so the pair is
+	 * undecided again: put it back at the end of this visit's queue and count it
+	 * as not done. One decided on an earlier visit is not among this visit's
+	 * pairs; the next load brings that one back. UNDO is for the pair on the
+	 * band, so a refusal that names it clears it -- its decision is gone.
+	 */
+	function unreject(list: Refusal[], before?: { queue: string[]; done: number }) {
+		for (const r of list) {
+			if (!byKey.has(r.pair) || queue.includes(r.pair)) continue;
+			queue = [...queue, r.pair];
+			done = Math.max(0, done - 1);
+			// UNDO of the decision just made lands on this same state: the
+			// refused pair back in the queue, and not counted as done.
+			if (before && !before.queue.includes(r.pair)) {
+				before.queue = [...before.queue, r.pair];
+				before.done = Math.max(0, before.done - 1);
+			}
+		}
+		if (undo && list.some((r) => r.pair === undo!.pair)) undo = null;
 	}
 
 	async function decide(
@@ -166,6 +191,7 @@
 		busy = true;
 		failed = null;
 		refused = [];
+		stuck = [];
 		if (decision !== 'skip') {
 			const answer = await post({
 				pair: key,
@@ -178,10 +204,13 @@
 				return;
 			}
 			// A decision waiting from before is carried out first, and it may be
-			// one this state refuses: the band says so before this pair's own.
+			// one this state refuses, or one that could not be carried out at all:
+			// the bands say so before this pair's own.
 			refused = answer.refused ?? [];
+			stuck = answer.failed ?? [];
 			queue = queue.slice(1);
 			done += 1;
+			unreject(refused, before);
 			undo = { title, detail, pair: key, before, open };
 		} else {
 			busy = false;
@@ -328,9 +357,13 @@
 		busy = false;
 		// A fold this state refuses is not carried out, so there is no folded
 		// book to open: the band says which and why, and the pair comes back to
-		// the review (c648) instead of a screen that would look unchanged.
+		// the review (c648) instead of a screen that would look unchanged. One
+		// that failed outright is still waiting -- there is no folded book for it
+		// either, and its own band says so.
 		refused = answer?.refused ?? [];
-		if (!answer || refused.length) {
+		stuck = answer?.failed ?? [];
+		unreject(refused);
+		if (!answer || refused.length || stuck.length) {
 			if (!answer) failed = 'THE WORKSTATION DID NOT ANSWER · NOTHING CHANGED';
 			return;
 		}
@@ -373,6 +406,16 @@
 			<div class="bt">
 				<div class="line">{REFUSED[r.decision] ?? 'THE WORKSTATION COULDN’T CARRY THAT OUT'}</div>
 				<div class="line dim">{r.reason.toUpperCase()} · IT COMES BACK TO THE REVIEW</div>
+			</div>
+		</div>
+	{/each}
+	{#each stuck as f (f.pair)}
+		<!-- Not a refusal: a bug or the disk. The decision is still waiting, so
+		nothing is lost, and saying "did not answer" would be false. -->
+		<div class="band failed" role="alert">
+			<div class="bt">
+				<div class="line">THE WORKSTATION COULDN’T CARRY THAT OUT</div>
+				<div class="line dim">{f.error.toUpperCase()} · IT STAYS WAITING</div>
 			</div>
 		</div>
 	{/each}

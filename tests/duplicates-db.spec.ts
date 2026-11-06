@@ -7,6 +7,17 @@ vi.mock('$lib/server/covers', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/server/covers')>()),
 	refreshCovers: refresh
 }));
+// c648's round 2: a KEEP's delete failing on I/O is not a refusal, and the
+// library's load must survive whatever `applyPending` does. Both replace one
+// export and keep the rest real.
+vi.mock('$lib/server/delete', async (importOriginal) => {
+	const real = await importOriginal<typeof import('$lib/server/delete')>();
+	return { ...real, deleteBook: vi.fn(real.deleteBook) };
+});
+vi.mock('$lib/server/dupes', async (importOriginal) => {
+	const real = await importOriginal<typeof import('$lib/server/dupes')>();
+	return { ...real, applyPending: vi.fn(real.applyPending) };
+});
 import type { PlannedEntry, PlannedSeries } from '$lib/import/plan';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
@@ -262,7 +273,7 @@ describe('a decision the review cannot carry out (c648)', () => {
 		// The extra gone, the next load does not fold it behind the owner's
 		// back: the decision is gone with the refusal.
 		db.prepare(`DELETE FROM entries WHERE id = ?`).run(extra);
-		expect(await applyPending()).toEqual({ applied: 0, refused: [] });
+		expect(await applyPending()).toEqual({ applied: 0, refused: [], failed: [] });
 		expect(refresh).not.toHaveBeenCalled();
 		expect(seriesOf(ea)).not.toBe(seriesOf(eb));
 		expect(waiting(key)).toBeUndefined();
@@ -335,5 +346,115 @@ describe('a decision the review cannot carry out (c648)', () => {
 		expect(seriesOf(loseEntry)).toBe(lose);
 		expect(waiting(key)).toBeUndefined();
 		expect(refresh).not.toHaveBeenCalled();
+	});
+
+	it('a decision that fails on the disk is answered, stays waiting, and the one behind it still runs', async () => {
+		// Not a refusal: a plain I/O failure moving a KEEP's loser to the trash
+		// (EACCES here). The row is neither dropped nor marked applied, the
+		// answer says which pair failed, the GROUP waiting behind it is still
+		// carried out, and its cover is queued (c648's round 2).
+		write(
+			plan([entry(1, '', { sourceUrl: '/io/keep', pageCount: 3 })], {
+				originKey: 'hentoid:io-keep',
+				title: 'IO Keep',
+				kind: 'doujin'
+			})
+		);
+		const keep = idOf('IO Keep');
+		const keepEntry = bookOf(keep);
+		const lose = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, source, hue, added_at, origin_key, in_library, cover_key)
+					VALUES (?, 'IO Loser Books', 'doujin', 'hentoid', 0, 1, 'hentoid:io-loser', 1, '')`
+				)
+				.run(root).lastInsertRowid
+		);
+		const putBook = db.prepare(
+			`INSERT INTO entries (series_id, position, label, title, added_at, file, bytes, page_count, available, source_url)
+			VALUES (?, ?, ?, ?, 1, '', 0, 3, 1, ?)`
+		);
+		putBook.run(lose, 1, 'Book 1', 'Lose One', '/io/lose-1');
+		putBook.run(lose, 2, 'Book 2', 'Lose Two', '/io/lose-2');
+		const loseEntry = (
+			db.prepare(`SELECT id FROM entries WHERE series_id = ? ORDER BY position`).get(lose) as {
+				id: number;
+			}
+		).id;
+		const keepKey = `${Math.min(keepEntry, loseEntry)},${Math.max(keepEntry, loseEntry)}`;
+		db.prepare(
+			`INSERT INTO dupe_decisions (pair, decision, keep, at) VALUES (?, 'keep', ?, 1)`
+		).run(keepKey, keepEntry);
+		// A GROUP behind the failed KEEP: it must still be carried out.
+		write(
+			plan([entry(1, '', { sourceUrl: '/io/g1', pageCount: 3 })], {
+				originKey: 'hentoid:io-g1',
+				title: 'IO Group One',
+				kind: 'doujin'
+			})
+		);
+		write(
+			plan([entry(1, '', { sourceUrl: '/io/g2', pageCount: 3 })], {
+				originKey: 'hentoid:io-g2',
+				title: 'IO Group Two',
+				kind: 'doujin'
+			})
+		);
+		const g1 = bookOf(idOf('IO Group One'));
+		const g2 = bookOf(idOf('IO Group Two'));
+		const groupKey = `${Math.min(g1, g2)},${Math.max(g1, g2)}`;
+		db.prepare(
+			`INSERT INTO dupe_decisions (pair, decision, keep, at) VALUES (?, 'group', NULL, 1)`
+		).run(groupKey);
+
+		const deleting = await import('$lib/server/delete');
+		vi.mocked(deleting.deleteBook).mockRejectedValueOnce(new Error('EACCES'));
+		const { applyPending } = await import('$lib/server/dupes');
+		refresh.mockClear();
+		const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const r = await applyPending();
+
+		expect(r.refused).toEqual([]);
+		expect(r.applied).toBe(1);
+		expect(r.failed).toEqual([{ pair: keepKey, decision: 'keep', error: 'EACCES' }]);
+		expect(logged).toHaveBeenCalledWith(
+			expect.stringContaining('could not carry'),
+			keepKey,
+			'keep',
+			expect.any(Error)
+		);
+		// Still waiting, neither dropped nor applied: the next load tries it.
+		expect(db.prepare(`SELECT applied_at FROM dupe_decisions WHERE pair = ?`).get(keepKey)).toEqual(
+			{ applied_at: null }
+		);
+		// The GROUP behind it ran, and queued its series' cover.
+		expect(seriesOf(g1)).toBe(seriesOf(g2));
+		expect(
+			db.prepare(`SELECT applied_at FROM dupe_decisions WHERE pair = ?`).get(groupKey)
+		).toEqual({ applied_at: expect.any(Number) });
+		expect(refresh).toHaveBeenCalledWith({ ids: [seriesOf(g1)], remote: false });
+		logged.mockRestore();
+		// The failed decision is left for the next test's load: clear it here.
+		db.prepare(`DELETE FROM dupe_decisions WHERE pair = ?`).run(keepKey);
+	});
+
+	it('the library’s own load survives applyPending failing outright', async () => {
+		// The belt to the per-decision braces above: even if applyPending
+		// itself throws, the library's home load answers (c648's round 2).
+		const dupes = await import('$lib/server/dupes');
+		const { load } = await import('../src/routes/+page.server');
+		vi.mocked(dupes.applyPending).mockRejectedValueOnce(new Error('EACCES'));
+		const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const data = await load({
+			url: new URL('http://tsundoku.test/'),
+			cookies: { get: () => undefined },
+			parent: async () => ({ scan: null })
+		} as never);
+		expect(data).toBeTruthy();
+		expect(logged).toHaveBeenCalledWith(
+			expect.stringContaining('duplicates review failed'),
+			expect.any(Error)
+		);
+		logged.mockRestore();
 	});
 });

@@ -298,6 +298,10 @@ test.describe('a fold the state refuses (c648)', () => {
 		await expect(
 			page.locator('.band.refused').getByText(/THE BOOK HAS A JAPANESE EDITION ALREADY/)
 		).toBeVisible();
+		// The pair is back in this visit's queue too, not only on the next load:
+		// the counter and the pair shown are the fold's again (c648's round 2).
+		await expect(page.locator('.counter')).toHaveText('02 OF 02');
+		await expect(page.locator('.conf')).toHaveText('SAME BOOK · A THIRD LANGUAGE');
 		// Dropped, so the next load draws it again, undecided, and does not
 		// carry it out behind the owner's back.
 		const db = new Database(dbPath, { readonly: true });
@@ -327,5 +331,11 @@ test.describe('a fold the state refuses (c648)', () => {
 			page.locator('.band.refused').getByText(/A BOOK CAN.T FOLD · SOMETHING SITS BESIDE IT/)
 		).toBeVisible();
 		await expect(page).toHaveURL(/\/duplicates$/);
+		// The decision the band's UNDO named is gone, so the band is too: there
+		// is nothing left for UNDO to forget (c648's round 2).
+		await expect(page.getByRole('button', { name: 'UNDO', exact: true })).toHaveCount(0);
+		// And the pair it was for is back in this visit's queue.
+		await expect(page.locator('.counter')).toHaveText('01 OF 01');
+		await expect(page.locator('.conf')).toHaveText('SAME BOOK · A THIRD LANGUAGE');
 	});
 });

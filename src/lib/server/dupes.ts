@@ -37,7 +37,9 @@ import {
  *   the next one (or leaving the review), so UNDO only has to forget it;
  *   applying it is what deletes, groups or carries over. A decision the
  *   library's state can't carry out is dropped, so the pair comes back to the
- *   review undecided rather than being retried on every load (c648).
+ *   review undecided rather than being retried on every load; one that fails
+ *   for any other reason stays waiting and is answered under `failed`, so a
+ *   bug can never take the library's load down (c648).
  */
 
 type Row = {
@@ -383,8 +385,9 @@ export type Decision = 'keep' | 'both' | 'group' | 'fold' | 'apart';
  * A decision this state can't carry out: the fold's refusals
  * (`EditionError`), the grouping's (`GroupingError`, which KEEP's move into a
  * series of books raises too) and the delete's (`DeleteError`). Anything else
- * is a bug, not a refusal, and is let out so it fails loudly instead of
- * looking like a state the owner can fix.
+ * is a bug, not a refusal: `applyPending` leaves the decision waiting and
+ * answers it under `failed`, so it is neither mistaken for a state the owner
+ * can fix nor allowed to take a caller down.
  */
 export class DupeRefused extends Error {}
 
@@ -395,13 +398,24 @@ export class DupeRefused extends Error {}
  */
 export type Refusal = { pair: string; decision: Decision; reason: string };
 
-/** What one `applyPending` carried out, and what it refused (c648). */
-export type PendingApplied = { applied: number; refused: Refusal[] };
+/**
+ * A decision that failed for a reason that is not a refusal (c648): a bug, or
+ * the disk, rather than the library's state. It is neither dropped nor marked
+ * applied -- it stays waiting, so nothing is lost -- and it is answered so a
+ * reader can say so and log it, but it never takes a caller down with it.
+ */
+export type PendingFailed = { pair: string; decision: Decision; error: string };
+
+/** What one `applyPending` carried out, refused, and could not carry out (c648). */
+export type PendingApplied = { applied: number; refused: Refusal[]; failed: PendingFailed[] };
+
+/** What carrying out the decisions waiting did, as `decide` answers it (c648). */
+export type Decided = { refused: Refusal[]; failed: PendingFailed[] };
 
 /**
  * Settle a pair. What was decided before is carried out first -- and answered
- * with it if the state refused it; this one waits, so UNDO can still take it
- * back.
+ * with it if the state refused it, or if it could not carry it out at all;
+ * this one waits, so UNDO can still take it back.
  */
 export async function decide(
 	key: string,
@@ -409,16 +423,16 @@ export async function decide(
 	keep: number | null,
 	reveal: boolean,
 	now = Date.now()
-): Promise<Refusal[]> {
+): Promise<Decided> {
 	const pair = reviewQueue(reveal).find((p) => p.key === key);
 	if (!pair) throw new Error('no such pair');
 	if (decision === 'keep' && keep !== pair.a.entryId && keep !== pair.b.entryId)
 		throw new Error('keep which?');
-	const { refused } = await applyPending();
+	const { refused, failed } = await applyPending();
 	getDb()
 		.prepare(`INSERT OR REPLACE INTO dupe_decisions (pair, decision, keep, at) VALUES (?, ?, ?, ?)`)
 		.run(key, decision, decision === 'keep' ? keep : null, now);
-	return refused;
+	return { refused, failed };
 }
 
 /** UNDO: the last decision forgotten, if it hasn't been carried out. */
@@ -453,9 +467,12 @@ function seriesOfEntries(ids: number[]): number[] {
  * library that no longer holds the books has the pair back and can settle it
  * again.
  *
- * Only a `DupeRefused` is a refusal. Anything else is a bug: it is not dropped
- * and not marked applied, it stays waiting, and it is thrown out so the next
- * reader sees it.
+ * Only a `DupeRefused` is a refusal. Anything else is a bug or the disk, not a
+ * state the owner can fix: it is not dropped and not marked applied, it stays
+ * waiting (so nothing is lost and the next load tries it again), and it is
+ * logged and answered under `failed`. It is caught here, per decision, so one
+ * decision that cannot be carried out neither aborts the ones behind it nor
+ * takes the caller down -- the library's own load calls this on every load.
  */
 export async function applyPending(now = Date.now()): Promise<PendingApplied> {
 	const db = getDb();
@@ -464,6 +481,7 @@ export async function applyPending(now = Date.now()): Promise<PendingApplied> {
 		.all() as { pair: string; decision: Decision; keep: number | null }[];
 	let applied = 0;
 	const refused: Refusal[] = [];
+	const failed: PendingFailed[] = [];
 	const touched = new Set<number>();
 	for (const d of waiting) {
 		const [a, b] = d.pair.split(',').map(Number);
@@ -472,9 +490,22 @@ export async function applyPending(now = Date.now()): Promise<PendingApplied> {
 			if (d.decision === 'group') await group(a, b, now);
 			if (d.decision === 'fold') await fold(a, b);
 		} catch (e) {
-			if (!(e instanceof DupeRefused)) throw e;
-			db.prepare(`DELETE FROM dupe_decisions WHERE pair = ?`).run(d.pair);
-			refused.push({ pair: d.pair, decision: d.decision, reason: e.message });
+			if (e instanceof DupeRefused) {
+				db.prepare(`DELETE FROM dupe_decisions WHERE pair = ?`).run(d.pair);
+				refused.push({ pair: d.pair, decision: d.decision, reason: e.message });
+			} else {
+				console.error(
+					'tsundoku: the duplicates review could not carry a decision out:',
+					d.pair,
+					d.decision,
+					e
+				);
+				failed.push({
+					pair: d.pair,
+					decision: d.decision,
+					error: e instanceof Error ? e.message : String(e)
+				});
+			}
 			continue;
 		}
 		db.prepare(`UPDATE dupe_decisions SET applied_at = ? WHERE pair = ?`).run(now, d.pair);
@@ -488,7 +519,7 @@ export async function applyPending(now = Date.now()): Promise<PendingApplied> {
 		void refreshCovers({ ids: [...touched], remote: false }).catch((e: unknown) => {
 			console.error('tsundoku: covers after the duplicates review failed:', e);
 		});
-	return { applied, refused };
+	return { applied, refused, failed };
 }
 
 /**
@@ -501,10 +532,14 @@ export async function applyPending(now = Date.now()): Promise<PendingApplied> {
  * leaves nothing of itself behind, not a shelf row for a copy that stayed
  * where it was. The delete that follows cannot be inside it -- its file move
  * to the trash is awaited before its own rows go, and better-sqlite3 cannot
- * hold a transaction across an `await` -- but it checks what it refuses
- * before it writes anything and its own rows are one transaction, so a
- * refused delete adds nothing to the carry-over. An I/O failure moving a file
- * is not a refusal: it fails loudly, with the carry-over committed.
+ * hold a transaction across an `await`. So the carry-over is committed
+ * before the delete runs, and a delete that *refused* would leave it written;
+ * `deleteBook`'s own two refusals (a series that isn't there, a book not in
+ * it) are asked when it is called, with no `await` between them and the
+ * committed carry-over, so they cannot arise from the state the carry-over
+ * leaves. What can fail there is the file move, which is not a refusal: the
+ * carry-over stays, the decision waits, and `applyPending` answers it under
+ * `failed` (c648's round 2).
  */
 async function keepOne(keepId: number, loseId: number, now: number): Promise<void> {
 	const db = getDb();

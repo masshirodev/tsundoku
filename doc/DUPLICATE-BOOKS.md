@@ -114,7 +114,9 @@ remade theirs.
 
 **A decision the state refuses is dropped** (c648). The library answers with
 the pair and its own reason, the review says so in a band, and the pair comes
-back to the review undecided on the next load. The band's words are the
+back to the review undecided -- into this visit's queue at its back, and into
+the next load's, if the visit has ended -- while the UNDO that named it goes,
+since its decision is gone. The band's words are the
 fold's, `A BOOK CAN’T FOLD · SOMETHING SITS BESIDE IT`; a KEEP or a GROUP has
 its own, `A BOOK CAN’T GO TO THE TRASH · THE PAIR ISN’T WHAT IT WAS` and
 `TWO BOOKS CAN’T JOIN · THE PAIR ISN’T WHAT IT WAS`, since neither refuses
@@ -122,10 +124,26 @@ because something sits beside a book. Until wave 29 a refused decision was
 left waiting: `reviewQueue` hides every decided pair, applied or not, so the
 owner saw neither the pair nor a reason, it could not be undone once the
 review's session ended, and every library load tried it again and queued a
-cover refresh. A decision's carry-over is now one transaction -- a KEEP
-refused halfway leaves no shelf row behind -- and only a refusal the fold, the
-grouping or the delete actually raises is treated as one: any other error
-stays waiting and fails loudly instead of looking like a state to fix.
+cover refresh. A decision's carry-over is now one transaction, so a KEEP
+refused halfway leaves no shelf row behind. The delete that follows is its own
+transaction, after the carry-over has committed: its two refusal checks are
+made when it is called, with no `await` between them and the carry-over, so a
+refused delete cannot follow a committed one -- what can fail there is the
+file move, which is not a refusal (the decision stays waiting, under
+`failed`). Only a refusal the fold, the grouping or the delete actually raises
+is treated as one.
+
+**A decision that fails for any other reason stays waiting.** A bug, or the
+disk refusing a file move, is not the library's state and nothing is gained by
+dropping the decision: the row is neither dropped nor marked applied, it is
+logged, and the answer names the pair under `failed`, which the review draws
+as `THE WORKSTATION COULDN’T CARRY THAT OUT · IT STAYS WAITING`. One such
+decision no longer aborts the ones behind it -- they are still carried out and
+their covers remade -- and it can never take the library's own load down: the
+load calls `applyPending` on every load and answers even if it throws (c648,
+round 2). The KEEP whose trash move fails is where this was measured: the
+carry-over is committed, the loser stays, and the pair is retried on the next
+load.
 
 | Decision          | Carried out                                                                                                                                                                                                                                                                        |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
