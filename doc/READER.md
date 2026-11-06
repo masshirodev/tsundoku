@@ -349,11 +349,15 @@ scrollable screen, which took some of them at random.
 - **Vertical:** the strip carries on, both ways, as in Mihon's webtoon
   reader. See "Vertical", below.
 - **The end of what's available:** "END · LAST AVAILABLE", the series' title,
-  and, only while the series is unrated, RATING and FAV. The rating prompt
-  never interrupts twice. An ongoing series whose source has added nothing for
-  eight weeks adds one line — `ASURA SCANS HAS ADDED NOTHING SINCE 6 SEP` —
-  and a cell ANOTHER SOURCE → that opens MOVE ([`MOVE.md`](MOVE.md)). No band:
-  a quiet source isn't a broken one.
+  RATING with FAV, and a row under them that takes the series out of the
+  library (REMOVE), or adds a browsing record to it (+ ADD) — the same doors
+  the series screen's HIDE and BROWSE's ADD use, and the page stays while they
+  answer (c655). The block stays once the rating is set, showing what was
+  chosen, so rating on this page never empties it; the note, `SHOWN WHILE
+UNRATED`, goes with the first rating. An ongoing series whose source has
+  added nothing for eight weeks adds one line — `ASURA SCANS HAS ADDED NOTHING
+SINCE 6 SEP` — and a cell ANOTHER SOURCE → that opens MOVE
+  ([`MOVE.md`](MOVE.md)). No band: a quiet source isn't a broken one.
 - **The end of a series in a Work** offers the next part
   ([`WORKS.md`](WORKS.md), W6): a NEXT IN THE WORK block with the next part's
   cover, title, its own kind's line, `▶ START · CH. 1` and WORK →, between the
