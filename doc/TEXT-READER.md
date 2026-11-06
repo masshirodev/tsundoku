@@ -208,73 +208,15 @@ in the entry). The server stores them in `last_position`, `last_offset` (rung 11
 server ever reading the book. The URL keeps `?at=<block>.<offset>`, so a
 reload, or incognito, which saves nothing, still comes back to the same
 sentence (and in SCROLL, the same line: `?at=<block>.<offset>.<y>`, above).
+The reader is the URL's only writer and its only reader: CONTINUE, history
+and the end page link to the entry without `?at=` (`rg -n
+"searchParams.get\('at'\)|[?&]at=" src`, wave 25), and an entry opened
+without one starts at its first character (the server's `last_offset` is read
+only behind an `?at=` that names no place; the reader's notes, wave 25).
 
-**Where a door opens a chapter** (c622). A URL with `?at=` opens at that
-place: the reader's own writes, and any link that names one. A URL without
-one — what every door into a novel makes, because `readHref()`
-(`src/lib/library/links.ts`) writes none — resumes from the server's saved
-place for that chapter, unless the chapter is already read (`readAt` set),
-which opens at its top. So:
-
-| Door                                                                                                                                                      | Opens at                                                                                                         |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| ▶ CONTINUE, on the series screen and on the library                                                                                                       | the entry it chooses (`resumeEntry`, the one in progress), at its saved place; its top when that chapter is read |
-| a history entry                                                                                                                                           | its chapter, at its saved place; the top when read                                                               |
-| a Work's run row, or READ AGAIN on a Work (both `readHref()`)                                                                                             | the entry it names, at its saved place; the top when read (READ AGAIN's usually is)                              |
-| a chapter row, or the end page's next part (`readHref(first.id, 1)`; the `?p=1` is the image reader's, and the text reader does not read it as a place)   | that chapter, at its saved place; the top when read                                                              |
-| CONTENTS inside the reader, a turn past a chapter's end, SCROLL crossing into the next                                                                    | the chapter's top                                                                                                |
-| the in-place move's own URL (`replaceState`, `?at=<block>.<offset>[.<y>]`)                                                                                | exactly that place, on a reload or a history entry                                                               |
-| a reload before the reader has settled                                                                                                                    | the server's saved place (the last `page` event), or the top                                                     |
-| a chapter finished, then marked unread (MARK UNREAD on the series screen)                                                                                 | its top, until it is read again                                                                                  |
-| a finished chapter, marked unread, then marked read and unread again, or a long-press MARK READ THROUGH over it and its UNDO (the same `?/mark`)          | its top: the marks are not what the log reads, the finish is                                                     |
-| a chapter finished in SCROLL and read on into the next chapter (a `page` at a later block), then marked unread                                            | its top: reading on belongs to the session that finished                                                         |
-| a chapter finished, a page turned back, and then marked unread                                                                                            | its top: the turn back belongs to the session that finished                                                      |
-| UNDO of a long-press MARK READ THROUGH, or a MARK READ and then MARK UNREAD before the chapter was finished (both the same `?/mark` on the series screen) | where it was left: a mark that took a read back, not a finish, leaves the place alone                            |
-
-An explicit `?at=0.0` is a place like any other: the top, whatever the server
-saved. A saved place past the chapter's last block — its text changed under
-it — opens at the top, and settles there rather than carrying a block number
-nothing answers.
-
-**MARK UNREAD keeps the place it was left at** (`markEntries` clears `read_at`
-and keeps `last_position`), and a chapter finished leaves its place on its last
-page, because the `finish` event posts the block it ended on. A mark cannot
-tell a finished chapter from one only marked read, though, because the series
-screen's UNDO of a long-press MARK READ THROUGH posts the same `?/mark`, so the
-reader asks the log instead (`+page.server.ts`). It starts the chapter at its
-top only when a `finish` at or before `unread_at` has no new reading session
-after it. Every session of a chapter starts with an `open` for it, so reading
-on past the finish, turning back a page, and the `page` the reader settles
-800 ms later all belong to the session that finished and leave it an end
-place (measured: a SCROLL finish at block 7, a `page` at block 10; a PAGED
-finish at block 12, a turn back's `page` at 11). An `open` at the finish's own
-block is that same session coming back — the previous chapter's last page
-(`?p=last`) opens where the finish ended (measured) — while an `open` at
-another block is a re-read from a different place and keeps the new place. The
-marks themselves decide nothing: a finished chapter marked unread, then marked
-read and unread again, or a long-press MARK READ THROUGH over it and its UNDO,
-still opens at its top. Only when nothing has been read since the last mark
-does it stay over; an import's own history rows are older than the mark (`at`
-predates it), so they do not count as reading since. A `mark_read` with no
-finish — UNDO, or a mark read then unread by mistake — leaves the place where
-reading had it. A chapter re-opened and read on after the mark has a place
-saved after it, and resumes there like any other.
-
-Until c622 an absent `?at=` read as the first character
-(`Number('')` was 0), so every one of those doors opened a novel at its
-chapter's top. The image reader shares `+page.server.ts`'s `lastPosition` but
-not the absent-parameter half of this rule: it already resumed from the saved
-page with no `?p=` (`+page.server.ts`'s `start`), so that half is the text
-reader's alone. MARK UNREAD is not: the image reader's `start` resumes a
-chapter marked unread at its saved page too, which is older than c622 and a
-card of its own (reader notes, wave 27).
-
-The URL is the reader's only writer, but not its only reader: the
-first-chapter effect reads it, and `keepHistoryUrl()` writes the same URL into
-the history entry so a popstate back into it opens what it was left on
-(`doc/NAVIGATION.md`, "A screen being left writes nothing", c623). The
-server's place has only its character, not SCROLL's height, so a place from
-the server opens on the top margin.
+The URL is the reader's only writer; `keepHistoryUrl()` copies it into the
+history entry too, so a popstate back into that entry opens what the reader was
+left on (`doc/NAVIGATION.md`, "A screen being left writes nothing", c623).
 
 Each event's `durationMs` is capped at **five minutes** a page, not the image
 reader's two: a page of prose at the default size is 352–391 words, which a
