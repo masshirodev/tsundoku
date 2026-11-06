@@ -220,14 +220,14 @@ describe('a book’s own tags', () => {
 
 describe('a hand-made extra beside a doujin (c650)', () => {
 	/** An entry carrying front matter: what only a hand-made row writes on a doujin. */
-	const addExtra = (seriesId: number, title = 'An Extra') =>
+	const addExtra = (seriesId: number, title = 'An Extra', position = 99) =>
 		Number(
 			getDb()
 				.prepare(
 					`INSERT INTO entries (series_id, position, label, title, added_at, page_count, file, bytes, matter)
-					VALUES (?, 99, 'Extra', ?, 0, 1, '', 0, 'front')`
+					VALUES (?, ?, 'Extra', ?, 0, 1, '', 0, 'front')`
 				)
-				.run(seriesId, title).lastInsertRowid
+				.run(seriesId, position, title).lastInsertRowid
 		);
 
 	it('is not a book: a single book beside it says 1 BOOK and is not a series of books', () => {
@@ -244,6 +244,23 @@ describe('a hand-made extra beside a doujin (c650)', () => {
 		expect(cta.entry?.id).toBe(s.entries[0].id);
 		// The two that are apart are exactly the book and the extra.
 		expect(booksOf(s.entries).map((e) => e.id)).toEqual([s.entries[0].id]);
+		expect(extrasOf(s.entries).map((e) => e.id)).toEqual([extra]);
+	});
+
+	it('is never the book when its row sorts first: CONTINUE still reads the book', () => {
+		const single = idOf(BOOK_ROWS[4].title)!;
+		const extra = addExtra(single, 'Before The Book', -1);
+		const s = series.seriesPage(single, true)!;
+		// The premise: the extra's row sorts first (`ORDER BY position, id`).
+		expect(s.entries[0].id).toBe(extra);
+		expect(s.entries[1].matter).toBe('');
+		expect(isBookSeries(s)).toBe(false);
+		expect(seriesMeta(s)).toBe('DOUJIN · HENTOID · 1 BOOK');
+		// The book is the one whose pages CONTINUE opens, not the extra's one.
+		const cta = continueAction(s);
+		expect(cta.entry?.id).toBe(s.entries[1].id);
+		expect(cta.meta).toBe('30 PAGES');
+		expect(booksOf(s.entries).map((e) => e.id)).toEqual([s.entries[1].id]);
 		expect(extrasOf(s.entries).map((e) => e.id)).toEqual([extra]);
 	});
 

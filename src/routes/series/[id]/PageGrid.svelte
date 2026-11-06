@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { coverPlaceholder } from '$lib/library/cover';
-	import { entryProgress, extrasOf, type SeriesEntry, type SeriesPage } from '$lib/library/series';
+	import {
+		booksOf,
+		entryProgress,
+		extrasOf,
+		type SeriesEntry,
+		type SeriesPage
+	} from '$lib/library/series';
 	import { pageThumbSrc, readHref } from '$lib/library/links';
 	import { resolve } from '$app/paths';
 	import { invalidateAll } from '$app/navigation';
@@ -45,10 +51,12 @@
 	);
 	/**
 	 * A one-book doujin shows its book; a book of a series is passed in. A
-	 * folded book shows the edition it opens in, at the book's place in it.
+	 * hand-made extra beside the book is not the book, even when its row sorts
+	 * first (c650): the books are what the screen draws. A folded book shows the
+	 * edition it opens in, at the book's place in it.
 	 */
 	const book = $derived.by(() => {
-		const b = only ?? series.entries[0];
+		const b = only ?? booksOf(series.entries)[0];
 		if (!b || !opening || opening.base) return b;
 		return {
 			...b,

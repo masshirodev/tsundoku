@@ -215,6 +215,10 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 	 * (or its single book), as before.
 	 */
 	const hasExtras = series.entries.some((e) => e.matter !== '');
+	// Only a single book can be suggested into a series, and only one with
+	// nothing beside it: `singletonCandidates` counts the `isBookSql` entries
+	// and the entries with no `edition_of`, so a book with a hand-made extra is
+	// not suggested whatever this says (c650). Counted by entry, as before.
 	const single = series.kind === 'doujin' && series.entries.length === 1;
 	const bookParam = Number(url.searchParams.get('book'));
 	const root = rootOf(series.id);

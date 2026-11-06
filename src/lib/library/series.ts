@@ -279,7 +279,9 @@ export function continueAction(series: Pick<SeriesPage, 'kind' | 'entries'>): {
 		};
 	}
 	if (kind === 'doujin') {
-		const book = entries[0] ?? null;
+		// The book alone: an extra beside it is never what READ opens (c650),
+		// even when its row sorts before the book's.
+		const book = booksOf(entries)[0] ?? null;
 		const pages = book?.pageCount ?? 0;
 		if (!book) return { label: 'READ', meta: '', short: '', entry: null };
 		if (book.readAt !== null)

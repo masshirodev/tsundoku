@@ -266,14 +266,16 @@ test('a hand-made extra beside a doujin is drawn apart, is not counted, and open
 }) => {
 	await reveal(page);
 	const db = new Database(process.env.PLAYWRIGHT_DATABASE_PATH!);
-	const addExtra = (seriesTitle: string, title: string) =>
+	// Both extras sort **before** their books (a front-matter row's natural
+	// place), so the screen must pick the book, not the first entry (c650).
+	const addExtra = (seriesTitle: string, title: string, position = -1) =>
 		Number(
 			db
 				.prepare(
 					`INSERT INTO entries (series_id, position, label, title, added_at, page_count, file, bytes, matter)
-					SELECT id, 99, 'Extra', ?, 0, 1, '', 0, 'front' FROM series WHERE title = ?`
+					SELECT id, ?, 'Extra', ?, 0, 1, '', 0, 'front' FROM series WHERE title = ?`
 				)
-				.run(title, seriesTitle).lastInsertRowid
+				.run(position, title, seriesTitle).lastInsertRowid
 		);
 	const extraSingle = addExtra('Kaori Mama on Holiday Duty', 'A Hand-Made Extra');
 	const extraBooks = addExtra('Kaori Mama', 'A Second Extra');
@@ -288,13 +290,16 @@ test('a hand-made extra beside a doujin is drawn apart, is not counted, and open
 			page.getByRole('heading', { name: 'Kaori Mama on Holiday Duty', exact: true })
 		).toBeVisible();
 		await expect(page.locator('.names .meta')).toContainText('1 BOOK');
-		await expect(page.getByRole('region', { name: 'Pages' })).toBeVisible();
+		// The book's pages, not the extra's one: the extra's row sorts first.
+		const pages = page.getByRole('region', { name: 'Pages' });
+		await expect(pages).toBeVisible();
+		await expect(pages.locator('.grid .page')).toHaveCount(30);
+		await expect(pages.locator('.head span').nth(1)).toHaveText('30');
 		const extras = page.locator('a[data-extra]');
 		await expect(extras).toHaveText([/A Hand-Made Extra/]);
 		await extras.first().click();
 		await expect(page).toHaveURL(new RegExp(`[?&]book=${extraSingle}(&|$)`));
 		// The extra's own pages, not the book's: it holds one page (`addExtra`).
-		const pages = page.getByRole('region', { name: 'Pages' });
 		await expect(pages).toBeVisible();
 		await expect(pages.locator('.grid .page')).toHaveCount(1);
 		await expect(pages.locator('.head span').nth(1)).toHaveText('1');

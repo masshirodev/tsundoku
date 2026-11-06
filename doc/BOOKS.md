@@ -58,6 +58,14 @@ link to its own pages (`?book=<id>`, which a doujin with an extra takes too),
 so a TV's focus finds it with nothing extra. A folded edition is not an extra:
 it carries no `matter`.
 
+An extra's row may sort before the book's (`entries` are `ORDER BY position,
+id`, and a front-matter row is naturally first): the pages grid and `READ` /
+`CONTINUE` still ask `booksOf()[0]`, so the book is what is drawn and opened
+and the extra stays the separate row it is. A single book beside an extra is
+still not offered MIGHT BE ONE SERIES: a suggestion must be something GROUP
+can bind, and `singletonCandidates` counts a series with nothing beside its
+book.
+
 ### Every book keeps its own
 
 The owner decided on 2026-09-22 that each book keeps its own rating, FAV and
