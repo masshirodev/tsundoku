@@ -243,8 +243,11 @@ a place saved after it, and resumes there like any other.
 Until c622 an absent `?at=` read as the first character
 (`Number('')` was 0), so every one of those doors opened a novel at its
 chapter's top. The image reader shares `+page.server.ts`'s `lastPosition` but
-not this rule: it already resumed from the saved page with no `?p=`
-(`+page.server.ts`'s `start`), so c622 is the text reader's alone.
+not the absent-parameter half of this rule: it already resumed from the saved
+page with no `?p=` (`+page.server.ts`'s `start`), so that half is the text
+reader's alone. MARK UNREAD is not: the image reader's `start` resumes a
+chapter marked unread at its saved page too, which is older than c622 and a
+card of its own (reader notes, wave 27).
 
 The URL is the reader's only writer, but not its only reader: the
 first-chapter effect reads it, and `keepHistoryUrl()` writes the same URL into
