@@ -21,7 +21,8 @@
  * A host in that memo is in page mode (card c335): its requests go to the
  * parent as { op: 'page', id, url, method, postData? }, answered
  * { op: 'page-result', id, ok, value: { url, status, contentType, body } } or
- * { op: 'page-result', id, ok: false, error }. { id, op: 'modes' } answers the
+ * { op: 'page-result', id, ok: false, error, fixed? }, where `fixed` marks a
+ * refusal no new solve can change (c630). { id, op: 'modes' } answers the
  * hosts in page mode and until when. The config message may carry refusedMs,
  * page mode's length, for tests.
  */
@@ -277,8 +278,10 @@ const pageTrouble = (host, why) =>
 
 /**
  * Fails a page-mode request the solver was asked for and did not answer with
- * a page. The phrase "its check could not be passed" is what the browse page
- * reads as a refused check, and offers TRY AGAIN for.
+ * a page, for a reason a new solve may change: the solver's own failure, a
+ * timeout, its browser dying. The phrase "its check could not be passed" is
+ * what the browse page reads as a refused check, and offers TRY AGAIN for,
+ * forgetting both memos (`again=1`).
  */
 function refusePage(host, why) {
 	const message = pageTrouble(host, why);
@@ -287,9 +290,24 @@ function refusePage(host, why) {
 }
 
 /**
+ * Fails a page-mode request the app answered, but never with a page, and for a
+ * reason no solve can change: an address `checkPublic` refuses, one the
+ * browser was redirected to off the internet, a document that is Chromium's
+ * image page (c630). The sentence doesn't claim a check, so the browse page's
+ * TRY AGAIN for it does not forget the memo (no `again=1`) and pays no new
+ * solve: the host stays in page mode and the next call is one page again.
+ */
+function refuseFixed(host, why) {
+	const message = `${host}'s page can't come through the solver, and no solve changes that: ${why}`;
+	note(message);
+	throw new Error(message);
+}
+
+/**
  * Fails a request page mode won't send at all, before anything is asked. No
- * check was involved, so the sentence doesn't claim one: a TRY AGAIN would pay
- * a solve and a retry and land here the same way.
+ * check was involved, so the sentence doesn't claim one: the browse page's
+ * TRY AGAIN for it does not forget the memo (no `again=1`), so it pays no new
+ * solve.
  */
 function refuseShape(host, why) {
 	const message = `${host}'s page can't come through the solver: ${why}`;
@@ -333,7 +351,14 @@ async function pageFetch(url, opts, wantsFile) {
 	const form = pageForm(host, opts);
 	const m = await askParent({ op: 'page', url, ...form });
 	if (!m) refusePage(host, 'the app did not answer');
-	if (!m.ok || !m.value) refusePage(host, String(m.error || 'the solver gave no page'));
+	if (!m.ok || !m.value) {
+		const why = String(m.error || 'the solver gave no page');
+		// The app marks a refusal no new solve can change (c630): the address,
+		// or a document that is not a page. Saying a check failed would make
+		// the browse page's TRY AGAIN forget the memos for nothing.
+		if (m.fixed) refuseFixed(host, why);
+		refusePage(host, why);
+	}
 	const page = m.value;
 	const at = typeof page.url === 'string' && page.url ? page.url : url;
 	// The parent checked the browser's last address is on the internet; this

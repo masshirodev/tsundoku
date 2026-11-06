@@ -626,7 +626,7 @@ describe('a check bound to the browser that solved it: page mode (c335)', () => 
 		expect(siteRequests()).toBe(2);
 	});
 
-	it('words its own refusals without a failed check, so the browse page offers no TRY AGAIN for them', async () => {
+	it('words a shape refusal without a failed check, so TRY AGAIN keeps the memos', async () => {
 		await host.call(bound, 'popularNovels', [1, {}]);
 		for (const path of ['put', 'json-post', 'file', 'form-file']) {
 			const call = host.call(bound, 'parseChapter', [path]);
@@ -643,6 +643,33 @@ describe('a check bound to the browser that solved it: page mode (c335)', () => 
 			);
 		}
 		expect(paged.filter((r) => r.method === 'POST')).toEqual([]);
+	});
+
+	it('does not claim a failed check for a page the app refused for good (c630)', async () => {
+		await host.call(bound, 'popularNovels', [1, {}]);
+		// The app's own `fetchPage` marks a refusal no new solve can change: a
+		// picture where a page was asked for, an address off the internet. Its
+		// words reach the host here; the browse page reads the phrase below.
+		pageAs = async (req) => ({
+			error: `${new URL(req.url).hostname} sent a picture, not a page: the solver's browser hands back pages only`,
+			fixed: true
+		});
+		const call = host.call(bound, 'parseChapter', ['/bound/chapter/1']);
+		await expect(call).rejects.toThrow(
+			/127\.0\.0\.1's page can't come through the solver, and no solve changes that: /
+		);
+		// Wave 26's lesson: this phrase is what the browse page's TRY AGAIN
+		// reads to forget both memos. A picture is not a check that failed.
+		await expect(call).rejects.not.toThrow(/its check could not be passed/);
+		// Still in page mode, and nothing solved: the next chapter is one page.
+		expect(Object.keys(await host.pageHosts())).toEqual([HOST]);
+		expect(solved).toHaveLength(1);
+		pageAs = browser;
+		expect(await host.call(bound, 'parseChapter', ['/bound/chapter/2'])).toBe(
+			'<p>/bound/chapter/2</p>'
+		);
+		expect(solved).toHaveLength(1);
+		expect(siteRequests()).toBe(2);
 	});
 
 	it('says why a page didn’t come — the solver’s 500, its browser dying, a timeout — and stays in page mode', async () => {

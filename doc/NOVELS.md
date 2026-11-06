@@ -307,8 +307,9 @@ cookie jar (`src/lib/server/novels/plugin-host.cjs`, `fetchPage` in
 - **The protocol.** The host sends `{ op: 'page', id, url, method, postData? }`
   and the app answers `{ op: 'page-result', id, ok: true, value: { url,
 status, contentType, body } }` or `{ op: 'page-result', id, ok: false,
-error }`, a sentence. `{ op: 'modes' }` answers the hosts in page mode and
-  until when (`NovelHost.pageHosts()`).
+error, fixed? }`, a sentence, marked `fixed` when no new solve can change it
+  (below). `{ op: 'modes' }` answers the hosts in page mode and until when
+  (`NovelHost.pageHosts()`).
 - **`checkPublic` first, in the app, every time**, before the solver hears of
   the URL, and again on the address the browser **ended on**: a page whose
   last hop is a local address is not read back. There is no exception for a
@@ -348,15 +349,25 @@ error }`, a sentence. `{ op: 'modes' }` answers the hosts in page mode and
     would leave them out, as any picture that doesn't come is.
   - The plugin's own headers and cookies are not sent: the browser sends its
     own.
-- **When it doesn't come**, the call's trouble is one of two sentences.
+- **When it doesn't come**, the call's trouble is one of three sentences.
   What page mode won't send at all (a method but GET or POST, a JSON or binary
   body, a `FormData` holding a file, a `fetchFile`) is refused before anything
-  is asked, as `"<host>'s page can't come through the solver: <why>"`, which
-  claims no check: the source page offers no TRY AGAIN for it, since a new
-  solve would end the same way. Everything else is
+  is asked, as `"<host>'s page can't come through the solver: <why>"`.
+  What the solver answered, but could never have answered with a page, is
+  `"<host>'s page can't come through the solver, and no solve changes that:
+<why>"`: an address `checkPublic` refuses (`refused: …`), one the browser was
+  redirected to off the internet (`the solver's browser ended at …, which is
+not on the internet`), a document that is Chromium's image page (`… sent a
+picture, not a page`), or a request that isn't an address at all. The app
+  marks those `fixed` in its answer (`{ error, fixed: true }`), since another
+  solve ends the same way. Neither of those sentences claims a check, and the
+  source page's TRY AGAIN for either does not forget the memo (no `again=1`),
+  so it pays no new solve: the host stays in page mode and the next call is
+  one page again (c630). Everything else is
   `"<host>'s page did not come through the solver (its check could not be
-passed): <why>"`, which the source page bands with TRY AGAIN: the solver's
-  own failure (`the solver answered 500 (…)`), a timeout (`the solver did not
+passed): <why>"`, which the source page bands with TRY AGAIN and says that it
+  solves the check afresh — its `again=1` forgets both memos: the solver's own
+  failure (`the solver answered 500 (…)`), a timeout (`the solver did not
 answer in 60 s`), an unreachable solver, or the browser dying under load
   (c492, "invalid session id … browser has closed the connection", about every
   25 s): that one is **asked once more**, inside the same 60 s, since it is the
@@ -394,7 +405,8 @@ with a site that refuses the host's clearance and passes only the stub
 browser's cookie: entering on the refused retry and answering that call,
 staying out for every other check, no request of its own and no solve after,
 two calls entering once, JSON and a form, the bodies refused unasked, each
-failure's sentence with the mode kept, a page that is still a check, the
+failure's sentence with the mode kept, a refusal no new solve can change
+worded without a failed check (c630), a page that is still a check, the
 host's own rule holding for a page and its last address, the ten minutes,
 leaving by TRY AGAIN, by a restart and by time (not extended by use), and a
 host with no page to ask answering with a sentence. `tests/novel-plugins-db.spec.ts`
