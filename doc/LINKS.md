@@ -601,10 +601,12 @@ SECOND PART` under a linked entry, the same search, then `FROM EP. 13`).
   season's page leads back to it yet). A season whose only row is part 2
   (part 1 unlinked) has no second part to add: the page stands on part 2 and
   posts `part: 2`, and its search, its candidates and its paste are part 2's
-  own (c592, `reviewItem`'s `part`), never part 1's. Part 2 is the season's
-  tail there: `partsOf` places it from the season's end by its own episode
-  count (EP. 13 – 23 for 11 of 23), never from EP. 1, and a part with no
-  count has no span to send from. UNDO of part 1 is refused while part 2 is
+  own (c592, `reviewItem`'s `part`), never part 1's. An orphaned part 2 has
+  no span and sends nothing until part 1 is linked again: part 1's count is
+  what places it, and nothing records that count once its row is gone. Its
+  own count cannot place it either -- a list shorter than the season (part 2
+  still airing, which is when part 2 gets linked alone) would start it inside
+  part 1. UNDO of part 1 is refused while part 2 is
   linked (`PART 2 IS LINKED · UNLINK IT BEFORE UNDOING PART 1`), so a CHANGE
   of part 1 followed by its UNDO no longer makes such a season; a library
   that already holds one is read this way.
@@ -614,8 +616,9 @@ SECOND PART` under a linked entry, the same search, then `FROM EP. 13`).
   a third part: the API answers 400 for any part past 2
   (`CHECK (part IN (1, 2))`). **`FROM EP. n` is bound to part 1's count.**
   `series_season_links` keeps no start for a part: part 2 begins after part
-  1's `episodes` (`partsOf`) -- or, with part 1 gone, ends at the season's
-  last episode -- and the send counts within it from there
+  1's `episodes` (`partsOf`) -- and with part 1's row gone it has no start at
+  all, so it sends nothing until part 1 is linked again -- and the send
+  counts within it from there
   (`targets()`, `reachedFor`), so part 1's last episode completes part 1 and
   the season's EP. 13 is sent as part 2's EP. 1. A different `n` would have
   nowhere to live, so the field says

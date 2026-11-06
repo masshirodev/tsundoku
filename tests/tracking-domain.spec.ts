@@ -175,11 +175,15 @@ describe('a season (c240)', () => {
 			{ part: 2, from: 13, to: 23 }
 		]);
 		expect(partsOf([{ part: 1, episodes: 24 }], 24)).toEqual([{ part: 1, from: 1, to: 24 }]);
-		// A later part alone (part 1 unlinked) is the season's tail, never its
-		// head (c592): its own count places it from the end, and with no count
-		// it has no span to send from -- never EP. 1.
-		expect(partsOf([{ part: 2, episodes: 11 }], 23)).toEqual([{ part: 2, from: 13, to: 23 }]);
+		// A later part alone (part 1 unlinked) has no recorded start (c592): part
+		// 1's count is what places it, and its own count cannot, because `of` is
+		// only what the list holds -- 18 of a 23-episode season starts the guess
+		// inside part 1. It gets the empty span and sends nothing.
+		expect(partsOf([{ part: 2, episodes: 11 }], 23)).toEqual([{ part: 2, from: 24, to: 23 }]);
+		expect(partsOf([{ part: 2, episodes: 11 }], 18)).toEqual([{ part: 2, from: 19, to: 18 }]);
 		expect(partsOf([{ part: 2, episodes: null }], 23)).toEqual([{ part: 2, from: 24, to: 23 }]);
+		// Nothing the season lists is part 2's, so EP. 8 is nobody's.
+		expect(partOf(partsOf([{ part: 2, episodes: 11 }], 18), 8)).toBe(null);
 		expect(
 			partOf(
 				partsOf(

@@ -1512,15 +1512,19 @@ function itemOf(r: ItemRow, part = 1): ReviewItem {
 	const span = part > 1 ? own?.parts.find((p) => p.part === part) : null;
 	// What a part's candidates are checked against: its own episodes. Part 2's
 	// span exists once it is linked (`partsOf`); before that it is what part 1
-	// leaves, as `+ A SECOND PART` says (c350).
+	// leaves, as `+ A SECOND PART` says (c350). An orphaned part 2's span is
+	// empty (nothing places it, c592), so the check falls back to the season's
+	// own listed count, less part 1's episodes where part 1 is linked.
 	const partOne = own?.parts.find((p) => p.part === 1)?.link ?? null;
-	const chapters = span
-		? Math.max(0, span.to - span.from + 1)
-		: part > 1 && own
-			? Math.max(0, own.aired - (partOne?.episodes ?? 0))
-			: own
-				? own.aired
-				: r.chapters;
+	const spanCount = span && span.to >= span.from ? span.to - span.from + 1 : null;
+	const chapters =
+		spanCount !== null
+			? spanCount
+			: part > 1 && own
+				? Math.max(0, own.aired - (partOne?.episodes ?? 0))
+				: own
+					? own.aired
+					: r.chapters;
 	const cands =
 		season !== null
 			? seasonCandidates(r.id, season, part)

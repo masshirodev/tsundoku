@@ -888,6 +888,20 @@ export function undoSeasonLinks(facts: SeasonUndoFacts): 'undone' {
 						VALUES (?, ?, ?, ?, ?)`
 						).run(facts.seriesId, s.season, p.part, p.decision.decision, p.decision.at);
 				}
+			// Restoring a row is a link too: after the post moved a season off an
+			// entry, a season outside its facts may have taken that entry, and the
+			// table has no unique index to stop two seasons holding one (c595's
+			// round 2). Ask at the door every link asks, and take the whole UNDO
+			// back rather than write the state no link door allows.
+			for (const s of facts.seasons)
+				for (const p of s.parts) {
+					if (!p.before) continue;
+					const held = seasonHolding(facts.seriesId, s.season, p.part, {
+						anilistId: typeof p.before.anilist_id === 'number' ? p.before.anilist_id : null,
+						malId: typeof p.before.mal_id === 'number' ? p.before.mal_id : null
+					});
+					if (held) throw new SeasonUndoRefused(`SEASON ${held.season} HOLDS ITS ENTRY NOW`);
+				}
 			clearAniSkip(facts.seriesId, db);
 			syncSeriesLink(facts.seriesId, facts.at);
 			return 'undone' as const;

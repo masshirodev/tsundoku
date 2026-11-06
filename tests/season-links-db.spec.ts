@@ -148,6 +148,9 @@ add(node(412, 'Parts Show Part 2', 'TV', 12, 2014), [['PREQUEL', 411]]);
 // what `+ A SECOND PART` asks.
 add(node(501, 'Hand Show Season 2', 'TV', 12, 2020));
 add(node(502, 'Hand Show Final Chapter', 'TV', 11, 2021));
+// An entry whose own count is close to the season's listed 23, so the check a
+// part's candidates are made against shows in the EPISODES row (c592's round 2).
+add(node(503, 'Hand Show Final Chapter II', 'TV', 21, 2022));
 /** What a title search answers (any title): the walk's fake answers no search. */
 let SEARCH: number[] = [];
 
@@ -1241,6 +1244,7 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n (c350)',
 		expect(at.season.second).toBe(null);
 		// So it posts part: 2, and the answer is part 2's own item: the search it
 		// just wrote, with its candidates -- never part 1's empty one.
+		SEARCH = [501, 502, 503];
 		const found = await api({ series: id, search: 'Hand Show Season 2', season: 2, part: 2 });
 		expect(found.status).toBe(200);
 		const item = found.body.item as {
@@ -1249,18 +1253,21 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n (c350)',
 			candidates: { anilistId: number; rows?: { label: string; value: string }[] }[];
 		};
 		expect(item.part).toBe(2);
-		expect(item.found).toBe(2);
-		expect(item.candidates.map((c) => c.anilistId)).toEqual([501, 502]);
-		// Checked against part 2's own share of the season (11 of 23), not the
-		// season's 23 or part 1's 12.
-		expect(
-			item.candidates.find((c) => c.anilistId === 502)?.rows?.find((r) => r.label === 'EPISODES')
-				?.value
-		).toBe('11 · THIS HAS 11');
+		expect(item.found).toBe(3);
+		expect(item.candidates.map((c) => c.anilistId)).toEqual([501, 502, 503]);
+		// Checked against the season's own listed count (23), not part 2's
+		// guessed 11: part 1's count is what would place part 2, and it is gone
+		// (c592's round 2). 501 and 502 are far from 23; 503 is close, and its
+		// row is the one that says what the check was against.
+		expect(item.candidates.map((c) => c.rows?.find((r) => r.label === 'EPISODES')?.value)).toEqual([
+			'12',
+			'11',
+			'21 · THIS HAS 23'
+		]);
 		// The page reloaded at the season stands on the same item and draws them.
 		const drawn = await page(id, 2);
 		expect(drawn.items[0].part).toBe(2);
-		expect(drawn.items[0].candidates.map((c) => c.anilistId)).toEqual([501, 502]);
+		expect(drawn.items[0].candidates.map((c) => c.anilistId)).toEqual([501, 502, 503]);
 		// A paste reads against part 2's item too.
 		const pasted = await api({
 			series: id,
@@ -1272,24 +1279,45 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n (c350)',
 		expect((pasted.body.candidate as { anilistId: number }).anilistId).toBe(502);
 	});
 
-	it('an orphaned part 2 is the season’s tail: nothing is sent from EP. 1 (c592)', () => {
+	it('an orphaned part 2 has no start: nothing is sent from EP. 1 or anywhere (c592)', () => {
 		// The state a library may hold: part 2's row, no part 1 beside it.
 		const id = show([12, 23]);
 		link(id, 2, 502, 2);
-		// Part 2's entry lists 11 of the season's 23: it is EP. 13 – 23, not 1 – 11.
+		// Part 1's count is what places part 2, and it is not recorded: the
+		// season's 23 listed episodes could all be part 1's, for all this knows.
 		expect(seasons.seriesSeasons(id)!.seasons[1].parts).toMatchObject([
-			{ part: 2, from: 13, to: 23 }
+			{ part: 2, from: 24, to: 23 }
 		]);
-		// EP. 1 is part 1's, and part 1 is not linked: nothing goes to part 2.
+		// EP. 1-12 are part 1's, and part 1 is not linked: nothing goes to part 2.
 		watch(id, 2, 1);
 		expect(tr.queueProgress(id, NOW)).toBe(0);
 		watch(id, 2, 12);
 		expect(tr.queueProgress(id, NOW)).toBe(0);
-		expect(sends(id)).toEqual([]);
-		// The season's EP. 13 is part 2's EP. 1.
+		// Nor does an episode part 2's entry does list get sent anywhere: without
+		// part 1's count there is no way to know it is part 2's EP. 1, let alone
+		// its EP. 13.
 		watch(id, 2, 13);
-		expect(tr.queueProgress(id, NOW)).toBe(1);
-		expect(sends(id)).toEqual([{ season: 2, part: 2, progress: 1, status: 'reading' }]);
+		expect(tr.queueProgress(id, NOW)).toBe(0);
+		watch(id, 2, 23);
+		expect(tr.queueProgress(id, NOW)).toBe(0);
+		expect(sends(id)).toEqual([]);
+	});
+
+	it('an orphaned part 2 on a list shorter than the season sends nothing (c592, round 2)', () => {
+		// 18 of a 23-episode season listed: part 2 is still airing, which is
+		// exactly when it gets linked alone. Counting back from the list's 18 by
+		// part 2's 11 would begin at EP. 8, inside part 1, and send EP. 8-12 as
+		// part 2's progress -- the fault the card is about (c592's round 2).
+		const id = show([12, 18]);
+		link(id, 2, 502, 2);
+		expect(seasons.seriesSeasons(id)!.seasons[1].parts).toMatchObject([
+			{ part: 2, from: 19, to: 18 }
+		]);
+		watch(id, 2, 8);
+		expect(tr.queueProgress(id, NOW)).toBe(0);
+		watch(id, 2, 18);
+		expect(tr.queueProgress(id, NOW)).toBe(0);
+		expect(sends(id)).toEqual([]);
 	});
 
 	it('UNDO of part 1 is refused while part 2 stands, so the orphan is never made (c592)', () => {
@@ -1433,6 +1461,31 @@ describe('LINK N SEASONS’ UNDO (c595)', () => {
 		expect(linked(id)).toEqual([
 			[1, 1, 501],
 			[2, 1, 404]
+		]);
+	});
+
+	it('refuses a restore the entry another season took since, and changes nothing (c595 round 2)', async () => {
+		const id = show([12, 23, 12]);
+		// Season 2 holds 501 before the post; the post moves it to 502, and its
+		// facts carry the row it replaced.
+		link(id, 2, 501);
+		seed(id, 2, 502);
+		const r = await post(id, [{ season: 2, part: 1, anilistId: 502 }]);
+		expect([r.status, r.body.linked]).toEqual([200, 1]);
+		expect(linked(id)).toEqual([[2, 1, 502]]);
+		// 501 is free now, and a season outside the post's facts takes it: the
+		// state every link door refuses is one no door here can see.
+		link(id, 3, 501);
+		// UNDO would put 501 back on season 2, with season 3 still holding it.
+		const undone = await undo(id, r.body.facts);
+		expect(undone).toEqual({
+			status: 409,
+			body: { message: 'SEASON 3 HOLDS ITS ENTRY NOW' }
+		});
+		// Nothing changed: not half undone, and never two seasons on one entry.
+		expect(linked(id)).toEqual([
+			[2, 1, 502],
+			[3, 1, 501]
 		]);
 	});
 

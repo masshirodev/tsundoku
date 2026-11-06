@@ -256,19 +256,15 @@ export function partsOf(
 	for (const p of [...parts].sort((a, b) => a.part - b.part)) {
 		const count = p.episodes && p.episodes > 0 ? p.episodes : Math.max(0, of - next + 1);
 		if (count <= 0) continue;
-		// A later part with no earlier part beside it (part 1 unlinked) is the
-		// season's tail, never its head (c592): numbering it from EP. 1 would
-		// send part 1's episodes to part 2's entry. Its start is part 1's count,
-		// which is recorded nowhere once part 1's row is gone, so its own count
-		// places it from the end -- and without one it has no span to send from.
+		// A later part with no earlier part beside it (part 1 unlinked) has no
+		// start anyone recorded (c592): part 1's count is what places it, and
+		// once that row is gone the number is nowhere. Its own count cannot
+		// place it either -- `of` is what the list holds, which may be part of
+		// a season still airing, so counting back from it would begin inside
+		// part 1. It gets the empty span and sends nothing until part 1 is
+		// linked again.
 		if (p.part > 1 && next === 1) {
-			if (!p.episodes || p.episodes <= 0) {
-				out.push({ part: p.part, from: of + 1, to: of });
-				continue;
-			}
-			const from = Math.max(1, of - p.episodes + 1);
-			out.push({ part: p.part, from, to: from + p.episodes - 1 });
-			next = from + p.episodes;
+			out.push({ part: p.part, from: of + 1, to: of });
 			continue;
 		}
 		out.push({ part: p.part, from: next, to: next + count - 1 });
