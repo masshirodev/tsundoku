@@ -445,7 +445,9 @@ describe('every UNDO on the series screen reads its posted facts before writing 
 		const waves = idOf('The Breaker: New Waves');
 		const force = idOf('The Breaker: Eternal Force');
 		works.addSeries(work.id, force);
-		const out = await postSeries(seriesScreen.actions.takeOutWork, force);
+		const out = await postSeries(seriesScreen.actions.takeOutWork, force, [
+			['made', String(work.createdAt)]
+		]);
 		const facts = out.workTakenOut as Record<string, unknown>;
 		expect(facts.seriesId).toBe(force);
 		await refusesAll(seriesScreen.actions.undoTakeOutWork, force, malformed(facts));
@@ -466,7 +468,9 @@ describe('every UNDO on the series screen reads its posted facts before writing 
 	it('UNDO of a TAKE OUT that ended the Work refuses an ended Work that is malformed or lacks this series', async () => {
 		const { work } = breaker();
 		const breakerId = idOf('The Breaker');
-		const out = await postSeries(seriesScreen.actions.takeOutWork, breakerId);
+		const out = await postSeries(seriesScreen.actions.takeOutWork, breakerId, [
+			['made', String(work.createdAt)]
+		]);
 		const facts = out.workTakenOut as { ended: { work: object; members: object[] } };
 		expect(facts.ended).not.toBeNull();
 		const bad = [
@@ -496,13 +500,16 @@ describe('every UNDO on the series screen reads its posted facts before writing 
 		const force = idOf('The Breaker: Eternal Force');
 		const waves = idOf('The Breaker: New Waves');
 		works.addSeries(work.id, force);
-		const theirs = (await postSeries(seriesScreen.actions.takeOutWork, waves))
-			.workTakenOut as object;
+		const theirs = (
+			await postSeries(seriesScreen.actions.takeOutWork, waves, [['made', String(work.createdAt)]])
+		).workTakenOut as object;
 		// Another series' facts, posted on this screen.
 		await refusesAll(seriesScreen.actions.undoTakeOutWork, force, [JSON.stringify(theirs)]);
 		expect(works.workOfSeries(waves)).toBeNull();
 		// Its own facts, but it is in another Work since: the writer's refusal, still a band.
-		const mine = (await postSeries(seriesScreen.actions.takeOutWork, force)).workTakenOut as object;
+		const mine = (
+			await postSeries(seriesScreen.actions.takeOutWork, force, [['made', String(work.createdAt)]])
+		).workTakenOut as object;
 		works.createWork({ seriesIds: [force, idOf('Naruto')], name: 'Elsewhere', now: NOW + 5 });
 		const before = state();
 		const answer = await postSeries(seriesScreen.actions.undoTakeOutWork, force, [
