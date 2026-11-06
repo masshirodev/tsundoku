@@ -1246,11 +1246,17 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n (c350)',
 		const item = found.body.item as {
 			part: number;
 			found: number;
-			candidates: { anilistId: number }[];
+			candidates: { anilistId: number; rows?: { label: string; value: string }[] }[];
 		};
 		expect(item.part).toBe(2);
 		expect(item.found).toBe(2);
 		expect(item.candidates.map((c) => c.anilistId)).toEqual([501, 502]);
+		// Checked against part 2's own share of the season (11 of 23), not the
+		// season's 23 or part 1's 12.
+		expect(
+			item.candidates.find((c) => c.anilistId === 502)?.rows?.find((r) => r.label === 'EPISODES')
+				?.value
+		).toBe('11 · THIS HAS 11');
 		// The page reloaded at the season stands on the same item and draws them.
 		const drawn = await page(id, 2);
 		expect(drawn.items[0].part).toBe(2);

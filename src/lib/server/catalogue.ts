@@ -1510,6 +1510,17 @@ function itemOf(r: ItemRow, part = 1): ReviewItem {
 	const own =
 		season !== null ? seriesSeasons(r.id)?.seasons.find((x) => x.season === season) : undefined;
 	const span = part > 1 ? own?.parts.find((p) => p.part === part) : null;
+	// What a part's candidates are checked against: its own episodes. Part 2's
+	// span exists once it is linked (`partsOf`); before that it is what part 1
+	// leaves, as `+ A SECOND PART` says (c350).
+	const partOne = own?.parts.find((p) => p.part === 1)?.link ?? null;
+	const chapters = span
+		? Math.max(0, span.to - span.from + 1)
+		: part > 1 && own
+			? Math.max(0, own.aired - (partOne?.episodes ?? 0))
+			: own
+				? own.aired
+				: r.chapters;
 	const cands =
 		season !== null
 			? seasonCandidates(r.id, season, part)
@@ -1521,7 +1532,7 @@ function itemOf(r: ItemRow, part = 1): ReviewItem {
 	const series = {
 		titles: own ? [own.searchTitle, ...titles.slice(1)] : titles,
 		kind: r.kind,
-		chapters: span ? Math.max(0, span.to - span.from + 1) : own ? own.aired : r.chapters
+		chapters
 	};
 	return {
 		seriesId: r.id,
