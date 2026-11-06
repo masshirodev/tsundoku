@@ -16,7 +16,7 @@
 	import { offline } from '$lib/offline.svelte';
 	import type { QueuedFrom, ReviewCandidate } from '$lib/server/catalogue';
 	import type { RanobeReviewCandidate, Sibling } from '$lib/server/ranobe-review';
-	import type { RefusedPick, RelationOffer } from '$lib/server/season-links';
+	import type { RefusedPick, RelationOffer, SeasonUndoFacts } from '$lib/server/season-links';
 
 	/**
 	 * The link review (Link Review, Ranobe Review; doc/LINKS.md,
@@ -90,7 +90,7 @@
 	/** The workstation answered that the catalogue couldn't be reached (Link Review 1g). */
 	let nonet = $state<Service | null>(null);
 
-	type UndoKind = 'link' | 'none' | 'search' | 'many' | 'suggest';
+	type UndoKind = 'link' | 'none' | 'search' | 'many' | 'suggest' | 'seasons';
 	type Undo = {
 		title: string;
 		detail: string;
@@ -104,6 +104,8 @@
 			part?: number;
 			was?: QueuedFrom;
 			many?: number[];
+			/** LINK N SEASONS' UNDO: the seasons the post wrote, as they stood (c595). */
+			facts?: SeasonUndoFacts;
 		} | null;
 		before: { queue: string[]; done: number };
 		/** A search's UNDO: the series as it was before, candidates and all. */
@@ -327,11 +329,15 @@
 			season: u.undo.season,
 			part: u.undo.part,
 			was: u.undo.was,
-			many: u.undo.many
+			many: u.undo.many,
+			facts: u.undo.facts
 		});
 		busy = false;
 		if (!r?.ok) {
-			failed = NO_ANSWER;
+			// A refusal says why (c592's part 2, c595's LINK N SEASONS): the band
+			// keeps its UNDO, and nothing changed.
+			const why = ((await r?.json().catch(() => ({}))) as { message?: string }).message;
+			failed = why ? `${why} · NOTHING UNDONE` : NO_ANSWER;
 			return;
 		}
 		if (u.restore) byKey.set(qk(u.restore), u.restore);
@@ -452,6 +458,7 @@
 			linked?: number;
 			of?: number;
 			refused?: RefusedPick[];
+			facts?: SeasonUndoFacts | null;
 			review?: { single: typeof single; season: typeof season } | null;
 		};
 		const refused = a.refused ?? [];
@@ -490,7 +497,10 @@
 			detail: refused.length
 				? refusedLine(refused)
 				: 'EACH SENDS ITS OWN EPISODES FROM THE NEXT ONE WATCHED',
-			undo: null,
+			// The band takes back every season the post wrote, and only those (c595).
+			undo: a.facts
+				? { kind: 'seasons', service: it.service, series: it.seriesId, facts: a.facts }
+				: null,
 			before
 		};
 	}
