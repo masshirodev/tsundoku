@@ -29,7 +29,8 @@ Tailscale. Read `README.md` and `doc/ARCHITECTURE.md` before changing anything.
   (`doc/RELEASE.md`, then `ops/workstation/install-release.sh`). No
   `yarn run build && systemctl --user restart tsundoku` deploy. This
   checkout's `.env` is development's; the live one is `/mnt/hdd2/tsundoku/.env`.
-- Before committing: `yarn run check && yarn run lint && yarn run test`, plus
+- Before committing: `yarn run check && yarn run lint && yarn run test --changed
+origin/main`, plus
   the e2e files of what you changed when the UI changed (`yarn run test:e2e
 tests/<file>.e2e.ts`). Nothing runs the whole e2e suite on its own any more, so
   run it by hand when a change worries you. See `doc/TESTING.md`.
