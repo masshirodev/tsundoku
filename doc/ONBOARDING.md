@@ -48,10 +48,10 @@ Portuguese ([`I18N.md`](I18N.md)).
   wave 26; telling the doors apart is a follow-up). Its quiet link is **IMPORT LOG →**, which opens that
   import's entry in the log, already open (`/import/log?open=backup:<id>`).
   When no import has brought a series the viewer sees (a scan ticked it),
-  the row says what it said, `Done · 4 series` and LIBRARY →. On the empty
-  library the list is the library's page (not this slot's), which does not
-  pass the import yet, so its row keeps the scan's line; 03 done leaves the
-  library empty only when every series is hidden.
+  the row says what it said, `Done · 4 series` and LIBRARY →. The empty
+  library draws the same row from the library's own load, which passes the
+  same import (c511's third part); 03 done leaves the library empty only when
+  every series is hidden.
 - **03's body** (c438; the import handoff's Import-Doors A) is the three
   backups first: Mihon backup with IMPORT A BACKUP → to `/import`, Aniyomi
   and LNReader dimmed, NOT YET. Under them, FILES INSTEAD · EPUBS, AND

@@ -262,10 +262,16 @@ READ · SEE THE SERVER’S LOG`), drawn as `IT DID NOT START · …`. It used to
   one already here is left as it is (card c503; [`BROWSE.md`](BROWSE.md),
   "ADDED HIDDEN at the importer").
 - **The library's band** follows it: `IMPORTING · MIHON BACKUP`,
-  `162 OF 384 SERIES`, the count of arrivals on NEW. A backup's job counts
+  `162 OF 384 SERIES`, the count of arrivals on NEW, and **LOG →** to the
+  job's own entry in IMPORT LOG (c511; the band knows the job, `/import/log?job=<id>`).
+  A backup's job counts
   **series written** in `scan_jobs.bytes_done`/`bytes_total` (its label,
   MIHON BACKUP, says so; `Source.counts`), because the file is read whole
-  before anything is written and bytes would sit at 0 until the end.
+  before anything is written and bytes would sit at 0 until the end. When it
+  finishes with files refused, the band's `N FILES FAILED · SEE LOG` is the
+  link to that entry too. The band and `Banner` are the library's own
+  (`src/routes/+page.svelte`, `src/lib/components/chrome/Banner.svelte`,
+  c511's third part).
 - Covers, catalogue links, the owner's lists and Ranobe follow an import as
   they follow START SCAN (`afterImport`). `TSUNDOKU_IMPORT_COVERS=0` turns
   that off, for a spec that must not reach the internet.
@@ -281,7 +287,8 @@ imported is not an import and is not listed. `?open=backup:<id>` (or
 `scan:<id>`) opens that entry on arrival: GET STARTED's 03, done by an
 import, links its entry so (c511). `?job=<scan job id>` opens the entry of
 that job, a scan's or a backup's, which is all the library's band knows of
-an import (c511's third part, the band's LOG →, is `works`' to draw).
+an import (c511's third part: the importing band's LOG → and the finished
+band's SEE LOG both go through it).
 
 **WORKS: what a fold dropped** (c570). When an import or a scan folds a
 download folder's series into the series a backup names, and both were
@@ -373,8 +380,4 @@ title` or `kind` outside migrations and MOVE's key rewrite. The writer
 - Aniyomi and LNReader backups (c190's importers).
 - ADD A REPOSITORY in place, and the ADD AND INSTALL in one go.
 - REPLACE: by design there is none (Main.dc.html, Q1).
-- The library band's LOG → link, and SEE LOG opening the band's own entry
-  (c511's third part: the band and `Banner` are not this slot's; the log
-  opens an entry by `?open=backup:<id>` or `?open=scan:<id>` for them, and
-  the patch is in `doc/handoff-notes/import.md`, wave 26, Gaps).
 - Choosing which series come in: by design the list is for checking.

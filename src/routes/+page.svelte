@@ -1680,13 +1680,17 @@
 
 	{#if data.scan && scanning && data.scan.sourceLabel === BACKUP_LABEL}
 		<!-- A backup importing (c438; Import-Progress, "on the library, meanwhile"):
-		     the scan's band, named, counting series rather than bytes. -->
+		     the scan's band, named, counting series rather than bytes. LOG → opens
+		     the job's own entry in IMPORT LOG (c511), which the band knows by its
+		     id (`?job=`). -->
 		<Banner
 			kind="progress"
 			title="IMPORTING · {BACKUP_LABEL}"
 			detail="{count(data.scan.bytesDone)} OF {count(data.scan.bytesTotal)} SERIES"
 			progress={data.scan.bytesTotal > 0 ? data.scan.bytesDone / data.scan.bytesTotal : 0}
 			meta="{count(data.scan.seriesFound)} SO FAR ON NEW"
+			metaRight="LOG →"
+			metaHref="/import/log?job={data.scan.id}"
 		/>
 	{:else if data.scan && scanning}
 		<Banner
@@ -1700,12 +1704,15 @@
 				: undefined}
 		/>
 	{:else if data.scan && justImported}
+		<!-- SEE LOG (c511) opens the job's entry, the same `?job=` the importing
+		     band's LOG → uses. -->
 		<Banner
 			kind="action"
 			title="IMPORT FINISHED · {count(data.scan.seriesFound)} SERIES"
 			detail={data.scan.failedFiles > 0
 				? `${count(data.scan.failedFiles)} FILES FAILED · SEE LOG`
 				: undefined}
+			detailHref={data.scan.failedFiles > 0 ? `/import/log?job=${data.scan.id}` : undefined}
 		>
 			{#snippet action()}
 				<form method="POST" action="?/dismissScan" use:enhance>
@@ -1819,7 +1826,12 @@
 				<h1>{readLeads(data.start) ? m.start_read_title() : m.start_empty_title()}</h1>
 				<p class="lede">{readLeads(data.start) ? m.start_read_lede() : m.start_empty_lede()}</p>
 				<div class="ob-list">
-					<StartList view={data.start} libraryRoot={data.libraryRoot} extras={data.firstRead} />
+					<StartList
+						view={data.start}
+						libraryRoot={data.libraryRoot}
+						extras={data.firstRead}
+						imported={data.imported}
+					/>
 				</div>
 				{#if form && 'scanMessage' in form}<div class="scan-message">{form.scanMessage}</div>{/if}
 			</section>

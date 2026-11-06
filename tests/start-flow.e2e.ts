@@ -273,6 +273,45 @@ test('03’s IMPORT A BACKUP → starts a trip: the band on the import pages, �
 	}
 });
 
+test('the library band’s LOG → and SEE LOG open the job’s own entry in IMPORT LOG (c511 part 3)', async ({
+	page
+}) => {
+	const now = Date.now();
+	sql(`INSERT INTO roots (id, name, path) VALUES (5111, 'Mihon', ?)`, join(library, 'c511-band'));
+	sql(
+		`INSERT INTO scan_jobs (id, started_at, source_label, bytes_done, bytes_total, series_found)
+		VALUES (5111, ?, 'MIHON BACKUP', 2, 10, 1)`,
+		now
+	);
+	sql(
+		`INSERT INTO series (id, root_id, title, kind, added_at, indexed_at, origin_key, scan_job_id)
+		VALUES (5111, 5111, 'Band Import', 'manga', ?, ?, 'mihon:5111:/band', 5111)`,
+		now,
+		now
+	);
+	try {
+		// A backup importing: the band is named, and LOG → is the job's entry.
+		await page.goto('/');
+		await expect(page.getByText('IMPORTING · MIHON BACKUP')).toBeVisible();
+		await expect(page.getByRole('link', { name: 'LOG →' })).toHaveAttribute(
+			'href',
+			'/import/log?job=5111'
+		);
+		// Finished with a refused file: SEE LOG is the same entry.
+		sql(`UPDATE scan_jobs SET finished_at = ?, failed_files = 1 WHERE id = 5111`, now + 1000);
+		await page.reload();
+		await expect(page.getByText('1 FILES FAILED · SEE LOG')).toBeVisible();
+		await page.getByRole('link', { name: '1 FILES FAILED · SEE LOG' }).click();
+		await expect(page).toHaveURL(/\/import\/log\?job=5111$/);
+		await expect(page.getByRole('button', { name: 'CLOSE ↑' })).toHaveCount(1);
+		await expect(page.locator('.entry', { hasText: 'CLOSE ↑' })).toContainText('MIHON BACKUP');
+	} finally {
+		sql(`DELETE FROM series WHERE id = 5111`);
+		sql(`DELETE FROM scan_jobs WHERE id = 5111`);
+		sql(`DELETE FROM roots WHERE id = 5111`);
+	}
+});
+
 test('SKIP and UNDO: skipping 01 takes 02 and FIRST READ with it', async ({ page }) => {
 	await page.goto('/');
 	await step(page, '03').getByRole('button', { name: 'SKIP' }).click();

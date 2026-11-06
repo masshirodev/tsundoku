@@ -130,6 +130,10 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// RANDOM's shuffle: one per choice of RANDOM, kept in the URL.
 	const seed = parseSeed(url.searchParams.get('seed'));
 	const pageSize = pageSizeOf(cookies.get('tsundoku_grid_page'));
+	// The last import, read once: IMPORT LOG under MORE says when it came in
+	// (c438), and the empty library's 03 done row names it (c511, Import-Doors
+	// B; doc/ONBOARDING.md).
+	const last = lastImport(reveal);
 	// PEOPLE lists favourite people (from the layout), not series.
 	// The first page; the grid asks /api/library for the rest as it scrolls.
 	// CACHED is the exception: only the tablet knows which series it holds,
@@ -191,7 +195,13 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		following: anyFollowed(reveal),
 		libraryRoot: libraryRoot(),
 		// IMPORT LOG under MORE says when the last backup came in (c438).
-		lastImportAt: lastImport(reveal)?.at ?? null,
+		lastImportAt: last?.at ?? null,
+		// 03's done row on the empty library names the import, as /start's does
+		// (c511): the empty library is where 03 can still be the only thing
+		// done, and it is the library's own load that draws it.
+		imported: last
+			? { id: last.id, app: last.app, series: last.counts.fresh + last.counts.merged }
+			: null,
 		cont: continueReading(reveal),
 		// A Work that ended (TAKE OUT of the second-to-last, UNGROUP) has no
 		// screen of its own any more: the library carries its band and its UNDO.
