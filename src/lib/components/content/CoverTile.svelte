@@ -25,6 +25,8 @@
 		hue,
 		rating = 0,
 		favourite = false,
+		favUnsaved = false,
+		ratingUnsaved = false,
 		newCount = 0,
 		hidden = false,
 		cached = null,
@@ -46,6 +48,13 @@
 		hue: number;
 		rating?: Rating;
 		favourite?: boolean;
+		/**
+		 * The FAV (or the rating) drawn is the owner's tap that is not stored
+		 * yet, so it is drawn dashed (c659; doc/WAITING.md, "Writes that fail").
+		 * Default false: every other user of the tile draws a stored value.
+		 */
+		favUnsaved?: boolean;
+		ratingUnsaved?: boolean;
 		newCount?: number;
 		hidden?: boolean;
 		cached?: number | null;
@@ -200,6 +209,7 @@
 			<button
 				type="button"
 				class="rating"
+				class:unsaved={ratingUnsaved}
 				aria-label={rating === 0 ? 'Rate, unrated' : `Rate, rated ${rating} of 10`}
 				aria-expanded={picking}
 				data-focus-skip
@@ -215,6 +225,7 @@
 			<button
 				type="button"
 				class="fav"
+				class:unsaved={favUnsaved}
 				aria-label="Favourite"
 				aria-pressed={favourite}
 				data-focus-skip
@@ -331,6 +342,17 @@
 	}
 	.dimmed {
 		opacity: 0.35;
+	}
+	/* Not stored yet (Loading States 1o; c659): dashed, the same class and
+	   accent token the series screen's controls use (doc/WAITING.md). */
+	.rating.unsaved,
+	.fav.unsaved {
+		outline: 1.5px dashed var(--accent);
+		outline-offset: -3px;
+	}
+	.fav.unsaved,
+	.fav.unsaved .ghost {
+		color: var(--accent);
 	}
 	.title {
 		font: var(--type-tile);

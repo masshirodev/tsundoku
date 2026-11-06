@@ -2154,6 +2154,8 @@
 							hue={s.hue}
 							rating={ratingNow.get(s.id) ?? s.rating}
 							favourite={favNow.get(s.id) ?? s.favourite}
+							favUnsaved={saves.unsaved(`fav:${s.id}`)}
+							ratingUnsaved={saves.unsaved(`rating:${s.id}`)}
 							newCount={s.newCount}
 							hidden={s.hidden}
 							indexing={!s.indexed}

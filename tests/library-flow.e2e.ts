@@ -657,6 +657,112 @@ test.describe('two quick taps on a tile (c615)', () => {
 	});
 });
 
+test.describe('a tile save that fails draws its value unsaved (c659)', () => {
+	// The library's own failure store (`saves`, not the queue): the key is
+	// `fav:<id>` or `rating:<id>`, read by the tile's own props. The band the
+	// layout draws offers PUT BACK and RETRY (doc/WAITING.md, "Writes that fail").
+	/** Lose only the first POST of this action; later ones go through. */
+	async function loseFirst(page: Page, action: 'favourite' | 'rate') {
+		const isAction = (u: URL) => u.pathname === '/' && u.search === `?/${action}`;
+		let first = true;
+		await page.route(isAction, (route) => {
+			if (!first) return route.continue();
+			first = false;
+			return route.abort();
+		});
+		return () => page.unroute(isAction);
+	}
+
+	test('FAV PUT BACK: the tile draws it dashed until the stored value comes back (c659)', async ({
+		page
+	}) => {
+		await page.goto('/?sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const fav = tile.getByRole('button', { name: 'Favourite' });
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		const done = await loseFirst(page, 'favourite');
+
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+		await expect(page.getByText('FAV NOT SAVED')).toBeVisible();
+		await expect(fav).toHaveClass(/unsaved/);
+		expect(await fav.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('dashed');
+
+		await page.getByRole('button', { name: 'PUT BACK · NOT FAV' }).click();
+		await expect(page.getByText('FAV NOT SAVED')).toHaveCount(0);
+		await expect(fav).not.toHaveClass(/unsaved/);
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await done();
+	});
+
+	test('FAV RETRY: a retry that lands ends it, and the tile reads the stored value (c659)', async ({
+		page
+	}) => {
+		await page.goto('/?sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const fav = tile.getByRole('button', { name: 'Favourite' });
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		const done = await loseFirst(page, 'favourite');
+
+		await fav.click();
+		await expect(fav).toHaveClass(/unsaved/);
+		await done();
+		await page.getByRole('button', { name: 'RETRY' }).click();
+		await expect(page.getByText('FAV NOT SAVED')).toHaveCount(0);
+		await expect(fav).not.toHaveClass(/unsaved/);
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+
+		// Put it back as the seed has it.
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await page.reload();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+	});
+
+	test('FAV tapped again: the later save that lands ends it too (c659)', async ({ page }) => {
+		await page.goto('/?sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const fav = tile.getByRole('button', { name: 'Favourite' });
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		const done = await loseFirst(page, 'favourite');
+
+		await fav.click();
+		await expect(page.getByText('FAV NOT SAVED')).toBeVisible();
+		await expect(fav).toHaveClass(/unsaved/);
+		await done();
+		// The same field's next tap clears the failure before it saves.
+		await fav.click();
+		await expect(page.getByText('FAV NOT SAVED')).toHaveCount(0);
+		await expect(fav).not.toHaveClass(/unsaved/);
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await page.reload();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+	});
+
+	test('the rating draws dashed as well, and PUT BACK ends it (c659)', async ({ page }) => {
+		await page.goto('/?sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const bars = tile.getByRole('img');
+		const rate = tile.getByRole('button', { name: /^Rate, / });
+		await expect(bars).toHaveAttribute('aria-label', 'Unrated');
+		const done = await loseFirst(page, 'rate');
+
+		await rate.click();
+		await expect(tile.locator('.picker')).toBeVisible();
+		await tile.getByRole('button', { name: 'Rate 6 of 10' }).click();
+		await expect(bars).toHaveAttribute('aria-label', 'Rated 6 of 10');
+		await expect(page.getByText('RATING 6 NOT SAVED')).toBeVisible();
+		await expect(rate).toHaveClass(/unsaved/);
+		expect(await rate.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('dashed');
+
+		await page.getByRole('button', { name: 'PUT BACK 0' }).click();
+		await expect(page.getByText('RATING 6 NOT SAVED')).toHaveCount(0);
+		await expect(rate).not.toHaveClass(/unsaved/);
+		await expect(bars).toHaveAttribute('aria-label', 'Unrated');
+		await done();
+	});
+});
+
 test('the app’s name goes home, and SERIES, once a shelf, is FILTER’s FORM (c436)', async ({
 	page
 }) => {
