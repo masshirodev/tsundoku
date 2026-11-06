@@ -122,10 +122,7 @@ class BridgeGuardTest {
 		assertTrue(BridgeGuard.refusesNavigation("HTTPS://APPASSETS.androidplatform.net/pair/index.html"))
 		assertTrue(BridgeGuard.refusesNavigation("http://${BridgeGuard.ASSET_HOST}/anything?x=1#y"))
 		// A frame's request for the host is an embed; the main frame's is the
-		// app's own load, which the loader answers.
-		assertTrue(BridgeGuard.refusesEmbedding(BridgeGuard.ASSET, false))
-		assertTrue(BridgeGuard.refusesEmbedding("HTTPS://${BridgeGuard.ASSET_HOST}/pair/index.html", false))
-		assertFalse(BridgeGuard.refusesEmbedding(BridgeGuard.ASSET, true))
+		// app's own load, which the loader answers (round 3's rule, below).
 		// Every other page is somebody's to navigate to, known or not.
 		assertFalse(BridgeGuard.refusesNavigation("$home/"))
 		assertFalse(BridgeGuard.refusesNavigation("$zen/series/12"))
@@ -138,5 +135,36 @@ class BridgeGuardTest {
 		)
 		assertFalse(BridgeGuard.refusesNavigation(null))
 		assertFalse(BridgeGuard.refusesNavigation(""))
+	}
+
+	@Test
+	fun `the asset host is served only to the main frame's GET (c549, round 3)`() {
+		// A form submit keeps the action's fragment, and shouldOverrideUrlLoading
+		// is never called for POST (WebViewClient: "This method is not called
+		// for POST requests"), so the interception is what refuses it.
+		assertTrue(
+			BridgeGuard.refusesAssetRequest(
+				BridgeGuard.ASSET + "#connect=http%3A%2F%2Fevil%3A42143",
+				true,
+				"POST"
+			)
+		)
+		// The method is read without case, and an absent one is not a GET.
+		assertTrue(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET, true, "post"))
+		assertTrue(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET + "#add", true, "Post"))
+		assertTrue(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET, true, null))
+		// A main-frame GET is the app's own loadAsset, and is served.
+		assertFalse(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET, true, "GET"))
+		assertFalse(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET + "#add", true, "get"))
+		// A frame's GET is an embed, refused as it was in round 2.
+		assertTrue(
+			BridgeGuard.refusesAssetRequest("HTTPS://${BridgeGuard.ASSET_HOST}/pair/index.html", false, "GET")
+		)
+		assertTrue(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET, false, null))
+		// Every other host is somebody else's, whatever the method.
+		assertFalse(BridgeGuard.refusesAssetRequest("$home/", true, "POST"))
+		assertFalse(BridgeGuard.refusesAssetRequest("$zen/series/12", true, "GET"))
+		assertFalse(BridgeGuard.refusesAssetRequest(null, true, "GET"))
+		assertFalse(BridgeGuard.refusesAssetRequest("", true, "POST"))
 	}
 }

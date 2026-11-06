@@ -66,15 +66,27 @@ object BridgeGuard {
 	fun refusesNavigation(url: String?): Boolean = isAssetHost(url)
 
 	/**
-	 * True for a request the asset loader must not answer: a frame embedding
-	 * the app's own page (c549, round 2). The main frame's request is the
-	 * app's own load, which `shouldInterceptRequest` serves; anything else
-	 * asking for [ASSET_HOST] is somebody else's frame, and is 404.
+	 * True for a request the asset loader must not answer (c549, round 3):
+	 * anything addressed to [ASSET_HOST] that is not the main frame's GET.
+	 *
+	 * [refusesNavigation] cannot close this by itself: `shouldOverrideUrlLoading`
+	 * is not called for POST requests, and a form submission keeps its action
+	 * URL's fragment, so a page could `submit()` a form to
+	 * `ASSET#connect=http://evil:42143` and the loader would serve the pair
+	 * page as the main document. The method is compared without case, and an
+	 * absent one is not a GET. A sub-frame's request for the host is refused
+	 * here too (round 2's embed), and every other host is somebody else's and
+	 * is not refused. `MainActivity.shouldInterceptRequest` asks this before
+	 * the loader: a refused request is a 404, so no script runs.
 	 */
-	fun refusesEmbedding(url: String?, isMainFrame: Boolean): Boolean = !isMainFrame && isAssetHost(url)
+	fun refusesAssetRequest(url: String?, isMainFrame: Boolean, method: String?): Boolean {
+		if (!isAssetHost(url)) return false
+		if (!isMainFrame) return true
+		return !"GET".equals(method, ignoreCase = true)
+	}
 
 	/** True when [url]'s host is [ASSET_HOST], read case-blind, whatever its scheme or path. */
-	private fun isAssetHost(url: String?): Boolean {
+	fun isAssetHost(url: String?): Boolean {
 		val u = url?.trim().orEmpty()
 		if (u.isEmpty()) return false
 		val host = runCatching { java.net.URI(u) }.getOrNull()?.host ?: return false

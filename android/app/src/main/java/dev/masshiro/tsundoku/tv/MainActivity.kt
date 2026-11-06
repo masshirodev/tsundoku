@@ -383,16 +383,22 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			 * The app's own page is served here, never by the network (c549):
 			 * [BridgeGuard.ASSET_HOST]'s every request goes through the loader,
 			 * and a path it does not hold is 404 rather than a request that
-			 * could reach a real host. A sub-frame's request for the host is
-			 * 404 too ([BridgeGuard.refusesEmbedding]): no page may embed the
-			 * app's own page. The rest of the WebView is untouched.
+			 * could reach a real host. Only the main frame's GET is served
+			 * ([BridgeGuard.refusesAssetRequest]): `shouldOverrideUrlLoading`
+			 * never sees a POST, and a frame's request for the host is an
+			 * embed. Both are 404. The rest of the WebView is untouched.
 			 */
 			override fun shouldInterceptRequest(
 				view: WebView,
 				request: WebResourceRequest
 			): WebResourceResponse? {
-				if (!BridgeGuard.refusesNavigation(request.url.toString())) return null
-				if (BridgeGuard.refusesEmbedding(request.url.toString(), request.isForMainFrame)) return notFound()
+				if (!BridgeGuard.isAssetHost(request.url.toString())) return null
+				if (BridgeGuard.refusesAssetRequest(
+						request.url.toString(),
+						request.isForMainFrame,
+						request.method
+					)
+				) return notFound()
 				return assets.shouldInterceptRequest(request.url) ?: notFound()
 			}
 
