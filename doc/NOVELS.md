@@ -478,8 +478,8 @@ data-total-chapters="3237"`, so the plugin's `y` is truthy and it POSTs its
   timeout):
 
   ```text
-  2026-11-06 18:40:26 INFO     Incoming request => POST /v1 body: {'cmd': 'request.get', 'url': 'https://freewebnovel.com/novel/shadow-slave/chapter-1', 'maxTimeout': 50000}
-  2026-11-06 18:41:28 ERROR    Error: Error solving the challenge. Timeout after 50.0 seconds.
+  2026-11-06 18:40:26 INFO     ReqId 139855970195136 Incoming request => POST /v1 body: {'cmd': 'request.get', 'url': 'https://freewebnovel.com/novel/shadow-slave/chapter-1', 'maxTimeout': 50000}
+  2026-11-06 18:41:28 ERROR    ReqId 139855970195136 Error: Error solving the challenge. Timeout after 50.0 seconds.
   load: returned
   current_url: https://freewebnovel.com/novel/shadow-slave/chapter-1
   title: Just a moment...
