@@ -450,17 +450,19 @@ function startEngine(): Promise<Server> {
 			return a === null ? json(404, { error: 'unknown' }) : json(200, a);
 		});
 	});
-	return listen(server, ENGINE_PORT, 'PLAYWRIGHT_ENGINE_PORT');
+	return listen(server, ENGINE_PORT, 'the fake engine');
 }
 
 /**
  * Listen, or say which port was taken: a server that can't listen emits
  * `error` and never calls back, which left a run waiting on nothing (c340).
+ * The port is the OS's unless a slot assigned one (`browse-world.ts`), so the
+ * message names the server rather than a variable.
  */
-function listen(server: Server, port: number, name: string): Promise<Server> {
+function listen(server: Server, port: number, what: string): Promise<Server> {
 	return new Promise((ok, no) => {
 		server.once('error', (e) =>
-			no(new Error(`the browse world cannot listen on ${port} (${name}): ${e.message}`))
+			no(new Error(`the browse world cannot listen on ${port} (${what}): ${e.message}`))
 		);
 		server.listen(port, '127.0.0.1', () => ok(server));
 	});
@@ -513,7 +515,7 @@ function startRepos(dir: string): Promise<Server> {
 			res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(f));
 		}
 	);
-	return listen(server as unknown as Server, REPO_PORT, 'PLAYWRIGHT_REPO_PORT');
+	return listen(server as unknown as Server, REPO_PORT, 'the fake repositories');
 }
 
 function seed(dbPath: string, store: string): void {

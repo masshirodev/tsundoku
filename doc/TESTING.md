@@ -782,10 +782,22 @@ databases in `/tmp`, which is RAM here. Keep `TMPDIR` on the worktree's
 next.
 
 **Ports.** The gate and each slot assign the eight `PLAYWRIGHT_*_PORT`
-variables. The fake extension repositories' port is never assigned: the
-runner takes a free one from the OS once and every process reads the same
-(`tests/browse-world.ts`, c340), and the browse world's servers name the port
-they could not take instead of waiting forever.
+variables, and a run uses the value it is given. The three ports no one
+assigns — the browse world's own preview, its fake engine, and the fake
+extension repositories — are taken from the OS once per run by the runner,
+which pins them where the setup and every worker read them
+(`tests/browse-world.ts`, c340 and c625), and the browse world's servers name
+the port they could not take instead of waiting forever.
+
+**One worktree runs one Playwright invocation at a time** (c625). Draw from
+that: the shared preview's `webServer` builds the app into `.svelte-kit/`
+before it serves, and two builds at once write one output folder (wave 25: one
+run failed with `ENOENT … .svelte-kit/output/server/manifest-full.js`, and the
+other's preview served pages that never hydrated); the friend world's install
+takes one fixed port and refuses a second run (`tests/friend-setup.ts`). A
+second invocation started once the first one is serving reuses the shared
+preview and the browse world's own ports are the OS's, but nothing makes its
+build safe, so the rule is the rule.
 
 ### Regenerating the frame spec
 

@@ -1,13 +1,10 @@
 /**
  * What BROWSE's browser suite shares between its global setup
- * (browse-setup.ts) and its specs: the two ports, the sources the fake
+ * (browse-setup.ts) and its specs: the three ports, the sources the fake
  * engine serves, and the shape of a call to it.
  */
 
 import { execFileSync } from 'node:child_process';
-
-export const BROWSE_PORT = Number(process.env.PLAYWRIGHT_BROWSE_PORT ?? 4194);
-export const ENGINE_PORT = Number(process.env.PLAYWRIGHT_ENGINE_PORT ?? 4195);
 
 /**
  * A port nothing listens on now, from the OS (`listen(0)`). Asked of a child
@@ -26,15 +23,27 @@ function freePort(): string {
 }
 
 /**
- * The fake repositories, over https with a throwaway certificate. No gate or
- * slot assigns PLAYWRIGHT_REPO_PORT, and a fixed default had two runs fight
- * over 4196 (c340), so the OS picks one. It is picked **once**: the runner
- * loads this module first (playwright.config.ts imports it), pins the port
- * into its environment, and the global setup that listens on it
+ * The world's three servers' ports: BROWSE's preview, its fake engine, and the
+ * fake repositories over https with a throwaway certificate.
+ *
+ * Each is picked **once**, by the OS, when nothing assigns it: a fixed default
+ * had two runs in one worktree fight over the engine's 4195 (c625: the second
+ * `playwright test` died at browse-setup.ts's `listen` with `EADDRINUSE`) and,
+ * before that, over the repositories' 4196 (c340). The runner loads this module
+ * first (playwright.config.ts imports it, for BROWSE_PORT's baseURL), pins the
+ * ports into its environment, and the global setup that listens on them
  * (browse-setup.ts) shares that process while every worker inherits the
- * variable. A port chosen per process would differ between the server and the
- * specs that call it.
+ * variables — `ENGINE_PORT` is imported by a spec of nobody's
+ * (tests/browse-player-watching.e2e.ts), and a port chosen per process would
+ * differ between the server and the specs that call it.
+ *
+ * A `PLAYWRIGHT_*_PORT` the gate or a slot assigns still wins, so a gate's
+ * slot runs where it is given; two runs sharing one assigned value collide,
+ * which is why one worktree runs one Playwright invocation at a time
+ * (doc/TESTING.md, "Ports").
  */
+export const BROWSE_PORT = Number((process.env.PLAYWRIGHT_BROWSE_PORT ||= freePort()));
+export const ENGINE_PORT = Number((process.env.PLAYWRIGHT_ENGINE_PORT ||= freePort()));
 export const REPO_PORT = Number((process.env.PLAYWRIGHT_REPO_PORT ||= freePort()));
 
 /** The novel plugin the setup installs (tests/fixtures/lnreader/shelf.js): BROWSE knows it as `ln:shelf`. */
