@@ -6,15 +6,15 @@ Light and web novels, found, downloaded and read inside tsundoku on
 manga runs on Mihon's extensions ([`DOWNLOADER.md`](DOWNLOADER.md)). Card c127
 ("Novels from LNReader plugins, inside tsundoku"), split in five:
 
-| Part                                                 | Card | State                                                                                  |
-| ---------------------------------------------------- | ---- | -------------------------------------------------------------------------------------- |
-| A sandboxed host for the plugins                     | c147 | Done                                                                                   |
-| Repositories and plugins in EXTENSIONS               | c148 | Done                                                                                   |
-| Browsing, searching and adding a novel               | c149 | Done                                                                                   |
-| Downloading chapters into an EPUB the importer reads | c150 | Done                                                                                   |
-| FOLLOW, live checks, the rest of this file           | c151 | Done                                                                                   |
-| Past a site's bot check, through FlareSolverr        | c152 | Done for one of three: Royal Road; NovelFull and Scribble Hub refused a cookie (below) |
-| A check bound to the browser: pages through it       | c335 | Built for NovelFull and Scribble Hub; unmeasured live since this change (below)        |
+| Part                                                 | Card | State                                                                                        |
+| ---------------------------------------------------- | ---- | -------------------------------------------------------------------------------------------- |
+| A sandboxed host for the plugins                     | c147 | Done                                                                                         |
+| Repositories and plugins in EXTENSIONS               | c148 | Done                                                                                         |
+| Browsing, searching and adding a novel               | c149 | Done                                                                                         |
+| Downloading chapters into an EPUB the importer reads | c150 | Done                                                                                         |
+| FOLLOW, live checks, the rest of this file           | c151 | Done                                                                                         |
+| Past a site's bot check, through FlareSolverr        | c152 | Done for one of three: Royal Road; NovelFull and Scribble Hub refused a cookie (c335, below) |
+| A check bound to the browser: pages through it       | c335 | Done: measured live 2026-11-06, NovelFull and Scribble Hub both read through it (below)      |
 
 The owner's repository (2026-10-28):
 `https://raw.githubusercontent.com/LNReader/lnreader-plugins/plugins/v3.0.0/.dist/plugins.min.json`,
@@ -215,7 +215,7 @@ on `127.0.0.1:8193` and the real host:
   remembers that refusal for ten minutes (above), so a download pays the solve
   once and then makes one request per chapter. Fetching the page itself through
   the solver is the only way past those, and c152 ruled it out; c335 does it
-  ("A check bound to the browser", below), and it is not measured yet.
+  ("A check bound to the browser", below), measured live on 2026-11-06.
 
 **Measured live again on 2026-11-02 (evening)**, the same dialogue with **the
 real plugin files** from the owner's repository (2.3.4 Royal Road, 3.0.0 Novel
@@ -250,10 +250,13 @@ preview and first chapter:
 
 This run is reproducible from the commit. `doc/probes/novel-live.ts` drives
 POPULAR, a preview and a first chapter through the real host for each plugin,
-and prints every solve it performed beside its timing. The store is the owner's
-plugins unpacked one file per plugin, named by its id (`temp/plugins` here);
-Wuxia World re-ran unchanged on 2026-11-02 (`50 in 0.9 s`, 357 chapters, 8,351
-bytes), and a row that no longer matches is a measurement that has moved.
+and prints every solve it performed beside its timing, every page page mode
+fetched, and the address a chapter's own request ended at. The store holds one
+file per plugin, named by its id (`temp/plugins` here): each is the `url` the
+owner's repository's `.dist/plugins.min.json` publishes for it, so a run names
+the plugin version it measured. Wuxia World re-ran unchanged on 2026-11-02
+(`50 in 0.9 s`, 357 chapters, 8,351 bytes), and a row that no longer matches is
+a measurement that has moved.
 
 ```sh
 NOVEL_SOLVER_URL=http://127.0.0.1:8193/v1 \
@@ -261,9 +264,10 @@ NOVEL_SOLVER_URL=http://127.0.0.1:8193/v1 \
     temp/plugins royalroad wuxiaworld novelfull scribblehub novelbin
 ```
 
-So c152 is met for **one of its three sites** (Royal Road), and two of the
-five plugins measured that day, Wuxia World being the one that never needed
-it. The other two are c335's, next.
+So c152 was met for **one of its three sites** (Royal Road) on 2026-11-02,
+and for two of the five plugins measured that day, Wuxia World being the one
+that never needed it. The other two are c335's, which met them on 2026-11-06
+(next).
 
 `tests/novel-solver.spec.ts` is the app's half: a loopback or private address
 refused before the solver hears of it, only the asked host's cookies and its
@@ -339,8 +343,8 @@ error, fixed? }`, a sentence, marked `fixed` when no new solve can change it
     (`plugins/english/scribblehub.ts`, `wi_getreleases_pagination`), so it
     goes as a url-encoded form. The plugin's headers are dropped (below), so a
     POST that needs one, as NovelFull's chapter archive sets
-    `X-Requested-With`, goes without it: unmeasured, and on the owner's live
-    check.
+    `X-Requested-With`, goes without it: measured on 2026-11-06, the archive
+    answers its chapter list without the header ("Measured live", below).
   - A picture or a file is not a page: `fetchFile` (and so `fetchProto`'s
     binary body) is refused with a sentence before anything is asked, and a
     `fetchApi` that turns out to be Chromium's image page is refused by the
@@ -386,10 +390,40 @@ closed twice (…)` if it dies again. Nothing is retried beyond that; the
   A page is not a first visit's wait, so it doesn't light the live line
   (`solvingSince`).
 
-**Unmeasured live since this change.** No live solver or site was asked for
-c335 (the box's FlareSolverr is the live install's), so the table's row says
-so and the numbers above are c152's. The owner's check is under "Not done
-yet".
+**Measured live on 2026-11-06**, the development solver (FlareSolverr 3.4.6 on
+`127.0.0.1:8193`, never the live one) and the files the owner's repository
+publishes at v3.0.0 — NovelFull 2.3.4, Scribble Hub 1.0.2, Royal Road 2.3.4,
+one file per plugin named by its id — each asked POPULAR, a preview and a first
+chapter through the real host (`doc/probes/novel-live.ts`, one solve per
+plugin):
+
+| Plugin       | POPULAR                     | Preview                 | First chapter                                     |
+| ------------ | --------------------------- | ----------------------- | ------------------------------------------------- |
+| NovelFull    | 20 in 6.8 s (solve 2.2 s)   | 3,956 chapters in 5.8 s | 18,839 bytes in 3.7 s, at the chapter's own page  |
+| Scribble Hub | 25 in 8.7 s (solve 4.1 s)   | 1 chapter in 17.6 s     | 18,157 bytes in 13.8 s, at the chapter's own page |
+| Royal Road   | 20 in 14.8 s (solve 13.3 s) | 109 chapters in 0.8 s   | 54,606 bytes in 0.9 s, at the chapter's own page  |
+
+- **Both hosts page mode was built for are past their check.** Every page came
+  back 200, after one solve each; the host made no request of its own after
+  the refusal and paid no second solve. NovelFull took four pages for its
+  whole run and Scribble Hub four, Royal Road none.
+- **NovelFull's preview lists chapters though page mode drops
+  `X-Requested-With`.** The plugin posts its chapter archive
+  (`/ajax-chapter-option?novelId=237`) with that header; the browser sent its
+  own, and the archive answered `200`, 668,537 bytes, for 3,956 chapters. The
+  endpoint does not need the header.
+- **Scribble Hub's chapter list carried its `FormData`.** The url-encoded form
+  page mode sends reached `/wp-admin/admin-ajax.php` as a `POST` and answered
+  `200`, 372 bytes, for the one chapter the novel its POPULAR lists first has.
+- **Royal Road never entered page mode**: its clearance passes as a Node fetch,
+  so it printed no page at all, exactly as the design says, and its numbers are
+  the 2026-11-02 run's (109 chapters, 54,606 bytes).
+- **Every chapter's request ended where the plugin asked it to**, so the page
+  a chapter's pictures resolve against (c631) is the one the downloader
+  computed before it: none of these three hosts redirected a chapter.
+
+A row that no longer matches is a measurement that has moved, not a bug: run
+the probe again before trusting it.
 
 `tests/novel-solver.spec.ts`, "a page through the solver's browser (c335)",
 is the app's half against a stubbed FlareSolverr that answers as 3.4.6 does:
@@ -673,23 +707,7 @@ asked again, an unfollowed novel left alone) and the FOLLOW cell in
 
 ## Not done yet
 
-**Page mode is unmeasured live** (c335, "A check bound to the browser"). The
-owner's check, with the development solver on 8193 and the plugins unpacked as
-"Past a site's bot check" says: `doc/probes/novel-live.ts` given the app's
-`fetchPage` as its host's `page` (the probe predates it; the patch is in
-`doc/handoff-notes/novels.md`, wave 26), then
-
-```sh
-NOVEL_SOLVER_URL=http://127.0.0.1:8193/v1 \
-  node --experimental-strip-types doc/probes/novel-live.ts \
-    temp/plugins novelfull scribblehub royalroad
-```
-
-NovelFull and Scribble Hub must each print a POPULAR count above 0, a
-preview's chapters and a first chapter's bytes, with one solve each and the
-pages after it listed; Royal Road must still print its numbers with no page at
-all (its clearance passes, so it never enters page mode). Then the table's row
-and this section take the numbers. The book carries no cover of its own
-(tsundoku's tiles have theirs). Without the engine set up there's no BROWSE, so
-no novels either, though nothing in the novel worker needs it. A plugin's own
-settings (`pluginSettings`, a few have them) aren't offered.
+The book carries no cover of its own (tsundoku's tiles have theirs). Without
+the engine set up there's no BROWSE, so no novels either, though nothing in
+the novel worker needs it. A plugin's own settings (`pluginSettings`, a few
+have them) aren't offered.
