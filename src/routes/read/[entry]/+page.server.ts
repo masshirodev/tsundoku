@@ -146,16 +146,30 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		// A chapter marked unread keeps the place it was left at, and a finished
 		// chapter's place is its last page (the finish event posts the block it
 		// ended on): resuming there would reopen a chapter the reader asked to
-		// start over at its bottom (c622, round 2). Only a place saved after the
-		// mark resumes, which is one they read on to since. The mark is
-		// `series.ts`'s, so this reads the row rather than changing it.
+		// start over at its bottom (c622, round 2). But `?/mark` also serves the
+		// series screen's UNDO of a long-press MARK READ THROUGH, which writes
+		// the same `unread_at` over a mark that only took a *read* back, not a
+		// finish: that place is still where reading had it, so the log, not the
+		// stamp, says which one the mark undid. Only a finish before the mark
+		// starts the chapter over; only when nothing has been read since does it
+		// stay over (an import makes reads of its own, in this same log).
 		const marked = getDb()
-			.prepare(`SELECT unread_at, last_opened_at FROM entries WHERE id = ?`)
-			.get(entryId) as { unread_at: number | null; last_opened_at: number | null } | undefined;
+			.prepare(
+				`SELECT
+					(SELECT r.kind FROM reading_events r
+					 WHERE r.entry_id = e.id AND r.kind IN ('finish', 'mark_read')
+						AND r.at <= e.unread_at
+					 ORDER BY r.at DESC, r.id DESC LIMIT 1) AS taken_back,
+					(SELECT 1 FROM reading_events r
+					 WHERE r.entry_id = e.id AND r.kind IN ('open', 'page', 'finish', 'close')
+						AND r.id > COALESCE((SELECT MAX(m.id) FROM reading_events m
+							WHERE m.entry_id = e.id AND m.kind = 'mark_unread'), 0)
+					 LIMIT 1) AS read_since
+				FROM entries e WHERE e.id = ?`
+			)
+			.get(entryId) as { taken_back: string | null; read_since: number | null } | undefined;
 		const resume =
-			marked && marked.unread_at !== null && (marked.last_opened_at ?? 0) <= marked.unread_at
-				? null
-				: entry.lastPosition;
+			marked?.taken_back === 'finish' && !marked.read_since ? null : entry.lastPosition;
 		return {
 			text: true as const,
 			series: reading,

@@ -216,16 +216,17 @@ one — what every door into a novel makes, because `readHref()`
 place for that chapter, unless the chapter is already read (`readAt` set),
 which opens at its top. So:
 
-| Door                                                                                                                                                    | Opens at                                                                                                         |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| ▶ CONTINUE, on the series screen and on the library                                                                                                     | the entry it chooses (`resumeEntry`, the one in progress), at its saved place; its top when that chapter is read |
-| a history entry                                                                                                                                         | its chapter, at its saved place; the top when read                                                               |
-| a Work's run row, or READ AGAIN on a Work (both `readHref()`)                                                                                           | the entry it names, at its saved place; the top when read (READ AGAIN's usually is)                              |
-| a chapter row, or the end page's next part (`readHref(first.id, 1)`; the `?p=1` is the image reader's, and the text reader does not read it as a place) | that chapter, at its saved place; the top when read                                                              |
-| CONTENTS inside the reader, a turn past a chapter's end, SCROLL crossing into the next                                                                  | the chapter's top                                                                                                |
-| the in-place move's own URL (`replaceState`, `?at=<block>.<offset>[.<y>]`)                                                                              | exactly that place, on a reload or a history entry                                                               |
-| a reload before the reader has settled                                                                                                                  | the server's saved place (the last `page` event), or the top                                                     |
-| a chapter marked unread (MARK UNREAD on the series screen)                                                                                              | its top, until it is read again                                                                                  |
+| Door                                                                                                                                                      | Opens at                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| ▶ CONTINUE, on the series screen and on the library                                                                                                       | the entry it chooses (`resumeEntry`, the one in progress), at its saved place; its top when that chapter is read |
+| a history entry                                                                                                                                           | its chapter, at its saved place; the top when read                                                               |
+| a Work's run row, or READ AGAIN on a Work (both `readHref()`)                                                                                             | the entry it names, at its saved place; the top when read (READ AGAIN's usually is)                              |
+| a chapter row, or the end page's next part (`readHref(first.id, 1)`; the `?p=1` is the image reader's, and the text reader does not read it as a place)   | that chapter, at its saved place; the top when read                                                              |
+| CONTENTS inside the reader, a turn past a chapter's end, SCROLL crossing into the next                                                                    | the chapter's top                                                                                                |
+| the in-place move's own URL (`replaceState`, `?at=<block>.<offset>[.<y>]`)                                                                                | exactly that place, on a reload or a history entry                                                               |
+| a reload before the reader has settled                                                                                                                    | the server's saved place (the last `page` event), or the top                                                     |
+| a chapter finished, then marked unread (MARK UNREAD on the series screen)                                                                                 | its top, until it is read again                                                                                  |
+| UNDO of a long-press MARK READ THROUGH, or a MARK READ and then MARK UNREAD before the chapter was finished (both the same `?/mark` on the series screen) | where it was left: a mark that took a read back, not a finish, leaves the place alone                            |
 
 An explicit `?at=0.0` is a place like any other: the top, whatever the server
 saved. A saved place past the chapter's last block — its text changed under
@@ -234,11 +235,17 @@ nothing answers.
 
 **MARK UNREAD keeps the place it was left at** (`markEntries` clears `read_at`
 and keeps `last_position`), and a chapter finished leaves its place on its last
-page, because the `finish` event posts the block it ended on. That place is
-never resumed: the entry is handed no place when it has been marked unread and
-nothing has opened it since (`unread_at` set and `last_opened_at <= unread_at`,
-read in `+page.server.ts`). A chapter re-opened and read on after the mark has
-a place saved after it, and resumes there like any other.
+page, because the `finish` event posts the block it ended on. A mark cannot
+tell a finished chapter from one only marked read, though, because the series
+screen's UNDO of a long-press MARK READ THROUGH posts the same `?/mark`, so the
+reader asks the log instead (`+page.server.ts`). It starts the chapter at its
+top only when the latest `reading_events` row of kind `finish` or `mark_read`
+at or before `unread_at` is a `finish`, and nothing has been read since that
+mark (a later `open`, `page`, `finish` or `close`, in the log's own order, so
+the two are never compared by clock). A `mark_read` — UNDO, or a mark read then
+unread by mistake — leaves the place where reading had it. A chapter re-opened
+and read on after the mark has a place saved after it, and resumes there like
+any other.
 
 Until c622 an absent `?at=` read as the first character
 (`Number('')` was 0), so every one of those doors opened a novel at its

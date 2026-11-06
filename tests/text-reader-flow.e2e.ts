@@ -1064,19 +1064,18 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 
 	// c622, round 2: MARK UNREAD keeps `last_position`, and a chapter finished
 	// leaves its place on its last page. Resuming whenever `readAt` is null
-	// reopened a chapter marked unread at its bottom; only a place saved after
-	// the mark resumes.
-	test('a chapter marked unread after being left mid-way opens at its top again (c622)', async ({
-		page
-	}) => {
-		test.setTimeout(120_000);
+	// reopened a chapter marked unread at its bottom; a `finish` before the
+	// mark puts the chapter at its top, and only until it is read again.
+	test('a finished chapter marked unread opens at its top again (c622)', async ({ page }) => {
+		test.setTimeout(150_000);
 		const seriesId = await openOwnSeries(page, 'Mushoku Tensei');
 		await continueLink(page).click();
 		await page.waitForURL(/\/read\//);
 		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
 		const entry = Number(new URL(page.url()).pathname.split('/').pop());
-		// Several pages, as the c622 case makes it: one turn then leaves the
-		// chapter mid-way rather than finishing it on its single page.
+		// Several pages, as the c622 case makes it: the seed's chapter fits one,
+		// where a turn reaches the end and sends `finish`. Larger type and half
+		// the page are the app's own settings, kept on the device.
 		await middle(page);
 		await page.getByRole('button', { name: /^(PAGED|SCROLL) · / }).click();
 		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
@@ -1093,25 +1092,34 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
 		await expect(page.locator('.text-reader')).not.toHaveClass(/scroll/);
 		expect(await pagesNow(page)).toBeGreaterThan(2);
-		const before = await settledAt(page);
-		await forward(page);
-		await expect.poll(() => atOf(page), { timeout: 10_000 }).not.toBe(before);
-		const left = atOf(page);
-		expect(left).not.toBe('0.0');
+		const heading = page.locator('.blocks:not(.next) h1').first();
+		const chapter = (await heading.textContent()) ?? '';
+		// Finish it at the scrubber's last page, as a reader pressing the
+		// scrubber does: arriving at the last page is what sends `finish`, and
+		// the chapter is not crossed into (the entry stays this one).
+		const finished = page.waitForRequest(
+			(r) => r.url().endsWith('/api/reading') && r.postDataJSON()?.kind === 'finish'
+		);
+		const track = page.locator('[role="slider"][aria-label="Page in chapter"]');
+		const box = (await track.boundingBox())!;
+		await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+		await finished;
+		await expect(heading).toHaveText(chapter);
+		expect(new URL(page.url()).pathname).toBe(`/read/${entry}`);
 		// Leave by the reader's own door: the place it saved is the server's.
 		await middle(page);
 		await page.getByRole('link', { name: 'Back to the series' }).click();
 		await expect(continueLink(page)).toBeVisible();
-		// MARK READ then MARK UNREAD, as the series screen's multi-select does:
-		// `markEntries` only touches a chapter whose `read_at` already stands,
-		// so the unread mark needs the read before it.
-		const mark = (read: boolean) =>
-			page.request.post(`${base}/series/${seriesId}?/mark`, {
-				form: { read: read ? '1' : '0', entry: String(entry) },
-				headers: { origin: base }
-			});
-		expect((await mark(true)).ok()).toBe(true);
-		expect((await mark(false)).ok()).toBe(true);
+		// MARK UNREAD: the finish left `read_at` standing, and `markEntries`
+		// takes it back while keeping `last_position`, now its last page.
+		expect(
+			(
+				await page.request.post(`${base}/series/${seriesId}?/mark`, {
+					form: { read: '0', entry: String(entry) },
+					headers: { origin: base }
+				})
+			).ok()
+		).toBe(true);
 		// A fresh document on the series: the place can come only from the server.
 		await page.reload();
 		await expect(continueLink(page)).toBeVisible();
@@ -1137,6 +1145,70 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 		await page.waitForURL(new RegExp(`/read/${entry}`));
 		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
 		await expect.poll(() => atOf(page), { timeout: 10_000 }).toBe(reread);
+	});
+
+	// c622, round 2's other door: the series screen's UNDO of a long-press
+	// MARK READ THROUGH posts the same `?/mark read=0` as MARK UNREAD, and
+	// `markEntries` stamps the same `unread_at`. It took a read back, not a
+	// finish, so the place reading left is still the place, and the reader must
+	// resume it rather than writing block 0 over it.
+	test('UNDO of a long-press MARK READ THROUGH resumes where the chapter was left (c622)', async ({
+		page
+	}) => {
+		test.setTimeout(150_000);
+		await openOwnSeries(page, 'Mushoku Tensei');
+		await continueLink(page).click();
+		await page.waitForURL(/\/read\//);
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		const entry = Number(new URL(page.url()).pathname.split('/').pop());
+		// Several pages, as the cases above make it, so one turn leaves the
+		// chapter mid-way rather than finishing it on its single page.
+		await middle(page);
+		await page.getByRole('button', { name: /^(PAGED|SCROLL) · / }).click();
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		await sheet.getByRole('radio', { name: 'PAGED' }).click();
+		for (let i = 0; i < 14; i++) {
+			const larger = sheet.getByRole('button', { name: 'Larger' });
+			if (await larger.isDisabled()) break;
+			await larger.click();
+		}
+		await sheet
+			.getByRole('radiogroup', { name: 'Width' })
+			.getByRole('radio', { name: '50%', exact: true })
+			.click();
+		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).not.toHaveClass(/scroll/);
+		expect(await pagesNow(page)).toBeGreaterThan(2);
+		// Start on the chapter's own first page, on its scrubber: the place
+		// CONTINUE resumed may be near the end, where one turn would land on
+		// the last page and send `finish`, which is the case above, not this.
+		const track = page.locator('[role="slider"][aria-label="Page in chapter"]');
+		const box = (await track.boundingBox())!;
+		await page.mouse.click(box.x + 2, box.y + box.height / 2);
+		await expect.poll(() => atOf(page), { timeout: 10_000 }).toBe('0.0');
+		const before = await settledAt(page);
+		await forward(page);
+		await expect.poll(() => atOf(page), { timeout: 10_000 }).not.toBe(before);
+		const left = atOf(page);
+		expect(left).not.toBe('0.0');
+		await middle(page);
+		await page.getByRole('link', { name: 'Back to the series' }).click();
+		await expect(continueLink(page)).toBeVisible();
+		// The long press on the chapter's own row, and UNDO in its band, the
+		// two presses that write the same `unread_at` as MARK UNREAD.
+		await page.locator(`#entry-${entry} .entry-btn`).click({ button: 'right' });
+		await expect(page.getByText(/^MARKED READ THROUGH/)).toBeVisible();
+		await page.getByRole('button', { name: 'UNDO' }).click();
+		await expect(page.getByText(/^MARKED READ THROUGH/)).toHaveCount(0);
+		// A fresh document on the series: the place can come only from the server.
+		await page.reload();
+		await expect(continueLink(page)).toHaveAttribute('href', new RegExp(`/read/${entry}`));
+		await continueLink(page).click();
+		await page.waitForURL(new RegExp(`/read/${entry}`));
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		// UNDO took a read back, not a finish: the place is where it was left,
+		// not the top.
+		await expect.poll(() => atOf(page), { timeout: 10_000 }).toBe(left);
 	});
 
 	// c623: a chapter moving in place is written with `replaceState`, whose
