@@ -412,12 +412,12 @@ plugin). Free Web Novel 2.3.10, the same template, was measured on the same
 solver for c663, with `doc/probes/novel-archive.ts` printing which archive
 branch each of its novels took:
 
-| Plugin         | POPULAR                     | Preview                 | First chapter                                     |
-| -------------- | --------------------------- | ----------------------- | ------------------------------------------------- |
-| NovelFull      | 20 in 6.8 s (solve 2.2 s)   | 3,956 chapters in 5.8 s | 18,839 bytes in 3.7 s, at the chapter's own page  |
-| Scribble Hub   | 25 in 8.7 s (solve 4.1 s)   | 1 chapter in 17.6 s     | 18,157 bytes in 13.8 s, at the chapter's own page |
-| Royal Road     | 20 in 14.8 s (solve 13.3 s) | 109 chapters in 0.8 s   | 54,606 bytes in 0.9 s, at the chapter's own page  |
-| Free Web Novel | 20 in 8.4 s (solve 4.3 s)   | 3,237 chapters in 7.5 s | the solver's browser timed out at its 50 s, twice |
+| Plugin         | POPULAR                     | Preview                 | First chapter                                                              |
+| -------------- | --------------------------- | ----------------------- | -------------------------------------------------------------------------- |
+| NovelFull      | 20 in 6.8 s (solve 2.2 s)   | 3,956 chapters in 5.8 s | 18,839 bytes in 3.7 s, at the chapter's own page                           |
+| Scribble Hub   | 25 in 8.7 s (solve 4.1 s)   | 1 chapter in 17.6 s     | 18,157 bytes in 13.8 s, at the chapter's own page                          |
+| Royal Road     | 20 in 14.8 s (solve 13.3 s) | 109 chapters in 0.8 s   | 54,606 bytes in 0.9 s, at the chapter's own page                           |
+| Free Web Novel | 20 in 8.4 s (solve 4.3 s)   | 3,237 chapters in 7.5 s | no answer in 60 s; the browser was on the site's check page (three novels) |
 
 - **Both hosts page mode was built for are past their check.** Every page came
   back 200, and the run paid one solve per plugin and no second: NovelFull
@@ -451,17 +451,48 @@ data-total-chapters="3237"`, so the plugin's `y` is truthy and it POSTs its
   dropped and the list came back whole, so this host does not need it. A host
   that does is still unmeasured, and page mode has no field to send one
   (`PageRequest` is `{ url, method?, postData? }`): that is a shape it cannot
-  carry, not a check it claims to have passed. Its chapter page did not come
-  in this run, twice: the solver's browser timed out at its own 50 s
-  (`the solver did not answer in 60 s`), which is the solver's trouble and
-  not the site's check. `doc/probes/novel-archive.ts` prints each branch it
-  met. Its own line, and the solver's receipt of the same request (a
-  different run, so `cid` differs; the plugin picks it):
+  carry, not a check it claims to have passed. `doc/probes/novel-archive.ts`
+  walks the first N novels and prints the branch each took. Its own line, and
+  the solver's receipt of the same request (a different run, so `cid` differs;
+  the plugin picks it):
 
   ```text
   #1 Shadow Slave | POST https://freewebnovel.com/api/chapterlist.php body="aid=1991&acode=shadow-slave&cid=436" (fields=url+method+postData) -> 200 272477 bytes at https://freewebnovel.com/api/chapterlist.php in 2.8s
   Incoming request => POST /v1 body: {'cmd': 'request.post', 'url': 'https://freewebnovel.com/api/chapterlist.php', 'maxTimeout': 50000, 'postData': 'aid=1991&acode=shadow-slave&cid=1090'}
   ```
+
+  Its chapter page is a different matter: page mode did not get one through,
+  and the cause is the site's own check, not a page that hung. Three novels
+  were asked on 2026-11-06 (Shadow Slave once more, Invincible and Emperor's
+  Domination), each on its first chapter, and each printed the same line:
+
+  ```text
+  #1 Shadow Slave | GET https://freewebnovel.com/novel/shadow-slave/chapter-1 (fields=url+method) -> the solver did not answer in 60 s in 60.1s
+  #2 Invincible | GET https://freewebnovel.com/novel/invincible-novel/chapter-1 (fields=url+method) -> the solver did not answer in 60 s in 60.1s
+  #3 Emperor's Domination | GET https://freewebnovel.com/novel/emperors-domination/chapter-1 (fields=url+method) -> the solver did not answer in 60 s in 60.1s
+  ```
+
+  The solver's own lines for the first, and what its browser was on when asked
+  inside the same container (a fresh undetected Chrome, because page mode sends
+  no cookies and no session; the service logs no title check before its
+  timeout):
+
+  ```text
+  2026-11-06 18:40:26 INFO     Incoming request => POST /v1 body: {'cmd': 'request.get', 'url': 'https://freewebnovel.com/novel/shadow-slave/chapter-1', 'maxTimeout': 50000}
+  2026-11-06 18:41:28 ERROR    Error: Error solving the challenge. Timeout after 50.0 seconds.
+  load: returned
+  current_url: https://freewebnovel.com/novel/shadow-slave/chapter-1
+  title: Just a moment...
+  readyState: complete
+  html length: 44660
+  ```
+
+  Asked directly with `maxTimeout` 120000, the same address answered
+  `'message': 'Error: Error solving the challenge. Timeout after 120.0 seconds.'`;
+  a plain HTTP `GET` of it answered `200`, 69,509 bytes in 0.7 s, titled
+  `Shadow Slave - Chapter 1: Nightmare Begins`. The article is served, the
+  browser lands on Cloudflare's "Just a moment..." check, and FlareSolverr does
+  not pass that check within 50 or 120 s. What the check wants is not known.
 
 A row that no longer matches is a measurement that has moved, not a bug: run
 the probe again before trusting it.
