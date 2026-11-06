@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
+import { DETAILS_FOLDS } from './helpers/details-folds';
 
 /**
  * RENAME on the series screen's FILE row (c526; doc/SERIES.md, "RENAME"), on
@@ -95,6 +96,11 @@ function seed(): number {
 id = seed();
 
 test.beforeAll(async () => {
+	// The hook seeds thirteen volumes and waits up to 60 s for its own preview:
+	// 2.0 s alone at this commit, past the default 30 s once the box is loaded
+	// (c599). In a hook, test.setTimeout sets the hook's own budget
+	// (Playwright's test.d.ts, "Changing timeout for a beforeAll").
+	test.setTimeout(120_000);
 	const port = await freePort();
 	BASE = `http://localhost:${port}`;
 	preview = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
@@ -132,13 +138,11 @@ test.afterAll(() => {
 async function openDetails(page: Page) {
 	const line = page.locator('[data-row="details"]');
 	// Whether DETAILS folds rows here is SeriesPanel.svelte's media query (a
-	// phone's width, or a TV), known before the panel draws. Read once with
-	// `isVisible()`, a line not drawn yet reads as "no fold", and FILE stays
-	// folded away (c439: series-layout's copy, 2 of 20 on a loaded phone and
-	// TV in wave 24).
-	const folds = await page.evaluate(
-		() => matchMedia('(max-width: 599px), (pointer: none) and (min-width: 900px)').matches
-	);
+	// phone's width, or a TV), known before the panel draws; the query lives
+	// once, in tests/helpers/details-folds.ts. Read once with `isVisible()`, a
+	// line not drawn yet reads as "no fold", and FILE stays folded away (c439:
+	// series-layout's copy, 2 of 20 on a loaded phone and TV in wave 24).
+	const folds = await page.evaluate((query) => matchMedia(query).matches, DETAILS_FOLDS);
 	if (!folds) return;
 	await expect(line).toBeVisible();
 	await expect(async () => {

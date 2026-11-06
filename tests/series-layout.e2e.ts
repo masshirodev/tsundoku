@@ -5,6 +5,7 @@ import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, screenSettled, test } from './fixtures';
+import { DETAILS_FOLDS } from './helpers/details-folds';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
@@ -85,12 +86,12 @@ test('hovering the fold keeps its stripes (c488)', async ({ page }, info) => {
 async function openDetails(page: import('@playwright/test').Page) {
 	const line = page.locator('[data-row="details"]');
 	// Whether DETAILS folds rows here is SeriesPanel.svelte's media query (a
-	// phone's width, or a TV), known before the panel draws. Read once with
-	// `isVisible()`, a line not drawn yet read as "no fold" on a loaded phone
-	// and TV, and LAYOUT stayed folded away (c439, wave 24: 2 of 20).
-	const folds = await page.evaluate(
-		() => matchMedia('(max-width: 599px), (pointer: none) and (min-width: 900px)').matches
-	);
+	// phone's width, or a TV), known before the panel draws; the query lives
+	// once, in tests/helpers/details-folds.ts, so it cannot drift from the
+	// app's. Read once with `isVisible()`, a line not drawn yet read as "no
+	// fold" on a loaded phone and TV, and LAYOUT stayed folded away (c439,
+	// wave 24: 2 of 20).
+	const folds = await page.evaluate((query) => matchMedia(query).matches, DETAILS_FOLDS);
 	if (!folds) return;
 	await expect(line).toBeVisible();
 	await expect(async () => {
@@ -205,6 +206,11 @@ test.describe('a one-season anime with Ranobe (c422)', () => {
 	let seriesId = 0;
 
 	test.beforeAll(async () => {
+		// The hook seeds one anime and waits up to 60 s for its own preview:
+		// 1.6 s alone at this commit, past the default 30 s once the box is
+		// loaded (c599). In a hook, test.setTimeout sets the hook's own budget
+		// (Playwright's test.d.ts, "Changing timeout for a beforeAll").
+		test.setTimeout(120_000);
 		test.skip(
 			test.info().project.name !== 'tablet-portrait',
 			'widths are set per case; one project is enough'
