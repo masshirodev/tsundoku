@@ -21,8 +21,9 @@
  * A host in that memo is in page mode (card c335): its requests go to the
  * parent as { op: 'page', id, url, method, postData? }, answered
  * { op: 'page-result', id, ok, value: { url, status, contentType, body } } or
- * { op: 'page-result', id, ok: false, error, fixed? }, where `fixed` marks a
- * refusal no new solve can change (c630). { id, op: 'modes' } answers the
+ * { op: 'page-result', id, ok: false, error, fixed?, unsent? }, where `fixed`
+ * marks a refusal no new solve can change and `unsent` one made before the
+ * browser was asked (c630). { id, op: 'modes' } answers the
  * hosts in page mode and until when. The config message may carry refusedMs,
  * page mode's length, for tests.
  */
@@ -322,7 +323,8 @@ function refuseFixed(host, why) {
  * Fails a request page mode won't send at all, before anything is asked. No
  * check was involved, so the sentence doesn't claim one: the browse page's
  * TRY AGAIN for it does not forget the memo (no `again=1`), so it pays no new
- * solve.
+ * solve. Also where an address this app could not look up lands (c630): the
+ * solver's browser was never asked, and asking again asks the lookup again.
  */
 function refuseShape(host, why) {
 	const message = `${host}'s page can't come through the solver: ${why}`;
@@ -372,6 +374,10 @@ async function pageFetch(asked, url, opts, wantsFile) {
 		// or a document that is not a page. Saying a check failed would make
 		// the browse page's TRY AGAIN forget the memos for nothing.
 		if (m.fixed) refuseFixed(host, why);
+		// An address this app could not look up: the browser was never asked, so
+		// it is the unsent family, and asking again asks the lookup again rather
+		// than paying a solve for a DNS hiccup.
+		if (m.unsent) refuseShape(host, why);
 		refusePage(host, why);
 	}
 	const page = m.value;

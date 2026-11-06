@@ -734,6 +734,30 @@ describe('a check bound to the browser that solved it: page mode (c335)', () => 
 		expect(siteRequests()).toBe(2);
 	});
 
+	it('says an address it could not look up as unsent, not as a failed check (c630)', async () => {
+		await host.call(bound, 'popularNovels', [1, {}]);
+		// `fetchPage`'s own lookup failed (EAI_AGAIN): the browser was never
+		// asked, so this is the unsent family. TRY AGAIN asks the lookup again
+		// instead of forgetting the memos for a solve that cannot help a name
+		// that did not resolve.
+		pageAs = async () => ({
+			error: 'the address could not be checked (getaddrinfo EAI_AGAIN 127.0.0.1)',
+			unsent: true
+		});
+		const call = host.call(bound, 'parseChapter', ['/bound/chapter/1']);
+		await expect(call).rejects.toThrow(
+			/127\.0\.0\.1's page can't come through the solver: the address could not be checked \(getaddrinfo EAI_AGAIN 127\.0\.0\.1\)/
+		);
+		await expect(call).rejects.not.toThrow(/its check could not be passed/);
+		await expect(call).rejects.not.toThrow(/no solve changes that/);
+		expect(solved).toHaveLength(1);
+		pageAs = browser;
+		expect(await host.call(bound, 'parseChapter', ['/bound/chapter/2'])).toBe(
+			'<p>/bound/chapter/2</p>'
+		);
+		expect(solved).toHaveLength(1);
+	});
+
 	it('says why a page didn’t come — the solver’s 500, its browser dying, a timeout — and stays in page mode', async () => {
 		await host.call(bound, 'popularNovels', [1, {}]);
 		for (const error of [

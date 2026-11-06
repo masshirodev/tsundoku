@@ -356,7 +356,11 @@ error, fixed? }`, a sentence, marked `fixed` when no new solve can change it
 - **When it doesn't come**, the call's trouble is one of three sentences.
   What page mode won't send at all (a method but GET or POST, a JSON or binary
   body, a `FormData` holding a file, a `fetchFile`) is refused before anything
-  is asked, as `"<host>'s page can't come through the solver: <why>"`.
+  is asked, as `"<host>'s page can't come through the solver: <why>"`. An
+  address this app could not look up — a DNS failure, not the site's answer —
+  lands there too (`the address could not be checked (getaddrinfo EAI_AGAIN
+…)`, marked `unsent`): the browser was never asked, and asking again asks the
+  lookup again rather than paying a solve for a hiccup (c630).
   What no new solve can change is
   `"<host>'s page can't come through the solver, and no solve changes that:
 <why>"`: an address `checkPublic` refuses (`refused: …`), one the browser was

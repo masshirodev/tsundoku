@@ -16,8 +16,17 @@ const ADDRESSES: Record<string, string[]> = {
 	'mixed.example': ['93.184.215.14', '127.0.0.1']
 };
 vi.mock('node:dns/promises', () => ({
-	lookup: async (host: string) =>
-		(ADDRESSES[host] ?? []).map((address) => ({ address, family: address.includes(':') ? 6 : 4 }))
+	lookup: async (host: string) => {
+		// One name whose lookup fails as a transient DNS error does (c630).
+		if (host === 'flaky.example')
+			throw Object.assign(new Error('getaddrinfo EAI_AGAIN flaky.example'), {
+				code: 'EAI_AGAIN'
+			});
+		return (ADDRESSES[host] ?? []).map((address) => ({
+			address,
+			family: address.includes(':') ? 6 : 4
+		}));
+	}
 }));
 
 const { getDb } = await import('$lib/server/db');
@@ -519,6 +528,22 @@ describe('a page through the solver’s browser (c335)', () => {
 			error: "the solver's browser ended at inside.example, which is not on the internet",
 			fixed: true
 		});
+		expect(checked()).toEqual([]);
+	});
+
+	it('calls a failed lookup the network’s, not a refusal and not a check (c630)', async () => {
+		// EAI_AGAIN comes out of `checkPublic`'s own lookup, in the same catch a
+		// local address lands in. It is neither: a retry can succeed, and the
+		// browser was never asked, so it is unsent rather than fixed.
+		const answer = await fetchPage({ url: 'https://flaky.example/chapter' });
+		expect(answer).toEqual({
+			error: 'the address could not be checked (getaddrinfo EAI_AGAIN flaky.example)',
+			unsent: true
+		});
+		expect(answer).not.toHaveProperty('fixed');
+		// The solver was never asked, and no check was recorded for a host that
+		// was never reached.
+		expect(asked).toEqual([]);
 		expect(checked()).toEqual([]);
 	});
 

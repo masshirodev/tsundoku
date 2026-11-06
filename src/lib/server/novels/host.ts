@@ -211,7 +211,8 @@ export class NovelHost {
 		}
 		// As for a challenge: a restarted host's ids start again at 1. A refusal
 		// no new solve can change travels marked, so the host words it without
-		// claiming a failed check (c630).
+		// claiming a failed check (c630); one made before the browser was asked
+		// travels as unsent.
 		if (child !== this.#child || !child.connected) return;
 		if ('page' in answer) child.send({ op: 'page-result', id, ok: true, value: answer.page });
 		else
@@ -220,7 +221,8 @@ export class NovelHost {
 				id,
 				ok: false,
 				error: answer.error,
-				...(answer.fixed ? { fixed: true } : {})
+				...(answer.fixed ? { fixed: true } : {}),
+				...(answer.unsent ? { unsent: true } : {})
 			});
 	}
 
