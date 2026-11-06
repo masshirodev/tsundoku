@@ -16,8 +16,17 @@ const ADDRESSES: Record<string, string[]> = {
 	'mixed.example': ['93.184.215.14', '127.0.0.1']
 };
 vi.mock('node:dns/promises', () => ({
-	lookup: async (host: string) =>
-		(ADDRESSES[host] ?? []).map((address) => ({ address, family: address.includes(':') ? 6 : 4 }))
+	lookup: async (host: string) => {
+		// One name whose lookup fails as a transient DNS error does (c630).
+		if (host === 'flaky.example')
+			throw Object.assign(new Error('getaddrinfo EAI_AGAIN flaky.example'), {
+				code: 'EAI_AGAIN'
+			});
+		return (ADDRESSES[host] ?? []).map((address) => ({
+			address,
+			family: address.includes(':') ? 6 : 4
+		}));
+	}
 }));
 
 const { getDb } = await import('$lib/server/db');
@@ -373,7 +382,8 @@ describe('a page through the solver’s browser (c335)', () => {
 			}
 		]);
 		expect(await fetchPage({ url: 'https://www.novel.example/x', method: 'PUT' })).toEqual({
-			error: "the solver's browser sends GET and POST only, not PUT"
+			error: "the solver's browser sends GET and POST only, not PUT",
+			fixed: true
 		});
 		expect(asked).toHaveLength(1);
 	});
@@ -386,9 +396,12 @@ describe('a page through the solver’s browser (c335)', () => {
 				{ url: 'https://www.novel.example/cover.jpg' }
 			)
 		});
+		// Marked fixed (c630): another solve ends at the same image page, so the
+		// host must not word this as a check that could not be passed.
 		expect(await fetchPage({ url: 'https://www.novel.example/cover.jpg' })).toEqual({
 			error:
-				"www.novel.example sent a picture, not a page: the solver's browser hands back pages only"
+				"www.novel.example sent a picture, not a page: the solver's browser hands back pages only",
+			fixed: true
 		});
 		expect(checked()).toEqual([]);
 	});
@@ -481,10 +494,15 @@ describe('a page through the solver’s browser (c335)', () => {
 			'https://unknown.example/',
 			'file:///etc/passwd'
 		])
+			// Fixed (c630): a new solve is refused here again, before it starts.
 			expect(await fetchPage({ url }), url).toMatchObject({
-				error: expect.stringMatching(/^refused: /)
+				error: expect.stringMatching(/^refused: /),
+				fixed: true
 			});
-		expect(await fetchPage({ url: 'not a url' })).toEqual({ error: 'not an address' });
+		expect(await fetchPage({ url: 'not a url' })).toEqual({
+			error: 'not an address',
+			fixed: true
+		});
 		expect(asked).toEqual([]);
 		// Checked every time, not once per host: a name that moves inside is refused at once.
 		reply = () => ({ status: 200, body: page(BODY) });
@@ -492,7 +510,8 @@ describe('a page through the solver’s browser (c335)', () => {
 		ADDRESSES['novel.example'] = ['192.168.1.20'];
 		try {
 			expect(await fetchPage({ url: 'https://novel.example/b' })).toEqual({
-				error: 'refused: novel.example is not on the internet'
+				error: 'refused: novel.example is not on the internet',
+				fixed: true
 			});
 		} finally {
 			ADDRESSES['novel.example'] = ['93.184.215.14'];
@@ -506,8 +525,25 @@ describe('a page through the solver’s browser (c335)', () => {
 			body: page('<html>the router</html>', { url: 'https://inside.example/admin' })
 		});
 		expect(await fetchPage({ url: 'https://www.novel.example/away' })).toEqual({
-			error: "the solver's browser ended at inside.example, which is not on the internet"
+			error: "the solver's browser ended at inside.example, which is not on the internet",
+			fixed: true
 		});
+		expect(checked()).toEqual([]);
+	});
+
+	it('calls a failed lookup the network’s, not a refusal and not a check (c630)', async () => {
+		// EAI_AGAIN comes out of `checkPublic`'s own lookup, in the same catch a
+		// local address lands in. It is neither: a retry can succeed, and the
+		// browser was never asked, so it is unsent rather than fixed.
+		const answer = await fetchPage({ url: 'https://flaky.example/chapter' });
+		expect(answer).toEqual({
+			error: 'the address could not be checked (getaddrinfo EAI_AGAIN flaky.example)',
+			unsent: true
+		});
+		expect(answer).not.toHaveProperty('fixed');
+		// The solver was never asked, and no check was recorded for a host that
+		// was never reached.
+		expect(asked).toEqual([]);
 		expect(checked()).toEqual([]);
 	});
 

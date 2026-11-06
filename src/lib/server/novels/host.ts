@@ -190,7 +190,8 @@ export class NovelHost {
 	 * A host in page mode asked for a URL's page (c335): the app fetches it
 	 * through the solver, which runs `checkPublic` first. Whatever goes wrong is
 	 * a sentence back, never a crash and never a silence: the host notes it as
-	 * the call's trouble.
+	 * the call's trouble. A refusal marked `fixed` is one a new solve cannot
+	 * change (`PageAnswer`), and the host says so in its own words (c630).
 	 */
 	async #answerPage(child: ChildProcess, id: number, req: PageRequest): Promise<void> {
 		let answer: PageAnswer = { error: 'this app has no solver to fetch a page through' };
@@ -208,10 +209,21 @@ export class NovelHost {
 				clearTimeout(timer);
 			}
 		}
-		// As for a challenge: a restarted host's ids start again at 1.
+		// As for a challenge: a restarted host's ids start again at 1. A refusal
+		// no new solve can change travels marked, so the host words it without
+		// claiming a failed check (c630); one made before the browser was asked
+		// travels as unsent.
 		if (child !== this.#child || !child.connected) return;
 		if ('page' in answer) child.send({ op: 'page-result', id, ok: true, value: answer.page });
-		else child.send({ op: 'page-result', id, ok: false, error: answer.error });
+		else
+			child.send({
+				op: 'page-result',
+				id,
+				ok: false,
+				error: answer.error,
+				...(answer.fixed ? { fixed: true } : {}),
+				...(answer.unsent ? { unsent: true } : {})
+			});
 	}
 
 	/** The plugin's own description: name, site, version, filters, whether it pages. */
@@ -228,6 +240,24 @@ export class NovelHost {
 
 	call<T>(file: string, method: string, args: unknown[], timeoutMs?: number): Promise<T> {
 		return this.#send<T>({ op: 'call', file, method, args }, timeoutMs);
+	}
+
+	/**
+	 * A chapter's HTML (`parseChapter`) and the address its own request ended at
+	 * (c631): a Node fetch's last hop, or — in page mode — the page the solver's
+	 * browser ended on. A chapter's relative pictures are that page's, which a
+	 * redirect moves, not the plugin's site's. `url` is null when the plugin
+	 * asked the site for something else, and the caller falls back as it did.
+	 */
+	chapter(
+		file: string,
+		path: string,
+		timeoutMs?: number
+	): Promise<{ html: unknown; url: string | null }> {
+		return this.#send<{ html: unknown; url: string | null }>(
+			{ op: 'chapter', file, path },
+			timeoutMs
+		);
 	}
 
 	/**

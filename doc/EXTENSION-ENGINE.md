@@ -64,7 +64,10 @@ FlareSolverr is a `/v1` solver (Byparr's protocol is the same): a `POST` with
 cookies and user agent that got past the site's check. The engine uses it for
 an extension, through `cf-proxy-url`; **tsundoku itself uses it for an LNReader
 plugin** (c152), whose host process refuses local addresses on purpose, a
-solver being one ([`NOVELS.md`](NOVELS.md), "Past a site's bot check").
+solver being one ([`NOVELS.md`](NOVELS.md), "Past a site's bot check"). Since
+c335 it also fetches a page itself (`request.get`, or `request.post` with a
+url-encoded form) for a host whose check is bound to the solving browser
+([`NOVELS.md`](NOVELS.md), "A check bound to the browser").
 
 The two addresses are deliberately different:
 

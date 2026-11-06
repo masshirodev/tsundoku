@@ -23,6 +23,33 @@ let extra: { name: string; path: string }[] = [];
 let novelFails = false;
 const fakeHost = {
 	info: async () => ({ id: 'good', name: 'Good Novels', site: 'https://good.example/' }),
+	// The chapter and the page its request ended at (c631). A Node fetch's
+	// `Response.url` and page mode's last hop are both `url` here, as the host
+	// hands them over: `/c/moved` ended on another path, the rest ended where
+	// they were asked, and a chapter a plugin reads elsewhere answers null.
+	chapter: async (_file: string, path: string) => {
+		chapterCalls.push(path);
+		if (path === '/c/broken') throw new Error('www.good.example answered 503');
+		if (path === '/c/empty') return { html: '<div><script>shell()</script></div>', url: null };
+		if (path === '/c/moved')
+			return {
+				html: '<p>Text of /c/moved.</p><img src="pic.png"><img src="/i/deep.png">',
+				url: 'https://good.example/other/place/c-9.html'
+			};
+		// A redirect that keeps the path and changes the host, which is how
+		// wuxiaworld.com's apex answers for www (measured on 2026-11-06).
+		if (path === '/c/hostmoved')
+			return {
+				html: '<p>Text of /c/hostmoved.</p><img src="/i/plate.png">',
+				url: 'https://www.good.example/c/hostmoved'
+			};
+		if (path === '/c/self')
+			return { html: '<p>Text of /c/self.</p><img src="/i/plate.png">', url: null };
+		return {
+			html: `<p>Text of ${path}.</p>${path === '/c/1' ? '<img src="/i/plate.png"><script>x()</script>' : ''}`,
+			url: new URL(path, 'https://good.example/').href
+		};
+	},
 	call: async (_file: string, method: string, args: unknown[]) => {
 		if (method === 'parseNovel') {
 			if (novelFails) throw new Error('www.good.example answered 503');
@@ -42,13 +69,6 @@ const fakeHost = {
 					...extra
 				]
 			};
-		}
-		if (method === 'parseChapter') {
-			const path = args[0] as string;
-			chapterCalls.push(path);
-			if (path === '/c/broken') throw new Error('www.good.example answered 503');
-			if (path === '/c/empty') return '<div><script>shell()</script></div>';
-			return `<p>Text of ${path}.</p>${path === '/c/1' ? '<img src="/i/plate.png"><script>x()</script>' : ''}`;
 		}
 		if (method === 'resolveUrl') return null;
 		throw new Error(`no ${method}`);
@@ -379,3 +399,45 @@ function snapshot(id: number) {
 		entries: db.prepare(`SELECT * FROM entries WHERE series_id = ? ORDER BY id`).all(id)
 	};
 }
+
+describe('a chapter’s pictures resolve against the page it came from (c631)', () => {
+	// A chapter URL that redirects is placed where the site served the page, not
+	// where the plugin's path says. The host answers that page's address, the
+	// same value a Node fetch's `Response.url` and page mode's last hop give it;
+	// both are `url` here, because the downloader reads the one value.
+	const one = async (name: string, path: string) => {
+		db.exec(`DELETE FROM download_queue`);
+		extra.push({ name, path });
+		await checkNovel(seriesId, (now += 1000), db);
+		const e = entry(path);
+		expect(e).toMatchObject({ available: 0 });
+		expect(await downloads.enqueue(seriesId, [e.id])).toEqual({ queued: 1, missing: 0 });
+		imagesAsked.length = 0;
+		expect(await runNovelOnce(deps())).toBe(1);
+	};
+
+	it('puts a relative picture on the page a redirected chapter ended at', async () => {
+		await one('Chapter 9', '/c/moved');
+		expect(imagesAsked).toEqual([
+			'https://good.example/other/place/pic.png',
+			'https://good.example/i/deep.png'
+		]);
+	});
+
+	it('puts a root-relative picture on the host a redirected chapter moved to', async () => {
+		await one('Chapter 11', '/c/hostmoved');
+		// The path did not move; the host did, as an apex → www `301` does. A
+		// root-relative picture is that host's page's, not the plugin's site's.
+		expect(imagesAsked).toEqual(['https://www.good.example/i/plate.png']);
+	});
+
+	it('falls back to the plugin’s site when the plugin asked it for something else', async () => {
+		await one('Chapter 10', '/c/self');
+		// `url` is null — the plugin read its chapter elsewhere — so the
+		// downloader resolves against the chapter's path on the plugin's site,
+		// exactly the line it used before c631. A chapter that ended where it
+		// asked lands on the same base: the picture of `/c/1` in the book above
+		// is `https://good.example/i/plate.png` either way.
+		expect(imagesAsked).toEqual(['https://good.example/i/plate.png']);
+	});
+});

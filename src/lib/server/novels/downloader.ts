@@ -200,20 +200,27 @@ export async function fetchChapter(
 	lang: string,
 	get: ImageFetch
 ): Promise<FetchedChapter> {
-	let html: unknown;
+	let got: { html?: unknown; url?: unknown };
 	try {
 		// Two minutes: the first request to a host behind a check waits on the
 		// app's solve before the host can retry (card c152).
-		html = await novelHost().call<unknown>(p.file, 'parseChapter', [e.path], 120_000);
+		got = await novelHost().chapter(p.file, e.path, 120_000);
 	} catch (err) {
 		throw new NovelDownloadError((err as Error).message, 'source');
 	}
+	const html = got?.html;
 	if (typeof html !== 'string' || !hasText(html))
 		throw new NovelDownloadError('The chapter came back empty', 'source');
-	// A chapter's pictures are relative to its own page at the site.
+	// A chapter's pictures are relative to the page it was read from. The host
+	// answers the address its chapter request ended at, so a chapter URL that
+	// redirects puts them where the site served them, in either fetch mode; the
+	// plugin's site is the fallback when it asked for something else (c631).
 	let base: string;
 	try {
-		base = new URL(e.path, p.site || 'https://invalid.example/').toString();
+		base =
+			typeof got.url === 'string' && got.url
+				? got.url
+				: new URL(e.path, p.site || 'https://invalid.example/').toString();
 	} catch {
 		base = p.site;
 	}

@@ -1,5 +1,5 @@
 import { getDb } from '../db.ts';
-import { checkPublic } from '../net-guard.ts';
+import { checkPublic, NotPublicError } from '../net-guard.ts';
 
 /**
  * A site's browser check, solved for an LNReader plugin (doc/NOVELS.md, "Past
@@ -218,8 +218,17 @@ export type PageRequest = { url: string; method?: string; postData?: string };
 /** A page as the solver's browser ended on it: [url] after redirects, the base its links resolve against. */
 export type Page = { url: string; status: number; contentType: string; body: string };
 
-/** A page, or a sentence saying why there is none: the host notes it as the call's trouble. */
-export type PageAnswer = { page: Page } | { error: string };
+/**
+ * A page, or a sentence saying why there is none: the host notes it as the
+ * call's trouble. `fixed` marks a refusal no new solve can change — an address
+ * off the internet, a document that is not a page — so the host words it
+ * without claiming a failed check and the browse page's TRY AGAIN leaves the
+ * memos alone (c630). `unsent` marks one made before the browser was asked at
+ * all, an address this app could not look up: a new solve is not the cure, so
+ * the host words it as something it would not send and TRY AGAIN asks again
+ * without forgetting the memos (c630).
+ */
+export type PageAnswer = { page: Page } | { error: string; fixed?: true; unsent?: true };
 
 /** The solve budget again: the browser's first visit to a host still passes its check. */
 const PAGE_MS = 60_000;
@@ -252,12 +261,13 @@ export function fetchPage(
 	try {
 		host = new URL(req.url).hostname.toLowerCase();
 	} catch {
-		return Promise.resolve({ error: 'not an address' });
+		return Promise.resolve({ error: 'not an address', fixed: true });
 	}
 	const method = (req.method ?? 'GET').toUpperCase();
 	if (method !== 'GET' && method !== 'POST')
 		return Promise.resolve({
-			error: `the solver's browser sends GET and POST only, not ${method}`
+			error: `the solver's browser sends GET and POST only, not ${method}`,
+			fixed: true
 		});
 	const key = `${method} ${req.url}\n${req.postData ?? ''}`;
 	const same = pageAsked.get(key);
@@ -281,7 +291,19 @@ async function pageOne(req: PageRequest, host: string, budget: number): Promise<
 	try {
 		await checkPublic(req.url);
 	} catch (e) {
-		return { error: `refused: ${(e as Error).message || `${host} is not on the internet`}` };
+		// Only an address `checkPublic` refuses is permanent (c630): it really is
+		// local, or not an address. A lookup that failed (EAI_AGAIN, ENOTFOUND) is
+		// the network's and a retry may succeed, so it is not marked `fixed`; it
+		// never reached the browser either, so the host words it as unsent.
+		if (e instanceof NotPublicError)
+			return {
+				error: `refused: ${(e as Error).message || `${host} is not on the internet`}`,
+				fixed: true
+			};
+		return {
+			error: `the address could not be checked (${(e as Error).message || 'the lookup failed'})`,
+			unsent: true
+		};
 	}
 	const deadline = AbortSignal.timeout(budget);
 	let answer = await askPage(req, deadline, budget);
@@ -292,7 +314,8 @@ async function pageOne(req: PageRequest, host: string, budget: number): Promise<
 		await checkPublic(answer.page.url);
 	} catch {
 		return {
-			error: `the solver's browser ended at ${hostLabel(answer.page.url)}, which is not on the internet`
+			error: `the solver's browser ended at ${hostLabel(answer.page.url)}, which is not on the internet`,
+			fixed: true
 		};
 	}
 	if (answer.page.status < 400) noteChecked(host, Date.now());
@@ -361,7 +384,8 @@ async function askPage(
 	const url = typeof s.url === 'string' && s.url ? s.url : req.url;
 	if (isImageViewer(s.response))
 		return {
-			error: `${hostLabel(url)} sent a picture, not a page: the solver's browser hands back pages only`
+			error: `${hostLabel(url)} sent a picture, not a page: the solver's browser hands back pages only`,
+			fixed: true
 		};
 	const text = unwrapText(s.response);
 	if (text !== null)
