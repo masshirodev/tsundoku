@@ -34,7 +34,7 @@ import {
 } from '$lib/server/books';
 import { setPersonFavourite, tagPage } from '$lib/server/people';
 import { libraryRoot, SCAN_WAITS, startScan } from '$lib/server/import';
-import { lastImport } from '$lib/server/import/log';
+import { lastImport, tickingImport } from '$lib/server/import/log';
 import { firstReadExtras, readSources } from '$lib/server/start';
 import { refreshCovers } from '$lib/server/covers';
 import { refreshMany } from '$lib/server/refresh';
@@ -131,9 +131,10 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	const seed = parseSeed(url.searchParams.get('seed'));
 	const pageSize = pageSizeOf(cookies.get('tsundoku_grid_page'));
 	// The last import, read once: IMPORT LOG under MORE says when it came in
-	// (c438), and the empty library's 03 done row names it (c511, Import-Doors
-	// B; doc/ONBOARDING.md).
+	// (c438). 03's done row names the import that ticked it, not the last one
+	// (c634), so that is its own read.
 	const last = lastImport(reveal);
+	const tick = tickingImport(reveal);
 	// PEOPLE lists favourite people (from the layout), not series.
 	// The first page; the grid asks /api/library for the rest as it scrolls.
 	// CACHED is the exception: only the tablet knows which series it holds,
@@ -196,12 +197,12 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		libraryRoot: libraryRoot(),
 		// IMPORT LOG under MORE says when the last backup came in (c438).
 		lastImportAt: last?.at ?? null,
-		// 03's done row on the empty library names the import, as /start's does
-		// (c511): the empty library is where 03 can still be the only thing
-		// done, and it is the library's own load that draws it.
-		imported: last
-			? { id: last.id, app: last.app, series: last.counts.fresh + last.counts.merged }
-			: null,
+		// 03's done row on the empty library names the import that ticked it, as
+		// /start's does (c511, c634). It can never draw here today -- 03 done
+		// means a visible series, and this list only shows with no tiles at all
+		// (`data.empty`) -- but both loads pass the same facts, so the line is
+		// the same wherever the row is drawn.
+		imported: tick,
 		cont: continueReading(reveal),
 		// A Work that ended (TAKE OUT of the second-to-last, UNGROUP) has no
 		// screen of its own any more: the library carries its band and its UNDO.

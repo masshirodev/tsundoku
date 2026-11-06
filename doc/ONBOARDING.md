@@ -39,19 +39,23 @@ Portuguese ([`I18N.md`](I18N.md)).
   chosen on IMPORT A BACKUP runs as a scan job too ([`IMPORT.md`](IMPORT.md)),
   so its series carry its job's id and tick 03. So 06 never ticks 03, and an
   imported Mihon library never ticks 06.
-- **03's done row names the import** (c511; Import-Doors B) on `/start`:
-  `Done · Mihon backup · 382 series`, the last import that came in, counted
-  as the viewer may see it (`lastImport`, so a hidden series is not counted
-  with reveal off). It is the last import that brought series **whatever
-  ticked the step**: a library scanned in first and a backup imported later
-  shows the backup's line and count, not the library's (a rule chosen in
-  wave 26; telling the doors apart is a follow-up). Its quiet link is **IMPORT LOG →**, which opens that
+- **03's done row names the door that ticked it** (c511, c634; Import-Doors
+  B) on `/start` and on the library's empty list: `Done · Mihon backup · 382
+series` when the series that first ticked 03 came from an import's job,
+  else the step's own `Done · 4 series` and LIBRARY → to `/`. **"The series
+  that first ticked 03" is not recorded**, so it is derived: the lowest id
+  among the visible series 03 counts (SQLite hands a new row the highest id
+  plus one, so that is the first one still there), and its `scan_job_id`
+  where an `imports` row has that job (`tickingImport`,
+  `src/lib/server/import/log.ts`). A scan's job, a series with no job at all
+  (written before jobs, or by hand), or none, keeps the scan's line. So a
+  later import no longer takes the row over: a library scanned in first (300
+  series) and a 2-series backup after it reads the scan's line, `Done · 302
+series`, and only a backup that came first names itself. The count is the
+  import's own, counted as the viewer may see it, so a backup whose series
+  are all hidden later leaves the scan's line while reveal is off. When the
+  import's line draws, its quiet link is **IMPORT LOG →**, which opens that
   import's entry in the log, already open (`/import/log?open=backup:<id>`).
-  When no import has brought a series the viewer sees (a scan ticked it),
-  the row says what it said, `Done · 4 series` and LIBRARY →. The empty
-  library draws the same row from the library's own load, which passes the
-  same import (c511's third part); 03 done leaves the library empty only when
-  every series is hidden.
 - **03's body** (c438; the import handoff's Import-Doors A) is the three
   backups first: Mihon backup with IMPORT A BACKUP → to `/import`, Aniyomi
   and LNReader dimmed, NOT YET. Under them, FILES INSTEAD · EPUBS, AND
