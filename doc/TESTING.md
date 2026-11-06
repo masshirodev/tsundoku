@@ -14,9 +14,18 @@ the names apart.
 
 ```sh
 yarn run check && yarn run lint && yarn run test   # before every commit
-yarn run test:e2e                                  # when the UI changed
+yarn run test:e2e tests/<what-you-changed>.e2e.ts  # when the UI changed
+yarn run test:e2e                                  # by hand, when a change worries you
 yarn run test:e2e:dependants                       # after every whole e2e run
 ```
+
+**Nothing runs the whole e2e suite on its own, since 2026-11-06.** It took 24 of a
+wave gate's 32 minutes, and all 5 of its failures in wave 29 passed alone, so
+Kantoku's gate is now check, lint and the unit suite (about 8 minutes,
+`~/work/tsundoku/kantoku.toml`). What that gives up: a change that breaks a screen
+it did not touch is found in use, or by the release's smoke test, not by the gate.
+The owner chose that while Tsundoku is a personal project. The suite will drift, so
+expect the first whole run after a while to be red.
 
 The last line runs `duplicates` and `gate` on their own, because a red in any
 device project leaves them unrun in the whole run ("Load", below).
@@ -27,7 +36,8 @@ Always spelled `yarn run`: Yarn 1's builtin `check` shadows the script and exits
 The hooks are copied from Kumiko. `pre-commit` runs lint-staged. `pre-push` runs
 the hook-arming check, `check`, `lint` and the unit suite. That last one is
 affordable because this repository lives only on the workstation, never on the
-throttled VPS. The e2e suite stays manual because it builds the app.
+throttled VPS. The e2e suite stays manual because it builds the app, and the unit
+suite stays here because a push outside a wave has no other gate.
 
 ## Unit specs
 
