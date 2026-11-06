@@ -279,7 +279,9 @@ extensions it lacked, the shelves it made and the categories left out, the
 series refused. A refused file is listed (NOT READ). A preview nobody
 imported is not an import and is not listed. `?open=backup:<id>` (or
 `scan:<id>`) opens that entry on arrival: GET STARTED's 03, done by an
-import, links its entry so (c511).
+import, links its entry so (c511). `?job=<scan job id>` opens the entry of
+that job, a scan's or a backup's, which is all the library's band knows of
+an import (c511's third part, the band's LOG →, is `works`' to draw).
 
 **WORKS: what a fold dropped** (c570). When an import or a scan folds a
 download folder's series into the series a backup names, and both were
