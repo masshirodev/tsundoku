@@ -307,7 +307,9 @@
 			if (heldKey === e.key && heldMove) smooth.hold(heldMove.by, heldMove.ms);
 			return;
 		}
-		endHold();
+		// A fresh press is its own glide: `glide` drops a hold's steady speed
+		// (c668), and starts from where the strip is going so a second press
+		// adds its step to the first's, as a double ↓ always has.
 		heldKey = e.key;
 		heldMove = { by: d, ms };
 		smooth.glide(d, ms);

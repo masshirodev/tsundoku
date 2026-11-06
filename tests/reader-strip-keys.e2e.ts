@@ -361,14 +361,28 @@ test.describe('a held arrow', () => {
 		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
 		await page.keyboard.down('ArrowDown');
 		await repeats(page, 'ArrowDown', 10);
-		// ↓ is still down; ↑ is its own press, not another ↓ step. Read once the
-		// press is in, so the ↓ hold's last busy frame is not counted.
-		await page.keyboard.down('ArrowUp');
-		await page.keyboard.up('ArrowUp');
-		const atSecond = await y();
+		// ↑ is its own press: the held ↓ stops there (a glide drops a hold's
+		// steady speed) and the strip turns round. Dispatched and read in the
+		// same task, so the position returned is the press's own start.
+		const atPress = await page.evaluate(() => {
+			const event = (type: string) =>
+				new KeyboardEvent(type, {
+					key: 'ArrowUp',
+					code: 'ArrowUp',
+					keyCode: 38,
+					which: 38,
+					bubbles: true,
+					cancelable: true
+				});
+			window.dispatchEvent(event('keydown'));
+			window.dispatchEvent(event('keyup'));
+			return Math.round(scrollY - ((window as unknown as { kept?: number }).kept ?? 0));
+		});
 		await page.keyboard.up('ArrowDown');
 		const stopped = await still(y);
-		expect(Math.abs(stopped - atSecond)).toBeLessThanOrEqual(step * 1.5);
+		// A screen up, not on down at the held key's speed.
+		expect(atPress - stopped).toBeGreaterThan(step / 2);
+		expect(stopped).toBeLessThan(atPress);
 	});
 
 	test('the window losing focus ends the hold (c668)', async ({ page }) => {
