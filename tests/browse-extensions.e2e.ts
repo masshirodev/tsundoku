@@ -66,9 +66,14 @@ test.afterEach(async ({ page }, testInfo) => {
 	await page.context().addCookies([revealCookie(origin)]);
 	const post = (path: string, form: Record<string, string>) =>
 		page.request.post(`${origin}${path}`, { form, headers: { origin }, maxRedirects: 0 });
+	// Only tsundoku's own three switches (`form.own`), not a plugin preference
+	// the page also draws; NaN when the page does not draw exactly those three.
 	const switchesOn = async () => {
 		const r = await page.request.get(settings);
-		return r.ok() ? ((await r.text()).match(/aria-checked="true"/g) ?? []).length : -1;
+		if (!r.ok()) return -1;
+		const own = (await r.text()).match(/<form[^>]*\bclass="own[\s"][\s\S]*?<\/form>/g) ?? [];
+		if (own.length !== SWITCHES.length) return NaN;
+		return own.filter((f) => /aria-checked="true"/.test(f)).length;
 	};
 	// Removed already with a switch maybe on: installed again, so the
 	// switches can be reached (the settings page answers 404 without it).
