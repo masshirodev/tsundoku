@@ -191,7 +191,13 @@ one at a time.
   rule `/pair/tv` kept alone; digits typed then got THAT CODE EXPIRED. A code made this way **keeps the old one's wrong
   tries**: only the owner's doors (NEW CODE, ON, opening SETTINGS) give five
   again, so opening `/pair/tv` every 10 minutes buys no more guesses than
-  before. Digits typed after their code ran out get THAT CODE EXPIRED · THE
+  before. **Both of `renewForTv`'s calls are the owner's** (c577, the owner's
+  (a), 2026-11-05): a renewed code keeps the old one's wrong tries, and a used
+  code is replaced only once ✓ USED's 2 minutes (`TV_USED_SHOWN_MS`) are over,
+  never at once. Wave 22's worker made both alone and c246 (wave 23) kept
+  them; the owner ratified them over a renewed code starting at five tries
+  and a used code replaced at once, so a guesser still gets five tries per
+  code the owner makes, as before c246. Digits typed after their code ran out get THAT CODE EXPIRED · THE
   NEW ONE IS ON THE COMPUTER: the page has just made it. The computer's
   WI-FI panel shows it on its next 5 s poll, and so does the DEVICES row,
   which keeps asking while the code it shows is expired or used, or there is

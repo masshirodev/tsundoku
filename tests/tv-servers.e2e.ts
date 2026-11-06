@@ -46,10 +46,17 @@ const DAY = 86_400_000;
 async function bridge(
 	page: Page,
 	list: Stub[],
-	answers: Record<string, { ok: boolean; after: number }> = {}
+	answers: Record<string, { ok: boolean; after: number }> = {},
+	/**
+	 * When FORGET is refused, as PairingBridge refuses a page it does not know
+	 * (it answers "", c549): every call, or every call after the first, which
+	 * is the real bridge once FORGET of the server in use has made that page
+	 * unknown.
+	 */
+	refuse: 'never' | 'always' | 'after-first' = 'never'
 ) {
 	await page.addInitScript(
-		({ list, answers }) => {
+		({ list, answers, refuse }) => {
 			const calls: Calls = {
 				probes: [],
 				opened: [],
@@ -93,6 +100,8 @@ async function bridge(
 				},
 				forgetServer: (o: string) => {
 					calls.forgot.push(o);
+					if (refuse === 'always' || (refuse === 'after-first' && calls.forgot.length > 1))
+						return '';
 					state = state.filter((s) => s.origin !== o);
 					keep();
 					return json();
@@ -108,7 +117,7 @@ async function bridge(
 				}
 			};
 		},
-		{ list, answers }
+		{ list, answers, refuse }
 	);
 }
 
@@ -382,6 +391,86 @@ test('forgetting the one in use opens the next that answers; the last returns to
 	expect(c.opened).toEqual([ZEN]);
 });
 
+test('a refused FORGET changes nothing: no 9A, nothing opened, the list as it was (c549)', async ({
+	page
+}) => {
+	const now = Date.now();
+	await bridge(
+		page,
+		[
+			{ origin: HOME, name: '', tvName: 'Living room', opened: now },
+			{ origin: STUDIO, name: '', tvName: 'Studio', opened: now - DAY }
+		],
+		{},
+		'always'
+	);
+	const sheet = await openMore(page);
+	await sheet.locator('[data-more-servers]').focus();
+	await page.keyboard.press('Enter');
+	const rows = sheet.locator('[data-server]');
+	await expect(rows).toHaveCount(2);
+	await rows.nth(1).focus();
+	await page.keyboard.press('ContextMenu');
+	await sheet.locator('[data-act="forget"]').focus();
+	await page.keyboard.press('Enter');
+	const confirm = sheet.locator('[data-act="confirm"]');
+	await expect(confirm).toBeEnabled();
+	await confirm.focus();
+	await page.keyboard.press('Enter');
+	await page.waitForTimeout(200);
+	const c = await calls(page);
+	expect(c.forgot).toEqual([STUDIO]);
+	// Until round 2 of c549 the "" (then "[]") read as "the last one is gone": 9A.
+	expect(c.welcome).toBe(0);
+	expect(c.opened).toEqual([]);
+	// Still FORGET's panel, and FORGET can be pressed again.
+	await expect(sheet.locator('.p-head')).toHaveText('FORGET STUDIO?');
+	await expect(confirm).toBeEnabled();
+	// BACK twice: the list, both still there.
+	await page.keyboard.press('Escape');
+	await page.keyboard.press('Escape');
+	await expect(rows).toHaveCount(2);
+	await expect(rows.nth(1)).toBeFocused();
+});
+
+test('FORGET of the one in use pressed twice opens the next once and never 9A (c549)', async ({
+	page
+}) => {
+	const now = Date.now();
+	await bridge(
+		page,
+		[
+			{ origin: HOME, name: '', tvName: 'Living room', opened: now },
+			{ origin: STUDIO, name: '', tvName: 'Studio', opened: now - DAY }
+		],
+		{ [STUDIO]: { ok: true, after: 20 } },
+		// The real bridge: the first FORGET made this page's server unknown.
+		'after-first'
+	);
+	const sheet = await openMore(page);
+	await sheet.locator('[data-more-servers]').focus();
+	await page.keyboard.press('Enter');
+	const rows = sheet.locator('[data-server]');
+	await expect(rows.nth(1).locator('.st')).toHaveText('ANSWERS');
+	await rows.nth(0).focus();
+	await page.keyboard.press('ContextMenu');
+	await sheet.locator('[data-act="forget"]').focus();
+	await page.keyboard.press('Enter');
+	const confirm = sheet.locator('[data-act="confirm"]');
+	await expect(confirm).toBeEnabled();
+	// A double tap: both presses land before the page redraws, and the
+	// stub's open() does not navigate, as the next page has not committed.
+	await confirm.evaluate((b: HTMLButtonElement) => {
+		b.click();
+		b.click();
+	});
+	await page.waitForTimeout(200);
+	const c = await calls(page);
+	expect(c.forgot).toEqual([HOME]);
+	expect(c.opened).toEqual([STUDIO]);
+	expect(c.welcome).toBe(0);
+});
+
 test('forgetting the only server returns the TV to 9A', async ({ page }) => {
 	await bridge(page, [{ origin: HOME, name: '', tvName: '', opened: Date.now() }]);
 	const sheet = await openMore(page);
@@ -420,6 +509,78 @@ test('a browser that is not the app is never told the name', async ({ page }) =>
 	await page.goto('/');
 	await expect(page.locator('[data-focus-id="library-more"]')).toBeVisible();
 	expect((await calls(page)).named).toEqual([]);
+});
+
+test('RESCAN in MORE: the remote reaches it, the question opens on CANCEL, and OK there starts nothing (c561)', async ({
+	page
+}) => {
+	const posted: string[] = [];
+	page.on('request', (r) => {
+		if (r.method() === 'POST' && new URL(r.url()).search === '?/scan') posted.push(r.url());
+	});
+	const sheet = await openMore(page);
+	await sheet.locator('.row').first().focus();
+	let found = false;
+	for (let i = 0; i < 12 && !found; i++) {
+		if ((await focusedText(page)) === 'RESCAN') found = true;
+		else await page.keyboard.press('ArrowDown');
+	}
+	expect(found).toBe(true);
+	await page.keyboard.press('Enter');
+	const ask = page.getByRole('dialog', { name: 'RESCAN THE LIBRARY FOLDER?' });
+	await expect(ask).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
+	// The safe answer is where the remote lands: OK at once cancels.
+	await expect(ask.getByRole('button', { name: 'CANCEL' })).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(ask).toBeHidden();
+	// Back on the bar's MORE, the door it came through.
+	await expect(page.locator('[data-focus-id="library-more"]')).toBeFocused();
+	await page.waitForTimeout(300);
+	expect(posted).toEqual([]);
+});
+
+test('RESCAN in MORE, confirmed on an empty library: the band, its ✕ reached by arrows, and OK puts it away (c561)', async ({
+	page
+}) => {
+	// The shared server's library folder is empty (playwright.config.ts), so
+	// the scan is refused with where it looked, and nothing is imported.
+	const sheet = await openMore(page);
+	await sheet.locator('.row').first().focus();
+	let found = false;
+	for (let i = 0; i < 12 && !found; i++) {
+		if ((await focusedText(page)) === 'RESCAN') found = true;
+		else await page.keyboard.press('ArrowDown');
+	}
+	expect(found).toBe(true);
+	await page.keyboard.press('Enter');
+	const ask = page.getByRole('dialog', { name: 'RESCAN THE LIBRARY FOLDER?' });
+	await expect(ask.getByRole('button', { name: 'CANCEL' })).toBeFocused();
+	// The remote's way to the confirming answer: an arrow off CANCEL.
+	const yes = ask.getByRole('button', { name: 'RESCAN' });
+	for (const key of ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp']) {
+		if (await yes.evaluate((b) => b === document.activeElement)) break;
+		await page.keyboard.press(key);
+	}
+	await expect(yes).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(ask).toBeHidden();
+	const band = page.locator('.rescan-band');
+	await expect(band).toBeVisible();
+	await expect(band).toContainText('NOTHING TO IMPORT');
+	// The ✕ is a stop the remote reaches: up from the bar.
+	const more = page.locator('[data-focus-id="library-more"]');
+	await expect(more).toBeFocused();
+	const close = band.getByRole('button', { name: 'Close' });
+	for (let i = 0; i < 6; i++) {
+		if (await close.evaluate((b) => b === document.activeElement)) break;
+		await page.keyboard.press('ArrowUp');
+	}
+	await expect(close).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(band).toHaveCount(0);
+	// The mark is not lost with the button: it is back on the bar, where it came from.
+	await expect(more).toBeFocused();
 });
 
 test('TO LINK is a stop the remote reaches in MORE (c475)', async ({ page }) => {

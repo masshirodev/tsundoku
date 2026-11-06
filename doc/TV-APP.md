@@ -264,7 +264,11 @@ whole screens, before or beside pairing, so they are the app's own page, as
   OK; for the first 0.6 s FORGET is disabled and KEEP IT ignores OK, so the
   tail of an OK held to open the options presses nothing. Forgetting the one
   in use opens the next that answers (else the next by when it was opened,
-  whose 9D offers the rest); forgetting the last returns to 9A.
+  whose 9D offers the rest); forgetting the last returns to 9A. FORGET
+  disarms the moment it is pressed, so a second press (a double tap, a second
+  OK) before the next server's page commits does nothing; and an answer that
+  is not a list (the bridge's refusal, `""`, c549) changes nothing and calls
+  neither `open` nor `welcome`: only a real empty list is "the last one".
 - **BACK** climbs: FORGET to the options (on FORGET), the options to the list
   (on that row), the list to MORE (on SERVERS), MORE closed. Opened from the
   bar's cell, the list has no MORE under it: BACK closes the panel and the
@@ -379,10 +383,18 @@ opened and when it was added. Pure apart from its key-value, so
   (`file:///android_asset/pair/index.html`) or a page of a server in the list
   (its exact origin: another port, or the http/https twin, is not it). An
   external link followed from a server's page can no longer forget the list
-  or move an entry to itself. The reads (`tvAddress`, `prefix`, `defaultPort`,
-  `remembered`, `servers`) and `open` and `welcome` are not guarded: FORGET of
-  the server in use calls `open` or `welcome` from the page of the server it
-  has just forgotten, and neither goes anywhere but a known server or 9A.
+  or move an entry to itself. **The reads ask it too** (c549, the owner's
+  (a), 2026-11-05: the list of servers is the owner's): `servers`,
+  `remembered`, `tvAddress`, `prefix` and `network` answer any other page as
+  a TV that knows nothing would (`[]`, `""`), never with an exception, and
+  `forgetServer` refused answers `""` where it used to hand back the whole
+  list: not `[]`, which MoreSheet would read as "the last one is gone" and
+  send the TV to 9A with every server still stored. MoreSheet reads anything
+  that is not a list as a refusal and changes nothing. The app's own page and a known server's read exactly as before.
+  `form` and `defaultPort` stay open (the user agent already says which app
+  this is, and the port is a constant), and so do `open` and `welcome`:
+  FORGET of the server in use calls one of them from the page of the server
+  it has just forgotten, and neither goes anywhere but a known server or 9A.
   `PairingBridge.kt`'s KDoc has every method in a table.
 
 ### Launcher shortcuts
@@ -456,14 +468,54 @@ verified".
   second pairing for that other server in that one case. Two servers on one
   computer each paired since c530 keep their own pairing through FORGET on
   the other, as S8 says.
-- **A frame inside a known server's page reaches the bridge** (c529). A
-  JavaScript interface does not say which frame called it, and the guard
-  reads the top-level URL, which a frame cannot change. tsundoku draws no
-  third-party frames; the way to close this too is
-  `WebViewCompat.addWebMessageListener` with origin rules (androidx.webkit,
-  not a dependency yet). External links still open inside the WebView, where
-  the guard refuses them every write; opening them outside it would be a
-  behaviour change on a TV, not made.
+- **The reads are guarded** (c549, the owner's (a), 2026-11-05; "The store"
+  above): another page reads an empty list and empty strings.
+- **A frame inside a known server's page still reaches the bridge** (c529,
+  c549's part (b), not built in wave 26). A JavaScript interface does not
+  say which frame called it, and the guard reads the top-level URL, which a
+  frame cannot change. tsundoku draws no third-party frames. The way to
+  close it is `WebViewCompat.addWebMessageListener` (androidx.webkit), which
+  hands each message its `sourceOrigin` and `isMainFrame`. Wave 26 stopped
+  short of the move, because three things it needs are not settled:
+  1. **The app's own page has no rule.** The listener's origin rules take
+     http/https hosts, a custom scheme or `*`; nothing in
+     `WebViewCompat.addWebMessageListener`'s reference names `file://` or
+     says what `sourceOrigin` a `file:///android_asset/` page reports. So
+     either the asset page moves to `WebViewAssetLoader`
+     (`https://appassets.androidplatform.net/pair/index.html`, an https
+     origin a rule can name, and a change to every `loadAsset`, `BridgeGuard.ASSET`,
+     `Back.kt` and `FailedLoad`'s file checks), or the listener allows `*`
+     and refuses per message, measuring on a device what a `file://` page's
+     `sourceOrigin` is before trusting it.
+  2. **The library's server cell reads the list synchronously.** The brief
+     said `src/routes/+page.svelte:~488` only checks that `servers` exists;
+     it calls `servers()` and `JSON.parse`s the string in its `onMount` and
+     a tick later (`readTvServers`). A message listener answers later, so
+     either that page awaits the answer and redraws when it lands (an edit
+     to the library page, whose owner is another slot), or the page-facing
+     `window.TsundokuTV` keeps a cached copy that the app pushes in (by
+     `WebViewCompat.addDocumentStartJavaScript` with the list in the
+     script, registered again whenever the list changes) and an event when
+     it changes. MoreSheet's `forgetServer` also uses the list it returns.
+  3. **The rule is decided per message, not per registration.** Origin
+     rules are fixed when the listener is added, and the list changes at
+     runtime (pairing, FORGET, `move`), so the sound shape is one listener,
+     the object named `TsundokuTV` injected where the rule allows, and each
+     message refused unless `isMainFrame` is true and its `sourceOrigin` is
+     the asset page or `servers.find` knows it: a pure function
+     (origin, isMainFrame, known) → allow, next to `BridgeGuard.allows`,
+     pinned in JVM tests. Every call becomes a message with an id and every
+     reply a promise keyed by it, so two calls answered out of order land
+     on their own callers, a reply after the page navigated is dropped by
+     the page that no longer exists, and a call made before the object is
+     there is answered as "no bridge" (the pages already treat a missing
+     bridge as a browser). The page side is about 27 calls in
+     `assets/pair/index.html`, `surface.ts`, `MoreSheet.svelte`,
+     `+layout.svelte`, `pair/tv/+page.svelte`, and every e2e file that
+     stands the bridge up, whose stubs must answer late and out of order.
+     External links still open inside the WebView, where the guard refuses
+     them every write and now every read; opening them outside it would be a
+     behaviour change on a TV, not made.
 - 9E itself (the computer's) still says nothing of other servers on a first
   pairing, as the design asks: with one server nothing changes.
 
@@ -731,6 +783,18 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   `TsundokuTV.rename(location.origin, 'X')` must rename the row in MORE ›
   SERVERS; then `location.href = 'https://example.com'`, and on that page
   `TsundokuTV.forget()` must leave SERVERS as it was after BACK.
+- **The reads' guard (c549).** JVM-tested (`PairingBridgeTest`), on the same
+  claim as the writes' (the top-level URL, read on the UI thread, within
+  2 s). Check, with a debug build and `chrome://inspect`: on a server's
+  library, `TsundokuTV.servers()` in the console must print the list (and
+  MORE › SERVERS and the bar's server cell must be as before; on 9B the
+  prefix must still be the TV's own `192.168.x.`); then
+  `location.href = 'https://example.com'`, and on that page
+  `TsundokuTV.servers()` must print `[]`, and `TsundokuTV.tvAddress()`,
+  `TsundokuTV.remembered()` and `TsundokuTV.network()` an empty string,
+  with no exception. A third-party frame inside a server's page is not
+  closed yet ("What it does not do yet"), so there is no frame check to
+  make.
 - **Launcher shortcuts (c287).** Built and planned in a JVM test, never seen
   on a launcher. Check: long-press tsundoku's icon on the TV's home screen
   (and on a phone, where Android's launcher does show app shortcuts). One
@@ -777,9 +841,13 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   stored with its scheme's own port, one stored with capitals trusted on its
   lower-case pages (c548), and the refused: unknown origins,
   another port, the http/https twin, other `file://` pages);
-  `PairingBridgeTest` (5) calls each guarded method from an
+  `PairingBridgeTest` (8) calls each guarded method from an
   unknown page and finds nothing changed, from the asset page and a known
-  server's and finds it acted, and FORGET's `open` and `welcome` still
+  server's and finds it acted; each guarded read (c549) from an unknown page
+  reads `[]` or `""` and writes nothing, and from the asset page and a known
+  server's reads the list, the server in use, the address, the prefix and
+  the network; `forgetServer` refused answers `""`; `form` and `defaultPort`
+  answer anyone; and FORGET's `open` and `welcome` still
   answering the page it has just made unknown, and `forget()` from a known
   server's page forgetting every server, its own included. `AttemptsTest` plays the activity's two launch doors in
   order: a given address during the remembered probe keeps its 9B whether the
@@ -834,7 +902,9 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 - `tests/tv-servers.e2e.ts` — the web half in the `tv` project with a stand-in
   bridge: no SERVERS row without the bridge; S6 with one server; S2's order,
   mark, probes and frame (the extracted measurements); S3 and S4 with FORGET's
-  0.6 s; forgetting the one in use and the last; the layout telling the app,
+  0.6 s; forgetting the one in use and the last; a refused FORGET changing
+  nothing, and FORGET of the one in use pressed twice opening the next once
+  and never 9A (c549, round 2); the layout telling the app,
   and only the app, the server's name; MORE's TO LINK row reached by keys (c475).
   S1 (wave 24, 20 cases): no cell without the bridge, with an APK older than
   c261, with five kinds of answer that are not a list of servers, with two

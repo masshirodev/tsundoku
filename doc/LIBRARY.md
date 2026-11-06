@@ -20,7 +20,7 @@ state is the result of real data or real input.
 | Multi-select     | SELECT in the header. Taps then toggle tiles (a Work tile selects its parts, [`WORKS.md`](WORKS.md)), and the bulk bar applies FAV, + SHELF, GROUP, REFRESH, HIDE or DELETE to the selection; TAG is drawn but disabled, since no tag editor is designed yet. GROUP opens the AS sheet for any selection ([`BOOKS.md`](BOOKS.md), [`WORKS.md`](WORKS.md)), except that two or three single books each in a language of its own get FOLD AS LANGUAGES in its place ([`EDITIONS.md`](EDITIONS.md)). HIDE and UNHIDE apply to the selection, except that a Work's part takes its Work whole: HIDE asks first, and HIDE ALL n hides the Work whole while TAKE OUT takes the part out of its Work and hides only it; UNHIDE shows the whole Work ([`WORKS.md`](WORKS.md), "The one rule"). UNHIDE takes HIDE's cell only when every selected tile is hidden, which needs reveal on. REFRESH asks every selected series' source once ([below](#refresh-a-selection)). |
 | Person / tag     | `/?tag=namespace:value`, from a tag on the series screen or a chip. The person header replaces CONTINUE ([`BOOKS.md`](BOOKS.md)). A tag with nothing visible is a 404.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | History          | **N OPEN · HISTORY →** on CONTINUE, and a HISTORY row in the desktop sidebar, open [`HISTORY.md`](HISTORY.md)'s screen.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Rescan           | **RESCAN** in the desktop sidebar asks first (c525; see "RESCAN asks first"), or typing `/scan`. Starts the same import as START SCAN; a press while one runs joins it, without asking. With nothing to import, the sidebar says where it looked, under the row ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Rescan           | **RESCAN** in the desktop sidebar asks first (c525; see "RESCAN asks first"), as MORE's RESCAN on a phone, tablet or TV does (c561), or typing `/scan`. Starts the same import as START SCAN; a press while one runs joins it, without asking. With nothing to import, the sidebar says where it looked, under the row on the desktop, and in a band at the top of the screen where there is no sidebar (c561) ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Incognito        | Typing `/incognito`. A dashed INCOGNITO · NOTHING SAVED band with END, on every screen ([`PRIVACY.md`](PRIVACY.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Words            | Typing `/words`. The words looked up while reading Japanese, waiting for review ([`JAPANESE.md`](JAPANESE.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Duplicates band  | Pairs of books with alike covers to review, only those the viewer can see: **N POSSIBLE DUPLICATES · REVIEW →** ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -718,8 +718,10 @@ one has finished (`lastScanTook`: the newest finished job that isn't a
 backup's import). **CANCEL** and **RESCAN**, CANCEL where the sheet opens, so
 OK or Enter at once is the safe answer; Esc and the scrim cancel too. The
 sheet posts the same `?/scan` the sidebar's form did, and its answer is taken
-as before: the note under the row (`rescanNote`, the same lifetime, SCAN_WAITS
-included), then the library. **A scan already running is joined at once**,
+as before: a refusal is the note under the row (`rescanNote`), then the
+library; a scan that waits behind a backup's import shows SCAN_WAITS there
+from the server's own queue (`scanWaits` on the layout's data, set only
+while a scan someone asked for is queued, c512), until the scan starts. **A scan already running is joined at once**,
 without the question: there is nothing new to agree to. **Without script** the
 sidebar's form is the plain form it was, and posts. `tests/rescan-confirm.e2e.ts`
 (its own seeded database, since one case stages a running scan) and
@@ -730,8 +732,9 @@ sidebar's form is the plain form it was, and posts. `tests/rescan-confirm.e2e.ts
 past the two definitions, the scan action itself one of them, the sheet's
 own form another):
 
-- **Asks:** the sidebar's RESCAN (`+layout.svelte`), the only door one stray
-  tap reaches.
+- **Asks:** the sidebar's RESCAN (`+layout.svelte`), and MORE's RESCAN,
+  which presses that same form (c561): the only doors one stray tap
+  reaches.
 - **Doesn't ask, as the card says:** START SCAN on the empty library
   (`StartFirstDay`) and GET STARTED's scan step (`StartList`): there, scanning
   is what the screen is for.
@@ -740,11 +743,37 @@ own form another):
   screen), and the scans that follow on their own (`engine/run.ts` after a
   download, a backup's import through `runQueued`).
 
-**There is no RESCAN on a phone or tablet.** MORE never had one (c525's card
-and the help text both said it did): the sidebar is the desktop's, so the
-other devices reach a scan by `/scan`. The help's backups topic now says so.
-Not built here, because a door that never existed is a feature of its own.
-The TV likewise: its "focus on CANCEL" has no door to open the sheet from.
+**MORE's RESCAN** (c561; the owner's yes, 2026-11-05). Until then MORE never
+had one (c525's card and the help text both said it did), and a phone or
+tablet reached a scan only by `/scan`. Now MORE has a RESCAN row, between
+HELP and IMPORT LOG as the sidebar keeps it beside IMPORT LOG, on the phone,
+the tablet and the TV, and it is the sidebar's door, not a second one: the
+row closes MORE, then presses the sidebar's own form
+(`form[data-rescan]`, `requestSubmit`), which is in the layout on every
+device and drawn only on the desktop. So the question, CANCEL focused, the
+scan joined without asking while one runs, and the action's answer are the
+sidebar's, from MORE too. MORE closes first because two sheets open at once
+would both close on one Escape (and on a TV's BACK, which sends it), and so
+that focus is back on the bar's MORE cell when the question opens: CANCEL
+returns it there, which is how a TV reaches the sheet with focus on CANCEL
+and leaves it. The answer has no row to sit under where there is no
+sidebar, so it is a band at the top of the screen (`.rescan-band`, the
+layout's, hidden where the sidebar shows): a refusal, whole and wrapped,
+put away with ✕ (it would otherwise stay until the next press, as the
+sidebar's note does; on a TV the ✕ is a stop ↑ from the bar reaches, and
+putting the band away hands the mark back to where it came from, not to the
+page's body), and SCAN_WAITS while the server's queue holds a scan,
+with no ✕, gone when the scan starts. That band follows `scanWaits` like the
+sidebar's note, so a scan queued by any door (`/scan`, GET STARTED) shows it
+on a phone too. MORE needs script, so it has no no-script path; the
+sidebar's form keeps its own. `tests/rescan-confirm.e2e.ts` (the phone and
+both tablets: CANCEL starts nothing twice, a confirmed RESCAN posts once
+and draws the band, a running scan is joined at once),
+`tests/tv-servers.e2e.ts` (the remote reaches the row, the question opens
+on CANCEL, OK there posts nothing and focus is back on MORE; and,
+confirmed on the empty library, the band shows, ↑ reaches its ✕, and OK
+puts it away with the mark back on MORE), and
+`tests/settings-flow.e2e.ts` (MORE's rows).
 
 ## Where it departs from the handoff
 
@@ -803,9 +832,9 @@ Specific and honest, so a deliberate gap isn't mistaken for an oversight:
 - **MORE** (card c171, Reach): on the tablet and phone, a cell after SELECT
   opens the sidebar's foot as a sheet: GET STARTED while it is unfinished,
   TO LINK while anything waits (c475), HISTORY, DOWNLOADS with its queue,
-  SETTINGS with this device's changed count, HELP, IMPORT LOG with when the
-  last import came in, and in the TV
-  app only, SERVERS (no RESCAN: see "RESCAN asks first") (c261; [`TV-APP.md`](TV-APP.md), "Servers"). The desktop
+  SETTINGS with this device's changed count, HELP, RESCAN (c561; see
+  "RESCAN asks first"), IMPORT LOG with when the last import came in, and in
+  the TV app only, SERVERS (c261; [`TV-APP.md`](TV-APP.md), "Servers"). The desktop
   has the sidebar itself, so no MORE there (`MoreSheet.svelte`). To make room,
   a phone under 420px shows the search hint as / alone, as Reach draws it.
 - **A folded book** (one book in several languages) is one tile with its

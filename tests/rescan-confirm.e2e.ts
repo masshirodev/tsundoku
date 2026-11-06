@@ -16,8 +16,10 @@ import { expect, test } from './fixtures';
  * running is joined without the question; without script the form still
  * posts. Its own preview and seeded database, because one case stages a
  * running scan, which every screen of the shared server would then show. The
- * sidebar is the desktop's, so most cases run there; the phone's checks that
- * nothing else in reach starts a scan. The port is the OS's to give.
+ * sidebar is the desktop's, so most cases run there; the phone and the
+ * tablets reach the same form through MORE's RESCAN (c561), and no
+ * scan starts there until it is confirmed either. The port is the OS's to
+ * give.
  */
 test.describe.configure({ mode: 'serial' });
 
@@ -217,15 +219,94 @@ test('without script, RESCAN is the plain form it was: it posts, and the scan is
 	}
 });
 
-test('on a phone nothing within reach starts a scan: no sidebar, and no RESCAN in MORE', async ({
+/*
+ * MORE's RESCAN (c561, the owner's yes, 2026-11-05): where there is no
+ * sidebar (a phone, a tablet), MORE has a RESCAN row, and it presses the
+ * sidebar's own form, so the question, CANCEL focused, joining a running scan
+ * and the action's answer are the sidebar's. MORE closes first, so the
+ * question is the only sheet open. Its answer has no row to sit under, so a
+ * refusal is a band at the top of the screen.
+ */
+const noSidebar = (name: string) =>
+	test.skip(name === 'desktop', 'the desktop has the sidebar’s RESCAN, and MORE is not in its bar');
+const more = (page: Page) => page.getByRole('dialog', { name: 'More' });
+async function rescanFromMore(page: Page) {
+	await page.getByRole('button', { name: 'MORE' }).click();
+	await expect(more(page)).toBeVisible();
+	await more(page).getByRole('button', { name: 'RESCAN' }).click();
+}
+const band = (page: Page) => page.locator('.rescan-band');
+
+test('on a phone or tablet, MORE’s RESCAN asks the same question, and nothing starts until it is confirmed (c561)', async ({
 	page
 }, info) => {
-	test.skip(info.project.name !== 'phone', 'the phone’s reach');
+	noSidebar(info.project.name);
+	const posted = scans(page);
 	await page.goto(`${BASE}/`);
 	await expect(sidebar(page)).toBeHidden();
-	await page.getByRole('button', { name: 'MORE' }).click();
-	const more = page.getByRole('dialog', { name: 'More' });
-	await expect(more).toBeVisible();
-	await expect(more.getByRole('button', { name: /RESCAN/ })).toHaveCount(0);
-	await expect(more.getByRole('link', { name: /RESCAN/ })).toHaveCount(0);
+	await rescanFromMore(page);
+	// The question, alone: MORE has closed.
+	await expect(sheet(page)).toBeVisible();
+	await expect(more(page)).toHaveCount(0);
+	await expect(sheet(page)).toContainText('READS THE LIBRARY FOLDER ON THE WORKSTATION AGAIN.');
+	await expect(sheet(page).getByRole('button', { name: 'CANCEL' })).toBeFocused();
+	await page.waitForTimeout(300);
+	expect(posted).toEqual([]);
+	// CANCEL starts nothing, and says nothing.
+	await sheet(page).getByRole('button', { name: 'CANCEL' }).click();
+	await expect(sheet(page)).toBeHidden();
+	await page.waitForTimeout(300);
+	expect(posted).toEqual([]);
+	await expect(band(page)).toHaveCount(0);
+	// The second time asks again: CANCEL left nothing armed.
+	await rescanFromMore(page);
+	await expect(sheet(page)).toBeVisible();
+	await page.waitForTimeout(300);
+	expect(posted).toEqual([]);
+	await sheet(page).getByRole('button', { name: 'CANCEL' }).click();
+	await expect(sheet(page)).toBeHidden();
+	expect(posted).toEqual([]);
+});
+
+test('MORE’s RESCAN, confirmed, posts the scan once, and its refusal is a band the ✕ puts away (c561)', async ({
+	page
+}, info) => {
+	noSidebar(info.project.name);
+	const posted = scans(page);
+	await page.goto(`${BASE}/`);
+	await rescanFromMore(page);
+	await sheet(page).getByRole('button', { name: 'RESCAN' }).click();
+	await expect(sheet(page)).toBeHidden();
+	expect(posted).toHaveLength(1);
+	// The library folder is empty: the sidebar's note, where a phone can see it, whole.
+	await expect(band(page)).toBeVisible();
+	await expect(band(page)).toContainText('NOTHING TO IMPORT');
+	await expect(band(page)).toContainText('library');
+	const box = await band(page).boundingBox();
+	expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width + 0.5);
+	await band(page).getByRole('button', { name: 'Close' }).click();
+	await expect(band(page)).toHaveCount(0);
+	expect(posted).toHaveLength(1);
+});
+
+test('MORE’s RESCAN joins a scan already running at once, without the question (c561)', async ({
+	page
+}, info) => {
+	noSidebar(info.project.name);
+	const db = new Database(dbPath);
+	const id = Number(
+		db
+			.prepare(`INSERT INTO scan_jobs (started_at, source_label) VALUES (?, 'MIHON')`)
+			.run(Date.now()).lastInsertRowid
+	);
+	try {
+		const posted = scans(page);
+		await page.goto(`${BASE}/?shelf=all`);
+		await rescanFromMore(page);
+		await expect.poll(() => posted.length).toBe(1);
+		await expect(sheet(page)).toHaveCount(0);
+	} finally {
+		db.prepare(`DELETE FROM scan_jobs WHERE id = ?`).run(id);
+		db.close();
+	}
 });

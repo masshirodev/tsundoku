@@ -103,6 +103,16 @@
 	/** FORGET is not pressable for its first 0.6 s, so a held OK can't fall through (S4). */
 	let armed = $state(false);
 
+	/** The bridge's answer as a list, or null for anything that is not one (a refusal is ""). */
+	function listOf(answer: string): Server[] | null {
+		try {
+			const list = JSON.parse(answer) as unknown;
+			return Array.isArray(list) ? (list as Server[]) : null;
+		} catch {
+			return null;
+		}
+	}
+
 	function read(): Server[] | null {
 		const b = bridge();
 		if (!b || typeof b.servers !== 'function') return null;
@@ -207,12 +217,18 @@
 		const s = chosen;
 		const b = bridge();
 		if (!armed || !s || !b || typeof b.forgetServer !== 'function') return;
-		let left: Server[];
-		try {
-			left = withInUse(JSON.parse(b.forgetServer(s.origin)) as Server[], pageOrigin());
-		} catch {
-			left = [];
+		// Disarmed before the call: a second press of the same FORGET (a double
+		// tap, a second OK) before the next server's page commits would come
+		// from a page this one has just made unknown (c549).
+		armed = false;
+		const answer = listOf(b.forgetServer(s.origin));
+		if (!answer) {
+			// Refused (the bridge answers "", c549): nothing was forgotten, so
+			// nothing changes, and FORGET can be pressed again.
+			armed = true;
+			return;
 		}
+		const left = withInUse(answer, pageOrigin());
 		servers = left;
 		if (left.length === 0) {
 			// The last one: 9A, as a TV that never paired.
@@ -281,6 +297,21 @@
 	}
 	const hostOf = (origin: string) => origin.replace(/^https?:\/\//i, '');
 
+	/**
+	 * RESCAN (c561; doc/LIBRARY.md, "RESCAN asks first"): the desktop sidebar's
+	 * form is the one door, and this row only presses it. MORE closes first,
+	 * so the question is the only sheet open (two sheets would both take one
+	 * Escape) and focus is back on the bar's MORE cell when the question opens:
+	 * that cell is where CANCEL then returns it. The form is in the layout on
+	 * every device, drawn only on the desktop, and its own handler decides:
+	 * the question, CANCEL focused, or joining a scan already running.
+	 */
+	async function rescan() {
+		onclose();
+		await tick();
+		document.querySelector<HTMLFormElement>('form[data-rescan]')?.requestSubmit();
+	}
+
 	let changed = $state(0);
 	onMount(() => {
 		const store = Object.fromEntries(
@@ -335,6 +366,11 @@
 			><span>{m.name_help()} →</span><span class="n"
 				>{m.more_topics({ count: topics().length, n: num(topics().length) })}</span
 			></a
+		>
+		<!-- RESCAN (c561): the sidebar's own form, asked through the same question, beside
+		     IMPORT LOG as in the sidebar. No arrow: it asks, it does not go anywhere. -->
+		<button type="button" class="row" data-focus-mark="in" data-more-rescan onclick={rescan}
+			><span>{m.nav_rescan()}</span><span class="n"></span></button
 		>
 		<!-- IMPORT LOG (c438; Import-Doors E, right): live, with when the last import came in. -->
 		<a class="row" data-focus-mark="in" href={resolve('/import/log')}

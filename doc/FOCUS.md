@@ -413,8 +413,10 @@ BACK climbs the screen before it leaves.
   grid landing on the first CONTINUE card at the top and staying there, every
   frame for 2 s; and BACK pressed at once after a ↓ past the last row, which
   went red eight times in ten before the layer scrolled that key itself
-  (c543); and the mark back on SORT, and on ↓ / ↑, after a sort slow enough
-  for the outline to draw LOADING in their place (wave 24).
+  (c543); and SORT, and ↓ / ↑, kept drawn and holding the mark at every
+  frame of a sort slow enough for the outline to draw LOADING beside them
+  (c560; until then LOADING took their place, and wave 24 gave the mark back
+  afterwards).
 - `tests/tv-reader.e2e.ts` — the reader's chrome as a focus row: OK brings it
   with focus on the scrubber, ↓ reaches READING, and the mode changes by keys
   alone (c241).

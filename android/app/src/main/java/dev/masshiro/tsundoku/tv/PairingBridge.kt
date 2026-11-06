@@ -18,18 +18,23 @@ import java.util.concurrent.Executors
  * and switches. So every call that writes, probes, or opens one of the app's
  * screens that writes first asks [BridgeGuard] whether the page in the
  * WebView is the app's own or a known server's, and does nothing otherwise
- * (c529). Every method, and whether it is guarded:
+ * (c529). Since c549 (the owner's (a), 2026-11-05) the reads that say
+ * anything of the owner's ask it too: the list of servers is the owner's,
+ * and so are the TV's address and its network. A refused read answers what
+ * a TV that knows nothing would ("[]", ""), never an exception, so a page of
+ * ours that is refused (none should be) draws as an unpaired TV. Every
+ * method, and whether it is guarded:
  *
  * | Method           | Does                                   | Guarded |
  * | ---------------- | -------------------------------------- | ------- |
- * | `tvAddress`      | reads the TV's IPv4                    | no      |
- * | `prefix`         | reads it, as 9B's prefix               | no      |
+ * | `tvAddress`      | reads the TV's IPv4                    | yes: "" |
+ * | `prefix`         | reads it, as 9B's prefix               | yes: "" |
  * | `defaultPort`    | reads a constant                       | no      |
- * | `remembered`     | reads the server in use                | no      |
- * | `servers`        | reads the list                         | no      |
+ * | `remembered`     | reads the server in use                | yes: "" |
+ * | `servers`        | reads the list                         | yes: [] |
  * | `remember`       | writes: adds a server                  | yes     |
  * | `forget`         | writes: forgets every server, cookies  | yes     |
- * | `forgetServer`   | writes: forgets one, and its cookies   | yes     |
+ * | `forgetServer`   | writes: forgets one, and its cookies   | yes: "" |
  * | `move`           | writes: an entry takes a new origin    | yes     |
  * | `rename`         | writes: the TV's name for a server     | yes     |
  * | `named`          | writes: the server's own name          | yes     |
@@ -39,7 +44,7 @@ import java.util.concurrent.Executors
  * | `open`           | opens a known server's library         | no      |
  * | `welcome`        | opens 9A                               | no      |
  * | `form`           | reads which app this is (c521)         | no      |
- * | `network`        | reads home / data / none (c521)        | no      |
+ * | `network`        | reads home / data / none (c521)        | yes: "" |
  * | `surface`        | paints the camera band (c521)          | no      |
  * | `keyboard`       | raises the phone's keyboard (c521)     | no      |
  * | `edge`           | draws the page under the camera (c521) | no      |
@@ -49,7 +54,10 @@ import java.util.concurrent.Executors
  * `forget`), which is no longer known. Neither writes, and neither goes
  * anywhere but a server the TV knows or the app's own first screen. `surface`
  * stays open too: it writes nothing but a colour into the camera band, and
- * a colour that is not a solid one is refused (Insets.parseColor).
+ * a colour that is not a solid one is refused (Insets.parseColor). `form`
+ * and `defaultPort` stay open as well: the user agent already says which
+ * app this is (`TsundokuTV/` or `TsundokuApp/`), and the port is a constant
+ * in the source.
  *
  * The bridge is `TsundokuTV` on the phone and tablet app as well (c521): the
  * name is the contract the web app reads, not a claim about the screen.
@@ -63,7 +71,9 @@ class PairingBridge(
 	private val host: Host,
 	private val servers: Servers,
 	private val io: ExecutorService = Executors.newFixedThreadPool(PROBES),
-	private val form: Form = Form.TV
+	private val form: Form = Form.TV,
+	/** Every up interface's IPv4, by name; PairingBridgeTest hands its own. */
+	private val interfaces: () -> List<Pair<String, String>> = ::upInterfaces
 ) {
 	/** What the bridge needs of the activity: an interface, so PairingBridgeTest can stand in. */
 	interface Host {
@@ -108,6 +118,12 @@ class PairingBridge(
 		 * the answers come back as they land rather than one after another.
 		 */
 		private const val PROBES = 4
+
+		/** A refused read (c549): what a TV that knows nothing would say. */
+		const val NOTHING = ""
+
+		/** A refused list (c549): Servers.toJson of no servers. */
+		const val NO_SERVERS = "[]"
 	}
 
 	/** Whether the page asking is the app's own or a known server's (c529). */
@@ -122,7 +138,7 @@ class PairingBridge(
 
 	/** "home", "data" (a phone on mobile data) or "none": 9D's third reason (c521). */
 	@JavascriptInterface
-	fun network(): String = Network.state(found()).id
+	fun network(): String = if (trusted()) Network.state(found()).id else NOTHING
 
 	/** The page's own background, as rgb() or a hex (c521): the camera band's colour. */
 	@JavascriptInterface
@@ -157,18 +173,18 @@ class PairingBridge(
 
 	/** The TV's own IPv4 on its network, or "" when it has none. */
 	@JavascriptInterface
-	fun tvAddress(): String = ownIpv4() ?: ""
+	fun tvAddress(): String = if (trusted()) ownIpv4() ?: NOTHING else NOTHING
 
 	/** "192.168.1." — what 9B writes for the TV, or "" when there is no address. */
 	@JavascriptInterface
-	fun prefix(): String = Address.prefixOf(ownIpv4()) ?: ""
+	fun prefix(): String = if (trusted()) Address.prefixOf(ownIpv4()) ?: NOTHING else NOTHING
 
 	@JavascriptInterface
 	fun defaultPort(): Int = DEFAULT_PORT
 
 	/** The server in use (the last used), or "". */
 	@JavascriptInterface
-	fun remembered(): String = servers.lastUsed()?.origin.orEmpty()
+	fun remembered(): String = if (trusted()) servers.lastUsed()?.origin.orEmpty() else NOTHING
 
 	/**
 	 * A candidate answered: keep it. Adds to the list rather than replacing the
@@ -193,7 +209,7 @@ class PairingBridge(
 
 	/** The list, the one in use first (Servers.toJson). */
 	@JavascriptInterface
-	fun servers(): String = servers.toJson()
+	fun servers(): String = if (trusted()) servers.toJson() else NO_SERVERS
 
 	/**
 	 * Open that server's library. It becomes the one in use once its page has
@@ -225,11 +241,15 @@ class PairingBridge(
 	/**
 	 * FORGET (S4): the entry, and that origin's cookies, so adding it back
 	 * pairs again. Answers the list as it is now, for the page to decide where
-	 * to go (the next that answers, or 9A).
+	 * to go (the next that answers, or 9A); refused, it answers "", which the
+	 * page reads as "nothing happened".
 	 */
 	@JavascriptInterface
 	fun forgetServer(origin: String): String {
-		if (!trusted()) return servers.toJson()
+		// Refused, it answers no list at all (c549): not "[]", which the page
+		// would read as "that was the last one" and send the TV to 9A while
+		// every server is still stored. "" leaks nothing and is not a list.
+		if (!trusted()) return NOTHING
 		forgetOne(origin)
 		return servers.toJson()
 	}
@@ -287,20 +307,22 @@ class PairingBridge(
 	 */
 	private fun ownIpv4(): String? = Network.homeV4(found())
 
-	/** Every up interface's IPv4, by name. */
-	private fun found(): List<Pair<String, String>> =
-		try {
-			NetworkInterface.getNetworkInterfaces()
-				?.toList()
-				.orEmpty()
-				.filter { it.isUp && !it.isLoopback }
-				.flatMap { n -> n.inetAddresses.toList().map { n.name to it } }
-				.filter { (_, a) -> a is Inet4Address }
-				.map { (name, a) -> name to (a.hostAddress ?: "") }
-		} catch (_: Exception) {
-			emptyList()
-		}
+	private fun found(): List<Pair<String, String>> = interfaces()
 }
+
+/** Every up interface's IPv4, by name: what the bridge reads the TV's own address from. */
+private fun upInterfaces(): List<Pair<String, String>> =
+	try {
+		NetworkInterface.getNetworkInterfaces()
+			?.toList()
+			.orEmpty()
+			.filter { it.isUp && !it.isLoopback }
+			.flatMap { n -> n.inetAddresses.toList().map { n.name to it } }
+			.filter { (_, a) -> a is Inet4Address }
+			.map { (name, a) -> name to (a.hostAddress ?: "") }
+	} catch (_: Exception) {
+		emptyList()
+	}
 
 /** The `pairing` SharedPreferences as the store's key-value (Servers.KeyValue). */
 class PrefsKeyValue(context: Context) : Servers.KeyValue {
