@@ -277,7 +277,59 @@
 		max: () => document.documentElement.scrollHeight - innerHeight
 	});
 	const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-	/** A key's move: the strip glides `d` pixels over `ms`, at once if motion is reduced. */
+	/**
+	 * The scroll key whose repeats are the held scroll, if one is down (c668).
+	 * Not reactive: no markup depends on it.
+	 */
+	let heldKey: string | null = null;
+	/**
+	 * The step a held key scrolls at, fixed at the press (c668). A repeat
+	 * re-reads its own modifiers, so releasing Ctrl mid-hold would jump a nudge
+	 * to a screen's speed, and Shift mid-Space would turn it round; the key's
+	 * own press is what the reader meant.
+	 */
+	let heldMove: { by: number; ms: number } | null = null;
+
+	/**
+	 * A scroll key's move (c668). A first press glides one step. While it is
+	 * held, its repeats must not add steps to the aim — that ran the target far
+	 * ahead of the strip, which then kept travelling after the key came up — so
+	 * the strip scrolls at a steady speed instead. The release eases to a stop.
+	 * Reduced motion keeps its own path: every key moves at once.
+	 */
+	function moveKey(e: KeyboardEvent, d: number, ms: number) {
+		if (reducedMotion()) {
+			endHold();
+			scrollBy(0, d);
+			return;
+		}
+		if (e.repeat) {
+			if (heldKey === e.key && heldMove) smooth.hold(heldMove.by, heldMove.ms);
+			return;
+		}
+		// A fresh press is its own glide: `glide` drops a hold's steady speed
+		// (c668), and starts from where the strip is going so a second press
+		// adds its step to the first's, as a double ↓ always has.
+		heldKey = e.key;
+		heldMove = { by: d, ms };
+		smooth.glide(d, ms);
+	}
+
+	/**
+	 * A held key ends. Every door that can take its keyup away calls this: the
+	 * key's own release, a second key pressed, the window losing focus or the
+	 * page being hidden, a panel opening or locking the page, and the reader
+	 * jumping to another chapter. `instant` is for a strip that is no longer
+	 * the one on screen; a crossing does not end it at all.
+	 */
+	function endHold(instant = false) {
+		heldKey = null;
+		heldMove = null;
+		if (instant) smooth.stop();
+		else smooth.letGo();
+	}
+
+	/** A move that is not a key's (TO THE TOP): a glide, at once if motion is reduced. */
 	function move(d: number, ms: number) {
 		if (reducedMotion()) scrollBy(0, d);
 		else smooth.glide(d, ms);
@@ -331,7 +383,11 @@
 		const touchend = (e: TouchEvent) => {
 			if (e.touches.length < 2) pinch = null;
 		};
-		const kept = (e: Event) => smooth.shift((e as CustomEvent<number>).detail);
+		const kept = (e: Event) =>
+			smooth.shift(
+				(e as CustomEvent<number>).detail,
+				(e as CustomEvent<number> & { moved?: number }).moved ?? (e as CustomEvent<number>).detail
+			);
 		addEventListener(KEPT_PLACE, kept);
 		addEventListener('wheel', wheel, { passive: false });
 		addEventListener('touchstart', touchstart, { passive: true });
@@ -948,16 +1004,29 @@
 	 * leaving above the page being read would shove it down or up; the page
 	 * under the middle of the screen is put back where it was. By hand, since
 	 * the browser's scroll anchoring does nothing at the very top of a page.
+	 *
+	 * Measured in the document, not on the screen: a glide running through the
+	 * change moves the window between the two reads, and on the screen that
+	 * reads as the content moving too, so the correction came out short by
+	 * whatever the glide covered and its own next frame then read as "something
+	 * else scrolled" and stopped it (c668). A scroll changes neither coordinate.
+	 * What the window did in between — Chromium clamps it when the strip drops
+	 * a chapter above and the document becomes shorter than the scroll position
+	 * — is not the content's move either: the correction goes to where the
+	 * content's move alone puts the place, and the ease is told the move.
 	 */
 	async function keepPlace(change: () => void) {
 		// Through whatever covers the middle (c568): READING's sheet, the
 		// controls or the lookup over it are not the place; the strip under them is.
 		const anchor = stripSlotAtMiddle();
-		const before = anchor?.getBoundingClientRect().top;
+		const y0 = scrollY;
+		const before = anchor ? anchor.getBoundingClientRect().top + y0 : null;
 		change();
 		await tick();
-		if (anchor?.isConnected && before !== undefined)
-			keepPlaceBy(anchor.getBoundingClientRect().top - before);
+		if (anchor?.isConnected && before !== null) {
+			const moved = anchor.getBoundingClientRect().top + scrollY - before;
+			keepPlaceBy(y0 + moved - scrollY, moved);
+		}
 	}
 
 	async function loadStripPages(id: number) {
@@ -1002,8 +1071,13 @@
 				prev && stripChapter(prev),
 				next && stripChapter(next)
 			);
+			// A crossing is this strip's own move: the band stays, the pages
+			// around it stay, and the key can read on through it, so nothing
+			// ends there. A real jump does: the strip the key was moving is not
+			// the one on screen any more (c668).
 			if (!onStrip) {
 				// Opened here, or jumped to a chapter not on the strip: start over at it.
+				endHold(true);
 				strip = held;
 				stripSession += 1;
 				placeAt = { id, page: at };
@@ -1012,6 +1086,7 @@
 				void keepPlace(() => (strip = held));
 				// CH. → from the controls, to a neighbour already on the strip: go to it.
 				if (!scrolledHere) {
+					endHold(true);
 					placeAt = { id, page: at };
 					void tick().then(place);
 				}
@@ -1172,6 +1247,9 @@
 	// Vertical: the strip holds still while the panel is open.
 	$effect(() => {
 		if (mode !== 'vertical' || !lookup) return;
+		// The panel has the keyboard now, and locks the page: a held key stops
+		// at once, rather than easing on under the lock (c668).
+		endHold(true);
 		const html = document.documentElement;
 		html.style.overflow = 'hidden';
 		return () => {
@@ -1329,11 +1407,23 @@
 	// The strip holds still while the menu is open.
 	$effect(() => {
 		if (mode !== 'vertical' || !menu) return;
+		// The menu has the keyboard, and locks the page: a held key stops at
+		// once, rather than easing on under the lock (c668).
+		endHold(true);
 		const html = document.documentElement;
 		html.style.overflow = 'hidden';
 		return () => {
 			html.style.overflow = '';
 		};
+	});
+
+	// The READING sheet covers the strip and takes the keyboard's keys, and a
+	// mode change takes the strip itself away: neither is the strip the key was
+	// moving, so a hold stops there rather than scrolling under the sheet or on
+	// into a paged reader (c668).
+	$effect(() => {
+		if (mode === 'vertical' && !sheet) return;
+		untrack(() => endHold(true));
 	});
 
 	type CoverBody = {
@@ -1553,7 +1643,10 @@
 	}
 
 	function releaseKeys(e: KeyboardEvent) {
-		if (e.key !== 'Enter') return;
+		if (e.key !== 'Enter') {
+			if (e.key === heldKey) endHold();
+			return;
+		}
 		clearTimeout(holdTimer);
 		holdTimer = undefined;
 		if (held) {
@@ -1700,7 +1793,7 @@
 			// Ctrl + ↑ / ↓ nudges, to read a panel the screen cut without the mouse.
 			if (arrow && e.ctrlKey) {
 				e.preventDefault();
-				return move(NUDGE * arrow, GLIDE_NUDGE);
+				return moveKey(e, NUDGE * arrow, GLIDE_NUDGE);
 			}
 			// ← / → nudge too, with one hand and no modifier (c527): reading on is
 			// to the right, as in a paged L→R reader. Ctrl + ← / → add nothing.
@@ -1716,13 +1809,13 @@
 						left: NUDGE * side,
 						behavior: reducedMotion() ? 'instant' : 'smooth'
 					});
-				return move(NUDGE * side, GLIDE_NUDGE);
+				return moveKey(e, NUDGE * side, GLIDE_NUDGE);
 			}
 			const down = arrow === 1 || e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey);
 			const up = arrow === -1 || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey);
 			if (down || up) {
 				e.preventDefault();
-				move(screenStep(innerHeight) * (down ? 1 : -1), GLIDE_SCREEN);
+				moveKey(e, screenStep(innerHeight) * (down ? 1 : -1), GLIDE_SCREEN);
 			}
 			return;
 		}
@@ -1757,10 +1850,11 @@
 			}
 		};
 		const visible = () => {
-			if (document.visibilityState === 'visible') {
-				clock.resume(Date.now());
-				void wake();
-			}
+			// A page going away can take the keyup with it: the strip must not
+			// keep scrolling behind another window (c668).
+			if (document.visibilityState !== 'visible') return endHold();
+			clock.resume(Date.now());
+			void wake();
 		};
 		void wake();
 		document.addEventListener('visibilitychange', visible);
@@ -1817,7 +1911,12 @@
 </script>
 
 <svelte:head><title>{data.series.title} · {data.entry.name}</title></svelte:head>
-<svelte:window onkeydown={keydown} onkeyup={releaseKeys} onpointermove={hover} />
+<svelte:window
+	onkeydown={keydown}
+	onkeyup={releaseKeys}
+	onblur={() => endHold()}
+	onpointermove={hover}
+/>
 
 <div
 	class="reader"

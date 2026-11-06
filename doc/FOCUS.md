@@ -79,7 +79,9 @@ screen or taller, is not a bar. The TV's focus line and pinned rows are built
 still the layer's nearest.
 
 **A held arrow** repeats at the remote's rate and we do nothing special: every
-keydown is one move.
+keydown is one move. (The vertical strip's own held arrow is the reader's, not
+the layer's: c668 makes its repeats scroll steadily instead of stacking steps —
+`doc/READER.md`, "Scrolling on a PC".)
 
 **Nothing that way.** On the page, an arrow with no stop in its direction
 still scrolls, so prose (HELP, a series' ABOUT) can be read past the last
@@ -105,11 +107,11 @@ can move in the key's direction: `canScroll` in `geometry.ts`, `scrollTop >
 are integers each rounded from a fractional layout and `scrollTop` is not, so
 a scroller at its very end can read up to a pixel short of it. The page at
 its own end scrolls nowhere, and that is no error. **A page a screen has
-locked** (`overflow: hidden` on the root, or on `body`, which CSS hands the
-viewport when the root is `visible`) scrolls nothing either (c618): the image
-reader sets it while its lookup panel or page menu is open, and Chromium's
+locked** (`overflow: hidden` or `clip` on the root, or on `body`, which CSS hands the
+viewport when the root is `visible`) scrolls nothing either (c618, c647): the image
+reader sets `hidden` while its lookup panel or page menu is open, and Chromium's
 own arrow stops there, where the layer's fallback used to move it (`overflow:
-hidden` is still a scroller a script can move). What it reaches is every vertical scroller on a screen a TV opens
+hidden`, and a clipped viewport too, is still a scroller a script can move). What it reaches is every vertical scroller on a screen a TV opens
 (`rg -l "overflow(-y)?:\s*(auto|scroll)" src/routes src/lib/components`, 16
 files at wave 25): the series screen's panel and list columns, a Work's
 panel and list, MOVE's lists, `/links`' candidates and siblings, the

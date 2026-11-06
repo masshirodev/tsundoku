@@ -106,7 +106,7 @@ chapters) are arrow stops only while they're on screen
 page, so ↓ from the bottom row found the end page's LIBRARY at the chapter's
 foot and scrolled thousands of pixels to it. Read the strip to its end with
 the controls hidden, and OK, ↓ reach the end page as before. With the controls hidden ← → nudge
-the strip 40 px, as a keyboard's do (c527, "Scrolling on a PC"):
+the strip 100 px, as a keyboard's do (c527, "Scrolling on a PC"):
 `tests/tv-strip-keys.e2e.ts`.
 `tests/tv-reader.e2e.ts` reaches the strip from READING (its mode is session
 state) and checks both.
@@ -525,23 +525,45 @@ and "when I click down or up it pans to the next sections").
   strip scrolls the window, so a screen is the window's height.
 - **Keys glide, the wheel doesn't.** The wheel's approach starts at full speed
   so a notch feels instant; over a whole screen that was a lurch (the owner:
-  "its attacking my anxiety"). A key's move eases in and out instead, 320 ms
-  for a screen and 160 ms for a nudge. Pressed again mid-glide (a double ↓),
-  it adds the step to where it was going and glides on from where it is. A
-  glide never starts backwards (c568): a frame is stamped when it began, which
-  under load is before the key, and the ease once ran the wrong way first
-  (-33 px on a +40 nudge, wave 24).
-- **Ctrl + ↑ / ↓ nudge** 40 px, about what an arrow did before: to bring a
-  panel the screen cut in two into view without the mouse (the owner,
-  2026-10-30).
-- **← / → nudge too**, the same 40 px (c527; the owner, 2026-11-04: "left
+  "its attacking my anxiety"). A key's move eases in and out instead, 220 ms
+  for a screen and 160 ms for a nudge (the owner, 2026-11-06, seeing the glide
+  on a PC whose animations had been off: "i think 320ms is too much now").
+  Pressed again mid-glide (a double ↓), it adds the step to where it was going
+  and glides on from where it is. A glide never starts backwards (c568): a
+  frame is stamped when it began, which under load is before the key, and the
+  ease once ran the wrong way first (-33 px on a nudge, wave 24).
+- **A held key scrolls steadily and stops when it comes up** (c668). Left
+  alone, every repeat added a step to where the strip was going, so the aim
+  ran far ahead and the strip kept travelling after the key was released
+  (measured on the base: 30 repeats at ~30/s ran another 23,210 px after the
+  keyup). Repeats now add no step: from the first one the strip scrolls at the
+  speed one press covers in its glide — a screen per 220 ms, a nudge per 160
+  ms — and the release eases out over 160 ms, about a third of the nudge
+  further (33 px on a 100 px nudge, 185 px on a screen). A tap still glides
+  one step and two separate presses still add two. Every door that can take
+  the keyup away ends it the same way: the window losing focus, the page being
+  hidden, the READING sheet, the lookup panel or page menu opening (its lock),
+  and a jump to another chapter, which stops it at once so the repeats are not
+  the new chapter's. **A strip crossing is not a jump**: scrolling on across a
+  band keeps the strip and the pages around it, so the glide, the wheel's ease
+  and a held arrow all read on through it (c668). A second scroll key during a
+  hold takes over from where the strip is: the hold ends and the new key glides
+  its own step.
+- **The speed and direction are the press's own** (c668). A repeat re-reads
+  its own modifiers, so releasing Ctrl mid-hold would jump a nudge to a
+  screen's speed and Shift mid-Space would turn it round; the first press's
+  step is what the hold keeps until the key comes up.
+- **Ctrl + ↑ / ↓ nudge** 100 px: to bring a panel the screen cut in two into
+  view without the mouse (the owner, 2026-10-30; "we can up the amoun a
+  ctrl+arrow or side arrow moves too", 2026-11-06).
+- **← / → nudge too**, the same 100 px (c527; the owner, 2026-11-04: "left
   and right arrows on manhwas to have the same effect as ctrl+up and
   ctrl+down"): **← is Ctrl + ↑ and → is Ctrl + ↓**, reading on to the right
   as a paged L→R reader's → does, so a panel reads with one hand and no
   modifier. They follow the mode, not the kind: a manhwa set to paged still
   turns pages on ← →, and a manga on the strip nudges. Ctrl + ← / → do
   nothing new. **Zoomed wider than the screen** (the lane scrolls sideways,
-  "Zoom" above) ← → pan the strip 40 px sideways instead: they are the one
+  "Zoom" above) ← → pan the strip 100 px sideways instead: they are the one
   way a keyboard has to reach its sides, which the browser's own arrows did
   only after a click had put the keyboard in the lane. On a TV they nudge
   with the controls hidden (a remote has no Ctrl, so this is its only
@@ -553,11 +575,15 @@ and "when I click down or up it pans to the next sections").
 - **Reduced motion**: the wheel stays native and a key moves at once.
 
 Tested in `tests/smooth-scroll.spec.ts` (the approach, notches at any scale,
-place-keeping), `tests/reader-flow.e2e.ts` (a notch eased through the
-real strip to where it aimed, ↓ and ↑ by a screen) and
+place-keeping, and c668's steady hold, its stop and its first frame not
+running backwards), `tests/reader-flow.e2e.ts` (a notch eased through the real
+strip to where it aimed, ↓ and ↑ by a screen) and
 `tests/reader-strip-keys.e2e.ts` (c527 on all four devices: → and ← against
 Ctrl + ↓ and Ctrl + ↑, Ctrl + → / ← doing nothing, the zoomed pan, a paged
-reader still turning).
+reader still turning; and c668's held ↓, which stops on the keyup, on a second
+key, on blur, on the page being hidden, on the page menu, on the READING
+sheet and on a jump to another chapter, and which reads on across a band —
+those cases measured on a page slot, since a crossing reshapes the strip).
 
 ## Full screen
 

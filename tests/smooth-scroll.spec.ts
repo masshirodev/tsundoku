@@ -88,24 +88,76 @@ describe('smooth scrolling on a PC (c192)', () => {
 		expect(easeInOut(1)).toBe(1);
 		const f = fake();
 		const s = new SmoothScroll(f.host);
-		s.glide(765, 320);
+		s.glide(765, 220);
 		f.run(1);
 		// The first frame of a screen's glide is a few pixels, not a third of it.
 		expect(f.at()).toBeLessThan(10);
 		f.run();
 		expect(f.at()).toBe(765);
 		// Pressed again mid-glide: on from where it is, to the further aim.
-		s.glide(765, 320);
+		s.glide(765, 220);
 		f.run(5);
-		s.glide(765, 320);
+		s.glide(765, 220);
 		f.run();
 		expect(f.at()).toBe(765 * 3);
+	});
+
+	it('holds a key at a steady speed, and a repeat adds no step to the aim (c668)', () => {
+		const f = fake();
+		const s = new SmoothScroll(f.host);
+		// A screen's move: 765 px over 220 ms, so 3.5 px per frame at 16 ms.
+		s.hold(765, 220);
+		f.run(1);
+		expect(f.at()).toBeCloseTo((765 / 220) * 16, 1);
+		// Repeats re-assert the speed, they do not stack steps: after 10 more
+		// frames (176 ms) it is at one speed's distance, not ten screens'.
+		for (let i = 0; i < 10; i++) {
+			s.hold(765, 220);
+			f.run(1);
+		}
+		expect(f.at()).toBeCloseTo((765 / 220) * 176, 1);
+		expect(f.at()).toBeLessThan(765);
+	});
+
+	it('eases a released hold to a stop within a short distance (c668)', () => {
+		const f = fake();
+		const s = new SmoothScroll(f.host);
+		s.hold(765, 220);
+		f.run(10);
+		const atRelease = f.at();
+		s.letGo();
+		f.run();
+		// Cubic ease-out: the distance that keeps the held speed is a third of
+		// speed × the stop glide, and it is reached, not approached forever.
+		expect(f.at()).toBeCloseTo(atRelease + ((765 / 220) * 160) / 3, 1);
+		expect(f.at() - atRelease).toBeLessThan(240);
+		expect(s.moving).toBe(false);
+		// Nothing is left scheduled: the strip stays where it stopped.
+		const stopped = f.at();
+		f.run(10);
+		expect(f.at()).toBe(stopped);
+	});
+
+	it('a fresh press after a hold still adds a whole step (c668)', () => {
+		const f = fake();
+		const s = new SmoothScroll(f.host);
+		s.hold(100, 160);
+		f.run(5);
+		s.letGo();
+		f.run();
+		const stopped = f.at();
+		// Two separate ↓ presses add up, as before the hold existed.
+		s.glide(100, 160);
+		f.run();
+		s.glide(100, 160);
+		f.run();
+		expect(f.at()).toBeCloseTo(stopped + 200, 6);
 	});
 
 	it('never glides the wrong way first, when a frame is stamped before the key (c568)', () => {
 		// A frame's timestamp is when the frame began, and under load that can be
 		// before the key's performance.now(): wave 24 measured the strip moving
-		// -33 px on a +40 nudge, then +85 on a -40, so a nudge read as lost.
+		// -33 px on a nudge, then +85 on the reverse, so a nudge read as lost.
 		let now = 1000;
 		let y = 500;
 		const seen: number[] = [];
@@ -124,19 +176,59 @@ describe('smooth scrolling on a PC (c192)', () => {
 			max: () => 10_000
 		};
 		const s = new SmoothScroll(host);
-		s.glide(40, 160);
+		s.glide(100, 160);
 		// Stamped 12 ms before the key, then on as usual.
 		queue.shift()!(now - 12);
 		for (let i = 0; i < 100 && queue.length; i++) queue.shift()!((now += 16));
-		expect(y).toBe(540);
+		expect(y).toBe(600);
 		expect(Math.min(...seen)).toBeGreaterThanOrEqual(500);
 		// And back up: never below where it ends, never above where it began.
 		seen.length = 0;
-		s.glide(-40, 160);
+		s.glide(-100, 160);
 		queue.shift()!(now - 12);
 		for (let i = 0; i < 100 && queue.length; i++) queue.shift()!((now += 16));
 		expect(y).toBe(500);
-		expect(Math.max(...seen)).toBeLessThanOrEqual(540);
+		expect(Math.max(...seen)).toBeLessThanOrEqual(600);
+	});
+
+	it('never holds the wrong way first, when a frame is stamped before the key (c668)', () => {
+		// The held path's delta is a rAF timestamp minus start()'s now(), which
+		// under load can be negative: 12 ms before the key moved a downward hold
+		// -41.7 px (the review's reproduction), and in Chromium a held ↑ went
+		// down on its first frame in 6 of 8 tries, by up to 94 px.
+		let now = 1000;
+		let y = 500;
+		const seen: number[] = [];
+		const queue: ((t: number) => void)[] = [];
+		const host = {
+			now: () => now,
+			frame: (cb: (t: number) => void) => queue.push(cb),
+			cancel: () => void queue.splice(0),
+			get y() {
+				return y;
+			},
+			set y(v: number) {
+				y = v;
+				seen.push(v);
+			},
+			max: () => 10_000
+		};
+		const s = new SmoothScroll(host);
+		s.hold(765, 220);
+		// Stamped 12 ms before the key, then on as usual.
+		queue.shift()!(now - 12);
+		for (let i = 0; i < 100 && queue.length; i++) queue.shift()!((now += 16));
+		// Downward: never above where it began.
+		expect(Math.min(...seen)).toBeGreaterThanOrEqual(500);
+		// And up: never below where it began.
+		const top = y;
+		s.stop();
+		seen.length = 0;
+		s.hold(-765, 220);
+		queue.shift()!(now - 12);
+		for (let i = 0; i < 100 && queue.length; i++) queue.shift()!((now += 16));
+		expect(Math.max(...seen)).toBeLessThanOrEqual(top);
+		expect(y).toBeLessThan(top);
 	});
 
 	it('smooths a mouse wheel’s notches, never a trackpad’s stream or a sideways wheel', () => {

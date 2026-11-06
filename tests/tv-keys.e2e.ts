@@ -352,24 +352,37 @@ test('↓ with the root locked scrolls nothing, as Chromium’s own arrow does (
 	const read = await scrollers(page, { around: 'clip', at: 'bottom' });
 	await setUp(page, { inner: -1 });
 	// The image reader's own lock while its lookup panel or page menu is up:
-	// `html.style.overflow = 'hidden'` (ImageReader.svelte:1139, :1296). The
-	// fallback below the last scroller scrolled it anyway: `overflow: hidden`
-	// is still a scroll container a script can move, where Chromium's own
-	// arrow chain refuses to. Locking the body alone is the same lock: the
-	// root's `overflow` propagates to the viewport, and a `visible` root hands
-	// that to the body.
-	for (const lock of ['html', 'body'] as const) {
-		await page.evaluate((which) => {
-			document.documentElement.style.overflow = '';
-			document.body.style.overflow = '';
-			if (which === 'html') document.documentElement.style.overflow = 'hidden';
-			else document.body.style.overflow = 'hidden';
-		}, lock);
+	// `html.style.overflow = 'hidden'` in ImageReader.svelte. The fallback below
+	// the last scroller scrolled it anyway: `overflow: hidden` is still a scroll
+	// container a script can move, where Chromium's own arrow chain refuses to.
+	// Locking the body alone is the same lock: the root's `overflow` propagates
+	// to the viewport, and a `visible` root hands that to the body. `clip` is a
+	// lock too (c647): Chromium computes it as `clip` on the locked element, and
+	// a script's scrollBy still moves the viewport, so ↓ was moving 40 px there.
+	for (const { on, overflow } of [
+		{ on: 'html', overflow: 'hidden' },
+		{ on: 'body', overflow: 'hidden' },
+		{ on: 'html', overflow: 'clip' },
+		{ on: 'body', overflow: 'clip' }
+	] as const) {
+		const computed = await page.evaluate(
+			({ on, overflow }) => {
+				document.documentElement.style.overflow = '';
+				document.body.style.overflow = '';
+				const el = on === 'html' ? document.documentElement : document.body;
+				el.style.overflow = overflow;
+				return getComputedStyle(el).overflowY;
+			},
+			{ on, overflow }
+		);
+		// Measured, not assumed: a clip on the viewport is its own value in
+		// Chromium, not `hidden`.
+		expect(computed, `with ${on} set to ${overflow}`).toBe(overflow);
 		const before = await page.evaluate(() => document.scrollingElement!.scrollTop);
 		await arrow(page, 'ArrowDown');
 		expect(
 			await page.evaluate(() => document.scrollingElement!.scrollTop),
-			`with ${lock} locked`
+			`with ${on} locked by ${overflow}`
 		).toBe(before);
 	}
 	// And the page still scrolls when nothing is locked, so the case cannot
