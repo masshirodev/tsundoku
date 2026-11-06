@@ -149,6 +149,223 @@ test('the rating bars open the slider on the tile, and a half saves', async ({ p
 	await expect(bars).toHaveAttribute('aria-label', 'Unrated');
 });
 
+test.describe('two quick taps on a tile (c615)', () => {
+	// The tile's saves queue on the series screen's own keys (`fav:<id>`,
+	// `rating:<id>`), so a tile tap and a series-screen tap on one series wait
+	// for each other (doc/SERIES.md, "FAV and the rating"; c566's queue).
+	// `__data.json` is answered by the service worker past `page.route`
+	// (c477), so the second case holds the reload by it.
+	test.use({ serviceWorkers: 'block' });
+
+	/**
+	 * Hold the first POST of the library's `?/<action>` until `release()`;
+	 * every later one is aborted (the wire losing the newest tap). Counts the
+	 * answers the page got, and the most saves it had out at once.
+	 */
+	async function holdFirst(
+		page: Page,
+		action: 'favourite' | 'rate',
+		after: 'pass' | 'abort' = 'pass'
+	) {
+		let release!: () => void;
+		const held = new Promise<void>((r) => (release = r));
+		const isAction = (u: URL) => u.pathname === '/' && u.search === `?/${action}`;
+		let first = true;
+		let answered = 0;
+		let asked = 0;
+		let most = 0;
+		await page.route(isAction, async (route) => {
+			asked++;
+			most = Math.max(most, asked - answered);
+			if (first) {
+				first = false;
+				await held;
+				return route.continue();
+			}
+			return after === 'abort' ? route.abort() : route.continue();
+		});
+		page.on('requestfinished', (r) => {
+			if (isAction(new URL(r.url()))) answered++;
+		});
+		page.on('requestfailed', (r) => {
+			if (isAction(new URL(r.url()))) answered++;
+		});
+		return {
+			release,
+			answered: () => answered,
+			most: () => most,
+			done: () => page.unroute(isAction)
+		};
+	}
+
+	test('two quick FAV taps with the first save slow end on the second tap, after a reload too (c615)', async ({
+		page
+	}) => {
+		await page.goto('/?sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const fav = tile.getByRole('button', { name: 'Favourite' });
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		const h = await holdFirst(page, 'favourite');
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		h.release();
+		await expect.poll(h.answered).toBe(2);
+		// Never two saves out at once, and the second tap is what is left.
+		expect(h.most()).toBe(1);
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await page.reload();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await expect(tile.getByText('FAV', { exact: true })).toHaveCount(0);
+		await h.done();
+	});
+
+	test('two quick rating taps with the first slow store the second, and the tile shows it after a reload (c615)', async ({
+		page
+	}) => {
+		await page.goto('/?sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const bars = tile.getByRole('img');
+		const rate = tile.getByRole('button', { name: /^Rate, / });
+		await expect(bars).toHaveAttribute('aria-label', 'Unrated');
+		const h = await holdFirst(page, 'rate');
+		await rate.click();
+		await expect(tile.locator('.picker')).toBeVisible();
+		await tile.getByRole('button', { name: 'Rate 6 of 10' }).click();
+		// The second tap while the first save is still out.
+		await rate.click();
+		await tile.getByRole('button', { name: 'Rate 3 of 10' }).click();
+		await expect(bars).toHaveAttribute('aria-label', 'Rated 3 of 10');
+		h.release();
+		await expect.poll(h.answered).toBe(2);
+		expect(h.most()).toBe(1);
+		await page.reload();
+		await expect(bars).toHaveAttribute('aria-label', 'Rated 3 of 10');
+		await h.done();
+		// Put it back as the seed has it.
+		await rate.click();
+		await tile.getByRole('button', { name: 'Unrated' }).click();
+		await expect(bars).toHaveAttribute('aria-label', 'Unrated');
+		await page.reload();
+		await expect(bars).toHaveAttribute('aria-label', 'Unrated');
+	});
+
+	test('a tile tap, then the series opened before it settles: the screen’s tap waits on the same key (c615)', async ({
+		page
+	}) => {
+		await page.goto('/?sort=title');
+		const fav = page
+			.locator('.grid .tile', { hasText: TITLE })
+			.getByRole('button', { name: 'Favourite' });
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+
+		// Hold the tile's own POST; the series screen's is counted, not held.
+		const isTile = (u: URL) => u.pathname === '/' && u.search === '?/favourite';
+		const isPanel = (u: URL) => /^\/series\/\d+$/.test(u.pathname) && u.search === '?/favourite';
+		let release!: () => void;
+		const held = new Promise<void>((r) => (release = r));
+		let first = true;
+		let panelAsked = 0;
+		let panelAnswered = 0;
+		await page.route(isTile, async (route) => {
+			if (!first) return route.continue();
+			first = false;
+			await held;
+			return route.continue();
+		});
+		page.on('request', (r) => {
+			if (isPanel(new URL(r.url()))) panelAsked++;
+		});
+		page.on('requestfinished', (r) => {
+			if (isPanel(new URL(r.url()))) panelAnswered++;
+		});
+
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+		// The series opens while the tile's save is still out.
+		await page.locator('.grid .tile', { hasText: TITLE }).locator('.open').click();
+		await page.waitForURL(/\/series\//);
+		const panel = page.getByRole('region', { name: 'About this series' });
+		const seriesFav = panel.getByRole('button', { name: 'FAV', exact: true });
+		await expect(seriesFav).toBeVisible();
+		// Its FAV is the same `fav:<id>` key, so it waits: nothing is sent while
+		// the tile's save is held (a second queue would send it at once).
+		await seriesFav.click();
+		await page.waitForTimeout(300);
+		expect(panelAsked).toBe(0);
+		release();
+		await expect.poll(() => panelAnswered).toBe(1);
+		await expect(panel.getByRole('button', { name: 'FAV ✓' })).toBeVisible();
+		await page.reload();
+		await expect(panel.getByRole('button', { name: 'FAV ✓' })).toBeVisible();
+		await page.unroute(isTile);
+		// Put it back as the seed has it.
+		await panel.getByRole('button', { name: 'FAV ✓' }).click();
+		await expect(panel.getByRole('button', { name: 'FAV', exact: true })).toBeVisible();
+		await page.reload();
+		await expect(panel.getByRole('button', { name: 'FAV', exact: true })).toBeVisible();
+	});
+
+	test('a newer tap that fails during the earlier tap’s reload keeps its band, and PUT BACK reads what is stored (c615)', async ({
+		page
+	}) => {
+		await page.goto('/?sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const fav = tile.getByRole('button', { name: 'Favourite' });
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+
+		// The first FAV POST goes through; every later one is lost on the wire.
+		const isFav = (u: URL) => u.pathname === '/' && u.search === '?/favourite';
+		let posts = 0;
+		let firstAnswered = false;
+		await page.route(isFav, (route) => (++posts === 1 ? route.continue() : route.abort()));
+		page.on('requestfinished', (r) => {
+			if (isFav(new URL(r.url()))) firstAnswered = true;
+		});
+		// The reload after it is held until released, once.
+		let releaseReload!: () => void;
+		const reloadHeld = new Promise<void>((r) => (releaseReload = r));
+		let reloadAsked = false;
+		const isData = (u: URL) => u.pathname === '/__data.json';
+		await page.route(isData, async (route) => {
+			if (reloadAsked) return route.continue();
+			reloadAsked = true;
+			await reloadHeld;
+			return route.continue();
+		});
+
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+		await expect.poll(() => firstAnswered && reloadAsked).toBe(true);
+		// UNFAV, while FAV's reload is still out: it waits for that reload, so
+		// nothing is on the wire yet (the base posted at once, and took a band
+		// the newest tap had not claimed).
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await expect.poll(() => posts).toBe(1);
+		await expect(page.getByText('UNFAV NOT SAVED')).toHaveCount(0);
+		releaseReload();
+
+		// FAV is what is stored: the band says UNFAV was not, and PUT BACK goes to FAV.
+		await expect(page.getByText('UNFAV NOT SAVED')).toBeVisible();
+		await page.getByRole('button', { name: 'PUT BACK · FAV' }).click();
+		await expect(page.getByText('UNFAV NOT SAVED')).toHaveCount(0);
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+		expect(posts).toBe(2);
+		await page.unroute(isFav);
+		await page.unroute(isData);
+		await page.reload();
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+
+		// Put it back as the seed has it.
+		await fav.click();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		await page.reload();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+	});
+});
+
 test('the app’s name goes home, and SERIES, once a shelf, is FILTER’s FORM (c436)', async ({
 	page
 }) => {

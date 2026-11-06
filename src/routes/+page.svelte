@@ -37,6 +37,7 @@
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { waiting } from '$lib/waiting.svelte';
 	import { postAction, saves } from '$lib/saves.svelte';
+	import { seriesSaves } from './series/[id]/serial-saves';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
 	import ChoiceMenu from '$lib/components/controls/ChoiceMenu.svelte';
@@ -956,23 +957,49 @@
 	const favNow = new SvelteMap<number, boolean>();
 	const ratingNow = new SvelteMap<number, Rating>();
 
+	/**
+	 * One save in flight per series and field, the last tap winning, on the
+	 * series screen's queue (`seriesSaves`, doc/SERIES.md "FAV and the
+	 * rating", c566): the same keys, so a tile tap and a series screen tap on
+	 * one series wait for each other too (c615).
+	 */
 	async function write(
 		action: 'favourite' | 'rate',
 		key: string,
 		fields: Record<string, string>,
-		failure: { what: string; putBackLabel: string; putBack: () => void },
+		failure: () => { what: string; putBackLabel: string; putBack: () => void },
 		settle: () => void
 	) {
-		const save = async () => {
-			const ok = await postAction(`/?/${action}`, fields);
-			if (ok) {
-				await invalidateAll();
-				settle();
-			}
-			return ok;
-		};
+		const save = () => postAction(`/?/${action}`, fields);
 		saves.clear(key);
-		if (!(await save())) saves.fail({ ...failure, key, retry: save });
+		const turn = await seriesSaves.run(key, save);
+		if (!turn.latest) return;
+		// The reload is this turn's: the next tap's save waits for it to land.
+		// `finally`, because the queue is the app's: a turn never settled
+		// would hold the key for the whole session.
+		try {
+			if (turn.ok || turn.earlierStored) await invalidateAll();
+		} finally {
+			seriesSaves.settle(key);
+		}
+		// Not `pending()`: an older turn still reloading is pending too.
+		if (turn.newer()) return;
+		if (turn.ok) return settle();
+		saves.fail({
+			...failure(),
+			key,
+			retry: async () => {
+				const again = await seriesSaves.run(key, save);
+				if (!again.latest) return again.ok;
+				try {
+					if (again.ok) await invalidateAll();
+				} finally {
+					seriesSaves.settle(key);
+				}
+				if (again.ok && !again.newer()) settle();
+				return again.ok;
+			}
+		});
 	}
 
 	function favourite(id: number, on: boolean) {
@@ -981,28 +1008,35 @@
 			'favourite',
 			`fav:${id}`,
 			{ id: String(id), on: on ? '1' : '0' },
-			{
+			() => ({
 				what: on ? 'FAV NOT SAVED' : 'UNFAV NOT SAVED',
-				putBackLabel: on ? 'PUT BACK · NOT FAV' : 'PUT BACK · FAV',
+				putBackLabel: series.find((s) => s.id === id)?.favourite
+					? 'PUT BACK · FAV'
+					: 'PUT BACK · NOT FAV',
 				putBack: () => favNow.delete(id)
-			},
-			() => favNow.delete(id)
+			}),
+			() => {
+				// A newer tap of this field may still be queued: its value stands
+				// until its own turn settles (the series screen's rule).
+				if (!seriesSaves.pending(`fav:${id}`)) favNow.delete(id);
+			}
 		);
 	}
 
 	function rate(id: number, rating: Rating) {
-		const was = series.find((s) => s.id === id)?.rating ?? 0;
 		ratingNow.set(id, rating);
 		void write(
 			'rate',
 			`rating:${id}`,
 			{ id: String(id), rating: String(rating) },
-			{
+			() => ({
 				what: `RATING ${rating} NOT SAVED`,
-				putBackLabel: `PUT BACK ${was}`,
+				putBackLabel: `PUT BACK ${series.find((s) => s.id === id)?.rating ?? 0}`,
 				putBack: () => ratingNow.delete(id)
-			},
-			() => ratingNow.delete(id)
+			}),
+			() => {
+				if (!seriesSaves.pending(`rating:${id}`)) ratingNow.delete(id);
+			}
 		);
 	}
 

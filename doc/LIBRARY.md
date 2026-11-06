@@ -92,6 +92,19 @@ the sheet. They're gone while selecting (every tap is a pick then) and while
 offline (writes need the workstation). `CoverTile` takes them as `onfavourite`
 and `onrate`; without those it draws the plain badge and bars.
 
+**Two quick taps take turns** (c615). The tile's saves are on the series
+screen's own queue (`seriesSaves`, `src/routes/series/[id]/serial-saves.ts`)
+under the same `fav:<id>` and `rating:<id>` keys, so a tile tap and a
+series-screen tap on one series wait for each other too (doc/SERIES.md, "FAV
+and the rating"; c566's rule). One save in flight per field, the last tap
+winning: a superseded save is not sent, only the newest retries the page and
+shows a failure band, and PUT BACK names the value the reload found stored.
+`tests/library-flow.e2e.ts` holds the first FAV and rating POSTs, taps twice,
+and wants the second tap after a reload; a newer tap that fails during the
+earlier tap's reload keeps its band with `PUT BACK · FAV`; and a tile tap
+followed by the series opened before it settles shows the screen's tap
+waiting on the same key.
+
 ## Works
 
 A **Work** is a level above series that merges nothing: a name, an order the
