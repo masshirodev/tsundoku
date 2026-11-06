@@ -65,14 +65,14 @@ class MessageGuardTest {
 	}
 
 	@Test
-	fun `the file asset URL is refused until the page moves to WebViewAssetLoader`() {
-		// The page loads from file:///android_asset/pair/index.html today, and a
-		// file:// page reports the opaque origin "null"; a message never carries
-		// the URL the WebView loaded anyway. Only ASSET_ORIGIN, after item 1 of
-		// doc/TV-APP.md's order, can pass.
+	fun `the file asset's old URL is refused, and the asset URL is not an origin (c549)`() {
+		// Since wave 29 the page loads from ASSET_ORIGIN (WebViewAssetLoader),
+		// and a message's sourceOrigin is an origin: the URL the page was loaded
+		// from, with its path, is never one. No page loads a file:// URL now.
 		assertFalse(allows(BridgeGuard.ASSET, true))
 		assertFalse(allows(BridgeGuard.ASSET + "#lost=x", true))
 		// Another file the WebView could reach is nobody's page.
+		assertFalse(allows("file:///android_asset/pair/index.html", true))
 		assertFalse(allows("file:///android_asset/pair/other.html", true))
 		assertFalse(allows("file:///sdcard/Download/index.html", true))
 	}
@@ -102,8 +102,7 @@ class MessageGuardTest {
 	@Test
 	fun `the opaque origins are refused, null, absent, about blank and data`() {
 		// Android reports "null" for an opaque origin, and none of these is the
-		// asset page's origin, so none is trusted (doc/TV-APP.md, "What it does
-		// not do yet", item 1).
+		// asset page's origin, so none is trusted.
 		for (at in listOf("null", null, "", "about:blank", "data:text/html,<p>x", "javascript:alert(1)")) {
 			assertFalse("$at as the main frame", allows(at, true))
 			assertFalse("$at as a sub-frame", allows(at, false))

@@ -13,9 +13,10 @@ class BridgeGuardTest {
 
 	@Test
 	fun `the app's own page, with or without a fragment`() {
-		assertTrue(allows("file:///android_asset/pair/index.html"))
-		assertTrue(allows("file:///android_asset/pair/index.html#lost=http%3A%2F%2F192.168.1.23%3A42143"))
-		assertTrue(allows("file:///android_asset/pair/index.html#add"))
+		assertTrue(allows(BridgeGuard.ASSET))
+		assertTrue(allows(BridgeGuard.ASSET + "#lost=http%3A%2F%2F192.168.1.23%3A42143"))
+		assertTrue(allows(BridgeGuard.ASSET + "#add"))
+		assertTrue(allows(BridgeGuard.ASSET + "?x=1"))
 	}
 
 	@Test
@@ -45,10 +46,24 @@ class BridgeGuardTest {
 		assertFalse(allows("about:blank"))
 		assertFalse(allows("data:text/html,<p>x"))
 		assertFalse(allows("javascript:alert(1)"))
-		// Another file the WebView could reach: allowFileAccess is on for the asset.
+		// Another file the WebView could reach: allowFileAccess is off, and no
+		// page loads one. The asset page's old file:// URL is nobody's now (c549).
+		assertFalse(allows("file:///android_asset/pair/index.html"))
 		assertFalse(allows("file:///android_asset/pair/other.html"))
 		assertFalse(allows("file:///sdcard/Download/index.html"))
 		assertFalse(allows("file:///android_asset/pair/index.html.evil"))
+	}
+
+	@Test
+	fun `the asset page is recognised by its https URL, and not by its old file one (c549)`() {
+		// What WebViewAssetLoader serves (MainActivity.shouldInterceptRequest):
+		// another host, another path or another scheme is not the app's page.
+		assertTrue(BridgeGuard.allows(BridgeGuard.ASSET) { false })
+		assertTrue(BridgeGuard.allows(BridgeGuard.ASSET + "#add") { false })
+		assertFalse(BridgeGuard.allows("https://${BridgeGuard.ASSET_HOST}/pair/other.html") { false })
+		assertFalse(BridgeGuard.allows("https://evil.appassets.androidplatform.net/pair/index.html") { false })
+		assertFalse(BridgeGuard.allows("http://${BridgeGuard.ASSET_HOST}/pair/index.html") { false })
+		assertFalse(BridgeGuard.allows("file:///android_asset/pair/index.html") { false })
 	}
 
 	@Test

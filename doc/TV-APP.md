@@ -385,7 +385,9 @@ opened and when it was added. Pure apart from its key-value, so
   `rename`, `named`), probes (`probe`) or opens a screen that writes
   (`addServer`, `renameServer`), the bridge reads the WebView's top-level URL
   on the UI thread and does nothing unless it is the app's own asset page
-  (`file:///android_asset/pair/index.html`) or a page of a server in the list
+  (`https://appassets.androidplatform.net/pair/index.html`, served by
+  `WebViewAssetLoader` since c549; before that `file:///android_asset/…`) or a
+  page of a server in the list
   (its exact origin: another port, or the http/https twin, is not it). An
   external link followed from a server's page can no longer forget the list
   or move an entry to itself. **The reads ask it too** (c549, the owner's
@@ -477,36 +479,33 @@ verified".
   frame cannot change. tsundoku draws no third-party frames. The way to
   close it is `WebViewCompat.addWebMessageListener` (androidx.webkit), which
   hands each message its `sourceOrigin` and `isMainFrame`. Wave 26 stopped
-  short of the move, because three things it needs are not settled:
+  short of the move; wave 29 settled the first two things it needs, and the
+  third is the listener itself:
   1. **The app's own page has no rule.** The listener's origin rules take
      http/https hosts, a custom scheme or `*`; nothing in
      `WebViewCompat.addWebMessageListener`'s reference names `file://` or
-     says what `sourceOrigin` a `file:///android_asset/` page reports. So
-     either the asset page moves to `WebViewAssetLoader`
-     (`https://appassets.androidplatform.net/pair/index.html`, an https
-     origin a rule can name, and a change to every `loadAsset`, `BridgeGuard.ASSET`,
-     `Back.kt` and `FailedLoad`'s file checks), or the listener allows `*`
-     and refuses per message, measuring on a device what a `file://` page's
-     `sourceOrigin` is before trusting it. **This step is left** (wave 27):
-     `androidx.webkit` resolves offline here — the Gradle cache holds 1.14.0
-     and 1.12.1 with their metadata — so it is not blocked on the network;
-     it is a change to every asset load and its file checks, and it is worth
-     nothing until item 2's page accepts a late answer. Nothing in the page's
-     own scripts depends on `location.protocol === 'file:'` (the one `file:`
-     hit under `assets/pair` is a comment), so the move itself has no page
-     script to change.
-  2. **The library's server cell reads the list synchronously.** The brief
-     said `src/routes/+page.svelte:~488` only checks that `servers` exists;
-     it calls `servers()` and `JSON.parse`s the string in its `onMount` and
-     a tick later (`readTvServers`). A message listener answers later, so
-     either that page awaits the answer and redraws when it lands (an edit
-     to the library page, whose owner is another slot), or the page-facing
-     `window.TsundokuTV` keeps a cached copy that the app pushes in (by
-     `WebViewCompat.addDocumentStartJavaScript` with the list in the
-     script, registered again whenever the list changes) and an event when
-     it changes. MoreSheet's `forgetServer` also uses the list it returns.
-     The exact patch for that page is under Gaps in
-     `doc/handoff-notes/tv-app.md`, wave 27.
+     says what `sourceOrigin` a `file:///android_asset/` page reports. **Landed
+     in wave 29 (c549, step 1):** the page is served by `WebViewAssetLoader`
+     at `https://appassets.androidplatform.net/pair/index.html`, an https
+     origin `BridgeGuard.ASSET_ORIGIN` names. `MainActivity`'s WebView client
+     intercepts that whole host in `shouldInterceptRequest` and answers a path
+     the loader does not hold with 404, so a real network answer at the host is
+     never trusted; `BridgeGuard.ASSET`, `Back.kt` and the client's failed-load
+     and visit checks recognise the page by that https URL and nothing else,
+     and `allowFileAccess` is off now that nothing loads a `file://` page.
+     `androidx.webkit:webkit:1.14.0` resolves offline from this machine's
+     Gradle cache. `tests/tv-app-pair.e2e.ts` still opens the asset file in a
+     browser and is not the loader: the WebView half is JVM-tested where it is
+     pure and otherwise unchecked ("What is not verified").
+  2. **The library's server cell reads the list synchronously.** It calls
+     `servers()` and `JSON.parse`s the answer in its `onMount` and a tick
+     later (`readTvServers`). **Landed in wave 29 (c645):** `readTvServers`
+     awaits the bridge's answer, so a Promise is read when it lands;
+     `refreshTvServers` drops an answer to an older question, and the three
+     call sites (the mount, the tick and `closeMore()`'s hand-back) wait for
+     it. MoreSheet's own `servers()`/`forgetServer()` reads are still
+     synchronous: they wait for step 3, when the transport lands, and a
+     refused read still has to read as not a list.
   3. **The rule is decided per message, not per registration.** Origin
      rules are fixed when the listener is added, and the list changes at
      runtime (pairing, FORGET, `move`), so the sound shape is one listener,
@@ -517,8 +516,8 @@ verified".
      **That rule is built** (wave 27; round 2 corrected it to judge an origin,
      not a URL): `BridgeGuard.allowsMessage` refuses every sub-frame, trusts a
      main frame whose `sourceOrigin` is exactly `BridgeGuard.ASSET_ORIGIN`
-     (`https://appassets.androidplatform.net`, the asset page after the move)
-     or a known server's origin through `Address.originOf`, and refuses
+     (`https://appassets.androidplatform.net`, where the asset page is served
+     since wave 29) or a known server's origin through `Address.originOf`, and refuses
      everything else: the opaque `"null"`, `about:`, `data:`, `javascript:`,
      and any string that is not an origin (a path, query or fragment, the
      `file://` asset URL included). `MessageGuardTest` pins it over every
@@ -601,7 +600,7 @@ would: `hooks.server.ts` accepts it in token mode on the instance's public
 host, so the TV opens the library instead of `/login` (c245;
 [`SIGN-IN.md`](SIGN-IN.md)).
 
-The bridge (`PairingBridge.kt`) is what a `file://` page cannot do: the TV's own
+The bridge (`PairingBridge.kt`) is what the web page cannot do: the TV's own
 IPv4 (for the prefix and 9D's third reason), a probe of a candidate, and
 `SharedPreferences` for the address that answered. It is registered for the
 whole WebView, so the paired web app reaches it too (MORE › SERVERS, c261),
@@ -817,6 +816,20 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   closed yet ("What it does not do yet"): the per-message rule is JVM-tested
   (`MessageGuardTest`) but no listener calls it, so there is no frame check to
   make on a TV.
+- **The app's page from `WebViewAssetLoader` (c549, step 1).** Built, and its
+  pure parts JVM-tested (`BridgeGuardTest`, `BackTest`, `PairingBridgeTest`);
+  that this WebView serves `https://appassets.androidplatform.net/pair/index.html`
+  from `assets/pair/index.html` through `shouldInterceptRequest`, and that the
+  page's scripts behave the same at an https origin, is the claim: it was
+  never run on a television, and `tests/tv-app-pair.e2e.ts` opens the asset
+  file in a browser, which is not this loader. Check, on a TV with a debug
+  build: pair it from 9A (the page itself must draw, so the loader served it);
+  then MORE › SERVERS › a server › FORGET (the sheet's own screen after 9A
+  must draw); then from the library BACK out of the pair page (`/pair/tv`)
+  must land on the screen before it, not on the app's own page; and with the
+  computer switched off, open that server from SERVERS, so 9D draws — the
+  failed load's page, not the WebView's grey one. If any of those is blank,
+  the loader's path handler is what to look at first.
 - **Launcher shortcuts (c287).** Built and planned in a JVM test, never seen
   on a launcher. Check: long-press tsundoku's icon on the TV's home screen
   (and on a phone, where Android's launcher does show app shortcuts). One
@@ -838,15 +851,15 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   `BridgeGuardTest`, `FailedLoadTest`, `ForgetTest`, `FormTest`,
   `InsetsTest`, `IntentAddressTest`, `KeysTest`, `MessageGuardTest`,
   `NetworkTest`, `PairingBridgeTest`, `ProbeTest`, `ScaleTest`, `ServersTest`,
-  `ShortcutsTest` (136 tests in 17 classes per flavor at wave 27), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
+  `ShortcutsTest` (138 tests in 17 classes per flavor at wave 29), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
   `MessageGuardTest` (8) is c549's part (b), the per-message rule
   `BridgeGuard.allowsMessage`, every input an origin as the listener delivers
   one: a third-party frame inside a known server's page is refused, a known
   origin and `ASSET_ORIGIN` are trusted only as the main frame, a host or
   scheme typed in capitals is the same server by `Address.originOf`'s rule, a
   path or trailing slash in place of an origin is refused, the `file://` asset
-  URL cannot pass until the move, and the opaque `null` is no page at all.
-  Nothing calls the rule yet.
+  URL cannot pass (no page loads one since the move), and the opaque `null` is
+  no page at all. Nothing calls the rule yet.
   `AddressTest` (8) includes c548's case: a host and a scheme typed in
   capitals come back lower case, the same origin `intentOrigin` gives, and
   `originOf` holds on its own output.
@@ -868,10 +881,12 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   next attempt ending a mark whose finish never came, and `onPageFinished`'s
   decision (`FailedLoad.finish`: a failed `/pair/tv` consumes its mark, a
   loaded one is read for 9E's name, an unknown server is never a visit).
-  `BridgeGuardTest` (6) is c529's rule (the asset page, a known origin, one
-  stored with its scheme's own port, one stored with capitals trusted on its
-  lower-case pages (c548), and the refused: unknown origins,
-  another port, the http/https twin, other `file://` pages);
+  `BridgeGuardTest` (8) is c529's rule (the asset page by its https URL since
+  c549, a known origin, one stored with its scheme's own port, one stored with
+  capitals trusted on its lower-case pages (c548), a scheme typed in capitals
+  trusted without widening anything (c646), and the refused: unknown origins,
+  another port, the http/https twin, the asset page's old `file://` URL and
+  other `file://` pages);
   `PairingBridgeTest` (8) calls each guarded method from an
   unknown page and finds nothing changed, from the asset page and a known
   server's and finds it acted; each guarded read (c549) from an unknown page
@@ -953,7 +968,14 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   app's is), the cell and SERVERS name the server the page is on, the mark
   lands on the other, OK on this one closes, and FORGET of another or of
   this one acts on the right one; a server not named yet shows its name on
-  the first library, without MORE.
+  the first library, without MORE. Eight more are c645, with a bridge whose
+  `servers()` answers a Promise: a late answer draws the cell when it lands and
+  not before, an answer to an older question that lands after a newer one is
+  dropped, an answer that lands after the library is left changes nothing
+  there, a bridge that throws or answers what is not JSON draws no cell, a
+  refused read (`[]` or `""`) that lands late draws none either, and a bridge
+  that never answers leaves the page as without one — cell-less, its grid
+  drawn, MORE still opening.
 - `tests/tv-pair.e2e.ts` — the computer's `/pair/tv` at 960×540 with no pointer:
   every band clearing the label and the six cells, a wrong code spending a
   try, the right one landing on 9E, and five wrong ones burning it.

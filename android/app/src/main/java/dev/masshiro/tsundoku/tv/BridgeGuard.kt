@@ -22,26 +22,36 @@ package dev.masshiro.tsundoku.tv
  * ([allowsMessage], below, is the rule such a listener would ask; it is
  * pinned by `MessageGuardTest` and not wired to anything yet).
  * `doc/TV-APP.md`, "What it does not do yet", says what that move still
- * needs; wave 26 stopped short of it.
+ * needs; wave 29 moved the app's own page to `WebViewAssetLoader` (step 1),
+ * and the listener itself is step 3.
  *
  * Pure, so BridgeGuardTest and PairingBridgeTest pin it.
  */
 object BridgeGuard {
+	/** The host `WebViewAssetLoader` serves the app's own page from (c549). */
+	const val ASSET_HOST = "appassets.androidplatform.net"
+
 	/** The app's own page (9A, 9B, 9D, S5, S7, S8, S9), whatever its fragment. */
-	const val ASSET = "file:///android_asset/pair/index.html"
+	const val ASSET = "https://$ASSET_HOST/pair/index.html"
 
 	/**
-	 * The origin `WebViewAssetLoader` serves the pair page from once item 1 of
-	 * `doc/TV-APP.md`'s order lands (`https://appassets.androidplatform.net/pair/index.html`).
-	 * The move has not happened yet: the page still loads from [ASSET], whose
-	 * `file://` origin is opaque, so no message from it can pass
-	 * [allowsMessage] until the move.
+	 * The origin the pair page loads from since c549: `WebViewAssetLoader`
+	 * serves [ASSET] there in `MainActivity.shouldInterceptRequest`, and every
+	 * other path on that host is answered 404 by the app, so a real network
+	 * answer at that host is never trusted. A message from the page carries
+	 * this as its `sourceOrigin`, which is what [allowsMessage] trusts.
 	 */
-	const val ASSET_ORIGIN = "https://appassets.androidplatform.net"
+	const val ASSET_ORIGIN = "https://$ASSET_HOST"
+
+	/** The app's own page, and nothing else: [ASSET] with a fragment or a query. */
+	fun isAsset(url: String?): Boolean {
+		val u = url?.trim().orEmpty()
+		return u == ASSET || u.startsWith("$ASSET#") || u.startsWith("$ASSET?")
+	}
 
 	fun allows(url: String?, known: (String) -> Boolean): Boolean {
 		val u = url?.trim().orEmpty()
-		if (u == ASSET || u.startsWith("$ASSET#") || u.startsWith("$ASSET?")) return true
+		if (isAsset(u)) return true
 		if (!u.startsWith("http://", ignoreCase = true) && !u.startsWith("https://", ignoreCase = true)) return false
 		val origin = Address.originOf(u) ?: return false
 		return known(origin)
@@ -65,8 +75,10 @@ object BridgeGuard {
 	 * and `http://host/series/12` are refused as well as `http://host?x=1`.
 	 * Everything else is refused: the opaque `"null"` (a `file://` page's
 	 * report), an absent origin, `""`, `about:`, `data:`, `javascript:`, and
-	 * [ASSET] itself. That is why the asset page has to move to
-	 * `WebViewAssetLoader` before this rule can be wired to a listener.
+	 * [ASSET] itself (a URL with a path is not an origin). The asset page now
+	 * loads from [ASSET_ORIGIN] through `WebViewAssetLoader` (c549, item 1 of
+	 * `doc/TV-APP.md`'s order), which is what makes this rule's asset branch
+	 * reachable; the listener itself is still item 3 and not built.
 	 *
 	 * A known server is compared through [Address.originOf], as the top-level
 	 * guard's is, and [Address.originOf] lower-cases the scheme and the host
