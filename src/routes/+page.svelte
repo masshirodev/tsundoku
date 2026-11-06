@@ -702,7 +702,9 @@
 	 * band after ✕, and a band's UNDO refusal moved into the next selection's
 	 * bar. So the page remembers which answer the owner has passed (SELECT, ✕,
 	 * or any other form sent since) and which one a band's UNDO brought: the
-	 * second is drawn as a band with SELECT off, every other in `.fold-refused`.
+	 * second is drawn as a band whatever SELECT is doing (c469's round 3: the
+	 * bands stay up while selecting, so an UNDO pressed then refused there),
+	 * every other in `.fold-refused`.
 	 */
 	let passed = $state.raw<typeof form>(null);
 	let undoAnswer = $state.raw<typeof form>(null);
@@ -1569,12 +1571,16 @@
 			</Band>
 		</div>
 	{/if}
-	{#if undoMessage && !selecting}
-		<!-- A refusal with no bulk bar to stand over (c469): an UNDO on one of the
-		     bands above refused, the library having moved on (c308). The band's
-		     own refusal shape, as the series and Work screens draw theirs. A
-		     refusal from the bulk bar or the GROUP sheet stays in the bar's
-		     `.fold-refused` line, and goes with ✕. -->
+	{#if undoMessage}
+		<!-- A refusal of a band's UNDO (c469): an UNDO on one of the bands above
+		     refused, the library having moved on (c308). It is drawn whatever
+		     `selecting` is: the bands stay up while a selection is open, so an
+		     UNDO pressed then refused there too, and the bar's `.fold-refused`
+		     line is not where a band's own answer belongs. The band's own
+		     refusal shape, as the series and Work screens draw theirs. A refusal
+		     from the bulk bar or the GROUP sheet stays in the bar's line, and
+		     goes with ✕; this one goes when any form is sent or ✕/SELECT is
+		     pressed (`passed`). -->
 		<div class="lib-band">
 			<Band title={undoMessage} detail="NOTHING CHANGED" />
 		</div>

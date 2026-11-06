@@ -43,7 +43,7 @@ FORM splits the library by shape, which a kind band cannot say:
 - **ONE-OFF**: single books -- a series of a kind GROUP binds into a series
   of books, holding one book or none. Since c558 (the owner, 2026-11-05: an
   extra doesn't make a series) one rule says what a book is, and every reader
-  in the library's and the binder's code counts with it:
+  counts with it:
   - **the kinds** are the registry's `grouping === 'books'`
     (`kindsGrouped('books')`, `src/lib/library/kinds.ts`; today the doujin
     alone), never a kind's name;
@@ -52,7 +52,7 @@ FORM splits the library by shape, which a kind band cannot say:
     (`matter != ''`, an extra): `isBookSql` in `src/lib/server/books.ts`.
     The library card's `entryCount` counts exactly these rows.
 
-  The readers, all on `isBookSql` or the card's `entryCount`:
+  The readers, all on `isBookSql`, `entryCount` or the same two conditions:
   - the server's `ONE_OFF_SQL` (`src/lib/server/books.ts`, which
     `src/lib/server/library.ts` imports: FORM's count, its grid, and the old
     `oneoff` and `series` shelves);
@@ -63,37 +63,50 @@ FORM splits the library by shape, which a kind band cannot say:
     `bookCount`);
   - `seriesOfBooks` (`books.ts`): where MOVE TO… and ADD TO EXISTING send a
     book, a series of two books or more, and its `N BOOKS`;
-  - `singletonCandidates` (`books.ts`): the books a suggestion may name;
-  - FOLD AS LANGUAGES: the bulk bar offers it over cards with
-    `entryCount === 1` (`src/routes/+page.svelte`, `foldCodes`), and
-    `?/fold` (`src/routes/+page.server.ts`) counts and picks the book's own
-    entry with `isBookSql`, so an extra stays where it is.
-
-  Two readers do **not** agree yet, both in files outside the library's and
-  the binder's code (`doc/handoff-notes/works.md`, wave 26, Gaps 1 and 2,
-  carry their patches): `isBookSeries` (`src/lib/library/series.ts`) counts
-  the series screen's entries with extras in, so that screen draws a book
-  and its extra as a series of books; and `src/lib/server/people.ts` counts a
-  person's page's series by `edition_of IS NULL` (a set-aside duplicate and
-  an extra in), which no FORM reads. This lists every reader:
+  - the series screen's `isBookSeries` (`src/lib/library/series.ts`): whether
+    a doujin's contents are a cover grid of books;
+  - a person's page (`src/lib/server/people.ts`): its `entries` and pages are
+    books, and its `groupable` is a book with nothing beside it (below), the
+    one `groupIntoSeries` binds;
+  - `singletonCandidates` (`books.ts`): the books a suggestion may name, one
+    book with nothing else in the series (below).
 
   ```sh
-  rg -n "isBookSql\(|ONE_OFF_SQL|isOneOff\(|isSingleton\(|isBookSeries\(|entryCount !== 1|e\.edition_of IS NULL" src
+  rg -n "isBookSql\(|ONE_OFF_SQL|isOneOff\(|isSingleton\(|isBookSeries\(|entryCount !== 1|e\.edition_of IS NULL|entryIdsOf|foldEditions" src
   ```
 
   (`history.ts`'s `edition_of IS NULL` in that list picks an entry by
-  position, not a count of books.) So a doujin holding one book and an extra
-  is a ONE-OFF on FORM, the device and the binder, its count and its
-  filtered grid agree, MOVE TO and ADD TO EXISTING do not offer it as a
-  series, a suggestion may name it, and FOLD takes its book
-  (`tests/library-db.spec.ts`, "ONE-OFF counts one book the same way
-  everywhere (c558)"). Until then the server counted the extra as a book
+  position, not a count of books; the counts in `people.ts` and `?/fold` are
+  written out rather than through `isBookSql`, which is a string for an
+  `entries` alias.) So a doujin holding one book and an extra is a ONE-OFF on
+  FORM, the device and the binder, its count and its filtered grid agree,
+  MOVE TO and ADD TO EXISTING do not offer it as a series, the series screen
+  draws it as one book, a person's page counts it as one, and no suggestion
+  names it (`tests/library-db.spec.ts`, "ONE-OFF counts one book the same way
+  everywhere (c558)"). Before c558 the server counted the extra as a book
   (SERIES) and the device did not (ONE-OFF), the binder counted a shadowed
-  duplicate, and MOVE TO offered the book as a series of `2 BOOKS`. GROUP
-  still refuses to bind such a book (`"…" holds an extra or a duplicate
-beside its book, which grouping can't carry`): it moves the book alone, and
-  the emptied singleton's delete would take the extra with it. So a
-  suggestion that names it refuses at GROUP, with those words, in the sheet.
+  duplicate, and MOVE TO offered the book as a series of `2 BOOKS`.
+
+  **GROUP still refuses to bind such a book** (`"…" holds an extra or a
+duplicate beside its book, which grouping can't carry`): it moves the book
+  alone, and the emptied singleton's delete would take the extra with it. So
+  every place that offers a book to GROUP asks what GROUP binds -- one book
+  **and** nothing beside it, which is `entryIdsOf(…).length === 1`: the
+  series screen's suggestion (`singletonCandidates`) and a person's page's
+  `groupable`. Binding a book's extras along with it would be its own card.
+
+  **FOLD AS LANGUAGES is a different rule** (c558's round 3): the bulk bar
+  offers it over cards with `entryCount === 1` (`src/routes/+page.svelte`,
+  `foldCodes`), but it ends in the duplicates review's `foldEditions`, which
+  folds one `edition_of IS NULL` entry (`entryIdsOf`, `src/lib/server/books.ts`)
+  and leaves a folded edition beside the book out of the count. So `?/fold`
+  (`src/routes/+page.server.ts`) accepts only a book that `isBookSql` counts
+  once **and** `edition_of IS NULL` counts once: a folded edition beside the
+  book still passes, an extra or a set-aside duplicate is refused with `A BOOK
+WITH AN EXTRA OR A DUPLICATE BESIDE IT CAN'T FOLD` rather than sent to a review
+  that would swallow it (`applyPending` in `src/lib/server/dupes.ts` no longer
+  marks a refused decision applied; it stays waiting, and UNDO can still forget
+  it).
 
 - **SERIES**: everything else. A Mihon series with one chapter so far is
   still a series, except from a gallery source, whose galleries are books

@@ -459,9 +459,11 @@ export const actions: Actions = {
 	 * FOLD AS LANGUAGES (doc/EDITIONS.md): two or three single books, one per
 	 * language, go to the duplicates review as a pair to fold -- the review is
 	 * where editions are folded, whoever found them. A single book is one as
-	 * ONE-OFF counts it (`isBookSql`, c558), which is also how the bar's
-	 * `entryCount` offers FOLD: an extra beside the book stays where it is, and
-	 * the book's own entry is the one offered to fold.
+	 * ONE-OFF counts it (`isBookSql`, c558) WITH nothing beside it: FOLD lands
+	 * in `foldEditions`, which folds one `edition_of IS NULL` entry (a folded
+	 * edition beside the book is left out and still passes), so a book with an
+	 * extra or a set-aside duplicate is refused here rather than sent to a
+	 * review that cannot carry it out (`doc/FILTERS.md`).
 	 */
 	fold: async ({ request }) => {
 		const target = ids(await request.formData());
@@ -470,12 +472,15 @@ export const actions: Actions = {
 		const rows = getDb()
 			.prepare(
 				`SELECT s.id, s.kind, (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND ${isBookSql('e')}) AS n,
+					(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.edition_of IS NULL) AS whole,
 					(SELECT MIN(e.id) FROM entries e WHERE e.series_id = s.id AND ${isBookSql('e')}) AS entry
 				FROM series s WHERE s.id IN (${target.map(() => '?').join(',')})`
 			)
-			.all(...target) as { id: number; kind: string; n: number; entry: number }[];
+			.all(...target) as { id: number; kind: string; n: number; whole: number; entry: number }[];
 		if (rows.length !== target.length || rows.some((r) => r.kind !== 'doujin' || r.n !== 1))
 			return fail(400, { foldMessage: 'ONLY SINGLE BOOKS FOLD' });
+		if (rows.some((r) => r.whole !== 1))
+			return fail(400, { foldMessage: 'A BOOK WITH AN EXTRA OR A DUPLICATE BESIDE IT CAN’T FOLD' });
 		const key = await offerFold(target.map((id) => rows.find((r) => r.id === id)!.entry));
 		if (!key) return fail(400, { foldMessage: 'THEIR PAGES DON’T MATCH · NOT ONE BOOK' });
 		redirect(303, `/duplicates?pair=${encodeURIComponent(key)}`);

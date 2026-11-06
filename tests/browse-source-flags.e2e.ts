@@ -492,7 +492,15 @@ test('CONCEAL ITS SERIES hides what the source shows, a Work whole, says so, and
 		// Put back what the case made: the hidden series shown, the Work ended.
 		await reveal(context, true);
 		await post('/?/hide', { id: String(gallery), on: '0' });
-		if (workId) await post(`/work/${workId}?/ungroup`, {});
+		// c583: every Work door wants the Work's own moment (`made`), or the
+		// writer refuses as stale; read it off the screen the way the owner's
+		// form carries it, and assert the cleanup landed.
+		if (workId) {
+			const made = await page
+				.goto(url(`/work/${workId}`))
+				.then(() => page.locator('input[name="made"]').first().inputValue());
+			expect((await post(`/work/${workId}?/ungroup`, { made })).ok()).toBe(true);
+		}
 		await reveal(context, false);
 	}
 });

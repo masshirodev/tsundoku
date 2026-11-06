@@ -421,17 +421,27 @@ hidden already now says `TAKEN OUT · ALREADY HIDDEN`.
 
 **A refused UNDO is said where it was pressed** (c469). On the library, an
 UNDO the library has moved past (c308) answers `workMessage`, which the page
-drew only in the bulk bar's `.fold-refused` line, so with SELECT off a band's
-UNDO refused in silence. With no selection open the refusal is now a band of
-its own in the shape the series and Work screens use (`<REASON> · NOTHING
-CHANGED`). Each refusal stays where it was answered, and only until the owner
-moves on (c469's round 2): the band draws only an answer a band's UNDO
-brought, and goes with SELECT or any other form sent; a refusal answered over
-the bulk bar (FOLD AS LANGUAGES, GROUP's stale ADD TO A WORK) stays in the
-bar's `.fold-refused` line and goes with ✕, never turning into a band. The
-page keeps both apart itself, since SvelteKit keeps an action's answer in
-`form` until the next one (`src/routes/+page.svelte`, `passed` and
-`undoAnswer`).
+drew only in the bulk bar's `.fold-refused` line, so a band's UNDO refused in
+silence. The refusal is now a band of its own in the shape the series and Work
+screens use (`<REASON> · NOTHING CHANGED`), drawn whatever SELECT is doing: the
+bands (`made`, `addedWork`, `hideFacts`, `showFacts`) stay up while a selection
+is open, so their UNDO can be pressed then too, and it used to refuse with
+nothing on the screen. Each refusal stays where it was answered, and only
+until the owner moves on (c469's rounds 2 and 3): the band draws only an
+answer a band's UNDO brought, and a refusal answered over the bulk bar (FOLD
+AS LANGUAGES, GROUP's stale ADD TO A WORK) stays in the bar's `.fold-refused`
+line and goes with ✕, never turning into a band. The page keeps both apart
+itself, since SvelteKit keeps an action's answer in `form` until the next one
+(`src/routes/+page.svelte`, `passed` and `undoAnswer`).
+
+Which submits retire a refusal? **Every form sent on the library page**
+(`<svelte:window onsubmitcapture>` sets `passed` to the `form` of that moment),
+plus SELECT and ✕ (both go through it as well). That is deliberate: an answer
+belongs to the press that asked, and the next press -- even one the page's
+enhance later cancels, or one in a sheet that never answers -- means the owner
+has moved on. So a refusal is never carried across an action; a refused fold
+or a stale ADD is re-read from its own answer, never from the one before. A
+reload is SvelteKit's own: `form` is gone with the navigation.
 
 With reveal off, the series screen no longer exists after either answer, so the
 library carries the band: `HIDE ALL n` says the Work was hidden whole, and

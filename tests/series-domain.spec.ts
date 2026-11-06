@@ -236,6 +236,15 @@ describe('a series of books', () => {
 		expect(isBookSeries({ kind: 'manga', entries: books })).toBe(false);
 	});
 
+	// c558's Gap 1: an extra is not a book, as FORM and `isSingleton` already
+	// say (doc/FILTERS.md); this screen's question answers the same way.
+	it('does not count an extra beside a single book as a second book', () => {
+		const book = books.slice(0, 1);
+		const extra = { ...books[1], matter: 'back' as const };
+		expect(isBookSeries({ kind: 'doujin', entries: [...book, extra] })).toBe(false);
+		expect(isBookSeries({ kind: 'doujin', entries: [...books.slice(0, 2), extra] })).toBe(true);
+	});
+
 	it('continues at the book in progress, naming it by position', () => {
 		expect(continueAction(doujins)).toMatchObject({
 			label: 'CONTINUE',

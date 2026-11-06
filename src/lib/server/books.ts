@@ -721,8 +721,11 @@ export function setBookFavourite(seriesId: number, entryId: number, on: boolean)
 
 /**
  * Visible one-book series: the only things a suggestion may name. One book
- * as ONE-OFF counts it (`isBookSql`, c558), so a book with an extra or a
- * folded edition beside it is a candidate too.
+ * as ONE-OFF counts it (`isBookSql`, c558), and nothing beside it: a
+ * suggestion must be something GROUP can bind, and `groupIntoSeries` refuses
+ * a book with an extra or a set-aside duplicate next to it (it moves the book
+ * alone, and the emptied singleton's delete would take the rest with it). A
+ * folded edition beside the book is left out of both counts, as EDITIONS says.
  */
 function singletonCandidates(
 	reveal: boolean
@@ -732,7 +735,8 @@ function singletonCandidates(
 			`SELECT s.id AS seriesId, s.title, s.hue, s.added_at AS addedAt, s.cover_at AS cover
 			FROM series s JOIN roots r ON r.id = s.root_id
 			WHERE ${kindsIn('books')} AND ${libraryWhere(reveal)}
-			AND (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND ${isBookSql('e')}) = 1`
+			AND (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND ${isBookSql('e')}) = 1
+			AND (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.edition_of IS NULL) = 1`
 		)
 		.all() as (Candidate & { hue: number; addedAt: number; cover: number | null })[];
 }

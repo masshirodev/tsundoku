@@ -56,6 +56,13 @@ let server: ChildProcess | null = null;
 test.use({ baseURL: base });
 
 test.beforeAll(async () => {
+	// This hook seeds the file's own database and waits up to 60 s for its own
+	// preview (below), which is past the default 30 s on a loaded box; in a
+	// hook, test.setTimeout sets the hook's own budget (Playwright's test.d.ts,
+	// "Changing timeout for a beforeAll"). Measured here on 2026-11-05 at a
+	// 1-minute load average of about 10: the hook took 2.1 s (seed, spawn and
+	// the first answer), the way work-end-frame's hook was measured (c599).
+	test.setTimeout(120_000);
 	wipe();
 	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
 		env: { ...process.env, DATABASE_PATH: dbPath, NODE_NO_WARNINGS: '1' },
@@ -1382,6 +1389,75 @@ test('a refused UNDO on the library says why with no selection open (c469)', asy
 	await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toBeVisible();
 	await expect(refusal).toHaveCount(0);
 	await expect(page.locator('.lib-band .band')).toHaveCount(0);
+});
+
+/**
+ * c469's round 3: the bands stay drawn while a selection is open, so their
+ * UNDO can be pressed then too, and its refusal has to be said there as well.
+ * The refusal band used to be gated on `!selecting`, so a refusal pressed
+ * under SELECT showed nowhere and UNDO looked as if it had worked. Reached
+ * through the app as the case above: GROUP's band is up in one tab while the
+ * other takes a part out and ends the Work, but here SELECT is pressed before
+ * the band's UNDO. The refusal is the band (not the bar's line), and ✕ retires
+ * it without bringing it back.
+ */
+test('a band’s UNDO refused while a selection is open says so, and ✕ retires it (c469)', async ({
+	page,
+	context
+}) => {
+	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren'], 'Refused Run Too');
+	const made = page.locator('.band', { hasText: 'REFUSED RUN TOO IS A WORK' });
+	await expect(made).toBeVisible();
+
+	const other = await context.newPage();
+	await other.goto('/');
+	await openWork(other, 'Refused Run Too');
+	await other.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await other.locator('.run .part', { hasText: 'Sousou no Frieren' }).locator('.rowlink').click();
+	await other.getByRole('button', { name: 'TAKE OUT' }).click();
+	await expect(
+		other.locator('.band', { hasText: 'REFUSED RUN TOO IS NO LONGER A WORK' })
+	).toBeVisible();
+	await other.close();
+
+	// SELECT first: the band is still drawn, and the Undo is still its own.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
+	await expect(made).toBeVisible();
+	await made.getByRole('button', { name: 'UNDO' }).click();
+	const refusal = page.locator('.band', {
+		hasText: 'REFUSED RUN TOO HAS CHANGED SINCE IT WAS MADE'
+	});
+	await expect(refusal).toBeVisible();
+	await expect(refusal).toContainText('NOTHING CHANGED');
+	// The band's own answer, not the bar's: the line is for bulk answers.
+	await expect(page.locator('.fold-refused')).toHaveCount(0);
+	// Still selecting, and the refusal stayed where the band is.
+	await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
+	await expect(workTile(page, 'Refused Run Too')).toHaveCount(0);
+
+	// Any other form sent says the owner has moved on (the r2 low: every form
+	// on the page retires a refusal, even one whose enhance answers nothing).
+	// HIDE over one ticked series is the cheapest real press: it answers
+	// `{ok: true}`, so it draws no band of its own.
+	await tileByTitle(page, 'Dungeon Meshi').locator('.open').click();
+	await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+	await expect(refusal).toHaveCount(0);
+	await expect(page.locator('.lib-band .band')).toHaveCount(0);
+	// Give the series back (the HIDE above changed only this file's database).
+	const db = new Database(dbPath);
+	db.prepare(`UPDATE series SET hidden = 0, public = 0 WHERE title = 'Dungeon Meshi'`).run();
+	db.close();
+
+	// ✕ moves the owner on: neither place repeats it, then or on the next SELECT.
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toBeVisible();
+	await expect(refusal).toHaveCount(0);
+	await expect(page.locator('.lib-band .band')).toHaveCount(0);
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
+	await expect(refusal).toHaveCount(0);
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
 });
 
 /**
