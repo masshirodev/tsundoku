@@ -552,12 +552,18 @@
 	type TvServer = { origin: string; shown: string; inUse: boolean };
 	let tvServers = $state<TvServer[] | null>(null);
 
-	function readTvServers(): TvServer[] | null {
+	/**
+	 * The bridge's answer as a list of servers, or null for anything that is
+	 * not one. It may answer now (today's JavaScript interface) or later (a
+	 * message listener answers a Promise): this awaits either, so the page can
+	 * be moved onto the message transport without reading a Promise as a string.
+	 */
+	async function readTvServers(): Promise<TvServer[] | null> {
 		if (typeof window === 'undefined') return null;
 		const bridge = (window as unknown as { TsundokuTV?: { servers?: unknown } }).TsundokuTV;
 		if (!bridge || typeof bridge.servers !== 'function') return null;
 		try {
-			const list: unknown = JSON.parse(String((bridge.servers as () => unknown)()));
+			const list: unknown = JSON.parse(String(await (bridge.servers as () => unknown)()));
 			if (!Array.isArray(list)) return null;
 			const ok = (s: unknown): s is TvServer =>
 				!!s &&
@@ -574,6 +580,20 @@
 	}
 
 	/**
+	 * The newest read: an answer to an older question is dropped, not drawn, so
+	 * a slow first answer cannot overwrite a fast second one. Nothing is drawn
+	 * once the page has gone either.
+	 */
+	let serverRead = 0;
+	let mounted = false;
+	async function refreshTvServers(): Promise<void> {
+		const at = ++serverRead;
+		const list = await readTvServers();
+		if (at !== serverRead || !mounted) return;
+		tvServers = list;
+	}
+
+	/**
 	 * The cell's name, or null for no cell: two or more servers, one of them in
 	 * use. In use is this page's own server (`inUseOf`), not the bridge's flag,
 	 * which right after a switch still names the server just left.
@@ -585,11 +605,15 @@
 	});
 
 	onMount(() => {
-		tvServers = readTvServers();
+		mounted = true;
+		void refreshTvServers();
 		// Again a tick later: the layout's onMount, which runs after this one,
 		// tells the app the server's own name (`named`), and a server the TV
 		// had not named yet would otherwise show its bare host until MORE closes.
-		void tick().then(() => (tvServers = readTvServers()));
+		void tick().then(refreshTvServers);
+		return () => {
+			mounted = false;
+		};
 	});
 
 	function openMore(at: 'more' | 'servers') {
@@ -606,14 +630,19 @@
 	function closeMore() {
 		moreOpen = false;
 		const had = onServer !== null;
-		tvServers = readTvServers();
-		if (had && onServer === null && moreAt === 'servers') {
-			void tick().then(() => {
-				const now = document.activeElement;
-				if (now && now !== document.body && !now.closest('[role="dialog"]')) return;
-				document.querySelector<HTMLElement>('[data-focus-id="library-more"]')?.focus();
-			});
-		}
+		// The list is read again once the sheet is closed, and the hand-back
+		// waits for the answer: a bridge that answers late must land before the
+		// cell and the focus are decided.
+		void refreshTvServers().then(() => {
+			if (!mounted) return;
+			if (had && onServer === null && moreAt === 'servers') {
+				void tick().then(() => {
+					const now = document.activeElement;
+					if (now && now !== document.body && !now.closest('[role="dialog"]')) return;
+					document.querySelector<HTMLElement>('[data-focus-id="library-more"]')?.focus();
+				});
+			}
+		});
 	}
 
 	function toggle(id: number) {
