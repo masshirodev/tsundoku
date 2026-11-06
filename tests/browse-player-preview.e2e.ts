@@ -425,6 +425,11 @@ test.describe('a stream', () => {
 		const segments: string[] = [];
 		let playlists = 0;
 		let healthy = false;
+		// The playlist's failure comes after the stop's second has given up
+		// (hls.js retries once, a second later): nothing may be left to throw it
+		// at the page as an unhandled rejection (c573).
+		const errors: string[] = [];
+		page.on('pageerror', (e) => errors.push(e.message));
 		await serveHls(page, segments);
 		// A hoster's 503 on every playlist until the test says otherwise, so
 		// hls.js's own retry fails too and the error is fatal. (Routed after
@@ -445,6 +450,7 @@ test.describe('a stream', () => {
 		await expect(tip.locator('.at')).toHaveText('0:02');
 		await expect(tip.locator('.frame')).toHaveCount(0);
 		expect(segments).toEqual([]);
+		expect(errors).toEqual([]);
 		const refused = playlists;
 
 		healthy = true;
@@ -453,6 +459,7 @@ test.describe('a stream', () => {
 		await expect(tip.locator('.frame')).toBeVisible({ timeout: 5000 });
 		expect(playlists).toBeGreaterThan(refused);
 		expect(segments).toEqual(['seg2.m4s']);
+		expect(errors).toEqual([]);
 	});
 });
 
