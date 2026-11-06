@@ -61,8 +61,9 @@ export type KindFacts = {
 
 /**
  * The registry. Its key order is `KINDS`'s order, which is `FILTER_KINDS`'s,
- * which is the order the FILTER panel lists kind chips in
- * (`kindsAmong`, filters.ts; `src/lib/server/library.ts:440`).
+ * which is the order the FILTER panel lists kind chips in and the KIND band
+ * its cells (`kindsAmong` and `kindCells`, filters.ts, the band's over
+ * `kindCounts`, `src/lib/server/library.ts`).
  *
  * `as const` keeps each entry's literals, so `MoveKind` and `SourceKind` are
  * derived at the type level rather than restated.

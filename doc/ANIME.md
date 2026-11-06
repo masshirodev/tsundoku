@@ -90,8 +90,9 @@ Pure, and what every screen reads (`tests/anime.spec.ts`):
 
 ## The screens
 
-- **The library**: an ANIME shelf after NOVELS, while the library has some,
-  as every kind shelf (`KIND_SHELVES`, `server/library.ts`).
+- **The library**: an ANIME cell on the KIND band while the shelf has some,
+  as every kind (`kindCounts`, `server/library.ts`; c436 retired the kind
+  shelves).
 - **The series screen** is c94's (Index Anime Series): the meta line "ANIME ·
   ANIMEPAHE · ONGOING", the count "24 EPISODES · 2 SEASONS · 18 WATCHED" under
   the titles, RATING, FAV, CONTINUE, DOWNLOAD, SHELVES, LINK, FILE. No
