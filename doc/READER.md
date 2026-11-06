@@ -546,7 +546,9 @@ and "when I click down or up it pans to the next sections").
   and a jump to another chapter, which stops it at once so the repeats are not
   the new chapter's. **A strip crossing is not a jump**: scrolling on across a
   band keeps the strip and the pages around it, so the glide, the wheel's ease
-  and a held arrow all read on through it (c668).
+  and a held arrow all read on through it (c668). A second scroll key during a
+  hold takes over from where the strip is: the hold ends and the new key glides
+  its own step.
 - **The speed and direction are the press's own** (c668). A repeat re-reads
   its own modifiers, so releasing Ctrl mid-hold would jump a nudge to a
   screen's speed and Shift mid-Space would turn it round; the first press's
