@@ -173,7 +173,13 @@ beforeAll(async () => {
 			return res.writeHead(302, { location: `http://127.0.0.1:${otherPort}/` }).end();
 		res.writeHead(404).end();
 	});
-	other = createServer((req, res) => res.end(`cookie=${req.headers.cookie ?? 'none'}`));
+	other = createServer((req, res) => {
+		const u = new URL(req.url ?? '/', 'http://x');
+		// The page a chapter moved to when another host kept its path (c631).
+		if (u.pathname === '/moved/host/chapter/1')
+			return res.writeHead(200, { 'content-type': 'text/html' }).end('<p>other host</p>');
+		res.end(`cookie=${req.headers.cookie ?? 'none'}`);
+	});
 	challenged = createServer((req, res) => {
 		const u = new URL(req.url ?? '/', 'http://x');
 		seen.push({ cookie: req.headers.cookie ?? '', agent: req.headers['user-agent'] ?? '' });
@@ -243,12 +249,21 @@ beforeAll(async () => {
 		// A chapter this host itself follows a redirect for: the shape is a real
 		// host's, measured on 2026-11-06 — wuxiaworld.com's apex answers
 		// `301 location: https://www.wuxiaworld.com/novel/martial-god-asura/chapter-1`
-		// for the same path on www (c631). Here it also moves the path, so the
-		// address and a chapter's relative pictures differ.
+		// for the same path on www (c631). One keeps the path on another host,
+		// as that does; the other also moves the path, so the address and a
+		// chapter's relative pictures differ.
+		if (u.pathname === '/moved/host/chapter/1')
+			return res
+				.writeHead(301, { location: `http://localhost:${otherPort}/moved/host/chapter/1` })
+				.end();
 		if (u.pathname === '/moved/chapter/1')
 			return res.writeHead(301, { location: '/moved/deep/chapter-1' }).end();
 		if (u.pathname === '/moved/deep/chapter-1')
 			return res.writeHead(200, { 'content-type': 'text/html' }).end('<p>moved, no check</p>');
+		// A chapter asked with a space in its path: the URL names it encoded, and
+		// the downloader's own spelling of the chapter is the encoded one (c631).
+		if (u.pathname === '/moved/space/chapter%201')
+			return res.writeHead(200, { 'content-type': 'text/html' }).end('<p>spaced chapter</p>');
 		// A chapter a plugin reads through an API instead: no page address at all.
 		if (u.pathname === '/plainapi.json')
 			return res
@@ -363,6 +378,24 @@ describe('a plugin, through the host', () => {
 		expect(await host.chapter(bound, 'api')).toEqual({
 			html: JSON.stringify(['chapter-a']),
 			url: null
+		});
+	});
+
+	it('gives the other host’s address when a redirect keeps the path and changes the host (c631)', async () => {
+		// Wuxia World's apex → www `301` is the shape: the same path on another
+		// host, so a root-relative picture belongs to that host, not this one.
+		expect(await host.chapter(bound, '/moved/host/chapter/1')).toEqual({
+			html: '<p>other host</p>',
+			url: `http://localhost:${otherPort}/moved/host/chapter/1`
+		});
+	});
+
+	it('matches a chapter the plugin spelled differently from its URL (c631)', async () => {
+		// The plugin asks for `…/chapter 1`; the URL names the same page
+		// `…/chapter%201`, which is how the downloader computes the chapter.
+		expect(await host.chapter(bound, '/moved/space/chapter 1')).toEqual({
+			html: '<p>spaced chapter</p>',
+			url: `http://127.0.0.1:${checkPort}/moved/space/chapter%201`
 		});
 	});
 });

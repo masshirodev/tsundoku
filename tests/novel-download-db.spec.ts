@@ -36,6 +36,13 @@ const fakeHost = {
 				html: '<p>Text of /c/moved.</p><img src="pic.png"><img src="/i/deep.png">',
 				url: 'https://good.example/other/place/c-9.html'
 			};
+		// A redirect that keeps the path and changes the host, which is how
+		// wuxiaworld.com's apex answers for www (measured on 2026-11-06).
+		if (path === '/c/hostmoved')
+			return {
+				html: '<p>Text of /c/hostmoved.</p><img src="/i/plate.png">',
+				url: 'https://www.good.example/c/hostmoved'
+			};
 		if (path === '/c/self')
 			return { html: '<p>Text of /c/self.</p><img src="/i/plate.png">', url: null };
 		return {
@@ -415,6 +422,13 @@ describe('a chapter’s pictures resolve against the page it came from (c631)', 
 			'https://good.example/other/place/pic.png',
 			'https://good.example/i/deep.png'
 		]);
+	});
+
+	it('puts a root-relative picture on the host a redirected chapter moved to', async () => {
+		await one('Chapter 11', '/c/hostmoved');
+		// The path did not move; the host did, as an apex → www `301` does. A
+		// root-relative picture is that host's page's, not the plugin's site's.
+		expect(imagesAsked).toEqual(['https://www.good.example/i/plate.png']);
 	});
 
 	it('falls back to the plugin’s site when the plugin asked it for something else', async () => {

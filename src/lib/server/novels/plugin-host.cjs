@@ -54,10 +54,24 @@ const note = (why) => {
 	if (t && !t.why) t.why = why;
 };
 
-/** Keeps where [asked]'s request ended, for the call that made it. */
+/**
+ * Keeps where [asked]'s request ended, for the call that made it. Both are
+ * stored as the URLs they name, not as the strings the plugin typed: a plugin
+ * that spells a chapter `…/a b.html`, or with an upper-case host, asks for the
+ * same page as the encoded spelling the downloader computes, and a literal
+ * comparison would lose the address without saying so (c631).
+ */
 function noteAt(asked, at) {
 	const t = trouble.getStore();
-	if (t) t.urls.push({ asked, at });
+	if (!t) return;
+	const href = (u) => {
+		try {
+			return new URL(u).href;
+		} catch {
+			return u;
+		}
+	};
+	t.urls.push({ asked: href(asked), at: href(at) });
 }
 
 // ---- a fetch that stays on the internet ---------------------------------------------------
@@ -108,7 +122,9 @@ async function checkUrl(url) {
 async function guardedFetch(input, init = {}) {
 	let url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
 	// Where the plugin's own request began: a chapter's pictures are relative to
-	// the page this address ended at, not to the plugin's site (c631).
+	// the page this address ended at, not to the plugin's site (c631). `noteAt`
+	// stores both as URLs, so another spelling of the same address still
+	// matches the chapter the plugin asked for.
 	const asked = url;
 	const headers = new Headers(init.headers || {});
 	if (!headers.has('user-agent')) headers.set('user-agent', USER_AGENT);
