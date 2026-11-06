@@ -146,19 +146,23 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		// A chapter marked unread keeps the place it was left at, and a finished
 		// chapter's place is its last page (the finish event posts the block it
 		// ended on): resuming there would reopen a chapter the reader asked to
-		// start over at its bottom (c622, round 2). The place is the log's, not
-		// the marks': `?/mark` also serves the series screen's UNDO of a
-		// long-press MARK READ THROUGH, which writes the same `unread_at` over a
-		// mark that took a read back rather than a finish. So the saved place is
-		// an end place when every reading event since the last `finish` at or
-		// before the mark is at that finish's own block — the `page` the reader
-		// settles 800 ms after finishing and the `close` on leaving both repeat
-		// it (measured), while a read that moved the place does not. Any number
-		// of read/unread marks after a finish leaves it an end place. Only when
-		// nothing has been read since the last mark does it stay over; an
-		// import's own history rows carry the source's older `at`, so they do
-		// not count as reading since (c622's low), and a row that moved the
-		// place after the mark keeps the new place.
+		// start over at its bottom (c622, rounds 2 and 3). The place is the
+		// log's, not the marks': `?/mark` also serves the series screen's UNDO
+		// of a long-press MARK READ THROUGH, which writes the same `unread_at`
+		// over a mark that took a read back rather than a finish. What matters
+		// is whether a new reading session began after the finish, and every
+		// session of a chapter starts with an `open` for it: reading on past the
+		// finish in SCROLL (`page` at a later block, measured), turning back a
+		// page in PAGED, and the settle `page` all belong to the session that
+		// finished, so none of them ends the finish. An `open` at the finish's
+		// own block is that same session coming back (`?p=last` opens the page
+		// it ended on, measured), while one at another block is a re-read from a
+		// different place and keeps the new place. Any number of read/unread
+		// marks after a finish leaves it an end place. Only when nothing has
+		// been read since the last mark does the top stay off; an import's own
+		// history rows carry the source's older `at`, so they do not count as
+		// reading since (c622's low), and a row that moved the place after the
+		// mark keeps the new place.
 		const marked = getDb()
 			.prepare(
 				`SELECT
@@ -166,12 +170,12 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 						SELECT 1 FROM reading_events f
 						WHERE f.entry_id = e.id AND f.kind = 'finish' AND f.at <= e.unread_at
 							AND NOT EXISTS (
-								SELECT 1 FROM reading_events r
-								WHERE r.entry_id = e.id
-									AND r.kind IN ('open', 'page', 'finish', 'close')
-									AND r.at <= e.unread_at
-									AND r.page IS NOT f.page
-									AND (r.at > f.at OR (r.at = f.at AND r.id > f.id))
+								SELECT 1 FROM reading_events o
+								WHERE o.entry_id = e.id
+									AND o.kind = 'open'
+									AND o.at <= e.unread_at
+									AND o.page IS NOT f.page
+									AND (o.at > f.at OR (o.at = f.at AND o.id > f.id))
 							)
 					) AS end_place,
 					(SELECT 1 FROM reading_events r

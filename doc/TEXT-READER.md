@@ -227,6 +227,8 @@ which opens at its top. So:
 | a reload before the reader has settled                                                                                                                    | the server's saved place (the last `page` event), or the top                                                     |
 | a chapter finished, then marked unread (MARK UNREAD on the series screen)                                                                                 | its top, until it is read again                                                                                  |
 | a finished chapter, marked unread, then marked read and unread again, or a long-press MARK READ THROUGH over it and its UNDO (the same `?/mark`)          | its top: the marks are not what the log reads, the finish is                                                     |
+| a chapter finished in SCROLL and read on into the next chapter (a `page` at a later block), then marked unread                                            | its top: reading on belongs to the session that finished                                                         |
+| a chapter finished, a page turned back, and then marked unread                                                                                            | its top: the turn back belongs to the session that finished                                                      |
 | UNDO of a long-press MARK READ THROUGH, or a MARK READ and then MARK UNREAD before the chapter was finished (both the same `?/mark` on the series screen) | where it was left: a mark that took a read back, not a finish, leaves the place alone                            |
 
 An explicit `?at=0.0` is a place like any other: the top, whatever the server
@@ -240,20 +242,23 @@ page, because the `finish` event posts the block it ended on. A mark cannot
 tell a finished chapter from one only marked read, though, because the series
 screen's UNDO of a long-press MARK READ THROUGH posts the same `?/mark`, so the
 reader asks the log instead (`+page.server.ts`). It starts the chapter at its
-top only when there is a `finish` at or before `unread_at` and every reading
-event since it (`open`, `page`, `finish`, `close`) is at that finish's own
-block: the `page` the reader settles 800 ms after finishing and the `close` on
-leaving both repeat it, so neither ends the finish. A read that moved the place
-to another block does, and the place it left stays. The marks themselves decide
-nothing: a finished chapter marked unread, then marked read and unread again,
-or a long-press MARK READ THROUGH over it and its UNDO, still opens at its top.
-Only when nothing has been read since the last mark does it stay over; a row
-that moved the place after the mark keeps the new place, and an import's own
-history rows are older than the mark (`at` predates it), so they do not count
-as reading since. A `mark_read` with no finish — UNDO, or a mark read then
-unread by mistake — leaves the place where reading had it. A chapter re-opened
-and read on after the mark has a place saved after it, and resumes there like
-any other.
+top only when a `finish` at or before `unread_at` has no new reading session
+after it. Every session of a chapter starts with an `open` for it, so reading
+on past the finish, turning back a page, and the `page` the reader settles
+800 ms later all belong to the session that finished and leave it an end
+place (measured: a SCROLL finish at block 7, a `page` at block 10; a PAGED
+finish at block 12, a turn back's `page` at 11). An `open` at the finish's own
+block is that same session coming back — the previous chapter's last page
+(`?p=last`) opens where the finish ended (measured) — while an `open` at
+another block is a re-read from a different place and keeps the new place. The
+marks themselves decide nothing: a finished chapter marked unread, then marked
+read and unread again, or a long-press MARK READ THROUGH over it and its UNDO,
+still opens at its top. Only when nothing has been read since the last mark
+does it stay over; an import's own history rows are older than the mark (`at`
+predates it), so they do not count as reading since. A `mark_read` with no
+finish — UNDO, or a mark read then unread by mistake — leaves the place where
+reading had it. A chapter re-opened and read on after the mark has a place
+saved after it, and resumes there like any other.
 
 Until c622 an absent `?at=` read as the first character
 (`Number('')` was 0), so every one of those doors opened a novel at its
