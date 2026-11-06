@@ -18,7 +18,8 @@
 		name,
 		reveal,
 		undo,
-		refusal
+		refusal,
+		from = null
 	}: {
 		band: AddedBand;
 		/** The source's name, or null where reveal hides it. */
@@ -29,6 +30,12 @@
 		undo: string;
 		/** Why the last UNDO was refused, if it was. */
 		refusal: string | null;
+		/**
+		 * The tag origin the page was opened with (`backOrigin`'s answer), kept
+		 * through the post: without script the answer is a load of the action's
+		 * URL, and ← would go to the default cell without it (c664).
+		 */
+		from?: string | null;
 	} = $props();
 
 	const refused = $derived(
@@ -51,7 +58,8 @@
 	 */
 	const submit = $derived(
 		`${undo}&added=hidden&series=${band.seriesId}&preview=${encodeURIComponent(band.preview)}` +
-			(band.queued ? `&queued=${encodeURIComponent(band.queued)}` : '')
+			(band.queued ? `&queued=${encodeURIComponent(band.queued)}` : '') +
+			(from ? `&from=${encodeURIComponent(from)}` : '')
 	);
 </script>
 

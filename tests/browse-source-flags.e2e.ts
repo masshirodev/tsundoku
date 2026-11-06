@@ -418,6 +418,9 @@ test.describe('without script', () => {
 	}) => {
 		const coldPreview = `/downloads/source/${coldPreviewId}?from=${encodeURIComponent(`/browse/${COLD.id}`)}`;
 		const band = page.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' });
+		// Declared here, not in the try: a step that throws before its own close
+		// would leave the context open for the rest of the file (c665).
+		let setup: BrowserContext | undefined;
 		const mark = (series: number, entry: number, read: boolean) =>
 			page.request.post(url(`/series/${series}?/mark`), {
 				form: { read: read ? '1' : '0', entry: String(entry) },
@@ -431,7 +434,7 @@ test.describe('without script', () => {
 				// script never draws its button; the ADD is the state this case needs,
 				// not the door it walks, so it is made with script. COLD has nothing
 				// else here, so it lands on BROWSE, with the band.
-				const setup = await browser.newContext({
+				setup = await browser.newContext({
 					javaScriptEnabled: true,
 					storageState: await context.storageState()
 				});
@@ -453,7 +456,6 @@ test.describe('without script', () => {
 					)![1]
 				);
 				expect(entry).toBeGreaterThan(0);
-				await setup.close();
 
 				// Everything below is the browser with no script.
 				await page.goto(bandUrl);
@@ -493,6 +495,11 @@ test.describe('without script', () => {
 				await expect(page).toHaveURL(new RegExp(`/downloads/source/${coldPreviewId}`));
 			},
 			async () => {
+				// The context this case opened, if a step above threw before its own
+				// close. Soft, so a close that fails does not hide the body's error (c649).
+				await setup
+					?.close()
+					.catch((e) => expect.soft(e, 'the setup context closed').toBeUndefined());
 				await reveal(context, true);
 				await page.request.post(url(`/browse/${COLD.id}/settings?/flag`), {
 					form: { flag: 'addedHidden', value: 'false' },
@@ -527,6 +534,11 @@ test.describe('without script', () => {
 		const added: URLSearchParams[] = [];
 		let series = 0;
 		let entry = 0;
+		// Set when the reload's UNDO takes the series out: nothing left to unread.
+		let undone = false;
+		// Declared here, not in the try: a step that throws before its own close
+		// would leave the context open for the rest of the file (c665).
+		let setup: BrowserContext | undefined;
 		await reveal(context, false);
 		await flipAddedHidden(page, SOURCE.id, true);
 		await settle(
@@ -534,7 +546,7 @@ test.describe('without script', () => {
 				// The preview's ADD is a promise in its data, so a browser without
 				// script never draws its button; the ADDs and the read are the state
 				// this case needs, so they are made with script, as the case above does.
-				const setup = await browser.newContext({
+				setup = await browser.newContext({
 					javaScriptEnabled: true,
 					storageState: await context.storageState()
 				});
@@ -574,7 +586,6 @@ test.describe('without script', () => {
 					)![1]
 				);
 				expect(entry).toBeGreaterThan(0);
-				await setup.close();
 				await reveal(context, true);
 				expect((await mark(series, entry, true)).ok()).toBe(true);
 				await reveal(context, false);
@@ -595,12 +606,33 @@ test.describe('without script', () => {
 				await reveal(context, true);
 				expect((await page.request.get(url(`/series/${series}`))).status()).toBe(200);
 				await reveal(context, false);
+
+				// The refusal does not outlive its cause (c664): unread, and the same
+				// URL -- which a reload would load again -- draws UNDO, and the server
+				// takes it. A refusal that stayed would hide an UNDO it would accept.
+				await reveal(context, true);
+				expect((await mark(series, entry, false)).ok()).toBe(true);
+				await reveal(context, false);
+				await page.reload();
+				await expect(band).not.toContainText('NO UNDO');
+				await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
+				await band.getByRole('button', { name: 'UNDO' }).click();
+				// Accepted: undoing this one leaves the source with less than half its
+				// series hidden, so the preview is found again and opens.
+				await expect(page).toHaveURL(/\/downloads\/source\//);
+				await expect(band).toHaveCount(0);
+				undone = true;
 			},
 			async () => {
 				// Put back: unread, every ADD undone, and the switch off (reveal on,
 				// where the hidden source's settings page is found).
+				// The context this case opened, closed here whatever happened above;
+				// soft, so its own failure does not hide the body's (c649, c665).
+				await setup
+					?.close()
+					.catch((e) => expect.soft(e, 'the setup context closed').toBeUndefined());
 				await reveal(context, true);
-				if (entry) await mark(series, entry, false);
+				if (entry && !undone) await mark(series, entry, false);
 				for (const p of added)
 					await page.request.post(url('/browse?/undoAdd'), {
 						form: { series: p.get('series')!, preview: p.get('preview')! },

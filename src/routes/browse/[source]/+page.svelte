@@ -211,6 +211,7 @@
 			reveal={data.reveal}
 			undo="?/undoAdd"
 			refusal={form?.message ?? null}
+			from={data.back}
 		/>
 	{/if}
 

@@ -976,3 +976,80 @@ describe('BROWSE’s own band actions off the engine backend (c605)', () => {
 		}
 	});
 });
+
+describe('a refused UNDO’s landing and words (c664)', () => {
+	// The band's own form, as AddedBand posts it: series and preview, nothing else.
+	const form = (series: string, preview: string) => {
+		const f = new FormData();
+		f.set('series', series);
+		f.set('preview', preview);
+		return f;
+	};
+	// The least a band carries; only `touched` is asked by standingRefusal.
+	const band = (touched: boolean) => ({
+		seriesId: 1,
+		preview: 'preview',
+		entries: 1,
+		video: false,
+		queued: null,
+		touched,
+		sourceHidden: false,
+		sourceName: null
+	});
+	const landing = async (queued: string | null, status: 409 | 503) => {
+		const { refusedLanding } = await import('../src/routes/browse/added.server');
+		const preview = sourceMangaId(MANGA, '/manga/a');
+		const u = new URL(refusedLanding(form('7', preview), queued, status), 'http://x');
+		return { u, preview };
+	};
+
+	it('builds BROWSE’s own URL, carrying the band and the code and never the words', async () => {
+		for (const status of [409, 503] as const) {
+			const { u, preview } = await landing(null, status);
+			expect(u.pathname).toBe('/browse');
+			expect(Object.fromEntries(u.searchParams)).toEqual({
+				added: 'hidden',
+				series: '7',
+				preview,
+				refused: String(status)
+			});
+		}
+	});
+
+	it('keeps a queued count the band accepts, and drops one it does not', async () => {
+		for (const [queued, kept] of [
+			['down', true],
+			['3', true],
+			['soon', false],
+			['', false],
+			[null, false]
+		] as const) {
+			const { u } = await landing(queued, 409);
+			expect(u.searchParams.get('queued'), String(queued)).toBe(kept ? queued : null);
+		}
+	});
+
+	it('turns every code it can meet into words, and nothing else', async () => {
+		const { refusedWords, UNDO_REFUSED, UNDO_DOWN } =
+			await import('../src/routes/browse/added.server');
+		expect(refusedWords('409')).toBe(UNDO_REFUSED);
+		expect(refusedWords('503')).toBe(UNDO_DOWN);
+		for (const code of [null, '', '410', '409 ', '0', 'UNDO'])
+			expect(refusedWords(code), String(code)).toBeNull();
+	});
+
+	it('stands only while its cause does: a 409 needs the band touched, a 503 the engine down', async () => {
+		const { standingRefusal, UNDO_REFUSED, UNDO_DOWN } =
+			await import('../src/routes/browse/added.server');
+		// A 409 is "something of it is downloaded or read now": the band's own fact.
+		expect(standingRefusal('409', band(true), false)).toBe(UNDO_REFUSED);
+		expect(standingRefusal('409', band(false), false)).toBeNull();
+		// A 503 is "downloads are not answering now": the engine's own state.
+		expect(standingRefusal('503', band(false), true)).toBe(UNDO_DOWN);
+		expect(standingRefusal('503', band(true), false)).toBeNull();
+		// No band drawn, or a code with no words: nothing to say.
+		expect(standingRefusal('409', null, true)).toBeNull();
+		expect(standingRefusal('410', band(true), true)).toBeNull();
+		expect(standingRefusal(null, band(true), true)).toBeNull();
+	});
+});
