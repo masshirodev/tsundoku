@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 
@@ -53,6 +54,20 @@
 		() =>
 		async ({ result, update }) => {
 			await update();
+			if (result.type === 'failure') {
+				const data = result.data as Record<string, unknown> | undefined;
+				// The Work this sheet was drawn on has moved on (c640): the sheet
+				// cannot answer for it any more, so it closes, and the page is read
+				// again so its band is drawn over the Work there is now. GroupSheet
+				// does the same for c583's refusal (c584). The library's own use of
+				// this sheet acts on ids and never gets `stale`, so nothing changes
+				// there.
+				if (data?.stale === true) {
+					await invalidateAll();
+					onclose();
+					return;
+				}
+			}
 			if (result.type === 'success') ondone?.();
 		};
 </script>

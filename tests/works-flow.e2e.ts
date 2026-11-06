@@ -845,6 +845,122 @@ test('HIDE on a part asks: the Work whole, or take it out and hide it', async ({
 	await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
 });
 
+test('a Work control refused for a Work that moved on re-reads the screen, and the next press posts the new moment (c640)', async ({
+	page,
+	context
+}) => {
+	// The screen is drawn while the series is in Work A. In the owner's other
+	// tab A ends, and the same two series make Work B, which takes A's id under
+	// a new moment: the drawn screen's `made` now names no Work.
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Moved Run');
+	const workId = await openWork(page, 'Moved Run');
+	await page.locator('.run .part .rowlink').nth(1).click();
+	await page.waitForURL(/\/series\/\d+\?from=work/);
+	const sheet = page.getByRole('dialog', { name: /WORK$/ });
+	await page.locator('.prow.work-row .lk').click({ button: 'right' });
+	await expect(sheet).toBeVisible();
+	// The sheet was drawn on this Work, and says so in its own markup.
+	await expect(sheet.locator('a.lc')).toHaveAttribute('href', `/work/${workId}`);
+	const old = await sheet.locator('form[action="?/moveWork"] input[name="made"]').inputValue();
+	expect(old).toMatch(/^\d+$/);
+
+	const other = await context.newPage();
+	await other.goto('/');
+	await openWork(other, 'Moved Run');
+	await endWork(other);
+	await makeWorkExact(other, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Moved Run');
+	// The newer Work reuses the ended one's id: only their moments tell them apart.
+	expect(await openWork(other, 'Moved Run')).toBe(workId);
+
+	// MOVE is refused, and the band says why.
+	await sheet.getByRole('button', { name: '↑', exact: true }).click();
+	const refusal = page.locator('.band', { hasText: 'THAT WORK HAS CHANGED · LOOK AGAIN' });
+	await expect(refusal).toBeVisible();
+	await expect(refusal).toContainText('NOTHING CHANGED');
+	// Nothing in the sheet can answer for the Work it was drawn on, so it closes.
+	await expect(sheet).toHaveCount(0);
+
+	// The page was read again: the row and its sheet are drawn from the Work
+	// there is now, so the next press posts the new moment and goes through.
+	await page.locator('.prow.work-row .lk').click({ button: 'right' });
+	await expect(sheet).toBeVisible();
+	const fresh = await sheet.locator('form[action="?/moveWork"] input[name="made"]').inputValue();
+	expect(fresh).not.toBe(old);
+	await sheet.getByRole('button', { name: '↑', exact: true }).click();
+	await expect(refusal).toHaveCount(0);
+	// It moved in the newer Work: part 2 is that Work's part 1 now.
+	await other.goto(`/work/${workId}`);
+	await expect(other.locator('.run .part').nth(0)).toContainText('Isekai Yakkyoku');
+	await other.close();
+
+	// Done with it: the seed has no Work.
+	await page.goto(`/work/${workId}`);
+	await endWork(page);
+});
+
+test('a stale HIDE ALL n and UNHIDE close the sheet and re-read the screen too (c640)', async ({
+	page,
+	context
+}) => {
+	// The same defect at the other two doors: the HIDE sheet's HIDE ALL n
+	// (HideSheet's `after`) and the screen's UNHIDE (`replacingStale`). Each is
+	// drawn on one Work, refused once that Work has moved on, and the screen
+	// must be read again before the next press can post the new moment.
+	await revealOn(page);
+	const pair = ['Isekai Ojisan', 'Isekai Yakkyoku'];
+	await makeWork(page, pair, 'Hidden Run');
+	const workId = await openWork(page, 'Hidden Run');
+	await page.locator('.run .part .rowlink').nth(1).click();
+	await page.waitForURL(/\/series\/\d+\?from=work/);
+	const hideButton = page.locator('.file-row').getByRole('button', { name: 'HIDE', exact: true });
+	const hide = page.getByRole('dialog', { name: 'Hide' });
+	const refusal = page.locator('.band', { hasText: 'THAT WORK HAS CHANGED · LOOK AGAIN' });
+	const other = await context.newPage();
+
+	await other.goto('/');
+	await openWork(other, 'Hidden Run');
+	await endWork(other);
+	await makeWorkExact(other, pair, 'Hidden Run');
+	expect(await openWork(other, 'Hidden Run')).toBe(workId);
+
+	// HIDE ALL 2: refused, the sheet closes, and the screen is read again.
+	await hideButton.click();
+	await expect(hide).toBeVisible();
+	const hideOld = await hide.locator('form[action="?/hideWork"] input[name="made"]').inputValue();
+	expect(hideOld).toMatch(/^\d+$/);
+	await hide.getByRole('button', { name: /HIDE ALL 2/ }).click();
+	await expect(refusal).toBeVisible();
+	await expect(hide).toHaveCount(0);
+	await hideButton.click();
+	await expect(hide).toBeVisible();
+	await expect(hide.locator('form[action="?/hideWork"] input[name="made"]')).not.toHaveValue(
+		hideOld
+	);
+	await hide.getByRole('button', { name: /HIDE ALL 2/ }).click();
+	await expect(page.locator('.band', { hasText: 'HIDDEN · THE WORK, WHOLE' })).toBeVisible();
+
+	// UNHIDE, drawn on that hidden Work, while the Work is replaced again.
+	const unhide = page.locator('form[action="?/showWork"]');
+	await expect(unhide).toBeVisible();
+	const unhideOld = await unhide.locator('input[name="made"]').inputValue();
+	await other.goto('/');
+	await openWork(other, 'Hidden Run');
+	await endWork(other);
+	await makeWorkExact(other, pair, 'Hidden Run');
+	await unhide.getByRole('button', { name: 'UNHIDE' }).click();
+	await expect(refusal).toBeVisible();
+	// The page was read again: the form posts the Work there is now.
+	await expect(unhide.locator('input[name="made"]')).not.toHaveValue(unhideOld);
+	await unhide.getByRole('button', { name: 'UNHIDE' }).click();
+	await expect(page.locator('form[action="?/showWork"]')).toHaveCount(0);
+	await expect(hideButton).toBeVisible();
+
+	// Done: the Work ends, and both series are visible again as the seed has them.
+	await other.close();
+	await page.goto(`/work/${workId}`);
+	await endWork(page);
+});
+
 test('a selection that touches two Works is refused: SELECT ALL cannot collapse them', async ({
 	page
 }) => {
