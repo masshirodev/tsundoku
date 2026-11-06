@@ -430,6 +430,33 @@ test.describe('without script', () => {
 			await reveal(context, false);
 		}
 	});
+
+	test('CONCEAL asks through ?ask=conceal and its band draws, both without a handler (c606)', async ({
+		page,
+		context
+	}) => {
+		await reveal(context, false);
+		await page.goto(url(`${settings}?ask=conceal`));
+		const cell = page.locator('.own-act');
+		const ownCount = Number(
+			/Hides the (\d+) series here/.exec((await cell.locator('.s').textContent())!)![1]
+		);
+		expect(await cell.locator('.s').textContent()).not.toContain('more from other sources');
+		const total = ownCount;
+		expect(total).toBeGreaterThan(1);
+		const sheet = page.getByRole('dialog', { name: `CONCEAL ${total} SERIES?` });
+		await expect(sheet).toBeVisible();
+		// Confirmed natively: the settings page answers with the band, which
+		// outside reveal is on BROWSE (the source is mostly hidden now).
+		await sheet.getByRole('button', { name: `CONCEAL ${total} SERIES` }).click();
+		await expect(page).toHaveURL(/\/browse\?.*concealed=/);
+		const band = page.locator('.band', { hasText: 'SERIES HIDDEN NOW' });
+		await expect(band).toContainText(`${total} SERIES HIDDEN NOW`);
+		// UNDO the same way, so the world is as this case found it.
+		await band.getByRole('button', { name: 'UNDO' }).click();
+		await expect(page).toHaveURL(url('/browse'));
+		await expect(band).toHaveCount(0);
+	});
 });
 
 test('OFF HISTORY: a read from it is logged, but never in HISTORY, inside reveal too', async ({
