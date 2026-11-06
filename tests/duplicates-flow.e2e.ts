@@ -1,11 +1,20 @@
+import Database from 'better-sqlite3';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { type Page } from '@playwright/test';
+import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './helpers/hydrated';
 
 /**
  * Duplicate books end to end (doc/DUPLICATE-BOOKS.md), on the seed's hidden
  * pair: Rakugaki Collection Vol. 3 and its [Digital] twin. Serial,
  * tablet-portrait only. This file owns both books; it ends on KEEP BOTH, so
- * nothing of the seed is deleted.
+ * nothing of the seed is deleted. Its last block runs its own preview and a
+ * database of its own, because a decision the state refuses (c648) needs a
+ * pair the seed does not hold: an edition the book already has.
  */
 test.describe.configure({ mode: 'serial' });
 
@@ -106,4 +115,202 @@ test('KEEP BOTH settles it for good: the band goes', async ({ page }) => {
 	await page.waitForURL(/\/$/);
 	await expect(page.locator('.grid .tile').first()).toBeVisible();
 	await expect(band(page)).toHaveCount(0);
+});
+
+// ---- a decision the state refuses (c648) ---------------------------------------------------
+//
+// A fold the library can't carry out -- the third language a book already has
+// -- is decided here and carried out on the next pair's decision. The review
+// must say so, and the pair must come back undecided rather than being retried
+// on every load. Its own preview and database: the shared seed's only pair is
+// a plain duplicate, and this file owns that pair's books.
+
+const scratch = (name: string) =>
+	mkdtempSync(join(process.env.TMPDIR ?? join(process.cwd(), 'temp'), name));
+const work = scratch('tsundoku-dupes-');
+const dbPath = join(work, 'dupes.sqlite');
+const library = join(work, 'library');
+let preview: ChildProcess | null = null;
+let BASE = '';
+
+/** The OS's own port: nothing this spec picks can collide with the suites beside it. */
+function freePort(): Promise<number> {
+	return new Promise((ok) => {
+		const s = createServer();
+		s.listen(0, '127.0.0.1', () => {
+			const port = (s.address() as AddressInfo).port;
+			s.close(() => ok(port));
+		});
+	});
+}
+
+type World = { fold: string };
+
+/**
+ * The sample library, then two pairs of this block's own: a folded book with a
+ * Japanese edition and a separate Japanese copy of it (the "third language"
+ * the review offers and `foldEditions` refuses), and a plain duplicate to
+ * decide second, which is what carries the refused fold out.
+ */
+function seedWorld(): World {
+	rmSync(dbPath, { force: true });
+	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
+		env: { ...process.env, DATABASE_PATH: dbPath, LIBRARY_ROOT: library, NODE_NO_WARNINGS: '1' },
+		stdio: 'pipe'
+	});
+	const db = new Database(dbPath);
+	try {
+		const root = (db.prepare(`SELECT id FROM roots WHERE name = 'Library'`).get() as { id: number })
+			.id;
+		const now = Date.UTC(2026, 10, 6, 12, 0);
+		// The seed's own pair is settled out of this block's way.
+		db.prepare(
+			`INSERT OR REPLACE INTO dupe_decisions (pair, decision, keep, at)
+			SELECT p.a || ',' || p.b, 'apart', NULL, ? FROM dupe_pairs p`
+		).run(now);
+		const tag = db.prepare(
+			`INSERT INTO tags (namespace, value) VALUES ('language', ?) ON CONFLICT DO UPDATE SET value = value`
+		);
+		const tagId = db.prepare(`SELECT id FROM tags WHERE namespace = 'language' AND value = ?`);
+		const series = (title: string, originKey: string) =>
+			Number(
+				db
+					.prepare(
+						`INSERT INTO series (root_id, title, kind, source, hue, added_at, indexed_at, origin_key, in_library, cover_key)
+						VALUES (?, ?, 'doujin', 'hentoid', 0, ?, ?, ?, 1, '')`
+					)
+					.run(root, title, now, now, originKey).lastInsertRowid
+			);
+		const entry = (
+			seriesId: number,
+			o: { language: string; shadowed?: boolean; editionOf?: number }
+		) =>
+			Number(
+				db
+					.prepare(
+						`INSERT INTO entries (series_id, position, label, title, language, added_at, file, bytes,
+							page_count, available, source_url, shadowed, edition_of)
+						VALUES (?, 1, 'Book', ?, ?, ?, '', 0, 3, 1, ?, ?, ?)`
+					)
+					.run(
+						seriesId,
+						`Book ${seriesId}`,
+						o.language,
+						now,
+						`/book/${seriesId}`,
+						o.shadowed ? 1 : 0,
+						o.editionOf ?? null
+					).lastInsertRowid
+			);
+		const language = (seriesId: number, value: string) => {
+			tag.run(value);
+			db.prepare(`INSERT OR IGNORE INTO series_tags (series_id, tag_id) VALUES (?, ?)`).run(
+				seriesId,
+				(tagId.get(value) as { id: number }).id
+			);
+		};
+		const pair = (a: number, b: number, bits: number) =>
+			db.prepare(`INSERT INTO dupe_pairs (a, b, bits, rows, found_at) VALUES (?, ?, ?, ?, ?)`).run(
+				Math.min(a, b),
+				Math.max(a, b),
+				bits,
+				JSON.stringify({
+					rows: [1, 2, 3].map((n) => ({ a: n, b: n })),
+					sizes: { [a]: [1200, 1700], [b]: [1200, 1700] }
+				}),
+				now
+			);
+		// The folded book: English with a Japanese edition inside it.
+		const base = series('Fold Base', 'hentoid:fold-base');
+		language(base, 'english');
+		const baseEntry = entry(base, { language: 'english' });
+		entry(base, { language: 'japanese', shadowed: true, editionOf: baseEntry });
+		// A separate Japanese copy: the review offers it as the third language.
+		const copy = series('Fold Copy', 'hentoid:fold-copy');
+		language(copy, 'japanese');
+		const copyEntry = entry(copy, { language: 'japanese' });
+		pair(baseEntry, copyEntry, 0);
+		// A plain duplicate, decided second.
+		const twinA = series('Twin One', 'hentoid:twin-one');
+		language(twinA, 'english');
+		const twinB = series('Twin Two', 'hentoid:twin-two');
+		language(twinB, 'english');
+		pair(entry(twinA, { language: 'english' }), entry(twinB, { language: 'english' }), 1);
+		return { fold: `${Math.min(baseEntry, copyEntry)},${Math.max(baseEntry, copyEntry)}` };
+	} finally {
+		db.close();
+	}
+}
+
+let world: World | null = null;
+
+test.describe('a fold the state refuses (c648)', () => {
+	test.beforeAll(async () => {
+		// It seeds a database and spawns a preview, then polls up to 60 s for
+		// it: measured at 2-3 s with the other slots at work, and the house
+		// budget is 120 s, so a loaded gate fails a case, never the hook (c599).
+		test.setTimeout(120_000);
+		world = seedWorld();
+		const port = await freePort();
+		BASE = `http://localhost:${port}`;
+		preview = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
+			env: {
+				...process.env,
+				DATABASE_PATH: dbPath,
+				TSUNDOKU_TOKEN: E2E_TOKEN,
+				LIBRARY_ROOT: library,
+				COVER_DIR: join(work, 'covers'),
+				TSUNDOKU_HOME: join(work, 'home'),
+				BACKUP_DIR: join(work, 'backups')
+			},
+			stdio: 'ignore'
+		});
+		for (let i = 0; i < 120; i++) {
+			try {
+				if ((await fetch(`${BASE}/duplicates`, { redirect: 'manual' })).status) return;
+			} catch {
+				await new Promise((r) => setTimeout(r, 500));
+			}
+		}
+		throw new Error('the duplicates preview never answered');
+	});
+
+	test.afterAll(() => {
+		preview?.kill();
+		rmSync(work, { recursive: true, force: true });
+	});
+
+	test('the pair comes back undecided, and the screen says why', async ({ page }) => {
+		const fold = world!.fold;
+		await page.goto(`${BASE}/duplicates?pair=${encodeURIComponent(fold)}`);
+		await expect(page.locator('.counter')).toHaveText('01 OF 02');
+		await expect(page.locator('.conf')).toHaveText('SAME BOOK · A THIRD LANGUAGE');
+		await page.getByRole('button', { name: 'ADD AS A THIRD LANGUAGE' }).click();
+		// The decision waits, as every decision does, until the next one.
+		await expect(page.locator('.review .band')).toContainText('ADDED · FOLD BASE IN 3 LANGUAGES');
+		// The next pair is drawn; its decision carries the fold out, and the
+		// library refuses it: the third language is the one it already has.
+		await expect(page.locator('.counter')).toHaveText('02 OF 02');
+		await page.getByRole('button', { name: 'KEEP BOTH', exact: true }).click();
+		await expect(
+			page.locator('.band.refused').getByText(/A BOOK CAN.T FOLD · SOMETHING SITS BESIDE IT/)
+		).toBeVisible();
+		await expect(
+			page.locator('.band.refused').getByText(/THE BOOK HAS A JAPANESE EDITION ALREADY/)
+		).toBeVisible();
+		// Dropped, so the next load draws it again, undecided, and does not
+		// carry it out behind the owner's back.
+		const db = new Database(dbPath, { readonly: true });
+		try {
+			expect(
+				db.prepare(`SELECT decision FROM dupe_decisions WHERE pair = ?`).get(fold)
+			).toBeUndefined();
+		} finally {
+			db.close();
+		}
+		await page.goto(`${BASE}/duplicates`);
+		await expect(page.locator('.counter')).toHaveText('01 OF 01');
+		await expect(page.locator('.conf')).toHaveText('SAME BOOK · A THIRD LANGUAGE');
+		await expect(page.locator('.band.refused')).toHaveCount(0);
+	});
 });

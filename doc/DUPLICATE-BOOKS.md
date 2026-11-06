@@ -104,12 +104,28 @@ or when the library next loads. So **UNDO** only forgets it; nothing is
 deleted and then brought back. SKIP isn't recorded: the pair goes to the back
 of this visit's queue and comes up again next time.
 
-Once decisions are carried out, the covers of every series they touched,
-before and after, are remade from the files, off the request. That covers a
-new series of books (its first book's cover), a fold, and a KEEP's series.
+Once decisions are carried out, the covers of every series they touched are
+remade from the files, off the request. That covers a new series of books (its
+first book's cover), a fold, and a KEEP's series. A decision that was refused
+touches nothing, so it asks for no cover (c648).
 Until 2026-09-25 (card c63), GROUP here left the new series with no cover
 until the next import; the library's GROUP and the series screen always
 remade theirs.
+
+**A decision the state refuses is dropped** (c648). The library answers with
+the pair and its own reason, the review says so in a band, and the pair comes
+back to the review undecided on the next load. The band's words are the
+fold's, `A BOOK CAN’T FOLD · SOMETHING SITS BESIDE IT`; a KEEP or a GROUP has
+its own, `A BOOK CAN’T GO TO THE TRASH · THE PAIR ISN’T WHAT IT WAS` and
+`TWO BOOKS CAN’T JOIN · THE PAIR ISN’T WHAT IT WAS`, since neither refuses
+because something sits beside a book. Until wave 29 a refused decision was
+left waiting: `reviewQueue` hides every decided pair, applied or not, so the
+owner saw neither the pair nor a reason, it could not be undone once the
+review's session ended, and every library load tried it again and queued a
+cover refresh. A decision's carry-over is now one transaction -- a KEEP
+refused halfway leaves no shelf row behind -- and only a refusal the fold, the
+grouping or the delete actually raises is treated as one: any other error
+stays waiting and fails loudly instead of looking like a state to fix.
 
 | Decision          | Carried out                                                                                                                                                                                                                                                                        |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

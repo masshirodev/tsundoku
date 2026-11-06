@@ -126,16 +126,31 @@
 	);
 
 	// ---- deciding -----------------------------------------------------------------------------
-	async function post(body: object): Promise<boolean> {
+	type Refusal = { pair: string; decision: string; reason: string };
+	/**
+	 * A decision the library's state could not carry, as the workstation
+	 * answers it (c648): the pair is back in the review undecided, and the band
+	 * says so. The words are the fold's -- "something sits beside it" -- and a
+	 * KEEP or GROUP has its own, since neither refuses for that reason.
+	 */
+	const REFUSED: Record<string, string> = {
+		fold: 'A BOOK CAN’T FOLD · SOMETHING SITS BESIDE IT',
+		group: 'TWO BOOKS CAN’T JOIN · THE PAIR ISN’T WHAT IT WAS',
+		keep: 'A BOOK CAN’T GO TO THE TRASH · THE PAIR ISN’T WHAT IT WAS'
+	};
+	let refused = $state<Refusal[]>([]);
+
+	async function post(body: object): Promise<{ refused?: Refusal[] } | null> {
 		try {
 			const r = await fetch(resolve('/api/dupes'), {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify(body)
 			});
-			return r.ok;
+			if (!r.ok) return null;
+			return (await r.json().catch(() => ({}))) as { refused?: Refusal[] };
 		} catch {
-			return false;
+			return null;
 		}
 	}
 
@@ -150,17 +165,21 @@
 		const before = { queue: [...queue], done };
 		busy = true;
 		failed = null;
+		refused = [];
 		if (decision !== 'skip') {
-			const ok = await post({
+			const answer = await post({
 				pair: key,
 				decision,
 				keep: decision === 'keep' && sel ? pair[sel].entryId : null
 			});
 			busy = false;
-			if (!ok) {
+			if (!answer) {
 				failed = 'THE WORKSTATION DID NOT ANSWER · NOTHING CHANGED';
 				return;
 			}
+			// A decision waiting from before is carried out first, and it may be
+			// one this state refuses: the band says so before this pair's own.
+			refused = answer.refused ?? [];
 			queue = queue.slice(1);
 			done += 1;
 			undo = { title, detail, pair: key, before, open };
@@ -341,6 +360,14 @@
 			{/if}
 		</div>
 	{/if}
+	{#each refused as r (r.pair)}
+		<div class="band refused" role="alert">
+			<div class="bt">
+				<div class="line">{REFUSED[r.decision] ?? 'THE WORKSTATION COULDN’T CARRY THAT OUT'}</div>
+				<div class="line dim">{r.reason.toUpperCase()} · IT COMES BACK TO THE REVIEW</div>
+			</div>
+		</div>
+	{/each}
 
 	{#if !pair}
 		<section class="empty">

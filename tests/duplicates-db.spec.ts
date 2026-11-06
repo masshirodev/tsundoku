@@ -1,4 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// The cover pass is what a carried-out decision queues, off the request: this
+// spec counts the calls rather than making covers (c648).
+const refresh = vi.hoisted(() => vi.fn(async () => ({ made: 0, kept: 0, none: 0, failed: 0 })));
+vi.mock('$lib/server/covers', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/server/covers')>()),
+	refreshCovers: refresh
+}));
 import type { PlannedEntry, PlannedSeries } from '$lib/import/plan';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
@@ -136,11 +144,14 @@ describe('a chapter from two scanlators', () => {
 	});
 });
 
-// c558's round 3: a fold the review cannot carry out is not marked applied.
-// FOLD AS LANGUAGES now refuses a book with an extra or a set-aside duplicate
-// beside it up front, but a pending decision made before that (or from another
-// door) can still reach `foldEditions`, which counts `edition_of IS NULL`.
-describe('a fold decision the review cannot carry out (c558)', () => {
+// c648 (works' review r1 low; works' Gap 1, wave 27's c558): a decision the
+// state refuses is answered and dropped, not left waiting. Left waiting it was
+// invisible -- `reviewQueue` and the scan's `settled` leave out every decided
+// pair, applied or not -- it could not be undone once the review's session
+// ended, and every library load tried it again and queued a cover refresh,
+// because `touched` was filled before the try. A library that holds no such
+// pair any more gets it back at the review, undecided.
+describe('a decision the review cannot carry out (c648)', () => {
 	const idOf = (title: string) =>
 		(db.prepare(`SELECT id FROM series WHERE title = ?`).get(title) as { id: number }).id;
 	const bookOf = (seriesId: number) =>
@@ -149,6 +160,15 @@ describe('a fold decision the review cannot carry out (c558)', () => {
 				.prepare(`SELECT id FROM entries WHERE series_id = ? AND edition_of IS NULL`)
 				.get(seriesId) as { id: number }
 		).id;
+	const seriesOf = (entryId: number) =>
+		(
+			db.prepare(`SELECT series_id FROM entries WHERE id = ?`).get(entryId) as {
+				series_id: number;
+			}
+		).series_id;
+	const waiting = (key: string) =>
+		db.prepare(`SELECT decision FROM dupe_decisions WHERE pair = ?`).get(key) as
+			{ decision: string } | undefined;
 	const tagLanguage = (seriesId: number, value: string) => {
 		db.prepare(
 			`INSERT INTO tags (namespace, value) VALUES ('language', ?) ON CONFLICT DO UPDATE SET value = value`
@@ -163,6 +183,7 @@ describe('a fold decision the review cannot carry out (c558)', () => {
 			tagId
 		);
 	};
+	/** A second entry beside a book: an extra, which makes `foldEditions` refuse it. */
 	const addExtra = (seriesId: number) => {
 		const cols = (db.prepare(`PRAGMA table_info(entries)`).all() as { name: string }[])
 			.map((c) => c.name)
@@ -187,7 +208,7 @@ describe('a fold decision the review cannot carry out (c558)', () => {
 		);
 	};
 
-	it('stays waiting, then folds once nothing sits beside the book', async () => {
+	it('a refused fold is answered, dropped, and not tried again', async () => {
 		write(
 			plan([entry(1, '', { sourceUrl: '/fold/a', pageCount: 3 })], {
 				originKey: 'hentoid:fold-a',
@@ -219,32 +240,100 @@ describe('a fold decision the review cannot carry out (c558)', () => {
 		db.prepare(
 			`INSERT INTO dupe_decisions (pair, decision, keep, at) VALUES (?, 'fold', NULL, 1)`
 		).run(key);
-		const { applyPending } = await import('$lib/server/dupes');
-		// `foldEditions` counts the extra (`entryIdsOf`), so the fold refuses:
-		// the decision must not claim to have been carried out.
-		expect(await applyPending()).toBe(0);
-		expect(
-			(
-				db.prepare(`SELECT applied_at FROM dupe_decisions WHERE pair = ?`).get(key) as {
-					applied_at: number | null;
-				}
-			).applied_at
-		).toBeNull();
-		const seriesOf = (entryId: number) =>
-			(
-				db.prepare(`SELECT series_id FROM entries WHERE id = ?`).get(entryId) as {
-					series_id: number;
-				}
-			).series_id;
+		const { applyPending, reviewQueue } = await import('$lib/server/dupes');
+		refresh.mockClear();
+		// `foldEditions` counts the extra (`entryIdsOf`), so the fold refuses.
+		const first = await applyPending();
+		expect(first.applied).toBe(0);
+		expect(first.refused).toEqual([
+			{
+				pair: key,
+				decision: 'fold',
+				reason: 'only a single book folds: this is a series of books'
+			}
+		]);
+		// Dropped, not waiting and not applied: the pair is the review's again.
+		expect(waiting(key)).toBeUndefined();
+		expect(reviewQueue(false).map((p) => p.key)).toContain(key);
+		// And the answer queued no cover: a pair that was never carried out
+		// touches no series.
+		expect(refresh).not.toHaveBeenCalled();
 		expect(seriesOf(ea)).not.toBe(seriesOf(eb));
-		// The extra gone, the same decision goes through: waiting was right.
+		// The extra gone, the next load does not fold it behind the owner's
+		// back: the decision is gone with the refusal.
 		db.prepare(`DELETE FROM entries WHERE id = ?`).run(extra);
-		expect(await applyPending()).toBe(1);
-		expect(seriesOf(ea)).toBe(seriesOf(eb));
-		const base = Math.min(ea, eb);
-		const other = Math.max(ea, eb);
+		expect(await applyPending()).toEqual({ applied: 0, refused: [] });
+		expect(refresh).not.toHaveBeenCalled();
+		expect(seriesOf(ea)).not.toBe(seriesOf(eb));
+		expect(waiting(key)).toBeUndefined();
+	});
+
+	it('a KEEP refused partway leaves no half-written row', async () => {
+		// KEEP moves the kept single into the other's series of books, which
+		// `moveBook` refuses when the two are in roots of a different kind
+		// (hidden and visible): the shelf it copies a moment earlier must not
+		// stay behind (c648).
+		const hiddenRoot = ensureRoot(db, 'Hidden', '/nowhere/Hidden', true);
+		write(
+			plan([entry(1, '', { sourceUrl: '/keep/a', pageCount: 3 })], {
+				originKey: 'hentoid:keep-a',
+				title: 'Keep A',
+				kind: 'doujin',
+				shelves: ['Weekend']
+			})
+		);
+		const keep = idOf('Keep A');
+		const keepEntry = bookOf(keep);
+		const lose = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, source, hue, added_at, origin_key, in_library, cover_key)
+					VALUES (?, 'Lose Books', 'doujin', 'hentoid', 0, 1, 'hentoid:lose-books', 1, '')`
+				)
+				.run(hiddenRoot).lastInsertRowid
+		);
+		const putBook = db.prepare(
+			`INSERT INTO entries (series_id, position, label, title, added_at, file, bytes, page_count, available, source_url)
+			VALUES (?, ?, ?, ?, 1, '', 0, 3, 1, ?)`
+		);
+		putBook.run(lose, 1, 'Book 1', 'Lose One', '/keep/lose-1');
+		putBook.run(lose, 2, 'Book 2', 'Lose Two', '/keep/lose-2');
+		const loseEntry = (
+			db.prepare(`SELECT id FROM entries WHERE series_id = ? ORDER BY position`).get(lose) as {
+				id: number;
+			}
+		).id;
+		const key = `${Math.min(keepEntry, loseEntry)},${Math.max(keepEntry, loseEntry)}`;
+		db.prepare(
+			`INSERT INTO dupe_decisions (pair, decision, keep, at) VALUES (?, 'keep', ?, 1)`
+		).run(key, keepEntry);
+		const shelf = (
+			db.prepare(`SELECT collection_id FROM collection_series WHERE series_id = ?`).get(keep) as {
+				collection_id: number;
+			}
+		).collection_id;
+		const { applyPending } = await import('$lib/server/dupes');
+		refresh.mockClear();
+		const r = await applyPending();
+		expect(r.applied).toBe(0);
+		expect(r.refused).toEqual([
+			{
+				pair: key,
+				decision: 'keep',
+				reason: "hidden and visible books can't share a series"
+			}
+		]);
+		// The shelf the carry-over copied before the move is not there: nothing
+		// of a KEEP that refused itself is left.
 		expect(
-			db.prepare(`SELECT edition_of, shadowed FROM entries WHERE id = ?`).get(other)
-		).toMatchObject({ edition_of: base, shadowed: 1 });
+			db
+				.prepare(`SELECT 1 FROM collection_series WHERE collection_id = ? AND series_id = ?`)
+				.get(shelf, lose)
+		).toBeUndefined();
+		// And the books are where they were, with the decision gone.
+		expect(seriesOf(keepEntry)).toBe(keep);
+		expect(seriesOf(loseEntry)).toBe(lose);
+		expect(waiting(key)).toBeUndefined();
+		expect(refresh).not.toHaveBeenCalled();
 	});
 });
