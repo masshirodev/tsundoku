@@ -1320,6 +1320,40 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n (c350)',
 		expect(sends(id)).toEqual([]);
 	});
 
+	it('an orphaned part 2 numbers no episode at all, so AniSkip is asked nothing (c642)', () => {
+		// The state a library may hold: part 2's row, no part 1 beside it, and
+		// `partsOf` gives it the empty span (c592). AniSkip is keyed by what
+		// `episodeEntry` answers, and before c642 a season with one part skipped
+		// `partOf` and numbered every episode from EP. 1 within it: the season's
+		// EP. 3 asked part 2's entry for its EP. 3, an episode of the part that
+		// may be nowhere near the season's own. The span now answers null.
+		const id = show([12, 23]);
+		link(id, 2, 502, 2);
+		expect(seasons.seriesSeasons(id)!.seasons[1].parts).toMatchObject([
+			{ part: 2, from: 24, to: 23 }
+		]);
+		expect(seasons.episodeEntry(id, 2, 1)).toBe(null);
+		expect(seasons.episodeEntry(id, 2, 3)).toBe(null);
+		expect(seasons.episodeEntry(id, 2, 13)).toBe(null);
+		expect(seasons.episodeEntry(id, 2, 23)).toBe(null);
+	});
+
+	it('an ordinary one-part season still numbers its own episodes (c642)', () => {
+		// The other side of the widened condition: one part, part 1, is the whole
+		// season, and EP. 3 is that entry's EP. 3, whatever the season's count.
+		const id = show([12, 23]);
+		link(id, 1, 401);
+		expect(seasons.seriesSeasons(id)!.seasons[0].parts).toMatchObject([
+			{ part: 1, from: 1, to: 12 }
+		]);
+		expect(seasons.episodeEntry(id, 1, 3)).toMatchObject({
+			anilistId: 401,
+			malId: 5401,
+			number: 3
+		});
+		expect(seasons.episodeEntry(id, 1, 12)).toMatchObject({ anilistId: 401, number: 12 });
+	});
+
 	it('UNDO of part 1 is refused while part 2 stands, so the orphan is never made (c592)', () => {
 		const id = show([12, 23]);
 		link(id, 2, 501);
