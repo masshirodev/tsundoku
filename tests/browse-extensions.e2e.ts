@@ -366,17 +366,17 @@ test('a switch still being written when the case ends is put back after it (c636
 	await page.goto('/browse/ln:goodnovels/settings');
 	await expect(own('Off history')).toHaveAttribute('aria-checked', 'false');
 
-	// OFF HISTORY, sent as the page's own write and left in flight when this
+	// HIDDEN SOURCE, sent as the page's own write and left in flight when this
 	// case ends: the browse world holds the action's write on the server
 	// (tests/browse-setup.ts's TSUNDOKU_TEST_HOLD, `x-tsundoku-hold`). The
 	// afterEach must wait for it before its put-back, or the write lands after
-	// the switches were turned off and leaves OFF HISTORY on for the next case
-	// -- which reads it first (c569, below).
+	// the switches were turned off and leaves HIDDEN SOURCE on for the next
+	// case -- whose last assertion says it is off (c569, below).
 	await page.evaluate(() => {
 		void fetch('/browse/ln:goodnovels/settings?/flag', {
 			method: 'POST',
-			headers: { 'x-tsundoku-hold': 'flag:2500' },
-			body: new URLSearchParams({ flag: 'offHistory', value: 'true' })
+			headers: { 'x-tsundoku-hold': 'flag:3000' },
+			body: new URLSearchParams({ flag: 'hidden', value: 'true' })
 		});
 	});
 	// Nothing read here: the write is the next thing to happen, and it is the

@@ -1,4 +1,4 @@
-import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import {
 	COLD,
 	SOURCE,
@@ -43,6 +43,26 @@ async function reveal(context: BrowserContext, on: boolean) {
 
 /** The row of one of tsundoku's own switches on the settings page. */
 const own = (page: Page, title: string) => page.locator('form.own', { hasText: title });
+
+/**
+ * A thing at rest. A sheet rises for 240 ms and the fonts land after it, so a
+ * tap aimed at once can be waited out as "not stable" while both keep moving
+ * (`doc/TESTING.md`, "Measure a screen only once it has come to rest"). Ask
+ * the element's own box until it holds still, then tap.
+ */
+async function atRest(page: Page, el: Locator) {
+	await expect
+		.poll(
+			async () => {
+				const a = await el.boundingBox();
+				await page.waitForTimeout(100);
+				const b = await el.boundingBox();
+				return !!a && !!b && a.x === b.x && a.y === b.y && a.height === b.height;
+			},
+			{ message: 'the element holding still', timeout: 10_000 }
+		)
+		.toBe(true);
+}
 
 /** Turns a switch to `on` by tapping it, and waits for the save to answer. */
 async function flip(page: Page, title: string, on: boolean) {
@@ -139,9 +159,11 @@ test('ADDED HIDDEN: + ADD TO LIBRARY from it adds the series hidden, and says so
 	await page.goto(bandUrl);
 	await expect(band).toContainText(`${SOURCE.name.toUpperCase()} ADDS ITS SERIES HIDDEN`);
 	await expect(band).not.toContainText('REVEAL SHOWS');
+	await reveal(context, false);
 	// Hidden means hidden: its preview is now the series, which isn't found.
 	expect((await page.goto(url(previewPath)))?.status()).toBe(404);
 	// Inside reveal the preview opens the series it became.
+	await reveal(context, true);
 	await page.goto(url(previewPath));
 	await expect(page).toHaveURL(/\/series\/\d+/);
 	await expect(page.getByRole('heading', { name: 'Preview Me Tagged' })).toBeVisible();
@@ -351,17 +373,18 @@ async function flipAddedHidden(page: Page, id: string, on: boolean) {
 }
 
 /**
- * The two doors a person without script walks (c605, c606). Nothing here needs
- * a handler: the ADD, the refused UNDO, CONCEAL's question and its band are
- * each a form or a link, so the browser posts them and the server answers with
- * the page, which is exactly what a phone with its scripts off gets.
+ * The two doors a person without script walks (c605, c606). Nothing the doors
+ * themselves need is a handler: the refused UNDO, CONCEAL's question and its
+ * band are each a form or a link, so the browser posts them and the server
+ * answers with the page, which is what a phone with its scripts off gets.
  */
 test.describe('without script', () => {
 	test.use({ javaScriptEnabled: false });
 
 	test('a refused UNDO says why in the band, and inside reveal the band names the source (c605)', async ({
 		page,
-		context
+		context,
+		browser
 	}) => {
 		const coldPreview = `/downloads/source/${coldPreviewId}?from=${encodeURIComponent(`/browse/${COLD.id}`)}`;
 		const band = page.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' });
@@ -373,13 +396,36 @@ test.describe('without script', () => {
 		await reveal(context, false);
 		await flipAddedHidden(page, COLD.id, true);
 		try {
-			// The ADD: COLD has nothing else here, so it lands on BROWSE, with the band.
-			await page.goto(url(coldPreview));
-			await page.getByRole('button', { name: /ADD TO LIBRARY/ }).click();
-			await expect(page).toHaveURL(/\/browse\?.*added=hidden/);
-			const bandUrl = page.url();
+			// The preview's ADD is a promise in its data, so a browser without
+			// script never draws its button; the ADD is the state this case needs,
+			// not the door it walks, so it is made with script. COLD has nothing
+			// else here, so it lands on BROWSE, with the band.
+			const setup = await browser.newContext({
+				javaScriptEnabled: true,
+				storageState: await context.storageState()
+			});
+			const sp = await setup.newPage();
+			await sp.goto(url(coldPreview));
+			await sp.getByRole('button', { name: /ADD TO LIBRARY/ }).click();
+			await expect(sp).toHaveURL(/\/browse\?.*added=hidden/);
+			const bandUrl = sp.url();
 			const series = Number(new URL(bandUrl).searchParams.get('series'));
 			expect(series).toBeGreaterThan(0);
+			// The entry to mark read, off the series screen: with no script the
+			// screen draws no reader link at all, so this too is asked of a page
+			// with script. The series is hidden, so reveal lets its page be found.
+			await reveal(setup, true);
+			await sp.goto(url(`/series/${series}`));
+			const entry = Number(
+				/\/read\/(\d+)/.exec(
+					(await sp.locator('a[href^="/read/"]').first().getAttribute('href'))!
+				)![1]
+			);
+			expect(entry).toBeGreaterThan(0);
+			await setup.close();
+
+			// Everything below is the browser with no script.
+			await page.goto(bandUrl);
 			await expect(band).toContainText('· REVEAL SHOWS BOTH');
 			await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
 
@@ -394,13 +440,6 @@ test.describe('without script', () => {
 			// tap; read now, and the tap is refused. The page it answers with is
 			// the band again, saying why -- where a post to a bare `?/undoAdd`
 			// loaded `/browse` with no band and said nothing at all.
-			const entry = Number(
-				/\/read\/(\d+)/.exec(
-					(await page
-						.goto(url(`/series/${series}`))
-						.then(() => page.locator('a[href^="/read/"]').first().getAttribute('href')))!
-				)![1]
-			);
 			await page.goto(bandUrl);
 			await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
 			expect((await mark(series, entry, true)).ok()).toBe(true);
@@ -448,7 +487,9 @@ test.describe('without script', () => {
 		await expect(sheet).toBeVisible();
 		// Confirmed natively: the settings page answers with the band, which
 		// outside reveal is on BROWSE (the source is mostly hidden now).
-		await sheet.getByRole('button', { name: `CONCEAL ${total} SERIES` }).click();
+		const go = sheet.getByRole('button', { name: `CONCEAL ${total} SERIES` });
+		await atRest(page, go);
+		await go.click();
 		await expect(page).toHaveURL(/\/browse\?.*concealed=/);
 		const band = page.locator('.band', { hasText: 'SERIES HIDDEN NOW' });
 		await expect(band).toContainText(`${total} SERIES HIDDEN NOW`);
