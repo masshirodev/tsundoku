@@ -1,4 +1,5 @@
 import { test, expect, devices, type Page } from '@playwright/test';
+import { engineCalls, engineDown, resetEngine } from './browse-world';
 
 /**
  * MOVE end to end (doc/MOVE.md; card c139): a series moves to another entry on
@@ -148,5 +149,91 @@ test.describe('the episode fold under a fine pointer (c488)', () => {
 		await fold.hover();
 		expect(await fold.evaluate((n) => n.matches(':hover'))).toBe(true);
 		expect(await image()).toMatch(/^repeating-linear-gradient/);
+	});
+});
+
+/*
+ * c604: TRY AGAIN and TRY ALL AGAIN are links to the page's own URL, so under
+ * app.html's hover preload a desktop pointer asks the source again just by
+ * hovering them (DOWNLOADS' c538, fixed there). This measures it: the fake
+ * engine records every source it was asked, and the engine is brought back up
+ * after the page drew its DID NOT ANSWER fold, so a hover's preload would be
+ * recorded rather than dropped.
+ */
+test.describe('TRY AGAIN under a hovering pointer (c604)', () => {
+	const { defaultBrowserType: _b, ...desktop } = devices['Desktop Chrome'];
+	void _b;
+	test.use({ ...desktop, viewport: { width: 1440, height: 900 } });
+
+	/** How many times the page asked the source for this series' own title. */
+	const asks = async () =>
+		(await engineCalls()).filter((c) => c.method === 'getSearchManga' && c.search === TITLE).length;
+
+	/**
+	 * The move page with its one source's search failed, drawn, and the engine
+	 * up and counting again: every call after this is the page's own.
+	 */
+	async function failedFold(page: Page) {
+		await engineDown();
+		try {
+			await openSeries(page);
+			await page
+				.getByRole('region', { name: 'About this series' })
+				.getByRole('link', { name: 'MOVE →' })
+				.click();
+			await expect(page).toHaveURL(/\/series\/\d+\/move/);
+			const fold = page.locator('details.fold.unanswered');
+			await expect(fold.locator('summary')).toContainText('DID NOT ANSWER');
+			await fold.locator('summary').click();
+			await expect(fold).toContainText('OPEN SOURCE · EN · DID NOT ANSWER IN 20 S');
+			return fold;
+		} finally {
+			await resetEngine();
+		}
+	}
+
+	/**
+	 * The pointer comes to rest on the link and then does it again, with the
+	 * mouse moved away between, as a person's does. The first hover can land
+	 * with the pointer already where it starts, so only the second proves the
+	 * page heard a `mousemove` at all: seen on the candidate beside it, which
+	 * preloads on exactly the second hover.
+	 */
+	const restOn = async (page: Page, link: ReturnType<Page['locator']>) => {
+		await link.hover();
+		await page.mouse.move(0, 0);
+		await link.hover();
+	};
+
+	test('hovering TRY AGAIN asks nothing, and one tap asks once', async ({ page }) => {
+		const fold = await failedFold(page);
+		const tryAgain = fold.getByRole('link', { name: 'TRY AGAIN', exact: true });
+		expect(await asks()).toBe(0);
+		// Nothing may be asked until the tap. A wait is the assertion here, and
+		// nothing else.
+		await restOn(page, tryAgain);
+		await page.waitForTimeout(1500);
+		expect(await asks()).toBe(0);
+
+		const answered = page.waitForResponse((r) => r.url().includes('/move/ask?'));
+		await tryAgain.click();
+		expect((await answered).status()).toBe(200);
+		await expect(page.locator('a.cand', { hasText: 'Movenberg Heir (new)' })).toBeVisible();
+		expect(await asks()).toBe(1);
+	});
+
+	test('hovering TRY ALL AGAIN asks nothing, and one tap asks once', async ({ page }) => {
+		const fold = await failedFold(page);
+		const all = fold.getByRole('link', { name: 'TRY ALL AGAIN' });
+		expect(await asks()).toBe(0);
+		await restOn(page, all);
+		await page.waitForTimeout(1500);
+		expect(await asks()).toBe(0);
+
+		const answered = page.waitForResponse((r) => r.url().includes('/move/ask?'));
+		await all.click();
+		expect((await answered).status()).toBe(200);
+		await expect(page.locator('a.cand', { hasText: 'Movenberg Heir (new)' })).toBeVisible();
+		expect(await asks()).toBe(1);
 	});
 });
