@@ -2008,3 +2008,91 @@ describe('the series screen’s Work controls act on the Work their screen was d
 		expect(snapshot()).toEqual(before);
 	});
 });
+
+describe('the Work screen answers a malformed UNDO with a sentence, not a 500 (c641)', () => {
+	const snapshot = () => {
+		const db = getDb();
+		return {
+			works: db.prepare(`SELECT id, name, created_at, order_mode FROM works ORDER BY id`).all(),
+			members: db
+				.prepare(`SELECT work_id, series_id, position FROM work_series ORDER BY work_id, series_id`)
+				.all(),
+			series: db.prepare(`SELECT id, rating, favourite, hidden FROM series ORDER BY id`).all()
+		};
+	};
+	const NOTHING = { message: 'NOTHING TO UNDO' };
+
+	/** A Work of three with one part taken out: a real TAKE OUT band to compare against. */
+	function takenOut() {
+		const [a, b, c] = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita', 'Mushoku Tensei'].map(
+			idOf
+		) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b, c], name: 'Run', now: NOW });
+		const facts = works.takeOut(work.id, c, work.createdAt);
+		return { work, facts, c };
+	}
+
+	const JUNK: [string, string[]][] = [
+		// A field that is not JSON at all.
+		['not json', ['not json']],
+		// Valid JSON of the wrong shape: an empty list is no UNDO, and an object
+		// where the band posts a list is not one either.
+		['an empty list', ['[]']],
+		['an object', ['{"workId":1}']],
+		// A list of things that are not take-outs.
+		['a list of junk', ['[{"workId":"one"}]']],
+		// A field that is not there at all.
+		['no field', []]
+	];
+
+	it.each(JUNK)('?/undoTakeOut refuses %s, and changes nothing', async (_what, posted) => {
+		const { facts } = takenOut();
+		const before = snapshot();
+		const answer = await post(
+			workScreen.actions.undoTakeOut,
+			posted.length === 0 ? [] : [['facts', posted[0]!]]
+		);
+		expect(answer.status).toBe(400);
+		expect(answer.data).toEqual(NOTHING);
+		expect(snapshot()).toEqual(before);
+		// The band's own facts, well formed, still undo it: the guard refuses
+		// junk, not the answer the screen sends.
+		expect(
+			await post(workScreen.actions.undoTakeOut, [['facts', JSON.stringify([facts])]])
+		).toEqual({ ok: true });
+	});
+
+	it.each(JUNK)('?/undoAdd refuses %s, and changes nothing', async (_what, posted) => {
+		const [a, b, c] = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita', 'Mushoku Tensei'].map(
+			idOf
+		) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Run', now: NOW });
+		const added = works.addSeries(work.id, c, work.createdAt);
+		const before = snapshot();
+		const answer = await post(
+			workScreen.actions.undoAdd,
+			posted.length === 0 ? [] : [['facts', posted[0]!]]
+		);
+		expect(answer.status).toBe(400);
+		expect(answer.data).toEqual(NOTHING);
+		expect(snapshot()).toEqual(before);
+		expect(await post(workScreen.actions.undoAdd, [['facts', JSON.stringify(added)]])).toEqual({
+			ok: true
+		});
+		expect(membersNow(work.id)).toEqual([a, b]);
+	});
+
+	it('?/undoRename refuses junk too: it parsed its facts outside a guard before (c641)', async () => {
+		const [a, b] = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita'].map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Run', now: NOW });
+		const before = snapshot();
+		for (const facts of ['not json', '[]', '{}', '{"workId":"x"}']) {
+			const answer = await post(workScreen.actions.undoRename, [['facts', facts]], {
+				id: String(work.id)
+			});
+			expect(answer.status).toBe(400);
+			expect(answer.data).toEqual(NOTHING);
+			expect(snapshot()).toEqual(before);
+		}
+	});
+});
