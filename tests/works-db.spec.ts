@@ -713,7 +713,9 @@ describe('what W4 and W5 read off a Work', () => {
 
 	it('lists the Works a sheet can add to, with how many series each holds', () => {
 		const made = three();
-		expect(works.workChoices()).toEqual([{ id: made.work.id, name: 'Three', series: 3 }]);
+		expect(works.workChoices()).toEqual([
+			{ id: made.work.id, name: 'Three', createdAt: NOW, series: 3 }
+		]);
 	});
 
 	it('says, for a page of series, which Works have one here and where each run is', () => {
@@ -1250,19 +1252,75 @@ describe('a HIDE’s UNDO puts back only what the HIDE changed (c390)', () => {
 		expect(hiddenOf(other)).toBe(false);
 	});
 
-	it('gives no band when the press changed no Work, as a plain HIDE of loose series has none', async () => {
+	it('answers HIDE ALL with a band for the loose series it hid beside a Work it only settled (c469)', async () => {
 		const [p, q, r] = W.map(idOf) as number[];
 		const x = idOf('Villainess Level 99')!;
 		works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
 		works.setHiddenWhole([p], true);
-		// x is hidden with no UNDO: a Work-less band on the library page would
-		// read TAKEN OUT OF THE WORK (its fallback words, `library`'s), so the
-		// trade-off is recorded under the notes' Decisions until that changes.
-		expect(await post(library.actions.hideAll, ids([p, x]))).toEqual({ ok: true });
+		// The Work was hidden whole already, so the press changes none of it;
+		// x is hidden by it, and its UNDO may show x. Until c469 this answered
+		// no band (wave 19's decision 12), since the library's fallback words
+		// said TAKEN OUT OF THE WORK; the band now says only what happened.
+		expect(await post(library.actions.hideAll, ids([p, x]))).toEqual({
+			hideFacts: { hidden: [x], out: [], whole: [], works: 0 }
+		});
 		expect(hiddenOf(x)).toBe(true);
+		// A press that changed nothing UNDO could show still has no band.
+		expect(await post(library.actions.hideAll, ids([p, q]))).toEqual({ ok: true });
 		expect(works.setHiddenWhole([p, q], true)).toEqual({ ids: [], whole: [], works: 0 });
-		// The series screen's HIDE ALL n reports the same: nothing changed.
 		expect(works.hideWork(works.workOfSeries(p)!.id, true)).toEqual({ ids: [], changed: 0 });
+	});
+
+	/**
+	 * The series screen's HIDE ALL n (`?/hideWork`) on a Work whose press hides
+	 * nothing an UNDO may show (c469, wave 19's Gap 6): a Work hidden in part
+	 * (the legacy state a fold made until c389, written here as it left it) is
+	 * settled hidden with no UNDO, and a Work hidden whole changes nothing.
+	 * Neither draws a band: before, reveal on answered `hideFacts` whose UNDO
+	 * refused as NOTHING TO UNDO, and reveal off redirected to
+	 * `/?band=hidden&n=0`.
+	 */
+	it('draws no band from the series screen’s HIDE ALL n when it changed nothing UNDO may show (c469)', async () => {
+		const [p, q, r] = W.map(idOf) as number[];
+		works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
+		const series = await import('../src/routes/series/[id]/+page.server');
+		const hideAll = async (on: number, reveal: boolean) => {
+			try {
+				return (await (series.actions.hideWork as (e: unknown) => Promise<unknown>)({
+					request: new Request('http://localhost/', { method: 'POST', body: new FormData() }),
+					params: { id: String(on) },
+					url: new URL(`http://localhost/series/${on}`),
+					cookies: { get: () => (reveal ? '1' : undefined) }
+				})) as Record<string, unknown>;
+			} catch (e) {
+				if (e && typeof e === 'object' && 'location' in e) return { to: e.location };
+				throw e;
+			}
+		};
+		// Hidden in part: one part on its own, as a fold left it before c389.
+		getDb().prepare(`UPDATE series SET hidden = 1, public = 0 WHERE id = ?`).run(q);
+		expect([p, q, r].map(hiddenOf)).toEqual([false, true, false]);
+		expect(await hideAll(p, true)).toEqual({ ok: true });
+		expect([p, q, r].map(hiddenOf)).toEqual([true, true, true]);
+		// Hidden whole: nothing to change, either way of seeing it.
+		expect(await hideAll(p, true)).toEqual({ ok: true });
+		expect([p, q, r].map(hiddenOf)).toEqual([true, true, true]);
+		// With reveal off the screen is gone: back to the library, with no band.
+		// (Its own 404 guard reads a hidden series with reveal off; here the
+		// Work is shown again first, and hidden in part once more.)
+		works.setHiddenWhole([p], false);
+		getDb().prepare(`UPDATE series SET hidden = 1, public = 0 WHERE id = ?`).run(r);
+		expect(await hideAll(p, false)).toEqual({ to: '/' });
+		expect([p, q, r].map(hiddenOf)).toEqual([true, true, true]);
+		// A visible Work still answers its band, both ways.
+		works.setHiddenWhole([p], false);
+		expect(await hideAll(p, true)).toEqual({
+			hideFacts: { hidden: [p, q, r], out: [], whole: [p, q, r], works: 1 }
+		});
+		works.setHiddenWhole([p], false);
+		const gone = (await hideAll(p, false)) as { to: string };
+		expect(gone.to).toMatch(/^\/\?band=hidden&/);
+		expect(new URL(gone.to, 'http://localhost').searchParams.get('n')).toBe('3');
 	});
 
 	it('reads a hidden root’s series as hidden: HIDE does not count one as changed', () => {
@@ -1660,6 +1718,201 @@ describe('an episode that streams is online at the end page (c536)', () => {
 			else process.env.ENGINE_TOKEN = was.token;
 			db.prepare(`DELETE FROM entries WHERE series_id = ?`).run(show);
 			db.prepare(`DELETE FROM series WHERE id = ?`).run(show);
+		}
+	});
+});
+
+/**
+ * c583: a screen's form names its Work by the id in its URL, and `works.id` is
+ * reused once the newest Work ends. Every form that writes into a Work posts
+ * the moment it was made (`made`), and the write refuses a Work under that id
+ * made at another moment. Each case below loads the old Work's form, ends that
+ * Work (UNGROUP), makes a newer one that is given the same id, and posts the
+ * old form: 400 `THAT WORK HAS CHANGED · LOOK AGAIN`, nothing written.
+ *
+ * The newer Work holds the same two series as the old one, so the old form is
+ * one the newer Work would otherwise take (the same parts to reorder, take out
+ * or rate): only the moment tells the two apart, so the refusal can come from
+ * nothing but the guard. Each action is also posted with the newer Work's own
+ * moment, which goes through, so the guard is not refusing everything.
+ */
+describe('the Work screen refuses a Work its id now names (c583)', () => {
+	const STALE = { message: 'THAT WORK HAS CHANGED · LOOK AGAIN', stale: true };
+	/** Everything a Work-screen action may write, as one comparable value. */
+	const snapshot = () => {
+		const db = getDb();
+		return {
+			works: db.prepare(`SELECT id, name, created_at, order_mode FROM works ORDER BY id`).all(),
+			members: db
+				.prepare(`SELECT work_id, series_id, position FROM work_series ORDER BY work_id, series_id`)
+				.all(),
+			series: db.prepare(`SELECT id, rating, favourite, hidden FROM series ORDER BY id`).all()
+		};
+	};
+
+	/**
+	 * The old Work, ended, and a newer one under its id made `later` ms after
+	 * it (0: the same millisecond of a fixed clock): the old form's `made` and
+	 * the newer Work's.
+	 */
+	function reused(later: number, name = 'Newer') {
+		const [a, b] = UNRATED.map(idOf) as number[];
+		const old = works.createWork({ seriesIds: [a, b], name: 'Older', now: NOW });
+		works.ungroup(old.work.id);
+		const newer = works.createWork({ seriesIds: [a, b], name, now: NOW + later });
+		expect(newer.work.id).toBe(old.work.id);
+		return { id: old.work.id, a, b, old: old.work.createdAt, now: newer.work.createdAt };
+	}
+
+	/** Each action of the screen, as its form posts it, with the moment given. */
+	const FORMS: [string, (w: ReturnType<typeof reused>) => [string, string | number][]][] = [
+		[
+			'reorder',
+			(w) => [
+				['part', w.b],
+				['part', w.a]
+			]
+		],
+		['takeOut', (w) => [['part', w.a]]],
+		['add', () => [['series', idOf('Mushoku Tensei')!]]],
+		['rename', () => [['name', 'Renamed']]],
+		['ungroup', () => []],
+		['rate', () => [['rating', 7]]],
+		['favourite', () => [['on', '1']]]
+	];
+
+	it.each(FORMS)('?/%s refuses the old form and writes nothing', async (action, fields) => {
+		const w = reused(7);
+		const before = snapshot();
+		const acts = workScreen.actions as Record<string, unknown>;
+		const answer = await post(acts[action], [...fields(w), ['made', w.old]], { id: String(w.id) });
+		expect(answer.status).toBe(400);
+		expect(answer.data).toEqual(STALE);
+		expect(snapshot()).toEqual(before);
+		// A form with no moment (a page from before it was posted) cannot say
+		// which Work it means, and refuses the same way.
+		const bare = await post(acts[action], fields(w), { id: String(w.id) });
+		expect(bare.data).toEqual(STALE);
+		expect(snapshot()).toEqual(before);
+		// The newer Work's own form, the same fields, goes through.
+		const own = await post(acts[action], [...fields(w), ['made', w.now]], { id: String(w.id) });
+		expect(own.status).toBeUndefined();
+		expect(snapshot()).not.toEqual(before);
+	});
+
+	it('refuses a form whose Work ended and whose id nobody took', async () => {
+		const [a, b] = UNRATED.map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Gone', now: NOW });
+		works.ungroup(work.id);
+		const answer = await post(
+			workScreen.actions.rename,
+			[
+				['name', 'Back'],
+				['made', NOW]
+			],
+			{
+				id: String(work.id)
+			}
+		);
+		expect(answer.data).toEqual(STALE);
+		expect(workIds()).toEqual([]);
+	});
+
+	it('refuses the RENAMED band’s UNDO once a newer Work holds the id', async () => {
+		const [a, b] = UNRATED.map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Older', now: NOW });
+		const renamed = await post(
+			workScreen.actions.rename,
+			[
+				['name', 'Older, Renamed'],
+				['made', NOW]
+			],
+			{ id: String(work.id) }
+		);
+		const facts = renamed.renamed as { workId: number; createdAt: number; name: string };
+		expect(facts).toEqual({ workId: work.id, createdAt: NOW, name: 'Older' });
+		works.ungroup(work.id);
+		const newer = works.createWork({ seriesIds: [a, b], name: 'Newer', now: NOW + 7 });
+		expect(newer.work.id).toBe(work.id);
+		const before = snapshot();
+		const answer = await post(workScreen.actions.undoRename, [['facts', JSON.stringify(facts)]], {
+			id: String(work.id)
+		});
+		// Before c583 this named the newer Work "Older".
+		expect(answer.data).toEqual(STALE);
+		expect(snapshot()).toEqual(before);
+		// Facts that are not whole undo nothing, as a band.
+		for (const bad of ['not json', '{}', JSON.stringify({ ...facts, name: '  ' })]) {
+			const refused = await post(workScreen.actions.undoRename, [['facts', bad]], {
+				id: String(work.id)
+			});
+			expect(refused.data).toEqual({ message: 'NOTHING TO UNDO' });
+		}
+		expect(snapshot()).toEqual(before);
+		// Its own Work's UNDO still gives the old name back.
+		const own = works.rename(newer.work.id, 'Newer, Renamed');
+		await post(workScreen.actions.undoRename, [['facts', JSON.stringify(own)]], {
+			id: String(work.id)
+		});
+		expect(works.workRecords([work.id])[0].name).toBe('Newer');
+	});
+
+	it('refuses the library’s ADD TO A WORK into a Work its id now names', async () => {
+		const w = reused(7);
+		const c = idOf('Mushoku Tensei')!;
+		const before = snapshot();
+		for (const made of [[['made', w.old]], []] as [string, number][][]) {
+			const answer = await post(library.actions.addToWork, [
+				['work', w.id],
+				['series', c],
+				...made
+			]);
+			expect(answer.status).toBe(400);
+			expect(answer.data).toEqual({ workMessage: STALE.message, stale: true });
+			expect(snapshot()).toEqual(before);
+		}
+		const own = await post(library.actions.addToWork, [
+			['work', w.id],
+			['series', c],
+			['made', w.now]
+		]);
+		expect(own.status).toBeUndefined();
+		expect(membersNow(w.id)).toEqual([w.a, w.b, c]);
+	});
+
+	/**
+	 * The card's other half: a Work ended and another made under its id in
+	 * the same millisecond. Through the app's own clock (`createWork` with no
+	 * `now`, `Date.now()` held still) the two are given different moments, so
+	 * the old form still refuses; with a spec's own fixed `now` for both, a
+	 * caller has asserted they are the same moment, and that is what it gets.
+	 */
+	it('tells two Works made in one millisecond apart, through the app’s own clock', async () => {
+		const [a, b] = UNRATED.map(idOf) as number[];
+		const still = vi.spyOn(Date, 'now').mockReturnValue(NOW + 1000);
+		try {
+			const old = works.createWork({ seriesIds: [a, b], name: 'Same' });
+			works.ungroup(old.work.id);
+			const newer = works.createWork({ seriesIds: [a, b], name: 'Same' });
+			expect(newer.work.id).toBe(old.work.id);
+			expect(newer.work.createdAt).toBeGreaterThan(old.work.createdAt);
+			const before = snapshot();
+			const answer = await post(
+				workScreen.actions.reorder,
+				[
+					['part', b],
+					['part', a],
+					['made', old.work.createdAt]
+				],
+				{ id: String(old.work.id) }
+			);
+			expect(answer.data).toEqual(STALE);
+			expect(snapshot()).toEqual(before);
+			// An offer's key names the moment too, so the series screen's door
+			// and a NOT THIS tell the two apart the same way.
+			expect(works.workDismissalKey(newer.work, a)).not.toBe(works.workDismissalKey(old.work, a));
+		} finally {
+			still.mockRestore();
 		}
 	});
 });

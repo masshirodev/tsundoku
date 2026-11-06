@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { settleReplacing } from '$lib/back';
 	import { page } from '$app/state';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
@@ -68,8 +69,13 @@
 		existing: { id: number; title: string; books: number }[];
 		/** Novels' series, for ADD TO EXISTING once VOLUMES is the answer. */
 		existingVolumes?: { id: number; title: string; books: number }[];
-		/** Works a selection can move into: ADD TO A WORK · N (W4). */
-		existingWorks?: { id: number; name: string; series: number }[];
+		/**
+		 * Works a selection can move into: ADD TO A WORK · N (W4). `createdAt`
+		 * is posted back with the id, so a Work that ended and whose id a newer
+		 * one took since the sheet was drawn refuses rather than take the
+		 * selection (c583).
+		 */
+		existingWorks?: { id: number; name: string; createdAt: number; series: number }[];
 		/** What the selection allows, from `groupAnswers()` (doc/BOOKS.md, "The AS row"). */
 		answers?: GroupAnswer[];
 		suggested?: boolean;
@@ -235,6 +241,19 @@
 				busy = false;
 				if (result.type === 'failure') {
 					const data = result.data as Record<string, unknown> | undefined;
+					// The Work the sheet was drawn with is gone, or another Work holds
+					// its id now (c583, c584): nothing in the sheet can be answered
+					// any more, so it closes, the page says why, and the page is read
+					// again -- MIGHT CONTINUE then offers what is true now, or nothing,
+					// and ADD TO A WORK lists the Works there are. Every other refusal
+					// (a name taken, a mixed hidden set) keeps the sheet open on its
+					// reason, since another try from the same sheet can succeed.
+					if (data?.stale === true) {
+						await update();
+						await invalidateAll();
+						onclose();
+						return;
+					}
 					refused = String(
 						data?.groupMessage ?? data?.workMessage ?? data?.message ?? 'DID NOT GROUP'
 					);
@@ -474,7 +493,14 @@
 			<input type="hidden" name="sheet" value="1" />
 			<input type="hidden" name="answer" value={answer} />
 			<input type="hidden" name="mode" value={mode} />
-			{#if mode === 'existing'}<input type="hidden" name="work" value={intoValue ?? ''} />{/if}
+			{#if mode === 'existing'}
+				<input type="hidden" name="work" value={intoValue ?? ''} />
+				<input
+					type="hidden"
+					name="made"
+					value={existingWorks.find((w) => w.id === intoValue)?.createdAt ?? ''}
+				/>
+			{/if}
 		{:else}
 			<input type="hidden" name="order" value={orderLabel} />
 			<input type="hidden" name="mode" value={mode} />

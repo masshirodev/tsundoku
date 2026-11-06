@@ -28,7 +28,16 @@ rather than naming either kind; the series it writes are still made as
 These are shapes of the existing tables, not new ones. No flag says "series of
 books": `isBookSeries()` in `src/lib/library/series.ts` asks the question,
 `isSingleton()` in `src/lib/server/books.ts` asks its mirror, and the two
-must agree.
+must agree. Since c558 `isSingleton()` counts books as FILTER's ONE-OFF does
+(`isBookSql`: no shadowed entry, no front or back matter;
+[`FILTERS.md`](FILTERS.md), FORM, lists every reader and the `rg` that finds
+them), and so do MOVE TO… and ADD TO EXISTING's targets (`seriesOfBooks`),
+the books a suggestion may name, and FOLD AS LANGUAGES: a book with an extra
+beside it is one book. `isBookSeries()` still counts the series screen's entries, extras
+included, so on that one shape -- a book and an extra, which no importer writes on a
+doujin today (only the EPUB plans set matter) -- the screen draws a series of books while FORM and
+`isSingleton()` call it a single book; its patch is in
+`doc/handoff-notes/works.md`, wave 26, Gaps (the file is nobody's this wave).
 
 ### Every book keeps its own
 
@@ -88,7 +97,7 @@ series screen as a band ("… · NOTHING CHANGED").
 Every EPUB imports as a series of its own ([`IMPORT-EPUB.md`](IMPORT-EPUB.md)),
 so a work in several books arrives as several series: six Beginning After The
 End books are six tiles. GROUP gathers them into one. Select the novels on the
-library grid (the NOVELS shelf helps), or on their author's page, and tap
+library grid (the KIND band's NOVELS helps), or on their author's page, and tap
 GROUP. The same group sheet reads VOLUMES instead of BOOKS: name the series,
 order the volumes by date added, by title or by hand, then CREATE SERIES, or
 ADD TO EXISTING to put them after another novel.

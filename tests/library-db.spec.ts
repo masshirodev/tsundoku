@@ -1,4 +1,16 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+
+// FOLD AS LANGUAGES ends in the duplicates review, which reads the books'
+// pages; the seed has none on disk. What the action asks it to fold is the
+// answer under test (c558's round 2), so the review's door only records it.
+const folded = vi.hoisted(() => [] as number[][]);
+vi.mock('$lib/server/dupes', async (original) => ({
+	...(await original<typeof import('$lib/server/dupes')>()),
+	offerFold: async (entryIds: number[]) => {
+		folded.push(entryIds);
+		return 'pair';
+	}
+}));
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
@@ -561,5 +573,214 @@ describe('new chapters', () => {
 			old.read_at,
 			old.id
 		);
+	});
+});
+
+/**
+ * c558: FILTER's FORM had three rules for ONE-OFF -- the server's
+ * (`ONE_OFF_SQL`) counted an extra as a book, the device's (`isOneOff`, over
+ * the card's `entryCount`) did not, and the binder's (`isSingleton`) counted
+ * a shadowed duplicate. The owner decided (2026-11-05) that an extra doesn't
+ * make a series, so a doujin with one book and one extra is a ONE-OFF on the
+ * shelf's count, its grid, the device's filter and the binder alike. A
+ * shadowed entry (an edition, a duplicate set aside) is no book either.
+ */
+describe('ONE-OFF counts one book the same way everywhere (c558)', () => {
+	/** A visible doujin single from the seed, by the server's own rule. */
+	const single = () => {
+		const card = lib
+			.listSeries({ reveal: false, filters: only({ form: 'oneoff' }) })
+			.find((c) => c.entryCount === 1);
+		if (!card) throw new Error('the seed has no visible single book');
+		return card;
+	};
+
+	/** Adds an entry beside the book, runs `check`, and takes the entry away again. */
+	async function beside(
+		seriesId: number,
+		row: { matter: string; shadowed: number },
+		check: () => Promise<void> | void
+	) {
+		const db = getDb();
+		// A copy of the book's own row, as an importer would write a second
+		// entry, with only what makes it an extra or a shadow changed.
+		const cols = (db.prepare(`PRAGMA table_info(entries)`).all() as { name: string }[])
+			.map((c) => c.name)
+			.filter((c) => c !== 'id');
+		const set: Record<string, string> = {
+			title: `'Afterword'`,
+			label: `'Afterword'`,
+			position: '2',
+			matter: '@matter',
+			shadowed: '@shadowed',
+			edition_of: 'NULL',
+			read_at: 'NULL'
+		};
+		const id = Number(
+			db
+				.prepare(
+					`INSERT INTO entries (${cols.join(', ')})
+						SELECT ${cols.map((c) => set[c] ?? c).join(', ')} FROM entries
+						WHERE series_id = @series ORDER BY id LIMIT 1`
+				)
+				.run({ matter: row.matter, shadowed: row.shadowed, series: seriesId }).lastInsertRowid
+		);
+		try {
+			await check();
+		} finally {
+			db.prepare(`DELETE FROM entries WHERE id = ?`).run(id);
+		}
+	}
+
+	it.each([
+		['an extra (back matter)', { matter: 'back', shadowed: 0 }],
+		['a duplicate set aside (shadowed)', { matter: '', shadowed: 1 }]
+	])('keeps a doujin with one book and %s a ONE-OFF', async (_, row) => {
+		const { isSingleton } = await import('$lib/server/books');
+		const { isOneOff } = filtersMod;
+		const book = single();
+		const oneoff = only({ form: 'oneoff' });
+		const series = only({ form: 'series' });
+		const before = {
+			oneoff: lib.countListed({ reveal: false, filters: oneoff }),
+			series: lib.countListed({ reveal: false, filters: series })
+		};
+		await beside(book.id, row, () => {
+			// FORM's count and its filtered grid, on the server.
+			const grid = lib.listTiles({ reveal: false, filters: oneoff, limit: 1000 });
+			expect(grid.map((c) => c.id)).toContain(book.id);
+			expect(lib.countListed({ reveal: false, filters: oneoff })).toBe(grid.length);
+			expect(lib.countListed({ reveal: false, filters: oneoff })).toBe(before.oneoff);
+			const rest = lib.listTiles({ reveal: false, filters: series, limit: 1000 });
+			expect(rest.map((c) => c.id)).not.toContain(book.id);
+			expect(lib.countListed({ reveal: false, filters: series })).toBe(before.series);
+			// The device's rule over the same card, as CACHED filters it.
+			const card = grid.find((c) => c.id === book.id)!;
+			expect(card.entryCount).toBe(1);
+			expect(isOneOff(card)).toBe(true);
+			// And the binder's.
+			expect(isSingleton(book.id)).toBe(true);
+		});
+	});
+
+	it('makes a second book a SERIES on all three', async () => {
+		const { isSingleton } = await import('$lib/server/books');
+		const book = single();
+		await beside(book.id, { matter: '', shadowed: 0 }, () => {
+			const grid = lib.listTiles({ reveal: false, filters: only({ form: 'series' }), limit: 1000 });
+			const card = grid.find((c) => c.id === book.id);
+			expect(card?.entryCount).toBe(2);
+			expect(filtersMod.isOneOff(card!)).toBe(false);
+			expect(isSingleton(book.id)).toBe(false);
+		});
+	});
+
+	it('refuses to bind a book with an extra beside it, rather than lose the extra', async () => {
+		const { groupIntoSeries } = await import('$lib/server/books');
+		const [a, b] = lib
+			.listSeries({ reveal: false, filters: only({ form: 'oneoff' }) })
+			.filter((c) => c.entryCount === 1);
+		await beside(a.id, { matter: 'back', shadowed: 0 }, () => {
+			expect(() => groupIntoSeries({ seriesIds: [a.id, b.id], name: 'Bound' })).toThrow(
+				/holds an extra or a duplicate beside its book/
+			);
+			expect(
+				(
+					getDb().prepare(`SELECT COUNT(*) AS n FROM entries WHERE series_id = ?`).get(a.id) as {
+						n: number;
+					}
+				).n
+			).toBe(2);
+		});
+	});
+
+	// c558's round 2: the rule's other readers in this slot's files.
+
+	it('offers a book with an extra to no MOVE TO or ADD TO EXISTING as a series of 2 BOOKS', async () => {
+		const { seriesOfBooks } = await import('$lib/server/books');
+		const book = single();
+		for (const row of [
+			{ matter: 'back', shadowed: 0 },
+			{ matter: '', shadowed: 1 }
+		])
+			await beside(book.id, row, () => {
+				expect(seriesOfBooks(true).map((s) => s.id)).not.toContain(book.id);
+			});
+		// A real series of books keeps its count with an extra beside it.
+		const bound = lib.listSeries({ reveal: true }).find((c) => c.title === BOOK_SERIES_TITLE)!;
+		const count = () => seriesOfBooks(true).find((s) => s.id === bound.id)?.books;
+		const books = count();
+		expect(books).toBeGreaterThan(1);
+		await beside(bound.id, { matter: 'back', shadowed: 0 }, () => {
+			expect(count()).toBe(books);
+		});
+	});
+
+	it('suggests a book with an extra beside it, as a one-off', async () => {
+		const { suggestionFor } = await import('$lib/server/books');
+		// Two hidden books that share a stem: the seed's own suggestion.
+		const pair = lib
+			.listSeries({ reveal: true })
+			.filter((c) => c.title.startsWith('Kaori Mama') && c.entryCount === 1);
+		const one = pair.find((c) => suggestionFor(c.id, true) !== null);
+		if (!one) throw new Error('the seed suggests no pair of books');
+		const before = suggestionFor(one.id, true)!.books.map((b) => b.seriesId);
+		await beside(one.id, { matter: 'back', shadowed: 0 }, () => {
+			expect(suggestionFor(one.id, true)?.books.map((b) => b.seriesId)).toEqual(before);
+		});
+	});
+
+	it('folds a book with an extra beside it, and offers the book, not the extra', async () => {
+		const library = await import('../src/routes/+page.server');
+		const [a, b] = lib
+			.listSeries({ reveal: false, filters: only({ form: 'oneoff' }) })
+			.filter((c) => c.entryCount === 1);
+		const fold = async () => {
+			const body = new FormData();
+			for (const id of [a.id, b.id]) body.append('id', String(id));
+			try {
+				return await (library.actions.fold as (e: unknown) => Promise<unknown>)({
+					request: new Request('http://localhost/', { method: 'POST', body })
+				});
+			} catch (e) {
+				// The review's own page is SvelteKit's success for FOLD.
+				if (e && typeof e === 'object' && 'location' in e) return { location: e.location };
+				throw e;
+			}
+		};
+		const bookOf = (id: number) =>
+			(
+				getDb().prepare(`SELECT MIN(id) AS id FROM entries WHERE series_id = ?`).get(id) as {
+					id: number;
+				}
+			).id;
+		const own = bookOf(a.id);
+		for (const row of [
+			{ matter: 'back', shadowed: 0 },
+			{ matter: '', shadowed: 1 }
+		])
+			await beside(a.id, row, async () => {
+				folded.length = 0;
+				expect(await fold()).toEqual({ location: '/duplicates?pair=pair' });
+				expect(folded).toEqual([[own, bookOf(b.id)]]);
+			});
+		// The extra written before the book: MIN(id) over the series is the
+		// extra's, and the book's own entry is still the one offered.
+		await beside(a.id, { matter: '', shadowed: 0 }, async () => {
+			const db = getDb();
+			const added = (
+				db.prepare(`SELECT MAX(id) AS id FROM entries WHERE series_id = ?`).get(a.id) as {
+					id: number;
+				}
+			).id;
+			db.prepare(`UPDATE entries SET matter = 'front' WHERE id = ?`).run(own);
+			try {
+				folded.length = 0;
+				expect(await fold()).toEqual({ location: '/duplicates?pair=pair' });
+				expect(folded).toEqual([[added, bookOf(b.id)]]);
+			} finally {
+				db.prepare(`UPDATE entries SET matter = '' WHERE id = ?`).run(own);
+			}
+		});
 	});
 });

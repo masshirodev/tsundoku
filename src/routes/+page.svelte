@@ -552,7 +552,13 @@
 		else selected.add(id);
 	}
 
+	function startSelecting() {
+		passed = form;
+		selecting = true;
+	}
+
 	function stopSelecting() {
+		passed = form;
 		selecting = false;
 		selected.clear();
 	}
@@ -689,13 +695,28 @@
 		const langs = picked.map((s) => s.language!);
 		return new Set(langs).size === langs.length ? langs.map(langCode) : null;
 	});
-	const foldMessage = $derived(
-		form && 'foldMessage' in form
-			? String(form.foldMessage)
-			: form && 'workMessage' in form
-				? String(form.workMessage)
-				: ''
+	/**
+	 * A refusal stays where it was answered, and only until the owner moves on
+	 * (c469's round 2). `form` outlives both: SvelteKit keeps an action's answer
+	 * until the next one, so a refusal from the bulk bar came back as a library
+	 * band after ✕, and a band's UNDO refusal moved into the next selection's
+	 * bar. So the page remembers which answer the owner has passed (SELECT, ✕,
+	 * or any other form sent since) and which one a band's UNDO brought: the
+	 * second is drawn as a band with SELECT off, every other in `.fold-refused`.
+	 */
+	let passed = $state.raw<typeof form>(null);
+	let undoAnswer = $state.raw<typeof form>(null);
+	const formMessage = $derived(
+		!form || form === passed
+			? ''
+			: 'foldMessage' in form
+				? String(form.foldMessage)
+				: 'workMessage' in form
+					? String(form.workMessage)
+					: ''
 	);
+	const foldMessage = $derived(form === undoAnswer ? '' : formMessage);
+	const undoMessage = $derived(form === undoAnswer ? formMessage : '');
 	/**
 	 * REFRESH's answer over the selection (card c221). It is the library's own
 	 * band, above the bar that asked, and it is replaced by the next run's: a
@@ -714,7 +735,12 @@
 	/** The HIDE answer's facts (W4): shown again, and taken out again, by UNDO. */
 	const hideFacts = $derived(
 		form && 'hideFacts' in form
-			? (form.hideFacts as { hidden: number[]; out: unknown[]; whole: number[]; works: number })
+			? (form.hideFacts as {
+					hidden: number[];
+					out: { workId: number }[];
+					whole: number[];
+					works: number;
+				})
 			: null
 	);
 	/** The UNHIDE answer's facts (W4): every part it showed, and UNDO to hide them. */
@@ -733,6 +759,31 @@
 				})
 			: null
 	);
+	/**
+	 * A HIDE band that hid no Work's part (c469): `?/hideAll` over loose series
+	 * beside a Work it only settled, or TAKE OUT, THEN HIDE. Its words are of
+	 * what the press did, each half only when it happened -- the series hidden
+	 * now, the ones taken out of their Works -- and what UNDO does to them: shown
+	 * again, or only put back when nothing was hidden by this press (a part
+	 * hidden already, taken out). Until c469 it always said TAKEN OUT OF THE
+	 * WORK, and could say HIDDEN · 0 SERIES.
+	 */
+	const looseBand = $derived.by(() => {
+		if (!hideFacts) return null;
+		const n = hideFacts.hidden.length;
+		const k = hideFacts.out.length;
+		const from = new Set(hideFacts.out.map((o) => o.workId)).size;
+		const out =
+			k === 0
+				? null
+				: `TAKEN OUT OF ${from === 1 ? 'THE WORK' : `${from} WORKS`} · ${
+						k === 1 ? 'A SERIES ON ITS OWN AGAIN' : `${k} SERIES ON THEIR OWN AGAIN`
+					}`;
+		return {
+			title: n > 0 ? `HIDDEN · ${n} SERIES` : `TAKEN OUT · ${k} SERIES`,
+			detail: [out, n > 0 ? 'SHOWN AGAIN BY UNDO' : 'PUT BACK BY UNDO'].filter(Boolean).join(' · ')
+		};
+	});
 	const shownBand = $derived(
 		showFacts && showFacts.works > 0
 			? wholeBand('SHOWN', { ids: showFacts.shown, whole: showFacts.whole, works: showFacts.works })
@@ -791,8 +842,10 @@
 	 */
 	const undoAfter: SubmitFunction =
 		() =>
-		async ({ update }) => {
+		async ({ result, update }) => {
 			await update();
+			// The answer `update` just put in `form`: drawn as the band below.
+			if (result.type === 'failure') undoAnswer = form;
 			await invalidateAll();
 			await refillPages();
 		};
@@ -1300,6 +1353,7 @@
 	bind:innerHeight={winH}
 	onpointerdowncapture={dropFilterNote}
 	onkeydowncapture={dropFilterNote}
+	onsubmitcapture={() => (passed = form)}
 />
 
 <div class="library" class:selecting class:has-band={!!batch}>
@@ -1336,9 +1390,7 @@
 				</div>
 			{/snippet}
 			{#snippet right()}
-				<button type="button" class="cell-btn select-cell" onclick={() => (selecting = true)}
-					>SELECT</button
-				>
+				<button type="button" class="cell-btn select-cell" onclick={startSelecting}>SELECT</button>
 			{/snippet}
 		</TopBar>
 	{:else}
@@ -1420,7 +1472,7 @@
 					type="button"
 					class="cell-btn select-cell"
 					data-focus-mark="in"
-					onclick={() => (selecting = true)}
+					onclick={startSelecting}
 					disabled={data.empty}>SELECT</button
 				>
 				<!-- MORE: the sidebar's foot as a sheet, on the tablet and phone (Reach; card c171). -->
@@ -1505,8 +1557,8 @@
 		<!-- HIDE ALL n or TAKE OUT, THEN HIDE: the library's own band, with UNDO (W4). -->
 		<div class="lib-band">
 			<Band
-				title={hiddenBand?.title ?? `HIDDEN · ${hideFacts.hidden.length} SERIES`}
-				detail={hiddenBand?.detail ?? 'TAKEN OUT OF THE WORK · A SERIES ON ITS OWN AGAIN'}
+				title={(hiddenBand ?? looseBand)?.title ?? ''}
+				detail={(hiddenBand ?? looseBand)?.detail ?? ''}
 			>
 				{#snippet action()}
 					<form method="POST" action="?/undoHide" use:enhance={undoAfter}>
@@ -1515,6 +1567,16 @@
 					</form>
 				{/snippet}
 			</Band>
+		</div>
+	{/if}
+	{#if undoMessage && !selecting}
+		<!-- A refusal with no bulk bar to stand over (c469): an UNDO on one of the
+		     bands above refused, the library having moved on (c308). The band's
+		     own refusal shape, as the series and Work screens draw theirs. A
+		     refusal from the bulk bar or the GROUP sheet stays in the bar's
+		     `.fold-refused` line, and goes with ✕. -->
+		<div class="lib-band">
+			<Band title={undoMessage} detail="NOTHING CHANGED" />
 		</div>
 	{/if}
 	{#if showFacts}
@@ -1956,8 +2018,7 @@
 				<p class="empty-sub">
 					Long-press a cover and tick it under SHELVES, or SELECT several and + SHELF.
 				</p>
-				<button type="button" class="empty-select" onclick={() => (selecting = true)}>SELECT</button
-				>
+				<button type="button" class="empty-select" onclick={startSelecting}>SELECT</button>
 			</div>
 		{:else if shown.length === 0 && kindAtZero && !outlined}
 			<!-- The kind chosen elsewhere, none of it here (Kinds Calls 4): the band

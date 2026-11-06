@@ -189,7 +189,7 @@ test('a Work is one tile, one CONTINUE row, and a screen of its own', async ({ p
 
 	// RENAME is a round trip: the same name, DONE, and a band -- nothing changed.
 	await page.getByRole('button', { name: 'RENAME' }).click();
-	await page.locator('.rename input').fill('Drawing Run');
+	await page.getByRole('textbox', { name: "The Work's name" }).fill('Drawing Run');
 	await page.locator('.rename').getByRole('button', { name: 'DONE' }).click();
 	await expect(page.locator('.band', { hasText: 'RENAMED · DRAWING RUN' })).toBeVisible();
 
@@ -1336,6 +1336,157 @@ test('a bulk HIDE over two Works says 2 WORKS, WHOLE and keeps the loose series 
 	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
 });
 
+/**
+ * c469 (wave 19's Gap 2): a refusal from a band's UNDO came back as the
+ * library's `workMessage`, which the page drew only inside the bulk bar, so
+ * with SELECT off nothing said why the band just stayed. Reached through the
+ * app: GROUP AS A WORK's band is up in one tab while the other takes a part
+ * out on the Work's screen, which ends the Work; the band's UNDO then refuses.
+ */
+test('a refused UNDO on the library says why with no selection open (c469)', async ({
+	page,
+	context
+}) => {
+	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren'], 'Refused Run');
+	const made = page.locator('.band', { hasText: 'REFUSED RUN IS A WORK' });
+	// The create ended the selection: the refusal has no bulk bar to stand over.
+	await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toBeVisible();
+
+	const other = await context.newPage();
+	await other.goto('/');
+	await openWork(other, 'Refused Run');
+	await other.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await other.locator('.run .part', { hasText: 'Sousou no Frieren' }).locator('.rowlink').click();
+	await other.getByRole('button', { name: 'TAKE OUT' }).click();
+	await expect(
+		other.locator('.band', { hasText: 'REFUSED RUN IS NO LONGER A WORK' })
+	).toBeVisible();
+	await other.close();
+
+	await made.getByRole('button', { name: 'UNDO' }).click();
+	const refusal = page.locator('.band', { hasText: 'REFUSED RUN HAS CHANGED SINCE IT WAS MADE' });
+	await expect(refusal).toBeVisible();
+	await expect(refusal).toContainText('NOTHING CHANGED');
+	await expect(page.locator('.fold-refused')).toHaveCount(0);
+	// The take-out ended the Work, so nothing is left to put back.
+	await expect(workTile(page, 'Refused Run')).toHaveCount(0);
+
+	// The owner moves on (c469's round 2): SELECT does not carry the refusal
+	// into the bar, and ✕ does not bring the band back. `form` still holds the
+	// answer all along, which is what both used to draw from.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
+	await expect(refusal).toHaveCount(0);
+	await expect(page.locator('.fold-refused')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toBeVisible();
+	await expect(refusal).toHaveCount(0);
+	await expect(page.locator('.lib-band .band')).toHaveCount(0);
+});
+
+/**
+ * c469's round 2: a refusal answered over the bulk bar stays in the bar's
+ * `.fold-refused` line and goes with the selection. Reached through the app:
+ * GROUP's ADD TO A WORK is open on a Work that the other tab ends, so the add
+ * refuses as stale (c584), the sheet closes and the selection stays. Before
+ * the fix, ✕ turned the line into a library band, `NOTHING CHANGED`, over a
+ * library where nothing had been asked.
+ */
+test('a refusal over the bulk bar goes with ✕, and is not drawn as a library band (c469)', async ({
+	page,
+	context
+}) => {
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Stale Run');
+	await select(page, ['Dungeon Meshi']);
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = groupSheet(page);
+	await sheet.getByRole('radio', { name: /ADD TO A WORK · 1/ }).click();
+	await sheet.getByText('Stale Run', { exact: true }).click();
+
+	const other = await context.newPage();
+	await other.goto('/');
+	await openWork(other, 'Stale Run');
+	await endWork(other);
+	await other.close();
+
+	await sheet.getByRole('button', { name: /ADD 1 TO THE WORK/ }).click();
+	await expect(sheet).toBeHidden();
+	const line = page.locator('.fold-refused');
+	await expect(line).toHaveText('THAT WORK HAS CHANGED · LOOK AGAIN');
+	await expect(page.locator('.lib-band .band')).toHaveCount(0);
+
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toBeVisible();
+	await expect(line).toHaveCount(0);
+	await expect(page.locator('.band', { hasText: 'THAT WORK HAS CHANGED' })).toHaveCount(0);
+	await expect(page.locator('.lib-band .band')).toHaveCount(0);
+
+	// Nor does the next selection start on it.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
+	await expect(line).toHaveCount(0);
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	// The Work ended in the other tab, and Dungeon Meshi joined nothing.
+	await expect(workTile(page, 'Stale Run')).toHaveCount(0);
+});
+
+/**
+ * c469 (wave 19's Gaps 3 and 7, decision 12): HIDE ALL over a selection whose
+ * Work is hidden whole already and a loose series beside it. The press hides
+ * only the loose one, and that one is what its UNDO may show: the band says
+ * so, never TAKEN OUT OF THE WORK (nothing was), never THE WORK, WHOLE (it
+ * hid none of it), and its UNDO shows the loose series and leaves the Work
+ * hidden. Before c469 the press answered no band at all.
+ */
+test('HIDE ALL beside a Work hidden already says only what it hid, and its UNDO shows only that (c469)', async ({
+	page
+}) => {
+	await revealOn(page);
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Settled Run');
+	await page.goto('/?shelf=k:manga');
+	const run = page.locator('.grid .tile.work', { hasText: 'Settled Run' });
+	const loose = tileByTitle(page, 'Sousou no Frieren');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await run.locator('.open').click();
+	await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Hide' })
+		.getByRole('button', { name: /HIDE ALL 2/ })
+		.click();
+	await expect(page.locator('.band', { hasText: 'HIDDEN · THE WORK, WHOLE' })).toBeVisible();
+
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await run.locator('.open').click();
+	await loose.locator('.open').click();
+	await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Hide' })
+		.getByRole('button', { name: /HIDE ALL \d+/ })
+		.click();
+	const band = page.locator('.band', { hasText: 'HIDDEN · 1 SERIES' });
+	await expect(band).toBeVisible();
+	await expect(band).toContainText('SHOWN AGAIN BY UNDO');
+	await expect(band).not.toContainText('TAKEN OUT');
+	await expect(page.locator('.band', { hasText: 'THE WORK, WHOLE' })).toHaveCount(0);
+	await expect(loose.locator('.badge', { hasText: 'HIDDEN' })).toBeVisible();
+
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(band).toHaveCount(0);
+	await expect(loose.locator('.badge', { hasText: 'HIDDEN' })).toHaveCount(0);
+	await expect(run.locator('.badge', { hasText: 'HIDDEN' })).toBeVisible();
+
+	// Back to the seed: the Work shown, then ended, and reveal off.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await run.locator('.open').click();
+	await page.getByRole('button', { name: 'UNHIDE' }).click();
+	await expect(run.locator('.badge', { hasText: 'HIDDEN' })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	await run.click();
+	await page.waitForURL(/\/work\/\d+/);
+	await endWork(page);
+	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+});
+
 test('a Work cannot be made of a hidden series and a visible one', async ({ page }) => {
 	await revealOn(page);
 	await page.goto('/?shelf=all&sort=title');
@@ -1473,6 +1624,60 @@ test('MIGHT CONTINUE <WORK>: REVIEW opens ADD TO A WORK with it last and ticked,
 	await page.goto('/');
 	await workTile(page, 'Kaori Mama').click();
 	await endWork(page);
+});
+
+/**
+ * c584: the offer the sheet was drawn with goes stale while it is open, made
+ * so through the app's own doors in a second page (the owner's other tab).
+ * The add refuses (`THAT WORK HAS CHANGED · LOOK AGAIN`, c583's shape), and
+ * the sheet must not stay open on the dead offer: it closes, the screen says
+ * why, and MIGHT CONTINUE shows what is true now -- the newer Work's offer
+ * when one was made under the same id, or nothing once there is no Work.
+ */
+test('a refused stale offer closes its sheet, and MIGHT CONTINUE shows the offer there is now, or none (c584)', async ({
+	page
+}) => {
+	await revealOn(page);
+	const pair = ['Kaori Mama', 'Kaori Mama on Holiday Duty'];
+	await makeWorkExact(page, pair, 'Kaori Mama');
+	const id = await openSeries(page, 'Kaori Mama Illustrations 2024');
+	const offer = page.getByRole('region', { name: 'Might continue Kaori Mama' });
+	const keyOf = () => offer.locator('input[name="key"]').first().inputValue();
+	const sheet = groupSheet(page);
+	const refusal = page.locator('.band', { hasText: 'THAT WORK HAS CHANGED · LOOK AGAIN' });
+	const other = await page.context().newPage();
+
+	// The Work is ungrouped in the other tab and made again from the same two
+	// series: the newer Work takes the old one's id, under a new moment.
+	const old = await keyOf();
+	await offer.getByRole('button', { name: 'REVIEW →' }).click();
+	await expect(sheet.locator('.h-title')).toHaveText('INTO KAORI MAMA · AS PART 3');
+	await other.goto('/');
+	await openWork(other, 'Kaori Mama');
+	await endWork(other);
+	await makeWorkExact(other, pair, 'Kaori Mama');
+	await sheet.getByRole('button', { name: 'ADD 1 TO THE WORK' }).click();
+	await expect(sheet).toBeHidden();
+	await expect(refusal).toBeVisible();
+	// The offer drawn now is the newer Work's, not the dead one's, and the
+	// series joined nothing.
+	await expect(offer).toBeVisible();
+	await expect.poll(keyOf).not.toBe(old);
+	await expect(page.locator('.work-row')).toHaveCount(0);
+	expect(page.url()).toContain(`/series/${id}`);
+
+	// Ungrouped for good in the other tab: the refusal leaves no offer at all.
+	await offer.getByRole('button', { name: 'REVIEW →' }).click();
+	await expect(sheet).toBeVisible();
+	await other.goto('/');
+	await openWork(other, 'Kaori Mama');
+	await endWork(other);
+	await sheet.getByRole('button', { name: 'ADD 1 TO THE WORK' }).click();
+	await expect(sheet).toBeHidden();
+	await expect(refusal).toBeVisible();
+	await expect(offer).toHaveCount(0);
+	await expect(page.locator('.work-row')).toHaveCount(0);
+	await other.close();
 });
 
 /** Adds or removes one tag on a series, through its screen's EDIT sheet. */

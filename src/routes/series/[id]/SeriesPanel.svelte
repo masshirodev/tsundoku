@@ -729,9 +729,13 @@
 			{/snippet}
 		</Band>
 	{:else if !outline && hideFacts}
+		<!-- TAKE OUT's words say what happened (c469): a part that was hidden
+		     already is only taken out, and its UNDO only puts it back. -->
 		<Band
-			title={hiddenBand?.title ?? 'HIDDEN · TAKEN OUT'}
-			detail={hiddenBand?.detail ?? 'A SERIES ON ITS OWN AGAIN · SHOWN AGAIN BY UNDO'}
+			title={hiddenBand?.title ??
+				(hideFacts.hidden.length > 0 ? 'HIDDEN · TAKEN OUT' : 'TAKEN OUT · ALREADY HIDDEN')}
+			detail={hiddenBand?.detail ??
+				`A SERIES ON ITS OWN AGAIN · ${hideFacts.hidden.length > 0 ? 'SHOWN AGAIN' : 'PUT BACK'} BY UNDO`}
 		>
 			{#snippet action()}
 				<form method="POST" action="?/undoHide" use:enhance>

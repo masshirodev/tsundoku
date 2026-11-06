@@ -18,7 +18,18 @@
 	 * Work screen's load never carries it, so a large library costs the screen
 	 * nothing until the reader asks for the picker (round 2's finding).
 	 */
-	let { open, workId, onclose }: { open: boolean; workId: number; onclose: () => void } = $props();
+	let {
+		open,
+		workId,
+		made,
+		onclose
+	}: {
+		open: boolean;
+		workId: number;
+		/** The Work's moment of making, posted so a reused id refuses (c583). */
+		made: number;
+		onclose: () => void;
+	} = $props();
 
 	let q = $state('');
 	let items = $state<AddableSeries[]>([]);
@@ -105,6 +116,7 @@
 							}}
 					>
 						<input type="hidden" name="series" value={s.seriesId} />
+						<input type="hidden" name="made" value={made} />
 						<button type="submit" class="row">
 							<span class="cov"><Cover src={coverSrc(s.seriesId, s.cover)} hue={s.hue} /></span>
 							<span class="tx">
