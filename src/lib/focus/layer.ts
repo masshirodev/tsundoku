@@ -386,7 +386,10 @@ const LINE_STEP = 40;
  * A page a screen has locked is left alone too (c618). `overflow: hidden` is
  * still a scroller a script can move, where Chromium's own arrow chain stops,
  * so the fallback below scrolled the image reader's strip under its lookup
- * panel (`html.style.overflow = 'hidden'`, ImageReader.svelte:1139, :1296).
+ * panel, which locks the page with `html.style.overflow = 'hidden'` while it
+ * or the page menu is open. `overflow: clip` is the same lock (c647): on the
+ * viewport Chromium computes it as `clip` and a script's `scrollBy` still
+ * moves it, so it has to be checked beside `hidden`.
  */
 function stepScroll(from: HTMLElement, direction: 'up' | 'down'): void {
 	let scroller: Element | null = null;
@@ -398,7 +401,8 @@ function stepScroll(from: HTMLElement, direction: 'up' | 'down'): void {
 		}
 	}
 	if (!scroller) {
-		if (viewportOverflowY() === 'hidden') return;
+		const viewport = viewportOverflowY();
+		if (viewport === 'hidden' || viewport === 'clip') return;
 		scroller = document.scrollingElement ?? document.documentElement;
 	}
 	scroller.scrollBy({ top: direction === 'up' ? -LINE_STEP : LINE_STEP, behavior: 'instant' });
@@ -409,7 +413,8 @@ function stepScroll(from: HTMLElement, direction: 'up' | 'down'): void {
  * element's, except that CSS gives it to the first body child when the root
  * says `visible` (the root's `overflow` propagates to the viewport, and a
  * visible one hands that on). A screen locks one or the other, so both read
- * as the page's lock here.
+ * as the page's lock here. A lock is `hidden` or `clip` (c647): Chromium
+ * computes the latter as `clip` and a key scroll reaches it just the same.
  */
 function viewportOverflowY(): string {
 	const root = getComputedStyle(document.documentElement).overflowY;
