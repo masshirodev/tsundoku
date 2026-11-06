@@ -189,7 +189,12 @@ that's all of them.
 - `tests/dupes-db.spec.ts`: hidden pairs hidden, finding again from the
   hashes, a decision waiting for UNDO, KEEP BOTH remembered, KEEP's carry-over
   and delete. `tests/dupes-group-db.spec.ts`: GROUP AS A SERIES.
+  `tests/duplicates-db.spec.ts`: the scanlator collapse (below), and a fold the
+  state refuses -- answered under `refused`, dropped, and not tried again (c648).
 - `tests/duplicates-flow.e2e.ts`: on the seed's hidden twins (Rakugaki
   Collection Vol. 3 and its [Digital] copy): no band with reveal off, the pick
   and its reason, choosing the other side, KEEP and UNDO, the series band,
   side by side in landscape and stacked in portrait, KEEP BOTH ending the band.
+  Its last block runs a world of its own for a fold the state refuses (c648):
+  the third language a book already has, the band that says so, the pair back
+  in the review on the next load, and OPEN → landing on the refusal.
