@@ -866,6 +866,7 @@ test('S8: after an add, the app says who is still here, OPEN focused', async ({ 
 	);
 	await expect(page.locator('#added-title')).toHaveText("ZEN is one of this TV's servers");
 	await expect(page.locator('#added-prose')).toContainText('Living room is still here.');
+	await expect(page.locator('#added-prose')).toContainText('the name at the top of the library');
 	await expect(page.locator('#added-prose')).toContainText('MORE › SERVERS');
 	await expect(page.locator('#added-meta')).toHaveText('ZEN IS WHAT THE COMPUTER CALLS ITSELF');
 	await expect(page.locator('#added-open')).toHaveText('OPEN ZEN →');

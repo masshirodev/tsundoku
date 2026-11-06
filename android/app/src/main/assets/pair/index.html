@@ -1708,11 +1708,11 @@
 						: others.length === 1
 							? `${others[0].shown} is still here. `
 							: `${others[0].shown} and ${others.length - 1} more are still here. `;
-				// No name at the top of the library yet: that cell is the
-				// library page's (doc/TV-APP.md, "Servers"), so MORE is the door.
+				// S8 is shown with two or more servers, so the library's bar has
+				// its server cell (S1, wave 24) as well as MORE › SERVERS.
 				document.getElementById('added-prose').textContent =
 					still +
-					'Switch from MORE › SERVERS. Each keeps its own pairing, so switching never asks for digits again.';
+					'Switch from the name at the top of the library, or MORE › SERVERS. Each keeps its own pairing, so switching never asks for digits again.';
 				document.getElementById('added-open').textContent =
 					`OPEN ${String(s.shown).toUpperCase()} →`;
 				document.getElementById('added-meta').textContent = s.name

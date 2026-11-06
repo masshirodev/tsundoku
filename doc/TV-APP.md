@@ -416,14 +416,6 @@ verified".
 
 ### Where it departs from the handoff
 
-- **S8's prose names MORE › SERVERS alone.** It was written in wave 21, when
-  S1 was not built, as "Switch from MORE › SERVERS" rather than the design's
-  "Switch from the name at the top of the library, or MORE › SERVERS". S1 is
-  built since wave 24 (with two or more servers, which is every TV that sees
-  S8), but the sentence is the app's own page
-  (`android/app/src/main/assets/pair/index.html`), outside wave 24's tv
-  slot: the patch is under Gaps in `doc/handoff-notes/tv.md`, wave 24. Until it
-  lands, S8 names one of the two doors.
 - **The wordmark is not an arrow stop while S1's cell is drawn** (above, "The
   bar's server cell"). In the design it is no control at all; in the app it
   is the link home, kept for Tab and the pointer.
