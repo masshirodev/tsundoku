@@ -749,9 +749,15 @@ test('S1: an answer to an older question that lands after a newer one is dropped
 	await expect(cell(page)).toHaveText(/^ON\s*LIVING ROOM$/);
 });
 
-test('S1: an answer that lands after the library is left changes nothing there (c645)', async ({
+test('S1: an answer that lands after the library is left draws nothing on the next visit (c645)', async ({
 	page
 }) => {
+	// The `!mounted` half of refreshTvServers is defensive: Svelte 5 throws
+	// nothing when a dead instance's `$state` is written, and each instance
+	// owns its own `tvServers`, so the write has no observable effect. What
+	// this case can observe is the next visit: a second instance is shown
+	// while the first one's answers land, and its cell must come only from
+	// its own reads, never from theirs.
 	const errors: string[] = [];
 	page.on('pageerror', (e) => errors.push(e.message));
 	await laterBridge(page);
@@ -764,11 +770,23 @@ test('S1: an answer that lands after the library is left changes nothing there (
 	const sheet = page.getByRole('dialog', { name: 'More' });
 	await sheet.getByRole('link', { name: /HISTORY/ }).click();
 	await expect(page).toHaveURL(/\/history/);
-	await later.earlier(page, answered('Living room'));
-	await later.newest(page, answered('Living room'));
+	const askedBefore = await later.count(page);
+	// The first instance is gone; its answers land anyway, and throw nothing.
+	await later.earlier(page, answered('Stale den'));
+	await later.newest(page, answered('Stale den'));
 	await page.waitForTimeout(100);
 	expect(errors).toEqual([]);
 	await expect(page).toHaveURL(/\/history/);
+
+	// Back by the page's own history: the document survives, so a second
+	// library instance is the one shown, with its own reads still pending.
+	await page.goBack();
+	await expect(page).toHaveURL(/\/$/);
+	await expect.poll(() => later.count(page)).toBeGreaterThanOrEqual(askedBefore + 2);
+	// Nothing the first instance's answers said may be drawn on this one.
+	await expect(cell(page)).toHaveCount(0);
+	await later.newest(page, answered('Living room'));
+	await expect(cell(page)).toHaveText(/^ON\s*LIVING ROOM$/);
 });
 
 for (const [what, answer] of [
