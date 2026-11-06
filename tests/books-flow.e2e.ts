@@ -315,11 +315,38 @@ test('a hand-made extra beside a doujin is drawn apart, is not counted, and open
 		await expect(page.locator('.names .meta')).toContainText('4 BOOKS');
 		await expect(page.getByRole('region', { name: 'Books' })).toBeVisible();
 		await expect(page.getByRole('region', { name: 'Books' }).locator('.cell')).toHaveCount(4);
+		await expect(page.getByText('FROM ITS 4 BOOKS · EACH KEEPS ITS OWN')).toBeVisible();
 		await expect(page.locator('a[data-extra]')).toHaveText([/A Second Extra/]);
+		// A book's sheet numbers it among the books, not the extra (c650).
+		const books = page.getByRole('region', { name: 'Books' });
+		await longPress(page, books.getByRole('button', { name: /Laundry Duty/ }));
+		const sheet = page.getByRole('dialog', { name: /Laundry Duty/ });
+		await expect(sheet).toContainText('DOUJIN · BOOK 2 OF 4');
+		await page.keyboard.press('Escape');
+		await expect(sheet).toHaveCount(0);
 		// ORDER keeps to the books: the extra is not a number in the reading order.
 		await page.getByRole('button', { name: 'ORDER' }).click();
+		await expect(page.getByText('REORDER · 4', { exact: true })).toBeVisible();
 		await expect(page.locator('a[data-extra]')).toHaveCount(0);
+		await page.getByRole('button', { name: 'BY TITLE' }).click();
 		await page.getByRole('button', { name: /DONE/ }).click();
+		// DONE saved the books' chosen order, and the extra is listed apart again.
+		await expect(page.locator('a[data-extra]')).toHaveText([/A Second Extra/]);
+		await expect(books.locator('.tile .title')).toHaveText([
+			'Kaori Mama on Bath Duty',
+			'Kaori Mama on Festival Duty',
+			'Kaori Mama on Laundry Duty',
+			'Kaori Mama on Night Duty'
+		]);
+		// And the extra was not in the order submitted: it sits behind the books.
+		const places = db
+			.prepare(
+				`SELECT (SELECT position FROM entries WHERE id = ?) AS extra,
+					(SELECT MAX(position) FROM entries WHERE series_id = e.series_id AND matter = '') AS last
+				FROM entries e WHERE e.id = ?`
+			)
+			.get(extraBooks, extraBooks) as { extra: number; last: number };
+		expect(places.extra).toBeGreaterThan(places.last);
 	} finally {
 		db.prepare(`DELETE FROM entries WHERE id IN (?, ?)`).run(extraSingle, extraBooks);
 		db.close();

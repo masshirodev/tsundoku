@@ -21,7 +21,7 @@
 		type SeriesPage
 	} from '$lib/library/series';
 	import type { Shelf } from '$lib/library/types';
-	import { isBookSeries, isVolumeSeries } from '$lib/library/series';
+	import { booksOf, isBookSeries, isVolumeSeries } from '$lib/library/series';
 	import { m } from '$lib/paraglide/messages';
 	import { suggestionLabel, type Suggestion } from '$lib/library/books';
 	import { readTime } from '$lib/library/history';
@@ -1266,7 +1266,9 @@
 						{#if tags.groups.length === 0}<span class="none">NO TAGS</span>{/if}
 						{#if tags.more > 0}<div class="more">+ {tags.more} MORE</div>{/if}
 						{#if isBookSeries(series)}
-							<div class="more">FROM ITS {series.entries.length} BOOKS · EACH KEEPS ITS OWN</div>
+							<div class="more">
+								FROM ITS {booksOf(series.entries).length} BOOKS · EACH KEEPS ITS OWN
+							</div>
 						{/if}
 					</div>
 					<button type="button" class="edit" onclick={onedit}>EDIT</button>
