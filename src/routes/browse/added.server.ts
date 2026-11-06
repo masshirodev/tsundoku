@@ -23,8 +23,9 @@ import { kindFacts } from '$lib/library/kinds';
  * - BROWSE, `/browse`, once it is not: the ADD itself can make the source
  *   mostly hidden (`mostlyHidden`, more than half its series hidden), which
  *   is what the first ADD from a source with ADDED HIDDEN on and nothing else
- *   here does. There the band names no source, as CONCEAL's does (c523):
- *   hidden means not named.
+ *   here does. There the band names no source outside reveal, as CONCEAL's
+ *   does (c523): hidden means not named. Inside reveal it is here, so the band
+ *   names it and drops the REVEAL tail (c605).
  *
  * UNDO is the same on both, and asks only the band's own facts (the series'
  * id and key, through `addedHere`, and the preview it was added from), never
@@ -105,6 +106,8 @@ export type AddedBand = {
 	touched: boolean;
 	/** Whether the source is not found outside reveal now (BROWSE's band says so). */
 	sourceHidden: boolean;
+	/** The source's name, as this viewer may see it: null outside reveal when it is not found (c605). */
+	sourceName: string | null;
 };
 
 /**
@@ -113,12 +116,17 @@ export type AddedBand = {
  */
 export async function addedBand(
 	p: URLSearchParams,
-	sourceId: string | null
+	sourceId: string | null,
+	reveal: boolean
 ): Promise<AddedBand | null> {
 	if (p.get('added') !== 'hidden') return null;
 	const s = await bandSeries(sourceId, p.get('series'), p.get('preview'));
 	if (!s) return null;
 	const queued = /^(\d+|down)$/.test(p.get('queued') ?? '') ? p.get('queued') : null;
+	// Outside reveal the band is a hidden source's, and hidden means not named;
+	// inside it the source is here, so the band says which one it is (c605).
+	const outside = browseSource(s.source, false);
+	const shown = reveal ? browseSource(s.source, true) : outside;
 	return {
 		seriesId: s.seriesId,
 		preview: s.preview,
@@ -126,7 +134,8 @@ export async function addedBand(
 		video: kindFacts(s.kind).medium === 'video',
 		queued,
 		touched: s.touched,
-		sourceHidden: !browseSource(s.source, false)
+		sourceHidden: !outside,
+		sourceName: shown?.name ?? null
 	};
 }
 

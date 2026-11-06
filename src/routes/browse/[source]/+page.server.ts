@@ -96,6 +96,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 
 	return {
 		source,
+		reveal,
 		mode,
 		pages,
 		q,
@@ -104,7 +105,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		// ADD from a source that adds hidden, with reveal off (card c435): the
 		// preview lands here, since the hidden series isn't found, and says so,
 		// with what ADD AND DOWNLOAD queued and UNDO (c505).
-		addedHidden: await addedBand(url.searchParams, source.id),
+		addedHidden: await addedBand(url.searchParams, source.id, reveal),
 		// Arrived from a tag (c313): ← returns to where it was tapped, never anywhere else.
 		back: backOrigin(url.searchParams.get('from')),
 		// Without script a streamed promise never resolves, so the page waits for it instead.

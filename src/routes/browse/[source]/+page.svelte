@@ -203,8 +203,15 @@
 	<StartTrail start={data.start} />
 	{#if data.addedHidden}
 		<!-- What the series page's band would have said (c505): what ADD AND
-		     DOWNLOAD queued, and UNDO while nothing of it is downloaded or read. -->
-		<AddedBand band={data.addedHidden} {name} undo="?/undoAdd" refusal={form?.message ?? null} />
+		     DOWNLOAD queued, and UNDO while nothing of it is downloaded or read.
+		     Inside reveal there is nothing to point at, so the tail goes (c605). -->
+		<AddedBand
+			band={data.addedHidden}
+			{name}
+			reveal={data.reveal}
+			undo="?/undoAdd"
+			refusal={form?.message ?? null}
+		/>
 	{/if}
 
 	<nav class="tabs" aria-label="Lists">
