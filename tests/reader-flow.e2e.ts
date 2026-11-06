@@ -402,7 +402,7 @@ test('the end of the series asks for a rating while unrated, and it saves', asyn
 	).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('rating at the end of a series keeps the screen, and the library row takes it out (c655)', async ({
+test('rating at the end of a series keeps the screen, and the library row hides it (c655)', async ({
 	page
 }) => {
 	const id = await seriesId(page, 'Chainsaw Man');
@@ -441,17 +441,19 @@ test('rating at the end of a series keeps the screen, and the library row takes 
 	await expect(end.getByRole('link', { name: '← SERIES' })).toBeVisible();
 	await expect(end.getByRole('link', { name: 'LIBRARY' })).toBeVisible();
 
-	// The library row: the series is in the library, so it offers REMOVE.
+	// The library row: the series is in the library, so it offers HIDE — the
+	// series screen's own word, because that is what the action does: it takes
+	// the series off every shelf behind /reveal, and in_library stays 1.
 	await expect(end.getByRole('button', { name: '+ ADD TO LIBRARY' })).toHaveCount(0);
-	const remove = end.getByRole('button', { name: 'REMOVE FROM LIBRARY' });
-	await expect(remove).toBeVisible();
-	await remove.click();
+	const hide = end.getByRole('button', { name: 'HIDE', exact: true });
+	await expect(hide).toBeVisible();
+	await hide.click();
 	// The restore runs even when an assertion below fails, and its own failure
 	// is soft so it cannot hide the body's (c649).
 	let failed: unknown;
 	try {
-		await expect(end.getByRole('button', { name: 'REMOVED FROM LIBRARY ✓' })).toBeVisible();
-		// It really left the library: with reveal off, no tile is left to show.
+		await expect(end.getByRole('button', { name: 'HIDDEN ✓' })).toBeVisible();
+		// It really left every shelf: with reveal off, no tile is left to show.
 		await page.goto('/?sort=title');
 		await expect(page.locator('.grid .tile', { hasText: 'Chainsaw Man' })).toHaveCount(0);
 	} catch (e) {
@@ -469,9 +471,11 @@ test('rating at the end of a series keeps the screen, and the library row takes 
 			headers: { origin: sameOrigin(), 'x-sveltekit-action': 'true' },
 			form
 		});
-	await expect.soft(putBack({ on: '0' })).resolves.toBeTruthy();
+	// A response is always truthy, so ask whether the action took (c655's low).
+	expect.soft((await putBack({ on: '0' })).ok()).toBe(true);
 	await page.context().clearCookies({ name: 'tsundoku_reveal' });
-	await expect.soft(rate(0)).resolves.toBeTruthy();
+	// The seed's own rating is 8 (src/lib/server/fixtures.ts), not unrated.
+	expect.soft((await rate(8)).ok()).toBe(true);
 	if (failed) throw failed;
 });
 

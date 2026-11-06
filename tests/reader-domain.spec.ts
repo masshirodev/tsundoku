@@ -36,6 +36,7 @@ import {
 	forwardBy,
 	isReaderPath
 } from '$lib/reader/reader';
+import { libraryCell } from '$lib/reader/library-row';
 import {
 	DEFAULT_SETTINGS,
 	TEXT_FONTS,
@@ -763,5 +764,41 @@ describe('isReaderPath (c565, round 2)', () => {
 		for (const p of ['/series/12', '/', '/read/', '/read/3/x', '/history', '/read/3/'])
 			expect(isReaderPath(p, '/read/')).toBe(false);
 		expect(isReaderPath('/read/386', '/app/read/')).toBe(false);
+	});
+});
+
+describe('libraryCell (c655, round 2)', () => {
+	// The row's finite domain: which cell the end page draws, if any.
+	const state = (over: Partial<Parameters<typeof libraryCell>[0]>) => ({
+		inLibrary: true,
+		inWork: false,
+		hasAddHref: false,
+		added: false,
+		hidden: false,
+		...over
+	});
+
+	it('a series in the library and in no Work offers HIDE', () => {
+		expect(libraryCell(state({}))).toBe('hide');
+		// A series with a record's door known is still a library series.
+		expect(libraryCell(state({ hasAddHref: true }))).toBe('hide');
+	});
+
+	it('a series in a Work draws no cell: its HIDE is the Work’s own', () => {
+		for (const hasAddHref of [true, false])
+			expect(libraryCell(state({ inWork: true, hasAddHref }))).toBeNull();
+	});
+
+	it('a browsing record offers ADD through its own door, and nothing without one', () => {
+		expect(libraryCell(state({ inLibrary: false, hasAddHref: true }))).toBe('add');
+		expect(libraryCell(state({ inLibrary: false, hasAddHref: false }))).toBeNull();
+	});
+
+	it('the page’s own answer wins over what it loaded', () => {
+		expect(libraryCell(state({ inLibrary: false, hasAddHref: true, added: true }))).toBe('added');
+		expect(libraryCell(state({ hidden: true }))).toBe('hidden');
+		// Even on a Work part, a terminal cell says what happened rather than
+		// offering the door again.
+		expect(libraryCell(state({ inWork: true, hidden: true }))).toBe('hidden');
 	});
 });

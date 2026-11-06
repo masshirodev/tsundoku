@@ -8,6 +8,7 @@
 	import type { Kind } from '$lib/library/types';
 	import { offline } from '$lib/offline.svelte';
 	import type { Mode } from '$lib/reader/reader';
+	import { libraryCell } from '$lib/reader/library-row';
 	import { deserialize, enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
 
@@ -57,7 +58,7 @@
 		work = null,
 		workHref = '',
 		unit = '',
-		inLibrary = true,
+		inLibrary,
 		addHref = null
 	}: {
 		/** chapter: next is readable; missing: next has no file; offline: no network; series: nothing next. */
@@ -104,11 +105,14 @@
 		/** "CH" for pages, "VOL" for a novel's volumes: the kicker adds the dot itself. */
 		unit?: string;
 		/**
-		 * In the library, so the end offers REMOVE (the series screen's HIDE,
-		 * which is what takes it off every shelf). False for a browsing record
-		 * (doc/BROWSING.md), whose end offers + ADD through `addHref`.
+		 * In the library, so the end offers HIDE (the series screen's own HIDE,
+		 * which is what takes it off every shelf; it stays in the library and
+		 * `/reveal` brings it back). False for a browsing record
+		 * (doc/BROWSING.md), whose end offers + ADD through `addHref`. Required,
+		 * with no default: a reader that forgets it must fail `yarn run check`
+		 * rather than quietly offer the wrong cell (c655, round 2).
 		 */
-		inLibrary?: boolean;
+		inLibrary: boolean;
 		/** A browsing record's ADD: the source preview's own `?/add` action. */
 		addHref?: string | null;
 	} = $props();
@@ -222,15 +226,23 @@
 	/** Done: a queue that took, or one already there; neither is pressed again. */
 	const queueDone = $derived(queue === 'queued' || queue === 'already');
 	// ---- the library row (c655) -------------------------------------------------
-	// A record's ADD takes it in; a library series' REMOVE is the series screen's
-	// own HIDE, which is what takes it off every shelf. Neither lands elsewhere:
+	// A record's ADD takes it in; a library series' HIDE is the series screen's
+	// own, which is what takes it off every shelf. Neither lands elsewhere:
 	// ADD's band and HIDE's redirect belong to the screens that asked for them.
+	// A series in a Work draws no cell: its HIDE is the Work's own (round 2).
 	let adding = $state(false);
 	let added = $state(false);
 	let removing = $state(false);
 	let removed = $state(false);
-	/** In the library once this page's ADD has taken it in. */
-	const inLib = $derived(inLibrary || added);
+	const cell = $derived(
+		libraryCell({
+			inLibrary,
+			inWork: !!work,
+			hasAddHref: !!addHref,
+			added,
+			hidden: removed
+		})
+	);
 	const downloadCell = $derived(
 		queue === 'queued'
 			? 'QUEUED ✓'
@@ -440,7 +452,9 @@
 				</a>
 			{/if}
 			<div class="rate-block">
-				<!-- Ratings out of 10 1d: the blocky slider; it saves when the finger lifts. -->
+				<!-- Ratings out of 10 1d: the blocky slider; it saves when the finger lifts.
+				     HIDDEN with reveal off leaves the series unreachable, so the block
+				     stops taking input rather than posting to a page that now 404s (c655). -->
 				<RatingSlider
 					value={rating}
 					height={72}
@@ -449,6 +463,7 @@
 					phonePad={0}
 					phoneLabelWidth={72}
 					borderTop={false}
+					disabled={cell === 'hidden'}
 					onchange={onrate}
 				/>
 				<div class="rrow">
@@ -458,6 +473,7 @@
 						class="switch"
 						role="switch"
 						aria-checked={favourite}
+						disabled={cell === 'hidden'}
 						onclick={onfav}
 					>
 						<span class="track" class:on={favourite}><span class="knob"></span></span>
@@ -466,8 +482,8 @@
 				</div>
 			</div>
 			{#if rating === 0}<div class="note">{note}</div>{/if}
-			<div class="lib">
-				{#if inLib}
+			{#if cell === 'hide' || cell === 'hidden'}
+				<div class="lib">
 					<form
 						method="POST"
 						action="{seriesHref}?/hide"
@@ -480,15 +496,13 @@
 						}}
 					>
 						<input type="hidden" name="on" value="1" />
-						<button type="submit" disabled={removing || removed} data-focus-mark="in"
-							>{removed
-								? 'REMOVED FROM LIBRARY ✓'
-								: removing
-									? 'REMOVING…'
-									: 'REMOVE FROM LIBRARY'}</button
+						<button type="submit" disabled={removing || cell === 'hidden'} data-focus-mark="in"
+							>{cell === 'hidden' ? 'HIDDEN ✓' : removing ? 'HIDING…' : 'HIDE'}</button
 						>
 					</form>
-				{:else if addHref}
+				</div>
+			{:else if (cell === 'add' || cell === 'added') && addHref}
+				<div class="lib">
 					<form
 						method="POST"
 						action={addHref}
@@ -500,12 +514,12 @@
 							};
 						}}
 					>
-						<button type="submit" disabled={adding || added} data-focus-mark="in"
-							>{added ? 'IN LIBRARY ✓' : adding ? 'ADDING…' : '+ ADD TO LIBRARY'}</button
+						<button type="submit" disabled={adding || cell === 'added'} data-focus-mark="in"
+							>{cell === 'added' ? 'IN LIBRARY ✓' : adding ? 'ADDING…' : '+ ADD TO LIBRARY'}</button
 						>
 					</form>
-				{/if}
-			</div>
+				</div>
+			{/if}
 		{:else if next}
 			<div class="next">
 				<div class="kicker-2">NEXT</div>
@@ -885,7 +899,7 @@
 		flex-direction: column;
 		border-top: var(--hairline);
 	}
-	/* The library row (c655): one cell, ADD for a record or REMOVE for a series. */
+	/* The library row (c655): one cell, ADD for a record or HIDE for a series. */
 	.lib {
 		display: flex;
 		border: var(--hairline);

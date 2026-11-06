@@ -1956,6 +1956,8 @@
 				work={data.work}
 				{workHref}
 				unit={unitOf(data.series.kind)}
+				inLibrary={!data.record}
+				addHref={recordAddHref}
 			/>
 		</div>
 	{:else}

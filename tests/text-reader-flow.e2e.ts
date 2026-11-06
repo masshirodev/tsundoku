@@ -1059,9 +1059,9 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 		await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
 		await expect(end.locator('.big')).toHaveText(TITLE);
 		await expect(end.getByRole('link', { name: 'LIBRARY' })).toBeVisible();
-		// In the library, so the row offers REMOVE rather than + ADD.
+		// In the library, so the row offers HIDE rather than + ADD.
 		await expect(end.getByRole('button', { name: '+ ADD TO LIBRARY' })).toHaveCount(0);
-		await expect(end.getByRole('button', { name: 'REMOVE FROM LIBRARY' })).toBeVisible();
+		await expect(end.getByRole('button', { name: 'HIDE', exact: true })).toBeVisible();
 		// The file owns Honzuki: put its rating back.
 		await page.request.post(`/series/${seriesId}?/rate`, {
 			headers: { origin: new URL(base).origin, 'x-sveltekit-action': 'true' },

@@ -349,15 +349,19 @@ scrollable screen, which took some of them at random.
 - **Vertical:** the strip carries on, both ways, as in Mihon's webtoon
   reader. See "Vertical", below.
 - **The end of what's available:** "END · LAST AVAILABLE", the series' title,
-  RATING with FAV, and a row under them that takes the series out of the
-  library (REMOVE), or adds a browsing record to it (+ ADD) — the same doors
-  the series screen's HIDE and BROWSE's ADD use, and the page stays while they
-  answer (c655). The block stays once the rating is set, showing what was
-  chosen, so rating on this page never empties it; the note, `SHOWN WHILE
-UNRATED`, goes with the first rating. An ongoing series whose source has
-  added nothing for eight weeks adds one line — `ASURA SCANS HAS ADDED NOTHING
-SINCE 6 SEP` — and a cell ANOTHER SOURCE → that opens MOVE
-  ([`MOVE.md`](MOVE.md)). No band: a quiet source isn't a broken one.
+  RATING with FAV, and a row under them that hides the series (HIDE) or adds a
+  browsing record to the library (+ ADD) — the same doors the series screen's
+  HIDE and BROWSE's ADD use, and the page stays while they answer (c655). HIDE
+  is the privacy door, not a removal: the series leaves every shelf but stays
+  in the library (`in_library` stays 1) and `/reveal` brings it back
+  ([`LIBRARY.md`](LIBRARY.md), "Hidden means hidden"). A series in a Work draws
+  neither cell — its Work is hidden or taken out whole from the series screen.
+  The block stays once the rating is set, showing what was chosen, so rating on
+  this page never empties it; the note, `SHOWN WHILE UNRATED`, goes with the
+  first rating. An ongoing series whose source has added nothing for eight
+  weeks adds one line — `ASURA SCANS HAS ADDED NOTHING SINCE 6 SEP` — and a
+  cell ANOTHER SOURCE → that opens MOVE ([`MOVE.md`](MOVE.md)). No band: a
+  quiet source isn't a broken one.
 - **The end of a series in a Work** offers the next part
   ([`WORKS.md`](WORKS.md), W6): a NEXT IN THE WORK block with the next part's
   cover, title, its own kind's line, `▶ START · CH. 1` and WORK →, between the

@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
+import { SOURCES } from './browse-world';
 
 /**
  * The seek preview over the scrubber (c385, doc/ANIME.md "The player"): a
@@ -896,5 +897,61 @@ test.describe('a stream whose lowest quality is a plain file', () => {
 		await pictureLoaded(page);
 		await page.waitForTimeout(2500);
 		expect(ranges.length).toBe(atSecondLeave);
+	});
+});
+
+/**
+ * c655's record half (round 2): the end page's library row for a browsing
+ * record, in the paged reader. The shared seed has no record (fixtures make
+ * none), so this needs the browse world; the reader slot owns no other file
+ * that runs in that project — its flow files run in tablet-portrait against
+ * the shared seed — so the case lives here, beside the player's.
+ *
+ * The bug it pins: ImageReader draws EndPage twice, and only the strip's
+ * instance passed `inLibrary`/`addHref`. The paged one kept EndPage's default
+ * `inLibrary = true`, so a record's end offered REMOVE for a series that was
+ * not in the library, with no + ADD.
+ */
+test.describe('the reader end page for a browsing record (c655)', () => {
+	test('a record in a paged read offers + ADD and never HIDE', async ({ page }) => {
+		test.setTimeout(90_000);
+		await page.goto(`/browse/${SOURCES.open.id}`);
+		// A tile no other browse spec opens: browse-online adds 1-4 to the
+		// library and reads 1-5, browse-flow reads 1-2, and an added series
+		// would open its series screen instead of a preview on the next run.
+		await page.locator('.grid .tile', { hasText: 'Open Source 1-7' }).click();
+		await expect(page).toHaveURL(/\/downloads\/source\//);
+		const preview = page.url();
+		// Its last chapter, opened online from the preview: a record, not added.
+		const list = page.getByRole('region', { name: /Chapters/ });
+		await list.getByRole('button', { name: 'Read Chapter 3' }).click();
+		await expect(page).toHaveURL(/\/read\/\d+/);
+		await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
+			timeout: 20_000
+		});
+		// Esc shows the controls: the meta line is what says it is a record.
+		await page.keyboard.press('Escape');
+		await expect(page.locator('header[aria-label="Reader"] .meta')).toContainText('NOT IN LIBRARY');
+		const entry = page.url().match(/\/read\/(\d+)/)![1];
+		// Paged: `?p=last` plus one turn forward (left, this source reads R→L)
+		// is the paged end page's door — the instance that was missing the props.
+		await page.goto(`/read/${entry}?p=last`);
+		await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
+			timeout: 20_000
+		});
+		await page.keyboard.press('ArrowLeft');
+		const end = page.locator('[data-end-page]');
+		await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
+		await expect(end.getByRole('button', { name: '+ ADD TO LIBRARY' })).toBeVisible();
+		await expect(end.getByRole('button', { name: 'HIDE', exact: true })).toHaveCount(0);
+		await expect(end.getByRole('button', { name: /REMOVE/ })).toHaveCount(0);
+		// Leave the world as it was: FORGET the record this case made, through
+		// the preview's own action (the browse world is one database for the
+		// whole project).
+		const forgotten = await page.request.post(`${new URL(preview).pathname}?/forget`, {
+			headers: { origin: new URL(preview).origin, 'x-sveltekit-action': 'true' },
+			form: {}
+		});
+		expect.soft(forgotten.ok()).toBe(true);
 	});
 });
