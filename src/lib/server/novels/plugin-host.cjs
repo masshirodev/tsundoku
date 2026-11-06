@@ -275,7 +275,11 @@ function modes() {
 const pageTrouble = (host, why) =>
 	`${host}'s page did not come through the solver (its check could not be passed): ${why}`;
 
-/** Fails a page-mode request with a sentence the call reports. */
+/**
+ * Fails a page-mode request the solver was asked for and did not answer with
+ * a page. The phrase "its check could not be passed" is what the browse page
+ * reads as a refused check, and offers TRY AGAIN for.
+ */
 function refusePage(host, why) {
 	const message = pageTrouble(host, why);
 	note(message);
@@ -283,33 +287,49 @@ function refusePage(host, why) {
 }
 
 /**
+ * Fails a request page mode won't send at all, before anything is asked. No
+ * check was involved, so the sentence doesn't claim one: a TRY AGAIN would pay
+ * a solve and a retry and land here the same way.
+ */
+function refuseShape(host, why) {
+	const message = `${host}'s page can't come through the solver: ${why}`;
+	note(message);
+	throw new Error(message);
+}
+
+const FORM_ONLY = "the solver's browser posts a url-encoded form only";
+
+/**
  * What the solver's browser can send for [opts]: GET, or POST with a
  * url-encoded form (FlareSolverr's request.post takes postData and nothing
- * else). A JSON, multipart or binary body is refused with a sentence, never
- * sent as something it wasn't.
+ * else). A FormData of strings is that form (Scribble Hub's chapter list posts
+ * one); a JSON, multipart or binary body, or a FormData holding a file, is
+ * refused with a sentence, never sent as something it wasn't.
  */
 function pageForm(host, opts) {
 	const method = String(opts.method || 'GET').toUpperCase();
 	if (method === 'GET' || method === 'HEAD') return { method: 'GET' };
 	if (method !== 'POST')
-		refusePage(host, `the solver's browser sends GET and POST only, not ${method}`);
+		refuseShape(host, `the solver's browser sends GET and POST only, not ${method}`);
 	const body = opts.body;
 	if (body === undefined || body === null) return { method, postData: '' };
 	if (body instanceof URLSearchParams) return { method, postData: body.toString() };
+	if (body instanceof FormData) {
+		for (const [, value] of body)
+			if (typeof value !== 'string') refuseShape(host, `${FORM_ONLY}, and a file can't go in one`);
+		return { method, postData: new URLSearchParams(body).toString() };
+	}
 	const type = (opts.headers && opts.headers.get('content-type')) || '';
 	if (typeof body === 'string' && (!type || /application\/x-www-form-urlencoded/i.test(type)))
 		return { method, postData: body };
-	return refusePage(
-		host,
-		`the solver's browser posts a url-encoded form only, not ${typeof body === 'string' ? type : 'this body'}`
-	);
+	return refuseShape(host, `${FORM_ONLY}, not ${typeof body === 'string' ? type : 'this body'}`);
 }
 
 /** [url]'s page through the solver, as a Response whose url is where the browser ended. */
 async function pageFetch(url, opts, wantsFile) {
 	const host = hostOf(url);
 	if (wantsFile)
-		refusePage(host, "a file is not a page, and the solver's browser hands back pages only");
+		refuseShape(host, "a file is not a page, and the solver's browser hands back pages only");
 	const form = pageForm(host, opts);
 	const m = await askParent({ op: 'page', url, ...form });
 	if (!m) refusePage(host, 'the app did not answer');

@@ -99,8 +99,10 @@ let bound = '';
  * A plugin for a site whose check is bound to the browser that solved it
  * (NovelFull's and Scribble Hub's shape), written inline: what it asks is what
  * page mode has to answer. A list whose links resolve against the page it came
- * from, a JSON search, a form POST as Scribble Hub's chapter list is, and the
- * bodies the solver's browser can't send.
+ * from, a JSON search, a FormData POST built as Scribble Hub's chapter list
+ * builds it (plugins/english/scribblehub.ts), which goes as a url-encoded form,
+ * and the bodies the solver's browser can't send, a FormData holding a file
+ * among them.
  */
 const BOUND = `
 var fetch = require('@libs/fetch');
@@ -124,10 +126,10 @@ Bound.prototype.searchNovels = async function (term) {
 	return (await res.json()).map(function (n) { return { name: n, path: '/n/' + n }; });
 };
 Bound.prototype.parseNovel = async function (path) {
-	var html = await fetch.fetchText(this.site + 'bound/form', {
-		method: 'POST',
-		body: new URLSearchParams({ action: 'list', id: path })
-	});
+	var formData = new FormData();
+	formData.append('action', 'list');
+	formData.append('id', path);
+	var html = await fetch.fetchText(this.site + 'bound/form', { method: 'POST', body: formData });
 	return { name: html, path: path, chapters: [] };
 };
 Bound.prototype.parseChapter = async function (path) {
@@ -139,6 +141,14 @@ Bound.prototype.parseChapter = async function (path) {
 		});
 	if (path === 'put') return fetch.fetchText(this.site + 'bound/form', { method: 'PUT', body: 'x=1' });
 	if (path === 'file') return fetch.fetchFile(this.site + 'bound/cover.jpg');
+	if (path === 'form-file') {
+		// The sandbox has no Blob of its own; a response's body is one a plugin can reach.
+		var cover = await (await fetch.fetchApi(this.site + 'bound/chapter/cover')).blob();
+		var withFile = new FormData();
+		withFile.append('action', 'upload');
+		withFile.append('cover', cover, 'cover.jpg');
+		return fetch.fetchText(this.site + 'bound/form', { method: 'POST', body: withFile });
+	}
 	return fetch.fetchText(path.indexOf('http') === 0 ? path : this.site + path.slice(1));
 };
 exports.default = new Bound();
@@ -577,7 +587,7 @@ describe('a check bound to the browser that solved it: page mode (c335)', () => 
 		expect(paged).toHaveLength(2);
 	});
 
-	it('hands a JSON answer over as JSON, and posts a url-encoded form', async () => {
+	it('hands a JSON answer over as JSON, and posts a FormData of strings as a url-encoded form', async () => {
 		await host.call(bound, 'popularNovels', [1, {}]);
 		expect(await host.call(bound, 'searchNovels', ['frieren', 1])).toEqual([
 			{ name: 'frieren-a', path: '/n/frieren-a' }
@@ -604,6 +614,35 @@ describe('a check bound to the browser that solved it: page mode (c335)', () => 
 		);
 		expect(paged).toHaveLength(1);
 		expect(siteRequests()).toBe(2);
+	});
+
+	it('refuses a FormData holding a file with its own sentence, and asks no page for it', async () => {
+		await host.call(bound, 'popularNovels', [1, {}]);
+		await expect(host.call(bound, 'parseChapter', ['form-file'])).rejects.toThrow(
+			/posts a url-encoded form only, and a file can't go in one/
+		);
+		// The page the plugin took its file from, and no POST after it.
+		expect(paged.map((r) => r.method)).toEqual(['GET', 'GET']);
+		expect(siteRequests()).toBe(2);
+	});
+
+	it('words its own refusals without a failed check, so the browse page offers no TRY AGAIN for them', async () => {
+		await host.call(bound, 'popularNovels', [1, {}]);
+		for (const path of ['put', 'json-post', 'file', 'form-file']) {
+			const call = host.call(bound, 'parseChapter', [path]);
+			await expect(call).rejects.toThrow(/127\.0\.0\.1's page can't come through the solver: /);
+			await expect(call).rejects.not.toThrow(/its check could not be passed/);
+		}
+		for (const error of [
+			'the solver answered 500 (Error solving the challenge. Timeout after 50.0 seconds.)',
+			"the solver's browser closed twice (Error: invalid session id: session deleted as the browser has closed the connection)"
+		]) {
+			pageAs = async () => ({ error });
+			await expect(host.call(bound, 'parseChapter', ['/bound/chapter/1'])).rejects.toThrow(
+				/its check could not be passed/
+			);
+		}
+		expect(paged.filter((r) => r.method === 'POST')).toEqual([]);
 	});
 
 	it('says why a page didn’t come — the solver’s 500, its browser dying, a timeout — and stays in page mode', async () => {
