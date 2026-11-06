@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { updateRun } from '$lib/update-run.svelte';
+	import { appUpdater } from '$lib/app/update.svelte';
+	import { appLine, type AppUpdate } from '$lib/app/update';
+	import { m } from '$lib/paraglide/messages';
 	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import HelpMark from '$lib/components/help/HelpMark.svelte';
 	import HelpSheet from '$lib/components/help/HelpSheet.svelte';
@@ -777,6 +780,9 @@
 							{#if upd}
 								{@render updates(upd)}
 							{/if}
+							{#if appUpdater.state}
+								{@render thisApp(appUpdater.state)}
+							{/if}
 							{#if data.signIn}
 								{@render signIn(data.signIn)}
 							{/if}
@@ -1134,6 +1140,39 @@
 					library stays where it is; delete the old folder once the new one runs.
 				</p>
 			{/if}
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet thisApp(a: AppUpdate)}
+	<!-- tsundoku's Android app, which updates itself (c614; doc/UPDATES.md, "The Android apps"). -->
+	{@const offer = a.phase === 'available' || a.phase === 'ready'}
+	{@const retry = a.phase === 'error' && appUpdater.offer !== null}
+	{@const busy = ['checking', 'downloading', 'permission', 'installing'].includes(a.phase)}
+	<div class="row device">
+		<div class="label">{m.update_app_row()}</div>
+		<div class="ctl">
+			<div class="acct-body">
+				<div class="who">
+					<div class="name">{a.running}</div>
+					<div class="meta" class:alert={offer || a.phase === 'error'}>{appLine(a, when)}</div>
+				</div>
+				<button type="button" class="cell" disabled={busy} onclick={() => appUpdater.check()}
+					>{a.phase === 'checking' ? 'CHECKING' : 'CHECK'}</button
+				>
+				{#if offer || retry}
+					<button type="button" class="cell acc" onclick={() => appUpdater.start()}
+						>{retry ? 'TRY AGAIN' : 'UPDATE'}</button
+					>
+				{/if}
+			</div>
+		</div>
+	</div>
+	{#if offer}
+		<div class="pw-form">
+			<div class="pw-l">WHAT'S NEW IN {a.version}</div>
+			<p class="pw-p notes">{a.notes}</p>
+			<p class="pw-p">{m.update_app_say()}</p>
 		</div>
 	{/if}
 {/snippet}

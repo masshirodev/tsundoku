@@ -339,8 +339,8 @@ export function back(): boolean {
 		sendEscape(scope);
 		return true;
 	}
-	// A dialog that is not a scope closes on Escape itself (the update notice,
-	// the new-shelf sheet, a lightbox): BACK is not the climb's to take from it,
+	// A dialog that is not a scope closes on Escape itself (the new-shelf sheet,
+	// a lightbox): BACK is not the climb's to take from it,
 	// so it gets the Escape the sheet would have had.
 	const dialog = [...document.querySelectorAll<HTMLElement>('dialog[open], [role="dialog"]')].find(
 		isVisible

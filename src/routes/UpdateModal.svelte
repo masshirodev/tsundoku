@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { leave } from '$lib/motion';
+	import { focusScope } from '$lib/focus';
 	import {
 		clock,
 		downloadLine,
@@ -9,6 +10,7 @@
 		type UpdateView
 	} from '$lib/updates';
 	import { updateRun } from '$lib/update-run.svelte';
+	import { appUpdater } from '$lib/app/update.svelte';
 	import { m } from '$lib/paraglide/messages';
 
 	/**
@@ -18,25 +20,43 @@
 	 * downloading (HIDE puts it away, the library's band keeps count),
 	 * installing, the tab waiting while tsundoku is away, and a failure that
 	 * changed nothing. On Linux and the zip it's DOWNLOAD and three steps.
+	 *
+	 * `app` is the same modal for tsundoku's Android app (c614; doc/UPDATES.md,
+	 * "The Android apps"), whose bridge runs the update instead of the server.
 	 */
-	let { offer, onlater }: { offer: UpdateView; onlater: () => void } = $props();
+	let {
+		offer,
+		onlater,
+		app = false
+	}: { offer: UpdateView; onlater: () => void; app?: boolean } = $props();
 
 	const v = $derived(offer.available!);
 	const run = $derived(updateRun.running ? (updateRun.view?.install ?? null) : null);
 	const phase = $derived(
-		updateRun.failed
-			? 'failed'
-			: !updateRun.running
-				? 'offer'
-				: updateRun.awaySince !== null
-					? 'away'
-					: run?.phase === 'installing'
-						? 'installing'
-						: 'downloading'
+		app
+			? appUpdater.phase
+			: updateRun.failed
+				? 'failed'
+				: !updateRun.running
+					? 'offer'
+					: updateRun.awaySince !== null
+						? 'away'
+						: run?.phase === 'installing'
+							? 'installing'
+							: 'downloading'
 	);
+	const shown = $derived(app ? appUpdater.install : run);
 	const downloading = $derived(
-		run?.phase === 'downloading' ? run : { bytes: 0, total: v.size ?? 0 }
+		shown?.phase === 'downloading' ? shown : { bytes: 0, total: v.size ?? 0 }
 	);
+	const why = $derived(
+		(app ? (appUpdater.state?.error ?? '') : (updateRun.failed ?? '')).toUpperCase()
+	);
+	const update = () => (app ? appUpdater.start() : void updateRun.start(v.version));
+	function hide() {
+		if (app) appUpdater.hidden = true;
+		else updateRun.hidden = true;
+	}
 
 	let now = $state(Date.now());
 	$effect(() => {
@@ -49,9 +69,10 @@
 	function dismiss() {
 		if (phase === 'offer') onlater();
 		else if (phase === 'failed') {
-			updateRun.reset();
+			if (app) appUpdater.reset();
+			else updateRun.reset();
 			onlater();
-		} else if (phase === 'downloading') updateRun.hidden = true;
+		} else if (phase === 'downloading') hide();
 	}
 	function keydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') dismiss();
@@ -70,6 +91,7 @@
 <div
 	class="modal pop"
 	out:leave={'pop'}
+	use:focusScope
 	role="dialog"
 	aria-modal="true"
 	aria-label={phase === 'offer'
@@ -94,7 +116,7 @@
 				</div>
 			{/if}
 			{#if offer.how === 'install'}
-				<p class="m-say">{m.update_say_install()}</p>
+				<p class="m-say">{app ? m.update_app_say() : m.update_say_install()}</p>
 			{:else}
 				<div class="steps-n">
 					<div><span>1</span><span>{m.update_step_1()}</span></div>
@@ -106,7 +128,7 @@
 		<div class="m-foot">
 			<button type="button" onclick={onlater}>{m.update_later()}</button>
 			{#if offer.how === 'install'}
-				<button type="button" class="up" onclick={() => void updateRun.start(v.version)}
+				<button type="button" class="up" data-focus-start onclick={update}
 					>{m.update_update()}</button
 				>
 			{:else if offer.download}
@@ -124,14 +146,12 @@
 		</div>
 		<div class="m-body">
 			<h2 class="m-ver">{m.update_failed_title()}</h2>
-			<div class="m-meta why">{(updateRun.failed ?? '').toUpperCase()}</div>
+			<div class="m-meta why">{why}</div>
 			<p class="m-say">{m.update_failed_say({ version: offer.current })}</p>
 		</div>
 		<div class="m-foot">
 			<button type="button" onclick={dismiss}>{m.update_later()}</button>
-			<button type="button" class="up" onclick={() => void updateRun.start(v.version)}
-				>{m.update_try_again()}</button
-			>
+			<button type="button" class="up" onclick={update}>{m.update_try_again()}</button>
 		</div>
 	{:else}
 		<div class="m-head">
@@ -148,8 +168,10 @@
 			{:else if phase === 'installing'}
 				<h2 class="m-ver">{m.update_installing()}</h2>
 				<div class="prog"><i style:width="100%"></i></div>
-				<div class="m-meta">{m.update_installing_meta()}</div>
-				<p class="m-say">{m.update_installing_say()}</p>
+				<div class="m-meta">
+					{app ? m.update_app_installing_meta() : m.update_installing_meta()}
+				</div>
+				<p class="m-say">{app ? m.update_app_installing_say() : m.update_installing_say()}</p>
 			{:else}
 				<h2 class="m-ver">{m.update_opening()}</h2>
 				<div class="prog wait"></div>
@@ -164,7 +186,7 @@
 		</div>
 		{#if phase === 'downloading'}
 			<div class="m-foot one">
-				<button type="button" onclick={() => (updateRun.hidden = true)}>{m.update_hide()}</button>
+				<button type="button" onclick={hide}>{m.update_hide()}</button>
 			</div>
 		{/if}
 	{/if}

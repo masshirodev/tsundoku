@@ -190,10 +190,17 @@ from the release host, offered in UPDATES and the library's modal";
   the guarded `appDownload()` and `appInstall()`, and posts every change as
   `window.tsundokuAppUpdate(state)`. The owner chose (2026-11-05) to reuse
   what the computer has rather than draw anything new: a THIS APP row under
-  SETTINGS' UPDATES, and the library's modal for the app. **Not built yet**:
-  SETTINGS, the library page and the i18n messages are wave 25's while it
-  runs, so the page side of c614 follows it. Until then the app checks and
-  can install, and nothing on screen offers it.
+  SETTINGS' UPDATES, and the library's modal for the app, the same
+  `UpdateModal.svelte` given `app`. `src/lib/app/update.svelte.ts` is the
+  page's one copy of the state, connected by the layout, so a browser (no
+  bridge) and an app older than c614 (no `appUpdate`) draw nothing. The app's
+  LATER is its own (`tsundoku.app-update.later`), a day, for that version, and
+  the computer's offer goes first if both are out. A failed **check** ends in
+  the same `error` phase as a failed update and keeps the release it last
+  read, so the modal says UPDATE FAILED only after UPDATE was pressed here.
+  A cancelled Android prompt comes back as an offer. The modal is a focus
+  scope, since this is the one way it reaches a TV: a remote lands on UPDATE,
+  and BACK is LATER.
 
 ## Tests
 

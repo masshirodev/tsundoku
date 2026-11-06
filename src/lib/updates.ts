@@ -34,6 +34,8 @@ export type UpdateView = {
  */
 export const SNOOZE_MS = 24 * 60 * 60 * 1000;
 export const LATER_KEY = 'tsundoku.update.later';
+/** The Android app's LATER (c614): a different release from the computer's. */
+export const APP_LATER_KEY = 'tsundoku.app-update.later';
 /** The version UPDATE was pressed for, so the reload onto it can say UPDATED TO. */
 export const DONE_KEY = 'tsundoku.update.done';
 

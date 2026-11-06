@@ -17,7 +17,9 @@
 	import StartFirstDay from '$lib/components/start/StartFirstDay.svelte';
 	import { countLine, readLeads } from '$lib/library/start';
 	import { updateRun } from '$lib/update-run.svelte';
+	import { appUpdater } from '$lib/app/update.svelte';
 	import {
+		APP_LATER_KEY,
 		DONE_KEY,
 		LATER_KEY,
 		asks,
@@ -122,10 +124,12 @@
 	 * band above stays as it was; a hidden UPDATE takes its place and counts.
 	 */
 	let later = $state<Later | null>(null);
+	let appLater = $state<Later | null>(null);
 	let doneVersion = $state<string | null>(null);
 	$effect(() => {
 		try {
 			later = parseLater(localStorage.getItem(LATER_KEY));
+			appLater = parseLater(localStorage.getItem(APP_LATER_KEY));
 			doneVersion = localStorage.getItem(DONE_KEY);
 		} catch {
 			// Storage refused: the modal asks on every open, and no UPDATED TO band.
@@ -148,8 +152,33 @@
 			// Storage refused: closed for this visit only.
 		}
 	}
+	/**
+	 * The same modal for tsundoku's Android app (c614), told after the computer's
+	 * if both are out: its own LATER, since the two are different releases to wait on.
+	 */
+	const appOffer = $derived(appUpdater.offer);
+	const appModalOpen = $derived(
+		!modalOpen &&
+			!!appOffer?.available &&
+			(appUpdater.pressed
+				? !appUpdater.hidden
+				: appUpdater.phase === 'offer' && asks(appOffer.available.version, appLater, Date.now()))
+	);
+	function snoozeApp() {
+		if (!appOffer?.available) return;
+		appLater = laterFor(appOffer.available.version, Date.now());
+		try {
+			localStorage.setItem(APP_LATER_KEY, JSON.stringify(appLater));
+		} catch {
+			// Storage refused: closed for this visit only.
+		}
+	}
 	const hiddenRun = $derived(
-		updateRun.running && updateRun.hidden ? runningBand(updateRun.view?.install ?? null) : null
+		updateRun.running && updateRun.hidden
+			? runningBand(updateRun.view?.install ?? null)
+			: appUpdater.pressed && appUpdater.hidden
+				? runningBand(appUpdater.install)
+				: null
 	);
 	/** UPDATED TO: once, on the reload onto the version UPDATE was pressed for. */
 	const updatedTo = $derived(doneVersion === version ? version : null);
@@ -1465,6 +1494,7 @@
 
 <div class="library" class:selecting class:has-band={!!batch}>
 	{#if modalOpen && offer}<UpdateModal {offer} onlater={snooze} />{/if}
+	{#if appModalOpen && appOffer}<UpdateModal offer={appOffer} onlater={snoozeApp} app />{/if}
 
 	{#if selecting}
 		<TopBar inverse sticky label="Selection">

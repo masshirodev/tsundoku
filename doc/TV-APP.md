@@ -693,9 +693,10 @@ line to the release folder's `SHA256SUMS`, beside the bundles'; it does not
 run `yarn run release` and does not change what that script does. See
 [`RELEASE.md`](RELEASE.md).
 
-`versionCode` is 1 and does not move: an install over an older build needs a
-higher one, which is the release script's job when APKs start shipping to more
-than one TV.
+`versionCode` is the date version as YYYYMMDDNN, so every release is newer to
+the installer than the one before, and the app updates itself from the release
+host (c614; [`UPDATES.md`](UPDATES.md), "The Android apps"): SETTINGS shows it
+as THIS APP, and the library offers it.
 
 ## What is not verified
 

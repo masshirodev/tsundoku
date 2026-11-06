@@ -272,7 +272,7 @@ of them in `keys.ts`, and `tests/tv-keys.e2e.ts` walks them.
      the innermost first. The step returns true when it took the key.
   2. **An open sheet.** A scope closes itself on Escape, so the layer sends it
      one (`sendEscape`, and a guard keeps it from coming back round).
-  3. **A dialog that is not a scope** — the update notice, a lightbox — gets
+  3. **A dialog that is not a scope** — a lightbox, the new-shelf sheet — gets
      the same Escape, because it is the page's own to close and not the
      climb's to take from it.
   4. **Climb.** From inside a `[data-back-climb="<selector>"]` container, to the
