@@ -225,11 +225,22 @@ which opens at its top. So:
 | CONTENTS inside the reader, a turn past a chapter's end, SCROLL crossing into the next                                                                  | the chapter's top                                                                                                |
 | the in-place move's own URL (`replaceState`, `?at=<block>.<offset>[.<y>]`)                                                                              | exactly that place, on a reload or a history entry                                                               |
 | a reload before the reader has settled                                                                                                                  | the server's saved place (the last `page` event), or the top                                                     |
+| a chapter marked unread (MARK UNREAD on the series screen)                                                                                              | its top, until it is read again                                                                                  |
 
 An explicit `?at=0.0` is a place like any other: the top, whatever the server
 saved. A saved place past the chapter's last block — its text changed under
 it — opens at the top, and settles there rather than carrying a block number
-nothing answers. Until c622 an absent `?at=` read as the first character
+nothing answers.
+
+**MARK UNREAD keeps the place it was left at** (`markEntries` clears `read_at`
+and keeps `last_position`), and a chapter finished leaves its place on its last
+page, because the `finish` event posts the block it ended on. That place is
+never resumed: the entry is handed no place when it has been marked unread and
+nothing has opened it since (`unread_at` set and `last_opened_at <= unread_at`,
+read in `+page.server.ts`). A chapter re-opened and read on after the mark has
+a place saved after it, and resumes there like any other.
+
+Until c622 an absent `?at=` read as the first character
 (`Number('')` was 0), so every one of those doors opened a novel at its
 chapter's top. The image reader shares `+page.server.ts`'s `lastPosition` but
 not this rule: it already resumed from the saved page with no `?p=`

@@ -1062,6 +1062,83 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 		await expect(page.locator('.blocks:not(.next) p').first()).toBeInViewport();
 	});
 
+	// c622, round 2: MARK UNREAD keeps `last_position`, and a chapter finished
+	// leaves its place on its last page. Resuming whenever `readAt` is null
+	// reopened a chapter marked unread at its bottom; only a place saved after
+	// the mark resumes.
+	test('a chapter marked unread after being left mid-way opens at its top again (c622)', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		const seriesId = await openOwnSeries(page, 'Mushoku Tensei');
+		await continueLink(page).click();
+		await page.waitForURL(/\/read\//);
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		const entry = Number(new URL(page.url()).pathname.split('/').pop());
+		// Several pages, as the c622 case makes it: one turn then leaves the
+		// chapter mid-way rather than finishing it on its single page.
+		await middle(page);
+		await page.getByRole('button', { name: /^(PAGED|SCROLL) · / }).click();
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		await sheet.getByRole('radio', { name: 'PAGED' }).click();
+		for (let i = 0; i < 14; i++) {
+			const larger = sheet.getByRole('button', { name: 'Larger' });
+			if (await larger.isDisabled()) break;
+			await larger.click();
+		}
+		await sheet
+			.getByRole('radiogroup', { name: 'Width' })
+			.getByRole('radio', { name: '50%', exact: true })
+			.click();
+		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).not.toHaveClass(/scroll/);
+		expect(await pagesNow(page)).toBeGreaterThan(2);
+		const before = await settledAt(page);
+		await forward(page);
+		await expect.poll(() => atOf(page), { timeout: 10_000 }).not.toBe(before);
+		const left = atOf(page);
+		expect(left).not.toBe('0.0');
+		// Leave by the reader's own door: the place it saved is the server's.
+		await middle(page);
+		await page.getByRole('link', { name: 'Back to the series' }).click();
+		await expect(continueLink(page)).toBeVisible();
+		// MARK READ then MARK UNREAD, as the series screen's multi-select does:
+		// `markEntries` only touches a chapter whose `read_at` already stands,
+		// so the unread mark needs the read before it.
+		const mark = (read: boolean) =>
+			page.request.post(`${base}/series/${seriesId}?/mark`, {
+				form: { read: read ? '1' : '0', entry: String(entry) },
+				headers: { origin: base }
+			});
+		expect((await mark(true)).ok()).toBe(true);
+		expect((await mark(false)).ok()).toBe(true);
+		// A fresh document on the series: the place can come only from the server.
+		await page.reload();
+		await expect(continueLink(page)).toBeVisible();
+		await continueLink(page).click();
+		await page.waitForURL(new RegExp(`/read/${entry}`));
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		// The place kept past the unread mark is not resumed: the chapter opens
+		// at its top, and settles there.
+		await expect.poll(() => atOf(page), { timeout: 10_000 }).toBe('0.0');
+
+		// A place saved after the unread mark still resumes: read on, leave, and
+		// come back.
+		const top = await settledAt(page);
+		await forward(page);
+		await expect.poll(() => atOf(page), { timeout: 10_000 }).not.toBe(top);
+		const reread = atOf(page);
+		expect(reread).not.toBe('0.0');
+		await middle(page);
+		await page.getByRole('link', { name: 'Back to the series' }).click();
+		await expect(continueLink(page)).toBeVisible();
+		await page.reload();
+		await continueLink(page).click();
+		await page.waitForURL(new RegExp(`/read/${entry}`));
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		await expect.poll(() => atOf(page), { timeout: 10_000 }).toBe(reread);
+	});
+
 	// c623: a chapter moving in place is written with `replaceState`, whose
 	// history entry keeps the URL of the last real navigation: a popstate into
 	// it (BACK from the series, then forward) loaded the chapter the reader was
