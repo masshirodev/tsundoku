@@ -5,6 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { NovelHost, NovelHostError } from '$lib/server/novels/host';
+import type { PageAnswer, PageRequest } from '$lib/server/novels/solver';
 
 // The LNReader plugin host (doc/NOVELS.md, "The plugin host"; card c147): a
 // plugin answers through it, and a plugin that tries to leave its box can't.
@@ -26,8 +27,50 @@ let solveAs: (
 	url: string
 ) => Promise<{ cookies: string; userAgent: string; httpsOnly?: boolean } | null> = async () => null;
 
-/** How many requests the challenged site has answered: `seen` has one entry each. */
-const siteRequests = () => seen.length;
+/**
+ * Cloudflare's challenge page, as a browser and a Node fetch both receive it:
+ * it loads the challenge platform's script, the marker a page carries when its
+ * headers don't come with it (a page through the solver arrives without them).
+ */
+const CHALLENGE_PAGE =
+	'<html><head><title>Just a moment…</title></head><body><script src="/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1"></script></body></html>';
+
+/** The pages the app was asked for in page mode (c335), as the host asked them. */
+let paged: PageRequest[] = [];
+/** The agent the stub solver's browser sends: its requests are the browser's, not the host's. */
+const BROWSER = 'SolverBrowser/1.0';
+
+/**
+ * The app's page through the solver, played by a browser: it carries the
+ * cookie only a browser that solved the check has, follows redirects itself,
+ * and answers with where it ended. `fetchPage` in solver.ts is the real one,
+ * and tests/novel-solver.spec.ts its stubbed FlareSolverr.
+ */
+const browser = async (req: PageRequest): Promise<PageAnswer> => {
+	const res = await fetch(req.url, {
+		method: req.method,
+		headers: {
+			cookie: 'bound=browser',
+			'user-agent': BROWSER,
+			...(req.method === 'POST' ? { 'content-type': 'application/x-www-form-urlencoded' } : {})
+		},
+		body: req.method === 'POST' ? (req.postData ?? '') : undefined
+	});
+	return {
+		page: {
+			url: res.url,
+			status: res.status,
+			contentType: res.headers.get('content-type') ?? 'text/html',
+			body: await res.text()
+		}
+	};
+};
+let pageAs: (req: PageRequest) => Promise<PageAnswer> = browser;
+
+/** How many requests the challenged site has answered from the host itself: the browser's are not counted. */
+const siteRequests = () => seen.filter((s) => s.agent !== BROWSER).length;
+/** What the host itself sent, cookie by cookie. */
+const hostCookies = () => seen.filter((s) => s.agent !== BROWSER).map((s) => s.cookie);
 
 /** The fixtures, with their site's address written in (the vm context has no env to read). */
 function plugin(
@@ -50,6 +93,56 @@ let shut = '';
 let missing = '';
 let checked = '';
 let cleared = '';
+let bound = '';
+
+/**
+ * A plugin for a site whose check is bound to the browser that solved it
+ * (NovelFull's and Scribble Hub's shape), written inline: what it asks is what
+ * page mode has to answer. A list whose links resolve against the page it came
+ * from, a JSON search, a form POST as Scribble Hub's chapter list is, and the
+ * bodies the solver's browser can't send.
+ */
+const BOUND = `
+var fetch = require('@libs/fetch');
+var cheerio = require('cheerio');
+function Bound() {
+	this.id = 'bound';
+	this.name = 'Bound Novels';
+	this.site = globalThis.SITE;
+	this.version = '1.0.0';
+	this.filters = {};
+}
+Bound.prototype.popularNovels = async function (page) {
+	var res = await fetch.fetchApi(this.site + 'bound/moved?page=' + page);
+	var $ = cheerio.load(await res.text());
+	return $('a.novel').map(function (_, a) {
+		return { name: $(a).text(), path: new URL($(a).attr('href'), res.url).pathname, cover: res.url };
+	}).get();
+};
+Bound.prototype.searchNovels = async function (term) {
+	var res = await fetch.fetchApi(this.site + 'bound/api.json?q=' + encodeURIComponent(term));
+	return (await res.json()).map(function (n) { return { name: n, path: '/n/' + n }; });
+};
+Bound.prototype.parseNovel = async function (path) {
+	var html = await fetch.fetchText(this.site + 'bound/form', {
+		method: 'POST',
+		body: new URLSearchParams({ action: 'list', id: path })
+	});
+	return { name: html, path: path, chapters: [] };
+};
+Bound.prototype.parseChapter = async function (path) {
+	if (path === 'json-post')
+		return fetch.fetchText(this.site + 'bound/form', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ id: 1 })
+		});
+	if (path === 'put') return fetch.fetchText(this.site + 'bound/form', { method: 'PUT', body: 'x=1' });
+	if (path === 'file') return fetch.fetchFile(this.site + 'bound/cover.jpg');
+	return fetch.fetchText(path.indexOf('http') === 0 ? path : this.site + path.slice(1));
+};
+exports.default = new Bound();
+`;
 
 beforeAll(async () => {
 	site = createServer((req, res) => {
@@ -76,7 +169,7 @@ beforeAll(async () => {
 			if (!/cf_clearance=ok/.test(req.headers.cookie ?? ''))
 				return res
 					.writeHead(403, { 'cf-mitigated': 'challenge', server: 'cloudflare' })
-					.end('<html>Just a moment…</html>');
+					.end(CHALLENGE_PAGE);
 			return res
 				.writeHead(200, { 'content-type': 'text/html' })
 				.end('<a class="novel" href="/n/one">Cleared</a>');
@@ -90,7 +183,7 @@ beforeAll(async () => {
 					'cf-ray': '8d0',
 					server: 'cloudflare'
 				})
-				.end('<html>Just a moment…</html>');
+				.end(CHALLENGE_PAGE);
 		if (u.pathname === '/bodyonly') return res.writeHead(403).end('<b>__cf_chl</b>');
 		// A site's own 403: no marker, so it is not the app's to solve.
 		if (u.pathname === '/plain') return res.writeHead(403).end('go away');
@@ -99,6 +192,35 @@ beforeAll(async () => {
 			return res
 				.writeHead(403, { 'cf-ray': '9a1b2c3d4e5f-SJC', server: 'cloudflare' })
 				.end('members only');
+		// A check bound to the browser that solved it (c335): the clearance the
+		// host is handed is refused, and only the browser's own cookie passes.
+		if (u.pathname.startsWith('/bound/')) {
+			if (!/bound=browser/.test(req.headers.cookie ?? ''))
+				return res
+					.writeHead(403, { 'cf-mitigated': 'challenge', server: 'cloudflare' })
+					.end(CHALLENGE_PAGE);
+			if (u.pathname === '/bound/moved')
+				return res.writeHead(302, { location: `/bound/deep/list${u.search}` }).end();
+			if (u.pathname === '/bound/deep/list')
+				return res
+					.writeHead(200, { 'content-type': 'text/html' })
+					.end(`<a class="novel" href="../n/one">Bound ${u.searchParams.get('page')}</a>`);
+			if (u.pathname === '/bound/api.json')
+				return res
+					.writeHead(200, { 'content-type': 'application/json' })
+					.end(JSON.stringify([`${u.searchParams.get('q')}-a`]));
+			if (u.pathname === '/bound/form') {
+				let raw = '';
+				req.on('data', (c) => (raw += c));
+				req.on('end', () =>
+					res.writeHead(200, { 'content-type': 'text/html' }).end(`${req.method} ${raw}`)
+				);
+				return;
+			}
+			if (u.pathname === '/bound/always')
+				return res.writeHead(403, { 'cf-mitigated': 'challenge' }).end(CHALLENGE_PAGE);
+			return res.writeHead(200, { 'content-type': 'text/html' }).end(`<p>${u.pathname}</p>`);
+		}
 		// A hop to another host, which must not be sent the first host's clearance.
 		if (u.pathname === '/away')
 			return res.writeHead(302, { location: `http://localhost:${otherPort}/leak` }).end();
@@ -120,15 +242,28 @@ beforeAll(async () => {
 	missing = plugin('good', { SITE: `http://127.0.0.1:${port}/gone/` }, 'missing');
 	checked = plugin('checked', { SITE: `http://127.0.0.1:${checkPort}/` });
 	cleared = plugin('good', { SITE: `http://127.0.0.1:${checkPort}/` }, 'cleared');
-	host = new NovelHost({
-		store,
-		allow: [`127.0.0.1:${port}`, `127.0.0.1:${checkPort}`, `localhost:${otherPort}`],
-		timeoutMs: 15_000,
-		solve: (url) => {
-			solved.push(url);
-			return solveAs(url);
-		}
-	});
+	bound = join(store, 'bound.js');
+	writeFileSync(
+		bound,
+		`globalThis.SITE = ${JSON.stringify(`http://127.0.0.1:${checkPort}/`)};\n${BOUND}`
+	);
+	host = new NovelHost(hostOpts());
+});
+
+/** The spec's host: its test ports, and the app's solve and page played by the stubs above. */
+const hostOpts = (refusedMs?: number) => ({
+	store,
+	allow: [`127.0.0.1:${port}`, `127.0.0.1:${checkPort}`, `localhost:${otherPort}`],
+	timeoutMs: 15_000,
+	solve: (url: string) => {
+		solved.push(url);
+		return solveAs(url);
+	},
+	page: (req: PageRequest) => {
+		paged.push(req);
+		return pageAs(req);
+	},
+	...(refusedMs !== undefined ? { refusedMs } : {})
 });
 
 afterAll(async () => {
@@ -204,6 +339,8 @@ describe('a site’s browser check', () => {
 		host.stop();
 		solved = [];
 		seen = [];
+		paged = [];
+		pageAs = browser;
 		solveAs = async () => ({ cookies: 'cf_clearance=ok', userAgent: 'StubBrowser/1.0' });
 	});
 
@@ -213,6 +350,8 @@ describe('a site’s browser check', () => {
 			/answered 403 \(its check could not be passed\)/
 		);
 		expect(solved).toEqual([`http://127.0.0.1:${checkPort}/list`]);
+		// No clearance was refused, so nothing says the check is bound to a browser.
+		expect(paged).toEqual([]);
 		expect(await host.call(good, 'parseChapter', ['/still'])).toBe('<p>/still</p>');
 	});
 
@@ -250,28 +389,34 @@ describe('a site’s browser check', () => {
 
 	it('retries once, and reports a check it still can’t pass', async () => {
 		// No jar exists before this call: the first request is challenged, the
-		// solve sets one, and the one retry carries it.
+		// solve sets one, and the one retry carries it. The retry still being a
+		// check puts the host in page mode (c335), and this site refuses the
+		// solver's browser too, so the call still reports the check.
 		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
 			/answered 403 \(its check could not be passed\)/
 		);
 		expect(solved).toHaveLength(1);
-		expect(seen.map((s) => s.cookie)).toEqual(['', 'cf_clearance=ok']);
+		expect(hostCookies()).toEqual(['', 'cf_clearance=ok']);
+		expect(paged).toHaveLength(1);
 	});
 
-	it('remembers a clearance its site refused: the next call is one request and no solve', async () => {
+	it('remembers a clearance its site refused: the next call is no solve and no request of its own', async () => {
 		// A hopeless host, as NovelFull and Scribble Hub measured: the solve
 		// works and the site refuses the clearance anyway. The retry taught the
 		// host that; a second chapter must not pay the solve and retry again.
+		// Since c335 it goes as a page through the solver instead.
 		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
 			/answered 403 \(its check could not be passed\)/
 		);
 		expect(solved).toHaveLength(1);
 		expect(siteRequests()).toBe(2); // the request, then the retry with the clearance
+		expect(paged).toHaveLength(1);
 		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
 			/answered 403 \(its check could not be passed\)/
 		);
 		expect(solved).toHaveLength(1); // no second solve
-		expect(siteRequests()).toBe(3); // one request: it was already a check, so no retry
+		expect(siteRequests()).toBe(2); // and no request of its own: it would be a check
+		expect(paged).toHaveLength(2); // one page
 	});
 
 	it('forgets a refused clearance when TRY AGAIN asks, and only that site’s (c294)', async () => {
@@ -283,25 +428,29 @@ describe('a site’s browser check', () => {
 		);
 		expect(solved).toHaveLength(1);
 		expect(siteRequests()).toBe(2);
+		expect(paged).toHaveLength(1);
 		// Another site's name forgets nothing.
 		expect(await host.forgetRefused('elsewhere.example')).toBe(0);
 		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
 			/answered 403 \(its check could not be passed\)/
 		);
 		expect(solved).toHaveLength(1);
-		expect(siteRequests()).toBe(3);
+		expect(siteRequests()).toBe(2);
+		expect(paged).toHaveLength(2);
 		expect(await host.forgetRefused('127.0.0.1')).toBe(1);
 		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
 			/answered 403 \(its check could not be passed\)/
 		);
 		expect(solved).toHaveLength(2); // solved afresh
-		expect(siteRequests()).toBe(5); // the request and the retry, as the first time
+		expect(siteRequests()).toBe(4); // the request and the retry, as the first time
+		expect(paged).toHaveLength(3); // and the page, as the first time
 		// And the site refusing again is remembered again.
 		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
 			/answered 403 \(its check could not be passed\)/
 		);
 		expect(solved).toHaveLength(2);
-		expect(siteRequests()).toBe(6);
+		expect(siteRequests()).toBe(4);
+		expect(paged).toHaveLength(4);
 	});
 
 	it('does not start a host only to forget what it never remembered (c294)', async () => {
@@ -323,7 +472,7 @@ describe('a site’s browser check', () => {
 			/answered 403 \(its check could not be passed\)/
 		);
 		expect(solved).toHaveLength(1);
-		expect(seen.map((s) => s.cookie)).toEqual(['', '']);
+		expect(hostCookies()).toEqual(['', '']);
 	});
 
 	it('names a check that is only in the body, and a plain 403 stays the site’s own answer', async () => {
@@ -345,6 +494,230 @@ describe('a site’s browser check', () => {
 		);
 		expect(solved).toEqual([]);
 		expect(siteRequests()).toBe(1);
+	});
+});
+
+describe('a check bound to the browser that solved it: page mode (c335)', () => {
+	// NovelFull and Scribble Hub refuse the clearance they just issued to any
+	// client but the solver's own browser (doc/NOVELS.md, measured 2026-11-02).
+	// The `/bound/` paths here are that site: the host's retry with the
+	// clearance is still a check, and only the browser stub's cookie passes.
+	const SITE = () => `http://127.0.0.1:${checkPort}/`;
+	const HOST = '127.0.0.1';
+	const bounce = /page did not come through the solver \(its check could not be passed\)/;
+
+	beforeEach(() => {
+		host.stop();
+		solved = [];
+		seen = [];
+		paged = [];
+		pageAs = browser;
+		solveAs = async () => ({ cookies: 'cf_clearance=ok', userAgent: 'StubBrowser/1.0' });
+	});
+
+	it('enters when the retry with a fresh clearance is still a check, and answers that same call through the solver', async () => {
+		const list = await host.call<{ name: string; path: string; cover: string }[]>(
+			bound,
+			'popularNovels',
+			[1, {}]
+		);
+		// The solve, the retry it refused, then the page: the call that taught the host is answered.
+		expect(solved).toEqual([`${SITE()}bound/moved?page=1`]);
+		expect(hostCookies()).toEqual(['', 'cf_clearance=ok']);
+		expect(paged).toEqual([{ url: `${SITE()}bound/moved?page=1`, method: 'GET' }]);
+		// The browser was redirected: the plugin's links resolve against where it
+		// ended (/bound/deep/list), not the URL it asked (/bound/moved).
+		expect(list).toEqual([
+			{ name: 'Bound 1', path: '/bound/n/one', cover: `${SITE()}bound/deep/list?page=1` }
+		]);
+		expect(Object.keys(await host.pageHosts())).toEqual([HOST]);
+	});
+
+	it('stays out for every other check: one its clearance passes, one the app would not solve, and a plain 403', async () => {
+		expect(await host.call(cleared, 'popularNovels', [1, {}])).toHaveLength(1);
+		await expect(host.call(checked, 'parseChapter', ['/plain'])).rejects.toThrow(/answered 403$/);
+		await expect(host.call(checked, 'parseChapter', ['/plain-cf'])).rejects.toThrow(
+			/answered 403$/
+		);
+		host.stop();
+		solveAs = async () => null;
+		await expect(host.call(bound, 'parseChapter', ['/bound/chapter/1'])).rejects.toThrow(
+			/answered 403 \(its check could not be passed\)$/
+		);
+		expect(paged).toEqual([]);
+		expect(await host.pageHosts()).toEqual({});
+	});
+
+	it('then makes no request of its own and no solve: each chapter is one page', async () => {
+		await host.call(bound, 'popularNovels', [1, {}]);
+		expect(solved).toHaveLength(1);
+		expect(siteRequests()).toBe(2);
+		expect(await host.call(bound, 'parseChapter', ['/bound/chapter/1'])).toBe(
+			'<p>/bound/chapter/1</p>'
+		);
+		expect(await host.call(bound, 'parseChapter', ['/bound/chapter/2'])).toBe(
+			'<p>/bound/chapter/2</p>'
+		);
+		expect(solved).toHaveLength(1);
+		expect(siteRequests()).toBe(2);
+		expect(paged.map((r) => r.url)).toEqual([
+			`${SITE()}bound/moved?page=1`,
+			`${SITE()}bound/chapter/1`,
+			`${SITE()}bound/chapter/2`
+		]);
+	});
+
+	it('enters once for two calls challenged together, and answers both', async () => {
+		const [a, b] = await Promise.all([
+			host.call(bound, 'parseChapter', ['/bound/chapter/1']),
+			host.call(bound, 'parseChapter', ['/bound/chapter/2'])
+		]);
+		expect([a, b]).toEqual(['<p>/bound/chapter/1</p>', '<p>/bound/chapter/2</p>']);
+		expect(solved).toHaveLength(1);
+		expect(paged).toHaveLength(2);
+	});
+
+	it('hands a JSON answer over as JSON, and posts a url-encoded form', async () => {
+		await host.call(bound, 'popularNovels', [1, {}]);
+		expect(await host.call(bound, 'searchNovels', ['frieren', 1])).toEqual([
+			{ name: 'frieren-a', path: '/n/frieren-a' }
+		]);
+		expect(await host.call(bound, 'parseNovel', ['/n/one'])).toMatchObject({
+			name: 'POST action=list&id=%2Fn%2Fone'
+		});
+		expect(paged.slice(1)).toEqual([
+			{ url: `${SITE()}bound/api.json?q=frieren`, method: 'GET' },
+			{ url: `${SITE()}bound/form`, method: 'POST', postData: 'action=list&id=%2Fn%2Fone' }
+		]);
+	});
+
+	it('refuses with a sentence what the solver’s browser can’t send or hand back, and asks nothing for it', async () => {
+		await host.call(bound, 'popularNovels', [1, {}]);
+		await expect(host.call(bound, 'parseChapter', ['json-post'])).rejects.toThrow(
+			/posts a url-encoded form only, not application\/json/
+		);
+		await expect(host.call(bound, 'parseChapter', ['put'])).rejects.toThrow(
+			/sends GET and POST only, not PUT/
+		);
+		await expect(host.call(bound, 'parseChapter', ['file'])).rejects.toThrow(
+			/a file is not a page, and the solver's browser hands back pages only/
+		);
+		expect(paged).toHaveLength(1);
+		expect(siteRequests()).toBe(2);
+	});
+
+	it('says why a page didn’t come — the solver’s 500, its browser dying, a timeout — and stays in page mode', async () => {
+		await host.call(bound, 'popularNovels', [1, {}]);
+		for (const error of [
+			'the solver answered 500 (Error solving the challenge. Timeout after 50.0 seconds.)',
+			"the solver's browser closed twice (Error: invalid session id: session deleted as the browser has closed the connection)",
+			'the solver did not answer in 60 s'
+		]) {
+			pageAs = async () => ({ error });
+			const call = host.call(bound, 'parseChapter', ['/bound/chapter/1']);
+			await expect(call).rejects.toThrow(bounce);
+			await expect(call).rejects.toThrow(error);
+		}
+		// Still in page mode: the next chapter is a page again, not a solve.
+		pageAs = browser;
+		expect(await host.call(bound, 'parseChapter', ['/bound/chapter/2'])).toBe(
+			'<p>/bound/chapter/2</p>'
+		);
+		expect(solved).toHaveLength(1);
+		expect(siteRequests()).toBe(2);
+		expect(paged).toHaveLength(5);
+	});
+
+	it('reports a page that is still a check as one, and a site’s own error as its own', async () => {
+		await host.call(bound, 'popularNovels', [1, {}]);
+		await expect(host.call(bound, 'parseChapter', ['/bound/always'])).rejects.toThrow(
+			/answered 403 \(its check could not be passed\)$/
+		);
+		pageAs = async (req) => ({
+			page: { url: req.url, status: 404, contentType: 'text/html', body: 'gone' }
+		});
+		await expect(host.call(bound, 'parseChapter', ['/bound/gone'])).rejects.toThrow(
+			/127\.0\.0\.1 answered 404$/
+		);
+	});
+
+	it('doesn’t widen the host’s own rule: a port it wasn’t opened to is refused before any page is asked', async () => {
+		await host.call(bound, 'popularNovels', [1, {}]);
+		expect(Object.keys(await host.pageHosts())).toEqual([HOST]);
+		// Same host name, in page mode, but a port the spec never opened.
+		await expect(
+			host.call(bound, 'parseChapter', [`http://127.0.0.1:${otherPort}/x`])
+		).rejects.toThrow(/127\.0\.0\.1 is not on the internet/);
+		expect(paged).toHaveLength(1);
+		// And a page the browser ended on a local address it wasn't opened to is not read.
+		pageAs = async () => ({
+			page: {
+				url: `http://127.0.0.1:${otherPort}/inside`,
+				status: 200,
+				contentType: 'text/html',
+				body: 'secret'
+			}
+		});
+		await expect(host.call(bound, 'parseChapter', ['/bound/chapter/1'])).rejects.toThrow(
+			/127\.0\.0\.1 is not on the internet/
+		);
+	});
+
+	it('is ten minutes from the refusal', async () => {
+		const before = Date.now();
+		await host.call(bound, 'popularNovels', [1, {}]);
+		const until = (await host.pageHosts())[HOST];
+		expect(until).toBeGreaterThanOrEqual(before + 10 * 60_000);
+		expect(until).toBeLessThanOrEqual(Date.now() + 10 * 60_000);
+	});
+
+	it('leaves when TRY AGAIN forgets the site, or the host restarts: the next call is its own again', async () => {
+		await host.call(bound, 'popularNovels', [1, {}]);
+		expect(await host.forgetRefused('127.0.0.1')).toBe(1);
+		expect(await host.pageHosts()).toEqual({});
+		await host.call(bound, 'parseChapter', ['/bound/chapter/1']);
+		// A request, the solve, the refused retry, and the page: as the first time.
+		expect(solved).toHaveLength(2);
+		expect(siteRequests()).toBe(4);
+		expect(paged).toHaveLength(2);
+		host.stop();
+		expect(await host.pageHosts()).toEqual({});
+		await host.call(bound, 'parseChapter', ['/bound/chapter/2']);
+		expect(solved).toHaveLength(3);
+		expect(siteRequests()).toBe(6);
+		expect(paged).toHaveLength(3);
+	});
+
+	it('leaves when its time is up, not extended by use, and the next call pays a solve and a retry again', async () => {
+		const quick = new NovelHost(hostOpts(1_500));
+		try {
+			await quick.call(bound, 'popularNovels', [1, {}]);
+			const until = (await quick.pageHosts())[HOST];
+			expect(until).toEqual(expect.any(Number));
+			// Used inside the window, which doesn't move it.
+			await quick.call(bound, 'parseChapter', ['/bound/chapter/1']);
+			expect((await quick.pageHosts())[HOST]).toBe(until);
+			expect(siteRequests()).toBe(2);
+			await expect.poll(() => quick.pageHosts(), { timeout: 5_000 }).toEqual({});
+			await quick.call(bound, 'parseChapter', ['/bound/chapter/2']);
+			expect(solved).toHaveLength(2);
+			expect(siteRequests()).toBe(4);
+			expect(paged).toHaveLength(3);
+			expect(Object.keys(await quick.pageHosts())).toEqual([HOST]);
+		} finally {
+			quick.stop();
+		}
+	});
+
+	it('answers a page the app has no solver for with a sentence, not a silence', async () => {
+		const bare = new NovelHost({ ...hostOpts(), page: undefined });
+		try {
+			await expect(bare.call(bound, 'parseChapter', ['/bound/chapter/1'])).rejects.toThrow(
+				/this app has no solver to fetch a page through/
+			);
+		} finally {
+			bare.stop();
+		}
 	});
 });
 

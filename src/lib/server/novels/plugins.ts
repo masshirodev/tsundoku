@@ -12,7 +12,7 @@ import {
 	type NovelListing
 } from '../../library/lnreader-index.ts';
 import { NovelHost, type HostOptions } from './host.ts';
-import { solveChallenge } from './solver.ts';
+import { fetchPage, solveChallenge } from './solver.ts';
 import { dataPaths } from '../data-dirs.ts';
 import { NO_EXT_FILTERS, searchMatches, type ExtFilters } from '../../library/ext-filters.ts';
 
@@ -35,11 +35,13 @@ let host: NovelHost | null = null;
 /**
  * The options the app's one host runs with: this store to read, and the app's
  * own solve for a site's check — never the host's, since it refuses local
- * addresses and a solver is one (novels/solver.ts; card c152). Exported so the
- * wiring that puts the card into production can be pinned by a spec.
+ * addresses and a solver is one (novels/solver.ts; card c152), and its page
+ * through the solver for a host whose check is bound to the browser (c335).
+ * Exported so the wiring that puts the cards into production can be pinned by
+ * a spec.
  */
 export function hostOptions(): HostOptions {
-	return { store: storeDir(), solve: solveChallenge };
+	return { store: storeDir(), solve: solveChallenge, page: fetchPage };
 }
 
 /** The one plugin host, reading this store. */

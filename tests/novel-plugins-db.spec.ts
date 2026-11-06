@@ -183,4 +183,14 @@ describe('the host the app builds', () => {
 		expect(opts.solve).toBe(solver.solveChallenge);
 		expect(opts.store).toBe(store);
 	});
+
+	it('fetches a page bound to the solver’s browser through the app’s own solver (c335)', () => {
+		// The same line for page mode: without it the host would ask for pages
+		// and hear only "this app has no solver to fetch a page through".
+		const opts = plugins.hostOptions();
+		expect(opts.page).toBe(solver.fetchPage);
+		// Nothing a spec sets for itself leaks into the app's own host.
+		expect(opts.refusedMs).toBeUndefined();
+		expect(opts.allow).toBeUndefined();
+	});
 });

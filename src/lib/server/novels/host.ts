@@ -1,5 +1,6 @@
 import { fork, type ChildProcess } from 'node:child_process';
 import { join, resolve } from '../fspath.ts';
+import type { PageAnswer, PageRequest } from './solver.ts';
 
 /**
  * The app's side of the LNReader plugin host (doc/NOVELS.md, "The plugin
@@ -25,6 +26,13 @@ import { join, resolve } from '../fspath.ts';
  * jar per host, sends a secure one over https only, retries once, and
  * remembers for ten minutes a host whose retry was still a check, unless
  * `forgetRefused` is asked to forget it sooner (TRY AGAIN, c294).
+ *
+ * A host whose retry was still a check (NovelFull, Scribble Hub: their check
+ * is bound to the browser that solved it) is in **page mode** for those ten
+ * minutes (card c335): the host asks the parent for the page at a URL instead,
+ * the parent checks the address and fetches it through the solver's browser
+ * (`fetchPage`), and the plugin's parse gets that HTML with the URL the
+ * browser ended on.
  */
 
 export class NovelHostError extends Error {}
@@ -40,6 +48,10 @@ export type HostOptions = {
 	timeoutMs?: number;
 	/** The app's solve for a site's check: the host's only way to one, and never set by tests that aren't testing it. */
 	solve?: (url: string) => Promise<Clearance | null>;
+	/** The app's page through the solver, for a host in page mode (c335): never the host's own. */
+	page?: (req: PageRequest) => Promise<PageAnswer>;
+	/** How long a refused host stays in page mode, for tests; the host's own is ten minutes. */
+	refusedMs?: number;
 };
 
 type Pending = {
@@ -82,12 +94,22 @@ export class NovelHost {
 				id: number;
 				op?: string;
 				url?: string;
+				method?: string;
+				postData?: string;
 				ok?: boolean;
 				value?: unknown;
 				error?: string;
 			}) => {
 				if (m.op === 'challenge') {
 					void this.#answerChallenge(child, m.id, String(m.url ?? ''));
+					return;
+				}
+				if (m.op === 'page') {
+					void this.#answerPage(child, m.id, {
+						url: String(m.url ?? ''),
+						method: typeof m.method === 'string' ? m.method : 'GET',
+						...(typeof m.postData === 'string' ? { postData: m.postData } : {})
+					});
 					return;
 				}
 				const p = this.#pending.get(m.id);
@@ -110,7 +132,13 @@ export class NovelHost {
 			}
 		});
 		this.#child = child;
-		if (this.#opts.allow?.length) child.send({ id: 0, op: 'config', allow: this.#opts.allow });
+		if (this.#opts.allow?.length || this.#opts.refusedMs !== undefined)
+			child.send({
+				id: 0,
+				op: 'config',
+				allow: this.#opts.allow ?? [],
+				...(this.#opts.refusedMs !== undefined ? { refusedMs: this.#opts.refusedMs } : {})
+			});
 		return child;
 	}
 
@@ -158,6 +186,34 @@ export class NovelHost {
 		child.send({ op: 'challenge-result', id, ok: true, value: clearance });
 	}
 
+	/**
+	 * A host in page mode asked for a URL's page (c335): the app fetches it
+	 * through the solver, which runs `checkPublic` first. Whatever goes wrong is
+	 * a sentence back, never a crash and never a silence: the host notes it as
+	 * the call's trouble.
+	 */
+	async #answerPage(child: ChildProcess, id: number, req: PageRequest): Promise<void> {
+		let answer: PageAnswer = { error: 'this app has no solver to fetch a page through' };
+		const asked = this.#opts.page?.(req);
+		if (asked) {
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			try {
+				answer = await Promise.race([
+					asked.catch((e: unknown) => ({ error: String((e as Error)?.message ?? e) })),
+					new Promise<PageAnswer>((ok) => {
+						timer = setTimeout(() => ok({ error: 'the solver did not answer in time' }), 65_000);
+					})
+				]);
+			} finally {
+				clearTimeout(timer);
+			}
+		}
+		// As for a challenge: a restarted host's ids start again at 1.
+		if (child !== this.#child || !child.connected) return;
+		if ('page' in answer) child.send({ op: 'page-result', id, ok: true, value: answer.page });
+		else child.send({ op: 'page-result', id, ok: false, error: answer.error });
+	}
+
 	/** The plugin's own description: name, site, version, filters, whether it pages. */
 	info(file: string) {
 		return this.#send<{
@@ -183,6 +239,15 @@ export class NovelHost {
 	forgetRefused(site: string): Promise<number> {
 		if (!this.#child) return Promise.resolve(0);
 		return this.#send<number>({ op: 'forget', site });
+	}
+
+	/**
+	 * The hosts in page mode now, and until when (c335): what a spec reads to
+	 * pin the ten minutes, and what a probe prints. A host not running has none.
+	 */
+	pageHosts(): Promise<Record<string, number>> {
+		if (!this.#child) return Promise.resolve({});
+		return this.#send<Record<string, number>>({ op: 'modes' });
 	}
 
 	stop(): void {
