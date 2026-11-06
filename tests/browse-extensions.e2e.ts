@@ -348,6 +348,41 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	await expect(row('Good Novels')).toHaveCount(0);
 });
 
+test('a switch still being written when the case ends is put back after it (c636)', async ({
+	page
+}) => {
+	const row = (name: string) => page.locator('.rows .row', { hasText: name });
+	const own = (title: string) => page.locator('form.own', { hasText: title }).getByRole('switch');
+	// The plugin, so the afterEach's put-back has switches to reach at all
+	// (it returns early for a case that never installed one).
+	await page.goto(`/browse/extensions?tab=repos&add=${encodeURIComponent(NOVEL_REPO)}`);
+	await expect(page.locator('.found')).toContainText('1 NOVEL PLUGIN');
+	if (await page.locator('.found button').count()) await page.locator('.found button').click();
+	await expect(row('127.0.0.1').filter({ hasText: 'NOVELS' })).toContainText('1 PLUGIN');
+	lnPluginInstalled = true;
+	await page.goto('/browse/extensions?tab=available&kind=novels');
+	await row('Good Novels').getByRole('button', { name: 'INSTALL' }).click();
+	await expect(row('Good Novels')).toContainText('INSTALLED ✓');
+	await page.goto('/browse/ln:goodnovels/settings');
+	await expect(own('Off history')).toHaveAttribute('aria-checked', 'false');
+
+	// OFF HISTORY, sent as the page's own write and left in flight when this
+	// case ends: the browse world holds the action's write on the server
+	// (tests/browse-setup.ts's TSUNDOKU_TEST_HOLD, `x-tsundoku-hold`). The
+	// afterEach must wait for it before its put-back, or the write lands after
+	// the switches were turned off and leaves OFF HISTORY on for the next case
+	// -- which reads it first (c569, below).
+	await page.evaluate(() => {
+		void fetch('/browse/ln:goodnovels/settings?/flag', {
+			method: 'POST',
+			headers: { 'x-tsundoku-hold': 'flag:2500' },
+			body: new URLSearchParams({ flag: 'offHistory', value: 'true' })
+		});
+	});
+	// Nothing read here: the write is the next thing to happen, and it is the
+	// afterEach's job to wait for it (`writes`), not this case's.
+});
+
 test('REMOVE keeps a source’s switches: a reinstalled plugin comes back with them (c569, the owner’s (b))', async ({
 	page
 }) => {

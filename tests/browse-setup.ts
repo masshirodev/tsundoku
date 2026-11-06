@@ -379,6 +379,10 @@ function startEngine(): Promise<Server> {
 			calls = [];
 			down = false;
 			checkMs = 0;
+			// c636: what /__bump moved, put back, so a case repeated in this
+			// world meets the repository's 1.6.2 again (browse-extensions'
+			// first case installs 1.6.2, then moves it to 1.6.3).
+			webtoonsVersion = 2;
 			return json(200, {});
 		}
 		if (req.url === '/__down') {
@@ -708,7 +712,13 @@ export default async function setup() {
 				COVER_DIR: join(tmpdir(), `tsundoku-e2e-browse-covers-${process.pid}`),
 				ENGINE_STORE: store,
 				NODE_EXTRA_CA_CERTS: join(store, 'cert.pem'),
-				BACKUP_DIR: join(tmpdir(), 'tsundoku-e2e-backups')
+				BACKUP_DIR: join(tmpdir(), 'tsundoku-e2e-backups'),
+				// The world's own hold on a form post (c636): browse-extensions'
+				// afterEach waits for the page's unanswered writes, and only a
+				// server-side hold can put one past a case's end. Nothing but this
+				// setup sets it, so a build the owner runs never reads the header
+				// (`src/routes/browse/test-hold.server.ts`).
+				TSUNDOKU_TEST_HOLD: '1'
 			},
 			stdio: 'ignore'
 		}
