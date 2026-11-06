@@ -324,9 +324,17 @@
 	/** OPEN → after a fold: carried out first, so the book screen shows it folded. */
 	async function openFolded(seriesId: number) {
 		busy = true;
-		await post({ apply: true });
-		undo = null;
+		const answer = await post({ apply: true });
 		busy = false;
+		// A fold this state refuses is not carried out, so there is no folded
+		// book to open: the band says which and why, and the pair comes back to
+		// the review (c648) instead of a screen that would look unchanged.
+		refused = answer?.refused ?? [];
+		if (!answer || refused.length) {
+			if (!answer) failed = 'THE WORKSTATION DID NOT ANSWER · NOTHING CHANGED';
+			return;
+		}
+		undo = null;
 		await goto(resolve('/series/[id]', { id: String(seriesId) }));
 	}
 	const counter = $derived(

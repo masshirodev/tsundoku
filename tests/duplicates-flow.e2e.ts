@@ -313,4 +313,19 @@ test.describe('a fold the state refuses (c648)', () => {
 		await expect(page.locator('.conf')).toHaveText('SAME BOOK · A THIRD LANGUAGE');
 		await expect(page.locator('.band.refused')).toHaveCount(0);
 	});
+
+	test('OPEN → on a refused fold says so and stays, never a book that isn’t folded', async ({
+		page
+	}) => {
+		// The band's OPEN → carries the fold out now and opens the book. When the
+		// state refuses it there is no folded book to open (c648).
+		await page.goto(`${BASE}/duplicates`);
+		await expect(page.locator('.counter')).toHaveText('01 OF 01');
+		await page.getByRole('button', { name: 'ADD AS A THIRD LANGUAGE' }).click();
+		await page.getByRole('button', { name: 'OPEN →' }).click();
+		await expect(
+			page.locator('.band.refused').getByText(/A BOOK CAN.T FOLD · SOMETHING SITS BESIDE IT/)
+		).toBeVisible();
+		await expect(page).toHaveURL(/\/duplicates$/);
+	});
 });
