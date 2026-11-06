@@ -31,19 +31,22 @@ object BridgeGuard {
 	/** The host `WebViewAssetLoader` serves the app's own page from (c549). */
 	const val ASSET_HOST = "appassets.androidplatform.net"
 
-	/** The app's own page (9A, 9B, 9D, S5, S7, S8, S9), whatever its fragment. */
+	/** The app's own page (9A, 9B, 9D, S5, S7, S8, S9), whatever its launch token and fragment. */
 	const val ASSET = "https://$ASSET_HOST/pair/index.html"
 
 	/**
 	 * The origin the pair page loads from since c549: `WebViewAssetLoader`
-	 * serves [ASSET] there in `MainActivity.shouldInterceptRequest`, and every
-	 * other path on that host is answered 404 by the app, so a real network
-	 * answer at that host is never trusted. A message from the page carries
-	 * this as its `sourceOrigin`, which is what [allowsMessage] trusts.
+	 * serves [ASSET] there in `MainActivity.shouldInterceptRequest`, and a real
+	 * network answer at that host is never trusted. The loader is mounted at
+	 * `/`, so any file under `assets/` is served there to a main-frame GET that
+	 * carries the launch's token (round 4); a path the loader does not hold is
+	 * 404, and every other request for the host is 404 before the loader is
+	 * asked. A message from the page carries this as its `sourceOrigin`, which
+	 * is what [allowsMessage] trusts.
 	 */
 	const val ASSET_ORIGIN = "https://$ASSET_HOST"
 
-	/** The app's own page, and nothing else: [ASSET] with a fragment or a query. */
+	/** The app's own page, and nothing else: [ASSET] with a query (its launch token) or a fragment. */
 	fun isAsset(url: String?): Boolean {
 		val u = url?.trim().orEmpty()
 		return u == ASSET || u.startsWith("$ASSET#") || u.startsWith("$ASSET?")
@@ -66,23 +69,52 @@ object BridgeGuard {
 	fun refusesNavigation(url: String?): Boolean = isAssetHost(url)
 
 	/**
-	 * True for a request the asset loader must not answer (c549, round 3):
-	 * anything addressed to [ASSET_HOST] that is not the main frame's GET.
+	 * True for a request the asset loader must not answer (c549, rounds 3 and
+	 * 4): anything addressed to [ASSET_HOST] that is not the main frame's GET of
+	 * the launch's own [ASSET] URL.
 	 *
 	 * [refusesNavigation] cannot close this by itself: `shouldOverrideUrlLoading`
-	 * is not called for POST requests, and a form submission keeps its action
-	 * URL's fragment, so a page could `submit()` a form to
+	 * is not called for POST requests, and on a WebView that does not report a
+	 * redirect (androidx's `SHOULD_OVERRIDE_WITH_REDIRECTS` is a WebView-APK
+	 * feature, not an API level) it does not see a 302 either. A form submission
+	 * keeps its action URL's fragment, so a page could `submit()` a form to
 	 * `ASSET#connect=http://evil:42143` and the loader would serve the pair
 	 * page as the main document. The method is compared without case, and an
 	 * absent one is not a GET. A sub-frame's request for the host is refused
 	 * here too (round 2's embed), and every other host is somebody else's and
-	 * is not refused. `MainActivity.shouldInterceptRequest` asks this before
-	 * the loader: a refused request is a 404, so no script runs.
+	 * is not refused.
+	 *
+	 * The last test is a **per-launch capability** rather than a navigation
+	 * callback: `MainActivity.loadAsset` writes a random `?t=…` into the URL it
+	 * loads (round 4), and a request is served only when its query is exactly
+	 * that token. Only the app knows it, so a URL a page can write — a link,
+	 * `location =`, a meta refresh, a 302, a form submit, `window.open` —
+	 * arrives without it and is 404 whatever the WebView version calls. It
+	 * does not depend on `shouldOverrideUrlLoading`, and it costs no reload:
+	 * a reload reloads the same document, token included. The navigation rule
+	 * stays as well, so a page-initiated navigation is stopped before it
+	 * becomes a 404 page.
+	 *
+	 * `MainActivity.shouldInterceptRequest` asks this before the loader.
 	 */
-	fun refusesAssetRequest(url: String?, isMainFrame: Boolean, method: String?): Boolean {
+	fun refusesAssetRequest(
+		url: String?,
+		isMainFrame: Boolean,
+		method: String?,
+		token: String?
+	): Boolean {
 		if (!isAssetHost(url)) return false
 		if (!isMainFrame) return true
-		return !"GET".equals(method, ignoreCase = true)
+		if (!"GET".equals(method, ignoreCase = true)) return true
+		return !carriesAssetToken(url, token)
+	}
+
+	/** True when [url]'s query is exactly the launch's own `t=<token>` (round 4). */
+	fun carriesAssetToken(url: String?, token: String?): Boolean {
+		val t = token?.trim().orEmpty()
+		if (t.isEmpty()) return false
+		val query = runCatching { java.net.URI(url.orEmpty()) }.getOrNull()?.rawQuery ?: return false
+		return query == "t=$t"
 	}
 
 	/** True when [url]'s host is [ASSET_HOST], read case-blind, whatever its scheme or path. */

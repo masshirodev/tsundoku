@@ -60,6 +60,9 @@ class BridgeGuardTest {
 		// another host, another path or another scheme is not the app's page.
 		assertTrue(BridgeGuard.allows(BridgeGuard.ASSET) { false })
 		assertTrue(BridgeGuard.allows(BridgeGuard.ASSET + "#add") { false })
+		// The page loads with this launch's token in its query (round 4), and
+		// its own top-level URL must still be the app's page to the bridge.
+		assertTrue(BridgeGuard.allows(BridgeGuard.ASSET + "?t=6a1f0c9e#add") { false })
 		assertFalse(BridgeGuard.allows("https://${BridgeGuard.ASSET_HOST}/pair/other.html") { false })
 		assertFalse(BridgeGuard.allows("https://evil.appassets.androidplatform.net/pair/index.html") { false })
 		assertFalse(BridgeGuard.allows("http://${BridgeGuard.ASSET_HOST}/pair/index.html") { false })
@@ -139,32 +142,92 @@ class BridgeGuardTest {
 
 	@Test
 	fun `the asset host is served only to the main frame's GET (c549, round 3)`() {
+		val token = "6a1f0c9e-2b7d-4a55-9d1e-3f8c0b2a7e64"
+		val page = BridgeGuard.ASSET + "?t=" + token
 		// A form submit keeps the action's fragment, and shouldOverrideUrlLoading
 		// is never called for POST (WebViewClient: "This method is not called
 		// for POST requests"), so the interception is what refuses it.
 		assertTrue(
 			BridgeGuard.refusesAssetRequest(
-				BridgeGuard.ASSET + "#connect=http%3A%2F%2Fevil%3A42143",
+				page + "#connect=http%3A%2F%2Fevil%3A42143",
 				true,
-				"POST"
+				"POST",
+				token
 			)
 		)
 		// The method is read without case, and an absent one is not a GET.
-		assertTrue(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET, true, "post"))
-		assertTrue(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET + "#add", true, "Post"))
-		assertTrue(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET, true, null))
-		// A main-frame GET is the app's own loadAsset, and is served.
-		assertFalse(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET, true, "GET"))
-		assertFalse(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET + "#add", true, "get"))
+		assertTrue(BridgeGuard.refusesAssetRequest(page, true, "post", token))
+		assertTrue(BridgeGuard.refusesAssetRequest(page + "#add", true, "Post", token))
+		assertTrue(BridgeGuard.refusesAssetRequest(page, true, null, token))
+		// A main-frame GET of the app's own URL is its loadAsset, and is served.
+		assertFalse(BridgeGuard.refusesAssetRequest(page, true, "GET", token))
+		assertFalse(BridgeGuard.refusesAssetRequest(page + "#add", true, "get", token))
 		// A frame's GET is an embed, refused as it was in round 2.
 		assertTrue(
-			BridgeGuard.refusesAssetRequest("HTTPS://${BridgeGuard.ASSET_HOST}/pair/index.html", false, "GET")
+			BridgeGuard.refusesAssetRequest(
+				"HTTPS://${BridgeGuard.ASSET_HOST}/pair/index.html?t=$token",
+				false,
+				"GET",
+				token
+			)
 		)
-		assertTrue(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET, false, null))
+		assertTrue(BridgeGuard.refusesAssetRequest(page, false, null, token))
 		// Every other host is somebody else's, whatever the method.
-		assertFalse(BridgeGuard.refusesAssetRequest("$home/", true, "POST"))
-		assertFalse(BridgeGuard.refusesAssetRequest("$zen/series/12", true, "GET"))
-		assertFalse(BridgeGuard.refusesAssetRequest(null, true, "GET"))
-		assertFalse(BridgeGuard.refusesAssetRequest("", true, "POST"))
+		assertFalse(BridgeGuard.refusesAssetRequest("$home/", true, "POST", token))
+		assertFalse(BridgeGuard.refusesAssetRequest("$zen/series/12", true, "GET", token))
+		assertFalse(BridgeGuard.refusesAssetRequest(null, true, "GET", token))
+		assertFalse(BridgeGuard.refusesAssetRequest("", true, "POST", token))
+	}
+
+	@Test
+	fun `a main-frame GET without this launch's token gets no page, whatever called it (c549, round 4)`() {
+		val token = "6a1f0c9e-2b7d-4a55-9d1e-3f8c0b2a7e64"
+		val page = BridgeGuard.ASSET + "?t=" + token
+		// The app's own load, and a reload of that document, keep the token.
+		assertFalse(BridgeGuard.refusesAssetRequest(page, true, "GET", token))
+		assertFalse(
+			BridgeGuard.refusesAssetRequest(
+				page + "#connect=http%3A%2F%2Fexample.com%3A42143",
+				true,
+				"GET",
+				token
+			)
+		)
+		// Every URL a page can write: the token is the app's, and a page
+		// cannot know it. A link, `location =`, a meta refresh, a 302 or a GET
+		// form carries no token and is refused at the interception even where
+		// the WebView version calls no navigation callback at all.
+		assertTrue(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET, true, "GET", token))
+		assertTrue(
+			BridgeGuard.refusesAssetRequest(
+				BridgeGuard.ASSET + "#connect=http%3A%2F%2Fevil%3A42143",
+				true,
+				"GET",
+				token
+			)
+		)
+		assertTrue(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET + "?t=wrong", true, "GET", token))
+		assertTrue(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET + "?t=$token&x=1", true, "GET", token))
+		assertTrue(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET + "?", true, "GET", token))
+		// A token that is absent or blank never makes a URL served.
+		assertTrue(BridgeGuard.refusesAssetRequest(page, true, "GET", null))
+		assertTrue(BridgeGuard.refusesAssetRequest(page, true, "GET", ""))
+		// The token is the query's, not the fragment's or the path's.
+		assertTrue(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET + "#t=$token", true, "GET", token))
+		// And it widens nothing: another host carrying the same query is
+		// somebody else's and is not refused.
+		assertFalse(BridgeGuard.refusesAssetRequest("$home/?t=$token", true, "GET", token))
+	}
+
+	@Test
+	fun `the token is read from the query exactly, and nowhere else (c549, round 4)`() {
+		val token = "6a1f0c9e-2b7d-4a55-9d1e-3f8c0b2a7e64"
+		assertTrue(BridgeGuard.carriesAssetToken(BridgeGuard.ASSET + "?t=$token", token))
+		assertTrue(BridgeGuard.carriesAssetToken(BridgeGuard.ASSET + "?t=$token#add", token))
+		assertFalse(BridgeGuard.carriesAssetToken(BridgeGuard.ASSET + "#t=$token", token))
+		assertFalse(BridgeGuard.carriesAssetToken(BridgeGuard.ASSET + "?t=${token}x", token))
+		assertFalse(BridgeGuard.carriesAssetToken(BridgeGuard.ASSET + "?x=1&t=$token", token))
+		assertFalse(BridgeGuard.carriesAssetToken(null, token))
+		assertFalse(BridgeGuard.carriesAssetToken(BridgeGuard.ASSET + "?t=", token))
 	}
 }
