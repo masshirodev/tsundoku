@@ -116,6 +116,15 @@ so there is nothing for a send to follow.
 there, and nothing more is sent for it. Only what a series Ranobe may hear of
 maps onto is ever sent or unsent.
 
+**NEVER TRACKED is narrower than hidden** (c522, a switch on a source's
+settings page, [`BROWSE.md`](BROWSE.md), "A source's own switches"). Nothing
+is **written** to Ranobe for it: `worksOf` finds no work to send for, `flush`
+skips its units and a work only it read, and SUGGEST TO RANOBE is refused
+(`fromFile`), so no bundle is posted. A queued read or a work's rating is
+**kept**, as a hidden series' is, and goes once the switch is off. A search or
+a lookup by id still asks, because neither writes anything and a link is how a
+cover and its details arrive; that is the one thing this switch lets out.
+
 ## The pass
 
 After every import (after the links and the AniList and MAL lists), and from

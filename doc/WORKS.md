@@ -629,7 +629,11 @@ LIBRARY band a source search leads to is on the same screen, above it.
   says `ADDED TO <WORK> · PART N` with UNDO (`?/undoAddToWork`), which undoes
   this series' add only and answers malformed facts with a band, not a 500.
 - **NOT THIS** stores `work_dismissals` (`?/dismissWorkOffer`), from the
-  band or the sheet, with `NOT THIS · WON'T ASK AGAIN` and UNDO. It holds for
+  band or the sheet, with `NOT THIS · WON'T ASK AGAIN` and UNDO. The offer's
+  words, the two bands' and the sheet's title are messages since c587
+  (`offer_*` in `messages/`, [`I18N.md`](I18N.md)); its second line
+  (`offerReason`'s `ITS TITLE STARTS WITH…`) is still English (Gaps,
+  `doc/handoff-notes/series.md`, wave 29). It holds for
   good, across an UNDO that brings the Work back under a new id, and never
   silences a newer Work given the old id (the key names the moment of making).
 - **Never on its own**: nothing groups, adds, reorders, renames or carries

@@ -468,21 +468,23 @@ cell and its page answered 404).
 
 ### A source's own switches
 
-Three rows above the extension's own (`01 — IN TSUNDOKU`), drawn as the
+Four rows above the extension's own (`01 — IN TSUNDOKU`), drawn as the
 page's switch rows are, each its own form posting `?/flag`, and under them
 one action, CONCEAL ("Conceal its series", below). They are
 tsundoku's, not the extension's: nothing is sent to the source. Card c435,
-the owner's request of 2026-11-03.
+the owner's request of 2026-11-03; NEVER TRACKED is c522, the owner's pick
+from c504 (2026-11-04).
 
 | Switch            | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Hidden source** | The source is listed, opened, searched and named only inside reveal, as a mostly-hidden one is: BROWSE and RECENT, EXTENSIONS (an extension whose every source is hidden, and an LNReader plugin: INSTALLED, its count, UPDATE ALL and AVAILABLE's NOVELS, filtered by the route through `pluginsShown` and `novelsAvailable`), its icon, its page, its settings and its previews, SEARCH THE SOURCES (`searchSources`, `novelSearchSources`), and SAME TITLE's "FROM <SOURCE>" (`nameable`). Its series keep their own hidden state.                                                                                                                        |
 | **Added hidden**  | A series added to the library from it starts hidden. Every ADD door of a source: `addToLibrary` (Mihon's), `addAnime`, `addNovel` and `keepOrPromote` (a browsing record promoted by ADD), and every import (a backup, a scan, IMPORT A BACKUP; below). With reveal off, ADD then lands on the source's page with "ADDED TO THE LIBRARY, AND HIDDEN", since the hidden series isn't found, or on BROWSE, naming no source, when the ADD left the source mostly hidden (the first ADD from a source with nothing else here does); that band says what ADD AND DOWNLOAD queued and offers UNDO ("ADD outside reveal", below). A browsing record is not an add. |
 | **Off history**   | Its reads and watches never show in HISTORY, inside reveal or not, and its time is not in HISTORY's total ([`HISTORY.md`](HISTORY.md)). They are still logged: progress, CONTINUE, the series' own time and tracking are unchanged.                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **Never tracked** | Nothing from it is sent to AniList, MAL or Ranobe: progress, STATUS and SCORE, a rating, an anime's seasons, and Ranobe's reads and suggestions all refuse, and a send already queued is dropped at the next drain (`tracking.ts`'s `targets`, `ranobe.ts`'s sends). Its reads still count here: progress, CONTINUE, HISTORY and the series' own time are unchanged. The series screen's LISTS row says why instead of offering a send ([`TRACKING.md`](TRACKING.md), "Sending"). A search for a link is not a send: FIND stays, and a link is how a cover and its details arrive. Card c522, the owner's pick from c504.                                    |
 
 **Kept** in the `settings` key/value table, one row per switch that is on
 (`source.hidden:<id>`, `source.added-hidden:<id>`, `source.off-history:<id>`,
-value `1`; off deletes the row), keyed by BROWSE's source id (an engine
+`source.never-tracked:<id>`, value `1`; off deletes the row), keyed by BROWSE's source id (an engine
 source's number, `ln:<plugin>`). No rung: a row per switch is a primary-key
 lookup for SQL (`sourceFlagSql`, `src/lib/server/engine/source-flags.ts`),
 which is how HISTORY filters in SQL. A series' source in SQL is
@@ -492,8 +494,8 @@ stores (`tests/source-flags-db.spec.ts`).
 **REMOVE keeps them** (card c569, the owner's (b), 2026-11-05): removing an
 extension or a novel plugin deletes only its row (`removeExtension`,
 `removePlugin`), and its switches stay in `settings`, so a source installed
-again comes back with HIDDEN SOURCE, ADDED HIDDEN and OFF HISTORY as the owner
-left them: they were set on purpose, and REMOVE's sheet already says ITS
+again comes back with HIDDEN SOURCE, ADDED HIDDEN, OFF HISTORY and NEVER TRACKED
+as the owner left them: they were set on purpose, and REMOVE's sheet already says ITS
 SETTINGS ARE KEPT. To start a source afresh, turn its switches off before
 REMOVE; once it is removed its settings page is gone with it, so they can be
 reached again only by installing it. `tests/browse-extensions.e2e.ts` holds

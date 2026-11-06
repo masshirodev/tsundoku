@@ -46,6 +46,18 @@ page offers it to GROUP. No importer writes front or back matter on a doujin
 today -- only the EPUB plans set `matter` -- so the state comes from a hand-made
 extra or the duplicates review.
 
+**An extra is drawn apart, never counted** (c650). `booksOf()` in
+`src/lib/library/series.ts` is the books alone and `extrasOf()` the rest, and
+every count and number in the library and on the series screen asks them: a
+single book beside a hand-made extra says `1 BOOK` (and is not a series of
+books, so its pages stay the screen), a series of four says `4 BOOKS` with an
+extra beside it, `CONTINUE`'s `BOOK n` numbers the books, and the order is
+the books'. The extra is reachable under the grid: `ExtrasList.svelte` lists
+it below the pages (a single book) or below the books (a series), each row a
+link to its own pages (`?book=<id>`, which a doujin with an extra takes too),
+so a TV's focus finds it with nothing extra. A folded edition is not an extra:
+it carries no `matter`.
+
 ### Every book keeps its own
 
 The owner decided on 2026-09-22 that each book keeps its own rating, FAV and
@@ -203,7 +215,9 @@ guards keep it from matching everything:
 - Only visible singletons are candidates while reveal is off.
 - The series screen shows **MIGHT BE ONE SERIES** on a singleton that has
   candidates. REVIEW → opens the group sheet with a tick per book. NOT A SERIES
-  dismisses.
+  dismisses. Both bands' words are messages since c587 (`offer_*` in
+  `messages/`, [`I18N.md`](I18N.md)), and its `N BOOKS · …` line is still the
+  books' own `suggestionLabel`.
 - A dismissal is stored in `suggestion_dismissals` as the sorted,
   comma-joined series ids (`setKey`). A suggestion whose books are all inside a
   dismissed set stays dismissed, so dismissing "A, B, C" also silences "A, B".
