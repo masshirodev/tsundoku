@@ -23,15 +23,18 @@ import {
 import {
 	holdsLine,
 	linkPicks,
+	parseSeasonUndoFacts,
 	seasonsLinked,
+	SeasonUndoRefused,
 	linkSeason,
 	seasonHolding,
 	seasonRelations,
 	secondPartRefusal,
 	seriesSeasons,
-	undoSeasonLink
+	undoSeasonLink,
+	undoSeasonLinks
 } from '$lib/server/season-links';
-import { partItem, seasonReview } from '../../links/review-state.server';
+import { seasonReview } from '../../links/review-state.server';
 import { isAnime, parsePasted } from '$lib/library/catalogue';
 import { account } from '$lib/server/tracking';
 
@@ -49,8 +52,10 @@ type Body = {
 	/** PASTE A LINK: read as one candidate; nothing is linked yet. */
 	paste?: string;
 	unlink?: boolean;
-	undo?: 'link' | 'none' | 'search';
+	undo?: 'link' | 'none' | 'search' | 'seasons';
 	was?: QueuedFrom;
+	/** LINK N SEASONS' UNDO: the seasons the post wrote, and each part as it stood (c595). */
+	facts?: unknown;
 	/** One season of an anime (c240): FIND on its line, and LINK A TO SEASON n. */
 	season?: number;
 	part?: number;
@@ -91,21 +96,43 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	const part = Number.isInteger(b.part) && (b.part ?? 0) > 0 ? Number(b.part) : 1;
 	// A season holds two parts at most (`CHECK (part IN (1, 2))`; c350).
 	if (part > 2) error(400, 'a season has two parts at most');
-	// The item a season's search and paste are drawn against: part 2's own
-	// (c350), or the season's. A season whose only row is part 2 (part 1
-	// unlinked, e.g. a CHANGE of part 1 then its UNDO) has no second part to
-	// add, so `partItem` is null there; its page still posts `part: 2`, and
-	// its search and paste are the season's, as they were before c350.
+	// The item a season's search and paste are drawn against: the part the page
+	// posted (c350), part 1's when it posted none. A season whose only row is
+	// part 2 (part 1 unlinked, e.g. a CHANGE of part 1 then its UNDO) posts
+	// `part: 2` and gets part 2's own search and candidates (c592), never part
+	// 1's.
 	const itemFor = () =>
-		seasonal && season !== undefined && part === 2
-			? (partItem(seriesId, reveal, season) ?? reviewItem(seriesId, reveal, season))
+		seasonal && season !== undefined
+			? reviewItem(seriesId, reveal, season, part)
 			: reviewItem(seriesId, reveal, seasonal ? season : undefined);
 	const recover = (remote: boolean) =>
 		void refreshCovers({ ids: [seriesId], remote }).catch(() => undefined);
 
 	try {
 		if (b.undo === 'link') {
-			undoLink(seriesId, season, part);
+			// A part 1 that would leave its season's part 2 without a part 1 is
+			// refused, saying so (c592): nothing changes.
+			try {
+				undoLink(seriesId, season, part);
+			} catch (e) {
+				if (e instanceof SeasonUndoRefused) error(409, e.message);
+				throw e;
+			}
+			recover(false);
+			return json({ ok: true });
+		}
+		// LINK N SEASONS' UNDO (c595): every season its band's post wrote, and
+		// only those, back as they stood. Refused whole when any was linked or
+		// decided again since.
+		if (b.undo === 'seasons') {
+			const facts = parseSeasonUndoFacts(b.facts, seriesId);
+			if (!facts) error(400, 'NOTHING TO UNDO');
+			try {
+				undoSeasonLinks(facts);
+			} catch (e) {
+				if (e instanceof SeasonUndoRefused) error(409, e.message);
+				throw e;
+			}
 			recover(false);
 			return json({ ok: true });
 		}
@@ -183,7 +210,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 					part: Number.isInteger(p.part) && (p.part ?? 0) > 0 ? Number(p.part) : 1,
 					anilistId: p.anilistId
 				}));
-			const { linked, refused } = linkPicks(seriesId, kind, picks);
+			const { linked, refused, facts } = linkPicks(seriesId, kind, picks);
 			// Nothing written is a refusal, as at every other link door; it still
 			// says which seasons, and why.
 			// Counted in seasons, not parts: a pair is one (round 2).
@@ -196,7 +223,9 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			const view = season !== undefined ? seriesSeasons(seriesId) : null;
 			const at = view?.seasons.find((s) => s.season === season) ?? null;
 			const review = at ? seasonReview(seriesId, at, view!.seasons.length, access.hidden) : null;
-			return json({ ok: true, ...count, refused, review });
+			// `facts` is the band's UNDO (c595): what the post wrote, and what each
+			// part it wrote stood as before.
+			return json({ ok: true, ...count, refused, review, facts });
 		}
 		if (typeof b.link === 'number') {
 			if (!kind) error(404, 'not found');

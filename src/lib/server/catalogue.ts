@@ -1482,8 +1482,8 @@ const ITEM_SQL = `SELECT ${ITEM_COLS},
 const SEASON_ITEM_SQL = `SELECT ${ITEM_COLS},
 		COALESCE(ss.query, '') AS query, COALESCE(ss.found, 0) AS found, ss.searched_at, ss.skipped_at,
 		q.season AS season
-	FROM (SELECT ? AS season) q JOIN series s JOIN roots r ON r.id = s.root_id
-	LEFT JOIN season_link_searches ss ON ss.series_id = s.id AND ss.season = q.season AND ss.part = 1`;
+	FROM (SELECT ? AS season, ? AS part) q JOIN series s JOIN roots r ON r.id = s.root_id
+	LEFT JOIN season_link_searches ss ON ss.series_id = s.id AND ss.season = q.season AND ss.part = q.part`;
 
 /** The queue's anime items: every open season with a searched row of its own (c352). */
 const SEASON_QUEUE_SQL = `SELECT ${ITEM_COLS},
@@ -1501,17 +1501,18 @@ function firstPageOf(seriesId: number): string | undefined {
 	return r?.label.toUpperCase();
 }
 
-function itemOf(r: ItemRow): ReviewItem {
+function itemOf(r: ItemRow, part = 1): ReviewItem {
 	const db = getDb();
 	const titles = titlesOfRow(r);
-	// An anime's item is one season's: its candidates are that season's own,
-	// checked against the season's title (c240), as FIND on the season is.
+	// An anime's item is one season's, or one of its parts' (c350, c592): its
+	// candidates are that part's own, checked against the part's episodes.
 	const season = isAnime(r.kind) ? r.season : null;
 	const own =
 		season !== null ? seriesSeasons(r.id)?.seasons.find((x) => x.season === season) : undefined;
+	const span = part > 1 ? own?.parts.find((p) => p.part === part) : null;
 	const cands =
 		season !== null
-			? seasonCandidates(r.id, season)
+			? seasonCandidates(r.id, season, part)
 			: (
 					db
 						.prepare(`SELECT data FROM link_candidates WHERE series_id = ? ORDER BY rank`)
@@ -1520,7 +1521,7 @@ function itemOf(r: ItemRow): ReviewItem {
 	const series = {
 		titles: own ? [own.searchTitle, ...titles.slice(1)] : titles,
 		kind: r.kind,
-		chapters: own ? own.aired : r.chapters
+		chapters: span ? Math.max(0, span.to - span.from + 1) : own ? own.aired : r.chapters
 	};
 	return {
 		seriesId: r.id,
@@ -1547,7 +1548,7 @@ function itemOf(r: ItemRow): ReviewItem {
 		searched: r.searched_at !== null,
 		searchedAt: r.searched_at,
 		cutShort: isCutShort(r.title),
-		...(season !== null ? { season, part: 1 } : {}),
+		...(season !== null ? { season, part } : {}),
 		candidates: cands.map((c) => ({
 			...c,
 			why: whyLine(series, c),
@@ -1581,7 +1582,7 @@ export function linkQueue(reveal: boolean): ReviewItem[] {
 			) ${QUEUE_ORDER}`
 		)
 		.all() as ItemRow[];
-	return rows.map(itemOf);
+	return rows.map((r) => itemOf(r));
 }
 
 /** How many wait in the review: the library band's count, an anime's seasons each one. */
@@ -1604,17 +1605,25 @@ export function linkQueueCount(reveal: boolean): number {
 
 /**
  * One series as the review shows it, whether or not it's in the queue: FIND
- * on its screen. An anime is shown as one season: the one named, else the
- * one that still wants a look, else the one CONTINUE is in.
+ * on its screen. An anime is shown as one season, or one part of one: the
+ * one named, else the one that still wants a look, else the one CONTINUE is
+ * in. `part` 2 is a season's second part by hand (c350), and the item a
+ * season whose only row is part 2 stands on too (c592): its search, its
+ * candidates and its own share of the episodes.
  */
-export function reviewItem(seriesId: number, reveal: boolean, season?: number): ReviewItem | null {
+export function reviewItem(
+	seriesId: number,
+	reveal: boolean,
+	season?: number,
+	part = 1
+): ReviewItem | null {
 	const db = getDb();
 	if (isAnime(kindOf(seriesId))) {
 		const at = season ?? seasonToLook(seriesId) ?? openSeasonOf(seriesId);
 		const r = db
 			.prepare(`${SEASON_ITEM_SQL} WHERE s.id = ? AND ${visibleWhere(reveal)}`)
-			.get(at, seriesId) as ItemRow | undefined;
-		return r ? itemOf(r) : null;
+			.get(at, part, seriesId) as ItemRow | undefined;
+		return r ? itemOf(r, part) : null;
 	}
 	const r = db.prepare(`${ITEM_SQL} WHERE s.id = ? AND ${visibleWhere(reveal)}`).get(seriesId) as
 		ItemRow | undefined;

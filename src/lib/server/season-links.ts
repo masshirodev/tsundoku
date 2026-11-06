@@ -696,6 +696,205 @@ function storedCandidate(
 /** Thrown inside a season's write to undo every part of it (c466). */
 class PairRefused extends Error {}
 
+/** Every column of a season's link row past its key: what a LINK N SEASONS UNDO puts back. */
+const SEASON_COLUMNS = [
+	'anilist_id',
+	'mal_id',
+	'via',
+	'title',
+	'cover_url',
+	'linked_at',
+	'resolved_at',
+	'filled_rating',
+	'score',
+	'format',
+	'episodes',
+	'year'
+] as const;
+
+type RowFacts = Record<string, string | number | null>;
+type DecisionFacts = { decision: 'none' | 'unlinked'; at: number };
+
+/**
+ * What LINK N SEASONS wrote, season by season, and each part as it stood
+ * before the post (c595): the band's UNDO carries it, so a wrong pick across
+ * several seasons is taken back whole and never from a fresh read. `after` is
+ * the row the post wrote at a part (null where it wrote none); `before` and
+ * `decision` are what stood there, restored by the UNDO. A season's facts
+ * cover both parts, so an act on either since refuses the UNDO.
+ */
+export type SeasonUndoFacts = {
+	seriesId: number;
+	at: number;
+	seasons: {
+		season: number;
+		parts: {
+			part: number;
+			before: RowFacts | null;
+			after: RowFacts | null;
+			decision: DecisionFacts | null;
+		}[];
+	}[];
+};
+
+const SEASON_VIAS = ['mihon', 'exact', 'review', 'pasted', 'list', 'relations'];
+
+function rowFacts(
+	db: Database.Database,
+	seriesId: number,
+	season: number,
+	part: number
+): RowFacts | null {
+	const r = db
+		.prepare(`SELECT * FROM series_season_links WHERE series_id = ? AND season = ? AND part = ?`)
+		.get(seriesId, season, part) as Record<string, unknown> | undefined;
+	return r
+		? Object.fromEntries(SEASON_COLUMNS.map((c) => [c, (r[c] ?? null) as string | number | null]))
+		: null;
+}
+
+function decisionFacts(
+	db: Database.Database,
+	seriesId: number,
+	season: number,
+	part: number
+): DecisionFacts | null {
+	return (
+		(db
+			.prepare(
+				`SELECT decision, at FROM season_link_decisions WHERE series_id = ? AND season = ? AND part = ?`
+			)
+			.get(seriesId, season, part) as DecisionFacts | undefined) ?? null
+	);
+}
+
+const sameRow = (a: RowFacts | null, b: RowFacts | null) =>
+	(a === null && b === null) || (!!a && !!b && SEASON_COLUMNS.every((c) => a[c] === b[c]));
+const sameDecision = (a: DecisionFacts | null, b: DecisionFacts | null) =>
+	(!a && !b) || (!!a && !!b && a.decision === b.decision && a.at === b.at);
+
+/** A row as posted, read back as the columns it may carry and nothing else (c595). */
+function rowFromFacts(raw: unknown): RowFacts | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const o = raw as Record<string, unknown>;
+	const out: RowFacts = {};
+	for (const c of SEASON_COLUMNS) {
+		const v = o[c];
+		if (v !== null && typeof v !== 'string' && typeof v !== 'number') return null;
+		out[c] = v ?? null;
+	}
+	// The table's own CHECK on `via`: a posted word outside it is refused here,
+	// not by SQLite halfway through the UNDO.
+	return typeof out.linked_at === 'number' && SEASON_VIAS.includes(out.via as string) ? out : null;
+}
+
+function decisionFromFacts(raw: unknown): DecisionFacts | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const o = raw as Record<string, unknown>;
+	return (o.decision === 'none' || o.decision === 'unlinked') && typeof o.at === 'number'
+		? { decision: o.decision, at: o.at }
+		: null;
+}
+
+/**
+ * The band's facts, as posted: checked field by field, so UNDO writes only
+ * what a LINK N SEASONS of this series could have written. Null when they
+ * are not.
+ */
+export function parseSeasonUndoFacts(raw: unknown, seriesId: number): SeasonUndoFacts | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const f = raw as Record<string, unknown>;
+	if (f.seriesId !== seriesId || typeof f.at !== 'number' || !Array.isArray(f.seasons)) return null;
+	const seasons: SeasonUndoFacts['seasons'] = [];
+	for (const s of f.seasons) {
+		const o = (s ?? {}) as Record<string, unknown>;
+		if (!Number.isInteger(o.season) || !Array.isArray(o.parts)) return null;
+		const parts: SeasonUndoFacts['seasons'][number]['parts'] = [];
+		for (const p of o.parts) {
+			const q = (p ?? {}) as Record<string, unknown>;
+			if (q.part !== 1 && q.part !== 2) return null;
+			const before = q.before == null ? null : rowFromFacts(q.before);
+			const after = q.after == null ? null : rowFromFacts(q.after);
+			const decision = q.decision == null ? null : decisionFromFacts(q.decision);
+			if ((q.before != null && !before) || (q.after != null && !after)) return null;
+			if (q.decision != null && !decision) return null;
+			if (parts.some((x) => x.part === q.part)) return null;
+			parts.push({ part: q.part as number, before, after, decision });
+		}
+		if (seasons.some((x) => x.season === o.season)) return null;
+		seasons.push({ season: o.season as number, parts });
+	}
+	return { seriesId, at: f.at, seasons };
+}
+
+/** The insert a restored row takes: its key, then every column it was read with. */
+function putRow(
+	db: Database.Database,
+	seriesId: number,
+	season: number,
+	part: number,
+	row: RowFacts
+) {
+	const cols = ['series_id', 'season', 'part', ...SEASON_COLUMNS];
+	db.prepare(
+		`INSERT INTO series_season_links (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`
+	).run(seriesId, season, part, ...SEASON_COLUMNS.map((c) => row[c] ?? null));
+}
+
+/**
+ * UNDO on LINK N SEASONS' band (c595): every season the post wrote, back as
+ * it stood, and only those. All or nothing -- one transaction, since a band
+ * that said "UNDO" and took back half a post would be a lie -- and never over
+ * a newer act: a part linked, unlinked (a decision) or decided again since
+ * refuses the whole UNDO, and nothing changes. A second UNDO of the same
+ * facts finds its parts back as they were and says so. A part the post never
+ * touched must still be as the facts read it, so an act on a sibling part
+ * refuses it too.
+ */
+export function undoSeasonLinks(facts: SeasonUndoFacts): 'undone' {
+	const db = getDb();
+	return db
+		.transaction(() => {
+			if (!facts.seasons.length) throw new SeasonUndoRefused('NOTHING TO UNDO');
+			const undone = facts.seasons.every((s) =>
+				s.parts.every(
+					(p) =>
+						sameRow(rowFacts(db, facts.seriesId, s.season, p.part), p.before) &&
+						sameDecision(decisionFacts(db, facts.seriesId, s.season, p.part), p.decision)
+				)
+			);
+			if (undone) throw new SeasonUndoRefused('ALREADY UNDONE');
+			for (const s of facts.seasons)
+				for (const p of s.parts) {
+					const now = rowFacts(db, facts.seriesId, s.season, p.part);
+					const decision = decisionFacts(db, facts.seriesId, s.season, p.part);
+					const untouched = p.after
+						? sameRow(now, p.after) && !decision
+						: sameRow(now, p.before) && sameDecision(decision, p.decision);
+					if (!untouched) throw new SeasonUndoRefused('LINKED OR DECIDED AGAIN SINCE');
+				}
+			for (const s of facts.seasons)
+				for (const p of s.parts) {
+					db.prepare(
+						`DELETE FROM series_season_links WHERE series_id = ? AND season = ? AND part = ?`
+					).run(facts.seriesId, s.season, p.part);
+					if (p.before) putRow(db, facts.seriesId, s.season, p.part, p.before);
+					db.prepare(
+						`DELETE FROM season_link_decisions WHERE series_id = ? AND season = ? AND part = ?`
+					).run(facts.seriesId, s.season, p.part);
+					if (p.decision)
+						db.prepare(
+							`INSERT INTO season_link_decisions (series_id, season, part, decision, at)
+						VALUES (?, ?, ?, ?, ?)`
+						).run(facts.seriesId, s.season, p.part, p.decision.decision, p.decision.at);
+				}
+			clearAniSkip(facts.seriesId, db);
+			syncSeriesLink(facts.seriesId, facts.at);
+			return 'undone' as const;
+		})
+		.immediate();
+}
+
 /**
  * LINK N SEASONS (c418): each pick read back through `offeredSeason`, at its
  * own part (a pair's part 2 is part 2's offer), then written by `linkSeason`.
@@ -714,15 +913,24 @@ class PairRefused extends Error {}
  * A season picked alone at one part keeps its own words,
  * `SEASON 2 NOT LINKED · SEASON 3 HOLDS ITS ENTRY`. The same pick twice is
  * one pick.
+ *
+ * `facts` is what the band's UNDO carries (c595): every season written
+ * whole, its parts as the post left them and as they stood before, for
+ * `undoSeasonLinks`. Null when nothing was written.
  */
 export function linkPicks(
 	seriesId: number,
 	kind: Kind,
 	picks: SeasonPick[],
 	now = Date.now()
-): { linked: { season: number; part: number }[]; refused: RefusedPick[] } {
+): {
+	linked: { season: number; part: number }[];
+	refused: RefusedPick[];
+	facts: SeasonUndoFacts | null;
+} {
 	const linked: { season: number; part: number }[] = [];
 	const refused: RefusedPick[] = [];
+	const facts: SeasonUndoFacts = { seriesId, at: now, seasons: [] };
 	const bySeason = new Map<number, SeasonPick[]>();
 	for (const p of picks) {
 		const g = bySeason.get(p.season) ?? [];
@@ -737,44 +945,61 @@ export function linkPicks(
 		try {
 			// IMMEDIATE: the write lock is taken before the first check, so nothing
 			// another connection writes can land between a check and its write.
-			db.transaction(() => {
-				const written: SeasonPick[] = [];
-				for (const p of group) {
-					// A part picked twice with two entries is no season to write.
-					if (group.some((q) => q !== p && q.part === p.part)) {
-						off.push({ pick: p, heldBy: null, reason: `TWO ENTRIES PICKED FOR PART ${p.part}` });
-						continue;
+			const parts = db
+				.transaction(() => {
+					const before = [1, 2].map((part) => ({
+						part,
+						before: rowFacts(db, seriesId, season, part),
+						decision: decisionFacts(db, seriesId, season, part)
+					}));
+					const wrote = new Map<number, RowFacts>();
+					const written: SeasonPick[] = [];
+					for (const p of group) {
+						// A part picked twice with two entries is no season to write.
+						if (group.some((q) => q !== p && q.part === p.part)) {
+							off.push({ pick: p, heldBy: null, reason: `TWO ENTRIES PICKED FOR PART ${p.part}` });
+							continue;
+						}
+						const c = offeredSeason(seriesId, p.season, kind, p.anilistId, p.part);
+						if (c && linkSeason(seriesId, p.season, p.part, c, 'relations', now)) {
+							const row = rowFacts(db, seriesId, season, p.part);
+							if (row) wrote.set(p.part, row);
+							written.push(p);
+							continue;
+						}
+						// A held offer is never kept as a candidate (`rememberOffers`), so the
+						// pick's own id is asked too: whichever holds it is named.
+						const asked = c ??
+							storedCandidate(seriesId, p.season, p.part, p.anilistId) ?? {
+								anilistId: p.anilistId,
+								malId: null
+							};
+						const heldBy = seasonHolding(seriesId, p.season, p.part, asked);
+						// Held by the part just written in this same pick list: both parts
+						// were given one entry, which no stored row says.
+						const own = heldBy?.season === season && written.some((w) => w.part === heldBy.part);
+						off.push({
+							pick: p,
+							heldBy: own ? null : heldBy,
+							reason: own
+								? 'BOTH PARTS PICKED ONE ENTRY'
+								: heldBy
+									? `${seasonWords(heldBy)} HOLDS ${pair ? `PART ${p.part}’S` : 'ITS'} ENTRY`
+									: pair
+										? `PART ${p.part} IS NO LONGER OFFERED`
+										: 'NO LONGER OFFERED'
+						});
 					}
-					const c = offeredSeason(seriesId, p.season, kind, p.anilistId, p.part);
-					if (c && linkSeason(seriesId, p.season, p.part, c, 'relations', now)) {
-						written.push(p);
-						continue;
-					}
-					// A held offer is never kept as a candidate (`rememberOffers`), so the
-					// pick's own id is asked too: whichever holds it is named.
-					const asked = c ??
-						storedCandidate(seriesId, p.season, p.part, p.anilistId) ?? {
-							anilistId: p.anilistId,
-							malId: null
-						};
-					const heldBy = seasonHolding(seriesId, p.season, p.part, asked);
-					// Held by the part just written in this same pick list: both parts
-					// were given one entry, which no stored row says.
-					const own = heldBy?.season === season && written.some((w) => w.part === heldBy.part);
-					off.push({
-						pick: p,
-						heldBy: own ? null : heldBy,
-						reason: own
-							? 'BOTH PARTS PICKED ONE ENTRY'
-							: heldBy
-								? `${seasonWords(heldBy)} HOLDS ${pair ? `PART ${p.part}’S` : 'ITS'} ENTRY`
-								: pair
-									? `PART ${p.part} IS NO LONGER OFFERED`
-									: 'NO LONGER OFFERED'
-					});
-				}
-				if (off.length) throw new PairRefused();
-			}).immediate();
+					if (off.length) throw new PairRefused();
+					return before.map((b) => ({
+						part: b.part,
+						before: b.before,
+						after: wrote.get(b.part) ?? null,
+						decision: b.decision
+					}));
+				})
+				.immediate();
+			facts.seasons.push({ season, parts });
 			for (const p of group) linked.push({ season: p.season, part: p.part });
 		} catch (e) {
 			if (!(e instanceof PairRefused)) throw e;
@@ -789,7 +1014,7 @@ export function linkPicks(
 				});
 		}
 	}
-	return { linked, refused };
+	return { linked, refused, facts: facts.seasons.length ? facts : null };
 }
 
 /**
@@ -809,9 +1034,21 @@ export function seasonsLinked(
 	return { linked: [...all].filter((n) => !off.has(n)).length, of: all.size };
 }
 
-/** UNDO, just after a LINK: the row goes; a link of the series' before rung 62 is NOT brought back. */
+/** Why an UNDO put nothing back: the band says it, and nothing changed. */
+export class SeasonUndoRefused extends Error {}
+
+/**
+ * UNDO, just after a LINK: the row goes; a link of the series' before rung 62
+ * is NOT brought back. A part 1 whose season also holds a part 2 is refused
+ * (c592): taking it back alone would leave part 2 without the part 1 its
+ * numbering starts after, and a season whose only row was part 1 and part 2
+ * would then send part 1's episodes to part 2's entry. The owner unlinks part
+ * 2 first (that writes no decision), or leaves the season whole.
+ */
 export function undoSeasonLink(seriesId: number, season: number, part = 1): boolean {
 	const db = getDb();
+	if (part === 1 && seasonLink(seriesId, season, 1) && seasonLink(seriesId, season, 2))
+		throw new SeasonUndoRefused('PART 2 IS LINKED · UNLINK IT BEFORE UNDOING PART 1');
 	const gone =
 		db
 			.prepare(`DELETE FROM series_season_links WHERE series_id = ? AND season = ? AND part = ?`)

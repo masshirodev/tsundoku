@@ -1,11 +1,5 @@
-import { asReviewCandidate, linkState, reviewItem, type ReviewItem } from '$lib/server/catalogue';
-import {
-	secondPart,
-	seasonCandidates,
-	seasonSearch,
-	seriesSeasons,
-	type SeasonView
-} from '$lib/server/season-links';
+import { linkState } from '$lib/server/catalogue';
+import { secondPart, seriesSeasons, type SeasonView } from '$lib/server/season-links';
 import { idsLine, wrongKind } from '$lib/library/catalogue';
 
 /**
@@ -72,32 +66,5 @@ export function seasonReview(
 						: null
 				}
 			: null
-	};
-}
-
-/**
- * The review item of a season's part 2 (c350): the season's own item, with
- * part 2's last search and its candidates, checked against the episodes
- * left after part 1 (23 here, part 1 lists 12: 11), under the season's own
- * title. Null when the season has no second part to link.
- */
-export function partItem(seriesId: number, reveal: boolean, season: number): ReviewItem | null {
-	const base = reviewItem(seriesId, reveal, season);
-	const p = secondPart(seriesId, season);
-	if (!base || 'refused' in p) return null;
-	const at = seriesSeasons(seriesId)?.seasons.find((s) => s.season === season);
-	const search = seasonSearch(seriesId, season, 2);
-	const title = at?.searchTitle ?? base.query;
-	const left = Math.max(0, (at?.aired ?? 0) - p.ok.after);
-	// What each candidate is checked against: part 2's own share of the season.
-	const against = { ...base, title, alts: [], chapters: left };
-	return {
-		...base,
-		part: 2,
-		query: search?.query || title,
-		found: search?.found ?? 0,
-		searched: !!search?.searchedAt,
-		searchedAt: search?.searchedAt ?? null,
-		candidates: seasonCandidates(seriesId, season, 2).map((c) => asReviewCandidate(against, c))
 	};
 }

@@ -175,6 +175,11 @@ describe('a season (c240)', () => {
 			{ part: 2, from: 13, to: 23 }
 		]);
 		expect(partsOf([{ part: 1, episodes: 24 }], 24)).toEqual([{ part: 1, from: 1, to: 24 }]);
+		// A later part alone (part 1 unlinked) is the season's tail, never its
+		// head (c592): its own count places it from the end, and with no count
+		// it has no span to send from -- never EP. 1.
+		expect(partsOf([{ part: 2, episodes: 11 }], 23)).toEqual([{ part: 2, from: 13, to: 23 }]);
+		expect(partsOf([{ part: 2, episodes: null }], 23)).toEqual([{ part: 2, from: 24, to: 23 }]);
 		expect(
 			partOf(
 				partsOf(
