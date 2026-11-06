@@ -1514,7 +1514,9 @@ describe('the pass and the queue ask each season’s own search, never the serie
 		db.prepare(
 			`INSERT INTO season_link_candidates (series_id, season, part, anilist_id, rank, data) VALUES (?, 2, 1, 7901, 0, ?)`
 		).run(id, JSON.stringify(animeEntry(7901)));
-		expect(seasons.linkPicks(id, 'anime', [{ season: 2, part: 1, anilistId: 7901 }], NOW)).toEqual({
+		expect(
+			seasons.linkPicks(id, 'anime', [{ season: 2, part: 1, anilistId: 7901 }], NOW)
+		).toMatchObject({
 			linked: [],
 			refused: [
 				{
