@@ -28,7 +28,14 @@ rather than naming either kind; the series it writes are still made as
 These are shapes of the existing tables, not new ones. No flag says "series of
 books": `isBookSeries()` in `src/lib/library/series.ts` asks the question,
 `isSingleton()` in `src/lib/server/books.ts` asks its mirror, and the two
-must agree.
+must agree. Since c558 `isSingleton()` counts books as FILTER's ONE-OFF does
+(`isBookSql`: no shadowed entry, no front or back matter;
+[`FILTERS.md`](FILTERS.md), FORM), so a book with an extra beside it is one
+book. `isBookSeries()` still counts the series screen's entries, extras
+included, so on that one shape -- a book and an extra, which no importer writes on a
+doujin today (only the EPUB plans set matter) -- the screen draws a series of books while FORM and
+`isSingleton()` call it a single book; its patch is in
+`doc/handoff-notes/works.md`, wave 26, Gaps (the file is nobody's this wave).
 
 ### Every book keeps its own
 

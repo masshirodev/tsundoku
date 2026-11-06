@@ -40,22 +40,31 @@ redirect (308) the same way, keeping every other parameter.
 
 FORM splits the library by shape, which a kind band cannot say:
 
-- **ONE-OFF**: single books, a doujin series that holds one book or none.
-  "One book" is counted three slightly different ways, and they part only
-  on a series with front matter or an edition beside its book:
-  - the server (`ONE_OFF_SQL`, `src/lib/server/library.ts`): entries not
-    shadowed, extras included, so one book plus an extra is SERIES;
-  - the device (`isOneOff`, `src/lib/library/filters.ts`, on CACHED and a
-    person's page): the card's `entryCount`, which leaves out shadowed
-    entries and extras (`matter != ''`), so the same series is ONE-OFF there;
-  - the binder (`isSingleton`, `src/lib/server/books.ts`, which binds a
-    singleton into a series): entries that are not an edition of another,
-    shadowed or not.
-    They were left apart on purpose in wave 22 (c436 round 2): the server's
-    rule is the ONE-OFF shelf's since before c436, and the device's card has
-    no count of extras to match it with. Making them one is a change to the
-    card (an `extraCount`) and to `ONE_OFF_SQL` together, with a db spec over
-    a doujin holding one book and one extra.
+- **ONE-OFF**: single books -- a series of a kind GROUP binds into a series
+  of books, holding one book or none. Since c558 (the owner, 2026-11-05: an
+  extra doesn't make a series) every rule that asks it counts the same way:
+  - **the kinds** are the registry's `grouping === 'books'`
+    (`kindsGrouped('books')`, `src/lib/library/kinds.ts`; today the doujin
+    alone), never a kind's name;
+  - **a book** is an entry that is neither shadowed (an edition folded into
+    its base, or a duplicate the review set aside) nor front or back matter
+    (`matter != ''`, an extra): `isBookSql` in `src/lib/server/books.ts`.
+    The library card's `entryCount` counts exactly these rows.
+
+  The three that ask are the server's `ONE_OFF_SQL` (`src/lib/server/books.ts`,
+  which `src/lib/server/library.ts` imports: FORM's count, its grid, and the
+  old `oneoff` shelf), the device's `isOneOff` (`src/lib/library/filters.ts`,
+  over the card's `entryCount`, when CACHED filters the offline library; a
+  person's page draws no FORM row), and the binder's `isSingleton`. So a
+  doujin holding one book and an extra is a ONE-OFF on all three, and its
+  count and its filtered grid agree (`tests/library-db.spec.ts`, "ONE-OFF
+  counts one book the same way everywhere (c558)"). Until then the server
+  counted the extra as a book (SERIES) and the device did not (ONE-OFF), and
+  the binder counted a shadowed duplicate. GROUP still refuses to bind such a
+  book (`"…" holds an extra or a duplicate beside its book, which grouping
+can't carry`): it moves the book alone, and the emptied singleton's delete
+  would take the extra with it.
+
 - **SERIES**: everything else. A Mihon series with one chapter so far is
   still a series, except from a gallery source, whose galleries are books
   ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Gallery sources").

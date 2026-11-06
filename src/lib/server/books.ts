@@ -94,11 +94,45 @@ function alike(db: Database.Database, rootIds: number[]): boolean {
 
 const MIXED = "hidden and visible books can't share a series";
 
-/** A series that is one doujin book, and so can be grouped. */
+/**
+ * A book of its series, as SQL over an entries alias (c558; doc/FILTERS.md,
+ * FORM): not shadowed -- an edition folded into its base, or a duplicate the
+ * review set aside -- and not front or back matter, an extra. An extra
+ * doesn't make a series (the owner, 2026-11-05), so a book and its extra are
+ * one book. The library card's `entryCount` counts the same rows, which is
+ * how the device's `isOneOff` agrees with the server.
+ */
+export const isBookSql = (e: string) => `(${e}.shadowed = 0 AND ${e}.matter = '')`;
+
+/**
+ * ONE-OFF (FILTER's FORM, and the `oneoff` shelf it replaced): a series of a
+ * kind GROUP binds into a series of books (the registry's `grouping`, never a
+ * kind's name), holding one book or none (`isBookSql`). SERIES is everything
+ * else. The device's `isOneOff` (src/lib/library/filters.ts) and
+ * `isSingleton` below ask the same two questions (c558).
+ */
+export const ONE_OFF_SQL = `(${kindsIn('books')} AND (SELECT COUNT(*) FROM entries e
+	WHERE e.series_id = s.id AND ${isBookSql('e')}) <= 1)`;
+
+/** How many books a series holds, as `isBookSql` counts them. */
+function bookCount(db: Database.Database, seriesId: number): number {
+	return (
+		db
+			.prepare(`SELECT COUNT(*) AS n FROM entries e WHERE e.series_id = ? AND ${isBookSql('e')}`)
+			.get(seriesId) as { n: number }
+	).n;
+}
+
+/**
+ * A series that is one book, ONE-OFF's rule with exactly one (c558): a kind
+ * that binds into a series of books, and one book, extras and editions left
+ * out. Grouping it is a further question (`groupIntoSeries`): only a book
+ * with nothing beside it can be moved whole today.
+ */
 export function isSingleton(seriesId: number): boolean {
 	const db = getDb();
 	const s = seriesRow(db, seriesId);
-	return !!s && bindsBooks(s) && entryIdsOf(db, seriesId).length === 1;
+	return !!s && bindsBooks(s) && bookCount(db, seriesId) === 1;
 }
 
 /**
@@ -177,8 +211,18 @@ export function groupIntoSeries(opts: {
 			if (singles.length > 0 && singles.every(bindsVolumes))
 				return groupVolumes(db, singles, opts, now);
 			for (const s of singles) {
-				if (!bindsBooks(s) || entryIdsOf(db, s.id).length !== 1) {
+				if (!bindsBooks(s) || bookCount(db, s.id) !== 1) {
 					throw new GroupingError(`"${s.title}" is not a single book`);
+				}
+				// A single book with an extra or a duplicate beside it is still
+				// one book (c558), but `absorb` moves the book alone, and deleting
+				// the emptied singleton would take what is left with it. So it
+				// refuses, rather than lose the extra; binding a book's extras
+				// along with it is a change of its own.
+				if (entryIdsOf(db, s.id).length !== 1) {
+					throw new GroupingError(
+						`"${s.title}" holds an extra or a duplicate beside its book, which grouping can't carry`
+					);
 				}
 			}
 			let target: number;

@@ -46,7 +46,7 @@ export type Filters = {
 };
 
 export type Progress = 'unread' | 'read';
-/** FORM's two answers: `oneoff` is a single book (`ONE_OFF_SQL`, server/library.ts), `series` the rest. */
+/** FORM's two answers: `oneoff` is a single book (`ONE_OFF_SQL`, server/books.ts), `series` the rest. */
 export type Form = 'series' | 'oneoff';
 const FORMS: readonly Form[] = ['series', 'oneoff'];
 const FORM_LABEL: Record<Form, string> = { series: 'SERIES', oneoff: 'ONE-OFF' };
@@ -305,11 +305,12 @@ export function progressOf(item: {
 }
 
 /**
- * A single book, ONE-OFF's rule (`ONE_OFF_SQL`, server/library.ts) on the
+ * A single book, ONE-OFF's rule (`ONE_OFF_SQL`, server/books.ts) on the
  * device: a kind GROUP binds into a series of books (doc/KINDS.md,
- * `grouping`), holding one entry or none. Undefined where the card can't say.
- * `entryCount` leaves out extras, which `ONE_OFF_SQL` counts: a book plus an
- * extra is ONE-OFF here and SERIES on the server (doc/FILTERS.md, "Shelves are where").
+ * `grouping`), holding one book or none. Undefined where the card can't say.
+ * The card's `entryCount` counts books as the server does (`isBookSql`): no
+ * shadowed entry, no extra, so a book with an extra beside it is ONE-OFF on
+ * both (c558; doc/FILTERS.md, FORM).
  */
 export function isOneOff(item: { kind?: string; entryCount?: number }): boolean | undefined {
 	const kind = FILTER_KINDS.find((k) => k === item.kind);
