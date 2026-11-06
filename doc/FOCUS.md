@@ -96,7 +96,12 @@ can move in the key's direction: `canScroll` in `geometry.ts`, `scrollTop >
 (`SCROLL_SLACK`) is rounding, not content: `scrollHeight` and `clientHeight`
 are integers each rounded from a fractional layout and `scrollTop` is not, so
 a scroller at its very end can read up to a pixel short of it. The page at
-its own end scrolls nowhere, and that is no error. What it reaches is every vertical scroller on a screen a TV opens
+its own end scrolls nowhere, and that is no error. **A page a screen has
+locked** (`overflow: hidden` on the root, or on `body`, which CSS hands the
+viewport when the root is `visible`) scrolls nothing either (c618): the image
+reader sets it while its lookup panel or page menu is open, and Chromium's
+own arrow stops there, where the layer's fallback used to move it (`overflow:
+hidden` is still a scroller a script can move). What it reaches is every vertical scroller on a screen a TV opens
 (`rg -l "overflow(-y)?:\s*(auto|scroll)" src/routes src/lib/components`, 16
 files at wave 25): the series screen's panel and list columns, a Work's
 panel and list, MOVE's lists, `/links`' candidates and siblings, the
@@ -225,8 +230,12 @@ there, with one exception: the readers lift the opt-out at their end page,
 where the chrome can still be up (a pointer at the edge brings it). There a
 keyboard's ← → on the page scrubber, or on READING's dim, now reach the
 slider's own handler, which steps the page or the dim, where before the
-layer moved the mark off it; ↑ ↓ leave as before. No test walks that state
-off a TV.
+layer moved the mark off it; ↑ ↓ leave as before. c611 walks that state:
+`tests/focus.e2e.ts` (the desktop project) puts the mark on the page
+scrubber at the end page and wants a page step with the mark still on it.
+On a TV the player's DIM range went the other way: as a native range it kept
+all four arrows, and now keeps ← → and lets ↑ ↓ leave, pinned by
+`tests/tv-player.e2e.ts` (c611).
 
 ## The remote's other three keys (c235)
 
@@ -399,7 +408,9 @@ BACK climbs the screen before it leaves.
 - `tests/focus.e2e.ts` — keyboard only: an arrow starts focus and the mark is an
   ink frame (all devices); a sheet is a scope and gives focus back (tablet and
   phone bars); library → series → reader → back, focus restored (the reader leg
-  writes progress, so tablet-portrait only; it owns Hoshi no Umi no Tabibito).
+  writes progress, so tablet-portrait only; it owns Hoshi no Umi no Tabibito);
+  and, on the desktop, the page scrubber at the end page steps the page with
+  the mark still on it (c611).
 - `tests/tv-keys.e2e.ts` — OK held and MENU on a cover, a chapter row and a
   history row; BACK closing a sheet, climbing shelf tab → CONTINUE, and
   `window.tsundokuBack()` answering false at the top (c235). And c578's
@@ -407,7 +418,9 @@ BACK climbs the screen before it leaves.
   the nearest scroller while it can, an inner one at its end handing ↓ to the
   outer, both at their end to the page, a box with `overflow: hidden` passed
   over, the page at its end moving nothing and throwing nothing, and ↑ at an
-  inner scroller's top scrolling the page up.
+  inner scroller's top scrolling the page up. And c618: with the root locked
+  (`html`, and `body`), ↓ moves nothing, while the same page still scrolls
+  with no lock.
 - `tests/tv-library-top.e2e.ts` — the pinned rows never covering the first
   row's focus ring (`reveal()`'s bar step), and one BACK from deep in the
   grid landing on the first CONTINUE card at the top and staying there, every
@@ -416,7 +429,9 @@ BACK climbs the screen before it leaves.
   (c543); and SORT, and ↓ / ↑, kept drawn and holding the mark at every
   frame of a sort slow enough for the outline to draw LOADING beside them
   (c560; until then LOADING took their place, and wave 24 gave the mark back
-  afterwards).
+  afterwards); and ← from the first collection's tab reaching ALL (c624);
+  and the repro of a focused tile lost when the outline replaces the grid
+  (c612, expected to fail until the library page gives the mark back).
 - `tests/tv-reader.e2e.ts` — the reader's chrome as a focus row: OK brings it
   with focus on the scrubber, ↓ reaches READING, and the mode changes by keys
   alone (c241).

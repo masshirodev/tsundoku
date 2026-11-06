@@ -1,3 +1,4 @@
+import { devices } from '@playwright/test';
 import { test, expect, readerReady } from './fixtures';
 
 /**
@@ -264,7 +265,6 @@ test('a sheet is a scope: focus stays in and comes back', async ({ page }) => {
 
 test('library to series to reader, and back, by keyboard alone', async ({ page }) => {
 	test.skip(test.info().project.name !== 'tablet-portrait', 'the reader leg writes progress');
-
 	await page.goto('/?shelf=all&sort=title');
 	const tile = await walkTo(page, TARGET);
 	const tileId = tile.id;
@@ -293,4 +293,80 @@ test('library to series to reader, and back, by keyboard alone', async ({ page }
 	await expect(page).not.toHaveURL(readerUrl);
 	await expect(page).toHaveURL(/\/\?shelf=all/);
 	await expect.poll(async () => (await focused(page)).id).toBe(tileId);
+});
+
+/**
+ * c611: off a TV the reader keeps every arrow, except at its end page, where
+ * the opt-out is lifted everywhere so the page's cells are stops. There a
+ * keyboard's ← → on the page scrubber now reach the slider's own handler
+ * (it is a `role="slider"`, so c259's rule keeps them for it), where before
+ * the layer moved the mark off it; ↑ ↓ leave as before.
+ *
+ * The desktop project is the one with a fine pointer; the other three would
+ * only repeat it at a smaller width. Incognito, so reading on to the end page
+ * records nothing: series-layout asserts Hoshi's page on the shared database.
+ */
+test.describe('the end page’s scrubber off a TV (c611)', () => {
+	// The device's context half, without `defaultBrowserType`: a spread of the
+	// whole device cannot sit in a describe (Playwright refuses one that would
+	// force a new worker), and the project already picks Chromium.
+	const desktopChrome = devices['Desktop Chrome'];
+	test.use({
+		viewport: desktopChrome.viewport,
+		deviceScaleFactor: desktopChrome.deviceScaleFactor,
+		isMobile: desktopChrome.isMobile,
+		hasTouch: desktopChrome.hasTouch,
+		userAgent: desktopChrome.userAgent
+	});
+
+	test('← → step the page on the scrubber and the mark stays', async ({ page }, info) => {
+		test.skip(info.project.name !== 'desktop', 'a fine pointer is the desktop project');
+		await page
+			.context()
+			.addCookies([{ name: 'tsundoku_incognito', value: '1', url: 'http://localhost' }]);
+		await page.goto('/?shelf=all&sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TARGET });
+		// The library loads a page at a time; scroll until the tile is drawn.
+		for (let i = 0; i < 20 && (await tile.count()) === 0; i++) {
+			await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+			await page.waitForTimeout(150);
+		}
+		await expect(tile).toHaveCount(1);
+		// Into the series, and the entry it resumes, from the screen's own link.
+		await tile.click();
+		await expect(page).toHaveURL(/\/series\/\d+/);
+		const read = await page.evaluate(() => {
+			const a = [
+				...document.querySelectorAll<HTMLAnchorElement>('[data-focus-id="series-continue"]')
+			].find((el) => el.getAttribute('href')?.startsWith('/read/'));
+			return a?.getAttribute('href') ?? '';
+		});
+		expect(read).toMatch(/^\/read\/\d+/);
+		await page.goto(`${read.split('?')[0]}?p=last`);
+		await readerReady(page);
+
+		// The chrome up (a keyboard's Escape toggles it), then forward from the
+		// last page: the end page. Its direction is the scrubber's own ends.
+		await page.keyboard.press('Escape');
+		const scrub = page.getByRole('slider', { name: 'Page' });
+		await expect(scrub).toBeVisible();
+		const total = Number(await scrub.getAttribute('aria-valuemax'));
+		const leftEnd = Number(await page.locator('.scrub .end').first().innerText());
+		const forward = leftEnd === total ? 'ArrowLeft' : 'ArrowRight';
+		const back = forward === 'ArrowLeft' ? 'ArrowRight' : 'ArrowLeft';
+		await page.keyboard.press(forward);
+		await expect(page.locator('[data-end-page]')).toBeVisible();
+
+		// The scrubber is a stop here (the opt-out is lifted at the end page).
+		await scrub.focus();
+		await expect(scrub).toBeFocused();
+		const before = Number(await scrub.getAttribute('aria-valuenow'));
+		await page.keyboard.press(back);
+		// The key reached the slider: the page stepped, and the mark stayed on it
+		// (before c259 the layer moved the mark to the nearest stop instead).
+		await expect
+			.poll(async () => Number(await scrub.getAttribute('aria-valuenow')))
+			.toBe(before - 1);
+		await expect(scrub).toBeFocused();
+	});
 });

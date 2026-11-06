@@ -381,9 +381,14 @@ const LINE_STEP = 40;
  * geometry.ts). The page at its own end scrolls nowhere, which is no error.
  * Until c578 the nearest scroller was taken whether or not it could move, so
  * ↓ in a list at its end inside a longer page did nothing at all.
+ *
+ * A page a screen has locked is left alone too (c618). `overflow: hidden` is
+ * still a scroller a script can move, where Chromium's own arrow chain stops,
+ * so the fallback below scrolled the image reader's strip under its lookup
+ * panel (`html.style.overflow = 'hidden'`, ImageReader.svelte:1139, :1296).
  */
 function stepScroll(from: HTMLElement, direction: 'up' | 'down'): void {
-	let scroller: Element = document.scrollingElement ?? document.documentElement;
+	let scroller: Element | null = null;
 	for (let n = from.parentElement; n && n !== document.body; n = n.parentElement) {
 		const overflow = getComputedStyle(n).overflowY;
 		if ((overflow === 'auto' || overflow === 'scroll') && canScroll(n, direction)) {
@@ -391,7 +396,24 @@ function stepScroll(from: HTMLElement, direction: 'up' | 'down'): void {
 			break;
 		}
 	}
+	if (!scroller) {
+		if (viewportOverflowY() === 'hidden') return;
+		scroller = document.scrollingElement ?? document.documentElement;
+	}
 	scroller.scrollBy({ top: direction === 'up' ? -LINE_STEP : LINE_STEP, behavior: 'instant' });
+}
+
+/**
+ * The viewport's own `overflow-y`, which is the one a key scrolls: the root
+ * element's, except that CSS gives it to the first body child when the root
+ * says `visible` (the root's `overflow` propagates to the viewport, and a
+ * visible one hands that on). A screen locks one or the other, so both read
+ * as the page's lock here.
+ */
+function viewportOverflowY(): string {
+	const root = getComputedStyle(document.documentElement).overflowY;
+	if (root !== 'visible') return root;
+	return document.body ? getComputedStyle(document.body).overflowY : root;
 }
 
 /**

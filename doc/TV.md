@@ -450,7 +450,9 @@ decisions (`isBackKey`, `isOptionsKey`, `OkPress`) and `layer.ts` wires them;
   picture playing at the left, focus on its first row; ←/→ move along a row,
   OK takes the value, BACK closes and gives focus back to the cell. With a
   language row's MORE list open, BACK closes the list first and gives MORE the
-  focus back (c386). A server
+  focus back (c386). The panel's DIM row is a native range, so it keeps ← →
+  for its value and lets ↑ ↓ leave the row (c259; pinned by
+  `tests/tv-player.e2e.ts`, c611). A server
   that fails over redraws the panel's rows under the focus, so the panel takes
   it back rather than dropping the mark.
 - **A remote's media keys**, on every device: ▶❚❚ plays or pauses, ⏩ ⏪ seek

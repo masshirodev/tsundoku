@@ -668,6 +668,13 @@ a band to select kinds on the library itself?" Designed in
   that scrolls to them, not a shelf link. + NEW keeps the scroll: it opens a
   field where it is. `tests/library-top-scroll.e2e.ts` (all four devices)
   and `tests/tv-library-top.e2e.ts`.
+- **A TV's ← from the first collection's tab reaches ALL** (c624). It was
+  filed as a layer bug, but at the base the boxes already say it works: ALL
+  is 49-144 and the first collection starts at 144, and the layer's
+  half-pixel slack (`isInDirection`, `src/lib/focus/geometry.ts`) reads a
+  touching edge as "left of it". `tests/tv-library-top.e2e.ts` walks ↓ ↓ to
+  the tabs, back to ALL, → to the first collection, OK, then ← and wants ALL;
+  it passes on the base, and is kept so the state cannot come back quietly.
 - **On a TV** it is a 56px focus row of its own under the tabs, inside the
   safe margin. **← → move focus only**: each cell is a link, so the grid
   doesn't change until **OK**, which chooses (and keeps focus on the cell).
@@ -684,6 +691,16 @@ a band to select kinds on the library itself?" Designed in
   section label, the tabs, then the band, and nothing between the band and
   the grid. The waiting outline draws the band's row too (`WaitingScreen`),
   and a band tap outlines the grid from 1 s as a tab does.
+- **A tile that holds the mark when the outline draws is unmounted** (c612).
+  The grid and `GridOutline` are one `{#if outlined}` branch, so a navigation
+  the screen starts under a focused tile (a filter chosen while the mark is
+  in the grid) takes the tile off the page and the mark falls to `<body>`;
+  nothing gives it back when the grid is drawn. The repro is in
+  `tests/tv-library-top.e2e.ts` as `test.fail()` (it holds `__data.json` for
+  2.5 s, chooses a KIND cell under a focused tile, and wants the mark back on
+  the tile, or on the chosen KIND cell if the filter took it away). The fix
+  is this page's, so its patch is in `doc/handoff-notes/tv.md`, wave 27,
+  under Gaps; flipping the case is the merge's test.
 
 ### Where it departs from the handoff
 

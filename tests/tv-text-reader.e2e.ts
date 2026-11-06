@@ -312,6 +312,11 @@ test.describe('the end of what is downloaded (c251)', () => {
 	}
 
 	test.beforeAll(async () => {
+		// The hook seeds and waits up to 60 s for its own preview: 2.3 s alone
+		// at this commit, past the default 30 s once the box is loaded (c599).
+		// In a hook, test.setTimeout sets the hook's own budget (Playwright's
+		// test.d.ts, "Changing timeout for a beforeAll").
+		test.setTimeout(120_000);
 		work = mkdtempSync(
 			join(process.env.TMPDIR ?? join(process.cwd(), 'temp'), 'tsundoku-tv-text-end-')
 		);
