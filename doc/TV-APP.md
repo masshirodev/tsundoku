@@ -907,8 +907,9 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   is judged on its own answer. Two more pin the origin comparison: a typed whole
   address with a path pairs at its origin (remembered and opened without the
   path), and one with a query fails to 9D for the origin, not the raw string
-  (c260).
-- `tests/tv-app-pair.e2e.ts`, c261's twelve (27 cases in all): with a stand-in
+  (c260). A whole address whose scheme is typed in capitals reads as its host
+  on CHECKING and on 9D's title, never as `HTTP://…` (c621).
+- `tests/tv-app-pair.e2e.ts`, c261's twelve (30 cases in all at wave 27): with a stand-in
   bridge holding a list, 9D offers the others (each probed, answers landing out
   of order on their own rows, ↑ from TRY AGAIN reaching them, OK opening one;
   the frame at 48/500 and 580/332, buttons at 416), and with one server is 9D
