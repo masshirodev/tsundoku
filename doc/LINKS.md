@@ -431,7 +431,9 @@ The link is AniList's line, a line a season on an anime (c240; above).
   linked there is no row at all. Neither tracking, AniSkip (an episode is
   asked under its own season's entry, c349; the answers asked before that
   under another season's entry or part were forgotten by rung 67, c463, and
-  are asked again on the next play) nor `tvshow.nfo` (the show's ids
+  are asked again on the next play; a season whose only row is an orphaned
+  part 2 asks nothing at all, since nothing places its episodes, c592, c642)
+  nor `tvshow.nfo` (the show's ids
   from its season rows, c381) reads it for an anime; the importer's
   keep-test still does (c382), so it stays. A link an anime had before rung
   62 is its season's row since rung 68 (below).

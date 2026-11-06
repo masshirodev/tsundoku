@@ -443,6 +443,15 @@ export function seriesSeasons(
  * its own has no entry, even when the series' first-season mirror
  * (`series_links`, `syncSeriesLink`) names one.
  *
+ * One part is the whole season, however its episodes are numbered, and its
+ * span is not consulted: a season the source lists longer than the entry is
+ * still that entry's. The exception is a season whose only row is a later
+ * part (an orphaned part 2, c592): its `partsOf` span is empty, because part
+ * 1's count is what would place it and that row is gone, so `partOf` answers
+ * null for every episode and no skip times are asked for any of them (c642).
+ * Reading "one part" as the whole season regardless would ask part 2's entry
+ * for the season's EP. 3 as its EP. 3.
+ *
  * Only a series with no season rows at all, linked before rung 62, reads
  * `series_links`: its one link is its first season's or its flat list's
  * (`legacyLink`), so an episode of season 0 or 1 is that entry's and a later
@@ -467,9 +476,14 @@ export function episodeEntry(
 	}
 	const sv = seriesSeasons(seriesId, db)?.seasons.find((x) => x.season === s);
 	if (!sv) return null;
-	// One part is the whole season, however its episodes are numbered.
+	// One part is the whole season, however its episodes are numbered -- unless
+	// that one part is a later one (an orphaned part 2, c592): its span is
+	// empty and `partOf` answers null, where reading it as the whole season
+	// would number EP. 3 as part 2's (c642).
 	const at =
-		sv.parts.length > 1 ? partOf(sv.parts, number) : { part: sv.parts[0]?.part ?? 1, number };
+		sv.parts.length > 1 || (sv.parts[0]?.part ?? 1) > 1
+			? partOf(sv.parts, number)
+			: { part: sv.parts[0]?.part ?? 1, number };
 	const l = at ? sv.parts.find((p) => p.part === at.part)?.link : null;
 	return at && l
 		? { anilistId: l.anilistId, malId: l.malId, format: l.format, number: at.number }

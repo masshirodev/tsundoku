@@ -35,7 +35,11 @@ import {
  *   an import, and `yarn run dupes` by hand.
  * - **Deciding:** the review settles a pair at a time. A decision waits until
  *   the next one (or leaving the review), so UNDO only has to forget it;
- *   applying it is what deletes, groups or carries over.
+ *   applying it is what deletes, groups or carries over. A decision the
+ *   library's state can't carry out is dropped, so the pair comes back to the
+ *   review undecided rather than being retried on every load; one that fails
+ *   for any other reason stays waiting and is answered under `failed`, so a
+ *   bug can never take the library's load down (c648).
  */
 
 type Row = {
@@ -378,8 +382,40 @@ export function twinOf(seriesId: number, reveal: boolean): Pair | null {
 export type Decision = 'keep' | 'both' | 'group' | 'fold' | 'apart';
 
 /**
- * Settle a pair. What was decided before is carried out first; this one
- * waits, so UNDO can still take it back.
+ * A decision this state can't carry out: the fold's refusals
+ * (`EditionError`), the grouping's (`GroupingError`, which KEEP's move into a
+ * series of books raises too) and the delete's (`DeleteError`). Anything else
+ * is a bug, not a refusal: `applyPending` leaves the decision waiting and
+ * answers it under `failed`, so it is neither mistaken for a state the owner
+ * can fix nor allowed to take a caller down.
+ */
+export class DupeRefused extends Error {}
+
+/**
+ * A decision refused, as `applyPending` answers it (c648): the pair, what was
+ * decided and the library's own reason, in the same words the API answers with.
+ * The decision is gone, so the pair is back in the review undecided.
+ */
+export type Refusal = { pair: string; decision: Decision; reason: string };
+
+/**
+ * A decision that failed for a reason that is not a refusal (c648): a bug, or
+ * the disk, rather than the library's state. It is neither dropped nor marked
+ * applied -- it stays waiting, so nothing is lost -- and it is answered so a
+ * reader can say so and log it, but it never takes a caller down with it.
+ */
+export type PendingFailed = { pair: string; decision: Decision; error: string };
+
+/** What one `applyPending` carried out, refused, and could not carry out (c648). */
+export type PendingApplied = { applied: number; refused: Refusal[]; failed: PendingFailed[] };
+
+/** What carrying out the decisions waiting did, as `decide` answers it (c648). */
+export type Decided = { refused: Refusal[]; failed: PendingFailed[] };
+
+/**
+ * Settle a pair. What was decided before is carried out first -- and answered
+ * with it if the state refused it, or if it could not carry it out at all;
+ * this one waits, so UNDO can still take it back.
  */
 export async function decide(
 	key: string,
@@ -387,15 +423,16 @@ export async function decide(
 	keep: number | null,
 	reveal: boolean,
 	now = Date.now()
-): Promise<void> {
+): Promise<Decided> {
 	const pair = reviewQueue(reveal).find((p) => p.key === key);
 	if (!pair) throw new Error('no such pair');
 	if (decision === 'keep' && keep !== pair.a.entryId && keep !== pair.b.entryId)
 		throw new Error('keep which?');
-	await applyPending();
+	const { refused, failed } = await applyPending();
 	getDb()
 		.prepare(`INSERT OR REPLACE INTO dupe_decisions (pair, decision, keep, at) VALUES (?, ?, ?, ?)`)
 		.run(key, decision, decision === 'keep' ? keep : null, now);
+	return { refused, failed };
 }
 
 /** UNDO: the last decision forgotten, if it hasn't been carried out. */
@@ -417,56 +454,100 @@ function seriesOfEntries(ids: number[]): number[] {
 
 /**
  * Carry out the decisions waiting: on the next decision, or leaving the review.
- * The covers of every series a decision touched are remade after, off the
- * request, from the files: GROUP makes a series of books, which wears its
- * first book's cover; FOLD and KEEP change what a series holds (card c63).
+ * The covers of every series a decision carried out touched are remade after,
+ * off the request, from the files: GROUP makes a series of books, which wears
+ * its first book's cover; FOLD and KEEP change what a series holds (card c63).
  *
- * A decision that is refused is NOT marked applied (c558's round 3): marking
- * it would say it was carried out when nothing happened, and the pair would
- * be settled for good with the books still apart. Left waiting, it is tried
- * again (the state may change: an extra removed, a duplicate resolved) and
- * UNDO can still forget it. The count returned is what was carried out.
+ * A decision this state refuses is dropped (c648), not left waiting: the pair
+ * goes back to the review undecided, in the queue the next load draws, and the
+ * answer says which pair and why. Leaving it waiting (c558's round 3) meant
+ * the owner saw neither the pair nor a reason, could not undo it once the
+ * screen's session ended, and every library load tried it again -- and queued
+ * a cover refresh each time, because `touched` was filled before the try. A
+ * library that no longer holds the books has the pair back and can settle it
+ * again.
+ *
+ * Only a `DupeRefused` is a refusal. Anything else is a bug or the disk, not a
+ * state the owner can fix: it is not dropped and not marked applied, it stays
+ * waiting (so nothing is lost and the next load tries it again), and it is
+ * logged and answered under `failed`. It is caught here, per decision, so one
+ * decision that cannot be carried out neither aborts the ones behind it nor
+ * takes the caller down -- the library's own load calls this on every load.
  */
-export async function applyPending(now = Date.now()): Promise<number> {
+export async function applyPending(now = Date.now()): Promise<PendingApplied> {
 	const db = getDb();
 	const waiting = db
 		.prepare(`SELECT pair, decision, keep FROM dupe_decisions WHERE applied_at IS NULL`)
 		.all() as { pair: string; decision: Decision; keep: number | null }[];
-	let n = 0;
+	let applied = 0;
+	const refused: Refusal[] = [];
+	const failed: PendingFailed[] = [];
 	const touched = new Set<number>();
 	for (const d of waiting) {
 		const [a, b] = d.pair.split(',').map(Number);
-		for (const id of seriesOfEntries([a, b])) touched.add(id);
-		let carried = false;
 		try {
 			if (d.decision === 'keep' && d.keep) await keepOne(d.keep, d.keep === a ? b : a, now);
 			if (d.decision === 'group') await group(a, b, now);
 			if (d.decision === 'fold') await fold(a, b);
-			carried = true;
-		} catch {
-			// A fold this state can't carry (a book with an extra or a set-aside
-			// duplicate beside it) stays waiting: see above.
+		} catch (e) {
+			if (e instanceof DupeRefused) {
+				db.prepare(`DELETE FROM dupe_decisions WHERE pair = ?`).run(d.pair);
+				refused.push({ pair: d.pair, decision: d.decision, reason: e.message });
+			} else {
+				console.error(
+					'tsundoku: the duplicates review could not carry a decision out:',
+					d.pair,
+					d.decision,
+					e
+				);
+				failed.push({
+					pair: d.pair,
+					decision: d.decision,
+					error: e instanceof Error ? e.message : String(e)
+				});
+			}
+			continue;
 		}
-		if (!carried) continue;
 		db.prepare(`UPDATE dupe_decisions SET applied_at = ? WHERE pair = ?`).run(now, d.pair);
+		// Only a decision carried out touches a series: a refused one asked for
+		// no cover, and a pair added before the try queued one for nothing.
 		for (const id of seriesOfEntries([a, b])) touched.add(id);
-		n += 1;
+		applied += 1;
 	}
 	// A series deleted since (KEEP's loser, a grouped singleton) has no row: nothing to make.
 	if (touched.size)
 		void refreshCovers({ ids: [...touched], remote: false }).catch((e: unknown) => {
 			console.error('tsundoku: covers after the duplicates review failed:', e);
 		});
-	return n;
+	return { applied, refused, failed };
 }
 
 /**
  * KEEP: the kept copy takes over what the other had more of (rating, FAV,
  * progress, shelves, a place in a series of books), then the other goes to
  * the trash as any delete does (doc/DELETING.md).
+ *
+ * What it takes over is one transaction (c648): a KEEP refused halfway (a
+ * book of another library folder, a series of books that isn't one any more)
+ * leaves nothing of itself behind, not a shelf row for a copy that stayed
+ * where it was. The delete that follows cannot be inside it -- its file move
+ * to the trash is awaited before its own rows go, and better-sqlite3 cannot
+ * hold a transaction across an `await`. So the carry-over is committed
+ * before the delete runs, and a delete that *refused* would leave it written;
+ * `deleteBook`'s own two refusals (a series that isn't there, a book not in
+ * it) are asked when it is called, with no `await` between them and the
+ * committed carry-over, so they cannot arise from the state the carry-over
+ * leaves. What can fail there is the file move, which is not a refusal: the
+ * carry-over stays, the decision waits, and `applyPending` answers it under
+ * `failed` (c648's round 2).
  */
 async function keepOne(keepId: number, loseId: number, now: number): Promise<void> {
 	const db = getDb();
+	// The modules a decision needs, loaded before the transaction: an `await`
+	// inside it would end it. They bring the app's Vite-only imports, which is
+	// why they are loaded here and not at the module's top.
+	const { moveBook, reorderBooks, GroupingError } = await grouping();
+	const { deleteBook, deleteSeries, DeleteError } = await deleting();
 	const keep = copyOf(keepId);
 	const lose = copyOf(loseId);
 	if (!keep || !lose) return;
@@ -482,61 +563,82 @@ async function keepOne(keepId: number, loseId: number, now: number): Promise<voi
 	const l = db
 		.prepare(`SELECT read_at, last_position, last_opened_at FROM entries WHERE id = ?`)
 		.get(loseId) as typeof k;
-	// Shelves first: the lost copy's series may be about to go.
-	const shelvesTo = lose.series && !keep.series ? lose.series.id : keep.seriesId;
-	db.prepare(
-		`INSERT OR IGNORE INTO collection_series (collection_id, series_id)
-		SELECT collection_id, ? FROM collection_series WHERE series_id IN (?, ?)`
-	).run(shelvesTo, keep.seriesId, lose.seriesId);
-	// Its place in a series of books: the kept single moves in where the other was.
-	let inSeries = !!keep.series;
-	if (lose.series && !keep.series) {
-		const order = (
-			db
-				.prepare(`SELECT id FROM entries WHERE series_id = ? ORDER BY position, id`)
-				.all(lose.series.id) as { id: number }[]
-		).map((r) => (r.id === loseId ? keepId : r.id));
-		const { moveBook, reorderBooks } = await grouping();
-		moveBook(keep.seriesId, keepId, lose.series.id);
-		reorderBooks(lose.series.id, [...order, loseId]);
-		inSeries = true;
+	let loser: { series_id: number; n: number } | undefined;
+	try {
+		loser = db
+			.transaction((): { series_id: number; n: number } | undefined => {
+				// Shelves first: the lost copy's series may be about to go.
+				const shelvesTo = lose.series && !keep.series ? lose.series.id : keep.seriesId;
+				db.prepare(
+					`INSERT OR IGNORE INTO collection_series (collection_id, series_id)
+					SELECT collection_id, ? FROM collection_series WHERE series_id IN (?, ?)`
+				).run(shelvesTo, keep.seriesId, lose.seriesId);
+				// Its place in a series of books: the kept single moves in where the other was.
+				let inSeries = !!keep.series;
+				if (lose.series && !keep.series) {
+					const order = (
+						db
+							.prepare(`SELECT id FROM entries WHERE series_id = ? ORDER BY position, id`)
+							.all(lose.series.id) as { id: number }[]
+					).map((r) => (r.id === loseId ? keepId : r.id));
+					moveBook(keep.seriesId, keepId, lose.series.id);
+					reorderBooks(lose.series.id, [...order, loseId]);
+					inSeries = true;
+				}
+				const seriesId = (
+					db.prepare(`SELECT series_id FROM entries WHERE id = ?`).get(keepId) as {
+						series_id: number;
+					}
+				).series_id;
+				if (inSeries)
+					db.prepare(`UPDATE entries SET rating = ?, favourite = ? WHERE id = ?`).run(
+						rating,
+						favourite ? 1 : 0,
+						keepId
+					);
+				else
+					db.prepare(`UPDATE series SET rating = ?, favourite = ? WHERE id = ?`).run(
+						rating,
+						favourite ? 1 : 0,
+						seriesId
+					);
+				// Progress: read beats unread; otherwise the further page.
+				if (k.read_at === null && l.read_at !== null)
+					db.prepare(`UPDATE entries SET read_at = ?, last_position = NULL WHERE id = ?`).run(
+						l.read_at,
+						keepId
+					);
+				else if (k.read_at === null && (l.last_position ?? -1) > (k.last_position ?? -1))
+					db.prepare(`UPDATE entries SET last_position = ? WHERE id = ?`).run(
+						l.last_position,
+						keepId
+					);
+				if ((l.last_opened_at ?? 0) > (k.last_opened_at ?? 0))
+					db.prepare(`UPDATE entries SET last_opened_at = ? WHERE id = ?`).run(
+						l.last_opened_at,
+						keepId
+					);
+				return db
+					.prepare(
+						`SELECT e.series_id, (SELECT COUNT(*) FROM entries x WHERE x.series_id = e.series_id) AS n
+						FROM entries e WHERE e.id = ?`
+					)
+					.get(loseId) as { series_id: number; n: number } | undefined;
+			})
+			.immediate();
+	} catch (e) {
+		if (e instanceof GroupingError) throw new DupeRefused(e.message);
+		throw e;
 	}
-	const seriesId = (
-		db.prepare(`SELECT series_id FROM entries WHERE id = ?`).get(keepId) as { series_id: number }
-	).series_id;
-	if (inSeries)
-		db.prepare(`UPDATE entries SET rating = ?, favourite = ? WHERE id = ?`).run(
-			rating,
-			favourite ? 1 : 0,
-			keepId
-		);
-	else
-		db.prepare(`UPDATE series SET rating = ?, favourite = ? WHERE id = ?`).run(
-			rating,
-			favourite ? 1 : 0,
-			seriesId
-		);
-	// Progress: read beats unread; otherwise the further page.
-	if (k.read_at === null && l.read_at !== null)
-		db.prepare(`UPDATE entries SET read_at = ?, last_position = NULL WHERE id = ?`).run(
-			l.read_at,
-			keepId
-		);
-	else if (k.read_at === null && (l.last_position ?? -1) > (k.last_position ?? -1))
-		db.prepare(`UPDATE entries SET last_position = ? WHERE id = ?`).run(l.last_position, keepId);
-	if ((l.last_opened_at ?? 0) > (k.last_opened_at ?? 0))
-		db.prepare(`UPDATE entries SET last_opened_at = ? WHERE id = ?`).run(l.last_opened_at, keepId);
 	// Then the other copy goes, as any delete does.
-	const loser = db
-		.prepare(
-			`SELECT e.series_id, (SELECT COUNT(*) FROM entries x WHERE x.series_id = e.series_id) AS n
-			FROM entries e WHERE e.id = ?`
-		)
-		.get(loseId) as { series_id: number; n: number } | undefined;
 	if (!loser) return;
-	const { deleteBook, deleteSeries } = await deleting();
-	if (loser.n <= 1) await deleteSeries([loser.series_id], true, now);
-	else await deleteBook(loser.series_id, loseId, true, now);
+	try {
+		if (loser.n <= 1) await deleteSeries([loser.series_id], true, now);
+		else await deleteBook(loser.series_id, loseId, true, now);
+	} catch (e) {
+		if (e instanceof DeleteError) throw new DupeRefused(e.message);
+		throw e;
+	}
 }
 
 /**
@@ -556,9 +658,14 @@ async function fold(a: number, b: number): Promise<void> {
 	const seriesOf = (id: number) =>
 		(db.prepare(`SELECT series_id FROM entries WHERE id = ?`).get(id) as { series_id: number })
 			.series_id;
-	const { foldEditions } = await grouping();
+	const { foldEditions, EditionError } = await grouping();
 	const book = seriesOf(base);
-	foldEditions(book, [seriesOf(other)], () => lined);
+	try {
+		foldEditions(book, [seriesOf(other)], () => lined);
+	} catch (e) {
+		if (e instanceof EditionError) throw new DupeRefused(e.message);
+		throw e;
+	}
 	// Its tile wears the opening edition's cover (doc/EDITIONS.md); off the decision.
 	void import('./covers.ts').then((c) => c.refreshSeriesCover(book)).catch(() => undefined);
 }
@@ -569,17 +676,22 @@ async function fold(a: number, b: number): Promise<void> {
  * other in.
  */
 async function group(a: number, b: number, now: number): Promise<void> {
-	const { groupIntoSeries } = await grouping();
+	const { groupIntoSeries, GroupingError } = await grouping();
 	const ca = copyOf(a);
 	const cb = copyOf(b);
 	if (!ca || !cb) return;
 	if (ca.series && cb.series) return;
-	if (ca.series) groupIntoSeries({ seriesIds: [cb.seriesId], into: ca.series.id, now });
-	else if (cb.series) groupIntoSeries({ seriesIds: [ca.seriesId], into: cb.series.id, now });
-	else
-		groupIntoSeries({
-			seriesIds: [ca.seriesId, cb.seriesId],
-			name: sharedStart([ca.title, cb.title]) || ca.title,
-			now
-		});
+	try {
+		if (ca.series) groupIntoSeries({ seriesIds: [cb.seriesId], into: ca.series.id, now });
+		else if (cb.series) groupIntoSeries({ seriesIds: [ca.seriesId], into: cb.series.id, now });
+		else
+			groupIntoSeries({
+				seriesIds: [ca.seriesId, cb.seriesId],
+				name: sharedStart([ca.title, cb.title]) || ca.title,
+				now
+			});
+	} catch (e) {
+		if (e instanceof GroupingError) throw new DupeRefused(e.message);
+		throw e;
+	}
 }

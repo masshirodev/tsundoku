@@ -104,12 +104,46 @@ or when the library next loads. So **UNDO** only forgets it; nothing is
 deleted and then brought back. SKIP isn't recorded: the pair goes to the back
 of this visit's queue and comes up again next time.
 
-Once decisions are carried out, the covers of every series they touched,
-before and after, are remade from the files, off the request. That covers a
-new series of books (its first book's cover), a fold, and a KEEP's series.
+Once decisions are carried out, the covers of every series they touched are
+remade from the files, off the request. That covers a new series of books (its
+first book's cover), a fold, and a KEEP's series. A decision that was refused
+touches nothing, so it asks for no cover (c648).
 Until 2026-09-25 (card c63), GROUP here left the new series with no cover
 until the next import; the library's GROUP and the series screen always
 remade theirs.
+
+**A decision the state refuses is dropped** (c648). The library answers with
+the pair and its own reason, the review says so in a band, and the pair comes
+back to the review undecided -- into this visit's queue at its back, and into
+the next load's, if the visit has ended -- while the UNDO that named it goes,
+since its decision is gone. The band's words are the
+fold's, `A BOOK CAN’T FOLD · SOMETHING SITS BESIDE IT`; a KEEP or a GROUP has
+its own, `A BOOK CAN’T GO TO THE TRASH · THE PAIR ISN’T WHAT IT WAS` and
+`TWO BOOKS CAN’T JOIN · THE PAIR ISN’T WHAT IT WAS`, since neither refuses
+because something sits beside a book. Until wave 29 a refused decision was
+left waiting: `reviewQueue` hides every decided pair, applied or not, so the
+owner saw neither the pair nor a reason, it could not be undone once the
+review's session ended, and every library load tried it again and queued a
+cover refresh. A decision's carry-over is now one transaction, so a KEEP
+refused halfway leaves no shelf row behind. The delete that follows is its own
+transaction, after the carry-over has committed: its two refusal checks are
+made when it is called, with no `await` between them and the carry-over, so a
+refused delete cannot follow a committed one -- what can fail there is the
+file move, which is not a refusal (the decision stays waiting, under
+`failed`). Only a refusal the fold, the grouping or the delete actually raises
+is treated as one.
+
+**A decision that fails for any other reason stays waiting.** A bug, or the
+disk refusing a file move, is not the library's state and nothing is gained by
+dropping the decision: the row is neither dropped nor marked applied, it is
+logged, and the answer names the pair under `failed`, which the review draws
+as `THE WORKSTATION COULDN’T CARRY THAT OUT · IT STAYS WAITING`. One such
+decision no longer aborts the ones behind it -- they are still carried out and
+their covers remade -- and it can never take the library's own load down: the
+load calls `applyPending` on every load and answers even if it throws (c648,
+round 2). The KEEP whose trash move fails is where this was measured: the
+carry-over is committed, the loser stays, and the pair is retried on the next
+load.
 
 | Decision          | Carried out                                                                                                                                                                                                                                                                        |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -173,7 +207,12 @@ that's all of them.
 - `tests/dupes-db.spec.ts`: hidden pairs hidden, finding again from the
   hashes, a decision waiting for UNDO, KEEP BOTH remembered, KEEP's carry-over
   and delete. `tests/dupes-group-db.spec.ts`: GROUP AS A SERIES.
+  `tests/duplicates-db.spec.ts`: the scanlator collapse (below), and a fold the
+  state refuses -- answered under `refused`, dropped, and not tried again (c648).
 - `tests/duplicates-flow.e2e.ts`: on the seed's hidden twins (Rakugaki
   Collection Vol. 3 and its [Digital] copy): no band with reveal off, the pick
   and its reason, choosing the other side, KEEP and UNDO, the series band,
   side by side in landscape and stacked in portrait, KEEP BOTH ending the band.
+  Its last block runs a world of its own for a fold the state refuses (c648):
+  the third language a book already has, the band that says so, the pair back
+  in the review on the next load, and OPEN → landing on the refusal.
