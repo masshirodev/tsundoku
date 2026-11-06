@@ -165,11 +165,13 @@ every door, wave 17 round 2; [`LINKS.md`](LINKS.md), "One season, one entry").
   that is gone, so a row queued before the switch went on is **dropped** at the
   next drain, not sent and not kept; turning the switch off again sends nothing
   retroactively, and the next chapter read queues from what the list says then.
-  Ranobe asks the same switch in `worksOf` and in `flush`'s drain: its unsent
-  reads and a work's rating or FAV are **kept**, as a hidden series' are, and go
-  once the switch is off (each follows the door it shares with hidden). The
-  series screen's LISTS row says `NOTHING SENT · ITS SOURCE IS NEVER TRACKED`
-  on every line and offers no EDIT or TRY AGAIN.
+  Ranobe asks the same switch in `worksOf`, in `refreshUnits` (a unit another
+  series shares counts no read from it), in `resolveEditions` (no edition is
+  suggested for its novels) and in `flush`'s drain: its unsent reads and a
+  work's rating or FAV are **kept**, as a hidden series' are, and go once the
+  switch is off (each follows the door it shares with hidden). The series
+  screen's LISTS row says `NOTHING SENT · ITS SOURCE IS NEVER TRACKED` on every
+  line and offers no EDIT or TRY AGAIN.
 
 `tracker_sends` holds one row per series and catalogue: the furthest wanted.
 It's gone once sent, and `tracker_state` takes the new chapter and

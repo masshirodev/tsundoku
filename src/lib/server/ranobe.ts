@@ -795,7 +795,9 @@ export async function mapSeries(o: { seriesId?: number; now?: number } = {}): Pr
  * What each unit of a work is here: read once every entry mapped onto it is,
  * in any series of the work that Ranobe may hear of (two copies of a volume
  * count once). A unit only ever mapped from a series hidden since is left
- * alone: hiding a series takes nothing back.
+ * alone: hiding a series takes nothing back. A series from a NEVER TRACKED
+ * source (c522) never contributes a read here, even when another series maps
+ * the same unit: the switch is about the source, not the work.
  */
 export function refreshUnits(work?: string): void {
 	const db = getDb();
@@ -805,6 +807,7 @@ export function refreshUnits(work?: string): void {
 			FROM entries e JOIN ranobe_links l ON l.series_id = e.series_id
 			JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
 			WHERE e.ranobe_unit IS NOT NULL AND e.shadowed = 0 AND ${ELIGIBLE_SQL}
+				AND NOT ${sourceFlagSql('neverTracked', 's.origin_key')}
 				${work !== undefined ? 'AND l.work = ?' : ''}`
 		)
 		.all(...(work !== undefined ? [work] : [])) as {

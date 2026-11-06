@@ -127,6 +127,16 @@ skips its units and a work only it read, and SUGGEST TO RANOBE is refused
 a lookup by id still asks, because neither writes anything and a link is how a
 cover and its details arrive; that is the one thing this switch lets out.
 
+A unit another series shares is not a way round it: `refreshUnits` counts no
+read from a never-tracked series, even when an eligible series maps the same
+unit, so the unit is only as read as that other series holds it. A unit
+already sent before the switch went on, with no read left from a series Ranobe
+may hear of, is **withdrawn** (a `DELETE`) while another series keeps it live:
+that takes back the very read the switch forbids, and its `sent_at` is cleared
+so it is not withdrawn twice (turning the switch off sends the read again from
+what that series holds then). With no other series mapping the unit, the
+drain's `live` guard leaves the row alone, as it leaves a hidden series'.
+
 ## The pass
 
 After every import (after the links and the AniList and MAL lists), and from

@@ -746,4 +746,89 @@ describe('Ranobe: a NEVER TRACKED source sends nothing (c522)', () => {
 			clear('wNT', MUSHOKU, KEN);
 		}
 	});
+
+	it('does not read a unit through another series that shares it (c522)', async () => {
+		setSourceFlag('302', 'neverTracked', true);
+		db.prepare(`UPDATE series SET origin_key = 'mihon:302:/novel/mushoku' WHERE id = ?`).run(
+			MUSHOKU
+		);
+		linkRanobe(MUSHOKU, 'wNT2', null);
+		linkRanobe(KEN, 'wNT2', null);
+		const entry = (seriesId: number, position: number) =>
+			(
+				db
+					.prepare(`SELECT id FROM entries WHERE series_id = ? AND position = ?`)
+					.get(seriesId, position) as { id: number }
+			).id;
+		// Two copies of one volume, mapped onto the same unit; only one is read.
+		const mine = entry(MUSHOKU, 20);
+		const theirs = entry(KEN, 1);
+		db.prepare(`UPDATE entries SET ranobe_unit = 'wNT2:volume:5' WHERE id IN (?, ?)`).run(
+			mine,
+			theirs
+		);
+		db.prepare(`UPDATE entries SET read_at = ? WHERE id = ?`).run(NOW, mine);
+		try {
+			rb.refreshUnits('wNT2');
+			expect(
+				db.prepare(`SELECT read_at FROM ranobe_units WHERE unit = 'wNT2:volume:5'`).get()
+			).toEqual({ read_at: null });
+			const out = await rb.flush({ now: NOW });
+			expect(out.read).toBe(0);
+			// The other copy keeps the unit live, but nothing was read there.
+			expect(postsTo('/me/reads')).toEqual([]);
+		} finally {
+			db.prepare(`UPDATE entries SET read_at = NULL WHERE id IN (?, ?)`).run(mine, theirs);
+			setSourceFlag('302', 'neverTracked', false);
+			clear('wNT2', MUSHOKU, KEN);
+		}
+	});
+
+	it('takes back a read already sent, once only, when the other copy leaves it unread (c522)', async () => {
+		// The decision written in doc/RANOBE.md: a unit sent before the switch is
+		// withdrawn (a DELETE), because leaving it would keep the never-tracked
+		// read on Ranobe; sent_at is cleared, so it is not withdrawn twice.
+		setSourceFlag('303', 'neverTracked', true);
+		db.prepare(`UPDATE series SET origin_key = 'mihon:303:/novel/mushoku' WHERE id = ?`).run(
+			MUSHOKU
+		);
+		linkRanobe(MUSHOKU, 'wNT2', null);
+		linkRanobe(KEN, 'wNT2', null);
+		const entry = (seriesId: number, position: number) =>
+			(
+				db
+					.prepare(`SELECT id FROM entries WHERE series_id = ? AND position = ?`)
+					.get(seriesId, position) as { id: number }
+			).id;
+		const mine = entry(MUSHOKU, 20);
+		const theirs = entry(KEN, 1);
+		db.prepare(`UPDATE entries SET ranobe_unit = 'wNT2:volume:6' WHERE id IN (?, ?)`).run(
+			mine,
+			theirs
+		);
+		db.prepare(`UPDATE entries SET read_at = ? WHERE id = ?`).run(NOW, mine);
+		db.prepare(
+			`INSERT INTO ranobe_units (unit, work, read_at, sent_at) VALUES ('wNT2:volume:6', 'wNT2', ?, ?)`
+		).run(NOW - 1000, NOW - 2000);
+		try {
+			rb.refreshUnits('wNT2');
+			await rb.flush({ now: NOW });
+			expect(ranobeCalls.filter((c) => c.method === 'DELETE').map((c) => c.path)).toEqual([
+				'/me/reads/wNT2%3Avolume%3A6'
+			]);
+			expect(postsTo('/me/reads')).toEqual([]);
+			expect(
+				db.prepare(`SELECT read_at, sent_at FROM ranobe_units WHERE unit = 'wNT2:volume:6'`).get()
+			).toEqual({ read_at: null, sent_at: null });
+			// The next pass has nothing left to withdraw.
+			ranobeCalls = [];
+			rb.refreshUnits('wNT2');
+			await rb.flush({ now: NOW });
+			expect(ranobeCalls).toEqual([]);
+		} finally {
+			db.prepare(`UPDATE entries SET read_at = NULL WHERE id IN (?, ?)`).run(mine, theirs);
+			setSourceFlag('303', 'neverTracked', false);
+			clear('wNT2', MUSHOKU, KEN);
+		}
+	});
 });
