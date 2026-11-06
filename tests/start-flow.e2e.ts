@@ -203,6 +203,76 @@ test('03 offers IMPORT A BACKUP for Mihon, NOT YET for the other two, and the fo
 	await expect(page.getByRole('heading', { name: 'IMPORT A BACKUP' })).toBeVisible();
 });
 
+test('03’s IMPORT A BACKUP → starts a trip: the band on the import pages, ✓ when an import brings a series, and 03 names it with IMPORT LOG → (c511)', async ({
+	page
+}) => {
+	await page.goto('/');
+	await step(page, '03').getByRole('button', { name: 'OPEN ↓' }).click();
+	await step(page, '03')
+		.locator('.st-body')
+		.getByRole('link', { name: 'IMPORT A BACKUP →' })
+		.click();
+	await expect(page).toHaveURL(/\/import$/);
+	const band = page.getByRole('navigation', { name: 'Get started' });
+	await expect(band).toContainText('03 OF 07 · BRING A LIBRARY YOU ALREADY HAVE');
+	await expect(band).toContainText('TICKS ITSELF WHEN AN IMPORT OR A SCAN BRINGS IN A SERIES');
+	// An import comes in, as IMPORT writes one: a job, its series, its row.
+	// Its own root, so FIRST READ's later Mihon root is untouched; all of it
+	// goes again below, since the steps after this one need an empty library.
+	const now = Date.now();
+	sql(`INSERT INTO roots (name, path) VALUES ('Mihon', ?)`, join(library, 'c511-import'));
+	sql(
+		`INSERT INTO scan_jobs (id, started_at, finished_at, source_label, series_found) VALUES (5110, ?, ?, 'MIHON BACKUP', 1)`,
+		now,
+		now
+	);
+	sql(
+		`INSERT INTO series (id, root_id, title, kind, added_at, indexed_at, origin_key, scan_job_id)
+		VALUES (5110, (SELECT id FROM roots WHERE path = ?), 'Imported Once', 'manga', ?, ?, 'mihon:5110:/once', 5110)`,
+		join(library, 'c511-import'),
+		now,
+		now
+	);
+	sql(
+		`INSERT INTO imports (id, created_at, app, file_name, file_bytes, state, job_id, series_total, series_done, started_at, finished_at)
+		VALUES (5110, ?, 'mihon', 'app.mihon_2026-11-05_10-00.tachibk', 2048, 'done', 5110, 1, 1, ?, ?)`,
+		now,
+		now,
+		now
+	);
+	sql(`INSERT INTO import_series (import_id, series_id, created) VALUES (5110, 5110, 1)`);
+	try {
+		// The band asks again by itself, and ticks without a reload.
+		await expect(band).toContainText('✓ 03 DONE · A SERIES FOUND', { timeout: 12_000 });
+		await band.getByRole('link', { name: 'BACK TO GET STARTED →' }).click();
+		await expect(page).toHaveURL(/\/start$/);
+		await expect(step(page, '03')).toContainText('Done · Mihon backup · 1 series', {
+			ignoreCase: true
+		});
+		// Its quiet link opens the import's own entry in the log, already open.
+		await step(page, '03').getByRole('link', { name: 'IMPORT LOG →', exact: true }).click();
+		await expect(page).toHaveURL(/\/import\/log\?open=backup:5110$/);
+		await expect(page.getByRole('button', { name: 'CLOSE ↑' })).toHaveCount(1);
+		await expect(
+			page.getByText('app.mihon_2026-11-05_10-00.tachibk', { exact: false })
+		).toBeVisible();
+		// The log is not the trip's screen: no band there.
+		await expect(band).toHaveCount(0);
+		// By its job, as the library's band knows an import, the same entry opens.
+		await page.goto('/import/log?job=5110');
+		await expect(page.getByRole('button', { name: 'CLOSE ↑' })).toHaveCount(1);
+		await expect(page.locator('.entry', { hasText: 'CLOSE ↑' })).toContainText('MIHON BACKUP');
+		await page.goto('/import/log?job=999999');
+		await expect(page.getByRole('button', { name: 'CLOSE ↑' })).toHaveCount(0);
+	} finally {
+		sql(`DELETE FROM import_series WHERE import_id = 5110`);
+		sql(`DELETE FROM imports WHERE id = 5110`);
+		sql(`DELETE FROM series WHERE id = 5110`);
+		sql(`DELETE FROM scan_jobs WHERE id = 5110`);
+		sql(`DELETE FROM roots WHERE path = ?`, join(library, 'c511-import'));
+	}
+});
+
 test('SKIP and UNDO: skipping 01 takes 02 and FIRST READ with it', async ({ page }) => {
 	await page.goto('/');
 	await step(page, '03').getByRole('button', { name: 'SKIP' }).click();

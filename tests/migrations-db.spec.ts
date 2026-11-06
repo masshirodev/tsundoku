@@ -392,11 +392,40 @@ describe('rung 70: a comic’s link keeps its country and start year (c520)', ()
 			(before as Record<string, unknown>[]).map((r) => ({ ...r, country: null, year: null }))
 		);
 	});
+});
+
+describe('rung 71: a job keeps the Works its folds dropped (c570)', () => {
+	it('gives every job already stored an empty list, and moves nothing else', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 70);
+		conn.exec(`
+			INSERT INTO scan_jobs (id, started_at, finished_at, bytes_done, bytes_total, series_found, source_label, step, steps, failed_files, dismissed_at) VALUES
+				(1, 10, 20, 5, 5, 2, 'MIHON', 1, 1, 0, NULL),
+				(2, 30, NULL, 0, 9, 0, 'MIHON BACKUP', 1, 1, 1, NULL),
+				(3, 40, 50, 1, 1, 0, '', 1, 1, 0, 50);
+		`);
+		const before = conn.prepare(`SELECT * FROM scan_jobs ORDER BY id`).all();
+		climb(conn, 71);
+		expect(conn.pragma('user_version', { simple: true })).toBe(71);
+		const after = conn.prepare(`SELECT * FROM scan_jobs ORDER BY id`).all();
+		// Nothing recorded what an old job's folds dropped, so it lists none.
+		expect(after).toEqual(
+			(before as Record<string, unknown>[]).map((r) => ({ ...r, dropped: '[]' }))
+		);
+		// A job opened after the rung, which names no list, starts with none too.
+		conn.exec(`INSERT INTO scan_jobs (started_at) VALUES (60)`);
+		expect(conn.prepare(`SELECT dropped FROM scan_jobs WHERE started_at = 60`).get()).toEqual({
+			dropped: '[]'
+		});
+		expect(() => conn.exec(`UPDATE scan_jobs SET dropped = NULL WHERE id = 1`)).toThrow(
+			/NOT NULL constraint failed/
+		);
+	});
 
 	// The top rung's own block says it is the top; the next rung moves this line.
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(70);
+		expect(conn.pragma('user_version', { simple: true })).toBe(71);
 	});
 });

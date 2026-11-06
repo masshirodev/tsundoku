@@ -10,7 +10,7 @@ import {
 	localeFromLang
 } from '$lib/i18n/locale';
 import { num, upper } from '$lib/i18n/format';
-import { countLine, startView, trailDone } from '../src/lib/library/start';
+import { countLine, importDoneLine, startView, trailDone } from '../src/lib/library/start';
 
 /** The languages (doc/I18N.md; card c210): two files that agree, and who decides. */
 
@@ -97,6 +97,16 @@ describe('in Portuguese', () => {
 		expect(upper('série')).toBe('SÉRIE');
 		overwriteGetLocale(() => 'en');
 		expect(num(1234)).toBe('1,234');
+	});
+	it('03 done by an import names it in Portuguese, one series and many (c511)', () => {
+		overwriteGetLocale(() => 'pt-BR');
+		expect(importDoneLine({ id: 1, app: 'mihon', series: 1 })).toBe(
+			'Feito · backup do Mihon · 1 série'
+		);
+		expect(importDoneLine({ id: 1, app: 'mihon', series: 1234 })).toBe(
+			'Feito · backup do Mihon · 1.234 séries'
+		);
+		expect(m.start_done_link_import()).toBe('REGISTRO DE IMPORTAÇÃO →');
 	});
 	it('GET STARTED speaks it, plurals and all', () => {
 		overwriteGetLocale(() => 'pt-BR');

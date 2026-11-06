@@ -53,7 +53,12 @@
 			</h2>
 			<p class="lede">{leads ? m.start_read_lede() : m.start_page_lede()}</p>
 			<div class="list">
-				<StartList view={data.start} libraryRoot={data.libraryRoot} extras={data.firstRead} />
+				<StartList
+					view={data.start}
+					libraryRoot={data.libraryRoot}
+					extras={data.firstRead}
+					imported={data.imported}
+				/>
 			</div>
 			<p class="kept">{m.start_page_kept()}</p>
 		</section>

@@ -80,6 +80,34 @@ function folderParts(key: string): { sourceDir: string; dir: string } | null {
 	return { sourceDir: rest.slice(0, slash), dir: rest.slice(slash + 1) };
 }
 
+/**
+ * The installed source a Mihon download folder's series is from (card c571;
+ * doc/BROWSE.md, "ADDED HIDDEN at the importer"), by the engine's own name
+ * for it, or null. A `mihon-dir:` key names no source id (`sourceIdSql`
+ * answers NULL), only the folder Mihon filed it under, which Mihon names
+ * `<name> (<LANG>)` (its `Source.toString()`). So the folder is a source's
+ * when it is exactly that source's name and language; failing any such
+ * source, when it is exactly a source's bare name. **Only one source may
+ * answer**: two installed sources with one name and one language (two
+ * extensions both calling themselves "Asura Scans", EN) cannot be told
+ * apart from the folder, and the answer is null, so nothing is decided by a
+ * guess. Two of one name in different languages are told apart by the
+ * folder's language. A source not installed has no row, and answers null.
+ */
+export function folderSourceId(db: Database.Database, key: string): string | null {
+	const parts = folderParts(key);
+	if (!parts) return null;
+	const dir = parts.sourceDir.toLowerCase();
+	const rows = db.prepare(`SELECT id, name, lang FROM engine_sources`).all() as {
+		id: string;
+		name: string;
+		lang: string;
+	}[];
+	const exact = rows.filter((r) => dir === `${r.name} (${r.lang})`.toLowerCase());
+	const one = exact.length > 0 ? exact : rows.filter((r) => dir === r.name.toLowerCase());
+	return one.length === 1 ? one[0].id : null;
+}
+
 type KeyedRow = {
 	id: number;
 	origin_key: string;
@@ -450,9 +478,25 @@ function tablesWith(db: Database.Database, column: string): string[] {
  * library shows it after the fold; `ended` says the Work was left with one
  * series and so ended (rung 61's trigger). Named in the import's summary as
  * DROPPED FROM <WORK> (`droppedLine`), since the owner's grouping cannot be
- * put back by the import.
+ * put back by the import, and kept on the job's row (`scan_jobs.dropped`,
+ * rung 71, card c570) for the IMPORT LOG.
+ *
+ * Ids are not identities here: `works.id` and `series.id` are reused once the
+ * newest row ends (no AUTOINCREMENT), so each is kept with the row's own
+ * creation time, and the log trusts an id only while both still match
+ * (`droppedOf`, log.ts).
  */
-export type Dropped = { work: string; series: string; ended: boolean };
+export type Dropped = {
+	work: string;
+	series: string;
+	ended: boolean;
+	/** The Work's id and `created_at`, for the log's link while it exists. */
+	workId: number;
+	workAt: number;
+	/** The survivor's id and `added_at`, for the log's reveal rule. */
+	seriesId: number;
+	seriesAt: number;
+};
 
 const note = (into: Dropped[], d: Dropped | null) => {
 	if (d) into.push(d);
@@ -563,10 +607,12 @@ export function foldSeries(db: Database.Database, from: number, into: number): D
 	const fromHidden = hiddenNow(db, from);
 	// And the Work each is a part of: two different ones mean `from`'s is lost.
 	const workOf = db.prepare(
-		`SELECT w.id, w.name FROM work_series ws JOIN works w ON w.id = ws.work_id WHERE ws.series_id = ?`
+		`SELECT w.id, w.name, w.created_at AS at FROM work_series ws JOIN works w ON w.id = ws.work_id
+		WHERE ws.series_id = ?`
 	);
-	const fromWork = workOf.get(from) as { id: number; name: string } | undefined;
-	const intoWork = workOf.get(into) as { id: number; name: string } | undefined;
+	type Lost = { id: number; name: string; at: number };
+	const fromWork = workOf.get(from) as Lost | undefined;
+	const intoWork = workOf.get(into) as Lost | undefined;
 	const lost = fromWork && intoWork && fromWork.id !== intoWork.id ? fromWork : null;
 	// `work_series` is one of these: `from`'s membership moves to `into` when
 	// `into` is in no Work, and is dropped when it is in one (a series is in
@@ -590,10 +636,20 @@ export function foldSeries(db: Database.Database, from: number, into: number): D
 	// Never the other way: a fold never shows anything.
 	if (fromHidden || hiddenNow(db, into)) setHiddenWhole([into], true);
 	if (!lost) return null;
-	const title = (db.prepare(`SELECT title FROM series WHERE id = ?`).get(into) as { title: string })
-		.title;
+	const survivor = db.prepare(`SELECT title, added_at FROM series WHERE id = ?`).get(into) as {
+		title: string;
+		added_at: number;
+	};
 	const ended = !db.prepare(`SELECT 1 FROM works WHERE id = ?`).get(lost.id);
-	return { work: lost.name, series: title, ended };
+	return {
+		work: lost.name,
+		series: survivor.title,
+		ended,
+		workId: lost.id,
+		workAt: lost.at,
+		seriesId: into,
+		seriesAt: survivor.added_at
+	};
 }
 
 /** Whether SQL's rule reads this series as hidden: its own flag, or its root's. */

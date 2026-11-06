@@ -495,6 +495,8 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 	const flush = () => update.run({ ...p, id: jobId });
 	const summary: ImportSummary = { jobId, failedFiles: 0, sources: [] };
 	let created = 0;
+	/** Every Work dropped so far, across sources, for a run that throws part-way. */
+	const dropping: Dropped[] = [];
 
 	try {
 		for (const s of sources) p.bytesTotal += await s.bytes();
@@ -548,6 +550,7 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 				out.filesAttached += r.filesAttached;
 				for (const d of r.dropped ?? []) {
 					out.dropped.push(d);
+					dropping.push(d);
 					console.log(`[import] ${droppedLine(d)}`);
 				}
 				// The band counts arrivals ("N SERIES SO FAR") and is shown while
@@ -569,16 +572,19 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 		summary.failedFiles = p.failedFiles;
 		p.bytesDone = p.bytesTotal;
 		flush();
-		finishJob(db, jobId, created);
+		finishJob(db, jobId, created, dropping);
 		// BROWSE's per-source counts (and so `mostlyHidden`) are asked again:
 		// the run added series, and ADDED HIDDEN may have hidden some (c503).
 		forgetSourceUse();
 		return summary;
 	} catch (e) {
 		flush();
+		// Each series is written in its own transaction, so a fold before the
+		// throw stands: the log names what it dropped, the source that threw
+		// included (`dropping`), as it would at the end (c570).
 		db.prepare(
-			`UPDATE scan_jobs SET finished_at = ?, failed_files = failed_files + 1 WHERE id = ?`
-		).run(Date.now(), jobId);
+			`UPDATE scan_jobs SET finished_at = ?, failed_files = failed_files + 1, dropped = ? WHERE id = ?`
+		).run(Date.now(), JSON.stringify(dropping), jobId);
 		throw e;
 	}
 }

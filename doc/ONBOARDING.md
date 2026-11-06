@@ -39,6 +39,19 @@ Portuguese ([`I18N.md`](I18N.md)).
   chosen on IMPORT A BACKUP runs as a scan job too ([`IMPORT.md`](IMPORT.md)),
   so its series carry its job's id and tick 03. So 06 never ticks 03, and an
   imported Mihon library never ticks 06.
+- **03's done row names the import** (c511; Import-Doors B) on `/start`:
+  `Done · Mihon backup · 382 series`, the last import that came in, counted
+  as the viewer may see it (`lastImport`, so a hidden series is not counted
+  with reveal off). It is the last import that brought series **whatever
+  ticked the step**: a library scanned in first and a backup imported later
+  shows the backup's line and count, not the library's (a rule chosen in
+  wave 26; telling the doors apart is a follow-up). Its quiet link is **IMPORT LOG →**, which opens that
+  import's entry in the log, already open (`/import/log?open=backup:<id>`).
+  When no import has brought a series the viewer sees (a scan ticked it),
+  the row says what it said, `Done · 4 series` and LIBRARY →. On the empty
+  library the list is the library's page (not this slot's), which does not
+  pass the import yet, so its row keeps the scan's line; 03 done leaves the
+  library empty only when every series is hidden.
 - **03's body** (c438; the import handoff's Import-Doors A) is the three
   backups first: Mihon backup with IMPORT A BACKUP → to `/import`, Aniyomi
   and LNReader dimmed, NOT YET. Under them, FILES INSTEAD · EPUBS, AND
@@ -121,7 +134,12 @@ list every 5 s (`invalidate('tsundoku:start')`), so a phone pairing or a
 download ticks it without a reload.
 
 - **A SET UP trip** lasts on its one screen, across its tabs and its own
-  redirects.
+  redirects. 03's is IMPORT A BACKUP → (c511): the band is on the pick
+  screen and on the file's own page, `/import/<id>` (its preview, its
+  progress and its result, where the step ticks once the import brings a
+  series in: `✓ 03 DONE · A SERIES FOUND`). The upload lands there, so the
+  trip lasts across it. IMPORT LOG is not the trip's screen and draws no
+  band, but a look at it does not end the trip (`through`).
 - **A FIRST READ trip is one band for the whole part**, lasting across the
   search, a source's BROWSE, the preview, the series screen and DOWNLOADS
   (`TRAIL` in `library/start.ts`). The reader shows no band, since it shows
@@ -133,7 +151,8 @@ download ticks it without a reload.
   it began (`before`), so a tick on the way is told from one done long ago.
 - **The next control wears a 2px accent ring**: + ADD TO LIBRARY on the
   preview while 06 is next, the DOWNLOAD row (on the preview or the series)
-  while 07 is.
+  while 07 is; on a phone or a TV, while the series' DETAILS is folded, its
+  DETAILS line (doc/SERIES.md, "DETAILS").
 - **On the series just added**, the band takes the place of ADDED TO THE
   LIBRARY: its chapters line ahead of the next step, and the same UNDO.
 - **On the phone** the band narrows to `← · 06 OF 07 · ✕`, and BACK → in
@@ -177,9 +196,6 @@ up, then a first read.` (and FIRST READ's head once SET UP is through).
 
 - The Aniyomi and LNReader backup rows are drawn dimmed, NOT YET: card c190
   (the owner's call for c438, 2026-11-03: Mihon first).
-- 03's done row does not yet name the import that ticked it (Import-Doors B,
-  `DONE · MIHON BACKUP · 382 SERIES` with IMPORT LOG →): it says what any
-  done step says.
 - 05's search field and source rows are the first day's; a source that never
   answers still lists.
 - The phone's narrower 05 body and tick line are CSS swaps of two messages,
@@ -191,13 +207,16 @@ up, then a first read.` (and FIRST READ's head once SET UP is through).
 takes with it, the parts and folding, which step opens, the FIRST READ band
 as each step ticks, the words); `tests/start-db.spec.ts` (the facts: 03
 against 06, records, the queue and downloads, hidden series);
-`tests/i18n-domain.spec.ts` (the list in Portuguese). `tests/start-flow.e2e.ts`
+`tests/i18n-domain.spec.ts` (the list in Portuguese, 03's import line
+included). `tests/start-flow.e2e.ts`
 on its own preview with an emptied database: the list in two parts, ASK and
 the band, a pairing ticking a step, leaving ending the trip, SKIP and UNDO
 taking FIRST READ, the sidebar's and MORE's rows, the first day once
 everything is skipped and the folded parts, and FIRST READ end to end (SET UP
 done leading to it, the band from the search through a record, ADD and a
-queued chapter to BACK TO GET STARTED). Generated from the handoffs:
+queued chapter to BACK TO GET STARTED), and 03's IMPORT A BACKUP → (the
+band on `/import`, its tick when an import lands, the done row's import line
+and IMPORT LOG → to the entry, c511). Generated from the handoffs:
 `tests/start-frame.e2e.ts` (`Start-Checklist.dc.html`, SET UP's 01 open) and
 `tests/first-read-frame.e2e.ts` (`FirstRead-List.dc.html`, the parts' heads
 and every row), on `/start`.

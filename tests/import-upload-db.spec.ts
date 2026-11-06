@@ -749,3 +749,121 @@ describe('IMPORT A BACKUP from a source with ADDED HIDDEN (c503)', () => {
 		}
 	});
 });
+
+describe('the TV never imports, refused on the server (c511)', () => {
+	const TV =
+		'Mozilla/5.0 (Linux; Android 9; BRAVIA 4K GB) AppleWebKit/537.36 Chrome/94.0 Safari/537.36 TsundokuTV/1.0.0';
+	const PHONE =
+		'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/131.0.6778.135 Mobile Safari/537.36 TsundokuApp/2026.11.05';
+	const BROWSER =
+		'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36';
+	const req = (ua: string, url = 'http://localhost/import', init: RequestInit = {}) =>
+		new Request(url, { ...init, headers: { 'user-agent': ua, ...(init.headers ?? {}) } });
+	const cookies = { get: () => undefined } as never;
+	let pick: typeof import('../src/routes/import/+page.server');
+	let one: typeof import('../src/routes/import/[id]/+page.server');
+	let uploadRoute: typeof import('../src/routes/import/upload/+server');
+	let tv: typeof import('$lib/server/import/tv');
+	let id = -1;
+	beforeAll(async () => {
+		pick = await import('../src/routes/import/+page.server');
+		one = await import('../src/routes/import/[id]/+page.server');
+		uploadRoute = await import('../src/routes/import/upload/+server');
+		tv = await import('$lib/server/import/tv');
+		const r = (await import('$lib/server/import/backup')).receiveChunk(
+			{
+				token: null,
+				name: 'app.mihon_2026-11-09_01-00.tachibk',
+				size: 0,
+				offset: 0,
+				origin: 'desktop'
+			},
+			new Uint8Array()
+		);
+		// An empty file is refused, but kept as a row: a page the TV could ask for.
+		id = r.state === 'more' ? -1 : (r.id ?? -1);
+		expect(id).toBeGreaterThan(0);
+	});
+
+	it('the TV’s user agent is told apart from the phone app’s', () => {
+		expect(tv.fromTv(req(TV))).toBe(true);
+		expect(tv.fromTv(req(PHONE))).toBe(false);
+		expect(tv.fromTv(req(BROWSER))).toBe(false);
+		expect(tv.fromTv(new Request('http://localhost/import'))).toBe(false);
+	});
+
+	it('/import’s load draws the refusal on a TV, and the pick screen elsewhere', async () => {
+		const at = async (ua: string) =>
+			(await pick.load({ request: req(ua) } as never)) as { tv: string | null };
+		expect((await at(TV)).tv).toBe(
+			'THE TV NEVER IMPORTS · CHOOSE THE FILE ON THE COMPUTER OR A PHONE · NOTHING CHANGED'
+		);
+		expect((await at(PHONE)).tv).toBeNull();
+		expect((await at(BROWSER)).tv).toBeNull();
+	});
+
+	it('/import/<id>’s load refuses a TV before it reads the row; the phone reads it', async () => {
+		const at = async (ua: string) =>
+			(await one.load({
+				params: { id: String(id) },
+				cookies,
+				request: req(ua, `http://localhost/import/${id}`)
+			} as never)) as { view: string; reason?: string };
+		expect(await at(TV)).toEqual({ view: 'tv', reason: tv.TV_REFUSAL });
+		expect((await at(PHONE)).view).toBe('refused');
+		expect((await at(BROWSER)).view).toBe('refused');
+		// Even for an import that does not exist: nothing is read for a TV.
+		expect(
+			await one.load({
+				params: { id: '999999' },
+				cookies,
+				request: req(TV, 'http://localhost/import/999999')
+			} as never)
+		).toEqual({ view: 'tv', reason: tv.TV_REFUSAL });
+	});
+
+	it('the upload refuses a TV’s first piece with the sentence, keeping nothing', async () => {
+		const rows = () => (db().prepare(`SELECT COUNT(*) AS n FROM imports`).get() as { n: number }).n;
+		const files = () => readdirSync(area).length;
+		const before = { rows: rows(), files: files() };
+		const bytes = gz(backup());
+		const post = (ua: string) =>
+			uploadRoute.POST({
+				request: req(
+					ua,
+					`http://localhost/import/upload?name=x.tachibk&size=${bytes.length}&offset=0`,
+					{ method: 'POST', body: bytes }
+				),
+				url: new URL(`http://localhost/import/upload?name=x.tachibk&size=${bytes.length}&offset=0`)
+			} as never);
+		const refused = await post(TV);
+		expect(refused.status).toBe(403);
+		expect(await refused.json()).toEqual({ state: 'refused', id: null, reason: tv.TV_REFUSAL });
+		expect({ rows: rows(), files: files() }).toEqual(before);
+		// The phone app uploads as any browser does.
+		const phone = await post(PHONE);
+		expect(phone.status).toBe(200);
+		const a = (await phone.json()) as { state: string; id: number };
+		expect(a.state).toBe('read');
+		expect(rows()).toBe(before.rows + 1);
+	});
+
+	it('IMPORT refuses a TV, and starts nothing', async () => {
+		const r = upload(gz(backup()), 'app.mihon_2026-11-09_02-00.tachibk');
+		const read = r.state === 'read' ? r.id : -1;
+		const form = () => {
+			const f = new FormData();
+			return new Request(`http://localhost/import/${read}?/import`, {
+				method: 'POST',
+				body: f,
+				headers: { 'user-agent': TV }
+			});
+		};
+		const answer = await one.actions.import({
+			params: { id: String(read) },
+			request: form()
+		} as never);
+		expect(answer).toMatchObject({ status: 403, data: { message: tv.TV_REFUSAL } });
+		expect(b.importRow(read)!.state).toBe('read');
+	});
+});

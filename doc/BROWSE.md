@@ -487,6 +487,16 @@ which is how HISTORY filters in SQL. A series' source in SQL is
 `sourceIdSql(origin_key)`, held to `sourceOfKey` over every key a writer
 stores (`tests/source-flags-db.spec.ts`).
 
+**REMOVE keeps them** (card c569, the owner's (b), 2026-11-05): removing an
+extension or a novel plugin deletes only its row (`removeExtension`,
+`removePlugin`), and its switches stay in `settings`, so a source installed
+again comes back with HIDDEN SOURCE, ADDED HIDDEN and OFF HISTORY as the owner
+left them: they were set on purpose, and REMOVE's sheet already says ITS
+SETTINGS ARE KEPT. To start a source afresh, turn its switches off before
+REMOVE; once it is removed its settings page is gone with it, so they can be
+reached again only by installing it. `tests/browse-extensions.e2e.ts` holds
+it (REMOVE, INSTALL again, the switches still on).
+
 **ADDED HIDDEN at the importer** (card c503, the owner's (a), wave 23): a
 series an import creates in the library from a source with the switch on
 arrives hidden too, so **a backup can only add hiding**. A series the backup
@@ -497,21 +507,36 @@ inside reveal stays shown at the next scan. The writer applies it in the
 same transaction that creates the series (`writeSeries`'s `addedHidden`,
 `src/lib/server/import/write.ts`), and both of the importer's callers pass
 it: a scan or IMPORT A BACKUP (`run`) and what tsundoku's downloaders attach
-(`attachWritten`). Of what an import plans, only keys that name a source can
-be switched: a Mihon backup's series (`mihon:<n>:<url>`), and tsundoku's own
-anime and novel downloads read back (`aniyomi:`, `lnreader:`). A Mihon
-download folder's own series (`mihon-dir:`), Hentoid's books, an EPUB and a
-gallery name no source (`sourceIdSql` answers NULL), so the switch never
-reaches them. **So the order of arrival matters for a Mihon download
-folder:** one imported before any backup named its series is created as a
-`mihon-dir:` series and stays visible; when a backup later names it,
-`adoptFolder` (`fold.ts`) re-keys that series to `mihon:<n>:<url>` rather
-than creating one, so the switch does not hide it then either. The same
-series arriving first through a backup that names it arrives hidden. Either
-way, the owner can hide it inside reveal. What an attach creates also makes
+(`attachWritten`). Of what an import plans, keys that name a source are
+switched by their source: a Mihon backup's series (`mihon:<n>:<url>`), and
+tsundoku's own anime and novel downloads read back (`aniyomi:`, `lnreader:`).
+**A Mihon download folder's own series** (`mihon-dir:<source folder>/<title>`)
+names no source in its key (`sourceIdSql` answers NULL), so since card c571
+(wave 26) the writer reads its source from the folder instead
+(`folderSourceId`, `src/lib/server/import/fold.ts`): Mihon names the folder
+`<name> (<LANG>)`, so the folder is the installed source with exactly that
+name and language, or, failing any, the one installed source with exactly
+that bare name. A folder series created from a switched source arrives
+hidden, so **the order of arrival no longer matters**: created before any
+backup names it, it arrives hidden, and stays hidden when a backup later
+names it and `adoptFolder` re-keys it to `mihon:<n>:<url>` (a fold never
+shows anything); arriving first through a backup that names it, it arrives
+hidden as before. **Only one installed source may answer**: two installed
+sources with one name and one language (two extensions calling themselves
+the same) cannot be told apart from the folder, so neither's switch is
+applied and the folder's series arrives visible, as it does from a source
+that is not installed (no `engine_sources` row: its switch, which REMOVE
+keeps, is not read for a folder) or whose switch is off. Two sources of one
+name in different languages are told apart by the folder's language. As
+everywhere, only a series the import **creates** is hidden: a folder series
+already in the library, adopted or rescanned, is left as it is. Hentoid's
+books, an EPUB and a gallery name no source, so the switch never reaches
+them. In every case the owner can hide a series inside reveal. What an attach creates also makes
 BROWSE ask its per-source counts again (`forgetSourceUse`, as a run does), so
 `mostlyHidden` does not wait out the cache's minute. `tests/import-db.spec.ts`
-holds every combination, the attach included.
+holds every combination, the attach included, and c571's folder in both
+orders, the shared name and the language; `tests/devices-import-db.spec.ts`
+the folder adopted by the library's own backup.
 
 **ADD outside reveal** (card c505, wave 24). The source's page draws the
 band the series page would have, or BROWSE does when the source's page is

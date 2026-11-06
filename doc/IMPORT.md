@@ -40,15 +40,27 @@ go two across, and the confirm bar stacks.
 
 - **GET STARTED, step 03** (`src/lib/components/start/StartList.svelte`; on
   the empty library and on `/start`): Mihon backup with **IMPORT A BACKUP →**,
-  Aniyomi and LNReader dimmed with **NOT YET**. Under them, FILES INSTEAD: the
+  which starts GET STARTED's trip (← GET STARTED · 03 OF 07, c511;
+  [`ONBOARDING.md`](ONBOARDING.md), "The way back"), Aniyomi and LNReader dimmed with **NOT YET**. Under them, FILES INSTEAD: the
   library folder and **START SCAN**, for EPUBs and downloaded chapters. The
   step ticks when an import or a scan brings in a series (its rule is
-  unchanged: any series in the library).
+  unchanged: any series in the library). Done by an import, its row on
+  `/start` names it, `Done · Mihon backup · 382 series`, with IMPORT LOG → to
+  its entry (c511, Import-Doors B).
 - **SETTINGS › 05 — LIBRARY › IMPORT A BACKUP**: when the last import came in
   (`LAST: MIHON BACKUP · 2 NOV · 382 SERIES`, or `NO IMPORT YET`), CHOOSE A
   FILE →, and IMPORT LOG → in the scope cell. On a TV the row says _From the
   computer or a phone_ with no button: **the TV never imports** (a CSS rule on
-  the TV's media query, as every device rule is).
+  the TV's media query, as every device rule is). **The server refuses a TV
+  too** (c511): the TV app's user agent (`TsundokuTV/<version>`, `isTvApp`,
+  which pairing and device sync already read) gets `THE TV NEVER IMPORTS ·
+CHOOSE THE FILE ON THE COMPUTER OR A PHONE · NOTHING CHANGED`, drawn on
+  `/import` instead of the pick screen and on `/import/<id>` before its row
+  is read; the upload answers 403 with that sentence before a byte is kept,
+  and IMPORT answers 403 and starts nothing (`src/lib/server/import/tv.ts`).
+  The phone app (`TsundokuApp/`, [`PHONE-APP.md`](PHONE-APP.md)) and every
+  browser import as before. A TV's own browser without the app sends no such
+  signal and is not refused.
 - **IMPORT LOG**: the desktop sidebar's row is a link (no longer disabled),
   counting a running import or scan in accent (`42%`). On a tablet or phone it
   is MORE's last row, with when the last backup came in (`LAST 2 NOV`).
@@ -265,7 +277,35 @@ or scan running or waiting at the top with its bar; THIS WEEK, then EARLIER.
 An entry opens in place: the file, its size and where it came from, the
 extensions it lacked, the shelves it made and the categories left out, the
 series refused. A refused file is listed (NOT READ). A preview nobody
-imported is not an import and is not listed.
+imported is not an import and is not listed. `?open=backup:<id>` (or
+`scan:<id>`) opens that entry on arrival: GET STARTED's 03, done by an
+import, links its entry so (c511). `?job=<scan job id>` opens the entry of
+that job, a scan's or a backup's, which is all the library's band knows of
+an import (c511's third part, the band's LOG →, is `works`' to draw).
+
+**WORKS: what a fold dropped** (c570). When an import or a scan folds a
+download folder's series into the series a backup names, and both were
+parts of different Works, the folder's Work loses that part
+([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Both exist"). The entry's head counts
+them (`· 1 WORK DROPPED`) and, open, lists each under WORKS as the summary
+prints it: `DROPPED FROM <WORK> · <survivor's title>`, with `· THE WORK ENDED`
+when it was left with one series. The line opens the Work while that Work
+still exists: the job keeps its id **with its `created_at`**, because
+`works.id` is reused once the newest Work ends, and an id alone would open
+whichever Work took it. **Hidden means hidden**: with reveal off, a line is
+drawn only when both hold. Its survivor is visible now: a line whose
+survivor is hidden, has since been deleted, or whose id another series took
+(kept with its `added_at` for that reason) is not drawn, since nothing kept
+says whether it was hidden. And when the dropped Work still exists (by its
+id **and** `created_at`, and it did not end at the fold), it has a visible
+part now. The second condition exists because a Work can be hidden after
+its fold: the line prints the Work's name, and a Work that kept three or
+more parts can be hidden with HIDE ALL later while the survivor stays
+shown. A Work that ended, or whose id another Work now holds, adds no
+condition: the survivor's rule alone decides. With reveal on,
+every line is drawn. A run that throws part-way still records the folds it
+made (each series is its own transaction); a job a dead process left lists
+none.
 
 **Rung 66** (`src/lib/server/db.ts`) keeps it:
 
@@ -281,7 +321,11 @@ imported is not an import and is not listed.
   series deleted since stops counting. A series deleted takes its row with it;
   a job forgotten leaves the import unlinked.
 
-A scan stays a `scan_jobs` row alone; the log reads both.
+A scan stays a `scan_jobs` row alone; the log reads both. **Rung 71** adds
+`scan_jobs.dropped` (JSON, `'[]'` by default): the Works its folds dropped,
+written as the job finishes (`finishJob`). Every job stored before the rung
+has `'[]'`, which is right: nothing recorded them, and they cannot be read
+back from anything kept.
 
 ## Where it departs from the handoff
 
@@ -307,10 +351,14 @@ A scan stays a `scan_jobs` row alone; the log reads both.
   how many series' reading moved is not measured by the writer.
 - **The phone's back cell** on the pick screen goes to the library, not to
   SETTINGS (the board's "Back to settings"): the page has several doors.
-- **The trail** (← GET STARTED, "03 OF 04") is not drawn on /import: the
-  GET STARTED trip (`src/lib/start-trail.svelte.ts`) is not this slot's file.
-- **STEP 03 DONE BY AN IMPORT** (Import-Doors B) still says the scan's done
-  line, without the import's name and count.
+- **The trail** reads `03 OF 07`, not the board's "03 OF 04": GET STARTED
+  has seven steps since FIRST READ (c209). It is drawn on `/import` and
+  `/import/<id>` (c511).
+- **STEP 03 DONE BY AN IMPORT** (Import-Doors B) is drawn on `/start` only:
+  the empty library's list is `src/routes/+page.svelte`'s, which does not
+  hand the list the last import yet (c511; `doc/handoff-notes/import.md`,
+  wave 26, Gaps, has the patch). Its link opens the import's entry in the
+  log, as the board's note asks, through `?open=backup:<id>`.
 
 ## Premises
 
@@ -325,5 +373,8 @@ title` or `kind` outside migrations and MOVE's key rewrite. The writer
 - Aniyomi and LNReader backups (c190's importers).
 - ADD A REPOSITORY in place, and the ADD AND INSTALL in one go.
 - REPLACE: by design there is none (Main.dc.html, Q1).
-- The library band's LOG → link, and SEE LOG opening the band's own entry.
+- The library band's LOG → link, and SEE LOG opening the band's own entry
+  (c511's third part: the band and `Banner` are not this slot's; the log
+  opens an entry by `?open=backup:<id>` or `?open=scan:<id>` for them, and
+  the patch is in `doc/handoff-notes/import.md`, wave 26, Gaps).
 - Choosing which series come in: by design the list is for checking.

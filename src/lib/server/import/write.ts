@@ -5,8 +5,8 @@ import { getDb } from '../db.ts';
 import { hueFor } from '../../library/cover.ts';
 import { linkFromTracker } from '../catalogue.ts';
 import type { PlannedEntry, PlannedSeries } from '../../import/plan.ts';
-import { adoptFolder, adoptFormer, adoptNamed, type Dropped } from './fold.ts';
-import { hideIfAddedHidden } from '../engine/source-flags.ts';
+import { adoptFolder, adoptFormer, adoptNamed, folderSourceId, type Dropped } from './fold.ts';
+import { hideIfAddedHidden, sourceFlags } from '../engine/source-flags.ts';
 
 /**
  * The one writer every importer uses (doc/IMPORT-MIHON.md, doc/IMPORT-HENTOID.md):
@@ -483,7 +483,15 @@ export function writeSeries(
 					if (!planned.has(r.file))
 						db.prepare(`UPDATE entries SET available = 0 WHERE id = ?`).run(r.id);
 			}
-			const addedHidden = created && opts.addedHidden === true && hideIfAddedHidden(seriesId, db);
+			// A download folder's own series names no source by its key, so its
+			// source is read from the folder (c571): created before any backup
+			// named it, it arrives hidden as the backup's series would have.
+			const addedHidden =
+				created &&
+				opts.addedHidden === true &&
+				(folderPlan
+					? hideFolderIfAddedHidden(db, seriesId, s.originKey)
+					: hideIfAddedHidden(seriesId, db));
 			return {
 				created,
 				entriesAdded,
@@ -523,6 +531,24 @@ function setEpisode(
 	);
 }
 
+/**
+ * ADDED HIDDEN for a Mihon download folder's new series (card c571): the
+ * same write as `hideIfAddedHidden` (engine/source-flags.ts), which reads the
+ * source from the series' key and so finds none in a `mihon-dir:` key, with
+ * the source read from the folder instead (`folderSourceId`). A folder whose
+ * name answers to no one installed source is left as it is. Answers whether
+ * it hid the series.
+ */
+function hideFolderIfAddedHidden(db: Database.Database, seriesId: number, key: string): boolean {
+	const source = folderSourceId(db, key);
+	if (source === null || !sourceFlags(source, db).addedHidden) return false;
+	return (
+		db
+			.prepare(`UPDATE series SET hidden = 1 WHERE id = ? AND in_library = 1 AND hidden = 0`)
+			.run(seriesId).changes > 0
+	);
+}
+
 /** Above any real position: a volume's new entries, until placeVolume puts them in their run. */
 const VOLUME_PENDING = 1e9;
 
@@ -556,13 +582,20 @@ function placeVolume(
 
 /**
  * Close a job: a run that brought no new series has nothing to tidy, so it
- * leaves no band.
+ * leaves no band. `dropped` is every Work its folds took a series out of
+ * (c570, rung 71), which the IMPORT LOG names.
  */
-export function finishJob(db: Database.Database, jobId: number, seriesCreated: number): void {
+export function finishJob(
+	db: Database.Database,
+	jobId: number,
+	seriesCreated: number,
+	dropped: Dropped[] = []
+): void {
 	const done = Date.now();
 	db.prepare(
-		`UPDATE scan_jobs SET finished_at = ?, dismissed_at = CASE WHEN ? = 0 THEN ? END WHERE id = ?`
-	).run(done, seriesCreated, done, jobId);
+		`UPDATE scan_jobs SET finished_at = ?, dismissed_at = CASE WHEN ? = 0 THEN ? END, dropped = ?
+		WHERE id = ?`
+	).run(done, seriesCreated, done, JSON.stringify(dropped), jobId);
 }
 
 /**

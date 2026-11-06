@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
 	countLine,
 	firstOpen,
+	importDoneLine,
 	parseSkipped,
 	readLeads,
 	readTrail,
 	startView,
+	TRAIL,
 	trailDone,
 	trailHere,
 	trailLasts,
@@ -212,6 +214,36 @@ describe('the way back', () => {
 		expect(trailLasts('find', '/')).toBe(false);
 		expect(trailHere('repo', '/browse/extensions')).toBe(true);
 		expect(trailHere('repo', '/browse')).toBe(false);
+	});
+	it('03’s IMPORT A BACKUP → starts a trip on the import pages, not the log (c511)', () => {
+		expect(TRAIL.library?.href).toBe('/import');
+		for (const p of ['/import', '/import/12', '/import/upload'])
+			expect(trailHere('library', p), p).toBe(true);
+		// The log draws no band, and a look at it from the result keeps the trip.
+		expect(trailHere('library', '/import/log')).toBe(false);
+		expect(trailLasts('library', '/import/log')).toBe(true);
+		for (const p of ['/', '/importer', '/settings', '/start', '/series/4'])
+			expect(trailLasts('library', p), p).toBe(false);
+		expect(TRAIL.library?.doing()).toBe('TICKS ITSELF WHEN AN IMPORT OR A SCAN BRINGS IN A SERIES');
+		// Every step with a trail ends its trip off its screens: none lasts on the library.
+		for (const id of Object.keys(TRAIL) as StepId[]) expect(trailLasts(id, '/'), id).toBe(false);
+	});
+	it('03 done by an import names it and its count; a scan alone keeps the step’s line (c511)', () => {
+		expect(importDoneLine({ id: 4, app: 'mihon', series: 382 })).toBe(
+			'Done · Mihon backup · 382 series'
+		);
+		expect(importDoneLine({ id: 4, app: 'mihon', series: 1 })).toBe(
+			'Done · Mihon backup · 1 series'
+		);
+		expect(importDoneLine({ id: 4, app: 'mihon', series: 1234 })).toBe(
+			'Done · Mihon backup · 1,234 series'
+		);
+		// An import that brought nothing the viewer sees did not tick it.
+		expect(importDoneLine({ id: 4, app: 'mihon', series: 0 })).toBeNull();
+		expect(importDoneLine(null)).toBeNull();
+		expect(importDoneLine({ id: 4, app: 'aniyomi', series: 2 })).toBe(
+			'Done · Aniyomi backup · 2 series'
+		);
 	});
 	it('arrives on 05, moves on as each step ticks, and rings the next control', () => {
 		const f = { ...setUp };

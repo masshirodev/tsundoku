@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import { clock, dayMonth, n, refusalLines, sizeWords } from '$lib/import/backup-preview';
@@ -12,7 +14,20 @@
 	 * An entry opens in place; a running one asks again every second.
 	 */
 	let { data } = $props();
-	let open = $state<string | null>(null);
+	// `?open=backup:<id>` (or `scan:<id>`) opens that entry on arrival: GET
+	// STARTED's 03, done by an import, links its entry here (c511,
+	// Import-Doors B). `?job=<scan job id>` opens the entry of that job, a
+	// scan's or a backup's, which is all the library's band knows of it.
+	const job = Number(page.url.searchParams.get('job'));
+	// Read once, on arrival: later polls must not reopen what was closed.
+	const ofJob = untrack(() =>
+		data.entries.find((e) =>
+			e.kind === 'scan' ? e.id === job : e.jobId !== null && e.jobId === job
+		)
+	);
+	let open = $state<string | null>(
+		page.url.searchParams.get('open') ?? (ofJob ? `${ofJob.kind}:${ofJob.id}` : null)
+	);
 	const key = (e: LogEntry) => `${e.kind}:${e.id}`;
 
 	const WEEK = 7 * 24 * 60 * 60 * 1000;
@@ -36,6 +51,12 @@
 		phone: 'FROM A PHONE'
 	};
 
+	/** How many Works its folds took a series out of, when any (c570). */
+	const droppedWords = (e: LogEntry) =>
+		e.dropped.length
+			? ` · ${n(e.dropped.length)} ${e.dropped.length === 1 ? 'WORK' : 'WORKS'} DROPPED`
+			: '';
+
 	function head(e: LogEntry): { a: string; b: string; ruled: boolean } {
 		const when = `${dayMonth(e.at)}, ${clock(e.at)}`;
 		if (e.kind === 'scan') {
@@ -47,7 +68,7 @@
 				};
 			return {
 				a: `SCAN · ${n(e.series)} SERIES`,
-				b: `${when} · ${e.label || 'THE LIBRARY FOLDER'}${e.failedFiles ? ` · ${n(e.failedFiles)} ${e.failedFiles === 1 ? 'FILE' : 'FILES'} FAILED` : ''}`,
+				b: `${when} · ${e.label || 'THE LIBRARY FOLDER'}${e.failedFiles ? ` · ${n(e.failedFiles)} ${e.failedFiles === 1 ? 'FILE' : 'FILES'} FAILED` : ''}${droppedWords(e)}`,
 				ruled: false
 			};
 		}
@@ -78,11 +99,35 @@
 		].filter(Boolean);
 		return {
 			a: `${appName(e.app)} · ${n(e.counts.fresh + e.counts.merged)} SERIES`,
-			b: parts.join(' · '),
+			b: parts.join(' · ') + droppedWords(e),
 			ruled: e.state === 'failed'
 		};
 	}
 </script>
+
+<!--
+	The Works a job's folds took a series out of (c570; doc/IMPORT.md, "The
+	log"), drawn as REFUSED is: one line each, the Work a link while it still
+	exists (the server checks its id with its created_at).
+-->
+{#snippet droppedRows(dropped: LogEntry['dropped'])}
+	{#if dropped.length}
+		<div class="kv">
+			<div class="k">WORKS</div>
+			<div class="dropped">
+				{#each dropped as d, i (i)}
+					<div>
+						{#if d.workId !== null}
+							<a href={resolve('/work/[id]', { id: String(d.workId) })}>{d.line}</a>
+						{:else}
+							{d.line}
+						{/if}
+					</div>
+				{/each}
+			</div>
+		</div>
+	{/if}
+{/snippet}
 
 <svelte:head><title>Import log · tsundoku</title></svelte:head>
 
@@ -190,6 +235,7 @@
 											</div>
 										</div>
 									{/if}
+									{@render droppedRows(e.dropped)}
 									{#if e.state !== 'refused'}
 										<div class="go">
 											<a class="btn" href={resolve('/import/[id]', { id: String(e.id) })}
@@ -210,6 +256,7 @@
 												: ''}
 										</div>
 									</div>
+									{@render droppedRows(e.dropped)}
 								{/if}
 							</div>
 						{/if}
@@ -240,6 +287,15 @@
 		grid-template-columns: 120px minmax(0, 1fr);
 		gap: 12px;
 		overflow-wrap: anywhere;
+	}
+	.dropped {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+	.dropped a {
+		color: inherit;
+		text-decoration: underline;
 	}
 	.go {
 		display: flex;

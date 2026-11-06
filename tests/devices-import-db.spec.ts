@@ -1345,8 +1345,8 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 	const ids: Record<string, { folder: number; named: number }> = {};
 	const partner: Record<string, number> = {};
 	const made: Record<string, number> = {};
-	/** What the run that folds the three pairs dropped, over its sources. */
-	let folding: { dropped: { work: string; series: string; ended: boolean }[] } | undefined;
+	/** What the run that folds the three pairs dropped, over its sources, and its job. */
+	let folding: { dropped: import('$lib/server/import/fold').Dropped[]; jobId: number } | undefined;
 
 	beforeAll(async () => {
 		for (const [title, slug] of PAIRS) for (const n of [1, 2]) chapter(title, slug, n);
@@ -1411,9 +1411,8 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 		// tsundoku downloads chapter 5 of each: the pair now shares one, and folds.
 		for (const [title, slug] of PAIRS) chapter(title, slug, 5);
 		// Every source's: the library's backup and tsundoku's downloads are two.
-		folding = {
-			dropped: (await runImport(library, { now: at + 10_000 })).sources.flatMap((x) => x.dropped)
-		};
+		const summary = await runImport(library, { now: at + 10_000 });
+		folding = { dropped: summary.sources.flatMap((x) => x.dropped), jobId: summary.jobId };
 		for (const [title] of PAIRS) expect(byKey(DIR(title))).toBeUndefined();
 	});
 
@@ -1450,10 +1449,168 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 		// pairs. Shapes 1 and 2 kept every membership (one Work between them);
 		// shape 3 lost Hidden Work, which then ended with one series.
 		expect(folding?.dropped).toEqual([
-			{ work: 'Hidden Work', series: 'Fold Both Parts', ended: true }
+			{
+				work: 'Hidden Work',
+				series: 'Fold Both Parts',
+				ended: true,
+				workId: made.hiddenWork,
+				workAt: at,
+				seriesId: ids['Fold Both Parts'].named,
+				seriesAt: one<{ a: number }>(
+					`SELECT added_at AS a FROM series WHERE id = ?`,
+					ids['Fold Both Parts'].named
+				).a
+			}
 		]);
 		expect(folding!.dropped.map(droppedLine)).toEqual([
 			'DROPPED FROM HIDDEN WORK · Fold Both Parts · THE WORK ENDED'
+		]);
+	});
+
+	it('shows the dropped Work in IMPORT LOG, through the page’s own load, from that scan (c570)', async () => {
+		const { load } = await import('../src/routes/import/log/+page.server');
+		const { REVEAL_COOKIE } = await import('$lib/server/prefs');
+		const logOf = async (reveal: boolean) =>
+			(await load({
+				cookies: { get: (name: string) => (reveal && name === REVEAL_COOKIE ? '1' : undefined) }
+			} as never)) as {
+				entries: { kind: string; id: number; dropped: { line: string; workId: number | null }[] }[];
+			};
+		// The scan's own entry, and only it, names the Work. It ended, so no link.
+		const revealed = (await logOf(true)).entries;
+		const scan = revealed.find((e) => e.kind === 'scan' && e.id === folding!.jobId);
+		expect(scan?.dropped).toEqual([
+			{ line: 'DROPPED FROM HIDDEN WORK · Fold Both Parts · THE WORK ENDED', workId: null }
+		]);
+		expect(revealed.filter((e) => e.dropped.length > 0).map((e) => e.id)).toEqual([folding!.jobId]);
+		// The survivor is hidden (`from` was), and hidden means hidden: with
+		// reveal off the line is not there, though the scan's entry is.
+		const plain = (await logOf(false)).entries.find(
+			(e) => e.kind === 'scan' && e.id === folding!.jobId
+		);
+		expect(plain).toBeDefined();
+		expect(plain?.dropped).toEqual([]);
+	});
+
+	it('links a dropped Work only while that Work, by id and created_at, still exists (c570)', async () => {
+		const w = await works();
+		const { droppedOf } = await import('$lib/server/import/log');
+		// Two visible series in no Work, from the library's first scans.
+		const free = db()
+			.prepare(
+				`SELECT s.id, s.added_at FROM series s JOIN roots r ON r.id = s.root_id
+				WHERE s.hidden = 0 AND r.hidden = 0 AND s.in_library = 1
+					AND s.id NOT IN (SELECT series_id FROM work_series)
+				ORDER BY s.id LIMIT 3`
+			)
+			.all() as { id: number; added_at: number }[];
+		expect(free).toHaveLength(3);
+		const kept = w.createWork({
+			seriesIds: [free[0].id, free[1].id],
+			name: 'Kept Work',
+			now: at + 20_000
+		}).work;
+		const stored = (workId: number, workAt: number, ended = false) =>
+			JSON.stringify([
+				{
+					work: 'Kept Work',
+					series: 'Survivor',
+					ended,
+					workId,
+					workAt,
+					seriesId: free[2].id,
+					seriesAt: free[2].added_at
+				}
+			]);
+		const line = 'DROPPED FROM KEPT WORK · Survivor';
+		// The Work is there: linked, reveal on or off (its parts are visible).
+		expect(droppedOf(stored(kept.id, at + 20_000), false)).toEqual([{ line, workId: kept.id }]);
+		expect(droppedOf(stored(kept.id, at + 20_000), true)).toEqual([{ line, workId: kept.id }]);
+		// The same id with another created_at is another Work: no link.
+		expect(droppedOf(stored(kept.id, at + 19_999), true)).toEqual([{ line, workId: null }]);
+		// The Work ends, and a new one takes its id (the newest row went): still no link.
+		w.ungroup(kept.id);
+		expect(w.workPage(kept.id, { reveal: true })).toBeNull();
+		const next = w.createWork({
+			seriesIds: [free[0].id, free[1].id],
+			name: 'Next Work',
+			now: at + 30_000
+		}).work;
+		expect(next.id).toBe(kept.id);
+		expect(droppedOf(stored(kept.id, at + 20_000), true)).toEqual([{ line, workId: null }]);
+		w.ungroup(next.id);
+		// A survivor whose id another series took is not read as visible.
+		expect(
+			droppedOf(
+				JSON.stringify([
+					{
+						work: 'W',
+						series: 'S',
+						ended: true,
+						workId: 0,
+						workAt: 0,
+						seriesId: free[2].id,
+						seriesAt: 1
+					}
+				]),
+				false
+			)
+		).toEqual([]);
+		// Whatever is stored that is not a list of drops is no line.
+		for (const bad of ['', 'null', '{}', '[1, null, {"work": 3}]'])
+			expect(droppedOf(bad, true)).toEqual([]);
+	});
+
+	it('draws no dropped line, reveal off, once the Work it names is hidden after the fold (c570 r2)', async () => {
+		const w = await works();
+		const { droppedOf } = await import('$lib/server/import/log');
+		const free = db()
+			.prepare(
+				`SELECT s.id, s.added_at FROM series s JOIN roots r ON r.id = s.root_id
+				WHERE s.hidden = 0 AND r.hidden = 0 AND s.in_library = 1
+					AND s.id NOT IN (SELECT series_id FROM work_series)
+				ORDER BY s.id LIMIT 3`
+			)
+			.all() as { id: number; added_at: number }[];
+		expect(free).toHaveLength(3);
+		// The Work the fold left: still alive, with two other visible parts.
+		const secret = w.createWork({
+			seriesIds: [free[0].id, free[1].id],
+			name: 'Secret Work',
+			now: at + 40_000
+		}).work;
+		const stored = (ended: boolean) =>
+			JSON.stringify([
+				{
+					work: 'Secret Work',
+					series: 'Survivor',
+					ended,
+					workId: secret.id,
+					workAt: at + 40_000,
+					seriesId: free[2].id,
+					seriesAt: free[2].added_at
+				}
+			]);
+		const line = 'DROPPED FROM SECRET WORK · Survivor';
+		try {
+			// Visible survivor, visible Work: drawn and linked, reveal off.
+			expect(droppedOf(stored(false), false)).toEqual([{ line, workId: secret.id }]);
+			// HIDE ALL on that Work, through works' own door; the survivor stays shown.
+			expect(w.hideWork(secret.id, true).changed).toBe(2);
+			expect(
+				one<{ hidden: number }>(`SELECT hidden FROM series WHERE id = ?`, free[2].id).hidden
+			).toBe(0);
+			// Reveal off: the hidden Work's name is not drawn.
+			expect(droppedOf(stored(false), false)).toEqual([]);
+			// Reveal on: drawn, and linked by the existing rule.
+			expect(droppedOf(stored(false), true)).toEqual([{ line, workId: secret.id }]);
+		} finally {
+			w.hideWork(secret.id, false);
+			w.ungroup(secret.id);
+		}
+		// A Work that ended adds no condition: a visible survivor's line is drawn, reveal off.
+		expect(droppedOf(stored(true), false)).toEqual([
+			{ line: `${line} · THE WORK ENDED`, workId: null }
 		]);
 	});
 
@@ -1607,5 +1764,124 @@ describe('a backup that names no source (c258)', () => {
 		const before = snapshot();
 		await runImport(library, { now: at + 20_000 });
 		expect(snapshot()).toEqual(before);
+	});
+});
+
+/**
+ * c571 through the library's backup (doc/BROWSE.md, "ADDED HIDDEN at the
+ * importer"): tsundoku's download arrives first and is created as a
+ * `mihon-dir:` series, then the library's own backup names the manga and
+ * `adoptFolder` re-keys that series rather than creating one. Its source is
+ * installed with ADDED HIDDEN on, so the folder's series arrives hidden and
+ * stays hidden once adopted; one from an installed source with the switch off
+ * arrives and stays visible. (import-db.spec.ts holds the other orders, the
+ * shared name and the language.)
+ */
+describe('ADDED HIDDEN reaches a download folder before the library’s backup names it (c571)', () => {
+	const at = 1_800_005_000_000;
+	const SWITCHED = 9_300_000_000_000_000_011n;
+	const UNSWITCHED = 9_300_000_000_000_000_012n;
+	const rows = (title: string) =>
+		db()
+			.prepare(`SELECT id, origin_key, hidden FROM series WHERE title = ? ORDER BY id`)
+			.all(title) as { id: number; origin_key: string; hidden: number }[];
+	const download = (sourceDir: string, title: string, slug: string) => {
+		const dir = join(tsundokuMihon, 'downloads', sourceDir, title);
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(
+			join(dir, 'Chapter 1.cbz'),
+			cbz(
+				comicInfo({
+					title: 'Chapter 1',
+					series: title,
+					number: 1,
+					web: `https://c571.example/chapters/${slug}-1`,
+					source: sourceDir.replace(/ \(.*\)$/, '')
+				})
+			)
+		);
+	};
+	const first: Record<string, number> = {};
+
+	beforeAll(async () => {
+		const { setSourceFlag } = await import('$lib/server/engine/source-flags');
+		db()
+			.prepare(
+				`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at)
+				VALUES ('c571.devices', 'C571', 'manga', 1, '1', '1.5', 'h571', ?, ?)`
+			)
+			.run(at, at);
+		const add = db().prepare(
+			`INSERT INTO engine_sources (id, pkg, name, lang) VALUES (?, 'c571.devices', ?, 'en')`
+		);
+		add.run(String(SWITCHED), 'Switched Scans');
+		add.run(String(UNSWITCHED), 'Unswitched Scans');
+		setSourceFlag(String(SWITCHED), 'addedHidden', true, db());
+
+		download('Switched Scans (EN)', 'Switched Folder', 'switched');
+		download('Unswitched Scans (EN)', 'Unswitched Folder', 'unswitched');
+		await runImport(library, { now: at });
+		for (const t of ['Switched Folder', 'Unswitched Folder']) first[t] = rows(t)[0].id;
+		expect(rows('Switched Folder')).toEqual([
+			{
+				id: first['Switched Folder'],
+				origin_key: 'mihon-dir:Switched Scans (EN)/Switched Folder',
+				hidden: 1
+			}
+		]);
+		expect(rows('Unswitched Folder')[0].hidden).toBe(0);
+
+		// Then the library's backup names both manga.
+		const { encode } = await import('./helpers/protobuf-writer');
+		writeFileSync(
+			join(rootMihon, 'autobackup', 'app.mihon_2026-11-05_13-00.tachibk'),
+			gzipSync(
+				encode([
+					[
+						1,
+						manga(SWITCHED, '/series/switched', 'Switched Folder', [
+							{ n: 1, url: '/chapters/switched-1' }
+						])
+					],
+					[
+						1,
+						manga(UNSWITCHED, '/series/unswitched', 'Unswitched Folder', [
+							{ n: 1, url: '/chapters/unswitched-1' }
+						])
+					],
+					[
+						101,
+						[
+							[1, 'Switched Scans'],
+							[2, SWITCHED]
+						]
+					],
+					[
+						101,
+						[
+							[1, 'Unswitched Scans'],
+							[2, UNSWITCHED]
+						]
+					]
+				])
+			)
+		);
+		await runImport(library, { now: at + 10_000 });
+	});
+
+	it('the backup adopts the hidden folder series, which stays the one series and stays hidden', () => {
+		expect(rows('Switched Folder')).toEqual([
+			{ id: first['Switched Folder'], origin_key: `mihon:${SWITCHED}:/series/switched`, hidden: 1 }
+		]);
+	});
+
+	it('a folder from a source with the switch off is adopted visible', () => {
+		expect(rows('Unswitched Folder')).toEqual([
+			{
+				id: first['Unswitched Folder'],
+				origin_key: `mihon:${UNSWITCHED}:/series/unswitched`,
+				hidden: 0
+			}
+		]);
 	});
 });

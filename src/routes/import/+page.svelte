@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
+	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { refusalLines, sizeWords } from '$lib/import/backup-preview';
 
 	/**
@@ -58,7 +59,8 @@
 					headers: { 'content-type': 'application/octet-stream' },
 					body: piece
 				});
-				if (!res.ok) throw new Error(String(res.status));
+				// 403 is a refusal with its sentence (the TV's, c511); any other failure is not.
+				if (!res.ok && res.status !== 403) throw new Error(String(res.status));
 				a = await res.json();
 			} catch {
 				a = {
@@ -119,135 +121,151 @@
 		</div>
 	{/snippet}
 </TopBar>
+<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md, c511). -->
+<StartTrail start={data.start} />
 
-<section class="pg" aria-label="Pick a file">
-	<div class="k">00 — CHOOSE THE FILE</div>
-	<h2 class="h1">Bring in a library from your phone's app.</h2>
-	<p class="lede wide">
-		Choose the backup file. tsundoku reads it and shows what's in it before anything is written. It
-		tells which app it came from by itself.
-	</p>
-	<p class="lede narrow">
-		Make a backup in the app, then choose it. It's usually in <b>Downloads</b>.
-	</p>
-
-	<input
-		bind:this={input}
-		type="file"
-		class="file"
-		accept=".tachibk,.proto.gz,.gz,.zip,application/octet-stream,application/gzip,application/zip"
-		aria-label="The backup file"
-		onchange={chosen}
-		tabindex="-1"
-	/>
-
-	{#if pick.kind === 'idle'}
-		<div
-			class="drop"
-			class:over
-			role="group"
-			aria-label="Drop the backup here"
-			ondragover={(e) => {
-				e.preventDefault();
-				over = true;
-			}}
-			ondragleave={() => (over = false)}
-			ondrop={dropped}
-		>
-			<div class="big wide">Drop the backup here</div>
-			<button type="button" class="btn primary lg" onclick={() => input?.click()}>
-				<span class="wide">CHOOSE A FILE…</span><span class="narrow">CHOOSE THE BACKUP FILE</span>
-			</button>
-			<div class="sm wide">.tachibk FROM MIHON OR ANIYOMI · .zip FROM LNREADER</div>
-		</div>
-		<div class="note narrow">
-			OPENS THE PHONE'S OWN FILE PICKER · THE FILE GOES TO YOUR COMPUTER, WHERE THE LIBRARY IS
-		</div>
-	{:else if pick.kind === 'uploading'}
-		<div class="drop has" role="status">
-			<div class="r">
-				<div class="tx">
-					<div class="am">{pick.name}</div>
-					<div class="b">{sizeWords(pick.size)} · UPLOADING · {pct(pick)}%</div>
-				</div>
-				<button type="button" class="ac q" onclick={cancel}>CANCEL</button>
-			</div>
-			<div class="prog"><i style:width="{pct(pick)}%"></i></div>
-		</div>
-	{:else if pick.kind === 'reading'}
-		<div class="drop has" role="status">
-			<div class="r">
-				<div class="tx">
-					<div class="am">READING · {pick.name}</div>
-					<div class="b">{sizeWords(pick.size)} · NOTHING IS WRITTEN WHILE IT READS</div>
-				</div>
-			</div>
-			<div class="prog wait"></div>
-		</div>
-	{:else}
-		<div class="drop has" role="alert">
+{#if data.tv}
+	<!-- The TV never imports (c511): the server refuses, and says so here. -->
+	<section class="pg" aria-label="Not on a TV">
+		<div class="drop" role="alert">
 			<div class="r ruled">
 				<div class="tx">
-					<div class="am">{pick.a}</div>
-					<div class="b">{pick.b}</div>
+					<div class="am">{data.tv.split(' · ')[0]}</div>
+					<div class="b">{data.tv.split(' · ').slice(1).join(' · ')}</div>
 				</div>
-				<button type="button" class="ac" onclick={() => input?.click()}>CHOOSE ANOTHER</button>
 			</div>
 		</div>
-	{/if}
+	</section>
+{:else}
+	<section class="pg" aria-label="Pick a file">
+		<div class="k">00 — CHOOSE THE FILE</div>
+		<h2 class="h1">Bring in a library from your phone's app.</h2>
+		<p class="lede wide">
+			Choose the backup file. tsundoku reads it and shows what's in it before anything is written.
+			It tells which app it came from by itself.
+		</p>
+		<p class="lede narrow">
+			Make a backup in the app, then choose it. It's usually in <b>Downloads</b>.
+		</p>
 
-	<div class="lab">
-		<span>01 — WHERE EACH APP MAKES ONE</span><span class="r wide"
-			>[CHECK] AGAINST CURRENT BUILDS</span
-		>
-	</div>
-	<div class="blk">
-		<div class="r">
-			<div class="tx">
-				<div class="a">Mihon</div>
-				<div class="b">MORE › SETTINGS › DATA AND STORAGE › CREATE BACKUP</div>
-			</div>
-			<div class="cl wide">MANGA, MANHWA</div>
-		</div>
-		<div class="r later">
-			<div class="tx">
-				<div class="a">Aniyomi</div>
-				<div class="b">MORE › SETTINGS › DATA AND STORAGE › CREATE BACKUP</div>
-			</div>
-			<div class="cl">NOT YET</div>
-		</div>
-		<div class="r later">
-			<div class="tx">
-				<div class="a">LNReader</div>
-				<div class="b">MORE › SETTINGS › BACKUP › CREATE BACKUP</div>
-			</div>
-			<div class="cl">NOT YET</div>
-		</div>
-	</div>
-	<div class="note narrow">[CHECK] MENU PATHS AGAINST CURRENT BUILDS</div>
-	<div class="note">
-		ANIYOMI AND LNREADER BACKUPS ARE NOT READ YET: THEIR IMPORTERS ARE STILL BEING BUILT
-	</div>
+		<input
+			bind:this={input}
+			type="file"
+			class="file"
+			accept=".tachibk,.proto.gz,.gz,.zip,application/octet-stream,application/gzip,application/zip"
+			aria-label="The backup file"
+			onchange={chosen}
+			tabindex="-1"
+		/>
 
-	<div class="two wide">
-		<div>
-			<div class="k">THE BACKUP IS ON THE PHONE?</div>
-			<p class="prose">
-				Open tsundoku on the phone and choose it there, from Downloads. No cable, no folder.
-			</p>
-			<a class="go" href="{resolve('/settings')}#s-devices"
-				>PAIR A PHONE · SETTINGS › 08 — DEVICES →</a
+		{#if pick.kind === 'idle'}
+			<div
+				class="drop"
+				class:over
+				role="group"
+				aria-label="Drop the backup here"
+				ondragover={(e) => {
+					e.preventDefault();
+					over = true;
+				}}
+				ondragleave={() => (over = false)}
+				ondrop={dropped}
+			>
+				<div class="big wide">Drop the backup here</div>
+				<button type="button" class="btn primary lg" onclick={() => input?.click()}>
+					<span class="wide">CHOOSE A FILE…</span><span class="narrow">CHOOSE THE BACKUP FILE</span>
+				</button>
+				<div class="sm wide">.tachibk FROM MIHON OR ANIYOMI · .zip FROM LNREADER</div>
+			</div>
+			<div class="note narrow">
+				OPENS THE PHONE'S OWN FILE PICKER · THE FILE GOES TO YOUR COMPUTER, WHERE THE LIBRARY IS
+			</div>
+		{:else if pick.kind === 'uploading'}
+			<div class="drop has" role="status">
+				<div class="r">
+					<div class="tx">
+						<div class="am">{pick.name}</div>
+						<div class="b">{sizeWords(pick.size)} · UPLOADING · {pct(pick)}%</div>
+					</div>
+					<button type="button" class="ac q" onclick={cancel}>CANCEL</button>
+				</div>
+				<div class="prog"><i style:width="{pct(pick)}%"></i></div>
+			</div>
+		{:else if pick.kind === 'reading'}
+			<div class="drop has" role="status">
+				<div class="r">
+					<div class="tx">
+						<div class="am">READING · {pick.name}</div>
+						<div class="b">{sizeWords(pick.size)} · NOTHING IS WRITTEN WHILE IT READS</div>
+					</div>
+				</div>
+				<div class="prog wait"></div>
+			</div>
+		{:else}
+			<div class="drop has" role="alert">
+				<div class="r ruled">
+					<div class="tx">
+						<div class="am">{pick.a}</div>
+						<div class="b">{pick.b}</div>
+					</div>
+					<button type="button" class="ac" onclick={() => input?.click()}>CHOOSE ANOTHER</button>
+				</div>
+			</div>
+		{/if}
+
+		<div class="lab">
+			<span>01 — WHERE EACH APP MAKES ONE</span><span class="r wide"
+				>[CHECK] AGAINST CURRENT BUILDS</span
 			>
 		</div>
-		<div>
-			<div class="k">NOTHING IS WRITTEN YET</div>
-			<p class="prose">
-				The next screen says what the file holds and which sources it needs. IMPORT is the only
-				button that changes the library.
-			</p>
+		<div class="blk">
+			<div class="r">
+				<div class="tx">
+					<div class="a">Mihon</div>
+					<div class="b">MORE › SETTINGS › DATA AND STORAGE › CREATE BACKUP</div>
+				</div>
+				<div class="cl wide">MANGA, MANHWA</div>
+			</div>
+			<div class="r later">
+				<div class="tx">
+					<div class="a">Aniyomi</div>
+					<div class="b">MORE › SETTINGS › DATA AND STORAGE › CREATE BACKUP</div>
+				</div>
+				<div class="cl">NOT YET</div>
+			</div>
+			<div class="r later">
+				<div class="tx">
+					<div class="a">LNReader</div>
+					<div class="b">MORE › SETTINGS › BACKUP › CREATE BACKUP</div>
+				</div>
+				<div class="cl">NOT YET</div>
+			</div>
 		</div>
-	</div>
-</section>
+		<div class="note narrow">[CHECK] MENU PATHS AGAINST CURRENT BUILDS</div>
+		<div class="note">
+			ANIYOMI AND LNREADER BACKUPS ARE NOT READ YET: THEIR IMPORTERS ARE STILL BEING BUILT
+		</div>
+
+		<div class="two wide">
+			<div>
+				<div class="k">THE BACKUP IS ON THE PHONE?</div>
+				<p class="prose">
+					Open tsundoku on the phone and choose it there, from Downloads. No cable, no folder.
+				</p>
+				<a class="go" href="{resolve('/settings')}#s-devices"
+					>PAIR A PHONE · SETTINGS › 08 — DEVICES →</a
+				>
+			</div>
+			<div>
+				<div class="k">NOTHING IS WRITTEN YET</div>
+				<p class="prose">
+					The next screen says what the file holds and which sources it needs. IMPORT is the only
+					button that changes the library.
+				</p>
+			</div>
+		</div>
+	</section>
+{/if}
 
 <style>
 	.back {
