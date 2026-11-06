@@ -17,8 +17,21 @@ import { bumpWebtoons, NOVEL_REPO, REPO, resetEngine } from './browse-world';
  */
 let writes = new Set<import('@playwright/test').Request>();
 
-test.beforeEach(async ({ page }) => {
+/** Webtoons.com, the extension the first case installs and updates: a failed copy can leave it. */
+const WEBTOONS = 'eu.kanade.tachiyomi.extension.all.webtoons';
+
+test.beforeEach(async ({ page, baseURL }) => {
 	await resetEngine();
+	// A copy that failed before its own REMOVE still has Webtoons.com installed,
+	// and the copy after it would find 1.6.3 already here instead of installing
+	// 1.6.2 (c607 (b), c636). REMOVE is idempotent and keeps a source's switches,
+	// which this case never turns on.
+	const origin = new URL(baseURL!).origin;
+	await page.request.post(`${origin}/browse/extensions?/remove`, {
+		form: { pkg: WEBTOONS },
+		headers: { origin },
+		maxRedirects: 0
+	});
 	writes = new Set();
 	const own = writes;
 	page.on('request', (r) => {
@@ -85,9 +98,16 @@ test.afterEach(async ({ page }, testInfo) => {
 			await post('/browse/ln:goodnovels/settings?/flag', { flag, value: 'false' });
 		on = await switchesOn();
 	}
+	// Past the longest hold the world allows (`test-hold.server.ts`'s
+	// HOLD_MAX_MS, 5 s): a write that outlived the put-back lands inside this
+	// wait, and the switches read back on. The c636 case's evidence is here, in
+	// the teardown that holds it, not in the case that runs next (review 2).
+	await new Promise((r) => setTimeout(r, 5_200));
+	const late = await switchesOn();
 	const removed = await post('/browse/extensions?/remove', { pkg: 'ln:goodnovels' });
 	await page.context().clearCookies({ name: 'tsundoku_reveal' });
 	expect.soft(on, 'Good Novels’ switches read back off before REMOVE').toBe(0);
+	expect.soft(late, 'nothing landed after the put-back').toBe(0);
 	expect
 		.soft(removed.status() === 303 || removed.ok(), `Good Novels removed: ${removed.status()}`)
 		.toBe(true);
