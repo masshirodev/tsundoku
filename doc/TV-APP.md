@@ -208,8 +208,8 @@ update (each cleans its argument through `originOf`), `FailedLoad` (fed by
 already is), `PairingBridge.remember`, `probe` and `forgetOne`, and the
 cookie's (`Forget.pairedCookie` reads only the scheme, lower-cased, and the
 port; `CookieManager` matches hosts without case). `BridgeGuard.refusesNavigation`
-and `refusesAssetRequest` (c549, rounds 2 and 3) read the asset host without
-case too.
+and `refusesAssetRequest` (c549, rounds 2, 3 and 4) read the asset host without
+case too, and `carriesAssetToken` (round 4) reads the launch's query token.
 
 The check is 9B's own: the web app manifest, through `PairingBridge`. A given
 address goes through the same `#connect=` path in the asset page, remembers
@@ -496,17 +496,27 @@ verified".
      and visit checks recognise the page by that https URL and nothing else,
      and `allowFileAccess` is off now that nothing loads a `file://` page.
      Because the page is an ordinary https URL now, the client also refuses
-     the navigations into that host it is shown (`shouldOverrideUrlLoading`,
-     through `BridgeGuard.refusesNavigation`), and `shouldInterceptRequest`
-     serves that host only to a **main frame's GET**
-     (`BridgeGuard.refusesAssetRequest`): a POST is never shown to
-     `shouldOverrideUrlLoading` (WebViewClient: "This method is not called for
-     POST requests"), and a form submit keeps its action's fragment, so a page
-     could otherwise `submit()` a form to `ASSET#connect=…` and have the pair
-     page probe and remember an attacker's server. A sub-frame's request for
-     the host is a 404 too. The app's own `loadUrl` never reaches
-     `shouldOverrideUrlLoading`, and the page's own hash changes
-     are same-document, so the screens' navigation is unchanged.
+     the navigations into that host it is shown, in **both**
+     `shouldOverrideUrlLoading` overloads: the `WebResourceRequest` one, added
+     in **API 24**, and the deprecated `String` one, which is the only one
+     **API 23** calls (`minSdk = 23`, "Old TV boxes", `android/app/build.gradle.kts`;
+     c549, round 4). `BridgeGuard.refusesNavigation` is the rule both ask.
+     `shouldInterceptRequest` (API 21 and up) is what serves the host, and it
+     serves it only to the **main frame's GET of the URL the app itself
+     loaded**: that URL carries a random `?t=…` token made once per activity
+     (`MainActivity.loadAsset`; `BridgeGuard.refusesAssetRequest` and
+     `carriesAssetToken`), and a page can write the asset URL but cannot know
+     the token. A POST (which `shouldOverrideUrlLoading` never sees:
+     WebViewClient, "This method is not called for POST requests"), a 302 on a
+     WebView whose APK does not report redirects (androidx's
+     `SHOULD_OVERRIDE_WITH_REDIRECTS` is a WebView-APK feature, not an API
+     level), a meta refresh, a form submit that keeps its action's fragment
+     (`ASSET#connect=…`), or a link on an Android 6 box all arrive without the
+     token and are a 404, with no script run. A sub-frame's request for the
+     host is a 404 too. A reload reloads the document's own URL, token
+     included, so 9A still reloads. The app's own `loadUrl` never reaches
+     `shouldOverrideUrlLoading`, and the page's own hash changes are
+     same-document, so the screens' navigation is unchanged.
      `androidx.webkit:webkit:1.14.0` resolves offline from this machine's
      Gradle cache. `tests/tv-app-pair.e2e.ts` still opens the asset file in a
      browser and is not the loader: the WebView half is JVM-tested where it is
@@ -844,15 +854,23 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   computer switched off, open that server from SERVERS, so 9D draws — the
   failed load's page, not the WebView's grey one. If any of those is blank,
   the loader's path handler is what to look at first. **Then the navigation
-  guard (c549, round 2):** from a server's library, open (or type into the
-  console) a link to
+  guard (c549, rounds 2 and 4):** from a server's library, open (or type into
+  the console) a link to
   `https://appassets.androidplatform.net/pair/index.html#connect=http://example.com:42143`;
   nothing may happen — the page stays where it was, no 9B, no CHECKING, and
   MORE › SERVERS must gain no `example.com` entry. The same URL typed into a
   page's console as `location.href` must be refused the same way, and a
   server page that tries to embed the asset page in a frame must show a 404
-  rather than the pair screen. **Then the POST (c549, round 3),
-  which the navigation guard cannot see:** from a server page's console,
+  rather than the pair screen. **Run this on the oldest box the app targets,
+  an Android 6 (API 23) television or an API 23 emulator:** API 23 calls only
+  the deprecated `shouldOverrideUrlLoading(WebView, String)`, which is why
+  both overloads are overridden (c549, round 4). Then, from a server page,
+  serve an HTTP 302 whose `Location` is that same asset URL: the page must
+  not change (or must show nothing), and MORE › SERVERS must gain no entry.
+  On a WebView whose APK does not report redirects to the navigation callback
+  (androidx's `SHOULD_OVERRIDE_WITH_REDIRECTS` is a WebView-APK feature), the
+  token at the interception is what refuses it. **Then the POST (c549, round
+  3),** which the navigation guard cannot see: from a server page's console,
   create and submit a form whose action is
   `https://appassets.androidplatform.net/pair/index.html#connect=http://example.com:42143`
   and whose `method` is `post`. The WebView must show a 404 and no pair
@@ -881,15 +899,20 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   `InsetsTest`, `IntentAddressTest`, `KeysTest`, `MessageGuardTest`,
   `NetworkTest`, `PairingBridgeTest`, `ProbeTest`, `ReleaseCheckTest`,
   `ScaleTest`, `ServersTest`, `ShortcutsTest`, `UpdaterPlanTest`, `VersionsTest`
-  (157 tests in 21 classes per flavor at wave 30), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
-  `BridgeGuardTest` (10) includes c549's round-2 case: a navigation to the
+  (159 tests in 21 classes per flavor at wave 30), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
+  `BridgeGuardTest` (12) includes c549's round-2 case: a navigation to the
   asset host with `#connect=`, `#add` or `#rename=` is refused, a frame's
   request for it is refused, the host is read case-blind, and a known or an
   unknown server's page — and a URL that merely carries the host in a query —
   is not. Its round-3 case (c549, wave 30) is that host served only to a
   main-frame GET: a form `POST` to `ASSET#connect=…`, a lower-case `post`
   and a null method are refused, a main-frame `GET` is served, a frame's
-  `GET` is refused, and no other host is refused whatever its method.
+  `GET` is refused, and no other host is refused whatever its method. Its
+  round-4 case (c549, wave 30) is the token: a main-frame `GET` of the app's
+  own `?t=…` URL (with any fragment) is served, and a tokenless `ASSET`, one
+  with a wrong or extra query, a blank token and a token in the fragment are
+  refused, so the attack URL is refused even where no navigation callback
+  runs. `carriesAssetToken` is checked on its own as well.
   `MessageGuardTest` (8) is c549's part (b), the per-message rule
   `BridgeGuard.allowsMessage`, every input an origin as the listener delivers
   one: a third-party frame inside a known server's page is refused, a known
@@ -919,11 +942,11 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   next attempt ending a mark whose finish never came, and `onPageFinished`'s
   decision (`FailedLoad.finish`: a failed `/pair/tv` consumes its mark, a
   loaded one is read for 9E's name, an unknown server is never a visit).
-  `BridgeGuardTest` (10) is c529's rule (the asset page by its https URL since
+  `BridgeGuardTest` (12) is c529's rule (the asset page by its https URL since
   c549, a known origin, one stored with its scheme's own port, one stored with
   capitals trusted on its lower-case pages (c548), a scheme typed in capitals
   trusted without widening anything (c646), the asset host served only to a
-  main-frame GET (c549, round 3), and the refused: unknown origins,
+  main-frame GET of the launch's own token (c549, rounds 3 and 4), and the refused: unknown origins,
   another port, the http/https twin, the asset page's old `file://` URL and
   other `file://` pages);
   `PairingBridgeTest` (8) calls each guarded method from an
