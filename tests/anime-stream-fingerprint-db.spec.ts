@@ -94,6 +94,7 @@ let server: Server;
 let self = '';
 let seen: string[] = [];
 
+// Encoding the fixtures took 130 s at a load of 40 (wave 30), past 120 s's limit.
 beforeAll(async () => {
 	const op = noise('op.mka', 20, 41);
 	const ed = noise('ed.mka', 20, 43);
@@ -219,7 +220,7 @@ beforeAll(async () => {
 	await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
 	self = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 	process.env.ENGINE_URL = self;
-}, 120_000);
+}, 300_000);
 afterAll(async () => {
 	server.closeAllConnections();
 	await new Promise((ok) => server.close(ok));
