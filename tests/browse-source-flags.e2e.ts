@@ -1,4 +1,5 @@
-import { test, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import {
 	COLD,
 	SOURCE,

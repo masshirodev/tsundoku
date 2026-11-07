@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /**
  * GET STARTED in two parts (the FIRST READ handoff, board 1; card c209), in a real

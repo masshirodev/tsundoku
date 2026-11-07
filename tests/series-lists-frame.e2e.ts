@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
-import { hydrated } from './helpers/hydration';
+import { type Page } from '@playwright/test';
+import { expect, hydrated, test } from './fixtures';
 
 /**
  * Design conformance, in a real browser.

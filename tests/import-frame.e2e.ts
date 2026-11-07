@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /*
  * IMPORT A BACKUP's pick screen against its board (c438; doc/IMPORT.md). The
