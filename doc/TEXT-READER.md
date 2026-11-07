@@ -323,6 +323,15 @@ is the end page, which takes the pad the same way, and its library row
 (HIDE, or + ADD for a record, c655) is a stop of its own. Off a TV the arrows stay
 the reader's whatever the controls.
 
+**HIDE CURSOR** is the image reader's row, with the same choice (c678, off by
+default; [`READER.md`](READER.md), "Mouse"): with it on, three seconds without
+the mouse moving hides the cursor over the page, and a move or a press brings
+it back at once. A key and the wheel do not, and it never hides while the
+bars, the sheet, CONTENTS, the lookup, a full-screen image, a wide block or
+the end page is open. The row is left out where there is no mouse, so a phone,
+a tablet and a TV show none. It is the same device setting
+(`tsundoku.reader.cursor`).
+
 ## Direction
 
 The owner, 2026-11-03 (c440): "option to L->R, R->L on novels". READING's

@@ -202,3 +202,134 @@ test.describe('the sheets keep their ✕ while their rows scroll (c679)', () => 
 		expect(row.y).toBeGreaterThanOrEqual(head.y + head.height - 1);
 	});
 });
+
+/**
+ * c678: HIDE CURSOR in the READING sheet, off on both readers. With it on, the
+ * cursor goes after three seconds without the mouse moving, and a move or a
+ * press brings it back at once; a key and the wheel do not, so reading by
+ * arrows stays clean. It never hides while a bar, a sheet, the page menu or
+ * the end page is open. Only a mouse has a cursor, so the row is left out on a
+ * phone and a tablet (and on a TV, where `pointer: none`; the `tv` project does
+ * not collect this file, and `tv-reader`/`tv-text-reader` walk the sheets).
+ */
+test.describe('HIDE CURSOR (c678)', () => {
+	const cursor = (page: Page) =>
+		page
+			.locator('.reader, .text-reader')
+			.first()
+			.evaluate((el) => getComputedStyle(el).cursor);
+
+	async function toggleOnInReading(page: Page) {
+		await page.keyboard.press('Escape');
+		await page.getByRole('button', { name: /SETTINGS ↑/ }).click();
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		const row = sheet.locator('.row', { hasText: 'CURSOR' });
+		const toggle = row.getByRole('switch');
+		await expect(toggle).toHaveAttribute('aria-checked', 'false');
+		await toggle.click();
+		await expect(toggle).toHaveAttribute('aria-checked', 'true');
+		await sheet.getByRole('button', { name: 'Close' }).click();
+		await expect(sheet).toHaveCount(0);
+	}
+
+	test('the image reader hides it after the wait; a move, a press and the overlays bring it back (c678)', async ({
+		page
+	}, info) => {
+		test.skip(info.project.name !== 'desktop', 'a cursor exists only under a fine pointer');
+		test.setTimeout(90_000);
+		await openSeries(page, 'Sousou no Frieren');
+		await readerReady(page);
+		await toggleOnInReading(page);
+		// The bars the sheet was opened from are still up, and the cursor never
+		// hides while they are: put them away, as reading does.
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('banner', { name: 'Reader' })).toHaveCount(0);
+		// Turned on, the timer starts: the cursor goes by itself.
+		await expect.poll(() => cursor(page), { timeout: 8000 }).toBe('none');
+		// A move brings it back at once.
+		await page.mouse.move(400, 300);
+		await page.mouse.move(720, 450);
+		await expect.poll(() => cursor(page)).toBe('auto');
+		// Still again, it goes again.
+		await expect.poll(() => cursor(page), { timeout: 8000 }).toBe('none');
+		// A key and the wheel are reading, not the mouse: neither brings it back.
+		await page.keyboard.press('ArrowRight');
+		expect(await cursor(page)).toBe('none');
+		await page.mouse.wheel(0, 120);
+		expect(await cursor(page)).toBe('none');
+		// A button does, at once.
+		await page.mouse.down();
+		await expect.poll(() => cursor(page)).toBe('auto');
+		await page.mouse.up();
+		// The bars and the sheet are open over the reader: it stays shown.
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('banner', { name: 'Reader' })).toBeVisible();
+		expect(await cursor(page)).toBe('auto');
+		await page.getByRole('button', { name: /SETTINGS ↑/ }).click();
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		await expect(sheet).toBeVisible();
+		await page.waitForTimeout(3500);
+		expect(await cursor(page)).toBe('auto');
+		await sheet.getByRole('button', { name: 'Close' }).click();
+		await expect(sheet).toHaveCount(0);
+		await expect(page.getByRole('banner', { name: 'Reader' })).toBeVisible();
+		// The page menu over a bare page: the press wakes it, and the menu keeps
+		// it up past the wait it would otherwise hide by.
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('banner', { name: 'Reader' })).toHaveCount(0);
+		await expect.poll(() => cursor(page), { timeout: 8000 }).toBe('none');
+		await page.mouse.move(720, 450);
+		await page.mouse.down();
+		await page.waitForTimeout(700);
+		await page.mouse.up();
+		const menu = page.getByRole('dialog', { name: /page|cover/i });
+		await expect(menu).toBeVisible();
+		await page.waitForTimeout(3500);
+		expect(await cursor(page)).toBe('auto');
+		await page.keyboard.press('Escape');
+		await expect(menu).toHaveCount(0);
+		// The end page is open: still shown, even though a key is what got there.
+		await page.goto(`${page.url().replace(/\?.*$/, '')}?p=last`);
+		await readerReady(page);
+		await page.mouse.move(720, 450);
+		await expect.poll(() => cursor(page), { timeout: 8000 }).toBe('none');
+		await page.keyboard.press('ArrowLeft');
+		await expect(page.locator('[data-end-page]')).toBeVisible();
+		// Past the wait it would hide by: the end page keeps it shown.
+		await page.waitForTimeout(3500);
+		expect(await cursor(page)).toBe('auto');
+	});
+
+	test('the text reader hides it after the wait, and the sheet keeps it shown (c678)', async ({
+		page
+	}, info) => {
+		test.skip(info.project.name !== 'desktop', 'a cursor exists only under a fine pointer');
+		test.setTimeout(60_000);
+		await openSeries(page, 'Mushoku Tensei');
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15_000 });
+		await toggleOnInReading(page);
+		await page.keyboard.press('Escape');
+		await expect(page.getByRole('banner', { name: 'Reader' })).toHaveCount(0);
+		await expect.poll(() => cursor(page), { timeout: 8000 }).toBe('none');
+		await page.mouse.move(400, 300);
+		await page.mouse.move(720, 450);
+		await expect.poll(() => cursor(page)).toBe('auto');
+		await page.keyboard.press('Escape');
+		await page.getByRole('button', { name: /SETTINGS ↑/ }).click();
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		await expect(sheet).toBeVisible();
+		await page.waitForTimeout(3500);
+		expect(await cursor(page)).toBe('auto');
+	});
+
+	test('the row is left out where there is no mouse (c678)', async ({ page }, info) => {
+		test.skip(info.project.name === 'desktop', 'the fine pointer has its own cases above');
+		await openSeries(page, 'Sousou no Frieren');
+		await readerReady(page);
+		await page.keyboard.press('Escape');
+		await page.getByRole('button', { name: /SETTINGS ↑/ }).click();
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		await expect(sheet).toBeVisible();
+		await expect(sheet.getByText('CURSOR', { exact: true })).toHaveCount(0);
+	});
+});

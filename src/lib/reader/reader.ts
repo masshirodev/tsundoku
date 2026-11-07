@@ -531,3 +531,15 @@ export function isReaderPath(pathname: string, prefix: string): boolean {
 	const rest = pathname.slice(prefix.length);
 	return rest.length > 0 && !rest.includes('/');
 }
+
+/**
+ * The cursor's idle hide (c678; the owner, 2026-11-06: "can we add an option to
+ * hide the cursor after a few seconds of inactivity? inside the reader").
+ * Three seconds without the mouse moving hides it over the reader; any move
+ * or press brings it back at once, a key and the wheel do not, and it never
+ * hides while the bars, a sheet, the page menu or the end page is open. The
+ * option is one device setting shared by both readers and the player
+ * (`tsundoku.reader.cursor`); a reader starts with it off, the player on.
+ */
+export const CURSOR_IDLE_MS = 3000;
+export const CURSOR_KEY = 'tsundoku.reader.cursor';

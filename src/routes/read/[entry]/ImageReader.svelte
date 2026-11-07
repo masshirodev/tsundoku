@@ -70,6 +70,7 @@
 		nearEnd,
 		stripWindow,
 		shapeOf,
+		CURSOR_IDLE_MS,
 		type StripChapter
 	} from '$lib/reader/reader';
 	import { skipOffscreen } from '$lib/reader/offscreen';
@@ -158,6 +159,9 @@
 		wide = stored('wide', 'fit');
 		crop = stored('crop', false);
 		blocksShown = stored<BlocksShown>('blocks', 'controls');
+		// The cursor's idle hide is off unless asked for (c678): a reader needs a
+		// mouse, and a reader who has not asked keeps the one it always had.
+		cursorOn = stored<boolean>('cursor', false);
 	});
 
 	// The phone app draws the pages under the camera while the reader is open,
@@ -1748,7 +1752,42 @@
 	// ---- the mouse at the window's edge ------------------------------------------------------
 	/** The controls came up because the pointer reached an edge: they go when it leaves. */
 	let byHover = false;
+	/**
+	 * HIDE CURSOR (c678): with the option on, the cursor goes after three
+	 * seconds without the mouse moving, and a move or a press brings it back at
+	 * once. Keys and the wheel do not, so reading by arrows stays clean. It
+	 * never hides while the bars, the sheet, the page menu, the lookup or the
+	 * end page is open: the owner is about to click something.
+	 */
+	const pointerFine = new MediaQuery('(pointer: fine)', false);
+	let cursorOn = $state(false);
+	let idle = $state(false);
+	let idleTimer: ReturnType<typeof setTimeout> | undefined;
+	function wakeCursor() {
+		idle = false;
+		clearTimeout(idleTimer);
+		if (!cursorOn || !pointerFine.current) return;
+		if (chrome || sheet || lookup || menu || atEnd) return;
+		idleTimer = setTimeout(() => (idle = true), CURSOR_IDLE_MS);
+	}
+	// Everything that opens over the reader, and the option itself, decides
+	// whether the mouse may rest: each change shows it and starts over.
+	$effect(() => {
+		void chrome;
+		void sheet;
+		void lookup;
+		void menu;
+		void atEnd;
+		void cursorOn;
+		void pointerFine.current;
+		untrack(wakeCursor);
+	});
+	function setCursor(on: boolean) {
+		cursorOn = on;
+		store('cursor', on);
+	}
 	function hover(e: PointerEvent) {
+		if (e.pointerType === 'mouse') wakeCursor();
 		if (e.pointerType !== 'mouse' || e.buttons !== 0 || sheet || lookup || !data.manifest) return;
 		const overBars = !!(e.target as Element | null)?.closest?.(
 			'header[aria-label="Reader"], footer[aria-label="Reader controls"]'
@@ -1923,12 +1962,14 @@
 	onkeyup={releaseKeys}
 	onblur={() => endHold()}
 	onpointermove={hover}
+	onmousedown={wakeCursor}
 />
 
 <div
 	class="reader"
 	class:vertical={mode === 'vertical'}
 	class:incognito={data.incognito}
+	class:cursor-idle={idle}
 	bind:this={root}
 	data-focus-off={!atEnd && !(tvScreen.current && chrome) ? '' : undefined}
 >
@@ -2328,6 +2369,8 @@
 			keptZoom={kept}
 			onzoom={setZoom}
 			onkeepzoom={keepZoom}
+			cursor={cursorOn}
+			oncursor={setCursor}
 			onrate={rate}
 			onclose={() => (sheet = false)}
 		/>
@@ -2360,6 +2403,14 @@
 		user-select: none;
 		-webkit-user-select: none;
 		-webkit-touch-callout: none;
+	}
+	/* HIDE CURSOR on, and the mouse still for three seconds (c678): the class is
+	   the whole change, so nothing reflows. Every descendant is covered because
+	   a cell or a page menu row sets its own pointer cursor. Never while a bar,
+	   a sheet, a menu or the end page is open -- `idle` cannot be set then. */
+	.reader.cursor-idle,
+	.reader.cursor-idle * {
+		cursor: none;
 	}
 	.stage {
 		position: relative;

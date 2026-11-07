@@ -10,7 +10,7 @@
 	import { enhance } from '$app/forms';
 	import type Hls from 'hls.js';
 	import { clock, isWatchedAt } from '$lib/library/anime';
-	import { isWatching, WatchClock } from '$lib/reader/reader';
+	import { CURSOR_KEY, isWatching, WatchClock } from '$lib/reader/reader';
 	import {
 		challengeScale,
 		bufferedTo,
@@ -288,6 +288,14 @@
 	let stay = $state(false);
 	let count = $state(NEXT_COUNT_S);
 	let mouse = $state(false);
+	/**
+	 * HIDE CURSOR (c678): the player has no timer of its own. It follows the
+	 * option the readers keep, on by default, and the cursor goes exactly when
+	 * the controls go during playback (`chrome` false, HIDE_MOUSE_MS after the
+	 * last move) and comes back whenever they do: a move, a key, a pause.
+	 */
+	let cursorOn = $state(true);
+	const cursorIdle = $derived(cursorOn && mouse && !chrome && !paused && phase === 'playing');
 	let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function showChrome() {
@@ -1479,6 +1487,7 @@
 		if (video) video.volume = volume;
 		device = navigator.language;
 		mouse = matchMedia('(pointer: fine)').matches;
+		cursorOn = readLocal<boolean>(CURSOR_KEY, true);
 		pipable = canPip();
 		void start();
 		const close = () => opened && void send('close');
@@ -1679,6 +1688,7 @@
 	class="player"
 	class:hidden-series={data.series.hidden}
 	class:chrome
+	class:cursor-idle={cursorIdle}
 	bind:this={root}
 	role="presentation"
 	data-focus-off={!tv.current || (phase === 'playing' && !chrome && !overlay) ? '' : undefined}
@@ -2480,6 +2490,14 @@
 		--bar-w: 7px;
 		--bar-h: 26px;
 		--sub-base: 30px;
+	}
+	/* HIDE CURSOR on, playing, and the controls gone (c678): the cursor goes
+	   with them, on the class the chrome's own state already gives, and comes
+	   back whenever the controls do. Every descendant is covered because a
+	   cell sets its own pointer cursor. */
+	.player.cursor-idle,
+	.player.cursor-idle * {
+		cursor: none;
 	}
 	/* The phone, landscape: Player States 2d. */
 	@media (max-height: 499px) {

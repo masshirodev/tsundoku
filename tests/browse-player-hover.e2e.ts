@@ -104,3 +104,49 @@ test('hovering the picture leaves it untinted, and a visible control still tints
 	expect(await page.locator('.tapzone').getAttribute('data-pressed')).toBeNull();
 	await page.mouse.up();
 });
+
+/**
+ * c678: the player's cursor follows its controls. The option is the readers'
+ * (HIDE CURSOR) and the player's default is on, so no row is touched here; the
+ * player has no timer of its own, and the cursor goes exactly when the controls
+ * go during playback (`HIDE_MOUSE_MS` after the last move) and comes back with
+ * them: a move, a key, a pause. Incognito, so nothing is logged.
+ */
+test('the cursor goes with the controls during playback and comes back with them (c678)', async ({
+	page
+}) => {
+	test.setTimeout(90_000);
+	await page.goto('/search');
+	await page.getByRole('searchbox').fill('/incognito');
+	await page.keyboard.press('Enter');
+	await page.waitForURL(/\/$/);
+	await openEpisode(page);
+	const player = page.locator('.player');
+	const cursor = () => player.evaluate((el) => getComputedStyle(el).cursor);
+	// Playing: the controls go by themselves, and the cursor with them.
+	await page.evaluate(() => (document.querySelector('video') as HTMLVideoElement).play());
+	await expect(player).not.toHaveClass(/chrome/, { timeout: 15_000 });
+	await expect.poll(cursor).toBe('none');
+	// A move brings both back, at once.
+	await page.mouse.move(300, 200);
+	await page.mouse.move(700, 400);
+	await expect(player).toHaveClass(/chrome/);
+	await expect.poll(cursor).toBe('auto');
+	// Paused, the controls stay and so does the cursor.
+	await page.evaluate(() => (document.querySelector('video') as HTMLVideoElement).pause());
+	await page.waitForTimeout(2500);
+	await expect(player).toHaveClass(/chrome/);
+	expect(await cursor()).toBe('auto');
+	// Playing again: it hides with the controls, and a sheet over the picture
+	// keeps both up.
+	await page.evaluate(() => (document.querySelector('video') as HTMLVideoElement).play());
+	await expect(player).not.toHaveClass(/chrome/, { timeout: 15_000 });
+	await expect.poll(cursor).toBe('none');
+	await page.mouse.move(300, 200);
+	await page.mouse.move(700, 400);
+	await page.locator('.cells .cell.grow').click();
+	const sheet = page.getByRole('dialog', { name: 'Playback settings' });
+	await expect(sheet).toBeVisible();
+	await page.waitForTimeout(2500);
+	expect(await cursor()).toBe('auto');
+});

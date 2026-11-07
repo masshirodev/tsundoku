@@ -32,6 +32,7 @@
 		crop,
 		landscape,
 		dim,
+		cursor,
 		zoom = 1,
 		keptZoom = 1,
 		rating,
@@ -47,6 +48,7 @@
 		ondim,
 		onzoom = () => undefined,
 		onkeepzoom = () => undefined,
+		oncursor,
 		onrate,
 		onclose
 	}: {
@@ -64,6 +66,8 @@
 		landscape: boolean;
 		/** 0 to 0.8. */
 		dim: number;
+		/** HIDE CURSOR (c678): the device's, shared with the image reader and the player. */
+		cursor: boolean;
 		/** The session's zoom and the kept one for this mode on this screen (doc/READER.md, "Zoom"). */
 		zoom?: number;
 		keptZoom?: number;
@@ -81,6 +85,7 @@
 		ondim: (d: number) => void;
 		onzoom?: (z: number) => void;
 		onkeepzoom?: () => void;
+		oncursor: (on: boolean) => void;
 		onrate: (r: number) => void;
 		onclose: () => void;
 	} = $props();
@@ -110,6 +115,8 @@
 	/** READING's "?": its rows give way to 02 — READING's In short (doc/HELP.md). */
 	let asking = $state(false);
 	const tvScreen = new MediaQuery(TV, false);
+	/** Only a mouse draws a cursor: a phone, a tablet and a TV leave the row out (c678). */
+	const pointerFine = new MediaQuery('(pointer: fine)', false);
 
 	let dimTrack = $state<HTMLElement | null>(null);
 	let sliding = false;
@@ -353,6 +360,28 @@
 						{/each}
 					</div>
 					<div class="under"><span class="note">OUTLINES OCR'D TEXT BLOCKS</span></div>
+				</div>
+			</div>
+		{/if}
+
+		{#if pointerFine.current}
+			<!-- HIDE CURSOR (c678): the cursor goes after three seconds still, and
+			     a move or a press brings it back. Only where there is a mouse. -->
+			<div class="row">
+				<div class="label">CURSOR</div>
+				<div class="body split">
+					<button
+						type="button"
+						class="switch"
+						role="switch"
+						aria-checked={cursor}
+						data-focus-mark="in"
+						onclick={() => oncursor(!cursor)}
+					>
+						<span class="track" class:on={cursor}><span class="knob"></span></span>
+						<span>{cursor ? 'ON' : 'OFF'}</span>
+					</button>
+					<span class="note">HIDES AFTER 3 S STILL</span>
 				</div>
 			</div>
 		{/if}
