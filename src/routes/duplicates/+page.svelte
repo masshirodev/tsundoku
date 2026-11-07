@@ -143,7 +143,9 @@
 	let refused = $state<Refusal[]>([]);
 	let stuck = $state<Stuck[]>([]);
 
-	async function post(body: object): Promise<{ refused?: Refusal[]; failed?: Stuck[] } | null> {
+	async function post(
+		body: object
+	): Promise<{ refused?: Refusal[]; failed?: Stuck[]; undone?: boolean } | null> {
 		try {
 			const r = await fetch(resolve('/api/dupes'), {
 				method: 'POST',
@@ -151,7 +153,11 @@
 				body: JSON.stringify(body)
 			});
 			if (!r.ok) return null;
-			return (await r.json().catch(() => ({}))) as { refused?: Refusal[]; failed?: Stuck[] };
+			return (await r.json().catch(() => ({}))) as {
+				refused?: Refusal[];
+				failed?: Stuck[];
+				undone?: boolean;
+			};
 		} catch {
 			return null;
 		}
@@ -224,10 +230,20 @@
 		const u = undo;
 		if (!u?.pair || !u.before || busy) return;
 		busy = true;
-		const ok = await post({ undo: u.pair });
+		const answer = await post({ undo: u.pair });
 		busy = false;
-		if (!ok) {
+		if (!answer) {
 			failed = 'THE WORKSTATION DID NOT ANSWER · NOTHING CHANGED';
+			return;
+		}
+		// `{undone: false}` with a 200 (c670): a load carried the decision out
+		// after this screen asked for it. There is nothing to take back, and
+		// putting the pair back in this visit's queue would only 409 when it is
+		// decided -- it is already folded, grouped or in the trash.
+		if (!answer.undone) {
+			undo = null;
+			chosen = null;
+			failed = 'THE DECISION WAS ALREADY CARRIED OUT · NOTHING CHANGED';
 			return;
 		}
 		queue = u.before.queue;
@@ -352,6 +368,10 @@
 
 	/** OPEN → after a fold: carried out first, so the book screen shows it folded. */
 	async function openFolded(seriesId: number) {
+		// The pair this band's OPEN → belongs to. A refusal or failure of another
+		// pair -- a KEEP stuck on its trash move, retried on every apply -- does
+		// not mean this fold wasn't carried out (c670).
+		const own = undo?.pair ?? null;
 		busy = true;
 		const answer = await post({ apply: true });
 		busy = false;
@@ -363,7 +383,9 @@
 		refused = answer?.refused ?? [];
 		stuck = answer?.failed ?? [];
 		unreject(refused);
-		if (!answer || refused.length || stuck.length) {
+		const blocked =
+			!!own && (refused.some((r) => r.pair === own) || stuck.some((f) => f.pair === own));
+		if (!answer || blocked) {
 			if (!answer) failed = 'THE WORKSTATION DID NOT ANSWER · NOTHING CHANGED';
 			return;
 		}
