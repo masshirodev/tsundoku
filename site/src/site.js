@@ -70,7 +70,11 @@
 		var rows = document.querySelector('.dl-rows');
 		if (!rows) return;
 		var version = rows.getAttribute('data-version') || '';
-		var p = plan(os, version);
+		var apps = {
+			app: !!rows.querySelector('[data-os="android"]'),
+			tv: !!rows.querySelector('[data-os="android-tv"]')
+		};
+		var p = plan(os, version, apps);
 
 		p.order.forEach(function (key) {
 			var row = rows.querySelector('[data-os="' + key + '"]');

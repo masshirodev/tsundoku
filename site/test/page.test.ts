@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readRelease } from '../lib/data.ts';
 import { DEFAULT_HELP, renderPage, type Captures } from '../lib/page.ts';
-import { MANIFEST, testKey } from './helpers.ts';
+import { ANDROID_MANIFEST, MANIFEST, testKey } from './helpers.ts';
 
 const cap = (file: string) => ({ file, width: 100, height: 200 });
 const CAPTURES: Captures = {
@@ -14,10 +14,10 @@ const CAPTURES: Captures = {
 	'history-phone': { dark: cap('f-dark.webp'), light: cap('f-light.webp') }
 };
 
-function render(help = DEFAULT_HELP, solverSize = 326069158) {
+function render(help = DEFAULT_HELP, solverSize = 326069158, manifest = MANIFEST) {
 	const k = testKey();
 	return renderPage({
-		release: readRelease(k.signed(MANIFEST), k.raw),
+		release: readRelease(k.signed(manifest), k.raw),
 		solver: {
 			windows: { name: 'flaresolverr-3.4.6-win-x64.zip', size: solverSize },
 			linux: { name: 'flaresolverr-3.4.6-linux-x64.tar.gz', size: solverSize }
@@ -40,7 +40,7 @@ test('the release notes are escaped, one paragraph a line', () => {
 
 test('as built: Windows, Linux, macOS, nothing tagged, only the installer on the accent', () => {
 	const html = render();
-	const order = [...html.matchAll(/class="dl-row[^"]*" data-os="(\w+)"/g)].map((m) => m[1]);
+	const order = [...html.matchAll(/class="dl-row[^"]*" data-os="([\w-]+)"/g)].map((m) => m[1]);
 	assert.deepEqual(order, ['windows', 'linux', 'mac']);
 	assert.equal(html.match(/<span class="tag" hidden>/g)?.length, 3);
 	const accented = [...html.matchAll(/class="btn btn-main btn-accent" data-main="(\w+)"/g)].map(
@@ -62,6 +62,66 @@ test('every download links latest/ with its size', () => {
 		);
 	assert.match(html, /↓ INSTALLER · \.EXE<span class="btn-size">231 MB<\/span>/);
 	assert.match(html, /FlareSolverr, about 311 MB since/);
+});
+
+test('a release without the apps draws no app row, and the phone copy offers none', () => {
+	const html = render();
+	assert.doesNotMatch(html, /data-os="android/);
+	assert.match(
+		html,
+		/<span class="dl-band-text">tsundoku runs on a computer, Windows or Linux\. Install it there, then read on this phone over Wi-Fi\.<\/span>/
+	);
+	assert.match(
+		html,
+		/<p class="phone-lead">tsundoku stays on the computer; the phone opens it in its browser\. Two ways in\.<\/p>/
+	);
+	assert.doesNotMatch(html, /tsundoku app/);
+});
+
+test('a release with both apps draws both rows, name, size and hash from the manifest', () => {
+	const html = render(DEFAULT_HELP, 326069158, ANDROID_MANIFEST);
+	const order = [...html.matchAll(/class="dl-row[^"]*" data-os="([\w-]+)"/g)].map((m) => m[1]);
+	assert.deepEqual(order, ['windows', 'linux', 'mac', 'android', 'android-tv']);
+	assert.match(
+		html,
+		/href="https:\/\/dl\.tsundoku\.masshiro\.pro\/latest\/tsundoku-app\.apk" download>↓ ANDROID APP · \.APK<span class="btn-size">42 MB<\/span>/
+	);
+	assert.match(
+		html,
+		/href="https:\/\/dl\.tsundoku\.masshiro\.pro\/latest\/tsundoku-tv\.apk" download>↓ TV APP · \.APK<span class="btn-size">32 MB<\/span>/
+	);
+	assert.match(html, new RegExp(`SHA-256 ${'b'.repeat(64)}`));
+	assert.match(html, new RegExp(`SHA-256 ${'c'.repeat(64)}`));
+	assert.match(html, /Android asks once to allow installs from your browser/);
+	assert.match(
+		html,
+		/copy the APK to a USB stick and open it with the TV’s file manager, or use a downloader app/
+	);
+});
+
+test('the phone band and 06 offer the app only when the release has the phone app', () => {
+	const html = render(DEFAULT_HELP, 326069158, ANDROID_MANIFEST);
+	assert.match(
+		html,
+		/and the Android app is on this page\. Install tsundoku on the computer first/
+	);
+	assert.match(
+		html,
+		/phone opens it in its browser, or in <a href="#download">the tsundoku app<\/a>, which pairs with the computer and needs it running/
+	);
+});
+
+test('a release with only one app draws only that row', () => {
+	const onlyTv = {
+		...ANDROID_MANIFEST,
+		files: { ...ANDROID_MANIFEST.files, android: { tv: ANDROID_MANIFEST.files.android?.tv } }
+	};
+	const html = render(DEFAULT_HELP, 326069158, onlyTv);
+	const order = [...html.matchAll(/class="dl-row[^"]*" data-os="([\w-]+)"/g)].map((m) => m[1]);
+	assert.deepEqual(order, ['windows', 'linux', 'mac', 'android-tv']);
+	// 06 is the phone and tablet's, so only the phone app puts its words there.
+	assert.doesNotMatch(html, /tsundoku app/);
+	assert.match(html, /tsundoku runs on a computer, Windows or Linux\. Install it there/);
 });
 
 test('offline, FlareSolverr says no number rather than a wrong one', () => {

@@ -4,7 +4,7 @@
 // Every value that comes from outside this file goes through esc().
 
 import { plan } from '../src/order.js';
-import { chromeDate, DL, esc, megabytes, type Release } from './data.ts';
+import { appsOf, chromeDate, DL, esc, megabytes, type Release } from './data.ts';
 
 /** One captured figure: a file per palette (the reader is dark only). */
 export type Capture = { file: string; width: number; height: number };
@@ -78,11 +78,45 @@ const FEATURES: [string, string][] = [
 	]
 ];
 
+const btn = (href: string, label: string, size: number, main: boolean, os: string) =>
+	`<a class="btn${main ? ' btn-main' : ''}" data-main="${main ? os : ''}" href="${esc(href)}" download>${label}<span class="btn-size">${esc(megabytes(size))}</span></a>`;
+
+/**
+ * The two Android rows (c667), only for a release whose manifest carries them
+ * (c614 and later). They use the desktop rows' own name/body/note markup, so
+ * 04 keeps its shape. Size and SHA-256 are the manifest's, never typed: the
+ * hash is what a friend checks a sideloaded APK against.
+ */
+function androidRows(r: Release): Record<string, string> {
+	const rows: Record<string, string> = {};
+	const app = r.android?.app;
+	if (app)
+		rows.android = `<div class="dl-row" data-os="android">
+<div class="dl-name"><div class="dl-name-top"><span class="dl-os">ANDROID</span><span class="tag" hidden>YOUR SYSTEM</span></div><span class="dl-req">PHONE OR TABLET · .APK</span></div>
+<div class="dl-body">
+<div class="btns">${btn(app.href, '↓ ANDROID APP · .APK', app.size, true, 'android')}</div>
+<p class="dl-note">tsundoku’s own app for a phone or tablet. It pairs with tsundoku on your computer, so the computer has to be running to read.</p>
+<p class="dl-note">To install: open the APK on the phone. Android asks once to allow installs from your browser; allow it, then install.</p>
+<p class="dl-warn">SHA-256 ${esc(app.sha256)}</p>
+</div>
+</div>`;
+	const tv = r.android?.tv;
+	if (tv)
+		rows['android-tv'] = `<div class="dl-row" data-os="android-tv">
+<div class="dl-name"><div class="dl-name-top"><span class="dl-os">ANDROID TV</span><span class="tag" hidden>YOUR SYSTEM</span></div><span class="dl-req">TELEVISION · .APK</span></div>
+<div class="dl-body">
+<div class="btns">${btn(tv.href, '↓ TV APP · .APK', tv.size, true, 'android-tv')}</div>
+<p class="dl-note">tsundoku’s app for an Android TV. It pairs with tsundoku on your computer, so the computer has to be running to watch.</p>
+<p class="dl-note">To install: copy the APK to a USB stick and open it with the TV’s file manager, or use a downloader app. The TV asks once to allow installs from it.</p>
+<p class="dl-warn">SHA-256 ${esc(tv.sha256)}</p>
+</div>
+</div>`;
+	return rows;
+}
+
 function downloadRows(input: PageInput): string {
 	const r = input.release;
-	const p = plan('none', r.version);
-	const btn = (href: string, label: string, size: number, main: boolean, os: string) =>
-		`<a class="btn${main ? ' btn-main' : ''}" data-main="${main ? os : ''}" href="${esc(href)}" download>${label}<span class="btn-size">${esc(megabytes(size))}</span></a>`;
+	const p = plan('none', r.version, appsOf(r));
 	const rows: Record<string, string> = {
 		windows: `<div class="dl-row" data-os="windows">
 <div class="dl-name"><div class="dl-name-top"><span class="dl-os">WINDOWS</span><span class="tag" hidden>YOUR SYSTEM</span></div><span class="dl-req">10 OR 11 · 64-BIT</span></div>
@@ -106,6 +140,7 @@ function downloadRows(input: PageInput): string {
 </div>
 </div>`
 	};
+	Object.assign(rows, androidRows(r));
 	// The HTML as built is the no-JavaScript state: the static order, no tag,
 	// the Windows installer on the accent (most friends are on Windows).
 	const html = p.order.map((os) => rows[os]).join('\n');
@@ -115,6 +150,20 @@ function downloadRows(input: PageInput): string {
 	);
 }
 
+/** The band above 04's rows, for a phone visitor who has just met the page. */
+function phoneBandText(r: Release): string {
+	if (r.android?.app)
+		return 'tsundoku runs on a computer, Windows or Linux, and the Android app is on this page. Install tsundoku on the computer first: the app pairs with it over Wi-Fi.';
+	return 'tsundoku runs on a computer, Windows or Linux. Install it there, then read on this phone over Wi-Fi.';
+}
+
+/** 06's opening line, naming the app only when the release carries one. */
+function phoneLead(r: Release): string {
+	if (r.android?.app)
+		return 'tsundoku stays on the computer; the phone opens it in its browser, or in <a href="#download">the tsundoku app</a>, which pairs with the computer and needs it running. Two ways in.';
+	return 'tsundoku stays on the computer; the phone opens it in its browser. Two ways in.';
+}
+
 function download(input: PageInput): string {
 	const r = input.release;
 	const s = input.solver;
@@ -122,7 +171,7 @@ function download(input: PageInput): string {
 	return `<div class="dl">
 <div class="dl-band" hidden>
 <span class="dl-band-label">ON A PHONE?</span>
-<span class="dl-band-text">tsundoku runs on a computer, Windows or Linux. Install it there, then read on this phone over Wi-Fi.</span>
+<span class="dl-band-text">${phoneBandText(r)}</span>
 <a href="#phone">06 — ON A PHONE →</a>
 </div>
 <div class="dl-rows" data-version="${esc(r.version)}">
@@ -151,7 +200,7 @@ ${downloadRows(input)}
 export function renderPage(input: PageInput): string {
 	const r = input.release;
 	const c = input.captures;
-	const p = plan('none', r.version);
+	const p = plan('none', r.version, appsOf(r));
 	const v = esc(r.version);
 	const help = esc(input.help);
 	return `<!doctype html>
@@ -298,7 +347,7 @@ ${wordmark('span')}
 
 <section id="phone" class="sec">
 ${head('06 — ON A PHONE', 'OR A TABLET')}
-<p class="phone-lead">tsundoku stays on the computer; the phone opens it in its browser. Two ways in.</p>
+<p class="phone-lead">${phoneLead(r)}</p>
 <div class="halves halves-phone">
 <div class="box">
 <div class="box-head box-head-strong"><span>AT HOME · WI-FI</span><span>THE EASY ONE</span></div>

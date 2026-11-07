@@ -61,6 +61,19 @@ test.describe('with JavaScript off', () => {
 	});
 });
 
+test('a saved release without the Android apps draws no app row and offers none', async ({
+	page
+}) => {
+	await page.goto('/');
+	expect(await page.locator('.dl-row[data-os^="android"]').count()).toBe(0);
+	await expect(page.locator('.dl-band-text')).toHaveText(
+		'tsundoku runs on a computer, Windows or Linux. Install it there, then read on this phone over Wi-Fi.'
+	);
+	await expect(page.locator('.phone-lead')).toHaveText(
+		'tsundoku stays on the computer; the phone opens it in its browser. Two ways in.'
+	);
+});
+
 test.describe('the visitor’s system', () => {
 	test('Windows leads, tagged, its installer on the accent', async ({ page }) => {
 		await as(page, 'windows');
@@ -96,6 +109,7 @@ test.describe('the visitor’s system', () => {
 		await expect(page.locator('.dl-band')).toBeVisible();
 		expect(await rowOrder(page)).toEqual(['windows', 'linux', 'mac']);
 		expect(await visibleTags(page)).toEqual([]);
+		expect(await page.locator('.dl-row[data-os^="android"]').count()).toBe(0);
 		await expect(page.locator('#hero-meta')).toHaveText('FOR A COMPUTER · WINDOWS AND LINUX');
 	});
 });
