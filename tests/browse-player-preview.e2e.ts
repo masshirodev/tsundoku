@@ -955,12 +955,18 @@ test.describe('the reader end page for a browsing record (c655)', () => {
 		// Leave the world as it was: FORGET the record this case made, through
 		// the preview's own action (the browse world is one database for the
 		// whole project). It runs whether the body passed or not, and its own
-		// failure is soft so it cannot hide the body's (c649, c673).
-		const forgotten = await page.request.post(`${new URL(preview).pathname}?/forget`, {
-			headers: { origin: new URL(preview).origin, 'x-sveltekit-action': 'true' },
-			form: {}
-		});
-		expect.soft(forgotten.ok()).toBe(true);
+		// failure — a refused answer or a throw — is soft so it cannot hide the
+		// body's (c649, c673 round 2).
+		try {
+			const forgotten = await page.request.post(`${new URL(preview).pathname}?/forget`, {
+				headers: { origin: new URL(preview).origin, 'x-sveltekit-action': 'true' },
+				form: {}
+			});
+			expect.soft(forgotten.ok()).toBe(true);
+		} catch (error) {
+			// A timeout or a dead server is this cleanup's failure, not the body's.
+			expect.soft(error).toBeUndefined();
+		}
 		if (failed) throw failed;
 	});
 });

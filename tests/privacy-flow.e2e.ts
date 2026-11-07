@@ -302,9 +302,10 @@ test('a hidden series read under /reveal offers UNHIDE, not HIDE again (c673)', 
 test('a refused library row says why, in the row (c673)', async ({ page }) => {
 	const { end } = await openSeriesEnd(page, 'Isekai Ojisan');
 	// The action's own refusal for a stale page (the series was taken into a
-	// Work meanwhile): the row must say it. The real action cannot be made to
-	// refuse for a plain library series, so the refusal is answered here with
-	// the server's own words (series/[id]/+page.server.ts, `hide`).
+	// Work meanwhile) holds HIDE and HIDE ALL, so the row must not repeat it:
+	// it says its own sentence instead (round 2). The real action cannot be
+	// made to refuse for a plain library series, so the refusal is answered
+	// here with the server's own words (series/[id]/+page.server.ts, `hide`).
 	const refusal = 'A WORK IS HIDDEN WHOLE · HIDE ALL OR TAKE OUT';
 	await page.route(/\/series\/\d+\?\/hide$/, (route) =>
 		route.fulfill({
@@ -320,7 +321,10 @@ test('a refused library row says why, in the row (c673)', async ({ page }) => {
 		})
 	);
 	await end.getByRole('button', { name: 'HIDE', exact: true }).click();
-	await expect(end.getByRole('alert')).toHaveText(refusal);
+	await expect(end.getByRole('alert')).toHaveText('COULD NOT SAVE');
+	// The refusal line holds no control's word, so a substring locator for the
+	// row's own button still finds just that button.
+	await expect(end.getByText('HIDE')).toHaveCount(1);
 	// The button is a button again, not a row that silently reset.
 	await expect(end.getByRole('button', { name: 'HIDE', exact: true })).toBeEnabled();
 	await page.unroute(/\/series\/\d+\?\/hide$/);

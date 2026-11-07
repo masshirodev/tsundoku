@@ -259,15 +259,18 @@
 	);
 
 	/**
-	 * What a refused form says. A `failure` carries the action's own message
-	 * (the series screen pages show it the same way); an `error` its thrown
-	 * one. The plain sentence is for an answer with neither. It holds no
-	 * control's word, so no locator for a row finds this line instead.
+	 * What a refused form says. The row says its own words, never the action's:
+	 * the one real refusal `?/hide` gives is `A WORK IS HIDDEN WHOLE · HIDE ALL
+	 * OR TAKE OUT` (series/[id]/+page.server.ts), and on this page HIDE is the
+	 * row's own button while HIDE ALL is a series-screen control, so the
+	 * action's line would make a `HIDE` locator find two elements. The sentence
+	 * holds none of COMMON's control words and none of this page's own labels
+	 * (HIDE, UNHIDE, HIDDEN ✓, UNHIDDEN ✓, + ADD TO LIBRARY, IN LIBRARY ✓,
+	 * START, WORK, FAV, DOWNLOAD FIRST 10, FORGET), so no locator for a row
+	 * finds this line instead of its control.
 	 */
-	function rowRefusal(result: { data?: unknown; error?: { message?: string } }): string {
-		const data = result.data as { message?: unknown } | undefined;
-		const said = typeof data?.message === 'string' ? data.message.toUpperCase() : '';
-		return said || result.error?.message?.toUpperCase() || 'COULD NOT SAVE';
+	function rowRefusal(): string {
+		return 'COULD NOT SAVE';
 	}
 	const downloadCell = $derived(
 		queue === 'queued'
@@ -520,7 +523,7 @@
 								removing = false;
 								if (result.type === 'success' || result.type === 'redirect') removed = true;
 								else if (result.type === 'failure' || result.type === 'error')
-									rowError = rowRefusal(result);
+									rowError = rowRefusal();
 							};
 						}}
 					>
@@ -542,7 +545,7 @@
 								removing = false;
 								if (result.type === 'success' || result.type === 'redirect') unhidden = true;
 								else if (result.type === 'failure' || result.type === 'error')
-									rowError = rowRefusal(result);
+									rowError = rowRefusal();
 							};
 						}}
 					>
@@ -564,7 +567,7 @@
 								adding = false;
 								if (result.type === 'redirect' || result.type === 'success') added = true;
 								else if (result.type === 'failure' || result.type === 'error')
-									rowError = rowRefusal(result);
+									rowError = rowRefusal();
 							};
 						}}
 					>
