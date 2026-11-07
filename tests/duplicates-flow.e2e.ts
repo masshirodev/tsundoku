@@ -2,7 +2,9 @@ import Database from 'better-sqlite3';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+// (chmodSync, mkdirSync and writeFileSync are the c670 block's: real book files
+// whose trash move a KEEP can fail on.)
 import { join } from 'node:path';
 import { type Page } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
@@ -337,5 +339,207 @@ test.describe('a fold the state refuses (c648)', () => {
 		// And the pair it was for is back in this visit's queue.
 		await expect(page.locator('.counter')).toHaveText('01 OF 01');
 		await expect(page.locator('.conf')).toHaveText('SAME BOOK · A THIRD LANGUAGE');
+	});
+});
+
+// ---- OPEN → past another pair's stuck decision (c670) ---------------------------------------
+//
+// A KEEP that cannot move its loser to the trash (EACCES, here a folder with
+// no write bit) stays waiting and is retried by every apply, while its band
+// stays on screen. A fold decided after it is carried out all the same: OPEN →
+// must open the folded book, not stop because the stuck KEEP's band is up.
+// Its own database, library and preview, so the decisions above are untouched.
+
+const work2 = scratch('tsundoku-dupes-open-');
+const dbPath2 = join(work2, 'dupes.sqlite');
+const library2 = join(work2, 'library');
+let preview2: ChildProcess | null = null;
+let BASE2 = '';
+/** The two twin folders, made read-only while the KEEP is decided. */
+let twinDirs: string[] = [];
+type OpenWorld = { twin: string; fold: string; base: number };
+
+function seedOpenWorld(): OpenWorld {
+	rmSync(dbPath2, { force: true });
+	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
+		env: { ...process.env, DATABASE_PATH: dbPath2, LIBRARY_ROOT: library2, NODE_NO_WARNINGS: '1' },
+		stdio: 'pipe'
+	});
+	const db = new Database(dbPath2);
+	try {
+		const root = (db.prepare(`SELECT id FROM roots WHERE name = 'Library'`).get() as { id: number })
+			.id;
+		const now = Date.UTC(2026, 10, 6, 12, 0);
+		db.prepare(
+			`INSERT OR REPLACE INTO dupe_decisions (pair, decision, keep, at)
+			SELECT p.a || ',' || p.b, 'apart', NULL, ? FROM dupe_pairs p`
+		).run(now);
+		const tag = db.prepare(
+			`INSERT INTO tags (namespace, value) VALUES ('language', ?) ON CONFLICT DO UPDATE SET value = value`
+		);
+		const tagId = db.prepare(`SELECT id FROM tags WHERE namespace = 'language' AND value = ?`);
+		const series = (title: string, originKey: string, path = '') =>
+			Number(
+				db
+					.prepare(
+						`INSERT INTO series (root_id, title, kind, source, hue, path, added_at, indexed_at, origin_key, in_library, cover_key)
+						VALUES (?, ?, 'doujin', 'hentoid', 0, ?, ?, ?, ?, 1, '')`
+					)
+					.run(root, title, path, now, now, originKey).lastInsertRowid
+			);
+		const entry = (seriesId: number, language: string, file = '') =>
+			Number(
+				db
+					.prepare(
+						`INSERT INTO entries (series_id, position, label, title, language, added_at, file, bytes,
+							page_count, available, source_url, shadowed, edition_of)
+						VALUES (?, 1, 'Book', ?, ?, ?, ?, 0, 3, 1, ?, 0, NULL)`
+					)
+					.run(seriesId, `Book ${seriesId}`, language, now, file, `/book/${seriesId}`)
+					.lastInsertRowid
+			);
+		const language = (seriesId: number, value: string) => {
+			tag.run(value);
+			db.prepare(`INSERT OR IGNORE INTO series_tags (series_id, tag_id) VALUES (?, ?)`).run(
+				seriesId,
+				(tagId.get(value) as { id: number }).id
+			);
+		};
+		const pair = (a: number, b: number, bits: number) =>
+			db.prepare(`INSERT INTO dupe_pairs (a, b, bits, rows, found_at) VALUES (?, ?, ?, ?, ?)`).run(
+				Math.min(a, b),
+				Math.max(a, b),
+				bits,
+				JSON.stringify({
+					rows: [1, 2, 3].map((n) => ({ a: n, b: n })),
+					sizes: { [a]: [1200, 1700], [b]: [1200, 1700] }
+				}),
+				now
+			);
+		// The KEEP's pair first (bits 0): its books are real files, so the trash
+		// move can be refused by the filesystem.
+		for (const d of ['twin-a', 'twin-b']) {
+			mkdirSync(join(library2, d), { recursive: true });
+			writeFileSync(join(library2, d, 'book.cbz'), d);
+		}
+		const twinA = series('Twin One', 'hentoid:twin-one', library2);
+		language(twinA, 'english');
+		const twinB = series('Twin Two', 'hentoid:twin-two', library2);
+		language(twinB, 'english');
+		const twinAEntry = entry(twinA, 'english', 'twin-a/book.cbz');
+		const twinBEntry = entry(twinB, 'english', 'twin-b/book.cbz');
+		pair(twinAEntry, twinBEntry, 0);
+		// Then a fold that succeeds: English and French editions of one book.
+		const base = series('Open Base', 'hentoid:open-base');
+		language(base, 'english');
+		const baseEntry = entry(base, 'english');
+		const copy = series('Open Copy', 'hentoid:open-copy');
+		language(copy, 'french');
+		const copyEntry = entry(copy, 'french');
+		pair(baseEntry, copyEntry, 1);
+		return {
+			twin: `${Math.min(twinAEntry, twinBEntry)},${Math.max(twinAEntry, twinBEntry)}`,
+			fold: `${Math.min(baseEntry, copyEntry)},${Math.max(baseEntry, copyEntry)}`,
+			base
+		};
+	} finally {
+		db.close();
+	}
+}
+
+let openWorld: OpenWorld | null = null;
+
+test.describe('OPEN → past a stuck decision (c670)', () => {
+	test.beforeAll(async () => {
+		test.setTimeout(120_000);
+		openWorld = seedOpenWorld();
+		twinDirs = ['twin-a', 'twin-b'].map((d) => join(library2, d));
+		const port = await freePort();
+		BASE2 = `http://localhost:${port}`;
+		preview2 = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
+			env: {
+				...process.env,
+				DATABASE_PATH: dbPath2,
+				TSUNDOKU_TOKEN: E2E_TOKEN,
+				LIBRARY_ROOT: library2,
+				COVER_DIR: join(work2, 'covers'),
+				TSUNDOKU_HOME: join(work2, 'home'),
+				BACKUP_DIR: join(work2, 'backups')
+			},
+			stdio: 'ignore'
+		});
+		for (let i = 0; i < 120; i++) {
+			try {
+				if ((await fetch(`${BASE2}/duplicates`, { redirect: 'manual' })).status) return;
+			} catch {
+				await new Promise((r) => setTimeout(r, 500));
+			}
+		}
+		throw new Error('the c670 preview never answered');
+	});
+
+	test.afterAll(() => {
+		// Put the folders back before the tree is removed, whatever happened.
+		for (const d of twinDirs) {
+			try {
+				chmodSync(d, 0o755);
+			} catch {
+				// Already gone, or never made.
+			}
+		}
+		preview2?.kill();
+		rmSync(work2, { recursive: true, force: true });
+	});
+
+	test('a stuck KEEP ahead does not keep OPEN → from opening the folded book', async ({ page }) => {
+		// Both books' folders refuse a rename: whichever side KEEP loses, its
+		// trash move fails, and the decision stays waiting.
+		for (const d of twinDirs) chmodSync(d, 0o500);
+		try {
+			await page.goto(`${BASE2}/duplicates?pair=${encodeURIComponent(openWorld!.twin)}`);
+			await expect(page.locator('.counter')).toHaveText('01 OF 02');
+
+			// KEEP, through the review's own button.
+			await page.getByRole('button', { name: /^KEEP [AB]$/ }).click();
+			await expect(page.locator('.review .band')).toContainText(/KEPT [AB]/);
+			await expect(page.locator('.counter')).toHaveText('02 OF 02');
+
+			// The fold is decided second: deciding it carries the KEEP out, the
+			// move fails, and the band says the decision stays waiting.
+			await page.getByRole('button', { name: 'FOLD INTO ONE BOOK' }).click();
+			await expect(page.locator('.band.failed')).toContainText('IT STAYS WAITING');
+
+			// The fold itself was carried out. OPEN → opens it, though the stuck
+			// KEEP's band is still up: that band names another pair (c670).
+			await page.getByRole('button', { name: 'OPEN →' }).click();
+			await expect(page).toHaveURL(new RegExp(`/series/${openWorld!.base}$`));
+		} finally {
+			for (const d of twinDirs) chmodSync(d, 0o755);
+		}
+	});
+
+	test('UNDO of a carried-out decision says so and puts nothing back (c670)', async ({ page }) => {
+		// The case above left its stuck KEEP waiting, and every apply retries it.
+		// Take it out: this case is about UNDO's own answer, not that failure.
+		const db = new Database(dbPath2);
+		try {
+			db.prepare(`DELETE FROM dupe_decisions WHERE pair = ?`).run(openWorld!.twin);
+		} finally {
+			db.close();
+		}
+		await page.goto(`${BASE2}/duplicates?pair=${encodeURIComponent(openWorld!.twin)}`);
+		await expect(page.locator('.counter')).toHaveText('01 OF 01');
+		await page.getByRole('button', { name: 'GROUP AS A SERIES' }).click();
+		await expect(page.locator('.review .band')).toContainText('GROUPED AS A SERIES');
+		// A library load carries the waiting GROUP out, behind this screen:
+		// `undoDecision` now answers `{undone: false}` with a 200.
+		await page.request.get(`${BASE2}/`);
+		await page.getByRole('button', { name: 'UNDO' }).click();
+		await expect(page.locator('.review .band')).toContainText(
+			'THE DECISION WAS ALREADY CARRIED OUT'
+		);
+		// Nothing comes back to the queue: the pair is one series now.
+		await expect(page.locator('.counter')).toHaveText('00');
+		await expect(page.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
 	});
 });

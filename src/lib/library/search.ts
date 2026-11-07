@@ -58,6 +58,29 @@ export function parseSearch(raw: string): SearchInput {
 	return { type: 'query', text };
 }
 
+/**
+ * What a top search bar's text means (card c697). Every bar draws a leading
+ * `/` as its prompt, so only `filter` is the bar's own list: a command runs on
+ * the screen the bar is on, a page opens, and a `/`-led string naming neither
+ * is `unknown` and is said plainly rather than filtered for. A query that
+ * never starts with `/` is always `filter`.
+ */
+export type BarInput =
+	| { type: 'filter' }
+	| { type: 'command'; command: Command }
+	| { type: 'page'; label: string; href: string }
+	| { type: 'unknown'; text: string };
+
+export function parseBar(raw: string): BarInput {
+	const parsed = parseSearch(raw);
+	if (parsed.type === 'empty') return { type: 'filter' };
+	if (parsed.type === 'query') {
+		const text = raw.trim();
+		return text.startsWith('/') ? { type: 'unknown', text } : { type: 'filter' };
+	}
+	return parsed;
+}
+
 /** A topic by a word of its title or its parts: "phone", "download", "update". */
 function helpTopicFor(word: string) {
 	const all = topics();

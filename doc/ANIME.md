@@ -161,7 +161,9 @@ its SETTINGS, search inside it.
   else placed by where the source listed it. The title is what's left after
   "Episode 3". The stamp is what the season heads, the fold, CONTINUE
   ("S3 · EP. 7"), the Jellyfin folder (`Season 03`) and the NFOs all read, so
-  a season-3 entry is no longer indistinguishable from a season 1.
+  a season-3 entry is no longer indistinguishable from a season 1. A season
+  whose only row is an orphaned part 2 ([`LINKS.md`](LINKS.md)) asks nothing
+  either: nothing places its episodes (c592, c642).
 - **IN LIBRARY and SAME TITLE** match anime by their own key, and SAME TITLE
   only against other anime, never the manga it was adapted from; the queue tells
   an anime's rows apart by it too (`QueueRow.kind`), so the engine's chapter

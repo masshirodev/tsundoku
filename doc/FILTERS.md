@@ -104,9 +104,9 @@ duplicate beside its book, which grouping can't carry`): it moves the book
   once **and** `edition_of IS NULL` counts once: a folded edition beside the
   book still passes, an extra or a set-aside duplicate is refused with `A BOOK
 WITH AN EXTRA OR A DUPLICATE BESIDE IT CAN'T FOLD` rather than sent to a review
-  that would swallow it (`applyPending` in `src/lib/server/dupes.ts` no longer
-  marks a refused decision applied; it stays waiting, and UNDO can still forget
-  it).
+  that would swallow it (`applyPending` in `src/lib/server/dupes.ts` drops a
+  refused decision and answers it with the pair and its reason; the pair comes
+  back to the review undecided, c648).
 
 - **SERIES**: everything else. A Mihon series with one chapter so far is
   still a series, except from a gallery source, whose galleries are books

@@ -13,6 +13,7 @@
 	import { extFilterParams } from '$lib/library/ext-filters';
 	import ExtFilter from './ExtFilter.svelte';
 	import { ago } from '$lib/library/tracking';
+	import { isSearchCommand, runSearchCommand } from '$lib/library/commands';
 	import ExtRow from './ExtRow.svelte';
 
 	/**
@@ -26,6 +27,20 @@
 	/** REPOSITORIES' "?" sheet (doc/HELP.md). */
 	let helpOpen = $state(false);
 	let { data, form } = $props();
+
+	/**
+	 * The bar's leading `/` runs a command, as the library's does (c697): the
+	 * list keeps filtering for anything else. A refusal is the bar's to show,
+	 * and the list stays as it was.
+	 */
+	let commandNote = $state('');
+	async function onSearch(e: SubmitEvent) {
+		const text = String(new FormData(e.currentTarget as HTMLFormElement).get('q') ?? '');
+		if (!isSearchCommand(text)) return;
+		e.preventDefault();
+		const outcome = await runSearchCommand(text);
+		commandNote = outcome.type === 'refused' ? outcome.message : '';
+	}
 
 	const base = resolve('/browse/extensions');
 	function link(over: Record<string, string | null>): string {
@@ -127,6 +142,8 @@
 			</form>
 		{/snippet}
 	</TopBar>
+
+	{#if commandNote}<Band title={commandNote} />{/if}
 
 	<!-- The way back to GET STARTED, while step 01's or 02's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
@@ -343,7 +360,7 @@
 			>
 		</nav>
 		{@const nv = data.novelsAvailable}
-		<form method="GET" action={base} class="filter">
+		<form method="GET" action={base} class="filter" onsubmit={onSearch}>
 			<input type="hidden" name="tab" value="available" />
 			{#if a.family !== 'mihon'}<input type="hidden" name="kind" value={a.kind} />{/if}
 			<input
