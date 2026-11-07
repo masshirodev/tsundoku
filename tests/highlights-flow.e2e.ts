@@ -454,6 +454,11 @@ test.describe('on a desktop', () => {
 		await expect(foot.nth(at)).toHaveText(/HIGHLIGHTS\s*4/);
 		await expect(foot.nth(at)).toHaveAttribute('aria-current', 'page');
 		await rows(page).first().click();
+		// The open item is drawn once the navigation lands: measure after it,
+		// or the list is measured at its full width (a race seen at repeat 5).
+		await expect(page).toHaveURL(/open=\d+/);
+		await expect(open(page)).toBeVisible();
+		await expect(rows(page).first()).toHaveClass(/\bon\b/);
 		const list = await page.locator('.list').boundingBox();
 		const pane = await open(page).boundingBox();
 		expect(pane!.width).toBe(560);
