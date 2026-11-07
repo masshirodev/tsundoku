@@ -92,12 +92,15 @@ CH. 1`, one tap into the next series' first chapter, and CONTINUE above it
 - **Every Work control posts the Work it was drawn on** (c640). MOVE and TAKE
   OUT in the row's sheet, the screen's UNHIDE, and the HIDE sheet's HIDE ALL n
   each post the Work's `created_at` as `made`; a Work under that id made at
-  another moment (ended, its id given to another) or a post with no moment is
-  refused with `THAT WORK HAS CHANGED · LOOK AGAIN` and nothing written. The
-  screen then re-reads its load, so the band is drawn over the Work the series
-  is in now and the next press posts that Work's moment; the row's sheet
-  closes on the refusal. [`WORKS.md`](WORKS.md), "Every form names the Work by
-  its id and its moment".
+  another moment (its id given to another) or a post with no moment is
+  refused with `THAT WORK HAS CHANGED · LOOK AGAIN` and nothing written. A
+  Work that has ended leaves the series in no Work, and the same four
+  actions answer `THIS SERIES IS IN NO WORK` instead (c661); that refusal
+  says `stale: true` as well. Either way the screen then re-reads its load,
+  so the band is drawn over the Work the series is in now (or the absence of
+  one) and the next press posts that Work's moment; the row's sheet closes
+  on the refusal, and so does the HIDE sheet. [`WORKS.md`](WORKS.md), "Every
+  form names the Work by its id and its moment".
 
 Tested in `tests/work-row-frame.e2e.ts` (the three states' measurements, the
 links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
