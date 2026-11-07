@@ -1271,6 +1271,23 @@ test.describe("the band at a chapter's start (c705)", () => {
 		await page.evaluate(() => document.fonts.dispatchEvent(new Event('loadingdone')));
 		await page.waitForTimeout(300);
 		expect(await pageNo(page)).toBe(0);
+		// Scrubbed there from the chapter's last page, the band's page saves the
+		// chapter's first character, as opening there does, not the last page's.
+		await middle(page);
+		const track = page.locator('[role="slider"][aria-label="Page in chapter"]');
+		await expect(track).toBeVisible();
+		const box = (await track.boundingBox())!;
+		const at = () => new URL(page.url()).searchParams.get('at');
+		await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+		await expect(page.locator('.bottom .left')).toHaveText(/^P\. (\d+) OF \1\b/);
+		await expect.poll(at).not.toBe('0.0');
+		await page.mouse.click(box.x + 2, box.y + box.height / 2);
+		await expect(page.locator('.bottom .left')).toHaveText(/^P\. 1 OF /);
+		await expect.poll(at).toBe('0.0');
+		await page.keyboard.press('Escape');
+		await page.evaluate(() => document.fonts.dispatchEvent(new Event('loadingdone')));
+		await page.waitForTimeout(300);
+		expect(await pageNo(page)).toBe(0);
 		await openFromContents(page, 'Vol. 4');
 
 		// Back across Vol. 3's end from Vol. 4's first page: the last page, as

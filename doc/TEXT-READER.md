@@ -59,7 +59,9 @@ Each volume is kept in the device cache with markers for its own entries.
 An entry starts at its locator (`doc.xhtml#anchor`) and runs up to the next
 entry's (`entryDocs`, `src/lib/epub/epub.ts`). Documents before the first entry
 belong to it, so nothing in a book is unreachable. That's why the sample's
-first chapter opens on its cover.
+first chapter opens on its cover, under the band that starts every chapter
+("A chapter's start", below; in vertical Japanese the cover is a page wide,
+so it is the page after the band's).
 
 The markup never reaches the page as it is (`src/lib/reader/text-dom.ts`). It's
 parsed with the browser's DOMParser, which runs no scripts, and rebuilt from an
@@ -71,7 +73,10 @@ allowlist:
 - inline emphasis and ruby.
 
 No attributes survive except an image's source (a `blob:` URL from the zip) and
-a cell's span. No book CSS, fonts, links or scripts come through. The reader's
+a cell's span. The reader adds one of its own: every image is
+`draggable=false`, so a mouse drag on an illustration turns the page as a drag
+on text does, where the browser's own image drag cancelled the press (found
+with c705, on a vertical book's cover page). No book CSS, fonts, links or scripts come through. The reader's
 type settings apply to every book alike, and that costs the odd centred scene
 break.
 
@@ -154,6 +159,58 @@ names the next chapter ("END · CH. 212 / 212 OF 591 / NEXT … / ABOUT 12 MIN /
 TAP OR SWIPE TO CONTINUE →"). It only gets a page of its own when the last page
 is full.
 
+### A chapter's start
+
+The owner, 2026-11-07 (c705): "we draw a footer on novel chapters that the
+chapter ended right? can we draw one with the chapter title at the beginning
+of one?" END's twin opens every chapter, above its first block, in END's type,
+rule and colours (`.cstart` in `TextReader.svelte`; no design round):
+
+- **Always** `CH. 212` and `212 OF 591`, END's row and END's count: chapters,
+  not table-of-contents entries, with matter named (`COVER`) and counted among
+  the entries, as END · COVER is. Under it, `ABOUT 12 MIN` once ten minutes of
+  reading are behind the speed, by END's own estimate of the chapter (its
+  size), so the END band's NEXT and the start band below it in SCROLL never
+  say two different minutes.
+- **The table-of-contents title, only where the book doesn't print it.** It is
+  compared with the chapter's first heading, or, with none before the text
+  starts, its first short line (100 characters or fewer), after folding case,
+  punctuation, symbols, whitespace and a leading `Chapter 212:`, `Ch. 212 -`,
+  `Chap. 12.`, `Chapter IV:` or `第212話` / `第十二章` prefix away. Equal: no
+  title in the band. Different, or no heading at all (common in a web-novel
+  chapter from a source): the title, in the band. A title that is only its
+  number compares as the number (`Chapter 212` and `第212話` are the same).
+  Matter never gets one: the band's `COVER` already names it. The rule is
+  `src/lib/reader/start-band.ts`, pure, and `tests/text-start-band.spec.ts`
+  holds every prefix, a heading that differs, no heading, a first short line,
+  the edges of 100 characters and six blocks, and the fold on its own output.
+- **It is not a block.** It sits in the flow before `<div class="blocks">`,
+  so `data-b` numbering is what it always was and every saved place opens on
+  the same words ("Position", below).
+- **PAGED**: it opens the chapter's first page, on the same page as the text.
+  It is a page of its own only when the chapter's first block is a
+  full-page illustration, which leaves no room beside it. That page has no
+  character, so it stands for the chapter's first, and a relayout keeps the
+  reader on it ("Position").
+- **SCROLL**: above the first line. A chapter opened at its start opens at the
+  top, with the band showing, and the first line is kept at the height it
+  stands at under the band, so a face arriving doesn't scroll the band away.
+  Below this chapter: END, then the next chapter's start band (once its text
+  is ready), then its text. The crossing into the next chapter is still its
+  first block passing the middle of the screen, as it was, and the line keeps
+  where it was when it crossed. A next volume's room (c347) has no band
+  before it: that chapter isn't read until it opens, and its band is then at
+  its top.
+- **Vertical Japanese**: the same band, vertical, its rule on the left
+  between it and the first column (logical sides, `border-block-end`).
+- **Both themes and DIM** by the page's own colours (`--ink`, `--mut`); on a
+  TV it is no stop of the pad's, since it is not a control.
+
+Tested in `tests/text-reader-flow.e2e.ts` ("the band at a chapter's start
+(c705)": a book whose chapters have the title as heading, no heading, another
+heading, a `Chapter 4:` prefix, and a full-page illustration first, in PAGED
+and SCROLL, with a saved place reopened on its words).
+
 ## Position
 
 A position is **the entry, the paragraph (block) and the character offset** of
@@ -201,6 +258,17 @@ chapter's last character, on the page before. The reader also remembers that
 it is on the band's page (c516), whether it got there by turning or by coming
 back from the next chapter, and a relayout keeps it there; until c516 it went
 a page back.
+
+**The start band's page alone** (c705: a chapter that opens on a full-page
+illustration) is the same at the other end. Its position is the chapter's
+first character (`0.0`), however the reader got there (opening the chapter,
+turning back, a scrub from pages on), and a relayout keeps it on that page.
+So the chapter's first character opens on the band's page: an entry opened
+without `?at=` (which reads as `0.0`) starts on its band, and so does a
+reload there. A PAGED reload on the illustration's own page, whose place is
+also `0.0`, lands one page back, on the band. In SCROLL a `0.0` with no line
+height opens at the top, the band above it; with one (`0.0.<y>`), the line
+goes back to its height as any place does.
 
 It travels through `POST /api/reading` as before: `page` is the paragraph, and
 two new optional fields carry `offset` (the character) and `total` (paragraphs
@@ -482,10 +550,17 @@ There's always ← SERIES and LIBRARY.
 
 ## Where it departs from the handoff
 
-- **No kicker above chapter headings.** The mock draws "CHAPTER 212" over "The
-  Commission". Real books put their own heading in the text, and a kicker built
-  from the table of contents would repeat it ("Chapter 1: The Article" over
-  "Chapter 1: The Article"). The book's heading is styled as the mock's title.
+- **No kicker above chapter headings; a band instead.** The mock draws
+  "CHAPTER 212" over "The Commission". Real books put their own heading in the
+  text, and a kicker built from the table of contents would repeat it
+  ("Chapter 1: The Article" over "Chapter 1: The Article"), so there is none,
+  and the book's heading is styled as the mock's title. What the kicker was
+  for is the start band's (c705, "A chapter's start" above): END's twin over
+  the first block, always with the chapter's number and count, and with the
+  table-of-contents title only when the chapter's first heading or first
+  short line, folded, doesn't already say it. A chapter with no heading (a
+  web-novel chapter from a source) gets its name there; "Chapter 1: The
+  Article" is still printed once.
 - **Paragraph style follows the size of the book, not its markup.** Series with
   100 or more chapters (web-novel compilations) get spaced paragraphs, and the
   rest are indented. The book's CSS isn't read, so this is a heuristic.

@@ -698,10 +698,13 @@
 		// The band's page alone has no character: `pos` stays the one before,
 		// and a relayout keeps the reader here (c516).
 		onBand = !here && layout === 'paged' && page === pages - 1;
-		// And the start band's page alone, at the other end (c705).
+		// And the start band's page alone, at the other end (c705), which stands
+		// for the chapter's first character, as it does when the chapter opens
+		// there: a scrub onto it from pages on would otherwise keep, and save,
+		// the place it came from.
 		onLead = !here && layout === 'paged' && page === 0;
 		posY = null;
-		pos = here ?? pos;
+		pos = here ?? (onLead ? { block: 0, offset: 0 } : pos);
 		noteSpeed();
 		if (page >= pages - 1) markFinished();
 	}
