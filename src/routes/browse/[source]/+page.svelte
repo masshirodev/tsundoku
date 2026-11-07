@@ -17,6 +17,7 @@
 	import { askedLine } from '$lib/waiting';
 	import FilterForm from './FilterForm.svelte';
 	import { m } from '$lib/paraglide/messages';
+	import { isSearchCommand, runSearchCommand } from '$lib/library/commands';
 
 	/**
 	 * A source's page in BROWSE (Index-Browse: popular, filters, phoneGrid;
@@ -28,6 +29,20 @@
 	 * what back returns to.
 	 */
 	let { data, form } = $props();
+
+	/**
+	 * The bar's leading `/` runs a command, as the library's does (c697); the
+	 * source's own search keeps everything else. A refusal is said above the
+	 * grid and the list stays as it was.
+	 */
+	let commandNote = $state('');
+	async function onSearch(e: SubmitEvent) {
+		const text = String(new FormData(e.currentTarget as HTMLFormElement).get('q') ?? '');
+		if (!isSearchCommand(text)) return;
+		e.preventDefault();
+		const outcome = await runSearchCommand(text);
+		commandNote = outcome.type === 'refused' ? outcome.message : '';
+	}
 
 	type Answer = Extract<Awaited<typeof data.answer>, { ok: true }>['value'];
 	type Shown = { key: string; ok: true; value: Answer } | { key: string; ok: false; error: string };
@@ -181,7 +196,13 @@
 				<span class="name">{name.toUpperCase()}</span>
 				<span class="sub">{data.source.kind.toUpperCase()} · {data.source.lang.toUpperCase()}</span>
 			</div>
-			<form method="GET" action={base} class="find" class:open={data.find || !!data.q}>
+			<form
+				method="GET"
+				action={base}
+				class="find"
+				class:open={data.find || !!data.q}
+				onsubmit={onSearch}
+			>
 				{#each keptFilters as [k, v] (k)}<input type="hidden" name={k} value={v} />{/each}
 				{#if keptFilters.length}<input type="hidden" name="tab" value="filtered" />{/if}
 				{#each fromPair as [k, v] (k)}<input type="hidden" name={k} value={v} />{/each}
@@ -201,6 +222,7 @@
 	</TopBar>
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
+	{#if commandNote}<Band title={commandNote} />{/if}
 	{#if data.addedHidden}
 		<!-- What the series page's band would have said (c505): what ADD AND
 		     DOWNLOAD queued, and UNDO while nothing of it is downloaded or read.

@@ -13,6 +13,7 @@
 	import { isSettled, type Settled } from '$lib/library/settled';
 	import { SiteCheck } from '$lib/site-check.svelte';
 	import { answerCounts, arrangeAnswers, sourceTitle } from '$lib/library/source-answers';
+	import { isSearchCommand, runSearchCommand } from '$lib/library/commands';
 
 	/**
 	 * Searching the sources (Download States 1e, state 6). Results fill in
@@ -107,13 +108,27 @@
 	};
 	/** In the ALL tab, a source shows three and links the rest. */
 	const SHOWN = 3;
+
+	/**
+	 * The bar's leading `/` runs a command, as the library's does (c697): the
+	 * sources are searched for anything else. A refusal is said above the
+	 * results, and the search that was here stays.
+	 */
+	let commandNote = $state('');
+	async function onSearch(e: SubmitEvent) {
+		const text = String(new FormData(e.currentTarget as HTMLFormElement).get('q') ?? '');
+		if (!isSearchCommand(text)) return;
+		e.preventDefault();
+		const outcome = await runSearchCommand(text);
+		commandNote = outcome.type === 'refused' ? outcome.message : '';
+	}
 </script>
 
 <svelte:head><title>sources · tsundoku</title></svelte:head>
 
 <!-- eslint-disable svelte/no-navigation-without-resolve -- every href below is built from resolve(), by href() or seriesHref() -->
 
-<form method="GET" action={base} class="search">
+<form method="GET" action={base} class="search" onsubmit={onSearch}>
 	<TopBar strong label="Search the sources">
 		{#snippet left()}
 			<a
@@ -132,6 +147,10 @@
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
 </form>
+
+{#if commandNote}
+	<div class="note" role="status">{commandNote}</div>
+{/if}
 
 {#if data.down}
 	<div class="note">

@@ -70,6 +70,23 @@ under HISTORY, with the update count ("5 ↑"); and on the phone, whose bar has
 no room, the empty search offers it first: BROWSE A SOURCE with the last
 three, then ALL SOURCES · BROWSE with the number of sources.
 
+### Commands in every top search bar
+
+Every bar that draws a leading `/` as its prompt runs the library's commands,
+not only `/search` (card c697): SEARCH THE SOURCES (`/downloads/search`), a
+source's own search, and EXTENSIONS' AVAILABLE search. `parseBar`
+(`src/lib/library/search.ts`) is the one parser: a command or a page
+(`/settings`, `/help`, and their words) is that, a `/`-led string that names
+neither is `unknown` and is said plainly, and everything else is the bar's own
+filter. `runSearchCommand` (`src/lib/library/commands.ts`) posts a command to
+`/api/command`, which calls the same `runCommand` the library's `?/command`
+does, so `/reveal` behind the fingerprint gate is refused from every bar as a
+plain POST of it is refused from `/search` (`doc/PRIVACY.md`); the bar shows
+the refusal and its list does not change. A command that runs leaves the
+screen where it was and re-reads its loads (the reveal or incognito band
+appears); `/settings` and `/help` open their page, and `/lock` and `/unlock`
+open `/search?q=…&go=1`, since the device prompt is that screen's.
+
 ## A source's page
 
 `/browse/<source id>`. The bar is ← (BROWSE, or the preview or series a tag

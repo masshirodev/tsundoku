@@ -1,7 +1,8 @@
 <script lang="ts">
 	import SourceRow from '../browse/SourceRow.svelte';
 	import { ago } from '$lib/library/tracking';
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll, replaceState } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { TV } from '$lib/device.svelte';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
@@ -130,6 +131,20 @@
 	// Typing something else puts the command row away.
 	$effect(() => {
 		if (gate && q.trim().toLowerCase() !== gate.command) gate = null;
+	});
+
+	/**
+	 * `/lock` and `/unlock` typed into another top search bar (c697) arrive
+	 * here with `&go=1`, because their prompt is this screen's. The parameter
+	 * is taken off before the command runs, so a reload does not ask again.
+	 */
+	onMount(() => {
+		const u = new URL(page.url);
+		if (u.searchParams.get('go') !== '1') return;
+		u.searchParams.delete('go');
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- this page's own address, with one parameter taken off
+		replaceState(u, {});
+		form?.requestSubmit();
 	});
 
 	function onsubmit(e: SubmitEvent) {
