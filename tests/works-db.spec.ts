@@ -2004,7 +2004,9 @@ describe('the series screen’s Work controls act on the Work their screen was d
 			['made', String(work.createdAt)]
 		]);
 		expect(answer.status).toBe(400);
-		expect(answer.data).toEqual({ message: 'THIS SERIES IS IN NO WORK' });
+		// Its own words, not the stale Work's, but `stale` all the same: the
+		// screen still draws a Work that is gone, so it is read again (c661).
+		expect(answer.data).toEqual({ message: 'THIS SERIES IS IN NO WORK', stale: true });
 		expect(snapshot()).toEqual(before);
 	});
 });
