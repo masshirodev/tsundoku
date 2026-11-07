@@ -31,9 +31,8 @@ is, and the unit keeps trying (`StartLimitIntervalSec=0`).
 # a release onto the workstation (after ops/release/smoke.sh passed it)
 ops/workstation/install-release.sh 2026.11.01.1
 
-# back to an older one: point current at it, then restart
-ln -sfn 2026.11.01/tsundoku ~/.local/opt/tsundoku/current
-systemctl --user restart tsundoku
+# back to an older one: the same script ("Going back", below)
+ops/workstation/install-release.sh 2026.11.01
 
 # what it's doing
 systemctl --user status tsundoku
@@ -46,6 +45,22 @@ smoke-tested whole), moves `~/projects/tsundoku-jobs` (the timers' checkout)
 to the same tag, points `current` at it and restarts. Older bundles stay
 beside it. **A change reaches the workstation only in a release**, as it
 reaches friends: there's no `yarn run build && restart` deploy any more.
+
+### Going back
+
+Going back is `install-release.sh` with the older version, because three things
+have to move together: the bundle (`current`), `~/projects/tsundoku-jobs` and the
+units linked from it. This page used to say to repoint `current` and restart,
+which left the timers on the newer tag, running newer code than the server.
+
+**Going back past a migration takes a restore as well.** The served app only
+climbs its ladder, so an older bundle runs on a newer schema without a word, and
+the timers, at the older tag, refuse it with "Deploy first" in their journals
+(`journalctl --user -u tsundoku-ocr`). That line is the sign. The way out is the
+snapshot from before the climb, `<db>-pre-v<N>-<stamp>.sqlite` in
+`/mnt/backup/tsundoku` ([`BACKUPS.md`](BACKUPS.md), "Restoring", where the live
+file is now `/mnt/hdd2/tsundoku/library.sqlite`), and what was read or rated since
+it is lost, so whether to take it is the owner's call.
 
 The settings are the data folder's `.env`, `/mnt/hdd2/tsundoku/.env`, written
 from Infisical by `yarn run secrets:pull` ([`SECRETS.md`](SECRETS.md)); the

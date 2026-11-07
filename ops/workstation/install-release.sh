@@ -15,7 +15,9 @@
 #
 # The data folder (/mnt/hdd2/tsundoku: its .env, the database, the library)
 # is the release's own business and isn't touched here. Older bundles stay
-# beside the new one, so going back is pointing `current` at one again.
+# beside the new one. Going back is this script with the older version, never
+# `current` moved by hand: the timers' checkout and their units have to move too
+# (doc/SERVING.md, "Going back").
 set -eu
 
 version=${1:?usage: install-release.sh <version>}
@@ -27,6 +29,12 @@ archive=tsundoku-$version-linux-x64.tar.xz
 
 [ -f "$out/.smoked" ] || {
 	echo "$version wasn't smoke-tested whole (no $out/.smoked): run ops/release/smoke.sh first." >&2
+	exit 1
+}
+# The mark speaks for the bundles it tested (ops/release/smoked.ts, the same rule).
+rebuilt=$(find "$out" -maxdepth 1 -type f -name "tsundoku-$version-*" -newer "$out/.smoked")
+[ -z "$rebuilt" ] || {
+	echo "$version changed after its smoke test: run ops/release/smoke.sh again. $rebuilt" >&2
 	exit 1
 }
 (cd "$out" && grep " $archive\$" SHA256SUMS | sha256sum -c --quiet -) || {

@@ -79,8 +79,9 @@ cd android
 ```
 
 The JVM tests run once per flavor: `FormTest`, `InsetsTest` and `NetworkTest`
-are this app's, beside the TV's. A release is `ops/release/android-apk.sh`
-([`RELEASE.md`](RELEASE.md), "The Android apps"); one keystore signs both.
+are this app's, beside the TV's. A release is `ops/release/android-apk.sh`,
+which builds the tag rather than this working tree ([`RELEASE.md`](RELEASE.md),
+"The Android apps"); one keystore signs both.
 
 ## Updates
 

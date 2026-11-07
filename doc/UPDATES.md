@@ -24,6 +24,7 @@ masshiro.pro.
     tsundoku-win-x64.zip
     tsundoku-linux-x64.tar.xz
     flaresolverr-3.4.6-win-x64.zip, flaresolverr-3.4.6-linux-x64.tar.gz
+    tsundoku-app.apk  tsundoku-tv.apk   since c614: 2026.11.05.1 and older have neither
     SHA256SUMS  README.txt
 ```
 
@@ -63,14 +64,17 @@ friend reads, and each file's name, size and SHA-256
 
 ```sh
 git tag release/2026.10.30.4
+git push origin release/2026.10.30.4
 yarn run release 2026.10.30.4
+ops/release/android-apk.sh 2026.10.30.4     # both apps, from the tag, with the keystore
 ops/release/smoke.sh 2026.10.30.4           # writes out/<v>/.smoked when every platform passed
 $EDITOR ops/release/notes/2026.10.30.4.txt  # what a friend reads: a few plain lines
 yarn run release:publish 2026.10.30.4       # --dry-run signs and checks, uploads nothing
 ```
 
 `publish` (`ops/release/publish.ts`) refuses a version smoke.sh didn't pass
-whole (its `.smoked` mark), one without notes, and one already on the host. It
+whole (its `.smoked` mark), one rebuilt since it did, one without notes, one
+without both release-signed APKs, and one already on the host. It
 hard-links the files under their published names, signs `latest.json` and
 opens it with the builds' public key (a mismatched key would publish a release
 nobody can install), rsyncs the folder to `vps:tsundoku-releases/.<v>.part`,
@@ -165,7 +169,10 @@ from the release host, offered in UPDATES and the library's modal";
   as `tsundoku-app.apk` and `tsundoku-tv.apk`, in the manifest under
   `files.android.app` and `files.android.tv`, size and SHA-256 signed with
   the rest. **A friend's lasting link** for a first install is
-  `https://dl.tsundoku.masshiro.pro/latest/tsundoku-app.apk`.
+  `https://dl.tsundoku.masshiro.pro/latest/tsundoku-app.apk`. It answers 404
+  until the first release with APKs is published, because `latest` is whichever
+  version was published last. That was 2026.11.05.1 when this was written
+  (2026-11-06), older than c614, and `tsundoku-tv.apk` is the same.
 - **Looking** (`Updater.kt`): on launch at most once a day, never for a
   build whose version is no release (a local `1.0.0`), and when asked. One
   GET of `latest.json`, with a user agent of `tsundoku-app/<version>`.

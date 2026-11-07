@@ -6,8 +6,8 @@
  *   yarn run release:publish 2026.11.02             # upload, then announce
  *   yarn run release:publish 2026.11.02 --dry-run   # sign and check, upload nothing
  *
- * It refuses a version `ops/release/smoke.sh` didn't pass whole, one without
- * notes (ops/release/notes/<version>.txt, what a friend reads in SETTINGS), and
+ * It refuses a version `ops/release/smoke.sh` didn't pass whole, one rebuilt
+ * since it did (ops/release/smoked.ts), one without notes (ops/release/notes/<version>.txt, what a friend reads in SETTINGS), and
  * one already on the host: a version folder is written once. The files go up
  * under unversioned names into the version's folder, then `latest` points at
  * it, then latest.json is written: until that last step nothing announces a
@@ -37,6 +37,7 @@ import {
 	type Manifest,
 	type ReleaseFile
 } from '../../src/lib/server/update-manifest.ts';
+import { smokedProblem } from './smoked.ts';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const args = process.argv.slice(2);
@@ -57,9 +58,8 @@ if (!version || !VERSION_RE.test(version))
 
 const out = join(process.env.RELEASE_DIR ?? '/mnt/hdd2/tsundoku/release', 'out', version!);
 if (!existsSync(out)) fail(`${out} doesn't exist: build it first (yarn run release ${version}).`);
-const smoked = existsSync(join(out, '.smoked')) ? readFileSync(join(out, '.smoked'), 'utf8') : '';
-if (!smoked.startsWith(`${version} `))
-	fail(`${version} hasn't passed ops/release/smoke.sh on every platform: run it first.`);
+const unsmoked = smokedProblem(out, version!);
+if (unsmoked) fail(unsmoked);
 const notesFile = join(repo, 'ops/release/notes', `${version}.txt`);
 if (!existsSync(notesFile)) fail(`no notes: write ${notesFile} (what a friend reads in SETTINGS).`);
 const notes = readFileSync(notesFile, 'utf8').trim();

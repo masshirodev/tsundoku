@@ -31,6 +31,7 @@ import {
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serverModules, spawnedPackages } from './modules.ts';
+import { forgetSmoked } from './smoked.ts';
 
 type Platform = 'win-x64' | 'linux-x64';
 
@@ -139,6 +140,8 @@ if (capture('git', ['branch', '-r', '--contains', engineCommit], engineRepo) ===
 rmSync(work, { recursive: true, force: true });
 mkdirSync(work, { recursive: true });
 mkdirSync(out, { recursive: true });
+// From here the folder's bundles are no longer the ones a smoke test passed.
+forgetSmoked(out);
 // `kotoba` is `link:../kotoba`: the worktree gets a sibling pointing at the real one.
 symlinkSync(kotobaRepo, join(work, 'kotoba'));
 const src = join(work, 'tsundoku');
