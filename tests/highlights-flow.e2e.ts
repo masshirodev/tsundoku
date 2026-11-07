@@ -7,6 +7,7 @@ import { type Page } from '@playwright/test';
 import Database from 'better-sqlite3';
 import { expect, test } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
+import { startPreview } from './highlights-preview';
 
 /**
  * Highlights H1 end to end (c701; doc/HIGHLIGHTS.md): the sidebar's and
@@ -208,27 +209,23 @@ test.beforeAll(async () => {
 	} finally {
 		db.close();
 	}
-	server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
-		env: {
-			...process.env,
-			DATABASE_PATH: dbPath,
-			TSUNDOKU_TOKEN: E2E_TOKEN,
-			TSUNDOKU_ANILIST: 'off',
-			LIBRARY_ROOT: join(scratch, 'library'),
-			TRASH_DIR: join(scratch, 'trash'),
-			TSUNDOKU_HOME: home
-		},
-		stdio: 'ignore'
-	});
-	let up = false;
-	for (let i = 0; i < 120 && !up; i++) {
-		try {
-			up = (await fetch(`${base}/`, { redirect: 'manual' })).status > 0;
-		} catch {
-			await new Promise((r) => setTimeout(r, 500));
-		}
-	}
-	if (!up) throw new Error('the highlights flow preview never answered');
+	server = await startPreview(
+		() =>
+			spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
+				env: {
+					...process.env,
+					DATABASE_PATH: dbPath,
+					TSUNDOKU_TOKEN: E2E_TOKEN,
+					TSUNDOKU_ANILIST: 'off',
+					LIBRARY_ROOT: join(scratch, 'library'),
+					TRASH_DIR: join(scratch, 'trash'),
+					TSUNDOKU_HOME: home
+				},
+				stdio: 'ignore'
+			}),
+		base,
+		'the highlights flow preview'
+	);
 });
 
 test.afterAll(() => {

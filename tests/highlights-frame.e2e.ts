@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { expect, test } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
+import { startPreview } from './highlights-preview';
 
 /**
  * The highlights page's frame (c701; doc/handoffs/highlights/Page.dc.html,
@@ -23,24 +24,24 @@ import { E2E_TOKEN } from '../playwright.config';
  * '@playwright/test'` (gen-conformance.mjs:222), changed to `./fixtures`
  * as every new e2e file takes it (c542); and this preamble, because the
  * shared seed has no highlights: it seeds a database of its own with one
- * highlight per kind and serves the build on its own port (the works
- * frames' arrangement), `PLAYWRIGHT_WORKS_PORT` only when the gate assigns
- * one. The board is the desktop's, so it runs in the desktop project and
+ * highlight per kind and serves the build on a port the OS gives it
+ * (`listen(0)`, as tests/highlights-flow.e2e.ts does), never
+ * `PLAYWRIGHT_WORKS_PORT`: the works frames serve on that one, and in a full
+ * run their project and this file's `desktop` start at the same time, so a
+ * shared port is a race the loser loses against the other file's server and
+ * database. The readiness poll fails as soon as its own preview exits, so a
+ * lost port is a clear error, never a run against someone else's server. The board is the desktop's, so it runs in the desktop project and
  * skips itself in the others; its DEVICE_IGNORE line is a gap for e2e's
  * playwright.config.ts (doc/handoff-notes/highlights.md).
  */
-const pinnedPort = Number(process.env.PLAYWRIGHT_WORKS_PORT);
-const PORT =
-	Number.isInteger(pinnedPort) && pinnedPort > 0 && pinnedPort <= 65535
-		? pinnedPort
-		: await new Promise<number>((resolve, reject) => {
-				const probe = createServer();
-				probe.once('error', reject);
-				probe.listen(0, '127.0.0.1', () => {
-					const { port } = probe.address() as AddressInfo;
-					probe.close(() => resolve(port));
-				});
-			});
+const PORT = await new Promise<number>((resolve, reject) => {
+	const probe = createServer();
+	probe.once('error', reject);
+	probe.listen(0, '127.0.0.1', () => {
+		const { port } = probe.address() as AddressInfo;
+		probe.close(() => resolve(port));
+	});
+});
 const base = `http://localhost:${PORT}`;
 const scratch = join(tmpdir(), `tsundoku-e2e-highlights-frame-${process.pid}`);
 const dbPath = join(scratch, 'library.sqlite');
@@ -139,26 +140,22 @@ test.beforeAll(async () => {
 	} finally {
 		db.close();
 	}
-	server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
-		env: {
-			...process.env,
-			DATABASE_PATH: dbPath,
-			TSUNDOKU_TOKEN: E2E_TOKEN,
-			TSUNDOKU_ANILIST: 'off',
-			LIBRARY_ROOT: join(scratch, 'library'),
-			TSUNDOKU_HOME: join(scratch, 'home')
-		},
-		stdio: 'ignore'
-	});
-	let up = false;
-	for (let i = 0; i < 120 && !up; i++) {
-		try {
-			up = (await fetch(`${base}/`, { redirect: 'manual' })).status > 0;
-		} catch {
-			await new Promise((r) => setTimeout(r, 500));
-		}
-	}
-	if (!up) throw new Error('the highlights frame preview never answered');
+	server = await startPreview(
+		() =>
+			spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
+				env: {
+					...process.env,
+					DATABASE_PATH: dbPath,
+					TSUNDOKU_TOKEN: E2E_TOKEN,
+					TSUNDOKU_ANILIST: 'off',
+					LIBRARY_ROOT: join(scratch, 'library'),
+					TSUNDOKU_HOME: join(scratch, 'home')
+				},
+				stdio: 'ignore'
+			}),
+		base,
+		'the highlights frame preview'
+	);
 });
 
 test.afterAll(() => {
