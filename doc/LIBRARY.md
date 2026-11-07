@@ -92,14 +92,6 @@ the sheet. They're gone while selecting (every tap is a pick then) and while
 offline (writes need the workstation). `CoverTile` takes them as `onfavourite`
 and `onrate`; without those it draws the plain badge and bars.
 
-**A failed write draws its value dashed** (c659). The page passes the failure
-store's answer into the tile (`favUnsaved={saves.unsaved('fav:<id>')}`,
-`ratingUnsaved={saves.unsaved('rating:<id>')}`), and the control wears the
-series screen's own `.unsaved` mark -- `1.5px dashed var(--accent)`, no new
-colour -- until PUT BACK, a retry that lands, or the same field's next tap that
-lands (doc/WAITING.md, "Writes that fail"). The props default to false, so a
-user of the tile that passes neither draws a stored value.
-
 **Two quick taps take turns** (c615). The tile's saves are on the series
 screen's own queue (`seriesSaves`, `src/routes/series/[id]/serial-saves.ts`)
 under the same `fav:<id>` and `rating:<id>` keys, so a tile tap and a
@@ -331,7 +323,16 @@ Work's parts sit across the boundary (`doc/WORKS.md`).
   page twice. A HIDE and an UNDO are one re-read too (c660): the HIDE sheet's
   success hands the reload to the screen that opened it (`ondone`), which runs
   the same `reloadList` a tile save does, and the UNDO's action asks its
-  `update` not to re-read on success for the same reason.
+  `update` not to re-read on success for the same reason. An UNDO the server
+  answers with a redirect is the exception: `applyAction` sends it through
+  `goto` with `invalidateAll`, so that is the one re-read and its effect queues
+  the one refill; the handler must not add a second (c660, r2).
+- **A card is drawn once.** A load's first page can change under the pages
+  already drawn -- a Work made over two series it listed, a part hidden -- and
+  the two lists can then hold the same id (a Work's card carries its first
+  part's). The grid keys its blocks by `id`, and the same id twice stops the
+  render, so the first page's copy wins and a page's duplicate is dropped
+  (c660, r2).
 - **A re-read drops any page that was still on its way, and lets go of the
   loading flag with it.** A page requested before the re-read has a stale
   position, so its answer is dropped; the flag said a page was out, and the

@@ -98,8 +98,7 @@ value at once and save behind it (`src/lib/saves.svelte.ts`). When a save
 fails:
 
 - the new value stays, drawn dashed (on the series screen, the rating label
-  reads NOT SAVED; on the library's tile, the FAV corner and the rating bars
-  wear the same dashed mark, c659);
+  reads NOT SAVED);
 - a band at the bottom says "RATING 4 NOT SAVED · WORKSTATION DID NOT ANSWER ·
   TRIES AGAIN WITH THE NEXT REQUEST", with PUT BACK 3 and RETRY;
 - the next navigation that reaches the workstation tries it again, once.
