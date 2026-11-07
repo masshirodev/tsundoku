@@ -61,15 +61,16 @@ reaches, foreign-key cascades included: SQLite fires a child table's DELETE
 triggers for an ON DELETE CASCADE, which `tests/highlights-db.spec.ts`
 measures ("SQLite fires a child table's triggers for a cascade").
 
-| Event                                                                | Trigger                                                                          | What the pointer does                                                                                                   |
-| -------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| An entry is deleted                                                  | `highlights_entry_gone`                                                          | `entry_id` NULL, ORPHAN (entry), unless already ORPHAN (series). Copy and note stay.                                    |
-| A series is deleted (its entries cascade first or after: either way) | `highlights_series_gone`                                                         | `series_id` and `entry_id` NULL, ORPHAN (series).                                                                       |
-| An entry moves to another series (a fold)                            | `highlights_entry_moved`                                                         | Follows it: the new series' id, key and hidden.                                                                         |
-| An entry is renumbered (the books' resequence, an anime's)           | `highlights_entry_numbered`                                                      | Its `number` and `season` follow, so a later re-add matches what it was last.                                           |
-| A series' key changes (MOVE, MOVE BACK, a fold's re-key)             | `highlights_series_rekeyed`                                                      | Its highlights' `origin_key` follows.                                                                                   |
-| A series arrives in the library with a key an orphan kept            | `highlights_series_back`, `highlights_series_added`, `highlights_series_rekeyed` | Re-resolves: the new id, `rejoin`, and each entry by number and season, now or as it arrives (`highlights_entry_back`). |
-| A series' or its root's hidden or PUBLIC changes                     | `highlights_series_hidden`, `highlights_root_hidden`                             | `hidden` follows, by `visibility.ts`' one rule.                                                                         |
+| Event                                                                     | Trigger                                                                          | What the pointer does                                                                                                   |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| An entry is deleted                                                       | `highlights_entry_gone`                                                          | `entry_id` NULL, ORPHAN (entry), unless already ORPHAN (series). Copy and note stay.                                    |
+| A series is deleted (its entries cascade first or after: either way)      | `highlights_series_gone`                                                         | `series_id` and `entry_id` NULL, ORPHAN (series).                                                                       |
+| An entry moves to another series (a fold)                                 | `highlights_entry_moved`                                                         | Follows it: the new series' id, key and hidden.                                                                         |
+| A highlight changes series (a fold's sweep of an orphan no entry carries) | `highlights_moved`                                                               | Takes the new series' key and hidden, so a loser's key never re-resolves it into a series it left.                      |
+| An entry is renumbered (the books' resequence, an anime's)                | `highlights_entry_numbered`                                                      | Its `number` and `season` follow, so a later re-add matches what it was last.                                           |
+| A series' key changes (MOVE, MOVE BACK, a fold's re-key)                  | `highlights_series_rekeyed`                                                      | Its highlights' `origin_key` follows.                                                                                   |
+| A series arrives in the library with a key an orphan kept                 | `highlights_series_back`, `highlights_series_added`, `highlights_series_rekeyed` | Re-resolves: the new id, `rejoin`, and each entry by number and season, now or as it arrives (`highlights_entry_back`). |
+| A series' or its root's hidden or PUBLIC changes                          | `highlights_series_hidden`, `highlights_root_hidden`                             | `hidden` follows, by `visibility.ts`' one rule.                                                                         |
 
 Every door that deletes, and what it does to a pointer (`rg -n "DELETE FROM
 (series|entries)" src`, plus the cascades):
@@ -146,7 +147,9 @@ the library folder, so a delete's trash never takes a copy and a scan never
 reads one as a book. Its own function, as `importArea` is, so `dataPaths`'
 shape does not change. A copy is served by `/api/highlights/<id>/copy` (the
 page, the clip) and `/still` (a clip's first frame), only from inside the
-folder and only when the viewer may see the highlight; `?save=1` names the
+folder and only when the viewer may see the highlight, as `private, no-cache`
+(a copy never changes, but who may see it does, so a highlight hidden since
+never shows from the browser's cache); `?save=1` names the
 file (`kaze-no-tou-no-shoujo-ch42-p14.png`). They are backed up beside each
 snapshot ([`BACKUPS.md`](BACKUPS.md), "Highlights' copies").
 

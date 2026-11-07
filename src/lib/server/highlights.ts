@@ -253,28 +253,48 @@ export function copyFile(relative: string, area = highlightsArea()): string {
 	return isUnder(abs, area.root) && abs !== area.root ? abs : '';
 }
 
-/** Rows and their copies, gone for good (DELETE THEM TOO, and the UNDO window's end). */
-export function removeHighlights(ids: number[], db: Database.Database = getDb()): number {
-	if (ids.length === 0) return 0;
+/**
+ * The rows, gone, in the caller's transaction (or its own); their copies'
+ * files are returned for `unlinkCopies`, which the caller runs only once that
+ * transaction has committed. Unlinking inside it would lose the copy of a row
+ * a later statement's failure rolls back (DELETE's and a book's delete, c701).
+ */
+export function removeHighlightRows(
+	ids: number[],
+	db: Database.Database = getDb()
+): { gone: number; files: string[] } {
+	const out = { gone: 0, files: [] as string[] };
+	if (ids.length === 0) return out;
 	const area = highlightsArea();
 	const get = db.prepare(`SELECT copy_path, still_path FROM highlights WHERE id = ?`);
 	const del = db.prepare(`DELETE FROM highlights WHERE id = ?`);
-	let gone = 0;
-	const files: string[] = [];
 	db.transaction(() => {
 		for (const id of ids) {
 			const r = get.get(id) as { copy_path: string; still_path: string } | undefined;
 			if (!r) continue;
 			for (const f of [r.copy_path, r.still_path]) {
 				const abs = copyFile(f, area);
-				if (abs) files.push(abs);
+				if (abs) out.files.push(abs);
 			}
-			gone += del.run(id).changes;
+			out.gone += del.run(id).changes;
 		}
 	}).immediate();
-	// The rows went first: a copy left behind by a failed unlink is litter, a
-	// row left pointing at a missing copy would be a broken highlight.
+	return out;
+}
+
+/**
+ * The copies of rows already gone. The rows go first: a copy left behind by a
+ * failed unlink is litter, a row left pointing at a missing copy would be a
+ * broken highlight.
+ */
+export function unlinkCopies(files: string[]): void {
 	for (const f of files) if (existsSync(f)) rmSync(f, { force: true });
+}
+
+/** Rows and their copies, gone for good (DELETE THEM TOO, and the UNDO window's end). */
+export function removeHighlights(ids: number[], db: Database.Database = getDb()): number {
+	const { gone, files } = removeHighlightRows(ids, db);
+	unlinkCopies(files);
 	return gone;
 }
 

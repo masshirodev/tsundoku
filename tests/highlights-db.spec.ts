@@ -18,6 +18,7 @@ const { writeSeries } = await import('$lib/server/import/write');
 const { keepOrPromote } = await import('$lib/server/browsing');
 const { applyMove, applyMoveBack } = await import('$lib/server/move');
 const { buildMoveMap } = await import('$lib/library/move');
+const { foldSeries } = await import('$lib/server/import/fold');
 
 /**
  * Highlights' life (c701; doc/HIGHLIGHTS.md): rung 72's record and its
@@ -265,6 +266,28 @@ describe('every door that deletes (delete.ts, MOVE BACK, a fold)', () => {
 		expect(pointer(h1).state).toBe('orphan_series');
 	});
 
+	it('a book’s delete that rolls back keeps its highlights’ rows and copies (unlinked only after it commits)', async () => {
+		mkdirSync(join(work, 'highlights', 'pages'), { recursive: true });
+		const s = series('Rolled Back');
+		const book = entry(s, 1);
+		entry(s, 2);
+		const bookCopy = join(work, 'highlights', 'pages', 'rolled-book.webp');
+		writeFileSync(bookCopy, 'webp');
+		const h = highlight(s, book, { copy: 'pages/rolled-book.webp' });
+		// A later statement in the delete's transaction fails: the book's own delete.
+		db.exec(`CREATE TEMP TRIGGER refuse_entry BEFORE DELETE ON entries
+			WHEN OLD.id = ${book} BEGIN SELECT RAISE(ABORT, 'refused'); END`);
+		try {
+			await expect(deleteBook(s, book, false, { now: NOW, highlights: true })).rejects.toThrow(
+				/refused/
+			);
+		} finally {
+			db.exec(`DROP TRIGGER refuse_entry`);
+		}
+		expect(db.prepare(`SELECT id FROM highlights WHERE id = ?`).get(h)).toBeDefined();
+		expect(existsSync(bookCopy)).toBe(true);
+	});
+
 	it('a fold (entries moved to another series, the first deleted) takes them along', () => {
 		const from = series('Fold From');
 		const into = series('Fold Into', { key: 'mihon:100:/into' });
@@ -278,6 +301,29 @@ describe('every door that deletes (delete.ts, MOVE BACK, a fold)', () => {
 			state: 'ok',
 			origin_key: 'mihon:100:/into'
 		});
+	});
+
+	it('a fold’s sweep takes an orphaned one along with the survivor’s key and hidden flag', () => {
+		const from = series('Fold Loser');
+		const into = series('Fold Survivor', { key: 'mihon:200:/survivor', rootId: hiddenRoot });
+		const gone = entry(from, 1);
+		entry(from, 2);
+		entry(into, 1);
+		const id = highlight(from, gone);
+		// Its chapter went before the fold: no entry carries it across, the
+		// fold's generic series_id sweep does.
+		db.prepare(`DELETE FROM entries WHERE id = ?`).run(gone);
+		expect(pointer(id)).toMatchObject({ series_id: from, state: 'orphan_entry' });
+		db.transaction(() => foldSeries(db, from, into))();
+		expect(pointer(id)).toMatchObject({
+			series_id: into,
+			state: 'orphan_entry',
+			origin_key: 'mihon:200:/survivor'
+		});
+		expect(
+			(db.prepare(`SELECT hidden FROM highlights WHERE id = ?`).get(id) as { hidden: number })
+				.hidden
+		).toBe(1);
 	});
 });
 

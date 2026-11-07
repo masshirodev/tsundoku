@@ -433,6 +433,8 @@ test('DELETE on the series screen says the highlights are kept, and keeps them, 
 		'attachment; filename="dungeon-meshi-ch2-p14.png"'
 	);
 	expect((await saved.body()).equals(PNG)).toBe(true);
+	// Asked again on every use: a highlight hidden since never shows from cache.
+	expect(saved.headers()['cache-control']).toBe('private, no-cache');
 });
 
 test.describe('on a desktop', () => {

@@ -37,7 +37,10 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
 	const headers: Record<string, string> = {
 		'content-type': TYPES[ext] ?? 'application/octet-stream',
 		'content-length': String(statSync(path).size),
-		'cache-control': 'private, max-age=31536000, immutable'
+		// A copy never changes, but who may see it does: a highlight hidden
+		// since must not keep showing from the browser's cache, so every use
+		// asks again (and a 404 then says it is gone).
+		'cache-control': 'private, no-cache'
 	};
 	if (url.searchParams.get('save') === '1')
 		headers['content-disposition'] = `attachment; filename="${copyName(h, ext.slice(1))}"`;

@@ -1749,6 +1749,18 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 				FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = NEW.series_id), hidden)
 		WHERE entry_id = NEW.id;
 	END;
+	-- However a highlight changes series (a fold's generic series_id sweep
+	-- moves the orphaned ones no entry carries), it takes that series' key and
+	-- hidden flag: a loser's key would re-resolve it into a series it left.
+	CREATE TRIGGER highlights_moved AFTER UPDATE OF series_id ON highlights
+		WHEN NEW.series_id IS NOT NULL AND NEW.series_id IS NOT OLD.series_id
+	BEGIN
+		UPDATE highlights SET
+			origin_key = (SELECT origin_key FROM series WHERE id = NEW.series_id),
+			hidden = COALESCE((SELECT CASE WHEN s.hidden = 1 OR (r.hidden = 1 AND s.public = 0) THEN 1 ELSE 0 END
+				FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = NEW.series_id), hidden)
+		WHERE id = NEW.id;
+	END;
 	-- The keys follow the entry while it is there, so a later re-add matches
 	-- the number it had last, not the one it was made at.
 	CREATE TRIGGER highlights_entry_numbered AFTER UPDATE OF position, episode_number, season ON entries

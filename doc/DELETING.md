@@ -65,7 +65,9 @@ from the device again, if the device still has it.
    series): rung 72's triggers mark them whichever door deletes, a cascade
    included. With the switch on the action reads **DELETE WITH 14
    HIGHLIGHTS**, and `deleteSeries`/`deleteBook` take `{ highlights: true }`
-   and remove them and their copies in the same transaction as the rows. The
+   and remove their rows in the same transaction as the series' or book's,
+   and their copies' files only once that transaction has committed: a
+   delete that rolls back keeps both the row and its copy. The
    library's bulk DELETE keeps them and says nothing yet (HIGHLIGHTS.md, "What
    it does not do yet"); the duplicates review's KEEP keeps them too.
 

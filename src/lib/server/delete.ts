@@ -9,7 +9,7 @@ import { coverDir } from './covers.ts';
 import { isUnder } from './paths.ts';
 import { SAMPLE_PREFIX } from './pages/sample.ts';
 import { dataPaths } from './data-dirs.ts';
-import { heldBy, heldByEntry, removeHighlights } from './highlights.ts';
+import { heldBy, heldByEntry, removeHighlightRows, unlinkCopies } from './highlights.ts';
 
 /**
  * Deleting books and series (doc/DELETING.md). A delete does three things:
@@ -169,11 +169,17 @@ export async function deleteSeries(
 		// Only what the viewer can see goes with it: a hidden highlight the
 		// viewer can't see is never deleted blind (doc/HIGHLIGHTS.md).
 		const theirs = highlights ? heldBy([id], reveal, db).ids : [];
-		db.transaction(() => {
-			bury(db, [row.origin_key ?? '', ...buried], row.title, now);
-			db.prepare(`DELETE FROM series WHERE id = ?`).run(id);
-			result.highlights += removeHighlights(theirs, db);
-		}).immediate();
+		const copies = db
+			.transaction((): string[] => {
+				bury(db, [row.origin_key ?? '', ...buried], row.title, now);
+				db.prepare(`DELETE FROM series WHERE id = ?`).run(id);
+				const { gone, files } = removeHighlightRows(theirs, db);
+				result.highlights += gone;
+				return files;
+			})
+			.immediate();
+		// Only once the rows' delete has committed (doc/HIGHLIGHTS.md).
+		unlinkCopies(copies);
 		await unlink(join(coverDir(), `${id}.webp`)).catch(() => undefined);
 		result.series += 1;
 		result.entries += entries.length;
@@ -208,9 +214,10 @@ export async function deleteBook(
 	);
 	const theirs = highlights ? heldByEntry(entryId, reveal, db) : [];
 	let removed = 0;
+	let copies: string[] = [];
 	const seriesGone = db
 		.transaction((): boolean => {
-			removed = removeHighlights(theirs, db);
+			({ gone: removed, files: copies } = removeHighlightRows(theirs, db));
 			const title = (
 				db.prepare(`SELECT title FROM entries WHERE id = ?`).get(entryId) as { title: string }
 			).title;
@@ -228,5 +235,7 @@ export async function deleteBook(
 			return false;
 		})
 		.immediate();
+	// Only once the book's delete has committed: a rollback keeps both row and copy.
+	unlinkCopies(copies);
 	return { series: seriesGone ? 1 : 0, entries: 1, files, seriesGone, highlights: removed };
 }
