@@ -1092,7 +1092,8 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 // title as its heading, so these cases serve one made from it with three
 // chapters changed: Vol. 2 has no heading (a web-novel chapter from a
 // source), Vol. 3's heading is another ("Interlude"), and Vol. 4's carries a
-// "Chapter 4:" prefix over the title.
+// "Chapter 4:" prefix over the title. Vol. 6 prints its number and its
+// title in two headings, as many publishers' books do.
 
 async function bandBook(): Promise<Buffer> {
 	const base = new Zip(
@@ -1108,6 +1109,7 @@ async function bandBook(): Promise<Buffer> {
 		'OEBPS/ch2.xhtml': ['<h1>Vol. 2</h1>', ''],
 		'OEBPS/ch3.xhtml': ['<h1>Vol. 3</h1>', '<h1>Interlude</h1>'],
 		'OEBPS/ch4.xhtml': ['<h1>Vol. 4</h1>', '<h1>Chapter 4: Vol. 4</h1>'],
+		'OEBPS/ch6.xhtml': ['<h1>Vol. 6</h1>', '<h1>Chapter 6</h1>\n<h2>Vol. 6</h2>'],
 		// A full-page illustration first: as tall as a page can show it.
 		'OEBPS/ch5.xhtml': [
 			'<h1>Vol. 5</h1>',
@@ -1238,6 +1240,13 @@ test.describe("the band at a chapter's start (c705)", () => {
 		await expect(band.locator('.t')).toHaveCount(0);
 		await expect(band).toBeInViewport();
 		expect(await onScreen(page, 0, 0)).toBe('on screen');
+		// "Chapter 6", then "Vol. 6" under it: the book prints the title in its
+		// second heading, so the band does not print it again.
+		await openFromContents(page, 'Vol. 6');
+		await expect(page.locator('.blocks h1')).toHaveText('Chapter 6');
+		await expect(page.locator('.blocks h2')).toHaveText('Vol. 6');
+		await expect(band.locator('.ab')).toHaveText(/^\s*CH\. 6\s*6 OF 33\s*$/);
+		await expect(band.locator('.t')).toHaveCount(0);
 
 		// Vol. 5 opens on a full-page illustration, which leaves no room: the
 		// band is the one page of its own, the illustration on the next, and a

@@ -185,10 +185,19 @@ rule and colours (`.cstart` in `TextReader.svelte`; no design round):
   title in the band. Different, or no heading at all (common in a web-novel
   chapter from a source): the title, in the band. A title that is only its
   number compares as the number (`Chapter 212` and `第212話` are the same).
-  Matter never gets one: the band's `COVER` already names it. The rule is
-  `src/lib/reader/start-band.ts`, pure, and `tests/text-start-band.spec.ts`
-  holds every prefix, a heading that differs, no heading, a first short line,
-  the edges of 100 characters and six blocks, and the fold on its own output.
+  **A lead that is only a number reads the line after it**: many publishers'
+  books print the number and the title in two blocks (`<h1>Chapter 1</h1>`
+  then `<h2>The Article</h2>`, two short paragraphs, `<h2>第一章</h2>` then
+  `<h1>旅立ち</h1>`), so when the first line folds to its number alone, the
+  next block with text, if it is a heading or a short line inside the six
+  blocks, is compared too, alone and joined to the number. Equal to either:
+  no title. A bare `Chapter 1` with the text right after it still gets the
+  title, since the book never prints it. Matter never gets one: the band's
+  `COVER` already names it. The rule is `src/lib/reader/start-band.ts`
+  (`leadLines`, `bandTitle`), pure, and `tests/text-start-band.spec.ts` holds
+  every prefix, a heading that differs, no heading, a first short line, a
+  number and a title in two blocks (headings, paragraphs, Japanese), the
+  edges of 100 characters and six blocks, and the fold on its own output.
 - **It is not a block.** It sits in the flow before `<div class="blocks">`,
   so `data-b` numbering is what it always was and every saved place opens on
   the same words ("Position", below).
@@ -215,7 +224,8 @@ rule and colours (`.cstart` in `TextReader.svelte`; no design round):
 
 Tested in `tests/text-reader-flow.e2e.ts` ("the band at a chapter's start
 (c705)": a book whose chapters have the title as heading, no heading, another
-heading, a `Chapter 4:` prefix, and a full-page illustration first, in PAGED
+heading, a `Chapter 4:` prefix, a full-page illustration first, and
+`Chapter 6` over a second heading that is the title, in PAGED
 and SCROLL, with a saved place reopened on its words).
 
 ## Position
@@ -565,7 +575,8 @@ There's always ← SERIES and LIBRARY.
   for is the start band's (c705, "A chapter's start" above): END's twin over
   the first block, always with the chapter's number and count, and with the
   table-of-contents title only when the chapter's first heading or first
-  short line, folded, doesn't already say it. A chapter with no heading (a
+  short line (or, when that line is only the number, the line after it),
+  folded, doesn't already say it. A chapter with no heading (a
   web-novel chapter from a source) gets its name there; "Chapter 1: The
   Article" is still printed once.
 - **Paragraph style follows the size of the book, not its markup.** Series with

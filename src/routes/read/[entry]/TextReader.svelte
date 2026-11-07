@@ -75,7 +75,7 @@
 		widthFor,
 		widthKeyOf
 	} from '$lib/reader/text';
-	import { bandTitle, leadLine } from '$lib/reader/start-band';
+	import { bandTitle, leadLines } from '$lib/reader/start-band';
 	import EntryList from '../../series/[id]/EntryList.svelte';
 	import TextChrome from './TextChrome.svelte';
 	import TextSheet from './TextSheet.svelte';
@@ -1527,7 +1527,7 @@
 		e && ch && !e.matter
 			? bandTitle(
 					e.label,
-					leadLine(ch.blocks.map((b) => ({ tag: b.localName, text: b.textContent ?? '' })))
+					leadLines(ch.blocks.map((b) => ({ tag: b.localName, text: b.textContent ?? '' })))
 				)
 				? e.label
 				: null

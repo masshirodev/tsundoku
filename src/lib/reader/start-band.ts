@@ -31,16 +31,50 @@ const HEADING = /^h[1-6]$/;
  * paragraph is the text itself starting, and the search stops there.
  */
 export function leadLine(blocks: readonly LeadBlock[]): string | null {
-	let short: string | null = null;
-	let seen = 0;
-	for (const b of blocks) {
-		const text = b.text.replace(/\s+/g, ' ').trim();
+	return leadAt(blocks)?.text ?? null;
+}
+
+/**
+ * Every line the book may print the chapter's title in. Usually that is
+ * `leadLine` alone. A publisher's EPUB often prints the number and the title
+ * in two blocks (`<h1>Chapter 1</h1><h2>The Article</h2>`, two short
+ * paragraphs, `<h2>第一章</h2><h1>旅立ち</h1>`): when the lead is only a
+ * chapter number, the next block with text is read as well, if it is a
+ * heading or a short paragraph inside the `LEAD_BLOCKS`, and the two joined
+ * are a candidate too. Empty where `leadLine` is null.
+ */
+export function leadLines(blocks: readonly LeadBlock[]): string[] {
+	const lead = leadAt(blocks);
+	if (!lead) return [];
+	if (!numberOnly(lead.text)) return [lead.text];
+	// The line after it must still be one of the leading blocks.
+	if (lead.seen >= LEAD_BLOCKS) return [lead.text];
+	for (let i = lead.index + 1; i < blocks.length; i++) {
+		const text = clean(blocks[i].text);
 		if (!text) continue;
-		const tag = b.tag.toLowerCase();
-		if (HEADING.test(tag)) return text;
+		const tag = blocks[i].tag.toLowerCase();
+		const line = HEADING.test(tag) || (tag === 'p' && text.length <= SHORT_LINE);
+		return line ? [lead.text, text, `${lead.text} ${text}`] : [lead.text];
+	}
+	return [lead.text];
+}
+
+const clean = (s: string) => s.replace(/\s+/g, ' ').trim();
+
+/** The lead line, where it is, and how many blocks with text were counted up to it. */
+function leadAt(
+	blocks: readonly LeadBlock[]
+): { text: string; index: number; seen: number } | null {
+	let short: { text: string; index: number; seen: number } | null = null;
+	let seen = 0;
+	for (let i = 0; i < blocks.length; i++) {
+		const text = clean(blocks[i].text);
+		if (!text) continue;
+		const tag = blocks[i].tag.toLowerCase();
+		if (HEADING.test(tag)) return { text, index: i, seen: seen + 1 };
 		if (tag === 'p') {
 			if (text.length > SHORT_LINE) break;
-			short ??= text;
+			short ??= { text, index: i, seen: seen + 1 };
 		}
 		if (++seen >= LEAD_BLOCKS) break;
 	}
@@ -69,6 +103,12 @@ const NOISE = /[\p{P}\p{S}\s]+/gu;
  * holds on its own output: `foldTitle(foldTitle(s)) === foldTitle(s)`.
  */
 export function foldTitle(s: string): string {
+	const { rest, n } = splitTitle(s);
+	return rest || (n ?? '');
+}
+
+/** A title's text once its leading chapter number is off, and that number. */
+function splitTitle(s: string): { rest: string; n: string | null } {
 	let t = s.normalize('NFKC').toLowerCase().trim();
 	let n: string | null = null;
 	for (let m = SPACED_PREFIX.exec(t) ?? CJK_PREFIX.exec(t); m;) {
@@ -82,15 +122,22 @@ export function foldTitle(s: string): string {
 		t = t.slice(m[0].length);
 		m = COMPACT_PREFIX.exec(t) ?? COMPACT_CJK.exec(t);
 	}
-	return t || (n ?? '');
+	return { rest: t, n };
+}
+
+/** A line that says the chapter's number and nothing else: "Chapter 1", "第一章", "12". */
+function numberOnly(s: string): boolean {
+	const { rest, n } = splitTitle(s);
+	return n !== null ? rest === '' : /^\d+$/.test(rest);
 }
 
 /**
- * Whether the band names the chapter: it has a title, and the book's own
- * opening line (`leadLine`) does not already say it.
+ * Whether the band names the chapter: it has a title, and none of the
+ * book's own opening lines (`leadLines`, or one `leadLine`) already says it.
  */
-export function bandTitle(tocTitle: string, lead: string | null): boolean {
+export function bandTitle(tocTitle: string, lead: string | readonly string[] | null): boolean {
 	const own = foldTitle(tocTitle);
 	if (!own) return false;
-	return lead === null || foldTitle(lead) !== own;
+	const lines = lead === null ? [] : typeof lead === 'string' ? [lead] : lead;
+	return lines.every((l) => foldTitle(l) !== own);
 }

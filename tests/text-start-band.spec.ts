@@ -5,6 +5,7 @@ import {
 	bandTitle,
 	foldTitle,
 	leadLine,
+	leadLines,
 	type LeadBlock
 } from '$lib/reader/start-band';
 
@@ -118,6 +119,65 @@ describe('foldTitle', () => {
 	});
 });
 
+describe('leadLines', () => {
+	it('is the lead alone when it names more than a number', () => {
+		expect(leadLines([h('The Commission'), h('Part one', 'h2'), p(LONG)])).toEqual([
+			'The Commission'
+		]);
+	});
+	it('reads the line after a lead that is only a number, and the two joined', () => {
+		expect(leadLines([h('Chapter 1'), h('The Article', 'h2'), p(LONG)])).toEqual([
+			'Chapter 1',
+			'The Article',
+			'Chapter 1 The Article'
+		]);
+		expect(leadLines([p('Chapter 1'), fig, p('The Article'), p(LONG)])).toEqual([
+			'Chapter 1',
+			'The Article',
+			'Chapter 1 The Article'
+		]);
+	});
+	it('takes no second line when the text starts after the number', () => {
+		expect(leadLines([h('Chapter 1'), p(LONG), h('A scene title')])).toEqual(['Chapter 1']);
+		expect(leadLines([h('Chapter 1'), { tag: 'li', text: 'one' }])).toEqual(['Chapter 1']);
+		expect(leadLines([h('Chapter 1')])).toEqual(['Chapter 1']);
+	});
+	it(`looks for the second line within the ${LEAD_BLOCKS} blocks`, () => {
+		const shorts = Array.from({ length: LEAD_BLOCKS - 1 }, (_, i) => ({ tag: 'li', text: `${i}` }));
+		expect(leadLines([...shorts, h('Chapter 1'), h('Too far', 'h2')])).toEqual(['Chapter 1']);
+	});
+	it('is empty where leadLine is null', () => {
+		expect(leadLines([])).toEqual([]);
+		expect(leadLines([p(LONG), h('Chapter 1')])).toEqual([]);
+	});
+});
+
+describe('bandTitle over a number and a title in two blocks', () => {
+	it('leaves the title out when the book prints it under its number', () => {
+		const split = leadLines([h('Chapter 1'), h('The Article', 'h2'), p(LONG)]);
+		expect(bandTitle('Chapter 1: The Article', split)).toBe(false);
+		expect(bandTitle('The Article', split)).toBe(false);
+	});
+	it('in two short paragraphs as well', () => {
+		expect(
+			bandTitle('Chapter 1: The Article', leadLines([p('Chapter 1'), p('The Article'), p(LONG)]))
+		).toBe(false);
+	});
+	it('and in Japanese', () => {
+		expect(bandTitle('第一章　旅立ち', leadLines([h('第一章'), h('旅立ち', 'h2')]))).toBe(false);
+	});
+	it('draws it when the line under the number is something else', () => {
+		expect(
+			bandTitle('Chapter 1: The Article', leadLines([h('Chapter 1'), h('Interlude', 'h2')]))
+		).toBe(true);
+	});
+	it('on its own output: a title it draws under a bare number is left out once printed under it', () => {
+		for (const t of ['The Article', 'Chapter 1: The Article'])
+			if (bandTitle(t, leadLines([h('Chapter 1'), p(LONG)])))
+				expect(bandTitle(t, leadLines([h('Chapter 1'), h(t, 'h2'), p(LONG)]))).toBe(false);
+	});
+});
+
 describe('bandTitle', () => {
 	it('leaves the title out when the heading repeats it', () => {
 		expect(bandTitle('The Commission', 'The Commission')).toBe(false);
@@ -134,7 +194,12 @@ describe('bandTitle', () => {
 	});
 	it('draws it when the heading differs', () => {
 		expect(bandTitle('The Commission', 'Interlude')).toBe(true);
-		expect(bandTitle('Chapter 212: The Commission', 'Chapter 212')).toBe(true);
+	});
+	it('draws it under a heading that is only the number, with the text right after it', () => {
+		expect(bandTitle('Chapter 212: The Commission', leadLines([h('Chapter 212'), p(LONG)]))).toBe(
+			true
+		);
+		expect(bandTitle('Chapter 1: The Article', leadLines([h('Chapter 1'), p(LONG)]))).toBe(true);
 	});
 	it('draws it over a first short line that is not the title', () => {
 		expect(bandTitle('The Commission', leadLine([p('"How large?" he asked.'), p(LONG)]))).toBe(
