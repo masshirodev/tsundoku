@@ -39,7 +39,7 @@
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { waiting } from '$lib/waiting.svelte';
 	import { postAction, saves, type FailedSave } from '$lib/saves.svelte';
-	import { seriesSaves } from '$lib/serial-saves';
+	import { seriesSaves, type Turn } from '$lib/serial-saves';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
 	import ChoiceMenu from '$lib/components/controls/ChoiceMenu.svelte';
@@ -1084,29 +1084,52 @@
 	 * carries one failure, and a second failed tap takes it, but the first
 	 * tile still shows a value nothing stored. A value the page does not hold
 	 * is the stored one -- a tile re-drawn after a trip away shows what the
-	 * server had, so it is not marked -- and a field with a save still in
-	 * flight is left alone until its turn says which it is.
+	 * server had, so it is not marked. A fresh tap still in flight is left
+	 * alone until its turn says which it is; a RETRY in flight keeps the mark,
+	 * because the value it sends is still not stored (wave 32).
 	 */
 	function unsaved(field: 'fav' | 'rating', id: number, stored: boolean | Rating): boolean {
 		// Read for its signal alone: a failure raised after the tap has to redraw
 		// the tile, and neither `pending()` (a plain Map) nor the value maps
 		// change when it is raised. What the band shows does not decide the mark.
 		void saves.failed;
-		if (seriesSaves.pending(`${field}:${id}`)) return false;
+		// A RETRY's turn is pending too, but unlike a fresh tap's it has already
+		// failed once: `retrying` keeps the mark on through it. Without this a
+		// tile redrawn while a RETRY was out (another tile's tap landing, a
+		// scan's re-read) dropped the mark, and nothing redrew it when the RETRY
+		// failed, because a failed retry leaves `saves.failed` as it was and
+		// `pending()` signals nothing (wave 30's round-2 review, medium 2).
+		const key = `${field}:${id}`;
+		if (seriesSaves.pending(key) && !retrying.has(key)) return false;
 		const now = field === 'fav' ? favNow.get(id) : ratingNow.get(id);
 		return now !== undefined && now !== stored;
 	}
 
-	/** Whether the value `key` names is still one this page draws as not stored. */
+	/**
+	 * Keys whose RETRY (the band's, or the nudge's) is in flight. A
+	 * `SvelteSet`, so its end redraws the tiles that read it.
+	 */
+	const retrying = new SvelteSet<string>();
+
+	/**
+	 * Whether a displaced failure of `key` still has something to say when the
+	 * band clears. Only a `fav:` or `rating:` failure whose tap this page still
+	 * holds is the page's to judge: a key of another kind (a book's `cover:`), or
+	 * one raised on the series screen and carried here by the app's store, keeps
+	 * its way out rather than being dropped unread (round 2's low).
+	 */
 	function unsavedKey(key: string): boolean {
 		const cut = key.indexOf(':');
-		const field = key.slice(0, cut) === 'fav' ? 'fav' : 'rating';
+		const head = key.slice(0, cut);
+		if (head !== 'fav' && head !== 'rating') return true;
 		const id = Number(key.slice(cut + 1));
 		const card = series.find((s) => s.id === id);
 		// A tile the grid no longer draws cannot be asked; its failure keeps its
 		// way out rather than going with the tile.
 		if (!card) return true;
-		return unsaved(field, id, field === 'fav' ? card.favourite : card.rating);
+		const held = head === 'fav' ? favNow.has(id) : ratingNow.has(id);
+		if (!held) return true;
+		return unsaved(head, id, head === 'fav' ? card.favourite : card.rating);
 	}
 
 	/**
@@ -1180,24 +1203,46 @@
 			forget(key);
 			return settle();
 		}
-		raise({
+		const failed: FailedSave = {
 			...failure(),
 			key,
 			retry: async () => {
-				const again = await seriesSaves.run(key, save);
-				if (!again.latest) return again.ok;
+				retrying.add(key);
+				let again: Turn;
 				try {
-					if (again.ok) await reloadList();
+					again = await seriesSaves.run(key, save);
+					if (again.latest) {
+						try {
+							if (again.ok) await reloadList();
+						} finally {
+							seriesSaves.settle(key);
+						}
+					}
 				} finally {
-					seriesSaves.settle(key);
+					retrying.delete(key);
 				}
+				if (again.ok) {
+					// `saves.retry` clears the band whatever it holds by now. Another
+					// tile's failure raised while this retry was out is in it: keep
+					// that one, first in line, so the band raises it again as it clears
+					// (wave 30's round-2 review, medium 1; the notes' Gaps ask
+					// `saves.retry` to clear only its own failure).
+					// By its `retry`, not the object: `saves.failed` is `$state`, so it
+					// holds a proxy of what `raise` was given, never the object itself.
+					const held = saves.failed;
+					if (held && held.retry !== failed.retry) {
+						displaced = [held, ...displaced.filter((f) => f.key !== held.key)];
+					}
+				}
+				if (!again.latest) return again.ok;
 				if (again.ok && !again.newer()) {
 					forget(key);
 					settle();
 				}
 				return again.ok;
 			}
-		});
+		};
+		raise(failed);
 	}
 
 	function favourite(id: number, on: boolean) {

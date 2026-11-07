@@ -86,11 +86,45 @@ sheet (the owner's ask, 2026-09-23):
   the tile. Letting go saves and closes; a tap anywhere else, or Esc, closes
   without choosing.
 
-Neither opens the series. Both show the change at once and put the old value
-back if the write fails; they use the same `favourite` and `rate` actions as
-the sheet. They're gone while selecting (every tap is a pick then) and while
-offline (writes need the workstation). `CoverTile` takes them as `onfavourite`
-and `onrate`; without those it draws the plain badge and bars.
+Neither opens the series. Both show the change at once and save behind it;
+they use the same `favourite` and `rate` actions as the sheet. A write that
+fails keeps the tapped value, drawn dashed, with the app's failure band
+offering PUT BACK and RETRY (below, and doc/WAITING.md, "Writes that fail").
+They're gone while selecting (every tap is a pick then) and while offline
+(writes need the workstation). `CoverTile` takes them as `onfavourite` and
+`onrate`; without those it draws the plain badge and bars, with no mark (so a
+tile that is not editable draws its value plain, even one a failed tap left
+behind).
+
+**A failed write draws its value dashed** (c659). The control wears the
+series screen's own `.unsaved` mark -- `1.5px dashed var(--accent)`, no new
+colour -- while the page holds a tap for it that is not stored: a value in
+`favNow`/`ratingNow` that differs from the card's stored one (`favUnsaved`,
+`ratingUnsaved`, from the page's `unsaved()`). A fresh tap still in flight is
+not marked until its turn says which it is; a RETRY in flight (the band's or
+the next navigation's) keeps the mark, because the value it sends is still
+not stored, and a redraw during it (another tile's save landing, a scan's
+re-read) does not drop it (wave 32).
+
+The mark is the page's answer, not the band's, because the band carries one
+failure (`saves`, `src/lib/saves.svelte.ts`): a second failed tap takes it
+while the first tile still shows a value nothing stored, and that tile stays
+marked. The page keeps the displaced failures in its own list and hands the
+band back to the next as it clears, including when a RETRY that lands clears a
+band another tile's failure had taken meanwhile (wave 32). So **while the
+library page is open**, each unstored value keeps its PUT BACK and RETRY. The
+list dies with the page: a displaced failure is dropped on leaving, and the
+tile that comes back draws the stored value, unmarked. Only the failure the
+band holds survives the trip, as every failure does (the band is the app's).
+A displaced failure the page does not judge (a key that is not a tile's
+`fav:`/`rating:`, or one the page holds no tap for, such as a series screen
+failure the band carried here) is raised again as it was, never dropped
+unread.
+
+A tile drawn again after leaving the library and coming back holds the stored
+value, not the old tap (`favNow` dies with the page and `saves` does not), so it
+is not marked: the value it draws is what the server has. The props default to
+false, so a user of the tile that passes neither draws a stored value.
 
 **Two quick taps take turns** (c615). The tile's saves are on the series
 screen's own queue (`seriesSaves`, `src/lib/serial-saves.ts`)

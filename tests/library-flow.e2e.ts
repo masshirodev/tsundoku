@@ -1,4 +1,4 @@
-import { type Page, type Request } from '@playwright/test';
+import { type Page, type Request, type Route } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
@@ -915,6 +915,235 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await expect(page.getByText('FAV NOT SAVED')).toHaveCount(0);
 		await expect(backFav).not.toHaveClass(/unsaved/);
 		await done();
+	});
+
+	/**
+	 * Answer this action's POSTs in the order given: lost, held until
+	 * `release`, or let through; every one after the script goes through.
+	 * `held` resolves once the held POST has arrived, so a case acts while it
+	 * is out, the way a slow workstation keeps a RETRY out.
+	 */
+	async function scripted(page: Page, action: 'favourite' | 'rate', steps: ('lose' | 'hold')[]) {
+		const isAction = (u: URL) => u.pathname === '/' && u.search === `?/${action}`;
+		const script = [...steps];
+		let arrived!: (r: Route) => void;
+		const held = new Promise<Route>((resolve) => (arrived = resolve));
+		await page.route(isAction, (route) => {
+			const step = script.shift();
+			if (step === 'lose') return route.abort();
+			if (step === 'hold') return arrived(route);
+			return route.continue();
+		});
+		return { held, done: () => page.unroute(isAction) };
+	}
+
+	/** The next answered POST of `?/favourite`, read as stored or not. */
+	function favAnswer(page: Page) {
+		return page
+			.waitForResponse((r) => {
+				const u = new URL(r.url());
+				return u.pathname === '/' && u.search === '?/favourite';
+			})
+			.then(async (r) => ((await r.json()) as { type?: string }).type === 'success');
+	}
+
+	test('a RETRY that lands while another tile has failed hands that tile its band back (c659, wave 32)', async ({
+		page
+	}) => {
+		// Wave 30's round-2 medium 1, in its own route order: A's tap lost, A's
+		// RETRY held, B's tap lost, A's RETRY let through. `saves.retry` clears
+		// the band whatever it holds when A lands, which was B's failure: B was
+		// left dashed with no PUT BACK and no RETRY.
+		await page.goto('/?sort=title');
+		const tiles = page
+			.locator('.grid .tile')
+			.filter({ has: page.getByRole('button', { name: 'Favourite' }) });
+		await expect(tiles.nth(1)).toBeAttached();
+		const favA = tiles.nth(0).getByRole('button', { name: 'Favourite' });
+		const favB = tiles.nth(1).getByRole('button', { name: 'Favourite' });
+		const wasA = await favA.getAttribute('aria-pressed');
+		const wasB = await favB.getAttribute('aria-pressed');
+		const flip = (v: string | null) => (v === 'true' ? 'false' : 'true');
+		const band = page.getByText(/FAV NOT SAVED|UNFAV NOT SAVED/);
+		const { held, done } = await scripted(page, 'favourite', ['lose', 'hold', 'lose']);
+
+		await favA.click();
+		await expect(favA).toHaveClass(/unsaved/);
+		await expect(band).toBeVisible();
+		await page.getByRole('button', { name: 'RETRY' }).click();
+		const retry = await held;
+		// The RETRY is out: its value is still not stored, so the mark stays.
+		await expect(favA).toHaveClass(/unsaved/);
+
+		await favB.click();
+		await expect(favB).toHaveClass(/unsaved/);
+		await expect(band).toBeVisible();
+
+		const landed = favAnswer(page);
+		await retry.continue();
+		expect(await landed).toBe(true);
+		// A is stored; B is not, and its band is back.
+		await expect(favA).not.toHaveClass(/unsaved/);
+		await expect(favA).toHaveAttribute('aria-pressed', flip(wasA));
+		await expect(favB).toHaveClass(/unsaved/);
+		await expect(favB).toHaveAttribute('aria-pressed', flip(wasB));
+		await expect(band).toBeVisible();
+		await expect(page.getByRole('button', { name: 'RETRY' })).toBeVisible();
+
+		// B's PUT BACK reads B's stored value.
+		await page
+			.getByRole('button', { name: wasB === 'true' ? 'PUT BACK · FAV' : 'PUT BACK · NOT FAV' })
+			.click();
+		await expect(band).toHaveCount(0);
+		await expect(favB).not.toHaveClass(/unsaved/);
+		await expect(favB).toHaveAttribute('aria-pressed', wasB!);
+		await done();
+
+		await page.reload();
+		const backA = tiles.nth(0).getByRole('button', { name: 'Favourite' });
+		await expect(backA).toHaveAttribute('aria-pressed', flip(wasA));
+		await expect(tiles.nth(1).getByRole('button', { name: 'Favourite' })).toHaveAttribute(
+			'aria-pressed',
+			wasB!
+		);
+		// Put A back as the seed has it.
+		const restored = favAnswer(page);
+		await backA.click();
+		expect(await restored).toBe(true);
+		await page.reload();
+		await expect(tiles.nth(0).getByRole('button', { name: 'Favourite' })).toHaveAttribute(
+			'aria-pressed',
+			wasA!
+		);
+	});
+
+	test('a tile drawn again while its RETRY is out stays dashed, and is still dashed when it fails (c659, wave 32)', async ({
+		page
+	}) => {
+		// Wave 30's round-2 medium 2, in its own route order: A's tap lost, A's
+		// RETRY held, tile C's tap landing (its re-read hands the grid new
+		// cards), A's RETRY lost. The mark used to drop at C's redraw and never
+		// come back, leaving FAV NOT SAVED over a tile drawn as stored.
+		await page.goto('/?sort=title');
+		const tiles = page
+			.locator('.grid .tile')
+			.filter({ has: page.getByRole('button', { name: 'Favourite' }) });
+		await expect(tiles.nth(2)).toBeAttached();
+		const favA = tiles.nth(0).getByRole('button', { name: 'Favourite' });
+		const favC = tiles.nth(2).getByRole('button', { name: 'Favourite' });
+		const wasA = await favA.getAttribute('aria-pressed');
+		const wasC = await favC.getAttribute('aria-pressed');
+		const flip = (v: string | null) => (v === 'true' ? 'false' : 'true');
+		const band = page.getByText(/FAV NOT SAVED|UNFAV NOT SAVED/);
+		const { held, done } = await scripted(page, 'favourite', ['lose', 'hold']);
+
+		await favA.click();
+		await expect(favA).toHaveClass(/unsaved/);
+		await page.getByRole('button', { name: 'RETRY' }).click();
+		const retry = await held;
+
+		// C lands, and its re-read draws the grid again. Wait for that re-read
+		// itself: the redraw it brings is the one that used to drop A's mark,
+		// and it must land before A's RETRY is lost, as in the review's order.
+		const landed = favAnswer(page);
+		const reread = page.waitForResponse(
+			(r) => new URL(r.url()).pathname === '/__data.json' && r.ok()
+		);
+		await favC.click();
+		expect(await landed).toBe(true);
+		await reread;
+		await expect(favC).toHaveAttribute('aria-pressed', flip(wasC));
+		await expect(favC).not.toHaveClass(/unsaved/);
+		await expect(favA).toHaveClass(/unsaved/);
+
+		const lost = page.waitForEvent('requestfailed', {
+			predicate: (r) => new URL(r.url()).search === '?/favourite'
+		});
+		await retry.abort();
+		await lost;
+		await expect(band).toHaveCount(1);
+		await expect(favA).toHaveAttribute('aria-pressed', flip(wasA));
+		await expect(favA).toHaveClass(/unsaved/);
+
+		await page
+			.getByRole('button', { name: wasA === 'true' ? 'PUT BACK · FAV' : 'PUT BACK · NOT FAV' })
+			.click();
+		await expect(band).toHaveCount(0);
+		await expect(favA).not.toHaveClass(/unsaved/);
+		await expect(favA).toHaveAttribute('aria-pressed', wasA!);
+		await done();
+
+		// A was never stored; C was. Put C back as the seed has it.
+		await page.reload();
+		await expect(tiles.nth(0).getByRole('button', { name: 'Favourite' })).toHaveAttribute(
+			'aria-pressed',
+			wasA!
+		);
+		const backC = tiles.nth(2).getByRole('button', { name: 'Favourite' });
+		await expect(backC).toHaveAttribute('aria-pressed', flip(wasC));
+		const restored = favAnswer(page);
+		await backC.click();
+		expect(await restored).toBe(true);
+		await page.reload();
+		await expect(tiles.nth(2).getByRole('button', { name: 'Favourite' })).toHaveAttribute(
+			'aria-pressed',
+			wasC!
+		);
+	});
+
+	test('a series screen failure the band carried here is not dropped when a tile’s takes the band (c659, wave 32)', async ({
+		page
+	}) => {
+		// Wave 30's round-2 low: a displaced failure was judged by the page's
+		// own taps, so one raised on the series screen (the page holds no tap
+		// for it) was dropped as the band cleared, and its PUT BACK and RETRY
+		// went with it. The page now judges only the taps it holds.
+		await page.goto('/?sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const isSeriesFav = (u: URL) =>
+			/^\/series\/\d+$/.test(u.pathname) && u.search === '?/favourite';
+		await page.route(isSeriesFav, (route) => route.abort());
+		const noTileFav = await loseAll(page, 'favourite');
+		const band = page.getByText('FAV NOT SAVED');
+
+		await tile.locator('.open').click();
+		await page.waitForURL(/\/series\//);
+		const panel = page.getByRole('region', { name: 'About this series' });
+		await panel.getByRole('button', { name: 'FAV', exact: true }).click();
+		await expect(band).toBeVisible();
+		// Back to the library; the nudge retries on the way and loses too.
+		await page.goBack();
+		const other = page
+			.locator('.grid .tile')
+			.filter({ has: page.getByRole('button', { name: 'Favourite' }) })
+			.filter({ hasNotText: TITLE })
+			.first();
+		const favOther = other.getByRole('button', { name: 'Favourite' });
+		await expect(favOther).toBeVisible();
+		await expect(band).toBeVisible();
+		const wasOther = await favOther.getAttribute('aria-pressed');
+
+		await favOther.click();
+		await expect(favOther).toHaveClass(/unsaved/);
+		await page
+			.getByRole('button', {
+				name: wasOther === 'true' ? 'PUT BACK · FAV' : 'PUT BACK · NOT FAV'
+			})
+			.click();
+		await expect(favOther).not.toHaveClass(/unsaved/);
+		// The series screen's failure has the band again, with its own way out.
+		await expect(band).toBeVisible();
+		await expect(page.getByRole('button', { name: 'RETRY' })).toBeVisible();
+		await page.getByRole('button', { name: 'PUT BACK · NOT FAV' }).click();
+		await expect(band).toHaveCount(0);
+		await noTileFav();
+		await page.unroute(isSeriesFav);
+
+		// Nothing was stored.
+		await page.reload();
+		await expect(
+			page.locator('.grid .tile', { hasText: TITLE }).getByRole('button', { name: 'Favourite' })
+		).toHaveAttribute('aria-pressed', 'false');
 	});
 
 	test('the rating draws dashed as well, and PUT BACK ends it (c659)', async ({ page }) => {
