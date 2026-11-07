@@ -1326,6 +1326,26 @@ test.describe("the band at a chapter's start (c705)", () => {
 			expect(new URL(page.url()).searchParams.get('at')).toBe(`${b}.${o}`);
 			expect(await onScreen(page, b, o)).toBe('on screen');
 		}
+
+		// Vol. 5 (a full-page illustration first, so the band has a page of its
+		// own) opened as the series screen opens it, with no `?at=`, which reads
+		// as the chapter's first character, and with `?at=0.0`: both on the
+		// band's page, not the illustration's.
+		const vol2 = page.url();
+		await openFromContents(page, 'Vol. 5');
+		await expect(page).not.toHaveURL(vol2);
+		const vol5 = new URL(page.url());
+		for (const search of ['', '?at=0.0']) {
+			vol5.search = search;
+			await page.goto(vol5.toString());
+			const tall = page.locator('figure.illus img[alt="Tall"]');
+			await expect(tall).toHaveAttribute('src', /^blob:/, { timeout: 15000 });
+			await page.evaluate(() => document.fonts.ready);
+			await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+			expect(await pageNo(page), search).toBe(0);
+			await expect(page.locator('.cstart')).toBeInViewport();
+			await expect(tall).not.toBeInViewport();
+		}
 	});
 
 	test('SCROLL: the band above the first line, and END, then the next start band, then its text', async ({
@@ -1374,16 +1394,39 @@ test.describe("the band at a chapter's start (c705)", () => {
 		// The next chapter's blocks are not numbered: only the chapter on screen answers places.
 		await expect(page.locator('.blocks.next [data-b]')).toHaveCount(0);
 
-		// Scroll on until Vol. 3 opens: its band is the one that was below END,
-		// and its first line stays where it stood when it crossed the middle.
+		// Scroll on until Vol. 3 opens: its band is the one that was below END.
+		// Nothing above a chapter is kept in SCROLL, so a crossing at the middle
+		// takes its start to the top, under its band (and to the margin before
+		// c705; measured in the reader's notes, wave 32). A crossing caught late,
+		// the start already higher than that, as a fling leaves it, keeps the
+		// line where it stood: that is the one case below. All in the page, so
+		// nothing waits on a round trip: the crossing, then a relayout at once,
+		// before the reader's place is read again (250 ms after the last
+		// scroll), as a face the new heading is the first to use arrives then.
+		// The line stays where it crossed, not where a chapter opened at its
+		// start keeps it, under the band.
 		const v = page.viewportSize()!;
-		await page.mouse.move(v.width / 2, v.height / 2);
 		const heading = page.locator('.blocks:not(.next) h1').first();
-		for (let i = 0; i < 80 && (await heading.count()) === 0; i++) {
-			await page.mouse.wheel(0, 300);
-			await page.waitForTimeout(60);
-		}
+		const moved = await page.locator('.page').evaluate(async (n) => {
+			const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
+			const first = n.querySelector<HTMLElement>('.blocks.next > *')!;
+			n.scrollTop += Math.round(
+				first.getBoundingClientRect().top - n.getBoundingClientRect().top - 60
+			);
+			const h = () => n.querySelector<HTMLElement>('.blocks:not(.next) h1');
+			for (let i = 0; i < 120 && h()?.textContent !== 'Interlude'; i++) await frame();
+			await frame();
+			const before = h()!.getBoundingClientRect().top;
+			const scrolled = n.scrollTop;
+			document.fonts.dispatchEvent(new Event('loadingdone'));
+			await frame();
+			await frame();
+			// Late enough that the band is partly scrolled off: the case reached.
+			return scrolled > 0 ? Math.abs(h()!.getBoundingClientRect().top - before) : -1;
+		});
 		await expect(heading).toHaveText('Interlude');
+		expect(moved).toBeGreaterThanOrEqual(0);
+		expect(moved).toBeLessThanOrEqual(1);
 		await expect(band.locator('.t')).toHaveText('Vol. 3');
 		// Vol. 4's heading carries its title: its band below END has none.
 		await expect(page.locator('.flow > .sband + .cstart .ab')).toContainText('CH. 4');

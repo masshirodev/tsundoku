@@ -97,8 +97,13 @@ made of.
   the edge.
 - **Scroll** is one column that runs past the screen. The next chapter is
   already below the band that ends this one. Once its start passes the middle
-  of the screen, the reader moves to it, keeping everything where it was on
-  screen.
+  of the screen, the reader moves to it. Nothing above a chapter is kept (it
+  doesn't carry back, "What it doesn't do yet"), so the new chapter's start
+  goes to the top, under its band: measured in wave 32, a crossing with the
+  start 600 px down landed it at 88 px at `071465ee` (the margin) and at
+  166 px with the band. Only a crossing caught late, its start already higher
+  than that, keeps it where it stood (the reader's notes, wave 32, have the
+  measurement; keeping the old chapter's end above is a suggestion there).
 
 ### WIDTH
 
@@ -197,8 +202,10 @@ rule and colours (`.cstart` in `TextReader.svelte`; no design round):
   stands at under the band, so a face arriving doesn't scroll the band away.
   Below this chapter: END, then the next chapter's start band (once its text
   is ready), then its text. The crossing into the next chapter is still its
-  first block passing the middle of the screen, as it was, and the line keeps
-  where it was when it crossed. A next volume's room (c347) has no band
+  first block passing the middle of the screen, as it was, and the chapter
+  then stands at the top with its band ("Pages", above, for the jump that
+  makes); a relayout right after keeps its first line where the crossing put
+  it. A next volume's room (c347) has no band
   before it: that chapter isn't read until it opens, and its band is then at
   its top.
 - **Vertical Japanese**: the same band, vertical, its rule on the left
