@@ -47,7 +47,7 @@ export class BackupError extends Error {}
 const quote = (s: string) => `'${s.replaceAll("'", "''")}'`;
 
 /** Open a snapshot read-only and make sure it's a database worth keeping. */
-export function verify(path: string): Omit<Snapshot, 'path' | 'bytes' | 'pruned'> {
+export function verify(path: string): Omit<Snapshot, 'path' | 'bytes' | 'pruned' | 'copies'> {
 	const db = new Database(path, { readonly: true, fileMustExist: true });
 	try {
 		const check = db.pragma('integrity_check', { simple: true });
