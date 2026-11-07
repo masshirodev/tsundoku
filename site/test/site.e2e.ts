@@ -5,7 +5,11 @@
  * the page (~/.config/myconf/HANDOFF.md, "Verify what eyes cannot"). Values
  * are from doc/handoffs/website/Site.dc.html and Download.dc.html.
  */
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { readRelease } from '../lib/data.ts';
+import { DEFAULT_HELP, renderPage, type Captures } from '../lib/page.ts';
+import { ANDROID_MANIFEST, testKey } from './helpers.ts';
 
 const UA = {
 	windows:
@@ -14,7 +18,9 @@ const UA = {
 		'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36',
 	mac: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36',
 	phone:
-		'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36'
+		'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36',
+	ios: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+	tv: 'Mozilla/5.0 (Linux; Android 12; Android TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
 };
 
 /** Pretend to be `os`: the user agent, and no userAgentData to contradict it. */
@@ -61,6 +67,108 @@ test.describe('with JavaScript off', () => {
 	});
 });
 
+test('a saved release without the Android apps draws no app row and offers none', async ({
+	page
+}) => {
+	await page.goto('/');
+	expect(await page.locator('.dl-row[data-os^="android"]').count()).toBe(0);
+	await expect(page.locator('.dl-band-text')).toHaveText(
+		'tsundoku runs on a computer, Windows or Linux. Install it there, then read on this phone over Wi-Fi.'
+	);
+	await expect(page.locator('.phone-lead')).toHaveText(
+		'tsundoku stays on the computer; the phone opens it in its browser. Two ways in.'
+	);
+});
+
+const cap = (file: string) => ({ file, width: 1, height: 1 });
+const CAPTURES: Captures = {
+	'library-desktop': { dark: cap('a.webp') },
+	'series-tablet': { dark: cap('b.webp') },
+	'library-phone': { dark: cap('c.webp') },
+	'reader-phone': { dark: cap('d.webp') },
+	'strip-phone': { dark: cap('e.webp') },
+	'history-phone': { dark: cap('f.webp') }
+};
+
+/**
+ * The page a c614-shaped manifest makes, with the real order.js and site.js
+ * inlined. The checked-in fixture is release-signed and has no apps, so this
+ * is the one door that can exercise site.js's app rows: page.test.ts proves
+ * the rows exist, order.test.ts proves the rule, and this proves the script
+ * reads the rows from the page and reorders them.
+ */
+function androidPage(): string {
+	const k = testKey();
+	const html = renderPage({
+		release: readRelease(k.signed(ANDROID_MANIFEST), k.raw),
+		solver: {
+			windows: { name: 'flaresolverr-3.4.6-win-x64.zip', size: 1 },
+			linux: { name: 'flaresolverr-3.4.6-linux-x64.tar.gz', size: 1 }
+		},
+		captures: CAPTURES,
+		help: DEFAULT_HELP,
+		assets: { css: 'x.css', js: 'x.js', favicon: 'f.png', touchIcon: 't.png' },
+		fonts: ''
+	});
+	const order = readFileSync(new URL('../src/order.js', import.meta.url), 'utf8').replace(
+		/^export /gm,
+		''
+	);
+	const script = readFileSync(new URL('../src/site.js', import.meta.url), 'utf8');
+	return html
+		.replace(/<link rel="stylesheet"[^>]*>/, '')
+		.replace(/<script src="[^"]+"><\/script>/, `<script>${order}\n${script}</script>`);
+}
+
+test.describe('a release with the Android apps', () => {
+	const html = androidPage();
+
+	test.describe('on a phone', () => {
+		test.use({ userAgent: UA.phone });
+
+		test('the phone app leads, tagged and on the accent', async ({ page }) => {
+			await page.setContent(html);
+			await expect(page.locator('html')).toHaveAttribute('data-os', 'phone');
+			expect(await rowOrder(page)).toEqual(['android', 'android-tv', 'windows', 'linux', 'mac']);
+			expect(await visibleTags(page)).toEqual(['android']);
+			expect(await accented(page)).toEqual(['android']);
+			await expect(page.locator('.dl-band')).toBeVisible();
+		});
+	});
+
+	test.describe('on an iPhone', () => {
+		test.use({ userAgent: UA.ios });
+
+		test('no Android app leads, is tagged or takes the accent', async ({ page }) => {
+			// No userAgentData: a Safari phone offers none, and the UA alone must
+			// decide. setContent does not run addInitScript, so it goes in first.
+			await page.setContent(
+				`<script>Object.defineProperty(navigator, 'userAgentData', { get: () => undefined });</script>${html}`
+			);
+			await expect(page.locator('html')).toHaveAttribute('data-os', 'ios');
+			expect(await rowOrder(page)).toEqual(['windows', 'linux', 'mac', 'android', 'android-tv']);
+			expect(await visibleTags(page)).toEqual([]);
+			expect(await accented(page)).toEqual(['windows']);
+			await expect(page.locator('.dl-band')).toBeVisible();
+			await expect(page.locator('#hero-meta')).toHaveText('FOR A COMPUTER · WINDOWS AND LINUX');
+		});
+	});
+
+	test.describe('on a TV', () => {
+		test.use({ userAgent: UA.tv });
+
+		test('the TV app leads, tagged and on the accent', async ({ page }) => {
+			await page.setContent(html);
+			await expect(page.locator('html')).toHaveAttribute('data-os', 'tv');
+			expect(await rowOrder(page)).toEqual(['android-tv', 'android', 'windows', 'linux', 'mac']);
+			expect(await visibleTags(page)).toEqual(['android-tv']);
+			expect(await accented(page)).toEqual(['android-tv']);
+			await expect(page.locator('.dl-band')).toBeHidden();
+			await expect(page.locator('#hero-meta')).toHaveText('ANDROID TV · THE APP');
+		});
+	});
+});
+
 test.describe('the visitor’s system', () => {
 	test('Windows leads, tagged, its installer on the accent', async ({ page }) => {
 		await as(page, 'windows');
@@ -96,7 +204,34 @@ test.describe('the visitor’s system', () => {
 		await expect(page.locator('.dl-band')).toBeVisible();
 		expect(await rowOrder(page)).toEqual(['windows', 'linux', 'mac']);
 		expect(await visibleTags(page)).toEqual([]);
+		expect(await page.locator('.dl-row[data-os^="android"]').count()).toBe(0);
 		await expect(page.locator('#hero-meta')).toHaveText('FOR A COMPUTER · WINDOWS AND LINUX');
+	});
+
+	test('an iPhone gets the band and the desktop order, and is not a phone', async ({ page }) => {
+		await as(page, 'ios');
+		await page.goto('/');
+		await expect(page.locator('html')).toHaveAttribute('data-os', 'ios');
+		await expect(page.locator('.dl-band')).toBeVisible();
+		expect(await rowOrder(page)).toEqual(['windows', 'linux', 'mac']);
+		expect(await visibleTags(page)).toEqual([]);
+		expect(await accented(page)).toEqual(['windows']);
+		await expect(page.locator('#hero-meta')).toHaveText('FOR A COMPUTER · WINDOWS AND LINUX');
+	});
+
+	test('an iPad asking for the desktop page is iOS, not a phone', async ({ page }) => {
+		// iPadOS reports a Mac UA; only the touch screen gives it away (site.js).
+		await page.addInitScript((ua) => {
+			Object.defineProperty(navigator, 'userAgent', { get: () => ua });
+			Object.defineProperty(navigator, 'userAgentData', { get: () => undefined });
+			Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 });
+		}, UA.mac);
+		await page.goto('/');
+		await expect(page.locator('html')).toHaveAttribute('data-os', 'ios');
+		await expect(page.locator('.dl-band')).toBeVisible();
+		expect(await rowOrder(page)).toEqual(['windows', 'linux', 'mac']);
+		expect(await visibleTags(page)).toEqual([]);
+		expect(await accented(page)).toEqual(['windows']);
 	});
 });
 

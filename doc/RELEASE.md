@@ -95,6 +95,13 @@ ops/release/android-apk.sh 0.0.0-trial --ref HEAD --out temp/apk # a trial
   refuses a version without them. So run `android-apk.sh` before
   `release:publish`, with the keystore set. An installed app finds the next
   one by itself ([`UPDATES.md`](UPDATES.md), "The Android apps").
+- **The website offers them too** (c667): 04 — DOWNLOAD gains a row for each
+  app when the published `latest.json` carries `files.android.app` /
+  `files.android.tv`, with the name, size and SHA-256 the manifest signs, and
+  06 and the phone band name the app in the same breath. A release without
+  them leaves the page as it was, so the site needs no change when the first
+  APK release is published: the next deploy reads the new manifest
+  ([`WEBSITE.md`](WEBSITE.md), "The visitor's system").
 - **`versionCode` is the date version** (YYYYMMDDNN) since c614, so every
   release installs over the one before.
 - **Unsigned debug builds and signed releases cannot update each other.**

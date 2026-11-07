@@ -31,6 +31,10 @@ latest.json with no network at all (FlareSolverr's sizes are then left out
 rather than guessed). The browser tests build that way, from
 `site/test/fixtures/latest.json`, a real latest.json saved from the download
 host: it is signed by the release key, so it opens exactly as the live one does.
+It predates c614, so it has no `files.android` and the browser run covers the
+page as most releases draw it. The app rows are covered by
+`site/test/page.test.ts`, which renders a c614-shaped manifest signed with a key
+of the tests' own (`readRelease(text, key)`), never the release key.
 
 ## What is where
 
@@ -65,6 +69,13 @@ its own tests cover it.
   size come from the manifest; the links are `latest/<name>`, which
   `ops/release/publish.ts` keeps pointing at the newest release, so a page
   built a day late still downloads the newest.
+- **The Android apps (c614, c667)** are in the same signed manifest, under
+  `files.android.app` and `files.android.tv`. A row is drawn only for an app
+  the manifest carries, with its signed name, size and SHA-256; a manifest
+  without them is not refused, because every release before c614 has none, and
+  the page is built exactly as it was before with no app row. The live host
+  answers 404 for `latest/tsundoku-app.apk` until a release with APKs is
+  published, so a link is never drawn from an older manifest.
 - **FlareSolverr.** It isn't in the signed manifest, so its version comes from
   `ops/release/versions.json` and its sizes from a HEAD request to `latest/`.
 - **The colours.** The `:root` and `[data-theme='light']` custom properties of
@@ -88,22 +99,39 @@ does the same, so the two Caddy blocks differ only in tsundoku's `basic_auth`.
 
 ## The visitor's system (calls 02 and 03)
 
-The HTML as built is the no-JavaScript page: Windows, Linux, macOS in that
-order, nothing tagged, the Windows installer on the accent (most friends are
-on Windows), the hero button `↓ DOWNLOAD`, no theme button (it is added by
-the script, so without it there's no dead control). `site.js` then:
+The HTML as built is the no-JavaScript page: Windows, Linux, macOS, then any
+app rows, in that order, nothing tagged, the Windows installer on the accent
+(most friends are on Windows), the hero button `↓ DOWNLOAD`, no theme button
+(it is added by the script, so without it there's no dead control). `site.js`
+then:
 
-| Visitor | Rows                                | Tagged YOUR SYSTEM | Accent                  | Hero button            |
-| ------- | ----------------------------------- | ------------------ | ----------------------- | ---------------------- |
-| Windows | Windows, Linux, macOS               | Windows            | the installer           | ↓ DOWNLOAD FOR WINDOWS |
-| Linux   | Linux, Windows, macOS               | Linux              | the tar.xz              | ↓ DOWNLOAD FOR LINUX   |
-| macOS   | macOS, Windows, Linux               | macOS              | none: nothing is theirs | ↓ DOWNLOAD             |
-| phone   | static, plus the band "ON A PHONE?" | nothing            | the installer           | ↓ DOWNLOAD             |
+| Visitor | Rows                                                               | Tagged YOUR SYSTEM    | Accent                        | Hero button            |
+| ------- | ------------------------------------------------------------------ | --------------------- | ----------------------------- | ---------------------- |
+| Windows | Windows, Linux, macOS, then any app rows                           | Windows               | the installer                 | ↓ DOWNLOAD FOR WINDOWS |
+| Linux   | Linux, Windows, macOS, then any app rows                           | Linux                 | the tar.xz                    | ↓ DOWNLOAD FOR LINUX   |
+| macOS   | macOS, Windows, Linux, then any app rows                           | macOS                 | none: nothing is theirs       | ↓ DOWNLOAD             |
+| phone   | the phone app (if any), the TV app (if any), then the desktop rows | the phone app, if any | the phone app, else installer | ↓ DOWNLOAD             |
+| iOS     | the desktop rows, then any app rows                                | none                  | the Windows installer         | ↓ DOWNLOAD             |
+| TV      | the TV app (if any), the phone app (if any), then the desktop rows | the TV app, if any    | the TV app, else installer    | ↓ DOWNLOAD             |
+
+A release without `files.android` has no app rows at all, and every row above
+the phone and iOS lines behaves exactly as it did before c667. A phone and an
+iOS device also get the band above 04's rows ("ON A PHONE?"); a TV does not.
+
+An iPhone, iPad or iPod is `ios`, never `phone`, even though it gets the band
+and the same line about needing a computer: both APKs are Android's, so an app
+row never leads, is tagged YOUR SYSTEM or takes the accent for it, and the
+Windows installer keeps the accent as it did for a phone before c667. 06's
+lead says the app is Android's, so an iOS reader is not offered it.
 
 `navigator.userAgentData.platform` where Chromium offers it, else the user
 agent. Android says Linux in its user agent, so phones are checked first; an
-iPad asking for the desktop page says Mac, and its touch screen gives it away.
-The rules are `site/src/order.js`, one copy for the page and the tests.
+iPad asking for the desktop page says Mac, and its touch screen gives it away
+(also `ios`). An Android television has no dependable "is a TV" flag, so the
+names TV browsers use (`Android TV`, `Google TV`, `Fire TV`, `AFT…`, `BRAVIA`,
+`SHIELD`) make it a TV, and an Android tablet without one stays a phone, which
+the phone app serves too. The rules are `site/src/order.js`, one copy for the
+page and the tests.
 
 ## Theme (call 04)
 
@@ -206,6 +234,12 @@ Each of these is deliberate; don't "fix" it back to the drawing.
   as it is: its real titles, progress and chapters (Frieren is at chapter 140
   of 140, not 61 of 128), its striped covers, its AniList linking band. The
   handoff's drawings only placed them (Main.dc.html, section 03).
+- **Two download rows the handoff does not draw** (c667). ANDROID and ANDROID
+  TV are the desktop rows' own name/body/note markup, so 04 keeps its shape;
+  they appear only when the signed manifest carries the apps, and their
+  buttons, sizes and SHA-256 come from it. 06 and the phone band name the app
+  in the same condition. The install line (allow installs from the browser;
+  on a TV, a USB stick or a downloader app) is plain text in each row.
 - **Phone captures are 412×915**, the handoff's frame, not the e2e `phone`
   project's Pixel 7 viewport (412×839): same device, the full screen height
   the frames draw.
@@ -240,6 +274,12 @@ Each of these is deliberate; don't "fix" it back to the drawing.
 
 ## What it does not do yet
 
+- **The app rows wait for a release that carries them.** When c667 landed the
+  live `latest.json` was 2026.11.05.1's, older than c614, with no
+  `files.android`: the deployed page draws no app row, and offers no app in 06
+  or the band, until the owner publishes a release with the APKs
+  ([`UPDATES.md`](UPDATES.md), "The Android apps"). Nothing in the site has to
+  change for that; the next deploy reads the new manifest.
 - No page for older versions or notes: OLDER VERSIONS links Caddy's listing
   of dl.tsundoku.masshiro.pro, which has the checksums.
 - The series figure shows the series screen's real FILE row, with its HIDE
