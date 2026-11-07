@@ -545,11 +545,16 @@
 				? Math.max(-line, Math.min(sh - line, y))
 				: null;
 		onBand = false;
-		// Opened at its start, the chapter opens on its first page, the band's (c705).
-		onLead = at === 'start' && layout === 'paged';
+		// The chapter's first character is its start, the band before it (c705):
+		// an entry opened with no `?at=` comes as that place, not as 'start', and
+		// so does the band's own page, whose URL keeps that character. SCROLL's
+		// `?at=0.0.<y>` keeps its line's height instead.
+		const first = typeof at === 'object' && at.block === 0 && at.offset === 0;
+		// Opened at its start, the chapter opens on its first page, the band's.
+		onLead = layout === 'paged' && (at === 'start' || first);
 		pos = at === 'start' || at === 'end' ? { block: 0, offset: 0 } : at;
 		await relayout();
-		if (at === 'start' && layout === 'scroll' && pageEl && flowEl) {
+		if ((at === 'start' || (first && y === null)) && layout === 'scroll' && pageEl && flowEl) {
 			// SCROLL opens at the top, the band above the first line (c705), and
 			// the first line is kept at the height it stands at under the band:
 			// on the margin, a relayout (a face arriving) scrolled the band away.

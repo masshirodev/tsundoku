@@ -385,7 +385,9 @@ test('a Japanese book is set vertically, with furigana and upright numbers', asy
 				.map((f) => f.familyName)
 		)
 		.toContain('IBM Plex Sans JP');
-	// Right to left: the left strip turns forward, onto the chapter's first page of text.
+	// Right to left: the left strip turns forward. The chapter opens on the
+	// band at its start (c705), alone on its page because the cover after it
+	// is a page wide, so this turn is onto the cover.
 	const shift = () =>
 		page
 			.locator('.flow')
@@ -1039,10 +1041,22 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 		await page.getByRole('button', { name: 'CONTENTS' }).click();
 		await page.locator('.contents .entry-btn').last().click();
 		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		// A chapter opened from CONTENTS puts the controls away, and they fade
+		// out: the scrubber measured then was gone by the click, which landed on
+		// the page as a turn, one page on and short of the end (red 3 of 3 in
+		// wave 31, and on its base). So: the controls up again, on purpose.
+		await expect(page.locator('.bottom')).toHaveCount(0);
+		await middle(page);
 		const track = page.locator('[role="slider"][aria-label="Page in chapter"]');
+		await expect(track).toBeVisible();
 		const box = (await track.boundingBox())!;
 		await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
 		await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+		// On the chapter's last page, then the controls away (a tap on the page
+		// with them up only puts them away), so the next tap is a turn.
+		await expect(page.locator('.bottom .left')).toHaveText(/^P\. (\d+) OF \1\b/);
+		await page.keyboard.press('Escape');
+		await expect(page.locator('.bottom')).toHaveCount(0);
 		// One turn past the last page is the end page's door (a turn that stays
 		// on the same heading, which is why `forward` is not the helper here).
 		const v = page.viewportSize()!;
