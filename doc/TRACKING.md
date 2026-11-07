@@ -169,7 +169,8 @@ every door, wave 17 round 2; [`LINKS.md`](LINKS.md), "One season, one entry").
   series shares counts no read from it), in `resolveEditions` (no edition is
   suggested for its novels) and in `flush`'s drain: its unsent reads and a
   work's rating or FAV are **kept**, as a hidden series' are, and go once the
-  switch is off (each follows the door it shares with hidden). The series
+  switch is off: never-tracked is an extra clause at each of those doors, not
+  hidden's `ELIGIBLE_SQL`. The series
   screen's LISTS row says `NOTHING SENT · ITS SOURCE IS NEVER TRACKED` on every
   line and offers no EDIT or TRY AGAIN.
 
