@@ -1,5 +1,8 @@
 import { test, expect } from './fixtures';
 import { devices, type Page } from '@playwright/test';
+import Database from 'better-sqlite3';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * Hovering the picture never tints it, and clicking it never flashes it
@@ -21,6 +24,14 @@ test.use({
 	deviceScaleFactor: 1,
 	serviceWorkers: 'block'
 });
+
+/** Type `/incognito` in search, the app's own door (doc/PRIVACY.md). */
+async function incognito(page: Page) {
+	await page.goto('/search');
+	await page.getByRole('searchbox').fill('/incognito');
+	await page.keyboard.press('Enter');
+	await page.waitForURL(/\/$/);
+}
 
 async function openEpisode(page: Page) {
 	await page.goto('/');
@@ -116,10 +127,7 @@ test('the cursor goes with the controls during playback and comes back with them
 	page
 }) => {
 	test.setTimeout(90_000);
-	await page.goto('/search');
-	await page.getByRole('searchbox').fill('/incognito');
-	await page.keyboard.press('Enter');
-	await page.waitForURL(/\/$/);
+	await incognito(page);
 	await openEpisode(page);
 	const player = page.locator('.player');
 	const cursor = () => player.evaluate((el) => getComputedStyle(el).cursor);
@@ -149,4 +157,52 @@ test('the cursor goes with the controls during playback and comes back with them
 	await expect(sheet).toBeVisible();
 	await page.waitForTimeout(2500);
 	expect(await cursor()).toBe('auto');
+});
+
+/**
+ * c680: the player's half of "a reader opened incognito sends nothing". Every
+ * writer goes through `send`, which returns on `data.incognito` taken at open,
+ * so a hide that ends the cookie cannot turn its `open`, a `page` or the close
+ * on the way out into saved reading. The browse world is where an anime exists
+ * (the shared seed has none); its database is this run's one, and the anime's
+ * events are counted before and after.
+ */
+test('an episode watched incognito posts nothing, even when the app goes away (c680)', async ({
+	page
+}) => {
+	test.setTimeout(90_000);
+	const dbPath = () => {
+		const dir = process.env.TMPDIR!;
+		const file = readdirSync(dir).find((f) => /^tsundoku-e2e-browse-.*\.sqlite$/.test(f));
+		if (!file) throw new Error(`no browse database in ${dir}`);
+		return join(dir, file);
+	};
+	const events = () => {
+		const db = new Database(dbPath(), { readonly: true });
+		const { id } = db
+			.prepare(`SELECT id FROM series WHERE title = 'Tsukiakari no Ryokōsha'`)
+			.get() as { id: number };
+		const { n } = db
+			.prepare('SELECT COUNT(*) AS n FROM reading_events WHERE series_id = ?')
+			.get(id) as { n: number };
+		db.close();
+		return n;
+	};
+	const before = events();
+	const posts: string[] = [];
+	page.on('request', (r) => {
+		if (r.method() === 'POST' && r.url().endsWith('/api/reading')) posts.push(r.postData() ?? '');
+	});
+	await incognito(page);
+	await openEpisode(page);
+	await page.evaluate(() => (document.querySelector('video') as HTMLVideoElement).play());
+	// Long enough for the open and a page report to have been due.
+	await page.waitForTimeout(3000);
+	// The hide that ends incognito (step 2), then the landing that takes the
+	// player away (step 3), whose pagehide sends its close.
+	expect((await page.request.post('/leave')).status()).toBe(204);
+	await page.goto('/');
+	await page.waitForTimeout(1000);
+	expect(posts).toEqual([]);
+	expect(events()).toBe(before);
 });
