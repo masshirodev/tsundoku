@@ -395,7 +395,9 @@ reload, SCROLL untouched, vertical Japanese's row),
   [`SETTINGS.md`](SETTINGS.md), "Devices"), except WIDTH, which is the
   series' with the device's last choice as its default and is not mirrored,
   and DIM is shared with the image reader. A novel's default LAYOUT is SETTINGS'. The
-  sheet ends with ALL SETTINGS →.
+  sheet ends with ALL SETTINGS →. A long sheet scrolls under a head that stays
+  at its top, so ✕ is always reachable, and `scroll-padding-top` keeps a
+  focused row from stopping beneath it (c679).
 - **FONT** (c442) offers three, in this order: **Plex Serif** (the default),
   **Plex Sans** and **OpenDyslexic**. The list is `TEXT_FONTS` in
   `src/lib/reader/text.ts`, and SETTINGS' TYPEFACE row allows exactly those

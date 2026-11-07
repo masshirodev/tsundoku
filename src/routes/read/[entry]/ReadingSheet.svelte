@@ -447,11 +447,19 @@
 		color: var(--text-1);
 		max-height: 90dvh;
 		overflow-y: auto;
+		/* A focused row stops under the sticky head, not beneath it (c679). */
+		scroll-padding-top: 56px;
 	}
 	/* The sheet is a column capped at 90dvh that scrolls: nothing in it may
 	   shrink to fit, or every row is squeezed to its min-height and a segmented
-	   row's 48px cells become 20px strips (c428). */
+	   row's 48px cells become 20px strips (c428). The head stays at the top as
+	   the rows scroll under it, so ✕ is always reachable (c679): it needs the
+	   sheet's own ground, or a row would show through it. */
 	.head {
+		position: sticky;
+		top: 0;
+		z-index: 1;
+		background: var(--surface-page);
 		display: flex;
 		flex-shrink: 0;
 		align-items: stretch;

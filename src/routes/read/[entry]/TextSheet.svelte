@@ -446,8 +446,17 @@
 		color: var(--text-1);
 		max-height: calc(100dvh - 64px);
 		overflow-y: auto;
+		/* A focused row stops under the sticky head, not beneath it (c679). */
+		scroll-padding-top: 56px;
 	}
+	/* The head stays at the top as the rows scroll under it, so ✕ is always
+	   reachable (c679): it needs the sheet's own ground, or a row would show
+	   through it. */
 	.head {
+		position: sticky;
+		top: 0;
+		z-index: 1;
+		background: var(--surface-page);
 		display: flex;
 		align-items: stretch;
 		height: 56px;

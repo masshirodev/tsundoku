@@ -232,7 +232,9 @@ workstation's copy of the device in step ([`SETTINGS.md`](SETTINGS.md),
 "Devices"), and a kind's default mode is SETTINGS' MODE row. The sheet ends
 with ALL SETTINGS →, the page at its section. A row that doesn't apply to the mode
 is dimmed with the reason (PAGED ONLY, VERTICAL ONLY), never removed, so the
-sheet doesn't jump when MODE changes.
+sheet doesn't jump when MODE changes. A long sheet scrolls under a head that
+stays at its top, so ✕ is always reachable (c679); the sheet's
+`scroll-padding-top` keeps a focused row from stopping beneath it.
 
 ### Spreads
 
