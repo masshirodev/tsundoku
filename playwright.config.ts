@@ -129,10 +129,13 @@ export default defineConfig({
 				// kuromoji's dictionary is `yarn prepare`'s copy, untracked, so a
 				// worktree that never ran it builds an app whose lookup has no
 				// words (c249): copied here, before the build takes static/.
+				// `scripts/build-lock.mjs` runs them one invocation at a time
+				// (c625): two builds at once write one `.svelte-kit/output`.
 				command:
-					`rm -f ${databasePath}* && yarn run seed && ` +
-					`node node_modules/kotoba/scripts/sync-dict.js static/dict > /dev/null && ` +
-					`yarn run build && yarn run preview --port ${previewPort} --strictPort`,
+					`node scripts/build-lock.mjs --port ${previewPort} --prepare ` +
+					`"rm -f ${databasePath}* && yarn run seed && node node_modules/kotoba/scripts/sync-dict.js static/dict > /dev/null" ` +
+					`--build "yarn run build" ` +
+					`--serve "yarn run preview --port ${previewPort} --strictPort"`,
 				// An empty library folder: START SCAN must never import real files
 				// into the seeded database the suite asserts against.
 				env: {

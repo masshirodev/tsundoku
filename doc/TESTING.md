@@ -816,16 +816,42 @@ for the browse preview (`tests/tv-move.e2e.ts:26`, `tests/tv-player.e2e.ts:24`)
 are handed the pinned value through the environment before any worker starts,
 so the fallback is never the one a run uses.
 
-**One worktree runs one Playwright invocation at a time** (c625). Draw from
-that: the shared preview's `webServer` builds the app into `.svelte-kit/`
-before it serves, and two builds at once write one output folder (wave 25: one
-run failed with `ENOENT … .svelte-kit/output/server/manifest-full.js`, and the
-other's preview served pages that never hydrated). The ports are no longer a
-reason where nothing assigns them: two invocations take their own browse and
-friend worlds (c625, c656). A second invocation started once the first one is
-serving reuses the shared preview, but nothing makes its build safe, so the
-rule is the rule. In a Kantoku slot or the gate every port is assigned, so
-two invocations there still meet the same values as well.
+**One worktree builds one build at a time** (c625). `scripts/build-lock.mjs`
+prefixes the webServer command and takes `.svelte-kit/.build-lock`: the first
+invocation runs the seed, the dictionary copy and the build, writes
+`.svelte-kit/.build-stamp`, releases the lock, and serves. A second invocation
+that starts during that build waits for the lock, then runs its own seed (its
+own database) and serves the output the first built, skipping the build:
+rebuilding would empty the folder the first's preview is serving from. A
+second invocation started once the first is already serving reuses its server
+and runs no command at all.
+
+Measured 2026-11-07: `browse-frame` and `browse-list-frame`, the second started
+10 s into the first's build, both green -- 9 passed and 9 passed, both exit 0.
+The first logged `acquired .svelte-kit/.build-lock (pid …)`; the second logged
+`waiting for .svelte-kit/.build-lock held by pid … (10266 ms)` and
+`build finished 18055 ms into the wait; skipping the build and serving the
+output the first invocation wrote`. Without the lock prefix the same pair at
+the same gap exited 1 on the first (`Cannot find module … .svelte-kit/output/
+server/internal.js`; wave 25's version of the same collision was `ENOENT …
+manifest-full.js`) and 0 on the second.
+
+The lock names its holder's pid, so a killed build leaves no stale lock: the
+next invocation removes it and builds (measured: a holder killed by its pid,
+then another invocation, `removing a stale lock from pid …`, acquired, exit
+0). A waiter that cannot take the lock gives up after 150 s with the holder's
+pid and age named, inside the webServer's own 180 s (measured: `gave up after
+waiting 150136 ms (the webServer allows 180000): .svelte-kit/.build-lock is
+still held by pid …`, exit 1).
+
+Two invocations still need their own world ports: a slot and the gate assign
+one set, and the browse and friend worlds cannot share their servers or
+databases. Give the second invocation its own by leaving its `PLAYWRIGHT_*`
+variables unset -- the worlds then take ports from the OS -- and keep `TMPDIR`
+on the worktree's `temp/playwright`, so each run has its own folder and
+database. The measured pair above did this: the second ran with
+`PLAYWRIGHT_BROWSE_PORT`, `PLAYWRIGHT_ENGINE_PORT`, `PLAYWRIGHT_FRIEND_PORT`
+and `PLAYWRIGHT_PORT` unset.
 
 ### Regenerating the frame spec
 
