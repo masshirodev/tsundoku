@@ -132,6 +132,8 @@
 
 	/** SERIES TO LINK's count, from the layout (c475): its row shows while there are any. */
 	const toLink = $derived(Number(page.data.toLink ?? 0));
+	/** HIGHLIGHTS' count, from the layout (c701): its row shows while there are any. */
+	const highlights = $derived(Number(page.data.highlights ?? 0));
 
 	// `read` has already set `inUse` on the page's own server (withInUse).
 	const inUse = $derived(servers?.find((s) => s.inUse) ?? null);
@@ -351,6 +353,12 @@
 		<a class="row" data-focus-mark="in" href={resolve('/history')}
 			><span>{m.name_history()} →</span><span class="n"></span></a
 		>
+		{#if highlights > 0}
+			<!-- HIGHLIGHTS after HISTORY (c701; Main Q2): as in the sidebar, absent at zero. -->
+			<a class="row" data-focus-mark="in" href={resolve('/highlights')}
+				><span>{m.name_highlights()} →</span><span class="n">{num(highlights)}</span></a
+			>
+		{/if}
 		<a class="row" data-focus-mark="in" href={resolve('/downloads')}
 			><span>{m.name_downloads()} →</span><span class="n"
 				>{queued ? m.more_queued({ n: num(queued) }) : ''}</span

@@ -437,6 +437,17 @@
 						aria-current={page.url.pathname === '/history' ? 'page' : undefined}
 						>{m.name_history()}</a
 					>
+					{#if data.highlights > 0}
+						<!-- HIGHLIGHTS after HISTORY with its count, absent while there are
+						     none (c701; the highlights handoff, Main Q2). /highlights reaches
+						     it then, and the series screen's row. -->
+						<a
+							class="with-n"
+							href={resolve('/highlights')}
+							aria-current={page.url.pathname === '/highlights' ? 'page' : undefined}
+							>{m.name_highlights()}<span class="n">{num(data.highlights)}</span></a
+						>
+					{/if}
 					{#if data.browse}
 						<!-- BROWSE under HISTORY, counting extension updates (Index-Browse, sidebar). -->
 						<a

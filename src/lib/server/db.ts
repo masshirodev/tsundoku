@@ -1646,6 +1646,191 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// cannot be read back from anything kept, so an old job lists none.
 	`
 	ALTER TABLE scan_jobs ADD COLUMN dropped TEXT NOT NULL DEFAULT '[]';
+	`,
+	// v72: highlights (card c701, the first slice of c444; doc/HIGHLIGHTS.md;
+	// the handoff's Main 05). A highlight is a copy and a pointer, and the
+	// copy outlives the place it points at, so nothing here cascades from
+	// `series` or `entries`: a delete marks the pointer ORPHAN and keeps the
+	// row. The pointer keeps what outlives an id (wave 19): the series' origin
+	// key, and the entry's number and season, by which a series re-added from
+	// the same source finds its highlights again.
+	//
+	// The life is kept by triggers rather than a call in each door, because a
+	// series or an entry goes through a dozen doors (delete.ts, the books'
+	// folds, an import's fold, MOVE BACK, UNDO of an ADD, a root's cascade)
+	// and a trigger is the one place every one of them reaches, foreign-key
+	// cascades included: SQLite fires a child table's DELETE triggers for an
+	// ON DELETE CASCADE (tests/highlights-db.spec.ts measures it).
+	//
+	// kind is the highlight's own (quote, page, clip), never a series' kind;
+	// series_kind is the snapshot's. state: 'ok', 'orphan_series' (the series
+	// is gone), 'orphan_entry' (the chapter or episode is gone), 'detached'
+	// (a quote its chapter's text no longer holds; H2 re-finds quotes).
+	// rejoin is 1 while a re-added series waits for its entries to come back
+	// by number; only those highlights re-attach, so an entry renumbered
+	// inside a series that never left (the books' resequence) is never taken
+	// for a lost one. hidden is copied from the series when made, follows it
+	// while it exists, and is kept after it's gone. deleted_at is the owner's
+	// own DELETE, kept a moment for UNDO.
+	`
+	CREATE TABLE highlights (
+		id INTEGER PRIMARY KEY,
+		kind TEXT NOT NULL CHECK (kind IN ('quote', 'page', 'clip')),
+		series_id INTEGER,
+		entry_id INTEGER,
+		origin_key TEXT,
+		number REAL,
+		season INTEGER,
+		block INTEGER,
+		block_offset INTEGER,
+		end_block INTEGER,
+		end_offset INTEGER,
+		page INTEGER,
+		page_end INTEGER,
+		clip_in REAL,
+		clip_out REAL,
+		series_title TEXT NOT NULL,
+		series_kind TEXT NOT NULL,
+		cover TEXT NOT NULL DEFAULT '',
+		entry_label TEXT NOT NULL DEFAULT '',
+		entry_title TEXT NOT NULL DEFAULT '',
+		volume TEXT NOT NULL DEFAULT '',
+		quote TEXT NOT NULL DEFAULT '',
+		quote_before TEXT NOT NULL DEFAULT '',
+		quote_after TEXT NOT NULL DEFAULT '',
+		paragraph TEXT NOT NULL DEFAULT '',
+		context TEXT NOT NULL DEFAULT '',
+		colour TEXT CHECK (colour IS NULL OR colour IN ('yellow', 'orange', 'blue')),
+		note TEXT NOT NULL DEFAULT '',
+		made_at INTEGER NOT NULL,
+		hidden INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1)),
+		copy_path TEXT NOT NULL DEFAULT '',
+		still_path TEXT NOT NULL DEFAULT '',
+		copy_bytes INTEGER NOT NULL DEFAULT 0,
+		copy_width INTEGER,
+		copy_height INTEGER,
+		quality TEXT NOT NULL DEFAULT '',
+		tracks TEXT NOT NULL DEFAULT '[]',
+		track TEXT,
+		state TEXT NOT NULL DEFAULT 'ok'
+			CHECK (state IN ('ok', 'orphan_series', 'orphan_entry', 'detached')),
+		orphaned_at INTEGER,
+		rejoin INTEGER NOT NULL DEFAULT 0 CHECK (rejoin IN (0, 1)),
+		deleted_at INTEGER,
+		CHECK (kind = 'quote' OR colour IS NULL)
+	);
+	CREATE INDEX highlights_made ON highlights(made_at DESC, id DESC);
+	CREATE INDEX highlights_series ON highlights(series_id) WHERE series_id IS NOT NULL;
+	CREATE INDEX highlights_entry ON highlights(entry_id) WHERE entry_id IS NOT NULL;
+	CREATE INDEX highlights_lost ON highlights(origin_key) WHERE series_id IS NULL;
+
+	-- The place went: the pointer says so, the copy and the note stay.
+	CREATE TRIGGER highlights_entry_gone AFTER DELETE ON entries
+	BEGIN
+		UPDATE highlights SET entry_id = NULL,
+			state = CASE WHEN state = 'orphan_series' THEN state ELSE 'orphan_entry' END,
+			orphaned_at = COALESCE(orphaned_at, CAST(strftime('%s', 'now') AS INTEGER) * 1000)
+		WHERE entry_id = OLD.id;
+	END;
+	CREATE TRIGGER highlights_series_gone AFTER DELETE ON series
+	BEGIN
+		UPDATE highlights SET series_id = NULL, entry_id = NULL, state = 'orphan_series', rejoin = 0,
+			orphaned_at = COALESCE(orphaned_at, CAST(strftime('%s', 'now') AS INTEGER) * 1000)
+		WHERE series_id = OLD.id;
+	END;
+
+	-- An entry folded into another series takes its highlights along.
+	CREATE TRIGGER highlights_entry_moved AFTER UPDATE OF series_id ON entries
+		WHEN NEW.series_id IS NOT OLD.series_id
+	BEGIN
+		UPDATE highlights SET series_id = NEW.series_id,
+			origin_key = (SELECT origin_key FROM series WHERE id = NEW.series_id),
+			hidden = COALESCE((SELECT CASE WHEN s.hidden = 1 OR (r.hidden = 1 AND s.public = 0) THEN 1 ELSE 0 END
+				FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = NEW.series_id), hidden)
+		WHERE entry_id = NEW.id;
+	END;
+	-- The keys follow the entry while it is there, so a later re-add matches
+	-- the number it had last, not the one it was made at.
+	CREATE TRIGGER highlights_entry_numbered AFTER UPDATE OF position, episode_number, season ON entries
+	BEGIN
+		UPDATE highlights SET number = COALESCE(NEW.episode_number, NEW.position), season = NEW.season
+		WHERE entry_id = NEW.id;
+		UPDATE highlights SET entry_id = NEW.id, state = 'ok', rejoin = 0, orphaned_at = NULL
+		WHERE rejoin = 1 AND entry_id IS NULL AND series_id = NEW.series_id
+			AND number = COALESCE(NEW.episode_number, NEW.position) AND season IS NEW.season;
+	END;
+	CREATE TRIGGER highlights_entry_back AFTER INSERT ON entries
+	BEGIN
+		UPDATE highlights SET entry_id = NEW.id, state = 'ok', rejoin = 0, orphaned_at = NULL
+		WHERE rejoin = 1 AND entry_id IS NULL AND series_id = NEW.series_id
+			AND number = COALESCE(NEW.episode_number, NEW.position) AND season IS NEW.season;
+	END;
+
+	-- The series' key follows it (MOVE, MOVE BACK, a fold's re-key), and a key
+	-- that comes back to the library finds what it left: the series at once,
+	-- each entry by its number and season, now if it is already there (a
+	-- browsing record's) and as it arrives otherwise (highlights_entry_back).
+	CREATE TRIGGER highlights_series_rekeyed AFTER UPDATE OF origin_key ON series
+		WHEN NEW.origin_key IS NOT NULL AND NEW.origin_key IS NOT OLD.origin_key
+	BEGIN
+		UPDATE highlights SET origin_key = NEW.origin_key WHERE series_id = NEW.id;
+		UPDATE highlights SET series_id = NEW.id, state = 'orphan_entry', rejoin = 1,
+			hidden = (SELECT CASE WHEN NEW.hidden = 1 OR (r.hidden = 1 AND NEW.public = 0) THEN 1 ELSE 0 END
+				FROM roots r WHERE r.id = NEW.root_id)
+		WHERE series_id IS NULL AND origin_key = NEW.origin_key AND NEW.in_library = 1;
+		UPDATE highlights SET entry_id = (SELECT e.id FROM entries e WHERE e.series_id = NEW.id
+				AND COALESCE(e.episode_number, e.position) = highlights.number AND e.season IS highlights.season
+				ORDER BY e.id LIMIT 1),
+			state = 'ok', rejoin = 0, orphaned_at = NULL
+		WHERE rejoin = 1 AND entry_id IS NULL AND series_id = NEW.id AND EXISTS (SELECT 1 FROM entries e
+			WHERE e.series_id = NEW.id AND COALESCE(e.episode_number, e.position) = highlights.number
+				AND e.season IS highlights.season);
+	END;
+	CREATE TRIGGER highlights_series_back AFTER INSERT ON series
+		WHEN NEW.origin_key IS NOT NULL AND NEW.in_library = 1
+	BEGIN
+		UPDATE highlights SET series_id = NEW.id, state = 'orphan_entry', rejoin = 1,
+			hidden = (SELECT CASE WHEN NEW.hidden = 1 OR (r.hidden = 1 AND NEW.public = 0) THEN 1 ELSE 0 END
+				FROM roots r WHERE r.id = NEW.root_id)
+		WHERE series_id IS NULL AND origin_key = NEW.origin_key;
+		UPDATE highlights SET entry_id = (SELECT e.id FROM entries e WHERE e.series_id = NEW.id
+				AND COALESCE(e.episode_number, e.position) = highlights.number AND e.season IS highlights.season
+				ORDER BY e.id LIMIT 1),
+			state = 'ok', rejoin = 0, orphaned_at = NULL
+		WHERE rejoin = 1 AND entry_id IS NULL AND series_id = NEW.id AND EXISTS (SELECT 1 FROM entries e
+			WHERE e.series_id = NEW.id AND COALESCE(e.episode_number, e.position) = highlights.number
+				AND e.season IS highlights.season);
+	END;
+	-- A browsing record made the library's by ADD (doc/BROWSING.md) is a re-add too.
+	CREATE TRIGGER highlights_series_added AFTER UPDATE OF in_library ON series
+		WHEN NEW.in_library = 1 AND OLD.in_library = 0 AND NEW.origin_key IS NOT NULL
+	BEGIN
+		UPDATE highlights SET series_id = NEW.id, state = 'orphan_entry', rejoin = 1,
+			hidden = (SELECT CASE WHEN NEW.hidden = 1 OR (r.hidden = 1 AND NEW.public = 0) THEN 1 ELSE 0 END
+				FROM roots r WHERE r.id = NEW.root_id)
+		WHERE series_id IS NULL AND origin_key = NEW.origin_key;
+		UPDATE highlights SET entry_id = (SELECT e.id FROM entries e WHERE e.series_id = NEW.id
+				AND COALESCE(e.episode_number, e.position) = highlights.number AND e.season IS highlights.season
+				ORDER BY e.id LIMIT 1),
+			state = 'ok', rejoin = 0, orphaned_at = NULL
+		WHERE rejoin = 1 AND entry_id IS NULL AND series_id = NEW.id AND EXISTS (SELECT 1 FROM entries e
+			WHERE e.series_id = NEW.id AND COALESCE(e.episode_number, e.position) = highlights.number
+				AND e.season IS highlights.season);
+	END;
+
+	-- Hidden follows the series while it exists, by visibility.ts' one rule.
+	CREATE TRIGGER highlights_series_hidden AFTER UPDATE OF hidden, public, root_id ON series
+	BEGIN
+		UPDATE highlights SET hidden = (SELECT CASE WHEN NEW.hidden = 1 OR (r.hidden = 1 AND NEW.public = 0)
+			THEN 1 ELSE 0 END FROM roots r WHERE r.id = NEW.root_id)
+		WHERE series_id = NEW.id;
+	END;
+	CREATE TRIGGER highlights_root_hidden AFTER UPDATE OF hidden ON roots
+	BEGIN
+		UPDATE highlights SET hidden = (SELECT CASE WHEN s.hidden = 1 OR (NEW.hidden = 1 AND s.public = 0)
+			THEN 1 ELSE 0 END FROM series s WHERE s.id = highlights.series_id)
+		WHERE series_id IN (SELECT id FROM series WHERE root_id = NEW.id);
+	END;
 	`
 ];
 

@@ -2,6 +2,8 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { wantPictures } from '$lib/server/anime/pictures';
 import { automaticCover, refreshCovers } from '$lib/server/covers';
 import { DeleteError, deleteBook, deleteSeries } from '$lib/server/delete';
+import { seriesHighlights } from '$lib/server/highlights';
+import { seriesLine } from '$lib/library/highlights';
 import type { Actions, PageServerLoad } from './$types';
 import { getDb } from '$lib/server/db';
 import { ocrPlace, restoreNotText, setSeriesOcr } from '$lib/server/japanese/ocr';
@@ -294,15 +296,42 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		move: moveState(series.id),
 		// Time read (card c443; doc/READING-LOG.md): the one summary, under the reveal filter.
 		readMs: seriesReadingTime(series.id, reveal),
+		// HIGHLIGHTS (c701; doc/HIGHLIGHTS.md, Series S1–S2): the row's line, and
+		// what DELETE's sheet says is kept. Null while the series has none, so
+		// the row is not drawn.
+		highlights: highlightsOf(series.id, reveal),
 		moved:
 			url.searchParams.get('moved') === '1'
 				? {
 						added: Number(url.searchParams.get('added')) || 0,
-						kept: Number(url.searchParams.get('kept')) || 0
+						kept: Number(url.searchParams.get('kept')) || 0,
+						// A MOVE BACK that took chapters away (c701): their highlights' line.
+						lost: Number(url.searchParams.get('lost')) || 0
 					}
 				: null
 	};
 };
+
+/** The series' highlights for its row and its DELETE (c701): the line, and how many each entry holds. */
+function highlightsOf(seriesId: number, reveal: boolean) {
+	const list = seriesHighlights(seriesId, reveal);
+	if (list.length === 0) return null;
+	const byEntry: Record<number, number> = {};
+	for (const h of list) if (h.entryId !== null) byEntry[h.entryId] = (byEntry[h.entryId] ?? 0) + 1;
+	return { n: list.length, line: seriesLine(list), byEntry };
+}
+
+/**
+ * The MOVED band's URL. `lost` only when a MOVE BACK took highlights' entries
+ * away (c701), so every URL a move gave before it is the same.
+ */
+function movedUrl(id: number, r: { added: number; kept: number; highlightsLost: number }): string {
+	const lost = r.highlightsLost ? `&lost=${r.highlightsLost}` : '';
+	return `/series/${id}?moved=1&added=${r.added}&kept=${r.kept}${lost}`;
+}
+
+/** DELETE THEM TOO (Out X4): the sheet's switch, posted as `highlights=1`. */
+const withHighlights = (form: FormData) => form.get('highlights') === '1';
 
 /** The series' chosen cover, what automatic would give, and which entries' files carry one. */
 function coverState(seriesId: number) {
@@ -1026,9 +1055,10 @@ export const actions: Actions = {
 	 * DELETE, after its confirmation (doc/DELETING.md): the series, its files
 	 * to the trash, a tombstone so it stays gone.
 	 */
-	delete: async ({ params, cookies }) => {
+	delete: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		await deleteSeries([s.id], isRevealed(cookies));
+		const highlights = withHighlights(await request.formData());
+		await deleteSeries([s.id], isRevealed(cookies), { highlights });
 		// The page leaves by itself, the way its ← does (src/lib/back.ts).
 		return { deletedSeries: s.id };
 	},
@@ -1036,10 +1066,13 @@ export const actions: Actions = {
 	/** DELETE on a book's sheet: that book only; the series keeps the rest. */
 	deleteBook: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		const entry = Number((await request.formData()).get('entry'));
+		const form = await request.formData();
+		const entry = Number(form.get('entry'));
 		let gone: boolean;
 		try {
-			gone = (await deleteBook(s.id, entry, isRevealed(cookies))).seriesGone;
+			gone = (
+				await deleteBook(s.id, entry, isRevealed(cookies), { highlights: withHighlights(form) })
+			).seriesGone;
 		} catch (e) {
 			if (e instanceof DeleteError) return fail(400, { message: e.message });
 			throw e;
@@ -1159,7 +1192,7 @@ export const actions: Actions = {
 			if (e instanceof MoveError || isDownloadsError(e)) return fail(503, { message: e.message });
 			throw e;
 		}
-		redirect(303, `/series/${s.id}?moved=1&added=${result.added}&kept=${result.kept}`);
+		redirect(303, movedUrl(s.id, result));
 	},
 
 	/** UNDO on the MOVED band: the same move back, before the band goes. */
@@ -1176,7 +1209,7 @@ export const actions: Actions = {
 			if (e instanceof MoveError || isDownloadsError(e)) return fail(503, { message: e.message });
 			throw e;
 		}
-		redirect(303, `/series/${s.id}?moved=1&added=${result.added}&kept=${result.kept}`);
+		redirect(303, movedUrl(s.id, result));
 	},
 
 	/** NOT NOW on the NO VIDEO band: nothing shows until a new failure. */

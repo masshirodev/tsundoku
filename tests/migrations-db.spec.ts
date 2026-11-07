@@ -421,11 +421,99 @@ describe('rung 71: a job keeps the Works its folds dropped (c570)', () => {
 			/NOT NULL constraint failed/
 		);
 	});
+});
+
+describe('rung 72: highlights, a copy and a pointer (c701)', () => {
+	it('adds the table to a v71 library, moves no row of it, and nothing cascades into it', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 71);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Mihon', '/nowhere');
+			INSERT INTO series (id, root_id, title, kind, added_at, origin_key) VALUES
+				(1, 1, 'Hoshizora', 'novel', 1, 'lnreader:ranobe:/h');
+			INSERT INTO entries (id, series_id, position, label, added_at) VALUES (1, 1, 3, 'Ch. 3', 1);
+		`);
+		const before = [
+			conn.prepare(`SELECT * FROM series`).all(),
+			conn.prepare(`SELECT * FROM entries`).all()
+		];
+		climb(conn, 72);
+		expect(conn.pragma('user_version', { simple: true })).toBe(72);
+		expect([
+			conn.prepare(`SELECT * FROM series`).all(),
+			conn.prepare(`SELECT * FROM entries`).all()
+		]).toEqual(before);
+		const columns = (conn.prepare(`PRAGMA table_info(highlights)`).all() as { name: string }[]).map(
+			(c) => c.name
+		);
+		// Main 05's record: kind, the pointer, the place, the snapshot, colour,
+		// note, made_at, hidden, the copy's path and the pointer's state.
+		for (const name of [
+			'kind',
+			'series_id',
+			'entry_id',
+			'origin_key',
+			'number',
+			'season',
+			'block',
+			'block_offset',
+			'end_block',
+			'end_offset',
+			'page',
+			'clip_in',
+			'clip_out',
+			'series_title',
+			'series_kind',
+			'cover',
+			'entry_label',
+			'colour',
+			'note',
+			'made_at',
+			'hidden',
+			'copy_path',
+			'state'
+		])
+			expect(columns).toContain(name);
+		// No foreign key at all: a delete can never take a highlight with it.
+		expect(conn.prepare(`PRAGMA foreign_key_list(highlights)`).all()).toEqual([]);
+		expect(
+			(
+				conn
+					.prepare(
+						`SELECT name FROM sqlite_schema WHERE type = 'index' AND tbl_name = 'highlights'`
+					)
+					.all() as { name: string }[]
+			)
+				.map((r) => r.name)
+				.sort()
+		).toEqual(['highlights_entry', 'highlights_lost', 'highlights_made', 'highlights_series']);
+		expect(conn.prepare(`SELECT COUNT(*) AS n FROM highlights`).get()).toEqual({ n: 0 });
+	});
+
+	it('takes its three kinds and colours for quotes only, and refuses a series kind', () => {
+		const conn = new Database(':memory:');
+		climb(conn);
+		const put = (kind: string, colour: string | null) =>
+			conn
+				.prepare(
+					`INSERT INTO highlights (kind, series_title, series_kind, colour, made_at) VALUES (?, 'T', 'novel', ?, 1)`
+				)
+				.run(kind, colour);
+		expect(() => put('quote', 'yellow')).not.toThrow();
+		expect(() => put('page', null)).not.toThrow();
+		expect(() => put('clip', null)).not.toThrow();
+		expect(() => put('novel', null)).toThrow(/CHECK constraint failed/);
+		expect(() => put('page', 'blue')).toThrow(/CHECK constraint failed/);
+		expect(() => put('quote', 'green')).toThrow(/CHECK constraint failed/);
+		expect(() => conn.exec(`UPDATE highlights SET state = 'gone' WHERE kind = 'quote'`)).toThrow(
+			/CHECK constraint failed/
+		);
+	});
 
 	// The top rung's own block says it is the top; the next rung moves this line.
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(71);
+		expect(conn.pragma('user_version', { simple: true })).toBe(72);
 	});
 });

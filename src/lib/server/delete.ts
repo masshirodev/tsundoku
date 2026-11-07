@@ -9,6 +9,7 @@ import { coverDir } from './covers.ts';
 import { isUnder } from './paths.ts';
 import { SAMPLE_PREFIX } from './pages/sample.ts';
 import { dataPaths } from './data-dirs.ts';
+import { heldBy, heldByEntry, removeHighlights } from './highlights.ts';
 
 /**
  * Deleting books and series (doc/DELETING.md). A delete does three things:
@@ -20,6 +21,11 @@ import { dataPaths } from './data-dirs.ts';
  * 3. a tombstone keeps it gone: the importers find things by their origin key
  *    and source URLs, and both stay in Mihon's backup and on the other
  *    devices, so without one the next scan or sync would bring it back.
+ *
+ * Highlights are kept (c701; doc/HIGHLIGHTS.md): rung 72's triggers mark
+ * them ORPHAN as the rows go, whichever door deletes. DELETE THEM TOO
+ * (`highlights: true`) removes them and their copies as well, in the same
+ * transaction as the rows.
  *
  * Only files inside the library folder are ever moved.
  */
@@ -110,7 +116,21 @@ function bury(db: Database.Database, keys: string[], title: string, now: number)
 
 const stampOf = (now: number) => new Date(now).toISOString().replace(/[:.]/g, '-');
 
-export type DeleteResult = { series: number; entries: number; files: number };
+export type DeleteResult = {
+	series: number;
+	entries: number;
+	files: number;
+	/** Highlights removed with it (DELETE THEM TOO); the rest are kept, ORPHAN. */
+	highlights: number;
+};
+
+export type DeleteOptions = { now?: number; highlights?: boolean };
+
+/** `now` alone is how the callers before c701 passed it; both shapes are taken. */
+const optionsOf = (o: number | DeleteOptions | undefined): Required<DeleteOptions> =>
+	typeof o === 'number'
+		? { now: o, highlights: false }
+		: { now: o?.now ?? Date.now(), highlights: o?.highlights ?? false };
 
 /**
  * Delete whole series. Each must be one the viewer can see: a hidden series
@@ -119,10 +139,11 @@ export type DeleteResult = { series: number; entries: number; files: number };
 export async function deleteSeries(
 	ids: number[],
 	reveal: boolean,
-	now = Date.now()
+	options?: number | DeleteOptions
 ): Promise<DeleteResult> {
+	const { now, highlights } = optionsOf(options);
 	const db = getDb();
-	const result: DeleteResult = { series: 0, entries: 0, files: 0 };
+	const result: DeleteResult = { series: 0, entries: 0, files: 0, highlights: 0 };
 	const stamp = stampOf(now);
 	const holders = holdersOf(db);
 	const gone = new Set<number>();
@@ -145,9 +166,13 @@ export async function deleteSeries(
 		// A chapter another series still holds isn't gone: burying its URL would
 		// keep the next import from refreshing it there.
 		const buried = entries.filter((e) => !shared(e)).map((e) => e.source_url);
+		// Only what the viewer can see goes with it: a hidden highlight the
+		// viewer can't see is never deleted blind (doc/HIGHLIGHTS.md).
+		const theirs = highlights ? heldBy([id], reveal, db).ids : [];
 		db.transaction(() => {
 			bury(db, [row.origin_key ?? '', ...buried], row.title, now);
 			db.prepare(`DELETE FROM series WHERE id = ?`).run(id);
+			result.highlights += removeHighlights(theirs, db);
 		}).immediate();
 		await unlink(join(coverDir(), `${id}.webp`)).catch(() => undefined);
 		result.series += 1;
@@ -164,8 +189,9 @@ export async function deleteBook(
 	seriesId: number,
 	entryId: number,
 	reveal: boolean,
-	now = Date.now()
+	options?: number | DeleteOptions
 ): Promise<DeleteResult & { seriesGone: boolean }> {
+	const { now, highlights } = optionsOf(options);
 	const db = getDb();
 	if (!seriesDetail(seriesId, reveal)) throw new DeleteError('no such series');
 	const row = db.prepare(`SELECT path, title FROM series WHERE id = ?`).get(seriesId) as {
@@ -180,8 +206,11 @@ export async function deleteBook(
 		filesOf(row.path, entries).filter((abs) => !heldElsewhere(holders, abs, gone)),
 		stampOf(now)
 	);
+	const theirs = highlights ? heldByEntry(entryId, reveal, db) : [];
+	let removed = 0;
 	const seriesGone = db
 		.transaction((): boolean => {
+			removed = removeHighlights(theirs, db);
 			const title = (
 				db.prepare(`SELECT title FROM entries WHERE id = ?`).get(entryId) as { title: string }
 			).title;
@@ -199,5 +228,5 @@ export async function deleteBook(
 			return false;
 		})
 		.immediate();
-	return { series: seriesGone ? 1 : 0, entries: 1, files, seriesGone };
+	return { series: seriesGone ? 1 : 0, entries: 1, files, seriesGone, highlights: removed };
 }
