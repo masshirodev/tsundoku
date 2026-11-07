@@ -1,0 +1,7 @@
+Weeb Central opens again: a copy installed or updated since 7 November stopped with "Bad type on operand stack". It sits behind a browser check, so it needs FlareSolverr unzipped into tsundoku's data folder.
+Android: tsundoku for phones and tablets, and for Android TV, downloads from the website, and from now on each updates itself.
+The TV app keeps more than one server: switch between them from MORE › SERVERS.
+Reading: HIDE CURSOR hides the pointer after a few seconds still, and a long READING sheet keeps its ✕ on screen. On a 360 px phone the bottom bar fits again.
+Novels: NovelFull and Scribble Hub load through the browser check, and SETTINGS has a default reading direction for novels.
+A source's own settings gain NEVER TRACKED: nothing read from it is sent to AniList or MAL. On a phone or tablet, RESCAN is in MORE.
+Fixes to Works, MOVE, linking seasons, the seek preview and the TV's focus.
