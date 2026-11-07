@@ -835,42 +835,60 @@ for the browse preview (`tests/tv-move.e2e.ts:26`, `tests/tv-player.e2e.ts:24`)
 are handed the pinned value through the environment before any worker starts,
 so the fallback is never the one a run uses.
 
-**One worktree builds one build at a time** (c625). `scripts/build-lock.mjs`
-prefixes the webServer command and takes `.svelte-kit/.build-lock`: the first
-invocation runs the seed, the dictionary copy and the build, writes
-`.svelte-kit/.build-stamp`, releases the lock, and serves. A second invocation
-that starts during that build waits for the lock, then runs its own seed (its
-own database) and serves the output the first built, skipping the build:
-rebuilding would empty the folder the first's preview is serving from. A
-second invocation started once the first is already serving reuses its server
-and runs no command at all.
+**Two invocations can share one worktree** (c625, wave 32), because
+`scripts/build-lock.mjs` wraps the webServer command and keeps apart the two
+things that collide in `.svelte-kit/`:
 
-Measured 2026-11-07: `browse-frame` and `browse-list-frame`, the second started
-10 s into the first's build, both green -- 9 passed and 9 passed, both exit 0.
-The first logged `acquired .svelte-kit/.build-lock (pid …)`; the second logged
-`waiting for .svelte-kit/.build-lock held by pid … (10266 ms)` and
-`build finished 18055 ms into the wait; skipping the build and serving the
-output the first invocation wrote`. Without the lock prefix the same pair at
-the same gap exited 1 on the first (`Cannot find module … .svelte-kit/output/
-server/internal.js`; wave 25's version of the same collision was `ENOENT …
-manifest-full.js`) and 0 on the second.
+- **Two builds.** The prepare step (the seed, the dictionary copy) and the
+  build run under `.svelte-kit/.build-lock`, a file naming its holder's pid. A
+  second invocation waits for it.
+- **A build under a running preview.** `vite build` empties
+  `.svelte-kit/output` first, and a preview serves out of it for as long as its
+  run lasts, after the lock is released. So each invocation that serves
+  records itself in `.svelte-kit/.build-users/<pid>`, and nobody builds while a
+  live one is recorded. An invocation that finds the output in use serves it
+  without building when it was built from the tree as it is now (HEAD, the
+  tracked changes and the untracked files, hashed into `.svelte-kit/.build-stamp`),
+  and otherwise waits for the users to finish: a stale build would test code
+  that is no longer there. With nobody serving it builds, as every run did
+  before.
 
-The lock names its holder's pid, so a killed build leaves no stale lock: the
-next invocation removes it and builds (measured: a holder killed by its pid,
-then another invocation, `removing a stale lock from pid …`, acquired, exit
-0). A waiter that cannot take the lock gives up after 150 s with the holder's
-pid and age named, inside the webServer's own 180 s (measured: `gave up after
-waiting 150136 ms (the webServer allows 180000): .svelte-kit/.build-lock is
-still held by pid …`, exit 1).
+Each invocation runs its own prepare step, so each has its own seeded
+database. A record whose process is gone is removed by the next run (by pid
+and the process's start time from `/proc`, since Playwright's teardown kills
+the wrapper before it can remove its own). A wait gives up after 150 s, inside
+the webServer's 180, naming whom it waited for: an invocation that starts
+while another runs a whole suite on a changed tree fails rather than tests
+stale code. `tests/helpers/build-lock.spec.ts` has a case for each of these.
 
-Two invocations still need their own world ports: a slot and the gate assign
-one set, and the browse and friend worlds cannot share their servers or
-databases. Give the second invocation its own by leaving its `PLAYWRIGHT_*`
-variables unset -- the worlds then take ports from the OS -- and keep `TMPDIR`
-on the worktree's `temp/playwright`, so each run has its own folder and
-database. The measured pair above did this: the second ran with
-`PLAYWRIGHT_BROWSE_PORT`, `PLAYWRIGHT_ENGINE_PORT`, `PLAYWRIGHT_FRIEND_PORT`
-and `PLAYWRIGHT_PORT` unset.
+Give the second invocation its own ports. A slot and the gate assign one
+set, and the browse and friend worlds cannot share servers or databases:
+leave the second's `PLAYWRIGHT_BROWSE_PORT`, `PLAYWRIGHT_ENGINE_PORT` and
+`PLAYWRIGHT_FRIEND_PORT` unset, so the worlds take theirs from the OS, and
+give its `PLAYWRIGHT_PORT` another value (an unset one falls back to 4183,
+and two invocations on one preview port share its server and its database).
+Keep `TMPDIR` on the worktree's `temp/playwright`; each run makes its own
+folder under it.
+
+Measured on wave 32's branch (this slot's notes, wave 32, c625, quote each
+run's own lines): `browse-frame` (A, `PLAYWRIGHT_PORT=4183`) and
+`browse-list-frame` (B, `PLAYWRIGHT_PORT=4591`, world ports unset), with
+`--workers` left to the config:
+
+| How B started                          | Lock                               | A                                   | B                       |
+| -------------------------------------- | ---------------------------------- | ----------------------------------- | ----------------------- |
+| 10 s into A's build                    | this one                           | 9 passed, built                     | 9 passed, no build      |
+| 50 s in, A serving (`--repeat-each=6`) | this one                           | 54 passed, built                    | 9 passed, no build      |
+| A serving, an untracked file added     | this one                           | 27 passed, built                    | waited, built, 9 passed |
+| 10 s into A's build                    | none                               | `ENOENT … manifest-full.js`, exit 1 | 9 passed, built         |
+| 50 s in, A serving                     | wave 31's (`75f0913e`, build only) | 35 failed, 19 passed                | 9 passed, built         |
+
+The last row is why the lock holds past the build: wave 31's released it
+when its build ended, so B rebuilt under A's running previews and A's browse
+world refused connections (`net::ERR_CONNECTION_REFUSED at
+http://localhost:4594/browse/100`). A stale lock and a stale user are each
+removed and logged (`removing a stale lock from pid …`, `removing a stale
+user …`).
 
 ### Regenerating the frame spec
 

@@ -129,8 +129,9 @@ export default defineConfig({
 				// kuromoji's dictionary is `yarn prepare`'s copy, untracked, so a
 				// worktree that never ran it builds an app whose lookup has no
 				// words (c249): copied here, before the build takes static/.
-				// `scripts/build-lock.mjs` runs them one invocation at a time
-				// (c625): two builds at once write one `.svelte-kit/output`.
+				// `scripts/build-lock.mjs` runs them one invocation at a time, and
+				// never builds under another invocation's running preview (c625):
+				// both write or read one `.svelte-kit/output` (doc/TESTING.md, "Ports").
 				command:
 					`node scripts/build-lock.mjs --port ${previewPort} --prepare ` +
 					`"rm -f ${databasePath}* && yarn run seed && node node_modules/kotoba/scripts/sync-dict.js static/dict > /dev/null" ` +
