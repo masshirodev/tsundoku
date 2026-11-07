@@ -205,7 +205,8 @@ a page back.
 It travels through `POST /api/reading` as before: `page` is the paragraph, and
 two new optional fields carry `offset` (the character) and `total` (paragraphs
 in the entry). The server stores them in `last_position`, `last_offset` (rung 11) and `page_count`, so the series screen's percentages work without the
-server ever reading the book. The URL keeps `?at=<block>.<offset>`, so a
+server ever reading the book. A text reader opened incognito sends none of
+this at all (c680, [`PRIVACY.md`](PRIVACY.md), "Incognito"). The URL keeps `?at=<block>.<offset>`, so a
 reload, or incognito, which saves nothing, still comes back to the same
 sentence (and in SCROLL, the same line: `?at=<block>.<offset>.<y>`, above).
 The reader is the URL's only writer and its only reader: CONTINUE, history

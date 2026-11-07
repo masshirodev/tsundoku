@@ -890,6 +890,13 @@
 	let saved = $state(true);
 
 	async function send(kind: 'open' | 'page' | 'finish' | 'close', page: number) {
+		// Opened incognito: nothing this reader sends is saved, whatever the
+		// cookie says later. The hide that ends incognito is a beacon
+		// (doc/PRIVACY.md, step 2) and this page keeps running until the app
+		// comes back, so a settle, a finish or the close on the way out would
+		// otherwise reach the server with no cookie and be written as ordinary
+		// reading (c680).
+		if (data.incognito) return;
 		if (!data.manifest) return;
 		const now = Date.now();
 		const body = JSON.stringify({

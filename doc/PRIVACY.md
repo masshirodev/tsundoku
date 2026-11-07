@@ -19,6 +19,16 @@ CONTINUE. **The row is never written.** It isn't written and then hidden.
   `{ saved: false }` and never reaches `recordReading()`. The guarantee lives
   on the server, where the reader can't forget it. The reader shows NOT SAVED
   from that answer.
+- **A reader opened incognito sends nothing at all** (c680). The cookie alone
+  is not enough: leaving the app ends incognito in a beacon while the reader
+  keeps running until the return takes it away (step 2 and step 3, below), so
+  a page still settling, a finish or the close on the way out would reach the
+  server with no cookie and be written as ordinary reading. The image reader,
+  the text reader and the player each check what they opened with
+  (`data.incognito`) before every `POST /api/reading`; the server's answer is
+  the second line, not the only one. `tests/privacy-flow.e2e.ts` reads one of
+  each in incognito, leaves the app, and checks the log and `last_opened_at`
+  are where they were.
 - **What still saves:** rating and FAV. They're deliberate edits, not traces.
   MARK READ still saves too, for the same reason.
 - **How it shows:** outside the reader, a panel band reads **INCOGNITO ·

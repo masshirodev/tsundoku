@@ -666,8 +666,10 @@ minutes, and the player counts only what played
 ([`READING-LOG.md`](READING-LOG.md), "The caps").
 
 **Incognito** is decided by the server: while it's on, `/api/reading` answers
-`{saved: false}` and writes nothing ([`PRIVACY.md`](PRIVACY.md)). The reader
-shows it the addendum's way:
+`{saved: false}` and writes nothing ([`PRIVACY.md`](PRIVACY.md)). A reader
+opened incognito also sends nothing itself (c680): leaving the app ends the
+cookie while that page may still have a settle, a finish or its close to send.
+The reader shows it the addendum's way:
 
 - a 2px dashed rule along the top edge;
 - a dashed INCOGNITO cell in the controls;
