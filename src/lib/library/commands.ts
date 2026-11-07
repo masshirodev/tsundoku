@@ -1,5 +1,6 @@
 import { goto, invalidateAll } from '$app/navigation';
 import { resolve } from '$app/paths';
+import { TV } from '../device.svelte.ts';
 import { parseBar } from './search.ts';
 
 /**
@@ -17,7 +18,13 @@ import { parseBar } from './search.ts';
 export type CommandOutcome =
 	{ type: 'filter' } | { type: 'ran' } | { type: 'refused'; message: string };
 
-type Answer = { ok?: boolean; message?: string; href?: string };
+type Answer = {
+	ok?: boolean;
+	message?: string;
+	href?: string;
+	/** Navigation state for `href`: `/lock`'s and `/unlock`'s `go` intent. */
+	state?: Record<string, unknown>;
+};
 
 /**
  * Whether the bar must stop its own form. Asked and answered synchronously:
@@ -40,6 +47,12 @@ export async function runSearchCommand(raw: string): Promise<CommandOutcome> {
 		await goto(input.href);
 		return { type: 'ran' };
 	}
+	// A TV has no fingerprint and no screen lock, so it cannot turn reveal on
+	// (owner, 2026-11-01; doc/TV.md). The server cannot tell a TV apart, so the
+	// refusal is here, in the same words `/search` uses.
+	if (input.command === 'reveal' && typeof window !== 'undefined' && matchMedia(TV).matches) {
+		return { type: 'refused', message: 'NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER' };
+	}
 	let answer: Answer | null;
 	try {
 		const res = await fetch(resolve('/api/command'), {
@@ -61,7 +74,7 @@ export async function runSearchCommand(raw: string): Promise<CommandOutcome> {
 	}
 	if (answer.href) {
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- built by the server's own route table
-		await goto(answer.href);
+		await goto(answer.href, { state: answer.state });
 		return { type: 'ran' };
 	}
 	await invalidateAll();

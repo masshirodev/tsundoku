@@ -1,4 +1,5 @@
 import type { CDPSession, Page } from '@playwright/test';
+import { chromium, devices } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
@@ -116,6 +117,22 @@ test('/settings opens the page from a bar', async ({ page }) => {
 	await expect(page).toHaveURL(/\/settings$/);
 });
 
+test('a go=1 link runs nothing but /lock and /unlock', async ({ page }) => {
+	// The intent for /lock and /unlock travels in history state; a typed or
+	// shared `?go=1` link is not one, and no other command is submitted (c697,
+	// round 2). The link is taken off the URL either way.
+	await page.goto('/search?q=%2Freveal&go=1');
+	await expect(page.getByRole('searchbox')).toHaveValue('/reveal');
+	await expect(page).toHaveURL(/\/search\?q=%2Freveal$/);
+	await expect(page.locator('.band.reveal')).toHaveCount(0);
+	await expect(page.locator('.app.revealed')).toHaveCount(0);
+
+	await page.goto('/search?q=%2Fincognito&go=1');
+	await expect(page.getByRole('searchbox')).toHaveValue('/incognito');
+	await expect(page).toHaveURL(/\/search\?q=%2Fincognito$/);
+	await expect(page.getByText('INCOGNITO · NOTHING SAVED')).toHaveCount(0);
+});
+
 test('a gated box refuses /reveal from EXTENSIONS, as the library does', async ({ page }) => {
 	await authenticator(page);
 	// /lock's rule: only an unlocked session adds a device (doc/PRIVACY.md).
@@ -160,7 +177,51 @@ test('/lock from a bar opens the device prompt on search', async ({ page }) => {
 		page.getByRole('searchbox', { name: 'Search the available extensions' }),
 		'/lock'
 	);
-	// `go=1` is taken off the URL before the prompt runs.
+	// The `go` intent is history state, not a URL parameter, and is taken off
+	// before the prompt runs.
 	await expect(page).toHaveURL(/\/search\?q=%2Flock$/);
 	await expect(page.getByText('LOCKED · /reveal NOW ASKS THIS DEVICE')).toBeVisible();
+});
+
+/**
+ * A television cannot turn reveal on (owner, 2026-11-01; doc/TV.md). The
+ * TV's pointer is set at Chromium's launch, not by a context or a media
+ * emulation (playwright.config.ts's `tv` project says why), and the browse
+ * project's Galaxy Tab has a coarse one, so this case launches its own
+ * Chromium with the `tv` project's own arguments and carries this context's
+ * sign-in cookie to it. One runner backs every bar (c697), so EXTENSIONS
+ * stands for the three -- and only BROWSE has a server with an engine, which
+ * EXTENSIONS needs, so the `tv` project's shared preview cannot show it.
+ */
+test('on a TV, EXTENSIONS refuses /reveal and no reveal band appears', async ({ page }) => {
+	const browser = await chromium.launch({
+		args: ['--blink-settings=availablePointerTypes=none,availableHoverTypes=none']
+	});
+	try {
+		// A context made in a test inherits the project's own device options
+		// (a Galaxy Tab's Android user agent, `isMobile`, touch), which keep
+		// the pointer coarse however Chromium was launched; the `tv` project's
+		// desktop device replaces them, as it does there.
+		const tv = await browser.newContext({
+			...devices['Desktop Chrome'],
+			baseURL: test.info().project.use.baseURL,
+			viewport: { width: 960, height: 540 },
+			locale: 'en-US',
+			storageState: { cookies: await page.context().cookies(), origins: [] }
+		});
+		const screen = await tv.newPage();
+		await screen.goto('/browse/extensions?tab=available');
+		// What the guard reads, asked of the page itself before trusting it.
+		expect(
+			await screen.evaluate(() => matchMedia('(pointer: none) and (min-width: 900px)').matches)
+		).toBe(true);
+		const box = screen.getByRole('searchbox', { name: 'Search the available extensions' });
+		await box.fill('/reveal');
+		await box.press('Enter');
+		await expect(screen.getByText('NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER')).toBeVisible();
+		await expect(screen.locator('.band.reveal')).toHaveCount(0);
+		await expect(screen).toHaveURL(/\/browse\/extensions\?tab=available$/);
+	} finally {
+		await browser.close();
+	}
 });

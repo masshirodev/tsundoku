@@ -12,8 +12,9 @@ import type { RequestHandler } from './$types';
  *
  * `/scan` starts the scan the library shows; `/words` opens its page; `/lock`
  * and `/unlock` need the device prompt only `/search` draws, so they are sent
- * there with the command filled in (`&go=1` runs it on arrival). Everything
- * else runs in place: the caller re-reads its loads.
+ * there with the command filled in and `{ go: true }` in history state, which
+ * runs it on arrival. Everything else runs in place: the caller re-reads its
+ * loads.
  */
 export const POST: RequestHandler = async ({ request, cookies, url }) => {
 	const body = (await request.json().catch(() => null)) as { command?: unknown } | null;
@@ -24,7 +25,13 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
 	}
 	if (command === 'words') return json({ ok: true, href: '/words' });
 	if (command === 'lock' || command === 'unlock') {
-		return json({ ok: true, href: `/search?q=${encodeURIComponent(`/${command}`)}&go=1` });
+		// The intent travels in history state, not in the URL: a typed or shared
+		// `?go=1` link cannot then run a command on arrival (c697, round 2).
+		return json({
+			ok: true,
+			href: `/search?q=${encodeURIComponent(`/${command}`)}`,
+			state: { go: true }
+		});
 	}
 	// The gate is asked before runCommand runs, so its refusal can say why:
 	// runCommand's `false` alone is also an unknown command's answer.

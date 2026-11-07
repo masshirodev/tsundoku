@@ -2,7 +2,7 @@
 	import SourceRow from '../browse/SourceRow.svelte';
 	import { ago } from '$lib/library/tracking';
 	import { goto, invalidateAll, replaceState } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { TV } from '$lib/device.svelte';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
@@ -135,16 +135,37 @@
 
 	/**
 	 * `/lock` and `/unlock` typed into another top search bar (c697) arrive
-	 * here with `&go=1`, because their prompt is this screen's. The parameter
-	 * is taken off before the command runs, so a reload does not ask again.
+	 * here with this screen's `go` intent, which travels in history state so a
+	 * typed or shared `?go=1` link cannot carry it. Only those two commands
+	 * always ask this screen's device prompt: any other `q` has `go` taken off
+	 * the URL and is not submitted, so `/search?q=%2Freveal&go=1` cannot turn
+	 * reveal on with no keystroke (round 2).
+	 *
+	 * One tick late: on a full page load `onMount` runs inside the router's own
+	 * root creation, before SvelteKit holds the root its `replaceState` writes
+	 * to, which throws (`Cannot read properties of undefined (reading '$set')`).
+	 * A bar's client-side `goto` is already past that, but a shared link is not.
 	 */
 	onMount(() => {
-		const u = new URL(page.url);
-		if (u.searchParams.get('go') !== '1') return;
-		u.searchParams.delete('go');
-		// eslint-disable-next-line svelte/no-navigation-without-resolve -- this page's own address, with one parameter taken off
-		replaceState(u, {});
-		form?.requestSubmit();
+		let cancelled = false;
+		void tick().then(() => {
+			if (cancelled) return;
+			const u = new URL(page.url);
+			const carried = (page.state as Record<string, unknown>).go === true;
+			const asked = u.searchParams.get('go') === '1';
+			if (!carried && !asked) return;
+			u.searchParams.delete('go');
+			// eslint-disable-next-line svelte/no-navigation-without-resolve -- this page's own address, with one parameter taken off
+			replaceState(u, {});
+			const parsed = parseSearch(u.searchParams.get('q') ?? '');
+			if (parsed.type !== 'command' || (parsed.command !== 'lock' && parsed.command !== 'unlock')) {
+				return;
+			}
+			form?.requestSubmit();
+		});
+		return () => {
+			cancelled = true;
+		};
 	});
 
 	function onsubmit(e: SubmitEvent) {
