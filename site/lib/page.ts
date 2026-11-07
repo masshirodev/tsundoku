@@ -160,7 +160,7 @@ function phoneBandText(r: Release): string {
 /** 06's opening line, naming the app only when the release carries one. */
 function phoneLead(r: Release): string {
 	if (r.android?.app)
-		return 'tsundoku stays on the computer; the phone opens it in its browser, or in <a href="#download">the tsundoku app</a>, which pairs with the computer and needs it running. Two ways in.';
+		return 'tsundoku stays on the computer; the phone opens it in its browser, or, on Android, in <a href="#download">the tsundoku app</a>, which pairs with the computer and needs it running. Two ways in.';
 	return 'tsundoku stays on the computer; the phone opens it in its browser. Two ways in.';
 }
 

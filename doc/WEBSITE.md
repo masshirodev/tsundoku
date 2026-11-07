@@ -111,20 +111,27 @@ then:
 | Linux   | Linux, Windows, macOS, then any app rows                           | Linux                 | the tar.xz                    | ↓ DOWNLOAD FOR LINUX   |
 | macOS   | macOS, Windows, Linux, then any app rows                           | macOS                 | none: nothing is theirs       | ↓ DOWNLOAD             |
 | phone   | the phone app (if any), the TV app (if any), then the desktop rows | the phone app, if any | the phone app, else installer | ↓ DOWNLOAD             |
+| iOS     | the desktop rows, then any app rows                                | none                  | the Windows installer         | ↓ DOWNLOAD             |
 | TV      | the TV app (if any), the phone app (if any), then the desktop rows | the TV app, if any    | the TV app, else installer    | ↓ DOWNLOAD             |
 
 A release without `files.android` has no app rows at all, and every row above
-the phone and TV lines behaves exactly as it did before c667. A phone also gets
-the band above 04's rows ("ON A PHONE?"); a TV does not.
+the phone and iOS lines behaves exactly as it did before c667. A phone and an
+iOS device also get the band above 04's rows ("ON A PHONE?"); a TV does not.
+
+An iPhone, iPad or iPod is `ios`, never `phone`, even though it gets the band
+and the same line about needing a computer: both APKs are Android's, so an app
+row never leads, is tagged YOUR SYSTEM or takes the accent for it, and the
+Windows installer keeps the accent as it did for a phone before c667. 06's
+lead says the app is Android's, so an iOS reader is not offered it.
 
 `navigator.userAgentData.platform` where Chromium offers it, else the user
 agent. Android says Linux in its user agent, so phones are checked first; an
-iPad asking for the desktop page says Mac, and its touch screen gives it away.
-An Android television has no dependable "is a TV" flag, so the names TV
-browsers use (`Android TV`, `Google TV`, `Fire TV`, `AFT…`, `BRAVIA`,
-`SHIELD`) make it a TV, and a tablet without one stays a phone, which the
-phone app serves too. The rules are `site/src/order.js`, one copy for the page
-and the tests.
+iPad asking for the desktop page says Mac, and its touch screen gives it away
+(also `ios`). An Android television has no dependable "is a TV" flag, so the
+names TV browsers use (`Android TV`, `Google TV`, `Fire TV`, `AFT…`, `BRAVIA`,
+`SHIELD`) make it a TV, and an Android tablet without one stays a phone, which
+the phone app serves too. The rules are `site/src/order.js`, one copy for the
+page and the tests.
 
 ## Theme (call 04)
 

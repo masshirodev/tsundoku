@@ -19,6 +19,7 @@ const UA = {
 	mac: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36',
 	phone:
 		'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36',
+	ios: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
 	tv: 'Mozilla/5.0 (Linux; Android 12; Android TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
 };
 
@@ -135,6 +136,24 @@ test.describe('a release with the Android apps', () => {
 		});
 	});
 
+	test.describe('on an iPhone', () => {
+		test.use({ userAgent: UA.ios });
+
+		test('no Android app leads, is tagged or takes the accent', async ({ page }) => {
+			// No userAgentData: a Safari phone offers none, and the UA alone must
+			// decide. setContent does not run addInitScript, so it goes in first.
+			await page.setContent(
+				`<script>Object.defineProperty(navigator, 'userAgentData', { get: () => undefined });</script>${html}`
+			);
+			await expect(page.locator('html')).toHaveAttribute('data-os', 'ios');
+			expect(await rowOrder(page)).toEqual(['windows', 'linux', 'mac', 'android', 'android-tv']);
+			expect(await visibleTags(page)).toEqual([]);
+			expect(await accented(page)).toEqual(['windows']);
+			await expect(page.locator('.dl-band')).toBeVisible();
+			await expect(page.locator('#hero-meta')).toHaveText('FOR A COMPUTER · WINDOWS AND LINUX');
+		});
+	});
+
 	test.describe('on a TV', () => {
 		test.use({ userAgent: UA.tv });
 
@@ -187,6 +206,32 @@ test.describe('the visitor’s system', () => {
 		expect(await visibleTags(page)).toEqual([]);
 		expect(await page.locator('.dl-row[data-os^="android"]').count()).toBe(0);
 		await expect(page.locator('#hero-meta')).toHaveText('FOR A COMPUTER · WINDOWS AND LINUX');
+	});
+
+	test('an iPhone gets the band and the desktop order, and is not a phone', async ({ page }) => {
+		await as(page, 'ios');
+		await page.goto('/');
+		await expect(page.locator('html')).toHaveAttribute('data-os', 'ios');
+		await expect(page.locator('.dl-band')).toBeVisible();
+		expect(await rowOrder(page)).toEqual(['windows', 'linux', 'mac']);
+		expect(await visibleTags(page)).toEqual([]);
+		expect(await accented(page)).toEqual(['windows']);
+		await expect(page.locator('#hero-meta')).toHaveText('FOR A COMPUTER · WINDOWS AND LINUX');
+	});
+
+	test('an iPad asking for the desktop page is iOS, not a phone', async ({ page }) => {
+		// iPadOS reports a Mac UA; only the touch screen gives it away (site.js).
+		await page.addInitScript((ua) => {
+			Object.defineProperty(navigator, 'userAgent', { get: () => ua });
+			Object.defineProperty(navigator, 'userAgentData', { get: () => undefined });
+			Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 });
+		}, UA.mac);
+		await page.goto('/');
+		await expect(page.locator('html')).toHaveAttribute('data-os', 'ios');
+		await expect(page.locator('.dl-band')).toBeVisible();
+		expect(await rowOrder(page)).toEqual(['windows', 'linux', 'mac']);
+		expect(await visibleTags(page)).toEqual([]);
+		expect(await accented(page)).toEqual(['windows']);
 	});
 });
 

@@ -107,7 +107,7 @@ test('the phone band and 06 offer the app only when the release has the phone ap
 	);
 	assert.match(
 		html,
-		/phone opens it in its browser, or in <a href="#download">the tsundoku app<\/a>, which pairs with the computer and needs it running/
+		/phone opens it in its browser, or, on Android, in <a href="#download">the tsundoku app<\/a>, which pairs with the computer and needs it running/
 	);
 });
 

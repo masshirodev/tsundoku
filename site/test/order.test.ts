@@ -11,7 +11,11 @@ test('the visitor’s system, from the user agent', () => {
 	assert.equal(detectOS(ua('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')), 'windows');
 	assert.equal(detectOS(ua('Mozilla/5.0 (X11; Linux x86_64)')), 'linux');
 	assert.equal(detectOS(ua('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')), 'mac');
-	assert.equal(detectOS(ua('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)')), 'phone');
+	assert.equal(detectOS(ua('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)')), 'ios');
+	assert.equal(
+		detectOS(ua('Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15')),
+		'ios'
+	);
 	assert.equal(detectOS(ua('Mozilla/5.0 (X11; CrOS x86_64 14541.0.0)')), 'linux');
 	assert.equal(detectOS(ua('Something else')), 'none');
 	assert.equal(detectOS(undefined), 'none');
@@ -122,6 +126,23 @@ test('a phone with only the TV app leads with the desktop rows, not the TV’s',
 	assert.deepEqual(p.order, ['android-tv', 'windows', 'linux', 'mac']);
 	assert.equal(p.mine, null);
 	assert.equal(p.accent, 'windows');
+});
+
+test('an iPhone or iPad gets the band and the desktop rows first, never an Android app', () => {
+	const p = plan('ios', 'v', { app: true, tv: true });
+	assert.deepEqual(p.order, ['windows', 'linux', 'mac', 'android', 'android-tv']);
+	assert.equal(p.mine, null);
+	assert.equal(p.accent, 'windows');
+	assert.equal(p.phoneBand, true);
+	assert.equal(p.meta, 'FOR A COMPUTER · WINDOWS AND LINUX');
+	assert.equal(p.hero, '↓ DOWNLOAD');
+	// No apps at all: the same page the base drew for a phone.
+	const none = plan('ios', 'v');
+	assert.deepEqual(none.order, STATIC_ORDER);
+	assert.equal(none.mine, null);
+	assert.equal(none.accent, 'windows');
+	assert.equal(none.phoneBand, true);
+	assert.equal(none.meta, 'FOR A COMPUTER · WINDOWS AND LINUX');
 });
 
 test('a TV leads with its own app, then the phone’s, and is not a phone', () => {

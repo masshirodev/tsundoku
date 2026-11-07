@@ -65,8 +65,9 @@
 		}
 
 		var os = detectOS(window.navigator);
-		// iPadOS asks for desktop pages and calls itself a Mac; its touch screen gives it away.
-		if (os === 'mac' && navigator.maxTouchPoints > 1) os = 'phone';
+		// iPadOS asks for desktop pages and calls itself a Mac; its touch screen gives it away. It is iOS, never a phone:
+		// the APK is Android's.
+		if (os === 'mac' && navigator.maxTouchPoints > 1) os = 'ios';
 		var rows = document.querySelector('.dl-rows');
 		if (!rows) return;
 		var version = rows.getAttribute('data-version') || '';

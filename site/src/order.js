@@ -17,8 +17,12 @@ export const STATIC_ORDER = ['windows', 'linux', 'mac'];
  * TV browsers use. A tablet without one stays `phone`, which is right: the
  * phone app is the tablet's too.
  *
+ * An iPhone, iPad or iPod is `ios`, never `phone`: the APKs on this page are
+ * Android's, and offering one to an iOS visitor would tag a file it cannot
+ * install as YOUR SYSTEM.
+ *
  * @param {{ userAgentData?: { platform?: string, mobile?: boolean }, userAgent?: string } | undefined} nav
- * @returns {'windows' | 'linux' | 'mac' | 'phone' | 'tv' | 'none'}
+ * @returns {'windows' | 'linux' | 'mac' | 'ios' | 'phone' | 'tv' | 'none'}
  */
 export function detectOS(nav) {
 	if (!nav) return 'none';
@@ -26,7 +30,8 @@ export function detectOS(nav) {
 	const ua = nav.userAgent || '';
 	const text = `${platform} ${ua}`;
 	const mobile = !!(nav.userAgentData && nav.userAgentData.mobile);
-	if (mobile || /Android|iPhone|iPad|iPod/i.test(text)) {
+	if (/iPhone|iPad|iPod/i.test(text)) return 'ios';
+	if (mobile || /Android/i.test(text)) {
 		if (!mobile && /Android TV|Google ?TV|Fire TV|AFT[A-Z0-9]|\bTV\b|BRAVIA|SHIELD/i.test(text))
 			return 'tv';
 		return 'phone';
@@ -49,7 +54,13 @@ export function detectOS(nav) {
  * not exist cannot lead and cannot be tagged. A release without them (every
  * one before c614) orders and accents exactly as it did.
  *
- * @param {'windows' | 'linux' | 'mac' | 'phone' | 'tv' | 'none'} os
+ * An `ios` visitor is a phone in everything but the apps: it gets the band
+ * and the same line about a computer, but never an app row first, tagged or
+ * on the accent, because both APKs are Android's. Its app rows follow the
+ * desktop ones, as they do for a desktop visitor, and the Windows installer
+ * takes the accent.
+ *
+ * @param {'windows' | 'linux' | 'mac' | 'ios' | 'phone' | 'tv' | 'none'} os
  * @param {string} version
  * @param {{ app?: boolean, tv?: boolean }} [apps]
  */
@@ -72,9 +83,10 @@ export function plan(os, version, apps) {
 			: os === 'mac'
 				? ['mac', 'windows', 'linux']
 				: STATIC_ORDER.slice();
-	// A phone or a TV leads with the app it can install; a desktop visitor gets
-	// the app rows after the three it already knows. A release with no app has
-	// appRows empty and falls back to the desktop order untouched.
+	// A phone or a TV leads with the app it can install; a desktop visitor, and
+	// an iOS one, gets the app rows after the three it already knows. A release
+	// with no app has appRows empty and falls back to the desktop order
+	// untouched.
 	const order = os === 'phone' || os === 'tv' ? [...appRows, ...desktop] : [...desktop, ...appRows];
 	const mine =
 		os === 'windows' || os === 'linux' || os === 'mac'
@@ -96,12 +108,12 @@ export function plan(os, version, apps) {
 	const meta =
 		os === 'mac'
 			? 'WINDOWS AND LINUX · NOT YET FOR MACOS'
-			: os === 'phone'
+			: os === 'phone' || os === 'ios'
 				? 'FOR A COMPUTER · WINDOWS AND LINUX'
 				: os === 'tv'
 					? a.tv
 						? 'ANDROID TV · THE APP'
 						: 'FOR A COMPUTER · WINDOWS AND LINUX'
 					: `VERSION ${version} · WINDOWS AND LINUX · FREE`;
-	return { order, mine, accent, hero, meta, phoneBand: os === 'phone' };
+	return { order, mine, accent, hero, meta, phoneBand: os === 'phone' || os === 'ios' };
 }
