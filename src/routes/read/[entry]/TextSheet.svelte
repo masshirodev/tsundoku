@@ -48,6 +48,7 @@
 		seriesDirection,
 		width,
 		dim,
+		cursor,
 		rating,
 		onlayout,
 		onremember,
@@ -56,6 +57,7 @@
 		onwidth,
 		onsettings,
 		ondim,
+		oncursor,
 		onrate,
 		onclose
 	}: {
@@ -73,6 +75,8 @@
 		/** WIDTH (c437): this series' own, else the device's last choice. */
 		width: TextWidth;
 		dim: number;
+		/** HIDE CURSOR (c678): the device's, shared with the image reader and the player. */
+		cursor: boolean;
 		rating: number;
 		onlayout: (l: Layout) => void;
 		onremember: () => void;
@@ -81,6 +85,7 @@
 		onwidth: (w: TextWidth) => void;
 		onsettings: (s: Partial<TextSettings>) => void;
 		ondim: (d: number) => void;
+		oncursor: (on: boolean) => void;
 		onrate: (r: number) => void;
 		onclose: () => void;
 	} = $props();
@@ -117,6 +122,8 @@
 	/** What the row shows: vertical Japanese is R→L whatever the series says. */
 	const directionShown = $derived<TextDirection>(vertical ? 'rtl' : direction);
 	const tvScreen = new MediaQuery(TV, false);
+	/** Only a mouse draws a cursor: a phone, a tablet and a TV leave the row out (c678). */
+	const pointerFine = new MediaQuery('(pointer: fine)', false);
 
 	let dimTrack = $state<HTMLElement | null>(null);
 	let sliding = false;
@@ -363,6 +370,28 @@
 		</div>
 	</div>
 
+	{#if pointerFine.current}
+		<!-- HIDE CURSOR (c678): the cursor goes after three seconds still, and a
+		     move or a press brings it back. Only where there is a mouse. -->
+		<div class="row">
+			<div class="label">CURSOR</div>
+			<div class="body split">
+				<button
+					type="button"
+					class="switch"
+					role="switch"
+					aria-checked={cursor}
+					data-focus-mark="in"
+					onclick={() => oncursor(!cursor)}
+				>
+					<span class="track" class:on={cursor}><span class="knob"></span></span>
+					<span>{cursor ? 'ON' : 'OFF'}</span>
+				</button>
+				<span class="note">GONE AFTER 3 S STILL</span>
+			</div>
+		</div>
+	{/if}
+
 	<div class="row dim">
 		<div class="label">DIM</div>
 		<div class="body split">
@@ -446,8 +475,17 @@
 		color: var(--text-1);
 		max-height: calc(100dvh - 64px);
 		overflow-y: auto;
+		/* A focused row stops under the sticky head, not beneath it (c679). */
+		scroll-padding-top: 56px;
 	}
+	/* The head stays at the top as the rows scroll under it, so ✕ is always
+	   reachable (c679): it needs the sheet's own ground, or a row would show
+	   through it. */
 	.head {
+		position: sticky;
+		top: 0;
+		z-index: 1;
+		background: var(--surface-page);
 		display: flex;
 		align-items: stretch;
 		height: 56px;

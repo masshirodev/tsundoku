@@ -922,36 +922,51 @@ test.describe('the reader end page for a browsing record (c655)', () => {
 		await page.locator('.grid .tile', { hasText: 'Open Source 1-7' }).click();
 		await expect(page).toHaveURL(/\/downloads\/source\//);
 		const preview = page.url();
-		// Its last chapter, opened online from the preview: a record, not added.
-		const list = page.getByRole('region', { name: /Chapters/ });
-		await list.getByRole('button', { name: 'Read Chapter 3' }).click();
-		await expect(page).toHaveURL(/\/read\/\d+/);
-		await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
-			timeout: 20_000
-		});
-		// Esc shows the controls: the meta line is what says it is a record.
-		await page.keyboard.press('Escape');
-		await expect(page.locator('header[aria-label="Reader"] .meta')).toContainText('NOT IN LIBRARY');
-		const entry = page.url().match(/\/read\/(\d+)/)![1];
-		// Paged: `?p=last` plus one turn forward (left, this source reads R→L)
-		// is the paged end page's door — the instance that was missing the props.
-		await page.goto(`/read/${entry}?p=last`);
-		await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
-			timeout: 20_000
-		});
-		await page.keyboard.press('ArrowLeft');
-		const end = page.locator('[data-end-page]');
-		await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
-		await expect(end.getByRole('button', { name: '+ ADD TO LIBRARY' })).toBeVisible();
-		await expect(end.getByRole('button', { name: 'HIDE', exact: true })).toHaveCount(0);
-		await expect(end.getByRole('button', { name: /REMOVE/ })).toHaveCount(0);
+		let failed: unknown;
+		try {
+			// Its last chapter, opened online from the preview: a record, not added.
+			const list = page.getByRole('region', { name: /Chapters/ });
+			await list.getByRole('button', { name: 'Read Chapter 3' }).click();
+			await expect(page).toHaveURL(/\/read\/\d+/);
+			await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
+				timeout: 20_000
+			});
+			// Esc shows the controls: the meta line is what says it is a record.
+			await page.keyboard.press('Escape');
+			await expect(page.locator('header[aria-label="Reader"] .meta')).toContainText(
+				'NOT IN LIBRARY'
+			);
+			const entry = page.url().match(/\/read\/(\d+)/)![1];
+			// Paged: `?p=last` plus one turn forward (left, this source reads R→L)
+			// is the paged end page's door — the instance that was missing the props.
+			await page.goto(`/read/${entry}?p=last`);
+			await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
+				timeout: 20_000
+			});
+			await page.keyboard.press('ArrowLeft');
+			const end = page.locator('[data-end-page]');
+			await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
+			await expect(end.getByRole('button', { name: '+ ADD TO LIBRARY' })).toBeVisible();
+			await expect(end.getByRole('button', { name: 'HIDE', exact: true })).toHaveCount(0);
+			await expect(end.getByRole('button', { name: /REMOVE/ })).toHaveCount(0);
+		} catch (e) {
+			failed = e;
+		}
 		// Leave the world as it was: FORGET the record this case made, through
 		// the preview's own action (the browse world is one database for the
-		// whole project).
-		const forgotten = await page.request.post(`${new URL(preview).pathname}?/forget`, {
-			headers: { origin: new URL(preview).origin, 'x-sveltekit-action': 'true' },
-			form: {}
-		});
-		expect.soft(forgotten.ok()).toBe(true);
+		// whole project). It runs whether the body passed or not, and its own
+		// failure — a refused answer or a throw — is soft so it cannot hide the
+		// body's (c649, c673 round 2).
+		try {
+			const forgotten = await page.request.post(`${new URL(preview).pathname}?/forget`, {
+				headers: { origin: new URL(preview).origin, 'x-sveltekit-action': 'true' },
+				form: {}
+			});
+			expect.soft(forgotten.ok()).toBe(true);
+		} catch (error) {
+			// A timeout or a dead server is this cleanup's failure, not the body's.
+			expect.soft(error).toBeUndefined();
+		}
+		if (failed) throw failed;
 	});
 });

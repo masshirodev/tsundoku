@@ -205,7 +205,8 @@ a page back.
 It travels through `POST /api/reading` as before: `page` is the paragraph, and
 two new optional fields carry `offset` (the character) and `total` (paragraphs
 in the entry). The server stores them in `last_position`, `last_offset` (rung 11) and `page_count`, so the series screen's percentages work without the
-server ever reading the book. The URL keeps `?at=<block>.<offset>`, so a
+server ever reading the book. A text reader opened incognito sends none of
+this at all (c680, [`PRIVACY.md`](PRIVACY.md), "Incognito"). The URL keeps `?at=<block>.<offset>`, so a
 reload, or incognito, which saves nothing, still comes back to the same
 sentence (and in SCROLL, the same line: `?at=<block>.<offset>.<y>`, above).
 The reader is the URL's only writer and its only reader: CONTINUE, history
@@ -319,8 +320,17 @@ and BACK gives the pad to CONTENTS again. At the end of what is downloaded
 (END · LAST AVAILABLE, a volume that isn't the last) the pad reaches the
 rating, FAV, ← SERIES and LIBRARY, marked inside (c251); the last volume's end
 is the end page, which takes the pad the same way, and its library row
-(REMOVE, or + ADD for a record, c655) is a stop of its own. Off a TV the arrows stay
+(HIDE, or + ADD for a record, c655) is a stop of its own. Off a TV the arrows stay
 the reader's whatever the controls.
+
+**CURSOR** is the image reader's row, with the same choice (c678, off by
+default; [`READER.md`](READER.md), "Mouse"): with it on, three seconds without
+the mouse moving hides the cursor over the page, and a move or a press brings
+it back at once. A key and the wheel do not, and it never hides while the
+bars, the sheet, CONTENTS, the lookup, a full-screen image, a wide block or
+the end page is open. The row is left out where there is no mouse, so a phone,
+a tablet and a TV show none. It is the same device setting
+(`tsundoku.reader.cursor`).
 
 ## Direction
 
@@ -394,7 +404,9 @@ reload, SCROLL untouched, vertical Japanese's row),
   [`SETTINGS.md`](SETTINGS.md), "Devices"), except WIDTH, which is the
   series' with the device's last choice as its default and is not mirrored,
   and DIM is shared with the image reader. A novel's default LAYOUT is SETTINGS'. The
-  sheet ends with ALL SETTINGS →.
+  sheet ends with ALL SETTINGS →. A long sheet scrolls under a head that stays
+  at its top, so ✕ is always reachable, and `scroll-padding-top` keeps a
+  focused row from stopping beneath it (c679).
 - **FONT** (c442) offers three, in this order: **Plex Serif** (the default),
   **Plex Sans** and **OpenDyslexic**. The list is `TEXT_FONTS` in
   `src/lib/reader/text.ts`, and SETTINGS' TYPEFACE row allows exactly those

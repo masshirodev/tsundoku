@@ -773,8 +773,10 @@ describe('libraryCell (c655, round 2)', () => {
 		inLibrary: true,
 		inWork: false,
 		hasAddHref: false,
+		seriesHidden: false,
 		added: false,
 		hidden: false,
+		unhidden: false,
 		...over
 	});
 
@@ -789,6 +791,18 @@ describe('libraryCell (c655, round 2)', () => {
 			expect(libraryCell(state({ inWork: true, hasAddHref }))).toBeNull();
 	});
 
+	it('a hidden series offers UNHIDE, not HIDE again (c673)', () => {
+		// A hidden series is read only under /reveal, so its end is the one place
+		// its row must not hide it again.
+		expect(libraryCell(state({ seriesHidden: true }))).toBe('unhide');
+		// A Work's part still draws nothing: HIDE ALL or TAKE OUT is its own door.
+		expect(libraryCell(state({ seriesHidden: true, inWork: true }))).toBeNull();
+		// A record is not a hidden library series.
+		expect(libraryCell(state({ seriesHidden: true, inLibrary: false, hasAddHref: true }))).toBe(
+			'add'
+		);
+	});
+
 	it('a browsing record offers ADD through its own door, and nothing without one', () => {
 		expect(libraryCell(state({ inLibrary: false, hasAddHref: true }))).toBe('add');
 		expect(libraryCell(state({ inLibrary: false, hasAddHref: false }))).toBeNull();
@@ -797,6 +811,8 @@ describe('libraryCell (c655, round 2)', () => {
 	it('the page’s own answer wins over what it loaded', () => {
 		expect(libraryCell(state({ inLibrary: false, hasAddHref: true, added: true }))).toBe('added');
 		expect(libraryCell(state({ hidden: true }))).toBe('hidden');
+		expect(libraryCell(state({ seriesHidden: true, hidden: true }))).toBe('hidden');
+		expect(libraryCell(state({ seriesHidden: true, unhidden: true }))).toBe('unhidden');
 		// Even on a Work part, a terminal cell says what happened rather than
 		// offering the door again.
 		expect(libraryCell(state({ inWork: true, hidden: true }))).toBe('hidden');
