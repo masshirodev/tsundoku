@@ -11,7 +11,10 @@ import {
 /** The download host. Every link on the page points under it. */
 export const DL = 'https://dl.tsundoku.masshiro.pro';
 
-export type Download = { name: string; size: number; href: string };
+export type Download = { name: string; size: number; sha256: string; href: string };
+
+/** The Android apps c614 publishes; both are optional, one release at a time. */
+export type AndroidApps = { app?: Download; tv?: Download };
 
 export type Release = {
 	version: string;
@@ -22,11 +25,18 @@ export type Release = {
 	installer: Download;
 	zip: Download;
 	archive: Download;
+	/**
+	 * The phone and tablet app and the TV's, when the manifest carries them.
+	 * Null for every release before c614, which is most of them: the page must
+	 * still build, with no app row (doc/WEBSITE.md).
+	 */
+	android: AndroidApps | null;
 };
 
 const link = (f: ReleaseFile): Download => ({
 	name: f.name,
 	size: f.size,
+	sha256: f.sha256,
 	// latest/ is the lasting link (ops/release/publish.ts publishes unversioned
 	// names), so a page built a day late still downloads the newest.
 	href: `${DL}/latest/${f.name}`
@@ -51,6 +61,13 @@ export function readRelease(text: string, key?: string): Release {
 		throw new Error(
 			'latest.json: a Windows installer, a Windows zip and a Linux archive are all required'
 		);
+	// The Android apps arrived in c614. Every release before it has no
+	// files.android at all, so their absence is not a refusal: the page is
+	// built as it was, with no app row. A malformed entry was already refused
+	// by openManifest, so what is left here is signed.
+	const apps = m.files.android;
+	const app = apps?.app ? link(apps.app) : undefined;
+	const tv = apps?.tv ? link(apps.tv) : undefined;
 	return {
 		version: m.version,
 		date: m.date,
@@ -60,8 +77,14 @@ export function readRelease(text: string, key?: string): Release {
 			.filter(Boolean),
 		installer: link(installer),
 		zip: link(zip),
-		archive: link(archive)
+		archive: link(archive),
+		android: app || tv ? { app, tv } : null
 	};
+}
+
+/** Which app rows a release has, for order.js's plan and the page. */
+export function appsOf(release: Release): { app: boolean; tv: boolean } {
+	return { app: !!release.android?.app, tv: !!release.android?.tv };
 }
 
 /** FlareSolverr's two downloads, under the names publish.ts gives them. */

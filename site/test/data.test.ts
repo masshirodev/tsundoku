@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
+	appsOf,
 	chromeDate,
 	esc,
 	facesFor,
@@ -11,7 +12,7 @@ import {
 	solverNames,
 	themeCss
 } from '../lib/data.ts';
-import { MANIFEST, testKey } from './helpers.ts';
+import { ANDROID_MANIFEST, MANIFEST, testKey } from './helpers.ts';
 
 test('a latest.json signed by the key opens, with lasting latest/ links', () => {
 	const k = testKey();
@@ -20,8 +21,54 @@ test('a latest.json signed by the key opens, with lasting latest/ links', () => 
 	assert.equal(r.date, '2026-11-01');
 	assert.deepEqual(r.notes, ['First line <b>with markup</b>.', 'Second & last line.']);
 	assert.equal(r.installer.href, 'https://dl.tsundoku.masshiro.pro/latest/tsundoku-win-x64.exe');
+	assert.equal(r.installer.sha256, 'a'.repeat(64));
 	assert.equal(r.zip.size, 300000000);
 	assert.equal(r.archive.name, 'tsundoku-linux-x64.tar.xz');
+	// Before c614 there is no files.android at all, and that is not a refusal.
+	assert.equal(r.android, null);
+	assert.deepEqual(appsOf(r), { app: false, tv: false });
+});
+
+test('a c614 manifest carries both apps, with the signed names, sizes and hashes', () => {
+	const k = testKey();
+	const r = readRelease(k.signed(ANDROID_MANIFEST), k.raw);
+	assert.deepEqual(r.android?.app, {
+		name: 'tsundoku-app.apk',
+		size: 44040192,
+		sha256: 'b'.repeat(64),
+		href: 'https://dl.tsundoku.masshiro.pro/latest/tsundoku-app.apk'
+	});
+	assert.deepEqual(r.android?.tv, {
+		name: 'tsundoku-tv.apk',
+		size: 33554432,
+		sha256: 'c'.repeat(64),
+		href: 'https://dl.tsundoku.masshiro.pro/latest/tsundoku-tv.apk'
+	});
+	assert.deepEqual(appsOf(r), { app: true, tv: true });
+});
+
+test('a release with only one app carries only that one', () => {
+	const k = testKey();
+	const onlyTv: typeof ANDROID_MANIFEST = {
+		...ANDROID_MANIFEST,
+		files: { ...ANDROID_MANIFEST.files, android: { tv: ANDROID_MANIFEST.files.android?.tv } }
+	};
+	const r = readRelease(k.signed(onlyTv), k.raw);
+	assert.equal(r.android?.app, undefined);
+	assert.equal(r.android?.tv?.name, 'tsundoku-tv.apk');
+	assert.deepEqual(appsOf(r), { app: false, tv: true });
+});
+
+test('a malformed Android entry is refused like any other file', () => {
+	const k = testKey();
+	const broken = {
+		...ANDROID_MANIFEST,
+		files: {
+			...ANDROID_MANIFEST.files,
+			android: { app: { name: 'tsundoku-app.apk', size: 0, sha256: 'b'.repeat(64) } }
+		}
+	};
+	assert.throws(() => readRelease(k.signed(broken), k.raw), /refused/);
 });
 
 test('a manifest signed by another key is refused', () => {

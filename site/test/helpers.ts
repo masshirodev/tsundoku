@@ -29,3 +29,19 @@ export const MANIFEST: Manifest = {
 		'linux-x64': { archive: file('tsundoku-linux-x64.tar.xz', 242000000) }
 	}
 };
+
+/**
+ * A manifest shaped like a c614 release: the same desktop files, plus the two
+ * APKs under `files.android` and the names, sizes and hashes publish.ts gives
+ * them. The real saved fixture stays the no-android case (most releases).
+ */
+export const ANDROID_MANIFEST: Manifest = {
+	...MANIFEST,
+	files: {
+		...MANIFEST.files,
+		android: {
+			app: { name: 'tsundoku-app.apk', size: 44040192, sha256: 'b'.repeat(64) },
+			tv: { name: 'tsundoku-tv.apk', size: 33554432, sha256: 'c'.repeat(64) }
+		}
+	}
+};
