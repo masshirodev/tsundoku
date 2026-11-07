@@ -82,12 +82,25 @@ scanned back from. So `takeSnapshot` (`src/lib/server/backup.ts`) also mirrors
 that folder into `BACKUP_DIR/highlights/`, after the snapshot is safely in
 place (`mirrorHighlights`):
 
-- **What is new or changed in size is copied**, under a `.partial` name and
-  renamed into place; a copy never changes once made, so a night copies only
-  the copies made since the last.
-- **A copy no longer in the folder** (its highlight deleted) is set aside under
-  `highlights/.gone/<night>/`, not erased, and those go after 30 days
-  (`GONE_DAYS`): a snapshot from within that time still finds its copies.
+- **What is gone is decided by the rows, never by the folder.** The mirror
+  reads the `copy_path` and `still_path` of every row in the snapshot it just
+  took (opened read-only, `namedCopies`), the deleted ones still inside their
+  UNDO window included, because a row is what a restore brings back. A name
+  that is absolute or climbs out of the folder (`../`) is ignored.
+- **What a row names and is new or changed in size is copied**, under a
+  `.partial` name and renamed into place; a copy never changes once made, so a
+  night copies only the copies made since the last.
+- **A mirrored copy no row names** (its highlight deleted for good) is set
+  aside under `highlights/.gone/<night>/`, not erased, and those go after 30
+  days (`GONE_DAYS`): a snapshot from within that time still finds its copies.
+- **A row whose copy is missing from the folder keeps its mirrored copy**
+  (counted as `missing`): the mirror is then the only copy left.
+- **A missing source touches nothing.** When the highlights folder does not
+  exist, or lists no file while rows name copies (an unmounted data disk, a
+  wrong `HIGHLIGHTS_DIR`), the night copies, sets aside and prunes nothing and
+  says `skipped: 'no source'`. Read the other way, as "every copy was
+  deleted", one such night would set every copy aside and the next month
+  would erase them.
 - **Retention never touches it**: it prunes only the names it writes, and the
   mirror's folder is none of them.
 - A mirror that fails after the snapshot fails the run (`backup failed: …` in

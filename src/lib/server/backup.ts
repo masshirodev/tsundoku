@@ -8,7 +8,7 @@ import {
 	rmSync,
 	statSync
 } from 'node:fs';
-import { basename, dirname, extname, join, relative } from './fspath.ts';
+import { basename, dirname, extname, isAbsolute, join, normalize, relative } from './fspath.ts';
 import { snapshotName, stamp, toPrune, DEFAULT_TIERS, type Tiers } from '../backup/retention.ts';
 import { dataPaths, highlightsArea } from './data-dirs.ts';
 
@@ -114,7 +114,12 @@ export function takeSnapshot(
 	const copies =
 		source === null
 			? null
-			: mirrorHighlights(source, join(dir, HIGHLIGHTS_MIRROR), opts.now ?? new Date());
+			: mirrorHighlights(
+					source,
+					join(dir, HIGHLIGHTS_MIRROR),
+					namedCopies(path),
+					opts.now ?? new Date()
+				);
 	return { path, bytes: statSync(path).size, ...verify(path), pruned, copies };
 }
 
@@ -127,10 +132,54 @@ const GONE = '.gone';
 /** How long a set-aside copy is kept: as long as the daily snapshots that still name it, and more. */
 export const GONE_DAYS = 30;
 
-export type Mirror = { copied: number; kept: number; setAside: number; pruned: number };
+export type Mirror = {
+	copied: number;
+	kept: number;
+	setAside: number;
+	pruned: number;
+	/** Copies a row names that the source folder does not have: their mirrored copy stays. */
+	missing: number;
+	/**
+	 * Why nothing was copied, set aside or pruned: the source folder is absent,
+	 * or lists no file while rows name copies (an unmounted data folder, a wrong
+	 * HIGHLIGHTS_DIR). Null on a night that ran.
+	 */
+	skipped: 'no source' | null;
+};
+
+/**
+ * Every copy the snapshot's rows name (`copy_path`, `still_path`), the
+ * deleted ones inside their UNDO window included, since a row is what a
+ * restore brings back. Read from the snapshot just taken, read-only: the
+ * mirror then matches exactly the database it sits beside.
+ */
+export function namedCopies(snapshot: string): Set<string> {
+	const db = new Database(snapshot, { readonly: true, fileMustExist: true });
+	try {
+		const has = db
+			.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'highlights'`)
+			.get();
+		if (!has) return new Set();
+		const rows = db
+			.prepare(
+				`SELECT copy_path AS p FROM highlights WHERE copy_path != ''
+				UNION SELECT still_path FROM highlights WHERE still_path != ''`
+			)
+			.all() as { p: string }[];
+		const out = new Set<string>();
+		for (const { p } of rows) {
+			// The folder's own spelling, and never a name that climbs out of it:
+			// the mirror copies to and from `<root>/<name>` with what a row says.
+			const rel = normalize(p);
+			if (!isAbsolute(rel) && rel !== '.' && rel !== '..' && !rel.startsWith('../')) out.add(rel);
+		}
+		return out;
+	} finally {
+		db.close();
+	}
+}
 
 function filesUnder(root: string): string[] {
-	if (!existsSync(root)) return [];
 	const out: string[] = [];
 	const walk = (dir: string) => {
 		for (const d of readdirSync(dir, { withFileTypes: true })) {
@@ -140,23 +189,44 @@ function filesUnder(root: string): string[] {
 			else if (d.isFile()) out.push(relative(root, abs));
 		}
 	};
-	walk(root);
+	if (existsSync(root)) walk(root);
 	return out;
 }
 
 /**
  * The copies are the one part of a highlight a database snapshot cannot hold
  * (a page's image, a clip's video), and they never change once made. So the
- * mirror copies what is new or changed in size, under a temporary name and
- * renamed into place; a copy no longer in the folder (its highlight deleted)
+ * mirror copies what the rows name and is new or changed in size, under a
+ * temporary name and renamed into place.
+ *
+ * What is gone is decided by the rows (`named`, from the snapshot), never by
+ * the folder: a mirrored copy no row names (its highlight deleted for good)
  * is set aside under `.gone/<night>/`, not erased, and those go after
- * GONE_DAYS. A restored snapshot from within that time still finds its copies.
+ * GONE_DAYS, so a restored snapshot from within that time still finds its
+ * copies. A copy a row names but the source lacks keeps its mirrored copy:
+ * the mirror is then the only one left. And when the source folder is
+ * absent, or empty while rows name copies, the night touches nothing at all
+ * (`skipped`): read as "everything was deleted", an unmounted folder would
+ * set every copy aside and prune it a month later.
  */
-export function mirrorHighlights(source: string, dest: string, now = new Date()): Mirror {
-	const out: Mirror = { copied: 0, kept: 0, setAside: 0, pruned: 0 };
+export function mirrorHighlights(
+	source: string,
+	dest: string,
+	named: ReadonlySet<string>,
+	now = new Date()
+): Mirror {
+	const out: Mirror = { copied: 0, kept: 0, setAside: 0, pruned: 0, missing: 0, skipped: null };
 	const have = filesUnder(source);
-	const wanted = new Set(have);
-	for (const rel of have) {
+	if (!existsSync(source) || (have.length === 0 && named.size > 0)) {
+		out.skipped = 'no source';
+		return out;
+	}
+	const present = new Set(have);
+	for (const rel of named) {
+		if (!present.has(rel)) {
+			out.missing += 1;
+			continue;
+		}
 		const from = join(source, rel);
 		const to = join(dest, rel);
 		const size = statSync(from).size;
@@ -172,7 +242,7 @@ export function mirrorHighlights(source: string, dest: string, now = new Date())
 	}
 	const night = stamp(now);
 	for (const rel of filesUnder(dest)) {
-		if (wanted.has(rel)) continue;
+		if (named.has(rel)) continue;
 		const to = join(dest, GONE, night, rel);
 		mkdirSync(dirname(to), { recursive: true });
 		renameSync(join(dest, rel), to);
