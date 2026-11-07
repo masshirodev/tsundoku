@@ -273,7 +273,12 @@ LONGER A WORK · ONE SERIES WAS LEFT` with UNDO, which restores the same id,
   not on a Work, and posts none. A refusal there re-reads the screen, so the
   band is drawn over the Work the series is in now and the next press posts
   that Work's moment; the WORK row sheet closes on it, as GroupSheet does on
-  the Work screen's refusal (c584).
+  the Work screen's refusal (c584). A Work that simply **ended** is the case
+  before that check: the series is in no Work, so the four actions answer
+  `THIS SERIES IS IN NO WORK` with nothing written, and since c661 that
+  refusal says `stale: true` as well -- the screen re-reads, both the WORK
+  row's sheet and the HIDE sheet close, and the row and UNHIDE are no longer
+  drawn.
 - **+ ADD A SERIES** opens a library picker; a series already in another Work
   says `IN <WORK> · MOVES HERE` and moves, ending that Work if one is left.
   The picker reads its own page when it opens (`GET /work/N/addable?q=&offset=`,
@@ -630,10 +635,11 @@ LIBRARY band a source search leads to is on the same screen, above it.
   this series' add only and answers malformed facts with a band, not a 500.
 - **NOT THIS** stores `work_dismissals` (`?/dismissWorkOffer`), from the
   band or the sheet, with `NOT THIS · WON'T ASK AGAIN` and UNDO. The offer's
-  words, the two bands' and the sheet's title are messages since c587
-  (`offer_*` in `messages/`, [`I18N.md`](I18N.md)); its second line
-  (`offerReason`'s `ITS TITLE STARTS WITH…`) is still English (Gaps,
-  `doc/handoff-notes/series.md`, wave 29). It holds for
+  words, the two bands', the sheet's title, its second line and MIGHT BE ONE
+  SERIES' count are messages since c587 and wave 30 (`offer_*` in
+  `messages/`, [`I18N.md`](I18N.md)): `offerReason` keeps its shape and calls
+  `offer_why_name`/`offer_why_part` and `offer_holds`, and the count is the
+  plural `offer_suggestion_books`. It holds for
   good, across an UNDO that brings the Work back under a new id, and never
   silences a newer Work given the old id (the key names the moment of making).
 - **Never on its own**: nothing groups, adds, reorders, renames or carries

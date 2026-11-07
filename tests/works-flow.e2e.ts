@@ -3,7 +3,7 @@ import { rmSync } from 'node:fs';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type Page } from '@playwright/test';
+import { type Page, type Request } from '@playwright/test';
 import Database from 'better-sqlite3';
 import { expect, readerReady, test } from './helpers/hydrated';
 import { E2E_TOKEN } from '../playwright.config';
@@ -620,6 +620,213 @@ test('SELECT ALL takes a Work’s every part, so a bulk HIDE asks and hides the 
 	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
 });
 
+/** Loads every page of the grid, so a refill is the only list request left. */
+async function loadEveryPage(page: Page) {
+	const more = page.locator('.more');
+	for (let i = 0; i < 40 && (await more.count()) > 0; i++) {
+		await more.scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => undefined);
+		await page.waitForTimeout(150);
+	}
+	await expect(page.locator('.more')).toHaveCount(0);
+}
+
+/**
+ * A refill: the pages after the first page of two, asked for in one go, not a
+ * loadMore's own page (which always asks for the page size).
+ */
+const isRefill = (u: URL) =>
+	u.pathname === '/api/library' &&
+	!u.searchParams.has('ids') &&
+	Number(u.searchParams.get('offset')) === 2 &&
+	Number(u.searchParams.get('limit')) > 2;
+
+/**
+ * Every refill asked for from now on, in order, and a way to wait until the
+ * grid has stopped asking for list pages -- so a count is the whole answer,
+ * not the first request of it (the c615 helper's rule).
+ */
+function watchList(page: Page) {
+	const seen: string[] = [];
+	const inFlight = new Set<Request>();
+	const isPage = (u: URL) => u.pathname === '/api/library' && !u.searchParams.has('ids');
+	page.on('request', (r) => {
+		const u = new URL(r.url());
+		if (isPage(u)) inFlight.add(r);
+		if (isRefill(u)) seen.push(u.search);
+	});
+	const done = (r: Request) => inFlight.delete(r);
+	page.on('requestfinished', done);
+	page.on('requestfailed', done);
+	const settled = async () => {
+		let quiet = 0;
+		await expect
+			.poll(() => (quiet = inFlight.size === 0 ? quiet + 1 : 0), {
+				intervals: [250],
+				timeout: 20_000
+			})
+			.toBeGreaterThanOrEqual(4);
+	};
+	return { refills: () => seen, reset: () => (seen.length = 0), settled };
+}
+
+test('HIDE ALL n and its UNDO read the loaded pages once each (c660)', async ({ page }) => {
+	// The Work sorts first, so its tile is on the first page and HIDE asks
+	// (a Work's parts are only known to the page through a tile it drew).
+	// Both answers move the first page, which is the refill the load's own
+	// re-read queues.
+	await makeWork(
+		page,
+		[
+			'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
+			"Omniscient Reader's Viewpoint"
+		],
+		'Aaa Refill Run'
+	);
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_grid_page', value: '2', url: 'http://localhost' }]);
+	await page.goto('/?shelf=k:manga&sort=title');
+	await loadEveryPage(page);
+	const tile = page.locator('.grid .tile.work', { hasText: 'Aaa Refill Run' });
+	await expect(tile).toHaveCount(1);
+
+	const list = watchList(page);
+
+	// HIDE ALL n from the sheet.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await tile.locator('.open').click();
+	await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+	const hide = page.getByRole('dialog', { name: 'Hide' });
+	await expect(hide).toBeVisible();
+	await hide.getByRole('button', { name: /HIDE ALL 2/ }).click();
+	await expect(page.locator('.band', { hasText: 'HIDDEN · THE WORK, WHOLE' })).toBeVisible();
+	await expect(tile).toHaveCount(0);
+	await list.settled();
+	expect(list.refills()).toHaveLength(1);
+
+	// Its UNDO puts it back, and reads the loaded pages once as well.
+	list.reset();
+	await page
+		.locator('.band', { hasText: 'HIDDEN · THE WORK, WHOLE' })
+		.getByRole('button', { name: 'UNDO' })
+		.click();
+	await expect(tile).toBeVisible();
+	await list.settled();
+	expect(list.refills()).toHaveLength(1);
+
+	// Done: end the Work, so the seed is what the other cases expect.
+	await tile.click();
+	await endWork(page);
+});
+
+test('a HIDE and an UNDO past the first page read the loaded pages once each too (c660)', async ({
+	page
+}) => {
+	// The Work's name sorts last, so its tile lives in `more`: a HIDE past page
+	// one changes nothing on page one, and only the loaded pages' own re-read
+	// can take the tile out and bring it back. The bulk HIDE is the door a deep
+	// tile has (its parts are not among the page's first-page feet).
+	await makeWork(
+		page,
+		[
+			'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
+			"Omniscient Reader's Viewpoint"
+		],
+		'Zzz Refill Run'
+	);
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_grid_page', value: '2', url: 'http://localhost' }]);
+	await page.goto('/?shelf=k:manga&sort=title');
+	await loadEveryPage(page);
+	const tile = page.locator('.grid .tile.work', { hasText: 'Zzz Refill Run' });
+	await expect(tile).toHaveCount(1);
+	const at = await page
+		.locator('.grid .tile')
+		.evaluateAll(
+			(els, name) => els.findIndex((el) => (el.textContent ?? '').includes(name)),
+			'Zzz Refill Run'
+		);
+	expect(at).toBeGreaterThan(1);
+
+	const list = watchList(page);
+
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await tile.locator('.open').click();
+	await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+	await expect(page.locator('.band', { hasText: 'HIDDEN · THE WORK, WHOLE' })).toBeVisible();
+	await expect(tile).toHaveCount(0);
+	await list.settled();
+	expect(list.refills()).toHaveLength(1);
+
+	list.reset();
+	await page
+		.locator('.band', { hasText: 'HIDDEN · THE WORK, WHOLE' })
+		.getByRole('button', { name: 'UNDO' })
+		.click();
+	await expect(tile).toBeVisible();
+	await list.settled();
+	expect(list.refills()).toHaveLength(1);
+
+	// Done: end the Work, so the seed is what the other cases expect.
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	await tile.click();
+	await endWork(page);
+});
+
+test('a URL band’s UNDO is a redirect, and the loaded pages are read once (c660, round 2)', async ({
+	page
+}) => {
+	// Ending a Work of two on its screen with reveal off leaves the library
+	// carrying the band in its URL: `?/undoWork` with `from=band` answers with a
+	// redirect, and `update({ invalidateAll: false })` does not govern that --
+	// applyAction sends it through `goto` with `invalidateAll`. The band lands
+	// on the default shelf, so the redirect comes back to the same list: its
+	// re-read must not refill the loaded pages a second time.
+	const name = 'Zzz Redirect Run';
+	await makeWork(
+		page,
+		[
+			'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
+			"Omniscient Reader's Viewpoint"
+		],
+		name
+	);
+	const id = await openWork(page, name);
+
+	// A page of two, so the library has pages to load at all (the seed fits in
+	// one at the grid's own size).
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_grid_page', value: '2', url: 'http://localhost' }]);
+	await page.goto(`/work/${id}`);
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.locator('.run .part .rowlink').first().click();
+	await page.getByRole('button', { name: 'TAKE OUT' }).click();
+	await expect(page).toHaveURL(/band=ended/);
+	const band = page.locator('.band', { hasText: `${name.toUpperCase()} IS NO LONGER A WORK` });
+	await expect(band).toBeVisible();
+	await expect(workTile(page, name)).toHaveCount(0);
+
+	const list = watchList(page);
+	// The load's own re-read, which the redirect's `goto` sends; the refills
+	// above are the list's pages.
+	let loads = 0;
+	page.on('request', (r) => {
+		if (new URL(r.url()).pathname.endsWith('/__data.json')) loads++;
+	});
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(workTile(page, name)).toBeVisible();
+	await list.settled();
+	expect(list.refills()).toHaveLength(1);
+	expect(loads).toBe(1);
+
+	// Done: the Work is back, so end it and the seed is what the next case expects.
+	await workTile(page, name).click();
+	await page.waitForURL(/\/work\/\d+/);
+	await endWork(page);
+});
+
 // ---- W4: GROUP AS A WORK, the person page, HIDE on a part (c278) ------------
 
 test('GROUP AS A WORK from the library: the AS row, the name, the band and UNDO', async ({
@@ -959,6 +1166,60 @@ test('a stale HIDE ALL n and UNHIDE close the sheet and re-read the screen too (
 	await other.close();
 	await page.goto(`/work/${workId}`);
 	await endWork(page);
+});
+
+test('a Work ended in another tab re-reads on MOVE and HIDE ALL n, and its row goes (c661)', async ({
+	page,
+	context
+}) => {
+	// The screen is drawn while the series is in a Work. In the owner's other
+	// tab the Work ends, so the series is in no Work: the refusal before the
+	// `made` check (c640) used to come back without `stale`, and no handler
+	// re-read the page -- the sheet stayed open and the WORK row and UNHIDE
+	// stayed drawn over a Work that no longer exists.
+	const pair = ['Isekai Ojisan', 'Isekai Yakkyoku'];
+	const other = await context.newPage();
+	await makeWork(page, pair, 'Ended Run');
+	await openWork(page, 'Ended Run');
+	await page.locator('.run .part .rowlink').nth(1).click();
+	await page.waitForURL(/\/series\/\d+\?from=work/);
+	const seriesUrl = page.url();
+	const sheet = page.getByRole('dialog', { name: /WORK$/ });
+	const refusal = page.locator('.band', { hasText: 'THIS SERIES IS IN NO WORK' });
+
+	// MOVE ↑, drawn on the Work another tab ends.
+	await page.locator('.prow.work-row .lk').click({ button: 'right' });
+	await expect(sheet).toBeVisible();
+	await other.goto('/');
+	await openWork(other, 'Ended Run');
+	await endWork(other);
+	await sheet.getByRole('button', { name: '↑', exact: true }).click();
+	await expect(refusal).toBeVisible();
+	await expect(refusal).toContainText('NOTHING CHANGED');
+	// Nothing in the sheet can answer for a Work that is gone, so it closes,
+	// and the screen is read again: the WORK row is not drawn any more.
+	await expect(sheet).toHaveCount(0);
+	await expect(page.locator('.prow.work-row')).toHaveCount(0);
+	await expect(page.locator('form[action="?/showWork"]')).toHaveCount(0);
+
+	// HIDE ALL n, the sheet's own door: a fresh screen drawn on a new Work,
+	// which the other tab ends before the press.
+	await makeWorkExact(other, pair, 'Ended Again');
+	await page.goto(seriesUrl);
+	await expect(page.locator('.prow.work-row')).toHaveCount(1);
+	await page.locator('.file-row').getByRole('button', { name: 'HIDE', exact: true }).click();
+	const hide = page.getByRole('dialog', { name: 'Hide' });
+	await expect(hide).toBeVisible();
+	await other.goto('/');
+	await openWork(other, 'Ended Again');
+	await endWork(other);
+	await hide.getByRole('button', { name: /HIDE ALL 2/ }).click();
+	await expect(refusal).toBeVisible();
+	await expect(hide).toHaveCount(0);
+	await expect(page.locator('.prow.work-row')).toHaveCount(0);
+
+	// Done: both Works are gone, and the pair is visible as the seed has it.
+	await other.close();
 });
 
 test('a selection that touches two Works is refused: SELECT ALL cannot collapse them', async ({

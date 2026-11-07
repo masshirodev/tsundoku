@@ -801,6 +801,21 @@
 	"offer_not_this_again": "NÃO É ESTA · NÃO PERGUNTO DE NOVO",
 	"offer_into_part": "PARA {name} · COMO PARTE {part}",
 	"offer_move_join": "DUAS SÉRIES DE UMA ENTRADA · JUNTE-AS EM {offer}",
+	"offer_added_to": "ADICIONADO A {name}",
+	"offer_work_made": "{name} É UMA OBRA",
+	"offer_why_name": "O TÍTULO DELA COMEÇA COM O NOME DA OBRA",
+	"offer_why_part": "O TÍTULO DELA COMEÇA COM O TÍTULO DA PARTE {part}",
+	"offer_holds": "A OBRA TEM {n} SÉRIES",
+	"offer_suggestion_books": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} LIVRO",
+				"countPlural=*": "{n} LIVROS"
+			}
+		}
+	],
 	"library_refresh": "ATUALIZAR",
 	"library_refresh_asked": "{n} PERGUNTADAS · {found} COM NOVIDADE",
 	"library_refresh_nothing": "NADA A PERGUNTAR",

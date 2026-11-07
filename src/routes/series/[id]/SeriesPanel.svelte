@@ -23,6 +23,7 @@
 	import type { Shelf } from '$lib/library/types';
 	import { booksOf, isBookSeries, isVolumeSeries } from '$lib/library/series';
 	import { m } from '$lib/paraglide/messages';
+	import { num } from '$lib/i18n/format';
 	import { suggestionLabel, type Suggestion } from '$lib/library/books';
 	import { readTime } from '$lib/library/history';
 	import { kindFacts } from '$lib/library/kinds';
@@ -31,7 +32,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { postAction, saves, type FailedSave } from '$lib/saves.svelte';
-	import { seriesSaves } from './serial-saves';
+	import { seriesSaves } from '$lib/serial-saves';
 	import type { Rating } from '$lib/library/types';
 	import type { BookEditions } from '$lib/server/editions';
 	import { baseToEdition, langName } from '$lib/library/editions';
@@ -894,7 +895,10 @@
 				<div class="sugg-head">
 					<span>{m.offer_might_be_one_series()}</span>
 					<span class="dim"
-						>{suggestion.books.length} BOOKS · {suggestionLabel(suggestion.books)}</span
+						>{m.offer_suggestion_books({
+							count: suggestion.books.length,
+							n: num(suggestion.books.length)
+						})} · {suggestionLabel(suggestion.books)}</span
 					>
 				</div>
 				<div class="sugg-covers">
@@ -1542,7 +1546,12 @@
 		{workMade}
 		actionAll="?/hideWork"
 		actionPart="?/hidePart"
-		ondone={() => (hiding = false)}
+		ondone={async () => {
+			// The sheet's `update` no longer re-reads on success (c660): the
+			// screen still must, since HIDE ALL n changes the Work it draws.
+			hiding = false;
+			await invalidateAll();
+		}}
 		onclose={() => (hiding = false)}
 	/>
 {/if}

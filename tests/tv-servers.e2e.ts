@@ -35,6 +35,8 @@ declare global {
 		__tv?: Calls;
 		/** The app's RENAME, done behind the page's back (S5 is the APK's own screen). */
 		__tvRename?: (origin: string, tvName: string) => void;
+		/** c645: each held `servers()` answer's resolver, in the order the page asked. */
+		__tvLater?: Array<(answer: string) => void>;
 	}
 }
 
@@ -664,6 +666,189 @@ test('S1: one server draws no cell, as today', async ({ page }) => {
 	await expect(sheet.locator('[data-more-servers]')).toHaveText(/1 · ADD ANOTHER/);
 	await expect(cell(page)).toHaveCount(0);
 	await expect(page.getByText('ON LIVING ROOM')).toHaveCount(0);
+});
+
+/*
+ * c645: the bridge as c549's message transport will answer it (doc/TV-APP.md,
+ * "What it does not do yet", item 2). `servers()` returns a Promise, and each
+ * call parks its resolver on `window.__tvLater`, so a case decides when — and
+ * in which order — the answers land. The real transport may answer late, out
+ * of order, or never; so may this.
+ */
+async function laterBridge(page: Page) {
+	await page.addInitScript(() => {
+		const pending: Array<(answer: string) => void> = [];
+		(window as unknown as { __tvLater: typeof pending }).__tvLater = pending;
+		(window as unknown as { TsundokuTV: Record<string, unknown> }).TsundokuTV = {
+			servers: () =>
+				new Promise<string>((resolve) => {
+					pending.push(resolve);
+				})
+		};
+	});
+}
+
+/** Two servers whose page is [name], in the shape `readTvServers` accepts. */
+const answered = (name: string) =>
+	JSON.stringify([
+		{ origin: HOME, shown: name, inUse: true },
+		{ origin: ZEN, shown: 'ZEN', inUse: false }
+	]);
+
+const later = {
+	count: (page: Page) => page.evaluate(() => window.__tvLater?.length ?? 0),
+	/**
+	 * The last question asked. The library's own reads are the mount's and the
+	 * tick's, and the tick's is the last of them; MoreSheet's own read may sit
+	 * anywhere before it, and does not touch the library's cell.
+	 */
+	newest: (page: Page, answer: string) =>
+		page.evaluate((a) => {
+			const pending = window.__tvLater ?? [];
+			pending[pending.length - 1]?.(a);
+		}, answer),
+	/** Every earlier question: a stale answer that must not be drawn. */
+	earlier: (page: Page, answer: string) =>
+		page.evaluate((a) => {
+			const pending = window.__tvLater ?? [];
+			for (let i = 0; i < pending.length - 1; i++) pending[i](a);
+		}, answer)
+};
+
+/** Let the page's tick read land as well as its mount read: both are asked by then. */
+async function settled(page: Page) {
+	await expect.poll(() => later.count(page)).toBeGreaterThanOrEqual(3);
+	await page.waitForTimeout(100);
+}
+
+test('S1: a bridge that answers late draws the cell when its answer lands, not before (c645)', async ({
+	page
+}) => {
+	await laterBridge(page);
+	await page.goto('/');
+	await expect(page.locator('[data-focus-id="library-more"]')).toBeVisible();
+	await settled(page);
+	await expect(cell(page)).toHaveCount(0);
+	await later.newest(page, answered('Living room'));
+	await expect(cell(page)).toHaveText(/^ON\s*LIVING ROOM$/);
+});
+
+test('S1: an answer to an older question that lands after a newer one is dropped (c645)', async ({
+	page
+}) => {
+	await laterBridge(page);
+	await page.goto('/');
+	await settled(page);
+	// The later question answers first, as a message may.
+	await later.newest(page, answered('Living room'));
+	await expect(cell(page)).toHaveText(/^ON\s*LIVING ROOM$/);
+	// The older ones answer afterwards with another name. They are stale: the
+	// sequence number has moved, so nothing may redraw the cell.
+	await later.earlier(page, answered('Stale den'));
+	await page.waitForTimeout(150);
+	await expect(cell(page)).toHaveText(/^ON\s*LIVING ROOM$/);
+});
+
+test('S1: an answer that lands after the library is left draws nothing on the next visit (c645)', async ({
+	page
+}) => {
+	// The `!mounted` half of refreshTvServers is defensive: Svelte 5 throws
+	// nothing when a dead instance's `$state` is written, and each instance
+	// owns its own `tvServers`, so the write has no observable effect. What
+	// this case can observe is the next visit: a second instance is shown
+	// while the first one's answers land, and its cell must come only from
+	// its own reads, never from theirs.
+	const errors: string[] = [];
+	page.on('pageerror', (e) => errors.push(e.message));
+	await laterBridge(page);
+	await page.goto('/');
+	await settled(page);
+	// A link in MORE is the page's own navigation, so the document — and the
+	// pending answer — survives it, where a full load would take both away.
+	await page.locator('[data-focus-id="library-more"]').focus();
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'More' });
+	await sheet.getByRole('link', { name: /HISTORY/ }).click();
+	await expect(page).toHaveURL(/\/history/);
+	const askedBefore = await later.count(page);
+	// The first instance is gone; its answers land anyway, and throw nothing.
+	await later.earlier(page, answered('Stale den'));
+	await later.newest(page, answered('Stale den'));
+	await page.waitForTimeout(100);
+	expect(errors).toEqual([]);
+	await expect(page).toHaveURL(/\/history/);
+
+	// Back by the page's own history: the document survives, so a second
+	// library instance is the one shown, with its own reads still pending.
+	await page.goBack();
+	await expect(page).toHaveURL(/\/$/);
+	await expect.poll(() => later.count(page)).toBeGreaterThanOrEqual(askedBefore + 2);
+	// Nothing the first instance's answers said may be drawn on this one.
+	await expect(cell(page)).toHaveCount(0);
+	await later.newest(page, answered('Living room'));
+	await expect(cell(page)).toHaveText(/^ON\s*LIVING ROOM$/);
+});
+
+for (const [what, answer] of [
+	['throws', 'throw'],
+	['answers what is not JSON', 'nope']
+] as const) {
+	test(`S1: a bridge that ${what} draws no cell (c645)`, async ({ page }) => {
+		const errors: string[] = [];
+		page.on('pageerror', (e) => errors.push(e.message));
+		await page.addInitScript((answer) => {
+			(window as unknown as { TsundokuTV: Record<string, unknown> }).TsundokuTV = {
+				servers: () => {
+					// A bridge that fails says so when it is asked, as a sync
+					// interface does; a rejected promise is step 3's shape, and
+					// MoreSheet does not await one yet.
+					if (answer === 'throw') throw new Error('the bridge failed');
+					return answer;
+				}
+			};
+		}, answer);
+		await page.goto('/');
+		await expect(page.locator('[data-focus-id="library-more"]')).toBeVisible();
+		await expect(page.locator('.grid .tile').first()).toBeVisible();
+		await page.waitForTimeout(150);
+		await expect(cell(page)).toHaveCount(0);
+		expect(errors).toEqual([]);
+	});
+}
+
+for (const [what, answer] of [
+	['an empty list', '[]'],
+	['an empty string', '']
+] as const) {
+	test(`S1: a refused read that answers late with ${what} draws no cell (c645)`, async ({
+		page
+	}) => {
+		await laterBridge(page);
+		await page.goto('/');
+		await settled(page);
+		await later.earlier(page, answer);
+		await later.newest(page, answer);
+		await page.waitForTimeout(150);
+		await expect(cell(page)).toHaveCount(0);
+	});
+}
+
+test('S1: a bridge that never answers leaves the cell as without one, and the page is not stuck (c645)', async ({
+	page
+}) => {
+	await laterBridge(page);
+	await page.goto('/');
+	await expect(page.locator('[data-focus-id="library-more"]')).toBeVisible();
+	await settled(page);
+	// The library draws as it does with no bridge at all, and stays drawn.
+	await expect(page.locator('.grid .tile').first()).toBeVisible();
+	await expect(cell(page)).toHaveCount(0);
+	await page.waitForTimeout(200);
+	await expect(cell(page)).toHaveCount(0);
+	// MORE still opens: nothing on the page is waiting for that answer.
+	await page.locator('[data-focus-id="library-more"]').focus();
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('dialog', { name: 'More' })).toBeVisible();
 });
 
 test("S1: two servers put the one in use beside the wordmark, the TV's own name first", async ({

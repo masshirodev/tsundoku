@@ -801,6 +801,21 @@
 	"offer_not_this_again": "NOT THIS · WON'T ASK AGAIN",
 	"offer_into_part": "INTO {name} · AS PART {part}",
 	"offer_move_join": "TWO SERIES FROM ONE ENTRY · JOIN THEM IN {offer}",
+	"offer_added_to": "ADDED TO {name}",
+	"offer_work_made": "{name} IS A WORK",
+	"offer_why_name": "ITS TITLE STARTS WITH THE WORK'S NAME",
+	"offer_why_part": "ITS TITLE STARTS WITH PART {part}'S TITLE",
+	"offer_holds": "THE WORK HOLDS {n} SERIES",
+	"offer_suggestion_books": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} BOOK",
+				"countPlural=*": "{n} BOOKS"
+			}
+		}
+	],
 	"library_refresh": "REFRESH",
 	"library_refresh_asked": "{n} ASKED · {found} FOUND SOMETHING",
 	"library_refresh_nothing": "NOTHING TO ASK",

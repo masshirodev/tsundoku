@@ -92,12 +92,15 @@ CH. 1`, one tap into the next series' first chapter, and CONTINUE above it
 - **Every Work control posts the Work it was drawn on** (c640). MOVE and TAKE
   OUT in the row's sheet, the screen's UNHIDE, and the HIDE sheet's HIDE ALL n
   each post the Work's `created_at` as `made`; a Work under that id made at
-  another moment (ended, its id given to another) or a post with no moment is
-  refused with `THAT WORK HAS CHANGED · LOOK AGAIN` and nothing written. The
-  screen then re-reads its load, so the band is drawn over the Work the series
-  is in now and the next press posts that Work's moment; the row's sheet
-  closes on the refusal. [`WORKS.md`](WORKS.md), "Every form names the Work by
-  its id and its moment".
+  another moment (its id given to another) or a post with no moment is
+  refused with `THAT WORK HAS CHANGED · LOOK AGAIN` and nothing written. A
+  Work that has ended leaves the series in no Work, and the same four
+  actions answer `THIS SERIES IS IN NO WORK` instead (c661); that refusal
+  says `stale: true` as well. Either way the screen then re-reads its load,
+  so the band is drawn over the Work the series is in now (or the absence of
+  one) and the next press posts that Work's moment; the row's sheet closes
+  on the refusal, and so does the HIDE sheet. [`WORKS.md`](WORKS.md), "Every
+  form names the Work by its id and its moment".
 
 Tested in `tests/work-row-frame.e2e.ts` (the three states' measurements, the
 links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
@@ -210,7 +213,8 @@ A tap on FAV or the rating shows at once and saves behind it (Loading States
 post together, so the server could store them in either order, and the
 first answer's reload put the stored value back over the second tap: shown
 3 of 3 by wave 24's probe, and the cause of `series-flow`'s "rating fills
-up…" red under load. Since wave 25 (`src/routes/series/[id]/serial-saves.ts`):
+up…" red under load. Since wave 25 (`src/lib/serial-saves.ts`, moved there from
+the series screen in wave 31, c658):
 
 - **One save in flight per series and field.** A tap's save waits for the
   one before it on the same key (`fav:<id>`, `rating:<id>`); FAV never waits

@@ -7,7 +7,9 @@
  * tests/works.spec.ts, not in markup.
  */
 
+import { m } from '../paraglide/messages.js';
 import { sharedStart, titleWords } from './books.ts';
+import { num } from '../i18n/format.ts';
 import { kindFacts } from './kinds.ts';
 import { count, kindLabel, unitLabel } from './labels.ts';
 import type { Direction } from './series.ts';
@@ -766,12 +768,12 @@ export function offerMatch(title: string, works: OfferWork[]): OfferMatch | null
 /**
  * The offer's second line (Work-States 1): why it offers, then what the Work
  * holds. `ITS TITLE STARTS WITH THE WORK'S NAME · THE WORK HOLDS 2 SERIES`, or
- * `… WITH PART 1'S TITLE · …` when a part's title is the stem.
+ * `… WITH PART 1'S TITLE · …` when a part's title is the stem. Its words are
+ * messages since wave 30 (c587), imported relatively like every library
+ * module's (`doc/I18N.md`), so the function keeps its shape and its callers
+ * (`src/lib/server/works.ts` is nobody's).
  */
 export function offerReason(match: OfferMatch): string {
-	const why =
-		match.by === 'name'
-			? "ITS TITLE STARTS WITH THE WORK'S NAME"
-			: `ITS TITLE STARTS WITH PART ${match.part}'S TITLE`;
-	return `${why} · THE WORK HOLDS ${match.work.parts.length} SERIES`;
+	const why = match.by === 'name' ? m.offer_why_name() : m.offer_why_part({ part: match.part });
+	return `${why} · ${m.offer_holds({ n: num(match.work.parts.length) })}`;
 }

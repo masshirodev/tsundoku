@@ -39,7 +39,7 @@
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { waiting } from '$lib/waiting.svelte';
 	import { postAction, saves } from '$lib/saves.svelte';
-	import { seriesSaves } from './series/[id]/serial-saves';
+	import { seriesSaves } from '$lib/serial-saves';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
 	import ChoiceMenu from '$lib/components/controls/ChoiceMenu.svelte';
@@ -299,7 +299,20 @@
 	let moreFailed = $state(false);
 	/** Bumped whenever the list changes under a request, so a late answer is dropped. */
 	let generation = 0;
-	const series = $derived(data.series.length ? [...data.series, ...more] : more);
+	/**
+	 * The grid's cards: the load's first page, then the pages drawn after it.
+	 * A tile in both is drawn once. A load's first page can change under pages
+	 * already drawn -- a Work made over two series it listed, a part hidden --
+	 * and the grid keys its blocks by `id`, so the same id twice stops the
+	 * whole render and the grid keeps what it had (c660, r2, the URL band's
+	 * UNDO with the pages loaded). The first page's copy wins: it is the one
+	 * the load just said.
+	 */
+	const series = $derived.by(() => {
+		if (data.series.length === 0) return more;
+		const have = new Set(data.series.map((c) => c.id));
+		return [...data.series, ...more.filter((c) => !have.has(c.id))];
+	});
 	/**
 	 * A page shorter than asked for is the end, whatever `total` said: the shelf
 	 * can shrink after the first page (a series hidden, volumes grouped).
@@ -359,8 +372,9 @@
 	/**
 	 * The pages after the first, read again: queued one at a time, and a write
 	 * can await them (c615, round 2). `force` asks even when they were already
-	 * read for this first page -- a write's own reload, and a hide or UNDO that
-	 * moves only tiles past the first page, both need the answer after it.
+	 * read for this first page, which `reloadList` does only when that page came
+	 * back identical (c660, r2): nothing was queued for it, and a hide or UNDO
+	 * past the first page still needs its answer.
 	 *
 	 * Why read them again at all: a write changed which tiles a loaded page
 	 * holds -- a Work hidden whole, one taken out of it -- and the load's
@@ -408,9 +422,9 @@
 	 * resolves after the effect has queued its own for the new `data.series`,
 	 * so this awaits that one rather than asking again (c615, r3). Only a first
 	 * page that came back identical leaves nothing queued, and then the pages
-	 * past it are asked for here. The HIDE and UNDO callers keep their forced
-	 * call: their change can land only on tiles past the first page, which the
-	 * effect's `refilledFor` guard would not re-read.
+	 * past it are asked for here -- the one forced call, for the one case: a
+	 * hide or UNDO past the first page moves nothing that page shows, so all of
+	 * its change is in the pages after it.
 	 */
 	async function reloadList() {
 		const before = data.series;
@@ -552,12 +566,18 @@
 	type TvServer = { origin: string; shown: string; inUse: boolean };
 	let tvServers = $state<TvServer[] | null>(null);
 
-	function readTvServers(): TvServer[] | null {
+	/**
+	 * The bridge's answer as a list of servers, or null for anything that is
+	 * not one. It may answer now (today's JavaScript interface) or later (a
+	 * message listener answers a Promise): this awaits either, so the page can
+	 * be moved onto the message transport without reading a Promise as a string.
+	 */
+	async function readTvServers(): Promise<TvServer[] | null> {
 		if (typeof window === 'undefined') return null;
 		const bridge = (window as unknown as { TsundokuTV?: { servers?: unknown } }).TsundokuTV;
 		if (!bridge || typeof bridge.servers !== 'function') return null;
 		try {
-			const list: unknown = JSON.parse(String((bridge.servers as () => unknown)()));
+			const list: unknown = JSON.parse(String(await (bridge.servers as () => unknown)()));
 			if (!Array.isArray(list)) return null;
 			const ok = (s: unknown): s is TvServer =>
 				!!s &&
@@ -574,6 +594,20 @@
 	}
 
 	/**
+	 * The newest read: an answer to an older question is dropped, not drawn, so
+	 * a slow first answer cannot overwrite a fast second one. Nothing is drawn
+	 * once the page has gone either.
+	 */
+	let serverRead = 0;
+	let mounted = false;
+	async function refreshTvServers(): Promise<void> {
+		const at = ++serverRead;
+		const list = await readTvServers();
+		if (at !== serverRead || !mounted) return;
+		tvServers = list;
+	}
+
+	/**
 	 * The cell's name, or null for no cell: two or more servers, one of them in
 	 * use. In use is this page's own server (`inUseOf`), not the bridge's flag,
 	 * which right after a switch still names the server just left.
@@ -585,11 +619,15 @@
 	});
 
 	onMount(() => {
-		tvServers = readTvServers();
+		mounted = true;
+		void refreshTvServers();
 		// Again a tick later: the layout's onMount, which runs after this one,
 		// tells the app the server's own name (`named`), and a server the TV
 		// had not named yet would otherwise show its bare host until MORE closes.
-		void tick().then(() => (tvServers = readTvServers()));
+		void tick().then(refreshTvServers);
+		return () => {
+			mounted = false;
+		};
 	});
 
 	function openMore(at: 'more' | 'servers') {
@@ -606,14 +644,19 @@
 	function closeMore() {
 		moreOpen = false;
 		const had = onServer !== null;
-		tvServers = readTvServers();
-		if (had && onServer === null && moreAt === 'servers') {
-			void tick().then(() => {
-				const now = document.activeElement;
-				if (now && now !== document.body && !now.closest('[role="dialog"]')) return;
-				document.querySelector<HTMLElement>('[data-focus-id="library-more"]')?.focus();
-			});
-		}
+		// The list is read again once the sheet is closed, and the hand-back
+		// waits for the answer: a bridge that answers late must land before the
+		// cell and the focus are decided.
+		void refreshTvServers().then(() => {
+			if (!mounted) return;
+			if (had && onServer === null && moreAt === 'servers') {
+				void tick().then(() => {
+					const now = document.activeElement;
+					if (now && now !== document.body && !now.closest('[role="dialog"]')) return;
+					document.querySelector<HTMLElement>('[data-focus-id="library-more"]')?.focus();
+				});
+			}
+		});
 	}
 
 	function toggle(id: number) {
@@ -910,15 +953,25 @@
 	 * UNDO after a Work was made, added to, ended or hidden: the tiles a loaded
 	 * page holds change back, and the load's first page may not move, so the
 	 * pages are read again (see `refillPages`).
+	 *
+	 * One re-read, not two (c660): `reloadList` is the load's own, and the
+	 * form's `update` is asked not to re-read on success so this is the only
+	 * one. Before that, every UNDO refreshed the first page twice and refilled
+	 * the loaded pages twice behind it.
+	 *
+	 * A redirect is the exception `invalidateAll: false` does not govern:
+	 * `applyAction` sends it through `goto` with `invalidateAll: true`, so the
+	 * page is re-read there and its effect queues the one refill. Asking for
+	 * `reloadList` here would re-read and refill a second time (c660, r2).
 	 */
 	const undoAfter: SubmitFunction =
 		() =>
 		async ({ result, update }) => {
-			await update();
+			await update({ invalidateAll: false });
 			// The answer `update` just put in `form`: drawn as the band below.
 			if (result.type === 'failure') undoAnswer = form;
-			await invalidateAll();
-			await refillPages(true);
+			if (result.type === 'redirect') return;
+			await reloadList();
 		};
 	/**
 	 * Which drawn series are hidden, by id: a Work's parts as well as the cards
@@ -1674,8 +1727,8 @@
 		<div class="lib-band">
 			<Band
 				title={made
-					? `${made.work.name.toUpperCase()} IS A WORK`
-					: `ADDED TO ${addedWork!.name.toUpperCase()}`}
+					? m.offer_work_made({ name: made.work.name.toUpperCase() })
+					: m.offer_added_to({ name: addedWork!.name.toUpperCase() })}
 				detail={made
 					? `${made.members.length} SERIES · EACH KEEPS ITS OWN`
 					: `${addedWork!.facts.length} SERIES · AT THE END OF THE RUN`}
@@ -2338,8 +2391,9 @@
 		ondone={async () => {
 			hiding = false;
 			stopSelecting();
-			await invalidateAll();
-			await refillPages(true);
+			// The sheet's `update` did not re-read (c660): this is the one
+			// reload, and `reloadList` asks for the loaded pages once behind it.
+			await reloadList();
 		}}
 		onclose={() => (hiding = false)}
 	/>

@@ -123,6 +123,16 @@ describe('in Portuguese', () => {
 		expect(m.offer_move_join({ offer: m.offer_might_be_one_series() })).toBe(
 			'TWO SERIES FROM ONE ENTRY · JOIN THEM IN MIGHT BE ONE SERIES'
 		);
+		// The library's ADDED TO / IS A WORK band, and the offers' own second
+		// lines, landed with the count (wave 30, c587).
+		expect(m.offer_added_to({ name: 'ISEKAI' })).toBe('ADDED TO ISEKAI');
+		expect(m.offer_work_made({ name: 'ISEKAI' })).toBe('ISEKAI IS A WORK');
+		expect(m.offer_why_name()).toBe("ITS TITLE STARTS WITH THE WORK'S NAME");
+		expect(m.offer_why_part({ part: 1 })).toBe("ITS TITLE STARTS WITH PART 1'S TITLE");
+		expect(m.offer_holds({ n: '2' })).toBe('THE WORK HOLDS 2 SERIES');
+		// N BOOKS is a plural: one at 1, and one past it.
+		expect(m.offer_suggestion_books({ count: 1, n: '1' })).toBe('1 BOOK');
+		expect(m.offer_suggestion_books({ count: 3, n: '3' })).toBe('3 BOOKS');
 		overwriteGetLocale(() => 'pt-BR');
 		expect(m.offer_might_be_one_series()).toBe('PODE SER UMA SÉRIE');
 		expect(m.offer_might_continue({ name: 'KAORI MAMA', part: 3 })).toBe(
@@ -137,6 +147,13 @@ describe('in Portuguese', () => {
 		expect(m.offer_move_join({ offer: m.offer_might_be_one_series() })).toBe(
 			'DUAS SÉRIES DE UMA ENTRADA · JUNTE-AS EM PODE SER UMA SÉRIE'
 		);
+		expect(m.offer_added_to({ name: 'ISEKAI' })).toBe('ADICIONADO A ISEKAI');
+		expect(m.offer_work_made({ name: 'ISEKAI' })).toBe('ISEKAI É UMA OBRA');
+		expect(m.offer_why_name()).toBe('O TÍTULO DELA COMEÇA COM O NOME DA OBRA');
+		expect(m.offer_why_part({ part: 1 })).toBe('O TÍTULO DELA COMEÇA COM O TÍTULO DA PARTE 1');
+		expect(m.offer_holds({ n: '2' })).toBe('A OBRA TEM 2 SÉRIES');
+		expect(m.offer_suggestion_books({ count: 1, n: '1' })).toBe('1 LIVRO');
+		expect(m.offer_suggestion_books({ count: 3, n: '3' })).toBe('3 LIVROS');
 	});
 
 	it('GET STARTED speaks it, plurals and all', () => {
