@@ -32,7 +32,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { postAction, saves, type FailedSave } from '$lib/saves.svelte';
-	import { seriesSaves } from './serial-saves';
+	import { seriesSaves } from '$lib/serial-saves';
 	import type { Rating } from '$lib/library/types';
 	import type { BookEditions } from '$lib/server/editions';
 	import { baseToEdition, langName } from '$lib/library/editions';

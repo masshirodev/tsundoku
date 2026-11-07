@@ -210,7 +210,8 @@ A tap on FAV or the rating shows at once and saves behind it (Loading States
 post together, so the server could store them in either order, and the
 first answer's reload put the stored value back over the second tap: shown
 3 of 3 by wave 24's probe, and the cause of `series-flow`'s "rating fills
-up…" red under load. Since wave 25 (`src/routes/series/[id]/serial-saves.ts`):
+up…" red under load. Since wave 25 (`src/lib/serial-saves.ts`, moved there from
+the series screen in wave 31, c658):
 
 - **One save in flight per series and field.** A tap's save waits for the
   one before it on the same key (`fav:<id>`, `rating:<id>`); FAV never waits

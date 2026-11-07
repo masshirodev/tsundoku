@@ -93,7 +93,7 @@ offline (writes need the workstation). `CoverTile` takes them as `onfavourite`
 and `onrate`; without those it draws the plain badge and bars.
 
 **Two quick taps take turns** (c615). The tile's saves are on the series
-screen's own queue (`seriesSaves`, `src/routes/series/[id]/serial-saves.ts`)
+screen's own queue (`seriesSaves`, `src/lib/serial-saves.ts`)
 under the same `fav:<id>` and `rating:<id>` keys, so a tile tap and a
 series-screen tap on one series wait for each other too (doc/SERIES.md, "FAV
 and the rating"; c566's rule). One save in flight per field, the last tap

@@ -25,7 +25,7 @@ import {
 	tagGroups,
 	type SeriesEntry
 } from '$lib/library/series';
-import { SerialSaves } from '../src/routes/series/[id]/serial-saves';
+import { SerialSaves } from '../src/lib/serial-saves';
 
 /** A series of `n` chapters, the first `read` finished, the next one open at page `page`. */
 function chapters(n: number, read: number, page: number | null = null, pages = 54): SeriesEntry[] {

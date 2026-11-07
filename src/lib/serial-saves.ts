@@ -137,9 +137,11 @@ export class SerialSaves {
 }
 
 /**
- * The series screen's queue. One for the whole app, not one per panel: a
- * panel mounted again (out to the library and back within a slow save) must
- * still wait for the save the last one started. Only ever run from a tap, so
- * the server's copy of this module never holds anything.
+ * The app's save queue, shared by the series screen and the library tile
+ * (c658). One for the whole app, not one per panel: a panel mounted again (out
+ * to the library and back within a slow save) must still wait for the save the
+ * last one started, and a tile tap and a series-screen tap on one series wait
+ * for each other too. Only ever run from a tap, so the server's copy of this
+ * module never holds anything.
  */
 export const seriesSaves = new SerialSaves();
