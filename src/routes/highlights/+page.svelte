@@ -529,6 +529,8 @@
 		--mk-ink: var(--text-1);
 		display: flex;
 		flex-direction: column;
+		flex: 1;
+		min-width: 0;
 		min-height: 100dvh;
 		color: var(--text-1);
 	}
@@ -653,6 +655,7 @@
 		font: 500 12px/1 var(--font-mono);
 		letter-spacing: var(--tracking-label);
 		white-space: nowrap;
+		text-align: left;
 		text-decoration: none;
 		cursor: pointer;
 	}
@@ -711,7 +714,17 @@
 	.list {
 		flex: 1;
 		min-width: 0;
-		padding: 0 24px 24px;
+		padding: 0 24px;
+		overflow: hidden;
+	}
+	.list::after {
+		content: '';
+		display: block;
+		height: 24px;
+	}
+	/* The rule between the list and the open item is the list's (P1). */
+	.has-open .list {
+		border-right: var(--hairline);
 	}
 	.lbl.day {
 		padding: 22px 0 10px;
@@ -848,7 +861,6 @@
 		flex-shrink: 0;
 		display: flex;
 		flex-direction: column;
-		border-left: var(--hairline);
 		background: var(--surface-page);
 	}
 	.sh {
@@ -965,6 +977,7 @@
 		align-items: center;
 		justify-content: center;
 		font: 500 14px/1 var(--font-mono);
+		text-align: left;
 		color: var(--mk-ink);
 		cursor: pointer;
 	}
@@ -1110,6 +1123,12 @@
 	@media (min-width: 1024px) and (pointer: fine) {
 		.back {
 			display: none;
+		}
+		/* The open item stays beside the list while the list scrolls. */
+		.open {
+			position: sticky;
+			top: 0;
+			max-height: 100dvh;
 		}
 		.title {
 			border-left: 0;

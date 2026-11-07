@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { moveLine } from '$lib/library/highlights';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { resolve } from '$app/paths';
@@ -610,6 +611,20 @@
 								</div>
 							</div>
 						{/each}
+						{#if c.highlights && c.highlights.follow + c.highlights.lose > 0}
+							<!-- HIGHLIGHTS (c701; Out X5): from the same map the move applies.
+							     Those that don't simply follow are named under the line. -->
+							<div class="what" data-move-highlights>
+								<div class="lb">HIGHLIGHTS</div>
+								<div class="tx">
+									<div class="a">{moveLine(c.highlights.follow, c.highlights.lose)}</div>
+									{#each c.highlights.named as h (h.id)}
+										<div class="b">{h.place} · {h.why}</div>
+									{/each}
+								</div>
+								<div class="st moves">MOVES</div>
+							</div>
+						{/if}
 						{#if playsLine}
 							<div class="what play">
 								<div class="lb">PLAYS</div>
