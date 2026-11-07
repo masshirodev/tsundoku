@@ -82,10 +82,15 @@ filter. `runSearchCommand` (`src/lib/library/commands.ts`) posts a command to
 `/api/command`, which calls the same `runCommand` the library's `?/command`
 does, so `/reveal` behind the fingerprint gate is refused from every bar as a
 plain POST of it is refused from `/search` (`doc/PRIVACY.md`); the bar shows
-the refusal and its list does not change. A command that runs leaves the
-screen where it was and re-reads its loads (the reveal or incognito band
-appears); `/settings` and `/help` open their page, and `/lock` and `/unlock`
-open `/search?q=…&go=1`, since the device prompt is that screen's.
+the refusal and its list does not change. A TV has no fingerprint and no
+screen lock, so it refuses `/reveal` from every bar in `/search`'s own words
+("NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER"), and no bar turns reveal on
+there (`doc/TV.md`). A command that runs leaves the screen where it was and
+re-reads its loads (the reveal or incognito band appears); `/settings` and
+`/help` open their page, and `/lock` and `/unlock` open `/search?q=…`, since
+the device prompt is that screen's. Their `go` intent travels in history
+state, not the URL, and `/search` submits on arrival only for those two: a
+typed or shared `?go=1` link is taken off the URL and runs nothing (round 2).
 
 ## A source's page
 
