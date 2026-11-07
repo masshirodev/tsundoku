@@ -293,15 +293,20 @@
 	 * option the readers keep, on by default, and the cursor goes exactly when
 	 * the controls go during playback (`chrome` false, HIDE_MOUSE_MS after the
 	 * last move) and comes back whenever they do: a move, a key, a pause.
+	 * The KEYS dialog holds both up (round 2): `?` is a key that brings the
+	 * bar, then opens the dialog, and the option must not hide the cursor over
+	 * it or its ✕.
 	 */
 	let cursorOn = $state(true);
-	const cursorIdle = $derived(cursorOn && mouse && !chrome && !paused && phase === 'playing');
+	const cursorIdle = $derived(
+		cursorOn && mouse && !chrome && !paused && !keysOpen && phase === 'playing'
+	);
 	let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function showChrome() {
 		chrome = true;
 		clearTimeout(hideTimer);
-		if (!paused && !sheet)
+		if (!paused && !sheet && !keysOpen)
 			hideTimer = setTimeout(() => (chrome = false), mouse ? HIDE_MOUSE_MS : HIDE_TOUCH_MS);
 	}
 
@@ -1545,7 +1550,8 @@
 	$effect(() => {
 		void paused;
 		void sheet;
-		if (!paused && !sheet) showChrome();
+		void keysOpen;
+		if (!paused && !sheet && !keysOpen) showChrome();
 		else {
 			chrome = true;
 			clearTimeout(hideTimer);

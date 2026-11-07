@@ -157,6 +157,22 @@ test('the cursor goes with the controls during playback and comes back with them
 	await expect(sheet).toBeVisible();
 	await page.waitForTimeout(2500);
 	expect(await cursor()).toBe('auto');
+	// The KEYS dialog keeps both up too (round 2). Close the settings sheet,
+	// let playback carry on, then press `?` and keep the mouse still past
+	// HIDE_MOUSE_MS: the bar stays because the dialog is open, so the cursor
+	// must stay over the dialog and its ✕.
+	await page.keyboard.press('Escape');
+	await expect(sheet).toBeHidden();
+	await expect(player).not.toHaveClass(/chrome/, { timeout: 15_000 });
+	await page.keyboard.press('Shift+Slash');
+	const keys = page.getByRole('dialog', { name: 'Keys' });
+	await expect(keys).toBeVisible();
+	await page.waitForTimeout(2500);
+	await expect(keys).toBeVisible();
+	expect(await cursor()).toBe('auto');
+	await expect(player).toHaveClass(/chrome/);
+	await keys.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(keys).toBeHidden();
 });
 
 /**

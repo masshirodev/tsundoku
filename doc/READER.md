@@ -197,17 +197,17 @@ On a PC, in L→R and R→L, the buttons turn the page, not the side you click o
   stay until put away (`hoverAction`). The owner asked for this on 2026-09-24:
   with a click turning the page, clicking couldn't reach them. The text reader
   does the same.
-- **HIDE CURSOR** in READING (c678; the owner, 2026-11-06), **off** by default:
-  after three seconds without the mouse moving, the cursor disappears over the
-  page, and a move or a press brings it back at once. **A key and the wheel do
-  not**, so reading on by arrows stays clean, and it never hides while the
-  bars, the sheet, the page menu, the lookup or the end page is open — the
-  owner is about to click something. Only where there is a mouse
-  (`pointer: fine`): a phone, a tablet and a TV draw none, so the row is left
-  out there. It is one device setting (`tsundoku.reader.cursor`) shared with
-  the text reader and the player, and turning it on only toggles a class, so
-  nothing reflows. The player's default is on, and it has no timer of its own:
-  its cursor goes with its controls ([`ANIME.md`](ANIME.md), "The player").
+- **CURSOR** in READING (c678; the owner, 2026-11-06), **off** by default: it
+  hides the cursor after three seconds without the mouse moving; a move or a
+  press brings it back at once. **A key and the wheel do not**, so reading on
+  by arrows stays clean, and it never hides while the bars, the sheet, the page
+  menu, the lookup or the end page is open — the owner is about to click
+  something. Only where there is a mouse (`pointer: fine`): a phone, a tablet
+  and a TV draw none, so the row is left out there. It is one device setting
+  (`tsundoku.reader.cursor`) shared with the text reader and the player, and
+  turning it on only toggles a class, so nothing reflows. The player's default
+  is on, and it has no timer of its own: its cursor goes with its controls
+  ([`ANIME.md`](ANIME.md), "The player").
 
 **The page never tints under a mouse** (c485). The image reader catches taps
 on its stage and the text reader on its page, both plain elements, so

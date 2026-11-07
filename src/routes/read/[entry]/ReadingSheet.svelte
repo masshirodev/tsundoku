@@ -381,7 +381,7 @@
 						<span class="track" class:on={cursor}><span class="knob"></span></span>
 						<span>{cursor ? 'ON' : 'OFF'}</span>
 					</button>
-					<span class="note">HIDES AFTER 3 S STILL</span>
+					<span class="note">GONE AFTER 3 S STILL</span>
 				</div>
 			</div>
 		{/if}
