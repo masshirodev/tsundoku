@@ -234,7 +234,9 @@ HISTORY's long press there. What c168 adds is the proof, by machine, as
   results first, in the order they answered, the ones still asking as one
   line, and `FOUND NOTHING` and `DID NOT ANSWER` folded at the end, with TRY
   AGAIN and TRY ALL AGAIN asking only the failed sources again
-  (`downloads/search/ask`). Each source is named with its language.
+  (`downloads/search/ask`). Each source is named with its language. A KIND
+  band over the sources' tabs narrows it to one kind's sources (c699;
+  [`DOWNLOADING.md`](DOWNLOADING.md), "A KIND band over the sources' tabs").
 - **No byte line on a page still arriving**: the engine's image proxy says
   nothing of progress, so the dashed cell waits without one.
 - **A rate limit is the whole chapter's, not a page's**: the design counts
