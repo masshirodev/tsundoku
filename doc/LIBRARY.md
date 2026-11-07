@@ -255,6 +255,50 @@ series arrives only with a chapter that is still unread, rung 36 redated the
 existing ones by their newest unread arrival, and `+N` counts a downloaded
 chapter only while it's unread.
 
+## A selection outlives the shelf
+
+SELECT stays on, and keeps what it holds, while the owner moves about the
+library page: a shelf tab, a KIND cell, a FILTER choice, a tag or person page,
+the sort, and BACK between those (all one page, `src/routes/+page.svelte`, so
+nothing ends SELECT on the way; measured on `071465ee` with a shelf tab and a
+kind cell, c698). A series ticked on one shelf stays ticked on the next,
+though it is no longer drawn.
+
+- **The bulk actions act on the whole selection, drawn or not** (c698). They
+  used to read their facts off the cards on screen, so a series ticked on one
+  shelf and then out of sight was dropped from GROUP's rows (GROUP posts its
+  rows, so it was left out of the group) and from DELETE's titles, FOLD could
+  not be offered, and HIDE could not see its Work. The page now notes each
+  selected series' facts while it is drawn and keeps them while it is selected
+  (`facts`, the `Picked` record in `src/lib/library/selection.ts`): title,
+  cover, kind and size, GROUP's row line, its Work, hidden, its language. They
+  are refreshed each time the series is drawn again, and forgotten when it is
+  unticked. A fact gone stale since it was noted only words a sheet; the
+  server judges every write. HIDE reads a series' Work from the page's
+  `workFeet` first and from the note second, as the bar always has: a deep
+  Work tile's parts have no feet, so its HIDE still posts at once and the
+  server takes the Work whole (`works-flow`'s c660 case relies on it).
+- **SHOW** sits beside `N SELECTED` in the selecting bar. It opens a sheet
+  that lists the selection in the order it was ticked (GROUP's BY HAND order),
+  each row with GROUP's tick box: a tap takes the series out of the selection
+  and a second puts it back (at the end, since the selection's order is the
+  order of ticks). The rows stay until the sheet closes, so a slip is undone
+  where it was made. Series SELECT ALL took by id from pages never loaded
+  have no facts to list: the sheet says how many (`N MORE FROM SELECT ALL ·
+NOT LOADED, SO NOT LISTED`); they are selected all the same.
+- **What ends SELECT** (and drops it): the bar's ✕; GROUP's, HIDE's and
+  DELETE's own success (`ondone`); and anything that makes the library page
+  again -- a reload, or leaving the library for another screen (the series
+  screen, `/search`, a sidebar link) and coming back. ESC does not end SELECT
+  (it never has: a Sheet's ESC closes the sheet). A second tab has a selection
+  of its own. A TV has no SELECT.
+- **The library's search is not part of it yet.** `/search` is a screen of its
+  own whose hits are rows, not tiles, and the selecting bar has no way there,
+  so a selection does not survive a search and a search's hits cannot be
+  ticked. Ticking them needs a selecting state drawn on `/search` (its bar
+  holds the search field), which is a design question for the owner: the
+  brief is in the wave 32 notes (`doc/handoff-notes/library.md`, c698).
+
 ## REFRESH a selection
 
 The bulk bar's REFRESH cell (card c221) is the series screen's REFRESH over

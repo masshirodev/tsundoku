@@ -34,6 +34,8 @@
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import ContinueRow from '$lib/components/content/ContinueRow.svelte';
 	import CoverTile from '$lib/components/content/CoverTile.svelte';
+	import Cover from '$lib/components/content/Cover.svelte';
+	import Sheet from '$lib/components/chrome/Sheet.svelte';
 	import WorkTile from '$lib/components/content/WorkTile.svelte';
 	import FocusLine from '$lib/components/content/FocusLine.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
@@ -97,6 +99,14 @@
 		type LibraryCard
 	} from '$lib/library/works';
 	import { pageQuery } from '$lib/library/paging';
+	import {
+		pickedInOrder,
+		refreshFacts,
+		titlesLine,
+		unseenCount,
+		workOf,
+		type Picked
+	} from '$lib/library/selection';
 	import type { Snapshot } from './$types';
 
 	let { data, form } = $props();
@@ -552,6 +562,16 @@
 	/** What MORE opens on: its rows, or SERVERS straight from the bar's server cell (S1). */
 	let moreAt = $state<'more' | 'servers'>('more');
 	const selected = new SvelteSet<number>();
+	/**
+	 * The facts of each selected series, noted while it was drawn (c698): the
+	 * selection outlives a shelf, a kind, a filter and a tag, so the bulk
+	 * actions read these rather than the cards on screen
+	 * (`src/lib/library/selection.ts`).
+	 */
+	const facts = new SvelteMap<number, Picked>();
+	/** SHOW (c698): the selection listed to review, and what it listed when it opened. */
+	let reviewing = $state(false);
+	let shownIds = $state<number[]>([]);
 
 	// ---- the server in use (c261, S1; doc/TV-APP.md, "Servers") -------------
 	/*
@@ -672,18 +692,20 @@
 	function stopSelecting() {
 		passed = form;
 		selecting = false;
+		reviewing = false;
 		selected.clear();
+		facts.clear();
+	}
+
+	function openShow() {
+		shownIds = [...selected];
+		reviewing = true;
 	}
 
 	// ---- sheets ------------------------------------------------------------
 	let deleting = $state(false);
 	/** The first few titles, so the question names what it's about. */
-	const deletingTitles = $derived.by(() => {
-		const names = series.filter((c) => selected.has(c.id)).map((c) => c.title);
-		if (names.length === 0) return '';
-		const shown = names.slice(0, 3).join(', ').toUpperCase();
-		return names.length > 3 ? `${shown} AND ${selected.size - 3} MORE` : shown;
-	});
+	const deletingTitles = $derived(titlesLine(selected, facts));
 	let sheetId = $state<number | null>(null);
 	let pickerOpen = $state(false);
 	let grouping = $state(false);
@@ -710,61 +732,100 @@
 		/** The Work it is in now: "IN <WORK> · MOVES HERE". */
 		inWork: string | null;
 	};
-	const groupRows = $derived.by((): GroupRow[] => {
-		const out: GroupRow[] = [];
-		const push = (r: GroupRow) => {
-			if (selected.has(r.seriesId) && !out.some((o) => o.seriesId === r.seriesId)) out.push(r);
+	const groupRows = $derived(
+		pickedInOrder(selected, facts).map((p): GroupRow => ({
+			seriesId: p.id,
+			title: p.title,
+			hue: p.hue,
+			addedAt: p.addedAt,
+			cover: p.cover,
+			kind: p.kind,
+			entryCount: p.entryCount,
+			meta: p.meta,
+			inWork: p.inWork
+		}))
+	);
+
+	/**
+	 * Every selectable series the page draws, as the facts a selection keeps:
+	 * a plain tile, a Work tile's parts, a person page's series. A book inside
+	 * a series is an entry, not a series, and is never selected.
+	 */
+	const drawnPicked = $derived.by((): Picked[] => {
+		const feet = data.workFeet;
+		const work = (id: number) => {
+			const f = feet[String(id)];
+			return f ? { id: f.id, name: f.name } : null;
 		};
-		if (data.person) {
-			for (const i of data.person.items) {
-				// A book inside a series is an entry, not a series: a Work and a
-				// series of books both take series.
-				if (i.entryId !== null) continue;
-				push({
-					seriesId: i.seriesId,
-					title: i.title,
-					hue: hueFor(i.title),
-					addedAt: i.addedAt,
-					cover: i.cover,
-					kind: i.kind,
-					entryCount: i.entries,
-					meta: `${kindLabel(i.kind)} · ${count(i.entries)} ${unitLabel(i.kind)}${i.read ? ' · READ' : ''}`,
-					inWork: data.workFeet[String(i.seriesId)]?.name ?? null
-				});
-			}
-		} else {
-			for (const c of series) {
-				if (!c.tile) {
-					push({
-						seriesId: c.id,
-						title: c.title,
-						hue: c.hue,
-						addedAt: c.addedAt,
-						cover: c.cover,
-						kind: c.kind,
-						entryCount: c.entryCount,
-						meta: sheetMeta(c),
-						inWork: data.workFeet[String(c.id)]?.name ?? null
-					});
-					continue;
-				}
-				for (const p of c.tile.parts)
-					push({
-						seriesId: p.seriesId,
-						title: p.title,
-						hue: hueFor(p.title),
-						addedAt: p.addedAt,
-						cover: p.cover,
-						kind: p.kind,
-						entryCount: p.entries,
-						meta: `${kindLabel(p.kind)} · ${count(p.entries)} ${unitLabel(p.kind)}${isFinished(p) ? ' · READ ✓' : ''}`,
-						inWork: c.tile.name
-					});
-			}
+		const out: Picked[] = [];
+		for (const i of data.person?.items ?? []) {
+			if (i.entryId !== null) continue;
+			out.push({
+				id: i.seriesId,
+				title: i.title,
+				hue: hueFor(i.title),
+				addedAt: i.addedAt,
+				cover: i.cover,
+				kind: i.kind,
+				entryCount: i.entries,
+				meta: `${kindLabel(i.kind)} · ${count(i.entries)} ${unitLabel(i.kind)}${i.read ? ' · READ' : ''}`,
+				work: work(i.seriesId),
+				inWork: work(i.seriesId)?.name ?? null,
+				hidden: i.hidden,
+				// FOLD is the grid's: a person page's series never folded from here.
+				language: null,
+				languages: undefined
+			});
 		}
-		// Selection order, which SvelteSet keeps: a Work's rows start as selected.
-		const at = new Map([...selected].map((id, i) => [id, i]));
-		return out.sort((a, b) => (at.get(a.seriesId) ?? 0) - (at.get(b.seriesId) ?? 0));
+		for (const c of series) {
+			if (!c.tile) {
+				out.push({
+					id: c.id,
+					title: c.title,
+					hue: c.hue,
+					addedAt: c.addedAt,
+					cover: c.cover,
+					kind: c.kind,
+					entryCount: c.entryCount,
+					meta: sheetMeta(c),
+					work: work(c.id),
+					inWork: work(c.id)?.name ?? null,
+					hidden: c.hidden,
+					language: c.language ?? null,
+					languages: c.languages
+				});
+				continue;
+			}
+			for (const p of c.tile.parts)
+				out.push({
+					id: p.seriesId,
+					title: p.title,
+					hue: hueFor(p.title),
+					addedAt: p.addedAt,
+					cover: p.cover,
+					kind: p.kind,
+					entryCount: p.entries,
+					meta: `${kindLabel(p.kind)} · ${count(p.entries)} ${unitLabel(p.kind)}${isFinished(p) ? ' · READ ✓' : ''}`,
+					work: work(p.seriesId),
+					inWork: c.tile.name,
+					hidden: p.hidden,
+					language: null,
+					languages: undefined
+				});
+		}
+		return out;
+	});
+	// Note what is drawn of the selection, and forget what left it. The map is
+	// written outside the tracking, so writing it cannot re-run this.
+	$effect(() => {
+		const drawn = drawnPicked;
+		const ids = new Set(selected);
+		const held = new Set(reviewing ? shownIds : []);
+		untrack(() => {
+			const { set, drop } = refreshFacts(ids, facts, drawn, held);
+			for (const p of set) facts.set(p.id, p);
+			for (const id of drop) facts.delete(id);
+		});
 	});
 	const answers = $derived(
 		groupAnswers(groupRows.map((r) => ({ kind: r.kind, entryCount: r.entryCount })))
@@ -775,7 +836,7 @@
 	const selectedWorks = $derived([
 		...new Set(
 			[...selected]
-				.map((id) => data.workFeet[String(id)]?.id)
+				.map((id) => workOf(id, data.workFeet, facts)?.id)
 				.filter((id): id is number => typeof id === 'number')
 		)
 	]);
@@ -784,13 +845,13 @@
 		selectedWorks.reduce(
 			(n, id) => n + (data.existingWorks.find((w) => w.id === id)?.series ?? 0),
 			0
-		) + [...selected].filter((id) => !data.workFeet[String(id)]).length
+		) + [...selected].filter((id) => !workOf(id, data.workFeet, facts)).length
 	);
 	/** TAKE OUT: how many series stay behind in their Works. */
 	const hideRemainCount = $derived(
 		selectedWorks.reduce((n, id) => {
 			const work = data.existingWorks.find((w) => w.id === id);
-			const here = [...selected].filter((s) => data.workFeet[String(s)]?.id === id).length;
+			const here = [...selected].filter((s) => workOf(s, data.workFeet, facts)?.id === id).length;
 			return n + Math.max(0, (work?.series ?? here) - here);
 		}, 0)
 	);
@@ -800,7 +861,7 @@
 	 */
 	const foldCodes = $derived.by(() => {
 		if (selected.size < 2 || selected.size > 3) return null;
-		const picked = series.filter((s) => selected.has(s.id));
+		const picked = pickedInOrder(selected, facts);
 		if (picked.length !== selected.size) return null;
 		if (picked.some((s) => s.kind !== 'doujin' || s.entryCount !== 1 || !s.language || s.languages))
 			return null;
@@ -991,7 +1052,9 @@
 		return out;
 	});
 	/** Every series selected is hidden, and the page can see at least one. */
-	const allHidden = $derived(allHiddenAmong(selected, (id) => hiddenById.get(id)));
+	const allHidden = $derived(
+		allHiddenAmong(selected, (id) => hiddenById.get(id) ?? facts.get(id)?.hidden)
+	);
 
 	/**
 	 * A Work tile is the run, so selecting it selects its parts: the bulk bar's
@@ -1683,6 +1746,15 @@
 			{/snippet}
 			{#snippet middle()}
 				<div class="selected-count" aria-live="polite">{selected.size} SELECTED</div>
+				<!-- SHOW (c698): the selection outlives the shelf, so what it holds is not
+				     all on screen; this lists it to review or untick. -->
+				<button
+					type="button"
+					class="cell-btn show-cell"
+					data-focus-mark="in"
+					disabled={selected.size === 0}
+					onclick={openShow}>SHOW</button
+				>
 			{/snippet}
 			{#snippet right()}
 				<button type="button" class="cell-btn" data-focus-mark="in" onclick={() => void selectAll()}
@@ -2549,6 +2621,48 @@
 	onclose={() => (pickerOpen = false)}
 />
 
+<!-- SHOW (c698): the selection, wherever it was ticked, in the order it was
+     ticked. A row's tick takes it out and puts it back; the rows stay until
+     the sheet closes, so a slip is undone where it was made. GROUP's own
+     sheet draws its rows the same way. -->
+<Sheet open={reviewing} onclose={() => (reviewing = false)} label="The selection">
+	<div class="show-head">
+		<div class="show-title">
+			THE SELECTION · {selected.size} SERIES
+		</div>
+		<button type="button" class="show-done" onclick={() => (reviewing = false)}>DONE</button>
+	</div>
+	<ul class="show-rows">
+		{#each pickedInOrder(shownIds, facts) as p (p.id)}
+			{@const on = selected.has(p.id)}
+			<li class="show-row" class:off={!on}>
+				<button
+					type="button"
+					class="show-tick"
+					role="checkbox"
+					aria-checked={on}
+					aria-label="Keep {p.title}"
+					onclick={() => toggle(p.id)}><span class="box" class:on>{on ? '✓' : ''}</span></button
+				>
+				<span class="show-cov"
+					><Cover src={coverSrc(p.id, p.cover)} hue={p.hue} width={34} height={49} /></span
+				>
+				<span class="show-t">
+					<span class="a">{p.title}</span>
+					<span class="b">{p.meta}{p.work ? ` · IN ${p.work.name.toUpperCase()}` : ''}</span>
+				</span>
+			</li>
+		{/each}
+	</ul>
+	{#if unseenCount(shownIds, facts) > 0}
+		<!-- SELECT ALL takes the pages not loaded by id alone: they are selected,
+		     and the bulk bar acts on them, but the page has never drawn them. -->
+		<div class="show-unseen">
+			{count(unseenCount(shownIds, facts))} MORE FROM SELECT ALL · NOT LOADED, SO NOT LISTED
+		</div>
+	{/if}
+</Sheet>
+
 <style>
 	.tag-title {
 		flex: 1;
@@ -3097,6 +3211,102 @@
 	}
 	.x {
 		font: 500 18px var(--font-mono);
+	}
+	/* SHOW's sheet (c698): GROUP's sheet's head and rows, drawn the same way. */
+	.show-head {
+		flex-shrink: 0;
+		display: flex;
+		align-items: stretch;
+		height: 64px;
+		border-bottom: var(--hairline);
+	}
+	.show-title {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+		font: var(--type-control);
+	}
+	.show-done {
+		padding: 0 24px;
+		border: 0;
+		border-left: var(--hairline);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: var(--type-control);
+		cursor: pointer;
+	}
+	.show-rows {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.show-row {
+		display: flex;
+		align-items: stretch;
+		min-height: 64px;
+		border-bottom: var(--hairline);
+	}
+	.show-row.off {
+		opacity: 0.4;
+	}
+	.show-tick {
+		width: 64px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		cursor: pointer;
+	}
+	.show-tick .box {
+		width: 24px;
+		height: 24px;
+		border: 1.5px solid var(--line-2);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font: 500 14px var(--font-mono);
+		color: var(--on-accent);
+	}
+	.show-tick .box.on {
+		border-color: var(--accent);
+		background: var(--accent);
+	}
+	.show-cov {
+		display: flex;
+		align-items: center;
+		padding-right: 16px;
+	}
+	.show-t {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 4px;
+		padding: 8px 24px 8px 0;
+	}
+	.show-t .a {
+		font: 500 14px/1.3 var(--font-sans);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.show-t .b {
+		font: 400 11px/1.35 var(--font-mono);
+		color: var(--text-2);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.show-unseen {
+		padding: 16px 24px;
+		font: var(--type-label);
+		color: var(--text-2);
 	}
 	.selected-count {
 		padding: 0 18px;
