@@ -2024,6 +2024,7 @@
 					{workHref}
 					unit={unitOf(data.series.kind)}
 					inLibrary={!data.record}
+					seriesHidden={data.series.hidden}
 					addHref={recordAddHref}
 				/>
 			</div>
@@ -2063,6 +2064,7 @@
 				{workHref}
 				unit={unitOf(data.series.kind)}
 				inLibrary={!data.record}
+				seriesHidden={data.series.hidden}
 				addHref={recordAddHref}
 			/>
 		</div>

@@ -354,7 +354,11 @@ scrollable screen, which took some of them at random.
   HIDE and BROWSE's ADD use, and the page stays while they answer (c655). HIDE
   is the privacy door, not a removal: the series leaves every shelf but stays
   in the library (`in_library` stays 1) and `/reveal` brings it back
-  ([`LIBRARY.md`](LIBRARY.md), "Hidden means hidden"). A series in a Work draws
+  ([`LIBRARY.md`](LIBRARY.md), "Hidden means hidden"). A hidden series is read
+  only under `/reveal`, so its end page offers **UNHIDE** instead of hiding it
+  again (c673, `?/hide on=0`, `UNHIDDEN ✓` once it answered). A press the
+  action refuses says why in the row — the action's own message, or COULD NOT
+  SAVE — rather than resetting silently. A series in a Work draws
   neither cell — its Work is hidden or taken out whole from the series screen.
   The block stays once the rating is set, showing what was chosen, so rating on
   this page never empties it; the note, `SHOWN WHILE UNRATED`, goes with the

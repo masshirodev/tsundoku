@@ -230,3 +230,98 @@ test('text reader: closing on the way back writes nothing incognito (c680)', asy
 	await page.goto('/');
 	expect(readingIn(id)).toEqual(before);
 });
+
+// ---- c673: the end page's library row knows a hidden series, and says why a press failed ----
+
+/** The series' own screen, at its last chapter, then the reader's series end page. */
+async function openSeriesEnd(page: Page, title: string) {
+	const { id } = await seriesAndEntry(page, title);
+	await page.goto(`/series/${id}`);
+	await page.locator('.entry .entry-btn').last().click();
+	await readerReady(page);
+	const entry = Number(page.url().match(/\/read\/(\d+)/)![1]);
+	// `?p=last` plus one turn forward (left: the seed's manga read R→L) is the
+	// paged end page's door, as c655's case does it.
+	await page.goto(`/read/${entry}?p=last`);
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	await page.keyboard.press('ArrowLeft');
+	const end = page.locator('[data-end-page]');
+	await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
+	return { id, end };
+}
+
+test('a hidden series read under /reveal offers UNHIDE, not HIDE again (c673)', async ({
+	page
+}) => {
+	await command(page, '/reveal');
+	const { id, end } = await openSeriesEnd(page, 'Isekai Ojisan');
+	// Hide it through the row's own door, then read it again fresh: `hidden` is
+	// now the series', not this page's answer.
+	await end.getByRole('button', { name: 'HIDE', exact: true }).click();
+	await expect(end.getByRole('button', { name: 'HIDDEN ✓' })).toBeVisible();
+	const here = page.url().replace(/\?.*$/, '');
+	const endAgain = async () => {
+		await page.goto(`${here}?p=last`);
+		await readerReady(page);
+		await page.waitForLoadState('networkidle');
+		await page.keyboard.press('ArrowLeft');
+		const fresh = page.locator('[data-end-page]');
+		await expect(fresh.getByText('END · LAST AVAILABLE')).toBeVisible();
+		return fresh;
+	};
+	let failed: unknown;
+	try {
+		const fresh = await endAgain();
+		await expect(fresh.getByRole('button', { name: 'HIDE', exact: true })).toHaveCount(0);
+		const unhide = fresh.getByRole('button', { name: 'UNHIDE', exact: true });
+		await expect(unhide).toBeVisible();
+		await unhide.click();
+		await expect(fresh.getByRole('button', { name: 'UNHIDDEN ✓' })).toBeVisible();
+		// Shown again, so a fresh page offers HIDE rather than UNHIDE.
+		const shown = await endAgain();
+		await expect(shown.getByRole('button', { name: 'HIDE', exact: true })).toBeVisible();
+	} catch (e) {
+		failed = e;
+	}
+	// Shown again if the body left it hidden (c649: soft, so it cannot hide the body's own).
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	const putBack = await page.request.post(`/series/${id}?/hide`, {
+		headers: {
+			origin: new URL(test.info().project.use.baseURL!).origin,
+			'x-sveltekit-action': 'true'
+		},
+		form: { on: '0' }
+	});
+	expect.soft(putBack.ok()).toBe(true);
+	if (failed) throw failed;
+});
+
+test('a refused library row says why, in the row (c673)', async ({ page }) => {
+	const { end } = await openSeriesEnd(page, 'Isekai Ojisan');
+	// The action's own refusal for a stale page (the series was taken into a
+	// Work meanwhile): the row must say it. The real action cannot be made to
+	// refuse for a plain library series, so the refusal is answered here with
+	// the server's own words (series/[id]/+page.server.ts, `hide`).
+	const refusal = 'A WORK IS HIDDEN WHOLE · HIDE ALL OR TAKE OUT';
+	await page.route(/\/series\/\d+\?\/hide$/, (route) =>
+		route.fulfill({
+			status: 400,
+			contentType: 'application/json',
+			// A failure's `data` is devalue-encoded on the wire, which is what
+			// `$app/forms`'s `deserialize` decodes before `use:enhance` sees it.
+			body: JSON.stringify({
+				type: 'failure',
+				status: 400,
+				data: `[{"message":1},${JSON.stringify(refusal)}]`
+			})
+		})
+	);
+	await end.getByRole('button', { name: 'HIDE', exact: true }).click();
+	await expect(end.getByRole('alert')).toHaveText(refusal);
+	// The button is a button again, not a row that silently reset.
+	await expect(end.getByRole('button', { name: 'HIDE', exact: true })).toBeEnabled();
+	await page.unroute(/\/series\/\d+\?\/hide$/);
+});

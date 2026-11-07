@@ -1708,6 +1708,7 @@
 					work={data.work}
 					{workHref}
 					inLibrary={!data.record}
+					seriesHidden={data.series.hidden}
 					addHref={recordAddHref}
 				/>
 			</div>

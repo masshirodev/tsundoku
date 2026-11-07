@@ -59,6 +59,7 @@
 		workHref = '',
 		unit = '',
 		inLibrary,
+		seriesHidden,
 		addHref = null
 	}: {
 		/** chapter: next is readable; missing: next has no file; offline: no network; series: nothing next. */
@@ -113,6 +114,12 @@
 		 * rather than quietly offer the wrong cell (c655, round 2).
 		 */
 		inLibrary: boolean;
+		/**
+		 * The series is hidden, read here under `/reveal` (c673): the row then
+		 * offers UNHIDE (`?/hide on=0`) rather than hiding it again. Its own
+		 * state, never `hidden` above, which is only this page's answer.
+		 */
+		seriesHidden: boolean;
 		/** A browsing record's ADD: the source preview's own `?/add` action. */
 		addHref?: string | null;
 	} = $props();
@@ -230,19 +237,38 @@
 	// own, which is what takes it off every shelf. Neither lands elsewhere:
 	// ADD's band and HIDE's redirect belong to the screens that asked for them.
 	// A series in a Work draws no cell: its HIDE is the Work's own (round 2).
+	// A refused form says so in the row rather than leaving a button that
+	// looked like it did nothing (c673).
 	let adding = $state(false);
 	let added = $state(false);
 	let removing = $state(false);
 	let removed = $state(false);
+	let unhidden = $state(false);
+	/** A failed row action's own message, or a plain one (c673). */
+	let rowError = $state<string | null>(null);
 	const cell = $derived(
 		libraryCell({
 			inLibrary,
 			inWork: !!work,
 			hasAddHref: !!addHref,
+			seriesHidden,
 			added,
-			hidden: removed
+			hidden: removed,
+			unhidden
 		})
 	);
+
+	/**
+	 * What a refused form says. A `failure` carries the action's own message
+	 * (the series screen pages show it the same way); an `error` its thrown
+	 * one. The plain sentence is for an answer with neither. It holds no
+	 * control's word, so no locator for a row finds this line instead.
+	 */
+	function rowRefusal(result: { data?: unknown; error?: { message?: string } }): string {
+		const data = result.data as { message?: unknown } | undefined;
+		const said = typeof data?.message === 'string' ? data.message.toUpperCase() : '';
+		return said || result.error?.message?.toUpperCase() || 'COULD NOT SAVE';
+	}
 	const downloadCell = $derived(
 		queue === 'queued'
 			? 'QUEUED ✓'
@@ -489,15 +515,40 @@
 						action="{seriesHref}?/hide"
 						use:enhance={() => {
 							removing = true;
+							rowError = null;
 							return async ({ result }) => {
 								removing = false;
 								if (result.type === 'success' || result.type === 'redirect') removed = true;
+								else if (result.type === 'failure' || result.type === 'error')
+									rowError = rowRefusal(result);
 							};
 						}}
 					>
 						<input type="hidden" name="on" value="1" />
 						<button type="submit" disabled={removing || cell === 'hidden'} data-focus-mark="in"
 							>{cell === 'hidden' ? 'HIDDEN ✓' : removing ? 'HIDING…' : 'HIDE'}</button
+						>
+					</form>
+				</div>
+			{:else if cell === 'unhide' || cell === 'unhidden'}
+				<div class="lib">
+					<form
+						method="POST"
+						action="{seriesHref}?/hide"
+						use:enhance={() => {
+							removing = true;
+							rowError = null;
+							return async ({ result }) => {
+								removing = false;
+								if (result.type === 'success' || result.type === 'redirect') unhidden = true;
+								else if (result.type === 'failure' || result.type === 'error')
+									rowError = rowRefusal(result);
+							};
+						}}
+					>
+						<input type="hidden" name="on" value="0" />
+						<button type="submit" disabled={removing || cell === 'unhidden'} data-focus-mark="in"
+							>{cell === 'unhidden' ? 'UNHIDDEN ✓' : removing ? 'SHOWING…' : 'UNHIDE'}</button
 						>
 					</form>
 				</div>
@@ -508,9 +559,12 @@
 						action={addHref}
 						use:enhance={() => {
 							adding = true;
+							rowError = null;
 							return async ({ result }) => {
 								adding = false;
-								if (result.type === 'redirect') added = true;
+								if (result.type === 'redirect' || result.type === 'success') added = true;
+								else if (result.type === 'failure' || result.type === 'error')
+									rowError = rowRefusal(result);
 							};
 						}}
 					>
@@ -520,6 +574,7 @@
 					</form>
 				</div>
 			{/if}
+			{#if rowError}<div class="lib-err" role="alert">{rowError}</div>{/if}
 		{:else if next}
 			<div class="next">
 				<div class="kicker-2">NEXT</div>
@@ -919,6 +974,18 @@
 	}
 	.lib button:disabled {
 		cursor: default;
+	}
+	/* A refused row action's own words (c673): under the row, never in place of
+	   it, so the cell that was pressed is still there for a second try. */
+	.lib-err {
+		display: flex;
+		align-items: center;
+		min-height: 40px;
+		padding: 0 20px;
+		border: var(--hairline);
+		border-top: 0;
+		font: 400 12px/1.4 var(--font-mono);
+		color: var(--text-2);
 	}
 	.rrow {
 		display: flex;
