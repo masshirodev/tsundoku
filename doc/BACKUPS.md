@@ -1,7 +1,8 @@
 # Database backups
 
 The files under the library root can be scanned again. The database can't be
-recreated: ratings, FAV, shelves, groupings, hidden and public flags, the
+recreated (and neither can the highlights' copies, which are mirrored beside
+it: "Highlights' copies", below): ratings, FAV, shelves, groupings, hidden and public flags, the
 people you favourited and the whole reading log exist nowhere else. So the
 database is snapshotted every night, and before every migration.
 
@@ -69,6 +70,36 @@ journalctl --user -u tsundoku-backup                  # what it said
 
 User timers run while you're logged in. For them to run without a session,
 run `loginctl enable-linger masshiro`.
+
+## Highlights' copies (c701)
+
+A highlight's text lives in the database, so the snapshot holds every quote,
+note and pointer ([`HIGHLIGHTS.md`](HIGHLIGHTS.md)). Its copy does not: a
+page's image and a clip's video live in the data folder's `highlights/`
+(`HIGHLIGHTS_DIR`, default `TSUNDOKU_HOME/highlights`), outside the library
+folder, so the files under the library root are not where a lost one could be
+scanned back from. So `takeSnapshot` (`src/lib/server/backup.ts`) also mirrors
+that folder into `BACKUP_DIR/highlights/`, after the snapshot is safely in
+place (`mirrorHighlights`):
+
+- **What is new or changed in size is copied**, under a `.partial` name and
+  renamed into place; a copy never changes once made, so a night copies only
+  the copies made since the last.
+- **A copy no longer in the folder** (its highlight deleted) is set aside under
+  `highlights/.gone/<night>/`, not erased, and those go after 30 days
+  (`GONE_DAYS`): a snapshot from within that time still finds its copies.
+- **Retention never touches it**: it prunes only the names it writes, and the
+  mirror's folder is none of them.
+- A mirror that fails after the snapshot fails the run (`backup failed: …` in
+  the unit's journal), and the snapshot stays: the database never loses its
+  night to a copy.
+
+The pre-migration snapshot (above) copies the database alone; the nightly run
+is the one that mirrors.
+
+To restore the copies, copy `BACKUP_DIR/highlights/` (without `.gone/`, or
+with the night's set-aside ones if the snapshot is older) back over the data
+folder's `highlights/` before starting the server.
 
 ## Restoring
 

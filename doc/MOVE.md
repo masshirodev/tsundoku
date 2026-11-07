@@ -117,10 +117,17 @@ One transaction (`applyMove` in `src/lib/server/move.ts`):
    asks the new source.
 7. **`engine_series`** points at the new source, and `anime_checks` and the
    episode failures are cleared (the new source's first check is its own).
+8. **Highlights follow** ([`HIGHLIGHTS.md`](HIGHLIGHTS.md), "A move"; c701).
+   A matched or kept entry is the same row, so its highlights need nothing;
+   their key follows the series' by rung 72's trigger, in this transaction. An
+   added entry takes back the highlights its series lost by that number
+   (`repointAdded`). Their copies and notes never change. The comparison's
+   summary has a **HIGHLIGHTS** row from the same plan: `6 FOLLOW`, with those
+   on a chapter the new source lacks named under it (`KEPT FROM …`).
 
 Nothing downloads because of a move, no file is moved or deleted, and a
-series' title, cover, rating, FAV, shelves, tags, link, notes and history are
-not touched. `forgetSourceUse()` tells the source counts to look again.
+series' title, cover, rating, FAV, shelves, tags, link, notes, history and
+highlights are not touched. `forgetSourceUse()` tells the source counts to look again.
 
 ### Re-downloading a kept chapter
 
@@ -160,7 +167,10 @@ BACK**, which goes straight back with no search or comparison.
 Back means: the old source is where chapters come from again, FOLLOW and the
 queue go with it, and reading carries back **by number**, including what was
 read in between (entries keep their rows). A chapter the new source added
-**stays if it has a file** (nothing deletes a file) and **goes if it has none**.
+**stays if it has a file** (nothing deletes a file) and **goes if it has none**;
+a highlight on one that goes keeps its copy and note and becomes ORPHAN
+(entry), and the MOVED band says `2 HIGHLIGHTS LOST THEIR WAY BACK` (counted
+from the same plan, `ApplyResult.highlightsLost`, `?lost=`).
 A chapter of the old source that was deleted while away comes back from the old
 source's list, unread and not downloaded. The key just left becomes the
 remembered one, so the way back can itself be undone the same way, and the key

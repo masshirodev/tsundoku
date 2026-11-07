@@ -12,8 +12,10 @@ duplicate, the same book downloaded twice. Every delete asks first.
 | The library's bulk bar (SELECT)     | Every selected series.                                                                                                                         |
 | The duplicates review, KEEP         | The other copy of a book ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)); the review is its confirmation, and UNDO works until the next decision. |
 
-Each opens a confirmation (`ConfirmSheet`, `src/lib/components/chrome/`): the
-question, what it will do, CANCEL, and the action in full ink, as TAKE OUT is.
+Each opens a confirmation (`ConfirmSheet`, `src/lib/components/chrome/`; on
+the series screen its copy `series/[id]/DeleteSheet.svelte`, for the
+highlights' row): the question, what it will do, CANCEL, and the action in
+full ink, as TAKE OUT is.
 Nothing is deleted until it's pressed. After deleting a series, the screen
 goes back where it was opened from, the way its ← does
 ([`NAVIGATION.md`](NAVIGATION.md)), so the shelf comes back as it was.
@@ -54,6 +56,18 @@ A hidden series is only deleted with reveal on, as it's only seen then.
 On the workstation's Syncthing, a file moved out of a receive-only folder
 shows up as a local change. Leave it: **Revert Local Changes** would fetch it
 from the device again, if the device still has it.
+
+4. **Highlights are kept** ([`HIGHLIGHTS.md`](HIGHLIGHTS.md); c701). A
+   series or a book with highlights says so in its confirmation, **14
+   HIGHLIGHTS ARE KEPT**, with **DELETE THEM TOO** as a switch under it, off.
+   Kept, they stay on the highlights page with their copies and notes, ORPHAN
+   (from a series no longer in the library, or a book no longer in the
+   series): rung 72's triggers mark them whichever door deletes, a cascade
+   included. With the switch on the action reads **DELETE WITH 14
+   HIGHLIGHTS**, and `deleteSeries`/`deleteBook` take `{ highlights: true }`
+   and remove them and their copies in the same transaction as the rows. The
+   library's bulk DELETE keeps them and says nothing yet (HIGHLIGHTS.md, "What
+   it does not do yet"); the duplicates review's KEEP keeps them too.
 
 ## Undoing one
 
