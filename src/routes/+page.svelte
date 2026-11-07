@@ -1805,11 +1805,21 @@
 				{/if}
 			{/snippet}
 			{#snippet middle()}
-				<a class="search-hint" href={resolve('/search')} aria-label="Search" data-focus-mark="in"
+				<!-- A library filtered to one kind hands it to the search, which hands it
+				     to SEARCH THE SOURCES (c699). -->
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- resolve() builds it -->
+				<a
+					class="search-hint"
+					href={data.filters.kind
+						? `${resolve('/search')}?kind=${data.filters.kind}`
+						: resolve('/search')}
+					aria-label="Search"
+					data-focus-mark="in"
 					><span class="short">/<span class="word"> search</span></span><span class="long"
 						>/ search title, tag, artist</span
 					></a
 				>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			{/snippet}
 			{#snippet right()}
 				{#if page.data.browse}

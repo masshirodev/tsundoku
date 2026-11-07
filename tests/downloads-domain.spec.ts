@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+	KIND_TAB,
+	kindAsked,
+	kindsServed,
+	sourcesOfKind
+} from '../src/routes/downloads/search/source-kinds';
+import { KINDS, SOURCE_KINDS } from '$lib/library/kinds';
+import {
 	addedDetail,
 	allToDownload,
 	chapterStates,
@@ -504,5 +511,52 @@ describe('DOWNLOAD FIRST 10 on a series (c613)', () => {
 			missing: 0,
 			already: 10
 		});
+	});
+});
+
+describe('SEARCH THE SOURCES’ KIND band (c699)', () => {
+	const src = (id: string, kind: (typeof KINDS)[number] | null) => ({
+		id,
+		name: id,
+		lang: 'en',
+		kind
+	});
+	// Every family's own kind, as `kindOfSource` gives it: a Mihon source, an
+	// LNReader plugin, an Aniyomi extension; and one the engine has no row for.
+	const sources = [
+		src('a', SOURCE_KINDS.aniyomi),
+		src('m1', SOURCE_KINDS.mihon),
+		src('n', SOURCE_KINDS.lnreader),
+		src('m2', SOURCE_KINDS.mihon),
+		src('x', null)
+	];
+
+	it('offers the kinds a source serves, in the registry’s order, and no other', () => {
+		const served = kindsServed(sources);
+		expect(served).toEqual(KINDS.filter((k) => served.includes(k)));
+		expect(new Set(served)).toEqual(new Set(Object.values(SOURCE_KINDS)));
+		expect(kindsServed([src('m', SOURCE_KINDS.mihon)])).toEqual([SOURCE_KINDS.mihon]);
+		expect(kindsServed([src('x', null)])).toEqual([]);
+	});
+
+	it('takes a `?kind=` only when a source serves it; anything else is ALL', () => {
+		const served = kindsServed(sources);
+		for (const k of KINDS) expect(kindAsked(k, served)).toBe(served.includes(k) ? k : null);
+		expect(kindAsked(null, served)).toBeNull();
+		expect(kindAsked('', served)).toBeNull();
+		expect(kindAsked('ANIME', served)).toBeNull();
+		expect(kindAsked('mihon', served)).toBeNull();
+	});
+
+	it('asks a kind’s own sources, in their order, and every source under ALL', () => {
+		expect(sourcesOfKind(sources, SOURCE_KINDS.mihon).map((s) => s.id)).toEqual(['m1', 'm2']);
+		expect(sourcesOfKind(sources, SOURCE_KINDS.aniyomi).map((s) => s.id)).toEqual(['a']);
+		expect(sourcesOfKind(sources, null).map((s) => s.id)).toEqual(['a', 'm1', 'n', 'm2', 'x']);
+		// A source with no kind is asked under ALL only.
+		for (const k of KINDS) expect(sourcesOfKind(sources, k).some((s) => s.id === 'x')).toBe(false);
+	});
+
+	it('names every kind, so a kind added to the registry needs its word here', () => {
+		for (const k of KINDS) expect(KIND_TAB[k]).toMatch(/^[A-Z]+$/);
 	});
 });

@@ -54,7 +54,7 @@
 		// and be replaced by this one 180ms later, leaving you on /search.
 		if (parsed.type !== 'query' && data.q === '') return;
 		timer = setTimeout(() => {
-			const target = searchHref(parsed.type === 'query' ? parsed.text : '');
+			const target = withKind(searchHref(parsed.type === 'query' ? parsed.text : ''));
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- searchHref() resolves
 			void goto(target, { replaceState: true, keepFocus: true, noScroll: true });
 		}, 180);
@@ -62,6 +62,17 @@
 	});
 
 	const query = $derived(parseSearch(data.q).type === 'query' ? data.q.trim() : '');
+
+	/**
+	 * The kind the library was filtered to when its search cell was tapped
+	 * (c699): kept on this page's address as the typing replaces it, and
+	 * handed on to SEARCH THE SOURCES, which asks only that kind's sources.
+	 */
+	const kind = $derived(page.url.searchParams.get('kind'));
+	function withKind(href: string): string {
+		if (!kind) return href;
+		return `${href}${href.includes('?') ? '&' : '?'}kind=${encodeURIComponent(kind)}`;
+	}
 
 	/**
 	 * HIDE ALL n from a hit's series sheet (c391): the library's band, here. The
@@ -378,7 +389,9 @@
 		</div>
 		<a
 			class="to-sources"
-			href="{resolve('/downloads/search')}?q={encodeURIComponent(query)}"
+			href="{resolve('/downloads/search')}?q={encodeURIComponent(query)}{data.sourcesKind
+				? `&kind=${data.sourcesKind}`
+				: ''}"
 			data-sveltekit-preload-data="off"
 		>
 			<span class="text">

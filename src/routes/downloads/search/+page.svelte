@@ -14,6 +14,8 @@
 	import { SiteCheck } from '$lib/site-check.svelte';
 	import { answerCounts, arrangeAnswers, sourceTitle } from '$lib/library/source-answers';
 	import { isSearchCommand, runSearchCommand } from '$lib/library/commands';
+	import { KIND_TAB } from './source-kinds';
+	import type { Kind } from '$lib/library/kinds';
 
 	/**
 	 * Searching the sources (Download States 1e, state 6). Results fill in
@@ -30,8 +32,13 @@
 	// svelte-ignore state_referenced_locally
 	let q = $state(data.q);
 	const base = resolve('/downloads/search');
-	const href = (source?: string) =>
-		`${base}?q=${encodeURIComponent(data.q)}${source ? `&source=${source}` : ''}`;
+	/**
+	 * A search's own address: the query, then the kind (c699) and the source
+	 * when there is one. A source tab keeps the kind it was picked under, so
+	 * ALL beside it is that kind's ALL.
+	 */
+	const href = (source?: string, kind: Kind | null = data.kind) =>
+		`${base}?q=${encodeURIComponent(data.q)}${kind ? `&kind=${kind}` : ''}${source ? `&source=${source}` : ''}`;
 
 	/**
 	 * What each source answered, keyed by source, in the order the answers
@@ -57,7 +64,12 @@
 		const gen = generation;
 		for (const id of ids) {
 			answers.delete(id);
-			const u = new URLSearchParams({ q: data.q, source: id });
+			// Under a kind, only that kind's sources answer again (`./ask`).
+			const u = new URLSearchParams({
+				q: data.q,
+				source: id,
+				...(data.kind && !data.only ? { kind: data.kind } : {})
+			});
 			void fetch(`${base}/ask?${u}`, { cache: 'no-store' })
 				.then(async (r): Promise<Settled<SearchHit[]>> =>
 					r.ok
@@ -102,6 +114,22 @@
 	/** The sources this search asked, as the list names them. */
 	const asked = $derived(data.groups.map((g) => ({ id: g.id, name: g.name, lang: g.lang })));
 	const arranged = $derived(arrangeAnswers(asked, answers));
+	/**
+	 * A kind cell's count: the hits its sources found so far. A kind this
+	 * search did not ask (another one is picked) has none to say: `—`.
+	 */
+	const kindCount = (kind: Kind | null) => {
+		const ids = data.groups
+			.map((g) => g.id)
+			.filter((id) => kind === null || data.kindOf?.[id] === kind);
+		if (ids.length === 0) return '—';
+		let n = 0;
+		for (const id of ids) {
+			const v = answers.get(id);
+			if (v?.ok) n += v.value.length;
+		}
+		return count(n);
+	};
 	const tabCount = (id: string) => {
 		const v = answers.get(id);
 		return v === undefined ? '…' : !v.ok ? '✕' : String(v.value.length);
@@ -157,6 +185,20 @@
 		○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION · NOTHING CAN BE SEARCHED
 	</div>
 {:else if data.q && data.all}
+	{#if data.kinds.length > 1}
+		<!-- The KIND band (c699), the sources' tabs' idiom above them: ALL is every
+		     source, as before; a kind asks only its own sources. One row on a TV. -->
+		<nav class="tabs kinds" aria-label="Kinds">
+			<a class="tab" class:on={!data.kind} href={href(undefined, null)}
+				><span>ALL</span><span class="n">{data.kind ? '—' : count(counts.found)}</span></a
+			>
+			{#each data.kinds as k (k.kind)}
+				<a class="tab" class:on={data.kind === k.kind} href={href(undefined, k.kind)}
+					><span>{KIND_TAB[k.kind]}</span><span class="n">{kindCount(k.kind)}</span></a
+				>
+			{/each}
+		</nav>
+	{/if}
 	<nav class="tabs" aria-label="Sources">
 		<a class="tab" class:on={!data.only} href={href()}
 			><span>ALL</span><span class="n">{count(counts.found)}</span></a
