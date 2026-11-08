@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import { posix } from '../fspath.ts';
 import { fileIn, isUnder, widenTo } from '../paths.ts';
-import { seriesHolding } from '../season-facts.ts';
+import { isSeasonFolder, seasonFolders, seriesHolding } from '../season-facts.ts';
 import { getDb } from '../db.ts';
 import { hueFor } from '../../library/cover.ts';
 import { linkFromTracker } from '../catalogue.ts';
@@ -237,18 +237,32 @@ export function writeSeries(
 					shared = brings.length ? widenTo(db, seriesId, brings) : path;
 				}
 			}
+			// An anime season's own folder (c282, doc/ANIME.md, "Downloading"): the
+			// series is named from its own folder, as ever, and this folder's
+			// episodes are named from there. A series with no season rows never
+			// takes this path.
+			let seasonFolderFrom: string | null = null;
+			if (seriesId !== null && volume === null && shared === null && s.path !== '') {
+				const { path } = db.prepare(`SELECT path FROM series WHERE id = ?`).get(seriesId) as {
+					path: string;
+				};
+				if (path !== '' && path !== s.path && isSeasonFolder(seriesId, s.path, db))
+					seasonFolderFrom = path;
+			}
 			// A chapter not downloaded has no file, whichever folder the series is named from.
 			const fileOf = (e: PlannedEntry) =>
 				e.file === ''
 					? ''
 					: volume
 						? posix.relative(volume.path, posix.join(s.path, e.file))
-						: shared !== null
-							? fileIn(shared, posix.join(s.path, e.file))
-							: e.file;
+						: seasonFolderFrom !== null
+							? posix.relative(seasonFolderFrom, posix.join(s.path, e.file))
+							: shared !== null
+								? fileIn(shared, posix.join(s.path, e.file))
+								: e.file;
 
 			if (seriesId !== null && volume === null) {
-				const path = shared === null ? s.path : '';
+				const path = shared === null && seasonFolderFrom === null ? s.path : '';
 				db.prepare(
 					`UPDATE series SET
 						path = CASE WHEN ? != '' THEN ? ELSE path END,
@@ -469,6 +483,9 @@ export function writeSeries(
 			// Mihon's MAL tracker: a sure catalogue link (doc/LINKS.md).
 			if (s.malLink) linkFromTracker(db, seriesId, s.malLink, opts.now);
 			if (opts.markMissing && s.path !== '') {
+				// A season's folder answers for its own files, and the series' folder
+				// for its own, each from wherever the other's entries point.
+				const hasSeasonFolder = seasonFolders(seriesId, db).length > 0;
 				// A volume answers only for its own entries: the others are other files.
 				const onDisk = (
 					db
@@ -479,7 +496,11 @@ export function writeSeries(
 				)
 					.filter((r) => !volume || r.source_url.startsWith(own))
 					// With another device's files in the series, this one answers for its own only.
-					.filter((r) => shared === null || isUnder(posix.join(seriesPath, r.file), s.path));
+					.filter(
+						(r) =>
+							(shared === null && !hasSeasonFolder) ||
+							isUnder(posix.join(seriesPath, r.file), s.path)
+					);
 				for (const r of onDisk)
 					if (!planned.has(r.file))
 						db.prepare(`UPDATE entries SET available = 0 WHERE id = ?`).run(r.id);

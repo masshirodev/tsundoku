@@ -1,5 +1,13 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync
+} from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -72,9 +80,12 @@ const { refreshMany, refreshSeries } = await import('$lib/server/refresh');
 const { downloadEpisode, episodePlace, seriesFolder, isAnimeSeries } =
 	await import('$lib/server/anime/download');
 const { episodeRow } = await import('$lib/server/anime/streams');
+const { episodeNfo, tvshowNfo } = await import('$lib/library/anime-files');
 const browseIndex = await import('$lib/server/library-sources');
 const { recordView } = await import('$lib/server/browsing');
 const { addAnime, browseAnime } = await import('$lib/server/engine/anime-source');
+const { writeSeries } = await import('$lib/server/import/write');
+const { planAnimeFolders, planAnimeSeries } = await import('$lib/server/import/anime');
 
 const db = getDb();
 db.prepare(`INSERT INTO roots (id, name, path, hidden) VALUES (1, 'Anime', '/lib/Anime', 0)`).run();
@@ -556,5 +567,129 @@ describe('IN LIBRARY and SAME TITLE, by each season’s source', () => {
 		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:7:/s2' }, db);
 		expect(recordView('aniyomi:7:/s2', db)?.seriesId).toBe(a);
 		expect(recordView('aniyomi:7:/s1', db)?.seriesId).toBe(a);
+	});
+});
+
+describe('the anime importer folds a season’s folder onto its series', () => {
+	const NOW = 2_000_000;
+	// A folder as the downloader leaves it (episodeNfo and tvshowNfo, in anime-download-db's real files).
+	function folderOnDisk(name: string, key: string, title: string, episodes: [number, number][]) {
+		const dir = join(library, 'Anime', name);
+		for (const [season, number] of episodes) {
+			const rel = `Season ${String(season).padStart(2, '0')}`;
+			mkdirSync(join(dir, rel), { recursive: true });
+			const base = `${name} S${String(season).padStart(2, '0')}E${String(number).padStart(2, '0')}`;
+			writeFileSync(join(dir, rel, `${base}.mkv`), 'x');
+			writeFileSync(
+				join(dir, rel, `${base}.nfo`),
+				episodeNfo({
+					sourceUrl: `${key}/ep-${season}-${number}`,
+					title: '',
+					season,
+					number,
+					position: number,
+					durationS: 60,
+					note: ''
+				})
+			);
+		}
+		writeFileSync(
+			join(dir, 'tvshow.nfo'),
+			tvshowNfo({ key, title, plot: '', status: '', genres: [], source: 'S' })
+		);
+		return dir;
+	}
+	const scan = () => {
+		for (const plan of planAnimeFolders(library, () => {}, NOW))
+			writeSeries(plan, { rootId: 1, jobId: null, now: NOW, markMissing: true }, db);
+	};
+	const clearDisk = () => rmSync(join(library, 'Anime'), { recursive: true, force: true });
+	beforeEach(clearDisk);
+	afterAll(clearDisk);
+	const entriesOf = (id: number) =>
+		db
+			.prepare(
+				`SELECT source_url, file, available, season FROM entries WHERE series_id = ? ORDER BY source_url`
+			)
+			.all(id) as { source_url: string; file: string; available: number; season: number | null }[];
+
+	it('a season’s folder lands on the series, named from the series’ own folder', () => {
+		const dirA = folderOnDisk('Merged', 'aniyomi:7:/s1', 'Merged', [[1, 1]]);
+		const dirB = folderOnDisk('Merged II', 'aniyomi:7:/s2', 'Merged II', [[2, 1]]);
+		scan();
+		const id = (
+			db.prepare(`SELECT id FROM series WHERE origin_key = 'aniyomi:7:/s1'`).get() as { id: number }
+		).id;
+		expect(db.prepare(`SELECT path FROM series WHERE id = ?`).get(id)).toEqual({ path: dirA });
+		// As they stood on the first scan: two series, until a later slice merges them.
+		db.prepare(`DELETE FROM series WHERE origin_key = 'aniyomi:7:/s2'`).run();
+		facts.putSeasonFact(
+			{ seriesId: id, season: 2, originKey: 'aniyomi:7:/s2', folder: 'Anime/Merged II' },
+			db
+		);
+		scan();
+		const count = db
+			.prepare(`SELECT COUNT(*) AS n FROM series WHERE origin_key = 'aniyomi:7:/s2'`)
+			.get() as { n: number };
+		expect(count.n).toBe(0);
+		expect(db.prepare(`SELECT path FROM series WHERE id = ?`).get(id)).toEqual({ path: dirA });
+		const eps = entriesOf(id);
+		expect(eps).toHaveLength(2);
+		const two = eps.find((e) => e.season === 2)!;
+		expect(two.file).toBe('../Merged II/Season 02/Merged II S02E01.mkv');
+		expect(two.available).toBe(1);
+		// The relative name resolves to the season's real file.
+		expect(existsSync(join(dirA, two.file))).toBe(true);
+		expect(existsSync(join(dirB, 'Season 02/Merged II S02E01.mkv'))).toBe(true);
+	});
+
+	it('a later scan of the series’ folder does not call the season’s files missing, nor the reverse', () => {
+		folderOnDisk('Merged', 'aniyomi:7:/s1', 'Merged', [[1, 1]]);
+		folderOnDisk('Merged II', 'aniyomi:7:/s2', 'Merged II', [[2, 1]]);
+		scan();
+		const id = (
+			db.prepare(`SELECT id FROM series WHERE origin_key = 'aniyomi:7:/s1'`).get() as { id: number }
+		).id;
+		db.prepare(`DELETE FROM series WHERE origin_key = 'aniyomi:7:/s2'`).run();
+		facts.putSeasonFact(
+			{ seriesId: id, season: 2, originKey: 'aniyomi:7:/s2', folder: 'Anime/Merged II' },
+			db
+		);
+		scan();
+		scan();
+		expect(entriesOf(id).map((e) => e.available)).toEqual([1, 1]);
+	});
+
+	it('planAnimeSeries, the downloader’s own door, finds the same series', () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		db.prepare(`UPDATE series SET path = ? WHERE id = ?`).run(join(library, 'Anime', 'Merged'), a);
+		facts.putSeasonFact(
+			{ seriesId: a, season: 2, originKey: 'aniyomi:7:/s2', folder: 'Anime/Late' },
+			db
+		);
+		const dir = folderOnDisk('Late', 'aniyomi:7:/s2', 'Late', [[2, 4]]);
+		const [plan] = planAnimeSeries(library, join(dir, 'Season 02', 'Late S02E04.mkv'), NOW);
+		const r = writeSeries(plan, { rootId: 1, jobId: null, now: NOW, markMissing: false }, db);
+		expect(r).toMatchObject({ created: false, entriesAdded: 1 });
+		expect(entriesOf(a)[0].file).toBe('../Late/Season 02/Late S02E04.mkv');
+	});
+
+	it('a series with no rows imports exactly as it did', () => {
+		const dir = folderOnDisk('Plain', 'aniyomi:7:/plain', 'Plain', [
+			[1, 1],
+			[1, 2]
+		]);
+		scan();
+		const r = db
+			.prepare(`SELECT id, path FROM series WHERE origin_key = 'aniyomi:7:/plain'`)
+			.get() as {
+			id: number;
+			path: string;
+		};
+		expect(r.path).toBe(dir);
+		expect(entriesOf(r.id).map((e) => e.file)).toEqual([
+			'Season 01/Plain S01E01.mkv',
+			'Season 01/Plain S01E02.mkv'
+		]);
 	});
 });

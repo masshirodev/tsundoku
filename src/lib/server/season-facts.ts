@@ -214,6 +214,15 @@ export function seasonFolders(seriesId: number, db: Database.Database = getDb())
 	).map((r) => r.folder);
 }
 
+/** Whether a path on disk is one of a series' season folders (`Anime/<Name>` under any library). */
+export function isSeasonFolder(
+	seriesId: number,
+	path: string,
+	db: Database.Database = getDb()
+): boolean {
+	return seasonFolders(seriesId, db).some((f) => path === f || path.endsWith(`/${f}`));
+}
+
 export class SeasonFactError extends Error {}
 
 /**
