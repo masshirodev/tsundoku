@@ -1,15 +1,36 @@
 <script lang="ts">
 	import SourceRow from '../browse/SourceRow.svelte';
 	import { ago } from '$lib/library/tracking';
-	import { goto, invalidateAll, replaceState } from '$app/navigation';
-	import { onMount, tick } from 'svelte';
-	import { MediaQuery } from 'svelte/reactivity';
+	import {
+		afterNavigate,
+		beforeNavigate,
+		goto,
+		invalidateAll,
+		replaceState
+	} from '$app/navigation';
+	import { browser } from '$app/environment';
+	import { onMount, tick, untrack } from 'svelte';
+	import { MediaQuery, SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import { TV } from '$lib/device.svelte';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import SearchField from '$lib/components/controls/SearchField.svelte';
 	import TagChip from '$lib/components/controls/TagChip.svelte';
 	import SeriesSheet from '../SeriesSheet.svelte';
+	import SelectionSheet from './SelectionSheet.svelte';
+	import {
+		carrySelection,
+		drawnToNote,
+		landing,
+		pickedOfCard,
+		pickedOfPart,
+		refreshFacts,
+		takeCarried,
+		workTap,
+		workTicks,
+		type Picked
+	} from '$lib/library/selection';
+	import { m } from '$lib/paraglide/messages';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
@@ -62,6 +83,102 @@
 	});
 
 	const query = $derived(parseSearch(data.q).type === 'query' ? data.q.trim() : '');
+
+	// ---- SELECT on the search (c698; doc/LIBRARY.md, "What ends SELECT") ----
+	/*
+	 * The library's selection, carried here by the selecting bar's `/` (or its
+	 * key), or one started here by SELECT. A hit ticks instead of opening its
+	 * sheet; ←, a chip or a shelf carries the selection back to the library;
+	 * only ✕ ends it here, and leaving for any other screen, or a reload, drops
+	 * it (`carrySelection` is this tab's memory alone).
+	 */
+	const carried = browser ? takeCarried(landing(page.url)) : null;
+	let selecting = $state(carried !== null);
+	const selected = new SvelteSet<number>(carried?.ids ?? []);
+	const facts = new SvelteMap<number, Picked>(
+		(carried?.facts ?? []).filter((p) => selected.has(p.id)).map((p) => [p.id, p])
+	);
+	let reviewing = $state(false);
+	let shownIds = $state<number[]>([]);
+	/**
+	 * Whether the entry behind this one in the tab's history is the library:
+	 * this page was reached from it by a tap, a `goto`, or the browser's
+	 * forward. Then ← while selecting is history's own back, so the library
+	 * comes back at its shelf, its loaded pages and its place (its snapshot).
+	 * Reached any other way (a link from elsewhere, a fresh load, the
+	 * browser's back), ← is a plain way to the library.
+	 */
+	let behindIsLibrary = false;
+	afterNavigate((nav) => {
+		if (nav.from?.route.id !== '/') return;
+		if (nav.type === 'link' || nav.type === 'goto') behindIsLibrary = true;
+		else if (nav.type === 'popstate' && nav.delta === 1) behindIsLibrary = true;
+	});
+	beforeNavigate((nav) => {
+		if (!selecting || nav.to?.route.id !== '/') return;
+		carrySelection({ ids: [...selected], facts: [...facts.values()], to: landing(nav.to.url) });
+	});
+
+	function toggle(id: number) {
+		if (selected.has(id)) selected.delete(id);
+		else selected.add(id);
+	}
+	function tapWork(parts: readonly number[]) {
+		const { add, remove } = workTap(parts, selected);
+		for (const id of remove) selected.delete(id);
+		for (const id of add) selected.add(id);
+	}
+	function stopSelecting() {
+		selecting = false;
+		reviewing = false;
+		selected.clear();
+		facts.clear();
+	}
+	function openShow() {
+		shownIds = [...selected];
+		reviewing = true;
+	}
+	/** ← while selecting goes back to the very library it came from, when that is behind. */
+	function back(e: MouseEvent) {
+		if (!selecting || !behindIsLibrary) return;
+		e.preventDefault();
+		history.back();
+	}
+
+	/** Every hit as the facts a selection keeps: a Work's parts, then the titles. */
+	const drawnPicked = $derived.by((): Picked[] => {
+		const r = data.result;
+		if (!r) return [];
+		const out: Picked[] = [];
+		for (const w of r.works)
+			for (const p of w.parts) out.push(pickedOfPart(p, w.name, { id: w.id, name: w.name }));
+		for (const t of r.titles)
+			out.push(pickedOfCard(t, t.work ? { id: t.work.id, name: t.work.name } : null));
+		return out;
+	});
+	// As on the library: note what is drawn of the selection and forget what
+	// left it, and build nothing while nothing is ticked (c740).
+	$effect(() => {
+		const ids = new Set(selected);
+		const drawn = drawnToNote(selecting, ids, () => drawnPicked);
+		const held = new Set(reviewing ? shownIds : []);
+		untrack(() => {
+			const { set, drop } = refreshFacts(ids, facts, drawn, held);
+			for (const p of set) facts.set(p.id, p);
+			for (const id of drop) facts.delete(id);
+		});
+	});
+	/** SELECT on the bar: only once a search has hits (Bars-Phone, B). */
+	const hasHits = $derived(
+		!!data.result && !!query && data.result.titles.length + data.result.works.length > 0
+	);
+	/** A Work's row line, selecting: "1 OF 2 TICKED", or BOTH/ALL TICKED. */
+	function tickedLine(t: ReturnType<typeof workTicks>): string {
+		if (t.state === 'all')
+			return t.total === 2 ? m.search_work_both_ticked() : m.search_work_all_ticked();
+		if (t.state === 'some') return m.search_work_some_ticked({ ticked: t.ticked, total: t.total });
+		return '';
+	}
 
 	/**
 	 * The kind the library was filtered to when its search cell was tapped
@@ -182,6 +299,17 @@
 	function onsubmit(e: SubmitEvent) {
 		if (plain) return;
 		const input = parseSearch(q);
+		// Enter on a query while selecting: the results already follow the
+		// typing, and the form's post is a page load, which would end SELECT as
+		// a reload does. The pending replace is made at once instead.
+		if (selecting && (input.type === 'query' || input.type === 'empty')) {
+			e.preventDefault();
+			clearTimeout(timer);
+			const target = withKind(searchHref(input.type === 'query' ? input.text : ''));
+			// eslint-disable-next-line svelte/no-navigation-without-resolve -- searchHref() resolves
+			void goto(target, { replaceState: true, keepFocus: true, noScroll: true });
+			return;
+		}
 		if (input.type !== 'command' || !(input.command in PURPOSE)) return;
 		e.preventDefault();
 		// A TV has no fingerprint and no screen lock (owner, 2026-11-01): say
@@ -250,7 +378,13 @@
 			// NotAllowedError), so both are the same honest answer.
 			return fail(purpose === 'enrol' ? 'NOT ENROLLED' : undefined);
 		}
-		if (purpose === 'reveal') return goto(resolve('/'), { invalidateAll: true });
+		if (purpose === 'reveal') {
+			// The plain /reveal is a form post, a page load, which ends SELECT as a
+			// reload does; through the lock it is a `goto`, so it ends it here,
+			// for the same command to do the same thing either way.
+			stopSelecting();
+			return goto(resolve('/'), { invalidateAll: true });
+		}
 		gate = {
 			command: `/${command}`,
 			purpose,
@@ -268,7 +402,7 @@
 <form method="POST" class="search" bind:this={form} {onsubmit}>
 	<TopBar strong label="Search bar">
 		{#snippet left()}
-			<a class="cell" href={resolve('/')} aria-label="Back to library">←</a>
+			<a class="cell" href={resolve('/')} aria-label="Back to library" onclick={back}>←</a>
 		{/snippet}
 		{#snippet middle()}
 			<SearchField bind:value={q} bind:input autofocus />
@@ -282,9 +416,31 @@
 					input?.focus();
 				}}>CLEAR</button
 			>
+			{#if selecting}
+				<!-- Tablet and desktop: the selection beside the field (Bars-Tablet). -->
+				<div class="sel in-bar">{@render selection()}</div>
+			{:else if hasHits}
+				<!-- After CLEAR, as on the library's bar; only once a search has hits. -->
+				<button type="button" class="cell select-cell" onclick={() => (selecting = true)}
+					>{m.search_select()}</button
+				>
+			{/if}
 		{/snippet}
 	</TopBar>
 </form>
+
+{#snippet selection()}
+	<button type="button" class="sel-x" aria-label="Stop selecting" onclick={stopSelecting}>✕</button>
+	<div class="selected-count" aria-live="polite">{selected.size} SELECTED</div>
+	<button type="button" class="sel-show" disabled={selected.size === 0} onclick={openShow}
+		>SHOW</button
+	>
+{/snippet}
+
+{#if selecting}
+	<!-- A phone: a 48px strip under the field (Bars-Phone, "BOTH LAND HERE"). -->
+	<div class="sel strip">{@render selection()}</div>
+{/if}
 
 {#if hidBand}
 	<Band
@@ -326,7 +482,36 @@
 	{/if}
 {:else if data.result && query}
 	{@const r = data.result}
-	{#if r.tags.length > 0 || r.shelves.length > 0}
+	{#if (r.tags.length > 0 || r.shelves.length > 0) && selecting}
+		<!-- Selecting, a chip is a way to tick many (Rows, 03): the library at that
+		     tag or shelf, still selecting. -->
+		<div class="label first">
+			<div>TAGS &amp; SHELVES</div>
+			<div>
+				<span class="long">{m.search_chips_selecting()}</span><span class="short"
+					>{m.search_chips_selecting_short()}</span
+				>
+			</div>
+		</div>
+		<div class="chips">
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- tagHref() and shelfHref() resolve -->
+			{#each r.tags as t (t.key)}
+				<a class="chip" href={tagHref(t.key)}
+					><span class="dim">{t.namespace}</span><span>{t.value}</span><span class="dim"
+						>{count(t.count)}</span
+					><span class="go" aria-hidden="true">→</span></a
+				>
+			{/each}
+			{#each r.shelves as sh (sh.key)}
+				<a class="chip" href={shelfHref(page.url, sh.key)}
+					><span class="dim">shelf</span><span>{sh.name}</span><span class="dim"
+						>{count(sh.count)}</span
+					><span class="go" aria-hidden="true">→</span></a
+				>
+			{/each}
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
+		</div>
+	{:else if r.tags.length > 0 || r.shelves.length > 0}
 		<div class="label first">TAGS &amp; SHELVES</div>
 		<div class="chips">
 			{#each r.tags as t (t.key)}
@@ -348,30 +533,73 @@
 		</div>
 	{/if}
 
-	{#if r.titleTotal > 0 || !data.sources}
+	{#if r.titleTotal > 0 || !data.sources || selecting}
 		<div class="label">
 			<div>TITLES</div>
-			<div>{count(r.titleTotal)}</div>
+			<div>{count(r.titleTotal)}{selecting ? ` · ${m.search_tap_ticks()}` : ''}</div>
 		</div>
 	{/if}
 	<div class="hits">
 		<!-- A Work whose own name matched comes first, as the run (Work-States 5). -->
 		{#each r.works as w (w.id)}
-			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a Work's route is static -->
-			<a class="hit work" href="/work/{w.id}">
-				<Cover src={coverSrc(w.face.id, w.face.cover)} hue={w.face.hue} width={44} height={62} />
-				<span class="text">
-					<span class="title">{w.name}</span>
-					<span class="why">WORK · {w.parts.length} SERIES</span>
-				</span>
-			</a>
+			{#if selecting}
+				{@const ids = w.parts.map((p) => p.seriesId)}
+				{@const t = workTicks(ids, selected)}
+				<!-- A Work's row ticks every part, as a Work tile does (Rows, 02). -->
+				<button
+					type="button"
+					class="hit work tk"
+					class:on={t.state === 'all'}
+					role="checkbox"
+					aria-checked={t.state === 'all' ? 'true' : t.state === 'some' ? 'mixed' : 'false'}
+					onclick={() => tapWork(ids)}
+				>
+					<span class="tick" aria-hidden="true"
+						><span class="box" class:on={t.state === 'all'}>{t.state === 'all' ? '✓' : ''}</span
+						></span
+					>
+					<Cover src={coverSrc(w.face.id, w.face.cover)} hue={w.face.hue} width={44} height={62} />
+					<span class="text">
+						<span class="title">{w.name}</span>
+						<span class="why"
+							>{`WORK · ${w.parts.length} SERIES${t.state === 'none' ? '' : ' · '}`}<span
+								class="ink">{tickedLine(t)}</span
+							></span
+						>
+					</span>
+				</button>
+			{:else}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a Work's route is static -->
+				<a class="hit work" href="/work/{w.id}">
+					<Cover src={coverSrc(w.face.id, w.face.cover)} hue={w.face.hue} width={44} height={62} />
+					<span class="text">
+						<span class="title">{w.name}</span>
+						<span class="why">WORK · {w.parts.length} SERIES</span>
+					</span>
+				</a>
+			{/if}
 		{/each}
 		{#each r.titles as item (item.id)}
-			{@const m = splitMatch(item.title, query)}
-			<button type="button" class="hit" onclick={() => (sheetId = item.id)}>
+			{@const hm = splitMatch(item.title, query)}
+			{@const on = selecting && selected.has(item.id)}
+			<!-- Selecting, a tap anywhere on the row ticks it; nothing opens the sheet (Rows, 01). -->
+			<button
+				type="button"
+				class="hit"
+				class:tk={selecting}
+				class:on
+				role={selecting ? 'checkbox' : undefined}
+				aria-checked={selecting ? on : undefined}
+				onclick={() => (selecting ? toggle(item.id) : (sheetId = item.id))}
+			>
+				{#if selecting}
+					<span class="tick" aria-hidden="true"
+						><span class="box" class:on>{on ? '✓' : ''}</span></span
+					>
+				{/if}
 				<Cover src={coverSrc(item.id, item.cover)} hue={item.hue} width={44} height={62} />
 				<span class="text">
-					<span class="title">{m.pre}<mark>{m.mid}</mark>{m.post}</span>
+					<span class="title">{hm.pre}<mark>{hm.mid}</mark>{hm.post}</span>
 					<span class="why"
 						>{kindLabel(item.kind)} · {item.why}{item.work
 							? ` · PART ${item.work.part} · ${item.work.name.toUpperCase()}`
@@ -381,7 +609,8 @@
 			</button>
 		{/each}
 	</div>
-	{#if data.sources}
+	{#if data.sources && !selecting}
+		<!-- Not while selecting: nothing outside the library can be ticked. -->
 		<!-- No second field (Download States 1e): the same query, carried to the sources. -->
 		<div class="label">
 			<div>SOURCES</div>
@@ -403,7 +632,7 @@
 			<span class="ts-go" aria-hidden="true">→</span>
 		</a>
 	{/if}
-{:else if !query && data.browse && data.browse.total > 0}
+{:else if !query && data.browse && data.browse.total > 0 && !selecting}
 	<!-- BROWSE first in the empty search (Index-Browse, phoneEntry). -->
 	<div class="label first">
 		<div>BROWSE A SOURCE</div>
@@ -433,6 +662,15 @@
 		Type to search the library. SEARCH THE SOURCES follows the titles, as before.
 	</p>
 {/if}
+
+<SelectionSheet
+	open={reviewing}
+	ids={shownIds}
+	{facts}
+	{selected}
+	ontoggle={toggle}
+	onclose={() => (reviewing = false)}
+/>
 
 <SeriesSheet
 	id={sheetId}
@@ -644,6 +882,159 @@
 		font: var(--type-meta);
 		color: var(--text-2);
 	}
+	/* ---- SELECT on the search (c698; sel.css in doc/handoffs/select-search/) --
+	   The handoff's literals, transcribed: its spacing is hand-set, not a scale. */
+	.select-cell {
+		border: 0;
+		border-left: var(--hairline);
+		border-radius: 0;
+		background: transparent;
+		font: var(--type-control);
+		cursor: pointer;
+	}
+	.sel {
+		display: flex;
+		align-items: stretch;
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.sel > * {
+		display: flex;
+		align-items: center;
+		padding: 0 var(--pad);
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		color: inherit;
+		font: var(--type-control);
+		white-space: nowrap;
+	}
+	.sel > * + * {
+		border-left: 1px solid var(--text-2);
+	}
+	.sel-x {
+		font: 500 16px var(--font-mono);
+		cursor: pointer;
+	}
+	.sel .selected-count {
+		padding: 0 18px;
+		font: 500 17px var(--font-mono);
+	}
+	.sel-show {
+		cursor: pointer;
+	}
+	.sel-show:disabled {
+		opacity: 0.4;
+		cursor: default;
+	}
+	.sel-x:active,
+	.sel-show:active:not(:disabled) {
+		background: var(--surface-page);
+		color: var(--text-1);
+	}
+	/* Tablet and desktop: beside the field, right of CLEAR. */
+	.sel.in-bar {
+		border-left: var(--hairline);
+	}
+	.sel.strip {
+		display: none;
+	}
+	.label .short {
+		display: none;
+	}
+	/* A phone: the block is a 48px strip under the field, the count taking the room. */
+	@media (max-width: 599px) {
+		.sel.in-bar {
+			display: none;
+		}
+		.sel.strip {
+			display: flex;
+			height: 48px;
+		}
+		.sel.strip .selected-count {
+			flex: 1;
+		}
+		.label .long {
+			display: none;
+		}
+		.label .short {
+			display: inline;
+		}
+	}
+	.chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 10px;
+		height: 44px;
+		padding: 0 14px;
+		border: 1px solid var(--line-2);
+		border-radius: 0;
+		color: var(--text-1);
+		font: var(--type-control);
+		text-decoration: none;
+		white-space: nowrap;
+	}
+	.chip:active {
+		border-color: var(--surface-inverse);
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.chip .dim {
+		opacity: 0.6;
+	}
+	.chip .go {
+		align-self: stretch;
+		display: flex;
+		align-items: center;
+		margin-left: 2px;
+		padding-left: 12px;
+		border-left: var(--hairline);
+	}
+	.hit.tk {
+		gap: 0;
+		padding-left: 0;
+		min-height: 82px;
+	}
+	.hit.tk :global(.cover) {
+		margin-right: 16px;
+	}
+	.hit.tk .text {
+		padding-right: var(--pad);
+	}
+	.hit.on {
+		background: var(--accent-select);
+	}
+	.tick {
+		width: 64px;
+		align-self: stretch;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.box {
+		width: 24px;
+		height: 24px;
+		border: 1.5px solid var(--line-2);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font: 500 14px var(--font-mono);
+		color: var(--on-accent);
+	}
+	.box.on {
+		border-color: var(--accent);
+		background: var(--accent);
+	}
+	.hit:active .box:not(.on) {
+		border-color: var(--text-inverse);
+	}
+	.why .ink {
+		color: var(--text-1);
+	}
+	.hit:active .why .ink {
+		color: inherit;
+	}
 	/* ---- the TV (c238; TV-Search) ----------------------------------------- */
 	@media (pointer: none) and (min-width: 900px) {
 		/* Search sits in the top half, above Android's keyboard (TV Calls,
@@ -694,6 +1085,10 @@
 		}
 		.cell {
 			font: var(--type-control);
+		}
+		/* A TV has no SELECT (Rules, "AS TODAY"; TV Calls, "03 — SIDEBAR"). */
+		.select-cell {
+			display: none;
 		}
 	}
 </style>

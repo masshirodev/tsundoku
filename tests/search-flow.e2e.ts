@@ -125,9 +125,13 @@ test('a shelf switch keeps the selection, and SHOW still lists what is off the s
 	);
 });
 
-test('leaving the library ends SELECT, as a reload does (c698)', async ({ page }) => {
-	// The selection lives in the library page, which a navigation to another
-	// screen or a reload makes again from nothing (doc/LIBRARY.md).
+test('a reload ends SELECT; a trip to /search and back keeps it, and ✕ ends it (c698)', async ({
+	page
+}) => {
+	// The selection lives in the tab (src/lib/library/selection.ts,
+	// `carrySelection`): a reload makes the library again from nothing
+	// (doc/LIBRARY.md, "What ends SELECT"), and the search takes it and gives
+	// it back. Every other door is tests/select-search-flow.e2e.ts'.
 	await startSelecting(page);
 	await tiles(page).first().click();
 	await expect(count(page)).toHaveText('1 SELECTED');
@@ -136,10 +140,24 @@ test('leaving the library ends SELECT, as a reload does (c698)', async ({ page }
 	await expect(count(page)).toHaveCount(0);
 
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	const a = await titleOf(tiles(page).first());
 	await tiles(page).first().click();
 	await expect(count(page)).toHaveText('1 SELECTED');
-	await page.goto('/search');
+	await page.getByRole('link', { name: 'Search to tick' }).click();
+	await page.waitForURL(/\/search/);
+	await expect(count(page).filter({ visible: true })).toHaveText('1 SELECTED');
 	await page.getByRole('link', { name: 'Back to library' }).click();
 	await expect(tiles(page).first()).toBeVisible();
+	await expect(count(page)).toHaveText('1 SELECTED');
+	await expect(tiles(page).filter({ hasText: a }).first().locator('.open')).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+
+	// ✕ ends it, and the next trip to the search starts with none.
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
 	await expect(count(page)).toHaveCount(0);
+	await page.getByRole('link', { name: 'Search', exact: true }).click();
+	await page.waitForURL(/\/search/);
+	await expect(page.locator('.selected-count')).toHaveCount(0);
 });

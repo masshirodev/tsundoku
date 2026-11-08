@@ -902,5 +902,15 @@
 			}
 		}
 	],
-	"settings_extensions_where": "IN {browse} › {extensions}"
+	"settings_extensions_where": "IN {browse} › {extensions}",
+	"library_search_to_tick": "SEARCH TO TICK",
+	"library_search_to_tick_label": "Search to tick",
+	"library_select_all_short": "ALL",
+	"search_select": "SELECT",
+	"search_tap_ticks": "A TAP TICKS",
+	"search_chips_selecting": "OPEN IN THE LIBRARY, STILL SELECTING",
+	"search_chips_selecting_short": "OPEN, STILL SELECTING",
+	"search_work_some_ticked": "{ticked} OF {total} TICKED",
+	"search_work_both_ticked": "BOTH TICKED",
+	"search_work_all_ticked": "ALL TICKED"
 }

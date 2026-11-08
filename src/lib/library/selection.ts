@@ -1,3 +1,6 @@
+import { hueFor } from './cover.ts';
+import { count, kindLabel, sheetMeta, unitLabel } from './labels.ts';
+import { isFinished, type LibraryCard, type WorkPart } from './works.ts';
 import type { Kind } from './types.ts';
 
 /**
@@ -145,3 +148,120 @@ function samePicked(a: Picked, b: Picked): boolean {
 		(a.languages ?? []).join(',') === (b.languages ?? []).join(',')
 	);
 }
+
+/** A Work as the page names it: what `Picked.work` holds. */
+type WorkName = { id: number; name: string };
+
+/**
+ * A series card's facts, as a selection keeps them: a library tile in no
+ * Work, or a search's title hit (the search answers the same card shape,
+ * `LibraryCard & { why }`). `work` is the Work it is a part of, where the
+ * page knows it.
+ */
+export function pickedOfCard(c: LibraryCard, work: WorkName | null): Picked {
+	return {
+		id: c.id,
+		title: c.title,
+		hue: c.hue,
+		addedAt: c.addedAt,
+		cover: c.cover,
+		kind: c.kind,
+		entryCount: c.entryCount,
+		meta: sheetMeta(c),
+		work,
+		inWork: work?.name ?? null,
+		hidden: c.hidden,
+		language: c.language ?? null,
+		languages: c.languages
+	};
+}
+
+/**
+ * A Work's part, as a selection keeps it: a part of a Work tile in the
+ * library, or of a Work the search found by name. `inWork` is the Work's own
+ * name, which GROUP's row reads ("IN <WORK> · MOVES HERE").
+ */
+export function pickedOfPart(p: WorkPart, inWork: string, work: WorkName | null): Picked {
+	return {
+		id: p.seriesId,
+		title: p.title,
+		hue: hueFor(p.title),
+		addedAt: p.addedAt,
+		cover: p.cover,
+		kind: p.kind,
+		entryCount: p.entries,
+		meta: `${kindLabel(p.kind)} · ${count(p.entries)} ${unitLabel(p.kind)}${isFinished(p) ? ' · READ ✓' : ''}`,
+		work,
+		inWork,
+		hidden: p.hidden,
+		// FOLD is the grid's: a Work's part is never folded from a selection.
+		language: null,
+		languages: undefined
+	};
+}
+
+/**
+ * How a Work's row stands in a selection (the search's Work hit, c698): every
+ * part ticked, some, or none. A tap on a row not wholly ticked ticks the rest,
+ * as a Work tile's does; a tap on a wholly ticked one unticks every part.
+ */
+export function workTicks(
+	parts: readonly number[],
+	selected: ReadonlySet<number>
+): { ticked: number; total: number; state: 'all' | 'some' | 'none' } {
+	const ticked = parts.filter((id) => selected.has(id)).length;
+	const total = parts.length;
+	const state = total > 0 && ticked === total ? 'all' : ticked > 0 ? 'some' : 'none';
+	return { ticked, total, state };
+}
+
+/** The ids a tap on a Work's row ticks (`add`) or unticks (`remove`). */
+export function workTap(
+	parts: readonly number[],
+	selected: ReadonlySet<number>
+): { add: number[]; remove: number[] } {
+	if (workTicks(parts, selected).state === 'all') return { add: [], remove: [...parts] };
+	return { add: parts.filter((id) => !selected.has(id)), remove: [] };
+}
+
+/**
+ * A selection on its way between the library and the search (c698;
+ * doc/LIBRARY.md, "What ends SELECT"): the ids in the order they were ticked,
+ * their facts, and the address it is going to.
+ */
+export type Carried = {
+	ids: number[];
+	facts: Picked[];
+	/** Where the navigation that carries it lands: `pathname + search`. */
+	to: string;
+};
+
+/**
+ * The one selection in flight, in this tab's memory and nowhere else: not the
+ * URL (a link or a new tab must not arrive selecting), not history state (a
+ * reload must end SELECT, and a browser keeps history state across one), not
+ * storage. So a reload or a new tab starts with none, and a client-side
+ * navigation -- a tap, ←, Android's back, the browser's forward -- carries it.
+ * Only the browser writes it: on the server this module is shared by every
+ * request, so `carrySelection` refuses to write there.
+ */
+let inFlight: Carried | null = null;
+
+export function carrySelection(c: Carried): void {
+	if (typeof window === 'undefined') return;
+	inFlight = { ids: [...c.ids], facts: [...c.facts], to: c.to };
+}
+
+/**
+ * The selection carried to `here` (`pathname + search`), taken once. One
+ * carried anywhere else is dropped: a navigation that was cancelled or
+ * redirected must not leave a selection for the next arrival to pick up.
+ */
+export function takeCarried(here: string): Carried | null {
+	const c = inFlight;
+	inFlight = null;
+	return c && c.to === here ? c : null;
+}
+
+/** Where a URL lands, as `Carried.to` and `takeCarried` compare it. */
+export const landing = (u: URL): string => `${u.pathname}${u.search}`;

@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
+	carrySelection,
 	drawnToNote,
+	landing,
+	pickedOfCard,
+	pickedOfPart,
+	takeCarried,
+	workTap,
+	workTicks,
 	pickedInOrder,
 	refreshFacts,
 	titlesLine,
@@ -8,6 +15,7 @@ import {
 	workOf,
 	type Picked
 } from '../src/lib/library/selection';
+import type { LibraryCard, WorkPart } from '../src/lib/library/works';
 
 // The facts SELECT keeps about each series it ticked, so a selection that
 // outlives the shelf it was made on still knows what it holds (c698;
@@ -181,5 +189,119 @@ describe('drawnToNote (c740)', () => {
 		const facts = factsOf(pick(1), pick(2));
 		const drawn = drawnToNote(true, new Set(), () => [pick(1), pick(2)]);
 		expect(refreshFacts(new Set(), facts, drawn, new Set([1]))).toEqual({ set: [], drop: [2] });
+	});
+});
+
+const card = (over: Partial<LibraryCard> = {}): LibraryCard => ({
+	id: 7,
+	title: 'Haibara',
+	kind: 'novel',
+	rating: 0,
+	favourite: false,
+	hidden: false,
+	newCount: 0,
+	entryCount: 3,
+	readCount: 1,
+	hue: 40,
+	cover: 2,
+	indexed: true,
+	addedAt: 1234,
+	lastOpenedAt: null,
+	...over
+});
+const part = (over: Partial<WorkPart> = {}): WorkPart => ({
+	seriesId: 9,
+	title: 'Zelkova: Roots',
+	kind: 'manga',
+	rating: 0,
+	favourite: false,
+	cover: null,
+	position: 1,
+	addedAt: 99,
+	entries: 4,
+	read: 4,
+	lastOpenedAt: null,
+	status: '',
+	hidden: true,
+	...over
+});
+
+describe('pickedOfCard and pickedOfPart (c698): a search hit carries what GROUP and SHOW read', () => {
+	it('keeps a card’s facts, its GROUP row line and its Work', () => {
+		const p = pickedOfCard(card({ language: 'japanese' }), { id: 3, name: 'Saga' });
+		expect(p).toEqual({
+			id: 7,
+			title: 'Haibara',
+			hue: 40,
+			addedAt: 1234,
+			cover: 2,
+			kind: 'novel',
+			entryCount: 3,
+			meta: 'NOVEL · 3 VOL · 1 READ',
+			work: { id: 3, name: 'Saga' },
+			inWork: 'Saga',
+			hidden: false,
+			language: 'japanese',
+			languages: undefined
+		});
+		expect(pickedOfCard(card(), null)).toMatchObject({ work: null, inWork: null, language: null });
+	});
+	it('a part reads its Work’s name as GROUP’s row does, and says READ ✓ only when it is', () => {
+		const done = pickedOfPart(part(), 'Zelkova', { id: 5, name: 'Zelkova' });
+		expect(done).toMatchObject({ id: 9, inWork: 'Zelkova', work: { id: 5, name: 'Zelkova' } });
+		expect(done.meta).toMatch(/ · READ ✓$/);
+		expect(done.hidden).toBe(true);
+		expect(pickedOfPart(part({ read: 1 }), 'Zelkova', null).meta).not.toMatch(/READ/);
+		// No entries is never finished.
+		expect(pickedOfPart(part({ entries: 0, read: 0 }), 'Z', null).meta).not.toMatch(/READ/);
+	});
+});
+
+describe('workTicks and workTap (c698): a Work’s row ticks its parts', () => {
+	it('names every state, and a tap ticks the rest or unticks them all', () => {
+		const parts = [1, 2];
+		expect(workTicks(parts, new Set())).toEqual({ ticked: 0, total: 2, state: 'none' });
+		expect(workTicks(parts, new Set([2, 5]))).toEqual({ ticked: 1, total: 2, state: 'some' });
+		expect(workTicks(parts, new Set([1, 2]))).toEqual({ ticked: 2, total: 2, state: 'all' });
+		expect(workTap(parts, new Set())).toEqual({ add: [1, 2], remove: [] });
+		expect(workTap(parts, new Set([2]))).toEqual({ add: [1], remove: [] });
+		expect(workTap(parts, new Set([1, 2]))).toEqual({ add: [], remove: [1, 2] });
+	});
+	it('a Work with no visible parts is never ticked, and a tap does nothing', () => {
+		expect(workTicks([], new Set([1])).state).toBe('none');
+		expect(workTap([], new Set([1]))).toEqual({ add: [], remove: [] });
+	});
+});
+
+describe('carrySelection and takeCarried (c698): the selection between the library and the search', () => {
+	const g = globalThis as { window?: unknown };
+	afterEach(() => {
+		takeCarried('');
+		delete g.window;
+	});
+	it('is written only in a browser: on the server the module is every request’s', () => {
+		carrySelection({ ids: [1], facts: [], to: '/search' });
+		expect(takeCarried('/search')).toBeNull();
+	});
+	it('lands where it was carried to, once, in the order it was ticked', () => {
+		g.window = {};
+		const facts = [pick(3), pick(1)];
+		carrySelection({ ids: [3, 1], facts, to: '/?sort=title' });
+		facts.push(pick(9));
+		const got = takeCarried('/?sort=title');
+		expect(got?.ids).toEqual([3, 1]);
+		// A copy: what the leaving screen does after does not reach it.
+		expect(got?.facts.map((p) => p.id)).toEqual([3, 1]);
+		expect(takeCarried('/?sort=title')).toBeNull();
+	});
+	it('is dropped by an arrival anywhere else, so a cancelled trip leaves nothing behind', () => {
+		g.window = {};
+		carrySelection({ ids: [1], facts: [], to: '/search' });
+		expect(takeCarried('/?shelf=new')).toBeNull();
+		expect(takeCarried('/search')).toBeNull();
+	});
+	it('compares a landing by path and query, not by origin or hash', () => {
+		expect(landing(new URL('http://a:1/search?q=x#top'))).toBe('/search?q=x');
+		expect(landing(new URL('http://a:1/'))).toBe('/');
 	});
 });

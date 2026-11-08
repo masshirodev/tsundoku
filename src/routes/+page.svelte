@@ -35,8 +35,7 @@
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import ContinueRow from '$lib/components/content/ContinueRow.svelte';
 	import CoverTile from '$lib/components/content/CoverTile.svelte';
-	import Cover from '$lib/components/content/Cover.svelte';
-	import Sheet from '$lib/components/chrome/Sheet.svelte';
+	import SelectionSheet from './search/SelectionSheet.svelte';
 	import WorkTile from '$lib/components/content/WorkTile.svelte';
 	import FocusLine from '$lib/components/content/FocusLine.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
@@ -92,20 +91,18 @@
 	import { num, upper } from '$lib/i18n/format';
 	import type { Rating, Kind, RefreshBatch, SeriesCard, Shelf } from '$lib/library/types';
 	import { groupAnswers } from '$lib/library/books';
-	import {
-		allHiddenAmong,
-		isFinished,
-		wholeBand,
-		wholeLine,
-		type LibraryCard
-	} from '$lib/library/works';
+	import { allHiddenAmong, wholeBand, wholeLine, type LibraryCard } from '$lib/library/works';
 	import { pageQuery } from '$lib/library/paging';
 	import {
+		carrySelection,
+		landing,
 		pickedInOrder,
+		pickedOfCard,
+		pickedOfPart,
 		refreshFacts,
 		titlesLine,
-		unseenCount,
 		drawnToNote,
+		takeCarried,
 		workOf,
 		type Picked
 	} from '$lib/library/selection';
@@ -587,6 +584,29 @@
 	/** SHOW (c698): the selection listed to review, and what it listed when it opened. */
 	let reviewing = $state(false);
 	let shownIds = $state<number[]>([]);
+	/**
+	 * A selection carried back from the search (c698; doc/LIBRARY.md, "What
+	 * ends SELECT"): ←, a chip or a shelf there lands here still selecting,
+	 * the ticks made there and their facts included. Taken once, at the
+	 * page's start, so the first paint is already the selecting bar.
+	 */
+	if (browser) {
+		const back = takeCarried(landing(page.url));
+		if (back) {
+			selecting = true;
+			for (const id of back.ids) selected.add(id);
+			for (const p of back.facts) if (selected.has(p.id)) facts.set(p.id, p);
+		}
+	}
+	/** The search with SELECT on (c698): the ids and their facts go with it. */
+	beforeNavigate((nav) => {
+		if (!selecting || nav.to?.route.id !== '/search') return;
+		carrySelection({
+			ids: [...selected],
+			facts: [...facts.values()],
+			to: landing(nav.to.url)
+		});
+	});
 
 	// ---- the server in use (c261, S1; doc/TV-APP.md, "Servers") -------------
 	/*
@@ -712,6 +732,23 @@
 		facts.clear();
 	}
 
+	/**
+	 * The `/` key while selecting opens the search with SELECT on, as the bar's
+	 * `/` cell does (c698; Bars-Desktop). Not while typing into a field or with
+	 * a sheet open, and not with a modifier, which is the browser's or the
+	 * system's.
+	 */
+	function slashToTick(e: KeyboardEvent) {
+		if (!selecting || e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+		if (e.defaultPrevented) return;
+		const t = e.target as HTMLElement | null;
+		if (t?.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]'))
+			return;
+		if (document.querySelector('[role="dialog"]')) return;
+		e.preventDefault();
+		void goto(resolve('/search'));
+	}
+
 	function openShow() {
 		shownIds = [...selected];
 		reviewing = true;
@@ -794,39 +831,10 @@
 		}
 		for (const c of series) {
 			if (!c.tile) {
-				out.push({
-					id: c.id,
-					title: c.title,
-					hue: c.hue,
-					addedAt: c.addedAt,
-					cover: c.cover,
-					kind: c.kind,
-					entryCount: c.entryCount,
-					meta: sheetMeta(c),
-					work: work(c.id),
-					inWork: work(c.id)?.name ?? null,
-					hidden: c.hidden,
-					language: c.language ?? null,
-					languages: c.languages
-				});
+				out.push(pickedOfCard(c, work(c.id)));
 				continue;
 			}
-			for (const p of c.tile.parts)
-				out.push({
-					id: p.seriesId,
-					title: p.title,
-					hue: hueFor(p.title),
-					addedAt: p.addedAt,
-					cover: p.cover,
-					kind: p.kind,
-					entryCount: p.entries,
-					meta: `${kindLabel(p.kind)} · ${count(p.entries)} ${unitLabel(p.kind)}${isFinished(p) ? ' · READ ✓' : ''}`,
-					work: work(p.seriesId),
-					inWork: c.tile.name,
-					hidden: p.hidden,
-					language: null,
-					languages: undefined
-				});
+			for (const p of c.tile.parts) out.push(pickedOfPart(p, c.tile.name, work(p.seriesId)));
 		}
 		return out;
 	});
@@ -1742,6 +1750,7 @@
 	bind:innerHeight={winH}
 	onpointerdowncapture={dropFilterNote}
 	onkeydowncapture={dropFilterNote}
+	onkeydown={slashToTick}
 	onsubmitcapture={() => (passed = form)}
 />
 
@@ -1771,10 +1780,28 @@
 					disabled={selected.size === 0}
 					onclick={openShow}>SHOW</button
 				>
+				<!-- The way to the search with SELECT on (c698; Bars-Phone, Bars-Tablet):
+				     the bar's empty middle, drawn like the library's own search hint; on a
+				     phone `/` alone. -->
+				<a
+					class="to-tick"
+					href={resolve('/search')}
+					aria-label={m.library_search_to_tick_label()}
+					data-focus-mark="in"><b>/</b><span class="long">{m.library_search_to_tick()}</span></a
+				>
 			{/snippet}
 			{#snippet right()}
-				<button type="button" class="cell-btn" data-focus-mark="in" onclick={() => void selectAll()}
-					>SELECT ALL</button
+				<!-- ALL on a phone, to make room for `/`, as in GROUP's own select bar; its
+				     name stays SELECT ALL. -->
+				<button
+					type="button"
+					class="cell-btn"
+					aria-label="SELECT ALL"
+					data-focus-mark="in"
+					onclick={() => void selectAll()}
+					><span class="all-long">SELECT ALL</span><span class="all-short"
+						>{m.library_select_all_short()}</span
+					></button
 				>
 			{/snippet}
 		</TopBar>
@@ -2648,46 +2675,15 @@
 />
 
 <!-- SHOW (c698): the selection, wherever it was ticked, in the order it was
-     ticked. A row's tick takes it out and puts it back; the rows stay until
-     the sheet closes, so a slip is undone where it was made. GROUP's own
-     sheet draws its rows the same way. -->
-<Sheet open={reviewing} onclose={() => (reviewing = false)} label="The selection">
-	<div class="show-head">
-		<div class="show-title">
-			THE SELECTION · {selected.size} SERIES
-		</div>
-		<button type="button" class="show-done" onclick={() => (reviewing = false)}>DONE</button>
-	</div>
-	<ul class="show-rows">
-		{#each pickedInOrder(shownIds, facts) as p (p.id)}
-			{@const on = selected.has(p.id)}
-			<li class="show-row" class:off={!on}>
-				<button
-					type="button"
-					class="show-tick"
-					role="checkbox"
-					aria-checked={on}
-					aria-label="Keep {p.title}"
-					onclick={() => toggle(p.id)}><span class="box" class:on>{on ? '✓' : ''}</span></button
-				>
-				<span class="show-cov"
-					><Cover src={coverSrc(p.id, p.cover)} hue={p.hue} width={34} height={49} /></span
-				>
-				<span class="show-t">
-					<span class="a">{p.title}</span>
-					<span class="b">{p.meta}{p.work ? ` · IN ${p.work.name.toUpperCase()}` : ''}</span>
-				</span>
-			</li>
-		{/each}
-	</ul>
-	{#if unseenCount(shownIds, facts) > 0}
-		<!-- SELECT ALL takes the pages not loaded by id alone: they are selected,
-		     and the bulk bar acts on them, but the page has never drawn them. -->
-		<div class="show-unseen">
-			{count(unseenCount(shownIds, facts))} MORE FROM SELECT ALL · NOT LOADED, SO NOT LISTED
-		</div>
-	{/if}
-</Sheet>
+     ticked; the search draws the same sheet. -->
+<SelectionSheet
+	open={reviewing}
+	ids={shownIds}
+	{facts}
+	{selected}
+	ontoggle={toggle}
+	onclose={() => (reviewing = false)}
+/>
 
 <style>
 	.tag-title {
@@ -3239,104 +3235,51 @@
 		font: 500 18px var(--font-mono);
 	}
 	/* SHOW's sheet (c698): GROUP's sheet's head and rows, drawn the same way. */
-	.show-head {
-		flex-shrink: 0;
-		display: flex;
-		align-items: stretch;
-		height: 64px;
-		border-bottom: var(--hairline);
-	}
-	.show-title {
-		flex: 1;
-		display: flex;
-		align-items: center;
-		padding: 0 24px;
-		font: var(--type-control);
-	}
-	.show-done {
-		padding: 0 24px;
-		border: 0;
-		border-left: var(--hairline);
-		border-radius: 0;
-		background: transparent;
-		color: var(--text-1);
-		font: var(--type-control);
-		cursor: pointer;
-	}
-	.show-rows {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-	}
-	.show-row {
-		display: flex;
-		align-items: stretch;
-		min-height: 64px;
-		border-bottom: var(--hairline);
-	}
-	.show-row.off {
-		opacity: 0.4;
-	}
-	.show-tick {
-		width: 64px;
-		flex-shrink: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border: 0;
-		border-radius: 0;
-		background: transparent;
-		cursor: pointer;
-	}
-	.show-tick .box {
-		width: 24px;
-		height: 24px;
-		border: 1.5px solid var(--line-2);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 500 14px var(--font-mono);
-		color: var(--on-accent);
-	}
-	.show-tick .box.on {
-		border-color: var(--accent);
-		background: var(--accent);
-	}
-	.show-cov {
-		display: flex;
-		align-items: center;
-		padding-right: 16px;
-	}
-	.show-t {
-		flex: 1;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		gap: 4px;
-		padding: 8px 24px 8px 0;
-	}
-	.show-t .a {
-		font: 500 14px/1.3 var(--font-sans);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	.show-t .b {
-		font: 400 11px/1.35 var(--font-mono);
-		color: var(--text-2);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	.show-unseen {
-		padding: 16px 24px;
-		font: var(--type-label);
-		color: var(--text-2);
-	}
 	.selected-count {
 		padding: 0 18px;
 		font: 500 17px var(--font-mono);
+	}
+	/* `/ SEARCH TO TICK` (c698; Bars-Tablet, Bars-Desktop): the bar's empty middle,
+	   the library's search hint in inverse. A phone has `/` alone (Bars-Phone),
+	   and the count takes the room instead. */
+	.to-tick {
+		flex: 1;
+		min-width: 0;
+		gap: 1ch;
+		padding: 0 18px;
+		border-left: 1px solid var(--text-2);
+		color: var(--text-inverse);
+		font: 400 16px var(--font-mono);
+		text-decoration: none;
+		white-space: nowrap;
+		overflow: hidden;
+	}
+	.to-tick b {
+		font-weight: 500;
+	}
+	.to-tick:active {
+		background: var(--surface-page);
+		color: var(--text-1);
+	}
+	.all-short {
+		display: none;
+	}
+	@media (max-width: 599px) {
+		.selecting .selected-count {
+			flex: 1;
+		}
+		.to-tick {
+			flex: 0 0 auto;
+			padding: 0 var(--pad);
+			font: 500 16px var(--font-mono);
+		}
+		.to-tick .long,
+		.all-long {
+			display: none;
+		}
+		.all-short {
+			display: inline;
+		}
 	}
 	.cont {
 		flex-shrink: 0;
