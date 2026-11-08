@@ -189,28 +189,28 @@ rule and colours (`.cstart` in `TextReader.svelte`; no design round):
   after `Chapter`, `Chap.` or `Ch.`, so `One Piece` is a title. A line that is
   only a kanji numeral is that number too (`一`, `第一章` and `1`). The two are
   also compared with the `1. ` left in and a spelled number left as words,
-  which keeps `1. The Article` and `1 The Article` the same, and `Chapter One:
-The Article` and `Chapter OneThe Article`, a heading split by a `<br>`, which
-  adds no text. Equal: no title in the band. Different, or no heading at all (common in a web-novel
-  chapter from a source): the title, in the band. A title that is only its
-  number compares as the number (`Chapter 212` and `第212話` are the same).
+  which keeps `1. The Article` and `1 The Article` the same, and
+  `Chapter One: The Article` and `Chapter OneThe Article`, a heading split by
+  a `<br>`, which adds no text. Equal: no title in the band. Different, or no
+  heading at all (common in a web-novel chapter from a source): the title, in
+  the band. A title that is only its number compares as the number
+  (`Chapter 212` and `第212話` are the same).
   **A lead that is only a number reads the lines beside it**: the short
   paragraph right before it (a title line standing over the number, c741), and
-  the next one. Many publishers'
-  books print the number and the title in two blocks (`<h1>Chapter 1</h1>`
-  then `<h2>The Article</h2>`, two short paragraphs, `<h2>第一章</h2>` then
-  `<h1>旅立ち</h1>`), so when the first line folds to its number alone, the
-  next block with text, if it is a heading, a short line or a short
-  blockquote inside the six blocks, is compared too, alone and joined to the number. Equal to either:
-  no title. A bare `Chapter 1` with the text right after it still gets the
-  title, since the book never prints it. Matter never gets one: the band's
+  the next one. Many publishers' books print the number and the title in two
+  blocks (`<h1>Chapter 1</h1>` then `<h2>The Article</h2>`, two short
+  paragraphs, `<h2>第一章</h2>` then `<h1>旅立ち</h1>`), so when the first line
+  folds to its number alone, the next block with text, if it is a heading, a
+  short line or a short blockquote inside the six blocks, is compared too,
+  alone and joined to the number. Equal to either: no title. A bare
+  `Chapter 1` with the text right after it still gets the title, since the book never prints it. Matter never gets one: the band's
   `COVER` already names it. The rule is `src/lib/reader/start-band.ts`
   (`leadLines`, `bandTitle`), pure, and `tests/text-start-band.spec.ts` holds
   every prefix, a heading that differs, no heading, a first short line, a
   number and a title in two blocks (headings, paragraphs, Japanese), c741's
   five shapes (a line before the number, words, a blockquote, a leading `1. `,
-  kanji), the
-  edges of 100 characters and six blocks, and the fold on its own output.
+  kanji), the edges of 100 characters and six blocks, and the fold on its own
+  output.
 - **It is not a block.** It sits in the flow before `<div class="blocks">`,
   so `data-b` numbering is what it always was and every saved place opens on
   the same words ("Position", below).
