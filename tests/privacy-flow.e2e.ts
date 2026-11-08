@@ -255,11 +255,17 @@ test('a hidden series read under /reveal offers UNHIDE, not HIDE again (c673)', 
 	page
 }) => {
 	await command(page, '/reveal');
-	const { id, end } = await openSeriesEnd(page, 'Isekai Ojisan');
+	const { id } = await openSeriesEnd(page, 'Isekai Ojisan');
 	// Hide it through the row's own door, then read it again fresh: `hidden` is
 	// now the series', not this page's answer.
-	await end.getByRole('button', { name: 'HIDE', exact: true }).click();
-	await expect(end.getByRole('button', { name: 'HIDDEN ✓' })).toBeVisible();
+	const hid = await page.request.post(`/series/${id}?/hide`, {
+		headers: {
+			origin: new URL(test.info().project.use.baseURL!).origin,
+			'x-sveltekit-action': 'true'
+		},
+		form: { on: '1' }
+	});
+	expect(hid.ok()).toBe(true);
 	const here = page.url().replace(/\?.*$/, '');
 	const endAgain = async () => {
 		await page.goto(`${here}?p=last`);
@@ -273,14 +279,15 @@ test('a hidden series read under /reveal offers UNHIDE, not HIDE again (c673)', 
 	let failed: unknown;
 	try {
 		const fresh = await endAgain();
-		await expect(fresh.getByRole('button', { name: 'HIDE', exact: true })).toHaveCount(0);
+		await expect(fresh.getByRole('button', { name: 'DELETE', exact: true })).toBeVisible();
 		const unhide = fresh.getByRole('button', { name: 'UNHIDE', exact: true });
 		await expect(unhide).toBeVisible();
 		await unhide.click();
 		await expect(fresh.getByRole('button', { name: 'UNHIDDEN ✓' })).toBeVisible();
-		// Shown again, so a fresh page offers HIDE rather than UNHIDE.
+		// Shown again, so a fresh page offers DELETE alone.
 		const shown = await endAgain();
-		await expect(shown.getByRole('button', { name: 'HIDE', exact: true })).toBeVisible();
+		await expect(shown.getByRole('button', { name: 'UNHIDE', exact: true })).toHaveCount(0);
+		await expect(shown.getByRole('button', { name: 'DELETE', exact: true })).toBeVisible();
 	} catch (e) {
 		failed = e;
 	}
@@ -307,7 +314,7 @@ test('a refused library row says why, in the row (c673)', async ({ page }) => {
 	// made to refuse for a plain library series, so the refusal is answered
 	// here with the server's own words (series/[id]/+page.server.ts, `hide`).
 	const refusal = 'A WORK IS HIDDEN WHOLE · HIDE ALL OR TAKE OUT';
-	await page.route(/\/series\/\d+\?\/hide$/, (route) =>
+	await page.route(/\/series\/\d+\?\/delete$/, (route) =>
 		route.fulfill({
 			status: 400,
 			contentType: 'application/json',
@@ -320,12 +327,16 @@ test('a refused library row says why, in the row (c673)', async ({ page }) => {
 			})
 		})
 	);
-	await end.getByRole('button', { name: 'HIDE', exact: true }).click();
+	await end.getByRole('button', { name: 'DELETE', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: /^DELETE / })
+		.getByRole('button', { name: 'DELETE', exact: true })
+		.click();
 	await expect(end.getByRole('alert')).toHaveText('COULD NOT SAVE');
 	// The refusal line holds no control's word, so a substring locator for the
 	// row's own button still finds just that button.
-	await expect(end.getByText('HIDE')).toHaveCount(1);
+	await expect(end.getByText('DELETE')).toHaveCount(1);
 	// The button is a button again, not a row that silently reset.
-	await expect(end.getByRole('button', { name: 'HIDE', exact: true })).toBeEnabled();
-	await page.unroute(/\/series\/\d+\?\/hide$/);
+	await expect(end.getByRole('button', { name: 'DELETE', exact: true })).toBeEnabled();
+	await page.unroute(/\/series\/\d+\?\/delete$/);
 });
