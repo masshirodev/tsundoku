@@ -1372,6 +1372,62 @@ test('S1: an older close answering after a newer one hands nothing back (c717)',
 	expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
 });
 
+test('the panel keeps its head in the safe area, on the ground, when MORE is scrolled to its end (c716)', async ({
+	page
+}) => {
+	await bridge(page, [{ origin: HOME, name: 'ZEN-HOME', tvName: '', opened: Date.now() }]);
+	const sheet = await openMore(page);
+	const facts = await sheet.evaluate((el) => {
+		el.scrollTop = el.scrollHeight;
+		const head = el.querySelector<HTMLElement>('.sheet-head')!;
+		const box = el.getBoundingClientRect();
+		const top = head.getBoundingClientRect().top - box.top;
+		// In the overscan band above the head, a third of the way across.
+		const at = document.elementFromPoint(box.left + box.width / 3, box.top + 10);
+		return {
+			scrolled: el.scrollTop > 0,
+			top,
+			inBand: at === head || at === el,
+			room: parseFloat(getComputedStyle(el).scrollPaddingTop),
+			height: head.offsetHeight
+		};
+	});
+	expect(facts.scrolled).toBe(true);
+	expect(facts.top).toBeCloseTo(28, 0);
+	expect(facts.inBand).toBe(true);
+	expect(facts.room).toBe(28 + facts.height);
+
+	const x = sheet.getByRole('button', { name: 'Close' });
+	await x.focus();
+	await page.keyboard.press('Enter');
+	await expect(sheet).toBeHidden();
+});
+
+test('MORE gives up the head room when SERVERS has no head, and takes it back, and a head that grows is measured (c716)', async ({
+	page
+}) => {
+	await bridge(page, [{ origin: HOME, name: 'ZEN-HOME', tvName: '', opened: Date.now() }]);
+	const sheet = await openMore(page);
+	const room = () => sheet.evaluate((el) => el.style.scrollPaddingTop);
+	const taller = (px: number) =>
+		sheet.evaluate(
+			(el, px) => ((el.querySelector('.sheet-head') as HTMLElement).style.height = `${px}px`),
+			px
+		);
+	await expect.poll(room).toBe('84px');
+	await taller(120);
+	await expect.poll(room).toBe('148px');
+
+	await sheet.locator('[data-more-servers]').click();
+	await expect(sheet.locator('.p-head')).toBeVisible();
+	await expect.poll(room).toBe('');
+
+	await page.keyboard.press('Escape');
+	await expect(sheet.locator('.sheet-head')).toBeVisible();
+	// The head is drawn anew at its own height.
+	await expect.poll(room).toBe('84px');
+});
+
 test.describe('a TV that speaks Portuguese', () => {
 	test.use({ locale: 'pt-BR' });
 

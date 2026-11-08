@@ -89,7 +89,7 @@
 </script>
 
 <Sheet {open} {onclose} label={book ? 'Book tags' : 'Shelves and tags'}>
-	<div class="head">
+	<div class="head sheet-head">
 		<div class="h-title">
 			{book ? `TAGS · ${(book.title || book.label).toUpperCase()}` : 'SHELVES & TAGS'}
 		</div>

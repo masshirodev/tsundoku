@@ -73,7 +73,7 @@
 </script>
 
 <Sheet {open} {onclose} label="Hide">
-	<div class="head">
+	<div class="head sheet-head">
 		<div class="h-title">
 			<div class="t">{title}</div>
 			{#if detail}<div class="s">{detail}</div>{/if}

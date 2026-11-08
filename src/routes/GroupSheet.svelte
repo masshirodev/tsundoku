@@ -287,7 +287,7 @@
 			};
 		}}
 	>
-		<div class="head">
+		<div class="head sheet-head">
 			<div class="h-title">{title}</div>
 			<button type="button" class="cancel" onclick={onclose}>CANCEL</button>
 		</div>

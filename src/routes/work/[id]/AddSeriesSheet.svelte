@@ -83,7 +83,7 @@
 </script>
 
 <Sheet {open} {onclose} label="Add a series to this Work">
-	<div class="head">
+	<div class="head sheet-head">
 		<div class="title">
 			<div class="t">+ ADD A SERIES</div>
 			<div class="s">FROM THE LIBRARY · {total} TO OFFER</div>
@@ -143,14 +143,10 @@
 
 <style>
 	.head {
-		position: sticky;
-		top: 0;
-		z-index: 1;
 		display: flex;
 		align-items: stretch;
 		height: 64px;
 		border-bottom: var(--hairline);
-		background: var(--surface-page);
 	}
 	.title {
 		flex: 1;
