@@ -22,6 +22,7 @@ import * as animeFollow from './anime/follow.ts';
 import { NovelHostError } from './novels/host.ts';
 import type { SeriesDownloads } from './download-types.ts';
 import type { SourceFamily } from '../library/kinds.ts';
+import { followOrigin } from './season-facts.ts';
 
 /**
  * What the download screens ask (doc/DOWNLOADING.md, doc/DOWNLOADER.md):
@@ -54,9 +55,7 @@ export const isAddError = (e: unknown) =>
 
 /** A series' source family, by its key (`keyFamily`); null when it has none. */
 function seriesFamily(seriesId: number): SourceFamily | null {
-	const s = getDb().prepare(`SELECT origin_key FROM series WHERE id = ?`).get(seriesId) as
-		{ origin_key: string | null } | undefined;
-	return keyFamily(s?.origin_key ?? null);
+	return keyFamily(followOrigin(seriesId).key);
 }
 
 /** One answer per downloader, and one for a series no family's downloader takes. */
@@ -94,13 +93,12 @@ export const seriesDownloads = async (
 	// ask and is in the library. A folder-scanned series has nothing to ask, and
 	// a browsing record is not kept.
 	if (d.kind !== 'ok') return d;
-	const row = getDb()
-		.prepare(`SELECT origin_key, in_library FROM series WHERE id = ?`)
-		.get(seriesId) as { origin_key: string | null; in_library: number } | undefined;
-	const key = row?.origin_key ?? null;
+	const row = getDb().prepare(`SELECT in_library FROM series WHERE id = ?`).get(seriesId) as
+		{ in_library: number } | undefined;
 	return {
 		...d,
-		refreshable: !!row?.in_library && keyFamily(key) !== null
+		// The key REFRESH would ask (`refreshSeries`), so the row never offers what it can't do.
+		refreshable: !!row?.in_library && keyFamily(followOrigin(seriesId).key) !== null
 	};
 };
 

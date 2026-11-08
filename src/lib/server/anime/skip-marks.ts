@@ -12,6 +12,7 @@ import {
 } from './fingerprint.ts';
 import { agreedSpan, sharedEnding, sharedIntro } from '../../library/fingerprint.ts';
 import { parseAnimeKey } from '../../library/downloads.ts';
+import { entryOrigin, entryOriginSql } from '../season-facts.ts';
 import type { Range } from '../../library/streams.ts';
 
 /**
@@ -156,15 +157,14 @@ const info = (line: string) => console.log(`tsundoku: skip-marks: ${line}`);
 const warn = (line: string) => console.error(`tsundoku: skip-marks: WARN ${line}`);
 
 /** A download of the same source is running: don't read its streams at the same time. */
-function sameSourceDownloading(seriesId: number, db: Database.Database): boolean {
-	const row = db.prepare(`SELECT origin_key FROM series WHERE id = ?`).get(seriesId) as
-		{ origin_key: string | null } | undefined;
-	const key = parseAnimeKey(row?.origin_key ?? null);
+function sameSourceDownloading(entryId: number, db: Database.Database): boolean {
+	const key = parseAnimeKey(entryOrigin(entryId, db));
 	if (!key) return false;
 	return !!db
 		.prepare(
 			`SELECT 1 FROM download_queue q JOIN series s ON s.id = q.series_id
-			WHERE q.state = 'downloading' AND s.origin_key LIKE ?`
+			JOIN entries e ON e.id = q.entry_id
+			WHERE q.state = 'downloading' AND ${entryOriginSql('e', 's')} LIKE ?`
 		)
 		.get(`aniyomi:${key.sourceId}:%`);
 }
@@ -260,7 +260,7 @@ export async function fingerprintSeason(
 	const season = seasonOf(seriesId, playingEntryId, db);
 	if (!season || season.hidden) return { episodes: 0, found: 0 };
 	// A download of the same source is busy: its streams are left alone.
-	if (sameSourceDownloading(seriesId, db)) {
+	if (sameSourceDownloading(playingEntryId, db)) {
 		info(`series ${seriesId}: a download of the same source is running, so nothing was read`);
 		return { episodes: 0, found: 0 };
 	}
@@ -289,7 +289,7 @@ export async function fingerprintSeason(
 		if (file) p = await fingerprintFile(file, episode.duration_s).catch(() => null);
 		else if (streamIds.has(episode.id)) {
 			// A download may have started since the season was read.
-			if (sameSourceDownloading(seriesId, db)) break;
+			if (sameSourceDownloading(playingEntryId, db)) break;
 			p = await streamPrints(episode.id, episode.duration_s, db);
 		}
 		if (!p || (!p.intro && !p.ending)) {

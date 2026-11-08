@@ -1,7 +1,26 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
+const work = mkdtempSync(join(tmpdir(), 'tsundoku-season-facts-'));
+const library = join(work, 'library');
+process.env.LIBRARY_ROOT = library;
+process.env.COVER_DIR = join(work, 'covers');
+// Muxing is ffmpeg's and is run for real by anime-download-db; here only the
+// place an episode lands matters, so these two write and read an empty file.
+process.env.FFMPEG = join(work, 'ffmpeg');
+process.env.FFPROBE = join(work, 'ffprobe');
+writeFileSync(process.env.FFMPEG, '#!/bin/sh\nfor a; do last="$a"; done\n: > "$last"\n');
+writeFileSync(
+	process.env.FFPROBE,
+	'#!/bin/sh\nprintf \'{"format":{"duration":"1"},"streams":[{"codec_type":"video"}]}\'\n'
+);
+chmodSync(process.env.FFMPEG, 0o755);
+chmodSync(process.env.FFPROBE, 0o755);
+afterAll(() => rmSync(work, { recursive: true, force: true }));
 
 /**
  * A series that holds a source and a folder per season (c282; doc/WORKS.md,
@@ -28,11 +47,31 @@ vi.mock('$lib/server/engine/anime-source', async (original) => ({
 	}
 }));
 
+vi.mock('$lib/server/anime/streams', async (original) => ({
+	...(await original<typeof import('$lib/server/anime/streams')>()),
+	episodeStreams: async () => ({
+		entryId: 0,
+		intro: null,
+		ending: null,
+		resolvedAt: 0,
+		servers: [
+			{
+				name: 'One',
+				qualities: [{ height: 360, kind: 'hls', src: '/fake', audio: [], subtitles: [] }]
+			}
+		]
+	}),
+	probe: async () => ({ seconds: 1 })
+}));
+
 const { getDb } = await import('$lib/server/db');
 const facts = await import('$lib/server/season-facts');
 const { sourceMangaId } = await import('$lib/server/engine/backend');
 const { checkAnime, followAnime } = await import('$lib/server/anime/follow');
 const { refreshMany, refreshSeries } = await import('$lib/server/refresh');
+const { downloadEpisode, episodePlace, seriesFolder, isAnimeSeries } =
+	await import('$lib/server/anime/download');
+const { episodeRow } = await import('$lib/server/anime/streams');
 
 const db = getDb();
 db.prepare(`INSERT INTO roots (id, name, path, hidden) VALUES (1, 'Anime', '/lib/Anime', 0)`).run();
@@ -63,7 +102,7 @@ function episode(seriesId: number, season: number | null, number: number): numbe
 
 beforeEach(() => {
 	db.exec(`DELETE FROM series_season_facts; DELETE FROM entries; DELETE FROM series;
-		DELETE FROM anime_checks;`);
+		DELETE FROM anime_checks; DELETE FROM anime_series;`);
 	source.lists.clear();
 	source.asked = [];
 });
@@ -300,5 +339,135 @@ describe('FOLLOW and REFRESH ask the last season', () => {
 			['/plain/ep-1', null, 1],
 			['/plain/ep-2', null, 2]
 		]);
+	});
+});
+
+describe('each season keeps its own folder', () => {
+	const row = (id: number) =>
+		db
+			.prepare(
+				`SELECT id, title, hidden, description, status, source, origin_key FROM series WHERE id = ?`
+			)
+			.get(id) as Parameters<typeof seriesFolder>[1];
+	const deps = { db, library, now: () => 1000 };
+
+	it('a season with a folder keeps it, and a series with no rows keeps its one', () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		facts.putSeasonFact(
+			{ seriesId: a, season: 2, originKey: 'aniyomi:7:/s2', folder: 'Anime/Merged II' },
+			db
+		);
+		expect(episodePlace(db, row(a), 2).folder).toBe('Anime/Merged II');
+		expect(episodePlace(db, row(a), 1).folder).toBe('Anime/Merged');
+		const plain = show('Plain', 'aniyomi:7:/plain');
+		expect(episodePlace(db, row(plain), 3)).toMatchObject({
+			folder: 'Anime/Plain',
+			key: 'aniyomi:7:/plain',
+			season: null
+		});
+		// Fixed at the first ask (rung 48), whichever door asks.
+		expect(db.prepare(`SELECT folder FROM anime_series WHERE series_id = ?`).get(plain)).toEqual({
+			folder: 'Anime/Plain'
+		});
+	});
+
+	it('a season with its own source gets a folder at its first download, under the source’s name', () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		facts.putSeasonFact(
+			{ seriesId: a, season: 2, originKey: 'aniyomi:7:/s2', sourceTitle: 'Merged Second' },
+			db
+		);
+		expect(episodePlace(db, row(a), 2).folder).toBe('Anime/Merged Second');
+		expect(facts.seasonFact(a, 2, db)?.folder).toBe('Anime/Merged Second');
+		// Asking again answers the same folder, not the next free one.
+		expect(episodePlace(db, row(a), 2).folder).toBe('Anime/Merged Second');
+	});
+
+	it('a season’s name already taken by another series walks on, as a series’ does', () => {
+		const other = show('Merged Second', 'aniyomi:7:/other');
+		seriesFolder(db, row(other));
+		const a = show('Merged', 'aniyomi:7:/s1');
+		facts.putSeasonFact(
+			{ seriesId: a, season: 2, originKey: 'aniyomi:7:/s2', sourceTitle: 'Merged Second' },
+			db
+		);
+		expect(episodePlace(db, row(a), 2).folder).toBe('Anime/Merged Second (2)');
+	});
+
+	it('a series never takes a folder a season holds', () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		facts.putSeasonFact({ seriesId: a, season: 2, folder: 'Anime/Late Arrival' }, db);
+		const b = show('Late Arrival', 'aniyomi:7:/late');
+		expect(seriesFolder(db, row(b))).toBe('Anime/Late Arrival (2)');
+	});
+
+	it('two seasons sharing a source share a folder, with one row holding it', () => {
+		const a = show('Merged', 'aniyomi:7:/series');
+		facts.putSeasonFact(
+			{ seriesId: a, season: 2, originKey: 'aniyomi:7:/both', sourceTitle: 'Both' },
+			db
+		);
+		facts.putSeasonFact(
+			{ seriesId: a, season: 3, originKey: 'aniyomi:7:/both', sourceTitle: 'Both' },
+			db
+		);
+		expect(episodePlace(db, row(a), 2).folder).toBe('Anime/Both');
+		expect(episodePlace(db, row(a), 3).folder).toBe('Anime/Both');
+		expect(facts.seasonFact(a, 3, db)?.folder).toBeNull();
+	});
+
+	it('a row saying nothing of its files is the series’ folder: title only, or its key the series’', () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		facts.putSeasonFact({ seriesId: a, season: 2, sourceTitle: 'Called something' }, db);
+		facts.putSeasonFact({ seriesId: a, season: 3, originKey: 'aniyomi:7:/s1' }, db);
+		expect(episodePlace(db, row(a), 2).folder).toBe('Anime/Merged');
+		expect(episodePlace(db, row(a), 3).folder).toBe('Anime/Merged');
+	});
+
+	it('downloads into the season’s folder, with that season’s key in its tvshow.nfo', async () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		facts.putSeasonFact(
+			{ seriesId: a, season: 2, originKey: 'aniyomi:7:/s2', sourceTitle: 'Merged Second' },
+			db
+		);
+		const ep = episode(a, 2, 3);
+		const path = await downloadEpisode(ep, deps);
+		expect(path).toBe(
+			join(library, 'Anime', 'Merged Second', 'Season 02', 'Merged Second S02E03.mkv')
+		);
+		expect(existsSync(path)).toBe(true);
+		const nfo = readFileSync(join(library, 'Anime', 'Merged Second', 'tvshow.nfo'), 'utf8');
+		expect(nfo).toContain('aniyomi:7:/s2');
+		expect(nfo).toContain('<title>Merged Second</title>');
+		// And no season row: the series' own folder, its own key and title, as before.
+		const b = show('Plain', 'aniyomi:7:/plain');
+		await downloadEpisode(episode(b, 1, 1), deps);
+		const own = readFileSync(join(library, 'Anime', 'Plain', 'tvshow.nfo'), 'utf8');
+		expect(own).toContain('aniyomi:7:/plain');
+		expect(own).toContain('<title>Plain</title>');
+	});
+
+	it('a hidden series’ season folder stays with the hidden ones', () => {
+		const a = show('Quiet', 'aniyomi:7:/s1');
+		db.prepare(`UPDATE series SET hidden = 1 WHERE id = ?`).run(a);
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:7:/s2' }, db);
+		expect(episodePlace(db, row(a), 2).folder).toBe('Anime (hidden)/Quiet');
+	});
+});
+
+describe('a stream and the series screen ask the entry’s season', () => {
+	it('resolves an episode to its season’s key, and a season without a row to the series’', () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:9:/s2' }, db);
+		expect(episodeRow(episode(a, 2, 1), true)?.origin_key).toBe('aniyomi:9:/s2');
+		expect(episodeRow(episode(a, 1, 1), true)?.origin_key).toBe('aniyomi:7:/s1');
+		expect(episodeRow(episode(a, 3, 1), true)?.origin_key).toBe('aniyomi:7:/s1');
+	});
+
+	it('counts a series as an anime by the key it would follow', () => {
+		const a = show('No key of its own', null);
+		expect(isAnimeSeries(a, db)).toBe(false);
+		facts.putSeasonFact({ seriesId: a, season: 1, originKey: 'aniyomi:7:/s1' }, db);
+		expect(isAnimeSeries(a, db)).toBe(true);
 	});
 });
