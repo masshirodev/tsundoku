@@ -29,7 +29,7 @@
 	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { trail } from '$lib/start-trail.svelte';
 	import { partOf, trailHere } from '$lib/library/start';
-	import { goto, invalidateAll } from '$app/navigation';
+	import { afterNavigate, goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
 	import { watchQueue } from '$lib/downloads-live.svelte';
@@ -155,8 +155,11 @@
 	type MadeWork = { work: { name: string }; members: unknown[] };
 	/**
 	 * That sheet's answer, which the sheet hands over (see its `ondone`). It
-	 * stands while this series is on screen and no other action has answered,
-	 * as a band read from `form` does; `refused` is its UNDO's refusal.
+	 * stands until the next navigation or the next action's answer, as a band
+	 * read from `form` does: SvelteKit clears `form` on a navigation and reuses
+	 * this component from one series to the next, so `made` is cleared by hand
+	 * (`afterNavigate`) or BACK would draw it again. `refused` is its UNDO's
+	 * refusal.
 	 */
 	let made = $state<{ facts: MadeWork; series: number; form: unknown; refused: string } | null>(
 		null
@@ -164,6 +167,9 @@
 	const madeWork = $derived(
 		made && made.series === data.series.id && made.form === form ? made : null
 	);
+	afterNavigate(() => {
+		made = null;
+	});
 	/** `/?/undoWork` is the library's too: its answer is read here, not from `form`. */
 	const undoMade: SubmitFunction =
 		() =>

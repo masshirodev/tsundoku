@@ -273,3 +273,26 @@ test('a refused UNDO says why on its band, and the row still tells the truth', a
 	await expect(band).not.toContainText('EACH KEEPS ITS OWN');
 	await expect(row.getByRole('button', { name: 'GROUP AS A WORK' })).toBeVisible();
 });
+
+test('the band goes when the screen is left, and BACK does not bring it back', async ({ page }) => {
+	await unfold(page, `${BASE}/series/${ids.groups}`);
+	const row = page.locator('[data-form="9202"]');
+	await row.getByRole('button', { name: 'GROUP AS A WORK' }).click();
+	const sheet = page.getByRole('dialog', { name: 'Group into a series' });
+	await sheet.getByRole('textbox').fill('Forms Left');
+	await sheet.getByRole('button', { name: 'CREATE WORK · 2 SERIES' }).click();
+	await expect(row).toContainText('IN THIS WORK · PART 2');
+	const band = page.locator('.band', { hasText: 'FORMS LEFT' });
+	await expect(band).toBeVisible();
+
+	// The page component is reused from one series to the next, and the row's
+	// link is a real navigation away from this one.
+	await row.getByRole('link', { name: 'MANGA · IN LIBRARY →' }).click();
+	await page.waitForURL(new RegExp(`/series/${ids.manga}\\b`));
+	await expect(band).toHaveCount(0);
+
+	await page.goBack();
+	await page.waitForURL(new RegExp(`/series/${ids.groups}\\b`));
+	await expect(line(page)).toBeVisible();
+	await expect(band).toHaveCount(0);
+});
