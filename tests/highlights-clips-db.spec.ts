@@ -270,6 +270,7 @@ afterEach(() => {
 	rmSync(area, { recursive: true, force: true });
 	db().prepare(`UPDATE series SET hidden = 0`).run();
 	delete process.env.FFMPEG;
+	delete process.env.FFPROBE;
 });
 
 const ask = (from: number, to: number, o: Partial<Parameters<typeof clips.keepClip>[0]> = {}) =>

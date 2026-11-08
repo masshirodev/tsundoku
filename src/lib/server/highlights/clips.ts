@@ -209,20 +209,69 @@ async function facts(path: string): Promise<Probed> {
 	};
 }
 
-const encodeArgs = [
-	'-c:v',
-	'libx264',
-	'-preset',
-	'veryfast',
-	'-crf',
-	'18',
-	'-pix_fmt',
-	'yuv420p',
-	'-c:a',
-	'aac',
-	'-b:a',
-	'192k'
-];
+/**
+ * The video encoder this ffmpeg has. The release bundles an LGPL build
+ * (`ops/release/versions.json`), which has no libx264; it has libopenh264, so that
+ * is what a real install cuts with. A distro's ffmpeg usually has x264, which is
+ * the better encoder at the same size. Asked once per binary.
+ */
+const encoders = new Map<string, Promise<string[]>>();
+const AUDIO_ARGS = ['-c:a', 'aac', '-b:a', '192k'];
+function encodeArgs(): Promise<string[]> {
+	const bin = FFMPEG();
+	let known = encoders.get(bin);
+	if (!known) {
+		known = new Promise<string[]>((ok) => {
+			const p = spawn(bin, ['-hide_banner', '-encoders'], { stdio: ['ignore', 'pipe', 'ignore'] });
+			let out = '';
+			p.stdout.on('data', (d) => (out += String(d)));
+			const has = (name: string) => new RegExp(`\\s${name}\\s`).test(out);
+			p.on('error', () =>
+				ok([
+					'-c:v',
+					'libx264',
+					'-preset',
+					'veryfast',
+					'-crf',
+					'18',
+					'-pix_fmt',
+					'yuv420p',
+					...AUDIO_ARGS
+				])
+			);
+			p.on('close', () => {
+				if (has('libx264'))
+					ok([
+						'-c:v',
+						'libx264',
+						'-preset',
+						'veryfast',
+						'-crf',
+						'18',
+						'-pix_fmt',
+						'yuv420p',
+						...AUDIO_ARGS
+					]);
+				else if (has('libopenh264'))
+					ok(['-c:v', 'libopenh264', '-b:v', '8M', '-pix_fmt', 'yuv420p', ...AUDIO_ARGS]);
+				else
+					ok([
+						'-c:v',
+						'libvpx-vp9',
+						'-crf',
+						'24',
+						'-b:v',
+						'0',
+						'-pix_fmt',
+						'yuv420p',
+						...AUDIO_ARGS
+					]);
+			});
+		});
+		encoders.set(bin, known);
+	}
+	return known;
+}
 /** A language as the player names a track (EN, PT-BR) against a file's tag (eng, por). */
 const sameLang = (track: string, tag: string) =>
 	track.toLowerCase() === tag.toLowerCase() || iso3(track.split('-')[0]) === tag.toLowerCase();
@@ -523,7 +572,7 @@ async function cut(
 				'0:a?',
 				'-map',
 				'0:s?',
-				...encodeArgs,
+				...(await encodeArgs()),
 				'-c:s',
 				'copy',
 				...dispositions(f.subtitles, job.subtitle)
@@ -550,7 +599,7 @@ async function cut(
 				'-map',
 				'0:a?',
 				...subs.flatMap((_, i) => ['-map', `${i + 1}:s:0`]),
-				...encodeArgs,
+				...(await encodeArgs()),
 				'-c:s',
 				'srt',
 				...subs.flatMap((s, i) => [`-metadata:s:s:${i}`, `language=${iso3(s.lang)}`]),
@@ -813,6 +862,7 @@ export function forgetClips(): void {
 	jobs.clear();
 	queue.length = 0;
 	swept = false;
+	encoders.clear();
 }
 
 /** The boxes on the scrubber for one episode: kept clips, hidden means hidden. */
