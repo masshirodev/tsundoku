@@ -3,6 +3,8 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FRIEND_HOME, FRIEND_PORT } from './friend-world';
+import { RUN_DIR } from './helpers/run-dir';
+import { recordServer } from './helpers/run-servers';
 
 /**
  * A friend's install, for tests/friend-*.e2e.ts: the shared build served the
@@ -23,6 +25,10 @@ export default async function setup() {
 	const origin = `http://localhost:${FRIEND_PORT}`;
 	// A server already there is an earlier run's, and testing it would test
 	// stale code and state: say so instead (it happened once, 2026-10-30).
+	// This catches only an assigned port (PLAYWRIGHT_FRIEND_PORT): since c656 a
+	// run left to itself takes a new port from the OS, which no earlier server
+	// holds, so a killed run's server is found by the record below instead,
+	// which the next run's sweep reads (tests/helpers/run-servers.ts, c689).
 	const busy = await fetch(`${origin}/manifest.webmanifest`).then(
 		() => true,
 		() => false
@@ -57,6 +63,8 @@ export default async function setup() {
 			stdio: 'ignore'
 		}
 	);
+	// Before the wait, so a runner killed while it starts leaves it named too.
+	if (preview.pid) recordServer(RUN_DIR, 'friend', preview.pid, FRIEND_PORT);
 	let up = false;
 	for (let i = 0; i < 120 && !up; i++) {
 		try {
