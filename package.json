@@ -12,7 +12,7 @@
 		"prepare": "node scripts/i18n.mjs || echo ''; svelte-kit sync || echo ''; husky || true; node node_modules/kotoba/scripts/sync-dict.js static/dict || true",
 		"i18n": "node scripts/i18n.mjs",
 		"hooks:check": "node scripts/hooks-armed.mjs",
-		"check": "node scripts/hooks-armed.mjs && node scripts/i18n.mjs && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check": "node scripts/hooks-armed.mjs && node scripts/i18n.mjs && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && tsc -p site/tsconfig.json",
 		"check:watch": "node scripts/i18n.mjs && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
 		"lint-staged": "lint-staged",

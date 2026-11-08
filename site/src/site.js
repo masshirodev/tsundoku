@@ -22,6 +22,7 @@
 			return null;
 		}
 	}
+	/** @param {'light' | 'dark'} v */
 	function store(v) {
 		try {
 			window.localStorage.setItem(KEY, v);
@@ -43,7 +44,8 @@
 	if (saved) root.setAttribute('data-theme', saved);
 
 	function ready() {
-		var button = document.querySelector('.bar-theme');
+		/** @type {HTMLElement | null} */
+		const button = document.querySelector('.bar-theme');
 		if (button) {
 			var label = function () {
 				var next = current() === 'dark' ? 'light' : 'dark';
@@ -53,6 +55,7 @@
 			label();
 			button.hidden = false;
 			button.addEventListener('click', function () {
+				/** @type {'light' | 'dark'} */
 				var next = current() === 'dark' ? 'light' : 'dark';
 				root.setAttribute('data-theme', next);
 				store(next);
@@ -68,7 +71,7 @@
 		// iPadOS asks for desktop pages and calls itself a Mac; its touch screen gives it away. It is iOS, never a phone:
 		// the APK is Android's.
 		if (os === 'mac' && navigator.maxTouchPoints > 1) os = 'ios';
-		var rows = document.querySelector('.dl-rows');
+		const rows = document.querySelector('.dl-rows');
 		if (!rows) return;
 		var version = rows.getAttribute('data-version') || '';
 		var apps = {
@@ -81,6 +84,7 @@
 			var row = rows.querySelector('[data-os="' + key + '"]');
 			if (!row) return;
 			rows.appendChild(row);
+			/** @type {HTMLElement | null} */
 			var tag = row.querySelector('.tag');
 			if (tag) tag.hidden = key !== p.mine;
 		});
@@ -89,6 +93,7 @@
 			mains[i].classList.toggle('btn-accent', mains[i].getAttribute('data-main') === p.accent);
 		}
 
+		/** @type {HTMLElement | null} */
 		var band = document.querySelector('.dl-band');
 		if (band) band.hidden = !p.phoneBand;
 		var hero = document.getElementById('hero-download');
