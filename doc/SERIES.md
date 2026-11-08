@@ -330,7 +330,8 @@ line.
 
 - **What stays above:** identity, RATING and FAV, ▶ CONTINUE, the WORK row and
   every band (NO VIDEO, MIGHT BE ONE SERIES, MIGHT CONTINUE <WORK>, SAME BOOK AS, the panel's own
-  UNDO bands), SHELVES, ABOUT. **What folds**, in today's order: DOWNLOAD
+  UNDO bands), SHELVES, ABOUT, and HIGHLIGHTS when the series has any (c701;
+  "HIGHLIGHTS", below). **What folds**, in today's order: DOWNLOAD
   (with REFRESH and FOLLOW), LANGUAGE, DIRECTION or LAYOUT, OCR and WORDS,
   SCANLATOR, LISTS, COVER, SOURCE, TAGS, EDITIONS, FILE (or FOLDED) and
   RENAME's field. One fold, not one per group, and CONTINUE stays at the top.
@@ -497,6 +498,26 @@ the *new* title (`engine/worker.ts`); each keeps the name and makes no twin.
   own here.
 - **The id is the identity.** A rename keeps the series' id, so every link,
   shelf, Work part and reading stays with it; UNDO finds it by id.
+
+## HIGHLIGHTS (c701)
+
+The handoff is `doc/handoffs/highlights/Series.dc.html` (S1 the phone, S2 the
+tablet); the feature is [`HIGHLIGHTS.md`](HIGHLIGHTS.md). One row,
+**HIGHLIGHTS · 14 · 3 NOTES →**, in the screen's label-then-value form, drawn
+only when the series has a highlight the viewer may see (`highlights` in the
+load, `seriesLine`): a book's quotes counted bare, a manga's `6 PAGES`, an
+anime's `4 CLIPS`. It opens `/highlights?series=<id>`, the series' highlights
+in reading order.
+
+- **Where:** after ABOUT and above the DETAILS fold on the phone and the TV
+  (Main Q3: highlights are the owner's own, like ABOUT and SHELVES, and a line
+  folded away would never be found); after LISTS on the tablet and the
+  desktop. The two places want different neighbours, and the screen places
+  rows by `order` (above), so the row is in the markup twice: `.hl-fold`
+  after ABOUT, `.hl-wide` as the `o5` group's child right after `ListsRow`,
+  and each layout's media query shows one (`SeriesPanel.svelte`).
+- **DELETE** says what is kept (`14 HIGHLIGHTS ARE KEPT`, DELETE THEM TOO),
+  as does a book's DELETE ([`DELETING.md`](DELETING.md)).
 
 ## LISTS (c424)
 

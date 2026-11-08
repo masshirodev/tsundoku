@@ -91,6 +91,21 @@ integer _and_ the series really is a part of that Work; anything else -- a
 stale id, a hand-typed one, a Work that has since ended -- says `← LIBRARY`
 rather than lying or 404ing. Tested in `tests/work-row-frame.e2e.ts`.
 
+## From the highlights page
+
+`/highlights` (c701; [`HIGHLIGHTS.md`](HIGHLIGHTS.md)) keeps everything it
+shows in its URL: the kind, the series, NO WAY BACK, the search and the open
+item (`?open=`). Opening an item replaces the history entry rather than adding
+one, so ← leaves the page instead of stepping back through the items read.
+Its own ← (the phone and the tablet: the desktop has the sidebar) goes to the
+library, or with `?series=` to that series' screen, where its row was.
+A highlight's → goes to the place it came from (the reader, at the quote's
+paragraph or the page), and is not drawn once the place is gone.
+
+It is reached from the desktop sidebar's foot, **HIGHLIGHTS** after HISTORY,
+and from **MORE**'s same row on the tablet, the phone and the TV, both with the
+count and both absent while there are none; and by `/highlights` in a bar.
+
 ## Screens that are gone
 
 Some actions end what their own screen shows, then redirect somewhere else:

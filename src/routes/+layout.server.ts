@@ -15,6 +15,7 @@ import { linkQueueCount } from '$lib/server/catalogue';
 import { ranobeQueueCount } from '$lib/server/ranobe-review';
 import { isTsundokuApp } from '$lib/settings/catalog';
 import { scanWaitsLine } from '$lib/server/import';
+import { highlightCount } from '$lib/server/highlights';
 
 export const load: LayoutServerLoad = async ({ cookies, locals, depends, request }) => {
 	const reveal = isRevealed(cookies);
@@ -36,6 +37,7 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends, request
 			updateOffer: null,
 			start: null,
 			toLink: 0,
+			highlights: 0,
 			lastScanMs: null,
 			computer: null,
 			scanWaits: null
@@ -78,6 +80,10 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends, request
 	// The library's own sum, so the row and the band never disagree; about a
 	// millisecond on the seed, both catalogues and either reveal (wave 21).
 	const toLink = linkQueueCount(reveal) + ranobeQueueCount();
+	// HIGHLIGHTS (c701; doc/HIGHLIGHTS.md): the sidebar's and MORE's row after
+	// HISTORY, with the count, absent at zero. A hidden series' are not
+	// counted without reveal, deleted series' included (the stored flag).
+	const highlights = highlightCount(reveal);
 	// The app's name for this computer (c261): what /pair/tv calls it, said
 	// to the app's bridge by the layout so a server paired before the list
 	// existed gets its name too. Only the app is told, on a TV or a phone
@@ -99,6 +105,7 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends, request
 		updateOffer,
 		start,
 		toLink,
+		highlights,
 		// RESCAN's question says roughly how long the last scan took (c525).
 		lastScanMs: lastScanTook(),
 		computer,

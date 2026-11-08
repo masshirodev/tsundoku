@@ -37,6 +37,7 @@ import {
 } from '../library/move.ts';
 import type { Kind } from '../library/types.ts';
 import { isMovable, kindFacts, moveKindOf, type MovableKind } from '../library/kinds.ts';
+import { moveHighlights, repointAdded, type MoveHighlights } from './highlights.ts';
 
 /**
  * MOVE (doc/MOVE.md; card c139): moving a series to another source, as one
@@ -557,6 +558,12 @@ export type MoveComparison = {
 	/** A hit already in the library, so the row says so. */
 	match: ResultMatch | null;
 	/**
+	 * HIGHLIGHTS FOLLOW (c701; Out X5): from this same plan, which the move
+	 * builds again from the same chapters when it applies. A MOVE deletes no
+	 * entry, so none loses its way back here; those on a kept chapter are named.
+	 */
+	highlights: MoveHighlights;
+	/**
 	 * The one episode to check for PLAYS (the one CONTINUE would play), in the
 	 * candidate's own numbers. One call once a candidate is picked, never per
 	 * candidate on the list (Migrate Calls Q2).
@@ -651,6 +658,10 @@ export async function moveComparison(
 		season,
 		conflict: conflict ? { seriesId: conflict.id, title: conflict.title } : null,
 		match: conflict ? { kind: 'in-library', seriesId: conflict.id, meta: 'ALSO IN LIBRARY' } : null,
+		highlights: moveHighlights(seriesId, plan, {
+			from: sourceLabel(seriesId, s.origin_key, s.source),
+			to: candidate.source
+		}),
 		playCheck
 	};
 }
@@ -664,6 +675,8 @@ export type ApplyResult = {
 	queuedMoved: number;
 	queuedDropped: number;
 	detail: string;
+	/** Highlights whose entry this move took away (c701): they keep their copy and note. */
+	highlightsLost: number;
 };
 
 /** Above any real position: additions waiting for their places. */
@@ -820,6 +833,7 @@ export function applyMove(
 			);
 			let unnumbered = 0;
 			let pending = 0;
+			const addedIds: number[] = [];
 			for (const t of additions) {
 				const numbered = t.number >= 0;
 				const position = video
@@ -841,8 +855,12 @@ export function applyMove(
 					}).lastInsertRowid
 				);
 				setChapter.run(entryId, t.url, t.name);
+				addedIds.push(entryId);
 			}
 			if (video) resequenceAnime(db, seriesId);
+			// A chapter deleted before the move, listed again here, takes back the
+			// highlights it lost, by the same numbers the map used (c701).
+			repointAdded(db, seriesId, addedIds);
 
 			// Queued chapters move by number; one with no partner leaves the queue.
 			const queued = queueCounts(yours, plan);
@@ -887,7 +905,8 @@ export function applyMove(
 				kept: plan.kept.length,
 				queuedMoved: queued.moving,
 				queuedDropped: queued.dropping,
-				detail: movedDetail(plan, oldName, kind)
+				detail: movedDetail(plan, oldName, kind),
+				highlightsLost: 0
 			};
 		})
 		.immediate();
@@ -1007,6 +1026,14 @@ export function applyMoveBack(
 			).map((r) => r.id);
 			for (const id of untouched)
 				if (!keptIds.has(id)) keep.run(leftSource, target.sourceId, seriesId, id);
+			// Counted from this plan before the rows go; rung 72's trigger marks
+			// them ORPHAN (entry) as they do (c701).
+			const highlightsLost = moveHighlights(
+				seriesId,
+				plan,
+				{ gone: new Set(gone), from: leftName, to: target.source },
+				db
+			).lose;
 			const del = db.prepare(`DELETE FROM entries WHERE id = ? AND series_id = ?`);
 			for (const id of gone) del.run(id, seriesId);
 			// The old source's chapters that are no longer here (deleted while away)
@@ -1025,6 +1052,7 @@ export function applyMoveBack(
 			).p;
 			let pending = 0;
 			const readd = [...plan.added, ...plan.readAdded].sort((a, b) => a.number - b.number);
+			const addedIds: number[] = [];
 			for (const t of readd) {
 				const entryId = Number(
 					insert.run({
@@ -1043,9 +1071,11 @@ export function applyMoveBack(
 					}).lastInsertRowid
 				);
 				setChapter.run(entryId, t.url, t.name);
+				addedIds.push(entryId);
 				if (!video) pending++;
 			}
 			if (video) resequenceAnime(db, seriesId);
+			repointAdded(db, seriesId, addedIds);
 
 			// Queued chapters without a partner in the old source leave.
 			const queued = queueCounts(yours, plan);
@@ -1093,7 +1123,8 @@ export function applyMoveBack(
 				kept: keptStayed,
 				queuedMoved: queued.moving,
 				queuedDropped: queued.dropping,
-				detail: detail || 'NOTHING ADDED OR KEPT'
+				detail: detail || 'NOTHING ADDED OR KEPT',
+				highlightsLost
 			};
 		})
 		.immediate();

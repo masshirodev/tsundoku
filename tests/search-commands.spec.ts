@@ -24,6 +24,29 @@ describe('a top search bar (c697)', () => {
 		expect(parseBar('   ')).toEqual({ type: 'filter' });
 	});
 
+	it('opens HIGHLIGHTS, and lands there with the words in its search (c701)', () => {
+		expect(parseSearch('/highlights')).toEqual({
+			type: 'page',
+			label: 'HIGHLIGHTS',
+			href: '/highlights'
+		});
+		expect(parseBar('  /HIGHLIGHTS  ')).toEqual({
+			type: 'page',
+			label: 'HIGHLIGHTS',
+			href: '/highlights'
+		});
+		expect(parseSearch('/highlights the lamp & sea')).toEqual({
+			type: 'page',
+			label: 'HIGHLIGHTS · THE LAMP & SEA',
+			href: '/highlights?q=the%20lamp%20%26%20sea'
+		});
+		// Exact on the word, as every page is: no prefix, no word run on.
+		expect(parseBar('/highlight')).toEqual({ type: 'unknown', text: '/highlight' });
+		expect(parseBar('/highlightsx')).toEqual({ type: 'unknown', text: '/highlightsx' });
+		// Without the slash it is a query like any other.
+		expect(parseSearch('highlights')).toEqual({ type: 'query', text: 'highlights' });
+	});
+
 	it('names an unknown command rather than filtering for it', () => {
 		expect(parseBar('/rev')).toEqual({ type: 'unknown', text: '/rev' });
 		expect(parseBar('/settingsx')).toEqual({ type: 'unknown', text: '/settingsx' });

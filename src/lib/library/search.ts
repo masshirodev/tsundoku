@@ -55,6 +55,17 @@ export function parseSearch(raw: string): SearchInput {
 			href: topic ? (topic.slug === 'start' ? '/start' : `/help/${topic.slug}`) : '/help'
 		};
 	}
+	// HIGHLIGHTS (c701; doc/HIGHLIGHTS.md): `/highlights`, and `/highlights lamp`
+	// lands there with the word in its search (the handoff's Page P5).
+	const highlights = /^\/highlights(?:\s+(\S.*))?$/i.exec(text);
+	if (highlights) {
+		const words = (highlights[1] ?? '').trim();
+		return {
+			type: 'page',
+			label: words ? `HIGHLIGHTS · ${words.toUpperCase()}` : 'HIGHLIGHTS',
+			href: words ? `/highlights?q=${encodeURIComponent(words)}` : '/highlights'
+		};
+	}
 	return { type: 'query', text };
 }
 

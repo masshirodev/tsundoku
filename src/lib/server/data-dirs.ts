@@ -78,3 +78,29 @@ export function importArea(
 		? p.join(env.IMPORT_DIR)
 		: p.join(dataPaths(env, platform, home).home, 'imports');
 }
+
+/**
+ * Where highlights keep their copies (c701, doc/HIGHLIGHTS.md): the data
+ * folder's own `highlights/`, never the library, so a delete's trash never
+ * takes a copy and a scan never reads one as a book. `pages/`, `clips/` and
+ * `stills/` under it. `HIGHLIGHTS_DIR` wins, as each folder's own variable
+ * does. Its own function, as `importArea` is, so dataPaths' shape (read whole
+ * by tests/data-dirs.spec.ts and, for `home`, by the launcher under ops/)
+ * does not change.
+ */
+export function highlightsArea(
+	env: Env = process.env,
+	platform: Platform = process.platform,
+	home: string = homedir()
+): { root: string; pages: string; clips: string; stills: string } {
+	const p = pathsFor(platform);
+	const root = env.HIGHLIGHTS_DIR
+		? p.join(env.HIGHLIGHTS_DIR)
+		: p.join(dataPaths(env, platform, home).home, 'highlights');
+	return {
+		root,
+		pages: p.join(root, 'pages'),
+		clips: p.join(root, 'clips'),
+		stills: p.join(root, 'stills')
+	};
+}

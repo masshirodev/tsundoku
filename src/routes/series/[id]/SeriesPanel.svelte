@@ -115,10 +115,16 @@
 		work = null,
 		readMs = 0,
 		takenOut = null,
-		hideFacts = null
+		hideFacts = null,
+		highlights = null
 	}: {
 		/** FIRST READ's next step is this row: a 2px accent ring while its trip lasts (doc/ONBOARDING.md). */
 		ringDownload?: boolean;
+		/**
+		 * HIGHLIGHTS (c701; Series S1–S2): `14 · 3 NOTES`, `6 PAGES · 1 NOTE`.
+		 * Null while the series has none, and then the row is not drawn.
+		 */
+		highlights?: { line: string } | null;
 		series: SeriesPage;
 		shelves: Shelf[];
 		/** Entries of this series cached on the device. */
@@ -1015,6 +1021,11 @@
 				</div>
 			</div>
 		{/if}
+		{#if highlights}
+			<!-- HIGHLIGHTS on the phone and the TV (Series S1): after ABOUT, above the
+			     DETAILS fold. The tablet's and the desktop's is after LISTS (below). -->
+			{@render highlightsRow('hl-fold')}
+		{/if}
 		{@render detailsLineCell()}
 	{/if}
 
@@ -1210,6 +1221,11 @@
 						onclose={() => (trackingOpen = false)}
 					/>
 				{/if}
+				{#if highlights}
+					<!-- HIGHLIGHTS where nothing folds (Series S2): after LISTS, in the
+					     o5 group, so `order` keeps it there. The phone's is after ABOUT. -->
+					{@render highlightsRow('hl-wide')}
+				{/if}
 				{#if link}
 					<div class="row cover-row">
 						<div class="label">COVER</div>
@@ -1398,6 +1414,20 @@
 		{/if}
 	</div>
 </section>
+
+{#snippet highlightsRow(where: string)}
+	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+	<a
+		class="row hl-row {where}"
+		href="{resolve('/highlights')}?series={series.id}"
+		data-focus-mark="in"
+		data-highlights-row
+	>
+		<span class="label">{m.name_highlights()}</span>
+		<span class="hl-line">{highlights?.line}</span>
+		<span class="hl-go" aria-hidden="true">→</span>
+	</a>
+{/snippet}
 
 {#snippet detailsLineCell()}
 	<!-- The folded line (1C): DETAILS | what needs the owner, or the quiet state,
@@ -2473,6 +2503,43 @@
 	}
 	.ring {
 		box-shadow: inset 0 0 0 2px var(--accent);
+	}
+	/* ---- HIGHLIGHTS (c701; doc/handoffs/highlights/Series.dc.html) --------
+	   One row, the series screen's label-then-value form, and a → cell. It is
+	   in the markup twice: after ABOUT for the phone and the TV (S1, above the
+	   DETAILS fold) and after LISTS where nothing folds (S2); each media query
+	   shows one. The row itself is o5's direct child, so `order` places it. */
+	.hl-row {
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	.hl-line {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		min-width: 0;
+		padding: 0 var(--pad);
+		font: 500 13px var(--font-mono);
+		letter-spacing: var(--tracking-label);
+	}
+	.hl-go {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 64px;
+		flex-shrink: 0;
+		border-left: var(--hairline);
+		font: 500 16px var(--font-mono);
+	}
+	@media (min-width: 600px) and (not ((pointer: none) and (min-width: 900px))) {
+		.hl-row.hl-fold {
+			display: none;
+		}
+	}
+	@media (max-width: 599px), (pointer: none) and (min-width: 900px) {
+		.hl-row.hl-wide {
+			display: none;
+		}
 	}
 	/* ---- DETAILS (c425; doc/handoffs/series-phone/) -------------------------
 	   Where nothing folds the wrappers are no boxes at all and `order` puts each

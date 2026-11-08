@@ -4,6 +4,8 @@
 	import EpisodeList from './EpisodeList.svelte';
 	import { movedUnit } from './move-words';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
+	import DeleteSheet from './DeleteSheet.svelte';
+	import { lostLine } from '$lib/library/highlights';
 	import { replacing, stepsBackTo } from '$lib/back';
 	import type { ActionResult } from '@sveltejs/kit';
 	import { backLink } from '$lib/back';
@@ -163,7 +165,9 @@
 						: '',
 					data.moved.kept
 						? `${data.moved.kept} KEPT FROM ${(data.move.former?.name ?? 'THE OLD SOURCE').toUpperCase()}`
-						: ''
+						: '',
+					// MOVE BACK took chapters away (c701): their highlights keep their copies.
+					data.moved.lost ? lostLine(data.moved.lost) : ''
 				]
 					.filter(Boolean)
 					.join(' · ') || 'NOTHING ADDED OR KEPT'
@@ -645,6 +649,7 @@
 				<SeriesPanel
 					{series}
 					ringDownload={ring === 'download'}
+					highlights={data.highlights}
 					readOnline={!!dlStates && offline.online}
 					shelves={data.shelves}
 					cached={cachedCount}
@@ -830,7 +835,7 @@
 {/snippet}
 
 <!-- Deleting asks first (doc/DELETING.md). -->
-<ConfirmSheet
+<DeleteSheet
 	open={deletingSeries}
 	title="DELETE {series.title.toUpperCase()}?"
 	lines={[
@@ -842,10 +847,12 @@
 	confirm="DELETE"
 	action="?/delete"
 	fields={{}}
+	highlights={data.highlights?.n ?? 0}
+	why="THEIR QUOTES, COPIES AND NOTES STAY ON THE HIGHLIGHTS PAGE, FROM A SERIES NO LONGER IN THE LIBRARY."
 	onclose={() => (deletingSeries = false)}
 	ondone={leaveDeleted}
 />
-<ConfirmSheet
+<DeleteSheet
 	open={deletingBook !== null}
 	title="DELETE {(deletingBook?.title || 'THIS BOOK').toUpperCase()}?"
 	lines={[
@@ -857,6 +864,8 @@
 	confirm="DELETE BOOK"
 	action="?/deleteBook"
 	fields={{ entry: String(deletingBook?.id ?? '') }}
+	highlights={deletingBook ? (data.highlights?.byEntry[deletingBook.id] ?? 0) : 0}
+	why="THEIR QUOTES, COPIES AND NOTES STAY ON THE HIGHLIGHTS PAGE, FROM A BOOK NO LONGER IN THE SERIES."
 	onclose={() => (deletingBook = null)}
 	ondone={async (r) => {
 		deletingBook = null;
