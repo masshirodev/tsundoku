@@ -1,7 +1,7 @@
 import { goto, invalidateAll } from '$app/navigation';
 import { resolve } from '$app/paths';
 import { TV } from '../device.svelte.ts';
-import { parseBar } from './search.ts';
+import { parseBar, type BarInput } from './search.ts';
 
 /**
  * A command typed into any top search bar (card c697). The library's `/search`
@@ -14,10 +14,11 @@ import { parseBar } from './search.ts';
  * device prompt is `/search`'s).
  *
  * `filter` is the bar's own list: the caller lets its form submit as it
- * always did. `refused` is shown by the bar, never swallowed.
+ * always did. `refused` is shown by the bar, never swallowed. `busy` is a press
+ * dropped because a command is already running.
  */
 export type CommandOutcome =
-	{ type: 'filter' } | { type: 'ran' } | { type: 'refused'; message: string };
+	{ type: 'filter' } | { type: 'ran' } | { type: 'busy' } | { type: 'refused'; message: string };
 
 type Answer = {
 	ok?: boolean;
@@ -34,6 +35,14 @@ type Answer = {
  */
 export const isSearchCommand = (raw: string): boolean => parseBar(raw).type !== 'filter';
 
+/**
+ * One command at a time, across every bar. Without it a double Enter gets two
+ * answers, and the second `goto` lands on a `/search` already mounted: a new
+ * entry on the same route, so no `onMount` empties its `go`, and a later back
+ * onto it would run the command with no key pressed.
+ */
+let running = false;
+
 export async function runSearchCommand(raw: string): Promise<CommandOutcome> {
 	const input = parseBar(raw);
 	if (input.type === 'filter') return { type: 'filter' };
@@ -43,16 +52,32 @@ export async function runSearchCommand(raw: string): Promise<CommandOutcome> {
 			message: `UNKNOWN COMMAND · ${input.text.toUpperCase()} · NOTHING CHANGED`
 		};
 	}
-	if (input.type === 'page') {
-		// eslint-disable-next-line svelte/no-navigation-without-resolve -- a page's own path, from parseSearch
-		await goto(input.href);
-		return { type: 'ran' };
-	}
 	// A TV has no fingerprint and no screen lock, so it cannot turn reveal on
 	// (owner, 2026-11-01; doc/TV.md). The server cannot tell a TV apart, so the
 	// refusal is here, in the same words `/search` uses.
-	if (input.command === 'reveal' && typeof window !== 'undefined' && matchMedia(TV).matches) {
+	if (
+		input.type === 'command' &&
+		input.command === 'reveal' &&
+		typeof window !== 'undefined' &&
+		matchMedia(TV).matches
+	) {
 		return { type: 'refused', message: 'NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER' };
+	}
+	// After the refusals, which ask nothing and must still say so mid-run.
+	if (running) return { type: 'busy' };
+	running = true;
+	try {
+		return await run(input);
+	} finally {
+		running = false;
+	}
+}
+
+async function run(input: Exclude<BarInput, { type: 'filter' | 'unknown' }>) {
+	if (input.type === 'page') {
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- a page's own path, from parseSearch
+		await goto(input.href);
+		return { type: 'ran' } as const;
 	}
 	let answer: Answer | null;
 	try {
@@ -71,13 +96,13 @@ export async function runSearchCommand(raw: string): Promise<CommandOutcome> {
 			message: String(
 				answer?.message ?? 'THE WORKSTATION DID NOT ANSWER · NOTHING CHANGED'
 			).toUpperCase()
-		};
+		} as const;
 	}
 	if (answer.href) {
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- built by the server's own route table
 		await goto(answer.href, { state: answer.state });
-		return { type: 'ran' };
+		return { type: 'ran' } as const;
 	}
 	await invalidateAll();
-	return { type: 'ran' };
+	return { type: 'ran' } as const;
 }

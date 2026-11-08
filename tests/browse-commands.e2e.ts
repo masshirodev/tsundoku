@@ -103,6 +103,50 @@ test('a go=1 link runs no command, and is taken off the URL', async ({ page }) =
 	await expect(page.getByText('INCOGNITO · NOTHING SAVED')).toHaveCount(0);
 });
 
+test('a press while a command runs sends nothing, and an unknown one still says so', async ({
+	page
+}) => {
+	let posts = 0;
+	let release = () => {};
+	const held = new Promise<void>((done) => (release = done));
+	let reached = () => {};
+	const arrived = new Promise<void>((done) => (reached = done));
+	await page.route('**/api/command', async (route) => {
+		posts += 1;
+		reached();
+		await held;
+		await route.continue();
+	});
+
+	await page.goto('/browse/extensions?tab=available');
+	const box = page.getByRole('searchbox', { name: 'Search the available extensions' });
+	await enter(page, box, '/reveal');
+	await arrived;
+
+	await box.press('Enter');
+	await enter(page, box, '/rev');
+	await expect(page.getByText('UNKNOWN COMMAND · /REV · NOTHING CHANGED')).toBeVisible();
+	expect(posts).toBe(1);
+
+	release();
+	await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+	await page.unrouteAll();
+	await enter(page, box, '/hide');
+	await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+});
+
+test('a command that got no answer lets the next press run', async ({ page }) => {
+	await page.route('**/api/command', (route) => route.abort(), { times: 1 });
+	await page.goto('/browse/extensions?tab=available');
+	const box = page.getByRole('searchbox', { name: 'Search the available extensions' });
+	await enter(page, box, '/reveal');
+	await expect(page.getByText('THE WORKSTATION DID NOT ANSWER · NOTHING CHANGED')).toBeVisible();
+	await box.press('Enter');
+	await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+	await enter(page, box, '/hide');
+	await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+});
+
 /**
  * A television cannot turn reveal on (owner, 2026-11-01; doc/TV.md). The
  * TV's pointer is set at Chromium's launch, not by a context or a media
@@ -153,6 +197,28 @@ test('on a TV, EXTENSIONS refuses /reveal and no reveal band appears', async ({ 
 		await expect(screen.getByText('NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER')).toBeVisible();
 		await expect(screen.locator('.band.reveal')).toHaveCount(0);
 		await expect(screen).toHaveURL(/\/browse\/extensions\?tab=available$/);
+	});
+});
+
+test('on a TV, the refusal still shows while another command runs', async ({ page }) => {
+	await onATv(page, test.info().project.use.baseURL!, async (screen) => {
+		let release = () => {};
+		const held = new Promise<void>((done) => (release = done));
+		let reached = () => {};
+		const arrived = new Promise<void>((done) => (reached = done));
+		await screen.route('**/api/command', async (route) => {
+			reached();
+			await held;
+			await route.continue();
+		});
+		await screen.goto('/browse/extensions?tab=available');
+		await isTheTvQuery(screen);
+		const box = screen.getByRole('searchbox', { name: 'Search the available extensions' });
+		await enter(screen, box, '/hide');
+		await arrived;
+		await enter(screen, box, '/reveal');
+		await expect(screen.getByText('NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER')).toBeVisible();
+		release();
 	});
 });
 
@@ -399,6 +465,83 @@ test.describe('a gated box (c712)', () => {
 		await expect(page).toHaveURL(`${base}/`);
 		await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
 		expect(asked).toEqual(['reveal', 'reveal']);
+	});
+
+	test('a double press on a bar is one run: one POST, one prompt, nothing on the back (round 2)', async ({
+		page
+	}) => {
+		await gateTheBox(page);
+		const asked = promptsAsked(page);
+		let prompted = () => {};
+		const prompt = new Promise<void>((done) => (prompted = done));
+		// The delay gives a held second `goto` time to land on the mounted /search.
+		await page.route('**/api/unlock/options', async (route) => {
+			prompted();
+			await new Promise((done) => setTimeout(done, 600));
+			await route.continue();
+		});
+		let posts = 0;
+		await page.route('**/api/command', async (route) => {
+			posts += 1;
+			if (posts > 1) await prompt;
+			await route.continue();
+		});
+
+		await page.goto(`${base}/browse/extensions?tab=available`);
+		const box = page.getByRole('searchbox', { name: 'Search the available extensions' });
+		await box.fill('/reveal');
+		await box.evaluate((el) => {
+			const form = (el as HTMLInputElement).form!;
+			form.requestSubmit();
+			form.requestSubmit();
+		});
+
+		await expect(page).toHaveURL(`${base}/`);
+		await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+		expect(asked).toEqual(['reveal']);
+
+		await page.goBack();
+		await expect(page).toHaveURL(/\/search\?q=%2Freveal$/);
+		await expect(page.getByRole('searchbox')).toHaveValue('/reveal');
+		await settled(page);
+		expect(asked).toEqual(['reveal']);
+		expect(posts).toBe(1);
+	});
+
+	test('a press during a running ceremony starts no other (round 2)', async ({ page }) => {
+		await gateTheBox(page);
+		const asked = promptsAsked(page);
+		await page.route('**/api/unlock/options', async (route) => {
+			await new Promise((done) => setTimeout(done, 600));
+			await route.continue();
+		});
+		await page.goto(`${base}/search`);
+		const box = page.getByRole('searchbox');
+		await box.fill('/reveal');
+		await box.evaluate((el) => {
+			const form = (el as HTMLInputElement).form!;
+			form.requestSubmit();
+			form.requestSubmit();
+		});
+		await expect(page).toHaveURL(`${base}/`);
+		await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+		expect(asked).toEqual(['reveal']);
+	});
+
+	test('an options request that never answers ends the wait, and a new press asks again (round 2)', async ({
+		page
+	}) => {
+		await gateTheBox(page);
+		await page.route('**/api/unlock/options', (route) => route.abort(), { times: 1 });
+		await page.goto(`${base}/search`);
+		const box = page.getByRole('searchbox');
+		await box.fill('/reveal');
+		await box.press('Enter');
+		await expect(page.getByText('NOT UNLOCKED')).toBeVisible();
+
+		await box.press('Enter');
+		await expect(page).toHaveURL(`${base}/`);
+		await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
 	});
 
 	test('a go=1 link for /reveal behind a gate raises no prompt (c710, c711)', async ({ page }) => {

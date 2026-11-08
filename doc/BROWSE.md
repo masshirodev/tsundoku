@@ -128,6 +128,13 @@ the state carries it: a typed or shared `?go=1` link is taken off the URL and
 runs nothing (round 2, c710), `/search?q=%2Freveal&go=1` included. The state is
 emptied before the command is submitted, so the entry cannot run it twice: a
 back or forward onto it, or a reload, asks nothing; only a new key press does.
+A press counts once. `runSearchCommand` runs one command at a time across the
+bars, so a second Enter while one is running sends nothing and pushes no second
+entry holding the intent (an unknown command and a TV's refusal still say so,
+since neither asks anything). On `/search`, a press while the device prompt is
+waiting starts no second ceremony, and an options request that never answers
+ends the wait as NOT UNLOCKED (NOT ENROLLED for `/lock`), so the next press can
+try again.
 
 ## A source's page
 
