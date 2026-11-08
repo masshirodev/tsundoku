@@ -6,8 +6,12 @@ import {
 	type BrowserContextOptions,
 	type Page
 } from '@playwright/test';
-import { connect, createServer as tcpServer, type Socket } from 'node:net';
+import { spawn, execFileSync } from 'node:child_process';
+import { mkdirSync, rmSync } from 'node:fs';
+import { connect, createServer as tcpServer, type AddressInfo, type Socket } from 'node:net';
 import { createServer as httpServer, request as httpRequest } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { makeLogin, writeLogin } from '../src/lib/server/login.ts';
 import { FRIEND_HOME, FRIEND_PORT } from './friend-world';
 
@@ -253,6 +257,76 @@ test.afterAll(async ({ browser, request }) => {
 });
 
 /**
+ * A friend's install of this case's own, served as tests/friend-setup.ts
+ * serves the shared one (scripts/serve.ts, local mode, no password), on a
+ * port from the OS with its own database: 04 counts every phone that has
+ * checked in, DEVICES has no door that forgets one, and the shared install
+ * has had phones by the time this runs again (`--repeat-each`, or another
+ * file's). Stopped and removed after the case, by its own handle.
+ */
+async function ownInstall() {
+	const port = await new Promise<number>((ok, no) => {
+		const probe = tcpServer();
+		probe.once('error', no);
+		probe.listen(0, '127.0.0.1', () => {
+			const { port } = probe.address() as AddressInfo;
+			probe.close(() => ok(port));
+		});
+	});
+	const db = join(tmpdir(), `tsundoku-e2e-start-pair-${port}.sqlite`);
+	const home = `${db}.home`;
+	rmSync(db, { force: true });
+	rmSync(home, { recursive: true, force: true });
+	mkdirSync(join(home, 'library'), { recursive: true });
+	writeLogin(home, makeLogin(null));
+	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
+		env: { ...process.env, DATABASE_PATH: db, NODE_NO_WARNINGS: '1' },
+		stdio: 'pipe'
+	});
+	const server = spawn(
+		process.execPath,
+		['--experimental-strip-types', '--disable-warning=ExperimentalWarning', 'scripts/serve.ts'],
+		{
+			env: {
+				...process.env,
+				TSUNDOKU_LOGIN: 'password',
+				TSUNDOKU_SERVE: 'local',
+				TSUNDOKU_SNAPSHOT: 'off',
+				TSUNDOKU_PROJECT_ENV: 'off',
+				PORT: String(port),
+				TSUNDOKU_TOKEN: '',
+				TSUNDOKU_UPDATES: 'off',
+				DATABASE_PATH: db,
+				TSUNDOKU_HOME: home,
+				LIBRARY_ROOT: join(home, 'library'),
+				BACKUP_DIR: join(home, 'backups'),
+				ENGINE_URL: 'http://127.0.0.1:1',
+				TSUNDOKU_ANILIST: 'off'
+			},
+			stdio: 'ignore'
+		}
+	);
+	const base = `http://localhost:${port}`;
+	const stop = () => {
+		server.kill();
+		rmSync(db, { force: true });
+		rmSync(home, { recursive: true, force: true });
+	};
+	for (let i = 0; i < 120; i++) {
+		try {
+			const r = await fetch(`${base}/manifest.webmanifest`);
+			if (r.ok && ((await r.json()) as { short_name?: string }).short_name === 'tsundoku')
+				return { base, stop };
+		} catch {
+			// Not up yet.
+		}
+		await new Promise((r) => setTimeout(r, 500));
+	}
+	stop();
+	throw new Error(`the install on ${port} never answered`);
+}
+
+/**
  * GET STARTED's 04 on the computer, open while a phone pairs (c722;
  * doc/ONBOARDING.md, "What ticks a step without a reload"). Pairing writes
  * the `paired_devices` row 04 counts (`/pair/<code>`, `addPaired`), so the
@@ -260,42 +334,54 @@ test.afterAll(async ({ browser, request }) => {
  * read by the layout's load, which nothing reran. The phone is paired through
  * the real link over the real Wi-Fi listener, never a row written by hand,
  * and the computer's page is never reloaded: it asks by itself.
- *
- * First in this file, and this file runs before any other friend file pairs
- * a phone (the friend project's one worker takes its files in order): a
- * phone or tablet that has checked in at all ticks 04, and DEVICES has no
- * door that forgets one. tests/friend-firewall.e2e.ts, before it, pairs only
- * desktop-sized pages and signs them out again.
  */
 test("a phone paired over Wi-Fi ticks 04 on the computer's open GET STARTED, without a reload (c722)", async ({
 	page,
 	browser,
 	request
 }) => {
-	await page.goto('/start');
-	const four = page.locator('.step[data-step="phone"]');
-	await expect(four).toBeVisible();
-	await expect(four).not.toHaveClass(/\bdone\b/);
-	const reloads: string[] = [];
-	page.on('request', (q) => {
-		if (q.isNavigationRequest() && q.frame() === page.mainFrame()) reloads.push(q.url());
-	});
-
-	const { phone, code } = await freshCode(request);
-	const ctx = await browser.newContext({
-		...devices['Pixel 7'],
-		storageState: { cookies: [], origins: [] }
-	});
+	test.setTimeout(90_000);
+	const at = await ownInstall();
 	try {
-		const tab = await ctx.newPage();
-		await tab.goto(`${phone}${code}`);
-		await expect(tab).toHaveURL(/\/welcome$/);
-		// Within one 5 s ask and its answer, with room for a loaded box.
-		await expect(four).toHaveClass(/\bdone\b/, { timeout: 15_000 });
-		await expect(four).toContainText('Done · a phone or tablet reads here', { ignoreCase: true });
-		expect(reloads).toEqual([]);
+		const on = await request.post(`${at.base}/api/wifi`, { data: { action: 'on' } });
+		expect(on.ok()).toBe(true);
+		let w: Wifi | null = null;
+		await expect
+			.poll(
+				async () => (w = (await (await request.get(`${at.base}/api/wifi`)).json()) as Wifi).phone,
+				{
+					timeout: 15_000
+				}
+			)
+			.toMatch(/^http:\/\//);
+		await page.goto(`${at.base}/start`);
+		const four = page.locator('.step[data-step="phone"]');
+		await expect(four).toBeVisible();
+		await expect(four).not.toHaveClass(/\bdone\b/);
+		const reloads: string[] = [];
+		page.on('request', (q) => {
+			if (q.isNavigationRequest() && q.frame() === page.mainFrame()) reloads.push(q.url());
+		});
+
+		const ctx = await browser.newContext({
+			...devices['Pixel 7'],
+			storageState: { cookies: [], origins: [] }
+		});
+		try {
+			const tab = await ctx.newPage();
+			await tab.goto(w!.code!.url);
+			await expect(tab).toHaveURL(/\/welcome$/);
+			// Within one 5 s ask and its answer, with room for a loaded box.
+			await expect(four).toHaveClass(/\bdone\b/, { timeout: 15_000 });
+			await expect(four).toContainText('Done · a phone or tablet reads here', {
+				ignoreCase: true
+			});
+			expect(reloads).toEqual([]);
+		} finally {
+			await ctx.close();
+		}
 	} finally {
-		await ctx.close();
+		at.stop();
 	}
 });
 
