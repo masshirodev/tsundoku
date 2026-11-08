@@ -4575,8 +4575,10 @@
 		height: 16px;
 	}
 	.track .mr {
-		background: oklch(0.5 0.09 95 / 0.35);
-		border: 1px solid var(--mk-y);
+		top: -12px;
+		height: 26px;
+		background: oklch(0.5 0.09 95 / 0.5);
+		border: 2px solid var(--text-1);
 	}
 	.track .kr {
 		appearance: none;
@@ -4600,9 +4602,9 @@
 	}
 	.track .io {
 		position: absolute;
-		top: -30px;
-		font: 500 12px/1 var(--font-mono);
-		letter-spacing: 0.06em;
+		top: -26px;
+		font: 500 11px/1 var(--font-mono);
+		letter-spacing: 0.04em;
 		white-space: nowrap;
 		color: var(--text-1);
 		pointer-events: none;
@@ -4615,27 +4617,27 @@
 		z-index: 6;
 		display: flex;
 		align-items: stretch;
-		min-height: 44px;
-		background: var(--surface-page);
-		border-bottom: var(--hairline);
-		font: 500 13px var(--font-mono);
+		min-height: 52px;
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+		font: 500 13px/1.3 var(--font-mono);
 		letter-spacing: 0.04em;
 	}
 	.clipband > span {
 		flex: 1;
 		display: flex;
 		align-items: center;
-		padding: 0 16px;
+		padding: 10px 18px;
 	}
 	.clipband button,
 	.clipband a {
 		appearance: none;
 		background: none;
 		border: 0;
-		border-left: var(--hairline);
-		padding: 0 16px;
+		border-left: 1px solid oklch(0.5 0.01 95 / 0.35);
+		padding: 0 18px;
 		font: inherit;
-		color: var(--text-1);
+		color: var(--text-inverse);
 		display: flex;
 		align-items: center;
 		text-decoration: none;
