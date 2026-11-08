@@ -1035,6 +1035,16 @@ async function stubAcross(page: Page, list: StubServer[]): Promise<Across> {
 	return across;
 }
 
+/**
+ * A page's own history.back(), scheduled so `evaluate` has returned first: the
+ * step tears this document down, and one taken inside the evaluate can destroy
+ * its context before the answer comes back (seen red under load, wave 35).
+ */
+const stepBack = (page: Page) =>
+	page.evaluate(() => {
+		setTimeout(() => history.back(), 0);
+	});
+
 test('a given address leaves its entry without the fragment once it is checked, the token kept (c685)', async ({
 	page
 }) => {
@@ -1073,7 +1083,7 @@ test('a history step into an old #connect= entry checks nothing again (c685)', a
 
 	// Any page the WebView shows can step back into the pair page's entry,
 	// which carries the app's own token.
-	await page.evaluate(() => history.back());
+	await stepBack(page);
 	await page.waitForURL(`${page9}?t=${TOKEN}`);
 	// The entry is the pair page with no door in it: 9A, and nothing checked.
 	await expect(page.locator('#start')).toBeVisible();
@@ -1101,7 +1111,7 @@ test('a history step into an old #lost= entry does not bring a forgotten server 
 	// must not reopen 9D for it: 9D's retry would find it answering, store it
 	// and leave for its /pair/tv with no input.
 	across.answers.set(GONE, true);
-	await page.evaluate(() => history.back());
+	await stepBack(page);
 	await page.waitForURL(`${page9}?t=${TOKEN}`);
 	await expect(page.locator('#start')).toBeVisible();
 	await expect(page.locator('#lost')).toBeHidden();
@@ -1234,7 +1244,7 @@ test('a link leaves its entry without the fragment, and a history step shows 9A 
 	// The owner went elsewhere without answering. Any page the WebView shows
 	// can step back here, and the entry must not put the question up again.
 	await page.goto(`${HOME}/`);
-	await page.evaluate(() => history.back());
+	await stepBack(page);
 	await page.waitForURL(`${page9}?t=${TOKEN}`);
 	await expect(page.locator('#start')).toBeVisible();
 	await expect(page.locator('#already')).toBeHidden();
