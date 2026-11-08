@@ -107,13 +107,13 @@ test('a go=1 link runs no command, and is taken off the URL', async ({ page }) =
  * A television cannot turn reveal on (owner, 2026-11-01; doc/TV.md). The
  * TV's pointer is set at Chromium's launch, not by a context or a media
  * emulation (playwright.config.ts's `tv` project says why), and the browse
- * project's Galaxy Tab has a coarse one, so this case launches its own
+ * project's Galaxy Tab has a coarse one, so a TV case launches its own
  * Chromium with the `tv` project's own arguments and carries this context's
  * sign-in cookie to it. One runner backs every bar (c697), so EXTENSIONS
  * stands for the three -- and only BROWSE has a server with an engine, which
  * EXTENSIONS needs, so the `tv` project's shared preview cannot show it.
  */
-test('on a TV, EXTENSIONS refuses /reveal and no reveal band appears', async ({ page }) => {
+async function onATv(page: Page, baseURL: string, body: (screen: Page) => Promise<void>) {
 	const browser = await chromium.launch({
 		args: ['--blink-settings=availablePointerTypes=none,availableHoverTypes=none']
 	});
@@ -124,26 +124,36 @@ test('on a TV, EXTENSIONS refuses /reveal and no reveal band appears', async ({ 
 		// desktop device replaces them, as it does there.
 		const tv = await browser.newContext({
 			...devices['Desktop Chrome'],
-			baseURL: test.info().project.use.baseURL,
+			baseURL,
 			viewport: { width: 960, height: 540 },
 			locale: 'en-US',
 			storageState: { cookies: await page.context().cookies(), origins: [] }
 		});
 		const screen = await tv.newPage();
+		await body(screen);
+	} finally {
+		await browser.close();
+	}
+}
+
+/** What the guard reads, asked of the page itself before trusting it. */
+async function isTheTvQuery(screen: Page) {
+	expect(
+		await screen.evaluate(() => matchMedia('(pointer: none) and (min-width: 900px)').matches)
+	).toBe(true);
+}
+
+test('on a TV, EXTENSIONS refuses /reveal and no reveal band appears', async ({ page }) => {
+	await onATv(page, test.info().project.use.baseURL!, async (screen) => {
 		await screen.goto('/browse/extensions?tab=available');
-		// What the guard reads, asked of the page itself before trusting it.
-		expect(
-			await screen.evaluate(() => matchMedia('(pointer: none) and (min-width: 900px)').matches)
-		).toBe(true);
+		await isTheTvQuery(screen);
 		const box = screen.getByRole('searchbox', { name: 'Search the available extensions' });
 		await box.fill('/reveal');
 		await box.press('Enter');
 		await expect(screen.getByText('NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER')).toBeVisible();
 		await expect(screen.locator('.band.reveal')).toHaveCount(0);
 		await expect(screen).toHaveURL(/\/browse\/extensions\?tab=available$/);
-	} finally {
-		await browser.close();
-	}
+	});
 });
 
 // ---- a gated box, on a database of its own (c712) -----------------------------------------
@@ -264,7 +274,9 @@ test.describe('a gated box (c712)', () => {
 	/** The next case in this world starts with no gate, whatever this one did. */
 	test.afterEach(async ({ page }, info) => {
 		if (info.status !== info.expectedStatus) bodyFailed = true;
-		await authenticator(page);
+		const { cdp, id } = await authenticator(page);
+		// A case that left a refusing sensor behind must not keep the gate up.
+		await cdp.send('WebAuthn.setUserVerified', { authenticatorId: id, isUserVerified: true });
 		await page.goto(`${base}/search`);
 		await page.getByRole('searchbox').fill('/unlock');
 		await page.keyboard.press('Enter');
@@ -274,10 +286,8 @@ test.describe('a gated box (c712)', () => {
 			.catch(() => undefined);
 	});
 
-	test('a gated box refuses /reveal from EXTENSIONS, as the library does', async ({
-		page,
-		browser
-	}) => {
+	/** A box behind the gate, this browser's device enrolled and reveal off. */
+	async function gateTheBox(page: Page) {
 		await authenticator(page);
 		// /lock's rule: only an unlocked session adds a device (doc/PRIVACY.md).
 		await page.goto(`${base}/search`);
@@ -296,15 +306,13 @@ test.describe('a gated box (c712)', () => {
 		await page.getByRole('searchbox').fill('/hide');
 		await page.keyboard.press('Enter');
 		await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+	}
 
-		await page.goto(`${base}/browse/extensions?tab=available`);
-		await enter(
-			page,
-			page.getByRole('searchbox', { name: 'Search the available extensions' }),
-			'/reveal'
-		);
-		await expect(page.getByText('/REVEAL ASKS FOR THIS DEVICE · OPEN SEARCH')).toBeVisible();
-		await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+	test('a gated /reveal from EXTENSIONS raises the device prompt, and reveal turns on (c711)', async ({
+		page,
+		browser
+	}) => {
+		await gateTheBox(page);
 
 		// What this world is for: with this gate standing, the database every other
 		// `browse-*` file shares has none, so a browser there still reveals at once.
@@ -324,11 +332,114 @@ test.describe('a gated box (c712)', () => {
 			await shared.close();
 		}
 
+		const asked = promptsAsked(page);
+		await page.goto(`${base}/browse/extensions?tab=available`);
+		await enter(
+			page,
+			page.getByRole('searchbox', { name: 'Search the available extensions' }),
+			'/reveal'
+		);
+		// Through the device, as /search's own /reveal ends: on the library.
+		await expect(page).toHaveURL(`${base}/`);
+		await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+		expect(asked).toEqual(['reveal']);
+
+		// The entry it ran from is spent: back onto it asks nothing again.
+		await page.goBack();
+		await expect(page).toHaveURL(/\/search\?q=%2Freveal$/);
+		await expect(page.getByRole('searchbox')).toHaveValue('/reveal');
+		await settled(page);
+		expect(asked).toEqual(['reveal']);
+		expect(await page.evaluate(() => history.state['sveltekit:states'])).toEqual({});
+		await page.reload();
+		await settled(page);
+		expect(asked).toEqual(['reveal']);
+
 		// The device that enrolled takes the gate away again.
 		await page.goto(`${base}/search`);
 		await page.getByRole('searchbox').fill('/unlock');
 		await page.keyboard.press('Enter');
 		await expect(page.getByText('UNLOCKED · /reveal ASKS NOTHING')).toBeVisible();
+	});
+
+	test('a refused fingerprint from a bar shows nothing, and only a new press asks again (c711)', async ({
+		page
+	}) => {
+		await gateTheBox(page);
+		const { cdp, id } = await authenticator(page);
+		const asked = promptsAsked(page);
+		await cdp.send('WebAuthn.setUserVerified', { authenticatorId: id, isUserVerified: false });
+
+		await page.goto(`${base}/browse/extensions?tab=available`);
+		await enter(
+			page,
+			page.getByRole('searchbox', { name: 'Search the available extensions' }),
+			'/reveal'
+		);
+		await expect(page.getByText('NOT UNLOCKED')).toBeVisible();
+		await expect(page).toHaveURL(/\/search\?q=%2Freveal$/);
+		await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+		expect(asked).toEqual(['reveal']);
+
+		// Away and back through history: nothing reruns behind the owner's back.
+		await page.goBack();
+		await expect(
+			page.getByRole('searchbox', { name: 'Search the available extensions' })
+		).toBeVisible();
+		await page.goForward();
+		await expect(page).toHaveURL(/\/search\?q=%2Freveal$/);
+		await expect(page.getByRole('searchbox')).toHaveValue('/reveal');
+		await settled(page);
+		expect(asked).toEqual(['reveal']);
+		await expect(page.getByText('NOT UNLOCKED')).toHaveCount(0);
+
+		// Enter is the second press; it runs one ceremony, and this one passes.
+		await cdp.send('WebAuthn.setUserVerified', { authenticatorId: id, isUserVerified: true });
+		await page.getByRole('searchbox').press('Enter');
+		await expect(page).toHaveURL(`${base}/`);
+		await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+		expect(asked).toEqual(['reveal', 'reveal']);
+	});
+
+	test('a go=1 link for /reveal behind a gate raises no prompt (c710, c711)', async ({ page }) => {
+		await gateTheBox(page);
+		const asked = promptsAsked(page);
+		await follow(page, '/search?q=%2Freveal&go=1');
+		await expect(page).toHaveURL(/\/search\?q=%2Freveal$/);
+		await settled(page);
+		expect(asked).toEqual([]);
+		await expect(page.getByText('COMMAND · WAITING FOR THE DEVICE')).toHaveCount(0);
+		await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+
+		// A key still runs it: the link is what is inert, not the page.
+		await page.getByRole('searchbox').press('Enter');
+		await expect(page).toHaveURL(`${base}/`);
+		await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+		expect(asked).toEqual(['reveal']);
+	});
+
+	test('on a TV, a gated box still refuses /reveal in its own words, before asking (c711)', async ({
+		page
+	}) => {
+		await gateTheBox(page);
+		await onATv(page, base, async (screen) => {
+			const commands: string[] = [];
+			screen.on('request', (r) => {
+				if (new URL(r.url()).pathname === '/api/command') commands.push(r.method());
+			});
+			await screen.goto('/browse/extensions?tab=available');
+			await isTheTvQuery(screen);
+			await enter(
+				screen,
+				screen.getByRole('searchbox', { name: 'Search the available extensions' }),
+				'/reveal'
+			);
+			await expect(
+				screen.getByText('NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER')
+			).toBeVisible();
+			await expect(screen).toHaveURL(/\/browse\/extensions\?tab=available$/);
+			expect(commands).toEqual([]);
+		});
 	});
 
 	/**
@@ -401,6 +512,7 @@ test.describe('a gated box (c712)', () => {
 		await expect(page).toHaveURL(`${base}/`);
 		await page.goBack();
 		await expect(page).toHaveURL(/\/search\?q=%2Funlock$/);
+		await expect(page.getByRole('searchbox')).toHaveValue('/unlock');
 		await settled(page);
 		expect(asked).toEqual(['enrol']);
 	});

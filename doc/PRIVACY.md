@@ -86,11 +86,14 @@ fpPrompt, fpFail and fpCancel states).
   `/api/unlock/verify` checks it (origin, relying party, user verified,
   counter), and only then sets the reveal cookie. It is typed in any top search
   bar too (c697), but only `/search` draws the device prompt: behind a gate
-  every other bar refuses it (`/REVEAL ASKS FOR THIS DEVICE · OPEN SEARCH`,
-  from `src/routes/api/command/+server.ts`, drawn upper-case by
-  `src/lib/library/commands.ts`). A TV has no fingerprint and no screen
-  lock, so it refuses `/reveal` from every bar, `/search` included (`NOT ON A
-TV · TURN REVEAL ON FROM THE COMPUTER`, [`TV.md`](TV.md)).
+  every other bar opens `/search` with the command and its intent in history
+  state, and the prompt rises there (c711). That answer from
+  `src/routes/api/command/+server.ts` turns nothing on: only the device's
+  signature does, and a link cannot carry the intent (a `?go=1` in the URL is
+  taken off and runs nothing, c710). A TV has no fingerprint and no screen
+  lock, so it refuses `/reveal` from every bar, `/search` included, before
+  anything else is asked (`NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER`,
+  [`TV.md`](TV.md)).
 - **`/unlock`** removes the gate. That also takes the fingerprint: otherwise
   anyone holding the session could remove the gate and then reveal.
 - **The server enforces it,** not the page. While the gate is on, a plain POST

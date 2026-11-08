@@ -267,12 +267,13 @@
 	});
 
 	/**
-	 * `/lock` and `/unlock` typed into another top search bar (c697) arrive
-	 * here with this screen's `go` intent, which travels in history state so a
-	 * typed or shared `?go=1` link cannot carry it. A `go` in the URL is only
-	 * taken off it, and nothing is submitted (round 2, c710), so no link raises
-	 * the device prompt with no keystroke, and only those two commands always
-	 * ask this screen's device prompt.
+	 * `/lock`, `/unlock` and a gated `/reveal` typed into another top search
+	 * bar (c697, c711) arrive here with this screen's `go` intent, which travels
+	 * in history state so a typed or shared `?go=1` link cannot carry it. A `go`
+	 * in the URL is only taken off it, and nothing is submitted (round 2, c710),
+	 * so no link raises the device prompt with no keystroke, and
+	 * `/search?q=%2Freveal&go=1` cannot start the ceremony. Only those three
+	 * commands ask this screen's device prompt.
 	 *
 	 * The entry's state is emptied before the submit, not after: a `history.back()`
 	 * to it, or the reload (SvelteKit does not restore state on one), finds no
@@ -296,9 +297,7 @@
 			replaceState(u, {});
 			if (!carried) return;
 			const parsed = parseSearch(u.searchParams.get('q') ?? '');
-			if (parsed.type !== 'command' || (parsed.command !== 'lock' && parsed.command !== 'unlock')) {
-				return;
-			}
+			if (parsed.type !== 'command' || !(parsed.command in PURPOSE)) return;
 			form?.requestSubmit();
 		});
 		return () => {

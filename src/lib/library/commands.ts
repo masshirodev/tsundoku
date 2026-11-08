@@ -10,7 +10,8 @@ import { parseBar } from './search.ts';
  * `/incognito` and the rest mean the same thing everywhere. The screen the bar
  * is on stays where it is -- the loads are re-read and the reveal or incognito
  * band appears -- unless the command itself opens somewhere (`/settings`,
- * `/help`, `/lock`, `/words`).
+ * `/help`, `/lock`, `/words`, and `/reveal` behind the fingerprint gate, whose
+ * device prompt is `/search`'s).
  *
  * `filter` is the bar's own list: the caller lets its form submit as it
  * always did. `refused` is shown by the bar, never swallowed.
@@ -22,7 +23,7 @@ type Answer = {
 	ok?: boolean;
 	message?: string;
 	href?: string;
-	/** Navigation state for `href`: `/lock`'s and `/unlock`'s `go` intent. */
+	/** Navigation state for `href`: the `go` intent of `/lock`, `/unlock` and a gated `/reveal`. */
 	state?: Record<string, unknown>;
 };
 
