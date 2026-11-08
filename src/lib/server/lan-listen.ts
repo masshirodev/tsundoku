@@ -34,6 +34,13 @@ export type LanStatus = {
 	error: string | null;
 	/** Windows asks, once, the first time: STARTING… names the dialog until then. */
 	firstTime: boolean;
+	/**
+	 * When a request last came in by a Wi-Fi listener from a home-network
+	 * client, any request at all (c721): proof the computer's firewall lets a
+	 * phone in, whatever the request then gets. Null until one does, in this
+	 * process. Optional for the fakes that stand in for this object.
+	 */
+	reachedAt?: number | null;
 };
 
 export type LanControl = {
@@ -89,6 +96,7 @@ export function startListeners(o: {
 	let changed: LanStatus['changed'] = null;
 	let error: string | null = null;
 	let timer: ReturnType<typeof setInterval> | null = null;
+	let reachedAt: number | null = null;
 
 	const listenOn = (address: string) =>
 		new Promise<void>((ok, no) => {
@@ -99,6 +107,7 @@ export function startListeners(o: {
 					res.statusCode = 403;
 					return res.end('not on this network');
 				}
+				reachedAt = Date.now();
 				lanServe(req, res);
 			});
 			s.once('error', no);
@@ -153,7 +162,8 @@ export function startListeners(o: {
 		listening: [...lan.keys()].map((a) => `${a}:${o.port}`),
 		changed,
 		error,
-		firstTime: !saved.started
+		firstTime: !saved.started,
+		reachedAt
 	});
 
 	const setOn = async (on: boolean): Promise<LanStatus> => {

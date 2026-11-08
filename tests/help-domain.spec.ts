@@ -34,6 +34,18 @@ describe('the topics', () => {
 		});
 		expect(topicBySlug('start')!.short[0]).toMatch(/^Seven steps in two parts/);
 	});
+	it('04 says a firewall can keep the phone out, on Windows and on Linux (c721)', () => {
+		const wifi = topicBySlug('phone')!.parts.find((p) => p.id === 'wifi')!;
+		const said = wifi.paras!.join(' ');
+		expect(said).toMatch(/Windows asks once/);
+		expect(said).toMatch(/Linux asks nothing: a firewall there \(ufw, firewalld\)/);
+		expect(said).toContain('SETTINGS › 08 — DEVICES › WI-FI names the port');
+		overwriteGetLocale(() => 'pt-BR');
+		const pt = topicBySlug('phone')!
+			.parts.find((p) => p.id === 'wifi')!
+			.paras!.join(' ');
+		expect(pt).toMatch(/O Linux não pergunta nada/);
+	});
 	it('link to sections SETTINGS can open by name', () => {
 		for (const t of topics())
 			for (const p of t.parts) {

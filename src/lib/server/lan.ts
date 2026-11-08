@@ -87,3 +87,45 @@ export function lanReach(interfaces: Interfaces = networkInterfaces()): LanReach
 
 /** The address a phone opens: http, since a home address has no certificate (doc/WIFI.md). */
 export const lanOrigin = (address: string, port: number) => `http://${address}:${port}`;
+
+/** The private block an address sits in: 10/8, 172.16/12 or 192.168/16, or null for any other. */
+export function privateBlock(ip: string): string | null {
+	const o = octets(ip);
+	if (!o || !isPrivateV4(ip)) return null;
+	return o[0] === 10 ? '10.0.0.0/8' : o[0] === 172 ? '172.16.0.0/12' : '192.168.0.0/16';
+}
+
+/**
+ * The network an address and its netmask make, as CIDR (`192.168.1.23` and
+ * `255.255.255.0` are `192.168.1.0/24`; `10.0.5.7` and `255.255.0.0` are
+ * `10.0.0.0/16`). Null for a mask that isn't one run of ones, or either part
+ * not an IPv4 address.
+ */
+export function networkOf(ip: string, netmask: string): string | null {
+	const a = octets(ip);
+	const m = octets(netmask);
+	if (!a || !m) return null;
+	const mask = m.reduce((n, x) => n * 256 + x, 0);
+	const bits = mask.toString(2).padStart(32, '0');
+	if (!/^1*0*$/.test(bits)) return null;
+	const prefix = bits.indexOf('0') === -1 ? 32 : bits.indexOf('0');
+	return `${a.map((x, i) => x & m[i]).join('.')}/${prefix}`;
+}
+
+/**
+ * The home network a phone is on, for the firewall line SETTINGS offers to
+ * copy (c721; doc/WIFI.md, "A firewall on the computer"): the computer's own
+ * address with its own adapter's netmask, so a /24 home network is let in as
+ * that /24 and nothing wider. An address no adapter carries any more, or a
+ * mask that can't be read, falls back to the private block it is in, which is
+ * still only the home side of the router.
+ */
+export function homeSubnet(address: string, interfaces: Interfaces = networkInterfaces()): string {
+	for (const addrs of Object.values(interfaces))
+		for (const a of addrs ?? [])
+			if (a.family === 'IPv4' && a.address === address) {
+				const net = networkOf(a.address, a.netmask);
+				if (net) return net;
+			}
+	return privateBlock(address) ?? `${address}/32`;
+}

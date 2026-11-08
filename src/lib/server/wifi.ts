@@ -1,6 +1,14 @@
 import { env } from '$env/dynamic/private';
 import type { LanControl, LanStatus } from './lan-listen.ts';
-import { lanOrigin } from './lan.ts';
+import { homeSubnet, lanOrigin } from './lan.ts';
+import {
+	firewallFound,
+	firewallView,
+	noPhoneYet,
+	quietMs,
+	serverPlatform,
+	type FirewallView
+} from './firewall.ts';
 import { friendLogin } from './auth.ts';
 import {
 	CODE_MS,
@@ -205,6 +213,50 @@ export function wifiView(
 						left: tvPairing.triesLeft()
 					}
 				: null
+	};
+}
+
+/**
+ * The panel's view with what it says about a firewall (c721; doc/WIFI.md, "A
+ * firewall on the computer"): the server's platform, the firewall the probe
+ * found on, the running app's port and the computer's own home network for
+ * the lines to copy, and whether a live code has waited 30 s with no phone
+ * reaching this computer. What the load, the poll and ON, OFF and NEW CODE
+ * answer, so a press never drops the line the poll drew. Null fields where
+ * there is no home address to name.
+ */
+export type WifiAnswer = WifiView & { firewall: FirewallView | null; noPhoneYet: boolean };
+
+export async function wifiAnswer(
+	o: { renew?: boolean; fresh?: boolean; now?: number } = {}
+): Promise<WifiAnswer | null> {
+	const view = wifiView(o);
+	if (!view) return null;
+	const now = o.now ?? Date.now();
+	const s = wifiStatus();
+	const c = control();
+	const home = s?.reach.kind === 'home' ? s.reach.address : null;
+	const platform = serverPlatform();
+	const firewall =
+		home && c
+			? firewallView({
+					platform,
+					found: await firewallFound(platform, now),
+					port: c.port,
+					subnet: homeSubnet(home)
+				})
+			: null;
+	const code = pairing.current();
+	return {
+		...view,
+		firewall,
+		noPhoneYet: noPhoneYet({
+			live: !!view.phone && view.listening && view.code?.state === 'live',
+			madeAt: code?.madeAt ?? null,
+			reachedAt: s?.reachedAt,
+			now,
+			quiet: quietMs()
+		})
 	};
 }
 

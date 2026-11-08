@@ -163,7 +163,12 @@ export function topics(): HelpTopic[] {
 					id: 'wifi',
 					title: m.help_phone_wifi_title(),
 					link: { label: `${settings} →`, href: '/settings#s-devices' },
-					paras: [m.help_phone_wifi_para_1({ settings, devices }), m.help_phone_wifi_para_2()],
+					paras: [
+						m.help_phone_wifi_para_1({ settings, devices }),
+						m.help_phone_wifi_para_2(),
+						// A firewall on the computer (c721; doc/WIFI.md).
+						m.help_phone_wifi_para_3({ settings, devices })
+					],
 					table: [
 						[m.help_phone_wifi_works(), m.help_phone_wifi_works_what()],
 						[m.help_phone_wifi_doesnt(), m.help_phone_wifi_doesnt_what()]

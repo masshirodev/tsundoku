@@ -28,7 +28,7 @@ import { currentLogin, friendLogin, localOnly, setSession, slowDown } from '$lib
 import { dataPaths } from '$lib/server/data-dirs';
 import { MIN_PASSWORD, makeLogin, sessionFor, verifyPassword, writeLogin } from '$lib/server/login';
 import { checkIfStale, updateView } from '$lib/server/updates';
-import { settingsVisit, wifiView, tvBlockHere, tvPanel } from '$lib/server/wifi';
+import { settingsVisit, wifiAnswer, wifiView, tvBlockHere, tvPanel } from '$lib/server/wifi';
 import { pairedDevices, signOutDevice } from '$lib/server/pairing';
 
 /** The languages the repositories list, most extensions first: the BROWSE row's cells. */
@@ -68,11 +68,12 @@ export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest
 	// reads the codes as they are, so a burn stays burned (c531). A client-side
 	// navigation here sends `?/renew` itself (`settingsVisit`).
 	const visit = settingsVisit({ isDataRequest, method: request.method });
-	const wifi = (() => {
-		// A phone's SETTINGS over Wi-Fi is shown no code, so it makes none either (c460).
+	const wifi = await (async () => {
+		// A phone's SETTINGS over Wi-Fi is shown no code, so it makes none either
+		// (c460), nor the firewall's lines, which are the computer's (c721).
 		const lan = locals.via === 'lan';
-		const w = wifiView({ renew: visit && !lan });
-		return w && lan ? { ...w, code: null, tv: null } : w;
+		const w = await wifiAnswer({ renew: visit && !lan });
+		return w && lan ? { ...w, code: null, tv: null, firewall: null, noPhoneYet: false } : w;
 	})();
 	// With no WI-FI panel there is no row to carry the TV's six digits, so
 	// DEVICES shows them itself -- but only where the cookie they set is a
