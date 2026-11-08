@@ -517,7 +517,28 @@ verified".
      (`ASSET#connect=…`), or a link on an Android 6 box all arrive without the
      token and are a 404, with no script run. A sub-frame's request for the
      host is a 404 too. A reload reloads the document's own URL, token
-     included, so 9A still reloads. The app's own `loadUrl` never reaches
+     included, so 9A still reloads. **A history step is the one way in that
+     carries the token** (c685, wave 34): any page the WebView shows can call
+     `history.go(-n)` into an entry the app itself loaded, and no navigation
+     callback is documented to see it, so the entry is served with its own
+     token and whatever fragment it still has. Until c685 that was the
+     fragment the app wrote, and `routeHash` runs on every load: an old
+     `#connect=X` probed X again and, if X answered and was no longer in the
+     list, stored it and paired; an old `#lost=X` reopened 9D, whose retry did
+     the same once X answered. So the page now takes those two doors once:
+     the moment `routeHash` acts on `#connect=` or `#lost=`, it drops the
+     fragment from its own entry with `history.replaceState`, keeping the
+     path and the `?t=` query (the token, without which the page is a 404).
+     The entry loaded again is 9A, as any load with no fragment is. `#added=`,
+     `#rename=`, `#bad=` and `#add` are left as they are: each draws a screen
+     and writes nothing until the owner acts. `Back.kt`'s `goBackOrForward`
+     never lands on an asset entry (`Back.passedOver`), so BACK is unchanged;
+     and a second launch with the same address (c260, a hash change on the
+     same document) now changes the fragment from none to `#connect=X` and is
+     taken again, where before it set the same fragment and fired no
+     `hashchange`. `tests/tv-app-pair.e2e.ts` pins the fragment gone with the
+     token kept, both history replays, and the second launch, in a browser
+     (file:// pages and its stand-in bridge), not in the WebView. The app's own `loadUrl` never reaches
      `shouldOverrideUrlLoading`, and the page's own hash changes are
      same-document, so the screens' navigation is unchanged.
      `androidx.webkit:webkit:1.14.0` resolves offline from this machine's
@@ -883,6 +904,18 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   screen, and MORE › SERVERS must gain no `example.com` entry. A form submit
   keeps its action's fragment, and `shouldOverrideUrlLoading` is not called
   for POST; that is the second half of the same hole.
+  **Then a history step into an old pair-page entry (c685, wave 34).**
+  `replaceState` on the asset page and the WebView's history were not run
+  on a TV. Check, with a debug build and `chrome://inspect`: hand the TV an
+  address of a computer that answers and is not in SERVERS (the documented
+  `am start … --es url`), let it pair, then MORE › SERVERS › that server ›
+  FORGET. From any server page's console, step back through the history
+  (`history.go(-n)` until the pair page's entry, or `history.length` and
+  steps of one): the pair page must show 9A, the URL in the inspector must
+  end in `?t=…` with no `#connect=`, and MORE › SERVERS must not have the
+  forgotten server back. Then hand the TV the same address twice in a row
+  while it shows CHECKING: the second must be checked again (the inspector's
+  console shows a second probe), not dropped.
   **Then a URL `java.net.URI` cannot parse (c684, wave 34).** Until c684
   the host was read with `java.net.URI`, which throws on a `|` or `{` in the
   query or a `|` in the fragment, and a URL it could not read had no host:
