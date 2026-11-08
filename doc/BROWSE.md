@@ -101,6 +101,9 @@ under HISTORY, with the update count ("5 ↑"); and on the phone, whose bar has
 no room, the empty search offers it first: BROWSE A SOURCE with the last
 three, then ALL SOURCES · BROWSE with the number of sources.
 
+ADDED TO THE LIBRARY, AND HIDDEN and CONCEAL's band carry a ✕ that clears them
+from the URL; a source not answering does not (c493, [`BANDS.md`](BANDS.md)).
+
 ### Commands in every top search bar
 
 Every bar that draws a leading `/` as its prompt runs the library's commands,

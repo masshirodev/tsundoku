@@ -117,6 +117,7 @@
 		work = null,
 		readMs = 0,
 		takenOut = null,
+		dropAnswer = () => undefined,
 		hideFacts = null,
 		highlights = null
 	}: {
@@ -200,6 +201,8 @@
 		readMs?: number;
 		/** TAKE OUT from the WORK row: the facts UNDO reads, and the Work it left. */
 		takenOut?: { facts: TakeOutFacts; from: string } | null;
+		/** Clears the answer the four bands below draw (c493). */
+		dropAnswer?: () => void;
 		/** HIDE ALL n or TAKE OUT, THEN HIDE, where the screen is still here (W4). */
 		hideFacts?: {
 			hidden: number[];
@@ -803,6 +806,7 @@
 			detail={takenOut.facts.ended
 				? 'ONE SERIES WAS LEFT'
 				: 'A SERIES ON ITS OWN AGAIN · KEEPS ITS RATING, FAV AND FOLDER'}
+			ondismiss={dropAnswer}
 		>
 			{#snippet action()}
 				<form method="POST" action="?/undoTakeOutWork" use:enhance>
@@ -819,6 +823,7 @@
 				(hideFacts.hidden.length > 0 ? 'HIDDEN · TAKEN OUT' : 'TAKEN OUT · ALREADY HIDDEN')}
 			detail={hiddenBand?.detail ??
 				`A SERIES ON ITS OWN AGAIN · ${hideFacts.hidden.length > 0 ? 'SHOWN AGAIN' : 'PUT BACK'} BY UNDO`}
+			ondismiss={dropAnswer}
 		>
 			{#snippet action()}
 				<form method="POST" action="?/undoHide" use:enhance>
@@ -1373,7 +1378,7 @@
 			</div>
 		</section>
 	{:else if dismissedKey}
-		<Band title={m.offer_not_a_series_again()}>
+		<Band title={m.offer_not_a_series_again()} ondismiss={dropAnswer}>
 			{#snippet action()}
 				<form method="POST" action="?/undoDismiss" use:enhance>
 					<input type="hidden" name="key" value={dismissedKey} />
@@ -1406,7 +1411,7 @@
 			</div>
 		</section>
 	{:else if !outline && workOfferDismissed}
-		<Band title={m.offer_not_this_again()}>
+		<Band title={m.offer_not_this_again()} ondismiss={dropAnswer}>
 			{#snippet action()}
 				<form method="POST" action="?/undoWorkOffer" use:enhance>
 					<input type="hidden" name="key" value={workOfferDismissed} />

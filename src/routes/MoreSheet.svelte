@@ -329,7 +329,7 @@
 
 <Sheet {open} {onclose} label={m.more_label()}>
 	{#if view === 'more'}
-		<div class="head">
+		<div class="head sheet-head">
 			<div class="title">{m.more_title()}</div>
 			<button
 				type="button"

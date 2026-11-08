@@ -40,7 +40,7 @@
 </script>
 
 {#snippet inside()}
-	<div class="head">
+	<div class="head sheet-head">
 		{#if back}{@render back()}{/if}
 		<div class="title">{title}</div>
 		<button type="button" class="x" aria-label={m.help_close()} onclick={onclose}>✕</button>

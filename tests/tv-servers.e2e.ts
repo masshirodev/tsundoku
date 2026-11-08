@@ -37,6 +37,8 @@ declare global {
 		__tvRename?: (origin: string, tvName: string) => void;
 		/** c645: each held `servers()` answer's resolver, in the order the page asked. */
 		__tvLater?: Array<(answer: string) => void>;
+		/** c717: how many of the next `servers()` questions to hold. */
+		__tvHold?: number;
 	}
 }
 
@@ -1212,6 +1214,246 @@ test.describe('the TV app, on a server it has not named yet', () => {
 		await expect(cell(page).locator('.srv-name')).toHaveText(name);
 		await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
 	});
+});
+
+/*
+ * c717: closing MORE reads the list again, and its focus hand-back waits for
+ * that answer. Today's bridge answers at once, so only a held answer reaches
+ * this: the next `__tvHold` questions park on `__tvLater`, and everything else
+ * (MoreSheet's own synchronous read included) answers from the stub.
+ */
+async function holdNext(page: Page, n = 1) {
+	await page.evaluate((n) => (window.__tvHold = n), n);
+}
+
+async function holdingBridge(page: Page) {
+	const now = Date.now();
+	await bridge(page, [
+		{ origin: HOME, name: 'ZEN-HOME', tvName: 'Living room', opened: now },
+		{ origin: ZEN, name: 'ZEN', tvName: '', opened: now - DAY }
+	]);
+	await page.addInitScript(() => {
+		const pending: Array<(answer: string) => void> = [];
+		window.__tvLater = pending;
+		const tv = (window as unknown as { TsundokuTV: { servers: () => unknown } }).TsundokuTV;
+		const answer = tv.servers;
+		tv.servers = () => {
+			if (!window.__tvHold) return answer();
+			window.__tvHold -= 1;
+			return new Promise<string>((resolve) => pending.push(resolve));
+		};
+	});
+}
+
+/** The cell's sheet, open on SERVERS with the remote's focus on the other server. */
+async function openServersFromCell(page: Page) {
+	await cell(page).focus();
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'More' });
+	await expect(sheet.locator('[data-server]').nth(1)).toBeFocused();
+	return sheet;
+}
+
+const oneServer = JSON.stringify([{ origin: HOME, shown: 'Living room', inUse: true }]);
+const heldAnswers = (page: Page) => page.evaluate(() => window.__tvLater?.length ?? 0);
+const land = (page: Page, at: number, answer: string) =>
+	page.evaluate(([at, answer]) => window.__tvLater![at as number](answer as string), [at, answer]);
+/** A frame later: every promise and tick an answer started has run. */
+const frame = (page: Page) =>
+	page.evaluate(() => new Promise((done) => requestAnimationFrame(() => done(null))));
+const inDialog = (page: Page) =>
+	page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]:not([inert])'));
+const onMore = (page: Page) => page.locator('[data-focus-id="library-more"]');
+
+/** BACK with the answer held, and the cell again before it lands. */
+async function closeHeldAndReopen(page: Page) {
+	await page.goto('/');
+	await expect(cell(page)).toBeVisible();
+	const sheet = await openServersFromCell(page);
+	await holdNext(page);
+	await page.keyboard.press('Escape');
+	await expect(sheet).toBeHidden();
+	await expect.poll(() => heldAnswers(page)).toBe(1);
+	await expect(cell(page)).toBeFocused();
+	const again = await openServersFromCell(page);
+	return again;
+}
+
+test('S1: a late answer to MORE closing leaves focus in the SERVERS sheet reopened before it (c717)', async ({
+	page
+}) => {
+	await holdingBridge(page);
+	const sheet = await closeHeldAndReopen(page);
+	const on = sheet.locator('[data-server]').nth(1);
+
+	await land(page, 0, oneServer);
+	// The answer has been drawn, and it is the one that would hand focus back.
+	await expect(cell(page)).toHaveCount(0);
+	await frame(page);
+	await expect(on).toBeFocused();
+	await expect(onMore(page)).not.toBeFocused();
+	await expect(sheet).toBeVisible();
+});
+
+test('S1: a late answer finds the reopened sheet open even with focus nowhere (c717)', async ({
+	page
+}) => {
+	await holdingBridge(page);
+	const sheet = await closeHeldAndReopen(page);
+	// The frame before the scope's first focus, and any later fall to the body.
+	await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+	await land(page, 0, oneServer);
+	await expect(cell(page)).toHaveCount(0);
+	await frame(page);
+	await expect(onMore(page)).not.toBeFocused();
+	await expect(sheet).toBeVisible();
+});
+
+test('S1: the cell gone under the reopened sheet still hands focus to MORE when it closes (c717)', async ({
+	page
+}) => {
+	await holdingBridge(page);
+	const sheet = await closeHeldAndReopen(page);
+	await land(page, 0, oneServer);
+	await expect(cell(page)).toHaveCount(0);
+	await frame(page);
+
+	// BACK from the sheet whose cell has gone: this close's answer comes late too.
+	await holdNext(page);
+	await page.keyboard.press('Escape');
+	await expect(sheet).toBeHidden();
+	await expect.poll(() => heldAnswers(page)).toBe(2);
+	await land(page, 1, oneServer);
+	await expect(onMore(page)).toBeFocused();
+});
+
+test('S1: a late answer to MORE closing does not take focus from another sheet (c717)', async ({
+	page
+}) => {
+	await holdingBridge(page);
+	await page.goto('/');
+	await expect(cell(page)).toBeVisible();
+	const servers = await openServersFromCell(page);
+	await holdNext(page);
+	await page.keyboard.press('Escape');
+	await expect(servers).toBeHidden();
+	await expect.poll(() => heldAnswers(page)).toBe(1);
+
+	// MENU on a tile: a different dialog, so `moreOpen` stays false.
+	await page.locator('[data-focus-id^="series-"]').first().focus();
+	await page.keyboard.press('ContextMenu');
+	await expect(page.locator('.sheet[role="dialog"]')).toBeVisible();
+	await expect.poll(() => inDialog(page)).toBe(true);
+
+	await land(page, 0, oneServer);
+	await expect(cell(page)).toHaveCount(0);
+	await frame(page);
+	expect(await inDialog(page)).toBe(true);
+	await expect(onMore(page)).not.toBeFocused();
+});
+
+test('S1: an older close answering after a newer one hands nothing back (c717)', async ({
+	page
+}) => {
+	await holdingBridge(page);
+	const sheet = await closeHeldAndReopen(page);
+	await holdNext(page);
+	await page.keyboard.press('Escape');
+	await expect(sheet).toBeHidden();
+	await expect.poll(() => heldAnswers(page)).toBe(2);
+
+	// The newer close answers first, and that one hands back.
+	await land(page, 1, oneServer);
+	await expect(onMore(page)).toBeFocused();
+	// Focus leaves for nowhere; the older answer must not bring it back.
+	await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+	await land(page, 0, oneServer);
+	await frame(page);
+	expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+});
+
+test('the panel keeps its head in the safe area, on the ground, when MORE is scrolled to its end (c716)', async ({
+	page
+}) => {
+	await bridge(page, [{ origin: HOME, name: 'ZEN-HOME', tvName: '', opened: Date.now() }]);
+	const sheet = await openMore(page);
+	const facts = await sheet.evaluate((el) => {
+		el.scrollTop = el.scrollHeight;
+		const head = el.querySelector<HTMLElement>('.sheet-head')!;
+		const box = el.getBoundingClientRect();
+		const top = head.getBoundingClientRect().top - box.top;
+		// In the overscan band above the head, a third of the way across.
+		const at = document.elementFromPoint(box.left + box.width / 3, box.top + 10);
+		return {
+			scrolled: el.scrollTop > 0,
+			top,
+			inBand: at === head || at === el,
+			room: parseFloat(getComputedStyle(el).scrollPaddingTop),
+			height: head.offsetHeight
+		};
+	});
+	expect(facts.scrolled).toBe(true);
+	expect(facts.top).toBeCloseTo(28, 0);
+	expect(facts.inBand).toBe(true);
+	expect(facts.room).toBe(28 + facts.height);
+
+	const x = sheet.getByRole('button', { name: 'Close' });
+	await x.focus();
+	await page.keyboard.press('Enter');
+	await expect(sheet).toBeHidden();
+});
+
+test('MORE gives up the head room when SERVERS has no head, and takes it back, and a head that grows is measured (c716)', async ({
+	page
+}) => {
+	await bridge(page, [{ origin: HOME, name: 'ZEN-HOME', tvName: '', opened: Date.now() }]);
+	const sheet = await openMore(page);
+	const room = () => sheet.evaluate((el) => el.style.scrollPaddingTop);
+	const taller = (px: number) =>
+		sheet.evaluate(
+			(el, px) => ((el.querySelector('.sheet-head') as HTMLElement).style.height = `${px}px`),
+			px
+		);
+	await expect.poll(room).toBe('84px');
+	await taller(120);
+	await expect.poll(room).toBe('148px');
+
+	await sheet.locator('[data-more-servers]').click();
+	await expect(sheet.locator('.p-head')).toBeVisible();
+	await expect.poll(room).toBe('');
+
+	await page.keyboard.press('Escape');
+	await expect(sheet.locator('.sheet-head')).toBeVisible();
+	// The head is drawn anew at its own height.
+	await expect.poll(room).toBe('84px');
+});
+
+test('a TV reaches the band’s ✕ after UNDO, and clearing it leaves the screen usable (c493)', async ({
+	page
+}) => {
+	await page.goto('/?sort=title');
+	await page.locator('[data-focus-id^="series-"]').first().focus();
+	await page.keyboard.press('Enter');
+	await page.waitForURL(/\/series\/\d+/);
+	await page.goto(`${new URL(page.url()).pathname}?added=source~e2e`);
+	const band = page.locator('.band:visible', { hasText: 'ADDED TO THE LIBRARY' });
+	const undo = band.getByRole('button', { name: 'UNDO' });
+	const x = band.getByRole('button', { name: 'Dismiss this band' });
+	await undo.focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(x).toBeFocused();
+
+	await page.keyboard.press('Enter');
+	await expect(band).toHaveCount(0);
+	await page.keyboard.press('ArrowDown');
+	await expect
+		.poll(() =>
+			page.evaluate(() => {
+				const a = document.activeElement;
+				return a !== null && a !== document.body && (a as HTMLElement).offsetParent !== null;
+			})
+		)
+		.toBe(true);
 });
 
 test.describe('a TV that speaks Portuguese', () => {

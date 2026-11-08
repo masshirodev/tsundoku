@@ -22,7 +22,7 @@
 	import BookSheet from './BookSheet.svelte';
 	import type { GroupBook } from './other-forms.server';
 	import GroupSheet from '../../GroupSheet.svelte';
-	import Band from '$lib/components/chrome/Band.svelte';
+	import Band, { clearBandUrl } from '$lib/components/chrome/Band.svelte';
 	import NavLine from '$lib/components/waiting/NavLine.svelte';
 	import { m } from '$lib/paraglide/messages';
 	import { num } from '$lib/i18n/format';
@@ -82,11 +82,18 @@
 	const ring = $derived(trail.ring(data.start, page.url.pathname));
 	// A refusal from MIGHT CONTINUE's sheet (`workMessage`) lands here only when
 	// the sheet closed on it: the offer it was drawn with has gone (c584).
+	/**
+	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * action's new `form` draws its own band.
+	 */
+	let droppedAnswer = $state.raw<typeof form>(null);
+	const latest = $derived(form === droppedAnswer ? null : form);
+	const dropAnswer = () => (droppedAnswer = form);
 	const refusal = $derived(
-		form && 'message' in form && typeof form.message === 'string'
-			? form.message.toUpperCase()
-			: form && 'workMessage' in form && typeof form.workMessage === 'string'
-				? form.workMessage.toUpperCase()
+		latest && 'message' in latest && typeof latest.message === 'string'
+			? latest.message.toUpperCase()
+			: latest && 'workMessage' in latest && typeof latest.workMessage === 'string'
+				? latest.workMessage.toUpperCase()
 				: ''
 	);
 
@@ -141,12 +148,14 @@
 	// Grouped novels are counted by the volume (doc/BOOKS.md).
 	const unit = $derived(page.url.searchParams.get('unit') === 'volumes' ? 'VOLUMES' : 'BOOKS');
 	const createdOrder = $derived(page.url.searchParams.get('order') ?? 'BY DATE ADDED');
-	const takenOut = $derived(form && 'takenOut' in form ? form.takenOut : null);
+	const takenOut = $derived(latest && 'takenOut' in latest ? latest.takenOut : null);
 	/** MIGHT CONTINUE's REVIEW, once its sheet added this series (W7): the band and its UNDO. */
-	const workJoined = $derived(form && 'workJoined' in form ? (form.workJoined as AddFacts) : null);
+	const workJoined = $derived(
+		latest && 'workJoined' in latest ? (latest.workJoined as AddFacts) : null
+	);
 	/** NOT THIS's key, so its band can offer UNDO. */
 	const workOfferDismissed = $derived(
-		form && 'workOfferDismissed' in form ? String(form.workOfferDismissed) : null
+		latest && 'workOfferDismissed' in latest ? String(latest.workOfferDismissed) : null
 	);
 	/** REVIEW → on MIGHT CONTINUE <WORK>: the sheet, in ADD TO A WORK. */
 	let reviewingWork = $state(false);
@@ -183,13 +192,17 @@
 				if (made) made.refused = String(result.data?.workMessage ?? 'COULD NOT UNDO');
 			}
 		};
-	const markedThrough = $derived(form && 'markedThrough' in form ? form.markedThrough : null);
+	const markedThrough = $derived(latest && 'markedThrough' in latest ? latest.markedThrough : null);
 	/** UNDO's answer: what it put back, and what had moved on since the press and was left. */
-	const undoneThrough = $derived(form && 'undoneThrough' in form ? form.undoneThrough : null);
+	const undoneThrough = $derived(latest && 'undoneThrough' in latest ? latest.undoneThrough : null);
 	// UNLINK's band (c520): what went, every column of it, so UNDO puts it back.
-	const unlinked = $derived(form && 'unlinked' in form ? (form.unlinked as UnlinkFacts) : null);
+	const unlinked = $derived(
+		latest && 'unlinked' in latest ? (latest.unlinked as UnlinkFacts) : null
+	);
 	// RENAME's band (c526): the facts the action returned, so UNDO puts back exactly them.
-	const renamed = $derived(form && 'renamed' in form ? (form.renamed as SeriesRenameFacts) : null);
+	const renamed = $derived(
+		latest && 'renamed' in latest ? (latest.renamed as SeriesRenameFacts) : null
+	);
 	/**
 	 * REFRESH's answer (card c220): what the source lists that no entry was.
 	 * REFRESH never downloads, so the band says so and leaves NEXT or ALL to
@@ -197,8 +210,8 @@
 	 * no longer new to the source.
 	 */
 	const refreshed = $derived(
-		form && 'refreshed' in form
-			? (form.refreshed as { kind: 'manga' | 'anime' | 'novel'; added: number })
+		latest && 'refreshed' in latest
+			? (latest.refreshed as { kind: 'manga' | 'anime' | 'novel'; added: number })
 			: null
 	);
 	/**
@@ -231,7 +244,7 @@
 		await tick();
 		throughForm?.requestSubmit();
 	}
-	const dismissedKey = $derived(form && 'dismissed' in form ? form.dismissed : null);
+	const dismissedKey = $derived(latest && 'dismissed' in latest ? latest.dismissed : null);
 	const action = $derived(
 		series.kind === 'anime' ? animeContinue(series.entries) : continueAction(series)
 	);
@@ -403,7 +416,7 @@
 					data.downloads.kind === 'ok' ? data.downloads.queuedElsewhere : 0
 				)
 	);
-	const downloaded = $derived(form && 'downloaded' in form ? form.downloaded : null);
+	const downloaded = $derived(latest && 'downloaded' in latest ? latest.downloaded : null);
 	// Live while the engine answers: only the downloading chapter moves; anything else reads the page again.
 	const watching = $derived(canDownload);
 	$effect(() => {
@@ -628,6 +641,7 @@
 		<Band
 			title="ADDED TO THE LIBRARY"
 			detail={addedDetail(series.entries.length, data.addedQueued, !!data.anime)}
+			ondismiss={() => clearBandUrl(['added', 'queued'])}
 		>
 			{#snippet action()}
 				<form method="POST" action="?/undoSourceAdd" use:enhance>
@@ -675,6 +689,7 @@
 		<Band
 			title="MOVED TO {(data.move.source || 'ANOTHER SOURCE').toUpperCase()}"
 			detail={movedDetail}
+			ondismiss={() => clearBandUrl(['moved', 'added', 'kept', 'lost'])}
 		>
 			{#snippet action()}
 				<form method="POST" action="?/undoMove" use:enhance>
@@ -683,12 +698,13 @@
 			{/snippet}
 		</Band>
 	{:else if refusal}
-		<Band title={refusal} detail="NOTHING CHANGED" />
+		<Band title={refusal} detail="NOTHING CHANGED" ondismiss={dropAnswer} />
 	{:else if downloaded && downloaded.missing > 0}
 		<!-- Chapters the source no longer lists, after one refresh: queued what it could. -->
 		<Band
 			title="{downloaded.missing} NOT AT THE SOURCE"
 			detail="{downloaded.queued} QUEUED · THE REST STAY NOT DOWNLOADED"
+			ondismiss={dropAnswer}
 		/>
 	{/if}
 
@@ -701,6 +717,7 @@
 					? m.series_refresh_new_episode({ count: refreshed.added, n: num(refreshed.added) })
 					: m.series_refresh_new({ count: refreshed.added, n: num(refreshed.added) })}
 			detail={refreshed.added === 0 ? m.series_refresh_none_detail() : m.series_refresh_detail()}
+			ondismiss={dropAnswer}
 		/>
 	{:else if markedThrough}
 		<Band
@@ -710,6 +727,7 @@
 			detail={markedThrough.ids.length === 0
 				? undefined
 				: `${markedThrough.ids.length} CHAPTER${markedThrough.ids.length === 1 ? '' : 'S'}`}
+			ondismiss={dropAnswer}
 		>
 			{#snippet action()}
 				{#if markedThrough.ids.length > 0}
@@ -728,12 +746,14 @@
 			detail="{undoneThrough.kept} READ OR MARKED SINCE · LEFT AS {undoneThrough.kept === 1
 				? 'IT IS'
 				: 'THEY ARE'}"
+			ondismiss={dropAnswer}
 		/>
 	{:else if madeWork}
 		<!-- OTHER FORMS' GROUP AS A WORK (c700): the library's own band and UNDO. -->
 		<Band
 			title={m.offer_work_made({ name: madeWork.facts.work.name.toUpperCase() })}
 			detail={madeWork.refused || `${madeWork.facts.members.length} SERIES · EACH KEEPS ITS OWN`}
+			ondismiss={() => (made = null)}
 		>
 			{#snippet action()}
 				<form method="POST" action="/?/undoWork" use:enhance={undoMade}>
@@ -749,6 +769,7 @@
 			title="ADDED TO {(workJoined.workName ?? 'THE WORK').toUpperCase()} · PART {data.work?.part ??
 				'?'}"
 			detail="EACH KEEPS ITS OWN RATING, FAV, FOLLOW, LINK AND FOLDER"
+			ondismiss={dropAnswer}
 		>
 			{#snippet action()}
 				<form method="POST" action="?/undoAddToWork" use:enhance>
@@ -762,6 +783,7 @@
 		<Band
 			title="UNLINKED · {(unlinked.title || 'THE ENTRY').toUpperCase()}"
 			detail="{unlinked.season !== null ? `S${unlinked.season} · ` : ''}NO PASS LINKS IT AGAIN"
+			ondismiss={dropAnswer}
 		>
 			{#snippet action()}
 				<form method="POST" action="?/undoUnlink" use:enhance>
@@ -777,6 +799,7 @@
 			detail={renamed.name === renamed.title
 				? 'THE SAME NAME'
 				: `WAS ${renamed.title.toUpperCase()}`}
+			ondismiss={dropAnswer}
 		>
 			{#snippet action()}
 				{#if renamed.name !== renamed.title}
@@ -791,6 +814,7 @@
 		<Band
 			title="TAKEN OUT · {takenOut.title?.toUpperCase()}"
 			detail="A SINGLE BOOK AGAIN · KEEPS ITS RATING, FAV, TAGS AND PAGE"
+			ondismiss={dropAnswer}
 		>
 			{#snippet action()}
 				<form method="POST" action="?/undoTakeOut" use:enhance>
@@ -804,6 +828,7 @@
 		<Band
 			title={added ? `${created} ${unit} ADDED` : `SERIES CREATED · ${created} ${unit}`}
 			detail={added ? 'AT THE END · ORDER TO CHANGE' : `ORDERED ${createdOrder} · ORDER TO CHANGE`}
+			ondismiss={() => clearBandUrl(['created', 'added', 'order', 'unit'])}
 		>
 			{#snippet action()}
 				<form method="POST" action={added ? '?/undoAdd' : '?/ungroup'} use:enhance={replacing}>
@@ -854,14 +879,15 @@
 					noVideo={data.move.band}
 					work={data.work}
 					readMs={data.readMs}
-					takenOut={form && 'workTakenOut' in form
+					takenOut={latest && 'workTakenOut' in latest
 						? {
-								facts: form.workTakenOut as TakeOutFacts,
-								from: String(('workFrom' in form && form.workFrom) || '')
+								facts: latest.workTakenOut as TakeOutFacts,
+								from: String(('workFrom' in latest && latest.workFrom) || '')
 							}
 						: null}
-					hideFacts={form && 'hideFacts' in form
-						? (form.hideFacts as {
+					{dropAnswer}
+					hideFacts={latest && 'hideFacts' in latest
+						? (latest.hideFacts as {
 								hidden: number[];
 								out: TakeOutFacts[];
 								whole: number[];

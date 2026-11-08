@@ -75,7 +75,7 @@
 	const listKey = (u: URL) => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
 		const p = new URLSearchParams(u.searchParams);
-		for (const k of ['pages', 'panel', 'find', ...ADDED_BAND]) p.delete(k);
+		for (const k of ['pages', 'panel', 'find', 'refused', 'new', ...ADDED_BAND]) p.delete(k);
 		return `${u.pathname}?${p}`;
 	};
 
@@ -223,7 +223,7 @@
 	</TopBar>
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
-	{#if commandNote}<Band title={commandNote} />{/if}
+	{#if commandNote}<Band title={commandNote} ondismiss={() => (commandNote = '')} />{/if}
 	{#if data.addedHidden}
 		<!-- What the series page's band would have said (c505): what ADD AND
 		     DOWNLOAD queued, and UNDO while nothing of it is downloaded or read.

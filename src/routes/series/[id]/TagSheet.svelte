@@ -45,7 +45,7 @@
 <svelte:window onpageshow={() => (finding = false)} />
 
 <Sheet {open} {onclose} label="Look for {tag?.value ?? 'this tag'}">
-	<div class="head">
+	<div class="head sheet-head">
 		<span class="h"
 			><span class="ns">{(tag?.namespace || 'tag').toUpperCase()}</span>{tag?.value}</span
 		>

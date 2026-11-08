@@ -24,7 +24,7 @@
 </script>
 
 <Sheet {open} {onclose} label="Unfold into {lines.length} books">
-	<div class="head">
+	<div class="head sheet-head">
 		<span class="h">UNFOLD INTO {lines.length} BOOKS</span>
 		<button type="button" class="x" aria-label="Close" onclick={onclose}>✕</button>
 	</div>

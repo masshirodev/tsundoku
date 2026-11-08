@@ -89,7 +89,8 @@ it is lost.
 
 From 10 s the band says how long it has been asking, and the request carries
 on. ← BACK stays where you are: it navigates to the current URL, which
-replaces the stalled navigation and costs nothing.
+replaces the stalled navigation and costs nothing. These bands say what is
+true now, so they carry no ✕ (c493, [`BANDS.md`](BANDS.md)).
 
 ## Writes that fail
 

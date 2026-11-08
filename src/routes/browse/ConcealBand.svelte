@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import Band from '$lib/components/chrome/Band.svelte';
+	import Band, { clearBandUrl } from '$lib/components/chrome/Band.svelte';
 	import { count } from '$lib/library/downloads';
 	import type { ConcealBand } from './conceal.server';
 
@@ -35,7 +35,11 @@
 	);
 </script>
 
-<Band title="{count(band.hidden)} SERIES HIDDEN NOW" {detail}>
+<Band
+	title="{count(band.hidden)} SERIES HIDDEN NOW"
+	{detail}
+	ondismiss={() => clearBandUrl(['of', 'concealed'])}
+>
 	{#snippet action()}
 		<form method="POST" action={undo} use:enhance>
 			<input type="hidden" name="concealed" value={band.concealed} />

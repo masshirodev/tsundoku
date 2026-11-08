@@ -49,11 +49,18 @@
 	const orderName = { hand: 'By hand', added: 'By date added', title: 'By title' } as const;
 
 	// ---- bands ------------------------------------------------------------
-	const takenOut = $derived(form && 'out' in form ? (form.out as TakeOutFacts[]) : null);
-	const added = $derived(form && 'added' in form ? (form.added as AddFacts) : null);
-	const renamed = $derived(form && 'renamed' in form ? (form.renamed as RenameFacts) : null);
+	/**
+	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * action's new `form` draws its own band.
+	 */
+	let droppedAnswer = $state.raw<typeof form>(null);
+	const latest = $derived(form === droppedAnswer ? null : form);
+	const dropAnswer = () => (droppedAnswer = form);
+	const takenOut = $derived(latest && 'out' in latest ? (latest.out as TakeOutFacts[]) : null);
+	const added = $derived(latest && 'added' in latest ? (latest.added as AddFacts) : null);
+	const renamed = $derived(latest && 'renamed' in latest ? (latest.renamed as RenameFacts) : null);
 	const refusal = $derived(
-		form && 'message' in form && typeof form.message === 'string' ? form.message : ''
+		latest && 'message' in latest && typeof latest.message === 'string' ? latest.message : ''
 	);
 	// The names come from the facts, never from `parts` or the picker: `update()`
 	// has already re-read both lists by the time the band renders, so looking a
@@ -190,6 +197,7 @@
 			detail="{takenOut.length === 1
 				? 'A SERIES ON ITS OWN AGAIN'
 				: `${takenOut.length} SERIES ON THEIR OWN AGAIN`} · KEEPS ITS RATING, FAV AND FOLDER"
+			ondismiss={dropAnswer}
 		>
 			{#snippet action()}
 				<form method="POST" action="?/undoTakeOut" use:enhance>
@@ -199,7 +207,11 @@
 			{/snippet}
 		</Band>
 	{:else if added}
-		<Band title="ADDED · {addedTitle.toUpperCase()}" detail="AT THE END OF THE RUN">
+		<Band
+			title="ADDED · {addedTitle.toUpperCase()}"
+			detail="AT THE END OF THE RUN"
+			ondismiss={dropAnswer}
+		>
 			{#snippet action()}
 				<form method="POST" action="?/undoAdd" use:enhance>
 					<input type="hidden" name="facts" value={JSON.stringify(added)} />
@@ -208,7 +220,11 @@
 			{/snippet}
 		</Band>
 	{:else if renamed}
-		<Band title="RENAMED · {work.name.toUpperCase()}" detail="THE RUN, UNDER ITS OWN NAME">
+		<Band
+			title="RENAMED · {work.name.toUpperCase()}"
+			detail="THE RUN, UNDER ITS OWN NAME"
+			ondismiss={dropAnswer}
+		>
 			{#snippet action()}
 				<form method="POST" action="?/undoRename" use:enhance>
 					<input type="hidden" name="facts" value={JSON.stringify(renamed)} />
@@ -217,7 +233,7 @@
 			{/snippet}
 		</Band>
 	{:else if refusal}
-		<Band title={refusal} detail="NOTHING CHANGED" />
+		<Band title={refusal} detail="NOTHING CHANGED" ondismiss={dropAnswer} />
 	{/if}
 
 	<div class="body">

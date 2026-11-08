@@ -75,16 +75,18 @@ test.describe('a browser that speaks Portuguese', () => {
 		try {
 			await page.goto(`/series/${newcomer}`);
 			// MIGHT BE ONE SERIES: the three singles share a stem.
-			await expect(page.locator('.sugg:not(.offer)').getByText('PODE SER UMA SÉRIE')).toBeVisible();
+			await expect(
+				page.locator('.sugg:not(.offer):visible').getByText('PODE SER UMA SÉRIE')
+			).toBeVisible();
 			// MIGHT CONTINUE <WORK> · AS PART N: the Work of two, and the newcomer after it.
 			await expect(
-				page.locator('.sugg.offer').getByText('PODE CONTINUAR KAZE NO UTA · COMO PARTE 3')
+				page.locator('.sugg.offer:visible').getByText('PODE CONTINUAR KAZE NO UTA · COMO PARTE 3')
 			).toBeVisible();
 			// Its second lines too: the count (a plural) and the reason (wave 31).
-			await expect(page.locator('.sugg:not(.offer) .sugg-head .dim')).toHaveText(
+			await expect(page.locator('.sugg:not(.offer):visible .sugg-head .dim')).toHaveText(
 				'3 LIVROS · "KAZE NO UTA …"'
 			);
-			await expect(page.locator('.sugg.offer .offer-why')).toHaveText(
+			await expect(page.locator('.sugg.offer:visible .offer-why')).toHaveText(
 				'O TÍTULO DELA COMEÇA COM O NOME DA OBRA · A OBRA TEM 2 SÉRIES'
 			);
 			// Its cells too, so the offer is usable in the language it is drawn in.

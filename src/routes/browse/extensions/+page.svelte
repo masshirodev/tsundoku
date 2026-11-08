@@ -86,8 +86,15 @@
 
 	/** The form result for this package, if the last action was about it. */
 	const about = (pkg: string) => (form && 'pkg' in form && form.pkg === pkg ? form : null);
+	/**
+	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * action's new `form` draws its own band.
+	 */
+	let droppedAnswer = $state.raw<typeof form>(null);
+	const latest = $derived(form === droppedAnswer ? null : form);
+	const dropAnswer = () => (droppedAnswer = form);
 	const refusal = $derived(
-		form && 'message' in form && typeof form.message === 'string' ? form : null
+		latest && 'message' in latest && typeof latest.message === 'string' ? latest : null
 	);
 	/** An install refused for its signature: both keys, side by side. */
 	const untrustedKeys = $derived(
@@ -144,7 +151,7 @@
 		{/snippet}
 	</TopBar>
 
-	{#if commandNote}<Band title={commandNote} />{/if}
+	{#if commandNote}<Band title={commandNote} ondismiss={() => (commandNote = '')} />{/if}
 
 	<!-- The way back to GET STARTED, while step 01's or 02's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
@@ -175,7 +182,11 @@
 			<div class="u-k"><span>ITS REPOSITORY LISTS</span><code>{untrustedKeys.expected}</code></div>
 		</div>
 	{:else if refusal}
-		<Band title={String(refusal.message).toUpperCase().slice(0, 160)} detail="NOTHING CHANGED" />
+		<Band
+			title={String(refusal.message).toUpperCase().slice(0, 160)}
+			detail="NOTHING CHANGED"
+			ondismiss={dropAnswer}
+		/>
 	{/if}
 
 	{#if data.counts.repos === 0 && data.tab !== 'repos'}

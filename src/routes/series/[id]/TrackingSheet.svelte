@@ -244,7 +244,7 @@
 </script>
 
 <Sheet {open} {onclose} label="Tracking">
-	<div class="head">
+	<div class="head sheet-head">
 		<div class="ti">{title}</div>
 		<button type="button" class="done" onclick={onclose}>DONE</button>
 	</div>

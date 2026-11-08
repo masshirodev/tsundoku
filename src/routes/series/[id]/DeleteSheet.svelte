@@ -50,7 +50,7 @@
 </script>
 
 <Sheet {open} {onclose} label={title}>
-	<div class="head">
+	<div class="head sheet-head">
 		<span class="h">{title}</span>
 		<button type="button" class="x" aria-label={m.chrome_close()} onclick={onclose}>✕</button>
 	</div>

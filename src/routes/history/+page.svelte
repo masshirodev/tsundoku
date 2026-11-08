@@ -36,7 +36,14 @@
 	};
 	const keyOf = (r: HistoryRow) => `${r.seriesId}@${r.day}`;
 
-	const removed = $derived(form && 'removed' in form ? form.removed : null);
+	/**
+	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * action's new `form` draws its own band.
+	 */
+	let droppedAnswer = $state.raw<typeof form>(null);
+	const latest = $derived(form === droppedAnswer ? null : form);
+	const dropAnswer = () => (droppedAnswer = form);
+	const removed = $derived(latest && 'removed' in latest ? latest.removed : null);
 
 	/** "CH. 22 STAYS": what the pressed row promises to keep. */
 	function stays(r: HistoryRow): string {
@@ -75,7 +82,7 @@
 	</TopBar>
 
 	{#if removed}
-		<Band title="REMOVED · PROGRESS KEPT">
+		<Band title="REMOVED · PROGRESS KEPT" ondismiss={dropAnswer}>
 			{#snippet action()}
 				<form method="POST" action="?/undo" use:enhance>
 					<input type="hidden" name="series" value={removed.series} />
@@ -87,7 +94,11 @@
 	{/if}
 
 	{#if added}
-		<Band title="ADDED · PROGRESS KEPT" detail="ITS READING COUNTS FROM ITS FIRST DAY">
+		<Band
+			title="ADDED · PROGRESS KEPT"
+			detail="ITS READING COUNTS FROM ITS FIRST DAY"
+			ondismiss={() => (added = null)}
+		>
 			{#snippet action()}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref() resolves -->
 				<a href={seriesHref(added!.seriesId)}>OPEN →</a>
