@@ -1,5 +1,6 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures';
+import { startTagWorld, type TagWorld } from './helpers/tag-world';
 
 /**
  * DETAILS, the fold above the list (c425; doc/SERIES.md "DETAILS";
@@ -7,13 +8,16 @@ import { expect, test } from './fixtures';
  * one 64px line, closed by default and remembered for the device; SHELVES
  * and ABOUT stay above it, and ABOUT clamps to three lines. Everywhere else
  * these projects run (the tablet in both orientations, the desktop) nothing
- * folds and every row keeps today's order. A plain `*.e2e.ts`, so it runs on
- * the four device projects; the TV's stop is tv-series-details.e2e.ts'.
+ * folds, and ABOUT and TAGS stand under REFRESH and FOLLOW (c837). A plain
+ * `*.e2e.ts`, so it runs on the four device projects; the TV's stop is
+ * tv-series-details.e2e.ts'.
  *
  * It only reads the shared seed: Tower of God (series-layout's, unlinked, so
  * its line carries LISTS' NOT LINKED mark in ink) and Hoshi no Umi no
  * Tabibito, a doujin with no lists at all (the quiet line). Opening DETAILS
- * writes the browser's localStorage, which is the test's own context.
+ * writes the browser's localStorage, which is the test's own context. c837's
+ * cases write tags, through the EDIT sheet, so they run on a world of their own
+ * (tests/helpers/tag-world.ts).
  */
 
 const KEY = 'tsundoku:series-details';
@@ -161,6 +165,20 @@ test.describe('on a phone', () => {
 		await expect(page.locator('.file-row')).toBeHidden();
 	});
 
+	test('TAGS stays inside DETAILS (1A, 1C), under SOURCE’s place, drawn once (c837)', async ({
+		page
+	}) => {
+		await openSeries(page, 'Tower of God');
+		await expect(page.locator('.panel .tags:visible')).toHaveCount(0);
+		await toggle(page, true);
+		await expect(page.locator('.panel .tags:visible')).toHaveCount(1);
+		const tags = await top(page, 'TAGS');
+		expect(tags).toBeGreaterThan((await line(page).boundingBox())!.y);
+		expect(tags).toBeGreaterThan(await top(page, 'COVER'));
+		expect(tags).toBeLessThan(await top(page, 'FILE'));
+		expect((await line(page).locator('.dt-all').textContent())!.split(' · ')).toContain('TAGS');
+	});
+
 	test('the server draws it closed, so a first paint never flashes it open', async ({
 		page,
 		context
@@ -239,13 +257,15 @@ test.describe('where nothing folds', () => {
 		);
 	});
 
-	test('no DETAILS line, and every row in today’s order', async ({ page }) => {
+	test('no DETAILS line, and ABOUT and TAGS stand above the other rows (c837)', async ({
+		page
+	}) => {
 		await openSeries(page, 'Tower of God');
 		await expect(line(page)).toBeHidden();
 		await expect(page.locator('.file-row')).toBeVisible();
-		// Today's order (doc/SERIES.md, "The frame"): DIRECTION, SHELVES, LISTS,
-		// COVER, TAGS, ABOUT, FILE.
-		const order = ['DIRECTION', 'SHELVES', 'LISTS', 'COVER', 'TAGS', 'ABOUT', 'FILE'];
+		// The order (doc/SERIES.md, "The frame"): ABOUT, TAGS, DIRECTION, SHELVES,
+		// LISTS, COVER, FILE.
+		const order = ['ABOUT', 'TAGS', 'DIRECTION', 'SHELVES', 'LISTS', 'COVER', 'FILE'];
 		const tops = [];
 		for (const l of order) tops.push(await top(page, l));
 		expect([...tops].sort((a, b) => a - b)).toEqual(tops);
@@ -261,5 +281,201 @@ test.describe('where nothing folds', () => {
 		await page.reload();
 		await expect(line(page)).toBeHidden();
 		await page.evaluate((k) => localStorage.removeItem(k), KEY);
+	});
+});
+
+/**
+ * c837: each TAGS line used to cut off with an ellipsis, and `+ N MORE` was
+ * plain text. Every tag is read whole and opened, from the row where it stands
+ * on this device: under FOLLOW where nothing folds, inside DETAILS on a phone.
+ * Tags go in through the EDIT sheet, the owner's own door, on a world of its
+ * own, in order: one series grows past the cap as the cases run.
+ */
+test.describe('every tag can be read and opened (c837)', () => {
+	test.describe.configure({ mode: 'serial' });
+	const LONG = 'a-tag-with-no-spaces-in-it-'.repeat(8) + 'end';
+	/** With a series' own genre, five namespaces: each case takes its own series. */
+	const PAST_THE_CAP = ['circle:b', 'artist:c', 'language:d', 'source:e', 'zzz:f'];
+	let world: TagWorld;
+	test.beforeAll(async ({ browser: _ }, info) => {
+		void _;
+		test.skip(info.project.name === 'tv', 'tv-tags.e2e.ts walks these with the pad');
+		world = await startTagWorld(`series-details-${info.project.name}`);
+	});
+	test.afterAll(async () => {
+		await world?.stop();
+	});
+
+	/**
+	 * Types a tag and waits for its suggestions. A suggestion still on its way
+	 * from the tag before can land on this one, ✓ ON THIS and disabled, and a
+	 * form's first submit button being disabled swallows Enter (see the notes).
+	 */
+	const fillTag = async (page: Page, field: Locator, raw: string) => {
+		const answered = page.waitForResponse((r) => r.url().includes('/tags?q='));
+		await field.fill(raw);
+		await answered;
+	};
+	const url = (id: number) => `${world.base}/series/${id}`;
+	const row = (page: Page) =>
+		page.locator('.panel .row:visible', { has: page.locator('.label', { hasText: /^TAGS$/ }) });
+	const visit = async (page: Page, id: number) => {
+		await page.goto(url(id));
+		await page.waitForLoadState('networkidle');
+		if (await line(page).isVisible()) await toggle(page, true);
+		await expect(row(page)).toHaveCount(1);
+	};
+	const addTags = async (page: Page, raws: string[]) => {
+		await row(page).getByRole('button', { name: 'EDIT', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'Shelves and tags' });
+		const field = sheet.getByRole('textbox', { name: 'Add a tag, as namespace:value' });
+		for (const raw of raws) {
+			await fillTag(page, field, raw);
+			await field.press('Enter');
+			await expect(field).toHaveValue('');
+		}
+		await page.keyboard.press('Escape');
+		await expect(sheet).toBeHidden();
+	};
+	const lines = (page: Page) => row(page).locator('.tag-line .ns');
+	const clipped = (page: Page) =>
+		row(page).evaluate((n) => {
+			const out: string[] = [];
+			for (const v of n.querySelectorAll<HTMLElement>('.vals')) {
+				const box = v.getBoundingClientRect();
+				if (v.scrollWidth > v.clientWidth + 1) out.push(`${v.textContent}: scrolls`);
+				if (getComputedStyle(v).textOverflow === 'ellipsis') out.push(`${v.textContent}: ellipsis`);
+				for (const a of v.querySelectorAll('a'))
+					if (a.getBoundingClientRect().right > box.right + 1) out.push(`${a.textContent}: past`);
+			}
+			return out;
+		});
+
+	test('exactly four namespaces: four lines whole, and nothing to open', async ({ page }) => {
+		await visit(page, world.ids.edited);
+		await addTags(page, ['artist:Ren', 'language:japanese', 'source:scanned']);
+		await expect(lines(page)).toHaveText(['genre', 'artist', 'language', 'source']);
+		await expect(row(page).locator('button.more')).toHaveCount(0);
+		expect(await clipped(page)).toEqual([]);
+	});
+
+	test('past four: + N MORE ↓ opens the rest, each one a tag that opens, and LESS ↑ folds it', async ({
+		page
+	}) => {
+		await visit(page, world.ids.tagged);
+		await addTags(page, [
+			'language:japanese',
+			'source:scanned',
+			'zzz:first value',
+			'zzz:second value'
+		]);
+		await expect(lines(page)).toHaveText(['genre', 'artist', 'language', 'source']);
+		const more = row(page).locator('button.more');
+		// slice of life (tag) and the two zzz: values, not namespaces, are what it counts.
+		await expect(more).toHaveText('+ 3 MORE ↓');
+		await expect(more).toHaveAttribute('aria-expanded', 'false');
+		await expect(row(page).getByRole('link', { name: 'second value' })).toHaveCount(0);
+
+		await more.click();
+		await expect(more).toHaveText('LESS ↑');
+		await expect(more).toHaveAttribute('aria-expanded', 'true');
+		await expect(lines(page)).toHaveText(['genre', 'artist', 'language', 'source', 'tag', 'zzz']);
+		expect(await clipped(page)).toEqual([]);
+		// A value past the cap opens as any other does: this series has a source, so it asks.
+		await row(page).getByRole('link', { name: 'second value' }).click();
+		const sheet = page.getByRole('dialog', { name: 'Look for second value' });
+		await expect(sheet).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(sheet).toBeHidden();
+		await expect(more).toHaveText('LESS ↑');
+
+		await more.click();
+		await expect(more).toHaveText('+ 3 MORE ↓');
+		await expect(row(page).getByRole('link', { name: 'second value' })).toHaveCount(0);
+	});
+
+	test('a value in the row is its own box, and + N MORE ↓ sits under the values', async ({
+		page
+	}) => {
+		await visit(page, world.ids.missing);
+		await addTags(page, PAST_THE_CAP);
+		const box = async (l: ReturnType<Page['locator']>) => (await l.boundingBox())!;
+		const more = await box(row(page).locator('button.more'));
+		const vals = await box(row(page).locator('.vals').first());
+		expect(Math.abs(more.x - vals.x)).toBeLessThanOrEqual(1);
+		await expect(row(page).getByRole('link', { name: 'Romance', exact: true })).toHaveCSS(
+			'display',
+			'inline-block'
+		);
+	});
+
+	test('a tag from the first four opens from this device’s row, moved or folded', async ({
+		page
+	}) => {
+		await visit(page, world.ids.tagged);
+		await row(page).getByRole('link', { name: 'Gourmet', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'Look for Gourmet' });
+		await expect(sheet).toBeVisible();
+		const lib = new URL(
+			(await sheet.getByRole('link', { name: /IN THE LIBRARY/ }).getAttribute('href'))!,
+			world.base
+		);
+		expect(lib.search).toBe('?tag=genre%3AGourmet');
+	});
+
+	test('a value longer than the row wraps inside it and pushes nothing', async ({ page }) => {
+		await visit(page, world.ids.gallery);
+		await addTags(page, [`genre:${LONG}`]);
+		const value = row(page).getByRole('link', { name: LONG, exact: true });
+		await expect(value).toBeVisible();
+		expect(await clipped(page)).toEqual([]);
+		const height = (await value.boundingBox())!.height;
+		const lineHeight = await value.evaluate((n) => parseFloat(getComputedStyle(n).lineHeight));
+		expect(height).toBeGreaterThan(lineHeight * 1.5);
+		const edit = (await row(page)
+			.getByRole('button', { name: 'EDIT', exact: true })
+			.boundingBox())!;
+		const panel = (await page.locator('section.panel').boundingBox())!;
+		expect(edit.x + edit.width).toBeLessThanOrEqual(panel.x + panel.width + 1);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+			await page.evaluate(() => window.innerWidth)
+		);
+	});
+
+	test('no tags at all says NO TAGS', async ({ page }) => {
+		await visit(page, world.ids.unsourced);
+		await row(page).getByRole('button', { name: 'EDIT', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'Shelves and tags' });
+		await sheet.getByRole('button', { name: 'Remove genre:Romance' }).click();
+		await expect(sheet.getByRole('button', { name: 'Remove genre:Romance' })).toHaveCount(0);
+		await page.keyboard.press('Escape');
+		await expect(sheet).toBeHidden();
+		await expect(row(page).locator('.none')).toHaveText('NO TAGS');
+		await expect(row(page).locator('button.more')).toHaveCount(0);
+	});
+
+	test('MORE belongs to the series it was opened on, across a move on the same screen', async ({
+		page
+	}) => {
+		await visit(page, world.ids.twice);
+		await addTags(page, ['genre:a', 'circle:b', 'artist:c', 'language:d', 'source:e', 'zzz:f']);
+		// source:e, the bare and the tag: Mecha, zzz:f: four values past the cap.
+		await expect(row(page).locator('button.more')).toHaveText('+ 4 MORE ↓');
+		await visit(page, world.ids.broken);
+		await addTags(page, PAST_THE_CAP);
+		await row(page).locator('button.more').click();
+		await expect(row(page).locator('button.more')).toHaveText('LESS ↑');
+		// The way SAME BOOK AS and MIGHT CONTINUE move: a link, and the same component.
+		await page.evaluate((href) => {
+			const a = Object.assign(document.createElement('a'), { href });
+			document.body.append(a);
+			a.click();
+		}, `/series/${world.ids.twice}`);
+		await expect(page.getByRole('heading', { name: 'Twice Tagged Mecha' })).toBeVisible();
+		if (await line(page).isVisible()) await toggle(page, true);
+		await expect(row(page).locator('button.more')).toHaveText('+ 4 MORE ↓');
+		// And the first series still opens on a press, not left half-way.
+		await row(page).locator('button.more').click();
+		await expect(row(page).locator('button.more')).toHaveText('LESS ↑');
 	});
 });

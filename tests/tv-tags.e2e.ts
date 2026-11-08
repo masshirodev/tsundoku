@@ -59,8 +59,9 @@ type Mark = { row: string; inTags: boolean; text: string; toward: string | null 
 const mark = (page: Page, value: string) =>
 	page.evaluate((v): Mark => {
 		const a = document.activeElement as HTMLElement | null;
+		// The copy that is drawn: TAGS is in the markup twice (c837), and the other is display: none.
 		const target = [...document.querySelectorAll<HTMLElement>('.tags a')].find(
-			(t) => t.innerText.trim() === v
+			(t) => t.getClientRects().length > 0 && t.innerText.trim() === v
 		);
 		let toward: string | null = null;
 		if (a && target && a !== target) {
@@ -173,4 +174,70 @@ test('the pad reaches a tag, OK opens its sheet on the first row, BACK closes it
 	expect(u.searchParams.get(`f${GENRE}.1`)).toBe('1');
 	expect(u.searchParams.get('q')).toBeNull();
 	await expect(page.locator('nav[aria-label="Lists"] .tab.on')).toHaveText('FILTERED');
+});
+
+/**
+ * c837: every tag is a stop, wrapped lines and all, and `+ N MORE ↓` is one
+ * too. Tags go in through the EDIT sheet on this file's own world.
+ */
+test('the pad reaches every tag past a wrapped line and through + N MORE ↓, and OK opens one (c837)', async ({
+	page
+}) => {
+	await page.goto(`${world.base}/series/${world.ids.gallery}`);
+	await page.waitForLoadState('networkidle');
+	const details = page.locator('[data-row="details"]');
+	await details.focus();
+	await page.keyboard.press('Enter');
+	await expect(details).toHaveAttribute('aria-expanded', 'true');
+	const row = page.locator('.panel .row:visible', {
+		has: page.locator('.label', { hasText: /^TAGS$/ })
+	});
+	await row.getByRole('button', { name: 'EDIT', exact: true }).click();
+	const edit = page.getByRole('dialog', { name: 'Shelves and tags' });
+	const field = edit.getByRole('textbox', { name: 'Add a tag, as namespace:value' });
+	const long = 'a-value-longer-than-the-column-'.repeat(5) + 'end';
+	for (const raw of [
+		`genre:${long}`,
+		'genre:Second',
+		'circle:Circle One',
+		'artist:Artist One',
+		'language:japanese',
+		'source:scanned',
+		'zzz:Past The Cap'
+	]) {
+		// Wait for the suggestions: one still on its way from the tag before can land
+		// ✓ ON THIS and disabled, and a disabled first submit button swallows Enter.
+		const answered = page.waitForResponse((r) => r.url().includes('/tags?q='));
+		await field.fill(raw);
+		await answered;
+		await field.press('Enter');
+		await expect(field).toHaveValue('');
+	}
+	await page.keyboard.press('Escape');
+	await expect(edit).toBeHidden();
+
+	// BACK out of the sheet leaves the pad on the row's EDIT, the opener; ← is the
+	// values, and each is reached with arrows from there.
+	await expect(row.getByRole('button', { name: 'EDIT', exact: true })).toBeFocused();
+	for (const value of [long, 'Second', 'Romance', 'Circle One', 'Artist One', 'japanese']) {
+		await padTo(page, value);
+		expect(await focusedText(page)).toBe(value);
+	}
+	const more = row.locator('button.more');
+	await expect(more).toHaveText('+ 2 MORE ↓');
+	for (let i = 0; i < 8 && !(await more.evaluate((n) => n === document.activeElement)); i++)
+		await page.keyboard.press('ArrowDown');
+	await expect(more).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(more).toHaveText('LESS ↑');
+	await expect(more).toBeFocused();
+
+	await padTo(page, 'scanned');
+	await padTo(page, 'Past The Cap');
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'Look for Past The Cap' });
+	await expect(sheet).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(sheet).toBeHidden();
+	expect(await focusedText(page)).toBe('Past The Cap');
 });

@@ -21,9 +21,10 @@ library's sheet.
 - **Landscape and desktop** (≥1024px): metadata is a 440px panel that scrolls on
   its own, and the list keeps the full height with its own scroll.
 - The order inside the metadata is the handoff's: identity, then rating and FAV,
-  then CONTINUE, all within thumb reach. After that come direction, shelves,
-  tags, about, and the FILE row with RENAME and HIDE, as far from CONTINUE as
-  it can be.
+  then CONTINUE, all within thumb reach. Where nothing folds, ABOUT and TAGS
+  come next, under DOWNLOAD's REFRESH and FOLLOW (c837, the owner's, 2026-11-08),
+  then the bands, direction, shelves, and the FILE row with RENAME and HIDE, as
+  far from CONTINUE as it can be.
   LISTS and COVER sit under SHELVES, and SOURCE after them ([`MOVE.md`](MOVE.md)).
 - **On a phone and a TV** the rows a visit rarely touches fold behind DETAILS
   (c425; "DETAILS", below): SHELVES and ABOUT stay above it, so the order
@@ -139,7 +140,15 @@ CARRIED OUT`, with `BACK IN THE REVIEW` (refused: dropped, the pair is
   twice; its own section below says what each line draws. COVER says where
   the cover comes from ([`LINKS.md`](LINKS.md)).
 - **TAGS** groups a series' tags by namespace (genre, circle, artist, …; a
-  bare tag under `tag`), four lines at most. **Every value is a link** (card
+  bare tag under `tag`). **Every tag can be read and opened** (c837): a line
+  wraps instead of cutting off, one value longer than the row breaks inside
+  itself, and each value is its own box (`display: inline-block`), because the
+  pad compares boxes and an inline link's is the whole wrapped area. Four
+  namespaces show; past that, `+ N MORE ↓` (`N` counts values, as `tagGroups`'
+  `more` does) opens the rest and `LESS ↑` folds them, ABOUT's own control and
+  look, set under the values and not the namespaces so ↑ and ↓ on a TV meet the
+  lines instead of passing them. It is never remembered and belongs to the
+  series it was opened on (`tagsOpenOn`). **Every value is a link** (card
   c313): to the library's person page for a person and its tag page for the
   rest (`/?tag=<namespace>:<value>`, or the bare value for a tag with none).
   On a series whose origin key names a source BROWSE can open (installed,
@@ -170,7 +179,8 @@ CARRIED OUT`, with `BACK IN THE REVIEW` (refused: dropped, the pair is
   first and linked to `?tag=x`. On a TV the pad reaches the
   values (↓ to the row meets its EDIT, ← into them), OK opens the sheet on
   its first row, and BACK closes it onto the tag.
-- **SOURCE sits after LISTS and COVER**, before TAGS and ABOUT, on every series
+- **SOURCE sits after LISTS and COVER**, before EDITIONS and FILE (and, in the
+  fold, before TAGS), on every series
   whose chapters or episodes come from a Mihon or Aniyomi source: MOVE → to
   another source, and for 30 days after a move WAS … · UNTIL … with MOVE BACK
   ([`MOVE.md`](MOVE.md)). A local import has no such row. A chapter kept from
@@ -378,19 +388,21 @@ line.
   portrait too; that part is not built (below, "What it does not do yet").
 - **Two markups** (c556, the owner's decision of 2026-11-07, keeping
   `doc/handoffs/series-phone/` 1A/1C as drawn). Where nothing folds the DOM's
-  order is the screen's: DOWNLOAD, the bands, LANGUAGE to SCANLATOR, SHELVES,
-  LISTS to TAGS, ABOUT, EDITIONS and FILE. Where the fold applies, the bands,
-  SHELVES and ABOUT stand above the line. Those three groups (`.o2`, `.o4`,
-  `.o6`) are the ones the two orders place differently, so they are one
-  snippet each drawn twice: once before the line (`.fold-only`) and once in
-  its place among the others (`.screen-only`), and each is hidden by the
+  order is the screen's: DOWNLOAD, ABOUT, TAGS (c837), the bands, LANGUAGE to
+  SCANLATOR, SHELVES, LISTS to SOURCE, EDITIONS and FILE. Where the fold applies, the bands, SHELVES and ABOUT stand
+  above the line and TAGS stays inside it, after SOURCE (1A and 1C as drawn).
+  Those four groups (`.o2`, `.o4`, `.o6`, `.o8`) are the ones the two orders
+  place differently, so they are one snippet each drawn twice, one copy per
+  order (`.fold-only`, `.screen-only`), and each is hidden by the
   other's media query with `display: none`. So there is no script (the first
   paint is right), and the copy not drawn is out of Tab, the focus layer
   (`isVisible`, `doc/FOCUS.md`) and the screen reader. The other four groups
-  are in the DOM once. The wrappers are no boxes (`display: contents`).
+  are in the DOM once. The wrappers are no boxes (`display: contents`). Text
+  inside a drawn-twice group is in the DOM twice, so `getByText` in a test
+  needs `.filter({ visible: true })` (roles already skip the hidden copy).
   Neither copy holds an id, a `bind:this`, a `for=`, `aria-controls` or a
   focus scope, and what they show is the panel's own state (`aboutOpen`, the
-  page's bands), so a band or MORE drawn in the one copy is the other's too; a
+  page's bands, `tagsOpenOn`), so a band or MORE drawn in the one copy is the other's too; a
   form submits from the copy that can be seen. A test that finds such a row by
   its class says `:visible`. `tests/series-panel-order.e2e.ts` Tabs the panel
   on the desktop, top to bottom.

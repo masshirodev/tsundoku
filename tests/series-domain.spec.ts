@@ -214,6 +214,34 @@ describe('metadata', () => {
 		expect(more).toBe(2);
 	});
 
+	it('hands back the namespaces past the cap in order, counting their values (c837)', () => {
+		const ns = ['genre', 'circle', 'artist', 'language', 'source', 'alpha', 'zeta'];
+		const tags = ns.flatMap((namespace, i) =>
+			Array.from({ length: i + 1 }, (_, v) => ({ namespace, value: `${namespace}${v}` }))
+		);
+		const { groups, rest, more } = tagGroups(tags);
+		expect(groups.map((g) => g.namespace)).toEqual(ns.slice(0, 4));
+		expect(rest.map((g) => g.namespace)).toEqual(['source', 'alpha', 'zeta']);
+		expect(rest.at(-1)!.values).toEqual(
+			tags.filter((t) => t.namespace === 'zeta').map((t) => t.value)
+		);
+		expect(more).toBe(5 + 6 + 7);
+		// Nothing is lost between the two halves.
+		expect([...groups, ...rest].flatMap((g) => g.values).sort()).toEqual(
+			tags.map((t) => t.value).sort()
+		);
+	});
+
+	it('has nothing to open at exactly four namespaces, or with no tags (c837)', () => {
+		const four = ['genre', 'circle', 'artist', 'language'].map((namespace) => ({
+			namespace,
+			value: 'x'
+		}));
+		expect(tagGroups(four)).toMatchObject({ rest: [], more: 0 });
+		expect(tagGroups(four).groups).toHaveLength(4);
+		expect(tagGroups([])).toEqual({ groups: [], rest: [], more: 0 });
+	});
+
 	it('parses namespace:value, refusing a malformed namespace', () => {
 		expect(parseTag('artist:Seo Haram')).toEqual({ namespace: 'artist', value: 'Seo Haram' });
 		expect(parseTag('/ Genre: isekai ')).toEqual({ namespace: 'genre', value: 'isekai' });

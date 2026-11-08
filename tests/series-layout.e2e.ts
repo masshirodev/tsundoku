@@ -64,6 +64,40 @@ test('the series frame matches the design for this device', async ({ page }, inf
 // picture drawn by the element's own stylesheet unless the element says
 // `data-picture`. The fold's stripes are that picture. A hover needs a fine
 // pointer, which only the desktop project has.
+test('ABOUT and TAGS stand under the DOWNLOAD row, where the fold is not in the way (c837)', async ({
+	page
+}, info) => {
+	const tv = info.project.name === 'tv';
+	await page.goto('/?sort=title');
+	await page.locator('.grid .tile', { hasText: 'Tower of God' }).click();
+	await page.waitForURL(/\/series\/\d+/);
+	await expect(page.getByRole('heading', { name: 'Tower of God' })).toBeVisible();
+	await screenSettled(page);
+	const details = page.locator('[data-row="details"]');
+	const at = (label: string) =>
+		page
+			.locator('.panel .label:visible', { hasText: new RegExp(`^${label}`) })
+			.first()
+			.evaluate((n) => n.getBoundingClientRect().top + window.scrollY);
+	if (await details.isVisible()) {
+		// The phone's and the TV's 1A and 1C hold: ABOUT above the line, TAGS inside it.
+		expect(['phone', 'tv']).toContain(info.project.name);
+		expect(await at('ABOUT')).toBeLessThan(
+			(await details.boundingBox())!.y + (await page.evaluate(() => window.scrollY))
+		);
+		await expect(page.locator('.panel .tags:visible')).toHaveCount(0);
+		return;
+	}
+	expect(tv).toBe(false);
+	const about = await at('ABOUT');
+	const tags = await at('TAGS');
+	expect(about).toBeLessThan(tags);
+	expect(tags).toBeLessThan(await at('SHELVES'));
+	expect(tags).toBeLessThan(await at('DIRECTION'));
+	const download = page.locator('.panel .dl-row:visible');
+	if (await download.isVisible()) expect((await download.boundingBox())!.y).toBeLessThan(about);
+});
+
 test('hovering the fold keeps its stripes (c488)', async ({ page }, info) => {
 	test.skip(info.project.name !== 'desktop', 'a hover needs a fine pointer');
 	await page.goto('/?sort=title');
