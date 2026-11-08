@@ -2289,17 +2289,37 @@
 			aria-label="Close the keys"
 			onclick={() => (keysOpen = false)}
 		></button>
-		<div class="sheet keys rise rise-right" out:leave={'right'} role="dialog" aria-label="Keys">
+		<!-- The rows scroll under a head that stays, as the settings sheet's do:
+		     ten 56px rows and the head are 616px, past a TV's 540px panel and a
+		     short window's (c715). Each row is a stop, so the pad walks to the
+		     last and the layer scrolls it into view; the scope keeps the pad in
+		     the sheet while it is open. -->
+		<div
+			class="sheet keys rise rise-right"
+			out:leave={'right'}
+			role="dialog"
+			aria-label="Keys"
+			use:focusScope
+		>
 			<div class="shead">
 				<div>KEYS</div>
 				<button type="button" aria-label="Close" onclick={() => (keysOpen = false)}>✕</button>
 			</div>
-			{#each [['SPACE', 'Play or pause'], ['← →', 'Back or on 10 s'], ['↑ ↓', 'Volume'], ['F', 'Full screen'], ['M', 'Mute'], ['C', 'Subtitles on or off'], ['S', 'Skip the intro or ending, when offered'], ['N', 'Next episode'], ['ESC', 'Leave full screen, then the player'], ['?', 'These keys']] as [k, a] (k)}
-				<div class="krow">
-					<div class="k">{k}</div>
-					<div class="a">{a}</div>
-				</div>
-			{/each}
+			<div class="krows">
+				{#each [['SPACE', 'Play or pause'], ['← →', 'Back or on 10 s'], ['↑ ↓', 'Volume'], ['F', 'Full screen'], ['M', 'Mute'], ['C', 'Subtitles on or off'], ['S', 'Skip the intro or ending, when offered'], ['N', 'Next episode'], ['ESC', 'Leave full screen, then the player'], ['?', 'These keys']] as [k, a], i (k)}
+					<!-- A row is read, not pressed: the stop is there so a pad can scroll to it. -->
+					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+					<div
+						class="krow"
+						tabindex="0"
+						data-focus-mark="in"
+						data-focus-start={i === 0 ? '' : undefined}
+					>
+						<div class="k">{k}</div>
+						<div class="a">{a}</div>
+					</div>
+				{/each}
+			</div>
 		</div>
 	{/if}
 
@@ -3256,6 +3276,14 @@
 	}
 	.srows {
 		flex: 1;
+		overflow-y: auto;
+	}
+	/* KEYS' rows (c715): the settings sheet's shape, the head outside the
+	   scroller. A row's mark is drawn inside it (`data-focus-mark="in"`), so
+	   the scroller's edge never clips it and no scroll padding is needed. */
+	.krows {
+		flex: 1;
+		min-height: 0;
 		overflow-y: auto;
 	}
 	.srow2 {

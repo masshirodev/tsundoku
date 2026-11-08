@@ -212,6 +212,68 @@ test('the settings cell opens the 420px panel, ← → changes a row, BACK gives
 	await expect(settings).toBeFocused();
 });
 
+/**
+ * c715: KEYS' ten 56px rows and its head are 616px, past the 540px panel, and
+ * the sheet is `overflow: hidden`: the last rows were cut off with no way to
+ * reach them. The rows scroll now, under the head, and each is a stop: the
+ * pad walks to the last, which is then wholly inside the panel and below the
+ * head. A TV opens KEYS with `?` (its ? KEYS cell is the desktop's).
+ */
+test('KEYS: the pad walks to the last row, and it is wholly on the panel (c715)', async ({
+	page
+}) => {
+	await openEpisode(page);
+	await play(page);
+	await page.locator('video').evaluate((v: HTMLVideoElement) => v.pause());
+	await expect(page.locator('.cells .pause')).toHaveAttribute('aria-label', 'Play');
+	await page.keyboard.press('Shift+Slash');
+	const keys = page.getByRole('dialog', { name: 'Keys' });
+	await expect(keys).toBeVisible();
+	const rows = keys.locator('.krow');
+	await expect(rows).toHaveCount(10);
+	// It opens on its first row, as the settings panel does.
+	await expect(rows.first()).toBeFocused();
+	for (let i = 1; i < 10; i++) {
+		await page.keyboard.press('ArrowDown');
+		await expect(rows.nth(i)).toBeFocused();
+	}
+	const last = rows.last();
+	await expect(last).toContainText('These keys');
+	const fits = () =>
+		page.evaluate(() => {
+			const panel = document.querySelector('.sheet.keys')!.getBoundingClientRect();
+			const head = document.querySelector('.sheet.keys .shead')!.getBoundingClientRect();
+			const row = [...document.querySelectorAll('.sheet.keys .krow')]
+				.at(-1)!
+				.getBoundingClientRect();
+			return {
+				inside: row.top >= head.bottom - 0.5 && row.bottom <= panel.bottom + 0.5,
+				row: [Math.round(row.top), Math.round(row.bottom)],
+				panel: [Math.round(head.bottom), Math.round(panel.bottom)]
+			};
+		});
+	// The layer's reveal is instant, but wait on the page's own geometry.
+	await expect.poll(async () => (await fits()).inside).toBe(true);
+	// And back up: the first row comes back into view under the head.
+	for (let i = 0; i < 9; i++) await page.keyboard.press('ArrowUp');
+	await expect(rows.first()).toBeFocused();
+	const first = await rows.first().evaluate((r) => {
+		const head = r.closest('.sheet')!.querySelector('.shead')!.getBoundingClientRect();
+		return r.getBoundingClientRect().top - head.bottom;
+	});
+	expect(Math.abs(first)).toBeLessThanOrEqual(1);
+	// The rows are a scroller of their own, not only stops a focus can drag
+	// into view: a wheel over them moves them (it never moves `hidden`), as a
+	// short desktop window or a finger needs.
+	const box = (await rows.nth(2).boundingBox())!;
+	await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+	await page.mouse.wheel(0, 300);
+	await expect.poll(() => keys.locator('.krows').evaluate((n) => n.scrollTop)).toBeGreaterThan(0);
+	// BACK closes it.
+	await page.keyboard.press('Escape');
+	await expect(keys).toHaveCount(0);
+});
+
 test('the DIM range keeps ← → and lets ↑ leave it on a TV (c611)', async ({ page }) => {
 	await openEpisode(page);
 	await play(page);
