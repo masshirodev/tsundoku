@@ -2190,10 +2190,16 @@
 	}
 	.ns {
 		flex-shrink: 0;
-		width: var(--ns-w);
+		/* A namespace can be any length (parseTag), so a long one wraps rather than
+		   painting over its values (c837). The box borrows 8px of the 12px gutter and
+		   gives them back in the margin, so `.vals` stays where `.tags-more` aligns to
+		   it: inside the phone's bare 56px, `language`, one the design draws, broke. */
+		width: calc(var(--ns-w) + 8px);
+		margin-right: -8px;
 		font: 400 12px var(--font-mono);
 		color: var(--text-2);
 		letter-spacing: 0.04em;
+		overflow-wrap: anywhere;
 	}
 	.vals {
 		flex: 1;

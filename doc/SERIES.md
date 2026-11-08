@@ -144,7 +144,9 @@ CARRIED OUT`, with `BACK IN THE REVIEW` (refused: dropped, the pair is
   wraps instead of cutting off, one value longer than the row breaks inside
   itself, and each value is its own box with its dot (`.val`, `inline-flex`),
   because the pad compares boxes and an inline link's is the whole wrapped
-  area, and so that no line starts on a dot. Four
+  area, and so that no line starts on a dot. A namespace may be any length
+  (`parseTag`), so a long one wraps inside its column and never reaches its
+  values, whose left edge does not move. Four
   namespaces show; past that, `+ N MORE ↓` (`N` counts values, as `tagGroups`'
   `more` does) opens the rest and `LESS ↑` folds them, ABOUT's own control and
   look, set under the values and not the namespaces so ↑ and ↓ on a TV meet the

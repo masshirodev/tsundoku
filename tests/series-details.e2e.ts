@@ -341,8 +341,16 @@ test.describe('every tag can be read and opened (c837)', () => {
 	const clipped = (page: Page) =>
 		row(page).evaluate((n) => {
 			const out: string[] = [];
-			for (const v of n.querySelectorAll<HTMLElement>('.vals')) {
+			for (const l of n.querySelectorAll<HTMLElement>('.tag-line')) {
+				const v = l.querySelector<HTMLElement>('.vals')!;
 				const box = v.getBoundingClientRect();
+				// The text's own edge: a namespace too long for its box paints past it
+				// and the box does not grow, so the box's edge would say nothing.
+				const ns = l.querySelector<HTMLElement>('.ns')!;
+				const text = document.createRange();
+				text.selectNodeContents(ns);
+				if (text.getBoundingClientRect().right > box.left)
+					out.push(`${ns.textContent}: into its values`);
 				if (v.scrollWidth > v.clientWidth + 1) out.push(`${v.textContent}: scrolls`);
 				if (getComputedStyle(v).textOverflow === 'ellipsis') out.push(`${v.textContent}: ellipsis`);
 				for (const a of v.querySelectorAll('a'))
@@ -448,6 +456,54 @@ test.describe('every tag can be read and opened (c837)', () => {
 		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
 			await page.evaluate(() => window.innerWidth)
 		);
+	});
+
+	test('a long namespace wraps in its column, clear of its values, and a short one does not', async ({
+		page
+	}) => {
+		await visit(page, world.ids.hentoid);
+		await addTags(page, [
+			'circle:b',
+			'artist:c',
+			'language:japanese',
+			'source:e',
+			'contributors:Someone',
+			'a-namespace-far-longer-than-any-column:Else'
+		]);
+		// Past the cap, where only MORE reaches it: the namespaces outside the house's five.
+		await row(page).locator('button.more').click();
+		await expect(lines(page)).toHaveText([
+			'genre',
+			'circle',
+			'artist',
+			'language',
+			'source',
+			'a-namespace-far-longer-than-any-column',
+			'contributors'
+		]);
+		await expect(row(page).getByRole('link', { name: 'Someone', exact: true })).toBeVisible();
+		expect(await clipped(page)).toEqual([]);
+		const shape = await row(page).evaluate((n) =>
+			Object.fromEntries(
+				[...n.querySelectorAll<HTMLElement>('.tag-line')].map((l) => {
+					const ns = l.querySelector<HTMLElement>('.ns')!;
+					const text = document.createRange();
+					text.selectNodeContents(ns);
+					return [
+						ns.textContent!,
+						{
+							lines: text.getClientRects().length,
+							vals: l.querySelector<HTMLElement>('.vals')!.getBoundingClientRect().left
+						}
+					];
+				})
+			)
+		);
+		expect(shape.contributors.lines).toBeGreaterThan(1);
+		// The namespace the design draws on a phone's row (1A) stays one word.
+		expect(shape.language.lines).toBe(1);
+		// However long the namespace, the values keep one left edge.
+		expect(new Set(Object.values(shape).map((l) => l.vals)).size).toBe(1);
 	});
 
 	test('no tags at all says NO TAGS', async ({ page }) => {
