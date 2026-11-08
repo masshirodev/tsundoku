@@ -57,13 +57,15 @@ still blanks the reader when the app goes to the background.
 - **Vertical scroll never turns on a tap.** Every tap is the controls, and
   scrolling is how you move.
 - **With the controls up, a tap on the page only puts them away.**
-- **A long press on a page opens the page menu**: set it as the book's or
-  the series' cover ([`COVERS.md`](COVERS.md), "Chosen").
+- **A long press on a page opens the page menu**: HIGHLIGHT THIS PAGE first
+  ("Highlights", below), then set it as the book's or the series' cover
+  ([`COVERS.md`](COVERS.md), "Chosen").
 - **Never the browser's image menu.** A finger held on a page doesn't
   offer to save or share it, in any mode ([`TOUCH.md`](TOUCH.md)).
 - **No hardware keys, by the owner's choice.** On desktop the arrows are
   spatial (in R→L, ← is forward), Space and PageDown go forward, Esc
-  toggles the controls, and + − 0 zoom ("Zoom").
+  toggles the controls, + − 0 zoom ("Zoom"), and H keeps the page
+  ("Highlights").
 
 ## On a TV and on a remote (c235)
 
@@ -83,7 +85,12 @@ own:
 
 The page menu is a 420px panel from the right on a TV, and it is the one
 dialog the pad drives while the controls are hidden (its rows are
-`use:focusScope` with `force`). The reader's _**end page**_ lifts the opt-out,
+`use:focusScope` with `force`). **Until c703 (wave 33) the pad never reached
+those rows**: the menu is drawn inside the reader, whose `data-focus-off` the
+focus layer reads as "no stop here", force or not, so MENU opened a menu with
+nothing focused and OK went to the page. The reader now lifts its opt-out on
+a TV while the page menu or a highlight's sheet is open
+(`tests/tv-highlights-manga.e2e.ts`, MENU's case, red with the old rule). The reader's _**end page**_ lifts the opt-out,
 so its cells — ← SERIES, the next part's block and its WORK cell on a series
 in a Work, the rating, LIBRARY, ANOTHER SOURCE → on a stale series — are
 stops.
@@ -295,6 +302,31 @@ anyway, so the row is dimmed there).
   tablet to read it.
 
 The rules are `wideTreatment` and `firstHalf` in `src/lib/reader/reader.ts`.
+
+## Highlights (H3, card c703)
+
+A page kept for good, as a copy on the workstation and a way back
+([`HIGHLIGHTS.md`](HIGHLIGHTS.md), "Pages (H3)", for the record and the
+copy; `handoffs/highlights/Manga.dc.html`).
+
+- **HIGHLIGHT** in the bottom row, before FULL SCREEN; **H** on a keyboard;
+  **HIGHLIGHT THIS PAGE**, the page menu's first row; on a TV, OK on the cell
+  (it is a stop in the controls' row) or MENU and OK on the row.
+- **Which page.** Paged, the one on screen; a spread asks, in reading order,
+  then BOTH as one image. The strip keeps the page under the middle of the
+  screen (the one it reads as the page being read), outlined while the
+  controls are up, and the cell names it (`HIGHLIGHT P. 23`).
+- **The cell**: HIGHLIGHT; KEEPING…, dashed, until the workstation has the
+  copy (`aria-disabled`, not `disabled`, so a TV's focus stays on it); ✓
+  HIGHLIGHTED, inverted, which opens the page's sheet; ○ HIGHLIGHT at 0.4
+  offline, whose press says it needs the workstation; INCOGNITO at 0.4,
+  disabled. A failure says why in the band (`P. 9 NOT KEPT · THE SOURCE DID
+NOT SEND IT`) with TRY AGAIN, and nothing is kept.
+- **Nothing over the art.** A yellow tick on the scrubber at each kept page;
+  a 4px yellow rule in a letterboxed page's gutter, 6px off its outer edge
+  (PageImage's `rule`), at 100% and below.
+- **The page's sheet**: NOTE, SAVE IMAGE, DELETE with HIGHLIGHT DELETED · UNDO
+  in the band, as the cover's band draws (its own class, `hl-band`).
 
 ## Zoom
 

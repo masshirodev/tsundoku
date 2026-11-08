@@ -19,8 +19,9 @@ import { COLOURS, isLost, type Colour, type Highlight } from '../library/highlig
  * deleted hidden series' highlights stay hidden. Every list, count, disk
  * line and export here filters on it in SQL, never in the page.
  *
- * H1 makes no highlight: the readers and the player gain HIGHLIGHT, MARK IN
- * and KEEP in H2 to H4.
+ * H1 made no highlight. H3 (c703) keeps a page from the image reader
+ * (`./highlights/pages.ts`); the text reader's HIGHLIGHT and the player's MARK
+ * IN and KEEP come in H2 and H4.
  */
 
 type Row = {

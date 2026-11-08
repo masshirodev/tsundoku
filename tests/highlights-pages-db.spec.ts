@@ -358,4 +358,22 @@ describe('hidden, and the pointer’s life after (c703)', () => {
 		expect([r.state, r.series_id, r.entry_id]).toEqual(['orphan_series', null, null]);
 		expect(existsSync(join(work, 'highlights', String(r.copy_path)))).toBe(true);
 	});
+
+	it('MOVE’s line counts a kept page: it follows a matched chapter, and is named on one the move takes away', async () => {
+		const s = await downloaded('Moved after');
+		await keepPage({ entryId: s.entry, page: 2 }, false);
+		const follows = hl.moveHighlights(
+			s.series,
+			{ matches: [{ entry: { id: s.entry } }], kept: [] },
+			{ from: 'MangaDex', to: 'Weeb Central' }
+		);
+		expect(follows).toEqual({ follow: 1, lose: 0, named: [] });
+		const lost = hl.moveHighlights(
+			s.series,
+			{ matches: [], kept: [] },
+			{ gone: new Set([s.entry]), from: 'MangaDex', to: 'Weeb Central' }
+		);
+		expect(lost.lose).toBe(1);
+		expect(lost.named.map((n) => n.place)).toEqual(['CH. 1 · P. 3']);
+	});
 });
