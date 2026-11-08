@@ -6,7 +6,8 @@
 	import Band from '$lib/components/chrome/Band.svelte';
 	import Switch from '$lib/components/controls/Switch.svelte';
 	import { CELLS_MAX } from '$lib/library/source-settings';
-	import { keepOrigin } from '$lib/library/tag-search';
+	import { fromExtensions, keepOrigin } from '$lib/library/tag-search';
+	import { backLink } from '$lib/back';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { goto } from '$app/navigation';
 	import { count } from '$lib/library/downloads';
@@ -27,8 +28,20 @@
 
 	const s = $derived(data.source);
 	const title = $derived(`${s.name.toUpperCase()} · ${s.lang.toUpperCase()}`);
-	// Opened from a source page a tag opened, the origin is kept both ways (card c453).
-	const back = $derived(keepOrigin(resolve('/browse/[source]', { source: s.id }), data.from));
+	/**
+	 * Where ← goes (card c727). Opened from EXTENSIONS' SETTINGS cell, back to
+	 * that list, its tab and filters as they were; otherwise to the source's
+	 * page, with the tag origin it was opened with kept both ways (card c453).
+	 * A back link either way: when that screen is a few history entries back
+	 * (here, and any CHANGE ▾ or band opened since), ← goes back to it, so
+	 * its scroll comes back too; a bookmark, a reload or a new tab without
+	 * that history opens the address.
+	 */
+	const toList = $derived(fromExtensions(data.from));
+	const back = $derived(
+		toList ? data.from : keepOrigin(resolve('/browse/[source]', { source: s.id }), data.from)
+	);
+	const backLabel = $derived(toList ? 'Back to EXTENSIONS' : `Back to ${s.name}`);
 	const here = $derived(resolve('/browse/[source]/settings', { source: s.id }));
 	const act = (name: string) => keepOrigin(`${here}?/${name}`, data.from);
 	/** tsundoku's own switches (engine/source-flags.ts; doc/BROWSE.md, "A source's own switches"). */
@@ -98,7 +111,7 @@
 <div class="screen">
 	<TopBar sticky label="Settings for {s.name}">
 		{#snippet middle()}
-			<a class="cell back" href={back} aria-label="Back to {s.name}">←</a>
+			<a class="cell back" href={back} aria-label={backLabel} use:backLink>←</a>
 			<span class="cell title"
 				><span class="name">SETTINGS</span><span class="sub">{title}</span></span
 			>

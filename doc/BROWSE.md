@@ -456,7 +456,22 @@ source is mostly hidden, answers 404.
 ## A source's settings
 
 `/browse/<source>/settings`, from the SETTINGS cell on a source's page (and,
-with c144, an installed extension's row). Many sources have settings: a
+with c144, an installed extension's row). **Its ← goes back where it was
+opened from** (card c727, wave 33): from EXTENSIONS' cell it says Back to
+EXTENSIONS and returns to the list on its tab (the cell sends
+`from=/browse/extensions?…`, `extensionsFrom`, without a sheet's parameters);
+from the source's page it says Back to <source> and returns there, as
+before. It is a back link (`backLink`, src/lib/back.ts), so a list a few
+history entries back comes back as it was left, scroll included; a reload,
+a new tab or a bookmark opens the address. Only `settingsOrigin` accepts
+EXTENSIONS' path (exactly `/browse/extensions`), never `backOrigin`
+(doc/NAVIGATION.md, "From a source"). EXTENSIONS draws one row per package
+(`{#each s.rows as r (r.pkg)}`), and the cell opens the first source BROWSE
+lists of it (`r.shown[0]`): a package with several languages still has one
+cell, since the list has no row per language to put a second on (c695,
+wave 33). `tests/browse-settings-back.e2e.ts` walks both origins, the
+reload, the new tab, the bookmark and forged origins, on a desktop and a
+phone. Many sources have settings: a
 mirror, a language, image quality, a login. The engine describes them
 (`preferencesManga`); **tsundoku keeps the values** (`engine_preferences`,
 c134) and sends them with every call, since the engine keeps none across a
