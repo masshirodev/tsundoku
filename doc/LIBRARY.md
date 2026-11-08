@@ -107,24 +107,16 @@ the next navigation's) keeps the mark, because the value it sends is still
 not stored, and a redraw during it (another tile's save landing, a scan's
 re-read) does not drop it (wave 32).
 
-The mark is the page's answer, not the band's, because the band carries one
-failure (`saves`, `src/lib/saves.svelte.ts`): a second failed tap takes it
-while the first tile still shows a value nothing stored, and that tile stays
-marked. The page keeps the displaced failures in its own list and hands the
-band back to the next as it clears, including when a RETRY that lands clears a
-band another tile's failure had taken meanwhile (wave 32). So **while the
-library page is open**, each unstored value keeps its PUT BACK and RETRY. The
-list dies with the page: a displaced failure is dropped on leaving, and the
-tile that comes back draws the stored value, unmarked. Only the failure the
-band holds survives the trip, as every failure does (the band is the app's).
-A displaced failure the page does not judge (a key that is not a tile's
-`fav:`/`rating:`, or one the page holds no tap for, such as a series screen
-failure the band carried here) is raised again as it was, never dropped
-unread.
+The mark is the page's answer, not the band's: the store (`saves`,
+`src/lib/saves.svelte.ts`) keeps a list of failures, one per save, and each has
+its own band with its own PUT BACK and RETRY (c739; `doc/WAITING.md`, "Writes
+that failed"). Those bands outlive the page, and so does the failure's key; the
+tap that the tile draws does not.
 
 A tile drawn again after leaving the library and coming back holds the stored
 value, not the old tap (`favNow` dies with the page and `saves` does not), so it
-is not marked: the value it draws is what the server has. The props default to
+is not marked: the value it draws is what the server has, and its band still
+offers the way back. The props default to
 false, so a user of the tile that passes neither draws a stored value.
 
 **Two quick taps take turns** (c615). The tile's saves are on the series

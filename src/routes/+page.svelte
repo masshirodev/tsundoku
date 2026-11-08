@@ -42,7 +42,7 @@
 	import FocusLine from '$lib/components/content/FocusLine.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { waiting } from '$lib/waiting.svelte';
-	import { postAction, saves, type FailedSave } from '$lib/saves.svelte';
+	import { postAction, saves } from '$lib/saves.svelte';
 	import { seriesSaves, type Turn } from '$lib/serial-saves';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
@@ -1274,10 +1274,9 @@
 
 	/**
 	 * Whether what the tile draws for this field is an owner's tap that is not
-	 * stored (c659, round 2). Read from the page, not from the band: the band
-	 * carries one failure, and a second failed tap takes it, but the first
-	 * tile still shows a value nothing stored. A value the page does not hold
-	 * is the stored one -- a tile re-drawn after a trip away shows what the
+	 * stored (c659, round 2). Read from the page, not from the store: a failure
+	 * outlives the page and the tap does not (c739). A value the page does not
+	 * hold is the stored one -- a tile re-drawn after a trip away shows what the
 	 * server had, so it is not marked. A fresh tap still in flight is left
 	 * alone until its turn says which it is; a RETRY in flight keeps the mark,
 	 * because the value it sends is still not stored (wave 32).
@@ -1285,7 +1284,7 @@
 	function unsaved(field: 'fav' | 'rating', id: number, stored: boolean | Rating): boolean {
 		// Read for its signal alone: a failure raised after the tap has to redraw
 		// the tile, and neither `pending()` (a plain Map) nor the value maps
-		// change when it is raised. What the band shows does not decide the mark.
+		// change when it is raised. Which bands are up does not decide the mark.
 		void saves.failed;
 		// A RETRY's turn is pending too, but unlike a fresh tap's it has already
 		// failed once: `retrying` keeps the mark on through it. Without this a
@@ -1304,66 +1303,6 @@
 	 * `SvelteSet`, so its end redraws the tiles that read it.
 	 */
 	const retrying = new SvelteSet<string>();
-
-	/**
-	 * Whether a displaced failure of `key` still has something to say when the
-	 * band clears. Only a `fav:` or `rating:` failure whose tap this page still
-	 * holds is the page's to judge: a key of another kind (a book's `cover:`), or
-	 * one raised on the series screen and carried here by the app's store, keeps
-	 * its way out rather than being dropped unread (round 2's low).
-	 */
-	function unsavedKey(key: string): boolean {
-		const cut = key.indexOf(':');
-		const head = key.slice(0, cut);
-		if (head !== 'fav' && head !== 'rating') return true;
-		const id = Number(key.slice(cut + 1));
-		const card = series.find((s) => s.id === id);
-		// A tile the grid no longer draws cannot be asked; its failure keeps its
-		// way out rather than going with the tile.
-		if (!card) return true;
-		const held = head === 'fav' ? favNow.has(id) : ratingNow.has(id);
-		if (!held) return true;
-		return unsaved(head, id, head === 'fav' ? card.favourite : card.rating);
-	}
-
-	/**
-	 * Failures a later one took the band from (c659, round 2). `saves` holds
-	 * one, so a second failed tap would leave the first value unsaved with no
-	 * band offering RETRY or PUT BACK. Kept here in tap order and raised again
-	 * as the band clears, so every unstored value keeps its way out. A
-	 * multi-failure store in `saves` itself would be the better home; that file
-	 * is another slot's this wave (see the notes' Gaps).
-	 */
-	let displaced: FailedSave[] = [];
-
-	/**
-	 * Put a failure in the band, keeping any it displaces. A newer failure of
-	 * the same field replaces the older one: its value is superseded, and the
-	 * band would name a value the tile no longer draws.
-	 */
-	function raise(failed: FailedSave) {
-		displaced = displaced.filter((f) => f.key !== failed.key);
-		const held = saves.failed;
-		if (held && held.key !== failed.key) {
-			displaced = [...displaced.filter((f) => f.key !== held.key), held];
-		}
-		saves.fail(failed);
-	}
-
-	/** The value `key` names was stored: no failure of it has anything left to say. */
-	function forget(key: string) {
-		displaced = displaced.filter((f) => f.key !== key);
-	}
-
-	// The band is one and the failures can be more: when it clears, the next
-	// one takes it. A displaced failure whose value has since been stored (a
-	// later tap that landed) is dropped rather than raised over a stored value.
-	$effect(() => {
-		if (saves.failed) return;
-		let next = displaced.shift();
-		while (next && !unsavedKey(next.key)) next = displaced.shift();
-		if (next) saves.fail(next);
-	});
 
 	/**
 	 * One save in flight per series and field, the last tap winning, on the
@@ -1393,11 +1332,8 @@
 		}
 		// Not `pending()`: an older turn still reloading is pending too.
 		if (turn.newer()) return;
-		if (turn.ok) {
-			forget(key);
-			return settle();
-		}
-		const failed: FailedSave = {
+		if (turn.ok) return settle();
+		saves.fail({
 			...failure(),
 			key,
 			retry: async () => {
@@ -1415,29 +1351,15 @@
 				} finally {
 					retrying.delete(key);
 				}
-				if (again.ok) {
-					// `saves.retry` clears the band whatever it holds by now. Another
-					// tile's failure raised while this retry was out is in it: keep
-					// that one, first in line, so the band raises it again as it clears
-					// (wave 30's round-2 review, medium 1; the notes' Gaps ask
-					// `saves.retry` to clear only its own failure).
-					// By its `retry`, not the object: `saves.failed` is `$state`, so it
-					// holds a proxy of what `raise` was given, never the object itself.
-					const held = saves.failed;
-					if (held && held.retry !== failed.retry) {
-						displaced = [held, ...displaced.filter((f) => f.key !== held.key)];
-					}
-				}
 				if (!again.latest) return again.ok;
-				if (again.ok && !again.newer()) {
-					forget(key);
-					settle();
-				}
+				if (again.ok && !again.newer()) settle();
 				return again.ok;
 			}
-		};
-		raise(failed);
+		});
 	}
+
+	/** Which tile a band is about: several can be up at once, each "FAV NOT SAVED". */
+	const tileNamed = (id: number) => series.find((s) => s.id === id)?.title.toUpperCase() ?? '';
 
 	function favourite(id: number, on: boolean) {
 		favNow.set(id, on);
@@ -1446,7 +1368,7 @@
 			`fav:${id}`,
 			{ id: String(id), on: on ? '1' : '0' },
 			() => ({
-				what: on ? 'FAV NOT SAVED' : 'UNFAV NOT SAVED',
+				what: `${on ? 'FAV' : 'UNFAV'} NOT SAVED · ${tileNamed(id)}`,
 				putBackLabel: series.find((s) => s.id === id)?.favourite
 					? 'PUT BACK · FAV'
 					: 'PUT BACK · NOT FAV',
@@ -1467,7 +1389,7 @@
 			`rating:${id}`,
 			{ id: String(id), rating: String(rating) },
 			() => ({
-				what: `RATING ${rating} NOT SAVED`,
+				what: `RATING ${rating} NOT SAVED · ${tileNamed(id)}`,
 				putBackLabel: `PUT BACK ${series.find((s) => s.id === id)?.rating ?? 0}`,
 				putBack: () => ratingNow.delete(id)
 			}),
