@@ -643,11 +643,78 @@ describe('rung 74: an anime keeps no mirror of its first season (c467)', () => {
 		climb(conn, 74);
 		expect(conn.prepare(`SELECT COUNT(*) AS n FROM series_links`).get()).toEqual({ n: 1 });
 	});
+});
+
+describe('rung 75: a series’ sources, a season at a time (c282)', () => {
+	const stopped = () => {
+		const conn = new Database(':memory:');
+		climb(conn, 74);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Aniyomi', '/nowhere');
+			INSERT INTO series (id, root_id, title, kind, added_at, origin_key) VALUES
+				(1, 1, 'A show', 'anime', 1, 'aniyomi:7:/show'),
+				(2, 1, 'Another', 'anime', 1, 'aniyomi:7:/another');
+			INSERT INTO anime_series (series_id, folder) VALUES (1, 'Anime/A show');
+		`);
+		return conn;
+	};
+
+	it('gives existing series no rows, and leaves what they hold as it was', () => {
+		const conn = stopped();
+		climb(conn, 75);
+		expect(conn.prepare(`SELECT COUNT(*) AS n FROM series_season_facts`).get()).toEqual({ n: 0 });
+		expect(conn.prepare(`SELECT origin_key FROM series WHERE id = 1`).get()).toEqual({
+			origin_key: 'aniyomi:7:/show'
+		});
+		expect(conn.prepare(`SELECT folder FROM anime_series WHERE series_id = 1`).get()).toEqual({
+			folder: 'Anime/A show'
+		});
+	});
+
+	it('holds no link: a season with a source and no AniList or MAL link is a row', () => {
+		const conn = stopped();
+		climb(conn, 75);
+		conn
+			.prepare(
+				`INSERT INTO series_season_facts (series_id, season, origin_key, folder, source_title)
+				VALUES (1, 2, 'aniyomi:9:/s2', 'Anime/S2', 'A show II')`
+			)
+			.run();
+		expect(conn.prepare(`SELECT COUNT(*) AS n FROM series_season_links`).get()).toEqual({ n: 0 });
+		const columns = (conn.pragma('table_info(series_season_facts)') as { name: string }[]).map(
+			(c) => c.name
+		);
+		expect(columns).toEqual(['series_id', 'season', 'origin_key', 'folder', 'source_title']);
+	});
+
+	it('lets two seasons share a key, and no two seasons share a folder', () => {
+		const conn = stopped();
+		climb(conn, 75);
+		const put = conn.prepare(
+			`INSERT INTO series_season_facts (series_id, season, origin_key, folder) VALUES (?, ?, ?, ?)`
+		);
+		put.run(1, 1, 'aniyomi:9:/both', 'Anime/One');
+		put.run(1, 2, 'aniyomi:9:/both', null);
+		put.run(2, 1, null, null);
+		put.run(2, 2, null, null);
+		expect(() => put.run(2, 3, null, 'Anime/One')).toThrow(/UNIQUE/);
+	});
+
+	it('goes with its series', () => {
+		const conn = stopped();
+		climb(conn, 75);
+		conn.pragma('foreign_keys = ON');
+		conn.prepare(`INSERT INTO series_season_facts (series_id, season) VALUES (1, 1), (2, 1)`).run();
+		conn.prepare(`DELETE FROM series WHERE id = 1`).run();
+		expect(conn.prepare(`SELECT series_id FROM series_season_facts`).all()).toEqual([
+			{ series_id: 2 }
+		]);
+	});
 
 	// The top rung's own block says it is the top; the next rung moves this line.
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(74);
+		expect(conn.pragma('user_version', { simple: true })).toBe(75);
 	});
 });

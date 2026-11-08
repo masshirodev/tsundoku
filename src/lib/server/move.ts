@@ -12,6 +12,7 @@ import { engineDownSince } from './engine/client.ts';
 import { coverRoute } from './novels/source.ts';
 import { searchSources } from './downloads.ts';
 import { forgetSourceUse } from './library-sources.ts';
+import { resequenceAnime } from './season-facts.ts';
 import { ago } from '../library/tracking.ts';
 import {
 	animeKeyOf,
@@ -910,26 +911,6 @@ export function applyMove(
 			};
 		})
 		.immediate();
-}
-
-/** An anime's positions are one run across its seasons (rung 47): put them back in reading order. */
-function resequenceAnime(db: Database.Database, seriesId: number): void {
-	const rows = db
-		.prepare(`SELECT id, position, season, episode_number FROM entries WHERE series_id = ?`)
-		.all(seriesId) as {
-		id: number;
-		position: number;
-		season: number | null;
-		episode_number: number | null;
-	}[];
-	rows.sort(
-		(a, b) =>
-			(a.season ?? 0) - (b.season ?? 0) ||
-			(a.episode_number ?? a.position) - (b.episode_number ?? b.position) ||
-			a.id - b.id
-	);
-	const set = db.prepare(`UPDATE entries SET position = ? WHERE id = ?`);
-	rows.forEach((r, i) => set.run(i + 1, r.id));
 }
 
 // ---- the way back --------------------------------------------------------------------
