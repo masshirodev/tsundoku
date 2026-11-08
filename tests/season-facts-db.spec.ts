@@ -791,12 +791,34 @@ describe('the anime importer folds a season’s folder onto its series', () => {
 			importFolder('Late', NOW);
 			expect(pathOf(a)).toBe(join(library, 'Anime', 'Late'));
 			expect(entriesOf(a).find((e) => e.season === 1)).toMatchObject({ file: '', available: 0 });
+			db.prepare(
+				`INSERT INTO entries (series_id, position, label, title, added_at, source_url, season, episode_number, available)
+				VALUES (?, 4, 'Ep. 2', '', 1, ?, 2, 2, 0)`
+			).run(a, `${LATE}/ep-2-2`);
 			importFolder('Merged', NOW + 1);
+			// The new name is only for what has a file to name.
+			expect(entriesOf(a).find((e) => e.source_url === `${LATE}/ep-2-2`)).toMatchObject({
+				file: '',
+				available: 0
+			});
 			rmSync(join(library, 'Anime', 'Merged', 'Season 01'), { recursive: true });
 			importFolder('Merged', NOW + 2);
 			// The series' folder answers for its own file, and only that.
 			expect(entriesOf(a).find((e) => e.season === 1)).toMatchObject({ available: 0 });
 			expect(entriesOf(a).find((e) => e.season === 2)).toMatchObject({ available: 1 });
+		});
+	});
+
+	it('a series with no rows found in another folder is renamed nothing, as it was', () => {
+		const a = show('Plain', 'aniyomi:7:/plain');
+		db.prepare(`UPDATE series SET path = ? WHERE id = ?`).run(join(library, 'Anime', 'Was'), a);
+		const ep = episode(a, 1, 9);
+		db.prepare(`UPDATE entries SET file = 'Season 01/old.mkv', available = 1 WHERE id = ?`).run(ep);
+		folderOnDisk('Plain', 'aniyomi:7:/plain', 'Plain', [[1, 1]]);
+		const [plan] = planAnimeSeries(library, join(library, 'Anime', 'Plain', 'tvshow.nfo'), NOW);
+		writeSeries(plan, { rootId: 1, jobId: null, now: NOW, markMissing: false }, db);
+		expect(db.prepare(`SELECT file FROM entries WHERE id = ?`).get(ep)).toEqual({
+			file: 'Season 01/old.mkv'
 		});
 	});
 
