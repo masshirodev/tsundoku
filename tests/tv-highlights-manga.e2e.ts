@@ -98,8 +98,13 @@ function firstEntry(title: string) {
 	}
 }
 
+/** The focused thing's words; `(nothing)` when the pad is on no stop at all. */
 const focused = (page: Page) =>
-	page.evaluate(() => document.activeElement?.textContent?.replace(/\s+/g, ' ').trim() ?? '');
+	page.evaluate(() =>
+		!document.activeElement || document.activeElement === document.body
+			? '(nothing)'
+			: (document.activeElement.textContent?.replace(/\s+/g, ' ').trim() ?? '')
+	);
 
 /** OK brings the controls with the pad on the scrubber; ↓ and → reach HIGHLIGHT. */
 async function toHighlight(page: Page) {

@@ -165,6 +165,7 @@
 		background: transparent;
 		color: var(--text-1);
 		font: 500 16px/16px var(--font-mono);
+		letter-spacing: 0.06em;
 		cursor: pointer;
 	}
 	.body {
@@ -204,7 +205,7 @@
 		border-radius: 0;
 		background: var(--surface-panel);
 		color: var(--text-1);
-		font: 400 15px/1.45 var(--font-sans);
+		font: 400 15px/24px var(--font-sans);
 		resize: vertical;
 	}
 	.made {
@@ -224,7 +225,10 @@
 	.act {
 		display: flex;
 		flex: 1 1 0%;
-		align-items: center;
+		flex-direction: column;
+		align-items: flex-start;
+		justify-content: center;
+		gap: 6px;
 		padding: 0 18px;
 		border: 0;
 		background: transparent;
