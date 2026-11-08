@@ -47,7 +47,18 @@ async function phoneBridge(page: Page, o: { network?: string; own?: string } = {
 				prefix: () => (own ? own.split('.').slice(0, 3).join('.') + '.' : ''),
 				defaultPort: () => 42143,
 				remembered: () => '',
-				servers: () => '[]',
+				// 9D's #lost= is for a server in the list; any other is asked about (c683).
+				servers: () =>
+					JSON.stringify([
+						{
+							origin: 'http://192.168.1.23:42143',
+							name: 'ZEN',
+							tvName: '',
+							shown: 'ZEN',
+							opened: 1,
+							inUse: true
+						}
+					]),
 				remember: () => {},
 				surface: (css: string) => {
 					state.surfaces.push(css);
@@ -158,7 +169,9 @@ test.describe('on a phone, 360 x 780', () => {
 	}) => {
 		await phoneBridge(page);
 		await page.goto(page9 + '#lost=' + encodeURIComponent('http://192.168.1.23:42143'));
-		await expect(page.locator('#lost-title')).toHaveText('○ NOTHING ANSWERS AT 192.168.1.23:42143');
+		await expect(page.locator('#lost-title')).toHaveText(
+			'○ NOTHING ANSWERS AT ZEN · 192.168.1.23:42143'
+		);
 		expect(await css(page, '#lost-title', 'white-space')).toBe('normal');
 		await expect(page.locator('#reason-3')).toHaveText(
 			"This phone is on another Wi-Fi: it's at 192.168.1.40, not 192.168.1."
