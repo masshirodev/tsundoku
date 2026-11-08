@@ -309,8 +309,13 @@
 				detail={shown.error.toUpperCase().slice(0, 140) +
 					(refusedCheck ? ` · ${m.browse_check_again()}` : '')}
 			>
-				{#snippet action()}<a class="again" href={link(refusedCheck ? { again: '1' } : {})}
-						>TRY AGAIN</a
+				<!-- A real load, not the client's: a plain TRY AGAIN is this page's own URL, which
+				     SvelteKit would not ask for again, and a hovering pointer must not forget a
+				     refused check's memos by preloading `again=1` (c688, c604). -->
+				{#snippet action()}<a
+						class="again"
+						data-sveltekit-reload
+						href={link(refusedCheck ? { again: '1' } : {})}>TRY AGAIN</a
 					>{/snippet}
 			</Band>
 		{/if}

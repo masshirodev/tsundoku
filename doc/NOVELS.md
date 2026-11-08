@@ -371,7 +371,11 @@ error, fixed? }`, a sentence, marked `fixed` when no new solve can change it
   `"<host>'s page was fetched and not used: <why>"` (c688), which claims no
   check, since none failed: the lookup was this app's. TRY AGAIN asks the page
   again, forgets no memo and pays no solve, and the address is never called
-  permanently off the internet (c662).
+  permanently off the internet (c662). The tap reaches the server as a full
+  document load (`data-sveltekit-reload` on the band's link, whichever sentence
+  drew it): a TRY AGAIN with no `again=1` is the page's own URL, which SvelteKit
+  would not load again on a client navigation, and a hover preloads none of them
+  (`tests/browse-try-again.e2e.ts`).
   What no new solve can change is
   `"<host>'s page can't come through the solver, and no solve changes that:
 <why>"`: an address `checkPublic` refuses (`refused: …`), one the browser was
