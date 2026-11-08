@@ -1603,6 +1603,87 @@ test('a #lost= that asks stops the retry of the 9D it replaces (c683)', async ({
 	await expect(page.locator('#retry')).toBeHidden();
 });
 
+// ---- c683, round 3: the 80-character limit holds in the page ----------------
+
+/** An origin of exactly `length` characters. */
+const originOfLength = (length: number) => {
+	const head = 'https://';
+	const tail = '.example.net';
+	const at = head + 'a'.repeat(length - head.length - tail.length) + tail;
+	expect(at.length).toBe(length);
+	return at;
+};
+const LONGEST = originOfLength(80);
+const TOO_LONG = originOfLength(81);
+
+test('a #lost= over 80 characters for an origin not in the list is refused, a retry tick later too (c683)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, three);
+	await page.goto(`${page9}?t=${TOKEN}#lost=${encodeURIComponent(TOO_LONG)}`);
+	const refusedAndNothingAsked = async () => {
+		await expect(page.locator('#refused')).toBeVisible();
+		await expect(page.locator('#already')).toBeHidden();
+		await expect(page.locator('#last')).toHaveValue('');
+		await expect(page.locator('#next')).toHaveText('NEXT →');
+		await expect(page.locator('#retry')).toBeHidden();
+		expect(across.probes).toEqual([]);
+		expect(across.remembered).toEqual([]);
+	};
+	await refusedAndNothingAsked();
+	expect(page.url()).toBe(`${page9}?t=${TOKEN}`);
+
+	// One 9D retry tick is 5 s, which is what would have probed it.
+	await page.waitForTimeout(5600);
+	await refusedAndNothingAsked();
+});
+
+test('a #lost= of exactly 80 characters for an origin not in the list asks (c683)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, three);
+	await page.goto(`${page9}#lost=${encodeURIComponent(LONGEST)}`);
+	await expect(page.locator('#already')).toBeVisible();
+	await expect(page.locator('#last')).toHaveValue(LONGEST);
+	await expect(page.locator('#next')).toHaveText('CONNECT →');
+	await expect(page.locator('#refused')).toBeHidden();
+	expect(across.probes).toEqual([]);
+	expect(across.remembered).toEqual([]);
+});
+
+test('a #lost= over 80 characters for a server in the list still reaches 9D and retries (c683)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, [
+		{ origin: TOO_LONG, name: 'LONG ONE', tvName: '', opened: 1 }
+	]);
+	across.answers.set(TOO_LONG, false);
+	await page.goto(`${page9}#lost=${encodeURIComponent(TOO_LONG)}`);
+	await expect(page.locator('#retry')).toBeVisible();
+	await expect(page.locator('#refused')).toBeHidden();
+	await expect(page.locator('#already')).toBeHidden();
+	const tried = () => across.probes.filter((at) => at === TOO_LONG).length;
+	await expect.poll(tried, { timeout: 8000 }).toBe(1);
+	across.answers.set(TOO_LONG, true);
+	await expect.poll(tried, { timeout: 8000 }).toBe(2);
+	await expect.poll(() => across.opened).toEqual([TOO_LONG]);
+	expect(across.remembered).toEqual([]);
+});
+
+test('a #connect= over 80 characters for an origin not in the list is refused (c683)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, three);
+	await page.goto(`${page9}?t=${TOKEN}#connect=${encodeURIComponent(TOO_LONG)}`);
+	await expect(page.locator('#refused')).toBeVisible();
+	await expect(page.locator('#already')).toBeHidden();
+	await expect(page.locator('#last')).toHaveValue('');
+	await expect(page.locator('#connect')).toBeHidden();
+	expect(page.url()).toBe(`${page9}?t=${TOKEN}`);
+	expect(across.probes).toEqual([]);
+	expect(across.remembered).toEqual([]);
+});
+
 test('the question fits a TV: the band whole, an 80-character address over the buttons (c683)', async ({
 	page
 }) => {

@@ -1511,6 +1511,16 @@
 			 * opened by a press, and the next stray OK must not be the answer.
 			 */
 			let asking = false;
+			/*
+			 * The longest address the question will show: Given.MAX_ASKED in
+			 * Given.kt, which holds it for an address the activity is handed.
+			 * #lost= is written by onReceivedError with no length check and never
+			 * meets that rule, and ask() fills the field past its maxLength, so
+			 * the limit is held here, where the question is drawn. Not in lost()
+			 * or connect(): nothing is asked about a server in the list, and one
+			 * over 80 characters still reaches 9D and opens.
+			 */
+			const MAX_ASKED = 80;
 			function stopAsking() {
 				if (!asking) return;
 				asking = false;
@@ -1519,6 +1529,10 @@
 			}
 			function ask(at) {
 				if (!/^https?:\/\//i.test(at)) {
+					refused();
+					return;
+				}
+				if (at.length > MAX_ASKED) {
 					refused();
 					return;
 				}
