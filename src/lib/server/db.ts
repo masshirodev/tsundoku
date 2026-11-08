@@ -1843,6 +1843,29 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 			THEN 1 ELSE 0 END FROM series s WHERE s.id = highlights.series_id)
 		WHERE series_id IN (SELECT id FROM series WHERE root_id = NEW.id);
 	END;
+	`,
+	// v73: an anime's AniList relation graph, cached (card c358; doc/LINKS.md,
+	// "The relation cache"). The series screen draws the seasons before an
+	// anime and the one after from it, and never asks AniList on a load: the
+	// link pass (`refreshLinks`) fills and refreshes it. One row a series, gone
+	// with the series. `graph` is the JSON `RelGraph`
+	// (src/lib/library/seasons-around.ts): every entry the walk met, by
+	// AniList id, with its edges where the walk asked for them; NULL until a
+	// walk first succeeds. Which entries the walk starts from is not stored:
+	// it is read from the series' season links each time, so a relink, an
+	// UNLINK or a season linked since is seen at once, and a graph that can't
+	// answer for the links the series has now is not drawn. `fetched_at` is
+	// when `graph` was last written; `tried_at` when the pass last asked,
+	// which a failed ask moves without touching `graph`. Nothing is stored for
+	// the library yet, so the table starts empty and fills from the next pass.
+	`
+	CREATE TABLE series_relations (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		graph TEXT,
+		fetched_at INTEGER,
+		tried_at INTEGER NOT NULL,
+		CHECK ((graph IS NULL) = (fetched_at IS NULL))
+	);
 	`
 ];
 

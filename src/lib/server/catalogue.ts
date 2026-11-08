@@ -44,6 +44,7 @@ import {
 	undoSeasonLink
 } from './season-links.ts';
 import { seasonSearchTitle } from '../library/anime.ts';
+import { refreshRelations } from './relations.ts';
 
 /**
  * Catalogue links on the workstation (doc/LINKS.md): a series' MyAnimeList /
@@ -1363,6 +1364,8 @@ export function requeueSearched(): number {
 
 export type PassResult = {
 	resolved: number;
+	/** Anime whose relation graph was fetched and cached (c358; doc/LINKS.md, "The relation cache"). */
+	relations?: number;
 	searched: number;
 	linked: number;
 	offered: number;
@@ -1374,10 +1377,17 @@ export type PassResult = {
 /**
  * The link pass, before the covers are made (after an import, and in
  * `yarn run covers` / `yarn run links`): MAL ids resolved, then up to
- * `limit` series searched. Unreachable is not an error: the next pass tries.
+ * `limit` series searched, then the relations of up to `relations` anime
+ * cached (c358). Unreachable is not an error: the next pass tries.
  */
 export async function refreshLinks(
-	opts: { limit?: number; now?: number; log?: (line: string) => void } = {}
+	opts: {
+		limit?: number;
+		/** Anime whose relations are asked for at most (`refreshRelations`); 10 by default. */
+		relations?: number;
+		now?: number;
+		log?: (line: string) => void;
+	} = {}
 ): Promise<PassResult> {
 	const out: PassResult = { resolved: 0, searched: 0, linked: 0, offered: 0, unreachable: false };
 	const now = opts.now ?? Date.now();
@@ -1393,6 +1403,16 @@ export async function refreshLinks(
 			out.offered += r.offered;
 			opts.log?.(`links: ${out.searched} of ${rows.length} searched`);
 		}
+		// Last, so a link this pass made has its relations asked for in it
+		// (c358): the series screen's seasons around an anime come from here,
+		// never from a page load.
+		const r = await refreshRelations(anilistPublic, {
+			limit: opts.relations,
+			now,
+			log: opts.log,
+			fatal: (e) => e instanceof Unreachable
+		});
+		out.relations = r.refreshed;
 	} catch (e) {
 		if (e instanceof Unreachable) {
 			out.unreachable = true;
