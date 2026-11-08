@@ -680,6 +680,8 @@ export const actions: Actions = {
 	dismissScan: async ({ request }) => {
 		const form = await request.formData();
 		dismissScan(Number(form.get('scan')));
+		// The band's ✕ only clears it; TIDY NEW goes on to the NEW shelf.
+		if (form.get('stay') === '1') return { scanDismissed: true };
 		redirect(303, '/?shelf=new');
 	},
 

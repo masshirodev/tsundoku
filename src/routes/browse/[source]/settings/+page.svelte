@@ -70,8 +70,17 @@
 				'Nothing from it is sent to AniList, MAL or Ranobe. Its reads still count here: progress, CONTINUE and HISTORY are unchanged.'
 		}
 	] as const;
+	/**
+	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * action's new `form` draws its own band.
+	 */
+	let droppedAnswer = $state.raw<typeof form>(null);
+	const latest = $derived(form === droppedAnswer ? null : form);
+	const dropAnswer = () => (droppedAnswer = form);
 	const refusal = $derived(
-		form && 'message' in form && typeof form.message === 'string' ? form.message.toUpperCase() : ''
+		latest && 'message' in latest && typeof latest.message === 'string'
+			? latest.message.toUpperCase()
+			: ''
 	);
 	/**
 	 * CONCEAL ITS SERIES (card c523): one press, not a switch. More than one
@@ -129,7 +138,7 @@
 			detail="THESE ARE THE VALUES TSUNDOKU KEPT"
 		/>
 	{/if}
-	{#if refusal}<Band title={refusal} detail="NOTHING CHANGED" />{/if}
+	{#if refusal}<Band title={refusal} detail="NOTHING CHANGED" ondismiss={dropAnswer} />{/if}
 	{#if data.concealed}
 		<ConcealBand band={data.concealed} name={s.name} undo={act('undoConceal')} />
 	{/if}

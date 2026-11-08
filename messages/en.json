@@ -354,6 +354,7 @@
 	"tv_servers_forget_devices": "THE COMPUTER LISTS THIS TV IN 08 — DEVICES UNTIL IT IS SIGNED OUT THERE",
 	"tv_servers_keep": "KEEP IT",
 	"tv_servers_forget_name": "FORGET {name}",
+	"band_dismiss": "Dismiss this band",
 	"chrome_close": "Close",
 	"chrome_cancel": "CANCEL",
 	"chrome_working": "WORKING",

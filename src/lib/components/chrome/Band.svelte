@@ -1,5 +1,32 @@
+<script module lang="ts">
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+
+	/**
+	 * A ✕ for a band that lives in the URL (c493): the parameters go by a
+	 * replacing navigation, so a reload does not bring it back, Back does not
+	 * step through it, and the page keeps its place and focus.
+	 */
+	export function clearBandUrl(names: readonly string[]): void {
+		const url = new URL(page.url);
+		for (const name of names) url.searchParams.delete(name);
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- the current, resolved path, less its band's parameters
+		void goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+	}
+
+	/**
+	 * When a band last went away (c493): bands stack, so the band below moves
+	 * up to where it was, and the second press of a double tap must not reach
+	 * it. Measured from the band going, not the press, because a URL band goes
+	 * only when its navigation lands, however long that takes.
+	 */
+	let lastGone = -Infinity;
+	const DOUBLE_TAP_MS = 400;
+</script>
+
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { onDestroy, type Snippet } from 'svelte';
+	import { m } from '$lib/paraglide/messages';
 
 	/**
 	 * A panel band with a plain action cell on the right: the books and
@@ -12,15 +39,34 @@
 		title,
 		detail,
 		action,
+		ondismiss,
 		dashed = false
 	}: {
 		title: string;
 		detail?: string;
 		/** The right-hand cell: a form button or a link, supplied by the caller. */
 		action?: Snippet;
+		/**
+		 * Turns on the ✕ cell after `action` (c493; doc/BANDS.md): what clearing
+		 * this band does. A band that says what is true now does not pass it.
+		 */
+		ondismiss?: () => void;
 		/** Incognito's mark: "not stored yet" is dashed in Index. */
 		dashed?: boolean;
 	} = $props();
+
+	let pressed = false;
+	function dismiss(e: MouseEvent) {
+		if (e.timeStamp - lastGone < DOUBLE_TAP_MS) return;
+		pressed = true;
+		ondismiss?.();
+	}
+
+	// Only a ✕ starts the wait: a band replaced by a new answer has not just
+	// been pressed, and the next ✕ is the owner's own.
+	onDestroy(() => {
+		if (pressed) lastGone = performance.now();
+	});
 </script>
 
 <div class="band" class:two={!!detail} class:dashed role="status">
@@ -28,7 +74,20 @@
 		<div class="title">{title}</div>
 		{#if detail}<div class="detail">{detail}</div>{/if}
 	</div>
-	{#if action}<div class="act">{@render action()}</div>{/if}
+	{#if action || ondismiss}
+		<div class="end">
+			{#if action}<div class="act">{@render action()}</div>{/if}
+			{#if ondismiss}
+				<button
+					type="button"
+					class="x"
+					aria-label={m.band_dismiss()}
+					data-focus-mark="in"
+					onclick={dismiss}>✕</button
+				>
+			{/if}
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -55,6 +114,11 @@
 		flex-direction: column;
 		gap: 3px;
 		min-width: 0;
+	}
+	.end {
+		align-self: stretch;
+		display: flex;
+		flex-shrink: 0;
 	}
 	.title,
 	.detail {
@@ -87,6 +151,25 @@
 		cursor: pointer;
 	}
 	.act :global(:is(button, a):active) {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	/* The house's ✕ cell, inside the band's own height: its hit area stops at
+	   the hairline, so a band stacked below it cannot be pressed through it. */
+	.x {
+		width: 48px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 0;
+		border-left: var(--hairline);
+		border-radius: 0;
+		background: none;
+		color: var(--text-1);
+		font: var(--type-control);
+		cursor: pointer;
+	}
+	.x:active {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}

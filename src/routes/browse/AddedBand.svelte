@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import Band from '$lib/components/chrome/Band.svelte';
+	import Band, { clearBandUrl } from '$lib/components/chrome/Band.svelte';
 	import { addedDetail } from '$lib/library/downloads';
 	import {
 		BAND_SHELVES,
@@ -154,6 +154,7 @@
 		band.queued,
 		band.video
 	)}{tail}"
+	ondismiss={() => clearBandUrl(['added', 'series', 'preview', 'queued', 'new', 'refused'])}
 >
 	{#snippet action()}
 		{#if !refused}

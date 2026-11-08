@@ -53,8 +53,17 @@
 	/** The author and artist lines, one link a person (c456; `previewPeople`). */
 	const people = (m: { author?: string | null; artist?: string | null }) =>
 		previewPeople(m.author, m.artist);
+	/**
+	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * action's new `form` draws its own band.
+	 */
+	let droppedAnswer = $state.raw<typeof form>(null);
+	const latest = $derived(form === droppedAnswer ? null : form);
+	const dropAnswer = () => (droppedAnswer = form);
 	const refusal = $derived(
-		form && 'message' in form && typeof form.message === 'string' ? form.message.toUpperCase() : ''
+		latest && 'message' in latest && typeof latest.message === 'string'
+			? latest.message.toUpperCase()
+			: ''
 	);
 	const STATUS: Record<string, string> = {
 		ONGOING: 'ONGOING',
@@ -86,7 +95,7 @@
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
 
-	{#if refusal}<Band title={refusal} detail="NOTHING CHANGED" />{/if}
+	{#if refusal}<Band title={refusal} detail="NOTHING CHANGED" ondismiss={dropAnswer} />{/if}
 
 	{#await data.manga}
 		<div class="asking">ASKING THE SOURCE…</div>

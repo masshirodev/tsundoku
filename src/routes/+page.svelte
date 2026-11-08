@@ -3,7 +3,7 @@
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 	import Switch from '$lib/components/controls/Switch.svelte';
 	import { deleteWithLine, keptAcrossLine } from '$lib/library/highlights';
-	import Band from '$lib/components/chrome/Band.svelte';
+	import Band, { clearBandUrl } from '$lib/components/chrome/Band.svelte';
 	import { backLink } from '$lib/back';
 	import { deserialize, enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
@@ -1030,26 +1030,37 @@
 					: ''
 	);
 	const foldMessage = $derived(form === undoAnswer ? '' : formMessage);
-	const undoMessage = $derived(form === undoAnswer ? formMessage : '');
+	/**
+	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * action's new `form` draws its own band.
+	 */
+	let droppedAnswer = $state.raw<typeof form>(null);
+	const latest = $derived(form === droppedAnswer ? null : form);
+	const dropAnswer = () => (droppedAnswer = form);
+	const undoMessage = $derived(form === undoAnswer && latest ? formMessage : '');
 	/**
 	 * REFRESH's answer over the selection (card c221). It is the library's own
 	 * band, above the bar that asked, and it is replaced by the next run's: a
 	 * bulk answer belongs where the selection is, not on a series screen.
 	 */
-	const batch = $derived(form && 'refreshed' in form ? (form.refreshed as RefreshBatch) : null);
+	const batch = $derived(
+		latest && 'refreshed' in latest ? (latest.refreshed as RefreshBatch) : null
+	);
 	/** GROUP AS A WORK's own answer (W4): the Work it made, or what joined one. */
 	const made = $derived(
-		form && 'made' in form ? (form.made as { work: { name: string }; members: unknown[] }) : null
+		latest && 'made' in latest
+			? (latest.made as { work: { name: string }; members: unknown[] })
+			: null
 	);
 	const addedWork = $derived(
-		form && 'addedWork' in form
-			? (form.addedWork as { workId: number; name: string; facts: unknown[] })
+		latest && 'addedWork' in latest
+			? (latest.addedWork as { workId: number; name: string; facts: unknown[] })
 			: null
 	);
 	/** The HIDE answer's facts (W4): shown again, and taken out again, by UNDO. */
 	const hideFacts = $derived(
-		form && 'hideFacts' in form
-			? (form.hideFacts as {
+		latest && 'hideFacts' in latest
+			? (latest.hideFacts as {
 					hidden: number[];
 					out: { workId: number }[];
 					whole: number[];
@@ -1059,8 +1070,8 @@
 	);
 	/** The UNHIDE answer's facts (W4): every part it showed, and UNDO to hide them. */
 	const showFacts = $derived(
-		form && 'showFacts' in form
-			? (form.showFacts as { shown: number[]; whole: number[]; works: number })
+		latest && 'showFacts' in latest
+			? (latest.showFacts as { shown: number[]; whole: number[]; works: number })
 			: null
 	);
 	/** Both bands' words, from the counts: one Work or several, and the loose series apart. */
@@ -2010,6 +2021,7 @@
 					: gone.kind === 'taken-out'
 						? `A SERIES ON ITS OWN AGAIN${gone.ended ? ` · ${gone.name.toUpperCase()} IS NO LONGER A WORK` : ''} · SHOWN AGAIN BY UNDO`
 						: 'EVERY SERIES IS ITS OWN AGAIN'}
+			ondismiss={() => clearBandUrl(['band', 'facts', 'name', 'n'])}
 		>
 			{#snippet action()}
 				<form
@@ -2042,6 +2054,7 @@
 				detail={made
 					? `${made.members.length} SERIES · EACH KEEPS ITS OWN`
 					: `${addedWork!.facts.length} SERIES · AT THE END OF THE RUN`}
+				ondismiss={dropAnswer}
 			>
 				{#snippet action()}
 					<form method="POST" action="?/undoWork" use:enhance={undoAfter}>
@@ -2059,6 +2072,7 @@
 			<Band
 				title={(hiddenBand ?? looseBand)?.title ?? ''}
 				detail={(hiddenBand ?? looseBand)?.detail ?? ''}
+				ondismiss={dropAnswer}
 			>
 				{#snippet action()}
 					<form method="POST" action="?/undoHide" use:enhance={undoAfter}>
@@ -2080,7 +2094,7 @@
 		     goes with ✕; this one goes when any form is sent or ✕/SELECT is
 		     pressed (`passed`). -->
 		<div class="lib-band">
-			<Band title={undoMessage} detail="NOTHING CHANGED" />
+			<Band title={undoMessage} detail="NOTHING CHANGED" ondismiss={dropAnswer} />
 		</div>
 	{/if}
 	{#if showFacts}
@@ -2090,6 +2104,7 @@
 			<Band
 				title={shownBand?.title ?? `SHOWN · ${showFacts.shown.length} SERIES`}
 				detail={shownBand?.detail ?? `${showFacts.shown.length} SERIES · HIDDEN AGAIN BY UNDO`}
+				ondismiss={dropAnswer}
 			>
 				{#snippet action()}
 					<form method="POST" action="?/undoShow" use:enhance={undoAfter}>
@@ -2151,6 +2166,12 @@
 				<form method="POST" action="?/dismissScan" use:enhance>
 					<input type="hidden" name="scan" value={data.scan?.id} />
 					<button type="submit">TIDY NEW →</button>
+				</form>
+				<!-- TIDY NEW also goes to the NEW shelf; this only clears the band (c493). -->
+				<form method="POST" action="?/dismissScan" use:enhance>
+					<input type="hidden" name="scan" value={data.scan?.id} />
+					<input type="hidden" name="stay" value="1" />
+					<button type="submit" aria-label={m.band_dismiss()}>✕</button>
 				</form>
 			{/snippet}
 		</Banner>
@@ -2646,7 +2667,7 @@
 	{#if batch}
 		<!-- REFRESH's answer (c221): pinned over the bar that asked, so it is read where it was pressed. -->
 		<div class="refresh-band">
-			<Band title={batchTitle} detail={batchDetail}>
+			<Band title={batchTitle} detail={batchDetail} ondismiss={dropAnswer}>
 				{#snippet action()}
 					{#if batch.remaining.length > 0}
 						<form method="POST" action="?/refresh" use:enhance={batchAfter}>

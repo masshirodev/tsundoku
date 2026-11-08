@@ -168,7 +168,7 @@
 		<span>{countLabel}</span>
 	</div>
 	{#if band}
-		<Band title={band.title} detail={band.detail}>
+		<Band title={band.title} detail={band.detail} ondismiss={() => (band = null)}>
 			{#snippet action()}
 				<button type="button" onclick={undoBand}>UNDO</button>
 			{/snippet}

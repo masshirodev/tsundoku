@@ -354,6 +354,7 @@
 	"tv_servers_forget_devices": "O COMPUTADOR LISTA ESTA TV EM 08 — DISPOSITIVOS ATÉ ELA SER DESCONECTADA LÁ",
 	"tv_servers_keep": "MANTER",
 	"tv_servers_forget_name": "ESQUECER {name}",
+	"band_dismiss": "Dispensar este aviso",
 	"chrome_close": "Fechar",
 	"chrome_cancel": "CANCELAR",
 	"chrome_working": "PROCESSANDO",

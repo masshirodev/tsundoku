@@ -223,7 +223,7 @@
 	</TopBar>
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
-	{#if commandNote}<Band title={commandNote} />{/if}
+	{#if commandNote}<Band title={commandNote} ondismiss={() => (commandNote = '')} />{/if}
 	{#if data.addedHidden}
 		<!-- What the series page's band would have said (c505): what ADD AND
 		     DOWNLOAD queued, and UNDO while nothing of it is downloaded or read.

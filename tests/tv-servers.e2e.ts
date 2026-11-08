@@ -1428,6 +1428,34 @@ test('MORE gives up the head room when SERVERS has no head, and takes it back, a
 	await expect.poll(room).toBe('84px');
 });
 
+test('a TV reaches the band’s ✕ after UNDO, and clearing it leaves the screen usable (c493)', async ({
+	page
+}) => {
+	await page.goto('/?sort=title');
+	await page.locator('[data-focus-id^="series-"]').first().focus();
+	await page.keyboard.press('Enter');
+	await page.waitForURL(/\/series\/\d+/);
+	await page.goto(`${new URL(page.url()).pathname}?added=source~e2e`);
+	const band = page.locator('.band:visible', { hasText: 'ADDED TO THE LIBRARY' });
+	const undo = band.getByRole('button', { name: 'UNDO' });
+	const x = band.getByRole('button', { name: 'Dismiss this band' });
+	await undo.focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(x).toBeFocused();
+
+	await page.keyboard.press('Enter');
+	await expect(band).toHaveCount(0);
+	await page.keyboard.press('ArrowDown');
+	await expect
+		.poll(() =>
+			page.evaluate(() => {
+				const a = document.activeElement;
+				return a !== null && a !== document.body && (a as HTMLElement).offsetParent !== null;
+			})
+		)
+		.toBe(true);
+});
+
 test.describe('a TV that speaks Portuguese', () => {
 	test.use({ locale: 'pt-BR' });
 
