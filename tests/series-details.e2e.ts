@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures';
-import { startTagWorld, type TagWorld } from './helpers/tag-world';
+import { previewId, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-world';
 
 /**
  * DETAILS, the fold above the list (c425; doc/SERIES.md "DETAILS";
@@ -460,6 +460,54 @@ test.describe('every tag can be read and opened (c837)', () => {
 		await expect(sheet).toBeHidden();
 		await expect(row(page).locator('.none')).toHaveText('NO TAGS');
 		await expect(row(page).locator('button.more')).toHaveCount(0);
+	});
+
+	/**
+	 * The card's "under REFRESH and FOLLOW". The shared seed has no series with a
+	 * DOWNLOAD row, and a source's series only has a description if the source
+	 * gave one when it was added (REFRESH writes none), so this adds one the way
+	 * the owner does, from the source's preview.
+	 */
+	test('DOWNLOAD, with REFRESH and FOLLOW, stands above ABOUT and TAGS', async ({ page }) => {
+		await visit(page, world.ids.tagged);
+		test.skip(await line(page).isVisible(), 'the fold keeps ABOUT and TAGS where they stood');
+
+		const box = async (l: Locator) => (await l.boundingBox())!;
+		const expectUnderDownload = async (about: boolean) => {
+			const download = page.locator('.panel .dl-row:visible');
+			await expect(download).toBeVisible();
+			// One line of the row or a line of its own under it, by the panel's width.
+			const cells = page.locator('.panel .lcs:visible');
+			const refresh = cells.getByRole('button', { name: 'REFRESH', exact: true });
+			const follow = cells.getByRole('button', { name: 'FOLLOW', exact: true });
+			await expect(refresh).toBeVisible();
+			await expect(follow).toBeVisible();
+			const boxes = [await box(download), await box(refresh), await box(follow)];
+			const bottom = Math.max(...boxes.map((b) => b.y + b.height));
+			const tags = await box(row(page));
+			expect(bottom).toBeLessThanOrEqual(tags.y);
+			const label = page.locator('.panel .label:visible', { hasText: /^ABOUT/ });
+			if (!about) {
+				await expect(label).toHaveCount(0);
+				return;
+			}
+			await expect(label).toHaveCount(1);
+			const aboutAt = await box(label);
+			expect(bottom).toBeLessThanOrEqual(aboutAt.y);
+			expect(aboutAt.y).toBeLessThan(tags.y);
+		};
+		await expectUnderDownload(false);
+
+		await page.goto(
+			`${world.base}/downloads/source/${previewId}?from=${encodeURIComponent(`/browse/${SOURCE.id}`)}`
+		);
+		await page.waitForLoadState('networkidle');
+		await page.getByRole('button', { name: /\+ ADD/ }).click();
+		await expect(page).toHaveURL(/\/series\/\d+/);
+		await expect(page.getByRole('heading', { name: 'Preview Me Tagged' })).toBeVisible();
+		await page.waitForLoadState('networkidle');
+		await expect(page.locator('.panel .about:visible p')).toHaveText('A preview with tags.');
+		await expectUnderDownload(true);
 	});
 
 	test('MORE belongs to the series it was opened on, across a move on the same screen', async ({

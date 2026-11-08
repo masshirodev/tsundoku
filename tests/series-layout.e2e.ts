@@ -60,11 +60,7 @@ test('the series frame matches the design for this device', async ({ page }, inf
 	expect(rail.width).toBe(frame.rail);
 });
 
-// c488: the hover tint (motion.css) is a background-image, so it replaces a
-// picture drawn by the element's own stylesheet unless the element says
-// `data-picture`. The fold's stripes are that picture. A hover needs a fine
-// pointer, which only the desktop project has.
-test('ABOUT and TAGS stand under the DOWNLOAD row, where the fold is not in the way (c837)', async ({
+test('ABOUT and TAGS stand above the other rows, where the fold is not in the way (c837)', async ({
 	page
 }, info) => {
 	const tv = info.project.name === 'tv';
@@ -94,10 +90,13 @@ test('ABOUT and TAGS stand under the DOWNLOAD row, where the fold is not in the 
 	expect(about).toBeLessThan(tags);
 	expect(tags).toBeLessThan(await at('SHELVES'));
 	expect(tags).toBeLessThan(await at('DIRECTION'));
-	const download = page.locator('.panel .dl-row:visible');
-	if (await download.isVisible()) expect((await download.boundingBox())!.y).toBeLessThan(about);
+	// The seed's series has no DOWNLOAD row: series-details.e2e.ts pins the rows under it.
 });
 
+// c488: the hover tint (motion.css) is a background-image, so it replaces a
+// picture drawn by the element's own stylesheet unless the element says
+// `data-picture`. The fold's stripes are that picture. A hover needs a fine
+// pointer, which only the desktop project has.
 test('hovering the fold keeps its stripes (c488)', async ({ page }, info) => {
 	test.skip(info.project.name !== 'desktop', 'a hover needs a fine pointer');
 	await page.goto('/?sort=title');
