@@ -211,10 +211,10 @@ On a PC, in L→R and R→L, the buttons turn the page, not the side you click o
   menu, the lookup or the end page is open — the owner is about to click
   something. Only where there is a mouse (`pointer: fine`): a phone, a tablet
   and a TV draw none, so the row is left out there. It is one device setting
-  (`tsundoku.reader.cursor`) shared with the text reader and the player, and
-  turning it on only toggles a class, so nothing reflows. The player's default
-  is on, and it has no timer of its own: its cursor goes with its controls
-  ([`ANIME.md`](ANIME.md), "The player").
+  (`tsundoku.reader.cursor`) shared with the text reader, and turning it on only
+  toggles a class, so nothing reflows. SETTINGS lists it under 01 (c713). The
+  player has a key of its own, on by default, and no timer of its own: its
+  cursor goes with its controls ([`SETTINGS.md`](SETTINGS.md), "03").
 
 **The page never tints under a mouse** (c485). The image reader catches taps
 on its stage and the text reader on its page, both plain elements, so

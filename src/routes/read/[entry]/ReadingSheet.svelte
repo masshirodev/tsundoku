@@ -66,7 +66,7 @@
 		landscape: boolean;
 		/** 0 to 0.8. */
 		dim: number;
-		/** HIDE CURSOR (c678): the device's, shared with the image reader and the player. */
+		/** CURSOR (c678): the device's, shared with the text reader. */
 		cursor: boolean;
 		/** The session's zoom and the kept one for this mode on this screen (doc/READER.md, "Zoom"). */
 		zoom?: number;
@@ -365,7 +365,7 @@
 		{/if}
 
 		{#if pointerFine.current}
-			<!-- HIDE CURSOR (c678): the cursor goes after three seconds still, and
+			<!-- CURSOR (c678): the cursor goes after three seconds still, and
 			     a move or a press brings it back. Only where there is a mouse. -->
 			<div class="row">
 				<div class="label">CURSOR</div>

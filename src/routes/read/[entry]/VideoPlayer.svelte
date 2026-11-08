@@ -10,7 +10,8 @@
 	import { enhance } from '$app/forms';
 	import type Hls from 'hls.js';
 	import { clock, isWatchedAt } from '$lib/library/anime';
-	import { CURSOR_KEY, isWatching, WatchClock } from '$lib/reader/reader';
+	import { isWatching, WatchClock } from '$lib/reader/reader';
+	import { playerCursorOn } from '$lib/reader/cursor';
 	import {
 		challengeScale,
 		bufferedTo,
@@ -289,8 +290,8 @@
 	let count = $state(NEXT_COUNT_S);
 	let mouse = $state(false);
 	/**
-	 * HIDE CURSOR (c678): the player has no timer of its own. It follows the
-	 * option the readers keep, on by default, and the cursor goes exactly when
+	 * CURSOR (c678, c713): the player has no timer of its own. It has its own
+	 * key, on by default (`$lib/reader/cursor`), and the cursor goes exactly when
 	 * the controls go during playback (`chrome` false, HIDE_MOUSE_MS after the
 	 * last move) and comes back whenever they do: a move, a key, a pause.
 	 * The KEYS dialog holds both up (round 2): `?` is a key that brings the
@@ -1492,7 +1493,7 @@
 		if (video) video.volume = volume;
 		device = navigator.language;
 		mouse = matchMedia('(pointer: fine)').matches;
-		cursorOn = readLocal<boolean>(CURSOR_KEY, true);
+		cursorOn = playerCursorOn();
 		pipable = canPip();
 		void start();
 		const close = () => opened && void send('close');
@@ -2517,7 +2518,7 @@
 		--bar-h: 26px;
 		--sub-base: 30px;
 	}
-	/* HIDE CURSOR on, playing, and the controls gone (c678): the cursor goes
+	/* CURSOR on, playing, and the controls gone (c678): the cursor goes
 	   with them, on the class the chrome's own state already gives, and comes
 	   back whenever the controls do. Every descendant is covered because a
 	   cell sets its own pointer cursor. */

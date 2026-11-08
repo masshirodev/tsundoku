@@ -538,8 +538,9 @@ export function isReaderPath(pathname: string, prefix: string): boolean {
  * Three seconds without the mouse moving hides it over the reader; any move
  * or press brings it back at once, a key and the wheel do not, and it never
  * hides while the bars, a sheet, the page menu or the end page is open. The
- * option is one device setting shared by both readers and the player
- * (`tsundoku.reader.cursor`); a reader starts with it off, the player on.
+ * option is one device setting shared by both readers
+ * (`tsundoku.reader.cursor`), off by default. The player has its own key, on by
+ * default (`./cursor.ts`, c713).
  */
 export const CURSOR_IDLE_MS = 3000;
 export const CURSOR_KEY = 'tsundoku.reader.cursor';

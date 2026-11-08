@@ -204,7 +204,7 @@ test.describe('the sheets keep their ✕ while their rows scroll (c679)', () => 
 });
 
 /**
- * c678: HIDE CURSOR in the READING sheet, off on both readers. With it on, the
+ * c678: CURSOR in the READING sheet, off on both readers. With it on, the
  * cursor goes after three seconds without the mouse moving, and a move or a
  * press brings it back at once; a key and the wheel do not, so reading by
  * arrows stays clean. It never hides while a bar, a sheet, the page menu or
@@ -212,7 +212,7 @@ test.describe('the sheets keep their ✕ while their rows scroll (c679)', () => 
  * phone and a tablet (and on a TV, where `pointer: none`; the `tv` project does
  * not collect this file, and `tv-reader`/`tv-text-reader` walk the sheets).
  */
-test.describe('HIDE CURSOR (c678)', () => {
+test.describe('CURSOR (c678)', () => {
 	const cursor = (page: Page) =>
 		page
 			.locator('.reader, .text-reader')

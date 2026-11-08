@@ -58,6 +58,10 @@ only what the row offers and stores the default as a reset).
     wider), and **IN USE** on the two this screen uses.
 - **DIM** is listed with its value and no control: a dim set without the page
   behind it is a guess.
+- **CURSOR** (`tsundoku.reader.cursor`, off, c678) is both readers': on hides
+  the cursor after three seconds without the mouse moving. It is listed on every
+  device, though only a mouse has a cursor, so the READING sheets leave their row
+  out where there is none and this one says WITH A MOUSE.
 
 Two rows of a friend's (2026-10-30) close 01's strip settings: **CHAPTERS** (RUN ON
 | STOP AT THE END) and **TO THE TOP** (OFF | ON), both this device's, both
@@ -112,6 +116,15 @@ NOVEL · CHOSEN IN THE READER`, `src/routes/settings/mode-line.ts`). ✕ and
   (`tsundoku:anime:volume`, the device's, c385) is where the next episode
   starts, set by the player's VOL slider, wheel and ↑ ↓; mute is never kept,
   so a muted episode does not leave the next one silent.
+- **CURSOR** (`tsundoku:anime:cursor`, on, c713) is the player's own: on hides
+  the cursor when the controls go during playback. It is a separate key from
+  the readers' because the two defaults differ, and one key with two defaults
+  made this page say OFF while the player hid the cursor. Until c713 the player
+  read the readers' key, so the first time a device opens the player an answer
+  stored there is carried to this one, once (`src/lib/reader/cursor.ts`): a
+  RESET removes this value, and reading the readers' key again would bring the
+  old OFF back. On a device holding that OFF, this row reads ON until the player
+  has been opened once there, since the carry happens in the player.
 
 ## 04 — Downloading
 

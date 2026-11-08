@@ -74,6 +74,8 @@ export const VALUES = {
 	// The tap zones over the page as a paged chapter opens (doc/READER.md, "Touch").
 	'reader.zones': { where: 'device', key: 'tsundoku.reader.zones', def: true, label: onOff },
 	'reader.blocks': { where: 'device', key: 'tsundoku.reader.blocks', def: 'controls' },
+	// Both readers', off by default (c678). The player has its own below (c713).
+	'reader.cursor': { where: 'device', key: 'tsundoku.reader.cursor', def: false, label: onOff },
 	// Shared by both readers: it's about the room, not the book.
 	'reader.dim': { where: 'device', key: 'tsundoku.reader.dim', def: 0, label: pct },
 	// 02 — reading, novels (TextSheet.svelte; one stored object)
@@ -123,6 +125,9 @@ export const VALUES = {
 	// What the next episode starts at (c385): 0 to 1, as a <video>'s volume. Mute
 	// is never kept, so a muted episode can't leave the next one silent.
 	'anime.volume': { where: 'device', key: 'tsundoku:anime:volume', def: 1, label: pct },
+	// Its own key because the player's default is on and the readers' off: one key
+	// with two defaults is what made SETTINGS say OFF while the player hid it (c713).
+	'anime.cursor': { where: 'device', key: 'tsundoku:anime:cursor', def: true, label: onOff },
 	// 04 — downloading
 	'dl.quality': { where: 'library', key: 'anime_download_quality', def: '1080' },
 	// The languages kept beside the original; '' keeps every one (c160).
@@ -436,6 +441,13 @@ export const SECTIONS: SectionDef[] = [
 				meta: "OUTLINES OCR'D TEXT IN RAW JAPANESE"
 			},
 			{
+				id: 'cursor',
+				label: 'CURSOR',
+				where: 'device',
+				control: { type: 'seg', groups: [{ value: 'reader.cursor', opts: OFF_ON }] },
+				meta: 'WITH A MOUSE · ON HIDES IT AFTER 3 S STILL · BOTH READERS'
+			},
+			{
 				id: 'dim',
 				label: 'DIM',
 				where: 'device',
@@ -664,6 +676,13 @@ export const SECTIONS: SectionDef[] = [
 				where: 'device',
 				control: { type: 'info', value: 'anime.volume' },
 				meta: 'SET IN THE PLAYER · MUTE IS NOT KEPT'
+			},
+			{
+				id: 'player-cursor',
+				label: 'CURSOR',
+				where: 'device',
+				control: { type: 'seg', groups: [{ value: 'anime.cursor', opts: OFF_ON }] },
+				meta: 'WITH A MOUSE · ON HIDES IT WITH THE CONTROLS'
 			}
 		]
 	},

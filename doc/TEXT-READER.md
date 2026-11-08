@@ -452,7 +452,7 @@ it back at once. A key and the wheel do not, and it never hides while the
 bars, the sheet, CONTENTS, the lookup, a full-screen image, a wide block or
 the end page is open. The row is left out where there is no mouse, so a phone,
 a tablet and a TV show none. It is the same device setting
-(`tsundoku.reader.cursor`).
+(`tsundoku.reader.cursor`), and SETTINGS lists it under 01 (c713).
 
 ## Direction
 
