@@ -246,7 +246,9 @@ Tested in `tests/text-reader-flow.e2e.ts` ("the band at a chapter's start
 (c705)": a book whose chapters have the title as heading, no heading, another
 heading, a `Chapter 4:` prefix, a full-page illustration first, and
 `Chapter 6` over a second heading that is the title, in PAGED
-and SCROLL, with a saved place reopened on its words).
+and SCROLL, with a saved place reopened on its words; and c743: the rule's
+side in a vertical book, computed and drawn, and END's colours in DARK, PAPER
+and under DIM).
 
 ## Position
 
