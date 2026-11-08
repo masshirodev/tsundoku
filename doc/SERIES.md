@@ -710,7 +710,11 @@ on the same rules (`src/lib/library/add-shelf.ts`, called as it is):
   SHELVES sheet's: no new storage. A chip's post carries the page's query,
   so without script its answer is still the band. A refused tap (a shelf
   that is not there, or the series gone after an UNDO in another tab) says
-  `NOT SHELVED: …` in the strip, and the band and its UNDO stay.
+  `NOT SHELVED: …` in the strip, and the band and its UNDO stay. A tap
+  that is put through reads the page again and leaves the screen's other
+  answers alone: REFRESH's or FIRST 10's band beside the chips stays up
+  (`invalidateAll`, not `enhance`'s `update`, whose `{ ok: true }` would
+  clear them).
 - **UNDO** (`?/undoSourceAdd`) deletes the series row, and its shelf rows
   go by the schema's cascade (`collection_series … ON DELETE CASCADE`):
   UNDO takes both back. The shelves themselves stay.

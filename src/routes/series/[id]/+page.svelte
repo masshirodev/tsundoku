@@ -426,7 +426,8 @@
 	/**
 	 * A chip's answer. Put on: remembered as the last chosen once the write
 	 * answered, read from what the form posted (`enhance` keeps the first
-	 * submit function it is given). Refused (a shelf deleted elsewhere, the
+	 * submit function it is given), and the page read again without touching
+	 * `form`. Refused (a shelf deleted elsewhere, the
 	 * series gone after an UNDO in another tab): said in the strip and the
 	 * page read again, never `form`, whose `message` would put a refusal band
 	 * in place of ADDED TO THE LIBRARY and its UNDO.
@@ -446,13 +447,16 @@
 				shelfRefused = 'the series is not in the library now';
 				return;
 			}
-			if (result.type === 'success' && putOn && lastShelf(id) !== null)
+			if (result.type !== 'success') return update({ reset: false });
+			if (putOn && lastShelf(id) !== null)
 				try {
 					localStorage.setItem(SHELF_KEY, id);
 				} catch {
 					// Storage unavailable: the shelf is still put on, only not offered first.
 				}
-			await update({ reset: false });
+			// The shelves read again, `form` left alone: applying `{ ok: true }`
+			// would clear the bands beside the chips (FIRST 10's answer, …).
+			await invalidateAll();
 		};
 	};
 </script>

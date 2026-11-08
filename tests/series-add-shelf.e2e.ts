@@ -12,7 +12,8 @@ import { previewId, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-w
  * + NEW SHELF opens the SHELVES sheet at its name field; ↓ from UNDO reaches
  * the strip; UNDO takes the series and its shelves back, and a chip tapped in
  * a second tab after it says NOT SHELVED; the next ADD offers the last shelf
- * chosen first; without script a chip's answer still draws the band; past
+ * chosen first; without script a chip's answer still draws the band; a
+ * chip leaves the screen's other answer bands up (REFRESH's); past
  * six shelves N OTHER SHELVES opens the SHELVES sheet. (/browse's own band, for a hidden ADD, is
  * tests/browse-add-shelf.e2e.ts.) A plain `*.e2e.ts`, so it runs in the four
  * device projects: the strip wraps differently at each width. It makes
@@ -198,6 +199,27 @@ test('without script, a chip’s post answers with the band still up, and the se
 	} finally {
 		await bare.close();
 	}
+});
+
+test('a chip leaves the screen’s other answers up: REFRESH’s band outlives a shelf put on', async ({
+	page
+}) => {
+	test.setTimeout(90_000);
+	await add(page);
+	// REFRESH answers in `form`, drawn as its own band below ADDED TO THE LIBRARY.
+	await page.getByRole('button', { name: 'REFRESH', exact: true }).first().click();
+	const answer = page.locator('.band', { has: page.getByText(/^(NOTHING NEW|\d+ NEW)/) });
+	await expect(answer).toBeVisible();
+	// A chip (the first offered: the world's own shelves and the ones made above
+	// are past six by now) re-reads the shelves and leaves `form` alone.
+	const first = strip(page).locator('form button.chip').first();
+	await expect(first).toHaveAttribute('aria-pressed', 'false');
+	await first.click();
+	await expect(first).toHaveAttribute('aria-pressed', 'true');
+	await expect(answer).toBeVisible();
+	await expect(band(page)).toBeVisible();
+	await band(page).getByRole('button', { name: 'UNDO' }).click();
+	await page.waitForURL((u) => u.pathname.startsWith('/downloads/source/'));
 });
 
 test('more shelves than the band holds: N OTHER SHELVES opens the SHELVES sheet with them all', async ({
