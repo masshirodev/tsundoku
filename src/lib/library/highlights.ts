@@ -180,18 +180,34 @@ export const hasWayBack = (h: Pick<Highlight, 'state' | 'entryId'>) =>
 /**
  * → back to the place (Main 01, THE WAY BACK): a quote opens its chapter on
  * the page holding its first character (the text reader's own `?at=block.offset`),
- * a page its chapter on that page (`?p=`, 1-based), a clip its episode. A
- * detached quote opens at the paragraph where it was, drawing nothing. Null
- * when the place is gone. The player does not read an in point from its URL
- * yet (doc/HIGHLIGHTS.md, "What it does not do yet"), so a clip opens its
- * episode where the player would.
+ * a page its chapter on that page (`?p=`, 1-based), a clip its episode at its
+ * in point (`?t=`, seconds, c734). A detached quote opens at the paragraph where
+ * it was, drawing nothing. Null when the place is gone.
  */
 export function wayBackHref(h: Highlight): string | null {
 	if (!hasWayBack(h)) return null;
 	if (h.kind === 'quote')
 		return `/read/${h.entryId}?at=${h.block ?? 0}.${h.state === 'detached' ? 0 : (h.offset ?? 0)}`;
 	if (h.kind === 'page') return `/read/${h.entryId}?p=${(h.page ?? 0) + 1}`;
+	// Three places at most, and through Number, so the query never reads 1e-7.
+	if (h.kind === 'clip' && h.clipIn !== null)
+		return `/read/${h.entryId}?t=${Number(h.clipIn.toFixed(3))}`;
 	return `/read/${h.entryId}`;
+}
+
+/**
+ * The player's `?t=` (c734): the second an episode opens at, or null for
+ * anything that isn't one, so a bad link opens at the saved place as a plain one
+ * does. Plain decimal seconds only: `Number()` alone would take '', '1e9', '0x10'
+ * and 'Infinity'. A second at or past a length that is known is no place in the
+ * episode; an unknown length (`null` or 0, a catalogue that didn't say) is left
+ * for the file's own, which the player checks when it arrives.
+ */
+export function startSecond(raw: string | null, durationS: number | null): number | null {
+	if (raw === null || !/^\d+(\.\d+)?$/.test(raw)) return null;
+	const t = Number(raw);
+	if (!Number.isFinite(t)) return null;
+	return durationS && t >= durationS ? null : t;
 }
 
 /** The way back's cell: CH. 3 →, CH. 42 · P. 14 →, EPISODE · 12:04 →. */

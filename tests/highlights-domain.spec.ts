@@ -39,6 +39,7 @@ import {
 	slug,
 	stateTag,
 	toMarkdown,
+	startSecond,
 	wayBackHref,
 	wayBackLabel,
 	type Highlight,
@@ -131,6 +132,52 @@ const clip = (o: Partial<Highlight> = {}) =>
 		...o
 	});
 
+describe('the player’s ?t= (c734)', () => {
+	it('takes plain seconds, 0 included, which wins over a saved place like any other', () => {
+		for (const [raw, t] of [
+			['0', 0],
+			['734', 734],
+			['734.5', 734.5],
+			['00012', 12]
+		] as const)
+			expect(startSecond(raw, 1440), raw).toBe(t);
+	});
+
+	it('is nothing for anything else, so the saved place stands', () => {
+		for (const raw of [
+			null,
+			'',
+			' ',
+			'abc',
+			'NaN',
+			'-1',
+			'-0',
+			'+5',
+			'1e3',
+			'0x10',
+			'Infinity',
+			'12s',
+			'1:30',
+			'1.',
+			'.5'
+		])
+			expect(startSecond(raw, 1440), String(raw)).toBeNull();
+	});
+
+	it('is nothing at or past a known length, and waits for the file’s when none is known', () => {
+		expect(startSecond('1439.9', 1440)).toBe(1439.9);
+		expect(startSecond('1440', 1440)).toBeNull();
+		expect(startSecond('5000', 1440)).toBeNull();
+		expect(startSecond('5000', null)).toBe(5000);
+		expect(startSecond('5000', 0)).toBe(5000);
+	});
+
+	it('reads back what wayBackHref writes', () => {
+		const t = new URL(`http://x${wayBackHref(clip({ clipIn: 734.5004 }))}`).searchParams.get('t');
+		expect(startSecond(t, 1440)).toBe(734.5);
+	});
+});
+
 describe('what a highlight is called', () => {
 	it('says a clip’s points and length as the player does', () => {
 		expect(clock(0)).toBe('0:00');
@@ -185,7 +232,10 @@ describe('what a highlight is called', () => {
 		expect(wayBackHref(h())).toBe('/read/10?at=3.12');
 		expect(wayBackHref(h({ state: 'detached' }))).toBe('/read/10?at=3.0');
 		expect(wayBackHref(page())).toBe('/read/10?p=14');
-		expect(wayBackHref(clip())).toBe('/read/10');
+		expect(wayBackHref(clip())).toBe(`/read/10?t=${clip().clipIn}`);
+		expect(wayBackHref(clip({ clipIn: null }))).toBe('/read/10');
+		expect(wayBackHref(clip({ clipIn: 734.5004 }))).toBe('/read/10?t=734.5');
+		expect(wayBackHref(clip({ clipIn: 0.0000001 }))).toBe('/read/10?t=0');
 		expect(wayBackHref(h({ state: 'orphan_entry', entryId: null }))).toBeNull();
 		expect(wayBackHref(page({ state: 'orphan_series', entryId: null, seriesId: null }))).toBeNull();
 		expect(wayBackLabel(h())).toBe('CH. 3 →');

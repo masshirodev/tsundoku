@@ -3,7 +3,7 @@
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
 	import { onDestroy, onMount, tick } from 'svelte';
-	import { beforeNavigate, goto } from '$app/navigation';
+	import { beforeNavigate, goto, replaceState } from '$app/navigation';
 	import { leavingReader } from '$lib/reader/leaving';
 	import { backLink, goBackTo } from '$lib/back';
 	import { resolve } from '$app/paths';
@@ -49,6 +49,7 @@
 		type Cue,
 		type SubSize
 	} from '$lib/library/player';
+	import { startSecond } from '$lib/library/highlights';
 	import { coverSrc, readHref } from '$lib/library/links';
 	import { nearFrame, PREVIEW_DEBOUNCE_MS, previewQuality, StreamPreview } from './seek-preview';
 	import { canPip, copyStyles, documentPip, moveBack, moveInto, srclang } from './pip';
@@ -560,6 +561,43 @@
 	const cached = $derived(new Set(offline.entries[data.series.id] ?? []));
 	const playable = (e: Episode | null) => !!e && (offline.online || cached.has(e.id));
 
+	/**
+	 * `?t=` (c734; doc/HIGHLIGHTS.md, "The way back"): the second this open is
+	 * heading for, over the saved place, once. Read here and not on every start:
+	 * a retry after a failure hasn't used it yet and still should, and a stream
+	 * that fell over and reloaded has, and carries its own second.
+	 */
+	let urlStart: string | null = page.url.searchParams.get('t');
+	/**
+	 * The second a `?t=` opened at, until the viewer plays from it. A link is not
+	 * the viewer's place: nothing is saved while the picture sits where the link
+	 * put it (the seek's own timeupdate would have sent it), and an in point past
+	 * the ending doesn't mark the episode watched.
+	 */
+	let heldAt: number | null = null;
+	/** Where to go instead, if the file turns out shorter than the `?t=`. */
+	let pastEnd: { at: number; resumed: boolean } | null = null;
+
+	/** Spends `?t=`, and takes it off the URL so a reload opens at the place it has reached. */
+	function takeUrlStart(open: { at: number; resumed: boolean }): number | null {
+		if (urlStart === null) return null;
+		const t = startSecond(urlStart, duration || ep.durationS);
+		urlStart = null;
+		const url = new URL(location.href);
+		url.searchParams.delete('t');
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- this page's own URL
+		replaceState(url, page.state);
+		if (t === null) return null;
+		heldAt = t;
+		pastEnd = open;
+		return t;
+	}
+
+	function showResumed(at: number) {
+		resumedAt = at;
+		setTimeout(() => (resumedAt = null), RESUME_MS);
+	}
+
 	async function start(fresh = false, at?: number) {
 		const got = await resolveVideos(fresh);
 		// Offline, whatever didn't come is an episode the device doesn't keep.
@@ -584,11 +622,10 @@
 						endingAt: got.ending?.start ?? ep.endingAt
 					})
 				: null;
-		attach(at ?? open!.at);
-		if (open?.resumed) {
-			resumedAt = open.at;
-			setTimeout(() => (resumedAt = null), RESUME_MS);
-		}
+		const linked = open ? takeUrlStart(open) : null;
+		attach(at ?? linked ?? open!.at);
+		// The band says the saved place won, which it did not when a link did.
+		if (open?.resumed && linked === null) showResumed(open.at);
 	}
 
 	/** The quality this device starts on (Anime Calls 01): its own choice, else the best, 720 on a phone. */
@@ -755,6 +792,8 @@
 	}
 
 	// ---- progress: watching is reading --------------------------------------------------------------
+	/** How far the picture must have played from a `?t=` to count as the viewer's own. */
+	const START_PLAYED_S = 1;
 	let opened = false;
 	let finished = ep.readAt !== null;
 	let lastSent = 0;
@@ -806,6 +845,16 @@
 	 */
 	function onDuration() {
 		if (video && Number.isFinite(video.duration) && video.duration > 0) duration = video.duration;
+		else return;
+		// The file's own length is the first that can refuse a `?t=` no catalogue
+		// could (c734): past it, this open is the plain one it would have been.
+		if (pastEnd && heldAt !== null && heldAt >= video.duration) {
+			const open = pastEnd;
+			heldAt = null;
+			video.currentTime = open.at;
+			if (open.resumed) showResumed(open.at);
+		}
+		pastEnd = null;
 	}
 	function onTime() {
 		if (!video) return;
@@ -828,6 +877,10 @@
 		});
 		if (Number.isFinite(video.duration) && video.duration > 0) duration = video.duration;
 		buffered = bufferedTo(rangesOf(video.buffered), time);
+		if (heldAt !== null) {
+			if (video.paused || video.seeking || Math.abs(time - heldAt) < START_PLAYED_S) return;
+			heldAt = null;
+		}
 		if (!opened && time > 0) {
 			opened = true;
 			void send('open');
@@ -843,7 +896,7 @@
 	}
 
 	function onEnded() {
-		if (!finished) {
+		if (!finished && heldAt === null) {
 			finished = true;
 			void send('finish');
 		}
