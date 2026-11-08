@@ -576,6 +576,8 @@ type ServersBridge = {
 	opened: string[];
 	remembered: string[];
 	moved: [string, string][];
+	/** Origins whose probe is held until the test answers it (`hold`). */
+	held: string[];
 };
 
 declare global {
@@ -592,16 +594,27 @@ const STUDIO = 'http://192.168.1.61:42143';
  * PairingBridge.kt with its c261 list, as Servers.kt answers it: the one in
  * use first, `shown` the TV's name, else the server's, else the host. `answers`
  * says which origins a probe finds (anything else does not answer), each
- * after its own delay, so answers can land out of order as on a TV.
+ * after its own delay, so answers can land out of order as on a TV. `hold`
+ * keeps an answer until the test gives it (`answerHeld`): a case that asserts
+ * the state before an answer (CHECKING) must not race a timer for it, which a
+ * loaded box loses (wave 32: S9 read ANSWERS where CHECKING was due, 1 run in
+ * 5 at a load of 36-64).
  */
 async function stubServers(
 	page: Page,
 	list: StubServer[],
-	answers: Record<string, { ok: boolean; after?: number }> = {}
+	answers: Record<string, { ok: boolean; after?: number; hold?: boolean }> = {}
 ) {
 	await page.addInitScript(
 		({ list, answers }) => {
-			const state: ServersBridge = { list, probes: [], opened: [], remembered: [], moved: [] };
+			const state: ServersBridge = {
+				list,
+				probes: [],
+				opened: [],
+				remembered: [],
+				moved: [],
+				held: []
+			};
 			const clean = (at: string) => {
 				try {
 					return new URL(at.startsWith('http') ? at : 'http://' + at).origin;
@@ -640,12 +653,21 @@ async function stubServers(
 					const o = clean(at);
 					state.probes.push(o);
 					const a = answers[o] ?? { ok: false, after: 50 };
-					setTimeout(() => window.tsundokuProbe?.(o, a.ok), a.after ?? 50);
+					if (a.hold) state.held.push(o);
+					else setTimeout(() => window.tsundokuProbe?.(o, a.ok), a.after ?? 50);
 				}
 			};
 		},
 		{ list, answers }
 	);
+}
+
+/** Answer a probe `stubServers` held, once the page has asked it (`hold`). */
+async function answerHeld(page: Page, origin: string, ok: boolean) {
+	await expect
+		.poll(() => page.evaluate((o) => window.__servers!.held.includes(o), origin))
+		.toBe(true);
+	await page.evaluate(({ o, ok }) => window.tsundokuProbe?.(o, ok), { o: origin, ok });
 }
 
 const three: StubServer[] = [
@@ -658,9 +680,10 @@ test('S9: 9D for the one in use offers the others, each probed, OK opening one',
 	page
 }) => {
 	// Studio answers first and Masshiro's later, the reverse of the list's
-	// order: each answer must land on its own row.
+	// order: each answer must land on its own row. Masshiro's is held until
+	// its row has been seen CHECKING.
 	await stubServers(page, three, {
-		[ZEN]: { ok: true, after: 900 },
+		[ZEN]: { ok: true, hold: true },
 		[STUDIO]: { ok: false, after: 100 }
 	});
 	await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
@@ -676,6 +699,7 @@ test('S9: 9D for the one in use offers the others, each probed, OK opening one',
 	await expect(rows.nth(1)).toContainText('Studio');
 	await expect(rows.nth(1).locator('.st')).toHaveText('NO ANSWER');
 	await expect(rows.nth(0).locator('.st')).toHaveText('CHECKING');
+	await answerHeld(page, ZEN, true);
 	await expect(rows.nth(0).locator('.st')).toHaveText('ANSWERS');
 	await expect(rows.nth(0).locator('.g')).toHaveText('●');
 	await expect(rows.nth(1).locator('.g')).toHaveText('○');
