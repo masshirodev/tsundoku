@@ -168,6 +168,8 @@ test("the owner's case: search Haibara, SELECT, tick the novels, ←, and GROUP 
 
 	await page.getByRole('link', { name: 'Back to library' }).click();
 	await page.waitForURL(/\/\?sort=title$/);
+	// The library's own grid first: the search's block is still drawn as the URL changes.
+	await expect(tiles(page).first()).toBeVisible();
 	await expect(count(page)).toHaveText('2 SELECTED');
 	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
 	const group = page.getByRole('dialog', { name: 'Group into a series' });
@@ -216,6 +218,7 @@ test('from the selecting bar: / keeps the ticks, CLEAR keeps them and the focus,
 	// ← is the library it came from: its kind, still selecting, the count grown.
 	await page.getByRole('link', { name: 'Back to library' }).click();
 	await page.waitForURL(/kind=manga/);
+	await expect(tiles(page).first()).toBeVisible();
 	await expect(count(page)).toHaveText('2 SELECTED');
 	await expect(tiles(page).filter({ hasText: first }).first().locator('.open')).toHaveAttribute(
 		'aria-pressed',
@@ -246,6 +249,7 @@ test("Android's back and the browser's forward carry it both ways; a reload and 
 	await expect(count(page)).toHaveText('2 SELECTED');
 	await page.goForward();
 	await page.waitForURL(/q=haibara/);
+	await expect(page.locator('.hits')).toBeVisible();
 	await expect(count(page)).toHaveText('2 SELECTED');
 	await expect(hit(page, NOVELS[0])).toHaveAttribute('aria-checked', 'true');
 
@@ -387,6 +391,7 @@ test('a bulk action’s success ends it, after a trip to the search too (c698)',
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	for (const t of NOVELS) await hit(page, t).click();
 	await page.getByRole('link', { name: 'Back to library' }).click();
+	await expect(tiles(page).first()).toBeVisible();
 	await expect(count(page)).toHaveText('2 SELECTED');
 	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
 	const group = page.getByRole('dialog', { name: 'Group into a series' });

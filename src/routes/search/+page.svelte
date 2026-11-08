@@ -770,6 +770,7 @@
 	.label {
 		display: flex;
 		justify-content: space-between;
+		gap: 12px;
 		padding: 20px var(--pad) 10px;
 		font: var(--type-label);
 		color: var(--text-2);
@@ -1000,6 +1001,10 @@
 	}
 	.hit.tk .text {
 		padding-right: var(--pad);
+	}
+	/* sel.css's `.title` (500 16px/1.3): the line the plain row's font leaves normal. */
+	.hit.tk .title {
+		line-height: 1.3;
 	}
 	.hit.on {
 		background: var(--accent-select);
