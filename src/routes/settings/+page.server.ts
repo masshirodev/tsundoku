@@ -48,13 +48,6 @@ const DEFAULT_LANGUAGES = ['en', 'ja'];
 const LANGUAGE_CELLS = 12;
 
 /**
- * SETTINGS, one page (doc/SETTINGS.md; card c171, Settings.dc.html): every
- * setting once, in eight sections, each row saying where it's kept. The
- * library's values come from here; this device's are its browser's, and
- * another device's (2C) are the workstation's copy, listed under DEVICES.
- * Counts follow reveal, as every list does: hidden series aren't counted.
- */
-/**
  * The EXTENSIONS row's counts (c725; doc/SETTINGS.md, "07 — BROWSE"): what
  * EXTENSIONS' own INSTALLED tab counts, from the same two views its load
  * reads (`installedView`, and the plugins through `pluginsShown`), so the two
@@ -70,6 +63,13 @@ function extensionCounts(reveal: boolean): { installed: number; updates: number 
 	return { installed: n(apks) + n(plugins), updates: apks.updates.length + plugins.updates.length };
 }
 
+/**
+ * SETTINGS, one page (doc/SETTINGS.md; card c171, Settings.dc.html): every
+ * setting once, in eight sections, each row saying where it's kept. The
+ * library's values come from here; this device's are its browser's, and
+ * another device's (2C) are the workstation's copy, listed under DEVICES.
+ * Counts follow reveal, as every list does: hidden series aren't counted.
+ */
 export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest, request }) => {
 	const reveal = isRevealed(cookies);
 	const folded = (
