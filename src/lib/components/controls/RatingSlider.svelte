@@ -326,6 +326,10 @@
 		display: flex;
 		align-items: stretch;
 		height: var(--rs-h);
+		/* A control of fixed height never shrinks, wherever it is mounted: a
+		   flex column that scrolls (the READING sheet, capped at 90dvh) would
+		   otherwise squeeze it to its content, about 38px (c728, after c428). */
+		flex-shrink: 0;
 		color: var(--text-1);
 		user-select: none;
 		-webkit-user-select: none;
