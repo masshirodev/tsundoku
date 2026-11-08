@@ -111,18 +111,30 @@ source's own search, and EXTENSIONS' AVAILABLE search. `parseBar`
 neither is `unknown` and is said plainly, and everything else is the bar's own
 filter. `runSearchCommand` (`src/lib/library/commands.ts`) posts a command to
 `/api/command`, which calls the same `runCommand` the library's `?/command`
-does, so `/reveal` behind the fingerprint gate is refused from every bar as a
-plain POST of it is refused from `/search` (`doc/PRIVACY.md`); the bar shows
-the refusal and its list does not change. A TV has no fingerprint and no
-screen lock, so it refuses `/reveal` from every bar in `/search`'s own words
-("NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER"), and no bar turns reveal on
-there (`doc/TV.md`). A command that runs leaves the screen where it was and
-re-reads its loads (the reveal or incognito band appears); `/settings`,
-`/help` and `/highlights` open their page (`/highlights lamp` with the word in
-its search, c701), and `/lock` and `/unlock` open `/search?q=…`, since
-the device prompt is that screen's. Their `go` intent travels in history
-state, not the URL, and `/search` submits on arrival only for those two: a
-typed or shared `?go=1` link is taken off the URL and runs nothing (round 2).
+does. A refusal is shown by the bar and its list does not change. A TV has no
+fingerprint and no screen lock, so it refuses `/reveal` from every bar in
+`/search`'s own words ("NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER"),
+before anything is asked of the server, and no bar turns reveal on there
+(`doc/TV.md`). A command that runs leaves the screen where it was and re-reads
+its loads (the reveal or incognito band appears); `/settings`, `/help` and
+`/highlights` open their page (`/highlights lamp` with the word in its search,
+c701), and `/lock`, `/unlock` and, behind the fingerprint gate, `/reveal`
+(c711) open `/search?q=…`, since the device prompt is that screen's. A gated
+`/reveal` then ends where `/search`'s own does, on the library, because the
+ceremony's last step is that navigation: unlike the plain `/reveal`, it does
+not return to the bar's screen. The `go` intent travels in history state, not
+the URL, and `/search` submits on arrival only for those three, and only when
+the state carries it: a typed or shared `?go=1` link is taken off the URL and
+runs nothing (round 2, c710), `/search?q=%2Freveal&go=1` included. The state is
+emptied before the command is submitted, so the entry cannot run it twice: a
+back or forward onto it, or a reload, asks nothing; only a new key press does.
+A press counts once. `runSearchCommand` runs one command at a time across the
+bars, so a second Enter while one is running sends nothing and pushes no second
+entry holding the intent (an unknown command and a TV's refusal still say so,
+since neither asks anything). On `/search`, a press while the device prompt is
+waiting starts no second ceremony, and an options request that never answers
+ends the wait as NOT UNLOCKED (NOT ENROLLED for `/lock`), so the next press can
+try again.
 
 ## A source's page
 

@@ -267,12 +267,20 @@
 	});
 
 	/**
-	 * `/lock` and `/unlock` typed into another top search bar (c697) arrive
-	 * here with this screen's `go` intent, which travels in history state so a
-	 * typed or shared `?go=1` link cannot carry it. Only those two commands
-	 * always ask this screen's device prompt: any other `q` has `go` taken off
-	 * the URL and is not submitted, so `/search?q=%2Freveal&go=1` cannot turn
-	 * reveal on with no keystroke (round 2).
+	 * `/lock`, `/unlock` and a gated `/reveal` typed into another top search
+	 * bar (c697, c711) arrive here with this screen's `go` intent, which travels
+	 * in history state so a typed or shared `?go=1` link cannot carry it. A `go`
+	 * in the URL is only taken off it, and nothing is submitted (round 2, c710),
+	 * so no link raises the device prompt with no keystroke, and
+	 * `/search?q=%2Freveal&go=1` cannot start the ceremony. Only those three
+	 * commands ask this screen's device prompt.
+	 *
+	 * The entry's state is emptied before the submit, not after: a `history.back()`
+	 * to it, or the reload (SvelteKit does not restore state on one), finds no
+	 * `go`, whatever the ceremony then does. No other entry can hold one: only a
+	 * goto that mounts this screen reaches this `onMount`, and `runSearchCommand`
+	 * is single-flight, so a double press cannot push a second entry onto a
+	 * mounted `/search`. Run once, per press.
 	 *
 	 * One tick late: on a full page load `onMount` runs inside the router's own
 	 * root creation, before SvelteKit holds the root its `replaceState` writes
@@ -290,10 +298,9 @@
 			u.searchParams.delete('go');
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- this page's own address, with one parameter taken off
 			replaceState(u, {});
+			if (!carried) return;
 			const parsed = parseSearch(u.searchParams.get('q') ?? '');
-			if (parsed.type !== 'command' || (parsed.command !== 'lock' && parsed.command !== 'unlock')) {
-				return;
-			}
+			if (parsed.type !== 'command' || !(parsed.command in PURPOSE)) return;
 			form?.requestSubmit();
 		});
 		return () => {
@@ -317,6 +324,9 @@
 		}
 		if (input.type !== 'command' || !(input.command in PURPOSE)) return;
 		e.preventDefault();
+		// A second ceremony cancels the first's prompt, and that refusal then
+		// lands as NOT UNLOCKED on a device that accepted.
+		if (gate?.status === 'waiting') return;
 		// A TV has no fingerprint and no screen lock (owner, 2026-11-01): say
 		// so rather than raise a prompt it cannot answer.
 		if (input.command === 'reveal' && tvScreen.current) {
@@ -349,12 +359,16 @@
 			status: 'waiting',
 			text: 'COMMAND · WAITING FOR THE DEVICE'
 		};
-		const res = await post('/api/unlock/options', { purpose });
+		const unanswered = purpose === 'enrol' ? 'NOT ENROLLED' : undefined;
+		// Never left on `waiting`: `onsubmit` drops every press until it changes.
+		const res = await post('/api/unlock/options', { purpose }).catch(() => null);
+		if (!res) return fail(unanswered);
 		if (!res.ok)
 			return fail(
 				purpose === 'enrol' ? 'REVEAL FIRST · ONLY AN UNLOCKED SESSION ADDS A DEVICE' : undefined
 			);
-		const o = await res.json();
+		const o = await res.json().catch(() => null);
+		if (!o) return fail(unanswered);
 		if (!o.gated && purpose === 'reveal') {
 			// No device enrolled: /reveal is the plain command it always was.
 			plain = true;
@@ -381,7 +395,7 @@
 		} catch {
 			// Cancelled or refused: the browser can't say which (both are
 			// NotAllowedError), so both are the same honest answer.
-			return fail(purpose === 'enrol' ? 'NOT ENROLLED' : undefined);
+			return fail(unanswered);
 		}
 		if (purpose === 'reveal') {
 			// The plain /reveal is a form post, a page load, which ends SELECT as a
