@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
+import { DETAILS_FOLDS } from './helpers/details-folds';
 import { previewId, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-world';
 
 /**
@@ -207,7 +208,22 @@ test('a chip leaves the screen’s other answers up: REFRESH’s band outlives a
 	test.setTimeout(90_000);
 	await add(page);
 	// REFRESH answers in `form`, drawn as its own band below ADDED TO THE LIBRARY.
-	await page.getByRole('button', { name: 'REFRESH', exact: true }).first().click();
+	// On a phone the DOWNLOAD row is behind DETAILS (c425): opened by its line, as
+	// the owner does, when the app's own media query folds it (tests/helpers/details-folds.ts).
+	if (await page.evaluate((query) => matchMedia(query).matches, DETAILS_FOLDS)) {
+		const line = page.locator('[data-row="details"]');
+		await expect(line).toBeVisible();
+		await expect(async () => {
+			if ((await line.getAttribute('aria-expanded')) !== 'true') await line.click();
+			await expect(line).toHaveAttribute('aria-expanded', 'true', { timeout: 1_000 });
+		}).toPass();
+	}
+	// The download row draws its cells twice (inline and stacked, by width): the one shown.
+	await page
+		.getByRole('button', { name: 'REFRESH', exact: true })
+		.filter({ visible: true })
+		.first()
+		.click();
 	const answer = page.locator('.band', { has: page.getByText(/^(NOTHING NEW|\d+ NEW)/) });
 	await expect(answer).toBeVisible();
 	// A chip (the first offered: the world's own shelves and the ones made above
