@@ -146,8 +146,9 @@ the instance's public host — the tailnet name — and ignored on a loopback on
 ([`SIGN-IN.md`](SIGN-IN.md), "The workstation: a token"). The TV app reaches
 that host by TYPE THE WHOLE ADDRESS on 9B, `https://name.ts.net:8443`, or by
 being handed it at launch (`adb shell am start … --es url …`, or a
-`tsundoku://connect?url=` link), which skips 9A and 9B ([`TV-APP.md`](TV-APP.md),
-"Handing the TV an address").
+`tsundoku://connect?url=` link), which skips 9A and, for a server already in
+the list, 9B; a new address stops on 9B until CONNECT is pressed
+([`TV-APP.md`](TV-APP.md), "Handing the TV an address").
 
 ## The design
 
@@ -360,8 +361,10 @@ the TV.
   opened SETTINGS gets a code made for it.
 - **Reaching the server**: on launch, an address handed to the app from
   outside (an `am start` extra or a `tsundoku://connect?url=` link, c260) is
-  probed first and opens the pairing at that address (or its library, if it is
-  already one of the TV's servers); the last used server that answers opens
+  shown on 9B, neither probed nor stored until CONNECT is pressed (c683), and
+  then opens the pairing at that address (one already among the TV's servers
+  is probed and opens its library, with no question); the last used server that
+  answers opens
   its library; one that stops answering shows 9D for it, with the TV's other
   servers offered beside it, and keeps probing; a first run with neither shows
   9A. An address is added to the TV's list of servers in `SharedPreferences`

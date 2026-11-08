@@ -40,7 +40,9 @@
 			</intent-filter>
 			<!-- c260: hand the TV an address as a link. The extra the documented
 			     command sends works without this; the link is for a launcher or
-			     another app that only has a URL. -->
+			     another app that only has a URL. BROWSABLE means a page in any
+			     browser can fire it, so an address not in the list is asked about
+			     before anything is stored (c683; Given.kt). -->
 			<intent-filter>
 				<action android:name="android.intent.action.VIEW" />
 				<category android:name="android.intent.category.DEFAULT" />
