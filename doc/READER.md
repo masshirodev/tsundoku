@@ -417,19 +417,18 @@ scrollable screen, which took some of them at random.
 - **Vertical:** the strip carries on, both ways, as in Mihon's webtoon
   reader. See "Vertical", below.
 - **The end of what's available:** "END · LAST AVAILABLE", the series' title,
-  RATING with FAV, and a row under them that hides the series (HIDE) or adds a
-  browsing record to the library (+ ADD) — the same doors the series screen's
-  HIDE and BROWSE's ADD use, and the page stays while they answer (c655). HIDE
-  is the privacy door, not a removal: the series leaves every shelf but stays
-  in the library (`in_library` stays 1) and `/reveal` brings it back
-  ([`LIBRARY.md`](LIBRARY.md), "Hidden means hidden"). A hidden series is read
-  only under `/reveal`, so its end page offers **UNHIDE** instead of hiding it
-  again (c673, `?/hide on=0`, `UNHIDDEN ✓` once it answered). A press the
-  action refuses says so in the row, always **COULD NOT SAVE**, rather than
-  resetting silently: since `bba5d277` the row never shows the action's own
-  message, because the one real refusal (`A WORK IS HIDDEN WHOLE · HIDE ALL OR
-TAKE OUT`) holds HIDE and HIDE ALL, words this page's own controls use
-  (c706). A series in a Work draws
+  RATING with FAV, and a row under them that deletes the series (DELETE, the
+  series screen's own door and confirmation: [`DELETING.md`](DELETING.md);
+  c655) or adds a browsing record to the library (+ ADD, BROWSE's own). A
+  hidden series is read only under `/reveal`, so its row also offers
+  **UNHIDE** (c673, `?/hide on=0`, `UNHIDDEN ✓` once it answered). A press the
+  action refuses says so in the row, in the row's own words and never the
+  action's, whose lines may name a control this page also draws: **COULD NOT
+  SAVE**, or, when UNHIDE's `?/hide` answers a `failure` (its one refusal: the
+  series was taken into a Work since the page was drawn),
+  **THE SERIES CHANGED · RELOAD** (c714), since a reload draws the Work's row.
+  A failure from the other forms, and any `error`, is COULD NOT SAVE. A series
+  in a Work draws
   neither cell — its Work is hidden or taken out whole from the series screen.
   The block stays once the rating is set, showing what was chosen, so rating on
   this page never empties it; the note, `SHOWN WHILE UNRATED`, goes with the

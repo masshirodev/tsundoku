@@ -308,11 +308,9 @@ test('a hidden series read under /reveal offers UNHIDE, not HIDE again (c673)', 
 
 test('a refused library row says why, in the row (c673)', async ({ page }) => {
 	const { end } = await openSeriesEnd(page, 'Isekai Ojisan');
-	// The action's own refusal for a stale page (the series was taken into a
-	// Work meanwhile) holds HIDE and HIDE ALL, so the row must not repeat it:
-	// it says its own sentence instead (round 2). The real action cannot be
-	// made to refuse for a plain library series, so the refusal is answered
-	// here with the server's own words (series/[id]/+page.server.ts, `hide`).
+	// A failure from any form but UNHIDE's is not the stale Work (c714's case,
+	// below), even carrying that refusal's own words, which hold HIDE and HIDE
+	// ALL: the row says its own sentence and never the action's (round 2).
 	const refusal = 'A WORK IS HIDDEN WHOLE · HIDE ALL OR TAKE OUT';
 	await page.route(/\/series\/\d+\?\/delete$/, (route) =>
 		route.fulfill({
@@ -339,4 +337,148 @@ test('a refused library row says why, in the row (c673)', async ({ page }) => {
 	// The button is a button again, not a row that silently reset.
 	await expect(end.getByRole('button', { name: 'DELETE', exact: true })).toBeEnabled();
 	await page.unroute(/\/series\/\d+\?\/delete$/);
+});
+
+/** COULD NOT SAVE's and the end page's words (doc/handoff-notes/reader.md, wave 31 round 2, and c655's). */
+const ROW_WORDS = [
+	'MORE',
+	'BACK',
+	'LINK',
+	'EDIT',
+	'OPEN',
+	'OK',
+	'HIDE',
+	'UNDO',
+	'DONE',
+	'SERVERS',
+	'TRY AGAIN',
+	'SHOW',
+	'ALL',
+	'DETAILS',
+	'RENAME',
+	'HIDDEN',
+	'UNHIDE',
+	'UNHIDDEN',
+	'DELETE',
+	'ADD TO LIBRARY',
+	'IN LIBRARY',
+	'LIBRARY',
+	'START',
+	'WORK',
+	'FAV',
+	'FORGET',
+	'DOWNLOAD FIRST 10',
+	'NOT QUEUED',
+	'ANOTHER SOURCE',
+	'REVIEW',
+	'MEANWHILE',
+	'WORDS'
+];
+
+test('UNHIDE refused because the series joined a Work says so, and no other refusal does (c714)', async ({
+	page
+}) => {
+	const SENTENCE = 'THE SERIES CHANGED · RELOAD';
+	await command(page, '/reveal');
+	const { id } = await openSeriesEnd(page, 'Isekai Ojisan');
+	const here = page.url().replace(/\?.*$/, '');
+	const origin = new URL(test.info().project.use.baseURL!).origin;
+	// An action's answer is 200 even when it refuses: the outcome is the body's `type`.
+	const post = async (path: string, form: URLSearchParams) => {
+		const r = await page.request.post(path, {
+			data: form.toString(),
+			headers: {
+				origin,
+				'x-sveltekit-action': 'true',
+				'content-type': 'application/x-www-form-urlencoded'
+			}
+		});
+		return (await r.json()) as { type: string; data?: string };
+	};
+	const inDb = <T>(sql: string, ...args: unknown[]) => {
+		const db = new Database(process.env.PLAYWRIGHT_DATABASE_PATH!, { readonly: true });
+		try {
+			return db.prepare(sql).get(...args) as T;
+		} finally {
+			db.close();
+		}
+	};
+	const other = inDb<{ id: number }>('SELECT id FROM series WHERE title = ?', TITLE).id;
+	// Both hidden: hidden and visible series can't share a Work (the GROUP below).
+	const setHidden = (series: number, on: '0' | '1') =>
+		post(`/series/${series}?/hide`, new URLSearchParams({ on }));
+	for (const series of [id, other]) expect((await setHidden(series, '1')).type).toBe('success');
+	let grouped = false;
+	let failed: unknown;
+	try {
+		// Drawn while the series is hidden and in no Work, so the row has UNHIDE.
+		await page.goto(`${here}?p=last`);
+		await readerReady(page);
+		await page.waitForLoadState('networkidle');
+		await page.keyboard.press('ArrowLeft');
+		const end = page.locator('[data-end-page]');
+		await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
+		const unhide = end.getByRole('button', { name: 'UNHIDE', exact: true });
+		await expect(unhide).toBeVisible();
+
+		// An `error` from the same form is no stale Work: its usual sentence.
+		await page.route(/\/series\/\d+\?\/hide$/, (route) =>
+			route.fulfill({
+				status: 500,
+				contentType: 'application/json',
+				body: JSON.stringify({ type: 'error', error: { message: 'boom' } })
+			})
+		);
+		await unhide.click();
+		await expect(end.getByRole('alert')).toHaveText('COULD NOT SAVE');
+		await page.unroute(/\/series\/\d+\?\/hide$/);
+
+		// The series goes into a Work behind this page, through the library's
+		// own GROUP, so the refusal below is the real action's.
+		const form = new URLSearchParams({ name: 'Refused Row' });
+		form.append('series', String(id));
+		form.append('series', String(other));
+		const made = await post('/?/work', form);
+		expect(made, JSON.stringify(made)).toMatchObject({ type: 'success' });
+		grouped = true;
+
+		await unhide.click();
+		await expect(end.getByRole('alert')).toHaveText(SENTENCE);
+		for (const word of ROW_WORDS) expect(SENTENCE.toUpperCase()).not.toContain(word);
+		// A substring locator for each of the row's buttons finds just that button.
+		await expect(end.getByText('UNHIDE')).toHaveCount(1);
+		await expect(end.getByText('DELETE')).toHaveCount(1);
+		await expect(unhide).toBeEnabled();
+
+		// The second press answers the same, and is one line, not two.
+		await unhide.click();
+		await expect(end.getByRole('alert')).toHaveCount(1);
+		await expect(end.getByRole('alert')).toHaveText(SENTENCE);
+
+		// The sentence is true: drawn again, the Work's series offers no UNHIDE.
+		await page.reload();
+		await readerReady(page);
+		await page.waitForLoadState('networkidle');
+		await page.keyboard.press('ArrowLeft');
+		await expect(end.getByText(/^END ·/)).toBeVisible();
+		await expect(end.getByRole('button', { name: 'UNHIDE', exact: true })).toHaveCount(0);
+	} catch (e) {
+		failed = e;
+	}
+	// The library as this file found it, whatever the body did (c649).
+	if (grouped) {
+		const work = inDb<{ id: number; made: number }>(
+			`SELECT w.id, w.created_at AS made FROM works w
+				JOIN work_series s ON s.work_id = w.id WHERE s.series_id = ?`,
+			id
+		);
+		const gone = await post(
+			`/work/${work.id}?/ungroup`,
+			new URLSearchParams({ made: String(work.made) })
+		);
+		expect.soft(gone.type).toBe('redirect');
+	}
+	for (const series of [id, other])
+		expect.soft((await setHidden(series, '0')).type).toBe('success');
+	if (failed) throw failed;
 });

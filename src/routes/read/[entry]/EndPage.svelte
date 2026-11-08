@@ -254,7 +254,9 @@
 	let showing = $state(false);
 	let unhidden = $state(false);
 	let deleting = $state(false);
-	/** A refused row action's line: always COULD NOT SAVE, never the action's own words (c673; `rowRefusal`). */
+	const COULD_NOT_SAVE = 'COULD NOT SAVE';
+	const SERIES_CHANGED = 'THE SERIES CHANGED · RELOAD';
+	/** A refused row action's line, never the action's own words (c673, c714; `rowRefusal`). */
 	let rowError = $state<string | null>(null);
 	const cells = $derived(
 		libraryCells({
@@ -297,9 +299,17 @@
 	 * UNHIDE, UNHIDDEN ✓, + ADD TO LIBRARY, IN LIBRARY ✓, START, WORK, FAV,
 	 * DOWNLOAD FIRST 10, FORGET), so no locator for a row finds this line
 	 * instead of its control.
+	 *
+	 * `?/hide`'s `failure` is the one that gets its own sentence (c714): that
+	 * action has a single `fail`, the series having been taken into a Work since
+	 * this page was drawn. Its `data` holds nothing but the sentence
+	 * (`{ message }`, no code and no `stale`), and the words are the server's to
+	 * reword, so what tells it from any other refusal is what it is and whose:
+	 * a `failure`, answering that form. Anything else from that form is an
+	 * `error`, and the other forms' failures mean something else.
 	 */
-	function rowRefusal(): string {
-		return 'COULD NOT SAVE';
+	function rowRefusal(hide?: ActionResult): string {
+		return hide?.type === 'failure' ? SERIES_CHANGED : COULD_NOT_SAVE;
 	}
 	const downloadCell = $derived(
 		queue === 'queued'
@@ -549,7 +559,7 @@
 									showing = false;
 									if (result.type === 'success' || result.type === 'redirect') unhidden = true;
 									else if (result.type === 'failure' || result.type === 'error')
-										rowError = rowRefusal();
+										rowError = rowRefusal(result);
 								};
 							}}
 						>
