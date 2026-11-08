@@ -115,3 +115,14 @@ tests. `tests/unlock-gate.e2e.ts` runs the whole flow with Chromium's virtual
 authenticator, including a refused fingerprint. It runs as its own Playwright
 project after all the others, because enrolling gates `/reveal` for the shared
 database.
+
+## What an import reports
+
+An import takes everything in the file or folder whatever the reveal mode,
+hidden series and a hidden root's (Hentoid) included: the owner's decision of
+2026-11-07 (c633), because a friend can't be expected to know to turn hidden
+mode on first. The screen that says what it brought keeps the rule even so:
+with reveal off, what belongs to hidden series is a **count in a section
+closed by default** (`3 IN HIDDEN SERIES`; the owner, 2026-11-08), never a
+title or a Work's name, and those appear only with reveal on.
+[`IMPORT.md`](IMPORT.md), "The log", has the rule and the doors it holds at.

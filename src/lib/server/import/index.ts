@@ -19,12 +19,14 @@ import { animeBytes, animeSeriesDirs, planAnimeFolders, planAnimeSeries } from '
 import { ANIME_FOLDER } from '../../library/anime-files.ts';
 import { closeDeadJobs, ensureRoot, ensureNamedRoot, finishJob, writeSeries } from './write.ts';
 import { droppedLine, type Dropped } from './fold.ts';
+import type { KeptDrop } from './log.ts';
 import { reconcileDuplicates } from '../duplicates.ts';
 import { forgetSourceUse } from '../library-sources.ts';
 import { refreshCovers } from '../covers.ts';
 import { refreshLinks } from '../catalogue.ts';
 import type { PlannedSeries } from '../../import/plan.ts';
 import { dataPaths } from '../data-dirs.ts';
+import { HIDDEN_SQL } from '../visibility.ts';
 
 /**
  * Running an import (doc/IMPORT-MIHON.md, doc/IMPORT-HENTOID.md). One scan
@@ -402,6 +404,16 @@ function afterImport(running: Promise<ImportSummary>): void {
  * Another device's copy joins the library folder's root of the same name:
  * one hidden Hentoid shelf, and a grouped book found on either.
  */
+/** Whether SQL's rule reads this series as hidden: its own flag, or its root's. */
+function hiddenNow(db: Database.Database, id: number): boolean {
+	const row = db
+		.prepare(
+			`SELECT ${HIDDEN_SQL} AS hidden FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ?`
+		)
+		.get(id) as { hidden: number } | undefined;
+	return (row?.hidden ?? 0) !== 0;
+}
+
 function rootOf(db: Database.Database, source: Source): number {
 	return source.device
 		? ensureNamedRoot(db, source.name, source.root, source.hidden)
@@ -495,7 +507,7 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 	const summary: ImportSummary = { jobId, failedFiles: 0, sources: [] };
 	let created = 0;
 	/** Every Work dropped so far, across sources, for a run that throws part-way. */
-	const dropping: Dropped[] = [];
+	const dropping: KeptDrop[] = [];
 
 	try {
 		for (const s of sources) p.bytesTotal += await s.bytes();
@@ -549,7 +561,7 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 				out.filesAttached += r.filesAttached;
 				for (const d of r.dropped ?? []) {
 					out.dropped.push(d);
-					dropping.push(d);
+					dropping.push({ ...d, hiddenAtFold: hiddenNow(db, d.seriesId) });
 					console.log(`[import] ${droppedLine(d)}`);
 				}
 				// The band counts arrivals ("N SERIES SO FAR") and is shown while

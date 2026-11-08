@@ -1614,6 +1614,271 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 		]);
 	});
 
+	it('keeps on the job’s row whether the survivor was hidden at its fold (c633)', () => {
+		const kept = JSON.parse(
+			one<{ dropped: string }>(`SELECT dropped FROM scan_jobs WHERE id = ?`, folding!.jobId).dropped
+		) as { work: string; hiddenAtFold?: boolean }[];
+		// Reached through the importer's own door: the scan that folded the pairs.
+		expect(kept).toEqual([expect.objectContaining({ work: 'Hidden Work', hiddenAtFold: true })]);
+	});
+
+	describe('with reveal off, what belongs to hidden series is counted and never named (c633)', () => {
+		type Entry = {
+			kind: string;
+			id: number;
+			dropped: { line: string }[];
+			hidden: {
+				fresh: number;
+				merged: number;
+				noSource: number;
+				dropped: number;
+			} | null;
+		};
+		const logOf = async (reveal: boolean) => {
+			const { load } = await import('../src/routes/import/log/+page.server');
+			const { REVEAL_COOKIE } = await import('$lib/server/prefs');
+			return (
+				(await load({
+					cookies: { get: (name: string) => (reveal && name === REVEAL_COOKIE ? '1' : undefined) }
+				} as never)) as unknown as { entries: Entry[] }
+			).entries;
+		};
+		const scanOf = (entries: Entry[]) =>
+			entries.find((e) => e.kind === 'scan' && e.id === folding!.jobId)!;
+		// Written with a name of the fold's own, as the report would have printed it.
+		const SECRET = /HIDDEN WORK|Hidden Work|Fold Both Parts|Fold Partner/;
+
+		it('counts the scan’s hidden fold and prints neither its Work nor its survivor', async () => {
+			const entries = await logOf(false);
+			const scan = scanOf(entries);
+			expect(scan.dropped).toEqual([]);
+			expect(scan.hidden?.dropped).toBe(1);
+			expect(JSON.stringify(entries)).not.toMatch(SECRET);
+		});
+
+		it('keeps the ended Work’s line off the list when its survivor is unhidden alone (the card’s own state)', async () => {
+			const w = await works();
+			const survivor = ids['Fold Both Parts'].named;
+			// Before c633 this one door printed the Work's name again.
+			expect(w.setHiddenWhole([survivor], false)).toBeTruthy();
+			try {
+				expect(one<{ h: number }>(`SELECT hidden AS h FROM series WHERE id = ?`, survivor).h).toBe(
+					0
+				);
+				// The Work's other part is still hidden.
+				expect(
+					one<{ h: number }>(
+						`SELECT hidden AS h FROM series WHERE id = ?`,
+						partner['Fold Partner Three']
+					).h
+				).toBe(1);
+				const entries = await logOf(false);
+				const scan = scanOf(entries);
+				expect(scan.dropped).toEqual([]);
+				expect(scan.hidden?.dropped).toBe(1);
+				expect(JSON.stringify(entries)).not.toMatch(/HIDDEN WORK|Hidden Work/);
+				// Reveal on, every line, where it always was, and nothing counted apart.
+				const revealed = scanOf(await logOf(true));
+				expect(revealed.dropped.map((d) => d.line)).toEqual([
+					'DROPPED FROM HIDDEN WORK · Fold Both Parts · THE WORK ENDED'
+				]);
+				expect(revealed.hidden).toBeNull();
+			} finally {
+				w.setHiddenWhole([survivor], true);
+			}
+		});
+
+		it('counts on every job exactly when it has something hidden, and is absent otherwise', async () => {
+			const scans = (await logOf(false)).filter((e) => e.kind === 'scan');
+			expect(scans.length).toBeGreaterThan(1);
+			for (const e of scans) {
+				const series = one<{ n: number }>(
+					`SELECT COUNT(*) AS n FROM series s JOIN roots r ON r.id = s.root_id
+					WHERE s.scan_job_id = ? AND (s.hidden = 1 OR (r.hidden = 1 AND s.public = 0))`,
+					e.id
+				).n;
+				const kept = (
+					JSON.parse(
+						one<{ dropped: string }>(`SELECT dropped FROM scan_jobs WHERE id = ?`, e.id).dropped
+					) as { hiddenAtFold?: boolean }[]
+				).filter((d) => d.hiddenAtFold).length;
+				expect({ id: e.id, hidden: e.hidden }).toEqual({
+					id: e.id,
+					hidden:
+						series + kept === 0 ? null : { fresh: series, merged: 0, noSource: 0, dropped: kept }
+				});
+			}
+			expect(scans.some((e) => e.hidden === null)).toBe(true);
+			// With reveal on, nothing is counted apart, a job's hidden series included.
+			const job = db()
+				.prepare(
+					`INSERT INTO scan_jobs (started_at, finished_at, source_label, dismissed_at)
+					VALUES (?, ?, 'c633 scan', ?)`
+				)
+				.run(at, at, at).lastInsertRowid as number;
+			const row = db()
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, hidden, added_at, indexed_at, scan_job_id)
+					VALUES ((SELECT id FROM roots WHERE hidden = 0 LIMIT 1), 'c633 Hidden Scan', 'manga', 1, ?, ?, ?)`
+				)
+				.run(at, at, job).lastInsertRowid;
+			try {
+				const of = (entries: Entry[]) => entries.find((e) => e.kind === 'scan' && e.id === job)!;
+				expect(of(await logOf(false)).hidden).toMatchObject({ fresh: 1, dropped: 0 });
+				expect(of(await logOf(true)).hidden).toBeNull();
+			} finally {
+				db().prepare(`DELETE FROM series WHERE id = ?`).run(row);
+				db().prepare(`DELETE FROM scan_jobs WHERE id = ?`).run(job);
+			}
+		});
+
+		it('a backup’s new and merged hidden series, and its hidden root’s, are counted; reveal on counts none', async () => {
+			const { backupEntry } = await import('$lib/server/import/log');
+			const { importRow } = await import('$lib/server/import/backup');
+			const hid = db()
+				.prepare(`INSERT INTO roots (name, path, hidden) VALUES ('Hentoid c633', '/c633/h', 1)`)
+				.run().lastInsertRowid;
+			const add = (title: string, hidden: number, root: number | bigint) =>
+				db()
+					.prepare(
+						`INSERT INTO series (root_id, title, kind, hidden, added_at, indexed_at)
+						VALUES (?, ?, 'manga', ?, ?, ?)`
+					)
+					.run(root, title, hidden, at, at).lastInsertRowid;
+			const plainRoot = one<{ id: number }>(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).id;
+			const shown = add('Report Shown', 0, plainRoot);
+			const fresh = add('Report Hidden New', 1, plainRoot);
+			const merged = add('Report Hidden Merged', 1, plainRoot);
+			const hentoid = add('Report Hentoid', 0, hid);
+			const made = db()
+				.prepare(
+					`INSERT INTO imports (created_at, app, file_name, state, finished_at)
+					VALUES (?, 'mihon', 'r.tachibk', 'done', ?)`
+				)
+				.run(at, at).lastInsertRowid as number;
+			const put = db().prepare(
+				`INSERT INTO import_series (import_id, series_id, created) VALUES (?, ?, ?)`
+			);
+			put.run(made, shown, 1);
+			put.run(made, fresh, 1);
+			put.run(made, merged, 0);
+			put.run(made, hentoid, 1);
+			try {
+				const row = importRow(made)!;
+				const off = backupEntry(row, false);
+				expect(off.counts).toMatchObject({ fresh: 1, merged: 0 });
+				expect(off.hidden).toMatchObject({ fresh: 2, merged: 1, dropped: 0 });
+				expect(JSON.stringify(off)).not.toMatch(/Report H/);
+				const on = backupEntry(row, true);
+				expect(on.counts).toMatchObject({ fresh: 3, merged: 1 });
+				expect(on.hidden).toBeNull();
+				// SETTINGS' last-import line reads the entry's counts and follows reveal.
+				db().prepare(`UPDATE series SET hidden = 0 WHERE id IN (?, ?)`).run(fresh, merged);
+				db().prepare(`UPDATE series SET public = 1 WHERE id = ?`).run(hentoid);
+				expect(backupEntry(row, false).hidden).toBeNull();
+			} finally {
+				db().prepare(`DELETE FROM imports WHERE id = ?`).run(made);
+				db()
+					.prepare(`DELETE FROM series WHERE id IN (?, ?, ?, ?)`)
+					.run(shown, fresh, merged, hentoid);
+				db().prepare(`DELETE FROM roots WHERE id = ?`).run(hid);
+			}
+		});
+
+		it('every path through the rule: drawn, counted or neither', async () => {
+			const { droppedOf } = await import('$lib/server/import/log');
+			const w = await works();
+			const free = db()
+				.prepare(
+					`SELECT s.id, s.added_at FROM series s JOIN roots r ON r.id = s.root_id
+					WHERE s.hidden = 0 AND r.hidden = 0 AND s.in_library = 1
+						AND s.id NOT IN (SELECT series_id FROM work_series)
+					ORDER BY s.id LIMIT 3`
+				)
+				.all() as { id: number; added_at: number }[];
+			expect(free).toHaveLength(3);
+			const live = w.createWork({
+				seriesIds: [free[0].id, free[1].id],
+				name: 'Rule Work',
+				now: at + 50_000
+			}).work;
+			const line = (over: Record<string, unknown>) => ({
+				work: 'Rule Work',
+				series: 'Rule Survivor',
+				ended: true,
+				workId: 0,
+				workAt: 0,
+				seriesId: free[2].id,
+				seriesAt: free[2].added_at,
+				...over
+			});
+			const shape = (d: object) => droppedOf(JSON.stringify([d]), false);
+			// The count, read as the page reads it: a job of its own holding this one line.
+			const counted = async (d: object) => {
+				const job = db()
+					.prepare(
+						`INSERT INTO scan_jobs (started_at, finished_at, source_label, dismissed_at, dropped)
+						VALUES (?, ?, 'c633', ?, ?)`
+					)
+					.run(at, at, at, JSON.stringify([d])).lastInsertRowid as number;
+				try {
+					return (await logOf(false)).find((e) => e.kind === 'scan' && e.id === job)!.hidden
+						?.dropped;
+				} finally {
+					db().prepare(`DELETE FROM scan_jobs WHERE id = ?`).run(job);
+				}
+			};
+			try {
+				// Ended, nothing hidden when it folded: an open line, as it always was.
+				expect(shape(line({ hiddenAtFold: false }))).toHaveLength(1);
+				expect(await counted(line({ hiddenAtFold: false }))).toBeUndefined();
+				// From before c633, its survivor hidden now: off the list and counted.
+				db().prepare(`UPDATE series SET hidden = 1 WHERE id = ?`).run(free[2].id);
+				try {
+					expect(shape(line({}))).toEqual([]);
+					expect(await counted(line({}))).toBe(1);
+				} finally {
+					db().prepare(`UPDATE series SET hidden = 0 WHERE id = ?`).run(free[2].id);
+				}
+				// A survivor gone and a Work gone, with no record: nothing can say. Neither.
+				const lost = line({ seriesAt: 1 });
+				expect(shape(lost)).toEqual([]);
+				expect(await counted(lost)).toBeUndefined();
+				// The same with the record: it was hidden, so it is counted.
+				expect(await counted(line({ seriesAt: 1, hiddenAtFold: true }))).toBe(1);
+				// Ended, and from before c633: nothing recorded it, so as it was.
+				expect(shape(line({}))).toHaveLength(1);
+				// Ended and hidden at its fold: off the list, whoever is shown today.
+				expect(shape(line({ hiddenAtFold: true }))).toEqual([]);
+				expect(await counted(line({ hiddenAtFold: true }))).toBe(1);
+				// A Work alive and shown wins over the record: it can be asked.
+				expect(
+					shape(
+						line({
+							ended: false,
+							workId: live.id,
+							workAt: at + 50_000,
+							hiddenAtFold: true
+						})
+					)
+				).toHaveLength(1);
+				// A Work alive and hidden is off the list, as c570 r2 made it, and counted.
+				w.hideWork(live.id, true);
+				const hiddenWork = line({
+					ended: false,
+					workId: live.id,
+					workAt: at + 50_000,
+					hiddenAtFold: false
+				});
+				expect(shape(hiddenWork)).toEqual([]);
+				expect(await counted(hiddenWork)).toBe(1);
+			} finally {
+				w.hideWork(live.id, false);
+				w.ungroup(live.id);
+			}
+		});
+	});
+
 	it('never leaves any Work in the library hidden in part', () => {
 		expect(
 			one<{ n: number }>(

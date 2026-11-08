@@ -1,4 +1,5 @@
 <script lang="ts">
+	import HiddenFold from '../HiddenFold.svelte';
 	import { deserialize, enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -639,6 +640,10 @@
 			{/if}
 		</div>
 
+		{#if e.hidden}
+			<div class="hidden-fold"><HiddenFold hidden={e.hidden} /></div>
+		{/if}
+
 		{#if leftOut > 0}
 			<div class="lab">
 				<span>02 — LEFT OUT AND REFUSED</span><span class="r">{n(leftOut)}</span>
@@ -727,6 +732,9 @@
 	}
 	.blk.under {
 		border-top: 0;
+	}
+	.hidden-fold {
+		margin-top: 16px;
 	}
 	.prose.before {
 		margin-bottom: 16px;

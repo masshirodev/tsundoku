@@ -308,11 +308,37 @@ id **and** `created_at`, and it did not end at the fold), it has a visible
 part now. The second condition exists because a Work can be hidden after
 its fold: the line prints the Work's name, and a Work that kept three or
 more parts can be hidden with HIDE ALL later while the survivor stays
-shown. A Work that ended, or whose id another Work now holds, adds no
-condition: the survivor's rule alone decides. With reveal on,
-every line is drawn. A run that throws part-way still records the folds it
-made (each series is its own transaction); a job a dead process left lists
+shown. A Work that ended, or whose id another Work now holds, can't be asked
+any more, so the job's own record answers (c633): each line keeps
+`hiddenAtFold`, whether the survivor was hidden the moment the fold finished
+(a fold hides the survivor when the part folded in was hidden), and a line
+that was hidden then stays off the list however the survivor is shown today.
+So unhiding the survivor alone never prints the name of a Work whose other
+part is still hidden. A job from before c633 has no such record, and its
+ended lines keep the survivor's rule alone: nothing kept can say. With reveal
+on, every line is drawn. A run that throws part-way still records the folds
+it made (each series is its own transaction); a job a dead process left lists
 none.
+
+**An import takes everything, whatever the reveal mode** (the owner, 2026-11-07,
+c633: a friend can't be expected to know to turn hidden mode on first, and
+being sent back to do it is clunky). Nothing on the way in reads reveal: the
+import's action takes no cookie, `startBackupImport` has no such argument, and
+the writer files a series by the file, a hidden root's (Hentoid) included. **Its
+report says so, and hidden still means hidden on this screen** (the owner,
+2026-11-08: a count, not titles): with reveal off, the entry's own counts and
+lines leave out what belongs to hidden series, and a section of its own,
+`src/routes/import/HiddenFold.svelte`, closed until opened, says how many
+(`3 IN HIDDEN SERIES`), new, merged and without a source, and the WORKS lines
+kept off the list, and names no hidden series or Work. It sits at the end of a
+log entry and under the result page's WHAT CAME IN. The titles appear only with
+reveal on, where the section is absent and the lines are where they always
+were; with nothing hidden in the job it is absent too. A line about a survivor
+and a Work that are both gone, with no record, can't be said to be hidden and
+is neither drawn nor counted, as before. The series-so-far band on the library
+keeps leaving hidden series out (`seriesFound`, `import/index.ts`), since that
+is a band on a screen anyone can see and not this report; SETTINGS' `LAST:`
+line likewise keeps counting what the viewer may see.
 
 **Rung 66** (`src/lib/server/db.ts`) keeps it:
 
@@ -324,15 +350,16 @@ none.
   sources it lacked).
 - `import_series`: which series it brought, and whether each was new or
   merged. **Counts are read through `series` and its root, never stored**, so
-  they follow reveal (a hidden series is not counted with reveal off) and a
-  series deleted since stops counting. A series deleted takes its row with it;
+  they follow reveal (a hidden series is counted apart, above, with reveal off)
+  and a series deleted since stops counting. A series deleted takes its row with it;
   a job forgotten leaves the import unlinked.
 
 A scan stays a `scan_jobs` row alone; the log reads both. **Rung 71** adds
 `scan_jobs.dropped` (JSON, `'[]'` by default): the Works its folds dropped,
 written as the job finishes (`finishJob`). Every job stored before the rung
 has `'[]'`, which is right: nothing recorded them, and they cannot be read
-back from anything kept.
+back from anything kept. `hiddenAtFold` (c633) is one more field in that JSON,
+so no rung.
 
 ## Where it departs from the handoff
 
