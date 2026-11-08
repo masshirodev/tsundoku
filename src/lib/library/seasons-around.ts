@@ -46,6 +46,9 @@ export type RelNode = {
 	format: string | null;
 	status: string | null;
 	episodes: number | null;
+	/** A comic's or a novel's counts (c700); absent from a graph cached before them. */
+	chapters?: number | null;
+	volumes?: number | null;
 	year: number | null;
 	title: { english: string | null; romaji: string | null; native: string | null };
 	/** Its own edges, once the entry was asked about; null for one only seen as a neighbour. */
@@ -68,6 +71,11 @@ export type WalkFrom = {
 	heldBefore: number;
 	/** Seasons the series holds after its last linked one, unlinked. */
 	heldAfter: number;
+	/**
+	 * The other seasons it has linked, between `first` and `last`: asked with
+	 * their edges too, since OTHER FORMS reads one hop from each (c700).
+	 */
+	others?: number[];
 };
 
 export type Walked = {
@@ -294,6 +302,52 @@ export const relTitle = (n: Pick<RelNode, 'title'>): string =>
 
 /** The format as words: TV_SHORT is `TV SHORT`. */
 const formatWord = (format: string | null) => (format ?? '').replace(/_/g, ' ');
+
+/**
+ * What makes another entry the same work in another form (c700; doc/SERIES.md,
+ * "OTHER FORMS"), most direct first. AniList writes the relation from the
+ * entry it is asked about, so an anime's own manga answers ADAPTATION as often
+ * as SOURCE (Ranma 1/2 (2024), recorded in tests/other-forms-db.spec.ts).
+ */
+export const FORM_RELATIONS: readonly string[] = ['SOURCE', 'ADAPTATION', 'ALTERNATIVE'];
+
+/**
+ * The entries one hop from `starts` by a form's relation that `other` accepts,
+ * each once, under its most direct relation, then oldest first. One hop only:
+ * an adaptation's own adaptation is another work's business. Pure.
+ */
+export function formNodes(
+	graph: RelGraph,
+	starts: readonly number[],
+	other: (n: RelNode) => boolean
+): RelNode[] {
+	const met = new Map<number, { n: RelNode; rank: number }>();
+	for (const start of starts)
+		for (const e of graph.nodes[String(start)]?.edges ?? []) {
+			const rank = FORM_RELATIONS.indexOf(e.type);
+			const n = graph.nodes[String(e.id)];
+			if (rank < 0 || !n || starts.includes(e.id) || !other(n)) continue;
+			const had = met.get(e.id);
+			if (!had || rank < had.rank) met.set(e.id, { n, rank });
+		}
+	return [...met.values()]
+		.sort(
+			(a, b) =>
+				a.rank - b.rank || (a.n.year ?? Infinity) - (b.n.year ?? Infinity) || a.n.id - b.n.id
+		)
+		.map((m) => m.n);
+}
+
+/** An entry's AniList facts as plain words: its format, its status, what it counts. */
+export function formFacts(n: RelNode): string[] {
+	return [
+		formatWord(n.format),
+		(n.status ?? '').replace(/_/g, ' '),
+		n.chapters ? `${n.chapters} CH.` : '',
+		n.volumes ? `${n.volumes} VOL.` : '',
+		n.episodes ? `${n.episodes} EP.` : ''
+	].filter(Boolean);
+}
 
 /**
  * AniList's facts about an entry, as plain words (the card: `ANNOUNCED ·

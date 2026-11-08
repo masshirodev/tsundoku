@@ -4,6 +4,8 @@
 	import { enhance } from '$app/forms';
 	import { downloadStatus, rowAction, type DownloadState } from '$lib/library/downloads';
 	import { withLive } from '$lib/downloads-live.svelte';
+	import OtherForms from './OtherForms.svelte';
+	import type { GroupOther, OtherFormRow } from './other-forms.server';
 	import { offline } from '$lib/offline.svelte';
 	import {
 		currentEntry,
@@ -37,9 +39,14 @@
 		onclose,
 		downloads = null,
 		canDownload = false,
-		readOnline = false
+		readOnline = false,
+		otherForms = null,
+		ongroup
 	}: {
 		series: SeriesPage;
+		/** The same work's other forms (c700): a folded line under the list. */
+		otherForms?: OtherFormRow[] | null;
+		ongroup?: GroupOther;
 		selecting: boolean;
 		selected: Set<number>;
 		/** Entry ids cached on the device. */
@@ -400,6 +407,10 @@
 			</div>
 		{/if}
 	</div>
+	<!-- Outside the rows: the rail reads a fraction of those, and these are not chapters. -->
+	{#if otherForms}<ol class="forms">
+			<OtherForms rows={otherForms} seriesId={series.id} {ongroup} />
+		</ol>{/if}
 </section>
 
 <style>
@@ -503,6 +514,11 @@
 	}
 	.body.with-rail {
 		grid-template-columns: minmax(0, 1fr) var(--rail-w);
+	}
+	.forms {
+		list-style: none;
+		margin: 0;
+		padding: 0;
 	}
 	.rows {
 		list-style: none;

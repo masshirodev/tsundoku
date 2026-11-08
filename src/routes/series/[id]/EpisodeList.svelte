@@ -26,6 +26,8 @@
 	import { seriesHref } from '$lib/library/links';
 	import { tagSearchHref } from '$lib/library/tag-search';
 	import type { AroundHead, SeasonsAround } from '$lib/library/seasons-around';
+	import OtherForms from './OtherForms.svelte';
+	import type { GroupOther, OtherFormRow } from './other-forms.server';
 
 	/**
 	 * An anime series' episodes (Index Anime Series, Anime States 1a; doc/ANIME.md):
@@ -45,7 +47,9 @@
 		onlong,
 		downloads = null,
 		around = null,
-		tagSource = null
+		tagSource = null,
+		otherForms = null,
+		ongroup
 	}: {
 		series: SeriesPage;
 		selecting: boolean;
@@ -66,6 +70,9 @@
 		around?: SeasonsAround | null;
 		/** The source FIND searches (c313's `/browse/<source>?q=`); null offers no FIND. */
 		tagSource?: { id: string; name: string } | null;
+		/** The same work's other forms (c700): a folded line under the season heads. */
+		otherForms?: OtherFormRow[] | null;
+		ongroup?: GroupOther;
 	} = $props();
 
 	/** The extras line unfolded, for this series only: another series' list opens folded. */
@@ -281,6 +288,7 @@
 				{/if}
 			{/if}
 		{/if}
+		{#if otherForms}<OtherForms rows={otherForms} seriesId={series.id} {ongroup} />{/if}
 	</ol>
 </section>
 

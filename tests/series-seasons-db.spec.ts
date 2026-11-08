@@ -325,7 +325,13 @@ describe('the pass fills the cache, and the screen reads it without asking (c358
 		const s23 = series('Lantern Keeper 2 + 3', 'anime', [2, 3]);
 		link(s23, 2, 102);
 		link(s23, 3, 103);
-		expect(rel.walkFrom(s23)).toEqual({ first: 102, last: 103, heldBefore: 0, heldAfter: 0 });
+		expect(rel.walkFrom(s23)).toEqual({
+			first: 102,
+			last: 103,
+			heldBefore: 0,
+			heldAfter: 0,
+			others: []
+		});
 		await rel.refreshRelations(ask, { now: NOW });
 		const around = rel.seasonsAroundOf(s23, false)!;
 		expect(around.before.map((h) => [h.key, h.label])).toEqual([[101, 'SEASON 1']]);
@@ -333,7 +339,13 @@ describe('the pass fills the cache, and the screen reads it without asking (c358
 		// Seasons 3 and 4 held, only 4 linked: season 3 is the series' own.
 		const s34 = series('Lantern Keeper 3 + 4', 'anime', [3, 4]);
 		link(s34, 4, 104);
-		expect(rel.walkFrom(s34)).toEqual({ first: 104, last: 104, heldBefore: 1, heldAfter: 0 });
+		expect(rel.walkFrom(s34)).toEqual({
+			first: 104,
+			last: 104,
+			heldBefore: 1,
+			heldAfter: 0,
+			others: []
+		});
 		await rel.refreshRelations(ask, { now: NOW });
 		expect(rel.seasonsAroundOf(s34, false)!.before.map((h) => h.key)).toEqual([101, 102]);
 	});

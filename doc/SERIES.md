@@ -803,6 +803,52 @@ screen never asks AniList and never waits. Code: `src/lib/library/seasons-around
 its script against a stand-in AniList, then the screen) and
 `tv-series-seasons.e2e.ts` (the remote's stops).
 
+## OTHER FORMS (c700)
+
+The same work's manga, novel or anime, on a series linked to its AniList
+entry: a quiet folded line under the list's season heads (the extras' idiom,
+c358), `+ 2 OTHER FORMS · MANGA · LIGHT NOVEL`, that unfolds to one row each
+(`OtherForms.svelte`; on a comic's or a novel's list, under the chapters and
+outside the rows the rail measures). It reads the relation cache and nothing
+else ([`LINKS.md`](LINKS.md), "The relation cache"), so it asks AniList on no
+page load, and it draws nothing where the cache has no such edge.
+
+**What counts** (`formNodes`): an entry one hop from the series' entry or from
+any season's, by `SOURCE`, `ADAPTATION` or `ALTERNATIVE`, whose format maps to
+another kind than the series' (`candidateKind`, `sameKind`: the registry, so a
+manga is not another form of a manhwa). An `ALTERNATIVE` anime of an anime is
+the same kind and is not one; a format of no kind (`MUSIC`) is none.
+
+**A row** carries the entry's facts as plain text (format, status, chapters,
+volumes, episodes) and:
+
+- **in the library** -> `MANGA · IN LIBRARY →` opens it, in its Work's place
+  when the two are one Work. "In the library" is another series' own AniList
+  link (season links as well as `series_links`), of that form's kind, under the
+  reveal filter: never a title, a novel holding the comic's entry for its cover
+  is not the comic, and a hidden series is not offered outside reveal (FIND
+  stands in its place, which says nothing about the library).
+- **not in the library** -> `FIND`, `/downloads/search?q=<title>&kind=<kind>`,
+  so an anime's FIND for its manga asks only manga sources.
+
+**Beside IN LIBRARY:**
+
+| The two                           | The second cell                                                                                                                   |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| in no Work                        | `GROUP AS A WORK`: the GROUP flow (`GroupSheet`) with both series picked, this one first. ORDER, the name and UNDO are the flow's |
+| one Work                          | `IN THIS WORK · PART n`, the other's part, and no cell                                                                            |
+| one in a Work, or each in its own | nothing                                                                                                                           |
+
+Nothing changes until the sheet is answered: the screen never groups and never
+offers a Work unprompted. The sheet posts to the library's `?/work`, whose
+answer SvelteKit applies only to the page that action belongs to, so the sheet
+hands it to this screen (`ondone`) for the band and its UNDO. A refused UNDO
+(the Work changed since) says why on the band and reads the page again, because
+`update()` re-reads a page only on a success.
+
+`ADD TO <WORK>` is not built: this screen's `?/addToWork` takes only MIGHT
+CONTINUE's offer, for this series, so the flow cannot add across from here.
+
 ## Where it departs from the handoff
 
 - **Rating on this screen has a way back to unrated** (0), which the handoff

@@ -318,8 +318,14 @@ local stand-in.
 An anime's AniList relation graph is cached per series, for the series
 screen's seasons around it ([`SERIES.md`](SERIES.md), "The seasons around
 it"): the seasons before the ones it holds and the one after, and the
-extras met on the way. **The screen reads only the cache; nothing asks
-AniList on a page load.**
+extras met on the way, and every series' OTHER FORMS (c700, the same
+section's neighbour). **The screen reads only the cache; nothing asks AniList
+on a page load.** A comic's or a novel's row (c700) is one hop from its own
+entry, asked in AniList's `MANGA` catalogue in the same pass, with a limit of
+its own so a large library of comics cannot keep an anime from its turn; a
+link to another kind's entry (a novel on its comic, for the cover) is not
+asked. A season linked between an anime's first and last has its edges asked
+too, so OTHER FORMS can read one hop from each.
 
 **The table** is `series_relations` (rung 73), one row a series, gone with
 the series (`ON DELETE CASCADE`):

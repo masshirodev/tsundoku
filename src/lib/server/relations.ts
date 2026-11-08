@@ -2,9 +2,13 @@ import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
 import { libraryWhere } from './visibility.ts';
 import { kindFacts } from '../library/kinds.ts';
+import { candidateKind, sameKind } from '../library/catalogue.ts';
 import type { Kind } from '../library/types.ts';
 import {
 	HOPS,
+	formFacts,
+	formNodes,
+	relTitle,
 	seasonsAround,
 	walkSeasons,
 	type RelGraph,
@@ -32,7 +36,7 @@ export const RELATIONS_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 /** Rounds of requests one walk may take: back and forward each step once a round. */
 const MAX_ROUNDS = HOPS + 2;
 
-const NODE_FIELDS = `id type format status episodes startDate { year } title { english romaji native }`;
+const NODE_FIELDS = `id type format status episodes chapters volumes startDate { year } title { english romaji native }`;
 
 type Answered = Omit<RelNode, 'edges' | 'year'> & {
 	startDate: { year: number | null } | null;
@@ -45,6 +49,8 @@ const asNode = (m: Omit<Answered, 'relations'>, edges: RelNode['edges']): RelNod
 	format: m.format ?? null,
 	status: m.status ?? null,
 	episodes: m.episodes ?? null,
+	chapters: m.chapters ?? null,
+	volumes: m.volumes ?? null,
 	year: m.startDate?.year ?? null,
 	title: {
 		english: m.title?.english ?? null,
@@ -91,8 +97,29 @@ export function walkFrom(seriesId: number, db: Database.Database = getDb()): Wal
 		last: last.anilist_id,
 		// A flat list (season 0) has no seasons beside it to count.
 		heldBefore: first.season > 0 ? held.filter((x) => x < first.season).length : 0,
-		heldAfter: last.season > 0 ? held.filter((x) => x > last.season).length : 0
+		heldAfter: last.season > 0 ? held.filter((x) => x > last.season).length : 0,
+		others: [...new Set(links.map((l) => l.anilist_id))].filter(
+			(id) => id !== first.anilist_id && id !== last.anilist_id
+		)
 	};
+}
+
+/** The comics' and novels' catalogue, asked of the registry: linked in AniList's MANGA. */
+const inMangaCatalogue = (kind: Kind) => {
+	const c = kindFacts(kind).catalogue;
+	return c.provider === 'anilist' && c.type === 'MANGA';
+};
+
+/**
+ * A comic's or a novel's own AniList entry, for OTHER FORMS (c700): its link,
+ * unless that entry is another kind's. A novel linked to its comic only for the
+ * cover would otherwise read the comic's relations as its own.
+ */
+function ownEntry(
+	r: { kind: Kind; anilist: number | null; format: string | null } | undefined
+): number | null {
+	if (!r || r.anilist === null || !r.format || !inMangaCatalogue(r.kind)) return null;
+	return sameKind(r.kind, candidateKind({ format: r.format, country: '' })) ? r.anilist : null;
 }
 
 /**
@@ -103,7 +130,7 @@ export function walkFrom(seriesId: number, db: Database.Database = getDb()): Wal
  */
 export async function fetchGraph(from: WalkFrom, ask: Ask): Promise<RelGraph | null> {
 	const graph: RelGraph = { nodes: {} };
-	let needs = [...new Set([from.first, from.last])];
+	let needs = [...new Set([from.first, from.last, ...(from.others ?? [])])];
 	for (let round = 0; needs.length; round++) {
 		if (round >= MAX_ROUNDS) return null;
 		const vars = Object.fromEntries(needs.map((id, i) => [`i${i}`, id]));
@@ -165,6 +192,7 @@ export function relationsStale(
 	const graph = cached(seriesId, db);
 	if (!row?.fetched_at || !graph) return true;
 	if (walkSeasons(graph, from).needs.length) return true;
+	if ((from.others ?? []).some((id) => !graph.nodes[String(id)]?.edges)) return true;
 	return now - row.fetched_at >= RELATIONS_STALE_MS;
 }
 
@@ -196,8 +224,9 @@ export async function refreshRelations(
 	const out: RelationsPass = { refreshed: 0, failed: 0, dropped: 0 };
 	out.dropped = db
 		.prepare(
-			`DELETE FROM series_relations WHERE series_id NOT IN
-				(SELECT series_id FROM series_season_links WHERE anilist_id IS NOT NULL)`
+			`DELETE FROM series_relations
+			WHERE series_id NOT IN (SELECT series_id FROM series_season_links WHERE anilist_id IS NOT NULL)
+				AND series_id NOT IN (SELECT series_id FROM series_links WHERE anilist_id IS NOT NULL)`
 		)
 		.run().changes;
 	const rows = db
@@ -239,9 +268,185 @@ export async function refreshRelations(
 			out.failed += 1;
 		}
 	}
-	if (due.length)
-		opts.log?.(`relations: ${out.refreshed} of ${due.length} refreshed, ${out.failed} failed`);
+	const comics = await refreshComics(ask, { ...opts, now }, stamp, store, db);
+	out.refreshed += comics.refreshed;
+	out.failed += comics.failed;
+	if (due.length || comics.asked)
+		opts.log?.(
+			`relations: ${out.refreshed} of ${due.length + comics.asked} refreshed, ${out.failed} failed`
+		);
 	return out;
+}
+
+/**
+ * The comics' and novels' step of the pass (c700): one more ask, in AniList's
+ * MANGA catalogue, of up to `limit` series whose one-hop graph is missing, for
+ * another entry, or old. It shares the table and the staleness of the anime
+ * walk; it has its own `limit`, so a large library of comics cannot keep an
+ * anime from its turn. Never called on a page load.
+ */
+async function refreshComics(
+	ask: Ask,
+	opts: { limit?: number; now: number; fatal?: (e: unknown) => boolean },
+	stamp: Database.Statement,
+	store: Database.Statement,
+	db: Database.Database
+): Promise<{ asked: number; refreshed: number; failed: number }> {
+	const rows = db
+		.prepare(
+			`SELECT l.series_id AS id, l.anilist_id AS anilist, l.format, s.kind,
+				r.fetched_at AS fetched
+			FROM series_links l JOIN series s ON s.id = l.series_id
+			LEFT JOIN series_relations r ON r.series_id = l.series_id
+			WHERE l.anilist_id IS NOT NULL
+			ORDER BY r.tried_at IS NOT NULL, r.tried_at, l.series_id`
+		)
+		.all() as {
+		id: number;
+		anilist: number;
+		format: string | null;
+		kind: Kind;
+		fetched: number | null;
+	}[];
+	const fresh = (r: (typeof rows)[number]) =>
+		r.fetched !== null &&
+		opts.now - r.fetched < RELATIONS_STALE_MS &&
+		!!cached(r.id, db)?.nodes[String(r.anilist)]?.edges;
+	const due = rows.filter((r) => ownEntry(r) !== null && !fresh(r)).slice(0, opts.limit ?? 10);
+	if (!due.length) return { asked: 0, refreshed: 0, failed: 0 };
+	const query = `query (${due.map((_, i) => `$i${i}: Int`).join(', ')}) {
+		${due
+			.map(
+				(_, i) =>
+					`m${i}: Media(id: $i${i}, type: MANGA) { ${NODE_FIELDS} relations { edges { relationType node { ${NODE_FIELDS} } } } }`
+			)
+			.join('\n')}
+	}`;
+	let data: Record<string, Answered | null> | null = null;
+	try {
+		data = (await ask(
+			query,
+			Object.fromEntries(due.map((r, i) => [`i${i}`, r.anilist]))
+		)) as Record<string, Answered | null> | null;
+	} catch (e) {
+		if (opts.fatal?.(e)) throw e;
+		console.error('tsundoku: comics’ relations could not be fetched:', e);
+	}
+	let refreshed = 0;
+	for (const [i, r] of due.entries()) {
+		const m = data?.[`m${i}`];
+		// The link may have moved while AniList answered.
+		const now = db
+			.prepare(`SELECT anilist_id AS anilist FROM series_links WHERE series_id = ?`)
+			.get(r.id) as { anilist: number | null } | undefined;
+		if (!m || m.id !== r.anilist || now?.anilist !== r.anilist) {
+			stamp.run(r.id, opts.now);
+			continue;
+		}
+		const edges = (m.relations?.edges ?? []).filter((e) => e?.node?.id);
+		const graph: RelGraph = {
+			nodes: {
+				[String(m.id)]: asNode(
+					m,
+					edges.map((e) => ({ type: e.relationType, id: e.node.id }))
+				)
+			}
+		};
+		for (const e of edges)
+			if (!graph.nodes[String(e.node.id)]) graph.nodes[String(e.node.id)] = asNode(e.node, null);
+		store.run(r.id, JSON.stringify(graph), opts.now, opts.now);
+		refreshed += 1;
+	}
+	return { asked: due.length, refreshed, failed: due.length - refreshed };
+}
+
+/** One other form of a series' work, as the list's line draws it (c700). */
+export type OtherForm = {
+	anilistId: number;
+	/** The library kind it would be: what FIND asks SEARCH THE SOURCES for. */
+	kind: Kind;
+	/** `MANGA`, `LIGHT NOVEL`, `ONE-SHOT`, `ANIME`. */
+	word: string;
+	title: string;
+	facts: string[];
+	/** Another series' own link to this entry, under the reveal filter; null is FIND. */
+	seriesId: number | null;
+};
+
+/** The word a form goes by. An anime's format is detail, so all of them read ANIME. */
+const formWord = (format: string, kind: Kind): string =>
+	kindFacts(kind).medium === 'video'
+		? 'ANIME'
+		: format === 'NOVEL'
+			? 'LIGHT NOVEL'
+			: format.replace(/_/g, '-');
+
+/**
+ * The same work's other forms, for the series screen (c700): from the cache
+ * alone, never AniList, and one hop from the series' own entry or from each
+ * season's. In the library means another series whose own link names that
+ * entry and whose kind is that form's, never a title, and a hidden series is
+ * not one outside reveal. Null where there is nothing to draw.
+ */
+export function otherFormsOf(
+	seriesId: number,
+	reveal: boolean,
+	db: Database.Database = getDb()
+): OtherForm[] | null {
+	const s = db.prepare(`SELECT kind FROM series WHERE id = ?`).get(seriesId) as
+		{ kind: Kind } | undefined;
+	if (!s) return null;
+	const link = db
+		.prepare(`SELECT anilist_id AS anilist, format FROM series_links WHERE series_id = ?`)
+		.get(seriesId) as { anilist: number | null; format: string | null } | undefined;
+	const own = link ? ownEntry({ kind: s.kind, ...link }) : null;
+	const starts = inAnimeCatalogue(s.kind)
+		? (
+				db
+					.prepare(
+						`SELECT DISTINCT anilist_id AS id FROM series_season_links
+						WHERE series_id = ? AND anilist_id IS NOT NULL`
+					)
+					.all(seriesId) as { id: number }[]
+			).map((r) => r.id)
+		: own !== null
+			? [own]
+			: [];
+	if (!starts.length) return null;
+	const graph = cached(seriesId, db);
+	if (!graph) return null;
+	const kindOf = (format: string | null) =>
+		format ? candidateKind({ format, country: '' }) : null;
+	const nodes = formNodes(graph, starts, (n) => {
+		const k = kindOf(n.format);
+		return k !== null && !sameKind(s.kind, k);
+	});
+	if (!nodes.length) return null;
+	const ids = nodes.map((n) => n.id);
+	const marks = ids.map(() => '?').join(',');
+	const holders = db
+		.prepare(
+			`SELECT x.anilist, x.series, s.kind FROM (
+				SELECT anilist_id AS anilist, series_id AS series FROM series_season_links WHERE anilist_id IN (${marks})
+				UNION SELECT anilist_id, series_id FROM series_links WHERE anilist_id IN (${marks})
+			) x JOIN series s ON s.id = x.series JOIN roots r ON r.id = s.root_id
+			WHERE x.series != ? AND ${libraryWhere(reveal)}
+			ORDER BY x.series`
+		)
+		.all(...ids, ...ids, seriesId) as { anilist: number; series: number; kind: Kind }[];
+	return nodes.map((n) => {
+		const kind = kindOf(n.format)!;
+		return {
+			anilistId: n.id,
+			kind,
+			word: formWord(n.format!, kind),
+			title: relTitle(n),
+			facts: formFacts(n),
+			// A link can be another kind's (a novel on its comic's entry, for the
+			// cover): that series is not this form.
+			seriesId: holders.find((h) => h.anilist === n.id && sameKind(h.kind, kind))?.series ?? null
+		};
+	});
 }
 
 /**

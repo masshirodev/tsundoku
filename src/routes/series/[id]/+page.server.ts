@@ -94,6 +94,7 @@ import { join } from '$lib/server/fspath';
 import { originLabel, sourceOrigin } from '$lib/library/origin';
 import { tagSourceOf } from './tag-source.server';
 import { seasonsAroundOf } from '$lib/server/relations';
+import { otherFormsView } from './other-forms.server';
 import {
 	StaleWorkError,
 	WorkError,
@@ -277,6 +278,9 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// seasons around it"): from the relation cache alone, never AniList, so
 		// the screen never waits. Null for anything with no chain to read.
 		around: seasonsAroundOf(series.id, reveal),
+		// The same work's other forms (c700; doc/SERIES.md, "OTHER FORMS"): the
+		// same cache, read here and refreshed only by the link pass.
+		otherForms: otherFormsView(series.id, reveal),
 		// What each catalogue's list says, and what tsundoku sent (doc/TRACKING.md).
 		tracking: trackingOf(series.id),
 		// A novel's Ranobe link and line (doc/RANOBE.md). Null for a comic.
