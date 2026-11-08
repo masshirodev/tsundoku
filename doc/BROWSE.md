@@ -690,17 +690,17 @@ so the preview would not be found either).
 **A refusal's words are the last answer, not a fact about now** (c664). A
 no-script refused UNDO on a source's page which can no longer draw its band
 lands on BROWSE with the refusal's **code** in the URL
-(`/browse?added=hidden&…&refused=409|503`, `refusedLanding`,
+(`/browse?added=hidden&…&refused=409`, `refusedLanding`,
 `src/routes/browse/added.server.ts`), and BROWSE's load turns it back into
 words (`refusedWords`). A later load does not trust the code alone:
 `standingRefusal` asks the cause again. A 409 is "something of it is
 downloaded or read now", which is the band's own `touched` (the same query
 `undoAdd` refuses on), so a reload after the chapter is marked unread draws
-UNDO again, and the server accepts it; a 503 is "downloads are not answering
-now", which `engineDownSince()` answers, so a reload after the engine comes
-back draws UNDO too. So the band never offers an UNDO the server would
-refuse, nor hides one it would accept, and the refusal now shows its words
-without script as well.
+UNDO again, and the server accepts it. So the band never offers an UNDO the
+server would refuse, nor hides one it would accept, and the refusal now shows
+its words without script as well. There is no 503 (c690): `undoAdd` is a local
+`DELETE` and never asks the engine, so an engine that is down refuses no UNDO,
+and a typed `refused=503` says nothing and hides nothing.
 
 **The band's action keeps `from=`** (c664). Without script UNDO's answer is
 a load of the form's action URL, so that URL carries the band's own
@@ -708,6 +708,14 @@ parameters and, on a source's page, the tag origin the page was opened with
 (`from`, the value `backOrigin` accepted, passed through `data.back`).
 Without it the answer page's ← went to the default back cell instead of the
 tag's screen.
+
+**An accepted UNDO keeps the way back too** (c690). It lands on the preview
+with `from=/browse/<source>?from=<the tag's origin>`, the origin read again
+through `backOrigin`, never the raw parameter. A preview's ← takes only a
+source's page or the search (`sourceOrigin`), so the tag's origin cannot be
+its `from` directly: ← goes where it did before the ADD, to the source's page,
+whose own ← is the tag's screen. With no origin, a refused one, or a landing on
+BROWSE, there is no `from`.
 
 **ADD AND DOWNLOAD queues only what its own ADD hid** (c505). Outside reveal
 a hidden series is not the viewer's, but the one ADDED HIDDEN has just hidden

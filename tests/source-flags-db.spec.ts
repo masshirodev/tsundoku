@@ -614,6 +614,90 @@ describe('ADDED HIDDEN, and the ADD that hid it (c505)', () => {
 			return { r, id, key, to: addedLanding(r, id, `/browse/${LONE}?tab=latest`, false, params) };
 		};
 
+		describe('an accepted UNDO’s way back (c690)', () => {
+			const ORIGIN = '/series/12?tab=tags';
+			const event = (first: number, id: string, from: string) =>
+				({
+					params: { source: LONE },
+					request: new Request('http://x', {
+						method: 'POST',
+						body: new URLSearchParams({ series: String(first), preview: id })
+					}),
+					cookies: { get: () => undefined },
+					url: new URL(`http://x/browse/${LONE}?/undoAdd&from=${encodeURIComponent(from)}`)
+				}) as never;
+			const engineOn = async <T>(body: () => Promise<T>) => {
+				const before = process.env.ENGINE_URL;
+				process.env.ENGINE_URL = 'http://127.0.0.1:1';
+				try {
+					return await body();
+				} finally {
+					// Assigning `undefined` would leave the word "undefined" set.
+					if (before === undefined) delete process.env.ENGINE_URL;
+					else process.env.ENGINE_URL = before;
+				}
+			};
+			const undone = async (first: number, id: string, from: string) => {
+				const { actions } = await import('../src/routes/browse/[source]/+page.server');
+				try {
+					await actions.undoAdd(event(first, id, from));
+				} catch (e) {
+					return e as { status: number; location: string };
+				}
+				throw new Error('UNDO answered without landing');
+			};
+
+			it('through the source’s page, whose own ← is the tag’s screen, the UNDO’s second press too', async () => {
+				try {
+					install();
+					const first = record('/manga/from');
+					const { id } = await addOutsideReveal('/manga/from');
+					const { sourceOrigin } = await import('$lib/library/origin');
+					const { backOrigin } = await import('$lib/library/tag-search');
+					await engineOn(async () => {
+						const landed = await undone(first, id, ORIGIN);
+						expect(landed.status).toBe(303);
+						const at = new URL(landed.location, 'http://x');
+						expect(at.pathname).toBe(`/downloads/source/${id}`);
+						// Each hop as the screen's own reader takes it: the preview's ←,
+						// then the source page's.
+						const preview = sourceOrigin(at.searchParams.get('from'));
+						expect(preview.startsWith(`/browse/${LONE}?`)).toBe(true);
+						expect(backOrigin(new URL(preview, 'http://x').searchParams.get('from'))).toBe(ORIGIN);
+						// Pressed again, with the series gone: undoes nothing, lands the same.
+						expect(await undone(first, id, ORIGIN)).toMatchObject({
+							status: 303,
+							location: landed.location
+						});
+					});
+				} finally {
+					cleanUp();
+				}
+			});
+
+			it('adds no way back for an origin `backOrigin` refuses, or none', async () => {
+				try {
+					install();
+					const first = record('/manga/from');
+					const { id } = await addOutsideReveal('/manga/from');
+					await engineOn(async () => {
+						for (const from of ['//evil.example', `/browse/${LONE}`, 'https://evil.example/', ''])
+							expect([from, (await undone(first, id, from)).location]).toEqual([
+								from,
+								`/downloads/source/${id}`
+							]);
+					});
+				} finally {
+					cleanUp();
+				}
+			});
+
+			it('is BROWSE, and no origin, when the source is not found', async () => {
+				const { afterUndo } = await added();
+				expect(afterUndo(sourceMangaId('999999', '/manga/x'), false, ORIGIN)).toBe('/browse');
+			});
+		});
+
 		it('lands on BROWSE with the band’s parameters, and the band is drawn and undone there', async () => {
 			try {
 				install();
@@ -996,29 +1080,27 @@ describe('a refused UNDO’s landing and words (c664)', () => {
 		sourceHidden: false,
 		sourceName: null
 	});
-	const landing = async (queued: string | null, status: 409 | 503) => {
+	const landing = async (queued: string | null) => {
 		const { refusedLanding } = await import('../src/routes/browse/added.server');
 		const preview = sourceMangaId(MANGA, '/manga/a');
-		const u = new URL(refusedLanding(form('7', preview), queued, status), 'http://x');
+		const u = new URL(refusedLanding(form('7', preview), queued), 'http://x');
 		return { u, preview };
 	};
 
 	it('builds BROWSE’s own URL, carrying the band and the code and never the words', async () => {
-		for (const status of [409, 503] as const) {
-			const { u, preview } = await landing(null, status);
-			expect(u.pathname).toBe('/browse');
-			expect(Object.fromEntries(u.searchParams)).toEqual({
-				added: 'hidden',
-				series: '7',
-				preview,
-				refused: String(status)
-			});
-		}
+		const { u, preview } = await landing(null);
+		expect(u.pathname).toBe('/browse');
+		expect(Object.fromEntries(u.searchParams)).toEqual({
+			added: 'hidden',
+			series: '7',
+			preview,
+			refused: '409'
+		});
 	});
 
 	it('falls back to an empty series and preview when the form carries none', async () => {
 		const { refusedLanding } = await import('../src/routes/browse/added.server');
-		const u = new URL(refusedLanding(new FormData(), null, 409), 'http://x');
+		const u = new URL(refusedLanding(new FormData(), null), 'http://x');
 		expect(Object.fromEntries(u.searchParams)).toEqual({
 			added: 'hidden',
 			series: '',
@@ -1036,32 +1118,30 @@ describe('a refused UNDO’s landing and words (c664)', () => {
 			['', false],
 			[null, false]
 		] as const) {
-			const { u } = await landing(queued, 409);
+			const { u } = await landing(queued);
 			expect(u.searchParams.get('queued'), String(queued)).toBe(kept ? queued : null);
 		}
 	});
 
 	it('turns every code it can meet into words, and nothing else', async () => {
-		const { refusedWords, UNDO_REFUSED, UNDO_DOWN } =
-			await import('../src/routes/browse/added.server');
+		const { refusedWords, UNDO_REFUSED } = await import('../src/routes/browse/added.server');
 		expect(refusedWords('409')).toBe(UNDO_REFUSED);
-		expect(refusedWords('503')).toBe(UNDO_DOWN);
-		for (const code of [null, '', '410', '409 ', '0', 'UNDO'])
+		// `undoAdd` is a local DELETE and never asks the engine, so an engine that
+		// is down refuses no UNDO (c690): a typed `refused=503` means nothing.
+		for (const code of [null, '', '503', '410', '409 ', '0', 'UNDO'])
 			expect(refusedWords(code), String(code)).toBeNull();
 	});
 
-	it('stands only while its cause does: a 409 needs the band touched, a 503 the engine down', async () => {
-		const { standingRefusal, UNDO_REFUSED, UNDO_DOWN } =
-			await import('../src/routes/browse/added.server');
-		// A 409 is "something of it is downloaded or read now": the band's own fact.
-		expect(standingRefusal('409', band(true), false)).toBe(UNDO_REFUSED);
-		expect(standingRefusal('409', band(false), false)).toBeNull();
-		// A 503 is "downloads are not answering now": the engine's own state.
-		expect(standingRefusal('503', band(false), true)).toBe(UNDO_DOWN);
-		expect(standingRefusal('503', band(true), false)).toBeNull();
+	it('stands only while its cause does: a 409 needs the band touched', async () => {
+		const { standingRefusal, UNDO_REFUSED } = await import('../src/routes/browse/added.server');
+		expect(standingRefusal('409', band(true))).toBe(UNDO_REFUSED);
+		expect(standingRefusal('409', band(false))).toBeNull();
+		// A typed 503 hides no UNDO the server would take, touched or not (c690).
+		expect(standingRefusal('503', band(false))).toBeNull();
+		expect(standingRefusal('503', band(true))).toBeNull();
 		// No band drawn, or a code with no words: nothing to say.
-		expect(standingRefusal('409', null, true)).toBeNull();
-		expect(standingRefusal('410', band(true), true)).toBeNull();
-		expect(standingRefusal(null, band(true), true)).toBeNull();
+		expect(standingRefusal('409', null)).toBeNull();
+		expect(standingRefusal('410', band(true))).toBeNull();
+		expect(standingRefusal(null, band(true))).toBeNull();
 	});
 });

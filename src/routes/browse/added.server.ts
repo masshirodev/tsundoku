@@ -1,15 +1,10 @@
 import { seriesPage } from '$lib/server/series';
-import {
-	isDownloadsError,
-	isSourceMangaId,
-	mangaKey,
-	sourceOfMangaId,
-	undoAdd
-} from '$lib/server/downloads';
+import { isSourceMangaId, mangaKey, sourceOfMangaId, undoAdd } from '$lib/server/downloads';
 import { browseSource } from '$lib/server/engine/browse';
 import { addedHere } from '$lib/server/engine/source-flags';
 import { seriesWithOrigin, sourceOrigin } from '$lib/library/origin';
 import { kindFacts } from '$lib/library/kinds';
+import { keepOrigin } from '$lib/library/tag-search';
 import {
 	collectionExists,
 	createCollection,
@@ -226,32 +221,37 @@ export async function newShelfAdded(
 /**
  * Where UNDO lands: the preview the series was added from, while its source
  * is found; BROWSE when it is not (the source is mostly hidden for other
- * series, so the preview would not be found either).
+ * series, so the preview would not be found either). `origin` is the tag
+ * origin the source's page was opened with, already through `backOrigin`
+ * (c690). A preview's ← takes only a source's page or the search
+ * (`sourceOrigin`), never that origin itself, so it goes where the tile's did
+ * before the ADD: to the source's page, whose own ← is the tag's screen.
  */
-export function afterUndo(preview: string, reveal: boolean): string {
+export function afterUndo(preview: string, reveal: boolean, origin = ''): string {
 	const source = isSourceMangaId(preview) ? sourceOfMangaId(preview) : null;
-	return source && browseSource(source, reveal) ? `/downloads/source/${preview}` : '/browse';
+	if (!source || !browseSource(source, reveal)) return '/browse';
+	return keepOrigin(
+		`/downloads/source/${preview}`,
+		origin ? keepOrigin(`/browse/${source}`, origin) : ''
+	);
 }
 
 /** The refusal words the band shows, and the e2e reads. */
 export const UNDO_REFUSED = 'something of it is downloaded or read now';
 
-/** A downloads backend that will not answer (a refused UNDO's 503), in the band's words. */
-export const UNDO_DOWN = 'downloads are not answering now';
-
 /**
  * Where a refused UNDO lands when the page that drew the band can no longer
  * answer for it (c605): BROWSE, which draws any band, with the band's own
- * parameters and the refusal's **code**. The words are never carried in the
- * URL (a 503's are the engine's own, free text); BROWSE's load turns the code
- * back into them (`refusedWords`).
+ * parameters and the refusal's **code**, which BROWSE's load turns back into
+ * the words (`refusedWords`). UNDO has one refusal: `undoAdd` is a local
+ * DELETE, which never asks the engine (c690).
  */
-export function refusedLanding(form: FormData, queued: string | null, status: 409 | 503): string {
+export function refusedLanding(form: FormData, queued: string | null): string {
 	const p = new URLSearchParams({
 		added: 'hidden',
 		series: String(form.get('series') ?? ''),
 		preview: String(form.get('preview') ?? ''),
-		refused: String(status)
+		refused: '409'
 	});
 	if (queued && /^(\d+|down)$/.test(queued)) p.set('queued', queued);
 	return `/browse?${p}`;
@@ -259,9 +259,7 @@ export function refusedLanding(form: FormData, queued: string | null, status: 40
 
 /** A `refused` code in BROWSE's URL as the band's words, or null when there is none. */
 export function refusedWords(code: string | null): string | null {
-	if (code === '409') return UNDO_REFUSED;
-	if (code === '503') return UNDO_DOWN;
-	return null;
+	return code === '409' ? UNDO_REFUSED : null;
 }
 
 /**
@@ -269,20 +267,12 @@ export function refusedWords(code: string | null): string | null {
  * does (c664). A reload used to keep "NO UNDO" and draw no UNDO after the
  * cause had gone, although UNDO would have succeeded. So the load asks again:
  * a 409 is "something of it is downloaded or read now", which the band's own
- * `touched` is (the same query `undoAdd` refuses on), and a 503 is "downloads
- * are not answering now", which `engineDownSince()` is (an engine that has
- * answered since clears it). With no band drawn there is no place for the
- * words, and the code is the URL's alone.
+ * `touched` is (the same query `undoAdd` refuses on). With no band drawn there
+ * is no place for the words, and the code is the URL's alone.
  */
-export function standingRefusal(
-	code: string | null,
-	band: AddedBand | null,
-	engineDown: boolean
-): string | null {
+export function standingRefusal(code: string | null, band: AddedBand | null): string | null {
 	const words = refusedWords(code);
-	if (!words || !band) return null;
-	if (code === '409') return band.touched ? words : null;
-	return engineDown ? words : null;
+	return words && band?.touched ? words : null;
 }
 
 /**
@@ -295,20 +285,12 @@ export function standingRefusal(
 export async function undoAdded(
 	form: FormData,
 	sourceId: string | null,
-	reveal: boolean
-): Promise<{ to: string } | { status: 409 | 503; message: string }> {
+	reveal: boolean,
+	origin = ''
+): Promise<{ to: string } | { status: 409; message: string }> {
 	const preview = String(form.get('preview') ?? '');
 	const s = await bandSeries(sourceId, String(form.get('series') ?? ''), preview);
-	if (s) {
-		let undone: boolean;
-		try {
-			undone = await undoAdd(s.seriesId);
-		} catch (e) {
-			if (isDownloadsError(e)) return { status: 503, message: (e as Error).message };
-			throw e;
-		}
-		if (!undone) return { status: 409, message: UNDO_REFUSED };
-	}
-	if (isSourceMangaId(preview)) return { to: afterUndo(preview, reveal) };
+	if (s && !(await undoAdd(s.seriesId))) return { status: 409, message: UNDO_REFUSED };
+	if (isSourceMangaId(preview)) return { to: afterUndo(preview, reveal, origin) };
 	return { to: sourceId ? `/browse/${sourceId}` : '/browse' };
 }
