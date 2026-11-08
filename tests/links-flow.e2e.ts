@@ -1220,6 +1220,96 @@ test.describe('a catalogue that answers', () => {
 		}
 	});
 
+	test('the TO LINK count is right on the way back, after LINK N SEASONS and after its UNDO (c644)', async ({
+		page
+	}) => {
+		test.slow();
+		const id = seedSeasons('Stay Count Show', [12, 23, 12]);
+		// What the pass leaves: seasons 2 and 3 searched, each with a candidate, so
+		// both wait in the queue until LINK N SEASONS answers them.
+		const db = new Database(dbPath);
+		try {
+			for (const season of [2, 3]) {
+				db.prepare(
+					`INSERT INTO season_link_searches (series_id, season, part, query, searched_at, found)
+					VALUES (?, ?, 1, 'Stay Count Show', ?, 1)`
+				).run(id, season, Date.UTC(2026, 10, 2, 12, 0));
+				db.prepare(
+					`INSERT INTO season_link_candidates (series_id, season, part, anilist_id, rank, data)
+					VALUES (?, ?, 1, ?, 0, ?)`
+				).run(
+					id,
+					season,
+					9900 + season,
+					JSON.stringify({
+						anilistId: 9900 + season,
+						malId: null,
+						title: `Stay Count ${season}`,
+						alts: [],
+						format: 'TV',
+						country: 'JP',
+						year: 2020,
+						chapters: null,
+						volumes: null,
+						episodes: 12,
+						season: 'FALL',
+						seasonYear: 2020,
+						status: 'FINISHED',
+						coverUrl: ''
+					})
+				);
+			}
+		} finally {
+			db.close();
+		}
+		// The row is drawn only while something waits, so no row reads as 0.
+		const badge = page.locator('a.with-n[href$="/links"] .n');
+		const waiting = async () => ((await badge.count()) ? Number(await badge.textContent()) : 0);
+		const back = async () => {
+			await page.getByRole('link', { name: '← SERIES' }).click();
+			await page.waitForURL(new RegExp(`/series/${id}$`));
+		};
+		try {
+			await page.goto(`${BASE}/series/${id}`);
+			const before = await waiting();
+			expect(before).toBeGreaterThanOrEqual(2);
+
+			await page.goto(`${BASE}/links?series=${id}&season=1`);
+			await linkTwoSeasons(page);
+			await expect(page.locator('.band .line').first()).toHaveText(
+				'LINKED 2 SEASONS · STAY COUNT SHOW'
+			);
+			await back();
+			await expect.poll(waiting).toBe(before - 2);
+
+			// And back again once the UNDO has put both seasons in the queue.
+			forgetLinksOnly(id);
+			await page.goto(`${BASE}/links?series=${id}&season=1`);
+			await linkTwoSeasons(page);
+			await expect(page.locator('.band .line').first()).toHaveText(
+				'LINKED 2 SEASONS · STAY COUNT SHOW'
+			);
+			await page.getByRole('button', { name: 'UNDO' }).click();
+			await expect.poll(() => partsOf(id)).toEqual(ONLY_SEASON_1);
+			await expect(page.locator('.band')).toHaveCount(0);
+			await back();
+			await expect.poll(waiting).toBe(before);
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
+	/** The season links alone: the searches stay, so the seasons are queued again. */
+	function forgetLinksOnly(id: number) {
+		const db = new Database(dbPath);
+		try {
+			db.prepare(`DELETE FROM series_season_links WHERE series_id = ?`).run(id);
+			db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(id);
+		} finally {
+			db.close();
+		}
+	}
+
 	test('/links/season answers as the page’s load does: never for what cannot be seen (c644)', async ({
 		page
 	}) => {

@@ -694,7 +694,9 @@ SEASON 3 HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. ← SERIES
   on is drawn again from the workstation (`/links/season`, the page's own
   reader without its AniList walk; c644), since a pair's other part may have
   been among the picks. The offer does not come back with it: LINK again on
-  the season, or a reload, asks AniList for it. **NOT NOW has two cases on one
+  the season, or a reload, asks AniList for it. Both the LINK and its UNDO
+  refresh the layout's TO LINK count (`invalidate('tsundoku:scan')`), which
+  ← SERIES, a plain link, would otherwise carry back stale. **NOT NOW has two cases on one
   series.** After a LINK made on the page, it goes back to the series, the
   season just linked showing on its line on LISTS (c423, round 2). An offer that
   came with the page's load (CHANGE in EDIT's sheet on a linked season, while another season

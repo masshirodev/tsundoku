@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { coverSrc } from '$lib/library/links';
 	import { coverPlaceholder, hueFor } from '$lib/library/cover';
@@ -343,7 +343,10 @@
 		// The season under the band came from LINK N SEASONS' answer, which this
 		// UNDO has just taken back: its own other part may have been among the
 		// picks (c644). Still busy, so no decision can act on the old drawing.
-		if (u.undo.kind === 'seasons' && single && season) await redrawSeason(u.undo.series, season.no);
+		if (u.undo.kind === 'seasons' && single && season) {
+			await redrawSeason(u.undo.series, season.no);
+			void refreshToLink();
+		}
 		busy = false;
 		if (u.restore) byKey.set(qk(u.restore), u.restore);
 		for (const i of u.restoreMany ?? []) byKey.set(qk(i), i);
@@ -357,6 +360,14 @@
 		pickedSeasons = [];
 		offerFromLink = false;
 	}
+
+	/**
+	 * The layout's TO LINK count, once the page stays after a write that moved
+	 * it (c644). `backToSeries` refreshed it with `invalidateAll`; ← SERIES is a
+	 * plain link and would carry the old number. Only the layout's load depends
+	 * on this, so it does not repeat the page's AniList walk.
+	 */
+	const refreshToLink = () => invalidate('tsundoku:scan');
 
 	/** The page's season as the workstation has it now; unanswered, it stays as drawn. */
 	async function redrawSeason(series: number, no: number) {
@@ -501,6 +512,7 @@
 			searching = false;
 			chosen = null;
 		}
+		if (single) void refreshToLink();
 		if (!single) {
 			queue = queue.slice(1);
 			done += 1;
