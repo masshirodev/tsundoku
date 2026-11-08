@@ -211,7 +211,9 @@ test('a novel shows its contents without numbers, and a typeset cover', async ({
 	await expect(page.getByText('NO COVER · EPUB')).toBeVisible();
 	// LAYOUT is a row DETAILS folds on a phone and a TV (c425).
 	await openDetails(page);
-	await expect(page.getByText('LAYOUT', { exact: true })).toBeVisible();
+	// The row itself: while the series is still arriving its outline draws the same
+	// label, in both copies of the bands (c556), and a text locator refuses two.
+	await expect(page.locator('form.row .label', { hasText: /^LAYOUT$/ })).toBeVisible();
 	await expect(page.locator('.entry .num')).toHaveCount(0);
 });
 
