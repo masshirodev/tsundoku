@@ -1451,4 +1451,93 @@ test.describe("the band at a chapter's start (c705)", () => {
 			Math.abs((await heading.evaluate((h) => h.getBoundingClientRect().top)) - y)
 		).toBeLessThanOrEqual(1);
 	});
+	/**
+	 * c742: in SCROLL the start band (c705) and the flow's padding sit above
+	 * `.blocks`, so a fraction over the blocks' height alone reached 1, and
+	 * finished the chapter, one band height before its last line. One band
+	 * short of the end is not finished; at the end it is. `/api/reading` is
+	 * answered here, so nothing is written: the case reads what the reader
+	 * sends. The settle's own 'page' send (after the 250 ms scroll check)
+	 * is what says the check ran, not a timeout.
+	 */
+	test('SCROLL: one band short of the chapter’s end is not finished, and at its end it is (c742)', async ({
+		page
+	}) => {
+		const sent: { kind: string; at: number }[] = [];
+		await page.route('**/api/reading', async (route) => {
+			const body = route.request().postDataJSON() as { kind: string };
+			sent.push({ kind: body.kind, at: Date.now() });
+			await route.fulfill({ json: { saved: true } });
+		});
+		await middle(page);
+		await page.getByRole('button', { name: /^PAGED · / }).click();
+		await page.getByRole('radio', { name: 'SCROLL' }).click();
+		await page.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+		await openFromContents(page, 'Vol. 2');
+		await expect(page.locator('.flow > .cstart').first().locator('.t')).toHaveText('Vol. 2');
+
+		const m = await page.locator('.page').evaluate((n) => {
+			const blocks = n.querySelector<HTMLElement>('.blocks:not(.next)')!;
+			const band = n.querySelector<HTMLElement>('.flow > .cstart')!;
+			return {
+				parentIsPage: blocks.offsetParent === n,
+				offsetTop: blocks.offsetTop,
+				band: band.getBoundingClientRect().height,
+				blocks: blocks.offsetHeight,
+				client: n.clientHeight,
+				scrollHeight: n.scrollHeight
+			};
+		});
+		console.log(`c742 measured: ${JSON.stringify(m)}`);
+		// The premise: `.page` is what offsetTop counts from, and the band is above the blocks.
+		expect(m.parentIsPage).toBe(true);
+		expect(m.offsetTop).toBeGreaterThanOrEqual(m.band);
+		const end = m.offsetTop + m.blocks - m.client;
+		// One band short of the last line, and still past where the blocks'
+		// height alone (the fraction before c742) already read 1.
+		const short = end - Math.round(m.band);
+		expect(short).toBeGreaterThan(m.blocks - m.client);
+
+		const scrollTo = (top: number) =>
+			page.locator('.page').evaluate((n, top) => {
+				n.scrollTop = top;
+				n.dispatchEvent(new Event('scroll'));
+			}, top);
+		const settled = async (since: number) =>
+			expect
+				.poll(() => sent.some((s) => s.kind === 'page' && s.at > since), { timeout: 10_000 })
+				.toBe(true);
+
+		let since = Date.now();
+		await scrollTo(short);
+		await settled(since);
+		expect(sent.map((s) => s.kind)).not.toContain('finish');
+		// The fraction's other reader, the progress bar, is short of the end too.
+		const bar = () =>
+			page.locator('.progress').evaluate((n) => parseFloat((n as HTMLElement).style.width));
+		expect(await bar()).toBeLessThan(99.9);
+
+		// At the chapter's end: finished, once.
+		since = Date.now();
+		await scrollTo(end);
+		await expect.poll(() => sent.filter((s) => s.kind === 'finish').length).toBe(1);
+		await settled(since);
+		expect(await bar()).toBe(100);
+
+		// The scrubber maps its 99 onto the same end: from the top, its right
+		// edge lands on the last line at the screen's foot, not one band short.
+		await scrollTo(0);
+		await expect.poll(bar).toBe(0);
+		await middle(page);
+		const track = page.locator('[role="slider"][aria-label="Page in chapter"]');
+		await expect(track).toBeVisible();
+		const box = (await track.boundingBox())!;
+		await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+		await expect
+			.poll(() => page.locator('.page').evaluate((n) => Math.round(n.scrollTop)))
+			.toBe(end);
+		// Still Vol. 2: the end of its blocks did not cross into Vol. 3.
+		await expect(page.locator('.flow > .cstart').first().locator('.t')).toHaveText('Vol. 2');
+	});
 });
