@@ -242,3 +242,184 @@ test.describe('the text reader resumes the saved place (c622, c653)', () => {
 		await expect.poll(() => row('Tensei Shitara Ken Deshita', 1).place).toBe(0);
 	});
 });
+
+// ---- MARK UNREAD starts a read chapter from the top; UNDO of MARK READ THROUGH keeps the place -----
+
+// A manga's row prints its number; a novel's row prints its label instead.
+const rowOf = (page: Page, n: number) =>
+	page.locator(
+		`.entry:has(.num:text-is("${n}")) .entry-btn, .entry:has(:text-is("Vol. ${n}")) .entry-btn`
+	);
+const imageMeta = (page: Page) => page.locator('header[aria-label="Reader"] .meta');
+
+/** A finished chapter folds with the ones before it: # opens the fold, the app's own door. */
+async function showRow(page: Page, n: number) {
+	if ((await rowOf(page, n).count()) > 0) return;
+	await page.getByRole('button', { name: 'Go to chapter number' }).click();
+	await page.getByLabel('GO TO #').fill(String(n));
+	await page.getByLabel('GO TO #').press('Enter');
+	await expect(rowOf(page, n)).toBeVisible();
+}
+
+/** The bulk bar's MARK UNREAD on one chapter, the app's own door. */
+async function markUnread(page: Page, series: number, n: number) {
+	await page.goto(`/series/${series}`);
+	await showRow(page, n);
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await rowOf(page, n).click();
+	await page.getByRole('button', { name: /MARK UNREAD/ }).click();
+	await expect
+		.poll(() =>
+			db
+				.prepare(
+					`SELECT read_at FROM entries e WHERE e.series_id = ? AND e.position = ? AND e.shadowed = 0`
+				)
+				.get(series, n)
+		)
+		.toEqual({ read_at: null });
+}
+
+/** The long press on a chapter row: its context menu, as tests/series-flow.e2e.ts presses it. */
+async function markThrough(page: Page, series: number, n: number, label: string) {
+	await page.goto(`/series/${series}`);
+	await showRow(page, n);
+	await rowOf(page, n).click({ button: 'right' });
+	await expect(page.getByText(`MARKED READ THROUGH ${label}`)).toBeVisible();
+}
+
+/** The last page, which is what finishes an image chapter: `markFinished` on settling there. */
+async function finishImage(page: Page, entry: number) {
+	const finished = page.waitForRequest(
+		(r) => r.url().endsWith('/api/reading') && r.postDataJSON()?.kind === 'finish'
+	);
+	await page.goto(`/read/${entry}?p=last`);
+	await finished;
+}
+
+/** The scrubber's last page: arriving there is what sends a novel's `finish`. */
+async function finishText(page: Page, entry: number) {
+	const finished = page.waitForRequest(
+		(r) => r.url().endsWith('/api/reading') && r.postDataJSON()?.kind === 'finish'
+	);
+	await page.goto(`/read/${entry}?at=0.0`);
+	await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15_000 });
+	await severalPages(page);
+	await expect.poll(() => pagesNow(page)).toBeGreaterThan(2);
+	// severalPages left the controls up: the scrubber is there.
+	const track = page.locator('[role="slider"][aria-label="Page in chapter"]');
+	const box = (await track.boundingBox())!;
+	await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+	await finished;
+	await expect.poll(() => row('Mushoku Tensei', 13).readAt).not.toBeNull();
+}
+
+test.describe('MARK UNREAD starts a finished chapter from the top, in both readers (c652, c666)', () => {
+	test('an image chapter finished, then MARK UNREAD: ▶ CONTINUE opens page 1 (c652)', async ({
+		page
+	}) => {
+		const { series, entry } = row('Hikaru ga Shinda Natsu', 29);
+		await finishImage(page, entry);
+		await expect.poll(() => row('Hikaru ga Shinda Natsu', 29).readAt).not.toBeNull();
+		expect(row('Hikaru ga Shinda Natsu', 29).place).toBeGreaterThan(0);
+		await markUnread(page, series, 29);
+		await expect.poll(() => row('Hikaru ga Shinda Natsu', 29).place).toBeNull();
+		await page.goto(`/series/${series}`);
+		await continueLink(page).click();
+		await page.waitForURL(new RegExp(`/read/${entry}`));
+		await page.keyboard.press('Escape');
+		await expect(imageMeta(page)).toContainText('P. 1 OF');
+	});
+
+	test('an image chapter finished, MARK READ, then MARK UNREAD: ▶ CONTINUE opens page 1 (c666)', async ({
+		page
+	}) => {
+		const { series, entry } = row('Hikaru ga Shinda Natsu', 30);
+		await finishImage(page, entry);
+		await expect.poll(() => row('Hikaru ga Shinda Natsu', 30).readAt).not.toBeNull();
+		// c666's own walk: MARK READ over a chapter already read changes nothing.
+		const post = await page.request.post(`${base}/series/${series}?/mark`, {
+			headers: { origin: base, 'x-sveltekit-action': 'true' },
+			form: { read: '1', entry: String(entry) }
+		});
+		expect(post.ok()).toBe(true);
+		expect(row('Hikaru ga Shinda Natsu', 30).place).toBeGreaterThan(0);
+		await markUnread(page, series, 30);
+		await expect.poll(() => row('Hikaru ga Shinda Natsu', 30).place).toBeNull();
+		await page.goto(`/series/${series}`);
+		await continueLink(page).click();
+		await page.waitForURL(new RegExp(`/read/${entry}`));
+		await page.keyboard.press('Escape');
+		await expect(imageMeta(page)).toContainText('P. 1 OF');
+	});
+
+	test('a novel finished, then MARK UNREAD: ▶ CONTINUE opens at its top (c622, c652)', async ({
+		page
+	}) => {
+		const { series, entry } = row('Mushoku Tensei', 13);
+		await finishText(page, entry);
+		expect(row('Mushoku Tensei', 13).place).toBeGreaterThan(0);
+		await markUnread(page, series, 13);
+		await expect.poll(() => row('Mushoku Tensei', 13).place).toBeNull();
+		await continueText(page, series);
+		expect(new URL(page.url()).pathname).toBe(`/read/${entry}`);
+		await expect.poll(() => atOf(page), { timeout: 10_000 }).toBe('0.0');
+		await expect.poll(() => onScreen(page, 0)).toBe('on screen');
+	});
+});
+
+test.describe('UNDO of a long-press MARK READ THROUGH resumes the chapter (c652, c666)', () => {
+	test('an image chapter read halfway: UNDO, then ▶ CONTINUE opens the page it was left on', async ({
+		page
+	}) => {
+		const { series, entry, place } = row('Lookism', 481);
+		// The seed's in-progress chapter, on a page of its own.
+		expect(place).toBe(11);
+		await markThrough(page, series, 481, 'CH. 481');
+		await expect.poll(() => row('Lookism', 481).readAt).not.toBeNull();
+		await page.getByRole('button', { name: 'UNDO' }).click();
+		await expect(page.getByText('MARKED READ THROUGH CH. 481')).toHaveCount(0);
+		await expect.poll(() => row('Lookism', 481).readAt).toBeNull();
+		await expect.poll(() => row('Lookism', 481).place).toBe(11);
+		await page.reload();
+		await continueLink(page).click();
+		await page.waitForURL(new RegExp(`/read/${entry}`));
+		await page.keyboard.press('Escape');
+		await expect(imageMeta(page)).toContainText('P. 12 OF');
+	});
+
+	test('a novel read halfway: UNDO, then ▶ CONTINUE resumes its block and character', async ({
+		page
+	}) => {
+		const { series, entry, place, offset } = row('Villainess Level 99', 2);
+		// Case 2 left it midway through the reader's own door.
+		expect(place).toBeGreaterThan(0);
+		await markThrough(page, series, 2, 'VOL. 2');
+		await expect.poll(() => row('Villainess Level 99', 2).readAt).not.toBeNull();
+		await page.getByRole('button', { name: 'UNDO' }).click();
+		await expect.poll(() => row('Villainess Level 99', 2).readAt).toBeNull();
+		await continueText(page, series);
+		expect(new URL(page.url()).pathname).toBe(`/read/${entry}`);
+		await expect.poll(() => atOf(page), { timeout: 10_000 }).toBe(`${place}.${offset ?? 0}`);
+	});
+
+	test('UNDO after a chapter was read on elsewhere leaves it, and says so', async ({ page }) => {
+		const { series, entry } = row('Isekai Yakkyoku', 1);
+		const posted = await page.request.post(`${base}/api/reading`, {
+			data: { seriesId: series, entryId: entry, kind: 'page', page: 3, total: 24 },
+			headers: { origin: base }
+		});
+		expect(posted.ok()).toBe(true);
+		await markThrough(page, series, 1, 'CH. 1');
+		await expect.poll(() => row('Isekai Yakkyoku', 1).readAt).not.toBeNull();
+		// Another tab's reader, still open on it, posts a new place after the press.
+		const later = await page.request.post(`${base}/api/reading`, {
+			data: { seriesId: series, entryId: entry, kind: 'page', page: 9, total: 24 },
+			headers: { origin: base }
+		});
+		expect(later.ok()).toBe(true);
+		await page.getByRole('button', { name: 'UNDO' }).click();
+		await expect(page.getByText('1 READ OR MARKED SINCE · LEFT AS IT IS')).toBeVisible();
+		expect(row('Isekai Yakkyoku', 1).readAt).not.toBeNull();
+		expect(row('Isekai Yakkyoku', 1).place).toBe(9);
+	});
+});

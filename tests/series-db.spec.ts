@@ -108,8 +108,9 @@ describe('markReadThrough', () => {
 			.slice(0, 6)
 			.filter((e) => e.readAt !== null)
 			.map((e) => e.id);
-		const changed = series.markReadThrough(id, through.id);
-		expect(changed.sort()).toEqual(
+		const facts = series.markReadThrough(id, through.id);
+		const changed = facts.places.map((p) => p.id);
+		expect([...changed].sort()).toEqual(
 			s.entries
 				.slice(0, 6)
 				.map((e) => e.id)
@@ -128,7 +129,164 @@ describe('markReadThrough', () => {
 
 	it('cannot reach into another series', () => {
 		const other = series.seriesPage(idOf('Tower of God'), false)!.entries[3].id;
-		expect(series.markReadThrough(idOf('Dungeon Meshi'), other)).toEqual([]);
+		expect(series.markReadThrough(idOf('Dungeon Meshi'), other).places).toEqual([]);
+	});
+});
+
+describe('MARK UNREAD starts a read chapter from the top (c652, c666)', () => {
+	const place = (id: number) =>
+		getDb()
+			.prepare(
+				`SELECT read_at AS readAt, last_position AS place, last_offset AS offset FROM entries WHERE id = ?`
+			)
+			.get(id) as { readAt: number | null; place: number | null; offset: number | null };
+	const leftAt = (id: number, block: number, offset: number | null) =>
+		getDb()
+			.prepare(`UPDATE entries SET last_position = ?, last_offset = ? WHERE id = ?`)
+			.run(block, offset, id);
+
+	it('clears the place and the offset of every entry it changes, and only those', () => {
+		const id = idOf('Isekai Yakkyoku');
+		const entries = series.seriesPage(id, false)!.entries;
+		const read = entries[0];
+		const unread = entries.find((e) => e.id !== read.id && e.readAt === null)!;
+		series.markEntries(id, [read.id], true);
+		leftAt(read.id, 5, 12);
+		leftAt(unread.id, 9, 3);
+		expect(series.markEntries(id, [read.id, unread.id], false)).toBe(1);
+		expect(place(read.id)).toEqual({ readAt: null, place: null, offset: null });
+		// Never read: not one the mark changed, so its place is its own.
+		expect(place(unread.id)).toEqual({ readAt: null, place: 9, offset: 3 });
+	});
+
+	it('leaves the place alone when it marks read', () => {
+		const id = idOf('Isekai Yakkyoku');
+		const e = series.seriesPage(id, false)!.entries[2];
+		leftAt(e.id, 4, 8);
+		series.markEntries(id, [e.id], true);
+		expect(place(e.id)).toMatchObject({ place: 4, offset: 8 });
+	});
+
+	it('clears a copy a representative stands for, so a reconcile brings no place back', () => {
+		const id = idOf('Natsu no Owari ni Kimi to');
+		const e = series.seriesPage(id, false)!.entries[0];
+		const db = getDb();
+		const copy = Number(
+			db
+				.prepare(
+					`INSERT INTO entries (series_id, position, label, title, added_at, file, bytes, page_count, available, source_url, shadowed, last_position, last_offset, read_at, last_opened_at)
+					SELECT series_id, position, label, title, added_at, 'copy.cbz', bytes, page_count, available, 'copy:1', 1, 6, 2, read_at, 1 FROM entries WHERE id = ?`
+				)
+				.run(e.id).lastInsertRowid
+		);
+		series.markEntries(id, [e.id], true);
+		leftAt(e.id, 5, 1);
+		series.markEntries(id, [e.id], false);
+		expect(place(e.id)).toMatchObject({ place: null, offset: null });
+		expect(place(copy)).toMatchObject({ readAt: null, place: null, offset: null });
+	});
+
+	it('writes no reading_events inference: a mark_unread is logged once for what changed', () => {
+		const id = idOf('Isekai Yakkyoku');
+		const e = series.seriesPage(id, false)!.entries[3];
+		series.markEntries(id, [e.id], true, 1000);
+		series.markEntries(id, [e.id], false, 2000);
+		expect(
+			getDb()
+				.prepare(`SELECT kind, at FROM reading_events WHERE entry_id = ? AND kind LIKE 'mark%'`)
+				.all(e.id)
+		).toEqual([
+			{ kind: 'mark_read', at: 1000 },
+			{ kind: 'mark_unread', at: 2000 }
+		]);
+	});
+});
+
+describe('UNDO of MARK READ THROUGH puts the place back (c666)', () => {
+	const place = (id: number) =>
+		getDb()
+			.prepare(
+				`SELECT read_at AS readAt, last_position AS place, last_offset AS offset, unread_at AS unreadAt FROM entries WHERE id = ?`
+			)
+			.get(id) as { readAt: number | null; place: number | null; offset: number | null };
+	const leftAt = (id: number, block: number | null, offset: number | null) =>
+		getDb()
+			.prepare(`UPDATE entries SET last_position = ?, last_offset = ? WHERE id = ?`)
+			.run(block, offset, id);
+	const seriesOf = (title: string) => {
+		const id = idOf(title);
+		return { id, entries: series.seriesPage(id, false)!.entries };
+	};
+
+	it('answers each changed chapter with its place at the press', () => {
+		const { id, entries } = seriesOf('Hikaru ga Shinda Natsu');
+		const chapter = entries.find((e) => e.readAt === null)!;
+		leftAt(chapter.id, 6, 40);
+		const answer = series.markReadThrough(id, chapter.id, 777);
+		expect(answer.at).toBe(777);
+		expect(answer.places).toContainEqual({ id: chapter.id, place: 6, offset: 40 });
+	});
+
+	it('restores unread and leaves each chapter at the place it was left, offset included', () => {
+		const { id, entries } = seriesOf('Lookism');
+		const a = entries.find((e) => e.readAt === null)!;
+		leftAt(a.id, 7, 33);
+		const facts = series.markReadThrough(id, a.id, 5_000);
+		expect(place(a.id).readAt).toBe(5_000);
+		expect(series.undoMarkReadThrough(id, facts, 6_000)).toEqual({
+			undone: facts.places.length,
+			kept: 0
+		});
+		expect(place(a.id)).toMatchObject({ readAt: null, place: 7, offset: 33, unreadAt: 6_000 });
+	});
+
+	it('leaves a chapter read on or re-marked since the press, and counts it kept', () => {
+		const { id, entries } = seriesOf('Isekai Yakkyoku');
+		const [a, b] = entries.filter((e) => e.readAt === null);
+		leftAt(a.id, 3, 0);
+		leftAt(b.id, 4, 0);
+		const facts = series.markReadThrough(id, b.id, 9_000);
+		// Read on in another tab: the reader's own write.
+		leftAt(a.id, 11, 0);
+		const answer = series.undoMarkReadThrough(id, facts, 9_500);
+		expect(answer.kept).toBeGreaterThanOrEqual(1);
+		expect(place(a.id)).toMatchObject({ readAt: 9_000, place: 11 });
+		expect(place(b.id)).toMatchObject({ readAt: null, place: 4 });
+	});
+
+	it('a second UNDO of the same press changes nothing', () => {
+		const { id, entries } = seriesOf('Lookism');
+		const a = entries.find((e) => e.readAt === null)!;
+		const facts = series.markReadThrough(id, a.id, 12_000);
+		series.undoMarkReadThrough(id, facts, 13_000);
+		const again = series.undoMarkReadThrough(id, facts, 14_000);
+		expect(again).toEqual({ undone: 0, kept: facts.places.length });
+		expect(place(a.id)).toMatchObject({ readAt: null, unreadAt: 13_000 });
+	});
+
+	it('a press stamp handed for another press, or a place that was never there, changes nothing', () => {
+		const { id, entries } = seriesOf('Isekai Yakkyoku');
+		const a = entries.find((e) => e.readAt === null)!;
+		leftAt(a.id, 2, 0);
+		const facts = series.markReadThrough(id, a.id, 20_000);
+		expect(series.undoMarkReadThrough(id, { ...facts, at: 19_999 }, 21_000).undone).toBe(0);
+		expect(
+			series.undoMarkReadThrough(
+				id,
+				{ ...facts, places: facts.places.map((p) => ({ ...p, place: 99 })) },
+				21_000
+			).undone
+		).toBe(0);
+		expect(place(a.id)).toMatchObject({ readAt: 20_000, place: 2 });
+	});
+
+	it('cannot reach into another series', () => {
+		const { id, entries } = seriesOf('Hikaru ga Shinda Natsu');
+		const a = entries.find((e) => e.readAt === null)!;
+		const facts = series.markReadThrough(id, a.id, 30_000);
+		const other = idOf('Sousou no Frieren');
+		expect(series.undoMarkReadThrough(other, facts, 31_000).undone).toBe(0);
+		expect(place(a.id).readAt).toBe(30_000);
 	});
 });
 

@@ -17,7 +17,7 @@
  * to refuse (`putBack`, `locate`, c308), as before.
  */
 import type { AddFacts, EndedWork, TakeOutFacts, WorkRecord } from '$lib/server/works';
-import type { SeriesRenameFacts } from '$lib/server/series';
+import type { MarkedThrough, SeriesRenameFacts } from '$lib/server/series';
 
 type Obj = Record<string, unknown>;
 
@@ -158,4 +158,22 @@ export function hideFacts(
 	if (out.some((o) => o === null)) return null;
 	if (!hidden.includes(seriesId) && out.length === 0) return null;
 	return { hidden, out: out as TakeOutFacts[] };
+}
+
+/** A place a reader saved: a whole page or block, or never opened. */
+const isPlace = (v: unknown) => v === null || (Number.isSafeInteger(v) && (v as number) >= 0);
+
+/**
+ * MARK READ THROUGH's facts, when they are this series' own (c666): the
+ * press's stamp and, for each chapter it read, its place at the press. An
+ * empty list is no UNDO: the band only offers one when something changed.
+ * `undoMarkReadThrough` refuses a chapter that has moved on since.
+ */
+export function markThroughFacts(v: unknown, own: ReadonlySet<number>): MarkedThrough | null {
+	if (!isObj(v) || !isNum(v.at) || !Array.isArray(v.places) || v.places.length === 0) return null;
+	for (const p of v.places as unknown[]) {
+		if (!isObj(p) || !isId(p.id) || !own.has(p.id)) return null;
+		if (!isPlace(p.place) || !isPlace(p.offset)) return null;
+	}
+	return v as MarkedThrough;
 }

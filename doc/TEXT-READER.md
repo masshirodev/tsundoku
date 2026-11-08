@@ -312,13 +312,15 @@ when the chapter is not read; and otherwise its top. A saved block the chapter
 no longer has (its text changed) opens at the top and settles there
 (`openChapter`, which alone knows the chapter's length).
 
-| The door                                                                        | Where it opens                |
-| ------------------------------------------------------------------------------- | ----------------------------- |
-| ▶ CONTINUE, a chapter row, history, the end page, an unread chapter left midway | the saved block and character |
-| any of those, the chapter read                                                  | its top                       |
-| any of those, the saved block past the chapter's end                            | its top                       |
-| `?at=<block>.<offset>` (a reload, a bookmark, the URL the reader keeps)         | that character                |
-| `?at=0.0`                                                                       | its top                       |
+| The door                                                                        | Where it opens                                                                                 |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| ▶ CONTINUE, a chapter row, history, the end page, an unread chapter left midway | the saved block and character                                                                  |
+| any of those, the chapter read                                                  | its top                                                                                        |
+| a read chapter marked unread (MARK UNREAD on the series screen)                 | its top: the mark clears the saved place ([`SERIES.md`](SERIES.md); c652, c666)                |
+| UNDO of a long-press MARK READ THROUGH                                          | the saved block and character: `?/undoMarkThrough` put them back, never `?/mark read=0` (c666) |
+| any of those, the saved block past the chapter's end                            | its top                                                                                        |
+| `?at=<block>.<offset>` (a reload, a bookmark, the URL the reader keeps)         | that character                                                                                 |
+| `?at=0.0`                                                                       | its top                                                                                        |
 
 The URL is the reader's only writer; `keepHistoryUrl()` copies it into the
 history entry too, so a popstate back into that entry opens what the reader was
