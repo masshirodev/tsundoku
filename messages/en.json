@@ -448,6 +448,7 @@
 	"help_downloading_extensions_title": "EXTENSIONS AND REPOSITORIES",
 	"help_downloading_extensions_para_1": "Sources come from extensions, and extensions come from repositories. tsundoku ships none. Ask whoever gave you tsundoku for a repository's address, or search for one: Mihon, Aniyomi and LNReader repositories all work.",
 	"help_downloading_extensions_para_2": "Paste the address in {extensions} › {repositories}. It says what the repository holds before anything is installed; then pick the sources you read from in {available}.",
+	"help_downloading_extensions_para_3": "{extensions} lives in {browse}, beside the sources it gives. {settings} › 07 — BROWSE has a row that opens it too, with how many are installed and how many have updates.",
 	"help_downloading_online_title": "READING ONLINE",
 	"help_downloading_online_para": "Open a series from {browse} and read: each chapter comes from the source as you turn. Nothing is kept, and {history} remembers where you stopped. + ADD adds it whenever you decide.",
 	"help_downloading_download_title": "ADD, DOWNLOAD, FOLLOW",
@@ -880,5 +881,26 @@
 	"settings_fw_windows_ask": "PHONE CAN'T CONNECT?",
 	"settings_fw_windows_fix_1": "Open Windows Security › Firewall & network protection › Allow an app through firewall, and tick Private beside tsundoku.",
 	"settings_fw_windows_fix_2": "Then set this Wi-Fi to Private: Settings › Network & internet › Wi-Fi › this network › Private network.",
-	"settings_fw_quiet": "NO PHONE HAS REACHED THIS COMPUTER YET · A FIREWALL?"
+	"settings_fw_quiet": "NO PHONE HAS REACHED THIS COMPUTER YET · A FIREWALL?",
+	"settings_extensions_installed": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} INSTALLED",
+				"countPlural=*": "{n} INSTALLED"
+			}
+		}
+	],
+	"settings_extensions_updates": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} UPDATE",
+				"countPlural=*": "{n} UPDATES"
+			}
+		}
+	],
+	"settings_extensions_where": "IN {browse} › {extensions}"
 }

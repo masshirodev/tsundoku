@@ -3,6 +3,7 @@
 	import { appUpdater } from '$lib/app/update.svelte';
 	import { appLine, type AppUpdate } from '$lib/app/update';
 	import { m } from '$lib/paraglide/messages';
+	import { num } from '$lib/i18n/format';
 	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import HelpMark from '$lib/components/help/HelpMark.svelte';
 	import HelpSheet from '$lib/components/help/HelpSheet.svelte';
@@ -772,6 +773,9 @@
 						{#if s.id === 'library'}
 							{@render report()}
 						{/if}
+						{#if s.id === 'browse' && data.browse}
+							{@render extensionsRow(data.browse.extensions)}
+						{/if}
 						{#if s.id === 'devices'}
 							{#if wf}
 								{@render wifiRow(wf)}
@@ -1090,6 +1094,35 @@
 			{#if !phone.current}<div class="scope"><span class="sa quiet">ALL DEVICES</span></div>{/if}
 		</div>
 	{/if}
+{/snippet}
+
+{#snippet extensionsRow(e: { installed: number; updates: number })}
+	<!-- EXTENSIONS (c725; doc/SETTINGS.md, "07 — BROWSE"): a second door to
+	     BROWSE › EXTENSIONS, where Mihon's and Aniyomi's readers look first.
+	     Nothing is managed here; the meta says where it lives. The whole body
+	     is the link, so a TV's ↓ from LANGUAGES lands on it (the focus layer
+	     moves by geometry, and a cell at the row's right end is off that line). -->
+	<div class="row acct extensions" class:dim={off}>
+		<div class="label">{m.name_extensions()}</div>
+		<div class="ctl">
+			<a class="acct-body ext-go" href={resolve('/browse/extensions')}>
+				<span class="who">
+					<span class="name">
+						{m.settings_extensions_installed({ count: e.installed, n: num(e.installed) })} ·
+						{m.settings_extensions_updates({ count: e.updates, n: num(e.updates) })}
+					</span>
+					<span class="meta">
+						{m.settings_extensions_where({
+							browse: m.name_browse(),
+							extensions: m.name_extensions()
+						})}
+					</span>
+				</span>
+				<span class="cell acc">{m.name_extensions()} →</span>
+			</a>
+		</div>
+		{#if !phone.current}<div class="scope"><span class="sa quiet">ALL DEVICES</span></div>{/if}
+	</div>
 {/snippet}
 
 {#snippet updates(u: Updates)}
@@ -2276,6 +2309,16 @@
 	/* Three lines, so taller than a sign-in's row (Ranobe 3a: 84px against 68px). */
 	.row.acct.ranobe {
 		min-height: 84px;
+	}
+	/* EXTENSIONS (c725): the whole body is the door; its spans keep the row's blocks. */
+	.ext-go {
+		color: inherit;
+		text-decoration: none;
+	}
+	.ext-go .who,
+	.ext-go .name,
+	.ext-go .meta {
+		display: block;
 	}
 	/* IMPORT A BACKUP (c438): the row's body above its meta line, as Import-Doors C draws it. */
 	.row.acct.import .ctl {

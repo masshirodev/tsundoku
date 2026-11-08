@@ -448,6 +448,7 @@
 	"help_downloading_extensions_title": "EXTENSÕES E REPOSITÓRIOS",
 	"help_downloading_extensions_para_1": "As fontes vêm das extensões, e as extensões vêm dos repositórios. O tsundoku não traz nenhum. Peça o endereço de um repositório ao amigo que te passou o tsundoku, ou procure um: repositórios do Mihon, do Aniyomi e do LNReader funcionam.",
 	"help_downloading_extensions_para_2": "Cole o endereço em {extensions} › {repositories}. Ele mostra o que o repositório tem antes de qualquer instalação; depois, escolha em {available} as fontes de onde você lê.",
+	"help_downloading_extensions_para_3": "{extensions} fica em {browse}, ao lado das fontes que traz. {settings} › 07 — BROWSE tem uma linha que também abre a página, com quantas estão instaladas e quantas têm atualização.",
 	"help_downloading_online_title": "LER ONLINE",
 	"help_downloading_online_para": "Abra uma série em {browse} e leia: cada capítulo vem da fonte conforme você vira. Nada fica guardado, e o {history} lembra onde você parou. + ADICIONAR adiciona a série quando você decidir.",
 	"help_downloading_download_title": "ADICIONAR, BAIXAR, SEGUIR",
@@ -880,5 +881,26 @@
 	"settings_fw_windows_ask": "O CELULAR NÃO CONECTA?",
 	"settings_fw_windows_fix_1": "Abra Segurança do Windows › Firewall e proteção de rede › Permitir um aplicativo pelo firewall, e marque Privada ao lado do tsundoku.",
 	"settings_fw_windows_fix_2": "Depois deixe este Wi-Fi como privado: Configurações › Rede e Internet › Wi-Fi › esta rede › Rede privada.",
-	"settings_fw_quiet": "NENHUM CELULAR CHEGOU A ESTE COMPUTADOR AINDA · UM FIREWALL?"
+	"settings_fw_quiet": "NENHUM CELULAR CHEGOU A ESTE COMPUTADOR AINDA · UM FIREWALL?",
+	"settings_extensions_installed": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} INSTALADA",
+				"countPlural=*": "{n} INSTALADAS"
+			}
+		}
+	],
+	"settings_extensions_updates": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} ATUALIZAÇÃO",
+				"countPlural=*": "{n} ATUALIZAÇÕES"
+			}
+		}
+	],
+	"settings_extensions_where": "EM {browse} › {extensions}"
 }

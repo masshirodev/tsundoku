@@ -11,6 +11,8 @@ import { ranobeAccount, ranobeQueueCount, retryRanobe } from '$lib/server/ranobe
 import { SERVICES, type Service } from '$lib/library/tracking';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { browseLanguages } from '$lib/server/engine/browse';
+import { installedView, pluginsShown } from '$lib/server/engine/manage';
+import { pluginView } from '$lib/server/novels/plugins';
 import { listings } from '$lib/server/engine/extensions';
 import { lastImport } from '$lib/server/import/log';
 import {
@@ -52,6 +54,22 @@ const LANGUAGE_CELLS = 12;
  * another device's (2C) are the workstation's copy, listed under DEVICES.
  * Counts follow reveal, as every list does: hidden series aren't counted.
  */
+/**
+ * The EXTENSIONS row's counts (c725; doc/SETTINGS.md, "07 — BROWSE"): what
+ * EXTENSIONS' own INSTALLED tab counts, from the same two views its load
+ * reads (`installedView`, and the plugins through `pluginsShown`), so the two
+ * doors never disagree, hidden ones included only inside reveal. Both are
+ * the database's record of what is installed and what its repositories
+ * offer, so they answer whether or not the engine is running now.
+ */
+function extensionCounts(reveal: boolean): { installed: number; updates: number } {
+	const apks = installedView(reveal);
+	const plugins = pluginsShown(pluginView(reveal), reveal);
+	const n = (v: { needsHand: unknown[]; updates: unknown[]; current: unknown[] }) =>
+		v.needsHand.length + v.updates.length + v.current.length;
+	return { installed: n(apks) + n(plugins), updates: apks.updates.length + plugins.updates.length };
+}
+
 export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest, request }) => {
 	const reveal = isRevealed(cookies);
 	const folded = (
@@ -167,7 +185,8 @@ export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest
 						);
 						return {
 							chosen,
-							cells: [...chosen, ...rest].slice(0, Math.max(LANGUAGE_CELLS, chosen.length))
+							cells: [...chosen, ...rest].slice(0, Math.max(LANGUAGE_CELLS, chosen.length)),
+							extensions: extensionCounts(reveal)
 						};
 					})()
 				: null

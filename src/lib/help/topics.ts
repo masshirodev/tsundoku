@@ -122,7 +122,9 @@ export function topics(): HelpTopic[] {
 							extensions,
 							repositories: m.name_repositories_tab(),
 							available: m.name_available_tab()
-						})
+						}),
+						// Both doors (c725): where it lives, and SETTINGS' row that opens it.
+						m.help_downloading_extensions_para_3({ extensions, browse, settings })
 					]
 				},
 				{

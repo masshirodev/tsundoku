@@ -46,6 +46,12 @@ describe('the topics', () => {
 			.paras!.join(' ');
 		expect(pt).toMatch(/O Linux não pergunta nada/);
 	});
+	it('03 names both doors to EXTENSIONS: BROWSE, and the row in SETTINGS (c725)', () => {
+		const part = topicBySlug('downloading')!.parts.find((p) => p.id === 'extensions')!;
+		expect(part.paras!.join(' ')).toContain(
+			'EXTENSIONS lives in BROWSE, beside the sources it gives. SETTINGS › 07 — BROWSE has a row that opens it too'
+		);
+	});
 	it('link to sections SETTINGS can open by name', () => {
 		for (const t of topics())
 			for (const p of t.parts) {
