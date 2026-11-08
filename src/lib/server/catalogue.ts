@@ -44,7 +44,14 @@ import {
 	undoSeasonLink
 } from './season-links.ts';
 import { seasonSearchTitle } from '../library/anime.ts';
-import { refreshRelations } from './relations.ts';
+import {
+	RELATIONS_RETRY_MS,
+	clearLinkPass,
+	linkPassRunning,
+	markLinkPass,
+	refreshRelations,
+	type RelationsPass
+} from './relations.ts';
 
 /**
  * Catalogue links on the workstation (doc/LINKS.md): a series' MyAnimeList /
@@ -75,6 +82,19 @@ let fetcher: Fetch = (...a) => fetch(...a);
 let spacing = 2100;
 let last = 0;
 let chain: Promise<unknown> = Promise.resolve();
+/** The wait in hand, and whether nothing should hold the process for a wait any more. */
+let waiting: ReturnType<typeof setTimeout> | null = null;
+let released = false;
+
+/**
+ * The server is stopping: a wait for AniList's turn, a 429's included (a minute
+ * or more, past `TimeoutStopSec`), no longer holds the process open. Only the
+ * served app calls this; a script's top-level await needs its waits to hold it.
+ */
+export function releaseAnilistWaits(): void {
+	released = true;
+	waiting?.unref();
+}
 
 /** For specs: a stand-in for the network, and no waiting between calls. */
 export function setAnilistFetch(f: Fetch | null, gapMs = 0): void {
@@ -91,7 +111,11 @@ async function post(
 	if (process.env.TSUNDOKU_ANILIST === 'off') throw new Unreachable('switched off');
 	for (let attempt = 0; attempt < 3; attempt++) {
 		const wait = Math.max(0, last + spacing - Date.now());
-		if (wait) await new Promise((r) => setTimeout(r, wait));
+		if (wait)
+			await new Promise((r) => {
+				waiting = setTimeout(r, wait);
+				if (released) waiting.unref();
+			});
 		last = Date.now();
 		let res: Response;
 		try {
@@ -1382,6 +1406,9 @@ export async function refreshLinks(
 ): Promise<PassResult> {
 	const out: PassResult = { resolved: 0, searched: 0, linked: 0, offered: 0, unreachable: false };
 	const now = opts.now ?? Date.now();
+	// The background fill stands aside for this, in any process (doc/LINKS.md,
+	// "How the cache fills"). Real time, whatever `now` a spec passes.
+	markLinkPass();
 	try {
 		out.resolved = await resolveLinks(now);
 		// A season's own link, where only one id was known (c240).
@@ -1389,6 +1416,7 @@ export async function refreshLinks(
 		const rows = searchable(opts.limit ?? 60);
 		for (let i = 0; i < rows.length; i += 25) {
 			const r = await searchSeries(rows.slice(i, i + 25), now);
+			markLinkPass();
 			out.searched += Math.min(25, rows.length - i);
 			out.linked += r.linked;
 			out.offered += r.offered;
@@ -1409,6 +1437,52 @@ export async function refreshLinks(
 			out.unreachable = true;
 			out.reason = e.message;
 		} else throw e;
+	} finally {
+		clearLinkPass();
+	}
+	return out;
+}
+
+export type FillResult = RelationsPass & {
+	/** A link pass was running, so this one asked nothing. */
+	skipped: boolean;
+	unreachable: boolean;
+	/** Why AniList couldn't be reached, for the log. */
+	reason?: string;
+};
+
+/**
+ * The background fill's pass (relations-fill.ts; doc/LINKS.md, "How the cache
+ * fills"): only the relations step of `refreshLinks`, never its search. It
+ * stands aside for a link pass and gives way to one that starts while it
+ * runs. Unreachable is not an error here either: the next tick carries on.
+ */
+export async function fillRelations(
+	opts: { now?: number; log?: (line: string) => void; stop?: () => boolean } = {}
+): Promise<FillResult> {
+	const out: FillResult = {
+		refreshed: 0,
+		failed: 0,
+		dropped: 0,
+		skipped: false,
+		unreachable: false
+	};
+	if (linkPassRunning()) return { ...out, skipped: true };
+	try {
+		Object.assign(
+			out,
+			await refreshRelations(anilistPublic, {
+				now: opts.now,
+				log: opts.log,
+				fatal: (e) => e instanceof Unreachable,
+				retryMs: RELATIONS_RETRY_MS,
+				stop: () => !!opts.stop?.() || linkPassRunning()
+			})
+		);
+	} catch (e) {
+		if (!(e instanceof Unreachable)) throw e;
+		out.unreachable = true;
+		out.reason = e.message;
 	}
 	return out;
 }
