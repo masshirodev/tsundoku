@@ -7,7 +7,7 @@
 	import DeleteSheet from './DeleteSheet.svelte';
 	import { lostLine } from '$lib/library/highlights';
 	import { replacing, stepsBackTo } from '$lib/back';
-	import type { ActionResult } from '@sveltejs/kit';
+	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
 	import { backLink } from '$lib/back';
 	import { enhance } from '$app/forms';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -39,6 +39,16 @@
 	import type { UnlinkFacts } from '$lib/server/catalogue';
 	import type { PendingFailed, Refusal } from '$lib/server/dupes';
 	import { withParam, readHref } from '$lib/library/links';
+	import {
+		BAND_SHELVES,
+		SHELF_KEY,
+		bandChips,
+		bandOrder,
+		collectionShelves,
+		lastShelf,
+		otherShelves,
+		shelfLine
+	} from '$lib/library/add-shelf';
 	import {
 		addedDetail,
 		allToDownload,
@@ -374,6 +384,77 @@
 	// `?edit=tags` (the library sheet's TAGS button) opens straight into editing.
 	// svelte-ignore state_referenced_locally
 	let editing = $state(data.editing);
+
+	/**
+	 * PUT ON A SHELF under ADDED TO THE LIBRARY (card c724; doc/SERIES.md,
+	 * "Shelves in the ADDED band"): the owner's shelves as chips, one tap each,
+	 * several allowed, a second tap takes it off; the last one chosen on this
+	 * device first (`SHELF_KEY`, read once, so the chips keep their places
+	 * while the band is up). The rules are `add-shelf.ts`', the band /browse
+	 * draws for a hidden ADD; the write is this screen's own `?/shelf`, the
+	 * SHELVES sheet's. Past `BAND_SHELVES`, and for + NEW SHELF, the SHELVES
+	 * sheet itself (`EditSheet`), which has both.
+	 */
+	let lastAdded = $state<number | null>(null);
+	$effect(() => {
+		try {
+			lastAdded = lastShelf(localStorage.getItem(SHELF_KEY));
+		} catch {
+			lastAdded = null;
+		}
+	});
+	const addedOn = $derived(new Set<number>(series.collections));
+	const addedChips = $derived(
+		bandChips(bandOrder(collectionShelves(data.shelves), lastAdded), addedOn, BAND_SHELVES)
+	);
+	/** EDIT's sheet opened by the band's + NEW SHELF: straight to the name field. */
+	let namingShelf = $state(false);
+	/** Why the last chip's tap wrote nothing, drawn in the strip so the band and its UNDO stay. */
+	let shelfRefused = $state('');
+	/**
+	 * A chip's post carries the page's own query (`added`, `queued`, `from`):
+	 * without script its answer is a load of the action's URL, which would
+	 * otherwise lose the band (the `?/undoSourceAdd` form needs `added` too).
+	 */
+	const shelfAction = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
+		const q = new URLSearchParams(page.url.searchParams);
+		for (const k of [...q.keys()]) if (k.startsWith('/')) q.delete(k);
+		const rest = q.toString();
+		return `?/shelf${rest ? `&${rest}` : ''}`;
+	});
+	/**
+	 * A chip's answer. Put on: remembered as the last chosen once the write
+	 * answered, read from what the form posted (`enhance` keeps the first
+	 * submit function it is given). Refused (a shelf deleted elsewhere, the
+	 * series gone after an UNDO in another tab): said in the strip and the
+	 * page read again, never `form`, whose `message` would put a refusal band
+	 * in place of ADDED TO THE LIBRARY and its UNDO.
+	 */
+	const shelfChosen: SubmitFunction = ({ formData }) => {
+		const id = String(formData.get('collection') ?? '');
+		const putOn = formData.get('on') === '1';
+		shelfRefused = '';
+		return async ({ result, update }) => {
+			if (result.type === 'failure') {
+				const said = result.data?.message;
+				shelfRefused = typeof said === 'string' ? said : 'nothing changed';
+				await invalidateAll();
+				return;
+			}
+			if (result.type === 'error' && result.status === 404) {
+				shelfRefused = 'the series is not in the library now';
+				return;
+			}
+			if (result.type === 'success' && putOn && lastShelf(id) !== null)
+				try {
+					localStorage.setItem(SHELF_KEY, id);
+				} catch {
+					// Storage unavailable: the shelf is still put on, only not offered first.
+				}
+			await update({ reset: false });
+		};
+	};
 </script>
 
 <svelte:head><title>{series.title} · tsundoku</title></svelte:head>
@@ -514,6 +595,39 @@
 				</form>
 			{/snippet}
 		</Band>
+		<!-- PUT ON A SHELF (card c724): the band's second line, chips one tap each.
+		     Its names are the shelves' own, N OTHER SHELVES and + NEW SHELF; nothing
+		     here is named UNDO, HIDE, SHOW, MORE or ALL. -->
+		<div class="added-shelves" role="group" aria-label="Put on a shelf">
+			<span class="ask" class:on={addedOn.size > 0}>{shelfLine(addedChips.chips, addedOn)}</span>
+			{#each addedChips.chips as c (c.id)}
+				<form method="POST" action={shelfAction} use:enhance={shelfChosen}>
+					<input type="hidden" name="collection" value={c.id} />
+					<input type="hidden" name="on" value={addedOn.has(c.id) ? '0' : '1'} />
+					<button
+						type="submit"
+						class="chip"
+						class:on={addedOn.has(c.id)}
+						aria-pressed={addedOn.has(c.id)}
+						>{addedOn.has(c.id) ? '✓ ' : ''}{c.name.toUpperCase()}</button
+					>
+				</form>
+			{/each}
+			{#if addedChips.more > 0}
+				<button type="button" class="chip" onclick={() => (editing = true)}
+					>{otherShelves(addedChips.more)}</button
+				>
+			{/if}
+			<button
+				type="button"
+				class="chip new"
+				onclick={() => {
+					namingShelf = true;
+					editing = true;
+				}}>+ NEW SHELF</button
+			>
+			{#if shelfRefused}<span class="refused">NOT SHELVED: {shelfRefused.toUpperCase()}</span>{/if}
+		</div>
 	{/if}
 	{#if data.moved && !refusal}
 		<!-- MOVE (doc/MOVE.md; Migrate-Moved): the same series, its new source, UNDO. -->
@@ -921,8 +1035,12 @@
 	open={editing}
 	{series}
 	shelves={data.shelves}
+	naming={namingShelf}
 	tagMessage={form && 'tagMessage' in form ? form.tagMessage : undefined}
-	onclose={() => (editing = false)}
+	onclose={() => {
+		editing = false;
+		namingShelf = false;
+	}}
 />
 <!-- A book's own tags (doc/BOOKS.md): the same sheet, the book's tags only. -->
 <EditSheet
@@ -935,6 +1053,57 @@
 />
 
 <style>
+	/* PUT ON A SHELF (card c724): the band's second line, as /browse's AddedBand
+	   draws it: the Band's panel and hairline, chips as ShelfPicker's. */
+	.added-shelves {
+		flex-shrink: 0;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px;
+		padding: 10px var(--pad) 12px;
+		border-bottom: var(--hairline);
+		background: var(--surface-panel);
+	}
+	.added-shelves .ask {
+		font: var(--type-meta);
+		color: var(--text-2);
+		margin-right: 4px;
+	}
+	.added-shelves .ask.on {
+		color: var(--text-1);
+	}
+	.added-shelves form {
+		display: flex;
+	}
+	.added-shelves .chip {
+		height: 40px;
+		padding: 0 12px;
+		display: flex;
+		align-items: center;
+		border: 1px solid var(--line-2);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 500 13px var(--font-mono);
+		text-decoration: none;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+	/* At the right end, under UNDO: a remote's ↓ from UNDO lands in the strip,
+	   and ← walks the chips (doc/FOCUS.md: a stop overlapping across the way wins). */
+	.added-shelves .chip.new {
+		margin-left: auto;
+	}
+	.added-shelves .chip.on {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.added-shelves .refused {
+		font: var(--type-meta);
+		color: var(--text-1);
+	}
+
 	/* An anime's ALL: QUALITY, as Index Anime Series' confirm draws it. */
 	.q-row {
 		display: flex;

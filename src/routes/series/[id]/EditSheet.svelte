@@ -17,12 +17,18 @@
 		shelves,
 		tagMessage,
 		book = null,
+		naming: startNaming = false,
 		onclose
 	}: {
 		open: boolean;
 		series: SeriesPage;
 		shelves: Shelf[];
 		tagMessage?: string;
+		/**
+		 * Opened by the ADDED band's + NEW SHELF (card c724): the new shelf's
+		 * name field is open at once, as the sheet's own + NEW SHELF opens it.
+		 */
+		naming?: boolean;
 		/**
 		 * One book of a series of books: its own tags, nothing else (shelves
 		 * belong to the series). doc/BOOKS.md, "Every book keeps its own".
@@ -40,6 +46,10 @@
 	);
 
 	let naming = $state(false);
+	// Each opening starts as its door asks: the band's + NEW SHELF with the name field open.
+	$effect(() => {
+		if (open) naming = startNaming;
+	});
 	let newShelf = $state('');
 	let tagText = $state('');
 	let suggestions = $state<Suggestion[]>([]);

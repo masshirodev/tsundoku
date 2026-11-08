@@ -309,3 +309,98 @@ describe('the source a series’ tags search (c313)', () => {
 		}
 	});
 });
+
+describe('PUT ON A SHELF under ADDED TO THE LIBRARY, and its UNDO (c724)', () => {
+	/**
+	 * The series screen's band writes through the screen's own `?/shelf` (the
+	 * SHELVES sheet's write) and takes back through `?/undoSourceAdd`, whose
+	 * `undoAdd` deletes the series row: the shelf rows go by the schema's
+	 * cascade (`collection_series.series_id … ON DELETE CASCADE`). Read here
+	 * from the database, through the actions themselves, not from the schema.
+	 */
+	type Act = (e: unknown) => Promise<unknown>;
+	const act = async (name: string, id: number, fields: Record<string, string>) => {
+		const screen = await import('../src/routes/series/[id]/+page.server');
+		const body = new FormData();
+		for (const [k, v] of Object.entries(fields)) body.append(k, v);
+		return (screen.actions[name] as unknown as Act)({
+			request: new Request(`http://localhost/series/${id}?/${name}`, { method: 'POST', body }),
+			params: { id: String(id) },
+			url: new URL(`http://localhost/series/${id}?added=x`),
+			cookies: { get: () => undefined }
+		});
+	};
+	const shelvesOf = (id: number) =>
+		getDb()
+			.prepare(
+				`SELECT collection_id FROM collection_series WHERE series_id = ? ORDER BY collection_id`
+			)
+			.pluck()
+			.all(id) as number[];
+	/** A series just added from a preview: in the library, nothing of it downloaded or read. */
+	const justAdded = (title: string) => {
+		const db = getDb();
+		const root = (
+			db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number }
+		).id;
+		const id = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, source, hue, added_at, indexed_at, origin_key, in_library)
+					VALUES (?, ?, 'manga', 'mihon', 0, 0, 0, NULL, 1)`
+				)
+				.run(root, title).lastInsertRowid
+		);
+		db.prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, source_url, available)
+			VALUES (?, 1, 'Ch. 1', 0, ?, 0)`
+		).run(id, `/nowhere/${id}`);
+		return id;
+	};
+
+	it('puts it on two shelves, takes one off, and UNDO takes the series and both shelves back', async () => {
+		const id = justAdded('Added From A Preview');
+		const a = lib.createCollection('Band Shelf A');
+		const b = lib.createCollection('Band Shelf B');
+		expect(await act('shelf', id, { collection: String(a), on: '1' })).toEqual({ ok: true });
+		expect(await act('shelf', id, { collection: String(b), on: '1' })).toEqual({ ok: true });
+		// The same tap twice changes nothing more.
+		expect(await act('shelf', id, { collection: String(b), on: '1' })).toEqual({ ok: true });
+		expect(shelvesOf(id)).toEqual([a, b]);
+		// A second tap takes it off.
+		expect(await act('shelf', id, { collection: String(b), on: '0' })).toEqual({ ok: true });
+		expect(shelvesOf(id)).toEqual([a]);
+		expect(await act('shelf', id, { collection: String(b), on: '1' })).toEqual({ ok: true });
+		// A shelf that is not there: the 400 the band draws as NOT SHELVED, nothing written.
+		const gone = await act('shelf', id, { collection: '999999', on: '1' });
+		expect(gone).toMatchObject({ status: 400, data: { message: 'no such shelf' } });
+		expect(shelvesOf(id)).toEqual([a, b]);
+
+		// UNDO: a redirect back to the preview, the series gone, its shelf rows with it.
+		await expect(act('undoSourceAdd', id, { from: 'src~cHJldmlldw' })).rejects.toMatchObject({
+			status: 303,
+			location: '/downloads/source/src~cHJldmlldw'
+		});
+		expect(getDb().prepare(`SELECT 1 FROM series WHERE id = ?`).get(id)).toBeUndefined();
+		expect(shelvesOf(id)).toEqual([]);
+		// The shelves themselves stay: only the series left them.
+		expect(lib.collectionExists(a) && lib.collectionExists(b)).toBe(true);
+		// A chip tapped after it (a second tab still showing the band): the screen's 404, nothing written.
+		await expect(act('shelf', id, { collection: String(a), on: '1' })).rejects.toMatchObject({
+			status: 404
+		});
+		expect(shelvesOf(id)).toEqual([]);
+	});
+
+	it('an UNDO refused (something read now) keeps the series on its shelves', async () => {
+		const id = justAdded('Added And Read');
+		const a = lib.createCollection('Band Shelf Read');
+		await act('shelf', id, { collection: String(a), on: '1' });
+		getDb().prepare(`UPDATE entries SET read_at = 1 WHERE series_id = ?`).run(id);
+		expect(await act('undoSourceAdd', id, { from: 'src~cHJldmlldw' })).toMatchObject({
+			status: 409,
+			data: { message: 'something of it is downloaded or read now' }
+		});
+		expect(shelvesOf(id)).toEqual([a]);
+	});
+});

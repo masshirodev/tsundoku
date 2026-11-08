@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
+import { previewId, startTagWorld, type TagWorld } from './helpers/tag-world';
 
 /**
  * The seasons around an anime on a TV (c358; doc/SERIES.md, "The seasons
@@ -407,4 +408,83 @@ test('the remote reaches every head’s cell above and below the episodes, and O
 		.locator('.season.around')
 		.evaluateAll((n) => n.filter((li) => li.scrollWidth > li.clientWidth + 1).length);
 	expect(overflow).toBe(0);
+});
+
+/**
+ * PUT ON A SHELF under ADDED TO THE LIBRARY (card c724; doc/SERIES.md,
+ * "Shelves in the ADDED band") is a new row of stops on the series screen,
+ * which a TV opens: the remote reaches every chip from UNDO, and OK puts the
+ * series on a shelf. On the tag world (tests/helpers/tag-world.ts: its own
+ * database, engine and preview), since it adds a series and makes shelves;
+ * the device projects' walk is tests/series-add-shelf.e2e.ts.
+ */
+test.describe('the ADDED band’s shelves on a TV (c724)', () => {
+	let shelfWorld: TagWorld;
+	test.beforeAll(async () => {
+		shelfWorld = await startTagWorld('tv-series-add-shelf');
+	});
+	test.afterAll(async () => {
+		await shelfWorld?.stop();
+	});
+
+	test('↓ from UNDO reaches the strip, ← and → walk every chip, and OK puts it on a shelf', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		const base = shelfWorld.base;
+		for (const name of ['Couch', 'Weekend']) {
+			const r = await page.request.post(`${base}/?/newShelf`, {
+				form: { name },
+				headers: { origin: base, accept: 'text/html' },
+				maxRedirects: 0
+			});
+			expect(r.status()).toBe(303);
+		}
+		await page.goto(`${base}/downloads/source/${previewId}`);
+		await page.locator('form[action="?/add"] button.add').click();
+		await page.waitForURL((u) => /^\/series\/\d+$/.test(u.pathname) && u.searchParams.has('added'));
+		const strip = page.getByRole('group', { name: 'Put on a shelf' });
+		await expect(strip).toBeVisible();
+		const cells = await strip.locator('.chip').allInnerTexts();
+		expect(cells).toContain('COUCH');
+		expect(cells).toContain('+ NEW SHELF');
+
+		const focused = () =>
+			page.evaluate(() => {
+				const el = document.activeElement as HTMLElement | null;
+				return el?.closest('[aria-label="Put on a shelf"]') && el.matches('.chip')
+					? el.innerText
+					: 'out';
+			});
+		const undo = page
+			.locator('.band', { has: page.getByText('ADDED TO THE LIBRARY', { exact: true }) })
+			.getByRole('button', { name: 'UNDO' });
+		await undo.focus();
+		await page.keyboard.press('ArrowDown');
+		await expect.poll(focused).not.toBe('out');
+		// Walk the strip both ways, gathering every cell the arrows land on inside it.
+		const seen = new Set<string>([await focused()]);
+		for (const key of ['ArrowLeft', 'ArrowRight']) {
+			for (let i = 0; i < cells.length; i++) {
+				await page.keyboard.press(key);
+				const f = await focused();
+				if (f === 'out') break;
+				seen.add(f);
+			}
+			// Back into the strip for the other direction.
+			await undo.focus();
+			await page.keyboard.press('ArrowDown');
+		}
+		expect([...seen].sort()).toEqual([...cells].sort());
+
+		// OK on a chip puts the series on that shelf.
+		const couch = strip.getByRole('button', { name: /^(✓ )?COUCH$/ });
+		await couch.focus();
+		await page.keyboard.press('Enter');
+		await expect(couch).toHaveAttribute('aria-pressed', 'true');
+		// The strip fits the TV's width.
+		expect(await strip.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+		await undo.click();
+		await page.waitForURL((u) => u.pathname.startsWith('/downloads/source/'));
+	});
 });
