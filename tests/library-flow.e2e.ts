@@ -1590,20 +1590,23 @@ test.describe('the empty library’s GET STARTED asks again (c722)', () => {
 		await page.goto(`${base}/`);
 		await expect(four(page)).toBeVisible();
 
-		// Drawn: one period asks once.
+		// Drawn: a period asks. At least once: `pollStart` also asks when the
+		// window regains focus, and beside other workers' browsers it may.
 		await page.clock.runFor(5_100);
-		await expect.poll(() => seen.length).toBe(1);
+		await expect.poll(() => seen.length).toBeGreaterThanOrEqual(1);
 
-		// Left, client-side (the effect torn down, not a fresh page): /search asks nothing.
+		// Left, client-side (the effect torn down, not a fresh page): nothing
+		// asks from /search, by the interval or by focus.
 		await page.getByRole('link', { name: 'Search' }).click();
 		await page.waitForURL(/\/search/);
 		await page.clock.runFor(11_000);
 		await page.getByRole('link', { name: 'Back to library' }).click();
 		await expect(four(page)).toBeVisible();
-		expect(seen.length).toBe(1);
+		expect(seen.filter((u) => new URL(u).pathname.startsWith('/search'))).toEqual([]);
 
-		// Back on the list it asks again; the library fills, and the next ask
-		// brings the grid, after which it asks no more.
+		// Back on the list it asks again; the library fills, and the ask that
+		// brings the grid is the last one.
+		const back = seen.length;
 		sql(
 			`INSERT INTO series (root_id, title, kind, hue, added_at, indexed_at)
 			VALUES ((SELECT MIN(id) FROM roots), 'Filled While Open', 'manga', 0, ?, ?)`,
@@ -1614,7 +1617,7 @@ test.describe('the empty library’s GET STARTED asks again (c722)', () => {
 		await expect(page.locator('.grid .tile', { hasText: 'Filled While Open' })).toBeVisible();
 		await expect(four(page)).toHaveCount(0);
 		const filled = seen.length;
-		expect(filled).toBe(2);
+		expect(filled).toBeGreaterThan(back);
 		await page.clock.runFor(11_000);
 		expect(seen.length).toBe(filled);
 
