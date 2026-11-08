@@ -34,12 +34,14 @@
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import ContinueRow from '$lib/components/content/ContinueRow.svelte';
 	import CoverTile from '$lib/components/content/CoverTile.svelte';
+	import Cover from '$lib/components/content/Cover.svelte';
+	import Sheet from '$lib/components/chrome/Sheet.svelte';
 	import WorkTile from '$lib/components/content/WorkTile.svelte';
 	import FocusLine from '$lib/components/content/FocusLine.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { waiting } from '$lib/waiting.svelte';
-	import { postAction, saves } from '$lib/saves.svelte';
-	import { seriesSaves } from '$lib/serial-saves';
+	import { postAction, saves, type FailedSave } from '$lib/saves.svelte';
+	import { seriesSaves, type Turn } from '$lib/serial-saves';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
 	import ChoiceMenu from '$lib/components/controls/ChoiceMenu.svelte';
@@ -97,6 +99,14 @@
 		type LibraryCard
 	} from '$lib/library/works';
 	import { pageQuery } from '$lib/library/paging';
+	import {
+		pickedInOrder,
+		refreshFacts,
+		titlesLine,
+		unseenCount,
+		workOf,
+		type Picked
+	} from '$lib/library/selection';
 	import type { Snapshot } from './$types';
 
 	let { data, form } = $props();
@@ -552,6 +562,16 @@
 	/** What MORE opens on: its rows, or SERVERS straight from the bar's server cell (S1). */
 	let moreAt = $state<'more' | 'servers'>('more');
 	const selected = new SvelteSet<number>();
+	/**
+	 * The facts of each selected series, noted while it was drawn (c698): the
+	 * selection outlives a shelf, a kind, a filter and a tag, so the bulk
+	 * actions read these rather than the cards on screen
+	 * (`src/lib/library/selection.ts`).
+	 */
+	const facts = new SvelteMap<number, Picked>();
+	/** SHOW (c698): the selection listed to review, and what it listed when it opened. */
+	let reviewing = $state(false);
+	let shownIds = $state<number[]>([]);
 
 	// ---- the server in use (c261, S1; doc/TV-APP.md, "Servers") -------------
 	/*
@@ -672,18 +692,20 @@
 	function stopSelecting() {
 		passed = form;
 		selecting = false;
+		reviewing = false;
 		selected.clear();
+		facts.clear();
+	}
+
+	function openShow() {
+		shownIds = [...selected];
+		reviewing = true;
 	}
 
 	// ---- sheets ------------------------------------------------------------
 	let deleting = $state(false);
 	/** The first few titles, so the question names what it's about. */
-	const deletingTitles = $derived.by(() => {
-		const names = series.filter((c) => selected.has(c.id)).map((c) => c.title);
-		if (names.length === 0) return '';
-		const shown = names.slice(0, 3).join(', ').toUpperCase();
-		return names.length > 3 ? `${shown} AND ${selected.size - 3} MORE` : shown;
-	});
+	const deletingTitles = $derived(titlesLine(selected, facts));
 	let sheetId = $state<number | null>(null);
 	let pickerOpen = $state(false);
 	let grouping = $state(false);
@@ -710,61 +732,100 @@
 		/** The Work it is in now: "IN <WORK> · MOVES HERE". */
 		inWork: string | null;
 	};
-	const groupRows = $derived.by((): GroupRow[] => {
-		const out: GroupRow[] = [];
-		const push = (r: GroupRow) => {
-			if (selected.has(r.seriesId) && !out.some((o) => o.seriesId === r.seriesId)) out.push(r);
+	const groupRows = $derived(
+		pickedInOrder(selected, facts).map((p): GroupRow => ({
+			seriesId: p.id,
+			title: p.title,
+			hue: p.hue,
+			addedAt: p.addedAt,
+			cover: p.cover,
+			kind: p.kind,
+			entryCount: p.entryCount,
+			meta: p.meta,
+			inWork: p.inWork
+		}))
+	);
+
+	/**
+	 * Every selectable series the page draws, as the facts a selection keeps:
+	 * a plain tile, a Work tile's parts, a person page's series. A book inside
+	 * a series is an entry, not a series, and is never selected.
+	 */
+	const drawnPicked = $derived.by((): Picked[] => {
+		const feet = data.workFeet;
+		const work = (id: number) => {
+			const f = feet[String(id)];
+			return f ? { id: f.id, name: f.name } : null;
 		};
-		if (data.person) {
-			for (const i of data.person.items) {
-				// A book inside a series is an entry, not a series: a Work and a
-				// series of books both take series.
-				if (i.entryId !== null) continue;
-				push({
-					seriesId: i.seriesId,
-					title: i.title,
-					hue: hueFor(i.title),
-					addedAt: i.addedAt,
-					cover: i.cover,
-					kind: i.kind,
-					entryCount: i.entries,
-					meta: `${kindLabel(i.kind)} · ${count(i.entries)} ${unitLabel(i.kind)}${i.read ? ' · READ' : ''}`,
-					inWork: data.workFeet[String(i.seriesId)]?.name ?? null
-				});
-			}
-		} else {
-			for (const c of series) {
-				if (!c.tile) {
-					push({
-						seriesId: c.id,
-						title: c.title,
-						hue: c.hue,
-						addedAt: c.addedAt,
-						cover: c.cover,
-						kind: c.kind,
-						entryCount: c.entryCount,
-						meta: sheetMeta(c),
-						inWork: data.workFeet[String(c.id)]?.name ?? null
-					});
-					continue;
-				}
-				for (const p of c.tile.parts)
-					push({
-						seriesId: p.seriesId,
-						title: p.title,
-						hue: hueFor(p.title),
-						addedAt: p.addedAt,
-						cover: p.cover,
-						kind: p.kind,
-						entryCount: p.entries,
-						meta: `${kindLabel(p.kind)} · ${count(p.entries)} ${unitLabel(p.kind)}${isFinished(p) ? ' · READ ✓' : ''}`,
-						inWork: c.tile.name
-					});
-			}
+		const out: Picked[] = [];
+		for (const i of data.person?.items ?? []) {
+			if (i.entryId !== null) continue;
+			out.push({
+				id: i.seriesId,
+				title: i.title,
+				hue: hueFor(i.title),
+				addedAt: i.addedAt,
+				cover: i.cover,
+				kind: i.kind,
+				entryCount: i.entries,
+				meta: `${kindLabel(i.kind)} · ${count(i.entries)} ${unitLabel(i.kind)}${i.read ? ' · READ' : ''}`,
+				work: work(i.seriesId),
+				inWork: work(i.seriesId)?.name ?? null,
+				hidden: i.hidden,
+				// FOLD is the grid's: a person page's series never folded from here.
+				language: null,
+				languages: undefined
+			});
 		}
-		// Selection order, which SvelteSet keeps: a Work's rows start as selected.
-		const at = new Map([...selected].map((id, i) => [id, i]));
-		return out.sort((a, b) => (at.get(a.seriesId) ?? 0) - (at.get(b.seriesId) ?? 0));
+		for (const c of series) {
+			if (!c.tile) {
+				out.push({
+					id: c.id,
+					title: c.title,
+					hue: c.hue,
+					addedAt: c.addedAt,
+					cover: c.cover,
+					kind: c.kind,
+					entryCount: c.entryCount,
+					meta: sheetMeta(c),
+					work: work(c.id),
+					inWork: work(c.id)?.name ?? null,
+					hidden: c.hidden,
+					language: c.language ?? null,
+					languages: c.languages
+				});
+				continue;
+			}
+			for (const p of c.tile.parts)
+				out.push({
+					id: p.seriesId,
+					title: p.title,
+					hue: hueFor(p.title),
+					addedAt: p.addedAt,
+					cover: p.cover,
+					kind: p.kind,
+					entryCount: p.entries,
+					meta: `${kindLabel(p.kind)} · ${count(p.entries)} ${unitLabel(p.kind)}${isFinished(p) ? ' · READ ✓' : ''}`,
+					work: work(p.seriesId),
+					inWork: c.tile.name,
+					hidden: p.hidden,
+					language: null,
+					languages: undefined
+				});
+		}
+		return out;
+	});
+	// Note what is drawn of the selection, and forget what left it. The map is
+	// written outside the tracking, so writing it cannot re-run this.
+	$effect(() => {
+		const drawn = drawnPicked;
+		const ids = new Set(selected);
+		const held = new Set(reviewing ? shownIds : []);
+		untrack(() => {
+			const { set, drop } = refreshFacts(ids, facts, drawn, held);
+			for (const p of set) facts.set(p.id, p);
+			for (const id of drop) facts.delete(id);
+		});
 	});
 	const answers = $derived(
 		groupAnswers(groupRows.map((r) => ({ kind: r.kind, entryCount: r.entryCount })))
@@ -775,7 +836,7 @@
 	const selectedWorks = $derived([
 		...new Set(
 			[...selected]
-				.map((id) => data.workFeet[String(id)]?.id)
+				.map((id) => workOf(id, data.workFeet, facts)?.id)
 				.filter((id): id is number => typeof id === 'number')
 		)
 	]);
@@ -784,13 +845,13 @@
 		selectedWorks.reduce(
 			(n, id) => n + (data.existingWorks.find((w) => w.id === id)?.series ?? 0),
 			0
-		) + [...selected].filter((id) => !data.workFeet[String(id)]).length
+		) + [...selected].filter((id) => !workOf(id, data.workFeet, facts)).length
 	);
 	/** TAKE OUT: how many series stay behind in their Works. */
 	const hideRemainCount = $derived(
 		selectedWorks.reduce((n, id) => {
 			const work = data.existingWorks.find((w) => w.id === id);
-			const here = [...selected].filter((s) => data.workFeet[String(s)]?.id === id).length;
+			const here = [...selected].filter((s) => workOf(s, data.workFeet, facts)?.id === id).length;
 			return n + Math.max(0, (work?.series ?? here) - here);
 		}, 0)
 	);
@@ -800,7 +861,7 @@
 	 */
 	const foldCodes = $derived.by(() => {
 		if (selected.size < 2 || selected.size > 3) return null;
-		const picked = series.filter((s) => selected.has(s.id));
+		const picked = pickedInOrder(selected, facts);
 		if (picked.length !== selected.size) return null;
 		if (picked.some((s) => s.kind !== 'doujin' || s.entryCount !== 1 || !s.language || s.languages))
 			return null;
@@ -991,7 +1052,9 @@
 		return out;
 	});
 	/** Every series selected is hidden, and the page can see at least one. */
-	const allHidden = $derived(allHiddenAmong(selected, (id) => hiddenById.get(id)));
+	const allHidden = $derived(
+		allHiddenAmong(selected, (id) => hiddenById.get(id) ?? facts.get(id)?.hidden)
+	);
 
 	/**
 	 * A Work tile is the run, so selecting it selects its parts: the bulk bar's
@@ -1079,6 +1142,99 @@
 	const ratingNow = new SvelteMap<number, Rating>();
 
 	/**
+	 * Whether what the tile draws for this field is an owner's tap that is not
+	 * stored (c659, round 2). Read from the page, not from the band: the band
+	 * carries one failure, and a second failed tap takes it, but the first
+	 * tile still shows a value nothing stored. A value the page does not hold
+	 * is the stored one -- a tile re-drawn after a trip away shows what the
+	 * server had, so it is not marked. A fresh tap still in flight is left
+	 * alone until its turn says which it is; a RETRY in flight keeps the mark,
+	 * because the value it sends is still not stored (wave 32).
+	 */
+	function unsaved(field: 'fav' | 'rating', id: number, stored: boolean | Rating): boolean {
+		// Read for its signal alone: a failure raised after the tap has to redraw
+		// the tile, and neither `pending()` (a plain Map) nor the value maps
+		// change when it is raised. What the band shows does not decide the mark.
+		void saves.failed;
+		// A RETRY's turn is pending too, but unlike a fresh tap's it has already
+		// failed once: `retrying` keeps the mark on through it. Without this a
+		// tile redrawn while a RETRY was out (another tile's tap landing, a
+		// scan's re-read) dropped the mark, and nothing redrew it when the RETRY
+		// failed, because a failed retry leaves `saves.failed` as it was and
+		// `pending()` signals nothing (wave 30's round-2 review, medium 2).
+		const key = `${field}:${id}`;
+		if (seriesSaves.pending(key) && !retrying.has(key)) return false;
+		const now = field === 'fav' ? favNow.get(id) : ratingNow.get(id);
+		return now !== undefined && now !== stored;
+	}
+
+	/**
+	 * Keys whose RETRY (the band's, or the nudge's) is in flight. A
+	 * `SvelteSet`, so its end redraws the tiles that read it.
+	 */
+	const retrying = new SvelteSet<string>();
+
+	/**
+	 * Whether a displaced failure of `key` still has something to say when the
+	 * band clears. Only a `fav:` or `rating:` failure whose tap this page still
+	 * holds is the page's to judge: a key of another kind (a book's `cover:`), or
+	 * one raised on the series screen and carried here by the app's store, keeps
+	 * its way out rather than being dropped unread (round 2's low).
+	 */
+	function unsavedKey(key: string): boolean {
+		const cut = key.indexOf(':');
+		const head = key.slice(0, cut);
+		if (head !== 'fav' && head !== 'rating') return true;
+		const id = Number(key.slice(cut + 1));
+		const card = series.find((s) => s.id === id);
+		// A tile the grid no longer draws cannot be asked; its failure keeps its
+		// way out rather than going with the tile.
+		if (!card) return true;
+		const held = head === 'fav' ? favNow.has(id) : ratingNow.has(id);
+		if (!held) return true;
+		return unsaved(head, id, head === 'fav' ? card.favourite : card.rating);
+	}
+
+	/**
+	 * Failures a later one took the band from (c659, round 2). `saves` holds
+	 * one, so a second failed tap would leave the first value unsaved with no
+	 * band offering RETRY or PUT BACK. Kept here in tap order and raised again
+	 * as the band clears, so every unstored value keeps its way out. A
+	 * multi-failure store in `saves` itself would be the better home; that file
+	 * is another slot's this wave (see the notes' Gaps).
+	 */
+	let displaced: FailedSave[] = [];
+
+	/**
+	 * Put a failure in the band, keeping any it displaces. A newer failure of
+	 * the same field replaces the older one: its value is superseded, and the
+	 * band would name a value the tile no longer draws.
+	 */
+	function raise(failed: FailedSave) {
+		displaced = displaced.filter((f) => f.key !== failed.key);
+		const held = saves.failed;
+		if (held && held.key !== failed.key) {
+			displaced = [...displaced.filter((f) => f.key !== held.key), held];
+		}
+		saves.fail(failed);
+	}
+
+	/** The value `key` names was stored: no failure of it has anything left to say. */
+	function forget(key: string) {
+		displaced = displaced.filter((f) => f.key !== key);
+	}
+
+	// The band is one and the failures can be more: when it clears, the next
+	// one takes it. A displaced failure whose value has since been stored (a
+	// later tap that landed) is dropped rather than raised over a stored value.
+	$effect(() => {
+		if (saves.failed) return;
+		let next = displaced.shift();
+		while (next && !unsavedKey(next.key)) next = displaced.shift();
+		if (next) saves.fail(next);
+	});
+
+	/**
 	 * One save in flight per series and field, the last tap winning, on the
 	 * series screen's queue (`seriesSaves`, doc/SERIES.md "FAV and the
 	 * rating", c566): the same keys, so a tile tap and a series screen tap on
@@ -1106,22 +1262,50 @@
 		}
 		// Not `pending()`: an older turn still reloading is pending too.
 		if (turn.newer()) return;
-		if (turn.ok) return settle();
-		saves.fail({
+		if (turn.ok) {
+			forget(key);
+			return settle();
+		}
+		const failed: FailedSave = {
 			...failure(),
 			key,
 			retry: async () => {
-				const again = await seriesSaves.run(key, save);
-				if (!again.latest) return again.ok;
+				retrying.add(key);
+				let again: Turn;
 				try {
-					if (again.ok) await reloadList();
+					again = await seriesSaves.run(key, save);
+					if (again.latest) {
+						try {
+							if (again.ok) await reloadList();
+						} finally {
+							seriesSaves.settle(key);
+						}
+					}
 				} finally {
-					seriesSaves.settle(key);
+					retrying.delete(key);
 				}
-				if (again.ok && !again.newer()) settle();
+				if (again.ok) {
+					// `saves.retry` clears the band whatever it holds by now. Another
+					// tile's failure raised while this retry was out is in it: keep
+					// that one, first in line, so the band raises it again as it clears
+					// (wave 30's round-2 review, medium 1; the notes' Gaps ask
+					// `saves.retry` to clear only its own failure).
+					// By its `retry`, not the object: `saves.failed` is `$state`, so it
+					// holds a proxy of what `raise` was given, never the object itself.
+					const held = saves.failed;
+					if (held && held.retry !== failed.retry) {
+						displaced = [held, ...displaced.filter((f) => f.key !== held.key)];
+					}
+				}
+				if (!again.latest) return again.ok;
+				if (again.ok && !again.newer()) {
+					forget(key);
+					settle();
+				}
 				return again.ok;
 			}
-		});
+		};
+		raise(failed);
 	}
 
 	function favourite(id: number, on: boolean) {
@@ -1562,6 +1746,15 @@
 			{/snippet}
 			{#snippet middle()}
 				<div class="selected-count" aria-live="polite">{selected.size} SELECTED</div>
+				<!-- SHOW (c698): the selection outlives the shelf, so what it holds is not
+				     all on screen; this lists it to review or untick. -->
+				<button
+					type="button"
+					class="cell-btn show-cell"
+					data-focus-mark="in"
+					disabled={selected.size === 0}
+					onclick={openShow}>SHOW</button
+				>
 			{/snippet}
 			{#snippet right()}
 				<button type="button" class="cell-btn" data-focus-mark="in" onclick={() => void selectAll()}
@@ -1612,11 +1805,21 @@
 				{/if}
 			{/snippet}
 			{#snippet middle()}
-				<a class="search-hint" href={resolve('/search')} aria-label="Search" data-focus-mark="in"
+				<!-- A library filtered to one kind hands it to the search, which hands it
+				     to SEARCH THE SOURCES (c699). -->
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- resolve() builds it -->
+				<a
+					class="search-hint"
+					href={data.filters.kind
+						? `${resolve('/search')}?kind=${data.filters.kind}`
+						: resolve('/search')}
+					aria-label="Search"
+					data-focus-mark="in"
 					><span class="short">/<span class="word"> search</span></span><span class="long"
 						>/ search title, tag, artist</span
 					></a
 				>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			{/snippet}
 			{#snippet right()}
 				{#if page.data.browse}
@@ -2154,6 +2357,8 @@
 							hue={s.hue}
 							rating={ratingNow.get(s.id) ?? s.rating}
 							favourite={favNow.get(s.id) ?? s.favourite}
+							favUnsaved={unsaved('fav', s.id, s.favourite)}
+							ratingUnsaved={unsaved('rating', s.id, s.rating)}
 							newCount={s.newCount}
 							hidden={s.hidden}
 							indexing={!s.indexed}
@@ -2425,6 +2630,48 @@
 	shelves={data.shelves}
 	onclose={() => (pickerOpen = false)}
 />
+
+<!-- SHOW (c698): the selection, wherever it was ticked, in the order it was
+     ticked. A row's tick takes it out and puts it back; the rows stay until
+     the sheet closes, so a slip is undone where it was made. GROUP's own
+     sheet draws its rows the same way. -->
+<Sheet open={reviewing} onclose={() => (reviewing = false)} label="The selection">
+	<div class="show-head">
+		<div class="show-title">
+			THE SELECTION · {selected.size} SERIES
+		</div>
+		<button type="button" class="show-done" onclick={() => (reviewing = false)}>DONE</button>
+	</div>
+	<ul class="show-rows">
+		{#each pickedInOrder(shownIds, facts) as p (p.id)}
+			{@const on = selected.has(p.id)}
+			<li class="show-row" class:off={!on}>
+				<button
+					type="button"
+					class="show-tick"
+					role="checkbox"
+					aria-checked={on}
+					aria-label="Keep {p.title}"
+					onclick={() => toggle(p.id)}><span class="box" class:on>{on ? '✓' : ''}</span></button
+				>
+				<span class="show-cov"
+					><Cover src={coverSrc(p.id, p.cover)} hue={p.hue} width={34} height={49} /></span
+				>
+				<span class="show-t">
+					<span class="a">{p.title}</span>
+					<span class="b">{p.meta}{p.work ? ` · IN ${p.work.name.toUpperCase()}` : ''}</span>
+				</span>
+			</li>
+		{/each}
+	</ul>
+	{#if unseenCount(shownIds, facts) > 0}
+		<!-- SELECT ALL takes the pages not loaded by id alone: they are selected,
+		     and the bulk bar acts on them, but the page has never drawn them. -->
+		<div class="show-unseen">
+			{count(unseenCount(shownIds, facts))} MORE FROM SELECT ALL · NOT LOADED, SO NOT LISTED
+		</div>
+	{/if}
+</Sheet>
 
 <style>
 	.tag-title {
@@ -2974,6 +3221,102 @@
 	}
 	.x {
 		font: 500 18px var(--font-mono);
+	}
+	/* SHOW's sheet (c698): GROUP's sheet's head and rows, drawn the same way. */
+	.show-head {
+		flex-shrink: 0;
+		display: flex;
+		align-items: stretch;
+		height: 64px;
+		border-bottom: var(--hairline);
+	}
+	.show-title {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+		font: var(--type-control);
+	}
+	.show-done {
+		padding: 0 24px;
+		border: 0;
+		border-left: var(--hairline);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: var(--type-control);
+		cursor: pointer;
+	}
+	.show-rows {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.show-row {
+		display: flex;
+		align-items: stretch;
+		min-height: 64px;
+		border-bottom: var(--hairline);
+	}
+	.show-row.off {
+		opacity: 0.4;
+	}
+	.show-tick {
+		width: 64px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		cursor: pointer;
+	}
+	.show-tick .box {
+		width: 24px;
+		height: 24px;
+		border: 1.5px solid var(--line-2);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font: 500 14px var(--font-mono);
+		color: var(--on-accent);
+	}
+	.show-tick .box.on {
+		border-color: var(--accent);
+		background: var(--accent);
+	}
+	.show-cov {
+		display: flex;
+		align-items: center;
+		padding-right: 16px;
+	}
+	.show-t {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 4px;
+		padding: 8px 24px 8px 0;
+	}
+	.show-t .a {
+		font: 500 14px/1.3 var(--font-sans);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.show-t .b {
+		font: 400 11px/1.35 var(--font-mono);
+		color: var(--text-2);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.show-unseen {
+		padding: 16px 24px;
+		font: var(--type-label);
+		color: var(--text-2);
 	}
 	.selected-count {
 		padding: 0 18px;

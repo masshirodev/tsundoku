@@ -86,11 +86,45 @@ sheet (the owner's ask, 2026-09-23):
   the tile. Letting go saves and closes; a tap anywhere else, or Esc, closes
   without choosing.
 
-Neither opens the series. Both show the change at once and put the old value
-back if the write fails; they use the same `favourite` and `rate` actions as
-the sheet. They're gone while selecting (every tap is a pick then) and while
-offline (writes need the workstation). `CoverTile` takes them as `onfavourite`
-and `onrate`; without those it draws the plain badge and bars.
+Neither opens the series. Both show the change at once and save behind it;
+they use the same `favourite` and `rate` actions as the sheet. A write that
+fails keeps the tapped value, drawn dashed, with the app's failure band
+offering PUT BACK and RETRY (below, and doc/WAITING.md, "Writes that fail").
+They're gone while selecting (every tap is a pick then) and while offline
+(writes need the workstation). `CoverTile` takes them as `onfavourite` and
+`onrate`; without those it draws the plain badge and bars, with no mark (so a
+tile that is not editable draws its value plain, even one a failed tap left
+behind).
+
+**A failed write draws its value dashed** (c659). The control wears the
+series screen's own `.unsaved` mark -- `1.5px dashed var(--accent)`, no new
+colour -- while the page holds a tap for it that is not stored: a value in
+`favNow`/`ratingNow` that differs from the card's stored one (`favUnsaved`,
+`ratingUnsaved`, from the page's `unsaved()`). A fresh tap still in flight is
+not marked until its turn says which it is; a RETRY in flight (the band's or
+the next navigation's) keeps the mark, because the value it sends is still
+not stored, and a redraw during it (another tile's save landing, a scan's
+re-read) does not drop it (wave 32).
+
+The mark is the page's answer, not the band's, because the band carries one
+failure (`saves`, `src/lib/saves.svelte.ts`): a second failed tap takes it
+while the first tile still shows a value nothing stored, and that tile stays
+marked. The page keeps the displaced failures in its own list and hands the
+band back to the next as it clears, including when a RETRY that lands clears a
+band another tile's failure had taken meanwhile (wave 32). So **while the
+library page is open**, each unstored value keeps its PUT BACK and RETRY. The
+list dies with the page: a displaced failure is dropped on leaving, and the
+tile that comes back draws the stored value, unmarked. Only the failure the
+band holds survives the trip, as every failure does (the band is the app's).
+A displaced failure the page does not judge (a key that is not a tile's
+`fav:`/`rating:`, or one the page holds no tap for, such as a series screen
+failure the band carried here) is raised again as it was, never dropped
+unread.
+
+A tile drawn again after leaving the library and coming back holds the stored
+value, not the old tap (`favNow` dies with the page and `saves` does not), so it
+is not marked: the value it draws is what the server has. The props default to
+false, so a user of the tile that passes neither draws a stored value.
 
 **Two quick taps take turns** (c615). The tile's saves are on the series
 screen's own queue (`seriesSaves`, `src/lib/serial-saves.ts`)
@@ -220,6 +254,50 @@ chapters had put their series back on NEW and on the `+N` badge. So a
 series arrives only with a chapter that is still unread, rung 36 redated the
 existing ones by their newest unread arrival, and `+N` counts a downloaded
 chapter only while it's unread.
+
+## A selection outlives the shelf
+
+SELECT stays on, and keeps what it holds, while the owner moves about the
+library page: a shelf tab, a KIND cell, a FILTER choice, a tag or person page,
+the sort, and BACK between those (all one page, `src/routes/+page.svelte`, so
+nothing ends SELECT on the way; measured on `071465ee` with a shelf tab and a
+kind cell, c698). A series ticked on one shelf stays ticked on the next,
+though it is no longer drawn.
+
+- **The bulk actions act on the whole selection, drawn or not** (c698). They
+  used to read their facts off the cards on screen, so a series ticked on one
+  shelf and then out of sight was dropped from GROUP's rows (GROUP posts its
+  rows, so it was left out of the group) and from DELETE's titles, FOLD could
+  not be offered, and HIDE could not see its Work. The page now notes each
+  selected series' facts while it is drawn and keeps them while it is selected
+  (`facts`, the `Picked` record in `src/lib/library/selection.ts`): title,
+  cover, kind and size, GROUP's row line, its Work, hidden, its language. They
+  are refreshed each time the series is drawn again, and forgotten when it is
+  unticked. A fact gone stale since it was noted only words a sheet; the
+  server judges every write. HIDE reads a series' Work from the page's
+  `workFeet` first and from the note second, as the bar always has: a deep
+  Work tile's parts have no feet, so its HIDE still posts at once and the
+  server takes the Work whole (`works-flow`'s c660 case relies on it).
+- **SHOW** sits beside `N SELECTED` in the selecting bar. It opens a sheet
+  that lists the selection in the order it was ticked (GROUP's BY HAND order),
+  each row with GROUP's tick box: a tap takes the series out of the selection
+  and a second puts it back (at the end, since the selection's order is the
+  order of ticks). The rows stay until the sheet closes, so a slip is undone
+  where it was made. Series SELECT ALL took by id from pages never loaded
+  have no facts to list: the sheet says how many (`N MORE FROM SELECT ALL ·
+NOT LOADED, SO NOT LISTED`); they are selected all the same.
+- **What ends SELECT** (and drops it): the bar's ✕; GROUP's, HIDE's and
+  DELETE's own success (`ondone`); and anything that makes the library page
+  again -- a reload, or leaving the library for another screen (the series
+  screen, `/search`, a sidebar link) and coming back. ESC does not end SELECT
+  (it never has: a Sheet's ESC closes the sheet). A second tab has a selection
+  of its own. A TV has no SELECT.
+- **The library's search is not part of it yet.** `/search` is a screen of its
+  own whose hits are rows, not tiles, and the selecting bar has no way there,
+  so a selection does not survive a search and a search's hits cannot be
+  ticked. Ticking them needs a selecting state drawn on `/search` (its bar
+  holds the search field), which is a design question for the owner: the
+  brief is in the wave 32 notes (`doc/handoff-notes/library.md`, c698).
 
 ## REFRESH a selection
 

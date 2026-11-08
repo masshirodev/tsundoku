@@ -8,6 +8,8 @@ import { parseSearch } from '$lib/library/search';
 import { configured, searchSources } from '$lib/server/downloads';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { browseList } from '$lib/server/engine/browse';
+import { kindOfSource } from '../downloads/search/kinds.server';
+import { kindAsked, kindsServed, sourcesOfKind } from '../downloads/search/source-kinds';
 
 export const load: PageServerLoad = async ({ url, cookies }) => {
 	const q = url.searchParams.get('q') ?? '';
@@ -28,14 +30,27 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		return { q, result: null, sources: null, browse, now: Date.now() };
 	}
 	const reveal = isRevealed(cookies);
-	// SEARCH THE SOURCES after the titles (Download States 1e): how many it would ask.
-	const sources = configured()
+	// SEARCH THE SOURCES after the titles (Download States 1e): how many it would
+	// ask. A library filtered to one kind (`?kind=`, carried from its search
+	// cell) asks that kind's sources, when one serves it (c699).
+	const asking = configured()
 		? await searchSources(reveal).then(
-				(s) => s.length,
+				(all) => {
+					const kinded = all.map((s) => ({ ...s, kind: kindOfSource(s.id) }));
+					const kind = kindAsked(url.searchParams.get('kind'), kindsServed(kinded));
+					return { n: sourcesOfKind(kinded, kind).length, kind };
+				},
 				() => null
 			)
 		: null;
-	return { q, result: search(input.text, reveal), sources, browse: null, now: Date.now() };
+	return {
+		q,
+		result: search(input.text, reveal),
+		sources: asking?.n ?? null,
+		sourcesKind: asking?.kind ?? null,
+		browse: null,
+		now: Date.now()
+	};
 };
 
 export const actions: Actions = {
@@ -54,7 +69,10 @@ export const actions: Actions = {
 			redirect(303, '/');
 		}
 		if (input.type === 'page') redirect(303, input.href);
-		if (input.type === 'empty') redirect(303, '/search');
-		redirect(303, `/search?q=${encodeURIComponent(input.text)}`);
+		// The kind the search came with stays with it (c699).
+		const kind = url.searchParams.get('kind');
+		const withKind = kind ? `kind=${encodeURIComponent(kind)}` : '';
+		if (input.type === 'empty') redirect(303, withKind ? `/search?${withKind}` : '/search');
+		redirect(303, `/search?q=${encodeURIComponent(input.text)}${withKind ? `&${withKind}` : ''}`);
 	}
 };

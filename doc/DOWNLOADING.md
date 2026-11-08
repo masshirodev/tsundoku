@@ -161,6 +161,26 @@ chapter the new source doesn't number at all leaves the queue.
   off it isn't counted either. Novel plugins are asked the same way
   ([`NOVELS.md`](NOVELS.md), "Browsing and adding"). `?source=<id>` asks just
   one, and lists all it found.
+- **A KIND band over the sources' tabs** (c699), in their idiom: `ALL`, the
+  default and every source as above, then one tab per kind an installed
+  source serves, in the registry's order (`MANGA`, `NOVELS`, `ANIME`; English,
+  as `/downloads` is). A source's kind is its family's
+  (`kindOfSource`, `src/routes/downloads/search/kinds.server.ts`:
+  `sourceFamily`, then `SOURCE_KINDS[family]`), so a Mihon source of manhwa is
+  a manga source and MANHWA is never a tab. `?kind=<kind>` asks only that
+  kind's sources, in the load and in `/downloads/search/ask` both (a re-ask
+  under a kind 404s for another kind's source), so an anime search does not
+  wait on twenty manga extensions; the sources' tabs under it are that kind's
+  ALL and its sources, and a source's tab keeps the kind. `?source=` still
+  names one source under a kind, whatever its kind. A word no installed
+  source serves (`?kind=doujin`, a typo) is ALL. Each kind tab counts the
+  hits its sources found so far; a kind this search did not ask, and ALL
+  under a kind, show `—`. With sources of one kind only the band is not drawn,
+  since ALL already is that kind. The library hands its kind on: filtered to
+  one, its search cell opens `/search?kind=<kind>`, which keeps it as the
+  typing replaces the address, counts that kind's sources on SEARCH THE
+  SOURCES →, and opens it with the kind. A TV draws the band as one more row
+  of links above the sources'.
 - **Results fill in source by source.** Each source is asked at once, as a
   promise of its own that the page streams in, and the list is in MOVE's
   order (c490; [`MOVE.md`](MOVE.md), "The candidates, and picking one"): the
