@@ -240,7 +240,7 @@ test('the general line in Portuguese, for a browser that reads it (c721)', async
 
 /**
  * "Reached" is any request by a Wi-Fi listener from a home-network client
- * since the code was made (`noPhoneYet`, src/lib/server/firewall.ts): the
+ * since the listeners opened (`noPhoneYet`, src/lib/server/firewall.ts): the
  * sign-in page a typed address opens counts, since it proves the firewall
  * lets a phone in. The wait is 4 s here, not 30, by the seam.
  */
@@ -276,11 +276,32 @@ test('NO PHONE HAS REACHED THIS COMPUTER YET appears while the code waits, and c
 	}
 	await expect(quiet).toHaveCount(0, { timeout: 15_000 });
 	await expect(fw.locator('.fw-cmd')).toHaveCount(0);
+});
 
-	// NEW CODES starts the wait again: the reach was before this code.
-	await page.locator('.pair-foot').getByRole('button', { name: 'NEW CODES' }).click();
-	await expect(quiet).toBeVisible({ timeout: 15_000 });
-	// And a code used is no longer waiting for anyone.
+const noPhoneYet = async (request: APIRequestContext, at: Install) =>
+	((await (await request.get(`${at.base}/api/wifi`)).json()) as { noPhoneYet: boolean }).noPhoneYet;
+
+/**
+ * Round 2: a computer a phone has reached is settled. A reach before NEW
+ * CODES proves the same firewall, so the new code's wait passes in silence
+ * (the false alarm on every SETTINGS visit the review found). New listeners
+ * are what ask again: OFF and ON forget the reach, and with no phone paired
+ * the code still up asks at once.
+ */
+test('a phone that reached this computer before NEW CODES: no NO PHONE HAS REACHED after the wait, until OFF and ON (round 2)', async ({
+	page,
+	request,
+	playwright
+}) => {
+	at = await serve({
+		TSUNDOKU_FIREWALL_PLATFORM: 'linux',
+		TSUNDOKU_FIREWALL_PROBE: 'none',
+		TSUNDOKU_FIREWALL_QUIET_MS: '4000'
+	});
+	await switchOn(request, at);
+	const fw = await openPanel(page, at);
+	const quiet = fw.getByText('NO PHONE HAS REACHED THIS COMPUTER YET · A FIREWALL?');
+	// A phone scans the code: a request by the Wi-Fi listener, and the code used.
 	const { code } = (await (await request.get(`${at.base}/api/wifi`)).json()) as Wifi;
 	const scan = await playwright.request.newContext();
 	try {
@@ -290,5 +311,21 @@ test('NO PHONE HAS REACHED THIS COMPUTER YET appears while the code waits, and c
 	} finally {
 		await scan.dispose();
 	}
-	await expect(quiet).toHaveCount(0, { timeout: 15_000 });
+	await page.locator('.pair-foot').getByRole('button', { name: 'NEW CODES' }).click();
+	// Past the 4 s wait and two of the panel's 5 s polls: the server says no, and so does the panel.
+	await page.waitForTimeout(4000 + 2 * 5000);
+	expect(await noPhoneYet(request, at)).toBe(false);
+	await expect(quiet).toHaveCount(0);
+	await expect(fw.getByRole('button', { name: /THE LINES TO COPY/ })).toBeEnabled();
+	// A visit later, with the kept code older than the wait: still nothing.
+	await page.reload();
+	await expect(page.getByLabel('Pairing', { exact: true })).toBeVisible();
+	await page.waitForTimeout(5000 + 1000);
+	await expect(quiet).toHaveCount(0);
+
+	// OFF and ON: new listeners, which can meet a new rule, and no phone paired.
+	expect((await request.post(`${at.base}/api/wifi`, { data: { action: 'off' } })).ok()).toBe(true);
+	await switchOn(request, at);
+	await expect.poll(() => noPhoneYet(request, at!), { timeout: 15_000 }).toBe(true);
+	await expect(quiet).toBeVisible({ timeout: 15_000 });
 });

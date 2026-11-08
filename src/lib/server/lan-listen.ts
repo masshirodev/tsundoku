@@ -37,8 +37,9 @@ export type LanStatus = {
 	/**
 	 * When a request last came in by a Wi-Fi listener from a home-network
 	 * client, any request at all (c721): proof the computer's firewall lets a
-	 * phone in, whatever the request then gets. Null until one does, in this
-	 * process. Optional for the fakes that stand in for this object.
+	 * phone in, whatever the request then gets. Null until one does by the
+	 * listeners open now: closing them (OFF, a moved address) forgets it, since
+	 * new listeners can meet a new rule. Optional for the fakes that stand in for this object.
 	 */
 	reachedAt?: number | null;
 };
@@ -129,6 +130,7 @@ export function startListeners(o: {
 			)
 		);
 		lan.clear();
+		reachedAt = null;
 	};
 
 	/** Listen where the home network is now; note a moved address. */

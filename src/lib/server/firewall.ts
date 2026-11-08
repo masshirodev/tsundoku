@@ -179,19 +179,27 @@ export const quietMs = (env: NodeJS.ProcessEnv = process.env) => {
 
 /**
  * NO PHONE HAS REACHED THIS COMPUTER YET (c721): a live code has been up for
- * `quiet` ms, and no request has come in by a Wi-Fi listener since it was
- * made. "Reached" is any request at all from a home-network client (the
- * sign-in page, the pair link, a paired phone's page): any of them proves the
- * firewall lets a phone in, so none of them is the firewall's question.
+ * `quiet` ms, and nothing yet shows that a phone can reach this computer.
+ * "Reached" is any request at all from a home-network client by the Wi-Fi
+ * listeners now open (the sign-in page, the pair link, a paired phone's
+ * page): any of them proves the firewall lets a phone in. A paired phone
+ * proves it too, so an owner whose phones are paired and closed is never
+ * asked. Neither depends on the code: a request before NEW CODES proves the
+ * same firewall, so a new code alone doesn't start the wait again. What does
+ * is new listeners (OFF and ON, a moved address, a restart: `reachedAt`
+ * resets in lan-listen.ts), since they can meet a new rule, and then only
+ * on a computer no phone is paired with.
  */
 export function noPhoneYet(o: {
 	live: boolean;
 	madeAt: number | null;
 	reachedAt: number | null | undefined;
+	/** Phones paired with this computer (`pairedDevices().size`). */
+	paired: number;
 	now: number;
 	quiet: number;
 }): boolean {
 	if (!o.live || o.madeAt === null) return false;
 	if (o.now - o.madeAt < o.quiet) return false;
-	return o.reachedAt == null || o.reachedAt < o.madeAt;
+	return o.reachedAt == null && o.paired === 0;
 }

@@ -220,8 +220,9 @@ export function wifiView(
  * The panel's view with what it says about a firewall (c721; doc/WIFI.md, "A
  * firewall on the computer"): the server's platform, the firewall the probe
  * found on, the running app's port and the computer's own home network for
- * the lines to copy, and whether a live code has waited 30 s with no phone
- * reaching this computer. What the load, the poll and ON, OFF and NEW CODE
+ * the lines to copy, and whether a live code has waited 30 s with nothing yet
+ * showing a phone can reach this computer (no request by these listeners, no
+ * paired phone). What the load, the poll and ON, OFF and NEW CODE
  * answer, so a press never drops the line the poll drew. Null fields where
  * there is no home address to name.
  */
@@ -254,6 +255,7 @@ export async function wifiAnswer(
 			live: !!view.phone && view.listening && view.code?.state === 'live',
 			madeAt: code?.madeAt ?? null,
 			reachedAt: s?.reachedAt,
+			paired: pairedDevices().size,
 			now,
 			quiet: quietMs()
 		})

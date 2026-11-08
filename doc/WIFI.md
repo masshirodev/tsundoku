@@ -134,18 +134,31 @@ proto tcp`. firewalld: a rich rule in the default zone, limited to the
   same network, then `--reload`. tsundoku never runs either: the friend
   does, in a terminal, with their own password.
 - **NO PHONE HAS REACHED THIS COMPUTER YET · A FIREWALL?** When a live code
-  has been up 30 s and no request has come in by a Wi-Fi listener since it
-  was made, the line appears over the firewall's, with its help opened
-  under it. **Reached** is any request at all a Wi-Fi listener takes from a
+  has been up 30 s and nothing yet shows that a phone can reach this
+  computer, the line appears over the firewall's, with its help opened
+  under it. Two things show it: a **reach**, and a **paired phone**.
+  **Reached** is any request at all a Wi-Fi listener takes from a
   home-network client (`reachedAt` in `src/lib/server/lan-listen.ts`): the
   sign-in page a typed address opens, the pair link, a paired phone's page.
-  Any of them proves the firewall lets a phone in, so none of them is the
-  firewall's question. It clears on the next poll after a phone reaches the
-  computer, or once the code is used; NEW CODES starts the 30 s again,
-  since a phone that reached an earlier code says nothing about now. It is
-  in every answer the panel gets (the load, the 5 s poll, ON, OFF, NEW
-  CODES: `wifiAnswer` in `src/lib/server/wifi.ts`), so a press never drops
-  it; a phone over Wi-Fi is given none of it.
+  Any of them proves the firewall lets a phone in. A phone paired with this
+  computer (a DEVICES row, `pairedDevices()`) proves it too, so an owner
+  whose phones are paired, with none open now, is never asked on a SETTINGS
+  visit (round 2 of c721: the line used to fire there, on the kept code,
+  every visit). The rule:
+  - **The code doesn't restart the wait.** A reach before NEW CODES, or
+    before the code SETTINGS renewed, proved the same firewall; NEW CODES
+    alone asks nothing again.
+  - **New listeners do.** OFF and ON, a moved address (the listeners
+    follow it) and a restart forget the reach, since a new listener can
+    meet a new rule (a new network, Windows' Public profile); then, on a
+    computer no phone is paired with, the code still up asks at once.
+  - It clears on the next poll after a phone reaches the computer, or once
+    a phone is paired. It is in every answer the panel gets (the load, the
+    5 s poll, ON, OFF, NEW CODES: `wifiAnswer` in `src/lib/server/wifi.ts`),
+    so a press never drops it; a phone over Wi-Fi is given none of it.
+  - A request from the computer itself to its own home address counts as a
+    reach today, though local traffic bypasses a firewall: under "What it
+    doesn't do yet".
 - **The e2e's seams**, read only when set and set by no launcher:
   `TSUNDOKU_FIREWALL_PLATFORM` (`linux`, `win32`, `darwin`),
   `TSUNDOKU_FIREWALL_PROBE` (`ufw`, `firewalld`, `none`) and
@@ -396,6 +409,12 @@ one at a time.
   the firewall rule a friend's Allow click makes added by the test, since the
   dialog only appears to someone at the desktop.
 - The launcher's console doesn't print the Wi-Fi address.
+- A request from the computer's own address to its home address isn't told
+  apart from a phone's, so the owner trying the QR's link in a second tab on
+  the computer clears NO PHONE HAS REACHED, though local traffic bypasses a
+  firewall (review of c721, round 2, low). Not done: the e2e's "phone" is
+  this machine on its own home address too, so the tests would first need a
+  seam that marks their requests as from elsewhere.
 
 ## Tests
 
@@ -459,12 +478,15 @@ started for it, so neither depends on its place in the file, c582),
 `tests/pairing-origins.spec.ts` (the per-origin names, the move from the old
 one, the scrub); `tests/firewall-domain.spec.ts` (c721: the probe's reading
 of each answer, a missing binary and a timeout as unknown, the commands, a
-/24, /16 and /20 network and the fallback, when NO PHONE HAS REACHED shows,
-and the panel's answer over both doors) and `tests/friend-firewall.e2e.ts`
+/24, /16 and /20 network and the fallback, when NO PHONE HAS REACHED shows
+and that a reach before the code or a paired phone keeps it quiet, and the
+panel's answer over both doors) and `tests/friend-firewall.e2e.ts`
 (an install per case with the platform and the probe faked: the general
 line and its commands, ufw and firewalld named, Windows and its fix, the
 Portuguese, and NO PHONE HAS REACHED appearing, clearing when a phone's
-request arrives, coming back after NEW CODES and clearing on a scan);
+request arrives; and, on an install of its own, staying away after a scan
+and NEW CODES past the wait and a reload, then asking again after OFF and
+ON);
 `tests/friend-pair-firefox.e2e.ts` (c723: a pair link opened in Firefox
 with three sets of HTTPS prefs and in Chromium as a Pixel 7, through a
 logging relay, lands on the welcome screen in one navigation, signed in;

@@ -215,18 +215,30 @@ describe('the home network', () => {
 });
 
 describe('whether a firewall may be in the way', () => {
-	const at = { live: true, madeAt: 1000, reachedAt: null, now: 1000 + QUIET_MS, quiet: QUIET_MS };
-	it('asks once a live code has waited its 30 s with no phone since it was made', () => {
+	const at = {
+		live: true,
+		madeAt: 1000,
+		reachedAt: null,
+		paired: 0,
+		now: 1000 + QUIET_MS,
+		quiet: QUIET_MS
+	};
+	it('asks once a live code has waited its 30 s with nothing yet reaching the computer', () => {
 		expect(noPhoneYet(at)).toBe(true);
 		expect(noPhoneYet({ ...at, now: 1000 + QUIET_MS - 1 })).toBe(false);
-		// A phone that reached an earlier code says nothing about this one.
-		expect(noPhoneYet({ ...at, reachedAt: 999 })).toBe(true);
 	});
 	it('says nothing once anything reached it, or no code waits', () => {
 		expect(noPhoneYet({ ...at, reachedAt: 1000 })).toBe(false);
 		expect(noPhoneYet({ ...at, reachedAt: 5000 })).toBe(false);
 		expect(noPhoneYet({ ...at, live: false })).toBe(false);
 		expect(noPhoneYet({ ...at, madeAt: null })).toBe(false);
+	});
+	it('says nothing on a settled computer: a reach before this code, or a paired phone (round 2)', () => {
+		// A phone reached an earlier code, then NEW CODES: the same firewall let it in.
+		expect(noPhoneYet({ ...at, madeAt: 9000, reachedAt: 999, now: 9000 + QUIET_MS })).toBe(false);
+		// Phones paired long ago, none open now, and a code kept past its 30 s.
+		expect(noPhoneYet({ ...at, paired: 1 })).toBe(false);
+		expect(noPhoneYet({ ...at, paired: 3, now: 1000 + 10 * QUIET_MS })).toBe(false);
 	});
 	it('waits 30 s unless the e2e shortens it', () => {
 		expect(quietMs({})).toBe(30_000);
@@ -241,7 +253,7 @@ process.env.DATABASE_PATH = ':memory:';
 process.env.TSUNDOKU_LOGIN = 'password';
 process.env.TSUNDOKU_SERVE = 'local';
 vi.mock('$env/dynamic/private', () => ({ env: process.env }));
-const { pairing } = await import('$lib/server/pairing');
+const { addPaired, linkPaired, pairing, signOutDevice } = await import('$lib/server/pairing');
 const { wifiAnswer } = await import('$lib/server/wifi');
 const api = await import('../src/routes/api/wifi/+server');
 type LanStatus = import('$lib/server/lan-listen').LanStatus;
@@ -286,6 +298,22 @@ describe('the panel’s answer (wifiAnswer)', () => {
 		status = { ...status, reachedAt: null };
 		pairing.redeem(pairing.current()!.code, T0 + 10, 'Phone');
 		expect((await wifiAnswer({ now: T0 + QUIET_MS }))!.noPhoneYet).toBe(false);
+	});
+	it('asks nothing once a phone reached this computer before the code now up (round 2)', async () => {
+		status = { ...status, reachedAt: T0 - 60_000 };
+		pairing.fresh(T0);
+		expect((await wifiAnswer({ now: T0 + 10 * QUIET_MS }))!.noPhoneYet).toBe(false);
+	});
+	it('asks nothing of a computer a phone is paired with, even on new listeners (round 2)', async () => {
+		const token = addPaired({ label: 'Phone', address: '192.168.77.40' }, T0 - 86_400_000);
+		linkPaired(token, 'dev-firewall-paired');
+		try {
+			// reachedAt null: listeners opened since, and no phone tab open now.
+			expect((await wifiAnswer({ now: T0 + QUIET_MS }))!.noPhoneYet).toBe(false);
+		} finally {
+			signOutDevice('dev-firewall-paired');
+		}
+		expect((await wifiAnswer({ now: T0 + QUIET_MS }))!.noPhoneYet).toBe(true);
 	});
 	it('names nothing with no home address', async () => {
 		status = { ...status, reach: { kind: 'none' }, listening: [] };
