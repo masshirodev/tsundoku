@@ -31,13 +31,14 @@
 	 * the same title before a volume number (1b).
 	 *
 	 * `?series=` is one series only (FIND or CHANGE on its screen): deciding
-	 * goes back to it.
+	 * goes back to it, but for LINK N SEASONS, which stays with its UNDO (c644).
 	 */
 	let { data } = $props();
 
 	type Item = (typeof data.items)[number];
 	/** One season of an anime (c240), when FIND opened the page on one. */
-	// A partial LINK N SEASONS redraws it from the workstation's answer (c465).
+	// Any LINK N SEASONS redraws it from the workstation's answer (c465, c644),
+	// and its UNDO from a fresh read (`redrawSeason`).
 	// svelte-ignore state_referenced_locally
 	let season = $state(data.season);
 	/** The rest of the show, from the entry just linked: ticked where the counts agree. */
@@ -323,6 +324,8 @@
 		const u = undo;
 		if (!u?.undo || busy) return;
 		busy = true;
+		// A retry that succeeds must not leave the last failure up.
+		failed = null;
 		const r = await post(u.undo.service, {
 			series: u.undo.series,
 			undo: u.undo.kind,
@@ -333,11 +336,13 @@
 			facts: u.undo.facts
 		});
 		if (!r?.ok) {
-			busy = false;
 			// A refusal says why (c592's part 2, c595's LINK N SEASONS): the band
-			// keeps its UNDO, and nothing changed.
-			const why = ((await r?.json().catch(() => ({}))) as { message?: string }).message;
+			// keeps its UNDO, and nothing changed. No answer at all has no body.
+			const why = r
+				? ((await r.json().catch(() => ({}))) as { message?: string }).message
+				: undefined;
 			failed = why ? `${why} · NOTHING UNDONE` : NO_ANSWER;
+			busy = false;
 			return;
 		}
 		// The season under the band came from LINK N SEASONS' answer, which this
@@ -375,7 +380,12 @@
 			() => null
 		);
 		if (!r?.ok) return;
-		const now = (await r.json()) as { single: typeof single; season: typeof season };
+		// Outside /api/, so a lapsed session is a 303 to /login's HTML: a 200 here.
+		const now = (await r.json().catch(() => null)) as {
+			single: typeof single;
+			season: typeof season;
+		} | null;
+		if (!now) return;
 		single = now.single;
 		season = now.season;
 	}
@@ -1108,7 +1118,9 @@
 
 	{#if failed}
 		<div class="band" role="alert"><div class="bt"><div class="line">{failed}</div></div></div>
-	{:else if undo}
+	{/if}
+	<!-- A failure takes the place of a band with nothing to take back (SKIP's), never of an UNDO (c644). -->
+	{#if undo && (undo.undo || !failed)}
 		<div class="band" role="status">
 			<div class="bt">
 				<div class="line">{undo.title}</div>

@@ -25,6 +25,23 @@ const band = (page: import('@playwright/test').Page) => page.getByText(/SERIES T
 const listLine = (page: import('@playwright/test').Page, key: string) =>
 	page.locator(`[data-row="lists"] [data-line="${key}"]`);
 
+const NO_ANSWER = 'THE WORKSTATION DID NOT ANSWER · NOTHING CHANGED';
+const alertLine = (page: import('@playwright/test').Page) =>
+	page.locator('.band[role="alert"] .line');
+const undoButton = (page: import('@playwright/test').Page) =>
+	page.getByRole('button', { name: 'UNDO' });
+/** Every POST to the review's door that `when` picks gets no answer, as off the network. */
+async function abortPosts(
+	page: import('@playwright/test').Page,
+	when: (body: Record<string, unknown>) => boolean
+) {
+	await page.route('**/api/links', (route) =>
+		when((route.request().postDataJSON() ?? {}) as Record<string, unknown>)
+			? route.abort()
+			: route.continue()
+	);
+}
+
 test('the library band counts the series to review, and opens the review', async ({ page }) => {
 	await page.goto('/');
 	await expect(band(page)).toHaveText('02 SERIES TO LINK');
@@ -140,6 +157,57 @@ test('a pasted link needs AniList: unreachable, it says so and links nothing', a
 	await expect(page.getByText('○ ANILIST UNREACHABLE · LINK STILL WORKS')).toBeVisible();
 	await page.getByLabel('AniList or MAL link').fill('not a link');
 	await expect(page.locator('.fnote.last')).toHaveText('NOT AN ANILIST OR MAL MANGA LINK');
+});
+
+test('in the queue a failure keeps a band with something to take back, and draws alone otherwise (c644)', async ({
+	page
+}) => {
+	await page.goto('/links');
+	const title = page.locator('.title');
+	const first = await title.textContent();
+	// Nothing decided yet: the failure alone, as ever.
+	await abortPosts(page, () => true);
+	await page.getByRole('button', { name: 'SKIP' }).click();
+	await expect(alertLine(page)).toHaveText(NO_ANSWER);
+	await expect(page.locator('.band')).toHaveCount(1);
+	await expect(undoButton(page)).toHaveCount(0);
+	await expect(title).toHaveText(first!);
+	await page.unroute('**/api/links');
+
+	// SKIP's band has nothing to take back, so a failure still replaces it.
+	await page.getByRole('button', { name: 'SKIP' }).click();
+	await expect(title).not.toHaveText(first!);
+	await expect(page.locator('.band[role="status"] .line').first()).toContainText('SKIPPED');
+	const second = await title.textContent();
+	await abortPosts(page, () => true);
+	await page.getByRole('button', { name: 'SKIP' }).click();
+	await expect(alertLine(page)).toHaveText(NO_ANSWER);
+	await expect(page.locator('.band')).toHaveCount(1);
+	await expect(undoButton(page)).toHaveCount(0);
+	await expect(title).toHaveText(second!);
+	await page.unroute('**/api/links');
+
+	// A decision to take back: its UNDO unanswered, then pressed again.
+	await page.goto('/links');
+	if ((await title.textContent()) !== 'Return of the Mount Hua Sect') {
+		await page.getByRole('button', { name: 'SKIP' }).click();
+		await expect(title).toHaveText('Return of the Mount Hua Sect');
+	}
+	await page.getByRole('button', { name: 'NONE OF THESE' }).click();
+	await expect(page.locator('.band .line').first()).toHaveText('NONE OF THESE · WON’T ASK AGAIN');
+	await abortPosts(page, (body) => body.undo === 'none');
+	await undoButton(page).click();
+	await expect(alertLine(page)).toHaveText(NO_ANSWER);
+	await expect(undoButton(page)).toBeVisible();
+	await expect(page.locator('.band[role="status"] .line').first()).toHaveText(
+		'NONE OF THESE · WON’T ASK AGAIN'
+	);
+	await expect(title).not.toHaveText('Return of the Mount Hua Sect');
+	await page.unroute('**/api/links');
+	await undoButton(page).click();
+	await expect(title).toHaveText('Return of the Mount Hua Sect');
+	await expect(alertLine(page)).toHaveCount(0);
+	await expect(page.locator('.band')).toHaveCount(0);
 });
 
 test('the series screen: LISTS and COVER rows, and FIND opens its own review', async ({ page }) => {
@@ -1207,6 +1275,24 @@ test.describe('a catalogue that answers', () => {
 			).toHaveText(/^LINKED\s*Chain Split Show · A NEW LINK REPLACES IT$/);
 			await page.unroute('**/links/season?*');
 
+			// The read back answered with a page, not JSON: /links/season is outside
+			// /api/, so a lapsed session is a 303 to /login's HTML, and a 200 to fetch.
+			await linkTwoSeasons(page);
+			await expect(line.first()).toHaveText('LINKED 2 SEASONS · STAY PAIR SHOW');
+			await page.route('**/links/season?*', (route) =>
+				route.fulfill({ status: 200, contentType: 'text/html', body: '<html>' })
+			);
+			await page.getByRole('button', { name: 'UNDO' }).click();
+			await expect.poll(() => partsOf(id)).toEqual(ONLY_SEASON_1);
+			await expect(page.locator('.band')).toHaveCount(0);
+			await page.unroute('**/links/season?*');
+			// `busy` was let go: the next LINK N SEASONS and its UNDO both still work.
+			await linkTwoSeasons(page);
+			await expect(line.first()).toHaveText('LINKED 2 SEASONS · STAY PAIR SHOW');
+			await page.getByRole('button', { name: 'UNDO' }).click();
+			await expect.poll(() => partsOf(id)).toEqual(ONLY_SEASON_1);
+			await expect(page.locator('.band')).toHaveCount(0);
+
 			await page.getByRole('link', { name: '← SERIES' }).click();
 			await page.waitForURL(new RegExp(`/series/${id}$`));
 			// Season 1 keeps the link its own LINK made; the UNDO took the other two.
@@ -1215,6 +1301,166 @@ test.describe('a catalogue that answers', () => {
 				'Not linked',
 				'Not linked'
 			]);
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
+	test('an UNDO that gets no answer keeps its band and UNDO, says so, and a second press takes both back (c644)', async ({
+		page
+	}) => {
+		test.slow();
+		const id = seedSeasons('Undo Retry Show', [12, 23, 12]);
+		try {
+			await page.goto(`${BASE}/links?series=${id}&season=1`);
+			await linkTwoSeasons(page);
+			await expect(page.locator('.band .line').first()).toHaveText(
+				'LINKED 2 SEASONS · UNDO RETRY SHOW'
+			);
+			expect(partsOf(id)).toEqual(ALL_THREE);
+
+			await abortPosts(page, (body) => body.undo === 'seasons');
+			await undoButton(page).click();
+			await expect(page.getByText(NO_ANSWER)).toBeVisible();
+			await expect(undoButton(page)).toBeVisible();
+			await expect(page.locator('.band[role="status"] .line').first()).toHaveText(
+				'LINKED 2 SEASONS · UNDO RETRY SHOW'
+			);
+			expect(partsOf(id)).toEqual(ALL_THREE);
+			await page.unroute('**/api/links');
+
+			await undoButton(page).click();
+			await expect.poll(() => partsOf(id)).toEqual(ONLY_SEASON_1);
+			await expect(page.getByText(NO_ANSWER)).toHaveCount(0);
+			await expect(page.locator('.band')).toHaveCount(0);
+
+			await page.getByRole('link', { name: '← SERIES' }).click();
+			await page.waitForURL(new RegExp(`/series/${id}$`));
+			await expect(page.locator('[data-row="lists"] .t')).toHaveText([
+				'Chain Split Show',
+				'Not linked',
+				'Not linked'
+			]);
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
+	/** One press of UNDO, and the workstation's answer to it. */
+	async function pressUndo(page: import('@playwright/test').Page) {
+		const answer = page.waitForResponse(
+			(r) => r.url().endsWith('/api/links') && r.request().postDataJSON()?.undo === 'seasons'
+		);
+		await undoButton(page).click();
+		return answer;
+	}
+
+	test('an UNDO refused because a part changed since says why, keeps its UNDO, and writes nothing on a second press (c644)', async ({
+		page
+	}) => {
+		test.slow();
+		const id = seedSeasons('Undo Refused Show', [12, 23, 12]);
+		const relinked = [...ALL_THREE.slice(0, 3), { season: 3, part: 1, anilist_id: 9999 }];
+		try {
+			await page.goto(`${BASE}/links?series=${id}&season=1`);
+			await linkTwoSeasons(page);
+			await expect(page.locator('.band .line').first()).toHaveText(
+				'LINKED 2 SEASONS · UNDO REFUSED SHOW'
+			);
+			// A second door changes one part the band's post wrote.
+			const db = new Database(dbPath);
+			try {
+				db.prepare(
+					`UPDATE series_season_links SET anilist_id = 9999 WHERE series_id = ? AND season = 3`
+				).run(id);
+			} finally {
+				db.close();
+			}
+			const reason = 'LINKED OR DECIDED AGAIN SINCE · NOTHING UNDONE';
+			for (let press = 1; press <= 2; press++) {
+				expect((await pressUndo(page)).status(), `press ${press}`).toBe(409);
+				await expect(alertLine(page), `press ${press}`).toHaveText(reason);
+				await expect(undoButton(page), `press ${press}`).toBeVisible();
+				expect(partsOf(id), `press ${press}`).toEqual(relinked);
+			}
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
+	test('an UNDO another tab already did says ALREADY UNDONE, and takes nothing back (c644)', async ({
+		page
+	}) => {
+		test.slow();
+		const id = seedSeasons('Undo Twice Show', [12, 23, 12]);
+		try {
+			await page.goto(`${BASE}/links?series=${id}&season=1`);
+			const linked = page.waitForResponse(
+				(r) => r.url().endsWith('/api/links') && !!r.request().postDataJSON()?.seasons
+			);
+			await linkTwoSeasons(page);
+			const { facts } = (await (await linked).json()) as { facts: unknown };
+			await expect(page.locator('.band .line').first()).toHaveText(
+				'LINKED 2 SEASONS · UNDO TWICE SHOW'
+			);
+			// The other tab's press: the same post, from the same band's facts.
+			const other = await page.request.post(`${BASE}/api/links`, {
+				data: { series: id, undo: 'seasons', facts }
+			});
+			expect(other.status()).toBe(200);
+			expect(partsOf(id)).toEqual(ONLY_SEASON_1);
+
+			for (let press = 1; press <= 2; press++) {
+				expect((await pressUndo(page)).status(), `press ${press}`).toBe(409);
+				await expect(alertLine(page), `press ${press}`).toHaveText(
+					'ALREADY UNDONE · NOTHING UNDONE'
+				);
+				await expect(undoButton(page), `press ${press}`).toBeVisible();
+				expect(partsOf(id), `press ${press}`).toEqual(ONLY_SEASON_1);
+			}
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
+	test('another decision failing under the band leaves the band and its UNDO, which still works (c644)', async ({
+		page
+	}) => {
+		test.slow();
+		const id = seedSeasons('Undo Beside Show', [12, 23, 12]);
+		try {
+			await page.goto(`${BASE}/links?series=${id}&season=1`);
+			await linkTwoSeasons(page);
+			const status = page.locator('.band[role="status"] .line').first();
+			await expect(status).toHaveText('LINKED 2 SEASONS · UNDO BESIDE SHOW');
+
+			// A LINK on the same page, its post unanswered.
+			await abortPosts(page, (body) => body.link !== undefined);
+			await page.getByRole('button', { name: 'PASTE A LINK' }).first().click();
+			await page.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9801');
+			const link = page.locator('.actions button').last();
+			await expect(link).toHaveText(/^LINK [A-Z] TO SEASON 1$/);
+			await link.click();
+			await expect(alertLine(page)).toHaveText(NO_ANSWER);
+			await expect(status).toHaveText('LINKED 2 SEASONS · UNDO BESIDE SHOW');
+			await expect(undoButton(page)).toBeVisible();
+			expect(partsOf(id)).toEqual(ALL_THREE);
+			await page.getByRole('button', { name: 'CANCEL' }).click();
+			await page.unroute('**/api/links');
+
+			// UNLINK, the other door the page keeps open under the band.
+			await abortPosts(page, (body) => body.unlink === true);
+			await page.getByRole('button', { name: 'UNLINK' }).click();
+			await expect(alertLine(page)).toHaveText(NO_ANSWER);
+			await expect(status).toHaveText('LINKED 2 SEASONS · UNDO BESIDE SHOW');
+			expect(partsOf(id)).toEqual(ALL_THREE);
+			await page.unroute('**/api/links');
+
+			// The UNDO is the band's, and the failure beside it was not about it.
+			await undoButton(page).click();
+			await expect.poll(() => partsOf(id)).toEqual(ONLY_SEASON_1);
+			await expect(alertLine(page)).toHaveCount(0);
+			await expect(page.locator('.band')).toHaveCount(0);
 		} finally {
 			forgetFlatList(id);
 		}

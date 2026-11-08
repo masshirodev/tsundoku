@@ -689,7 +689,12 @@ SEASON 3 HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. ← SERIES
   said UNDO and took back half a post would be a lie. It refuses whole, with
   nothing changed, if any part it wrote or read was linked, unlinked or
   decided again since (`LINKED OR DECIDED AGAIN SINCE`), and says
-  `ALREADY UNDONE` to a second press. A reload drops the band, as single
+  `ALREADY UNDONE` to a second press. **A press that fails or is refused keeps
+  the band and its UNDO** (c644), with the reason said in its own band above
+  it (`… · NOTHING UNDONE`, or `THE WORKSTATION DID NOT ANSWER · NOTHING
+CHANGED`), so it can be pressed again; so does another decision failing
+  while the band is up. Only a band with nothing to take back (SKIP's) gives
+  way to a failure. A reload drops the band, as single
   LINK's: it is the page's own state. After the UNDO the season the page is
   on is drawn again from the workstation (`/links/season`, the page's own
   reader without its AniList walk; c644), since a pair's other part may have
