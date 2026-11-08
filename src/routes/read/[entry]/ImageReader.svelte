@@ -333,11 +333,13 @@
 	}
 
 	/**
-	 * A held key ends. Every door that can take its keyup away calls this: the
-	 * key's own release, a second key pressed, the window losing focus or the
-	 * page being hidden, a panel opening or locking the page, and the reader
-	 * jumping to another chapter. `instant` is for a strip that is no longer
-	 * the one on screen; a crossing does not end it at all.
+	 * A held key ends. Every door that can take its keyup away calls this. The
+	 * key's own release, the window losing focus and the page being hidden ease
+	 * it out; the lookup panel or the page menu (each locking the page), the
+	 * READING sheet, a mode change and a jump to another chapter pass `instant`,
+	 * for a strip covered, locked or no longer the one on screen. A second key
+	 * pressed does not come here: its own glide takes over from the hold. A
+	 * crossing does not end it at all (doc/READER.md, c694).
 	 */
 	function endHold(instant = false) {
 		heldKey = null;
@@ -1029,15 +1031,16 @@
 	 * under the middle of the screen is put back where it was. By hand, since
 	 * the browser's scroll anchoring does nothing at the very top of a page.
 	 *
-	 * Measured in the document, not on the screen: a glide running through the
-	 * change moves the window between the two reads, and on the screen that
-	 * reads as the content moving too, so the correction came out short by
-	 * whatever the glide covered and its own next frame then read as "something
-	 * else scrolled" and stopped it (c668). A scroll changes neither coordinate.
-	 * What the window did in between — Chromium clamps it when the strip drops
-	 * a chapter above and the document becomes shorter than the scroll position
-	 * — is not the content's move either: the correction goes to where the
-	 * content's move alone puts the place, and the ease is told the move.
+	 * Measured in the document, not on the screen. Only `await tick()` lies
+	 * between the two reads, so no frame (and no glide) runs there, and the
+	 * correction's scroll is the same number measured either way. What c668
+	 * changed is the second number: Chromium clamps the window when the strip
+	 * drops a chapter above and the document becomes shorter than the scroll
+	 * position, and that clamp is not the content's move. So the correction
+	 * goes to where the content's move alone puts the place, and the ease is
+	 * told that move apart from the scroll (`moved`), or its timeline ends
+	 * short by the clamp (wave 30's review: told the scroll instead, the double
+	 * ↓ crossing case landed 124 px off) (c694).
 	 */
 	async function keepPlace(change: () => void) {
 		// Through whatever covers the middle (c568): READING's sheet, the

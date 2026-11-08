@@ -425,8 +425,11 @@ scrollable screen, which took some of them at random.
   ([`LIBRARY.md`](LIBRARY.md), "Hidden means hidden"). A hidden series is read
   only under `/reveal`, so its end page offers **UNHIDE** instead of hiding it
   again (c673, `?/hide on=0`, `UNHIDDEN ✓` once it answered). A press the
-  action refuses says why in the row — the action's own message, or COULD NOT
-  SAVE — rather than resetting silently. A series in a Work draws
+  action refuses says so in the row, always **COULD NOT SAVE**, rather than
+  resetting silently: since `bba5d277` the row never shows the action's own
+  message, because the one real refusal (`A WORK IS HIDDEN WHOLE · HIDE ALL OR
+TAKE OUT`) holds HIDE and HIDE ALL, words this page's own controls use
+  (c706). A series in a Work draws
   neither cell — its Work is hidden or taken out whole from the series screen.
   The block stays once the rating is set, showing what was chosen, so rating on
   this page never empties it; the note, `SHOWN WHILE UNRATED`, goes with the
@@ -613,10 +616,13 @@ and "when I click down or up it pans to the next sections").
   ms — and the release eases out over 160 ms, about a third of the nudge
   further (33 px on a 100 px nudge, 185 px on a screen). A tap still glides
   one step and two separate presses still add two. Every door that can take
-  the keyup away ends it the same way: the window losing focus, the page being
-  hidden, the READING sheet, the lookup panel or page menu opening (its lock),
-  and a jump to another chapter, which stops it at once so the repeats are not
-  the new chapter's. **A strip crossing is not a jump**: scrolling on across a
+  the keyup away ends it, in one of two ways (c694). The key's own release, the
+  window losing focus and the page being hidden **ease it out**, as a keyup
+  does. A lock (the lookup panel or the page menu opening, each locking the
+  page), the READING sheet opening, a change of mode and a jump to another
+  chapter **stop it at once** (`endHold(true)`): the strip it was moving is
+  covered, locked or no longer the one on screen, so it does not ease on under
+  them and the repeats are not the new chapter's. **A strip crossing is not a jump**: scrolling on across a
   band keeps the strip and the pages around it, so the glide, the wheel's ease
   and a held arrow all read on through it (c668). A second scroll key during a
   hold takes over from where the strip is: the hold ends and the new key glides

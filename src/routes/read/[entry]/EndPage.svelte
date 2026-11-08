@@ -244,7 +244,7 @@
 	let removing = $state(false);
 	let removed = $state(false);
 	let unhidden = $state(false);
-	/** A failed row action's own message, or a plain one (c673). */
+	/** A refused row action's line: always COULD NOT SAVE, never the action's own words (c673; `rowRefusal`). */
 	let rowError = $state<string | null>(null);
 	const cell = $derived(
 		libraryCell({
