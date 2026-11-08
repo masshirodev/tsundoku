@@ -398,15 +398,23 @@ test.describe('every tag can be read and opened (c837)', () => {
 		page
 	}) => {
 		await visit(page, world.ids.missing);
-		await addTags(page, PAST_THE_CAP);
+		await addTags(page, [...PAST_THE_CAP, 'genre:Second Genre']);
 		const box = async (l: ReturnType<Page['locator']>) => (await l.boundingBox())!;
 		const more = await box(row(page).locator('button.more'));
 		const vals = await box(row(page).locator('.vals').first());
 		expect(Math.abs(more.x - vals.x)).toBeLessThanOrEqual(1);
-		await expect(row(page).getByRole('link', { name: 'Romance', exact: true })).toHaveCSS(
-			'display',
-			'inline-block'
+		// Each dot follows its own value on that value's line: no line starts on one.
+		const dots = await row(page).evaluate((n) =>
+			[...n.querySelectorAll<HTMLElement>('.val')]
+				.filter((v) => v.querySelector('.sep'))
+				.map((v) => {
+					const a = v.querySelector('a')!.getBoundingClientRect();
+					const d = v.querySelector('.sep')!.getBoundingClientRect();
+					return { after: d.left >= a.right - 1, on: d.top < a.bottom && d.bottom > a.top };
+				})
 		);
+		expect(dots.length).toBeGreaterThan(0);
+		expect(dots.every((d) => d.after && d.on)).toBe(true);
 	});
 
 	test('a tag from the first four opens from this device’s row, moved or folded', async ({

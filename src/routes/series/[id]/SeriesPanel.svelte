@@ -1460,11 +1460,13 @@
 						<!-- Every value opens the library's person or tag page (Index Books), or,
 						     with a source, asks where to look (c313). -->
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- tagHref() resolves -->
-						{#each g.tags as t, i (i)}{#if i > 0}<span class="sep"> · </span>{/if}<a
-								class="person"
-								href={tagLibraryHref(t)}
-								aria-haspopup={tagSource ? 'dialog' : undefined}
-								onclick={(e) => askTag(e, t)}>{t.value}</a
+						{#each g.tags as t, i (i)}<span class="val"
+								><a
+									class="person"
+									href={tagLibraryHref(t)}
+									aria-haspopup={tagSource ? 'dialog' : undefined}
+									onclick={(e) => askTag(e, t)}>{t.value}</a
+								>{#if i < g.tags.length - 1}<span class="sep">·</span>{/if}</span
 							>{/each}
 						<!-- eslint-enable svelte/no-navigation-without-resolve -->
 					</span>
@@ -2239,10 +2241,20 @@
 		display: block;
 	}
 	/* One box per value, so a value that wraps is still a stop the pad can reach
-	   (the layer compares boxes; an inline link's is the whole wrapped area). */
-	.person {
-		display: inline-block;
+	   (the layer compares boxes; an inline link's is the whole wrapped area), and
+	   its dot goes with it, so no line starts on one. */
+	.val {
+		display: inline-flex;
+		align-items: baseline;
 		max-width: 100%;
+	}
+	.val .sep {
+		flex-shrink: 0;
+		margin: 0 6px;
+		color: var(--text-2);
+	}
+	.person {
+		min-width: 0;
 		color: inherit;
 		text-decoration: underline;
 		text-underline-offset: 4px;
