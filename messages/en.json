@@ -912,5 +912,7 @@
 	"search_chips_selecting_short": "OPEN, STILL SELECTING",
 	"search_work_some_ticked": "{ticked} OF {total} TICKED",
 	"search_work_both_ticked": "BOTH TICKED",
-	"search_work_all_ticked": "ALL TICKED"
+	"search_work_all_ticked": "ALL TICKED",
+	"library_show_asking": "{n} MORE FROM SELECT ALL · LOADING",
+	"library_show_gone": "{n} GONE OR HIDDEN SINCE SELECT ALL · TAKEN OUT"
 }

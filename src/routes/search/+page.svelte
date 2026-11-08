@@ -26,6 +26,7 @@
 		pickedOfPart,
 		refreshFacts,
 		takeCarried,
+		UnseenFacts,
 		workTap,
 		workTicks,
 		type Picked
@@ -100,6 +101,8 @@
 	);
 	let reviewing = $state(false);
 	let shownIds = $state<number[]>([]);
+	/** SELECT ALL's ids carried here unseen, read by id when SHOW opens (c737). */
+	const unseen = new UnseenFacts();
 	/**
 	 * Whether the entry behind this one in the tab's history is the library:
 	 * this page was reached from it by a tap, a `goto`, or the browser's
@@ -133,10 +136,12 @@
 		reviewing = false;
 		selected.clear();
 		facts.clear();
+		unseen.reset();
 	}
 	function openShow() {
 		shownIds = [...selected];
 		reviewing = true;
+		void unseen.fill(selected, facts, () => new Set(shownIds));
 	}
 	/** ← while selecting goes back to the very library it came from, when that is behind. */
 	function back(e: MouseEvent) {
@@ -668,6 +673,7 @@
 	ids={shownIds}
 	{facts}
 	{selected}
+	{unseen}
 	ontoggle={toggle}
 	onclose={() => (reviewing = false)}
 />

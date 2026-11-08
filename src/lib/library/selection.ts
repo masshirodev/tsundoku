@@ -1,3 +1,4 @@
+import { SvelteSet } from 'svelte/reactivity';
 import { hueFor } from './cover.ts';
 import { count, kindLabel, sheetMeta, unitLabel } from './labels.ts';
 import { isFinished, type LibraryCard, type WorkPart } from './works.ts';
@@ -265,3 +266,101 @@ export function takeCarried(here: string): Carried | null {
 
 /** Where a URL lands, as `Carried.to` and `takeCarried` compare it. */
 export const landing = (u: URL): string => `${u.pathname}${u.search}`;
+
+/**
+ * The facts of `want` among cards the library answered by id (c737; POST
+ * `/api/library`, the grid's own card shape): a series in no Work as itself,
+ * a Work tile's wanted parts as parts. A wanted id the answer does not hold
+ * (deleted since, or hidden with reveal off) is simply absent.
+ */
+export function pickedOfCards(cards: readonly LibraryCard[], want: ReadonlySet<number>): Picked[] {
+	const out: Picked[] = [];
+	for (const c of cards) {
+		if (!c.tile) {
+			if (want.has(c.id)) out.push(pickedOfCard(c, null));
+			continue;
+		}
+		const work = { id: c.tile.id, name: c.tile.name };
+		for (const p of c.tile.parts)
+			if (want.has(p.seriesId)) out.push(pickedOfPart(p, c.tile.name, work));
+	}
+	return out;
+}
+
+/** How many ids at most one by-id read answers: the grid's own cap. */
+export const FACTS_MAX = 10_000;
+
+/** The facts of `ids` from the library by id (c737), or null when it could not be asked. */
+export async function readFacts(ids: readonly number[]): Promise<Picked[] | null> {
+	try {
+		const res = await fetch('/api/library', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ ids })
+		});
+		if (!res.ok) return null;
+		const { series } = (await res.json()) as { series: LibraryCard[] };
+		return pickedOfCards(series, new Set(ids));
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Filling in the facts of selected series the page never drew (c737): SELECT
+ * ALL's pages not loaded, so SHOW lists them and GROUP counts them. One read
+ * for every selected id without facts that is not already being asked or
+ * already answered as gone. An id the library does not answer (deleted
+ * since, or hidden with reveal off: hidden means hidden) is taken out of the
+ * selection and counted in `gone`, so no bulk action posts a series the
+ * owner can no longer see. A read that answers after `reset` (✕, a bulk
+ * action's success) is dropped. Reactive sets, so SHOW redraws as it lands.
+ */
+export class UnseenFacts {
+	/** Ids being asked for now. */
+	readonly asking = new SvelteSet<number>();
+	/** Ids the library answered nothing for, taken out of the selection. */
+	readonly gone = new SvelteSet<number>();
+	#gen = 0;
+	readonly #read: (ids: readonly number[]) => Promise<Picked[] | null>;
+
+	constructor(read: (ids: readonly number[]) => Promise<Picked[] | null> = readFacts) {
+		this.#read = read;
+	}
+
+	async fill(
+		selected: Set<number>,
+		facts: Map<number, Picked>,
+		held: () => ReadonlySet<number> = () => new Set()
+	): Promise<void> {
+		const want = [...selected].filter(
+			(id) => !facts.has(id) && !this.asking.has(id) && !this.gone.has(id)
+		);
+		if (want.length === 0) return;
+		const gen = this.#gen;
+		for (const id of want) this.asking.add(id);
+		const got = await this.#read(want);
+		if (gen !== this.#gen) return;
+		for (const id of want) this.asking.delete(id);
+		// Not asked: offline, or the server refused. They stay selected and
+		// unlisted, and the next SHOW asks again.
+		if (!got) return;
+		const keep = held();
+		const answered = new Set<number>();
+		for (const p of got) {
+			answered.add(p.id);
+			if (selected.has(p.id) || keep.has(p.id)) facts.set(p.id, p);
+		}
+		for (const id of want) {
+			if (answered.has(id)) continue;
+			this.gone.add(id);
+			selected.delete(id);
+		}
+	}
+
+	reset(): void {
+		this.#gen++;
+		this.asking.clear();
+		this.gone.clear();
+	}
+}

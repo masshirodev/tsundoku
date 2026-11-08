@@ -7,7 +7,14 @@
  * is left as it was.
  */
 import { type Locator, type Page } from '@playwright/test';
+import Database from 'better-sqlite3';
+import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { createServer as tcpServer, type AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { expect, test } from './fixtures';
+import { E2E_TOKEN } from '../playwright.config';
 
 const tiles = (page: Page) => page.locator('.grid .tile');
 const titleOf = async (tile: Locator) => (await tile.locator('.title').textContent())!.trim();
@@ -160,4 +167,214 @@ test('a reload ends SELECT; a trip to /search and back keeps it, and ✕ ends it
 	await page.getByRole('link', { name: 'Search', exact: true }).click();
 	await page.waitForURL(/\/search/);
 	await expect(page.locator('.selected-count')).toHaveCount(0);
+});
+
+/**
+ * SELECT ALL on a library longer than one page (c737): the pages never loaded
+ * are ticked by id, and their facts are read by id (POST /api/library), so
+ * SHOW lists every series and GROUP counts them all. Its own install (a port
+ * from the OS, the seed plus 130 series titled to sort after it, past the
+ * grid's 120-tile page), since the shared seed is one page and the cases
+ * delete and hide.
+ */
+test.describe('SELECT ALL past one page (c737)', () => {
+	const dbPath = join(tmpdir(), `tsundoku-e2e-select-all-${process.pid}.sqlite`);
+	const library = mkdtempSync(join(tmpdir(), 'tsundoku-e2e-select-all-'));
+	let server: ChildProcess | null = null;
+	let base = '';
+	const LOTS = 130;
+	const lot = (n: number) => `Zz Lot ${String(n).padStart(3, '0')}`;
+	const sql = (q: string, ...args: unknown[]) => {
+		const db = new Database(dbPath);
+		try {
+			db.prepare(q).run(...args);
+		} finally {
+			db.close();
+		}
+	};
+	/** POSTs to the by-id read, counted. */
+	const reads = (page: Page) => {
+		const seen: string[] = [];
+		page.on('request', (r) => {
+			if (r.method() === 'POST' && new URL(r.url()).pathname === '/api/library') seen.push(r.url());
+		});
+		return seen;
+	};
+	async function selectAllOnTitles(page: Page): Promise<number> {
+		await page.goto(`${base}/?sort=title`);
+		await expect(tiles(page).first()).toBeVisible();
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		await page.getByRole('button', { name: 'SELECT ALL' }).click();
+		await expect(count(page)).not.toHaveText('0 SELECTED');
+		// The loaded pages first, then every id the shelf holds.
+		await expect
+			.poll(async () => Number((await count(page).textContent())!.split(' ')[0]))
+			.toBeGreaterThan(120);
+		return Number((await count(page).textContent())!.split(' ')[0]);
+	}
+
+	test.beforeAll(async () => {
+		test.setTimeout(120_000);
+		const port = await new Promise<number>((ok, no) => {
+			const probe = tcpServer();
+			probe.once('error', no);
+			probe.listen(0, '127.0.0.1', () => {
+				const { port } = probe.address() as AddressInfo;
+				probe.close(() => ok(port));
+			});
+		});
+		base = `http://localhost:${port}`;
+		rmSync(dbPath, { force: true });
+		execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
+			env: { ...process.env, DATABASE_PATH: dbPath, NODE_NO_WARNINGS: '1' },
+			stdio: 'pipe'
+		});
+		const db = new Database(dbPath);
+		try {
+			const now = Date.now();
+			const root = (db.prepare('SELECT MIN(id) AS id FROM roots').get() as { id: number }).id;
+			const add = db.prepare(
+				`INSERT INTO series (root_id, title, kind, hue, added_at, indexed_at)
+				VALUES (?, ?, 'manga', 0, ?, ?)`
+			);
+			for (let n = 1; n <= LOTS; n++) add.run(root, lot(n), now - n, now);
+		} finally {
+			db.close();
+		}
+		server = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
+			env: {
+				...process.env,
+				DATABASE_PATH: dbPath,
+				TSUNDOKU_TOKEN: E2E_TOKEN,
+				ENGINE_URL: 'http://127.0.0.1:1',
+				ENGINE_TOKEN: 'e2e-engine-token',
+				ENGINE_STORE: library,
+				TSUNDOKU_ANILIST: 'off',
+				LIBRARY_ROOT: library,
+				COVER_DIR: join(library, 'covers'),
+				BACKUP_DIR: join(library, 'backups')
+			},
+			stdio: 'ignore'
+		});
+		for (let i = 0; i < 120; i++) {
+			try {
+				if ((await fetch(base, { redirect: 'manual' })).status) return;
+			} catch {
+				await new Promise((r) => setTimeout(r, 500));
+			}
+		}
+		throw new Error('the select-all preview never answered');
+	});
+
+	test.afterAll(() => {
+		server?.kill();
+		rmSync(dbPath, { force: true });
+		rmSync(library, { recursive: true, force: true });
+	});
+
+	test('SHOW lists every series SELECT ALL took, GROUP counts them all, and one read serves both, twice', async ({
+		page
+	}) => {
+		const asked = reads(page);
+		const n = await selectAllOnTitles(page);
+		// The grid drew one page: the rest were never on screen.
+		expect(await tiles(page).count()).toBeLessThan(n);
+		await page.getByRole('button', { name: 'SHOW', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'The selection' });
+		await expect(sheet.locator('.show-row')).toHaveCount(n);
+		// In the order they were ticked: SELECT ALL's ids come in the shelf's order.
+		await expect(sheet.locator('.show-row .a').last()).toHaveText(lot(LOTS));
+		await expect(sheet.locator('.show-unseen')).toHaveCount(0);
+		await sheet.getByRole('button', { name: 'DONE' }).click();
+		// SHOW again: listed at once, nothing asked again.
+		await page.getByRole('button', { name: 'SHOW', exact: true }).click();
+		await expect(sheet.locator('.show-row')).toHaveCount(n);
+		await sheet.getByRole('button', { name: 'DONE' }).click();
+
+		await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+		const group = page.getByRole('dialog', { name: 'Group into a series' });
+		await expect(group.locator('.h-title')).toHaveText(new RegExp(`^GROUP ${n} `));
+		await group.getByRole('button', { name: 'CANCEL' }).click();
+		expect(asked).toHaveLength(1);
+	});
+
+	test('a series deleted, and one hidden, between SELECT ALL and the read are taken out and said so', async ({
+		page
+	}) => {
+		// The read held until both have happened, as a slow answer would be.
+		let release: () => void = () => {};
+		const held = new Promise<void>((r) => (release = r));
+		await page.route('**/api/library', async (route) => {
+			if (route.request().method() !== 'POST') return route.continue();
+			await held;
+			await route.continue();
+		});
+		const n = await selectAllOnTitles(page);
+		// The last two by title: on a page the grid never loaded.
+		const [gone, hidden] = [lot(LOTS), lot(LOTS - 1)];
+		await expect(tiles(page).filter({ hasText: gone })).toHaveCount(0);
+		sql(`DELETE FROM series WHERE title = ?`, gone);
+		sql(`UPDATE series SET hidden = 1 WHERE title = ?`, hidden);
+		await page.getByRole('button', { name: 'SHOW', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'The selection' });
+		await expect(sheet.getByRole('status')).toContainText('MORE FROM SELECT ALL · LOADING');
+		release();
+		await expect(sheet.locator('.show-unseen')).toHaveText(
+			'2 GONE OR HIDDEN SINCE SELECT ALL · TAKEN OUT'
+		);
+		await expect(sheet.locator('.show-row')).toHaveCount(n - 2);
+		await expect(sheet.locator('.show-row .a').filter({ hasText: gone })).toHaveCount(0);
+		await expect(sheet.locator('.show-row .a').filter({ hasText: hidden })).toHaveCount(0);
+		await sheet.getByRole('button', { name: 'DONE' }).click();
+		await expect(count(page)).toHaveText(`${n - 2} SELECTED`);
+		await page.getByRole('button', { name: 'Stop selecting' }).click();
+		sql(`UPDATE series SET hidden = 0 WHERE title = ?`, hidden);
+		const db = new Database(dbPath);
+		try {
+			const root = (db.prepare('SELECT MIN(id) AS id FROM roots').get() as { id: number }).id;
+			db.prepare(
+				`INSERT INTO series (root_id, title, kind, hue, added_at, indexed_at)
+				VALUES (?, ?, 'manga', 0, ?, ?)`
+			).run(root, gone, Date.now(), Date.now());
+		} finally {
+			db.close();
+		}
+	});
+
+	test('hidden means hidden: an id asked for under reveal answers, and after reveal is off answers nothing', async ({
+		page
+	}) => {
+		const id = (() => {
+			const db = new Database(dbPath);
+			try {
+				return (db.prepare('SELECT id FROM series WHERE title = ?').get(lot(3)) as { id: number })
+					.id;
+			} finally {
+				db.close();
+			}
+		})();
+		sql(`UPDATE series SET hidden = 1 WHERE id = ?`, id);
+		try {
+			const ask = async () =>
+				(
+					(await (
+						await page.request.post(`${base}/api/library`, { data: { ids: [id] } })
+					).json()) as { series: { id: number }[] }
+				).series.map((c) => c.id);
+			expect(await ask()).toEqual([]);
+			// Reveal on, through the search's own command.
+			await page.goto(`${base}/search`);
+			await page.locator('input[type="search"]').fill('/reveal');
+			await page.locator('input[type="search"]').press('Enter');
+			await page.waitForURL(new RegExp(`^${base}/$`));
+			expect(await ask()).toEqual([id]);
+			await page.goto(`${base}/search`);
+			await page.locator('input[type="search"]').fill('/hide');
+			await page.locator('input[type="search"]').press('Enter');
+			await page.waitForURL(new RegExp(`^${base}/$`));
+			expect(await ask()).toEqual([]);
+		} finally {
+			sql(`UPDATE series SET hidden = 0 WHERE id = ?`, id);
+		}
+	});
 });

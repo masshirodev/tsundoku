@@ -4,8 +4,10 @@ import {
 	drawnToNote,
 	landing,
 	pickedOfCard,
+	pickedOfCards,
 	pickedOfPart,
 	takeCarried,
+	UnseenFacts,
 	workTap,
 	workTicks,
 	pickedInOrder,
@@ -303,5 +305,99 @@ describe('carrySelection and takeCarried (c698): the selection between the libra
 	it('compares a landing by path and query, not by origin or hash', () => {
 		expect(landing(new URL('http://a:1/search?q=x#top'))).toBe('/search?q=x');
 		expect(landing(new URL('http://a:1/'))).toBe('/');
+	});
+});
+
+describe('pickedOfCards (c737): the by-id answer, as facts', () => {
+	it('takes a series in no Work as itself and a Work tile’s wanted parts as parts', () => {
+		const face = card({ id: 20, title: 'Zelkova: Roots' });
+		const tile = {
+			...face,
+			tile: {
+				id: 4,
+				name: 'Zelkova',
+				face,
+				parts: [part({ seriesId: 20 }), part({ seriesId: 21, title: 'Zelkova: Crown' })],
+				newCount: 0,
+				hidden: false
+			}
+		};
+		const got = pickedOfCards([card({ id: 7 }), card({ id: 8 }), tile], new Set([7, 21, 99]));
+		expect(got.map((p) => p.id)).toEqual([7, 21]);
+		expect(got[1]).toMatchObject({ inWork: 'Zelkova', work: { id: 4, name: 'Zelkova' } });
+	});
+});
+
+describe('UnseenFacts (c737): SELECT ALL’s unloaded series, read by id', () => {
+	const later = () => {
+		let answer: (v: Picked[] | null) => void = () => {};
+		const asked: number[][] = [];
+		const read = (ids: readonly number[]) => {
+			asked.push([...ids]);
+			return new Promise<Picked[] | null>((r) => (answer = r));
+		};
+		return { read, asked, answer: (v: Picked[] | null) => answer(v) };
+	};
+
+	it('asks once for the ids with no facts, notes what comes back, and takes out what does not', async () => {
+		const r = later();
+		const u = new UnseenFacts(r.read);
+		const selected = new Set([1, 2, 3]);
+		const facts = new Map([[1, pick(1)]]);
+		const done = u.fill(selected, facts);
+		expect(r.asked).toEqual([[2, 3]]);
+		expect([...u.asking]).toEqual([2, 3]);
+		// SHOW opened again while the read is out: nothing asked twice.
+		await u.fill(selected, facts);
+		expect(r.asked).toHaveLength(1);
+		r.answer([pick(2)]);
+		await done;
+		expect([...facts.keys()]).toEqual([1, 2]);
+		// 3: deleted since, or hidden with reveal off. Out of the selection, counted.
+		expect([...selected]).toEqual([1, 2]);
+		expect([...u.gone]).toEqual([3]);
+		expect([...u.asking]).toEqual([]);
+		// And a later SHOW asks nothing more.
+		await u.fill(selected, facts);
+		expect(r.asked).toHaveLength(1);
+	});
+	it('a read that could not be made leaves them selected, unlisted, and asks again next time', async () => {
+		const r = later();
+		const u = new UnseenFacts(r.read);
+		const selected = new Set([5]);
+		const facts = new Map<number, Picked>();
+		const done = u.fill(selected, facts);
+		r.answer(null);
+		await done;
+		expect([...selected]).toEqual([5]);
+		expect(u.gone.size).toBe(0);
+		void u.fill(selected, facts);
+		expect(r.asked).toEqual([[5], [5]]);
+	});
+	it('an answer after ✕ (reset) is dropped', async () => {
+		const r = later();
+		const u = new UnseenFacts(r.read);
+		const selected = new Set([5, 6]);
+		const facts = new Map<number, Picked>();
+		const done = u.fill(selected, facts);
+		u.reset();
+		selected.clear();
+		r.answer([pick(5)]);
+		await done;
+		expect(facts.size).toBe(0);
+		expect(u.gone.size).toBe(0);
+		expect(u.asking.size).toBe(0);
+	});
+	it('an id unticked while it was asked is not noted, unless SHOW holds its row', async () => {
+		const r = later();
+		const u = new UnseenFacts(r.read);
+		const selected = new Set([5, 6]);
+		const facts = new Map<number, Picked>();
+		const done = u.fill(selected, facts, () => new Set([6]));
+		selected.delete(5);
+		selected.delete(6);
+		r.answer([pick(5), pick(6)]);
+		await done;
+		expect([...facts.keys()]).toEqual([6]);
 	});
 });

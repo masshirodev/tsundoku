@@ -103,6 +103,7 @@
 		titlesLine,
 		drawnToNote,
 		takeCarried,
+		UnseenFacts,
 		workOf,
 		type Picked
 	} from '$lib/library/selection';
@@ -584,6 +585,13 @@
 	/** SHOW (c698): the selection listed to review, and what it listed when it opened. */
 	let reviewing = $state(false);
 	let shownIds = $state<number[]>([]);
+	/** SELECT ALL's series from pages never loaded, read by id (c737). */
+	const unseen = new UnseenFacts();
+	const heldBySheet = () => new Set(reviewing ? shownIds : []);
+	/** Fill in what SELECT ALL took unseen: before SHOW lists it, or a bulk action reads it. */
+	function fillUnseen(): Promise<void> {
+		return unseen.fill(selected, facts, heldBySheet);
+	}
 	/**
 	 * A selection carried back from the search (c698; doc/LIBRARY.md, "What
 	 * ends SELECT"): ←, a chip or a shelf there lands here still selecting,
@@ -730,6 +738,7 @@
 		reviewing = false;
 		selected.clear();
 		facts.clear();
+		unseen.reset();
 	}
 
 	/**
@@ -752,6 +761,7 @@
 	function openShow() {
 		shownIds = [...selected];
 		reviewing = true;
+		void fillUnseen();
 	}
 
 	// ---- sheets ------------------------------------------------------------
@@ -1707,6 +1717,8 @@
 			// parts a kind shelf never picked are selected too.
 			const res = await fetch(`/api/library?${q}&ids=1`);
 			if (res.ok) for (const id of ((await res.json()) as { ids: number[] }).ids) selected.add(id);
+			// Their facts at once (c737), so SHOW lists them and GROUP counts them.
+			void fillUnseen();
 		} catch {
 			// Offline: the loaded pages stay selected, which is what's on screen.
 		}
@@ -2541,7 +2553,10 @@
 						type="button"
 						class="group"
 						disabled={selected.size === 0}
-						onclick={() => (grouping = true)}>GROUP</button
+						onclick={async () => {
+							await fillUnseen();
+							grouping = true;
+						}}>GROUP</button
 					>
 				{/if}
 				<!-- REFRESH (c221): asks each selected series' source once, and downloads nothing. -->
@@ -2564,15 +2579,25 @@
 						>
 					{/if}
 				{:else if selectedWorks.length > 0}
-					<button type="button" disabled={selected.size === 0} onclick={() => (hiding = true)}
-						>HIDE</button
+					<button
+						type="button"
+						disabled={selected.size === 0}
+						onclick={async () => {
+							await fillUnseen();
+							hiding = true;
+						}}>HIDE</button
 					>
 				{:else}
 					<button type="submit" name="do" value="hide" disabled={selected.size === 0}>HIDE</button>
 				{/if}
 				<!-- Asks first (doc/DELETING.md): duplicates are cleared in bulk. -->
-				<button type="button" disabled={selected.size === 0} onclick={() => (deleting = true)}
-					>DELETE</button
+				<button
+					type="button"
+					disabled={selected.size === 0}
+					onclick={async () => {
+						await fillUnseen();
+						deleting = true;
+					}}>DELETE</button
 				>
 			{/snippet}
 		</BulkBar>
@@ -2681,6 +2706,7 @@
 	ids={shownIds}
 	{facts}
 	{selected}
+	{unseen}
 	ontoggle={toggle}
 	onclose={() => (reviewing = false)}
 />

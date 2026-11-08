@@ -3,7 +3,8 @@
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { count } from '$lib/library/labels';
 	import { coverSrc } from '$lib/library/links';
-	import { pickedInOrder, unseenCount, type Picked } from '$lib/library/selection';
+	import { m } from '$lib/paraglide/messages';
+	import { pickedInOrder, type Picked, type UnseenFacts } from '$lib/library/selection';
 
 	/**
 	 * SHOW (c698; doc/LIBRARY.md, "A selection outlives the shelf"): the
@@ -12,13 +13,15 @@
 	 * so a slip is undone where it was made. GROUP's own sheet draws its rows
 	 * the same way. The library and the search draw this one sheet (Rules:
 	 * "SHOW · the same sheet over the search"); `ids` is what it listed when it
-	 * opened, `selected` what is ticked now.
+	 * opened, `selected` what is ticked now. `unseen` is SELECT ALL's ids read
+	 * by id (c737): being asked for, or gone since and taken out.
 	 */
 	let {
 		open,
 		ids,
 		facts,
 		selected,
+		unseen,
 		ontoggle,
 		onclose
 	}: {
@@ -26,9 +29,14 @@
 		ids: readonly number[];
 		facts: ReadonlyMap<number, Picked>;
 		selected: ReadonlySet<number>;
+		unseen: UnseenFacts;
 		ontoggle: (id: number) => void;
 		onclose: () => void;
 	} = $props();
+	/** Listed when it opened, with no facts yet: asked for now, or not asked (offline). */
+	const waiting = $derived(ids.filter((id) => !facts.has(id) && !unseen.gone.has(id)));
+	const asking = $derived(waiting.filter((id) => unseen.asking.has(id)).length);
+	const gone = $derived(ids.filter((id) => unseen.gone.has(id)).length);
 </script>
 
 <Sheet {open} {onclose} label="The selection">
@@ -60,12 +68,19 @@
 			</li>
 		{/each}
 	</ul>
-	{#if unseenCount(ids, facts) > 0}
-		<!-- SELECT ALL takes the pages not loaded by id alone: they are selected,
-		     and the bulk bar acts on them, but the page has never drawn them. -->
+	{#if asking > 0}
+		<!-- SELECT ALL takes the pages not loaded by id alone (c737): read now. -->
+		<div class="show-unseen" role="status">{m.library_show_asking({ n: count(asking) })}</div>
+	{/if}
+	{#if waiting.length - asking > 0}
+		<!-- Not asked: offline, or the read was refused. They are selected all the
+		     same, and the bulk bar acts on them. -->
 		<div class="show-unseen">
-			{count(unseenCount(ids, facts))} MORE FROM SELECT ALL · NOT LOADED, SO NOT LISTED
+			{count(waiting.length - asking)} MORE FROM SELECT ALL · NOT LOADED, SO NOT LISTED
 		</div>
+	{/if}
+	{#if gone > 0}
+		<div class="show-unseen">{m.library_show_gone({ n: count(gone) })}</div>
 	{/if}
 </Sheet>
 
