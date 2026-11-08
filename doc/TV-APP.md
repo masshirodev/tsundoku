@@ -626,7 +626,8 @@ verified".
      list, stored it and paired; an old `#lost=X` reopened 9D, whose retry did
      the same once X answered. So the page now takes those two doors once:
      the moment `routeHash` acts on `#connect=` or `#lost=` (or, since c683,
-     `#ask=`), it drops the fragment from its own entry with `history.replaceState`, keeping the
+     `#ask=` and `#long=`, whose band a second launch must be able to draw
+     again), it drops the fragment from its own entry with `history.replaceState`, keeping the
      path and the `?t=` query (the token, without which the page is a 404).
      The entry loaded again is 9A, as any load with no fragment is. `#added=`,
      `#rename=`, `#bad=` and `#add` are left as they are: each draws a screen
