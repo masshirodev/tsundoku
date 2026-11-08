@@ -1127,6 +1127,21 @@
 		placeAt = null;
 	});
 
+	/**
+	 * The scrubber on the strip: page [p] goes where the strip reads the page
+	 * being read, under the middle of the screen (Strip's `onpage`). A page as
+	 * tall as the screen starts at its top, as it always has; a shorter one
+	 * (zoomed out, c719: at 20% a page is a fifth of the screen) is centred on
+	 * the middle, or its top went to the top of the screen and the middle fell
+	 * a page or a chapter past it.
+	 */
+	function scrubStrip(p: number) {
+		const el = document.querySelector(`[data-entry="${data.entry.id}"][data-index="${p}"]`);
+		if (!el) return;
+		const short = el.getBoundingClientRect().height < innerHeight;
+		el.scrollIntoView({ block: short ? 'center' : 'start' });
+	}
+
 	/** A page crossed the middle of the screen, maybe in another chapter. */
 	function stripPage(chapter: number, i: number) {
 		if (chapter === data.entry.id) {
@@ -2134,6 +2149,7 @@
 					<div
 						class="screen fit-{fit}"
 						class:zoomed={zoom > 1}
+						class:shrunk={zoom < 1}
 						use:startAtTop
 						style:transform={sc.pos === 0 ? undefined : `translateX(${sc.pos * 100}%)`}
 						aria-hidden={sc.pos === 0 ? undefined : 'true'}
@@ -2310,12 +2326,7 @@
 			addHref={data.record
 				? `${resolve('/downloads/source/[id]', { id: data.record })}?/add`
 				: null}
-			onscrub={(p) =>
-				mode === 'vertical'
-					? document
-							.querySelector(`[data-entry="${data.entry.id}"][data-index="${p}"]`)
-							?.scrollIntoView({ block: 'start' })
-					: go(p)}
+			onscrub={(p) => (mode === 'vertical' ? scrubStrip(p) : go(p))}
 			onchapter={chapter}
 			onshift={() => (shift = !shift)}
 		/>
@@ -2460,6 +2471,13 @@
 	.screen.fit-height {
 		overflow-x: auto;
 		justify-content: safe center;
+	}
+	/* Zoomed out (c719, down to 20%): the page box shrinks inside its screen,
+	   centred on the reader's ground. Fit screen and fit height centre it
+	   already; fit width starts a page at the top, which a page shorter than
+	   the screen would leave hanging there. Still the top once it is taller. */
+	.screen.fit-width.shrunk {
+		align-items: safe center;
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.track.animating {

@@ -328,11 +328,17 @@
 	.marker {
 		height: 1px;
 	}
+	/* A band is words, not art: it keeps a reader's width when the strip is
+	   zoomed narrower than that (c719: at 20% a phone's strip is 82px, which
+	   left its 40px sides nothing), centred over the strip it interrupts. */
 	.band {
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
 		gap: 18px;
+		box-sizing: border-box;
+		width: max(100%, min(100vw, 360px));
+		align-self: center;
 		height: 320px;
 		padding: 0 40px;
 		border-top: var(--rule-strong);

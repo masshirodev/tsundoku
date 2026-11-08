@@ -301,19 +301,37 @@ The rules are `wideTreatment` and `firstHalf` in `src/lib/reader/reader.ts`.
 Asked for on 2026-10-29 (card c169): pages bigger than the fit, and a size
 that stays.
 
-- **Zooming.** + and − (or =) step through 50, 75, 100, 125, 150, 175, 200,
-  250 and 300%; Ctrl + the wheel and a two-finger pinch zoom freely in the
-  same range; **0 is RESET**. The READING sheet's ZOOM row has the same:
-  − · 125% · + · RESET.
+- **Zooming.** + and − (or =) step through 20, 25, 33, 50, 75, 100, 125,
+  150, 175, 200, 250, 300, 400 and 500%, and stop at either end; Ctrl + the
+  wheel and a two-finger pinch zoom freely in the same range; **0 is RESET**.
+  The READING sheet's ZOOM row has the same: − · 125% · + · RESET, and so has
+  SETTINGS' ZOOM and the TV's READING panel, which step through the one list
+  (`ZOOM_STEPS`). The range was 50% to 300% until card c719 (2026-11-07: a
+  friend made the strip as small as it went and wanted it smaller); every
+  value kept under the old range is inside the new one, so nothing migrated.
 - **Paged:** the page box is the fit times the zoom (`--zoom`, which
   `PageImage` multiplies its `vw` and `dvh` by), so a zoomed page scrolls both
   ways inside its screen and each page starts at the top (at its right in
   R→L). While zoomed a drag pans the page instead of turning it; the edges
   and the keys still turn.
+- **Paged, zoomed out** (c719): the page box shrinks inside its screen,
+  centred both ways on the reader's black, in every fit and in a spread (the
+  pair is centred). Fit width starts a page at the top, so below 100% it
+  takes `align-items: safe center` (`.screen.shrunk`): centred while it is
+  shorter than the screen, at the top once it is taller.
 - **Vertical:** the strip's width is SIDES' width times the zoom. Past 100%
-  it scrolls sideways inside its lane; under it, it narrows as SIDES does.
-  The page under the middle stays there (Strip's own width-change anchor),
-  unless the zoom has a point of its own (below).
+  it scrolls sideways inside its lane; under it, it narrows as SIDES does,
+  centred in the lane (at 20% a phone's strip is 82px of 412). The page under
+  the middle stays there (Strip's own width-change anchor), unless the zoom
+  has a point of its own (below). A chapter's band is words, not art, so it
+  never narrows below `min(100vw, 360px)`: wider than a zoomed-out strip, it
+  is centred over it. A tap anywhere in the lane, the black beside the strip
+  included, is the strip's (the controls, or a double tap's zoom).
+- **The scrubber on the strip** puts the page it names under the middle of the
+  screen, which is where the strip reads the page being read: a page as tall
+  as the screen at the top as before, a shorter one centred (c719). With its
+  top at the top, a page a fifth of the screen tall left the middle on a later
+  page, or past the chapter's end in the next chapter.
 - **Double tap** (card c185, the owner's rule): a double tap in the middle of
   the page zooms **to 100% from under it, to 200% from 100%, and back to 100%
   from over it**. Two taps make one within 250 ms and 32 px (`DoubleTap`).
@@ -340,7 +358,12 @@ that stays.
   phone width uses the phone's. RESET goes to the kept zoom first, then to
   100%.
 
-The rules are in `src/lib/reader/zoom.ts` (`tests/reader-zoom.spec.ts`); the
+The rules are in `src/lib/reader/zoom.ts` (`tests/reader-zoom.spec.ts`, which
+walks the whole step list both ways and the clamp at both ends);
+`tests/reader-zoom-range.e2e.ts` walks the ZOOM row to 20% and to 500% in
+paged and in the strip, keeps 20% across a reload, and measures the geometry
+below 50% on every device (paged, fit width, a spread, the strip's band, the
+scrubber, a finger's taps); the
 zoom tests in `tests/reader-flow.e2e.ts` check the page grows and scrolls,
 KEEP across a reload, RESET's two steps, the strip, and (c185) the double
 tap's three cases with its point held and no controls on the way, the single
