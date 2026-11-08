@@ -380,8 +380,9 @@ export async function refreshRelations(
 	const due = rows
 		.filter((r) => !waitsItsTurn(r, now, opts.retryMs) && relationsStale(r.id, now, db))
 		.slice(0, opts.limit ?? 10);
+	// By way of `series`, so a series deleted during its own ask has nothing to stamp.
 	const stamp = db.prepare(
-		`INSERT INTO series_relations (series_id, tried_at) VALUES (?, ?)
+		`INSERT INTO series_relations (series_id, tried_at) SELECT id, ? FROM series WHERE id = ?
 		ON CONFLICT (series_id) DO UPDATE SET tried_at = excluded.tried_at`
 	);
 	const store = db.prepare(
@@ -407,7 +408,7 @@ export async function refreshRelations(
 			store.run(id, JSON.stringify(graph), now, now);
 			out.refreshed += 1;
 		} else {
-			stamp.run(id, now);
+			stamp.run(now, id);
 			out.failed += 1;
 		}
 	}
@@ -484,7 +485,7 @@ async function refreshComics(
 			.prepare(`SELECT anilist_id AS anilist FROM series_links WHERE series_id = ?`)
 			.get(r.id) as { anilist: number | null } | undefined;
 		if (!m || now?.anilist !== r.anilist) {
-			stamp.run(r.id, opts.now);
+			stamp.run(opts.now, r.id);
 			continue;
 		}
 		const edges = (m.relations?.edges ?? []).filter((e) => e?.node?.id);

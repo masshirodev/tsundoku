@@ -821,6 +821,49 @@ describe('AniList down as a whole (c839, round 2)', () => {
 	});
 });
 
+describe('a series deleted during its own ask (c839, round 2)', () => {
+	const gone = (id: number) => db.prepare(`DELETE FROM series WHERE id = ?`).run(id);
+
+	it('an anime: the rest of the pass carries on, and nothing is an error', async () => {
+		fresh();
+		const { shows, books } = library(3, 1);
+		const c = quietly();
+		before = (n) => {
+			if (n === 1) gone(shows[0]);
+		};
+		await expect(cat.fillRelations({ now: NOW })).resolves.toMatchObject({ unreachable: false });
+		expect(row(shows[0])).toBeUndefined();
+		expect(graphOf(shows[1])).not.toBeNull();
+		expect(graphOf(shows[2])).not.toBeNull();
+		expect(graphOf(books[0])).not.toBeNull();
+		expect(c.error).not.toHaveBeenCalled();
+	});
+
+	it('a comic: the others of its request keep their answers', async () => {
+		fresh();
+		const { books } = library(0, 3);
+		const c = quietly();
+		before = (n) => {
+			if (n === 1) gone(books[0]);
+		};
+		await expect(cat.fillRelations({ now: NOW })).resolves.toMatchObject({ unreachable: false });
+		expect(requests).toBe(1);
+		expect(row(books[0])).toBeUndefined();
+		expect(graphOf(books[1])).not.toBeNull();
+		expect(graphOf(books[2])).not.toBeNull();
+		expect(c.error).not.toHaveBeenCalled();
+	});
+
+	it('still stamps a series that is there, when its walk comes back with nothing', async () => {
+		fresh();
+		const show = anime('Still Here', 800_000);
+		const c = quietly();
+		await expect(cat.fillRelations({ now: NOW })).resolves.toMatchObject({ failed: 1 });
+		expect(row(show)).toMatchObject({ graph: null, tried_at: NOW });
+		expect(c.error).not.toHaveBeenCalled();
+	});
+});
+
 describe('two passes at once (c839)', () => {
 	it('stands aside for a link pass in this process, and asks again once it is done', async () => {
 		fresh();
