@@ -7,6 +7,14 @@
 	import AddedBand from './AddedBand.svelte';
 	import { ago } from '$lib/library/tracking';
 	import { count } from '$lib/library/downloads';
+	import {
+		FOLDED,
+		PREPAINT_ATTR,
+		PREPAINT_TAG,
+		RECENT_KEY,
+		recentFolded,
+		recentRight
+	} from '$lib/library/browse-recent';
 
 	/**
 	 * BROWSE (Index-Browse: sources, revealOff, revealOn; Browse Calls, "Browse
@@ -62,9 +70,62 @@
 	const total = $derived(list.manga.length + list.anime.length + list.novels.length);
 	const pad = (n: number) => String(n).padStart(2, '0');
 	const extensionsHref = resolve('/browse/extensions');
+
+	/**
+	 * RECENT folds away (card c726; doc/BROWSE.md, "RECENT folds"). Open by
+	 * default, remembered for the device (`RECENT_KEY`). The server draws it
+	 * open; a device that folded it is folded before the first paint by the
+	 * head's `PREPAINT` (it marks `<html>`, and the stylesheet folds from the
+	 * mark), and the page takes the stored word as it mounts. The toggle keeps
+	 * the mark in step, so the stylesheet and the page never disagree.
+	 */
+	let recentShut = $state(false);
+	function markShut(shut: boolean) {
+		if (shut) document.documentElement.setAttribute(PREPAINT_ATTR, '');
+		else document.documentElement.removeAttribute(PREPAINT_ATTR);
+	}
+	$effect(() => {
+		let stored: string | null = null;
+		try {
+			stored = localStorage.getItem(RECENT_KEY);
+		} catch {
+			// Storage unavailable: the default, open.
+		}
+		// Read once, as the page mounts: the effect reads nothing reactive, so a
+		// toggle never runs it again (the toggle keeps the mark itself).
+		const shut = recentFolded(stored);
+		recentShut = shut;
+		// Another tab may have changed the word since this document's head ran.
+		markShut(shut);
+	});
+	function toggleRecent() {
+		recentShut = !recentShut;
+		markShut(recentShut);
+		try {
+			if (recentShut) localStorage.setItem(RECENT_KEY, FOLDED);
+			else localStorage.removeItem(RECENT_KEY);
+		} catch {
+			// Storage unavailable: the fold still holds for this visit.
+		}
+	}
+	const recentOpen = $derived(recentRight(false, list.recent.length));
+	const recentClosed = $derived(recentRight(true, list.recent.length));
 </script>
 
-<svelte:head><title>browse · tsundoku</title></svelte:head>
+<svelte:head>
+	<title>browse · tsundoku</title>
+	<!-- RECENT's fold, before the body paints (card c726; browse-recent.ts, PREPAINT). -->
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -- a constant of our own, no input in it -->
+	{@html PREPAINT_TAG}
+	<!-- Without script nothing can fold RECENT back, so it offers nothing. -->
+	<noscript
+		><style>
+			[data-recent-toggle] {
+				display: none;
+			}
+		</style></noscript
+	>
+</svelte:head>
 
 <div class="screen">
 	<TopBar sticky label="BROWSE">
@@ -141,8 +202,30 @@
 		</p>
 	{:else}
 		{#if list.recent.length}
-			<div class="label first"><span>01 — RECENT</span><span>LAST BROWSED</span></div>
-			<div class="rows">
+			<!-- RECENT's label is its fold (card c726): one stop on a TV, OK toggles it.
+			     Its name is RECENT's own words, never HIDE or SHOW, which other
+			     buttons in the browse world are named (reveal's HIDE AGAIN). -->
+			<button
+				type="button"
+				class="label first fold"
+				class:shut={recentShut}
+				aria-expanded={!recentShut}
+				aria-controls="browse-recent"
+				aria-label="01 — RECENT · LAST BROWSED"
+				onclick={toggleRecent}
+			>
+				<span>01 — RECENT</span>
+				<span class="right">
+					<span class="when-open">{recentOpen.text}</span><span class="when-shut"
+						>{recentClosed.text}</span
+					>
+					<span class="toggle when-open" data-recent-toggle>{recentOpen.toggle}</span><span
+						class="toggle when-shut"
+						data-recent-toggle>{recentClosed.toggle}</span
+					>
+				</span>
+			</button>
+			<div class="rows recent-rows" class:shut={recentShut} id="browse-recent">
 				{#each list.recent as r (r.id)}<SourceRow {r} meta={recentMeta(r)} />{/each}
 			</div>
 		{/if}
@@ -222,6 +305,35 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	/* RECENT's fold (card c726): the label is a button that looks like the label. */
+	.fold {
+		width: 100%;
+		margin: 0;
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		text-align: left;
+		cursor: pointer;
+	}
+	.fold .right {
+		display: flex;
+		gap: 14px;
+	}
+	.fold .toggle {
+		color: var(--text-1);
+	}
+	/* Folded by the page, or by the head's mark before it ran (browse-recent.ts). */
+	.when-shut,
+	.fold.shut .when-open,
+	:global(html[data-recent-folded]) .fold .when-open,
+	.recent-rows.shut,
+	:global(html[data-recent-folded]) .recent-rows {
+		display: none;
+	}
+	.fold.shut .when-shut,
+	:global(html[data-recent-folded]) .fold .when-shut {
+		display: inline;
 	}
 	.rows {
 		flex-shrink: 0;

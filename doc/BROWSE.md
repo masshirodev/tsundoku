@@ -64,6 +64,37 @@ visit to its page; a visit in incognito leaves nothing. Who may see a row is
 decided when it's read, so a hidden source browsed inside reveal is only in
 RECENT inside reveal.
 
+**RECENT folds** (card c726, wave 33; a friend's ask). Its label is a toggle:
+`01 — RECENT · LAST BROWSED  HIDE ↑`, and folded `01 — RECENT · 4 RECENT
+SHOW ↓`, so a folded RECENT still says how many. Open by default, remembered
+for the device in one localStorage key, `tsundoku:browse-recent` (`folded`,
+or nothing; `src/lib/library/browse-recent.ts`). The series screen's DETAILS
+fold is the idiom, but DETAILS is closed by default, so its server draws the
+default and only an opened device changes once the page runs. RECENT is open
+by default, and a device that folded it must not see it open and then shut
+on every load. So BROWSE's `<head>` carries a few bytes of script
+(`PREPAINT`) that the browser runs before it parses the body on a document
+load (a reload, a bookmark, a new tab): it marks `<html>` with
+`data-recent-folded` when the key says folded, and the stylesheet folds the
+rows and swaps the label's words from that mark, so the server's open markup
+is painted folded from the first frame. An arrival inside the app runs no
+head script (an inserted script is inert) and needs none: the page reads the
+key as it mounts, before the frame is painted, and puts the mark in step
+(another tab may have changed the key since this document's head ran); the
+toggle keeps the mark in step too. Without script nothing folds and the
+toggle's words are not drawn (a `<noscript>` rule). The label is a button,
+one stop on a TV, and OK toggles it; folded, its rows are not stops. **Its
+accessible name is `01 — RECENT · LAST BROWSED`, whatever its state**
+(`aria-expanded` says which): `HIDE ↑` and `SHOW ↓` are only its drawn
+words, since HIDE and SHOW are words other buttons in the browse world are
+found by (reveal's HIDE AGAIN among them), and a locator matches a name by
+substring. MANGA, ANIME and NOVELS do not fold: RECENT was the ask, and
+theirs would cost a key each and a rule for a section that is most of the
+screen. Tested in `tests/browse-recent.e2e.ts` (fold, reload, unfold, the
+first paint with the app's script blocked, arrivals inside the app, another
+tab's change), `tests/tv-browse-recent.e2e.ts` and
+`tests/browse-recent-domain.spec.ts`.
+
 **The ways in** (Browse Calls, "Browse is a place"): a BROWSE cell on the
 library's tablet bar, before QUEUE; BROWSE in the desktop sidebar's foot,
 under HISTORY, with the update count ("5 ↑"); and on the phone, whose bar has
