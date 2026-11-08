@@ -288,8 +288,7 @@ illustration) is the same at the other end. Its position is the chapter's
 first character (`0.0`), however the reader got there (opening the chapter,
 turning back, a scrub from pages on), and a relayout keeps it on that page.
 So the chapter's first character opens on the band's page: an entry opened
-without `?at=` (which reads as `0.0`) starts on its band, and so does a
-reload there. A PAGED reload on the illustration's own page, whose place is
+at its top starts on its band, and so does a reload there. A PAGED reload on the illustration's own page, whose place is
 also `0.0`, lands one page back, on the band. In SCROLL a `0.0` with no line
 height opens at the top, the band above it; with one (`0.0.<y>`), the line
 goes back to its height as any place does.
@@ -303,9 +302,23 @@ reload, or incognito, which saves nothing, still comes back to the same
 sentence (and in SCROLL, the same line: `?at=<block>.<offset>.<y>`, above).
 The reader is the URL's only writer and its only reader: CONTINUE, history
 and the end page link to the entry without `?at=` (`rg -n
-"searchParams.get\('at'\)|[?&]at=" src`, wave 25), and an entry opened
-without one starts at its first character (the server's `last_offset` is read
-only behind an `?at=` that names no place; the reader's notes, wave 25).
+"searchParams.get\('at'\)|[?&]at=" src`, wave 25).
+
+**Where a door opens a chapter** (c622). The effect that opens the first
+chapter takes, in order: `?p=last` (its end, stepping back from the next
+chapter); a place the URL names (`?at=0.0` included, the top, whatever the
+server saved); the server's saved place (`last_position` and `last_offset`)
+when the chapter is not read; and otherwise its top. A saved block the chapter
+no longer has (its text changed) opens at the top and settles there
+(`openChapter`, which alone knows the chapter's length).
+
+| The door                                                                        | Where it opens                |
+| ------------------------------------------------------------------------------- | ----------------------------- |
+| ▶ CONTINUE, a chapter row, history, the end page, an unread chapter left midway | the saved block and character |
+| any of those, the chapter read                                                  | its top                       |
+| any of those, the saved block past the chapter's end                            | its top                       |
+| `?at=<block>.<offset>` (a reload, a bookmark, the URL the reader keeps)         | that character                |
+| `?at=0.0`                                                                       | its top                       |
 
 The URL is the reader's only writer; `keepHistoryUrl()` copies it into the
 history entry too, so a popstate back into that entry opens what the reader was

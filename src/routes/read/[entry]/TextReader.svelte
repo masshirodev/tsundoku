@@ -522,6 +522,11 @@
 					: new BookFailure('broken', 'THE CHAPTER WOULD NOT READ');
 			return;
 		}
+		// A saved place the chapter no longer has (its text changed, or the place
+		// is from another book's numbering): the top, rather than a block nothing
+		// answers (c622). Here because only the chapter knows how long it is;
+		// parseAt reads a URL and has no chapter to ask.
+		if (typeof at === 'object' && !ch.blocks[at.block]) at = 'start';
 		index = i;
 		atEnd = false;
 		chapter = ch;
@@ -620,10 +625,9 @@
 		untrack(() => {
 			const at = appPage.url.searchParams.get('at');
 			const p = appPage.url.searchParams.get('p');
-			// No `?at=` reads as the chapter's first character, as it always has:
-			// the old split read '' as paragraph 0, so the server's place below is
-			// reached only by an `?at=` that isn't a place (reader notes, wave 25).
-			const place = at === null ? { block: 0, offset: 0, y: null } : parseAt(at);
+			// A place in the URL wins, `?at=0.0` included; no `?at=` (every door into
+			// a chapter links without one) is the server's saved place below (c622).
+			const place = parseAt(at);
 			const start: 'start' | 'end' | TextPosition =
 				p === 'last'
 					? 'end'

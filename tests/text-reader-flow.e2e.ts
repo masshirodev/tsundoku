@@ -1337,8 +1337,8 @@ test.describe("the band at a chapter's start (c705)", () => {
 		}
 
 		// Vol. 5 (a full-page illustration first, so the band has a page of its
-		// own) opened as the series screen opens it, with no `?at=`, which reads
-		// as the chapter's first character, and with `?at=0.0`: both on the
+		// own) opened as the series screen opens it, with no `?at=`, a read chapter at
+		// its top, and with `?at=0.0`: both on the
 		// band's page, not the illustration's.
 		const vol2 = page.url();
 		await openFromContents(page, 'Vol. 5');
