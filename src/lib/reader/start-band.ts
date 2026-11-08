@@ -212,15 +212,22 @@ const NOISE = /[\p{P}\p{S}\s]+/gu;
  * foldTitle(s)`.
  */
 export function foldTitle(s: string): string {
-	const { rest, n } = splitTitle(s);
+	return fold(s, true);
+}
+
+function fold(s: string, numbered: boolean): string {
+	const { rest, n } = splitTitle(s, numbered);
 	return rest || (n ?? '');
 }
 
-/** A title's text once its leading chapter number is off, and that number. */
-function splitTitle(s: string): { rest: string; n: string | null } {
+/**
+ * A title's text once its leading chapter number is off, and that number.
+ * `withNumbered` false leaves a leading "1. " in, as words of the title.
+ */
+function splitTitle(s: string, withNumbered = true): { rest: string; n: string | null } {
 	let t = s.normalize('NFKC').toLowerCase().trim();
 	let n: string | null = null;
-	const numbered = NUMBERED.exec(t);
+	const numbered = withNumbered ? NUMBERED.exec(t) : null;
 	if (numbered) {
 		n = numbered[1];
 		t = t.slice(numbered[0].length);
@@ -255,6 +262,9 @@ function numberOnly(s: string): boolean {
 export function bandTitle(tocTitle: string, lead: string | readonly string[] | null): boolean {
 	const own = foldTitle(tocTitle);
 	if (!own) return false;
+	// "1. The Article" loses its number and "1 The Article" keeps its own, so
+	// the two only compare equal with the NUMBERED step left out of both.
+	const whole = fold(tocTitle, false);
 	const lines = lead === null ? [] : typeof lead === 'string' ? [lead] : lead;
-	return lines.every((l) => foldTitle(l) !== own);
+	return lines.every((l) => foldTitle(l) !== own && fold(l, false) !== whole);
 }

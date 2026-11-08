@@ -409,6 +409,60 @@ describe('a bare leading number in the table of contents (c741)', () => {
 	it('takes only the one leading number', () => {
 		expect(foldTitle('1. 2. Home')).toBe('2home');
 	});
+	describe('the same number with other punctuation (round 2)', () => {
+		const SAME: [string, string][] = [
+			['1. The Article', '1 The Article'],
+			['1. The Article', '1: The Article'],
+			['1) The Article', '1 - The Article'],
+			['1 The Article', '1. The Article'],
+			['2001. A Space Odyssey', '2001: A Space Odyssey'],
+			// The neighbours: full-width, no strip on either side, both stripped.
+			['１． The Article', '1 The Article'],
+			['1 The Article', '１． The Article'],
+			['１） The Article', '１： The Article'],
+			['12) The Article', '12. The Article']
+		];
+		for (const [toc, line] of SAME)
+			it(`"${toc}" is said by "${line}"`, () => {
+				expect(bandTitle(toc, line)).toBe(false);
+			});
+		it('the number still comes off for the card’s case', () => {
+			expect(bandTitle('1. The Article', 'The Article')).toBe(false);
+			expect(bandTitle('1) The Article', 'Chapter 1: The Article')).toBe(false);
+		});
+		it('still draws a different title', () => {
+			expect(bandTitle('2. The Party', '1 The Article')).toBe(true);
+			expect(bandTitle('2. The Party', 'The Article')).toBe(true);
+		});
+		it('a different number before the same words is a different line (Decisions)', () => {
+			expect(bandTitle('1. The Article', '2 The Article')).toBe(true);
+			expect(bandTitle('1 The Article', '2. The Article')).toBe(true);
+		});
+		it('two numbering prefixes are both taken off, as two "Chapter n:" prefixes are (Decisions)', () => {
+			expect(bandTitle('1. The Article', '2. The Article')).toBe(false);
+			expect(bandTitle('Chapter 1: The Article', 'Chapter 2: The Article')).toBe(false);
+		});
+		it('leaves foldTitle as it was', () => {
+			expect(foldTitle('1. The Article')).toBe('thearticle');
+			expect(foldTitle('4: Home')).toBe('4home');
+			expect(foldTitle('5 Home')).toBe('5home');
+		});
+		it('holds through leadLines, not only on a string', () => {
+			expect(bandTitle('1. The Article', leadLines([h('1 The Article'), p(LONG)]))).toBe(false);
+			expect(bandTitle('1. The Article', leadLines([p('1: The Article'), p(LONG)]))).toBe(false);
+			expect(bandTitle('2. The Party', leadLines([h('1 The Article'), p(LONG)]))).toBe(true);
+		});
+		it('reads a number and a title in two blocks against a numbered entry', () => {
+			const lines = leadLines([h('1'), h('The Article', 'h2'), p(LONG)]);
+			expect(lines).toEqual(['1', 'The Article', '1 The Article']);
+			expect(bandTitle('1. The Article', lines)).toBe(false);
+			expect(bandTitle('2. The Party', lines)).toBe(true);
+		});
+		it('a numbered entry against a bare numeral', () => {
+			expect(bandTitle('1. 一', '1 一')).toBe(false);
+			expect(bandTitle('1) 2', '1 2')).toBe(false);
+		});
+	});
 	it('a number before a chapter prefix leaves the prefix to be read', () => {
 		expect(foldTitle('1. Chapter 2: Home')).toBe('home');
 	});
