@@ -251,6 +251,14 @@
 	let bar = $state<SelectionBar | null>(null);
 	/** A refusal, shown where it was pressed; the selection stays (Rules, "Keeps it"). */
 	let barRefused = $state('');
+	// A derived, or every re-read's new `data` would count as the query changing.
+	const searched = $derived(data.q);
+	/** It answers what was pressed: a new tick or a new query is the owner moving on (c469). */
+	$effect(() => {
+		void searched;
+		void [...selected];
+		barRefused = '';
+	});
 	let batch = $state.raw<RefreshBatch | null>(null);
 	const sheetLists = $state<{
 		existing: { id: number; title: string; books: number }[];

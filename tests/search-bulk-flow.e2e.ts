@@ -123,6 +123,8 @@ async function addToWork(page: Page) {
 	await sheet.getByRole('radio', { name: /ADD TO A WORK/ }).click();
 	return sheet;
 }
+const searchField = (page: Page) =>
+	page.getByRole('searchbox').or(page.locator('.bar input')).first();
 const STALE = 'THAT WORK HAS CHANGED · LOOK AGAIN';
 const hidBand = (page: Page) => page.locator('.band:visible', { hasText: 'HIDDEN' });
 
@@ -384,7 +386,10 @@ test('ADD TO A WORK whose Work is gone: the refusal is drawn, the ticks stay, an
 test('ADD TO A WORK whose Work was remade under its id (c583): refused, then the second press joins it', async ({
 	page
 }) => {
-	const id = makeWork('Remade Work', ['Hoshi no Umi no Tabibito', 'Sekai no Owari no Kissaten']);
+	const id = makeWork('Remade Work', [
+		'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
+		'Natsu no Owari ni Kimi to'
+	]);
 	const dungeon = series('Dungeon Meshi').id;
 	await tick(page, 'Dungeon', ['Dungeon Meshi']);
 	const sheet = await addToWork(page);
@@ -431,13 +436,91 @@ test('that band goes with its query and with ✕, and ✕ undoes nothing', async
 	await barCell(page, 'HIDE').click();
 	await expect(hidBand(page)).toBeVisible();
 
-	await page.getByRole('searchbox').or(page.locator('.bar input')).first().fill('Tensei S');
+	await searchField(page).fill('Tensei S');
 	await expect.poll(() => new URL(page.url()).searchParams.get('q')).toBe('Tensei S');
 	await expect(hidBand(page)).toHaveCount(0);
-	await page.getByRole('searchbox').or(page.locator('.bar input')).first().fill('Tensei');
+	await searchField(page).fill('Tensei');
 	await expect(hidBand(page)).toBeVisible();
 
 	await hidBand(page).getByRole('button', { name: 'Dismiss this band' }).click();
 	await expect(hidBand(page)).toHaveCount(0);
 	expect(parts.map((t) => series(t).hidden)).toEqual([1, 1]);
+});
+
+test('GROUP into a series: the library’s redirect, and SELECT ends by leaving', async ({
+	page
+}) => {
+	await tick(page, ' no ', ['Hoshi no Umi no Tabibito', 'Sekai no Owari no Kissaten']);
+	await barCell(page, 'GROUP').click();
+	const sheet = page.getByRole('dialog', { name: 'Group into a series' });
+	await sheet.getByRole('textbox', { name: 'Series name' }).fill('Bulk Book');
+	const posted = page.waitForResponse(
+		(r) => r.request().method() === 'POST' && r.url().includes('group')
+	);
+	await sheet.getByRole('button', { name: /CREATE SERIES · 2 BOOKS/ }).click();
+	expect(new URL((await posted).url()).pathname).toBe('/');
+	await page.waitForURL(/\/series\/\d+\?created=2&/);
+	await expect(page.locator('.bulk')).toHaveCount(0);
+});
+
+test('the refusal over the bar lasts until the owner moves on: a tick, the query, ✕; ← leaves it behind', async ({
+	page
+}) => {
+	const id = makeWork('Refusal Work', ['Hikaru ga Shinda Natsu', 'Boku no Kokoro no Yabai Yatsu']);
+	const refused = page.locator('.fold-refused');
+	/** A refusal reached the real way: the Work is remade between the pick and ADD. */
+	const refuse = async () => {
+		const sheet = await addToWork(page);
+		await sheet.getByText('Refusal Work', { exact: true }).click();
+		write(`UPDATE works SET created_at = created_at + 1 WHERE id = ?`, id);
+		await sheet.getByRole('button', { name: /ADD \d+ TO THE WORK/ }).click();
+		await expect(refused).toHaveText(STALE);
+	};
+	await tick(page, 'Isekai', ['Isekai Yakkyoku', 'Isekai Ojisan']);
+
+	await refuse();
+	await hit(page, 'Isekai Ojisan').click();
+	await expect(refused).toHaveCount(0);
+	await expect(count(page)).toHaveText('1 SELECTED');
+
+	await refuse();
+	await searchField(page).fill('Isekai Y');
+	await expect.poll(() => new URL(page.url()).searchParams.get('q')).toBe('Isekai Y');
+	await expect(refused).toHaveCount(0);
+	await expect(count(page)).toHaveText('1 SELECTED');
+
+	await refuse();
+	await page.getByRole('button', { name: 'Stop selecting' }).first().click();
+	await expect(page.locator('.bulk')).toHaveCount(0);
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await expect(refused).toHaveCount(0);
+
+	await hit(page, 'Isekai Yakkyoku').click();
+	await refuse();
+	await page.getByRole('link', { name: 'Back' }).first().click();
+	await page.waitForURL((u) => u.pathname === '/');
+	await expect(page.locator('.selected-count').first()).toContainText('1');
+	await expect(refused).toHaveCount(0);
+});
+
+test('a DELETE that comes back without a success says so, keeps the ticks and reads the page again', async ({
+	page
+}) => {
+	await tick(page, 'Isekai', ['Isekai Ojisan']);
+	await page.route(
+		(u) => u.search === '?/delete',
+		(r) => r.fulfill({ status: 500, body: 'no' })
+	);
+	await barCell(page, 'DELETE').click();
+	const sheet = page.getByRole('dialog', { name: 'DELETE 1 SERIES?' });
+	const reread = page.waitForRequest((r) => r.url().includes('__data.json'));
+	await sheet.getByRole('button', { name: 'DELETE 1' }).click();
+	await reread;
+	await expect(sheet).toHaveCount(0);
+	await expect(page.locator('.fold-refused')).toContainText('NOT DELETED');
+	await expect(count(page)).toHaveText('1 SELECTED');
+	await page.unroute((u) => u.search === '?/delete');
+
+	await hit(page, 'Isekai Yakkyoku').click();
+	await expect(page.locator('.fold-refused')).toHaveCount(0);
 });

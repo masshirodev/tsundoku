@@ -963,20 +963,25 @@ has no such action. GROUP's lists (`existing`, `existingWorks`) come from
 SvelteKit applies an answer only to the page it belongs to (`GroupSheet`'s own
 `ondone`, c700), so the search reads each answer itself:
 
-| Action                        | On the library                                   | On the search                                                                           |
-| ----------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| FAV, RATE                     | `form`, re-read; SELECT stays                    | re-read; SELECT stays                                                                   |
-| + SHELF                       | re-read; SELECT stays                            | re-read; SELECT stays                                                                   |
-| GROUP, into a Work or series  | the band's UNDO; SELECT ends                     | hits re-read; SELECT ends, no band (the Work is in the hits)                            |
-| HIDE/UNHIDE (no Work)         | `form`, re-read; SELECT stays (by default)       | re-read; **SELECT ends** (handoff: a bulk action's success)                             |
-| HIDE on a Work's part         | the HIDE sheet; the band with UNDO; SELECT ends  | the same sheet; `/search`'s own band with UNDO; SELECT ends                             |
-| A plain HIDE that took a Work | `?/bulk` answers `hideFacts`; the band with UNDO | the same answer read here: `/search`'s own band with UNDO; no sheet; SELECT ends        |
-| UNHIDE a Work's part          | `?/showAll`, band                                | band; SELECT ends                                                                       |
-| FOLD                          | `?/fold` redirects to the review                 | the same redirect                                                                       |
-| REFRESH                       | the band over the bar; SELECT stays              | the same band; SELECT stays                                                             |
-| DELETE                        | the sheet; SELECT ends                           | the same sheet; SELECT ends                                                             |
-| A refusal                     | `foldMessage` over the bar                       | `foldMessage` over the bar; **the selection is kept**                                   |
-| A stale GROUP (Work gone)     | the sheet closes, the page re-reads its lists    | the sheet hands it to the bar's line; **the ticks stay**; the lists re-read (`onstale`) |
+| Action                        | On the library                                           | On the search                                                                           |
+| ----------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| FAV, RATE                     | `form`, re-read; SELECT stays                            | re-read; SELECT stays                                                                   |
+| + SHELF                       | re-read; SELECT stays                                    | re-read; SELECT stays                                                                   |
+| GROUP, into a Work            | the band's UNDO; SELECT ends                             | hits re-read; SELECT ends, no band (the Work is in the hits)                            |
+| GROUP, into a series          | `?/group` redirects to the new series                    | the same redirect, to the new series; leaving ends SELECT                               |
+| HIDE/UNHIDE (no Work)         | `form`, re-read; SELECT stays (by default)               | re-read; **SELECT ends** (handoff: a bulk action's success)                             |
+| HIDE on a Work's part         | the HIDE sheet; the band with UNDO; SELECT ends          | the same sheet; `/search`'s own band with UNDO; SELECT ends                             |
+| A plain HIDE that took a Work | `?/bulk` answers `hideFacts`; the band with UNDO         | the same answer read here: `/search`'s own band with UNDO; no sheet; SELECT ends        |
+| UNHIDE a Work's part          | `?/showAll`, band                                        | band; SELECT ends                                                                       |
+| FOLD                          | `?/fold` redirects to the review                         | the same redirect                                                                       |
+| REFRESH                       | the band over the bar; SELECT stays                      | the same band; SELECT stays                                                             |
+| DELETE                        | the sheet; SELECT ends                                   | the same sheet; SELECT ends                                                             |
+| DELETE, no success            | `NOT DELETED · …` over the bar; page re-read; ticks stay | the same                                                                                |
+| A refusal                     | `foldMessage` over the bar                               | `foldMessage` over the bar; **the selection is kept**                                   |
+| A stale GROUP (Work gone)     | the sheet closes, the page re-reads its lists            | the sheet hands it to the bar's line; **the ticks stay**; the lists re-read (`onstale`) |
+
+A refusal over the bar on the search lasts until the selection or the query
+changes, the next bulk action, or the end of SELECT.
 
 `hidBand`, GROUP's and DELETE's own sheets carry their own answers, so nothing
 else is drawn for them on the search. ← after an action carries the ids back

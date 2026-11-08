@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { deserialize, enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import BulkBar from '$lib/components/chrome/BulkBar.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
@@ -156,6 +157,12 @@
 	let hiding = $state(false);
 	let deleting = $state(false);
 	let deleteBusy = $state(false);
+	/** DELETE came back without a success: said over the bar, until the selection moves. */
+	let deleteFailed = $state(false);
+	$effect(() => {
+		void [...selected];
+		deleteFailed = false;
+	});
 	/** What the selection holds, read as DELETE opens (Out X4; c731). */
 	let held = $state.raw({ n: 0, series: 0 });
 	/** DELETE THEM TOO: off every time the sheet opens, never carried over. */
@@ -217,6 +224,7 @@
 	 */
 	async function askDelete(): Promise<void> {
 		const tap = ++lastTap;
+		deleteFailed = false;
 		await fill();
 		let asked: number[];
 		let answer: { n: number; series: number };
@@ -280,8 +288,10 @@
 {#if selecting}
 	<form method="POST" action="/?/bulk" use:enhance={bulkAnswer}>
 		{#each [...selected] as id (id)}<input type="hidden" name="id" value={id} />{/each}
-		{#if foldMessage}
-			<div class="fold-refused" role="status">{foldMessage}</div>
+		{#if foldMessage || deleteFailed}
+			<div class="fold-refused" role="status">
+				{deleteFailed ? 'NOT DELETED · THE WORKSTATION DID NOT ANSWER' : foldMessage}
+			</div>
 		{/if}
 		<BulkBar columns={7}>
 			{#snippet actions()}
@@ -440,7 +450,13 @@
 			return async ({ result }) => {
 				deleting = false;
 				deleteBusy = false;
-				if (result.type === 'success') await ondeleted();
+				if (result.type === 'success') {
+					await ondeleted();
+					return;
+				}
+				// Some of them may be gone already, so the page is read again; the ticks stay.
+				deleteFailed = true;
+				await invalidateAll();
 			};
 		}}
 	>
