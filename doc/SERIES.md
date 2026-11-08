@@ -376,17 +376,24 @@ line.
 (min-width: 900px)`), by CSS media queries alone. The tablet in either
   orientation and the desktop are unchanged. The handoff folds the tablet in
   portrait too; that part is not built (below, "What it does not do yet").
-- **One DOM, two orders.** The markup is in the fold's order, rows grouped in
-  wrappers that are no boxes (`display: contents`); where nothing folds, CSS
-  `order` puts each group back where it always was (`.o1`–`.o7`:
-  DOWNLOAD under the WORK row, the bands, LANGUAGE to SCANLATOR, SHELVES,
-  LISTS to TAGS, ABOUT, EDITIONS and FILE). The rules are `> :global(*)`:
-  a scoped `*` matches this component's elements only, and LISTS' row is
-  ListsRow's, which then sat above DIRECTION. `tests/series-details.e2e.ts`
-  checks today's order on the tablet and the desktop. The focus layer moves
-  by geometry (`doc/FOCUS.md`), so the TV, which folds, walks the visual
-  order; a keyboard's Tab on the desktop walks the markup's, which puts
-  SHELVES and ABOUT before DOWNLOAD.
+- **Two markups** (c556, the owner's decision of 2026-11-07, keeping
+  `doc/handoffs/series-phone/` 1A/1C as drawn). Where nothing folds the DOM's
+  order is the screen's: DOWNLOAD, the bands, LANGUAGE to SCANLATOR, SHELVES,
+  LISTS to TAGS, ABOUT, EDITIONS and FILE. Where the fold applies, the bands,
+  SHELVES and ABOUT stand above the line. Those three groups (`.o2`, `.o4`,
+  `.o6`) are the ones the two orders place differently, so they are one
+  snippet each drawn twice: once before the line (`.fold-only`) and once in
+  its place among the others (`.screen-only`), and each is hidden by the
+  other's media query with `display: none`. So there is no script (the first
+  paint is right), and the copy not drawn is out of Tab, the focus layer
+  (`isVisible`, `doc/FOCUS.md`) and the screen reader. The other four groups
+  are in the DOM once. The wrappers are no boxes (`display: contents`).
+  Neither copy holds an id, a `bind:this`, a `for=`, `aria-controls` or a
+  focus scope, and what they show is the panel's own state (`aboutOpen`, the
+  page's bands), so a band or MORE drawn in the one copy is the other's too; a
+  form submits from the copy that can be seen. A test that finds such a row by
+  its class says `:visible`. `tests/series-panel-order.e2e.ts` Tabs the panel
+  on the desktop, top to bottom.
 - **The folded line** (1C) is one row, 64px at the least: DETAILS | a state
   line over the names inside | SHOW ↓. Its words are `details.ts`'
   `detailsLine`, from facts the panel already has, no query of its own:
@@ -464,20 +471,6 @@ file for ABOUT's body and the line's text at 390).
   DOWNLOAD, LISTS, FILE and the rest under a dozen specs this slot does not
   own (doc/handoff-notes/series.md, wave 22, Gaps, has the list and the
   one-line way to open it for them).
-- **Where nothing folds, Tab and a screen reader read the fold's order.** On
-  the tablet and the desktop the visual order comes from CSS `order` ("One
-  DOM, two orders", above), while the DOM order, which Tab and a screen
-  reader follow, is the fold's: the bands, SHELVES and ABOUT, then DOWNLOAD,
-  DIRECTION and on to FILE. So a keyboard on the desktop goes from ABOUT's
-  MORE back up to DOWNLOAD (WCAG 2.4.3, focus order). The TV and the phone
-  are not affected: there the DOM order is the screen's. That is c556,
-  which wave 26 measured and left open: the fold's order (the bands,
-  SHELVES, ABOUT, the line, then DOWNLOAD, LANGUAGE…, LISTS…, EDITIONS and
-  FILE) and the screen's (DOWNLOAD first) agree on the relative order of at most four of the seven groups, so one markup cannot hold both, and any two markups -- each hidden by the
-  other's media query -- render DOWNLOAD or the bands twice, which specs
-  other slots own find by class (`.dl-row`, `.twin`, `.panel .about`) and
-  would then find twice. The options, with what each costs, are in
-  `doc/handoff-notes/works.md`, wave 26.
 - **A download that failed is not a mark.** The rows already say FAILED, and
   the handoff's marks are the three above; a series with failed chapters
   folds quiet.
@@ -628,8 +621,7 @@ several, and none on a show of one, whose UNLINK takes every part). UNLINK
 closes the sheet on a band, `UNLINKED · <ENTRY>` / `NO PASS LINKS IT AGAIN`
 (`S3 · NO PASS LINKS IT AGAIN` on a season), with UNDO (c520): the rows that
 went come back with every column (`via`, dates, score, `filled_rating`, a
-season's `episodes` and `year`, and an anime's `series_links` mirror with
-its own score), keyed by the series and its season and part, never a row id,
+season's `episodes` and `year`), keyed by the series and its season and part, never a row id,
 and the UNLINK's own `unlinked` decision goes with them (the one it replaced,
 if any, comes back), so the next pass treats the series as linked. The band
 carries what went in its form, as RENAME's and ADD TO A WORK's do
@@ -693,7 +685,7 @@ cells, with the house's inset focus mark.
   AniList for them (`resolveLinks`, which then writes only those two, never
   the title, cover or format the link already settled), and until then it
   reads `MANGA · MAL 132214`, never `MANGA · null`. An entry AniList no
-  longer has is asked once (`country = ''`). An anime's mirror row is never
+  longer has is asked once (`country = ''`). An anime's season link is never
   asked: its season keeps its own year. EDIT's ENTRY says the same
   (`ANILIST 7701 · MANHWA · 2024`). The ANILIST id stands in for MAL's where
   there is no MAL entry (1B, 5 and 9 do the same).
@@ -810,6 +802,52 @@ screen never asks AniList and never waits. Code: `src/lib/library/seasons-around
 `series-seasons-db.spec.ts`, `series-seasons-flow.e2e.ts` (the pass run by
 its script against a stand-in AniList, then the screen) and
 `tv-series-seasons.e2e.ts` (the remote's stops).
+
+## OTHER FORMS (c700)
+
+The same work's manga, novel or anime, on a series linked to its AniList
+entry: a quiet folded line under the list's season heads (the extras' idiom,
+c358), `+ 2 OTHER FORMS · MANGA · LIGHT NOVEL`, that unfolds to one row each
+(`OtherForms.svelte`; on a comic's or a novel's list, under the chapters and
+outside the rows the rail measures). It reads the relation cache and nothing
+else ([`LINKS.md`](LINKS.md), "The relation cache"), so it asks AniList on no
+page load, and it draws nothing where the cache has no such edge.
+
+**What counts** (`formNodes`): an entry one hop from the series' entry or from
+any season's, by `SOURCE`, `ADAPTATION` or `ALTERNATIVE`, whose format maps to
+another kind than the series' (`candidateKind`, `sameKind`: the registry, so a
+manga is not another form of a manhwa). An `ALTERNATIVE` anime of an anime is
+the same kind and is not one; a format of no kind (`MUSIC`) is none.
+
+**A row** carries the entry's facts as plain text (format, status, chapters,
+volumes, episodes) and:
+
+- **in the library** -> `MANGA · IN LIBRARY →` opens it, in its Work's place
+  when the two are one Work. "In the library" is another series' own AniList
+  link (season links as well as `series_links`), of that form's kind, under the
+  reveal filter: never a title, a novel holding the comic's entry for its cover
+  is not the comic, and a hidden series is not offered outside reveal (FIND
+  stands in its place, which says nothing about the library).
+- **not in the library** -> `FIND`, `/downloads/search?q=<title>&kind=<kind>`,
+  so an anime's FIND for its manga asks only manga sources.
+
+**Beside IN LIBRARY:**
+
+| The two                           | The second cell                                                                                                                   |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| in no Work                        | `GROUP AS A WORK`: the GROUP flow (`GroupSheet`) with both series picked, this one first. ORDER, the name and UNDO are the flow's |
+| one Work                          | `IN THIS WORK · PART n`, the other's part, and no cell                                                                            |
+| one in a Work, or each in its own | nothing                                                                                                                           |
+
+Nothing changes until the sheet is answered: the screen never groups and never
+offers a Work unprompted. The sheet posts to the library's `?/work`, whose
+answer SvelteKit applies only to the page that action belongs to, so the sheet
+hands it to this screen (`ondone`) for the band and its UNDO. A refused UNDO
+(the Work changed since) says why on the band and reads the page again, because
+`update()` re-reads a page only on a success.
+
+`ADD TO <WORK>` is not built: this screen's `?/addToWork` takes only MIGHT
+CONTINUE's offer, for this series, so the flow cannot add across from here.
 
 ## Where it departs from the handoff
 

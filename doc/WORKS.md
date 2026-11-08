@@ -19,6 +19,9 @@ questions, and this file only records what the build decided on top of it.
   name, an order the owner sets, and up to one Work per series. Each series
   keeps its own source, FOLLOW, link, folder, rating and FAV. Its point is
   continuity: finishing one series offers the next.
+  A second door to GROUP stands on the series screen: OTHER FORMS' `GROUP AS
+A WORK`, on an IN LIBRARY row (c700; [`SERIES.md`](SERIES.md), "OTHER
+  FORMS"), opens the same sheet with both series picked, this one first.
 - **Merged seasons** (Part A, c215) turn several anime series, one per season
   as KickAssAnime lists them, into one series whose episodes carry
   `entries.season`. Unlike a Work, this merges.

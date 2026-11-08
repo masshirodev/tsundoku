@@ -808,7 +808,47 @@ describe('UNDO on UNLINK’s band (c520)', () => {
 		expect(row(id)).toBeUndefined();
 	});
 
-	it('an anime: a season’s two parts come back, the mirror with its own score, and the other season stays', () => {
+	it('a band drawn before rung 74 still undoes, and its mirror is not put back (c467)', () => {
+		const id = animeSeries('Undo Pending Band');
+		try {
+			expect(
+				seasons.linkSeason(id, 1, 1, candidate(211, { mal: 611, episodes: 12 }), 'review', NOW)
+			).toBe(true);
+			const facts = cat.unlink(id, NOW + 10, 1);
+			// What the page held from before the upgrade: the same facts, and the
+			// `mirror` the old UNLINK copied out of `series_links`.
+			const old = {
+				...facts,
+				mirror: {
+					anilist_id: 211,
+					mal_id: 611,
+					via: 'review',
+					title: 'T',
+					cover_url: '',
+					linked_at: NOW,
+					resolved_at: NOW,
+					filled_rating: null,
+					score: 8,
+					format: 'TV',
+					country: null,
+					year: null
+				}
+			};
+			expect(undo(old, id)()).toBe('undone');
+			expect(seasons.seasonLinks(id).map((l) => [l.season, l.anilistId])).toEqual([[1, 211]]);
+			expect(row(id)).toBeUndefined();
+			// A garbled one is no reason to refuse: the field is simply not read.
+			const again = cat.unlink(id, NOW + 20, 1);
+			expect(undo({ ...again, mirror: { via: 'nonsense' } }, id)()).toBe('undone');
+			expect(row(id)).toBeUndefined();
+		} finally {
+			db.prepare(`DELETE FROM season_link_decisions WHERE series_id = ?`).run(id);
+			db.prepare(`DELETE FROM series_season_links WHERE series_id = ?`).run(id);
+			forgetSerie(id);
+		}
+	});
+
+	it('an anime: a season’s two parts come back, and the other season stays', () => {
 		const id = animeSeries('Undo Two Parts');
 		const ep = db.prepare(
 			`INSERT INTO entries (series_id, position, label, added_at, season, episode_number) VALUES (?, ?, ?, ?, ?, ?)`
@@ -830,26 +870,22 @@ describe('UNDO on UNLINK’s band (c520)', () => {
 			expect(seasons.linkSeason(id, 2, 1, candidate(203, { episodes: 3 }), 'pasted', NOW)).toBe(
 				true
 			);
-			// The mirror's own score, which syncSeriesLink never writes.
-			db.prepare(`UPDATE series_links SET score = 8, filled_rating = 8 WHERE series_id = ?`).run(
-				id
-			);
 			db.prepare(
 				`UPDATE series_season_links SET score = 7 WHERE series_id = ? AND season = 1 AND part = 2`
 			).run(id);
-			const before = { parts: parts(), mirror: row(id) };
-			expect(before.mirror).toMatchObject({ anilist_id: 201, score: 8, filled_rating: 8 });
+			const before = { parts: parts(), row: row(id) };
+			expect(before.row).toBeUndefined();
 			const facts = cat.unlink(id, NOW + 10, 1);
 			expect(facts.season).toBe(1);
 			expect(facts.parts.map((p) => [p.season, p.part])).toEqual([
 				[1, 1],
 				[1, 2]
 			]);
-			// Season 2 is left alone; season 1 went with both its parts, and the mirror with it.
+			// Season 2 is left alone; season 1 went with both its parts.
 			expect((parts() as { season: number }[]).map((p) => p.season)).toEqual([2]);
 			expect(row(id)).toBeUndefined();
 			expect(undo(facts, id)()).toBe('undone');
-			expect({ parts: parts(), mirror: row(id) }).toEqual(before);
+			expect({ parts: parts(), row: row(id) }).toEqual(before);
 			expect(
 				db.prepare(`SELECT COUNT(*) AS n FROM season_link_decisions WHERE series_id = ?`).get(id)
 			).toEqual({ n: 0 });
@@ -859,7 +895,7 @@ describe('UNDO on UNLINK’s band (c520)', () => {
 			const two = cat.unlink(id, NOW + 20, 2);
 			expect(two.parts.map((p) => [p.season, p.part])).toEqual([[2, 1]]);
 			undo(two, id)();
-			expect({ parts: parts(), mirror: row(id) }).toEqual(before);
+			expect({ parts: parts(), row: row(id) }).toEqual(before);
 
 			// A part linked again meanwhile refuses the whole UNDO: part 1 stays gone too.
 			const three = cat.unlink(id, NOW + 30, 1);
@@ -964,7 +1000,7 @@ describe('a comic’s link keeps its country and start year (c520, rung 70)', ()
 		expect(cols(id)).toEqual({ country: 'CN', year: 2019 });
 	});
 
-	it('is asked on the next pass for a link made before the rung, once, and never for an anime’s mirror', async () => {
+	it('is asked on the next pass for a link made before the rung, once, and never for an anime’s season link', async () => {
 		const id = idOf('Tower of God');
 		const lost = idOf('Lookism');
 		// Two links as rung 70 found them: resolved, their format known, no country.
@@ -993,20 +1029,20 @@ describe('a comic’s link keeps its country and start year (c520, rung 70)', ()
 		expect(await cat.resolveLinks(NOW + 2)).toBe(0);
 		expect(asked).toEqual([]);
 
-		// An anime's mirror of its first season is not a comic's link: never asked.
-		const show = animeSeries('Mirror Only');
+		// An anime's season link is not a comic's link: never asked.
+		const show = animeSeries('Season Link Only');
 		try {
 			expect(
 				seasons.linkSeason(
 					show,
 					1,
 					1,
-					cat.toCandidate(anime({ id: 5114, english: 'Mirror Only' })),
+					cat.toCandidate(anime({ id: 5114, english: 'Season Link Only' })),
 					'review',
 					NOW
 				)
 			).toBe(true);
-			expect(cols(show)).toEqual({ country: null, year: null });
+			expect(cols(show)).toBeUndefined();
 			asked.length = 0;
 			expect(await cat.resolveLinks(NOW + 3)).toBe(0);
 			expect(asked).toEqual([]);

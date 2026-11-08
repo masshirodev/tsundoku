@@ -228,15 +228,18 @@ describe('rung 68: a link from before rung 62 becomes its season’s row (c383)'
 		).toEqual({ n: 0 });
 	});
 
-	it('leaves the mirror as it was, so its readers read the same answer', () => {
-		// The columns it had at v67: a later rung's own (rung 70's country and
-		// year) are that rung's to add, and its own test says what they hold.
+	it('ends, past rung 74, with only the comic’s row, and its readers read the same answer', () => {
+		// Rung 68 left each row as it was; rung 74 (c467) took those with a season
+		// row beside them, which is every anime here. The columns it had at v67:
+		// a later rung's own (rung 70's country and year) are that rung's to add.
 		const atV67 = Object.keys(mirrors[0] as Record<string, unknown>);
 		const now = db.prepare(`SELECT * FROM series_links ORDER BY series_id`).all() as Record<
 			string,
 			unknown
 		>[];
-		expect(now.map((r) => Object.fromEntries(atV67.map((c) => [c, r[c]])))).toEqual(mirrors);
+		expect(now.map((r) => Object.fromEntries(atV67.map((c) => [c, r[c]])))).toEqual(
+			(mirrors as { series_id: number }[]).filter((m) => m.series_id === COMIC)
+		);
 		// The cover and the show's ids come from the season row now: the same entry.
 		expect(cat.linkCover(SEASONED)).toEqual({ anilistId: 101, url: 'https://img/101.jpg' });
 		expect(seasons.showEntry(SEASONED, () => true)).toEqual({ anilistId: 101, malId: 901 });

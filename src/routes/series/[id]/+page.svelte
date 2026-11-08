@@ -20,6 +20,7 @@
 	import EditSheet from './EditSheet.svelte';
 	import BookGrid from './BookGrid.svelte';
 	import BookSheet from './BookSheet.svelte';
+	import type { GroupBook } from './other-forms.server';
 	import GroupSheet from '../../GroupSheet.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import NavLine from '$lib/components/waiting/NavLine.svelte';
@@ -28,7 +29,7 @@
 	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { trail } from '$lib/start-trail.svelte';
 	import { partOf, trailHere } from '$lib/library/start';
-	import { goto, invalidateAll } from '$app/navigation';
+	import { afterNavigate, goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
 	import { watchQueue } from '$lib/downloads-live.svelte';
@@ -149,6 +150,39 @@
 	);
 	/** REVIEW → on MIGHT CONTINUE <WORK>: the sheet, in ADD TO A WORK. */
 	let reviewingWork = $state(false);
+	/** GROUP AS A WORK on an IN LIBRARY row (c700): the other series, while its sheet is open. */
+	let groupingForm = $state<GroupBook | null>(null);
+	type MadeWork = { work: { name: string }; members: unknown[] };
+	/**
+	 * That sheet's answer, which the sheet hands over (see its `ondone`). It
+	 * stands until the next navigation or the next action's answer, as a band
+	 * read from `form` does: SvelteKit clears `form` on a navigation and reuses
+	 * this component from one series to the next, so `made` is cleared by hand
+	 * (`afterNavigate`) or BACK would draw it again. `refused` is its UNDO's
+	 * refusal.
+	 */
+	let made = $state<{ facts: MadeWork; series: number; form: unknown; refused: string } | null>(
+		null
+	);
+	const madeWork = $derived(
+		made && made.series === data.series.id && made.form === form ? made : null
+	);
+	afterNavigate(() => {
+		made = null;
+	});
+	/** `/?/undoWork` is the library's too: its answer is read here, not from `form`. */
+	const undoMade: SubmitFunction =
+		() =>
+		async ({ result, update }) => {
+			await update();
+			if (result.type === 'success') made = null;
+			else if (result.type === 'failure') {
+				// `update()` re-reads the page only on a success, and a refusal means
+				// what the rows drew has moved on.
+				await invalidateAll();
+				if (made) made.refused = String(result.data?.workMessage ?? 'COULD NOT UNDO');
+			}
+		};
 	const markedThrough = $derived(form && 'markedThrough' in form ? form.markedThrough : null);
 	/** UNDO's answer: what it put back, and what had moved on since the press and was left. */
 	const undoneThrough = $derived(form && 'undoneThrough' in form ? form.undoneThrough : null);
@@ -695,6 +729,20 @@
 				? 'IT IS'
 				: 'THEY ARE'}"
 		/>
+	{:else if madeWork}
+		<!-- OTHER FORMS' GROUP AS A WORK (c700): the library's own band and UNDO. -->
+		<Band
+			title={m.offer_work_made({ name: madeWork.facts.work.name.toUpperCase() })}
+			detail={madeWork.refused || `${madeWork.facts.members.length} SERIES · EACH KEEPS ITS OWN`}
+		>
+			{#snippet action()}
+				<form method="POST" action="/?/undoWork" use:enhance={undoMade}>
+					<input type="hidden" name="kind" value="create" />
+					<input type="hidden" name="facts" value={JSON.stringify(madeWork.facts)} />
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
 	{:else if workJoined}
 		<!-- REVIEW's sheet added it (W7): the Work's name and the place it took, with UNDO. -->
 		<Band
@@ -849,6 +897,8 @@
 					downloads={dlStates}
 					around={data.around}
 					tagSource={data.tagSource}
+					otherForms={data.otherForms?.rows ?? null}
+					ongroup={(b) => (groupingForm = b)}
 				/>
 			{:else}
 				<EntryList
@@ -863,6 +913,8 @@
 					downloads={dlStates}
 					{canDownload}
 					readOnline={!!dlStates}
+					otherForms={data.otherForms?.rows ?? null}
+					ongroup={(b) => (groupingForm = b)}
 				/>
 			{/if}
 		</div>
@@ -1030,6 +1082,23 @@
 			parts: data.workOffer.parts
 		}}
 		onclose={() => (reviewingWork = false)}
+	/>
+{/if}
+
+{#if data.otherForms}
+	<!-- OTHER FORMS' GROUP AS A WORK (c700): both series picked, this one first;
+	     ORDER, the name and UNDO are the flow's own. -->
+	<GroupSheet
+		open={groupingForm !== null}
+		books={groupingForm ? [data.otherForms.self, groupingForm] : [data.otherForms.self]}
+		existing={[]}
+		answers={['work']}
+		ondone={(answer) => {
+			groupingForm = null;
+			if (answer?.made)
+				made = { facts: answer.made as MadeWork, series: data.series.id, form, refused: '' };
+		}}
+		onclose={() => (groupingForm = null)}
 	/>
 {/if}
 

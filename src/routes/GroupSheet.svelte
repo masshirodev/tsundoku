@@ -88,8 +88,13 @@
 		offer?: { workId: number; name: string; part: number; key: string; parts: Book[] } | null;
 		/** VOLUMES when the answer is volumes: the same sheet, the same steps. */
 		noun?: 'BOOKS' | 'VOLUMES';
-		/** After a Work is made or added to: the sheet closes and the selection ends. */
-		ondone?: () => void;
+		/**
+		 * After a Work is made or added to: the sheet closes and the selection
+		 * ends. On a series screen it is handed the action's answer: `?/work` is
+		 * the library's action, and SvelteKit applies a form only to the page it
+		 * belongs to, so that screen's `form` never sees it (c700).
+		 */
+		ondone?: (answer?: Record<string, unknown>) => void;
 		onclose: () => void;
 	} = $props();
 
@@ -270,7 +275,9 @@
 				if (page.route.id === '/series/[id]') {
 					await settleReplacing({ result, update });
 					// An offer's add keeps the series: its screen stays, with its band.
+					// So does a Work made from OTHER FORMS (c700), which says so with `ondone`.
 					if (offer) onclose();
+					else if (ondone) ondone(result.type === 'success' ? result.data : undefined);
 				} else {
 					await update();
 					// A Work is made or joined in place: the library stays, with its

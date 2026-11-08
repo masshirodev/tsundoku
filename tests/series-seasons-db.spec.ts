@@ -257,8 +257,10 @@ describe('the pass fills the cache, and the screen reads it without asking (c358
 	it('is the link pass’s last step, from the seasons’ own links, and the screen asks nothing', async () => {
 		const s4 = series('Lantern Keeper Season 4', 'anime', [4]);
 		link(s4, 4, 104);
-		// The series_links mirror names another show: the walk never reads it (c467).
-		db.prepare(`UPDATE series_links SET anilist_id = 201 WHERE series_id = ?`).run(s4);
+		// A series_links row naming another show: the walk never reads it (c467).
+		db.prepare(
+			`INSERT INTO series_links (series_id, anilist_id, via, linked_at) VALUES (?, 201, 'review', 0)`
+		).run(s4);
 		expect(rel.seasonsAroundOf(s4, false)).toBeNull();
 		cat.setAnilistFetch(fakeFetch, 0);
 		const pass = await cat.refreshLinks({ limit: 0, now: NOW });
@@ -323,7 +325,13 @@ describe('the pass fills the cache, and the screen reads it without asking (c358
 		const s23 = series('Lantern Keeper 2 + 3', 'anime', [2, 3]);
 		link(s23, 2, 102);
 		link(s23, 3, 103);
-		expect(rel.walkFrom(s23)).toEqual({ first: 102, last: 103, heldBefore: 0, heldAfter: 0 });
+		expect(rel.walkFrom(s23)).toEqual({
+			first: 102,
+			last: 103,
+			heldBefore: 0,
+			heldAfter: 0,
+			others: []
+		});
 		await rel.refreshRelations(ask, { now: NOW });
 		const around = rel.seasonsAroundOf(s23, false)!;
 		expect(around.before.map((h) => [h.key, h.label])).toEqual([[101, 'SEASON 1']]);
@@ -331,7 +339,13 @@ describe('the pass fills the cache, and the screen reads it without asking (c358
 		// Seasons 3 and 4 held, only 4 linked: season 3 is the series' own.
 		const s34 = series('Lantern Keeper 3 + 4', 'anime', [3, 4]);
 		link(s34, 4, 104);
-		expect(rel.walkFrom(s34)).toEqual({ first: 104, last: 104, heldBefore: 1, heldAfter: 0 });
+		expect(rel.walkFrom(s34)).toEqual({
+			first: 104,
+			last: 104,
+			heldBefore: 1,
+			heldAfter: 0,
+			others: []
+		});
 		await rel.refreshRelations(ask, { now: NOW });
 		expect(rel.seasonsAroundOf(s34, false)!.before.map((h) => h.key)).toEqual([101, 102]);
 	});

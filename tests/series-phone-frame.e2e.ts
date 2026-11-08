@@ -42,7 +42,7 @@ async function go(page: import('@playwright/test').Page) {
 }
 
 const SEL = {
-	region9: '.panel .about',
+	region9: '.panel .about:visible',
 	region10: '[data-row="details"] .dt'
 };
 

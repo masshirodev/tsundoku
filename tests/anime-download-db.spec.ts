@@ -267,8 +267,8 @@ describe('downloading an episode', () => {
 	});
 
 	it('names the show by its season links, so one with only season 2 linked has ids (c381)', async () => {
-		// Under rung 62 `series_links` is only season 1's mirror: with season 2
-		// linked alone there is no row at all, and tvshow.nfo had no ids.
+		// An anime's ids are its season rows': with season 2 linked alone there
+		// is still something for tvshow.nfo to name.
 		db.prepare(`DELETE FROM download_queue`).run();
 		const tv = () => readFileSync(join(show, 'tvshow.nfo'), 'utf8');
 		const fetchIt = async (n: number) => {
@@ -317,10 +317,10 @@ describe('downloading an episode', () => {
 			await fetchIt(3);
 			expect(tv()).toContain('<uniqueid type="anilist">40001</uniqueid>');
 			expect(tv()).toContain('<uniqueid type="mal">50001</uniqueid>');
-			// A mirror that says otherwise is not read: the season rows are.
-			db.prepare(`UPDATE series_links SET anilist_id = 1, mal_id = 2 WHERE series_id = ?`).run(
-				shown
-			);
+			// A series row that says otherwise is not read: the season rows are.
+			db.prepare(
+				`INSERT INTO series_links (series_id, anilist_id, mal_id, via, linked_at) VALUES (?, 1, 2, 'review', 0)`
+			).run(shown);
 			await fetchIt(4);
 			expect(tv()).toContain('<uniqueid type="anilist">40001</uniqueid>');
 		} finally {

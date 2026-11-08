@@ -1866,6 +1866,22 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		tried_at INTEGER NOT NULL,
 		CHECK ((graph IS NULL) = (fetched_at IS NULL))
 	);
+	`,
+	// v74: an anime's `series_links` row beside a season row goes (card c467;
+	// doc/LINKS.md, "A season's link is its own row"). Since rung 62 that row
+	// was a mirror of the first season, kept by `syncSeriesLink` for readers
+	// that asked a series for one row; the last of them moved to the season
+	// rows with this rung, so nothing reads it. Taken only where a season row
+	// stands beside it, and every column it held is either that row's too or
+	// was only its own and read by nothing (`score`, `filled_rating`; rung 68
+	// copied a real link's to the season). An anime's row with no season row is
+	// the one link it has, read by `legacyLink`, and stays; so does every
+	// comic's and novel's. Naming the kind is what a frozen rung does: the
+	// registry may change, this rung's meaning must not.
+	`
+	DELETE FROM series_links
+	WHERE series_id IN (SELECT id FROM series WHERE kind = 'anime')
+		AND EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = series_links.series_id);
 	`
 ];
 

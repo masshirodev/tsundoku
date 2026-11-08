@@ -50,7 +50,7 @@ title is the season's own (below, "One season, one entry").
 | `relations` | A season offered by the linked entry's own prequels and sequels, ticked by the owner | The owner's say |
 
 `relations` is a season's alone (`series_season_links.via`); `series_links`
-has no such value, so the mirror it keeps says `review`.
+has no such value.
 
 `exact` is the **background pass's only** (the owner's rule, 2026-11-02): a
 search the owner runs never links by itself, even when exactly one result has
@@ -199,8 +199,7 @@ again or paste a link.
 - **A series already linked, or settled:** NONE OF THESE, or an UNLINK. An
   anime linked or settled a season at a time is decided by its seasons alone
   (c240): it is searched, queued for the review and offered to the list's
-  auto-link while **any one** season has neither a link nor a decision, and
-  its `series_links` row (the mirror of season 1) does not end that.
+  auto-link while **any one** season has neither a link nor a decision.
   An anime with no season rows -- settled before rung 62, or never acted on
   -- is read by `series_links` and `link_decisions`, as a comic is. One
   _linked_ before rung 62 was too, so its one link settled the whole series
@@ -319,8 +318,33 @@ local stand-in.
 An anime's AniList relation graph is cached per series, for the series
 screen's seasons around it ([`SERIES.md`](SERIES.md), "The seasons around
 it"): the seasons before the ones it holds and the one after, and the
-extras met on the way. **The screen reads only the cache; nothing asks
-AniList on a page load.**
+extras met on the way, and every series' OTHER FORMS (c700, the same
+section's neighbour). **The screen reads only the cache; nothing asks AniList
+on a page load.** A comic's or a novel's row (c700) is one hop from its own
+entry, asked in AniList's `MANGA` catalogue in the same pass, with a limit of
+its own so a large library of comics cannot keep an anime from its turn; a
+link to another kind's entry (a novel on its comic, for the cover) is not
+asked. A season linked between an anime's first and last has its edges asked
+too, so OTHER FORMS can read one hop from each.
+
+**A middle season AniList answers nothing for** (deleted there, or linked to
+an entry in another catalogue, since the ask is `Media(id, type: ANIME)`)
+does not cost the series its graph (c700's round 2). AniList answers a
+request holding one such id with HTTP 404 and **every** alias null, the good
+ones too, in any order (measured 2026-11-08; the answer is quoted in
+`tests/other-forms-db.spec.ts`), so a request of several that answers nothing
+is asked again one entry at a time, `first` and `last` first. That costs the
+series one request per entry, once, on the pass that meets it. The graph is
+stored from what answered and names the rest in `unanswered`; a `first`, a
+`last` or an entry the walk has to stand on still fail the walk and leave the
+old graph, as they always have. **`unanswered` ends two ways:** a relink of
+that season (the new id is not on the record, so the very next pass asks for
+it) and the ordinary seven days (the refresh asks every entry again and
+rewrites the record, so a season answering again is read then, and not
+before). A link whose stored format is another kind's is never asked at all.
+The comics' request of ten is re-asked one at a time the same way, so one dead
+link doesn't cost the other nine theirs; the dead one stays due, as an anime's
+dead `first` does.
 
 **The table** is `series_relations` (rung 73), one row a series, gone with
 the series (`ON DELETE CASCADE`):
@@ -332,7 +356,8 @@ the series (`ON DELETE CASCADE`):
 | `fetched_at` | When `graph` was last written; NULL exactly when `graph` is (a CHECK).                   |
 | `tried_at`   | When the pass last asked, which a failed ask moves without touching `graph`.             |
 
-`RelGraph` is `{ nodes: { "<anilist id>": RelNode } }`, and a `RelNode` is
+`RelGraph` is `{ nodes: { "<anilist id>": RelNode }, unanswered?: number[] }`
+(`unanswered` above, absent when empty), and a `RelNode` is
 what an edge's `node` answers: `id`, `type` (`ANIME`), `format`, `status`,
 `episodes`, `year` (`startDate.year`), `title { english romaji native }`, and
 `edges: [{ type, id }]`, AniList's `relationType` and the other entry's id,
@@ -345,8 +370,7 @@ format and titles, without asking AniList again; it must treat `edges:
 null` as "not asked", never "none".
 
 **Which entries it starts from** is not stored: it is read from the series'
-own season links (`series_season_links`, rung 62) each time, never
-`series_links` (an anime's first-season mirror, whose readers c467 removes).
+own season links (`series_season_links`, rung 62) each time.
 Back from the earliest linked season's entry, forward from the latest's
 (`walkFrom` in `src/lib/server/relations.ts`). A graph that cannot answer
 for the links the series has now (the walk needs an entry whose edges it
@@ -546,17 +570,21 @@ The link is AniList's line, a line a season on an anime (c240; above).
   ([`RANOBE.md`](RANOBE.md)).
 - **A season's link is its own row** (`series_season_links`, rung 62):
   `series_links` keeps meaning what it meant for a manga or a novel, and an
-  anime's row there is a **mirror of its first season, written only while that
-  season is linked** (season 1, or a flat list). With only a later season
-  linked there is no row at all. Neither tracking, AniSkip (an episode is
+  anime has a row there only as **the link it had before rung 62, with no
+  season row beside it** (`legacyLink`, the fallback; no door writes one for
+  an anime that has a season row). From rung 62 to rung 73 an anime's first
+  season was mirrored there; rung 74 (c467) took those rows, and the first
+  LINK or UNLINK of a season ends a fallback too. Neither tracking, AniSkip (an episode is
   asked under its own season's entry, c349; the answers asked before that
   under another season's entry or part were forgotten by rung 67, c463, and
   are asked again on the next play; a season whose only row is an orphaned
   part 2 asks nothing at all, since nothing places its episodes, c592, c642)
   nor `tvshow.nfo` (the show's ids
-  from its season rows, c381) reads it for an anime; the importer's
-  keep-test still does (c382), so it stays. A link an anime had before rung
-  62 is its season's row since rung 68 (below).
+  from its season rows, c381) reads it beside a season row. The importer's
+  keep-test asks both tables (c382), OTHER NAMES on MOVE lists every season's
+  entry (`linkedNames`), and the cover offered is the open season's, else the
+  first season's (`linkCover`, which the review's cover line asks too). A
+  link an anime had before rung 62 is its season's row since rung 68 (below).
 - **A link from before the seasons** (c383, rung 68). Before rung 62 an
   anime's link was its one `series_links` row. Read as the whole series'
   link, it settled every season, so a two-season show linked then never
@@ -573,9 +601,8 @@ The link is AniList's line, a line a season on an anime (c240; above).
   waiting) moves to that season, where an anime's is read. From there the
   season rule decides it: season 2 is searched by the next pass and comes to
   the review as its own item, and the series screen draws season 1 linked as
-  before. The `series_links` row stays as it was: it is the first season's
-  mirror now (the ids `syncSeriesLink` would write), so OTHER NAMES on MOVE,
-  the importer's keep-test and the cover read what they read before. An
+  before. The rung left the `series_links` row as it was; rung 74 (c467)
+  removed it, its readers having moved to the season rows. An
   AniSkip answer of an episode outside that season (a special asked under
   the one link) is forgotten, since the link is no longer its entry. A
   series that already had a season row is not touched, and neither is a
@@ -708,8 +735,9 @@ CHANGED`), so it can be pressed again; so does another decision failing
   has no link) follows no decision made there: NOT NOW closes it and the page
   stays on the season, with SEARCH AGAIN, PASTE A LINK, UNLINK and its LINK,
   so a season linked to the wrong entry can still be changed or unlinked
-  from EDIT (round 3). A season linked by a pasted link has no candidates,
-  and its UNLINK stands among the actions then. In the queue NOT NOW closes
+  from EDIT (round 3). A pasted link neither asks nor clears a season's
+  candidates, so it keeps what its last search found; one never searched has
+  none, and its UNLINK stands among the actions then. In the queue NOT NOW closes
   the offer, and the band's UNDO stays.
 - **A season's second part by hand** (c350; Track Calls' BY HAND: `+ A
 SECOND PART` under a linked entry, the same search, then `FROM EP. 13`).

@@ -75,8 +75,10 @@ test('the series screen offers the pair too, and REVIEW opens on it', async ({ p
 	await page.goto('/?sort=title');
 	await page.locator('.grid .tile', { hasText: '[Digital]' }).click();
 	await page.waitForURL(/\/series\/\d+/);
-	await expect(page.locator('.twin')).toContainText('SAME BOOK AS RAKUGAKI COLLECTION VOL. 3');
-	await page.locator('.twin').getByRole('link', { name: 'REVIEW →' }).click();
+	await expect(page.locator('.twin:visible')).toContainText(
+		'SAME BOOK AS RAKUGAKI COLLECTION VOL. 3'
+	);
+	await page.locator('.twin:visible').getByRole('link', { name: 'REVIEW →' }).click();
 	await page.waitForURL(/\/duplicates\?pair=/);
 	await expect(page.locator('.counter')).toHaveText('01 OF 01');
 });

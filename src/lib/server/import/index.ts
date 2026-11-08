@@ -114,10 +114,9 @@ export function sourcesIn(library: string): Source[] {
  * a favourite, on no shelf, not linked, and in no Work. Not a delete: no
  * tombstone, so a download finished later imports as it would have.
  *
- * "Linked" is every row a link leaves (c382): `series_links`, and since rung
- * 62 a season's own link or decision, which a series can hold with no
- * `series_links` mirror at all (`syncSeriesLink` mirrors season 1 alone). The
- * cascade would take those rows with the series. A Work is the owner's
+ * "Linked" is every row a link leaves (c382): `series_links` (a comic's, or an
+ * anime's from before rung 62), and since rung 62 a season's own link or
+ * decision. The cascade would take those rows with the series. A Work is the owner's
  * grouping, as a shelf is, and its delete would end the Work it leaves with
  * one (rung 61's trigger).
  */

@@ -524,7 +524,6 @@ test('UNLINK on one season and its UNDO: S3 comes back, and the seasons beside i
 				links: db
 					.prepare(`SELECT * FROM series_season_links WHERE series_id = ? ORDER BY season, part`)
 					.all(ids.four),
-				mirror: db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(ids.four),
 				decisions: db
 					.prepare(`SELECT season, decision FROM season_link_decisions WHERE series_id = ?`)
 					.all(ids.four)
@@ -545,7 +544,6 @@ test('UNLINK on one season and its UNDO: S3 comes back, and the seasons beside i
 	const gone = seasonsOf();
 	expect((gone.links as { season: number }[]).map((l) => l.season)).toEqual([1, 2, 4]);
 	expect(gone.decisions).toEqual([{ season: 3, decision: 'unlinked' }]);
-	expect(gone.mirror).toEqual(before.mirror);
 	await band.getByRole('button', { name: 'UNDO' }).click();
 	await expect(band).toHaveCount(0);
 	await expect.poll(() => seasonsOf()).toEqual(before);

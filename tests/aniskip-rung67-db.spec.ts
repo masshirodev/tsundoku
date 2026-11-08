@@ -9,9 +9,9 @@ process.env.DATABASE_PATH = ':memory:';
  * season's entry are forgotten, and asked again on the next play.
  *
  * Each library is made the way the app made it. The links are written by the
- * app's own door (`linkSeason`, which writes the `series_links` mirror through
- * `syncSeriesLink`) on the app's database, and copied into a database stopped
- * at v66. The answers are written by the app's own `saveMark`/`saveAttempt`
+ * app's own door (`linkSeason`) on the app's database and copied into a
+ * database stopped at v66, with the `series_links` mirror that `syncSeriesLink`
+ * wrote then (it and the mirror are gone since c467). The answers are written by the app's own `saveMark`/`saveAttempt`
  * under the key the old lookup used: the mirror's MAL id and the season's own
  * episode number (`lookupRow` joined `series_links` until e587f8d). Then the
  * rung climbs, and the next play asks through today's `lookupAniSkip`.
@@ -95,8 +95,9 @@ let nextEntry = 1000;
 
 /**
  * One anime in both databases under the same ids: its episodes, its links
- * made by `linkSeason` on the app's database, and those rows (season rows and
- * mirror) copied into `old`, which stands at v66.
+ * made by `linkSeason` on the app's database, those season rows copied into
+ * `old`, which stands at v66, and the mirror as v66's app kept it beside them
+ * (no door writes one since rung 74, c467, but this rung is about that row).
  */
 function show(old: Database.Database, eps: Omit<Ep, 'id'>[], links: Link[]) {
 	const id = ++nextSeries;
@@ -137,15 +138,23 @@ function show(old: Database.Database, eps: Omit<Ep, 'id'>[], links: Link[]) {
 			)
 			.run(...cols.map((c) => row[c]));
 	}
-	const mirror = app.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(id) as
-		Record<string, unknown> | undefined;
+	// `syncSeriesLink` as it stood: the lowest season linked, part 1, and only
+	// while that is season 1 or a flat list.
+	const mirror = old
+		.prepare(
+			`SELECT anilist_id, mal_id, via, title, cover_url, linked_at, resolved_at, format
+			FROM series_season_links WHERE series_id = ? AND part = 1 AND season <= 1
+			ORDER BY season LIMIT 1`
+		)
+		.get(id) as Record<string, unknown> | undefined;
 	if (mirror) {
-		const cols = columnsAt66(old, 'series_links', mirror);
+		const cols = Object.keys(mirror);
 		old
 			.prepare(
-				`INSERT INTO series_links (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`
+				`INSERT INTO series_links (series_id, ${cols.join(', ')})
+				VALUES (?, ${cols.map(() => '?').join(', ')})`
 			)
-			.run(...cols.map((c) => mirror[c]));
+			.run(id, ...cols.map((c) => mirror[c]));
 	}
 	return { id, eps: made, mirrorMal: (mirror?.mal_id as number | undefined) ?? null };
 }

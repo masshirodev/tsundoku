@@ -570,11 +570,84 @@ describe('rung 73: an anime’s relation graph, cached (c358)', () => {
 			conn.exec(`INSERT INTO series_relations (series_id, tried_at) VALUES (9, 1)`)
 		).toThrow(/FOREIGN KEY constraint failed/);
 	});
+});
+
+describe('rung 74: an anime keeps no mirror of its first season (c467)', () => {
+	const link = (conn: Database.Database, id: number, anilist: number) =>
+		conn
+			.prepare(
+				`INSERT INTO series_links (series_id, anilist_id, via, title, linked_at) VALUES (?, ?, 'review', 'T', 1)`
+			)
+			.run(id, anilist);
+	const season = (conn: Database.Database, id: number, n: number, anilist: number) =>
+		conn
+			.prepare(
+				`INSERT INTO series_season_links (series_id, season, part, anilist_id, via, title, linked_at)
+				VALUES (?, ?, 1, ?, 'review', 'T', 1)`
+			)
+			.run(id, n, anilist);
+
+	it('takes only the rows that have a season row beside them', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 73);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Aniyomi', '/nowhere');
+			INSERT INTO series (id, root_id, title, kind, added_at) VALUES
+				(1, 1, 'Mirrored', 'anime', 1),
+				(2, 1, 'Later season only', 'anime', 1),
+				(3, 1, 'Before the seasons', 'anime', 1),
+				(4, 1, 'Decided, never linked by season', 'anime', 1),
+				(5, 1, 'A comic', 'manga', 1),
+				(6, 1, 'A novel', 'novel', 1);
+			INSERT INTO season_link_decisions (series_id, season, part, decision, at)
+				VALUES (4, 2, 1, 'none', 1);
+		`);
+		link(conn, 1, 101);
+		season(conn, 1, 1, 101);
+		season(conn, 1, 2, 102);
+		// Rung 68 left this row as it was even with its one link at season 2.
+		link(conn, 2, 201);
+		season(conn, 2, 2, 201);
+		link(conn, 3, 301);
+		link(conn, 4, 401);
+		link(conn, 5, 501);
+		link(conn, 6, 601);
+
+		climb(conn, 74);
+
+		const kept = () =>
+			(
+				conn.prepare(`SELECT series_id FROM series_links ORDER BY series_id`).all() as {
+					series_id: number;
+				}[]
+			).map((r) => r.series_id);
+		// The seasons' own rows are untouched: they are the links.
+		expect(conn.prepare(`SELECT COUNT(*) AS n FROM series_season_links`).get()).toEqual({ n: 3 });
+		expect(kept()).toEqual([3, 4, 5, 6]);
+		expect(conn.prepare(`SELECT anilist_id FROM series_links WHERE series_id = 3`).get()).toEqual({
+			anilist_id: 301
+		});
+	});
+
+	it('leaves a comic with a season row alone, whatever a bad row says', () => {
+		// No door writes a comic's season row; the rung still asks the kind, so
+		// a row out of place cannot cost a comic its link.
+		const conn = new Database(':memory:');
+		climb(conn, 73);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Aniyomi', '/nowhere');
+			INSERT INTO series (id, root_id, title, kind, added_at) VALUES (1, 1, 'A comic', 'manhwa', 1);
+		`);
+		link(conn, 1, 11);
+		season(conn, 1, 1, 11);
+		climb(conn, 74);
+		expect(conn.prepare(`SELECT COUNT(*) AS n FROM series_links`).get()).toEqual({ n: 1 });
+	});
 
 	// The top rung's own block says it is the top; the next rung moves this line.
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(73);
+		expect(conn.pragma('user_version', { simple: true })).toBe(74);
 	});
 });

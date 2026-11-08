@@ -189,10 +189,6 @@ describe('AniSkip', () => {
 		const s2 = [1, 2, 3].map((n) => episode(show, { position: 3 + n, season: 2, number: n }));
 		expect(seasons.linkSeason(show, 1, 1, entryOf(1001, 501), 'review', 0)).toBe(true);
 		expect(seasons.linkSeason(show, 2, 1, entryOf(1002, 502), 'review', 0)).toBe(true);
-		// Season 1's mirror is there (`syncSeriesLink`); it must not stand for season 2.
-		expect(db.prepare(`SELECT mal_id FROM series_links WHERE series_id = ?`).get(show)).toEqual({
-			mal_id: 501
-		});
 		expect(await lookupAniSkip(s2[2])).toBe(true);
 		expect(await lookupAniSkip(s1[2])).toBe(true);
 		expect(asked()).toEqual([
@@ -597,7 +593,7 @@ describe('AniSkip', () => {
 		const id = episode(show);
 		expect(cat.link(show, ranma('MANGA'), 'review', 9_100)).toBe(true);
 		expect(
-			db.prepare(`SELECT mal_id, format FROM series_links WHERE series_id = ?`).get(show)
+			db.prepare(`SELECT mal_id, format FROM series_season_links WHERE series_id = ?`).get(show)
 		).toEqual({ mal_id: 23, format: 'MANGA' });
 		expect(await lookupAniSkip(id)).toBe(false);
 		expect(calls).toEqual([]);

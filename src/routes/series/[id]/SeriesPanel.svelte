@@ -895,173 +895,21 @@
 		{/if}
 	{/if}
 
-	<!-- DETAILS (c425; doc/SERIES.md, "DETAILS"; doc/handoffs/series-phone/): on a
-	     phone and a TV the rows a visit rarely touches fold behind one line. The
-	     markup is in the fold's order; where nothing folds (the tablet, landscape,
-	     desktop) `order` puts every row back where it always was (`.o1`–`.o7`). -->
-	<div class="o o2">
-		{#if !outline && noVideo}
-			<!-- NO VIDEO (doc/MOVE.md; Migrate-Start): the MIGHT BE ONE SERIES idiom,
-			     under CONTINUE. NOT NOW hides it until a new failure. -->
-			<section class="sugg" aria-label="No video from this source">
-				<div class="sugg-head">
-					<span>{noVideo.title}</span>
-					<span class="dim">{noVideo.detail}</span>
-				</div>
-				<div class="sugg-actions">
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
-					<a href={moveHref} data-focus-mark="in">ANOTHER SOURCE →</a>
-					<form method="POST" action="?/dismissMove" use:enhance>
-						<button type="submit" class="dim" data-focus-mark="in">NOT NOW</button>
-					</form>
-				</div>
-			</section>
-		{/if}
-
-		{#if outline}
-			{#each [directionRowLabel(series.kind), 'SHELVES', 'TAGS', 'FILE'] as label, i (label)}
-				<div class="row out-row" aria-hidden="true">
-					<div class="label">{label}</div>
-					<div class="out-lines"><i style:width={['34%', '52%', '74%', '60%'][i]}></i></div>
-				</div>
-			{/each}
-		{:else if suggestion}
-			<!-- Index Books, state 7: under CONTINUE, on this book's screen only. -->
-			<section class="sugg" aria-label="Might be one series">
-				<div class="sugg-head">
-					<span>{m.offer_might_be_one_series()}</span>
-					<span class="dim"
-						>{m.offer_suggestion_books({
-							count: suggestion.books.length,
-							n: num(suggestion.books.length)
-						})} · {suggestionLabel(suggestion.books)}</span
-					>
-				</div>
-				<div class="sugg-covers">
-					{#each suggestion.books as b (b.seriesId)}
-						<span
-							class="sugg-cover"
-							class:this={b.seriesId === series.id}
-							style:background={b.cover
-								? `center / cover no-repeat url(${coverSrc(b.seriesId, b.cover)}), ${coverPlaceholder(b.hue)}`
-								: coverPlaceholder(b.hue)}
-							title={b.title}
-						></span>
-					{/each}
-				</div>
-				<div class="sugg-actions">
-					<button type="button" onclick={() => onreview?.()}>REVIEW →</button>
-					<form method="POST" action="?/dismiss" use:enhance>
-						{#each suggestion.books as b (b.seriesId)}<input
-								type="hidden"
-								name="series"
-								value={b.seriesId}
-							/>{/each}
-						<button type="submit" class="dim">{m.offer_not_a_series()}</button>
-					</form>
-				</div>
-			</section>
-		{:else if dismissedKey}
-			<Band title={m.offer_not_a_series_again()}>
-				{#snippet action()}
-					<form method="POST" action="?/undoDismiss" use:enhance>
-						<input type="hidden" name="key" value={dismissedKey} />
-						<button type="submit">UNDO</button>
-					</form>
-				{/snippet}
-			</Band>
-		{/if}
-
-		{#if !outline && workOffer}
-			<!-- Work-States 1 (W7; Works Calls, question 6): under CONTINUE, on the
-			     newcomer's own screen only. It offers; nothing joins without
-			     REVIEW's sheet and its tap, and NOT THIS never asks again. -->
-			<section class="sugg offer" aria-label="Might continue {workOffer.name}">
-				<div class="sugg-head offer-head">
-					<span
-						>{m.offer_might_continue({
-							name: workOffer.name.toUpperCase(),
-							part: workOffer.part
-						})}</span
-					>
-					<span class="dim offer-why">{workOffer.reason}</span>
-				</div>
-				<div class="sugg-actions">
-					<button type="button" onclick={() => onworkreview?.()}>REVIEW →</button>
-					<form method="POST" action="?/dismissWorkOffer" use:enhance>
-						<input type="hidden" name="key" value={workOffer.key} />
-						<button type="submit" class="dim">{m.offer_not_this()}</button>
-					</form>
-				</div>
-			</section>
-		{:else if !outline && workOfferDismissed}
-			<Band title={m.offer_not_this_again()}>
-				{#snippet action()}
-					<form method="POST" action="?/undoWorkOffer" use:enhance>
-						<input type="hidden" name="key" value={workOfferDismissed} />
-						<button type="submit">UNDO</button>
-					</form>
-				{/snippet}
-			</Band>
-		{/if}
-
-		{#if !outline && keptBothNote}
-			<!-- c671: this KEEP BOTH is recorded; an earlier decision it carried out
-			     first was not. Refused ones are back at the review, undecided;
-			     failed ones (a bug or the disk) still wait. -->
-			<div class="kept-both">
-				<Band title={keptBothNote.title} detail={keptBothNote.detail}>
-					{#snippet action()}
-						<a href={resolve('/duplicates')}>SEE DUPLICATES →</a>
-					{/snippet}
-				</Band>
-			</div>
-		{/if}
-		{#if !outline && twin}
-			<!-- Duplicate Books 1d: the group suggestion's treatment, for a twin. -->
-			<div class="twin" role="status">
-				<div class="tw-text">
-					<div class="tw-title">SAME BOOK AS {twin.title.toUpperCase()}</div>
-					<div class="tw-meta">
-						{twin.conf === 'likely' ? 'LIKELY' : twin.conf === 'maybe' ? 'MAYBE' : 'OTHER LANGUAGE'} ·
-						{twin.pages}
-					</div>
-				</div>
-				<div class="tw-acts">
-					<form method="POST" action="?/keepBoth" use:enhance>
-						<input type="hidden" name="pair" value={twin.key} />
-						<button type="submit">KEEP BOTH</button>
-					</form>
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
-					<a href="{resolve('/duplicates')}?pair={encodeURIComponent(twin.key)}">REVIEW →</a>
-				</div>
-			</div>
-		{/if}
-	</div>
+	<!-- DETAILS (c425, c556; doc/SERIES.md, "DETAILS"; doc/handoffs/series-phone/):
+	     on a phone and a TV the rows a visit rarely touches fold behind one line.
+	     The screen's order is the markup's where nothing folds, and the fold's
+	     where it applies, so Tab and a screen reader read what is drawn. The three
+	     groups the two orders place differently are drawn twice, once each side of
+	     the line (`foldOnly`, `screenOnly`), and CSS shows one: no script, so the
+	     first paint is right, and `display: none` takes the other out of Tab, the
+	     focus layer and the screen reader. Neither copy holds an id, a `bind:this`
+	     or a focus scope, and their state is this component's. -->
+	<div class="o o2 fold-only">{@render bandsGroup()}</div>
 
 	{#if !outline}
-		<div class="o o4">
-			<div class="row">
-				<div class="label">SHELVES</div>
-				<div class="chips">
-					{#each onShelves as s (s.key)}<span class="chip">{s.name}</span>{/each}
-					{#if onShelves.length === 0}<span class="none">ON NO SHELF</span>{/if}
-				</div>
-				<button type="button" class="edit" onclick={onedit}>EDIT</button>
-			</div>
-		</div>
+		<div class="o o4 fold-only">{@render shelvesGroup()}</div>
 		{#if series.description}
-			<div class="o o6">
-				<div class="row top">
-					<div class="label">ABOUT</div>
-					<div class="about">
-						<p class:open={aboutOpen}>{series.description}</p>
-						<button type="button" class="more" onclick={() => (aboutOpen = !aboutOpen)}>
-							{aboutOpen ? 'LESS ↑' : 'MORE ↓'}
-						</button>
-					</div>
-				</div>
-			</div>
+			<div class="o o6 fold-only">{@render aboutGroup()}</div>
 		{/if}
 		{#if highlights}
 			<!-- HIGHLIGHTS on the phone and the TV (Series S1): after ABOUT, above the
@@ -1126,6 +974,7 @@
 				{#if dlRow.cells.length}<div class="lcs stack">{@render dlCells()}</div>{/if}
 			{/if}
 		</div>
+		<div class="o o2 screen-only">{@render bandsGroup()}</div>
 		<div class="o o3">
 			{#if !outline && editions && opening}
 				<!-- LANGUAGE (Editions 1b): which edition it opens in. The default language clears the book's own choice. -->
@@ -1236,6 +1085,7 @@
 			{/if}
 		</div>
 		{#if !outline}
+			<div class="o o4 screen-only">{@render shelvesGroup()}</div>
 			<div class="o o5">
 				<!-- LISTS (c424; doc/SERIES.md): LINK and TRACKING as one row, a line per
 			     list, each with its entry, its list's word and its cells. EDIT opens the
@@ -1336,6 +1186,9 @@
 					<button type="button" class="edit" onclick={onedit}>EDIT</button>
 				</div>
 			</div>
+			{#if series.description}
+				<div class="o o6 screen-only">{@render aboutGroup()}</div>
+			{/if}
 			<div class="o o7">
 				{#if editions && opening}
 					<!-- EDITIONS (Editions 1b): each language's copy, what only it has, and where it is. -->
@@ -1456,6 +1309,169 @@
 		{/if}
 	</div>
 </section>
+
+{#snippet bandsGroup()}
+	{#if !outline && noVideo}
+		<!-- NO VIDEO (doc/MOVE.md; Migrate-Start): the MIGHT BE ONE SERIES idiom,
+		     under CONTINUE. NOT NOW hides it until a new failure. -->
+		<section class="sugg" aria-label="No video from this source">
+			<div class="sugg-head">
+				<span>{noVideo.title}</span>
+				<span class="dim">{noVideo.detail}</span>
+			</div>
+			<div class="sugg-actions">
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+				<a href={moveHref} data-focus-mark="in">ANOTHER SOURCE →</a>
+				<form method="POST" action="?/dismissMove" use:enhance>
+					<button type="submit" class="dim" data-focus-mark="in">NOT NOW</button>
+				</form>
+			</div>
+		</section>
+	{/if}
+
+	{#if outline}
+		{#each [directionRowLabel(series.kind), 'SHELVES', 'TAGS', 'FILE'] as label, i (label)}
+			<div class="row out-row" aria-hidden="true">
+				<div class="label">{label}</div>
+				<div class="out-lines"><i style:width={['34%', '52%', '74%', '60%'][i]}></i></div>
+			</div>
+		{/each}
+	{:else if suggestion}
+		<!-- Index Books, state 7: under CONTINUE, on this book's screen only. -->
+		<section class="sugg" aria-label="Might be one series">
+			<div class="sugg-head">
+				<span>{m.offer_might_be_one_series()}</span>
+				<span class="dim"
+					>{m.offer_suggestion_books({
+						count: suggestion.books.length,
+						n: num(suggestion.books.length)
+					})} · {suggestionLabel(suggestion.books)}</span
+				>
+			</div>
+			<div class="sugg-covers">
+				{#each suggestion.books as b (b.seriesId)}
+					<span
+						class="sugg-cover"
+						class:this={b.seriesId === series.id}
+						style:background={b.cover
+							? `center / cover no-repeat url(${coverSrc(b.seriesId, b.cover)}), ${coverPlaceholder(b.hue)}`
+							: coverPlaceholder(b.hue)}
+						title={b.title}
+					></span>
+				{/each}
+			</div>
+			<div class="sugg-actions">
+				<button type="button" onclick={() => onreview?.()}>REVIEW →</button>
+				<form method="POST" action="?/dismiss" use:enhance>
+					{#each suggestion.books as b (b.seriesId)}<input
+							type="hidden"
+							name="series"
+							value={b.seriesId}
+						/>{/each}
+					<button type="submit" class="dim">{m.offer_not_a_series()}</button>
+				</form>
+			</div>
+		</section>
+	{:else if dismissedKey}
+		<Band title={m.offer_not_a_series_again()}>
+			{#snippet action()}
+				<form method="POST" action="?/undoDismiss" use:enhance>
+					<input type="hidden" name="key" value={dismissedKey} />
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
+	{/if}
+
+	{#if !outline && workOffer}
+		<!-- Work-States 1 (W7; Works Calls, question 6): under CONTINUE, on the
+		     newcomer's own screen only. It offers; nothing joins without
+		     REVIEW's sheet and its tap, and NOT THIS never asks again. -->
+		<section class="sugg offer" aria-label="Might continue {workOffer.name}">
+			<div class="sugg-head offer-head">
+				<span
+					>{m.offer_might_continue({
+						name: workOffer.name.toUpperCase(),
+						part: workOffer.part
+					})}</span
+				>
+				<span class="dim offer-why">{workOffer.reason}</span>
+			</div>
+			<div class="sugg-actions">
+				<button type="button" onclick={() => onworkreview?.()}>REVIEW →</button>
+				<form method="POST" action="?/dismissWorkOffer" use:enhance>
+					<input type="hidden" name="key" value={workOffer.key} />
+					<button type="submit" class="dim">{m.offer_not_this()}</button>
+				</form>
+			</div>
+		</section>
+	{:else if !outline && workOfferDismissed}
+		<Band title={m.offer_not_this_again()}>
+			{#snippet action()}
+				<form method="POST" action="?/undoWorkOffer" use:enhance>
+					<input type="hidden" name="key" value={workOfferDismissed} />
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
+	{/if}
+
+	{#if !outline && keptBothNote}
+		<!-- c671: this KEEP BOTH is recorded; an earlier decision it carried out
+		     first was not. Refused ones are back at the review, undecided;
+		     failed ones (a bug or the disk) still wait. -->
+		<div class="kept-both">
+			<Band title={keptBothNote.title} detail={keptBothNote.detail}>
+				{#snippet action()}
+					<a href={resolve('/duplicates')}>SEE DUPLICATES →</a>
+				{/snippet}
+			</Band>
+		</div>
+	{/if}
+	{#if !outline && twin}
+		<!-- Duplicate Books 1d: the group suggestion's treatment, for a twin. -->
+		<div class="twin" role="status">
+			<div class="tw-text">
+				<div class="tw-title">SAME BOOK AS {twin.title.toUpperCase()}</div>
+				<div class="tw-meta">
+					{twin.conf === 'likely' ? 'LIKELY' : twin.conf === 'maybe' ? 'MAYBE' : 'OTHER LANGUAGE'} ·
+					{twin.pages}
+				</div>
+			</div>
+			<div class="tw-acts">
+				<form method="POST" action="?/keepBoth" use:enhance>
+					<input type="hidden" name="pair" value={twin.key} />
+					<button type="submit">KEEP BOTH</button>
+				</form>
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+				<a href="{resolve('/duplicates')}?pair={encodeURIComponent(twin.key)}">REVIEW →</a>
+			</div>
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet shelvesGroup()}
+	<div class="row">
+		<div class="label">SHELVES</div>
+		<div class="chips">
+			{#each onShelves as s (s.key)}<span class="chip">{s.name}</span>{/each}
+			{#if onShelves.length === 0}<span class="none">ON NO SHELF</span>{/if}
+		</div>
+		<button type="button" class="edit" onclick={onedit}>EDIT</button>
+	</div>
+{/snippet}
+
+{#snippet aboutGroup()}
+	<div class="row top">
+		<div class="label">ABOUT</div>
+		<div class="about">
+			<p class:open={aboutOpen}>{series.description}</p>
+			<button type="button" class="more" onclick={() => (aboutOpen = !aboutOpen)}>
+				{aboutOpen ? 'LESS ↑' : 'MORE ↓'}
+			</button>
+		</div>
+	</div>
+{/snippet}
 
 {#snippet highlightsRow(where: string)}
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
@@ -2583,13 +2599,12 @@
 			display: none;
 		}
 	}
-	/* ---- DETAILS (c425; doc/handoffs/series-phone/) -------------------------
-	   Where nothing folds the wrappers are no boxes at all and `order` puts each
-	   row back in today's order: DOWNLOAD under the WORK row (1), the bands (2),
-	   LANGUAGE to SCANLATOR (3), SHELVES (4), LISTS to TAGS (5), ABOUT (6),
-	   EDITIONS and FILE (7). Folded, the markup's order is the screen's.
-	   `:global(*)`, because a scoped `*` matches this component's own elements
-	   only, and LISTS' row is ListsRow's: it sat above DIRECTION without it. */
+	/* ---- DETAILS (c425, c556; doc/handoffs/series-phone/) -------------------
+	   Where nothing folds the wrappers are no boxes, and the screen's order is
+	   the markup's: DOWNLOAD, the bands, LANGUAGE to SCANLATOR, SHELVES, LISTS to
+	   TAGS, ABOUT, EDITIONS and FILE. Folded, the bands, SHELVES and ABOUT stand
+	   above the line. Those three are drawn once each side of it, and each is
+	   hidden by the other's query. */
 	.o,
 	.details {
 		display: contents;
@@ -2598,26 +2613,15 @@
 		display: none;
 	}
 	@media (min-width: 600px) and (not ((pointer: none) and (min-width: 900px))) {
-		.o1 > :global(*) {
-			order: 1;
+		.o.fold-only {
+			display: none;
 		}
-		.o2 > :global(*) {
-			order: 2;
-		}
-		.o3 > :global(*) {
-			order: 3;
-		}
-		.o4 > :global(*) {
-			order: 4;
-		}
-		.o5 > :global(*) {
-			order: 5;
-		}
-		.o6 > :global(*) {
-			order: 6;
-		}
-		.o7 > :global(*) {
-			order: 7;
+	}
+	/* The other query's exact complement: `max-width: 599px` would leave a
+	   fractional viewport (browser zoom) between 599 and 600 px drawing both. */
+	@media (not (min-width: 600px)), (pointer: none) and (min-width: 900px) {
+		.o.screen-only {
+			display: none;
 		}
 	}
 	/* The phone and the TV (1A, 1D): SHELVES, ABOUT, then one 64px line. */

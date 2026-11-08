@@ -1111,9 +1111,9 @@ test.describe('a catalogue that answers', () => {
 				/SEASON 0|\bS0\b/
 			);
 			await expect(sheet).not.toContainText(/SEASON 0|\bS0\b/);
-			// Season 0's own row, the whole show's, and its mirror.
+			// Season 0's own row, the whole show's, and nothing at series level.
 			expect(seasonLinksOf(id)).toEqual([{ season: 0, anilist_id: 9301, via: 'review' }]);
-			expect(mirrorOf(id)).toMatchObject({ anilist_id: 9301, mal_id: 9401 });
+			expect(seriesRowOf(id)).toBeUndefined();
 		} finally {
 			forgetFlatList(id);
 		}
@@ -2216,8 +2216,8 @@ function forgetFlatList(id: number): void {
 	}
 }
 
-/** A series' `series_links` row: an anime's mirror of its first season. */
-function mirrorOf(id: number): Record<string, unknown> | undefined {
+/** A series' `series_links` row: an anime has none beside a season row (c467). */
+function seriesRowOf(id: number): Record<string, unknown> | undefined {
 	const db = new Database(dbPath, { readonly: true });
 	try {
 		return db
@@ -2423,7 +2423,9 @@ function linkedCount(): number {
 	const db = new Database(dbPath, { readonly: true });
 	try {
 		return (
-			db.prepare(`SELECT COUNT(*) AS n FROM series_links WHERE series_id = ?`).get(ids.frieren) as {
+			db
+				.prepare(`SELECT COUNT(*) AS n FROM series_season_links WHERE series_id = ?`)
+				.get(ids.frieren) as {
 				n: number;
 			}
 		).n;
@@ -2436,7 +2438,9 @@ function link(): Record<string, unknown> | undefined {
 	const db = new Database(dbPath, { readonly: true });
 	try {
 		return db
-			.prepare(`SELECT anilist_id, mal_id, via, format FROM series_links WHERE series_id = ?`)
+			.prepare(
+				`SELECT anilist_id, mal_id, via, format FROM series_season_links WHERE series_id = ?`
+			)
 			.get(ids.frieren) as Record<string, unknown> | undefined;
 	} finally {
 		db.close();

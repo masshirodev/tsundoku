@@ -315,12 +315,11 @@ function saveState(
 ): number {
 	const db = getDb();
 	const col = service === 'anilist' ? 'anilist_id' : 'mal_id';
-	// An anime with season links has a `series_links` row only as its first
-	// season's AniSkip mirror (`syncSeriesLink`): that season's own row below
-	// carries what the list says, so the mirror is not filed as the series'
-	// too (wave 17). An anime linked before rung 62 has had its season row since
-	// rung 68 (c383), which also moved what this had filed for it to the season;
-	// one with no season rows at all would still be filed here.
+	// An anime's season rows carry what the list says, below. An anime linked
+	// before rung 62 has had its season row since rung 68 (c383), which also
+	// moved what this had filed for it to the season, and rung 74 (c467) took
+	// away the `series_links` row of every anime with a season row; one with no
+	// season rows at all would still be filed here.
 	const links = db
 		.prepare(
 			`SELECT l.series_id, l.${col} AS media, l.format, s.kind
