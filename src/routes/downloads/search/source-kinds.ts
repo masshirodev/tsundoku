@@ -1,4 +1,4 @@
-import { KINDS, type Kind } from '$lib/library/kinds';
+import { KINDS, kindFacts, type Kind } from '$lib/library/kinds';
 
 /**
  * SEARCH THE SOURCES' KIND band (c699; doc/DOWNLOADING.md, "Searching the
@@ -24,12 +24,20 @@ export function kindsServed(sources: readonly { kind: Kind | null }[]): Kind[] {
 }
 
 /**
- * The kind a `?kind=` names, if a source serves it: any other word (a kind no
- * installed source serves, a library kind like DOUJINS, a typo) is ALL, today's
- * search, rather than a band with nothing under it.
+ * The source kind a `?kind=` asks, of those a source serves. A kind no source
+ * family stores (a library filtered to MANHWA or DOUJINS, c736) asks the kind
+ * that serves its medium: the registry says a manhwa is pages, and pages are
+ * what the Mihon sources' kind serves. A word that is no kind, or a kind whose
+ * medium no installed source serves, is ALL, today's search, rather than a
+ * band with nothing under it.
  */
 export function kindAsked(raw: string | null, served: readonly Kind[]): Kind | null {
-	return served.find((k) => k === raw) ?? null;
+	const asked = KINDS.find((k) => k === raw);
+	if (!asked) return null;
+	const medium = kindFacts(asked).medium;
+	return (
+		served.find((k) => k === asked) ?? served.find((k) => kindFacts(k).medium === medium) ?? null
+	);
 }
 
 /** The sources a kind asks; every one under ALL. */

@@ -5,7 +5,7 @@ import {
 	kindsServed,
 	sourcesOfKind
 } from '../src/routes/downloads/search/source-kinds';
-import { KINDS, SOURCE_KINDS } from '$lib/library/kinds';
+import { KINDS, SOURCE_FAMILIES, SOURCE_KINDS, type SourceFamily } from '$lib/library/kinds';
 import {
 	addedDetail,
 	allToDownload,
@@ -539,13 +539,40 @@ describe('SEARCH THE SOURCES’ KIND band (c699)', () => {
 		expect(kindsServed([src('x', null)])).toEqual([]);
 	});
 
-	it('takes a `?kind=` only when a source serves it; anything else is ALL', () => {
+	// The whole domain, written out rather than derived from the registry the
+	// code reads: every library kind against each source family alone, and
+	// against all of them (c736).
+	const ASKS: Record<SourceFamily | 'every', Record<(typeof KINDS)[number], string | null>> = {
+		mihon: { manga: 'manga', manhwa: 'manga', doujin: 'manga', novel: null, anime: null },
+		lnreader: { manga: null, manhwa: null, doujin: null, novel: 'novel', anime: null },
+		aniyomi: { manga: null, manhwa: null, doujin: null, novel: null, anime: 'anime' },
+		every: { manga: 'manga', manhwa: 'manga', doujin: 'manga', novel: 'novel', anime: 'anime' }
+	};
+
+	it('a library kind asks the source kind serving its medium, for every kind and family (c736)', () => {
+		for (const family of SOURCE_FAMILIES) {
+			const served = kindsServed([src('s', SOURCE_KINDS[family])]);
+			for (const k of KINDS)
+				expect([family, k, kindAsked(k, served)]).toEqual([family, k, ASKS[family][k]]);
+		}
 		const served = kindsServed(sources);
-		for (const k of KINDS) expect(kindAsked(k, served)).toBe(served.includes(k) ? k : null);
-		expect(kindAsked(null, served)).toBeNull();
-		expect(kindAsked('', served)).toBeNull();
-		expect(kindAsked('ANIME', served)).toBeNull();
-		expect(kindAsked('mihon', served)).toBeNull();
+		for (const k of KINDS) expect([k, kindAsked(k, served)]).toEqual([k, ASKS.every[k]]);
+		// No source at all asks nothing, whatever the library is filtered to.
+		for (const k of KINDS) expect(kindAsked(k, [])).toBeNull();
+	});
+
+	it('what a `?kind=` resolved to asks the same kind again', () => {
+		const served = kindsServed(sources);
+		for (const k of KINDS) {
+			const once = kindAsked(k, served);
+			expect(kindAsked(once, served)).toBe(once);
+		}
+	});
+
+	it('a word that is no kind is ALL, on a box that serves every kind', () => {
+		const served = kindsServed(sources);
+		for (const word of [null, '', 'ANIME', 'MANHWA', 'mihon', 'manhwas', 'constructor'])
+			expect([word, kindAsked(word, served)]).toEqual([word, null]);
 	});
 
 	it('asks a kind’s own sources, in their order, and every source under ALL', () => {
