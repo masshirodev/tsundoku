@@ -147,27 +147,88 @@ export function tagSearchHref(
 const BASE = 'http://in.app';
 
 /**
- * The address a source page's back cell may return to, or '' (card c313):
- * the screen a tag was tapped on, with its own query, so that screen's own
- * back still goes where it went before. That is a source's preview
- * (`/downloads/source/<id>`) or a series (`/series/<id>`). Anything else (an
- * absolute URL, `//host`, a climb with `..`, another screen) is refused, or ←
- * would be an open redirect, as `sourceOrigin` refuses the same
- * (library/origin.ts).
+ * Whether `raw`'s path climbs (a `.` or `..` segment, spelled out or
+ * percent-encoded). The URL parser would resolve the climb, so a path that
+ * climbs back into an accepted screen (`/series/1/%2e%2e/2`) would read as
+ * that screen: refused instead, as the doc says a climb is.
  */
-export function backOrigin(raw: string | null | undefined): string {
-	if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return '';
+function climbs(raw: string): boolean {
+	const path = raw.split(/[?#]/, 1)[0];
+	return path.split('/').some((seg) => /^(\.|%2e){1,2}$/i.test(seg));
+}
+
+/** `raw` parsed as an in-app path, or null: never an absolute URL, `//host`, a backslash or a climb. */
+function inApp(raw: string | null | undefined): URL | null {
+	if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return null;
+	// An encoded backslash in the path is one too, to a browser that decodes it.
+	if (/%5c/i.test(raw.split(/[?#]/, 1)[0]) || climbs(raw)) return null;
 	let u: URL;
 	try {
 		u = new URL(raw, BASE);
 	} catch {
-		return '';
+		return null;
 	}
-	if (u.origin !== BASE) return '';
+	return u.origin === BASE ? u : null;
+}
+
+/**
+ * The address a source page's back cell may return to, or '' (card c313):
+ * the screen a tag was tapped on, with its own query, so that screen's own
+ * back still goes where it went before. That is a source's preview
+ * (`/downloads/source/<id>`) or a series (`/series/<id>`). Anything else (an
+ * absolute URL, `//host`, a backslash, a climb with `..`, another screen) is
+ * refused, or ← would be an open redirect, as `sourceOrigin` refuses the same
+ * (library/origin.ts).
+ */
+export function backOrigin(raw: string | null | undefined): string {
+	const u = inApp(raw);
+	if (!u) return '';
 	if (!/^\/downloads\/source\/[^/]+$/.test(u.pathname) && !/^\/series\/\d+$/.test(u.pathname))
 		return '';
 	return u.pathname + u.search;
 }
+
+/** EXTENSIONS' own path: the one list a source's SETTINGS is opened from besides the source (card c727). */
+const EXTENSIONS = '/browse/extensions';
+
+/**
+ * What of EXTENSIONS' query a way back keeps: its tab and its filter and
+ * search, never a sheet it had open (REMOVE…, a repository's removal) or a
+ * repository address being asked, so ← lands on the list, not on a question.
+ */
+const SHEETS = ['remove', 'removeRepo', 'removeNovelRepo', 'add'];
+
+/**
+ * EXTENSIONS' address, as its SETTINGS cell sends it to a source's settings
+ * (card c727): the path and its tab and filters, without a sheet.
+ */
+export function extensionsFrom(url: URL): string {
+	const p = new URLSearchParams(url.searchParams);
+	for (const k of SHEETS) p.delete(k);
+	const q = p.toString();
+	return q ? `${EXTENSIONS}?${q}` : EXTENSIONS;
+}
+
+/**
+ * Where a source's SETTINGS may return to, or '' (cards c453, c727): what
+ * `backOrigin` accepts (the source page's tag origin, kept through SETTINGS),
+ * or EXTENSIONS with its tab and filters when SETTINGS was opened from its
+ * list. EXTENSIONS is accepted only here, not by `backOrigin`: no other
+ * screen links there with a `from`, and the source page's ← must never
+ * become one. Its path must be exactly `/browse/extensions`, as typed (no
+ * climb, no encoding, no trailing slash), with the same refusals.
+ */
+export function settingsOrigin(raw: string | null | undefined): string {
+	const tag = backOrigin(raw);
+	if (tag) return tag;
+	const u = inApp(raw);
+	if (!u || raw!.split(/[?#]/, 1)[0] !== EXTENSIONS || u.pathname !== EXTENSIONS) return '';
+	return extensionsFrom(u);
+}
+
+/** Whether a SETTINGS origin `settingsOrigin` accepted is EXTENSIONS' list (else the source page's tag origin). */
+export const fromExtensions = (origin: string): boolean =>
+	origin === EXTENSIONS || origin.startsWith(`${EXTENSIONS}?`);
 
 /**
  * `href` with `from=<origin>` added, for every way off a source page that

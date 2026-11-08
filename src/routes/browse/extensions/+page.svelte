@@ -11,6 +11,7 @@
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { count } from '$lib/library/downloads';
 	import { extFilterParams } from '$lib/library/ext-filters';
+	import { extensionsFrom, keepOrigin } from '$lib/library/tag-search';
 	import ExtFilter from './ExtFilter.svelte';
 	import { ago } from '$lib/library/tracking';
 	import { isSearchCommand, runSearchCommand } from '$lib/library/commands';
@@ -192,8 +193,12 @@
 		{@const v = data.installed}
 		{#snippet installedRow(r: (typeof v.current)[number], section: 'hand' | 'updates' | 'current')}
 			{@const res = about(r.pkg)}
+			<!-- The settings' ← comes back to this list, this tab and filter (card c727). -->
 			{@const settings = r.shown[0]
-				? resolve('/browse/[source]/settings', { source: r.shown[0].id })
+				? keepOrigin(
+						resolve('/browse/[source]/settings', { source: r.shown[0].id }),
+						extensionsFrom(page.url)
+					)
 				: null}
 			<ExtRow
 				name={r.name}

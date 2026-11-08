@@ -9,7 +9,7 @@ import { EngineError } from '$lib/server/engine/client';
 import { keepPreferences, preferences, setPreference } from '$lib/server/engine/extensions';
 import type { Preference } from '$lib/server/engine/protocol';
 import { settingOf, valueFromForm } from '$lib/library/source-settings';
-import { backOrigin, keepOrigin } from '$lib/library/tag-search';
+import { keepOrigin, settingsOrigin } from '$lib/library/tag-search';
 import { conceal, concealBand, concealCount, undoConceal } from '../../conceal.server';
 import { holdPost } from '../../test-hold.server';
 
@@ -67,8 +67,10 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 			.sort((a, b) => rank(order, a.key) - rank(order, b.key)),
 		down,
 		change: url.searchParams.get('change') ?? '',
-		// The source page's tag origin (card c453): ← and every row keep it.
-		from: backOrigin(url.searchParams.get('from')),
+		// Where ← returns (cards c453, c727): the source page's tag origin, kept
+		// through here, or EXTENSIONS' list when its SETTINGS cell opened this.
+		// ← and every row keep it.
+		from: settingsOrigin(url.searchParams.get('from')),
 		// CONCEAL ITS SERIES (card c523): what the press would hide, its
 		// question without script (`?ask=conceal`), and the band after it.
 		conceal: concealCount(s.id),
@@ -79,14 +81,14 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 
 /**
  * Where CONCEAL and its UNDO land: this page while it is still found, with
- * `query` (the band) and the tag origin kept; BROWSE once it is not. Outside
+ * `query` (the band) and the origin kept (a tag's, or EXTENSIONS'); BROWSE once it is not. Outside
  * reveal a source whose every series is hidden is mostly hidden, so CONCEAL
  * there always lands on BROWSE, whose band names no source.
  */
 function landing(sourceId: string, reveal: boolean, from: string | null, query: string): string {
 	if (browseSource(sourceId, reveal)) {
 		const page = `/browse/${encodeURIComponent(sourceId)}/settings${query ? `?${query}` : ''}`;
-		return keepOrigin(page, backOrigin(from));
+		return keepOrigin(page, settingsOrigin(from));
 	}
 	return `/browse${query ? `?${query}` : ''}`;
 }

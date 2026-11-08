@@ -78,6 +78,22 @@ after the reader has looked around (card c453). Only an in-app
 `/downloads/source/<id>` or `/series/<id>` path is accepted (`backOrigin`,
 `src/lib/library/tag-search.ts`); anything else leaves ← on BROWSE.
 
+A source's SETTINGS has one more origin: **EXTENSIONS** (card c727, wave
+33). EXTENSIONS' SETTINGS cell sends `from=/browse/extensions?<its tab and
+filters>` (no open sheet: `extensionsFrom`), and the settings page's ← then
+says "Back to EXTENSIONS" and returns to the list; opened from the source's
+page it says "Back to <source>" and returns there, keeping a tag's origin as
+above. Either way ← is a back link (`backLink`): when that screen is a few
+history entries back (the settings page, any band or question opened on it,
+a reload of it) it goes back in history, so the list is as it was left;
+with no such history (a new tab, a bookmark) it opens the address. Only the
+settings page accepts EXTENSIONS (`settingsOrigin`, tag-search.ts): its path
+must be exactly `/browse/extensions` as typed, and every refusal
+`backOrigin` makes holds for both, the encoded spellings included (`%2F%2F`,
+`%5C`, and a `.`/`..` segment spelled out or as `%2e`, which since wave 33
+`backOrigin` refuses even when the climb lands on an accepted screen).
+Tested in `tests/tag-search.spec.ts` and `tests/browse-settings-back.e2e.ts`.
+
 ## From a Work
 
 A Work's run rows open their series with `?from=work:<id>` (`tests/work/[id]/

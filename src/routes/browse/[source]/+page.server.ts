@@ -16,7 +16,14 @@ import { changedCount, readFilters, type FilterField } from '$lib/library/browse
 import { backOrigin } from '$lib/library/tag-search';
 import { forgetSiteCheck } from '$lib/server/novels/source';
 import type { Settled } from '$lib/library/settled';
-import { addedBand, refusedLanding, undoAdded } from '../added.server';
+import {
+	addedBand,
+	bandShelves,
+	newShelfAdded,
+	refusedLanding,
+	shelveAdded,
+	undoAdded
+} from '../added.server';
 
 /**
  * A source's page in BROWSE (Index-Browse, states popular, filters, phoneGrid;
@@ -94,6 +101,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		(e) => ({ ok: false, error: why(e) })
 	);
 
+	const addedHidden = await addedBand(url.searchParams, source.id, reveal);
 	return {
 		source,
 		reveal,
@@ -105,7 +113,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		// ADD from a source that adds hidden, with reveal off (card c435): the
 		// preview lands here, since the hidden series isn't found, and says so,
 		// with what ADD AND DOWNLOAD queued and UNDO (c505).
-		addedHidden: await addedBand(url.searchParams, source.id, reveal),
+		addedHidden,
+		// The shelves its series is on, for the band's chips (card c724).
+		addedShelves: bandShelves(addedHidden),
 		// Arrived from a tag (c313): ← returns to where it was tapped, never anywhere else.
 		back: backOrigin(url.searchParams.get('from')),
 		// Without script a streamed promise never resolves, so the page waits for it instead.
@@ -136,5 +146,27 @@ export const actions: Actions = {
 		if (!browseSource(params.source, reveal))
 			redirect(303, refusedLanding(form, url.searchParams.get('queued'), r.status));
 		return fail(r.status, { message: r.message });
+	},
+	/**
+	 * PUT ON A SHELF on the ADDED band (card c724; `shelveAdded`, shared with
+	 * BROWSE's band): one chip, on or off, for the band's own series only.
+	 */
+	shelve: async ({ params, request }) => {
+		if (downloadsBackend() !== 'engine') error(404, 'not found');
+		const r = await shelveAdded(await request.formData(), params.source);
+		if ('status' in r) return fail(r.status, { shelf: r.message });
+		return { shelved: r };
+	},
+	/** + NEW SHELF on the ADDED band: `NewShelfSheet`'s post, the shelf made and the series put on it. */
+	newShelf: async ({ params, request, url }) => {
+		if (downloadsBackend() !== 'engine') error(404, 'not found');
+		const r = await newShelfAdded(
+			await request.formData(),
+			request.headers.get('referer'),
+			url,
+			params.source
+		);
+		if ('status' in r) return fail(r.status, { shelf: r.message });
+		redirect(303, r.to);
 	}
 };

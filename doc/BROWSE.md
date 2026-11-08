@@ -64,6 +64,37 @@ visit to its page; a visit in incognito leaves nothing. Who may see a row is
 decided when it's read, so a hidden source browsed inside reveal is only in
 RECENT inside reveal.
 
+**RECENT folds** (card c726, wave 33; a friend's ask). Its label is a toggle:
+`01 — RECENT · LAST BROWSED  HIDE ↑`, and folded `01 — RECENT · 4 RECENT
+SHOW ↓`, so a folded RECENT still says how many. Open by default, remembered
+for the device in one localStorage key, `tsundoku:browse-recent` (`folded`,
+or nothing; `src/lib/library/browse-recent.ts`). The series screen's DETAILS
+fold is the idiom, but DETAILS is closed by default, so its server draws the
+default and only an opened device changes once the page runs. RECENT is open
+by default, and a device that folded it must not see it open and then shut
+on every load. So BROWSE's `<head>` carries a few bytes of script
+(`PREPAINT`) that the browser runs before it parses the body on a document
+load (a reload, a bookmark, a new tab): it marks `<html>` with
+`data-recent-folded` when the key says folded, and the stylesheet folds the
+rows and swaps the label's words from that mark, so the server's open markup
+is painted folded from the first frame. An arrival inside the app runs no
+head script (an inserted script is inert) and needs none: the page reads the
+key as it mounts, before the frame is painted, and puts the mark in step
+(another tab may have changed the key since this document's head ran); the
+toggle keeps the mark in step too. Without script nothing folds and the
+toggle's words are not drawn (a `<noscript>` rule). The label is a button,
+one stop on a TV, and OK toggles it; folded, its rows are not stops. **Its
+accessible name is `01 — RECENT · LAST BROWSED`, whatever its state**
+(`aria-expanded` says which): `HIDE ↑` and `SHOW ↓` are only its drawn
+words, since HIDE and SHOW are words other buttons in the browse world are
+found by (reveal's HIDE AGAIN among them), and a locator matches a name by
+substring. MANGA, ANIME and NOVELS do not fold: RECENT was the ask, and
+theirs would cost a key each and a rule for a section that is most of the
+screen. Tested in `tests/browse-recent.e2e.ts` (fold, reload, unfold, the
+first paint with the app's script blocked, arrivals inside the app, another
+tab's change), `tests/tv-browse-recent.e2e.ts` and
+`tests/browse-recent-domain.spec.ts`.
+
 **The ways in** (Browse Calls, "Browse is a place"): a BROWSE cell on the
 library's tablet bar, before QUEUE; BROWSE in the desktop sidebar's foot,
 under HISTORY, with the update count ("5 ↑"); and on the phone, whose bar has
@@ -456,7 +487,22 @@ source is mostly hidden, answers 404.
 ## A source's settings
 
 `/browse/<source>/settings`, from the SETTINGS cell on a source's page (and,
-with c144, an installed extension's row). Many sources have settings: a
+with c144, an installed extension's row). **Its ← goes back where it was
+opened from** (card c727, wave 33): from EXTENSIONS' cell it says Back to
+EXTENSIONS and returns to the list on its tab (the cell sends
+`from=/browse/extensions?…`, `extensionsFrom`, without a sheet's parameters);
+from the source's page it says Back to <source> and returns there, as
+before. It is a back link (`backLink`, src/lib/back.ts), so a list a few
+history entries back comes back as it was left, scroll included; a reload,
+a new tab or a bookmark opens the address. Only `settingsOrigin` accepts
+EXTENSIONS' path (exactly `/browse/extensions`), never `backOrigin`
+(doc/NAVIGATION.md, "From a source"). EXTENSIONS draws one row per package
+(`{#each s.rows as r (r.pkg)}`), and the cell opens the first source BROWSE
+lists of it (`r.shown[0]`): a package with several languages still has one
+cell, since the list has no row per language to put a second on (c695,
+wave 33). `tests/browse-settings-back.e2e.ts` walks both origins, the
+reload, the new tab, the bookmark and forged origins, on a desktop and a
+phone. Many sources have settings: a
 mirror, a language, image quality, a login. The engine describes them
 (`preferencesManga`); **tsundoku keeps the values** (`engine_preferences`,
 c134) and sends them with every call, since the engine keeps none across a
@@ -580,6 +626,45 @@ read, then the preview again. Once something is, the band draws no UNDO and
 says "NO UNDO: SOMETHING OF IT IS DOWNLOADED OR READ NOW", and an UNDO
 tapped after that happened is refused with the same words. UNDO twice, or
 the band's URL after UNDO, finds no series, says nothing and undoes nothing.
+
+**Shelves in the ADD band** (card c724, wave 33; a friend's ask). Under this
+band, a second line in its panel: `PUT ON A SHELF:` and the owner's shelves
+(the library's collections) as chips, one tap each, several allowed, a
+second tap takes one off; the line says `ON LATER, TONIGHT` once it is on
+any. Then `+ NEW SHELF`, which opens `NewShelfSheet` as it is (the URL's
+`new=shelf`), at the strip's right end under UNDO, so a remote's ↓ from UNDO
+lands in the strip and ← walks the chips. The band still says ADDED TO THE
+LIBRARY, AND HIDDEN, with the chips under it. The last shelf a chip put the
+series on is offered first next time, per device (`tsundoku:add-shelf`, its
+id; read once as the band mounts, so the order can change once just after
+the first paint). Past six shelves the band draws the first six, always
+including any the series is on, and `N OTHER SHELVES` opens the SHELVES
+sheet (`ShelfPicker`, as it is, posting to the library's `?/shelf`). The
+rules are `src/lib/library/add-shelf.ts`.
+
+A chip posts to the page's own `?/shelve` (the source page's and BROWSE's,
+`shelveAdded` in `added.server.ts`), which writes through the SHELVES
+sheet's own `setInCollection`, and only for the band's own series
+(`bandSeries`: its id and its preview's key, as UNDO asks), so a chip tapped
+after UNDO, or on a stale band, shelves nothing and says `NOT SHELVED: THE
+SERIES IS NOT IN THE LIBRARY NOW`. `NewShelfSheet` posts only `name` to
+`?/newShelf`, and a relative `?/newShelf` drops the page's query, so
+`newShelfAdded` reads the band from the post's `Referer` (sent in full to
+the same origin by the browsers' default policy) and acts only when that is
+this page on this origin with a band whose facts hold; it lands back on the
+band, the sheet closed. No storage of its own: a shelf is a
+`collection_series` row, which cascades with the series, so **UNDO takes
+both back** (the series row goes, and its shelf rows with it); the shelves
+themselves stay. Without script a chip's post carries the band in its URL,
+as UNDO's does. Tested in `tests/add-shelf-domain.spec.ts`,
+`tests/add-shelf-db.spec.ts` and `tests/browse-add-shelf.e2e.ts`.
+
+**The series screen's band is not this one.** An ADD that is not hidden (the
+common case) lands on the new series with its own ADDED TO THE LIBRARY band
+(`src/routes/series/[id]/+page.svelte`), which is another slot's file in wave
+33; giving it the same chips is a patch for its owner
+(`doc/handoff-notes/browse.md`, wave 33, Gaps). The series screen already
+has the write: its `?/shelf` action.
 
 **Where the band lands** (c505, round 2). The ADD can itself make the source
 mostly hidden: more than half its series hidden (`mostlyHidden`), and the

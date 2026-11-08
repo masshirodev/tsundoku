@@ -14,7 +14,10 @@ import {
 	matchFilter,
 	backOrigin,
 	backOriginLabel,
+	extensionsFrom,
+	fromExtensions,
 	keepOrigin,
+	settingsOrigin,
 	distinct,
 	matchPersonFilter,
 	personKey,
@@ -448,14 +451,121 @@ describe('where a source page’s back cell may return', () => {
 			'/settings',
 			'/series/12/move',
 			'/series/abc',
-			'downloads/source/1'
+			'downloads/source/1',
+			// EXTENSIONS is the settings page's alone (card c727), never a source page's.
+			'/browse/extensions',
+			'/browse/extensions?tab=installed'
 		])
 			expect(backOrigin(raw), String(raw)).toBe('');
+	});
+
+	it('refuses the encoded spellings of a host, a backslash and a climb (card c727)', () => {
+		for (const raw of [
+			'/%2F%2Fevil.example/series/1',
+			'/%2f%2fevil.example/downloads/source/1',
+			'/series/1%5C',
+			'/series/1%5cevil',
+			'/downloads/source/1%5Cevil.example',
+			'/%5Cevil.example/series/1',
+			// A climb back into an accepted screen still climbs.
+			'/series/1/../2',
+			'/series/1/%2e%2e/2',
+			'/series/1/%2E%2E/2',
+			'/downloads/source/1/./x',
+			'/downloads/source/1/%2e/x',
+			'/downloads/source/1/.%2e/%2e./series/3'
+		])
+			expect(backOrigin(raw), raw).toBe('');
+	});
+
+	it('still takes an encoded value in an accepted path or query', () => {
+		expect(backOrigin('/downloads/source/100~%2Fmanga%2F1')).toBe(
+			'/downloads/source/100~%2Fmanga%2F1'
+		);
+		expect(backOrigin('/series/12?q=a%5Cb')).toBe('/series/12?q=a%5Cb');
+		expect(backOrigin('/downloads/source/1~a..b')).toBe('/downloads/source/1~a..b');
 	});
 
 	it('holds on its own output', () => {
 		const once = backOrigin('/downloads/source/100~abc?q=a%20b');
 		expect(backOrigin(once)).toBe(once);
+	});
+});
+
+describe('where a source’s SETTINGS may return (card c727)', () => {
+	it('is EXTENSIONS, with its tab and filters, or what backOrigin accepts', () => {
+		expect(settingsOrigin('/browse/extensions')).toBe('/browse/extensions');
+		expect(settingsOrigin('/browse/extensions?tab=installed&q=open')).toBe(
+			'/browse/extensions?tab=installed&q=open'
+		);
+		expect(settingsOrigin('/browse/extensions?q=a%20b#row')).toBe('/browse/extensions?q=a+b');
+		for (const tag of ['/series/12?from=continue', '/downloads/source/100~abc'])
+			expect(settingsOrigin(tag)).toBe(backOrigin(tag));
+	});
+
+	it('drops a sheet EXTENSIONS had open, so ← lands on the list', () => {
+		expect(settingsOrigin('/browse/extensions?q=x&remove=e2e.open')).toBe('/browse/extensions?q=x');
+		expect(settingsOrigin('/browse/extensions?removeRepo=2&removeNovelRepo=3&add=x')).toBe(
+			'/browse/extensions'
+		);
+	});
+
+	it('and nothing else: every refusal backOrigin makes, encoded too', () => {
+		for (const raw of [
+			null,
+			undefined,
+			'',
+			'browse/extensions',
+			'https://evil.example/browse/extensions',
+			'http://in.app/browse/extensions',
+			'//evil.example/browse/extensions',
+			'/\\evil.example/browse/extensions',
+			'/browse/extensions\\',
+			'/%2F%2Fevil.example/browse/extensions',
+			'/%2f%2fbrowse/extensions',
+			'/browse/extensions%5C',
+			'/%5Cevil.example/browse/extensions',
+			'/browse/extensions/',
+			'/browse/extensions/x',
+			'/browse/extensions%2F',
+			'/browse/%65xtensions',
+			'/browse/x/../extensions',
+			'/browse/x/%2e%2e/extensions',
+			'/browse/extensions/..',
+			'/browse/extensions/%2E%2E/extensions',
+			'/browse/./extensions',
+			'/browse',
+			'/browse/100',
+			'/browse/100/settings',
+			'/settings'
+		])
+			expect(settingsOrigin(raw), String(raw)).toBe('');
+	});
+
+	it('holds on its own output, and through keepOrigin', () => {
+		for (const raw of ['/browse/extensions?tab=installed&q=a%20b', '/series/3']) {
+			const once = settingsOrigin(raw);
+			expect(settingsOrigin(once)).toBe(once);
+			const u = new URL(keepOrigin('/browse/100/settings?/flag', once), 'http://x');
+			expect(settingsOrigin(u.searchParams.get('from'))).toBe(once);
+		}
+	});
+
+	it('tells EXTENSIONS from a tag origin', () => {
+		expect(fromExtensions('/browse/extensions')).toBe(true);
+		expect(fromExtensions('/browse/extensions?tab=installed')).toBe(true);
+		expect(fromExtensions('/browse/extensionsx')).toBe(false);
+		expect(fromExtensions('/series/1')).toBe(false);
+		expect(fromExtensions('')).toBe(false);
+	});
+
+	it('is what EXTENSIONS sends: its own address without a sheet', () => {
+		expect(extensionsFrom(new URL('http://h/browse/extensions'))).toBe('/browse/extensions');
+		expect(
+			extensionsFrom(new URL('http://h/browse/extensions?tab=installed&q=open&remove=e2e.open'))
+		).toBe('/browse/extensions?tab=installed&q=open');
+		const sent = extensionsFrom(new URL('http://h/browse/extensions?q=a%20b&adult=only'));
+		expect(settingsOrigin(sent)).toBe(sent);
 	});
 });
 

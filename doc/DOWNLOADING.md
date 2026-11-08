@@ -224,7 +224,11 @@ ANSWERING` and the DOWNLOAD row says why. The owner asked for it after a friend
   chapter NOT DOWNLOADED, through the Mihon importer's own plan (`planMihon`)
   and writer (`writeSeries`), keyed as the tablet's backup would key it. It
   lands on the new series with an **ADDED TO THE LIBRARY** band and FIRST 10.
-  START is dimmed until chapter 1 has a file.
+  START is dimmed until chapter 1 has a file. From a source that adds its series
+  hidden, outside reveal, it lands on the source's page (or BROWSE) with ADDED
+  TO THE LIBRARY, AND HIDDEN, whose second line puts it on a shelf (card c724;
+  [`BROWSE.md`](BROWSE.md), "Shelves in the ADD band"); the series screen's
+  band has no shelves yet.
 - **UNDO** takes it out again while nothing of it is downloaded or read, and
   goes back to the preview. After ADD AND DOWNLOAD, its queued chapters go
   with it (the queue's rows cascade). It isn't a delete: no tombstone, so it can be
