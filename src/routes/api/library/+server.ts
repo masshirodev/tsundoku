@@ -1,7 +1,9 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isRevealed } from '$lib/server/prefs';
+import { getDb } from '$lib/server/db';
 import { listTiles, tileIds } from '$lib/server/library';
+import { libraryWhere } from '$lib/server/visibility';
 import { parseDir, parseSeed, parseSort } from '$lib/library/labels';
 import { parseFilters } from '$lib/library/filters';
 import { GRID_MAX, GRID_PAGE } from '$lib/library/paging';
@@ -38,14 +40,37 @@ export const GET: RequestHandler = ({ url, cookies }) => {
 };
 
 /**
+ * Which of `want` the library no longer shows (c737): deleted since, or hidden
+ * under this request's reveal, by the one rule every library read uses
+ * (`libraryWhere`, as `listTiles`' own). Asked by id, so a series the card
+ * list below leaves out for its size is never mistaken for one that is gone.
+ */
+function missingOf(want: readonly number[], reveal: boolean): number[] {
+	const shown = new Set(
+		(
+			getDb()
+				.prepare(
+					`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id
+					WHERE s.id IN (SELECT value FROM json_each(?)) AND ${libraryWhere(reveal)}`
+				)
+				.all(JSON.stringify(want)) as { id: number }[]
+		).map((r) => r.id)
+	);
+	return want.filter((id) => !shown.has(id));
+}
+
+/**
  * The facts of series a selection holds by id alone (c737; doc/LIBRARY.md,
  * "A selection outlives the shelf"): SELECT ALL ticks a shelf's pages never
  * loaded, and SHOW and GROUP need their cards to list them. A POST, since
- * SELECT ALL can hold thousands of ids, past what a URL carries. Answered in
- * the grid's own card shape, read through the grid's own query over the
- * whole library, so hidden means hidden here exactly as on the screen: an id
- * ticked under reveal and asked after reveal is off answers nothing, nor
- * does one deleted since. Only the cards that hold a wanted id come back.
+ * SELECT ALL can hold thousands of ids, past what a URL carries; at most
+ * `FACTS_MAX` of them are read, and the client sends no more than that at
+ * once. The cards come in the grid's own shape, read through the grid's own
+ * query over the whole library (its first `GRID_MAX` tiles), so hidden means
+ * hidden here exactly as on the screen. `missing` names the wanted ids the
+ * library itself no longer shows, deleted or hidden, from a by-id check: an
+ * id in neither list was simply not answered, and the client leaves it
+ * selected.
  */
 export const POST: RequestHandler = async ({ request, cookies }) => {
 	const headers = { 'cache-control': 'private, no-store' };
@@ -56,10 +81,12 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			.filter((n): n is number => Number.isInteger(n) && (n as number) > 0)
 			.slice(0, FACTS_MAX)
 	);
-	if (want.size === 0) return json({ series: [] }, { headers });
-	const all = listTiles({ reveal: isRevealed(cookies), shelf: 'all', limit: GRID_MAX, offset: 0 });
+	if (want.size === 0) return json({ series: [], missing: [] }, { headers });
+	const reveal = isRevealed(cookies);
+	const missing = missingOf([...want], reveal);
+	const all = listTiles({ reveal, shelf: 'all', limit: GRID_MAX, offset: 0 });
 	const series = all.filter((c) =>
 		c.tile ? c.tile.parts.some((p) => want.has(p.seriesId)) : want.has(c.id)
 	);
-	return json({ series }, { headers });
+	return json({ series, missing }, { headers });
 };

@@ -287,18 +287,25 @@ though it is no longer drawn.
   have their facts read by id (c737): `POST /api/library` with `{ ids }`
   answers the grid's own card shape for the cards holding those ids, read
   through the grid's query over the whole library, so hidden means hidden as
-  on the screen. The read is made once SELECT ALL has the ids, and again for
-  anything still missing when SHOW opens or GROUP, HIDE or DELETE is pressed
-  (those wait for it), so SHOW lists every series and GROUP counts them all.
-  While it is out the sheet says `N MORE FROM SELECT ALL · LOADING`; an id the
-  library no longer answers (deleted since, or hidden with reveal off) is
+  on the screen, and `missing`: the wanted ids the library no longer shows
+  (deleted since, or hidden under the request's reveal), from a by-id check
+  of just those ids. The read is made once SELECT ALL has the ids, and again
+  for anything still missing when SHOW opens or GROUP, HIDE or DELETE is
+  pressed. Those three wait for every read in flight, not only the one they
+  start, so GROUP tapped while SELECT ALL's own read is still out opens on
+  every selected series (its sheet takes its rows once, on open): SHOW lists
+  every series and GROUP counts them all. While it is out the sheet says
+  `N MORE FROM SELECT ALL · LOADING`; an id the server names missing is
   taken out of the selection and said so (`N GONE OR HIDDEN SINCE SELECT ALL ·
-TAKEN OUT`), so no bulk action posts a series the owner cannot see; a read
-  that could not be made (offline) leaves them selected and unlisted (`N MORE
-FROM SELECT ALL · NOT LOADED, SO NOT LISTED`), and the next SHOW asks again.
-  An answer that lands after ✕ is dropped (`UnseenFacts` in
-  `src/lib/library/selection.ts`). One read answers at most 10,000 ids, the
-  grid's own cap.
+TAKEN OUT`, counting only ids still out: one ticked again by hand is
+  listed instead), so no bulk action posts a series the owner cannot see. An
+  id that got neither a card nor a `missing` entry (past the read's caps) is
+  not gone: like a read that could not be made (offline) it stays selected
+  and unlisted (`N MORE FROM SELECT ALL · NOT LOADED, SO NOT LISTED`), and
+  the next SHOW asks again. An answer that lands after ✕ is dropped
+  (`UnseenFacts` in `src/lib/library/selection.ts`). One POST carries at most
+  10,000 ids, the grid's own cap, so the client sends them in chunks of
+  that; the cards come from the first 10,000 tiles.
 - **What ends SELECT** (and drops it): the bar's ✕, on the library or the
   search; GROUP's, HIDE's and DELETE's own success (`ondone`); a reload; and
   leaving the library and the search for any other screen (a series screen, a

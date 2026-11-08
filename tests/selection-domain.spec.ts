@@ -1,11 +1,14 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	carrySelection,
 	drawnToNote,
+	FACTS_MAX,
+	goneCount,
 	landing,
 	pickedOfCard,
 	pickedOfCards,
 	pickedOfPart,
+	readFacts,
 	takeCarried,
 	UnseenFacts,
 	workTap,
@@ -15,6 +18,7 @@ import {
 	titlesLine,
 	unseenCount,
 	workOf,
+	type FactsAnswer,
 	type Picked
 } from '../src/lib/library/selection';
 import type { LibraryCard, WorkPart } from '../src/lib/library/works';
@@ -330,13 +334,15 @@ describe('pickedOfCards (c737): the by-id answer, as facts', () => {
 
 describe('UnseenFacts (c737): SELECT ALL’s unloaded series, read by id', () => {
 	const later = () => {
-		let answer: (v: Picked[] | null) => void = () => {};
+		const answers: ((v: FactsAnswer | null) => void)[] = [];
 		const asked: number[][] = [];
 		const read = (ids: readonly number[]) => {
 			asked.push([...ids]);
-			return new Promise<Picked[] | null>((r) => (answer = r));
+			return new Promise<FactsAnswer | null>((r) => answers.push(r));
 		};
-		return { read, asked, answer: (v: Picked[] | null) => answer(v) };
+		/** Answers the latest read, or the `n`th. */
+		const answer = (v: FactsAnswer | null, n = answers.length - 1) => answers[n](v);
+		return { read, asked, answer };
 	};
 
 	it('asks once for the ids with no facts, notes what comes back, and takes out what does not', async () => {
@@ -347,13 +353,14 @@ describe('UnseenFacts (c737): SELECT ALL’s unloaded series, read by id', () =>
 		const done = u.fill(selected, facts);
 		expect(r.asked).toEqual([[2, 3]]);
 		expect([...u.asking]).toEqual([2, 3]);
-		// SHOW opened again while the read is out: nothing asked twice.
-		await u.fill(selected, facts);
+		// SHOW opened again while the read is out: nothing asked twice, and it
+		// waits for the read that is out.
+		const again = u.fill(selected, facts);
 		expect(r.asked).toHaveLength(1);
-		r.answer([pick(2)]);
-		await done;
+		r.answer({ picked: [pick(2)], missing: [3] });
+		await Promise.all([done, again]);
 		expect([...facts.keys()]).toEqual([1, 2]);
-		// 3: deleted since, or hidden with reveal off. Out of the selection, counted.
+		// 3: named missing (deleted since, or hidden with reveal off). Out of the selection, counted.
 		expect([...selected]).toEqual([1, 2]);
 		expect([...u.gone]).toEqual([3]);
 		expect([...u.asking]).toEqual([]);
@@ -382,7 +389,7 @@ describe('UnseenFacts (c737): SELECT ALL’s unloaded series, read by id', () =>
 		const done = u.fill(selected, facts);
 		u.reset();
 		selected.clear();
-		r.answer([pick(5)]);
+		r.answer({ picked: [pick(5)], missing: [6] });
 		await done;
 		expect(facts.size).toBe(0);
 		expect(u.gone.size).toBe(0);
@@ -396,8 +403,145 @@ describe('UnseenFacts (c737): SELECT ALL’s unloaded series, read by id', () =>
 		const done = u.fill(selected, facts, () => new Set([6]));
 		selected.delete(5);
 		selected.delete(6);
-		r.answer([pick(5), pick(6)]);
+		r.answer({ picked: [pick(5), pick(6)], missing: [] });
 		await done;
 		expect([...facts.keys()]).toEqual([6]);
+	});
+	it('an answer that leaves ids out without naming them missing takes nothing out (a capped read)', async () => {
+		const r = later();
+		const u = new UnseenFacts(r.read);
+		const selected = new Set([1, 2, 3]);
+		const facts = new Map<number, Picked>();
+		const done = u.fill(selected, facts);
+		r.answer({ picked: [pick(1)], missing: [] });
+		await done;
+		expect([...facts.keys()]).toEqual([1]);
+		// 2 and 3: not answered, not gone. Selected, unlisted, asked again next time.
+		expect([...selected]).toEqual([1, 2, 3]);
+		expect(u.gone.size).toBe(0);
+		void u.fill(selected, facts);
+		expect(r.asked).toEqual([
+			[1, 2, 3],
+			[2, 3]
+		]);
+	});
+	it('a missing id the read was not asked for is not taken out', async () => {
+		const r = later();
+		const u = new UnseenFacts(r.read);
+		const selected = new Set([1, 9]);
+		const facts = new Map([[9, pick(9)]]);
+		const done = u.fill(selected, facts);
+		r.answer({ picked: [], missing: [1, 9] });
+		await done;
+		expect([...selected]).toEqual([9]);
+		expect([...u.gone]).toEqual([1]);
+	});
+	it('a fill while an earlier read is out settles only once that read has, with its facts in', async () => {
+		const r = later();
+		const u = new UnseenFacts(r.read);
+		const selected = new Set([1, 2]);
+		const facts = new Map<number, Picked>();
+		// SELECT ALL's own read, held.
+		void u.fill(selected, facts);
+		// GROUP tapped while it is out: nothing new to ask, but it must wait.
+		let settled = false;
+		const group = u.fill(selected, facts).then(() => (settled = true));
+		expect(r.asked).toHaveLength(1);
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(settled).toBe(false);
+		r.answer({ picked: [pick(1), pick(2)], missing: [] }, 0);
+		await group;
+		expect(settled).toBe(true);
+		expect([...facts.keys()]).toEqual([1, 2]);
+	});
+	it('a fill that asks for more waits for its own read and the earlier one both', async () => {
+		const r = later();
+		const u = new UnseenFacts(r.read);
+		const selected = new Set([1]);
+		const facts = new Map<number, Picked>();
+		void u.fill(selected, facts);
+		selected.add(2);
+		let settled = false;
+		const group = u.fill(selected, facts).then(() => (settled = true));
+		expect(r.asked).toEqual([[1], [2]]);
+		r.answer({ picked: [pick(2)], missing: [] }, 1);
+		await new Promise((ok) => setTimeout(ok, 0));
+		expect(settled).toBe(false);
+		r.answer({ picked: [pick(1)], missing: [] }, 0);
+		await group;
+		expect([...facts.keys()].sort()).toEqual([1, 2]);
+	});
+	it('a read that throws is a read not made: they stay selected', async () => {
+		const u = new UnseenFacts(() => Promise.reject(new Error('offline')));
+		const selected = new Set([4]);
+		await u.fill(selected, new Map());
+		expect([...selected]).toEqual([4]);
+		expect(u.gone.size).toBe(0);
+		expect(u.asking.size).toBe(0);
+	});
+	it('after ✕ (reset), a new fill does not wait on the dropped read', async () => {
+		const r = later();
+		const u = new UnseenFacts(r.read);
+		void u.fill(new Set([1]), new Map());
+		u.reset();
+		const facts = new Map<number, Picked>();
+		const done = u.fill(new Set([2]), facts);
+		r.answer({ picked: [pick(2)], missing: [] }, 1);
+		await done;
+		expect([...facts.keys()]).toEqual([2]);
+	});
+});
+
+describe('goneCount (c737): what SHOW says the read took out', () => {
+	it('counts an id named missing only while it is still out', () => {
+		const gone = new Set([3, 4]);
+		expect(goneCount([1, 3, 4], gone, new Set([1]), new Map())).toBe(2);
+		// 4 ticked again by hand from a tile, and drawn: listed, not TAKEN OUT.
+		expect(goneCount([1, 3, 4], gone, new Set([1, 4]), new Map([[4, pick(4)]]))).toBe(1);
+		// Ticked again but not yet drawn, or drawn and unticked in SHOW: still not out.
+		expect(goneCount([3, 4], gone, new Set([4]), new Map())).toBe(1);
+		expect(goneCount([3, 4], gone, new Set(), new Map([[4, pick(4)]]))).toBe(1);
+	});
+});
+
+describe('readFacts (c737): the by-id read, in chunks', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('sends at most FACTS_MAX ids a POST, and joins what each answers', async () => {
+		const bodies: number[][] = [];
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (_url: string, init: RequestInit) => {
+				const { ids } = JSON.parse(String(init.body)) as { ids: number[] };
+				bodies.push(ids);
+				return new Response(
+					JSON.stringify({ series: [card({ id: ids[0] })], missing: [ids[ids.length - 1]] })
+				);
+			})
+		);
+		const ids = Array.from({ length: FACTS_MAX + 2 }, (_, i) => i + 1);
+		const got = await readFacts(ids);
+		expect(bodies.map((b) => b.length)).toEqual([FACTS_MAX, 2]);
+		expect(got?.picked.map((p) => p.id)).toEqual([1, FACTS_MAX + 1]);
+		expect(got?.missing).toEqual([FACTS_MAX, FACTS_MAX + 2]);
+	});
+	it('is null when the first POST fails, and keeps what came back when a later one does', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response('', { status: 500 }))
+		);
+		expect(await readFacts([1])).toBeNull();
+		let n = 0;
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () =>
+				n++ === 0
+					? new Response(JSON.stringify({ series: [card({ id: 1 })], missing: [] }))
+					: new Response('', { status: 500 })
+			)
+		);
+		const got = await readFacts(Array.from({ length: FACTS_MAX + 1 }, (_, i) => i + 1));
+		expect(got?.picked.map((p) => p.id)).toEqual([1]);
 	});
 });

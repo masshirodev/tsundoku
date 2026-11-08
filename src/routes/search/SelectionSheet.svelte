@@ -4,7 +4,7 @@
 	import { count } from '$lib/library/labels';
 	import { coverSrc } from '$lib/library/links';
 	import { m } from '$lib/paraglide/messages';
-	import { pickedInOrder, type Picked, type UnseenFacts } from '$lib/library/selection';
+	import { goneCount, pickedInOrder, type Picked, type UnseenFacts } from '$lib/library/selection';
 
 	/**
 	 * SHOW (c698; doc/LIBRARY.md, "A selection outlives the shelf"): the
@@ -36,7 +36,7 @@
 	/** Listed when it opened, with no facts yet: asked for now, or not asked (offline). */
 	const waiting = $derived(ids.filter((id) => !facts.has(id) && !unseen.gone.has(id)));
 	const asking = $derived(waiting.filter((id) => unseen.asking.has(id)).length);
-	const gone = $derived(ids.filter((id) => unseen.gone.has(id)).length);
+	const gone = $derived(goneCount(ids, unseen.gone, selected, facts));
 </script>
 
 <Sheet {open} {onclose} label="The selection">

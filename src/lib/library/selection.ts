@@ -290,41 +290,86 @@ export function pickedOfCards(cards: readonly LibraryCard[], want: ReadonlySet<n
 /** How many ids at most one by-id read answers: the grid's own cap. */
 export const FACTS_MAX = 10_000;
 
-/** The facts of `ids` from the library by id (c737), or null when it could not be asked. */
-export async function readFacts(ids: readonly number[]): Promise<Picked[] | null> {
-	try {
-		const res = await fetch('/api/library', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ ids })
-		});
-		if (!res.ok) return null;
-		const { series } = (await res.json()) as { series: LibraryCard[] };
-		return pickedOfCards(series, new Set(ids));
-	} catch {
-		return null;
+/**
+ * What a by-id read answered (c737): the facts of the wanted ids it found, and
+ * the ids the library itself says are gone (deleted since, or hidden under the
+ * request's reveal). An id in neither was not answered (past a cap, or a
+ * chunk that failed) and is not gone.
+ */
+export type FactsAnswer = { picked: Picked[]; missing: number[] };
+
+/**
+ * The facts of `ids` from the library by id (c737), in chunks of `FACTS_MAX`
+ * since the server reads no more than that at once. Null when nothing could be
+ * asked; a chunk that fails after one that answered keeps what came back.
+ */
+export async function readFacts(ids: readonly number[]): Promise<FactsAnswer | null> {
+	const out: FactsAnswer = { picked: [], missing: [] };
+	for (let at = 0; at < ids.length; at += FACTS_MAX) {
+		const chunk = ids.slice(at, at + FACTS_MAX);
+		try {
+			const res = await fetch('/api/library', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ ids: chunk })
+			});
+			if (!res.ok) return at === 0 ? null : out;
+			const { series, missing } = (await res.json()) as {
+				series: LibraryCard[];
+				missing?: number[];
+			};
+			out.picked.push(...pickedOfCards(series, new Set(chunk)));
+			out.missing.push(...(missing ?? []));
+		} catch {
+			return at === 0 ? null : out;
+		}
 	}
+	return out;
+}
+
+/**
+ * How many of SHOW's ids the read took out and are still out (c737): named
+ * missing, and neither ticked again since nor drawn with facts. A series
+ * taken out and then ticked by hand from a tile or a hit is listed, so it is
+ * not also counted as TAKEN OUT.
+ */
+export function goneCount(
+	ids: readonly number[],
+	gone: ReadonlySet<number>,
+	selected: ReadonlySet<number>,
+	facts: ReadonlyMap<number, Picked>
+): number {
+	let n = 0;
+	for (const id of ids) if (gone.has(id) && !selected.has(id) && !facts.has(id)) n++;
+	return n;
 }
 
 /**
  * Filling in the facts of selected series the page never drew (c737): SELECT
  * ALL's pages not loaded, so SHOW lists them and GROUP counts them. One read
  * for every selected id without facts that is not already being asked or
- * already answered as gone. An id the library does not answer (deleted
+ * already answered as gone. An id the library names as missing (deleted
  * since, or hidden with reveal off: hidden means hidden) is taken out of the
  * selection and counted in `gone`, so no bulk action posts a series the
- * owner can no longer see. A read that answers after `reset` (✕, a bulk
- * action's success) is dropped. Reactive sets, so SHOW redraws as it lands.
+ * owner can no longer see; an id it merely did not answer stays selected and
+ * unlisted, as an offline read leaves it. A read that answers after `reset`
+ * (✕, a bulk action's success) is dropped. Reactive sets, so SHOW redraws as
+ * it lands.
+ *
+ * `fill` settles only once every read in flight has, its own and any an
+ * earlier call started: GROUP tapped while SELECT ALL's own read is out must
+ * open on every selected series, since its sheet takes its rows once, on open.
  */
 export class UnseenFacts {
 	/** Ids being asked for now. */
 	readonly asking = new SvelteSet<number>();
-	/** Ids the library answered nothing for, taken out of the selection. */
+	/** Ids the library named as missing, taken out of the selection. */
 	readonly gone = new SvelteSet<number>();
 	#gen = 0;
-	readonly #read: (ids: readonly number[]) => Promise<Picked[] | null>;
+	readonly #pending = new Set<Promise<void>>();
+	readonly #read: (ids: readonly number[]) => Promise<FactsAnswer | null>;
 
-	constructor(read: (ids: readonly number[]) => Promise<Picked[] | null> = readFacts) {
+	constructor(read: (ids: readonly number[]) => Promise<FactsAnswer | null> = readFacts) {
 		this.#read = read;
 	}
 
@@ -336,23 +381,33 @@ export class UnseenFacts {
 		const want = [...selected].filter(
 			(id) => !facts.has(id) && !this.asking.has(id) && !this.gone.has(id)
 		);
-		if (want.length === 0) return;
+		if (want.length > 0) {
+			const read = this.#ask(want, selected, facts, held);
+			this.#pending.add(read);
+			void read.then(() => this.#pending.delete(read));
+		}
+		await Promise.all([...this.#pending]);
+	}
+
+	async #ask(
+		want: number[],
+		selected: Set<number>,
+		facts: Map<number, Picked>,
+		held: () => ReadonlySet<number>
+	): Promise<void> {
 		const gen = this.#gen;
 		for (const id of want) this.asking.add(id);
-		const got = await this.#read(want);
+		const got = await this.#read(want).catch(() => null);
 		if (gen !== this.#gen) return;
 		for (const id of want) this.asking.delete(id);
 		// Not asked: offline, or the server refused. They stay selected and
 		// unlisted, and the next SHOW asks again.
 		if (!got) return;
 		const keep = held();
-		const answered = new Set<number>();
-		for (const p of got) {
-			answered.add(p.id);
-			if (selected.has(p.id) || keep.has(p.id)) facts.set(p.id, p);
-		}
-		for (const id of want) {
-			if (answered.has(id)) continue;
+		for (const p of got.picked) if (selected.has(p.id) || keep.has(p.id)) facts.set(p.id, p);
+		const asked = new Set(want);
+		for (const id of got.missing) {
+			if (!asked.has(id) || facts.has(id)) continue;
 			this.gone.add(id);
 			selected.delete(id);
 		}
@@ -360,6 +415,7 @@ export class UnseenFacts {
 
 	reset(): void {
 		this.#gen++;
+		this.#pending.clear();
 		this.asking.clear();
 		this.gone.clear();
 	}

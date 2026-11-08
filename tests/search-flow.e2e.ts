@@ -298,6 +298,34 @@ test.describe('SELECT ALL past one page (c737)', () => {
 		expect(asked).toHaveLength(1);
 	});
 
+	test('GROUP tapped while SELECT ALL’s own read is still out waits for it, and counts them all', async ({
+		page
+	}) => {
+		// SELECT ALL's read held, as a slow answer over Wi-Fi would be: GROUP
+		// is tapped before it lands, so its wait must be for that read.
+		let release: () => void = () => {};
+		const held = new Promise<void>((r) => (release = r));
+		let posted = 0;
+		await page.route('**/api/library', async (route) => {
+			if (route.request().method() !== 'POST') return route.continue();
+			posted++;
+			await held;
+			await route.continue();
+		});
+		const n = await selectAllOnTitles(page);
+		await expect.poll(() => posted).toBe(1);
+		await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+		const group = page.getByRole('dialog', { name: 'Group into a series' });
+		release();
+		await expect(group.locator('.h-title')).toHaveText(new RegExp(`^GROUP ${n} `));
+		// The title follows the rows handed down; the sheet's own rows and
+		// ticks are taken once, on open, and are what GROUP posts.
+		await expect(group.locator('.rows .row')).toHaveCount(n);
+		await expect(group.locator('input[type="hidden"][name="series"]')).toHaveCount(n);
+		await group.getByRole('button', { name: 'CANCEL' }).click();
+		expect(posted).toBe(1);
+	});
+
 	test('a series deleted, and one hidden, between SELECT ALL and the read are taken out and said so', async ({
 		page
 	}) => {
@@ -355,24 +383,25 @@ test.describe('SELECT ALL past one page (c737)', () => {
 		})();
 		sql(`UPDATE series SET hidden = 1 WHERE id = ?`, id);
 		try {
-			const ask = async () =>
-				(
-					(await (
-						await page.request.post(`${base}/api/library`, { data: { ids: [id] } })
-					).json()) as { series: { id: number }[] }
-				).series.map((c) => c.id);
-			expect(await ask()).toEqual([]);
+			/** The cards answered, and the ids the server names missing. */
+			const ask = async () => {
+				const got = (await (
+					await page.request.post(`${base}/api/library`, { data: { ids: [id] } })
+				).json()) as { series: { id: number }[]; missing: number[] };
+				return { cards: got.series.map((c) => c.id), missing: got.missing };
+			};
+			expect(await ask()).toEqual({ cards: [], missing: [id] });
 			// Reveal on, through the search's own command.
 			await page.goto(`${base}/search`);
 			await page.locator('input[type="search"]').fill('/reveal');
 			await page.locator('input[type="search"]').press('Enter');
 			await page.waitForURL(new RegExp(`^${base}/$`));
-			expect(await ask()).toEqual([id]);
+			expect(await ask()).toEqual({ cards: [id], missing: [] });
 			await page.goto(`${base}/search`);
 			await page.locator('input[type="search"]').fill('/hide');
 			await page.locator('input[type="search"]').press('Enter');
 			await page.waitForURL(new RegExp(`^${base}/$`));
-			expect(await ask()).toEqual([]);
+			expect(await ask()).toEqual({ cards: [], missing: [id] });
 		} finally {
 			sql(`UPDATE series SET hidden = 0 WHERE id = ?`, id);
 		}
