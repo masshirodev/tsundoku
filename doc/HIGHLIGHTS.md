@@ -611,9 +611,29 @@ made is lost to a restart without a word: the owner marks it again.
   nothing else: handed the whole list it opens the first segment to probe the
   stream, whatever `-ss` says. The trimmed list is served over http for the one
   fetch, because ffmpeg's HLS reader carries the proxy's secret to a segment only
-  from a playlist it opened over http. Subtitles are fetched, cut and shifted to
-  zero here (`cutCues`), each as its own track, with the one showing at KEEP as
-  the clip's default.
+  from a playlist it opened over http, and for that reason a key's or an init
+  segment's `URI=` is made absolute too (the list is served from another port,
+  where a root-relative one answers 404). `#EXT-X-MEDIA-SEQUENCE` is rewritten as
+  the first kept segment's own number, because an AES-128 key with no IV decrypts
+  by it. Subtitles are fetched, cut and shifted to zero here (`cutCues`), each as
+  its own track, with the one showing at KEEP as the clip's default.
+- **Audio: a clip keeps every track, as it does subtitles, with the one heard at
+  KEEP as its default** (with none matched, the track the master calls DEFAULT,
+  else the first). A downloaded file's come with the file. A streamed episode's
+  separate tracks (a master's `#EXT-X-MEDIA:TYPE=AUDIO` for the chosen variant's
+  group, including the masters `serveMaster` makes, else the quality's own `audio`
+  list when a master names none) are each fetched as an input of their own, trimmed
+  to the same range. Each input keeps its own start, because a video's and an
+  audio's segments begin at different seconds, and each is sought by it at the cut,
+  which is what keeps them in step. **A track the stream names and does not deliver
+  fails the attempt**, and so does one that ends more than a second before the
+  picture: a clip that says made and is silent is worse than one that says why it
+  wasn't. Separate tracks replace what the video carries, as in a download; a
+  rendition with no URI is inside the video and is kept beside them.
+- **A variant that isn't a playlist** (`serveMaster` wraps a hoster's plain file the
+  same way, so the master names something that is really an episode) is noticed from
+  its first bytes and never read whole, then cut as a file by range, with its audio
+  beside it.
 - **Exact to the frame** means the video is encoded: a stream copy can only start
   on a keyframe. (The handoff's Main 05 says the clip copies the video; the two
   cannot both hold, and exact won. It costs a few seconds per clip.) The release bundles an **LGPL ffmpeg with no libx264**
@@ -627,7 +647,22 @@ made is lost to a restart without a word: the owner marks it again.
 - **Why it wasn't made**: THE STREAM STOPPED ANSWERING AT m:ss, THE WORKSTATION
   ISN'T ANSWERING (the engine down, or a KEEP nobody answered), NO ROOM ON THE
   DISK, and two the handoff doesn't name: THE FILE COULDN'T BE READ (a local file
-  that won't read is not a stream), THE EPISODE IS GONE (deleted mid-cut). TRY AGAIN keeps the range and asks the stream afresh.
+  that won't read is not a stream), THE EPISODE IS GONE (deleted mid-cut). TRY AGAIN keeps the range, asks the stream afresh, and **replaces** the
+  failed job on the workstation, so a poll, a reload or a second device can't read
+  the old failure as the newest word on that range; the player also won't take back
+  an id it has let go of, for a poll already in flight.
+- **A KEEP that got no answer, or a refusal**, is drawn over whatever job the band
+  holds. No answer (or a 5xx) is THE WORKSTATION ISN'T ANSWERING with a TRY AGAIN
+  that asks afresh; a 400 is THAT RANGE CAN'T BE KEPT, a 403 INCOGNITO KEEPS NO
+  CLIPS and a 404 THE EPISODE IS GONE, with ✕ and no TRY AGAIN, since the same ask
+  gets the same no. The band stays until the next KEEP or ✕; a poll answering for
+  another job says nothing about that KEEP.
+- **ENTER is KEEP only when no other control has focus** (nothing focused, the
+  track, or KEEP itself). A focused ✕, TRY AGAIN or transport cell keeps its own
+  Enter. A TV is unaffected: the focus layer takes OK first, and a kept box is no
+  stop for it (`data-focus-skip`), so ↑ from the cells lands on the track.
+- **The 3:00 is measured from the IN**, on whichever side the out went, so a range
+  always contains the point the viewer marked (`clipRange`).
 - **A second KEEP** of the range already being cut is that job; of another range
   it waits its turn; of a range already kept it answers the clip that exists.
 - **Leaving or NEXT** does not stop a job; `/highlights` says KEEPING until it is
