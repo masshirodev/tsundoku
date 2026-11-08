@@ -1461,8 +1461,9 @@
 					return;
 				}
 				// Nothing that arrives by a fragment is stored unasked, whoever
-				// wrote the fragment: this page holds that itself, so it does not
-				// rest on the activity and this page agreeing about the list (c683).
+				// wrote the fragment (#lost= holds it in routeHash): this page holds
+				// that itself, so it does not rest on the activity and this page
+				// agreeing about the list (c683).
 				if (!known(at)) {
 					ask(at);
 					return;
@@ -1648,9 +1649,11 @@
 			let lostFor = '';
 
 			/*
-			 * Entering 9D: from #lost=, from a typed or given address that did
-			 * not answer, or for another origin. Never a retry of the same one,
-			 * which the probe's answer above keeps to paint().
+			 * Entering 9D: from #lost= for a server in the list, from a typed or
+			 * given address that did not answer, or for another origin. Never a
+			 * retry of the same one, which the probe's answer above keeps to
+			 * paint(). Its retry stores what answers, so an origin nobody chose
+			 * must not reach it: routeHash asks instead (c683).
 			 */
 			function lost(at) {
 				lastOrigin = at;
@@ -1911,8 +1914,8 @@
 			/*
 			 * A door that acts is taken once (c685). #connect= probes and, on an
 			 * answer, opens a server in the list; #ask= (c683) puts the question
-			 * up; #lost= opens 9D, whose retry stores and pairs once the server
-			 * answers. The
+			 * up; #lost= opens 9D for a server in the list, whose retry opens it
+			 * once it answers, and asks about any other. The
 			 * entry keeps its fragment otherwise, and routeHash runs on every
 			 * load of it, so a history step back into it (any page the WebView
 			 * shows can call history.go(-n), and the entry carries the app's
@@ -1937,8 +1940,14 @@
 			function routeHash() {
 				const hash = location.hash.replace(/^#/, '');
 				if (hash.startsWith('lost=')) {
+					// The activity writes this for any main-frame load that failed,
+					// so a page can name an origin here by opening its own closed
+					// port, and 9D's retry stores what answers. Only the list's own
+					// reach 9D; one just remembered is in the list already (c683).
+					const at = decode(hash.slice(5));
 					settle();
-					lost(decode(hash.slice(5)));
+					if (known(at)) lost(at);
+					else ask(at);
 				} else if (hash.startsWith('connect=')) {
 					settle();
 					connect(decode(hash.slice(8)));

@@ -298,10 +298,12 @@ test('a refused address shows the band on 9B and leaves it usable (c260)', async
 });
 
 test('a refused address stops the 9D retry, so the refusal stays (c260)', async ({ page }) => {
-	await stubBridge(page);
-	// A friend whose LAN probe failed is the case doc/TV-APP.md sends here:
-	// the TV is already retrying something nobody answers.
-	await page.goto(`${page9}#lost=${encodeURIComponent('http://192.168.1.99:42143')}`);
+	// A friend whose LAN probe failed is the case doc/TV-APP.md sends here: the
+	// TV is already retrying something nobody answers. It is a server in the
+	// list, because that is who the app's own #lost= is for (c683).
+	const lan = 'http://192.168.1.99:42143';
+	await stubServers(page, [{ origin: lan, name: '', tvName: '', opened: 1 }]);
+	await page.goto(`${page9}#lost=${encodeURIComponent(lan)}`);
 	// 9D itself has no height of its own (its blocks are positioned), so its
 	// buttons are what a person can see — and what a stolen screen takes away.
 	await expect(page.locator('#retry')).toBeVisible();
@@ -313,7 +315,7 @@ test('a refused address stops the 9D retry, so the refusal stays (c260)', async 
 	await expect(page.locator('#refused')).toBeVisible();
 	await expect(page.locator('#address-form')).toBeVisible();
 	await expect(page.locator('#retry')).toBeHidden();
-	const probesWhenRefused = await page.evaluate(() => window.__bridge!.probes.length);
+	const probesWhenRefused = await page.evaluate(() => window.__servers!.probes.length);
 
 	// One retry tick is 5 s. 9B is a second door into this screen, and the
 	// timer outlives it unless refused() stops it: the tick would probe the
@@ -323,7 +325,7 @@ test('a refused address stops the 9D retry, so the refusal stays (c260)', async 
 	await expect(page.locator('#address-form')).toBeVisible();
 	await expect(page.locator('#retry')).toBeHidden();
 	const afterRefusal = await page.evaluate(
-		(from) => window.__bridge!.probes.slice(from),
+		(from) => window.__servers!.probes.slice(from),
 		probesWhenRefused
 	);
 	expect(afterRefusal).toEqual([]);
@@ -960,9 +962,15 @@ test('S5: RENAME from the library goes back to the library, saved or not', async
 });
 
 test('a page with no list behaves as before c261: no others, no ADD mode', async ({ page }) => {
-	// An older bridge has no servers(): stubBridge is that bridge.
+	// An older bridge has no servers(): stubBridge is that bridge. With no list
+	// a #lost= asks (c683), so 9D is reached by the door such a page still has:
+	// an address typed here that does not answer.
 	await stubBridge(page);
-	await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
+	await page.goto(page9);
+	await page.locator('#start').click();
+	await page.locator('#last').fill('23');
+	await page.locator('#next').click();
+	await expect(page.locator('#retry')).toBeVisible();
 	await expect(page.locator('#others')).toBeHidden();
 	await expect(page.locator('#lost-title')).toHaveText('○ NOTHING ANSWERS AT 192.168.1.23:42143');
 });
@@ -989,9 +997,11 @@ type Across = {
  * PairingBridge.kt as `stubServers` stands it up, but kept on this side of the
  * page, so it outlives each document: a history step loads the pair page
  * again, and the question is what that new document does with the bridge.
- * The list is the activity's (`Servers.kt`), the same in every document, and
- * `GONE` is never in it: a server the owner FORGOT after the first visit is,
- * to the second document, exactly that. A probe is answered asynchronously,
+ * The list is the activity's (`Servers.kt`), the same in every document, so an
+ * address `remember` added stays for the next one and a server `forgetAcross`
+ * took out stays out: sessionStorage, because a document has nothing else it
+ * can read synchronously, as the page reads `servers()`, that outlives it. A
+ * probe is answered asynchronously,
  * as the real bridge answers from its own thread (`PairingBridge.probe`), and
  * an origin with no answer set is held, as a server that has not answered
  * yet is.
@@ -1012,14 +1022,22 @@ async function stubAcross(page: Page, list: StubServer[]): Promise<Across> {
 	await page.addInitScript((list: StubServer[]) => {
 		const w = window as unknown as Record<string, (at: string) => Promise<boolean>>;
 		const shown = (s: StubServer) => s.tvName || s.name || s.origin.replace(/^https?:\/\//, '');
+		const added = () => JSON.parse(sessionStorage.getItem('added') ?? '[]') as string[];
 		window.TsundokuTV = {
 			tvAddress: () => '192.168.1.31',
 			prefix: () => '192.168.1.',
 			defaultPort: () => 42143,
 			remembered: () => list[0]?.origin ?? '',
 			servers: () =>
-				JSON.stringify(list.map((s, i) => ({ ...s, shown: shown(s), inUse: i === 0 }))),
-			remember: (at: string) => void w.__acrossRemember(at),
+				JSON.stringify(
+					[...list, ...added().map((origin) => ({ origin, name: '', tvName: '', opened: 0 }))]
+						.filter((s) => !sessionStorage.getItem(`forgotten:${s.origin}`))
+						.map((s, i) => ({ ...s, shown: shown(s), inUse: i === 0 }))
+				),
+			remember: (at: string) => {
+				sessionStorage.setItem('added', JSON.stringify([...added(), at]));
+				void w.__acrossRemember(at);
+			},
 			open: (at: string) => void w.__acrossOpen(at),
 			probe: (at: string) => void w.__acrossProbe(at).then((ok) => window.tsundokuProbe?.(at, ok))
 		};
@@ -1034,6 +1052,10 @@ async function stubAcross(page: Page, list: StubServer[]): Promise<Across> {
 	);
 	return across;
 }
+
+/** MORE › SERVERS › FORGET, as the next document will read the list. */
+const forgetAcross = (page: Page, origin: string) =>
+	page.evaluate((o) => sessionStorage.setItem(`forgotten:${o}`, '1'), origin);
 
 /**
  * A page's own history.back(), scheduled so `evaluate` has returned first: the
@@ -1097,19 +1119,24 @@ test('a history step into an old #connect= entry checks nothing again (c685)', a
 test('a history step into an old #lost= entry does not bring a forgotten server back (c685)', async ({
 	page
 }) => {
-	const across = await stubAcross(page, three);
-	// 9D for a server that does not answer, then nobody waits on it: another
-	// server opens (an app load, which leaves a history entry of its own).
+	const across = await stubAcross(page, [
+		...three,
+		{ origin: GONE, name: '', tvName: '', opened: 0 }
+	]);
+	// 9D for a server that does not answer, then nobody waits on it: the owner
+	// forgets it, and another server opens (an app load, which leaves a history
+	// entry of its own).
 	across.answers.set(GONE, false);
 	await page.goto(`${page9}?t=${TOKEN}#lost=${encodeURIComponent(GONE)}`);
 	await expect(page.locator('#lost-title')).toContainText('192.168.1.88:42143');
 	expect(await page.evaluate(() => location.hash)).toBe('');
 	expect(page.url()).toBe(`${page9}?t=${TOKEN}`);
+	await forgetAcross(page, GONE);
 	await page.goto(`${HOME}/`);
 
-	// It answers now, and it has been forgotten. Stepping back into the entry
-	// must not reopen 9D for it: 9D's retry would find it answering, store it
-	// and leave for its /pair/tv with no input.
+	// It answers now, and it has been forgotten. The entry lost its fragment, so
+	// a step back into it is 9A: neither 9D nor the question a replayed #lost=
+	// would now put up for an address the list no longer holds.
 	across.answers.set(GONE, true);
 	await stepBack(page);
 	await page.waitForURL(`${page9}?t=${TOKEN}`);
@@ -1475,6 +1502,103 @@ for (const { where, list, backed, opened } of [
 			await expect(page.locator('#retry')).toBeHidden();
 			expect(across.probes).toEqual([LINKED]);
 		});
+
+// ---- c683, round 2: #lost= is a fragment too -------------------------------
+
+test('a #lost= for an origin not in the list asks: no probe and no remember until CONNECT, then one of each (c683)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, three);
+	const navigations = await holdPairing(page);
+	// MainActivity.onReceivedError writes this for any failed main-frame load,
+	// a page's own closed port or an external link included, unasked.
+	await page.goto(`${page9}?t=${TOKEN}#lost=${encodeURIComponent(LINKED)}`);
+	await expect(page.locator('#already')).toBeVisible();
+	await expect(page.locator('#last')).toHaveValue(LINKED);
+	await expect(page.locator('#next')).toHaveText('CONNECT →');
+	await expect(page.locator('#retry')).toBeHidden();
+	expect(page.url()).toBe(`${page9}?t=${TOKEN}`);
+
+	// One 9D retry tick is 5 s, and that tick is what used to store it.
+	await page.waitForTimeout(5600);
+	expect(across.probes).toEqual([]);
+	expect(across.remembered).toEqual([]);
+
+	across.answers.set(LINKED, true);
+	await page.locator('#next').click();
+	await expect.poll(() => across.remembered).toEqual([LINKED]);
+	expect(across.probes).toEqual([LINKED]);
+	await expect.poll(() => navigations).toEqual([`${LINKED}/pair/tv`]);
+});
+
+test('a #lost= for a server in the list still reaches 9D, retries, and opens it (c683)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, three);
+	across.answers.set(HOME, false);
+	await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
+	await expect(page.locator('#retry')).toBeVisible();
+	await expect(page.locator('#lost-title')).toContainText('LIVING ROOM');
+	await expect(page.locator('#already')).toBeHidden();
+	const tried = () => across.probes.filter((at) => at === HOME).length;
+	await expect.poll(tried, { timeout: 8000 }).toBe(1);
+	across.answers.set(HOME, true);
+	await expect.poll(tried, { timeout: 8000 }).toBe(2);
+	await expect.poll(() => across.opened).toEqual([HOME]);
+	expect(across.remembered).toEqual([]);
+});
+
+test('a #lost= spelled in capitals is still the server in the list (c683)', async ({ page }) => {
+	const across = await stubAcross(page, three);
+	await page.goto(`${page9}#lost=${encodeURIComponent('HTTP://192.168.1.23:42143')}`);
+	await expect(page.locator('#retry')).toBeVisible();
+	await expect(page.locator('#already')).toBeHidden();
+	expect(across.remembered).toEqual([]);
+});
+
+test('a #lost= that is not http(s) is refused, and nothing is asked (c683)', async ({ page }) => {
+	const across = await stubAcross(page, three);
+	await page.goto(`${page9}#lost=${encodeURIComponent('ftp://zen.local')}`);
+	await expect(page.locator('#refused')).toBeVisible();
+	await expect(page.locator('#already')).toBeHidden();
+	await expect(page.locator('#last')).toHaveValue('');
+	expect(across.probes).toEqual([]);
+});
+
+test('a server remembered just before its /pair/tv failed is in the list: 9D, stored once (c683)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, three);
+	const navigations = await holdPairing(page);
+	await page.goto(`${page9}?t=${TOKEN}#ask=${encodeURIComponent(LINKED)}`);
+	across.answers.set(LINKED, true);
+	await page.locator('#next').click();
+	await expect.poll(() => navigations).toEqual([`${LINKED}/pair/tv`]);
+	expect(across.remembered).toEqual([LINKED]);
+
+	// That load failed, and onReceivedError loads the app's page again: the
+	// bridge's remember is synchronous, so the list already holds the address.
+	await page.goto(`${page9}?t=${TOKEN}#lost=${encodeURIComponent(LINKED)}`);
+	await expect(page.locator('#retry')).toBeVisible();
+	await expect(page.locator('#lost-title')).toContainText('library.example.com:8443');
+	await expect(page.locator('#already')).toBeHidden();
+	expect(across.remembered).toEqual([LINKED]);
+});
+
+test('a #lost= that asks stops the retry of the 9D it replaces (c683)', async ({ page }) => {
+	const across = await stubAcross(page, three);
+	across.answers.set(HOME, false);
+	await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
+	await expect(page.locator('#retry')).toBeVisible();
+	await page.evaluate((at) => {
+		location.hash = '#lost=' + encodeURIComponent(at);
+	}, LINKED);
+	await expect(page.locator('#already')).toBeVisible();
+	const before = across.probes.length;
+	await page.waitForTimeout(5600);
+	expect(across.probes.slice(before)).toEqual([]);
+	await expect(page.locator('#retry')).toBeHidden();
+});
 
 test('the question fits a TV: the band whole, an 80-character address over the buttons (c683)', async ({
 	page
