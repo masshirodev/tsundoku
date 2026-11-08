@@ -90,6 +90,29 @@ way back (`series.former_offset`) so MOVE BACK maps the same way.
 
 Series that never had seasons, on both sides, match by number alone.
 
+### A season with a source of its own (c282)
+
+Rows in `series_season_facts` ([`WORKS.md`](WORKS.md), "Per-season sources")
+change what a MOVE is about, by the season each entry resolves to:
+
+- **A MOVE of the series** is about what the series' own key supplies. A season
+  with a source of its own is neither compared nor rekeyed: its row and its
+  entries stay where they are, and `former_key` remains the series'. A season
+  row that named the series' key follows it, there and back.
+- **A MOVE of one season** (`applyMove(…, { season })`; no screen yet) re-keys
+  that season's row alone, and writes one if the season had none, and a source
+  listing one season is that season here, whatever number it gives itself.
+  **`series.former_key`, `former_at` and MOVE BACK do not move**: they are the
+  series' way back, and a season has no way back in S1 (no column holds one).
+  The key it left joins `series_former_keys`, so a backup still finds the
+  series, unless the series or another season still holds it.
+- **The refusal counts a season's key.** A target another series holds, as its
+  own key or a season's, is refused at the comparison and at the move (`heldByOther`);
+  a key this series already holds never counts, since two seasons of one show
+  may share a source.
+- A series every one of whose seasons has its own source has nothing for the
+  series-level MOVE to do, and is refused rather than re-keyed to no effect.
+
 ## The move
 
 One transaction (`applyMove` in `src/lib/server/move.ts`):

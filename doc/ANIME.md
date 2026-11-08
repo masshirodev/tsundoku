@@ -933,6 +933,19 @@ pure parts in `src/lib/library/anime-files.ts`).
   (`anime_series`, rung 48): files aren't renamed when a title is edited
   here, and a series hidden later keeps its folder.
 
+  **A season may have a folder of its own** (c282, Seasons S1;
+  [`WORKS.md`](WORKS.md), "Per-season sources"): `series_season_facts.folder`,
+  fixed the same way, `episodePlace` in `anime/download.ts`. A season with a
+  row whose folder is set keeps it; one with a source of its own and no folder
+  yet gets one at its first download, named by what the source calls it,
+  walked past any name a series or another season holds (`freeFolder`). Two
+  seasons sharing one source share the folder one row holds. Everything else,
+  **a season with no row included**, is the series' folder, as above. A
+  season's own folder has its own `tvshow.nfo` naming **that season's key** and
+  that season's link, which is what the importer folds it back onto the series
+  by; its files are named from the series' folder (`../Other/Season 02/…`), so
+  each folder answers only for its own on a rescan.
+
 - **One MKV an episode**: ffmpeg copies the video, each separate audio track
   and each subtitle track (as SubRip, which every player reads) into one
   Matroska file. **Which tracks** is SETTINGS' DOWNLOADING (card c160, since
@@ -1066,6 +1079,16 @@ through the one writer, and is queued in the episode lane unless watched,
 fifty a run at most, oldest first. Places follow the source's order, so an
 episode it inserted moves the ones after it. A source that fails isn't
 recorded as asked.
+
+**FOLLOW and REFRESH ask the last season's source** (c282, `followOrigin` in
+`season-facts.ts`): of a series with season rows, the highest season it knows
+of, by its rows and its entries, the one that can still air. A last season with
+no row, or a series with no rows at all, asks `series.origin_key`, as it always
+has. A key that is that season's alone stamps every episode it lists with that
+season, whatever the source calls it, since it numbers from its own first
+episode; a key two seasons share (or the series' own) keeps the source's stamps.
+Episodes are put back in reading order across sources (`resequenceAnime`).
+REFRESH goes through the same check, so it asks the same key.
 
 **REFRESH** (card c220) is the look beside FOLLOW, on any anime in the library
 with an installed source: `refreshSeries` (`src/lib/server/refresh.ts`) asks
