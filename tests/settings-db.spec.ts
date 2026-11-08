@@ -302,7 +302,7 @@ describe('the library’s values', () => {
 		db.prepare(`UPDATE series SET text_direction = NULL WHERE id = ?`).run(id);
 	});
 
-	describe('✕ clears only what the line names (c637)', () => {
+	describe('✕ clears what the line names, and a novel’s page direction whichever way it was chosen (c637, c617)', () => {
 		const KIND_ROWS = ['manga', 'manhwa', 'doujin', 'novel'] as const;
 		const visible = (kind: string) =>
 			(
