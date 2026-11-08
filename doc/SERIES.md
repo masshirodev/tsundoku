@@ -57,7 +57,7 @@ the panel is 352px beside the list, rows are 56px and the rail stays 56px
 | No video              | After NO SERVER on three episodes within a day (or on every episode, where the series has fewer), a NO VIDEO band under CONTINUE: NO VIDEO FROM KICKASSANIME, ANOTHER SOURCE → and NOT NOW. See [`MOVE.md`](MOVE.md), "The screens".                                                                                                                                                                                                                          |
 | Followed              | FOLLOWING ✓ in accent at the DOWNLOAD row's end; caught up, it is the row's only cell and says when its source was last asked.                                                                                                                                                                                                                                                                                                                                |
 | Refreshed             | REFRESH, the cell before FOLLOW, on a series in the library whose source can be asked: it looks once, adds what the source lists that no entry is, and queues nothing. The band says "3 NEW CHAPTERS" or "NOTHING NEW". See [`DOWNLOADING.md`](DOWNLOADING.md), "REFRESH" (c220).                                                                                                                                                                             |
-| Just added            | `?added=<manga>` after ADD TO LIBRARY: the ADDED TO THE LIBRARY band with UNDO, FIRST 10, and START dimmed until chapter 1 has a file. `&queued=<n>`/`down` after ADD AND DOWNLOAD (c205): the band says what it queued.                                                                                                                                                                                                                                      |
+| Just added            | `?added=<manga>` after ADD TO LIBRARY: the ADDED TO THE LIBRARY band with UNDO, FIRST 10, and START dimmed until chapter 1 has a file. `&queued=<n>`/`down` after ADD AND DOWNLOAD (c205): the band says what it queued. Under it, PUT ON A SHELF: the owner's shelves as chips (c724; "Shelves in the ADDED band", below).                                                                                                                                   |
 
 ## The WORK row
 
@@ -684,6 +684,50 @@ cells, with the house's inset focus mark.
 
 - The fold in the phone's series header (c425, `doc/handoffs/series-phone/`):
   the next wave folds these rows.
+
+## Shelves in the ADDED band (c724)
+
+A preview's **+ ADD TO LIBRARY** (and ADD AND DOWNLOAD) lands here with
+`?added=`, and under ADDED TO THE LIBRARY the band has a second line:
+`PUT ON A SHELF:` and the owner's shelves as chips, one tap each, several
+allowed. A chip that is on reads `✓ LATER` and the line says which shelves
+the series is on (`ON LATER, TONIGHT`); a second tap takes it off. Adding
+stays one tap for an owner who doesn't shelve, and shelving is the same
+moment for one who does. It is the band `/browse` draws for a hidden ADD
+(doc/BROWSE.md, "Shelves in the ADD band"; `src/routes/browse/AddedBand.svelte`),
+on the same rules (`src/lib/library/add-shelf.ts`, called as it is):
+
+- **The order**: the shelf last put on from a band, on this device, first
+  (`tsundoku:add-shelf` in localStorage, read once as the band is drawn, so
+  the chips keep their places while it is up), then the library's order. A
+  shelf put on from the SHELVES sheet is not remembered: only a chip is.
+- **Past six shelves** the chips stop at six and `N OTHER SHELVES` opens the
+  SHELVES row's sheet (`EditSheet`, the one EDIT opens); a shelf the series
+  is on is always drawn as a chip, in place of the last one that is not.
+- **+ NEW SHELF** opens the same sheet with its name field open; the shelf
+  it makes has the series on it (its `?/shelf` with a name).
+- **The write** is this screen's own `?/shelf` (`collection`, `on`), the
+  SHELVES sheet's: no new storage. A chip's post carries the page's query,
+  so without script its answer is still the band. A refused tap (a shelf
+  that is not there, or the series gone after an UNDO in another tab) says
+  `NOT SHELVED: …` in the strip, and the band and its UNDO stay.
+- **UNDO** (`?/undoSourceAdd`) deletes the series row, and its shelf rows
+  go by the schema's cascade (`collection_series … ON DELETE CASCADE`):
+  UNDO takes both back. The shelves themselves stay.
+- **The TV**: the strip is a row of stops under the band; `+ NEW SHELF` sits
+  at its right end, under UNDO, so ↓ from UNDO lands in the strip and ← → walk
+  the chips (doc/FOCUS.md).
+- **Not here**: just after the FIRST READ step's ADD the band is the start
+  trail's (`readBand`), which keeps UNDO and draws no chips. A hidden ADD
+  lands on `/browse`, whose band has its own chips; the ADDED HIDDEN rules
+  are unchanged.
+- **The words**: the band is untranslated, as ADDED TO THE LIBRARY is, and
+  the chips' words are `add-shelf.ts`' (`PUT ON A SHELF:`, `ON …`,
+  `N OTHER SHELVES`), as on `/browse`.
+
+Tests: `tests/series-add-shelf.e2e.ts` (the four devices),
+`tests/tv-series-seasons.e2e.ts` (the TV's walk), `tests/series-db.spec.ts`
+(the writes and UNDO's cascade, read from the database).
 
 ## The seasons around it (c358)
 

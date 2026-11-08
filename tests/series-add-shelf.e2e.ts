@@ -10,8 +10,10 @@ import { previewId, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-w
  * puts the series on a shelf and the library's shelf shows it; the band
  * survives the page's own re-read and a reload; a second tap takes it off;
  * + NEW SHELF opens the SHELVES sheet at its name field; ↓ from UNDO reaches
- * the chips; UNDO takes the series and its shelves back; the next ADD offers
- * the last shelf chosen first. (/browse's own band, for a hidden ADD, is
+ * the strip; UNDO takes the series and its shelves back, and a chip tapped in
+ * a second tab after it says NOT SHELVED; the next ADD offers the last shelf
+ * chosen first; without script a chip's answer still draws the band; past
+ * six shelves N OTHER SHELVES opens the SHELVES sheet. (/browse's own band, for a hidden ADD, is
  * tests/browse-add-shelf.e2e.ts.) A plain `*.e2e.ts`, so it runs in the four
  * device projects: the strip wraps differently at each width. It makes
  * shelves and adds a series, so it runs on its own world
@@ -164,6 +166,38 @@ test('ADDED TO THE LIBRARY offers the shelves: a chip, the library shows it, a r
 	await expect(strip(page).getByRole('button').first()).toHaveText('LATER');
 	await band(page).getByRole('button', { name: 'UNDO' }).click();
 	await page.waitForURL((u) => u.pathname.startsWith('/downloads/source/'));
+});
+
+test('without script, a chip’s post answers with the band still up, and the series on the shelf', async ({
+	page,
+	browser
+}) => {
+	test.setTimeout(90_000);
+	const plain = await newShelf(page, 'Plain');
+	// The preview's ADD needs script (it waits to know it is online); the band need not.
+	await add(page);
+	const bare = await browser.newContext({
+		javaScriptEnabled: false,
+		storageState: await page.context().storageState()
+	});
+	try {
+		const nojs = await bare.newPage();
+		await nojs.goto(page.url());
+		await expect(band(nojs)).toBeVisible();
+		await chip(nojs, 'PLAIN').click();
+		// The answer is a load of the chip's action URL: it carries `added`, so the band is drawn.
+		await nojs.waitForURL((u) => u.searchParams.has('/shelf'));
+		expect(new URL(nojs.url()).searchParams.has('added')).toBe(true);
+		await expect(band(nojs)).toBeVisible();
+		await expect(chip(nojs, 'PLAIN')).toHaveAttribute('aria-pressed', 'true');
+		expect(await onShelf(page, plain)).toBe(true);
+		// And UNDO from that answer still takes both back.
+		await band(nojs).getByRole('button', { name: 'UNDO' }).click();
+		await nojs.waitForURL((u) => u.pathname.startsWith('/downloads/source/'));
+		expect(await onShelf(page, plain)).toBe(false);
+	} finally {
+		await bare.close();
+	}
 });
 
 test('more shelves than the band holds: N OTHER SHELVES opens the SHELVES sheet with them all', async ({
