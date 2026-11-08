@@ -541,6 +541,9 @@ describe('kanji numerals against Arabic ones (c741)', () => {
 	it('a title that merely contains kanji numerals keeps its text', () => {
 		expect(foldTitle('二十四の瞳')).toBe('二十四の瞳');
 		expect(foldTitle('一期一会')).toBe('一期一会');
+		// Figures read as digits inside the prefix, so only the whole line's test
+		// keeps this one from being worked out as a number.
+		expect(foldTitle('十1')).toBe('十1');
 		expect(bandTitle('二十四の瞳', '第24章')).toBe(true);
 		expect(bandTitle('二十四の瞳', '二十四')).toBe(true);
 		expect(bandTitle('一期一会', '一')).toBe(true);
