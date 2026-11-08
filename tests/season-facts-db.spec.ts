@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	chmodSync,
 	existsSync,
@@ -90,6 +90,7 @@ const browseIndex = await import('$lib/server/library-sources');
 const { recordView } = await import('$lib/server/browsing');
 const { addAnime, browseAnime } = await import('$lib/server/engine/anime-source');
 const move = await import('$lib/server/move');
+const { lookupAniSkip } = await import('$lib/server/anime/aniskip');
 const { writeSeries } = await import('$lib/server/import/write');
 const { planAnimeFolders, planAnimeSeries } = await import('$lib/server/import/anime');
 
@@ -871,5 +872,49 @@ describe('MOVE, by the season each entry is from', () => {
 		);
 		expect(r.matched).toBe(2);
 		expect(seriesOf(a).former_key).toBe('aniyomi:7:/plain');
+	});
+});
+
+describe('AniSkip asks the season’s own MAL entry, with the number within the season', () => {
+	// c349 built this: the rows here only prove a season's source sits beside
+	// its link without changing the question (premise in the notes).
+	const link = (series: number, season: number, mal: number) =>
+		db
+			.prepare(
+				`INSERT INTO series_season_links (series_id, season, part, anilist_id, mal_id, via, title, linked_at, format, episodes)
+				VALUES (?, ?, 1, ?, ?, 'review', 'T', 1, 'TV', 12)`
+			)
+			.run(series, season, mal + 1000, mal);
+	const urls: string[] = [];
+	afterEach(() => vi.unstubAllGlobals());
+	beforeEach(() => {
+		urls.length = 0;
+		db.exec(`DELETE FROM series_season_links; DELETE FROM episode_marks;`);
+		vi.stubGlobal('fetch', async (u: string) => {
+			urls.push(u);
+			return new Response('{}', { status: 404 });
+		});
+	});
+
+	it('season 2’s EP. 3 asks season 2’s entry, whichever source supplies the season', async () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		link(a, 1, 111);
+		link(a, 2, 222);
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:9:/s2' }, db);
+		const ep = episode(a, 2, 3);
+		db.prepare(`UPDATE entries SET duration_s = 1400 WHERE id = ?`).run(ep);
+		await lookupAniSkip(ep, { db, now: 1 });
+		expect(urls).toHaveLength(1);
+		expect(urls[0]).toContain('/skip-times/222/3?');
+	});
+
+	it('a season without a link is left alone, with or without a source of its own', async () => {
+		const a = show('Half linked', 'aniyomi:7:/s1');
+		link(a, 1, 111);
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:9:/s2' }, db);
+		const ep = episode(a, 2, 1);
+		db.prepare(`UPDATE entries SET duration_s = 1400 WHERE id = ?`).run(ep);
+		expect(await lookupAniSkip(ep, { db, now: 1 })).toBe(false);
+		expect(urls).toHaveLength(0);
 	});
 });
