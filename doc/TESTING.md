@@ -867,7 +867,21 @@ and the process's start time from `/proc`, since Playwright's teardown kills
 the wrapper before it can remove its own). A wait gives up after 150 s, inside
 the webServer's 180, naming whom it waited for: an invocation that starts
 while another runs a whole suite on a changed tree fails rather than tests
-stale code. `tests/helpers/build-lock.spec.ts` has a case for each of these.
+stale code. A stale lock is taken over by renaming a file onto it, never by
+removing it, so two waiters cannot both hold it. The wrapper never outlives the
+runner that started it: Playwright stops it by SIGKILLing its process group,
+which its commands stay in, and when the runner is itself killed outright (an
+agent's session ending) the wrapper sees its parent go within a second, kills
+its command's whole tree, removes its record and exits 1. Before that (wave 31)
+such an orphan served on for hours, and every later run on a changed tree
+waited 150 s for it. `tests/helpers/build-lock.spec.ts` has a case for each of
+these.
+
+**The second invocation takes its own `--output`**, such as
+`--output temp/playwright/results-2`. Both would otherwise write
+`test-results/`, which the config does not move, and a run empties it when it
+starts: the second deletes the first's error contexts and attachments while
+the first is still writing them.
 
 Give the second invocation its own ports. A slot and the gate assign one
 set, and the browse and friend worlds cannot share servers or databases:

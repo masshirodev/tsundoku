@@ -41,6 +41,15 @@
  * (Playwright's `reuseExistingServer`), so this serves nothing and waits for
  * Playwright's teardown.
  *
+ * It never outlives the runner that started it. Playwright stops it by
+ * SIGKILLing its process group, so its commands stay in that group (never
+ * `detached`) for the kill to reach them. A runner that is itself killed
+ * outright (an agent's session ending, wave 31) never sends that kill, and the
+ * wrapper used to be reparented and serve on for hours, registered as a live
+ * user that every later run on a changed tree waited 150 s for. So it watches
+ * its parent: once the parent is gone it kills its command's whole tree,
+ * removes its files and exits 1.
+ *
  * Node built-ins only: `scripts/` may not add a dependency (the wave's rules).
  * Its cases are `tests/helpers/build-lock.spec.ts`; `doc/TESTING.md`
  * ("Ports") has the measured pair.
@@ -53,6 +62,7 @@ import {
 	mkdirSync,
 	readdirSync,
 	readFileSync,
+	renameSync,
 	rmSync,
 	statSync,
 	writeFileSync
@@ -68,6 +78,10 @@ const OUTPUT = join(LOCK_DIR, 'output');
 /** Inside the webServer's own 180_000 ms (`playwright.config.ts`), with room to say why. */
 const WAIT_MS = Number(process.env.BUILD_LOCK_WAIT_MS ?? 150_000);
 const POLL_MS = 200;
+/** How often the parent is looked at; the review asked for about a second. */
+const PARENT_POLL_MS = Number(process.env.BUILD_LOCK_PARENT_POLL_MS ?? 1000);
+/** The runner that started this wrapper: when it goes, so does the wrapper. */
+const PARENT = process.ppid;
 
 const log = (line) => process.stderr.write(`[build-lock] ${line}\n`);
 
@@ -135,32 +149,54 @@ function holder() {
 	return Number.isInteger(held?.pid) && held.pid > 0 ? held : undefined;
 }
 
-/** The lock is ours, or the file that was there is stale and has been removed. */
+function readText(path) {
+	try {
+		return readFileSync(path, 'utf8');
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * The lock is ours, or it is not yet (try again later). A stale lock is taken
+ * over by renaming a file of ours onto it, never by removing it: a remove
+ * followed by a create let a second waiter, reading the same dead holder,
+ * delete the first's fresh lock and take it too (round 1's review). The rename
+ * happens only while the lock still holds the very bytes that were found
+ * stale, and the lock is read back after it, so two waiters overwriting each
+ * other within the same instant end with one holder, the one named in the file.
+ */
 function acquire() {
 	mkdirSync(LOCK_DIR, { recursive: true });
-	for (let attempt = 0; attempt < 2; attempt++) {
-		try {
-			writeFileSync(
-				LOCK,
-				JSON.stringify({ pid: process.pid, started: startedAt(process.pid), at: Date.now(), port }),
-				{ flag: 'wx' }
-			);
-			return true;
-		} catch (e) {
-			if (e.code !== 'EEXIST') throw e;
-			const held = holder();
-			if (held && held.pid !== process.pid && running(held)) return false;
-			// A file with no pid yet may be a holder between its create and its
-			// write: only call it stale once it has had a moment to finish.
-			if (!held && Date.now() - mtime(LOCK) < 1000) return false;
-			log(
-				`removing a stale lock from pid ${held?.pid ?? 'unknown'}` +
-					(held ? ` (held since ${new Date(held.at).toISOString()})` : '')
-			);
-			rmSync(LOCK, { force: true });
-		}
+	const record = () =>
+		JSON.stringify({ pid: process.pid, started: startedAt(process.pid), at: Date.now(), port });
+	try {
+		writeFileSync(LOCK, record(), { flag: 'wx' });
+		return true;
+	} catch (e) {
+		if (e.code !== 'EEXIST') throw e;
 	}
-	return false;
+	const found = readText(LOCK);
+	// Released between the create and the read: the next poll creates it.
+	if (found === undefined) return false;
+	const held = holder();
+	if (held && held.pid !== process.pid && running(held)) return false;
+	// A file with no pid yet may be a holder between its create and its
+	// write: only call it stale once it has had a moment to finish.
+	if (!held && Date.now() - mtime(LOCK) < 1000) return false;
+	const mine = `${LOCK}.${process.pid}`;
+	writeFileSync(mine, record());
+	if (readText(LOCK) !== found) {
+		// Someone else took it over, or it was released: not ours to replace.
+		rmSync(mine, { force: true });
+		return false;
+	}
+	log(
+		`taking over a stale lock from pid ${held?.pid ?? 'unknown'}` +
+			(held ? ` (held since ${new Date(held.at).toISOString()})` : '')
+	);
+	renameSync(mine, LOCK);
+	return holder()?.pid === process.pid;
 }
 
 function mtime(path) {
@@ -280,6 +316,69 @@ for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'])
 		else process.exit(idling ? 0 : 1);
 	});
 
+/**
+ * This pid and every process under it, by `/proc`'s parent links (Linux; just
+ * the pid elsewhere). Each one found is stopped before its children are looked
+ * for, so none of them can start another that the walk would miss.
+ */
+function freezeTree(root) {
+	const tree = [root];
+	try {
+		process.kill(root, 'SIGSTOP');
+	} catch {
+		return tree;
+	}
+	for (let grew = true; grew;) {
+		grew = false;
+		let names;
+		try {
+			// Read again on every pass: a child forked before its parent stopped
+			// may be newer than the last listing.
+			names = readdirSync('/proc').filter((name) => /^\d+$/.test(name));
+		} catch {
+			return tree;
+		}
+		for (const name of names) {
+			const pid = Number(name);
+			if (tree.includes(pid)) continue;
+			const stat = readText(`/proc/${pid}/stat`);
+			if (!stat) continue;
+			// Field 4, the parent, follows the parenthesised command name.
+			const parent = Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1]);
+			if (!tree.includes(parent)) continue;
+			try {
+				process.kill(pid, 'SIGSTOP');
+			} catch {
+				continue;
+			}
+			tree.push(pid);
+			grew = true;
+		}
+	}
+	return tree;
+}
+
+/** The runner is gone: stop what this started, remove its files, and go. */
+function orphaned() {
+	log(`the runner that started this (pid ${PARENT}) is gone; stopping`);
+	if (current?.pid) for (const pid of freezeTree(current.pid)) kill(pid, 'SIGKILL');
+	// The exit handler unregisters and releases.
+	process.exit(1);
+}
+
+function kill(pid, signal) {
+	try {
+		process.kill(pid, signal);
+	} catch {
+		// Gone already.
+	}
+}
+
+// Unref'd, so it never holds the process open on its own.
+setInterval(() => {
+	if (process.ppid !== PARENT || !alive(PARENT)) orphaned();
+}, PARENT_POLL_MS).unref();
+
 function run(command) {
 	return new Promise((resolve, reject) => {
 		const child = spawn(command, { shell: true, stdio: 'inherit', env: process.env });
@@ -323,9 +422,9 @@ async function attempt() {
 			return 'serve';
 		}
 		const stamp = readJson(STAMP);
-		const current = tree !== undefined && stamp?.fingerprint === tree && existsSync(OUTPUT);
+		const fresh = tree !== undefined && stamp?.fingerprint === tree && existsSync(OUTPUT);
 		const who = serving.map((u) => `pid ${u.pid} (port ${u.port})`).join(', ');
-		if (current) {
+		if (fresh) {
 			if (prepare) await run(prepare);
 			register(tree);
 			release();
