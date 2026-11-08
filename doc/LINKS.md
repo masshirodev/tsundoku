@@ -327,6 +327,25 @@ link to another kind's entry (a novel on its comic, for the cover) is not
 asked. A season linked between an anime's first and last has its edges asked
 too, so OTHER FORMS can read one hop from each.
 
+**A middle season AniList answers nothing for** (deleted there, or linked to
+an entry in another catalogue, since the ask is `Media(id, type: ANIME)`)
+does not cost the series its graph (c700's round 2). AniList answers a
+request holding one such id with HTTP 404 and **every** alias null, the good
+ones too, in any order (measured 2026-11-08; the answer is quoted in
+`tests/other-forms-db.spec.ts`), so a request of several that answers nothing
+is asked again one entry at a time, `first` and `last` first. That costs the
+series one request per entry, once, on the pass that meets it. The graph is
+stored from what answered and names the rest in `unanswered`; a `first`, a
+`last` or an entry the walk has to stand on still fail the walk and leave the
+old graph, as they always have. **`unanswered` ends two ways:** a relink of
+that season (the new id is not on the record, so the very next pass asks for
+it) and the ordinary seven days (the refresh asks every entry again and
+rewrites the record, so a season answering again is read then, and not
+before). A link whose stored format is another kind's is never asked at all.
+The comics' request of ten is re-asked one at a time the same way, so one dead
+link doesn't cost the other nine theirs; the dead one stays due, as an anime's
+dead `first` does.
+
 **The table** is `series_relations` (rung 73), one row a series, gone with
 the series (`ON DELETE CASCADE`):
 
@@ -337,7 +356,8 @@ the series (`ON DELETE CASCADE`):
 | `fetched_at` | When `graph` was last written; NULL exactly when `graph` is (a CHECK).                   |
 | `tried_at`   | When the pass last asked, which a failed ask moves without touching `graph`.             |
 
-`RelGraph` is `{ nodes: { "<anilist id>": RelNode } }`, and a `RelNode` is
+`RelGraph` is `{ nodes: { "<anilist id>": RelNode }, unanswered?: number[] }`
+(`unanswered` above, absent when empty), and a `RelNode` is
 what an edge's `node` answers: `id`, `type` (`ANIME`), `format`, `status`,
 `episodes`, `year` (`startDate.year`), `title { english romaji native }`, and
 `edges: [{ type, id }]`, AniList's `relationType` and the other entry's id,

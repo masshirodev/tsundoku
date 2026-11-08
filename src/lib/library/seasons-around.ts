@@ -56,7 +56,15 @@ export type RelNode = {
 };
 
 /** The cache's graph: every entry the walk met, by id. */
-export type RelGraph = { nodes: Record<string, RelNode> };
+export type RelGraph = {
+	nodes: Record<string, RelNode>;
+	/**
+	 * Linked middle seasons AniList answered nothing for when this graph was
+	 * fetched (deleted, or another catalogue's): not asked again until the graph
+	 * is. Absent when there are none, and from a graph cached before it.
+	 */
+	unanswered?: number[];
+};
 
 /**
  * Where the walk starts: the series' earliest linked entry (back from it) and
@@ -73,7 +81,8 @@ export type WalkFrom = {
 	heldAfter: number;
 	/**
 	 * The other seasons it has linked, between `first` and `last`: asked with
-	 * their edges too, since OTHER FORMS reads one hop from each (c700).
+	 * their edges too, since OTHER FORMS reads one hop from each (c700). Best
+	 * effort: one AniList can't answer doesn't fail the walk (`fetchGraph`).
 	 */
 	others?: number[];
 };

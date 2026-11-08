@@ -66,6 +66,12 @@ const inAnimeCatalogue = (kind: Kind) => {
 	return c.provider === 'anilist' && c.type === 'ANIME';
 };
 
+/** Whether a stored format names a kind other than the series'. Unknown says nothing. */
+const otherKinds = (kind: Kind, format: string | null) => {
+	const k = format ? candidateKind({ format, country: '' }) : null;
+	return k !== null && !sameKind(kind, k);
+};
+
 /**
  * Where a series' walk starts, from its own season links: back from the
  * earliest linked season, forward from the latest, and the seasons it holds
@@ -78,10 +84,10 @@ export function walkFrom(seriesId: number, db: Database.Database = getDb()): Wal
 	if (!s || !inAnimeCatalogue(s.kind)) return null;
 	const links = db
 		.prepare(
-			`SELECT season, anilist_id FROM series_season_links
+			`SELECT season, anilist_id, format FROM series_season_links
 			WHERE series_id = ? AND anilist_id IS NOT NULL ORDER BY season, part`
 		)
-		.all(seriesId) as { season: number; anilist_id: number }[];
+		.all(seriesId) as { season: number; anilist_id: number; format: string | null }[];
 	if (!links.length) return null;
 	const first = links[0];
 	const last = links[links.length - 1];
@@ -98,9 +104,11 @@ export function walkFrom(seriesId: number, db: Database.Database = getDb()): Wal
 		// A flat list (season 0) has no seasons beside it to count.
 		heldBefore: first.season > 0 ? held.filter((x) => x < first.season).length : 0,
 		heldAfter: last.season > 0 ? held.filter((x) => x > last.season).length : 0,
-		others: [...new Set(links.map((l) => l.anilist_id))].filter(
-			(id) => id !== first.anilist_id && id !== last.anilist_id
-		)
+		// `type: ANIME` can't answer a link stored as another kind's, and one
+		// such id costs every other entry of the request its answer (`askEntries`).
+		others: [
+			...new Set(links.filter((l) => !otherKinds(s.kind, l.format)).map((l) => l.anilist_id))
+		].filter((id) => id !== first.anilist_id && id !== last.anilist_id)
 	};
 }
 
@@ -122,30 +130,88 @@ function ownEntry(
 	return sameKind(r.kind, candidateKind({ format: r.format, country: '' })) ? r.anilist : null;
 }
 
+/** One request for these entries, several to a request (aliases); null for one not answered. */
+async function askEntries(
+	ids: number[],
+	type: 'ANIME' | 'MANGA',
+	ask: Ask
+): Promise<Map<number, Answered | null>> {
+	const unique = [...new Set(ids)];
+	const query = `query (${unique.map((_, i) => `$i${i}: Int`).join(', ')}) {
+		${unique
+			.map(
+				(_, i) =>
+					`m${i}: Media(id: $i${i}, type: ${type}) { ${NODE_FIELDS} relations { edges { relationType node { ${NODE_FIELDS} } } } }`
+			)
+			.join('\n')}
+	}`;
+	const data = (await ask(
+		query,
+		Object.fromEntries(unique.map((id, i) => [`i${i}`, id]))
+	)) as Record<string, Answered | null> | null;
+	return new Map(
+		unique.map((id, i) => {
+			const m = data?.[`m${i}`];
+			return [id, m && m.id === id ? m : null];
+		})
+	);
+}
+
 /**
- * Ask AniList for the entries the walk needs, with their edges, several to a
- * request (aliases), and walk again until it needs nothing. A walk that still
- * needs entries after `MAX_ROUNDS`, or an entry AniList answers nothing for,
- * is not a graph: null, and the cache keeps what it had.
+ * Whether a request of several answered nothing at all. AniList voids the
+ * whole request when one id can't be answered (HTTP 404, every alias null, the
+ * good ones too; measured 2026-11-08, quoted in tests/other-forms-db.spec.ts),
+ * so this says only that one of them is dead, not which.
+ */
+const voided = (answers: Map<number, Answered | null>) =>
+	answers.size > 1 && [...answers.values()].every((m) => !m);
+
+/**
+ * Ask a voided request's entries one at a time, into `answers`, stopping at
+ * the first one `required` says the caller can't do without.
+ */
+async function askAlone(
+	answers: Map<number, Answered | null>,
+	type: 'ANIME' | 'MANGA',
+	ask: Ask,
+	required: (id: number) => boolean = () => false
+): Promise<void> {
+	for (const id of answers.keys()) {
+		const m = (await askEntries([id], type, ask)).get(id) ?? null;
+		answers.set(id, m);
+		if (!m && required(id)) return;
+	}
+}
+
+/**
+ * Ask AniList for the entries the walk needs, with their edges, and walk again
+ * until it needs nothing. A walk that still needs entries after `MAX_ROUNDS`,
+ * or a `first`, a `last` or a need of the walk's that AniList answers nothing
+ * for, is not a graph: null, and the cache keeps what it had. An `others` id
+ * is best effort (c700, round 2): it only adds OTHER FORMS' reach from that
+ * season, so one AniList can't answer (deleted, or another catalogue's) is
+ * left out and named in the graph's `unanswered`, for `relationsStale`.
  */
 export async function fetchGraph(from: WalkFrom, ask: Ask): Promise<RelGraph | null> {
 	const graph: RelGraph = { nodes: {} };
-	let needs = [...new Set([from.first, from.last, ...(from.others ?? [])])];
+	const others = new Set(from.others ?? []);
+	const unanswered = new Set<number>();
+	let needs = [...new Set([from.first, from.last, ...others])];
 	for (let round = 0; needs.length; round++) {
 		if (round >= MAX_ROUNDS) return null;
-		const vars = Object.fromEntries(needs.map((id, i) => [`i${i}`, id]));
-		const query = `query (${needs.map((_, i) => `$i${i}: Int`).join(', ')}) {
-			${needs
-				.map(
-					(_, i) =>
-						`m${i}: Media(id: $i${i}, type: ANIME) { ${NODE_FIELDS} relations { edges { relationType node { ${NODE_FIELDS} } } } }`
-				)
-				.join('\n')}
-		}`;
-		const data = (await ask(query, vars)) as Record<string, Answered | null> | null;
-		for (const [i, id] of needs.entries()) {
-			const m = data?.[`m${i}`];
-			if (!m || m.id !== id) return null;
+		const answers = await askEntries(needs, 'ANIME', ask);
+		// Only the first round holds an `others`: without one, a void is a dead
+		// `first`, `last` or need, and the walk fails as it did before them.
+		if (round === 0 && others.size && voided(answers))
+			await askAlone(answers, 'ANIME', ask, (id) => !others.has(id));
+		for (const id of needs) {
+			const m = answers.get(id);
+			if (!m) {
+				// A later round is the walk standing on it: that is a need.
+				if (round > 0 || !others.has(id)) return null;
+				unanswered.add(id);
+				continue;
+			}
 			const edges = (m.relations?.edges ?? []).filter((e) => e?.node?.id);
 			graph.nodes[String(id)] = asNode(
 				m,
@@ -157,6 +223,7 @@ export async function fetchGraph(from: WalkFrom, ask: Ask): Promise<RelGraph | n
 		}
 		needs = walkSeasons(graph, from).needs;
 	}
+	if (unanswered.size) graph.unanswered = [...unanswered];
 	return graph;
 }
 
@@ -177,7 +244,9 @@ function cached(seriesId: number, db: Database.Database): RelGraph | null {
  * Whether a series' cache can't answer for it now: none yet, a graph that
  * needs entries it doesn't hold (a relink, a season linked since), or one
  * older than `RELATIONS_STALE_MS`. A series with no walk (unlinked, not an
- * anime) needs nothing.
+ * anime) needs nothing. A middle season the graph records as `unanswered` is
+ * not a need: it waits for the seven days with the rest of the graph, and a
+ * relink is another id, which the record doesn't name, so it is asked at once.
  */
 export function relationsStale(
 	seriesId: number,
@@ -192,7 +261,9 @@ export function relationsStale(
 	const graph = cached(seriesId, db);
 	if (!row?.fetched_at || !graph) return true;
 	if (walkSeasons(graph, from).needs.length) return true;
-	if ((from.others ?? []).some((id) => !graph.nodes[String(id)]?.edges)) return true;
+	const unanswered = new Set(graph.unanswered ?? []);
+	if ((from.others ?? []).some((id) => !unanswered.has(id) && !graph.nodes[String(id)]?.edges))
+		return true;
 	return now - row.fetched_at >= RELATIONS_STALE_MS;
 }
 
@@ -314,32 +385,27 @@ async function refreshComics(
 		!!cached(r.id, db)?.nodes[String(r.anilist)]?.edges;
 	const due = rows.filter((r) => ownEntry(r) !== null && !fresh(r)).slice(0, opts.limit ?? 10);
 	if (!due.length) return { asked: 0, refreshed: 0, failed: 0 };
-	const query = `query (${due.map((_, i) => `$i${i}: Int`).join(', ')}) {
-		${due
-			.map(
-				(_, i) =>
-					`m${i}: Media(id: $i${i}, type: MANGA) { ${NODE_FIELDS} relations { edges { relationType node { ${NODE_FIELDS} } } } }`
-			)
-			.join('\n')}
-	}`;
-	let data: Record<string, Answered | null> | null = null;
+	let answers = new Map<number, Answered | null>();
 	try {
-		data = (await ask(
-			query,
-			Object.fromEntries(due.map((r, i) => [`i${i}`, r.anilist]))
-		)) as Record<string, Answered | null> | null;
+		answers = await askEntries(
+			due.map((r) => r.anilist),
+			'MANGA',
+			ask
+		);
+		// One dead link must not cost the other nine their answers (`voided`).
+		if (voided(answers)) await askAlone(answers, 'MANGA', ask);
 	} catch (e) {
 		if (opts.fatal?.(e)) throw e;
 		console.error('tsundoku: comics’ relations could not be fetched:', e);
 	}
 	let refreshed = 0;
-	for (const [i, r] of due.entries()) {
-		const m = data?.[`m${i}`];
+	for (const r of due) {
+		const m = answers.get(r.anilist);
 		// The link may have moved while AniList answered.
 		const now = db
 			.prepare(`SELECT anilist_id AS anilist FROM series_links WHERE series_id = ?`)
 			.get(r.id) as { anilist: number | null } | undefined;
-		if (!m || m.id !== r.anilist || now?.anilist !== r.anilist) {
+		if (!m || now?.anilist !== r.anilist) {
 			stamp.run(r.id, opts.now);
 			continue;
 		}

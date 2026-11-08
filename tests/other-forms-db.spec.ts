@@ -110,13 +110,34 @@ const WORLD = new Map<number, unknown>([
 ]);
 
 const asks: string[] = [];
-/** Answers as relations.ts asks: aliased `Media(id: $iN, type: X)`, unknown ids null. */
+/** Every id asked, in order: `asks` says how many requests, this says for what. */
+const asked: number[] = [];
+const aliases = (query: string) => [
+	...query.matchAll(/m(\d+):\s*Media\(id:\s*\$i(\d+),\s*type:\s*(\w+)\)/g)
+];
+/** The entry AniList holds under that id in that catalogue: a manga is no `type: ANIME`. */
+const held = (id: number, type: string) => {
+	const m = WORLD.get(id) as { type: string } | undefined;
+	return m?.type === type ? m : null;
+};
+/**
+ * Answers as AniList does, measured on 2026-11-08 by posting two aliases to
+ * https://graphql.anilist.co, a good id with one AniList doesn't have (and
+ * again with a manga's id under `type: ANIME`): HTTP 404,
+ * `{"errors":[{"message":"Not Found.","status":404,…}],"data":{"m0":null,"m1":null}}`.
+ * One id it can't answer nulls **every** alias of the request, the good ones
+ * too, in either order. `post` in catalogue.ts hands that over as an answer.
+ */
 const ask = async (query: string, vars: Record<string, unknown>) => {
 	asks.push(query);
-	const out: Record<string, unknown> = {};
-	for (const m of query.matchAll(/m(\d+):\s*Media\(id:\s*\$i(\d+),\s*type:\s*(\w+)\)/g))
-		out[`m${m[1]}`] = WORLD.get(Number(vars[`i${m[2]}`])) ?? null;
-	return out;
+	const wanted = aliases(query).map((m) => ({
+		alias: `m${m[1]}`,
+		id: Number(vars[`i${m[2]}`]),
+		type: m[3]
+	}));
+	asked.push(...wanted.map((w) => w.id));
+	const voided = wanted.some((w) => !held(w.id, w.type));
+	return Object.fromEntries(wanted.map((w) => [w.alias, voided ? null : held(w.id, w.type)]));
 };
 
 const root = (db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number })
@@ -153,14 +174,16 @@ const entry = (anilistId: number, format: string): Candidate => ({
 	status: 'FINISHED',
 	coverUrl: ''
 });
-const anime = (t: string, ...ids: number[]) => {
+/** An id is linked as a TV entry; `[id, format]` says what the link stored. */
+const anime = (t: string, ...ids: (number | [number, string])[]) => {
 	const id = series(t, 'anime');
-	ids.forEach((a, i) => {
+	ids.forEach((link, i) => {
+		const [a, format] = typeof link === 'number' ? [link, 'TV'] : link;
 		db.prepare(
 			`INSERT INTO entries (series_id, position, label, added_at, source_url, season, episode_number)
 			VALUES (?, ?, 'Ep.', ?, ?, ?, 1)`
 		).run(id, i + 1, NOW, `/f/${id}/${i}`, i + 1);
-		expect(seasons.linkSeason(id, i + 1, 1, entry(a, 'TV'), 'review', NOW)).toBe(true);
+		expect(seasons.linkSeason(id, i + 1, 1, entry(a, format), 'review', NOW)).toBe(true);
 	});
 	return id;
 };
@@ -174,7 +197,12 @@ const pass = () => rel.refreshRelations(ask, { now: NOW, limit: 50 });
 const fresh = () => {
 	for (const t of ['series_relations', 'series_season_links', 'series_links'])
 		db.prepare(`DELETE FROM ${t}`).run();
+	heard();
+};
+/** Forget what was asked, so a case's assertion is about the pass after it. */
+const heard = () => {
 	asks.length = 0;
+	asked.length = 0;
 };
 
 describe('what counts as another form (c700)', () => {
@@ -450,5 +478,329 @@ describe('the comics’ and novels’ side (c700)', () => {
 			db.prepare(`SELECT graph FROM series_relations WHERE series_id = ?`).get(id);
 		expect(has(a)).toBeDefined();
 		expect(has(m)).toBeDefined();
+	});
+});
+
+describe('a middle season AniList answers nothing for (c700, round 2)', () => {
+	/**
+	 * Its own world per case, so a case that kills an entry kills nobody
+	 * else's: P <- FIRST (manga source), MIDDLE, LAST (novel adaptation) -> NEXT.
+	 * MIDDLE is in no chain and in no one's edges: deleted on AniList, or some
+	 * other catalogue's. It is not in the world until a case puts it there.
+	 */
+	let block = 910_000;
+	const gap = () => {
+		block += 100;
+		const ids = {
+			before: block,
+			first: block + 1,
+			middle: block + 2,
+			last: block + 3,
+			next: block + 4,
+			manga: block + 11,
+			novel: block + 13,
+			middleForm: block + 12
+		};
+		WORLD.set(ids.before, {
+			...node(ids.before, 'ANIME', 'TV', { year: 1999 }),
+			relations: { edges: [] }
+		});
+		WORLD.set(ids.first, {
+			...node(ids.first, 'ANIME', 'TV', { year: 2000 }),
+			relations: {
+				edges: [
+					{ relationType: 'PREQUEL', node: node(ids.before, 'ANIME', 'TV', { year: 1999 }) },
+					{ relationType: 'SOURCE', node: node(ids.manga, 'MANGA', 'MANGA', { year: 1990 }) }
+				]
+			}
+		});
+		WORLD.set(ids.last, {
+			...node(ids.last, 'ANIME', 'TV', { year: 2004 }),
+			relations: {
+				edges: [
+					{ relationType: 'SEQUEL', node: node(ids.next, 'ANIME', 'TV', { year: 2006 }) },
+					{ relationType: 'ADAPTATION', node: node(ids.novel, 'MANGA', 'NOVEL', { year: 2001 }) }
+				]
+			}
+		});
+		return ids;
+	};
+	const middleAnswers = (g: ReturnType<typeof gap>) =>
+		WORLD.set(g.middle, {
+			...node(g.middle, 'ANIME', 'TV', { year: 2002 }),
+			relations: {
+				edges: [
+					{ relationType: 'ADAPTATION', node: node(g.middleForm, 'MANGA', 'MANGA', { year: 2002 }) }
+				]
+			}
+		});
+	const forms = (show: number) => rel.otherFormsOf(show, false)?.map((f) => f.anilistId);
+	const stored = (show: number) =>
+		db
+			.prepare(`SELECT graph, fetched_at, tried_at FROM series_relations WHERE series_id = ?`)
+			.get(show) as
+			{ graph: string | null; fetched_at: number | null; tried_at: number } | undefined;
+	const LATER = NOW + rel.RELATIONS_STALE_MS;
+	const passAt = (now: number) => rel.refreshRelations(ask, { now, limit: 50 });
+
+	it('stores the graph from what answered: the seasons around as without it, both forms', async () => {
+		const g = gap();
+		fresh();
+		const without = anime('Gap Show', g.first, g.last);
+		await pass();
+		const around = rel.seasonsAroundOf(without, false);
+		expect(around?.before.map((h) => h.key)).toEqual([g.before]);
+		expect(around?.next.key).toBe(g.next);
+
+		fresh();
+		const show = anime('Gap Show', g.first, g.middle, g.last);
+		expect(await pass()).toMatchObject({ refreshed: 1, failed: 0 });
+		expect(stored(show)?.graph).not.toBeNull();
+		expect(rel.seasonsAroundOf(show, false)).toEqual(around);
+		expect(forms(show)).toEqual([g.manga, g.novel]);
+	});
+
+	it('asks nothing on a second pass at the same moment, and calls the series fresh', async () => {
+		const g = gap();
+		fresh();
+		const show = anime('Gap Twice', g.first, g.middle, g.last);
+		await pass();
+		heard();
+		expect(await pass()).toMatchObject({ refreshed: 0, failed: 0 });
+		expect(asks).toEqual([]);
+		expect(rel.relationsStale(show, NOW)).toBe(false);
+	});
+
+	it('survives the JSON round trip: what ends the wait is in the stored graph', async () => {
+		const g = gap();
+		fresh();
+		const show = anime('Gap Stored', g.first, g.middle, g.last);
+		await pass();
+		expect(JSON.parse(stored(show)!.graph!).unanswered).toEqual([g.middle]);
+	});
+
+	it('waits out the seven days to the millisecond, then asks again', async () => {
+		const g = gap();
+		fresh();
+		const show = anime('Gap Week', g.first, g.middle, g.last);
+		await pass();
+		expect(rel.relationsStale(show, LATER - 1)).toBe(false);
+		heard();
+		await passAt(LATER - 1);
+		expect(asks).toEqual([]);
+
+		expect(rel.relationsStale(show, LATER)).toBe(true);
+		expect(await passAt(LATER)).toMatchObject({ refreshed: 1, failed: 0 });
+		expect(asked).toContain(g.middle);
+		expect(stored(show)?.fetched_at).toBe(LATER);
+		// Still answering nothing: the record starts another seven days.
+		heard();
+		await passAt(LATER);
+		expect(asks).toEqual([]);
+	});
+
+	it('reads the season once it answers again, at the refresh after the seven days', async () => {
+		const g = gap();
+		fresh();
+		const show = anime('Gap Returns', g.first, g.middle, g.last);
+		await pass();
+		middleAnswers(g);
+		// Answering again ends nothing by itself: it waits, like any graph.
+		heard();
+		await pass();
+		expect(asks).toEqual([]);
+		expect(forms(show)).not.toContain(g.middleForm);
+
+		await passAt(LATER);
+		expect(forms(show)).toEqual(expect.arrayContaining([g.manga, g.novel, g.middleForm]));
+		expect(JSON.parse(stored(show)!.graph!).unanswered).toBeUndefined();
+		expect(rel.relationsStale(show, LATER)).toBe(false);
+	});
+
+	it('does not ask for a middle season whose stored format is another kind’s', async () => {
+		const g = gap();
+		fresh();
+		WORLD.set(g.middle, { ...node(g.middle, 'MANGA', 'MANGA'), relations: { edges: [] } });
+		const show = anime('Gap Manga Link', g.first, [g.middle, 'MANGA'], g.last);
+		expect(await pass()).toMatchObject({ refreshed: 1, failed: 0 });
+		expect(asked).not.toContain(g.middle);
+		// One request and the walk's one step back: nothing voided, nothing re-asked.
+		expect(asks).toHaveLength(2);
+		expect(forms(show)).toEqual([g.manga, g.novel]);
+		expect(rel.relationsStale(show, NOW)).toBe(false);
+	});
+
+	it('tolerates a middle season that is a manga when the link stored no format', async () => {
+		const g = gap();
+		fresh();
+		WORLD.set(g.middle, { ...node(g.middle, 'MANGA', 'MANGA'), relations: { edges: [] } });
+		const show = anime('Gap Unknown Format', g.first, [g.middle, ''], g.last);
+		expect(await pass()).toMatchObject({ refreshed: 1, failed: 0 });
+		expect(asked).toContain(g.middle);
+		expect(JSON.parse(stored(show)!.graph!).unanswered).toEqual([g.middle]);
+		expect(rel.seasonsAroundOf(show, false)?.next.key).toBe(g.next);
+	});
+
+	it('keeps every answer when two middle seasons are dead', async () => {
+		const g = gap();
+		fresh();
+		const other = g.middle + 50;
+		const show = anime('Gap Two Dead', g.first, g.middle, other, g.last);
+		expect(await pass()).toMatchObject({ refreshed: 1, failed: 0 });
+		expect(JSON.parse(stored(show)!.graph!).unanswered).toEqual([g.middle, other]);
+		expect(forms(show)).toEqual([g.manga, g.novel]);
+	});
+
+	it('still stores every answer when AniList names some and not others', async () => {
+		const g = gap();
+		fresh();
+		const show = anime('Gap Partial', g.first, g.middle, g.last);
+		// Not what AniList does today (see `ask`), but what the code must survive.
+		const partial = async (query: string, vars: Record<string, unknown>) =>
+			Object.fromEntries(
+				aliases(query).map((m) => [`m${m[1]}`, held(Number(vars[`i${m[2]}`]), m[3])])
+			);
+		expect(await rel.refreshRelations(partial, { now: NOW, limit: 50 })).toMatchObject({
+			refreshed: 1,
+			failed: 0
+		});
+		expect(JSON.parse(stored(show)!.graph!).unanswered).toEqual([g.middle]);
+	});
+
+	it('walks through the real door: AniList’s own 404 reaches the pass as an answer', async () => {
+		const g = gap();
+		fresh();
+		const show = anime('Gap Wired', g.first, g.middle, g.last);
+		cat.setAnilistFetch(async (_url, init) => {
+			const { query, variables } = JSON.parse(String(init?.body));
+			const wanted = aliases(query);
+			const dead = wanted.some((m) => !held(Number(variables[`i${m[2]}`]), m[3]));
+			const data = Object.fromEntries(
+				wanted.map((m) => [`m${m[1]}`, dead ? null : held(Number(variables[`i${m[2]}`]), m[3])])
+			);
+			return new Response(
+				JSON.stringify(
+					dead ? { errors: [{ message: 'Not Found.', status: 404 }], data } : { data }
+				),
+				{ status: dead ? 404 : 200, headers: { 'content-type': 'application/json' } }
+			);
+		}, 0);
+		try {
+			const r = await rel.refreshRelations(cat.anilistPublic, { now: NOW, limit: 50 });
+			expect(r).toMatchObject({ refreshed: 1, failed: 0 });
+			expect(forms(show)).toEqual([g.manga, g.novel]);
+		} finally {
+			cat.setAnilistFetch(null);
+		}
+	});
+
+	it.each(['first', 'last'] as const)(
+		'still fails when the %s season answers nothing, and keeps the old graph',
+		async (which) => {
+			const g = gap();
+			fresh();
+			const show = anime(`Gap Lost ${which}`, g.first, g.middle, g.last);
+			await pass();
+			const before = stored(show);
+			WORLD.delete(g[which]);
+			expect(await passAt(LATER)).toMatchObject({ refreshed: 0, failed: 1 });
+			expect(stored(show)).toMatchObject({
+				graph: before!.graph,
+				fetched_at: before!.fetched_at,
+				tried_at: LATER
+			});
+			// Still due, as at the base: a graph it can't refresh is not a fresh one.
+			expect(rel.relationsStale(show, LATER)).toBe(true);
+		}
+	);
+
+	it('fails, without going round, when the walk itself has to stand on a dead one', async () => {
+		const g = gap();
+		fresh();
+		// Linked out of order: season 2 is on `first`'s own chain, so the walk
+		// back stands on it. That makes it a need, and a need can't be skipped.
+		WORLD.set(g.first, {
+			...node(g.first, 'ANIME', 'TV', { year: 2000 }),
+			relations: {
+				edges: [{ relationType: 'PREQUEL', node: node(g.middle, 'ANIME', 'TV', { year: 1999 }) }]
+			}
+		});
+		const show = anime('Gap On The Walk', g.first, g.middle, g.last);
+		expect(await pass()).toMatchObject({ refreshed: 0, failed: 1 });
+		expect(stored(show)?.graph).toBeNull();
+		// The request, each of the three alone, and the walk's one ask for it.
+		expect(asks).toHaveLength(5);
+	});
+
+	it('stores nothing for a series never cached whose first season is dead', async () => {
+		const g = gap();
+		fresh();
+		WORLD.delete(g.first);
+		const show = anime('Gap Never', g.first, g.middle, g.last);
+		expect(await pass()).toMatchObject({ refreshed: 0, failed: 1 });
+		expect(stored(show)?.graph).toBeNull();
+		expect(forms(show)).toBeUndefined();
+		// A required season failing stops the re-asking there.
+		expect(asks).toHaveLength(2);
+	});
+
+	it('asks at the next pass when the middle season is relinked to a good entry', async () => {
+		const g = gap();
+		fresh();
+		const show = anime('Gap Relink', g.first, g.middle, g.last);
+		await pass();
+		const good = g.middle + 60;
+		WORLD.set(good, {
+			...node(good, 'ANIME', 'TV', { year: 2002 }),
+			relations: {
+				edges: [
+					{ relationType: 'ADAPTATION', node: node(g.middleForm, 'MANGA', 'MANGA', { year: 2002 }) }
+				]
+			}
+		});
+		expect(seasons.linkSeason(show, 2, 1, entry(good, 'TV'), 'review', NOW)).toBe(true);
+		expect(rel.relationsStale(show, NOW)).toBe(true);
+		heard();
+		expect(await pass()).toMatchObject({ refreshed: 1, failed: 0 });
+		expect(asked).toContain(good);
+		expect(forms(show)).toContain(g.middleForm);
+		expect(JSON.parse(stored(show)!.graph!).unanswered).toBeUndefined();
+	});
+
+	it('asks at the next pass when it is relinked to another dead entry, and waits on that', async () => {
+		const g = gap();
+		fresh();
+		const show = anime('Gap Relink Dead', g.first, g.middle, g.last);
+		await pass();
+		const dead = g.middle + 70;
+		expect(seasons.linkSeason(show, 2, 1, entry(dead, 'TV'), 'review', NOW)).toBe(true);
+		expect(rel.relationsStale(show, NOW)).toBe(true);
+		await pass();
+		expect(JSON.parse(stored(show)!.graph!).unanswered).toEqual([dead]);
+		heard();
+		await pass();
+		expect(asks).toEqual([]);
+	});
+});
+
+describe('one comic AniList answers nothing for (c700, round 2)', () => {
+	const alive = (id: number) =>
+		WORLD.set(id, {
+			...node(id, 'MANGA', 'MANGA'),
+			relations: {
+				edges: [{ relationType: 'ADAPTATION', node: node(id + 1, 'ANIME', 'TV', { year: 2001 }) }]
+			}
+		});
+
+	it('does not cost the rest of its request their answers', async () => {
+		fresh();
+		alive(920_001);
+		alive(920_003);
+		const a = comic('Comic Alive A', 'manga', 920_001, 'MANGA');
+		comic('Comic Dead', 'manga', 920_002, 'MANGA');
+		const b = comic('Comic Alive B', 'manga', 920_003, 'MANGA');
+		expect(await pass()).toMatchObject({ refreshed: 2, failed: 1 });
+		expect(rel.otherFormsOf(a, false)?.map((f) => f.anilistId)).toEqual([920_002]);
+		expect(rel.otherFormsOf(b, false)?.map((f) => f.anilistId)).toEqual([920_004]);
 	});
 });
