@@ -117,7 +117,10 @@ change what a MOVE is about, by the season each entry resolves to:
 - **The refusal counts a season's key.** A target another series holds, as its
   own key or a season's, is refused at the comparison and at the move (`heldByOther`);
   a key this series already holds never counts, since two seasons of one show
-  may share a source.
+  may share a source. **MOVE BACK asks the same**: a key left and since taken
+  up by another series refuses the way back with the same words, and neither
+  the SOURCE row nor the comparison offers it while the key is held. It opens
+  again, within its 30 days, if the other series lets the key go.
 - A series every one of whose seasons has its own source has nothing for the
   series-level MOVE to do, and is refused rather than re-keyed to no effect.
 
@@ -193,7 +196,8 @@ key it moved to. This is the writer's existing former-key mechanism
 Right after a move the series screen shows **MOVED TO WEEB CENTRAL** with
 **UNDO**, as NOT A SERIES does; the band goes when the screen is left. For **30
 days** the SOURCE row reads **WAS ASURA SCANS · UNTIL 1 DEC** and offers **MOVE
-BACK**, which goes straight back with no search or comparison.
+BACK**, which goes straight back with no search or comparison, while no other
+series has come to hold the key it left.
 
 Back means: the old source is where chapters come from again, FOLLOW and the
 queue go with it, and reading carries back **by number**, including what was

@@ -274,6 +274,21 @@ export type MoveState = {
 	band: { title: string; detail: string } | null;
 };
 
+/**
+ * MOVE BACK's offer: open for 30 days, and only while no other series has
+ * come to hold the key, so the screen never offers what `applyMoveBack` refuses.
+ */
+function wayBack(
+	s: SeriesRow,
+	now: number,
+	db: Database.Database = getDb()
+): { name: string; until: number } | null {
+	if (!s.former_key || s.former_at === null || now - s.former_at >= MOVE_BACK_DAYS * 86_400_000)
+		return null;
+	if (heldByOther(s.former_key, s.id, db)) return null;
+	return { name: formerName(s), until: s.former_at + MOVE_BACK_DAYS * 86_400_000 };
+}
+
 export function moveState(seriesId: number, now = Date.now()): MoveState {
 	const s = seriesRow(seriesId);
 	if (!s || s.in_library !== 1 || !movableKind(s.kind)) return emptyState();
@@ -313,10 +328,7 @@ export function moveState(seriesId: number, now = Date.now()): MoveState {
 					? `NOT ANSWERED SINCE ${dayOf(engineDownSince()!)}`
 					: null;
 
-	const former =
-		s.former_key && s.former_at !== null && now - s.former_at < MOVE_BACK_DAYS * 86_400_000
-			? { name: formerName(s), until: s.former_at + MOVE_BACK_DAYS * 86_400_000 }
-			: null;
+	const former = wayBack(s, now, db);
 
 	// Three episodes failed within a day, or every episode the series has where
 	// it has fewer (the brief's "or on every episode tried, if fewer").
@@ -689,13 +701,7 @@ export async function moveComparison(
 		seriesId,
 		kind,
 		source: sourceLabel(seriesId, fromKey, s.source),
-		former:
-			scope === null &&
-			s.former_key &&
-			s.former_at !== null &&
-			now - s.former_at < MOVE_BACK_DAYS * 86_400_000
-				? { name: formerName(s), until: s.former_at + MOVE_BACK_DAYS * 86_400_000 }
-				: null,
+		former: scope === null ? wayBack(s, now) : null,
 		candidate,
 		plan,
 		summary,
@@ -1036,6 +1042,10 @@ export function applyMoveBack(
 			const s = seriesRow(seriesId, db);
 			const target = moveBackTarget(seriesId);
 			if (!s || !target || !s.origin_key) throw new MoveError('There is no source to move back to');
+			// The key it left may have been taken up since, as another series' own
+			// or a season's (c282): the same one-holder rule as a MOVE to it.
+			if (heldByOther(target.key, seriesId, db))
+				throw new MoveError('That entry is already another series in the library');
 			const kind: MoveKind = moveKindOf(s.kind);
 			const video = movesVideo(kind);
 			const leftKey = s.origin_key;

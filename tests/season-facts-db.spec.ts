@@ -974,6 +974,87 @@ describe('MOVE, by the season each entry is from', () => {
 		expect(() => move.applyMoveBack(a, list([1], 1), { db })).toThrow(/own source/);
 	});
 
+	describe('MOVE BACK counts a season’s key as held', () => {
+		const K = 'aniyomi:7:/k';
+		const T = 'aniyomi:9:/t';
+		const NOW = 4_000_000;
+		// A has moved from K to T, and K is free for anyone to come to hold.
+		function moved(): number {
+			const a = show('A', K);
+			episode(a, 1, 1);
+			move.applyMove(a, target(T), list([1], 1, '/t'), { now: NOW, db });
+			return a;
+		}
+		const wayBack = list([1], 1, '/k');
+		const entries = (id: number) =>
+			db
+				.prepare(`SELECT source_url, former_url, origin_source FROM entries WHERE series_id = ?`)
+				.all(id);
+		async function offered(a: number) {
+			listing('/k', [1]);
+			return {
+				screen: move.moveState(a, NOW + 1).former !== null,
+				comparison: (await move.moveComparison(a, idOf('/k'), true, null, NOW + 1))?.former !== null
+			};
+		}
+
+		it('refuses a key another series has come to hold as a season, and changes nothing', async () => {
+			const a = moved();
+			const b = show('B', 'aniyomi:7:/b');
+			facts.putSeasonFact({ seriesId: b, season: 2, originKey: K }, db);
+			const series = seriesOf(a);
+			const before = entries(a);
+			expect(() => move.applyMoveBack(a, wayBack, { now: NOW + 1, db })).toThrow(move.MoveError);
+			expect(() => move.applyMoveBack(a, wayBack, { now: NOW + 1, db })).toThrow(
+				/already another series/
+			);
+			expect(seriesOf(a)).toEqual(series);
+			expect(series).toMatchObject({ origin_key: T, former_key: K });
+			expect(entries(a)).toEqual(before);
+			expect(facts.heldByOther(K, b, db)).toBeNull();
+			// And neither door offers what the action refuses.
+			expect(await offered(a)).toEqual({ screen: false, comparison: false });
+		});
+
+		it('refuses a key another series has come to hold as its own, as a refusal and not a crash', async () => {
+			const a = moved();
+			show('B', K);
+			expect(() => move.applyMoveBack(a, wayBack, { now: NOW + 1, db })).toThrow(move.MoveError);
+			expect(seriesOf(a).origin_key).toBe(T);
+			expect(await offered(a)).toEqual({ screen: false, comparison: false });
+		});
+
+		it('with no other holder it still goes back, and is offered', async () => {
+			const a = moved();
+			expect(await offered(a)).toEqual({ screen: true, comparison: true });
+			move.applyMoveBack(a, wayBack, { now: NOW + 1, db });
+			expect(seriesOf(a)).toMatchObject({ origin_key: K, former_key: T });
+		});
+
+		it('a key this series’ own season holds is not another’s', async () => {
+			const a = moved();
+			facts.putSeasonFact({ seriesId: a, season: 2, originKey: K }, db);
+			expect(await offered(a)).toEqual({ screen: true, comparison: true });
+			expect(() => move.applyMoveBack(a, wayBack, { now: NOW + 1, db })).not.toThrow();
+			expect(seriesOf(a).origin_key).toBe(K);
+		});
+
+		it('opens again once the other series lets the key go', async () => {
+			const a = moved();
+			const b = show('B', 'aniyomi:7:/b');
+			facts.putSeasonFact({ seriesId: b, season: 2, originKey: K }, db);
+			expect(await offered(a)).toEqual({ screen: false, comparison: false });
+			facts.putSeasonFact({ seriesId: b, season: 2, originKey: 'aniyomi:7:/elsewhere' }, db);
+			expect(await offered(a)).toEqual({ screen: true, comparison: true });
+			expect(() => move.applyMoveBack(a, wayBack, { now: NOW + 1, db })).not.toThrow();
+		});
+
+		it('a closed window stays closed, held or not', () => {
+			const a = moved();
+			expect(move.moveState(a, NOW + 31 * 86_400_000).former).toBeNull();
+		});
+	});
+
 	describe('a MOVE does not change where a season downloads', () => {
 		const NOW = 3_000_000;
 		const deps = { db, library, now: () => NOW };
