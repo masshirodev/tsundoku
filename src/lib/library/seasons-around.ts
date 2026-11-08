@@ -24,10 +24,12 @@
  * AniList answers every edge an entry has, both ways, and chains loop and
  * branch, so the walk keeps a visited set, never takes an edge that goes
  * back in time (a PREQUEL starting after, a SEQUEL starting before: a loop's
- * closing edge; an announced or undated entry starts after every dated
- * one), and stops after `HOPS` steps either way; a walk back stopped by the limit is `truncated`, and its seasons are
- * drawn unnumbered, since the first season is not known. A walk forward
- * stopped by it knows no season after, and says so as AniList knowing none.
+ * closing edge; an announced entry starts after every one that has aired,
+ * and an aired one AniList leaves undated is taken as AniList gives it), and
+ * stops after `HOPS` steps either way. A walk back stopped by the limit is
+ * `truncated`, and its seasons are drawn unnumbered, since the first season
+ * is not known. A walk forward stopped by it knows no season after, and says
+ * so as AniList knowing none.
  */
 
 /** A season's formats: what the chain of seasons is made of. */
@@ -89,12 +91,14 @@ export const isSeason = (n: RelNode | undefined): boolean =>
 	!!n && SEASON_FORMATS.includes(n.format ?? '');
 
 /**
- * When an entry starts, for the walk's loop cut: its year, and later than
- * every year for one AniList has announced (NOT_YET_RELEASED) or dates not
- * at all, since an entry that hasn't aired starts after every one that has.
+ * When an entry starts, for the walk's loop cut: later than every year for
+ * one AniList has announced (NOT_YET_RELEASED), dated or not, since an entry
+ * that hasn't aired starts after every one that has; else its year, or null
+ * for one that has aired (or stopped: RELEASING, FINISHED, CANCELLED,
+ * HIATUS) that AniList leaves undated, mostly specials, OVAs and ONAs.
  */
-export const when = (n: Pick<RelNode, 'status' | 'year'>): number =>
-	n.status === 'NOT_YET_RELEASED' || n.year === null ? Infinity : n.year;
+export const when = (n: Pick<RelNode, 'status' | 'year'>): number | null =>
+	n.status === 'NOT_YET_RELEASED' ? Infinity : n.year;
 
 /**
  * Walk the graph from the series' own entries: back along PREQUEL to the
@@ -142,14 +146,24 @@ export function walkSeasons(graph: RelGraph, from: WalkFrom): Walked {
 	 * SEQUEL, and that season naming it as its PREQUEL). The visited set
 	 * alone cuts a loop wherever the walk happens to meet itself, which from a
 	 * series holding two seasons is in the middle; the dates say where the
-	 * chain really starts. An entry AniList has announced, or gives no year,
-	 * starts after every dated one (`when`): AniList leaves an announced
-	 * sequel undated as a rule, and that sequel is the loop's usual closer.
-	 * Two entries of the same rank are taken as AniList says.
+	 * chain really starts. An entry AniList has announced starts after every
+	 * one that has aired (`when`): AniList leaves an announced sequel undated
+	 * as a rule, and that sequel is the loop's usual closer. An aired entry
+	 * AniList leaves undated has no place in time to compare, so its edges
+	 * are taken as AniList gives them (a FINISHED movie or season between two
+	 * dated ones is on the chain), except against an announced one, which it
+	 * still comes before: a PREQUEL from it into the announced sequel closes
+	 * the loop as it does from a dated season. Two entries of the same rank
+	 * are taken as AniList says.
 	 */
 	const loopsBack = (from: RelNode, to: RelNode, type: string) => {
 		const a = when(from);
 		const b = when(to);
+		if (a === null || b === null) {
+			// Undated and aired: only an announced entry on the other side ranks against it.
+			if (a !== Infinity && b !== Infinity) return false;
+			return type === 'PREQUEL' ? b === Infinity : a === Infinity;
+		}
 		return type === 'PREQUEL' ? b > a : b < a;
 	};
 	/** A SIDE_STORY of an entry the walk stood on: an extra, never followed. */

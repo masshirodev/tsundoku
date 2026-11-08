@@ -364,12 +364,164 @@ describe('the loop through an undated announced sequel (c358)', () => {
 		expect(w1).toMatchObject({ before: [], next: 502, extras: [] });
 	});
 
-	it('ranks an entry by its year, and an announced or undated one after every year', () => {
+	it('ranks an announced entry after every year, an aired one by its year, and an undated aired one not at all', () => {
 		expect(when({ status: 'FINISHED', year: 2019 })).toBe(2019);
 		expect(when({ status: 'RELEASING', year: 2025 })).toBe(2025);
 		expect(when({ status: 'NOT_YET_RELEASED', year: 2027 })).toBe(Infinity);
 		expect(when({ status: 'NOT_YET_RELEASED', year: null })).toBe(Infinity);
-		expect(when({ status: 'FINISHED', year: null })).toBe(Infinity);
+		// Round 3: an aired entry AniList leaves undated has no rank, never Infinity.
+		for (const status of ['FINISHED', 'RELEASING', 'CANCELLED', 'HIATUS', null])
+			expect(when({ status, year: null }), String(status)).toBeNull();
+	});
+});
+
+/**
+ * Round 3 (r2's medium): an aired entry AniList leaves undated (mostly
+ * specials, OVAs and ONAs, sometimes a season) is on the chain as AniList
+ * gives it, never cut as a loop's closer; and the edges next to that rule:
+ * each status with no year, an announced entry with a year, two undated in a
+ * row, an undated aired entry on a loop. The expected heads were written in
+ * doc/handoff-notes/series.md (wave 34) before these ran.
+ */
+describe('an aired entry with no year (c358, round 3)', () => {
+	const tv = (id: number, year: number | null, edges: Edge[], o: Partial<RelNode> = {}) =>
+		node(id, 'TV', `S${id % 100}`, edges, { year, ...o });
+	const held = (g: RelGraph, id: number) => {
+		const w = walkSeasons(g, { first: id, last: id, heldBefore: 0, heldAfter: 0 });
+		const around = seasonsAround(g, w, {
+			title: g.nodes[String(id)].title.english!,
+			inLibrary: new Map()
+		});
+		return {
+			w,
+			before: around.before.map((h) => `${h.label}=${h.title}`),
+			next: around.next.title || 'FIND',
+			facts: around.next.facts,
+			extras: around.extrasLine
+		};
+	};
+
+	// r2's A: S1 (2019) -SEQUEL-> MOVIE (FINISHED, undated) -SEQUEL-> S2 (2021).
+	const MOVIE_BETWEEN = graphOf(
+		tv(601, 2019, [['SEQUEL', 650]]),
+		node(
+			650,
+			'MOVIE',
+			'The Movie',
+			[
+				['PREQUEL', 601],
+				['SEQUEL', 602]
+			],
+			{ year: null, episodes: 1 }
+		),
+		tv(602, 2021, [['PREQUEL', 650]])
+	);
+	it('an undated movie between two seasons: held S2 draws S1 and the movie as an extra', () => {
+		expect(held(MOVIE_BETWEEN, 602)).toMatchObject({
+			before: ['SEASON 1=S1'],
+			next: 'FIND',
+			extras: '+ 1 EXTRA · 1 MOVIE'
+		});
+	});
+	it('an undated movie between two seasons: held S1 draws NEXT SEASON = S2, AniList’s sequel', () => {
+		expect(held(MOVIE_BETWEEN, 601)).toMatchObject({
+			before: [],
+			next: 'S2',
+			extras: '+ 1 EXTRA · 1 MOVIE'
+		});
+	});
+	it('an undated FINISHED first season: held S2 draws SEASON 1 = S1', () => {
+		const g = graphOf(tv(701, null, [['SEQUEL', 702]]), tv(702, 2021, [['PREQUEL', 701]]));
+		expect(held(g, 702)).toMatchObject({ before: ['SEASON 1=S1'], next: 'FIND', extras: '' });
+		expect(held(g, 701)).toMatchObject({ before: [], next: 'S2' });
+	});
+
+	it.each([
+		['RELEASING', 'AIRING'],
+		['CANCELLED', 'CANCELLED'],
+		['HIATUS', 'ON HIATUS']
+	])('%s with no year is on the chain both ways', (status, fact) => {
+		const g = graphOf(
+			tv(801, 2019, [['SEQUEL', 802]]),
+			tv(802, null, [['PREQUEL', 801]], { status, episodes: null })
+		);
+		expect(held(g, 802)).toMatchObject({ before: ['SEASON 1=S1'], next: 'FIND' });
+		expect(held(g, 801)).toMatchObject({ before: [], next: 'S2' });
+		expect(held(g, 801).facts[0]).toBe(fact);
+	});
+
+	// The loop: S1..S4 dated, S5 announced; S1 names S5 its PREQUEL, S5 names S1 its SEQUEL.
+	const loop = (s1: number | null, s5: number | null) =>
+		graphOf(
+			tv(901, s1, [
+				['PREQUEL', 905],
+				['SEQUEL', 902]
+			]),
+			tv(902, 2021, [
+				['PREQUEL', 901],
+				['SEQUEL', 903]
+			]),
+			tv(903, 2023, [
+				['PREQUEL', 902],
+				['SEQUEL', 904]
+			]),
+			tv(904, 2025, [
+				['PREQUEL', 903],
+				['SEQUEL', 905]
+			]),
+			tv(
+				905,
+				s5,
+				[
+					['PREQUEL', 904],
+					['SEQUEL', 901]
+				],
+				{ status: 'NOT_YET_RELEASED', episodes: null }
+			)
+		);
+	it('an announced entry with a year is still after every aired one, whatever its year', () => {
+		const g = loop(2019, 2018);
+		expect(held(g, 901)).toMatchObject({ before: [], next: 'S2' });
+		expect(held(g, 905)).toMatchObject({
+			before: ['SEASON 1=S1', 'SEASON 2=S2', 'SEASON 3=S3', 'SEASON 4=S4'],
+			next: 'FIND'
+		});
+	});
+	it('an undated aired first season on the loop: the announced sequel is never a season before it', () => {
+		const g = loop(null, null);
+		expect(held(g, 902)).toMatchObject({ before: ['SEASON 1=S1'], next: 'S3', extras: '' });
+		expect(held(g, 901)).toMatchObject({ before: [], next: 'S2' });
+		expect(held(g, 904)).toMatchObject({
+			before: ['SEASON 1=S1', 'SEASON 2=S2', 'SEASON 3=S3'],
+			next: 'S5',
+			facts: ['ANNOUNCED']
+		});
+		expect(held(g, 905)).toMatchObject({
+			before: ['SEASON 1=S1', 'SEASON 2=S2', 'SEASON 3=S3', 'SEASON 4=S4'],
+			next: 'FIND'
+		});
+	});
+
+	it('two undated aired seasons in a row stay on the chain', () => {
+		const g = graphOf(
+			tv(1001, 2019, [['SEQUEL', 1002]]),
+			tv(1002, null, [
+				['PREQUEL', 1001],
+				['SEQUEL', 1003]
+			]),
+			tv(1003, null, [
+				['PREQUEL', 1002],
+				['SEQUEL', 1004]
+			]),
+			tv(1004, 2025, [['PREQUEL', 1003]])
+		);
+		expect(held(g, 1004)).toMatchObject({
+			before: ['SEASON 1=S1', 'SEASON 2=S2', 'SEASON 3=S3'],
+			next: 'FIND'
+		});
+		expect(held(g, 1003)).toMatchObject({ before: ['SEASON 1=S1', 'SEASON 2=S2'], next: 'S4' });
+		expect(held(g, 1001)).toMatchObject({ before: [], next: 'S2' });
+		for (const id of [1001, 1002, 1003, 1004]) expect(held(g, id).w.needs).toEqual([]);
 	});
 });
 
