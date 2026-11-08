@@ -376,17 +376,24 @@ line.
 (min-width: 900px)`), by CSS media queries alone. The tablet in either
   orientation and the desktop are unchanged. The handoff folds the tablet in
   portrait too; that part is not built (below, "What it does not do yet").
-- **One DOM, two orders.** The markup is in the fold's order, rows grouped in
-  wrappers that are no boxes (`display: contents`); where nothing folds, CSS
-  `order` puts each group back where it always was (`.o1`–`.o7`:
-  DOWNLOAD under the WORK row, the bands, LANGUAGE to SCANLATOR, SHELVES,
-  LISTS to TAGS, ABOUT, EDITIONS and FILE). The rules are `> :global(*)`:
-  a scoped `*` matches this component's elements only, and LISTS' row is
-  ListsRow's, which then sat above DIRECTION. `tests/series-details.e2e.ts`
-  checks today's order on the tablet and the desktop. The focus layer moves
-  by geometry (`doc/FOCUS.md`), so the TV, which folds, walks the visual
-  order; a keyboard's Tab on the desktop walks the markup's, which puts
-  SHELVES and ABOUT before DOWNLOAD.
+- **Two markups** (c556, the owner's decision of 2026-11-07, keeping
+  `doc/handoffs/series-phone/` 1A/1C as drawn). Where nothing folds the DOM's
+  order is the screen's: DOWNLOAD, the bands, LANGUAGE to SCANLATOR, SHELVES,
+  LISTS to TAGS, ABOUT, EDITIONS and FILE. Where the fold applies, the bands,
+  SHELVES and ABOUT stand above the line. Those three groups (`.o2`, `.o4`,
+  `.o6`) are the ones the two orders place differently, so they are one
+  snippet each drawn twice: once before the line (`.fold-only`) and once in
+  its place among the others (`.screen-only`), and each is hidden by the
+  other's media query with `display: none`. So there is no script (the first
+  paint is right), and the copy not drawn is out of Tab, the focus layer
+  (`isVisible`, `doc/FOCUS.md`) and the screen reader. The other four groups
+  are in the DOM once. The wrappers are no boxes (`display: contents`).
+  Neither copy holds an id, a `bind:this`, a `for=`, `aria-controls` or a
+  focus scope, and what they show is the panel's own state (`aboutOpen`, the
+  page's bands), so a band or MORE drawn in the one copy is the other's too; a
+  form submits from the copy that can be seen. A test that finds such a row by
+  its class says `:visible`. `tests/series-panel-order.e2e.ts` Tabs the panel
+  on the desktop, top to bottom.
 - **The folded line** (1C) is one row, 64px at the least: DETAILS | a state
   line over the names inside | SHOW ↓. Its words are `details.ts`'
   `detailsLine`, from facts the panel already has, no query of its own:
@@ -464,20 +471,6 @@ file for ABOUT's body and the line's text at 390).
   DOWNLOAD, LISTS, FILE and the rest under a dozen specs this slot does not
   own (doc/handoff-notes/series.md, wave 22, Gaps, has the list and the
   one-line way to open it for them).
-- **Where nothing folds, Tab and a screen reader read the fold's order.** On
-  the tablet and the desktop the visual order comes from CSS `order` ("One
-  DOM, two orders", above), while the DOM order, which Tab and a screen
-  reader follow, is the fold's: the bands, SHELVES and ABOUT, then DOWNLOAD,
-  DIRECTION and on to FILE. So a keyboard on the desktop goes from ABOUT's
-  MORE back up to DOWNLOAD (WCAG 2.4.3, focus order). The TV and the phone
-  are not affected: there the DOM order is the screen's. That is c556,
-  which wave 26 measured and left open: the fold's order (the bands,
-  SHELVES, ABOUT, the line, then DOWNLOAD, LANGUAGE…, LISTS…, EDITIONS and
-  FILE) and the screen's (DOWNLOAD first) agree on the relative order of at most four of the seven groups, so one markup cannot hold both, and any two markups -- each hidden by the
-  other's media query -- render DOWNLOAD or the bands twice, which specs
-  other slots own find by class (`.dl-row`, `.twin`, `.panel .about`) and
-  would then find twice. The options, with what each costs, are in
-  `doc/handoff-notes/works.md`, wave 26.
 - **A download that failed is not a mark.** The rows already say FAILED, and
   the handoff's marks are the three above; a series with failed chapters
   folds quiet.
