@@ -232,7 +232,7 @@ export class SmoothScroll {
 
 	/**
 	 * The strip kept its place (a chapter or a reshaped page arrived above, the
-	 * window resized): the window moved `by` with the content, nothing moved on
+	 * window resized): the window moved with the content, nothing moved on
 	 * screen. An ease in flight moves with it, rather than stopping as it would
 	 * for a scroll from anything else, which lost the notch (c192).
 	 *

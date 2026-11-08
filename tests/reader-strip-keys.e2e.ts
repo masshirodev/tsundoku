@@ -565,19 +565,39 @@ test.describe('a held arrow', () => {
 		const y = () => scrollAt(page);
 		const start = await y();
 		await page.keyboard.down('ArrowDown');
-		await repeats(page, 'ArrowDown', 1);
-		// On the ramp (c692): moving, with its speed not yet the held one.
-		await expect.poll(async () => (await y()) - start).toBeGreaterThan(20);
-		// Read in the same turn as the door, or an ease's first frames go unseen.
-		const atHidden = await page.evaluate(() => {
+		// On the ramp (c692), which the first repeat starts and which lasts the
+		// glide's 220 ms: the repeat and the hiding are one `evaluate`, so the
+		// moment is the page's own clock and not a poll, which is met by the
+		// press's glide and stays true after the ramp has ended. Read in the same
+		// turn as the door, or an ease's first frames go unseen.
+		const { atHidden, after } = await page.evaluate(async () => {
+			window.dispatchEvent(
+				new KeyboardEvent('keydown', {
+					key: 'ArrowDown',
+					code: 'ArrowDown',
+					keyCode: 40,
+					which: 40,
+					repeat: true,
+					bubbles: true,
+					cancelable: true
+				})
+			);
+			const from = performance.now();
+			await new Promise<void>((done) => {
+				const wait = () => (performance.now() - from >= 90 ? done() : requestAnimationFrame(wait));
+				requestAnimationFrame(wait);
+			});
 			Object.defineProperty(document, 'visibilityState', {
 				value: 'hidden',
 				configurable: true
 			});
-			const at = Math.round(scrollY - ((window as unknown as { kept?: number }).kept ?? 0));
+			const atHidden = Math.round(scrollY - ((window as unknown as { kept?: number }).kept ?? 0));
+			const after = performance.now() - from;
 			document.dispatchEvent(new Event('visibilitychange'));
-			return at;
+			return { atHidden, after };
 		});
+		expect(after).toBeLessThan(220);
+		expect(atHidden - start).toBeGreaterThan(20);
 		// At once: an ease would still cover the ramp's speed times a third of a nudge's glide.
 		const stopped = await still(y);
 		expect(stopped - atHidden).toBeLessThan(10);
