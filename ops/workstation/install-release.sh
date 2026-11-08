@@ -27,16 +27,10 @@ opt=$HOME/.local/opt/tsundoku
 jobs=$(dirname "$repo")/tsundoku-jobs
 archive=tsundoku-$version-linux-x64.tar.xz
 
-[ -f "$out/.smoked" ] || {
-	echo "$version wasn't smoke-tested whole (no $out/.smoked): run ops/release/smoke.sh first." >&2
-	exit 1
-}
-# The mark speaks for the bundles it tested (ops/release/smoked.ts, the same rule).
-rebuilt=$(find "$out" -maxdepth 1 -type f -name "tsundoku-$version-*" -newer "$out/.smoked")
-[ -z "$rebuilt" ] || {
-	echo "$version changed after its smoke test: run ops/release/smoke.sh again. $rebuilt" >&2
-	exit 1
-}
+# Smoke-tested whole (.smoked) or on Linux alone (.smoked-linux-x64): the
+# workstation runs only the Linux bundle (c750; publishing still needs the whole
+# run). The rule, a bundle newer than the mark included, is ops/release/smoked.ts's.
+node --disable-warning=ExperimentalWarning "$repo/ops/release/smoked-mark.ts" install "$out" "$version" || exit 1
 (cd "$out" && grep " $archive\$" SHA256SUMS | sha256sum -c --quiet -) || {
 	echo "$archive doesn't match its SHA256SUMS." >&2
 	exit 1
