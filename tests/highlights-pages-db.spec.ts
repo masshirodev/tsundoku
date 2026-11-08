@@ -216,6 +216,139 @@ describe('keeping a downloaded page (c703)', () => {
 	});
 });
 
+/**
+ * Round 3 (reviews/manga-r2.json): a page deleted and kept again inside its
+ * UNDO window is the same highlight brought back; after the window it is a
+ * new one, whether or not anything purged in between. `/highlights` is the
+ * only other door to the purge, and none of these cases list it. The window's
+ * edge is `purgeDeleted`'s (`deleted_at < now - UNDO_MS` is gone), so a row
+ * deleted exactly `UNDO_MS` ago is still inside it.
+ */
+describe('the UNDO window, kept again (c703, round 3)', () => {
+	const T = NOW + 3_600_000;
+	const keepAt = (entryId: number, at: number, a: { page?: number; pageEnd?: number } = {}) =>
+		keepPage({ entryId, page: a.page ?? 0, pageEnd: a.pageEnd }, false, { now: () => at });
+	const live = (entry: number) =>
+		db
+			.prepare(
+				`SELECT id, page, page_end, note, made_at FROM highlights WHERE entry_id = ?
+					AND deleted_at IS NULL ORDER BY id`
+			)
+			.all(entry) as { id: number; page: number; page_end: number | null; note: string }[];
+	const copyOf = (id: number) => existsSync(join(pagesDir, `${id}.webp`));
+
+	it('kept again past the window with no purge run: a new highlight, no old note, made now, one row and one copy', async () => {
+		const s = await downloaded('Round three');
+		const first = await keepAt(s.entry, T);
+		hl.setNote(first.highlight.id, 'bad scan', false);
+		hl.deleteHighlight(first.highlight.id, false, T);
+		const before = copies().length;
+		const at = T + hl.UNDO_MS + 1;
+		const second = await keepAt(s.entry, at);
+		expect(second.made).toBe(true);
+		expect(second.highlight.note).toBe('');
+		expect(second.highlight.madeAt).toBe(at);
+		expect(live(s.entry)).toHaveLength(1);
+		// The old row went with the purge, and with it its copy: one row, one file.
+		expect(rows(s.entry).map((r) => r.id)).toEqual([second.highlight.id]);
+		expect(copies().length).toBe(before);
+		expect(copyOf(second.highlight.id)).toBe(true);
+		expect(copies().filter((f) => f.startsWith('.keeping'))).toEqual([]);
+	});
+
+	it('exactly UNDO_MS after DELETE it is still inside: the same highlight, its note and made_at back', async () => {
+		const s = await downloaded('Round three edge');
+		const first = await keepAt(s.entry, T);
+		hl.setNote(first.highlight.id, 'keep me', false);
+		hl.deleteHighlight(first.highlight.id, false, T);
+		const second = await keepAt(s.entry, T + hl.UNDO_MS);
+		expect(second.made).toBe(false);
+		expect(second.highlight).toMatchObject({ id: first.highlight.id, note: 'keep me', madeAt: T });
+		expect(rows(s.entry)).toHaveLength(1);
+	});
+
+	it('one ms inside the window is the same highlight; one ms past it is a new one', async () => {
+		const a = await downloaded('Round three inside');
+		const fa = await keepAt(a.entry, T);
+		hl.deleteHighlight(fa.highlight.id, false, T);
+		const ra = await keepAt(a.entry, T + hl.UNDO_MS - 1);
+		expect([ra.made, ra.highlight.id]).toEqual([false, fa.highlight.id]);
+
+		const b = await downloaded('Round three past');
+		const fb = await keepAt(b.entry, T);
+		hl.deleteHighlight(fb.highlight.id, false, T);
+		const rb = await keepAt(b.entry, T + hl.UNDO_MS + 1);
+		expect(rb.made).toBe(true);
+		expect(rb.highlight.madeAt).toBe(T + hl.UNDO_MS + 1);
+		expect(rows(b.entry).map((r) => r.deleted_at)).toEqual([null]);
+	});
+
+	it('the window is the last DELETE’s: deleted, brought back, deleted again, it counts from the second', async () => {
+		const s = await downloaded('Round three twice');
+		const first = await keepAt(s.entry, T);
+		hl.deleteHighlight(first.highlight.id, false, T);
+		expect((await keepAt(s.entry, T + 1000)).made).toBe(false);
+		const second = T + hl.UNDO_MS - 1000;
+		hl.deleteHighlight(first.highlight.id, false, second);
+		// Past the first DELETE's window, inside the second's: still the same one.
+		const again = await keepAt(s.entry, T + hl.UNDO_MS + 5000);
+		expect([again.made, again.highlight.id]).toEqual([false, first.highlight.id]);
+		hl.deleteHighlight(first.highlight.id, false, second + 2 * hl.UNDO_MS);
+		const late = await keepAt(s.entry, second + 3 * hl.UNDO_MS + 1);
+		expect(late.made).toBe(true);
+		expect(rows(s.entry).map((r) => r.id)).toEqual([late.highlight.id]);
+	});
+
+	it('a page made anew past the window and deleted in turn brings back the newer row, never the old one', async () => {
+		const s = await downloaded('Round three older');
+		const old = await keepAt(s.entry, T);
+		hl.setNote(old.highlight.id, 'old', false);
+		hl.deleteHighlight(old.highlight.id, false, T);
+		const fresh = await keepAt(s.entry, T + hl.UNDO_MS + 1);
+		expect(fresh.made).toBe(true);
+		hl.deleteHighlight(fresh.highlight.id, false, T + hl.UNDO_MS + 2);
+		const back = await keepAt(s.entry, T + hl.UNDO_MS + 3);
+		expect(back).toMatchObject({ made: false, highlight: { id: fresh.highlight.id, note: '' } });
+		expect(rows(s.entry)).toHaveLength(1);
+	});
+
+	it('DELETE, then UNDO, then HIGHLIGHT: the live one answers, at any time after', async () => {
+		const s = await downloaded('Round three undo');
+		const first = await keepAt(s.entry, T);
+		hl.deleteHighlight(first.highlight.id, false, T);
+		expect(hl.undoDeleteHighlight(first.highlight.id, false)).toBe(true);
+		const again = await keepAt(s.entry, T + 5 * hl.UNDO_MS);
+		expect(again).toMatchObject({ made: false, highlight: { id: first.highlight.id, madeAt: T } });
+		expect(rows(s.entry).map((r) => r.deleted_at)).toEqual([null]);
+		expect(copyOf(first.highlight.id)).toBe(true);
+	});
+
+	it('a BOTH whose one page was deleted alone: the BOTH stands, and the page alone follows its own window', async () => {
+		const s = await downloaded('Round three both');
+		const both = await keepAt(s.entry, T, { page: 0, pageEnd: 1 });
+		const alone = await keepAt(s.entry, T, { page: 0 });
+		hl.deleteHighlight(alone.highlight.id, false, T);
+		// The BOTH is its own highlight: kept again, it answers itself, untouched by the page's DELETE.
+		const bothAgain = await keepAt(s.entry, T + hl.UNDO_MS + 1, { page: 0, pageEnd: 1 });
+		expect(bothAgain).toMatchObject({ made: false, highlight: { id: both.highlight.id } });
+		// That keep purged the page alone (past its window), never the BOTH.
+		expect(rows(s.entry).map((r) => [r.page, r.page_end, r.deleted_at])).toEqual([[0, 1, null]]);
+		expect(copyOf(both.highlight.id)).toBe(true);
+		const aloneAgain = await keepAt(s.entry, T + hl.UNDO_MS + 2, { page: 0 });
+		expect(aloneAgain.made).toBe(true);
+		expect(live(s.entry).map((r) => [r.page, r.page_end])).toEqual([
+			[0, 1],
+			[0, null]
+		]);
+		// And the BOTH deleted inside its window comes back as the BOTH, not as page 0.
+		hl.deleteHighlight(both.highlight.id, false, T + hl.UNDO_MS + 3);
+		const pageAlone = await keepAt(s.entry, T + hl.UNDO_MS + 4, { page: 0 });
+		expect(pageAlone).toMatchObject({ made: false, highlight: { id: aloneAgain.highlight.id } });
+		const bothBack = await keepAt(s.entry, T + hl.UNDO_MS + 5, { page: 1, pageEnd: 0 });
+		expect(bothBack).toMatchObject({ made: false, highlight: { id: both.highlight.id } });
+	});
+});
+
 describe('a spread kept as BOTH (c703, Manga M2)', () => {
 	it('is one image, the two pages as drawn: R→L puts the later page on the left', async () => {
 		const s = await downloaded('Spread', {
@@ -362,6 +495,56 @@ describe('a page read online (c703, Manga M7: MAKING)', () => {
 		expect(rows(entry)).toHaveLength(1);
 		expect(copies().length).toBe(before + 1);
 	});
+
+	/**
+	 * The insert's own re-check (round 3). A row another writer set aside
+	 * while this fetch was out: inside its window it is brought back; past it
+	 * (a second install whose purge has not run, or whose clock is behind) it
+	 * is never revived, and this keep is a new highlight beside it. Only the
+	 * re-check's bound sees it: the purge ran before the row was there.
+	 */
+	for (const [label, ago, revived] of [
+		['inside its window is brought back', 1000, true],
+		['past its window is not, and this keep is made anew', 0, false]
+	] as const)
+		it(`a page another writer set aside while this fetch was out: ${label} (round 3)`, async () => {
+			const s = await downloaded(`Online set aside ${revived}`);
+			const at = NOW + 7_200_000;
+			let release!: () => void;
+			const held = new Promise<void>((r) => (release = r));
+			const asked = keepPage({ entryId: s.entry, page: 0 }, false, {
+				read: async () => {
+					await held;
+					return answer();
+				},
+				now: () => at
+			});
+			await new Promise((r) => setTimeout(r, 20));
+			const deletedAt = revived ? at - ago : at - hl.UNDO_MS - 1;
+			const other = Number(
+				db
+					.prepare(
+						`INSERT INTO highlights (kind, series_id, entry_id, page, series_title, series_kind, made_at,
+							copy_path, deleted_at)
+						VALUES ('page', ?, ?, 0, 'Online set aside', 'manga', ?, 'pages/other.webp', ?)`
+					)
+					.run(s.series, s.entry, NOW, deletedAt).lastInsertRowid
+			);
+			release();
+			const { highlight, made } = await asked;
+			if (revived) {
+				expect([highlight.id, made]).toEqual([other, false]);
+				expect(rows(s.entry).map((r) => r.deleted_at)).toEqual([null]);
+			} else {
+				expect(made).toBe(true);
+				expect(highlight.id).not.toBe(other);
+				expect(highlight.madeAt).toBe(at);
+				expect(rows(s.entry).map((r) => [r.id, r.deleted_at])).toEqual([
+					[other, deletedAt],
+					[highlight.id, null]
+				]);
+			}
+		});
 
 	it('a page another writer kept while this fetch was out stands, and this copy is not left behind', async () => {
 		const s = await downloaded('Online other');

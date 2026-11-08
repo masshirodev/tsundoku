@@ -194,12 +194,18 @@ page's own size.
   its way waits for it (the in-flight map), and the insert checks again inside
   its transaction, so two asks that slip past each other (two devices, two
   processes) end as one row and one copy. **A page deleted and kept again
-  before it is purged is the same highlight brought back** (its `deleted_at`
+  within its UNDO window is the same highlight brought back** (its `deleted_at`
   cleared, in the same immediate transaction as the check, and `made` false
-  in the answer), never a second row and copy; the UNDO the delete offered then finds
-  nothing set aside and answers 404, which the reader takes as "kept either
-  way" and `/highlights` as its band's message. Kept again after the purge (past
-  `UNDO_MS`) it is a new highlight. BOTH and one of its pages alone are two.
+  in the answer, its note and `made_at` with it), never a second row and copy;
+  the UNDO the delete offered then finds nothing set aside and answers 404,
+  which the reader takes as "kept either way" and `/highlights` as its band's
+  message. **After the window it is a new highlight**: no note, `made_at` the
+  keep's own time, whether or not `/highlights` has been opened since. The
+  window is `UNDO_MS` from the last DELETE, its edge inclusive (a row deleted
+  exactly `UNDO_MS` ago still comes back). A keep first purges every row past
+  its window, with its copy, and the revive's select is bounded by the window
+  too, both before the copy is made and inside the insert's transaction
+  (c703, round 3). BOTH and one of its pages alone are two.
 - **A BOTH is two pages side by side.** `keepPage` stores the spread as
   its lower then its higher index whichever way it was asked, so 5 with 4 and
   4 with 5 are one highlight, and refuses (404) any second page but the next
@@ -256,7 +262,11 @@ search and the open item are in the URL (`kind`, `series`, `lost`, `q`,
   image alone), SAVE IMAGE. A clip plays in place, SAVE CLIP (the MKV).
 - **Orphans and DETACHED** are said, not hidden: a dashed tag, and no →.
 - **DELETE** is at once, with **HIGHLIGHT DELETED · UNDO** in the band; the
-  row waits ten minutes (`UNDO_MS`) and then goes with its copy.
+  row waits ten minutes (`UNDO_MS`) and then goes with its copy, at the
+  next listing of `/highlights` or the next page kept from the reader,
+  whichever comes first (`purgeDeleted`, which picks and deletes in one
+  immediate transaction, so a keep reviving a row in another process cannot
+  land between the two).
 - **The disk line**: `ON THE WORKSTATION · PAGES 14 MB · CLIPS 412 MB · QUOTES
 TAKE NONE`, of what shows, and **EXPORT →**.
 - **`?series=`** (the series screen's row, or SERIES ↓) reads in reading

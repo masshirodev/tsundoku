@@ -299,14 +299,26 @@ export function removeHighlights(ids: number[], db: Database.Database = getDb())
 	return gone;
 }
 
-/** The deleted ones whose UNDO has passed. */
+/**
+ * The deleted ones whose UNDO has passed. The pick and the delete are one
+ * immediate transaction: a keep that revives a row (c703) clears its
+ * `deleted_at`, and in another process it could otherwise land between the
+ * two and have its live row and copy removed. The files go after the commit,
+ * as `removeHighlightRows` asks.
+ */
 export function purgeDeleted(now = Date.now(), db: Database.Database = getDb()): number {
-	const ids = (
-		db
-			.prepare(`SELECT id FROM highlights WHERE deleted_at IS NOT NULL AND deleted_at < ?`)
-			.all(now - UNDO_MS) as { id: number }[]
-	).map((r) => r.id);
-	return removeHighlights(ids, db);
+	const { gone, files } = db
+		.transaction(() => {
+			const ids = (
+				db
+					.prepare(`SELECT id FROM highlights WHERE deleted_at IS NOT NULL AND deleted_at < ?`)
+					.all(now - UNDO_MS) as { id: number }[]
+			).map((r) => r.id);
+			return removeHighlightRows(ids, db);
+		})
+		.immediate();
+	unlinkCopies(files);
+	return gone;
 }
 
 /**

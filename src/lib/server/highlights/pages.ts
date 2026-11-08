@@ -6,6 +6,7 @@ import { highlightsArea } from '../data-dirs.ts';
 import { join } from '../fspath.ts';
 import { readPage, type PageBody } from '../pages/index.ts';
 import { HIDDEN_SQL, VISIBLE_SQL } from '../visibility.ts';
+import { purgeDeleted, UNDO_MS } from '../highlights.ts';
 import type { KeptPage } from '../../library/highlights.ts';
 
 /**
@@ -25,8 +26,10 @@ import type { KeptPage } from '../../library/highlights.ts';
  *   a late answer, a second press, a second device) gets the one already
  *   kept: the asks still being made are shared by key, and the insert checks
  *   again inside its transaction, so two that slip past each other end as one
- *   row and one copy. A page deleted and not yet purged is brought back
- *   rather than kept twice, so its UNDO has nothing left to restore.
+ *   row and one copy. A page deleted and kept again inside its UNDO window
+ *   is brought back rather than kept twice, so its UNDO has nothing left to
+ *   restore; after the window it is a new highlight (the old row and its
+ *   copy are purged first, and the revive never reaches past the window).
  * - **The copy fits WebP**: a side past 16383 px (a long strip page, a wide
  *   BOTH) is scaled to fit, keeping the aspect.
  * - **A page's kind is `page`**, never the series' kind: what the series is
@@ -125,23 +128,29 @@ function existing(
 }
 
 /**
- * The page's highlight set aside by DELETE and not yet purged, brought back:
- * keeping a page again inside its UNDO window is the one highlight, not a
- * second (the band's UNDO on it then finds nothing to put back). The caller
- * holds the transaction that checked there is no live one.
+ * The page's highlight set aside by DELETE inside its UNDO window, brought
+ * back: keeping a page again while the band's UNDO could still restore it is
+ * the one highlight, not a second (that UNDO then finds nothing to put back).
+ * A row deleted longer ago is never revived, purged or not: the band told the
+ * reader it was gone, so keeping the page again is a new highlight, with no
+ * old note and a `made_at` of now (c703, round 3). The window's edge is
+ * `purgeDeleted`'s: a row deleted exactly `UNDO_MS` ago is still inside it.
+ * The caller holds the transaction that checked there is no live one.
  */
 function revive(
 	db: Database.Database,
 	entryId: number,
 	page: number,
-	pageEnd: number | null
+	pageEnd: number | null,
+	now: number
 ): number | null {
 	const r = db
 		.prepare(
 			`SELECT id FROM highlights WHERE kind = 'page' AND entry_id = ? AND page = ?
-				AND page_end IS ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC LIMIT 1`
+				AND page_end IS ? AND deleted_at IS NOT NULL AND deleted_at >= ?
+				ORDER BY deleted_at DESC, id DESC LIMIT 1`
 		)
-		.get(entryId, page, pageEnd) as { id: number } | undefined;
+		.get(entryId, page, pageEnd, now - UNDO_MS) as { id: number } | undefined;
 	if (!r) return null;
 	db.prepare(`UPDATE highlights SET deleted_at = NULL WHERE id = ?`).run(r.id);
 	return r.id;
@@ -152,10 +161,13 @@ function standing(
 	db: Database.Database,
 	entryId: number,
 	page: number,
-	pageEnd: number | null
+	pageEnd: number | null,
+	now: number
 ): number | null {
 	return db
-		.transaction(() => existing(db, entryId, page, pageEnd) ?? revive(db, entryId, page, pageEnd))
+		.transaction(
+			() => existing(db, entryId, page, pageEnd) ?? revive(db, entryId, page, pageEnd, now)
+		)
 		.immediate();
 }
 
@@ -294,7 +306,13 @@ export async function keepPage(
 	if (pageEnd !== null && pageEnd !== page + 1) throw new KeepError('no such page', 'not_found');
 	const snap = snapshot(ask.entryId, reveal, db);
 	if (!snap) throw new KeepError('no such entry', 'not_found');
-	const before = standing(db, ask.entryId, page, pageEnd);
+	// One clock for the whole keep: the purge, both revive checks and made_at.
+	const now = (opts.now ?? Date.now)();
+	// Rows past their UNDO window go first, with their copies, so a page deleted
+	// long ago (and /highlights not listed since) leaves no row to revive and
+	// no litter beside the new one.
+	purgeDeleted(now, db);
+	const before = standing(db, ask.entryId, page, pageEnd, now);
 	if (before !== null) return { highlight: keptById(db, before), made: false };
 
 	const key = `${ask.entryId}:${page}:${pageEnd ?? ''}`;
@@ -332,7 +350,7 @@ export async function keepPage(
 					// A same page kept (or put back by UNDO) while this one was being made
 					// (another process, a stand-in's race): the one already there stands.
 					const already =
-						existing(db, ask.entryId, page, pageEnd) ?? revive(db, ask.entryId, page, pageEnd);
+						existing(db, ask.entryId, page, pageEnd) ?? revive(db, ask.entryId, page, pageEnd, now);
 					if (already !== null) return already;
 					const id = Number(
 						db
@@ -355,7 +373,7 @@ export async function keepPage(
 								snap.label,
 								snap.title,
 								snap.volume,
-								(opts.now ?? Date.now)(),
+								now,
 								snap.hidden,
 								copy.webp.length,
 								copy.width,

@@ -168,7 +168,9 @@ each saying where that cover comes from now (`menuRows`,
 A row whose cover is already this page says **✓ THIS PAGE**, names what
 automatic would give, and offers **BACK TO AUTOMATIC**. Offline the menu
 still opens, its rows dimmed, with **○ OFFLINE · COVERS NEED THE
-WORKSTATION**: nothing is queued.
+WORKSTATION** (in the image reader, whose menu also keeps a page as a
+highlight, **○ OFFLINE · HIGHLIGHTS AND COVERS NEED THE WORKSTATION**;
+[`HIGHLIGHTS.md`](HIGHLIGHTS.md), "Pages (H3)"): nothing is queued.
 
 **What it stores:** `POST /api/covers` sets a book's `entries.cover_page` and
 a series' `cover_entry` and `cover_page` (rung 23), answers with what was
