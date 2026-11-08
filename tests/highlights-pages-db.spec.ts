@@ -157,14 +157,38 @@ describe('keeping a downloaded page (c703)', () => {
 		expect(copies().length).toBe(before + 1);
 	});
 
-	it('a page deleted (in its UNDO window) and kept again is a new highlight', async () => {
+	it('a page deleted (in its UNDO window) and kept again is the same highlight brought back, and its UNDO restores nothing (round 2)', async () => {
 		const s = await downloaded('Again');
+		const before = copies().length;
 		const first = await keepPage({ entryId: s.entry, page: 0 }, false);
 		hl.deleteHighlight(first.highlight.id, false);
 		const second = await keepPage({ entryId: s.entry, page: 0 }, false);
+		expect(second).toEqual({ highlight: first.highlight, made: false });
+		// The band's UNDO on the deleted row: nothing left to put back.
+		expect(hl.undoDeleteHighlight(first.highlight.id, false)).toBe(false);
+		const live = db
+			.prepare(
+				`SELECT id FROM highlights WHERE kind = 'page' AND entry_id = ? AND page = 0
+					AND page_end IS NULL AND deleted_at IS NULL`
+			)
+			.all(s.entry);
+		expect(live).toEqual([{ id: first.highlight.id }]);
+		expect(rows(s.entry)).toHaveLength(1);
+		expect(copies().length).toBe(before + 1);
+		expect(pageHighlights(s.entry, false).map((k) => k.id)).toEqual([first.highlight.id]);
+	});
+
+	it('a page purged after its UNDO window and kept again is a new highlight', async () => {
+		const s = await downloaded('Again later');
+		const first = await keepPage({ entryId: s.entry, page: 0 }, false);
+		hl.deleteHighlight(first.highlight.id, false, NOW);
+		hl.purgeDeleted(NOW + hl.UNDO_MS + 1, db);
+		const second = await keepPage({ entryId: s.entry, page: 0 }, false);
+		// Made anew (the rowid may be reused: the table has no AUTOINCREMENT), and live.
 		expect(second.made).toBe(true);
-		expect(second.highlight.id).not.toBe(first.highlight.id);
-		expect(pageHighlights(s.entry, false).map((k) => k.id)).toEqual([second.highlight.id]);
+		expect(first.highlight.madeAt).toBeLessThanOrEqual(second.highlight.madeAt);
+		expect(rows(s.entry).map((r) => [r.id, r.deleted_at])).toEqual([[second.highlight.id, null]]);
+		expect(existsSync(join(pagesDir, `${second.highlight.id}.webp`))).toBe(true);
 	});
 
 	it('keeps a page taller than WebP allows, scaled to fit 16383 px with its aspect (round 2)', async () => {

@@ -1730,15 +1730,19 @@
 							headers: { 'content-type': 'application/json' },
 							body: JSON.stringify({ undo: true })
 						}).then(
-							(r) => r.ok,
-							() => false
+							(r) => (r.ok ? 'back' : r.status === 404 ? 'gone' : 'failed'),
+							() => 'failed'
 						);
-						if (back)
+						// 404: nothing set aside to put back. The page was kept again since
+						// (keepPage brought this same row back), so the list already holds it.
+						if (back === 'back')
 							setKept(
 								o.entry,
-								[...keptOf(o.entry), o.kept].sort((a, b) => a.page - b.page || a.id - b.id)
+								[...keptOf(o.entry).filter((x) => x.id !== o.kept.id), o.kept].sort(
+									(a, b) => a.page - b.page || a.id - b.id
+								)
 							);
-						else
+						else if (back === 'failed')
 							showHlBand({
 								title: 'NOT PUT BACK',
 								detail: 'THE WORKSTATION DID NOT ANSWER',

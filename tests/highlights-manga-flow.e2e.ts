@@ -198,6 +198,36 @@ test('✓ HIGHLIGHTED opens the page’s sheet and never unmarks; NOTE, SAVE IMA
 	await expect(page.locator('.track .tick')).toHaveCount(1);
 });
 
+test('DELETE, HIGHLIGHT again, then UNDO: the page keeps one highlight, the same one (round 2)', async ({
+	page
+}) => {
+	const entry = await readAt(page, 'Natsu no Owari ni Kimi to', 2);
+	await cell(page).click();
+	await expect(cell(page)).toHaveText('✓ HIGHLIGHTED');
+	const [{ id }] = kept(entry);
+	await cell(page).click();
+	await sheet(page).getByRole('button', { name: 'DELETE' }).click();
+	await expect(band(page)).toContainText('HIGHLIGHT DELETED');
+	await expect.poll(() => kept(entry).length).toBe(0);
+	// HIGHLIGHT again inside the UNDO window: the deleted row is brought back.
+	await page.keyboard.press('Escape');
+	const answered = page.waitForResponse((r) => r.url().endsWith('/api/highlights/pages'));
+	await page.keyboard.press('h');
+	const again = await answered;
+	expect(again.status()).toBe(200);
+	expect(((await again.json()) as { highlight: { id: number } }).highlight.id).toBe(id);
+	// The UNDO the delete offered, as /highlights' band or another screen still holds it.
+	const undo = await page.request.post(`/api/highlights/${id}`, { data: { undo: true } });
+	expect(undo.status()).toBe(404);
+	expect(kept(entry)).toEqual([expect.objectContaining({ id, page: 1, page_end: null })]);
+	// The reader's own load after a reload: one highlight, one tick.
+	await page.reload();
+	await readerReady(page);
+	await controls(page);
+	await expect(cell(page)).toHaveText('✓ HIGHLIGHTED');
+	await expect(page.locator('.track .tick')).toHaveCount(1);
+});
+
 test('H on a keyboard keeps the page on screen, and a second H opens it rather than keeping it twice', async ({
 	page
 }) => {

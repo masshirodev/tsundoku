@@ -25,7 +25,8 @@ import type { KeptPage } from '../../library/highlights.ts';
  *   a late answer, a second press, a second device) gets the one already
  *   kept: the asks still being made are shared by key, and the insert checks
  *   again inside its transaction, so two that slip past each other end as one
- *   row and one copy.
+ *   row and one copy. A page deleted and not yet purged is brought back
+ *   rather than kept twice, so its UNDO has nothing left to restore.
  * - **The copy fits WebP**: a side past 16383 px (a long strip page, a wide
  *   BOTH) is scaled to fit, keeping the aspect.
  * - **A page's kind is `page`**, never the series' kind: what the series is
@@ -121,6 +122,41 @@ function existing(
 		)
 		.get(entryId, page, pageEnd) as { id: number } | undefined;
 	return r?.id ?? null;
+}
+
+/**
+ * The page's highlight set aside by DELETE and not yet purged, brought back:
+ * keeping a page again inside its UNDO window is the one highlight, not a
+ * second (the band's UNDO on it then finds nothing to put back). The caller
+ * holds the transaction that checked there is no live one.
+ */
+function revive(
+	db: Database.Database,
+	entryId: number,
+	page: number,
+	pageEnd: number | null
+): number | null {
+	const r = db
+		.prepare(
+			`SELECT id FROM highlights WHERE kind = 'page' AND entry_id = ? AND page = ?
+				AND page_end IS ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC LIMIT 1`
+		)
+		.get(entryId, page, pageEnd) as { id: number } | undefined;
+	if (!r) return null;
+	db.prepare(`UPDATE highlights SET deleted_at = NULL WHERE id = ?`).run(r.id);
+	return r.id;
+}
+
+/** The page's one highlight, live or brought back from DELETE, in one immediate transaction. */
+function standing(
+	db: Database.Database,
+	entryId: number,
+	page: number,
+	pageEnd: number | null
+): number | null {
+	return db
+		.transaction(() => existing(db, entryId, page, pageEnd) ?? revive(db, entryId, page, pageEnd))
+		.immediate();
 }
 
 function keptById(db: Database.Database, id: number): KeptPage {
@@ -247,22 +283,23 @@ export async function keepPage(
 	opts: { db?: Database.Database; read?: PageReader; now?: () => number } = {}
 ): Promise<{ highlight: KeptPage; made: boolean }> {
 	const db = opts.db ?? getDb();
+	const page = ask.page;
 	const pageEnd = ask.pageEnd ?? null;
-	if (!Number.isInteger(ask.page) || ask.page < 0) throw new KeepError('no such page', 'not_found');
-	if (pageEnd !== null && (!Number.isInteger(pageEnd) || pageEnd < 0 || pageEnd === ask.page))
+	if (!Number.isInteger(page) || page < 0) throw new KeepError('no such page', 'not_found');
+	if (pageEnd !== null && (!Number.isInteger(pageEnd) || pageEnd < 0 || pageEnd === page))
 		throw new KeepError('no such page', 'not_found');
 	const snap = snapshot(ask.entryId, reveal, db);
 	if (!snap) throw new KeepError('no such entry', 'not_found');
-	const before = existing(db, ask.entryId, ask.page, pageEnd);
+	const before = standing(db, ask.entryId, page, pageEnd);
 	if (before !== null) return { highlight: keptById(db, before), made: false };
 
-	const key = `${ask.entryId}:${ask.page}:${pageEnd ?? ''}`;
+	const key = `${ask.entryId}:${page}:${pageEnd ?? ''}`;
 	const inFlight = making.get(key);
 	if (inFlight) return { highlight: await inFlight, made: false };
 	let made = false;
 	const job = (async () => {
 		const read = opts.read ?? readPage;
-		const indexes = pageEnd === null ? [ask.page] : [ask.page, pageEnd];
+		const indexes = pageEnd === null ? [page] : [page, pageEnd];
 		const images: Buffer[] = [];
 		for (const i of indexes) {
 			let p: PageBody | null;
@@ -288,9 +325,10 @@ export async function keepPage(
 		try {
 			const id = db
 				.transaction(() => {
-					// A same page kept while this one was being made (another process, a
-					// stand-in's race): the one already there stands.
-					const already = existing(db, ask.entryId, ask.page, pageEnd);
+					// A same page kept (or put back by UNDO) while this one was being made
+					// (another process, a stand-in's race): the one already there stands.
+					const already =
+						existing(db, ask.entryId, page, pageEnd) ?? revive(db, ask.entryId, page, pageEnd);
 					if (already !== null) return already;
 					const id = Number(
 						db
@@ -306,7 +344,7 @@ export async function keepPage(
 								snap.origin_key,
 								snap.number,
 								snap.season,
-								ask.page,
+								page,
 								pageEnd,
 								snap.series_title,
 								snap.series_kind,

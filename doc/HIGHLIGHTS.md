@@ -193,8 +193,13 @@ page's own size.
   and `page_end`, not deleted). An ask while the same page's ask is still on
   its way waits for it (the in-flight map), and the insert checks again inside
   its transaction, so two asks that slip past each other (two devices, two
-  processes) end as one row and one copy. A page deleted and kept again within
-  its UNDO window is a new highlight. BOTH and one of its pages alone are two.
+  processes) end as one row and one copy. **A page deleted and kept again
+  before it is purged is the same highlight brought back** (its `deleted_at`
+  cleared, in the same immediate transaction as the check, and `made` false
+  in the answer), never a second row and copy; the UNDO the delete offered then finds
+  nothing set aside and answers 404, which the reader takes as "kept either
+  way" and `/highlights` as its band's message. Kept again after the purge (past
+  `UNDO_MS`) it is a new highlight. BOTH and one of its pages alone are two.
 - **A page's kind is `page`**, never the series' kind; `series_kind` is the
   snapshot, as for every highlight.
 - **Hidden** is copied from the series when the page is kept; a hidden series'
