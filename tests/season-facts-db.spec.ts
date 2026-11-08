@@ -743,6 +743,10 @@ describe('MOVE, by the season each entry is from', () => {
 		});
 		expect(facts.seasonOrigin(a, 2, db)).toBe('aniyomi:7:/s2');
 		expect(urls(a)).toContain(twoUrl);
+		// Not even a kept chapter: the MOVE was never about it.
+		expect(db.prepare(`SELECT origin_source AS o FROM entries WHERE id = ?`).get(two)).toEqual({
+			o: ''
+		});
 		expect(
 			(db.prepare(`SELECT source_url AS u FROM entries WHERE id = ?`).get(one) as { u: string }).u
 		).toBe('/new/ep-1');
@@ -855,6 +859,10 @@ describe('MOVE, by the season each entry is from', () => {
 		expect(() => move.applyMove(a, target('aniyomi:9:/new'), list([1], 1), { db })).toThrow(
 			/own source/
 		);
+		db.prepare(
+			`UPDATE series SET former_key = 'aniyomi:7:/old', former_at = 1, former_source = 'Old' WHERE id = ?`
+		).run(a);
+		expect(() => move.applyMoveBack(a, list([1], 1), { db })).toThrow(/own source/);
 	});
 
 	it('a series with no rows moves whole, as it did', () => {
