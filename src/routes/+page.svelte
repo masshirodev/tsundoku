@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { m } from '$lib/paraglide/messages';
-	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
+	import Sheet from '$lib/components/chrome/Sheet.svelte';
+	import Switch from '$lib/components/controls/Switch.svelte';
+	import { deleteWithLine, keptAcrossLine } from '$lib/library/highlights';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { backLink } from '$lib/back';
-	import { enhance } from '$app/forms';
+	import { deserialize, enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { afterNavigate, beforeNavigate, goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -795,6 +797,66 @@
 
 	// ---- sheets ------------------------------------------------------------
 	let deleting = $state(false);
+	let deleteBusy = $state(false);
+	/** What the selection holds, read as DELETE opens (Out X4; c731). */
+	let held = $state.raw({ n: 0, series: 0 });
+	/** DELETE THEM TOO: off every time the sheet opens, never carried over. */
+	let deleteHeldToo = $state(false);
+
+	/** How long DELETE waits for that read before it asks without the row. */
+	const HELD_READ_MS = 3000;
+
+	/**
+	 * How many highlights `ids` hold. A read that fails answers none, and so
+	 * does one that outlasts HELD_READ_MS (a hung read must not hold the sheet
+	 * shut): the sheet then says nothing about them and offers no switch, and
+	 * the delete keeps them, which is what it does by default.
+	 */
+	async function readHeld(ids: number[]): Promise<{ n: number; series: number }> {
+		const body = new FormData();
+		for (const id of ids) body.append('id', String(id));
+		try {
+			const res = await fetch('?/held', {
+				method: 'POST',
+				body,
+				headers: { 'x-sveltekit-action': 'true' },
+				signal: AbortSignal.timeout(HELD_READ_MS)
+			});
+			const answer = deserialize(await res.text());
+			if (answer.type === 'success' && answer.data) {
+				const { n, series } = answer.data as { n: number; series: number };
+				return { n, series };
+			}
+		} catch {
+			// Falls through: the workstation did not answer.
+		}
+		return { n: 0, series: 0 };
+	}
+
+	/**
+	 * DELETE: fill in what SELECT ALL never drew, read the highlights, then ask.
+	 * In that order so the sheet opens whole, with no row arriving under the
+	 * finger on its way to the action. A selection that moved during the read
+	 * is read again, or the row would name other series' highlights.
+	 */
+	async function askDelete(): Promise<void> {
+		const tap = ++lastTap;
+		await fillUnseen();
+		let asked: number[];
+		let answer: { n: number; series: number };
+		do {
+			if (tap !== lastTap) return;
+			asked = [...selected];
+			answer = await readHeld(asked);
+		} while (tap === lastTap && !sameMembers(asked, selected));
+		if (tap !== lastTap) return;
+		held = answer;
+		deleteHeldToo = false;
+		deleting = true;
+	}
+
+	const sameMembers = (ids: number[], set: ReadonlySet<number>) =>
+		ids.length === set.size && ids.every((id) => set.has(id));
 	/** The first few titles, so the question names what it's about. */
 	const deletingTitles = $derived(titlesLine(selected, facts));
 	let sheetId = $state<number | null>(null);
@@ -2635,10 +2697,8 @@
 					<button type="submit" name="do" value="hide" disabled={selected.size === 0}>HIDE</button>
 				{/if}
 				<!-- Asks first (doc/DELETING.md): duplicates are cleared in bulk. -->
-				<button
-					type="button"
-					disabled={selected.size === 0}
-					onclick={() => void openWhenFilled(() => (deleting = true))}>DELETE</button
+				<button type="button" disabled={selected.size === 0} onclick={() => void askDelete()}
+					>DELETE</button
 				>
 			{/snippet}
 		</BulkBar>
@@ -2713,25 +2773,67 @@
 	/>
 {/if}
 
-<ConfirmSheet
-	open={deleting}
-	title="DELETE {selected.size} SERIES?"
-	lines={[
-		`${selected.size} SELECTED${deletingTitles ? ` · ${deletingTitles}` : ''}`,
-		'THEIR FILES MOVE TO THE TRASH FOLDER ON THE WORKSTATION.',
-		'THEIR READING HISTORY GOES WITH THEM.',
-		'A SCAN OR A SYNC WON’T BRING THEM BACK.'
-	]}
-	confirm="DELETE {selected.size}"
-	action="?/delete"
-	fields={{ id: [...selected].map(String) }}
-	onclose={() => (deleting = false)}
-	ondone={async () => {
-		deleting = false;
-		stopSelecting();
-		await invalidateAll();
-	}}
-/>
+<!-- A copy of the shared ConfirmSheet, with the row highlights add between the
+     lines and the actions, where that sheet has no place for it (Out X4; c731). -->
+<Sheet open={deleting} onclose={() => (deleting = false)} label="DELETE {selected.size} SERIES?">
+	<div class="del-head">
+		<span class="del-title">DELETE {selected.size} SERIES?</span>
+		<button
+			type="button"
+			class="del-x"
+			aria-label={m.chrome_close()}
+			onclick={() => (deleting = false)}>✕</button
+		>
+	</div>
+	<div class="del-body">
+		{#each [`${selected.size} SELECTED${deletingTitles ? ` · ${deletingTitles}` : ''}`, 'THEIR FILES MOVE TO THE TRASH FOLDER ON THE WORKSTATION.', 'THEIR READING HISTORY GOES WITH THEM.', 'A SCAN OR A SYNC WON’T BRING THEM BACK.'] as line (line)}<p
+			>
+				{line}
+			</p>{/each}
+	</div>
+	{#if held.n > 0}
+		<div class="del-kept" data-highlights-kept>
+			<div class="del-row del-col">
+				<span class="del-lbl">{keptAcrossLine(held.n, held.series)}</span>
+				<span class="del-why"
+					>THEIR QUOTES, COPIES AND NOTES STAY ON THE HIGHLIGHTS PAGE, FROM A SERIES NO LONGER IN
+					THE LIBRARY.</span
+				>
+			</div>
+			<div class="del-row">
+				<span class="del-lbl del-too">DELETE THEM TOO</span>
+				<Switch checked={deleteHeldToo} onchange={(v) => (deleteHeldToo = v)} />
+			</div>
+		</div>
+	{/if}
+	<form
+		method="POST"
+		action="?/delete"
+		class="del-actions"
+		use:enhance={() => {
+			deleteBusy = true;
+			return async () => {
+				deleting = false;
+				stopSelecting();
+				await invalidateAll();
+				deleteBusy = false;
+			};
+		}}
+	>
+		{#each [...selected] as id (id)}<input type="hidden" name="id" value={String(id)} />{/each}
+		{#if deleteHeldToo && held.n > 0}<input type="hidden" name="highlights" value="1" />{/if}
+		<button type="button" onclick={() => (deleting = false)} disabled={deleteBusy}
+			>{m.chrome_cancel()}</button
+		>
+		<button type="submit" class="del-go" disabled={deleteBusy}
+			>{deleteBusy
+				? m.chrome_working()
+				: deleteHeldToo && held.n > 0
+					? deleteWithLine(held.n)
+					: `DELETE ${selected.size}`}</button
+		>
+	</form>
+</Sheet>
 
 <ShelfPicker
 	open={pickerOpen}
@@ -3579,5 +3681,105 @@
 			border-left: var(--hairline);
 			border-right: var(--hairline);
 		}
+	}
+	/* The bulk DELETE's sheet: ConfirmSheet's head, body and actions, unchanged,
+	   and the series screen's X4 box (c731). */
+	.del-head {
+		display: flex;
+		align-items: stretch;
+		min-height: 64px;
+		border-bottom: var(--hairline);
+	}
+	.del-title {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		padding: 12px var(--pad);
+		font: 500 16px var(--font-mono);
+		letter-spacing: var(--tracking-label);
+		overflow-wrap: anywhere;
+	}
+	.del-x {
+		width: 64px;
+		border: 0;
+		border-left: var(--hairline);
+		background: none;
+		color: var(--text-1);
+		font: 400 20px var(--font-mono);
+		cursor: pointer;
+	}
+	.del-body {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 20px var(--pad);
+		border-bottom: var(--hairline);
+	}
+	.del-body p {
+		margin: 0;
+		font: 400 14px var(--font-mono);
+		line-height: 1.5;
+		color: var(--text-2);
+	}
+	.del-kept {
+		display: flex;
+		flex-direction: column;
+		margin: 16px var(--pad);
+		border: var(--hairline);
+	}
+	.del-row {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		min-height: 48px;
+		padding: 10px 16px;
+	}
+	.del-row + .del-row {
+		border-top: var(--hairline);
+	}
+	.del-col {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 6px;
+	}
+	.del-lbl {
+		font: 500 12px/1.2 var(--font-mono);
+		letter-spacing: var(--tracking-label);
+		color: var(--text-1);
+	}
+	.del-too {
+		flex: 1;
+		color: var(--text-2);
+	}
+	.del-why {
+		font: 400 14px/1.45 var(--font-sans);
+		color: var(--text-2);
+	}
+	.del-actions {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+	}
+	.del-kept + .del-actions {
+		border-top: var(--hairline);
+	}
+	.del-actions button {
+		height: 64px;
+		border: 0;
+		background: none;
+		color: var(--text-1);
+		font: 500 15px var(--font-mono);
+		letter-spacing: var(--tracking-label);
+		cursor: pointer;
+	}
+	.del-actions button + button {
+		border-left: var(--hairline);
+	}
+	.del-actions .del-go {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.del-actions button:disabled {
+		opacity: 0.5;
+		cursor: default;
 	}
 </style>

@@ -1446,6 +1446,189 @@ test.describe('FOLD is offered only over books with nothing beside them (c651)',
 	});
 });
 
+const deletePort = await freePort();
+
+test.describe('the bulk DELETE says what it does to highlights (c731)', () => {
+	const NONE = 'Sekai no Owari no Kissaten';
+	const TWO_AND_A_HIDDEN = 'Hoshi no Umi no Tabibito';
+	const ONE = 'Ame no Hi no Toshokan';
+	const GOES_WITH = 'Natsu no Owari ni Kimi to';
+	const GOES_WITH_TOO = 'Kōhai no Himitsu Nikki';
+	const STAYS_TOO = 'Onsen Ryokan no Yoru';
+
+	const library = ownLibrary('bulk-delete', deletePort, (db) => {
+		db.exec(`UPDATE roots SET hidden = 0`);
+		const put = db.prepare(
+			`INSERT INTO highlights (kind, series_id, series_title, series_kind, quote, paragraph, made_at, hidden)
+			SELECT 'quote', id, title, kind, 'a line', 'a paragraph', 1, ? FROM series WHERE title = ?`
+		);
+		for (const [title, hidden] of [
+			[TWO_AND_A_HIDDEN, 0],
+			[TWO_AND_A_HIDDEN, 0],
+			[TWO_AND_A_HIDDEN, 1],
+			[ONE, 0],
+			[GOES_WITH, 0],
+			[GOES_WITH, 0],
+			[GOES_WITH_TOO, 1],
+			[STAYS_TOO, 0]
+		] as const)
+			put.run(hidden, title);
+	});
+
+	/** Every highlight of a series by the title it remembers, however it was left. */
+	const heldRows = (title: string) =>
+		library.withDb(
+			(db) =>
+				db
+					.prepare(`SELECT state, deleted_at, hidden FROM highlights WHERE series_title = ?`)
+					.all(title) as { state: string; deleted_at: number | null; hidden: number }[]
+		);
+
+	const isHeld = (u: URL) => u.pathname === '/' && u.search === '?/held';
+
+	async function selecting(page: Page, titles: string[]) {
+		await page.goto('/?shelf=all&sort=title');
+		await page.waitForLoadState('networkidle');
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		for (const title of titles) await page.locator('.grid .tile', { hasText: title }).click();
+	}
+
+	/** Tap DELETE, and the sheet it opens once the highlights are read. */
+	async function askDelete(page: Page, count: number) {
+		await page.getByRole('button', { name: 'DELETE', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: `DELETE ${count} SERIES?` });
+		await expect(sheet).toBeVisible();
+		return sheet;
+	}
+
+	test.use({ baseURL: library.base });
+	test.beforeAll(async () => {
+		test.setTimeout(120_000);
+		await library.start();
+	});
+	test.afterAll(() => library.stop());
+
+	test('the row is absent at zero, counts what the viewer can see, and the switch names the action', async ({
+		page
+	}) => {
+		await selecting(page, [NONE]);
+		let sheet = await askDelete(page, 1);
+		await expect(sheet.locator('[data-highlights-kept]')).toHaveCount(0);
+		await expect(sheet.getByRole('switch')).toHaveCount(0);
+		await expect(sheet.getByRole('button', { name: 'DELETE 1', exact: true })).toBeVisible();
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+		await expect(sheet).toHaveCount(0);
+
+		// One series: the single line, the hidden highlight not counted.
+		await page.locator('.grid .tile', { hasText: NONE }).click();
+		await page.locator('.grid .tile', { hasText: TWO_AND_A_HIDDEN }).click();
+		sheet = await askDelete(page, 1);
+		await expect(sheet.locator('[data-highlights-kept]')).toContainText('2 HIGHLIGHTS ARE KEPT');
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+
+		// Two series: totalled across them.
+		await page.locator('.grid .tile', { hasText: ONE }).click();
+		sheet = await askDelete(page, 2);
+		await expect(sheet.locator('[data-highlights-kept]')).toContainText(
+			'3 HIGHLIGHTS IN 2 SERIES ARE KEPT'
+		);
+		const toggle = sheet.getByRole('switch');
+		await expect(toggle).toHaveAttribute('aria-checked', 'false');
+		await expect(sheet.locator('button.del-go')).toHaveText('DELETE 2');
+		await toggle.click();
+		await expect(sheet.locator('button.del-go')).toHaveText('DELETE WITH 3 HIGHLIGHTS');
+		await toggle.click();
+		await expect(sheet.locator('button.del-go')).toHaveText('DELETE 2');
+
+		// Left on and cancelled, it is off again on the next opening.
+		await toggle.click();
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+		sheet = await askDelete(page, 2);
+		await expect(sheet.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+		await expect(sheet.locator('button.del-go')).toHaveText('DELETE 2');
+	});
+
+	test('with reveal on, a hidden highlight is counted too', async ({ page }) => {
+		await page.goto('/search');
+		await page.getByRole('searchbox').fill('/reveal');
+		await page.keyboard.press('Enter');
+		await page.waitForURL((u) => u.pathname === '/');
+		await selecting(page, [TWO_AND_A_HIDDEN]);
+		const sheet = await askDelete(page, 1);
+		await expect(sheet.locator('[data-highlights-kept]')).toContainText('3 HIGHLIGHTS ARE KEPT');
+	});
+
+	test('a read that fails, or hangs, opens the sheet without the row', async ({ page }) => {
+		await selecting(page, [ONE]);
+		await page.route(isHeld, (route) => route.abort());
+		let sheet = await askDelete(page, 1);
+		await expect(sheet.locator('[data-highlights-kept]')).toHaveCount(0);
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+		await page.unroute(isHeld);
+
+		// Held past the read's own limit, and answered only after it.
+		let answer: Route | null = null;
+		await page.route(isHeld, (route) => {
+			answer = route;
+		});
+		sheet = await askDelete(page, 1);
+		await expect(sheet.locator('[data-highlights-kept]')).toHaveCount(0);
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+		await (answer as Route | null)?.continue().catch(() => undefined);
+		await page.unroute(isHeld);
+	});
+
+	test('a tick made while the read is out is counted before the sheet opens', async ({ page }) => {
+		await selecting(page, [ONE]);
+		let first: Route | null = null;
+		const arrived = new Promise<void>((resolve) => {
+			void page.route(isHeld, (route) => {
+				if (first) return route.continue();
+				first = route;
+				resolve();
+			});
+		});
+		await page.getByRole('button', { name: 'DELETE', exact: true }).click();
+		await arrived;
+		await page.locator('.grid .tile', { hasText: GOES_WITH }).click();
+		await (first as Route | null)?.continue();
+		const sheet = page.getByRole('dialog', { name: 'DELETE 2 SERIES?' });
+		await expect(sheet.locator('[data-highlights-kept]')).toContainText(
+			'3 HIGHLIGHTS IN 2 SERIES ARE KEPT'
+		);
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+		await page.unroute(isHeld);
+	});
+
+	test('DELETE keeps them as orphans; with the switch on they go, only what could be seen', async ({
+		page
+	}) => {
+		await selecting(page, [ONE, STAYS_TOO]);
+		let sheet = await askDelete(page, 2);
+		await expect(sheet.locator('[data-highlights-kept]')).toContainText(
+			'2 HIGHLIGHTS IN 2 SERIES ARE KEPT'
+		);
+		await sheet.locator('button.del-go').click();
+		await expect(sheet).toHaveCount(0);
+		await expect(page.locator('.grid .tile', { hasText: ONE })).toHaveCount(0);
+		for (const title of [ONE, STAYS_TOO])
+			expect(heldRows(title)).toEqual([{ state: 'orphan_series', deleted_at: null, hidden: 0 }]);
+
+		await selecting(page, [GOES_WITH, GOES_WITH_TOO]);
+		sheet = await askDelete(page, 2);
+		await expect(sheet.locator('[data-highlights-kept]')).toContainText('2 HIGHLIGHTS ARE KEPT');
+		await sheet.getByRole('switch').click();
+		await sheet.locator('button.del-go').click();
+		await expect(sheet).toHaveCount(0);
+		await expect(page.locator('.grid .tile', { hasText: GOES_WITH })).toHaveCount(0);
+		expect(heldRows(GOES_WITH)).toEqual([]);
+		// The hidden one was not counted, so the switch could not reach it.
+		expect(heldRows(GOES_WITH_TOO)).toEqual([
+			{ state: 'orphan_series', deleted_at: null, hidden: 1 }
+		]);
+	});
+});
+
 test('the app’s name goes home, and SERIES, once a shelf, is FILTER’s FORM (c436)', async ({
 	page
 }) => {
