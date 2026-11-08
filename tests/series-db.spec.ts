@@ -7,6 +7,9 @@ const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');
 const lib = await import('$lib/server/library');
 const series = await import('$lib/server/series');
+const { sampleEpub } = await import('$lib/server/pages/sample-epub');
+const { kindFacts } = await import('$lib/library/kinds');
+const { Zip } = await import('$lib/epub/unzip');
 
 beforeAll(() => {
 	seedSample(getDb(), Date.UTC(2026, 8, 22));
@@ -34,6 +37,47 @@ describe('the series page', () => {
 		expect(series.seriesPage(hidden, false)).toBeNull();
 		expect(series.seriesPage(hidden, true)).not.toBeNull();
 		expect(series.seriesPage(999_999, true)).toBeNull();
+	});
+});
+
+describe('the seed’s places (c653)', () => {
+	// Every in-progress entry of every seeded series: a list a person picked
+	// would prove only what was picked.
+	const inProgress = () =>
+		lib.listSeries({ reveal: true }).flatMap((card) => {
+			const s = series.seriesPage(card.id, true)!;
+			return s.entries
+				.filter((e) => e.readAt === null && e.lastPosition !== null)
+				.map((e) => ({ title: s.title, kind: s.kind, number: e.number, place: e.lastPosition! }));
+		});
+
+	it('a novel in progress is at a block inside its generated chapter', async () => {
+		const novels = inProgress().filter((e) => kindFacts(e.kind).medium === 'text');
+		expect(novels.map((e) => e.title).sort()).toEqual(
+			expect.arrayContaining(['Mushoku Tensei', 'Villainess Level 99'])
+		);
+		const book = new Zip(
+			new Uint8Array(
+				sampleEpub({
+					title: 'blocks',
+					hue: 0,
+					chapters: Array.from({ length: 30 }, (_, i) => `Vol. ${i + 1}`)
+				})
+			)
+		);
+		for (const e of novels) {
+			const xhtml = new TextDecoder().decode(await book.bytesOf(`OEBPS/ch${e.number}.xhtml`));
+			expect(e.place).toBe(7);
+			expect((xhtml.match(/<(h1|p|pre|table)\b/g) ?? []).length).toBeGreaterThan(e.place);
+		}
+	});
+
+	it('an image entry keeps its page, the image readers’ meaning', () => {
+		const images = inProgress().filter((e) => kindFacts(e.kind).medium === 'pages');
+		expect(images.length).toBeGreaterThan(0);
+		// A manga's 24 pages at 22%, a webtoon's 54, each 0-based.
+		expect(images.find((e) => e.title === 'Tower of God')?.place).toBe(11);
+		expect(images.filter((e) => e.kind === 'manga').every((e) => e.place === 4)).toBe(true);
 	});
 });
 
