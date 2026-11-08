@@ -21,7 +21,7 @@ function dbPath() {
 	if (!file) throw new Error(`no browse database in ${dir}`);
 	return join(dir, file);
 }
-const entry = (() => {
+function episodeId(): number {
 	const db = new Database(dbPath(), { readonly: true });
 	try {
 		return (
@@ -35,7 +35,12 @@ const entry = (() => {
 	} finally {
 		db.close();
 	}
-})();
+}
+// In a hook, not at load: `--list` collects this file with no browse world up.
+let entry = 0;
+test.beforeAll(() => {
+	entry = episodeId();
+});
 test.afterEach(() => {
 	const db = new Database(dbPath());
 	try {

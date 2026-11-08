@@ -62,7 +62,11 @@ function rows(entry: number): Row[] {
 	}
 }
 
-const entry = episodeId();
+// In a hook, not at load: `--list` collects this file with no browse world up.
+let entry = 0;
+test.beforeAll(() => {
+	entry = episodeId();
+});
 test.afterEach(() => {
 	const db = new Database(dbPath());
 	try {
