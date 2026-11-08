@@ -303,29 +303,53 @@ describe('the ticks (c839)', () => {
 		loop.stop();
 	});
 
-	it('does not hold the process open, and leaves no signal handler behind', () => {
-		// A real process: a timer that isn't unref'd never lets this one end.
-		const r = spawnSync(
+	// A real process: a timer that isn't unref'd never lets one end. The timeout's
+	// SIGTERM would reach the fill's own handler and end it with status 0, so it
+	// is the timeout (`error`) that says it hung, not the exit.
+	const child = (code: string, env: Record<string, string> = {}) =>
+		spawnSync(
 			process.execPath,
 			[
 				'--experimental-strip-types',
 				'--disable-warning=ExperimentalWarning',
 				'--input-type=module',
 				'-e',
-				`const { startRelationsFill } = await import('./src/lib/server/relations-fill.ts');
-				const before = process.listenerCount('SIGTERM');
-				const stop = startRelationsFill({ HOME: '/nowhere' });
-				if (typeof stop !== 'function' || process.listenerCount('SIGTERM') !== before + 1) process.exit(3);
-				stop();
-				if (process.listenerCount('SIGTERM') !== before) process.exit(4);
-				startRelationsFill({ HOME: '/nowhere' });`
+				`const { startRelationsFill } = await import('./src/lib/server/relations-fill.ts');\n${code}`
 			],
-			{ encoding: 'utf8', timeout: 60_000, env: { ...process.env, NODE_NO_WARNINGS: '1' } }
+			{
+				encoding: 'utf8',
+				timeout: 25_000,
+				env: { ...process.env, NODE_NO_WARNINGS: '1', ...env }
+			}
 		);
-		expect(r.signal).toBeNull();
+
+	it('does not hold the process open for its first tick, and leaves no signal handler behind', () => {
+		const r = child(
+			`const before = process.listenerCount('SIGTERM');
+			const stop = startRelationsFill({ HOME: '/nowhere' });
+			if (typeof stop !== 'function' || process.listenerCount('SIGTERM') !== before + 1) process.exit(3);
+			stop();
+			if (process.listenerCount('SIGTERM') !== before) process.exit(4);
+			startRelationsFill({ HOME: '/nowhere' });`
+		);
+		expect(r.error).toBeUndefined();
 		expect(r.stderr).toBe('');
 		expect(r.status).toBe(0);
-	}, 90_000);
+	}, 60_000);
+
+	it('does not hold the process open between ticks either', () => {
+		// Something else holds it past the first tick, so the interval exists.
+		const r = child(
+			`startRelationsFill({
+				TSUNDOKU_ANILIST_URL: 'http://127.0.0.1:1',
+				TSUNDOKU_RELATIONS_FILL_MS: '50'
+			});
+			setTimeout(() => {}, 1500);`,
+			{ DATABASE_PATH: join(work, 'between-ticks.db'), TSUNDOKU_ANILIST_URL: 'http://127.0.0.1:1' }
+		);
+		expect(r.error).toBeUndefined();
+		expect(r.status).toBe(0);
+	}, 60_000);
 });
 
 describe('the fill, past every limit (c839)', () => {
@@ -423,6 +447,22 @@ describe('the fill, past every limit (c839)', () => {
 		await cat.fillRelations({ now: at + 2 });
 		expect(graphOf(show)).not.toBeNull();
 		expect(graphOf(book)).not.toBeNull();
+	});
+
+	it('asks at once for a good graph an UNDO has made wrong, though the link is old', async () => {
+		fresh();
+		const show = anime('Undo Show', chain(300_000), NOW);
+		await cat.fillRelations({ now: NOW + TICK });
+		expect(row(show)!.fetched_at).toBe(NOW + TICK);
+		// What an UNDO writes: the link it puts back keeps its old `linked_at`,
+		// so no link is newer than the last ask, and the ask did not fail.
+		chain(310_000);
+		expect(seasons.linkSeason(show, 1, 1, entry(310_000, 'TV'), 'review', NOW - 1000)).toBe(true);
+		expect(rel.relationsStale(show, NOW + 2 * TICK)).toBe(true);
+		heard();
+		await cat.fillRelations({ now: NOW + 2 * TICK });
+		expect(asked).toContain(310_000);
+		expect(row(show)!.fetched_at).toBe(NOW + 2 * TICK);
 	});
 
 	it('drops a row whose series has no link any more, and an idle pass writes nothing', async () => {

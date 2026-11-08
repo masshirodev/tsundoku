@@ -407,9 +407,10 @@ later-made prequel season as the original's PREQUEL) is refused too, and is
 drawn neither as a season nor as an extra. Manga (an ADAPTATION) and
 spin-offs are never followed and never drawn.
 
-**The pass** fills it: `refreshLinks`' last step is `refreshRelations`, up
-to 10 anime a pass (`refreshLinks({ relations })`), the ones never asked
-first, then the longest since asked. An anime is due when it has no graph,
+**A pass** fills it: the background fill's every ten minutes ("How the cache
+fills", below), and `refreshLinks`' last step after an import or by hand. Each
+is `refreshRelations`, up to 10 anime a pass (`refreshLinks({ relations })`),
+the ones never asked first, then the longest since asked. An anime is due when it has no graph,
 its graph can't answer for its links, or the graph is 7 days old
 (`RELATIONS_STALE_MS`). A walk asks several entries to a request (aliases,
 `Media(id: $iN, type: ANIME)`), one request a step. **A failed walk keeps
@@ -439,6 +440,57 @@ pass.
 
 "In the library" is another series' own season link for that entry, under
 the reveal filter (`libraryWhere`), never a title.
+
+#### How the cache fills (c839)
+
+**On every install, by a timer inside the served app.** `init` in
+`src/hooks.server.ts` starts `startRelationsFill` (`relations-fill.ts`), so the
+workstation and a friend's install fill the same way: `ops/systemd/` is the
+workstation's and nothing like it ships to a friend, Windows included. A link
+is asked with no import and no `yarn run links`.
+
+The timer runs only the relations step (`fillRelations` in `catalogue.ts`),
+never `refreshLinks` whole, so it never searches a title. It asks by AniList id,
+with no sign-in; a hidden series' id is asked as the import's pass always asked
+it, since an entry's relations are no more private than its title (c240).
+
+**The cadence.** The first pass comes 60 s after the app starts, then one every
+10 minutes. AniList's limit is 30 requests a minute (the live answer's
+`x-ratelimit-limit: 30`, read 2026-11-08), and the queue spaces them 2.1 s
+apart, whoever asks, so no pass can pass 28.6 a minute however long it runs. The
+interval decides how much of that a pass may take. An anime's walk is at most
+`HOPS + 2` = 14 rounds, a request each, plus one request per linked season if
+its first round is voided (`askAlone`); ten comics are one request, plus ten
+alone if that one is voided. So the worst pass is 10 x (14 + S) + 11 requests:
+201 at S = 5, 422 s of the queue, 20 a minute over the ten minutes, two thirds
+of the limit, leaving the queue room for whatever else asks. A usual pass is far
+less: a library of comics costs one request a pass, and a library of 474 linked
+series takes about 48 passes, so about eight hours once. After that a pass asks
+only for what is due: a new link, and a graph reaching seven days.
+
+**When nothing is due, a pass asks nothing, and the timer is free of the
+network and of the database's write lock.** That is the steady state
+(`tests/relations-fill-db.spec.ts`).
+
+**What each thing does to it.** A tick is skipped, never queued, if the last
+pass is still running.
+
+| What happens                                  | What the timer does                                                                                                                                                                                                                                                                                                                                                                     |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **AniList unreachable** (offline, down)       | The pass stops and nothing is stamped, so it costs no series its turn. One line the first time, none after until a pass gets through, no faster retry.                                                                                                                                                                                                                                  |
+| **A 429**                                     | The pass waits as long as it says (`post`), up to three tries; then it counts as unreachable. A tick during the wait does nothing.                                                                                                                                                                                                                                                      |
+| **A series AniList can't answer**             | `tried_at` moves and it waits a day (`RELATIONS_RETRY_MS`) instead of being asked every ten minutes for good, and takes no turn from the rest. A link made since the failed ask ends the wait at once. A pass of `refreshLinks` ignores the wait, as it always asked.                                                                                                                   |
+| **`TSUNDOKU_ANILIST=off`** (every e2e server) | No timer at all: no request, no line, and no write.                                                                                                                                                                                                                                                                                                                                     |
+| **`TSUNDOKU_ANILIST_URL`** (a stand-in)       | No timer unless `TSUNDOKU_RELATIONS_FILL_MS` asks for one; that value is honoured nowhere else, and an installer drops the stand-in's address, so a real install keeps ten minutes.                                                                                                                                                                                                     |
+| **A link pass, in any process**               | `refreshLinks` (an import, `yarn run links`, `yarn run covers`) writes `settings.link_pass_until` as it runs (15 minutes, renewed; it ends by itself if the pass dies) and clears it after. A tick finding it stands aside, and a fill already running gives way at its next series. The 2.1 s queue is per process, so this is what keeps two processes from spending the limit twice. |
+| **Two writers at once** (stamps)              | Both are one statement, and a stamp touches only `tried_at`: a failure beside a stored graph keeps the graph. If two passes in two processes ever ask the same series, the worst is the same request twice.                                                                                                                                                                             |
+| **A locked database**                         | `busy_timeout` is 5 s (`getDb`); past it the pass ends with one line, and the next tick carries on. An idle tick takes no write lock at all.                                                                                                                                                                                                                                            |
+| **A shutdown during a pass**                  | The timer stops, the pass ends at the next series, and every write it made is whole: each is one statement. Its wait for AniList no longer holds the process open (`releaseAnilistWaits`), so a 429's minute can't outrun `TimeoutStopSec`.                                                                                                                                             |
+| **A build, a prerender, analysis**            | `init` runs at startup (adapter-node's `handler.js`, `vite preview`) and on a dev server's first request. SvelteKit also runs it for a prerender (`postbuild/prerender.js`), and this app has none; `building` keeps the timer out of one if it ever does. The timer is `.unref()`ed either way.                                                                                        |
+| **A dev server's reload**                     | The previous timer is stopped first (`globalThis.__tsundokuRelationsFill`), so a reload never makes two.                                                                                                                                                                                                                                                                                |
+
+`TSUNDOKU_ANILIST_URL` still belongs only beside a local stand-in ("The pass",
+above).
 
 ## Covers
 
