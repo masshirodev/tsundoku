@@ -635,6 +635,15 @@ x, y)` in `tests/helpers/touch.ts` sends the four touch events together, so
   case has seen its own state (both picks' requests sent, and B's given up by
   the page, which is what the endpoint drops B on), then lets it go
   (`state.held`, c439).
+- **A world's own worker is a race, too.** The browse preview's download
+  worker starts with its first page load and downloads whatever the world
+  queued from the fake engine, which answers. `browse-move`'s MOVE case read
+  "2 queued" on its board and lost to the worker whenever ch. 2 had landed
+  first, a fresh world included (measured in wave 34: `downloading` 1.1 s
+  after the first `goto`, downloaded at 2.3 s). The case now puts its series
+  back as seeded at its start, with the queue held off the worker by the
+  queue's own backoff (`next_at`), and says why (c748). A seeded state a
+  background worker changes is held, or waited for, never assumed.
 - **A number read before an action is the shared database's of that
   moment.** `filters-flow`'s case read ALL's total at its first load and
   compared it with the filtered tab's `N OF M` on a later one, while other

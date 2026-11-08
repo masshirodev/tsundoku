@@ -1,4 +1,7 @@
 import { devices, type Page } from '@playwright/test';
+import Database from 'better-sqlite3';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test } from './fixtures';
 import { engineCalls, engineDown, resetEngine } from './browse-world';
 
@@ -15,6 +18,85 @@ import { engineCalls, engineDown, resetEngine } from './browse-world';
 
 const TITLE = 'Movenberg Heir';
 
+/**
+ * The series as the browse world seeds it, its queue held (c748): ch. 2 not
+ * downloaded, and ch. 2 and 2.5 queued. Two things change it, neither of them
+ * this case's subject:
+ *
+ * - **The world's own downloader.** The first page load of the browse preview
+ *   starts the app's download worker (`+layout.server.ts` →
+ *   `ensureEngineWorker()`; its first tick 1 s later, then every 3 s), and the
+ *   fake engine serves ch. 2's pages, so it downloads the seeded queue.
+ *   Measured in wave 34 (the world's rows logged at each step, alone): ch. 2
+ *   `queued` at the case's start, `downloading` 1.1 s later after the first
+ *   `goto`, downloaded and out of the queue at board 3 (2.3 s), which then read
+ *   "1 queued, ch. 2.5": red on a fresh world whenever the worker wins, the
+ *   case's one unexplained red of wave 32. So the rows are held off it by the
+ *   queue's own backoff field, `next_at` ("not before this", which the worker's
+ *   `nextUp()` respects), a day ahead: still queued for the board, never
+ *   picked during the case.
+ * - **The case itself.** MOVE takes ch. 2.5 out of the queue ("has no
+ *   partner"), and MOVE BACK does not put it back, by design (doc/MOVE.md,
+ *   "The queue"), so a second pass in one world (`--repeat-each`, a retry)
+ *   read "1 queued" and failed on its own leftover.
+ *
+ * Done at the start, not the end, so a copy that failed mid-way is repaired
+ * for the next as well (a series left moved is not: its key is the move's,
+ * and the next copy's red names it). Through the world's database, because
+ * the app has no door for any of it: its one way into the queue, `enqueue()`
+ * (src/lib/server/engine/queue.ts), takes only a chapter with no file, and
+ * 2.5 is downloaded (the world's `Afterword.cbz`). A download in flight is
+ * waited out first, so the worker cannot land ch. 2 after the reset. The
+ * browse world's database is the one `tests/browse-setup.ts` makes in the
+ * run's folder, named after the runner's pid; it exports no path, so it is
+ * found there by that name. A file the worker wrote for ch. 2 stays in the
+ * world's library folder, no longer named by any entry.
+ */
+async function asSeeded() {
+	const dir = process.env.PLAYWRIGHT_RUN_DIR!;
+	const files = readdirSync(dir).filter((n) => /^tsundoku-e2e-browse-\d+\.sqlite$/.test(n));
+	expect(files, `the browse world's database in ${dir}`).toHaveLength(1);
+	const db = new Database(join(dir, files[0]));
+	try {
+		db.pragma('busy_timeout = 5000');
+		const ofSeries = `SELECT e.id, e.series_id, e.position FROM entries e JOIN series s ON s.id = e.series_id
+			WHERE s.title = ? AND e.position IN (2, 2.5)`;
+		await expect
+			.poll(
+				() =>
+					db
+						.prepare(
+							`SELECT COUNT(*) AS n FROM download_queue WHERE state = 'downloading'
+							AND entry_id IN (SELECT id FROM (${ofSeries}))`
+						)
+						.get(TITLE) as { n: number },
+				{ message: 'a download of this series still in flight', timeout: 15_000 }
+			)
+			.toEqual({ n: 0 });
+		const rows = db.prepare(ofSeries).all(TITLE) as {
+			id: number;
+			series_id: number;
+			position: number;
+		}[];
+		expect(rows.map((r) => r.position).sort()).toEqual([2, 2.5]);
+		const held = Date.now() + 24 * 60 * 60 * 1000;
+		db.transaction(() => {
+			for (const r of rows) {
+				if (r.position === 2)
+					db.prepare(`UPDATE entries SET available = 0, file = '' WHERE id = ?`).run(r.id);
+				db.prepare(
+					`INSERT INTO download_queue (entry_id, series_id, position, state, next_at, queued_at)
+					VALUES (?, ?, ?, 'queued', ?, ?)
+					ON CONFLICT (entry_id) DO UPDATE SET state = 'queued', tries = 0, failure = '',
+						error = '', next_at = excluded.next_at, done_pages = 0`
+				).run(r.id, r.series_id, r.position === 2 ? 1 : 2, held, Date.now());
+			}
+		})();
+	} finally {
+		db.close();
+	}
+}
+
 async function openSeries(page: Page) {
 	await page.goto('/?sort=title');
 	await page.waitForLoadState('networkidle');
@@ -26,6 +108,7 @@ async function openSeries(page: Page) {
 test('a series moves to another entry, keeps what it lacks and adds what it has, then comes back', async ({
 	page
 }) => {
+	await asSeeded();
 	await openSeries(page);
 
 	// Board 1: a SOURCE row under LINK and COVER, with MOVE →.
