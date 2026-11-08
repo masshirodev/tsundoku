@@ -913,7 +913,7 @@ test.describe('a stream whose lowest quality is a plain file', () => {
  * not in the library, with no + ADD.
  */
 test.describe('the reader end page for a browsing record (c655)', () => {
-	test('a record in a paged read offers + ADD and never HIDE', async ({ page }) => {
+	test('a record in a paged read offers + ADD and no DELETE', async ({ page }) => {
 		test.setTimeout(90_000);
 		await page.goto(`/browse/${SOURCES.open.id}`);
 		// A tile no other browse spec opens: browse-online adds 1-4 to the
@@ -948,6 +948,7 @@ test.describe('the reader end page for a browsing record (c655)', () => {
 			await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
 			await expect(end.getByRole('button', { name: '+ ADD TO LIBRARY' })).toBeVisible();
 			await expect(end.getByRole('button', { name: 'HIDE', exact: true })).toHaveCount(0);
+			await expect(end.getByRole('button', { name: 'DELETE', exact: true })).toHaveCount(0);
 			await expect(end.getByRole('button', { name: /REMOVE/ })).toHaveCount(0);
 		} catch (e) {
 			failed = e;

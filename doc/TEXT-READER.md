@@ -288,8 +288,7 @@ illustration) is the same at the other end. Its position is the chapter's
 first character (`0.0`), however the reader got there (opening the chapter,
 turning back, a scrub from pages on), and a relayout keeps it on that page.
 So the chapter's first character opens on the band's page: an entry opened
-without `?at=` (which reads as `0.0`) starts on its band, and so does a
-reload there. A PAGED reload on the illustration's own page, whose place is
+at its top starts on its band, and so does a reload there. A PAGED reload on the illustration's own page, whose place is
 also `0.0`, lands one page back, on the band. In SCROLL a `0.0` with no line
 height opens at the top, the band above it; with one (`0.0.<y>`), the line
 goes back to its height as any place does.
@@ -303,9 +302,25 @@ reload, or incognito, which saves nothing, still comes back to the same
 sentence (and in SCROLL, the same line: `?at=<block>.<offset>.<y>`, above).
 The reader is the URL's only writer and its only reader: CONTINUE, history
 and the end page link to the entry without `?at=` (`rg -n
-"searchParams.get\('at'\)|[?&]at=" src`, wave 25), and an entry opened
-without one starts at its first character (the server's `last_offset` is read
-only behind an `?at=` that names no place; the reader's notes, wave 25).
+"searchParams.get\('at'\)|[?&]at=" src`, wave 25).
+
+**Where a door opens a chapter** (c622). The effect that opens the first
+chapter takes, in order: `?p=last` (its end, stepping back from the next
+chapter); a place the URL names (`?at=0.0` included, the top, whatever the
+server saved); the server's saved place (`last_position` and `last_offset`)
+when the chapter is not read; and otherwise its top. A saved block the chapter
+no longer has (its text changed) opens at the top and settles there
+(`openChapter`, which alone knows the chapter's length).
+
+| The door                                                                        | Where it opens                                                                                 |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| ▶ CONTINUE, a chapter row, history, the end page, an unread chapter left midway | the saved block and character                                                                  |
+| any of those, the chapter read                                                  | its top                                                                                        |
+| a read chapter marked unread (MARK UNREAD on the series screen)                 | its top: the mark clears the saved place ([`SERIES.md`](SERIES.md); c652, c666)                |
+| UNDO of a long-press MARK READ THROUGH                                          | the saved block and character: `?/undoMarkThrough` put them back, never `?/mark read=0` (c666) |
+| any of those, the saved block past the chapter's end                            | its top                                                                                        |
+| `?at=<block>.<offset>` (a reload, a bookmark, the URL the reader keeps)         | that character                                                                                 |
+| `?at=0.0`                                                                       | its top                                                                                        |
 
 The URL is the reader's only writer; `keepHistoryUrl()` copies it into the
 history entry too, so a popstate back into that entry opens what the reader was
@@ -395,7 +410,7 @@ and in R→L, a scroll to the left reads on). One gesture turns one page: the de
 included, is spent until the wheel has been quiet for 200ms (`WheelTurn`,
 `wheelForward` in `src/lib/reader/reader.ts`, covered by
 `tests/reader-domain.spec.ts`). Ctrl+wheel stays the browser's zoom, the wheel
-does nothing while a sheet, CONTENTS, the lookup or a full-screen image is open,
+does nothing while a sheet (the end page's DELETE among them), CONTENTS, the lookup or a full-screen image is open,
 and scroll layout scrolls as before. The owner asked for this on 2026-10-22.
 
 Arrows, Space, PageUp and PageDown turn too; OK (Enter), Esc or the mouse at
@@ -412,7 +427,7 @@ and BACK gives the pad to CONTENTS again. At the end of what is downloaded
 (END · LAST AVAILABLE, a volume that isn't the last) the pad reaches the
 rating, FAV, ← SERIES and LIBRARY, marked inside (c251); the last volume's end
 is the end page, which takes the pad the same way, and its library row
-(HIDE, or + ADD for a record, c655) is a stop of its own. Off a TV the arrows stay
+(DELETE, or + ADD for a record, c655) is a stop of its own. Off a TV the arrows stay
 the reader's whatever the controls.
 
 **CURSOR** is the image reader's row, with the same choice (c678, off by

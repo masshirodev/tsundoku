@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { END_PAGE_CONTROLS, endSheetOpen, holdWheelForEndSheet } from '$lib/reader/library-row';
 	import { leave } from '$lib/motion';
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
@@ -522,6 +523,11 @@
 					: new BookFailure('broken', 'THE CHAPTER WOULD NOT READ');
 			return;
 		}
+		// A saved place the chapter no longer has (its text changed, or the place
+		// is from another book's numbering): the top, rather than a block nothing
+		// answers (c622). Here because only the chapter knows how long it is;
+		// parseAt reads a URL and has no chapter to ask.
+		if (typeof at === 'object' && !ch.blocks[at.block]) at = 'start';
 		index = i;
 		atEnd = false;
 		chapter = ch;
@@ -546,9 +552,9 @@
 				: null;
 		onBand = false;
 		// The chapter's first character is its start, the band before it (c705):
-		// an entry opened with no `?at=` comes as that place, not as 'start', and
-		// so does the band's own page, whose URL keeps that character. SCROLL's
-		// `?at=0.0.<y>` keeps its line's height instead.
+		// 'start' and that place open alike, and the band's own page comes as
+		// that place, its URL keeping that character. SCROLL's `?at=0.0.<y>`
+		// keeps its line's height instead.
 		const first = typeof at === 'object' && at.block === 0 && at.offset === 0;
 		// Opened at its start, the chapter opens on its first page, the band's.
 		onLead = layout === 'paged' && (at === 'start' || first);
@@ -620,10 +626,9 @@
 		untrack(() => {
 			const at = appPage.url.searchParams.get('at');
 			const p = appPage.url.searchParams.get('p');
-			// No `?at=` reads as the chapter's first character, as it always has:
-			// the old split read '' as paragraph 0, so the server's place below is
-			// reached only by an `?at=` that isn't a place (reader notes, wave 25).
-			const place = at === null ? { block: 0, offset: 0, y: null } : parseAt(at);
+			// A place in the URL wins, `?at=0.0` included; no `?at=` (every door into
+			// a chapter links without one) is the server's saved place below (c622).
+			const place = parseAt(at);
 			const start: 'start' | 'end' | TextPosition =
 				p === 'last'
 					? 'end'
@@ -1201,6 +1206,12 @@
 			return;
 		}
 		if (!down) return;
+		// A control on the end page, or DELETE's confirmation over it, is its own:
+		// a press near the edge must not read as ‹ back (c655).
+		if (atEnd && (e.target as Element | null)?.closest?.(END_PAGE_CONTROLS)) {
+			down = null;
+			return;
+		}
 		// With the lookup open, a tap anywhere else closes it.
 		if (lookup) {
 			down = null;
@@ -1342,8 +1353,8 @@
 	});
 
 	function keydown(e: KeyboardEvent) {
-		// The lookup has the keyboard: Escape closes it (the panel's own).
-		if (lookup) return;
+		// The lookup, and DELETE's confirmation, have the keyboard (their own Escape).
+		if (lookup || endSheetOpen()) return;
 		if (fullImage || wide) {
 			if (e.key === 'Escape') fullImage = wide = null;
 			return;
@@ -1429,7 +1440,7 @@
 	function wheel(e: WheelEvent) {
 		// Ctrl is the browser's zoom, and a touchpad's pinch.
 		if (e.ctrlKey) return;
-		if (lookup || fullImage || wide || sheet || contents) return;
+		if (lookup || fullImage || wide || sheet || contents || holdWheelForEndSheet(e)) return;
 		if (layout === 'scroll') {
 			// A last chapter too short to scroll never fires onscroll, so the
 			// wheel that would have scrolled it is the one that ends it. The end
@@ -1843,6 +1854,7 @@
 					work={data.work}
 					{workHref}
 					inLibrary={!data.record}
+					deleteAsk={data.deleteAsk}
 					seriesHidden={data.series.hidden}
 					addHref={recordAddHref}
 				/>

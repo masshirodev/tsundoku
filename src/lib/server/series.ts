@@ -201,6 +201,13 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 /**
  * Mark entries read or unread. Only ids belonging to `seriesId` are touched,
  * so a crafted form cannot reach into another series.
+ *
+ * MARK UNREAD on a read entry starts it from the top (the owner's rule, c622,
+ * 2026-11-07): its place, and a novel's offset beside it, go with the mark,
+ * in both readers. A read entry's place is where the last read ended, so a
+ * ▶ CONTINUE that kept it would open a finished chapter on its last page. A
+ * mistaken MARK READ THROUGH is put back by its own door,
+ * `undoMarkReadThrough`, never through this one.
  */
 export function markEntries(
 	seriesId: number,
@@ -222,14 +229,21 @@ export function markEntries(
 				)
 				.all(seriesId, ...ids) as { id: number }[];
 			// Marked unread is remembered (rung 28), so an import doesn't bring an old read back.
-			const update = db.prepare(`UPDATE entries SET read_at = ?, unread_at = ? WHERE id = ?`);
+			// `changing` is what actually moves, so an entry MARK UNREAD reaches here was read.
+			const place = read ? '' : ', last_position = NULL, last_offset = NULL';
+			const update = db.prepare(
+				`UPDATE entries SET read_at = ?, unread_at = ?${place} WHERE id = ?`
+			);
 			const log = db.prepare(
 				`INSERT INTO reading_events (at, series_id, entry_id, kind) VALUES (?, ?, ?, ?)`
 			);
 			// The copies a chapter's representative stands for follow it, or the
 			// next reconcile would carry an old "read" back (doc/DUPLICATES.md).
+			// A copy keeps no place of its own past MARK UNREAD either: the next
+			// reconcile carries the latest copy's place to the representative
+			// (`mergedState`, doc/DUPLICATES.md).
 			const copies = db.prepare(
-				`UPDATE entries SET read_at = ?, unread_at = ? WHERE series_id = ? AND shadowed = 1
+				`UPDATE entries SET read_at = ?, unread_at = ?${place} WHERE series_id = ? AND shadowed = 1
 				AND position = (SELECT position FROM entries WHERE id = ?)`
 			);
 			for (const { id } of changing) {
@@ -245,22 +259,86 @@ export function markEntries(
 }
 
 /**
- * A long press on a chapter row (doc/SERIES.md): that chapter and every one
- * before it in reading order, read. Returns the ids that changed, so UNDO can
- * put back exactly those, and not a chapter that was already read.
+ * What a MARK READ THROUGH changed, as its band's UNDO posts it back (c666):
+ * the stamp every entry it read now holds, and each one's place at the press.
+ * `place` and `offset` are what each reader saved: an image's page or a
+ * novel's block, and the novel's character beside it. Null is never opened.
  */
-export function markReadThrough(seriesId: number, entryId: number, now = Date.now()): number[] {
+export type MarkedThrough = {
+	at: number;
+	places: { id: number; place: number | null; offset: number | null }[];
+};
+
+/**
+ * A long press on a chapter row (doc/SERIES.md): that chapter and every one
+ * before it in reading order, read. Returns the ids that changed and their
+ * places, so UNDO can put back exactly those, and not a chapter that was
+ * already read.
+ */
+export function markReadThrough(
+	seriesId: number,
+	entryId: number,
+	now = Date.now()
+): MarkedThrough {
 	const db = getDb();
-	const ids = (
-		db
-			.prepare(
-				`SELECT e.id FROM entries e JOIN entries t ON t.id = ? AND t.series_id = e.series_id
-				WHERE e.series_id = ? AND e.shadowed = 0 AND e.read_at IS NULL AND e.position <= t.position`
-			)
-			.all(entryId, seriesId) as { id: number }[]
-	).map((r) => r.id);
-	markEntries(seriesId, ids, true, now);
-	return ids;
+	const rows = db
+		.prepare(
+			`SELECT e.id, e.last_position AS place, e.last_offset AS offset
+			FROM entries e JOIN entries t ON t.id = ? AND t.series_id = e.series_id
+			WHERE e.series_id = ? AND e.shadowed = 0 AND e.read_at IS NULL AND e.position <= t.position`
+		)
+		.all(entryId, seriesId) as MarkedThrough['places'];
+	markEntries(
+		seriesId,
+		rows.map((r) => r.id),
+		true,
+		now
+	);
+	return { at: now, places: rows };
+}
+
+/**
+ * UNDO on MARKED READ THROUGH (c666): back to unread, each chapter at the
+ * place the press saw, which MARK UNREAD's clear must never reach.
+ *
+ * The press writes no place, so a chapter still holding the one it handed
+ * back needs nothing written but its marks: comparing is what restoring is
+ * here, and it means a forged place can only fail to match. A chapter that
+ * no longer holds this press's stamp or that place was read or marked since,
+ * in another tab or on another device. That is the owner's newer word, so it
+ * stays as it is and is counted in `kept`. No clock is compared.
+ */
+export function undoMarkReadThrough(
+	seriesId: number,
+	facts: MarkedThrough,
+	now = Date.now()
+): { undone: number; kept: number } {
+	const db = getDb();
+	return db
+		.transaction(() => {
+			const still = db.prepare(
+				`SELECT 1 FROM entries WHERE id = ? AND series_id = ? AND read_at = ?
+				AND last_position IS ? AND last_offset IS ?`
+			);
+			const unread = db.prepare(`UPDATE entries SET read_at = NULL, unread_at = ? WHERE id = ?`);
+			const copies = db.prepare(
+				`UPDATE entries SET read_at = NULL, unread_at = ? WHERE series_id = ? AND shadowed = 1
+				AND position = (SELECT position FROM entries WHERE id = ?)`
+			);
+			const log = db.prepare(
+				`INSERT INTO reading_events (at, series_id, entry_id, kind) VALUES (?, ?, ?, 'mark_unread')`
+			);
+			let undone = 0;
+			for (const { id, place, offset } of facts.places) {
+				if (!still.get(id, seriesId, facts.at, place, offset)) continue;
+				unread.run(now, id);
+				copies.run(now, seriesId, id);
+				log.run(now, seriesId, id);
+				undone += 1;
+			}
+			return { undone, kept: facts.places.length - undone };
+		})
+		.immediate();
 }
 
 export type ReadingEvent = {

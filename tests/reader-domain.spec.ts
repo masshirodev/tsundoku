@@ -36,7 +36,7 @@ import {
 	forwardBy,
 	isReaderPath
 } from '$lib/reader/reader';
-import { libraryCell } from '$lib/reader/library-row';
+import { libraryCells, sheetTakesWheel } from '$lib/reader/library-row';
 import {
 	DEFAULT_SETTINGS,
 	TEXT_FONTS,
@@ -767,54 +767,105 @@ describe('isReaderPath (c565, round 2)', () => {
 	});
 });
 
-describe('libraryCell (c655, round 2)', () => {
-	// The row's finite domain: which cell the end page draws, if any.
-	const state = (over: Partial<Parameters<typeof libraryCell>[0]>) => ({
+describe('sheetTakesWheel (c655): only a sheet with room that way keeps the wheel', () => {
+	const box = (scrollTop: number, clientHeight: number, scrollHeight: number) => ({
+		scrollTop,
+		clientHeight,
+		scrollHeight
+	});
+	it.each([
+		['nothing to scroll, up', box(0, 400, 400), -120, false],
+		['nothing to scroll, down', box(0, 400, 400), 120, false],
+		['at the head, up', box(0, 200, 400), -120, false],
+		['at the head, down', box(0, 200, 400), 120, true],
+		['in the middle, up', box(100, 200, 400), -120, true],
+		['in the middle, down', box(100, 200, 400), 120, true],
+		['at the foot, up', box(200, 200, 400), -120, true],
+		['at the foot, down', box(200, 200, 400), 120, false],
+		['a fractional foot, down', box(199.5, 200, 400), 120, false],
+		['no vertical wheel', box(100, 200, 400), 0, false]
+	])('%s', (_name, b, deltaY, takes) => {
+		expect(sheetTakesWheel(b, deltaY)).toBe(takes);
+	});
+});
+
+describe('libraryCells (c655, c673)', () => {
+	// The row's whole domain, each of its six switches both ways.
+	const bools = [false, true];
+	const states = bools.flatMap((inLibrary) =>
+		bools.flatMap((inWork) =>
+			bools.flatMap((hasAddHref) =>
+				bools.flatMap((seriesHidden) =>
+					bools.flatMap((added) =>
+						bools.map((unhidden) => ({
+							inLibrary,
+							inWork,
+							hasAddHref,
+							seriesHidden,
+							added,
+							unhidden
+						}))
+					)
+				)
+			)
+		)
+	);
+	const state = (over: Partial<(typeof states)[number]>) => ({
+		...states[0],
 		inLibrary: true,
-		inWork: false,
-		hasAddHref: false,
-		seriesHidden: false,
-		added: false,
-		hidden: false,
-		unhidden: false,
 		...over
 	});
 
-	it('a series in the library and in no Work offers HIDE', () => {
-		expect(libraryCell(state({}))).toBe('hide');
+	it('holds over the whole domain', () => {
+		expect(states).toHaveLength(64);
+		for (const s of states) {
+			const { cell, unhide } = libraryCells(s);
+			if (!s.inLibrary) {
+				expect(cell, JSON.stringify(s)).toBe(s.added ? 'added' : s.hasAddHref ? 'add' : null);
+				expect(unhide, JSON.stringify(s)).toBeNull();
+			} else {
+				expect(cell, JSON.stringify(s)).toBe('delete');
+				expect(unhide, JSON.stringify(s)).toBe(
+					s.seriesHidden && !s.inWork ? (s.unhidden ? 'unhidden' : 'unhide') : null
+				);
+			}
+		}
+	});
+
+	it('a library series offers DELETE, never HIDE', () => {
+		expect(libraryCells(state({}))).toEqual({ cell: 'delete', unhide: null });
 		// A series with a record's door known is still a library series.
-		expect(libraryCell(state({ hasAddHref: true }))).toBe('hide');
+		expect(libraryCells(state({ hasAddHref: true }))).toEqual({ cell: 'delete', unhide: null });
 	});
 
-	it('a series in a Work draws no cell: its HIDE is the Work’s own', () => {
-		for (const hasAddHref of [true, false])
-			expect(libraryCell(state({ inWork: true, hasAddHref }))).toBeNull();
+	it('a part of a Work offers DELETE too, as the series screen does, and no UNHIDE', () => {
+		expect(libraryCells(state({ inWork: true }))).toEqual({ cell: 'delete', unhide: null });
+		expect(libraryCells(state({ inWork: true, seriesHidden: true }))).toEqual({
+			cell: 'delete',
+			unhide: null
+		});
 	});
 
-	it('a hidden series offers UNHIDE, not HIDE again (c673)', () => {
-		// A hidden series is read only under /reveal, so its end is the one place
-		// its row must not hide it again.
-		expect(libraryCell(state({ seriesHidden: true }))).toBe('unhide');
-		// A Work's part still draws nothing: HIDE ALL or TAKE OUT is its own door.
-		expect(libraryCell(state({ seriesHidden: true, inWork: true }))).toBeNull();
+	it('a hidden series keeps UNHIDE beside DELETE (c673), and its answer is terminal', () => {
+		expect(libraryCells(state({ seriesHidden: true }))).toEqual({
+			cell: 'delete',
+			unhide: 'unhide'
+		});
+		expect(libraryCells(state({ seriesHidden: true, unhidden: true }))).toEqual({
+			cell: 'delete',
+			unhide: 'unhidden'
+		});
+	});
+
+	it('a browsing record keeps + ADD and draws no DELETE', () => {
+		const record = { inLibrary: false };
+		expect(libraryCells(state({ ...record, hasAddHref: true })).cell).toBe('add');
+		expect(libraryCells(state({ ...record, hasAddHref: true, added: true })).cell).toBe('added');
+		expect(libraryCells(state({ ...record, hasAddHref: false })).cell).toBeNull();
 		// A record is not a hidden library series.
-		expect(libraryCell(state({ seriesHidden: true, inLibrary: false, hasAddHref: true }))).toBe(
-			'add'
-		);
-	});
-
-	it('a browsing record offers ADD through its own door, and nothing without one', () => {
-		expect(libraryCell(state({ inLibrary: false, hasAddHref: true }))).toBe('add');
-		expect(libraryCell(state({ inLibrary: false, hasAddHref: false }))).toBeNull();
-	});
-
-	it('the page’s own answer wins over what it loaded', () => {
-		expect(libraryCell(state({ inLibrary: false, hasAddHref: true, added: true }))).toBe('added');
-		expect(libraryCell(state({ hidden: true }))).toBe('hidden');
-		expect(libraryCell(state({ seriesHidden: true, hidden: true }))).toBe('hidden');
-		expect(libraryCell(state({ seriesHidden: true, unhidden: true }))).toBe('unhidden');
-		// Even on a Work part, a terminal cell says what happened rather than
-		// offering the door again.
-		expect(libraryCell(state({ inWork: true, hidden: true }))).toBe('hidden');
+		expect(libraryCells(state({ ...record, hasAddHref: true, seriesHidden: true }))).toEqual({
+			cell: 'add',
+			unhide: null
+		});
 	});
 });

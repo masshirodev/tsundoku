@@ -204,12 +204,38 @@ CARRIED OUT`, with `BACK IN THE REVIEW` (refused: dropped, the pair is
   common case after an import, in one gesture where RANGE takes three taps.
   It's logged as marks (`mark_read`), not reading. It works on not-downloaded
   rows too, which a tap doesn't open, and is off while selecting.
+- **UNDO of a MARK READ THROUGH puts the old place back** (c666, the owner's
+  rule of 2026-11-07), through its own action, `?/undoMarkThrough`, because
+  `?/mark read=0` is MARK UNREAD, which clears the place. The answer of
+  `?/markThrough` carries the press's stamp and each changed chapter's
+  `last_position` and `last_offset` (a page, or a block and its character),
+  and UNDO posts them back. They are a claim, read as "UNDO's facts" says
+  (below), and compared: the press writes no place, so a chapter still
+  holding the press's stamp and the place it handed back goes back to unread
+  there, and a ▶ CONTINUE resumes it. A chapter read or marked since, in
+  another tab or on another device, no longer matches: it is the owner's newer
+  word, so it stays as it is, and the band says `PUT BACK n CHAPTERS` and `m
+READ OR MARKED SINCE · LEFT AS THEY ARE`. A reader still open elsewhere that
+  posts its place after the UNDO moves the place as any reading does; the
+  chapter is unread and resumes there. No `reading_events` row and no clock
+  decides any of it.
 - **The fold** only forms when it would hide at least three rows, because a
   fold of one saves nothing. It sits at the bottom when the list is flipped to
   newest-first. The flip is remembered per series on the device (localStorage).
 - **Mark read / unread** changes exactly the selected entries that weren't
   already in that state, and never an entry of another series, whatever the
   form says (`markEntries`).
+- **MARK UNREAD starts a read chapter from the top** (c652, c666; the owner's
+  rule of 2026-11-07, on c622). `?/mark read=0` clears `last_position` and
+  `last_offset` on every entry it changes (those are the ones that were read,
+  by a finish or by a mark), text and image and episode alike, and on the
+  copies a representative stands for, or the next reconcile would carry a
+  copy's place back ([`DUPLICATES.md`](DUPLICATES.md)). A chapter that was
+  never finished is not one it changes, so it keeps its place and ▶ CONTINUE
+  resumes it. Marking read writes no place. Rows already marked unread with
+  an old place keep it: nothing recorded which were finished when they were
+  marked, so no rung can tell them from a chapter left midway, and the owner
+  dropped that inference with the guard it would have needed.
 - **A tapped tag suggestion wins over the half-typed text.** The suggestion is
   submitted as `pick` beside the field's `tag`. Reading `tag` first once stored
   `genre:ise` instead of `genre:isekai`, a second spelling, which is exactly what

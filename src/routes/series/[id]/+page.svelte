@@ -5,6 +5,7 @@
 	import { movedUnit } from './move-words';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import DeleteSheet from './DeleteSheet.svelte';
+	import { entriesLine } from '$lib/reader/library-row';
 	import { lostLine } from '$lib/library/highlights';
 	import { replacing, stepsBackTo } from '$lib/back';
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
@@ -149,6 +150,8 @@
 	/** REVIEW → on MIGHT CONTINUE <WORK>: the sheet, in ADD TO A WORK. */
 	let reviewingWork = $state(false);
 	const markedThrough = $derived(form && 'markedThrough' in form ? form.markedThrough : null);
+	/** UNDO's answer: what it put back, and what had moved on since the press and was left. */
+	const undoneThrough = $derived(form && 'undoneThrough' in form ? form.undoneThrough : null);
 	// UNLINK's band (c520): what went, every column of it, so UNDO puts it back.
 	const unlinked = $derived(form && 'unlinked' in form ? (form.unlinked as UnlinkFacts) : null);
 	// RENAME's band (c526): the facts the action returned, so UNDO puts back exactly them.
@@ -676,17 +679,22 @@
 		>
 			{#snippet action()}
 				{#if markedThrough.ids.length > 0}
-					<form method="POST" action="?/mark" use:enhance>
-						{#each markedThrough.ids as id (id)}<input
-								type="hidden"
-								name="entry"
-								value={id}
-							/>{/each}
-						<button type="submit" name="read" value="0">UNDO</button>
+					<!-- Its own door: ?/mark read=0 is MARK UNREAD, which clears the place (c666). -->
+					<form method="POST" action="?/undoMarkThrough" use:enhance>
+						<input type="hidden" name="facts" value={JSON.stringify(markedThrough.facts)} />
+						<button type="submit">UNDO</button>
 					</form>
 				{/if}
 			{/snippet}
 		</Band>
+	{:else if undoneThrough && undoneThrough.kept > 0}
+		<!-- A chapter read or marked since the press stays as it is (c666). -->
+		<Band
+			title="PUT BACK {undoneThrough.undone} CHAPTER{undoneThrough.undone === 1 ? '' : 'S'}"
+			detail="{undoneThrough.kept} READ OR MARKED SINCE · LEFT AS {undoneThrough.kept === 1
+				? 'IT IS'
+				: 'THEY ARE'}"
+		/>
 	{:else if workJoined}
 		<!-- REVIEW's sheet added it (W7): the Work's name and the place it took, with UNDO. -->
 		<Band
@@ -963,7 +971,7 @@
 	open={deletingSeries}
 	title="DELETE {series.title.toUpperCase()}?"
 	lines={[
-		`${series.entries.length} ${series.entries.length === 1 ? 'ENTRY' : 'ENTRIES'} · ${fileMeta(series.entries)}`,
+		entriesLine(series.entries),
 		'ITS FILES MOVE TO THE TRASH FOLDER ON THE WORKSTATION.',
 		'ITS READING HISTORY GOES WITH IT.',
 		'A SCAN OR A SYNC WON’T BRING IT BACK.'

@@ -35,6 +35,7 @@ import {
 	addTag,
 	markEntries,
 	markReadThrough,
+	undoMarkReadThrough,
 	removeTag,
 	RenameError,
 	renameSeries,
@@ -112,7 +113,14 @@ import {
 	workOfferFor,
 	workParts
 } from '$lib/server/works';
-import { addFacts, hideFacts, parsePosted, renameFacts, takeOutFacts } from './posted-facts';
+import {
+	addFacts,
+	hideFacts,
+	markThroughFacts,
+	parsePosted,
+	renameFacts,
+	takeOutFacts
+} from './posted-facts';
 
 /** A Work's refusal (a part gone, a Work ended since), as a band on this screen, never a 500. */
 function refused(e: unknown) {
@@ -1184,9 +1192,33 @@ export const actions: Actions = {
 		const through = Number((await request.formData()).get('through'));
 		const entry = s.entries.find((e) => e.id === through);
 		if (!entry) return fail(400, { message: 'no such chapter in this series' });
-		const ids = markReadThrough(s.id, entry.id);
+		const facts = markReadThrough(s.id, entry.id);
 		afterReading(s.id);
-		return { markedThrough: { ids, label: entry.label, number: entry.number } };
+		return {
+			markedThrough: {
+				ids: facts.places.map((p) => p.id),
+				label: entry.label,
+				number: entry.number,
+				facts
+			}
+		};
+	},
+
+	/**
+	 * UNDO on MARKED READ THROUGH: unread again at the place each chapter was
+	 * left, through its own door because `?/mark read=0` clears the place
+	 * (MARK UNREAD starts a finished chapter from the top, c622). A chapter read
+	 * or marked since stays as it is, and the answer says how many.
+	 */
+	undoMarkThrough: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const posted = parsePosted((await request.formData()).get('facts'));
+		const facts = markThroughFacts(posted, new Set(s.entries.map((e) => e.id)));
+		if (!facts) return fail(400, { message: 'NOTHING TO UNDO' });
+		const undoneThrough = undoMarkReadThrough(s.id, facts);
+		// As `?/mark`'s unmark: a read tsundoku sent is taken back (doc/RANOBE.md).
+		if (undoneThrough.undone > 0) ranobeAfterReading(s.id);
+		return { undoneThrough };
 	},
 
 	/**

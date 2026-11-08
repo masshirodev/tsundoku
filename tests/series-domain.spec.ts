@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { markThroughFacts } from '../src/routes/series/[id]/posted-facts';
 import {
 	addedMonth,
 	bookMeta,
@@ -509,5 +510,46 @@ describe('SerialSaves: one save in flight per field, the last tap winning (c566)
 		expect(first.newer()).toBe(false);
 		void q.run('fav:1', h.save('0'));
 		expect(first.newer()).toBe(true);
+	});
+});
+
+describe('markThroughFacts: what an UNDO of MARK READ THROUGH may post back (c666)', () => {
+	const own = new Set([1, 2]);
+	const facts = { at: 500, places: [{ id: 1, place: 7, offset: 12 }] };
+
+	it('takes a whole answer of this series, a never-opened place included', () => {
+		expect(markThroughFacts(facts, own)).toEqual(facts);
+		const unopened = { at: 500, places: [{ id: 2, place: null, offset: null }] };
+		expect(markThroughFacts(unopened, own)).toEqual(unopened);
+	});
+
+	it('refuses anything else: nothing is written on a claim', () => {
+		for (const bad of [
+			null,
+			[],
+			'x',
+			{},
+			{ at: 500 },
+			{ at: 500, places: [] },
+			{ at: 'x', places: facts.places },
+			{ at: Number.NaN, places: facts.places },
+			{ at: 500, places: 'x' },
+			{ at: 500, places: [null] },
+			{ at: 500, places: [{}] },
+			{ at: 500, places: [{ id: 'x', place: 1, offset: 0 }] },
+			{ at: 500, places: [{ id: 0, place: 1, offset: 0 }] },
+			{ at: 500, places: [{ id: 1, place: -1, offset: 0 }] },
+			{ at: 500, places: [{ id: 1, place: 1.5, offset: 0 }] },
+			{ at: 500, places: [{ id: 1, place: 1 }] },
+			{ at: 500, places: [{ id: 1, place: '1', offset: 0 }] },
+			{ at: 500, places: [{ id: 1, place: 1, offset: 1.5 }] }
+		])
+			expect(markThroughFacts(bad, own)).toBeNull();
+	});
+
+	it('refuses an id of another series', () => {
+		expect(
+			markThroughFacts({ at: 500, places: [{ id: 99, place: 1, offset: 0 }] }, own)
+		).toBeNull();
 	});
 });

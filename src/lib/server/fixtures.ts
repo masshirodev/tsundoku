@@ -3,6 +3,7 @@ import { hueFor } from '../library/cover.ts';
 import { SAMPLE_PREFIX } from './pages/sample.ts';
 import { foldEditions, groupIntoSeries } from './books.ts';
 import type { Kind, Rating } from '../library/types.ts';
+import { kindFacts } from '../library/kinds.ts';
 
 /**
  * A development library, built from the sample rows the design handoff drew
@@ -47,6 +48,13 @@ const SAMPLE_ABOUT =
 
 // An episode has no pages; its size is a 24-minute 1080p episode's (doc/ANIME.md).
 const PAGES: Record<Kind, number> = { manga: 24, manhwa: 54, doujin: 30, novel: 100, anime: 0 };
+/**
+ * Where a novel's in-progress entry was left: a block, which is what a novel's
+ * `last_position` counts (a page is the image readers'; c653). Every chapter of
+ * the generated EPUB holds 15 blocks (`pages/sample-epub.ts`), so 7 is inside
+ * each and is no chapter's first.
+ */
+const NOVEL_PLACE = 7;
 const BYTES: Record<Kind, number> = {
 	manga: 14_000_000,
 	manhwa: 16_000_000,
@@ -555,7 +563,11 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 					arrived,
 					read ? added : null,
 					opened ? now - row.openedAgo! * minutes : read ? added : null,
-					inProgress ? (row.lastPage ?? Math.max(1, Math.round(pages * 0.22))) - 1 : null,
+					inProgress
+						? kindFacts(row.kind).medium === 'text'
+							? NOVEL_PLACE
+							: (row.lastPage ?? Math.max(1, Math.round(pages * 0.22))) - 1
+						: null,
 					pages,
 					file,
 					row.kind === 'novel' ? (n === 1 ? 3_100_000 : 0) : BYTES[row.kind],
