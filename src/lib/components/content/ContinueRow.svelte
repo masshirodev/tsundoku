@@ -83,7 +83,12 @@
 		aria-label={work?.upNext ? `Start ${title}` : `Resume ${title}`}
 		data-focus-id={focusId}
 		data-focus-start={startFocus ? '' : undefined}
-		onclick={() => onresume?.()}>{unavailable ? '—' : '▶'}</button
+		onclick={() => onresume?.()}
+		>{#if unavailable}—{:else}
+			<!-- Drawn, because a text ▶ is placed by the font's metrics (c840). The
+			     triangle's centroid, not its box, is the viewBox's middle: (4+4+13)/3 = 7. -->
+			<svg class="tri" viewBox="0 0 14 14" aria-hidden="true"><path d="M4 1 13 7 4 13Z" /></svg>
+		{/if}</button
 	>
 </div>
 
@@ -196,6 +201,11 @@
 	}
 	.go:disabled {
 		cursor: default;
+	}
+	.tri {
+		width: 14px;
+		height: 14px;
+		fill: currentColor;
 	}
 	/*
 	 * The TV's CONTINUE card (c238; TV-Library 3A; TV Calls, "CONTINUE"): one

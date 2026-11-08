@@ -194,6 +194,15 @@ The three reads behind a page are independent of the tiles' number: the
 units, the cards of the parts drawn, and every part of every Work on the
 page (`listTiles`, `cardsOf`, `partsOfWorks` in `src/lib/server/library.ts`).
 
+## The CONTINUE row
+
+One row per series or Work in progress (`ContinueRow.svelte`). **▶ is drawn, not
+typed** (c840): a text `▶` is placed by the font's metrics and sat 2 px right of
+its cell, so the cell draws a 14 px SVG triangle whose centroid, not its box, is
+the middle of the cell. An unavailable row keeps its `—` in the same cell.
+`tests/continue-row.e2e.ts` measures the ink's centroid from the cell's own
+pixels on the row's states.
+
 ## New chapters
 
 A tile's `+N` counts entries that **arrived after the series was last opened**:
