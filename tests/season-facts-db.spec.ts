@@ -39,7 +39,10 @@ afterAll(() => rmSync(work, { recursive: true, force: true }));
 const source = vi.hoisted(() => ({
 	/** Each source entry's episodes, by the id FOLLOW asks for: what the source lists now. */
 	lists: new Map<string, { url: string; name: string; episode_number: number }[]>(),
-	asked: [] as string[]
+	asked: [] as string[],
+	/** Episodes the fingerprint read streams for; `refuseStreams` ends it there, before ffmpeg. */
+	streamed: [] as number[],
+	refuseStreams: false
 }));
 vi.mock('$lib/server/engine/anime-source', async (original) => ({
 	...(await original<typeof import('$lib/server/engine/anime-source')>()),
@@ -62,18 +65,22 @@ vi.mock('$lib/server/engine/anime-source', async (original) => ({
 
 vi.mock('$lib/server/anime/streams', async (original) => ({
 	...(await original<typeof import('$lib/server/anime/streams')>()),
-	episodeStreams: async () => ({
-		entryId: 0,
-		intro: null,
-		ending: null,
-		resolvedAt: 0,
-		servers: [
-			{
-				name: 'One',
-				qualities: [{ height: 360, kind: 'hls', src: '/fake', audio: [], subtitles: [] }]
-			}
-		]
-	}),
+	episodeStreams: async (entryId: number) => {
+		source.streamed.push(entryId);
+		if (source.refuseStreams) return null;
+		return {
+			entryId: 0,
+			intro: null,
+			ending: null,
+			resolvedAt: 0,
+			servers: [
+				{
+					name: 'One',
+					qualities: [{ height: 360, kind: 'hls', src: '/fake', audio: [], subtitles: [] }]
+				}
+			]
+		};
+	},
 	probe: async () => ({ seconds: 1 })
 }));
 
@@ -91,6 +98,7 @@ const { recordView } = await import('$lib/server/browsing');
 const { addAnime, browseAnime } = await import('$lib/server/engine/anime-source');
 const move = await import('$lib/server/move');
 const { lookupAniSkip } = await import('$lib/server/anime/aniskip');
+const { fingerprintSeason } = await import('$lib/server/anime/skip-marks');
 const { writeSeries } = await import('$lib/server/import/write');
 const { planAnimeFolders, planAnimeSeries } = await import('$lib/server/import/anime');
 
@@ -126,6 +134,8 @@ beforeEach(() => {
 		DELETE FROM anime_checks; DELETE FROM anime_series;`);
 	source.lists.clear();
 	source.asked = [];
+	source.streamed = [];
+	source.refuseStreams = false;
 });
 
 const idOf = (url: string) => sourceMangaId('7', url);
@@ -974,6 +984,59 @@ describe('MOVE, by the season each entry is from', () => {
 		expect(() => move.applyMoveBack(a, list([1], 1), { db })).toThrow(/own source/);
 	});
 
+	describe('a MOVE clears the failures of what moved', () => {
+		const fail = (seriesId: number, entryId: number) =>
+			db
+				.prepare(
+					`INSERT INTO episode_failures (entry_id, series_id, first_at, last_at) VALUES (?, ?, 1, 1)`
+				)
+				.run(entryId, seriesId);
+		const failing = (seriesId: number) =>
+			(
+				db
+					.prepare(
+						`SELECT entry_id AS id FROM episode_failures WHERE series_id = ? ORDER BY entry_id`
+					)
+					.all(seriesId) as { id: number }[]
+			).map((r) => r.id);
+
+		it('a MOVE of one season clears that season’s and leaves another’s', () => {
+			const a = show('Show', 'aniyomi:7:/show');
+			const one = episode(a, 1, 1);
+			const two = episode(a, 2, 1);
+			fail(a, one);
+			fail(a, two);
+			move.applyMove(a, target('aniyomi:9:/second'), list([1], null, '/second'), {
+				now: 900,
+				db,
+				season: 2
+			});
+			expect(failing(a)).toEqual([one]);
+		});
+
+		it('a MOVE of the series leaves a season with a source of its own', () => {
+			const a = show('Show', 'aniyomi:7:/show');
+			const one = episode(a, 1, 1);
+			const two = episode(a, 2, 1);
+			facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:7:/own' }, db);
+			fail(a, one);
+			fail(a, two);
+			move.applyMove(a, target('aniyomi:9:/new'), list([1], 1), { now: 900, db });
+			expect(failing(a)).toEqual([two]);
+		});
+
+		it('a series with no rows clears all of them, as it did', () => {
+			const a = show('Plain', 'aniyomi:7:/plain');
+			fail(a, episode(a, 1, 1));
+			fail(a, episode(a, 2, 1));
+			move.applyMove(a, target('aniyomi:9:/new'), [...list([1], 1), ...list([1], 2, '/n2')], {
+				now: 900,
+				db
+			});
+			expect(failing(a)).toEqual([]);
+		});
+	});
+
 	describe('MOVE BACK counts a season’s key as held', () => {
 		const K = 'aniyomi:7:/k';
 		const T = 'aniyomi:9:/t';
@@ -1219,6 +1282,73 @@ describe('MOVE, by the season each entry is from', () => {
 		);
 		expect(r.matched).toBe(2);
 		expect(seriesOf(a).former_key).toBe('aniyomi:7:/plain');
+	});
+});
+
+describe('fingerprinting leaves alone the source a download is using', () => {
+	const SERIES = 'aniyomi:7:/series';
+	const SEASON = 'aniyomi:9:/season';
+	const downloading = (seriesId: number, entryId: number) =>
+		db
+			.prepare(
+				`INSERT INTO download_queue (entry_id, series_id, position, state, queued_at)
+				VALUES (?, ?, 1, 'downloading', 0)`
+			)
+			.run(entryId, seriesId);
+	// Whether it went on to the streams: a blocked one never asks for any.
+	async function reads(seriesId: number, playing: number): Promise<boolean> {
+		source.streamed = [];
+		await fingerprintSeason(seriesId, playing, { allowStreams: true, pauseMs: 0, db });
+		return source.streamed.length > 0;
+	}
+	beforeEach(() => {
+		db.exec(`DELETE FROM download_queue; DELETE FROM episode_marks;`);
+		source.refuseStreams = true;
+	});
+	function merged() {
+		const a = show('Merged', SERIES);
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: SEASON }, db);
+		return { a, one: episode(a, 1, 1), two: episode(a, 2, 1), twoNext: episode(a, 2, 2) };
+	}
+
+	it('an episode of a season with its own source is held by a download from that source', async () => {
+		const { a, two, twoNext } = merged();
+		downloading(a, twoNext);
+		expect(await reads(a, two)).toBe(false);
+	});
+
+	it('and not by a download from the series’ other source', async () => {
+		const { a, one, two } = merged();
+		downloading(a, one);
+		expect(await reads(a, two)).toBe(true);
+	});
+
+	it('the series’ own season is held by its own source and not by the season’s', async () => {
+		const { a, one, two } = merged();
+		downloading(a, two);
+		expect(await reads(a, one)).toBe(true);
+		db.exec(`DELETE FROM download_queue`);
+		const other = show('Other', 'aniyomi:7:/other');
+		downloading(other, episode(other, 1, 1));
+		expect(await reads(a, one)).toBe(false);
+	});
+
+	it('another series’ season counts by that season’s source, not by the series’', async () => {
+		const { a, two } = merged();
+		// Series key at source 7, its season 2 at source 9: the download is from 9.
+		const b = show('B', 'aniyomi:7:/b');
+		facts.putSeasonFact({ seriesId: b, season: 2, originKey: 'aniyomi:9:/b2' }, db);
+		downloading(b, episode(b, 2, 1));
+		expect(await reads(a, two)).toBe(false);
+	});
+
+	it('a series with no rows is held by its own source, as it was', async () => {
+		const a = show('Plain', SERIES);
+		const first = episode(a, 1, 1);
+		const next = episode(a, 1, 2);
+		expect(await reads(a, first)).toBe(true);
+		downloading(a, next);
+		expect(await reads(a, first)).toBe(false);
 	});
 });
 
