@@ -234,6 +234,10 @@
 			undo="?/undoAdd"
 			refusal={form?.message ?? null}
 			from={data.back}
+			shelves={data.shelves}
+			onShelves={data.addedShelves}
+			shelve="?/shelve"
+			shelfRefusal={form && 'shelf' in form ? (form.shelf ?? null) : null}
 		/>
 	{/if}
 

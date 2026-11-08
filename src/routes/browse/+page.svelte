@@ -160,6 +160,10 @@
 			reveal={data.reveal}
 			undo="?/undoAdd"
 			refusal={form && 'added' in form ? (form.added ?? null) : data.refused}
+			shelves={data.shelves}
+			onShelves={data.addedShelves}
+			shelve="?/shelve"
+			shelfRefusal={form && 'shelf' in form ? (form.shelf ?? null) : null}
 		/>
 	{/if}
 

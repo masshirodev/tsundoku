@@ -1,7 +1,14 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { concealBand, undoConceal } from './conceal.server';
-import { addedBand, standingRefusal, undoAdded } from './added.server';
+import {
+	addedBand,
+	bandShelves,
+	newShelfAdded,
+	shelveAdded,
+	standingRefusal,
+	undoAdded
+} from './added.server';
 import { isRevealed } from '$lib/server/prefs';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { engineDownSince } from '$lib/server/engine/client';
@@ -29,6 +36,8 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 		// source's page is not found, so the ADDED band is here. It names the
 		// source only when this viewer may see it (c605).
 		added,
+		// The shelves its series is on, for the band's chips (card c724).
+		addedShelves: bandShelves(added),
 		// A refused UNDO from a source's page, which can no longer draw its own
 		// band (c605): the refusal's code is the URL's, its words are here --
 		// while it still holds, re-asked on every load (c664).
@@ -51,5 +60,24 @@ export const actions: Actions = {
 		const r = await undoAdded(await request.formData(), null, isRevealed(cookies));
 		if ('to' in r) redirect(303, r.to);
 		return fail(r.status, { added: r.message });
+	},
+	/** PUT ON A SHELF on the ADDED band, here: the same chip as the source page's (`shelveAdded`). */
+	shelve: async ({ request }) => {
+		if (downloadsBackend() !== 'engine') error(404, 'not found');
+		const r = await shelveAdded(await request.formData(), null);
+		if ('status' in r) return fail(r.status, { shelf: r.message });
+		return { shelved: r };
+	},
+	/** + NEW SHELF on the ADDED band, here (`newShelfAdded`). */
+	newShelf: async ({ request, url }) => {
+		if (downloadsBackend() !== 'engine') error(404, 'not found');
+		const r = await newShelfAdded(
+			await request.formData(),
+			request.headers.get('referer'),
+			url,
+			null
+		);
+		if ('status' in r) return fail(r.status, { shelf: r.message });
+		redirect(303, r.to);
 	}
 };

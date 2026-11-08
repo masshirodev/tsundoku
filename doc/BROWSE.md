@@ -627,6 +627,45 @@ says "NO UNDO: SOMETHING OF IT IS DOWNLOADED OR READ NOW", and an UNDO
 tapped after that happened is refused with the same words. UNDO twice, or
 the band's URL after UNDO, finds no series, says nothing and undoes nothing.
 
+**Shelves in the ADD band** (card c724, wave 33; a friend's ask). Under this
+band, a second line in its panel: `PUT ON A SHELF:` and the owner's shelves
+(the library's collections) as chips, one tap each, several allowed, a
+second tap takes one off; the line says `ON LATER, TONIGHT` once it is on
+any. Then `+ NEW SHELF`, which opens `NewShelfSheet` as it is (the URL's
+`new=shelf`), at the strip's right end under UNDO, so a remote's ↓ from UNDO
+lands in the strip and ← walks the chips. The band still says ADDED TO THE
+LIBRARY, AND HIDDEN, with the chips under it. The last shelf a chip put the
+series on is offered first next time, per device (`tsundoku:add-shelf`, its
+id; read once as the band mounts, so the order can change once just after
+the first paint). Past six shelves the band draws the first six, always
+including any the series is on, and `N OTHER SHELVES` opens the SHELVES
+sheet (`ShelfPicker`, as it is, posting to the library's `?/shelf`). The
+rules are `src/lib/library/add-shelf.ts`.
+
+A chip posts to the page's own `?/shelve` (the source page's and BROWSE's,
+`shelveAdded` in `added.server.ts`), which writes through the SHELVES
+sheet's own `setInCollection`, and only for the band's own series
+(`bandSeries`: its id and its preview's key, as UNDO asks), so a chip tapped
+after UNDO, or on a stale band, shelves nothing and says `NOT SHELVED: THE
+SERIES IS NOT IN THE LIBRARY NOW`. `NewShelfSheet` posts only `name` to
+`?/newShelf`, and a relative `?/newShelf` drops the page's query, so
+`newShelfAdded` reads the band from the post's `Referer` (sent in full to
+the same origin by the browsers' default policy) and acts only when that is
+this page on this origin with a band whose facts hold; it lands back on the
+band, the sheet closed. No storage of its own: a shelf is a
+`collection_series` row, which cascades with the series, so **UNDO takes
+both back** (the series row goes, and its shelf rows with it); the shelves
+themselves stay. Without script a chip's post carries the band in its URL,
+as UNDO's does. Tested in `tests/add-shelf-domain.spec.ts`,
+`tests/add-shelf-db.spec.ts` and `tests/browse-add-shelf.e2e.ts`.
+
+**The series screen's band is not this one.** An ADD that is not hidden (the
+common case) lands on the new series with its own ADDED TO THE LIBRARY band
+(`src/routes/series/[id]/+page.svelte`), which is another slot's file in wave
+33; giving it the same chips is a patch for its owner
+(`doc/handoff-notes/browse.md`, wave 33, Gaps). The series screen already
+has the write: its `?/shelf` action.
+
 **Where the band lands** (c505, round 2). The ADD can itself make the source
 mostly hidden: more than half its series hidden (`mostlyHidden`), and the
 counts are asked again at once (`forgetSourceUse`), so on a source with

@@ -10,6 +10,12 @@ import { browseSource } from '$lib/server/engine/browse';
 import { addedHere } from '$lib/server/engine/source-flags';
 import { seriesWithOrigin, sourceOrigin } from '$lib/library/origin';
 import { kindFacts } from '$lib/library/kinds';
+import {
+	collectionExists,
+	createCollection,
+	seriesDetail,
+	setInCollection
+} from '$lib/server/library';
 
 /**
  * The ADDED band (cards c435, c505; doc/BROWSE.md, "Added hidden"): what a
@@ -137,6 +143,84 @@ export async function addedBand(
 		sourceHidden: !outside,
 		sourceName: shown?.name ?? null
 	};
+}
+
+/**
+ * The shelves (collection ids) a drawn band's series is on now, for its chips
+ * (card c724): the SHELVES row's own read (`seriesDetail`), whatever reveal
+ * says, since the band was drawn for this viewer already. Beside the band, not
+ * in it, so the band's own facts stay what they were (c505's specs pin them).
+ */
+export const bandShelves = (band: AddedBand | null): number[] =>
+	band ? (seriesDetail(band.seriesId, true)?.collections ?? []) : [];
+
+/** A chip tapped on a band whose series has gone (UNDO, another tab): the words the band shows. */
+export const SHELVE_GONE = 'the series is not in the library now';
+
+/**
+ * PUT ON A SHELF from the ADDED band (card c724; doc/BROWSE.md, "Shelves in
+ * the ADD band"): one chip's tap, on (`on=1`) or off (`on=0`), through the
+ * SHELVES sheet's own write (`setInCollection`). It asks the band's own facts
+ * (`bandSeries`: the series' id and key, from that preview), as UNDO does, so
+ * a chip tapped after UNDO, or on a band whose URL is stale, shelves nothing:
+ * the id alone is never trusted, since a later series may have been given it.
+ * A second tap of the same chip is the same write again (`INSERT OR IGNORE`,
+ * or a delete of nothing).
+ */
+export async function shelveAdded(
+	form: FormData,
+	sourceId: string | null
+): Promise<{ collection: number; on: boolean } | { status: 400 | 409; message: string }> {
+	const s = await bandSeries(
+		sourceId,
+		String(form.get('series') ?? ''),
+		String(form.get('preview') ?? '')
+	);
+	if (!s) return { status: 409, message: SHELVE_GONE };
+	const collection = Number(form.get('collection'));
+	if (!Number.isInteger(collection) || !collectionExists(collection))
+		return { status: 400, message: 'no such shelf' };
+	const on = form.get('on') !== '0';
+	setInCollection([s.seriesId], collection, on);
+	return { collection, on };
+}
+
+/**
+ * + NEW SHELF from the ADDED band: `NewShelfSheet` as it is, whose form posts
+ * only `name` to `?/newShelf`. The band is its page's URL, and a form's
+ * relative `?/newShelf` drops that query, so the band is read from where the
+ * post came from (`Referer`, sent in full to the same origin under the
+ * browsers' default policy), and only when that is this page (`path`) on this
+ * origin. The shelf is made and the series put on it only while the band's own
+ * facts hold, as for a chip; it lands back on the band, the sheet closed.
+ */
+export async function newShelfAdded(
+	form: FormData,
+	referer: string | null,
+	here: URL,
+	sourceId: string | null
+): Promise<{ to: string; collection: number } | { status: 400 | 409; message: string }> {
+	const name = String(form.get('name') ?? '').trim();
+	if (name === '') return { status: 400, message: 'a shelf needs a name' };
+	let from: URL;
+	try {
+		from = new URL(referer ?? '');
+	} catch {
+		return { status: 409, message: SHELVE_GONE };
+	}
+	if (from.origin !== here.origin || from.pathname !== here.pathname)
+		return { status: 409, message: SHELVE_GONE };
+	const p = from.searchParams;
+	const s =
+		p.get('added') === 'hidden'
+			? await bandSeries(sourceId, p.get('series'), p.get('preview'))
+			: null;
+	if (!s) return { status: 409, message: SHELVE_GONE };
+	const collection = createCollection(name);
+	setInCollection([s.seriesId], collection, true);
+	p.delete('new');
+	const q = p.toString();
+	return { to: `${from.pathname}${q ? `?${q}` : ''}`, collection };
 }
 
 /**
