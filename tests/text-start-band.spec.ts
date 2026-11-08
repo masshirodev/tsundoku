@@ -220,3 +220,309 @@ describe('bandTitle', () => {
 			if (bandTitle(t, null)) expect(bandTitle(t, t)).toBe(false);
 	});
 });
+
+/**
+ * c741: five shapes the rule still printed a title for. Each has its case, and
+ * a case for a real title that differs, so the rule did not simply widen.
+ */
+const quote = (text: string): LeadBlock => ({ tag: 'blockquote', text });
+
+describe('a short title line before a number-only heading (c741)', () => {
+	it('leaves the title out', () => {
+		const lines = leadLines([p('The Article'), h('Chapter 1'), p(LONG)]);
+		expect(lines).toEqual(['Chapter 1', 'The Article', 'Chapter 1 The Article']);
+		expect(bandTitle('Chapter 1: The Article', lines)).toBe(false);
+	});
+	it('still draws a title the line before the number is not', () => {
+		const lines = leadLines([p('Volume One'), h('Chapter 1'), p(LONG)]);
+		expect(bandTitle('Chapter 1: The Article', lines)).toBe(true);
+	});
+	it('reads the block right before the number, past one without text', () => {
+		expect(
+			bandTitle('The Article', leadLines([p('The Article'), fig, h('Chapter 1'), p(LONG)]))
+		).toBe(false);
+		// Not an earlier one: "Volume One" is what stands over this number.
+		expect(
+			bandTitle(
+				'The Article',
+				leadLines([p('The Article'), p('Volume One'), h('Chapter 1'), p(LONG)])
+			)
+		).toBe(true);
+	});
+	it('reads it only for a number: a heading that names something is the lead alone', () => {
+		expect(leadLines([p('The Article'), h('Interlude'), p(LONG)])).toEqual(['Interlude']);
+		expect(bandTitle('The Article', leadLines([p('The Article'), h('Interlude')]))).toBe(true);
+	});
+	it('still reads the line after as well as the line before', () => {
+		const lines = leadLines([p('Volume One'), h('Chapter 1'), h('The Article', 'h2'), p(LONG)]);
+		expect(bandTitle('Chapter 1: The Article', lines)).toBe(false);
+		expect(bandTitle('Chapter 1: Something Else', lines)).toBe(true);
+	});
+	it('reads the line before a number that is the last of the leading blocks', () => {
+		const shorts = Array.from({ length: LEAD_BLOCKS - 2 }, (_, i) => ({
+			tag: 'li',
+			text: `${i}`
+		}));
+		const lines = leadLines([...shorts, p('The Article'), h('Chapter 1'), h('Too far', 'h2')]);
+		expect(lines).toContain('The Article');
+		expect(lines).not.toContain('Too far');
+	});
+	it('takes a long paragraph before the number for the text, as ever', () => {
+		expect(leadLines([p(LONG), h('Chapter 1'), p('The Article')])).toEqual([]);
+	});
+});
+
+describe('a spelled-out chapter number (c741)', () => {
+	const ONES = 'one two three four five six seven eight nine'.split(' ');
+	const TEENS =
+		'ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split(' ');
+	const TENS = 'twenty thirty forty fifty sixty seventy eighty ninety'.split(' ');
+	/** 1 to 999 in words, written here rather than asked of the code it checks. */
+	const words = (n: number): string => {
+		if (n >= 100) {
+			const rest = n % 100;
+			const head = `${ONES[Math.floor(n / 100) - 1]} hundred`;
+			return rest ? `${head} and ${words(rest)}` : head;
+		}
+		if (n >= 20) {
+			const one = n % 10;
+			return one ? `${TENS[Math.floor(n / 10) - 2]}-${ONES[one - 1]}` : TENS[n / 10 - 2];
+		}
+		return n >= 10 ? TEENS[n - 10] : ONES[n - 1];
+	};
+
+	it('a number and a title in two blocks, the number in words', () => {
+		const lines = leadLines([h('Chapter One'), h('The Article', 'h2')]);
+		expect(bandTitle('Chapter 1: The Article', lines)).toBe(false);
+		expect(bandTitle('The Article', lines)).toBe(false);
+	});
+	it('still draws a title the line under the number is not', () => {
+		const lines = leadLines([h('Chapter One'), h('Interlude', 'h2')]);
+		expect(bandTitle('Chapter 1: The Article', lines)).toBe(true);
+		expect(bandTitle('The Article', leadLines([h('Chapter One'), p(LONG)]))).toBe(true);
+	});
+	it('every number from 1 to 300, in words, is that number', () => {
+		for (let n = 1; n <= 300; n++) {
+			const w = words(n);
+			expect(foldTitle(`Chapter ${w}`), w).toBe(String(n));
+			expect(foldTitle(`Chapter ${w}: The Article`), w).toBe('thearticle');
+			expect(bandTitle(`Chapter ${n}`, `Chapter ${w}`), w).toBe(false);
+		}
+	});
+	it('takes the other spellings of one number', () => {
+		for (const s of [
+			'Chapter Twenty One',
+			'chapter twenty-one',
+			'CHAPTER TWENTY-ONE',
+			'Ch. Twenty-One',
+			'Chap. Twenty-One',
+			'Ch Twenty One'
+		])
+			expect(foldTitle(s), s).toBe('21');
+		expect(foldTitle('Chapter One Hundred Five')).toBe('105');
+		expect(foldTitle('Chapter Hundred')).toBe('100');
+	});
+	it('different numbers in words are different titles', () => {
+		expect(bandTitle('Chapter 2', 'Chapter One')).toBe(true);
+		expect(bandTitle('Chapter Twenty', 'Chapter Twenty-One')).toBe(true);
+	});
+	it('counts only in the chapter prefix’s position: a title is not a number', () => {
+		for (const s of ['One Piece', 'Seven Seas', 'Twenty', 'Nine Lives', 'One', 'Ten'])
+			expect(foldTitle(s), s).toBe(s.toLowerCase().replace(/\s/g, ''));
+		expect(leadLines([h('One'), h('Piece', 'h2')])).toEqual(['One']);
+		expect(leadLines([h('Seven Seas'), h('Interlude', 'h2')])).toEqual(['Seven Seas']);
+		expect(bandTitle('Seven Seas', 'Chapter 7')).toBe(true);
+		expect(bandTitle('One Piece', 'Chapter 1')).toBe(true);
+	});
+	it('a word that starts with a number’s spelling is not one', () => {
+		expect(foldTitle('Chapter Oneness')).toBe('chapteroneness');
+		expect(foldTitle('Chapter Tenacity')).toBe('chaptertenacity');
+		expect(foldTitle('Chapter Sevens')).toBe('chaptersevens');
+	});
+	it('a separator after the number is not part of it', () => {
+		expect(foldTitle('Chapter Twenty - One More Day')).toBe('onemoreday');
+	});
+});
+
+describe('a title in a blockquote (c741)', () => {
+	it('with nothing else to read, the blockquote is the book’s line', () => {
+		const blocks = [quote('The Article'), p(LONG)];
+		expect(leadLine(blocks)).toBe('The Article');
+		expect(bandTitle('The Article', leadLines(blocks))).toBe(false);
+		expect(bandTitle('Chapter 1: The Article', leadLines(blocks))).toBe(false);
+	});
+	it('still draws a title the blockquote is not: an epigraph', () => {
+		const blocks = [quote('All happy families are alike.'), p(LONG)];
+		expect(bandTitle('The Article', leadLines(blocks))).toBe(true);
+	});
+	it('a blockquote too long to be a title line is not read', () => {
+		const long = 'x'.repeat(SHORT_LINE + 1);
+		expect(leadLines([quote(long), p(LONG)])).toEqual([]);
+		expect(bandTitle(long, leadLines([quote(long), p(LONG)]))).toBe(true);
+	});
+	it('does not take the place of a short paragraph or a heading', () => {
+		expect(leadLine([quote('An epigraph'), p('The Article'), p(LONG)])).toBe('The Article');
+		expect(leadLine([quote('An epigraph'), h('The Article'), p(LONG)])).toBe('The Article');
+		expect(
+			bandTitle('The Article', leadLines([quote('An epigraph'), p('The Article'), p(LONG)]))
+		).toBe(false);
+	});
+	it('is read beside a first short line that is not the title', () => {
+		const blocks = [quote('The Article'), p('"How large?" he asked.'), p(LONG)];
+		expect(bandTitle('The Article', leadLines(blocks))).toBe(false);
+		expect(bandTitle('Interlude', leadLines(blocks))).toBe(true);
+	});
+	it('is the line under a number as well', () => {
+		expect(
+			bandTitle('Chapter 1: The Article', leadLines([h('Chapter 1'), quote('The Article')]))
+		).toBe(false);
+	});
+	it('leaves every other tag out, as ever', () => {
+		expect(leadLines([{ tag: 'li', text: 'The Article' }, p(LONG)])).toEqual([]);
+	});
+});
+
+describe('a bare leading number in the table of contents (c741)', () => {
+	for (const toc of ['1. The Article', '1) The Article', '12.  The Article', '１． The Article'])
+		it(`"${toc}" is the title without its number`, () => {
+			expect(foldTitle(toc)).toBe('thearticle');
+			expect(bandTitle(toc, 'The Article')).toBe(false);
+			expect(bandTitle(toc, 'Chapter 1: The Article')).toBe(false);
+		});
+	it('still draws a numbered title the heading is not', () => {
+		expect(bandTitle('2. The Party', 'The Article')).toBe(true);
+		expect(bandTitle('1) The Article', 'Interlude')).toBe(true);
+	});
+	it('a number that is the title stays the title', () => {
+		expect(foldTitle('1984')).toBe('1984');
+		expect(foldTitle('1984 A Novel')).toBe('1984anovel');
+		expect(foldTitle('2001: A Space Odyssey')).toBe('2001aspaceodyssey');
+		expect(bandTitle('1984', 'The Party')).toBe(true);
+		expect(bandTitle('1984', '1984')).toBe(false);
+	});
+	it('takes the number only where something follows it, and only a dot or a bracket', () => {
+		expect(foldTitle('2.')).toBe('2');
+		expect(foldTitle('3.14 Pi')).toBe('314pi');
+		expect(foldTitle('4: Home')).toBe('4home');
+		expect(foldTitle('5 Home')).toBe('5home');
+	});
+	it('takes only the one leading number', () => {
+		expect(foldTitle('1. 2. Home')).toBe('2home');
+	});
+	it('a number before a chapter prefix leaves the prefix to be read', () => {
+		expect(foldTitle('1. Chapter 2: Home')).toBe('home');
+	});
+});
+
+describe('kanji numerals against Arabic ones (c741)', () => {
+	const DIGIT = '一二三四五六七八九'.split('');
+	/** 1 to 199 in kanji, written here rather than asked of the code it checks. */
+	const kanji = (n: number): string => {
+		let s = '';
+		if (n >= 100) {
+			s += '百';
+			n -= 100;
+		}
+		if (n >= 10) {
+			const tens = Math.floor(n / 10);
+			s += tens > 1 ? `${DIGIT[tens - 1]}十` : '十';
+			n %= 10;
+		}
+		return n ? s + DIGIT[n - 1] : s;
+	};
+
+	it('the card’s case: 第一章 is 第1章', () => {
+		expect(bandTitle('第1章', '第一章')).toBe(false);
+		expect(bandTitle('第一章', '第1章')).toBe(false);
+	});
+	it('still draws a different number', () => {
+		expect(bandTitle('第2章', '第一章')).toBe(true);
+		expect(bandTitle('第十章', '第1章')).toBe(true);
+		expect(bandTitle('第二十一章', '第12章')).toBe(true);
+	});
+	it('every number from 1 to 199 in kanji is that number, in each counter', () => {
+		for (let n = 1; n <= 199; n++) {
+			const k = kanji(n);
+			for (const counter of '話话章回節节') {
+				expect(foldTitle(`第${k}${counter}`), k).toBe(String(n));
+				expect(bandTitle(`第${n}${counter}`, `第${k}${counter}`), k).toBe(false);
+			}
+		}
+	});
+	it('reads the forms a chapter number is written in', () => {
+		const FORMS: [string, string][] = [
+			['十', '10'],
+			['十一', '11'],
+			['二十', '20'],
+			['二十一', '21'],
+			['九十九', '99'],
+			['百', '100'],
+			['百一', '101'],
+			['百十', '110'],
+			['百二十', '120'],
+			['二百', '200'],
+			['三百五', '305'],
+			['千', '1000'],
+			['千一', '1001'],
+			['千二百三十四', '1234'],
+			['一千', '1000'],
+			['三千', '3000'],
+			['九千九百九十九', '9999'],
+			// A digit at a time, as a year is written: no 十 to say which place.
+			['一二', '12'],
+			['二〇二', '202'],
+			['二零二', '202'],
+			['百〇五', '105'],
+			['〇', '0'],
+			['零', '0'],
+			['〇一', '1']
+		];
+		for (const [k, n] of FORMS) expect(foldTitle(`第${k}章`), k).toBe(n);
+	});
+	it('leaves an Arabic number as it was written', () => {
+		expect(foldTitle('第212話')).toBe('212');
+		expect(foldTitle('第２１２話')).toBe('212');
+		expect(foldTitle('第012話')).toBe('012');
+	});
+	it('takes a kanji numeral only as a chapter number', () => {
+		expect(foldTitle('一')).toBe('一');
+		expect(foldTitle('二十四の瞳')).toBe('二十四の瞳');
+		expect(bandTitle('二十四の瞳', '第24章')).toBe(true);
+	});
+	it('with a title after the number', () => {
+		expect(bandTitle('第1章 旅立ち', '第一章　旅立ち')).toBe(false);
+		expect(bandTitle('第1章 旅立ち', '第一章　帰郷')).toBe(true);
+	});
+});
+
+describe('the fold holds on its own output, over c741’s shapes', () => {
+	const ALL = [
+		'Chapter One',
+		'chapter twenty-one: x',
+		'Chapter One Hundred and Five',
+		'Chapter One Chapter Two',
+		'Chapter Oneness',
+		'chapter-one',
+		'One Piece',
+		'Seven Seas',
+		'1. The Article',
+		'1) The Article',
+		'1. 2. Home',
+		'1) 2',
+		'1. Chapter 2',
+		'1984',
+		'2.',
+		'3.14 Pi',
+		'第一章',
+		'第1章',
+		'第百二十話 x',
+		'第千章',
+		'第〇章',
+		'第一章第二章',
+		'二十四の瞳',
+		'一'
+	];
+	it('every one', () => {
+		for (const s of ALL) expect(foldTitle(foldTitle(s)), s).toBe(foldTitle(s));
+	});
+});
