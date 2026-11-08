@@ -16,6 +16,7 @@
 	import StartList from '$lib/components/start/StartList.svelte';
 	import StartFirstDay from '$lib/components/start/StartFirstDay.svelte';
 	import { countLine, readLeads } from '$lib/library/start';
+	import { pollStart } from '$lib/start-trail.svelte';
 	import { updateRun } from '$lib/update-run.svelte';
 	import { appUpdater } from '$lib/app/update.svelte';
 	import {
@@ -34,8 +35,7 @@
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import ContinueRow from '$lib/components/content/ContinueRow.svelte';
 	import CoverTile from '$lib/components/content/CoverTile.svelte';
-	import Cover from '$lib/components/content/Cover.svelte';
-	import Sheet from '$lib/components/chrome/Sheet.svelte';
+	import SelectionSheet from './search/SelectionSheet.svelte';
 	import WorkTile from '$lib/components/content/WorkTile.svelte';
 	import FocusLine from '$lib/components/content/FocusLine.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
@@ -91,25 +91,38 @@
 	import { num, upper } from '$lib/i18n/format';
 	import type { Rating, Kind, RefreshBatch, SeriesCard, Shelf } from '$lib/library/types';
 	import { groupAnswers } from '$lib/library/books';
-	import {
-		allHiddenAmong,
-		isFinished,
-		wholeBand,
-		wholeLine,
-		type LibraryCard
-	} from '$lib/library/works';
+	import { allHiddenAmong, wholeBand, wholeLine, type LibraryCard } from '$lib/library/works';
 	import { pageQuery } from '$lib/library/paging';
 	import {
+		carrySelection,
+		landing,
 		pickedInOrder,
+		pickedOfCard,
+		pickedOfPart,
 		refreshFacts,
 		titlesLine,
-		unseenCount,
+		drawnToNote,
+		takeCarried,
+		UnseenFacts,
 		workOf,
 		type Picked
 	} from '$lib/library/selection';
 	import type { Snapshot } from './$types';
 
 	let { data, form } = $props();
+	/**
+	 * GET STARTED on the empty library asks for itself again, so a phone
+	 * pairing or a download ticks its step without a reload (c722;
+	 * doc/ONBOARDING.md). Exactly while the list is drawn: the condition is
+	 * the markup's own (`data.empty`, then a start view not finished), so the
+	 * poll stops when the library fills or the list finishes (the effect
+	 * re-runs and hands back the stop), and when the page is left (the
+	 * effect is torn down), and never starts on a library with series.
+	 */
+	const startListDrawn = $derived(data.empty && !!data.start && !data.start.finished);
+	$effect(() => {
+		if (startListDrawn) return pollStart();
+	});
 
 	/**
 	 * A new version's band (doc/UPDATES.md), once per version: gone once the
@@ -572,6 +585,61 @@
 	/** SHOW (c698): the selection listed to review, and what it listed when it opened. */
 	let reviewing = $state(false);
 	let shownIds = $state<number[]>([]);
+	/** SELECT ALL's series from pages never loaded, read by id (c737). */
+	const unseen = new UnseenFacts();
+	const heldBySheet = () => new Set(reviewing ? shownIds : []);
+	/**
+	 * SELECT ALL's reads still out: the id GET and the by-id read behind it,
+	 * as one promise (a second press joins the first). It never rejects, so a
+	 * failed read ends the wait and leaves what was selected.
+	 */
+	let selectingAll: Promise<void> | null = null;
+	/** Which selection this is: ✕ and a bulk action's success start the next. */
+	let selectionRun = 0;
+	/** The last tap still waiting on those reads: only it opens its sheet. */
+	let lastTap = 0;
+	/**
+	 * Fill in what SELECT ALL took unseen, before SHOW lists it or a bulk
+	 * action reads it. SELECT ALL's id read comes first, or there is nothing
+	 * yet to fill (GroupSheet takes its rows once, on open).
+	 */
+	async function fillUnseen(): Promise<void> {
+		while (selectingAll) await selectingAll;
+		await unseen.fill(selected, facts, heldBySheet);
+	}
+	/**
+	 * Open a bulk action's sheet once the selection is whole. A tap made while
+	 * the reads are out is dropped by ✕, or by a later tap, which is the one
+	 * the owner meant.
+	 */
+	async function openWhenFilled(open: () => void): Promise<void> {
+		const tap = ++lastTap;
+		await fillUnseen();
+		if (tap === lastTap) open();
+	}
+	/**
+	 * A selection carried back from the search (c698; doc/LIBRARY.md, "What
+	 * ends SELECT"): ←, a chip or a shelf there lands here still selecting,
+	 * the ticks made there and their facts included. Taken once, at the
+	 * page's start, so the first paint is already the selecting bar.
+	 */
+	if (browser) {
+		const back = takeCarried(landing(page.url));
+		if (back) {
+			selecting = true;
+			for (const id of back.ids) selected.add(id);
+			for (const p of back.facts) if (selected.has(p.id)) facts.set(p.id, p);
+		}
+	}
+	/** The search with SELECT on (c698): the ids and their facts go with it. */
+	beforeNavigate((nav) => {
+		if (!selecting || nav.to?.route.id !== '/search') return;
+		carrySelection({
+			ids: [...selected],
+			facts: [...facts.values()],
+			to: landing(nav.to.url)
+		});
+	});
 
 	// ---- the server in use (c261, S1; doc/TV-APP.md, "Servers") -------------
 	/*
@@ -695,11 +763,34 @@
 		reviewing = false;
 		selected.clear();
 		facts.clear();
+		unseen.reset();
+		selectingAll = null;
+		selectionRun++;
+		lastTap++;
+	}
+
+	/**
+	 * The `/` key while selecting opens the search with SELECT on, as the bar's
+	 * `/` cell does (c698; Bars-Desktop). Not while typing into a field or with
+	 * a sheet open, and not with a modifier, which is the browser's or the
+	 * system's.
+	 */
+	function slashToTick(e: KeyboardEvent) {
+		if (!selecting || e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+		if (e.defaultPrevented) return;
+		const t = e.target as HTMLElement | null;
+		if (t?.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]'))
+			return;
+		if (document.querySelector('[role="dialog"]')) return;
+		e.preventDefault();
+		void goto(resolve('/search'));
 	}
 
 	function openShow() {
+		lastTap++;
 		shownIds = [...selected];
 		reviewing = true;
+		void fillUnseen();
 	}
 
 	// ---- sheets ------------------------------------------------------------
@@ -779,47 +870,19 @@
 		}
 		for (const c of series) {
 			if (!c.tile) {
-				out.push({
-					id: c.id,
-					title: c.title,
-					hue: c.hue,
-					addedAt: c.addedAt,
-					cover: c.cover,
-					kind: c.kind,
-					entryCount: c.entryCount,
-					meta: sheetMeta(c),
-					work: work(c.id),
-					inWork: work(c.id)?.name ?? null,
-					hidden: c.hidden,
-					language: c.language ?? null,
-					languages: c.languages
-				});
+				out.push(pickedOfCard(c, work(c.id)));
 				continue;
 			}
-			for (const p of c.tile.parts)
-				out.push({
-					id: p.seriesId,
-					title: p.title,
-					hue: hueFor(p.title),
-					addedAt: p.addedAt,
-					cover: p.cover,
-					kind: p.kind,
-					entryCount: p.entries,
-					meta: `${kindLabel(p.kind)} · ${count(p.entries)} ${unitLabel(p.kind)}${isFinished(p) ? ' · READ ✓' : ''}`,
-					work: work(p.seriesId),
-					inWork: c.tile.name,
-					hidden: p.hidden,
-					language: null,
-					languages: undefined
-				});
+			for (const p of c.tile.parts) out.push(pickedOfPart(p, c.tile.name, work(p.seriesId)));
 		}
 		return out;
 	});
 	// Note what is drawn of the selection, and forget what left it. The map is
-	// written outside the tracking, so writing it cannot re-run this.
+	// written outside the tracking, so writing it cannot re-run this. With
+	// nothing selected `drawnPicked` is not read, so it is never built (c740).
 	$effect(() => {
-		const drawn = drawnPicked;
 		const ids = new Set(selected);
+		const drawn = drawnToNote(selecting, ids, () => drawnPicked);
 		const held = new Set(reviewing ? shownIds : []);
 		untrack(() => {
 			const { set, drop } = refreshFacts(ids, facts, drawn, held);
@@ -1662,27 +1725,44 @@
 	 * SELECT ALL means the whole shelf, pages not yet loaded included: their
 	 * ids come without their cards.
 	 */
-	async function selectAll() {
+	function selectAll() {
 		// The loaded tiles at once, a Work's parts with it (a Work tile is one
 		// tile over its parts, doc/WORKS.md).
 		for (const s of shown) for (const id of cardIds(s)) selected.add(id);
 		// CACHED narrows on the device: only the tablet knows what it holds, so
 		// the server cannot answer its ids.
 		if (data.shelf === 'cached') return;
+		const q = pageQuery({
+			shelf: data.shelf,
+			tag: data.tag,
+			filters: data.filters,
+			sort: data.sort,
+			dir: dirParam,
+			offset: 0,
+			limit: 0
+		});
+		const read = readEveryId(q, new Set(selected), selectionRun);
+		const all: Promise<void> = Promise.all([selectingAll, read]).then(() => {
+			if (selectingAll === all) selectingAll = null;
+		});
+		selectingAll = all;
+	}
+
+	/**
+	 * Every page's ids, unit-aware so a Work's parts a kind shelf never picked
+	 * are selected too, then their facts (c737), so SHOW lists them and GROUP
+	 * counts them. `taken` is what was selected at the press: one of those no
+	 * longer selected was unticked while this was out, so it stays unticked.
+	 */
+	async function readEveryId(q: string, taken: Set<number>, run: number): Promise<void> {
 		try {
-			const q = pageQuery({
-				shelf: data.shelf,
-				tag: data.tag,
-				filters: data.filters,
-				sort: data.sort,
-				dir: dirParam,
-				offset: 0,
-				limit: 0
-			});
-			// Every page, not only the loaded ones -- and unit-aware, so a Work's
-			// parts a kind shelf never picked are selected too.
 			const res = await fetch(`/api/library?${q}&ids=1`);
-			if (res.ok) for (const id of ((await res.json()) as { ids: number[] }).ids) selected.add(id);
+			const ids = res.ok ? ((await res.json()) as { ids: number[] }).ids : [];
+			// ✕ while it was out: this selection has ended.
+			if (run !== selectionRun) return;
+			for (const id of ids) if (!taken.has(id)) selected.add(id);
+			if (reviewing) shownIds = [...new Set([...shownIds, ...selected])];
+			await unseen.fill(selected, facts, heldBySheet);
 		} catch {
 			// Offline: the loaded pages stay selected, which is what's on screen.
 		}
@@ -1726,6 +1806,7 @@
 	bind:innerHeight={winH}
 	onpointerdowncapture={dropFilterNote}
 	onkeydowncapture={dropFilterNote}
+	onkeydown={slashToTick}
 	onsubmitcapture={() => (passed = form)}
 />
 
@@ -1755,10 +1836,28 @@
 					disabled={selected.size === 0}
 					onclick={openShow}>SHOW</button
 				>
+				<!-- The way to the search with SELECT on (c698; Bars-Phone, Bars-Tablet):
+				     the bar's empty middle, drawn like the library's own search hint; on a
+				     phone `/` alone. -->
+				<a
+					class="to-tick"
+					href={resolve('/search')}
+					aria-label={m.library_search_to_tick_label()}
+					data-focus-mark="in"><b>/</b><span class="long">{m.library_search_to_tick()}</span></a
+				>
 			{/snippet}
 			{#snippet right()}
-				<button type="button" class="cell-btn" data-focus-mark="in" onclick={() => void selectAll()}
-					>SELECT ALL</button
+				<!-- ALL on a phone, to make room for `/`, as in GROUP's own select bar; its
+				     name stays SELECT ALL. -->
+				<button
+					type="button"
+					class="cell-btn"
+					aria-label="SELECT ALL"
+					data-focus-mark="in"
+					onclick={selectAll}
+					><span class="all-long">SELECT ALL</span><span class="all-short"
+						>{m.library_select_all_short()}</span
+					></button
 				>
 			{/snippet}
 		</TopBar>
@@ -2498,7 +2597,7 @@
 						type="button"
 						class="group"
 						disabled={selected.size === 0}
-						onclick={() => (grouping = true)}>GROUP</button
+						onclick={() => void openWhenFilled(() => (grouping = true))}>GROUP</button
 					>
 				{/if}
 				<!-- REFRESH (c221): asks each selected series' source once, and downloads nothing. -->
@@ -2521,15 +2620,19 @@
 						>
 					{/if}
 				{:else if selectedWorks.length > 0}
-					<button type="button" disabled={selected.size === 0} onclick={() => (hiding = true)}
-						>HIDE</button
+					<button
+						type="button"
+						disabled={selected.size === 0}
+						onclick={() => void openWhenFilled(() => (hiding = true))}>HIDE</button
 					>
 				{:else}
 					<button type="submit" name="do" value="hide" disabled={selected.size === 0}>HIDE</button>
 				{/if}
 				<!-- Asks first (doc/DELETING.md): duplicates are cleared in bulk. -->
-				<button type="button" disabled={selected.size === 0} onclick={() => (deleting = true)}
-					>DELETE</button
+				<button
+					type="button"
+					disabled={selected.size === 0}
+					onclick={() => void openWhenFilled(() => (deleting = true))}>DELETE</button
 				>
 			{/snippet}
 		</BulkBar>
@@ -2632,46 +2735,16 @@
 />
 
 <!-- SHOW (c698): the selection, wherever it was ticked, in the order it was
-     ticked. A row's tick takes it out and puts it back; the rows stay until
-     the sheet closes, so a slip is undone where it was made. GROUP's own
-     sheet draws its rows the same way. -->
-<Sheet open={reviewing} onclose={() => (reviewing = false)} label="The selection">
-	<div class="show-head">
-		<div class="show-title">
-			THE SELECTION · {selected.size} SERIES
-		</div>
-		<button type="button" class="show-done" onclick={() => (reviewing = false)}>DONE</button>
-	</div>
-	<ul class="show-rows">
-		{#each pickedInOrder(shownIds, facts) as p (p.id)}
-			{@const on = selected.has(p.id)}
-			<li class="show-row" class:off={!on}>
-				<button
-					type="button"
-					class="show-tick"
-					role="checkbox"
-					aria-checked={on}
-					aria-label="Keep {p.title}"
-					onclick={() => toggle(p.id)}><span class="box" class:on>{on ? '✓' : ''}</span></button
-				>
-				<span class="show-cov"
-					><Cover src={coverSrc(p.id, p.cover)} hue={p.hue} width={34} height={49} /></span
-				>
-				<span class="show-t">
-					<span class="a">{p.title}</span>
-					<span class="b">{p.meta}{p.work ? ` · IN ${p.work.name.toUpperCase()}` : ''}</span>
-				</span>
-			</li>
-		{/each}
-	</ul>
-	{#if unseenCount(shownIds, facts) > 0}
-		<!-- SELECT ALL takes the pages not loaded by id alone: they are selected,
-		     and the bulk bar acts on them, but the page has never drawn them. -->
-		<div class="show-unseen">
-			{count(unseenCount(shownIds, facts))} MORE FROM SELECT ALL · NOT LOADED, SO NOT LISTED
-		</div>
-	{/if}
-</Sheet>
+     ticked; the search draws the same sheet. -->
+<SelectionSheet
+	open={reviewing}
+	ids={shownIds}
+	{facts}
+	{selected}
+	{unseen}
+	ontoggle={toggle}
+	onclose={() => (reviewing = false)}
+/>
 
 <style>
 	.tag-title {
@@ -3223,104 +3296,51 @@
 		font: 500 18px var(--font-mono);
 	}
 	/* SHOW's sheet (c698): GROUP's sheet's head and rows, drawn the same way. */
-	.show-head {
-		flex-shrink: 0;
-		display: flex;
-		align-items: stretch;
-		height: 64px;
-		border-bottom: var(--hairline);
-	}
-	.show-title {
-		flex: 1;
-		display: flex;
-		align-items: center;
-		padding: 0 24px;
-		font: var(--type-control);
-	}
-	.show-done {
-		padding: 0 24px;
-		border: 0;
-		border-left: var(--hairline);
-		border-radius: 0;
-		background: transparent;
-		color: var(--text-1);
-		font: var(--type-control);
-		cursor: pointer;
-	}
-	.show-rows {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-	}
-	.show-row {
-		display: flex;
-		align-items: stretch;
-		min-height: 64px;
-		border-bottom: var(--hairline);
-	}
-	.show-row.off {
-		opacity: 0.4;
-	}
-	.show-tick {
-		width: 64px;
-		flex-shrink: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border: 0;
-		border-radius: 0;
-		background: transparent;
-		cursor: pointer;
-	}
-	.show-tick .box {
-		width: 24px;
-		height: 24px;
-		border: 1.5px solid var(--line-2);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 500 14px var(--font-mono);
-		color: var(--on-accent);
-	}
-	.show-tick .box.on {
-		border-color: var(--accent);
-		background: var(--accent);
-	}
-	.show-cov {
-		display: flex;
-		align-items: center;
-		padding-right: 16px;
-	}
-	.show-t {
-		flex: 1;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		gap: 4px;
-		padding: 8px 24px 8px 0;
-	}
-	.show-t .a {
-		font: 500 14px/1.3 var(--font-sans);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	.show-t .b {
-		font: 400 11px/1.35 var(--font-mono);
-		color: var(--text-2);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	.show-unseen {
-		padding: 16px 24px;
-		font: var(--type-label);
-		color: var(--text-2);
-	}
 	.selected-count {
 		padding: 0 18px;
 		font: 500 17px var(--font-mono);
+	}
+	/* `/ SEARCH TO TICK` (c698; Bars-Tablet, Bars-Desktop): the bar's empty middle,
+	   the library's search hint in inverse. A phone has `/` alone (Bars-Phone),
+	   and the count takes the room instead. */
+	.to-tick {
+		flex: 1;
+		min-width: 0;
+		gap: 1ch;
+		padding: 0 18px;
+		border-left: 1px solid var(--text-2);
+		color: var(--text-inverse);
+		font: 400 16px var(--font-mono);
+		text-decoration: none;
+		white-space: nowrap;
+		overflow: hidden;
+	}
+	.to-tick b {
+		font-weight: 500;
+	}
+	.to-tick:active {
+		background: var(--surface-page);
+		color: var(--text-1);
+	}
+	.all-short {
+		display: none;
+	}
+	@media (max-width: 599px) {
+		.selecting .selected-count {
+			flex: 1;
+		}
+		.to-tick {
+			flex: 0 0 auto;
+			padding: 0 var(--pad);
+			font: 500 16px var(--font-mono);
+		}
+		.to-tick .long,
+		.all-long {
+			display: none;
+		}
+		.all-short {
+			display: inline;
+		}
 	}
 	.cont {
 		flex-shrink: 0;

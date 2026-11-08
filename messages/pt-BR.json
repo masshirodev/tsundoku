@@ -902,5 +902,17 @@
 			}
 		}
 	],
-	"settings_extensions_where": "EM {browse} › {extensions}"
+	"settings_extensions_where": "EM {browse} › {extensions}",
+	"library_search_to_tick": "BUSCAR PARA MARCAR",
+	"library_search_to_tick_label": "Buscar para marcar",
+	"library_select_all_short": "TODAS",
+	"search_select": "SELECIONAR",
+	"search_tap_ticks": "UM TOQUE MARCA",
+	"search_chips_selecting": "ABRE NA BIBLIOTECA, AINDA SELECIONANDO",
+	"search_chips_selecting_short": "ABRE, AINDA SELECIONANDO",
+	"search_work_some_ticked": "{ticked} DE {total} MARCADAS",
+	"search_work_both_ticked": "AS DUAS MARCADAS",
+	"search_work_all_ticked": "TODAS MARCADAS",
+	"library_show_asking": "MAIS {n} DO SELECT ALL · CARREGANDO",
+	"library_show_gone": "{n} APAGADAS OU OCULTADAS DESDE O SELECT ALL · RETIRADAS"
 }

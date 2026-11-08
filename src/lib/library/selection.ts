@@ -1,3 +1,7 @@
+import { SvelteSet } from 'svelte/reactivity';
+import { hueFor } from './cover.ts';
+import { count, kindLabel, sheetMeta, unitLabel } from './labels.ts';
+import { isFinished, type LibraryCard, type WorkPart } from './works.ts';
 import type { Kind } from './types.ts';
 
 /**
@@ -88,6 +92,23 @@ export function workOf(
 }
 
 /**
+ * The drawn series to note facts from (c740): none while SELECT is off or
+ * nothing is ticked, without calling `drawn` at all. Building a Picked record
+ * for every loaded series and Work part (`sheetMeta` included) on each load
+ * was an O(n) pass the page paid on every reload with nothing selected. What
+ * the skipped pass would have dropped is still dropped: `refreshFacts` with no
+ * drawn series forgets every fact not selected or held, which is how SHOW's
+ * held rows keep theirs while the last tick is undone in the sheet.
+ */
+export function drawnToNote(
+	selecting: boolean,
+	selected: ReadonlySet<number>,
+	drawn: () => Iterable<Picked>
+): Iterable<Picked> {
+	return selecting && selected.size > 0 ? drawn() : [];
+}
+
+/**
  * Note the facts of every drawn series that is selected, and forget those of
  * series no longer selected -- except `held`, the rows SHOW lists while it is
  * open, whose untick is undone where it was made. Returns the changes, so a
@@ -127,4 +148,275 @@ function samePicked(a: Picked, b: Picked): boolean {
 		a.language === b.language &&
 		(a.languages ?? []).join(',') === (b.languages ?? []).join(',')
 	);
+}
+
+/** A Work as the page names it: what `Picked.work` holds. */
+type WorkName = { id: number; name: string };
+
+/**
+ * A series card's facts, as a selection keeps them: a library tile in no
+ * Work, or a search's title hit (the search answers the same card shape,
+ * `LibraryCard & { why }`). `work` is the Work it is a part of, where the
+ * page knows it.
+ */
+export function pickedOfCard(c: LibraryCard, work: WorkName | null): Picked {
+	return {
+		id: c.id,
+		title: c.title,
+		hue: c.hue,
+		addedAt: c.addedAt,
+		cover: c.cover,
+		kind: c.kind,
+		entryCount: c.entryCount,
+		meta: sheetMeta(c),
+		work,
+		inWork: work?.name ?? null,
+		hidden: c.hidden,
+		language: c.language ?? null,
+		languages: c.languages
+	};
+}
+
+/**
+ * A Work's part, as a selection keeps it: a part of a Work tile in the
+ * library, or of a Work the search found by name. `inWork` is the Work's own
+ * name, which GROUP's row reads ("IN <WORK> · MOVES HERE").
+ */
+export function pickedOfPart(p: WorkPart, inWork: string, work: WorkName | null): Picked {
+	return {
+		id: p.seriesId,
+		title: p.title,
+		hue: hueFor(p.title),
+		addedAt: p.addedAt,
+		cover: p.cover,
+		kind: p.kind,
+		entryCount: p.entries,
+		meta: `${kindLabel(p.kind)} · ${count(p.entries)} ${unitLabel(p.kind)}${isFinished(p) ? ' · READ ✓' : ''}`,
+		work,
+		inWork,
+		hidden: p.hidden,
+		// FOLD is the grid's: a Work's part is never folded from a selection.
+		language: null,
+		languages: undefined
+	};
+}
+
+/**
+ * How a Work's row stands in a selection (the search's Work hit, c698): every
+ * part ticked, some, or none. A tap on a row not wholly ticked ticks the rest,
+ * as a Work tile's does; a tap on a wholly ticked one unticks every part.
+ */
+export function workTicks(
+	parts: readonly number[],
+	selected: ReadonlySet<number>
+): { ticked: number; total: number; state: 'all' | 'some' | 'none' } {
+	const ticked = parts.filter((id) => selected.has(id)).length;
+	const total = parts.length;
+	const state = total > 0 && ticked === total ? 'all' : ticked > 0 ? 'some' : 'none';
+	return { ticked, total, state };
+}
+
+/** The ids a tap on a Work's row ticks (`add`) or unticks (`remove`). */
+export function workTap(
+	parts: readonly number[],
+	selected: ReadonlySet<number>
+): { add: number[]; remove: number[] } {
+	if (workTicks(parts, selected).state === 'all') return { add: [], remove: [...parts] };
+	return { add: parts.filter((id) => !selected.has(id)), remove: [] };
+}
+
+/**
+ * A selection on its way between the library and the search (c698;
+ * doc/LIBRARY.md, "What ends SELECT"): the ids in the order they were ticked,
+ * their facts, and the address it is going to.
+ */
+export type Carried = {
+	ids: number[];
+	facts: Picked[];
+	/** Where the navigation that carries it lands: `pathname + search`. */
+	to: string;
+};
+
+/**
+ * The one selection in flight, in this tab's memory and nowhere else: not the
+ * URL (a link or a new tab must not arrive selecting), not history state (a
+ * reload must end SELECT, and a browser keeps history state across one), not
+ * storage. So a reload or a new tab starts with none, and a client-side
+ * navigation -- a tap, ←, Android's back, the browser's forward -- carries it.
+ * Only the browser writes it: on the server this module is shared by every
+ * request, so `carrySelection` refuses to write there.
+ */
+let inFlight: Carried | null = null;
+
+export function carrySelection(c: Carried): void {
+	if (typeof window === 'undefined') return;
+	inFlight = { ids: [...c.ids], facts: [...c.facts], to: c.to };
+}
+
+/**
+ * The selection carried to `here` (`pathname + search`), taken once. One
+ * carried anywhere else is dropped: a navigation that was cancelled or
+ * redirected must not leave a selection for the next arrival to pick up.
+ */
+export function takeCarried(here: string): Carried | null {
+	const c = inFlight;
+	inFlight = null;
+	return c && c.to === here ? c : null;
+}
+
+/** Where a URL lands, as `Carried.to` and `takeCarried` compare it. */
+export const landing = (u: URL): string => `${u.pathname}${u.search}`;
+
+/**
+ * The facts of `want` among cards the library answered by id (c737; POST
+ * `/api/library`, the grid's own card shape): a series in no Work as itself,
+ * a Work tile's wanted parts as parts. A wanted id the answer does not hold
+ * (deleted since, or hidden with reveal off) is simply absent.
+ */
+export function pickedOfCards(cards: readonly LibraryCard[], want: ReadonlySet<number>): Picked[] {
+	const out: Picked[] = [];
+	for (const c of cards) {
+		if (!c.tile) {
+			if (want.has(c.id)) out.push(pickedOfCard(c, null));
+			continue;
+		}
+		const work = { id: c.tile.id, name: c.tile.name };
+		for (const p of c.tile.parts)
+			if (want.has(p.seriesId)) out.push(pickedOfPart(p, c.tile.name, work));
+	}
+	return out;
+}
+
+/** How many ids at most one by-id read answers: the grid's own cap. */
+export const FACTS_MAX = 10_000;
+
+/**
+ * What a by-id read answered (c737): the facts of the wanted ids it found, and
+ * the ids the library itself says are gone (deleted since, or hidden under the
+ * request's reveal). An id in neither was not answered (past a cap, or a
+ * chunk that failed) and is not gone.
+ */
+export type FactsAnswer = { picked: Picked[]; missing: number[] };
+
+/**
+ * The facts of `ids` from the library by id (c737), in chunks of `FACTS_MAX`
+ * since the server reads no more than that at once. Null when nothing could be
+ * asked; a chunk that fails after one that answered keeps what came back.
+ */
+export async function readFacts(ids: readonly number[]): Promise<FactsAnswer | null> {
+	const out: FactsAnswer = { picked: [], missing: [] };
+	for (let at = 0; at < ids.length; at += FACTS_MAX) {
+		const chunk = ids.slice(at, at + FACTS_MAX);
+		try {
+			const res = await fetch('/api/library', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ ids: chunk })
+			});
+			if (!res.ok) return at === 0 ? null : out;
+			const { series, missing } = (await res.json()) as {
+				series: LibraryCard[];
+				missing?: number[];
+			};
+			out.picked.push(...pickedOfCards(series, new Set(chunk)));
+			out.missing.push(...(missing ?? []));
+		} catch {
+			return at === 0 ? null : out;
+		}
+	}
+	return out;
+}
+
+/**
+ * How many of SHOW's ids the read took out and are still out (c737): named
+ * missing, and neither ticked again since nor drawn with facts. A series
+ * taken out and then ticked by hand from a tile or a hit is listed, so it is
+ * not also counted as TAKEN OUT.
+ */
+export function goneCount(
+	ids: readonly number[],
+	gone: ReadonlySet<number>,
+	selected: ReadonlySet<number>,
+	facts: ReadonlyMap<number, Picked>
+): number {
+	let n = 0;
+	for (const id of ids) if (gone.has(id) && !selected.has(id) && !facts.has(id)) n++;
+	return n;
+}
+
+/**
+ * Filling in the facts of selected series the page never drew (c737): SELECT
+ * ALL's pages not loaded, so SHOW lists them and GROUP counts them. One read
+ * for every selected id without facts that is not already being asked or
+ * already answered as gone. An id the library names as missing (deleted
+ * since, or hidden with reveal off: hidden means hidden) is taken out of the
+ * selection and counted in `gone`, so no bulk action posts a series the
+ * owner can no longer see; an id it merely did not answer stays selected and
+ * unlisted, as an offline read leaves it. A read that answers after `reset`
+ * (✕, a bulk action's success) is dropped. Reactive sets, so SHOW redraws as
+ * it lands.
+ *
+ * `fill` settles only once every read in flight has, its own and any an
+ * earlier call started: GROUP tapped while SELECT ALL's own read is out must
+ * open on every selected series, since its sheet takes its rows once, on open.
+ */
+export class UnseenFacts {
+	/** Ids being asked for now. */
+	readonly asking = new SvelteSet<number>();
+	/** Ids the library named as missing, taken out of the selection. */
+	readonly gone = new SvelteSet<number>();
+	#gen = 0;
+	readonly #pending = new Set<Promise<void>>();
+	readonly #read: (ids: readonly number[]) => Promise<FactsAnswer | null>;
+
+	constructor(read: (ids: readonly number[]) => Promise<FactsAnswer | null> = readFacts) {
+		this.#read = read;
+	}
+
+	async fill(
+		selected: Set<number>,
+		facts: Map<number, Picked>,
+		held: () => ReadonlySet<number> = () => new Set()
+	): Promise<void> {
+		const want = [...selected].filter(
+			(id) => !facts.has(id) && !this.asking.has(id) && !this.gone.has(id)
+		);
+		if (want.length > 0) {
+			const read = this.#ask(want, selected, facts, held);
+			this.#pending.add(read);
+			void read.then(() => this.#pending.delete(read));
+		}
+		await Promise.all([...this.#pending]);
+	}
+
+	async #ask(
+		want: number[],
+		selected: Set<number>,
+		facts: Map<number, Picked>,
+		held: () => ReadonlySet<number>
+	): Promise<void> {
+		const gen = this.#gen;
+		for (const id of want) this.asking.add(id);
+		const got = await this.#read(want).catch(() => null);
+		if (gen !== this.#gen) return;
+		for (const id of want) this.asking.delete(id);
+		// Not asked: offline, or the server refused. They stay selected and
+		// unlisted, and the next SHOW asks again.
+		if (!got) return;
+		const keep = held();
+		for (const p of got.picked) if (selected.has(p.id) || keep.has(p.id)) facts.set(p.id, p);
+		const asked = new Set(want);
+		for (const id of got.missing) {
+			if (!asked.has(id) || facts.has(id)) continue;
+			this.gone.add(id);
+			selected.delete(id);
+		}
+	}
+
+	reset(): void {
+		this.#gen++;
+		this.#pending.clear();
+		this.asking.clear();
+		this.gone.clear();
+	}
 }
