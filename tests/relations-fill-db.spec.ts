@@ -559,6 +559,268 @@ describe('Unreachable and a 429 (c839)', () => {
 	});
 });
 
+const html = (status: number) => () =>
+	new Response(`<html>${status} Bad Gateway</html>`, {
+		status,
+		headers: { 'content-type': 'text/html' }
+	});
+const json = (status: number, payload: unknown) => () =>
+	new Response(JSON.stringify(payload), {
+		status,
+		headers: { 'content-type': 'application/json' }
+	});
+const relationRows = () =>
+	(db.prepare(`SELECT COUNT(*) AS n FROM series_relations`).get() as { n: number }).n;
+/** `shows` anime and `books` comics, every one answerable: a library past a pass's limit. */
+const library = (shows: number, books: number) => ({
+	shows: Array.from({ length: shows }, (_, i) =>
+		anime(`Outage Show ${i}`, chain(300_000 + i * 10))
+	),
+	books: Array.from({ length: books }, (_, i) => {
+		world(400_000 + i, 'MANGA', 'MANGA');
+		return comic(`Outage Comic ${i}`, 'manga', 400_000 + i, 'MANGA');
+	})
+});
+/** A season of episodes the series holds beyond the one its link names. */
+const holds = (id: number, season: number) =>
+	db
+		.prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, source_url, season, episode_number)
+			VALUES (?, ?, 'Ep.', ?, ?, ?, 1)`
+		)
+		.run(id, season, NOW, `/f/${id}/${season}`, season);
+
+describe('AniList down as a whole (c839, round 2)', () => {
+	const OUTAGES: [string, () => Response][] = [
+		['status 502 with an HTML body', html(502)],
+		[
+			'status 503 with a JSON errors body',
+			json(503, { data: null, errors: [{ message: 'Service Unavailable', status: 503 }] })
+		],
+		['status 500 with an empty body', () => new Response('', { status: 500 })],
+		['status 504 with an empty body', () => new Response('', { status: 504 })],
+		['status 520 with an HTML body', html(520)],
+		['a 200 whose body is not JSON', html(200)],
+		['a 404 whose body is not JSON', html(404)],
+		['a 400 whose body is not JSON', html(400)],
+		[
+			'a 5xx whose errors all say 404',
+			json(502, { data: null, errors: [{ message: 'Not Found.', status: 404 }] })
+		],
+		['a 403 with an HTML body', html(403)],
+		['a 403 with a JSON body', json(403, { data: null, errors: [{ message: 'x', status: 403 }] })]
+	];
+
+	it.each(OUTAGES)('%s stops the pass, unstamped and quiet', async (_name, outage) => {
+		fresh();
+		library(25, 25);
+		const c = quietly();
+		before = outage;
+		const r = await cat.fillRelations({ now: NOW });
+		expect(r).toMatchObject({ unreachable: true, refreshed: 0, failed: 0 });
+		expect(r.reason).toMatch(/^AniList \d+: /);
+		expect(requests).toBe(1);
+		expect(relationRows()).toBe(0);
+		expect(c.error).not.toHaveBeenCalled();
+
+		const loop = fill.fillLoop({ first: FAR, every: FAR }, (o) =>
+			cat.fillRelations({ ...o, now: NOW })
+		);
+		for (let i = 0; i < 4; i++) await loop.tick();
+		loop.stop();
+		expect(requests).toBe(5);
+		expect(relationRows()).toBe(0);
+		expect(c.error).not.toHaveBeenCalled();
+		expect(c.log.mock.calls.map((a) => String(a[0]))).toEqual([
+			'[relations] AniList is unreachable: the next pass carries on'
+		]);
+	});
+
+	it('costs nothing once AniList answers: the next tick gets graphs, with no day to wait', async () => {
+		fresh();
+		const { shows, books } = library(25, 25);
+		quietly();
+		before = html(502);
+		for (let i = 0; i < 3; i++) await cat.fillRelations({ now: NOW + i * TICK });
+		expect(relationRows()).toBe(0);
+
+		before = null;
+		heard();
+		const back = await cat.fillRelations({ now: NOW + 3 * TICK });
+		expect(back).toMatchObject({ unreachable: false, refreshed: 20, failed: 0 });
+		for (let i = 4; i < 6; i++) await cat.fillRelations({ now: NOW + i * TICK });
+		for (const id of [...shows, ...books]) expect(graphOf(id)).not.toBeNull();
+		heard();
+		await cat.fillRelations({ now: NOW + 6 * TICK });
+		expect(requests).toBe(0);
+	});
+
+	it.each([
+		[
+			'a 400, as AniList answers a query it refuses',
+			json(400, {
+				errors: [{ message: 'Cannot query field "x" on type "Media".', status: 400 }],
+				data: null
+			})
+		],
+		[
+			'a 200 with an errors array that is not a 404',
+			json(200, { errors: [{ message: 'Validation', status: 422 }], data: null })
+		]
+	])('%s still counts against the series, so it cannot stall the pass', async (_name, wrong) => {
+		fresh();
+		const { shows } = library(12, 0);
+		const c = quietly();
+		before = wrong;
+		const first = await cat.fillRelations({ now: NOW });
+		expect(first).toMatchObject({ unreachable: false, refreshed: 0, failed: 10 });
+		expect(requests).toBe(10);
+		expect(relationRows()).toBe(10);
+		expect(c.error).toHaveBeenCalledTimes(10);
+		heard();
+		await expect(cat.fillRelations({ now: NOW + TICK })).resolves.toMatchObject({ failed: 2 });
+		expect(requests).toBe(2);
+		expect(shows.every((id) => row(id)?.graph === null)).toBe(true);
+		heard();
+		await cat.fillRelations({ now: NOW + 2 * TICK });
+		expect(requests).toBe(0);
+	});
+
+	it('keeps tried_at and the graph of a series refreshed during an outage', async () => {
+		fresh();
+		const { shows, books } = library(1, 1);
+		await cat.fillRelations({ now: NOW });
+		const kept = [row(shows[0]), row(books[0])];
+		expect(kept.every((k) => k?.graph)).toBe(true);
+		heard();
+		before = html(502);
+		const stale = NOW + rel.RELATIONS_STALE_MS + 1;
+		await expect(cat.fillRelations({ now: stale })).resolves.toMatchObject({ unreachable: true });
+		expect(requests).toBe(1);
+		expect([row(shows[0]), row(books[0])]).toEqual(kept);
+		before = null;
+		await cat.fillRelations({ now: stale });
+		expect(row(shows[0])?.fetched_at).toBe(stale);
+	});
+
+	it('an outage that starts between two series keeps what the first one stored', async () => {
+		fresh();
+		const { shows } = library(2, 0);
+		before = (n) => (n === 2 ? html(502)() : undefined);
+		await expect(cat.fillRelations({ now: NOW })).resolves.toMatchObject({ unreachable: true });
+		expect(requests).toBe(2);
+		expect(graphOf(shows[0])).not.toBeNull();
+		expect(row(shows[1])).toBeUndefined();
+		before = null;
+		heard();
+		await cat.fillRelations({ now: NOW + TICK });
+		expect(requests).toBe(1);
+		expect(graphOf(shows[1])).not.toBeNull();
+	});
+
+	it('an outage inside a walk stores none of that walk', async () => {
+		fresh();
+		const base = 500_000;
+		world(base, 'ANIME', 'TV', [
+			{ relationType: 'SEQUEL', node: node(base + 1, 'ANIME', 'TV', 2001) }
+		]);
+		world(
+			base + 1,
+			'ANIME',
+			'TV',
+			[
+				{ relationType: 'PREQUEL', node: node(base, 'ANIME', 'TV', 2000) },
+				{ relationType: 'SEQUEL', node: node(base + 2, 'ANIME', 'TV', 2002) }
+			],
+			2001
+		);
+		world(
+			base + 2,
+			'ANIME',
+			'TV',
+			[{ relationType: 'PREQUEL', node: node(base + 1, 'ANIME', 'TV', 2001) }],
+			2002
+		);
+		const show = anime('A Long Chain', base);
+		holds(show, 2);
+		holds(show, 3);
+		before = (n) => (n === 2 ? html(502)() : undefined);
+		await expect(cat.fillRelations({ now: NOW })).resolves.toMatchObject({ unreachable: true });
+		expect(requests).toBe(2);
+		expect(row(show)).toBeUndefined();
+		before = null;
+		await cat.fillRelations({ now: NOW + TICK });
+		expect(graphOf(show)).not.toBeNull();
+	});
+
+	it('a 502 while the comics are asked alone stores and stamps none of them', async () => {
+		fresh();
+		world(600_000, 'MANGA', 'MANGA');
+		world(600_002, 'MANGA', 'MANGA');
+		const books = [
+			comic('Alone A', 'manga', 600_000, 'MANGA'),
+			// Not in the world: AniList voids the request of three for this one.
+			comic('Alone Dead', 'manga', 600_001, 'MANGA'),
+			comic('Alone C', 'manga', 600_002, 'MANGA')
+		];
+		const c = quietly();
+		before = (n) => (n === 3 ? html(502)() : undefined);
+		await expect(cat.fillRelations({ now: NOW })).resolves.toMatchObject({ unreachable: true });
+		expect(requests).toBe(3);
+		expect(relationRows()).toBe(0);
+		expect(c.error).not.toHaveBeenCalled();
+		before = null;
+		await cat.fillRelations({ now: NOW + TICK });
+		expect(graphOf(books[0])).not.toBeNull();
+		expect(graphOf(books[2])).not.toBeNull();
+		expect(row(books[1])).toMatchObject({ graph: null, tried_at: NOW + TICK });
+	});
+
+	it('a 502 while an anime’s seasons are asked alone stores and stamps nothing', async () => {
+		fresh();
+		chain(700_000);
+		const show = anime('Three Links', 700_000);
+		holds(show, 2);
+		holds(show, 3);
+		// The middle season is the dead one: it voids the walk's first request.
+		expect(seasons.linkSeason(show, 2, 1, entry(700_500, 'TV'), 'review', NOW)).toBe(true);
+		expect(seasons.linkSeason(show, 3, 1, entry(700_001, 'TV'), 'review', NOW)).toBe(true);
+		const c = quietly();
+		before = (n) => (n === 2 ? html(502)() : undefined);
+		await expect(cat.fillRelations({ now: NOW })).resolves.toMatchObject({ unreachable: true });
+		expect(requests).toBe(2);
+		expect(row(show)).toBeUndefined();
+		expect(c.error).not.toHaveBeenCalled();
+	});
+
+	it('a 502 in the comics’ step keeps the graphs the anime step stored', async () => {
+		fresh();
+		const { shows, books } = library(1, 1);
+		const c = quietly();
+		before = (n) => (n === 2 ? html(502)() : undefined);
+		await expect(cat.fillRelations({ now: NOW })).resolves.toMatchObject({ unreachable: true });
+		expect(graphOf(shows[0])).not.toBeNull();
+		expect(row(books[0])).toBeUndefined();
+		expect(c.error).not.toHaveBeenCalled();
+		before = null;
+		heard();
+		await cat.fillRelations({ now: NOW + TICK });
+		expect(asked).toEqual([400_000]);
+		expect(graphOf(books[0])).not.toBeNull();
+	});
+
+	it('leaves `refreshLinks` as it was: an outage there still counts against the series', async () => {
+		fresh();
+		const { shows } = library(1, 0);
+		const c = quietly();
+		before = html(502);
+		const r = await cat.refreshLinks({ now: NOW, limit: 0 });
+		expect(r).toMatchObject({ unreachable: false, relations: 0 });
+		expect(row(shows[0])).toMatchObject({ graph: null, tried_at: NOW });
+		expect(c.error).toHaveBeenCalledTimes(1);
+	});
+});
+
 describe('two passes at once (c839)', () => {
 	it('stands aside for a link pass in this process, and asks again once it is done', async () => {
 		fresh();

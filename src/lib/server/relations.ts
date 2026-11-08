@@ -339,9 +339,10 @@ export function linkPassRunning(now = Date.now(), db: Database.Database = getDb(
  * cache can't answer for them, the ones never asked first, then by when they
  * were last asked, each walked afresh and stored when the walk ends. A walk
  * that fails (AniList answering nothing, an error) keeps the graph the series
- * had and moves only `tried_at`, so the next pass asks the others first. An
- * `Unreachable` (catalogue.ts) is not caught here: the pass stops and the next
- * one carries on, as it does for the links. A cache whose series has no link
+ * had and moves only `tried_at`, so the next pass asks the others first. What
+ * `fatal` names (`Unreachable`, and for the fill `AnilistDown`; catalogue.ts) is
+ * not caught here: the pass stops and the next one carries on, as it does for
+ * the links. A cache whose series has no link
  * any more (UNLINK) is dropped, so a reader never meets a graph for a link
  * the series doesn't have.
  */
@@ -351,7 +352,7 @@ export async function refreshRelations(
 		limit?: number;
 		now?: number;
 		log?: (line: string) => void;
-		/** Whether a failure is the pass's to stop on (catalogue.ts' `Unreachable`). */
+		/** Whether a failure is the pass's to stop on (catalogue.ts' `Unreachable`, `AnilistDown`). */
 		fatal?: (e: unknown) => boolean;
 		/** The background fill's patience with a series that failed (`waitsItsTurn`). */
 		retryMs?: number;

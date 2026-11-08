@@ -71,8 +71,23 @@ const ANILIST = 'https://graphql.anilist.co';
 /** The address, overridable so a spec can stand in for AniList (tests/links-flow.e2e.ts). */
 const anilistUrl = () => process.env.TSUNDOKU_ANILIST_URL ?? ANILIST;
 
-/** Nothing reached AniList: no internet, AniList down, or switched off for the specs. */
+/** Nothing reached AniList: no internet, no answer from it, or switched off for the specs. */
 export class Unreachable extends Error {}
+/**
+ * AniList answered, and the answer is about AniList rather than this request: a
+ * 5xx, a 403, or a body that isn't JSON (doc/LINKS.md, "How the cache fills").
+ * Only the background fill reads it, to stop a pass without costing a series its
+ * turn. It is not an `Unreachable`, whose other readers (the links page's 503,
+ * a season's count of zero, Ranobe's) were written for a failure to reach the
+ * service, and every other caller goes on seeing the plain `Error` it always did.
+ *
+ * A 403 is here because the fill asks with no token, for public ids, by one query
+ * shape: nothing in a request of it can be forbidden, so a 403 is AniList or its
+ * Cloudflare refusing this client. No 403 was ever seen from here, so that is
+ * reasoned from the request and not measured. The cost, if it is ever wrong, is a
+ * pass that stops at the same request each tick, one quiet request ten minutes.
+ */
+export class AnilistDown extends Error {}
 /** A catalogue refused the owner's sign-in: expired or revoked (doc/TRACKING.md). */
 export class SignedOut extends Error {}
 
@@ -142,13 +157,15 @@ async function post(
 			data?: unknown;
 			errors?: { message: string; status?: number }[];
 		} | null;
+		const down = res.status >= 500 || res.status === 403 || !body;
 		// A 404 inside the body is AniList's "no such entry", not a failure.
-		if (body?.errors?.every((e) => e.status === 404)) return body.data ?? null;
+		if (!down && body?.errors?.every((e) => e.status === 404)) return body.data ?? null;
 		if (res.status === 401 || body?.errors?.some((e) => e.status === 401))
 			throw new SignedOut('AniList refused the sign-in');
-		if (!res.ok || !body || body.errors?.length)
-			throw new Error(`AniList ${res.status}: ${body?.errors?.[0]?.message ?? 'no answer'}`);
-		return body.data;
+		const failed = `AniList ${res.status}: ${body?.errors?.[0]?.message ?? 'no answer'}`;
+		if (down) throw new AnilistDown(failed);
+		if (!res.ok || body?.errors?.length) throw new Error(failed);
+		return body?.data;
 	}
 	throw new Unreachable('rate limited');
 }
@@ -1451,11 +1468,14 @@ export type FillResult = RelationsPass & {
 	reason?: string;
 };
 
+const anilistIsOut = (e: unknown) => e instanceof Unreachable || e instanceof AnilistDown;
+
 /**
  * The background fill's pass (relations-fill.ts; doc/LINKS.md, "How the cache
  * fills"): only the relations step of `refreshLinks`, never its search. It
  * stands aside for a link pass and gives way to one that starts while it
- * runs. Unreachable is not an error here either: the next tick carries on.
+ * runs. Unreachable is not an error here either, nor is AniList being down
+ * (`AnilistDown`): the next tick carries on, and no series lost its turn.
  */
 export async function fillRelations(
 	opts: { now?: number; log?: (line: string) => void; stop?: () => boolean } = {}
@@ -1474,13 +1494,13 @@ export async function fillRelations(
 			await refreshRelations(anilistPublic, {
 				now: opts.now,
 				log: opts.log,
-				fatal: (e) => e instanceof Unreachable,
+				fatal: anilistIsOut,
 				retryMs: RELATIONS_RETRY_MS,
 				stop: () => !!opts.stop?.() || linkPassRunning()
 			})
 		);
 	} catch (e) {
-		if (!(e instanceof Unreachable)) throw e;
+		if (!anilistIsOut(e)) throw e;
 		out.unreachable = true;
 		out.reason = e.message;
 	}
