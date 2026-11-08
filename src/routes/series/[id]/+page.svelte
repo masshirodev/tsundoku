@@ -37,6 +37,7 @@
 	import type { AddFacts, TakeOutFacts } from '$lib/server/works';
 	import type { SeriesRenameFacts } from '$lib/server/series';
 	import type { UnlinkFacts } from '$lib/server/catalogue';
+	import type { PendingFailed, Refusal } from '$lib/server/dupes';
 	import { withParam, readHref } from '$lib/library/links';
 	import {
 		addedDetail,
@@ -664,6 +665,9 @@
 					onworkreview={() => (reviewingWork = true)}
 					ocr={data.ocr}
 					twin={data.twin}
+					keptBoth={form && 'refused' in form && 'failed' in form
+						? (form as unknown as { refused: Refusal[]; failed: PendingFailed[] })
+						: null}
 					words={data.words}
 					editions={data.editions}
 					link={data.link}

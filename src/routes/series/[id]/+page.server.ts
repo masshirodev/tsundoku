@@ -8,7 +8,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { getDb } from '$lib/server/db';
 import { ocrPlace, restoreNotText, setSeriesOcr } from '$lib/server/japanese/ocr';
 import { wordsOf } from '$lib/server/japanese/mining';
-import { decide, twinOf } from '$lib/server/dupes';
+import { decide, twinOf, type Decided } from '$lib/server/dupes';
 import {
 	linkState,
 	parseUnlinkFacts,
@@ -463,16 +463,27 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
-	/** KEEP BOTH on the SAME BOOK AS band: the pair never comes back. */
+	/**
+	 * KEEP BOTH on the SAME BOOK AS band: the pair never comes back.
+	 *
+	 * `decide` carries out the decisions waiting from before first, and answers
+	 * the ones it could not (c648): `refused` (dropped, so the pair is back at
+	 * the review undecided) and `failed` (a bug or the disk; still waiting).
+	 * This KEEP BOTH is recorded either way -- its INSERT runs after them -- so
+	 * the answer is a success that carries both lists, never a 409, which would
+	 * say this decision was not carried out (c671). The screen draws them as a
+	 * note from `form`, which outlives the reload that takes the band away.
+	 */
 	keepBoth: async ({ request, params, cookies }) => {
 		target(params, cookies);
 		const pair = String((await request.formData()).get('pair') ?? '');
+		let answer: Decided;
 		try {
-			await decide(pair, 'both', null, isRevealed(cookies));
+			answer = await decide(pair, 'both', null, isRevealed(cookies));
 		} catch {
 			return fail(409, { message: 'that pair is settled already' });
 		}
-		return { ok: true };
+		return { ok: true, refused: answer.refused, failed: answer.failed };
 	},
 
 	/** RESTORE on the OCR row: every block marked NOT TEXT, back where it was. */
