@@ -7,7 +7,8 @@
 	import { afterNavigate, beforeNavigate, goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount, tick, untrack } from 'svelte';
-	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+	import { MediaQuery, SvelteMap, SvelteSet } from 'svelte/reactivity';
+	import { TV } from '$lib/device.svelte';
 	import { page } from '$app/state';
 	import Banner from '$lib/components/chrome/Banner.svelte';
 	import { browser, version } from '$app/environment';
@@ -102,6 +103,12 @@
 	import type { Snapshot } from './$types';
 
 	let { data, form } = $props();
+
+	/**
+	 * A TV lays CONTINUE's cards three across, so ↓ from the first ▶ names the
+	 * shelf tabs; everywhere else the rows stack and ↓ is the next row (c841).
+	 */
+	const tvScreen = new MediaQuery(TV, false);
 	/**
 	 * GET STARTED on the empty library asks for itself again, so a phone
 	 * pairing or a download ticks its step without a reload (c722;
@@ -2181,7 +2188,7 @@
 							onopen={item.work ? undefined : () => (waiting.preview = previewOf(item))}
 							focusId={`continue-${item.id}`}
 							linkFocusId={`cont-${item.id}`}
-							focusDown={i === 0 ? '.tabs nav .tab' : undefined}
+							focusDown={i === 0 && tvScreen.current ? '.tabs nav .tab' : undefined}
 							startFocus={i === 0}
 							onresume={item.resumeId !== null
 								? // eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves

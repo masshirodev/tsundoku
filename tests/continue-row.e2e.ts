@@ -147,6 +147,31 @@ test.describe('the band opens the entry, ▶ the reader (c841)', () => {
 		expect(hit, '▶ is not under the link').toBe(true);
 	});
 
+	/**
+	 * The first ▶'s `data-focus-down` names the shelf tabs because a TV lays its
+	 * cards three across (`tests/tv-library-top.e2e.ts`). Off a TV the rows are
+	 * stacked (one column under 1024 px wide, two from there), and ↓ means the
+	 * row under this one (c841, round 2).
+	 */
+	test('off a TV, ↓ from the first ▶ is the ▶ of the row under it, not the shelf tabs', async ({
+		page
+	}) => {
+		await page.goto('/');
+		const goes = page.locator('.cont > .row .go:visible');
+		await expect.poll(() => goes.count()).toBeGreaterThanOrEqual(2);
+		const boxes = await goes.evaluateAll((cells) =>
+			cells.map((c) => {
+				const r = c.getBoundingClientRect();
+				return { x: r.x, y: r.y };
+			})
+		);
+		const under = boxes.findIndex((b) => b.x === boxes[0].x && b.y > boxes[0].y);
+		expect(under, 'a row is drawn under the first').toBeGreaterThan(0);
+		await goes.first().focus();
+		await page.keyboard.press('ArrowDown');
+		await expect(goes.nth(under)).toBeFocused();
+	});
+
 	test('while selecting a tap on the row is not a way out', async ({ page }, info) => {
 		// A phone hides the row while selecting; there is nothing to tap.
 		test.skip(info.project.name === 'phone', 'the phone has no row while selecting');
