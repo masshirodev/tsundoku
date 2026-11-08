@@ -73,8 +73,10 @@ The launcher shows **tsundoku** with the wordmark banner (320×180, drawn from
 ## On launch
 
 - **An address given at launch** ([below](#handing-the-tv-an-address)) is
-  checked first, whichever door it came through: a cold start, or a second
-  `am start` on an app already open. It is not stored until it answers.
+  dealt with first, whichever door it came through: a cold start, or a second
+  `am start` on an app already open. One in the list is checked and opened;
+  one that is not waits for CONNECT on 9B ([below](#an-address-from-outside-is-asked-about),
+  c683), and is never stored before that.
 - **The last used server that answers** opens its library directly (c261:
   the TV keeps a list, [below](#servers), and launch opens the one whose
   library was open last; there is no default to mark). The answer is the web
@@ -107,7 +109,9 @@ adb shell am start -a android.intent.action.VIEW \
 ```
 
 `url` is the whole address, percent-encoded in the link. If both the extra and
-the link are there, the extra wins: it is what the command above sends.
+the link are there, the extra wins: it is what the command above sends. Either
+way, an address the TV does not already have shows the question below, and
+somebody at the TV presses CONNECT.
 
 On a friend's install the same command takes that computer's own address, which
 is also what a failing LAN probe leaves to type: run the same command with the
@@ -133,11 +137,13 @@ password is refused. A bare `host:port` is not enough here, although it is on
   short enough to sit beside REFUSED · NOTHING WAS SAVED there; the longer
   `http:// OR https:// WITH A HOST, NO USERNAME, PORT 1–65535` fits a desktop's
   narrower font and cut the first line off on a TV.
-- **Answered** and new is added to the TV's servers ([below](#servers); it
-  does not replace the one in use) and opens the pairing at that address: the
-  six digits on a tailnet instance (c245), or a friend's 9C. **Answered** and
-  already in the list opens that server's library: its pairing is already in
-  the WebView's cookie jar (c261).
+- **New** is asked about first (c683,
+  [below](#an-address-from-outside-is-asked-about)). Once CONNECT is pressed
+  and it answers, it is added to the TV's servers ([below](#servers); it does
+  not replace the one in use) and opens the pairing at that address: the six
+  digits on a tailnet instance (c245), or a friend's 9C.
+- **Answered** and already in the list opens that server's library: its
+  pairing is already in the WebView's cookie jar (c261).
 - **Not answered** shows 9D for that address and keeps trying. A previously
   remembered address is left alone, but 9D does not give up the given one by
   itself, and the launcher's icon does not bring the library back (c307): the
@@ -152,7 +158,7 @@ password is refused. A bare `host:port` is not enough here, although it is on
 Only the attempt that is current has its answer acted on. A given address
 supersedes a probe already in flight, and that probe's answer is dropped —
 success included — so a launch cannot be overtaken by the address it replaced.
-A refusal stops 9D's retry before showing the band, so the band is not replaced
+A question supersedes an attempt the same way (c683). A refusal stops 9D's retry before showing the band, so the band is not replaced
 five seconds later by the old address's failure, and a probe still in flight
 when the refusal arrives cannot replace it either: only a _failure_ is dropped,
 so a late success still remembers and opens the pairing (Decision 9 in the
@@ -212,8 +218,72 @@ and `refusesAssetRequest` (c549, rounds 2, 3 and 4) read the asset host without
 case too, and `carriesAssetToken` (round 4) reads the launch's query token.
 
 The check is 9B's own: the web app manifest, through `PairingBridge`. A given
-address goes through the same `#connect=` path in the asset page, remembers
-only in its success branch, and never adds a second probe.
+address in the list goes through `#connect=` in the asset page; one that is not
+goes through `#ask=`, and CONNECT is then 9B's typed path. Both reach the one
+success branch that stores, and neither adds a second probe.
+
+### An address from outside is asked about
+
+**Decided by the owner on 2026-11-07 (c683), option (a):** an address that
+arrives by a `tsundoku://connect` link is shown and asked about before it is
+remembered; one typed in the app is not; `BROWSABLE` stays. Until then one
+tapped link put any origin in the list, and an origin in the list passes
+`trusted()` for every read and write c549 guards.
+
+`Given.kt` is the rule, one pure function that `GivenTest` pins:
+
+| What arrives                                        | Door        | What the page does                              |
+| --------------------------------------------------- | ----------- | ----------------------------------------------- |
+| An address not in the list, by the link or by extra | `#ask=`     | 9B with the field filled; nothing until CONNECT |
+| An address already in the list                      | `#connect=` | Checks it, opens its library; stores nothing    |
+| One `Address.intentOrigin` refuses                  | `#bad=`     | 9B's refused band                               |
+| Not in the list and over 80 characters              | `#bad=`     | The same: a question must be readable           |
+| No address (the plain launcher entry)               | none        | Launch as usual                                 |
+
+**Why the list decides and the intent does not.** Nothing about an intent says
+who sent it. The activity is exported, so any app can name it and any browser
+can fire the link, and Android reports no sender for a plain `startActivity`. A
+shortcut's `setPackage` is one any caller can set too, so it proves nothing,
+even though the card hoped it might. And the `url` extra cannot be exempt as
+"the documented command": a browser's `intent://connect#Intent;scheme=tsundoku;S.url=https://evil;end`
+delivers exactly that extra to the same filter. What does differ is whether
+anything would be stored: an address in the list stores nothing when it opens,
+and every live shortcut's address is in the list, because a shortcut is only
+made from it. The cost is that the documented `am start` for a new computer now
+needs one press of CONNECT at the TV. The six digits that follow already need
+somebody there.
+
+**The question** is 9B and its existing band, with no new layout. The band says
+`THIS ADDRESS CAME FROM A LINK · NOTHING IS SAVED UNTIL YOU PRESS CONNECT`, the
+field holds the address, the meta line writes it out again whole (a field clips
+a long host, and the end of a host is what says whose it is; 80 characters is
+9B's own limit for a whole address, and over it a new address is refused rather
+than shown cut), and NEXT reads `CONNECT →`.
+
+- **CONNECT is the typed path.** It probes the field, and an answer is stored
+  once in the same success branch a typed address uses. What is in the field
+  is what gets connected to: the owner may correct it first.
+- **The mark starts on the second button, not on CONNECT.** A link is opened
+  by a press, so the next stray OK must not be the answer. That button is the
+  way out: 9B as START leaves it, the field empty.
+- **BACK** returns to the library of the server in use, and with no server it
+  is the app's to take. Neither saves anything.
+- **A question does not outlive its door.** `settle()` takes `#ask=` off the
+  entry the moment it is read, as c685 does for `#connect=`, so a history step
+  into that entry shows 9A rather than the question again. Were it replayed
+  anyway, the worst it does is show the question: nothing is stored without
+  the press.
+- **It supersedes what was in hand.** A typed probe still out, or a CONNECT
+  already pressed for an address that has since left the screen, has its late
+  answer dropped. So does leaving the question while CHECKING. The same link
+  twice asks twice; a link with another address replaces the question.
+- **`#connect=` cannot store either.** Should it ever carry an address not in
+  the list, the page asks instead, so that holds on the page by itself and does
+  not rest on the activity and the page agreeing about the list.
+
+An origin stored before this stays stored: the app recorded nothing about how
+an entry got there, so no update can tell which came from a link. MORE ›
+SERVERS › FORGET is the remedy for one the owner does not recognise.
 
 ## Servers
 
@@ -414,9 +484,11 @@ opened and when it was added. Pure apart from its key-value, so
 
 One dynamic launcher shortcut per server, up to four, the last used first
 (c287; `Shortcuts.kt`). Each fires c260's own link,
-`tsundoku://connect?url=<the origin, encoded>`, so a shortcut opens exactly the
-door the `am start` above does: the server's library if it answers, 9D for it
-if not. They are rebuilt whenever the list changes (and at every launch, so a
+`tsundoku://connect?url=<the origin, encoded>`, so a shortcut takes the door the
+`am start` above takes: its address is in the list, so the server's library if
+it answers, 9D for it if not, and no question (c683). A shortcut left pinned on
+a launcher after its server was forgotten is no longer in the list, so it asks,
+as any other address from outside does. They are rebuilt whenever the list changes (and at every launch, so a
 TV paired before c287 gets its shortcut on the first launch after the update),
 and labelled as the row is, cut to 25 characters.
 
@@ -526,8 +598,8 @@ verified".
      `#connect=X` probed X again and, if X answered and was no longer in the
      list, stored it and paired; an old `#lost=X` reopened 9D, whose retry did
      the same once X answered. So the page now takes those two doors once:
-     the moment `routeHash` acts on `#connect=` or `#lost=`, it drops the
-     fragment from its own entry with `history.replaceState`, keeping the
+     the moment `routeHash` acts on `#connect=` or `#lost=` (or, since c683,
+     `#ask=`), it drops the fragment from its own entry with `history.replaceState`, keeping the
      path and the `?t=` query (the token, without which the page is a 404).
      The entry loaded again is 9A, as any load with no fragment is. `#added=`,
      `#rename=`, `#bad=` and `#add` are left as they are: each draws a screen
@@ -619,8 +691,9 @@ On the TV:
    remote without them reaches TYPE THE WHOLE ADDRESS in one press down, and
    the field is one press up. TYPE THE WHOLE ADDRESS takes `host:port` or a
    full `http://…` for Tailscale or another port. NEXT probes it; an address
-   handed in at launch is probed the same way and skips this screen (c260). A
-   pasted address with a path or a query pairs at its origin: the origin is what
+   handed in at launch that is in the list is probed the same way and skips
+   this screen (c260), and one that is not stops here, filled in, until CONNECT
+   is pressed (c683). A pasted address with a path or a query pairs at its origin: the origin is what
    is probed, remembered and opened, never the whole string (c260).
 3. **9C** — the computer's own `/pair/tv`: six cells in two threes, the
    number keys type and ← erases, and PAIR → presses itself when the sixth
@@ -908,29 +981,54 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   `replaceState` on the asset page and the WebView's history were not run
   on a TV. Check, with a debug build and `chrome://inspect`: hand the TV an
   address of a computer that answers and is not in SERVERS (the documented
-  `am start … --es url`), let it pair, then MORE › SERVERS › that server ›
+  `am start … --es url`), press CONNECT (c683), let it pair, then MORE ›
+  SERVERS › that server ›
   FORGET. From any server page's console, step back through the history
   (`history.go(-n)` until the pair page's entry, or `history.length` and
   steps of one): the pair page must show 9A, the URL in the inspector must
   end in `?t=…` with no `#connect=`, and MORE › SERVERS must not have the
-  forgotten server back. Then hand the TV the same address twice in a row
-  while it shows CHECKING: the second must be checked again (the inspector's
-  console shows a second probe), not dropped.
-  **Then a URL `java.net.URI` cannot parse (c684, wave 34).** Until c684
-  the host was read with `java.net.URI`, which throws on a `|` or `{` in the
-  query or a `|` in the fragment, and a URL it could not read had no host:
-  every guard let it through, and the interception sent it to the network
-  instead of answering 404. `BridgeGuard.hostOf` now reads the authority
-  the way a browser does and never throws. That a WebView hands
-  `shouldInterceptRequest` and `shouldOverrideUrlLoading` such a URL with
-  the `|` unescaped is read from the URL standard (its query and fragment
-  percent-encode sets do not hold `|`) and from Node's `URL`, which keeps
-  it; it was not run in a WebView. Check, from a server page's console:
-  `location.href = 'https://appassets.androidplatform.net/pair/index.html?x=|#connect=http://example.com:42143'`
-  must leave the page where it was, and a form `post` to the same URL must
-  show a 404; in neither case may MORE › SERVERS gain an `example.com`
-  entry, and with `chrome://inspect`'s Network panel open no request for
-  `appassets.androidplatform.net` may leave the TV.
+  forgotten server back. Then hand the TV the address of a server it does
+  have, twice in a row while it shows CHECKING: the second must be checked
+  again (the inspector's console shows a second probe), not dropped.
+  **Then a link from outside the app (c683, wave 35).** The rule and the
+  question are pinned in a JVM test and on the page in a desktop browser; no
+  real intent has been fired and no TV has shown the question. Check, on a TV
+  with a debug build, and with a computer running tsundoku that the TV does
+  not have in MORE › SERVERS:
+  1. From the TV's own browser (or any browser on the box), open a page with a
+     link to `tsundoku://connect?url=<that computer's origin, percent-encoded>`
+     and press it. The app must come forward on 9B, the field holding the
+     address, the band reading `THIS ADDRESS CAME FROM A LINK · NOTHING IS
+SAVED UNTIL YOU PRESS CONNECT`, the button reading `CONNECT →`, and the
+     mark on `USE THE LAST NUMBER`.
+  2. Without answering, press BACK, then open MORE › SERVERS: no new entry.
+  3. Press the link again, go up one to `CONNECT →` and press OK. The
+     computer's pairing screen must open, and once paired the entry is in
+     MORE › SERVERS.
+  4. Forget that entry, and press the link again with the app already open
+     on a library: the same question must come up over it, not a pairing.
+  5. Press the same link for a computer the TV **does** have: its library
+     must open with no question.
+  6. Long-press tsundoku's icon (on a phone, where a launcher shows app
+     shortcuts) and open a server's shortcut: its library, with no question.
+  7. Where the browser takes `intent:` links (Chrome on a phone), open
+     `intent://connect#Intent;scheme=tsundoku;package=<the app's package>;S.url=https%3A%2F%2Fexample.com;end`.
+     It must ask about `https://example.com`, the extra being a door too.
+     **Then a URL `java.net.URI` cannot parse (c684, wave 34).** Until c684
+     the host was read with `java.net.URI`, which throws on a `|` or `{` in the
+     query or a `|` in the fragment, and a URL it could not read had no host:
+     every guard let it through, and the interception sent it to the network
+     instead of answering 404. `BridgeGuard.hostOf` now reads the authority
+     the way a browser does and never throws. That a WebView hands
+     `shouldInterceptRequest` and `shouldOverrideUrlLoading` such a URL with
+     the `|` unescaped is read from the URL standard (its query and fragment
+     percent-encode sets do not hold `|`) and from Node's `URL`, which keeps
+     it; it was not run in a WebView. Check, from a server page's console:
+     `location.href = 'https://appassets.androidplatform.net/pair/index.html?x=|#connect=http://example.com:42143'`
+     must leave the page where it was, and a form `post` to the same URL must
+     show a 404; in neither case may MORE › SERVERS gain an `example.com`
+     entry, and with `chrome://inspect`'s Network panel open no request for
+     `appassets.androidplatform.net` may leave the TV.
 - **Launcher shortcuts (c287).** Built and planned in a JVM test, never seen
   on a launcher. Check: long-press tsundoku's icon on the TV's home screen
   (and on a phone, where Android's launcher does show app shortcuts). One
@@ -950,10 +1048,10 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 
 - `android/app/src/test/` — `AddressTest`, `AttemptsTest`, `B64Test`, `BackTest`,
   `BridgeGuardTest`, `FailedLoadTest`, `ForgetTest`, `FormTest`,
-  `InsetsTest`, `IntentAddressTest`, `KeysTest`, `MessageGuardTest`,
+  `GivenTest`, `InsetsTest`, `IntentAddressTest`, `KeysTest`, `MessageGuardTest`,
   `NetworkTest`, `PairingBridgeTest`, `ProbeTest`, `ReleaseCheckTest`,
   `ScaleTest`, `ServersTest`, `ShortcutsTest`, `UpdaterPlanTest`, `VersionsTest`
-  (162 tests in 21 classes per flavor at wave 34; 159 at wave 30), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
+  (179 tests in 22 classes per flavor at wave 35; 162 in 21 at wave 34), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
   `BridgeGuardTest` (15) includes c549's round-2 case: a navigation to the
   asset host with `#connect=`, `#add` or `#rename=` is refused, a frame's
   request for it is refused, the host is read case-blind, and a known or an
@@ -1028,6 +1126,27 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   address and a domain; its port kept and its path dropped; `null` for a wrong
   scheme, a missing host, userinfo, and a port of 0 or above 65535 (`null` is
   the refusal, not a rewrite to the default port) (c260).
+- `GivenTest` is c683's rule (17 cases): a link or the `url` extra with an
+  address not in the list asks; a shortcut's address does not, and one left
+  behind by a forgotten server does; the intent's shape decides nothing; the
+  plain launcher entry carries no address and someone else's link is not read;
+  everything the parser refuses is refused even by a list that claims to know
+  it; the list is asked about the origin, not the raw string; 80 characters is
+  asked and 81 refused. Two cases read the source, because a JVM test cannot
+  drive the Activity: `MainActivity` asks this rule and writes no door of its
+  own, and the page takes every door the rule can name.
+- `tests/tv-app-pair.e2e.ts`, c683's seventeen (c683 in each title; 51 cases in
+  all): `#ask=` shows the address and calls neither `probe` nor `remember` until
+  CONNECT, then each once; the mark starts off CONNECT, so a stray OK leaves the
+  question; `#connect=` for an address not in the list asks; a non-http `#ask=`
+  is refused; the entry loses its fragment and a history step shows 9A; the same
+  link twice asks twice and another replaces it; a second link or the way out
+  while CHECKING drops the late answer; CONNECT is not swallowed by the page's
+  2 s window after that late answer and asks once if pressed twice; a failure
+  reaches 9D and stores nothing until it answers; a refusal over the question
+  leaves no half of it; BACK saves nothing; and the band and an 80-character
+  address fit a TV and a phone's column. All from the asset file, with a stand-in
+  bridge: no real intent, no WebView.
 - `tests/pairing-tv.spec.ts` — the six digits: once, 10 minutes, five wrong
   tries burn it, the state machine's every answer; the tailnet door, the rule
   that draws the DEVICES block only where that cookie opens (never with no
@@ -1041,22 +1160,22 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   down), the number keys typing into the field from there, and the whole-address
   field that stays visible; and 9A's step 01 and 9D's second reason keeping a
   friend's WI-FI remedy beside a Tailscale install's truth (c245). A `#connect=`
-  given address shows neither 9A nor 9B and names what it is checking; a `#bad=`
+  address in the list shows neither 9A nor 9B and names what it is checking; a `#bad=`
   shows the band on 9B, above the label and inside the frame, with the screen
   still usable (c260), and its hint and first line whole, both in this browser
   and at a TV's 0.6 em monospace (c307). 9A's steps grid ends above START
   (c263). Cases stand up a stub bridge for the states only the app
   reaches: a refusal handed to a TV already on 9D stops its retry, so the band
   is still there past a 5 s tick and no probe for the old address is made; a
-  typed probe still in flight when a given address arrives neither stores its
+  typed probe still in flight when a link's question arrives neither stores its
   answer nor leaves for its `/pair/tv`, while the refused door into 9B resets
   the NEXT button and checking line the held probe left behind; a probe still
   in flight when a refusal arrives fails without replacing the band; and a new
   attempt after a refusal clears the band and can still reach 9D. A given
   address that arrives after a refusal and does not answer reaches 9D, the band
-  having been cleared with the attempt it described; one that does answer still
-  remembers its origin and leaves for `/pair/tv`, so an address handed in twice
-  is judged on its own answer. Two more pin the origin comparison: a typed whole
+  having been cleared with the attempt it described; a link after a refusal,
+  once CONNECT is pressed and it answers, still remembers its origin and leaves
+  for `/pair/tv`, so an address handed in twice is judged on its own answer. Two more pin the origin comparison: a typed whole
   address with a path pairs at its origin (remembered and opened without the
   path), and one with a query fails to 9D for the origin, not the raw string
   (c260). A whole address whose scheme is typed in capitals reads as its host
