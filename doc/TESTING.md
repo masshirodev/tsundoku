@@ -57,6 +57,16 @@ Vite, and Node refuses TypeScript that needs compiling (a parameter property,
 an enum). Vitest compiles it happily, and `node --check` passes it, so only a
 real import shows it.
 
+**No spec inherits a git hook's environment.** `pre-push` runs the unit specs
+with `GIT_DIR` (and the other `GIT_*` variables git sets for a hook) pointing at
+the repository being pushed, so a spec that runs `git` in a scratch folder
+would act on that repository instead. On 2026-11-07 `build-lock.spec.ts`'s
+`git init` re-initialised the main checkout's `.git` as `core.bare = true`
+during a push. `tests/vitest.global-setup.ts` deletes every `GIT_*` variable
+before any spec process is forked, so every spec, and every script a spec
+runs, sees a plain environment; `git-env.spec.ts` pins it. A spec still says
+`cwd` for each git call, as it always did.
+
 **Importer specs never read real data.** The samples on `/mnt/hdd2` are the
 owner's, copyrighted and partly explicit. `tests/helpers/` holds a protobuf
 encoder and a zip writer, and `mihon-fixture.ts` uses them to synthesise a
