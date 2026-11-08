@@ -679,7 +679,9 @@ reader still turning; and c668's held ↓, which stops on the keyup, on a second
 key, on blur, on the page being hidden, on the page menu, on the READING
 sheet and on a jump to another chapter, and which reads on across a band —
 those cases measured on a page slot, since a crossing reshapes the strip; and
-c692's start from rest, frame by frame after a real press).
+c692's start from rest, frame by frame after a real press; c691's jump through
+history to a chapter off the strip, and the page hidden mid-ramp, which stops
+there and is not moved by a later repeat or the return).
 
 ## Full screen
 
