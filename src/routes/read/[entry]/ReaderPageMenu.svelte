@@ -120,8 +120,9 @@
 		</div>
 	{/if}
 	{#if highlight}
-		<div class="row">
-			<div class="label">HIGHLIGHT</div>
+		<!-- Its own label class: `.label` is the cover rows' (cover-menu-flow lists them). -->
+		<div class="row hl-row">
+			<div class="hl-label">HIGHLIGHT</div>
 			<button
 				type="button"
 				class="act"
@@ -288,7 +289,8 @@
 		flex-shrink: 0;
 		border-bottom: 1px solid var(--line-1);
 	}
-	.label {
+	.label,
+	.hl-label {
 		display: flex;
 		align-items: center;
 		width: 120px;
@@ -405,7 +407,8 @@
 			height: auto;
 			min-height: 64px;
 		}
-		.label {
+		.label,
+		.hl-label {
 			width: 88px;
 			padding: 0 14px;
 		}
@@ -440,7 +443,8 @@
 		height: auto;
 		min-height: 64px;
 	}
-	.sheet.grid .label {
+	.sheet.grid .label,
+	.sheet.grid .hl-label {
 		width: 88px;
 		padding: 0 14px;
 	}

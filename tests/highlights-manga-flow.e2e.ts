@@ -41,7 +41,10 @@ const dbPath = join(scratch, 'library.sqlite');
 const home = join(scratch, 'home');
 let server: ChildProcess | null = null;
 
-test.use({ baseURL: base });
+// The cases steer the reader's own requests with `page.route`, which never
+// sees a request the service worker answers for the page once it controls it:
+// the fourth case's refused keep reached the workstation and kept the page.
+test.use({ baseURL: base, serviceWorkers: 'block' });
 
 test.beforeAll(async () => {
 	test.setTimeout(120_000);
@@ -227,7 +230,8 @@ test('a late answer: KEEPING… and nothing HIGHLIGHTED until it comes, and pres
 	await cell(page).click();
 	await expect(cell(page)).toHaveText('KEEPING…');
 	await expect(cell(page)).toHaveAttribute('aria-disabled', 'true');
-	await cell(page).click();
+	// Pressed again while it is on its way (forced: Playwright waits on aria-disabled).
+	await cell(page).click({ force: true });
 	await page.keyboard.press('h');
 	await page.waitForTimeout(300);
 	expect(asks).toBe(1);
@@ -319,8 +323,8 @@ test('the page menu: HIGHLIGHT THIS PAGE first, then ✓ HIGHLIGHTED · OPEN on 
 	};
 	await hold();
 	const menu = page.getByRole('dialog', { name: /^Page \d+$/ });
-	const rows = await menu.locator('.row .label').allTextContents();
-	expect(rows[0]).toBe('HIGHLIGHT');
+	// First, before the cover rows.
+	await expect(menu.locator('.row').first().locator('.hl-label')).toHaveText('HIGHLIGHT');
 	// Waited on the reader's own answer: the row is in the database a moment
 	// before the page hears back, and the menu only knows once it has.
 	const answered = page.waitForResponse((r) => r.url().endsWith('/api/highlights/pages'));

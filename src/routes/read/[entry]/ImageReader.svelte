@@ -2803,7 +2803,9 @@
 		}
 	}
 	/* Page Menu 1c: the band after a cover is chosen, where SaveBand sits. */
-	.cover-band {
+	/* The highlight's band (c703) is the cover's, under a class of its own. */
+	.cover-band,
+	.hl-band {
 		position: fixed;
 		left: 0;
 		right: 0;
@@ -2838,7 +2840,8 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	.cover-band button {
+	.cover-band button,
+	.hl-band button {
 		display: flex;
 		align-items: center;
 		padding: 0 24px;
@@ -2850,7 +2853,8 @@
 		font: 500 14px/1.2 var(--font-mono);
 		cursor: pointer;
 	}
-	.cover-band button:active {
+	.cover-band button:active,
+	.hl-band button:active {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}
