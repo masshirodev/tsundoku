@@ -22,6 +22,10 @@
 	} from '$lib/library/series';
 	import { coverPlaceholder } from '$lib/library/cover';
 	import { offline } from '$lib/offline.svelte';
+	import { resolve } from '$app/paths';
+	import { seriesHref } from '$lib/library/links';
+	import { tagSearchHref } from '$lib/library/tag-search';
+	import type { AroundHead, SeasonsAround } from '$lib/library/seasons-around';
 
 	/**
 	 * An anime series' episodes (Index Anime Series, Anime States 1a; doc/ANIME.md):
@@ -39,7 +43,9 @@
 		onrow,
 		onselect,
 		onlong,
-		downloads = null
+		downloads = null,
+		around = null,
+		tagSource = null
 	}: {
 		series: SeriesPage;
 		selecting: boolean;
@@ -51,7 +57,38 @@
 		/** A long press on a row: mark it and everything before it watched. */
 		onlong?: (entry: SeriesEntry) => void;
 		downloads?: Map<number, DownloadState> | null;
+		/**
+		 * The seasons around it (c358; doc/SERIES.md, "The seasons around it"),
+		 * from the relation cache: dim heads above the list for every season
+		 * before, NEXT SEASON below it, and the extras folded under one line.
+		 * Null draws the list as it was.
+		 */
+		around?: SeasonsAround | null;
+		/** The source FIND searches (c313's `/browse/<source>?q=`); null offers no FIND. */
+		tagSource?: { id: string; name: string } | null;
 	} = $props();
+
+	/** The extras line unfolded, for this series only: another series' list opens folded. */
+	let extrasOpenFor = $state<number | null>(null);
+	const extrasOpen = $derived(extrasOpenFor === series.id);
+
+	/**
+	 * FIND: this series' own source searched for a season's title (c313's
+	 * mechanism, `tagSearchHref` called as it is; no schema, so it is `q=`),
+	 * with ← back to this screen.
+	 */
+	const openLabel = (h: AroundHead) => `${h.label}, in the library: ${h.title}`;
+	const findLabel = (h: AroundHead) => `Search ${tagSource?.name ?? 'the source'} for ${h.query}`;
+
+	function findHref(h: AroundHead): string | null {
+		if (!tagSource || !h.query) return null;
+		return tagSearchHref(
+			resolve('/browse/[source]', { source: tagSource.id }),
+			[],
+			{ namespace: 'title', value: h.query },
+			resolve('/series/[id]', { id: String(series.id) })
+		);
+	}
 
 	let expanded = $state(false);
 	const current = $derived(currentEntry(series.entries));
@@ -129,7 +166,26 @@
 		{/if}
 	</div>
 
+	{#snippet aroundHead(h: AroundHead)}
+		{@const find = h.seriesId === null ? findHref(h) : null}
+		<!-- A source page asks the source as it loads: never on a hover (doc/BROWSE.md). -->
+		<li class="season around" data-around={h.key || 'next'} data-sveltekit-preload-data="tap">
+			<span class="a-what">{[h.label, ...h.facts].join(' · ')}</span>
+			{#if h.title}<span class="a-title">{h.title}</span>{/if}
+			{#if h.seriesId !== null}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref resolves -->
+				<a class="a-go" href={seriesHref(h.seriesId)} aria-label={openLabel(h)}>IN LIBRARY →</a>
+			{:else if find}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+				<a class="a-go" href={find} aria-label={findLabel(h)}>FIND</a>
+			{/if}
+		</li>
+	{/snippet}
+
 	<ol class="rows">
+		{#each around?.before ?? [] as h (h.key)}
+			{@render aroundHead(h)}
+		{/each}
 		{#each rows as row (row.type === 'episode' ? row.entry.id : `${row.type}-${row.season}`)}
 			{#if row.type === 'fold'}
 				<li class="fold">
@@ -204,6 +260,27 @@
 				</li>
 			{/if}
 		{/each}
+		{#if around}
+			{@render aroundHead(around.next)}
+			{#if around.extras.length}
+				<li class="season around extras">
+					<button
+						type="button"
+						class="a-fold"
+						aria-expanded={extrasOpen}
+						onclick={() => (extrasOpenFor = extrasOpen ? null : series.id)}
+						><span class="a-line">{around.extrasLine}</span><span aria-hidden="true"
+							>{extrasOpen ? '↑' : '↓'}</span
+						></button
+					>
+				</li>
+				{#if extrasOpen}
+					{#each around.extras as h (h.key)}
+						{@render aroundHead(h)}
+					{/each}
+				{/if}
+			{/if}
+		{/if}
 	</ol>
 </section>
 
@@ -328,6 +405,65 @@
 	}
 	.season .d {
 		color: var(--text-2);
+	}
+	/* The seasons around it (c358): the season head's own row, dimmer, never
+	   louder than a head of the series' own. */
+	.season.around {
+		justify-content: flex-start;
+		padding-right: 0;
+		background: transparent;
+		color: var(--text-2);
+	}
+	.a-what {
+		flex-shrink: 0;
+		white-space: nowrap;
+	}
+	.a-title {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--text-2);
+	}
+	.a-go,
+	.a-fold {
+		align-self: stretch;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-left: auto;
+		padding: 0 var(--pad);
+		border: 0;
+		border-left: var(--hairline);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-2);
+		font: inherit;
+		letter-spacing: inherit;
+		text-decoration: none;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+	.season.around.extras {
+		padding: 0;
+	}
+	.a-fold {
+		flex: 1;
+		min-width: 0;
+		justify-content: space-between;
+		margin-left: 0;
+		border-left: 0;
+	}
+	.a-line {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.a-go:active,
+	.a-fold:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
 	}
 	.entry.progress .entry-btn {
 		background: var(--surface-panel);

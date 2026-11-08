@@ -57,7 +57,7 @@ the panel is 352px beside the list, rows are 56px and the rail stays 56px
 | No video              | After NO SERVER on three episodes within a day (or on every episode, where the series has fewer), a NO VIDEO band under CONTINUE: NO VIDEO FROM KICKASSANIME, ANOTHER SOURCE → and NOT NOW. See [`MOVE.md`](MOVE.md), "The screens".                                                                                                                                                                                                                          |
 | Followed              | FOLLOWING ✓ in accent at the DOWNLOAD row's end; caught up, it is the row's only cell and says when its source was last asked.                                                                                                                                                                                                                                                                                                                                |
 | Refreshed             | REFRESH, the cell before FOLLOW, on a series in the library whose source can be asked: it looks once, adds what the source lists that no entry is, and queues nothing. The band says "3 NEW CHAPTERS" or "NOTHING NEW". See [`DOWNLOADING.md`](DOWNLOADING.md), "REFRESH" (c220).                                                                                                                                                                             |
-| Just added            | `?added=<manga>` after ADD TO LIBRARY: the ADDED TO THE LIBRARY band with UNDO, FIRST 10, and START dimmed until chapter 1 has a file. `&queued=<n>`/`down` after ADD AND DOWNLOAD (c205): the band says what it queued.                                                                                                                                                                                                                                      |
+| Just added            | `?added=<manga>` after ADD TO LIBRARY: the ADDED TO THE LIBRARY band with UNDO, FIRST 10, and START dimmed until chapter 1 has a file. `&queued=<n>`/`down` after ADD AND DOWNLOAD (c205): the band says what it queued. Under it, PUT ON A SHELF: the owner's shelves as chips (c724; "Shelves in the ADDED band", below).                                                                                                                                   |
 
 ## The WORK row
 
@@ -121,6 +121,17 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
   ([`COVERS.md`](COVERS.md), "Chosen").
 - **SAME BOOK AS …** is a band under CONTINUE on a book with a likely twin,
   with KEEP BOTH and REVIEW → ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).
+  KEEP BOTH carries out the decisions waiting from before first, as every
+  decision does (c648), and says when one of them could not be (c671): a
+  band where the twin's was, `KEPT BOTH · 1 EARLIER DECISION COULDN’T BE
+CARRIED OUT`, with `BACK IN THE REVIEW` (refused: dropped, the pair is
+  undecided again), `STILL WAITING` (a bug or the disk; tried again on the
+  next library load) or both counted, and `SEE DUPLICATES →`. This KEEP BOTH
+  is recorded either way, so the answer is a success carrying `refused` and
+  `failed`, never a 409. The band is drawn from the action's `form`: it
+  outlives the reload that takes the twin's band away, and goes with the next
+  action, a navigation or a reload. Nothing is drawn when everything was
+  carried out.
 - **LISTS and COVER** sit under SHELVES on every series but a doujin. LISTS
   (card c424) is one row with a line per list: the entry the series is linked
   to, what that list says of it, what was sent, and the line's cells. It
@@ -673,6 +684,106 @@ cells, with the house's inset focus mark.
 
 - The fold in the phone's series header (c425, `doc/handoffs/series-phone/`):
   the next wave folds these rows.
+
+## Shelves in the ADDED band (c724)
+
+A preview's **+ ADD TO LIBRARY** (and ADD AND DOWNLOAD) lands here with
+`?added=`, and under ADDED TO THE LIBRARY the band has a second line:
+`PUT ON A SHELF:` and the owner's shelves as chips, one tap each, several
+allowed. A chip that is on reads `✓ LATER` and the line says which shelves
+the series is on (`ON LATER, TONIGHT`); a second tap takes it off. Adding
+stays one tap for an owner who doesn't shelve, and shelving is the same
+moment for one who does. It is the band `/browse` draws for a hidden ADD
+(doc/BROWSE.md, "Shelves in the ADD band"; `src/routes/browse/AddedBand.svelte`),
+on the same rules (`src/lib/library/add-shelf.ts`, called as it is):
+
+- **The order**: the shelf last put on from a band, on this device, first
+  (`tsundoku:add-shelf` in localStorage, read once as the band is drawn, so
+  the chips keep their places while it is up), then the library's order. A
+  shelf put on from the SHELVES sheet is not remembered: only a chip is.
+- **Past six shelves** the chips stop at six and `N OTHER SHELVES` opens the
+  SHELVES row's sheet (`EditSheet`, the one EDIT opens); a shelf the series
+  is on is always drawn as a chip, in place of the last one that is not.
+- **+ NEW SHELF** opens the same sheet with its name field open; the shelf
+  it makes has the series on it (its `?/shelf` with a name).
+- **The write** is this screen's own `?/shelf` (`collection`, `on`), the
+  SHELVES sheet's: no new storage. A chip's post carries the page's query,
+  so without script its answer is still the band. A refused tap (a shelf
+  that is not there, or the series gone after an UNDO in another tab) says
+  `NOT SHELVED: …` in the strip, and the band and its UNDO stay. A tap
+  that is put through reads the page again and leaves the screen's other
+  answers alone: REFRESH's or FIRST 10's band beside the chips stays up
+  (`invalidateAll`, not `enhance`'s `update`, whose `{ ok: true }` would
+  clear them).
+- **UNDO** (`?/undoSourceAdd`) deletes the series row, and its shelf rows
+  go by the schema's cascade (`collection_series … ON DELETE CASCADE`):
+  UNDO takes both back. The shelves themselves stay.
+- **The TV**: the strip is a row of stops under the band; `+ NEW SHELF` sits
+  at its right end, under UNDO, so ↓ from UNDO lands in the strip and ← → walk
+  the chips (doc/FOCUS.md).
+- **Not here**: just after the FIRST READ step's ADD the band is the start
+  trail's (`readBand`), which keeps UNDO and draws no chips. A hidden ADD
+  lands on `/browse`, whose band has its own chips; the ADDED HIDDEN rules
+  are unchanged.
+- **The words**: the band is untranslated, as ADDED TO THE LIBRARY is, and
+  the chips' words are `add-shelf.ts`' (`PUT ON A SHELF:`, `ON …`,
+  `N OTHER SHELVES`), as on `/browse`.
+
+Tests: `tests/series-add-shelf.e2e.ts` (the four devices),
+`tests/tv-series-seasons.e2e.ts` (the TV's walk), `tests/series-db.spec.ts`
+(the writes and UNDO's cascade, read from the database).
+
+## The seasons around it (c358)
+
+An anime linked to its own AniList entries (c298, c240) shows, in its
+episode list, dim **heads for the seasons around it**: every season before
+the ones it holds above the list, **NEXT SEASON** below it, and the extras
+under one folded line. They reuse the list's season-head row
+(`EpisodeList.svelte`, 44px, `--surface-panel`'s row without its fill, in
+`--text-2`): the owner chose that over a design round (2026-11-03).
+
+- **A season before**: `SEASON 2 · 12 EP`, its AniList title, and a cell:
+  `IN LIBRARY →` when another series holds that entry by its own season link
+  (never a title match; under the reveal filter), opening that series (its
+  WORK row is its place in a Work); otherwise `FIND`. Numbered by position
+  along the chain of TV, TV_SHORT and ONA entries (S1 is the chain's first),
+  never from a title; drawn `SEASON` unnumbered when the walk back stopped at
+  its 12-step limit, since the first season is not known.
+- **NEXT SEASON**, never numbered (a `SEASON 4` would claim a fourth exists),
+  always drawn: with what AniList says of the sequel as plain facts
+  (`ANNOUNCED · 2027`, `AIRING`, `12 EP`) and its title when AniList knows
+  one; `NEXT SEASON · FIND` when it knows none, searching for the series' own
+  title with its season suffix taken off (`titleStem`: `3rd Season`,
+  `Season 3`, `S3`, `Part 2`, `Cour 2`, `第3期`, a bracketed one; it holds on
+  its own output).
+- **The extras**: `+ 5 EXTRAS · 2 OVA · 1 MOVIE · …`, folded by default, one
+  stop on a TV; unfolded, a row each, the same cells. A MOVIE, OVA or SPECIAL
+  on the chain, an ONA or anything else off it reached by SIDE_STORY, and the
+  other branch where a chain forks.
+- **FIND** is c313's mechanism, `tagSearchHref` from `tag-search.ts` called
+  as it is with no schema: `/browse/<source>?q=<title>&from=/series/<id>`,
+  the series' own source (the TAGS row's `tagSource`), so ← on the source page
+  comes back here. No source BROWSE can open, no FIND; the head still says
+  what it is. A FIND never preloads on hover (the source page asks the
+  source as it loads).
+- **Never groups, merges or offers a Work** (the Works handoff's NEVER list):
+  it shows and finds; GROUP stays the owner's tap.
+- **Nothing for** an unlinked anime, a manga, a novel or a doujin (no chain
+  to read: the rule asks the registry for the AniList ANIME catalogue,
+  doc/KINDS.md), and nothing until the link pass has cached the series'
+  relations, or while the cache can't answer for the links it has now.
+
+**Which entries**: the walk goes back from the earliest linked season's entry
+and forward from the latest's, and steps over the seasons the series holds
+beyond them that no link names (a series holding seasons 3 and 4 with only 4
+linked offers no SEASON 3). **Where the data comes from**: the relation cache
+([`LINKS.md`](LINKS.md), "The relation cache"), filled by the link pass; the
+screen never asks AniList and never waits. Code: `src/lib/library/seasons-around.ts`
+(the walk and the heads, pure), `src/lib/server/relations.ts` (the cache),
+`seasonsAroundOf` in the load. Tests: `series-seasons-domain.spec.ts`,
+`series-seasons-db.spec.ts`, `series-seasons-flow.e2e.ts` (the pass run by
+its script against a stand-in AniList, then the screen) and
+`tv-series-seasons.e2e.ts` (the remote's stops).
 
 ## Where it departs from the handoff
 

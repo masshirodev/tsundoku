@@ -8,7 +8,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { getDb } from '$lib/server/db';
 import { ocrPlace, restoreNotText, setSeriesOcr } from '$lib/server/japanese/ocr';
 import { wordsOf } from '$lib/server/japanese/mining';
-import { decide, twinOf } from '$lib/server/dupes';
+import { decide, twinOf, type Decided } from '$lib/server/dupes';
 import {
 	linkState,
 	parseUnlinkFacts,
@@ -92,6 +92,7 @@ import { ANIME_FOLDER, HIDDEN_ANIME_FOLDER, seriesFolderName } from '$lib/librar
 import { join } from '$lib/server/fspath';
 import { originLabel, sourceOrigin } from '$lib/library/origin';
 import { tagSourceOf } from './tag-source.server';
+import { seasonsAroundOf } from '$lib/server/relations';
 import {
 	StaleWorkError,
 	WorkError,
@@ -264,6 +265,10 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// An anime's seasons (c240): a link each, and the row folds round the one
 		// being watched. Null for anything else, which draws today's rows.
 		seasons: isAnime(series.kind) ? (seriesSeasons(series.id)?.seasons ?? null) : null,
+		// The seasons before it and the one after (c358; doc/SERIES.md, "The
+		// seasons around it"): from the relation cache alone, never AniList, so
+		// the screen never waits. Null for anything with no chain to read.
+		around: seasonsAroundOf(series.id, reveal),
 		// What each catalogue's list says, and what tsundoku sent (doc/TRACKING.md).
 		tracking: trackingOf(series.id),
 		// A novel's Ranobe link and line (doc/RANOBE.md). Null for a comic.
@@ -463,16 +468,27 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
-	/** KEEP BOTH on the SAME BOOK AS band: the pair never comes back. */
+	/**
+	 * KEEP BOTH on the SAME BOOK AS band: the pair never comes back.
+	 *
+	 * `decide` carries out the decisions waiting from before first, and answers
+	 * the ones it could not (c648): `refused` (dropped, so the pair is back at
+	 * the review undecided) and `failed` (a bug or the disk; still waiting).
+	 * This KEEP BOTH is recorded either way -- its INSERT runs after them -- so
+	 * the answer is a success that carries both lists, never a 409, which would
+	 * say this decision was not carried out (c671). The screen draws them as a
+	 * note from `form`, which outlives the reload that takes the band away.
+	 */
 	keepBoth: async ({ request, params, cookies }) => {
 		target(params, cookies);
 		const pair = String((await request.formData()).get('pair') ?? '');
+		let answer: Decided;
 		try {
-			await decide(pair, 'both', null, isRevealed(cookies));
+			answer = await decide(pair, 'both', null, isRevealed(cookies));
 		} catch {
 			return fail(409, { message: 'that pair is settled already' });
 		}
-		return { ok: true };
+		return { ok: true, refused: answer.refused, failed: answer.failed };
 	},
 
 	/** RESTORE on the OCR row: every block marked NOT TEXT, back where it was. */

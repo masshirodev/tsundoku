@@ -106,7 +106,10 @@ Pure, and what every screen reads (`tests/anime.spec.ts`):
   on the one part-watched, the status, ↓ for an episode cached on the device.
   # finds an episode by its number in the season being watched first. A tap
   plays any episode; downloading is the DOWNLOAD row's and SELECT's. A long
-  press marks it and everything before it watched, as for chapters.
+  press marks it and everything before it watched, as for chapters. Linked
+  to AniList, it also draws the seasons before it, NEXT SEASON and the
+  extras as dim heads, from the relation cache (c358;
+  [`SERIES.md`](SERIES.md), "The seasons around it").
 
 `tests/browse-anime.e2e.ts`, on the browse server's seeded "Tsukiakari no
 Ryokōsha" (`tests/browse-setup.ts`, the handoff's own sample), pins the
@@ -563,6 +566,12 @@ screen but the video, and the subtitles, until a tap.
   coming and going. Its ground is translucent, 70% of the page's, so the frame
   shows through while the controls are up, and its glyphs keep AA over a white
   frame and a black one (c429).
+- **The cursor goes with the controls** (c678). The readers' CURSOR row
+  (`tsundoku.reader.cursor`) is on for the player by default, and the player
+  has no timer of its own: the cursor disappears exactly when the controls go
+  during playback (`HIDE_MOUSE_MS` after the last move) and comes back with
+  them — a move, a key, a pause. A sheet keeps both up, and so does an open
+  KEYS dialog (`?`), so the cursor never hides over it or its ✕.
 - **Volume** (c385). VOL's label mutes, as before; hovering it (or clicking
   it) opens a slider above the cell, a column of the bar's surface with the
   scrubber's track upright, which a press or a drag sets; the wheel over the

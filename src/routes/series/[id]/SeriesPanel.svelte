@@ -59,6 +59,7 @@
 	} from './details';
 	import { listsRow, type SheetAt } from './lists';
 	import type { RanobeSeries } from '$lib/server/ranobe-review';
+	import type { PendingFailed, Refusal } from '$lib/server/dupes';
 	import type { SeriesDownloads } from '$lib/server/downloads';
 	import type { MoveState } from '$lib/server/move';
 	import { partDone, wholeBand } from '$lib/library/works';
@@ -102,6 +103,7 @@
 		ocr = null,
 		words = null,
 		twin = null,
+		keptBoth = null,
 		editions = null,
 		link = null,
 		tracking = null,
@@ -157,6 +159,13 @@
 		words?: { toReview: number; sent: number } | null;
 		/** A likely twin of a book here (doc/DUPLICATE-BOOKS.md): the SAME BOOK AS band. */
 		twin?: { key: string; title: string; conf: string; pages: string } | null;
+		/**
+		 * KEEP BOTH's answer (c671): the decisions waiting from before that it
+		 * could not carry out first. Read from the page's `form`, so the note
+		 * outlives the reload that takes the twin band away, and goes with the
+		 * next action, a navigation or a reload.
+		 */
+		keptBoth?: { refused: Refusal[]; failed: PendingFailed[] } | null;
 		/** One book in several languages (doc/EDITIONS.md): LANGUAGE, EDITIONS and FOLDED. */
 		editions?: BookEditions | null;
 		/** Its catalogue link (doc/LINKS.md): the LINK and COVER rows. Null for a doujin. */
@@ -199,6 +208,27 @@
 			works: number;
 		} | null;
 	} = $props();
+
+	/**
+	 * KEEP BOTH's note (c671), in the words the duplicates review uses: what
+	 * could not be carried out, and where each one is now. Nothing when every
+	 * earlier decision was carried out, as KEEP BOTH answered before.
+	 */
+	const keptBothNote = $derived.by(() => {
+		if (!keptBoth) return null;
+		const r = keptBoth.refused.length;
+		const f = keptBoth.failed.length;
+		const n = r + f;
+		if (n === 0) return null;
+		const where = [
+			r ? `${r === n ? '' : `${r} `}BACK IN THE REVIEW` : '',
+			f ? `${f === n ? '' : `${f} `}STILL WAITING` : ''
+		].filter(Boolean);
+		return {
+			title: `KEPT BOTH · ${n} EARLIER DECISION${n === 1 ? '' : 'S'} COULDN’T BE CARRIED OUT`,
+			detail: where.join(' · ')
+		};
+	});
 
 	/** An anime series: episodes for chapters, here and in DOWNLOAD (doc/ANIME.md). */
 	const anime = $derived(series.kind === 'anime');
@@ -975,6 +1005,18 @@
 			</Band>
 		{/if}
 
+		{#if !outline && keptBothNote}
+			<!-- c671: this KEEP BOTH is recorded; an earlier decision it carried out
+			     first was not. Refused ones are back at the review, undecided;
+			     failed ones (a bug or the disk) still wait. -->
+			<div class="kept-both">
+				<Band title={keptBothNote.title} detail={keptBothNote.detail}>
+					{#snippet action()}
+						<a href={resolve('/duplicates')}>SEE DUPLICATES →</a>
+					{/snippet}
+				</Band>
+			</div>
+		{/if}
 		{#if !outline && twin}
 			<!-- Duplicate Books 1d: the group suggestion's treatment, for a twin. -->
 			<div class="twin" role="status">

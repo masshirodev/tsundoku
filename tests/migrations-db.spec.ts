@@ -509,11 +509,72 @@ describe('rung 72: highlights, a copy and a pointer (c701)', () => {
 			/CHECK constraint failed/
 		);
 	});
+});
+
+describe('rung 73: an anime’s relation graph, cached (c358)', () => {
+	it('adds the table to a v72 library empty, moves no row of it, and goes with its series', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 72);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Aniyomi', '/nowhere');
+			INSERT INTO series (id, root_id, title, kind, added_at) VALUES
+				(1, 1, 'Bookworm 3', 'anime', 1), (2, 1, 'Bookworm 2', 'anime', 1);
+			INSERT INTO series_season_links (series_id, season, anilist_id, via, linked_at) VALUES
+				(1, 3, 103, 'review', 1), (2, 2, 102, 'review', 1);
+		`);
+		const before = [
+			conn.prepare(`SELECT * FROM series`).all(),
+			conn.prepare(`SELECT * FROM series_season_links`).all()
+		];
+		climb(conn, 73);
+		expect(conn.pragma('user_version', { simple: true })).toBe(73);
+		expect([
+			conn.prepare(`SELECT * FROM series`).all(),
+			conn.prepare(`SELECT * FROM series_season_links`).all()
+		]).toEqual(before);
+		// Nothing was cached before: every anime waits for the next pass.
+		expect(conn.prepare(`SELECT COUNT(*) AS n FROM series_relations`).get()).toEqual({ n: 0 });
+		expect(
+			(conn.prepare(`PRAGMA table_info(series_relations)`).all() as { name: string }[]).map(
+				(c) => c.name
+			)
+		).toEqual(['series_id', 'graph', 'fetched_at', 'tried_at']);
+		conn
+			.prepare(
+				`INSERT INTO series_relations (series_id, graph, fetched_at, tried_at) VALUES (1, '{"nodes":{}}', 5, 5)`
+			)
+			.run();
+		// A series deleted takes its cache with it.
+		conn.exec(`DELETE FROM series WHERE id = 1`);
+		expect(conn.prepare(`SELECT COUNT(*) AS n FROM series_relations`).get()).toEqual({ n: 0 });
+	});
+
+	it('refuses a graph without its moment, and a moment without a graph', () => {
+		const conn = new Database(':memory:');
+		climb(conn);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Aniyomi', '/nowhere');
+			INSERT INTO series (id, root_id, title, kind, added_at) VALUES (1, 1, 'B', 'anime', 1);
+		`);
+		const put = (graph: string | null, at: number | null) =>
+			conn
+				.prepare(
+					`INSERT OR REPLACE INTO series_relations (series_id, graph, fetched_at, tried_at) VALUES (1, ?, ?, 1)`
+				)
+				.run(graph, at);
+		expect(() => put(null, null)).not.toThrow();
+		expect(() => put('{"nodes":{}}', 1)).not.toThrow();
+		expect(() => put('{"nodes":{}}', null)).toThrow(/CHECK constraint failed/);
+		expect(() => put(null, 1)).toThrow(/CHECK constraint failed/);
+		expect(() =>
+			conn.exec(`INSERT INTO series_relations (series_id, tried_at) VALUES (9, 1)`)
+		).toThrow(/FOREIGN KEY constraint failed/);
+	});
 
 	// The top rung's own block says it is the top; the next rung moves this line.
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(72);
+		expect(conn.pragma('user_version', { simple: true })).toBe(73);
 	});
 });

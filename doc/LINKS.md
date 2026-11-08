@@ -247,6 +247,12 @@ Show Season 2`), in one pass if the limit allows: a row of `searchable`
     season 0, whose row is the whole show's. LINK accepts only a candidate of that season's own search
     (`offered`), never another season's and never the series', and never
     an entry another season or part of the show holds.
+    **A season's LINK in the queue advances the queue**, to the next item,
+    one season per item, by choice (c672, the owner, 2026-11-07): it never
+    keeps the page to offer the rest of the show (a queue load has no
+    `data.season`, so `staysForTheRest` is false there), for speed through
+    the queue. A whole show is linked from its own `/links?series=N`, whose
+    LINK offers the rest of the show and LINK N SEASONS (below).
   - **A door that names no season** (`/links?series=N` with no `&season=`,
     the API called without one) acts on the season that still wants a look
     (`seasonToLook` in `season-links.ts`, the TypeScript twin of
@@ -280,7 +286,18 @@ It resolves waiting MAL links, then searches up to 60 series (all of them by
 hand; `--limit` caps it; an anime's open seasons are a row each, so a
 three-season show is three of the 60; and `--again` first searches again every series a
 pass searched and couldn't link, with titles cleaned as they are now). A SEARCH AGAIN goes first, then series with no
-cover. Five titles go to a request, as aliased `Page` queries.
+cover. Five titles go to a request, as aliased `Page` queries. Last, it
+walks the relations of up to 10 anime into the relation cache (c358, "The
+relation cache", below).
+
+**After an import the relations step runs before the covers**, since it is
+inside `refreshLinks` and `afterImport` awaits that before tracking, Ranobe
+and the covers. Each anime's walk is up to `HOPS + 2` (14) requests, one a
+round, at the 2.1 s spacing: about 30 s for one anime at most, and up to
+about five minutes for all 10 of a pass in the worst case (a typical chain
+of a few seasons is three or four rounds, under ten seconds each). The
+covers of a large import can wait that long behind it; the step is skipped
+once AniList is unreachable.
 
 AniList asks for no more than 30 requests a minute (its degraded limit), so
 calls go one at a time, 2.1 s apart, whoever asks, and a 429 waits as long
@@ -296,6 +313,108 @@ anywhere but a local stand-in. An update's installer drops it, so a new
 version does not inherit it; a shell or unit that exports it still points the
 owner's token there, so it belongs only in a data folder `.env` beside a
 local stand-in.
+
+### The relation cache (c358)
+
+An anime's AniList relation graph is cached per series, for the series
+screen's seasons around it ([`SERIES.md`](SERIES.md), "The seasons around
+it"): the seasons before the ones it holds and the one after, and the
+extras met on the way. **The screen reads only the cache; nothing asks
+AniList on a page load.**
+
+**The table** is `series_relations` (rung 73), one row a series, gone with
+the series (`ON DELETE CASCADE`):
+
+| Column       | What it is                                                                               |
+| ------------ | ---------------------------------------------------------------------------------------- |
+| `series_id`  | The series. Primary key.                                                                 |
+| `graph`      | JSON `RelGraph` (`src/lib/library/seasons-around.ts`); NULL until a walk first succeeds. |
+| `fetched_at` | When `graph` was last written; NULL exactly when `graph` is (a CHECK).                   |
+| `tried_at`   | When the pass last asked, which a failed ask moves without touching `graph`.             |
+
+`RelGraph` is `{ nodes: { "<anilist id>": RelNode } }`, and a `RelNode` is
+what an edge's `node` answers: `id`, `type` (`ANIME`), `format`, `status`,
+`episodes`, `year` (`startDate.year`), `title { english romaji native }`, and
+`edges: [{ type, id }]`, AniList's `relationType` and the other entry's id,
+**every edge it has, of every kind** (PREQUEL, SEQUEL, SIDE_STORY,
+SPIN_OFF, ALTERNATIVE, ADAPTATION, …), for an entry the walk stood on, and
+`null` for one it only met as a neighbour (whose facts came with the edge).
+So a reader that wants other forms than the seasons (OTHER FORMS, c700)
+finds every relation of every entry on the chain there, and the neighbours'
+format and titles, without asking AniList again; it must treat `edges:
+null` as "not asked", never "none".
+
+**Which entries it starts from** is not stored: it is read from the series'
+own season links (`series_season_links`, rung 62) each time, never
+`series_links` (an anime's first-season mirror, whose readers c467 removes).
+Back from the earliest linked season's entry, forward from the latest's
+(`walkFrom` in `src/lib/server/relations.ts`). A graph that cannot answer
+for the links the series has now (the walk needs an entry whose edges it
+doesn't hold) is not drawn.
+
+**The walk** (`walkSeasons`, pure): PREQUEL back to the chain's start and
+SEQUEL forward to the next season, through any format, a TV, TV_SHORT or ONA
+entry being a season and a MOVIE, OVA or SPECIAL on the chain an extra; a
+SIDE_STORY of any entry stood on, and the other branch where a chain forks,
+are extras too. A visited set, an edge that goes back in time refused (a
+PREQUEL that starts after, a SEQUEL that starts before: a loop's closing
+edge), and at most 12 steps either way (`HOPS`). An entry's start is its
+year, and an announced (NOT_YET_RELEASED) entry, dated or not, starts after
+every one that has aired (`when`): AniList leaves a TBA sequel's start empty as a
+rule, and that sequel is what usually closes the loop, naming season 1 its
+SEQUEL while season 1 names it its PREQUEL. Without that, the walk back from
+season 1, 2 or 3 took the PREQUEL into the announced season and drew it, and
+the seasons after the held one, as earlier seasons. An entry that has aired
+(FINISHED, RELEASING, CANCELLED, HIATUS) but that AniList leaves undated,
+mostly specials, OVAs and ONAs, starts no earlier than the latest of its own
+PREQUEL neighbours that have aired (`startsBy`; an undated one counted by its
+own bound in turn): it can't start before a season it follows. So an undated
+movie between two seasons ranks with the first and stays on the chain, and
+an undated last season or OVA closing the loop (naming season 1 its SEQUEL)
+ranks after season 1, and season 1's PREQUEL into it is cut. One with no aired
+entry before it has no rank: its edges are taken as AniList gives them,
+except that it still comes before an announced entry (a PREQUEL from it into
+the TBA sequel closes the loop as from a dated season). c358's round 3 and
+its review: round 2 had ranked every undated entry as announced and cut real
+seasons off the chain; round 3 gave every undated aired entry no rank, and a
+loop it closed was walked round. The cut is by date, not
+by reachability: a chronological prequel made later (AniList listing a
+later-made prequel season as the original's PREQUEL) is refused too, and is
+drawn neither as a season nor as an extra. Manga (an ADAPTATION) and
+spin-offs are never followed and never drawn.
+
+**The pass** fills it: `refreshLinks`' last step is `refreshRelations`, up
+to 10 anime a pass (`refreshLinks({ relations })`), the ones never asked
+first, then the longest since asked. An anime is due when it has no graph,
+its graph can't answer for its links, or the graph is 7 days old
+(`RELATIONS_STALE_MS`). A walk asks several entries to a request (aliases,
+`Media(id: $iN, type: ANIME)`), one request a step. **A failed walk keeps
+the graph the series had**: an error, an entry AniList answers nothing for,
+a walk past its rounds, or links that moved while AniList answered (the
+graph is checked against the links again before it is stored) moves only
+`tried_at`. `Unreachable` stops the pass, as it does for links. A graph
+whose series has no linked season any more (UNLINK) is dropped by the next
+pass.
+
+**What makes it stale**, and what each does:
+
+- a **relink** to another entry: the walk from the new entry needs what the
+  graph lacks, so nothing is drawn until the next pass walks it;
+- **UNLINK**: no season linked, nothing drawn at once; the next pass drops the row;
+- **a season linked** since: drawn at once when the graph already holds the
+  new entry's edges (a season on the chain the walk stood on), otherwise
+  nothing until the next pass;
+- **the series deleted**: the row goes with it; a fold (an import's
+  `foldSeries`) moves it to the survivor only when the survivor has none
+  (`UPDATE OR IGNORE`), and either way the read checks it against the
+  survivor's links;
+- **MOVE**: keeps the series, its links and the graph (doc/MOVE.md); FIND
+  reads the series' source at load, so it searches the new one;
+- **a refresh that fails**: the old graph stays and is drawn;
+- **age**: 7 days, then the next pass walks it again.
+
+"In the library" is another series' own season link for that entry, under
+the reveal filter (`libraryWhere`), never a title.
 
 ## Covers
 
