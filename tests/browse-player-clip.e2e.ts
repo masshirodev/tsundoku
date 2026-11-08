@@ -67,7 +67,13 @@ let entry = 0;
 test.beforeAll(() => {
 	entry = episodeId();
 });
-test.afterEach(() => {
+test.afterEach(async ({ request }) => {
+	// Jobs live in the server's memory for ten minutes, past the rows below: a failure
+	// left by one case is otherwise the band the next case's wait is satisfied by.
+	const left = (await (await request.get(`/api/highlights/clips?entry=${entry}`)).json()) as {
+		id: string;
+	}[];
+	for (const j of left) await request.delete(`/api/highlights/clips/${j.id}`);
 	const db = new Database(dbPath());
 	try {
 		db.prepare(`DROP TRIGGER IF EXISTS clip_fails_for_this_spec`).run();
