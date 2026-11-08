@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import type { Kind } from '$lib/library/types';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
@@ -8,7 +9,7 @@ const { seedSample } = await import('$lib/server/fixtures');
 const devices = await import('$lib/server/devices');
 const choices = await import('$lib/server/anime/choices');
 const page = await import('$lib/server/settings-page');
-const { getSetting } = await import('$lib/server/settings');
+const { clearSetting, getSetting, setSetting } = await import('$lib/server/settings');
 const { kindDirection } = await import('$lib/server/series');
 const textDir = await import('../src/routes/read/[entry]/text-direction.server');
 
@@ -299,6 +300,117 @@ describe('the library’s values', () => {
 			{ direction: null, text_direction: 'rtl' }
 		);
 		db.prepare(`UPDATE series SET text_direction = NULL WHERE id = ?`).run(id);
+	});
+
+	describe('✕ clears only what the line names (c637)', () => {
+		const KIND_ROWS = ['manga', 'manhwa', 'doujin', 'novel'] as const;
+		const visible = (kind: string) =>
+			(
+				db
+					.prepare(
+						`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id
+						WHERE s.kind = ? AND r.hidden = 0 AND s.hidden = 0 ORDER BY s.id LIMIT 1`
+					)
+					.get(kind) as { id: number }
+			).id;
+		const put = db.prepare(`UPDATE series SET direction = ?, text_direction = ? WHERE id = ?`);
+		const stored = (id: number) =>
+			db.prepare(`SELECT direction, text_direction FROM series WHERE id = ?`).get(id);
+		/** A direction of [kind]'s that is not its default, whatever the default is. */
+		const other = (kind: Kind) => {
+			const def = kindDirection(kind);
+			if (kind === 'novel') return def === 'scroll' ? 'paged' : 'scroll';
+			return def === 'rtl' ? 'ltr' : 'rtl';
+		};
+
+		// The whole domain, not a hand-picked row: each kind by each stored
+		// direction by each stored text direction, read as the list reads them.
+		for (const kind of KIND_ROWS)
+			for (const layout of ['NULL', 'equal', 'different'] as const)
+				for (const text of [null, 'rtl', 'ltr'] as const)
+					it(`${kind}: direction ${layout}, text_direction ${text}`, () => {
+						const id = visible(kind);
+						const direction =
+							layout === 'NULL' ? null : layout === 'equal' ? kindDirection(kind)! : other(kind);
+						put.run(direction, text, id);
+						try {
+							const layoutDiffers = layout === 'different';
+							const rtlDiffers = kind === 'novel' && text === 'rtl';
+							const listed = layoutDiffers || rtlDiffers;
+							const row = page.modeOverrides(false).find((o) => o.seriesId === id);
+							expect(page.overrideCounts(false).mode[kind]).toBe(listed ? 1 : 0);
+							if (listed) {
+								expect(row).toMatchObject({
+									direction: layoutDiffers ? direction : null,
+									rtl: rtlDiffers
+								});
+							} else expect(row).toBeUndefined();
+
+							page.clearModes([id]);
+							expect(stored(id)).toEqual({
+								direction: layoutDiffers ? null : direction,
+								text_direction: rtlDiffers ? null : text
+							});
+							// Whatever it held, it is off the list and out of the count now.
+							expect(page.overrideCounts(false).mode[kind]).toBe(0);
+							expect(page.modeOverrides(false).map((o) => o.seriesId)).not.toContain(id);
+						} finally {
+							put.run(null, null, id);
+						}
+					});
+
+		it('a stored layout equal to the default survives ✕, and differs after a later default change', () => {
+			const id = visible('novel');
+			const def = kindDirection('novel')!;
+			const next = other('novel');
+			put.run(def, 'rtl', id);
+			try {
+				expect(page.modeOverrides(false).find((o) => o.seriesId === id)).toMatchObject({
+					direction: null,
+					rtl: true
+				});
+				page.clearModes([id]);
+				expect(stored(id)).toEqual({ direction: def, text_direction: null });
+				// The second ✕, from a page drawn before the first: nothing more to take.
+				page.clearModes([id]);
+				expect(stored(id)).toEqual({ direction: def, text_direction: null });
+
+				// That was a choice, so it does not follow the default anywhere.
+				setSetting('mode_novel', next);
+				expect(page.overrideCounts(false).mode.novel).toBe(1);
+				expect(page.modeOverrides(false).find((o) => o.seriesId === id)).toMatchObject({
+					direction: def,
+					rtl: false
+				});
+				page.clearModes([id]);
+				expect(stored(id)).toEqual({ direction: null, text_direction: null });
+			} finally {
+				clearSetting('mode_novel');
+				put.run(null, null, id);
+			}
+		});
+
+		it('takes the default as it is when ✕ lands, not as the page drew it', () => {
+			const id = visible('manga');
+			put.run('ltr', null, id);
+			try {
+				expect(page.modeOverrides(false).map((o) => o.seriesId)).toContain(id);
+				// Another tab made L→R the default after this page drew the line.
+				setSetting('mode_manga', 'ltr');
+				page.clearModes([id]);
+				expect(stored(id)).toEqual({ direction: 'ltr', text_direction: null });
+			} finally {
+				clearSetting('mode_manga');
+				put.run(null, null, id);
+			}
+		});
+
+		it('leaves a kind with no MODE of its own alone, and an id that is gone', () => {
+			const id = anime('A kind with no default');
+			put.run('scroll', 'rtl', id);
+			page.clearModes([id, 987654321]);
+			expect(stored(id)).toEqual({ direction: 'scroll', text_direction: 'rtl' });
+		});
 	});
 
 	it('counts a hidden novel kept R→L only while revealed (c552)', () => {

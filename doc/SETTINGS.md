@@ -49,7 +49,8 @@ only what the row offers and stores the default as a reset).
   the series screen and in the reader. REMEMBER in the reader makes a series
   differ. **N SERIES DIFFER →** opens the series reading against their
   kind's default. ✕ puts one back (`direction` NULL), and CLEAR ALL N puts
-  them all back.
+  them all back. A stored `direction` equal to the default is on no line, and
+  ✕ leaves it (below, 02; c637).
 - **FIT, ZOOM, SPREADS, CROP BORDERS, WIDE PAGES, SIDES, BLOCKS**: the
   device's own, under the same `tsundoku.reader.*` keys the reader uses
   ([`READER.md`](READER.md)).
@@ -74,9 +75,16 @@ paged reader's zones drawn as a chapter opens, by finger ([`READER.md`](READER.m
   from. A stored `'ltr'` reads as NULL does and is not counted. A novel that
   differs in both is counted once, and its line says both (`PAGED · R→L ·
 NOVEL · CHOSEN IN THE READER`, `src/routes/settings/mode-line.ts`). ✕ and
-  CLEAR ALL N put both back (`direction` and `text_direction` NULL); a
-  comic's `text_direction`, left from a time it was a novel, is neither
-  counted nor cleared.
+  CLEAR ALL N clear **only what the line names** (c637, the owner's decision
+  of 2026-11-07): a `direction` that differs goes to NULL, and R→L goes to
+  NULL. A novel listed only for R→L keeps a `direction` stored equal to the
+  LAYOUT default: REMEMBER stored it as a choice, so it does not start
+  following a later change of default (when the default does change, that
+  series then differs, and its line says so). A stored `'ltr'` is not on the
+  line and stays. A comic's `text_direction`, left from a time it was a
+  novel, is neither counted nor cleared, and a kind with no default of its
+  own (an anime) is never listed, so a posted id of one changes nothing
+  (`clearModes`, `src/lib/server/settings-page.ts`).
 - **PAGE, TYPEFACE, SIZE, MARGINS, COLUMNS, JUSTIFY, FURIGANA**: fields of the
   text reader's `tsundoku.text.settings` object
   ([`TEXT-READER.md`](TEXT-READER.md)).
