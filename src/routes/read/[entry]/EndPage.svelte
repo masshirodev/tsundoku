@@ -294,11 +294,13 @@
 	/**
 	 * What a refused form says. The row says its own words, never the action's:
 	 * an action's line is free to name a control this page also draws, so a
-	 * locator for that control would find two elements. The sentence holds none
-	 * of COMMON's control words and none of this page's own labels (DELETE,
+	 * locator for that control would find two elements. Both sentences hold none
+	 * of COMMON's control words and none of this page's own cells (DELETE,
 	 * UNHIDE, UNHIDDEN ✓, + ADD TO LIBRARY, IN LIBRARY ✓, START, WORK, FAV,
 	 * DOWNLOAD FIRST 10, FORGET), so no locator for a row finds this line
-	 * instead of its control.
+	 * instead of its control. One word is shared: SERIES, in the card's own
+	 * sentence and in ← SERIES and NOT QUEUED · TRY THE SERIES, so a bare SERIES
+	 * substring locator would also find this line.
 	 *
 	 * `?/hide`'s `failure` is the one that gets its own sentence (c714): that
 	 * action has a single `fail`, the series having been taken into a Work since

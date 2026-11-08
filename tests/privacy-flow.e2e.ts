@@ -395,7 +395,11 @@ function removeOwnSeries(ids: number[]): unknown {
 	}
 }
 
-/** COULD NOT SAVE's and the end page's words (doc/handoff-notes/reader.md, wave 31 round 2, and c655's). */
+/**
+ * COULD NOT SAVE's and the end page's words (doc/handoff-notes/reader.md, wave
+ * 31 round 2, and c655's). Not SERIES, which the page draws in ← SERIES and
+ * which c714's sentence holds: no row control is named that (`rowRefusal`).
+ */
 const ROW_WORDS = [
 	'MORE',
 	'BACK',

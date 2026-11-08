@@ -428,8 +428,8 @@ scrollable screen, which took some of them at random.
   series was taken into a Work since the page was drawn),
   **THE SERIES CHANGED · RELOAD** (c714), since a reload draws the Work's row.
   A failure from the other forms, and any `error`, is COULD NOT SAVE. A series
-  in a Work draws
-  neither cell — its Work is hidden or taken out whole from the series screen.
+  in a Work draws DELETE and no UNHIDE — its Work is hidden or taken out whole
+  from the series screen.
   The block stays once the rating is set, showing what was chosen, so rating on
   this page never empties it; the note, `SHOWN WHILE UNRATED`, goes with the
   first rating. An ongoing series whose source has added nothing for eight
