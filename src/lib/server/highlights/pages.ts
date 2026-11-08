@@ -6,6 +6,7 @@ import { highlightsArea } from '../data-dirs.ts';
 import { join } from '../fspath.ts';
 import { readPage, type PageBody } from '../pages/index.ts';
 import { HIDDEN_SQL, VISIBLE_SQL } from '../visibility.ts';
+import type { KeptPage } from '../../library/highlights.ts';
 
 /**
  * Highlights H3: a page kept from the image reader (card c703; doc/HIGHLIGHTS.md,
@@ -32,14 +33,7 @@ import { HIDDEN_SQL, VISIBLE_SQL } from '../visibility.ts';
  * - **Incognito makes none** (Main 02): the caller refuses before this runs.
  */
 
-export type KeptPage = {
-	id: number;
-	page: number;
-	pageEnd: number | null;
-	note: string;
-	madeAt: number;
-	bytes: number;
-};
+export type { KeptPage };
 
 export class KeepError extends Error {
 	constructor(

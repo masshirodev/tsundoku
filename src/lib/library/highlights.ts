@@ -492,3 +492,136 @@ export function toMarkdown(list: Highlight[], title: string, opts: MarkdownOptio
 		.flatMap((g) => [`## ${g[0].seriesTitle}`, '', ...seriesMarkdown(g, opts, 3)]);
 	return [...head, ...body].join('\n').trimEnd() + '\n';
 }
+
+// ---- a page kept from the image reader (H3, card c703) --------------------------------
+
+/** A page kept, as the reader holds it (`pageHighlights` on the workstation). */
+export type KeptPage = {
+	id: number;
+	/** 0-based; for a spread kept as BOTH, the first page in reading order. */
+	page: number;
+	/** BOTH: the spread's other page. */
+	pageEnd: number | null;
+	note: string;
+	madeAt: number;
+	bytes: number;
+};
+
+/** What the reader's HIGHLIGHT cell can be (Manga M1, M3, M7). */
+export type CellState = 'idle' | 'kept' | 'keeping' | 'offline' | 'incognito';
+
+/** The key one ask is known by while it is being made: the same page twice is one ask. */
+export const keepKey = (entry: number, page: number, pageEnd: number | null) =>
+	`${entry}:${page}:${pageEnd ?? ''}`;
+
+/** The pages a kept highlight covers: one, or a spread's two. */
+export const pagesOf = (k: Pick<KeptPage, 'page' | 'pageEnd'>) =>
+	k.pageEnd === null ? [k.page] : [k.page, k.pageEnd];
+
+/** What is kept on the screen's pages (a group is one page, or a spread's two). */
+export function keptOn(kept: KeptPage[], group: number[]): KeptPage[] {
+	return kept.filter((k) => pagesOf(k).some((p) => group.includes(p)));
+}
+
+/**
+ * The scrubber's ticks (Manga M3): every page a highlight covers, once each,
+ * in order, so a spread kept as BOTH ticks both of its pages.
+ */
+export function pageTicks(kept: KeptPage[]): number[] {
+	return [...new Set(kept.flatMap(pagesOf))].sort((a, b) => a - b);
+}
+
+/**
+ * The cell's state, in the order the handoff ranks them (Manga M7): incognito
+ * makes none and says why; offline cannot reach the workstation that makes the
+ * copy; a page being kept is dashed until it is; a kept page reads
+ * ✓ HIGHLIGHTED; otherwise HIGHLIGHT.
+ */
+export function cellState(o: {
+	kept: KeptPage[];
+	group: number[];
+	keeping: boolean;
+	online: boolean;
+	incognito: boolean;
+}): CellState {
+	if (o.incognito) return 'incognito';
+	if (o.keeping) return 'keeping';
+	if (keptOn(o.kept, o.group).length) return 'kept';
+	if (!o.online) return 'offline';
+	return 'idle';
+}
+
+/**
+ * The cell's words. The strip names its page (Manga M4: HIGHLIGHT P. 23), so
+ * a page half off the screen is never a guess; paged, the page is the one on
+ * the screen.
+ */
+export function cellLabel(state: CellState, o: { strip: boolean; page: number }): string {
+	if (state === 'incognito') return 'INCOGNITO';
+	if (state === 'keeping') return 'KEEPING…';
+	if (state === 'kept') return '✓ HIGHLIGHTED';
+	if (state === 'offline') return '○ HIGHLIGHT';
+	return o.strip ? `HIGHLIGHT P. ${o.page + 1}` : 'HIGHLIGHT';
+}
+
+export type SpreadChoice = {
+	/** P. 14, or BOTH. */
+	label: string;
+	/** Where it is drawn: RIGHT, LEFT; AS ONE for BOTH. */
+	where: string;
+	page: number;
+	pageEnd: number | null;
+	/** Kept already: the row opens it rather than keeping it again. */
+	keptId: number | null;
+};
+
+/**
+ * A spread's HIGHLIGHT asks which (Manga M2): the two pages in reading order
+ * (R→L: the right one first), then BOTH, kept as one image. `group` is the
+ * spread's pages in reading order.
+ */
+export function spreadChoices(group: number[], rtl: boolean, kept: KeptPage[]): SpreadChoice[] {
+	const [a, b] = [Math.min(...group), Math.max(...group)];
+	const found = (page: number, pageEnd: number | null) =>
+		kept.find((k) => k.page === page && k.pageEnd === pageEnd)?.id ?? null;
+	return [
+		{
+			label: `P. ${a + 1}`,
+			where: rtl ? 'RIGHT' : 'LEFT',
+			page: a,
+			pageEnd: null,
+			keptId: found(a, null)
+		},
+		{
+			label: `P. ${b + 1}`,
+			where: rtl ? 'LEFT' : 'RIGHT',
+			page: b,
+			pageEnd: null,
+			keptId: found(b, null)
+		},
+		{ label: 'BOTH', where: 'AS ONE', page: a, pageEnd: b, keptId: found(a, b) }
+	];
+}
+
+/**
+ * Which side of a page its gutter rule sits on (Manga M3): the outer side,
+ * away from the spine. Alone, the right in R→L and the left in L→R; in a
+ * spread, the side the page is drawn on.
+ */
+export function ruleSide(side: 'left' | 'right' | 'center', rtl: boolean): 'left' | 'right' {
+	if (side !== 'center') return side;
+	return rtl ? 'right' : 'left';
+}
+
+/** The page sheet's head (Manga M6): HIGHLIGHT · CH. 42 · P. 14, or P. 14–15 for BOTH. */
+export function pageSheetHead(entryName: string, k: Pick<KeptPage, 'page' | 'pageEnd'>): string {
+	const p =
+		k.pageEnd === null
+			? `P. ${k.page + 1}`
+			: `P. ${Math.min(k.page, k.pageEnd) + 1}–${Math.max(k.page, k.pageEnd) + 1}`;
+	return ['HIGHLIGHT', entryName.toUpperCase(), p].filter(Boolean).join(' · ');
+}
+
+/** The page sheet's line (Manga M6): MADE 4 NOV · A COPY ON THE WORKSTATION · 1 MB. */
+export const pageSheetLine = (k: Pick<KeptPage, 'madeAt' | 'bytes'>, now: number) =>
+	`MADE ${dayWord(k.madeAt, now)} · A COPY ON THE WORKSTATION · ${sizeWord(k.bytes)}`;

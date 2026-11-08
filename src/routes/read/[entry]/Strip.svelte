@@ -24,6 +24,7 @@
 		chapters,
 		sides = 0,
 		zoom = 1,
+		outline = null,
 		src,
 		shape = (_c, _i, p) => p,
 		onshape,
@@ -41,6 +42,12 @@
 		sides?: number;
 		/** The reader's zoom (doc/READER.md, "Zoom"): the strip's width, times it; past 100% it scrolls sideways. */
 		zoom?: number;
+		/**
+		 * The page HIGHLIGHT would keep (Highlights H3, c703; Manga M4): the one
+		 * under the middle, outlined in ink while the controls are up, so a page
+		 * half off the screen is never a guess.
+		 */
+		outline?: { entry: number; index: number } | null;
 		src: (c: StripChapter, i: number) => string;
 		/** A page's shape for its box, where the manifest had none (a chapter read online). */
 		shape?: (c: StripChapter, i: number, p: Page) => Page;
@@ -247,7 +254,13 @@
 			{#if c.pages}
 				{#each c.pages as p, i (src(c, i))}
 					{@const s = shape(c, i, p)}
-					<div data-role="page" data-entry={c.id} data-index={i} class="slot">
+					<div
+						data-role="page"
+						data-entry={c.id}
+						data-index={i}
+						class="slot"
+						class:outlined={outline?.entry === c.id && outline.index === i}
+					>
 						<PageImage
 							src={src(c, i)}
 							number={i + 1}
@@ -324,6 +337,19 @@
 	}
 	.slot :global(.page) {
 		flex: 1;
+	}
+	/* Manga M4: 3px of ink inside the page's edge, over the art only while the
+	   controls are up (the outline is the chrome's, not the page's). */
+	.slot.outlined {
+		position: relative;
+	}
+	.slot.outlined::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		box-shadow: inset 0 0 0 3px var(--text-1);
+		pointer-events: none;
 	}
 	.marker {
 		height: 1px;
