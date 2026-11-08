@@ -1024,7 +1024,8 @@ Specific and honest, so a deliberate gap isn't mistaken for an oversight:
   SETTINGS opens [`SETTINGS.md`](SETTINGS.md)'s screen.
 - **MORE** (card c171, Reach): on the tablet and phone, a cell after SELECT
   opens the sidebar's foot as a sheet: GET STARTED while it is unfinished,
-  TO LINK while anything waits (c475), HISTORY, DOWNLOADS with its queue,
+  TO LINK while anything waits (c475), HISTORY, HIGHLIGHTS with its count
+  while there are any (c701; [`HIGHLIGHTS.md`](HIGHLIGHTS.md)), DOWNLOADS with its queue,
   SETTINGS with this device's changed count, HELP, RESCAN (c561; see
   "RESCAN asks first"), IMPORT LOG with when the last import came in, and in
   the TV app only, SERVERS (c261; [`TV-APP.md`](TV-APP.md), "Servers"). The desktop
