@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { END_PAGE_CONTROLS, endSheetOpen } from '$lib/reader/library-row';
+	import { END_PAGE_CONTROLS, endSheetOpen, holdWheelForEndSheet } from '$lib/reader/library-row';
 	import { leave } from '$lib/motion';
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
@@ -552,9 +552,9 @@
 				: null;
 		onBand = false;
 		// The chapter's first character is its start, the band before it (c705):
-		// an entry opened with no `?at=` comes as that place, not as 'start', and
-		// so does the band's own page, whose URL keeps that character. SCROLL's
-		// `?at=0.0.<y>` keeps its line's height instead.
+		// 'start' and that place open alike, and the band's own page comes as
+		// that place, its URL keeping that character. SCROLL's `?at=0.0.<y>`
+		// keeps its line's height instead.
 		const first = typeof at === 'object' && at.block === 0 && at.offset === 0;
 		// Opened at its start, the chapter opens on its first page, the band's.
 		onLead = layout === 'paged' && (at === 'start' || first);
@@ -1440,7 +1440,7 @@
 	function wheel(e: WheelEvent) {
 		// Ctrl is the browser's zoom, and a touchpad's pinch.
 		if (e.ctrlKey) return;
-		if (lookup || fullImage || wide || sheet || contents) return;
+		if (lookup || fullImage || wide || sheet || contents || holdWheelForEndSheet(e)) return;
 		if (layout === 'scroll') {
 			// A last chapter too short to scroll never fires onscroll, so the
 			// wheel that would have scrolled it is the one that ends it. The end

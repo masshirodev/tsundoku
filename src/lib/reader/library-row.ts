@@ -9,8 +9,35 @@ import type { SeriesEntry } from '$lib/library/series';
 export const END_PAGE_CONTROLS = 'a, button, [data-end-sheet]';
 
 /** DELETE's confirmation is up: the keys are its own, not the reader's. */
-export const endSheetOpen = () =>
-	document.querySelector('[data-end-sheet] [role="dialog"]') !== null;
+export const endSheetOpen = () => endSheet() !== null;
+const endSheet = () => document.querySelector('[data-end-sheet] [role="dialog"]');
+
+/**
+ * Whether a wheel moves the confirmation itself: a sheet taller than the screen
+ * with room left that way. Anything else would chain to the page under it.
+ */
+export function sheetTakesWheel(
+	box: Pick<Element, 'scrollTop' | 'clientHeight' | 'scrollHeight'>,
+	deltaY: number
+): boolean {
+	if (deltaY < 0) return box.scrollTop > 0;
+	return deltaY > 0 && box.scrollTop + box.clientHeight < box.scrollHeight - 1;
+}
+
+/**
+ * A wheel while DELETE's confirmation is up is the confirmation's, not the
+ * reader's: true when the reader must stand down. Standing down is not enough,
+ * because a sheet with nothing to scroll chains the wheel natively to the page
+ * under it, so that is refused too. Ctrl stays the browser's zoom, as under
+ * every other panel.
+ */
+export function holdWheelForEndSheet(e: WheelEvent): boolean {
+	const open = endSheet();
+	if (!open) return false;
+	const over = e.target instanceof Element && open.contains(e.target);
+	if (!e.ctrlKey && !(over && sheetTakesWheel(open, e.deltaY))) e.preventDefault();
+	return true;
+}
 
 /** DELETE's confirmation names what goes first (doc/DELETING.md): the series screen's and the end page's line. */
 export function entriesLine(entries: SeriesEntry[]): string {

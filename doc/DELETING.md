@@ -30,7 +30,11 @@ does: back over the reader and the series when the library is in the tab's
 history, or replacing the reader when it isn't, so ← never reopens a page whose
 series is gone. A browsing record keeps + ADD TO LIBRARY and draws no DELETE; a
 hidden series read under `/reveal` keeps UNHIDE beside it (c673). A press the
-action refuses closes the sheet and says COULD NOT SAVE in the row.
+action refuses closes the sheet and says COULD NOT SAVE in the row. While the
+sheet is up the reader under it stands down, for a tap, a key and the wheel: a
+wheel moves the sheet when the sheet has room to scroll and otherwise nothing,
+because a sheet with nothing to scroll would chain it to the strip below
+(`holdWheelForEndSheet`, `src/lib/reader/library-row.ts`).
 
 A hidden series is only deleted with reveal on, as it's only seen then.
 

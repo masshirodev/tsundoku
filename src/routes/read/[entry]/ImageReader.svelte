@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { END_PAGE_CONTROLS, endSheetOpen } from '$lib/reader/library-row';
+	import { END_PAGE_CONTROLS, endSheetOpen, holdWheelForEndSheet } from '$lib/reader/library-row';
 	import { leave } from '$lib/motion';
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
@@ -367,7 +367,7 @@
 	// Ctrl + wheel and a two-finger pinch zoom the pages, never the browser's page.
 	onMount(() => {
 		const wheel = (e: WheelEvent) => {
-			if (sheet || lookup || menu) return;
+			if (sheet || lookup || menu || holdWheelForEndSheet(e)) return;
 			if (e.ctrlKey) {
 				e.preventDefault();
 				zoomAround(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1), e.clientX, e.clientY);

@@ -410,7 +410,7 @@ and in R→L, a scroll to the left reads on). One gesture turns one page: the de
 included, is spent until the wheel has been quiet for 200ms (`WheelTurn`,
 `wheelForward` in `src/lib/reader/reader.ts`, covered by
 `tests/reader-domain.spec.ts`). Ctrl+wheel stays the browser's zoom, the wheel
-does nothing while a sheet, CONTENTS, the lookup or a full-screen image is open,
+does nothing while a sheet (the end page's DELETE among them), CONTENTS, the lookup or a full-screen image is open,
 and scroll layout scrolls as before. The owner asked for this on 2026-10-22.
 
 Arrows, Space, PageUp and PageDown turn too; OK (Enter), Esc or the mouse at

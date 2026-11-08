@@ -36,7 +36,7 @@ import {
 	forwardBy,
 	isReaderPath
 } from '$lib/reader/reader';
-import { libraryCells } from '$lib/reader/library-row';
+import { libraryCells, sheetTakesWheel } from '$lib/reader/library-row';
 import {
 	DEFAULT_SETTINGS,
 	TEXT_FONTS,
@@ -764,6 +764,28 @@ describe('isReaderPath (c565, round 2)', () => {
 		for (const p of ['/series/12', '/', '/read/', '/read/3/x', '/history', '/read/3/'])
 			expect(isReaderPath(p, '/read/')).toBe(false);
 		expect(isReaderPath('/read/386', '/app/read/')).toBe(false);
+	});
+});
+
+describe('sheetTakesWheel (c655): only a sheet with room that way keeps the wheel', () => {
+	const box = (scrollTop: number, clientHeight: number, scrollHeight: number) => ({
+		scrollTop,
+		clientHeight,
+		scrollHeight
+	});
+	it.each([
+		['nothing to scroll, up', box(0, 400, 400), -120, false],
+		['nothing to scroll, down', box(0, 400, 400), 120, false],
+		['at the head, up', box(0, 200, 400), -120, false],
+		['at the head, down', box(0, 200, 400), 120, true],
+		['in the middle, up', box(100, 200, 400), -120, true],
+		['in the middle, down', box(100, 200, 400), 120, true],
+		['at the foot, up', box(200, 200, 400), -120, true],
+		['at the foot, down', box(200, 200, 400), 120, false],
+		['a fractional foot, down', box(199.5, 200, 400), 120, false],
+		['no vertical wheel', box(100, 200, 400), 0, false]
+	])('%s', (_name, b, deltaY, takes) => {
+		expect(sheetTakesWheel(b, deltaY)).toBe(takes);
 	});
 });
 
