@@ -19,6 +19,7 @@ import { EngineError } from '$lib/server/engine/client';
 import { previewIdOf } from '$lib/server/downloads';
 import { noVideoLine, staleSource } from '$lib/server/move';
 import { workEndOf } from '$lib/server/works';
+import { pageHighlights } from '$lib/server/highlights/pages';
 import { parseTextDirection } from '$lib/reader/text';
 import { setTextDirection, takesTextDirection, textDirectionOf } from './text-direction.server';
 
@@ -296,6 +297,8 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			incognito: isIncognito(cookies),
 			// The Work's next part, at the end of this series (doc/WORKS.md, W6).
 			work: workEndOf(series.id, reveal),
+			/** Its pages kept as highlights (c703): the cell, the scrubber's ticks, the gutter rule. */
+			highlights: pageHighlights(entry.id, reveal),
 			/** Its languages, for the switch in the top bar; null for a book in one. */
 			editions: folded
 				? {
