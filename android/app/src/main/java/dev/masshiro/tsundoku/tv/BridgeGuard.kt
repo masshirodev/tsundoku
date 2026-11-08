@@ -117,13 +117,108 @@ object BridgeGuard {
 		return query == "t=$t"
 	}
 
-	/** True when [url]'s host is [ASSET_HOST], read case-blind, whatever its scheme or path. */
-	fun isAssetHost(url: String?): Boolean {
-		val u = url?.trim().orEmpty()
-		if (u.isEmpty()) return false
-		val host = runCatching { java.net.URI(u) }.getOrNull()?.host ?: return false
-		return host.equals(ASSET_HOST, ignoreCase = true)
+	/**
+	 * True when [url] names [ASSET_HOST], read case-blind, whatever its scheme,
+	 * path, query or fragment, and whether or not the rest of it parses
+	 * (c684). Every refusal of the host asks this, so it must fail closed: a
+	 * URL that names the host is the host's, even when it is not a URL
+	 * `java.net.URI` accepts.
+	 */
+	fun isAssetHost(url: String?): Boolean = hostOf(url) == ASSET_HOST
+
+	/**
+	 * The schemes whose authority a browser reads without `//`, and whose `\`
+	 * is a `/`: the URL standard's "special" schemes, less `file`, whose
+	 * `file:///path` names no host and is read here as any other scheme is.
+	 */
+	private val SPECIAL = setOf("http", "https", "ws", "wss", "ftp")
+
+	/**
+	 * The host [url] names, lower-cased, read the way a browser reads an
+	 * authority, or null when it names none (c684).
+	 *
+	 * `java.net.URI` was the reader until c684, and it throws on characters a
+	 * WebView leaves as they are: the URL standard's query percent-encode set
+	 * does not hold `|`, `{`, `}` or `^`, and its fragment set does not hold
+	 * `|` either, so `ASSET?x=|` or `ASSET#connect=|` had no host to it and
+	 * every guard that asks [isAssetHost] let it through to the network.
+	 * Whether a real WebView hands `shouldInterceptRequest` such a URL
+	 * unescaped is read from the standard, not run on a TV (`doc/TV-APP.md`,
+	 * "What is not verified").
+	 *
+	 * This reads only the authority, and never throws: tabs and newlines are
+	 * dropped and the ends trimmed (as a browser does before parsing); the
+	 * scheme is the letters before the first `:`; a special scheme takes its
+	 * authority after any run of `/` or `\`, any other only after `//`; the
+	 * authority ends at the first `/`, `?` or `#` (or `\` for a special
+	 * scheme); the host is what follows its last `@` and comes before its
+	 * port; `%XX` escapes are decoded (a browser decodes them in a host, so
+	 * `appassets%2eandroidplatform.net` is the host), and one trailing dot,
+	 * which names the same host to DNS, is dropped. Pure, so BridgeGuardTest
+	 * pins it: `android.net.Uri` is not there in a JVM test.
+	 */
+	fun hostOf(url: String?): String? {
+		val u = url.orEmpty().filterNot { it == '\t' || it == '\n' || it == '\r' }.trim()
+		val colon = u.indexOf(':')
+		if (colon <= 0) return null
+		val scheme = u.substring(0, colon)
+		if (!scheme[0].isAsciiLetter()) return null
+		if (!scheme.all { it.isAsciiLetter() || it in '0'..'9' || it == '+' || it == '-' || it == '.' }) return null
+		val special = scheme.lowercase() in SPECIAL
+		var at = colon + 1
+		if (special) {
+			while (at < u.length && (u[at] == '/' || u[at] == '\\')) at++
+		} else {
+			if (!u.startsWith("//", at)) return null
+			at += 2
+		}
+		var end = at
+		while (end < u.length && u[end] != '/' && u[end] != '?' && u[end] != '#' && !(special && u[end] == '\\')) end++
+		val hostPort = u.substring(at, end).substringAfterLast('@')
+		val host =
+			if (hostPort.startsWith('[')) {
+				val close = hostPort.indexOf(']')
+				if (close < 0) hostPort else hostPort.substring(0, close + 1)
+			} else {
+				hostPort.substringBefore(':')
+			}
+		val read = percentDecoded(host).lowercase()
+		val name = if (read.endsWith('.') && !read.endsWith("..")) read.dropLast(1) else read
+		return name.ifEmpty { null }
 	}
+
+	private fun Char.isAsciiLetter() = this in 'a'..'z' || this in 'A'..'Z'
+
+	/** `%XX` runs decoded as UTF-8 bytes; anything that is not an escape is kept as written. */
+	private fun percentDecoded(s: String): String {
+		if ('%' !in s) return s
+		val out = StringBuilder()
+		val bytes = java.io.ByteArrayOutputStream()
+		var i = 0
+		while (i < s.length) {
+			if (s[i] == '%' && i + 2 < s.length && hex(s[i + 1]) >= 0 && hex(s[i + 2]) >= 0) {
+				bytes.write(hex(s[i + 1]) * 16 + hex(s[i + 2]))
+				i += 3
+				continue
+			}
+			if (bytes.size() > 0) {
+				out.append(bytes.toString("UTF-8"))
+				bytes.reset()
+			}
+			out.append(s[i])
+			i++
+		}
+		if (bytes.size() > 0) out.append(bytes.toString("UTF-8"))
+		return out.toString()
+	}
+
+	private fun hex(c: Char): Int =
+		when (c) {
+			in '0'..'9' -> c - '0'
+			in 'a'..'f' -> c - 'a' + 10
+			in 'A'..'F' -> c - 'A' + 10
+			else -> -1
+		}
 
 	fun allows(url: String?, known: (String) -> Boolean): Boolean {
 		val u = url?.trim().orEmpty()

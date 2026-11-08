@@ -965,3 +965,166 @@ test('a page with no list behaves as before c261: no others, no ADD mode', async
 	await expect(page.locator('#others')).toBeHidden();
 	await expect(page.locator('#lost-title')).toHaveText('○ NOTHING ANSWERS AT 192.168.1.23:42143');
 });
+
+// ---- c685: a door the page acted on is not taken again by a history step ----
+
+/** A server nobody else in this file pairs, for c685's replays. */
+const GONE = 'http://192.168.1.88:42143';
+/** The launch's token, as `MainActivity.loadAsset` writes it into the URL. */
+const TOKEN = '6a1f0c9e-2b7d-4a55-9d1e-3f8c0b2a7e64';
+
+type Across = {
+	/** Every origin any document asked the bridge to probe, in order. */
+	probes: string[];
+	/** Every origin any document stored. */
+	remembered: string[];
+	/** Every origin any document opened. */
+	opened: string[];
+	/** origin -> its answer; an origin with none is held, never answered. */
+	answers: Map<string, boolean>;
+};
+
+/**
+ * PairingBridge.kt as `stubServers` stands it up, but kept on this side of the
+ * page, so it outlives each document: a history step loads the pair page
+ * again, and the question is what that new document does with the bridge.
+ * The list is the activity's (`Servers.kt`), the same in every document, and
+ * `GONE` is never in it: a server the owner FORGOT after the first visit is,
+ * to the second document, exactly that. A probe is answered asynchronously,
+ * as the real bridge answers from its own thread (`PairingBridge.probe`), and
+ * an origin with no answer set is held, as a server that has not answered
+ * yet is.
+ */
+async function stubAcross(page: Page, list: StubServer[]): Promise<Across> {
+	const across: Across = { probes: [], remembered: [], opened: [], answers: new Map() };
+	await page.exposeFunction('__acrossProbe', (at: string) => {
+		across.probes.push(at);
+		const ok = across.answers.get(at);
+		return ok === undefined ? new Promise<boolean>(() => {}) : ok;
+	});
+	await page.exposeFunction('__acrossRemember', (at: string) => {
+		across.remembered.push(at);
+	});
+	await page.exposeFunction('__acrossOpen', (at: string) => {
+		across.opened.push(at);
+	});
+	await page.addInitScript((list: StubServer[]) => {
+		const w = window as unknown as Record<string, (at: string) => Promise<boolean>>;
+		const shown = (s: StubServer) => s.tvName || s.name || s.origin.replace(/^https?:\/\//, '');
+		window.TsundokuTV = {
+			tvAddress: () => '192.168.1.31',
+			prefix: () => '192.168.1.',
+			defaultPort: () => 42143,
+			remembered: () => list[0]?.origin ?? '',
+			servers: () =>
+				JSON.stringify(list.map((s, i) => ({ ...s, shown: shown(s), inUse: i === 0 }))),
+			remember: (at: string) => void w.__acrossRemember(at),
+			open: (at: string) => void w.__acrossOpen(at),
+			probe: (at: string) => void w.__acrossProbe(at).then((ok) => window.tsundokuProbe?.(at, ok))
+		};
+	}, list);
+	// The server's own pages, which the pair page leaves for. A real server
+	// answers its /pair/tv; nothing here dials the address.
+	await page.route(`${GONE}/**`, (route) =>
+		route.fulfill({ contentType: 'text/html', body: '<!doctype html><p>9E</p>' })
+	);
+	await page.route(`${HOME}/**`, (route) =>
+		route.fulfill({ contentType: 'text/html', body: '<!doctype html><p>library</p>' })
+	);
+	return across;
+}
+
+test('a given address leaves its entry without the fragment once it is checked, the token kept (c685)', async ({
+	page
+}) => {
+	await stubAcross(page, three);
+	// How long the history was when this document began, before its script
+	// ran (Playwright's page starts on about:blank, an entry of its own).
+	await page.addInitScript(() => {
+		(window as unknown as { __entries: number }).__entries = history.length;
+	});
+	await page.goto(`${page9}?t=${TOKEN}#connect=${encodeURIComponent(GONE)}`);
+	await expect(page.locator('#connect')).toBeVisible();
+	await expect(page.locator('#connect-line')).toContainText('192.168.1.88:42143');
+	// The entry no longer says connect=, so nothing that loads it again can
+	// act on it; the query is the launch's token, which the asset guard
+	// requires (BridgeGuard.carriesAssetToken), so it must survive.
+	expect(await page.evaluate(() => location.hash)).toBe('');
+	expect(await page.evaluate(() => location.search)).toBe(`?t=${TOKEN}`);
+	expect(page.url()).toBe(`${page9}?t=${TOKEN}`);
+	// And the entry was replaced, not added to: BACK has no extra step.
+	expect(
+		await page.evaluate(
+			() => history.length - (window as unknown as { __entries: number }).__entries
+		)
+	).toBe(0);
+});
+
+test('a history step into an old #connect= entry does not bring a forgotten server back (c685)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, three);
+	across.answers.set(GONE, true);
+	await page.goto(`${page9}?t=${TOKEN}#connect=${encodeURIComponent(GONE)}`);
+	// The first visit pairs: a new server that answers is stored and its
+	// /pair/tv opens, as c260 has it.
+	await page.waitForURL(`${GONE}/pair/tv`);
+	expect(across.remembered).toEqual([GONE]);
+	expect(across.probes).toEqual([GONE]);
+
+	// The owner FORGETs it later (the list never had it, so to the next
+	// document it is forgotten). Any page the WebView shows can step back
+	// into the pair page's entry, which carries the app's own token.
+	await page.evaluate(() => history.back());
+	await page.waitForURL(`${page9}?t=${TOKEN}`);
+	// The entry is the pair page with no door in it: 9A, and nothing checked.
+	await expect(page.locator('#start')).toBeVisible();
+	await expect(page.locator('#connect')).toBeHidden();
+	expect(across.probes).toEqual([GONE]);
+	expect(across.remembered).toEqual([GONE]);
+	expect(page.url()).toBe(`${page9}?t=${TOKEN}`);
+});
+
+test('a history step into an old #lost= entry does not bring a forgotten server back (c685)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, three);
+	// 9D for a server that does not answer, then nobody waits on it: another
+	// server opens (an app load, which leaves a history entry of its own).
+	across.answers.set(GONE, false);
+	await page.goto(`${page9}?t=${TOKEN}#lost=${encodeURIComponent(GONE)}`);
+	await expect(page.locator('#lost-title')).toContainText('192.168.1.88:42143');
+	expect(await page.evaluate(() => location.hash)).toBe('');
+	expect(page.url()).toBe(`${page9}?t=${TOKEN}`);
+	await page.goto(`${HOME}/`);
+
+	// It answers now, and it has been forgotten. Stepping back into the entry
+	// must not reopen 9D for it: 9D's retry would find it answering, store it
+	// and leave for its /pair/tv with no input.
+	across.answers.set(GONE, true);
+	await page.evaluate(() => history.back());
+	await page.waitForURL(`${page9}?t=${TOKEN}`);
+	await expect(page.locator('#start')).toBeVisible();
+	await expect(page.locator('#lost')).toBeHidden();
+	expect(across.remembered).toEqual([]);
+	expect(across.probes.filter((at) => at === GONE)).toEqual([]);
+});
+
+test('a second launch with the same address is taken again once the first has cleared its fragment (c685)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, three);
+	await page.goto(`${page9}?t=${TOKEN}#connect=${encodeURIComponent(GONE)}`);
+	await expect(page.locator('#connect')).toBeVisible();
+	await expect.poll(() => across.probes).toEqual([GONE]);
+	// A singleTask app started again with the same address: MainActivity's
+	// loadAsset sets the same fragment on this same document (c260). The entry
+	// has none now, so it is a change, and the address is checked again.
+	await page.evaluate((at) => {
+		location.hash = '#connect=' + encodeURIComponent(at);
+	}, GONE);
+	await expect.poll(() => across.probes).toEqual([GONE, GONE]);
+	await expect(page.locator('#connect')).toBeVisible();
+	expect(await page.evaluate(() => location.hash)).toBe('');
+	expect(await page.evaluate(() => location.search)).toBe(`?t=${TOKEN}`);
+});

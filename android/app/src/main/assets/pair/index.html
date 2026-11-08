@@ -1822,11 +1822,40 @@
 					return value;
 				}
 			};
+			/*
+			 * A door that acts is taken once (c685). #connect= probes and, on an
+			 * answer from a server not in the list, stores it and pairs; #lost=
+			 * opens 9D, whose retry does the same once the server answers. The
+			 * entry keeps its fragment otherwise, and routeHash runs on every
+			 * load of it, so a history step back into it (any page the WebView
+			 * shows can call history.go(-n), and the entry carries the app's
+			 * own token) would check that address again: a server forgotten
+			 * since, or one that did not answer then, could come back with no
+			 * input. So the entry loses its fragment the moment the door is
+			 * taken, keeping the path and the query: ?t= is the launch's token,
+			 * without which the asset guard 404s the page
+			 * (BridgeGuard.carriesAssetToken). replaceState fires no
+			 * hashchange, and the screen already drawn is unchanged; what the
+			 * entry shows when it loads again is 9A, as any fragment-less load
+			 * does. #added=, #rename=, #bad= and #add write nothing without the
+			 * owner's input, so they are left as they are.
+			 */
+			function settle() {
+				try {
+					history.replaceState(history.state, '', location.pathname + location.search);
+				} catch {
+					// A document that refuses it still acts; only the replay stays.
+				}
+			}
 			function routeHash() {
 				const hash = location.hash.replace(/^#/, '');
-				if (hash.startsWith('lost=')) lost(decode(hash.slice(5)));
-				else if (hash.startsWith('connect=')) connect(decode(hash.slice(8)));
-				else if (hash.startsWith('bad=')) refused();
+				if (hash.startsWith('lost=')) {
+					settle();
+					lost(decode(hash.slice(5)));
+				} else if (hash.startsWith('connect=')) {
+					settle();
+					connect(decode(hash.slice(8)));
+				} else if (hash.startsWith('bad=')) refused();
 				else if (hash === 'add') addressAs('add');
 				else if (hash.startsWith('added=')) added(decode(hash.slice(6)));
 				else if (hash.startsWith('rename=')) renameScreen(decode(hash.slice(7)), '');
