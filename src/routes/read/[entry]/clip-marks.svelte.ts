@@ -22,6 +22,13 @@ export const CLIP_WHY: Record<ClipFailure | 'unreachable', string> = {
 	gone: 'THE EPISODE IS GONE'
 };
 
+/** A KEEP the workstation answered and refused: no TRY AGAIN, the same ask gets the same no. */
+export const CLIP_REFUSED: Record<number, string> = {
+	400: "THAT RANGE CAN'T BE KEPT",
+	403: 'INCOGNITO KEEPS NO CLIPS',
+	404: CLIP_WHY.gone
+};
+
 const api = '/api/highlights/clips';
 
 export class ClipMarks {
@@ -30,6 +37,10 @@ export class ClipMarks {
 	kept = $state<{ from: number; to: number; id: number }[]>([]);
 	/** A KEEP the workstation never answered: the range is still marked, so TRY AGAIN needs nothing. */
 	unreachable = $state(false);
+	/** A KEEP it answered with a 400, 403 or 404: why, in the player's words. */
+	refused = $state<string | null>(null);
+	/** Jobs the player let go of: a poll still in flight mustn't bring one back. */
+	#dismissed: string[] = [];
 	#entry: number;
 	#timer: ReturnType<typeof setTimeout> | undefined;
 	#alive = true;
@@ -44,7 +55,7 @@ export class ClipMarks {
 	}
 
 	markIn(at: number) {
-		this.unreachable = false;
+		this.#clearAsk();
 		// MARK IN again moves the start, keeping an out point still within 3:00 (A3).
 		if (!this.mark) {
 			this.mark = { in: at, out: null };
@@ -60,38 +71,48 @@ export class ClipMarks {
 
 	drop() {
 		this.mark = null;
-		this.unreachable = false;
+		this.#clearAsk();
 	}
 
-	async keep(playhead: number, subtitle: string | null, height: number | null, fresh = false) {
+	#clearAsk() {
+		this.unreachable = false;
+		this.refused = null;
+	}
+
+	async keep(
+		playhead: number,
+		tracks: { subtitle: string | null; audio: string | null; height: number | null },
+		fresh = false
+	) {
 		const r = this.range(playhead);
 		if (!r || r.length <= 0) return;
-		await this.#post({ entry: this.#entry, from: r.from, to: r.to, subtitle, height, fresh });
+		await this.#post({ entry: this.#entry, from: r.from, to: r.to, ...tracks, fresh });
 	}
 
 	/** TRY AGAIN: asks the stream afresh (?fresh=1 in the player's words, A8). */
-	async retry(job: ClipJob, subtitle: string | null, height: number | null) {
+	async retry(
+		job: ClipJob,
+		tracks: { subtitle: string | null; audio: string | null; height: number | null }
+	) {
 		this.dismiss(job.id);
-		await this.#post({
-			entry: this.#entry,
-			from: job.from,
-			to: job.to,
-			subtitle,
-			height,
-			fresh: true
-		});
+		await this.#post({ entry: this.#entry, from: job.from, to: job.to, ...tracks, fresh: true });
 	}
 
 	async #post(body: Record<string, unknown>) {
+		this.#clearAsk();
 		try {
 			const r = await fetch(api, {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify(body)
 			});
+			const refusal = CLIP_REFUSED[r.status];
+			if (refusal) {
+				this.refused = refusal;
+				return;
+			}
 			if (!r.ok) throw new Error(String(r.status));
 			const job = (await r.json()) as ClipJob;
-			this.unreachable = false;
 			this.#merge([job]);
 			if (job.step === 'failed') this.#reMark(job);
 			else this.mark = null;
@@ -104,6 +125,7 @@ export class ClipMarks {
 	}
 
 	dismiss(id: string) {
+		this.#dismissed.push(id);
 		this.jobs = this.jobs.filter((j) => j.id !== id);
 	}
 
@@ -126,6 +148,7 @@ export class ClipMarks {
 	#merge(incoming: ClipJob[]) {
 		const next = [...this.jobs];
 		for (const j of incoming) {
+			if (this.#dismissed.includes(j.id)) continue;
 			const i = next.findIndex((x) => x.id === j.id);
 			if (i < 0) {
 				// A clip made before this page opened is a box, not news: its band
@@ -151,10 +174,10 @@ export class ClipMarks {
 				const got = (await r.json()) as ClipJob[];
 				this.#merge(got);
 				for (const j of got) if (j.step === 'made') this.#learnKept(j);
-				this.unreachable = false;
 			}
 		} catch {
-			// The next tick; a workstation away is said by a KEEP that gets no answer.
+			// The next tick; a workstation away is said by a KEEP that gets no answer, and
+			// a poll that gets one says nothing about that KEEP: its band stays till the next.
 		}
 	}
 

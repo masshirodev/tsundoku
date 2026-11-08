@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { devices, type Page, type Route } from '@playwright/test';
+import { devices, type Locator, type Page, type Route } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
@@ -70,11 +70,73 @@ test.beforeAll(() => {
 test.afterEach(() => {
 	const db = new Database(dbPath());
 	try {
+		db.prepare(`DROP TRIGGER IF EXISTS clip_fails_for_this_spec`).run();
 		db.prepare(`DELETE FROM highlights WHERE kind = 'clip' AND entry_id = ?`).run(entry);
 	} finally {
 		db.close();
 	}
 });
+
+/**
+ * The next cut of this episode fails at its last step, in the real lane: ffmpeg
+ * runs on the real file and the row refuses. Asked of the database because every
+ * other way to fail the job is inside the server, where `page.route` can't reach.
+ */
+function failingCuts(on: boolean) {
+	const db = new Database(dbPath());
+	try {
+		db.prepare(`DROP TRIGGER IF EXISTS clip_fails_for_this_spec`).run();
+		if (on)
+			db.exec(`CREATE TRIGGER clip_fails_for_this_spec BEFORE INSERT ON highlights
+				WHEN NEW.kind = 'clip' AND NEW.entry_id = ${entry}
+				BEGIN SELECT RAISE(ABORT, 'held by the spec'); END`);
+	} finally {
+		db.close();
+	}
+}
+/** Every word the band says from now on, so a band that came and went is still seen. */
+async function recordBand(page: Page) {
+	await page.evaluate(() => {
+		const seen: string[] = [];
+		(window as unknown as { bandSaid: string[] }).bandSaid = seen;
+		const note = () => {
+			const text = document.querySelector('.clipband')?.textContent?.trim();
+			if (text && seen.at(-1) !== text) seen.push(text);
+		};
+		new MutationObserver(note).observe(document.querySelector('.player')!, {
+			subtree: true,
+			childList: true,
+			characterData: true
+		});
+	});
+}
+const bandSaid = (page: Page) =>
+	page.evaluate(() => (window as unknown as { bandSaid: string[] }).bandSaid);
+/** The POSTs a KEEP or a TRY AGAIN sent, from here on. */
+function countPosts(page: Page) {
+	const posts: Record<string, unknown>[] = [];
+	page.on('request', (r) => {
+		if (r.method() === 'POST' && new URL(r.url()).pathname === '/api/highlights/clips')
+			posts.push(r.postDataJSON());
+	});
+	return posts;
+}
+/** By the keyboard, as someone without a pointer gets there: the page's own tab order. */
+async function tabTo(page: Page, target: Locator) {
+	for (let i = 0; i < 60; i++) {
+		await page.keyboard.press('Tab');
+		if (await target.evaluate((el) => el === document.activeElement)) return;
+	}
+	throw new Error('Tab never reached it');
+}
+/** The range 1 s to 3 s marked, by the keys. */
+async function markOneToThree(page: Page) {
+	await at(page, 1);
+	await page.keyboard.press('i');
+	await at(page, 3);
+	await page.keyboard.press('o');
+	await expect(cell(page, /^KEEP/)).toHaveText('KEEP 0:02');
+}
 
 const bar = (page: Page) => page.locator('.cells');
 const cell = (page: Page, name: string | RegExp) => bar(page).getByRole('button', { name });
@@ -317,6 +379,239 @@ test('a KEEP nobody answers says the workstation is away, and the range stands',
 	await page.keyboard.press('Enter');
 	await expect(band(page)).toContainText("THE CLIP WASN'T MADE · THE WORKSTATION ISN'T ANSWERING");
 	await expect(cell(page, /^KEEP/)).toHaveText('KEEP 0:01');
+});
+
+test('TRY AGAIN after a real failure: real POST, real poll, and the failure does not come back', async ({
+	page
+}) => {
+	await open(page);
+	await markOneToThree(page);
+	failingCuts(true);
+	await page.keyboard.press('Enter');
+	await expect(band(page)).toContainText("THE CLIP WASN'T MADE", { timeout: 60_000 });
+	await expect(cell(page, /^KEEP/)).toHaveText('KEEP 0:02');
+	failingCuts(false);
+	await recordBand(page);
+	const posts = countPosts(page);
+	await band(page).getByRole('button', { name: 'TRY AGAIN' }).click();
+	await expect(band(page)).toContainText('CLIP KEPT · 0:02', { timeout: 60_000 });
+	expect(posts).toHaveLength(1);
+	expect(posts[0].fresh).toBe(true);
+	// Past two of the poll's ticks: it is the poll that brought the failure back.
+	await page.waitForTimeout(2300);
+	await expect(band(page)).toContainText('CLIP KEPT · 0:02');
+	const said = await bandSaid(page);
+	expect(said.some((t) => /FETCHING|CUTTING|WAITING/.test(t))).toBe(true);
+	expect(said.filter((t) => t.includes("WASN'T MADE"))).toEqual([]);
+	expect(rows(entry)).toHaveLength(1);
+	await expect(page.locator('.scrubrow .track .kr:not(.dash)')).toHaveCount(1);
+
+	// A reload agrees: the box is there and no failure with it.
+	await open(page);
+	await expect(page.locator('.scrubrow .track .kr:not(.dash)')).toHaveCount(1);
+	await expect(band(page)).toHaveCount(0);
+});
+
+test('a plain KEEP again after a real failure, no retry, ends on the new clip', async ({
+	page
+}) => {
+	await open(page);
+	await markOneToThree(page);
+	failingCuts(true);
+	await page.keyboard.press('Enter');
+	await expect(band(page)).toContainText("THE CLIP WASN'T MADE", { timeout: 60_000 });
+	failingCuts(false);
+	await recordBand(page);
+	const posts = countPosts(page);
+	await cell(page, /^KEEP/).click();
+	await expect(band(page)).toContainText('CLIP KEPT · 0:02', { timeout: 60_000 });
+	expect(posts.map((p) => p.fresh)).toEqual([false]);
+	await page.waitForTimeout(2300);
+	await expect(band(page)).toContainText('CLIP KEPT · 0:02');
+	expect(rows(entry)).toHaveLength(1);
+});
+
+test('a second KEEP nobody answers says so over the first clip, and TRY AGAIN cuts the second range', async ({
+	page
+}) => {
+	await open(page);
+	await markOneToThree(page);
+	await page.keyboard.press('Enter');
+	await expect(band(page)).toContainText('CLIP KEPT · 0:02', { timeout: 60_000 });
+	await expect(page.locator('.scrubrow .track .kr:not(.dash)')).toHaveCount(1);
+
+	await at(page, 4);
+	await page.keyboard.press('i');
+	await at(page, 6);
+	await page.keyboard.press('o');
+	await page.route('**/api/highlights/clips', (route: Route) =>
+		route.request().method() === 'POST' ? route.abort() : route.fallback()
+	);
+	await page.keyboard.press('Enter');
+	await expect(band(page)).toContainText("THE WORKSTATION ISN'T ANSWERING");
+	await expect(band(page)).not.toContainText('CLIP KEPT');
+	const again = band(page).getByRole('button', { name: 'TRY AGAIN' });
+	await expect(again).toBeVisible();
+	await expect(cell(page, /^KEEP/)).toHaveText('KEEP 0:02');
+
+	await page.unroute('**/api/highlights/clips');
+	const posts = countPosts(page);
+	await again.click();
+	await expect.poll(() => rows(entry).length, { timeout: 60_000 }).toBe(2);
+	expect(posts).toHaveLength(1);
+	expect(posts[0].fresh).toBe(true);
+	expect(rows(entry).map((r) => Math.round(r.clip_in))).toEqual([1, 4]);
+	await expect(band(page)).toContainText('CLIP KEPT · 0:02');
+});
+
+test('a KEEP nobody answers is not forgotten when the poll for another job answers', async ({
+	page
+}) => {
+	await open(page);
+	await markOneToThree(page);
+	const working = {
+		id: 'j-working',
+		entryId: entry,
+		seriesId: 1,
+		seriesTitle: 'T',
+		entryLabel: 'Ep. 5',
+		from: 5,
+		to: 6,
+		streamed: true,
+		step: 'cutting',
+		percent: 10,
+		why: null,
+		stoppedAt: null,
+		highlightId: null,
+		finishedAt: null
+	};
+	let polls = 0;
+	await page.route(/\/api\/highlights\/clips\?entry=/, (route: Route) => {
+		polls++;
+		return route.fulfill({ json: [working] });
+	});
+	let sent = 0;
+	await page.route('**/api/highlights/clips', (route: Route) => {
+		if (route.request().method() !== 'POST') return route.fallback();
+		return sent++ === 0 ? route.fulfill({ status: 202, json: working }) : route.abort();
+	});
+	await page.keyboard.press('Enter');
+	await expect(band(page)).toContainText('CUTTING');
+	await at(page, 7);
+	await page.keyboard.press('i');
+	await at(page, 5);
+	await page.keyboard.press('o');
+	await page.keyboard.press('Enter');
+	await expect(band(page)).toContainText("THE WORKSTATION ISN'T ANSWERING");
+	const seen = polls;
+	await expect.poll(() => polls, { timeout: 10_000 }).toBeGreaterThan(seen + 1);
+	await expect(band(page)).toContainText("THE WORKSTATION ISN'T ANSWERING");
+	await page.unrouteAll({ behavior: 'ignoreErrors' });
+});
+
+for (const [status, words] of [
+	[400, "THAT RANGE CAN'T BE KEPT"],
+	[403, 'INCOGNITO KEEPS NO CLIPS'],
+	[404, 'THE EPISODE IS GONE']
+] as const)
+	test(`a refused KEEP (${status}) says ${words}, with no TRY AGAIN`, async ({ page }) => {
+		await open(page);
+		await markOneToThree(page);
+		await page.route('**/api/highlights/clips', (route: Route) =>
+			route.request().method() === 'POST'
+				? route.fulfill({ status, json: { message: 'no' } })
+				: route.fallback()
+		);
+		await page.keyboard.press('Enter');
+		await expect(band(page)).toContainText(`THE CLIP WASN'T MADE · ${words}`);
+		await expect(band(page)).not.toContainText('WORKSTATION');
+		await expect(band(page).getByRole('button', { name: 'TRY AGAIN' })).toHaveCount(0);
+		await expect(cell(page, /^KEEP/)).toHaveText('KEEP 0:02');
+		// The next KEEP starts clean: its answer is the only word on the band.
+		await page.unrouteAll({ behavior: 'ignoreErrors' });
+		await page.keyboard.press('Enter');
+		await expect(band(page)).toContainText('CLIP KEPT · 0:02', { timeout: 60_000 });
+	});
+
+test('ENTER on the focused ✕ drops the range, and starts no cut', async ({ page }) => {
+	await open(page);
+	await markOneToThree(page);
+	const posts = countPosts(page);
+	await tabTo(page, cell(page, 'Drop the range'));
+	await page.keyboard.press('Enter');
+	await expect(cell(page, 'Mark in')).toHaveText('MARK IN');
+	await expect(page.locator('.scrubrow .track .mr')).toHaveCount(0);
+	expect(posts).toEqual([]);
+	expect(rows(entry)).toEqual([]);
+});
+
+test('ENTER on the focused TRY AGAIN retries, once', async ({ page }) => {
+	await open(page);
+	await markOneToThree(page);
+	failingCuts(true);
+	await page.keyboard.press('Enter');
+	await expect(band(page)).toContainText("THE CLIP WASN'T MADE", { timeout: 60_000 });
+	failingCuts(false);
+	const posts = countPosts(page);
+	await tabTo(page, band(page).getByRole('button', { name: 'TRY AGAIN' }));
+	await page.keyboard.press('Enter');
+	await expect(band(page)).toContainText('CLIP KEPT · 0:02', { timeout: 60_000 });
+	expect(posts).toHaveLength(1);
+	expect(posts[0].fresh).toBe(true);
+});
+
+test('ENTER on a focused transport cell is that cell’s, and the range stands', async ({ page }) => {
+	await open(page);
+	await markOneToThree(page);
+	const posts = countPosts(page);
+	await tabTo(page, page.locator('.cells [data-focus-start]'));
+	await page.keyboard.press('Enter');
+	await expect.poll(() => page.evaluate(() => document.querySelector('video')!.paused)).toBe(false);
+	await page.evaluate(() => document.querySelector('video')!.pause());
+	await expect(cell(page, /^KEEP/)).toBeVisible();
+	expect(posts).toEqual([]);
+});
+
+test('ENTER on the focused KEEP keeps, once', async ({ page }) => {
+	await open(page);
+	await markOneToThree(page);
+	const posts = countPosts(page);
+	await tabTo(page, cell(page, /^KEEP/));
+	await page.keyboard.press('Enter');
+	await expect(band(page)).toContainText('CLIP KEPT · 0:02', { timeout: 60_000 });
+	expect(posts).toHaveLength(1);
+	expect(rows(entry)).toHaveLength(1);
+});
+
+test('/highlights says KEEPING while a job is held in progress, and stops when it is done', async ({
+	page
+}) => {
+	let answer: unknown[] = [
+		{
+			id: 'j-held',
+			entryId: entry,
+			seriesId: 1,
+			seriesTitle: 'T',
+			entryLabel: 'Ep. 5',
+			from: 1,
+			to: 3,
+			streamed: true,
+			step: 'cutting',
+			percent: 40,
+			why: null,
+			stoppedAt: null,
+			highlightId: null,
+			finishedAt: null
+		}
+	];
+	await page.route('**/api/highlights/clips', (route: Route) =>
+		route.request().method() === 'GET' ? route.fulfill({ json: answer }) : route.fallback()
+	);
+	await page.goto('/highlights');
+	const line = page.locator('[data-keeping]');
+	await expect(line).toHaveText('KEEPING · EP. 5 · 0:01–0:03 · 40%');
+	answer = [];
+	await expect(line).toHaveCount(0, { timeout: 10_000 });
 });
 
 test('incognito dims MARK IN with its word, and the server refuses a KEEP', async ({ page }) => {

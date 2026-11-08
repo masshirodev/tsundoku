@@ -699,13 +699,26 @@
 		chrome &&
 			((clipBand !== null && clipBand.step !== 'made') ||
 				(clipBand?.step === 'made' && madeHiddenFor !== clipBand.id) ||
-				clips.unreachable)
+				clips.unreachable ||
+				clips.refused !== null)
 	);
 	const whyWords = (j: ClipJob) =>
 		`${CLIP_WHY[j.why ?? 'stream']}${
 			j.why === 'stream' && j.stoppedAt !== null ? ` AT ${clock(j.stoppedAt)}` : ''
 		}`;
-	const clipHeight = $derived(quality?.height ?? null);
+	/** What a clip is asked for: the tracks on now, and the quality on the screen. */
+	const clipTracks = $derived({
+		subtitle: subLang,
+		audio: quality?.audio.length ? (audioLang ?? quality.audio[0].lang) : null,
+		height: quality?.height ?? null
+	});
+	/** ENTER is KEEP unless focus is on some other control, which has its own Enter. */
+	const enterKeeps = () => {
+		const at = document.activeElement;
+		if (!(at instanceof HTMLElement)) return true;
+		if (at.matches('.track, [data-clip-keep]')) return true;
+		return !at.matches('button, a[href], input, select, textarea, summary, [role="button"]');
+	};
 	// KEEP takes the pad once there's a range to keep (A9).
 	$effect(() => {
 		if (!tv.current || !hasRange) return;
@@ -724,7 +737,7 @@
 	}
 	function keepRange() {
 		if (clipRefused || !hasRange) return;
-		void clips.keep(time, subLang, clipHeight);
+		void clips.keep(time, clipTracks);
 		showChrome();
 	}
 	/** Where to go instead, if the file turns out shorter than the `?t=`. */
@@ -1681,7 +1694,7 @@
 			}
 			return;
 		}
-		if (k === 'Enter' && hasRange) {
+		if (k === 'Enter' && hasRange && enterKeeps()) {
 			keepRange();
 			e.preventDefault();
 			return;
@@ -2104,6 +2117,7 @@
 		<button
 			type="button"
 			class="kr"
+			data-focus-skip
 			style:left={pct(k.from)}
 			style:width="calc({pct(k.to)} - {pct(k.from)})"
 			aria-label="Clip {clock(k.from)} to {clock(k.to)}, play from {clock(k.from)}"
@@ -2143,17 +2157,20 @@
 {#snippet clipBandView()}
 	{#if showBand}
 		<div class="clipband" role="status">
-			{#if clips.unreachable && !clipBand}
+			{#if clips.unreachable}
 				<span>THE CLIP WASN'T MADE · {CLIP_WHY.unreachable}</span>
-				<button type="button" onclick={keepRange}>TRY AGAIN</button>
+				<button type="button" onclick={() => void clips.keep(time, clipTracks, true)}
+					>TRY AGAIN</button
+				>
+				<button type="button" aria-label="Drop the range" onclick={() => clips.drop()}>✕</button>
+			{:else if clips.refused}
+				<span>THE CLIP WASN'T MADE · {clips.refused}</span>
 				<button type="button" aria-label="Drop the range" onclick={() => clips.drop()}>✕</button>
 			{:else if clipBand}
 				{@const j = clipBand}
 				{#if j.step === 'failed'}
 					<span>THE CLIP WASN'T MADE · {whyWords(j)}</span>
-					<button type="button" onclick={() => void clips.retry(j, subLang, clipHeight)}
-						>TRY AGAIN</button
-					>
+					<button type="button" onclick={() => void clips.retry(j, clipTracks)}>TRY AGAIN</button>
 					<button type="button" aria-label="Drop the range" onclick={() => void clips.stop(j)}
 						>✕</button
 					>

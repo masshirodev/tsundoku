@@ -123,3 +123,32 @@ test('a remote’s ⏪ ⏩ still seek, and do not mark', async ({ page }) => {
 	await expect(page.locator('.cells .cell', { hasText: 'MARK IN' })).toBeVisible();
 	await expect(page.locator('.scrubrow .track .mr')).toHaveCount(0);
 });
+
+test('a kept clip is no stop: ↑ lands on the track, and ← → still seek over its box', async ({
+	page
+}) => {
+	await open(page);
+	await at(page, 1);
+	await page.locator('.cells .cell', { hasText: 'MARK IN' }).click();
+	await at(page, 3);
+	await expect(page.locator('[data-clip-keep]')).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(page.locator('.scrubrow .track .kr:not(.dash)')).toHaveCount(1, { timeout: 60_000 });
+
+	await at(page, 2);
+	await page.locator('.cells .cell', { hasText: 'MARK IN' }).focus();
+	const track = page.locator('.scrubrow .track');
+	await page.keyboard.press('ArrowUp');
+	await expect(track).toBeFocused();
+	// ← first, and an 8 s episode: → from here is the end card, which takes the pad.
+	await page.keyboard.press('ArrowLeft');
+	await expect(track).toBeFocused();
+	await expect
+		.poll(() => page.evaluate(() => document.querySelector('video')!.currentTime))
+		.toBeLessThan(2);
+	const before = await page.evaluate(() => document.querySelector('video')!.currentTime);
+	await page.keyboard.press('ArrowRight');
+	await expect
+		.poll(() => page.evaluate(() => document.querySelector('video')!.currentTime))
+		.toBeGreaterThan(before);
+});
