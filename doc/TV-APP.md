@@ -492,7 +492,10 @@ verified".
      origin `BridgeGuard.ASSET_ORIGIN` names. `MainActivity`'s WebView client
      intercepts that whole host in `shouldInterceptRequest` and answers a path
      the loader does not hold with 404, so a real network answer at the host is
-     never trusted; `BridgeGuard.ASSET`, `Back.kt` and the client's failed-load
+     never trusted (and since c684, wave 34, a URL that names the host is the
+     host's even when `java.net.URI` cannot parse it: `BridgeGuard.hostOf`
+     reads the authority as a browser does, so `ASSET?x=|` is refused rather
+     than sent to the network); `BridgeGuard.ASSET`, `Back.kt` and the client's failed-load
      and visit checks recognise the page by that https URL and nothing else,
      and `allowFileAccess` is off now that nothing loads a `file://` page.
      Because the page is an ordinary https URL now, the client also refuses
@@ -880,6 +883,21 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   screen, and MORE › SERVERS must gain no `example.com` entry. A form submit
   keeps its action's fragment, and `shouldOverrideUrlLoading` is not called
   for POST; that is the second half of the same hole.
+  **Then a URL `java.net.URI` cannot parse (c684, wave 34).** Until c684
+  the host was read with `java.net.URI`, which throws on a `|` or `{` in the
+  query or a `|` in the fragment, and a URL it could not read had no host:
+  every guard let it through, and the interception sent it to the network
+  instead of answering 404. `BridgeGuard.hostOf` now reads the authority
+  the way a browser does and never throws. That a WebView hands
+  `shouldInterceptRequest` and `shouldOverrideUrlLoading` such a URL with
+  the `|` unescaped is read from the URL standard (its query and fragment
+  percent-encode sets do not hold `|`) and from Node's `URL`, which keeps
+  it; it was not run in a WebView. Check, from a server page's console:
+  `location.href = 'https://appassets.androidplatform.net/pair/index.html?x=|#connect=http://example.com:42143'`
+  must leave the page where it was, and a form `post` to the same URL must
+  show a 404; in neither case may MORE › SERVERS gain an `example.com`
+  entry, and with `chrome://inspect`'s Network panel open no request for
+  `appassets.androidplatform.net` may leave the TV.
 - **Launcher shortcuts (c287).** Built and planned in a JVM test, never seen
   on a launcher. Check: long-press tsundoku's icon on the TV's home screen
   (and on a phone, where Android's launcher does show app shortcuts). One
@@ -902,8 +920,8 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   `InsetsTest`, `IntentAddressTest`, `KeysTest`, `MessageGuardTest`,
   `NetworkTest`, `PairingBridgeTest`, `ProbeTest`, `ReleaseCheckTest`,
   `ScaleTest`, `ServersTest`, `ShortcutsTest`, `UpdaterPlanTest`, `VersionsTest`
-  (159 tests in 21 classes per flavor at wave 30), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
-  `BridgeGuardTest` (12) includes c549's round-2 case: a navigation to the
+  (162 tests in 21 classes per flavor at wave 34; 159 at wave 30), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
+  `BridgeGuardTest` (15) includes c549's round-2 case: a navigation to the
   asset host with `#connect=`, `#add` or `#rename=` is refused, a frame's
   request for it is refused, the host is read case-blind, and a known or an
   unknown server's page — and a URL that merely carries the host in a query —
@@ -915,7 +933,15 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   own `?t=…` URL (with any fragment) is served, and a tokenless `ASSET`, one
   with a wrong or extra query, a blank token and a token in the fragment are
   refused, so the attack URL is refused even where no navigation callback
-  runs. `carriesAssetToken` is checked on its own as well.
+  runs. `carriesAssetToken` is checked on its own as well. Its c684 cases
+  (wave 34) are the host read when `java.net.URI` cannot parse the URL: the
+  card's `?x=|`, `?x={` and `#connect=|` are refused at the navigation and
+  the interception; every other spelling of the host a browser reads as it
+  (capitals, userinfo before an `@`, a port, one trailing dot, `%2e`, a
+  backslash, `https:` with one slash or none, a tab inside the name) is
+  refused too; and the host as userinfo, a longer or a look-alike name, two
+  trailing dots, the host in a path, query or fragment, and a `file:` path
+  are not. `hostOf` is pinned on its own as well.
   `MessageGuardTest` (8) is c549's part (b), the per-message rule
   `BridgeGuard.allowsMessage`, every input an origin as the listener delivers
   one: a third-party frame inside a known server's page is refused, a known
@@ -945,11 +971,12 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   next attempt ending a mark whose finish never came, and `onPageFinished`'s
   decision (`FailedLoad.finish`: a failed `/pair/tv` consumes its mark, a
   loaded one is read for 9E's name, an unknown server is never a visit).
-  `BridgeGuardTest` (12) is c529's rule (the asset page by its https URL since
+  `BridgeGuardTest` (15) is c529's rule (the asset page by its https URL since
   c549, a known origin, one stored with its scheme's own port, one stored with
   capitals trusted on its lower-case pages (c548), a scheme typed in capitals
   trusted without widening anything (c646), the asset host served only to a
-  main-frame GET of the launch's own token (c549, rounds 3 and 4), and the refused: unknown origins,
+  main-frame GET of the launch's own token (c549, rounds 3 and 4), the host
+  read when `java.net.URI` cannot parse the URL (c684), and the refused: unknown origins,
   another port, the http/https twin, the asset page's old `file://` URL and
   other `file://` pages);
   `PairingBridgeTest` (8) calls each guarded method from an

@@ -1,6 +1,8 @@
 package dev.masshiro.tsundoku.tv
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -229,5 +231,124 @@ class BridgeGuardTest {
 		assertFalse(BridgeGuard.carriesAssetToken(BridgeGuard.ASSET + "?x=1&t=$token", token))
 		assertFalse(BridgeGuard.carriesAssetToken(null, token))
 		assertFalse(BridgeGuard.carriesAssetToken(BridgeGuard.ASSET + "?t=", token))
+	}
+
+	@Test
+	fun `a URL java_net_URI cannot parse is still read for its host, and refused at ours (c684)`() {
+		val token = "6a1f0c9e-2b7d-4a55-9d1e-3f8c0b2a7e64"
+		// The card's three, each of which makes java.net.URI throw (measured
+		// with jshell): `|` and `{` are left as they are in a query, and `|` in
+		// a fragment, by the URL standard's percent-encode sets. Read with
+		// java.net.URI they had no host, so the navigation was let through and
+		// the interception sent the request to the network instead of a 404.
+		for (
+			url in
+				listOf(
+					BridgeGuard.ASSET + "?x=|",
+					BridgeGuard.ASSET + "?x={",
+					BridgeGuard.ASSET + "#connect=|"
+				)
+		) {
+			assertTrue(url, BridgeGuard.isAssetHost(url))
+			assertTrue(url, BridgeGuard.refusesNavigation(url))
+			assertTrue(url, BridgeGuard.refusesAssetRequest(url, true, "GET", token))
+		}
+		// The token's own URL with a character java.net.URI refuses is not
+		// served either: the query must be exactly t=<token>.
+		assertTrue(
+			BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET + "?t=$token|", true, "GET", token)
+		)
+		// The good URL is still served, with and without a fragment.
+		assertFalse(BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET + "?t=$token", true, "GET", token))
+		assertFalse(
+			BridgeGuard.refusesAssetRequest(BridgeGuard.ASSET + "?t=$token#add", true, "GET", token)
+		)
+	}
+
+	@Test
+	fun `the host is read as a browser reads the authority, every spelling of ours refused (c684)`() {
+		val host = BridgeGuard.ASSET_HOST
+		val ours =
+			listOf(
+				"HTTPS://APPASSETS.ANDROIDPLATFORM.NET/pair/index.html",
+				// Userinfo is not the host: what follows the last @ is.
+				"https://user@$host/pair/index.html",
+				"https://a:b@c@$host/pair/index.html?x=|",
+				// A port names the same host.
+				"https://$host:443/pair/index.html",
+				"https://$host:8443/pair/index.html#connect=|",
+				// A trailing dot is the same name to DNS.
+				"https://$host./pair/index.html",
+				// A percent-escaped dot is a dot once a browser reads the host.
+				"https://appassets%2eandroidplatform%2Enet/pair/index.html",
+				// A browser reads a backslash as a slash in an http(s) URL, and
+				// takes the authority with or without the two slashes.
+				"https://$host\\pair\\index.html",
+				"https:$host/pair/index.html",
+				"https:/$host/pair/index.html",
+				// A tab or a newline inside the URL is dropped by a browser.
+				"https://app\tassets.androidplatform.net/pair/index.html",
+				"  https://$host/pair/index.html  ",
+				"ws://$host/",
+				"ftp://$host/x"
+			)
+		for (url in ours) {
+			assertTrue(url, BridgeGuard.isAssetHost(url))
+			assertTrue(url, BridgeGuard.refusesNavigation(url))
+			assertTrue(url, BridgeGuard.refusesAssetRequest(url, true, "GET", "t"))
+		}
+		val theirs =
+			listOf(
+				// The asset host as userinfo: the host is evil.example's.
+				"https://$host@evil.example/pair/index.html",
+				"https://$host:x@evil.example/",
+				// A longer name, or one that only starts like ours.
+				"https://evil.$host/pair/index.html",
+				"https://$host.evil.example/pair/index.html",
+				"https://appassets.androidplatform.network/",
+				// Two trailing dots are not ours; one is.
+				"https://$host../",
+				// The host in a path, a query or a fragment is not the page's.
+				"https://example.com/$host",
+				"https://example.com/?u=https://$host/pair/index.html|",
+				"https://example.com/#https://$host/",
+				// A scheme that is not special takes no authority without `//`.
+				"javascript:$host",
+				"about:blank",
+				"data:text/html,$host",
+				"https://[::1]/",
+				"https:///",
+				"no scheme $host",
+				"",
+				null
+			)
+		for (url in theirs) {
+			assertFalse(url.toString(), BridgeGuard.isAssetHost(url))
+			assertFalse(url.toString(), BridgeGuard.refusesNavigation(url))
+			assertFalse(url.toString(), BridgeGuard.refusesAssetRequest(url, true, "GET", "t"))
+		}
+	}
+
+	@Test
+	fun `the authority read gives the host alone, lower-cased, of what it can read (c684)`() {
+		assertEquals("zen.local", BridgeGuard.hostOf("http://u:p@ZEN.local:42143/x?y=|#z"))
+		assertEquals("zen.local", BridgeGuard.hostOf("http://zen.local./"))
+		assertEquals("[::1]", BridgeGuard.hostOf("http://[::1]:42143/"))
+		assertEquals("a.b", BridgeGuard.hostOf("https://a%2Eb/"))
+		// An escape that is not one is kept as written, never thrown on.
+		assertEquals("a%zzb", BridgeGuard.hostOf("https://a%zzb/"))
+		assertEquals("a%2", BridgeGuard.hostOf("https://a%2"))
+		// As a browser reads it: an http(s) authority starts after any run of
+		// slashes (`new URL("https:///x").hostname` is "x" in the URL
+		// standard's own parser), and with nothing after them there is none.
+		assertEquals("x", BridgeGuard.hostOf("https:///x"))
+		assertNull(BridgeGuard.hostOf("https:///"))
+		assertNull(BridgeGuard.hostOf("mailto:x@zen.local"))
+		// A file URL names no host, so no path of one is read as ours.
+		assertNull(BridgeGuard.hostOf("file:///android_asset/pair/index.html"))
+		assertFalse(BridgeGuard.isAssetHost("file:///appassets.androidplatform.net/pair/index.html"))
+		assertNull(BridgeGuard.hostOf("://zen.local/"))
+		assertNull(BridgeGuard.hostOf("1http://zen.local/"))
+		assertNull(BridgeGuard.hostOf(null))
 	}
 }

@@ -696,7 +696,9 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	private fun isServerPage(url: Uri): Boolean {
 		val scheme = url.scheme?.lowercase()
 		if (scheme != "http" && scheme != "https") return false
-		return !url.host.equals(BridgeGuard.ASSET_HOST, ignoreCase = true)
+		// The same reading of the host every refusal of it uses (c684), so a
+		// spelling the guards take for the app's host is never a server's.
+		return !BridgeGuard.isAssetHost(url.toString())
 	}
 
 	/** Any path the app's own host does not serve: 404, never a network request (c549). */
