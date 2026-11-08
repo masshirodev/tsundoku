@@ -10,6 +10,7 @@
 	import { count } from '$lib/library/downloads';
 	import { writeFilters } from '$lib/library/browse-filters';
 	import { backOriginLabel, keepOrigin } from '$lib/library/tag-search';
+	import { isRefusedCheck } from './refused-check';
 	import { isSettled } from '$lib/library/settled';
 	import ResultTile from './ResultTile.svelte';
 	import AddedBand from '../AddedBand.svelte';
@@ -302,14 +303,19 @@
 		{:else}
 			<!-- A check the site refused is remembered for ten minutes (doc/NOVELS.md),
 			     so TRY AGAIN forgets it first (`again`, c294) and says it will. -->
-			{@const refusedCheck = shown.error.includes('(its check could not be passed)')}
+			{@const refusedCheck = isRefusedCheck(shown.error)}
 			<Band
 				title="{name.toUpperCase()} DID NOT ANSWER"
 				detail={shown.error.toUpperCase().slice(0, 140) +
 					(refusedCheck ? ` · ${m.browse_check_again()}` : '')}
 			>
-				{#snippet action()}<a class="again" href={link(refusedCheck ? { again: '1' } : {})}
-						>TRY AGAIN</a
+				<!-- A real load, not the client's: a plain TRY AGAIN is this page's own URL, which
+				     SvelteKit would not ask for again, and a hovering pointer must not forget a
+				     refused check's memos by preloading `again=1` (c688, c604). -->
+				{#snippet action()}<a
+						class="again"
+						data-sveltekit-reload
+						href={link(refusedCheck ? { again: '1' } : {})}>TRY AGAIN</a
 					>{/snippet}
 			</Band>
 		{/if}

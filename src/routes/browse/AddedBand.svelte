@@ -136,7 +136,7 @@
 	);
 	/**
 	 * UNDO without script posts to `?/undoAdd`, which is the band's own URL with
-	 * its parameters replaced: the page would load with no band, and the 409/503
+	 * its parameters replaced: the page would load with no band, and the 409
 	 * refusal, drawn only inside one, would have nowhere to be read (c605). So
 	 * the action carries them, and the answer is this band again, refusing.
 	 */

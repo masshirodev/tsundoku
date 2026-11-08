@@ -357,7 +357,7 @@ error, fixed? }`, a sentence, marked `fixed` when no new solve can change it
     would leave them out, as any picture that doesn't come is.
   - The plugin's own headers and cookies are not sent: the browser sends its
     own.
-- **When it doesn't come**, the call's trouble is one of three sentences.
+- **When it doesn't come**, the call's trouble is one of four sentences.
   What page mode won't send at all (a method but GET or POST, a JSON or binary
   body, a `FormData` holding a file, a `fetchFile`) is refused before anything
   is asked, as `"<host>'s page can't come through the solver: <why>"`. An
@@ -367,9 +367,15 @@ error, fixed? }`, a sentence, marked `fixed` when no new solve can change it
   lookup again rather than paying a solve for a hiccup (c630). The same
   lookup of the address the browser **ended on**, after it already answered,
   is neither: the browser was asked, so not `unsent`, and a retry may succeed,
-  so not `fixed`. It goes unmarked, so it takes the third sentence below, and
-  TRY AGAIN asks afresh rather than calling the address permanently off the
-  internet (c662).
+  so not `fixed`. It is marked `unchecked` and has a sentence of its own,
+  `"<host>'s page was fetched and not used: <why>"` (c688), which claims no
+  check, since none failed: the lookup was this app's. TRY AGAIN asks the page
+  again, forgets no memo and pays no solve, and the address is never called
+  permanently off the internet (c662). The tap reaches the server as a full
+  document load (`data-sveltekit-reload` on the band's link, whichever sentence
+  drew it): a TRY AGAIN with no `again=1` is the page's own URL, which SvelteKit
+  would not load again on a client navigation, and a hover preloads none of them
+  (`tests/browse-try-again.e2e.ts`).
   What no new solve can change is
   `"<host>'s page can't come through the solver, and no solve changes that:
 <why>"`: an address `checkPublic` refuses (`refused: …`), one the browser was

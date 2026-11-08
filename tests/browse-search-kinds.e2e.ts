@@ -14,6 +14,8 @@ import { ANIME_SOURCE, engineCalls, SOURCES } from './browse-world';
 // file's searches carry a word no other file searches for, and its calls are
 // read by it.
 const Q = 'kindband';
+/** The anime source's one search hit, from the fake's `getSearchAnime` (c735). */
+const ANIME_HIT = 'Moonlit Search Hit';
 const kinds = (page: Page) => page.getByRole('navigation', { name: 'Kinds' });
 const sources = (page: Page) => page.getByRole('navigation', { name: 'Sources' });
 const searchCalls = async () =>
@@ -30,6 +32,7 @@ test('ALL asks every kind’s sources, a kind only its own, and the kind stays t
 	await expect(sources(page).getByRole('link', { name: SOURCES.open.name })).toBeVisible();
 	await expect(sources(page).getByRole('link', { name: ANIME_SOURCE.name })).toBeVisible();
 	await expect(page.locator('a.hit', { hasText: 'Filtered One' }).first()).toBeVisible();
+	await expect(page.locator('a.hit', { hasText: ANIME_HIT })).toHaveCount(1);
 	await expect(page.getByText(/STILL ASKING/)).toHaveCount(0);
 	const underAll = await searchCalls();
 	expect(underAll.some((c) => c.sourceId === SOURCES.open.id)).toBe(true);
@@ -43,8 +46,9 @@ test('ALL asks every kind’s sources, a kind only its own, and the kind stays t
 	const tabs = sources(page).getByRole('link');
 	await expect(tabs).toHaveText([/^ALL/, new RegExp(`^${ANIME_SOURCE.name}`, 'i')]);
 	await expect(page.locator('a.hit', { hasText: 'Filtered One' })).toHaveCount(0);
+	await expect(page.locator('a.hit', { hasText: ANIME_HIT })).toHaveCount(1);
 	await expect(page.getByText(/STILL ASKING/)).toHaveCount(0);
-	await expect(page.locator('.label').first()).toContainText('OF 1 SOURCE ANSWERED');
+	await expect(page.locator('.label').first()).toContainText('1 OF 1 SOURCE ANSWERED');
 	const underAnime = (await searchCalls()).slice(before);
 	expect(underAnime.map((c) => c.sourceId)).toEqual([ANIME_SOURCE.id]);
 
@@ -92,4 +96,58 @@ test('the library’s search hands its kind to SEARCH THE SOURCES (c699)', async
 	await to.click();
 	await page.waitForURL(/\/downloads\/search\?q=kindband&kind=anime/);
 	await expect(kinds(page).getByRole('link', { name: /^ANIME/ })).toHaveClass(/\bon\b/);
+});
+
+// A library kind no source family stores: nothing stored says a source serves
+// manhwa, so its search asks the kind serving its medium, the Mihon sources'
+// (c736). Two words of their own, so a parallel run of the cases above cannot
+// land in the call log these read.
+for (const [word, query] of [
+	['manhwa', 'kindmanhwa'],
+	['doujin', 'kinddoujin']
+] as const) {
+	test(`a library filtered to ${word} asks only the manga sources (c736)`, async ({ page }) => {
+		const asked = async () =>
+			(await engineCalls()).filter((c) => c.method.startsWith('getSearch') && c.search === query);
+		await page.goto(`/?kind=${word}`);
+		const cell = page.getByRole('link', { name: 'Search' }).filter({ visible: true }).first();
+		await expect(cell).toHaveAttribute('href', `/search?kind=${word}`);
+		await cell.click();
+		await page.waitForURL(new RegExp(`/search\\?kind=${word}`));
+		await page.getByRole('searchbox').fill(query);
+		await page.waitForURL(new RegExp(`q=${query}&kind=${word}`));
+		// /search's strip counts the manga sources alone, and hands over the kind it asks.
+		const to = page.locator('a.to-sources');
+		await expect(to).toHaveAttribute('href', `/downloads/search?q=${query}&kind=manga`);
+		await expect(to).toContainText('1 SOURCE ·');
+		// Only what this visit asks: the log outlives a case, a repeated run's too.
+		const before = (await asked()).length;
+		await to.click();
+		await page.waitForURL(new RegExp(`/downloads/search\\?q=${query}&kind=manga`));
+
+		const band = kinds(page);
+		await expect(band.getByRole('link', { name: /^MANGA/ })).toHaveClass(/\bon\b/);
+		await expect(band.getByRole('link', { name: /^ALL/ })).not.toHaveClass(/\bon\b/);
+		await expect(sources(page).getByRole('link')).toHaveText([
+			/^ALL/,
+			new RegExp(`^${SOURCES.open.name}`, 'i')
+		]);
+		await expect(page.locator('a.hit', { hasText: 'Filtered One' }).first()).toBeVisible();
+		await expect(page.getByText(/STILL ASKING/)).toHaveCount(0);
+		await expect(page.locator('.label').first()).toContainText('OF 1 SOURCE ANSWERED');
+		expect((await asked()).slice(before).map((c) => c.sourceId)).toEqual([SOURCES.open.id]);
+	});
+}
+
+test('a typed `?kind=manhwa` reads as MANGA, and the page’s own links say manga (c736)', async ({
+	page
+}) => {
+	const query = 'kindtyped';
+	await page.goto(`/downloads/search?q=${query}&kind=manhwa`);
+	await expect(kinds(page).getByRole('link', { name: /^MANGA/ })).toHaveClass(/\bon\b/);
+	await expect(page.getByText(/STILL ASKING/)).toHaveCount(0);
+	// A source's tab and the re-ask read the kind the page settled on, never the
+	// word in the address: `./ask` 404s a manga source under `kind=manhwa`.
+	const tab = sources(page).getByRole('link', { name: SOURCES.open.name });
+	await expect(tab).toHaveAttribute('href', new RegExp(`kind=manga&source=${SOURCES.open.id}$`));
 });

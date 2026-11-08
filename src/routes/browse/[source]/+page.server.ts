@@ -137,14 +137,15 @@ export const actions: Actions = {
 		if (downloadsBackend() !== 'engine') error(404, 'not found');
 		const reveal = isRevealed(cookies);
 		const form = await request.formData();
-		const r = await undoAdded(form, params.source, reveal);
+		const origin = backOrigin(url.searchParams.get('from'));
+		const r = await undoAdded(form, params.source, reveal, origin);
 		if ('to' in r) redirect(303, r.to);
 		// A refusal is drawn in the band it belongs to, and this page cannot draw
 		// one any more once the source is mostly hidden: its load 404s. Without
 		// script the answer would be "not found" instead of NO UNDO, so it lands
 		// on BROWSE, which draws every band, carrying the band and the code (c605).
 		if (!browseSource(params.source, reveal))
-			redirect(303, refusedLanding(form, url.searchParams.get('queued'), r.status));
+			redirect(303, refusedLanding(form, url.searchParams.get('queued')));
 		return fail(r.status, { message: r.message });
 	},
 	/**

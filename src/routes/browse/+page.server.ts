@@ -11,7 +11,6 @@ import {
 } from './added.server';
 import { isRevealed } from '$lib/server/prefs';
 import { downloadsBackend } from '$lib/server/engine/run';
-import { engineDownSince } from '$lib/server/engine/client';
 import { browseList, noteSolvedChecks } from '$lib/server/engine/browse';
 
 /**
@@ -41,7 +40,7 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 		// A refused UNDO from a source's page, which can no longer draw its own
 		// band (c605): the refusal's code is the URL's, its words are here --
 		// while it still holds, re-asked on every load (c664).
-		refused: standingRefusal(url.searchParams.get('refused'), added, engineDownSince() !== null)
+		refused: standingRefusal(url.searchParams.get('refused'), added)
 	};
 };
 

@@ -21,9 +21,10 @@
  * A host in that memo is in page mode (card c335): its requests go to the
  * parent as { op: 'page', id, url, method, postData? }, answered
  * { op: 'page-result', id, ok, value: { url, status, contentType, body } } or
- * { op: 'page-result', id, ok: false, error, fixed?, unsent? }, where `fixed`
- * marks a refusal no new solve can change and `unsent` one made before the
- * browser was asked (c630). { id, op: 'modes' } answers the
+ * { op: 'page-result', id, ok: false, error, fixed?, unsent?, unchecked? },
+ * where `fixed` marks a refusal no new solve can change, `unsent` one made
+ * before the browser was asked (c630), and `unchecked` a page that came back
+ * whose last address this app could not look up (c688). { id, op: 'modes' } answers the
  * hosts in page mode and until when. The config message may carry refusedMs,
  * page mode's length, for tests.
  */
@@ -307,16 +308,21 @@ function modes() {
 
 const pageTrouble = (host, why) =>
 	`${host}'s page did not come through the solver (its check could not be passed): ${why}`;
+const pageUnchecked = (host, why) => `${host}'s page was fetched and not used: ${why}`;
 
 /**
  * Fails a page-mode request the solver was asked for and did not answer with
  * a page, for a reason a new solve may change: the solver's own failure, a
- * timeout, its browser dying. The phrase "its check could not be passed" is
- * what the browse page reads as a refused check, and offers TRY AGAIN for,
- * forgetting both memos (`again=1`).
+ * timeout, its browser dying, or a page that came back but whose last address
+ * this app could not check (its own DNS, not the host's check). The phrase
+ * "its check could not be passed" is what the browse page reads as a refused
+ * check, and offers TRY AGAIN for, forgetting both memos (`again=1`). The
+ * last of those (`unchecked`, c688) says no such thing, since no check
+ * failed: its TRY AGAIN forgets nothing and asks the page again, which is a
+ * new lookup, and pays no solve.
  */
-function refusePage(host, why) {
-	const message = pageTrouble(host, why);
+function refusePage(host, why, unchecked = false) {
+	const message = unchecked ? pageUnchecked(host, why) : pageTrouble(host, why);
 	note(message);
 	throw new Error(message);
 }
@@ -394,7 +400,7 @@ async function pageFetch(asked, url, opts, wantsFile) {
 		// it is the unsent family, and asking again asks the lookup again rather
 		// than paying a solve for a DNS hiccup.
 		if (m.unsent) refuseShape(host, why);
-		refusePage(host, why);
+		refusePage(host, why, !!m.unchecked);
 	}
 	const page = m.value;
 	const at = typeof page.url === 'string' && page.url ? page.url : url;
