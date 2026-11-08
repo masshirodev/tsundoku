@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /**
  * A source's preview, never opened (Online Calls 1A; card c168), in a real browser.

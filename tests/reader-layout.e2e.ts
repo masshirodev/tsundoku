@@ -255,10 +255,35 @@ test('a turn asked for right after a mid-slide scrub waits for the first, and sl
 	});
 	// ← turns on; mid-slide the scrub asks for page 1, and ← again at once. The
 	// second turn is taken when the first's slide is done, from page 1.
-	await page.keyboard.press('ArrowLeft');
-	await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
-	await page.keyboard.press('ArrowLeft');
-	const keys = await page.evaluate(() => (window as unknown as { keys: number[] }).keys);
+	//
+	// Whether the second ← lands inside the first's 220 ms slide is the
+	// driver's doing, not the app's: on a loaded box two presses arrive further
+	// apart than that (wave 32: 232-349 ms on desktop, 4 runs in 5 at a load of
+	// 35-39), and the state this case guards was never reached. So a try that
+	// missed goes back to where the case began (page 1 by the scrub, then ← to
+	// `one`, at rest: a missed try can end a page past it) and is made again,
+	// and the outcome is asserted on the try that landed.
+	let keys: number[] = [];
+	for (let attempt = 0; attempt < 5; attempt++) {
+		await page.evaluate(() => {
+			const w = window as unknown as { spans: number[]; on: number | null; keys: number[] };
+			w.spans = [];
+			w.on = null;
+			w.keys = [];
+		});
+		await page.keyboard.press('ArrowLeft');
+		await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+		await page.keyboard.press('ArrowLeft');
+		keys = await page.evaluate(() => (window as unknown as { keys: number[] }).keys);
+		if (keys[1] - keys[0] < 220) break;
+		await expect(stage).not.toHaveClass(/animating/);
+		await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+		await expect(track).toHaveAttribute('aria-valuenow', '1');
+		await expect(stage).not.toHaveClass(/animating/);
+		await page.keyboard.press('ArrowLeft');
+		await expect(track).toHaveAttribute('aria-valuenow', String(one));
+		await expect(stage).not.toHaveClass(/animating/);
+	}
 	expect(keys[1] - keys[0]).toBeLessThan(220);
 	await page.waitForTimeout(800);
 	await expect(stage).not.toHaveClass(/animating/);

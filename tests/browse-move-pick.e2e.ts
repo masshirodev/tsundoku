@@ -4,7 +4,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer as createHttp, type Server } from 'node:http';
 import { createServer, type AddressInfo } from 'node:net';
 import { join } from 'node:path';
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 import { hydrated } from './helpers/hydration';
 

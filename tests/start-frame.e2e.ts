@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /**
  * GET STARTED's SET UP part (the Getting Started handoff, board 1; card c208), in a real

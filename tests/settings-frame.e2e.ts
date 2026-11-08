@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /**
  * SETTINGS, one page (card c171), its `full` state at tablet portrait, in a real browser.

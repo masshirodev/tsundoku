@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { GENRE, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-world';
 
 /**

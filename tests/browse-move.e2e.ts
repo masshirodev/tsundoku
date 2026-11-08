@@ -1,4 +1,5 @@
-import { test, expect, devices, type Page } from '@playwright/test';
+import { devices, type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { engineCalls, engineDown, resetEngine } from './browse-world';
 
 /**
