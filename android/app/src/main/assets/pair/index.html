@@ -1541,8 +1541,19 @@
 				document.getElementById('already').hidden = false;
 				screens.address.classList.add('with-band');
 				// With no server to go back to, BACK is the app's: it leaves.
-				backStep = backToLibrary;
+				backStep = leaveQuestion;
 				wholeToggle.focus();
+			}
+			/*
+			 * BACK from the question saves nothing, a CONNECT already pressed
+			 * included. Opening the library is a loadUrl, so this document runs
+			 * on until that navigation commits, and an answer landing before
+			 * then would otherwise store the address and leave for its
+			 * /pair/tv, taking the owner from the library they went back to.
+			 */
+			function leaveQuestion() {
+				lastOrigin = '';
+				return backToLibrary();
 			}
 
 			/* A given address the activity refused: 9B, empty, with the band. */

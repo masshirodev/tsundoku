@@ -1435,6 +1435,47 @@ test("BACK from the question with no server left is the app's to take (c683)", a
 	expect(await page.evaluate(() => window.__servers!.remembered)).toEqual([]);
 });
 
+const pressBack = (page: Page) =>
+	page.evaluate(() => (window as unknown as { tsundokuBack: () => boolean }).tsundokuBack());
+
+/*
+ * BACK asks the app to open the library, which is a loadUrl: this document runs
+ * on until that navigation commits, and a slow library leaves the probe's whole
+ * 6 s for an answer to land in. So `open()` here records and stays, as the real
+ * document does, and the probe is held until BACK has been pressed. With no
+ * server BACK is the app's (`false`), and the answer must be dropped all the
+ * same: the screen said BACK leaves without saving, and a 9D would take the
+ * screen from whatever the app is doing next.
+ */
+for (const { where, list, backed, opened } of [
+	{ where: 'with a server in use', list: three, backed: true, opened: [HOME] },
+	{ where: 'with no server left', list: [], backed: false, opened: [] }
+])
+	for (const ok of [true, false])
+		test(`BACK while CONNECT is checking, ${where}: a late ${ok ? 'answer' : 'failure'} saves and moves nothing (c683)`, async ({
+			page
+		}) => {
+			const across = await stubAcross(page, list);
+			const navigations = await holdPairing(page);
+			await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
+			await page.locator('#next').click();
+			await expect.poll(() => across.probes).toEqual([LINKED]);
+			await expect(page.locator('#checking')).toContainText('CHECKING library.example.com:8443');
+
+			expect(await pressBack(page)).toBe(backed);
+			await expect.poll(() => across.opened).toEqual(opened);
+
+			await page.evaluate(({ at, ok }) => window.tsundokuProbe?.(at, ok), { at: LINKED, ok });
+			// Time for anything that answer started: a navigation destroys this
+			// context, and what it stored and where it went are read below.
+			await page.evaluate(() => new Promise((done) => setTimeout(done, 200))).catch(() => {});
+			expect(across.remembered).toEqual([]);
+			expect(navigations).toEqual([]);
+			expect(page.url().startsWith(page9)).toBe(true);
+			await expect(page.locator('#retry')).toBeHidden();
+			expect(across.probes).toEqual([LINKED]);
+		});
+
 test('the question fits a TV: the band whole, an 80-character address over the buttons (c683)', async ({
 	page
 }) => {
