@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -420,6 +420,55 @@ test('a Japanese book is set vertically, with furigana and upright numbers', asy
 	await expect(sheet.getByRole('radio', { name: 'L→R' })).toBeDisabled();
 	await expect(sheet.getByText('VERTICAL TEXT READS R→L')).toBeVisible();
 	await expect(page.locator('.flow')).not.toHaveClass(/\brtl\b/);
+});
+
+test("a vertical book's start band has its rule on the left, facing the first column (c743)", async ({
+	page
+}) => {
+	// doc/TEXT-READER.md, "A chapter's start": the same band, vertical, "its
+	// rule on the left between it and the first column". Vertical-rl stacks
+	// columns right to left, so the band's block-end is its left.
+	const ja = sampleEpub({
+		title: TITLE,
+		hue: 0,
+		language: 'ja',
+		chapters: Array.from({ length: 33 }, (_, i) => `第${i + 1}話`)
+	});
+	await serveBook(page, ja);
+	await openBook(page);
+	await expect(page.locator('.flow')).toHaveCSS('writing-mode', 'vertical-rl');
+	// A chapter with no cover, so its text starts on the band's own page.
+	await openFromContents(page, 'Vol. 2');
+	const band = page.locator('.cstart');
+	await expect(band.locator('.ab')).toContainText('CH. 2');
+	await expect(band).toBeInViewport();
+	await expect(band).toHaveCSS('border-left-width', '1px');
+	await expect(band).toHaveCSS('border-left-style', 'solid');
+	for (const side of ['right', 'top', 'bottom'])
+		await expect(band).toHaveCSS(`border-${side}-width`, '0px');
+
+	// Where it is drawn, not only what the box says: the book's first column
+	// is to the band's left, so the rule stands between the two.
+	const where = await page.evaluate(() => {
+		const box = document.querySelector('.cstart')!.getBoundingClientRect();
+		const text = document
+			.createTreeWalker(document.querySelector('.blocks [data-b="0"]')!, NodeFilter.SHOW_TEXT)
+			.nextNode()!;
+		const r = document.createRange();
+		r.setStart(text, 0);
+		r.setEnd(text, 1);
+		return { left: box.left, first: r.getBoundingClientRect().right };
+	});
+	expect(where.first).toBeLessThanOrEqual(where.left);
+	expect(await onScreen(page, 0, 0)).toBe('on screen');
+
+	// END's twin here too: END opens with a rule on its right, in the same colour.
+	const rules = await page.evaluate(() => [
+		getComputedStyle(document.querySelector('.cstart')!).borderLeftColor,
+		getComputedStyle(document.querySelector('.band')!).borderRightColor
+	]);
+	expect(rules[0]).toBe(rules[1]);
+	await expect(page.locator('.band')).toHaveCSS('border-right-width', '1px');
 });
 
 test('a file that is not an EPUB says so, and offers the way back', async ({ page }) => {
@@ -1191,6 +1240,40 @@ const onScreen = (page: Page, b: number, o: number) =>
 		[b, o]
 	);
 
+/**
+ * What the band at a chapter's start and PAGED's END band paint with, by
+ * computed value (c743). END is drawn after the chapter's last block whatever
+ * page is showing, so the two can be read together on the chapter's first page.
+ */
+const bandColours = (page: Page) =>
+	page.evaluate(() => {
+		const css = (sel: string) => getComputedStyle(document.querySelector(sel)!);
+		return {
+			start: {
+				rule: css('.cstart').borderBlockEndColor,
+				row: css('.cstart .ab').color,
+				title: css('.cstart .t').color,
+				minutes: css('.cstart .m').color
+			},
+			end: {
+				rule: css('.band').borderTopColor,
+				row: css('.band .ab').color,
+				title: css('.band .nx .t').color,
+				minutes: css('.band .nx .m').color
+			}
+		};
+	});
+
+/** Open the reading sheet, do `then` in it, and close it. */
+async function inReadingSheet(page: Page, then: (sheet: Locator) => Promise<void>) {
+	await middle(page);
+	await page.getByRole('button', { name: /^PAGED · / }).click();
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await then(sheet);
+	await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(sheet).toHaveCount(0);
+}
+
 test.describe("the band at a chapter's start (c705)", () => {
 	test.beforeEach(async ({ page }) => {
 		await serveBook(page, await bandBook());
@@ -1308,6 +1391,61 @@ test.describe("the band at a chapter's start (c705)", () => {
 		await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
 		await expect(page.locator('.band')).toBeInViewport();
 		await expect(band).not.toBeInViewport();
+	});
+
+	// The rule's side and the colours are what c705 only had by construction.
+	// Written from doc/TEXT-READER.md before reading the computed values: the
+	// band's rule closes it towards the text, and it is END's twin in PAPER and
+	// under DIM, whose overlay lies over the whole reader and leaves colours be.
+	test("PAPER and DIM: the band paints with END's colours, by computed value (c743)", async ({
+		page
+	}) => {
+		// ABOUT n MIN needs ten minutes of reading behind the speed: both bands draw it then.
+		await page.evaluate(() =>
+			localStorage.setItem('tsundoku.text.speed', JSON.stringify({ chars: 300000, ms: 900000 }))
+		);
+		await page.reload();
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		await openFromContents(page, 'Vol. 2');
+		const band = page.locator('.cstart');
+		await expect(band.locator('.t')).toHaveText('Vol. 2');
+		await expect(band.locator('.m')).toHaveText(/^ABOUT \d+ MIN$/);
+		// Across the page, in a horizontal book: under the band, above the text.
+		await expect(band).toHaveCSS('border-bottom-width', '1px');
+		await expect(band).toHaveCSS('border-left-width', '0px');
+
+		const dark = await bandColours(page);
+		expect(dark.start).toEqual(dark.end);
+
+		await inReadingSheet(page, (sheet) => sheet.getByRole('radio', { name: 'PAPER' }).click());
+		await expect(page.locator('.text-reader')).toHaveClass(/\bpaper\b/);
+		const paper = await bandColours(page);
+		expect(paper.start).toEqual(paper.end);
+		// Equal to END is only worth saying if PAPER moved them both: a band and an
+		// END stuck on one colour would be equal too.
+		for (const part of ['rule', 'row', 'title', 'minutes'] as const)
+			expect(paper.start[part], part).not.toBe(dark.start[part]);
+
+		await inReadingSheet(page, async (sheet) => {
+			const dim = sheet.getByRole('slider', { name: 'Dim' });
+			await dim.focus();
+			for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowRight');
+			await expect(dim).toHaveAttribute('aria-valuenow', '20');
+		});
+		const overlay = page.locator('.dim');
+		await expect(overlay).toHaveCSS('opacity', '0.2');
+		// DIM is a layer over the whole reader, band included, not a colour of the band's.
+		const [shade, drawn] = [(await overlay.boundingBox())!, (await band.boundingBox())!];
+		expect(shade.x).toBeLessThanOrEqual(drawn.x);
+		expect(shade.y).toBeLessThanOrEqual(drawn.y);
+		expect(shade.x + shade.width).toBeGreaterThanOrEqual(drawn.x + drawn.width);
+		expect(shade.y + shade.height).toBeGreaterThanOrEqual(drawn.y + drawn.height);
+		expect(await bandColours(page)).toEqual(paper);
+
+		await inReadingSheet(page, (sheet) => sheet.getByRole('radio', { name: 'DARK' }).click());
+		await expect(page.locator('.text-reader')).not.toHaveClass(/\bpaper\b/);
+		await expect(overlay).toHaveCSS('opacity', '0.2');
+		expect(await bandColours(page)).toEqual(dark);
 	});
 
 	test('PAGED: a saved place opens on the same words, the band before it or not', async ({
