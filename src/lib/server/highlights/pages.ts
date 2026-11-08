@@ -283,11 +283,15 @@ export async function keepPage(
 	opts: { db?: Database.Database; read?: PageReader; now?: () => number } = {}
 ): Promise<{ highlight: KeptPage; made: boolean }> {
 	const db = opts.db ?? getDb();
-	const page = ask.page;
-	const pageEnd = ask.pageEnd ?? null;
-	if (!Number.isInteger(page) || page < 0) throw new KeepError('no such page', 'not_found');
-	if (pageEnd !== null && (!Number.isInteger(pageEnd) || pageEnd < 0 || pageEnd === page))
+	const asked = ask.pageEnd ?? null;
+	if (!Number.isInteger(ask.page) || ask.page < 0) throw new KeepError('no such page', 'not_found');
+	if (asked !== null && (!Number.isInteger(asked) || asked < 0))
 		throw new KeepError('no such page', 'not_found');
+	// A spread is its two pages in index order, whichever way they were asked,
+	// and only two that sit side by side: 4 and 5 and 5 and 4 are one BOTH.
+	const page = asked === null ? ask.page : Math.min(ask.page, asked);
+	const pageEnd = asked === null ? null : Math.max(ask.page, asked);
+	if (pageEnd !== null && pageEnd !== page + 1) throw new KeepError('no such page', 'not_found');
 	const snap = snapshot(ask.entryId, reveal, db);
 	if (!snap) throw new KeepError('no such entry', 'not_found');
 	const before = standing(db, ask.entryId, page, pageEnd);

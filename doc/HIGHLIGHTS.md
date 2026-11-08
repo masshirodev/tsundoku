@@ -200,6 +200,11 @@ page's own size.
   nothing set aside and answers 404, which the reader takes as "kept either
   way" and `/highlights` as its band's message. Kept again after the purge (past
   `UNDO_MS`) it is a new highlight. BOTH and one of its pages alone are two.
+- **A BOTH is two pages side by side.** `keepPage` stores the spread as
+  its lower then its higher index whichever way it was asked, so 5 with 4 and
+  4 with 5 are one highlight, and refuses (404) any second page but the next
+  one. The reader always sends them in that order; only a hand-made request
+  could ask otherwise.
 - **A page's kind is `page`**, never the series' kind; `series_kind` is the
   snapshot, as for every highlight.
 - **Hidden** is copied from the series when the page is kept; a hidden series'

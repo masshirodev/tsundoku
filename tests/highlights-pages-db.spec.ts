@@ -276,6 +276,25 @@ describe('a spread kept as BOTH (c703, Manga M2)', () => {
 		});
 	});
 
+	it('a spread is its two pages in index order, and only two side by side (round 2)', async () => {
+		const s = await downloaded('Spread order', {
+			sizes: [
+				[400, 600],
+				[400, 600],
+				[400, 600],
+				[400, 600]
+			]
+		});
+		const a = await keepPage({ entryId: s.entry, page: 2, pageEnd: 1 }, false);
+		const b = await keepPage({ entryId: s.entry, page: 1, pageEnd: 2 }, false);
+		expect(b).toEqual({ highlight: a.highlight, made: false });
+		expect(a.highlight).toMatchObject({ page: 1, pageEnd: 2 });
+		await expect(keepPage({ entryId: s.entry, page: 0, pageEnd: 3 }, false)).rejects.toMatchObject({
+			why: 'not_found'
+		});
+		expect(rows(s.entry).map((r) => [r.page, r.page_end])).toEqual([[1, 2]]);
+	});
+
 	it('a BOTH wider than WebP allows is scaled to fit 16383 px with its aspect (round 2)', async () => {
 		const s = await downloaded('Wide Spread', {
 			sizes: [
