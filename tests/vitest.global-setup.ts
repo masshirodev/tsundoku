@@ -14,6 +14,17 @@ import { join } from 'node:path';
  * RAM on the workstation (doc/TESTING.md).
  */
 export default function setup() {
+	// A git hook runs with GIT_DIR (and GIT_INDEX_FILE, GIT_WORK_TREE...) set to
+	// the repository being pushed, and pre-push runs these specs. A spec that
+	// spawns `git` in a scratch folder then inherits them and acts on the real
+	// repository instead: on 2026-11-07, build-lock.spec's `git init` in its
+	// temp dir re-initialised the main checkout's .git as `core.bare = true`
+	// (and its `git commit` could as well have committed there). Clearing them
+	// here, before any spec process is forked, covers every spec and every
+	// script a spec runs; no spec has a reason to inherit them.
+	for (const name of Object.keys(process.env))
+		if (name.startsWith('GIT_')) delete process.env[name];
+
 	const base = mkdtempSync(join(tmpdir(), 'tsundoku-specs-'));
 	for (const [name, dir] of [
 		['TSUNDOKU_HOME', 'home'],

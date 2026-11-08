@@ -296,8 +296,11 @@ NOT LOADED, SO NOT LISTED`); they are selected all the same.
   own whose hits are rows, not tiles, and the selecting bar has no way there,
   so a selection does not survive a search and a search's hits cannot be
   ticked. Ticking them needs a selecting state drawn on `/search` (its bar
-  holds the search field), which is a design question for the owner: the
-  brief is in the wave 32 notes (`doc/handoff-notes/library.md`, c698).
+  holds the search field). That design is done and not yet built: the brief
+  is [`briefs/SELECT-SEARCH.md`](briefs/SELECT-SEARCH.md) and the handoff
+  [`handoffs/select-search/`](handoffs/select-search/) (c698). It keeps the
+  selection across a trip to `/search` and back, so once it lands this list
+  loses `/search`.
 
 ## REFRESH a selection
 
