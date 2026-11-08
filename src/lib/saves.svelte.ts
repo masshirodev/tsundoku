@@ -5,6 +5,10 @@
  * offers RETRY and PUT BACK. It also tries again by itself with the next
  * request that reaches the workstation. The value only changes back if the
  * owner asks.
+ *
+ * Failures are held per save, so a second one never takes the first one's
+ * way back (c739, c686). They live here, not on a page, so they outlive the
+ * screen that raised them.
  */
 export type FailedSave = {
 	/** What the band says: "RATING 4 NOT SAVED". */
@@ -18,36 +22,53 @@ export type FailedSave = {
 };
 
 class Saves {
-	failed = $state<FailedSave | null>(null);
+	/**
+	 * Oldest first, one per `key`. `$state.raw`: each change replaces the list,
+	 * so a failure stays the object `fail` was given, and "is this still the
+	 * failure I retried?" can be asked by identity.
+	 */
+	failed = $state.raw<FailedSave[]>([]);
+
+	/** Failures whose retry is out, so a nudge or a second tap does not double it. */
+	#out = new Set<FailedSave>();
 
 	fail(f: FailedSave) {
-		this.failed = f;
+		this.failed = [...this.failed.filter((x) => x.key !== f.key), f];
 	}
 
 	/** The control `key` holds a value that isn't stored. */
 	unsaved(key: string): boolean {
-		return this.failed?.key === key;
+		return this.failed.some((x) => x.key === key);
 	}
 
-	async retry() {
-		const f = this.failed;
+	async retry(key: string) {
+		const f = this.failed.find((x) => x.key === key);
+		if (!f || this.#out.has(f)) return;
+		this.#out.add(f);
+		try {
+			// Only this failure: by the time it lands the list may hold others,
+			// or a newer failure of this same key, which still has its own say.
+			if (await f.retry()) this.failed = this.failed.filter((x) => x !== f);
+		} finally {
+			this.#out.delete(f);
+		}
+	}
+
+	putBack(key: string) {
+		const f = this.failed.find((x) => x.key === key);
 		if (!f) return;
-		if (await f.retry()) this.failed = null;
+		f.putBack();
+		this.failed = this.failed.filter((x) => x !== f);
 	}
 
-	putBack() {
-		this.failed?.putBack();
-		this.failed = null;
-	}
-
-	/** Something reached the workstation: try the failed save again, once. */
+	/** Something reached the workstation: try each failed save again, once. */
 	nudge() {
-		if (this.failed) void this.retry();
+		for (const f of this.failed) void this.retry(f.key);
 	}
 
 	/** Its control saved something newer: this failure no longer matters. */
 	clear(key: string) {
-		if (this.failed?.key === key) this.failed = null;
+		this.failed = this.failed.filter((x) => x.key !== key);
 	}
 }
 

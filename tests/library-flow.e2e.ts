@@ -6,6 +6,7 @@ import { createServer as tcpServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from './fixtures';
+import { startPreview } from './highlights-preview';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
@@ -801,13 +802,15 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await page.unroute(isRate);
 	});
 
-	test('two failed taps: both tiles stay dashed, and each has its own way back (c659, round 2)', async ({
+	/** The band a tile's failure draws: one each, named for the tile (c739). */
+	const bandOf = (page: Page, title: string | null) =>
+		page.locator('[role="alert"]', { hasText: (title ?? '').toUpperCase() });
+
+	test('two failed taps: both tiles stay dashed, each with its own band and way back (c659, c739)', async ({
 		page
 	}) => {
-		// `saves` holds one failure, so a second lost tap used to leave the
-		// first tile drawn as if its value were stored, with no band to put it
-		// back. The mark is the tile's own value now, and the displaced failure
-		// is kept and raised as the band clears.
+		// The store holds a list now (c739): two lost taps are two bands, stacked,
+		// each with its own PUT BACK and RETRY.
 		await page.goto('/?sort=title');
 		const tiles = page
 			.locator('.grid .tile')
@@ -821,22 +824,31 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		const wasB = await favB.getAttribute('aria-pressed');
 		const done = await loseAll(page, 'favourite');
 
+		const titleA = await first.locator('.title').textContent();
+		const titleB = await second.locator('.title').textContent();
+		const bandA = bandOf(page, titleA);
+		const bandB = bandOf(page, titleB);
+
 		await favA.click();
 		await expect(favA).toHaveClass(/unsaved/);
 		await favB.click();
 		await expect(favB).toHaveClass(/unsaved/);
-		// Both are unstored whichever band the second tap left up.
 		await expect(favA).toHaveClass(/unsaved/);
-		await expect(page.getByText(/FAV NOT SAVED|UNFAV NOT SAVED/)).toBeVisible();
+		await expect(page.locator('[role="alert"]')).toHaveCount(2);
+		for (const band of [bandA, bandB]) {
+			await expect(band).toHaveCount(1);
+			await expect(band.getByRole('button', { name: /PUT BACK/ })).toBeVisible();
+			await expect(band.getByRole('button', { name: 'RETRY' })).toBeVisible();
+		}
 
-		// PUT BACK ends the band's own failure; the one it displaced takes the
-		// band, so the first tile keeps its way back.
-		await page.getByRole('button', { name: /PUT BACK/ }).click();
+		// Each PUT BACK ends its own: the other band stays.
+		await bandB.getByRole('button', { name: /PUT BACK/ }).click();
 		await expect(favB).not.toHaveClass(/unsaved/);
 		await expect(favA).toHaveClass(/unsaved/);
-		await expect(page.getByText(/FAV NOT SAVED|UNFAV NOT SAVED/)).toBeVisible();
-		await page.getByRole('button', { name: /PUT BACK/ }).click();
-		await expect(page.getByText(/FAV NOT SAVED|UNFAV NOT SAVED/)).toHaveCount(0);
+		await expect(bandB).toHaveCount(0);
+		await expect(bandA).toHaveCount(1);
+		await bandA.getByRole('button', { name: /PUT BACK/ }).click();
+		await expect(page.locator('[role="alert"]')).toHaveCount(0);
 		await expect(favA).not.toHaveClass(/unsaved/);
 		await expect(favA).toHaveAttribute('aria-pressed', wasA!);
 		await expect(favB).toHaveAttribute('aria-pressed', wasB!);
@@ -854,7 +866,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		);
 	});
 
-	test('FAV then a rating on one tile: the displaced failure keeps its way back (c659, round 2)', async ({
+	test('FAV then a rating on one tile: each failure keeps its own way back (c659, c739)', async ({
 		page
 	}) => {
 		await page.goto('/?sort=title');
@@ -874,7 +886,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await expect(rate).toHaveClass(/unsaved/);
 		await expect(page.getByText('RATING 6 NOT SAVED')).toBeVisible();
 
-		// The rating's band first; putting it back raises the FAV failure under it.
+		// Two bands for one tile; putting the rating back leaves FAV's.
 		await page.getByRole('button', { name: 'PUT BACK 0' }).click();
 		await expect(page.getByText('RATING 6 NOT SAVED')).toHaveCount(0);
 		await expect(rate).not.toHaveClass(/unsaved/);
@@ -954,13 +966,12 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 			.then(async (r) => ((await r.json()) as { type?: string }).type === 'success');
 	}
 
-	test('a RETRY that lands while another tile has failed hands that tile its band back (c659, wave 32)', async ({
+	test('a RETRY that lands while another tile has failed leaves that tile’s band up (c659, c739)', async ({
 		page
 	}) => {
 		// Wave 30's round-2 medium 1, in its own route order: A's tap lost, A's
-		// RETRY held, B's tap lost, A's RETRY let through. `saves.retry` clears
-		// the band whatever it holds when A lands, which was B's failure: B was
-		// left dashed with no PUT BACK and no RETRY.
+		// RETRY held, B's tap lost, A's RETRY let through. A retry clears only its
+		// own failure now (c739), so B keeps its band.
 		await page.goto('/?sort=title');
 		const tiles = page
 			.locator('.grid .tile')
@@ -971,20 +982,22 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		const wasA = await favA.getAttribute('aria-pressed');
 		const wasB = await favB.getAttribute('aria-pressed');
 		const flip = (v: string | null) => (v === 'true' ? 'false' : 'true');
-		const band = page.getByText(/FAV NOT SAVED|UNFAV NOT SAVED/);
+		const bandA = bandOf(page, await tiles.nth(0).locator('.title').textContent());
+		const bandB = bandOf(page, await tiles.nth(1).locator('.title').textContent());
 		const { held, done } = await scripted(page, 'favourite', ['lose', 'hold', 'lose']);
 
 		await favA.click();
 		await expect(favA).toHaveClass(/unsaved/);
-		await expect(band).toBeVisible();
-		await page.getByRole('button', { name: 'RETRY' }).click();
+		await expect(bandA).toHaveCount(1);
+		await bandA.getByRole('button', { name: 'RETRY' }).click();
 		const retry = await held;
 		// The RETRY is out: its value is still not stored, so the mark stays.
 		await expect(favA).toHaveClass(/unsaved/);
 
 		await favB.click();
 		await expect(favB).toHaveClass(/unsaved/);
-		await expect(band).toBeVisible();
+		await expect(bandB).toHaveCount(1);
+		await expect(bandA).toHaveCount(1);
 
 		const landed = favAnswer(page);
 		await retry.continue();
@@ -994,14 +1007,15 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await expect(favA).toHaveAttribute('aria-pressed', flip(wasA));
 		await expect(favB).toHaveClass(/unsaved/);
 		await expect(favB).toHaveAttribute('aria-pressed', flip(wasB));
-		await expect(band).toBeVisible();
-		await expect(page.getByRole('button', { name: 'RETRY' })).toBeVisible();
+		await expect(bandA).toHaveCount(0);
+		await expect(bandB).toHaveCount(1);
+		await expect(bandB.getByRole('button', { name: 'RETRY' })).toBeVisible();
 
 		// B's PUT BACK reads B's stored value.
-		await page
+		await bandB
 			.getByRole('button', { name: wasB === 'true' ? 'PUT BACK · FAV' : 'PUT BACK · NOT FAV' })
 			.click();
-		await expect(band).toHaveCount(0);
+		await expect(bandB).toHaveCount(0);
 		await expect(favB).not.toHaveClass(/unsaved/);
 		await expect(favB).toHaveAttribute('aria-pressed', wasB!);
 		await done();
@@ -1098,26 +1112,28 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		);
 	});
 
-	test('a series screen failure the band carried here is not dropped when a tile’s takes the band (c659, wave 32)', async ({
+	test('a series screen failure carried here keeps its band beside a tile’s (c659, c739)', async ({
 		page
 	}) => {
-		// Wave 30's round-2 low: a displaced failure was judged by the page's
-		// own taps, so one raised on the series screen (the page holds no tap
-		// for it) was dropped as the band cleared, and its PUT BACK and RETRY
-		// went with it. The page now judges only the taps it holds.
+		// Wave 30's round-2 low: a failure raised on the series screen was
+		// dropped as a tile's took the band. The store keeps both now.
 		await page.goto('/?sort=title');
 		const tile = page.locator('.grid .tile', { hasText: TITLE });
 		const isSeriesFav = (u: URL) =>
 			/^\/series\/\d+$/.test(u.pathname) && u.search === '?/favourite';
 		await page.route(isSeriesFav, (route) => route.abort());
 		const noTileFav = await loseAll(page, 'favourite');
-		const band = page.getByText('FAV NOT SAVED');
+		// The series screen's own words name no tile.
+		const seriesBand = page
+			.locator('[role="alert"]')
+			.filter({ has: page.locator('.what', { hasText: /^FAV NOT SAVED$/ }) });
+		const bands = page.locator('[role="alert"]');
 
 		await tile.locator('.open').click();
 		await page.waitForURL(/\/series\//);
 		const panel = page.getByRole('region', { name: 'About this series' });
 		await panel.getByRole('button', { name: 'FAV', exact: true }).click();
-		await expect(band).toBeVisible();
+		await expect(bands).toHaveCount(1);
 		// Back to the library; the nudge retries on the way and loses too.
 		await page.goBack();
 		const other = page
@@ -1127,22 +1143,25 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 			.first();
 		const favOther = other.getByRole('button', { name: 'Favourite' });
 		await expect(favOther).toBeVisible();
-		await expect(band).toBeVisible();
+		await expect(bands).toHaveCount(1);
 		const wasOther = await favOther.getAttribute('aria-pressed');
+		const otherBand = bandOf(page, await other.locator('.title').textContent());
 
 		await favOther.click();
 		await expect(favOther).toHaveClass(/unsaved/);
-		await page
+		await expect(bands).toHaveCount(2);
+		await otherBand
 			.getByRole('button', {
 				name: wasOther === 'true' ? 'PUT BACK · FAV' : 'PUT BACK · NOT FAV'
 			})
 			.click();
 		await expect(favOther).not.toHaveClass(/unsaved/);
-		// The series screen's failure has the band again, with its own way out.
-		await expect(band).toBeVisible();
-		await expect(page.getByRole('button', { name: 'RETRY' })).toBeVisible();
-		await page.getByRole('button', { name: 'PUT BACK · NOT FAV' }).click();
-		await expect(band).toHaveCount(0);
+		await expect(otherBand).toHaveCount(0);
+		// The series screen's failure still has its band and its way out.
+		await expect(seriesBand).toContainText('FAV NOT SAVED');
+		await expect(seriesBand.getByRole('button', { name: 'RETRY' })).toBeVisible();
+		await seriesBand.getByRole('button', { name: 'PUT BACK · NOT FAV' }).click();
+		await expect(bands).toHaveCount(0);
 		await noTileFav();
 		await page.unroute(isSeriesFav);
 
@@ -1151,6 +1170,276 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await expect(
 			page.locator('.grid .tile', { hasText: TITLE }).getByRole('button', { name: 'Favourite' })
 		).toHaveAttribute('aria-pressed', 'false');
+	});
+
+	test('SELECT keeps the mark on the plain badge and bars the tile draws then (c738)', async ({
+		page
+	}) => {
+		await page.goto('/?sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const fav = tile.getByRole('button', { name: 'Favourite' });
+		const rate = tile.getByRole('button', { name: /^Rate, / });
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		const noFav = await loseAll(page, 'favourite');
+		const noRate = await loseAll(page, 'rate');
+
+		await fav.click();
+		await expect(fav).toHaveClass(/unsaved/);
+		await rate.click();
+		await tile.getByRole('button', { name: 'Rate 6 of 10' }).click();
+		await expect(rate).toHaveClass(/unsaved/);
+
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		// The controls are gone: every tap is a pick now.
+		await expect(tile.getByRole('button', { name: 'Favourite' })).toHaveCount(0);
+		await expect(tile.getByRole('button', { name: /^Rate, / })).toHaveCount(0);
+		const corner = tile.locator('.fav-plain.unsaved');
+		const bars = tile.locator('.rating-plain.unsaved');
+		await expect(corner).toContainText('FAV');
+		await expect(bars.getByRole('img')).toHaveAttribute('aria-label', 'Rated 6 of 10');
+		expect(await corner.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('dashed');
+		expect(await bars.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('dashed');
+
+		// A mark is not a control: the corner still picks the tile.
+		await corner.click();
+		await expect(tile.locator('.open')).toHaveAttribute('aria-pressed', 'true');
+		await tile.locator('.open').click();
+		await expect(tile.locator('.open')).toHaveAttribute('aria-pressed', 'false');
+
+		await page.getByRole('button', { name: 'PUT BACK 0' }).click();
+		await expect(bars).toHaveCount(0);
+		await expect(corner).toContainText('FAV');
+		await page.getByRole('button', { name: 'PUT BACK · NOT FAV' }).click();
+		await expect(corner).toHaveCount(0);
+		await expect(tile.getByText('FAV', { exact: true })).toHaveCount(0);
+		await noFav();
+		await noRate();
+	});
+
+	test('a failed UNFAV keeps its mark in SELECT too, though no badge is drawn (c738)', async ({
+		page
+	}) => {
+		// The value a failed UNFAV leaves is the absence of a badge: a mark that
+		// lived on the badge would have nothing to sit on.
+		await page.goto('/?sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const fav = tile.getByRole('button', { name: 'Favourite' });
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		const stored = page.waitForResponse((r) => new URL(r.url()).search === '?/favourite' && r.ok());
+		await fav.click();
+		await stored;
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+		await expect(fav).not.toHaveClass(/unsaved/);
+		await page.reload();
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+
+		const noFav = await loseAll(page, 'favourite');
+		await fav.click();
+		await expect(fav).toHaveClass(/unsaved/);
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		const corner = tile.locator('.fav-plain.unsaved');
+		await expect(corner).toBeVisible();
+		await expect(corner).not.toContainText('FAV');
+		await page.getByRole('button', { name: 'PUT BACK · FAV' }).click();
+		await expect(corner).toHaveCount(0);
+		await expect(tile.getByText('FAV', { exact: true })).toBeVisible();
+		await noFav();
+
+		// Back as the seed has it.
+		await page.reload();
+		const restored = page.waitForResponse(
+			(r) => new URL(r.url()).search === '?/favourite' && r.ok()
+		);
+		await fav.click();
+		await restored;
+		await page.reload();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+	});
+
+	test('failures raised on the library survive a trip to a series screen, each with its way back (c739)', async ({
+		page
+	}) => {
+		// `displaced` used to die with the page: only the failure the band held
+		// came back. Both are the store's now.
+		await page.goto('/?sort=title');
+		const tiles = page
+			.locator('.grid .tile')
+			.filter({ has: page.getByRole('button', { name: 'Favourite' }) });
+		await expect(tiles.nth(1)).toBeAttached();
+		const titleA = await tiles.nth(0).locator('.title').textContent();
+		const titleB = await tiles.nth(1).locator('.title').textContent();
+		const bandA = bandOf(page, titleA);
+		const bandB = bandOf(page, titleB);
+		const noFav = await loseAll(page, 'favourite');
+
+		await tiles.nth(0).getByRole('button', { name: 'Favourite' }).click();
+		await expect(bandA).toHaveCount(1);
+		await tiles.nth(1).getByRole('button', { name: 'Favourite' }).click();
+		await expect(bandB).toHaveCount(1);
+		await expect(bandA).toHaveCount(1);
+
+		// The series screen: the nudge retries each, and each loses.
+		await tiles.nth(0).locator('.open').click();
+		await page.waitForURL(/\/series\//);
+		await expect(page.locator('[role="alert"]')).toHaveCount(2);
+		for (const band of [bandA, bandB]) {
+			await expect(band.getByRole('button', { name: /PUT BACK/ })).toBeVisible();
+			await expect(band.getByRole('button', { name: 'RETRY' })).toBeVisible();
+		}
+
+		// And back: still both, each ending only its own.
+		await page.goBack();
+		await expect(page.locator('.grid .tile').first()).toBeAttached();
+		await expect(page.locator('[role="alert"]')).toHaveCount(2);
+		await bandA.getByRole('button', { name: /PUT BACK/ }).click();
+		await expect(bandA).toHaveCount(0);
+		await expect(bandB).toHaveCount(1);
+		await bandB.getByRole('button', { name: /PUT BACK/ }).click();
+		await expect(page.locator('[role="alert"]')).toHaveCount(0);
+		await noFav();
+	});
+
+	// The band is the app's and outlives reveal: HIDE AGAIN is a `use:enhance`
+	// form answering a 303, so the store survives it. doc/LIBRARY.md's "while
+	// reveal is off a hidden title never reaches the browser" has to hold there.
+	for (const { how, title, ownFlag } of [
+		{ how: 'through its hidden root', title: 'Onsen Ryokan no Yoru', ownFlag: false },
+		{ how: 'by its own flag', title: TITLE, ownFlag: true }
+	]) {
+		test(`a series hidden ${how} is not named on its band, before or after reveal ends (c739, round 2)`, async ({
+			page
+		}) => {
+			const VISIBLE = 'Hoshi no Umi no Tabibito';
+			const revealOn = async () => {
+				await page.goto('/search');
+				await page.getByRole('searchbox').fill('/reveal');
+				await page.keyboard.press('Enter');
+				await page.waitForURL((u) => u.pathname === '/');
+				await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+				await page.goto('/?shelf=all&sort=title');
+			};
+			if (ownFlag) {
+				await page.goto('/');
+				const sheet = await longPress(page, title);
+				await sheet.getByRole('button', { name: 'HIDE', exact: true }).click();
+				await expect(page.locator('.grid .tile', { hasText: title })).toHaveCount(0);
+			}
+			await revealOn();
+
+			const hidden = page.locator('.grid .tile', { hasText: title });
+			await expect(hidden.getByText('HIDDEN', { exact: true })).toBeVisible();
+			const visible = page.locator('.grid .tile', { hasText: VISIBLE });
+			await expect(visible.getByText('HIDDEN', { exact: true })).toHaveCount(0);
+
+			// Aborted for the whole case, so the nudge HIDE AGAIN causes loses too.
+			let favsLost = 0;
+			const isFav = (u: URL) => u.pathname === '/' && u.search === '?/favourite';
+			const isRate = (u: URL) => u.pathname === '/' && u.search === '?/rate';
+			await page.route(isFav, (route) => {
+				favsLost++;
+				return route.abort();
+			});
+			await page.route(isRate, (route) => route.abort());
+
+			const fav = hidden.getByRole('button', { name: 'Favourite' });
+			const word = (await fav.getAttribute('aria-pressed')) === 'true' ? 'UNFAV' : 'FAV';
+			await fav.click();
+			await expect(fav).toHaveClass(/unsaved/);
+			await hidden.getByRole('button', { name: /^Rate, / }).click();
+			await hidden.getByRole('button', { name: 'Rate 6 of 10' }).click();
+			const visibleFav = visible.getByRole('button', { name: 'Favourite' });
+			const visibleWord =
+				(await visibleFav.getAttribute('aria-pressed')) === 'true' ? 'UNFAV' : 'FAV';
+			await visibleFav.click();
+			await expect(visibleFav).toHaveClass(/unsaved/);
+
+			const bands = page.locator('[role="alert"]');
+			await expect(bands).toHaveCount(3);
+			const named = bands.filter({ hasText: title.toUpperCase() });
+			const favBand = bands.filter({
+				has: page.locator('.what', { hasText: new RegExp(`^${word} NOT SAVED$`) })
+			});
+			const rateBand = bands.filter({
+				has: page.locator('.what', { hasText: /^RATING 6 NOT SAVED$/ })
+			});
+			const visibleBand = bands.filter({ hasText: VISIBLE.toUpperCase() });
+
+			// The hidden tile's two bands say what failed and nothing about whose.
+			const unnamed = async () => {
+				await expect(bands).toHaveCount(3);
+				await expect(named).toHaveCount(0);
+				await expect(favBand).toHaveCount(1);
+				await expect(rateBand).toHaveCount(1);
+				// The neighbouring value: a visible tile's band still says which.
+				await expect(visibleBand.locator('.what')).toHaveText(
+					`${visibleWord} NOT SAVED · ${VISIBLE.toUpperCase()}`
+				);
+			};
+			await unnamed();
+			for (const band of [favBand, rateBand]) {
+				await expect(band.getByRole('button', { name: /PUT BACK/ })).toBeVisible();
+				await expect(band.getByRole('button', { name: 'RETRY' })).toBeVisible();
+			}
+
+			// End reveal by the banner. The grid drops the series, the store does not.
+			const before = favsLost;
+			await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+			await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+			await expect(page.locator('.grid .tile', { hasText: title })).toHaveCount(0);
+			// Both held FAVs were tried again and lost: the state after the nudge.
+			await expect.poll(() => favsLost).toBeGreaterThanOrEqual(before + 2);
+			await unnamed();
+
+			for (const band of [favBand, rateBand, visibleBand]) {
+				await band.getByRole('button', { name: /PUT BACK/ }).click();
+				await expect(band).toHaveCount(0);
+			}
+			await expect(bands).toHaveCount(0);
+			await page.unroute(isFav);
+			await page.unroute(isRate);
+
+			if (ownFlag) {
+				await revealOn();
+				await longPress(page, title);
+				await page.getByRole('button', { name: 'UNHIDE' }).click();
+				await expect(hidden.getByText('HIDDEN', { exact: true })).toHaveCount(0);
+				await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+				await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+			}
+		});
+	}
+
+	test('a tile gone from the grid when its save fails is not named, and leaves no separator (c739, round 2)', async ({
+		page
+	}) => {
+		await page.goto('/?shelf=all&sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const fav = tile.getByRole('button', { name: 'Favourite' });
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+
+		// Held, so the shelf can change under the save before it is lost.
+		let lose = () => {};
+		const lost = new Promise<void>((resolve) => (lose = resolve));
+		const isFav = (u: URL) => u.pathname === '/' && u.search === '?/favourite';
+		await page.route(isFav, async (route) => {
+			await lost;
+			await route.abort();
+		});
+		const asked = page.waitForRequest((r) => isFav(new URL(r.url())));
+		await fav.click();
+		await asked;
+
+		await page.locator('.kinds .kc', { hasText: 'NOVEL' }).click();
+		await expect(page).toHaveURL(/kind=novel/);
+		await expect(tile).toHaveCount(0);
+		lose();
+
+		const band = page.locator('[role="alert"]');
+		await expect(band).toHaveCount(1);
+		await expect(band.locator('.what')).toHaveText('FAV NOT SAVED');
+		await band.getByRole('button', { name: /PUT BACK/ }).click();
+		await expect(band).toHaveCount(0);
+		await page.unroute(isFav);
 	});
 
 	test('the rating draws dashed as well, and PUT BACK ends it (c659)', async ({ page }) => {
@@ -1174,6 +1463,451 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await expect(rate).not.toHaveClass(/unsaved/);
 		await expect(bars).toHaveAttribute('aria-label', 'Unrated');
 		await done();
+	});
+});
+
+/**
+ * A seeded library of its own, served on a port the OS gave it: for a case that
+ * reshapes the seed or deletes from it, so nothing it does reaches the shared
+ * database the other flow files read. `test.use({ baseURL: library.base })` in
+ * the describe, `start` and `stop` in its hooks.
+ */
+function ownLibrary(name: string, port: number, prepare: (db: Database.Database) => void) {
+	const scratch = mkdtempSync(join(tmpdir(), `tsundoku-e2e-${name}-`));
+	const dbPath = join(scratch, 'library.sqlite');
+	const base = `http://localhost:${port}`;
+	let server: ChildProcess | null = null;
+	const withDb = <T>(read: (db: Database.Database) => T): T => {
+		const db = new Database(dbPath);
+		try {
+			return read(db);
+		} finally {
+			db.close();
+		}
+	};
+	return {
+		base,
+		withDb,
+		idOf: (title: string) =>
+			withDb(
+				(db) =>
+					(db.prepare(`SELECT id FROM series WHERE title = ?`).get(title) as { id: number }).id
+			),
+		start: async () => {
+			execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
+				env: { ...process.env, DATABASE_PATH: dbPath, NODE_NO_WARNINGS: '1' },
+				stdio: 'pipe'
+			});
+			withDb(prepare);
+			server = await startPreview(
+				() =>
+					spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
+						env: {
+							...process.env,
+							DATABASE_PATH: dbPath,
+							TSUNDOKU_TOKEN: E2E_TOKEN,
+							TSUNDOKU_ANILIST: 'off',
+							LIBRARY_ROOT: join(scratch, 'library'),
+							TRASH_DIR: join(scratch, 'trash'),
+							COVER_DIR: join(scratch, 'covers'),
+							BACKUP_DIR: join(scratch, 'backups'),
+							TSUNDOKU_HOME: join(scratch, 'home')
+						},
+						stdio: 'ignore'
+					}),
+				base,
+				`the ${name} preview`
+			);
+		},
+		stop: () => {
+			server?.kill();
+			server = null;
+			rmSync(scratch, { recursive: true, force: true });
+		}
+	};
+}
+
+/** A port the OS has free now. */
+const freePort = () =>
+	new Promise<number>((resolve, reject) => {
+		const probe = tcpServer();
+		probe.once('error', reject);
+		probe.listen(0, '127.0.0.1', () => {
+			const { port } = probe.address() as AddressInfo;
+			probe.close(() => resolve(port));
+		});
+	});
+
+const foldPort = await freePort();
+
+test.describe('FOLD is offered only over books with nothing beside them (c651)', () => {
+	const PLAIN_JA = 'Ame no Hi no Toshokan';
+	const PLAIN_EN = 'Hoshi no Umi no Tabibito';
+	const WITH_EXTRA = 'Onsen Ryokan no Yoru';
+	const WITH_DUPLICATE = 'Sekai no Owari no Kissaten';
+
+	const library = ownLibrary('fold', foldPort, (db) => {
+		// The seed keeps some of its books in a hidden root.
+		db.exec(`UPDATE roots SET hidden = 0`);
+		const seriesOf = (title: string) =>
+			(db.prepare(`SELECT id FROM series WHERE title = ?`).get(title) as { id: number }).id;
+		const tag = db.prepare(`INSERT OR IGNORE INTO tags (namespace, value) VALUES ('language', ?)`);
+		const onSeries = db.prepare(
+			`INSERT INTO series_tags (series_id, tag_id)
+			SELECT ?, id FROM tags WHERE namespace = 'language' AND value = ?`
+		);
+		// Four languages, so only what is beside a book can refuse it.
+		for (const [title, language] of [
+			[PLAIN_JA, 'japanese'],
+			[PLAIN_EN, 'english'],
+			[WITH_EXTRA, 'korean'],
+			[WITH_DUPLICATE, 'chinese']
+		]) {
+			tag.run(language);
+			onSeries.run(seriesOf(title), language);
+		}
+		const beside = db.prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, matter, shadowed)
+			VALUES (?, 99, 'Beside', 1, ?, ?)`
+		);
+		beside.run(seriesOf(WITH_EXTRA), 'back', 0);
+		beside.run(seriesOf(WITH_DUPLICATE), '', 1);
+	});
+
+	test.use({ baseURL: library.base });
+	test.beforeAll(async () => {
+		test.setTimeout(120_000);
+		await library.start();
+	});
+	test.afterAll(() => library.stop());
+
+	test('a book with an extra or a set-aside duplicate beside it takes the FOLD cell away', async ({
+		page
+	}) => {
+		await page.goto('/?shelf=all&sort=title');
+		await page.waitForLoadState('networkidle');
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		const tick = (title: string) => page.locator('.grid .tile', { hasText: title }).click();
+		const fold = page.locator('button.fold');
+		const group = page.getByRole('button', { name: 'GROUP', exact: true });
+
+		// The control: these two are foldable, so a missing cell below is the rule's.
+		await tick(PLAIN_JA);
+		await tick(PLAIN_EN);
+		await expect(fold).toContainText('JA · EN');
+
+		// An extra beside the third book: three books, three languages, no FOLD.
+		await tick(WITH_EXTRA);
+		await expect(fold).toHaveCount(0);
+		await expect(group).toBeVisible();
+		await tick(PLAIN_EN);
+		await expect(fold).toHaveCount(0);
+
+		// A set-aside duplicate does the same.
+		await tick(WITH_EXTRA);
+		await tick(WITH_DUPLICATE);
+		await expect(fold).toHaveCount(0);
+		await expect(group).toBeVisible();
+
+		// And the two that can fold offer it again.
+		await tick(WITH_DUPLICATE);
+		await tick(PLAIN_EN);
+		await expect(fold).toContainText('JA · EN');
+	});
+
+	test('the card says alone for one book, and not for anything beside it', async ({ page }) => {
+		const shapes = {
+			plain: library.idOf(PLAIN_JA),
+			extra: library.idOf(WITH_EXTRA),
+			duplicate: library.idOf(WITH_DUPLICATE),
+			folded: library.idOf('Harbour Lights'),
+			several: library.idOf('Kaori Mama')
+		};
+		// `?/fold` passes a folded edition beside the book: it is the book's own.
+		expect(
+			library.withDb(
+				(db) =>
+					(
+						db
+							.prepare(
+								`SELECT COUNT(*) AS n FROM entries WHERE series_id = ? AND edition_of IS NOT NULL`
+							)
+							.get(shapes.folded) as { n: number }
+					).n
+			)
+		).toBe(1);
+		const res = await page.request.post('/api/library', {
+			data: { ids: Object.values(shapes) }
+		});
+		expect(res.ok()).toBe(true);
+		const { series } = (await res.json()) as { series: { id: number; alone?: boolean }[] };
+		const alone = (id: number) => series.find((c) => c.id === id)?.alone;
+		expect(alone(shapes.plain)).toBe(true);
+		expect(alone(shapes.extra)).toBe(false);
+		expect(alone(shapes.duplicate)).toBe(false);
+		expect(alone(shapes.folded)).toBe(true);
+		expect(alone(shapes.several)).toBe(false);
+	});
+});
+
+const deepPort = await freePort();
+
+test.describe('a Work past the first page asks like one on it (c686)', () => {
+	const FIRST = 'Aaa First Run';
+	const DEEP = 'Zzz Deep Run';
+
+	const library = ownLibrary('deep-work', deepPort, (db) => {
+		db.exec(`UPDATE roots SET hidden = 0`);
+		const work = (name: string, titles: string[]) => {
+			const id = db
+				.prepare(`INSERT INTO works (name, created_at, order_mode) VALUES (?, 1, 'hand')`)
+				.run(name).lastInsertRowid;
+			titles.forEach((title, i) =>
+				db
+					.prepare(
+						`INSERT INTO work_series (work_id, series_id, position)
+						SELECT ?, id, ? FROM series WHERE title = ?`
+					)
+					.run(id, i + 1, title)
+			);
+		};
+		work(FIRST, ['Ame no Hi no Toshokan', 'Boku no Kokoro no Yabai Yatsu']);
+		work(DEEP, ['Tower of God', 'Yofukashi no Uta']);
+	});
+
+	test.use({ baseURL: library.base });
+	test.beforeAll(async () => {
+		test.setTimeout(120_000);
+		await library.start();
+	});
+	test.afterAll(() => library.stop());
+
+	async function shortPages(page: Page, size = 2) {
+		await page
+			.context()
+			.addCookies([{ name: 'tsundoku_grid_page', value: String(size), url: 'http://localhost' }]);
+	}
+
+	/** Scroll the grid until `tile`, and assert it sits past the first page. */
+	async function reach(page: Page, tile: ReturnType<Page['locator']>, text: string, size = 2) {
+		const more = page.locator('.more');
+		for (let i = 0; i < 25 && (await tile.count()) === 0; i++) {
+			await more.scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => undefined);
+			await page.waitForTimeout(150);
+		}
+		await expect(tile).toHaveCount(1);
+		const at = await page
+			.locator('.grid .tile')
+			.evaluateAll((els, t) => els.findIndex((el) => (el.textContent ?? '').includes(t)), text);
+		expect(at).toBeGreaterThanOrEqual(size);
+		await tile.scrollIntoViewIfNeeded();
+	}
+
+	test('a Work tile opens the HIDE sheet on the first page and past it', async ({ page }) => {
+		await shortPages(page);
+		await page.goto('/?shelf=all&sort=title');
+		await page.waitForLoadState('networkidle');
+
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		const first = page.locator('.grid .tile.work', { hasText: FIRST });
+		await first.locator('.open').click();
+		await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'Hide' });
+		await expect(sheet).toBeVisible();
+		await expect(sheet.getByRole('button', { name: /HIDE ALL 2/ })).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(sheet).toHaveCount(0);
+		await first.locator('.open').click();
+
+		const deep = page.locator('.grid .tile.work', { hasText: DEEP });
+		await reach(page, deep, DEEP);
+		await deep.locator('.open').click();
+		await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+		await expect(sheet).toBeVisible();
+		await expect(sheet.getByRole('button', { name: /HIDE ALL 2/ })).toBeVisible();
+	});
+});
+
+const deletePort = await freePort();
+
+test.describe('the bulk DELETE says what it does to highlights (c731)', () => {
+	const NONE = 'Sekai no Owari no Kissaten';
+	const TWO_AND_A_HIDDEN = 'Hoshi no Umi no Tabibito';
+	const ONE = 'Ame no Hi no Toshokan';
+	const GOES_WITH = 'Natsu no Owari ni Kimi to';
+	const GOES_WITH_TOO = 'Kōhai no Himitsu Nikki';
+	const STAYS_TOO = 'Onsen Ryokan no Yoru';
+
+	const library = ownLibrary('bulk-delete', deletePort, (db) => {
+		db.exec(`UPDATE roots SET hidden = 0`);
+		const put = db.prepare(
+			`INSERT INTO highlights (kind, series_id, series_title, series_kind, quote, paragraph, made_at, hidden)
+			SELECT 'quote', id, title, kind, 'a line', 'a paragraph', 1, ? FROM series WHERE title = ?`
+		);
+		for (const [title, hidden] of [
+			[TWO_AND_A_HIDDEN, 0],
+			[TWO_AND_A_HIDDEN, 0],
+			[TWO_AND_A_HIDDEN, 1],
+			[ONE, 0],
+			[GOES_WITH, 0],
+			[GOES_WITH, 0],
+			[GOES_WITH_TOO, 1],
+			[STAYS_TOO, 0]
+		] as const)
+			put.run(hidden, title);
+	});
+
+	/** Every highlight of a series by the title it remembers, however it was left. */
+	const heldRows = (title: string) =>
+		library.withDb(
+			(db) =>
+				db
+					.prepare(`SELECT state, deleted_at, hidden FROM highlights WHERE series_title = ?`)
+					.all(title) as { state: string; deleted_at: number | null; hidden: number }[]
+		);
+
+	const isHeld = (u: URL) => u.pathname === '/' && u.search === '?/held';
+
+	async function selecting(page: Page, titles: string[]) {
+		await page.goto('/?shelf=all&sort=title');
+		await page.waitForLoadState('networkidle');
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		for (const title of titles) await page.locator('.grid .tile', { hasText: title }).click();
+	}
+
+	/** Tap DELETE, and the sheet it opens once the highlights are read. */
+	async function askDelete(page: Page, count: number) {
+		await page.getByRole('button', { name: 'DELETE', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: `DELETE ${count} SERIES?` });
+		await expect(sheet).toBeVisible();
+		return sheet;
+	}
+
+	test.use({ baseURL: library.base });
+	test.beforeAll(async () => {
+		test.setTimeout(120_000);
+		await library.start();
+	});
+	test.afterAll(() => library.stop());
+
+	test('the row is absent at zero, counts what the viewer can see, and the switch names the action', async ({
+		page
+	}) => {
+		await selecting(page, [NONE]);
+		let sheet = await askDelete(page, 1);
+		await expect(sheet.locator('[data-highlights-kept]')).toHaveCount(0);
+		await expect(sheet.getByRole('switch')).toHaveCount(0);
+		await expect(sheet.getByRole('button', { name: 'DELETE 1', exact: true })).toBeVisible();
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+		await expect(sheet).toHaveCount(0);
+
+		// One series: the single line, the hidden highlight not counted.
+		await page.locator('.grid .tile', { hasText: NONE }).click();
+		await page.locator('.grid .tile', { hasText: TWO_AND_A_HIDDEN }).click();
+		sheet = await askDelete(page, 1);
+		await expect(sheet.locator('[data-highlights-kept]')).toContainText('2 HIGHLIGHTS ARE KEPT');
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+
+		// Two series: totalled across them.
+		await page.locator('.grid .tile', { hasText: ONE }).click();
+		sheet = await askDelete(page, 2);
+		await expect(sheet.locator('[data-highlights-kept]')).toContainText(
+			'3 HIGHLIGHTS IN 2 SERIES ARE KEPT'
+		);
+		const toggle = sheet.getByRole('switch');
+		await expect(toggle).toHaveAttribute('aria-checked', 'false');
+		await expect(sheet.locator('button.del-go')).toHaveText('DELETE 2');
+		await toggle.click();
+		await expect(sheet.locator('button.del-go')).toHaveText('DELETE WITH 3 HIGHLIGHTS');
+		await toggle.click();
+		await expect(sheet.locator('button.del-go')).toHaveText('DELETE 2');
+
+		// Left on and cancelled, it is off again on the next opening.
+		await toggle.click();
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+		sheet = await askDelete(page, 2);
+		await expect(sheet.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+		await expect(sheet.locator('button.del-go')).toHaveText('DELETE 2');
+	});
+
+	test('with reveal on, a hidden highlight is counted too', async ({ page }) => {
+		await page.goto('/search');
+		await page.getByRole('searchbox').fill('/reveal');
+		await page.keyboard.press('Enter');
+		await page.waitForURL((u) => u.pathname === '/');
+		await selecting(page, [TWO_AND_A_HIDDEN]);
+		const sheet = await askDelete(page, 1);
+		await expect(sheet.locator('[data-highlights-kept]')).toContainText('3 HIGHLIGHTS ARE KEPT');
+	});
+
+	test('a read that fails, or hangs, opens the sheet without the row', async ({ page }) => {
+		await selecting(page, [ONE]);
+		await page.route(isHeld, (route) => route.abort());
+		let sheet = await askDelete(page, 1);
+		await expect(sheet.locator('[data-highlights-kept]')).toHaveCount(0);
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+		await page.unroute(isHeld);
+
+		// Held past the read's own limit, and answered only after it.
+		let answer: Route | null = null;
+		await page.route(isHeld, (route) => {
+			answer = route;
+		});
+		sheet = await askDelete(page, 1);
+		await expect(sheet.locator('[data-highlights-kept]')).toHaveCount(0);
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+		await (answer as Route | null)?.continue().catch(() => undefined);
+		await page.unroute(isHeld);
+	});
+
+	test('a tick made while the read is out is counted before the sheet opens', async ({ page }) => {
+		await selecting(page, [ONE]);
+		let first: Route | null = null;
+		const arrived = new Promise<void>((resolve) => {
+			void page.route(isHeld, (route) => {
+				if (first) return route.continue();
+				first = route;
+				resolve();
+			});
+		});
+		await page.getByRole('button', { name: 'DELETE', exact: true }).click();
+		await arrived;
+		await page.locator('.grid .tile', { hasText: GOES_WITH }).click();
+		await (first as Route | null)?.continue();
+		const sheet = page.getByRole('dialog', { name: 'DELETE 2 SERIES?' });
+		await expect(sheet.locator('[data-highlights-kept]')).toContainText(
+			'3 HIGHLIGHTS IN 2 SERIES ARE KEPT'
+		);
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+		await page.unroute(isHeld);
+	});
+
+	test('DELETE keeps them as orphans; with the switch on they go, only what could be seen', async ({
+		page
+	}) => {
+		await selecting(page, [ONE, STAYS_TOO]);
+		let sheet = await askDelete(page, 2);
+		await expect(sheet.locator('[data-highlights-kept]')).toContainText(
+			'2 HIGHLIGHTS IN 2 SERIES ARE KEPT'
+		);
+		await sheet.locator('button.del-go').click();
+		await expect(sheet).toHaveCount(0);
+		await expect(page.locator('.grid .tile', { hasText: ONE })).toHaveCount(0);
+		for (const title of [ONE, STAYS_TOO])
+			expect(heldRows(title)).toEqual([{ state: 'orphan_series', deleted_at: null, hidden: 0 }]);
+
+		await selecting(page, [GOES_WITH, GOES_WITH_TOO]);
+		sheet = await askDelete(page, 2);
+		await expect(sheet.locator('[data-highlights-kept]')).toContainText('2 HIGHLIGHTS ARE KEPT');
+		await sheet.getByRole('switch').click();
+		await sheet.locator('button.del-go').click();
+		await expect(sheet).toHaveCount(0);
+		await expect(page.locator('.grid .tile', { hasText: GOES_WITH })).toHaveCount(0);
+		expect(heldRows(GOES_WITH)).toEqual([]);
+		// The hidden one was not counted, so the switch could not reach it.
+		expect(heldRows(GOES_WITH_TOO)).toEqual([
+			{ state: 'orphan_series', deleted_at: null, hidden: 1 }
+		]);
 	});
 });
 

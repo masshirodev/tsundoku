@@ -191,8 +191,20 @@
 		>
 			<Cover {src} {hue} ring={selected} stripeTitle={title}>
 				{#if hidden}<Badge tone="reveal" corner="top-left">HIDDEN</Badge>{/if}
-				{#if favourite && !(editable && onfavourite)}
-					<Badge tone="accent" corner="top-right">FAV</Badge>
+				{#if !(editable && onfavourite)}
+					{#if favUnsaved}
+						<!-- The plain drawing of a tap not stored (c738). A failed UNFAV draws
+						     no badge at all, so the corner has to carry the mark by itself. -->
+						<span class="fav-plain unsaved">
+							{#if favourite}
+								<Badge tone="accent" corner="top-right">FAV</Badge>
+							{:else}
+								<span class="ghost" aria-hidden="true">☆</span>
+							{/if}
+						</span>
+					{:else if favourite}
+						<Badge tone="accent" corner="top-right">FAV</Badge>
+					{/if}
 				{/if}
 				{#if newCount > 0}<Badge corner="bottom-left">+{newCount}</Badge>
 				{:else if languages.length > 1}<Badge corner="bottom-left">{languages.join(' · ')}</Badge
@@ -217,6 +229,8 @@
 			>
 				<RatingBars value={rating} />
 			</button>
+		{:else if ratingUnsaved}
+			<div class="rating-plain unsaved"><RatingBars value={rating} /></div>
 		{:else}
 			<RatingBars value={rating} />
 		{/if}
@@ -321,6 +335,19 @@
 		width: 44px;
 		height: 44px;
 	}
+	/* The same box as the control it stands in for, inside the cover's corner:
+	   no tap of its own, so a press still picks the tile. */
+	.fav-plain {
+		position: absolute;
+		top: 0;
+		right: 0;
+		width: 44px;
+		height: 44px;
+	}
+	.rating-plain {
+		padding: 8px 10px;
+		margin: -8px -10px;
+	}
 	.ghost {
 		position: absolute;
 		top: 0;
@@ -346,12 +373,15 @@
 	/* Not stored yet (Loading States 1o; c659): dashed, the same class and
 	   accent token the series screen's controls use (doc/WAITING.md). */
 	.rating.unsaved,
-	.fav.unsaved {
+	.fav.unsaved,
+	.rating-plain.unsaved,
+	.fav-plain.unsaved {
 		outline: 1.5px dashed var(--accent);
 		outline-offset: -3px;
 	}
 	.fav.unsaved,
-	.fav.unsaved .ghost {
+	.fav.unsaved .ghost,
+	.fav-plain.unsaved .ghost {
 		color: var(--accent);
 	}
 	.title {

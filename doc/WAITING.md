@@ -101,17 +101,23 @@ fails:
   reads NOT SAVED; on the library's tile, the FAV corner and the rating bars
   wear the same dashed mark, c659, for as long as the page holds that tap,
   a RETRY in flight included);
-- on the library page, a second failed tap does not take the first tile's mark
-  with it: the band carries one failure, and the page hands it back to a
-  displaced one as it clears, so each unstored value keeps PUT BACK and RETRY
-  **while the library page is open** (a displaced failure is dropped when the
-  page is left; only the band's own failure survives the trip);
+- each failure keeps its own band: the store (`saves`) holds a list keyed by
+  save (`fav:<id>`, `rating:<id>`, `cover:<entry>`), so a second failed field
+  or tile does not take the first one's PUT BACK or RETRY, and the bands stack
+  at the bottom, the newest where a lone band sits. The list is the app's, so
+  they survive leaving the screen that raised them (c739, c686);
 - a tile drawn again after a trip away draws the stored value with no mark --
   the page no longer holds the tap, and the mark means "this value is not
   stored", not "a save of this field failed" (c659);
 - a band at the bottom says "RATING 4 NOT SAVED · WORKSTATION DID NOT ANSWER ·
-  TRIES AGAIN WITH THE NEXT REQUEST", with PUT BACK 3 and RETRY;
-- the next navigation that reaches the workstation tries it again, once.
+  TRIES AGAIN WITH THE NEXT REQUEST", with PUT BACK 3 and RETRY (a library
+  tile's band names the tile, since several can be up at once, unless the
+  card is hidden when the save fails: the band outlives reveal, and with
+  reveal off a hidden title does not reach the browser);
+- RETRY and PUT BACK end only their own failure; a newer failure of the same
+  field replaces it, and a retry that lands leaves that newer one up;
+- the next navigation that reaches the workstation tries each held failure
+  again, once.
 
 The value only goes back if you ask.
 

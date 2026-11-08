@@ -34,6 +34,14 @@ export type SeriesCard = {
 	newCount: number;
 	/** Entries total, and how many are finished. */
 	entryCount: number;
+	/**
+	 * One book and nothing beside it (c651): exactly one listed entry, and it
+	 * is the series' only entry that is not a folded edition. An extra or a
+	 * set-aside duplicate beside the book makes this false, and FOLD refuses
+	 * it (`?/fold`), so the bulk bar does not offer it. Optional: only the
+	 * library's card query sends it.
+	 */
+	alone?: boolean;
 	readCount: number;
 	/** Hue for the striped cover placeholder, 0-359. */
 	hue: number;

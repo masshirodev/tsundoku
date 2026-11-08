@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { m } from '$lib/paraglide/messages';
-	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
+	import Sheet from '$lib/components/chrome/Sheet.svelte';
+	import Switch from '$lib/components/controls/Switch.svelte';
+	import { deleteWithLine, keptAcrossLine } from '$lib/library/highlights';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { backLink } from '$lib/back';
-	import { enhance } from '$app/forms';
+	import { deserialize, enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { afterNavigate, beforeNavigate, goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -40,7 +42,7 @@
 	import FocusLine from '$lib/components/content/FocusLine.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { waiting } from '$lib/waiting.svelte';
-	import { postAction, saves, type FailedSave } from '$lib/saves.svelte';
+	import { postAction, saves } from '$lib/saves.svelte';
 	import { seriesSaves, type Turn } from '$lib/serial-saves';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
@@ -795,6 +797,66 @@
 
 	// ---- sheets ------------------------------------------------------------
 	let deleting = $state(false);
+	let deleteBusy = $state(false);
+	/** What the selection holds, read as DELETE opens (Out X4; c731). */
+	let held = $state.raw({ n: 0, series: 0 });
+	/** DELETE THEM TOO: off every time the sheet opens, never carried over. */
+	let deleteHeldToo = $state(false);
+
+	/** How long DELETE waits for that read before it asks without the row. */
+	const HELD_READ_MS = 3000;
+
+	/**
+	 * How many highlights `ids` hold. A read that fails answers none, and so
+	 * does one that outlasts HELD_READ_MS (a hung read must not hold the sheet
+	 * shut): the sheet then says nothing about them and offers no switch, and
+	 * the delete keeps them, which is what it does by default.
+	 */
+	async function readHeld(ids: number[]): Promise<{ n: number; series: number }> {
+		const body = new FormData();
+		for (const id of ids) body.append('id', String(id));
+		try {
+			const res = await fetch('?/held', {
+				method: 'POST',
+				body,
+				headers: { 'x-sveltekit-action': 'true' },
+				signal: AbortSignal.timeout(HELD_READ_MS)
+			});
+			const answer = deserialize(await res.text());
+			if (answer.type === 'success' && answer.data) {
+				const { n, series } = answer.data as { n: number; series: number };
+				return { n, series };
+			}
+		} catch {
+			// Falls through: the workstation did not answer.
+		}
+		return { n: 0, series: 0 };
+	}
+
+	/**
+	 * DELETE: fill in what SELECT ALL never drew, read the highlights, then ask.
+	 * In that order so the sheet opens whole, with no row arriving under the
+	 * finger on its way to the action. A selection that moved during the read
+	 * is read again, or the row would name other series' highlights.
+	 */
+	async function askDelete(): Promise<void> {
+		const tap = ++lastTap;
+		await fillUnseen();
+		let asked: number[];
+		let answer: { n: number; series: number };
+		do {
+			if (tap !== lastTap) return;
+			asked = [...selected];
+			answer = await readHeld(asked);
+		} while (tap === lastTap && !sameMembers(asked, selected));
+		if (tap !== lastTap) return;
+		held = answer;
+		deleteHeldToo = false;
+		deleting = true;
+	}
+
+	const sameMembers = (ids: number[], set: ReadonlySet<number>) =>
+		ids.length === set.size && ids.every((id) => set.has(id));
 	/** The first few titles, so the question names what it's about. */
 	const deletingTitles = $derived(titlesLine(selected, facts));
 	let sheetId = $state<number | null>(null);
@@ -873,7 +935,10 @@
 				out.push(pickedOfCard(c, work(c.id)));
 				continue;
 			}
-			for (const p of c.tile.parts) out.push(pickedOfPart(p, c.tile.name, work(p.seriesId)));
+			// The tile's own word on its Work: `workFeet` is the first page's, so
+			// a tile past it has none (c686).
+			const theWork = { id: c.tile.id, name: c.tile.name };
+			for (const p of c.tile.parts) out.push(pickedOfPart(p, c.tile.name, theWork));
 		}
 		return out;
 	});
@@ -920,13 +985,19 @@
 	);
 	/**
 	 * FOLD AS LANGUAGES (doc/EDITIONS.md): two or three single books, each in
-	 * a language of its own, none folded already. Their codes, or null.
+	 * a language of its own, none folded already, and each with nothing beside
+	 * it (`alone`, c651: `?/fold` refuses the rest, and an action that can only
+	 * be refused is not offered). Their codes, or null.
 	 */
 	const foldCodes = $derived.by(() => {
 		if (selected.size < 2 || selected.size > 3) return null;
 		const picked = pickedInOrder(selected, facts);
 		if (picked.length !== selected.size) return null;
-		if (picked.some((s) => s.kind !== 'doujin' || s.entryCount !== 1 || !s.language || s.languages))
+		if (
+			picked.some(
+				(s) => s.kind !== 'doujin' || s.entryCount !== 1 || !s.alone || !s.language || s.languages
+			)
+		)
 			return null;
 		const langs = picked.map((s) => s.language!);
 		return new Set(langs).size === langs.length ? langs.map(langCode) : null;
@@ -1206,10 +1277,9 @@
 
 	/**
 	 * Whether what the tile draws for this field is an owner's tap that is not
-	 * stored (c659, round 2). Read from the page, not from the band: the band
-	 * carries one failure, and a second failed tap takes it, but the first
-	 * tile still shows a value nothing stored. A value the page does not hold
-	 * is the stored one -- a tile re-drawn after a trip away shows what the
+	 * stored (c659, round 2). Read from the page, not from the store: a failure
+	 * outlives the page and the tap does not (c739). A value the page does not
+	 * hold is the stored one -- a tile re-drawn after a trip away shows what the
 	 * server had, so it is not marked. A fresh tap still in flight is left
 	 * alone until its turn says which it is; a RETRY in flight keeps the mark,
 	 * because the value it sends is still not stored (wave 32).
@@ -1217,7 +1287,7 @@
 	function unsaved(field: 'fav' | 'rating', id: number, stored: boolean | Rating): boolean {
 		// Read for its signal alone: a failure raised after the tap has to redraw
 		// the tile, and neither `pending()` (a plain Map) nor the value maps
-		// change when it is raised. What the band shows does not decide the mark.
+		// change when it is raised. Which bands are up does not decide the mark.
 		void saves.failed;
 		// A RETRY's turn is pending too, but unlike a fresh tap's it has already
 		// failed once: `retrying` keeps the mark on through it. Without this a
@@ -1236,66 +1306,6 @@
 	 * `SvelteSet`, so its end redraws the tiles that read it.
 	 */
 	const retrying = new SvelteSet<string>();
-
-	/**
-	 * Whether a displaced failure of `key` still has something to say when the
-	 * band clears. Only a `fav:` or `rating:` failure whose tap this page still
-	 * holds is the page's to judge: a key of another kind (a book's `cover:`), or
-	 * one raised on the series screen and carried here by the app's store, keeps
-	 * its way out rather than being dropped unread (round 2's low).
-	 */
-	function unsavedKey(key: string): boolean {
-		const cut = key.indexOf(':');
-		const head = key.slice(0, cut);
-		if (head !== 'fav' && head !== 'rating') return true;
-		const id = Number(key.slice(cut + 1));
-		const card = series.find((s) => s.id === id);
-		// A tile the grid no longer draws cannot be asked; its failure keeps its
-		// way out rather than going with the tile.
-		if (!card) return true;
-		const held = head === 'fav' ? favNow.has(id) : ratingNow.has(id);
-		if (!held) return true;
-		return unsaved(head, id, head === 'fav' ? card.favourite : card.rating);
-	}
-
-	/**
-	 * Failures a later one took the band from (c659, round 2). `saves` holds
-	 * one, so a second failed tap would leave the first value unsaved with no
-	 * band offering RETRY or PUT BACK. Kept here in tap order and raised again
-	 * as the band clears, so every unstored value keeps its way out. A
-	 * multi-failure store in `saves` itself would be the better home; that file
-	 * is another slot's this wave (see the notes' Gaps).
-	 */
-	let displaced: FailedSave[] = [];
-
-	/**
-	 * Put a failure in the band, keeping any it displaces. A newer failure of
-	 * the same field replaces the older one: its value is superseded, and the
-	 * band would name a value the tile no longer draws.
-	 */
-	function raise(failed: FailedSave) {
-		displaced = displaced.filter((f) => f.key !== failed.key);
-		const held = saves.failed;
-		if (held && held.key !== failed.key) {
-			displaced = [...displaced.filter((f) => f.key !== held.key), held];
-		}
-		saves.fail(failed);
-	}
-
-	/** The value `key` names was stored: no failure of it has anything left to say. */
-	function forget(key: string) {
-		displaced = displaced.filter((f) => f.key !== key);
-	}
-
-	// The band is one and the failures can be more: when it clears, the next
-	// one takes it. A displaced failure whose value has since been stored (a
-	// later tap that landed) is dropped rather than raised over a stored value.
-	$effect(() => {
-		if (saves.failed) return;
-		let next = displaced.shift();
-		while (next && !unsavedKey(next.key)) next = displaced.shift();
-		if (next) saves.fail(next);
-	});
 
 	/**
 	 * One save in flight per series and field, the last tap winning, on the
@@ -1325,11 +1335,8 @@
 		}
 		// Not `pending()`: an older turn still reloading is pending too.
 		if (turn.newer()) return;
-		if (turn.ok) {
-			forget(key);
-			return settle();
-		}
-		const failed: FailedSave = {
+		if (turn.ok) return settle();
+		saves.fail({
 			...failure(),
 			key,
 			retry: async () => {
@@ -1347,28 +1354,24 @@
 				} finally {
 					retrying.delete(key);
 				}
-				if (again.ok) {
-					// `saves.retry` clears the band whatever it holds by now. Another
-					// tile's failure raised while this retry was out is in it: keep
-					// that one, first in line, so the band raises it again as it clears
-					// (wave 30's round-2 review, medium 1; the notes' Gaps ask
-					// `saves.retry` to clear only its own failure).
-					// By its `retry`, not the object: `saves.failed` is `$state`, so it
-					// holds a proxy of what `raise` was given, never the object itself.
-					const held = saves.failed;
-					if (held && held.retry !== failed.retry) {
-						displaced = [held, ...displaced.filter((f) => f.key !== held.key)];
-					}
-				}
 				if (!again.latest) return again.ok;
-				if (again.ok && !again.newer()) {
-					forget(key);
-					settle();
-				}
+				if (again.ok && !again.newer()) settle();
 				return again.ok;
 			}
-		};
-		raise(failed);
+		});
+	}
+
+	/**
+	 * A band's words, with which tile they are about when that can be said:
+	 * several can be up at once, each "FAV NOT SAVED". Never a hidden card's
+	 * title: the band is the app's and outlives reveal, and with reveal off a
+	 * hidden title does not reach the browser (doc/LIBRARY.md). `hidden` is the
+	 * card's own, a hidden root's included. A tile no longer listed has no name.
+	 */
+	function bandWords(what: string, id: number) {
+		const card = series.find((s) => s.id === id);
+		const name = card && !card.hidden ? card.title.toUpperCase() : '';
+		return name ? `${what} · ${name}` : what;
 	}
 
 	function favourite(id: number, on: boolean) {
@@ -1378,7 +1381,7 @@
 			`fav:${id}`,
 			{ id: String(id), on: on ? '1' : '0' },
 			() => ({
-				what: on ? 'FAV NOT SAVED' : 'UNFAV NOT SAVED',
+				what: bandWords(`${on ? 'FAV' : 'UNFAV'} NOT SAVED`, id),
 				putBackLabel: series.find((s) => s.id === id)?.favourite
 					? 'PUT BACK · FAV'
 					: 'PUT BACK · NOT FAV',
@@ -1399,7 +1402,7 @@
 			`rating:${id}`,
 			{ id: String(id), rating: String(rating) },
 			() => ({
-				what: `RATING ${rating} NOT SAVED`,
+				what: bandWords(`RATING ${rating} NOT SAVED`, id),
 				putBackLabel: `PUT BACK ${series.find((s) => s.id === id)?.rating ?? 0}`,
 				putBack: () => ratingNow.delete(id)
 			}),
@@ -2629,10 +2632,8 @@
 					<button type="submit" name="do" value="hide" disabled={selected.size === 0}>HIDE</button>
 				{/if}
 				<!-- Asks first (doc/DELETING.md): duplicates are cleared in bulk. -->
-				<button
-					type="button"
-					disabled={selected.size === 0}
-					onclick={() => void openWhenFilled(() => (deleting = true))}>DELETE</button
+				<button type="button" disabled={selected.size === 0} onclick={() => void askDelete()}
+					>DELETE</button
 				>
 			{/snippet}
 		</BulkBar>
@@ -2707,25 +2708,67 @@
 	/>
 {/if}
 
-<ConfirmSheet
-	open={deleting}
-	title="DELETE {selected.size} SERIES?"
-	lines={[
-		`${selected.size} SELECTED${deletingTitles ? ` · ${deletingTitles}` : ''}`,
-		'THEIR FILES MOVE TO THE TRASH FOLDER ON THE WORKSTATION.',
-		'THEIR READING HISTORY GOES WITH THEM.',
-		'A SCAN OR A SYNC WON’T BRING THEM BACK.'
-	]}
-	confirm="DELETE {selected.size}"
-	action="?/delete"
-	fields={{ id: [...selected].map(String) }}
-	onclose={() => (deleting = false)}
-	ondone={async () => {
-		deleting = false;
-		stopSelecting();
-		await invalidateAll();
-	}}
-/>
+<!-- A copy of the shared ConfirmSheet, with the row highlights add between the
+     lines and the actions, where that sheet has no place for it (Out X4; c731). -->
+<Sheet open={deleting} onclose={() => (deleting = false)} label="DELETE {selected.size} SERIES?">
+	<div class="del-head">
+		<span class="del-title">DELETE {selected.size} SERIES?</span>
+		<button
+			type="button"
+			class="del-x"
+			aria-label={m.chrome_close()}
+			onclick={() => (deleting = false)}>✕</button
+		>
+	</div>
+	<div class="del-body">
+		{#each [`${selected.size} SELECTED${deletingTitles ? ` · ${deletingTitles}` : ''}`, 'THEIR FILES MOVE TO THE TRASH FOLDER ON THE WORKSTATION.', 'THEIR READING HISTORY GOES WITH THEM.', 'A SCAN OR A SYNC WON’T BRING THEM BACK.'] as line (line)}<p
+			>
+				{line}
+			</p>{/each}
+	</div>
+	{#if held.n > 0}
+		<div class="del-kept" data-highlights-kept>
+			<div class="del-row del-col">
+				<span class="del-lbl">{keptAcrossLine(held.n, held.series)}</span>
+				<span class="del-why"
+					>THEIR QUOTES, COPIES AND NOTES STAY ON THE HIGHLIGHTS PAGE, FROM A SERIES NO LONGER IN
+					THE LIBRARY.</span
+				>
+			</div>
+			<div class="del-row">
+				<span class="del-lbl del-too">DELETE THEM TOO</span>
+				<Switch checked={deleteHeldToo} onchange={(v) => (deleteHeldToo = v)} />
+			</div>
+		</div>
+	{/if}
+	<form
+		method="POST"
+		action="?/delete"
+		class="del-actions"
+		use:enhance={() => {
+			deleteBusy = true;
+			return async () => {
+				deleting = false;
+				stopSelecting();
+				await invalidateAll();
+				deleteBusy = false;
+			};
+		}}
+	>
+		{#each [...selected] as id (id)}<input type="hidden" name="id" value={String(id)} />{/each}
+		{#if deleteHeldToo && held.n > 0}<input type="hidden" name="highlights" value="1" />{/if}
+		<button type="button" onclick={() => (deleting = false)} disabled={deleteBusy}
+			>{m.chrome_cancel()}</button
+		>
+		<button type="submit" class="del-go" disabled={deleteBusy}
+			>{deleteBusy
+				? m.chrome_working()
+				: deleteHeldToo && held.n > 0
+					? deleteWithLine(held.n)
+					: `DELETE ${selected.size}`}</button
+		>
+	</form>
+</Sheet>
 
 <ShelfPicker
 	open={pickerOpen}
@@ -3573,5 +3616,105 @@
 			border-left: var(--hairline);
 			border-right: var(--hairline);
 		}
+	}
+	/* The bulk DELETE's sheet: ConfirmSheet's head, body and actions, unchanged,
+	   and the series screen's X4 box (c731). */
+	.del-head {
+		display: flex;
+		align-items: stretch;
+		min-height: 64px;
+		border-bottom: var(--hairline);
+	}
+	.del-title {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		padding: 12px var(--pad);
+		font: 500 16px var(--font-mono);
+		letter-spacing: var(--tracking-label);
+		overflow-wrap: anywhere;
+	}
+	.del-x {
+		width: 64px;
+		border: 0;
+		border-left: var(--hairline);
+		background: none;
+		color: var(--text-1);
+		font: 400 20px var(--font-mono);
+		cursor: pointer;
+	}
+	.del-body {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 20px var(--pad);
+		border-bottom: var(--hairline);
+	}
+	.del-body p {
+		margin: 0;
+		font: 400 14px var(--font-mono);
+		line-height: 1.5;
+		color: var(--text-2);
+	}
+	.del-kept {
+		display: flex;
+		flex-direction: column;
+		margin: 16px var(--pad);
+		border: var(--hairline);
+	}
+	.del-row {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		min-height: 48px;
+		padding: 10px 16px;
+	}
+	.del-row + .del-row {
+		border-top: var(--hairline);
+	}
+	.del-col {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 6px;
+	}
+	.del-lbl {
+		font: 500 12px/1.2 var(--font-mono);
+		letter-spacing: var(--tracking-label);
+		color: var(--text-1);
+	}
+	.del-too {
+		flex: 1;
+		color: var(--text-2);
+	}
+	.del-why {
+		font: 400 14px/1.45 var(--font-sans);
+		color: var(--text-2);
+	}
+	.del-actions {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+	}
+	.del-kept + .del-actions {
+		border-top: var(--hairline);
+	}
+	.del-actions button {
+		height: 64px;
+		border: 0;
+		background: none;
+		color: var(--text-1);
+		font: 500 15px var(--font-mono);
+		letter-spacing: var(--tracking-label);
+		cursor: pointer;
+	}
+	.del-actions button + button {
+		border-left: var(--hairline);
+	}
+	.del-actions .del-go {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.del-actions button:disabled {
+		opacity: 0.5;
+		cursor: default;
 	}
 </style>

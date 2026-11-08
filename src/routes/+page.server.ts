@@ -39,6 +39,7 @@ import { firstReadExtras, readSources } from '$lib/server/start';
 import { refreshCovers } from '$lib/server/covers';
 import { refreshMany } from '$lib/server/refresh';
 import { deleteSeries } from '$lib/server/delete';
+import { heldBy } from '$lib/server/highlights';
 import { isGated } from '$lib/server/unlock';
 import {
 	StaleWorkError,
@@ -272,6 +273,9 @@ function workEnded(facts: string): boolean {
 }
 
 /** The ids a form acted on, as submitted by `name="id"` inputs. */
+/** How many series one `heldBy` asks about: well under SQLite's bind limit. */
+const HELD_CHUNK = 10_000;
+
 function ids(form: FormData): number[] {
 	return form
 		.getAll('id')
@@ -686,8 +690,31 @@ export const actions: Actions = {
 	 */
 	/** DELETE in the bulk bar, after its confirmation (doc/DELETING.md). */
 	delete: async ({ request, cookies }) => {
-		const r = await deleteSeries(ids(await request.formData()), isRevealed(cookies));
+		const form = await request.formData();
+		// DELETE THEM TOO (Out X4), which only says so when the sheet showed a row.
+		const r = await deleteSeries(ids(form), isRevealed(cookies), {
+			highlights: form.get('highlights') === '1'
+		});
 		return { deleted: r.series };
+	},
+
+	/**
+	 * What the bulk DELETE's sheet says about the highlights (Out X4; c731): how
+	 * many the selection holds, and across how many series. Hidden ones count
+	 * only with reveal on, as `deleteSeries` will only reach those then.
+	 */
+	held: async ({ request, cookies }) => {
+		const target = ids(await request.formData());
+		const reveal = isRevealed(cookies);
+		// SELECT ALL can name more series than one read can bind.
+		let n = 0;
+		let series = 0;
+		for (let at = 0; at < target.length; at += HELD_CHUNK) {
+			const part = heldBy(target.slice(at, at + HELD_CHUNK), reveal);
+			n += part.n;
+			series += part.series;
+		}
+		return { n, series };
 	},
 
 	scan: async () => {
