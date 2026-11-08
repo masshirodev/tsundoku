@@ -42,7 +42,7 @@ const labelsInside = (page: Page) =>
 const top = (page: Page, label: string) =>
 	(label === 'LISTS'
 		? page.locator('[data-row="lists"]')
-		: page.locator('.panel .label', { hasText: new RegExp(`^${label}`) }).first()
+		: page.locator('.panel .label:visible', { hasText: new RegExp(`^${label}`) }).first()
 	).evaluate((n) => n.getBoundingClientRect().top + window.scrollY);
 
 /** Open it as the owner does, once the page runs (the server draws it closed). */
@@ -180,13 +180,13 @@ test.describe('on a phone', () => {
 		page
 	}) => {
 		await openSeries(page, 'Tower of God');
-		const p = page.locator('.panel .about p');
+		const p = page.locator('.panel .about:visible p');
 		const lines = () =>
 			p.evaluate((n) =>
 				Math.round(n.getBoundingClientRect().height / parseFloat(getComputedStyle(n).lineHeight))
 			);
 		expect(await lines()).toBe(3);
-		const more = page.locator('.panel .about .more');
+		const more = page.locator('.panel .about:visible .more');
 		await expect(more).toHaveText('MORE ↓');
 		await expect(async () => {
 			await more.click();
@@ -199,7 +199,7 @@ test.describe('on a phone', () => {
 		await more.click();
 		await expect(more).toHaveText('LESS ↑');
 		await page.reload();
-		await expect(page.locator('.panel .about .more')).toHaveText('MORE ↓');
+		await expect(page.locator('.panel .about:visible .more')).toHaveText('MORE ↓');
 	});
 
 	test('without script nothing folds, since nothing could open it', async ({
@@ -251,7 +251,7 @@ test.describe('where nothing folds', () => {
 		expect([...tops].sort((a, b) => a - b)).toEqual(tops);
 		// ABOUT keeps its two lines here.
 		const lines = await page
-			.locator('.panel .about p')
+			.locator('.panel .about:visible p')
 			.evaluate((n) =>
 				Math.round(n.getBoundingClientRect().height / parseFloat(getComputedStyle(n).lineHeight))
 			);

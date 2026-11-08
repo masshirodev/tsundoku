@@ -64,7 +64,7 @@ test('↓ reaches DETAILS under ABOUT; folded, no row under it is a stop, and �
 	// ABOUT's MORE on the left), and it sits under ABOUT, the last row there.
 	expect(path.at(-2)).toMatch(/^(SHELVES|ABOUT):/);
 	const about = await page
-		.locator('.panel .about')
+		.locator('.panel .about:visible')
 		.evaluate((n) => n.getBoundingClientRect().bottom);
 	expect((await details(page).boundingBox())!.y).toBeGreaterThanOrEqual(about);
 	await expect(details(page)).toHaveAttribute('aria-expanded', 'false');
@@ -146,7 +146,7 @@ test('the board’s measurements: 64px, its text a size up, the names cut to fou
 	);
 	// ABOUT is the board's two lines on a TV.
 	const lines = await page
-		.locator('.panel .about p')
+		.locator('.panel .about:visible p')
 		.evaluate((n) =>
 			Math.round(n.getBoundingClientRect().height / parseFloat(getComputedStyle(n).lineHeight))
 		);
