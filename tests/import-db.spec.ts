@@ -687,9 +687,27 @@ describe('a novel’s R→L survives a backup’s fold (c551)', () => {
 	const textDirection = (id: number) =>
 		one<{ text_direction: string | null }>(`SELECT text_direction FROM series WHERE id = ?`, id)
 			.text_direction;
-	// The third: renamed and read L→R (NULL) while the old URL series had R→L,
-	// so carryEdit's owner's edit must win over the survivor's own.
-	const folders = ['Novel Renamed', 'Novel Kept', 'Novel Turned'] as const;
+	// The third: renamed and chosen L→R ('ltr', as REMEMBER L→R stores it, c617)
+	// while the old URL series had R→L, so carryEdit's owner's edit must win over
+	// the survivor's own. The fourth: renamed and never chosen (NULL) over the
+	// same R→L, so there is no choice to carry and the survivor keeps its own.
+	// The fifth: the survivor itself chose L→R and the folder, not renamed, has
+	// R→L, so only the fold's fill-in can reach it and a chosen L→R must hold.
+	const folders = [
+		'Novel Renamed',
+		'Novel Kept',
+		'Novel Turned',
+		'Novel Unset',
+		'Novel Chosen'
+	] as const;
+	const folderDirection = (name: (typeof folders)[number]) =>
+		name === 'Novel Turned' ? 'ltr' : name === 'Novel Unset' ? null : 'rtl';
+	const survivorDirection = (name: (typeof folders)[number]) =>
+		name === 'Novel Turned' || name === 'Novel Unset'
+			? 'rtl'
+			: name === 'Novel Chosen'
+				? 'ltr'
+				: null;
 	const slug = (name: string) => name.toLowerCase().replace(/ /g, '-');
 	const dirKey = (name: string) => `mihon-dir:Asura Scans (EN)/${name}`;
 	const urlKey = (name: string) => `mihon:${ASURA}:/series/${slug(name)}`;
@@ -719,8 +737,8 @@ describe('a novel’s R→L survives a backup’s fold (c551)', () => {
 			// What the owner did while it was the only one: a novel, read R→L.
 			db()
 				.prepare(`UPDATE series SET kind = 'novel', text_direction = ? WHERE id = ?`)
-				.run(name === 'Novel Turned' ? null : 'rtl', id);
-			if (name !== 'Novel Kept')
+				.run(folderDirection(name), id);
+			if (name !== 'Novel Kept' && name !== 'Novel Chosen')
 				db().prepare(`UPDATE series SET title = ? WHERE id = ?`).run(`My ${name}`, id);
 			// The old importer's second series under the URL key, on the same files.
 			const other = Number(
@@ -737,8 +755,9 @@ describe('a novel’s R→L survives a backup’s fold (c551)', () => {
 					SELECT ?, position, label, added_at, file, ?, 1 FROM entries WHERE series_id = ?`
 				)
 				.run(other, `/series/${slug(name)}/1`, id);
-			if (name === 'Novel Turned')
-				db().prepare(`UPDATE series SET text_direction = 'rtl' WHERE id = ?`).run(other);
+			db()
+				.prepare(`UPDATE series SET text_direction = ? WHERE id = ?`)
+				.run(survivorDirection(name), other);
 			urlSeries.set(name, other);
 		}
 		const manga = (name: string): Msg => [
@@ -776,8 +795,17 @@ describe('a novel’s R→L survives a backup’s fold (c551)', () => {
 		expect(textDirection(id)).toBe('rtl');
 	});
 
-	it('carries a renamed folder’s L→R over the survivor’s R→L: the owner’s edit wins whole', () => {
-		expect(textDirection(urlSeries.get('Novel Turned')!)).toBeNull();
+	it('carries a renamed folder’s chosen L→R over the survivor’s R→L: the owner’s edit wins whole (c617)', () => {
+		expect(textDirection(urlSeries.get('Novel Turned')!)).toBe('ltr');
+	});
+
+	it('leaves the survivor’s R→L when the renamed folder never chose one (c617)', () => {
+		const id = urlSeries.get('Novel Unset')!;
+		// The rename did carry, so this is carryEdit's path and not the fill-in.
+		expect(one<{ title: string }>(`SELECT title FROM series WHERE id = ?`, id).title).toBe(
+			'My Novel Unset'
+		);
+		expect(textDirection(id)).toBe('rtl');
 	});
 
 	it('keeps a folder’s R→L when the survivor had none, as a rating fills in (foldSeries)', () => {
@@ -787,6 +815,44 @@ describe('a novel’s R→L survives a backup’s fold (c551)', () => {
 			'Novel Kept'
 		);
 		expect(textDirection(id)).toBe('rtl');
+	});
+
+	it('keeps a survivor’s chosen L→R over an unrenamed folder’s R→L: a choice is not a gap to fill (c617)', () => {
+		expect(textDirection(urlSeries.get('Novel Chosen')!)).toBe('ltr');
+	});
+
+	it('GROUP takes a first volume’s chosen L→R over a later R→L, and a later one’s over never chosen (c617)', () => {
+		const rootId = one<{ root_id: number }>(
+			`SELECT root_id FROM series WHERE id = ?`,
+			urlSeries.get('Novel Kept')!
+		).root_id;
+		const novel = (title: string, direction: string | null) => {
+			const id = Number(
+				db()
+					.prepare(
+						`INSERT INTO series (root_id, title, kind, added_at, path, rating, text_direction)
+						VALUES (?, ?, 'novel', ?, ?, 0, ?)`
+					)
+					.run(rootId, title, at, join(library, 'grouped', title), direction).lastInsertRowid
+			);
+			db()
+				.prepare(
+					`INSERT INTO entries (series_id, position, label, added_at, file, available)
+					VALUES (?, 1, 'Vol. 1', ?, 'book.epub', 1)`
+				)
+				.run(id, at);
+			return id;
+		};
+		const chosenFirst = groupIntoSeries({
+			seriesIds: [novel('First L', 'ltr'), novel('First R', 'rtl')],
+			name: 'Chosen first'
+		});
+		expect(textDirection(chosenFirst.seriesId)).toBe('ltr');
+		const unsetFirst = groupIntoSeries({
+			seriesIds: [novel('Unset N', null), novel('Unset L', 'ltr'), novel('Unset R', 'rtl')],
+			name: 'Unset first'
+		});
+		expect(textDirection(unsetFirst.seriesId)).toBe('ltr');
 	});
 });
 

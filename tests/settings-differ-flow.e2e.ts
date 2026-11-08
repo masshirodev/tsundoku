@@ -166,6 +166,27 @@ test('a novel remembered R→L is on LAYOUT’s list, and ✕ takes it off and t
 	await expect(layout(page).locator('.sb')).toHaveCount(0);
 });
 
+test('✕ on a novel listed for its layout takes a chosen L→R with it, so no later fold reads it as a choice (c617)', async ({
+	browser
+}, info) => {
+	const page = await signedIn(browser, info);
+	const { series, entry } = novel(2);
+	// The reader's REMEMBER both ways: 'ltr' is what going back to L→R stores.
+	await post(page, `/read/${entry}?/textDirection`, 'rtl');
+	await post(page, `/read/${entry}?/textDirection`, 'ltr');
+	await post(page, `/series/${series}?/direction`, 'scroll');
+	expect(stored(series)).toEqual({ direction: 'scroll', text_direction: 'ltr' });
+
+	await settings(page);
+	await layout(page).getByRole('button', { name: '1 SERIES DIFFERS →' }).click();
+	const line = layout(page).locator('.list .item');
+	// A chosen L→R reads as the default does, so the line names the layout alone.
+	await expect(line.locator('.it-v')).toHaveText('SCROLL · NOVEL · CHOSEN IN THE READER');
+	await line.getByRole('button', { name: 'Back to the default' }).click();
+	await expect(layout(page).locator('.sb')).toHaveCount(0);
+	expect(stored(series)).toEqual({ direction: null, text_direction: null });
+});
+
 test('✕ on a novel listed only for R→L keeps a layout stored equal to the default', async ({
 	browser
 }, info) => {

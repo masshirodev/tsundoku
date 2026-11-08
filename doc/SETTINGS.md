@@ -72,7 +72,7 @@ paged reader's zones drawn as a chapter opens, by finger ([`READER.md`](READER.m
   direction is per series only (`series.text_direction`, c440;
   [`TEXT-READER.md`](TEXT-READER.md), "Direction"), and the owner chose no
   SETTINGS default for it (2026-11-05), so NULL, L→R, is what it differs
-  from. A stored `'ltr'` reads as NULL does and is not counted. A novel that
+  from. A chosen `'ltr'` (c617) reads as NULL does and is not counted. A novel that
   differs in both is counted once, and its line says both (`PAGED · R→L ·
 NOVEL · CHOSEN IN THE READER`, `src/routes/settings/mode-line.ts`). ✕ and
   CLEAR ALL N clear **only what the line names** (c637, the owner's decision
@@ -80,8 +80,10 @@ NOVEL · CHOSEN IN THE READER`, `src/routes/settings/mode-line.ts`). ✕ and
   NULL. A novel listed only for R→L keeps a `direction` stored equal to the
   LAYOUT default: REMEMBER stored it as a choice, so it does not start
   following a later change of default (when the default does change, that
-  series then differs, and its line says so). A stored `'ltr'` is not on the
-  line and stays. A comic's `text_direction`, left from a time it was a
+  series then differs, and its line says so). A chosen `'ltr'` has nothing for
+  the line to name, since it reads as NULL does, and ✕ clears it with the rest
+  of the series' page direction (c617): left behind, it would travel through a
+  later fold as a choice the owner had just cleared. A comic's `text_direction`, left from a time it was a
   novel, is neither counted nor cleared, and a kind with no default of its
   own (an anime) is never listed, so a posted id of one changes nothing
   (`clearModes`, `src/lib/server/settings-page.ts`).

@@ -123,8 +123,8 @@ export function overrideCounts(reveal: boolean): OverrideCounts {
  * A book of text keeps its page direction in a column of its own
  * (`series.text_direction`, c440; doc/TEXT-READER.md, "Direction"): NULL is
  * L→R, the only default, since the owner chose no SETTINGS default for it
- * (c552). So a novel differs when it is kept R→L; a stored 'ltr' reads as
- * NULL does and is not counted. The registry says which kinds read text.
+ * (c552). So a novel differs when it is kept R→L; a chosen 'ltr' (c617) reads
+ * as NULL does and is not counted. The registry says which kinds read text.
  */
 const TEXT_KINDS = KINDS.filter((k) => kindFacts(k).medium === 'text');
 const takesTextDirection = (kind: Kind) => TEXT_KINDS.includes(kind);
@@ -178,24 +178,23 @@ export function modeOverrides(reveal: boolean): ModeOverride[] {
  * ✕ on a series that reads its own way: back to its kind's defaults, and only
  * what its line names (c637; doc/SETTINGS.md). A `direction` equal to the
  * kind's default is not on the line and stays: REMEMBER stored it as a choice,
- * so it must not start following a later change of default. A novel's R→L goes
- * (c552); a stored 'ltr' reads as NULL does and is not on the line either. A
- * comic's `text_direction`, left from a time it was a novel, is not its to
- * clear. A kind with no default (`kindDirection` undefined) is never listed.
+ * so it must not start following a later change of default. A novel's page
+ * direction goes whichever way it was chosen (c552, c617): a chosen 'ltr' reads
+ * as NULL does, so the line has nothing to name, but left behind it would travel
+ * through a later fold as a choice the owner had just cleared. A comic's
+ * `text_direction`, left from a time it was a novel, is not its to clear. A kind with no default (`kindDirection` undefined) is never listed.
  */
 export function clearModes(seriesIds: number[]): void {
 	const db = getDb();
 	const read = db.prepare(`SELECT kind, direction FROM series WHERE id = ?`);
 	const clearLayout = db.prepare(`UPDATE series SET direction = NULL WHERE id = ?`);
-	const clearRtl = db.prepare(
-		`UPDATE series SET text_direction = NULL WHERE id = ? AND text_direction = 'rtl'`
-	);
+	const clearTextDirection = db.prepare(`UPDATE series SET text_direction = NULL WHERE id = ?`);
 	db.transaction(() => {
 		for (const id of seriesIds) {
 			const row = read.get(id) as { kind: Kind; direction: string | null } | undefined;
 			if (!row || kindDirection(row.kind) === undefined) continue;
 			if (layoutDiffers(row.kind, row.direction)) clearLayout.run(id);
-			if (takesTextDirection(row.kind)) clearRtl.run(id);
+			if (takesTextDirection(row.kind)) clearTextDirection.run(id);
 		}
 	})();
 }

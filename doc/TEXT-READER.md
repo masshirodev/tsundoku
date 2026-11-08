@@ -481,7 +481,10 @@ left. It decides which way the pages turn, never how the text runs.
   series' once REMEMBER R→L (or L→R) is pressed, on every device. SERIES
   DEFAULT says what the series reads as. It is stored in
   `series.text_direction` (rung 69), its own column because `series.direction`
-  already holds a novel's LAYOUT; NULL is L→R, so REMEMBER L→R stores NULL.
+  already holds a novel's LAYOUT. NULL is 'never chosen', which reads as L→R;
+  REMEMBER L→R stores `'ltr'` (c617), so an import's fold can tell a chosen L→R
+  from a series nobody set ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)). A row stored
+  NULL before c617 stays ambiguous: nothing recorded which it was.
   REMEMBER posts to the reader's own action
   (`/read/<entry>?/textDirection`), which only a book of text takes
   (`kindFacts(kind).medium`) and which, like the page, answers 404 for a
