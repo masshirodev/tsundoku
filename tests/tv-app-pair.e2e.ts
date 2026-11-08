@@ -1575,6 +1575,9 @@ test('a server remembered just before its /pair/tv failed is in the list: 9D, st
 	await page.locator('#next').click();
 	await expect.poll(() => navigations).toEqual([`${LINKED}/pair/tv`]);
 	expect(across.remembered).toEqual([LINKED]);
+	// The aborted load commits an error page; a goto before that is interrupted
+	// by it (red 4 of 5 under --repeat-each).
+	await expect.poll(() => page.url()).toContain('chrome-error');
 
 	// That load failed, and onReceivedError loads the app's page again: the
 	// bridge's remember is synchronous, so the list already holds the address.
