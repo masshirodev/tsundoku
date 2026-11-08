@@ -342,6 +342,46 @@ describe('a spelled-out chapter number (c741)', () => {
 	it('a separator after the number is not part of it', () => {
 		expect(foldTitle('Chapter Twenty - One More Day')).toBe('onemoreday');
 	});
+
+	// `<h1>Chapter One<br/>The Article</h1>` reaches the rule as 'Chapter OneThe
+	// Article', since a br adds no text: the word no longer ends on a boundary,
+	// so only the comparison that reads the words as words can match it.
+	describe('a spelled number with its separator gone (wave 36)', () => {
+		const same: [string, string][] = [
+			['Chapter One: The Article', 'Chapter OneThe Article'],
+			['Chapter One The Article', 'Chapter OneThe Article'],
+			['Chapter Twelve: Home', 'Chapter TwelveHome'],
+			['Chapter One', 'ChapterOne'],
+			['ChapterOne', 'Chapter One'],
+			['Chapter One', 'Chapter-One'],
+			['Chapter One', 'Chapter: One']
+		];
+		it.each(same)('%j is said by %j', (toc, line) => {
+			expect(bandTitle(toc, line)).toBe(false);
+		});
+		it('through leadLines, a heading whose br left no text between its two halves', () => {
+			const lines = leadLines([h('Chapter OneThe Article'), p(LONG)]);
+			expect(bandTitle('Chapter One: The Article', lines)).toBe(false);
+		});
+
+		const stillSaid: [string, string][] = [
+			['Chapter One', 'Chapter 1'],
+			['Chapter One: The Article', 'The Article'],
+			['1. The Article', '1 The Article'],
+			['1. Chapter One', '1 Chapter One']
+		];
+		it.each(stillSaid)('%j is still said by %j', (toc, line) => {
+			expect(bandTitle(toc, line)).toBe(false);
+		});
+
+		const stillPrinted: [string, string][] = [
+			['Chapter One', 'Chapter Two'],
+			['Chapter One: The Article', 'Chapter TwoThe Article']
+		];
+		it.each(stillPrinted)('%j is still printed over %j', (toc, line) => {
+			expect(bandTitle(toc, line)).toBe(true);
+		});
+	});
 });
 
 describe('a title in a blockquote (c741)', () => {

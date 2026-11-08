@@ -184,10 +184,16 @@ function kanjiToArabic(s: string): string {
 // number kept. A Roman numeral or a word needs a space or a dot before it and
 // a boundary after, so "Child", "Chimera" or "Chapter Oneness" is never read
 // as a chapter and a number.
-const SPACED_PREFIX = new RegExp(
-	String.raw`^(?:chapter|chap|ch)(?:\.?\s*(\d+)|(?:\.\s*|\s+)([ivxlcdm]+)\b|(?:\.\s*|\s+)(${SPELLED})\b)\s*[:：.\-–—·|]?\s*`,
-	'u'
-);
+const spacedPrefix = (words: string) =>
+	new RegExp(
+		String.raw`^(?:chapter|chap|ch)(?:\.?\s*(\d+)|(?:\.\s*|\s+)([ivxlcdm]+)\b${words})\s*[:：.\-–—·|]?\s*`,
+		'u'
+	);
+const SPACED_PREFIX = spacedPrefix(String.raw`|(?:\.\s*|\s+)(${SPELLED})\b`);
+// A spelled number needs its boundary, so "Chapter OneThe Article" (a heading
+// split by a br, which adds no text) keeps its words: the comparison that
+// reads them as words is the only one that can still match it.
+const WORDLESS_PREFIX = spacedPrefix('');
 // 第212話, 第十二章, 第3回, 第4節: a Japanese or Chinese chapter's number.
 const CJK_PREFIX =
 	/^第\s*([0-9〇零一二三四五六七八九十百千]+)\s*[話话章回節节]\s*[:：.\-–—·|]?\s*/u;
@@ -222,7 +228,8 @@ function fold(s: string, numbered: boolean): string {
 
 /**
  * A title's text once its leading chapter number is off, and that number.
- * `withNumbered` false leaves a leading "1. " in, as words of the title.
+ * `withNumbered` false leaves a leading "1. " and a spelled "Chapter One" in,
+ * as words of the title.
  */
 function splitTitle(s: string, withNumbered = true): { rest: string; n: string | null } {
 	let t = s.normalize('NFKC').toLowerCase().trim();
@@ -232,10 +239,11 @@ function splitTitle(s: string, withNumbered = true): { rest: string; n: string |
 		n = numbered[1];
 		t = t.slice(numbered[0].length);
 	}
-	for (let m = SPACED_PREFIX.exec(t) ?? CJK_PREFIX.exec(t); m;) {
+	const spaced = withNumbered ? SPACED_PREFIX : WORDLESS_PREFIX;
+	for (let m = spaced.exec(t) ?? CJK_PREFIX.exec(t); m;) {
 		n = m[3] ? wordsToArabic(m[3]) : (m[2] ?? kanjiToArabic(m[1]));
 		t = t.slice(m[0].length);
-		m = SPACED_PREFIX.exec(t) ?? CJK_PREFIX.exec(t);
+		m = spaced.exec(t) ?? CJK_PREFIX.exec(t);
 	}
 	t = t.replace(NOISE, '');
 	for (let m = COMPACT_PREFIX.exec(t) ?? COMPACT_CJK.exec(t); m;) {
@@ -263,7 +271,8 @@ export function bandTitle(tocTitle: string, lead: string | readonly string[] | n
 	const own = foldTitle(tocTitle);
 	if (!own) return false;
 	// "1. The Article" loses its number and "1 The Article" keeps its own, so
-	// the two only compare equal with the NUMBERED step left out of both.
+	// the two only compare equal with the NUMBERED step left out of both. The
+	// same goes for a spelled number that lost the boundary after it.
 	const whole = fold(tocTitle, false);
 	const lines = lead === null ? [] : typeof lead === 'string' ? [lead] : lead;
 	return lines.every((l) => foldTitle(l) !== own && fold(l, false) !== whole);
