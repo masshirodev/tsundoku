@@ -243,7 +243,7 @@ describe('the library’s values', () => {
 		textDir.setTextDirection(rtl, 'rtl');
 		textDir.setTextDirection(both, 'rtl');
 		db.prepare(`UPDATE series SET direction = ? WHERE id = ?`).run(otherLayout, both);
-		// REMEMBER on L→R stores NULL, what the default already means: nothing differs.
+		// REMEMBER on L→R stores 'ltr', which reads as the default does: nothing differs.
 		textDir.setTextDirection(ltr, 'rtl');
 		textDir.setTextDirection(ltr, 'ltr');
 		// A stored 'ltr' (GROUP, TAKE OUT and the import's fold copy the column as
@@ -349,7 +349,7 @@ describe('the library’s values', () => {
 							page.clearModes([id]);
 							expect(stored(id)).toEqual({
 								direction: layoutDiffers ? null : direction,
-								text_direction: rtlDiffers ? null : text
+								text_direction: kind === 'novel' ? null : text
 							});
 							// Whatever it held, it is off the list and out of the count now.
 							expect(page.overrideCounts(false).mode[kind]).toBe(0);
