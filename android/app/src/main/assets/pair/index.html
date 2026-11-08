@@ -1007,7 +1007,7 @@
 					     The row does not wrap, and a TV's monospace is 0.6 em a
 					     glyph, wider than a desktop's: tv-app-pair.e2e.ts checks
 					     that this fits beside the first line at that width. -->
-					<div class="meta">http(s)://HOST · NO LOGIN · PORT 1–65535</div>
+					<div class="meta" id="refused-why">http(s)://HOST · NO LOGIN · PORT 1–65535</div>
 				</div>
 				<!-- S7: an address already in the list skips pairing and opens it. -->
 				<div class="band" id="already" role="status" hidden>
@@ -1452,8 +1452,8 @@
 			/*
 			 * Kotlin has already judged it (Given.door): this is an address the
 			 * list holds, so its answer opens it and stores nothing. A refused
-			 * address never reaches here: the activity loads #bad=, which shows
-			 * the band and never probes.
+			 * address never reaches here: the activity loads #bad= or #long=,
+			 * which show the band and never probe.
 			 */
 			function connect(at) {
 				if (!/^https?:\/\//i.test(at)) {
@@ -1521,6 +1521,13 @@
 			 * over 80 characters still reaches 9D and opens.
 			 */
 			const MAX_ASKED = 80;
+			/*
+			 * 9B's band gives the rule an address broke, and a long one breaks
+			 * none of the rules in the hint. As short as that hint or shorter:
+			 * the row does not wrap, and sits beside NOTHING WAS SAVED at a TV's
+			 * 0.6 em. It is a sentence on a band, so it names no control.
+			 */
+			const TOO_LONG = `OVER ${MAX_ASKED} CHARACTERS IS TOO LONG TO READ`;
 			function stopAsking() {
 				if (!asking) return;
 				asking = false;
@@ -1533,7 +1540,7 @@
 					return;
 				}
 				if (at.length > MAX_ASKED) {
-					refused();
+					refused(TOO_LONG);
 					return;
 				}
 				stopRetry();
@@ -1571,8 +1578,14 @@
 				return backToLibrary();
 			}
 
-			/* A given address the activity refused: 9B, empty, with the band. */
-			function refused() {
+			/*
+			 * A given address the activity refused: 9B, empty, with the band.
+			 * [why] is drawn every time, so the next refusal never keeps this
+			 * one's reason.
+			 */
+			const refusedWhy = document.getElementById('refused-why');
+			const BROKE_A_RULE = refusedWhy.textContent;
+			function refused(why = BROKE_A_RULE) {
 				// The second door into 9B, and the 9D retry outlives the screen
 				// unless it is stopped first: its next tick would probe the old
 				// origin, fail, and replace the refusal with 9D for an address
@@ -1583,6 +1596,7 @@
 				show('address');
 				fill();
 				last.value = '';
+				refusedWhy.textContent = why;
 				refusedBand.hidden = false;
 				screens.address.classList.add('with-band');
 				checking.textContent = '';
@@ -1968,6 +1982,11 @@
 				} else if (hash.startsWith('ask=')) {
 					settle();
 					ask(decode(hash.slice(4)));
+				} else if (hash.startsWith('long=')) {
+					// Settled so the same address handed in twice draws its band twice:
+					// a fragment that stays is no hashchange the second time (c685).
+					settle();
+					refused(TOO_LONG);
 				} else if (hash.startsWith('bad=')) refused();
 				else if (hash === 'add') addressAs('add');
 				else if (hash.startsWith('added=')) added(decode(hash.slice(6)));

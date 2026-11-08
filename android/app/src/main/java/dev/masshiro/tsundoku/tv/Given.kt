@@ -27,12 +27,17 @@ object Given {
 	const val CONNECT = "connect"
 	const val ASK = "ask"
 	const val BAD = "bad"
+	const val LONG = "long"
 
 	/**
 	 * The longest address the question will show: 9B's own limit for a whole
 	 * address (`last.maxLength`). The question exists to be read, and a host
 	 * long enough to run off the screen can hide the part that says whose it
-	 * is, so a longer one is refused rather than shown cut.
+	 * is, so a longer one is refused rather than shown cut. It has its own
+	 * door so the band can say so: it breaks none of the rules `#bad=`'s hint
+	 * names. The page holds the same limit (`MAX_ASKED` in `ask()`) for the
+	 * doors to the question that do not pass through here, and `GivenTest`
+	 * pins the two together.
 	 */
 	const val MAX_ASKED = 80
 
@@ -63,7 +68,7 @@ object Given {
 	fun door(raw: String, known: (String) -> Boolean): Door {
 		val origin = Address.intentOrigin(raw) ?: return Door(BAD, raw)
 		if (known(origin)) return Door(CONNECT, origin)
-		if (origin.length > MAX_ASKED) return Door(BAD, raw)
+		if (origin.length > MAX_ASKED) return Door(LONG, raw)
 		return Door(ASK, origin)
 	}
 }

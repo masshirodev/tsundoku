@@ -143,7 +143,7 @@ class GivenTest {
 		assertEquals(Given.Door(Given.ASK, at), Given.door(at, nothingKnown))
 
 		val past = at + "a"
-		assertEquals(Given.Door(Given.BAD, past), Given.door(past, nothingKnown))
+		assertEquals(Given.Door(Given.LONG, past), Given.door(past, nothingKnown))
 	}
 
 	@Test
@@ -176,8 +176,14 @@ class GivenTest {
 	@Test
 	fun `the page takes every door the rule can name`() {
 		val page = File("src/main/assets/pair/index.html").readText()
-		for (name in listOf(Given.CONNECT, Given.ASK, Given.BAD)) {
+		for (name in listOf(Given.CONNECT, Given.ASK, Given.BAD, Given.LONG)) {
 			assertTrue(name, page.contains("hash.startsWith('$name=')"))
 		}
+	}
+
+	@Test
+	fun `the page holds the same limit as the rule`() {
+		val page = File("src/main/assets/pair/index.html").readText()
+		assertTrue(page.contains("const MAX_ASKED = ${Given.MAX_ASKED};"))
 	}
 }

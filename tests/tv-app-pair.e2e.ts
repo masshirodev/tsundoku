@@ -1684,6 +1684,184 @@ test('a #connect= over 80 characters for an origin not in the list is refused (c
 	expect(across.remembered).toEqual([]);
 });
 
+const BROKE_A_RULE = 'http(s)://HOST · NO LOGIN · PORT 1–65535';
+const SAYS_TOO_LONG = 'OVER 80 CHARACTERS IS TOO LONG TO READ';
+const setHash = (page: Page, door: string, at: string) =>
+	page.evaluate(
+		({ door, at }) => {
+			location.hash = `#${door}=` + encodeURIComponent(at);
+		},
+		{ door, at }
+	);
+
+// Every door to the question, and #long=, the activity's own for Given.door's
+// refusal: each says the real reason, stores nothing, and BACK stays the app's.
+for (const door of ['ask', 'connect', 'lost', 'long'])
+	test(`a #${door}= over 80 characters says why it was refused, and asks nothing (c683)`, async ({
+		page
+	}) => {
+		const across = await stubAcross(page, three);
+		await page.goto(`${page9}?t=${TOKEN}#${door}=${encodeURIComponent(TOO_LONG)}`);
+		await expect(page.locator('#refused')).toBeVisible();
+		await expect(page.locator('#refused-why')).toHaveText(SAYS_TOO_LONG);
+		await expect(page.locator('#last')).toHaveValue('');
+		await expect(page.locator('#already')).toBeHidden();
+		await expect(page.locator('#next')).toBeFocused();
+		expect(page.url()).toBe(`${page9}?t=${TOKEN}`);
+		expect(await pressBack(page)).toBe(false);
+		expect(across.opened).toEqual([]);
+		expect(across.probes).toEqual([]);
+		expect(across.remembered).toEqual([]);
+	});
+
+for (const door of ['bad', 'ask', 'connect', 'lost'])
+	test(`a #${door}= refused for its form still names the rules, not the length (c683)`, async ({
+		page
+	}) => {
+		await stubAcross(page, three);
+		await page.goto(`${page9}#${door}=${encodeURIComponent('ftp://zen.local')}`);
+		await expect(page.locator('#refused-why')).toHaveText(BROKE_A_RULE);
+	});
+
+test('each refusal draws its own reason, whichever came before it (c683)', async ({ page }) => {
+	await stubAcross(page, three);
+	await page.goto(`${page9}#long=${encodeURIComponent(TOO_LONG)}`);
+	await expect(page.locator('#refused-why')).toHaveText(SAYS_TOO_LONG);
+	await setHash(page, 'bad', 'ftp://zen.local');
+	await expect(page.locator('#refused-why')).toHaveText(BROKE_A_RULE);
+	await setHash(page, 'lost', TOO_LONG);
+	await expect(page.locator('#refused-why')).toHaveText(SAYS_TOO_LONG);
+	await setHash(page, 'ask', 'ftp://zen.local');
+	await expect(page.locator('#refused-why')).toHaveText(BROKE_A_RULE);
+});
+
+test('the reason fits beside NOTHING WAS SAVED at a TV’s width, uncut (c683)', async ({ page }) => {
+	await stubAcross(page, three);
+	await page.goto(`${page9}#lost=${encodeURIComponent(TOO_LONG)}`);
+	const band = page.locator('#refused');
+	await expect(band).toBeVisible();
+	for (const half of await band.locator(':scope > div').all())
+		expect(await half.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(false);
+	const room = await band.evaluate((el) => {
+		const css = getComputedStyle(el);
+		return {
+			inner: el.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight),
+			gap: parseFloat(css.columnGap)
+		};
+	});
+	const first = await tvMonoWidth(page, '#refused > div:first-child');
+	const why = await tvMonoWidth(page, '#refused-why');
+	expect(first + room.gap + why).toBeLessThanOrEqual(room.inner);
+});
+
+// The same address twice: the door is settled, so the second is a hashchange and
+// is refused again, once the owner's own attempt has taken the first band away.
+for (const door of ['ask', 'connect', 'lost', 'long'])
+	test(`a #${door}= over 80 characters handed in twice is refused twice (c683)`, async ({
+		page
+	}) => {
+		const across = await stubAcross(page, three);
+		await page.goto(`${page9}#${door}=${encodeURIComponent(TOO_LONG)}`);
+		await expect(page.locator('#refused')).toBeVisible();
+		await page.locator('#whole-toggle').click();
+		await page.locator('#last').fill(LINKED);
+		await page.locator('#next').click();
+		await expect(page.locator('#refused')).toBeHidden();
+		await expect.poll(() => across.probes).toEqual([LINKED]);
+
+		await setHash(page, door, TOO_LONG);
+		await expect(page.locator('#refused')).toBeVisible();
+		await expect(page.locator('#refused-why')).toHaveText(SAYS_TOO_LONG);
+		await expect(page.locator('#next')).toBeEnabled();
+		expect(across.probes).toEqual([LINKED]);
+		expect(across.remembered).toEqual([]);
+	});
+
+for (const door of ['lost', 'long'])
+	test(`a #${door}= over 80 characters stops the retry of the 9D it replaces (c683)`, async ({
+		page
+	}) => {
+		const across = await stubAcross(page, three);
+		across.answers.set(HOME, false);
+		await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
+		await expect(page.locator('#retry')).toBeVisible();
+		await setHash(page, door, TOO_LONG);
+		await expect(page.locator('#refused')).toBeVisible();
+		const before = across.probes.length;
+		await page.waitForTimeout(5600);
+		expect(across.probes.slice(before)).toEqual([]);
+		await expect(page.locator('#retry')).toBeHidden();
+		await expect(page.locator('#refused')).toBeVisible();
+	});
+
+// A refusal does not take back a CONNECT the owner already pressed: only a late
+// failure is dropped, and a success still pairs (doc/TV-APP.md, Decision 9).
+for (const ok of [true, false])
+	test(`a link over 80 characters while CONNECT is checking: a late ${ok ? 'answer pairs what was pressed' : 'failure leaves the refusal'} (c683)`, async ({
+		page
+	}) => {
+		const across = await stubAcross(page, three);
+		const navigations = await holdPairing(page);
+		await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
+		await page.locator('#next').click();
+		await expect.poll(() => across.probes).toEqual([LINKED]);
+
+		await setHash(page, 'lost', TOO_LONG);
+		await expect(page.locator('#refused')).toBeVisible();
+		await page.evaluate(({ at, ok }) => window.tsundokuProbe?.(at, ok), { at: LINKED, ok });
+
+		if (ok) {
+			await expect.poll(() => across.remembered).toEqual([LINKED]);
+			await expect.poll(() => navigations).toEqual([`${LINKED}/pair/tv`]);
+			return;
+		}
+		await page.evaluate(() => new Promise((done) => setTimeout(done, 300)));
+		await expect(page.locator('#refused')).toBeVisible();
+		await expect(page.locator('#retry')).toBeHidden();
+		expect(across.remembered).toEqual([]);
+		expect(across.probes).toEqual([LINKED]);
+	});
+
+test('NEXT on the refusal, pressed twice, has nothing to ask about (c683)', async ({ page }) => {
+	const across = await stubAcross(page, three);
+	await page.goto(`${page9}#lost=${encodeURIComponent(TOO_LONG)}`);
+	await expect(page.locator('#next')).toBeFocused();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('Enter');
+	await expect(page.locator('#last')).toHaveValue('');
+	expect(across.probes).toEqual([]);
+	expect(across.remembered).toEqual([]);
+});
+
+test('a #connect= over 80 characters for a server in the list opens it, with no question (c683)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, [
+		{ origin: TOO_LONG, name: 'LONG ONE', tvName: '', opened: 1 }
+	]);
+	across.answers.set(TOO_LONG, true);
+	await page.goto(`${page9}#connect=${encodeURIComponent(TOO_LONG)}`);
+	await expect.poll(() => across.opened).toEqual([TOO_LONG]);
+	expect(across.probes).toEqual([TOO_LONG]);
+	expect(across.remembered).toEqual([]);
+	await expect(page.locator('#refused')).toBeHidden();
+	await expect(page.locator('#already')).toBeHidden();
+});
+
+test('a typed whole address stops at the field’s 80 and is not a door to the question (c683)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, three);
+	await page.goto(`${page9}#add`);
+	await page.locator('#whole-toggle').click();
+	await page.locator('#last').pressSequentially(TOO_LONG);
+	await expect(page.locator('#last')).toHaveValue(TOO_LONG.slice(0, 80));
+	await page.locator('#next').click();
+	await expect.poll(() => across.probes).toEqual([TOO_LONG.slice(0, 80)]);
+	await expect(page.locator('#refused')).toBeHidden();
+	await expect(page.locator('#already')).toBeHidden();
+});
+
 test('the question fits a TV: the band whole, an 80-character address over the buttons (c683)', async ({
 	page
 }) => {
@@ -1726,6 +1904,18 @@ test('the question fits a TV: the band whole, an 80-character address over the b
 
 test.describe('on a phone, 360 x 780', () => {
 	test.use({ viewport: { width: 360, height: 780 } });
+
+	test('the length refusal is read whole on the phone column (c683)', async ({ page }) => {
+		await stubAcross(page, three);
+		await page.addInitScript(() => {
+			Object.assign(window.TsundokuTV!, { form: () => 'mobile', network: () => 'home' });
+		});
+		await page.goto(`${page9}#lost=${encodeURIComponent(TOO_LONG)}`);
+		await expect(page.locator('html')).toHaveAttribute('data-device', 'phone');
+		await expect(page.locator('#refused-why')).toHaveText(SAYS_TOO_LONG);
+		for (const half of await page.locator('#refused > div').all())
+			expect(await half.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(false);
+	});
 
 	test('the question stands on the phone column, whole, with no keyboard up (c683)', async ({
 		page
