@@ -92,6 +92,7 @@ import { ANIME_FOLDER, HIDDEN_ANIME_FOLDER, seriesFolderName } from '$lib/librar
 import { join } from '$lib/server/fspath';
 import { originLabel, sourceOrigin } from '$lib/library/origin';
 import { tagSourceOf } from './tag-source.server';
+import { seasonsAroundOf } from '$lib/server/relations';
 import {
 	StaleWorkError,
 	WorkError,
@@ -264,6 +265,10 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// An anime's seasons (c240): a link each, and the row folds round the one
 		// being watched. Null for anything else, which draws today's rows.
 		seasons: isAnime(series.kind) ? (seriesSeasons(series.id)?.seasons ?? null) : null,
+		// The seasons before it and the one after (c358; doc/SERIES.md, "The
+		// seasons around it"): from the relation cache alone, never AniList, so
+		// the screen never waits. Null for anything with no chain to read.
+		around: seasonsAroundOf(series.id, reveal),
 		// What each catalogue's list says, and what tsundoku sent (doc/TRACKING.md).
 		tracking: trackingOf(series.id),
 		// A novel's Ranobe link and line (doc/RANOBE.md). Null for a comic.

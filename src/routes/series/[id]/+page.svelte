@@ -721,6 +721,8 @@
 					onselect={() => (selecting = true)}
 					onlong={markThrough}
 					downloads={dlStates}
+					around={data.around}
+					tagSource={data.tagSource}
 				/>
 			{:else}
 				<EntryList
