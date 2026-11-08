@@ -255,14 +255,12 @@ test('a hidden series read under /reveal offers UNHIDE, not HIDE again (c673)', 
 	page
 }) => {
 	await command(page, '/reveal');
-	const { id, end } = await openSeriesEnd(page, 'Isekai Ojisan');
-	// Hide it through the row's own door, then read it again fresh: `hidden` is
-	// now the series', not this page's answer.
-	await end.getByRole('button', { name: 'HIDE', exact: true }).click();
-	await expect(end.getByRole('button', { name: 'HIDDEN ✓' })).toBeVisible();
-	const here = page.url().replace(/\?.*$/, '');
+	// Hidden before this page is drawn, so `hidden` is the series', not this
+	// page's answer. A row of its own: this hid Isekai Ojisan, and `library-flow`
+	// reads that tile beside it (insertHiddenSeries).
+	const [own] = insertHiddenSeries('Qx673 Gimel');
 	const endAgain = async () => {
-		await page.goto(`${here}?p=last`);
+		await page.goto(`/read/${own.entry}?p=last`);
 		await readerReady(page);
 		await page.waitForLoadState('networkidle');
 		await page.keyboard.press('ArrowLeft');
@@ -273,41 +271,30 @@ test('a hidden series read under /reveal offers UNHIDE, not HIDE again (c673)', 
 	let failed: unknown;
 	try {
 		const fresh = await endAgain();
-		await expect(fresh.getByRole('button', { name: 'HIDE', exact: true })).toHaveCount(0);
+		await expect(fresh.getByRole('button', { name: 'DELETE', exact: true })).toBeVisible();
 		const unhide = fresh.getByRole('button', { name: 'UNHIDE', exact: true });
 		await expect(unhide).toBeVisible();
 		await unhide.click();
 		await expect(fresh.getByRole('button', { name: 'UNHIDDEN ✓' })).toBeVisible();
-		// Shown again, so a fresh page offers HIDE rather than UNHIDE.
+		// Shown again, so a fresh page offers DELETE alone.
 		const shown = await endAgain();
-		await expect(shown.getByRole('button', { name: 'HIDE', exact: true })).toBeVisible();
+		await expect(shown.getByRole('button', { name: 'UNHIDE', exact: true })).toHaveCount(0);
+		await expect(shown.getByRole('button', { name: 'DELETE', exact: true })).toBeVisible();
 	} catch (e) {
 		failed = e;
 	}
-	// Shown again if the body left it hidden (c649: soft, so it cannot hide the body's own).
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
-	const putBack = await page.request.post(`/series/${id}?/hide`, {
-		headers: {
-			origin: new URL(test.info().project.use.baseURL!).origin,
-			'x-sveltekit-action': 'true'
-		},
-		form: { on: '0' }
-	});
-	expect.soft(putBack.ok()).toBe(true);
+	// The row goes, shown or hidden, whatever the body did (c649).
+	expect.soft(removeOwnSeries([own.id])).toBe(0);
 	if (failed) throw failed;
 });
 
 test('a refused library row says why, in the row (c673)', async ({ page }) => {
 	const { end } = await openSeriesEnd(page, 'Isekai Ojisan');
-	// The action's own refusal for a stale page (the series was taken into a
-	// Work meanwhile) holds HIDE and HIDE ALL, so the row must not repeat it:
-	// it says its own sentence instead (round 2). The real action cannot be
-	// made to refuse for a plain library series, so the refusal is answered
-	// here with the server's own words (series/[id]/+page.server.ts, `hide`).
+	// A failure from any form but UNHIDE's is not the stale Work (c714's case,
+	// below), even carrying that refusal's own words, which hold HIDE and HIDE
+	// ALL: the row says its own sentence and never the action's (round 2).
 	const refusal = 'A WORK IS HIDDEN WHOLE · HIDE ALL OR TAKE OUT';
-	await page.route(/\/series\/\d+\?\/hide$/, (route) =>
+	await page.route(/\/series\/\d+\?\/delete$/, (route) =>
 		route.fulfill({
 			status: 400,
 			contentType: 'application/json',
@@ -320,12 +307,211 @@ test('a refused library row says why, in the row (c673)', async ({ page }) => {
 			})
 		})
 	);
-	await end.getByRole('button', { name: 'HIDE', exact: true }).click();
+	await end.getByRole('button', { name: 'DELETE', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: /^DELETE / })
+		.getByRole('button', { name: 'DELETE', exact: true })
+		.click();
 	await expect(end.getByRole('alert')).toHaveText('COULD NOT SAVE');
 	// The refusal line holds no control's word, so a substring locator for the
 	// row's own button still finds just that button.
-	await expect(end.getByText('HIDE')).toHaveCount(1);
+	await expect(end.getByText('DELETE')).toHaveCount(1);
 	// The button is a button again, not a row that silently reset.
-	await expect(end.getByRole('button', { name: 'HIDE', exact: true })).toBeEnabled();
-	await page.unroute(/\/series\/\d+\?\/hide$/);
+	await expect(end.getByRole('button', { name: 'DELETE', exact: true })).toBeEnabled();
+	await page.unroute(/\/series\/\d+\?\/delete$/);
+});
+
+/**
+ * Hidden manga of a case's own, written through the preview's database file.
+ * A case that hides or groups a series holds it for every file running beside
+ * it, and every manga in the seed has a reader in some other spec: hidden,
+ * `library-layout`'s rating bars and `library-flow`'s bystander lose their tile.
+ * These rows are hidden from their first moment, so with reveal off no other
+ * file can see them, and no spec names their titles. A `sample:` path is what
+ * makes the reader draw generated pages for them.
+ */
+function insertHiddenSeries(...titles: string[]) {
+	const db = new Database(process.env.PLAYWRIGHT_DATABASE_PATH!, { timeout: 30_000 });
+	try {
+		const now = Date.now();
+		return db.transaction(() =>
+			titles.map((title) => {
+				const id = Number(
+					db
+						.prepare(
+							`INSERT INTO series (root_id, title, kind, hidden, path, added_at, indexed_at)
+								VALUES ((SELECT id FROM roots WHERE path = 'sample:library'), ?, 'manga', 1, ?, ?, ?)`
+						)
+						.run(title, `sample:library/${title}`, now, now).lastInsertRowid
+				);
+				const entry = Number(
+					db
+						.prepare(
+							`INSERT INTO entries (series_id, position, label, page_count, file, added_at)
+								VALUES (?, 1, 'Ch. 1', 24, 'Chapter 1.cbz', ?)`
+						)
+						.run(id, now).lastInsertRowid
+				);
+				return { id, entry };
+			})
+		)();
+	} finally {
+		db.close();
+	}
+}
+
+/**
+ * Those rows gone, with any Work they made, whatever the page was left doing:
+ * the database, not a form that needs a live page. Answers how many of their
+ * entries are left, or the error, rather than throwing, so a failure here is
+ * reported beside the body's and cannot replace it (c649). Everything that
+ * hangs off a series or an entry cascades, or is `SET NULL`.
+ */
+function removeOwnSeries(ids: number[]): unknown {
+	let db: Database.Database | undefined;
+	try {
+		db = new Database(process.env.PLAYWRIGHT_DATABASE_PATH!, { timeout: 30_000 });
+		const open = db;
+		const marks = ids.map(() => '?').join(',');
+		open.transaction(() => {
+			open
+				.prepare(
+					`DELETE FROM works WHERE id IN (SELECT work_id FROM work_series WHERE series_id IN (${marks}))`
+				)
+				.run(...ids);
+			open.prepare(`DELETE FROM series WHERE id IN (${marks})`).run(...ids);
+		})();
+		return (
+			open
+				.prepare(`SELECT COUNT(*) AS n FROM entries WHERE series_id IN (${marks})`)
+				.get(...ids) as {
+				n: number;
+			}
+		).n;
+	} catch (e) {
+		return String(e);
+	} finally {
+		db?.close();
+	}
+}
+
+/**
+ * COULD NOT SAVE's and the end page's words (doc/handoff-notes/reader.md, wave
+ * 31 round 2, and c655's). Not SERIES, which the page draws in ← SERIES and
+ * which c714's sentence holds: no row control is named that (`rowRefusal`).
+ */
+const ROW_WORDS = [
+	'MORE',
+	'BACK',
+	'LINK',
+	'EDIT',
+	'OPEN',
+	'OK',
+	'HIDE',
+	'UNDO',
+	'DONE',
+	'SERVERS',
+	'TRY AGAIN',
+	'SHOW',
+	'ALL',
+	'DETAILS',
+	'RENAME',
+	'HIDDEN',
+	'UNHIDE',
+	'UNHIDDEN',
+	'DELETE',
+	'ADD TO LIBRARY',
+	'IN LIBRARY',
+	'LIBRARY',
+	'START',
+	'WORK',
+	'FAV',
+	'FORGET',
+	'DOWNLOAD FIRST 10',
+	'NOT QUEUED',
+	'ANOTHER SOURCE',
+	'REVIEW',
+	'MEANWHILE',
+	'WORDS'
+];
+
+test('UNHIDE refused because the series joined a Work says so, and no other refusal does (c714)', async ({
+	page
+}) => {
+	const SENTENCE = 'THE SERIES CHANGED · RELOAD';
+	await command(page, '/reveal');
+	// Both hidden: hidden and visible series can't share a Work (the GROUP below).
+	const [own, partner] = insertHiddenSeries('Qx714 Alef', 'Qx714 Bet');
+	const here = `/read/${own.entry}`;
+	const origin = new URL(test.info().project.use.baseURL!).origin;
+	// An action's answer is 200 even when it refuses: the outcome is the body's `type`.
+	const post = async (path: string, form: URLSearchParams) => {
+		const r = await page.request.post(path, {
+			data: form.toString(),
+			headers: {
+				origin,
+				'x-sveltekit-action': 'true',
+				'content-type': 'application/x-www-form-urlencoded'
+			}
+		});
+		return (await r.json()) as { type: string; data?: string };
+	};
+	let failed: unknown;
+	try {
+		// Drawn while the series is hidden and in no Work, so the row has UNHIDE.
+		await page.goto(`${here}?p=last`);
+		await readerReady(page);
+		await page.waitForLoadState('networkidle');
+		await page.keyboard.press('ArrowLeft');
+		const end = page.locator('[data-end-page]');
+		await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
+		const unhide = end.getByRole('button', { name: 'UNHIDE', exact: true });
+		await expect(unhide).toBeVisible();
+
+		// An `error` from the same form is no stale Work: its usual sentence.
+		await page.route(/\/series\/\d+\?\/hide$/, (route) =>
+			route.fulfill({
+				status: 500,
+				contentType: 'application/json',
+				body: JSON.stringify({ type: 'error', error: { message: 'boom' } })
+			})
+		);
+		await unhide.click();
+		await expect(end.getByRole('alert')).toHaveText('COULD NOT SAVE');
+		await page.unroute(/\/series\/\d+\?\/hide$/);
+
+		// The series goes into a Work behind this page, through the library's
+		// own GROUP, so the refusal below is the real action's.
+		const form = new URLSearchParams({ name: 'Qx714 Run' });
+		form.append('series', String(own.id));
+		form.append('series', String(partner.id));
+		const made = await post('/?/work', form);
+		expect(made, JSON.stringify(made)).toMatchObject({ type: 'success' });
+
+		await unhide.click();
+		await expect(end.getByRole('alert')).toHaveText(SENTENCE);
+		for (const word of ROW_WORDS) expect(SENTENCE.toUpperCase()).not.toContain(word);
+		// A substring locator for each of the row's buttons finds just that button.
+		await expect(end.getByText('UNHIDE')).toHaveCount(1);
+		await expect(end.getByText('DELETE')).toHaveCount(1);
+		await expect(unhide).toBeEnabled();
+
+		// The second press answers the same, and is one line, not two.
+		await unhide.click();
+		await expect(end.getByRole('alert')).toHaveCount(1);
+		await expect(end.getByRole('alert')).toHaveText(SENTENCE);
+
+		// The sentence is true: drawn again, the Work's series offers no UNHIDE.
+		await page.reload();
+		await readerReady(page);
+		await page.waitForLoadState('networkidle');
+		await page.keyboard.press('ArrowLeft');
+		await expect(end.getByText(/^END ·/)).toBeVisible();
+		await expect(end.getByRole('button', { name: 'UNHIDE', exact: true })).toHaveCount(0);
+	} catch (e) {
+		failed = e;
+	}
+	// The library as this file found it, whatever the body did (c649).
+	expect.soft(removeOwnSeries([own.id, partner.id])).toBe(0);
+	if (failed) throw failed;
 });

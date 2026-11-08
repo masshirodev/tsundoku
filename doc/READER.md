@@ -417,20 +417,19 @@ scrollable screen, which took some of them at random.
 - **Vertical:** the strip carries on, both ways, as in Mihon's webtoon
   reader. See "Vertical", below.
 - **The end of what's available:** "END · LAST AVAILABLE", the series' title,
-  RATING with FAV, and a row under them that hides the series (HIDE) or adds a
-  browsing record to the library (+ ADD) — the same doors the series screen's
-  HIDE and BROWSE's ADD use, and the page stays while they answer (c655). HIDE
-  is the privacy door, not a removal: the series leaves every shelf but stays
-  in the library (`in_library` stays 1) and `/reveal` brings it back
-  ([`LIBRARY.md`](LIBRARY.md), "Hidden means hidden"). A hidden series is read
-  only under `/reveal`, so its end page offers **UNHIDE** instead of hiding it
-  again (c673, `?/hide on=0`, `UNHIDDEN ✓` once it answered). A press the
-  action refuses says so in the row, always **COULD NOT SAVE**, rather than
-  resetting silently: since `bba5d277` the row never shows the action's own
-  message, because the one real refusal (`A WORK IS HIDDEN WHOLE · HIDE ALL OR
-TAKE OUT`) holds HIDE and HIDE ALL, words this page's own controls use
-  (c706). A series in a Work draws
-  neither cell — its Work is hidden or taken out whole from the series screen.
+  RATING with FAV, and a row under them that deletes the series (DELETE, the
+  series screen's own door and confirmation: [`DELETING.md`](DELETING.md);
+  c655) or adds a browsing record to the library (+ ADD, BROWSE's own). A
+  hidden series is read only under `/reveal`, so its row also offers
+  **UNHIDE** (c673, `?/hide on=0`, `UNHIDDEN ✓` once it answered). A press the
+  action refuses says so in the row, in the row's own words and never the
+  action's, whose lines may name a control this page also draws: **COULD NOT
+  SAVE**, or, when UNHIDE's `?/hide` answers a `failure` (its one refusal: the
+  series was taken into a Work since the page was drawn),
+  **THE SERIES CHANGED · RELOAD** (c714), since a reload draws the Work's row.
+  A failure from the other forms, and any `error`, is COULD NOT SAVE. A series
+  in a Work draws DELETE and no UNHIDE — its Work is hidden or taken out whole
+  from the series screen.
   The block stays once the rating is set, showing what was chosen, so rating on
   this page never empties it; the note, `SHOWN WHILE UNRATED`, goes with the
   first rating. An ongoing series whose source has added nothing for eight
@@ -611,18 +610,35 @@ and "when I click down or up it pans to the next sections").
   alone, every repeat added a step to where the strip was going, so the aim
   ran far ahead and the strip kept travelling after the key was released
   (measured on the base: 30 repeats at ~30/s ran another 23,210 px after the
-  keyup). Repeats now add no step: from the first one the strip scrolls at the
-  speed one press covers in its glide — a screen per 220 ms, a nudge per 160
-  ms — and the release eases out over 160 ms, about a third of the nudge
-  further (33 px on a 100 px nudge, 185 px on a screen). A tap still glides
-  one step and two separate presses still add two. Every door that can take
-  the keyup away ends it, in one of two ways (c694). The key's own release, the
-  window losing focus and the page being hidden **ease it out**, as a keyup
-  does. A lock (the lookup panel or the page menu opening, each locking the
-  page), the READING sheet opening, a change of mode and a jump to another
-  chapter **stop it at once** (`endHold(true)`): the strip it was moving is
+  keyup). Repeats now add no step: the strip scrolls at the speed one press
+  covers in its glide — a screen per 220 ms, a nudge per 160 ms — and the
+  release eases out over 160 ms, about a third of the nudge further (33 px on
+  a 100 px nudge, 185 px on a screen). **It gets to that speed over the
+  glide's own length** (c692; the owner, 2026-11-07, keeping 220 ms and 100
+  px and retuning by feel afterwards): the speed climbs in a straight line
+  from rest, so the first 16 ms frame of a held screen moves 2 px where the
+  steady speed moves 56, and the full speed arrives at 220 ms (160 for a
+  nudge). What it covers is the ramp's own integral between two frames, so
+  the shape is the same at any frame rate, and it adds up from the strip's
+  own position, because a browser's `scrollY` is whole pixels and a fast
+  screen's first steps are less than one. A repeat leaves a ramp under way
+  alone. A key up mid-ramp eases out from the speed it had, not the full one.
+  Something else scrolling stops the strip for a frame and the next repeat
+  carries on up the same ramp, because the browser's scroll anchoring does
+  that as images come in above and a fresh ramp would sag for 220 ms each
+  time. A hold that reached the end starts from rest if the strip grows, and
+  one that finds a press's glide or a wheel's approach in flight starts at the
+  speed it has. A tap still
+  glides one step and two separate presses still add two. Every door that can take
+  the keyup away ends it, in one of two ways (c694). The key's own release and
+  the window losing focus **ease it out**, as a keyup does. A lock (the lookup
+  panel or the page menu opening, each locking the page), the READING sheet
+  opening, a change of mode, a jump to another chapter and the page being
+  hidden **stop it at once** (`endHold(true)`): the strip it was moving is
   covered, locked or no longer the one on screen, so it does not ease on under
-  them and the repeats are not the new chapter's. **A strip crossing is not a jump**: scrolling on across a
+  them and the repeats are not the new chapter's. Hidden is on that side since
+  c691: rAF is suspended, so an ease would wait for the return and land on its
+  target in one frame. **A strip crossing is not a jump**: scrolling on across a
   band keeps the strip and the pages around it, so the glide, the wheel's ease
   and a held arrow all read on through it (c668). A second scroll key during a
   hold takes over from where the strip is: the hold ends and the new key glides
@@ -653,15 +669,19 @@ and "when I click down or up it pans to the next sections").
 - **Reduced motion**: the wheel stays native and a key moves at once.
 
 Tested in `tests/smooth-scroll.spec.ts` (the approach, notches at any scale,
-place-keeping, and c668's steady hold, its stop and its first frame not
-running backwards), `tests/reader-flow.e2e.ts` (a notch eased through the real
+place-keeping, c668's steady hold, its stop and its first frame not running
+backwards, and c692's ramp with every event that can meet it),
+`tests/reader-flow.e2e.ts` (a notch eased through the real
 strip to where it aimed, ↓ and ↑ by a screen) and
 `tests/reader-strip-keys.e2e.ts` (c527 on all four devices: → and ← against
 Ctrl + ↓ and Ctrl + ↑, Ctrl + → / ← doing nothing, the zoomed pan, a paged
 reader still turning; and c668's held ↓, which stops on the keyup, on a second
 key, on blur, on the page being hidden, on the page menu, on the READING
 sheet and on a jump to another chapter, and which reads on across a band —
-those cases measured on a page slot, since a crossing reshapes the strip).
+those cases measured on a page slot, since a crossing reshapes the strip; and
+c692's start from rest, frame by frame after a real press; c691's jump through
+history to a chapter off the strip, and the page hidden mid-ramp, which stops
+there and is not moved by a later repeat or the return).
 
 ## Full screen
 

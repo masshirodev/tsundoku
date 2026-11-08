@@ -5,8 +5,8 @@ import { expect, readerReady, test } from './fixtures';
  * they nudge like Ctrl + ↑ / ↓, follow the mode rather than the kind, keep
  * panning sideways while the strip is zoomed wider than the screen, and a
  * paged reader still turns on them. Also a held ↓ (c668): its repeats scroll
- * steadily rather than stacking steps, and every door that can take the keyup
- * away ends it. Runs on every device because the keys are the same on each and
+ * steadily rather than stacking steps, from rest up to its full speed (c692),
+ * and every door that can take the keyup away ends it. Runs on every device because the keys are the same on each and
  * the strip's width is not. Read-only: it reads in incognito, so nothing is
  * written to the shared database, and it reads the series reader-layout reads
  * (Sousou no Frieren), switched to the strip from READING, whose mode is
@@ -353,6 +353,71 @@ test.describe('a held arrow', () => {
 		expect(stopped - atKeyup).toBeLessThan(step);
 	});
 
+	test('a held ↓ starts from rest and reaches a screen per 220 ms (c692)', async ({ page }) => {
+		await openForHold(page);
+		const y = () => scrollAt(page);
+		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
+		const full = step / 220;
+		// The press's own glide first, as a real key's: it is over long before
+		// the OS's first repeat, and the strip is at rest when the hold begins.
+		await page.keyboard.down('ArrowDown');
+		await still(y);
+		// The window's scroll on every frame, while the repeats arrive, read in
+		// the page so a slow round trip cannot blur the start of the ramp.
+		const { start, samples } = await page.evaluate(async () => {
+			const w = window as unknown as { kept?: number };
+			const samples: [number, number][] = [];
+			let on = true;
+			const tick = (t: number) => {
+				// After this frame's callbacks, the strip's own write among them:
+				// read here, an uneven frame paired one frame's move with another's
+				// time, which read 0.76 and 1.33 of a speed the strip held exactly.
+				setTimeout(() => samples.push([t, scrollY - (w.kept ?? 0)]));
+				if (on) requestAnimationFrame(tick);
+			};
+			requestAnimationFrame(tick);
+			const start = performance.now();
+			for (let i = 0; i < 30; i++) {
+				window.dispatchEvent(
+					new KeyboardEvent('keydown', {
+						key: 'ArrowDown',
+						code: 'ArrowDown',
+						keyCode: 40,
+						which: 40,
+						repeat: true,
+						bubbles: true,
+						cancelable: true
+					})
+				);
+				await new Promise((r) => setTimeout(r, 33));
+			}
+			on = false;
+			return { start, samples };
+		});
+		await page.keyboard.up('ArrowDown');
+		// Each frame's speed, by when it happened after the first repeat. The
+		// median, because images arriving above can move the scroll in one frame.
+		const speeds = samples.slice(1).map(([t, at], i) => ({
+			when: (t + samples[i][0]) / 2 - start,
+			speed: (at - samples[i][1]) / (t - samples[i][0])
+		}));
+		const median = (from: number, to: number) => {
+			const inside = speeds
+				.filter((s) => s.when >= from && s.when < to)
+				.map((s) => s.speed)
+				.sort((a, b) => a - b);
+			expect(inside.length, `frames between ${from} and ${to} ms`).toBeGreaterThan(0);
+			return inside[Math.floor(inside.length / 2)];
+		};
+		// Halfway through the first 110 ms the ramp is at a quarter of the speed;
+		// a start at full speed would read 1.
+		expect(median(0, 110) / full).toBeLessThan(0.6);
+		// Past the ramp, the speed one press covers in its glide.
+		const steady = median(320, 1000) / full;
+		expect(steady).toBeGreaterThan(0.8);
+		expect(steady).toBeLessThan(1.2);
+	});
+
 	test('a second key during the hold takes over from where the strip is (c668)', async ({
 		page
 	}) => {
@@ -489,6 +554,117 @@ test.describe('a held arrow', () => {
 		await repeats(page, 'ArrowDown', 10);
 		await page.waitForTimeout(400);
 		expect(Math.abs((await read()) - atCross)).toBeLessThanOrEqual(step * 1.5);
+		await page.keyboard.up('ArrowDown');
+	});
+
+	test('the page hidden mid-ramp stops there, and no later repeat or return moves it (c691, c692)', async ({
+		page
+	}) => {
+		await page.route('**/leave', (r) => r.abort());
+		await openForHold(page);
+		const y = () => scrollAt(page);
+		const start = await y();
+		await page.keyboard.down('ArrowDown');
+		// On the ramp (c692), which the first repeat starts and which lasts the
+		// glide's 220 ms: the repeat and the hiding are one `evaluate`, so the
+		// moment is the page's own clock and not a poll, which is met by the
+		// press's glide and stays true after the ramp has ended. Read in the same
+		// turn as the door, or an ease's first frames go unseen.
+		const { atHidden, after } = await page.evaluate(async () => {
+			window.dispatchEvent(
+				new KeyboardEvent('keydown', {
+					key: 'ArrowDown',
+					code: 'ArrowDown',
+					keyCode: 40,
+					which: 40,
+					repeat: true,
+					bubbles: true,
+					cancelable: true
+				})
+			);
+			const from = performance.now();
+			await new Promise<void>((done) => {
+				const wait = () => (performance.now() - from >= 90 ? done() : requestAnimationFrame(wait));
+				requestAnimationFrame(wait);
+			});
+			Object.defineProperty(document, 'visibilityState', {
+				value: 'hidden',
+				configurable: true
+			});
+			const atHidden = Math.round(scrollY - ((window as unknown as { kept?: number }).kept ?? 0));
+			const after = performance.now() - from;
+			document.dispatchEvent(new Event('visibilitychange'));
+			return { atHidden, after };
+		});
+		expect(after).toBeLessThan(220);
+		expect(atHidden - start).toBeGreaterThan(20);
+		// At once: an ease would still cover the ramp's speed times a third of a nudge's glide.
+		const stopped = await still(y);
+		expect(stopped - atHidden).toBeLessThan(10);
+		// The key is still down behind another window, and its repeats are nobody's.
+		await repeats(page, 'ArrowDown', 3);
+		expect((await still(y)) - stopped).toBeLessThan(10);
+		// And coming back lands nowhere new: what a suspended frame would have jumped.
+		await page.evaluate(() => {
+			delete (document as unknown as { visibilityState?: unknown }).visibilityState;
+			document.dispatchEvent(new Event('visibilitychange'));
+		});
+		expect((await still(y)) - stopped).toBeLessThan(10);
+		await page.keyboard.up('ArrowDown');
+	});
+
+	test('a jump through history to a chapter not on the strip ends the hold (c691)', async ({
+		page
+	}) => {
+		await page.goto('/?sort=title');
+		await page.waitForLoadState('networkidle');
+		await page.locator('.grid .tile', { hasText: 'Sousou no Frieren' }).click();
+		await page.waitForURL(/\/series\/\d+/);
+		await page.waitForLoadState('networkidle');
+		const entryOf = () => Number(new URL(page.url()).pathname.split('/').pop());
+		// Two chapters of this series, far apart: the one the list opens first,
+		// and the one the series continues at (near its end).
+		await page.locator('.entry .entry-btn').first().click();
+		await readerReady(page);
+		const near = entryOf();
+		await page.goBack();
+		await page.waitForURL(/\/series\/\d+/);
+		await page.waitForLoadState('networkidle');
+		await page.getByRole('link', { name: /▶/ }).first().click();
+		await readerReady(page);
+		const far = entryOf();
+		expect(far, 'two chapters to walk between').not.toBe(near);
+		// A client navigation between them, so the reader stays mounted and
+		// going back is a jump, not a load. The app's own chapter doors replace
+		// history and ← SERIES pops it, so a second reader in the stack is made
+		// by a link, as a link to a chapter from anywhere in the app would be.
+		await page.evaluate((href) => {
+			const a = document.createElement('a');
+			a.href = href;
+			document.body.append(a);
+			a.click();
+			a.remove();
+		}, `/read/${near}`);
+		await expect.poll(entryOf).toBe(near);
+		await readerReady(page);
+		await page.waitForLoadState('networkidle');
+		await toStrip(page);
+		await expect(
+			page.locator(`[data-role="page"][data-entry="${far}"]`),
+			'the far chapter is off this strip, or this is the crossing door'
+		).toHaveCount(0);
+		const read = () => scrollAt(page);
+		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
+		await page.keyboard.down('ArrowDown');
+		await repeats(page, 'ArrowDown', 10);
+		await page.evaluate(() => history.go(-1));
+		await expect.poll(entryOf).toBe(far);
+		await page.waitForLoadState('networkidle');
+		const atJump = await still(read);
+		// The key is still down; the strip on screen is not the one it was moving.
+		await repeats(page, 'ArrowDown', 10);
+		await page.waitForTimeout(800);
+		expect(Math.abs((await read()) - atJump)).toBeLessThanOrEqual(step * 1.5);
 		await page.keyboard.up('ArrowDown');
 	});
 });
