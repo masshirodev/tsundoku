@@ -332,14 +332,19 @@
 			many: u.undo.many,
 			facts: u.undo.facts
 		});
-		busy = false;
 		if (!r?.ok) {
+			busy = false;
 			// A refusal says why (c592's part 2, c595's LINK N SEASONS): the band
 			// keeps its UNDO, and nothing changed.
 			const why = ((await r?.json().catch(() => ({}))) as { message?: string }).message;
 			failed = why ? `${why} · NOTHING UNDONE` : NO_ANSWER;
 			return;
 		}
+		// The season under the band came from LINK N SEASONS' answer, which this
+		// UNDO has just taken back: its own other part may have been among the
+		// picks (c644). Still busy, so no decision can act on the old drawing.
+		if (u.undo.kind === 'seasons' && single && season) await redrawSeason(u.undo.series, season.no);
+		busy = false;
 		if (u.restore) byKey.set(qk(u.restore), u.restore);
 		for (const i of u.restoreMany ?? []) byKey.set(qk(i), i);
 		queue = u.before.queue;
@@ -351,6 +356,17 @@
 		relations = null;
 		pickedSeasons = [];
 		offerFromLink = false;
+	}
+
+	/** The page's season as the workstation has it now; unanswered, it stays as drawn. */
+	async function redrawSeason(series: number, no: number) {
+		const r = await fetch(`${resolve('/links/season')}?series=${series}&season=${no}`).catch(
+			() => null
+		);
+		if (!r?.ok) return;
+		const now = (await r.json()) as { single: typeof single; season: typeof season };
+		single = now.single;
+		season = now.season;
 	}
 
 	async function linkChosen() {
@@ -433,10 +449,12 @@
 	}
 
 	/**
-	 * LINK 3 SEASONS: the ticked entries written at once, then back to the
-	 * series. The band is the workstation's answer, never the page's own ticks
-	 * (c418): a pick another season holds is refused there, and the page stays
-	 * to say which, with the true count.
+	 * LINK 3 SEASONS: the ticked entries written at once. The page stays, also
+	 * from `?series=` and also after a full success (c644: the one decision
+	 * c423's "deciding goes back to the series" gives way for), because a
+	 * multi-season write is the one that needs its UNDO. The band is the
+	 * workstation's answer, never the page's own ticks (c418): a pick another
+	 * season holds is refused there, and the band says which, with the true count.
 	 */
 	async function linkSeasonsNow() {
 		if (!item || busy || !relations || !pickedSeasons.length) return;
@@ -471,14 +489,10 @@
 		const n = a.linked ?? 0;
 		relations = null;
 		offerFromLink = false;
-		if (single && !refused.length) {
-			await backToSeries(it.seriesId);
-			return;
-		}
-		// Some linked, some refused, on one series: the page stays to say which,
-		// so the season it is on is drawn as it now stands -- linked, its LINK
-		// row naming the entry -- not as the review it opened on (c465). The
-		// band names the season still to do.
+		// On one series the page stays (c644), so the season it is on is drawn as
+		// it now stands -- linked, its LINK row naming the entry -- not as the
+		// review it opened on (c465). After a partial link the band names the
+		// season still to do.
 		if (single && a.review) {
 			single = a.review.single;
 			season = a.review.season;

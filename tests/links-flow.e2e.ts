@@ -824,6 +824,11 @@ test.describe('a catalogue that answers', () => {
 		// Nothing outside the numbering became a season's candidate.
 		expect(candidatesOf(ids.sao).filter((c) => [9003, 9004, 30024].includes(c))).toEqual([]);
 		await page.getByRole('button', { name: 'LINK 1 SEASON' }).click();
+		// The page stays with its band and UNDO (c644); ← is the way back.
+		await expect(page.locator('.band .line').first()).toHaveText(
+			'LINKED 1 SEASON · SWORD ART ONLINE'
+		);
+		await page.getByRole('link', { name: '← SERIES' }).click();
 		await page.waitForURL(new RegExp(`/series/${ids.sao}`));
 		// Both seasons linked, each with its own line and its own entry.
 		await expect(page.locator('[data-row="lists"] .t')).toHaveText([
@@ -1064,8 +1069,13 @@ test.describe('a catalogue that answers', () => {
 			await expect(offered.locator('.rno')).toHaveText(['S2', 'PART 2'], { timeout: 20_000 });
 			await expect(page.locator('.rels .ch div').nth(1)).toHaveText('1 OF 1 TICKED');
 			await expect(page.locator('.relacts button').last()).toHaveText('LINK 1 SEASON');
-			// Pressed at once, and back on the series with both parts written.
+			// Pressed at once: the page stays with its band (c644), and ← shows
+			// both parts written on the series.
 			await page.locator('.relacts button').last().click();
+			await expect(page.locator('.band .line').first()).toHaveText(
+				'LINKED 1 SEASON · SPLIT PAIR SHOW'
+			);
+			await page.getByRole('link', { name: '← SERIES' }).click();
 			await page.waitForURL(new RegExp(`/series/${id}$`));
 			await expect(page.locator('[data-row="lists"] .t')).toHaveText([
 				'Split Show',
@@ -1098,13 +1108,143 @@ test.describe('a catalogue that answers', () => {
 			await expect(page.locator('.rels .ch div').nth(1)).toHaveText('2 OF 2 TICKED');
 			await expect(page.locator('.relacts button').last()).toHaveText('LINK 2 SEASONS');
 			await page.locator('.relacts button').last().click();
-			await page.waitForURL(new RegExp(`/series/${id}$`));
+			await expect(page.locator('.band .line').first()).toHaveText(
+				'LINKED 2 SEASONS · CHAIN SPLIT PAIR SHOW'
+			);
 			expect(partsOf(id)).toEqual([
 				{ season: 1, part: 1, anilist_id: 9701 },
 				{ season: 2, part: 1, anilist_id: 9702 },
 				{ season: 2, part: 2, anilist_id: 9703 },
 				{ season: 3, part: 1, anilist_id: 9704 }
 			]);
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
+	/** A season 1 linked by a paste, and LINK 2 SEASONS pressed on what it offers. */
+	async function linkTwoSeasons(page: import('@playwright/test').Page) {
+		await page.getByRole('button', { name: 'PASTE A LINK' }).first().click();
+		await page.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9701');
+		await expect(page.locator('.actions button').last()).toHaveText(/^LINK [A-Z] TO SEASON 1$/);
+		await page.locator('.actions button').last().click();
+		const go = page.locator('.relacts button').last();
+		await expect(go).toHaveText('LINK 2 SEASONS', { timeout: 30_000 });
+		await go.click();
+	}
+	const ONLY_SEASON_1 = [{ season: 1, part: 1, anilist_id: 9701 }];
+	const ALL_THREE = [
+		...ONLY_SEASON_1,
+		{ season: 2, part: 1, anilist_id: 9702 },
+		{ season: 2, part: 2, anilist_id: 9703 },
+		{ season: 3, part: 1, anilist_id: 9704 }
+	];
+
+	test('a full LINK N SEASONS from ?series= stays, and UNDO takes both back; a second LINK works; ← shows them unlinked (c644)', async ({
+		page
+	}) => {
+		test.slow();
+		const id = seedSeasons('Stay Pair Show', [12, 23, 12]);
+		try {
+			await page.goto(`${BASE}/links?series=${id}&season=1`);
+			await linkTwoSeasons(page);
+			const line = page.locator('.band .line');
+			await expect(line.first()).toHaveText('LINKED 2 SEASONS · STAY PAIR SHOW');
+			await expect(line.nth(1)).toHaveText('EACH SENDS ITS OWN EPISODES FROM THE NEXT ONE WATCHED');
+			await expect(page).toHaveURL(new RegExp(`/links\\?series=${id}&season=1$`));
+			expect(partsOf(id)).toEqual(ALL_THREE);
+			// Under the band the season is drawn as it stands (c465), not the review.
+			await expect(
+				page.locator('.rows .r').filter({ has: page.locator('.rl', { hasText: /^LINKED$/ }) })
+			).toHaveText(/^LINKED\s*Chain Split Show · A NEW LINK REPLACES IT$/);
+
+			// Pressed twice as fast as a thumb can: one UNDO, and no refusal after it.
+			await page.getByRole('button', { name: 'UNDO' }).dblclick();
+			await expect.poll(() => partsOf(id)).toEqual(ONLY_SEASON_1);
+			await expect(page.locator('.band')).toHaveCount(0);
+			await expect(page.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
+
+			// A second LINK after the UNDO: the season's own, then the offer again.
+			await linkTwoSeasons(page);
+			await expect(line.first()).toHaveText('LINKED 2 SEASONS · STAY PAIR SHOW');
+			expect(partsOf(id)).toEqual(ALL_THREE);
+			await page.getByRole('button', { name: 'UNDO' }).click();
+			await expect.poll(() => partsOf(id)).toEqual(ONLY_SEASON_1);
+
+			await page.getByRole('link', { name: '← SERIES' }).click();
+			await page.waitForURL(new RegExp(`/series/${id}$`));
+			// Season 1 keeps the link its own LINK made; the UNDO took the other two.
+			await expect(page.locator('[data-row="lists"] .t')).toHaveText([
+				'Chain Split Show',
+				'Not linked',
+				'Not linked'
+			]);
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
+	test('after a full LINK N SEASONS a reload keeps the links and drops the band, and ← shows them (c644)', async ({
+		page
+	}) => {
+		test.slow();
+		const id = seedSeasons('Stay Reload Show', [12, 23, 12]);
+		try {
+			await page.goto(`${BASE}/links?series=${id}&season=1`);
+			await linkTwoSeasons(page);
+			await expect(page.locator('.band .line').first()).toHaveText(
+				'LINKED 2 SEASONS · STAY RELOAD SHOW'
+			);
+			await page.reload();
+			await expect(page.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
+			await expect(
+				page.locator('.rows .r').filter({ has: page.locator('.rl', { hasText: /^LINKED$/ }) })
+			).toHaveText(/^LINKED\s*Chain Split Show · A NEW LINK REPLACES IT$/);
+			expect(partsOf(id)).toEqual(ALL_THREE);
+			await page.getByRole('link', { name: '← SERIES' }).click();
+			await page.waitForURL(new RegExp(`/series/${id}$`));
+			await expect(page.locator('[data-row="lists"] .t')).toHaveText([
+				'Chain Split Show',
+				'Chain Split Show 2nd Season',
+				'Chain Split Show 3rd Season'
+			]);
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
+	test('UNDO of a LINK that took the season’s own other part redraws the season from the workstation (c644)', async ({
+		page
+	}) => {
+		test.slow();
+		// Season 2's 23 episodes, AniList's 12 + 11: linking part 1 offers part 2
+		// on the same season (and season 1 from its PREQUEL), so the UNDO changes
+		// the very season under the band.
+		const id = seedSeasons('Own Part Show', [12, 23]);
+		try {
+			await page.goto(`${BASE}/links?series=${id}&season=2`);
+			await page.getByRole('button', { name: 'PASTE A LINK' }).first().click();
+			await page.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9502');
+			await expect(page.locator('.actions button').last()).toHaveText(/^LINK [A-Z] TO SEASON 2$/);
+			await page.locator('.actions button').last().click();
+			const go = page.locator('.relacts button').last();
+			await expect(go).toHaveText('LINK 2 SEASONS', { timeout: 30_000 });
+			await go.click();
+			await expect(page.locator('.band .line').first()).toHaveText(
+				'LINKED 2 SEASONS · OWN PART SHOW'
+			);
+			expect(partsOf(id)).toEqual([
+				{ season: 1, part: 1, anilist_id: 9501 },
+				{ season: 2, part: 1, anilist_id: 9502 },
+				{ season: 2, part: 2, anilist_id: 9503 }
+			]);
+			// While part 2 is linked there is no second part left to add.
+			const addSecond = page.getByRole('link', { name: '+ A SECOND PART' });
+			await expect(addSecond).toHaveCount(0);
+			await page.getByRole('button', { name: 'UNDO' }).click();
+			await expect.poll(() => partsOf(id)).toEqual([{ season: 2, part: 1, anilist_id: 9502 }]);
+			// Part 2 is free again, and the page says so without a reload.
+			await expect(addSecond).toBeVisible();
 		} finally {
 			forgetFlatList(id);
 		}
