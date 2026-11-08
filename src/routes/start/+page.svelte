@@ -3,7 +3,7 @@
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import StartList from '$lib/components/start/StartList.svelte';
 	import { countLine, readLeads } from '$lib/library/start';
-	import { trail } from '$lib/start-trail.svelte';
+	import { pollStart, trail } from '$lib/start-trail.svelte';
 	import { m } from '$lib/paraglide/messages';
 
 	/**
@@ -14,6 +14,12 @@
 	 */
 	let { data } = $props();
 	$effect(() => trail.end());
+	// A step ticked elsewhere (a phone pairing, a download) shows here without a
+	// reload, until the list is finished (c722; doc/ONBOARDING.md).
+	const open = $derived(!!data.start && !data.start.finished);
+	$effect(() => {
+		if (open) return pollStart();
+	});
 	const leads = $derived(!!data.start && !data.start.finished && readLeads(data.start));
 </script>
 

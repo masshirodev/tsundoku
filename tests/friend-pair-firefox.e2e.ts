@@ -252,6 +252,53 @@ test.afterAll(async ({ browser, request }) => {
 	}
 });
 
+/**
+ * GET STARTED's 04 on the computer, open while a phone pairs (c722;
+ * doc/ONBOARDING.md, "What ticks a step without a reload"). Pairing writes
+ * the `paired_devices` row 04 counts (`/pair/<code>`, `addPaired`), so the
+ * server has it at once; what kept the friend's 04 open was the list itself,
+ * read by the layout's load, which nothing reran. The phone is paired through
+ * the real link over the real Wi-Fi listener, never a row written by hand,
+ * and the computer's page is never reloaded: it asks by itself.
+ *
+ * First in this file, and this file runs before any other friend file pairs
+ * a phone (the friend project's one worker takes its files in order): a
+ * phone or tablet that has checked in at all ticks 04, and DEVICES has no
+ * door that forgets one. tests/friend-firewall.e2e.ts, before it, pairs only
+ * desktop-sized pages and signs them out again.
+ */
+test("a phone paired over Wi-Fi ticks 04 on the computer's open GET STARTED, without a reload (c722)", async ({
+	page,
+	browser,
+	request
+}) => {
+	await page.goto('/start');
+	const four = page.locator('.step[data-step="phone"]');
+	await expect(four).toBeVisible();
+	await expect(four).not.toHaveClass(/\bdone\b/);
+	const reloads: string[] = [];
+	page.on('request', (q) => {
+		if (q.isNavigationRequest() && q.frame() === page.mainFrame()) reloads.push(q.url());
+	});
+
+	const { phone, code } = await freshCode(request);
+	const ctx = await browser.newContext({
+		...devices['Pixel 7'],
+		storageState: { cookies: [], origins: [] }
+	});
+	try {
+		const tab = await ctx.newPage();
+		await tab.goto(`${phone}${code}`);
+		await expect(tab).toHaveURL(/\/welcome$/);
+		// Within one 5 s ask and its answer, with room for a loaded box.
+		await expect(four).toHaveClass(/\bdone\b/, { timeout: 15_000 });
+		await expect(four).toContainText('Done · a phone or tablet reads here', { ignoreCase: true });
+		expect(reloads).toEqual([]);
+	} finally {
+		await ctx.close();
+	}
+});
+
 type Launch = { name: string; browser: 'firefox' | 'chromium'; prefs?: Record<string, boolean> };
 
 /**
