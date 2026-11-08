@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import Band from '$lib/components/chrome/Band.svelte';
@@ -10,6 +10,7 @@
 	import { splitMatch } from '$lib/library/search';
 	import {
 		byDay,
+		clock,
 		byEntry,
 		clipLength,
 		COLOURS,
@@ -167,9 +168,50 @@
 	const backHref = $derived(
 		f.series !== null ? resolve('/series/[id]', { id: String(f.series) }) : resolve('/')
 	);
+	/**
+	 * A clip still being cut (Anime A6): the job goes on after the player is left,
+	 * and this page says KEEPING until it is made. Filtered by the workstation, so
+	 * a hidden series' job is not listed with reveal off.
+	 */
+	let keeping = $state<
+		{ id: string; entryLabel: string; from: number; to: number; percent: number; step: string }[]
+	>([]);
+	$effect(() => {
+		let on = true;
+		let timer: ReturnType<typeof setTimeout>;
+		const ask = async () => {
+			try {
+				const r = await fetch('/api/highlights/clips');
+				if (r.ok) {
+					const was = keeping.length;
+					keeping = ((await r.json()) as typeof keeping).filter((j) =>
+						['waiting', 'fetching', 'cutting'].includes(j.step)
+					);
+					// Finished while this page was open: the list has one more row.
+					if (keeping.length === 0 && was > 0 && on) await invalidateAll().catch(() => {});
+				}
+			} catch {
+				// The next tick.
+			}
+			if (on && keeping.length > 0) timer = setTimeout(ask, 2000);
+		};
+		void ask();
+		return () => {
+			on = false;
+			clearTimeout(timer);
+		};
+	});
 </script>
 
 <svelte:head><title>{m.name_highlights()} · tsundoku</title></svelte:head>
+
+{#if keeping.length > 0}
+	<div class="keeping" role="status" data-keeping>
+		KEEPING · {keeping
+			.map((j) => `${j.entryLabel.toUpperCase()} · ${clock(j.from)}–${clock(j.to)} · ${j.percent}%`)
+			.join(' · ')}
+	</div>
+{/if}
 
 <div class="hl-page" class:has-open={!!open}>
 	<header class="bar" aria-label={m.name_highlights()}>
@@ -524,6 +566,12 @@
 {/if}
 
 <style>
+	.keeping {
+		padding: 10px 16px;
+		border-bottom: var(--hairline);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
 	/*
 	 * Measurements are the design's, transcribed and pinned by
 	 * tests/highlights-frame.e2e.ts: hand-set, not the spacing ladder, so a

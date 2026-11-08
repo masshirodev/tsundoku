@@ -17,7 +17,7 @@
 	import { leave } from '$lib/motion';
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
-	import { onDestroy, onMount, tick } from 'svelte';
+	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { beforeNavigate, goto, replaceState } from '$app/navigation';
 	import { leavingReader } from '$lib/reader/leaving';
 	import { backLink, goBackTo } from '$lib/back';
@@ -706,6 +706,12 @@
 			j.why === 'stream' && j.stoppedAt !== null ? ` AT ${clock(j.stoppedAt)}` : ''
 		}`;
 	const clipHeight = $derived(quality?.height ?? null);
+	// KEEP takes the pad once there's a range to keep (A9).
+	$effect(() => {
+		if (!tv.current || !hasRange) return;
+		const keep = untrack(() => root?.querySelector<HTMLElement>('[data-clip-keep]') ?? null);
+		keep?.focus({ preventScroll: true });
+	});
 	function markInNow() {
 		if (clipRefused) return;
 		clips.markIn(time);
@@ -2057,22 +2063,22 @@
 				: 'MARK OUT'}</button
 		>
 		{#if hasRange}
-			<button
-				type="button"
-				class="cell clipcell acc"
-				data-focus-start={tv.current ? '' : undefined}
-				onclick={keepRange}>KEEP {clock(clipRange$?.length ?? 0)}</button
+			<button type="button" class="cell clipcell acc" data-clip-keep onclick={keepRange}
+				>KEEP {clock(clipRange$?.length ?? 0)}</button
 			>
 		{/if}
-		<button
-			type="button"
-			class="cell clipcell"
-			aria-label="Drop the range"
-			onclick={() => {
-				clips.drop();
-				showChrome();
-			}}>✕</button
-		>
+		<!-- On a TV the row stays eight cells: BACK is the drop (A9). -->
+		{#if !tv.current}
+			<button
+				type="button"
+				class="cell clipcell"
+				aria-label="Drop the range"
+				onclick={() => {
+					clips.drop();
+					showChrome();
+				}}>✕</button
+			>
+		{/if}
 	{:else}
 		<button
 			type="button"
