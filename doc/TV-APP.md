@@ -136,7 +136,10 @@ password is refused. A bare `host:port` is not enough here, although it is on
   0.6 em a glyph (Roboto Mono and Droid Sans Mono alike), so the hint is
   short enough to sit beside REFUSED · NOTHING WAS SAVED there; the longer
   `http:// OR https:// WITH A HOST, NO USERNAME, PORT 1–65535` fits a desktop's
-  narrower font and cut the first line off on a TV.
+  narrower font and cut the first line off on a TV. A new address over 80
+  characters breaks none of those rules, so its band says what it did break
+  instead, `OVER 80 CHARACTERS IS TOO LONG TO READ`
+  ([below](#an-address-from-outside-is-asked-about)).
 - **New** is asked about first (c683,
   [below](#an-address-from-outside-is-asked-about)). Once CONNECT is pressed
   and it answers, it is added to the TV's servers ([below](#servers); it does
@@ -237,7 +240,7 @@ tapped link put any origin in the list, and an origin in the list passes
 | An address not in the list, by the link or by extra | `#ask=`     | 9B with the field filled; nothing until CONNECT |
 | An address already in the list                      | `#connect=` | Checks it, opens its library; stores nothing    |
 | One `Address.intentOrigin` refuses                  | `#bad=`     | 9B's refused band                               |
-| Not in the list and over 80 characters              | `#bad=`     | The same: a question must be readable           |
+| Not in the list and over 80 characters              | `#long=`    | The same band, saying it is the length          |
 | No address (the plain launcher entry)               | none        | Launch as usual                                 |
 
 **Why the list decides and the intent does not.** Nothing about an intent says
@@ -258,7 +261,7 @@ somebody there.
 field holds the address, the meta line writes it out again whole (a field clips
 a long host, and the end of a host is what says whose it is; 80 characters is
 9B's own limit for a whole address, and over it a new address is refused rather
-than shown cut), and NEXT reads `CONNECT →`.
+than shown cut, with a band that says so), and NEXT reads `CONNECT →`.
 
 - **CONNECT is the typed path.** It probes the field, and an answer is stored
   once in the same success branch a typed address uses. What is in the field
@@ -294,6 +297,16 @@ than shown cut), and NEXT reads `CONNECT →`.
   link, because 9B has no other wording to give it. A server remembered just
   before its `/pair/tv` failed is already in the list (`remember` is
   synchronous and runs before the navigation), so that path still reaches 9D.
+- **The 80 characters hold in the page, for every door to the question.**
+  `#lost=` comes from `onReceivedError` and never meets `Given.door`, and a
+  question fills the field past its `maxLength`, so `ask()` itself refuses an
+  address over `MAX_ASKED` (the same value as `Given.MAX_ASKED`, and `GivenTest`
+  holds the two together) with the length's own band. `#ask=`, `#lost=` and a
+  `#connect=` for an address not in the list all come through `ask()`. A server
+  in the list does not: nothing is asked about it, so one over 80 characters
+  still reaches 9D and opens. A refusal does not take back a CONNECT already
+  pressed: as with any refusal, only a late failure is dropped, and a late
+  answer still pairs the address the owner pressed CONNECT for.
 
 An origin stored before this stays stored: the app recorded nothing about how
 an entry got there, so no update can tell which came from a link. MORE ›
@@ -1038,6 +1051,15 @@ SAVED UNTIL YOU PRESS CONNECT`, the button reading `CONNECT →`, and the
      tsundoku on a computer that is in the list and reload its library: 9D for
      it as before, retrying, and once tsundoku is back its library opens with
      no second entry.
+  9. The 80-character refusal (c683, wave 36). Press a link to
+     `tsundoku://connect?url=` an `https://` origin of 81 characters the TV does
+     not have, a long made-up host will do: 9B, the field empty, and the band
+     reading `THAT ADDRESS WAS REFUSED · NOTHING WAS SAVED` with
+     `OVER 80 CHARACTERS IS TOO LONG TO READ` beside it, both whole on the TV's
+     own font. Do the same with step 8's `location =` for an 81-character host,
+     which comes through `#lost=`: the same band, and for more than five seconds
+     no probe in the console. Then an address of exactly 80 characters: the
+     question, its whole address above the buttons and none of it under them.
 
   **Then a URL `java.net.URI` cannot parse (c684, wave 34).** Until c684
   the host was read with `java.net.URI`, which throws on a `|` or `{` in the
@@ -1077,7 +1099,7 @@ SAVED UNTIL YOU PRESS CONNECT`, the button reading `CONNECT →`, and the
   `GivenTest`, `InsetsTest`, `IntentAddressTest`, `KeysTest`, `MessageGuardTest`,
   `NetworkTest`, `PairingBridgeTest`, `ProbeTest`, `ReleaseCheckTest`,
   `ScaleTest`, `ServersTest`, `ShortcutsTest`, `UpdaterPlanTest`, `VersionsTest`
-  (179 tests in 22 classes per flavor at wave 35; 162 in 21 at wave 34), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
+  (180 tests in 22 classes per flavor at wave 36; 179 at wave 35; 162 in 21 at wave 34), run by `./gradlew testTvDebugUnitTest` (and once more for the phone app's flavor by `testMobileDebugUnitTest`).
   `BridgeGuardTest` (15) includes c549's round-2 case: a navigation to the
   asset host with `#connect=`, `#add` or `#rename=` is refused, a frame's
   request for it is refused, the host is read case-blind, and a known or an
@@ -1152,16 +1174,17 @@ SAVED UNTIL YOU PRESS CONNECT`, the button reading `CONNECT →`, and the
   address and a domain; its port kept and its path dropped; `null` for a wrong
   scheme, a missing host, userinfo, and a port of 0 or above 65535 (`null` is
   the refusal, not a rewrite to the default port) (c260).
-- `GivenTest` is c683's rule (17 cases): a link or the `url` extra with an
+- `GivenTest` is c683's rule (18 cases): a link or the `url` extra with an
   address not in the list asks; a shortcut's address does not, and one left
   behind by a forgotten server does; the intent's shape decides nothing; the
   plain launcher entry carries no address and someone else's link is not read;
   everything the parser refuses is refused even by a list that claims to know
   it; the list is asked about the origin, not the raw string; 80 characters is
-  asked and 81 refused. Two cases read the source, because a JVM test cannot
-  drive the Activity: `MainActivity` asks this rule and writes no door of its
-  own, and the page takes every door the rule can name.
-- `tests/tv-app-pair.e2e.ts`, c683's twenty-nine (c683 in each title; 61 cases
+  asked and 81 takes `#long=`. Three cases read the source, because a JVM test
+  cannot drive the Activity: `MainActivity` asks this rule and writes no door of
+  its own, the page takes every door the rule can name, and the page holds the
+  same limit as the rule.
+- `tests/tv-app-pair.e2e.ts`, c683's fifty-five (c683 in each title; 87 cases
   in all): `#ask=` shows the address and calls neither `probe` nor `remember` until
   CONNECT, then each once; the mark starts off CONNECT, so a stray OK leaves the
   question; `#connect=` for an address not in the list asks; a non-http `#ask=`
@@ -1176,9 +1199,13 @@ SAVED UNTIL YOU PRESS CONNECT`, the button reading `CONNECT →`, and the
   probes and stores nothing until CONNECT, then once each, while one in the
   list (in any case) reaches 9D and its retry opens it, one not http(s) is
   refused, one just remembered is in the list, and asking stops the retry of
-  the 9D it replaces; and the band and an 80-character
-  address fit a TV and a phone's column. All from the asset file, with a stand-in
-  bridge: no real intent, no WebView.
+  the 9D it replaces; over 80 characters, an address not in the list is refused
+  through `#ask=`, `#connect=`, `#lost=` and `#long=` with the length's own band
+  (and each is refused again the second time, stops the 9D it replaces, and
+  leaves a pressed CONNECT its late answer), while one of exactly 80 asks, one in
+  the list still reaches 9D or opens, and a form refusal keeps the rules' words;
+  and the band and an 80-character address fit a TV and a phone's column. All
+  from the asset file, with a stand-in bridge: no real intent, no WebView.
 - `tests/pairing-tv.spec.ts` — the six digits: once, 10 minutes, five wrong
   tries burn it, the state machine's every answer; the tailnet door, the rule
   that draws the DEVICES block only where that cookie opens (never with no
