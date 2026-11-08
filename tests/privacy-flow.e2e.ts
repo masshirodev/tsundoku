@@ -339,6 +339,80 @@ test('a refused library row says why, in the row (c673)', async ({ page }) => {
 	await page.unroute(/\/series\/\d+\?\/delete$/);
 });
 
+/**
+ * Hidden manga of a case's own, written through the preview's database file.
+ * A case that hides or groups a series holds it for every file running beside
+ * it, and every manga in the seed has a reader in some other spec: hidden,
+ * `library-layout`'s rating bars and `library-flow`'s bystander lose their tile.
+ * These rows are hidden from their first moment, so with reveal off no other
+ * file can see them, and no spec names their titles. A `sample:` path is what
+ * makes the reader draw generated pages for them.
+ */
+function insertHiddenSeries(...titles: string[]) {
+	const db = new Database(process.env.PLAYWRIGHT_DATABASE_PATH!, { timeout: 30_000 });
+	try {
+		const now = Date.now();
+		return db.transaction(() =>
+			titles.map((title) => {
+				const id = Number(
+					db
+						.prepare(
+							`INSERT INTO series (root_id, title, kind, hidden, path, added_at, indexed_at)
+								VALUES ((SELECT id FROM roots WHERE path = 'sample:library'), ?, 'manga', 1, ?, ?, ?)`
+						)
+						.run(title, `sample:library/${title}`, now, now).lastInsertRowid
+				);
+				const entry = Number(
+					db
+						.prepare(
+							`INSERT INTO entries (series_id, position, label, page_count, file, added_at)
+								VALUES (?, 1, 'Ch. 1', 24, 'Chapter 1.cbz', ?)`
+						)
+						.run(id, now).lastInsertRowid
+				);
+				return { id, entry };
+			})
+		)();
+	} finally {
+		db.close();
+	}
+}
+
+/**
+ * Those rows gone, with any Work they made, whatever the page was left doing:
+ * the database, not a form that needs a live page. Answers how many of their
+ * entries are left, or the error, rather than throwing, so a failure here is
+ * reported beside the body's and cannot replace it (c649). Everything that
+ * hangs off a series or an entry cascades, or is `SET NULL`.
+ */
+function removeOwnSeries(ids: number[]): unknown {
+	let db: Database.Database | undefined;
+	try {
+		db = new Database(process.env.PLAYWRIGHT_DATABASE_PATH!, { timeout: 30_000 });
+		const open = db;
+		const marks = ids.map(() => '?').join(',');
+		open.transaction(() => {
+			open
+				.prepare(
+					`DELETE FROM works WHERE id IN (SELECT work_id FROM work_series WHERE series_id IN (${marks}))`
+				)
+				.run(...ids);
+			open.prepare(`DELETE FROM series WHERE id IN (${marks})`).run(...ids);
+		})();
+		return (
+			open
+				.prepare(`SELECT COUNT(*) AS n FROM entries WHERE series_id IN (${marks})`)
+				.get(...ids) as {
+				n: number;
+			}
+		).n;
+	} catch (e) {
+		return String(e);
+	} finally {
+		db?.close();
+	}
+}
+
 /** COULD NOT SAVE's and the end page's words (doc/handoff-notes/reader.md, wave 31 round 2, and c655's). */
 const ROW_WORDS = [
 	'MORE',
@@ -380,8 +454,9 @@ test('UNHIDE refused because the series joined a Work says so, and no other refu
 }) => {
 	const SENTENCE = 'THE SERIES CHANGED · RELOAD';
 	await command(page, '/reveal');
-	const { id } = await openSeriesEnd(page, 'Isekai Ojisan');
-	const here = page.url().replace(/\?.*$/, '');
+	// Both hidden: hidden and visible series can't share a Work (the GROUP below).
+	const [own, partner] = insertHiddenSeries('Qx714 Alef', 'Qx714 Bet');
+	const here = `/read/${own.entry}`;
 	const origin = new URL(test.info().project.use.baseURL!).origin;
 	// An action's answer is 200 even when it refuses: the outcome is the body's `type`.
 	const post = async (path: string, form: URLSearchParams) => {
@@ -395,20 +470,6 @@ test('UNHIDE refused because the series joined a Work says so, and no other refu
 		});
 		return (await r.json()) as { type: string; data?: string };
 	};
-	const inDb = <T>(sql: string, ...args: unknown[]) => {
-		const db = new Database(process.env.PLAYWRIGHT_DATABASE_PATH!, { readonly: true });
-		try {
-			return db.prepare(sql).get(...args) as T;
-		} finally {
-			db.close();
-		}
-	};
-	const other = inDb<{ id: number }>('SELECT id FROM series WHERE title = ?', TITLE).id;
-	// Both hidden: hidden and visible series can't share a Work (the GROUP below).
-	const setHidden = (series: number, on: '0' | '1') =>
-		post(`/series/${series}?/hide`, new URLSearchParams({ on }));
-	for (const series of [id, other]) expect((await setHidden(series, '1')).type).toBe('success');
-	let grouped = false;
 	let failed: unknown;
 	try {
 		// Drawn while the series is hidden and in no Work, so the row has UNHIDE.
@@ -435,12 +496,11 @@ test('UNHIDE refused because the series joined a Work says so, and no other refu
 
 		// The series goes into a Work behind this page, through the library's
 		// own GROUP, so the refusal below is the real action's.
-		const form = new URLSearchParams({ name: 'Refused Row' });
-		form.append('series', String(id));
-		form.append('series', String(other));
+		const form = new URLSearchParams({ name: 'Qx714 Run' });
+		form.append('series', String(own.id));
+		form.append('series', String(partner.id));
 		const made = await post('/?/work', form);
 		expect(made, JSON.stringify(made)).toMatchObject({ type: 'success' });
-		grouped = true;
 
 		await unhide.click();
 		await expect(end.getByRole('alert')).toHaveText(SENTENCE);
@@ -466,19 +526,6 @@ test('UNHIDE refused because the series joined a Work says so, and no other refu
 		failed = e;
 	}
 	// The library as this file found it, whatever the body did (c649).
-	if (grouped) {
-		const work = inDb<{ id: number; made: number }>(
-			`SELECT w.id, w.created_at AS made FROM works w
-				JOIN work_series s ON s.work_id = w.id WHERE s.series_id = ?`,
-			id
-		);
-		const gone = await post(
-			`/work/${work.id}?/ungroup`,
-			new URLSearchParams({ made: String(work.made) })
-		);
-		expect.soft(gone.type).toBe('redirect');
-	}
-	for (const series of [id, other])
-		expect.soft((await setHidden(series, '0')).type).toBe('success');
+	expect.soft(removeOwnSeries([own.id, partner.id])).toBe(0);
 	if (failed) throw failed;
 });
