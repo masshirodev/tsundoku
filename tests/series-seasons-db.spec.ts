@@ -45,13 +45,14 @@ type Entry = {
 	format: string;
 	status?: string;
 	episodes?: number | null;
-	year?: number | null;
+	year: number | null;
 	title: string;
 	edges: [string, number][];
 };
 const WORLD: Entry[] = [
 	{
 		id: 101,
+		year: 2019,
 		format: 'TV',
 		title: 'Lantern Keeper',
 		edges: [
@@ -63,6 +64,7 @@ const WORLD: Entry[] = [
 	},
 	{
 		id: 102,
+		year: 2021,
 		format: 'TV',
 		title: 'Lantern Keeper 2nd Season',
 		edges: [
@@ -73,6 +75,7 @@ const WORLD: Entry[] = [
 	},
 	{
 		id: 160,
+		year: 2022,
 		format: 'MOVIE',
 		title: 'Lantern Keeper: The Long Night',
 		episodes: 1,
@@ -83,6 +86,7 @@ const WORLD: Entry[] = [
 	},
 	{
 		id: 103,
+		year: 2023,
 		format: 'ONA',
 		title: 'Lantern Keeper Season 3',
 		episodes: 10,
@@ -94,6 +98,7 @@ const WORLD: Entry[] = [
 	},
 	{
 		id: 104,
+		year: 2025,
 		format: 'TV',
 		title: 'Lantern Keeper Season 4',
 		edges: [
@@ -108,19 +113,20 @@ const WORLD: Entry[] = [
 		title: 'Lantern Keeper Season 5',
 		status: 'NOT_YET_RELEASED',
 		episodes: null,
-		year: 2027,
+		// AniList leaves an announced sequel undated, as a rule.
+		year: null,
 		edges: [
 			['PREQUEL', 104],
 			['SEQUEL', 101]
 		]
 	},
-	{ id: 151, format: 'OVA', title: 'Lantern Keeper: Festival', episodes: 1, edges: [] },
-	{ id: 152, format: 'ONA', title: 'Lantern Keeper Shorts', episodes: 8, edges: [] },
-	{ id: 153, format: 'OVA', title: 'Lantern Keeper: Winter', episodes: 2, edges: [] },
-	{ id: 170, format: 'SPECIAL', title: 'Lantern Keeper Recap', episodes: 1, edges: [] },
-	{ id: 900, type: 'MANGA', format: 'MANGA', title: 'Lantern Keeper', edges: [] },
-	{ id: 201, format: 'TV', title: 'Quiet Shore', edges: [['SEQUEL', 202]] },
-	{ id: 202, format: 'TV', title: 'Quiet Shore 2nd Season', edges: [['PREQUEL', 201]] }
+	{ id: 151, year: 2019, format: 'OVA', title: 'Lantern Keeper: Festival', episodes: 1, edges: [] },
+	{ id: 152, year: 2021, format: 'ONA', title: 'Lantern Keeper Shorts', episodes: 8, edges: [] },
+	{ id: 153, year: 2023, format: 'OVA', title: 'Lantern Keeper: Winter', episodes: 2, edges: [] },
+	{ id: 170, year: 2024, format: 'SPECIAL', title: 'Lantern Keeper Recap', episodes: 1, edges: [] },
+	{ id: 900, year: 2018, type: 'MANGA', format: 'MANGA', title: 'Lantern Keeper', edges: [] },
+	{ id: 201, year: 2016, format: 'TV', title: 'Quiet Shore', edges: [['SEQUEL', 202]] },
+	{ id: 202, year: 2018, format: 'TV', title: 'Quiet Shore 2nd Season', edges: [['PREQUEL', 201]] }
 ];
 let world = new Map(WORLD.map((e) => [e.id, structuredClone(e)]));
 /** Entries AniList answers a 500 for, as when it is down for them. */
@@ -134,7 +140,7 @@ const media = (e: Entry) => ({
 	format: e.format,
 	status: e.status ?? 'FINISHED',
 	episodes: e.episodes === undefined ? 12 : e.episodes,
-	startDate: { year: e.year ?? 2020 },
+	startDate: { year: e.year },
 	title: { english: e.title, romaji: null, native: null }
 });
 
@@ -269,7 +275,7 @@ describe('the pass fills the cache, and the screen reads it without asking (c358
 			[102, 'SEASON 2'],
 			[103, 'SEASON 3']
 		]);
-		expect(around.next).toMatchObject({ key: 105, facts: ['ANNOUNCED', '2027'] });
+		expect(around.next).toMatchObject({ key: 105, facts: ['ANNOUNCED'] });
 		expect(around.extras.map((x) => x.key).sort()).toEqual([151, 152, 153, 160, 170]);
 		// Fresh, so the next pass leaves it alone.
 		expect(rel.relationsStale(s4, NOW + 1000)).toBe(false);
@@ -328,6 +334,21 @@ describe('the pass fills the cache, and the screen reads it without asking (c358
 		expect(rel.walkFrom(s34)).toEqual({ first: 104, last: 104, heldBefore: 1, heldAfter: 0 });
 		await rel.refreshRelations(ask, { now: NOW });
 		expect(rel.seasonsAroundOf(s34, false)!.before.map((h) => h.key)).toEqual([101, 102]);
+	});
+});
+
+describe('the loop through the undated announced sequel, held from season 2 (c358)', () => {
+	it('draws season 1 alone before it, season 3 after, and never the announced one as earlier', async () => {
+		const s2 = series('Lantern Keeper 2nd Season', 'anime', [2]);
+		link(s2, 2, 102);
+		await rel.refreshRelations(ask, { now: NOW });
+		const around = rel.seasonsAroundOf(s2, false)!;
+		expect(around.before.map((h) => [h.key, h.label, h.title])).toEqual([
+			[101, 'SEASON 1', 'Lantern Keeper']
+		]);
+		expect(around.next).toMatchObject({ key: 103, label: 'NEXT SEASON' });
+		expect(around.extras.map((x) => x.key)).toEqual([152, 160, 151]);
+		expect(around.extras.map((x) => x.key)).not.toContain(105);
 	});
 });
 

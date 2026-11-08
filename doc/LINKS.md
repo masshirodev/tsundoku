@@ -284,6 +284,15 @@ cover. Five titles go to a request, as aliased `Page` queries. Last, it
 walks the relations of up to 10 anime into the relation cache (c358, "The
 relation cache", below).
 
+**After an import the relations step runs before the covers**, since it is
+inside `refreshLinks` and `afterImport` awaits that before tracking, Ranobe
+and the covers. Each anime's walk is up to `HOPS + 2` (14) requests, one a
+round, at the 2.1 s spacing: about 30 s for one anime at most, and up to
+about five minutes for all 10 of a pass in the worst case (a typical chain
+of a few seasons is three or four rounds, under ten seconds each). The
+covers of a large import can wait that long behind it; the step is skipped
+once AniList is unreachable.
+
 AniList asks for no more than 30 requests a minute (its degraded limit), so
 calls go one at a time, 2.1 s apart, whoever asks, and a 429 waits as long
 as it says. **Unreachable is not an error:** the pass stops, and the next one
@@ -343,7 +352,16 @@ entry being a season and a MOVIE, OVA or SPECIAL on the chain an extra; a
 SIDE_STORY of any entry stood on, and the other branch where a chain forks,
 are extras too. A visited set, an edge that goes back in time refused (a
 PREQUEL that starts after, a SEQUEL that starts before: a loop's closing
-edge), and at most 12 steps either way (`HOPS`). Manga (an ADAPTATION) and
+edge), and at most 12 steps either way (`HOPS`). An entry's start is its
+year, and an announced (NOT_YET_RELEASED) or undated entry starts after
+every dated one (`when`): AniList leaves a TBA sequel's start empty as a
+rule, and that sequel is what usually closes the loop, naming season 1 its
+SEQUEL while season 1 names it its PREQUEL. Without that, the walk back from
+season 1, 2 or 3 took the PREQUEL into the announced season and drew it, and
+the seasons after the held one, as earlier seasons. The cut is by date, not
+by reachability: a chronological prequel made later (AniList listing a
+later-made prequel season as the original's PREQUEL) is refused too, and is
+drawn neither as a season nor as an extra. Manga (an ADAPTATION) and
 spin-offs are never followed and never drawn.
 
 **The pass** fills it: `refreshLinks`' last step is `refreshRelations`, up

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	HOPS,
+	when,
 	relFacts,
 	seasonsAround,
 	titleStem,
@@ -47,17 +48,29 @@ const graphOf = (...nodes: RelNode[]): RelGraph => ({
  * the first season's manga is an ADAPTATION, which is no anime of the chain.
  */
 const LANTERN = graphOf(
-	node(101, 'TV', 'Lantern Keeper', [
-		['SEQUEL', 102],
-		['SIDE_STORY', 151],
-		['ADAPTATION', 900],
-		['PREQUEL', 105]
-	]),
-	node(102, 'TV', 'Lantern Keeper 2nd Season', [
-		['PREQUEL', 101],
-		['SEQUEL', 160],
-		['SIDE_STORY', 152]
-	]),
+	node(
+		101,
+		'TV',
+		'Lantern Keeper',
+		[
+			['SEQUEL', 102],
+			['SIDE_STORY', 151],
+			['ADAPTATION', 900],
+			['PREQUEL', 105]
+		],
+		{ year: 2019 }
+	),
+	node(
+		102,
+		'TV',
+		'Lantern Keeper 2nd Season',
+		[
+			['PREQUEL', 101],
+			['SEQUEL', 160],
+			['SIDE_STORY', 152]
+		],
+		{ year: 2021 }
+	),
 	node(
 		160,
 		'MOVIE',
@@ -66,7 +79,7 @@ const LANTERN = graphOf(
 			['PREQUEL', 102],
 			['SEQUEL', 103]
 		],
-		{ episodes: 1 }
+		{ episodes: 1, year: 2022 }
 	),
 	node(
 		103,
@@ -77,23 +90,35 @@ const LANTERN = graphOf(
 			['SEQUEL', 104],
 			['SIDE_STORY', 153]
 		],
-		{ episodes: 10 }
+		{ episodes: 10, year: 2023 }
 	),
-	node(104, 'TV', 'Lantern Keeper Season 4', [
-		['PREQUEL', 170],
-		['PREQUEL', 103],
-		['SEQUEL', 105]
-	]),
-	node(105, 'TV', 'Lantern Keeper Season 5', null, {
-		status: 'NOT_YET_RELEASED',
-		episodes: null,
-		year: 2027
-	}),
-	node(151, 'OVA', 'Lantern Keeper: Festival', null, { episodes: 1 }),
-	node(152, 'ONA', 'Lantern Keeper Shorts', null, { episodes: 8 }),
-	node(153, 'OVA', 'Lantern Keeper: Winter', null, { episodes: 2 }),
-	node(170, 'SPECIAL', 'Lantern Keeper Recap', null, { episodes: 1 }),
-	node(900, 'MANGA', 'Lantern Keeper', null, { type: 'MANGA' })
+	node(
+		104,
+		'TV',
+		'Lantern Keeper Season 4',
+		[
+			['PREQUEL', 170],
+			['PREQUEL', 103],
+			['SEQUEL', 105]
+		],
+		{ year: 2025 }
+	),
+	// Announced, so undated: AniList leaves a TBA sequel's start empty.
+	node(
+		105,
+		'TV',
+		'Lantern Keeper Season 5',
+		[
+			['PREQUEL', 104],
+			['SEQUEL', 101]
+		],
+		{ status: 'NOT_YET_RELEASED', episodes: null, year: null }
+	),
+	node(151, 'OVA', 'Lantern Keeper: Festival', null, { episodes: 1, year: 2019 }),
+	node(152, 'ONA', 'Lantern Keeper Shorts', null, { episodes: 8, year: 2021 }),
+	node(153, 'OVA', 'Lantern Keeper: Winter', null, { episodes: 2, year: 2023 }),
+	node(170, 'SPECIAL', 'Lantern Keeper Recap', null, { episodes: 1, year: 2024 }),
+	node(900, 'MANGA', 'Lantern Keeper', null, { type: 'MANGA', year: 2018 })
 );
 const S4 = { first: 104, last: 104, heldBefore: 0, heldAfter: 0 };
 
@@ -130,7 +155,7 @@ describe('the walk (c358)', () => {
 		expect(around.next).toMatchObject({
 			key: 105,
 			label: 'NEXT SEASON',
-			facts: ['ANNOUNCED', '2027'],
+			facts: ['ANNOUNCED'],
 			title: 'Lantern Keeper Season 5',
 			seriesId: null,
 			query: 'Lantern Keeper Season 5'
@@ -229,21 +254,7 @@ describe('the walk (c358)', () => {
 		const w23 = walkSeasons(LANTERN, { first: 102, last: 103, heldBefore: 0, heldAfter: 0 });
 		expect(w23).toMatchObject({ before: [101], next: 104 });
 		// Season 5 held: its SEQUEL is season 1, which is no season after.
-		const w5 = walkSeasons(
-			{
-				nodes: {
-					...LANTERN.nodes,
-					105: {
-						...LANTERN.nodes[105],
-						edges: [
-							{ type: 'PREQUEL', id: 104 },
-							{ type: 'SEQUEL', id: 101 }
-						]
-					}
-				}
-			},
-			{ first: 105, last: 105, heldBefore: 0, heldAfter: 0 }
-		);
+		const w5 = walkSeasons(LANTERN, { first: 105, last: 105, heldBefore: 0, heldAfter: 0 });
 		expect(w5).toMatchObject({ before: [101, 102, 103, 104], next: null });
 	});
 
@@ -260,6 +271,105 @@ describe('the walk (c358)', () => {
 		);
 		const w = walkSeasons(g, { first: 401, last: 401, heldBefore: 0, heldAfter: 0 });
 		expect(w).toMatchObject({ next: 402, before: [], needs: [], truncated: false });
+	});
+});
+
+/**
+ * The loop walked from every season (review round 1): AniList leaves the
+ * announced fifth season undated, so only its status says it starts after the
+ * first, and season 1's PREQUEL into it is the loop's closing edge, never a
+ * season before season 1.
+ */
+describe('the loop through an undated announced sequel (c358)', () => {
+	const T = (id: number) => LANTERN.nodes[String(id)].title.english;
+	it.each([
+		{ held: 101, before: [], next: 102, extras: [151], line: '+ 1 EXTRA · 1 OVA' },
+		{
+			held: 102,
+			before: [101],
+			next: 103,
+			extras: [152, 160, 151],
+			line: '+ 3 EXTRAS · 1 ONA · 1 MOVIE · 1 OVA'
+		},
+		{
+			held: 103,
+			before: [101, 102],
+			next: 104,
+			extras: [153, 160, 152, 151],
+			line: '+ 4 EXTRAS · 2 OVA · 1 MOVIE · 1 ONA'
+		},
+		{
+			held: 104,
+			before: [101, 102, 103],
+			next: 105,
+			extras: [170, 153, 160, 152, 151],
+			line: '+ 5 EXTRAS · 1 SPECIAL · 2 OVA · 1 MOVIE · 1 ONA'
+		}
+	])('held $held: the seasons before, NEXT SEASON and the extras', (c) => {
+		const w = walkSeasons(LANTERN, { first: c.held, last: c.held, heldBefore: 0, heldAfter: 0 });
+		expect(w).toMatchObject({ needs: [], truncated: false, firstAt: c.before.length });
+		const around = seasonsAround(LANTERN, w, { title: T(c.held)!, inLibrary: new Map() });
+		expect(around.before.map((h) => [h.key, h.label, h.title])).toEqual(
+			c.before.map((id, i) => [id, `SEASON ${i + 1}`, T(id)])
+		);
+		expect(around.next).toMatchObject({ key: c.next, label: 'NEXT SEASON', title: T(c.next) });
+		expect(around.extras.map((x) => x.key)).toEqual(c.extras);
+		expect(around.extrasLine).toBe(c.line);
+	});
+
+	it('draws AniList’s real shape the same from season 2: dated releases, an undated TBA', () => {
+		const tv = (id: number, year: number | null, edges: Edge[], o: Partial<RelNode> = {}) =>
+			node(id, 'TV', `Show S${id - 500}`, edges, { year, ...o });
+		const g = graphOf(
+			tv(501, 2019, [
+				['PREQUEL', 505],
+				['SEQUEL', 502]
+			]),
+			tv(502, 2021, [
+				['PREQUEL', 501],
+				['SEQUEL', 503]
+			]),
+			tv(503, 2023, [
+				['PREQUEL', 502],
+				['SEQUEL', 504]
+			]),
+			tv(504, 2025, [
+				['PREQUEL', 503],
+				['SEQUEL', 505]
+			]),
+			tv(
+				505,
+				null,
+				[
+					['PREQUEL', 504],
+					['SEQUEL', 501]
+				],
+				{ status: 'NOT_YET_RELEASED', episodes: null }
+			)
+		);
+		const around = seasonsAround(
+			g,
+			walkSeasons(g, { first: 502, last: 502, heldBefore: 0, heldAfter: 0 }),
+			{ title: 'Show S2', inLibrary: new Map() }
+		);
+		expect(around.before.map((h) => [h.label, h.title])).toEqual([['SEASON 1', 'Show S1']]);
+		expect(around.next).toMatchObject({ key: 503, title: 'Show S3' });
+		expect(around.extras).toEqual([]);
+		// An announced sequel AniList has dated is still after them all.
+		const dated = { ...g.nodes['505'], year: 2018 };
+		const w1 = walkSeasons(
+			{ nodes: { ...g.nodes, 505: dated } },
+			{ first: 501, last: 501, heldBefore: 0, heldAfter: 0 }
+		);
+		expect(w1).toMatchObject({ before: [], next: 502, extras: [] });
+	});
+
+	it('ranks an entry by its year, and an announced or undated one after every year', () => {
+		expect(when({ status: 'FINISHED', year: 2019 })).toBe(2019);
+		expect(when({ status: 'RELEASING', year: 2025 })).toBe(2025);
+		expect(when({ status: 'NOT_YET_RELEASED', year: 2027 })).toBe(Infinity);
+		expect(when({ status: 'NOT_YET_RELEASED', year: null })).toBe(Infinity);
+		expect(when({ status: 'FINISHED', year: null })).toBe(Infinity);
 	});
 });
 

@@ -61,13 +61,14 @@ type Entry = {
 	format: string;
 	status?: string;
 	episodes?: number | null;
-	year?: number;
+	year: number | null;
 	title: string;
 	edges: [string, number][];
 };
 const WORLD: Entry[] = [
 	{
 		id: 101,
+		year: 2019,
 		format: 'TV',
 		title: 'Lantern Keeper',
 		edges: [
@@ -79,6 +80,7 @@ const WORLD: Entry[] = [
 	},
 	{
 		id: 102,
+		year: 2021,
 		format: 'TV',
 		title: 'Lantern Keeper 2nd Season',
 		edges: [
@@ -89,6 +91,7 @@ const WORLD: Entry[] = [
 	},
 	{
 		id: 160,
+		year: 2022,
 		format: 'MOVIE',
 		title: 'Lantern Keeper: The Long Night',
 		episodes: 1,
@@ -99,6 +102,7 @@ const WORLD: Entry[] = [
 	},
 	{
 		id: 103,
+		year: 2023,
 		format: 'ONA',
 		title: 'Lantern Keeper Season 3',
 		episodes: 10,
@@ -110,6 +114,7 @@ const WORLD: Entry[] = [
 	},
 	{
 		id: 104,
+		year: 2025,
 		format: 'TV',
 		title: 'Lantern Keeper Season 4',
 		edges: [
@@ -124,19 +129,20 @@ const WORLD: Entry[] = [
 		title: 'Lantern Keeper Season 5',
 		status: 'NOT_YET_RELEASED',
 		episodes: null,
-		year: 2027,
+		// AniList leaves an announced sequel undated, as a rule.
+		year: null,
 		edges: [
 			['PREQUEL', 104],
 			['SEQUEL', 101]
 		]
 	},
-	{ id: 151, format: 'OVA', title: 'Lantern Keeper: Festival', episodes: 1, edges: [] },
-	{ id: 152, format: 'ONA', title: 'Lantern Keeper Shorts', episodes: 8, edges: [] },
-	{ id: 153, format: 'OVA', title: 'Lantern Keeper: Winter', episodes: 2, edges: [] },
-	{ id: 170, format: 'SPECIAL', title: 'Lantern Keeper Recap', episodes: 1, edges: [] },
-	{ id: 900, type: 'MANGA', format: 'MANGA', title: 'Lantern Keeper', edges: [] },
-	{ id: 201, format: 'TV', title: 'Quiet Shore', edges: [['SEQUEL', 202]] },
-	{ id: 202, format: 'TV', title: 'Quiet Shore 2nd Season', edges: [['PREQUEL', 201]] }
+	{ id: 151, year: 2019, format: 'OVA', title: 'Lantern Keeper: Festival', episodes: 1, edges: [] },
+	{ id: 152, year: 2021, format: 'ONA', title: 'Lantern Keeper Shorts', episodes: 8, edges: [] },
+	{ id: 153, year: 2023, format: 'OVA', title: 'Lantern Keeper: Winter', episodes: 2, edges: [] },
+	{ id: 170, year: 2024, format: 'SPECIAL', title: 'Lantern Keeper Recap', episodes: 1, edges: [] },
+	{ id: 900, year: 2018, type: 'MANGA', format: 'MANGA', title: 'Lantern Keeper', edges: [] },
+	{ id: 201, year: 2016, format: 'TV', title: 'Quiet Shore', edges: [['SEQUEL', 202]] },
+	{ id: 202, year: 2018, format: 'TV', title: 'Quiet Shore 2nd Season', edges: [['PREQUEL', 201]] }
 ];
 const byId = new Map(WORLD.map((e) => [e.id, e]));
 const media = (e: Entry) => ({
@@ -145,7 +151,7 @@ const media = (e: Entry) => ({
 	format: e.format,
 	status: e.status ?? 'FINISHED',
 	episodes: e.episodes === undefined ? 12 : e.episodes,
-	startDate: { year: e.year ?? 2020 },
+	startDate: { year: e.year },
 	title: { english: e.title, romaji: null, native: null }
 });
 
@@ -395,7 +401,7 @@ test('an anime’s screen draws the seasons before it, NEXT SEASON, and the extr
 		'SEASON 1 · 12 EP',
 		'SEASON 2 · 12 EP',
 		'SEASON 3 · 10 EP',
-		'NEXT SEASON · ANNOUNCED · 2027'
+		'NEXT SEASON · ANNOUNCED'
 	]);
 	// Above the episodes and below them, in the list's own order.
 	const order = await list(page)
