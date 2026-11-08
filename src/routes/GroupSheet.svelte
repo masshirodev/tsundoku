@@ -62,6 +62,7 @@
 		suggested = false,
 		offer = null,
 		noun = 'BOOKS',
+		absolute = false,
 		ondone,
 		onclose
 	}: {
@@ -80,6 +81,12 @@
 		/** What the selection allows, from `groupAnswers()` (doc/BOOKS.md, "The AS row"). */
 		answers?: GroupAnswer[];
 		suggested?: boolean;
+		/**
+		 * Post ADD TO A WORK to the library by its full path (c838): a sheet
+		 * drawn on `/search` has no `?/addToWork` of its own, where the series
+		 * screen's relative one is its own action.
+		 */
+		absolute?: boolean;
 		/**
 		 * A Work offer under review: the Work it would join, the place it would
 		 * take, its run as it stands, and the key NOT THIS stores. `books` is then
@@ -523,7 +530,11 @@
 				class="create"
 				class:acc={work}
 				disabled={!canCreate || busy}
-				formaction={work && mode === 'existing' ? '?/addToWork' : undefined}
+				formaction={work && mode === 'existing'
+					? absolute
+						? '/?/addToWork'
+						: '?/addToWork'
+					: undefined}
 			>
 				{#if !work}
 					{mode === 'new'

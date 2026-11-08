@@ -948,6 +948,39 @@ a band to select kinds on the library itself?" Designed in
 - **MOVIES and SHOWS**: not kinds yet; each gets a cell by joining the
   registry.
 
+### Acting on a selection from the search (c838)
+
+The search draws the library's bar at its foot: the same seven cells, the same
+sheets, one component (`src/routes/search/SelectionBar.svelte`), the bar's own
+shape unchanged, with the inverse block `✕ · N SELECTED · SHOW` staying the
+entry. Every form the bar and its sheets post is the library's action by its
+absolute path (`/?/bulk`, `/?/fold`, `/?/refresh`, `/?/showAll`, `/?/hideAll`,
+`/?/hideParts`, `/?/delete`, `/?/held`, `/?/shelf`, `/?/group`, `/?/work`,
+`/?/addToWork`); a relative `?/bulk` on `/search` would post to `/search`, which
+has no such action. GROUP's lists (`existing`, `existingWorks`) come from
+`GET /search/selection`, read while selecting, so an ordinary search pays nothing.
+
+SvelteKit applies an answer only to the page it belongs to (`GroupSheet`'s own
+`ondone`, c700), so the search reads each answer itself:
+
+| Action                       | On the library                                  | On the search                                                |
+| ---------------------------- | ----------------------------------------------- | ------------------------------------------------------------ |
+| FAV, RATE                    | `form`, re-read; SELECT stays                   | re-read; SELECT stays                                        |
+| + SHELF                      | re-read; SELECT stays                           | re-read; SELECT stays                                        |
+| GROUP, into a Work or series | the band's UNDO; SELECT ends                    | hits re-read; SELECT ends, no band (the Work is in the hits) |
+| HIDE/UNHIDE (no Work)        | `form`, re-read; SELECT stays (by default)      | re-read; **SELECT ends** (handoff: a bulk action's success)  |
+| HIDE on a Work's part        | the HIDE sheet; the band with UNDO; SELECT ends | the same sheet; `/search`'s own band with UNDO; SELECT ends  |
+| UNHIDE a Work's part         | `?/showAll`, band                               | band; SELECT ends                                            |
+| FOLD                         | `?/fold` redirects to the review                | the same redirect                                            |
+| REFRESH                      | the band over the bar; SELECT stays             | the same band; SELECT stays                                  |
+| DELETE                       | the sheet; SELECT ends                          | the same sheet; SELECT ends                                  |
+| A refusal                    | `foldMessage` over the bar                      | `foldMessage` over the bar; **the selection is kept**        |
+
+`hidBand`, GROUP's and DELETE's own sheets carry their own answers, so nothing
+else is drawn for them on the search. ← after an action carries the ids back
+and posts nothing; a selection carried back acts on those same ids
+(`tests/search-bulk-flow.e2e.ts`).
+
 ## RESCAN asks first
 
 Asked for on 2026-11-04 (c525): "rescan needs a confirmation modal, blocky
