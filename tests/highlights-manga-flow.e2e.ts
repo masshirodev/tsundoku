@@ -226,7 +226,8 @@ test('a late answer: KEEPING… and nothing HIGHLIGHTED until it comes, and pres
 	});
 	await cell(page).click();
 	await expect(cell(page)).toHaveText('KEEPING…');
-	await expect(cell(page)).toBeDisabled();
+	await expect(cell(page)).toHaveAttribute('aria-disabled', 'true');
+	await cell(page).click();
 	await page.keyboard.press('h');
 	await page.waitForTimeout(300);
 	expect(asks).toBe(1);

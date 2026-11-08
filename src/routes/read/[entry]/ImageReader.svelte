@@ -2220,13 +2220,16 @@
 	onmousedown={wakeCursor}
 />
 
+<!-- The opt-out is lifted on a TV while the page menu or a highlight's sheet is
+     open (c703): both are drawn inside the reader, and the focus layer counts
+     nothing under data-focus-off as a stop, so MENU's rows were never the pad's. -->
 <div
 	class="reader"
 	class:vertical={mode === 'vertical'}
 	class:incognito={data.incognito}
 	class:cursor-idle={idle}
 	bind:this={root}
-	data-focus-off={!atEnd && !(tvScreen.current && chrome) ? '' : undefined}
+	data-focus-off={!atEnd && !(tvScreen.current && (chrome || menu || hlOpen)) ? '' : undefined}
 >
 	{#if !data.manifest}
 		<div class="missing">

@@ -258,9 +258,10 @@
 				class="cell hl {highlight.state}"
 				bind:this={hlCell}
 				aria-haspopup="dialog"
-				disabled={highlight.state === 'incognito' || highlight.state === 'keeping'}
+				disabled={highlight.state === 'incognito'}
+				aria-disabled={highlight.state === 'keeping' || undefined}
 				data-focus-mark="in"
-				onclick={() => onhighlight?.()}>{highlight.label}</button
+				onclick={() => highlight?.state !== 'keeping' && onhighlight?.()}>{highlight.label}</button
 			>
 		{/if}
 		{#if fullscreen.available}
@@ -299,6 +300,9 @@
 					type="button"
 					class="ch"
 					class:kept={c.keptId !== null}
+					aria-label="{c.keptId !== null ? `✓ ${c.label}` : c.label} · {c.keptId !== null
+						? 'OPEN'
+						: c.where}"
 					data-focus-start={i === 0 ? '' : undefined}
 					data-focus-mark="in"
 					onclick={() => onchoice?.(c)}
@@ -528,7 +532,10 @@
 		outline: 1px dashed var(--line-2);
 		outline-offset: -1px;
 	}
-	.cell.hl:disabled {
+	/* KEEPING… is aria-disabled, not disabled: a disabled button drops the
+	   TV's focus, and the next OK went to the page instead of the cell. */
+	.cell.hl:disabled,
+	.cell.hl[aria-disabled='true'] {
 		cursor: default;
 	}
 	/* Manga M2: 260px, ruled in ink, over the row. */
