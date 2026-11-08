@@ -8,7 +8,7 @@ where it came from when it doesn't.
 A quote is made in the text reader ("Quotes"), a page in the image reader
 ("Pages"). The record, its life, the copies' folder and its backup,
 `/highlights`, the series screen's row, DELETE's and MOVE's lines and the
-exports serve all three kinds; the player makes no clip yet ("Limits").
+exports serve all three kinds, and the player makes a clip ("Clips").
 
 ## The record
 
@@ -585,17 +585,66 @@ the player's URL (`wayBackHref` writes it, `startSecond` reads it, both in
   played from there makes it the viewer's. An in point past the ending does not
   mark the episode watched on arrival.
 
+## Clips
+
+MARK IN, MARK OUT and KEEP in the player's bar (I, O, ENTER; on a TV, two cells
+after +10 and KEEP takes the pad). The range follows the playhead with its
+length, stops at 3:00 (`3:00 · AT MOST · OUT m:ss`), and an out before the in
+swaps them (`clipRange`). A range past 3:00 asked of the server is cut at 3:00,
+and an out before the in is put in order (`clipAsk`). Kept ranges are boxes above
+the track; a click on one seeks to its start. Offline and incognito dim MARK IN
+with their words, and the server refuses a KEEP from incognito. BACK and ESC drop
+the range before they do anything else.
+
+**The job** (`src/lib/server/highlights/clips.ts`) is in memory, one at a time, in
+a lane of its own, never behind an episode download. A row is written only when
+the clip exists; a job is forgotten by a restart, and its partial files are
+`.part`, swept at the lane's first use (with any file no row points at), so a
+restart mid-cut leaves neither a row nor a file. Being in memory, a clip being
+made is lost to a restart without a word: the owner marks it again.
+
+- **A downloaded episode** is cut from its file in one step, every subtitle track
+  copied with it.
+- **A streamed episode** is fetched first (`FETCHING 1:32 FROM THE STREAM · 1 OF 2`),
+  then cut (`CUTTING · 2 OF 2`). The playlist is read through the loopback proxy
+  and trimmed to the segments covering the range, so ffmpeg asks for those and
+  nothing else: handed the whole list it opens the first segment to probe the
+  stream, whatever `-ss` says. The trimmed list is served over http for the one
+  fetch, because ffmpeg's HLS reader carries the proxy's secret to a segment only
+  from a playlist it opened over http. Subtitles are fetched, cut and shifted to
+  zero here (`cutCues`), each as its own track, with the one showing at KEEP as
+  the clip's default.
+- **Exact to the frame** means the video is encoded: a stream copy can only start
+  on a keyframe. (The handoff's Main 05 says the clip copies the video; the two
+  cannot both hold, and exact won. It costs a few seconds per clip.) The release bundles an **LGPL ffmpeg with no libx264**
+  (`ops/release/versions.json`), so the encoder is chosen at run time: libx264 if
+  this ffmpeg has it, else libopenh264 (the bundle's), else libvpx-vp9.
+- **A stream that stops answering** is noticed even though ffmpeg's HLS reader
+  skips a segment it can't get and exits 0: its warning is read, and a file
+  shorter than its segments add up to is a hole. A range ending past the last
+  segment is the clip that exists, and `clip_out` says where it ended; a range
+  wholly past the stream makes nothing.
+- **Why it wasn't made**: THE STREAM STOPPED ANSWERING AT m:ss, THE WORKSTATION
+  ISN'T ANSWERING (the engine down, or a KEEP nobody answered), NO ROOM ON THE
+  DISK, and two the handoff doesn't name: THE FILE COULDN'T BE READ (a local file
+  that won't read is not a stream), THE EPISODE IS GONE (deleted mid-cut). TRY AGAIN keeps the range and asks the stream afresh.
+- **A second KEEP** of the range already being cut is that job; of another range
+  it waits its turn; of a range already kept it answers the clip that exists.
+- **Leaving or NEXT** does not stop a job; `/highlights` says KEEPING until it is
+  made. A series hidden while its clip is cut is hidden in the row (read at the
+  end) and off the poll with reveal off.
+
 ## Limits
 
-- **No clip is made.** The record, the copies' folder, `/highlights` and the
-  way back serve clips, but the player has no MARK IN, MARK OUT or KEEP, so a
-  clip exists only where a test (or a hand) puts it in the table.
-- **No MP4 with a track burned in.** SAVE CLIP saves the MKV; an MP4 would be
-  made on the workstation by ffmpeg in the clip lane, which clip-making brings.
+- **No MP4 with a track burned in.** SAVE CLIP saves the MKV. The clip lane
+  ("Clips") is where an export would be made, and it is not built.
+- **No NOTE on CLIP KEPT's band** (Anime A7). OPEN → goes to the clip on
+  `/highlights`, where its note is; the small sheet over a paused picture is
+  not built.
 - **The open clip is not the player.** It is the stored copy in a `<video>`
-  with its still; the player's picture and its subtitle renderer live in
-  `VideoPlayer.svelte` (the reader's), and should become one shared piece with
-  it once clips are made.
+  with its still, playing its MKV's default track only if the browser renders
+  it; the player's picture and its subtitle renderer live in
+  `VideoPlayer.svelte` (the reader's), and should become one shared piece.
 - **A chapter's highlights while offline** come from the page's load or a fetch;
   a chapter opened offline that the page did not bring shows only what waits on
   the device.
