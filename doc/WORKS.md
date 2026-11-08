@@ -383,6 +383,9 @@ The route answers with the reason (`… IS IN <WORK> NOW · TAKE IT OUT THERE
 FIRST`), never a 500. Before, `INSERT OR REPLACE` took the series from the Work
 it had joined and left that Work with one member for good.
 
+An UNDO also shows a Work hidden again, part for part, after the press
+(c608, declined: no `hidden_at` rung).
+
 **The facts a band posts back are read before anything is written** (c585,
 wave 25). On the series screen, every UNDO that posts facts (`?/undoTakeOutWork`,
 `?/undoAddToWork`, `?/undoHide`, `?/undoRename`) reads them through

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { coverSrc } from '$lib/library/links';
 	import { coverPlaceholder, hueFor } from '$lib/library/cover';
@@ -31,13 +31,14 @@
 	 * the same title before a volume number (1b).
 	 *
 	 * `?series=` is one series only (FIND or CHANGE on its screen): deciding
-	 * goes back to it.
+	 * goes back to it, but for LINK N SEASONS, which stays with its UNDO (c644).
 	 */
 	let { data } = $props();
 
 	type Item = (typeof data.items)[number];
 	/** One season of an anime (c240), when FIND opened the page on one. */
-	// A partial LINK N SEASONS redraws it from the workstation's answer (c465).
+	// Any LINK N SEASONS redraws it from the workstation's answer (c465, c644),
+	// and its UNDO from a fresh read (`redrawSeason`).
 	// svelte-ignore state_referenced_locally
 	let season = $state(data.season);
 	/** The rest of the show, from the entry just linked: ticked where the counts agree. */
@@ -323,6 +324,8 @@
 		const u = undo;
 		if (!u?.undo || busy) return;
 		busy = true;
+		// A retry that succeeds must not leave the last failure up.
+		failed = null;
 		const r = await post(u.undo.service, {
 			series: u.undo.series,
 			undo: u.undo.kind,
@@ -332,14 +335,24 @@
 			many: u.undo.many,
 			facts: u.undo.facts
 		});
-		busy = false;
 		if (!r?.ok) {
 			// A refusal says why (c592's part 2, c595's LINK N SEASONS): the band
-			// keeps its UNDO, and nothing changed.
-			const why = ((await r?.json().catch(() => ({}))) as { message?: string }).message;
+			// keeps its UNDO, and nothing changed. No answer at all has no body.
+			const why = r
+				? ((await r.json().catch(() => ({}))) as { message?: string }).message
+				: undefined;
 			failed = why ? `${why} · NOTHING UNDONE` : NO_ANSWER;
+			busy = false;
 			return;
 		}
+		// The season under the band came from LINK N SEASONS' answer, which this
+		// UNDO has just taken back: its own other part may have been among the
+		// picks (c644). Still busy, so no decision can act on the old drawing.
+		if (u.undo.kind === 'seasons' && single && season) {
+			await redrawSeason(u.undo.series, season.no);
+			void refreshToLink();
+		}
+		busy = false;
 		if (u.restore) byKey.set(qk(u.restore), u.restore);
 		for (const i of u.restoreMany ?? []) byKey.set(qk(i), i);
 		queue = u.before.queue;
@@ -351,6 +364,30 @@
 		relations = null;
 		pickedSeasons = [];
 		offerFromLink = false;
+	}
+
+	/**
+	 * The layout's TO LINK count, once the page stays after a write that moved
+	 * it (c644). `backToSeries` refreshed it with `invalidateAll`; ← SERIES is a
+	 * plain link and would carry the old number. Only the layout's load depends
+	 * on this, so it does not repeat the page's AniList walk.
+	 */
+	const refreshToLink = () => invalidate('tsundoku:scan');
+
+	/** The page's season as the workstation has it now; unanswered, it stays as drawn. */
+	async function redrawSeason(series: number, no: number) {
+		const r = await fetch(`${resolve('/links/season')}?series=${series}&season=${no}`).catch(
+			() => null
+		);
+		if (!r?.ok) return;
+		// Outside /api/, so a lapsed session is a 303 to /login's HTML: a 200 here.
+		const now = (await r.json().catch(() => null)) as {
+			single: typeof single;
+			season: typeof season;
+		} | null;
+		if (!now) return;
+		single = now.single;
+		season = now.season;
 	}
 
 	async function linkChosen() {
@@ -433,10 +470,12 @@
 	}
 
 	/**
-	 * LINK 3 SEASONS: the ticked entries written at once, then back to the
-	 * series. The band is the workstation's answer, never the page's own ticks
-	 * (c418): a pick another season holds is refused there, and the page stays
-	 * to say which, with the true count.
+	 * LINK 3 SEASONS: the ticked entries written at once. The page stays, also
+	 * from `?series=` and also after a full success (c644: the one decision
+	 * c423's "deciding goes back to the series" gives way for), because a
+	 * multi-season write is the one that needs its UNDO. The band is the
+	 * workstation's answer, never the page's own ticks (c418): a pick another
+	 * season holds is refused there, and the band says which, with the true count.
 	 */
 	async function linkSeasonsNow() {
 		if (!item || busy || !relations || !pickedSeasons.length) return;
@@ -471,14 +510,10 @@
 		const n = a.linked ?? 0;
 		relations = null;
 		offerFromLink = false;
-		if (single && !refused.length) {
-			await backToSeries(it.seriesId);
-			return;
-		}
-		// Some linked, some refused, on one series: the page stays to say which,
-		// so the season it is on is drawn as it now stands -- linked, its LINK
-		// row naming the entry -- not as the review it opened on (c465). The
-		// band names the season still to do.
+		// On one series the page stays (c644), so the season it is on is drawn as
+		// it now stands -- linked, its LINK row naming the entry -- not as the
+		// review it opened on (c465). After a partial link the band names the
+		// season still to do.
 		if (single && a.review) {
 			single = a.review.single;
 			season = a.review.season;
@@ -487,6 +522,7 @@
 			searching = false;
 			chosen = null;
 		}
+		if (single) void refreshToLink();
 		if (!single) {
 			queue = queue.slice(1);
 			done += 1;
@@ -1082,7 +1118,9 @@
 
 	{#if failed}
 		<div class="band" role="alert"><div class="bt"><div class="line">{failed}</div></div></div>
-	{:else if undo}
+	{/if}
+	<!-- A failure takes the place of a band with nothing to take back (SKIP's), never of an UNDO (c644). -->
+	{#if undo && (undo.undo || !failed)}
 		<div class="band" role="status">
 			<div class="bt">
 				<div class="line">{undo.title}</div>

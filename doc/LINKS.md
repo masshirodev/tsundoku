@@ -512,7 +512,8 @@ on desktop and in tablet landscape.
 - `?series=N` is one series only: FIND or CHANGE on its screen. It has no
   SKIP, and deciding goes back to the series, but for a season's LINK on an
   anime with more seasons whose answer has the rest of the show to offer,
-  which it offers first ("The series screen", below). For a hidden series it's
+  which it offers first, and for LINK N SEASONS, which stays with its band
+  and UNDO (c644; both in "The series screen", below). For a hidden series it's
   PASTE A LINK only.
 
 ### The series screen (LISTS, c424; it was Series Link 1k–1t)
@@ -652,10 +653,15 @@ LINK · THE HALVES ARE REVERSED`, above). **An entry another season or part alre
 NEVER TICKED`; c418), since `linkSeason` would refuse it, and a split
   season with a held part is unticked whole. LINK N SEASONS writes the
   ticked ones (`via 'relations'`, each at its own part, `linkPicks`) and
-  goes back to the series; when the workstation refused any (another tab
-  linked meanwhile), the page stays and its band is the answer, not the
-  ticks: `LINKED 1 OF 2 SEASONS · …` and `SEASON 2 NOT LINKED · SEASON 3
-HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. Under that band
+  **the page stays, with its band and UNDO** (c644, the owner's decision of
+  2026-11-07: c423's "deciding goes back to the series" gives way for this
+  one action, because a multi-season write is the one that needs taking back,
+  and on the series screen a wrong pick could only be UNLINKed one season at a
+  time). The band is the workstation's answer, not the ticks: `LINKED 2
+SEASONS · …` when all were written, and, when it refused any (another tab
+  linked meanwhile), `LINKED 1 OF 2 SEASONS · …` and `SEASON 2 NOT LINKED ·
+SEASON 3 HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. ← SERIES
+  goes back when the owner is done. Under that band
   the season the page is on is drawn as it now stands (c465): linked, its
   LINKED row naming the entry with UNLINK beside it, the pasted entry and the
   forms put away -- never the untouched review it opened on. The workstation
@@ -683,8 +689,19 @@ HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. Under that band
   said UNDO and took back half a post would be a lie. It refuses whole, with
   nothing changed, if any part it wrote or read was linked, unlinked or
   decided again since (`LINKED OR DECIDED AGAIN SINCE`), and says
-  `ALREADY UNDONE` to a second press. A reload drops the band, as single
-  LINK's: it is the page's own state. **NOT NOW has two cases on one
+  `ALREADY UNDONE` to a second press. **A press that fails or is refused keeps
+  the band and its UNDO** (c644), with the reason said in its own band above
+  it (`… · NOTHING UNDONE`, or `THE WORKSTATION DID NOT ANSWER · NOTHING
+CHANGED`), so it can be pressed again; so does another decision failing
+  while the band is up. Only a band with nothing to take back (SKIP's) gives
+  way to a failure. A reload drops the band, as single
+  LINK's: it is the page's own state. After the UNDO the season the page is
+  on is drawn again from the workstation (`/links/season`, the page's own
+  reader without its AniList walk; c644), since a pair's other part may have
+  been among the picks. The offer does not come back with it: LINK again on
+  the season, or a reload, asks AniList for it. Both the LINK and its UNDO
+  refresh the layout's TO LINK count (`invalidate('tsundoku:scan')`), which
+  ← SERIES, a plain link, would otherwise carry back stale. **NOT NOW has two cases on one
   series.** After a LINK made on the page, it goes back to the series, the
   season just linked showing on its line on LISTS (c423, round 2). An offer that
   came with the page's load (CHANGE in EDIT's sheet on a linked season, while another season

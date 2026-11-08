@@ -5,9 +5,9 @@ import { idsLine, wrongKind } from '$lib/library/catalogue';
 /**
  * What `/links?series=N` draws of the season it is on (c240): the LINKED row
  * (`single`) and the season's own header and parts (`season`). The page's
- * load draws it once, and LINK N SEASONS answers it again after a partial
- * link (c465), so the page redraws the season as it now stands rather than
- * the review it opened on.
+ * load draws it once, LINK N SEASONS answers it again (c465, c644), and
+ * `/links/season` after that link's UNDO, so the page redraws the season as
+ * it now stands rather than the review it opened on.
  *
  * `part` 2 is the season's second part by hand (c350, `&part=2`, opened by
  * `+ A SECOND PART`): the LINKED row is part 2's own link, the decisions act

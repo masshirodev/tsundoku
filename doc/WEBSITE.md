@@ -56,7 +56,9 @@ of the tests' own (`readRelease(text, key)`), never the release key.
 (TESTING.md), so neither collects the site's files, and the site's own
 configs collect nothing of the app's. Like `scripts/` and `ops/`, `site/` runs
 under Node's type stripping and isn't in svelte-check's tsconfig; ESLint and
-its own tests cover it.
+its own tests cover it, and `yarn run check` type-checks it with
+`tsc -p site/tsconfig.json` (c718), `checkJs` over `site/src/*.js` included.
+`site/src/globals.d.ts` names what the build inlines above `site.js`.
 
 ## What the build reads, never types
 
@@ -287,5 +289,3 @@ Each of these is deliberate; don't "fix" it back to the drawing.
   hidden content, but whether HIDE belongs on a public figure is the owner's
   call; cropping or retaking FIG. 2 is the fix if not.
 - No Open Graph image or social card.
-- Not in svelte-check: `site/` is type-stripped TypeScript, linted and tested
-  but not type-checked, like `scripts/` and `ops/`.
