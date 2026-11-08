@@ -441,6 +441,139 @@ test('the stored band: two tabs, one row, and a new import brings a new band (c4
 	}
 });
 
+/** A quote on the first series, through the columns `tests/highlights-flow.e2e.ts` writes. */
+function putHighlight(quote: string): number {
+	const db = new Database(dbPath);
+	const info = db
+		.prepare(
+			`INSERT INTO highlights (kind, series_id, entry_id, origin_key, number, season, block, block_offset,
+				page, clip_in, clip_out, series_title, series_kind, entry_label, entry_title, quote, paragraph,
+				context, colour, note, made_at, hidden, copy_path, still_path, copy_bytes, copy_width, copy_height)
+			VALUES ('quote', ?, NULL, NULL, 1, NULL, 0, 0, NULL, NULL, NULL, 'Band Series', 'novel', 'Ch. 1', '',
+				?, ?, '', NULL, '', ?, 0, '', '', 0, NULL, NULL)`
+		)
+		.run(seriesId, quote, quote, Date.now());
+	db.close();
+	return Number(info.lastInsertRowid);
+}
+const deletedAt = (id: number) => {
+	const db = new Database(dbPath, { readonly: true });
+	const row = db.prepare(`SELECT deleted_at AS at FROM highlights WHERE id = ?`).get(id) as {
+		at: number | null;
+	};
+	db.close();
+	return row.at;
+};
+
+test('/highlights: ✕ takes HIGHLIGHT DELETED, a reload keeps it gone, it stays deleted, and the next one draws (c493)', async ({
+	page,
+	context
+}) => {
+	const one = putHighlight('Quote one to delete');
+	const two = putHighlight('Quote two to delete');
+	await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
+	await page.goto(`${BASE}/highlights`);
+	const row = (q: string) => page.locator('a.hl', { hasText: q });
+	const open = page.locator('aside.open');
+	const deleted = band(page, 'HIGHLIGHT DELETED');
+
+	await row('Quote one').click();
+	await open.getByRole('button', { name: 'COPY', exact: true }).click();
+	const copied = band(page, 'COPIED · 1');
+	await expect(copied).toBeVisible();
+	// The open quote covers the band on a tablet; COPY leaves it open.
+	await open.getByRole('link', { name: 'Close' }).click();
+	await x(copied).click();
+	await expect(copied).toHaveCount(0);
+	await page.reload();
+	await expect(copied).toHaveCount(0);
+
+	await row('Quote one').click();
+	await open.getByRole('button', { name: 'DELETE' }).click();
+	await expect(deleted).toBeVisible();
+	await x(deleted).click();
+	await expect(deleted).toHaveCount(0);
+	await page.reload();
+	await expect(deleted).toHaveCount(0);
+	expect(deletedAt(one), 'dismiss is not UNDO').not.toBeNull();
+
+	// A new event brings a new band, the way a real answer does.
+	await row('Quote two').click();
+	await open.getByRole('button', { name: 'DELETE' }).click();
+	await expect(deleted).toBeVisible();
+	expect(deletedAt(two)).not.toBeNull();
+
+	// A refusal, as `?/undo` answers one when the row is gone for good: its own ✕.
+	const gone = new Database(dbPath);
+	gone.prepare(`DELETE FROM highlights WHERE id = ?`).run(two);
+	gone.close();
+	await deleted.getByRole('button', { name: 'UNDO' }).click();
+	const refused = band(page, 'THAT HIGHLIGHT HAS GONE FOR GOOD');
+	await expect(refused).toBeVisible();
+	await x(refused).click();
+	await expect(refused).toHaveCount(0);
+	await page.reload();
+	await expect(refused).toHaveCount(0);
+});
+
+test('/search: ✕ takes HIDDEN, a reload keeps it gone, and the Work stays hidden (c493)', async ({
+	page
+}) => {
+	// Named: the stored-band case above leaves an import band up, and with one
+	// the library opens on NEW.
+	await page.goto(`${BASE}/?shelf=all`);
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	// Two the seed can group: the pair `works-library-frame` makes a Work of.
+	for (const title of ["Omniscient Reader's Viewpoint", 'Hoshi no Umi no Tabibito'])
+		await page
+			.locator('.grid .tile')
+			.filter({ has: page.locator('.title', { hasText: new RegExp(`^${title}$`) }) })
+			.locator('.open')
+			.click();
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const group = page.getByRole('dialog', { name: 'Group into a series' });
+	await group.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await group.getByRole('textbox', { name: 'Work name' }).fill('Bandhide Run');
+	await group.getByRole('button', { name: /CREATE WORK/ }).click();
+	await expect(page.locator('.band', { hasText: 'BANDHIDE RUN IS A WORK' })).toBeVisible();
+
+	// HIDE on a hit's sheet, the door that hands /search its band (c391).
+	await page.goto(`${BASE}/search?q=Omniscient`);
+	// A part of a Work: a series hit, so its sheet is the one that hands the band over.
+	await page.locator('.hit:not(.work)', { hasText: "Omniscient Reader's Viewpoint" }).click();
+	const sheet = page.getByRole('dialog', { name: "Omniscient Reader's Viewpoint" });
+	await sheet.getByRole('button', { name: /HIDE ALL 2/ }).click();
+	const hidden = band(page, 'HIDDEN');
+	await expect(hidden).toBeVisible();
+	await expect(hidden.getByRole('button', { name: 'UNDO' })).toBeVisible();
+	await x(hidden).click();
+	await expect(hidden).toHaveCount(0);
+	await page.reload();
+	await expect(hidden).toHaveCount(0);
+
+	const db = new Database(dbPath, { readonly: true });
+	const hiddenCount = db
+		.prepare(
+			`SELECT COUNT(*) AS n FROM series s JOIN work_series w ON w.series_id = s.id WHERE s.hidden = 1`
+		)
+		.get() as { n: number };
+	db.close();
+	expect(hiddenCount.n, 'dismiss is not UNDO').toBeGreaterThan(0);
+});
+
+test('SETTINGS: ✕ takes the sign-in band and its URL, and a reload keeps it gone (c493)', async ({
+	page
+}) => {
+	await page.goto(`${BASE}/settings?signin=ok&service=anilist`);
+	const signin = band(page, 'SIGNED IN TO');
+	await expect(signin).toBeVisible();
+	await x(signin).click();
+	await expect(signin).toHaveCount(0);
+	await expect.poll(() => new URL(page.url()).search).toBe('');
+	await page.reload();
+	await expect(signin).toHaveCount(0);
+});
+
 test('a band that says what is true now has no ✕ (c493)', async ({ context, page }) => {
 	await context.addCookies([{ name: 'tsundoku_incognito', value: '1', url: BASE }]);
 	await page.goto(`${BASE}/`);

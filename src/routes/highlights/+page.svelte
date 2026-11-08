@@ -91,7 +91,9 @@
 	);
 
 	// DELETE's band: HIGHLIGHT DELETED · UNDO, while the page is on screen.
-	const deleted = $derived(form && 'deleted' in form ? Number(form.deleted) : null);
+	let droppedAnswer = $state.raw<typeof form>(null);
+	const latest = $derived(form === droppedAnswer ? null : form);
+	const deleted = $derived(latest && 'deleted' in latest ? Number(latest.deleted) : null);
 
 	// EXPORT (Out X1): the Markdown of what shows, from the same pure function the file uses.
 	let exporting = $state(false);
@@ -204,7 +206,7 @@
 	</header>
 
 	{#if deleted !== null}
-		<Band title="HIGHLIGHT DELETED">
+		<Band title="HIGHLIGHT DELETED" ondismiss={() => (droppedAnswer = form)}>
 			{#snippet action()}
 				<form method="POST" action="?/undo" use:enhance>
 					<input type="hidden" name="id" value={deleted} />
@@ -213,9 +215,9 @@
 			{/snippet}
 		</Band>
 	{:else if copied !== null}
-		<Band title="COPIED · {num(copied)}" />
-	{:else if form && 'message' in form && form.message}
-		<Band title={String(form.message).toUpperCase()} />
+		<Band title="COPIED · {num(copied)}" ondismiss={() => (copied = null)} />
+	{:else if latest && 'message' in latest && latest.message}
+		<Band title={String(latest.message).toUpperCase()} ondismiss={() => (droppedAnswer = form)} />
 	{/if}
 
 	{#if data.all === 0}

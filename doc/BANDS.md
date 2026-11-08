@@ -132,11 +132,14 @@ no ✕ and the reasons are here to be overturned.
   cell beside TIDY NEW, rather than moving onto `Band`'s, which would lose
   TIDY NEW's accent cell and SEE LOG's link in the detail line.
 
-### Not done yet
+`IMPORT FINISHED` and `SERIES TO LINK` keep their own ✕, on `Banner` (c493's
+follow-up: a `Banner` dismiss cell, Suggestions in the wave 37 notes).
 
-These are other slots' screens this wave. Each band belongs in the first table
-and is listed here until its patch lands:
+### Also dismissed (wave 38)
 
-- `/highlights`: `HIGHLIGHT DELETED`, `COPIED · N`, a refusal.
-- `/search`: the hide band and its UNDO.
-- SETTINGS: the sign-in band.
+| Screen     | Band                                | Where it lives | What ✕ does                                |
+| ---------- | ----------------------------------- | -------------- | ------------------------------------------ |
+| Highlights | `HIGHLIGHT DELETED`, a refusal      | A form answer  | Drops that answer until the next one comes |
+| Highlights | `COPIED · N`                        | The page       | Clears it                                  |
+| Search     | `HIDDEN`/`SHOWN` a Work whole, UNDO | The page       | Clears it; UNDO goes with it               |
+| SETTINGS   | The AniList/Ranobe sign-in band     | The URL        | `clearBandUrl(['signin', 'service'])`      |

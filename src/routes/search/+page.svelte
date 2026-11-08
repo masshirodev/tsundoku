@@ -465,6 +465,7 @@
 	<Band
 		title={hid?.refused || hidBand.title}
 		detail={hid?.refused ? hidBand.title : hidBand.detail}
+		ondismiss={() => (hid = null)}
 	>
 		{#snippet action()}
 			<form method="POST" action={hidBand.action} use:enhance={undoHid}>
