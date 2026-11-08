@@ -203,6 +203,36 @@ the middle of the cell. An unavailable row keeps its `—` in the same cell.
 `tests/continue-row.e2e.ts` measures the ink's centroid from the cell's own
 pixels on the row's states.
 
+**The band opens the entry, ▶ goes straight to the reader** (c841). The row is
+a real `<a>` around the cover, the text and the progress, with ▶ its sibling,
+so there is no button inside a link and the row's padding and the gap before ▶
+are the link too. A series' row goes to `/series/<id>?from=continue` (its ←
+reads _Continue · Library_), a Work's row to `/work/<id>`, as its tile does.
+The band stops being a link where it has nowhere honest to go, and then it is
+what it always was, a row that takes no tap:
+
+| State                                                         | The band                                                                                      | ▶                  |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------ |
+| Online                                                        | link                                                                                          | resumes            |
+| Selecting (tablet, desktop; a phone hides the row)            | no link: every tap is a pick, and a row is not one, so a stray tap must not end the selection | resumes, as before |
+| Offline, nothing of it on this device (`unavailable`, dimmed) | no link                                                                                       | `—`                |
+| Offline, chapters on this device, its screen kept             | link                                                                                          | resumes            |
+| Offline, chapters on this device, its screen never kept       | no link                                                                                       | resumes            |
+
+Why the last row: offline, the worker answers a series it never kept with the
+library's copy, under the series' URL, so the tap would land on the library
+looking like nothing happened (measured in c841, `/series/1` showing the
+library). Only a screen's whole document can be kept, because SvelteKit sends
+`__data.json` as `no-store` and the worker never stores that
+(`src/service-worker.ts`, `storable`; `doc/OFFLINE.md`), so a series opened from
+inside the app is not kept and a row is usually in this state.
+
+On a TV the card has **two stops**: ▶ is a 48 px ruled cell at the card's end,
+the first stop and what BACK climbs to, and the band is the rest. A trip to the
+series comes back to the stop it left. ↓ from the first ▶ goes to the first
+shelf tab (`data-focus-down`), where the whole card used to take it. ▶❚❚ on
+either stop resumes.
+
 ## New chapters
 
 A tile's `+N` counts entries that **arrived after the series was last opened**:

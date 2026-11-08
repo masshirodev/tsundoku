@@ -221,6 +221,14 @@ test('The library with Works: footLabel matches the handoff', async ({ page }) =
 	expect(footLabelStyle.display).toBe('block');
 });
 
+test('A Work’s CONTINUE row opens its Work, as its tile does (c841)', async ({ page }) => {
+	await page.goto(`${base}/`);
+	const band = page.locator('.cont .row.work').first().locator('a.band');
+	await expect(band).toHaveAttribute('href', `/work/${workId}`);
+	await band.click();
+	await page.waitForURL(`**/work/${workId}`);
+});
+
 test('The library with Works: continueRow matches the handoff', async ({ page }) => {
 	await page.goto(`${base}/`);
 	await expect(page.locator(SEL.continueRow).first()).toBeVisible();

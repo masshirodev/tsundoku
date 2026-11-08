@@ -1229,8 +1229,28 @@
 			void goto(`/work/${c.tile.id}`);
 			return;
 		}
-		// The series screen opens with what this tile already knows (doc/WAITING.md).
-		waiting.preview = {
+		waiting.preview = previewOf(c);
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref() resolves
+		void goto(seriesHref(c.id, data.tag ? null : data.shelf));
+	}
+
+	/** The series screen opens with what this tile already knows (doc/WAITING.md). */
+	function previewOf(
+		c: Pick<
+			LibraryCard,
+			| 'id'
+			| 'title'
+			| 'kind'
+			| 'hue'
+			| 'rating'
+			| 'favourite'
+			| 'hidden'
+			| 'entryCount'
+			| 'readCount'
+			| 'cover'
+		>
+	) {
+		return {
 			id: c.id,
 			title: c.title,
 			kind: c.kind,
@@ -1242,8 +1262,6 @@
 			readCount: c.readCount,
 			cover: c.cover
 		};
-		// eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref() resolves
-		void goto(seriesHref(c.id, data.tag ? null : data.shelf));
 	}
 
 	// A shelf tab on its way past 1 s: the grid in outline, CONTINUE and the
@@ -1434,6 +1452,43 @@
 	// count to pad the last row, which is cosmetic and can wait for hydration.
 	const columns = $derived(phone.current ? 3 : desktop.current ? 8 : wide.current ? 9 : 6);
 	const contShown = $derived(data.cont.items.slice(0, 4));
+
+	/** The screens the service worker keeps (src/service-worker.ts, `SCREENS`). */
+	const SCREENS_CACHE = 'tsundoku-screens';
+	/** A CONTINUE row's own page: a Work's row to its Work, as its tile opens. */
+	const rowPath = (item: (typeof contShown)[number]) =>
+		item.work ? `/work/${item.work.id}` : `/series/${item.id}`;
+	/**
+	 * Offline, which rows' pages this device has kept. Going to one it has not
+	 * is not an error anyone sees: the worker answers with the library's copy
+	 * under the series' URL (measured, c841), so such a row goes nowhere. Only a
+	 * screen's document can be kept: SvelteKit sends `__data.json` as no-store,
+	 * and the worker never stores that (`storable`).
+	 */
+	let keptScreens = $state.raw<string[]>([]);
+	$effect(() => {
+		if (!isOffline) return;
+		const paths = contShown.map(rowPath);
+		let live = true;
+		void (async () => {
+			const cache = await caches.open(SCREENS_CACHE);
+			const kept: string[] = [];
+			for (const path of paths) {
+				if (await cache.match(path, { ignoreSearch: true })) kept.push(path);
+			}
+			if (live) keptScreens = kept;
+		})();
+		return () => {
+			live = false;
+		};
+	});
+	/** Where a CONTINUE row's band goes, or null where it has nowhere honest to go (doc/LIBRARY.md). */
+	function continueHref(item: (typeof contShown)[number]): string | null {
+		// Every tap is a pick while selecting, and a row is not one (doc/LIBRARY.md).
+		if (selecting) return null;
+		if (isOffline && (cachedOn(item) === 0 || !keptScreens.includes(rowPath(item)))) return null;
+		return item.work ? `/work/${item.work.id}` : seriesHref(item.id, 'continue');
+	}
 	const showContinue = $derived(contShown.length > 0 && !scanning && !justImported);
 
 	const cachedCount = (id: number) => offline.cached[id] ?? 0;
@@ -2335,7 +2390,11 @@
 							src={coverSrc(item.id, item.cover)}
 							hue={item.hue}
 							unavailable={isOffline && !cached}
+							href={continueHref(item)}
+							onopen={item.work ? undefined : () => (waiting.preview = previewOf(item))}
 							focusId={`continue-${item.id}`}
+							linkFocusId={`cont-${item.id}`}
+							focusDown={i === 0 ? '.tabs nav .tab' : undefined}
 							startFocus={i === 0}
 							onresume={item.resumeId !== null
 								? // eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves

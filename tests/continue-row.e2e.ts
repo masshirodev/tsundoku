@@ -1,4 +1,5 @@
 import { type Locator, type Page } from '@playwright/test';
+import { markerPath } from '../src/lib/cache/policy';
 import { expect, test } from './fixtures';
 
 /**
@@ -62,8 +63,7 @@ test.describe('▶ in its cell (c840)', () => {
 
 	test('the triangle’s centroid is the cell’s middle, in each of the row’s states', async ({
 		page
-	}, info) => {
-		test.skip(info.project.name === 'tv', 'a TV draws the card, not this cell');
+	}) => {
 		await page.goto('/');
 		await expect(firstGo(page)).toBeVisible();
 		await within(page, 'plain');
@@ -75,8 +75,7 @@ test.describe('▶ in its cell (c840)', () => {
 		await within(page, 'accent');
 	});
 
-	test('an unavailable row keeps its dash and its accessible name', async ({ page }, info) => {
-		test.skip(info.project.name === 'tv', 'a TV draws the card, not this cell');
+	test('an unavailable row keeps its dash and its accessible name', async ({ page }) => {
 		await page.goto('/');
 		await expect(firstGo(page)).toBeVisible();
 		const label = await firstGo(page).getAttribute('aria-label');
@@ -91,5 +90,147 @@ test.describe('▶ in its cell (c840)', () => {
 		await expect(dimmed).toHaveAttribute('aria-label', /^(Resume|Start) /);
 		await expect(dimmed.locator('svg')).toHaveCount(0);
 		await page.context().setOffline(false);
+	});
+});
+
+/**
+ * The band is a link and ▶ its sibling (c841). The seed's CONTINUE has only
+ * series; a Work's row is walked in `tests/works-library-frame.e2e.ts`, whose
+ * own database has one.
+ */
+const row = (page: Page) => page.locator('.cont > .row').first();
+
+test.describe('the band opens the entry, ▶ the reader (c841)', () => {
+	test('valid HTML: a link around the cover, text and progress, with ▶ its sibling', async ({
+		page
+	}) => {
+		await page.goto('/');
+		const band = row(page).locator('> a.band');
+		await expect(band).toHaveCount(1);
+		await expect(band).toHaveAttribute('href', /^\/series\/\d+\?from=continue$/);
+		for (const part of ['> .cover', '> .text', '> .progress'])
+			await expect(band.locator(part)).toHaveCount(1);
+		await expect(row(page).locator('> button.go')).toHaveCount(1);
+		await expect(row(page).locator('a button, a a, button a')).toHaveCount(0);
+	});
+
+	test('a tap anywhere on the band opens the series; ← comes back; ▶ opens the reader', async ({
+		page
+	}) => {
+		await page.goto('/');
+		const band = row(page).locator('a.band');
+		const href = (await band.getAttribute('href'))!;
+		const box = (await row(page).boundingBox())!;
+		// The row's own left padding, the part of the band with nothing drawn on it.
+		await page.mouse.click(box.x + 3, box.y + box.height / 2);
+		await page.waitForURL((u) => u.pathname + u.search === href);
+		await page.goBack();
+		await page.waitForURL((u) => u.pathname === '/');
+		await expect(row(page)).toBeVisible();
+
+		await row(page).locator('.go').click();
+		await page.waitForURL(/\/read\/\d+/);
+	});
+
+	test('the gap before ▶ is the band too, and ▶ never follows the band', async ({ page }) => {
+		await page.goto('/');
+		const go = (await row(page).locator('.go').boundingBox())!;
+		const at = await page.evaluate(
+			([x, y]) => document.elementFromPoint(x, y)?.closest('a.band') !== null,
+			[go.x - 6, go.y + go.height / 2]
+		);
+		expect(at, 'the 16 px before ▶ belongs to the link').toBe(true);
+		const hit = await page.evaluate(
+			([x, y]) => document.elementFromPoint(x, y)?.closest('a.band') === null,
+			[go.x + go.width / 2, go.y + go.height / 2]
+		);
+		expect(hit, '▶ is not under the link').toBe(true);
+	});
+
+	test('while selecting a tap on the row is not a way out', async ({ page }, info) => {
+		// A phone hides the row while selecting; there is nothing to tap.
+		test.skip(info.project.name === 'phone', 'the phone has no row while selecting');
+		await page.goto('/');
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		await expect(row(page).locator('a.band')).toHaveCount(0);
+		const box = (await row(page).boundingBox())!;
+		await page.mouse.click(box.x + 3, box.y + box.height / 2);
+		await page.waitForTimeout(300);
+		expect(new URL(page.url()).pathname).toBe('/');
+		await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
+	});
+
+	test('offline and not cached, the row goes nowhere; offline with its screen kept, it does', async ({
+		page,
+		context
+	}, info) => {
+		test.skip(info.project.name !== 'tablet-portrait', 'the worker, once');
+		test.setTimeout(180_000);
+		await page.goto('/');
+		await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, null, {
+			timeout: 90_000
+		});
+		await page.reload();
+		await expect(row(page).locator('a.band')).toHaveCount(1);
+		const href = (await row(page).locator('a.band').getAttribute('href'))!;
+		const id = Number(/\/series\/(\d+)/.exec(href)![1]);
+
+		// A row with nothing cached: the dash, and no link, whatever the worker keeps.
+		await context.setOffline(true);
+		await page.evaluate(() => dispatchEvent(new Event('offline')));
+		await expect(row(page)).toHaveClass(/unavailable/);
+		await expect(row(page).locator('a.band')).toHaveCount(0);
+		await context.setOffline(false);
+		await page.evaluate(() => dispatchEvent(new Event('online')));
+
+		// A chapter on the tablet (the marker the reader's download leaves, which
+		// is all `cachedOn` reads) and the series' screen never seen: the worker
+		// would answer with the library under a series URL (measured, c841), so
+		// the row must not offer it. ▶ stays, because the chapter really is here.
+		const entry = 1;
+		await page.evaluate(
+			async ([marker]) => {
+				const entries = await caches.open('tsundoku-entries');
+				await entries.put(marker, new Response('1'));
+			},
+			[markerPath(id, entry)]
+		);
+		// Nothing kept yet for this series: an earlier run's screens are the
+		// worker's, so make the state as a first visit finds it.
+		await page.evaluate(async (seriesId) => {
+			const screens = await caches.open('tsundoku-screens');
+			for (const key of await screens.keys())
+				if (new URL(key.url).pathname.startsWith(`/series/${seriesId}`)) await screens.delete(key);
+		}, id);
+		await context.setOffline(true);
+		await page.evaluate(() => dispatchEvent(new Event('offline')));
+		await expect(row(page)).not.toHaveClass(/unavailable/);
+		await expect(row(page).locator('.go')).toBeEnabled();
+		await expect(row(page).locator('a.band')).toHaveCount(0);
+		await context.setOffline(false);
+		await page.evaluate(() => dispatchEvent(new Event('online')));
+
+		// A document loaded whole is kept (a data fetch is not: SvelteKit sends it
+		// no-store); offline the band goes there, and it is the series that opens
+		// (its URL and its own title), not the library's copy.
+		await page.goto(href);
+		await page.waitForLoadState('networkidle');
+		await page.goto('/');
+		await expect(row(page).locator('a.band')).toHaveCount(1);
+		await context.setOffline(true);
+		await page.evaluate(() => dispatchEvent(new Event('offline')));
+		await expect(row(page).locator('a.band')).toHaveCount(1);
+		const title = (await row(page).locator('.title').textContent())!.trim();
+		await row(page).locator('a.band').click();
+		await page.waitForURL((u) => u.pathname === `/series/${id}`);
+		await expect(page.getByRole('heading', { name: title })).toBeVisible();
+		await context.setOffline(false);
+		await page.evaluate(
+			async ([marker]) => {
+				const entries = await caches.open('tsundoku-entries');
+				await entries.delete(marker);
+			},
+			[markerPath(id, entry)]
+		);
 	});
 });
