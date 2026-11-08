@@ -55,7 +55,8 @@ database (rung 0) has nothing to lose, so it's never copied.
 
 `ops/systemd/` holds a user service and timer: 04:00 every night, `Persistent`
 so a night the workstation was off is made up at the next boot, at idle I/O
-priority. After a snapshot it sweeps `$COVER_DIR/episodes/` of
+priority. After a snapshot it mirrors the highlights' copies ("Highlights'
+copies", below), then sweeps `$COVER_DIR/episodes/` of
 the pictures and seek-preview sprites of entries that are gone (doc/ANIME.md,
 "Episode pictures": the nightly sweep, c454). The service calls mise's `node` shim directly, so it doesn't need a
 login shell. To install:
@@ -103,9 +104,20 @@ place (`mirrorHighlights`):
   would erase them.
 - **Retention never touches it**: it prunes only the names it writes, and the
   mirror's folder is none of them.
-- A mirror that fails after the snapshot fails the run (`backup failed: …` in
-  the unit's journal), and the snapshot stays: the database never loses its
-  night to a copy.
+- **Every night says what the mirror did**, on the line after the snapshot's
+  `saved …` and its `pruned …` lines (c730): `highlights' copies: 3 copied,
+120 kept, 0 missing, 0 set aside, 0 pruned`, or `highlights' copies:
+skipped (no source), nothing copied or set aside`, so a night an unmounted
+  data folder skipped is in the unit's journal, not silent.
+- **A mirror that fails costs the run, not the database or the sweep.**
+  `takeSnapshot` catches the mirror's error (an ENOSPC, an EACCES, a file where
+  `BACKUP_DIR/highlights/` should be) and returns it as `copiesError`, with
+  `copies: null`; the snapshot is already in place and pruned. The script
+  prints `highlights' copies failed: …`, still runs the episode files' sweep,
+  and only then exits 1, so the unit is marked failed. Before c730 the error
+  was thrown, the run said `backup failed: …` and the sweep never ran. A
+  partial mirror's counts go with its error; the next night copies what this
+  one didn't.
 
 The pre-migration snapshot (above) copies the database alone; the nightly run
 is the one that mirrors.

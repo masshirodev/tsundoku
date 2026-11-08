@@ -475,9 +475,9 @@ data-total-chapters="3237"`, so the plugin's `y` is truthy and it POSTs its
   The solver's own lines for the first. FlareSolverr logs `Challenge detected`
   or `Challenge not detected!` once `driver.get` returns, so its log says
   whether its browser got past navigation to a title at all. Neither line
-  appears for these requests (`grep -c 'Challenge detected'
-temp/novels/round2-solver.log` prints 0), and `Navigating to...` is followed
-  straight by the timeout:
+  appears for these requests: the run's solver log held no such line (it was
+  written to the gitignored `temp/`, so it is not in the tree to grep), and
+  `Navigating to...` is followed straight by the timeout:
 
   ```text
   2026-11-06 18:40:26 INFO     ReqId 139855970195136 Incoming request => POST /v1 body: {'cmd': 'request.get', 'url': 'https://freewebnovel.com/novel/shadow-slave/chapter-1', 'maxTimeout': 50000}

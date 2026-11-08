@@ -521,7 +521,7 @@ remote.
   every page-turning spec still depends on it — and the opt-out is now
   `!atEnd && !(TV && chrome)`: with the chrome up the pad walks its cells.
   Off a TV nothing changes (the reader still owns every arrow, chrome or not).
-  On a vertical strip with the chrome hidden, ← → nudge it 40 px, as a
+  On a vertical strip with the chrome hidden, ← → nudge it 100 px (`NUDGE`, since c668), as a
   keyboard's do (c527, [`READER.md`](READER.md) "Scrolling on a PC"): a remote
   has no Ctrl for Ctrl + ↓ / ↑, so this is its one nudge.
 - **OK brings it up with focus on the page scrubber**, as 7D draws: the

@@ -80,7 +80,7 @@ test.describe('a browser that speaks Portuguese', () => {
 			await expect(
 				page.locator('.sugg.offer').getByText('PODE CONTINUAR KAZE NO UTA · COMO PARTE 3')
 			).toBeVisible();
-			// Its second lines too: the count (a plural) and the reason (wave 30).
+			// Its second lines too: the count (a plural) and the reason (wave 31).
 			await expect(page.locator('.sugg:not(.offer) .sugg-head .dim')).toHaveText(
 				'3 LIVROS · "KAZE NO UTA …"'
 			);

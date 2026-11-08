@@ -38,8 +38,18 @@ export type Snapshot = {
 	series: number;
 	entries: number;
 	pruned: string[];
-	/** The highlights' copies mirrored beside it (c701), null when it was told not to. */
+	/**
+	 * The highlights' copies mirrored beside it (c701): null when it was told not
+	 * to, or when the mirror failed (then `copiesError` says why).
+	 */
 	copies: Mirror | null;
+	/**
+	 * Why the mirror failed (c730), or null. The snapshot is in place and pruned
+	 * either way: a copy's failure never costs the database its night, and the
+	 * caller decides what it costs the run (scripts/backup.ts exits 1 once its
+	 * sweep has run).
+	 */
+	copiesError: string | null;
 };
 
 export class BackupError extends Error {}
@@ -47,7 +57,9 @@ export class BackupError extends Error {}
 const quote = (s: string) => `'${s.replaceAll("'", "''")}'`;
 
 /** Open a snapshot read-only and make sure it's a database worth keeping. */
-export function verify(path: string): Omit<Snapshot, 'path' | 'bytes' | 'pruned' | 'copies'> {
+export function verify(
+	path: string
+): Omit<Snapshot, 'path' | 'bytes' | 'pruned' | 'copies' | 'copiesError'> {
 	const db = new Database(path, { readonly: true, fileMustExist: true });
 	try {
 		const check = db.pragma('integrity_check', { simple: true });
@@ -108,19 +120,25 @@ export function takeSnapshot(
 	}
 	const pruned = toPrune(base, readdirSync(dir), opts.tiers ?? DEFAULT_TIERS);
 	for (const name of pruned) rmSync(join(dir, name), { force: true });
-	const source = opts.highlights === undefined ? highlightsArea().root : opts.highlights;
 	// After the snapshot, so a copy that fails to mirror never costs the
-	// database its night: the snapshot is on disk, and the error is said.
-	const copies =
-		source === null
-			? null
-			: mirrorHighlights(
-					source,
-					join(dir, HIGHLIGHTS_MIRROR),
-					namedCopies(path),
-					opts.now ?? new Date()
-				);
-	return { path, bytes: statSync(path).size, ...verify(path), pruned, copies };
+	// database its night: the snapshot is on disk, and the error is returned,
+	// not thrown (c730), so the caller still runs what comes after it. Its
+	// partial counts are lost with it; the next night copies what this one didn't.
+	let copies: Mirror | null = null;
+	let copiesError: string | null = null;
+	try {
+		const source = opts.highlights === undefined ? highlightsArea().root : opts.highlights;
+		if (source !== null)
+			copies = mirrorHighlights(
+				source,
+				join(dir, HIGHLIGHTS_MIRROR),
+				namedCopies(path),
+				opts.now ?? new Date()
+			);
+	} catch (e) {
+		copiesError = e instanceof Error ? e.message : String(e);
+	}
+	return { path, bytes: statSync(path).size, ...verify(path), pruned, copies, copiesError };
 }
 
 // ---- the highlights' copies (c701; doc/BACKUPS.md, "Highlights' copies") -------------------

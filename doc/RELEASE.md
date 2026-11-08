@@ -15,6 +15,7 @@ git push origin release/2026.10.29    # the tag too: git push never sends one by
 yarn run release 2026.10.29           # both platforms, from that tag
 ops/release/android-apk.sh 2026.10.29 # both apps, from that tag, with the keystore
 ops/release/smoke.sh 2026.10.29       # every bundle, where tsundoku has never been
+                                      # (`… linux-x64` alone is enough to install, not to publish)
 $EDITOR ops/release/notes/2026.10.29.txt
 yarn run release:publish 2026.10.29   # the owner's call: this reaches friends
 ```
@@ -414,15 +415,61 @@ console by itself after it logs out.
 **The updater** (`smoke/windows-update.ps1`, [`UPDATES.md`](UPDATES.md),
 "Tests"): offered a signed pretend 9999.01.01 by Zen itself, UPDATE downloads,
 checks and runs the installer, and tsundoku comes back by itself on the same
-data. A run of smoke.sh that passes on every platform writes `out/<v>/.smoked`,
-which publishing and `install-release.sh` require.
+data.
 
-**The mark speaks for the bundles it tested** (`ops/release/smoked.ts`,
-`tests/release-smoked.spec.ts`). `yarn run release` deletes it before building,
-and both readers also refuse a bundle newer than it, which catches a bundle
-replaced any other way. Rebuilding a version therefore means smoke-testing it
-again. The APKs don't count, since no smoke test runs them: `android-apk.sh` can
-run before or after smoke.sh, and leaves the mark alone. The line stays
+### Which run each path needs (c750)
+
+| Run                                  | Writes, when it passes                 | Enough to                                 |
+| ------------------------------------ | -------------------------------------- | ----------------------------------------- |
+| `ops/release/smoke.sh <v>`           | `out/<v>/.smoked` (and the Linux mark) | publish, and install on the workstation   |
+| `ops/release/smoke.sh <v> linux-x64` | `out/<v>/.smoked-linux-x64`            | install on the workstation, never publish |
+| `ops/release/smoke.sh <v> win-x64`   | nothing                                | nothing on its own                        |
+
+The workstation runs only the Linux bundle, so a release that only goes onto
+it (no publish) needs only the Linux half, the container's run. The whole run
+took about twelve minutes when the owner asked on 2026-11-07, most of it Zen's
+zip, installer, updater, Wi-Fi and Tailscale stages (the Linux half alone has
+not been timed on a real release here: this wave ran none). `publish` still requires the
+whole `.smoked`, because friends get Windows too, and refuses a Linux-only
+version in those words: `<v> was smoke-tested on Linux only: run the whole
+smoke test before publishing`. Publishing a version first installed that way
+needs nothing special: run the whole smoke test, then publish.
+
+What a run does to marks already there (`recordSmoke`, `ops/release/smoked.ts`):
+
+- A half that **passes alone takes nothing away**: a Linux run after a whole
+  run leaves `.smoked` as it was, since it rebuilt nothing and found nothing
+  wrong.
+- A **Linux half that fails** deletes both marks, since both speak for the
+  Linux bundle. A **Windows half that fails** deletes `.smoked` and leaves the
+  Linux mark, which says nothing about Windows; so a whole run whose Windows
+  half failed is still enough to install.
+- A **Linux failure is recorded as soon as the Linux half ends**, before the
+  Windows half starts, so Zen failing to come up (or any other unguarded
+  step stopping the script under `set -e`) can't leave an earlier run's marks
+  vouching for a bundle that just failed. Only what comes after that can be
+  lost to an early stop: a run that stops before its end (say a bundle `tar`
+  can't read, or Zen not coming up after a Linux half that passed) writes
+  nothing else and deletes nothing else.
+
+smoke.sh records the marks through `ops/release/smoked-mark.ts`, and
+`install-release.sh` asks the same file whether either mark stands, so the rule
+is written once, in `smoked.ts`, rather than once there and once in `find`.
+A tag made before c750 has a smoke.sh that writes `.smoked` alone; its whole
+run still installs and publishes as before, but its Linux-only run (indeed
+any part-run) deletes `.smoked` and writes nothing: on such a version a
+Linux-only run takes away a whole run's mark, so it needs the whole run both
+to install and to publish.
+
+**A mark speaks for the bundles it tested** (`ops/release/smoked.ts`,
+`tests/release-smoked.spec.ts`). `yarn run release` deletes both marks before
+building, and every reader also refuses a bundle newer than the mark it reads,
+which catches a bundle replaced any other way. The rule is the same for both
+marks and counts every bundle of the version: a Windows bundle replaced after
+a Linux run ends that run's mark too, since nothing but a hand replaces one
+bundle alone. Rebuilding a version therefore means smoke-testing it again.
+The APKs don't count, since no smoke test runs them: `android-apk.sh` can run
+before or after smoke.sh, and leaves the marks alone. Each mark's line is
 `<version> <when>`, with no checksums, because smoke.sh runs the tag's own copy
 and the tags already made write exactly that.
 

@@ -6,8 +6,9 @@
  *   yarn run release:publish 2026.11.02             # upload, then announce
  *   yarn run release:publish 2026.11.02 --dry-run   # sign and check, upload nothing
  *
- * It refuses a version `ops/release/smoke.sh` didn't pass whole, one rebuilt
- * since it did (ops/release/smoked.ts), one without notes (ops/release/notes/<version>.txt, what a friend reads in SETTINGS), and
+ * It refuses a version `ops/release/smoke.sh` didn't pass whole (a Linux-only run,
+ * enough to install on the workstation, isn't: c750), one rebuilt since it did
+ * (ops/release/smoked.ts), one without notes (ops/release/notes/<version>.txt, what a friend reads in SETTINGS), and
  * one already on the host: a version folder is written once. The files go up
  * under unversioned names into the version's folder, then `latest` points at
  * it, then latest.json is written: until that last step nothing announces a

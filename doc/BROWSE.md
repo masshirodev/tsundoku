@@ -107,7 +107,7 @@ Every bar that draws a leading `/` as its prompt runs the library's commands,
 not only `/search` (card c697): SEARCH THE SOURCES (`/downloads/search`), a
 source's own search, and EXTENSIONS' AVAILABLE search. `parseBar`
 (`src/lib/library/search.ts`) is the one parser: a command or a page
-(`/settings`, `/help`, and their words) is that, a `/`-led string that names
+(`/settings`, `/help`, `/highlights`, and their words) is that, a `/`-led string that names
 neither is `unknown` and is said plainly, and everything else is the bar's own
 filter. `runSearchCommand` (`src/lib/library/commands.ts`) posts a command to
 `/api/command`, which calls the same `runCommand` the library's `?/command`
@@ -117,8 +117,9 @@ the refusal and its list does not change. A TV has no fingerprint and no
 screen lock, so it refuses `/reveal` from every bar in `/search`'s own words
 ("NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER"), and no bar turns reveal on
 there (`doc/TV.md`). A command that runs leaves the screen where it was and
-re-reads its loads (the reveal or incognito band appears); `/settings` and
-`/help` open their page, and `/lock` and `/unlock` open `/search?q=…`, since
+re-reads its loads (the reveal or incognito band appears); `/settings`,
+`/help` and `/highlights` open their page (`/highlights lamp` with the word in
+its search, c701), and `/lock` and `/unlock` open `/search?q=…`, since
 the device prompt is that screen's. Their `go` intent travels in history
 state, not the URL, and `/search` submits on arrival only for those two: a
 typed or shared `?go=1` link is taken off the URL and runs nothing (round 2).
@@ -779,8 +780,11 @@ found by those words and a locator matches by substring.
   renamed or moved meanwhile (when in doubt, hidden). A Work comes back only
   while every hidden part of it is one the press hid, as the library's UNDO
   does (c390): a Work the library hid again with the same parts is the same
-  hidden state, and UNDO shows it. UNDO twice, or the band's URL after UNDO,
-  shows nothing more.
+  hidden state, and UNDO shows it. So an UNDO also shows a Work hidden again,
+  part for part, after the press: nothing records when a series was hidden,
+  and the owner declined the `hidden_at` rung that would tell the two apart
+  (c608, 2026-11-07). UNDO twice, or the band's URL after UNDO, shows nothing
+  more.
 
 ## Where it lives in the code
 

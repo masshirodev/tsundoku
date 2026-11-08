@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { spawnSync } from 'node:child_process';
 import {
 	existsSync,
 	mkdirSync,
@@ -6,10 +7,12 @@ import {
 	readdirSync,
 	readFileSync,
 	rmSync,
+	utimesSync,
 	writeFileSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 const work = mkdtempSync(join(tmpdir(), 'tsundoku-backup-'));
@@ -244,5 +247,132 @@ describe('the highlights’ copies (c701)', () => {
 		});
 		expect(s.copies).toBeNull();
 		expect(existsSync(join(work, 'none', 'highlights'))).toBe(false);
+	});
+
+	it('a mirror that fails leaves the snapshot in place and pruned, and says why (c730)', () => {
+		// A file where the mirror's folder should be: what ENOSPC or EACCES do, on demand.
+		const at = join(work, 'blocked');
+		mkdirSync(at, { recursive: true });
+		writeFileSync(join(at, 'highlights'), 'not a folder');
+		put('pages/20.webp', 'twenty');
+		const id = row('pages/20.webp');
+		const tiers = { daily: 1, weekly: 0, monthly: 0 };
+		takeSnapshot(dbPath, { dir: at, now: new Date(2026, 10, 6, 4), tiers, highlights: null });
+		const s = takeSnapshot(dbPath, {
+			dir: at,
+			now: new Date(2026, 10, 7, 4),
+			tiers,
+			highlights: source
+		});
+		expect(s.copiesError).toMatch(/ENOTDIR|EEXIST/);
+		expect(s.copies).toBeNull();
+		expect(s.path).toBe(join(at, 'library-20261107-040000.sqlite'));
+		expect(s.series).toBe(1);
+		expect(s.pruned).toEqual(['library-20261106-040000.sqlite']);
+		expect(readdirSync(at).sort()).toEqual(['highlights', 'library-20261107-040000.sqlite']);
+		drop(id);
+	});
+
+	it('a mirror that ran, or was told not to, has no error', () => {
+		const s = takeSnapshot(dbPath, {
+			dir: join(work, 'no-error'),
+			now: new Date(2026, 10, 7, 4),
+			highlights: null
+		});
+		expect(s.copiesError).toBeNull();
+	});
+});
+
+describe('scripts/backup.ts, the nightly run (c730)', () => {
+	const root = fileURLToPath(new URL('../', import.meta.url));
+	const covers = join(work, 'covers');
+	const episodes = join(covers, 'episodes');
+	const hl = join(work, 'script-highlights');
+	/** A picture of an entry that is gone, old enough for the sweep to take. */
+	const staleEpisode = () => {
+		mkdirSync(episodes, { recursive: true });
+		const f = join(episodes, '987654.webp');
+		writeFileSync(f, 'gone');
+		const old = Date.now() / 1000 - 3 * 3600;
+		utimesSync(f, old, old);
+		return f;
+	};
+	const run = (backups: string) =>
+		spawnSync(
+			process.execPath,
+			['--disable-warning=ExperimentalWarning', '--experimental-strip-types', 'scripts/backup.ts'],
+			{
+				cwd: root,
+				encoding: 'utf8',
+				env: {
+					...process.env,
+					DATABASE_PATH: dbPath,
+					BACKUP_DIR: backups,
+					HIGHLIGHTS_DIR: hl,
+					COVER_DIR: covers,
+					TSUNDOKU_MIGRATE: 'off'
+				}
+			}
+		);
+	const row = (copy: string) =>
+		Number(
+			getDb()
+				.prepare(
+					`INSERT INTO highlights (kind, series_title, series_kind, made_at, copy_path, still_path)
+					VALUES ('page', 'Frieren', 'manga', 1790000000000, ?, '')`
+				)
+				.run(copy).lastInsertRowid
+		);
+	const drop = (id: number) => getDb().prepare(`DELETE FROM highlights WHERE id = ?`).run(id);
+
+	it('a failed mirror: the snapshot lands, the sweep runs, the exit is 1', () => {
+		const backups = join(work, 'script-blocked');
+		mkdirSync(backups, { recursive: true });
+		writeFileSync(join(backups, 'highlights'), 'not a folder');
+		mkdirSync(join(hl, 'pages'), { recursive: true });
+		writeFileSync(join(hl, 'pages', '30.webp'), 'thirty');
+		const id = row('pages/30.webp');
+		const pic = staleEpisode();
+		const r = run(backups);
+		drop(id);
+		expect(r.stdout).toMatch(/^saved .*library-\d{8}-\d{6}\.sqlite/m);
+		expect(r.stderr).toMatch(/^highlights' copies failed: .*(ENOTDIR|EEXIST)/m);
+		expect(r.stderr).not.toContain('backup failed');
+		expect(r.stdout).toContain('swept 1 episode files of entries that are gone');
+		expect(existsSync(pic)).toBe(false);
+		expect(r.status).toBe(1);
+		expect(readdirSync(backups).filter((n) => n.endsWith('.sqlite'))).toHaveLength(1);
+	});
+
+	it('a mirror that ran says what it did, after the pruned lines, and exits 0', () => {
+		const backups = join(work, 'script-ran');
+		// Two snapshots of one old day: every tier keeps a day's newest only, so the
+		// earlier is pruned and the run has a pruned line.
+		mkdirSync(backups, { recursive: true });
+		for (const old of ['library-20200101-040000.sqlite', 'library-20200101-050000.sqlite'])
+			writeFileSync(join(backups, old), 'old');
+		mkdirSync(join(hl, 'pages'), { recursive: true });
+		writeFileSync(join(hl, 'pages', '31.webp'), 'thirty-one');
+		const id = row('pages/31.webp');
+		const r = run(backups);
+		drop(id);
+		expect(r.stderr).toBe('');
+		const lines = r.stdout.trim().split('\n');
+		expect(lines[0]).toMatch(/^saved /);
+		expect(lines[1]).toBe('pruned library-20200101-040000.sqlite');
+		expect(lines[2]).toBe("highlights' copies: 1 copied, 0 kept, 0 missing, 0 set aside, 0 pruned");
+		expect(r.status).toBe(0);
+	});
+
+	it('a night with no highlights folder says it was skipped, and exits 0', () => {
+		const backups = join(work, 'script-skipped');
+		rmSync(hl, { recursive: true, force: true });
+		const id = row('pages/32.webp');
+		const r = run(backups);
+		drop(id);
+		expect(r.stdout).toContain(
+			"highlights' copies: skipped (no source), nothing copied or set aside"
+		);
+		expect(r.status).toBe(0);
 	});
 });
