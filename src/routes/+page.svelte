@@ -690,11 +690,12 @@
 	 */
 	let serverRead = 0;
 	let mounted = false;
-	async function refreshTvServers(): Promise<void> {
+	async function refreshTvServers(): Promise<boolean> {
 		const at = ++serverRead;
 		const list = await readTvServers();
-		if (at !== serverRead || !mounted) return;
+		if (at !== serverRead || !mounted) return false;
 		tvServers = list;
+		return true;
 	}
 
 	/**
@@ -733,16 +734,20 @@
 	 */
 	function closeMore() {
 		moreOpen = false;
-		const had = onServer !== null;
 		// The list is read again once the sheet is closed, and the hand-back
 		// waits for the answer: a bridge that answers late must land before the
-		// cell and the focus are decided.
-		void refreshTvServers().then(() => {
-			if (!mounted) return;
-			if (had && onServer === null && moreAt === 'servers') {
+		// cell and the focus are decided. Only the cell opens MORE on 'servers',
+		// so the cell was there when this sheet opened, even if a late answer
+		// took it away while the sheet was up.
+		void refreshTvServers().then((newest) => {
+			if (!newest || !mounted) return;
+			if (onServer === null && moreAt === 'servers') {
 				void tick().then(() => {
+					if (moreOpen) return;
 					const now = document.activeElement;
-					if (now && now !== document.body && !now.closest('[role="dialog"]')) return;
+					// A dialog still leaving is inert; any other holds the owner.
+					const held = now && now !== document.body && !now.closest('[role="dialog"][inert]');
+					if (held) return;
 					document.querySelector<HTMLElement>('[data-focus-id="library-more"]')?.focus();
 				});
 			}
