@@ -267,7 +267,10 @@ than shown cut), and NEXT reads `CONNECT →`.
   by a press, so the next stray OK must not be the answer. That button is the
   way out: 9B as START leaves it, the field empty.
 - **BACK** returns to the library of the server in use, and with no server it
-  is the app's to take. Neither saves anything.
+  is the app's to take. Neither saves anything, a CONNECT already pressed
+  included: opening the library is a `loadUrl`, so this document runs on until
+  that navigation commits, and an answer landing in that time is dropped. It
+  neither stores the address nor puts 9D over the library's load.
 - **A question does not outlive its door.** `settle()` takes `#ask=` off the
   entry the moment it is read, as c685 does for `#connect=`, so a history step
   into that entry shows 9A rather than the question again. Were it replayed
@@ -275,11 +278,22 @@ than shown cut), and NEXT reads `CONNECT →`.
   the press.
 - **It supersedes what was in hand.** A typed probe still out, or a CONNECT
   already pressed for an address that has since left the screen, has its late
-  answer dropped. So does leaving the question while CHECKING. The same link
+  answer dropped. So does leaving the question while CHECKING, by the way out
+  or by BACK. The same link
   twice asks twice; a link with another address replaces the question.
 - **`#connect=` cannot store either.** Should it ever carry an address not in
   the list, the page asks instead, so that holds on the page by itself and does
   not rest on the activity and the page agreeing about the list.
+- **Nor can `#lost=`.** `MainActivity.onReceivedError` writes it for any
+  main-frame load that failed, without asking the list, so a page the WebView
+  shows can name an origin by opening a closed port of its own, and an external
+  link (`target=_blank` opens in the same WebView) whose host is down does the
+  same by accident. 9D's retry stores what answers, so only a server in the
+  list reaches 9D; any other origin gets this question, with no probe and no
+  `remember` until CONNECT, and its band still says the address came from a
+  link, because 9B has no other wording to give it. A server remembered just
+  before its `/pair/tv` failed is already in the list (`remember` is
+  synchronous and runs before the navigation), so that path still reaches 9D.
 
 An origin stored before this stays stored: the app recorded nothing about how
 an entry got there, so no update can tell which came from a link. MORE ›
@@ -1014,21 +1028,33 @@ SAVED UNTIL YOU PRESS CONNECT`, the button reading `CONNECT →`, and the
   7. Where the browser takes `intent:` links (Chrome on a phone), open
      `intent://connect#Intent;scheme=tsundoku;package=<the app's package>;S.url=https%3A%2F%2Fexample.com;end`.
      It must ask about `https://example.com`, the extra being a door too.
-     **Then a URL `java.net.URI` cannot parse (c684, wave 34).** Until c684
-     the host was read with `java.net.URI`, which throws on a `|` or `{` in the
-     query or a `|` in the fragment, and a URL it could not read had no host:
-     every guard let it through, and the interception sent it to the network
-     instead of answering 404. `BridgeGuard.hostOf` now reads the authority
-     the way a browser does and never throws. That a WebView hands
-     `shouldInterceptRequest` and `shouldOverrideUrlLoading` such a URL with
-     the `|` unescaped is read from the URL standard (its query and fragment
-     percent-encode sets do not hold `|`) and from Node's `URL`, which keeps
-     it; it was not run in a WebView. Check, from a server page's console:
-     `location.href = 'https://appassets.androidplatform.net/pair/index.html?x=|#connect=http://example.com:42143'`
-     must leave the page where it was, and a form `post` to the same URL must
-     show a 404; in neither case may MORE › SERVERS gain an `example.com`
-     entry, and with `chrome://inspect`'s Network panel open no request for
-     `appassets.androidplatform.net` may leave the TV.
+  8. The door `onReceivedError` writes, which only a WebView can reach. On a
+     library, with the inspector attached (`chrome://inspect`), run
+     `location = 'http://<that computer's LAN address>:9'`, a port nothing
+     listens on. The app's page must come up with the question naming that
+     origin; for more than five seconds the console must show no probe; MORE ›
+     SERVERS must have gained nothing; BACK must return to the library. Then
+     do the same and press CONNECT: only now is it probed. Finally stop
+     tsundoku on a computer that is in the list and reload its library: 9D for
+     it as before, retrying, and once tsundoku is back its library opens with
+     no second entry.
+
+  **Then a URL `java.net.URI` cannot parse (c684, wave 34).** Until c684
+  the host was read with `java.net.URI`, which throws on a `|` or `{` in the
+  query or a `|` in the fragment, and a URL it could not read had no host:
+  every guard let it through, and the interception sent it to the network
+  instead of answering 404. `BridgeGuard.hostOf` now reads the authority
+  the way a browser does and never throws. That a WebView hands
+  `shouldInterceptRequest` and `shouldOverrideUrlLoading` such a URL with
+  the `|` unescaped is read from the URL standard (its query and fragment
+  percent-encode sets do not hold `|`) and from Node's `URL`, which keeps
+  it; it was not run in a WebView. Check, from a server page's console:
+  `location.href = 'https://appassets.androidplatform.net/pair/index.html?x=|#connect=http://example.com:42143'`
+  must leave the page where it was, and a form `post` to the same URL must
+  show a 404; in neither case may MORE › SERVERS gain an `example.com`
+  entry, and with `chrome://inspect`'s Network panel open no request for
+  `appassets.androidplatform.net` may leave the TV.
+
 - **Launcher shortcuts (c287).** Built and planned in a JVM test, never seen
   on a launcher. Check: long-press tsundoku's icon on the TV's home screen
   (and on a phone, where Android's launcher does show app shortcuts). One
@@ -1135,8 +1161,8 @@ SAVED UNTIL YOU PRESS CONNECT`, the button reading `CONNECT →`, and the
   asked and 81 refused. Two cases read the source, because a JVM test cannot
   drive the Activity: `MainActivity` asks this rule and writes no door of its
   own, and the page takes every door the rule can name.
-- `tests/tv-app-pair.e2e.ts`, c683's seventeen (c683 in each title; 51 cases in
-  all): `#ask=` shows the address and calls neither `probe` nor `remember` until
+- `tests/tv-app-pair.e2e.ts`, c683's twenty-nine (c683 in each title; 61 cases
+  in all): `#ask=` shows the address and calls neither `probe` nor `remember` until
   CONNECT, then each once; the mark starts off CONNECT, so a stray OK leaves the
   question; `#connect=` for an address not in the list asks; a non-http `#ask=`
   is refused; the entry loses its fragment and a history step shows 9A; the same
@@ -1144,7 +1170,13 @@ SAVED UNTIL YOU PRESS CONNECT`, the button reading `CONNECT →`, and the
   while CHECKING drops the late answer; CONNECT is not swallowed by the page's
   2 s window after that late answer and asks once if pressed twice; a failure
   reaches 9D and stores nothing until it answers; a refusal over the question
-  leaves no half of it; BACK saves nothing; and the band and an 80-character
+  leaves no half of it; BACK saves nothing, and BACK while CHECKING drops an
+  answer or a failure that lands before the library has loaded, with a server
+  in use and with none; a `#lost=` for an origin not in the list asks, and
+  probes and stores nothing until CONNECT, then once each, while one in the
+  list (in any case) reaches 9D and its retry opens it, one not http(s) is
+  refused, one just remembered is in the list, and asking stops the retry of
+  the 9D it replaces; and the band and an 80-character
   address fit a TV and a phone's column. All from the asset file, with a stand-in
   bridge: no real intent, no WebView.
 - `tests/pairing-tv.spec.ts` — the six digits: once, 10 minutes, five wrong
