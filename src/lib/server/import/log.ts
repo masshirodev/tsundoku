@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
-import { visibleWhere } from '../visibility.ts';
+import { HIDDEN_SQL, visibleWhere } from '../visibility.ts';
 import { droppedLine, type Dropped } from './fold.ts';
 import type { StartImport } from '../../library/start.ts';
 import {
@@ -14,9 +14,30 @@ import {
 /**
  * The IMPORT LOG (c438, doc/IMPORT.md, "The log"): every import of a backup
  * and every scan, newest first, a running or waiting one too. Counts are read
- * through `series` and its root, so they follow reveal (a hidden series is not
- * counted with reveal off) and a series deleted since stops counting.
+ * through `series` and its root, so a series deleted since stops counting.
+ *
+ * An import takes everything, whatever the reveal mode (the owner's decision,
+ * c633), and its report says so: with reveal off, what belongs to hidden
+ * series is counted apart (`HiddenReport`, the section `HiddenFold.svelte`
+ * draws) and named nowhere. Hidden means hidden on this screen too: the
+ * entry's own counts and lines leave it out, and its titles and Work names
+ * appear only with reveal on.
  */
+
+/**
+ * What a job brought that belongs to hidden series, with reveal off: how many
+ * and nothing else (c633; the owner, 2026-11-08). Null when there is none, and
+ * always with reveal on, where the entry's own counts and lines say it all.
+ */
+export type HiddenReport = {
+	/** New series, hidden now. */
+	fresh: number;
+	/** Series already here and merged, hidden now. */
+	merged: number;
+	noSource: number;
+	/** Lines of WORKS kept off the list because they name something hidden. */
+	dropped: number;
+};
 
 /** What an import brought, as the viewer may see it. */
 export type ImportCounts = {
@@ -85,8 +106,18 @@ export function sourcesLacking(
 export type DroppedEntry = { line: string; workId: number | null };
 
 /**
- * What a job's folds dropped, as the viewer may see it. Hidden means hidden,
- * and with reveal off a line is drawn only when two things hold. First, its
+ * A drop as the job's row keeps it: fold.ts's record, and whether the survivor
+ * was hidden the moment the fold finished (c633, written by `runQueued`). A
+ * fold hides the survivor when the part folded in was hidden, so this is the
+ * one thing that remembers a Work was hidden once the Work has ended and its
+ * parts are plain series. Absent on a job from before c633: nothing recorded it.
+ */
+export type KeptDrop = Dropped & { hiddenAtFold?: boolean };
+
+/**
+ * What a job's folds dropped, as the viewer may see it, and how many lines
+ * that leaves out for belonging to something hidden. Hidden means hidden, and
+ * with reveal off a line is drawn only when two things hold. First, its
  * survivor (the fold's own series) is visible now: a survivor deleted since,
  * or whose id another series has taken (`series.id` is reused, so the id
  * counts only with its `added_at`), cannot be read either way, and is shown
@@ -95,47 +126,74 @@ export type DroppedEntry = { line: string; workId: number | null };
  * it has a visible part now. The second exists because a Work can be hidden
  * after its fold: the line prints that Work's name, and a Work that kept
  * three or more parts can be HIDE ALL'd later while the survivor stays
- * shown. A Work that ended, or whose id another Work now holds, adds no
- * condition, so the survivor's rule alone decides. The link is to the Work
- * by the same id and `created_at`, so a Work that ended is never linked
- * through the id a new Work took (c583's class).
+ * shown. A Work that ended, or whose id another Work now holds, can't be
+ * asked, so the fold's own record answers: a survivor hidden at the fold
+ * keeps the line off the list however it is shown today (c633: unhiding the
+ * survivor alone must not bring back the name of a Work whose other part is
+ * still hidden). The link is to the Work by the same id and `created_at`, so
+ * a Work that ended is never linked through the id a new Work took (c583's
+ * class).
+ *
+ * A line left out is counted when it can be said to belong to something
+ * hidden. One whose survivor is gone, about a Work that is gone, with no
+ * record of either, can't be: it is neither drawn nor counted, as before.
  */
-export function droppedOf(
+function readDropped(
 	json: string,
 	reveal: boolean,
-	db: Database.Database = getDb()
-): DroppedEntry[] {
+	db: Database.Database
+): { shown: DroppedEntry[]; hidden: number } {
 	let list: unknown;
 	try {
 		list = JSON.parse(json);
 	} catch {
-		return [];
+		return { shown: [], hidden: 0 };
 	}
-	if (!Array.isArray(list)) return [];
+	if (!Array.isArray(list)) return { shown: [], hidden: 0 };
 	const seen = db.prepare(
 		`SELECT 1 FROM series s JOIN roots r ON r.id = s.root_id
 		WHERE s.id = ? AND s.added_at = ? AND ${visibleWhere(reveal)}`
 	);
+	const here = db.prepare(`SELECT 1 FROM series WHERE id = ? AND added_at = ?`);
 	const work = db.prepare(
 		`SELECT 1 FROM works w WHERE w.id = ? AND w.created_at = ? AND (? OR EXISTS (
 			SELECT 1 FROM work_series ws JOIN series s ON s.id = ws.series_id JOIN roots r ON r.id = s.root_id
 			WHERE ws.work_id = w.id AND ${visibleWhere(false)}))`
 	);
 	const alive = db.prepare(`SELECT 1 FROM works WHERE id = ? AND created_at = ?`);
-	return (list as Partial<Dropped>[])
-		.filter((d): d is Dropped => !!d && typeof d.work === 'string' && typeof d.series === 'string')
-		.filter((d) => reveal || !!seen.get(d.seriesId ?? -1, d.seriesAt ?? -1))
-		.filter(
-			(d) =>
-				reveal ||
-				d.ended ||
-				!alive.get(d.workId ?? -1, d.workAt ?? -1) ||
-				!!work.get(d.workId ?? -1, d.workAt ?? -1, 0)
-		)
-		.map((d) => ({
-			line: droppedLine(d),
-			workId: !d.ended && work.get(d.workId ?? -1, d.workAt ?? -1, reveal ? 1 : 0) ? d.workId : null
-		}));
+	const shown: DroppedEntry[] = [];
+	let hidden = 0;
+	for (const d of (list as Partial<KeptDrop>[]).filter(
+		(d): d is KeptDrop => !!d && typeof d.work === 'string' && typeof d.series === 'string'
+	)) {
+		const series = [d.seriesId ?? -1, d.seriesAt ?? -1];
+		const owner = [d.workId ?? -1, d.workAt ?? -1];
+		const gone = d.ended || !alive.get(...owner);
+		const shownWork = !gone && !!work.get(...owner, 0);
+		const visible = !!seen.get(...series);
+		if (reveal || (visible && (gone ? !d.hiddenAtFold : shownWork)))
+			shown.push({
+				line: droppedLine(d),
+				workId: !d.ended && work.get(...owner, reveal ? 1 : 0) ? d.workId : null
+			});
+		else if (d.hiddenAtFold || (!visible && here.get(...series)) || (!gone && !shownWork))
+			hidden += 1;
+	}
+	return { shown, hidden };
+}
+
+/** The lines of `readDropped` the viewer may see. */
+export function droppedOf(
+	json: string,
+	reveal: boolean,
+	db: Database.Database = getDb()
+): DroppedEntry[] {
+	return readDropped(json, reveal, db).shown;
+}
+
+/** What belongs to hidden series, or null when nothing does. */
+function hiddenReport(counts: HiddenReport): HiddenReport | null {
+	return Object.values(counts).some((n) => n > 0) ? counts : null;
 }
 
 export type LogEntry =
@@ -157,6 +215,8 @@ export type LogEntry =
 			outcome: ImportOutcome;
 			/** Works its folds took a series out of (c570). */
 			dropped: DroppedEntry[];
+			/** What belongs to hidden series, with reveal off (c633). */
+			hidden: HiddenReport | null;
 	  }
 	| {
 			kind: 'scan';
@@ -169,17 +229,23 @@ export type LogEntry =
 			failedFiles: number;
 			/** Works its folds took a series out of (c570). */
 			dropped: DroppedEntry[];
+			/** What belongs to hidden series, with reveal off (c633). */
+			hidden: HiddenReport | null;
 	  };
 
-/** What a job's folds dropped (`droppedOf`); none for a job forgotten since. */
+/** What a job's folds dropped (`readDropped`); none for a job forgotten since. */
 function jobDropped(jobId: number, reveal: boolean, db: Database.Database = getDb()) {
 	const r = db.prepare(`SELECT dropped FROM scan_jobs WHERE id = ?`).get(jobId) as
 		{ dropped: string } | undefined;
-	return r ? droppedOf(r.dropped, reveal, db) : [];
+	return r ? readDropped(r.dropped, reveal, db) : { shown: [], hidden: 0 };
 }
 
 /** One import's entry, as the log and the result page draw it. */
 export function backupEntry(row: ImportRow, reveal: boolean): LogEntry & { kind: 'backup' } {
+	const counts = importCounts(row.id, reveal);
+	const dropped = row.jobId === null ? { shown: [], hidden: 0 } : jobDropped(row.jobId, reveal);
+	// Everything less what the viewer may see, so the two can't disagree.
+	const all = reveal ? counts : importCounts(row.id, true);
 	return {
 		kind: 'backup',
 		id: row.id,
@@ -193,9 +259,15 @@ export function backupEntry(row: ImportRow, reveal: boolean): LogEntry & { kind:
 		refusal: row.refusal,
 		seriesTotal: row.seriesTotal,
 		seriesDone: row.seriesDone,
-		counts: importCounts(row.id, reveal),
+		counts,
 		outcome: row.outcome,
-		dropped: row.jobId === null ? [] : jobDropped(row.jobId, reveal)
+		dropped: dropped.shown,
+		hidden: hiddenReport({
+			fresh: all.fresh - counts.fresh,
+			merged: all.merged - counts.merged,
+			noSource: all.noSource - counts.noSource,
+			dropped: dropped.hidden
+		})
 	};
 }
 
@@ -219,7 +291,9 @@ export function importLog(reveal: boolean, db: Database.Database = getDb()): Log
 				`SELECT j.id, j.started_at, j.finished_at, j.source_label, j.bytes_done, j.bytes_total,
 					j.failed_files, j.dropped,
 					(SELECT COUNT(*) FROM series s JOIN roots r ON r.id = s.root_id
-						WHERE s.scan_job_id = j.id AND ${visibleWhere(reveal)}) AS series
+						WHERE s.scan_job_id = j.id AND ${visibleWhere(reveal)}) AS series,
+						(SELECT COUNT(*) FROM series s JOIN roots r ON r.id = s.root_id
+							WHERE s.scan_job_id = j.id AND ${reveal ? '0' : HIDDEN_SQL}) AS hidden_series
 				FROM scan_jobs j
 				WHERE NOT EXISTS (SELECT 1 FROM imports i WHERE i.job_id = j.id)
 				ORDER BY j.id DESC`
@@ -234,18 +308,28 @@ export function importLog(reveal: boolean, db: Database.Database = getDb()): Log
 			failed_files: number;
 			dropped: string;
 			series: number;
+			hidden_series: number;
 		}[]
-	).map((j): LogEntry => ({
-		kind: 'scan',
-		id: j.id,
-		at: j.finished_at ?? j.started_at,
-		label: j.source_label,
-		running: j.finished_at === null,
-		progress: j.bytes_total > 0 ? j.bytes_done / j.bytes_total : 0,
-		series: j.series,
-		failedFiles: j.failed_files,
-		dropped: droppedOf(j.dropped, reveal, db)
-	}));
+	).map((j): LogEntry => {
+		const dropped = readDropped(j.dropped, reveal, db);
+		return {
+			kind: 'scan',
+			id: j.id,
+			at: j.finished_at ?? j.started_at,
+			label: j.source_label,
+			running: j.finished_at === null,
+			progress: j.bytes_total > 0 ? j.bytes_done / j.bytes_total : 0,
+			series: j.series,
+			failedFiles: j.failed_files,
+			dropped: dropped.shown,
+			hidden: hiddenReport({
+				fresh: j.hidden_series,
+				merged: 0,
+				noSource: 0,
+				dropped: dropped.hidden
+			})
+		};
+	});
 	const live = (e: LogEntry) =>
 		e.kind === 'scan' ? e.running : e.state === 'running' || e.state === 'waiting';
 	return [...imports, ...scans].sort(

@@ -6,11 +6,13 @@
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import { clock, dayMonth, n, refusalLines, sizeWords } from '$lib/import/backup-preview';
 	import type { LogEntry } from '$lib/server/import/log';
+	import HiddenFold from '../HiddenFold.svelte';
 
 	/**
 	 * The IMPORT LOG (c438; Import-Log, Import-Doors E): every import of a
 	 * backup and every scan, newest first, one running or waiting at the top
-	 * with its bar. Counts follow reveal (the server counts through `series`).
+	 * with its bar. Counts follow reveal (the server counts through `series`),
+	 * and what reveal leaves out is counted apart, in `HiddenFold` (c633).
 	 * An entry opens in place; a running one asks again every second.
 	 */
 	let { data } = $props();
@@ -236,6 +238,7 @@
 										</div>
 									{/if}
 									{@render droppedRows(e.dropped)}
+									{#if e.hidden}<HiddenFold hidden={e.hidden} />{/if}
 									{#if e.state !== 'refused'}
 										<div class="go">
 											<a class="btn" href={resolve('/import/[id]', { id: String(e.id) })}
@@ -257,6 +260,7 @@
 										</div>
 									</div>
 									{@render droppedRows(e.dropped)}
+									{#if e.hidden}<HiddenFold hidden={e.hidden} />{/if}
 								{/if}
 							</div>
 						{/if}
