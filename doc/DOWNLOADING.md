@@ -257,7 +257,8 @@ What's already missing stays ALL N's job.
 
 **Per season (c282):** FOLLOW asks the last season's source and each season
 keeps its own download folder when it has one ([`ANIME.md`](ANIME.md),
-"FOLLOW" and "Downloading"). A season with no row is the series' source and
+"FOLLOW" and "Downloading"), and a season with files stays where they are, so a
+MOVE never splits one across two folders. A season with no row is the series' source and
 folder, which is every season of every series until a later slice writes the
 rows.
 

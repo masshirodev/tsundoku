@@ -13,7 +13,8 @@ import {
 	folderTaken,
 	followOrigin,
 	seasonFact,
-	seasonFacts
+	seasonFacts,
+	type SeasonFact
 } from '../season-facts.ts';
 import type { Kind } from '../../library/kinds.ts';
 import { wantPictures } from './pictures.ts';
@@ -114,13 +115,32 @@ export type EpisodePlace = {
 	season: number | null;
 };
 
+/** The last file on disk of one season, as a path, for telling which folder holds it. */
+function fileOfSeason(db: Database.Database, seriesId: number, season: number): string | null {
+	const r = db
+		.prepare(
+			`SELECT s.path, e.file FROM entries e JOIN series s ON s.id = e.series_id
+			WHERE e.series_id = ? AND COALESCE(e.season, 0) = ? AND e.available = 1 AND e.file != ''
+			ORDER BY e.position DESC, e.id DESC LIMIT 1`
+		)
+		.get(seriesId, season) as { path: string; file: string } | undefined;
+	return r ? posix.join(r.path, r.file) : null;
+}
+
 /**
  * Where a season's episodes go (c282; doc/DOWNLOADING.md). A season with a
- * folder keeps it. One with a source of its own and no folder yet gets one at
- * its first download, as a series does, named by what the source calls it,
- * under the same uniqueness; a season sharing that source reuses its folder.
- * Everything else is the series' folder: no row at all, or a row that says
- * nothing about where its files are.
+ * folder keeps it. **A season with files stays where they are**, whatever its
+ * row says of its source: a MOVE re-keys the row and moves no file, so the
+ * next episode lands beside the last (`series_season_facts_folder` is unique,
+ * so the place can't be written onto the row for every season that moves). Only
+ * a season with no files and a source of its own gets a folder at its first
+ * download, as a series does, named by what the source calls it, under the
+ * same uniqueness; a season sharing that source reuses its folder. Everything
+ * else is the series' folder: no row at all, or a row that says nothing of
+ * where its files are.
+ *
+ * The answer names the folder's own key and title, which are its tvshow.nfo:
+ * a season lodging in another's folder doesn't rename that folder to itself.
  */
 export function episodePlace(
 	db: Database.Database,
@@ -128,23 +148,40 @@ export function episodePlace(
 	season: number | null
 ): EpisodePlace {
 	const fact = seasonFact(s.id, season, db);
-	const key = fact?.originKey ?? s.origin_key ?? '';
-	const own = fact && (fact.folder || (fact.originKey && fact.originKey !== s.origin_key));
-	if (!fact || !own) return { folder: seriesFolder(db, s), key, title: s.title, season: null };
-	const title = fact.sourceTitle || s.title;
-	let folder = fact.folder;
-	if (!folder && fact.originKey)
-		folder =
-			seasonFacts(s.id, db).find((f) => f.originKey === fact.originKey && f.folder)?.folder ?? null;
-	if (!folder) {
-		folder = freeFolder(db, s.hidden ? HIDDEN_ANIME_FOLDER : ANIME_FOLDER, seriesFolderName(title));
-		db.prepare(`UPDATE series_season_facts SET folder = ? WHERE series_id = ? AND season = ?`).run(
-			folder,
-			s.id,
-			fact.season
-		);
+	const inSeriesFolder = (): EpisodePlace => ({
+		folder: seriesFolder(db, s),
+		key: s.origin_key ?? fact?.originKey ?? '',
+		title: s.title,
+		season: null
+	});
+	const seasonsOwn = (f: SeasonFact, folder: string): EpisodePlace => ({
+		folder,
+		key: f.originKey ?? s.origin_key ?? '',
+		title: f.sourceTitle || s.title,
+		season: f.season
+	});
+	if (!fact) return inSeriesFolder();
+	if (fact.folder) return seasonsOwn(fact, fact.folder);
+	const facts = seasonFacts(s.id, db);
+	const file = fileOfSeason(db, s.id, fact.season);
+	if (file !== null) {
+		const holder = facts.find((f) => f.folder && file.includes(`/${f.folder}/`));
+		return holder?.folder ? seasonsOwn(holder, holder.folder) : inSeriesFolder();
 	}
-	return { folder, key, title, season: fact.season };
+	if (!fact.originKey || fact.originKey === s.origin_key) return inSeriesFolder();
+	const sibling = facts.find((f) => f.originKey === fact.originKey && f.folder)?.folder;
+	if (sibling) return seasonsOwn(fact, sibling);
+	const folder = freeFolder(
+		db,
+		s.hidden ? HIDDEN_ANIME_FOLDER : ANIME_FOLDER,
+		seriesFolderName(fact.sourceTitle || s.title)
+	);
+	db.prepare(`UPDATE series_season_facts SET folder = ? WHERE series_id = ? AND season = ?`).run(
+		folder,
+		s.id,
+		fact.season
+	);
+	return seasonsOwn(fact, folder);
 }
 
 /** The height an episode downloads at: its own, else SETTINGS' (1080 by default). */

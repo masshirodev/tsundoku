@@ -936,11 +936,15 @@ pure parts in `src/lib/library/anime-files.ts`).
   **A season may have a folder of its own** (c282, Seasons S1;
   [`WORKS.md`](WORKS.md), "Per-season sources"): `series_season_facts.folder`,
   fixed the same way, `episodePlace` in `anime/download.ts`. A season with a
-  row whose folder is set keeps it; one with a source of its own and no folder
-  yet gets one at its first download, named by what the source calls it,
-  walked past any name a series or another season holds (`freeFolder`). Two
-  seasons sharing one source share the folder one row holds. Everything else,
-  **a season with no row included**, is the series' folder, as above. A
+  row whose folder is set keeps it. **A season with files stays where they
+  are**, in the series' folder or in the folder of a season it shared a source
+  with, whatever its row now names: a MOVE re-keys a season and moves no file
+  ([`MOVE.md`](MOVE.md), "A season with a source of its own"). One with no
+  files, a source of its own and no folder yet gets one at its first download,
+  named by what the source calls it, walked past any name a series or another
+  season holds (`freeFolder`). Two seasons sharing one source share the folder
+  one row holds. Everything else, **a season with no row included**, is the
+  series' folder, as above. A
   season's own folder has its own `tvshow.nfo` naming **that season's key** and
   that season's link, which is what the importer folds it back onto the series
   by; its files are named from the series' folder (`../Other/Season 02/…`), so

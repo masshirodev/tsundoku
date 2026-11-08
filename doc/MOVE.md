@@ -106,6 +106,14 @@ change what a MOVE is about, by the season each entry resolves to:
   series' way back, and a season has no way back in S1 (no column holds one).
   The key it left joins `series_former_keys`, so a backup still finds the
   series, unless the series or another season still holds it.
+- **A MOVE does not change where a season downloads.** Files stay, so the next
+  episode goes beside them: a season with a downloaded file keeps the folder
+  that file is in, and that folder's `tvshow.nfo` goes on naming the folder's
+  own key rather than the season's new one. Only a season with no files, and a
+  source of its own, is allotted a new folder at its first download
+  (`episodePlace`, `anime/download.ts`; the rule is read from the files because
+  `series_season_facts_folder` is unique, so two moved seasons could not both
+  write the series' folder onto their rows).
 - **The refusal counts a season's key.** A target another series holds, as its
   own key or a season's, is refused at the comparison and at the move (`heldByOther`);
   a key this series already holds never counts, since two seasons of one show

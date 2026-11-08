@@ -974,6 +974,155 @@ describe('MOVE, by the season each entry is from', () => {
 		expect(() => move.applyMoveBack(a, list([1], 1), { db })).toThrow(/own source/);
 	});
 
+	describe('a MOVE does not change where a season downloads', () => {
+		const NOW = 3_000_000;
+		const deps = { db, library, now: () => NOW };
+		const row = (id: number) =>
+			db
+				.prepare(
+					`SELECT id, title, hidden, description, status, source, origin_key FROM series WHERE id = ?`
+				)
+				.get(id) as Parameters<typeof seriesFolder>[1];
+		beforeEach(() => rmSync(join(library, 'Anime'), { recursive: true, force: true }));
+		afterAll(() => rmSync(join(library, 'Anime'), { recursive: true, force: true }));
+		// Downloaded and attached, through the doors a download goes through.
+		async function downloaded(ep: number): Promise<string> {
+			const path = await downloadEpisode(ep, deps);
+			for (const plan of planAnimeSeries(library, path, NOW))
+				writeSeries(plan, { rootId: 1, jobId: null, now: NOW, markMissing: false }, db);
+			return path;
+		}
+		const nfo = (name: string) => readFileSync(join(library, 'Anime', name, 'tvshow.nfo'), 'utf8');
+		const moveSeason = (a: number, season: number, key: string) =>
+			move.applyMove(a, target(key), list([1, 2], null, key.slice(-8)), { now: NOW, db, season });
+		const SHOW = 'aniyomi:7:/show';
+		const stays = { folder: 'Anime/Show', key: SHOW, title: 'Show', season: null };
+
+		it('a season with a downloaded episode in the series’ folder stays, and its next episode lands beside it', async () => {
+			const a = show('Show', SHOW);
+			episode(a, 1, 1);
+			const first = episode(a, 2, 1);
+			const second = episode(a, 2, 2);
+			await downloaded(first);
+			expect(episodePlace(db, row(a), 2)).toEqual(stays);
+			moveSeason(a, 2, 'aniyomi:9:/elsewhere');
+			expect(facts.seasonOrigin(a, 2, db)).toBe('aniyomi:9:/elsewhere');
+			expect(episodePlace(db, row(a), 2)).toEqual(stays);
+			expect(await downloaded(second)).toBe(
+				join(library, 'Anime', 'Show', 'Season 02', 'Show S02E02.mkv')
+			);
+			expect(existsSync(join(library, 'Anime', 'Show (2)'))).toBe(false);
+			// The folder is still the series' to the importer and to Jellyfin.
+			expect(nfo('Show')).toContain(SHOW);
+			expect(nfo('Show')).not.toContain('aniyomi:9:/elsewhere');
+			expect(facts.seasonFact(a, 2, db)?.folder).toBeNull();
+			const seasons = db
+				.prepare(`SELECT available, file FROM entries WHERE series_id = ? AND season = 2`)
+				.all(a) as { available: number; file: string }[];
+			expect(seasons.map((r) => r.available)).toEqual([1, 1]);
+		});
+
+		it('two seasons moved away from one folder both stay, with nothing written to the unique index', async () => {
+			const a = show('Show', SHOW);
+			const two = episode(a, 2, 1);
+			const three = episode(a, 3, 1);
+			await downloaded(two);
+			await downloaded(three);
+			moveSeason(a, 2, 'aniyomi:9:/second');
+			moveSeason(a, 3, 'aniyomi:9:/thirdly');
+			expect(episodePlace(db, row(a), 2).folder).toBe('Anime/Show');
+			expect(episodePlace(db, row(a), 3).folder).toBe('Anime/Show');
+			expect(facts.seasonFolders(a, db)).toEqual([]);
+		});
+
+		it('a season with no files and its own key still gets its own folder', () => {
+			const a = show('Show', SHOW);
+			episode(a, 2, 1);
+			moveSeason(a, 2, 'aniyomi:9:/elsewhere');
+			seriesFolder(db, row(a));
+			expect(episodePlace(db, row(a), 2)).toEqual({
+				folder: 'Anime/Show (2)',
+				key: 'aniyomi:9:/elsewhere',
+				title: 'Show',
+				season: 2
+			});
+			expect(facts.seasonFact(a, 2, db)?.folder).toBe('Anime/Show (2)');
+		});
+
+		it('an episode whose file is gone holds no folder', () => {
+			const a = show('Show', SHOW);
+			const ep = episode(a, 2, 1);
+			db.prepare(`UPDATE series SET path = '/lib/Anime/Show' WHERE id = ?`).run(a);
+			db.prepare(
+				`UPDATE entries SET file = 'Season 02/Show S02E01.mkv', available = 0 WHERE id = ?`
+			).run(ep);
+			moveSeason(a, 2, 'aniyomi:9:/elsewhere');
+			seriesFolder(db, row(a));
+			expect(episodePlace(db, row(a), 2).folder).toBe('Anime/Show (2)');
+		});
+
+		it('a season whose files sit in the folder it shared stays there, under that folder’s own key', async () => {
+			const a = show('Show', SHOW);
+			const SHARED = 'aniyomi:7:/shared';
+			facts.putSeasonFact({ seriesId: a, season: 2, originKey: SHARED, sourceTitle: 'Late' }, db);
+			facts.putSeasonFact({ seriesId: a, season: 3, originKey: SHARED, sourceTitle: 'Late' }, db);
+			expect(episodePlace(db, row(a), 2).folder).toBe('Anime/Late');
+			const three = episode(a, 3, 1);
+			const four = episode(a, 3, 2);
+			await downloaded(three);
+			moveSeason(a, 3, 'aniyomi:9:/elsewhere');
+			expect(episodePlace(db, row(a), 3)).toEqual({
+				folder: 'Anime/Late',
+				key: SHARED,
+				title: 'Late',
+				season: 2
+			});
+			expect(await downloaded(four)).toBe(
+				join(library, 'Anime', 'Late', 'Season 03', 'Late S03E02.mkv')
+			);
+			expect(nfo('Late')).toContain(SHARED);
+			expect(nfo('Late')).not.toContain('aniyomi:9:/elsewhere');
+		});
+
+		it('a season in the series’ folder moved onto a key another season has a folder for stays too', async () => {
+			const a = show('Show', SHOW);
+			const OTHER = 'aniyomi:9:/other-season';
+			facts.putSeasonFact(
+				{ seriesId: a, season: 3, originKey: OTHER, folder: 'Anime/Third', sourceTitle: 'Third' },
+				db
+			);
+			const two = episode(a, 2, 1);
+			await downloaded(two);
+			moveSeason(a, 2, OTHER);
+			expect(episodePlace(db, row(a), 2)).toEqual(stays);
+		});
+
+		it('a flat list’s episodes, season 0 to their row, stay in the series’ folder too', () => {
+			const a = show('Show', SHOW);
+			const ep = episode(a, null, 1);
+			db.prepare(`UPDATE series SET path = '/lib/Anime/Show' WHERE id = ?`).run(a);
+			db.prepare(`UPDATE entries SET file = 'Show E01.mkv', available = 1 WHERE id = ?`).run(ep);
+			moveSeason(a, 0, 'aniyomi:9:/elsewhere');
+			expect(episodePlace(db, row(a), null)).toEqual(stays);
+		});
+
+		it('another season’s files don’t count for this one', async () => {
+			const a = show('Show', SHOW);
+			const one = episode(a, 1, 1);
+			episode(a, 2, 1);
+			await downloaded(one);
+			moveSeason(a, 2, 'aniyomi:9:/elsewhere');
+			expect(episodePlace(db, row(a), 2).folder).toBe('Anime/Show (2)');
+		});
+
+		it('a series with no rows answers its own folder, files or none', async () => {
+			const a = show('Show', SHOW);
+			expect(episodePlace(db, row(a), 2)).toEqual(stays);
+			await downloaded(episode(a, 2, 1));
+			expect(episodePlace(db, row(a), 2)).toEqual(stays);
+		});
+	});
+
 	it('a series with no rows moves whole, as it did', () => {
 		const a = show('Plain', 'aniyomi:7:/plain');
 		episode(a, 1, 1);
