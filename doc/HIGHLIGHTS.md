@@ -370,6 +370,8 @@ the player's URL (c734; `wayBackHref` writes it, `startSecond` reads it, both in
 - **Only plain seconds count** (`734`, `734.5`). Anything else, and a second at
   or past a known length, is no place: the saved place and its band stand. A
   length the catalogue didn't give is checked against the file's when it comes.
+  A second the file itself refuses makes this the plain open it would have been,
+  from the saved place, showing and recording its place as any other does.
 - **It is not progress until the picture plays from it.** Nothing is saved while
   the picture sits where the link put it, by a seek's own `timeupdate` or by
   leaving; a refused autoplay leaves the saved place where it was. A full second

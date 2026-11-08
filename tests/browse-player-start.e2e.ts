@@ -113,6 +113,26 @@ const refusePlay = (page: Page) =>
 		(window as unknown as { realPlay: typeof real }).realPlay = real;
 		HTMLMediaElement.prototype.play = () => Promise.reject(new DOMException('', 'NotAllowedError'));
 	});
+/** What the viewer's press does once `refusePlay` has taken the browser's autoplay away. */
+const pressPlay = (page: Page) =>
+	page.evaluate(() => {
+		const w = window as unknown as { realPlay: () => Promise<void> };
+		return w.realPlay.call(document.querySelector('video'));
+	});
+/** The bodies of the player's POSTs to /api/reading, in order, as they go. */
+function watchPosts(page: Page) {
+	const posts: string[] = [];
+	page.on('request', (r) => {
+		if (r.method() === 'POST' && r.url().endsWith('/api/reading')) posts.push(r.postData() ?? '');
+	});
+	return posts;
+}
+const opens = (posts: string[]) =>
+	posts
+		.map((p) => JSON.parse(p) as { kind: string; page: number })
+		.filter((p) => p.kind === 'open');
+/** The clock beside the scrubber: drawn from the player's `time`, not the video's own. */
+const readout = (page: Page) => page.locator('.scrubrow .e');
 const open = async (page: Page, query: string) => {
 	await page.goto(`/read/${ep.id}${query}`);
 	await landed(page);
@@ -175,25 +195,45 @@ test('?t= past the catalogue’s length is no place either', async ({ page }) =>
 	expect(await now(page)).toBeGreaterThanOrEqual(4.5);
 });
 
-test('?t= inside the catalogue’s length but past the file’s falls back to the saved place', async ({
+test('?t= inside the catalogue’s length but past the file’s falls back to the saved place, and that open records and shows its place', async ({
 	page
 }) => {
 	// The stored length says 24 minutes, the real clip 8 s: only the file can refuse it.
 	setSaved(ep.id, 5);
+	const posts = watchPosts(page);
+	await refusePlay(page);
 	await open(page, '?t=100');
 	await expect(band(page)).toHaveText(/RESUMED AT 0:05/);
 	expect(await now(page)).toBeLessThan(8);
+	// Only while nothing plays: once the picture moves, the place is the viewer's to move.
 	expect(savedPlace(ep.id)).toBe(5);
+
+	await pressPlay(page);
+	await expect.poll(() => opens(posts).length, { timeout: 10_000 }).toBeGreaterThan(0);
+	expect(opens(posts)[0].page).toBeGreaterThanOrEqual(5);
+	await expect(readout(page)).toHaveText(/^0:0[5-8]$/);
+});
+
+test('?t= past the file’s length with nothing saved plays from the start, and that open records too', async ({
+	page
+}) => {
+	setSaved(ep.id, null);
+	const posts = watchPosts(page);
+	await refusePlay(page);
+	await open(page, '?t=100');
+	await expect(band(page)).toHaveCount(0);
+	expect(await now(page)).toBeLessThan(1);
+
+	await pressPlay(page);
+	await expect.poll(() => opens(posts).length, { timeout: 10_000 }).toBeGreaterThan(0);
+	await expect(readout(page)).toHaveText(/^0:0[1-8]$/, { timeout: 10_000 });
 });
 
 test('nothing is saved while the picture sits at ?t=; playing from it is what saves', async ({
 	page
 }) => {
 	setSaved(ep.id, 5);
-	const posts: string[] = [];
-	page.on('request', (r) => {
-		if (r.method() === 'POST' && r.url().endsWith('/api/reading')) posts.push(r.postData() ?? '');
-	});
+	const posts = watchPosts(page);
 	// The seek still lands and its timeupdate still fires, with nothing playing.
 	await refusePlay(page);
 	await open(page, '?t=3');
@@ -205,10 +245,7 @@ test('nothing is saved while the picture sits at ?t=; playing from it is what sa
 	expect(savedPlace(ep.id)).toBe(5);
 
 	// The viewer presses play: the picture moves, and it is theirs now.
-	await page.evaluate(() => {
-		const w = window as unknown as { realPlay: () => Promise<void> };
-		return w.realPlay.call(document.querySelector('video'));
-	});
+	await pressPlay(page);
 	await expect.poll(() => posts.length, { timeout: 10_000 }).toBeGreaterThan(0);
 	expect(JSON.parse(posts[0])).toMatchObject({ kind: 'open', entryId: ep.id });
 	expect(JSON.parse(posts[0]).page).toBeGreaterThanOrEqual(3);

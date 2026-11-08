@@ -851,6 +851,9 @@
 		if (pastEnd && heldAt !== null && heldAt >= video.duration) {
 			const open = pastEnd;
 			heldAt = null;
+			// A seek ends the reload's wait: left on the refused second, `onTime`
+			// would drop every tick and `position()` would keep answering that second.
+			reloadingTo = null;
 			video.currentTime = open.at;
 			if (open.resumed) showResumed(open.at);
 		}
