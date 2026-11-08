@@ -110,3 +110,49 @@ test('one copy of the bands, SHELVES and ABOUT is drawn, on every device', async
 			.getByRole('button', { name: 'EDIT' })
 	).toHaveCount(1);
 });
+
+/**
+ * A fractional viewport (browser zoom) can't be made here: an iframe styled
+ * 599.5px wide measured `innerWidth: 600` with `(min-width: 600px)` matching,
+ * since a frame snaps to whole pixels. So the rule is read as the browser
+ * compiled it, the two queries being each other's exact complement, and the
+ * two whole widths either side are driven for real.
+ */
+test('the two copies’ queries are exact complements, so no width draws both', async ({
+	page
+}, info) => {
+	test.skip(info.project.name !== 'desktop', 'it reads the stylesheet and drives the width itself');
+	await openCircle(page, 'Tower of God');
+	const queries = await page.evaluate(() => {
+		const found: Record<string, string> = {};
+		for (const sheet of Array.from(document.styleSheets))
+			for (const rule of Array.from(sheet.cssRules))
+				if (rule instanceof CSSMediaRule)
+					for (const inner of Array.from(rule.cssRules)) {
+						const hit = /\.o\.(fold-only|screen-only)\b/.exec(
+							(inner as CSSStyleRule).selectorText ?? ''
+						);
+						if (hit) found[hit[1]] = rule.conditionText;
+					}
+		return found;
+	});
+	// The build rewrites a query to range syntax, so both spellings are the rule's.
+	expect(queries['fold-only']).toMatch(/^\((?:min-width: |width >= )600px\) and \(not /);
+	expect(queries['screen-only']).toMatch(
+		/^(?:\(width < 600px\)|\(?not \((?:min-width: |width >= )600px\)\)?),/
+	);
+	const drawn = (cls: string) =>
+		page.evaluate(
+			(c) =>
+				[...document.querySelectorAll(`.o.${c}`)].filter(
+					(e) => getComputedStyle(e).display !== 'none'
+				).length,
+			cls
+		);
+	await page.setViewportSize({ width: 599, height: 800 });
+	await expect.poll(() => drawn('screen-only')).toBe(0);
+	expect(await drawn('fold-only')).toBeGreaterThan(0);
+	await page.setViewportSize({ width: 600, height: 800 });
+	await expect.poll(() => drawn('fold-only')).toBe(0);
+	expect(await drawn('screen-only')).toBeGreaterThan(0);
+});

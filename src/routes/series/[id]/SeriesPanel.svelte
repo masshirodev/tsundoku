@@ -2617,7 +2617,9 @@
 			display: none;
 		}
 	}
-	@media (max-width: 599px), (pointer: none) and (min-width: 900px) {
+	/* The other query's exact complement: `max-width: 599px` would leave a
+	   fractional viewport (browser zoom) between 599 and 600 px drawing both. */
+	@media (not (min-width: 600px)), (pointer: none) and (min-width: 900px) {
 		.o.screen-only {
 			display: none;
 		}
