@@ -92,9 +92,10 @@ fails keeps the tapped value, drawn dashed, with the app's failure band
 offering PUT BACK and RETRY (below, and doc/WAITING.md, "Writes that fail").
 They're gone while selecting (every tap is a pick then) and while offline
 (writes need the workstation). `CoverTile` takes them as `onfavourite` and
-`onrate`; without those it draws the plain badge and bars, with no mark (so a
-tile that is not editable draws its value plain, even one a failed tap left
-behind).
+`onrate`; without those it draws the plain badge and bars, and a value a failed
+tap left behind wears the same dashed mark there (c738): the FAV corner (with
+the ghost ☆ for a failed UNFAV, which has no badge to carry it) and the bars.
+The mark is drawing only, so in SELECT a tap on it is still a pick.
 
 **A failed write draws its value dashed** (c659). The control wears the
 series screen's own `.unsaved` mark -- `1.5px dashed var(--accent)`, no new

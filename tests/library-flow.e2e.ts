@@ -1153,6 +1153,90 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		).toHaveAttribute('aria-pressed', 'false');
 	});
 
+	test('SELECT keeps the mark on the plain badge and bars the tile draws then (c738)', async ({
+		page
+	}) => {
+		await page.goto('/?sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const fav = tile.getByRole('button', { name: 'Favourite' });
+		const rate = tile.getByRole('button', { name: /^Rate, / });
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		const noFav = await loseAll(page, 'favourite');
+		const noRate = await loseAll(page, 'rate');
+
+		await fav.click();
+		await expect(fav).toHaveClass(/unsaved/);
+		await rate.click();
+		await tile.getByRole('button', { name: 'Rate 6 of 10' }).click();
+		await expect(rate).toHaveClass(/unsaved/);
+
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		// The controls are gone: every tap is a pick now.
+		await expect(tile.getByRole('button', { name: 'Favourite' })).toHaveCount(0);
+		await expect(tile.getByRole('button', { name: /^Rate, / })).toHaveCount(0);
+		const corner = tile.locator('.fav-plain.unsaved');
+		const bars = tile.locator('.rating-plain.unsaved');
+		await expect(corner).toContainText('FAV');
+		await expect(bars.getByRole('img')).toHaveAttribute('aria-label', 'Rated 6 of 10');
+		expect(await corner.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('dashed');
+		expect(await bars.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('dashed');
+
+		// A mark is not a control: the corner still picks the tile.
+		await corner.click();
+		await expect(tile.locator('.open')).toHaveAttribute('aria-pressed', 'true');
+		await tile.locator('.open').click();
+		await expect(tile.locator('.open')).toHaveAttribute('aria-pressed', 'false');
+
+		await page.getByRole('button', { name: 'PUT BACK 0' }).click();
+		await expect(bars).toHaveCount(0);
+		await expect(corner).toContainText('FAV');
+		await page.getByRole('button', { name: 'PUT BACK · NOT FAV' }).click();
+		await expect(corner).toHaveCount(0);
+		await expect(tile.getByText('FAV', { exact: true })).toHaveCount(0);
+		await noFav();
+		await noRate();
+	});
+
+	test('a failed UNFAV keeps its mark in SELECT too, though no badge is drawn (c738)', async ({
+		page
+	}) => {
+		// The value a failed UNFAV leaves is the absence of a badge: a mark that
+		// lived on the badge would have nothing to sit on.
+		await page.goto('/?sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const fav = tile.getByRole('button', { name: 'Favourite' });
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+		const stored = page.waitForResponse((r) => new URL(r.url()).search === '?/favourite' && r.ok());
+		await fav.click();
+		await stored;
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+		await expect(fav).not.toHaveClass(/unsaved/);
+		await page.reload();
+		await expect(fav).toHaveAttribute('aria-pressed', 'true');
+
+		const noFav = await loseAll(page, 'favourite');
+		await fav.click();
+		await expect(fav).toHaveClass(/unsaved/);
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		const corner = tile.locator('.fav-plain.unsaved');
+		await expect(corner).toBeVisible();
+		await expect(corner).not.toContainText('FAV');
+		await page.getByRole('button', { name: 'PUT BACK · FAV' }).click();
+		await expect(corner).toHaveCount(0);
+		await expect(tile.getByText('FAV', { exact: true })).toBeVisible();
+		await noFav();
+
+		// Back as the seed has it.
+		await page.reload();
+		const restored = page.waitForResponse(
+			(r) => new URL(r.url()).search === '?/favourite' && r.ok()
+		);
+		await fav.click();
+		await restored;
+		await page.reload();
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+	});
+
 	test('the rating draws dashed as well, and PUT BACK ends it (c659)', async ({ page }) => {
 		await page.goto('/?sort=title');
 		const tile = page.locator('.grid .tile', { hasText: TITLE });
