@@ -2,6 +2,7 @@ import { getDb } from './db.ts';
 import { IN_LIBRARY_SQL, libraryWhere, VISIBLE_SQL } from './visibility.ts';
 import { sourcesWith } from './engine/source-flags.ts';
 import { namesOf } from './engine/device.ts';
+import { entryOriginSql } from './season-facts.ts';
 import {
 	mostlyHidden,
 	normTitle,
@@ -19,19 +20,32 @@ import {
 
 let used: { at: number; use: Map<string, SourceUse> } | null = null;
 
+/** Whether a key names a source's own entry: what the two queries below keep. */
+const HAS_SOURCE = (key: string) =>
+	`(${key} LIKE 'mihon:%' OR ${key} LIKE 'lnreader:%' OR ${key} LIKE 'aniyomi:%')`;
+
 /** How many series, and how many hidden, the library has from each source. Kept a minute. */
 export function sourceUse(): Map<string, SourceUse> {
 	if (used && Date.now() - used.at < 60_000) return used.use;
 	const rows = getDb()
 		.prepare(
-			`SELECT s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden
-			FROM series s JOIN roots r ON r.id = s.root_id WHERE ${IN_LIBRARY_SQL} AND (s.origin_key LIKE 'mihon:%' OR s.origin_key LIKE 'lnreader:%' OR s.origin_key LIKE 'aniyomi:%')`
+			`SELECT s.id, s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden
+			FROM series s JOIN roots r ON r.id = s.root_id WHERE ${IN_LIBRARY_SQL} AND ${HAS_SOURCE('s.origin_key')}
+			UNION ALL
+			SELECT s.id, f.origin_key, NOT ${VISIBLE_SQL}
+			FROM series_season_facts f JOIN series s ON s.id = f.series_id JOIN roots r ON r.id = s.root_id
+			WHERE ${IN_LIBRARY_SQL} AND ${HAS_SOURCE('f.origin_key')}`
 		)
-		.all() as { k: string; hidden: number }[];
+		.all() as { id: number; k: string; hidden: number }[];
 	const use = new Map<string, SourceUse>();
+	// A series with seasons at one source, or a season and the series both, counts there once.
+	const counted = new Set<string>();
 	for (const r of rows) {
 		const sourceId = sourceOfKey(r.k);
 		if (!sourceId) continue;
+		const pair = `${r.id}\u0000${sourceId}`;
+		if (counted.has(pair)) continue;
+		counted.add(pair);
 		const u = use.get(sourceId) ?? { series: 0, hidden: 0 };
 		u.series++;
 		u.hidden += r.hidden;
@@ -51,14 +65,7 @@ const familyOf = (key: string) => key.slice(0, key.indexOf(':'));
 
 /** What tsundoku has, for telling a result IN LIBRARY or SAME TITLE IN LIBRARY. */
 export function libraryIndex(reveal: boolean) {
-	const rows = getDb()
-		.prepare(
-			`SELECT s.id, s.title, s.alt_titles AS alts, s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden,
-				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS total,
-				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.available = 1) AS have
-			FROM series s JOIN roots r ON r.id = s.root_id WHERE ${IN_LIBRARY_SQL} AND (s.origin_key LIKE 'mihon:%' OR s.origin_key LIKE 'lnreader:%' OR s.origin_key LIKE 'aniyomi:%')`
-		)
-		.all() as {
+	type Holding = {
 		id: number;
 		title: string;
 		alts: string;
@@ -66,8 +73,38 @@ export function libraryIndex(reveal: boolean) {
 		hidden: number;
 		total: number;
 		have: number;
-	}[];
-	const byKey = new Map(rows.map((r) => [r.k, r]));
+	};
+	const db = getDb();
+	// A key's count is what its source supplies: a series' own key does not
+	// count the seasons that have another source (c282).
+	const ofKey = (key: string) =>
+		`e.series_id = s.id AND e.shadowed = 0 AND ${entryOriginSql('e', 's')} = ${key}`;
+	const rows = db
+		.prepare(
+			`SELECT s.id, s.title, s.alt_titles AS alts, s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden,
+				(SELECT COUNT(*) FROM entries e WHERE ${ofKey('s.origin_key')}) AS total,
+				(SELECT COUNT(*) FROM entries e WHERE ${ofKey('s.origin_key')} AND e.available = 1) AS have
+			FROM series s JOIN roots r ON r.id = s.root_id WHERE ${IN_LIBRARY_SQL} AND ${HAS_SOURCE('s.origin_key')}`
+		)
+		.all() as Holding[];
+	// Each season's source too, by the name that source gave it. Two seasons
+	// sharing a key are one row, named by the first; a key the series itself
+	// holds is already above. Lowest id last, so `seriesHolding`'s answer wins
+	// if a key is ever held twice.
+	const seasons = db
+		.prepare(
+			`SELECT s.id, COALESCE(NULLIF(f.source_title, ''), s.title) AS title, '[]' AS alts,
+				f.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden, MIN(f.season) AS first,
+				(SELECT COUNT(*) FROM entries e WHERE ${ofKey('f.origin_key')}) AS total,
+				(SELECT COUNT(*) FROM entries e WHERE ${ofKey('f.origin_key')} AND e.available = 1) AS have
+			FROM series_season_facts f JOIN series s ON s.id = f.series_id JOIN roots r ON r.id = s.root_id
+			WHERE ${IN_LIBRARY_SQL} AND ${HAS_SOURCE('f.origin_key')}
+				AND f.origin_key IS NOT COALESCE(s.origin_key, '')
+			GROUP BY s.id, f.origin_key ORDER BY s.id DESC`
+		)
+		.all() as Holding[];
+	const held = [...seasons, ...rows];
+	const byKey = new Map(held.map((r) => [r.k, r]));
 	// SAME TITLE only within a kind of source: an anime named as a manga is an
 	// adaptation, not a copy of it from elsewhere ("Oshi no Ko" on KickAssAnime
 	// isn't Weeb Central's), and a light novel isn't its manga either.
@@ -76,7 +113,7 @@ export function libraryIndex(reveal: boolean) {
 	// Titles are set last, so a result named as one series is titled and
 	// another was once called is the titled one's.
 	const byTitle = new Map<string, string>();
-	const shown = rows.filter((r) => reveal || !r.hidden);
+	const shown = held.filter((r) => reveal || !r.hidden);
 	for (const r of shown) {
 		const sourceId = sourceOfKey(r.k);
 		for (const alt of namesOf('', r.alts))
@@ -125,9 +162,13 @@ export function seriesForKey(key: string): QueueSeries | null {
 	const row = getDb()
 		.prepare(
 			`SELECT s.id, s.title, NOT ${VISIBLE_SQL} AS hidden, s.cover_at, s.hue
-			FROM series s JOIN roots r ON r.id = s.root_id WHERE s.origin_key = ? AND ${IN_LIBRARY_SQL}`
+			FROM series s JOIN roots r ON r.id = s.root_id
+			WHERE (s.origin_key = @key OR EXISTS (SELECT 1 FROM series_season_facts f
+					WHERE f.series_id = s.id AND f.origin_key = @key))
+				AND ${IN_LIBRARY_SQL}
+			ORDER BY s.origin_key IS @key DESC, s.id LIMIT 1`
 		)
-		.get(key) as
+		.get({ key }) as
 		{ id: number; title: string; hidden: number; cover_at: number | null; hue: number } | undefined;
 	return row
 		? { id: row.id, title: row.title, hidden: row.hidden === 1, cover: row.cover_at, hue: row.hue }

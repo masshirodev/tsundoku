@@ -72,6 +72,9 @@ const { refreshMany, refreshSeries } = await import('$lib/server/refresh');
 const { downloadEpisode, episodePlace, seriesFolder, isAnimeSeries } =
 	await import('$lib/server/anime/download');
 const { episodeRow } = await import('$lib/server/anime/streams');
+const browseIndex = await import('$lib/server/library-sources');
+const { recordView } = await import('$lib/server/browsing');
+const { addAnime, browseAnime } = await import('$lib/server/engine/anime-source');
 
 const db = getDb();
 db.prepare(`INSERT INTO roots (id, name, path, hidden) VALUES (1, 'Anime', '/lib/Anime', 0)`).run();
@@ -469,5 +472,89 @@ describe('a stream and the series screen ask the entry’s season', () => {
 		expect(isAnimeSeries(a, db)).toBe(false);
 		facts.putSeasonFact({ seriesId: a, season: 1, originKey: 'aniyomi:7:/s1' }, db);
 		expect(isAnimeSeries(a, db)).toBe(true);
+	});
+});
+
+describe('IN LIBRARY and SAME TITLE, by each season’s source', () => {
+	beforeEach(() => browseIndex.forgetSourceUse());
+
+	it('finds a season’s key, counting that season’s episodes, and the series’ key the rest', () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		episode(a, 1, 1);
+		episode(a, 1, 2);
+		episode(a, 2, 1);
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:9:/s2' }, db);
+		const { byKey } = browseIndex.libraryIndex(true);
+		expect(byKey.get('aniyomi:9:/s2')).toMatchObject({ id: a, total: 1 });
+		expect(byKey.get('aniyomi:7:/s1')).toMatchObject({ id: a, total: 2 });
+	});
+
+	it('counts two seasons sharing a key as one key with both seasons’ episodes', () => {
+		const a = show('Merged', 'aniyomi:7:/series');
+		episode(a, 1, 1);
+		episode(a, 2, 1);
+		episode(a, 2, 2);
+		facts.putSeasonFact({ seriesId: a, season: 1, originKey: 'aniyomi:9:/both' }, db);
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:9:/both' }, db);
+		expect(browseIndex.libraryIndex(true).byKey.get('aniyomi:9:/both')?.total).toBe(3);
+	});
+
+	it('offers SAME TITLE by the name the season’s source gave it, under that source', () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		facts.putSeasonFact(
+			{ seriesId: a, season: 2, originKey: 'aniyomi:9:/s2', sourceTitle: 'Merged Second' },
+			db
+		);
+		const { sameTitle } = browseIndex.libraryIndex(true);
+		expect(sameTitle('aniyomi:7:/x', 'Merged Second')).toBe('9');
+		expect(sameTitle('aniyomi:7:/x', 'Merged')).toBe('7');
+	});
+
+	it('keeps a hidden series’ seasons out of SAME TITLE, unless revealing', () => {
+		const a = show('Quiet', 'aniyomi:7:/s1');
+		db.prepare(`UPDATE series SET hidden = 1 WHERE id = ?`).run(a);
+		facts.putSeasonFact(
+			{ seriesId: a, season: 2, originKey: 'aniyomi:9:/s2', sourceTitle: 'Quiet Second' },
+			db
+		);
+		expect(
+			browseIndex.libraryIndex(false).sameTitle('aniyomi:7:/x', 'Quiet Second')
+		).toBeUndefined();
+		expect(browseIndex.libraryIndex(true).sameTitle('aniyomi:7:/x', 'Quiet Second')).toBe('9');
+	});
+
+	it('counts a series once at a source however many of its seasons are there', () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:7:/s2' }, db);
+		facts.putSeasonFact({ seriesId: a, season: 3, originKey: 'aniyomi:9:/s3' }, db);
+		const use = browseIndex.sourceUse();
+		expect(use.get('7')).toEqual({ series: 1, hidden: 0 });
+		expect(use.get('9')).toEqual({ series: 1, hidden: 0 });
+	});
+
+	it('finds a queued key’s series by a season’s key, and a series with none by its own', () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:9:/s2' }, db);
+		const b = show('Plain', 'aniyomi:7:/plain');
+		expect(browseIndex.seriesForKey('aniyomi:9:/s2')?.id).toBe(a);
+		expect(browseIndex.seriesForKey('aniyomi:7:/plain')?.id).toBe(b);
+		expect(browseIndex.seriesForKey('aniyomi:7:/nobody')).toBeNull();
+	});
+
+	it('ADD and an open of a source entry that is a season find the series, and ask nothing', async () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:7:/s2' }, db);
+		const id = sourceMangaId('7', '/s2');
+		expect(await addAnime(id)).toBe(a);
+		expect(await browseAnime(id)).toBe(a);
+		expect(source.asked).toEqual([]);
+	});
+
+	it('a browsing record is found by a season’s key too', () => {
+		const a = show('Browsed', 'aniyomi:7:/s1');
+		db.prepare(`UPDATE series SET in_library = 0, browsed_at = 5 WHERE id = ?`).run(a);
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:7:/s2' }, db);
+		expect(recordView('aniyomi:7:/s2', db)?.seriesId).toBe(a);
+		expect(recordView('aniyomi:7:/s1', db)?.seriesId).toBe(a);
 	});
 });
