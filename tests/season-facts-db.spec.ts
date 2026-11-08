@@ -49,7 +49,12 @@ vi.mock('$lib/server/engine/anime-source', async (original) => ({
 		if (!episodes) return null;
 		return {
 			sourceId: '7',
-			details: { url: `/${id}`, title: 'A show', description: '', status: 1 },
+			details: {
+				url: Buffer.from(id.split('~')[1], 'base64url').toString(),
+				title: 'A show',
+				description: '',
+				status: 1
+			},
 			episodes
 		};
 	}
@@ -84,6 +89,7 @@ const { episodeNfo, tvshowNfo } = await import('$lib/library/anime-files');
 const browseIndex = await import('$lib/server/library-sources');
 const { recordView } = await import('$lib/server/browsing');
 const { addAnime, browseAnime } = await import('$lib/server/engine/anime-source');
+const move = await import('$lib/server/move');
 const { writeSeries } = await import('$lib/server/import/write');
 const { planAnimeFolders, planAnimeSeries } = await import('$lib/server/import/anime');
 
@@ -691,5 +697,179 @@ describe('the anime importer folds a season’s folder onto its series', () => {
 			'Season 01/Plain S01E01.mkv',
 			'Season 01/Plain S01E02.mkv'
 		]);
+	});
+});
+
+describe('MOVE, by the season each entry is from', () => {
+	const target = (key: string) => ({ key, source: 'Elsewhere', sourceId: '9', url: key });
+	const list = (numbers: number[], season: number | null = null, at = '/new') =>
+		numbers.map((n, order) => ({
+			number: n,
+			season,
+			title: '',
+			url: `${at}/ep-${n}`,
+			name: `Ep. ${n}`,
+			uploaded: 1,
+			order
+		}));
+	const seriesOf = (id: number) =>
+		db.prepare(`SELECT origin_key, former_key, former_at FROM series WHERE id = ?`).get(id) as {
+			origin_key: string;
+			former_key: string | null;
+			former_at: number | null;
+		};
+	const urls = (id: number) =>
+		(
+			db.prepare(`SELECT source_url AS u FROM entries WHERE series_id = ? ORDER BY id`).all(id) as {
+				u: string;
+			}[]
+		).map((r) => r.u);
+
+	it('a series’ MOVE takes only what its own key supplies, and a season with a source of its own stays', () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		const one = episode(a, 1, 1);
+		const two = episode(a, 2, 1);
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:7:/s2' }, db);
+		const twoUrl = (
+			db.prepare(`SELECT source_url AS u FROM entries WHERE id = ?`).get(two) as { u: string }
+		).u;
+		const r = move.applyMove(a, target('aniyomi:9:/new'), list([1], 1), { now: 500, db });
+		expect(r).toMatchObject({ matched: 1 });
+		expect(seriesOf(a)).toMatchObject({
+			origin_key: 'aniyomi:9:/new',
+			former_key: 'aniyomi:7:/s1',
+			former_at: 500
+		});
+		expect(facts.seasonOrigin(a, 2, db)).toBe('aniyomi:7:/s2');
+		expect(urls(a)).toContain(twoUrl);
+		expect(
+			(db.prepare(`SELECT source_url AS u FROM entries WHERE id = ?`).get(one) as { u: string }).u
+		).toBe('/new/ep-1');
+	});
+
+	it('a season’s row that named the series’ key follows the series there, and back', () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		episode(a, 1, 1);
+		facts.putSeasonFact({ seriesId: a, season: 1, originKey: 'aniyomi:7:/s1' }, db);
+		move.applyMove(a, target('aniyomi:9:/new'), list([1], 1), { now: 500, db });
+		expect(facts.seasonFact(a, 1, db)?.originKey).toBe('aniyomi:9:/new');
+		move.applyMoveBack(a, list([1], 1, '/s1'), { now: 600, db });
+		expect(facts.seasonFact(a, 1, db)?.originKey).toBe('aniyomi:7:/s1');
+		expect(seriesOf(a).origin_key).toBe('aniyomi:7:/s1');
+	});
+
+	it('MOVE of one season leaves the series-level way back exactly as it was', () => {
+		const a = show('Merged', 'aniyomi:7:/s1');
+		episode(a, 1, 1);
+		episode(a, 2, 1);
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:7:/s2' }, db);
+		move.applyMove(a, target('aniyomi:9:/first'), list([1], 1, '/first'), { now: 500, db });
+		const before = seriesOf(a);
+		const r = move.applyMove(a, target('aniyomi:9:/second'), list([1], null, '/second'), {
+			now: 900,
+			db,
+			season: 2
+		});
+		expect(r).toMatchObject({ matched: 1, kept: 0 });
+		expect(seriesOf(a)).toEqual(before);
+		expect(facts.seasonOrigin(a, 2, db)).toBe('aniyomi:9:/second');
+		expect(urls(a)).toContain('/second/ep-1');
+		// And MOVE BACK of the series still goes where the series came from.
+		expect(move.moveBackTarget(a)?.key).toBe('aniyomi:7:/s1');
+		// The season's left key is remembered, for a backup to find the series by.
+		expect(
+			db
+				.prepare(`SELECT 1 AS y FROM series_former_keys WHERE series_id = ? AND origin_key = ?`)
+				.get(a, 'aniyomi:7:/s2')
+		).toEqual({ y: 1 });
+	});
+
+	it('a season’s MOVE with no row writes one, and season 1’s series key is not “left”', () => {
+		const a = show('Merged', 'aniyomi:7:/series');
+		episode(a, 1, 1);
+		episode(a, 2, 1);
+		move.applyMove(a, target('aniyomi:9:/second'), list([1], null, '/second'), {
+			now: 900,
+			db,
+			season: 2
+		});
+		expect(facts.seasonFact(a, 2, db)?.originKey).toBe('aniyomi:9:/second');
+		expect(seriesOf(a).origin_key).toBe('aniyomi:7:/series');
+		expect(
+			db
+				.prepare(`SELECT 1 FROM series_former_keys WHERE series_id = ? AND origin_key = ?`)
+				.get(a, 'aniyomi:7:/series')
+		).toBeUndefined();
+	});
+
+	it('of two seasons sharing a key, moving one leaves the other, and the key is not “left”', () => {
+		const a = show('Shared', 'aniyomi:7:/series');
+		episode(a, 1, 1);
+		episode(a, 2, 1);
+		facts.putSeasonFact({ seriesId: a, season: 1, originKey: 'aniyomi:7:/both' }, db);
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:7:/both' }, db);
+		move.applyMove(a, target('aniyomi:9:/second'), list([1], null, '/second'), {
+			now: 900,
+			db,
+			season: 2
+		});
+		expect(facts.seasonFact(a, 1, db)?.originKey).toBe('aniyomi:7:/both');
+		expect(facts.seasonFact(a, 2, db)?.originKey).toBe('aniyomi:9:/second');
+		expect(
+			db
+				.prepare(`SELECT 1 FROM series_former_keys WHERE series_id = ? AND origin_key = ?`)
+				.get(a, 'aniyomi:7:/both')
+		).toBeUndefined();
+	});
+
+	it('refuses a target another series holds as a season, and accepts this series’ own season', () => {
+		const a = show('A', 'aniyomi:7:/a');
+		episode(a, 1, 1);
+		facts.putSeasonFact({ seriesId: a, season: 2, originKey: 'aniyomi:7:/a2' }, db);
+		const b = show('B', 'aniyomi:7:/b');
+		facts.putSeasonFact({ seriesId: b, season: 2, originKey: 'aniyomi:7:/b2' }, db);
+		expect(() => move.applyMove(a, target('aniyomi:7:/b2'), list([1], 1), { db })).toThrow(
+			/already another series/
+		);
+		expect(() => move.applyMove(a, target('aniyomi:7:/b'), list([1], 1), { db })).toThrow(
+			/already another series/
+		);
+		expect(() => move.applyMove(a, target('aniyomi:7:/a2'), list([1], 1), { db })).not.toThrow();
+	});
+
+	it('the comparison says the same: a season’s key held elsewhere is a conflict', async () => {
+		const a = show('A', 'aniyomi:7:/a');
+		episode(a, 1, 1);
+		const b = show('B', 'aniyomi:7:/b');
+		facts.putSeasonFact({ seriesId: b, season: 2, originKey: 'aniyomi:7:/b2' }, db);
+		listing('/b2', [1]);
+		const compared = await move.moveComparison(a, sourceMangaId('7', '/b2'), true, null, 1000);
+		expect(compared?.conflict).toEqual({ seriesId: b, title: 'B' });
+	});
+
+	it('refuses a series MOVE when every season has its own source, and MOVE BACK likewise', () => {
+		const a = show('All seasons elsewhere', 'aniyomi:7:/series');
+		episode(a, 1, 1);
+		facts.putSeasonFact({ seriesId: a, season: 1, originKey: 'aniyomi:7:/own' }, db);
+		expect(() => move.applyMove(a, target('aniyomi:9:/new'), list([1], 1), { db })).toThrow(
+			/own source/
+		);
+	});
+
+	it('a series with no rows moves whole, as it did', () => {
+		const a = show('Plain', 'aniyomi:7:/plain');
+		episode(a, 1, 1);
+		episode(a, 2, 1);
+		const r = move.applyMove(
+			a,
+			target('aniyomi:9:/new'),
+			[...list([1], 1), ...list([1], 2, '/n2')],
+			{
+				now: 500,
+				db
+			}
+		);
+		expect(r.matched).toBe(2);
+		expect(seriesOf(a).former_key).toBe('aniyomi:7:/plain');
 	});
 });

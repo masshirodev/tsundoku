@@ -12,7 +12,14 @@ import { engineDownSince } from './engine/client.ts';
 import { coverRoute } from './novels/source.ts';
 import { searchSources } from './downloads.ts';
 import { forgetSourceUse } from './library-sources.ts';
-import { resequenceAnime } from './season-facts.ts';
+import {
+	entryOriginSql,
+	heldByOther,
+	resequenceAnime,
+	seasonFacts,
+	seasonOrigin,
+	seasonRowOf
+} from './season-facts.ts';
 import { ago } from '../library/tracking.ts';
 import {
 	animeKeyOf,
@@ -514,7 +521,22 @@ type EntryRow = {
 	queued: number;
 };
 
-function entriesOf(seriesId: number, kind: MoveKind, db: Database.Database = getDb()): MoveEntry[] {
+/**
+ * Which entries a MOVE is about (c282). A MOVE of the series is about what
+ * the series' own key supplies: a season with a source of its own stays with
+ * it. A MOVE of one season is about that season alone.
+ */
+const inScope = (season: number | null): string =>
+	season === null
+		? `AND ${entryOriginSql('e', 's')} IS s.origin_key`
+		: `AND COALESCE(e.season, 0) = ${seasonRowOf(season)}`;
+
+function entriesOf(
+	seriesId: number,
+	kind: MoveKind,
+	db: Database.Database = getDb(),
+	season: number | null = null
+): MoveEntry[] {
 	// An episode is numbered by its episode number in its season; a page's
 	// entry by its position.
 	const video = movesVideo(kind);
@@ -524,7 +546,9 @@ function entriesOf(seriesId: number, kind: MoveKind, db: Database.Database = get
 				`SELECT e.id, e.position, e.label, e.title, e.season, e.episode_number, e.read_at, e.last_position,
 					e.last_opened_at, e.available,
 					EXISTS (SELECT 1 FROM download_queue q WHERE q.entry_id = e.id) AS queued
-				FROM entries e WHERE e.series_id = ? AND e.shadowed = 0 AND e.matter = '' ORDER BY e.position, e.id`
+				FROM entries e JOIN series s ON s.id = e.series_id
+				WHERE e.series_id = ? AND e.shadowed = 0 AND e.matter = '' ${inScope(season)}
+				ORDER BY e.position, e.id`
 			)
 			.all(seriesId) as EntryRow[]
 	).map((e) => ({
@@ -579,6 +603,19 @@ export type MoveComparison = {
 };
 
 /**
+ * A source that lists one season, moved onto one season of a series: its
+ * episodes are that season's here, whatever number it gives itself (the
+ * entry "Season 2" of the series' list is often the source's own "Season 1").
+ * A list of several seasons matches season by season, and a flat one by
+ * offset, as ever.
+ */
+function inSeason(chapters: MoveCandidateEntry[], season: number | null): MoveCandidateEntry[] {
+	if (season === null) return chapters;
+	const listed = new Set(chapters.map((c) => c.season).filter((x) => x !== null));
+	return listed.size === 1 ? chapters.map((c) => ({ ...c, season })) : chapters;
+}
+
+/**
  * The candidate beside the series, by number, before anything changes. The
  * offset is the URL's when given (the owner edited it), the guessed one
  * otherwise: a flat anime list's YOUR EP. 1 IS THEIR EP. N.
@@ -588,13 +625,22 @@ export async function moveComparison(
 	mangaId: string,
 	reveal: boolean,
 	offsetParam: number | null,
-	now = Date.now()
+	now = Date.now(),
+	/** One season's MOVE (c282), or null for the series'. */
+	scope: number | null = null
 ): Promise<MoveComparison | null> {
 	const s = seriesRow(seriesId);
 	if (!s || s.in_library !== 1 || !movableKind(s.kind)) return null;
 	const kind: MoveKind = moveKindOf(s.kind);
-	const candidate = await candidateOf(kind, mangaId);
-	const yours = entriesOf(seriesId, kind);
+	const found = await candidateOf(kind, mangaId);
+	const chapters = inSeason(found.chapters, scope);
+	const candidate = {
+		...found,
+		chapters,
+		seasons: [...new Set(chapters.map((c) => c.season).filter((x): x is number => x !== null))]
+	};
+	const yours = entriesOf(seriesId, kind, getDb(), scope);
+	const fromKey = scope === null ? s.origin_key : seasonOrigin(seriesId, scope);
 	const seasons = new Set(yours.map((e) => e.season).filter((x): x is number => x !== null));
 	const needsOffset = movesVideo(kind) && seasons.size > 0 && candidate.flat;
 	const guess = needsOffset
@@ -607,21 +653,19 @@ export async function moveComparison(
 	const plan = buildMoveMap(yours, candidate.chapters, {
 		kind,
 		offset,
-		from: sourceLabel(seriesId, s.origin_key, s.source),
+		from: sourceLabel(seriesId, fromKey, s.source),
 		to: candidate.source
 	});
 	const season = seasons.size === 1 ? [...seasons][0] : null;
 	const summary = moveSummary(plan, {
 		kind,
-		from: sourceLabel(seriesId, s.origin_key, s.source),
+		from: sourceLabel(seriesId, fromKey, s.source),
 		to: candidate.source,
 		follow: s.followed_at !== null,
 		yours,
 		season
 	});
-	const conflict = getDb()
-		.prepare(`SELECT id, title FROM series WHERE origin_key = ? AND id != ? LIMIT 1`)
-		.get(candidate.key, seriesId) as { id: number; title: string } | undefined;
+	const conflict = heldByOther(candidate.key, seriesId);
 	// The episode CONTINUE would play: the one part-way, else the first unread.
 	const open =
 		[...yours]
@@ -644,15 +688,18 @@ export async function moveComparison(
 	return {
 		seriesId,
 		kind,
-		source: sourceLabel(seriesId, s.origin_key, s.source),
+		source: sourceLabel(seriesId, fromKey, s.source),
 		former:
-			s.former_key && s.former_at !== null && now - s.former_at < MOVE_BACK_DAYS * 86_400_000
+			scope === null &&
+			s.former_key &&
+			s.former_at !== null &&
+			now - s.former_at < MOVE_BACK_DAYS * 86_400_000
 				? { name: formerName(s), until: s.former_at + MOVE_BACK_DAYS * 86_400_000 }
 				: null,
 		candidate,
 		plan,
 		summary,
-		detail: movedDetail(plan, sourceLabel(seriesId, s.origin_key, s.source), kind),
+		detail: movedDetail(plan, sourceLabel(seriesId, fromKey, s.source), kind),
 		offset: needsOffset
 			? { value: offset, guessed: offsetParam === null, agree: guess.agree, of: guess.of }
 			: null,
@@ -660,7 +707,7 @@ export async function moveComparison(
 		conflict: conflict ? { seriesId: conflict.id, title: conflict.title } : null,
 		match: conflict ? { kind: 'in-library', seriesId: conflict.id, meta: 'ALSO IN LIBRARY' } : null,
 		highlights: moveHighlights(seriesId, plan, {
-			from: sourceLabel(seriesId, s.origin_key, s.source),
+			from: sourceLabel(seriesId, fromKey, s.source),
 			to: candidate.source
 		}),
 		playCheck
@@ -682,6 +729,22 @@ export type ApplyResult = {
 
 /** Above any real position: additions waiting for their places. */
 const PENDING = 1e9;
+
+/** A series MOVE: the season rows that named the key it left now name where it went (c282). */
+function followSeasons(db: Database.Database, seriesId: number, from: string, to: string): void {
+	db.prepare(
+		`UPDATE series_season_facts SET origin_key = ? WHERE series_id = ? AND origin_key = ?`
+	).run(to, seriesId, from);
+}
+
+/** The episode failures of what moved: the rest of the show still fails where it failed. */
+function clearFailures(db: Database.Database, seriesId: number, scope: number | null): void {
+	db.prepare(
+		`DELETE FROM episode_failures WHERE series_id = ?
+		AND entry_id IN (SELECT e.id FROM entries e JOIN series s ON s.id = e.series_id
+			WHERE e.series_id = ? ${inScope(scope)})`
+	).run(seriesId, seriesId);
+}
 
 /**
  * The key a series has just left joins every other one it has left (rung 58),
@@ -747,28 +810,34 @@ export function applyMove(
 	seriesId: number,
 	target: MoveTarget,
 	chapters: MoveCandidateEntry[],
-	opts: { offset?: number; now?: number; db?: Database.Database } = {}
+	opts: { offset?: number; now?: number; db?: Database.Database; season?: number } = {}
 ): ApplyResult {
 	const db = opts.db ?? getDb();
 	const now = opts.now ?? Date.now();
+	const scope = opts.season ?? null;
 	return db
 		.transaction((): ApplyResult => {
 			const s = seriesRow(seriesId, db);
-			if (!s || s.in_library !== 1 || !movableKind(s.kind) || !s.origin_key)
+			const oldKey = s ? (scope === null ? s.origin_key : seasonOrigin(s.id, scope, db)) : null;
+			if (!s || s.in_library !== 1 || !movableKind(s.kind) || !oldKey)
 				throw new MoveError('That series cannot move');
-			// One series holds a source entry: moving onto another series' key
-			// would make two, and every import would then find one at random.
-			const taken = db
-				.prepare(`SELECT id FROM series WHERE origin_key = ? AND id != ? LIMIT 1`)
-				.get(target.key, seriesId);
-			if (taken) throw new MoveError('That entry is already another series in the library');
+			// One series holds a source entry: moving onto another series' key, or
+			// a season of it (c282), would make two, and every import would then
+			// find one at random. A key of this series' own is not another's: two
+			// seasons of one show may share a source.
+			if (heldByOther(target.key, seriesId, db))
+				throw new MoveError('That entry is already another series in the library');
 			const kind: MoveKind = moveKindOf(s.kind);
 			const video = movesVideo(kind);
-			const oldKey = s.origin_key;
 			const oldSource = sourceOfKey(oldKey) ?? '';
 			const oldName = sourceLabel(seriesId, oldKey, s.source);
-			const yours = entriesOf(seriesId, kind, db);
-			const plan = buildMoveMap(yours, chapters, {
+			const yours = entriesOf(seriesId, kind, db, scope);
+			// Seasons that each have their own source leave the series' key
+			// supplying nothing: there is nothing here to move (a series with no
+			// season rows never reaches this, whatever it holds).
+			if (yours.length === 0 && seasonFacts(seriesId, db).length > 0)
+				throw new MoveError('Every season here has its own source: move one of those');
+			const plan = buildMoveMap(yours, inSeason(chapters, scope), {
 				kind,
 				offset: opts.offset ?? 1,
 				from: oldName,
@@ -804,8 +873,9 @@ export function applyMove(
 			const untouched = (
 				db
 					.prepare(
-						`SELECT id FROM entries WHERE series_id = ? AND origin_source = ''
-						AND (shadowed = 1 OR matter != '')`
+						`SELECT e.id FROM entries e JOIN series s ON s.id = e.series_id
+						WHERE e.series_id = ? AND e.origin_source = ''
+							AND (e.shadowed = 1 OR e.matter != '') ${inScope(scope)}`
 					)
 					.all(seriesId) as { id: number }[]
 			).map((r) => r.id);
@@ -851,7 +921,7 @@ export function applyMove(
 						added: t.uploaded || now,
 						read: readOfUrl.get(t.url) ?? null,
 						url: t.url,
-						season: video ? t.season : null,
+						season: video ? (scope ?? t.season) : null,
 						number: video ? t.number : null
 					}).lastInsertRowid
 				);
@@ -870,35 +940,52 @@ export function applyMove(
 				for (const e of plan.kept) drop.run(e.id);
 			}
 
-			db.prepare(
-				`UPDATE series SET origin_key = ?, former_key = ?, former_at = ?, former_source = ?,
-					former_offset = ?, source = ?, source_url = ?, move_dismissed_at = NULL
-				WHERE id = ?`
-			).run(
-				target.key,
-				oldKey,
-				now,
-				oldName,
-				opts.offset ?? 1,
-				target.source,
-				target.url,
-				seriesId
-			);
-			rememberKey(db, seriesId, oldKey, oldName, target.key, now);
-			const title = (
-				db.prepare(`SELECT title FROM engine_series WHERE series_id = ?`).get(seriesId) as
-					{ title: string } | undefined
-			)?.title;
-			db.prepare(
-				`INSERT INTO engine_series (series_id, source_id, engine_url, title, resolved_at)
-				VALUES (?, ?, ?, ?, ?)
-				ON CONFLICT (series_id) DO UPDATE SET source_id = excluded.source_id,
-					engine_url = excluded.engine_url, resolved_at = excluded.resolved_at`
-			).run(seriesId, target.sourceId, target.url, title ?? s.title, now);
+			if (scope !== null) {
+				// One season (c282): `series.former_key` is the series' way back, and
+				// stays exactly what it was, so MOVE BACK never returns the show to a
+				// source only this season left. There is no way back for a season
+				// yet; the left key joins `series_former_keys`, unless the series or
+				// another season still holds it, so a backup still finds the series.
+				db.prepare(
+					`INSERT INTO series_season_facts (series_id, season, origin_key) VALUES (?, ?, ?)
+					ON CONFLICT (series_id, season) DO UPDATE SET origin_key = excluded.origin_key`
+				).run(seriesId, scope, target.key);
+				const held =
+					s.origin_key === oldKey || seasonFacts(seriesId, db).some((f) => f.originKey === oldKey);
+				if (!held) rememberKey(db, seriesId, oldKey, oldName, target.key, now);
+			} else {
+				db.prepare(
+					`UPDATE series SET origin_key = ?, former_key = ?, former_at = ?, former_source = ?,
+						former_offset = ?, source = ?, source_url = ?, move_dismissed_at = NULL
+					WHERE id = ?`
+				).run(
+					target.key,
+					oldKey,
+					now,
+					oldName,
+					opts.offset ?? 1,
+					target.source,
+					target.url,
+					seriesId
+				);
+				// A season row that named the series' key names where the series went.
+				followSeasons(db, seriesId, oldKey, target.key);
+				rememberKey(db, seriesId, oldKey, oldName, target.key, now);
+				const title = (
+					db.prepare(`SELECT title FROM engine_series WHERE series_id = ?`).get(seriesId) as
+						{ title: string } | undefined
+				)?.title;
+				db.prepare(
+					`INSERT INTO engine_series (series_id, source_id, engine_url, title, resolved_at)
+					VALUES (?, ?, ?, ?, ?)
+					ON CONFLICT (series_id) DO UPDATE SET source_id = excluded.source_id,
+						engine_url = excluded.engine_url, resolved_at = excluded.resolved_at`
+				).run(seriesId, target.sourceId, target.url, title ?? s.title, now);
+			}
 			// A new source's first check is its own, not the old one's.
 			db.prepare(`DELETE FROM anime_checks WHERE series_id = ?`).run(seriesId);
 			forgetSourceUse();
-			db.prepare(`DELETE FROM episode_failures WHERE series_id = ?`).run(seriesId);
+			clearFailures(db, seriesId, scope);
 
 			return {
 				added: additions.length,
@@ -955,6 +1042,8 @@ export function applyMoveBack(
 			const leftSource = sourceOfKey(leftKey) ?? '';
 			const leftName = sourceLabel(seriesId, leftKey, s.source);
 			const yours = entriesOf(seriesId, kind, db);
+			if (yours.length === 0 && seasonFacts(seriesId, db).length > 0)
+				throw new MoveError('Every season here has its own source: move one of those');
 			const plan = buildMoveMap(yours, chapters, {
 				kind,
 				offset: s.former_offset || 1,
@@ -1002,7 +1091,10 @@ export function applyMoveBack(
 			// from is told the same way, so none is left saying nothing.
 			const untouched = (
 				db
-					.prepare(`SELECT id FROM entries WHERE series_id = ? AND (shadowed = 1 OR matter != '')`)
+					.prepare(
+						`SELECT e.id FROM entries e JOIN series s ON s.id = e.series_id
+						WHERE e.series_id = ? AND (e.shadowed = 1 OR e.matter != '') ${inScope(null)}`
+					)
 					.all(seriesId) as { id: number }[]
 			).map((r) => r.id);
 			for (const id of untouched)
@@ -1078,6 +1170,7 @@ export function applyMoveBack(
 				target.url,
 				seriesId
 			);
+			followSeasons(db, seriesId, leftKey, target.key);
 			rememberKey(db, seriesId, leftKey, leftName, target.key, now);
 			db.prepare(
 				`INSERT INTO engine_series (series_id, source_id, engine_url, title, resolved_at)
@@ -1086,7 +1179,7 @@ export function applyMoveBack(
 					engine_url = excluded.engine_url, resolved_at = excluded.resolved_at`
 			).run(seriesId, target.sourceId, target.url, s.title, now);
 			db.prepare(`DELETE FROM anime_checks WHERE series_id = ?`).run(seriesId);
-			db.prepare(`DELETE FROM episode_failures WHERE series_id = ?`).run(seriesId);
+			clearFailures(db, seriesId, null);
 			forgetSourceUse();
 
 			const keptStayed = plan.kept.length - gone.length;
