@@ -14,6 +14,8 @@ import { ANIME_SOURCE, engineCalls, SOURCES } from './browse-world';
 // file's searches carry a word no other file searches for, and its calls are
 // read by it.
 const Q = 'kindband';
+/** The anime source's one search hit, from the fake's `getSearchAnime` (c735). */
+const ANIME_HIT = 'Moonlit Search Hit';
 const kinds = (page: Page) => page.getByRole('navigation', { name: 'Kinds' });
 const sources = (page: Page) => page.getByRole('navigation', { name: 'Sources' });
 const searchCalls = async () =>
@@ -30,6 +32,7 @@ test('ALL asks every kind’s sources, a kind only its own, and the kind stays t
 	await expect(sources(page).getByRole('link', { name: SOURCES.open.name })).toBeVisible();
 	await expect(sources(page).getByRole('link', { name: ANIME_SOURCE.name })).toBeVisible();
 	await expect(page.locator('a.hit', { hasText: 'Filtered One' }).first()).toBeVisible();
+	await expect(page.locator('a.hit', { hasText: ANIME_HIT })).toHaveCount(1);
 	await expect(page.getByText(/STILL ASKING/)).toHaveCount(0);
 	const underAll = await searchCalls();
 	expect(underAll.some((c) => c.sourceId === SOURCES.open.id)).toBe(true);
@@ -43,8 +46,9 @@ test('ALL asks every kind’s sources, a kind only its own, and the kind stays t
 	const tabs = sources(page).getByRole('link');
 	await expect(tabs).toHaveText([/^ALL/, new RegExp(`^${ANIME_SOURCE.name}`, 'i')]);
 	await expect(page.locator('a.hit', { hasText: 'Filtered One' })).toHaveCount(0);
+	await expect(page.locator('a.hit', { hasText: ANIME_HIT })).toHaveCount(1);
 	await expect(page.getByText(/STILL ASKING/)).toHaveCount(0);
-	await expect(page.locator('.label').first()).toContainText('OF 1 SOURCE ANSWERED');
+	await expect(page.locator('.label').first()).toContainText('1 OF 1 SOURCE ANSWERED');
 	const underAnime = (await searchCalls()).slice(before);
 	expect(underAnime.map((c) => c.sourceId)).toEqual([ANIME_SOURCE.id]);
 

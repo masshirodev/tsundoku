@@ -159,6 +159,18 @@ function answer(b: EngineCall): unknown {
 				],
 				hasNextPage: false
 			};
+		// A search of the anime source (c735). The shape is the two readers':
+		// `callSource` turns it into a manga page by
+		// `if (got && typeof got === 'object' && 'animes' in got)`
+		// (src/lib/server/engine/backend.ts), and Aniyomi's own is
+		// `class AnimesPage(val animes: List<SAnime>, val hasNextPage: Boolean)`
+		// (aniyomiorg/aniyomi, source-api, animesource/model/AnimesPage.kt). One
+		// show of its own, so that no case that adds or plays Kōri or Yuki meets it.
+		case 'getSearchAnime':
+			return {
+				animes: [{ url: '/show/search-hit', title: 'Moonlit Search Hit', status: 1 }],
+				hasNextPage: false
+			};
 		case 'getDetailsAnime':
 			return {
 				url: animeData?.url ?? '/show/kori',
