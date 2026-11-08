@@ -628,8 +628,7 @@ several, and none on a show of one, whose UNLINK takes every part). UNLINK
 closes the sheet on a band, `UNLINKED · <ENTRY>` / `NO PASS LINKS IT AGAIN`
 (`S3 · NO PASS LINKS IT AGAIN` on a season), with UNDO (c520): the rows that
 went come back with every column (`via`, dates, score, `filled_rating`, a
-season's `episodes` and `year`, and an anime's `series_links` mirror with
-its own score), keyed by the series and its season and part, never a row id,
+season's `episodes` and `year`), keyed by the series and its season and part, never a row id,
 and the UNLINK's own `unlinked` decision goes with them (the one it replaced,
 if any, comes back), so the next pass treats the series as linked. The band
 carries what went in its form, as RENAME's and ADD TO A WORK's do
@@ -693,7 +692,7 @@ cells, with the house's inset focus mark.
   AniList for them (`resolveLinks`, which then writes only those two, never
   the title, cover or format the link already settled), and until then it
   reads `MANGA · MAL 132214`, never `MANGA · null`. An entry AniList no
-  longer has is asked once (`country = ''`). An anime's mirror row is never
+  longer has is asked once (`country = ''`). An anime's season link is never
   asked: its season keeps its own year. EDIT's ENTRY says the same
   (`ANILIST 7701 · MANHWA · 2024`). The ANILIST id stands in for MAL's where
   there is no MAL entry (1B, 5 and 9 do the same).

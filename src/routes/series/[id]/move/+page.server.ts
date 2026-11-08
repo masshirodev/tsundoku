@@ -1,6 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { getDb } from '$lib/server/db';
+import { linkedNames } from '$lib/server/catalogue';
 import { hasScript } from '$lib/server/prefs';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { parseSourceMangaId } from '$lib/server/engine/backend';
@@ -43,11 +43,8 @@ export const load: PageServerLoad = async ({ params, cookies, url, untrack }) =>
 	// filled and nothing is asked until the owner taps SEARCH.
 	const q = qParam !== null ? qParam.trim() : series.hidden ? '' : series.title;
 
-	// OTHER NAMES: the series' own alternative titles, and its catalogue's name.
-	const linked = getDb()
-		.prepare(`SELECT title FROM series_links WHERE series_id = ? AND title != ''`)
-		.get(id) as { title: string } | undefined;
-	const names = [...new Set([...series.altTitles, linked?.title ?? ''].filter(Boolean))];
+	// OTHER NAMES: the series' own alternative titles, and its catalogue's names.
+	const names = [...new Set([...series.altTitles, ...linkedNames(id)].filter(Boolean))];
 
 	// The search depends on `q`, the comparison on `to` (card c491). `to` and
 	// `offset` are read untracked, so picking a candidate (or setting the

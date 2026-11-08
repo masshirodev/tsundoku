@@ -61,8 +61,7 @@ const inAnimeCatalogue = (kind: Kind) => {
 };
 
 /**
- * Where a series' walk starts, from its own season links (never `series_links`,
- * which is only the first season's mirror for an anime, c467): back from the
+ * Where a series' walk starts, from its own season links: back from the
  * earliest linked season, forward from the latest, and the seasons it holds
  * beyond those that no link names. Null for a series with no AniList id on
  * any season, and for one not in the anime catalogue: no chain to read.

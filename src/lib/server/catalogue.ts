@@ -29,6 +29,7 @@ import {
 	legacyLink,
 	linkSeason,
 	noneOfSeason,
+	firstSeasonLink,
 	offeredSeason,
 	openSeasonOf,
 	resolveSeasonLinks,
@@ -38,7 +39,6 @@ import {
 	seasonSettled,
 	seasonToLook,
 	seriesSeasons,
-	syncSeriesLink,
 	unlinkSeason,
 	undoNoneSeason,
 	undoSeasonLink
@@ -317,7 +317,10 @@ export function linkFromTracker(
 	if (
 		db
 			.prepare(`SELECT 1 FROM link_decisions WHERE series_id = ? AND decision = 'unlinked'`)
-			.get(seriesId)
+			.get(seriesId) ||
+		// A series with season rows is linked by them: a row here would stand
+		// beside them and be read by nothing (c467).
+		db.prepare(`SELECT 1 FROM series_season_links WHERE series_id = ? LIMIT 1`).get(seriesId)
 	)
 		return;
 	const had = linkOf(db, seriesId);
@@ -485,9 +488,8 @@ export type UnlinkFacts = {
 	/** A comic's link and the decision row it replaced (null: there was none). */
 	link: TakenRow | null;
 	decision: Decision | null;
-	/** An anime's parts, each as it was; and the series' mirror row (`syncSeriesLink`). */
+	/** An anime's parts, each as it was. */
 	parts: { season: number; part: number; link: TakenRow | null; decision: Decision | null }[];
-	mirror: TakenRow | null;
 };
 
 const pick = (r: Record<string, unknown> | undefined, cols: readonly string[]): TakenRow | null =>
@@ -519,13 +521,11 @@ export function unlink(seriesId: number, now = Date.now(), season?: number): Unl
 		season: season ?? null,
 		link: null,
 		decision: null,
-		parts: [],
-		mirror: null
+		parts: []
 	};
 	if (isAnime(kindOf(seriesId))) {
 		const view = seriesSeasons(seriesId);
 		const list = view ? view.seasons.map((s) => s.season) : [0];
-		facts.mirror = linkRow();
 		for (const s of season === undefined ? list : [season]) {
 			const parts = view?.seasons.find((x) => x.season === s)?.parts.map((p) => p.part) ?? [1];
 			for (const p of parts) {
@@ -630,8 +630,9 @@ export function parseUnlinkFacts(raw: string, seriesId: number): UnlinkFacts | n
 	if (read.some((p) => p.bad || !Number.isInteger(p.season) || (p.part !== 1 && p.part !== 2)))
 		return null;
 	const link = f.link == null ? null : rowFrom(f.link, LINK_COLUMNS);
-	const mirror = f.mirror == null ? null : rowFrom(f.mirror, LINK_COLUMNS);
-	if ((f.link != null && !link) || (f.mirror != null && !mirror)) return null;
+	// A band drawn before rung 74 still posts `mirror`, a copy of a season row
+	// (c467). It is not read: the seasons' own rows are what UNDO puts back.
+	if (f.link != null && !link) return null;
 	if (f.decision != null && !decisionFrom(f.decision)) return null;
 	return {
 		seriesId,
@@ -645,8 +646,7 @@ export function parseUnlinkFacts(raw: string, seriesId: number): UnlinkFacts | n
 			part: p.part as number,
 			link: p.link,
 			decision: p.decision
-		})),
-		mirror
+		}))
 	};
 }
 
@@ -722,12 +722,6 @@ export function undoUnlink(facts: UnlinkFacts): 'undone' {
 						p.link
 					);
 			}
-			// The mirror as it was (its score and filled rating are only its own),
-			// then brought in line with the seasons as they now are.
-			const mirrorNow = db.prepare(`SELECT 1 FROM series_links WHERE series_id = ?`).get(id);
-			if (facts.mirror && !mirrorNow)
-				insertRow(db, 'series_links', { series_id: id }, facts.mirror);
-			syncSeriesLink(id, facts.at);
 			return 'undone' as const;
 		}
 		if (!facts.link) throw new UndoUnlinkRefused('NOTHING TO UNDO');
@@ -917,8 +911,8 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 	const waiting = db
 		// Also a link from before rung 26, which doesn't know its entry's format
 		// yet, and one from before rung 70, which doesn't know its country or year
-		// (c520). Not an anime's mirror of its first season (`syncSeriesLink`):
-		// its season rows are its links, and the season keeps its own year.
+		// (c520). Not an anime's that has season rows: those are its links, and
+		// the season keeps its own year.
 		.prepare(
 			`SELECT l.series_id, l.anilist_id, l.mal_id, s.kind,
 				l.resolved_at IS NOT NULL AND l.format IS NOT NULL AS known FROM series_links l
@@ -1014,12 +1008,9 @@ const LINKABLE = `s.kind IN ('manga', 'manhwa', 'novel', 'anime') AND s.source !
  *
  * A series with season rows (an anime linked or settled a season at a time,
  * rung 62) is decided by those rows alone: it wants a look while one of its
- * seasons has neither a link nor a decision. The series-level `series_links`
- * row is not asked, because for such an anime it is only the mirror of its
- * first season (`syncSeriesLink`), written the moment season 1 is
- * linked, and would end the look while season 2 is still open. Computed from
- * the rows rather than cached on the series, so a season the source adds
- * later puts the series back by itself.
+ * seasons has neither a link nor a decision. Computed from the rows rather
+ * than cached on the series, so a season the source adds later puts the
+ * series back by itself.
  *
  * A series with no season rows -- every comic and novel, and an anime nobody
  * has acted on -- keeps the series-level gate: no `series_links` row and no
@@ -1475,7 +1466,6 @@ type ItemRow = {
 	found: number;
 	searched_at: number | null;
 	skipped_at: number | null;
-	link_cover: string | null;
 	/** An anime's season the row's search is (c240); null for a comic or a novel. */
 	season: number | null;
 };
@@ -1486,8 +1476,7 @@ const ITEM_COLS = `s.id, s.title, s.alt_titles, s.kind, s.hue, s.source, s.cover
 		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS chapters,
 		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.available = 1 AND e.file != '') AS downloaded,
 		(SELECT t.value FROM series_tags st JOIN tags t ON t.id = st.tag_id
-			WHERE st.series_id = s.id AND t.namespace = 'source' LIMIT 1) AS site,
-		(SELECT l.cover_url FROM series_links l WHERE l.series_id = s.id) AS link_cover`;
+			WHERE st.series_id = s.id AND t.namespace = 'source' LIMIT 1) AS site`;
 
 /** A comic's or a novel's item: the series-level search. */
 const ITEM_SQL = `SELECT ${ITEM_COLS},
@@ -1575,7 +1564,7 @@ function itemOf(r: ItemRow, part = 1): ReviewItem {
 			urlFailed: r.cover_url !== '' && r.cover_failed_at !== null,
 			downloaded: r.downloaded,
 			kind: r.kind,
-			linkCover: !!r.link_cover,
+			linkCover: linkCover(r.id) !== null,
 			pageOf: r.cover_key.startsWith('page:') ? firstPageOf(r.id) : undefined
 		}),
 		query: r.query || (own ? own.searchTitle : r.title),
@@ -1837,14 +1826,19 @@ function seasonLinkState(
 	};
 }
 
-/** The cover a link offers (doc/COVERS.md), for covers.ts. An anime's is the open season's. */
+/**
+ * The cover a link offers (doc/COVERS.md), for covers.ts and the review's cover
+ * line, so the two can never disagree. An anime's is the open season's, else
+ * its first season's (a cover is the series', and season 1's art is a cover of
+ * it), else a link from before rung 62.
+ */
 export function linkCover(seriesId: number): { anilistId: number; url: string } | null {
 	if (isAnime(kindOf(seriesId))) {
-		const l = seasonLink(seriesId, openSeasonOf(seriesId));
-		const legacy = l ?? legacyLink(seriesId);
-		return legacy?.anilistId && legacy.coverUrl
-			? { anilistId: legacy.anilistId, url: legacy.coverUrl }
-			: null;
+		const l =
+			seasonLink(seriesId, openSeasonOf(seriesId)) ??
+			firstSeasonLink(seriesId) ??
+			legacyLink(seriesId);
+		return l?.anilistId && l.coverUrl ? { anilistId: l.anilistId, url: l.coverUrl } : null;
 	}
 	const r = getDb()
 		.prepare(
@@ -1855,9 +1849,26 @@ export function linkCover(seriesId: number): { anilistId: number; url: string } 
 }
 
 /**
+ * The catalogue's names for a series, for OTHER NAMES on MOVE (c467): a comic's
+ * link, or every season an anime has linked, in season order. Read from the
+ * season rows, so a show with only season 2 linked still has its name.
+ */
+export function linkedNames(seriesId: number): string[] {
+	return (
+		getDb()
+			.prepare(
+				`SELECT title FROM (
+					SELECT title, -1 AS season, 0 AS part FROM series_links WHERE series_id = ?
+					UNION ALL SELECT title, season, part FROM series_season_links WHERE series_id = ?
+				) WHERE title != '' ORDER BY season, part`
+			)
+			.all(seriesId, seriesId) as { title: string }[]
+	).map((r) => r.title);
+}
+
+/**
  * Series linked, for SETTINGS and the logs: a comic's or a novel's link, or
- * any season of an anime's (c240). An anime counts once, by its season rows,
- * whether or not its first season's mirror is in `series_links`.
+ * any season of an anime's (c240). An anime counts once.
  */
 export function linkCount(): number {
 	return (

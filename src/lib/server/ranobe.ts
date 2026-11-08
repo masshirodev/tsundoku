@@ -162,10 +162,9 @@ export function eligible(seriesId: number): boolean {
  * The AniList/MAL ids Ranobe knows a series by, as a table to join on
  * `series_id` (`anilist_id`, `mal_id`, `format`): its link, or -- for an anime
  * linked a season at a time (c240) -- its lowest linked season's own row,
- * part 1. That is the entry `series_links` mirrors when season 1 is linked,
- * and still an answer when only a later season is and there is no mirror
- * (wave 17): Ranobe keeps one work for the whole show either way. An anime's
- * mirror is never read here, since its season row says the same.
+ * part 1, and still an answer when only a later season is linked (wave 17):
+ * Ranobe keeps one work for the whole show either way. An anime's
+ * `series_links` row answers only with no season row beside it.
  */
 export const LINK_IDS_SQL = `(SELECT series_id, anilist_id, mal_id, format FROM series_links
 		WHERE series_id NOT IN (SELECT series_id FROM series_season_links)

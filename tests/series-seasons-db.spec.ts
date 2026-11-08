@@ -257,8 +257,10 @@ describe('the pass fills the cache, and the screen reads it without asking (c358
 	it('is the link pass’s last step, from the seasons’ own links, and the screen asks nothing', async () => {
 		const s4 = series('Lantern Keeper Season 4', 'anime', [4]);
 		link(s4, 4, 104);
-		// The series_links mirror names another show: the walk never reads it (c467).
-		db.prepare(`UPDATE series_links SET anilist_id = 201 WHERE series_id = ?`).run(s4);
+		// A series_links row naming another show: the walk never reads it (c467).
+		db.prepare(
+			`INSERT INTO series_links (series_id, anilist_id, via, linked_at) VALUES (?, 201, 'review', 0)`
+		).run(s4);
 		expect(rel.seasonsAroundOf(s4, false)).toBeNull();
 		cat.setAnilistFetch(fakeFetch, 0);
 		const pass = await cat.refreshLinks({ limit: 0, now: NOW });

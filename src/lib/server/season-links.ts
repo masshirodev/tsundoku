@@ -44,7 +44,9 @@ import type { Kind } from '../library/types.ts';
  *   each onto its season's row -- the lowest numbered season, or season 0 for
  *   a flat list (doc/LINKS.md, "A link from before the seasons"). `legacyLink`
  *   still reads such a row wherever no season row exists, for a door that
- *   might write one; none does for an anime today.
+ *   might write one; none does for an anime today. Rung 74 (c467) took away
+ *   every anime's row that had a season row beside it, so a `series_links`
+ *   row of an anime is only ever this fallback.
  * - **Two parts** are one season a catalogue split in two: part 2 begins
  *   after part 1's episode count (`episodes`, stored with the link).
  * - **The other seasons** come from the linked entry's own PREQUEL/SEQUEL
@@ -396,8 +398,7 @@ export function seriesSeasons(
 			// flat list's), never a later season's: it covers the whole run.
 			const first = spans[0]?.season ?? 0;
 			// A link from before rung 62 stands for the series, so it is read as a
-			// season's only when no season has a row of its own: otherwise the
-			// series' mirror (`syncSeriesLink`) would look like every season's link.
+			// season's only when no season has a row of its own.
 			const old =
 				!links.length && (span.season === 0 || span.season === first)
 					? legacyLink(seriesId, db)
@@ -440,8 +441,7 @@ export function seriesSeasons(
  * in two from part 2's, numbered from 1 within it (the season's EP. 13 is
  * part 2's EP. 1) -- and never from another season's, so season 2's EP. 3 is
  * season 2's entry and season 1's EP. 3 season 1's. A season with no row of
- * its own has no entry, even when the series' first-season mirror
- * (`series_links`, `syncSeriesLink`) names one.
+ * its own has no entry.
  *
  * One part is the whole season, however its episodes are numbered, and its
  * span is not consulted: a season the source lists longer than the entry is
@@ -496,8 +496,7 @@ export function episodeEntry(
  * linked, part 1 first, among links to an anime's own kind of entry (c395,
  * `ownEntry`'s rule, which the caller passes in). Read from the season rows,
  * so a show with only season 2 linked still has ids; `series_links` answers
- * only for a series linked before rung 62, with no season rows (the mirror
- * would be a copy of a season row, or nothing).
+ * only for a series linked before rung 62, with no season rows.
  */
 export function showEntry(
 	seriesId: number,
@@ -569,48 +568,34 @@ export function linkSeason(
 			`DELETE FROM season_link_decisions WHERE series_id = ? AND season = ? AND part = ?`
 		).run(seriesId, season, part);
 		clearAniSkip(seriesId, db);
-		syncSeriesLink(seriesId, now);
+		dropLegacyLink(seriesId, db);
 		return true;
 	})();
 }
 
 /**
- * Keep the series' own `series_links` row in step with its seasons: a mirror
- * of the **first** season linked -- season 1, or a flat list -- for the
- * readers that still ask a series for one row (the importer's keep-test,
- * c382; doc/handoff-notes/links.md, "Gaps"). AniSkip (`episodeEntry`, c349),
- * Jellyfin's `tvshow.nfo` (`showEntry`, c381) and tracking read the season
- * rows instead. No first season, no row; no season left, the mirror goes.
+ * A season has its own say now, so the link from before rung 62 is over: at a
+ * LINK its row has replaced it, and at an UNLINK the owner asked for it to go.
+ * This is the one write an anime's `series_links` row still gets (c467), and it
+ * is a delete: a comic's row is never touched, since a comic has no seasons to
+ * link and never comes here.
  */
-export function syncSeriesLink(seriesId: number, now = Date.now()): void {
-	const db = getDb();
-	const links = seasonLinks(seriesId).filter((l) => l.part === 1);
+function dropLegacyLink(seriesId: number, db: Database.Database): void {
+	db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(seriesId);
+}
+
+/**
+ * The season that stands for the show: its first, season 1 or a flat list,
+ * part 1. A later season's entry is not the show's (c240), so with only a later
+ * one linked there is none. The cover chain's second answer (`linkCover`).
+ */
+export function firstSeasonLink(
+	seriesId: number,
+	db: Database.Database = getDb()
+): SeasonLink | null {
+	const links = seasonLinks(seriesId, db).filter((l) => l.part === 1);
 	const l = links.reduce((a, b) => (b.season < a.season ? b : a), links[0]);
-	// Only the series' first season stands for the series: a later season's
-	// entry is not the show's (c240). No first season, no row.
-	if (!l || l.season > 1) {
-		db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(seriesId);
-		return;
-	}
-	db.prepare(
-		`INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, cover_url, linked_at, resolved_at, format)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (series_id) DO UPDATE SET anilist_id = excluded.anilist_id, mal_id = excluded.mal_id,
-			via = excluded.via, title = excluded.title, cover_url = excluded.cover_url,
-			linked_at = excluded.linked_at, resolved_at = excluded.resolved_at, format = excluded.format`
-	).run(
-		seriesId,
-		l.anilistId,
-		l.malId,
-		// `series_links.via` has no 'relations' (rung 25's CHECK): a link given by
-		// the relations was still made in the review, and that is its word there.
-		l.via === 'relations' ? 'review' : l.via,
-		l.title,
-		l.coverUrl,
-		l.linkedAt ?? now,
-		l.resolvedAt,
-		l.format
-	);
+	return l && l.season <= 1 ? l : null;
 }
 
 /**
@@ -917,7 +902,6 @@ export function undoSeasonLinks(facts: SeasonUndoFacts): 'undone' {
 					if (held) throw new SeasonUndoRefused(`SEASON ${held.season} HOLDS ITS ENTRY NOW`);
 				}
 			clearAniSkip(facts.seriesId, db);
-			syncSeriesLink(facts.seriesId, facts.at);
 			return 'undone' as const;
 		})
 		.immediate();
@@ -1081,10 +1065,7 @@ export function undoSeasonLink(seriesId: number, season: number, part = 1): bool
 		db
 			.prepare(`DELETE FROM series_season_links WHERE series_id = ? AND season = ? AND part = ?`)
 			.run(seriesId, season, part).changes > 0;
-	if (gone) {
-		clearAniSkip(seriesId, db);
-		syncSeriesLink(seriesId);
-	}
+	if (gone) clearAniSkip(seriesId, db);
 	return gone;
 }
 
@@ -1100,7 +1081,7 @@ export function unlinkSeason(seriesId: number, season: number, part = 1, now = D
 			VALUES (?, ?, ?, 'unlinked', ?)`
 		).run(seriesId, season, part, now);
 		clearAniSkip(seriesId, db);
-		syncSeriesLink(seriesId, now);
+		dropLegacyLink(seriesId, db);
 	})();
 }
 
