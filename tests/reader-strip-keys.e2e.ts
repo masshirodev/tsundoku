@@ -5,8 +5,8 @@ import { expect, readerReady, test } from './fixtures';
  * they nudge like Ctrl + ↑ / ↓, follow the mode rather than the kind, keep
  * panning sideways while the strip is zoomed wider than the screen, and a
  * paged reader still turns on them. Also a held ↓ (c668): its repeats scroll
- * steadily rather than stacking steps, and every door that can take the keyup
- * away ends it. Runs on every device because the keys are the same on each and
+ * steadily rather than stacking steps, from rest up to its full speed (c692),
+ * and every door that can take the keyup away ends it. Runs on every device because the keys are the same on each and
  * the strip's width is not. Read-only: it reads in incognito, so nothing is
  * written to the shared database, and it reads the series reader-layout reads
  * (Sousou no Frieren), switched to the strip from READING, whose mode is
@@ -351,6 +351,71 @@ test.describe('a held arrow', () => {
 		const atKeyup = await y();
 		const stopped = await still(y);
 		expect(stopped - atKeyup).toBeLessThan(step);
+	});
+
+	test('a held ↓ starts from rest and reaches a screen per 220 ms (c692)', async ({ page }) => {
+		await openForHold(page);
+		const y = () => scrollAt(page);
+		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
+		const full = step / 220;
+		// The press's own glide first, as a real key's: it is over long before
+		// the OS's first repeat, and the strip is at rest when the hold begins.
+		await page.keyboard.down('ArrowDown');
+		await still(y);
+		// The window's scroll on every frame, while the repeats arrive, read in
+		// the page so a slow round trip cannot blur the start of the ramp.
+		const { start, samples } = await page.evaluate(async () => {
+			const w = window as unknown as { kept?: number };
+			const samples: [number, number][] = [];
+			let on = true;
+			const tick = (t: number) => {
+				// After this frame's callbacks, the strip's own write among them:
+				// read here, an uneven frame paired one frame's move with another's
+				// time, which read 0.76 and 1.33 of a speed the strip held exactly.
+				setTimeout(() => samples.push([t, scrollY - (w.kept ?? 0)]));
+				if (on) requestAnimationFrame(tick);
+			};
+			requestAnimationFrame(tick);
+			const start = performance.now();
+			for (let i = 0; i < 30; i++) {
+				window.dispatchEvent(
+					new KeyboardEvent('keydown', {
+						key: 'ArrowDown',
+						code: 'ArrowDown',
+						keyCode: 40,
+						which: 40,
+						repeat: true,
+						bubbles: true,
+						cancelable: true
+					})
+				);
+				await new Promise((r) => setTimeout(r, 33));
+			}
+			on = false;
+			return { start, samples };
+		});
+		await page.keyboard.up('ArrowDown');
+		// Each frame's speed, by when it happened after the first repeat. The
+		// median, because images arriving above can move the scroll in one frame.
+		const speeds = samples.slice(1).map(([t, at], i) => ({
+			when: (t + samples[i][0]) / 2 - start,
+			speed: (at - samples[i][1]) / (t - samples[i][0])
+		}));
+		const median = (from: number, to: number) => {
+			const inside = speeds
+				.filter((s) => s.when >= from && s.when < to)
+				.map((s) => s.speed)
+				.sort((a, b) => a - b);
+			expect(inside.length, `frames between ${from} and ${to} ms`).toBeGreaterThan(0);
+			return inside[Math.floor(inside.length / 2)];
+		};
+		// Halfway through the first 110 ms the ramp is at a quarter of the speed;
+		// a start at full speed would read 1.
+		expect(median(0, 110) / full).toBeLessThan(0.6);
+		// Past the ramp, the speed one press covers in its glide.
+		const steady = median(320, 1000) / full;
+		expect(steady).toBeGreaterThan(0.8);
+		expect(steady).toBeLessThan(1.2);
 	});
 
 	test('a second key during the hold takes over from where the strip is (c668)', async ({

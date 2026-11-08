@@ -611,11 +611,26 @@ and "when I click down or up it pans to the next sections").
   alone, every repeat added a step to where the strip was going, so the aim
   ran far ahead and the strip kept travelling after the key was released
   (measured on the base: 30 repeats at ~30/s ran another 23,210 px after the
-  keyup). Repeats now add no step: from the first one the strip scrolls at the
-  speed one press covers in its glide — a screen per 220 ms, a nudge per 160
-  ms — and the release eases out over 160 ms, about a third of the nudge
-  further (33 px on a 100 px nudge, 185 px on a screen). A tap still glides
-  one step and two separate presses still add two. Every door that can take
+  keyup). Repeats now add no step: the strip scrolls at the speed one press
+  covers in its glide — a screen per 220 ms, a nudge per 160 ms — and the
+  release eases out over 160 ms, about a third of the nudge further (33 px on
+  a 100 px nudge, 185 px on a screen). **It gets to that speed over the
+  glide's own length** (c692; the owner, 2026-11-07, keeping 220 ms and 100
+  px and retuning by feel afterwards): the speed climbs in a straight line
+  from rest, so the first 16 ms frame of a held screen moves 2 px where the
+  steady speed moves 56, and the full speed arrives at 220 ms (160 for a
+  nudge). What it covers is the ramp's own integral between two frames, so
+  the shape is the same at any frame rate, and it adds up from the strip's
+  own position, because a browser's `scrollY` is whole pixels and a fast
+  screen's first steps are less than one. A repeat leaves a ramp under way
+  alone. A key up mid-ramp eases out from the speed it had, not the full one.
+  Something else scrolling stops the strip for a frame and the next repeat
+  carries on up the same ramp, because the browser's scroll anchoring does
+  that as images come in above and a fresh ramp would sag for 220 ms each
+  time. A hold that reached the end starts from rest if the strip grows, and
+  one that finds a press's glide or a wheel's approach in flight starts at the
+  speed it has. A tap still
+  glides one step and two separate presses still add two. Every door that can take
   the keyup away ends it, in one of two ways (c694). The key's own release, the
   window losing focus and the page being hidden **ease it out**, as a keyup
   does. A lock (the lookup panel or the page menu opening, each locking the
@@ -653,15 +668,17 @@ and "when I click down or up it pans to the next sections").
 - **Reduced motion**: the wheel stays native and a key moves at once.
 
 Tested in `tests/smooth-scroll.spec.ts` (the approach, notches at any scale,
-place-keeping, and c668's steady hold, its stop and its first frame not
-running backwards), `tests/reader-flow.e2e.ts` (a notch eased through the real
+place-keeping, c668's steady hold, its stop and its first frame not running
+backwards, and c692's ramp with every event that can meet it),
+`tests/reader-flow.e2e.ts` (a notch eased through the real
 strip to where it aimed, ↓ and ↑ by a screen) and
 `tests/reader-strip-keys.e2e.ts` (c527 on all four devices: → and ← against
 Ctrl + ↓ and Ctrl + ↑, Ctrl + → / ← doing nothing, the zoomed pan, a paged
 reader still turning; and c668's held ↓, which stops on the keyup, on a second
 key, on blur, on the page being hidden, on the page menu, on the READING
 sheet and on a jump to another chapter, and which reads on across a band —
-those cases measured on a page slot, since a crossing reshapes the strip).
+those cases measured on a page slot, since a crossing reshapes the strip; and
+c692's start from rest, frame by frame after a real press).
 
 ## Full screen
 

@@ -87,6 +87,26 @@ export const easeOut = (p: number) => 1 - Math.pow(1 - p, 3);
 /** ↑ / ↓, PageUp / PageDown, Space: a screen, less a little, so the last line read stays in sight. */
 export const screenStep = (height: number) => Math.round(height * 0.85);
 
+/** A speed going from `from` to `to` (px per ms, signed) over `ms`, begun at `t0`, then staying. */
+type Ramp = { from: number; to: number; t0: number; ms: number };
+
+/** A ramp's speed `at` ms after it began. */
+const rampSpeed = (r: Ramp, at: number) =>
+	r.from + (r.to - r.from) * Math.min(1, Math.max(0, at) / r.ms);
+
+/** How far a ramp has carried the strip `at` ms after it began. */
+const rampDistance = (r: Ramp, at: number) => {
+	const up = Math.min(at, r.ms);
+	return r.from * up + ((r.to - r.from) * up * up) / (2 * r.ms) + r.to * (at - up);
+};
+
+/** How steep an ease is at `p`, in progress per unit of progress. */
+function slope(ease: (p: number) => number, p: number): number {
+	const lo = Math.max(0, p - 1e-3);
+	const hi = Math.min(1, p + 1e-3);
+	return hi > lo ? (ease(hi) - ease(lo)) / (hi - lo) : 0;
+}
+
 type Host = {
 	now(): number;
 	frame(cb: (t: number) => void): number;
@@ -110,10 +130,11 @@ export class SmoothScroll {
 		ease: (p: number) => number;
 	} | null = null;
 	/**
-	 * A held key's steady speed in px per ms, signed, while one is down (c668).
-	 * Null when nothing is held and when a glide is a press's own.
+	 * A held key while one is down (c668): its speed in px per ms, signed, as a
+	 * ramp from the speed the strip had to the steady one (c692). Null when
+	 * nothing is held and when a glide is a press's own.
 	 */
-	private held: number | null = null;
+	private held: Ramp | null = null;
 	constructor(private host: Host) {}
 
 	get moving(): boolean {
@@ -146,12 +167,28 @@ export class SmoothScroll {
 	/**
 	 * A key held down (c668): its repeats must not stack steps, or the aim runs
 	 * far ahead of the strip and it keeps travelling after the key comes up.
-	 * From the first repeat the strip moves at the speed one press covers in
-	 * its glide — `by` over `ms`, not a new number — until `letGo`.
+	 * The strip moves at the speed one press covers in its glide — `by` over
+	 * `ms`, not a new number — until `letGo`, reaching it over that same `ms`
+	 * (c692): at full speed from the first repeat, a screen's start read as the
+	 * lurch keys were given a glide to avoid.
+	 *
+	 * Called on every repeat, so one that finds its own ramp leaves it alone, or
+	 * the ramp would never get past its start. That holds across something else
+	 * scrolling (`step`), which stops the strip for a frame and no longer: the
+	 * browser's scroll anchoring does that as images come in above, and a fresh
+	 * ramp each time would sag for 220 ms. Reaching the end does drop the ramp
+	 * (`step`), so a strip that grows starts again from rest. With no ramp and
+	 * something else in flight it starts at the speed the strip has, since a
+	 * press's glide can still be moving on a short repeat delay and a halt
+	 * would be its own jolt.
 	 */
 	hold(by: number, ms: number) {
 		if (!by || ms <= 0) return;
-		this.held = by / ms;
+		const to = by / ms;
+		if (this.held?.to !== to) {
+			const t0 = this.host.now();
+			this.held = { from: this.speed(t0), to, t0, ms };
+		}
 		this.glider = null;
 		this.target = this.host.y;
 		this.start();
@@ -160,21 +197,30 @@ export class SmoothScroll {
 	/**
 	 * The key came up, or something else ended the hold: ease to a stop, one
 	 * `GLIDE_NUDGE` long. A cubic ease-out starts at three times its average
-	 * speed, so a third of the held speed times the glide keeps the speed it
-	 * had and stops 33 px (a nudge's) later for a 100 px nudge.
+	 * speed, so a third of the speed times the glide keeps the speed it had and
+	 * stops 33 px (a nudge's) later for a 100 px nudge. The speed it **had**: a
+	 * key up mid-ramp (c692) has not reached the held speed, and easing out from
+	 * that would be a shove forward.
 	 */
 	letGo() {
-		const speed = this.held;
-		if (speed === null) return;
+		if (this.held === null) return;
+		const speed = this.speed(this.host.now());
 		this.held = null;
 		const from = this.host.y;
-		const to = Math.min(
-			Math.max(0, from + (Math.sign(speed) * Math.abs(speed) * GLIDE_NUDGE) / 3),
-			this.host.max()
-		);
+		const to = Math.min(Math.max(0, from + (speed * GLIDE_NUDGE) / 3), this.host.max());
 		this.target = to;
 		this.glider = { from, t0: this.host.now(), ms: GLIDE_NUDGE, ease: easeOut };
 		this.start();
+	}
+
+	/** How fast the strip is moving at `now`, in px per ms, signed. */
+	private speed(now: number): number {
+		if (!this.moving) return 0;
+		if (this.held) return rampSpeed(this.held, now - this.held.t0);
+		const g = this.glider;
+		if (!g) return (this.target - this.host.y) / TAU;
+		const p = (now - g.t0) / g.ms;
+		return (slope(g.ease, p) * (this.target - g.from)) / g.ms;
 	}
 
 	private start() {
@@ -214,19 +260,34 @@ export class SmoothScroll {
 	private step = (t: number) => {
 		// Something else scrolled since the last frame: it wins.
 		if (Math.abs(this.host.y - this.shown) > 1) return void (this.id = 0);
-		if (this.held !== null) {
-			// The held key's steady scroll. It stops at either end, where a
-			// release has nothing left to ease out of. Clamped at 0 like a
+		const h = this.held;
+		if (h !== null) {
+			// The held key's scroll: what the ramp covers between the two frames,
+			// so its shape does not depend on the frame rate. Clamped at 0 like a
 			// glide's p (c568, c668): a frame is stamped when it began, which
-			// under load is before `start()`'s now(), and a negative delta ran
-			// a held arrow the wrong way on its first frame.
-			const dt = Math.max(0, t - this.last);
-			const y = Math.min(Math.max(0, this.host.y + this.held * dt), this.host.max());
+			// under load is before the key, and a negative delta ran a held arrow
+			// the wrong way on its first frame.
+			const a = Math.max(0, this.last - h.t0);
+			const b = Math.max(a, t - h.t0);
+			// From `shown`, never the window's position: scrollY is whole pixels,
+			// and the ramp's first steps on a fast screen are less than one.
+			const y = Math.min(
+				Math.max(0, this.shown + rampDistance(h, b) - rampDistance(h, a)),
+				this.host.max()
+			);
 			this.last = t;
 			this.host.y = y;
 			this.shown = y;
 			this.target = y;
-			this.id = y === 0 || y === this.host.max() ? 0 : this.host.frame(this.step);
+			// It stops at the end it is heading for, where a release has nothing
+			// left to ease out of. Only that one: a hold down from the very top
+			// sits at 0 until its first step is big enough to count.
+			if (y === (h.to < 0 ? 0 : this.host.max())) {
+				this.id = 0;
+				this.held = null;
+			} else {
+				this.id = this.host.frame(this.step);
+			}
 			return;
 		}
 		const g = this.glider;
