@@ -2678,9 +2678,16 @@
 				</div>
 				<div class="when">PLAYS WHEN THIS ONE ENDS · IN {clock(Math.max(0, duration - time))}</div>
 				<div class="two">
-					<button type="button" onclick={stayHere}>STAY</button>
-					<button type="button" class="acc" data-player-play data-focus-start onclick={playNext}
-						>PLAY NOW →</button
+					<!-- ↓ goes to the bar's line: with MARK IN in the row the pad's nearest
+					     stop down-left would otherwise be a mark cell (c704). -->
+					<button type="button" data-focus-down=".scrubrow .track" onclick={stayHere}>STAY</button>
+					<button
+						type="button"
+						class="acc"
+						data-focus-down=".scrubrow .track"
+						data-player-play
+						data-focus-start
+						onclick={playNext}>PLAY NOW →</button
 					>
 				</div>
 			</div>
@@ -3133,7 +3140,7 @@
 				<button type="button" aria-label="Close" onclick={() => (keysOpen = false)}>✕</button>
 			</div>
 			<div class="krows">
-				{#each [['SPACE', 'Play or pause'], ['← →', 'Back or on 10 s'], ['<< >>', 'Back or on a minute'], ['↑ ↓', 'Volume'], ['F', 'Full screen'], ['M', 'Mute'], ['C', 'Subtitles on or off'], ['S', 'Skip the intro or ending, when offered'], ['I', 'Mark in'], ['O', 'Mark out'], ['ENTER', 'Keep the range'], ['N', 'Next episode'], ['ESC', 'Leave full screen, then the player'], ['?', 'These keys']] as [k, a], i (k)}
+				{#each [['SPACE', 'Play or pause'], ['← →', 'Back or on 10 s'], ['<< >>', 'Back or on a minute'], ['↑ ↓', 'Volume'], ['F', 'Full screen'], ['M', 'Mute'], ['C', 'Subtitles on or off'], ['S', 'Skip the intro or ending, when offered'], ...(tv.current ? [] : [['I', 'Mark in'], ['O', 'Mark out'], ['ENTER', 'Keep the range']]), ['N', 'Next episode'], ['ESC', 'Leave full screen, then the player'], ['?', 'These keys']] as [k, a], i (k)}
 					<!-- A row is read, not pressed: the stop is there so a pad can scroll to it. -->
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
