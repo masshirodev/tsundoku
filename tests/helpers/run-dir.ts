@@ -1,6 +1,7 @@
-import { mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { RUN_PREFIX, sweepRuns } from './run-servers';
 
 /**
  * One temporary directory per e2e run (c439, c105), so a run cleans up after
@@ -23,28 +24,15 @@ import { join } from 'node:path';
  * whose returned function, the teardown, removes it, and the runner removes
  * it again as it exits, after the web servers it stopped wrote their last.
  * A run that was killed leaves its directory, so the next run removes any
- * whose runner is no longer alive.
+ * whose runner is no longer alive, and first stops the servers that run
+ * recorded there and left running (`run-servers.ts`, c689). Only directories
+ * under this run's own `TMPDIR` are seen: a run started with another one is
+ * swept by the next run that shares it.
  */
-const PREFIX = 'tsundoku-e2e-run-';
-
-function alive(pid: number): boolean {
-	try {
-		process.kill(pid, 0);
-		return true;
-	} catch (e) {
-		return (e as NodeJS.ErrnoException).code === 'EPERM';
-	}
-}
-
 if (!process.env.PLAYWRIGHT_RUN_DIR) {
 	const base = tmpdir();
-	for (const name of readdirSync(base)) {
-		const pid = Number(name.slice(PREFIX.length));
-		if (name.startsWith(PREFIX) && Number.isInteger(pid) && pid > 0 && !alive(pid))
-			// A run that was killed, or a `--list`, which has no teardown.
-			rmSync(join(base, name), { recursive: true, force: true });
-	}
-	const dir = join(base, `${PREFIX}${process.pid}`);
+	sweepRuns(base);
+	const dir = join(base, `${RUN_PREFIX}${process.pid}`);
 	mkdirSync(dir, { recursive: true });
 	process.env.PLAYWRIGHT_RUN_DIR = dir;
 	process.env.TMPDIR = dir;

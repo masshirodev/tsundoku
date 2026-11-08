@@ -57,13 +57,15 @@ const DEVICE_IGNORE = [
 	'**/works-flow.e2e.ts'
 ];
 
-// Two frames are drawn at one device's viewport, so they run in that project
-// alone and every other one ignores them (c510), rather than each listing and
-// skipping itself everywhere else: IMPORT A BACKUP's pick board is the
-// desktop's (beside the sidebar), and the series screen's LISTS board is
-// tablet-landscape's 440px side panel.
-const DESKTOP_ONLY = ['**/import-frame.e2e.ts'];
-const TABLET_LANDSCAPE_ONLY = ['**/series-lists-frame.e2e.ts'];
+// Frames drawn at one device's viewport run in that project alone, and every
+// other one ignores them (c510), rather than each listing and skipping itself
+// everywhere else: IMPORT A BACKUP's pick board and the highlights page's P1
+// are the desktop's (beside the sidebar; c732), and the series screen's LISTS
+// board and the manga highlights' frame are tablet-landscape's (the second is
+// a glob for `manga`'s file, carried from wave 33, which matches nothing until
+// it lands).
+const DESKTOP_ONLY = ['**/import-frame.e2e.ts', '**/highlights-frame.e2e.ts'];
+const TABLET_LANDSCAPE_ONLY = ['**/series-lists-frame.e2e.ts', '**/highlights-manga-frame.e2e.ts'];
 // The phone app's specs (c521; doc/PHONE-APP.md) set their own viewports, a
 // phone's and a tablet's, so they run once, in the phone project.
 const PHONE_ONLY = [
