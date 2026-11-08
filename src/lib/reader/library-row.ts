@@ -1,31 +1,50 @@
+import { fileMeta } from '$lib/library/series';
+import type { SeriesEntry } from '$lib/library/series';
+
 /**
- * The end page's library row (c655): which cell it draws, if any.
+ * What on an end page is its own, so the page does not turn under it (c655):
+ * its controls, and DELETE's confirmation, which is drawn inside the page and
+ * which a tap at the screen's edge would otherwise pass through to the reader.
+ */
+export const END_PAGE_CONTROLS = 'a, button, [data-end-sheet]';
+
+/** DELETE's confirmation is up: the keys are its own, not the reader's. */
+export const endSheetOpen = () =>
+	document.querySelector('[data-end-sheet] [role="dialog"]') !== null;
+
+/** DELETE's confirmation names what goes first (doc/DELETING.md): the series screen's and the end page's line. */
+export function entriesLine(entries: SeriesEntry[]): string {
+	return `${entries.length} ${entries.length === 1 ? 'ENTRY' : 'ENTRIES'} · ${fileMeta(entries)}`;
+}
+
+/**
+ * The end page's library row (c655): which cells it draws.
  *
- * A browsing record is added through BROWSE's own `?/add`; a series in the
- * library is hidden through the series screen's `?/hide`. HIDE is what the
- * series screen and the library's bulk bar call it: the series leaves every
- * shelf but stays in the library (`in_library` stays 1), and `/reveal` brings
- * it back. There is no door here that sets `in_library = 0`, so the cell must
- * not be called REMOVE (round 2's medium).
+ * A browsing record is added through BROWSE's own `?/add`. A series in the
+ * library is taken out through the series screen's own DELETE (the owner's
+ * decision of 2026-11-07, on c655): `in_library` is not a flag over files
+ * here, so taking a series out is deleting it, and the end page asks with the
+ * series screen's own confirmation first.
  *
- * A series in a Work draws neither: `?/hide` refuses a part
- * (`A WORK IS HIDDEN WHOLE · HIDE ALL OR TAKE OUT`, series/[id]/+page.server.ts)
- * and a Work is hidden or taken out whole from its own screen, so a cell here
- * would be a dead button (round 2's medium).
+ * A part of a Work draws DELETE too, as the series screen does: the series
+ * goes, the Work carries on with its other parts, and a Work left with one
+ * ends (the trigger `series_deleted_ends_work`, `db.ts`).
+ *
+ * A hidden series is read only under `/reveal`, and its end page keeps UNHIDE
+ * beside DELETE (c673): that is the series' own state (`seriesHidden`,
+ * `data.series.hidden`), never this page's answer. A part draws no UNHIDE: a
+ * Work is hidden whole, from its own screen (`?/hide` refuses a part).
  *
  * The answers this page's own forms have given win, so the row never offers
- * again what it just did: `added`/`hidden`/`unhidden` are its terminal cells.
+ * again what it just did: `added` and `unhidden` are terminal cells.
  *
- * A hidden series is read only under `/reveal`, so its end page must offer the
- * way back rather than HIDE again (c673): `seriesHidden` is the series' own
- * state (`data.series.hidden`), never this page's answer. The two are
- * separate inputs because they mean different things: a stored `hidden` row
- * is true only until the page is left, while `seriesHidden` stays true until
- * the series is shown again.
+ * Incognito changes nothing here: it keeps reading out of the log, and none
+ * of these writes reading (doc/PRIVACY.md).
  */
-export type LibraryCell = 'add' | 'hide' | 'unhide' | 'added' | 'hidden' | 'unhidden' | null;
+export type LibraryCell = 'add' | 'added' | 'delete' | null;
+export type UnhideCell = 'unhide' | 'unhidden' | null;
 
-export function libraryCell(state: {
+export function libraryCells(state: {
 	/** The page loaded it as in the library (`in_library = 1`). */
 	inLibrary: boolean;
 	/** The series is a part of a Work (the end page's `work`). */
@@ -36,15 +55,13 @@ export function libraryCell(state: {
 	seriesHidden: boolean;
 	/** This page's ADD has answered. */
 	added: boolean;
-	/** This page's HIDE has answered. */
-	hidden: boolean;
 	/** This page's UNHIDE has answered. */
 	unhidden: boolean;
-}): LibraryCell {
-	if (state.hidden) return 'hidden';
-	if (state.unhidden) return 'unhidden';
-	if (state.added) return 'added';
-	if (!state.inLibrary) return state.hasAddHref ? 'add' : null;
-	if (state.inWork) return null;
-	return state.seriesHidden ? 'unhide' : 'hide';
+}): { cell: LibraryCell; unhide: UnhideCell } {
+	if (!state.inLibrary) {
+		const cell = state.added ? 'added' : state.hasAddHref ? 'add' : null;
+		return { cell, unhide: null };
+	}
+	if (state.inWork || !state.seriesHidden) return { cell: 'delete', unhide: null };
+	return { cell: 'delete', unhide: state.unhidden ? 'unhidden' : 'unhide' };
 }

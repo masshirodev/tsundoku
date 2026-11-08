@@ -402,7 +402,7 @@ test('the end of the series asks for a rating while unrated, and it saves', asyn
 	).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('rating at the end of a series keeps the screen, and the library row hides it (c655)', async ({
+test('rating at the end of a series keeps the screen, and the library row asks before DELETE (c655)', async ({
 	page
 }) => {
 	const id = await seriesId(page, 'Chainsaw Man');
@@ -441,39 +441,24 @@ test('rating at the end of a series keeps the screen, and the library row hides 
 	await expect(end.getByRole('link', { name: '← SERIES' })).toBeVisible();
 	await expect(end.getByRole('link', { name: 'LIBRARY' })).toBeVisible();
 
-	// The library row: the series is in the library, so it offers HIDE — the
-	// series screen's own word, because that is what the action does: it takes
-	// the series off every shelf behind /reveal, and in_library stays 1.
+	// The library row: the series is in the library, so it offers DELETE, the
+	// series screen's own, asked first. This is the shared seed, so the case
+	// stops at CANCEL; end-page-delete-flow deletes in a world of its own.
 	await expect(end.getByRole('button', { name: '+ ADD TO LIBRARY' })).toHaveCount(0);
-	const hide = end.getByRole('button', { name: 'HIDE', exact: true });
-	await expect(hide).toBeVisible();
-	await hide.click();
+	await expect(end.getByRole('button', { name: 'HIDE', exact: true })).toHaveCount(0);
 	// The restore runs even when an assertion below fails, and its own failure
 	// is soft so it cannot hide the body's (c649).
 	let failed: unknown;
 	try {
-		await expect(end.getByRole('button', { name: 'HIDDEN ✓' })).toBeVisible();
-		// It really left every shelf: with reveal off, no tile is left to show.
-		await page.goto('/?sort=title');
-		await expect(page.locator('.grid .tile', { hasText: 'Chainsaw Man' })).toHaveCount(0);
+		await end.getByRole('button', { name: 'DELETE', exact: true }).click();
+		const ask = page.getByRole('dialog', { name: 'DELETE CHAINSAW MAN?' });
+		await expect(ask).toBeVisible();
+		await ask.getByRole('button', { name: 'CANCEL', exact: true }).click();
+		await expect(ask).toHaveCount(0);
+		await expect(end.locator('.big')).toHaveText('Chainsaw Man');
 	} catch (e) {
 		failed = e;
 	}
-	// Put back what the case changed: reveal so the hidden series still loads,
-	// then the same HIDE action the other way.
-	await expect
-		.soft(
-			page.context().addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }])
-		)
-		.resolves.toBeUndefined();
-	const putBack = (form: Record<string, string>) =>
-		page.request.post(`/series/${id}?/hide`, {
-			headers: { origin: sameOrigin(), 'x-sveltekit-action': 'true' },
-			form
-		});
-	// A response is always truthy, so ask whether the action took (c655's low).
-	expect.soft((await putBack({ on: '0' })).ok()).toBe(true);
-	await page.context().clearCookies({ name: 'tsundoku_reveal' });
 	// The seed's own rating is 8 (src/lib/server/fixtures.ts), not unrated.
 	expect.soft((await rate(8)).ok()).toBe(true);
 	if (failed) throw failed;

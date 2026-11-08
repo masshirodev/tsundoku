@@ -8,9 +8,13 @@
 	import type { Kind } from '$lib/library/types';
 	import { offline } from '$lib/offline.svelte';
 	import type { Mode } from '$lib/reader/reader';
-	import { libraryCell } from '$lib/reader/library-row';
+	import { libraryCells } from '$lib/reader/library-row';
 	import { deserialize, enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
+	import { goto } from '$app/navigation';
+	import { stepsBackTo } from '$lib/back';
+	import type { ActionResult } from '@sveltejs/kit';
+	import DeleteSheet from '../../series/[id]/DeleteSheet.svelte';
 
 	/**
 	 * The page after the last page (Index Reader, states endch, endseries and
@@ -60,7 +64,8 @@
 		unit = '',
 		inLibrary,
 		seriesHidden,
-		addHref = null
+		addHref = null,
+		deleteAsk
 	}: {
 		/** chapter: next is readable; missing: next has no file; offline: no network; series: nothing next. */
 		variant: 'chapter' | 'missing' | 'offline' | 'series';
@@ -106,22 +111,28 @@
 		/** "CH" for pages, "VOL" for a novel's volumes: the kicker adds the dot itself. */
 		unit?: string;
 		/**
-		 * In the library, so the end offers HIDE (the series screen's own HIDE,
-		 * which is what takes it off every shelf; it stays in the library and
-		 * `/reveal` brings it back). False for a browsing record
+		 * In the library, so the end offers DELETE (the series screen's own,
+		 * confirmed first: doc/DELETING.md). False for a browsing record
 		 * (doc/BROWSING.md), whose end offers + ADD through `addHref`. Required,
 		 * with no default: a reader that forgets it must fail `yarn run check`
 		 * rather than quietly offer the wrong cell (c655, round 2).
 		 */
 		inLibrary: boolean;
 		/**
-		 * The series is hidden, read here under `/reveal` (c673): the row then
-		 * offers UNHIDE (`?/hide on=0`) rather than hiding it again. Its own
-		 * state, never `hidden` above, which is only this page's answer.
+		 * The series is hidden, read here under `/reveal` (c673): the row keeps
+		 * UNHIDE (`?/hide on=0`) beside DELETE. Its own state, never this page's
+		 * answer.
 		 */
 		seriesHidden: boolean;
 		/** A browsing record's ADD: the source preview's own `?/add` action. */
 		addHref?: string | null;
+		/**
+		 * What DELETE's confirmation says of this series: the series screen's
+		 * entries line, and how many highlights it would leave orphaned (c701).
+		 * Required: a reader that forgets it fails `yarn run check` rather than
+		 * asking with a blank sheet.
+		 */
+		deleteAsk: { entries: string; highlights: number };
 	} = $props();
 
 	const back = $derived(mode === 'rtl' ? '→' : '←');
@@ -233,41 +244,59 @@
 	/** Done: a queue that took, or one already there; neither is pressed again. */
 	const queueDone = $derived(queue === 'queued' || queue === 'already');
 	// ---- the library row (c655) -------------------------------------------------
-	// A record's ADD takes it in; a library series' HIDE is the series screen's
-	// own, which is what takes it off every shelf. Neither lands elsewhere:
-	// ADD's band and HIDE's redirect belong to the screens that asked for them.
-	// A series in a Work draws no cell: its HIDE is the Work's own (round 2).
+	// A record's ADD takes it in; a library series' DELETE is the series
+	// screen's own door and its confirmation, and then the library: there is no
+	// series left to stay on. ADD's band belongs to the screen that asked for it.
 	// A refused form says so in the row rather than leaving a button that
 	// looked like it did nothing (c673).
 	let adding = $state(false);
 	let added = $state(false);
-	let removing = $state(false);
-	let removed = $state(false);
+	let showing = $state(false);
 	let unhidden = $state(false);
+	let deleting = $state(false);
 	/** A refused row action's line: always COULD NOT SAVE, never the action's own words (c673; `rowRefusal`). */
 	let rowError = $state<string | null>(null);
-	const cell = $derived(
-		libraryCell({
+	const cells = $derived(
+		libraryCells({
 			inLibrary,
 			inWork: !!work,
 			hasAddHref: !!addHref,
 			seriesHidden,
 			added,
-			hidden: removed,
 			unhidden
 		})
 	);
+	const cell = $derived(cells.cell);
+
+	/**
+	 * After DELETE, the library, as doc/DELETING.md says. Through `stepsBackTo`,
+	 * as the series screen leaves a deleted series (it was the page opened
+	 * from): from here the reader and the series it was reading are behind, and
+	 * going back over them leaves neither in the way of ←. With no library in
+	 * this session's trail it replaces the reader, so ← does not reopen a page
+	 * whose series is gone.
+	 */
+	async function afterDelete(r: ActionResult) {
+		if (r.type !== 'success') {
+			deleting = false;
+			rowError = rowRefusal();
+			return;
+		}
+		deleting = false;
+		const steps = stepsBackTo(new URL(libraryHref, location.href));
+		if (steps) history.go(-steps);
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved by the page
+		else await goto(libraryHref, { replaceState: true });
+	}
 
 	/**
 	 * What a refused form says. The row says its own words, never the action's:
-	 * the one real refusal `?/hide` gives is `A WORK IS HIDDEN WHOLE · HIDE ALL
-	 * OR TAKE OUT` (series/[id]/+page.server.ts), and on this page HIDE is the
-	 * row's own button while HIDE ALL is a series-screen control, so the
-	 * action's line would make a `HIDE` locator find two elements. The sentence
-	 * holds none of COMMON's control words and none of this page's own labels
-	 * (HIDE, UNHIDE, HIDDEN ✓, UNHIDDEN ✓, + ADD TO LIBRARY, IN LIBRARY ✓,
-	 * START, WORK, FAV, DOWNLOAD FIRST 10, FORGET), so no locator for a row
-	 * finds this line instead of its control.
+	 * an action's line is free to name a control this page also draws, so a
+	 * locator for that control would find two elements. The sentence holds none
+	 * of COMMON's control words and none of this page's own labels (DELETE,
+	 * UNHIDE, UNHIDDEN ✓, + ADD TO LIBRARY, IN LIBRARY ✓, START, WORK, FAV,
+	 * DOWNLOAD FIRST 10, FORGET), so no locator for a row finds this line
+	 * instead of its control.
 	 */
 	function rowRefusal(): string {
 		return 'COULD NOT SAVE';
@@ -481,9 +510,7 @@
 				</a>
 			{/if}
 			<div class="rate-block">
-				<!-- Ratings out of 10 1d: the blocky slider; it saves when the finger lifts.
-				     HIDDEN with reveal off leaves the series unreachable, so the block
-				     stops taking input rather than posting to a page that now 404s (c655). -->
+				<!-- Ratings out of 10 1d: the blocky slider; it saves when the finger lifts. -->
 				<RatingSlider
 					value={rating}
 					height={72}
@@ -492,7 +519,6 @@
 					phonePad={0}
 					phoneLabelWidth={72}
 					borderTop={false}
-					disabled={cell === 'hidden'}
 					onchange={onrate}
 				/>
 				<div class="rrow">
@@ -502,7 +528,6 @@
 						class="switch"
 						role="switch"
 						aria-checked={favourite}
-						disabled={cell === 'hidden'}
 						onclick={onfav}
 					>
 						<span class="track" class:on={favourite}><span class="knob"></span></span>
@@ -511,49 +536,47 @@
 				</div>
 			</div>
 			{#if rating === 0}<div class="note">{note}</div>{/if}
-			{#if cell === 'hide' || cell === 'hidden'}
+			{#if cell === 'delete' || cells.unhide}
 				<div class="lib">
-					<form
-						method="POST"
-						action="{seriesHref}?/hide"
-						use:enhance={() => {
-							removing = true;
-							rowError = null;
-							return async ({ result }) => {
-								removing = false;
-								if (result.type === 'success' || result.type === 'redirect') removed = true;
-								else if (result.type === 'failure' || result.type === 'error')
-									rowError = rowRefusal();
-							};
-						}}
-					>
-						<input type="hidden" name="on" value="1" />
-						<button type="submit" disabled={removing || cell === 'hidden'} data-focus-mark="in"
-							>{cell === 'hidden' ? 'HIDDEN ✓' : removing ? 'HIDING…' : 'HIDE'}</button
+					{#if cells.unhide}
+						<form
+							method="POST"
+							action="{seriesHref}?/hide"
+							use:enhance={() => {
+								showing = true;
+								rowError = null;
+								return async ({ result }) => {
+									showing = false;
+									if (result.type === 'success' || result.type === 'redirect') unhidden = true;
+									else if (result.type === 'failure' || result.type === 'error')
+										rowError = rowRefusal();
+								};
+							}}
 						>
-					</form>
-				</div>
-			{:else if cell === 'unhide' || cell === 'unhidden'}
-				<div class="lib">
-					<form
-						method="POST"
-						action="{seriesHref}?/hide"
-						use:enhance={() => {
-							removing = true;
-							rowError = null;
-							return async ({ result }) => {
-								removing = false;
-								if (result.type === 'success' || result.type === 'redirect') unhidden = true;
-								else if (result.type === 'failure' || result.type === 'error')
-									rowError = rowRefusal();
-							};
-						}}
-					>
-						<input type="hidden" name="on" value="0" />
-						<button type="submit" disabled={removing || cell === 'unhidden'} data-focus-mark="in"
-							>{cell === 'unhidden' ? 'UNHIDDEN ✓' : removing ? 'SHOWING…' : 'UNHIDE'}</button
+							<input type="hidden" name="on" value="0" />
+							<button
+								type="submit"
+								disabled={showing || cells.unhide === 'unhidden'}
+								data-focus-mark="in"
+								>{cells.unhide === 'unhidden'
+									? 'UNHIDDEN ✓'
+									: showing
+										? 'SHOWING…'
+										: 'UNHIDE'}</button
+							>
+						</form>
+					{/if}
+					{#if cell === 'delete'}
+						<button
+							type="button"
+							class="del"
+							data-focus-mark="in"
+							onclick={() => {
+								rowError = null;
+								deleting = true;
+							}}>DELETE</button
 						>
-					</form>
+					{/if}
 				</div>
 			{:else if (cell === 'add' || cell === 'added') && addHref}
 				<div class="lib">
@@ -627,6 +650,26 @@
 				</div>
 			</div>
 		{/if}
+	</div>
+
+	<div data-end-sheet>
+		<DeleteSheet
+			open={deleting}
+			title="DELETE {seriesTitle.toUpperCase()}?"
+			lines={[
+				deleteAsk.entries,
+				'ITS FILES MOVE TO THE TRASH FOLDER ON THE WORKSTATION.',
+				'ITS READING HISTORY GOES WITH IT.',
+				'A SCAN OR A SYNC WON’T BRING IT BACK.'
+			]}
+			confirm="DELETE"
+			action="{seriesHref}?/delete"
+			fields={{}}
+			highlights={deleteAsk.highlights}
+			why="THEIR QUOTES, COPIES AND NOTES STAY ON THE HIGHLIGHTS PAGE, FROM A SERIES NO LONGER IN THE LIBRARY."
+			onclose={() => (deleting = false)}
+			ondone={afterDelete}
+		/>
 	</div>
 
 	<div class="foot">
@@ -957,7 +1000,7 @@
 		flex-direction: column;
 		border-top: var(--hairline);
 	}
-	/* The library row (c655): one cell, ADD for a record or HIDE for a series. */
+	/* The library row (c655): ADD for a record, DELETE for a series, UNHIDE beside it for a hidden one. */
 	.lib {
 		display: flex;
 		border: var(--hairline);
@@ -977,6 +1020,9 @@
 	}
 	.lib button:disabled {
 		cursor: default;
+	}
+	.lib form + .del {
+		border-left: var(--hairline);
 	}
 	/* A refused row action's own words (c673): under the row, never in place of
 	   it, so the cell that was pressed is still there for a second try. */

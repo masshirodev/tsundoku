@@ -5,12 +5,13 @@ duplicate, the same book downloaded twice. Every delete asks first.
 
 ## Where
 
-| From                                | Deletes                                                                                                                                        |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| The series screen, the FILE row     | The series, every chapter or book in it.                                                                                                       |
-| A book's sheet in a series of books | That book; the series keeps the rest (renumbered).                                                                                             |
-| The library's bulk bar (SELECT)     | Every selected series.                                                                                                                         |
-| The duplicates review, KEEP         | The other copy of a book ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)); the review is its confirmation, and UNDO works until the next decision. |
+| From                                | Deletes                                                                                                                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The series screen, the FILE row     | The series, every chapter or book in it.                                                                                                                                  |
+| A book's sheet in a series of books | That book; the series keeps the rest (renumbered).                                                                                                                        |
+| The reader's end page (c655)        | The series, through the series screen's own `?/delete`. A part of a Work goes as it does from the series screen: the Work keeps its other parts, and ends if one is left. |
+| The library's bulk bar (SELECT)     | Every selected series.                                                                                                                                                    |
+| The duplicates review, KEEP         | The other copy of a book ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)); the review is its confirmation, and UNDO works until the next decision.                            |
 
 Each opens a confirmation (`ConfirmSheet`, `src/lib/components/chrome/`; on
 the series screen its copy `series/[id]/DeleteSheet.svelte`, for the
@@ -19,6 +20,17 @@ full ink, as TAKE OUT is.
 Nothing is deleted until it's pressed. After deleting a series, the screen
 goes back where it was opened from, the way its ← does
 ([`NAVIGATION.md`](NAVIGATION.md)), so the shelf comes back as it was.
+
+**The end page** (the paged one, the strip's and the novel's) offers DELETE on
+a series in the library, with the same sheet, its highlights line included
+(the owner's decision of 2026-11-07 on c655: a series and its downloads are one
+thing here, so taking one out of the library is deleting it; HIDE is no longer
+on this page). It lands on the library, the way that page's own LIBRARY cell
+does: back over the reader and the series when the library is in the tab's
+history, or replacing the reader when it isn't, so ← never reopens a page whose
+series is gone. A browsing record keeps + ADD TO LIBRARY and draws no DELETE; a
+hidden series read under `/reveal` keeps UNHIDE beside it (c673). A press the
+action refuses closes the sheet and says COULD NOT SAVE in the row.
 
 A hidden series is only deleted with reveal on, as it's only seen then.
 
@@ -93,5 +105,6 @@ when sure.
 
 Tested in `tests/delete-db.spec.ts` (files to the trash, rescans don't bring
 it back, a twin's shared files stay, a hidden series is left alone, a book out
-of a series) and
-`tests/delete-flow.e2e.ts` (the confirmation, CANCEL, the bulk bar).
+of a series),
+`tests/delete-flow.e2e.ts` (the confirmation, CANCEL, the bulk bar) and
+`tests/end-page-delete-flow.e2e.ts` (each end page, its own seeded database).

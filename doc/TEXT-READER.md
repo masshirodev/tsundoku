@@ -427,7 +427,7 @@ and BACK gives the pad to CONTENTS again. At the end of what is downloaded
 (END · LAST AVAILABLE, a volume that isn't the last) the pad reaches the
 rating, FAV, ← SERIES and LIBRARY, marked inside (c251); the last volume's end
 is the end page, which takes the pad the same way, and its library row
-(HIDE, or + ADD for a record, c655) is a stop of its own. Off a TV the arrows stay
+(DELETE, or + ADD for a record, c655) is a stop of its own. Off a TV the arrows stay
 the reader's whatever the controls.
 
 **CURSOR** is the image reader's row, with the same choice (c678, off by

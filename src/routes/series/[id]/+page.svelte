@@ -5,6 +5,7 @@
 	import { movedUnit } from './move-words';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import DeleteSheet from './DeleteSheet.svelte';
+	import { entriesLine } from '$lib/reader/library-row';
 	import { lostLine } from '$lib/library/highlights';
 	import { replacing, stepsBackTo } from '$lib/back';
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
@@ -970,7 +971,7 @@
 	open={deletingSeries}
 	title="DELETE {series.title.toUpperCase()}?"
 	lines={[
-		`${series.entries.length} ${series.entries.length === 1 ? 'ENTRY' : 'ENTRIES'} · ${fileMeta(series.entries)}`,
+		entriesLine(series.entries),
 		'ITS FILES MOVE TO THE TRASH FOLDER ON THE WORKSTATION.',
 		'ITS READING HISTORY GOES WITH IT.',
 		'A SCAN OR A SYNC WON’T BRING IT BACK.'

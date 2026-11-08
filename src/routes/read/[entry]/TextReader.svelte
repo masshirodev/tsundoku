@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { END_PAGE_CONTROLS, endSheetOpen } from '$lib/reader/library-row';
 	import { leave } from '$lib/motion';
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
@@ -1205,6 +1206,12 @@
 			return;
 		}
 		if (!down) return;
+		// A control on the end page, or DELETE's confirmation over it, is its own:
+		// a press near the edge must not read as ‹ back (c655).
+		if (atEnd && (e.target as Element | null)?.closest?.(END_PAGE_CONTROLS)) {
+			down = null;
+			return;
+		}
 		// With the lookup open, a tap anywhere else closes it.
 		if (lookup) {
 			down = null;
@@ -1346,8 +1353,8 @@
 	});
 
 	function keydown(e: KeyboardEvent) {
-		// The lookup has the keyboard: Escape closes it (the panel's own).
-		if (lookup) return;
+		// The lookup, and DELETE's confirmation, have the keyboard (their own Escape).
+		if (lookup || endSheetOpen()) return;
 		if (fullImage || wide) {
 			if (e.key === 'Escape') fullImage = wide = null;
 			return;
@@ -1847,6 +1854,7 @@
 					work={data.work}
 					{workHref}
 					inLibrary={!data.record}
+					deleteAsk={data.deleteAsk}
 					seriesHidden={data.series.hidden}
 					addHref={recordAddHref}
 				/>

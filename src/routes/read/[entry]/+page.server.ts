@@ -4,6 +4,9 @@ import type { Actions, PageServerLoad } from './$types';
 import { getDb } from '$lib/server/db';
 import { isIncognito, isRevealed } from '$lib/server/prefs';
 import { seriesPage } from '$lib/server/series';
+import type { SeriesPage } from '$lib/library/series';
+import { seriesHighlights } from '$lib/server/highlights';
+import { entriesLine } from '$lib/reader/library-row';
 import { manifest } from '$lib/server/pages';
 import { ocrStatus } from '$lib/server/japanese/ocr';
 import { automaticCover } from '$lib/server/covers';
@@ -27,6 +30,17 @@ import { setTextDirection, takesTextDirection, textDirectionOf } from './text-di
  * The reader (doc/READER.md). `/read/<entry>?p=<page>`, `p` 1-based. With no
  * `p` it resumes where the entry was left, or starts it.
  */
+/**
+ * The end page's DELETE confirmation (c655): the series screen's own first line,
+ * and how many highlights the delete would leave orphaned (c701).
+ */
+function deleteAsk(series: SeriesPage, reveal: boolean) {
+	return {
+		entries: entriesLine(series.entries),
+		highlights: seriesHighlights(series.id, reveal).length
+	};
+}
+
 export const load: PageServerLoad = async ({ params, url, cookies }) => {
 	const reveal = isRevealed(cookies);
 	const entryId = Number(params.entry);
@@ -177,6 +191,8 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			// A browsing record (doc/BROWSING.md): its preview, where the end page's
 			// + ADD posts (c655).
 			record: recordPreview,
+			// What the end page's DELETE asks with (c655).
+			deleteAsk: deleteAsk(series, reveal),
 			// The Work's next part, at the end of a novel's last volume (doc/WORKS.md, W6).
 			work: workEndOf(series.id, reveal)
 		};
@@ -288,6 +304,8 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			manifest: m,
 			// A browsing record (doc/BROWSING.md): its preview, where the top bar's + ADD posts.
 			record: recordPreview,
+			// What the end page's DELETE asks with (c655).
+			deleteAsk: deleteAsk(series, reveal),
 			pages,
 			start,
 			prev: neighbour(index - 1),

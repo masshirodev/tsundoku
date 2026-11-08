@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { END_PAGE_CONTROLS, endSheetOpen } from '$lib/reader/library-row';
 	import { leave } from '$lib/motion';
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
@@ -1973,7 +1974,7 @@
 		}
 		if (!down) return;
 		// A link or button on the end page is its own; the page doesn't turn under it.
-		if ((e.target as Element | null)?.closest?.('a, button')) {
+		if ((e.target as Element | null)?.closest?.(END_PAGE_CONTROLS)) {
 			down = null;
 			return;
 		}
@@ -2064,7 +2065,7 @@
 	function keydown(e: KeyboardEvent) {
 		zones = false;
 		// The lookup, or the page menu, has the keyboard: Escape closes it (their own).
-		if (lookup || menu || hlOpen || choices) return;
+		if (lookup || menu || hlOpen || choices || endSheetOpen()) return;
 		if (sheet) {
 			if (e.key === 'Escape') sheet = false;
 			return;
@@ -2331,6 +2332,7 @@
 					{workHref}
 					unit={unitOf(data.series.kind)}
 					inLibrary={!data.record}
+					deleteAsk={data.deleteAsk}
 					seriesHidden={data.series.hidden}
 					addHref={recordAddHref}
 				/>
@@ -2371,6 +2373,7 @@
 				{workHref}
 				unit={unitOf(data.series.kind)}
 				inLibrary={!data.record}
+				deleteAsk={data.deleteAsk}
 				seriesHidden={data.series.hidden}
 				addHref={recordAddHref}
 			/>
