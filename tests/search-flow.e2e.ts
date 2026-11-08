@@ -6,7 +6,7 @@
  * tablet-portrait; it only opens sheets and cancels them, so the shared seed
  * is left as it was.
  */
-import { type Locator, type Page } from '@playwright/test';
+import { type Locator, type Page, type Route } from '@playwright/test';
 import Database from 'better-sqlite3';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -324,6 +324,239 @@ test.describe('SELECT ALL past one page (c737)', () => {
 		await expect(group.locator('input[type="hidden"][name="series"]')).toHaveCount(n);
 		await group.getByRole('button', { name: 'CANCEL' }).click();
 		expect(posted).toBe(1);
+	});
+
+	/*
+	 * SELECT ALL's own id read held (`GET /api/library?…&ids=1`), the first of
+	 * its two requests (wave 34's review): every case below taps while that
+	 * GET is out, where wave 34's round-2 case held the POST behind it and so
+	 * tapped after the window. The held route is answered by the case.
+	 */
+	const isIdRead = (url: URL) =>
+		url.pathname === '/api/library' && url.searchParams.get('ids') === '1';
+	const sel = (page: Page) => count(page).textContent();
+	const groupSheet = (page: Page) => page.getByRole('dialog', { name: 'Group into a series' });
+	const tapGroup = (page: Page) => page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const tapDelete = (page: Page) =>
+		page.getByRole('toolbar').getByRole('button', { name: 'DELETE' }).click();
+	/** GROUP's title, its rows and the fields it posts are all `n`. */
+	async function expectGroupOf(page: Page, n: number) {
+		const group = groupSheet(page);
+		await expect(group.locator('.h-title')).toHaveText(new RegExp(`^GROUP ${n} `));
+		await expect(group.locator('.rows .row')).toHaveCount(n);
+		await expect(group.locator('input[type="hidden"][name="series"]')).toHaveCount(n);
+		await group.getByRole('button', { name: 'CANCEL' }).click();
+		await expect(group).toHaveCount(0);
+	}
+	/** A late answer has nothing to wait on but itself, so let it land and run. */
+	async function letItLand(route: Route, page: Page) {
+		const landed = page.waitForResponse((r) => isIdRead(new URL(r.url())));
+		await route.continue();
+		await (await landed).finished();
+		await page.evaluate(() => new Promise((ok) => setTimeout(ok, 100)));
+	}
+	/**
+	 * SELECT ALL pressed with its id read held: `loaded` is what the bar counts
+	 * while it is out, `n` what the same read answers when asked directly.
+	 */
+	async function selectAllHeld(page: Page, presses = 1) {
+		const out: Route[] = [];
+		await page.route(isIdRead, (route) => void out.push(route));
+		await page.goto(`${base}/?sort=title`);
+		await expect(tiles(page).first()).toBeVisible();
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		for (let i = 1; i <= presses; i++) {
+			await page.getByRole('button', { name: 'SELECT ALL' }).click();
+			await expect.poll(() => out.length).toBe(i);
+		}
+		const loaded = Number((await sel(page))!.split(' ')[0]);
+		const answer = await page.request.get(out[0].request().url());
+		const n = ((await answer.json()) as { ids: number[] }).ids.length;
+		expect(n).toBeGreaterThan(loaded);
+		return { out, loaded, n };
+	}
+
+	test('GROUP tapped while the id GET itself is out opens on every series once it lands', async ({
+		page
+	}) => {
+		const { out, n } = await selectAllHeld(page);
+		await tapGroup(page);
+		// Held: nothing to list yet, so the sheet is not drawn on the loaded rows.
+		await expect(groupSheet(page)).toHaveCount(0);
+		await out[0].continue();
+		await expectGroupOf(page, n);
+	});
+
+	test('DELETE tapped while the id GET is out asks about every series', async ({ page }) => {
+		const { out, n } = await selectAllHeld(page);
+		await tapDelete(page);
+		await expect(page.getByRole('dialog', { name: /DELETE \d+ SERIES/ })).toHaveCount(0);
+		await out[0].continue();
+		const ask = page.getByRole('dialog', { name: new RegExp(`DELETE ${n} SERIES`) });
+		await expect(ask).toBeVisible();
+		await expect(ask.locator('input[type="hidden"][name="id"]')).toHaveCount(n);
+		await ask.getByRole('button', { name: 'CANCEL' }).click();
+		await expect(ask).toHaveCount(0);
+	});
+
+	test('the Works HIDE sheet tapped while the id GET is out counts every series', async ({
+		page
+	}) => {
+		// A Work that sorts first, so its tile is on the loaded page and HIDE is
+		// the button that asks first (W4); past the loaded pages HIDE is a plain
+		// submit (measured: this file's Work titled to sort last drew no tile here).
+		const db = new Database(dbPath);
+		const work = (() => {
+			try {
+				const id = Number(
+					db
+						.prepare(`INSERT INTO works (name, created_at, order_mode) VALUES ('0 Run', ?, 'hand')`)
+						.run(Date.now()).lastInsertRowid
+				);
+				const part = db.prepare(
+					`INSERT INTO work_series (work_id, series_id, position)
+					VALUES (?, (SELECT id FROM series WHERE title = ?), ?)`
+				);
+				part.run(id, lot(1), 1);
+				part.run(id, lot(2), 2);
+				return id;
+			} finally {
+				db.close();
+			}
+		})();
+		try {
+			const { out, n } = await selectAllHeld(page);
+			await expect(page.locator('.tile.work')).toHaveCount(1);
+			await page.getByRole('toolbar').getByRole('button', { name: 'HIDE', exact: true }).click();
+			const ask = page.getByRole('dialog', { name: 'Hide' });
+			await expect(ask).toHaveCount(0);
+			await out[0].continue();
+			await expect(ask.locator('.h-title .t')).toHaveText(`HIDE ${n} SERIES?`);
+			await ask.getByRole('button', { name: 'CANCEL' }).click();
+			await expect(ask).toHaveCount(0);
+		} finally {
+			sql(`DELETE FROM works WHERE id = ?`, work);
+		}
+	});
+
+	test('✕ while the id GET is out: its answer changes nothing, and a tap left waiting opens nothing', async ({
+		page
+	}) => {
+		const asked = reads(page);
+		const { out } = await selectAllHeld(page);
+		await tapGroup(page);
+		await page.getByRole('button', { name: 'Stop selecting' }).click();
+		await expect(count(page)).toHaveCount(0);
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		await expect(count(page)).toHaveText('0 SELECTED');
+		await letItLand(out[0], page);
+		await expect(count(page)).toHaveText('0 SELECTED');
+		await expect(groupSheet(page)).toHaveCount(0);
+		expect(asked).toHaveLength(0);
+	});
+
+	test('a new SELECT does not wait for the last selection’s read, still held', async ({ page }) => {
+		const { out } = await selectAllHeld(page);
+		await page.getByRole('button', { name: 'Stop selecting' }).click();
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		await expect(count(page)).toHaveText('0 SELECTED');
+		await tiles(page).first().click();
+		await expect(count(page)).toHaveText('1 SELECTED');
+		await tapGroup(page);
+		await expectGroupOf(page, 1);
+		await letItLand(out[0], page);
+		await expect(count(page)).toHaveText('1 SELECTED');
+	});
+
+	test('the id GET failing: GROUP stops waiting and opens on what is selected, the loaded series', async ({
+		page
+	}) => {
+		const { out, loaded } = await selectAllHeld(page);
+		await tapGroup(page);
+		await expect(groupSheet(page)).toHaveCount(0);
+		await out[0].abort();
+		await expectGroupOf(page, loaded);
+		await expect(count(page)).toHaveText(`${loaded} SELECTED`);
+	});
+
+	test('SELECT ALL pressed twice while the first GET is held: GROUP waits for both, and reads once', async ({
+		page
+	}) => {
+		const asked = reads(page);
+		const { out, n } = await selectAllHeld(page, 2);
+		await tapGroup(page);
+		// The second answers first and adds nothing, as a press on a narrower
+		// shelf would: the first is still out, and it is the one with the ids.
+		await out[1].fulfill({ json: { ids: [] } });
+		await out[1].request().response();
+		await page.evaluate(() => new Promise((ok) => setTimeout(ok, 100)));
+		await expect(groupSheet(page)).toHaveCount(0);
+		await out[0].continue();
+		await expectGroupOf(page, n);
+		await expect(count(page)).toHaveText(`${n} SELECTED`);
+		expect(asked).toHaveLength(1);
+	});
+
+	test('SHOW opened while the id GET is out lists every series once it lands', async ({ page }) => {
+		const { out, loaded, n } = await selectAllHeld(page);
+		await page.getByRole('button', { name: 'SHOW', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'The selection' });
+		await expect(sheet.locator('.show-row')).toHaveCount(loaded);
+		await out[0].continue();
+		await expect(sheet.locator('.show-row')).toHaveCount(n);
+		await sheet.getByRole('button', { name: 'DONE' }).click();
+	});
+
+	test('a tile unticked while the id GET is out stays unticked when the ids land', async ({
+		page
+	}) => {
+		const { out, n } = await selectAllHeld(page);
+		const first = tiles(page).first();
+		await first.click();
+		await expect(first.locator('.open')).toHaveAttribute('aria-pressed', 'false');
+		await out[0].continue();
+		await expect(count(page)).toHaveText(`${n - 1} SELECTED`);
+		await expect(first.locator('.open')).toHaveAttribute('aria-pressed', 'false');
+	});
+
+	test('of two taps made while the id GET is out, the last one opens', async ({ page }) => {
+		const { out, n } = await selectAllHeld(page);
+		await tapGroup(page);
+		await tapDelete(page);
+		await out[0].continue();
+		const ask = page.getByRole('dialog', { name: new RegExp(`DELETE ${n} SERIES`) });
+		await expect(ask).toBeVisible();
+		await expect(groupSheet(page)).toHaveCount(0);
+		await ask.getByRole('button', { name: 'CANCEL' }).click();
+	});
+
+	test('SHOW tapped after GROUP while the id GET is out: SHOW opens, and GROUP does not over it', async ({
+		page
+	}) => {
+		const { out, n } = await selectAllHeld(page);
+		await tapGroup(page);
+		await page.getByRole('button', { name: 'SHOW', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'The selection' });
+		await expect(sheet).toBeVisible();
+		await out[0].continue();
+		await expect(sheet.locator('.show-row')).toHaveCount(n);
+		await expect(groupSheet(page)).toHaveCount(0);
+		await sheet.getByRole('button', { name: 'DONE' }).click();
+	});
+
+	test('leaving for the search while the id GET is out carries what the bar read, and its late answer adds nothing', async ({
+		page
+	}) => {
+		const { out, loaded } = await selectAllHeld(page);
+		await page.getByRole('link', { name: 'Search to tick' }).click();
+		await page.waitForURL(/\/search/);
+		await expect(count(page).filter({ visible: true })).toHaveText(`${loaded} SELECTED`);
+		await letItLand(out[0], page);
+		await page.getByRole('link', { name: 'Back to library' }).click();
+		await expect(tiles(page).first()).toBeVisible();
+		await expect(count(page)).toHaveText(`${loaded} SELECTED`);
+		await tapGroup(page);
+		await expectGroupOf(page, loaded);
 	});
 
 	test('a series deleted, and one hidden, between SELECT ALL and the read are taken out and said so', async ({

@@ -291,10 +291,17 @@ though it is no longer drawn.
   (deleted since, or hidden under the request's reveal), from a by-id check
   of just those ids. The read is made once SELECT ALL has the ids, and again
   for anything still missing when SHOW opens or GROUP, HIDE or DELETE is
-  pressed. Those three wait for every read in flight, not only the one they
-  start, so GROUP tapped while SELECT ALL's own read is still out opens on
-  every selected series (its sheet takes its rows once, on open): SHOW lists
-  every series and GROUP counts them all. While it is out the sheet says
+  pressed. Those three wait for all of SELECT ALL's reads, the id GET
+  included (`selectingAll`, the GET and the by-id read behind it as one
+  promise; a second press joins the first), and for every by-id read in
+  flight, so GROUP tapped while they are out opens on every selected series
+  (its sheet takes its rows once, on open): SHOW lists every series and
+  GROUP counts them all. SHOW opens at once and its list grows as the ids
+  land. A tap made while the reads are out belongs to its selection: ✕ drops
+  it, and of two taps only the last opens. A series unticked while the ids
+  are out stays unticked. If the id GET fails, the wait ends and the sheet
+  opens on what is selected, which is the loaded pages, and the bar counts
+  the same. While it is out the sheet says
   `N MORE FROM SELECT ALL · LOADING`; an id the server names missing is
   taken out of the selection and said so (`N GONE OR HIDDEN SINCE SELECT ALL ·
 TAKEN OUT`, counting only ids still out: one ticked again by hand is
@@ -302,8 +309,9 @@ TAKEN OUT`, counting only ids still out: one ticked again by hand is
   id that got neither a card nor a `missing` entry (past the read's caps) is
   not gone: like a read that could not be made (offline) it stays selected
   and unlisted (`N MORE FROM SELECT ALL · NOT LOADED, SO NOT LISTED`), and
-  the next SHOW asks again. An answer that lands after ✕ is dropped
-  (`UnseenFacts` in `src/lib/library/selection.ts`). One POST carries at most
+  the next SHOW asks again. An answer that lands after ✕ is dropped, the id
+  GET's too (`UnseenFacts` in `src/lib/library/selection.ts`, `selectionRun`
+  in `+page.svelte`). One POST carries at most
   10,000 ids, the grid's own cap, so the client sends them in chunks of
   that; the cards come from the first 10,000 tiles.
 - **What ends SELECT** (and drops it): the bar's ✕, on the library or the
@@ -493,6 +501,10 @@ Work's parts sit across the boundary (`doc/WORKS.md`).
   loaded come from `/api/library?ids`, without their cards, and a Work's every
   part is among them even when a kind, collection, NEW or FAV shelf picked only
   one -- a bulk HIDE must hide the run whole (`tileIds`, `doc/WORKS.md`).
+  The trip to the search carries what the bar reads at the tap: leaving while
+  the id GET is out takes the loaded pages, and its answer lands on a page
+  that has gone, so SELECT ALL is pressed again on the way back to take the
+  rest.
 - **Back** (the gesture, or the browser's) comes back to the pages and the place
   it left. A SvelteKit snapshot keeps the loaded cards (up to 4,000) and the
   scroll, and sets the scroll again once they're back, since SvelteKit scrolls

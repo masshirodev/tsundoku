@@ -588,9 +588,34 @@
 	/** SELECT ALL's series from pages never loaded, read by id (c737). */
 	const unseen = new UnseenFacts();
 	const heldBySheet = () => new Set(reviewing ? shownIds : []);
-	/** Fill in what SELECT ALL took unseen: before SHOW lists it, or a bulk action reads it. */
-	function fillUnseen(): Promise<void> {
-		return unseen.fill(selected, facts, heldBySheet);
+	/**
+	 * SELECT ALL's reads still out: the id GET and the by-id read behind it,
+	 * as one promise (a second press joins the first). It never rejects, so a
+	 * failed read ends the wait and leaves what was selected.
+	 */
+	let selectingAll: Promise<void> | null = null;
+	/** Which selection this is: ✕ and a bulk action's success start the next. */
+	let selectionRun = 0;
+	/** The last tap still waiting on those reads: only it opens its sheet. */
+	let lastTap = 0;
+	/**
+	 * Fill in what SELECT ALL took unseen, before SHOW lists it or a bulk
+	 * action reads it. SELECT ALL's id read comes first, or there is nothing
+	 * yet to fill (GroupSheet takes its rows once, on open).
+	 */
+	async function fillUnseen(): Promise<void> {
+		while (selectingAll) await selectingAll;
+		await unseen.fill(selected, facts, heldBySheet);
+	}
+	/**
+	 * Open a bulk action's sheet once the selection is whole. A tap made while
+	 * the reads are out is dropped by ✕, or by a later tap, which is the one
+	 * the owner meant.
+	 */
+	async function openWhenFilled(open: () => void): Promise<void> {
+		const tap = ++lastTap;
+		await fillUnseen();
+		if (tap === lastTap) open();
 	}
 	/**
 	 * A selection carried back from the search (c698; doc/LIBRARY.md, "What
@@ -739,6 +764,9 @@
 		selected.clear();
 		facts.clear();
 		unseen.reset();
+		selectingAll = null;
+		selectionRun++;
+		lastTap++;
 	}
 
 	/**
@@ -759,6 +787,7 @@
 	}
 
 	function openShow() {
+		lastTap++;
 		shownIds = [...selected];
 		reviewing = true;
 		void fillUnseen();
@@ -1696,29 +1725,44 @@
 	 * SELECT ALL means the whole shelf, pages not yet loaded included: their
 	 * ids come without their cards.
 	 */
-	async function selectAll() {
+	function selectAll() {
 		// The loaded tiles at once, a Work's parts with it (a Work tile is one
 		// tile over its parts, doc/WORKS.md).
 		for (const s of shown) for (const id of cardIds(s)) selected.add(id);
 		// CACHED narrows on the device: only the tablet knows what it holds, so
 		// the server cannot answer its ids.
 		if (data.shelf === 'cached') return;
+		const q = pageQuery({
+			shelf: data.shelf,
+			tag: data.tag,
+			filters: data.filters,
+			sort: data.sort,
+			dir: dirParam,
+			offset: 0,
+			limit: 0
+		});
+		const read = readEveryId(q, new Set(selected), selectionRun);
+		const all: Promise<void> = Promise.all([selectingAll, read]).then(() => {
+			if (selectingAll === all) selectingAll = null;
+		});
+		selectingAll = all;
+	}
+
+	/**
+	 * Every page's ids, unit-aware so a Work's parts a kind shelf never picked
+	 * are selected too, then their facts (c737), so SHOW lists them and GROUP
+	 * counts them. `taken` is what was selected at the press: one of those no
+	 * longer selected was unticked while this was out, so it stays unticked.
+	 */
+	async function readEveryId(q: string, taken: Set<number>, run: number): Promise<void> {
 		try {
-			const q = pageQuery({
-				shelf: data.shelf,
-				tag: data.tag,
-				filters: data.filters,
-				sort: data.sort,
-				dir: dirParam,
-				offset: 0,
-				limit: 0
-			});
-			// Every page, not only the loaded ones -- and unit-aware, so a Work's
-			// parts a kind shelf never picked are selected too.
 			const res = await fetch(`/api/library?${q}&ids=1`);
-			if (res.ok) for (const id of ((await res.json()) as { ids: number[] }).ids) selected.add(id);
-			// Their facts at once (c737), so SHOW lists them and GROUP counts them.
-			void fillUnseen();
+			const ids = res.ok ? ((await res.json()) as { ids: number[] }).ids : [];
+			// ✕ while it was out: this selection has ended.
+			if (run !== selectionRun) return;
+			for (const id of ids) if (!taken.has(id)) selected.add(id);
+			if (reviewing) shownIds = [...new Set([...shownIds, ...selected])];
+			await unseen.fill(selected, facts, heldBySheet);
 		} catch {
 			// Offline: the loaded pages stay selected, which is what's on screen.
 		}
@@ -1810,7 +1854,7 @@
 					class="cell-btn"
 					aria-label="SELECT ALL"
 					data-focus-mark="in"
-					onclick={() => void selectAll()}
+					onclick={selectAll}
 					><span class="all-long">SELECT ALL</span><span class="all-short"
 						>{m.library_select_all_short()}</span
 					></button
@@ -2553,10 +2597,7 @@
 						type="button"
 						class="group"
 						disabled={selected.size === 0}
-						onclick={async () => {
-							await fillUnseen();
-							grouping = true;
-						}}>GROUP</button
+						onclick={() => void openWhenFilled(() => (grouping = true))}>GROUP</button
 					>
 				{/if}
 				<!-- REFRESH (c221): asks each selected series' source once, and downloads nothing. -->
@@ -2582,10 +2623,7 @@
 					<button
 						type="button"
 						disabled={selected.size === 0}
-						onclick={async () => {
-							await fillUnseen();
-							hiding = true;
-						}}>HIDE</button
+						onclick={() => void openWhenFilled(() => (hiding = true))}>HIDE</button
 					>
 				{:else}
 					<button type="submit" name="do" value="hide" disabled={selected.size === 0}>HIDE</button>
@@ -2594,10 +2632,7 @@
 				<button
 					type="button"
 					disabled={selected.size === 0}
-					onclick={async () => {
-						await fillUnseen();
-						deleting = true;
-					}}>DELETE</button
+					onclick={() => void openWhenFilled(() => (deleting = true))}>DELETE</button
 				>
 			{/snippet}
 		</BulkBar>
