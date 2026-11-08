@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import { posix } from '../fspath.ts';
 import { fileIn, isUnder, widenTo } from '../paths.ts';
+import { isSeasonFolder, seasonFolders, seriesHolding } from '../season-facts.ts';
 import { getDb } from '../db.ts';
 import { hueFor } from '../../library/cover.ts';
 import { linkFromTracker } from '../catalogue.ts';
@@ -143,9 +144,9 @@ export function writeSeries(
 		.transaction((): WriteResult => {
 			const dropped: Dropped[] = [];
 			adoptFormer(db, s, opts.now, dropped);
-			const byKey = db.prepare(`SELECT id FROM series WHERE origin_key = ?`);
-			let seriesId: number | null =
-				(byKey.get(s.originKey) as { id: number } | undefined)?.id ?? null;
+			// Its own key, or a season's (c282): an anime's season folder and
+			// FOLLOW's plan both name a source entry the series holds a season of.
+			let seriesId: number | null = seriesHolding(s.originKey, db)?.id ?? null;
 			// Moved to another source (doc/MOVE.md): the backup still names the
 			// source it was downloaded from, and every key the series has left is
 			// in series_former_keys (rung 58), however many moves ago. The series
@@ -236,18 +237,37 @@ export function writeSeries(
 					shared = brings.length ? widenTo(db, seriesId, brings) : path;
 				}
 			}
+			// An anime season's own folder (c282, doc/ANIME.md, "Downloading"): this
+			// folder's episodes are named from the folder the series is named from.
+			// A series that has none yet takes the first folder to arrive, even a
+			// season's, so its own folder arriving later takes over and what was
+			// named from the season's is named again from there: the result is the
+			// same whichever folder came first. A series with no season rows never
+			// takes this path.
+			let seasonFolderFrom: string | null = null;
+			if (seriesId !== null && volume === null && shared === null && s.path !== '') {
+				const { path } = db.prepare(`SELECT path FROM series WHERE id = ?`).get(seriesId) as {
+					path: string;
+				};
+				if (path !== '' && path !== s.path) {
+					if (isSeasonFolder(seriesId, s.path, db)) seasonFolderFrom = path;
+					else if (isSeasonFolder(seriesId, path, db)) nameFilesFrom(db, seriesId, path, s.path);
+				}
+			}
 			// A chapter not downloaded has no file, whichever folder the series is named from.
 			const fileOf = (e: PlannedEntry) =>
 				e.file === ''
 					? ''
 					: volume
 						? posix.relative(volume.path, posix.join(s.path, e.file))
-						: shared !== null
-							? fileIn(shared, posix.join(s.path, e.file))
-							: e.file;
+						: seasonFolderFrom !== null
+							? posix.relative(seasonFolderFrom, posix.join(s.path, e.file))
+							: shared !== null
+								? fileIn(shared, posix.join(s.path, e.file))
+								: e.file;
 
 			if (seriesId !== null && volume === null) {
-				const path = shared === null ? s.path : '';
+				const path = shared === null && seasonFolderFrom === null ? s.path : '';
 				db.prepare(
 					`UPDATE series SET
 						path = CASE WHEN ? != '' THEN ? ELSE path END,
@@ -468,6 +488,9 @@ export function writeSeries(
 			// Mihon's MAL tracker: a sure catalogue link (doc/LINKS.md).
 			if (s.malLink) linkFromTracker(db, seriesId, s.malLink, opts.now);
 			if (opts.markMissing && s.path !== '') {
+				// A season's folder answers for its own files, and the series' folder
+				// for its own, each from wherever the other's entries point.
+				const hasSeasonFolder = seasonFolders(seriesId, db).length > 0;
 				// A volume answers only for its own entries: the others are other files.
 				const onDisk = (
 					db
@@ -478,7 +501,11 @@ export function writeSeries(
 				)
 					.filter((r) => !volume || r.source_url.startsWith(own))
 					// With another device's files in the series, this one answers for its own only.
-					.filter((r) => shared === null || isUnder(posix.join(seriesPath, r.file), s.path));
+					.filter(
+						(r) =>
+							(shared === null && !hasSeasonFolder) ||
+							isUnder(posix.join(seriesPath, r.file), s.path)
+					);
 				for (const r of onDisk)
 					if (!planned.has(r.file))
 						db.prepare(`UPDATE entries SET available = 0 WHERE id = ?`).run(r.id);
@@ -501,6 +528,19 @@ export function writeSeries(
 			};
 		})
 		.immediate();
+}
+
+/**
+ * The series is about to be named from another folder: every file it knows
+ * keeps pointing at the same place on disk. Only the name changes, so nothing
+ * here is an arrival.
+ */
+function nameFilesFrom(db: Database.Database, seriesId: number, from: string, to: string): void {
+	const rows = db
+		.prepare(`SELECT id, file FROM entries WHERE series_id = ? AND file != ''`)
+		.all(seriesId) as { id: number; file: string }[];
+	const rename = db.prepare(`UPDATE entries SET file = ? WHERE id = ?`);
+	for (const r of rows) rename.run(posix.relative(to, posix.join(from, r.file)), r.id);
 }
 
 /**

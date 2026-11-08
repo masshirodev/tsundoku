@@ -90,6 +90,40 @@ way back (`series.former_offset`) so MOVE BACK maps the same way.
 
 Series that never had seasons, on both sides, match by number alone.
 
+### A season with a source of its own (c282)
+
+Rows in `series_season_facts` ([`WORKS.md`](WORKS.md), "Per-season sources")
+change what a MOVE is about, by the season each entry resolves to:
+
+- **A MOVE of the series** is about what the series' own key supplies. A season
+  with a source of its own is neither compared nor rekeyed: its row and its
+  entries stay where they are, and `former_key` remains the series'. A season
+  row that named the series' key follows it, there and back.
+- **A MOVE of one season** (`applyMove(…, { season })`; no screen yet) re-keys
+  that season's row alone, and writes one if the season had none, and a source
+  listing one season is that season here, whatever number it gives itself.
+  **`series.former_key`, `former_at` and MOVE BACK do not move**: they are the
+  series' way back, and a season has no way back in S1 (no column holds one).
+  The key it left joins `series_former_keys`, so a backup still finds the
+  series, unless the series or another season still holds it.
+- **A MOVE does not change where a season downloads.** Files stay, so the next
+  episode goes beside them: a season with a downloaded file keeps the folder
+  that file is in, and that folder's `tvshow.nfo` goes on naming the folder's
+  own key rather than the season's new one. Only a season with no files, and a
+  source of its own, is allotted a new folder at its first download
+  (`episodePlace`, `anime/download.ts`; the rule is read from the files because
+  `series_season_facts_folder` is unique, so two moved seasons could not both
+  write the series' folder onto their rows).
+- **The refusal counts a season's key.** A target another series holds, as its
+  own key or a season's, is refused at the comparison and at the move (`heldByOther`);
+  a key this series already holds never counts, since two seasons of one show
+  may share a source. **MOVE BACK asks the same**: a key left and since taken
+  up by another series refuses the way back with the same words, and neither
+  the SOURCE row nor the comparison offers it while the key is held. It opens
+  again, within its 30 days, if the other series lets the key go.
+- A series every one of whose seasons has its own source has nothing for the
+  series-level MOVE to do, and is refused rather than re-keyed to no effect.
+
 ## The move
 
 One transaction (`applyMove` in `src/lib/server/move.ts`):
@@ -162,7 +196,8 @@ key it moved to. This is the writer's existing former-key mechanism
 Right after a move the series screen shows **MOVED TO WEEB CENTRAL** with
 **UNDO**, as NOT A SERIES does; the band goes when the screen is left. For **30
 days** the SOURCE row reads **WAS ASURA SCANS · UNTIL 1 DEC** and offers **MOVE
-BACK**, which goes straight back with no search or comparison.
+BACK**, which goes straight back with no search or comparison, while no other
+series has come to hold the key it left.
 
 Back means: the old source is where chapters come from again, FOLLOW and the
 queue go with it, and reading carries back **by number**, including what was

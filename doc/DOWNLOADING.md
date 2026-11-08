@@ -255,6 +255,13 @@ What's already missing stays ALL N's job.
   offered while something visible is followed. It isn't a badge: the cover's
   four corners are taken.
 
+**Per season (c282):** FOLLOW asks the last season's source and each season
+keeps its own download folder when it has one ([`ANIME.md`](ANIME.md),
+"FOLLOW" and "Downloading"), and a season with files stays where they are, so a
+MOVE never splits one across two folders. A season with no row is the series' source and
+folder, which is every season of every series until a later slice writes the
+rows.
+
 ## REFRESH
 
 The cell before FOLLOW, on any series in the library whose source can be asked

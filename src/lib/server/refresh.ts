@@ -4,6 +4,7 @@ import { libraryWhere } from './visibility.ts';
 import { addNewChapters } from './engine/backend.ts';
 import { checkAnime } from './anime/follow.ts';
 import { checkNovel } from './novels/follow.ts';
+import { followOrigin } from './season-facts.ts';
 import type { RefreshBatch } from '../library/types.ts';
 
 /**
@@ -21,11 +22,9 @@ export type Refreshed = { kind: 'manga' | 'anime' | 'novel'; added: number };
 
 export async function refreshSeries(seriesId: number, now = Date.now()): Promise<Refreshed | null> {
 	const db = getDb();
-	const key =
-		(
-			db.prepare(`SELECT origin_key FROM series WHERE id = ?`).get(seriesId) as
-				{ origin_key: string | null } | undefined
-		)?.origin_key ?? null;
+	// The key FOLLOW asks (c282): a series' source, or its last season's when
+	// the seasons have their own. Which family answers is that key's.
+	const key = followOrigin(seriesId, db).key;
 	if (parseAnimeKey(key))
 		return { kind: 'anime', added: (await checkAnime(seriesId, now, db, { queue: false })).added };
 	if (parseNovelKey(key))
@@ -112,7 +111,7 @@ export async function refreshMany(
 		const row = byId.get(id);
 		if (row) selected.push(row);
 	}
-	const sourced = selected.filter((r) => hasSource(r.origin_key));
+	const sourced = selected.filter((r) => hasSource(followOrigin(r.id, db).key));
 	out.skipped = selected.length - sourced.length;
 
 	const run = sourced.slice(0, REFRESH_BATCH);

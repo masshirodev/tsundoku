@@ -13,6 +13,7 @@ import type { SourceManga } from '../download-types.ts';
 import { engineImageToken } from './client.ts';
 import { splitMemo } from './protocol.ts';
 import { hideIfAddedHidden } from './source-flags.ts';
+import { seriesHolding } from '../season-facts.ts';
 import {
 	AddError,
 	callSource,
@@ -154,8 +155,7 @@ export async function addAnime(id: string, now = Date.now()): Promise<number> {
 	const key = animeKey(id);
 	if (!key) throw new AddError('That isn’t an anime');
 	const db = getDb();
-	const existing = db.prepare(`SELECT id, in_library FROM series WHERE origin_key = ?`).get(key) as
-		{ id: number; in_library: number } | undefined;
+	const existing = seriesHolding(key, db);
 	if (existing) return keepOrPromote(existing, false, now, db);
 	const seriesId = await writeAnime(id, key, now, false);
 	db.prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, seriesId);
@@ -174,8 +174,7 @@ export async function browseAnime(id: string, now = Date.now()): Promise<number>
 	const key = animeKey(id);
 	if (!key) throw new AddError('That isn’t an anime');
 	const db = getDb();
-	const existing = db.prepare(`SELECT id, in_library FROM series WHERE origin_key = ?`).get(key) as
-		{ id: number; in_library: number } | undefined;
+	const existing = seriesHolding(key, db);
 	if (existing) return keepOrPromote(existing, true, now, db);
 	return writeAnime(id, key, now, true);
 }

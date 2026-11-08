@@ -9,6 +9,7 @@ import { engineMedia, engineMediaPath, EngineError } from '../engine/client.ts';
 import { callSource } from '../engine/backend.ts';
 import { USER_AGENT } from '../engine/protocol.ts';
 import { parseAnimeKey } from '../../library/downloads.ts';
+import { entryOriginSql } from '../season-facts.ts';
 import { chosenMarks, saveSourceMarks } from './marks.ts';
 import { lookupAniSkip } from './aniskip.ts';
 import { currentSprite } from './sprites.ts';
@@ -266,7 +267,8 @@ export function episodeRow(entryId: number, reveal: boolean): EpisodeRow | null 
 	return (
 		(getDb()
 			.prepare(
-				`SELECT e.id, e.source_url, e.label, e.title, e.origin_source, s.origin_key FROM entries e
+				`SELECT e.id, e.source_url, e.label, e.title, e.origin_source,
+					${entryOriginSql('e', 's')} AS origin_key FROM entries e
 				JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
 				WHERE e.id = ? AND s.kind = 'anime' AND (? OR ${VISIBLE_SQL})`
 			)

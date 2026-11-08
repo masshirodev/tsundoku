@@ -79,6 +79,24 @@ folder** beside them, and FOLLOW, refresh, downloads, MOVE and c239's AniSkip
 lookup learn to resolve a season's own source and link. One table of season
 facts, never two link tables.
 
+**S1 (c282, rung 75) is the table and the readers, with no screen and no door
+that writes a row.** `series_season_facts (series_id, season, origin_key,
+folder, source_title)` is keyed by series and season and holds **no link
+column**: AniList and MAL stay in c240's `series_season_links`. The card asked
+for one table if c240's could carry the facts, and it cannot: that table's key
+has a `part`, so a two-part season would keep one source on two rows, and its
+`via` is `NOT NULL` with a `CHECK` over how a link was made, so a season with a
+source and no link could not be a row at all. Facts beside links is what keeps
+it to one table of links.
+
+`src/lib/server/season-facts.ts` is the one answer to "where does this entry
+come from", and every reader asks it. **A season with no row answers
+`series.origin_key`**, as does a row whose key is NULL, so a series with no
+rows, which is every series until a later slice writes one, reads exactly as
+it did. An entry with a NULL season reads season 0's row (a flat list, c240's
+own rule). Two seasons of one series may share a key; two series may not hold
+one (`heldByOther`, which MOVE and the writer ask).
+
 ## Where it departs from the handoff
 
 - A Work has a derived rating and FAV (above), not "neither".

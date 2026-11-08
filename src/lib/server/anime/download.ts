@@ -7,7 +7,15 @@ import { coverDir } from '../covers.ts';
 import { getSetting } from '../settings.ts';
 import { loopback } from './loopback.ts';
 import { ownEntry } from './marks.ts';
-import { showEntry } from '../season-links.ts';
+import { seasonLinks, showEntry } from '../season-links.ts';
+import {
+	entryOrigin,
+	folderTaken,
+	followOrigin,
+	seasonFact,
+	seasonFacts,
+	type SeasonFact
+} from '../season-facts.ts';
 import type { Kind } from '../../library/kinds.ts';
 import { wantPictures } from './pictures.ts';
 import { keptOf } from '../../settings/catalog.ts';
@@ -73,7 +81,7 @@ type SeriesRow = {
 	description: string;
 	status: string;
 	source: string;
-	origin_key: string;
+	origin_key: string | null;
 };
 
 /**
@@ -86,11 +94,94 @@ export function seriesFolder(db: Database.Database, s: SeriesRow): string {
 	if (known) return known.folder;
 	const top = s.hidden ? HIDDEN_ANIME_FOLDER : ANIME_FOLDER;
 	const name = seriesFolderName(s.title);
-	const taken = db.prepare(`SELECT 1 FROM anime_series WHERE folder = ?`);
-	let folder = posix.join(top, name);
-	for (let n = 2; taken.get(folder); n++) folder = posix.join(top, `${name} (${n})`);
+	const folder = freeFolder(db, top, name);
 	db.prepare(`INSERT INTO anime_series (series_id, folder) VALUES (?, ?)`).run(s.id, folder);
 	return folder;
+}
+
+/** The first of `<top>/<name>`, `<name> (2)`, … no series and no season holds. */
+function freeFolder(db: Database.Database, top: string, name: string): string {
+	let folder = posix.join(top, name);
+	for (let n = 2; folderTaken(folder, db); n++) folder = posix.join(top, `${name} (${n})`);
+	return folder;
+}
+
+export type EpisodePlace = {
+	folder: string;
+	/** What this folder's tvshow.nfo names: the key its episodes came from. */
+	key: string;
+	title: string;
+	/** Set when the folder is this one season's, so its link is the show's to Jellyfin there. */
+	season: number | null;
+};
+
+/** The last file on disk of one season, as a path, for telling which folder holds it. */
+function fileOfSeason(db: Database.Database, seriesId: number, season: number): string | null {
+	const r = db
+		.prepare(
+			`SELECT s.path, e.file FROM entries e JOIN series s ON s.id = e.series_id
+			WHERE e.series_id = ? AND COALESCE(e.season, 0) = ? AND e.available = 1 AND e.file != ''
+			ORDER BY e.position DESC, e.id DESC LIMIT 1`
+		)
+		.get(seriesId, season) as { path: string; file: string } | undefined;
+	return r ? posix.join(r.path, r.file) : null;
+}
+
+/**
+ * Where a season's episodes go (c282; doc/DOWNLOADING.md). A season with a
+ * folder keeps it. **A season with files stays where they are**, whatever its
+ * row says of its source: a MOVE re-keys the row and moves no file, so the
+ * next episode lands beside the last (`series_season_facts_folder` is unique,
+ * so the place can't be written onto the row for every season that moves). Only
+ * a season with no files and a source of its own gets a folder at its first
+ * download, as a series does, named by what the source calls it, under the
+ * same uniqueness; a season sharing that source reuses its folder. Everything
+ * else is the series' folder: no row at all, or a row that says nothing of
+ * where its files are.
+ *
+ * The answer names the folder's own key and title, which are its tvshow.nfo:
+ * a season lodging in another's folder doesn't rename that folder to itself.
+ */
+export function episodePlace(
+	db: Database.Database,
+	s: SeriesRow,
+	season: number | null
+): EpisodePlace {
+	const fact = seasonFact(s.id, season, db);
+	const inSeriesFolder = (): EpisodePlace => ({
+		folder: seriesFolder(db, s),
+		key: s.origin_key ?? fact?.originKey ?? '',
+		title: s.title,
+		season: null
+	});
+	const seasonsOwn = (f: SeasonFact, folder: string): EpisodePlace => ({
+		folder,
+		key: f.originKey ?? s.origin_key ?? '',
+		title: f.sourceTitle || s.title,
+		season: f.season
+	});
+	if (!fact) return inSeriesFolder();
+	if (fact.folder) return seasonsOwn(fact, fact.folder);
+	const facts = seasonFacts(s.id, db);
+	const file = fileOfSeason(db, s.id, fact.season);
+	if (file !== null) {
+		const holder = facts.find((f) => f.folder && file.includes(`/${f.folder}/`));
+		return holder?.folder ? seasonsOwn(holder, holder.folder) : inSeriesFolder();
+	}
+	if (!fact.originKey || fact.originKey === s.origin_key) return inSeriesFolder();
+	const sibling = facts.find((f) => f.originKey === fact.originKey && f.folder)?.folder;
+	if (sibling) return seasonsOwn(fact, sibling);
+	const folder = freeFolder(
+		db,
+		s.hidden ? HIDDEN_ANIME_FOLDER : ANIME_FOLDER,
+		seriesFolderName(fact.sourceTitle || s.title)
+	);
+	db.prepare(`UPDATE series_season_facts SET folder = ? WHERE series_id = ? AND season = ?`).run(
+		folder,
+		s.id,
+		fact.season
+	);
+	return seasonsOwn(fact, folder);
 }
 
 /** The height an episode downloads at: its own, else SETTINGS' (1080 by default). */
@@ -169,7 +260,12 @@ async function fileFacts(path: string): Promise<{ seconds: number | null; video:
 }
 
 /** tvshow.nfo and poster.jpg, beside the seasons; the poster from the library's own cover. */
-async function writeSeriesFiles(db: Database.Database, s: SeriesRow, dir: string): Promise<void> {
+async function writeSeriesFiles(
+	db: Database.Database,
+	s: SeriesRow,
+	dir: string,
+	place: EpisodePlace
+): Promise<void> {
 	const genres = (
 		db
 			.prepare(
@@ -185,12 +281,22 @@ async function writeSeriesFiles(db: Database.Database, s: SeriesRow, dir: string
 	// has them too. The first-season mirror, `series_links`, is not read.
 	const kind = (db.prepare(`SELECT kind FROM series WHERE id = ?`).get(s.id) as { kind: Kind })
 		.kind;
-	const link = showEntry(s.id, (format) => ownEntry(kind, format), db);
+	// A season's own folder is its own show to Jellyfin, so the ids are that
+	// season's, and the key is the one its episodes come from: the importer
+	// folds this folder back onto the series by that key (import/write.ts).
+	const seasonEntry =
+		place.season === null
+			? null
+			: seasonLinks(s.id, db).find(
+					(l) => l.season === place.season && l.part === 1 && ownEntry(kind, l.format)
+				);
+	const link =
+		place.season === null ? showEntry(s.id, (format) => ownEntry(kind, format), db) : seasonEntry;
 	writeFileSync(
 		join(dir, 'tvshow.nfo'),
 		tvshowNfo({
-			key: s.origin_key,
-			title: s.title,
+			key: place.key,
+			title: place.title,
 			plot: s.description,
 			status: s.status,
 			genres,
@@ -241,7 +347,7 @@ export async function downloadEpisode(entryId: number, d: AnimeDeps): Promise<st
 				)
 				.get(e.series_id) as SeriesRow | undefined)
 		: undefined;
-	if (!e || !s || !parseAnimeKey(s.origin_key))
+	if (!e || !s || !parseAnimeKey(entryOrigin(entryId, d.db)))
 		throw new AnimeDownloadError('Not an episode from a source', 'not-found');
 
 	const wait = d.wait ?? ((ms: number) => new Promise<void>((ok) => setTimeout(ok, ms)));
@@ -264,7 +370,8 @@ export async function downloadEpisode(entryId: number, d: AnimeDeps): Promise<st
 	}
 	if (!tries.length) throw new AnimeDownloadError('No server answered', 'source');
 
-	const folder = seriesFolder(d.db, s);
+	const place = episodePlace(d.db, s, e.season);
+	const folder = place.folder;
 	const dir = join(d.library, folder);
 	const number = e.episode_number ?? e.position;
 	const rel = episodePath({
@@ -346,7 +453,7 @@ export async function downloadEpisode(entryId: number, d: AnimeDeps): Promise<st
 			? last
 			: new AnimeDownloadError((last as Error)?.message ?? 'No server sent the episode', 'source');
 	try {
-		await writeSeriesFiles(d.db, s, dir);
+		await writeSeriesFiles(d.db, s, dir, place);
 	} catch (err) {
 		throw new AnimeDownloadError(
 			`The series' files couldn't be written: ${(err as Error).message}`,
@@ -435,9 +542,7 @@ export const pendingAnimeImports = (db: Database.Database = getDb()) =>
 
 /** Whether a series is an anime from a source: its downloads are this module's. */
 export function isAnimeSeries(seriesId: number, db: Database.Database = getDb()): boolean {
-	const s = db.prepare(`SELECT origin_key FROM series WHERE id = ?`).get(seriesId) as
-		{ origin_key: string | null } | undefined;
-	return parseAnimeKey(s?.origin_key ?? null) !== null;
+	return parseAnimeKey(followOrigin(seriesId, db).key) !== null;
 }
 
 /**
@@ -450,9 +555,9 @@ export function animeSeriesDownloads(
 	entries: { id: number; available: boolean }[],
 	db: Database.Database = getDb()
 ): SeriesDownloads {
-	const s = db.prepare(`SELECT origin_key, followed_at FROM series WHERE id = ?`).get(seriesId) as
-		{ origin_key: string | null; followed_at: number | null } | undefined;
-	if (!parseAnimeKey(s?.origin_key ?? null)) return { kind: 'none' };
+	const s = db.prepare(`SELECT followed_at FROM series WHERE id = ?`).get(seriesId) as
+		{ followed_at: number | null } | undefined;
+	if (!parseAnimeKey(followOrigin(seriesId, db).key)) return { kind: 'none' };
 	const written = new Set(
 		(
 			db

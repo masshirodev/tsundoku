@@ -1882,6 +1882,33 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	DELETE FROM series_links
 	WHERE series_id IN (SELECT id FROM series WHERE kind = 'anime')
 		AND EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = series_links.series_id);
+	`,
+	// v75: a series' sources, a season at a time (card c282, the first slice of
+	// c215; doc/WORKS.md, "Per-season sources"). Each season of a show merged
+	// from several source entries keeps that entry's key, its folder and what
+	// the source called it. **Beside `series_season_links` and not in it**: that
+	// table's key has a `part`, so a two-part season would hold one source on
+	// two rows, and its `via` is NOT NULL with a CHECK over how a link was made,
+	// so a season with a source and no AniList or MAL link cannot be a row
+	// there. This one has no link column, so it is never a second link table.
+	//
+	// Existing series get no rows. A series with none reads exactly as before,
+	// through `series.origin_key` and `anime_series.folder`
+	// (src/lib/server/season-facts.ts). `folder` is unique as
+	// `anime_series.folder` is unique, and the walk that names a new one asks
+	// both. `origin_key` is deliberately not unique: two seasons of one series
+	// may share a source entry.
+	`
+	CREATE TABLE series_season_facts (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		season INTEGER NOT NULL,
+		origin_key TEXT,
+		folder TEXT,
+		source_title TEXT NOT NULL DEFAULT '',
+		PRIMARY KEY (series_id, season)
+	) WITHOUT ROWID;
+	CREATE INDEX series_season_facts_origin ON series_season_facts(origin_key) WHERE origin_key IS NOT NULL;
+	CREATE UNIQUE INDEX series_season_facts_folder ON series_season_facts(folder) WHERE folder IS NOT NULL;
 	`
 ];
 

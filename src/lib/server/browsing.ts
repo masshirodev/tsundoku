@@ -79,9 +79,12 @@ export type RecordView = {
 export function recordView(originKey: string, db = getDb()): RecordView | null {
 	const s = db
 		.prepare(
-			`SELECT id, browsed_at FROM series WHERE origin_key = ? AND in_library = 0 AND pruned_at IS NULL`
+			`SELECT id, browsed_at FROM series
+			WHERE (origin_key = @key
+					OR id IN (SELECT series_id FROM series_season_facts WHERE origin_key = @key))
+				AND in_library = 0 AND pruned_at IS NULL`
 		)
-		.get(originKey) as { id: number; browsed_at: number | null } | undefined;
+		.get({ key: originKey }) as { id: number; browsed_at: number | null } | undefined;
 	if (!s) return null;
 	const rows = db
 		.prepare(
