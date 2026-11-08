@@ -622,7 +622,7 @@ describe('an aired entry with no year (c358, round 3)', () => {
 			tv(1305, 2040, [['SEQUEL', 1303]], { status: 'NOT_YET_RELEASED' }),
 			tv(1306, null, [['SEQUEL', 1307]]),
 			tv(1307, null, [['PREQUEL', 1306]]),
-			tv(1308, null, null)
+			node(1308, 'TV', 'S8', null, { year: null })
 		);
 		const rank = startsBy(g);
 		const at = (id: number) => rank(g.nodes[String(id)]);
