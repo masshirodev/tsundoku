@@ -65,7 +65,11 @@ type EntrySnap = {
 	hidden: number;
 };
 
-function snapshot(entryId: number, reveal: boolean, db: Database.Database): EntrySnap | null {
+export function snapshot(
+	entryId: number,
+	reveal: boolean,
+	db: Database.Database
+): EntrySnap | null {
 	return (
 		(db
 			.prepare(

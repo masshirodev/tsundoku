@@ -57,12 +57,17 @@ import {
 	slug,
 	stateTag,
 	toMarkdown,
+	clipAsk,
+	clipRange,
+	cutCues,
 	startSecond,
+	toVtt,
 	wayBackHref,
 	wayBackLabel,
 	type Highlight,
 	type PointerState
 } from '$lib/library/highlights';
+import { parseVtt } from '$lib/library/player';
 
 /**
  * Highlights' pure rules (doc/HIGHLIGHTS.md): what each screen says,
@@ -148,6 +153,77 @@ const clip = (o: Partial<Highlight> = {}) =>
 		paragraph: '',
 		...o
 	});
+
+describe('a clip’s range (c704)', () => {
+	it('follows the playhead until MARK OUT, and stops at 3:00', () => {
+		expect(clipRange({ in: 724, out: null }, 816)).toEqual({
+			from: 724,
+			to: 816,
+			length: 92,
+			capped: false
+		});
+		expect(clipRange({ in: 724, out: null }, 904)).toEqual({
+			from: 724,
+			to: 904,
+			length: 180,
+			capped: false
+		});
+		expect(clipRange({ in: 724, out: null }, 904.04)).toEqual({
+			from: 724,
+			to: 904,
+			length: 180,
+			capped: true
+		});
+	});
+	it('swaps an out before the in, then holds three minutes from the earlier point', () => {
+		expect(clipRange({ in: 800, out: 700 }, 0)).toEqual({
+			from: 700,
+			to: 800,
+			length: 100,
+			capped: false
+		});
+		expect(clipRange({ in: 1000, out: 700 }, 0)).toEqual({
+			from: 700,
+			to: 880,
+			length: 180,
+			capped: true
+		});
+	});
+	it('a range of nothing has no length, and a negative mark is at zero', () => {
+		expect(clipRange({ in: 5, out: 5 }, 0).length).toBe(0);
+		expect(clipRange({ in: -3, out: null }, 4)).toMatchObject({ from: 0, to: 4 });
+	});
+	it('KEEP’s ask is in order, three minutes at most, or nothing', () => {
+		expect(clipAsk(10, 190)).toEqual({ from: 10, to: 190, capped: false });
+		expect(clipAsk(10, 190.5)).toEqual({ from: 10, to: 190, capped: true });
+		expect(clipAsk(20, 10)).toEqual({ from: 10, to: 20, capped: false });
+		for (const bad of [
+			[5, 5],
+			['a', 1],
+			[NaN, 1],
+			[-1, 4],
+			[1, Infinity]
+		])
+			expect(clipAsk(bad[0], bad[1]), String(bad)).toBeNull();
+	});
+	it('cuts a track’s cues to the range and shifts them to zero, a cue over the edge trimmed', () => {
+		const cues = [
+			{ start: 8, end: 11, text: 'before over' },
+			{ start: 12, end: 13, text: 'in' },
+			{ start: 19, end: 22, text: 'over the end' },
+			{ start: 22, end: 25, text: 'after' }
+		];
+		expect(cutCues(cues, 10, 20)).toEqual([
+			{ start: 0, end: 1, text: 'before over' },
+			{ start: 2, end: 3, text: 'in' },
+			{ start: 9, end: 10, text: 'over the end' }
+		]);
+	});
+	it('writes WEBVTT its own reader reads back', () => {
+		const cues = [{ start: 0, end: 1.5, text: 'line' }];
+		expect(parseVtt(toVtt(cues))).toEqual(cues);
+	});
+});
 
 describe('the player’s ?t=', () => {
 	it('takes plain seconds, 0 included, which wins over a saved place like any other', () => {

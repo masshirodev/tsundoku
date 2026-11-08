@@ -1022,3 +1022,71 @@ export function barPlace(
 	const top = over >= BAR_EDGE ? over : first.bottom + BAR_GAP;
 	return { left, top: Math.round(Math.min(top, view.h - BAR_H - BAR_EDGE)) };
 }
+
+// ---- a clip's range (c704; Anime.dc.html 01) ----------------------------------------
+
+/** A clip is three minutes at most (Main 02, MARK IN, MARK OUT, KEEP). */
+export const MAX_CLIP_S = 180;
+
+export type ClipMark = { in: number; out: number | null };
+export type ClipRange = { from: number; to: number; length: number; capped: boolean };
+
+/**
+ * The range as the marks stand: until MARK OUT the out point is the playhead, and
+ * the range stops at in + 3:00 (A3) while the episode plays on. An out before the
+ * in swaps them. A negative or NaN second can't be marked; a zero-length range is
+ * `length: 0`, which KEEP treats as no range.
+ */
+export function clipRange(mark: ClipMark, playhead: number): ClipRange {
+	const a = Math.max(0, mark.in);
+	const b = Math.max(0, mark.out ?? playhead);
+	const from = Math.min(a, b);
+	const end = Math.max(a, b);
+	const to = Math.min(end, from + MAX_CLIP_S);
+	return { from, to, length: to - from, capped: end > from + MAX_CLIP_S };
+}
+
+/** KEEP's ask, whatever a client sent: in order, positive, three minutes at most, or null. */
+export function clipAsk(
+	from: unknown,
+	to: unknown
+): { from: number; to: number; capped: boolean } | null {
+	const a = Number(from);
+	const b = Number(to);
+	if (!Number.isFinite(a) || !Number.isFinite(b) || a < 0 || b < 0 || a === b) return null;
+	const low = Math.min(a, b);
+	const high = Math.max(a, b);
+	return {
+		from: low,
+		to: Math.min(high, low + MAX_CLIP_S),
+		capped: high > low + MAX_CLIP_S
+	};
+}
+
+/** A subtitle track's cues inside a range, shifted to start at zero (WEBVTT). */
+export function cutCues(
+	cues: { start: number; end: number; text: string }[],
+	from: number,
+	to: number
+): { start: number; end: number; text: string }[] {
+	return cues
+		.filter((c) => c.end > from && c.start < to)
+		.map((c) => ({
+			start: Math.max(0, c.start - from),
+			end: Math.min(to - from, c.end - from),
+			text: c.text
+		}));
+}
+
+const vttTime = (t: number) => {
+	const ms = Math.round(t * 1000);
+	const h = Math.floor(ms / 3_600_000);
+	const m = Math.floor(ms / 60_000) % 60;
+	const s = Math.floor(ms / 1000) % 60;
+	const pad = (n: number, w = 2) => String(n).padStart(w, '0');
+	return `${pad(h)}:${pad(m)}:${pad(s)}.${pad(ms % 1000, 3)}`;
+};
+
+/** Cues as a WEBVTT file. */
+export const toVtt = (cues: { start: number; end: number; text: string }[]) =>
+	`WEBVTT\n\n${cues.map((c) => `${vttTime(c.start)} --> ${vttTime(c.end)}\n${c.text}`).join('\n\n')}\n`;
