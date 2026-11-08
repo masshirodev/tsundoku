@@ -3,6 +3,7 @@
 	import { appUpdater } from '$lib/app/update.svelte';
 	import { appLine, type AppUpdate } from '$lib/app/update';
 	import { m } from '$lib/paraglide/messages';
+	import { num } from '$lib/i18n/format';
 	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import HelpMark from '$lib/components/help/HelpMark.svelte';
 	import HelpSheet from '$lib/components/help/HelpSheet.svelte';
@@ -73,6 +74,8 @@
 	type Wifi = NonNullable<typeof data.wifi>;
 	let wf = $derived<Wifi | null>(data.wifi);
 	let wifiBusy = $state(false);
+	/** The firewall's disclosure under the pairing panel (c721), closed until asked. */
+	let fwOpen = $state(false);
 	async function wifiPost(action: 'on' | 'off' | 'code') {
 		wifiBusy = true;
 		// The first time on Windows, STARTING… stays long enough to read: that's
@@ -770,6 +773,9 @@
 						{#if s.id === 'library'}
 							{@render report()}
 						{/if}
+						{#if s.id === 'browse' && data.browse}
+							{@render extensionsRow(data.browse.extensions)}
+						{/if}
 						{#if s.id === 'devices'}
 							{#if wf}
 								{@render wifiRow(wf)}
@@ -1088,6 +1094,35 @@
 			{#if !phone.current}<div class="scope"><span class="sa quiet">ALL DEVICES</span></div>{/if}
 		</div>
 	{/if}
+{/snippet}
+
+{#snippet extensionsRow(e: { installed: number; updates: number })}
+	<!-- EXTENSIONS (c725; doc/SETTINGS.md, "07 — BROWSE"): a second door to
+	     BROWSE › EXTENSIONS, where Mihon's and Aniyomi's readers look first.
+	     Nothing is managed here; the meta says where it lives. The whole body
+	     is the link, so a TV's ↓ from LANGUAGES lands on it (the focus layer
+	     moves by geometry, and a cell at the row's right end is off that line). -->
+	<div class="row acct extensions" class:dim={off}>
+		<div class="label">{m.name_extensions()}</div>
+		<div class="ctl">
+			<a class="acct-body ext-go" href={resolve('/browse/extensions')}>
+				<span class="who">
+					<span class="name">
+						{m.settings_extensions_installed({ count: e.installed, n: num(e.installed) })} ·
+						{m.settings_extensions_updates({ count: e.updates, n: num(e.updates) })}
+					</span>
+					<span class="meta">
+						{m.settings_extensions_where({
+							browse: m.name_browse(),
+							extensions: m.name_extensions()
+						})}
+					</span>
+				</span>
+				<span class="cell acc">{m.name_extensions()} →</span>
+			</a>
+		</div>
+		{#if !phone.current}<div class="scope"><span class="sa quiet">ALL DEVICES</span></div>{/if}
+	</div>
 {/snippet}
 
 {#snippet updates(u: Updates)}
@@ -1594,10 +1629,55 @@
 				>
 			{/if}
 		</div>
-		<div class="pair-help">
-			NOTHING ANSWERS ON THE PHONE OR TV? IT HAS TO BE ON THIS SAME WI-FI, AND WINDOWS HAS TO HAVE
-			BEEN TOLD ALLOW ACCESS
+		<div class="pair-help">{m.settings_fw_wifi()}</div>
+		{#if w.firewall && ready}{@render firewallHelp(w.firewall, w.noPhoneYet)}{/if}
+	</div>
+{/snippet}
+
+{#snippet firewallHelp(f: NonNullable<Wifi['firewall']>, quiet: boolean)}
+	<!-- A firewall on the computer (c721; doc/WIFI.md, "A firewall on the
+	     computer"): the server's platform and what its probe found, the port
+	     and the home network read from the running app. A line the probe can
+	     name is said with its command; otherwise the general line, with the
+	     commands behind a disclosure. Opened by itself when no phone has
+	     reached this computer 30 s after the code was made. -->
+	{@const found = f.platform === 'linux' && f.found}
+	{@const open = fwOpen || quiet}
+	<div class="pair-fw" class:loud={quiet} role="group" aria-label={m.settings_fw_aria()}>
+		{#if quiet}<div class="fw-quiet" role="status">{m.settings_fw_quiet()}</div>{/if}
+		<div class="fw-head">
+			<div class="fw-line">
+				{f.platform === 'windows'
+					? m.settings_fw_windows()
+					: found
+						? m.settings_fw_found({ name: found.toUpperCase(), port: String(f.port) })
+						: m.settings_fw_general({ port: String(f.port) })}
+			</div>
+			{#if f.platform === 'windows' || (f.platform === 'linux' && !found)}
+				<button
+					type="button"
+					class="fw-more"
+					aria-expanded={open}
+					disabled={quiet}
+					onclick={() => (fwOpen = !fwOpen)}
+					>{f.platform === 'windows' ? m.settings_fw_windows_ask() : m.settings_fw_commands()}
+					{open ? '↑' : '↓'}</button
+				>
+			{/if}
 		</div>
+		{#if found}
+			<p class="fw-body">{m.settings_fw_found_body({ subnet: f.subnet })}</p>
+			<code class="fw-cmd">{f.commands[found]}</code>
+		{:else if open && f.platform === 'linux'}
+			<p class="fw-body">{m.settings_fw_commands_body({ subnet: f.subnet })}</p>
+			<div class="fw-k">UFW</div>
+			<code class="fw-cmd">{f.commands.ufw}</code>
+			<div class="fw-k">FIREWALLD</div>
+			<code class="fw-cmd">{f.commands.firewalld}</code>
+		{:else if open && f.platform === 'windows'}
+			<p class="fw-body">{m.settings_fw_windows_fix_1()}</p>
+			<p class="fw-body">{m.settings_fw_windows_fix_2()}</p>
+		{/if}
 	</div>
 {/snippet}
 
@@ -2230,6 +2310,16 @@
 	.row.acct.ranobe {
 		min-height: 84px;
 	}
+	/* EXTENSIONS (c725): the whole body is the door; its spans keep the row's blocks. */
+	.ext-go {
+		color: inherit;
+		text-decoration: none;
+	}
+	.ext-go .who,
+	.ext-go .name,
+	.ext-go .meta {
+		display: block;
+	}
 	/* IMPORT A BACKUP (c438): the row's body above its meta line, as Import-Doors C draws it. */
 	.row.acct.import .ctl {
 		display: flex;
@@ -2593,6 +2683,64 @@
 		border-top: 1px solid var(--line-1);
 		font: 400 12px/1.45 var(--font-mono);
 		color: var(--text-2);
+	}
+	/* The firewall's line (c721), in the help line's own idiom; loud when no
+	   phone has reached this computer, as WI-FI's meta is for a public address. */
+	.pair-fw {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 10px 24px 12px;
+		border-top: 1px solid var(--line-1);
+		font: 400 12px/1.45 var(--font-mono);
+		color: var(--text-2);
+	}
+	.pair-fw.loud {
+		color: var(--text-1);
+	}
+	.fw-quiet {
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.04em;
+		color: var(--accent);
+	}
+	.fw-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 16px;
+	}
+	.fw-more {
+		flex: none;
+		padding: 0;
+		border: 0;
+		background: none;
+		color: var(--text-1);
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.04em;
+		cursor: pointer;
+	}
+	.fw-more:disabled {
+		cursor: default;
+	}
+	.fw-body {
+		margin: 0;
+		max-width: 680px;
+		font: 400 13px/1.5 var(--font-sans);
+		color: var(--text-1);
+	}
+	.fw-k {
+		font: 500 11px var(--font-mono);
+		letter-spacing: 0.06em;
+	}
+	.fw-cmd {
+		display: block;
+		padding: 8px 12px;
+		border: 1px solid var(--line-1);
+		background: var(--surface-page);
+		color: var(--text-1);
+		font: 400 12px/1.5 var(--font-mono);
+		overflow-wrap: anywhere;
+		user-select: all;
 	}
 	/* A phone shows SETTINGS too: the two ways stack, the address line wraps. */
 	.settings.phone .pair-main {

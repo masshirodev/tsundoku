@@ -15,15 +15,15 @@ table where a part explains a screen's words). Not Markdown files: tsundoku
 has no Markdown renderer, the topics have a shape, and a "?"'s sheet shows the
 same IN SHORT as the page, so the two can't drift.
 
-| #   | Topic                   | Slug          | Parts                                                                                              |
-| --- | ----------------------- | ------------- | -------------------------------------------------------------------------------------------------- |
-| 01  | Getting started         | `start`       | opens `/start`, the checklist itself                                                               |
-| 02  | Reading                 | `reading`     | turning pages, the strip, full screen and zoom                                                     |
-| 03  | Finding and downloading | `downloading` | extensions and repositories, online, add/download/follow, the queue; points at GET STARTED's 05–07 |
-| 04  | Your phone              | `phone`       | Wi-Fi with a code, Tailscale (`#tailscale`, the README's four steps)                               |
-| 05  | Updates                 | `updates`     | where it shows, unzipped                                                                           |
-| 06  | Backups and importing   | `backups`     | the library folder                                                                                 |
-| 07  | When something breaks   | `report`      | SAVE A REPORT                                                                                      |
+| #   | Topic                   | Slug          | Parts                                                                                                                                           |
+| --- | ----------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | Getting started         | `start`       | opens `/start`, the checklist itself                                                                                                            |
+| 02  | Reading                 | `reading`     | turning pages, the strip, full screen and zoom                                                                                                  |
+| 03  | Finding and downloading | `downloading` | extensions and repositories (both doors: BROWSE and SETTINGS › 07, c725), online, add/download/follow, the queue; points at GET STARTED's 05–07 |
+| 04  | Your phone              | `phone`       | Wi-Fi with a code (and a firewall that keeps the phone out, c721), Tailscale (`#tailscale`, the README's four steps)                            |
+| 05  | Updates                 | `updates`     | where it shows, unzipped                                                                                                                        |
+| 06  | Backups and importing   | `backups`     | the library folder                                                                                                                              |
+| 07  | When something breaks   | `report`      | SAVE A REPORT                                                                                                                                   |
 
 **Words to keep true.** They describe the app: when a screen's word changes,
 its topic's line changes with it. `tests/help-domain.spec.ts` checks the

@@ -55,8 +55,14 @@ const install = (port: number, name: string): Install => ({
 });
 const door = install(await freePort(), 'door');
 const bare = install(await freePort(), 'bare');
+/**
+ * A third, for 07 — BROWSE's EXTENSIONS row (c725): the engine set up at an
+ * address nothing answers, as start-flow's preview has it, so BROWSE and
+ * EXTENSIONS exist and the counts are the database's.
+ */
+const engine = install(await freePort(), 'engine');
 
-async function serve(at: Install, origin: string | null) {
+async function serve(at: Install, origin: string | null, extra: NodeJS.ProcessEnv = {}) {
 	rmSync(at.db, { force: true });
 	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
 		env: { ...process.env, DATABASE_PATH: at.db, NODE_NO_WARNINGS: '1' },
@@ -73,6 +79,7 @@ async function serve(at: Install, origin: string | null) {
 	// Whatever the shell had, this install's ORIGIN is the one named here.
 	delete env.ORIGIN;
 	if (origin) env.ORIGIN = origin;
+	Object.assign(env, extra);
 	const port = new URL(at.base).port;
 	at.server = spawn('npx', ['vite', 'preview', '--port', port, '--strictPort'], {
 		env,
@@ -98,12 +105,13 @@ test.beforeAll(async () => {
 	test.setTimeout(120_000);
 	await Promise.all([
 		serve(door, `http://tsundoku.test:${new URL(door.base).port}`),
-		serve(bare, null)
+		serve(bare, null),
+		serve(engine, null, { ENGINE_URL: 'http://127.0.0.1:1', ENGINE_TOKEN: 'e2e-engine-token' })
 	]);
 });
 
 test.afterAll(() => {
-	for (const at of [door, bare]) {
+	for (const at of [door, bare, engine]) {
 		at.server?.kill();
 		at.server = null;
 		rmSync(at.db, { force: true });
@@ -458,4 +466,73 @@ test('a refresh answered after NEW CODE leaves the new code live (c461)', async 
 	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveCount(0);
 	await expect(page.getByText('NO TRIES LEFT · MAKE A NEW CODE')).toHaveCount(0);
 	expect(await tvCode(page)).toMatchObject({ code: fresh.code, state: 'live' });
+});
+
+/**
+ * SETTINGS' EXTENSIONS row (c725; doc/SETTINGS.md, "07 — BROWSE"): a second
+ * door to BROWSE › EXTENSIONS, where Mihon's and Aniyomi's readers look
+ * first. Its counts are the db spec's (tests/settings-extensions-db.spec.ts);
+ * here, that the row is drawn in 07 with the seed's counts and its meta, and
+ * that a tap lands on EXTENSIONS.
+ */
+test('07 — BROWSE has an EXTENSIONS row, and its tap lands on EXTENSIONS (c725)', async ({
+	browser
+}, info) => {
+	const { page } = await settings(browser, info, engine);
+	await page.goto('/settings#s-browse');
+	const row = page.locator('#s-browse .row.extensions');
+	await expect(row).toContainText('EXTENSIONS');
+	// The seed installs nothing: real zeros, the engine being set up.
+	await expect(row.locator('.name')).toHaveText('0 INSTALLED · 0 UPDATES');
+	await expect(row.locator('.meta')).toHaveText('IN BROWSE › EXTENSIONS');
+	await row.getByRole('link', { name: 'EXTENSIONS →' }).click();
+	await expect(page).toHaveURL(/\/browse\/extensions$/);
+	await expect(page.getByRole('navigation', { name: 'Extensions' })).toBeVisible();
+});
+
+test('with no engine, SETTINGS has no 07 and no EXTENSIONS row (c725)', async ({
+	browser
+}, info) => {
+	const { page } = await settings(browser, info, bare);
+	await page.goto('/settings');
+	await expect(page.locator('#s-devices')).toBeVisible();
+	await expect(page.locator('#s-browse')).toHaveCount(0);
+	await expect(page.locator('.row.extensions')).toHaveCount(0);
+});
+
+/**
+ * The TV reaches it: the `tv` project's own Chromium (playwright.config.ts:
+ * 960x540, no pointer and no hover, told through Blink's settings at launch),
+ * launched here because the shared preview the `tv` project runs against has
+ * no engine, so no 07. The arrows walk down SETTINGS until the row's link has
+ * the focus, and Enter opens EXTENSIONS.
+ */
+test('a TV walks to the EXTENSIONS row with the arrows and opens it (c725)', async ({
+	playwright
+}, info) => {
+	const tv = await playwright.chromium.launch({
+		args: ['--blink-settings=availablePointerTypes=none,availableHoverTypes=none']
+	});
+	try {
+		const context = await tv.newContext({
+			storageState: info.project.use.storageState as string,
+			baseURL: engine.base,
+			viewport: { width: 960, height: 540 },
+			deviceScaleFactor: 1
+		});
+		const page = await context.newPage();
+		await page.goto('/settings?section=browse');
+		await hydrated(page);
+		expect(await page.evaluate(() => matchMedia('(pointer: none)').matches)).toBe(true);
+		const link = page.locator('#s-browse .row.extensions a');
+		await expect(link).toBeVisible();
+		const onLink = () => link.evaluate((a) => a === document.activeElement);
+		// A bounded walk: SETTINGS opened at 07 has a few stops before the row.
+		for (let i = 0; i < 40 && !(await onLink()); i += 1) await page.keyboard.press('ArrowDown');
+		expect(await onLink()).toBe(true);
+		await page.keyboard.press('Enter');
+		await expect(page).toHaveURL(/\/browse\/extensions$/);
+	} finally {
+		await tv.close();
+	}
 });

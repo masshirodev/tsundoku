@@ -24,7 +24,7 @@ Portuguese ([`I18N.md`](I18N.md)).
 | 01  | SET UP     | Add a repository                 | a repository of any kind is kept                                 | ASK: EXTENSIONS › REPOSITORIES, `?add=`     |
 | 02  | SET UP     | Install an extension             | an extension or a novel plugin is installed                      | AVAILABLE EXTENSIONS →                      |
 | 03  | SET UP     | Bring a library you already have | a series an import or a scan brought in is in the library        | IMPORT A BACKUP →, and START SCAN, here     |
-| 04  | SET UP     | Read on your phone               | a phone pairs, or any phone or tablet has checked in             | SETTINGS › 08 — DEVICES →                   |
+| 04  | SET UP     | Read on your phone               | a device pairs, or a phone, tablet or TV has checked in (below)  | SETTINGS › 08 — DEVICES →                   |
 | 05  | FIRST READ | Find something to read           | a chapter or an episode is opened from a source (a record)       | the search, or a source's BROWSE →          |
 | 06  | FIRST READ | Add it to your library           | a series from a source is in the library (ADD, ADD AND DOWNLOAD) | the last record's preview, OPEN →           |
 | 07  | FIRST READ | Download chapters                | a chapter or an episode is queued or downloaded, of any series   | the series 06 added (or the newest), OPEN → |
@@ -33,6 +33,34 @@ Portuguese ([`I18N.md`](I18N.md)).
   COUNT(\*)s the layout asks on every page). The rules are pure,
   `src/lib/library/start.ts`. A hidden series ticks nothing for someone who
   can't see it.
+- **04, exactly** (c722): `phones` in `startFacts` is the number of
+  `paired_devices` rows plus the `devices` rows whose kind is `phone`,
+  `tablet` or `tv`. A row in `paired_devices` is written by the pairing
+  itself, before the phone has loaded anything: `/pair/<code>` (a phone's
+  scan of the WI-FI code) and `/pair/tv` (the app's six digits) both call
+  `addPaired`. So a phone ticks 04 the moment its code is redeemed, whether
+  or not its tab ever sends a request with the new cookie. A `devices` row
+  is written by a browser's check-in (`POST /api/devices/sync`): a paired
+  phone's first one, a browser that opened SETTINGS, or any browser with a
+  setting to keep. Two things take a tick away again: SIGN OUT on a paired
+  device's row (deletes its `paired_devices` row; its `devices` row, if it
+  checked in as a phone, still counts), and a device unseen for 180 days
+  (`FORGET_MS`, deleted at the next check-in).
+- **What ticks a step without a reload** (c722). A step is ticked by what
+  is there, and much of it arrives from elsewhere: a phone pairing, a
+  download finishing, another tab. The list is the layout's load, which a
+  client-side navigation reruns only when something it depends on changes,
+  and nothing it reads does. So the open list asks for itself again
+  (`pollStart` in `src/lib/start-trail.svelte.ts`, the layout's
+  `tsundoku:start` key): on `/start`, every 5 s while the page is in view
+  and the list isn't finished, and once whenever the page comes back into
+  view or the window regains focus; a hidden page asks nothing. A trip's
+  band does the same on its screen (below), and SETTINGS reloads every load
+  when the WI-FI panel's poll sees its code used. **The empty library's
+  list does not ask yet**: the library page had no owner in wave 33, and the
+  one-effect patch for it is in `doc/handoff-notes/friends.md`, wave 33,
+  Gaps. Until it lands, a list on the empty library ticks on the next
+  navigation that reruns the layout, or a reload.
 - **03 and 06 tell a series apart by how it came.** One ADD made has the
   source's key (`origin_key`) and no scan (`scan_job_id` is NULL); anything a
   scan or a backup brought in has the scan's id, or no key at all. A backup
@@ -174,9 +202,10 @@ download ticks it without a reload.
 
 ## Where it departs from the handoffs
 
-- **04 ticks on any phone or tablet that has checked in**, not "a second
-  device signed in over Tailscale": which door a device came in by isn't
-  recorded. A paired phone, or a phone or tablet in DEVICES, ticks it.
+- **04 ticks on any phone, tablet or TV that has paired or checked in**,
+  not "a second device signed in over Tailscale": which door a device came
+  in by isn't recorded. A paired device, or a phone, tablet or TV in
+  DEVICES, ticks it ("04, exactly", above).
 - **No "Wi-Fi needs a password first" state.** The handoff drew one for an
   install with no password, but Wi-Fi pairing needs none: with no password,
   only a code signs in ([`WIFI.md`](WIFI.md)). Tailscale does need one, and
@@ -218,13 +247,16 @@ against 06, records, the queue and downloads, hidden series);
 `tests/i18n-domain.spec.ts` (the list in Portuguese, 03's import line
 included). `tests/start-flow.e2e.ts`
 on its own preview with an emptied database: the list in two parts, ASK and
-the band, a pairing ticking a step, leaving ending the trip, SKIP and UNDO
+the band, a pairing ticking a step (a row written by hand, on the trip's
+band), leaving ending the trip, SKIP and UNDO
 taking FIRST READ, the sidebar's and MORE's rows, the first day once
 everything is skipped and the folded parts, and FIRST READ end to end (SET UP
 done leading to it, the band from the search through a record, ADD and a
 queued chapter to BACK TO GET STARTED), and 03's IMPORT A BACKUP → (the
 band on `/import`, its tick when an import lands, the done row's import line
-and IMPORT LOG → to the entry, c511). Generated from the handoffs:
+and IMPORT LOG → to the entry, c511). `tests/friend-pair-firefox.e2e.ts` (c722) pairs a phone through the real
+link on the friend install's Wi-Fi listener and watches 04 tick on the
+computer's open `/start` with no reload. Generated from the handoffs:
 `tests/start-frame.e2e.ts` (`Start-Checklist.dc.html`, SET UP's 01 open) and
 `tests/first-read-frame.e2e.ts` (`FirstRead-List.dc.html`, the parts' heads
 and every row), on `/start`.

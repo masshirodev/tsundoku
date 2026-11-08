@@ -448,6 +448,7 @@
 	"help_downloading_extensions_title": "EXTENSIONS AND REPOSITORIES",
 	"help_downloading_extensions_para_1": "Sources come from extensions, and extensions come from repositories. tsundoku ships none. Ask whoever gave you tsundoku for a repository's address, or search for one: Mihon, Aniyomi and LNReader repositories all work.",
 	"help_downloading_extensions_para_2": "Paste the address in {extensions} › {repositories}. It says what the repository holds before anything is installed; then pick the sources you read from in {available}.",
+	"help_downloading_extensions_para_3": "{extensions} lives in {browse}, beside the sources it gives. {settings} › 07 — BROWSE has a row that opens it too, with how many are installed and how many have updates.",
 	"help_downloading_online_title": "READING ONLINE",
 	"help_downloading_online_para": "Open a series from {browse} and read: each chapter comes from the source as you turn. Nothing is kept, and {history} remembers where you stopped. + ADD adds it whenever you decide.",
 	"help_downloading_download_title": "ADD, DOWNLOAD, FOLLOW",
@@ -471,6 +472,7 @@
 	"help_phone_wifi_title": "WI-FI WITH A CODE",
 	"help_phone_wifi_para_1": "On the computer, {settings} › {devices} › WI-FI › ON shows a code. Scan it with the phone's camera, on the same Wi-Fi, and the phone opens tsundoku signed in. A code works once, for ten minutes; NEW CODE makes another.",
 	"help_phone_wifi_para_2": "Typing the address works too, with your password. Switch WI-FI off on a café's or a dorm's network: anyone on the same Wi-Fi reaches the sign-in page.",
+	"help_phone_wifi_para_3": "Nothing opens on the phone? Then something on the computer keeps it out. Windows asks once, in a window of its own: allow tsundoku on private networks. Linux asks nothing: a firewall there (ufw, firewalld) drops the phone in silence. {settings} › {devices} › WI-FI names the port and gives the line to copy for your home network.",
 	"help_phone_wifi_works": "WORKS",
 	"help_phone_wifi_works_what": "Reading, browsing, searching, downloading, every setting.",
 	"help_phone_wifi_doesnt": "DOESN'T",
@@ -867,5 +869,38 @@
 		}
 	],
 	"library_refresh_more": "ASK {n} MORE",
-	"browse_check_again": "TRY AGAIN SOLVES THE CHECK AFRESH"
+	"browse_check_again": "TRY AGAIN SOLVES THE CHECK AFRESH",
+	"settings_fw_aria": "Firewall",
+	"settings_fw_wifi": "NOTHING ANSWERS ON THE PHONE OR TV? IT HAS TO BE ON THIS SAME WI-FI",
+	"settings_fw_general": "IF YOUR COMPUTER RUNS A FIREWALL, LET PORT {port} IN FROM YOUR HOME NETWORK",
+	"settings_fw_found": "{name} IS ON · PORT {port} MAY BE BLOCKED",
+	"settings_fw_found_body": "Run this in a terminal on this computer to let a phone on {subnet} in. It asks for your password: tsundoku never runs it for you.",
+	"settings_fw_commands": "THE LINES TO COPY",
+	"settings_fw_commands_body": "Run the one for your firewall in a terminal on this computer, to let a phone on {subnet} in. It asks for your password: tsundoku never runs it for you.",
+	"settings_fw_windows": "WINDOWS WILL ASK TO LET TSUNDOKU THROUGH ITS FIREWALL · ALLOW IT ON PRIVATE NETWORKS",
+	"settings_fw_windows_ask": "PHONE CAN'T CONNECT?",
+	"settings_fw_windows_fix_1": "Open Windows Security › Firewall & network protection › Allow an app through firewall, and tick Private beside tsundoku.",
+	"settings_fw_windows_fix_2": "Then set this Wi-Fi to Private: Settings › Network & internet › Wi-Fi › this network › Private network.",
+	"settings_fw_quiet": "NO PHONE HAS REACHED THIS COMPUTER YET · A FIREWALL?",
+	"settings_extensions_installed": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} INSTALLED",
+				"countPlural=*": "{n} INSTALLED"
+			}
+		}
+	],
+	"settings_extensions_updates": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} UPDATE",
+				"countPlural=*": "{n} UPDATES"
+			}
+		}
+	],
+	"settings_extensions_where": "IN {browse} › {extensions}"
 }

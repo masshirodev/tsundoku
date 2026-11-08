@@ -122,7 +122,9 @@ export function topics(): HelpTopic[] {
 							extensions,
 							repositories: m.name_repositories_tab(),
 							available: m.name_available_tab()
-						})
+						}),
+						// Both doors (c725): where it lives, and SETTINGS' row that opens it.
+						m.help_downloading_extensions_para_3({ extensions, browse, settings })
 					]
 				},
 				{
@@ -163,7 +165,12 @@ export function topics(): HelpTopic[] {
 					id: 'wifi',
 					title: m.help_phone_wifi_title(),
 					link: { label: `${settings} →`, href: '/settings#s-devices' },
-					paras: [m.help_phone_wifi_para_1({ settings, devices }), m.help_phone_wifi_para_2()],
+					paras: [
+						m.help_phone_wifi_para_1({ settings, devices }),
+						m.help_phone_wifi_para_2(),
+						// A firewall on the computer (c721; doc/WIFI.md).
+						m.help_phone_wifi_para_3({ settings, devices })
+					],
 					table: [
 						[m.help_phone_wifi_works(), m.help_phone_wifi_works_what()],
 						[m.help_phone_wifi_doesnt(), m.help_phone_wifi_doesnt_what()]

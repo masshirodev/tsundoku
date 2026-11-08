@@ -89,6 +89,83 @@ address.
   phone is still paired at the old one, and those rows say PAIRED AT … · SCAN
   AGAIN.
 
+## A firewall on the computer
+
+A friend on Arch (c721, 2026-11-07) switched WI-FI on and the phone found
+nothing: on Linux a firewall asks nothing, and a dropped request looks the
+same as no computer at all. Windows asks once, with a dialog (STARTING… is
+held 4 s for it, below). So under the pairing panel, after NOTHING ANSWERS
+ON THE PHONE OR TV? IT HAS TO BE ON THIS SAME WI-FI, a firewall line
+(`src/lib/server/firewall.ts`, drawn by `firewallHelp` in
+`src/routes/settings/+page.svelte`; its words in `messages/`, English and
+Portuguese):
+
+| Platform (the server's)    | The line                                                                               | Under it                                                       |
+| -------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Linux, ufw found on        | `UFW IS ON · PORT 42143 MAY BE BLOCKED`                                                | its line to copy, shown at once                                |
+| Linux, firewalld found on  | `FIREWALLD IS ON · PORT 42143 MAY BE BLOCKED`                                          | its line to copy, shown at once                                |
+| Linux, neither, or unknown | `IF YOUR COMPUTER RUNS A FIREWALL, LET PORT 42143 IN FROM YOUR HOME NETWORK`           | THE LINES TO COPY ↓: ufw's and firewalld's                     |
+| Windows                    | `WINDOWS WILL ASK TO LET TSUNDOKU THROUGH ITS FIREWALL · ALLOW IT ON PRIVATE NETWORKS` | PHONE CAN'T CONNECT? ↓: Allow an app through firewall, Private |
+| anything else (macOS)      | the general line                                                                       | nothing                                                        |
+
+- **The platform is the server's** (`process.platform`), never the
+  browser's user agent. The panel answers only on the computer itself, so
+  the two are the same machine; the server is the one that knows.
+- **The probe is unprivileged and never sudo**, measured on the
+  workstation: `ufw status` refuses without root ("ERROR: You need to be
+  root to run this script"), so ufw is on when its unit is active
+  (`systemctl is-active ufw`) **and** `/etc/ufw/ufw.conf` says
+  `ENABLED=yes`, which is what its boot reads. Both, because Arch ships
+  `ENABLED=yes` with the unit not enabled (the workstation: `ENABLED=yes`,
+  `inactive`), and Ubuntu keeps the unit active after `ufw disable`.
+  firewalld's `firewall-cmd --state` answers without root (`running`, or
+  `not running`). An nftables or iptables ruleset can't be read without root
+  (`nft list ruleset`: "Operation not permitted"), so it is never named.
+  Each command has 2 s; a missing binary, a refusal, an answer it doesn't
+  know and a timeout are all unknown, which shows the general line. The
+  answer is kept 30 s, since the panel asks every 5 s.
+- **The lines carry the running app's port** (the listeners' own, the
+  configured app port) **and the computer's own home network**: its address
+  with its own adapter's netmask (`homeSubnet` in `src/lib/server/lan.ts`),
+  so a /24 home network is `192.168.1.0/24` and a /16 one `10.0.0.0/16`; an
+  address no adapter carries any more falls back to its private block
+  (`192.168.0.0/16`). ufw: `sudo ufw allow from <network> to any port <port>
+proto tcp`. firewalld: a rich rule in the default zone, limited to the
+  same network, then `--reload`. tsundoku never runs either: the friend
+  does, in a terminal, with their own password.
+- **NO PHONE HAS REACHED THIS COMPUTER YET · A FIREWALL?** When a live code
+  has been up 30 s and nothing yet shows that a phone can reach this
+  computer, the line appears over the firewall's, with its help opened
+  under it. Two things show it: a **reach**, and a **paired phone**.
+  **Reached** is any request at all a Wi-Fi listener takes from a
+  home-network client (`reachedAt` in `src/lib/server/lan-listen.ts`): the
+  sign-in page a typed address opens, the pair link, a paired phone's page.
+  Any of them proves the firewall lets a phone in. A phone paired with this
+  computer (a DEVICES row, `pairedDevices()`) proves it too, so an owner
+  whose phones are paired, with none open now, is never asked on a SETTINGS
+  visit (round 2 of c721: the line used to fire there, on the kept code,
+  every visit). The rule:
+  - **The code doesn't restart the wait.** A reach before NEW CODES, or
+    before the code SETTINGS renewed, proved the same firewall; NEW CODES
+    alone asks nothing again.
+  - **New listeners do.** OFF and ON, a moved address (the listeners
+    follow it) and a restart forget the reach, since a new listener can
+    meet a new rule (a new network, Windows' Public profile); then, on a
+    computer no phone is paired with, the code still up asks at once.
+  - It clears on the next poll after a phone reaches the computer, or once
+    a phone is paired. It is in every answer the panel gets (the load, the
+    5 s poll, ON, OFF, NEW CODES: `wifiAnswer` in `src/lib/server/wifi.ts`),
+    so a press never drops it; a phone over Wi-Fi is given none of it.
+  - A request from the computer itself to its own home address counts as a
+    reach today, though local traffic bypasses a firewall: under "What it
+    doesn't do yet".
+- **The e2e's seams**, read only when set and set by no launcher:
+  `TSUNDOKU_FIREWALL_PLATFORM` (`linux`, `win32`, `darwin`),
+  `TSUNDOKU_FIREWALL_PROBE` (`ufw`, `firewalld`, `none`) and
+  `TSUNDOKU_FIREWALL_QUIET_MS`.
+
+HELP's 04 says the same ([`HELP.md`](HELP.md)).
+
 ## A TV's code, typed with a remote
 
 A television has no camera, so beside the phone's link there is a second code
@@ -304,6 +381,11 @@ one at a time.
 - **The code's modules.** The handoff draws 25 at 9 px, "a picture of a code,
   not a code". A real one for the pairing link is 29 to 33 modules, drawn to
   fill the same 225 px inside the same 273 px inverse cell.
+- **The help line under the panel** was NOTHING ANSWERS ON THE PHONE OR
+  TV? IT HAS TO BE ON THIS SAME WI-FI, AND WINDOWS HAS TO HAVE BEEN TOLD
+  ALLOW ACCESS, which said nothing to a friend on Linux (c721). Its Wi-Fi
+  half stays; the firewall's own line, per platform, follows it ("A
+  firewall on the computer").
 - **STARTING… is held 4 s the first time on Windows.** Listening takes
   milliseconds, so the state that names the firewall dialog would only flash;
   held, it's up while the dialog appears.
@@ -320,11 +402,19 @@ one at a time.
   since Android resolves them unreliably.
 - The phone browser's own "can't be reached" page at an old address: plain
   http has no service worker to draw anything else.
+- An nftables or iptables firewall named: its ruleset can't be read
+  without root, so the general line stands for it (c721).
 - Proven with a real phone: the release smoke test's phone is the workstation,
   across the real network to Zen (`ops/release/smoke/windows-wifi.ps1`), with
   the firewall rule a friend's Allow click makes added by the test, since the
   dialog only appears to someone at the desktop.
 - The launcher's console doesn't print the Wi-Fi address.
+- A request from the computer's own address to its home address isn't told
+  apart from a phone's, so the owner trying the QR's link in a second tab on
+  the computer clears NO PHONE HAS REACHED, though local traffic bypasses a
+  firewall (review of c721, round 2, low). Not done: the e2e's "phone" is
+  this machine on its own home address too, so the tests would first need a
+  seam that marks their requests as from elsewhere.
 
 ## Tests
 
@@ -386,5 +476,19 @@ SETTINGS making one, and the row with `?/renew` refused drawing NO CODE YET
 and NEW CODE, c531's round 2 and c580, each case on a server of its own
 started for it, so neither depends on its place in the file, c582),
 `tests/pairing-origins.spec.ts` (the per-origin names, the move from the old
-one, the scrub); `friend-wifi.e2e.ts` also pins
+one, the scrub); `tests/firewall-domain.spec.ts` (c721: the probe's reading
+of each answer, a missing binary and a timeout as unknown, the commands, a
+/24, /16 and /20 network and the fallback, when NO PHONE HAS REACHED shows
+and that a reach before the code or a paired phone keeps it quiet, and the
+panel's answer over both doors) and `tests/friend-firewall.e2e.ts`
+(an install per case with the platform and the probe faked: the general
+line and its commands, ufw and firewalld named, Windows and its fix, the
+Portuguese, and NO PHONE HAS REACHED appearing, clearing when a phone's
+request arrives; and, on an install of its own, staying away after a scan
+and NEW CODES past the wait and a reload, then asking again after OFF and
+ON);
+`tests/friend-pair-firefox.e2e.ts` (c723: a pair link opened in Firefox
+with three sets of HTTPS prefs and in Chromium as a Pixel 7, through a
+logging relay, lands on the welcome screen in one navigation, signed in;
+and c722's tick on GET STARTED); `friend-wifi.e2e.ts` also pins
 the panel's FOR THE APP digits and its arrangement around the address.

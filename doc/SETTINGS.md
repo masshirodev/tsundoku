@@ -151,6 +151,36 @@ each language the repositories list, most extensions first, twelve at most,
 and English and Japanese always (`browse_languages`). The last one can't go
 ([`BROWSE.md`](BROWSE.md)).
 
+**EXTENSIONS** (c725), after LANGUAGES: a second door to BROWSE ›
+EXTENSIONS, for the readers who come from Mihon or Aniyomi and look in
+settings first (a friend, 2026-11-07: "took me a bit to find the extensions
+tab/thingy since it wasn't in the settings"). It reads `N INSTALLED · M
+UPDATES`, its meta says where it lives (`IN BROWSE › EXTENSIONS`), and the
+whole body is the link, so a TV's ↓ from LANGUAGES lands on it (the focus
+layer moves by geometry, and a cell at the row's right end is off that
+line). Nothing is managed from here.
+
+- **The counts are EXTENSIONS' own**: its INSTALLED tab's count and its two
+  UPDATES sections, from the same views its load reads (`installedView`, and
+  the LNReader plugins through `pluginsShown(pluginView())`), so a hidden
+  source's extension is counted only inside reveal, as there. Every
+  installed row counts, a failed or obsolete one included, as the tab's
+  count does.
+- **They are the database's record** (`engine_extensions`, `novel_plugins`,
+  and the repositories' listings), not the engine's answer, so an engine that
+  has stopped leaves them as they were, as it leaves EXTENSIONS' own page.
+  With no engine set up at all, 07 isn't drawn, and neither is the row:
+  EXTENSIONS has no page then (404).
+- Its words are in `messages/` (`settings_extensions_*`, and the screens'
+  names), so they read in Portuguese too, where the rest of SETTINGS is
+  still English (doc/I18N.md).
+- HELP's 03 names both doors ([`HELP.md`](HELP.md)).
+- Tests: `tests/settings-extensions-db.spec.ts` (the counts against
+  EXTENSIONS' load, reveal, an install and an update, no engine) and
+  `tests/settings-devices.e2e.ts` (an install of its own with the engine set
+  up: the row, its tap landing on EXTENSIONS, a TV's arrows reaching it, and
+  no 07 without the engine).
+
 A source's own switches are not here but on its settings page in BROWSE
 (`/browse/<source>/settings`, `01 — IN TSUNDOKU`): **HIDDEN SOURCE** (listed,
 searched and named only inside reveal), **ADDED HIDDEN** (a series added

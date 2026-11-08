@@ -11,6 +11,8 @@ import { ranobeAccount, ranobeQueueCount, retryRanobe } from '$lib/server/ranobe
 import { SERVICES, type Service } from '$lib/library/tracking';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { browseLanguages } from '$lib/server/engine/browse';
+import { installedView, pluginsShown } from '$lib/server/engine/manage';
+import { pluginView } from '$lib/server/novels/plugins';
 import { listings } from '$lib/server/engine/extensions';
 import { lastImport } from '$lib/server/import/log';
 import {
@@ -28,7 +30,7 @@ import { currentLogin, friendLogin, localOnly, setSession, slowDown } from '$lib
 import { dataPaths } from '$lib/server/data-dirs';
 import { MIN_PASSWORD, makeLogin, sessionFor, verifyPassword, writeLogin } from '$lib/server/login';
 import { checkIfStale, updateView } from '$lib/server/updates';
-import { settingsVisit, wifiView, tvBlockHere, tvPanel } from '$lib/server/wifi';
+import { settingsVisit, wifiAnswer, wifiView, tvBlockHere, tvPanel } from '$lib/server/wifi';
 import { pairedDevices, signOutDevice } from '$lib/server/pairing';
 
 /** The languages the repositories list, most extensions first: the BROWSE row's cells. */
@@ -44,6 +46,22 @@ const DEFAULT_LANGUAGES = ['en', 'ja'];
 
 /** The cells shown: what's chosen, then the commonest others, twelve at most. */
 const LANGUAGE_CELLS = 12;
+
+/**
+ * The EXTENSIONS row's counts (c725; doc/SETTINGS.md, "07 — BROWSE"): what
+ * EXTENSIONS' own INSTALLED tab counts, from the same two views its load
+ * reads (`installedView`, and the plugins through `pluginsShown`), so the two
+ * doors never disagree, hidden ones included only inside reveal. Both are
+ * the database's record of what is installed and what its repositories
+ * offer, so they answer whether or not the engine is running now.
+ */
+function extensionCounts(reveal: boolean): { installed: number; updates: number } {
+	const apks = installedView(reveal);
+	const plugins = pluginsShown(pluginView(reveal), reveal);
+	const n = (v: { needsHand: unknown[]; updates: unknown[]; current: unknown[] }) =>
+		v.needsHand.length + v.updates.length + v.current.length;
+	return { installed: n(apks) + n(plugins), updates: apks.updates.length + plugins.updates.length };
+}
 
 /**
  * SETTINGS, one page (doc/SETTINGS.md; card c171, Settings.dc.html): every
@@ -68,11 +86,12 @@ export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest
 	// reads the codes as they are, so a burn stays burned (c531). A client-side
 	// navigation here sends `?/renew` itself (`settingsVisit`).
 	const visit = settingsVisit({ isDataRequest, method: request.method });
-	const wifi = (() => {
-		// A phone's SETTINGS over Wi-Fi is shown no code, so it makes none either (c460).
+	const wifi = await (async () => {
+		// A phone's SETTINGS over Wi-Fi is shown no code, so it makes none either
+		// (c460), nor the firewall's lines, which are the computer's (c721).
 		const lan = locals.via === 'lan';
-		const w = wifiView({ renew: visit && !lan });
-		return w && lan ? { ...w, code: null, tv: null } : w;
+		const w = await wifiAnswer({ renew: visit && !lan });
+		return w && lan ? { ...w, code: null, tv: null, firewall: null, noPhoneYet: false } : w;
 	})();
 	// With no WI-FI panel there is no row to carry the TV's six digits, so
 	// DEVICES shows them itself -- but only where the cookie they set is a
@@ -166,7 +185,8 @@ export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest
 						);
 						return {
 							chosen,
-							cells: [...chosen, ...rest].slice(0, Math.max(LANGUAGE_CELLS, chosen.length))
+							cells: [...chosen, ...rest].slice(0, Math.max(LANGUAGE_CELLS, chosen.length)),
+							extensions: extensionCounts(reveal)
 						};
 					})()
 				: null

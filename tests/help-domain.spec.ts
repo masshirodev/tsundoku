@@ -34,6 +34,24 @@ describe('the topics', () => {
 		});
 		expect(topicBySlug('start')!.short[0]).toMatch(/^Seven steps in two parts/);
 	});
+	it('04 says a firewall can keep the phone out, on Windows and on Linux (c721)', () => {
+		const wifi = topicBySlug('phone')!.parts.find((p) => p.id === 'wifi')!;
+		const said = wifi.paras!.join(' ');
+		expect(said).toMatch(/Windows asks once/);
+		expect(said).toMatch(/Linux asks nothing: a firewall there \(ufw, firewalld\)/);
+		expect(said).toContain('SETTINGS › 08 — DEVICES › WI-FI names the port');
+		overwriteGetLocale(() => 'pt-BR');
+		const pt = topicBySlug('phone')!
+			.parts.find((p) => p.id === 'wifi')!
+			.paras!.join(' ');
+		expect(pt).toMatch(/O Linux não pergunta nada/);
+	});
+	it('03 names both doors to EXTENSIONS: BROWSE, and the row in SETTINGS (c725)', () => {
+		const part = topicBySlug('downloading')!.parts.find((p) => p.id === 'extensions')!;
+		expect(part.paras!.join(' ')).toContain(
+			'EXTENSIONS lives in BROWSE, beside the sources it gives. SETTINGS › 07 — BROWSE has a row that opens it too'
+		);
+	});
 	it('link to sections SETTINGS can open by name', () => {
 		for (const t of topics())
 			for (const p of t.parts) {

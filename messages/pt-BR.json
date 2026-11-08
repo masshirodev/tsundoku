@@ -448,6 +448,7 @@
 	"help_downloading_extensions_title": "EXTENSÕES E REPOSITÓRIOS",
 	"help_downloading_extensions_para_1": "As fontes vêm das extensões, e as extensões vêm dos repositórios. O tsundoku não traz nenhum. Peça o endereço de um repositório ao amigo que te passou o tsundoku, ou procure um: repositórios do Mihon, do Aniyomi e do LNReader funcionam.",
 	"help_downloading_extensions_para_2": "Cole o endereço em {extensions} › {repositories}. Ele mostra o que o repositório tem antes de qualquer instalação; depois, escolha em {available} as fontes de onde você lê.",
+	"help_downloading_extensions_para_3": "{extensions} fica em {browse}, ao lado das fontes que traz. {settings} › 07 — BROWSE tem uma linha que também abre a página, com quantas estão instaladas e quantas têm atualização.",
 	"help_downloading_online_title": "LER ONLINE",
 	"help_downloading_online_para": "Abra uma série em {browse} e leia: cada capítulo vem da fonte conforme você vira. Nada fica guardado, e o {history} lembra onde você parou. + ADICIONAR adiciona a série quando você decidir.",
 	"help_downloading_download_title": "ADICIONAR, BAIXAR, SEGUIR",
@@ -471,6 +472,7 @@
 	"help_phone_wifi_title": "WI-FI COM CÓDIGO",
 	"help_phone_wifi_para_1": "No computador, {settings} › {devices} › WI-FI › LIGADO mostra um código. Escaneie com a câmera do celular, na mesma rede Wi-Fi, e o celular abre o tsundoku já com acesso. Um código vale uma vez, por dez minutos; NOVO CÓDIGO gera outro.",
 	"help_phone_wifi_para_2": "Digitar o endereço também funciona, com a sua senha. Desligue o WI-FI na rede de um café ou de uma república: qualquer pessoa no mesmo Wi-Fi chega à página de entrada.",
+	"help_phone_wifi_para_3": "Nada abre no celular? Então algo no computador está barrando. O Windows pergunta uma vez, numa janela própria: permita o tsundoku em redes privadas. O Linux não pergunta nada: um firewall ali (ufw, firewalld) barra o celular em silêncio. {settings} › {devices} › WI-FI mostra a porta e a linha para copiar para a sua rede de casa.",
 	"help_phone_wifi_works": "FUNCIONA",
 	"help_phone_wifi_works_what": "Ler, explorar, buscar, baixar, todas as configurações.",
 	"help_phone_wifi_doesnt": "NÃO FUNCIONA",
@@ -867,5 +869,38 @@
 		}
 	],
 	"library_refresh_more": "PERGUNTAR MAIS {n}",
-	"browse_check_again": "TENTAR DE NOVO RESOLVE A VERIFICAÇÃO DO ZERO"
+	"browse_check_again": "TENTAR DE NOVO RESOLVE A VERIFICAÇÃO DO ZERO",
+	"settings_fw_aria": "Firewall",
+	"settings_fw_wifi": "NADA RESPONDE NO CELULAR OU NA TV? ELE TEM QUE ESTAR NESTE MESMO WI-FI",
+	"settings_fw_general": "SE O SEU COMPUTADOR TEM UM FIREWALL, LIBERE A PORTA {port} PARA A SUA REDE DE CASA",
+	"settings_fw_found": "O {name} ESTÁ LIGADO · A PORTA {port} PODE ESTAR BLOQUEADA",
+	"settings_fw_found_body": "Rode isto num terminal deste computador para deixar entrar um celular da rede {subnet}. Ele pede a sua senha: o tsundoku nunca roda isso por você.",
+	"settings_fw_commands": "AS LINHAS PARA COPIAR",
+	"settings_fw_commands_body": "Rode a do seu firewall num terminal deste computador, para deixar entrar um celular da rede {subnet}. Ela pede a sua senha: o tsundoku nunca roda isso por você.",
+	"settings_fw_windows": "O WINDOWS VAI PERGUNTAR SE DEIXA O TSUNDOKU PASSAR PELO FIREWALL · PERMITA EM REDES PRIVADAS",
+	"settings_fw_windows_ask": "O CELULAR NÃO CONECTA?",
+	"settings_fw_windows_fix_1": "Abra Segurança do Windows › Firewall e proteção de rede › Permitir um aplicativo pelo firewall, e marque Privada ao lado do tsundoku.",
+	"settings_fw_windows_fix_2": "Depois deixe este Wi-Fi como privado: Configurações › Rede e Internet › Wi-Fi › esta rede › Rede privada.",
+	"settings_fw_quiet": "NENHUM CELULAR CHEGOU A ESTE COMPUTADOR AINDA · UM FIREWALL?",
+	"settings_extensions_installed": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} INSTALADA",
+				"countPlural=*": "{n} INSTALADAS"
+			}
+		}
+	],
+	"settings_extensions_updates": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} ATUALIZAÇÃO",
+				"countPlural=*": "{n} ATUALIZAÇÕES"
+			}
+		}
+	],
+	"settings_extensions_where": "EM {browse} › {extensions}"
 }

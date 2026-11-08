@@ -1,3 +1,4 @@
+import { invalidate } from '$app/navigation';
 import {
 	partOf,
 	readTrail,
@@ -84,3 +85,36 @@ class Trail {
 }
 
 export const trail = new Trail();
+
+/** How often an open GET STARTED asks for its list again (c722): the trip band's own 5 s. */
+export const START_POLL_MS = 5000;
+
+/**
+ * An open GET STARTED list asks for itself again (doc/ONBOARDING.md, "What
+ * ticks a step without a reload"; card c722). A step is ticked by what is
+ * there, and much of it arrives from elsewhere: a phone pairing over Wi-Fi
+ * (04), a download finishing, another tab. The layout's load, where the list
+ * comes from, reruns on a client-side navigation only when something it
+ * depends on changes, and nothing it reads does: so a list opened before the
+ * phone paired kept 04 open until a reload. While the page is in view it asks
+ * every 5 s (`invalidate('tsundoku:start')`, the layout's own key, as the trip
+ * band does), and once at once when the page comes back into view or the
+ * window regains focus. Hidden, it asks nothing. Returns the stop, for an
+ * `$effect` to hand back.
+ */
+export function pollStart(every = START_POLL_MS): () => void {
+	const ask = () => void invalidate('tsundoku:start');
+	const t = setInterval(() => {
+		if (document.visibilityState === 'visible') ask();
+	}, every);
+	const back = () => {
+		if (document.visibilityState === 'visible') ask();
+	};
+	document.addEventListener('visibilitychange', back);
+	addEventListener('focus', back);
+	return () => {
+		clearInterval(t);
+		document.removeEventListener('visibilitychange', back);
+		removeEventListener('focus', back);
+	};
+}
