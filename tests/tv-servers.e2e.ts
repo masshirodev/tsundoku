@@ -225,7 +225,13 @@ test('S2: the one in use first, focus on the first not in use, each probed as it
 	await expect(rows.nth(0).locator('.st')).toHaveText('IN USE');
 	await expect(rows.nth(1).locator('.meta')).toHaveText('zen.tailnet.ts.net:8443');
 
-	// The frame: TV-Servers.dc.html's list, as extracted.
+	// The frame: TV-Servers.dc.html's list, as extracted. The panel rises in
+	// from the right over --motion-panel (240 ms, `.rise` in motion.css), and
+	// read before its transition ends its left edge is a fraction of a pixel
+	// in: 960.4 at 216 ms of it (c707, measured), so it is read at rest.
+	await page
+		.locator('.sheet')
+		.evaluate((n) => Promise.all(n.getAnimations().map((a) => a.finished.catch(() => undefined))));
 	const panel = (await page.locator('.sheet').boundingBox())!;
 	expect(panel.width).toBe(420);
 	expect(panel.x + panel.width).toBe(960);
