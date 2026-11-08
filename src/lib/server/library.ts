@@ -60,6 +60,7 @@ type CardRow = {
 	indexed_at: number | null;
 	added_at: number;
 	entry_count: number;
+	alone: number;
 	read_count: number;
 	new_count: number;
 	cover_at: number | null;
@@ -116,6 +117,13 @@ function cardQuery(where: string, order: string, limit = ''): string {
 		COALESCE(t.read_count, 0) AS read_count,
 		COALESCE(f.n, 0) AS new_count,
 		COALESCE(t.available, 0) AS available,
+		-- Not in \`stats\`: \`edition_of\` is outside \`entries_card\`, and reading it
+		-- there would take that whole pass off its covering index. Only a card
+		-- listing one entry can be alone, so only those pay for this look.
+		CASE WHEN COALESCE(t.entry_count, 0) = 1
+			THEN (SELECT COUNT(*) FROM entries e
+				WHERE e.series_id = s.id AND e.edition_of IS NULL) = 1
+			ELSE 0 END AS alone,
 		s.followed_at IS NOT NULL AS followed,
 		t.last_opened IS NOT NULL AS opened,
 		t.last_opened AS last_opened_at,
@@ -198,6 +206,7 @@ function toCard(row: CardRow): LibraryCard {
 		hidden: row.hidden === 1,
 		newCount: row.new_count,
 		entryCount: row.entry_count,
+		alone: row.alone === 1,
 		readCount: row.read_count,
 		hue: row.hue,
 		indexed: row.indexed_at !== null,

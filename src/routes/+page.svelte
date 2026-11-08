@@ -920,13 +920,19 @@
 	);
 	/**
 	 * FOLD AS LANGUAGES (doc/EDITIONS.md): two or three single books, each in
-	 * a language of its own, none folded already. Their codes, or null.
+	 * a language of its own, none folded already, and each with nothing beside
+	 * it (`alone`, c651: `?/fold` refuses the rest, and an action that can only
+	 * be refused is not offered). Their codes, or null.
 	 */
 	const foldCodes = $derived.by(() => {
 		if (selected.size < 2 || selected.size > 3) return null;
 		const picked = pickedInOrder(selected, facts);
 		if (picked.length !== selected.size) return null;
-		if (picked.some((s) => s.kind !== 'doujin' || s.entryCount !== 1 || !s.language || s.languages))
+		if (
+			picked.some(
+				(s) => s.kind !== 'doujin' || s.entryCount !== 1 || !s.alone || !s.language || s.languages
+			)
+		)
 			return null;
 		const langs = picked.map((s) => s.language!);
 		return new Set(langs).size === langs.length ? langs.map(langCode) : null;

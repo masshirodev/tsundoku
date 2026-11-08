@@ -6,6 +6,7 @@ import { createServer as tcpServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from './fixtures';
+import { startPreview } from './highlights-preview';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
@@ -1258,6 +1259,190 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await expect(rate).not.toHaveClass(/unsaved/);
 		await expect(bars).toHaveAttribute('aria-label', 'Unrated');
 		await done();
+	});
+});
+
+/**
+ * A seeded library of its own, served on a port the OS gave it: for a case that
+ * reshapes the seed or deletes from it, so nothing it does reaches the shared
+ * database the other flow files read. `test.use({ baseURL: library.base })` in
+ * the describe, `start` and `stop` in its hooks.
+ */
+function ownLibrary(name: string, port: number, prepare: (db: Database.Database) => void) {
+	const scratch = mkdtempSync(join(tmpdir(), `tsundoku-e2e-${name}-`));
+	const dbPath = join(scratch, 'library.sqlite');
+	const base = `http://localhost:${port}`;
+	let server: ChildProcess | null = null;
+	const withDb = <T>(read: (db: Database.Database) => T): T => {
+		const db = new Database(dbPath);
+		try {
+			return read(db);
+		} finally {
+			db.close();
+		}
+	};
+	return {
+		base,
+		withDb,
+		idOf: (title: string) =>
+			withDb(
+				(db) =>
+					(db.prepare(`SELECT id FROM series WHERE title = ?`).get(title) as { id: number }).id
+			),
+		start: async () => {
+			execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
+				env: { ...process.env, DATABASE_PATH: dbPath, NODE_NO_WARNINGS: '1' },
+				stdio: 'pipe'
+			});
+			withDb(prepare);
+			server = await startPreview(
+				() =>
+					spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
+						env: {
+							...process.env,
+							DATABASE_PATH: dbPath,
+							TSUNDOKU_TOKEN: E2E_TOKEN,
+							TSUNDOKU_ANILIST: 'off',
+							LIBRARY_ROOT: join(scratch, 'library'),
+							TRASH_DIR: join(scratch, 'trash'),
+							COVER_DIR: join(scratch, 'covers'),
+							BACKUP_DIR: join(scratch, 'backups'),
+							TSUNDOKU_HOME: join(scratch, 'home')
+						},
+						stdio: 'ignore'
+					}),
+				base,
+				`the ${name} preview`
+			);
+		},
+		stop: () => {
+			server?.kill();
+			server = null;
+			rmSync(scratch, { recursive: true, force: true });
+		}
+	};
+}
+
+/** A port the OS has free now. */
+const freePort = () =>
+	new Promise<number>((resolve, reject) => {
+		const probe = tcpServer();
+		probe.once('error', reject);
+		probe.listen(0, '127.0.0.1', () => {
+			const { port } = probe.address() as AddressInfo;
+			probe.close(() => resolve(port));
+		});
+	});
+
+const foldPort = await freePort();
+
+test.describe('FOLD is offered only over books with nothing beside them (c651)', () => {
+	const PLAIN_JA = 'Ame no Hi no Toshokan';
+	const PLAIN_EN = 'Hoshi no Umi no Tabibito';
+	const WITH_EXTRA = 'Onsen Ryokan no Yoru';
+	const WITH_DUPLICATE = 'Sekai no Owari no Kissaten';
+
+	const library = ownLibrary('fold', foldPort, (db) => {
+		// The seed keeps some of its books in a hidden root.
+		db.exec(`UPDATE roots SET hidden = 0`);
+		const seriesOf = (title: string) =>
+			(db.prepare(`SELECT id FROM series WHERE title = ?`).get(title) as { id: number }).id;
+		const tag = db.prepare(`INSERT OR IGNORE INTO tags (namespace, value) VALUES ('language', ?)`);
+		const onSeries = db.prepare(
+			`INSERT INTO series_tags (series_id, tag_id)
+			SELECT ?, id FROM tags WHERE namespace = 'language' AND value = ?`
+		);
+		// Four languages, so only what is beside a book can refuse it.
+		for (const [title, language] of [
+			[PLAIN_JA, 'japanese'],
+			[PLAIN_EN, 'english'],
+			[WITH_EXTRA, 'korean'],
+			[WITH_DUPLICATE, 'chinese']
+		]) {
+			tag.run(language);
+			onSeries.run(seriesOf(title), language);
+		}
+		const beside = db.prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, matter, shadowed)
+			VALUES (?, 99, 'Beside', 1, ?, ?)`
+		);
+		beside.run(seriesOf(WITH_EXTRA), 'back', 0);
+		beside.run(seriesOf(WITH_DUPLICATE), '', 1);
+	});
+
+	test.use({ baseURL: library.base });
+	test.beforeAll(async () => {
+		test.setTimeout(120_000);
+		await library.start();
+	});
+	test.afterAll(() => library.stop());
+
+	test('a book with an extra or a set-aside duplicate beside it takes the FOLD cell away', async ({
+		page
+	}) => {
+		await page.goto('/?shelf=all&sort=title');
+		await page.waitForLoadState('networkidle');
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		const tick = (title: string) => page.locator('.grid .tile', { hasText: title }).click();
+		const fold = page.locator('button.fold');
+		const group = page.getByRole('button', { name: 'GROUP', exact: true });
+
+		// The control: these two are foldable, so a missing cell below is the rule's.
+		await tick(PLAIN_JA);
+		await tick(PLAIN_EN);
+		await expect(fold).toContainText('JA · EN');
+
+		// An extra beside the third book: three books, three languages, no FOLD.
+		await tick(WITH_EXTRA);
+		await expect(fold).toHaveCount(0);
+		await expect(group).toBeVisible();
+		await tick(PLAIN_EN);
+		await expect(fold).toHaveCount(0);
+
+		// A set-aside duplicate does the same.
+		await tick(WITH_EXTRA);
+		await tick(WITH_DUPLICATE);
+		await expect(fold).toHaveCount(0);
+		await expect(group).toBeVisible();
+
+		// And the two that can fold offer it again.
+		await tick(WITH_DUPLICATE);
+		await tick(PLAIN_EN);
+		await expect(fold).toContainText('JA · EN');
+	});
+
+	test('the card says alone for one book, and not for anything beside it', async ({ page }) => {
+		const shapes = {
+			plain: library.idOf(PLAIN_JA),
+			extra: library.idOf(WITH_EXTRA),
+			duplicate: library.idOf(WITH_DUPLICATE),
+			folded: library.idOf('Harbour Lights'),
+			several: library.idOf('Kaori Mama')
+		};
+		// `?/fold` passes a folded edition beside the book: it is the book's own.
+		expect(
+			library.withDb(
+				(db) =>
+					(
+						db
+							.prepare(
+								`SELECT COUNT(*) AS n FROM entries WHERE series_id = ? AND edition_of IS NOT NULL`
+							)
+							.get(shapes.folded) as { n: number }
+					).n
+			)
+		).toBe(1);
+		const res = await page.request.post('/api/library', {
+			data: { ids: Object.values(shapes) }
+		});
+		expect(res.ok()).toBe(true);
+		const { series } = (await res.json()) as { series: { id: number; alone?: boolean }[] };
+		const alone = (id: number) => series.find((c) => c.id === id)?.alone;
+		expect(alone(shapes.plain)).toBe(true);
+		expect(alone(shapes.extra)).toBe(false);
+		expect(alone(shapes.duplicate)).toBe(false);
+		expect(alone(shapes.folded)).toBe(true);
+		expect(alone(shapes.several)).toBe(false);
 	});
 });
 

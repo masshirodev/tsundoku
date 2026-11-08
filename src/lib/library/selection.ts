@@ -37,9 +37,11 @@ export type Picked = {
 	/** The Work GROUP's row names ("IN <WORK> · MOVES HERE"): a Work tile's own name too. */
 	inWork: string | null;
 	hidden: boolean;
-	/** FOLD AS LANGUAGES reads these two (doc/EDITIONS.md). */
+	/** FOLD AS LANGUAGES reads these three (doc/EDITIONS.md). */
 	language: string | null;
 	languages: string[] | undefined;
+	/** `SeriesCard.alone`; absent where no card said so, which FOLD reads as not alone. */
+	alone?: boolean;
 };
 
 /** The facts of what is selected, in the order it was selected; ids never seen are left out. */
@@ -146,6 +148,7 @@ function samePicked(a: Picked, b: Picked): boolean {
 		a.inWork === b.inWork &&
 		a.hidden === b.hidden &&
 		a.language === b.language &&
+		a.alone === b.alone &&
 		(a.languages ?? []).join(',') === (b.languages ?? []).join(',')
 	);
 }
@@ -173,7 +176,8 @@ export function pickedOfCard(c: LibraryCard, work: WorkName | null): Picked {
 		inWork: work?.name ?? null,
 		hidden: c.hidden,
 		language: c.language ?? null,
-		languages: c.languages
+		languages: c.languages,
+		alone: c.alone
 	};
 }
 

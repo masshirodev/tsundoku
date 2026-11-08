@@ -102,6 +102,32 @@ describe('workOf', () => {
 	});
 });
 
+describe('what FOLD reads (c651)', () => {
+	const card = {
+		id: 1,
+		title: 'T',
+		hue: 1,
+		addedAt: 1,
+		cover: null,
+		kind: 'doujin',
+		hidden: false
+	};
+	it('carries the card’s alone, and leaves it absent where the card said nothing', () => {
+		const of = (alone?: boolean) =>
+			pickedOfCard({ ...card, entryCount: 1, readCount: 0, alone } as LibraryCard, null).alone;
+		expect(of(true)).toBe(true);
+		expect(of(false)).toBe(false);
+		expect(of(undefined)).toBeUndefined();
+	});
+	it('notes the series again when alone changed, as an extra arriving does', () => {
+		const facts = factsOf(pick(1, { alone: true }));
+		expect(refreshFacts(new Set([1]), facts, [pick(1, { alone: false })]).set).toEqual([
+			pick(1, { alone: false })
+		]);
+		expect(refreshFacts(new Set([1]), facts, [pick(1, { alone: true })]).set).toEqual([]);
+	});
+});
+
 describe('refreshFacts', () => {
 	it('notes a drawn series once it is selected, and not before', () => {
 		const drawn = [pick(1), pick(2)];
