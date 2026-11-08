@@ -16,6 +16,7 @@
 	import StartList from '$lib/components/start/StartList.svelte';
 	import StartFirstDay from '$lib/components/start/StartFirstDay.svelte';
 	import { countLine, readLeads } from '$lib/library/start';
+	import { pollStart } from '$lib/start-trail.svelte';
 	import { updateRun } from '$lib/update-run.svelte';
 	import { appUpdater } from '$lib/app/update.svelte';
 	import {
@@ -111,6 +112,19 @@
 	import type { Snapshot } from './$types';
 
 	let { data, form } = $props();
+	/**
+	 * GET STARTED on the empty library asks for itself again, so a phone
+	 * pairing or a download ticks its step without a reload (c722;
+	 * doc/ONBOARDING.md). Exactly while the list is drawn: the condition is
+	 * the markup's own (`data.empty`, then a start view not finished), so the
+	 * poll stops when the library fills or the list finishes (the effect
+	 * re-runs and hands back the stop), and when the page is left (the
+	 * effect is torn down), and never starts on a library with series.
+	 */
+	const startListDrawn = $derived(data.empty && !!data.start && !data.start.finished);
+	$effect(() => {
+		if (startListDrawn) return pollStart();
+	});
 
 	/**
 	 * A new version's band (doc/UPDATES.md), once per version: gone once the

@@ -52,15 +52,15 @@ Portuguese ([`I18N.md`](I18N.md)).
   client-side navigation reruns only when something it depends on changes,
   and nothing it reads does. So the open list asks for itself again
   (`pollStart` in `src/lib/start-trail.svelte.ts`, the layout's
-  `tsundoku:start` key): on `/start`, every 5 s while the page is in view
-  and the list isn't finished, and once whenever the page comes back into
-  view or the window regains focus; a hidden page asks nothing. A trip's
-  band does the same on its screen (below), and SETTINGS reloads every load
-  when the WI-FI panel's poll sees its code used. **The empty library's
-  list does not ask yet**: the library page had no owner in wave 33, and the
-  one-effect patch for it is in `doc/handoff-notes/friends.md`, wave 33,
-  Gaps. Until it lands, a list on the empty library ticks on the next
-  navigation that reruns the layout, or a reload.
+  `tsundoku:start` key): on `/start` and on the empty library, every 5 s
+  while the page is in view and the list isn't finished, and once whenever
+  the page comes back into view or the window regains focus; a hidden page
+  asks nothing. The empty library asks exactly while its list is drawn
+  (c722, wave 34): it stops when the library fills (the ask that brings the
+  first series also brings the grid, and the next is not made), when the
+  list finishes, and when the page is left, and a library with series never
+  asks. A trip's band does the same on its screen (below), and SETTINGS
+  reloads every load when the WI-FI panel's poll sees its code used.
 - **03 and 06 tell a series apart by how it came.** One ADD made has the
   source's key (`origin_key`) and no scan (`scan_job_id` is NULL); anything a
   scan or a backup brought in has the scan's id, or no key at all. A backup
@@ -256,7 +256,11 @@ queued chapter to BACK TO GET STARTED), and 03's IMPORT A BACKUP → (the
 band on `/import`, its tick when an import lands, the done row's import line
 and IMPORT LOG → to the entry, c511). `tests/friend-pair-firefox.e2e.ts` (c722) pairs a phone through the real
 link on the friend install's Wi-Fi listener and watches 04 tick on the
-computer's open `/start` with no reload. Generated from the handoffs:
+computer's open `/start` with no reload; `tests/library-flow.e2e.ts`
+("the empty library's GET STARTED asks again (c722)") watches the empty
+library's list tick 04 with no reload, and counts its asks while the list is
+drawn, after it is left, after the library fills and on a library with
+series. Generated from the handoffs:
 `tests/start-frame.e2e.ts` (`Start-Checklist.dc.html`, SET UP's 01 open) and
 `tests/first-read-frame.e2e.ts` (`FirstRead-List.dc.html`, the parts' heads
 and every row), on `/start`.

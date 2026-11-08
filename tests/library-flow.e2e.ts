@@ -1,5 +1,12 @@
 import { type Page, type Request, type Route } from '@playwright/test';
+import Database from 'better-sqlite3';
+import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { createServer as tcpServer, type AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { expect, test } from './fixtures';
+import { E2E_TOKEN } from '../playwright.config';
 
 /**
  * The preview's own origin, which a form action's POST must carry or
@@ -1458,4 +1465,164 @@ test('SORT is a menu, and the toggle beside it turns the order round', async ({ 
 	await sortBy(page, 'RANDOM');
 	await page.waitForURL(/sort=random/);
 	await expect(page.getByRole('button', { name: /reverse/i })).toHaveCount(0);
+});
+
+/**
+ * The empty library's GET STARTED asks for itself again (c722;
+ * doc/ONBOARDING.md, "What ticks a step without a reload"), as `/start`'s
+ * does: a phone pairing ticks 04 on the open list with no reload. And the
+ * poll's lifetime: it runs exactly while the list is drawn, so it stops when
+ * the library fills or the page is left, and never starts on a library with
+ * series. Its own preview of the build on a port from the OS, on a database
+ * seeded and then emptied of series and devices (start-flow's arrangement),
+ * because the shared seed is a library with series. A poll is counted by its
+ * own request: `invalidate('tsundoku:start')` re-reads the layout's data
+ * (`x-sveltekit-invalidated=1…` on the URL, the layout's node first), and
+ * nothing else on these pages does while no scan runs. Playwright's clock stands in for the 5 s wait in the
+ * lifetime case, so a count, not a timing, says whether it asked.
+ */
+test.describe('the empty library’s GET STARTED asks again (c722)', () => {
+	const dbPath = join(tmpdir(), `tsundoku-e2e-library-start-${process.pid}.sqlite`);
+	const library = mkdtempSync(join(tmpdir(), 'tsundoku-e2e-library-start-'));
+	let server: ChildProcess | null = null;
+	let base = '';
+	const sql = (q: string, ...args: unknown[]) => {
+		const db = new Database(dbPath);
+		try {
+			db.prepare(q).run(...args);
+		} finally {
+			db.close();
+		}
+	};
+	const four = (page: Page) => page.locator('.step[data-step="phone"]');
+	const asks = (page: Page) => {
+		const seen: string[] = [];
+		page.on('request', (r) => {
+			// The layout's node re-read: `1` first. A client-side navigation reuses
+			// the layout, so its own data request reads `01`, and is not an ask.
+			if (/[?&]x-sveltekit-invalidated=1/.test(r.url())) seen.push(r.url());
+		});
+		return seen;
+	};
+
+	test.beforeAll(async () => {
+		test.setTimeout(120_000);
+		const port = await new Promise<number>((ok, no) => {
+			const probe = tcpServer();
+			probe.once('error', no);
+			probe.listen(0, '127.0.0.1', () => {
+				const { port } = probe.address() as AddressInfo;
+				probe.close(() => ok(port));
+			});
+		});
+		base = `http://localhost:${port}`;
+		rmSync(dbPath, { force: true });
+		execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
+			env: { ...process.env, DATABASE_PATH: dbPath, NODE_NO_WARNINGS: '1' },
+			stdio: 'pipe'
+		});
+		const db = new Database(dbPath);
+		db.exec(`DELETE FROM series; DELETE FROM devices; DELETE FROM paired_devices;
+			DELETE FROM scan_jobs;`);
+		db.close();
+		server = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
+			env: {
+				...process.env,
+				DATABASE_PATH: dbPath,
+				TSUNDOKU_TOKEN: E2E_TOKEN,
+				ENGINE_URL: 'http://127.0.0.1:1',
+				ENGINE_TOKEN: 'e2e-engine-token',
+				ENGINE_STORE: library,
+				TSUNDOKU_ANILIST: 'off',
+				LIBRARY_ROOT: library,
+				COVER_DIR: join(library, 'covers'),
+				BACKUP_DIR: join(library, 'backups')
+			},
+			stdio: 'ignore'
+		});
+		for (let i = 0; i < 120; i++) {
+			try {
+				if ((await fetch(base, { redirect: 'manual' })).status) return;
+			} catch {
+				await new Promise((r) => setTimeout(r, 500));
+			}
+		}
+		throw new Error('the empty library preview never answered');
+	});
+
+	test.afterAll(() => {
+		server?.kill();
+		rmSync(dbPath, { force: true });
+		rmSync(library, { recursive: true, force: true });
+	});
+
+	test('a phone pairing ticks 04 on the open list, with no reload', async ({ page }) => {
+		test.setTimeout(60_000);
+		await page.goto(`${base}/`);
+		await expect(four(page)).toBeVisible();
+		await expect(four(page)).not.toHaveClass(/\bdone\b/);
+		const loads: string[] = [];
+		page.on('request', (q) => {
+			if (q.isNavigationRequest() && q.frame() === page.mainFrame()) loads.push(q.url());
+		});
+		// What pairing writes (`addPaired`): friend-pair-firefox.e2e.ts walks the
+		// real link to it; here the list's own asking is what is under test.
+		sql(
+			`INSERT INTO paired_devices (token_hash, label, address, paired_at, seen_at)
+			VALUES ('e2e-library', 'Phone', '192.168.1.21', ?, ?)`,
+			Date.now(),
+			Date.now()
+		);
+		// Within one 5 s ask and its answer, with room for a loaded box.
+		await expect(four(page)).toHaveClass(/\bdone\b/, { timeout: 15_000 });
+		await expect(four(page)).toContainText('Done · a phone or tablet reads here', {
+			ignoreCase: true
+		});
+		expect(loads).toEqual([]);
+	});
+
+	test('it asks only while the list is drawn: not after the page is left, the library fills, or on a library with series', async ({
+		page
+	}) => {
+		test.setTimeout(60_000);
+		await page.clock.install();
+		const seen = asks(page);
+		await page.goto(`${base}/`);
+		await expect(four(page)).toBeVisible();
+
+		// Drawn: one period asks once.
+		await page.clock.runFor(5_100);
+		await expect.poll(() => seen.length).toBe(1);
+
+		// Left, client-side (the effect torn down, not a fresh page): /search asks nothing.
+		await page.getByRole('link', { name: 'Search' }).click();
+		await page.waitForURL(/\/search/);
+		await page.clock.runFor(11_000);
+		await page.getByRole('link', { name: 'Back to library' }).click();
+		await expect(four(page)).toBeVisible();
+		expect(seen.length).toBe(1);
+
+		// Back on the list it asks again; the library fills, and the next ask
+		// brings the grid, after which it asks no more.
+		sql(
+			`INSERT INTO series (root_id, title, kind, hue, added_at, indexed_at)
+			VALUES ((SELECT MIN(id) FROM roots), 'Filled While Open', 'manga', 0, ?, ?)`,
+			Date.now(),
+			Date.now()
+		);
+		await page.clock.runFor(5_100);
+		await expect(page.locator('.grid .tile', { hasText: 'Filled While Open' })).toBeVisible();
+		await expect(four(page)).toHaveCount(0);
+		const filled = seen.length;
+		expect(filled).toBe(2);
+		await page.clock.runFor(11_000);
+		expect(seen.length).toBe(filled);
+
+		// A library with series, opened afresh: no list, no asking.
+		await page.goto(`${base}/`);
+		await expect(page.locator('.grid .tile').first()).toBeVisible();
+		const before = seen.length;
+		await page.clock.runFor(11_000);
+		expect(seen.length).toBe(before);
+	});
 });
