@@ -120,6 +120,8 @@ for (const [word, query] of [
 		const to = page.locator('a.to-sources');
 		await expect(to).toHaveAttribute('href', `/downloads/search?q=${query}&kind=manga`);
 		await expect(to).toContainText('1 SOURCE ·');
+		// Only what this visit asks: the log outlives a case, a repeated run's too.
+		const before = (await asked()).length;
 		await to.click();
 		await page.waitForURL(new RegExp(`/downloads/search\\?q=${query}&kind=manga`));
 
@@ -133,7 +135,7 @@ for (const [word, query] of [
 		await expect(page.locator('a.hit', { hasText: 'Filtered One' }).first()).toBeVisible();
 		await expect(page.getByText(/STILL ASKING/)).toHaveCount(0);
 		await expect(page.locator('.label').first()).toContainText('OF 1 SOURCE ANSWERED');
-		expect((await asked()).map((c) => c.sourceId)).toEqual([SOURCES.open.id]);
+		expect((await asked()).slice(before).map((c) => c.sourceId)).toEqual([SOURCES.open.id]);
 	});
 }
 
