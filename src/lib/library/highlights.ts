@@ -1034,16 +1034,19 @@ export type ClipRange = { from: number; to: number; length: number; capped: bool
 /**
  * The range as the marks stand: until MARK OUT the out point is the playhead, and
  * the range stops at in + 3:00 (A3) while the episode plays on. An out before the
- * in swaps them. A negative or NaN second can't be marked; a zero-length range is
- * `length: 0`, which KEEP treats as no range.
+ * in swaps them, and the 3:00 is still measured from the IN the viewer marked, on
+ * the side the out went: the range always has that point in it. A negative or NaN
+ * second can't be marked; a zero-length range is `length: 0`, which KEEP treats as
+ * no range.
  */
 export function clipRange(mark: ClipMark, playhead: number): ClipRange {
 	const a = Math.max(0, mark.in);
 	const b = Math.max(0, mark.out ?? playhead);
-	const from = Math.min(a, b);
-	const end = Math.max(a, b);
-	const to = Math.min(end, from + MAX_CLIP_S);
-	return { from, to, length: to - from, capped: end > from + MAX_CLIP_S };
+	const capped = Math.abs(b - a) > MAX_CLIP_S;
+	const reach = capped ? a + Math.sign(b - a) * MAX_CLIP_S : b;
+	const from = Math.min(a, reach);
+	const to = Math.max(a, reach);
+	return { from, to, length: to - from, capped };
 }
 
 /** KEEP's ask, whatever a client sent: in order, positive, three minutes at most, or null. */

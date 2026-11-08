@@ -175,7 +175,7 @@ describe('a clip’s range (c704)', () => {
 			capped: true
 		});
 	});
-	it('swaps an out before the in, then holds three minutes from the earlier point', () => {
+	it('swaps an out before the in, and holds three minutes from the IN on that side', () => {
 		expect(clipRange({ in: 800, out: 700 }, 0)).toEqual({
 			from: 700,
 			to: 800,
@@ -183,11 +183,16 @@ describe('a clip’s range (c704)', () => {
 			capped: false
 		});
 		expect(clipRange({ in: 1000, out: 700 }, 0)).toEqual({
-			from: 700,
-			to: 880,
+			from: 820,
+			to: 1000,
 			length: 180,
 			capped: true
 		});
+		// The range has the point the viewer marked in it, however far back the out went.
+		const r = clipRange({ in: 1000, out: 100 }, 0);
+		expect(r.from).toBeLessThanOrEqual(1000);
+		expect(r.to).toBeGreaterThanOrEqual(1000);
+		expect(clipRange({ in: 1000, out: 820 }, 0)).toMatchObject({ length: 180, capped: false });
 	});
 	it('a range of nothing has no length, and a negative mark is at zero', () => {
 		expect(clipRange({ in: 5, out: 5 }, 0).length).toBe(0);
