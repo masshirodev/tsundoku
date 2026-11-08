@@ -237,17 +237,22 @@ export function writeSeries(
 					shared = brings.length ? widenTo(db, seriesId, brings) : path;
 				}
 			}
-			// An anime season's own folder (c282, doc/ANIME.md, "Downloading"): the
-			// series is named from its own folder, as ever, and this folder's
-			// episodes are named from there. A series with no season rows never
+			// An anime season's own folder (c282, doc/ANIME.md, "Downloading"): this
+			// folder's episodes are named from the folder the series is named from.
+			// A series that has none yet takes the first folder to arrive, even a
+			// season's, so its own folder arriving later takes over and what was
+			// named from the season's is named again from there: the result is the
+			// same whichever folder came first. A series with no season rows never
 			// takes this path.
 			let seasonFolderFrom: string | null = null;
 			if (seriesId !== null && volume === null && shared === null && s.path !== '') {
 				const { path } = db.prepare(`SELECT path FROM series WHERE id = ?`).get(seriesId) as {
 					path: string;
 				};
-				if (path !== '' && path !== s.path && isSeasonFolder(seriesId, s.path, db))
-					seasonFolderFrom = path;
+				if (path !== '' && path !== s.path) {
+					if (isSeasonFolder(seriesId, s.path, db)) seasonFolderFrom = path;
+					else if (isSeasonFolder(seriesId, path, db)) nameFilesFrom(db, seriesId, path, s.path);
+				}
 			}
 			// A chapter not downloaded has no file, whichever folder the series is named from.
 			const fileOf = (e: PlannedEntry) =>
@@ -523,6 +528,19 @@ export function writeSeries(
 			};
 		})
 		.immediate();
+}
+
+/**
+ * The series is about to be named from another folder: every file it knows
+ * keeps pointing at the same place on disk. Only the name changes, so nothing
+ * here is an arrival.
+ */
+function nameFilesFrom(db: Database.Database, seriesId: number, from: string, to: string): void {
+	const rows = db
+		.prepare(`SELECT id, file FROM entries WHERE series_id = ? AND file != ''`)
+		.all(seriesId) as { id: number; file: string }[];
+	const rename = db.prepare(`UPDATE entries SET file = ? WHERE id = ?`);
+	for (const r of rows) rename.run(posix.relative(to, posix.join(from, r.file)), r.id);
 }
 
 /**

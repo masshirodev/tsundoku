@@ -681,6 +681,115 @@ describe('the anime importer folds a season’s folder onto its series', () => {
 		expect(entriesOf(a)[0].file).toBe('../Late/Season 02/Late S02E04.mkv');
 	});
 
+	describe('whichever folder is imported first', () => {
+		const KEY = 'aniyomi:7:/merged';
+		const LATE = 'aniyomi:7:/late';
+		const FIRST = `${KEY}/ep-1-1`;
+		const SECOND = `${LATE}/ep-2-1`;
+		// A series the owner added from a source: no folder yet, and two episodes waiting.
+		function waiting(): number {
+			const a = show('Merged', KEY);
+			for (const [url, season] of [
+				[FIRST, 1],
+				[SECOND, 2]
+			] as const)
+				db.prepare(
+					`INSERT INTO entries (series_id, position, label, title, added_at, source_url, season, episode_number, available)
+					VALUES (?, ?, 'Ep. 1', '', 1, ?, ?, 1, 0)`
+				).run(a, season, url, season);
+			facts.putSeasonFact({ seriesId: a, season: 2, originKey: LATE, folder: 'Anime/Late' }, db);
+			folderOnDisk('Late', LATE, 'Late', [[2, 1]]);
+			folderOnDisk('Merged', KEY, 'Merged', [[1, 1]]);
+			return a;
+		}
+		const pathOf = (id: number) =>
+			(db.prepare(`SELECT path FROM series WHERE id = ?`).get(id) as { path: string }).path;
+		const arrivedOf = (url: string) =>
+			(
+				db.prepare(`SELECT arrived_at AS at FROM entries WHERE source_url = ?`).get(url) as {
+					at: number | null;
+				}
+			).at;
+		const importFolder = (name: string, now: number) => {
+			const dir = join(library, 'Anime', name);
+			for (const plan of planAnimeSeries(library, join(dir, 'tvshow.nfo'), now))
+				writeSeries(plan, { rootId: 1, jobId: null, now, markMissing: true }, db);
+		};
+		function expectBothHere(id: number) {
+			const eps = entriesOf(id);
+			expect(eps.map((e) => e.available)).toEqual([1, 1]);
+			for (const e of eps) expect(existsSync(join(pathOf(id), e.file))).toBe(true);
+			expect(pathOf(id)).toBe(join(library, 'Anime', 'Merged'));
+			expect(eps.find((e) => e.season === 2)!.file).toBe('../Late/Season 02/Late S02E01.mkv');
+		}
+
+		it('the season’s folder first, one at a time: both keep their files, and the season did not arrive twice', () => {
+			const a = waiting();
+			importFolder('Late', NOW);
+			expect(arrivedOf(SECOND)).toBe(NOW);
+			importFolder('Merged', NOW + 5);
+			expectBothHere(a);
+			expect(arrivedOf(SECOND)).toBe(NOW);
+			expect(arrivedOf(FIRST)).toBe(NOW + 5);
+		});
+
+		it('the season’s folder first, by a full scan, and every scan after it finds the same', () => {
+			const a = waiting();
+			// The order the review named: `Late` sorts before `Merged`.
+			const order = planAnimeFolders(library, () => {}, NOW).map((p) => p.path);
+			expect(order).toEqual([join(library, 'Anime', 'Late'), join(library, 'Anime', 'Merged')]);
+			scan();
+			expectBothHere(a);
+			expect(arrivedOf(SECOND)).toBe(NOW);
+			for (const plan of planAnimeFolders(library, () => {}, NOW + 9))
+				writeSeries(plan, { rootId: 1, jobId: null, now: NOW + 9, markMissing: true }, db);
+			expectBothHere(a);
+			expect(arrivedOf(SECOND)).toBe(NOW);
+			expect(arrivedOf(FIRST)).toBe(NOW);
+		});
+
+		it('the series’ folder first ends in the same place', () => {
+			const a = waiting();
+			importFolder('Merged', NOW);
+			importFolder('Late', NOW + 5);
+			expectBothHere(a);
+			expect(arrivedOf(SECOND)).toBe(NOW + 5);
+			expect(arrivedOf(FIRST)).toBe(NOW);
+		});
+
+		it('two season folders before the series’ own: each file is still found from the series’ folder', () => {
+			const a = waiting();
+			const NEXT = 'aniyomi:7:/next';
+			db.prepare(
+				`INSERT INTO entries (series_id, position, label, title, added_at, source_url, season, episode_number, available)
+				VALUES (?, 3, 'Ep. 1', '', 1, ?, 3, 1, 0)`
+			).run(a, `${NEXT}/ep-3-1`);
+			facts.putSeasonFact({ seriesId: a, season: 3, originKey: NEXT, folder: 'Anime/Later' }, db);
+			folderOnDisk('Later', NEXT, 'Later', [[3, 1]]);
+			importFolder('Late', NOW);
+			importFolder('Later', NOW + 1);
+			importFolder('Merged', NOW + 2);
+			const eps = entriesOf(a);
+			expect(eps.map((e) => e.available)).toEqual([1, 1, 1]);
+			for (const e of eps) expect(existsSync(join(pathOf(a), e.file))).toBe(true);
+			expect(arrivedOf(SECOND)).toBe(NOW);
+			expect(arrivedOf(`${NEXT}/ep-3-1`)).toBe(NOW + 1);
+		});
+
+		it('an episode not downloaded stays with no file, and a season’s folder alone stays the series’ path', () => {
+			const a = waiting();
+			importFolder('Late', NOW);
+			expect(pathOf(a)).toBe(join(library, 'Anime', 'Late'));
+			expect(entriesOf(a).find((e) => e.season === 1)).toMatchObject({ file: '', available: 0 });
+			importFolder('Merged', NOW + 1);
+			rmSync(join(library, 'Anime', 'Merged', 'Season 01'), { recursive: true });
+			importFolder('Merged', NOW + 2);
+			// The series' folder answers for its own file, and only that.
+			expect(entriesOf(a).find((e) => e.season === 1)).toMatchObject({ available: 0 });
+			expect(entriesOf(a).find((e) => e.season === 2)).toMatchObject({ available: 1 });
+		});
+	});
+
 	it('a series with no rows imports exactly as it did', () => {
 		const dir = folderOnDisk('Plain', 'aniyomi:7:/plain', 'Plain', [
 			[1, 1],

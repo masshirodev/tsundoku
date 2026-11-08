@@ -944,7 +944,11 @@ pure parts in `src/lib/library/anime-files.ts`).
   season's own folder has its own `tvshow.nfo` naming **that season's key** and
   that season's link, which is what the importer folds it back onto the series
   by; its files are named from the series' folder (`../Other/Season 02/…`), so
-  each folder answers only for its own on a rescan.
+  each folder answers only for its own on a rescan. **The order the folders
+  are found in changes nothing.** A series with no folder yet is named from
+  the first one to arrive, even a season's; when its own arrives, every file
+  it knows is named again from there, in the same transaction, which is not
+  an arrival (`nameFilesFrom`, `import/write.ts`).
 
 - **One MKV an episode**: ffmpeg copies the video, each separate audio track
   and each subtitle track (as SubRip, which every player reads) into one
