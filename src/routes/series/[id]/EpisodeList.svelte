@@ -269,7 +269,9 @@
 						class="a-fold"
 						aria-expanded={extrasOpen}
 						onclick={() => (extrasOpenFor = extrasOpen ? null : series.id)}
-						>{around.extrasLine}<span aria-hidden="true">{extrasOpen ? '↑' : '↓'}</span></button
+						><span class="a-line">{around.extrasLine}</span><span aria-hidden="true"
+							>{extrasOpen ? '↑' : '↓'}</span
+						></button
 					>
 				</li>
 				{#if extrasOpen}
@@ -443,11 +445,20 @@
 		white-space: nowrap;
 		cursor: pointer;
 	}
+	.season.around.extras {
+		padding: 0;
+	}
 	.a-fold {
 		flex: 1;
+		min-width: 0;
 		justify-content: space-between;
-		margin-left: calc(-1 * var(--pad));
+		margin-left: 0;
 		border-left: 0;
+	}
+	.a-line {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.a-go:active,
 	.a-fold:active {
