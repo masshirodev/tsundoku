@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { E2E_TOKEN } from '../playwright.config';
 import { sampleEpub } from '../src/lib/server/pages/sample-epub';
 import { Zip } from '../src/lib/epub/unzip';
+import { zip } from '../src/lib/server/zip-write';
 import { drawnFonts } from './helpers/fonts';
 import { expect, test } from './helpers/hydrated';
 
@@ -384,7 +385,9 @@ test('a Japanese book is set vertically, with furigana and upright numbers', asy
 				.map((f) => f.familyName)
 		)
 		.toContain('IBM Plex Sans JP');
-	// Right to left: the left strip turns forward, onto the chapter's first page of text.
+	// Right to left: the left strip turns forward. The chapter opens on the
+	// band at its start (c705), alone on its page because the cover after it
+	// is a page wide, so this turn is onto the cover.
 	const shift = () =>
 		page
 			.locator('.flow')
@@ -1038,10 +1041,22 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 		await page.getByRole('button', { name: 'CONTENTS' }).click();
 		await page.locator('.contents .entry-btn').last().click();
 		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		// A chapter opened from CONTENTS puts the controls away, and they fade
+		// out: the scrubber measured then was gone by the click, which landed on
+		// the page as a turn, one page on and short of the end (red 3 of 3 in
+		// wave 31, and on its base). So: the controls up again, on purpose.
+		await expect(page.locator('.bottom')).toHaveCount(0);
+		await middle(page);
 		const track = page.locator('[role="slider"][aria-label="Page in chapter"]');
+		await expect(track).toBeVisible();
 		const box = (await track.boundingBox())!;
 		await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
 		await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+		// On the chapter's last page, then the controls away (a tap on the page
+		// with them up only puts them away), so the next tap is a turn.
+		await expect(page.locator('.bottom .left')).toHaveText(/^P\. (\d+) OF \1\b/);
+		await page.keyboard.press('Escape');
+		await expect(page.locator('.bottom')).toHaveCount(0);
 		// One turn past the last page is the end page's door (a turn that stays
 		// on the same heading, which is why `forward` is not the helper here).
 		const v = page.viewportSize()!;
@@ -1067,5 +1082,373 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 			headers: { origin: new URL(base).origin, 'x-sveltekit-action': 'true' },
 			form: { rating: '10' }
 		});
+	});
+});
+
+// ---- the band at a chapter's start (c705) ------------------------------------------------
+//
+// END's twin: the chapter's number, END's count and, only where the book does
+// not print it, its table-of-contents title. The seed's book prints every
+// title as its heading, so these cases serve one made from it with three
+// chapters changed: Vol. 2 has no heading (a web-novel chapter from a
+// source), Vol. 3's heading is another ("Interlude"), and Vol. 4's carries a
+// "Chapter 4:" prefix over the title. Vol. 6 prints its number and its
+// title in two headings, as many publishers' books do.
+
+async function bandBook(): Promise<Buffer> {
+	const base = new Zip(
+		new Uint8Array(
+			sampleEpub({
+				title: TITLE,
+				hue: 0,
+				chapters: Array.from({ length: 33 }, (_, i) => `Vol. ${i + 1}`)
+			})
+		)
+	);
+	const edits: Record<string, [string, string]> = {
+		'OEBPS/ch2.xhtml': ['<h1>Vol. 2</h1>', ''],
+		'OEBPS/ch3.xhtml': ['<h1>Vol. 3</h1>', '<h1>Interlude</h1>'],
+		'OEBPS/ch4.xhtml': ['<h1>Vol. 4</h1>', '<h1>Chapter 4: Vol. 4</h1>'],
+		'OEBPS/ch6.xhtml': ['<h1>Vol. 6</h1>', '<h1>Chapter 6</h1>\n<h2>Vol. 6</h2>'],
+		// A full-page illustration first: as tall as a page can show it.
+		'OEBPS/ch5.xhtml': [
+			'<h1>Vol. 5</h1>',
+			'<p><img src="images/tall.svg" alt="Tall"/></p>\n<h1>Vol. 5</h1>'
+		]
+	};
+	const files: { name: string; data: Buffer | string; deflate?: boolean }[] = [];
+	for (const name of base.names) {
+		const bytes = Buffer.from(await base.bytesOf(name));
+		const edit = edits[name];
+		if (edit) expect(bytes.toString()).toContain(edit[0]);
+		files.push({
+			name,
+			data: edit ? bytes.toString().replace(edit[0], edit[1]) : bytes,
+			deflate: name !== 'mimetype'
+		});
+	}
+	files.push({
+		name: 'OEBPS/images/tall.svg',
+		data: '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="4000"><rect width="400" height="4000" fill="#888"/></svg>'
+	});
+	return zip(files);
+}
+
+/** Open a chapter from CONTENTS, at its start, as a reader does. */
+async function openFromContents(page: Page, label: string) {
+	await middle(page);
+	await page.getByRole('button', { name: 'CONTENTS' }).click();
+	const sheet = page.locator('.contents');
+	await expect(sheet.getByText('CONTENTS', { exact: true })).toBeVisible();
+	// The list opens on the chapter being read: earlier ones are behind ↑ 1 – n.
+	const earlier = sheet.getByRole('button', { name: /↑ 1 – / });
+	if (await earlier.count()) await earlier.click();
+	await sheet
+		.locator('.entry-btn')
+		.filter({ has: page.locator('.t').getByText(label, { exact: true }) })
+		.click();
+	await expect(sheet).toHaveCount(0);
+	await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+}
+
+/** The flow's page, from its transform: 0 is the chapter's first. */
+const pageNo = (page: Page) =>
+	page.evaluate(() => {
+		const flow = document.querySelector<HTMLElement>('.flow')!;
+		const x = Number(/translateX\((-?[\d.]+)px\)/.exec(flow.style.transform)?.[1] ?? 0);
+		const w = document.querySelector<HTMLElement>('.page')!.getBoundingClientRect().width;
+		// `+ 0`: page 0 at no shift is -0, which toBe(0) refuses.
+		return Math.round(-x / w) + 0;
+	});
+
+/** The character `?at=b.o` names is on screen, inside the page's box. */
+const onScreen = (page: Page, b: number, o: number) =>
+	page.evaluate(
+		([b, o]) => {
+			const block = document.querySelector<HTMLElement>(`.blocks:not(.next) [data-b="${b}"]`);
+			if (!block) return 'no block';
+			const walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+			let left = o;
+			for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+				const len = t.textContent?.length ?? 0;
+				if (left < len) {
+					const r = document.createRange();
+					r.setStart(t, left);
+					r.setEnd(t, left + 1);
+					const c = r.getBoundingClientRect();
+					const box = document.querySelector('.page')!.getBoundingClientRect();
+					const x = c.left + c.width / 2;
+					const y = c.top + c.height / 2;
+					return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom
+						? 'on screen'
+						: `off screen at ${Math.round(x)},${Math.round(y)}`;
+				}
+				left -= len;
+			}
+			return 'no character';
+		},
+		[b, o]
+	);
+
+test.describe("the band at a chapter's start (c705)", () => {
+	test.beforeEach(async ({ page }) => {
+		await serveBook(page, await bandBook());
+		await openBook(page);
+	});
+
+	test('PAGED: the band opens each chapter, with the title only where the book does not print it', async ({
+		page
+	}) => {
+		const band = page.locator('.cstart');
+		// Vol. 1 prints its title as its heading: the band has none of its own.
+		await expect(band).toHaveCount(1);
+		await expect(band.locator('.ab')).toHaveText(/^\s*CH\. 1\s*1 OF 33\s*$/);
+		await expect(band.locator('.t')).toHaveCount(0);
+		// It is not a block: outside `.blocks`, unnumbered, and the blocks are
+		// numbered from the chapter's first as they always were (the cover, then
+		// the heading).
+		await expect(page.locator('.blocks .cstart, .cstart[data-b], .cstart [data-b]')).toHaveCount(0);
+		await expect(page.locator('.blocks > [data-b="0"]')).toHaveJSProperty('localName', 'figure');
+		await expect(page.locator('.blocks > [data-b="1"]')).toHaveText('Vol. 1');
+		expect(
+			await page
+				.locator('.blocks > *')
+				.evaluateAll((els) => els.every((e, i) => (e as HTMLElement).dataset.b === String(i)))
+		).toBe(true);
+
+		// Vol. 1 opens on its cover, which leaves room for the band: the same page.
+		expect(await pageNo(page)).toBe(0);
+		await expect(band).toBeInViewport();
+		await expect(page.locator('figure.illus').first()).toBeInViewport({ ratio: 1 });
+
+		// No heading: the title is the band's.
+		await openFromContents(page, 'Vol. 2');
+		await expect(page.locator('.blocks h1')).toHaveCount(0);
+		await expect(band.locator('.ab')).toHaveText(/^\s*CH\. 2\s*2 OF 33\s*$/);
+		await expect(band.locator('.t')).toHaveText('Vol. 2');
+		// On the same page as the text: the chapter's first words are beside it.
+		await expect(band).toBeInViewport();
+		expect(await onScreen(page, 0, 0)).toBe('on screen');
+		// A heading that says something else: the title too.
+		await openFromContents(page, 'Vol. 3');
+		await expect(page.locator('.blocks h1')).toHaveText('Interlude');
+		await expect(band.locator('.t')).toHaveText('Vol. 3');
+		// "Chapter 4: Vol. 4" is the title, with the number before it: none.
+		await openFromContents(page, 'Vol. 4');
+		await expect(page.locator('.blocks h1')).toHaveText('Chapter 4: Vol. 4');
+		await expect(band.locator('.ab')).toHaveText(/^\s*CH\. 4\s*4 OF 33\s*$/);
+		await expect(band.locator('.t')).toHaveCount(0);
+		await expect(band).toBeInViewport();
+		expect(await onScreen(page, 0, 0)).toBe('on screen');
+		// "Chapter 6", then "Vol. 6" under it: the book prints the title in its
+		// second heading, so the band does not print it again.
+		await openFromContents(page, 'Vol. 6');
+		await expect(page.locator('.blocks h1')).toHaveText('Chapter 6');
+		await expect(page.locator('.blocks h2')).toHaveText('Vol. 6');
+		await expect(band.locator('.ab')).toHaveText(/^\s*CH\. 6\s*6 OF 33\s*$/);
+		await expect(band.locator('.t')).toHaveCount(0);
+
+		// Vol. 5 opens on a full-page illustration, which leaves no room: the
+		// band is the one page of its own, the illustration on the next, and a
+		// relayout (a face arriving) keeps the reader on the band's page, which
+		// has no character to keep.
+		await openFromContents(page, 'Vol. 5');
+		const tall = page.locator('figure.illus img[alt="Tall"]');
+		await expect(tall).toHaveAttribute('src', /^blob:/);
+		await expect(page.locator('.blocks > [data-b="0"] img')).toHaveAttribute('alt', 'Tall');
+		await page.evaluate(() => document.fonts.ready);
+		expect(await pageNo(page)).toBe(0);
+		await expect(band).toBeInViewport();
+		await expect(tall).not.toBeInViewport();
+		for (const fire of ['loadingdone', 'load'] as const) {
+			await page.evaluate((fire) => {
+				if (fire === 'load') window.dispatchEvent(new Event('load'));
+				else document.fonts.dispatchEvent(new Event('loadingdone'));
+			}, fire);
+			await page.waitForTimeout(300);
+			expect(await pageNo(page), fire).toBe(0);
+		}
+		await forward(page);
+		expect(await pageNo(page)).toBe(1);
+		await expect(tall).toBeInViewport();
+		await expect(band).not.toBeInViewport();
+		// And back: the band's page again, held there through a relayout.
+		const v0 = page.viewportSize()!;
+		await page.mouse.click(8, v0.height / 2);
+		await expect.poll(() => pageNo(page)).toBe(0);
+		await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+		await page.evaluate(() => document.fonts.dispatchEvent(new Event('loadingdone')));
+		await page.waitForTimeout(300);
+		expect(await pageNo(page)).toBe(0);
+		// Scrubbed there from the chapter's last page, the band's page saves the
+		// chapter's first character, as opening there does, not the last page's.
+		await middle(page);
+		const track = page.locator('[role="slider"][aria-label="Page in chapter"]');
+		await expect(track).toBeVisible();
+		const box = (await track.boundingBox())!;
+		const at = () => new URL(page.url()).searchParams.get('at');
+		await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+		await expect(page.locator('.bottom .left')).toHaveText(/^P\. (\d+) OF \1\b/);
+		await expect.poll(at).not.toBe('0.0');
+		await page.mouse.click(box.x + 2, box.y + box.height / 2);
+		await expect(page.locator('.bottom .left')).toHaveText(/^P\. 1 OF /);
+		await expect.poll(at).toBe('0.0');
+		await page.keyboard.press('Escape');
+		await page.evaluate(() => document.fonts.dispatchEvent(new Event('loadingdone')));
+		await page.waitForTimeout(300);
+		expect(await pageNo(page)).toBe(0);
+		await openFromContents(page, 'Vol. 4');
+
+		// Back across Vol. 3's end from Vol. 4's first page: the last page, as
+		// before, and its band is the END band, not this one.
+		const v = page.viewportSize()!;
+		await page.mouse.click(8, v.height / 2);
+		await expect(page.locator('.blocks h1')).toHaveText('Interlude');
+		await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+		await expect(page.locator('.band')).toBeInViewport();
+		await expect(band).not.toBeInViewport();
+	});
+
+	test('PAGED: a saved place opens on the same words, the band before it or not', async ({
+		page
+	}) => {
+		const first = page.url();
+		await openFromContents(page, 'Vol. 2');
+		// The reader's URL follows the chapter 800 ms after it settles.
+		await expect(page).not.toHaveURL(first);
+		const url = new URL(page.url());
+		// Vol. 2 (no heading, so a title in the band): the first paragraph's
+		// middle, on the band's page, and a paragraph pages further on.
+		for (const [b, o] of [
+			[0, 40],
+			[10, 60]
+		] as const) {
+			url.searchParams.set('at', `${b}.${o}`);
+			await page.goto(url.toString());
+			await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+			await expect(page.locator('.cstart .t')).toHaveText('Vol. 2');
+			await page.evaluate(() => document.fonts.ready);
+			await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+			await expect.poll(() => onScreen(page, b, o)).toBe('on screen');
+			// The reader keeps that place as it was given: the band moved no block.
+			await page.waitForTimeout(1000);
+			expect(new URL(page.url()).searchParams.get('at')).toBe(`${b}.${o}`);
+			expect(await onScreen(page, b, o)).toBe('on screen');
+		}
+
+		// Vol. 5 (a full-page illustration first, so the band has a page of its
+		// own) opened as the series screen opens it, with no `?at=`, which reads
+		// as the chapter's first character, and with `?at=0.0`: both on the
+		// band's page, not the illustration's.
+		const vol2 = page.url();
+		await openFromContents(page, 'Vol. 5');
+		await expect(page).not.toHaveURL(vol2);
+		const vol5 = new URL(page.url());
+		for (const search of ['', '?at=0.0']) {
+			vol5.search = search;
+			await page.goto(vol5.toString());
+			const tall = page.locator('figure.illus img[alt="Tall"]');
+			await expect(tall).toHaveAttribute('src', /^blob:/, { timeout: 15000 });
+			await page.evaluate(() => document.fonts.ready);
+			await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+			expect(await pageNo(page), search).toBe(0);
+			await expect(page.locator('.cstart')).toBeInViewport();
+			await expect(tall).not.toBeInViewport();
+		}
+	});
+
+	test('SCROLL: the band above the first line, and END, then the next start band, then its text', async ({
+		page
+	}) => {
+		await middle(page);
+		await page.getByRole('button', { name: /^PAGED · / }).click();
+		await page.getByRole('radio', { name: 'SCROLL' }).click();
+		await page.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+		// Opened at its start: at the top, the band first.
+		await openFromContents(page, 'Vol. 2');
+		// The chapter's own band, the flow's first child; the next chapter's follows END.
+		const band = page.locator('.flow > .cstart').first();
+		await expect(page.locator('.flow > .sband + .cstart .t')).toHaveText('Vol. 3');
+		await expect(band.locator('.t')).toHaveText('Vol. 2');
+		const top = () => page.locator('.page').evaluate((n) => n.scrollTop);
+		expect(await top()).toBe(0);
+		await expect(band).toBeInViewport();
+		// A relayout keeps the first line under it, not on the margin.
+		await page.evaluate(() => document.fonts.dispatchEvent(new Event('loadingdone')));
+		await page.waitForTimeout(300);
+		expect(await top()).toBe(0);
+
+		// The order down the page: this chapter's text, END, Vol. 3's start
+		// band (the heading "Interlude" is not its title, so the band names it),
+		// then Vol. 3's text.
+		const next = page.locator('.blocks.next > *').first();
+		await expect(next).toHaveText('Interlude');
+		const order = await page
+			.locator('.flow')
+			.evaluate((flow) =>
+				[...flow.children].map((c) =>
+					c.classList.contains('cstart')
+						? `start:${c.querySelector('.t')?.textContent ?? ''}`
+						: c.classList.contains('sband')
+							? 'end'
+							: c.classList.contains('next')
+								? 'next'
+								: c.classList.contains('blocks')
+									? 'blocks'
+									: c.className
+				)
+			);
+		expect(order).toEqual(['start:Vol. 2', 'blocks', 'end', 'start:Vol. 3', 'next']);
+		// The next chapter's blocks are not numbered: only the chapter on screen answers places.
+		await expect(page.locator('.blocks.next [data-b]')).toHaveCount(0);
+
+		// Scroll on until Vol. 3 opens: its band is the one that was below END.
+		// Nothing above a chapter is kept in SCROLL, so a crossing at the middle
+		// takes its start to the top, under its band (and to the margin before
+		// c705; measured in the reader's notes, wave 32). A crossing caught late,
+		// the start already higher than that, as a fling leaves it, keeps the
+		// line where it stood: that is the one case below. All in the page, so
+		// nothing waits on a round trip: the crossing, then a relayout at once,
+		// before the reader's place is read again (250 ms after the last
+		// scroll), as a face the new heading is the first to use arrives then.
+		// The line stays where it crossed, not where a chapter opened at its
+		// start keeps it, under the band.
+		const v = page.viewportSize()!;
+		const heading = page.locator('.blocks:not(.next) h1').first();
+		const moved = await page.locator('.page').evaluate(async (n) => {
+			const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
+			const first = n.querySelector<HTMLElement>('.blocks.next > *')!;
+			n.scrollTop += Math.round(
+				first.getBoundingClientRect().top - n.getBoundingClientRect().top - 60
+			);
+			const h = () => n.querySelector<HTMLElement>('.blocks:not(.next) h1');
+			for (let i = 0; i < 120 && h()?.textContent !== 'Interlude'; i++) await frame();
+			await frame();
+			const before = h()!.getBoundingClientRect().top;
+			const scrolled = n.scrollTop;
+			document.fonts.dispatchEvent(new Event('loadingdone'));
+			await frame();
+			await frame();
+			// Late enough that the band is partly scrolled off: the case reached.
+			return scrolled > 0 ? Math.abs(h()!.getBoundingClientRect().top - before) : -1;
+		});
+		await expect(heading).toHaveText('Interlude');
+		expect(moved).toBeGreaterThanOrEqual(0);
+		expect(moved).toBeLessThanOrEqual(1);
+		await expect(band.locator('.t')).toHaveText('Vol. 3');
+		// Vol. 4's heading carries its title: its band below END has none.
+		await expect(page.locator('.flow > .sband + .cstart .ab')).toContainText('CH. 4');
+		await expect(page.locator('.flow > .sband + .cstart .t')).toHaveCount(0);
+		await page.waitForTimeout(400);
+		const y = await heading.evaluate((h) => h.getBoundingClientRect().top);
+		expect(y).toBeGreaterThan(0);
+		expect(y).toBeLessThan(v.height);
+		// A relayout then leaves it there, a line or less.
+		await page.evaluate(() => window.dispatchEvent(new Event('load')));
+		await page.waitForTimeout(400);
+		expect(
+			Math.abs((await heading.evaluate((h) => h.getBoundingClientRect().top)) - y)
+		).toBeLessThanOrEqual(1);
 	});
 });

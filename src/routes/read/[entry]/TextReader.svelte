@@ -75,6 +75,7 @@
 		widthFor,
 		widthKeyOf
 	} from '$lib/reader/text';
+	import { bandTitle, leadLines } from '$lib/reader/start-band';
 	import EntryList from '../../series/[id]/EntryList.svelte';
 	import TextChrome from './TextChrome.svelte';
 	import TextSheet from './TextSheet.svelte';
@@ -285,6 +286,15 @@
 	 * page instead of taking it a page back.
 	 */
 	let onBand = false;
+	/**
+	 * PAGED: the reader is on a chapter's first page and it is the start band
+	 * alone (c705), as it is when the chapter opens on a full-page
+	 * illustration, which the band leaves no room for. That page has no
+	 * character either, and `pos` (the chapter's first) is on the page after,
+	 * so a relayout keeps the reader on the band's page, as `onBand` does at
+	 * the other end.
+	 */
+	let onLead = false;
 	let page = $state(0);
 	/**
 	 * Counts the reader's own moves (`go`, `openChapter`), so a slide can tell
@@ -456,7 +466,7 @@
 			if (r) pageEl.scrollTop += r.top - pageEl.getBoundingClientRect().top - (posY ?? f.y);
 			ownTop = pageEl.scrollTop;
 		} else {
-			page = onBand ? pages - 1 : pageOf(pos);
+			page = onBand ? pages - 1 : onLead ? 0 : pageOf(pos);
 		}
 	}
 
@@ -535,8 +545,24 @@
 				? Math.max(-line, Math.min(sh - line, y))
 				: null;
 		onBand = false;
+		// The chapter's first character is its start, the band before it (c705):
+		// an entry opened with no `?at=` comes as that place, not as 'start', and
+		// so does the band's own page, whose URL keeps that character. SCROLL's
+		// `?at=0.0.<y>` keeps its line's height instead.
+		const first = typeof at === 'object' && at.block === 0 && at.offset === 0;
+		// Opened at its start, the chapter opens on its first page, the band's.
+		onLead = layout === 'paged' && (at === 'start' || first);
 		pos = at === 'start' || at === 'end' ? { block: 0, offset: 0 } : at;
 		await relayout();
+		if ((at === 'start' || (first && y === null)) && layout === 'scroll' && pageEl && flowEl) {
+			// SCROLL opens at the top, the band above the first line (c705), and
+			// the first line is kept at the height it stands at under the band:
+			// on the margin, a relayout (a face arriving) scrolled the band away.
+			pageEl.scrollTop = 0;
+			ownTop = 0;
+			const r = rectOf(flowEl, pos);
+			posY = r ? r.top - pageEl.getBoundingClientRect().top : null;
+		}
 		if (at === 'end') {
 			page = pages - 1;
 			// Read once the flow has moved there: read before, it was the
@@ -672,8 +698,13 @@
 		// The band's page alone has no character: `pos` stays the one before,
 		// and a relayout keeps the reader here (c516).
 		onBand = !here && layout === 'paged' && page === pages - 1;
+		// And the start band's page alone, at the other end (c705), which stands
+		// for the chapter's first character, as it does when the chapter opens
+		// there: a scrub onto it from pages on would otherwise keep, and save,
+		// the place it came from.
+		onLead = !here && layout === 'paged' && page === 0;
 		posY = null;
-		pos = here ?? pos;
+		pos = here ?? (onLead ? { block: 0, offset: 0 } : pos);
 		noteSpeed();
 		if (page >= pages - 1) markFinished();
 	}
@@ -865,6 +896,10 @@
 				if (top && pageEl) {
 					pageEl.scrollTop += top.getBoundingClientRect().top - y;
 					ownTop = pageEl.scrollTop;
+					// The first line stays where it was when it crossed: the band above
+					// it is the one that was already on screen (c705).
+					const r = flowEl ? rectOf(flowEl, pos) : null;
+					posY = r ? r.top - pageEl.getBoundingClientRect().top : null;
 				}
 			});
 			return;
@@ -874,6 +909,7 @@
 		scrolling = setTimeout(() => {
 			pos = positionOnPage() ?? pos;
 			onBand = false;
+			onLead = false;
 			// Where its character stands now, so a relayout leaves it there (c516).
 			const r = flowEl && pageEl ? rectOf(flowEl, pos) : null;
 			posY = r && pageEl ? r.top - pageEl.getBoundingClientRect().top : null;
@@ -1478,12 +1514,45 @@
 			direction
 		})
 	);
-	const nextAbout = $derived(
-		nextReadable ? aboutMinutes(Math.round((nextReadable.bytes || 0) * 0.6), speed) : ''
-	);
+	/** END's estimate of a chapter's length, so the band that opens it says the same. */
+	const aboutOf = (e: (typeof entries)[number]) =>
+		aboutMinutes(Math.round((e.bytes || 0) * 0.6), speed);
+	const nextAbout = $derived(nextReadable ? aboutOf(nextReadable) : '');
+	/**
+	 * The band at a chapter's start (c705): the table-of-contents title, only
+	 * when the chapter doesn't open by printing it (src/lib/reader/start-band.ts).
+	 * Matter is already named by the band (COVER), so it never repeats.
+	 */
+	const titleOf = (e: (typeof entries)[number] | null | undefined, ch: Chapter | null) =>
+		e && ch && !e.matter
+			? bandTitle(
+					e.label,
+					leadLines(ch.blocks.map((b) => ({ tag: b.localName, text: b.textContent ?? '' })))
+				)
+				? e.label
+				: null
+			: null;
+	const startTitle = $derived(titleOf(entry, chapter));
+	const nextStartTitle = $derived(titleOf(nextReadable, nextChapter));
+	/** The band's count, END's: chapters, or entries for matter. */
+	const countOf = (e: (typeof entries)[number]) =>
+		e.matter
+			? `${entries.indexOf(e) + 1} OF ${entries.length}`
+			: `${chapters.indexOf(e) + 1} OF ${chapters.length}`;
 	const noSelection = new SvelteSet<number>();
 	const noCache = new SvelteSet<number>();
 </script>
+
+{#snippet startBand(e: (typeof entries)[number], title: string | null)}
+	<div class="cstart">
+		<div class="ab">
+			<div>{short(e)}</div>
+			<div>{countOf(e)}</div>
+		</div>
+		{#if title}<div class="t">{title}</div>{/if}
+		{#if aboutOf(e)}<div class="m">{aboutOf(e)}</div>{/if}
+	</div>
+{/snippet}
 
 <svelte:head><title>{series.title} · {entry?.label ?? ''}</title></svelte:head>
 <svelte:window onkeydown={keydown} onpointermove={hover} onmousedown={wakeCursor} />
@@ -1538,6 +1607,11 @@
 			style:--turn-ms="{TURN_MS}ms"
 			style:--turn-ease={TURN_EASE}
 		>
+			{#if chapter && entry}
+				<!-- The chapter's start (c705), END's twin: not a block, so `data-b` and
+				     every saved place are what they were. -->
+				{@render startBand(entry, startTitle)}
+			{/if}
 			<div class="blocks" bind:this={blocksEl}></div>
 			{#if chapter && nextReadable && layout === 'paged'}
 				<!-- The chapter ends where it ends; the rest of its last page names the next. -->
@@ -1579,6 +1653,9 @@
 						<div class="volume-room" aria-hidden="true"></div>
 					</div>
 				{:else}
+					<!-- END, then the next chapter's start band, then its text, as it
+					     will stand once the crossing opens it. -->
+					{#if nextChapter}{@render startBand(nextReadable, nextStartTitle)}{/if}
 					<div class="blocks next" bind:this={nextEl}></div>
 				{/if}
 			{/if}
@@ -2078,6 +2155,40 @@
 	.band .go {
 		font: 500 15px var(--font-mono);
 		color: var(--accent);
+	}
+	/*
+	 * A chapter's start (c705): END's type, rule and colours, closing above the
+	 * text instead of opening below it. Logical sides, so vertical Japanese's
+	 * rule is on the left, between the band and the first column of text.
+	 */
+	.cstart {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		margin: 0;
+		margin-block-end: 40px;
+		padding-block-end: 20px;
+		border-block-end: 1px solid var(--ink);
+		text-align: left;
+		break-inside: avoid;
+	}
+	.cstart .ab {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--mut);
+	}
+	.cstart .t {
+		font: 500 30px / 1.2 var(--font-sans);
+		color: var(--ink);
+		text-wrap: balance;
+		hyphens: none;
+	}
+	.cstart .m {
+		font: 400 14px var(--font-mono);
+		color: var(--mut);
 	}
 	.vertical .band {
 		margin: 0 56px 0 0;

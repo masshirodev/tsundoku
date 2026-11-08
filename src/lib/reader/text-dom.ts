@@ -165,6 +165,10 @@ function image(ctx: Ctx, src: string | null, alt: string): HTMLElement | null {
 	const img = ctx.out.createElement('img');
 	img.alt = alt;
 	img.decoding = 'async';
+	// The reader's own, not the book's: a mouse drag on an illustration turns
+	// the page as one on text does, where the browser's image drag cancelled
+	// the press (found with c705, on a vertical book's cover page).
+	img.draggable = false;
 	ctx.pending.push(
 		ctx.images.url(splitHref(resolveHref(ctx.docHref, src)).doc).then((u) => {
 			if (u) img.src = u;
