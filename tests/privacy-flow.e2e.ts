@@ -255,20 +255,12 @@ test('a hidden series read under /reveal offers UNHIDE, not HIDE again (c673)', 
 	page
 }) => {
 	await command(page, '/reveal');
-	const { id } = await openSeriesEnd(page, 'Isekai Ojisan');
-	// Hide it through the row's own door, then read it again fresh: `hidden` is
-	// now the series', not this page's answer.
-	const hid = await page.request.post(`/series/${id}?/hide`, {
-		headers: {
-			origin: new URL(test.info().project.use.baseURL!).origin,
-			'x-sveltekit-action': 'true'
-		},
-		form: { on: '1' }
-	});
-	expect(hid.ok()).toBe(true);
-	const here = page.url().replace(/\?.*$/, '');
+	// Hidden before this page is drawn, so `hidden` is the series', not this
+	// page's answer. A row of its own: this hid Isekai Ojisan, and `library-flow`
+	// reads that tile beside it (insertHiddenSeries).
+	const [own] = insertHiddenSeries('Qx673 Gimel');
 	const endAgain = async () => {
-		await page.goto(`${here}?p=last`);
+		await page.goto(`/read/${own.entry}?p=last`);
 		await readerReady(page);
 		await page.waitForLoadState('networkidle');
 		await page.keyboard.press('ArrowLeft');
@@ -291,18 +283,8 @@ test('a hidden series read under /reveal offers UNHIDE, not HIDE again (c673)', 
 	} catch (e) {
 		failed = e;
 	}
-	// Shown again if the body left it hidden (c649: soft, so it cannot hide the body's own).
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
-	const putBack = await page.request.post(`/series/${id}?/hide`, {
-		headers: {
-			origin: new URL(test.info().project.use.baseURL!).origin,
-			'x-sveltekit-action': 'true'
-		},
-		form: { on: '0' }
-	});
-	expect.soft(putBack.ok()).toBe(true);
+	// The row goes, shown or hidden, whatever the body did (c649).
+	expect.soft(removeOwnSeries([own.id])).toBe(0);
 	if (failed) throw failed;
 });
 
