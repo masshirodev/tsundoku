@@ -179,24 +179,37 @@ rule and colours (`.cstart` in `TextReader.svelte`; no design round):
   say two different minutes.
 - **The table-of-contents title, only where the book doesn't print it.** It is
   compared with the chapter's first heading, or, with none before the text
-  starts, its first short line (100 characters or fewer), after folding case,
+  starts, its first short line (100 characters or fewer), or, with neither, a
+  short blockquote. A short blockquote before the heading or among the short
+  lines is read beside them (c741). All of them after folding case,
   punctuation, symbols, whitespace and a leading `Chapter 212:`, `Ch. 212 -`,
-  `Chap. 12.`, `Chapter IV:` or `第212話` / `第十二章` prefix away. Equal: no
-  title in the band. Different, or no heading at all (common in a web-novel
+  `Chap. 12.`, `Chapter IV:`, `Chapter One:`, `1. ` or `第212話` / `第十二章`
+  prefix away. A chapter number in figures, words or kanji is the same number
+  (`第一章` and `第1章`; `Chapter One` and `Chapter 1`), and words count only
+  after `Chapter`, `Chap.` or `Ch.`, so `One Piece` is a title. A line that is
+  only a kanji numeral is that number too (`一`, `第一章` and `1`). The two are
+  also compared with the `1. ` left in and a spelled number left as words,
+  which keeps `1. The Article` and `1 The Article` the same, and `Chapter One:
+The Article` and `Chapter OneThe Article`, a heading split by a `<br>`, which
+  adds no text. Equal: no title in the band. Different, or no heading at all (common in a web-novel
   chapter from a source): the title, in the band. A title that is only its
   number compares as the number (`Chapter 212` and `第212話` are the same).
-  **A lead that is only a number reads the line after it**: many publishers'
+  **A lead that is only a number reads the lines beside it**: the short
+  paragraph right before it (a title line standing over the number, c741), and
+  the next one. Many publishers'
   books print the number and the title in two blocks (`<h1>Chapter 1</h1>`
   then `<h2>The Article</h2>`, two short paragraphs, `<h2>第一章</h2>` then
   `<h1>旅立ち</h1>`), so when the first line folds to its number alone, the
-  next block with text, if it is a heading or a short line inside the six
-  blocks, is compared too, alone and joined to the number. Equal to either:
+  next block with text, if it is a heading, a short line or a short
+  blockquote inside the six blocks, is compared too, alone and joined to the number. Equal to either:
   no title. A bare `Chapter 1` with the text right after it still gets the
   title, since the book never prints it. Matter never gets one: the band's
   `COVER` already names it. The rule is `src/lib/reader/start-band.ts`
   (`leadLines`, `bandTitle`), pure, and `tests/text-start-band.spec.ts` holds
   every prefix, a heading that differs, no heading, a first short line, a
-  number and a title in two blocks (headings, paragraphs, Japanese), the
+  number and a title in two blocks (headings, paragraphs, Japanese), c741's
+  five shapes (a line before the number, words, a blockquote, a leading `1. `,
+  kanji), the
   edges of 100 characters and six blocks, and the fold on its own output.
 - **It is not a block.** It sits in the flow before `<div class="blocks">`,
   so `data-b` numbering is what it always was and every saved place opens on
@@ -596,9 +609,10 @@ There's always ← SERIES and LIBRARY.
   and the book's heading is styled as the mock's title. What the kicker was
   for is the start band's (c705, "A chapter's start" above): END's twin over
   the first block, always with the chapter's number and count, and with the
-  table-of-contents title only when the chapter's first heading or first
-  short line (or, when that line is only the number, the line after it),
-  folded, doesn't already say it. A chapter with no heading (a
+  table-of-contents title only when the chapter's first heading, first
+  short line or a short blockquote (or, when that line is only the number,
+  the short paragraph before it or the line after it), folded, doesn't
+  already say it. A chapter with no heading (a
   web-novel chapter from a source) gets its name there; "Chapter 1: The
   Article" is still printed once.
 - **Paragraph style follows the size of the book, not its markup.** Series with
