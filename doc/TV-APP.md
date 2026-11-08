@@ -547,7 +547,7 @@ verified".
      pure and otherwise unchecked ("What is not verified").
   2. **The library's server cell reads the list synchronously.** It calls
      `servers()` and `JSON.parse`s the answer in its `onMount` and a tick
-     later (`readTvServers`). **Landed in wave 29 (c645):** `readTvServers`
+     later (`readTvServers`). **Landed in wave 31 (c645):** `readTvServers`
      awaits the bridge's answer, so a Promise is read when it lands;
      `refreshTvServers` drops an answer to an older question, and the three
      call sites (the mount, the tick and `closeMore()`'s hand-back) wait for
