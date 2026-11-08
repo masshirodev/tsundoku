@@ -35,11 +35,34 @@ word (doc/I18N.md). On a TV it is a focus stop after UNDO.
 | The page's own state                       | Clears it                                                                              | Until the event happens again                        |
 | The workstation (`scan_jobs.dismissed_at`) | `?/dismissScan` with `stay=1`                                                          | Every device. A second tab's ✕ is the same row again |
 
+**A URL band's ✕ navigates, and SvelteKit resets `form` on navigation**, so it
+also clears any form-answer band on screen, and that band's UNDO goes with it
+(measured in `band-dismiss-flow`). A form-answer band's ✕ does not touch the
+URL's bands.
+
 A new event brings a new band, however recently the last was dismissed. Bands
 stack, so one going moves the next up under the pointer, which is fine; the
 second press of a double tap must not take that one too, so a press inside
 400 ms of a band a ✕ removed does nothing. Only a ✕ starts that wait: a band
 that a new answer replaced has not just been pressed.
+
+### `?added=` on the series screen means three things
+
+| The URL                                       | `added` is             | Read by                             |
+| --------------------------------------------- | ---------------------- | ----------------------------------- |
+| `?added=<source id>&queued=N`, after ADD      | The source id          | ADDED TO THE LIBRARY (`addedFrom`)  |
+| `?moved=1&added=N&kept=N`, after a MOVE       | A count of chapters    | MOVED's detail (`moved.added`)      |
+| `?created=N&order=…&added=1,2`, after a GROUP | Entry ids (or volumes) | The created band, and its `undoAdd` |
+
+`addedFrom` is null when `moved=1` or a `created` parameter is present, so
+ADDED TO THE LIBRARY draws only after an ADD. **The ADDED band the owner's
+screenshot showed above MOVED (c493) was a false band**: a move's count passes
+as a source id, and its UNDO posted `?/undoSourceAdd` for a series that was
+moved, not added. That is why only MOVED remains there now.
+
+Because the created band reads `added` to tell a new series from books added
+to an existing one (`?/ungroup` against `?/undoAdd`), no other ✕ may remove
+`added` from under it.
 
 ## Every band
 
@@ -54,9 +77,9 @@ that a new answer replaced has not just been pressed.
 | Library                             | `SHOWN · …`                                                                | Form answer                                                    |
 | Library                             | REFRESH's batch band                                                       | Form answer                                                    |
 | Library                             | `IMPORT FINISHED` (a `Banner`)                                             | The workstation                                                |
-| Series (`series/[id]/+page.svelte`) | `ADDED TO THE LIBRARY`, and its shelf chips with it (one URL)              | URL (`added`, `queued`)                                        |
+| Series (`series/[id]/+page.svelte`) | `ADDED TO THE LIBRARY` after an ADD, and its shelf chips with it (one URL) | URL (`added`, `queued`)                                        |
 | Series                              | `MOVED TO …`                                                               | URL (`moved`, `added`, `kept`, `lost`)                         |
-| Series                              | `SERIES CREATED`, `N … ADDED`                                              | URL (`created`, `added`, `order`)                              |
+| Series                              | `SERIES CREATED`, `N … ADDED`                                              | URL (`created`, `added`, `order`, `unit`)                      |
 | Series                              | A refusal, `NOTHING CHANGED`                                               | Form answer                                                    |
 | Series                              | `N NOT AT THE SOURCE`                                                      | Form answer                                                    |
 | Series                              | REFRESH's answer                                                           | Form answer                                                    |
@@ -75,6 +98,13 @@ that a new answer replaced has not just been pressed.
 | BROWSE, a source's page             | `ADDED TO THE LIBRARY, AND HIDDEN` (`AddedBand`)                           | URL (`added`, `series`, `preview`, `queued`, `new`, `refused`) |
 | BROWSE, a source's settings         | `N SERIES HIDDEN NOW` (`ConcealBand`)                                      | URL (`of`, `concealed`)                                        |
 
+**`IMPORT FINISHED` and the default shelf.** With no `?shelf=` in the URL the
+library's default is the NEW shelf only while the import is current
+(`scan ? 'new' : 'all'`), so its ✕ ends that view: at a bare `/` the grid goes
+from JUST IMPORTED on NEW to ALL, without a navigation. That is the one thing a
+✕ changes besides the band (measured in `band-dismiss-flow`'s stored-band
+case). A library opened with `?shelf=` stays on it.
+
 ### Says what is true now: no ✕
 
 | Screen                        | Band                                                                      | Why                                |
@@ -89,6 +119,10 @@ that a new answer replaced has not just been pressed.
 The card says to ask about anything unclear; nobody will answer, so these get
 no ✕ and the reasons are here to be overturned.
 
+- **FIRST READ's variant of ADDED (`StartTrail`, on the series screen just after
+  ADD, with its UNDO).** It says which step comes next as well as what was
+  done, the trail owns when it goes, and `StartTrail` is not `chrome`'s this
+  wave.
 - **`KEPT BOTH · 1 EARLIER DECISION COULDN'T BE CARRIED OUT`
   (`SeriesPanel`).** It reports the past and points at something still true:
   SEE DUPLICATES → leads to a decision that is still waiting.

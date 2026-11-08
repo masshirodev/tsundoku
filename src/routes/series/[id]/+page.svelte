@@ -828,7 +828,7 @@
 		<Band
 			title={added ? `${created} ${unit} ADDED` : `SERIES CREATED · ${created} ${unit}`}
 			detail={added ? 'AT THE END · ORDER TO CHANGE' : `ORDERED ${createdOrder} · ORDER TO CHANGE`}
-			ondismiss={() => clearBandUrl(['created', 'added', 'order'])}
+			ondismiss={() => clearBandUrl(['created', 'added', 'order', 'unit'])}
 		>
 			{#snippet action()}
 				<form method="POST" action={added ? '?/undoAdd' : '?/ungroup'} use:enhance={replacing}>

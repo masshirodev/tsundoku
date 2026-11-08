@@ -89,6 +89,25 @@ const x = (b: Locator) => b.getByRole('button', { name: DISMISS });
 const seriesUrl = (query: string) => `${BASE}/series/${seriesId}?${query}`;
 const added = (page: Page) => band(page, 'ADDED TO THE LIBRARY');
 const moved = (page: Page) => band(page, /^MOVED TO/);
+const undoAction = (b: Locator) => b.locator('form').getAttribute('action');
+/**
+ * Two URL bands that share no parameter. No redirect writes both at once, so
+ * this is only for what stacking does to the screen. `added` must stay out of
+ * it: a move reads it as a count and the created band as "into an existing
+ * series", so with it here ✕ on MOVED would rewrite the created band.
+ */
+const STACKED = 'moved=1&kept=2&created=2&order=X';
+const groupedBand = (page: Page) => band(page, 'SERIES CREATED');
+/** Everything the series screen's bands could have touched. */
+function shelfRows() {
+	const db = new Database(dbPath, { readonly: true });
+	const rows = {
+		series: db.prepare(`SELECT id, title, hidden FROM series ORDER BY id`).all(),
+		entries: db.prepare(`SELECT id, series_id, position FROM entries ORDER BY id`).all()
+	};
+	db.close();
+	return rows;
+}
 
 test('ADDED TO THE LIBRARY: ✕ clears it and its URL, a reload keeps it gone, the series stays (c493)', async ({
 	page
@@ -99,6 +118,9 @@ test('ADDED TO THE LIBRARY: ✕ clears it and its URL, a reload keeps it gone, t
 
 	await page.goto(seriesUrl('added=source~e2e&queued=3&keep=1'));
 	await expect(added(page)).toBeVisible();
+	const chips = page.locator('.added-shelves');
+	await expect(chips).toBeVisible();
+	expect(await undoAction(added(page))).toBe('?/undoSourceAdd');
 	// The cell comes after UNDO, last in the band.
 	await expect(x(added(page))).toHaveText('✕');
 	const order = await added(page).evaluate((el) =>
@@ -108,12 +130,76 @@ test('ADDED TO THE LIBRARY: ✕ clears it and its URL, a reload keeps it gone, t
 
 	await x(added(page)).click();
 	await expect(added(page)).toHaveCount(0);
+	await expect(chips).toHaveCount(0);
 	await expect(page).toHaveURL(/\?keep=1$/);
 	await page.reload();
 	await expect(added(page)).toHaveCount(0);
 	await expect(page.locator('h1').first()).toBeVisible();
 	expect(count()).toBe(series);
 	before.close();
+});
+
+test('GROUP into an existing series: one band, its UNDO takes the book out, and ✕ leaves the rest (c493)', async ({
+	page
+}) => {
+	// The real redirect's URL (`src/routes/+page.server.ts`): here `added` is an entry id.
+	const db = new Database(dbPath, { readonly: true });
+	const entry = (
+		db.prepare(`SELECT id FROM entries WHERE series_id = ? ORDER BY id LIMIT 1`).get(seriesId) as {
+			id: number;
+		}
+	).id;
+	db.close();
+	const before = shelfRows();
+
+	await page.goto(seriesUrl(`created=1&order=X&added=${entry}`));
+	const grouped = band(page, '1 BOOKS ADDED');
+	await expect(grouped).toBeVisible();
+	await expect(added(page)).toHaveCount(0);
+	await expect(page.locator('.added-shelves')).toHaveCount(0);
+	expect(await undoAction(grouped)).toBe('?/undoAdd');
+	await expect(grouped.locator('input[name="entry"]')).toHaveValue(String(entry));
+
+	await x(grouped).click();
+	await expect(grouped).toHaveCount(0);
+	await expect(page).toHaveURL(new RegExp(`/series/${seriesId}$`));
+	await page.reload();
+	await expect(band(page, /ADDED|SERIES CREATED/)).toHaveCount(0);
+	expect(shelfRows()).toEqual(before);
+
+	// A novel's GROUP counts volumes, and says so in one more parameter.
+	await page.goto(seriesUrl(`created=1&order=X&unit=volumes&added=${entry}`));
+	const volumes = band(page, '1 VOLUMES ADDED');
+	await expect(volumes).toBeVisible();
+	await x(volumes).click();
+	await expect(volumes).toHaveCount(0);
+	await expect(page).toHaveURL(new RegExp(`/series/${seriesId}$`));
+});
+
+test('a real MOVE: one band, MOVED, with its counts, and ✕ clears all of its URL (c493)', async ({
+	page
+}) => {
+	const before = shelfRows();
+	await page.goto(seriesUrl('moved=1&added=5&kept=2'));
+	await expect(moved(page)).toBeVisible();
+	await expect(moved(page)).toContainText(/5 \w+S ADDED, NOT DOWNLOADED/);
+	await expect(moved(page)).toContainText(/2 KEPT FROM/);
+	await expect(page.locator('.band:visible')).toHaveCount(1);
+	await expect(added(page)).toHaveCount(0);
+	expect(await undoAction(moved(page))).toBe('?/undoMove');
+
+	await x(moved(page)).click();
+	await expect(moved(page)).toHaveCount(0);
+	await expect(page).toHaveURL(new RegExp(`/series/${seriesId}$`));
+
+	// A count of 0 and a move that lost highlights are the values beside it.
+	await page.goto(seriesUrl('moved=1&added=0&kept=0&lost=3&keep=1'));
+	await expect(moved(page)).toBeVisible();
+	await expect(added(page)).toHaveCount(0);
+	await x(moved(page)).click();
+	await expect(moved(page)).toHaveCount(0);
+	await expect(page).toHaveURL(/\?keep=1$/);
+	expect(shelfRows()).toEqual(before);
 });
 
 test('a dismissed band is not in Back: the entry was replaced (c493)', async ({ page }) => {
@@ -133,8 +219,9 @@ test('clearing the URL keeps the place and, when focus is elsewhere, the focus (
 }) => {
 	// Short enough that losing the band and its chips cannot clamp the scroll.
 	await page.setViewportSize({ width: 800, height: 300 });
-	await page.goto(seriesUrl('added=source~e2e&moved=1'));
+	await page.goto(seriesUrl(STACKED));
 	await expect(moved(page)).toBeVisible();
+	await expect(groupedBand(page)).toBeVisible();
 	await page.evaluate(() => window.scrollTo(0, 200));
 	expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
 	// What stays still is what the owner sees; the browser's scroll anchoring
@@ -143,26 +230,49 @@ test('clearing the URL keeps the place and, when focus is elsewhere, the focus (
 	const before = (await list.boundingBox())!.y;
 
 	// A programmatic press does not move focus, as a keyboard's ✕ would.
-	const undo = moved(page).getByRole('button', { name: 'UNDO' });
-	await undo.focus();
-	await x(added(page)).evaluate((el) => (el as HTMLElement).click());
-	await expect(added(page)).toHaveCount(0);
-	await expect(page).toHaveURL(/moved=1/);
+	const undo = groupedBand(page).getByRole('button', { name: 'UNDO' });
+	// Above the fold from here, and a plain focus() would scroll to it.
+	await undo.evaluate((el) => (el as HTMLElement).focus({ preventScroll: true }));
+	await x(moved(page)).evaluate((el) => (el as HTMLElement).click());
+	await expect(moved(page)).toHaveCount(0);
+	await expect(page).toHaveURL(/created=2/);
 	// 5 px measured; a scroll to the top would move it by about 200.
 	expect(Math.abs((await list.boundingBox())!.y - before)).toBeLessThanOrEqual(16);
 	await expect(undo).toBeFocused();
 });
 
+test('✕ on one of two stacked bands leaves the other as it was, either way round (c493)', async ({
+	page
+}) => {
+	await page.goto(seriesUrl(STACKED));
+	await expect(groupedBand(page)).toContainText('SERIES CREATED · 2 BOOKS');
+	expect(await undoAction(groupedBand(page))).toBe('?/ungroup');
+	await x(moved(page)).click();
+	await expect(moved(page)).toHaveCount(0);
+	await expect(groupedBand(page)).toContainText('SERIES CREATED · 2 BOOKS');
+	await expect(groupedBand(page)).toContainText('ORDERED X');
+	expect(await undoAction(groupedBand(page))).toBe('?/ungroup');
+
+	await page.goto(seriesUrl(STACKED));
+	await expect(moved(page)).toContainText(/2 KEPT FROM/);
+	await x(groupedBand(page)).click();
+	await expect(groupedBand(page)).toHaveCount(0);
+	await expect(moved(page)).toBeVisible();
+	await expect(moved(page)).toContainText(/2 KEPT FROM/);
+	expect(await undoAction(moved(page))).toBe('?/undoMove');
+	await expect(page).toHaveURL(new RegExp(`\\?moved=1&kept=2$`));
+});
+
 test('bands stacked: hit areas do not overlap, and a double press takes only one (c493)', async ({
 	page
 }) => {
-	await page.goto(seriesUrl('added=source~e2e&moved=1'));
-	await expect(added(page)).toBeVisible();
+	await page.goto(seriesUrl(STACKED));
 	await expect(moved(page)).toBeVisible();
-	const first = (await x(added(page)).boundingBox())!;
-	const second = (await x(moved(page)).boundingBox())!;
-	const nextBand = (await moved(page).boundingBox())!;
-	const firstBand = (await added(page).boundingBox())!;
+	await expect(groupedBand(page)).toBeVisible();
+	const first = (await x(moved(page)).boundingBox())!;
+	const second = (await x(groupedBand(page)).boundingBox())!;
+	const nextBand = (await groupedBand(page).boundingBox())!;
+	const firstBand = (await moved(page).boundingBox())!;
 	expect(first.y + first.height).toBeLessThanOrEqual(nextBand.y + 0.5);
 	expect(firstBand.y + firstBand.height).toBeLessThanOrEqual(second.y + 0.5);
 
@@ -183,15 +293,15 @@ test('bands stacked: hit areas do not overlap, and a double press takes only one
 				});
 				seen.observe(document.body, { childList: true, subtree: true });
 			}),
-		[first.x + first.width / 2, first.y + first.height / 2, 'ADDED TO THE LIBRARY'] as const
+		[first.x + first.width / 2, first.y + first.height / 2, 'MOVED TO'] as const
 	);
-	await x(added(page)).click();
+	await x(moved(page)).click();
 	expect(await secondPress).toBe(true);
-	await expect(added(page)).toHaveCount(0);
-	await expect(moved(page)).toBeVisible();
+	await expect(moved(page)).toHaveCount(0);
+	await expect(groupedBand(page)).toBeVisible();
 	await page.waitForTimeout(150);
-	await expect(moved(page)).toBeVisible();
-	await expect(page).toHaveURL(/moved=1/);
+	await expect(groupedBand(page)).toBeVisible();
+	await expect(page).toHaveURL(/created=2/);
 });
 
 test('a form answer: ✕ clears it, and the next answer draws a new band (c493)', async ({
@@ -212,6 +322,32 @@ test('a form answer: ✕ clears it, and the next answer draws a new band (c493)'
 
 	await undo.click();
 	await expect(refusal).toBeVisible();
+});
+
+test('a URL band: its ✕ navigates, so a form answer on screen goes with it (c493)', async ({
+	page
+}) => {
+	const db = new Database(dbPath, { readonly: true });
+	const entry = (
+		db.prepare(`SELECT id FROM entries WHERE series_id = ? ORDER BY id LIMIT 1`).get(seriesId) as {
+			id: number;
+		}
+	).id;
+	db.close();
+	await page.goto(seriesUrl('moved=1&kept=2'));
+	await expect(moved(page)).toBeVisible();
+	// The chapter menu's READ THROUGH HERE, through the form it submits.
+	await page.locator('form[action="?/markThrough"]').evaluate((f, id) => {
+		(f.querySelector('input[name="through"]') as HTMLInputElement).value = String(id);
+		(f as HTMLFormElement).requestSubmit();
+	}, entry);
+	const answer = band(page, 'READ THROUGH');
+	await expect(answer).toBeVisible();
+	await expect(moved(page)).toBeVisible();
+
+	await x(moved(page)).click();
+	await expect(moved(page)).toHaveCount(0);
+	await expect(answer).toHaveCount(0);
 });
 
 test('✕ while UNDO is mid-flight: the band goes, and UNDO still answers (c493)', async ({
@@ -271,11 +407,19 @@ test('the stored band: two tabs, one row, and a new import brings a new band (c4
 		await b.goto(`${BASE}/`);
 		await expect(finished(a)).toBeVisible();
 		await expect(finished(b)).toBeVisible();
+		// With no ?shelf= the grid's default is the import's own shelf.
+		const heading = a.getByText(/just imported/i);
+		const shelf = a.locator('.tabs [aria-current="page"]').first();
+		await expect(heading).toBeVisible();
+		await expect(shelf).toHaveAttribute('data-focus-id', 'shelf-new');
 
 		await x(finished(a)).click();
 		await expect(finished(a)).toHaveCount(0);
 		// ✕ stays here: only TIDY NEW goes on to the NEW shelf.
 		await expect(a).toHaveURL(`${BASE}/`);
+		// Dismissing ends the import's default view: the shelf falls back to ALL.
+		await expect(heading).toHaveCount(0);
+		await expect(shelf).toHaveAttribute('data-focus-id', 'shelf-all');
 		const first = stamp(id);
 		expect(first).not.toBeNull();
 

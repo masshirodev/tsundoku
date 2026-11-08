@@ -301,9 +301,15 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// The engine's id for it is `<source>~<url>` (engine/backend.ts), never a number:
 		// a Number() here dropped the band after every ADD on the engine. A novel's is
 		// `ln:<plugin>~<path>` (novels/source.ts).
-		addedFrom: /^[\w~.:-]{1,512}$/.test(url.searchParams.get('added') ?? '')
-			? url.searchParams.get('added')
-			: null,
+		// `added` is this only after ADD. A MOVE's redirect writes a chapter count
+		// there (`moved.added`, below) and GROUP into an existing series its entry
+		// ids (the page's created band): neither is a source to undo an ADD from.
+		addedFrom:
+			url.searchParams.get('moved') !== '1' &&
+			!url.searchParams.has('created') &&
+			/^[\w~.:-]{1,512}$/.test(url.searchParams.get('added') ?? '')
+				? url.searchParams.get('added')
+				: null,
 		// ADD AND DOWNLOAD (card c205): how many it queued, or `down` when the queue didn't answer.
 		addedQueued: /^(\d+|down)$/.test(url.searchParams.get('queued') ?? '')
 			? url.searchParams.get('queued')
