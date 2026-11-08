@@ -880,11 +880,26 @@
 		return true;
 	}
 
+	/**
+	 * SCROLL: the scrollTop at which the chapter's last line reaches the bottom
+	 * of the screen, the 1 of `scrollFraction` and the scrubber's 99. The
+	 * blocks' bottom, not their height: the start band (c705) and the flow's
+	 * padding sit above `.blocks`, so their height alone reached 1 (and
+	 * finished the chapter) one band early (c742). `offsetTop` is measured
+	 * from `.page`, the blocks' offsetParent (it is the one positioned box
+	 * between them; `.flow` is static and untransformed in SCROLL), and does
+	 * not move as the page scrolls.
+	 */
+	function scrollEnd(page: HTMLElement, blocks: HTMLElement | null): number {
+		const bottom = blocks ? blocks.offsetTop + blocks.offsetHeight : 1;
+		return bottom - page.clientHeight;
+	}
+
 	function onscroll() {
 		if (!pageEl || layout !== 'scroll') return;
 		// The end page is over the text: what happens under it is not the reader's.
 		if (atEnd) return;
-		const max = Math.max(1, (blocksEl?.offsetHeight ?? 1) - pageEl.clientHeight);
+		const max = Math.max(1, scrollEnd(pageEl, blocksEl));
 		scrollFraction = Math.min(1, pageEl.scrollTop / max);
 		const first = nextEl?.firstElementChild as HTMLElement | null;
 		if (first && first.getBoundingClientRect().top < pageEl.clientHeight / 2) {
@@ -1697,7 +1712,7 @@
 			onfav={toggleFav}
 			onscrub={(p) => {
 				if (layout === 'scroll' && pageEl && blocksEl)
-					pageEl.scrollTop = (p / 99) * Math.max(0, blocksEl.offsetHeight - pageEl.clientHeight);
+					pageEl.scrollTop = (p / 99) * Math.max(0, scrollEnd(pageEl, blocksEl));
 				else void go(p);
 			}}
 			onprev={() => prevReadable && jump(index - 1)}

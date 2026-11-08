@@ -13,7 +13,9 @@ import { extname } from '$lib/server/fspath';
  * SAVE IMAGE and SAVE CLIP (Out X2, X3): the same bytes, named by series,
  * chapter and page. Only files inside the highlights folder are served, and
  * hidden means hidden: a hidden series' copy is the same 404 without reveal.
- * A copy never changes, so it may be cached for good.
+ * A copy's bytes never change, but who may see them does (a series hidden
+ * later, reveal turned off), so it is sent `private, no-cache`: the browser
+ * keeps it and asks again each time, and the 404 then holds (c732).
  */
 
 const TYPES: Record<string, string> = {

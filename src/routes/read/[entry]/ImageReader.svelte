@@ -41,7 +41,20 @@
 	import { keepAhead } from '$lib/cache/device';
 	import { flushPending, queuePending } from '$lib/cache/pending';
 	import { SvelteMap } from 'svelte/reactivity';
-	import PageMenu from '$lib/components/content/PageMenu.svelte';
+	import ReaderPageMenu from './ReaderPageMenu.svelte';
+	import HighlightSheet from './HighlightSheet.svelte';
+	import {
+		cellLabel,
+		cellState,
+		keepKey,
+		keptOn,
+		pageTicks,
+		pagesOf,
+		ruleSide,
+		spreadChoices,
+		type KeptPage,
+		type SpreadChoice
+	} from '$lib/library/highlights';
 	import { bandFor, menuRows, type MenuKind, type MenuRow } from '$lib/library/cover-menu';
 	import { saves } from '$lib/saves.svelte';
 	import {
@@ -320,11 +333,13 @@
 	}
 
 	/**
-	 * A held key ends. Every door that can take its keyup away calls this: the
-	 * key's own release, a second key pressed, the window losing focus or the
-	 * page being hidden, a panel opening or locking the page, and the reader
-	 * jumping to another chapter. `instant` is for a strip that is no longer
-	 * the one on screen; a crossing does not end it at all.
+	 * A held key ends. Every door that can take its keyup away calls this. The
+	 * key's own release, the window losing focus and the page being hidden ease
+	 * it out; the lookup panel or the page menu (each locking the page), the
+	 * READING sheet, a mode change and a jump to another chapter pass `instant`,
+	 * for a strip covered, locked or no longer the one on screen. A second key
+	 * pressed does not come here: its own glide takes over from the hold. A
+	 * crossing does not end it at all (doc/READER.md, c694).
 	 */
 	function endHold(instant = false) {
 		heldKey = null;
@@ -1016,15 +1031,16 @@
 	 * under the middle of the screen is put back where it was. By hand, since
 	 * the browser's scroll anchoring does nothing at the very top of a page.
 	 *
-	 * Measured in the document, not on the screen: a glide running through the
-	 * change moves the window between the two reads, and on the screen that
-	 * reads as the content moving too, so the correction came out short by
-	 * whatever the glide covered and its own next frame then read as "something
-	 * else scrolled" and stopped it (c668). A scroll changes neither coordinate.
-	 * What the window did in between — Chromium clamps it when the strip drops
-	 * a chapter above and the document becomes shorter than the scroll position
-	 * — is not the content's move either: the correction goes to where the
-	 * content's move alone puts the place, and the ease is told the move.
+	 * Measured in the document, not on the screen. Only `await tick()` lies
+	 * between the two reads, so no frame (and no glide) runs there, and the
+	 * correction's scroll is the same number measured either way. What c668
+	 * changed is the second number: Chromium clamps the window when the strip
+	 * drops a chapter above and the document becomes shorter than the scroll
+	 * position, and that clamp is not the content's move. So the correction
+	 * goes to where the content's move alone puts the place, and the ease is
+	 * told that move apart from the scroll (`moved`), or its timeline ends
+	 * short by the clamp (wave 30's review: told the scroll instead, the double
+	 * ↓ crossing case landed 124 px off) (c694).
 	 */
 	async function keepPlace(change: () => void) {
 		// Through whatever covers the middle (c568): READING's sheet, the
@@ -1126,6 +1142,21 @@
 		if (placeAt?.id === data.entry.id) place();
 		placeAt = null;
 	});
+
+	/**
+	 * The scrubber on the strip: page [p] goes where the strip reads the page
+	 * being read, under the middle of the screen (Strip's `onpage`). A page as
+	 * tall as the screen starts at its top, as it always has; a shorter one
+	 * (zoomed out, c719: at 20% a page is a fifth of the screen) is centred on
+	 * the middle, or its top went to the top of the screen and the middle fell
+	 * a page or a chapter past it.
+	 */
+	function scrubStrip(p: number) {
+		const el = document.querySelector(`[data-entry="${data.entry.id}"][data-index="${p}"]`);
+		if (!el) return;
+		const short = el.getBoundingClientRect().height < innerHeight;
+		el.scrollIntoView({ block: short ? 'center' : 'start' });
+	}
 
 	/** A page crossed the middle of the screen, maybe in another chapter. */
 	function stripPage(chapter: number, i: number) {
@@ -1513,6 +1544,224 @@
 				putBack: () => undefined
 			});
 	}
+	// ---- a page kept (Highlights H3, card c703; doc/HIGHLIGHTS.md, "Pages") ----------
+	// HIGHLIGHT keeps the page on screen (paged), or the one under the middle
+	// (the strip, keepPlace's `at`). The workstation makes the copy and the row
+	// together, and the cell says ✓ HIGHLIGHTED only once its answer arrives:
+	// until then KEEPING…, dashed, and a failure leaves nothing kept. The same
+	// page asked for twice is one ask here, and one highlight there.
+	/** Pages kept by this reader since it loaded, by entry: the strip reads into the next chapter. */
+	let keptLocal = $state<Record<number, KeptPage[]>>({});
+	const keptOf = (entry: number): KeptPage[] =>
+		keptLocal[entry] ?? (entry === data.entry.id ? (data.highlights ?? []) : []);
+	const keptHere = $derived(keptOf(data.entry.id));
+	/** The asks on their way, by `keepKey`. */
+	let keeping = $state<string[]>([]);
+	let choices = $state<SpreadChoice[] | null>(null);
+	let hlOpen = $state<{ entry: number; kept: KeptPage; entryName: string } | null>(null);
+	let hlBand = $state<{
+		title: string;
+		detail: string;
+		action: { label: string; run: () => void } | null;
+	} | null>(null);
+	let hlBandTimer: ReturnType<typeof setTimeout> | undefined;
+	function showHlBand(b: NonNullable<typeof hlBand>, ms = 6000) {
+		hlBand = b;
+		clearTimeout(hlBandTimer);
+		hlBandTimer = setTimeout(() => (hlBand = null), ms);
+	}
+	/** A browsing record is not in the library: it keeps nothing, as it rates nothing. */
+	const highlights = $derived(!data.record && !atEnd);
+	/** An ask on its way for a page on screen: the cell is KEEPING… until it answers. */
+	const groupKeeping = $derived(
+		keeping.some((key) => {
+			const [entry, page, end] = key.split(':');
+			return (
+				Number(entry) === data.entry.id &&
+				group.some((p) => p === Number(page) || (end !== '' && p === Number(end)))
+			);
+		})
+	);
+	const hlState = $derived(
+		cellState({
+			kept: keptHere,
+			group,
+			keeping: groupKeeping,
+			online: offline.online,
+			incognito: data.incognito
+		})
+	);
+	const hlCell = $derived(
+		highlights
+			? {
+					state: hlState,
+					label: cellLabel(hlState, { strip: mode === 'vertical', page: group[0] })
+				}
+			: null
+	);
+	const ticks = $derived(pageTicks(keptHere));
+	/** Pages with a gutter rule (Manga M3): every page a kept highlight covers. */
+	const ruled = $derived(new Set(ticks));
+
+	function setKept(entry: number, list: KeptPage[]) {
+		keptLocal = { ...keptLocal, [entry]: list };
+	}
+	function openKept(entry: number, k: KeptPage) {
+		const e = data.series.entries.find((x) => x.id === entry);
+		hlOpen = { entry, kept: k, entryName: e?.label ?? data.entry.name };
+	}
+
+	/** The cell, H and the TV's OK on it: keep, ask which, or open what is kept. */
+	function pressHighlight() {
+		if (!highlights || data.incognito) return;
+		const here = keptOn(keptHere, group);
+		if (group.length > 1) {
+			choices = spreadChoices(group, mode === 'rtl', keptHere);
+			return;
+		}
+		if (here.length) return openKept(data.entry.id, here[0]);
+		void keep(data.entry.id, group[0], null);
+	}
+	function chooseSpread(c: SpreadChoice) {
+		choices = null;
+		const k = c.keptId === null ? null : keptHere.find((x) => x.id === c.keptId);
+		if (k) return openKept(data.entry.id, k);
+		void keep(data.entry.id, c.page, c.pageEnd);
+	}
+
+	async function keep(entry: number, page: number, pageEnd: number | null) {
+		if (data.incognito) return;
+		if (!offline.online) {
+			showHlBand({
+				title: '○ OFFLINE',
+				detail: 'HIGHLIGHT NEEDS THE WORKSTATION',
+				action: null
+			});
+			return;
+		}
+		const key = keepKey(entry, page, pageEnd);
+		if (keeping.includes(key)) return;
+		keeping = [...keeping, key];
+		hlBand = null;
+		let answer: Response | null;
+		try {
+			answer = await fetch(resolve('/api/highlights/pages'), {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ entry, page, pageEnd, rtl: mode === 'rtl' })
+			});
+		} catch {
+			answer = null;
+		} finally {
+			keeping = keeping.filter((k) => k !== key);
+		}
+		if (answer?.ok) {
+			const { highlight } = (await answer.json()) as { highlight: KeptPage };
+			const list = keptOf(entry);
+			if (!list.some((k) => k.id === highlight.id)) setKept(entry, [...list, highlight]);
+			return;
+		}
+		const p = pageEnd === null ? `P. ${page + 1}` : `P. ${page + 1}–${pageEnd + 1}`;
+		showHlBand(
+			{
+				title: `${p} NOT KEPT`,
+				detail:
+					answer?.status === 502
+						? 'THE SOURCE DID NOT SEND IT'
+						: answer?.status === 403
+							? 'INCOGNITO MAKES NONE'
+							: answer
+								? 'THE WORKSTATION REFUSED IT'
+								: 'THE WORKSTATION DID NOT ANSWER',
+				action:
+					answer?.status === 403
+						? null
+						: { label: 'TRY AGAIN', run: () => void keep(entry, page, pageEnd) }
+			},
+			10_000
+		);
+	}
+
+	async function noteKept(note: string): Promise<boolean> {
+		const o = hlOpen;
+		if (!o) return false;
+		try {
+			const r = await fetch(resolve('/api/highlights/[id]', { id: String(o.kept.id) }), {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ note })
+			});
+			if (!r.ok) return false;
+		} catch {
+			return false;
+		}
+		const k = { ...o.kept, note: note.trim() };
+		setKept(
+			o.entry,
+			keptOf(o.entry).map((x) => (x.id === k.id ? k : x))
+		);
+		return true;
+	}
+	async function deleteKept() {
+		const o = hlOpen;
+		if (!o) return;
+		hlOpen = null;
+		const url = resolve('/api/highlights/[id]', { id: String(o.kept.id) });
+		const ok = await fetch(url, { method: 'DELETE' }).then(
+			(r) => r.ok,
+			() => false
+		);
+		if (!ok) {
+			showHlBand({ title: 'NOT DELETED', detail: 'THE WORKSTATION DID NOT ANSWER', action: null });
+			return;
+		}
+		setKept(
+			o.entry,
+			keptOf(o.entry).filter((x) => x.id !== o.kept.id)
+		);
+		// HIGHLIGHT DELETED · UNDO, as a quote's (Manga M6): the row waits on the workstation.
+		showHlBand(
+			{
+				title: 'HIGHLIGHT DELETED',
+				detail: o.entryName.toUpperCase(),
+				action: {
+					label: 'UNDO',
+					run: async () => {
+						hlBand = null;
+						const back = await fetch(url, {
+							method: 'POST',
+							headers: { 'content-type': 'application/json' },
+							body: JSON.stringify({ undo: true })
+						}).then(
+							(r) => (r.ok ? 'back' : r.status === 404 ? 'gone' : 'failed'),
+							() => 'failed'
+						);
+						// 404: nothing set aside to put back. The page was kept again since
+						// (keepPage brought this same row back), so the list already holds it.
+						if (back === 'back')
+							setKept(
+								o.entry,
+								[...keptOf(o.entry).filter((x) => x.id !== o.kept.id), o.kept].sort(
+									(a, b) => a.page - b.page || a.id - b.id
+								)
+							);
+						else if (back === 'failed')
+							showHlBand({
+								title: 'NOT PUT BACK',
+								detail: 'THE WORKSTATION DID NOT ANSWER',
+								action: null
+							});
+					}
+				}
+			},
+			10_000
+		);
+	}
+	/** The page menu's row: what is kept on the pressed page, if anything. */
+	const menuKept = $derived(
+		menu ? (keptOf(menu.entry).find((k) => pagesOf(k).includes(menu!.page)) ?? null) : null
+	);
+
 	// The band goes on the next turn or scroll, or when the controls open.
 	$effect(() => {
 		void at;
@@ -1684,6 +1933,14 @@
 	// layer hands it here because this screen reads its own keys.
 	$effect(() =>
 		registerBack(() => {
+			if (hlOpen) {
+				hlOpen = null;
+				return true;
+			}
+			if (choices) {
+				choices = null;
+				return true;
+			}
 			if (menu) {
 				menu = null;
 				return true;
@@ -1807,10 +2064,15 @@
 	function keydown(e: KeyboardEvent) {
 		zones = false;
 		// The lookup, or the page menu, has the keyboard: Escape closes it (their own).
-		if (lookup || menu) return;
+		if (lookup || menu || hlOpen || choices) return;
 		if (sheet) {
 			if (e.key === 'Escape') sheet = false;
 			return;
+		}
+		// H keeps the page on screen, as the cell does (Manga M1).
+		if ((e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.metaKey && !e.altKey && !atEnd) {
+			e.preventDefault();
+			return pressHighlight();
 		}
 		if (holdKeys(e)) return;
 		// The layer's BACK step hides the chrome first; Escape itself is the
@@ -1965,13 +2227,16 @@
 	onmousedown={wakeCursor}
 />
 
+<!-- The opt-out is lifted on a TV while the page menu or a highlight's sheet is
+     open (c703): both are drawn inside the reader, and the focus layer counts
+     nothing under data-focus-off as a stop, so MENU's rows were never the pad's. -->
 <div
 	class="reader"
 	class:vertical={mode === 'vertical'}
 	class:incognito={data.incognito}
 	class:cursor-idle={idle}
 	bind:this={root}
-	data-focus-off={!atEnd && !(tvScreen.current && chrome) ? '' : undefined}
+	data-focus-off={!atEnd && !(tvScreen.current && (chrome || menu || hlOpen)) ? '' : undefined}
 >
 	{#if !data.manifest}
 		<div class="missing">
@@ -2014,6 +2279,7 @@
 					chapters={strip}
 					{sides}
 					{zoom}
+					outline={chrome && hlCell ? { entry: data.entry.id, index: at } : null}
 					src={(c, i) => pageSrc(c.id, c.version, i)}
 					shape={(c, i, p) => shaped(c.id, i, p)}
 					onshape={(c, i, w, h) => learnShape(c.id, i, w, h)}
@@ -2134,6 +2400,7 @@
 					<div
 						class="screen fit-{fit}"
 						class:zoomed={zoom > 1}
+						class:shrunk={zoom < 1}
 						use:startAtTop
 						style:transform={sc.pos === 0 ? undefined : `translateX(${sc.pos * 100}%)`}
 						aria-hidden={sc.pos === 0 ? undefined : 'true'}
@@ -2154,6 +2421,12 @@
 								online={!!data.manifest?.online}
 								onshape={(w, h) => learnShape(data.entry.id, i, w, h)}
 								rings={sc.pos === 0 ? ringsOn(data.entry.id, i) : []}
+								rule={ruled.has(i) && zoom <= 1
+									? ruleSide(
+											sc.pages.length === 1 ? 'center' : k === 0 ? 'left' : 'right',
+											mode === 'rtl'
+										)
+									: null}
 							/>
 						{/each}
 					</div>
@@ -2166,7 +2439,17 @@
 	{#if dim > 0}<div class="dim" style:opacity={dim} aria-hidden="true"></div>{/if}
 
 	{#if menu}
-		<PageMenu
+		<ReaderPageMenu
+			highlight={data.record ? null : { kept: !!menuKept, incognito: data.incognito }}
+			onhighlight={() => {
+				const m = menu;
+				// Read before the menu goes: what is kept is derived from it.
+				const k = menuKept;
+				if (!m) return;
+				menu = null;
+				if (k) return openKept(m.entry, k);
+				void keep(m.entry, m.page, null);
+			}}
 			page={menu.page}
 			pages={menu.pages}
 			rect={menu.rect}
@@ -2178,6 +2461,38 @@
 			onchoose={choose}
 			onclose={() => (menu = null)}
 		/>
+	{/if}
+
+	{#if hlOpen}
+		<HighlightSheet
+			kept={hlOpen.kept}
+			entryName={hlOpen.entryName}
+			offline={!offline.online}
+			onnote={noteKept}
+			ondelete={() => void deleteKept()}
+			onclose={() => (hlOpen = null)}
+		/>
+	{/if}
+
+	{#if hlBand}
+		<div class="cover-band hl-band" role="status">
+			<div class="cb-text">
+				<div class="cb-t">{hlBand.title}</div>
+				<div class="cb-d">{hlBand.detail}</div>
+			</div>
+			{#if hlBand.action}
+				{@const act = hlBand.action}
+				<button
+					type="button"
+					onpointerdown={(e) => e.stopPropagation()}
+					onpointerup={(e) => e.stopPropagation()}
+					onclick={(e) => {
+						e.stopPropagation();
+						act.run();
+					}}>{act.label}</button
+				>
+			{/if}
+		</div>
 	{/if}
 
 	{#if coverBand}
@@ -2310,14 +2625,15 @@
 			addHref={data.record
 				? `${resolve('/downloads/source/[id]', { id: data.record })}?/add`
 				: null}
-			onscrub={(p) =>
-				mode === 'vertical'
-					? document
-							.querySelector(`[data-entry="${data.entry.id}"][data-index="${p}"]`)
-							?.scrollIntoView({ block: 'start' })
-					: go(p)}
+			onscrub={(p) => (mode === 'vertical' ? scrubStrip(p) : go(p))}
 			onchapter={chapter}
 			onshift={() => (shift = !shift)}
+			highlight={hlCell}
+			{ticks}
+			onhighlight={pressHighlight}
+			{choices}
+			onchoice={chooseSpread}
+			onchoicesclose={() => (choices = null)}
 		/>
 	{/if}
 
@@ -2461,6 +2777,13 @@
 		overflow-x: auto;
 		justify-content: safe center;
 	}
+	/* Zoomed out (c719, down to 20%): the page box shrinks inside its screen,
+	   centred on the reader's ground. Fit screen and fit height centre it
+	   already; fit width starts a page at the top, which a page shorter than
+	   the screen would leave hanging there. Still the top once it is taller. */
+	.screen.fit-width.shrunk {
+		align-items: safe center;
+	}
 	@media (prefers-reduced-motion: reduce) {
 		.track.animating {
 			transition: none;
@@ -2487,7 +2810,9 @@
 		}
 	}
 	/* Page Menu 1c: the band after a cover is chosen, where SaveBand sits. */
-	.cover-band {
+	/* The highlight's band (c703) is the cover's, under a class of its own. */
+	.cover-band,
+	.hl-band {
 		position: fixed;
 		left: 0;
 		right: 0;
@@ -2522,7 +2847,8 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	.cover-band button {
+	.cover-band button,
+	.hl-band button {
 		display: flex;
 		align-items: center;
 		padding: 0 24px;
@@ -2534,7 +2860,8 @@
 		font: 500 14px/1.2 var(--font-mono);
 		cursor: pointer;
 	}
-	.cover-band button:active {
+	.cover-band button:active,
+	.hl-band button:active {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}

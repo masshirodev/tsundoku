@@ -36,6 +36,12 @@ the reader's end page and sheets, the text reader, and the tile.
   ([`SERIES.md`](SERIES.md), "FAV and the rating"), and shows NOT SAVED with
   a dashed outline if the write fails); submit buttons named `rating` (the library sheet and bulk bar,
   so it works in a plain form without script); or links (the RATED threshold).
+- **It never shrinks** (card c728, wave 33): its root has `flex-shrink: 0`,
+  so a flex column that scrolls (the READING sheets, capped at 90dvh) keeps it
+  at its `height` (64px) or `phoneHeight` (52px below 600px) instead of
+  squeezing it to its content, about 37px, which c428's rule for the sheets'
+  rows had missed, the rating not being a row.
+  `tests/reader-layout.e2e.ts`' c428 case measures it.
 - The pure part (where a finger is, what fills, what the readout says) is in
   `src/lib/library/rating.ts` and tested in `tests/library-domain.spec.ts`.
 - Sizes are the mock's per device. The phone's apply under 600px by media

@@ -216,7 +216,14 @@ rule and colours (`.cstart` in `TextReader.svelte`; no design round):
   makes); a relayout right after keeps its first line where the crossing put
   it. A next volume's room (c347) has no band
   before it: that chapter isn't read until it opens, and its band is then at
-  its top.
+  its top. **Where you are counts from the band down** (c742): the scroll's
+  fraction (the progress bar, the scrubber's 1–100, and the finish at 0.999)
+  runs from the top to the chapter's last line at the screen's foot, the
+  blocks' bottom (`offsetTop + offsetHeight`, from `.page`), not their height
+  alone. Measured on the tablet portrait (`text-reader-flow`'s c742 case):
+  the band 86 px, the blocks starting 214 px down (the flow's padding and the
+  band), so the height alone read 1 and finished the chapter 214 px before
+  its last line reached the foot; the scrubber's right end landed there too.
 - **Vertical Japanese**: the same band, vertical, its rule on the left
   between it and the first column (logical sides, `border-block-end`).
 - **Both themes and DIM** by the page's own colours (`--ink`, `--mut`); on a

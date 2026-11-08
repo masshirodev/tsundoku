@@ -21,6 +21,7 @@
 		lazy = false,
 		chapter = '',
 		online = false,
+		rule = null,
 		onshape
 	}: {
 		src: string;
@@ -53,6 +54,13 @@
 		chapter?: string;
 		/** Read from its source (doc/BROWSING.md, "Manga online"): waiting is dashed, as Index dashes what isn't stored. */
 		online?: boolean;
+		/**
+		 * A kept page (Highlights H3, c703; Manga M3): a 4px yellow rule in the
+		 * gutter at the page's outer side, 6px off the art. Nothing is drawn on
+		 * the art itself; a page with no gutter (full bleed) shows nothing, as
+		 * the screen clips what falls past its edge.
+		 */
+		rule?: 'left' | 'right' | null;
 		/**
 		 * The image arrived at this size. Asked of a page read online, whose
 		 * box was a guess: a source never says how big its pages are
@@ -129,6 +137,7 @@
 		data-text-frame
 		aria-hidden="true"
 	>
+		{#if rule}<span class="kept-rule {rule}" data-kept-rule={rule}></span>{/if}
 		{#if status === 'loaded'}
 			{#each rings as r, k (k)}
 				<div
@@ -251,6 +260,21 @@
 	.frame.right {
 		left: 0;
 		transform: translateY(-50%);
+	}
+	/* Manga M3: 4px, 6px off the drawn art's outer edge, the page's full height.
+	   The marker's yellow in the dark theme (Main 02), as /highlights keeps it. */
+	.kept-rule {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		width: 4px;
+		background: oklch(0.5 0.09 95);
+	}
+	.kept-rule.right {
+		left: calc(100% + 6px);
+	}
+	.kept-rule.left {
+		right: calc(100% + 6px);
 	}
 	.frame.fill {
 		inset: 0;

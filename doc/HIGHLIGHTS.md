@@ -15,11 +15,12 @@ It ships in slices:
 | ------ | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **H1** | c701 | The record and its life, the copies' folder and its backup, `/highlights`, the series screen's row, DELETE's and MOVE's lines, the exports. No way to make one. |
 | H2     |      | Quotes: the text reader's long press, the bar, the marker in every theme, re-finding a quote in a changed chapter (DETACHED).                                   |
-| H3     |      | Pages: HIGHLIGHT in the image reader's bottom row and page menu, a spread's choice, the strip's page.                                                           |
+| **H3** | c703 | Pages: HIGHLIGHT in the image reader's bottom row and page menu, a spread's choice, the strip's page. Below, "Pages (H3)".                                      |
 | H4     |      | Clips: MARK IN, MARK OUT and KEEP in the player, the clip lane, MP4 with a track burned in.                                                                     |
 
-H1 is everything a highlight needs once it exists; until H2 to H4 land,
-highlights exist only where a test (or a hand) puts them in the table.
+H1 is everything a highlight needs once it exists. H3 (wave 33) is the first
+way to make one: a page, from the image reader. Until H2 and H4 land, a quote
+or a clip exists only where a test (or a hand) puts it in the table.
 
 ## The record (Main 05)
 
@@ -129,6 +130,96 @@ a chapter the new source lacks named under it, `CH. 50 · P. 7 · NO CH. 50 ON
 WEEB CENTRAL · KEPT FROM MANGADEX`. MOVE BACK has no summary screen; its MOVED
 band says `2 HIGHLIGHTS LOST THEIR WAY BACK` when it took any (`?lost=`).
 
+## Pages (H3)
+
+Card c703, from [`handoffs/highlights/Manga.dc.html`](handoffs/highlights/Manga.dc.html)
+(_Manga M1_ to _M7_) and Main 02, built by `~/.config/myconf/HANDOFF.md`. Its
+store is `src/lib/server/highlights/pages.ts`; the reader's rules are in
+`src/lib/library/highlights.ts` (`cellState`, `cellLabel`, `spreadChoices`,
+`pageTicks`, `ruleSide`, `pageSheetHead`, `pageSheetLine`). The reader's side
+is in [`READER.md`](READER.md), "Highlights".
+
+- **HIGHLIGHT** is a cell in the image reader's bottom row, before FULL
+  SCREEN (M1), **H** on a keyboard, and **HIGHLIGHT THIS PAGE**, the first row
+  of the page menu (long press, OK held, MENU; M5). One press keeps the page;
+  nothing asks.
+- **A spread asks which** (M2): the two pages in reading order (R→L: the right
+  one first, `P. 14 · RIGHT`), then **BOTH · AS ONE**. A wide page shown alone
+  is one page and does not ask.
+- **The strip's page** is the one under the middle of the screen, the one the
+  strip already reads as the page being read (keepPlace's `at`), outlined in
+  ink (3px, inset) while the controls are up; the cell names it, `HIGHLIGHT
+P. 23` (M4).
+- **A kept page says so off the art** (M3): the cell reads **✓ HIGHLIGHTED**,
+  inverted; the scrubber has a 4 × 8 yellow tick at each kept page (both pages
+  of a BOTH); a letterboxed page has a 4px yellow rule in its gutter, 6px off
+  its outer edge (away from the spine: the right in R→L, the left in L→R, a
+  spread's page on the side it is drawn). With the controls hidden and no
+  gutter (full bleed, or zoomed past 100%) nothing shows. A tap on ✓
+  HIGHLIGHTED opens the page's sheet; it never unmarks.
+- **The page's sheet** (M6): the copy, NOTE (saved when the field is left or
+  the sheet closes; a note the workstation refused says NOTE NOT SAVED and
+  keeps the words), `MADE 4 NOV · A COPY ON THE WORKSTATION · 1 MB`, **SAVE
+  IMAGE** (the copy, `?save=1`) and **DELETE**, at once, with the band's
+  **HIGHLIGHT DELETED · UNDO** (the same `UNDO_MS` as `/highlights`).
+- **The cell's states** (M7), ranked: **INCOGNITO** (dimmed to 0.4, disabled:
+  incognito makes none, and `POST /api/highlights/pages` refuses one with 403
+  whatever the page thinks); **KEEPING…**, dashed, while the workstation
+  makes the copy; ✓ HIGHLIGHTED; **○ HIGHLIGHT**, at 0.4, offline, where a
+  press says `○ OFFLINE · HIGHLIGHT NEEDS THE WORKSTATION` in the band and
+  asks nothing; HIGHLIGHT. A browsing record (a series not in the library)
+  has no cell, as it has no rating.
+
+### The copy, and one per page
+
+`highlights/pages/<id>.webp`, WebP (quality 90) at the page's own size, made
+by `sharp` from the bytes `readPage` serves the reader: the downloaded file,
+or, for a page read online, fetched once from the source through the engine's
+proxy (`readOnlinePage`, which asks for the list afresh once before it gives
+up). A BOTH is one image, the two pages side by side as the reader draws them
+(R→L: the later page on the left), the shorter scaled to the taller's height.
+**WebP refuses a side over 16383 px**, so a page taller than that (a long
+manhwa or webtoon strip page, an unsplit chapter) or a BOTH wider than that is
+scaled to fit inside 16383 × 16383, keeping its aspect; `copy_width` and
+`copy_height` are the copy's real size. Below the limit the copy is at the
+page's own size.
+
+- **No row without its copy.** The copy is written under a scratch name first;
+  the row is inserted and the copy renamed to `<id>.webp` in one transaction,
+  and a failure (the source sent nothing, 502; not an image, 422; no such
+  page, 404) leaves neither. The reader says ✓ HIGHLIGHTED only once the
+  answer arrives, so it never says so of a page whose copy does not exist.
+- **The same page twice is one highlight** (`kind = 'page'`, the entry, `page`
+  and `page_end`, not deleted). An ask while the same page's ask is still on
+  its way waits for it (the in-flight map), and the insert checks again inside
+  its transaction, so two asks that slip past each other (two devices, two
+  processes) end as one row and one copy. **A page deleted and kept again
+  within its UNDO window is the same highlight brought back** (its `deleted_at`
+  cleared, in the same immediate transaction as the check, and `made` false
+  in the answer, its note and `made_at` with it), never a second row and copy;
+  the UNDO the delete offered then finds nothing set aside and answers 404,
+  which the reader takes as "kept either way" and `/highlights` as its band's
+  message. **After the window it is a new highlight**: no note, `made_at` the
+  keep's own time, whether or not `/highlights` has been opened since. The
+  window is `UNDO_MS` from the last DELETE, its edge inclusive (a row deleted
+  exactly `UNDO_MS` ago still comes back). A keep first purges every row past
+  its window, with its copy, and the revive's select is bounded by the window
+  too, both before the copy is made and inside the insert's transaction
+  (c703, round 3). BOTH and one of its pages alone are two.
+- **A BOTH is two pages side by side.** `keepPage` stores the spread as
+  its lower then its higher index whichever way it was asked, so 5 with 4 and
+  4 with 5 are one highlight, and refuses (404) any second page but the next
+  one. The reader always sends them in that order; only a hand-made request
+  could ask otherwise.
+- **A page's kind is `page`**, never the series' kind; `series_kind` is the
+  snapshot, as for every highlight.
+- **Hidden** is copied from the series when the page is kept; a hidden series'
+  page is not found without reveal, as its reader is not.
+- **After**: the triggers do the rest, as for every highlight. A series
+  deleted after a page is kept leaves it ORPHAN (series) with its copy, and
+  DELETE's line counts it; MOVE's line counts it (`6 FOLLOW`, and
+  `CH. 50 · P. 7` named when the move takes its chapter away).
+
 ## Hidden means hidden
 
 `hidden` is **copied from the series when a highlight is made, and kept**
@@ -171,7 +262,11 @@ search and the open item are in the URL (`kind`, `series`, `lost`, `q`,
   image alone), SAVE IMAGE. A clip plays in place, SAVE CLIP (the MKV).
 - **Orphans and DETACHED** are said, not hidden: a dashed tag, and no →.
 - **DELETE** is at once, with **HIGHLIGHT DELETED · UNDO** in the band; the
-  row waits ten minutes (`UNDO_MS`) and then goes with its copy.
+  row waits ten minutes (`UNDO_MS`) and then goes with its copy, at the
+  next listing of `/highlights` or the next page kept from the reader,
+  whichever comes first (`purgeDeleted`, which picks and deletes in one
+  immediate transaction, so a keep reviving a row in another process cannot
+  land between the two).
 - **The disk line**: `ON THE WORKSTATION · PAGES 14 MB · CLIPS 412 MB · QUOTES
 TAKE NONE`, of what shows, and **EXPORT →**.
 - **`?series=`** (the series screen's row, or SERIES ↓) reads in reading
@@ -245,12 +340,32 @@ SERIES`, where the handoff wrote CHAPTER.
   kept on the page until `src/lib/styles/` has them.
 - **The TV's page** is the same page (X6 draws a ruled grid of copies); its
   own layout is not built.
+- **H3's cell is the reader's own cell** (H3): the bottom row's 24px sides and
+  14px type, a hairline on the right, as FULL SCREEN and SETTINGS ↑ beside it
+  draw; Manga M1 draws the row's cells at 18px and 13px with a hairline on the
+  left, a row the reader does not have. The frame file pins the sheet and the
+  chooser, not the cell.
+- **The page menu's row** (H3) is drawn as the menu's other rows are, a label
+  cell (HIGHLIGHT), a line and the action (HIGHLIGHT THIS PAGE, or ✓
+  HIGHLIGHTED and OPEN on a kept page), where M5 draws a bare 56px row: the
+  reader's menu has rows of that shape. It is the reader's own copy of the
+  shared `PageMenu` (`src/routes/read/[entry]/ReaderPageMenu.svelte`), since
+  the shared one is the PAGES grid's too and its rows are covers'.
+- **The sheet's size** says `1 MB` where M6 writes `1.4 MB`: it is `sizeWord`,
+  the disk line's one rule.
+- **The page's sheet on a TV** is READING's 420px panel from the right, which
+  the pad reaches; M6 draws the phone's bottom sheet only.
 
 ## What it does not do yet
 
-- **Make one** (H2 to H4), and everything that only matters once one is made:
-  the marker in the readers, re-finding a quote (DETACHED), offline quotes
-  waiting to be sent, incognito making none.
+- **Make a quote or a clip** (H2, H4), and everything that only matters once
+  one is made: the marker in the text reader, re-finding a quote (DETACHED),
+  offline quotes waiting to be sent.
+- **A page kept in another chapter of the strip** is known only by the
+  workstation until the reader opens that chapter: the page menu on a page of
+  the chapter above or below offers HIGHLIGHT THIS PAGE even when it is kept,
+  and pressing it answers the one kept (`made: false`), never a second.
+- **A pinch on a page's copy**, in the sheet or on `/highlights`.
 - **A clip in place with the player's subtitle renderer.** The open clip is the
   stored copy in a `<video>` with its still; the player's picture and its
   subtitle renderer live in `VideoPlayer.svelte` (the reader's), and a copy of
@@ -264,8 +379,9 @@ SERIES`, where the handoff wrote CHAPTER.
 - **The library's bulk DELETE line** (`31 HIGHLIGHTS IN 4 SERIES ARE KEPT`):
   `deleteSeries` takes the option and `keptAcrossLine` says it, but the bulk
   bar is the library page's (doc/handoff-notes/highlights.md, Gaps).
-- **The TV's grid** (X6) and its tile sheet; pinch-zoom on a page.
-- **Covers in the snapshot**: `cover` is kept for H2 to H4 to fill.
+- **The TV's grid** (X6) and its tile sheet.
+- **Covers in the snapshot**: `cover` is kept for H2 to H4 to fill; H3 left it
+  empty, since a page's copy is its own picture.
 
 ## Tests
 
@@ -281,5 +397,18 @@ SERIES`, where the handoff wrote CHAPTER.
   item, DELETE and UNDO, reveal, the series row, DELETE's line, the desktop's
   sidebar row and two panes, the row's absence at zero.
 - `tests/highlights-frame.e2e.ts`: P1's frame.
+- `tests/highlights-pages-db.spec.ts` (H3): keeping a page through the
+  reader's own door, the copy's size and format, the same page twice and two
+  asks at once, a fetch that fails, a late answer with a retry, another
+  writer's row winning, BOTH in both directions, hidden, DELETE and MOVE
+  after.
+- `tests/highlights-manga-flow.e2e.ts` (H3): the cell and its states, the
+  tick, the sheet with NOTE, DELETE and UNDO, H, a late answer, a failure and
+  TRY AGAIN, offline, incognito, the page menu's row, the strip's page, a
+  spread's choice and the gutter rule. Its own database and preview.
+- `tests/highlights-manga-frame.e2e.ts` (H3): M6's sheet and M2's chooser,
+  generated from `Manga.dc.html` and hand-edited (its preamble says how).
+- `tests/tv-highlights-manga.e2e.ts` (H3): the TV's OK on the cell, the
+  spread's choice by the pad, and MENU's row.
 - `tests/backup-db.spec.ts`: the copies' mirror.
 - `tests/search-commands.spec.ts`: `/highlights`.

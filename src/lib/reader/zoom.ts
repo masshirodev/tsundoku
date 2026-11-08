@@ -9,10 +9,21 @@
  * phone-width window keeps its own, so neither overwrites the other.
  */
 
-export const ZOOM_MIN = 0.5;
-export const ZOOM_MAX = 3;
-/** What − and + step through: round numbers a person can return to. */
-export const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3] as const;
+/**
+ * 20% to 500% (card c719, the owner on 2026-11-07: a friend wanted the strip
+ * smaller than 50%). Until then 50% to 300%, which sits inside this range, so
+ * a zoom kept under the old one reads back unchanged and nothing migrates.
+ */
+export const ZOOM_MIN = 0.2;
+export const ZOOM_MAX = 5;
+/**
+ * What − and + step through: round numbers a person can return to. Below 50%
+ * the steps are the fractions a page is read at (a fifth, a quarter, a third),
+ * and 33% is a third as `zoomLabel` writes it.
+ */
+export const ZOOM_STEPS = [
+	0.2, 0.25, 0.33, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5
+] as const;
 
 export const clampZoom = (z: number) =>
 	Number.isFinite(z) ? Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100)) : 1;

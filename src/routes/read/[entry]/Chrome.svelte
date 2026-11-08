@@ -6,6 +6,8 @@
 	import { chapterCells, scrubFill, scrubPage, type Mode } from '$lib/reader/reader';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { TV } from '$lib/device.svelte';
+	import { focusScope } from '$lib/focus';
+	import type { CellState, SpreadChoice } from '$lib/library/highlights';
 
 	/**
 	 * The controls (Index Reader, state 1b): a 64px bar on top -- back, where
@@ -40,7 +42,13 @@
 		onshift,
 		noText = null,
 		languages = [],
-		onlanguage
+		onlanguage,
+		highlight = null,
+		ticks = [],
+		onhighlight,
+		choices = null,
+		onchoice,
+		onchoicesclose
 	}: {
 		title: string;
 		meta: string;
@@ -75,7 +83,31 @@
 		/** A folded book's languages (doc/EDITIONS.md): one cell each, the one read inverted. */
 		languages?: { code: string; on: boolean; entryId: number }[];
 		onlanguage?: (entryId: number) => void;
+		/**
+		 * HIGHLIGHT (Highlights H3, c703; Manga M1, M3, M4, M7): its words and
+		 * its state; none where the reader offers no highlight (a browsing
+		 * record, which is not in the library).
+		 */
+		highlight?: { label: string; state: CellState } | null;
+		/** The scrubber's yellow ticks, one at each kept page (0-based). */
+		ticks?: number[];
+		onhighlight?: () => void;
+		/** A spread's HIGHLIGHT asks which (Manga M2): open while set. */
+		choices?: SpreadChoice[] | null;
+		onchoice?: (c: SpreadChoice) => void;
+		onchoicesclose?: () => void;
 	} = $props();
+	let hlCell = $state<HTMLElement | null>(null);
+	/** The chooser stands over the cell that opened it, kept inside the screen. */
+	const choicesLeft = $derived.by(() => {
+		if (!choices || !hlCell) return 0;
+		const r = hlCell.getBoundingClientRect();
+		return Math.max(0, Math.min(r.left, innerWidth - 260));
+	});
+	const tickAt = (p: number) => {
+		const f = scrubFill(p, total, mode);
+		return mode === 'rtl' ? f.left : f.width;
+	};
 	let adding = $state(false);
 	let added = $state(false);
 	const tvScreen = new MediaQuery(TV, false);
@@ -192,6 +224,9 @@
 			}}
 		>
 			<div class="fill" style:left="{fill.left}%" style:width="{fill.width}%"></div>
+			{#each ticks as t (t)}
+				<div class="tick" data-tick={t + 1} style:left="{tickAt(t)}%" aria-hidden="true"></div>
+			{/each}
 			<div class="thumb" style:left="{thumb}%"></div>
 		</div>
 		<span class="end right">{mode === 'rtl' ? 1 : total}</span>
@@ -214,6 +249,21 @@
 		{#if shift}<button type="button" class="cell" data-focus-mark="in" onclick={onshift}
 				>SHIFT PAIRING</button
 			>{/if}
+		{#if highlight}
+			<!-- HIGHLIGHT joins the row before FULL SCREEN (Manga M1). Kept, it reads
+			     ✓ HIGHLIGHTED, inverted, and opens the page's sheet: a page kept for
+			     good is never unmarked by a stray tap (M3). -->
+			<button
+				type="button"
+				class="cell hl {highlight.state}"
+				bind:this={hlCell}
+				aria-haspopup="dialog"
+				disabled={highlight.state === 'incognito'}
+				aria-disabled={highlight.state === 'keeping' || undefined}
+				data-focus-mark="in"
+				onclick={() => highlight?.state !== 'keeping' && onhighlight?.()}>{highlight.label}</button
+			>
+		{/if}
 		{#if fullscreen.available}
 			<!-- The browser's bars gone (doc/READER.md, "Full screen"); not on an iPhone, nor in the app. -->
 			<button
@@ -235,7 +285,43 @@
 			<span class="cell empty last"></span>
 		{/if}
 	</div>
+	{#if choices}
+		<!-- A spread asks which (Manga M2): the pages in reading order, then BOTH. -->
+		<div
+			class="choices"
+			role="dialog"
+			aria-label="Highlight which page"
+			style:left="{choicesLeft}px"
+			use:focusScope={{ force: true }}
+		>
+			<div class="ch-h">HIGHLIGHT WHICH PAGE</div>
+			{#each choices as c, i (c.label)}
+				<button
+					type="button"
+					class="ch"
+					class:kept={c.keptId !== null}
+					aria-label="{c.keptId !== null ? `✓ ${c.label}` : c.label} · {c.keptId !== null
+						? 'OPEN'
+						: c.where}"
+					data-focus-start={i === 0 ? '' : undefined}
+					data-focus-mark="in"
+					onclick={() => onchoice?.(c)}
+					><span>{c.keptId !== null ? `✓ ${c.label}` : c.label}</span><span class="ch-w"
+						>{c.keptId !== null ? 'OPEN' : c.where}</span
+					></button
+				>
+			{/each}
+		</div>
+	{/if}
 </footer>
+<svelte:window
+	onkeydown={(e) => {
+		if (choices && e.key === 'Escape') {
+			e.stopPropagation();
+			onchoicesclose?.();
+		}
+	}}
+/>
 
 <style>
 	.top,
@@ -421,6 +507,74 @@
 		height: 24px;
 		margin-left: -2px;
 		background: var(--text-1);
+	}
+	/* Manga M3: a yellow tick at each kept page, 4 × 8 above the line. */
+	.tick {
+		position: absolute;
+		top: -16px;
+		width: 4px;
+		height: 8px;
+		margin-left: -2px;
+		background: oklch(0.5 0.09 95);
+		pointer-events: none;
+	}
+	/* The cell's states (Manga M3, M7): kept is inverted; offline and incognito
+	   drop to 0.4; a page being kept is dashed until it is. */
+	.cell.hl.kept {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.cell.hl.offline,
+	.cell.hl.incognito {
+		opacity: 0.4;
+	}
+	.cell.hl.keeping {
+		outline: 1px dashed var(--line-2);
+		outline-offset: -1px;
+	}
+	/* KEEPING… is aria-disabled, not disabled: a disabled button drops the
+	   TV's focus, and the next OK went to the page instead of the cell. */
+	.cell.hl:disabled,
+	.cell.hl[aria-disabled='true'] {
+		cursor: default;
+	}
+	/* Manga M2: 260px, ruled in ink, over the row. */
+	.choices {
+		position: absolute;
+		bottom: 64px;
+		z-index: 2;
+		width: 260px;
+		border: 1px solid var(--text-1);
+		background: var(--surface-page);
+	}
+	.ch-h {
+		padding: 14px 16px;
+		border-bottom: var(--hairline);
+		font: 500 12px/14.4px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.ch {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		width: 100%;
+		height: 48px;
+		padding: 0 16px;
+		border: 0;
+		border-bottom: var(--hairline);
+		background: transparent;
+		color: var(--text-1);
+		font: 500 13px/13px var(--font-mono);
+		letter-spacing: 0.06em;
+		text-align: left;
+		cursor: pointer;
+	}
+	.ch:last-child {
+		border-bottom: 0;
+	}
+	.ch-w {
+		color: var(--text-2);
 	}
 	.cells {
 		display: flex;

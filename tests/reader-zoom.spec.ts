@@ -13,24 +13,94 @@ import {
 	DOUBLE_TAP_PX,
 	doubleTapZoom,
 	fractionOn,
-	keepUnder
+	keepUnder,
+	ZOOM_MAX,
+	ZOOM_MIN,
+	ZOOM_STEPS
 } from '$lib/reader/zoom';
 
 // Zoom in the image reader (doc/READER.md, "Zoom"; card c169).
 describe('zoom', () => {
-	it('steps through round numbers from wherever a pinch left it, within 50%–300%', () => {
+	it('steps through round numbers from wherever a pinch left it, within 20%–500%', () => {
 		expect(stepZoom(1, 1)).toBe(1.25);
 		expect(stepZoom(1, -1)).toBe(0.75);
 		expect(stepZoom(1.33, 1)).toBe(1.5);
 		expect(stepZoom(1.33, -1)).toBe(1.25);
-		expect(stepZoom(3, 1)).toBe(3);
-		expect(stepZoom(0.5, -1)).toBe(0.5);
-		expect(clampZoom(9)).toBe(3);
-		expect(clampZoom(0.1)).toBe(0.5);
+		expect(stepZoom(0.3, -1)).toBe(0.25);
+		expect(stepZoom(0.3, 1)).toBe(0.33);
+		expect(stepZoom(3.5, 1)).toBe(4);
+		expect(stepZoom(3.5, -1)).toBe(3);
 		expect(clampZoom(Number.NaN)).toBe(1);
 		expect(pinchZoom(1, 100, 150)).toBe(1.5);
 		expect(pinchZoom(1, 0, 150)).toBe(1);
 		expect(zoomLabel(1.25)).toBe('125%');
+	});
+
+	// The step list is a finite domain (c719): all of it, both ways, both ends.
+	it('walks the whole list up from 20% and down from 500%, and stops at each end (c719)', () => {
+		const list = [0.2, 0.25, 0.33, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
+		expect([...ZOOM_STEPS]).toEqual(list);
+		expect([ZOOM_MIN, ZOOM_MAX]).toEqual([0.2, 5]);
+		const walk = (from: number, dir: 1 | -1) => {
+			const seen = [from];
+			for (let z = from, i = 0; i < 40; i++) {
+				const next = stepZoom(z, dir);
+				if (next === z) break;
+				seen.push((z = next));
+			}
+			return seen;
+		};
+		expect(walk(ZOOM_MIN, 1)).toEqual(list);
+		expect(walk(ZOOM_MAX, -1)).toEqual([...list].reverse());
+		expect(stepZoom(5, 1)).toBe(5);
+		expect(stepZoom(0.2, -1)).toBe(0.2);
+		// Every step is its own clamp, and reads back as kept.
+		for (const z of list) {
+			expect(clampZoom(z)).toBe(z);
+			expect(keptZoom(z)).toBe(z);
+		}
+		expect(list.map(zoomLabel)).toEqual([
+			'20%',
+			'25%',
+			'33%',
+			'50%',
+			'75%',
+			'100%',
+			'125%',
+			'150%',
+			'175%',
+			'200%',
+			'250%',
+			'300%',
+			'400%',
+			'500%'
+		]);
+	});
+
+	it('clamps a pinch and Ctrl + wheel to 20%–500%, and moves freely inside it (c719)', () => {
+		expect(clampZoom(9)).toBe(5);
+		expect(clampZoom(5.004)).toBe(5);
+		expect(clampZoom(0.1)).toBe(0.2);
+		expect(clampZoom(0)).toBe(0.2);
+		expect(clampZoom(-3)).toBe(0.2);
+		expect(clampZoom(0.37)).toBe(0.37);
+		expect(clampZoom(4.6)).toBe(4.6);
+		// A pinch from 50% closing to two fifths of the spread lands on 20%, and no lower.
+		expect(pinchZoom(0.5, 100, 40)).toBe(0.2);
+		expect(pinchZoom(0.5, 100, 20)).toBe(0.2);
+		expect(pinchZoom(2, 100, 300)).toBe(5);
+		expect(pinchZoom(1, 100, 37)).toBe(0.37);
+	});
+
+	it('reads back a zoom saved anywhere in the range, and one saved under 50%–300% unchanged (c719)', () => {
+		expect(keptZoom(0.2)).toBe(0.2);
+		expect(keptZoom(0.3)).toBe(0.3);
+		expect(keptZoom(5)).toBe(5);
+		expect(keptZoom(0.19)).toBeNull();
+		expect(keptZoom(5.01)).toBeNull();
+		// The old range's values, its steps and a pinch's in between: none migrates.
+		for (const z of [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 0.62, 2.37])
+			expect(keptZoom(z)).toBe(z);
 	});
 
 	it('resets to the kept zoom first, then to 100%', () => {
@@ -52,11 +122,13 @@ describe('zoom', () => {
 
 describe('double tap (c185)', () => {
 	it('goes to 100% from either side, and to 200% from 100%', () => {
+		expect(doubleTapZoom(0.2)).toBe(1);
 		expect(doubleTapZoom(0.5)).toBe(1);
 		expect(doubleTapZoom(0.75)).toBe(1);
 		expect(doubleTapZoom(1)).toBe(2);
 		expect(doubleTapZoom(1.25)).toBe(1);
 		expect(doubleTapZoom(3)).toBe(1);
+		expect(doubleTapZoom(5)).toBe(1);
 	});
 
 	it('is two taps close in time and place', () => {

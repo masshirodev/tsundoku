@@ -305,8 +305,11 @@ of them in `keys.ts`, and `tests/tv-keys.e2e.ts` walks them.
   A text entry keeps Escape (the go-to row's own cancel).
 
 **A forced scope.** A dialog opened over a screen that reads its own keys can
-say `use:focusScope={{ force: true }}`: the reader's page menu is that, and
-while it is open the pad reaches it even though the page behind keeps every
+say `use:focusScope={{ force: true }}`: the reader's page menu is that. Force
+lets the dialog take the keys; it does not make its rows stops while they sit
+inside the screen's `data-focus-off` (`isVisible` refuses anything under it),
+so the screen lifts its opt-out while the dialog is open, as the image reader
+does since c703, and the pad reaches it even though the page behind keeps every
 arrow.
 
 ## The mark

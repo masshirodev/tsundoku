@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
+	cellLabel,
+	cellState,
+	keepKey,
+	keptOn,
+	pageSheetHead,
+	pageSheetLine,
+	pageTicks,
+	pagesOf,
+	ruleSide,
+	spreadChoices,
+	type CellState,
+	type KeptPage
+} from '$lib/library/highlights';
+import {
 	byDay,
 	byEntry,
 	clipLength,
@@ -374,6 +388,131 @@ describe('getting them out', () => {
 		expect(md).toContain('### Ch. 42\n\n*page: CH. 42 · P. 14*\n\nthe tower');
 		expect(md).toContain(
 			'*clip: S1 · EP. 7 · 12:04–13:36*\n\n*From a series no longer in the library.*'
+		);
+	});
+});
+
+// ---- H3: a page kept from the image reader (c703) ------------------------------------------
+
+const kp = (id: number, page: number, pageEnd: number | null = null): KeptPage => ({
+	id,
+	page,
+	pageEnd,
+	note: '',
+	madeAt: Date.UTC(2026, 10, 4, 12),
+	bytes: 1.4 * 1024 * 1024
+});
+
+describe('the reader’s HIGHLIGHT cell (c703, Manga M1, M3, M4, M7)', () => {
+	it('ranks its states as the handoff does: every combination of the four facts', () => {
+		const states: string[] = [];
+		for (const incognito of [false, true])
+			for (const keeping of [false, true])
+				for (const kept of [false, true])
+					for (const online of [false, true]) {
+						const s = cellState({
+							kept: kept ? [kp(1, 4)] : [],
+							group: [4],
+							keeping,
+							online,
+							incognito
+						});
+						const want: CellState = incognito
+							? 'incognito'
+							: keeping
+								? 'keeping'
+								: kept
+									? 'kept'
+									: online
+										? 'idle'
+										: 'offline';
+						expect(s, JSON.stringify({ incognito, keeping, kept, online })).toBe(want);
+						states.push(s);
+					}
+		expect(new Set(states)).toEqual(new Set(['idle', 'kept', 'keeping', 'offline', 'incognito']));
+	});
+
+	it('names each state, and the strip names its page', () => {
+		const all: CellState[] = ['idle', 'kept', 'keeping', 'offline', 'incognito'];
+		expect(all.map((s) => cellLabel(s, { strip: false, page: 13 }))).toEqual([
+			'HIGHLIGHT',
+			'✓ HIGHLIGHTED',
+			'KEEPING…',
+			'○ HIGHLIGHT',
+			'INCOGNITO'
+		]);
+		expect(all.map((s) => cellLabel(s, { strip: true, page: 22 }))).toEqual([
+			'HIGHLIGHT P. 23',
+			'✓ HIGHLIGHTED',
+			'KEEPING…',
+			'○ HIGHLIGHT',
+			'INCOGNITO'
+		]);
+	});
+
+	it('a spread is kept when either page or BOTH is, and a page on another screen is not', () => {
+		const kept = [kp(1, 3), kp(2, 10, 11)];
+		expect(keptOn(kept, [3, 4]).map((k) => k.id)).toEqual([1]);
+		expect(keptOn(kept, [11, 12]).map((k) => k.id)).toEqual([2]);
+		expect(keptOn(kept, [5, 6])).toEqual([]);
+		expect(keptOn(kept, [10]).map((k) => k.id)).toEqual([2]);
+		expect(pagesOf(kp(3, 7, 8))).toEqual([7, 8]);
+		expect(pagesOf(kp(3, 7))).toEqual([7]);
+	});
+
+	it('ticks every page covered once, in order', () => {
+		expect(pageTicks([kp(1, 9), kp(2, 2, 3), kp(3, 3), kp(4, 0)])).toEqual([0, 2, 3, 9]);
+		expect(pageTicks([])).toEqual([]);
+	});
+
+	it('knows one ask by its page, so the same page twice is one', () => {
+		expect(keepKey(5, 13, null)).toBe(keepKey(5, 13, null));
+		expect(keepKey(5, 13, null)).not.toBe(keepKey(5, 13, 14));
+		expect(keepKey(5, 13, null)).not.toBe(keepKey(6, 13, null));
+	});
+});
+
+describe('a spread’s choice (c703, Manga M2)', () => {
+	it('R→L: the right page first, then the left, then BOTH as one', () => {
+		expect(spreadChoices([13, 14], true, [])).toEqual([
+			{ label: 'P. 14', where: 'RIGHT', page: 13, pageEnd: null, keptId: null },
+			{ label: 'P. 15', where: 'LEFT', page: 14, pageEnd: null, keptId: null },
+			{ label: 'BOTH', where: 'AS ONE', page: 13, pageEnd: 14, keptId: null }
+		]);
+	});
+
+	it('L→R: the left page first; a kept choice carries its id, and BOTH is not either page', () => {
+		const c = spreadChoices([13, 14], false, [kp(7, 14), kp(8, 13, 14)]);
+		expect(c.map((x) => [x.label, x.where, x.keptId])).toEqual([
+			['P. 14', 'LEFT', null],
+			['P. 15', 'RIGHT', 7],
+			['BOTH', 'AS ONE', 8]
+		]);
+	});
+});
+
+describe('the gutter rule and the page sheet (c703, Manga M3, M6)', () => {
+	it('sits on the outer side, away from the spine: every side in both directions', () => {
+		expect(
+			(['left', 'right', 'center'] as const).flatMap((side) =>
+				[true, false].map((rtl) => [side, rtl, ruleSide(side, rtl)])
+			)
+		).toEqual([
+			['left', true, 'left'],
+			['left', false, 'left'],
+			['right', true, 'right'],
+			['right', false, 'right'],
+			['center', true, 'right'],
+			['center', false, 'left']
+		]);
+	});
+
+	it('heads the sheet with the chapter and the page, or the spread', () => {
+		expect(pageSheetHead('Ch. 42', kp(1, 13))).toBe('HIGHLIGHT · CH. 42 · P. 14');
+		expect(pageSheetHead('Ch. 42', kp(1, 13, 14))).toBe('HIGHLIGHT · CH. 42 · P. 14–15');
+		expect(pageSheetHead('', kp(1, 0))).toBe('HIGHLIGHT · P. 1');
+		expect(pageSheetLine(kp(1, 0), Date.UTC(2026, 10, 7, 12))).toBe(
+			'MADE 4 NOV · A COPY ON THE WORKSTATION · 1 MB'
 		);
 	});
 });

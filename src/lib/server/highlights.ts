@@ -19,8 +19,9 @@ import { COLOURS, isLost, type Colour, type Highlight } from '../library/highlig
  * deleted hidden series' highlights stay hidden. Every list, count, disk
  * line and export here filters on it in SQL, never in the page.
  *
- * H1 makes no highlight: the readers and the player gain HIGHLIGHT, MARK IN
- * and KEEP in H2 to H4.
+ * H1 made no highlight. H3 (c703) keeps a page from the image reader
+ * (`./highlights/pages.ts`); the text reader's HIGHLIGHT and the player's MARK
+ * IN and KEEP come in H2 and H4.
  */
 
 type Row = {
@@ -298,14 +299,26 @@ export function removeHighlights(ids: number[], db: Database.Database = getDb())
 	return gone;
 }
 
-/** The deleted ones whose UNDO has passed. */
+/**
+ * The deleted ones whose UNDO has passed. The pick and the delete are one
+ * immediate transaction: a keep that revives a row (c703) clears its
+ * `deleted_at`, and in another process it could otherwise land between the
+ * two and have its live row and copy removed. The files go after the commit,
+ * as `removeHighlightRows` asks.
+ */
 export function purgeDeleted(now = Date.now(), db: Database.Database = getDb()): number {
-	const ids = (
-		db
-			.prepare(`SELECT id FROM highlights WHERE deleted_at IS NOT NULL AND deleted_at < ?`)
-			.all(now - UNDO_MS) as { id: number }[]
-	).map((r) => r.id);
-	return removeHighlights(ids, db);
+	const { gone, files } = db
+		.transaction(() => {
+			const ids = (
+				db
+					.prepare(`SELECT id FROM highlights WHERE deleted_at IS NOT NULL AND deleted_at < ?`)
+					.all(now - UNDO_MS) as { id: number }[]
+			).map((r) => r.id);
+			return removeHighlightRows(ids, db);
+		})
+		.immediate();
+	unlinkCopies(files);
+	return gone;
 }
 
 /**

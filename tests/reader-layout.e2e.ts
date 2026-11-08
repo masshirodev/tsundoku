@@ -173,6 +173,15 @@ test('READING: every segmented choice is the full-height cell SIDES is (c428)', 
 	expect(cells.map((c) => c.group)).toEqual(
 		expect.arrayContaining(['Mode', 'Fit', 'Wide pages', 'Side margins', 'Zoom'])
 	);
+	// RATING is not a row: the slider sits in the sheet's column itself, and a
+	// column that scrolls squeezed it to about 38px (c728). It keeps its own
+	// height, the tablet's 64 or the phone's 52 (RatingSlider's `height` and
+	// `phoneHeight`, switched at 599px), whether or not the sheet overflows.
+	const rating = await sheet.locator('.rs').evaluate((el) => ({
+		h: el.getBoundingClientRect().height,
+		over: el.parentElement!.scrollHeight > el.parentElement!.clientHeight
+	}));
+	expect(rating.h, `RATING (sheet overflows: ${rating.over})`).toBe(vp.width < 600 ? 52 : 64);
 });
 
 /**

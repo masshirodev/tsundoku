@@ -57,13 +57,15 @@ still blanks the reader when the app goes to the background.
 - **Vertical scroll never turns on a tap.** Every tap is the controls, and
   scrolling is how you move.
 - **With the controls up, a tap on the page only puts them away.**
-- **A long press on a page opens the page menu**: set it as the book's or
-  the series' cover ([`COVERS.md`](COVERS.md), "Chosen").
+- **A long press on a page opens the page menu**: HIGHLIGHT THIS PAGE first
+  ("Highlights", below), then set it as the book's or the series' cover
+  ([`COVERS.md`](COVERS.md), "Chosen").
 - **Never the browser's image menu.** A finger held on a page doesn't
   offer to save or share it, in any mode ([`TOUCH.md`](TOUCH.md)).
 - **No hardware keys, by the owner's choice.** On desktop the arrows are
   spatial (in R→L, ← is forward), Space and PageDown go forward, Esc
-  toggles the controls, and + − 0 zoom ("Zoom").
+  toggles the controls, + − 0 zoom ("Zoom"), and H keeps the page
+  ("Highlights").
 
 ## On a TV and on a remote (c235)
 
@@ -83,7 +85,12 @@ own:
 
 The page menu is a 420px panel from the right on a TV, and it is the one
 dialog the pad drives while the controls are hidden (its rows are
-`use:focusScope` with `force`). The reader's _**end page**_ lifts the opt-out,
+`use:focusScope` with `force`). **Until c703 (wave 33) the pad never reached
+those rows**: the menu is drawn inside the reader, whose `data-focus-off` the
+focus layer reads as "no stop here", force or not, so MENU opened a menu with
+nothing focused and OK went to the page. The reader now lifts its opt-out on
+a TV while the page menu or a highlight's sheet is open
+(`tests/tv-highlights-manga.e2e.ts`, MENU's case, red with the old rule). The reader's _**end page**_ lifts the opt-out,
 so its cells — ← SERIES, the next part's block and its WORK cell on a series
 in a Work, the rating, LIBRARY, ANOTHER SOURCE → on a stale series — are
 stops.
@@ -296,24 +303,67 @@ anyway, so the row is dimmed there).
 
 The rules are `wideTreatment` and `firstHalf` in `src/lib/reader/reader.ts`.
 
+## Highlights (H3, card c703)
+
+A page kept for good, as a copy on the workstation and a way back
+([`HIGHLIGHTS.md`](HIGHLIGHTS.md), "Pages (H3)", for the record and the
+copy; `handoffs/highlights/Manga.dc.html`).
+
+- **HIGHLIGHT** in the bottom row, before FULL SCREEN; **H** on a keyboard;
+  **HIGHLIGHT THIS PAGE**, the page menu's first row; on a TV, OK on the cell
+  (it is a stop in the controls' row) or MENU and OK on the row.
+- **Which page.** Paged, the one on screen; a spread asks, in reading order,
+  then BOTH as one image. The strip keeps the page under the middle of the
+  screen (the one it reads as the page being read), outlined while the
+  controls are up, and the cell names it (`HIGHLIGHT P. 23`).
+- **The cell**: HIGHLIGHT; KEEPING…, dashed, until the workstation has the
+  copy (`aria-disabled`, not `disabled`, so a TV's focus stays on it); ✓
+  HIGHLIGHTED, inverted, which opens the page's sheet; ○ HIGHLIGHT at 0.4
+  offline, whose press says it needs the workstation; INCOGNITO at 0.4,
+  disabled. A failure says why in the band (`P. 9 NOT KEPT · THE SOURCE DID
+NOT SEND IT`) with TRY AGAIN, and nothing is kept.
+- **Nothing over the art.** A yellow tick on the scrubber at each kept page;
+  a 4px yellow rule in a letterboxed page's gutter, 6px off its outer edge
+  (PageImage's `rule`), at 100% and below.
+- **The page's sheet**: NOTE, SAVE IMAGE, DELETE with HIGHLIGHT DELETED · UNDO
+  in the band, as the cover's band draws (its own class, `hl-band`).
+
 ## Zoom
 
 Asked for on 2026-10-29 (card c169): pages bigger than the fit, and a size
 that stays.
 
-- **Zooming.** + and − (or =) step through 50, 75, 100, 125, 150, 175, 200,
-  250 and 300%; Ctrl + the wheel and a two-finger pinch zoom freely in the
-  same range; **0 is RESET**. The READING sheet's ZOOM row has the same:
-  − · 125% · + · RESET.
+- **Zooming.** + and − (or =) step through 20, 25, 33, 50, 75, 100, 125,
+  150, 175, 200, 250, 300, 400 and 500%, and stop at either end; Ctrl + the
+  wheel and a two-finger pinch zoom freely in the same range; **0 is RESET**.
+  The READING sheet's ZOOM row has the same: − · 125% · + · RESET, and so has
+  SETTINGS' ZOOM and the TV's READING panel, which step through the one list
+  (`ZOOM_STEPS`). The range was 50% to 300% until card c719 (2026-11-07: a
+  friend made the strip as small as it went and wanted it smaller); every
+  value kept under the old range is inside the new one, so nothing migrated.
 - **Paged:** the page box is the fit times the zoom (`--zoom`, which
   `PageImage` multiplies its `vw` and `dvh` by), so a zoomed page scrolls both
   ways inside its screen and each page starts at the top (at its right in
   R→L). While zoomed a drag pans the page instead of turning it; the edges
   and the keys still turn.
+- **Paged, zoomed out** (c719): the page box shrinks inside its screen,
+  centred both ways on the reader's black, in every fit and in a spread (the
+  pair is centred). Fit width starts a page at the top, so below 100% it
+  takes `align-items: safe center` (`.screen.shrunk`): centred while it is
+  shorter than the screen, at the top once it is taller.
 - **Vertical:** the strip's width is SIDES' width times the zoom. Past 100%
-  it scrolls sideways inside its lane; under it, it narrows as SIDES does.
-  The page under the middle stays there (Strip's own width-change anchor),
-  unless the zoom has a point of its own (below).
+  it scrolls sideways inside its lane; under it, it narrows as SIDES does,
+  centred in the lane (at 20% a phone's strip is 82px of 412). The page under
+  the middle stays there (Strip's own width-change anchor), unless the zoom
+  has a point of its own (below). A chapter's band is words, not art, so it
+  never narrows below `min(100vw, 360px)`: wider than a zoomed-out strip, it
+  is centred over it. A tap anywhere in the lane, the black beside the strip
+  included, is the strip's (the controls, or a double tap's zoom).
+- **The scrubber on the strip** puts the page it names under the middle of the
+  screen, which is where the strip reads the page being read: a page as tall
+  as the screen at the top as before, a shorter one centred (c719). With its
+  top at the top, a page a fifth of the screen tall left the middle on a later
+  page, or past the chapter's end in the next chapter.
 - **Double tap** (card c185, the owner's rule): a double tap in the middle of
   the page zooms **to 100% from under it, to 200% from 100%, and back to 100%
   from over it**. Two taps make one within 250 ms and 32 px (`DoubleTap`).
@@ -340,7 +390,12 @@ that stays.
   phone width uses the phone's. RESET goes to the kept zoom first, then to
   100%.
 
-The rules are in `src/lib/reader/zoom.ts` (`tests/reader-zoom.spec.ts`); the
+The rules are in `src/lib/reader/zoom.ts` (`tests/reader-zoom.spec.ts`, which
+walks the whole step list both ways and the clamp at both ends);
+`tests/reader-zoom-range.e2e.ts` walks the ZOOM row to 20% and to 500% in
+paged and in the strip, keeps 20% across a reload, and measures the geometry
+below 50% on every device (paged, fit width, a spread, the strip's band, the
+scrubber, a finger's taps); the
 zoom tests in `tests/reader-flow.e2e.ts` check the page grows and scrolls,
 KEEP across a reload, RESET's two steps, the strip, and (c185) the double
 tap's three cases with its point held and no controls on the way, the single
@@ -370,8 +425,11 @@ scrollable screen, which took some of them at random.
   ([`LIBRARY.md`](LIBRARY.md), "Hidden means hidden"). A hidden series is read
   only under `/reveal`, so its end page offers **UNHIDE** instead of hiding it
   again (c673, `?/hide on=0`, `UNHIDDEN ✓` once it answered). A press the
-  action refuses says why in the row — the action's own message, or COULD NOT
-  SAVE — rather than resetting silently. A series in a Work draws
+  action refuses says so in the row, always **COULD NOT SAVE**, rather than
+  resetting silently: since `bba5d277` the row never shows the action's own
+  message, because the one real refusal (`A WORK IS HIDDEN WHOLE · HIDE ALL OR
+TAKE OUT`) holds HIDE and HIDE ALL, words this page's own controls use
+  (c706). A series in a Work draws
   neither cell — its Work is hidden or taken out whole from the series screen.
   The block stays once the rating is set, showing what was chosen, so rating on
   this page never empties it; the note, `SHOWN WHILE UNRATED`, goes with the
@@ -558,10 +616,13 @@ and "when I click down or up it pans to the next sections").
   ms — and the release eases out over 160 ms, about a third of the nudge
   further (33 px on a 100 px nudge, 185 px on a screen). A tap still glides
   one step and two separate presses still add two. Every door that can take
-  the keyup away ends it the same way: the window losing focus, the page being
-  hidden, the READING sheet, the lookup panel or page menu opening (its lock),
-  and a jump to another chapter, which stops it at once so the repeats are not
-  the new chapter's. **A strip crossing is not a jump**: scrolling on across a
+  the keyup away ends it, in one of two ways (c694). The key's own release, the
+  window losing focus and the page being hidden **ease it out**, as a keyup
+  does. A lock (the lookup panel or the page menu opening, each locking the
+  page), the READING sheet opening, a change of mode and a jump to another
+  chapter **stop it at once** (`endHold(true)`): the strip it was moving is
+  covered, locked or no longer the one on screen, so it does not ease on under
+  them and the repeats are not the new chapter's. **A strip crossing is not a jump**: scrolling on across a
   band keeps the strip and the pages around it, so the glide, the wheel's ease
   and a held arrow all read on through it (c668). A second scroll key during a
   hold takes over from where the strip is: the hold ends and the new key glides
