@@ -104,6 +104,7 @@
 		refreshFacts,
 		titlesLine,
 		unseenCount,
+		drawnToNote,
 		workOf,
 		type Picked
 	} from '$lib/library/selection';
@@ -816,10 +817,11 @@
 		return out;
 	});
 	// Note what is drawn of the selection, and forget what left it. The map is
-	// written outside the tracking, so writing it cannot re-run this.
+	// written outside the tracking, so writing it cannot re-run this. With
+	// nothing selected `drawnPicked` is not read, so it is never built (c740).
 	$effect(() => {
-		const drawn = drawnPicked;
 		const ids = new Set(selected);
+		const drawn = drawnToNote(selecting, ids, () => drawnPicked);
 		const held = new Set(reviewing ? shownIds : []);
 		untrack(() => {
 			const { set, drop } = refreshFacts(ids, facts, drawn, held);

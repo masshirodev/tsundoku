@@ -88,6 +88,23 @@ export function workOf(
 }
 
 /**
+ * The drawn series to note facts from (c740): none while SELECT is off or
+ * nothing is ticked, without calling `drawn` at all. Building a Picked record
+ * for every loaded series and Work part (`sheetMeta` included) on each load
+ * was an O(n) pass the page paid on every reload with nothing selected. What
+ * the skipped pass would have dropped is still dropped: `refreshFacts` with no
+ * drawn series forgets every fact not selected or held, which is how SHOW's
+ * held rows keep theirs while the last tick is undone in the sheet.
+ */
+export function drawnToNote(
+	selecting: boolean,
+	selected: ReadonlySet<number>,
+	drawn: () => Iterable<Picked>
+): Iterable<Picked> {
+	return selecting && selected.size > 0 ? drawn() : [];
+}
+
+/**
  * Note the facts of every drawn series that is selected, and forget those of
  * series no longer selected -- except `held`, the rows SHOW lists while it is
  * open, whose untick is undone where it was made. Returns the changes, so a

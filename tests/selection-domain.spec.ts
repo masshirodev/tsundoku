@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	drawnToNote,
 	pickedInOrder,
 	refreshFacts,
 	titlesLine,
@@ -146,5 +147,39 @@ describe('refreshFacts', () => {
 		const inWork = pick(1, { work: { id: 3, name: 'W' } });
 		const renamed = pick(1, { work: { id: 3, name: 'W2' } });
 		expect(refreshFacts(new Set([1]), factsOf(inWork), [renamed]).set).toEqual([renamed]);
+	});
+});
+
+describe('drawnToNote (c740)', () => {
+	const counted = () => {
+		let calls = 0;
+		const drawn = () => {
+			calls++;
+			return [pick(1), pick(2)];
+		};
+		return { drawn, calls: () => calls };
+	};
+	it('never builds the drawn series while SELECT is off', () => {
+		const c = counted();
+		expect([...drawnToNote(false, new Set(), c.drawn)]).toEqual([]);
+		// Off with ids left over (none should be, stopSelecting clears them): still no pass.
+		expect([...drawnToNote(false, new Set([1]), c.drawn)]).toEqual([]);
+		expect(c.calls()).toBe(0);
+	});
+	it('never builds them while selecting with nothing ticked', () => {
+		const c = counted();
+		expect([...drawnToNote(true, new Set(), c.drawn)]).toEqual([]);
+		expect(c.calls()).toBe(0);
+	});
+	it('builds them once per pass while something is ticked', () => {
+		const c = counted();
+		expect([...drawnToNote(true, new Set([2]), c.drawn)].map((p) => p.id)).toEqual([1, 2]);
+		expect(c.calls()).toBe(1);
+	});
+	it('a skipped pass still forgets what left the selection, and keeps what SHOW holds', () => {
+		// The last tick undone in SHOW: nothing selected, 1 held by the open sheet, 2 gone.
+		const facts = factsOf(pick(1), pick(2));
+		const drawn = drawnToNote(true, new Set(), () => [pick(1), pick(2)]);
+		expect(refreshFacts(new Set(), facts, drawn, new Set([1]))).toEqual({ set: [], drop: [2] });
 	});
 });
