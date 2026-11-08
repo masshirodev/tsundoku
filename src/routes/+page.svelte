@@ -935,7 +935,10 @@
 				out.push(pickedOfCard(c, work(c.id)));
 				continue;
 			}
-			for (const p of c.tile.parts) out.push(pickedOfPart(p, c.tile.name, work(p.seriesId)));
+			// The tile's own word on its Work: `workFeet` is the first page's, so
+			// a tile past it has none (c686).
+			const theWork = { id: c.tile.id, name: c.tile.name };
+			for (const p of c.tile.parts) out.push(pickedOfPart(p, c.tile.name, theWork));
 		}
 		return out;
 	});

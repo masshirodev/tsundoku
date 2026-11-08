@@ -1507,6 +1507,84 @@ test.describe('FOLD is offered only over books with nothing beside them (c651)',
 	});
 });
 
+const deepPort = await freePort();
+
+test.describe('a Work past the first page asks like one on it (c686)', () => {
+	const FIRST = 'Aaa First Run';
+	const DEEP = 'Zzz Deep Run';
+
+	const library = ownLibrary('deep-work', deepPort, (db) => {
+		db.exec(`UPDATE roots SET hidden = 0`);
+		const work = (name: string, titles: string[]) => {
+			const id = db
+				.prepare(`INSERT INTO works (name, created_at, order_mode) VALUES (?, 1, 'hand')`)
+				.run(name).lastInsertRowid;
+			titles.forEach((title, i) =>
+				db
+					.prepare(
+						`INSERT INTO work_series (work_id, series_id, position)
+						SELECT ?, id, ? FROM series WHERE title = ?`
+					)
+					.run(id, i + 1, title)
+			);
+		};
+		work(FIRST, ['Ame no Hi no Toshokan', 'Boku no Kokoro no Yabai Yatsu']);
+		work(DEEP, ['Tower of God', 'Yofukashi no Uta']);
+	});
+
+	test.use({ baseURL: library.base });
+	test.beforeAll(async () => {
+		test.setTimeout(120_000);
+		await library.start();
+	});
+	test.afterAll(() => library.stop());
+
+	async function shortPages(page: Page, size = 2) {
+		await page
+			.context()
+			.addCookies([{ name: 'tsundoku_grid_page', value: String(size), url: 'http://localhost' }]);
+	}
+
+	/** Scroll the grid until `tile`, and assert it sits past the first page. */
+	async function reach(page: Page, tile: ReturnType<Page['locator']>, text: string, size = 2) {
+		const more = page.locator('.more');
+		for (let i = 0; i < 25 && (await tile.count()) === 0; i++) {
+			await more.scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => undefined);
+			await page.waitForTimeout(150);
+		}
+		await expect(tile).toHaveCount(1);
+		const at = await page
+			.locator('.grid .tile')
+			.evaluateAll((els, t) => els.findIndex((el) => (el.textContent ?? '').includes(t)), text);
+		expect(at).toBeGreaterThanOrEqual(size);
+		await tile.scrollIntoViewIfNeeded();
+	}
+
+	test('a Work tile opens the HIDE sheet on the first page and past it', async ({ page }) => {
+		await shortPages(page);
+		await page.goto('/?shelf=all&sort=title');
+		await page.waitForLoadState('networkidle');
+
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		const first = page.locator('.grid .tile.work', { hasText: FIRST });
+		await first.locator('.open').click();
+		await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'Hide' });
+		await expect(sheet).toBeVisible();
+		await expect(sheet.getByRole('button', { name: /HIDE ALL 2/ })).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(sheet).toHaveCount(0);
+		await first.locator('.open').click();
+
+		const deep = page.locator('.grid .tile.work', { hasText: DEEP });
+		await reach(page, deep, DEEP);
+		await deep.locator('.open').click();
+		await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+		await expect(sheet).toBeVisible();
+		await expect(sheet.getByRole('button', { name: /HIDE ALL 2/ })).toBeVisible();
+	});
+});
+
 const deletePort = await freePort();
 
 test.describe('the bulk DELETE says what it does to highlights (c731)', () => {

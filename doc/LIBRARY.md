@@ -268,9 +268,9 @@ though it is no longer drawn.
   are refreshed each time the series is drawn again, and forgotten when it is
   unticked. A fact gone stale since it was noted only words a sheet; the
   server judges every write. HIDE reads a series' Work from the page's
-  `workFeet` first and from the note second, as the bar always has: a deep
-  Work tile's parts have no feet, so its HIDE still posts at once and the
-  server takes the Work whole (`works-flow`'s c660 case relies on it).
+  `workFeet` first and from the note second, and the note comes from the tile
+  or card itself, so a Work tile past the first page asks with the same HIDE
+  sheet as one on it (c686), rather than posting at once.
 - **SHOW** sits beside `N SELECTED` in the selecting bar. It opens a sheet
   that lists the selection in the order it was ticked (GROUP's BY HAND order),
   each row with GROUP's tick box: a tap takes the series out of the selection

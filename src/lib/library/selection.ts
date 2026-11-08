@@ -29,9 +29,8 @@ export type Picked = {
 	/** The row's second line, as GROUP's sheet draws it: "MANGA · 58 CH. · 41 READ". */
 	meta: string;
 	/**
-	 * The Work the page's `workFeet` said it is a part of: HIDE asks first
-	 * about a Work (W4). Only the feet, as the bulk bar has always read them:
-	 * a deep Work tile's parts have none, and its HIDE posts at once.
+	 * The Work it is a part of, as its tile or card said: HIDE asks first about
+	 * a Work (W4), past the first page as well as on it (c686).
 	 */
 	work: { id: number; name: string } | null;
 	/** The Work GROUP's row names ("IN <WORK> · MOVES HERE"): a Work tile's own name too. */
