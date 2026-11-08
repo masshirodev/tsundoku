@@ -74,6 +74,7 @@
 		type SubSize
 	} from '$lib/library/player';
 	import { startSecond } from '$lib/library/highlights';
+	import { CLIP_WHY, ClipMarks, type ClipJob } from './clip-marks.svelte';
 	import { coverSrc, readHref } from '$lib/library/links';
 	import { nearFrame, PREVIEW_DEBOUNCE_MS, previewQuality, StreamPreview } from './seek-preview';
 	import { canPip, copyStyles, documentPip, moveBack, moveInto, srclang } from './pip';
@@ -143,6 +144,8 @@
 			episodes: Episode[];
 			index: number;
 			incognito: boolean;
+			/** The clips kept from this episode: the boxes on the scrubber. */
+			clips?: { from: number; to: number; id: number }[];
 			/** A browsing record (doc/READING-ONLINE.md): its preview, where + ADD posts. */
 			record?: { preview: string | null } | null;
 			/** Whether MOVE opens for the series (`moveOpens`): NO SERVER's ANOTHER SOURCE. */
@@ -396,6 +399,11 @@
 	// screen's own Escape below, so the last step is not this function's.
 	$effect(() =>
 		registerBack(() => {
+			// BACK drops the range before it closes the bar (A9).
+			if (clips.mark) {
+				clips.drop();
+				return true;
+			}
 			if (keysOpen) {
 				keysOpen = false;
 				return true;
@@ -660,6 +668,59 @@
 	 * the ending doesn't mark the episode watched.
 	 */
 	let heldAt: number | null = null;
+	/** MARK IN, MARK OUT, KEEP (c704): the marks, the job's band, and the kept boxes. */
+	// The player remounts per episode ({#key} in +page.svelte).
+	// svelte-ignore state_referenced_locally
+	const clips = new ClipMarks(ep.id, data.clips ?? []);
+	$effect(() => {
+		clips.start();
+		return () => clips.stopPolling();
+	});
+	/** Where a clip can't be made, in the player's words; null when it can. */
+	const clipRefused = $derived(
+		data.incognito ? 'INCOGNITO' : !offline.online ? '○ NEEDS THE WORKSTATION' : null
+	);
+	const clipRange$ = $derived(clips.range(time));
+	const hasRange = $derived(!!clipRange$ && clipRange$.length > 0);
+	/** The band over the picture: a job, newest first, or a KEEP nobody answered. */
+	const clipBand = $derived(clips.jobs.at(-1) ?? null);
+	/** Made bands go after 6 s of being seen (A7), like UNDO's; a working or failed one stays. */
+	let madeHiddenFor = $state<string | null>(null);
+	let madeTimer: ReturnType<typeof setTimeout> | undefined;
+	$effect(() => {
+		const j = clipBand;
+		if (!j || j.step !== 'made' || !chrome || madeHiddenFor === j.id) return;
+		const id = j.id;
+		clearTimeout(madeTimer);
+		madeTimer = setTimeout(() => (madeHiddenFor = id), 6000);
+		return () => clearTimeout(madeTimer);
+	});
+	const showBand = $derived(
+		chrome &&
+			((clipBand !== null && clipBand.step !== 'made') ||
+				(clipBand?.step === 'made' && madeHiddenFor !== clipBand.id) ||
+				clips.unreachable)
+	);
+	const whyWords = (j: ClipJob) =>
+		`${CLIP_WHY[j.why ?? 'stream']}${
+			j.why === 'stream' && j.stoppedAt !== null ? ` AT ${clock(j.stoppedAt)}` : ''
+		}`;
+	const clipHeight = $derived(quality?.height ?? null);
+	function markInNow() {
+		if (clipRefused) return;
+		clips.markIn(time);
+		showChrome();
+	}
+	function markOutNow() {
+		if (clipRefused || !clips.mark) return;
+		clips.markOut(time);
+		showChrome();
+	}
+	function keepRange() {
+		if (clipRefused || !hasRange) return;
+		void clips.keep(time, subLang, clipHeight);
+		showChrome();
+	}
 	/** Where to go instead, if the file turns out shorter than the `?t=`. */
 	let pastEnd: { at: number; resumed: boolean } | null = null;
 
@@ -1614,12 +1675,25 @@
 			}
 			return;
 		}
+		if (k === 'Enter' && hasRange) {
+			keepRange();
+			e.preventDefault();
+			return;
+		}
+		if (k === 'Escape' && clips.mark) {
+			clips.drop();
+			e.preventDefault();
+			showChrome();
+			return;
+		}
 		if (k === ' ') toggle();
 		else if (k === 'ArrowLeft') seekArrow(-10);
 		else if (k === 'ArrowRight') seekArrow(10);
 		else if (k === 'ArrowUp') setVolume(volume + KEY_STEP);
 		else if (k === 'ArrowDown') setVolume(volume - KEY_STEP);
 		else if (k === 'f' || k === 'F') void full();
+		else if (k === 'i' || k === 'I') markInNow();
+		else if (k === 'o' || k === 'O') markOutNow();
 		else if (k === 'm' || k === 'M') setMuted(!muted);
 		else if (k === 'c' || k === 'C') setSub(subLang ? null : (quality?.subtitles[0]?.lang ?? null));
 		else if ((k === 's' || k === 'S') && skip) skipNow();
@@ -1963,6 +2037,145 @@
 	{/if}
 {/snippet}
 
+<!-- MARK IN, MARK OUT, KEEP and ✕ (c704, Anime A1-A3, A9). -->
+{#snippet clipCells()}
+	{#if clips.mark}
+		<button
+			type="button"
+			class="cell clipcell inv"
+			aria-label="Mark in at {clock(clips.mark.in)}"
+			onclick={markInNow}>IN · {clock(clips.mark.in)}</button
+		>
+		<button
+			type="button"
+			class="cell clipcell"
+			class:inv={clips.mark.out !== null || clipRange$?.capped}
+			aria-label="Mark out{clipRange$ ? ` at ${clock(clipRange$.to)}` : ''}"
+			onclick={markOutNow}
+			>{clips.mark.out !== null || clipRange$?.capped
+				? `OUT · ${clock(clipRange$?.to ?? time)}`
+				: 'MARK OUT'}</button
+		>
+		{#if hasRange}
+			<button
+				type="button"
+				class="cell clipcell acc"
+				data-focus-start={tv.current ? '' : undefined}
+				onclick={keepRange}>KEEP {clock(clipRange$?.length ?? 0)}</button
+			>
+		{/if}
+		<button
+			type="button"
+			class="cell clipcell"
+			aria-label="Drop the range"
+			onclick={() => {
+				clips.drop();
+				showChrome();
+			}}>✕</button
+		>
+	{:else}
+		<button
+			type="button"
+			class="cell clipcell"
+			class:dim={clipRefused !== null}
+			aria-disabled={clipRefused !== null}
+			aria-label={clipRefused ? `Mark in: ${clipRefused}` : 'Mark in'}
+			onclick={markInNow}>{clipRefused ?? 'MARK IN'}</button
+		>
+		<button
+			type="button"
+			class="cell clipcell"
+			class:dim={clipRefused !== null}
+			disabled
+			aria-label="Mark out">MARK OUT</button
+		>
+	{/if}
+{/snippet}
+
+<!-- The kept boxes above the track, and the range as it stands (A1-A5). -->
+{#snippet clipBoxes()}
+	{#each clips.kept as k (k.id)}
+		<button
+			type="button"
+			class="kr"
+			style:left={pct(k.from)}
+			style:width="calc({pct(k.to)} - {pct(k.from)})"
+			aria-label="Clip {clock(k.from)} to {clock(k.to)}, play from {clock(k.from)}"
+			onclick={(e) => {
+				e.stopPropagation();
+				if (video) video.currentTime = k.from;
+			}}
+		></button>
+	{/each}
+	{#each clips.jobs as j (j.id)}
+		{#if j.step !== 'made'}
+			<div
+				class="kr dash"
+				style:left={pct(j.from)}
+				style:width="calc({pct(j.to)} - {pct(j.from)})"
+			></div>
+		{/if}
+	{/each}
+	{#if clipRange$ && clipRange$.length > 0}
+		<div
+			class="mr"
+			style:left={pct(clipRange$.from)}
+			style:width="calc({pct(clipRange$.to)} - {pct(clipRange$.from)})"
+		></div>
+		<span class="io" style:left={pct(clipRange$.from)}
+			>{clock(clipRange$.length)}{clipRange$.capped
+				? ` · AT MOST · OUT ${clock(clipRange$.to)}`
+				: ''}</span
+		>
+	{:else if clips.mark}
+		<div class="in-mark" style:left={pct(clips.mark.in)}></div>
+		<span class="io" style:left="calc({pct(clips.mark.in)} + 6px)">IN {clock(clips.mark.in)}</span>
+	{/if}
+{/snippet}
+
+<!-- The clip's band over the picture's top edge (A5-A8). -->
+{#snippet clipBandView()}
+	{#if showBand}
+		<div class="clipband" role="status">
+			{#if clips.unreachable && !clipBand}
+				<span>THE CLIP WASN'T MADE · {CLIP_WHY.unreachable}</span>
+				<button type="button" onclick={keepRange}>TRY AGAIN</button>
+				<button type="button" aria-label="Drop the range" onclick={() => clips.drop()}>✕</button>
+			{:else if clipBand}
+				{@const j = clipBand}
+				{#if j.step === 'failed'}
+					<span>THE CLIP WASN'T MADE · {whyWords(j)}</span>
+					<button type="button" onclick={() => void clips.retry(j, subLang, clipHeight)}
+						>TRY AGAIN</button
+					>
+					<button type="button" aria-label="Drop the range" onclick={() => void clips.stop(j)}
+						>✕</button
+					>
+				{:else if j.step === 'made'}
+					<span
+						>CLIP KEPT · {clock(j.to - j.from)} · {j.entryLabel.toUpperCase()} · {clock(
+							j.from
+						)}–{clock(j.to)}</span
+					>
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an API path built here -->
+					<a href="/highlights?open={j.highlightId}">OPEN →</a>
+				{:else if j.step === 'fetching'}
+					<span>FETCHING {clock(j.to - j.from)} FROM THE STREAM · 1 OF 2 · {j.percent}%</span>
+					<button type="button" aria-label="Stop" onclick={() => void clips.stop(j)}>✕</button>
+				{:else if j.step === 'cutting' && j.streamed}
+					<span>CUTTING · 2 OF 2 · {j.percent}%</span>
+					<button type="button" aria-label="Stop" onclick={() => void clips.stop(j)}>✕</button>
+				{:else if j.step === 'cutting'}
+					<span>CUTTING THE CLIP · {clock(j.from)}–{clock(j.to)} · {j.percent}%</span>
+				{:else}
+					<span>WAITING TO CUT · {clock(j.from)}–{clock(j.to)}</span>
+					<button type="button" aria-label="Stop" onclick={() => void clips.stop(j)}>✕</button>
+				{/if}
+			{/if}
+		</div>
+	{/if}
+{/snippet}
+
 <!-- The scrubber's tip: the time under the pointer, and above it
      the frame there when there is one, kept inside the track. -->
 {#snippet tip(at: number)}
@@ -2131,6 +2344,7 @@
 	{/snippet}
 
 	{#if phase === 'playing'}
+		{@render clipBandView()}
 		{#if resumedAt !== null}
 			<div class="resume" role="status">
 				<div>RESUMED AT {clock(resumedAt)}</div>
@@ -2310,6 +2524,7 @@
 				>
 					<div class="buf" style:width={pct(buffered)}></div>
 					<div class="seen" style:width={pct(time)}></div>
+					{@render clipBoxes()}
 					{#each marks as m, i (i)}<div class="tick" style:left="{m * 100}%"></div>{/each}
 					<div class="thumb" style:left={pct(time)}></div>
 					{#if hoverAt !== null}
@@ -2372,13 +2587,16 @@
 					aria-label="On a minute"
 					onclick={() => (seek(60), showChrome())}>+1m</button
 				>
-				<button type="button" class="cell" disabled={!prev} onclick={playPrev}
-					>{prev ? `← ${epShort(prev)}` : '←'}</button
-				>
+				{#if !(tv.current && hasRange)}
+					<button type="button" class="cell" disabled={!prev} onclick={playPrev}
+						>{prev ? `← ${epShort(prev)}` : '←'}</button
+					>
+				{/if}
 				<!-- VOL: the label mutes; hovering or clicking it opens
 				     the slider above it, and the wheel over either steps 5 %. -->
 				<div
 					class="vol desk"
+					class:rangegone={hasRange}
 					class:open={volOpen}
 					role="group"
 					aria-label="Volume"
@@ -2413,6 +2631,7 @@
 						</div>
 					</div>
 				</div>
+				{@render clipCells()}
 				<button type="button" class="cell grow" onclick={() => (sheet = true)}>{playing}</button>
 				{#if pipable}
 					<button
@@ -2423,7 +2642,9 @@
 						onclick={() => void pip()}>{inDocPip ? 'PIP · ON' : 'PIP'}</button
 					>
 				{/if}
-				<button type="button" class="cell desk" onclick={() => (keysOpen = true)}>? KEYS</button>
+				{#if !hasRange}
+					<button type="button" class="cell desk" onclick={() => (keysOpen = true)}>? KEYS</button>
+				{/if}
 				<button type="button" class="cell" disabled={!next || !playable(next)} onclick={playNext}
 					>{next
 						? playable(next)
@@ -2477,6 +2698,30 @@
 			     slider role, measured on this track. It sits outside the scrolling
 			     body, so a drag's tip can rise over the picture rather than be
 			     clipped, and what is next scrolls under it. -->
+			<!-- A10: on a phone held upright the marking row is a row of its own, three
+			     cells wide; ✕ is the IN cell pressed again. -->
+			<div class="pmarks">
+				{#if clips.mark}
+					<button type="button" class="inv" aria-label="Drop the range" onclick={() => clips.drop()}
+						>IN · {clock(clips.mark.in)}</button
+					>
+					<button type="button" class:inv={clips.mark.out !== null} onclick={markOutNow}
+						>{clips.mark.out !== null ? `OUT · ${clock(clips.mark.out)}` : 'MARK OUT'}</button
+					>
+					<button type="button" class="acc" disabled={!hasRange} onclick={keepRange}
+						>KEEP {clock(clipRange$?.length ?? 0)}</button
+					>
+				{:else}
+					<button
+						type="button"
+						class:dim={clipRefused !== null}
+						aria-disabled={clipRefused !== null}
+						onclick={markInNow}>{clipRefused ?? 'MARK IN'}</button
+					>
+					<button type="button" disabled>MARK OUT</button>
+					<button type="button" disabled>KEEP</button>
+				{/if}
+			</div>
 			<div class="pscrub">
 				<div>{clock(time)}</div>
 				<div
@@ -2494,6 +2739,7 @@
 				>
 					<div class="buf" style:width={pct(buffered)}></div>
 					<div class="seen" style:width={pct(time)}></div>
+					{@render clipBoxes()}
 					<div class="thumb" style:left={pct(time)}></div>
 					{#if hoverAt !== null}
 						{@render tip(hoverAt)}
@@ -2881,7 +3127,7 @@
 				<button type="button" aria-label="Close" onclick={() => (keysOpen = false)}>✕</button>
 			</div>
 			<div class="krows">
-				{#each [['SPACE', 'Play or pause'], ['← →', 'Back or on 10 s'], ['<< >>', 'Back or on a minute'], ['↑ ↓', 'Volume'], ['F', 'Full screen'], ['M', 'Mute'], ['C', 'Subtitles on or off'], ['S', 'Skip the intro or ending, when offered'], ['N', 'Next episode'], ['ESC', 'Leave full screen, then the player'], ['?', 'These keys']] as [k, a], i (k)}
+				{#each [['SPACE', 'Play or pause'], ['← →', 'Back or on 10 s'], ['<< >>', 'Back or on a minute'], ['↑ ↓', 'Volume'], ['F', 'Full screen'], ['M', 'Mute'], ['C', 'Subtitles on or off'], ['S', 'Skip the intro or ending, when offered'], ['I', 'Mark in'], ['O', 'Mark out'], ['ENTER', 'Keep the range'], ['N', 'Next episode'], ['ESC', 'Leave full screen, then the player'], ['?', 'These keys']] as [k, a], i (k)}
 					<!-- A row is read, not pressed: the stop is there so a pad can scroll to it. -->
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
@@ -4310,6 +4556,129 @@
 	}
 	.track .seen {
 		background: var(--accent);
+	}
+	/* The clip's marks (c704; Anime.dc.html, the hl.css `.scrub` rules). Above the
+	   track, so the opening and ending ticks below it never overlap them. */
+	.track {
+		--mk-y: oklch(0.5 0.09 95);
+	}
+	.track .mr,
+	.track .kr {
+		position: absolute;
+		top: -7px;
+		height: 16px;
+	}
+	.track .mr {
+		background: oklch(0.5 0.09 95 / 0.35);
+		border: 1px solid var(--mk-y);
+	}
+	.track .kr {
+		appearance: none;
+		padding: 0;
+		border: 1px solid var(--mk-y);
+		background: oklch(0.5 0.09 95 / 0.35);
+		cursor: pointer;
+		z-index: 2;
+	}
+	.track .kr.dash {
+		border-style: dashed;
+		background: none;
+		cursor: default;
+	}
+	.track .in-mark {
+		position: absolute;
+		top: -14px;
+		width: 2px;
+		height: 30px;
+		background: var(--mk-y);
+	}
+	.track .io {
+		position: absolute;
+		top: -30px;
+		font: 500 12px/1 var(--font-mono);
+		letter-spacing: 0.06em;
+		white-space: nowrap;
+		color: var(--text-1);
+		pointer-events: none;
+	}
+	.clipband {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: var(--bar-h, 64px);
+		z-index: 6;
+		display: flex;
+		align-items: stretch;
+		min-height: 44px;
+		background: var(--surface-page);
+		border-bottom: var(--hairline);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.clipband > span {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		padding: 0 16px;
+	}
+	.clipband button,
+	.clipband a {
+		appearance: none;
+		background: none;
+		border: 0;
+		border-left: var(--hairline);
+		padding: 0 16px;
+		font: inherit;
+		color: var(--text-1);
+		display: flex;
+		align-items: center;
+		text-decoration: none;
+		cursor: pointer;
+	}
+	.pmarks {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		border-bottom: var(--hairline);
+	}
+	.pmarks button {
+		appearance: none;
+		height: 56px;
+		background: none;
+		border: 0;
+		border-right: var(--hairline);
+		color: var(--text-1);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.pmarks button:last-child {
+		border-right: 0;
+	}
+	.pmarks .inv {
+		background: var(--text-1);
+		color: var(--surface-page);
+	}
+	.pmarks .acc {
+		color: var(--accent);
+	}
+	.pmarks .dim,
+	.pmarks button:disabled {
+		opacity: 0.4;
+	}
+	.clipcell {
+		white-space: nowrap;
+	}
+	.clipcell.inv {
+		background: var(--text-1);
+		color: var(--surface-page);
+	}
+	.clipcell.acc {
+		color: var(--accent);
+	}
+	.clipcell.dim {
+		opacity: 0.4;
+	}
+	.vol.rangegone {
+		display: none;
 	}
 	.track .tick {
 		position: absolute;

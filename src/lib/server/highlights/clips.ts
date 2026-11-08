@@ -749,7 +749,8 @@ export function keepClip(ask: KeepClip, reveal: boolean, db: Database.Database =
 			Math.abs(j.from - range.from) < 0.05 &&
 			Math.abs(j.to - range.to) < 0.05 &&
 			!j.dropped &&
-			j.step !== 'failed'
+			j.step !== 'failed' &&
+			j.step !== 'made'
 	);
 	if (twin) return publicJob(twin);
 	const before = standing(db, ask.entryId, range.from, range.to);
@@ -795,11 +796,16 @@ export function dropClip(id: string, reveal: boolean): boolean {
 /** Jobs the viewer may see: hidden means hidden, a job over a hidden series is none of theirs. */
 export function clipJobs(reveal: boolean, entryId?: number): ClipJob[] {
 	forgetOld(Date.now());
-	return [...jobs.values()]
-		.filter(
-			(j) => (entryId === undefined || j.entryId === entryId) && !!episodeRow(j.entryId, reveal)
-		)
-		.map(publicJob);
+	const present = getDb().prepare(`SELECT 1 FROM highlights WHERE id = ? AND deleted_at IS NULL`);
+	return (
+		[...jobs.values()]
+			// A clip deleted since it was made is no box on the scrubber.
+			.filter((j) => j.step !== 'made' || !!present.get(j.highlightId))
+			.filter(
+				(j) => (entryId === undefined || j.entryId === entryId) && !!episodeRow(j.entryId, reveal)
+			)
+			.map(publicJob)
+	);
 }
 
 /** For a test: the lane's own state back to nothing. */
@@ -807,4 +813,20 @@ export function forgetClips(): void {
 	jobs.clear();
 	queue.length = 0;
 	swept = false;
+}
+
+/** The boxes on the scrubber for one episode: kept clips, hidden means hidden. */
+export function keptClipRanges(
+	entryId: number,
+	reveal: boolean,
+	db: Database.Database = getDb()
+): { from: number; to: number; id: number }[] {
+	return db
+		.prepare(
+			`SELECT id, clip_in AS "from", clip_out AS "to" FROM highlights
+			WHERE kind = 'clip' AND entry_id = ? AND deleted_at IS NULL
+				AND clip_in IS NOT NULL AND clip_out IS NOT NULL ${reveal ? '' : 'AND hidden = 0'}
+			ORDER BY clip_in`
+		)
+		.all(entryId) as { from: number; to: number; id: number }[];
 }
