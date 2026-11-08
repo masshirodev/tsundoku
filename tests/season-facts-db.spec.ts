@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
@@ -9,8 +9,30 @@ process.env.DATABASE_PATH = ':memory:';
  * series and with a series without rows: the promise of the card is the
  * second, that a series with no rows reads exactly as it did.
  */
+const source = vi.hoisted(() => ({
+	/** Each source entry's episodes, by the id FOLLOW asks for: what the source lists now. */
+	lists: new Map<string, { url: string; name: string; episode_number: number }[]>(),
+	asked: [] as string[]
+}));
+vi.mock('$lib/server/engine/anime-source', async (original) => ({
+	...(await original<typeof import('$lib/server/engine/anime-source')>()),
+	fetchAnime: async (id: string) => {
+		source.asked.push(id);
+		const episodes = source.lists.get(id);
+		if (!episodes) return null;
+		return {
+			sourceId: '7',
+			details: { url: `/${id}`, title: 'A show', description: '', status: 1 },
+			episodes
+		};
+	}
+}));
+
 const { getDb } = await import('$lib/server/db');
 const facts = await import('$lib/server/season-facts');
+const { sourceMangaId } = await import('$lib/server/engine/backend');
+const { checkAnime, followAnime } = await import('$lib/server/anime/follow');
+const { refreshMany, refreshSeries } = await import('$lib/server/refresh');
 
 const db = getDb();
 db.prepare(`INSERT INTO roots (id, name, path, hidden) VALUES (1, 'Anime', '/lib/Anime', 0)`).run();
@@ -40,8 +62,29 @@ function episode(seriesId: number, season: number | null, number: number): numbe
 }
 
 beforeEach(() => {
-	db.exec(`DELETE FROM series_season_facts; DELETE FROM entries; DELETE FROM series;`);
+	db.exec(`DELETE FROM series_season_facts; DELETE FROM entries; DELETE FROM series;
+		DELETE FROM anime_checks;`);
+	source.lists.clear();
+	source.asked = [];
 });
+
+const idOf = (url: string) => sourceMangaId('7', url);
+const listing = (url: string, numbers: number[]) =>
+	source.lists.set(
+		idOf(url),
+		numbers.map((n) => ({
+			url: `${url}/ep-${n}`,
+			name: `Episode ${n}`,
+			episode_number: n
+		}))
+	);
+const rows = (id: number) =>
+	db
+		.prepare(
+			`SELECT source_url AS url, season, episode_number AS n, position FROM entries
+			WHERE series_id = ? ORDER BY position`
+		)
+		.all(id) as { url: string; season: number | null; n: number; position: number }[];
 
 describe('the resolver', () => {
 	it('answers the series’ own key for a series with no rows, whichever season is asked', () => {
@@ -178,5 +221,84 @@ describe('who holds a key', () => {
 		expect(facts.folderTaken('Anime/Own', db)).toBe(true);
 		expect(facts.folderTaken('Anime/Season', db)).toBe(true);
 		expect(facts.folderTaken('Anime/Free', db)).toBe(false);
+	});
+});
+
+describe('FOLLOW and REFRESH ask the last season', () => {
+	it('adds what the last season’s source lists, stamped with that season, after the seasons before it', async () => {
+		const id = show('Airing', 'aniyomi:7:/s1');
+		episode(id, 1, 1);
+		episode(id, 1, 2);
+		episode(id, 2, 1);
+		facts.putSeasonFact({ seriesId: id, season: 2, originKey: 'aniyomi:7:/s2' }, db);
+		db.prepare(`UPDATE entries SET position = 1 WHERE season = 2`).run();
+		listing('/s2', [1, 2]);
+		const got = await checkAnime(id, 1000, db, { queue: false });
+		expect(got).toEqual({ added: 2, queued: 0 });
+		expect(source.asked).toEqual([idOf('/s2')]);
+		expect(rows(id).map((r) => [r.season, r.n])).toEqual([
+			[1, 1],
+			[1, 2],
+			[2, 1],
+			[2, 1],
+			[2, 2]
+		]);
+		expect(rows(id).map((r) => r.position)).toEqual([1, 2, 3, 4, 5]);
+	});
+
+	it('asks the series’ source when the last season has no row', async () => {
+		const id = show('Partial', 'aniyomi:7:/series');
+		episode(id, 3, 1);
+		facts.putSeasonFact({ seriesId: id, season: 1, originKey: 'aniyomi:7:/s1' }, db);
+		listing('/series', [2]);
+		await checkAnime(id, 1000, db, { queue: false });
+		expect(source.asked).toEqual([idOf('/series')]);
+		// The source's own stamps stand: nothing here says it is one season's.
+		expect(rows(id).find((r) => r.url === '/series/ep-2')?.season).toBeNull();
+	});
+
+	it('trusts the source’s own stamps for a key two seasons share', async () => {
+		const id = show('Shared', 'aniyomi:7:/series');
+		episode(id, 2, 1);
+		facts.putSeasonFact({ seriesId: id, season: 1, originKey: 'aniyomi:7:/both' }, db);
+		facts.putSeasonFact({ seriesId: id, season: 2, originKey: 'aniyomi:7:/both' }, db);
+		source.lists.set(idOf('/both'), [
+			{ url: '/both/ep-1', name: 'Season 1 - Episode 1', episode_number: 1 },
+			{ url: '/both/ep-9', name: 'Season 2 - Episode 9', episode_number: 9 }
+		]);
+		await checkAnime(id, 1000, db, { queue: false });
+		expect(source.asked).toEqual([idOf('/both')]);
+		expect(rows(id).find((r) => r.url === '/both/ep-1')?.season).toBe(1);
+		expect(rows(id).find((r) => r.url === '/both/ep-9')?.season).toBe(2);
+	});
+
+	it('finds a series whose only anime key is a season’s, and REFRESH goes the same way', async () => {
+		const id = show('No key of its own', null);
+		facts.putSeasonFact({ seriesId: id, season: 1, originKey: 'aniyomi:7:/s1' }, db);
+		listing('/s1', [1]);
+		expect(await refreshSeries(id, 1000)).toEqual({ kind: 'anime', added: 1 });
+		expect(source.asked).toEqual([idOf('/s1')]);
+	});
+
+	it('FOLLOW’s step takes a series on a season’s key, and REFRESH counts it sourced', async () => {
+		const id = show('Followed', null);
+		db.prepare(`UPDATE series SET followed_at = 1 WHERE id = ?`).run(id);
+		facts.putSeasonFact({ seriesId: id, season: 1, originKey: 'aniyomi:7:/s1' }, db);
+		listing('/s1', [1]);
+		const step = await followAnime(100_000_000, db);
+		expect(step.series).toBe(1);
+		const batch = await refreshMany([id], { reveal: true, now: 200_000_000 });
+		expect(batch).toMatchObject({ asked: 1, skipped: 0 });
+	});
+
+	it('moves nothing for a series with no rows beyond what it always did', async () => {
+		const id = show('Plain', 'aniyomi:7:/plain');
+		listing('/plain', [1, 2]);
+		await checkAnime(id, 1000, db, { queue: false });
+		// The plan's own positions and no stamp: the base's answer (see the notes' differential).
+		expect(rows(id).map((r) => [r.url, r.season, r.position])).toEqual([
+			['/plain/ep-1', null, 1],
+			['/plain/ep-2', null, 2]
+		]);
 	});
 });

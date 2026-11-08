@@ -7,6 +7,7 @@ import { extensionFor } from '../engine/extensions.ts';
 import { sourceMangaId } from '../engine/backend.ts';
 import { fetchAnime, planOf } from '../engine/anime-source.ts';
 import { followQueue, parseAnimeKey } from '../../library/downloads.ts';
+import { followOrigin, resequenceAnime, seasonFacts } from '../season-facts.ts';
 
 /**
  * FOLLOW for an anime (doc/ANIME.md, "FOLLOW"; card c158), as for a manga
@@ -25,8 +26,12 @@ function animeOf(db: Database.Database, seriesId: number) {
 		.get(seriesId) as
 		| { id: number; root_id: number; origin_key: string | null; followed_at: number | null }
 		| undefined;
-	const key = parseAnimeKey(s?.origin_key ?? null);
-	return s && key ? { ...s, key } : null;
+	// The last season's source, the one that can still air (c282): the
+	// series' own key for a series with no season rows, or whose last season
+	// has none (season-facts.ts).
+	const origin = followOrigin(seriesId, db);
+	const key = parseAnimeKey(origin.key);
+	return s && key ? { ...s, key, asked: origin.key!, season: origin.season } : null;
 }
 
 /** FOLLOW and FOLLOWING ✓ on an anime: followed from now on, and its source asked at once. */
@@ -74,7 +79,18 @@ export async function checkAnime(
 	const got = await fetchAnime(sourceMangaId(s.key.sourceId, s.key.url));
 	if (!got) throw new EngineError('The source no longer lists this anime', 'not-found');
 	const plan = planOf(got, now);
-	plan.originKey = s.origin_key!;
+	// The plan finds the series by the series' own key: the season's is where
+	// the episodes came from, and a series need not have one of its own.
+	plan.originKey = s.origin_key ?? s.asked;
+	// A source that is this one season's alone numbers from its own first
+	// episode and may say nothing of a season: every episode it lists is
+	// this season's, in this series' count.
+	if (s.season !== null)
+		plan.entries = plan.entries.map((e) =>
+			e.episode ? { ...e, episode: { ...e.episode, season: s.season } } : e
+		);
+	// With season rows the sources' own positions mean nothing across them.
+	const severalSources = seasonFacts(seriesId, db).length > 0;
 	const had = new Map(
 		(
 			db
@@ -93,11 +109,14 @@ export async function checkAnime(
 				{ rootId: s.root_id, jobId: null, now, markMissing: false },
 				db
 			);
-		// The plan's order, the whole series': an episode the source inserted moves the ones after it.
-		const set = db.prepare(`UPDATE entries SET position = ? WHERE id = ?`);
-		for (const e of plan.entries) {
-			const h = had.get(e.sourceUrl);
-			if (h && h.position !== e.position) set.run(e.position, h.id);
+		if (severalSources) resequenceAnime(db, seriesId);
+		else {
+			// The plan's order, the whole series': an episode the source inserted moves the ones after it.
+			const set = db.prepare(`UPDATE entries SET position = ? WHERE id = ?`);
+			for (const e of plan.entries) {
+				const h = had.get(e.sourceUrl);
+				if (h && h.position !== e.position) set.run(e.position, h.id);
+			}
 		}
 		db.prepare(
 			`INSERT INTO anime_checks (series_id, checked_at) VALUES (?, ?)
@@ -132,7 +151,9 @@ export async function followAnime(
 	const due = db
 		.prepare(
 			`SELECT s.id FROM series s LEFT JOIN anime_checks c ON c.series_id = s.id
-			WHERE s.followed_at IS NOT NULL AND s.origin_key LIKE 'aniyomi:%'
+			WHERE s.followed_at IS NOT NULL
+				AND (s.origin_key LIKE 'aniyomi:%' OR EXISTS (SELECT 1 FROM series_season_facts f
+					WHERE f.series_id = s.id AND f.origin_key LIKE 'aniyomi:%'))
 				AND (c.checked_at IS NULL OR c.checked_at < ?)`
 		)
 		.all(now - FOLLOW_EVERY) as { id: number }[];

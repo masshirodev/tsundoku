@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import { posix } from '../fspath.ts';
 import { fileIn, isUnder, widenTo } from '../paths.ts';
+import { seriesHolding } from '../season-facts.ts';
 import { getDb } from '../db.ts';
 import { hueFor } from '../../library/cover.ts';
 import { linkFromTracker } from '../catalogue.ts';
@@ -143,9 +144,9 @@ export function writeSeries(
 		.transaction((): WriteResult => {
 			const dropped: Dropped[] = [];
 			adoptFormer(db, s, opts.now, dropped);
-			const byKey = db.prepare(`SELECT id FROM series WHERE origin_key = ?`);
-			let seriesId: number | null =
-				(byKey.get(s.originKey) as { id: number } | undefined)?.id ?? null;
+			// Its own key, or a season's (c282): an anime's season folder and
+			// FOLLOW's plan both name a source entry the series holds a season of.
+			let seriesId: number | null = seriesHolding(s.originKey, db)?.id ?? null;
 			// Moved to another source (doc/MOVE.md): the backup still names the
 			// source it was downloaded from, and every key the series has left is
 			// in series_former_keys (rung 58), however many moves ago. The series
