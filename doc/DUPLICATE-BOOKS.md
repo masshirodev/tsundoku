@@ -133,6 +133,11 @@ file move, which is not a refusal (the decision stays waiting, under
 `failed`). Only a refusal the fold, the grouping or the delete actually raises
 is treated as one.
 
+UNDO after the decision was carried out says so (`THE DECISION WAS ALREADY
+CARRIED OUT · NOTHING CHANGED`) and takes nothing back; OPEN → after a fold
+opens the book unless the refusal or failure names that fold's own pair
+(c670).
+
 **A decision that fails for any other reason stays waiting.** A bug, or the
 disk refusing a file move, is not the library's state and nothing is gained by
 dropping the decision: the row is neither dropped nor marked applied, it is

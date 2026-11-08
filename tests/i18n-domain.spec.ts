@@ -124,7 +124,7 @@ describe('in Portuguese', () => {
 			'TWO SERIES FROM ONE ENTRY · JOIN THEM IN MIGHT BE ONE SERIES'
 		);
 		// The library's ADDED TO / IS A WORK band, and the offers' own second
-		// lines, landed with the count (wave 30, c587).
+		// lines, landed with the count (wave 31, c587).
 		expect(m.offer_added_to({ name: 'ISEKAI' })).toBe('ADDED TO ISEKAI');
 		expect(m.offer_work_made({ name: 'ISEKAI' })).toBe('ISEKAI IS A WORK');
 		expect(m.offer_why_name()).toBe("ITS TITLE STARTS WITH THE WORK'S NAME");

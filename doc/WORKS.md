@@ -636,7 +636,7 @@ LIBRARY band a source search leads to is on the same screen, above it.
 - **NOT THIS** stores `work_dismissals` (`?/dismissWorkOffer`), from the
   band or the sheet, with `NOT THIS · WON'T ASK AGAIN` and UNDO. The offer's
   words, the two bands', the sheet's title, its second line and MIGHT BE ONE
-  SERIES' count are messages since c587 and wave 30 (`offer_*` in
+  SERIES' count are messages since c587 and wave 31 (`offer_*` in
   `messages/`, [`I18N.md`](I18N.md)): `offerReason` keeps its shape and calls
   `offer_why_name`/`offer_why_part` and `offer_holds`, and the count is the
   plural `offer_suggestion_books`. It holds for

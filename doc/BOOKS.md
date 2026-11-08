@@ -224,8 +224,9 @@ guards keep it from matching everything:
 - The series screen shows **MIGHT BE ONE SERIES** on a singleton that has
   candidates. REVIEW → opens the group sheet with a tick per book. NOT A SERIES
   dismisses. Both bands' words are messages since c587 (`offer_*` in
-  `messages/`, [`I18N.md`](I18N.md)), and its `N BOOKS · …` line is still the
-  books' own `suggestionLabel`.
+  `messages/`, [`I18N.md`](I18N.md)); its count is the plural
+  `offer_suggestion_books` since wave 31 (c587), and the `· …` half is still
+  the books' own `suggestionLabel`.
 - A dismissal is stored in `suggestion_dismissals` as the sorted,
   comma-joined series ids (`setKey`). A suggestion whose books are all inside a
   dismissed set stays dismissed, so dismissing "A, B, C" also silences "A, B".

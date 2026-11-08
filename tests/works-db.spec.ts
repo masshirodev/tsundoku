@@ -1994,7 +1994,7 @@ describe('the series screen’s Work controls act on the Work their screen was d
 		}
 	);
 
-	it('a series taken out of its Work since is in no Work, not a stale one', async () => {
+	it('a series taken out of its Work since answers stale too (c661)', async () => {
 		const [p, q, r] = parts().map(idOf) as number[];
 		const { work } = works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
 		// Another tab takes this series out: the screen's Work is gone from it.

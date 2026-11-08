@@ -9,7 +9,9 @@ Brief: `doc/briefs/done/BOOKS-ADDENDUM.md`, section 1.
 Reading that leaves no trace: no progress, no log row, no history, nothing in
 CONTINUE. **The row is never written.** It isn't written and then hidden.
 
-- **Turned on by typing `/incognito`** in search, like `/reveal`. It's a
+- **Turned on by typing `/incognito`** in any top search bar (c697;
+  [`BROWSE.md`](BROWSE.md), "Commands in every top search bar"), like
+  `/reveal`. It's a
   separate command, not part of reveal. If it came on with reveal, hidden
   books could never be read or be in progress, and the series-of-books screen
   depends on both. Hiding already keeps a hidden book's traces out of view:
@@ -82,7 +84,13 @@ fpPrompt, fpFail and fpCancel states).
 - **`/reveal`** asks `/api/unlock/options`. With no device enrolled, it's the
   plain command it always was. With one, the device signs a fresh challenge,
   `/api/unlock/verify` checks it (origin, relying party, user verified,
-  counter), and only then sets the reveal cookie.
+  counter), and only then sets the reveal cookie. It is typed in any top search
+  bar too (c697), but only `/search` draws the device prompt: behind a gate
+  every other bar refuses it (`/REVEAL ASKS FOR THIS DEVICE · OPEN SEARCH`,
+  from `src/routes/api/command/+server.ts`, drawn upper-case by
+  `src/lib/library/commands.ts`). A TV has no fingerprint and no screen
+  lock, so it refuses `/reveal` from every bar, `/search` included (`NOT ON A
+TV · TURN REVEAL ON FROM THE COMPUTER`, [`TV.md`](TV.md)).
 - **`/unlock`** removes the gate. That also takes the fingerprint: otherwise
   anyone holding the session could remove the gate and then reveal.
 - **The server enforces it,** not the page. While the gate is on, a plain POST

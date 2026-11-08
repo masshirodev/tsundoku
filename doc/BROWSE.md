@@ -779,8 +779,11 @@ found by those words and a locator matches by substring.
   renamed or moved meanwhile (when in doubt, hidden). A Work comes back only
   while every hidden part of it is one the press hid, as the library's UNDO
   does (c390): a Work the library hid again with the same parts is the same
-  hidden state, and UNDO shows it. UNDO twice, or the band's URL after UNDO,
-  shows nothing more.
+  hidden state, and UNDO shows it. So an UNDO also shows a Work hidden again,
+  part for part, after the press: nothing records when a series was hidden,
+  and the owner declined the `hidden_at` rung that would tell the two apart
+  (c608, 2026-11-07). UNDO twice, or the band's URL after UNDO, shows nothing
+  more.
 
 ## Where it lives in the code
 
