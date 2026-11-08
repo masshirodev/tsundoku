@@ -484,10 +484,100 @@ describe('kanji numerals against Arabic ones (c741)', () => {
 		expect(foldTitle('第２１２話')).toBe('212');
 		expect(foldTitle('第012話')).toBe('012');
 	});
-	it('takes a kanji numeral only as a chapter number', () => {
-		expect(foldTitle('一')).toBe('一');
+	it('a title that merely contains kanji numerals keeps its text', () => {
 		expect(foldTitle('二十四の瞳')).toBe('二十四の瞳');
+		expect(foldTitle('一期一会')).toBe('一期一会');
 		expect(bandTitle('二十四の瞳', '第24章')).toBe(true);
+		expect(bandTitle('二十四の瞳', '二十四')).toBe(true);
+		expect(bandTitle('一期一会', '一')).toBe(true);
+	});
+	describe('a line that is only a kanji numeral is that number (round 2)', () => {
+		it('against a prefixed form, both ways', () => {
+			expect(bandTitle('第一章', '一')).toBe(false);
+			expect(bandTitle('一', '第一章')).toBe(false);
+			expect(bandTitle('第十二章', '十二')).toBe(false);
+			expect(bandTitle('第二十一話', '二十一')).toBe(false);
+			expect(bandTitle('第1章', '一')).toBe(false);
+			expect(bandTitle('Chapter 1', '一')).toBe(false);
+			expect(bandTitle('Chapter One', '一')).toBe(false);
+		});
+		it('against a bare figure, full-width included', () => {
+			expect(bandTitle('一', '1')).toBe(false);
+			expect(bandTitle('1', '一')).toBe(false);
+			expect(bandTitle('第一章', '1')).toBe(false);
+			expect(bandTitle('十二', '１２')).toBe(false);
+		});
+		it('with punctuation or spaces around it', () => {
+			expect(bandTitle('第一章', '一。')).toBe(false);
+			expect(bandTitle('第十二章', ' 十二 ')).toBe(false);
+		});
+		it('still draws another number', () => {
+			expect(bandTitle('第2章', '一')).toBe(true);
+			expect(bandTitle('一', '第2章')).toBe(true);
+			expect(bandTitle('二', '一')).toBe(true);
+			expect(bandTitle('2', '一')).toBe(true);
+			expect(bandTitle('第十二章', '二十一')).toBe(true);
+		});
+		it('every number from 1 to 199, bare against 第n章, both ways', () => {
+			for (let n = 1; n <= 199; n++) {
+				const k = kanji(n);
+				expect(foldTitle(k), k).toBe(String(n));
+				expect(bandTitle(`第${n}章`, k), k).toBe(false);
+				expect(bandTitle(k, `第${n}章`), k).toBe(false);
+				expect(bandTitle(`第${n + 1}章`, k), k).toBe(true);
+			}
+		});
+		it('a numeral after a prefix is the same figures as one on its own', () => {
+			expect(foldTitle('第一章 二')).toBe('2');
+			expect(foldTitle('1. 二')).toBe('2');
+		});
+		it('holds on its own output', () => {
+			const LOTS = '一'.repeat(25);
+			for (const s of [
+				'一',
+				'十二',
+				'〇',
+				'第一章',
+				'千',
+				'第一章 二',
+				'1. 二',
+				LOTS,
+				`第${LOTS}章`
+			])
+				expect(foldTitle(foldTitle(s)), s).toBe(foldTitle(s));
+		});
+		it('a numeral too long to be a safe number stays as written', () => {
+			const LOTS = '一'.repeat(25);
+			expect(foldTitle(LOTS)).toBe(LOTS);
+			expect(bandTitle(LOTS, LOTS)).toBe(false);
+		});
+	});
+	describe('a bare numeral is number-only, so the lines beside it are read (round 2)', () => {
+		it('the line after it', () => {
+			const lines = leadLines([h('一'), h('旅立ち', 'h2'), p(LONG)]);
+			expect(lines).toEqual(['一', '旅立ち', '一 旅立ち']);
+			expect(bandTitle('第一章 旅立ち', lines)).toBe(false);
+			expect(bandTitle('第一章 帰郷', lines)).toBe(true);
+		});
+		it('the short line before it', () => {
+			const lines = leadLines([p('旅立ち'), h('一'), p(LONG)]);
+			expect(lines).toEqual(['一', '旅立ち', '一 旅立ち']);
+			expect(bandTitle('第一章: 旅立ち', lines)).toBe(false);
+			expect(bandTitle('第一章: 帰郷', lines)).toBe(true);
+		});
+		it('a table of contents writing it the same way', () => {
+			const lines = leadLines([h('一'), h('旅立ち', 'h2'), p(LONG)]);
+			expect(bandTitle('一 旅立ち', lines)).toBe(false);
+		});
+		it('alone, through leadLines, it is the number', () => {
+			const lines = leadLines([h('一'), p(LONG)]);
+			expect(lines).toEqual(['一']);
+			expect(bandTitle('第一章', lines)).toBe(false);
+			expect(bandTitle('第2章', lines)).toBe(true);
+		});
+		it('a title holding kanji numerals is not number-only', () => {
+			expect(leadLines([h('二十四の瞳'), h('旅立ち', 'h2'), p(LONG)])).toEqual(['二十四の瞳']);
+		});
 	});
 	it('with a title after the number', () => {
 		expect(bandTitle('第1章 旅立ち', '第一章　旅立ち')).toBe(false);

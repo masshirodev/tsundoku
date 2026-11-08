@@ -160,6 +160,8 @@ const KANJI_UNIT: Record<string, number> = { 十: 10, 百: 100, 千: 1000 };
  * A number the CJK prefix matched, in figures: 第一章 and 第1章 are one chapter.
  * Figures alone are left as written. Otherwise digits add up in place and a
  * unit takes what came before it, or 1: 二十一 is 21, 百二十 is 120, 二〇二 is 202.
+ * One too long to be a whole number exactly stays as written, because its
+ * figures would come out in exponent form and fold to something else.
  */
 function kanjiToArabic(s: string): string {
 	if (/^\d+$/.test(s)) return s;
@@ -174,7 +176,8 @@ function kanjiToArabic(s: string): string {
 			digits = digits * 10 + (KANJI_DIGIT[c] ?? Number(c));
 		}
 	}
-	return String(total + digits);
+	const n = total + digits;
+	return Number.isSafeInteger(n) ? String(n) : s;
 }
 
 // "Chapter 212:", "Chap. 12 -", "Ch. 212 –", "CH IV.", "Chapter One:", with the
@@ -195,14 +198,18 @@ const NUMBERED = /^(\d+)[.)]\s+/u;
 // string can still start with, so folding twice changes nothing.
 const COMPACT_PREFIX = /^(?:chapter|chap|ch)(\d+)/u;
 const COMPACT_CJK = /^第([0-9〇零一二三四五六七八九十百千]+)[話话章回節节]/u;
+// A line that is nothing but a kanji numeral: 一, 十二. Only the whole line
+// counts, so 二十四の瞳 keeps its text.
+const KANJI_NUMERAL = /^[〇零一二三四五六七八九十百千]+$/u;
 const NOISE = /[\p{P}\p{S}\s]+/gu;
 
 /**
  * A title folded for comparison: NFKC (full-width digits are digits), lower
  * case, a leading chapter number taken off, then punctuation, symbols and
  * whitespace dropped. A title that is only its number ("Chapter 212",
- * "第212話", "212") folds to the number, so two of those still compare. It
- * holds on its own output: `foldTitle(foldTitle(s)) === foldTitle(s)`.
+ * "第212話", "212", "十二") folds to the number, so two of those still
+ * compare. It holds on its own output: `foldTitle(foldTitle(s)) ===
+ * foldTitle(s)`.
  */
 export function foldTitle(s: string): string {
 	const { rest, n } = splitTitle(s);
@@ -229,6 +236,9 @@ function splitTitle(s: string): { rest: string; n: string | null } {
 		t = t.slice(m[0].length);
 		m = COMPACT_PREFIX.exec(t) ?? COMPACT_CJK.exec(t);
 	}
+	// In figures, as a bare "12" is: 第一章 and a chapter opening on 一 are one
+	// chapter, and a bare numeral is number-only (`numberOnly`).
+	if (KANJI_NUMERAL.test(t)) t = kanjiToArabic(t);
 	return { rest: t, n };
 }
 
