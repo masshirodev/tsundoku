@@ -21,7 +21,12 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 				from: body?.from,
 				to: body?.to,
 				subtitle: typeof body?.subtitle === 'string' ? body.subtitle : null,
-				height: Number.isFinite(Number(body?.height)) ? Number(body?.height) : null,
+				audio: typeof body?.audio === 'string' ? body.audio : null,
+				// A quality with no height sends null, and Number(null) is 0: the worst variant.
+				height:
+					typeof body?.height === 'number' && Number.isFinite(body.height) && body.height > 0
+						? body.height
+						: null,
 				fresh: body?.fresh === true
 			},
 			isRevealed(cookies)

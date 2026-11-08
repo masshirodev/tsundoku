@@ -12,6 +12,7 @@ import { streamsToTry } from '../anime/download.ts';
 import { episodeFile, episodeRow, episodeStreams } from '../anime/streams.ts';
 import { EngineError } from '../engine/client.ts';
 import { iso3, progressSeconds } from '../../library/anime-files.ts';
+import { isPlaylist } from '../../library/streams.ts';
 import { parseVtt } from '../../library/player.ts';
 import { clipAsk, cutCues, toVtt } from '../../library/highlights.ts';
 import { snapshot } from './pages.ts';
@@ -36,6 +37,8 @@ const FETCH_PAD_S = 8;
 const STALL_US = '60000000';
 /** Made and failed jobs stay this long for the player to read. */
 const KEEP_FINISHED_MS = 10 * 60_000;
+/** Read no more of an answer than a playlist could be: the proxy's own limit. */
+const MAX_PLAYLIST = 5 * 1024 * 1024;
 
 export type ClipFailure = 'stream' | 'down' | 'disk' | 'file' | 'gone';
 export type ClipStep = 'waiting' | 'fetching' | 'cutting' | 'made' | 'failed';
@@ -61,6 +64,7 @@ export type ClipJob = {
 
 type Job = ClipJob & {
 	subtitle: string | null;
+	audio: string | null;
 	height: number | null;
 	fresh: boolean;
 	child: ChildProcess | null;
@@ -185,6 +189,7 @@ type Probed = {
 	seconds: number | null;
 	width: number | null;
 	height: number | null;
+	audio: string[];
 	subtitles: string[];
 };
 async function facts(path: string): Promise<Probed> {
@@ -198,14 +203,17 @@ async function facts(path: string): Promise<Probed> {
 		}[];
 	};
 	const video = j.streams?.find((s) => s.codec_type === 'video');
+	const tagsOf = (type: string) =>
+		(j.streams ?? [])
+			.filter((s) => s.codec_type === type)
+			.map((s) => (s.tags?.language ?? '').toLowerCase());
 	return {
 		start: Number(j.format?.start_time ?? 0) || 0,
 		seconds: Number(j.format?.duration) || null,
 		width: video?.width ?? null,
 		height: video?.height ?? null,
-		subtitles: (j.streams ?? [])
-			.filter((s) => s.codec_type === 'subtitle')
-			.map((s) => (s.tags?.language ?? '').toLowerCase())
+		audio: tagsOf('audio'),
+		subtitles: tagsOf('subtitle')
 	};
 }
 
@@ -280,6 +288,15 @@ function dispositions(langs: string[], showing: string | null): string[] {
 	const at = showing ? langs.findIndex((l) => sameLang(showing, l)) : -1;
 	return langs.flatMap((_, i) => [`-disposition:s:${i}`, i === at ? 'default' : '0']);
 }
+/**
+ * `-disposition` so that the track heard at KEEP is the clip's default. With no
+ * match the track at `otherwise` is, or the file's own say stands when that is -1.
+ */
+function audioDispositions(langs: string[], heard: string | null, otherwise: number): string[] {
+	const found = heard ? langs.findIndex((l) => sameLang(heard, l)) : -1;
+	const at = found >= 0 ? found : otherwise;
+	return at < 0 ? [] : langs.flatMap((_, i) => [`-disposition:a:${i}`, i === at ? 'default' : '0']);
+}
 
 class Failed extends Error {
 	constructor(
@@ -303,12 +320,25 @@ function classify(e: unknown, fallback: ClipFailure): Failed {
 const SEGMENT_LOST =
 	/Failed to open segment|Server returned|HTTP error|Connection (refused|reset)/i;
 
+/** Every `URI=` of a tag resolved against the playlist it came from. */
+const resolveUris = (tag: string, base: string) =>
+	tag.replace(/URI=(["'])(.*?)\1/g, (whole, q: string, uri: string) => {
+		try {
+			return `URI=${q}${new URL(uri, base).href}${q}`;
+		} catch {
+			return whole;
+		}
+	});
+
 /**
  * Keeps only the segments that cover the range, and their tags, so ffmpeg asks
  * for those and nothing else: given the whole list it opens the first segment to
- * probe the stream, whatever `-ss` says. A segment's URI is resolved against the
- * playlist it came from and left pointing at the proxy. Null when no segment
- * reaches the range. `start` is the episode second the first kept segment begins.
+ * probe the stream, whatever `-ss` says. A segment's URI, and the `URI=` of a key
+ * or an init segment, are resolved against the playlist they came from and left
+ * pointing at the proxy: the trimmed list is served from another port, where a
+ * root-relative one answers 404. Its sequence is the first kept segment's own,
+ * because a key with no IV decrypts by that number. Null when no segment reaches
+ * the range. `start` is the episode second the first kept segment begins.
  */
 export function trimPlaylist(
 	text: string,
@@ -323,10 +353,13 @@ export function trimPlaylist(
 	let pending: string[] = [];
 	let d = 0;
 	let at = 0;
+	let firstSequence = 0;
 	for (const raw of lines) {
 		const line = raw.trim();
 		if (!line) continue;
-		if (line.startsWith('#EXTINF:')) {
+		if (line.startsWith('#EXT-X-MEDIA-SEQUENCE:')) {
+			firstSequence = Number(line.slice('#EXT-X-MEDIA-SEQUENCE:'.length)) || 0;
+		} else if (line.startsWith('#EXTINF:')) {
 			d = Number(line.slice(8).split(',')[0]) || 0;
 			pending.push(line);
 		} else if (line.startsWith('#EXT-X-ENDLIST')) {
@@ -351,14 +384,22 @@ export function trimPlaylist(
 	const carried = segs
 		.slice(0, firstKept + 1)
 		.flatMap((s) => s.tags.filter((t) => /^#EXT-X-(KEY|MAP)/.test(t)));
-	const body = kept.flatMap((s, i) =>
-		i === 0
-			? [...new Set(carried), ...s.tags.filter((t) => !/^#EXT-X-(KEY|MAP)/.test(t)), s.uri]
-			: [...s.tags, s.uri]
-	);
+	const body = kept
+		.flatMap((s, i) =>
+			i === 0
+				? [...new Set(carried), ...s.tags.filter((t) => !/^#EXT-X-(KEY|MAP)/.test(t)), s.uri]
+				: [...s.tags, s.uri]
+		)
+		.map((l) => (l.startsWith('#') ? resolveUris(l, base) : l));
 	const end = kept.at(-1)!.at + kept.at(-1)!.d;
 	return {
-		text: [...head, ...body, '#EXT-X-ENDLIST', ''].join('\n'),
+		text: [
+			...head.map((l) => resolveUris(l, base)),
+			`#EXT-X-MEDIA-SEQUENCE:${firstSequence + firstKept}`,
+			...body,
+			'#EXT-X-ENDLIST',
+			''
+		].join('\n'),
 		start: kept[0].at,
 		end,
 		total,
@@ -366,25 +407,87 @@ export function trimPlaylist(
 	};
 }
 
-/** The variant of a master playlist nearest a height, or null for a media playlist. */
-export function variantOf(text: string, base: string, height: number | null): string | null {
-	const lines = text.replace(/\r\n?/g, '\n').split('\n');
-	const found: { uri: string; h: number }[] = [];
+const attribute = (line: string, name: string): string | null => {
+	const m = new RegExp(`[:,]${name}=(?:"([^"]*)"|([^,]*))`).exec(line);
+	return m ? (m[1] ?? m[2]) : null;
+};
+
+/** A track a master names for a variant. No `uri`: it is inside the variant's own stream. */
+export type AudioRendition = { uri: string | null; lang: string; isDefault: boolean };
+
+/**
+ * The variant of a master playlist nearest a height, and the audio its group
+ * names; null for a media playlist.
+ */
+export function pickVariant(
+	text: string,
+	base: string,
+	height: number | null
+): { uri: string; audio: AudioRendition[] } | null {
+	const lines = text
+		.replace(/\r\n?/g, '\n')
+		.split('\n')
+		.map((l) => l.trim());
+	const found: { uri: string; h: number; group: string | null }[] = [];
 	lines.forEach((line, i) => {
 		if (!line.startsWith('#EXT-X-STREAM-INF')) return;
-		const uri = lines[i + 1]?.trim();
-		if (uri) found.push({ uri, h: Number(/RESOLUTION=\d+x(\d+)/.exec(line)?.[1] ?? 0) });
+		const uri = lines[i + 1];
+		if (uri)
+			found.push({
+				uri,
+				h: Number(/RESOLUTION=\d+x(\d+)/.exec(line)?.[1] ?? 0),
+				group: attribute(line, 'AUDIO')
+			});
 	});
 	if (!found.length) return null;
 	const want = height ?? 1080;
 	const best = [...found].sort((a, b) => Math.abs(a.h - want) - Math.abs(b.h - want))[0];
-	return new URL(best.uri, base).href;
+	const audio = lines
+		.filter(
+			(l) =>
+				best.group !== null &&
+				l.startsWith('#EXT-X-MEDIA:') &&
+				attribute(l, 'TYPE') === 'AUDIO' &&
+				attribute(l, 'GROUP-ID') === best.group
+		)
+		.map((l) => {
+			const uri = attribute(l, 'URI');
+			return {
+				uri: uri === null ? null : new URL(uri, base).href,
+				lang: attribute(l, 'LANGUAGE') ?? attribute(l, 'NAME') ?? '',
+				isDefault: attribute(l, 'DEFAULT') === 'YES'
+			};
+		});
+	return { uri: new URL(best.uri, base).href, audio };
 }
 
-async function playlistText(url: string, secret: string): Promise<string> {
+/**
+ * A playlist's text, or null when the answer isn't one: `serveMaster` wraps a
+ * hoster's plain file as a variant, and reading a whole episode to find that out
+ * would hold it all in memory, so only its first bytes are looked at.
+ */
+async function playlistOrNull(url: string, secret: string): Promise<string | null> {
 	const r = await fetch(url, { headers: { 'x-tsundoku': secret } });
-	if (!r.ok) throw new Failed('stream');
-	return r.text();
+	if (!r.ok || !r.body) {
+		await r.body?.cancel();
+		throw new Failed('stream');
+	}
+	const reader = r.body.getReader();
+	const decoder = new TextDecoder();
+	let text = '';
+	let bytes = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		bytes += value.length;
+		text += decoder.decode(value, { stream: true });
+		const enough = text.trimStart().length >= '#EXTM3U'.length;
+		if ((enough && !isPlaylist(text)) || bytes > MAX_PLAYLIST) {
+			await reader.cancel();
+			return null;
+		}
+	}
+	return isPlaylist(text) ? text : null;
 }
 
 /**
@@ -408,12 +511,140 @@ function servedOnce(text: string): Promise<{ url: string; close: () => void }> {
 	);
 }
 
-/** Fetches what the range needs into `part`. `start` is the episode second `part` begins at. */
+/** Where a stream's input is: its playlist's text, or null for a plain file. */
+type Source = { url: string; listing: string | null };
+
+/**
+ * One input, the part of it the range needs, into `part`. `start` is the episode
+ * second `part` begins at: a video's and an audio's segments start at different
+ * seconds, so each input keeps its own.
+ */
+async function fetchTrack(
+	job: Job,
+	source: Source,
+	part: string,
+	map: string[],
+	secret: string,
+	report: (done: number) => void
+): Promise<{ start: number; end: number }> {
+	let server: { url: string; close: () => void } | null = null;
+	try {
+		const hls = source.listing !== null;
+		let input: string[];
+		let start: number;
+		let end: number;
+		if (source.listing !== null) {
+			const kept = trimPlaylist(source.listing, source.url, job.from, job.to);
+			if (!kept) throw new Failed('stream', job.from);
+			start = kept.start;
+			end = kept.end;
+			server = await servedOnce(kept.text);
+			input = ['-extension_picky', '0', '-f', 'hls', '-i', server.url];
+		} else {
+			// A file a hoster links to has no segments: ffmpeg seeks it by range.
+			start = Math.max(0, job.from - FETCH_PAD_S);
+			end = job.to + FETCH_PAD_S;
+			input = [
+				'-copyts',
+				'-start_at_zero',
+				'-ss',
+				String(start),
+				'-i',
+				source.url,
+				'-t',
+				String(end - start)
+			];
+		}
+		const { stderr } = await ranFfmpeg(
+			[
+				'-nostdin',
+				'-y',
+				'-loglevel',
+				'warning',
+				'-progress',
+				'pipe:1',
+				'-rw_timeout',
+				STALL_US,
+				'-headers',
+				`x-tsundoku: ${secret}\r\n`,
+				...input,
+				...map,
+				'-c',
+				'copy',
+				'-f',
+				'matroska',
+				part
+			],
+			job,
+			(s) => report(s / Math.max(1, end - start))
+		);
+		if (job.dropped) throw new Failed('stream');
+		const f = await facts(part);
+		const got = (hls ? 0 : f.start) + (f.seconds ?? 0);
+		const stopped = (hls ? start : 0) + got;
+		if (SEGMENT_LOST.test(stderr) || f.seconds === null || f.seconds <= 0)
+			throw new Failed('stream', stopped);
+		// ffmpeg's HLS reader skips a segment it could not get and exits 0, so a
+		// file shorter than its segments add up to is a hole, not a short stream.
+		if (hls && got < end - start - 1) throw new Failed('stream', stopped);
+		const fileStart = hls ? start : f.start;
+		return { start: fileStart, end: fileStart + (f.seconds ?? 0) };
+	} finally {
+		server?.close();
+	}
+}
+
+/** The video to fetch for a pick, and the audio that goes with it. */
+async function ladderOf(
+	pick: { quality: { kind: string; audio: { lang: string; src: string }[] } },
+	url: string,
+	local: (src: string) => string,
+	secret: string,
+	height: number | null
+): Promise<Source & { audio: AudioRendition[] }> {
+	// A master that names no audio (a video that was a master already, served as
+	// it is) still has the tracks the source listed, as for a download.
+	const listed = pick.quality.audio.map((a) => ({
+		uri: local(a.src),
+		lang: a.lang,
+		isDefault: false
+	}));
+	const top = pick.quality.kind === 'hls' ? await playlistOrNull(url, secret) : null;
+	if (top === null) return { url, listing: null, audio: listed };
+	const variant = pickVariant(top, url, height);
+	if (!variant) return { url, listing: top, audio: listed };
+	return {
+		url: variant.uri,
+		listing: await playlistOrNull(variant.uri, secret),
+		audio: variant.audio.length ? variant.audio : listed
+	};
+}
+
+type FetchedAudio = { path: string; start: number; lang: string };
+
+/**
+ * Fetches what the range needs under `stem`: the video, then each separate audio
+ * track, one input each (`parts` names every file made, for whoever cleans up). A
+ * track the stream names and doesn't deliver fails the attempt: a clip that says
+ * made and is silent is worse than one that says why it wasn't.
+ */
 async function fetchPart(
 	job: Job,
-	part: string
-): Promise<{ start: number; end: number; subtitles: { lang: string; src: string }[] }> {
+	stem: string,
+	parts: string[]
+): Promise<{
+	path: string;
+	start: number;
+	end: number;
+	subtitles: { lang: string; src: string }[];
+	audio: FetchedAudio[];
+	/** Tracks inside the video's own stream, in its order. */
+	inBand: string[];
+	/** Which of inBand then audio the master calls the default. */
+	defaultAudio: number;
+}> {
 	const { port, secret } = await loopback();
+	const local = (src: string) => `http://127.0.0.1:${port}${src}`;
 	let streams;
 	try {
 		streams = await episodeStreams(job.entryId, true, job.fresh);
@@ -424,93 +655,75 @@ async function fetchPart(
 	if (!tries.length) throw new Failed('stream', job.from);
 	let last: Failed = new Failed('stream', job.from);
 	for (const pick of tries) {
-		const url = `http://127.0.0.1:${port}${pick.quality.src}`;
-		let server: { url: string; close: () => void } | null = null;
+		const url = local(pick.quality.src);
 		try {
-			const hls = pick.quality.kind === 'hls';
-			let input: string[];
-			let start: number;
-			let end: number;
-			if (hls) {
-				let text = await playlistText(url, secret);
-				let base = url;
-				const variant = variantOf(text, url, job.height);
-				if (variant) {
-					base = variant;
-					text = await playlistText(variant, secret);
-				}
-				const kept = trimPlaylist(text, base, job.from, job.to);
-				if (!kept) throw new Failed('stream', job.from);
-				start = kept.start;
-				end = kept.end;
-				server = await servedOnce(kept.text);
-				input = ['-extension_picky', '0', '-f', 'hls', '-i', server.url];
-			} else {
-				// A file a hoster links to has no segments: ffmpeg seeks it by range.
-				start = Math.max(0, job.from - FETCH_PAD_S);
-				end = job.to + FETCH_PAD_S;
-				input = [
-					'-copyts',
-					'-start_at_zero',
-					'-ss',
-					String(start),
-					'-i',
-					url,
-					'-t',
-					String(end - start)
-				];
-			}
-			const { stderr } = await ranFfmpeg(
-				[
-					'-nostdin',
-					'-y',
-					'-loglevel',
-					'warning',
-					'-progress',
-					'pipe:1',
-					'-rw_timeout',
-					STALL_US,
-					'-headers',
-					`x-tsundoku: ${secret}\r\n`,
-					...input,
-					'-map',
-					'0:v:0',
-					'-map',
-					'0:a?',
-					'-c',
-					'copy',
-					'-f',
-					'matroska',
-					part
-				],
-				job,
-				(s) => {
-					job.percent = Math.min(99, Math.round((s / Math.max(1, end - start)) * 100));
-				}
+			const ladder = await ladderOf(pick, url, local, secret, job.height);
+			const separate = ladder.audio.filter(
+				(a): a is AudioRendition & { uri: string } => a.uri !== null
 			);
-			if (job.dropped) throw new Failed('stream');
-			const f = await facts(part);
-			const got = (hls ? 0 : f.start) + (f.seconds ?? 0);
-			const stopped = (hls ? start : 0) + got;
-			if (SEGMENT_LOST.test(stderr) || f.seconds === null || f.seconds <= 0)
-				throw new Failed('stream', stopped);
-			// ffmpeg's HLS reader skips a segment it could not get and exits 0, so a
-			// file shorter than its segments add up to is a hole, not a short stream.
-			if (hls && got < end - start - 1) throw new Failed('stream', stopped);
-			const fileStart = hls ? start : f.start;
+			const named = ladder.audio.filter((a) => a.uri === null);
+			const inputs = 1 + separate.length;
+			const shareOf = (i: number) => (done: number) => {
+				job.percent = Math.min(99, Math.round(((i + Math.min(1, done)) / inputs) * 100));
+			};
+			const videoPart = `${stem}.fetch.part`;
+			parts.push(videoPart);
+			// Separate tracks replace whatever the video carries, as in a download;
+			// a track the master says is inside the video is kept beside them.
+			const video = await fetchTrack(
+				job,
+				ladder,
+				videoPart,
+				separate.length && !named.length ? ['-map', '0:v:0'] : ['-map', '0:v:0', '-map', '0:a?'],
+				secret,
+				shareOf(0)
+			);
+			const inside = separate.length && !named.length ? [] : (await facts(videoPart)).audio;
+			if (named.length && !inside.length) throw new Failed('stream', job.from);
+			const audio: FetchedAudio[] = [];
+			for (const [i, a] of separate.entries()) {
+				if (job.dropped) throw new Failed('stream');
+				let listing = await playlistOrNull(a.uri, secret);
+				let uri = a.uri;
+				const nested = listing === null ? null : pickVariant(listing, a.uri, null);
+				if (nested) {
+					uri = nested.uri;
+					listing = await playlistOrNull(uri, secret);
+				}
+				const path = `${stem}.a${i}.fetch.part`;
+				parts.push(path);
+				const got = await fetchTrack(
+					job,
+					{ url: uri, listing },
+					path,
+					['-map', '0:a:0'],
+					secret,
+					shareOf(i + 1)
+				);
+				// Named, there, and over long before the picture is: nearly silent all the same.
+				if (got.end < Math.min(job.to, video.end) - 1) throw new Failed('stream', got.end);
+				audio.push({ path, start: got.start, lang: a.lang });
+			}
+			const inBand = inside.map((tag, i) => named[i]?.lang ?? tag);
+			const master = [...named, ...separate];
 			return {
-				start: fileStart,
-				end: fileStart + (f.seconds ?? 0),
-				subtitles: pick.quality.subtitles
+				path: videoPart,
+				start: video.start,
+				end: video.end,
+				subtitles: pick.quality.subtitles,
+				audio,
+				inBand,
+				defaultAudio: Math.max(
+					0,
+					master.findIndex((a) => a.isDefault)
+				)
 			};
 		} catch (e) {
 			if (job.dropped) throw e;
-			rmSync(part, { force: true });
+			for (const f of parts.splice(0)) rmSync(f, { force: true });
 			last = classify(e, 'stream');
 			if (last.why === 'disk' || last.why === 'down') throw last;
 			if (last.stoppedAt === null) last = new Failed('stream', job.from);
-		} finally {
-			server?.close();
 		}
 	}
 	throw last;
@@ -547,11 +760,11 @@ async function cut(
 	const tag = randomBytes(6).toString('hex');
 	const clip = join(area.clips, `${tag}.mkv.part`);
 	const still = join(area.stills, `${tag}.webp.part`);
-	const fetched = join(area.clips, `${tag}.fetch.part`);
+	const fetched: string[] = [];
 	const length = job.to - job.from;
 	let subs: { path: string; lang: string }[] = [];
 	const clean = () => {
-		for (const f of [fetched, ...subs.map((s) => s.path)]) rmSync(f, { force: true });
+		for (const f of [...fetched, ...subs.map((s) => s.path)]) rmSync(f, { force: true });
 	};
 	try {
 		const file = episodeFile(job.entryId);
@@ -575,34 +788,55 @@ async function cut(
 				...(await encodeArgs()),
 				'-c:s',
 				'copy',
+				...audioDispositions(f.audio, job.audio, -1),
 				...dispositions(f.subtitles, job.subtitle)
 			];
 		} else {
 			job.step = 'fetching';
 			job.percent = 0;
 			job.streamed = true;
-			const got = await fetchPart(job, fetched);
+			const got = await fetchPart(job, join(area.clips, tag), fetched);
 			// The stream ended before the out point: what there was is the clip.
 			job.to = Math.min(job.to, got.end);
 			if (job.to - job.from < 0.5) throw new Failed('stream', got.end);
 			subs = await subtitleParts(job, got.subtitles, join(area.clips, tag));
+			// Each input seeks by its own start, so the tracks line up with the picture.
+			const span = job.to - job.from;
+			const firstSub = 1 + got.audio.length;
 			args = [
 				'-ss',
 				String(Math.max(0, job.from - got.start)),
 				'-t',
-				String(job.to - job.from),
+				String(span),
 				'-i',
-				fetched,
+				got.path,
+				...got.audio.flatMap((a) => [
+					'-ss',
+					String(Math.max(0, job.from - a.start)),
+					'-t',
+					String(span),
+					'-i',
+					a.path
+				]),
 				...subs.flatMap((s) => ['-f', 'webvtt', '-i', s.path]),
 				'-map',
 				'0:v:0',
-				'-map',
-				'0:a?',
-				...subs.flatMap((_, i) => ['-map', `${i + 1}:s:0`]),
+				...(got.inBand.length || !got.audio.length ? ['-map', '0:a?'] : []),
+				...got.audio.flatMap((_, i) => ['-map', `${i + 1}:a:0`]),
+				...subs.flatMap((_, i) => ['-map', `${i + firstSub}:s:0`]),
 				...(await encodeArgs()),
 				'-c:s',
 				'srt',
+				...got.audio.flatMap((a, i) => [
+					`-metadata:s:a:${got.inBand.length + i}`,
+					`language=${iso3(a.lang)}`
+				]),
 				...subs.flatMap((s, i) => [`-metadata:s:s:${i}`, `language=${iso3(s.lang)}`]),
+				...audioDispositions(
+					[...got.inBand, ...got.audio.map((a) => a.lang)],
+					job.audio,
+					got.defaultAudio
+				),
 				...dispositions(
 					subs.map((s) => s.lang),
 					job.subtitle
@@ -713,19 +947,26 @@ function writeRow(
 async function runJob(job: Job): Promise<void> {
 	const db = getDb();
 	const area = highlightsArea();
+	let made: Awaited<ReturnType<typeof cut>> | null = null;
+	const forgetMade = () => {
+		if (!made) return;
+		rmSync(made.clip, { force: true });
+		rmSync(made.still, { force: true });
+	};
 	try {
 		mkdirSync(area.clips, { recursive: true });
 		mkdirSync(area.stills, { recursive: true });
-		const made = await cut(job, area);
+		made = await cut(job, area);
 		if (job.dropped) {
-			rmSync(made.clip, { force: true });
-			rmSync(made.still, { force: true });
+			forgetMade();
 			return;
 		}
 		job.highlightId = writeRow(job, made, area, db, Date.now());
 		job.step = 'made';
 		job.percent = 100;
 	} catch (e) {
+		// A finished clip no row will point at: the row failed, or the series went.
+		forgetMade();
 		if (job.dropped) return;
 		const f = classify(e, job.streamed ? 'stream' : 'file');
 		job.step = 'failed';
@@ -770,8 +1011,10 @@ export type KeepClip = {
 	to: unknown;
 	/** The track showing at KEEP, the clip's default; null when none shows. */
 	subtitle?: string | null;
+	/** The track heard at KEEP, the clip's default; null when there's no choice of one. */
+	audio?: string | null;
 	height?: number | null;
-	/** TRY AGAIN asks the stream afresh, as the player does. */
+	/** TRY AGAIN asks the stream afresh, as the player does, and replaces the failure. */
 	fresh?: boolean;
 };
 
@@ -792,14 +1035,16 @@ export function keepClip(ask: KeepClip, reveal: boolean, db: Database.Database =
 	if (!snap) throw new ClipError('no such episode', 'not_found');
 	const now = Date.now();
 	forgetOld(now);
+	const sameRange = (j: Job) =>
+		j.entryId === ask.entryId &&
+		Math.abs(j.from - range.from) < 0.05 &&
+		Math.abs(j.to - range.to) < 0.05;
+	// A retry replaces the failure, so a poll, a reload or a second device can't
+	// read it as the newest word on this range.
+	if (ask.fresh)
+		for (const [id, j] of jobs) if (sameRange(j) && j.step === 'failed') jobs.delete(id);
 	const twin = [...jobs.values()].find(
-		(j) =>
-			j.entryId === ask.entryId &&
-			Math.abs(j.from - range.from) < 0.05 &&
-			Math.abs(j.to - range.to) < 0.05 &&
-			!j.dropped &&
-			j.step !== 'failed' &&
-			j.step !== 'made'
+		(j) => sameRange(j) && !j.dropped && j.step !== 'failed' && j.step !== 'made'
 	);
 	if (twin) return publicJob(twin);
 	const before = standing(db, ask.entryId, range.from, range.to);
@@ -819,6 +1064,7 @@ export function keepClip(ask: KeepClip, reveal: boolean, db: Database.Database =
 		highlightId: before,
 		finishedAt: before !== null ? now : null,
 		subtitle: ask.subtitle ?? null,
+		audio: ask.audio ?? null,
 		height: ask.height ?? null,
 		fresh: ask.fresh ?? false,
 		child: null,
