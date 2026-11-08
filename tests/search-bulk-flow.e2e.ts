@@ -101,6 +101,30 @@ const inWork = (seriesId: number) =>
 		seriesId
 	);
 
+/** A Work written as `?/work` writes it, for the cases that need one to already exist. */
+function makeWork(name: string, titles: string[]): number {
+	const db = new Database(dbPath);
+	const { id } = db
+		.prepare(`INSERT INTO works (name, created_at, order_mode) VALUES (?, ?, 'hand') RETURNING id`)
+		.get(name, Date.now()) as { id: number };
+	const member = db.prepare(
+		`INSERT INTO work_series (work_id, series_id, position) VALUES (?, ?, ?)`
+	);
+	titles.forEach((t, i) => member.run(id, series(t).id, i + 1));
+	db.close();
+	return id;
+}
+
+/** GROUP, A WORK, ADD TO A WORK: the sheet, on the page's own list of Works. */
+async function addToWork(page: Page) {
+	await barCell(page, 'GROUP').click();
+	const sheet = page.getByRole('dialog', { name: 'Group into a series' });
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await sheet.getByRole('radio', { name: /ADD TO A WORK/ }).click();
+	return sheet;
+}
+const STALE = 'THAT WORK HAS CHANGED · LOOK AGAIN';
+
 /** A search, SELECT on the bar, and these hits ticked: the real way a selection starts here. */
 async function tick(page: Page, q: string, titles: string[]) {
 	await page.goto(`${BASE}/search?q=${encodeURIComponent(q)}`);
@@ -324,4 +348,56 @@ test('DELETE asks, posts to the library, ends SELECT and takes the hit away', as
 	expect(
 		row<{ n: number }>(`SELECT COUNT(*) AS n FROM series WHERE title = 'Villainess Level 99'`).n
 	).toBe(0);
+});
+
+test('ADD TO A WORK whose Work is gone: the refusal is drawn, the ticks stay, and the sheet stops offering it', async ({
+	page
+}) => {
+	const gone = makeWork('Gone Work', ['Hikaru ga Shinda Natsu', 'Boku no Kokoro no Yabai Yatsu']);
+	makeWork('Standing Work', ['Return of the Mount Hua Sect', 'The Greatest Estate Developer']);
+	await tick(page, 'Dungeon', ['Dungeon Meshi']);
+	const sheet = await addToWork(page);
+	await sheet.getByText('Gone Work', { exact: true }).click();
+	write(`DELETE FROM works WHERE id = ?`, gone);
+	const posted = page.waitForResponse(
+		(r) => r.request().method() === 'POST' && r.url().includes('addToWork')
+	);
+	await sheet.getByRole('button', { name: /ADD 1 TO THE WORK/ }).click();
+	await posted;
+
+	await expect(sheet).toHaveCount(0);
+	await expect(page.locator('.fold-refused')).toHaveText(STALE);
+	await expect(count(page)).toHaveText('1 SELECTED');
+	await expect(page.locator('.bulk')).toBeVisible();
+
+	// The second press: the list is the one the workstation holds now.
+	const again = await addToWork(page);
+	await expect(again.getByText('Gone Work', { exact: true })).toHaveCount(0);
+	await expect(again.getByText('Standing Work', { exact: true })).toBeVisible();
+	await again.getByRole('button', { name: /CANCEL/ }).click();
+	await expect(count(page)).toHaveText('1 SELECTED');
+});
+
+test('ADD TO A WORK whose Work was remade under its id (c583): refused, then the second press joins it', async ({
+	page
+}) => {
+	const id = makeWork('Remade Work', ['Hoshi no Umi no Tabibito', 'Sekai no Owari no Kissaten']);
+	const dungeon = series('Dungeon Meshi').id;
+	await tick(page, 'Dungeon', ['Dungeon Meshi']);
+	const sheet = await addToWork(page);
+	await sheet.getByText('Remade Work', { exact: true }).click();
+	// A newer Work under the same id: what `created_at` being posted back is for.
+	write(`UPDATE works SET created_at = created_at + 1 WHERE id = ?`, id);
+	await sheet.getByRole('button', { name: /ADD 1 TO THE WORK/ }).click();
+	await expect(sheet).toHaveCount(0);
+	await expect(page.locator('.fold-refused')).toHaveText(STALE);
+	await expect(count(page)).toHaveText('1 SELECTED');
+	expect(inWork(dungeon)).toBeUndefined();
+
+	// The Work is still there: the re-read gave the sheet its new `created_at`.
+	const again = await addToWork(page);
+	await again.getByText('Remade Work', { exact: true }).click();
+	await again.getByRole('button', { name: /ADD 1 TO THE WORK/ }).click();
+	await expect.poll(() => inWork(dungeon)?.work_id).toBe(id);
+	await expect(page.locator('.bulk')).toHaveCount(0);
 });

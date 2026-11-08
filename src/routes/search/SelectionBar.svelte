@@ -46,6 +46,7 @@
 		bulkAnswer,
 		ondismissBatch,
 		ongrouped,
+		ongroupstale,
 		onhide,
 		onhideanswer,
 		ondeleted
@@ -68,6 +69,8 @@
 		bulkAnswer: SubmitFunction;
 		ondismissBatch: () => void;
 		ongrouped: () => void;
+		/** GROUP's sheet refused and closed; `/search` draws why and reads its lists again. */
+		ongroupstale?: (message: string) => void;
 		onhide: () => void | Promise<void>;
 		/** The answer of HIDE's own sheet, for a page SvelteKit does not apply it to. */
 		onhideanswer?: (data: Record<string, unknown>) => void;
@@ -373,6 +376,7 @@
 		grouping = false;
 		ongrouped();
 	}}
+	onstale={ongroupstale}
 	onclose={() => (grouping = false)}
 />
 

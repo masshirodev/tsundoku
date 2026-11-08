@@ -787,6 +787,11 @@
 		stopSelecting();
 		await invalidateAll();
 	}}
+	ongroupstale={(why) => {
+		barRefused = why;
+		listsRead = null;
+		void readLists();
+	}}
 	onhide={async () => {
 		stopSelecting();
 		await invalidateAll();

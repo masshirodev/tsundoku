@@ -64,6 +64,7 @@
 		noun = 'BOOKS',
 		absolute = false,
 		ondone,
+		onstale,
 		onclose
 	}: {
 		open: boolean;
@@ -102,6 +103,13 @@
 		 * belongs to, so that screen's `form` never sees it (c700).
 		 */
 		ondone?: (answer?: Record<string, unknown>) => void;
+		/**
+		 * A refusal the sheet cannot answer (a Work gone, or remade under its id:
+		 * c583, c584), handed over before it closes. Only a page the answer does
+		 * not belong to needs it: on the library and the series screen `form`
+		 * carries it, and `invalidateAll()` re-reads the lists.
+		 */
+		onstale?: (message: string) => void;
 		onclose: () => void;
 	} = $props();
 
@@ -264,6 +272,7 @@
 					if (data?.stale === true) {
 						await update();
 						await invalidateAll();
+						onstale?.(String(data.workMessage ?? data.groupMessage ?? data.message ?? 'NOT DONE'));
 						onclose();
 						return;
 					}
