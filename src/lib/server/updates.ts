@@ -1,6 +1,14 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { createWriteStream, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import {
+	createWriteStream,
+	mkdirSync,
+	readFileSync,
+	readdirSync,
+	renameSync,
+	rmSync,
+	writeFileSync
+} from 'node:fs';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { version } from '$app/environment';
@@ -56,6 +64,7 @@ let latest: Manifest | null = null;
 let error: string | null = null;
 let checking: Promise<void> | null = null;
 let install: Install | null = null;
+let restored = false;
 
 const base = () => (env.TSUNDOKU_UPDATES ?? '').trim();
 
@@ -86,25 +95,91 @@ function clearInstalled() {
 	}
 }
 
-/** Ask the release host, now. Never throws: a failure is kept as `error`. */
+/**
+ * The last answer the release host gave and when (c818): a start knows what
+ * the last look found, so its first page can say so, and the once-a-day limit
+ * outlives it. In the data folder itself, because `clearInstalled` deletes
+ * whatever in `updates/` isn't a newer version.
+ */
+const storePath = () => join(dataPaths().home, 'update-latest.json');
+
+/**
+ * Once, on the first question a start asks. The file is only as good as its
+ * signature, so the text goes back through `openManifest`: anything that
+ * doesn't open (cut short, edited, an older key) is as if it were never kept,
+ * and the next page load looks again.
+ */
+function restore() {
+	if (restored) return;
+	restored = true;
+	try {
+		const kept = JSON.parse(readFileSync(storePath(), 'utf8')) as {
+			text?: unknown;
+			checkedAt?: unknown;
+		} | null;
+		if (typeof kept?.text !== 'string') return;
+		if (typeof kept.checkedAt !== 'number' || kept.checkedAt <= 0) return;
+		const opened = openManifest(kept.text);
+		if (!opened.ok) return;
+		latest = opened.manifest;
+		// The time isn't signed. One ahead of the clock (it was edited, or the
+		// clock moved back) would hold the once-a-day limit shut, so it doesn't count.
+		checkedAt = kept.checkedAt <= Date.now() ? kept.checkedAt : null;
+	} catch {
+		// Nothing kept yet, or not JSON.
+	}
+}
+
+/**
+ * Temp file, then rename, so a crash leaves the last answer or this one and
+ * never half of either. Losing the race with a full disk costs a look at the
+ * next start, so a failure here is not the check's failure.
+ */
+function keep(text: string, at: number) {
+	const path = storePath();
+	const temp = `${path}.tmp`;
+	try {
+		mkdirSync(dataPaths().home, { recursive: true });
+		writeFileSync(temp, JSON.stringify({ text, checkedAt: at }));
+		renameSync(temp, path);
+	} catch {
+		try {
+			rmSync(temp, { force: true });
+		} catch {
+			// The next write replaces it.
+		}
+	}
+}
+
+/**
+ * Ask the release host, now. Never throws: a failure is kept as `error`, for
+ * as long as this start lasts. Only an answer is written down, so a failed
+ * look leaves the last good one standing, and a start after one (the friend
+ * was offline) is free to look again.
+ */
 export function check(): Promise<void> {
 	if (!updatesOn()) return Promise.resolve();
+	restore();
 	checking ??= (async () => {
 		clearInstalled();
+		let answer: string | null = null;
 		try {
 			const r = await fetch(`${base().replace(/\/+$/, '')}/latest.json`, {
 				signal: AbortSignal.timeout(15_000),
 				cache: 'no-store'
 			});
 			if (!r.ok) throw new Error(`the release host answered ${r.status}`);
-			const opened = openManifest(await r.text());
+			const text = await r.text();
+			const opened = openManifest(text);
 			if (!opened.ok) throw new Error(`refused latest.json: ${opened.reason}`);
 			latest = opened.manifest;
 			error = null;
+			answer = text;
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
 		} finally {
 			checkedAt = Date.now();
+			if (answer !== null) keep(answer, checkedAt);
 			checking = null;
 		}
 	})();
@@ -113,11 +188,14 @@ export function check(): Promise<void> {
 
 /** Check if the last one is older than `maxAge`, without waiting for it. */
 export function checkIfStale(maxAge = DAY): void {
-	if (updatesOn() && (checkedAt === null || Date.now() - checkedAt > maxAge)) void check();
+	if (!updatesOn()) return;
+	restore();
+	if (checkedAt === null || Date.now() - checkedAt > maxAge) void check();
 }
 
 export function updateView(): UpdateView | null {
 	if (!updatesOn()) return null;
+	restore();
 	const avail = latest && newer(latest.version, version) ? latest : null;
 	const file = avail ? fileFor(avail) : undefined;
 	return {
@@ -142,6 +220,7 @@ export function updateView(): UpdateView | null {
  */
 export function startInstall(): { ok: true } | { ok: false; error: string } {
 	if (!installs()) return { ok: false, error: 'this copy updates by download' };
+	restore();
 	const m = latest && newer(latest.version, version) ? latest : null;
 	const file = m?.files['win-x64']?.installer;
 	if (!m || !file) return { ok: false, error: 'no newer version to install' };

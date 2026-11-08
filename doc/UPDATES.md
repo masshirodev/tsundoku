@@ -91,7 +91,18 @@ neither. `TSUNDOKU_UPDATES=off` in the data folder's `.env` stops it looking.
 - **Looking** (`src/lib/server/updates.ts`): at most once a day, on any page
   load, without waiting for the answer; SETTINGS looks if the last check is
   over an hour old, and CHECK looks now. One GET of `latest.json`: Caddy's log
-  sees the address, nothing else is sent.
+  sees the address, nothing else is sent. **The last answer is kept** (c818):
+  `<data>/update-latest.json` holds the signed text as the host sent it and
+  when it came, written whole (a temp file, then a rename), and beside
+  `updates/` rather than in it, since the sweep below empties that folder. A
+  start reads it back through the same signature check, so a file that is cut
+  short, edited, or signed by a key this build doesn't hold counts as nothing
+  kept and says nothing to the page. The daily and hourly limits therefore
+  outlive a start. Only an answer is written: a failed look keeps the last good
+  one on offer and shows its error for as long as this start lasts, and the
+  next start, knowing only the last answer, may look again (a friend who
+  started offline is not made to wait a day). A version kept that isn't newer
+  than the one running, as after an update, is never offered.
 - **Saying so**: a modal on the library (below, "Told on entry"), and one
   band, TSUNDOKU <v> IS OUT, until the friend opens SETTINGS (`tsundoku.update.seen` in the browser). SETTINGS >
   08 — DEVICES > UPDATES shows the version running, when it last looked, and
@@ -120,8 +131,12 @@ the same loop SETTINGS' UPDATE runs now, so the two can't differ.
   where updating works (the layout's `updateOffer`). Never the workstation,
   never a phone over Wi-Fi: the computer updates, not the phone. A phone over
   Tailscale does see it; UPDATE there still updates the computer.
-- **When**: once the daily check has found the version, which doesn't wait,
-  so usually the next open. **LATER** (and Escape, and the scrim) snoozes it
+- **When**: on the first library page of any start after a look has found
+  the version, because a start knows what the last look found (above, c818).
+  The look itself doesn't wait for its answer, so the first page after a
+  look finds something new can't say so: the next open, or the next load in
+  the same run, does. **That includes the very first start**: with nothing
+  kept, its first page shows nothing. **LATER** (and Escape, and the scrim) snoozes it
   for a day, for that version, in that browser
   (`tsundoku.update.later`); a newer version asks at once.
 - **What it says**: the version, `RELEASED 2 NOV · 182 MB · SIGNED BY
@@ -214,7 +229,9 @@ from the release host, offered in UPDATES and the library's modal";
 `tests/update-manifest.spec.ts` (signatures, tampering, malformed manifests,
 version order), `tests/release-plan.spec.ts` (what the launcher passes),
 `tests/updates-client.spec.ts` (the modal's rules and words, and the UPDATE
-loop). On
+loop), `tests/updates-restart.spec.ts` (what a start knows: the layout's first
+load, a file that doesn't open, a failed look, the limits, the sweep, the
+atomic write; c818). On
 Windows, `ops/release/smoke/windows-update.ps1` runs in every release's smoke
 test: Zen plays the release host on loopback (`serve-dir.mjs`), offering a
 pretend 9999.01.01 whose installer is the one under test, signed with the real
