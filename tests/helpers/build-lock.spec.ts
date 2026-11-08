@@ -1,5 +1,13 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync
+} from 'node:fs';
 import { createServer, type AddressInfo, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -11,8 +19,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
  * and makes `.svelte-kit/output`, and the server is a `sleep`. Each case is a
  * door into the output folder: two builds at once, a build under a running
  * preview (the same tree, or a changed one), a holder or a user that died, a
- * port that already answers, a build that fails, a wait that runs out, and a
- * runner that dies without stopping it.
+ * port that already answers, a build that fails, a wait that runs out, a
+ * runner that dies without stopping it, and two or three waiters on one dead
+ * holder (c729), held at the moment of their race by `BUILD_LOCK_PAUSE` and
+ * let go together, so the interleaving that lost is the one run every time.
  *
  * Each wrapper is started as Playwright starts its webServer, the leader of a
  * process group of its own, and stopped as Playwright stops it, by SIGKILLing
@@ -30,7 +40,7 @@ beforeEach(() => {
 	const git = (...args: string[]) => spawnSync('git', args, { cwd: dir });
 	git('init', '-q');
 	git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'base');
-	writeFileSync(join(dir, '.gitignore'), '.svelte-kit/\nbuilds\nprepared\n*.log\n');
+	writeFileSync(join(dir, '.gitignore'), '.svelte-kit/\nbuilds\nprepared\n*.log\npause-*/\n');
 });
 
 afterEach(() => {
@@ -99,6 +109,31 @@ function gone(pid: number) {
 		return true;
 	}
 }
+
+/** A lock left by a holder that is gone: a pid that has exited. */
+function deadLock() {
+	const dead = spawnSync('true').pid!;
+	mkdirSync(join(dir, '.svelte-kit'), { recursive: true });
+	writeFileSync(join(dir, '.svelte-kit/.build-lock'), JSON.stringify({ pid: dead, at: 0 }));
+	return dead;
+}
+
+/** A folder for `BUILD_LOCK_PAUSE`, ignored by the tree's fingerprint. */
+function pauseDir(name: string) {
+	const path = join(dir, `pause-${name}`);
+	mkdirSync(path);
+	return path;
+}
+
+/** This run is held at that point of `acquire()`. */
+const paused = (pause: string, point: string, run: Run) =>
+	existsSync(join(pause, `${point}.${run.child.pid}`));
+
+/** Lets every run held at that point go on, and every later one pass it. */
+const go = (pause: string, point: string) => writeFileSync(join(pause, `${point}.go`), '');
+
+const tickets = () =>
+	readdirSync(join(dir, '.svelte-kit')).filter((name) => name.startsWith('.build-lock.takeover.'));
 
 // Inside every case's waits: `until`'s 4 s default, the 1 s give-up below.
 describe('build-lock', { timeout: 15_000 }, () => {
@@ -171,6 +206,87 @@ describe('build-lock', { timeout: 15_000 }, () => {
 		expect(lines('builds')).toEqual(['a']);
 		// Taken over by a rename: the file it wrote first is the lock, then gone.
 		expect(existsSync(join(dir, `.svelte-kit/.build-lock.${a.child.pid}`))).toBe(false);
+	});
+
+	it('two waiters on one dead holder, let go together: exactly one takes it over and builds', async () => {
+		const dead = deadLock();
+		const pause = pauseDir('both');
+		const a = lock('a', { build: 'sleep 1', env: { BUILD_LOCK_PAUSE: pause } });
+		const b = lock('b', { build: 'sleep 1', env: { BUILD_LOCK_PAUSE: pause } });
+		// Both have read the dead holder's bytes and found them stale, and
+		// neither has acted on it: wave 32's review's interleaving.
+		await until(() => paused(pause, 'stale', a) && paused(pause, 'stale', b));
+		go(pause, 'stale');
+		go(pause, 'ticket');
+		await until(() => serving(a)() && serving(b)(), 8_000);
+		const both = a.log() + b.log();
+		expect(both.match(/; building/g)).toHaveLength(1);
+		expect(both.match(new RegExp(`taking over a stale lock from pid ${dead}`, 'g'))).toHaveLength(
+			1
+		);
+		expect(both.match(/skipping the build/g)).toHaveLength(1);
+		expect(lines('builds')).toHaveLength(1);
+		expect(tickets()).toEqual([]);
+	});
+
+	it('a third waiter, while the takeover is under way, waits for it like any holder', async () => {
+		const dead = deadLock();
+		const pause = pauseDir('three');
+		const runs = ['a', 'b', 'c'].map((name) =>
+			lock(name, { build: 'sleep 0.5', env: { BUILD_LOCK_PAUSE: pause } })
+		);
+		await until(() => runs.every((run) => paused(pause, 'stale', run)));
+		go(pause, 'stale');
+		// One ticket: the other two found it, its writer alive, and wait.
+		await until(() => runs.filter((run) => paused(pause, 'ticket', run)).length === 1);
+		const [winner] = runs.filter((run) => paused(pause, 'ticket', run));
+		const others = runs.filter((run) => run !== winner);
+		await until(() => others.every((run) => run.log().includes(`is held by pid ${dead}`)));
+		expect(tickets()).toHaveLength(1);
+		expect(runs.map((run) => run.log()).join('')).not.toContain('; building');
+		go(pause, 'ticket');
+		await until(() => runs.every((run) => serving(run)()), 8_000);
+		expect(winner.log()).toContain(`taking over a stale lock from pid ${dead}`);
+		for (const other of others) expect(other.log()).not.toContain('taking over');
+		expect(lines('builds')).toHaveLength(1);
+		expect(tickets()).toEqual([]);
+	});
+
+	it('a waiter killed holding the ticket leaves it, and the next takes the one after it', async () => {
+		const dead = deadLock();
+		const pause = pauseDir('killed');
+		const a = lock('a', { env: { BUILD_LOCK_PAUSE: pause } });
+		go(pause, 'stale');
+		await until(() => paused(pause, 'ticket', a));
+		process.kill(-a.child.pid!, 'SIGKILL');
+		await a.exited;
+		expect(tickets()).toHaveLength(1);
+		// And a draft, as a winner killed between its draft and its rename leaves.
+		writeFileSync(join(dir, `.svelte-kit/.build-lock.${a.child.pid}`), '{}');
+		const b = lock('b');
+		await until(serving(b));
+		expect(existsSync(join(dir, `.svelte-kit/.build-lock.${a.child.pid}`))).toBe(false);
+		expect(b.log()).toContain(`taking over a stale lock from pid ${dead}`);
+		expect(lines('builds')).toEqual(['b']);
+		expect(tickets()).toEqual([]);
+	});
+
+	it('a waiter that read the dead holder before another took it over gives up', async () => {
+		deadLock();
+		const pause = pauseDir('late');
+		const b = lock('b', { env: { BUILD_LOCK_PAUSE: pause } });
+		await until(() => paused(pause, 'stale', b));
+		// While b sits on the dead bytes it read, a takes the lock and builds.
+		const a = lock('a', { build: 'sleep 1.5' });
+		await until(() => a.log().includes('; building'));
+		go(pause, 'stale');
+		go(pause, 'ticket');
+		await until(() => b.log().includes(`is held by pid ${a.child.pid}`));
+		await until(() => serving(a)() && serving(b)(), 8_000);
+		expect(b.log()).not.toContain('taking over');
+		expect(b.log()).toContain('skipping the build');
+		expect(lines('builds')).toEqual(['a']);
+		expect(tickets()).toEqual([]);
 	});
 
 	it('a user file whose pid now names another process is stale, and the run builds', async () => {

@@ -14,7 +14,8 @@
  * apart:
  *
  * - **Two builds.** `.svelte-kit/.build-lock` (a file naming its holder's pid,
- *   created with `wx` so two runners cannot both win) is held for the prepare
+ *   created with `wx` so two runners cannot both win, and taken over from a
+ *   dead holder by exactly one waiter, `acquire()`) is held for the prepare
  *   and build steps. A second invocation waits for it.
  * - **A build under a preview.** `vite build` empties `.svelte-kit/output`
  *   first, and a preview is serving out of that folder for as long as its run
@@ -33,8 +34,9 @@
  * folders), under the lock, so the dictionary copy never runs beside a build
  * that reads it.
  *
- * A holder or user that died leaves a file naming a pid that is gone: it is
- * removed the next time anyone looks. A waiter that runs out of time says who
+ * A user that died leaves a file naming a pid that is gone: it is removed the
+ * next time anyone looks. A holder that died leaves the lock naming it, and
+ * the next waiter takes it over (`acquire()` says how only one can). A waiter that runs out of time says who
  * it was waiting for and exits non-zero inside Playwright's own 180 s.
  *
  * When the preview port already answers, a server is up that the run will use
@@ -72,6 +74,9 @@ import { join } from 'node:path';
 
 const LOCK_DIR = '.svelte-kit';
 const LOCK = join(LOCK_DIR, '.build-lock');
+/** A stale lock's takeover tickets (`acquire()`): `<name><hash>.<n>`. */
+const TICKET_NAME = '.build-lock.takeover.';
+const TICKET = join(LOCK_DIR, TICKET_NAME);
 const STAMP = join(LOCK_DIR, '.build-stamp');
 const USERS = join(LOCK_DIR, '.build-users');
 const OUTPUT = join(LOCK_DIR, 'output');
@@ -144,10 +149,19 @@ function readJson(path) {
 	}
 }
 
-function holder() {
-	const held = readJson(LOCK);
+/** The record in these bytes, when it names a pid. */
+function parseHolder(text) {
+	let held;
+	try {
+		held = JSON.parse(text);
+	} catch {
+		// Half written by a killed run, or none.
+		return undefined;
+	}
 	return Number.isInteger(held?.pid) && held.pid > 0 ? held : undefined;
 }
+
+const holder = () => parseHolder(readText(LOCK));
 
 function readText(path) {
 	try {
@@ -158,20 +172,67 @@ function readText(path) {
 }
 
 /**
- * The lock is ours, or it is not yet (try again later). A stale lock is taken
- * over by renaming a file of ours onto it, never by removing it: a remove
- * followed by a create let a second waiter, reading the same dead holder,
- * delete the first's fresh lock and take it too (round 1's review). The rename
- * happens only while the lock still holds the very bytes that were found
- * stale, and the lock is read back after it, so two waiters overwriting each
- * other within the same instant end with one holder, the one named in the file.
+ * Stops at a named point until a test lets it go (`BUILD_LOCK_PAUSE=<dir>`):
+ * writes `<dir>/<point>.<pid>` and waits for `<dir>/<point>.go`. The race
+ * between two waiters is a matter of microseconds, so its case cannot wait for
+ * the box to lose it; it holds both waiters here and releases them together
+ * (`tests/helpers/build-lock.spec.ts`). Unset, as in every real run, it does
+ * nothing.
+ */
+function pause(point) {
+	const dir = process.env.BUILD_LOCK_PAUSE;
+	if (!dir) return;
+	writeFileSync(join(dir, `${point}.${process.pid}`), '');
+	const sleep = new Int32Array(new SharedArrayBuffer(4));
+	while (!existsSync(join(dir, `${point}.go`))) Atomics.wait(sleep, 0, 0, 20);
+}
+
+/** The exact bytes of the lock this process holds, or undefined. */
+let mine;
+
+/** A file whose bytes are still being written by a live process, or one that died. */
+const settling = (path) => Date.now() - mtime(path) < 1000;
+
+/**
+ * The lock is ours, or it is not yet (try again later).
+ *
+ * A free lock is taken by creating it (`wx`). A stale one, whose holder is
+ * gone, is the hard part (c729): until wave 34 every waiter that read the
+ * dead holder's bytes renamed a file of its own onto the lock and read it
+ * back, and two waiters that both read the dead bytes before either renamed
+ * both read their own name back and both built. Removing it first and then
+ * creating (round 1 of wave 32) lost the same way, and so does renaming the
+ * dead lock aside and linking a new one: a waiter that read the dead bytes
+ * late renames the winner's fresh lock aside instead.
+ *
+ * So the right to replace one stale lock is a **ticket named after its
+ * bytes**, `.build-lock.takeover.<hash of those bytes>.<n>`, created with
+ * `wx`: of the waiters that read the same dead holder, exactly one creates
+ * it. The others find it, see its writer alive, and wait like anyone waiting
+ * for a holder. The winner checks the lock still holds those bytes and only
+ * then renames its own record onto it. Nothing else can change the lock while
+ * it holds those bytes: its holder is dead, a create needs it gone, and a
+ * release removes only the bytes its own process wrote. A winner killed
+ * between its ticket and its rename would leave the ticket forever, so a
+ * ticket whose writer is gone is passed by creating the next one, `<n + 1>`
+ * (again with `wx`, again one winner), never by removing it; the winner of a
+ * later ticket finds the lock unchanged and takes it, and a ticket taken
+ * after the lock has moved on finds it changed and gives up. The winner
+ * removes every ticket once the lock is its own, since by then no ticket
+ * names the lock as it is; a waiter that was about to read one finds it
+ * missing, takes the ticket afresh, and gives up on the changed lock.
  */
 function acquire() {
 	mkdirSync(LOCK_DIR, { recursive: true });
-	const record = () =>
-		JSON.stringify({ pid: process.pid, started: startedAt(process.pid), at: Date.now(), port });
+	const bytes = JSON.stringify({
+		pid: process.pid,
+		started: startedAt(process.pid),
+		at: Date.now(),
+		port
+	});
 	try {
-		writeFileSync(LOCK, record(), { flag: 'wx' });
+		writeFileSync(LOCK, bytes, { flag: 'wx' });
+		mine = bytes;
 		return true;
 	} catch (e) {
 		if (e.code !== 'EEXIST') throw e;
@@ -179,24 +240,46 @@ function acquire() {
 	const found = readText(LOCK);
 	// Released between the create and the read: the next poll creates it.
 	if (found === undefined) return false;
-	const held = holder();
+	const held = parseHolder(found);
 	if (held && held.pid !== process.pid && running(held)) return false;
 	// A file with no pid yet may be a holder between its create and its
 	// write: only call it stale once it has had a moment to finish.
-	if (!held && Date.now() - mtime(LOCK) < 1000) return false;
-	const mine = `${LOCK}.${process.pid}`;
-	writeFileSync(mine, record());
+	if (!held && settling(LOCK)) return false;
+	pause('stale');
+	const chain = `${TICKET}${createHash('sha256').update(found).digest('hex').slice(0, 16)}.`;
+	let ticket;
+	for (let n = 0; !ticket; n++) {
+		try {
+			writeFileSync(`${chain}${n}`, bytes, { flag: 'wx' });
+			ticket = `${chain}${n}`;
+		} catch (e) {
+			if (e.code !== 'EEXIST') throw e;
+			const taker = parseHolder(readText(`${chain}${n}`));
+			// Another waiter is taking this very lock over: it is theirs.
+			if (taker ? running(taker) : settling(`${chain}${n}`)) return false;
+		}
+	}
+	pause('ticket');
 	if (readText(LOCK) !== found) {
-		// Someone else took it over, or it was released: not ours to replace.
-		rmSync(mine, { force: true });
+		// Taken over already (by the winner of an earlier ticket, who then
+		// died after its rename), or released: not this ticket's to replace.
+		rmSync(ticket, { force: true });
 		return false;
 	}
 	log(
 		`taking over a stale lock from pid ${held?.pid ?? 'unknown'}` +
 			(held ? ` (held since ${new Date(held.at).toISOString()})` : '')
 	);
-	renameSync(mine, LOCK);
-	return holder()?.pid === process.pid;
+	const draft = `${LOCK}.${process.pid}`;
+	writeFileSync(draft, bytes);
+	renameSync(draft, LOCK);
+	mine = bytes;
+	// Every ticket, and every draft (only a ticket's winner writes one, so any
+	// other is a winner's that was killed before its rename).
+	for (const name of readdirSync(LOCK_DIR))
+		if (name.startsWith(TICKET_NAME) || /^\.build-lock\.\d+$/.test(name))
+			rmSync(join(LOCK_DIR, name), { force: true });
+	return true;
 }
 
 function mtime(path) {
@@ -207,8 +290,14 @@ function mtime(path) {
 	}
 }
 
+/**
+ * Removes the lock only while it holds the bytes this process wrote: a pid
+ * alone could be a dead holder's, reused by a later wrapper, whose exit would
+ * then remove a lock that was never its own.
+ */
 function release() {
-	if (holder()?.pid === process.pid) rmSync(LOCK, { force: true });
+	if (mine !== undefined && readText(LOCK) === mine) rmSync(LOCK, { force: true });
+	mine = undefined;
 }
 
 /** The live invocations serving `.svelte-kit/output`, the dead ones' files removed. */

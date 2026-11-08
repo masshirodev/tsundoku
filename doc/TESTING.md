@@ -887,8 +887,18 @@ and the process's start time from `/proc`, since Playwright's teardown kills
 the wrapper before it can remove its own). A wait gives up after 150 s, inside
 the webServer's 180, naming whom it waited for: an invocation that starts
 while another runs a whole suite on a changed tree fails rather than tests
-stale code. A stale lock is taken over by renaming a file onto it, never by
-removing it, so two waiters cannot both hold it. The wrapper never outlives the
+stale code. A stale lock, whose holder is gone, is taken over by exactly one
+waiter (c729): the right to replace it is a ticket named after the dead
+lock's bytes (`.build-lock.takeover.<hash>.<n>`), created with `wx`, and its
+winner renames its own record onto the lock only while the lock still holds
+those bytes. Until wave 34 every waiter renamed its record on and read it
+back, and two that read the same dead holder before either renamed both
+built. A waiter that finds the ticket taken by a live writer waits, as for
+any holder; a ticket whose writer died before its rename is passed by
+creating the next (`<n + 1>`), never removed, and the winner removes every
+ticket once the lock is its own. A release removes the lock only while it
+holds the bytes its own process wrote, so a dead holder's pid reused by a
+later wrapper cannot release it. The wrapper never outlives the
 runner that started it: Playwright stops it by SIGKILLing its process group,
 which its commands stay in, and when the runner is itself killed outright (an
 agent's session ending) the wrapper sees its parent go within a second, kills
@@ -928,9 +938,9 @@ run's own lines): `browse-frame` (A, `PLAYWRIGHT_PORT=4183`) and
 The last row is why the lock holds past the build: wave 31's released it
 when its build ended, so B rebuilt under A's running previews and A's browse
 world refused connections (`net::ERR_CONNECTION_REFUSED at
-http://localhost:4594/browse/100`). A stale lock and a stale user are each
-removed and logged (`removing a stale lock from pid …`, `removing a stale
-user …`).
+http://localhost:4594/browse/100`). A stale lock is taken over and a stale
+user removed, each logged (`taking over a stale lock from pid …`, `removing a
+stale user …`).
 
 ### Regenerating the frame spec
 
