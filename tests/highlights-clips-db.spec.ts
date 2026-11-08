@@ -61,6 +61,9 @@ const src = join(work, 'src');
 let server: Server;
 const asked: string[] = [];
 let sick: (seg: string) => 'ok' | '404' | 'slow' = () => 'ok';
+/** Bytes a plain GET of the big file was sent, for the case that says it isn't read whole. */
+let bigSent = 0;
+const BIG_BYTES = 40 * 1024 * 1024;
 /** What the proxy holds beside the plain HLS above: a token's playlist or bytes. */
 const extra = new Map<string, string | Buffer>();
 const token = (name: string) => name.padEnd(32, 'x');
@@ -164,8 +167,14 @@ const hlsArgs = (prefix: string, seconds: number, more: string[] = []) => [
 const AUDIO_TONE_AT = 14;
 const AUDIO_SEG_S = 3;
 const AES_KEY = Buffer.from('000102030405060708090a0b0c0d0e0f', 'hex');
-/** A source's first number, not 0, so the IV is a sequence number and not a segment's index. */
-const AES_FIRST_SEQUENCE = 5;
+/**
+ * Not 0, so the IV is a sequence number and not a segment's index. And 250 on
+ * purpose: a wrong IV flips only the last bytes of a segment's first block, by
+ * how far the numbers differ, which a small sequence confines to the PES stream
+ * id (harmless, measured: a wrong number gave identical pixels). Across 256 it
+ * reaches the start code, so the segment's first picture is lost if it's wrong.
+ */
+const AES_FIRST_SEQUENCE = 250;
 
 /**
  * `serveMaster`'s text, copied from `src/lib/server/anime/streams.ts:191-197`: the
@@ -182,6 +191,20 @@ function serveMasterText(video: string, audio: { lang: string; token: string }[]
 	);
 	lines.push('#EXT-X-STREAM-INF:BANDWIDTH=2000000,AUDIO="aud"', media(video));
 	return lines.join('\n');
+}
+
+/**
+ * A segment that starts on its first picture. A wrong IV garbles a segment's
+ * first 16 bytes and nothing else, and the muxer's segments start with an SDT, a
+ * PAT and a PMT it repeats, so without this a wrong sequence number loses nothing
+ * the pixels could show. A hoster's segments cut by bytes do start on media.
+ */
+function withoutLeadingTables(ts: Buffer): Buffer {
+	const PACKET = 188;
+	const pid = (i: number) => ((ts[i + 1] & 0x1f) << 8) | ts[i + 2];
+	let at = 0;
+	while (at + PACKET <= ts.length && [0, 0x11, 0x1000].includes(pid(at))) at += PACKET;
+	return ts.subarray(at);
 }
 
 function buildSeparateStreams(video: string) {
@@ -220,7 +243,8 @@ function buildSeparateStreams(video: string) {
 	// An audio playlist that stops long before the video does.
 	extra.set(
 		token('ashort'),
-		asProxied('aen.m3u8').split('\n').slice(0, 7).join('\n') + '\n#EXT-X-ENDLIST\n'
+		// The header's five lines and three segments: it reaches the fetch's window, and stops at 9 s.
+		asProxied('aen.m3u8').split('\n').slice(0, 11).join('\n') + '\n#EXT-X-ENDLIST\n'
 	);
 	extra.set(token('mastershort'), serveMasterText('vid', [{ lang: 'EN', token: token('ashort') }]));
 	// An fMP4 stream, its init segment named by #EXT-X-MAP.
@@ -251,7 +275,8 @@ function buildSeparateStreams(video: string) {
 			const iv = Buffer.alloc(16);
 			iv.writeUInt32BE(AES_FIRST_SEQUENCE + i, 12);
 			const c = createCipheriv('aes-128-cbc', AES_KEY, iv);
-			const out = Buffer.concat([c.update(readFileSync(join(src, f))), c.final()]);
+			const clear = withoutLeadingTables(readFileSync(join(src, f)));
+			const out = Buffer.concat([c.update(clear), c.final()]);
 			writeFileSync(join(src, `enc${i}.ts`), out);
 			lines.push(`#EXTINF:${durations[i][1]},`, `enc${i}.ts`);
 		});
@@ -357,6 +382,22 @@ beforeAll(async () => {
 			if (kind === 'slow') await new Promise((ok) => setTimeout(ok, 900));
 			if (typeof body === 'string')
 				return res.writeHead(200, { 'content-type': 'application/vnd.apple.mpegurl' }).end(body);
+			if (held === token('plainvideo') && !req.headers.range) {
+				// Only the player's own first look asks without a Range: an episode-sized answer.
+				const chunk = Buffer.alloc(64 * 1024, 0x20);
+				bigSent = 0;
+				res.writeHead(200, { 'content-type': 'application/octet-stream' });
+				res.write(body);
+				while (bigSent < BIG_BYTES && !res.destroyed) {
+					bigSent += chunk.length;
+					if (!res.write(chunk))
+						await new Promise<void>((ok) => {
+							res.once('drain', ok);
+							res.once('close', ok);
+						});
+				}
+				return res.end();
+			}
 			// As the proxy passes a hoster's file through: Range and all.
 			const from = Number(/^bytes=(\d+)-/.exec(req.headers.range ?? '')?.[1] ?? 0);
 			return res
@@ -460,6 +501,11 @@ function loudness(path: string, stream: number, from: number, to: number): numbe
 	let sum = 0;
 	for (let i = 0; i + 1 < pcm.length; i += 2) sum += Math.abs(pcm.readInt16LE(i));
 	return sum / Math.max(1, pcm.length / 2);
+}
+/** The tone starts at second 14 and the clip at 12; a track off by its segment's start is a second out. */
+function expectToneAtTwoSeconds(file: string) {
+	expect(loudness(file, 0, 0.1, 1.8)).toBeLessThan(100);
+	expect(loudness(file, 0, 2.2, 2.9)).toBeGreaterThan(5000);
 }
 const audioStreams = (path: string) =>
 	(
@@ -763,8 +809,7 @@ describe('a stream with separate audio (serveMaster’s shape)', () => {
 		const { job: j } = await finished(ask(12, 16, { subtitle: null }).id);
 		expect(j.step).toBe('made');
 		const file = join(area, String(row(j.highlightId!).copy_path));
-		expect(loudness(file, 0, 0.1, 1.6)).toBeLessThan(100);
-		expect(loudness(file, 0, 2.4, 3.9)).toBeGreaterThan(5000);
+		expectToneAtTwoSeconds(file);
 		expectFrameNearest(file, 12);
 	}, 60_000);
 
@@ -814,10 +859,11 @@ describe('a stream with separate audio (serveMaster’s shape)', () => {
 		const { job: j } = await finished(ask(12, 16, { subtitle: null }).id);
 		expect(j).toMatchObject({ step: 'made', why: null });
 		const file = join(area, String(row(j.highlightId!).copy_path));
+		// Looked at, not read: it is a whole episode as far as this request knows.
+		expect(bigSent).toBeLessThan(BIG_BYTES / 4);
 		expect(audioStreams(file)).toHaveLength(2);
 		expect(seconds(file)).toBeCloseTo(4, 0);
-		expect(loudness(file, 0, 0.1, 1.6)).toBeLessThan(100);
-		expect(loudness(file, 0, 2.4, 3.9)).toBeGreaterThan(5000);
+		expectToneAtTwoSeconds(file);
 		expectFrameNearest(file, 12);
 	}, 60_000);
 });

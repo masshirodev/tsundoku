@@ -412,6 +412,57 @@ test('TRY AGAIN after a real failure: real POST, real poll, and the failure does
 	await expect(band(page)).toHaveCount(0);
 });
 
+test('a poll still in flight when TRY AGAIN was pressed does not bring the failure back', async ({
+	page
+}) => {
+	await open(page);
+	await markOneToThree(page);
+	const failed = {
+		id: 'j-failed',
+		entryId: entry,
+		seriesId: 1,
+		seriesTitle: 'T',
+		entryLabel: 'Ep. 5',
+		from: 1,
+		to: 3,
+		streamed: true,
+		step: 'failed',
+		percent: 0,
+		why: 'stream',
+		stoppedAt: 2,
+		highlightId: null,
+		finishedAt: 1
+	};
+	const working = {
+		...failed,
+		id: 'j-new',
+		step: 'cutting',
+		percent: 20,
+		why: null,
+		stoppedAt: null
+	};
+	let posts = 0;
+	await page.route('**/api/highlights/clips', (route: Route) => {
+		if (route.request().method() !== 'POST') return route.fallback();
+		return route.fulfill({ status: 202, json: posts++ === 0 ? failed : working });
+	});
+	let polls = 0;
+	// The server, as a poll sent before the retry reached it still sees it.
+	await page.route(/\/api\/highlights\/clips\?entry=/, (route: Route) => {
+		polls++;
+		return route.fulfill({ json: [failed, working] });
+	});
+	await page.keyboard.press('Enter');
+	await expect(band(page)).toContainText("THE CLIP WASN'T MADE");
+	await recordBand(page);
+	await band(page).getByRole('button', { name: 'TRY AGAIN' }).click();
+	await expect(band(page)).toContainText('CUTTING');
+	await expect.poll(() => polls, { timeout: 10_000 }).toBeGreaterThan(2);
+	await expect(band(page)).toContainText('CUTTING');
+	expect((await bandSaid(page)).filter((t) => t.includes("WASN'T MADE"))).toEqual([]);
+	await page.unrouteAll({ behavior: 'ignoreErrors' });
+});
+
 test('a plain KEEP again after a real failure, no retry, ends on the new clip', async ({
 	page
 }) => {
