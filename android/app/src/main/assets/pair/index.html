@@ -289,6 +289,10 @@
 			.address-meta {
 				top: 236px;
 				line-height: 1.5;
+				/* The question writes the whole address here (c683), one token
+				   with no spaces: it must break rather than run off a phone's
+				   column, where the end of a host is what says whose it is. */
+				overflow-wrap: anywhere;
 			}
 			.address-actions {
 				top: 300px;
@@ -1237,6 +1241,7 @@
 
 			function show(name) {
 				for (const [key, el] of Object.entries(screens)) el.hidden = key !== name;
+				stopAsking();
 				connecting = false;
 				connectBox.hidden = true;
 				refusedBand.hidden = true;
@@ -1380,6 +1385,9 @@
 			};
 
 			function probe() {
+				// CONNECT is one press: Enter in the field while its answer is
+				// out must not ask a second time (c683).
+				if (asking && next.disabled) return;
 				const at = origin();
 				if (!at) {
 					checking.textContent = whole
@@ -1390,7 +1398,8 @@
 				// The band describes the attempt that was refused, not this one:
 				// a new probe is a new question, so the band goes with it (c260).
 				refusedBand.hidden = true;
-				screens.address.classList.remove('with-band');
+				// The question's own band stays up, and the column stays under it.
+				if (!asking) screens.address.classList.remove('with-band');
 				// S7: an address already in the list is not paired again; it
 				// opens. Compared by origin, as everything here is.
 				const there = mode !== 'pair' ? known(at) : null;
@@ -1414,11 +1423,23 @@
 				// and the line must read the host, not the scheme (c621).
 				checking.textContent = 'CHECKING ' + at.replace(/^https?:\/\//i, '') + '…';
 				next.disabled = true;
+				// A late answer for this origin may have filled the 2 s window
+				// while the question was up; this press must not be swallowed by
+				// it, or CHECKING never ends (c683, as connect() does for c260).
+				if (asking) seen.delete(at);
 				if (bridge) bridge.probe(at);
 				else checking.textContent = 'THE APP BRIDGE IS MISSING · THIS PAGE OPENS FROM THE APK';
 			}
 
 			wholeToggle.addEventListener('click', () => {
+				// On the question this is the way out: 9B as START leaves it, and
+				// an answer still owed to a CONNECT already pressed no longer
+				// counts, because the owner has just said otherwise (c683).
+				if (asking) {
+					lastOrigin = '';
+					addressAs('pair');
+					return;
+				}
 				whole = !whole;
 				last.value = '';
 				fill();
@@ -1429,16 +1450,24 @@
 
 			/* ---- c260: an address handed in from outside ----------------------- */
 			/*
-			 * Kotlin has already judged it with Address.intentOrigin; this is
-			 * the same 9B probe the typed path uses, so an answer is remembered
-			 * in exactly one place. A refused address never reaches here: the
-			 * activity loads #bad=, which shows the band and never probes.
+			 * Kotlin has already judged it (Given.door): this is an address the
+			 * list holds, so its answer opens it and stores nothing. A refused
+			 * address never reaches here: the activity loads #bad=, which shows
+			 * the band and never probes.
 			 */
 			function connect(at) {
 				if (!/^https?:\/\//i.test(at)) {
 					refused();
 					return;
 				}
+				// Nothing that arrives by a fragment is stored unasked, whoever
+				// wrote the fragment: this page holds that itself, so it does not
+				// rest on the activity and this page agreeing about the list (c683).
+				if (!known(at)) {
+					ask(at);
+					return;
+				}
+				stopAsking();
 				// The third door into 9B's refusal state, and the one that used
 				// to leave the flag behind: hiding the screen does not hide the
 				// band, so a failure for this address would read as a failure
@@ -1446,8 +1475,8 @@
 				refusedBand.hidden = true;
 				screens.address.classList.remove('with-band');
 				const shown = at.replace(/^https?:\/\//i, '');
-				// A given address is judged as a pairing: one already in the list
-				// opens once it answers, a new one is added and pairs (c261).
+				// A given address here is one in the list: it opens once it
+				// answers (c261), and a new one has gone to ask() above (c683).
 				mode = 'pair';
 				moving = '';
 				backStep = null;
@@ -1464,10 +1493,56 @@
 				// dedupe window must not swallow this one: its answer is just as
 				// true for a given address, so let it through (c260).
 				seen.delete(at);
-				if (bridge) bridge.probe(at);
-				else
-					connectLine.textContent =
-						'CHECKING ' + shown + '… · THE APP BRIDGE IS MISSING · THIS PAGE OPENS FROM THE APK';
+				bridge.probe(at);
+			}
+
+			/* ---- c683: an address that arrived by a link ------------------------ */
+			/*
+			 * Anything can fire tsundoku://connect, and an origin in the list
+			 * passes trusted() for every read and write the bridge guards. So an
+			 * address not in the list is put on 9B and waits: no probe and no
+			 * remember until the owner presses CONNECT, which is then the typed
+			 * path, the one place an answer is stored. The field is what gets
+			 * connected to, so what is shown is what is asked about; the meta
+			 * line carries it whole, because a field clips a long host.
+			 *
+			 * The mark starts on the second button, not on CONNECT: a link is
+			 * opened by a press, and the next stray OK must not be the answer.
+			 */
+			let asking = false;
+			function stopAsking() {
+				if (!asking) return;
+				asking = false;
+				whole = false;
+				next.textContent = 'NEXT →';
+			}
+			function ask(at) {
+				if (!/^https?:\/\//i.test(at)) {
+					refused();
+					return;
+				}
+				stopRetry();
+				mode = 'pair';
+				moving = '';
+				// Nothing is being attempted now, so an answer still owed to the
+				// attempt this replaced (typed, or an earlier CONNECT) is dropped
+				// by the probe's answer rather than stored.
+				lastOrigin = '';
+				show('address');
+				asking = true;
+				whole = true;
+				fill();
+				last.value = at;
+				document.getElementById('address-label').textContent = '01 — THE ADDRESS IN THE LINK';
+				tvMeta.textContent = `THE WHOLE ADDRESS: ${at} · BACK LEAVES WITHOUT SAVING IT`;
+				next.textContent = 'CONNECT →';
+				document.getElementById('already-line').textContent =
+					'THIS ADDRESS CAME FROM A LINK · NOTHING IS SAVED UNTIL YOU PRESS CONNECT';
+				document.getElementById('already').hidden = false;
+				screens.address.classList.add('with-band');
+				// With no server to go back to, BACK is the app's: it leaves.
+				backStep = backToLibrary;
+				wholeToggle.focus();
 			}
 
 			/* A given address the activity refused: 9B, empty, with the band. */
@@ -1824,15 +1899,16 @@
 			};
 			/*
 			 * A door that acts is taken once (c685). #connect= probes and, on an
-			 * answer from a server not in the list, stores it and pairs; #lost=
-			 * opens 9D, whose retry does the same once the server answers. The
+			 * answer, opens a server in the list; #ask= (c683) puts the question
+			 * up; #lost= opens 9D, whose retry stores and pairs once the server
+			 * answers. The
 			 * entry keeps its fragment otherwise, and routeHash runs on every
 			 * load of it, so a history step back into it (any page the WebView
 			 * shows can call history.go(-n), and the entry carries the app's
-			 * own token) would check that address again: a server forgotten
-			 * since, or one that did not answer then, could come back with no
-			 * input. So the entry loses its fragment the moment the door is
-			 * taken, keeping the path and the query: ?t= is the launch's token,
+			 * own token) would check that address again, or put the question up
+			 * again long after the link. So the entry loses its fragment the
+			 * moment the door is taken, keeping the path and the query: ?t= is
+			 * the launch's token,
 			 * without which the asset guard 404s the page
 			 * (BridgeGuard.carriesAssetToken). replaceState fires no
 			 * hashchange, and the screen already drawn is unchanged; what the
@@ -1855,6 +1931,9 @@
 				} else if (hash.startsWith('connect=')) {
 					settle();
 					connect(decode(hash.slice(8)));
+				} else if (hash.startsWith('ask=')) {
+					settle();
+					ask(decode(hash.slice(4)));
 				} else if (hash.startsWith('bad=')) refused();
 				else if (hash === 'add') addressAs('add');
 				else if (hash.startsWith('added=')) added(decode(hash.slice(6)));

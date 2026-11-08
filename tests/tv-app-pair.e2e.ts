@@ -219,18 +219,17 @@ test("9A's steps end above START, whatever step 01 says (c263)", async ({ page }
 	expect(actions!.y + actions!.height).toBeLessThanOrEqual(540);
 });
 
-test('a given address is checked without 9A or 9B (c260)', async ({ page }) => {
-	const origin = 'https://zen.tailnet.ts.net:8443';
-	await page.goto(`${page9}#connect=${encodeURIComponent(origin)}`);
+test('a given address in the list is checked without 9A or 9B (c260)', async ({ page }) => {
+	await stubServers(page, three, { [ZEN]: { ok: false, hold: true } });
+	await page.goto(`${page9}#connect=${encodeURIComponent(ZEN)}`);
 
-	// The app was handed an address, so nobody types one: neither the welcome
-	// screen nor the address field is on the way. The checking line names what
-	// is being checked, and there is no bridge in a desktop browser.
+	// The app was handed an address it knows, so nobody types one: neither the
+	// welcome screen nor the address field is on the way. The checking line
+	// names what is being checked, and the probe is out and unanswered.
 	await expect(page.locator('#start')).toBeHidden();
 	await expect(page.locator('#next')).toBeHidden();
 	await expect(page.locator('#connect')).toBeVisible();
 	await expect(page.locator('#connect-line')).toContainText('zen.tailnet.ts.net:8443');
-	await expect(page.locator('#connect-line')).toContainText('THE APP BRIDGE IS MISSING');
 	// The step still says which half of pairing this is, so the page has not
 	// fallen back to 9A while the probe is unanswered.
 	await expect(page.locator('#step')).toHaveText('PAIR THIS TV · 1 OF 2');
@@ -333,7 +332,7 @@ test('a refused address stops the 9D retry, so the refusal stays (c260)', async 
 	await expect(page.locator('#checking')).toHaveText('');
 });
 
-test('a probe a given address superseded neither stores nor navigates (c260)', async ({ page }) => {
+test('a probe a link superseded neither stores nor navigates (c260, c683)', async ({ page }) => {
 	const bridge = await stubBridge(page, { hold: true });
 	await page.goto(page9);
 	// Nothing real lives at the typed address; if the superseded answer still
@@ -348,25 +347,25 @@ test('a probe a given address superseded neither stores nor navigates (c260)', a
 	await expect.poll(() => page.evaluate(() => window.__bridge!.pending)).toBe(typed);
 
 	// A second launch hands the app another address while that probe is in
-	// flight. It now supersedes the typed one, whose answer must be dropped.
+	// flight. The question supersedes the typed one, whose answer must be
+	// dropped, and it asks nothing of the address it is showing.
 	const given = 'https://zen.tailnet.ts.net:8443';
 	await page.evaluate((at) => {
-		location.hash = '#connect=' + encodeURIComponent(at);
+		location.hash = '#ask=' + encodeURIComponent(at);
 	}, given);
-	await expect(page.locator('#connect')).toBeVisible();
-	await expect(page.locator('#connect-line')).toContainText('zen.tailnet.ts.net:8443');
-	await expect(page.locator('#next')).toBeHidden();
+	await expect(page.locator('#already')).toBeVisible();
+	await expect(page.locator('#last')).toHaveValue(given);
+	expect(await page.evaluate(() => window.__bridge!.probes)).toEqual([typed]);
 
 	// The superseded probe answers. It is true for its own origin, but not for
-	// the attempt now in progress: storing it would drop the given launch,
-	// and leaving for its /pair/tv would pair at an address nobody handed in.
+	// what is on the screen now: storing it would add an address the owner
+	// walked away from, and leaving for its /pair/tv would drop the question.
 	// Both happen before the navigation, so the record is read from this side.
 	await page.evaluate((at) => window.tsundokuProbe?.(at, true), typed);
-	await page.waitForTimeout(200);
-	expect(bridge.remembered).not.toContain(typed);
+	await expect(page.locator('#last')).toHaveValue(given);
+	expect(bridge.remembered).toEqual([]);
 	expect(page.url().startsWith(page9)).toBe(true);
-	await expect(page.locator('#connect')).toBeVisible();
-	await expect(page.locator('#connect-line')).toContainText('zen.tailnet.ts.net:8443');
+	await expect(page.locator('#already')).toBeVisible();
 
 	// The refusal door into 9B resets what the held probe left behind: NEXT
 	// enabled and no CHECKING line, which d0d217d fixed and this pins.
@@ -523,7 +522,7 @@ test('a new attempt after a refusal clears the band and can fail to 9D (c260)', 
 });
 
 test('a given address after a refusal that does not answer reaches 9D (c260)', async ({ page }) => {
-	const bridge = await stubBridge(page);
+	await stubServers(page, three, { [ZEN]: { ok: false } });
 	await page.goto(`${page9}#bad=${encodeURIComponent('ftp://zen.local')}`);
 	await expect(page.locator('#refused')).toBeVisible();
 
@@ -538,10 +537,10 @@ test('a given address after a refusal that does not answer reaches 9D (c260)', a
 	await expect(page.locator('#retry')).toBeVisible();
 	await expect(page.locator('#connect')).toBeHidden();
 	await expect(page.locator('#lost-title')).toContainText('zen.tailnet.ts.net:8443');
-	expect(bridge.remembered).toEqual([]);
+	expect(await page.evaluate(() => window.__servers!.remembered)).toEqual([]);
 });
 
-test('a given address after a refusal that answers still pairs at its origin (c260)', async ({
+test('a link after a refusal still pairs at its origin once CONNECT is pressed (c260, c683)', async ({
 	page
 }) => {
 	const bridge = await stubBridge(page, { answer: true });
@@ -556,12 +555,14 @@ test('a given address after a refusal that answers still pairs at its origin (c2
 	await expect(page.locator('#refused')).toBeVisible();
 
 	// Only a *failure* for a superseded attempt is dropped: an address that
-	// answers is the current one and still replaces the remembered address
-	// (Decision 9). Pinned here so a later tightening of the guard cannot
-	// quietly stop a given address from pairing (c260).
+	// answers is the current one and still pairs (Decision 9). Pinned here so
+	// a later tightening of the guard cannot quietly stop a link from pairing
+	// (c260); what c683 adds is the press in the middle.
 	await page.evaluate(() => {
-		location.hash = '#connect=' + encodeURIComponent('https://zen.tailnet.ts.net:8443');
+		location.hash = '#ask=' + encodeURIComponent('https://zen.tailnet.ts.net:8443');
 	});
+	await expect(page.locator('#refused')).toBeHidden();
+	await page.locator('#next').click();
 	await expect.poll(() => navigations.length).toBeGreaterThan(0);
 	expect(navigations[0]).toBe('https://zen.tailnet.ts.net:8443/pair/tv');
 	expect(bridge.remembered).toContain('https://zen.tailnet.ts.net:8443');
@@ -1043,9 +1044,9 @@ test('a given address leaves its entry without the fragment once it is checked, 
 	await page.addInitScript(() => {
 		(window as unknown as { __entries: number }).__entries = history.length;
 	});
-	await page.goto(`${page9}?t=${TOKEN}#connect=${encodeURIComponent(GONE)}`);
+	await page.goto(`${page9}?t=${TOKEN}#connect=${encodeURIComponent(HOME)}`);
 	await expect(page.locator('#connect')).toBeVisible();
-	await expect(page.locator('#connect-line')).toContainText('192.168.1.88:42143');
+	await expect(page.locator('#connect-line')).toContainText('192.168.1.23:42143');
 	// The entry no longer says connect=, so nothing that loads it again can
 	// act on it; the query is the launch's token, which the asset guard
 	// requires (BridgeGuard.carriesAssetToken), so it must survive.
@@ -1060,28 +1061,26 @@ test('a given address leaves its entry without the fragment once it is checked, 
 	).toBe(0);
 });
 
-test('a history step into an old #connect= entry does not bring a forgotten server back (c685)', async ({
-	page
-}) => {
+test('a history step into an old #connect= entry checks nothing again (c685)', async ({ page }) => {
 	const across = await stubAcross(page, three);
-	across.answers.set(GONE, true);
-	await page.goto(`${page9}?t=${TOKEN}#connect=${encodeURIComponent(GONE)}`);
-	// The first visit pairs: a new server that answers is stored and its
-	// /pair/tv opens, as c260 has it.
-	await page.waitForURL(`${GONE}/pair/tv`);
-	expect(across.remembered).toEqual([GONE]);
-	expect(across.probes).toEqual([GONE]);
+	across.answers.set(HOME, true);
+	await page.goto(`${page9}?t=${TOKEN}#connect=${encodeURIComponent(HOME)}`);
+	// The first visit opens the server in the list, and the WebView leaves
+	// for it (the stub's open() does not navigate, so this test does).
+	await expect.poll(() => across.opened).toEqual([HOME]);
+	expect(across.probes).toEqual([HOME]);
+	await page.goto(`${HOME}/`);
 
-	// The owner FORGETs it later (the list never had it, so to the next
-	// document it is forgotten). Any page the WebView shows can step back
-	// into the pair page's entry, which carries the app's own token.
+	// Any page the WebView shows can step back into the pair page's entry,
+	// which carries the app's own token.
 	await page.evaluate(() => history.back());
 	await page.waitForURL(`${page9}?t=${TOKEN}`);
 	// The entry is the pair page with no door in it: 9A, and nothing checked.
 	await expect(page.locator('#start')).toBeVisible();
 	await expect(page.locator('#connect')).toBeHidden();
-	expect(across.probes).toEqual([GONE]);
-	expect(across.remembered).toEqual([GONE]);
+	expect(across.probes).toEqual([HOME]);
+	expect(across.opened).toEqual([HOME]);
+	expect(across.remembered).toEqual([]);
 	expect(page.url()).toBe(`${page9}?t=${TOKEN}`);
 });
 
@@ -1114,17 +1113,410 @@ test('a second launch with the same address is taken again once the first has cl
 	page
 }) => {
 	const across = await stubAcross(page, three);
-	await page.goto(`${page9}?t=${TOKEN}#connect=${encodeURIComponent(GONE)}`);
+	await page.goto(`${page9}?t=${TOKEN}#connect=${encodeURIComponent(HOME)}`);
 	await expect(page.locator('#connect')).toBeVisible();
-	await expect.poll(() => across.probes).toEqual([GONE]);
+	await expect.poll(() => across.probes).toEqual([HOME]);
 	// A singleTask app started again with the same address: MainActivity's
 	// loadAsset sets the same fragment on this same document (c260). The entry
 	// has none now, so it is a change, and the address is checked again.
 	await page.evaluate((at) => {
 		location.hash = '#connect=' + encodeURIComponent(at);
-	}, GONE);
-	await expect.poll(() => across.probes).toEqual([GONE, GONE]);
+	}, HOME);
+	await expect.poll(() => across.probes).toEqual([HOME, HOME]);
 	await expect(page.locator('#connect')).toBeVisible();
 	expect(await page.evaluate(() => location.hash)).toBe('');
 	expect(await page.evaluate(() => location.search)).toBe(`?t=${TOKEN}`);
+});
+
+// ---- c683: an address that arrived by a link waits for the owner ------------
+
+/** Everything the page has asked the bridge, read at once. */
+const asked = (page: Page) =>
+	page.evaluate(() => ({
+		probes: window.__bridge!.probes,
+		remembered: window.__bridge!.remembered
+	}));
+
+/** The address a link hands over, and the /pair/tv it leaves for, aborted. */
+const LINKED = 'https://library.example.com:8443';
+async function holdPairing(page: Page) {
+	const navigations: string[] = [];
+	await page.route(`${LINKED}/**`, (route) => {
+		navigations.push(route.request().url());
+		return route.abort();
+	});
+	return navigations;
+}
+
+test('a link shows its address and stores nothing until CONNECT, then once (c683)', async ({
+	page
+}) => {
+	const bridge = await stubBridge(page, { answer: true });
+	const navigations = await holdPairing(page);
+	await page.goto(`${page9}?t=${TOKEN}#ask=${encodeURIComponent(LINKED)}`);
+
+	// 9B, the field filled, saying where the address came from.
+	await expect(page.locator('#next')).toBeVisible();
+	await expect(page.locator('#last')).toHaveValue(LINKED);
+	await expect(page.locator('#already-line')).toContainText('CAME FROM A LINK');
+	await expect(page.locator('#already-line')).toContainText('PRESS CONNECT');
+	await expect(page.locator('#next')).toHaveText('CONNECT →');
+	await expect(page.locator('#tv-meta')).toContainText(LINKED);
+
+	// Neither asked nor stored, and the screen is settled, so this is not a
+	// read taken before the page got round to it.
+	expect(await asked(page)).toEqual({ probes: [], remembered: [] });
+	expect(bridge.remembered).toEqual([]);
+
+	// A link is opened by a press, so the mark is not on the answer: OK now
+	// would be the stray one. CONNECT is one step up.
+	await expect(page.locator('#whole-toggle')).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await expect(page.locator('#next')).toBeFocused();
+	await page.keyboard.press('Enter');
+
+	await expect.poll(() => navigations.length).toBeGreaterThan(0);
+	expect(navigations[0]).toBe(`${LINKED}/pair/tv`);
+	expect(bridge.remembered).toEqual([LINKED]);
+});
+
+test('the stray OK a link was opened with does not answer the question (c683)', async ({
+	page
+}) => {
+	const bridge = await stubBridge(page, { answer: true });
+	await holdPairing(page);
+	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
+	await expect(page.locator('#whole-toggle')).toBeFocused();
+
+	await page.keyboard.press('Enter');
+
+	// The way out: 9B as START leaves it, with nothing of the link in it.
+	await expect(page.locator('#already')).toBeHidden();
+	await expect(page.locator('#last')).toHaveValue('');
+	await expect(page.locator('#next')).toHaveText('NEXT →');
+	await expect(page.locator('#prefix')).toBeVisible();
+	await expect(page.locator('#address-label')).toContainText('ON ITS SCREEN');
+	expect(await asked(page)).toEqual({ probes: [], remembered: [] });
+	expect(bridge.remembered).toEqual([]);
+});
+
+test('a #connect= for an address not in the list asks, whoever wrote it (c683)', async ({
+	page
+}) => {
+	const bridge = await stubBridge(page, { answer: true });
+	await holdPairing(page);
+	await page.goto(`${page9}#connect=${encodeURIComponent(LINKED)}`);
+	await expect(page.locator('#last')).toHaveValue(LINKED);
+	await expect(page.locator('#already')).toBeVisible();
+	await expect(page.locator('#connect')).toBeHidden();
+	expect(await asked(page)).toEqual({ probes: [], remembered: [] });
+	expect(bridge.remembered).toEqual([]);
+});
+
+test('an #ask= that is not http(s) is refused, and nothing is asked (c683)', async ({ page }) => {
+	await stubBridge(page, { answer: true });
+	await page.goto(`${page9}#ask=${encodeURIComponent('javascript:alert(1)')}`);
+	await expect(page.locator('#refused')).toBeVisible();
+	await expect(page.locator('#already')).toBeHidden();
+	await expect(page.locator('#last')).toHaveValue('');
+	expect(await asked(page)).toEqual({ probes: [], remembered: [] });
+});
+
+test('a link leaves its entry without the fragment, and a history step shows 9A (c683)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, three);
+	await page.goto(`${page9}?t=${TOKEN}#ask=${encodeURIComponent(GONE)}`);
+	await expect(page.locator('#last')).toHaveValue(GONE);
+	expect(await page.evaluate(() => location.hash)).toBe('');
+	expect(page.url()).toBe(`${page9}?t=${TOKEN}`);
+
+	// The owner went elsewhere without answering. Any page the WebView shows
+	// can step back here, and the entry must not put the question up again.
+	await page.goto(`${HOME}/`);
+	await page.evaluate(() => history.back());
+	await page.waitForURL(`${page9}?t=${TOKEN}`);
+	await expect(page.locator('#start')).toBeVisible();
+	await expect(page.locator('#already')).toBeHidden();
+	expect(across.probes).toEqual([]);
+	expect(across.remembered).toEqual([]);
+});
+
+test('a second link with the same address asks again; one with another replaces it (c683)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, three);
+	await page.goto(`${page9}?t=${TOKEN}#ask=${encodeURIComponent(GONE)}`);
+	await expect(page.locator('#last')).toHaveValue(GONE);
+
+	// The owner cleared the field; the same link again is a fragment change,
+	// because the first left the entry without one, so the question returns.
+	await page.locator('#last').fill('');
+	await page.evaluate((at) => {
+		location.hash = '#ask=' + encodeURIComponent(at);
+	}, GONE);
+	await expect(page.locator('#last')).toHaveValue(GONE);
+
+	await page.evaluate((at) => {
+		location.hash = '#ask=' + encodeURIComponent(at);
+	}, LINKED);
+	await expect(page.locator('#last')).toHaveValue(LINKED);
+	await expect(page.locator('#tv-meta')).toContainText(LINKED);
+	expect(across.probes).toEqual([]);
+	expect(across.remembered).toEqual([]);
+});
+
+test('a second link while CONNECT is checking drops the first answer (c683)', async ({ page }) => {
+	const bridge = await stubBridge(page, { hold: true });
+	await holdPairing(page);
+	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
+	await page.locator('#next').click();
+	await expect.poll(() => page.evaluate(() => window.__bridge!.pending)).toBe(LINKED);
+	await expect(page.locator('#next')).toBeDisabled();
+
+	await page.evaluate((at) => {
+		location.hash = '#ask=' + encodeURIComponent(at);
+	}, ZEN);
+	await expect(page.locator('#last')).toHaveValue(ZEN);
+	await expect(page.locator('#next')).toBeEnabled();
+
+	// The press was for the address that has gone from the screen.
+	await page.evaluate((at) => window.tsundokuProbe?.(at, true), LINKED);
+	await expect(page.locator('#last')).toHaveValue(ZEN);
+	expect(bridge.remembered).toEqual([]);
+	expect(page.url().startsWith(page9)).toBe(true);
+});
+
+test('leaving the question while CONNECT is checking drops its answer (c683)', async ({ page }) => {
+	const bridge = await stubBridge(page, { hold: true });
+	await holdPairing(page);
+	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
+	await page.locator('#next').click();
+	await expect.poll(() => page.evaluate(() => window.__bridge!.pending)).toBe(LINKED);
+
+	await page.locator('#whole-toggle').click();
+	await expect(page.locator('#already')).toBeHidden();
+	await page.evaluate((at) => window.tsundokuProbe?.(at, true), LINKED);
+	await expect(page.locator('#next')).toBeVisible();
+	await expect(page.locator('#last')).toHaveValue('');
+	expect(bridge.remembered).toEqual([]);
+	expect(page.url().startsWith(page9)).toBe(true);
+});
+
+test('CONNECT is not swallowed by a late answer for the same address (c683)', async ({ page }) => {
+	const bridge = await stubBridge(page, { hold: true });
+	await holdPairing(page);
+	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
+	await page.locator('#next').click();
+	await expect.poll(() => page.evaluate(() => window.__bridge!.pending)).toBe(LINKED);
+
+	// The link again, before its first probe answered: that answer is dropped,
+	// and it leaves the origin in the page's 2 s window on its way.
+	await page.evaluate((at) => {
+		location.hash = '#ask=' + encodeURIComponent(at);
+	}, LINKED);
+	await expect(page.locator('#next')).toBeEnabled();
+	await page.evaluate((at) => window.tsundokuProbe?.(at, true), LINKED);
+	expect(bridge.remembered).toEqual([]);
+
+	// Inside that window, the owner answers. Dropping this answer too would
+	// leave CHECKING up and CONNECT disabled for good.
+	await page.locator('#next').click();
+	await expect.poll(() => page.evaluate(() => window.__bridge!.probes.length)).toBe(2);
+	await page.evaluate((at) => window.tsundokuProbe?.(at, true), LINKED);
+	await expect.poll(() => bridge.remembered).toEqual([LINKED]);
+});
+
+test('CONNECT pressed twice asks once and stores once (c683)', async ({ page }) => {
+	const bridge = await stubBridge(page, { hold: true });
+	await holdPairing(page);
+	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
+	await page.locator('#next').click();
+	await expect.poll(() => page.evaluate(() => window.__bridge!.pending)).toBe(LINKED);
+
+	// While it is checked the question's band stays up, and the column under it.
+	await expect(page.locator('#already')).toBeVisible();
+	const bandEnd = await page
+		.locator('#already')
+		.evaluate((el) => el.getBoundingClientRect().bottom);
+	const labelTop = await page
+		.locator('.address-label')
+		.evaluate((el) => el.getBoundingClientRect().top);
+	expect(labelTop).toBeGreaterThanOrEqual(bandEnd);
+
+	// The button is disabled, so the second press is Enter in the field, which
+	// the form's submit takes whether or not CONNECT can be clicked.
+	await page.locator('#last').press('Enter');
+	expect(await page.evaluate(() => window.__bridge!.probes)).toEqual([LINKED]);
+	await page.evaluate((at) => window.tsundokuProbe?.(at, true), LINKED);
+	await expect.poll(() => bridge.remembered).toEqual([LINKED]);
+});
+
+test('CONNECT to an address that does not answer reaches 9D and stores nothing yet (c683)', async ({
+	page
+}) => {
+	const bridge = await stubBridge(page, { hold: true });
+	await holdPairing(page);
+	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
+	await page.locator('#next').click();
+	await expect.poll(() => page.evaluate(() => window.__bridge!.pending)).toBe(LINKED);
+	await page.evaluate((at) => window.tsundokuProbe?.(at, false), LINKED);
+
+	await expect(page.locator('#retry')).toBeVisible();
+	await expect(page.locator('#lost-title')).toContainText('library.example.com:8443');
+	expect(bridge.remembered).toEqual([]);
+
+	// 9D's own TRY AGAIN, past the page's 2 s window: the owner pressed
+	// CONNECT for this address, so its answering now is what was asked for.
+	await page.waitForTimeout(2100);
+	await page.locator('#retry').click();
+	await page.evaluate((at) => window.tsundokuProbe?.(at, true), LINKED);
+	await expect.poll(() => bridge.remembered).toEqual([LINKED]);
+});
+
+test('a refusal over the question leaves 9B as it was, not half a question (c683)', async ({
+	page
+}) => {
+	await stubBridge(page, { answer: true });
+	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
+	await expect(page.locator('#already')).toBeVisible();
+	await page.evaluate(() => {
+		location.hash = '#bad=' + encodeURIComponent('ftp://zen.local');
+	});
+	await expect(page.locator('#refused')).toBeVisible();
+	await expect(page.locator('#already')).toBeHidden();
+	await expect(page.locator('#last')).toHaveValue('');
+	await expect(page.locator('#next')).toHaveText('NEXT →');
+	await expect(page.locator('#prefix')).toBeVisible();
+	await expect(page.locator('#address-label')).toContainText('ON ITS SCREEN');
+});
+
+test('a link to a server the list gained meanwhile opens it and stores nothing (c683)', async ({
+	page
+}) => {
+	await stubServers(page, three, { [ZEN]: { ok: true } });
+	await page.goto(`${page9}#ask=${encodeURIComponent(ZEN)}`);
+	await expect(page.locator('#last')).toHaveValue(ZEN);
+	await page.locator('#next').click();
+	await expect.poll(() => page.evaluate(() => window.__servers!.opened)).toEqual([ZEN]);
+	expect(await page.evaluate(() => window.__servers!.remembered)).toEqual([]);
+});
+
+test('BACK from the question returns to the library and saves nothing (c683)', async ({ page }) => {
+	await stubServers(page, three);
+	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
+	await expect(page.locator('#already')).toBeVisible();
+	const backed = await page.evaluate(() =>
+		(window as unknown as { tsundokuBack: () => boolean }).tsundokuBack()
+	);
+	expect(backed).toBe(true);
+	expect(await page.evaluate(() => window.__servers!.opened)).toEqual([HOME]);
+	expect(await page.evaluate(() => window.__servers!.remembered)).toEqual([]);
+	expect(await page.evaluate(() => window.__servers!.probes)).toEqual([]);
+});
+
+test("BACK from the question with no server left is the app's to take (c683)", async ({ page }) => {
+	await stubServers(page, []);
+	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
+	await expect(page.locator('#already')).toBeVisible();
+	expect(
+		await page.evaluate(() => (window as unknown as { tsundokuBack: () => boolean }).tsundokuBack())
+	).toBe(false);
+	expect(await page.evaluate(() => window.__servers!.remembered)).toEqual([]);
+});
+
+test('the question fits a TV: the band whole, an 80-character address over the buttons (c683)', async ({
+	page
+}) => {
+	await stubBridge(page, { answer: true });
+	// The longest an address gets here (Given.MAX_ASKED, 9B's own maxLength).
+	const longest = 'https://' + 'a'.repeat(40) + '.' + 'b'.repeat(19) + '.example.net';
+	expect(longest.length).toBe(80);
+	await page.goto(`${page9}#ask=${encodeURIComponent(longest)}`);
+	await expect(page.locator('#already')).toBeVisible();
+
+	// The band does not wrap, so it must fit at a TV's 0.6 em a glyph.
+	const room = await page
+		.locator('#already')
+		.evaluate((el) => el.clientWidth - parseFloat(getComputedStyle(el).paddingLeft) * 2);
+	expect(await tvMonoWidth(page, '#already-line')).toBeLessThanOrEqual(room);
+
+	// The meta line carries the address whole and ends above the buttons, at
+	// a TV's width: 0.6 em a glyph, not this box's narrower font.
+	await expect(page.locator('#tv-meta')).toContainText(longest);
+	const lines = await page.locator('#tv-meta').evaluate((el) => {
+		const css = getComputedStyle(el);
+		const size = parseFloat(css.fontSize);
+		const glyphs = (el as HTMLElement).innerText.trim().length;
+		const lineHeight = parseFloat(css.lineHeight);
+		const wide = Math.ceil((glyphs * size * (1229 / 2048)) / el.clientWidth);
+		return { height: wide * lineHeight, top: el.getBoundingClientRect().top };
+	});
+	const actions = await page
+		.locator('.address-actions')
+		.evaluate((el) => el.getBoundingClientRect().top);
+	expect(lines.top + lines.height).toBeLessThanOrEqual(actions);
+
+	// And the column sits under the band, as with every band on 9B.
+	const band = await page.locator('#already').evaluate((el) => el.getBoundingClientRect().bottom);
+	const label = await page
+		.locator('.address-label')
+		.evaluate((el) => el.getBoundingClientRect().top);
+	expect(label).toBeGreaterThanOrEqual(band);
+});
+
+test.describe('on a phone, 360 x 780', () => {
+	test.use({ viewport: { width: 360, height: 780 } });
+
+	test('the question stands on the phone column, whole, with no keyboard up (c683)', async ({
+		page
+	}) => {
+		await page.addInitScript(() => {
+			const w = window as unknown as { __keyboard: number };
+			w.__keyboard = 0;
+			window.__bridge = { probes: [], remembered: [], pending: '' };
+			window.TsundokuTV = {
+				form: () => 'mobile',
+				network: () => 'home',
+				tvAddress: () => '192.168.1.40',
+				prefix: () => '192.168.1.',
+				defaultPort: () => 42143,
+				remembered: () => '',
+				servers: () => '[]',
+				remember: (at: string) => window.__bridge!.remembered.push(at),
+				probe: (at: string) => window.__bridge!.probes.push(at),
+				keyboard: () => {
+					w.__keyboard += 1;
+				}
+			};
+		});
+		const longest = 'https://' + 'a'.repeat(40) + '.' + 'b'.repeat(19) + '.example.net';
+		await page.goto(`${page9}#ask=${encodeURIComponent(longest)}`);
+		await expect(page.locator('html')).toHaveAttribute('data-device', 'phone');
+		await expect(page.locator('#already')).toBeVisible();
+
+		// A phone's band wraps, so the question is read whole, and the address
+		// breaks rather than running off a 360 column.
+		await expect(page.locator('#already-line')).toContainText('PRESS CONNECT');
+		await expect(page.locator('#tv-meta')).toContainText(longest);
+		for (const selector of ['#already-line', '#tv-meta', '#next', '#whole-toggle']) {
+			const r = await page.locator(selector).evaluate((el) => {
+				const b = el.getBoundingClientRect();
+				return { right: b.right, bottom: b.bottom, over: el.scrollWidth - el.clientWidth };
+			});
+			expect(r.right, selector).toBeLessThanOrEqual(360);
+			expect(r.bottom, selector).toBeLessThanOrEqual(780);
+			expect(r.over, selector).toBeLessThanOrEqual(0);
+		}
+
+		// The keyboard is for typing, and nothing here needs it: it would push
+		// the question up and put CONNECT under the thumb.
+		expect(
+			await page.evaluate(() => (window as unknown as { __keyboard: number }).__keyboard)
+		).toBe(0);
+		expect(await asked(page)).toEqual({ probes: [], remembered: [] });
+
+		await page.locator('#next').click();
+		expect(await asked(page)).toEqual({ probes: [longest], remembered: [] });
+	});
 });

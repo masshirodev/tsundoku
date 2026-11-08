@@ -655,27 +655,24 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	 */
 	private fun givenAddress(intent: Intent?): String? {
 		if (intent == null) return null
-		intent.getStringExtra(EXTRA_URL)?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
-		val data = intent.data ?: return null
-		if (!data.scheme.equals("tsundoku", true) || !data.host.equals("connect", true)) return null
-		return data.getQueryParameter(EXTRA_URL)?.trim()?.takeIf { it.isNotEmpty() }
+		val data = intent.data
+		return Given.address(intent.getStringExtra(EXTRA_URL), data?.scheme, data?.host) {
+			data?.getQueryParameter(EXTRA_URL)
+		}
 	}
 
 	/**
 	 * The one place a given address is judged, whichever door it came through
-	 * (c260). A valid one goes to 9B's own probe path in the page, which is
-	 * where an answer is remembered; a refused one shows 9B's band and is
-	 * never stored.
+	 * (c260, c683). [Given.door] says which of the page's doors it takes: one
+	 * already in the list is checked and opened, one that is not is asked
+	 * about and waits for CONNECT, and a refused one shows 9B's band. None of
+	 * the three stores anything by itself.
 	 */
 	private fun takeGiven(raw: String) {
 		// This launch's page is the one in hand now: an answer still owed to
 		// an earlier door (the remembered address's probe) no longer counts.
 		attempts.begin()
-		val origin = Address.intentOrigin(raw)
-		loadAsset(
-			if (origin == null) "#bad=${Uri.encode(raw)}"
-			else "#connect=${Uri.encode(origin)}"
-		)
+		loadAsset(Given.door(raw) { servers.find(it) != null }.fragment(Uri::encode))
 	}
 
 	/**
