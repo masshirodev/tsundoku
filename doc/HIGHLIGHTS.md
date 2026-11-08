@@ -178,6 +178,11 @@ or, for a page read online, fetched once from the source through the engine's
 proxy (`readOnlinePage`, which asks for the list afresh once before it gives
 up). A BOTH is one image, the two pages side by side as the reader draws them
 (R→L: the later page on the left), the shorter scaled to the taller's height.
+**WebP refuses a side over 16383 px**, so a page taller than that (a long
+manhwa or webtoon strip page, an unsplit chapter) or a BOTH wider than that is
+scaled to fit inside 16383 × 16383, keeping its aspect; `copy_width` and
+`copy_height` are the copy's real size. Below the limit the copy is at the
+page's own size.
 
 - **No row without its copy.** The copy is written under a scratch name first;
   the row is inserted and the copy renamed to `<id>.webp` in one transaction,

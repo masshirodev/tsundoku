@@ -167,6 +167,18 @@ describe('keeping a downloaded page (c703)', () => {
 		expect(pageHighlights(s.entry, false).map((k) => k.id)).toEqual([second.highlight.id]);
 	});
 
+	it('keeps a page taller than WebP allows, scaled to fit 16383 px with its aspect (round 2)', async () => {
+		const s = await downloaded('Long Strip', { kind: 'manhwa', sizes: [[720, 20000]] });
+		const { highlight, made } = await keepPage({ entryId: s.entry, page: 0 }, false);
+		expect(made).toBe(true);
+		const [r] = rows(s.entry);
+		const scale = 16383 / 20000;
+		expect(r.copy_height).toBe(16383);
+		expect(Math.abs((r.copy_width as number) - 720 * scale)).toBeLessThanOrEqual(1);
+		const meta = await sharp(join(work, 'highlights', `pages/${highlight.id}.webp`)).metadata();
+		expect([meta.format, meta.width, meta.height]).toEqual(['webp', r.copy_width, r.copy_height]);
+	});
+
 	it('refuses a page that is not there, and stores nothing', async () => {
 		const s = await downloaded('Short');
 		await expect(keepPage({ entryId: s.entry, page: 9 }, false)).rejects.toMatchObject({
@@ -238,6 +250,21 @@ describe('a spread kept as BOTH (c703, Manga M2)', () => {
 		await expect(keepPage({ entryId: s.entry, page: 0, pageEnd: 0 }, false)).rejects.toMatchObject({
 			why: 'not_found'
 		});
+	});
+
+	it('a BOTH wider than WebP allows is scaled to fit 16383 px with its aspect (round 2)', async () => {
+		const s = await downloaded('Wide Spread', {
+			sizes: [
+				[9000, 400],
+				[9000, 400]
+			]
+		});
+		const { highlight } = await keepPage({ entryId: s.entry, page: 0, pageEnd: 1 }, false);
+		const [r] = rows(s.entry);
+		expect(r.copy_width).toBe(16383);
+		expect(Math.abs((r.copy_height as number) - 400 * (16383 / 18000))).toBeLessThanOrEqual(1);
+		const meta = await sharp(join(work, 'highlights', `pages/${highlight.id}.webp`)).metadata();
+		expect([meta.width, meta.height]).toEqual([r.copy_width, r.copy_height]);
 	});
 });
 

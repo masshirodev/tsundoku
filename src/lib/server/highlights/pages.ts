@@ -26,6 +26,8 @@ import type { KeptPage } from '../../library/highlights.ts';
  *   kept: the asks still being made are shared by key, and the insert checks
  *   again inside its transaction, so two that slip past each other end as one
  *   row and one copy.
+ * - **The copy fits WebP**: a side past 16383 px (a long strip page, a wide
+ *   BOTH) is scaled to fit, keeping the aspect.
  * - **A page's kind is `page`**, never the series' kind: what the series is
  *   called comes from the snapshot's `series_kind` and the registry.
  * - **Hidden is copied from the series and kept** (Main 02), and a hidden
@@ -151,8 +153,19 @@ async function bytesOf(p: PageBody): Promise<Buffer> {
 
 const sharpOf = async () => (await import('sharp')).default;
 
+/** WebP's own limit on a side: past it sharp refuses with "too large for the WebP format". */
+export const WEBP_MAX = 16383;
+
+/** The pipeline, scaled to fit WebP's limit when a side is past it (a long manhwa page, a wide BOTH). */
+function fitWebp(img: import('sharp').Sharp, width: number, height: number): import('sharp').Sharp {
+	return width > WEBP_MAX || height > WEBP_MAX
+		? img.resize({ width: WEBP_MAX, height: WEBP_MAX, fit: 'inside' })
+		: img;
+}
+
 /**
- * The copy, as WebP at the page's own size. A spread is the two pages side
+ * The copy, as WebP at the page's own size, or scaled to fit WebP's 16383 px
+ * limit when a side is past it. A spread is the two pages side
  * by side as the reader draws them (R→L: the later page on the left), the
  * shorter scaled to the taller's height, so a double page stays one picture.
  */
@@ -162,8 +175,9 @@ export async function pageCopy(
 ): Promise<{ webp: Buffer; width: number; height: number }> {
 	const sharp = await sharpOf();
 	if (images.length === 1) {
-		const { data, info } = await sharp(images[0])
-			.rotate()
+		// Upright first: the size that matters is the one after EXIF's turn.
+		const up = await sharp(images[0]).rotate().png().toBuffer({ resolveWithObject: true });
+		const { data, info } = await fitWebp(sharp(up.data), up.info.width, up.info.height)
 			.webp({ quality: 90 })
 			.toBuffer({ resolveWithObject: true });
 		return { webp: data, width: info.width, height: info.height };
@@ -187,10 +201,15 @@ export async function pageCopy(
 		left += s.info.width;
 		return at;
 	});
-	const { data, info } = await sharp({
+	// sharp resizes before it composites in one pipeline, so the spread is
+	// flattened first and then fitted.
+	const flat = await sharp({
 		create: { width, height, channels: 3, background: { r: 0, g: 0, b: 0 } }
 	})
 		.composite(composite)
+		.png()
+		.toBuffer();
+	const { data, info } = await fitWebp(sharp(flat), width, height)
 		.webp({ quality: 90 })
 		.toBuffer({ resolveWithObject: true });
 	return { webp: data, width: info.width, height: info.height };
