@@ -18,12 +18,16 @@ import { fillRelations, releaseAnilistWaits, type FillResult } from './catalogue
  *   10 comics            1 request of ten, then 10 singly if it comes back void
  *   worst, S = 5         10 x 19 + 11 = 201 requests = 422 s at 2.1 s
  *
- * So 600 s is the shortest round figure the worst case fits inside (201
+ * So 600 s is the shortest round figure the worst case at S = 5 fits inside (201
  * requests in ten minutes is 20 a minute, two thirds of the limit, leaving the
  * rest of the queue to whatever else asks), and the usual pass is far under it:
  * ten comics are one request. A library of 474 takes about 48 passes, so about
- * eight hours, once. A shorter interval would only push the worst case against
- * the limit; a tick that lands on a pass still running is skipped, never queued.
+ * eight hours, once. A shorter interval would only push that case against the
+ * limit. 201 is the figure at S = 5 (`worstPassRequests`): shows with more linked
+ * seasons can take longer than the interval (351 requests, 737 s, at S = 20).
+ * That only skips ticks, since a tick that lands on a pass still running is
+ * never queued, and never passes the limit, since the queue's spacing holds
+ * whatever a pass takes.
  */
 export const FILL_EVERY_MS = 10 * 60 * 1000;
 /** After startup settles: migrations are done by now, and nothing here races them. */

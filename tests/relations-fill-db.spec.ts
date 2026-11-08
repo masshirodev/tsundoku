@@ -207,12 +207,18 @@ describe('when the timer runs at all (c839)', () => {
 		expect(fill.fillCadence(env as NodeJS.ProcessEnv)).toEqual(expected);
 	});
 
-	it('keeps the worst case inside one interval, with room beside it', () => {
-		// doc comment in relations-fill.ts: 10 anime x (14 rounds + 5 re-asks) +
-		// the comics' 11, at the queue's 2.1 s. Changing a limit changes this.
-		const worstRequests = 10 * (14 + 5) + 11;
-		expect(worstRequests * 2.1).toBeLessThan(TICK / 1000);
-		expect((worstRequests * 60_000) / TICK).toBeLessThanOrEqual(20.1);
+	it('keeps the worst case at five linked seasons inside one interval, with room beside it', () => {
+		// relations-fill.ts' doc comment, from the limits themselves: changing the
+		// walk's rounds, a pass's limit or the queue's spacing changes this.
+		const worst = rel.worstPassRequests(5);
+		expect(worst * cat.ANILIST_SPACING_MS).toBeLessThan(TICK);
+		expect((worst * 60_000) / TICK).toBeLessThanOrEqual(20.1);
+	});
+
+	it('lets shows with more linked seasons run past the interval, and never past the limit', () => {
+		expect(rel.worstPassRequests(20) * cat.ANILIST_SPACING_MS).toBeGreaterThan(TICK);
+		// Whatever a pass takes: 'skips a tick' below is what makes the overrun safe.
+		expect(60_000 / cat.ANILIST_SPACING_MS).toBeLessThan(30);
 	});
 });
 

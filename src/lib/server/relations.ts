@@ -43,6 +43,16 @@ export const RELATIONS_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 export const RELATIONS_RETRY_MS = 24 * 60 * 60 * 1000;
 /** Rounds of requests one walk may take: back and forward each step once a round. */
 const MAX_ROUNDS = HOPS + 2;
+/** Series a pass asks at most: this many anime, and this many comics and novels beside them. */
+export const RELATIONS_PER_PASS = 10;
+/**
+ * The most requests one pass can make when each anime has `seasons` linked
+ * seasons: a walk's rounds, each anime's first round re-asked singly if voided
+ * (`askAlone`), and the comics' one request re-asked singly if voided. The
+ * reasoning is relations-fill.ts' doc comment.
+ */
+export const worstPassRequests = (seasons: number) =>
+	RELATIONS_PER_PASS * (MAX_ROUNDS + seasons) + 1 + RELATIONS_PER_PASS;
 
 const NODE_FIELDS = `id type format status episodes chapters volumes startDate { year } title { english romaji native }`;
 
@@ -379,7 +389,7 @@ export async function refreshRelations(
 		.all() as { id: number; tried: number | null; fetched: number | null; linked: number }[];
 	const due = rows
 		.filter((r) => !waitsItsTurn(r, now, opts.retryMs) && relationsStale(r.id, now, db))
-		.slice(0, opts.limit ?? 10);
+		.slice(0, opts.limit ?? RELATIONS_PER_PASS);
 	// By way of `series`, so a series deleted during its own ask has nothing to stamp.
 	const stamp = db.prepare(
 		`INSERT INTO series_relations (series_id, tried_at) SELECT id, ? FROM series WHERE id = ?
@@ -462,7 +472,7 @@ async function refreshComics(
 		!!cached(r.id, db)?.nodes[String(r.anilist)]?.edges;
 	const due = rows
 		.filter((r) => ownEntry(r) !== null && !waitsItsTurn(r, opts.now, opts.retryMs) && !fresh(r))
-		.slice(0, opts.limit ?? 10);
+		.slice(0, opts.limit ?? RELATIONS_PER_PASS);
 	if (!due.length) return { asked: 0, refreshed: 0, failed: 0 };
 	let answers = new Map<number, Answered | null>();
 	try {

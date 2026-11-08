@@ -461,9 +461,12 @@ apart, whoever asks, so no pass can pass 28.6 a minute however long it runs. The
 interval decides how much of that a pass may take. An anime's walk is at most
 `HOPS + 2` = 14 rounds, a request each, plus one request per linked season if
 its first round is voided (`askAlone`); ten comics are one request, plus ten
-alone if that one is voided. So the worst pass is 10 x (14 + S) + 11 requests:
-201 at S = 5, 422 s of the queue, 20 a minute over the ten minutes, two thirds
-of the limit, leaving the queue room for whatever else asks. A usual pass is far
+alone if that one is voided. So the worst pass is 10 x (14 + S) + 11 requests
+for S linked seasons a show: 201 at S = 5, 422 s of the queue, 20 a minute over
+the ten minutes, two thirds of the limit, leaving the queue room for whatever
+else asks. Shows with more linked seasons can take longer than the interval (351
+requests, 737 s, at S = 20). That only skips ticks, and it never passes the
+limit, since the 2.1 s spacing holds whatever a pass takes. A usual pass is far
 less: a library of comics costs one request a pass, and a library of 474 linked
 series takes about 48 passes, so about eight hours once. After that a pass asks
 only for what is due: a new link, and a graph reaching seven days.

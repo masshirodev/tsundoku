@@ -94,7 +94,8 @@ export class SignedOut extends Error {}
 type Fetch = typeof fetch;
 let fetcher: Fetch = (...a) => fetch(...a);
 /** AniList asks for no more than 30 requests a minute (its degraded limit); one every 2.1 s. */
-let spacing = 2100;
+export const ANILIST_SPACING_MS = 2100;
+let spacing = ANILIST_SPACING_MS;
 let last = 0;
 let chain: Promise<unknown> = Promise.resolve();
 /** The wait in hand, and whether nothing should hold the process for a wait any more. */
@@ -114,7 +115,7 @@ export function releaseAnilistWaits(): void {
 /** For specs: a stand-in for the network, and no waiting between calls. */
 export function setAnilistFetch(f: Fetch | null, gapMs = 0): void {
 	fetcher = f ?? ((...a) => fetch(...a));
-	spacing = f ? gapMs : 2100;
+	spacing = f ? gapMs : ANILIST_SPACING_MS;
 	last = 0;
 }
 
