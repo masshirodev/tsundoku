@@ -1158,18 +1158,54 @@ test.describe('a catalogue that answers', () => {
 				page.locator('.rows .r').filter({ has: page.locator('.rl', { hasText: /^LINKED$/ }) })
 			).toHaveText(/^LINKED\s*Chain Split Show · A NEW LINK REPLACES IT$/);
 
-			// Pressed twice as fast as a thumb can: one UNDO, and no refusal after it.
-			await page.getByRole('button', { name: 'UNDO' }).dblclick();
-			await expect.poll(() => partsOf(id)).toEqual(ONLY_SEASON_1);
+			// UNDO pressed again in both windows it stays on screen for: while its
+			// post is out, and while the season is read back after it. Each request
+			// is held, so the press lands inside the window whatever the box's speed.
+			let undoPosts = 0;
+			let letPost = () => {};
+			const postHeld = new Promise<void>((go) => (letPost = go));
+			await page.route('**/api/links', async (route) => {
+				if ((route.request().postDataJSON() as { undo?: string })?.undo === 'seasons') {
+					undoPosts++;
+					await postHeld;
+				}
+				await route.continue();
+			});
+			let redraws = 0;
+			let letRedraw = () => {};
+			const redrawHeld = new Promise<void>((go) => (letRedraw = go));
+			await page.route('**/links/season?*', async (route) => {
+				redraws++;
+				await redrawHeld;
+				await route.continue();
+			});
+			const undo = page.getByRole('button', { name: 'UNDO' });
+			await undo.click();
+			await expect.poll(() => undoPosts).toBe(1);
+			await undo.click();
+			letPost();
+			await expect.poll(() => redraws).toBe(1);
+			await undo.click();
+			letRedraw();
 			await expect(page.locator('.band')).toHaveCount(0);
-			await expect(page.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
+			expect(undoPosts).toBe(1);
+			expect(partsOf(id)).toEqual(ONLY_SEASON_1);
+			await page.unroute('**/api/links');
+			await page.unroute('**/links/season?*');
 
 			// A second LINK after the UNDO: the season's own, then the offer again.
 			await linkTwoSeasons(page);
 			await expect(line.first()).toHaveText('LINKED 2 SEASONS · STAY PAIR SHOW');
 			expect(partsOf(id)).toEqual(ALL_THREE);
+			// The read back unanswered: the UNDO still stands, and the page as drawn.
+			await page.route('**/links/season?*', (route) => route.abort());
 			await page.getByRole('button', { name: 'UNDO' }).click();
 			await expect.poll(() => partsOf(id)).toEqual(ONLY_SEASON_1);
+			await expect(page.locator('.band')).toHaveCount(0);
+			await expect(
+				page.locator('.rows .r').filter({ has: page.locator('.rl', { hasText: /^LINKED$/ }) })
+			).toHaveText(/^LINKED\s*Chain Split Show · A NEW LINK REPLACES IT$/);
+			await page.unroute('**/links/season?*');
 
 			await page.getByRole('link', { name: '← SERIES' }).click();
 			await page.waitForURL(new RegExp(`/series/${id}$`));
@@ -1181,6 +1217,30 @@ test.describe('a catalogue that answers', () => {
 			]);
 		} finally {
 			forgetFlatList(id);
+		}
+	});
+
+	test('/links/season answers as the page’s load does: never for what cannot be seen (c644)', async ({
+		page
+	}) => {
+		const id = seedSeasons('Season Door Show', [12, 12]);
+		const ask = (query: string) => page.request.get(`${BASE}/links/season?${query}`);
+		const open = await ask(`series=${id}&season=2`);
+		expect(open.status()).toBe(200);
+		expect(await open.json()).toMatchObject({ season: { no: 2, of: 2 }, single: { linked: null } });
+		// A season it does not have, no season at all, and a series that isn't one.
+		expect((await ask(`series=${id}&season=9`)).status()).toBe(404);
+		expect((await ask(`series=${id}`)).status()).toBe(404);
+		expect((await ask('series=nope&season=1')).status()).toBe(404);
+		// Hidden means hidden: with reveal off, the same 404 as a missing one.
+		const db = new Database(dbPath);
+		const hide = db.prepare(`UPDATE series SET hidden = ? WHERE id = ?`);
+		try {
+			hide.run(1, id);
+			expect((await ask(`series=${id}&season=2`)).status()).toBe(404);
+		} finally {
+			hide.run(0, id);
+			db.close();
 		}
 	});
 
