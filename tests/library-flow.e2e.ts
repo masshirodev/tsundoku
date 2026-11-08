@@ -1299,6 +1299,149 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await noFav();
 	});
 
+	// The band is the app's and outlives reveal: HIDE AGAIN is a `use:enhance`
+	// form answering a 303, so the store survives it. doc/LIBRARY.md's "while
+	// reveal is off a hidden title never reaches the browser" has to hold there.
+	for (const { how, title, ownFlag } of [
+		{ how: 'through its hidden root', title: 'Onsen Ryokan no Yoru', ownFlag: false },
+		{ how: 'by its own flag', title: TITLE, ownFlag: true }
+	]) {
+		test(`a series hidden ${how} is not named on its band, before or after reveal ends (c739, round 2)`, async ({
+			page
+		}) => {
+			const VISIBLE = 'Hoshi no Umi no Tabibito';
+			const revealOn = async () => {
+				await page.goto('/search');
+				await page.getByRole('searchbox').fill('/reveal');
+				await page.keyboard.press('Enter');
+				await page.waitForURL((u) => u.pathname === '/');
+				await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+				await page.goto('/?shelf=all&sort=title');
+			};
+			if (ownFlag) {
+				await page.goto('/');
+				const sheet = await longPress(page, title);
+				await sheet.getByRole('button', { name: 'HIDE', exact: true }).click();
+				await expect(page.locator('.grid .tile', { hasText: title })).toHaveCount(0);
+			}
+			await revealOn();
+
+			const hidden = page.locator('.grid .tile', { hasText: title });
+			await expect(hidden.getByText('HIDDEN', { exact: true })).toBeVisible();
+			const visible = page.locator('.grid .tile', { hasText: VISIBLE });
+			await expect(visible.getByText('HIDDEN', { exact: true })).toHaveCount(0);
+
+			// Aborted for the whole case, so the nudge HIDE AGAIN causes loses too.
+			let favsLost = 0;
+			const isFav = (u: URL) => u.pathname === '/' && u.search === '?/favourite';
+			const isRate = (u: URL) => u.pathname === '/' && u.search === '?/rate';
+			await page.route(isFav, (route) => {
+				favsLost++;
+				return route.abort();
+			});
+			await page.route(isRate, (route) => route.abort());
+
+			const fav = hidden.getByRole('button', { name: 'Favourite' });
+			const word = (await fav.getAttribute('aria-pressed')) === 'true' ? 'UNFAV' : 'FAV';
+			await fav.click();
+			await expect(fav).toHaveClass(/unsaved/);
+			await hidden.getByRole('button', { name: /^Rate, / }).click();
+			await hidden.getByRole('button', { name: 'Rate 6 of 10' }).click();
+			const visibleFav = visible.getByRole('button', { name: 'Favourite' });
+			const visibleWord =
+				(await visibleFav.getAttribute('aria-pressed')) === 'true' ? 'UNFAV' : 'FAV';
+			await visibleFav.click();
+			await expect(visibleFav).toHaveClass(/unsaved/);
+
+			const bands = page.locator('[role="alert"]');
+			await expect(bands).toHaveCount(3);
+			const named = bands.filter({ hasText: title.toUpperCase() });
+			const favBand = bands.filter({
+				has: page.locator('.what', { hasText: new RegExp(`^${word} NOT SAVED$`) })
+			});
+			const rateBand = bands.filter({
+				has: page.locator('.what', { hasText: /^RATING 6 NOT SAVED$/ })
+			});
+			const visibleBand = bands.filter({ hasText: VISIBLE.toUpperCase() });
+
+			// The hidden tile's two bands say what failed and nothing about whose.
+			const unnamed = async () => {
+				await expect(bands).toHaveCount(3);
+				await expect(named).toHaveCount(0);
+				await expect(favBand).toHaveCount(1);
+				await expect(rateBand).toHaveCount(1);
+				// The neighbouring value: a visible tile's band still says which.
+				await expect(visibleBand.locator('.what')).toHaveText(
+					`${visibleWord} NOT SAVED · ${VISIBLE.toUpperCase()}`
+				);
+			};
+			await unnamed();
+			for (const band of [favBand, rateBand]) {
+				await expect(band.getByRole('button', { name: /PUT BACK/ })).toBeVisible();
+				await expect(band.getByRole('button', { name: 'RETRY' })).toBeVisible();
+			}
+
+			// End reveal by the banner. The grid drops the series, the store does not.
+			const before = favsLost;
+			await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+			await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+			await expect(page.locator('.grid .tile', { hasText: title })).toHaveCount(0);
+			// Both held FAVs were tried again and lost: the state after the nudge.
+			await expect.poll(() => favsLost).toBeGreaterThanOrEqual(before + 2);
+			await unnamed();
+
+			for (const band of [favBand, rateBand, visibleBand]) {
+				await band.getByRole('button', { name: /PUT BACK/ }).click();
+				await expect(band).toHaveCount(0);
+			}
+			await expect(bands).toHaveCount(0);
+			await page.unroute(isFav);
+			await page.unroute(isRate);
+
+			if (ownFlag) {
+				await revealOn();
+				await longPress(page, title);
+				await page.getByRole('button', { name: 'UNHIDE' }).click();
+				await expect(hidden.getByText('HIDDEN', { exact: true })).toHaveCount(0);
+				await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+				await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+			}
+		});
+	}
+
+	test('a tile gone from the grid when its save fails is not named, and leaves no separator (c739, round 2)', async ({
+		page
+	}) => {
+		await page.goto('/?shelf=all&sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const fav = tile.getByRole('button', { name: 'Favourite' });
+		await expect(fav).toHaveAttribute('aria-pressed', 'false');
+
+		// Held, so the shelf can change under the save before it is lost.
+		let lose = () => {};
+		const lost = new Promise<void>((resolve) => (lose = resolve));
+		const isFav = (u: URL) => u.pathname === '/' && u.search === '?/favourite';
+		await page.route(isFav, async (route) => {
+			await lost;
+			await route.abort();
+		});
+		const asked = page.waitForRequest((r) => isFav(new URL(r.url())));
+		await fav.click();
+		await asked;
+
+		await page.locator('.kinds .kc', { hasText: 'NOVEL' }).click();
+		await expect(page).toHaveURL(/kind=novel/);
+		await expect(tile).toHaveCount(0);
+		lose();
+
+		const band = page.locator('[role="alert"]');
+		await expect(band).toHaveCount(1);
+		await expect(band.locator('.what')).toHaveText('FAV NOT SAVED');
+		await band.getByRole('button', { name: /PUT BACK/ }).click();
+		await expect(band).toHaveCount(0);
+		await page.unroute(isFav);
+	});
+
 	test('the rating draws dashed as well, and PUT BACK ends it (c659)', async ({ page }) => {
 		await page.goto('/?sort=title');
 		const tile = page.locator('.grid .tile', { hasText: TITLE });

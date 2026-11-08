@@ -1361,8 +1361,18 @@
 		});
 	}
 
-	/** Which tile a band is about: several can be up at once, each "FAV NOT SAVED". */
-	const tileNamed = (id: number) => series.find((s) => s.id === id)?.title.toUpperCase() ?? '';
+	/**
+	 * A band's words, with which tile they are about when that can be said:
+	 * several can be up at once, each "FAV NOT SAVED". Never a hidden card's
+	 * title: the band is the app's and outlives reveal, and with reveal off a
+	 * hidden title does not reach the browser (doc/LIBRARY.md). `hidden` is the
+	 * card's own, a hidden root's included. A tile no longer listed has no name.
+	 */
+	function bandWords(what: string, id: number) {
+		const card = series.find((s) => s.id === id);
+		const name = card && !card.hidden ? card.title.toUpperCase() : '';
+		return name ? `${what} · ${name}` : what;
+	}
 
 	function favourite(id: number, on: boolean) {
 		favNow.set(id, on);
@@ -1371,7 +1381,7 @@
 			`fav:${id}`,
 			{ id: String(id), on: on ? '1' : '0' },
 			() => ({
-				what: `${on ? 'FAV' : 'UNFAV'} NOT SAVED · ${tileNamed(id)}`,
+				what: bandWords(`${on ? 'FAV' : 'UNFAV'} NOT SAVED`, id),
 				putBackLabel: series.find((s) => s.id === id)?.favourite
 					? 'PUT BACK · FAV'
 					: 'PUT BACK · NOT FAV',
@@ -1392,7 +1402,7 @@
 			`rating:${id}`,
 			{ id: String(id), rating: String(rating) },
 			() => ({
-				what: `RATING ${rating} NOT SAVED · ${tileNamed(id)}`,
+				what: bandWords(`RATING ${rating} NOT SAVED`, id),
 				putBackLabel: `PUT BACK ${series.find((s) => s.id === id)?.rating ?? 0}`,
 				putBack: () => ratingNow.delete(id)
 			}),

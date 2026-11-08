@@ -111,7 +111,9 @@ fails:
   stored", not "a save of this field failed" (c659);
 - a band at the bottom says "RATING 4 NOT SAVED · WORKSTATION DID NOT ANSWER ·
   TRIES AGAIN WITH THE NEXT REQUEST", with PUT BACK 3 and RETRY (a library
-  tile's band names the tile, since several can be up at once);
+  tile's band names the tile, since several can be up at once, unless the
+  card is hidden when the save fails: the band outlives reveal, and with
+  reveal off a hidden title does not reach the browser);
 - RETRY and PUT BACK end only their own failure; a newer failure of the same
   field replaces it, and a retry that lands leaves that newer one up;
 - the next navigation that reaches the workstation tries each held failure
