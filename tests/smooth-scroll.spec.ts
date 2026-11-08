@@ -1,9 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+	KEPT_PLACE,
+	KeptPlace,
 	SmoothScroll,
 	easeInOut,
 	approach,
 	isNotch,
+	keepPlaceBy,
 	screenStep,
 	wheelPixels
 } from '../src/lib/reader/smooth-scroll.ts';
@@ -267,9 +270,9 @@ describe('smooth scrolling on a PC (c192)', () => {
 			f.run(5);
 			// The ramp is not restarted by it, and no distance is lost or added.
 			expect(f.at()).toBeCloseTo(5000 + held(160), 6);
-			// The window clamped part of the way (`moved` differs): its position is the truth.
+			// The window clamped part of the way: its position is the truth.
 			f.scrollTo(f.at() + 700);
-			s.shift(900, 700);
+			s.shift(700);
 			f.run(5);
 			expect(f.at()).toBeCloseTo(5700 + held(240), 6);
 		});
@@ -533,5 +536,69 @@ describe('smooth scrolling on a PC (c192)', () => {
 		expect(wheelPixels({ deltaMode: 1, deltaY: 3 }, 900)).toBe(120);
 		expect(wheelPixels({ deltaMode: 2, deltaY: 1 }, 900)).toBe(900);
 		expect(screenStep(900)).toBe(765);
+	});
+});
+
+describe('keeping the place across a clamp (c691)', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	/** A window whose position a shrinking document has already clamped. */
+	function clamped() {
+		const events = new EventTarget();
+		const scrolls: number[] = [];
+		vi.stubGlobal(
+			'window',
+			Object.assign(events, { scrollBy: (_: number, dy: number) => void scrolls.push(dy) })
+		);
+		return { events, scrolls };
+	}
+
+	it('says the scroll and the content’s move apart, typed, on one event', () => {
+		const { events, scrolls } = clamped();
+		const heard: Event[] = [];
+		events.addEventListener(KEPT_PLACE, (e) => heard.push(e));
+		// The browser clamped the window 300 px when a chapter above went: the
+		// content moved 200, the app scrolls 500 less than it would have.
+		keepPlaceBy(-300, 200);
+		expect(scrolls).toEqual([-300]);
+		expect(heard).toHaveLength(1);
+		const e = heard[0] as KeptPlace;
+		expect(e).toBeInstanceOf(KeptPlace);
+		expect(e.detail).toBe(-300);
+		expect(e.moved).toBe(200);
+	});
+
+	it('takes the one number as both when nothing clamped', () => {
+		const { events } = clamped();
+		let e: KeptPlace | undefined;
+		events.addEventListener(KEPT_PLACE, (x) => (e = x as KeptPlace));
+		keepPlaceBy(120);
+		expect([e?.detail, e?.moved]).toEqual([120, 120]);
+	});
+
+	it('a glide’s timeline takes the content’s move, and ends at its aim', () => {
+		const f = fake();
+		const s = new SmoothScroll(f.host);
+		f.scrollTo(5000);
+		s.glide(765, 220);
+		f.run(3);
+		// A chapter above went: the content moved up 1000, the window was clamped
+		// and the app's scroll came to 900 of it, leaving the window's truth.
+		f.scrollTo(f.at() - 900);
+		s.shift(-1000);
+		f.run();
+		// The aim moved with the content (the timeline is the content's), not the scroll.
+		expect(f.at()).toBe(5000 + 765 - 1000);
+	});
+
+	it('a clamp past the end keeps the aim inside the document', () => {
+		const f = fake(1000);
+		const s = new SmoothScroll(f.host);
+		f.scrollTo(800);
+		s.by(150);
+		f.run(1);
+		s.shift(5000);
+		f.run();
+		expect(f.at()).toBe(1000);
 	});
 });

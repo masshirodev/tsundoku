@@ -556,6 +556,97 @@ test.describe('a held arrow', () => {
 		expect(Math.abs((await read()) - atCross)).toBeLessThanOrEqual(step * 1.5);
 		await page.keyboard.up('ArrowDown');
 	});
+
+	test('the page hidden mid-ramp stops there, and no later repeat or return moves it (c691, c692)', async ({
+		page
+	}) => {
+		await page.route('**/leave', (r) => r.abort());
+		await openForHold(page);
+		const y = () => scrollAt(page);
+		const start = await y();
+		await page.keyboard.down('ArrowDown');
+		await repeats(page, 'ArrowDown', 1);
+		// On the ramp (c692): moving, with its speed not yet the held one.
+		await expect.poll(async () => (await y()) - start).toBeGreaterThan(20);
+		// Read in the same turn as the door, or an ease's first frames go unseen.
+		const atHidden = await page.evaluate(() => {
+			Object.defineProperty(document, 'visibilityState', {
+				value: 'hidden',
+				configurable: true
+			});
+			const at = Math.round(scrollY - ((window as unknown as { kept?: number }).kept ?? 0));
+			document.dispatchEvent(new Event('visibilitychange'));
+			return at;
+		});
+		// At once: an ease would still cover the ramp's speed times a third of a nudge's glide.
+		const stopped = await still(y);
+		expect(stopped - atHidden).toBeLessThan(10);
+		// The key is still down behind another window, and its repeats are nobody's.
+		await repeats(page, 'ArrowDown', 3);
+		expect((await still(y)) - stopped).toBeLessThan(10);
+		// And coming back lands nowhere new: what a suspended frame would have jumped.
+		await page.evaluate(() => {
+			delete (document as unknown as { visibilityState?: unknown }).visibilityState;
+			document.dispatchEvent(new Event('visibilitychange'));
+		});
+		expect((await still(y)) - stopped).toBeLessThan(10);
+		await page.keyboard.up('ArrowDown');
+	});
+
+	test('a jump through history to a chapter not on the strip ends the hold (c691)', async ({
+		page
+	}) => {
+		await page.goto('/?sort=title');
+		await page.waitForLoadState('networkidle');
+		await page.locator('.grid .tile', { hasText: 'Sousou no Frieren' }).click();
+		await page.waitForURL(/\/series\/\d+/);
+		await page.waitForLoadState('networkidle');
+		const entryOf = () => Number(new URL(page.url()).pathname.split('/').pop());
+		// Two chapters of this series, far apart: the one the list opens first,
+		// and the one the series continues at (near its end).
+		await page.locator('.entry .entry-btn').first().click();
+		await readerReady(page);
+		const near = entryOf();
+		await page.goBack();
+		await page.waitForURL(/\/series\/\d+/);
+		await page.waitForLoadState('networkidle');
+		await page.getByRole('link', { name: /▶/ }).first().click();
+		await readerReady(page);
+		const far = entryOf();
+		expect(far, 'two chapters to walk between').not.toBe(near);
+		// A client navigation between them, so the reader stays mounted and
+		// going back is a jump, not a load. The app's own chapter doors replace
+		// history and ← SERIES pops it, so a second reader in the stack is made
+		// by a link, as a link to a chapter from anywhere in the app would be.
+		await page.evaluate((href) => {
+			const a = document.createElement('a');
+			a.href = href;
+			document.body.append(a);
+			a.click();
+			a.remove();
+		}, `/read/${near}`);
+		await expect.poll(entryOf).toBe(near);
+		await readerReady(page);
+		await page.waitForLoadState('networkidle');
+		await toStrip(page);
+		await expect(
+			page.locator(`[data-role="page"][data-entry="${far}"]`),
+			'the far chapter is off this strip, or this is the crossing door'
+		).toHaveCount(0);
+		const read = () => scrollAt(page);
+		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
+		await page.keyboard.down('ArrowDown');
+		await repeats(page, 'ArrowDown', 10);
+		await page.evaluate(() => history.go(-1));
+		await expect.poll(entryOf).toBe(far);
+		await page.waitForLoadState('networkidle');
+		const atJump = await still(read);
+		// The key is still down; the strip on screen is not the one it was moving.
+		await repeats(page, 'ArrowDown', 10);
+		await page.waitForTimeout(800);
+		expect(Math.abs((await read()) - atJump)).toBeLessThanOrEqual(step * 1.5);
+		await page.keyboard.up('ArrowDown');
+	});
 });
 
 // ---- a crossing is not a jump (c668) ------------------------------------------------------

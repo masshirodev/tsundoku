@@ -630,13 +630,15 @@ and "when I click down or up it pans to the next sections").
   one that finds a press's glide or a wheel's approach in flight starts at the
   speed it has. A tap still
   glides one step and two separate presses still add two. Every door that can take
-  the keyup away ends it, in one of two ways (c694). The key's own release, the
-  window losing focus and the page being hidden **ease it out**, as a keyup
-  does. A lock (the lookup panel or the page menu opening, each locking the
-  page), the READING sheet opening, a change of mode and a jump to another
-  chapter **stop it at once** (`endHold(true)`): the strip it was moving is
+  the keyup away ends it, in one of two ways (c694). The key's own release and
+  the window losing focus **ease it out**, as a keyup does. A lock (the lookup
+  panel or the page menu opening, each locking the page), the READING sheet
+  opening, a change of mode, a jump to another chapter and the page being
+  hidden **stop it at once** (`endHold(true)`): the strip it was moving is
   covered, locked or no longer the one on screen, so it does not ease on under
-  them and the repeats are not the new chapter's. **A strip crossing is not a jump**: scrolling on across a
+  them and the repeats are not the new chapter's. Hidden is on that side since
+  c691: rAF is suspended, so an ease would wait for the return and land on its
+  target in one frame. **A strip crossing is not a jump**: scrolling on across a
   band keeps the strip and the pages around it, so the glide, the wheel's ease
   and a held arrow all read on through it (c668). A second scroll key during a
   hold takes over from where the strip is: the hold ends and the new key glides

@@ -236,15 +236,15 @@ export class SmoothScroll {
 	 * screen. An ease in flight moves with it, rather than stopping as it would
 	 * for a scroll from anything else, which lost the notch (c192).
 	 *
-	 * `moved` is how far the content moved, which differs from `by` when the
-	 * browser had already scrolled part of the way: a strip window that drops a
-	 * chapter above gets shorter than the scroll position, so Chromium clamps
-	 * it before the correction runs (c668's crossing). The window's own
+	 * `moved` is how far the content moved, which differs from the app's scroll
+	 * when the browser had already scrolled part of the way: a strip window that
+	 * drops a chapter above gets shorter than the scroll position, so Chromium
+	 * clamps it before the correction runs (c668's crossing). The window's own
 	 * position is the truth after the app's scroll, so `shown` takes it; the
 	 * ease's timeline takes the content's move, or the strip would end that
 	 * much short of its aim.
 	 */
-	shift(by: number, moved = by) {
+	shift(moved: number) {
 		if (!this.moving) return;
 		this.shown = this.host.y;
 		if (this.glider) this.glider.from += moved;
@@ -308,19 +308,29 @@ export class SmoothScroll {
 	};
 }
 
-/** Sent on window by the strip when it keeps its place: `detail` is how far it scrolled. */
+/**
+ * Sent on window by the strip when it keeps its place. `detail` is how far it
+ * scrolled, as its readers (the strip specs' `kept` counters) count on; `moved`
+ * is how far the content itself moved, which is the same number unless the
+ * browser had already scrolled part of the way (see `SmoothScroll.shift`).
+ */
 export const KEPT_PLACE = 'tsundoku:kept-place';
+
+export class KeptPlace extends CustomEvent<number> {
+	constructor(
+		scrolled: number,
+		readonly moved: number
+	) {
+		super(KEPT_PLACE, { detail: scrolled });
+	}
+}
 
 /**
  * Scroll the window by `dy` to keep the reader's place, and say so (see
- * `SmoothScroll.shift`). `moved` is how far the content itself moved, which is
- * `dy` unless the browser had already scrolled part of the way (it clamps the
- * window to a document that shrank under it): `detail` stays the scroll, as
- * its readers count on, and `moved` keeps a glide's timeline with the content.
+ * `SmoothScroll.shift`). `moved` is how far the content moved, when the browser
+ * clamped the window to a document that shrank under it.
  */
 export function keepPlaceBy(dy: number, moved = dy) {
 	window.scrollBy(0, dy);
-	window.dispatchEvent(
-		Object.assign(new CustomEvent<number>(KEPT_PLACE, { detail: dy }), { moved })
-	);
+	window.dispatchEvent(new KeptPlace(dy, moved));
 }

@@ -8,6 +8,7 @@
 	import { flushSync, onMount, tick, untrack } from 'svelte';
 	import {
 		KEPT_PLACE,
+		KeptPlace,
 		SmoothScroll,
 		isNotch,
 		keepPlaceBy,
@@ -335,10 +336,13 @@
 
 	/**
 	 * A held key ends. Every door that can take its keyup away calls this. The
-	 * key's own release, the window losing focus and the page being hidden ease
-	 * it out; the lookup panel or the page menu (each locking the page), the
-	 * READING sheet, a mode change and a jump to another chapter pass `instant`,
-	 * for a strip covered, locked or no longer the one on screen. A second key
+	 * key's own release and the window losing focus ease it out; the lookup
+	 * panel or the page menu (each locking the page), the READING sheet, a mode
+	 * change, a jump to another chapter and the page being hidden pass `instant`,
+	 * for a strip covered, locked or no longer the one on screen. Hidden, the
+	 * browser has stopped drawing, so an ease would wait for the return and then
+	 * land on its target in one frame, a jump of up to a screen's 185 px (c691).
+	 * A second key
 	 * pressed does not come here: its own glide takes over from the hold. A
 	 * crossing does not end it at all (doc/READER.md, c694).
 	 */
@@ -403,11 +407,9 @@
 		const touchend = (e: TouchEvent) => {
 			if (e.touches.length < 2) pinch = null;
 		};
-		const kept = (e: Event) =>
-			smooth.shift(
-				(e as CustomEvent<number>).detail,
-				(e as CustomEvent<number> & { moved?: number }).moved ?? (e as CustomEvent<number>).detail
-			);
+		const kept = (e: Event) => {
+			if (e instanceof KeptPlace) smooth.shift(e.moved);
+		};
 		addEventListener(KEPT_PLACE, kept);
 		addEventListener('wheel', wheel, { passive: false });
 		addEventListener('touchstart', touchstart, { passive: true });
@@ -2160,8 +2162,9 @@
 		};
 		const visible = () => {
 			// A page going away can take the keyup with it: the strip must not
-			// keep scrolling behind another window (c668).
-			if (document.visibilityState !== 'visible') return endHold();
+			// keep scrolling behind another window (c668), nor jump on the way
+			// back (c691, `endHold`).
+			if (document.visibilityState !== 'visible') return endHold(true);
 			clock.resume(Date.now());
 			void wake();
 		};
