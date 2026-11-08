@@ -366,12 +366,18 @@ SEQUEL while season 1 names it its PREQUEL. Without that, the walk back from
 season 1, 2 or 3 took the PREQUEL into the announced season and drew it, and
 the seasons after the held one, as earlier seasons. An entry that has aired
 (FINISHED, RELEASING, CANCELLED, HIATUS) but that AniList leaves undated,
-mostly specials, OVAs and ONAs, has no rank: its edges are taken as AniList
-gives them, so an undated movie between two seasons stays on the chain,
+mostly specials, OVAs and ONAs, starts no earlier than the latest of its own
+PREQUEL neighbours that have aired (`startsBy`; an undated one counted by its
+own bound in turn): it can't start before a season it follows. So an undated
+movie between two seasons ranks with the first and stays on the chain, and
+an undated last season or OVA closing the loop (naming season 1 its SEQUEL)
+ranks after season 1, and season 1's PREQUEL into it is cut. One with no aired
+entry before it has no rank: its edges are taken as AniList gives them,
 except that it still comes before an announced entry (a PREQUEL from it into
-the TBA sequel closes the loop as from a dated season; c358's round 3, after
-round 2 had ranked every undated entry as announced and cut real seasons
-off the chain). The cut is by date, not
+the TBA sequel closes the loop as from a dated season). c358's round 3 and
+its review: round 2 had ranked every undated entry as announced and cut real
+seasons off the chain; round 3 gave every undated aired entry no rank, and a
+loop it closed was walked round. The cut is by date, not
 by reachability: a chronological prequel made later (AniList listing a
 later-made prequel season as the original's PREQUEL) is refused too, and is
 drawn neither as a season nor as an extra. Manga (an ADAPTATION) and

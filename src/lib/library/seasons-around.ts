@@ -25,8 +25,8 @@
  * branch, so the walk keeps a visited set, never takes an edge that goes
  * back in time (a PREQUEL starting after, a SEQUEL starting before: a loop's
  * closing edge; an announced entry starts after every one that has aired,
- * and an aired one AniList leaves undated is taken as AniList gives it), and
- * stops after `HOPS` steps either way. A walk back stopped by the limit is
+ * and an aired one AniList leaves undated starts no earlier than the seasons
+ * it follows, `startsBy`), and stops after `HOPS` steps either way. A walk back stopped by the limit is
  * `truncated`, and its seasons are drawn unnumbered, since the first season
  * is not known. A walk forward stopped by it knows no season after, and says
  * so as AniList knowing none.
@@ -101,6 +101,41 @@ export const when = (n: Pick<RelNode, 'status' | 'year'>): number | null =>
 	n.status === 'NOT_YET_RELEASED' ? Infinity : n.year;
 
 /**
+ * When an entry starts, at the earliest, as the walk ranks it: `when`, and
+ * for an aired entry AniList leaves undated, the latest start among its own
+ * PREQUEL neighbours that have aired, since it can't start before a season
+ * it follows (an undated neighbour counted by its own bound, so two undated
+ * entries in a row are bounded by the dated one before them). `null` only
+ * for one with no such neighbour, or whose edges the graph doesn't hold yet.
+ * Without the bound, an undated aired entry closing a loop (a FINISHED last
+ * season or OVA naming season 1 its SEQUEL) had no rank, its edges were all
+ * taken, and the walk back from season 1 went round the chain (c358, round
+ * 3's review). A lower bound, not a date: compared as one, it only ever cuts
+ * an edge into the past of something the entry follows.
+ */
+export function startsBy(graph: RelGraph): (n: RelNode) => number | null {
+	const known = new Map<number, number | null>();
+	const rank = (n: RelNode): number | null => {
+		const w = when(n);
+		if (w !== null) return w;
+		if (known.has(n.id)) return known.get(n.id)!;
+		// Seen before its answer: an undated cycle bounds nothing.
+		known.set(n.id, null);
+		let bound: number | null = null;
+		for (const e of n.edges ?? []) {
+			if (e.type !== 'PREQUEL') continue;
+			const p = graph.nodes[String(e.id)];
+			if (!p || p.status === 'NOT_YET_RELEASED') continue;
+			const r = rank(p);
+			if (r !== null && (bound === null || r > bound)) bound = r;
+		}
+		known.set(n.id, bound);
+		return bound;
+	};
+	return rank;
+}
+
+/**
  * Walk the graph from the series' own entries: back along PREQUEL to the
  * chain's start, forward along SEQUEL to the season after. Where an entry has
  * two edges the walk could take, a season goes before a movie or an OVA, then
@@ -149,16 +184,19 @@ export function walkSeasons(graph: RelGraph, from: WalkFrom): Walked {
 	 * chain really starts. An entry AniList has announced starts after every
 	 * one that has aired (`when`): AniList leaves an announced sequel undated
 	 * as a rule, and that sequel is the loop's usual closer. An aired entry
-	 * AniList leaves undated has no place in time to compare, so its edges
-	 * are taken as AniList gives them (a FINISHED movie or season between two
-	 * dated ones is on the chain), except against an announced one, which it
-	 * still comes before: a PREQUEL from it into the announced sequel closes
-	 * the loop as it does from a dated season. Two entries of the same rank
-	 * are taken as AniList says.
+	 * AniList leaves undated ranks by the seasons it follows (`startsBy`): a
+	 * FINISHED movie between two dated seasons ranks with the first and stays
+	 * on the chain, a FINISHED last season naming season 1 its SEQUEL ranks
+	 * after season 1 and closes the loop. One with nothing before it has no
+	 * place in time to compare, so its edges are taken as AniList gives them,
+	 * except against an announced one, which it still comes before: a PREQUEL
+	 * from it into the announced sequel closes the loop as it does from a
+	 * dated season. Two entries of the same rank are taken as AniList says.
 	 */
+	const rank = startsBy(graph);
 	const loopsBack = (from: RelNode, to: RelNode, type: string) => {
-		const a = when(from);
-		const b = when(to);
+		const a = rank(from);
+		const b = rank(to);
 		if (a === null || b === null) {
 			// Undated and aired: only an announced entry on the other side ranks against it.
 			if (a !== Infinity && b !== Infinity) return false;
