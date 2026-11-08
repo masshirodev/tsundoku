@@ -121,6 +121,17 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
   ([`COVERS.md`](COVERS.md), "Chosen").
 - **SAME BOOK AS …** is a band under CONTINUE on a book with a likely twin,
   with KEEP BOTH and REVIEW → ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).
+  KEEP BOTH carries out the decisions waiting from before first, as every
+  decision does (c648), and says when one of them could not be (c671): a
+  band where the twin's was, `KEPT BOTH · 1 EARLIER DECISION COULDN’T BE
+CARRIED OUT`, with `BACK IN THE REVIEW` (refused: dropped, the pair is
+  undecided again), `STILL WAITING` (a bug or the disk; tried again on the
+  next library load) or both counted, and `SEE DUPLICATES →`. This KEEP BOTH
+  is recorded either way, so the answer is a success carrying `refused` and
+  `failed`, never a 409. The band is drawn from the action's `form`: it
+  outlives the reload that takes the twin's band away, and goes with the next
+  action, a navigation or a reload. Nothing is drawn when everything was
+  carried out.
 - **LISTS and COVER** sit under SHELVES on every series but a doujin. LISTS
   (card c424) is one row with a line per list: the entry the series is linked
   to, what that list says of it, what was sent, and the line's cells. It
@@ -673,6 +684,58 @@ cells, with the house's inset focus mark.
 
 - The fold in the phone's series header (c425, `doc/handoffs/series-phone/`):
   the next wave folds these rows.
+
+## The seasons around it (c358)
+
+An anime linked to its own AniList entries (c298, c240) shows, in its
+episode list, dim **heads for the seasons around it**: every season before
+the ones it holds above the list, **NEXT SEASON** below it, and the extras
+under one folded line. They reuse the list's season-head row
+(`EpisodeList.svelte`, 44px, `--surface-panel`'s row without its fill, in
+`--text-2`): the owner chose that over a design round (2026-11-03).
+
+- **A season before**: `SEASON 2 · 12 EP`, its AniList title, and a cell:
+  `IN LIBRARY →` when another series holds that entry by its own season link
+  (never a title match; under the reveal filter), opening that series (its
+  WORK row is its place in a Work); otherwise `FIND`. Numbered by position
+  along the chain of TV, TV_SHORT and ONA entries (S1 is the chain's first),
+  never from a title; drawn `SEASON` unnumbered when the walk back stopped at
+  its 12-step limit, since the first season is not known.
+- **NEXT SEASON**, never numbered (a `SEASON 4` would claim a fourth exists),
+  always drawn: with what AniList says of the sequel as plain facts
+  (`ANNOUNCED · 2027`, `AIRING`, `12 EP`) and its title when AniList knows
+  one; `NEXT SEASON · FIND` when it knows none, searching for the series' own
+  title with its season suffix taken off (`titleStem`: `3rd Season`,
+  `Season 3`, `S3`, `Part 2`, `Cour 2`, `第3期`, a bracketed one; it holds on
+  its own output).
+- **The extras**: `+ 5 EXTRAS · 2 OVA · 1 MOVIE · …`, folded by default, one
+  stop on a TV; unfolded, a row each, the same cells. A MOVIE, OVA or SPECIAL
+  on the chain, an ONA or anything else off it reached by SIDE_STORY, and the
+  other branch where a chain forks.
+- **FIND** is c313's mechanism, `tagSearchHref` from `tag-search.ts` called
+  as it is with no schema: `/browse/<source>?q=<title>&from=/series/<id>`,
+  the series' own source (the TAGS row's `tagSource`), so ← on the source page
+  comes back here. No source BROWSE can open, no FIND; the head still says
+  what it is. A FIND never preloads on hover (the source page asks the
+  source as it loads).
+- **Never groups, merges or offers a Work** (the Works handoff's NEVER list):
+  it shows and finds; GROUP stays the owner's tap.
+- **Nothing for** an unlinked anime, a manga, a novel or a doujin (no chain
+  to read: the rule asks the registry for the AniList ANIME catalogue,
+  doc/KINDS.md), and nothing until the link pass has cached the series'
+  relations, or while the cache can't answer for the links it has now.
+
+**Which entries**: the walk goes back from the earliest linked season's entry
+and forward from the latest's, and steps over the seasons the series holds
+beyond them that no link names (a series holding seasons 3 and 4 with only 4
+linked offers no SEASON 3). **Where the data comes from**: the relation cache
+([`LINKS.md`](LINKS.md), "The relation cache"), filled by the link pass; the
+screen never asks AniList and never waits. Code: `src/lib/library/seasons-around.ts`
+(the walk and the heads, pure), `src/lib/server/relations.ts` (the cache),
+`seasonsAroundOf` in the load. Tests: `series-seasons-domain.spec.ts`,
+`series-seasons-db.spec.ts`, `series-seasons-flow.e2e.ts` (the pass run by
+its script against a stand-in AniList, then the screen) and
+`tv-series-seasons.e2e.ts` (the remote's stops).
 
 ## Where it departs from the handoff
 

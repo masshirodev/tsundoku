@@ -106,7 +106,10 @@ Pure, and what every screen reads (`tests/anime.spec.ts`):
   on the one part-watched, the status, ↓ for an episode cached on the device.
   # finds an episode by its number in the season being watched first. A tap
   plays any episode; downloading is the DOWNLOAD row's and SELECT's. A long
-  press marks it and everything before it watched, as for chapters.
+  press marks it and everything before it watched, as for chapters. Linked
+  to AniList, it also draws the seasons before it, NEXT SEASON and the
+  extras as dim heads, from the relation cache (c358;
+  [`SERIES.md`](SERIES.md), "The seasons around it").
 
 `tests/browse-anime.e2e.ts`, on the browse server's seeded "Tsukiakari no
 Ryokōsha" (`tests/browse-setup.ts`, the handoff's own sample), pins the
