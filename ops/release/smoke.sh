@@ -78,6 +78,14 @@ if [ -z "$only" ] || [ "$only" = linux-x64 ]; then
 		[ "$left" -eq 0 ] || exit 1
 		sh /s/linux-tray.sh /w/tsundoku' || linux=failed
 fi
+# A failed Linux half is recorded now, before the Windows half: under `set -e`
+# any of its unguarded steps (Zen not coming up, an scp) stops the script short
+# of the record at the end, and an earlier run's marks would then still vouch
+# for the bundle that just failed. The end-of-run call records it again, which
+# changes nothing.
+if [ "$linux" = failed ]; then
+	node --disable-warning=ExperimentalWarning "$here/smoked-mark.ts" record "$out" "$version" failed -
+fi
 
 if [ -z "$only" ] || [ "$only" = win-x64 ]; then
 	echo "== win-x64"

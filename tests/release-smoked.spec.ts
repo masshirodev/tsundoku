@@ -2,12 +2,14 @@ import { spawnSync } from 'node:child_process';
 import {
 	chmodSync,
 	copyFileSync,
+	cpSync,
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
 	rmSync,
 	statSync,
+	symlinkSync,
 	utimesSync,
 	writeFileSync
 } from 'node:fs';
@@ -293,6 +295,51 @@ describe('smoke.sh writes the marks per half (ops/release/smoke.sh, its Linux ha
 		expect(readFileSync(calls, 'utf8').trim()).toBe('run');
 		expect(existsSync(mark)).toBe(false);
 		expect(existsSync(linuxMark)).toBe(false);
+	});
+
+	it('a whole run whose Linux half failed takes both marks away though Zen never comes up', () => {
+		// A copy of the release scripts with a zen.sh that fails at `up`, so the
+		// Windows half stops the script under `set -e` before its end-of-run
+		// record, and the real Zen can never be reached from a test.
+		const tree = join(world, 'whole-run');
+		rmSync(tree, { recursive: true, force: true });
+		for (const f of ['smoke.sh', 'smoked.ts', 'smoked-mark.ts']) {
+			mkdirSync(join(tree, 'ops/release'), { recursive: true });
+			copyFileSync(join(root, 'ops/release', f), join(tree, 'ops/release', f));
+		}
+		cpSync(join(root, 'ops/release/smoke'), join(tree, 'ops/release/smoke'), { recursive: true });
+		for (const d of ['tests', 'src', 'node_modules']) symlinkSync(join(root, d), join(tree, d));
+		const zenCalls = join(world, 'zen-calls');
+		rmSync(zenCalls, { force: true });
+		mkdirSync(join(tree, 'ops/winvm'), { recursive: true });
+		writeFileSync(
+			join(tree, 'ops/winvm/zen.sh'),
+			`#!/bin/sh\necho "$1" >> "${zenCalls}"\nexit 1\n`
+		);
+		chmodSync(join(tree, 'ops/winvm/zen.sh'), 0o755);
+
+		realBundle();
+		writeFileSync(linuxMark, `${VERSION} 2027-01-15T08:00:00Z\n`);
+		age(linuxMark, now - 1800);
+		expect(installProblem(out, VERSION)).toBeNull();
+		rmSync(calls, { force: true });
+		const r = spawnSync('sh', [join(tree, 'ops/release/smoke.sh'), VERSION], {
+			cwd: tree,
+			encoding: 'utf8',
+			env: {
+				...process.env,
+				PATH: `${bin}:${process.env.PATH}`,
+				RELEASE_DIR: base,
+				FAKE_DOCKER_STATUS: '1',
+				TSUNDOKU_SMOKE_TAGGED: '1'
+			}
+		});
+		expect(r.status).not.toBe(0);
+		expect(readFileSync(calls, 'utf8').trim()).toBe('run');
+		expect(readFileSync(zenCalls, 'utf8').trim()).toBe('up');
+		expect(existsSync(mark)).toBe(false);
+		expect(existsSync(linuxMark)).toBe(false);
+		expect(installProblem(out, VERSION)).not.toBeNull();
 	});
 
 	it('a platform it doesn’t know is refused before anything runs, the marks untouched', () => {

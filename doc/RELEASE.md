@@ -444,15 +444,22 @@ What a run does to marks already there (`recordSmoke`, `ops/release/smoked.ts`):
   Linux bundle. A **Windows half that fails** deletes `.smoked` and leaves the
   Linux mark, which says nothing about Windows; so a whole run whose Windows
   half failed is still enough to install.
-- A run that stops before its end (`set -e`, say a bundle `tar` can't read)
-  writes nothing and deletes nothing.
+- A **Linux failure is recorded as soon as the Linux half ends**, before the
+  Windows half starts, so Zen failing to come up (or any other unguarded
+  step stopping the script under `set -e`) can't leave an earlier run's marks
+  vouching for a bundle that just failed. Only what comes after that can be
+  lost to an early stop: a run that stops before its end (say a bundle `tar`
+  can't read, or Zen not coming up after a Linux half that passed) writes
+  nothing else and deletes nothing else.
 
 smoke.sh records the marks through `ops/release/smoked-mark.ts`, and
 `install-release.sh` asks the same file whether either mark stands, so the rule
 is written once, in `smoked.ts`, rather than once there and once in `find`.
 A tag made before c750 has a smoke.sh that writes `.smoked` alone; its whole
-run still installs and publishes as before, and its Linux-only run writes
-nothing, as it always did.
+run still installs and publishes as before, but its Linux-only run (indeed
+any part-run) deletes `.smoked` and writes nothing: on such a version a
+Linux-only run takes away a whole run's mark, so it needs the whole run both
+to install and to publish.
 
 **A mark speaks for the bundles it tested** (`ops/release/smoked.ts`,
 `tests/release-smoked.spec.ts`). `yarn run release` deletes both marks before
