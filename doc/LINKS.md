@@ -247,6 +247,12 @@ Show Season 2`), in one pass if the limit allows: a row of `searchable`
     season 0, whose row is the whole show's. LINK accepts only a candidate of that season's own search
     (`offered`), never another season's and never the series', and never
     an entry another season or part of the show holds.
+    **A season's LINK in the queue advances the queue**, to the next item,
+    one season per item, by choice (c672, the owner, 2026-11-07): it never
+    keeps the page to offer the rest of the show (a queue load has no
+    `data.season`, so `staysForTheRest` is false there), for speed through
+    the queue. A whole show is linked from its own `/links?series=N`, whose
+    LINK offers the rest of the show and LINK N SEASONS (below).
   - **A door that names no season** (`/links?series=N` with no `&season=`,
     the API called without one) acts on the season that still wants a look
     (`seasonToLook` in `season-links.ts`, the TypeScript twin of
