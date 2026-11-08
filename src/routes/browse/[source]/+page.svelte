@@ -10,6 +10,7 @@
 	import { count } from '$lib/library/downloads';
 	import { writeFilters } from '$lib/library/browse-filters';
 	import { backOriginLabel, keepOrigin } from '$lib/library/tag-search';
+	import { isRefusedCheck } from './refused-check';
 	import { isSettled } from '$lib/library/settled';
 	import ResultTile from './ResultTile.svelte';
 	import AddedBand from '../AddedBand.svelte';
@@ -302,7 +303,7 @@
 		{:else}
 			<!-- A check the site refused is remembered for ten minutes (doc/NOVELS.md),
 			     so TRY AGAIN forgets it first (`again`, c294) and says it will. -->
-			{@const refusedCheck = shown.error.includes('(its check could not be passed)')}
+			{@const refusedCheck = isRefusedCheck(shown.error)}
 			<Band
 				title="{name.toUpperCase()} DID NOT ANSWER"
 				detail={shown.error.toUpperCase().slice(0, 140) +

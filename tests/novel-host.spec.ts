@@ -1,3 +1,4 @@
+import { isRefusedCheck } from '../src/routes/browse/[source]/refused-check';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -765,6 +766,40 @@ describe('a check bound to the browser that solved it: page mode (c335)', () => 
 		);
 		expect(solved).toHaveLength(1);
 		expect(siteRequests()).toBe(2);
+	});
+
+	it('words a failed final lookup without the check phrase, and TRY AGAIN pays no solve (c688)', async () => {
+		await host.call(bound, 'popularNovels', [1, {}]);
+		const why =
+			"the solver's browser ended at lost.example, and its address could not be checked (getaddrinfo ENOTFOUND lost.example)";
+		// `fetchPage`'s own answer for this state (tests/novel-solver.spec.ts).
+		pageAs = async () => ({ error: why, unchecked: true });
+		const sentence = () =>
+			host.call(bound, 'parseChapter', ['/bound/chapter/1']).then(
+				() => {
+					throw new Error('the page was answered');
+				},
+				(e: Error) => e.message
+			);
+		const first = await sentence();
+		expect(first).toContain(`127.0.0.1's page was fetched and not used: ${why}`);
+		// The band's own reader (src/routes/browse/[source]/+page.svelte): no
+		// TRY AGAIN SOLVES THE CHECK AFRESH, and no `again=1` to forget the memos.
+		expect(first).not.toMatch(/its check could not be passed/);
+		expect(isRefusedCheck(first)).toBe(false);
+		// The same refusal again says the same.
+		expect(await sentence()).toBe(first);
+		// A TRY AGAIN is one more page, once the lookup answers: still in page
+		// mode, and no solve paid for what was this app's own DNS.
+		pageAs = browser;
+		expect(await host.call(bound, 'parseChapter', ['/bound/chapter/2'])).toBe(
+			'<p>/bound/chapter/2</p>'
+		);
+		expect(solved).toHaveLength(1);
+		// The reader still answers for the sentences that are a refused check.
+		pageAs = async () => ({ error: 'the solver did not answer in 60 s' });
+		expect(isRefusedCheck(await sentence())).toBe(true);
+		pageAs = browser;
 	});
 
 	it('says an address it could not look up as unsent, not as a failed check (c630)', async () => {

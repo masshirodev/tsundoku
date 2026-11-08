@@ -560,7 +560,8 @@ describe('a page through the solver’s browser (c335)', () => {
 			reply = () => ({ status: 200, body: page(BODY, { url: `https://${name}/moved` }) });
 			const answer = await fetchPage({ url: 'https://www.novel.example/c/1' });
 			expect(answer, name).toEqual({
-				error: `the solver's browser ended at ${name}, and its address could not be checked (getaddrinfo ${code} ${name})`
+				error: `the solver's browser ended at ${name}, and its address could not be checked (getaddrinfo ${code} ${name})`,
+				unchecked: true
 			});
 			expect(answer).not.toHaveProperty('fixed');
 			expect(answer).not.toHaveProperty('unsent');
