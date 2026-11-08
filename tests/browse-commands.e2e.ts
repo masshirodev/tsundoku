@@ -87,10 +87,10 @@ test('/settings opens the page from a bar', async ({ page }) => {
 	await expect(page).toHaveURL(/\/settings$/);
 });
 
-test('a go=1 link runs nothing but /lock and /unlock', async ({ page }) => {
-	// The intent for /lock and /unlock travels in history state; a typed or
-	// shared `?go=1` link is not one, and no other command is submitted (c697,
-	// round 2). The link is taken off the URL either way.
+test('a go=1 link runs no command, and is taken off the URL', async ({ page }) => {
+	// The intent to run on arrival travels in history state; a typed or shared
+	// `?go=1` link is not one (c697, round 2; c710). The prompt half of the
+	// rule, with a device that would answer it, is in the gated world below.
 	await page.goto('/search?q=%2Freveal&go=1');
 	await expect(page.getByRole('searchbox')).toHaveValue('/reveal');
 	await expect(page).toHaveURL(/\/search\?q=%2Freveal$/);
@@ -329,6 +329,120 @@ test.describe('a gated box (c712)', () => {
 		await page.getByRole('searchbox').fill('/unlock');
 		await page.keyboard.press('Enter');
 		await expect(page.getByText('UNLOCKED · /reveal ASKS NOTHING')).toBeVisible();
+	});
+
+	/**
+	 * Each ceremony this page starts, as the server is asked for it. The prompt
+	 * itself is the browser's and a virtual authenticator answers it at once, so
+	 * this POST, not anything drawn, is what says whether one was raised.
+	 */
+	function promptsAsked(page: Page): string[] {
+		const asked: string[] = [];
+		page.on('request', (r) => {
+			if (r.method() === 'POST' && new URL(r.url()).pathname === '/api/unlock/options') {
+				asked.push(String(r.postDataJSON()?.purpose));
+			}
+		});
+		return asked;
+	}
+
+	/** Two frames: a submit made on arrival has by then started its POST. */
+	const settled = (page: Page) =>
+		page.evaluate(
+			() =>
+				new Promise<void>((done) =>
+					requestAnimationFrame(() => requestAnimationFrame(() => done()))
+				)
+		);
+
+	/**
+	 * A typed link, arriving. Not the fixture's `goto`: a ceremony that starts
+	 * during the load keeps `networkidle` from ever arriving, so where the bug
+	 * is present the case would time out instead of reading the count.
+	 */
+	const follow = (page: Page, href: string) =>
+		page.evaluate((to) => location.assign(to), `${base}${href}`);
+
+	test('a go=1 link raises no prompt, for /lock or /unlock, until a key is pressed (c710)', async ({
+		page
+	}) => {
+		await authenticator(page);
+		// Revealed, so that a /lock which did run would enrol, not be refused.
+		await page.goto(`${base}/search`);
+		await page.getByRole('searchbox').fill('/reveal');
+		await page.keyboard.press('Enter');
+		await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+		const asked = promptsAsked(page);
+
+		await follow(page, '/search?q=%2Flock&go=1');
+		await expect(page).toHaveURL(/\/search\?q=%2Flock$/);
+		await settled(page);
+		expect(asked).toEqual([]);
+		await expect(page.getByText('COMMAND · WAITING FOR THE DEVICE')).toHaveCount(0);
+		await expect(page.getByText('LOCKED · /reveal NOW ASKS THIS DEVICE')).toHaveCount(0);
+
+		// The same page does run it for a key, once: the case above is not
+		// green because the page was dead.
+		const box = page.getByRole('searchbox');
+		await expect(box).toHaveValue('/lock');
+		await box.press('Enter');
+		await expect(page.getByText('LOCKED · /reveal NOW ASKS THIS DEVICE')).toBeVisible();
+		expect(asked).toEqual(['enrol']);
+
+		await follow(page, '/search?q=%2Funlock&go=1');
+		await expect(page).toHaveURL(/\/search\?q=%2Funlock$/);
+		await settled(page);
+		expect(asked).toEqual(['enrol']);
+		await expect(page.getByText('UNLOCKED · /reveal ASKS NOTHING')).toHaveCount(0);
+
+		// Back onto the link: SvelteKit keeps the address as it was when the
+		// entry was replaced, `go=1` included, so it is read a second time.
+		await page.getByRole('link', { name: 'Back to library' }).click();
+		await expect(page).toHaveURL(`${base}/`);
+		await page.goBack();
+		await expect(page).toHaveURL(/\/search\?q=%2Funlock$/);
+		await settled(page);
+		expect(asked).toEqual(['enrol']);
+	});
+
+	test('a command carried from a bar is spent once it has run: the reload, the back, the second press (c710)', async ({
+		page
+	}) => {
+		await authenticator(page);
+		const asked = promptsAsked(page);
+		await page.goto(`${base}/browse/extensions?tab=available`);
+		await enter(
+			page,
+			page.getByRole('searchbox', { name: 'Search the available extensions' }),
+			'/lock'
+		);
+		await expect(page.getByText('LOCKED · /reveal NOW ASKS THIS DEVICE')).toBeVisible();
+		expect(asked).toEqual(['enrol']);
+
+		// What the entry holds now: SvelteKit's own key for `page.state`, empty.
+		expect(await page.evaluate(() => history.state['sveltekit:states'])).toEqual({});
+
+		await page.reload();
+		await expect(page.getByRole('searchbox')).toHaveValue('/lock');
+		await settled(page);
+		expect(asked).toEqual(['enrol']);
+		await expect(page.getByText('LOCKED · /reveal NOW ASKS THIS DEVICE')).toHaveCount(0);
+
+		await page.getByRole('link', { name: 'Back to library' }).click();
+		await expect(page).toHaveURL(`${base}/`);
+		await page.goBack();
+		await expect(page).toHaveURL(/\/search\?q=%2Flock$/);
+		await expect(page.getByRole('searchbox')).toHaveValue('/lock');
+		await settled(page);
+		expect(asked).toEqual(['enrol']);
+		await expect(page.getByText('LOCKED · /reveal NOW ASKS THIS DEVICE')).toHaveCount(0);
+
+		// A key is a new request, and it is one: not revealed, so it is refused.
+		await page.getByRole('searchbox').press('Enter');
+		await expect(
+			page.getByText('REVEAL FIRST · ONLY AN UNLOCKED SESSION ADDS A DEVICE')
+		).toBeVisible();
+		expect(asked).toEqual(['enrol', 'enrol']);
 	});
 
 	test('/lock from a bar opens the device prompt on search', async ({ page }) => {

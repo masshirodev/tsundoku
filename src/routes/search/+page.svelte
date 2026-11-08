@@ -269,10 +269,14 @@
 	/**
 	 * `/lock` and `/unlock` typed into another top search bar (c697) arrive
 	 * here with this screen's `go` intent, which travels in history state so a
-	 * typed or shared `?go=1` link cannot carry it. Only those two commands
-	 * always ask this screen's device prompt: any other `q` has `go` taken off
-	 * the URL and is not submitted, so `/search?q=%2Freveal&go=1` cannot turn
-	 * reveal on with no keystroke (round 2).
+	 * typed or shared `?go=1` link cannot carry it. A `go` in the URL is only
+	 * taken off it, and nothing is submitted (round 2, c710), so no link raises
+	 * the device prompt with no keystroke, and only those two commands always
+	 * ask this screen's device prompt.
+	 *
+	 * The entry's state is emptied before the submit, not after: a `history.back()`
+	 * to it, or the reload (SvelteKit does not restore state on one), finds no
+	 * `go`, whatever the ceremony then does. Run once, per press.
 	 *
 	 * One tick late: on a full page load `onMount` runs inside the router's own
 	 * root creation, before SvelteKit holds the root its `replaceState` writes
@@ -290,6 +294,7 @@
 			u.searchParams.delete('go');
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- this page's own address, with one parameter taken off
 			replaceState(u, {});
+			if (!carried) return;
 			const parsed = parseSearch(u.searchParams.get('q') ?? '');
 			if (parsed.type !== 'command' || (parsed.command !== 'lock' && parsed.command !== 'unlock')) {
 				return;
