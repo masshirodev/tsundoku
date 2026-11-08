@@ -299,6 +299,10 @@
 			}
 			if (answer.showFacts)
 				hid = { q: data.q, answer: { showFacts: answer.showFacts as ShowFacts }, refused: '' };
+			// A plain HIDE that took a Work with it: the ticks said no Work, and the
+			// workstation (`wholeAnswer`) knows better, so the band and UNDO come too.
+			if (answer.hideFacts)
+				hid = { q: data.q, answer: { hideFacts: answer.hideFacts as HideFacts }, refused: '' };
 			if (doing === 'hide' || doing === 'unhide' || action.search.includes('showAll'))
 				stopSelecting();
 		};

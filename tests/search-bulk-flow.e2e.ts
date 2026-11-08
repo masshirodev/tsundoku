@@ -124,6 +124,7 @@ async function addToWork(page: Page) {
 	return sheet;
 }
 const STALE = 'THAT WORK HAS CHANGED · LOOK AGAIN';
+const hidBand = (page: Page) => page.locator('.band:visible', { hasText: 'HIDDEN' });
 
 /** A search, SELECT on the bar, and these hits ticked: the real way a selection starts here. */
 async function tick(page: Page, q: string, titles: string[]) {
@@ -251,6 +252,8 @@ test('a plain HIDE ends SELECT and takes the hit out of the results', async ({ p
 	await expect(page.locator('.bulk')).toHaveCount(0);
 	await expect.poll(() => series('Lookism').hidden).toBe(1);
 	await expect(hit(page, 'Lookism')).toHaveCount(0);
+	// A series in no Work is a plain hide: `wholeAnswer` answers no facts, so no band.
+	await expect(hidBand(page)).toHaveCount(0);
 });
 
 test('a part of a Work: HIDE asks first, and HIDE ALL posts to the library and shows the band', async ({
@@ -400,4 +403,41 @@ test('ADD TO A WORK whose Work was remade under its id (c583): refused, then the
 	await again.getByRole('button', { name: /ADD 1 TO THE WORK/ }).click();
 	await expect.poll(() => inWork(dungeon)?.work_id).toBe(id);
 	await expect(page.locator('.bulk')).toHaveCount(0);
+});
+
+test('a plain HIDE of a series that joined a Work after the tick: its band and UNDO, for the whole Work', async ({
+	page
+}) => {
+	const parts = ['Kusuriya no Hitorigoto', 'Mushoku Tensei', 'Honzuki no Gekokujou'];
+	await tick(page, 'Kusuriya', ['Kusuriya no Hitorigoto']);
+	// The tick noted no Work, so the bar's HIDE is the plain one, posted to `?/bulk`.
+	makeWork('Late Work', parts);
+	await barCell(page, 'HIDE').click();
+
+	await expect(hidBand(page)).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'Hide' })).toHaveCount(0);
+	await expect(page.locator('.bulk')).toHaveCount(0);
+	await expect.poll(() => parts.map((t) => series(t).hidden)).toEqual([1, 1, 1]);
+
+	await hidBand(page).getByRole('button', { name: 'UNDO', exact: true }).click();
+	await expect.poll(() => parts.map((t) => series(t).hidden)).toEqual([0, 0, 0]);
+	await expect(hidBand(page)).toHaveCount(0);
+});
+
+test('that band goes with its query and with ✕, and ✕ undoes nothing', async ({ page }) => {
+	const parts = ['Tensei Shitara Ken Deshita', 'Tower of God'];
+	await tick(page, 'Tensei', ['Tensei Shitara Ken Deshita']);
+	makeWork('Second Late Work', parts);
+	await barCell(page, 'HIDE').click();
+	await expect(hidBand(page)).toBeVisible();
+
+	await page.getByRole('searchbox').or(page.locator('.bar input')).first().fill('Tensei S');
+	await expect.poll(() => new URL(page.url()).searchParams.get('q')).toBe('Tensei S');
+	await expect(hidBand(page)).toHaveCount(0);
+	await page.getByRole('searchbox').or(page.locator('.bar input')).first().fill('Tensei');
+	await expect(hidBand(page)).toBeVisible();
+
+	await hidBand(page).getByRole('button', { name: 'Dismiss this band' }).click();
+	await expect(hidBand(page)).toHaveCount(0);
+	expect(parts.map((t) => series(t).hidden)).toEqual([1, 1]);
 });
