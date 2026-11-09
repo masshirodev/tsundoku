@@ -14,6 +14,11 @@
 	 *
 	 * `unavailable` is offline-and-not-cached: dimmed, and the resume cell
 	 * becomes a dash.
+	 *
+	 * The band is a real link to the entry's page and ▶ its sibling (c841), so
+	 * there is no button inside a link. `href` is null where the band has
+	 * nowhere honest to go: the page decides that (SELECT, an offline row whose
+	 * screen this device never kept; doc/LIBRARY.md, "The CONTINUE row").
 	 */
 	let {
 		title,
@@ -23,8 +28,12 @@
 		hue,
 		unavailable = false,
 		work = null,
+		href = null,
+		onopen,
 		onresume,
 		focusId,
+		linkFocusId,
+		focusDown,
 		startFocus = false
 	}: {
 		title: string;
@@ -46,35 +55,66 @@
 			upNext: boolean;
 			partTitle: string;
 		} | null;
+		/** Where the band goes: the series, or a Work's own screen. Null, it goes nowhere. */
+		href?: string | null;
+		/** Called as the band's link is followed, so the next screen can draw what this one knew. */
+		onopen?: () => void;
 		onresume?: () => void;
-		/** Where focus comes back to after a trip away (doc/FOCUS.md). */
+		/** Where focus comes back to after a trip away (doc/FOCUS.md): the ▶ cell. */
 		focusId?: string;
+		/** The same for the band: its own stop, so a trip to the series returns to it. */
+		linkFocusId?: string;
+		/** Where ↓ goes from ▶, when the screen wants other than the nearest (doc/FOCUS.md). */
+		focusDown?: string;
 		/** The screen's first arrow lands here (doc/FOCUS.md). */
 		startFocus?: boolean;
 	} = $props();
+
+	/**
+	 * ▶❚❚ on a remote resumes the focused CONTINUE card (doc/TV.md). The layer
+	 * finds the card by `continue-<id>`, which only ▶ carries now, and does
+	 * nothing on the band, so the band answers the key itself.
+	 */
+	function mediaResume(e: KeyboardEvent) {
+		if (e.key !== 'MediaPlayPause' || unavailable || !onresume) return;
+		e.preventDefault();
+		onresume();
+	}
 </script>
 
 <div class="row" class:unavailable class:work>
-	<div class="cover"><Cover {src} {hue} /></div>
-	<div class="text">
-		<div class="title">{title}</div>
-		{#if work}
-			<!-- The part's own label, and the Work it belongs to (Work-Library B1). -->
-			<div class="meta">
-				{#if work.upNext}<span class="nx">UP NEXT</span><span class="ink"
-						>{work.partTitle} · {meta}</span
-					>
-				{:else}WORK · PART {work.part} · <span class="ink">{work.partTitle}</span> · {meta}{/if}
-			</div>
-		{:else}
-			<div class="meta">{meta}</div>
-		{/if}
-		<div class="inline-progress"><ProgressBar value={progress} /></div>
-	</div>
-	<div class="progress">
-		<div class="pct">{work && work.upNext ? `PART ${work.part}` : percent(progress)}</div>
-		<ProgressBar value={progress} width={110} />
-	</div>
+	<!-- Both handlers exist only on the <a>; the <div> takes no input at all. -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<svelte:element
+		this={href ? 'a' : 'div'}
+		class="band"
+		{href}
+		data-focus-id={href ? linkFocusId : undefined}
+		data-focus-mark={href ? 'in' : undefined}
+		onclick={href ? onopen : undefined}
+		onkeydown={href ? mediaResume : undefined}
+	>
+		<div class="cover"><Cover {src} {hue} /></div>
+		<div class="text">
+			<div class="title">{title}</div>
+			{#if work}
+				<!-- The part's own label, and the Work it belongs to (Work-Library B1). -->
+				<div class="meta">
+					{#if work.upNext}<span class="nx">UP NEXT</span><span class="ink"
+							>{work.partTitle} · {meta}</span
+						>
+					{:else}WORK · PART {work.part} · <span class="ink">{work.partTitle}</span> · {meta}{/if}
+				</div>
+			{:else}
+				<div class="meta">{meta}</div>
+			{/if}
+			<div class="inline-progress"><ProgressBar value={progress} /></div>
+		</div>
+		<div class="progress">
+			<div class="pct">{work && work.upNext ? `PART ${work.part}` : percent(progress)}</div>
+			<ProgressBar value={progress} width={110} />
+		</div>
+	</svelte:element>
 	<button
 		type="button"
 		class="go"
@@ -82,8 +122,14 @@
 		disabled={unavailable || !onresume}
 		aria-label={work?.upNext ? `Start ${title}` : `Resume ${title}`}
 		data-focus-id={focusId}
+		data-focus-down={focusDown}
 		data-focus-start={startFocus ? '' : undefined}
-		onclick={() => onresume?.()}>{unavailable ? '—' : '▶'}</button
+		onclick={() => onresume?.()}
+		>{#if unavailable}—{:else}
+			<!-- Drawn, because a text ▶ is placed by the font's metrics (c840). The
+			     triangle's centroid, not its box, is the viewBox's middle: (4+4+13)/3 = 7. -->
+			<svg class="tri" viewBox="0 0 14 14" aria-hidden="true"><path d="M4 1 13 7 4 13Z" /></svg>
+		{/if}</button
 	>
 </div>
 
@@ -99,6 +145,20 @@
 	}
 	.unavailable {
 		opacity: 0.4;
+	}
+	/* The whole band, the row's own padding and the gap before ▶ included, is
+	   the link: the margins take the row's inset back and the padding returns it,
+	   so nothing is drawn anywhere new. */
+	.band {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		margin: -12px -16px -12px calc(-1 * var(--pad));
+		padding: 12px 16px 12px var(--pad);
+		color: inherit;
+		text-decoration: none;
 	}
 	.cover {
 		width: 62px;
@@ -197,16 +257,28 @@
 	.go:disabled {
 		cursor: default;
 	}
+	.tri {
+		width: 14px;
+		height: 14px;
+		fill: currentColor;
+	}
 	/*
-	 * The TV's CONTINUE card (c238; TV-Library 3A; TV Calls, "CONTINUE"): one
-	 * 288x120 button, three across, with a 72px cover, the title on two lines,
-	 * where you are and the progress bar. The whole card is the button, so the
-	 * ▶ cell becomes an invisible overlay and the mark is drawn inside the
-	 * card, as a cell of the ruled grid.
+	 * The TV's CONTINUE card (c238; TV-Library 3A; TV Calls, "CONTINUE"): 288x120,
+	 * three across, with a 72px cover, the title on two lines, where you are and
+	 * the progress bar. Two stops since c841: the band opens the entry and ▶ is
+	 * a ruled cell at the card's end, so the ring is drawn inside each.
 	 */
 	@media (pointer: none) and (min-width: 900px) {
 		.row {
 			position: relative;
+			align-items: stretch;
+			gap: 0;
+			min-height: 120px;
+			padding: 8px 14px 8px 8px;
+			border-bottom: 0;
+			background: var(--surface-page);
+		}
+		.band {
 			display: grid;
 			grid-template-columns: 72px minmax(0, 1fr);
 			grid-template-rows: auto auto;
@@ -215,9 +287,10 @@
 			align-content: center;
 			align-items: stretch;
 			min-height: 120px;
+			/* Stops at ▶'s cell: the layer's arrows are an edge test (doc/FOCUS.md),
+			   so a band running under ▶ would not be "to the left" of it. */
+			margin: -8px 34px -8px -8px;
 			padding: 8px 14px 8px 8px;
-			border-bottom: 0;
-			background: var(--surface-page);
 		}
 		.cover {
 			grid-row: 1 / span 2;
@@ -265,14 +338,13 @@
 		}
 		.go {
 			position: absolute;
-			inset: 0;
-			width: auto;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			width: 48px;
 			height: auto;
 			border: 0;
-			padding: 0;
-			background: transparent;
-			color: transparent;
-			font-size: 0;
+			border-left: var(--hairline);
 		}
 		.go:focus-visible {
 			box-shadow: var(--focus-ring-in);

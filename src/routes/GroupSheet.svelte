@@ -62,7 +62,9 @@
 		suggested = false,
 		offer = null,
 		noun = 'BOOKS',
+		absolute = false,
 		ondone,
+		onstale,
 		onclose
 	}: {
 		open: boolean;
@@ -81,6 +83,12 @@
 		answers?: GroupAnswer[];
 		suggested?: boolean;
 		/**
+		 * Post ADD TO A WORK to the library by its full path (c838): a sheet
+		 * drawn on `/search` has no `?/addToWork` of its own, where the series
+		 * screen's relative one is its own action.
+		 */
+		absolute?: boolean;
+		/**
 		 * A Work offer under review: the Work it would join, the place it would
 		 * take, its run as it stands, and the key NOT THIS stores. `books` is then
 		 * the newcomer alone, and `existingWorks` holds that Work.
@@ -95,6 +103,13 @@
 		 * belongs to, so that screen's `form` never sees it (c700).
 		 */
 		ondone?: (answer?: Record<string, unknown>) => void;
+		/**
+		 * A refusal the sheet cannot answer (a Work gone, or remade under its id:
+		 * c583, c584), handed over before it closes. Only a page the answer does
+		 * not belong to needs it: on the library and the series screen `form`
+		 * carries it, and `invalidateAll()` re-reads the lists.
+		 */
+		onstale?: (message: string) => void;
 		onclose: () => void;
 	} = $props();
 
@@ -257,6 +272,7 @@
 					if (data?.stale === true) {
 						await update();
 						await invalidateAll();
+						onstale?.(String(data.workMessage ?? data.groupMessage ?? data.message ?? 'NOT DONE'));
 						onclose();
 						return;
 					}
@@ -523,7 +539,11 @@
 				class="create"
 				class:acc={work}
 				disabled={!canCreate || busy}
-				formaction={work && mode === 'existing' ? '?/addToWork' : undefined}
+				formaction={work && mode === 'existing'
+					? absolute
+						? '/?/addToWork'
+						: '?/addToWork'
+					: undefined}
 			>
 				{#if !work}
 					{mode === 'new'

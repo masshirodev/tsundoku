@@ -1,16 +1,14 @@
 <script lang="ts">
 	import { m } from '$lib/paraglide/messages';
-	import Sheet from '$lib/components/chrome/Sheet.svelte';
-	import Switch from '$lib/components/controls/Switch.svelte';
-	import { deleteWithLine, keptAcrossLine } from '$lib/library/highlights';
 	import Band, { clearBandUrl } from '$lib/components/chrome/Band.svelte';
 	import { backLink } from '$lib/back';
-	import { deserialize, enhance } from '$app/forms';
+	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { afterNavigate, beforeNavigate, goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount, tick, untrack } from 'svelte';
-	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+	import { MediaQuery, SvelteMap, SvelteSet } from 'svelte/reactivity';
+	import { TV } from '$lib/device.svelte';
 	import { page } from '$app/state';
 	import Banner from '$lib/components/chrome/Banner.svelte';
 	import { browser, version } from '$app/environment';
@@ -31,7 +29,6 @@
 		runningBand,
 		type Later
 	} from '$lib/updates';
-	import BulkBar from '$lib/components/chrome/BulkBar.svelte';
 	import SectionLabel from '$lib/components/chrome/SectionLabel.svelte';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
@@ -66,10 +63,8 @@
 	} from '$lib/library/filters';
 	import { langCode } from '$lib/library/editions';
 	import SeriesSheet from './SeriesSheet.svelte';
-	import ShelfPicker from './ShelfPicker.svelte';
+	import SelectionBar from './search/SelectionBar.svelte';
 	import PersonView from './PersonView.svelte';
-	import GroupSheet from './GroupSheet.svelte';
-	import HideSheet from './HideSheet.svelte';
 	import TagChip from '$lib/components/controls/TagChip.svelte';
 	import { tagHref } from '$lib/library/links';
 	import { hueFor } from '$lib/library/cover';
@@ -90,28 +85,30 @@
 		unitLabel
 	} from '$lib/library/labels';
 	import { coverSrc, readHref, seriesHref, shelfHref, withParam } from '$lib/library/links';
-	import { num, upper } from '$lib/i18n/format';
-	import type { Rating, Kind, RefreshBatch, SeriesCard, Shelf } from '$lib/library/types';
-	import { groupAnswers } from '$lib/library/books';
-	import { allHiddenAmong, wholeBand, wholeLine, type LibraryCard } from '$lib/library/works';
+	import { upper } from '$lib/i18n/format';
+	import type { Rating, RefreshBatch, SeriesCard, Shelf } from '$lib/library/types';
+	import { wholeBand, wholeLine, type LibraryCard } from '$lib/library/works';
 	import { pageQuery } from '$lib/library/paging';
 	import {
 		carrySelection,
 		landing,
-		pickedInOrder,
 		pickedOfCard,
 		pickedOfPart,
 		refreshFacts,
-		titlesLine,
 		drawnToNote,
 		takeCarried,
 		UnseenFacts,
-		workOf,
 		type Picked
 	} from '$lib/library/selection';
 	import type { Snapshot } from './$types';
 
 	let { data, form } = $props();
+
+	/**
+	 * A TV lays CONTINUE's cards three across, so ↓ from the first ▶ names the
+	 * shelf tabs; everywhere else the rows stack and ↓ is the next row (c841).
+	 */
+	const tvScreen = new MediaQuery(TV, false);
 	/**
 	 * GET STARTED on the empty library asks for itself again, so a phone
 	 * pairing or a download ticks its step without a reload (c722;
@@ -598,8 +595,8 @@
 	let selectingAll: Promise<void> | null = null;
 	/** Which selection this is: ✕ and a bulk action's success start the next. */
 	let selectionRun = 0;
-	/** The last tap still waiting on those reads: only it opens its sheet. */
-	let lastTap = 0;
+	/** The bar the two pages share (c838): it holds the taps still waiting on those reads. */
+	let bar = $state<SelectionBar | null>(null);
 	/**
 	 * Fill in what SELECT ALL took unseen, before SHOW lists it or a bulk
 	 * action reads it. SELECT ALL's id read comes first, or there is nothing
@@ -608,16 +605,6 @@
 	async function fillUnseen(): Promise<void> {
 		while (selectingAll) await selectingAll;
 		await unseen.fill(selected, facts, heldBySheet);
-	}
-	/**
-	 * Open a bulk action's sheet once the selection is whole. A tap made while
-	 * the reads are out is dropped by ✕, or by a later tap, which is the one
-	 * the owner meant.
-	 */
-	async function openWhenFilled(open: () => void): Promise<void> {
-		const tap = ++lastTap;
-		await fillUnseen();
-		if (tap === lastTap) open();
 	}
 	/**
 	 * A selection carried back from the search (c698; doc/LIBRARY.md, "What
@@ -773,7 +760,7 @@
 		unseen.reset();
 		selectingAll = null;
 		selectionRun++;
-		lastTap++;
+		bar?.dropTaps();
 	}
 
 	/**
@@ -794,116 +781,14 @@
 	}
 
 	function openShow() {
-		lastTap++;
+		bar?.dropTaps();
 		shownIds = [...selected];
 		reviewing = true;
 		void fillUnseen();
 	}
 
 	// ---- sheets ------------------------------------------------------------
-	let deleting = $state(false);
-	let deleteBusy = $state(false);
-	/** What the selection holds, read as DELETE opens (Out X4; c731). */
-	let held = $state.raw({ n: 0, series: 0 });
-	/** DELETE THEM TOO: off every time the sheet opens, never carried over. */
-	let deleteHeldToo = $state(false);
-
-	/** How long DELETE waits for that read before it asks without the row. */
-	const HELD_READ_MS = 3000;
-
-	/**
-	 * How many highlights `ids` hold. A read that fails answers none, and so
-	 * does one that outlasts HELD_READ_MS (a hung read must not hold the sheet
-	 * shut): the sheet then says nothing about them and offers no switch, and
-	 * the delete keeps them, which is what it does by default.
-	 */
-	async function readHeld(ids: number[]): Promise<{ n: number; series: number }> {
-		const body = new FormData();
-		for (const id of ids) body.append('id', String(id));
-		try {
-			const res = await fetch('?/held', {
-				method: 'POST',
-				body,
-				headers: { 'x-sveltekit-action': 'true' },
-				signal: AbortSignal.timeout(HELD_READ_MS)
-			});
-			const answer = deserialize(await res.text());
-			if (answer.type === 'success' && answer.data) {
-				const { n, series } = answer.data as { n: number; series: number };
-				return { n, series };
-			}
-		} catch {
-			// Falls through: the workstation did not answer.
-		}
-		return { n: 0, series: 0 };
-	}
-
-	/**
-	 * DELETE: fill in what SELECT ALL never drew, read the highlights, then ask.
-	 * In that order so the sheet opens whole, with no row arriving under the
-	 * finger on its way to the action. A selection that moved during the read
-	 * is read again, or the row would name other series' highlights.
-	 */
-	async function askDelete(): Promise<void> {
-		const tap = ++lastTap;
-		await fillUnseen();
-		let asked: number[];
-		let answer: { n: number; series: number };
-		do {
-			if (tap !== lastTap) return;
-			asked = [...selected];
-			answer = await readHeld(asked);
-		} while (tap === lastTap && !sameMembers(asked, selected));
-		if (tap !== lastTap) return;
-		held = answer;
-		deleteHeldToo = false;
-		deleting = true;
-	}
-
-	const sameMembers = (ids: number[], set: ReadonlySet<number>) =>
-		ids.length === set.size && ids.every((id) => set.has(id));
-	/** The first few titles, so the question names what it's about. */
-	const deletingTitles = $derived(titlesLine(selected, facts));
 	let sheetId = $state<number | null>(null);
-	let pickerOpen = $state(false);
-	let grouping = $state(false);
-	/** HIDE on a part of a Work asks first (W4). */
-	let hiding = $state(false);
-
-	/**
-	 * What GROUP would take (W4; doc/BOOKS.md, "The AS row"): every selected
-	 * series, with the facts the sheet's AS row needs -- its kind and how many
-	 * books it has -- and the Work it is in now. A Work tile contributes its
-	 * parts, since a Work is one tile over them (doc/WORKS.md). The rows keep
-	 * the order they were selected in, which is what a Work's BY HAND means.
-	 */
-	type GroupRow = {
-		seriesId: number;
-		title: string;
-		hue: number;
-		addedAt: number;
-		cover: number | null;
-		kind: Kind;
-		entryCount: number;
-		/** "MANGA · 58 CH. · 41 READ": the row's second line. */
-		meta: string;
-		/** The Work it is in now: "IN <WORK> · MOVES HERE". */
-		inWork: string | null;
-	};
-	const groupRows = $derived(
-		pickedInOrder(selected, facts).map((p): GroupRow => ({
-			seriesId: p.id,
-			title: p.title,
-			hue: p.hue,
-			addedAt: p.addedAt,
-			cover: p.cover,
-			kind: p.kind,
-			entryCount: p.entryCount,
-			meta: p.meta,
-			inWork: p.inWork
-		}))
-	);
-
 	/**
 	 * Every selectable series the page draws, as the facts a selection keeps:
 	 * a plain tile, a Work tile's parts, a person page's series. A book inside
@@ -960,53 +845,6 @@
 			for (const id of drop) facts.delete(id);
 		});
 	});
-	const answers = $derived(
-		groupAnswers(groupRows.map((r) => ({ kind: r.kind, entryCount: r.entryCount })))
-	);
-	/** The noun the sheet's title reads: the first answer the selection allows. */
-	const noun = $derived(answers[0] === 'volumes' ? 'VOLUMES' : 'BOOKS');
-	/** The Works the selection touches: HIDE asks when there is one (W4). */
-	const selectedWorks = $derived([
-		...new Set(
-			[...selected]
-				.map((id) => workOf(id, data.workFeet, facts)?.id)
-				.filter((id): id is number => typeof id === 'number')
-		)
-	]);
-	/** HIDE ALL n: every part of the Works touched, and the selected series in none. */
-	const hideWholeCount = $derived(
-		selectedWorks.reduce(
-			(n, id) => n + (data.existingWorks.find((w) => w.id === id)?.series ?? 0),
-			0
-		) + [...selected].filter((id) => !workOf(id, data.workFeet, facts)).length
-	);
-	/** TAKE OUT: how many series stay behind in their Works. */
-	const hideRemainCount = $derived(
-		selectedWorks.reduce((n, id) => {
-			const work = data.existingWorks.find((w) => w.id === id);
-			const here = [...selected].filter((s) => workOf(s, data.workFeet, facts)?.id === id).length;
-			return n + Math.max(0, (work?.series ?? here) - here);
-		}, 0)
-	);
-	/**
-	 * FOLD AS LANGUAGES (doc/EDITIONS.md): two or three single books, each in
-	 * a language of its own, none folded already, and each with nothing beside
-	 * it (`alone`, c651: `?/fold` refuses the rest, and an action that can only
-	 * be refused is not offered). Their codes, or null.
-	 */
-	const foldCodes = $derived.by(() => {
-		if (selected.size < 2 || selected.size > 3) return null;
-		const picked = pickedInOrder(selected, facts);
-		if (picked.length !== selected.size) return null;
-		if (
-			picked.some(
-				(s) => s.kind !== 'doujin' || s.entryCount !== 1 || !s.alone || !s.language || s.languages
-			)
-		)
-			return null;
-		const langs = picked.map((s) => s.language!);
-		return new Set(langs).size === langs.length ? langs.map(langCode) : null;
-	});
 	/**
 	 * A refusal stays where it was answered, and only until the owner moves on
 	 * (c469's round 2). `form` outlives both: SvelteKit keeps an action's answer
@@ -1046,6 +884,12 @@
 	const batch = $derived(
 		latest && 'refreshed' in latest ? (latest.refreshed as RefreshBatch) : null
 	);
+	/** The bar's bulk forms: the answer lands in `form`, and the ticks stay. */
+	const keepAfterBulk: SubmitFunction =
+		() =>
+		async ({ update }) => {
+			await update({ reset: false });
+		};
 	/** GROUP AS A WORK's own answer (W4): the Work it made, or what joined one. */
 	const made = $derived(
 		latest && 'made' in latest
@@ -1114,52 +958,6 @@
 			? wholeBand('SHOWN', { ids: showFacts.shown, whole: showFacts.whole, works: showFacts.works })
 			: null
 	);
-	/** How many failed titles the band names; the count is always the whole truth. */
-	const FAILED_SHOWN = 3;
-	const batchTitle = $derived(
-		!batch
-			? ''
-			: batch.asked === 0
-				? m.library_refresh_nothing()
-				: m.library_refresh_asked({ n: num(batch.asked), found: num(batch.found) })
-	);
-	const batchDetail = $derived.by(() => {
-		if (!batch) return '';
-		const parts: string[] = [];
-		if (batch.failed.length > 0) {
-			// A source that is down fails the whole selection: name the first few,
-			// since the band cannot hold twenty-four titles.
-			const named = batch.failed.slice(0, FAILED_SHOWN).map(upper);
-			if (batch.failed.length > named.length) named.push('…');
-			parts.push(
-				m.library_refresh_failed({
-					count: batch.failed.length,
-					n: num(batch.failed.length),
-					titles: named.join(', ')
-				})
-			);
-		} else if (batch.asked > 0) parts.push(m.library_refresh_all_answered());
-		if (batch.skipped > 0)
-			parts.push(
-				batch.asked === 0
-					? m.library_refresh_skipped_all({ count: batch.skipped, n: num(batch.skipped) })
-					: m.library_refresh_skipped({ count: batch.skipped, n: num(batch.skipped) })
-			);
-		if (batch.remaining.length > 0)
-			parts.push(
-				m.library_refresh_not_asked({
-					count: batch.remaining.length,
-					n: num(batch.remaining.length)
-				})
-			);
-		return parts.join(' · ');
-	});
-	/** The band's own submit: the rest of a selection the run was too full to ask. */
-	const batchAfter: SubmitFunction =
-		() =>
-		async ({ update }) => {
-			await update({ reset: false });
-		};
 	/**
 	 * UNDO after a Work was made, added to, ended or hidden: the tiles a loaded
 	 * page holds change back, and the load's first page may not move, so the
@@ -1201,10 +999,6 @@
 		for (const i of data.person?.items ?? []) if (i.entryId === null) out.set(i.seriesId, i.hidden);
 		return out;
 	});
-	/** Every series selected is hidden, and the page can see at least one. */
-	const allHidden = $derived(
-		allHiddenAmong(selected, (id) => hiddenById.get(id) ?? facts.get(id)?.hidden)
-	);
 
 	/**
 	 * A Work tile is the run, so selecting it selects its parts: the bulk bar's
@@ -1229,8 +1023,28 @@
 			void goto(`/work/${c.tile.id}`);
 			return;
 		}
-		// The series screen opens with what this tile already knows (doc/WAITING.md).
-		waiting.preview = {
+		waiting.preview = previewOf(c);
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref() resolves
+		void goto(seriesHref(c.id, data.tag ? null : data.shelf));
+	}
+
+	/** The series screen opens with what this tile already knows (doc/WAITING.md). */
+	function previewOf(
+		c: Pick<
+			LibraryCard,
+			| 'id'
+			| 'title'
+			| 'kind'
+			| 'hue'
+			| 'rating'
+			| 'favourite'
+			| 'hidden'
+			| 'entryCount'
+			| 'readCount'
+			| 'cover'
+		>
+	) {
+		return {
 			id: c.id,
 			title: c.title,
 			kind: c.kind,
@@ -1242,8 +1056,6 @@
 			readCount: c.readCount,
 			cover: c.cover
 		};
-		// eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref() resolves
-		void goto(seriesHref(c.id, data.tag ? null : data.shelf));
 	}
 
 	// A shelf tab on its way past 1 s: the grid in outline, CONTINUE and the
@@ -1434,6 +1246,43 @@
 	// count to pad the last row, which is cosmetic and can wait for hydration.
 	const columns = $derived(phone.current ? 3 : desktop.current ? 8 : wide.current ? 9 : 6);
 	const contShown = $derived(data.cont.items.slice(0, 4));
+
+	/** The screens the service worker keeps (src/service-worker.ts, `SCREENS`). */
+	const SCREENS_CACHE = 'tsundoku-screens';
+	/** A CONTINUE row's own page: a Work's row to its Work, as its tile opens. */
+	const rowPath = (item: (typeof contShown)[number]) =>
+		item.work ? `/work/${item.work.id}` : `/series/${item.id}`;
+	/**
+	 * Offline, which rows' pages this device has kept. Going to one it has not
+	 * is not an error anyone sees: the worker answers with the library's copy
+	 * under the series' URL (measured, c841), so such a row goes nowhere. Only a
+	 * screen's document can be kept: SvelteKit sends `__data.json` as no-store,
+	 * and the worker never stores that (`storable`).
+	 */
+	let keptScreens = $state.raw<string[]>([]);
+	$effect(() => {
+		if (!isOffline) return;
+		const paths = contShown.map(rowPath);
+		let live = true;
+		void (async () => {
+			const cache = await caches.open(SCREENS_CACHE);
+			const kept: string[] = [];
+			for (const path of paths) {
+				if (await cache.match(path, { ignoreSearch: true })) kept.push(path);
+			}
+			if (live) keptScreens = kept;
+		})();
+		return () => {
+			live = false;
+		};
+	});
+	/** Where a CONTINUE row's band goes, or null where it has nowhere honest to go (doc/LIBRARY.md). */
+	function continueHref(item: (typeof contShown)[number]): string | null {
+		// Every tap is a pick while selecting, and a row is not one (doc/LIBRARY.md).
+		if (selecting) return null;
+		if (isOffline && (cachedOn(item) === 0 || !keptScreens.includes(rowPath(item)))) return null;
+		return item.work ? `/work/${item.work.id}` : seriesHref(item.id, 'continue');
+	}
 	const showContinue = $derived(contShown.length > 0 && !scanning && !justImported);
 
 	const cachedCount = (id: number) => offline.cached[id] ?? 0;
@@ -2335,7 +2184,11 @@
 							src={coverSrc(item.id, item.cover)}
 							hue={item.hue}
 							unavailable={isOffline && !cached}
+							href={continueHref(item)}
+							onopen={item.work ? undefined : () => (waiting.preview = previewOf(item))}
 							focusId={`continue-${item.id}`}
+							linkFocusId={`cont-${item.id}`}
+							focusDown={i === 0 && tvScreen.current ? '.tabs nav .tab' : undefined}
 							startFocus={i === 0}
 							onresume={item.resumeId !== null
 								? // eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves
@@ -2592,96 +2445,34 @@
 	{/if}
 </div>
 
-{#if selecting}
-	<form
-		method="POST"
-		action="?/bulk"
-		use:enhance={() =>
-			async ({ update }) => {
-				await update({ reset: false });
-			}}
-	>
-		{#each [...selected] as id (id)}<input type="hidden" name="id" value={id} />{/each}
-		{#if foldMessage}
-			<div class="fold-refused" role="status">{foldMessage}</div>
-		{/if}
-		<BulkBar columns={7}>
-			{#snippet actions()}
-				<button type="submit" name="do" value="fav" disabled={selected.size === 0}>FAV</button>
-				<button type="button" disabled={selected.size === 0} onclick={() => (pickerOpen = true)}
-					>+ SHELF</button
-				>
-				<!-- No tag editor is designed yet; see doc/LIBRARY.md. -->
-				<button type="button" disabled>TAG</button>
-				{#if foldCodes}
-					<!-- Editions 1f: books in different languages fold, rather than group. -->
-					<button type="submit" class="fold" formaction="?/fold"
-						><span class="long">FOLD AS LANGUAGES</span><span class="short">FOLD</span><span
-							class="sub">{foldCodes.join(' · ')}</span
-						></button
-					>
-				{:else}
-					<!-- Index Books: GROUP, and W4's AS sheet asks what they become. -->
-					<button
-						type="button"
-						class="group"
-						disabled={selected.size === 0}
-						onclick={() => void openWhenFilled(() => (grouping = true))}>GROUP</button
-					>
-				{/if}
-				<!-- REFRESH (c221): asks each selected series' source once, and downloads nothing. -->
-				<button type="submit" formaction="?/refresh" disabled={selected.size === 0}
-					>{m.library_refresh()}</button
-				>
-				<!-- With reveal on and only hidden tiles selected, the same cell unhides them.
-				     A selection that holds part of a Work asks first: a Work is hidden
-				     whole, or the part leaves it (W4; doc/WORKS.md, "The one rule").
-				     UNHIDE follows the same rule the other way: on a person's page a
-				     Work's parts are their own tiles, so showing one must show the Work. -->
-				{#if allHidden}
-					{#if selectedWorks.length > 0}
-						<button type="submit" formaction="?/showAll" disabled={selected.size === 0}
-							>UNHIDE</button
-						>
-					{:else}
-						<button type="submit" name="do" value="unhide" disabled={selected.size === 0}
-							>UNHIDE</button
-						>
-					{/if}
-				{:else if selectedWorks.length > 0}
-					<button
-						type="button"
-						disabled={selected.size === 0}
-						onclick={() => void openWhenFilled(() => (hiding = true))}>HIDE</button
-					>
-				{:else}
-					<button type="submit" name="do" value="hide" disabled={selected.size === 0}>HIDE</button>
-				{/if}
-				<!-- Asks first (doc/DELETING.md): duplicates are cleared in bulk. -->
-				<button type="button" disabled={selected.size === 0} onclick={() => void askDelete()}
-					>DELETE</button
-				>
-			{/snippet}
-		</BulkBar>
-	</form>
-	{#if batch}
-		<!-- REFRESH's answer (c221): pinned over the bar that asked, so it is read where it was pressed. -->
-		<div class="refresh-band">
-			<Band title={batchTitle} detail={batchDetail} ondismiss={dropAnswer}>
-				{#snippet action()}
-					{#if batch.remaining.length > 0}
-						<form method="POST" action="?/refresh" use:enhance={batchAfter}>
-							{#each batch.remaining as id (id)}<input type="hidden" name="id" value={id} />{/each}
-							<button type="submit"
-								>{m.library_refresh_more({ n: num(batch.remaining.length) })}</button
-							>
-						</form>
-					{/if}
-				{/snippet}
-			</Band>
-		</div>
-	{/if}
-{/if}
+<SelectionBar
+	bind:this={bar}
+	{selecting}
+	{selected}
+	{facts}
+	workFeet={data.workFeet}
+	existing={data.existing}
+	existingVolumes={data.existingVolumes}
+	existingWorks={data.existingWorks}
+	shelves={data.shelves}
+	hiddenOf={(id) => hiddenById.get(id)}
+	fill={fillUnseen}
+	{foldMessage}
+	{batch}
+	bulkAnswer={keepAfterBulk}
+	ondismissBatch={dropAnswer}
+	ongrouped={stopSelecting}
+	onhide={async () => {
+		stopSelecting();
+		// The sheet's `update` did not re-read (c660): this is the one reload,
+		// and `reloadList` asks for the loaded pages once behind it.
+		await reloadList();
+	}}
+	ondeleted={async () => {
+		stopSelecting();
+		await invalidateAll();
+	}}
+/>
 
 {#if newOpen}
 	<NewShelfSheet closeHref={withParam(page.url, 'new', null)} />
@@ -2692,115 +2483,6 @@
 	shelves={data.shelves}
 	onclose={() => (sheetId = null)}
 	onchange={() => invalidateAll()}
-/>
-
-<GroupSheet
-	open={grouping}
-	books={groupRows}
-	existing={data.existing.filter((s) => !selected.has(s.id))}
-	existingVolumes={data.existingVolumes.filter((s) => !selected.has(s.id))}
-	existingWorks={data.existingWorks.filter(
-		(w) => selectedWorks.length === 0 || !selectedWorks.includes(w.id)
-	)}
-	{answers}
-	{noun}
-	ondone={() => {
-		grouping = false;
-		stopSelecting();
-	}}
-	onclose={() => (grouping = false)}
-/>
-
-{#if hiding}
-	<HideSheet
-		open
-		title="HIDE {selected.size} {selected.size === 1 ? 'SERIES' : 'SERIES'}?"
-		detail={selectedWorks.length === 1
-			? `PART OF ${data.existingWorks.find((w) => w.id === selectedWorks[0])?.name.toUpperCase() ?? 'A WORK'}`
-			: `PART OF ${selectedWorks.length} WORKS`}
-		ids={[...selected].map(String)}
-		wholeCount={hideWholeCount}
-		remainCount={hideRemainCount}
-		actionAll="?/hideAll"
-		actionPart="?/hideParts"
-		ondone={async () => {
-			hiding = false;
-			stopSelecting();
-			// The sheet's `update` did not re-read (c660): this is the one
-			// reload, and `reloadList` asks for the loaded pages once behind it.
-			await reloadList();
-		}}
-		onclose={() => (hiding = false)}
-	/>
-{/if}
-
-<!-- A copy of the shared ConfirmSheet, with the row highlights add between the
-     lines and the actions, where that sheet has no place for it (Out X4; c731). -->
-<Sheet open={deleting} onclose={() => (deleting = false)} label="DELETE {selected.size} SERIES?">
-	<div class="del-head">
-		<span class="del-title">DELETE {selected.size} SERIES?</span>
-		<button
-			type="button"
-			class="del-x"
-			aria-label={m.chrome_close()}
-			onclick={() => (deleting = false)}>✕</button
-		>
-	</div>
-	<div class="del-body">
-		{#each [`${selected.size} SELECTED${deletingTitles ? ` · ${deletingTitles}` : ''}`, 'THEIR FILES MOVE TO THE TRASH FOLDER ON THE WORKSTATION.', 'THEIR READING HISTORY GOES WITH THEM.', 'A SCAN OR A SYNC WON’T BRING THEM BACK.'] as line (line)}<p
-			>
-				{line}
-			</p>{/each}
-	</div>
-	{#if held.n > 0}
-		<div class="del-kept" data-highlights-kept>
-			<div class="del-row del-col">
-				<span class="del-lbl">{keptAcrossLine(held.n, held.series)}</span>
-				<span class="del-why"
-					>THEIR QUOTES, COPIES AND NOTES STAY ON THE HIGHLIGHTS PAGE, FROM A SERIES NO LONGER IN
-					THE LIBRARY.</span
-				>
-			</div>
-			<div class="del-row">
-				<span class="del-lbl del-too">DELETE THEM TOO</span>
-				<Switch checked={deleteHeldToo} onchange={(v) => (deleteHeldToo = v)} />
-			</div>
-		</div>
-	{/if}
-	<form
-		method="POST"
-		action="?/delete"
-		class="del-actions"
-		use:enhance={() => {
-			deleteBusy = true;
-			return async () => {
-				deleting = false;
-				stopSelecting();
-				await invalidateAll();
-				deleteBusy = false;
-			};
-		}}
-	>
-		{#each [...selected] as id (id)}<input type="hidden" name="id" value={String(id)} />{/each}
-		{#if deleteHeldToo && held.n > 0}<input type="hidden" name="highlights" value="1" />{/if}
-		<button type="button" onclick={() => (deleting = false)} disabled={deleteBusy}
-			>{m.chrome_cancel()}</button
-		>
-		<button type="submit" class="del-go" disabled={deleteBusy}
-			>{deleteBusy
-				? m.chrome_working()
-				: deleteHeldToo && held.n > 0
-					? deleteWithLine(held.n)
-					: `DELETE ${selected.size}`}</button
-		>
-	</form>
-</Sheet>
-
-<ShelfPicker
-	open={pickerOpen}
-	ids={[...selected]}
-	shelves={data.shelves}
-	onclose={() => (pickerOpen = false)}
 />
 
 <!-- SHOW (c698): the selection, wherever it was ticked, in the order it was
@@ -3522,54 +3204,6 @@
 		}
 	}
 	/* FOLD AS LANGUAGES: the accent cell, its languages under it (Editions 1f). */
-	.fold {
-		flex-direction: column;
-		gap: 2px;
-		background: var(--accent) !important;
-		color: var(--on-accent) !important;
-	}
-	.fold .sub {
-		font: 400 12px var(--font-mono);
-	}
-	.fold .short {
-		display: none;
-	}
-	@media (max-width: 599px) {
-		.fold .long {
-			display: none;
-		}
-		.fold .short {
-			display: inline;
-		}
-	}
-	.fold-refused {
-		position: fixed;
-		left: var(--sheet-left, 0);
-		right: 0;
-		bottom: calc(121px + env(safe-area-inset-bottom));
-		z-index: 10;
-		padding: 14px var(--pad, 24px);
-		background: var(--surface-panel);
-		border-top: var(--hairline);
-		font: 500 13px var(--font-mono);
-		color: var(--accent);
-	}
-
-	/* REFRESH's answer (c221), pinned over the bulk bar it came from. A band is
-	   an answer, not a wall: the grid under it stays tappable, and only the band
-	   itself takes a press (its UNDO, its ASK N MORE). */
-	.refresh-band {
-		position: fixed;
-		left: var(--sheet-left, 0);
-		right: 0;
-		bottom: calc(121px + env(safe-area-inset-bottom));
-		z-index: 10;
-		pointer-events: none;
-	}
-	.refresh-band > :global(.band) {
-		pointer-events: auto;
-	}
-
 	/* ---- the TV (c238; TV-Library) ---------------------------------------- */
 	@media (pointer: none) and (min-width: 900px) {
 		.library {
@@ -3642,105 +3276,5 @@
 			border-left: var(--hairline);
 			border-right: var(--hairline);
 		}
-	}
-	/* The bulk DELETE's sheet: ConfirmSheet's head, body and actions, unchanged,
-	   and the series screen's X4 box (c731). */
-	.del-head {
-		display: flex;
-		align-items: stretch;
-		min-height: 64px;
-		border-bottom: var(--hairline);
-	}
-	.del-title {
-		flex: 1;
-		display: flex;
-		align-items: center;
-		padding: 12px var(--pad);
-		font: 500 16px var(--font-mono);
-		letter-spacing: var(--tracking-label);
-		overflow-wrap: anywhere;
-	}
-	.del-x {
-		width: 64px;
-		border: 0;
-		border-left: var(--hairline);
-		background: none;
-		color: var(--text-1);
-		font: 400 20px var(--font-mono);
-		cursor: pointer;
-	}
-	.del-body {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-		padding: 20px var(--pad);
-		border-bottom: var(--hairline);
-	}
-	.del-body p {
-		margin: 0;
-		font: 400 14px var(--font-mono);
-		line-height: 1.5;
-		color: var(--text-2);
-	}
-	.del-kept {
-		display: flex;
-		flex-direction: column;
-		margin: 16px var(--pad);
-		border: var(--hairline);
-	}
-	.del-row {
-		display: flex;
-		align-items: center;
-		gap: 14px;
-		min-height: 48px;
-		padding: 10px 16px;
-	}
-	.del-row + .del-row {
-		border-top: var(--hairline);
-	}
-	.del-col {
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 6px;
-	}
-	.del-lbl {
-		font: 500 12px/1.2 var(--font-mono);
-		letter-spacing: var(--tracking-label);
-		color: var(--text-1);
-	}
-	.del-too {
-		flex: 1;
-		color: var(--text-2);
-	}
-	.del-why {
-		font: 400 14px/1.45 var(--font-sans);
-		color: var(--text-2);
-	}
-	.del-actions {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-	}
-	.del-kept + .del-actions {
-		border-top: var(--hairline);
-	}
-	.del-actions button {
-		height: 64px;
-		border: 0;
-		background: none;
-		color: var(--text-1);
-		font: 500 15px var(--font-mono);
-		letter-spacing: var(--tracking-label);
-		cursor: pointer;
-	}
-	.del-actions button + button {
-		border-left: var(--hairline);
-	}
-	.del-actions .del-go {
-		background: var(--surface-inverse);
-		color: var(--text-inverse);
-	}
-	.del-actions button:disabled {
-		opacity: 0.5;
-		cursor: default;
 	}
 </style>

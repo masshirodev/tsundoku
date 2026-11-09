@@ -13,7 +13,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { MediaQuery } from 'svelte/reactivity';
-	import Band from '$lib/components/chrome/Band.svelte';
+	import Band, { clearBandUrl } from '$lib/components/chrome/Band.svelte';
 	import QrCode from '$lib/components/content/QrCode.svelte';
 	import { offline } from '$lib/offline.svelte';
 	import { SERVICE_NAME, clock, type Service } from '$lib/library/tracking';
@@ -670,7 +670,11 @@
 	<!-- The way back to GET STARTED, while step 04's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
 
-	{#if signinBand}<Band title={signinBand.title} detail={signinBand.detail} />{/if}
+	{#if signinBand}<Band
+			title={signinBand.title}
+			detail={signinBand.detail}
+			ondismiss={() => clearBandUrl(['signin', 'service'])}
+		/>{/if}
 
 	{#if other}
 		<div class="topband">

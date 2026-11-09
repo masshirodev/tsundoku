@@ -488,3 +488,68 @@ test('the library keeps the TV’s own bottom safe margin, and the last row ends
 		)
 		.toBeLessThanOrEqual(0.5);
 });
+
+/**
+ * Two stops per CONTINUE card since c841: ▶ (the first stop, what BACK climbs
+ * to) and the band, which opens the entry. A trip to the series and back
+ * returns to the stop it left (doc/FOCUS.md, "Going back").
+ */
+test('a CONTINUE card has two stops: ← from ▶ reaches the band, OK opens it, BACK returns to it (c841)', async ({
+	page
+}) => {
+	await page.goto('/');
+	await page.keyboard.press('ArrowDown');
+	await expect.poll(() => focused(page)).toMatch(/^Resume /);
+	await page.keyboard.press('ArrowLeft');
+	const band = page.locator('.cont > .row').first().locator('a.band');
+	await expect(band).toBeFocused();
+	const href = (await band.getAttribute('href'))!;
+	expect(href).toMatch(/^\/series\/\d+\?from=continue$/);
+	await page.keyboard.press('Enter');
+	await page.waitForURL((u) => u.pathname + u.search === href);
+	await page.goBack();
+	await page.waitForURL((u) => u.pathname === '/');
+	await expect(page.locator('.cont > .row').first().locator('a.band')).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(() => focused(page)).toMatch(/^Resume /);
+});
+
+test('▶❚❚ on the band resumes, as it does on ▶ (c841)', async ({ page }) => {
+	// Incognito, so resuming writes nothing to the shared database.
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_incognito', value: '1', url: 'http://localhost' }]);
+	await page.goto('/');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('ArrowLeft');
+	await expect(page.locator('.cont > .row').first().locator('a.band')).toBeFocused();
+	await page.evaluate(() =>
+		document.activeElement!.dispatchEvent(
+			new KeyboardEvent('keydown', { key: 'MediaPlayPause', cancelable: true, bubbles: true })
+		)
+	);
+	await page.waitForURL(/\/read\/\d+/);
+});
+
+test('each stop draws the ring inside the card, and ▶ is a visible cell (c841)', async ({
+	page
+}) => {
+	await page.goto('/');
+	const row = page.locator('.cont > .row').first();
+	const box = (await row.boundingBox())!;
+	const go = row.locator('.go');
+	const cell = (await go.boundingBox())!;
+	expect(cell.width).toBe(48);
+	expect(Math.round(cell.height)).toBe(Math.round(box.height));
+	expect(Math.abs(cell.x + cell.width - (box.x + box.width))).toBeLessThanOrEqual(1);
+	await expect(go.locator('svg')).toBeVisible();
+
+	await page.keyboard.press('ArrowDown');
+	await expect(go).toBeFocused();
+	const ring = (n: Element) => getComputedStyle(n).boxShadow;
+	expect(await go.evaluate(ring)).toContain('inset');
+	await page.keyboard.press('ArrowLeft');
+	const band = row.locator('a.band');
+	await expect(band).toBeFocused();
+	expect(await band.evaluate(ring)).toContain('inset');
+});

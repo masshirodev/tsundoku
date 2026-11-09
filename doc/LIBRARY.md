@@ -194,6 +194,47 @@ The three reads behind a page are independent of the tiles' number: the
 units, the cards of the parts drawn, and every part of every Work on the
 page (`listTiles`, `cardsOf`, `partsOfWorks` in `src/lib/server/library.ts`).
 
+## The CONTINUE row
+
+One row per series or Work in progress (`ContinueRow.svelte`). **▶ is drawn, not
+typed** (c840): a text `▶` is placed by the font's metrics and sat 2 px right of
+its cell, so the cell draws a 14 px SVG triangle whose centroid, not its box, is
+the middle of the cell. An unavailable row keeps its `—` in the same cell.
+`tests/continue-row.e2e.ts` measures the ink's centroid from the cell's own
+pixels on the row's states.
+
+**The band opens the entry, ▶ goes straight to the reader** (c841). The row is
+a real `<a>` around the cover, the text and the progress, with ▶ its sibling,
+so there is no button inside a link and the row's padding and the gap before ▶
+are the link too. A series' row goes to `/series/<id>?from=continue` (its ←
+reads _Continue · Library_), a Work's row to `/work/<id>`, as its tile does.
+The band stops being a link where it has nowhere honest to go, and then it is
+what it always was, a row that takes no tap:
+
+| State                                                         | The band                                                                                      | ▶                  |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------ |
+| Online                                                        | link                                                                                          | resumes            |
+| Selecting (tablet, desktop; a phone hides the row)            | no link: every tap is a pick, and a row is not one, so a stray tap must not end the selection | resumes, as before |
+| Offline, nothing of it on this device (`unavailable`, dimmed) | no link                                                                                       | `—`                |
+| Offline, chapters on this device, its screen kept             | link                                                                                          | resumes            |
+| Offline, chapters on this device, its screen never kept       | no link                                                                                       | resumes            |
+
+Why the last row: offline, the worker answers a series it never kept with the
+library's copy, under the series' URL, so the tap would land on the library
+looking like nothing happened (measured in c841, `/series/1` showing the
+library). Only a screen's whole document can be kept, because SvelteKit sends
+`__data.json` as `no-store` and the worker never stores that
+(`src/service-worker.ts`, `storable`; `doc/OFFLINE.md`), so a series opened from
+inside the app is not kept and a row is usually in this state.
+
+On a TV the card has **two stops**: ▶ is a 48 px ruled cell at the card's end,
+the first stop and what BACK climbs to, and the band is the rest. A trip to the
+series comes back to the stop it left. On a TV, whose cards sit three across, ↓
+from the first ▶ goes to the first shelf tab (`data-focus-down`), where the
+whole card used to take it; everywhere else the rows stack and ↓ is the row
+under it. ▶❚❚ on
+either stop resumes.
+
 ## New chapters
 
 A tile's `+N` counts entries that **arrived after the series was last opened**:
@@ -908,6 +949,46 @@ a band to select kinds on the library itself?" Designed in
   time, as the design answers; `?kind=` reads a single kind.
 - **MOVIES and SHOWS**: not kinds yet; each gets a cell by joining the
   registry.
+
+### Acting on a selection from the search (c838)
+
+The search draws the library's bar at its foot: the same seven cells, the same
+sheets, one component (`src/routes/search/SelectionBar.svelte`), the bar's own
+shape unchanged, with the inverse block `✕ · N SELECTED · SHOW` staying the
+entry. Every form the bar and its sheets post is the library's action by its
+absolute path (`/?/bulk`, `/?/fold`, `/?/refresh`, `/?/showAll`, `/?/hideAll`,
+`/?/hideParts`, `/?/delete`, `/?/held`, `/?/shelf`, `/?/group`, `/?/work`,
+`/?/addToWork`); a relative `?/bulk` on `/search` would post to `/search`, which
+has no such action. GROUP's lists (`existing`, `existingWorks`) come from
+`GET /search/selection`, read while selecting, so an ordinary search pays nothing.
+
+SvelteKit applies an answer only to the page it belongs to (`GroupSheet`'s own
+`ondone`, c700), so the search reads each answer itself:
+
+| Action                        | On the library                                           | On the search                                                                           |
+| ----------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| FAV, RATE                     | `form`, re-read; SELECT stays                            | re-read; SELECT stays                                                                   |
+| + SHELF                       | re-read; SELECT stays                                    | re-read; SELECT stays                                                                   |
+| GROUP, into a Work            | the band's UNDO; SELECT ends                             | hits re-read; SELECT ends, no band (the Work is in the hits)                            |
+| GROUP, into a series          | `?/group` redirects to the new series                    | the same redirect, to the new series; leaving ends SELECT                               |
+| HIDE/UNHIDE (no Work)         | `form`, re-read; SELECT stays (by default)               | re-read; **SELECT ends** (handoff: a bulk action's success)                             |
+| HIDE on a Work's part         | the HIDE sheet; the band with UNDO; SELECT ends          | the same sheet; `/search`'s own band with UNDO; SELECT ends                             |
+| A plain HIDE that took a Work | `?/bulk` answers `hideFacts`; the band with UNDO         | the same answer read here: `/search`'s own band with UNDO; no sheet; SELECT ends        |
+| UNHIDE a Work's part          | `?/showAll`, band                                        | band; SELECT ends                                                                       |
+| FOLD                          | `?/fold` redirects to the review                         | the same redirect                                                                       |
+| REFRESH                       | the band over the bar; SELECT stays                      | the same band; SELECT stays                                                             |
+| DELETE                        | the sheet; SELECT ends                                   | the same sheet; SELECT ends                                                             |
+| DELETE, no success            | `NOT DELETED · …` over the bar; page re-read; ticks stay | the same                                                                                |
+| A refusal                     | `foldMessage` over the bar                               | `foldMessage` over the bar; **the selection is kept**                                   |
+| A stale GROUP (Work gone)     | the sheet closes, the page re-reads its lists            | the sheet hands it to the bar's line; **the ticks stay**; the lists re-read (`onstale`) |
+
+A refusal over the bar on the search lasts until the selection or the query
+changes, the next bulk action, or the end of SELECT.
+
+`hidBand`, GROUP's and DELETE's own sheets carry their own answers, so nothing
+else is drawn for them on the search. ← after an action carries the ids back
+and posts nothing; a selection carried back acts on those same ids
+(`tests/search-bulk-flow.e2e.ts`).
 
 ## RESCAN asks first
 

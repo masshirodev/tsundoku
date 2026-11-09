@@ -18,6 +18,8 @@
 	import TagChip from '$lib/components/controls/TagChip.svelte';
 	import SeriesSheet from '../SeriesSheet.svelte';
 	import SelectionSheet from './SelectionSheet.svelte';
+	import SelectionBar from './SelectionBar.svelte';
+	import type { RefreshBatch } from '$lib/library/types';
 	import {
 		carrySelection,
 		drawnToNote,
@@ -35,7 +37,7 @@
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { wholeBand, type WholeAnswer } from '$lib/library/works';
+	import { wholeBand, type HideFacts, type ShowFacts, type WholeAnswer } from '$lib/library/works';
 	import { count, kindLabel } from '$lib/library/labels';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -133,12 +135,18 @@
 	}
 	function stopSelecting() {
 		selecting = false;
+		// A Work just made or ended: the next selection's sheets read them afresh.
+		listsRead = null;
 		reviewing = false;
 		selected.clear();
 		facts.clear();
 		unseen.reset();
+		barRefused = '';
+		batch = null;
+		bar?.dropTaps();
 	}
 	function openShow() {
+		bar?.dropTaps();
 		shownIds = [...selected];
 		reviewing = true;
 		void unseen.fill(selected, facts, () => new Set(shownIds));
@@ -239,6 +247,77 @@
 			hid = null;
 			await invalidateAll();
 		};
+	// ---- the bar's actions, on a page they do not belong to (c838; doc/LIBRARY.md) ----
+	let bar = $state<SelectionBar | null>(null);
+	/** A refusal, shown where it was pressed; the selection stays (Rules, "Keeps it"). */
+	let barRefused = $state('');
+	// A derived, or every re-read's new `data` would count as the query changing.
+	const searched = $derived(data.q);
+	/** It answers what was pressed: a new tick or a new query is the owner moving on (c469). */
+	$effect(() => {
+		void searched;
+		void [...selected];
+		barRefused = '';
+	});
+	let batch = $state.raw<RefreshBatch | null>(null);
+	const sheetLists = $state<{
+		existing: { id: number; title: string; books: number }[];
+		existingVolumes: { id: number; title: string; books: number }[];
+		existingWorks: { id: number; name: string; series: number; createdAt: number }[];
+	}>({ existing: [], existingVolumes: [], existingWorks: [] });
+	/** The read in flight, or done: a sheet waits on it, and a failed read is asked again. */
+	let listsRead: Promise<void> | null = null;
+	function readLists(): Promise<void> {
+		listsRead ??= fetch(resolve('/search/selection'))
+			.then((r) => (r.ok ? r.json() : null))
+			.then((lists) => {
+				if (lists) Object.assign(sheetLists, lists);
+				else listsRead = null;
+			})
+			.catch(() => {
+				listsRead = null;
+			});
+		return listsRead;
+	}
+	$effect(() => {
+		if (selecting) void readLists();
+	});
+	/**
+	 * The bar's forms post the library's actions, whose answer SvelteKit
+	 * applies only on the library (`GroupSheet`'s `ondone`, c700), so it is
+	 * read here. A refusal keeps SELECT and says why; a HIDE or UNHIDE ends it
+	 * (Rules, "As today"); FAV and a rating leave it on, as on the library.
+	 */
+	const bulkAnswer: SubmitFunction = ({ submitter }) => {
+		const doing = submitter instanceof HTMLButtonElement ? submitter.value : '';
+		barRefused = '';
+		batch = null;
+		return async ({ action, result, update }) => {
+			if (result.type === 'failure') {
+				const why = result.data?.foldMessage ?? result.data?.workMessage ?? result.data?.message;
+				barRefused = typeof why === 'string' ? why.toUpperCase() : 'NOT DONE';
+				return;
+			}
+			await update({ reset: false });
+			if (result.type !== 'success') return;
+			const answer = (result.data ?? {}) as Record<string, unknown>;
+			if ('refreshed' in answer) {
+				batch = answer.refreshed as RefreshBatch;
+				return;
+			}
+			if (answer.showFacts)
+				hid = { q: data.q, answer: { showFacts: answer.showFacts as ShowFacts }, refused: '' };
+			// A plain HIDE that took a Work with it: the ticks said no Work, and the
+			// workstation (`wholeAnswer`) knows better, so the band and UNDO come too.
+			if (answer.hideFacts)
+				hid = { q: data.q, answer: { hideFacts: answer.hideFacts as HideFacts }, refused: '' };
+			if (doing === 'hide' || doing === 'unhide' || action.search.includes('showAll'))
+				stopSelecting();
+		};
+	};
+	/** Which hits are hidden: what a selection noted is only what it noted when ticked. */
+	const hiddenOf = (id: number) => facts.get(id)?.hidden;
+
 	/** A page command as it's typed: offered as a result, opened by Enter or a tap (Reach, command). */
 	const pageCmd = $derived.by(() => {
 		const p = parseSearch(q);
@@ -465,6 +544,7 @@
 	<Band
 		title={hid?.refused || hidBand.title}
 		detail={hid?.refused ? hidBand.title : hidBand.detail}
+		ondismiss={() => (hid = null)}
 	>
 		{#snippet action()}
 			<form method="POST" action={hidBand.action} use:enhance={undoHid}>
@@ -692,6 +772,52 @@
 	onclose={() => (reviewing = false)}
 />
 
+{#if selecting}
+	<!-- Room for the pinned bulk bar, as the library keeps under its grid. -->
+	<div class="bar-room" aria-hidden="true"></div>
+{/if}
+
+<SelectionBar
+	bind:this={bar}
+	{selecting}
+	{selected}
+	{facts}
+	existing={sheetLists.existing}
+	existingVolumes={sheetLists.existingVolumes}
+	existingWorks={sheetLists.existingWorks}
+	shelves={data.shelves}
+	{hiddenOf}
+	fill={async () => {
+		await readLists();
+		await unseen.fill(selected, facts, () => new Set(shownIds));
+	}}
+	foldMessage={barRefused}
+	{batch}
+	{bulkAnswer}
+	ondismissBatch={() => (batch = null)}
+	ongrouped={async () => {
+		stopSelecting();
+		await invalidateAll();
+	}}
+	ongroupstale={(why) => {
+		barRefused = why;
+		listsRead = null;
+		void readLists();
+	}}
+	onhide={async () => {
+		stopSelecting();
+		await invalidateAll();
+	}}
+	onhideanswer={(d) => {
+		if (d.hideFacts)
+			hid = { q: data.q, answer: { hideFacts: d.hideFacts as HideFacts }, refused: '' };
+	}}
+	ondeleted={async () => {
+		stopSelecting();
+		await invalidateAll();
+	}}
+/>
+
 <SeriesSheet
 	id={sheetId}
 	shelves={data.shelves}
@@ -701,6 +827,9 @@
 />
 
 <style>
+	.bar-room {
+		height: 122px;
+	}
 	.page-cmd {
 		display: flex;
 		align-items: center;

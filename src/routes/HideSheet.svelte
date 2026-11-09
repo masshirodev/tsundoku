@@ -23,6 +23,7 @@
 		actionAll,
 		actionPart,
 		workMade = null,
+		onanswer,
 		ondone,
 		onclose
 	}: {
@@ -46,6 +47,8 @@
 		 * parts of several Works and `?/hideAll` writes by id.
 		 */
 		workMade?: number | null;
+		/** The action's own answer, for a page SvelteKit does not apply it to (`/search`, c838). */
+		onanswer?: (data: Record<string, unknown>) => void;
 		ondone?: () => void;
 		onclose: () => void;
 	} = $props();
@@ -68,7 +71,10 @@
 					return;
 				}
 			}
-			if (result.type === 'success') ondone?.();
+			if (result.type === 'success') {
+				onanswer?.((result.data ?? {}) as Record<string, unknown>);
+				ondone?.();
+			}
 		};
 </script>
 

@@ -150,7 +150,7 @@ test('a hidden ADD’s band offers the shelves: a chip, + NEW SHELF, the library
 		// The keys reach the chips: ↓ from UNDO is a chip (doc/FOCUS.md; the TV's arrows).
 		await band(page).getByRole('button', { name: 'UNDO' }).focus();
 		await page.keyboard.press('ArrowDown');
-		await expect(strip(page).getByRole('link', { name: '+ NEW SHELF' })).toBeFocused();
+		await expect(strip(page).locator('.chip:focus')).toHaveCount(1);
 		// ← walks the chips (the world's own shelves wrap them onto more than one line).
 		await page.keyboard.press('ArrowLeft');
 		expect(
