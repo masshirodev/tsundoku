@@ -560,6 +560,41 @@ export function railTicks(entries: SeriesEntry[]): { label: string; fraction: nu
 	return marks.map((n) => ({ label: formatNumber(n), fraction: (n - first) / span }));
 }
 
+/** The volume an entry is in, 1-based by its file; null when the series has one volume. */
+export function volumeOf(entries: SeriesEntry[], entry: SeriesEntry): number | null {
+	const volumes = volumesIn(entries);
+	if (volumes.length < 2) return null;
+	const i = volumes.findIndex((vol) => vol.some((e) => e.id === entry.id));
+	return i < 0 ? null : i + 1;
+}
+
+/**
+ * The rail's volume ticks (c835, 1C): one per volume, where its first entry
+ * is, labelled `V1`…`Vn`. A tick's label drops when it would sit closer than
+ * [gap] px to the last one drawn; the hairline stays, so a crowded rail still
+ * shows every volume. [height] is the track's own height in px, which is why
+ * this is a ruler and not a fraction rule: the rail maps entries, not pixels.
+ */
+export function volumeTicks(
+	entries: SeriesEntry[],
+	height: number,
+	gap = 28
+): { label: string; number: number; fraction: number; labelShown: boolean }[] {
+	const volumes = volumesIn(entries);
+	if (volumes.length < 2) return [];
+	const first = entries[0]?.number ?? 1;
+	const last = entries[entries.length - 1]?.number ?? 1;
+	const span = Math.max(1, last - first);
+	let lastY = -Infinity;
+	return volumes.map((vol, i) => {
+		const fraction = (vol[0].number - first) / span;
+		const y = fraction * height;
+		const labelShown = y - lastY >= gap;
+		if (labelShown) lastY = y;
+		return { label: `V${i + 1}`, number: i + 1, fraction, labelShown };
+	});
+}
+
 // ---- metadata ------------------------------------------------------------------
 
 /** "MANHWA · MIHON · ONGOING" */

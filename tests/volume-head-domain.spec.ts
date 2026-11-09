@@ -4,6 +4,8 @@ import {
 	listRows,
 	volumeHead,
 	volumeMeta,
+	volumeOf,
+	volumeTicks,
 	type SeriesEntry,
 	type VolumeState
 } from '$lib/library/series';
@@ -183,5 +185,54 @@ describe("a volume's head", () => {
 		expect(head.progress).toBeCloseTo(1 / 3);
 		// A volume no current entry is in, part read and moved past, is not "being read".
 		expect(volumeHead(vol, 1, entry(9)).state).toBe('unread');
+	});
+});
+
+describe("the rail's volume ticks", () => {
+	const six = () =>
+		Array.from({ length: 6 }, (_, v) =>
+			Array.from({ length: 2 }, (_, c) => {
+				const n = v * 2 + c + 1;
+				return entry(n, { file: `Vol ${v + 1}.epub`, volume: `Book ${v + 1}` });
+			})
+		).flat();
+
+	it('puts one tick at each volume’s first entry, labelled V1 to V6', () => {
+		const entries = six();
+		const ticks = volumeTicks(entries, 400);
+		expect(ticks.map((t) => t.label)).toEqual(['V1', 'V2', 'V3', 'V4', 'V5', 'V6']);
+		// Numbers 1 to 12: a volume starts at 1, 3, 5, …
+		expect(ticks.map((t) => t.fraction)).toEqual([0, 2 / 11, 4 / 11, 6 / 11, 8 / 11, 10 / 11]);
+		expect(
+			ticks.every((t) => t.labelShown),
+			'far enough apart at 400px'
+		).toBe(true);
+		expect(volumeTicks([entry(1)], 400)).toEqual([]);
+	});
+
+	it('drops every other label under 28px of track, and keeps every hairline', () => {
+		const entries = six();
+		const ticks = volumeTicks(entries, 100);
+		expect(ticks.map((t) => t.labelShown)).toEqual([true, false, true, false, true, false]);
+		// The first is always drawn: there is nothing above it to crowd.
+		expect(volumeTicks(entries, 0).map((t) => t.labelShown)).toEqual([
+			true,
+			false,
+			false,
+			false,
+			false,
+			false
+		]);
+		expect(
+			volumeTicks(entries, 100, 0).every((t) => t.labelShown),
+			'no floor, every label'
+		).toBe(true);
+	});
+
+	it('names the volume an entry is in, and null when the series has one volume', () => {
+		const entries = six();
+		for (let v = 0; v < 6; v++)
+			for (const e of entries.slice(v * 2, v * 2 + 2)) expect(volumeOf(entries, e)).toBe(v + 1);
+		expect(volumeOf([entry(1), entry(2)], entry(1))).toBeNull();
 	});
 });

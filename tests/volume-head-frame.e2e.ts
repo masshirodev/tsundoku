@@ -28,6 +28,8 @@ let work: string;
 let dbPath: string;
 let base: string;
 let preview: ChildProcess | undefined;
+/** The group the first case made; the rail case reads the same one. */
+let groupedSeries = 0;
 
 function freePort(): Promise<number> {
 	return new Promise((resolve) => {
@@ -106,7 +108,7 @@ test.describe('the volume head', () => {
 	});
 
 	test('is 104px at tablet and desktop and 82 on a phone, its cover at 2:2.9', async ({ page }) => {
-		const series = await groupTwo(page);
+		const series = (groupedSeries = await groupTwo(page));
 		// Mark volume 1 read and volume 2 all but its last chapter: one head is
 		// read (text-2 title), one is being read (accent word and a bar).
 		const files = volumeFiles(series);
@@ -196,6 +198,20 @@ test.describe('the volume head', () => {
 			const track = (await reading.locator('.vpb').boundingBox())!;
 			expect(fill.width / track.width).toBeCloseTo((two.length - 1) / two.length, 1);
 		}
+	});
+
+	test('the rail ticks are the volumes, the thumb’s in ink (1C)', async ({ page }) => {
+		await page.goto(url(`/series/${groupedSeries}`));
+		await page.setViewportSize({ width: 800, height: 1280 });
+		const ticks = page.locator('.rail .tick.vol');
+		await expect(ticks).toHaveCount(2);
+		expect(await ticks.locator('> span').allTextContents()).toEqual(['V1', 'V2']);
+		// The volume the thumb is in is the one in ink, and every hairline is 1px.
+		await expect(page.locator('.rail .tick.vol.on')).toHaveCount(1);
+		const hairline = await ticks.first().evaluate((n) => getComputedStyle(n).borderTopWidth);
+		expect(hairline).toBe('1px');
+		// No volume ticks on a series with one book: the number ticks stay.
+		expect(await page.locator('.rail .tick.vol').count()).toBe(2);
 	});
 });
 

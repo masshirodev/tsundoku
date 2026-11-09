@@ -20,6 +20,8 @@
 		listRows,
 		railTicks,
 		volumeMeta,
+		volumeOf,
+		volumeTicks,
 		type SeriesEntry,
 		type SeriesPage
 	} from '$lib/library/series';
@@ -192,6 +194,19 @@
 	}
 
 	const thumb = $derived(dragging ?? current);
+	/** The volume ticks (c835): a ruler, so it needs the track's own height. */
+	let railHeight = $state(0);
+	$effect(() => {
+		const el = track;
+		if (!el) return;
+		railHeight = el.clientHeight;
+		const ro = new ResizeObserver(() => (railHeight = el.clientHeight));
+		ro.observe(el);
+		return () => ro.disconnect();
+	});
+	const volumeRail = $derived(volumeTicks(series.entries, railHeight));
+	const thumbVolume = $derived(thumb ? volumeOf(series.entries, thumb) : null);
+	const draggingVolume = $derived(dragging ? volumeOf(series.entries, dragging) : null);
 </script>
 
 <!-- The row that is the button (Download States, "The row is the button"): a form post, so it works without script. -->
@@ -424,9 +439,23 @@
 					onkeydown={railKey}
 				>
 					<div class="read-mark" style:height="{Math.max(0, fractionOf(readUpTo)) * 100}%"></div>
-					{#each ticks as t (t.label)}
-						<div class="tick" style:top="{t.fraction * 100}%">{t.label}</div>
-					{/each}
+					{#if volumeRail.length > 1}
+						<!-- One tick per volume (c835, 1C): a hairline at its first entry,
+						     its label in ink while the thumb is inside it. -->
+						{#each volumeRail as t (t.label)}
+							<div
+								class="tick vol"
+								class:on={thumbVolume === t.number}
+								style:top="{t.fraction * 100}%"
+							>
+								{#if t.labelShown}<span>{t.label}</span>{/if}
+							</div>
+						{/each}
+					{:else}
+						{#each ticks as t (t.label)}
+							<div class="tick" style:top="{t.fraction * 100}%">{t.label}</div>
+						{/each}
+					{/if}
 					{#if thumb}
 						<div
 							class="thumb"
@@ -439,7 +468,10 @@
 				</div>
 				{#if dragging}
 					<div class="bubble" style:top="{fractionOf(dragging.number) * 100}%" aria-live="polite">
-						<div class="b-label">DRAGGING · {dragging.readAt !== null ? 'READ' : 'UNREAD'}</div>
+						<div class="b-label">
+							{draggingVolume ? `VOL. ${draggingVolume} · ` : ''}DRAGGING ·
+							{dragging.readAt !== null ? 'READ' : 'UNREAD'}
+						</div>
 						<div class="b-num">{formatNumber(dragging.number)}</div>
 						<div class="b-title">{entryTitle(dragging, series.kind)}</div>
 					</div>
@@ -957,6 +989,31 @@
 		font: 400 11px var(--font-mono);
 		color: var(--text-2);
 		pointer-events: none;
+	}
+	/* A volume's tick (c835, 1C): the hairline everywhere, the label at the
+	   right; a label that would crowd its neighbour is dropped, the line stays. */
+	.tick.vol {
+		transform: none;
+		height: 0;
+		padding: 0;
+		border-top: 1px solid var(--line-2);
+	}
+	.tick.vol > span {
+		position: absolute;
+		right: 8px;
+		top: 3px;
+		font: 500 11px/1 var(--font-mono);
+		letter-spacing: 0.02em;
+		color: var(--text-2);
+	}
+	.tick.vol.on > span {
+		color: var(--text-1);
+	}
+	@media (max-width: 599px) {
+		.tick.vol > span {
+			right: 6px;
+			font-size: 10px;
+		}
 	}
 	.thumb {
 		position: absolute;
