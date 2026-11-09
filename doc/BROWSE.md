@@ -273,8 +273,10 @@ That ← and the preview's own are plain links, never back links (c864): a
 source's list and its tag search share the path `/browse/<id>`, so a back
 link's path-only match would step onto the tag search the reader came
 through, and the two ←s would alternate between it and the preview for good.
-Wave 40's round 2 measured exactly that after making the preview's ← a back
-link (`e12a4bfb`) and adding `use:backLink` on this one. The preview's ←
+Wave 40's round 2 measured exactly that on `e12a4bfb`, where the preview's ←
+was a back link; its proposed `use:backLink` here too cannot work, because a
+tag page is a native navigation (its `tag-search` route is a server route) and
+the app's history map begins again there. The preview's ←
 names the list it was opened from, and the catalog puts the tile's focus back
 itself when it arrives that way: `restoreFocus` reads the `data-focus-id`
 `saveFocus` noted for that URL, as on a popstate, while a list left by touch

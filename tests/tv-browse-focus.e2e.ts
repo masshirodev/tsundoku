@@ -14,7 +14,10 @@ import { freePort } from './helpers/tag-world';
  * doc/BROWSE.md, doc/FOCUS.md, "The mark"), at 960×540 with no pointer. The
  * mark is read off the page: the focused tile's cover carries the ring, and
  * every side and corner of that ring is on the focused tile, with no
- * neighbour or bar drawn over it. On a world of its own, because the catalog
+ * neighbour or bar drawn over it. It also walks the ways back a tag opens:
+ * the catalog's ← and the preview's ← each land on the screen they name, never
+ * on the tag search they share a path with, and the tile the reader left comes
+ * back with a plain navigation (c864). On a world of its own, because the catalog
  * needs a grid with neighbours on all sides and a LATEST tab, which the tag
  * world (one result, no LATEST) cannot give, and the browse world's engine is
  * steered by the `browse` project running beside this one.
