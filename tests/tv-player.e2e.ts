@@ -388,6 +388,45 @@ test.describe('the minute step (c865)', () => {
 		await expect(page.locator('.flash .by')).toHaveText('+60 S');
 	});
 
+	test('a held ⏩ is one minute, not a minute per repeat (c865)', async ({ page }) => {
+		await longEpisode(page);
+		await openEpisode(page);
+		await play(page);
+		const video = page.locator('video');
+		const at = () => video.evaluate((v: HTMLVideoElement) => v.currentTime);
+		await video.evaluate((v: HTMLVideoElement) => {
+			v.pause();
+			v.currentTime = 100;
+		});
+		// The app's own key, as MainActivity sends an Android repeat: a fresh
+		// keydown with no `repeat` flag (Keys.kt), at a remote's ~16/s. A hold
+		// must move a minute, not one per repeat.
+		await page.evaluate(async () => {
+			for (let i = 0; i < 8; i++) {
+				window.dispatchEvent(
+					new KeyboardEvent('keydown', { key: 'MediaFastForward', cancelable: true })
+				);
+				await new Promise((r) => setTimeout(r, 60));
+			}
+		});
+		await expect.poll(at).toBeCloseTo(160, 1);
+		await expect(page.locator('.flash .by')).toHaveText('+60 S');
+		// A browser's own repeats (a keyboard's, or a desktop's remote) are no
+		// step at all, however quickly they come.
+		await page.evaluate(() => {
+			for (let i = 0; i < 5; i++)
+				window.dispatchEvent(
+					new KeyboardEvent('keydown', { key: 'MediaFastForward', repeat: true, cancelable: true })
+				);
+		});
+		await page.waitForTimeout(100);
+		expect(await at()).toBeCloseTo(160, 1);
+		// And the throttle is no lock: a press after the interval moves again.
+		await page.waitForTimeout(600);
+		await mediaKey(page, 'MediaFastForward');
+		await expect.poll(at).toBeCloseTo(220, 1);
+	});
+
 	test('the bar’s −1m and +1m are stops in reading order, and each moves a minute (c865)', async ({
 		page
 	}) => {

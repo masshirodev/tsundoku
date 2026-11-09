@@ -1307,6 +1307,16 @@
 		else taps.timer = setTimeout(act, 320);
 	}
 
+	/**
+	 * A held ⏩ / ⏪ moves at most one step this often (c865). The TV app turns
+	 * every Android `ACTION_DOWN` into a DOM keydown, repeats included, and its
+	 * synthetic event claims `repeat: false` (Keys.kt's `dispatchScript`), so
+	 * `e.repeat` alone cannot tell a hold from presses; the pace can. It is
+	 * kept per direction, so ⏪ then ⏩ in quick succession both move.
+	 */
+	const MEDIA_STEP_MS = 500;
+	let lastJump: { of: 'forward' | 'back' | null; at: number } = { of: null, at: 0 };
+
 	function keydown(e: KeyboardEvent) {
 		// A TV's remote sends these (doc/TV.md), and they are harmless where
 		// nothing does: the same verb as the control it names, on every device.
@@ -1326,10 +1336,15 @@
 			e.preventDefault();
 			if (media === 'toggle') toggle();
 			// ⏩ ⏪ are the long jump (c865): a movie is not clicked through 10 s
-			// at a time, and ← → keep the fine step on every device.
-			else if (media === 'forward') seekWithFlash(60);
-			else if (media === 'back') seekWithFlash(-60);
-			else if (media === 'next' && next && playable(next)) playNext();
+			// at a time, and ← → keep the fine step on every device. One press is
+			// one minute however long the button is held: a browser's repeats say
+			// so themselves, and a remote's are told by their pace (above).
+			else if (media === 'forward' || media === 'back') {
+				const now = Date.now();
+				if (e.repeat || (lastJump.of === media && now - lastJump.at < MEDIA_STEP_MS)) return;
+				lastJump = { of: media, at: now };
+				seekWithFlash(media === 'forward' ? 60 : -60);
+			} else if (media === 'next' && next && playable(next)) playNext();
 			else if (media === 'prev' && prev) playPrev();
 			return;
 		}

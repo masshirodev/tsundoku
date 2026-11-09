@@ -671,7 +671,11 @@ screen but the video, and the subtitles, until a tap.
   Esc (full screen, then the player), ? (the KEYS sheet). A remote's media
   keys work on every device (c235): ▶❚❚ plays or pauses, ⏩ ⏪ seek a minute
   (c865), ⏭ the next episode and ⏮ the previous one — harmless where nothing
-  sends them, and the only player keys a remote has ([`TV.md`](TV.md)). ← →
+  sends them, and the only player keys a remote has ([`TV.md`](TV.md)). A
+  minute is one press, however long the button is held: a remote's repeats
+  arrive as fresh keydowns with no repeat flag on them (the TV app's
+  `Keys.dispatchScript`), so a held ⏩ moves about two minutes a second rather
+  than a minute per repeat. ← →
   stay 10 s on every device, and on a TV,
   SKIP INTRO, SKIP ENDING and the next-episode card's PLAY NOW → take focus
   when they are offered, so OK presses them (c296).
