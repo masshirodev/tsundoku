@@ -14,7 +14,14 @@
  * rather than to the page.
  */
 
-import { canScroll, directionOf, nextInDirection, type Direction } from './geometry';
+import {
+	canScroll,
+	directionOf,
+	nextInDirection,
+	stepInSection,
+	type Direction,
+	type ScrollView
+} from './geometry';
 import { focusablesIn, isFocusable, isVisible, keepsArrow, rectOf } from './dom';
 import { isBackKey, isOkKey, isOptionsKey, OkPress } from './keys';
 import { TV } from '$lib/device.svelte';
@@ -36,6 +43,15 @@ declare global {
 
 const scopes: Scope[] = [];
 const SAVED = 'tsundoku.focus';
+
+/**
+ * The row each section was left from (c861), which ← or → coming back lands
+ * on. Keyed by the section's element and holding the row's, so a screen that
+ * is gone takes its entries with it. Nothing clears it: a row the next series
+ * replaced is refused by `rowLeftIn`, and each crossing writes its section's
+ * row again.
+ */
+const sectionRows = new WeakMap<HTMLElement, HTMLElement>();
 
 /** The scope taking keys right now: the innermost open sheet, else the page. */
 function activeScope(): HTMLElement {
@@ -391,21 +407,57 @@ const LINE_STEP = 40;
  * viewport Chromium computes it as `clip` and a script's `scrollBy` still
  * moves it, so it has to be checked beside `hidden`.
  */
-function stepScroll(from: HTMLElement, direction: 'up' | 'down'): void {
-	let scroller: Element | null = null;
-	for (let n = from.parentElement; n && n !== document.body; n = n.parentElement) {
-		const overflow = getComputedStyle(n).overflowY;
-		if ((overflow === 'auto' || overflow === 'scroll') && canScroll(n, direction)) {
-			scroller = n;
-			break;
-		}
-	}
+function stepScroll(
+	from: HTMLElement,
+	direction: 'up' | 'down',
+	section: HTMLElement | null
+): void {
+	let scroller: Element | null = scrollerFrom(from, direction, section);
 	if (!scroller) {
 		const viewport = viewportOverflowY();
 		if (viewport === 'hidden' || viewport === 'clip') return;
 		scroller = document.scrollingElement ?? document.documentElement;
 	}
 	scroller.scrollBy({ top: direction === 'up' ? -LINE_STEP : LINE_STEP, behavior: 'instant' });
+}
+
+/**
+ * The nearest ancestor of `from` that scrolls vertically and can still move
+ * `direction`. With a section, the walk ends at the section's own element,
+ * which is often the scroller itself (the series screen's columns).
+ */
+function scrollerFrom(
+	from: HTMLElement,
+	direction: 'up' | 'down',
+	section: HTMLElement | null
+): HTMLElement | null {
+	for (let n = from.parentElement; n && n !== document.body; n = n.parentElement) {
+		const overflow = getComputedStyle(n).overflowY;
+		if ((overflow === 'auto' || overflow === 'scroll') && canScroll(n, direction)) return n;
+		if (n === section) return null;
+	}
+	return null;
+}
+
+/** What a scroller shows on screen, for `stepInSection`. */
+function viewOf(scroller: HTMLElement): ScrollView {
+	const r = scroller.getBoundingClientRect();
+	return { top: Math.max(r.top, 0), bottom: Math.min(r.bottom, window.innerHeight) };
+}
+
+/**
+ * The section around a stop, where sections apply: on a TV, and never under a
+ * sheet, whose scope owns the keys whatever the sheet sits inside.
+ */
+function sectionOf(el: HTMLElement, scope: HTMLElement): HTMLElement | null {
+	if (isManagedScope(scope) || !window.matchMedia(TV).matches) return null;
+	return el.closest<HTMLElement>('[data-focus-section]');
+}
+
+/** The row this section was left from, if it can still take focus. */
+function rowLeftIn(section: HTMLElement): HTMLElement | null {
+	const row = sectionRows.get(section);
+	return row && section.contains(row) && isFocusable(row) ? row : null;
 }
 
 /**
@@ -433,12 +485,17 @@ function viewportOverflowY(): string {
  * bound to that one key: one left behind by a key a screen stopped removes
  * itself on the next, doing nothing.
  */
-function stepWhenUntaken(e: KeyboardEvent, from: HTMLElement, direction: 'up' | 'down'): void {
+function stepWhenUntaken(
+	e: KeyboardEvent,
+	from: HTMLElement,
+	direction: 'up' | 'down',
+	section: HTMLElement | null = null
+): void {
 	const after = (ev: KeyboardEvent) => {
 		window.removeEventListener('keydown', after);
 		if (ev !== e || ev.defaultPrevented) return;
 		ev.preventDefault();
-		stepScroll(from, direction);
+		stepScroll(from, direction, section);
 	};
 	window.addEventListener('keydown', after);
 }
@@ -581,11 +638,46 @@ function handleKeydown(e: KeyboardEvent): void {
 	}
 
 	const candidates = focusablesIn(scope).filter((el) => el !== current);
-	const next = nextInDirection(
+	const section = sectionOf(current, scope);
+
+	if (section && (direction === 'up' || direction === 'down')) {
+		const scroller = scrollerFrom(current, direction, section);
+		const step = stepInSection(
+			rectOf(current),
+			direction,
+			section,
+			candidates.map((el) => ({
+				rect: rectOf(el),
+				value: el,
+				section: el.closest('[data-focus-section]')
+			})),
+			scroller && viewOf(scroller),
+			rectOf(section)
+		);
+		if (step.kind === 'scroll') {
+			stepWhenUntaken(e, current, direction, section);
+			return;
+		}
+		e.preventDefault();
+		e.stopPropagation();
+		if (step.kind === 'move') move(step.value);
+		return;
+	}
+
+	let next = nextInDirection(
 		rectOf(current),
 		direction,
 		candidates.map((el) => ({ rect: rectOf(el), value: el }))
 	);
+
+	// ← or → across sections: back to the row left, if the way back is this one.
+	if (next && section) {
+		const to = next.closest<HTMLElement>('[data-focus-section]');
+		if (to !== section) {
+			sectionRows.set(section, current);
+			if (to) next = rowLeftIn(to) ?? next;
+		}
+	}
 
 	// Nothing that way: a desktop keyboard still scrolls prose (HELP, a
 	// series' ABOUT) past the last stop, by the browser's own scroll. A TV's

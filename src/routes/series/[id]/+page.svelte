@@ -845,7 +845,7 @@
 
 	<div class="body">
 		{#if !selecting && !reordering && !data.book}
-			<div class="panel-col">
+			<div class="panel-col" data-focus-section="details">
 				<SeriesPanel
 					{series}
 					ringDownload={ring === 'download'}
@@ -897,7 +897,7 @@
 				/>
 			</div>
 		{/if}
-		<div class="list-col">
+		<div class="list-col" data-focus-section="list">
 			{#if data.book}
 				<PageGrid {series} book={data.book} cover={data.cover} />
 			{:else if books}
