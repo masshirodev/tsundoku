@@ -72,9 +72,16 @@ instant, never smooth; in a uniform grid that moves a whole row — and then a
 `scrollBy` for whatever a pinned bar still covers. `nearest` counts a thing
 under a sticky or fixed bar as shown, so `uncovered()` finds the bars drawn
 over the thing's own top and bottom edges (stacked: the library's focus line
-under its KIND band, under the top bar) and the page moves on by the
-difference (the first real TV, 2026-11-02). A scrim or a sheet, half the
-screen or taller, is not a bar. The TV's focus line and pinned rows are built
+under its KIND band, under the top bar) and the difference is made up (the
+first real TV, 2026-11-02). By the thing's own vertical scrollers first,
+innermost out, each measured against its own clip as well as the bars, and
+only then the page (c861): the series screen's columns scroll themselves, so
+moving the page did nothing and ↑ left a row under the bar or the list's
+sticky head on most presses. A `position: fixed` box ends the walk, because
+nothing outside it moves what is in it: a sheet drawn inside a column leaves
+the column alone. A bar is looked for at the middle of the thing's width, so
+one covering only its right part (SELECT's bulk bar on a TV) does not count.
+A scrim or a sheet, half the screen or taller, is not a bar. The TV's focus line and pinned rows are built
 (`doc/TV.md`, c238; the KIND band pins since c436); whole-row scrolling is
 still the layer's nearest.
 
@@ -127,6 +134,11 @@ arrows send it, and the arrows do not walk out of a column at its edge. Put
 `data-focus-section` on the column (`src/routes/series/[id]/+page.svelte` is
 the one user so far, its `.panel-col` and `.list-col`, card c861).
 
+The series screen wears the mark **only while both columns are drawn**
+(`twoColumns`: not in SELECT, not while reordering, not on a book's page grid).
+A lone column has nothing to be kept apart from, and as a section it stranded
+SELECT's bulk bar, so those screens take the ordinary rule.
+
 Why it exists: an arrow goes to the nearest thing that way over the whole
 screen, so ↓ at the left column's last row went into the chapter list, and
 the rest of the column could only be reached by a candidate landing in it.
@@ -149,7 +161,12 @@ a tablet stack is not a column, and a desktop's browser scrolls for itself):
   section's own element (`scrollerFrom`), so a stop inside an inner scroller
   scrolls that first. The one exception is ↑ or ↓ with a stop **outside any
   section** that way, looked for from the section's edge rather than the stop:
-  the series screen's bar above the columns. Another section is never it.
+  the series screen's bar above the columns. Another section is never it. A
+  stop pinned over the section's own edge (`position: fixed`, as SELECT's
+  bulk bar is over the list's bottom) is not "that way" from the edge, so it
+  would never be found: a screen with such a bar does not wear the mark around
+  it. On the series screen that case cannot arise, since that bar only exists
+  while the list is the only column.
 - **← and → cross**, to the nearest thing the other side, by the ordinary rule.
 - **Coming back lands on the row left.** Leaving a section by ← or → notes
   the row left, for that section only (`sectionRows`). A later crossing into it

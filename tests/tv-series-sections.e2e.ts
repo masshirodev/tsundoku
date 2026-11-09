@@ -17,9 +17,23 @@ import { freePort } from './helpers/tag-world';
  * cannot be anyone else's state.
  */
 
-let world: { base: string; id: number; other: number; worked: number; stop: () => Promise<void> };
+let world: {
+	base: string;
+	id: number;
+	other: number;
+	worked: number;
+	pages: number;
+	book: number;
+	stop: () => Promise<void>;
+};
 
-function seed(dbPath: string): { id: number; other: number; worked: number } {
+function seed(dbPath: string): {
+	id: number;
+	other: number;
+	worked: number;
+	pages: number;
+	book: number;
+} {
 	rmSync(dbPath, { force: true });
 	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
 		env: { ...process.env, DATABASE_PATH: dbPath, NODE_NO_WARNINGS: '1' },
@@ -33,14 +47,14 @@ function seed(dbPath: string): { id: number; other: number; worked: number } {
 		const description = Array.from({ length: 60 }, (_, i) => `Line ${i} of a long synopsis.`).join(
 			' '
 		);
-		const series = (title: string) =>
+		const series = (title: string, kind = 'manga') =>
 			Number(
 				db
 					.prepare(
 						`INSERT INTO series (root_id, title, kind, source, hue, added_at, indexed_at, in_library, description, status)
-						VALUES (?, ?, 'manga', 'local', 210, ?, ?, 1, ?, 'ONGOING')`
+						VALUES (?, ?, ?, 'local', 210, ?, ?, 1, ?, 'ONGOING')`
 					)
-					.run(root, title, now, now, description).lastInsertRowid
+					.run(root, title, kind, now, now, description).lastInsertRowid
 			);
 		const id = series('Two Columns');
 		const other = series('Two Others');
@@ -77,7 +91,14 @@ function seed(dbPath: string): { id: number; other: number; worked: number } {
 				id,
 				tagId(`Tag ${i}`)
 			);
-		return { id, other, worked };
+		// A series of books: `?book=` draws its pages, the one screen of a single column with no SELECT.
+		const pages = series('Page Books', 'doujin');
+		const book = db.prepare(
+			`INSERT INTO entries (series_id, position, label, title, added_at, file, bytes, page_count, available) VALUES (?, ?, ?, ?, ?, '', 0, 200, 1)`
+		);
+		const first = Number(book.run(pages, 1, 'Book 1', 'First Book', now).lastInsertRowid);
+		book.run(pages, 2, 'Book 2', 'Second Book', now);
+		return { id, other, worked, pages, book: first };
 	} finally {
 		db.close();
 	}
@@ -86,7 +107,7 @@ function seed(dbPath: string): { id: number; other: number; worked: number } {
 async function start() {
 	const work = mkdtempSync(join(tmpdir(), 'tsundoku-e2e-tv-series-sections-'));
 	const dbPath = join(work, 'library.sqlite');
-	const { id, other, worked } = seed(dbPath);
+	const { id, other, worked, pages, book } = seed(dbPath);
 	const port = await freePort();
 	const base = `http://localhost:${port}`;
 	const preview: ChildProcess = spawn(
@@ -120,6 +141,8 @@ async function start() {
 		id,
 		other,
 		worked,
+		pages,
+		book,
 		stop: async () => {
 			preview.kill();
 			rmSync(work, { recursive: true, force: true });
@@ -162,6 +185,28 @@ const row = (page: Page) =>
 		(document.activeElement as HTMLElement | null)?.innerText?.trim().replace(/\s+/g, ' ')
 	);
 
+/**
+ * Whether the focused thing can really be seen: what is drawn at its top edge,
+ * its middle and its bottom edge is the thing itself. A rect on the viewport
+ * says nothing about a pinned head or a column's clip over it.
+ */
+const seen = (page: Page) =>
+	page.evaluate(() => {
+		const el = document.activeElement as HTMLElement;
+		const r = el.getBoundingClientRect();
+		const x = r.left + r.width / 2;
+		const drawn = (y: number) => {
+			const hit = document.elementFromPoint(x, y);
+			return !!hit && el.contains(hit);
+		};
+		return {
+			whole: drawn(r.top + 2) && drawn(r.top + r.height / 2) && drawn(r.bottom - 2),
+			text: el.innerText?.trim().replace(/\s+/g, ' ').slice(0, 24) ?? '',
+			top: Math.round(r.top),
+			bottom: Math.round(r.bottom)
+		};
+	});
+
 async function open(page: Page, id = world.id) {
 	await page.goto(`${world.base}/series/${id}`);
 	await expect(page.locator('.panel-col').first()).toBeVisible();
@@ -194,15 +239,15 @@ test('↓ brings the whole details column on screen, and at its end does nothing
 	await open(page);
 	await addProse(page);
 	await padToEdit(page);
-	const seen: string[] = [];
+	const columns: string[] = [];
 	let last = await where(page);
 	for (let i = 0; i < 60; i++) {
 		await page.keyboard.press('ArrowDown');
 		last = await where(page);
-		seen.push(last.col);
+		columns.push(last.col);
 		if (last.panel.top + last.panel.client >= last.panel.scroll - 1) break;
 	}
-	expect(new Set(seen), 'the column keeps ↓').toEqual(new Set(['panel']));
+	expect(new Set(columns), 'the column keeps ↓').toEqual(new Set(['panel']));
 	expect(last.panel.top + last.panel.client).toBeGreaterThanOrEqual(last.panel.scroll - 1);
 	expect(last.panel.top, 'the column really moved').toBeGreaterThan(0);
 
@@ -224,16 +269,16 @@ test('↑ walks the details column back to its top, then the bar, never the list
 	const down = await where(page);
 	expect(down.panel.top, 'started from the end').toBeGreaterThan(0);
 
-	const seen: string[] = [];
+	const columnsUp: string[] = [];
 	for (let i = 0; i < 100; i++) {
 		await page.keyboard.press('ArrowUp');
 		const w = await where(page);
-		seen.push(w.col);
+		columnsUp.push(w.col);
 		if (w.col === 'bar') break;
 	}
-	const stops = new Set(seen);
+	const stops = new Set(columnsUp);
 	expect(stops.has('list'), 'the list took no ↑').toBe(false);
-	expect(seen.at(-1), '↑ at the real top reaches the bar').toBe('bar');
+	expect(columnsUp.at(-1), '↑ at the real top reaches the bar').toBe('bar');
 	expect((await where(page)).panel.top, 'the column came all the way up').toBe(0);
 });
 
@@ -243,12 +288,12 @@ test('a long chapter list keeps ↓ to its last row and ↑ back up to its first
 	await page.keyboard.press('ArrowRight');
 	expect((await where(page)).col, '→ crossed into the list').toBe('list');
 
-	const seen: string[] = [];
+	const columns: string[] = [];
 	for (let i = 0; i < 80; i++) {
 		await page.keyboard.press('ArrowDown');
-		seen.push((await where(page)).col);
+		columns.push((await where(page)).col);
 	}
-	expect(new Set(seen), '↓ stayed in the list to its end').toEqual(new Set(['list']));
+	expect(new Set(columns), '↓ stayed in the list to its end').toEqual(new Set(['list']));
 	const end = await where(page);
 	expect(end.text).toContain('Chapter 60');
 	expect(end.list.top + end.list.client).toBeGreaterThanOrEqual(end.list.scroll - 1);
@@ -265,15 +310,27 @@ test('a long chapter list keeps ↓ to its last row and ↑ back up to its first
 	expect(await where(page), 'at its end ↓ does nothing').toEqual(end);
 
 	const up: string[] = [];
+	const hidden: string[] = [];
+	const chapters: number[] = [];
 	for (let i = 0; i < 90; i++) {
 		await page.keyboard.press('ArrowUp');
 		const w = await where(page);
 		up.push(w.col);
 		if (w.col === 'bar') break;
+		const shown = await seen(page);
+		if (!shown.whole) hidden.push(`${shown.text} at ${shown.top}-${shown.bottom}`);
+		const chapter = /^\d+ Chapter (\d+)/.exec(w.text);
+		if (chapter) chapters.push(Number(chapter[1]));
 	}
+	expect(hidden, 'every row ↑ lands on is drawn whole').toEqual([]);
+	expect(chapters, '↑ takes the rows one at a time').toEqual(
+		Array.from({ length: 59 }, (_, i) => 59 - i)
+	);
 	expect(new Set(up).has('panel'), 'the panel took no ↑').toBe(false);
 	expect(up.at(-1), '↑ at the very top reaches the bar').toBe('bar');
-	expect((await where(page)).list.top, 'the list came all the way up').toBe(0);
+	// The head sits 1 px lower unpinned than pinned, so the first row is whole, flush under it,
+	// at scrollTop 1: the column's end by `SCROLL_SLACK` (geometry.ts).
+	expect((await where(page)).list.top, 'the list came all the way up').toBeLessThanOrEqual(1);
 });
 
 test('← and → cross, and crossing back lands on the row left', async ({ page }) => {
@@ -399,14 +456,39 @@ test('a sheet inside the column keeps its keys, and the column behind it stays',
 		if ((await row(page))?.includes('A Work')) break;
 	}
 	expect(await row(page), 'the pad is on the WORK row').toContain('A Work');
+	// Scrolled, so a sheet's first row, high on the screen, could pull the column back with it.
+	await page.evaluate(() => {
+		(document.querySelector('.panel-col') as HTMLElement).scrollTop = 120;
+	});
 	await page.keyboard.press('ContextMenu');
 	const sheet = page.locator('.panel-col [role="dialog"]');
 	await expect(sheet, 'the sheet is drawn inside the column').toBeVisible();
 	await expect
 		.poll(() => page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]')))
 		.toBe(true);
+	expect((await where(page)).panel.top, 'opening the sheet left the column').toBe(120);
 	for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowDown');
 	const atEnd = await where(page);
+	expect(atEnd.panel.top, 'and so did walking it').toBe(120);
+
+	// A longer sheet, scrolled so ↑ lands on a row above the column's own top edge: the
+	// column's clip means nothing to a `position: fixed` box drawn inside it.
+	await page.evaluate(() => {
+		const d = document.querySelector('.panel-col [role="dialog"]') as HTMLElement;
+		d.append(Object.assign(document.createElement('div'), { style: 'height:900px;flex:none' }));
+	});
+	for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowUp');
+	await page.keyboard.press('ArrowDown');
+	const landed = await page.evaluate(() => {
+		const d = document.querySelector('.panel-col [role="dialog"]') as HTMLElement;
+		d.scrollTop += (document.activeElement as HTMLElement).getBoundingClientRect().top - 100;
+		const stops = [...d.querySelectorAll<HTMLElement>('a, button')];
+		return { above: Math.min(...stops.map((e) => Math.round(e.getBoundingClientRect().top))) };
+	});
+	expect(landed.above, 'the row above is over the column’s top').toBeLessThan(84);
+	await page.keyboard.press('ArrowUp');
+	expect((await where(page)).panel.top, 'a row high in the sheet left the column').toBe(120);
+	for (let i = 0; i < 12; i++) await page.keyboard.press('ArrowDown');
 	await page.keyboard.press('ArrowDown');
 	const after = await where(page);
 	expect(
@@ -460,6 +542,271 @@ test('a reload, and the next series, start with no row remembered', async ({ pag
 		return rows.indexOf(document.activeElement as Element);
 	});
 	expect(landed, 'the nearest row of the new list, not the old row’s place').toBeLessThan(10);
+});
+
+/** Scrolls `scroller` so `target`'s top sits at `at`, in the viewport's terms. */
+const placeAt = (page: Page, scroller: string, target: string, text: string, at: number) =>
+	page.evaluate(
+		({ scroller, target, text, at }) => {
+			const box = document.querySelector(scroller) as HTMLElement;
+			const el = [...document.querySelectorAll<HTMLElement>(target)].find((e) =>
+				e.innerText.trim().replace(/\s+/g, ' ').startsWith(text)
+			) as HTMLElement;
+			box.scrollTop += el.getBoundingClientRect().top - at;
+			const r = el.getBoundingClientRect();
+			const c = box.getBoundingClientRect();
+			return { top: Math.round(r.top), bottom: Math.round(r.bottom), columnTop: c.top };
+		},
+		{ scroller, target, text, at }
+	);
+
+for (const [name, offset] of [
+	['clipped by the column, on the viewport behind the bar', -20],
+	['scrolled off the screen above', -700],
+	['scrolled off the screen below', 900]
+] as const) {
+	test(`crossing back to a list row ${name} brings it whole on screen`, async ({ page }) => {
+		await open(page);
+		await padToEdit(page);
+		await page.keyboard.press('ArrowRight');
+		for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowDown');
+		const left = await row(page);
+		expect(left).toMatch(/^\d+ Chapter /);
+		await page.keyboard.press('ArrowLeft');
+		await expect.poll(() => row(page)).toContain('EDIT');
+
+		const columnTop = await page.evaluate(
+			() => (document.querySelector('.list-col') as HTMLElement).getBoundingClientRect().top
+		);
+		const placed = await placeAt(
+			page,
+			'.list-col',
+			'.entry-btn',
+			left as string,
+			columnTop + offset
+		);
+		expect(placed.top, 'the row really is where the case says').toBeCloseTo(columnTop + offset, 0);
+
+		await page.keyboard.press('ArrowRight');
+		await expect.poll(() => row(page), 'back to the row left').toBe(left);
+		const shown = await seen(page);
+		expect(shown, 'the row left is drawn whole').toMatchObject({ whole: true });
+	});
+}
+
+test('crossing back to a panel row the column clips brings it whole on screen', async ({
+	page
+}) => {
+	await open(page);
+	await addProse(page);
+	await padToEdit(page);
+	await page.keyboard.press('ArrowRight');
+	expect((await where(page)).col).toBe('list');
+
+	const columnTop = await page.evaluate(
+		() => (document.querySelector('.panel-col') as HTMLElement).getBoundingClientRect().top
+	);
+	// Nothing is pinned in this column, so only the column's own clip hides the row.
+	const placed = await placeAt(
+		page,
+		'.panel-col',
+		'.panel-col a, .panel-col button',
+		'EDIT',
+		columnTop - 12
+	);
+	expect(placed.top, 'clipped at the column, not off the screen').toBeGreaterThan(0);
+	expect(placed.top).toBeLessThan(columnTop);
+
+	await page.keyboard.press('ArrowLeft');
+	await expect.poll(() => row(page), 'back to the row left').toContain('EDIT');
+	expect(await seen(page), 'the row left is drawn whole').toMatchObject({ whole: true });
+});
+
+test('a sheet is a scroller too: ↑ inside it keeps the row drawn, and the page stays', async ({
+	page
+}) => {
+	await open(page);
+	await padToEdit(page);
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog').last();
+	await expect(sheet).toBeVisible();
+	await expect
+		.poll(() => page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]')))
+		.toBe(true);
+	const metrics = () =>
+		page.evaluate(() => {
+			const s = document.querySelector('[role="dialog"]') as HTMLElement;
+			return {
+				sheet: Math.round(s.scrollTop),
+				room: s.scrollHeight - s.clientHeight,
+				y: Math.round(window.scrollY),
+				panel: Math.round((document.querySelector('.panel-col') as HTMLElement).scrollTop)
+			};
+		});
+	for (let i = 0; i < 30; i++) await page.keyboard.press('ArrowDown');
+	const deep = await metrics();
+	expect(deep.room, 'the sheet has somewhere to scroll').toBeGreaterThan(0);
+	expect(deep.sheet, 'and it scrolled').toBeGreaterThan(0);
+
+	const hidden: string[] = [];
+	for (let i = 0; i < 30; i++) {
+		await page.keyboard.press('ArrowUp');
+		const shown = await seen(page);
+		if (!shown.whole) hidden.push(`${shown.text} at ${shown.top}-${shown.bottom}`);
+	}
+	expect(hidden, 'every row ↑ lands on is drawn whole').toEqual([]);
+	const after = await metrics();
+	expect(after.sheet, 'the sheet came back up').toBeLessThan(deep.sheet);
+	expect({ y: after.y, panel: after.panel }, 'nothing behind the sheet moved').toEqual({
+		y: 0,
+		panel: 0
+	});
+	await page.keyboard.press('Escape');
+	await expect(sheet).toBeHidden();
+});
+
+test('a row the column clips at its bottom, with no bar over it, is brought whole on screen', async ({
+	page
+}) => {
+	await open(page);
+	await padToEdit(page);
+	await page.keyboard.press('ArrowRight');
+	for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowDown');
+	const left = await row(page);
+	expect(left).toMatch(/^\d+ Chapter /);
+	await page.keyboard.press('ArrowLeft');
+	await expect.poll(() => row(page)).toContain('EDIT');
+
+	// A band's height is what shortens the column: below it, nothing is pinned to find.
+	await page.evaluate(() =>
+		(document.querySelector('.series') as HTMLElement).style.setProperty('--banner-h', '80px')
+	);
+	const bottom = await page.evaluate(
+		() => (document.querySelector('.list-col') as HTMLElement).getBoundingClientRect().bottom
+	);
+	expect(bottom, 'the column ends above the screen’s edge').toBeLessThan(500);
+	const placed = await placeAt(page, '.list-col', '.entry-btn', left as string, bottom - 20);
+	expect(placed.bottom, 'the column clips the row, on the viewport').toBeGreaterThan(bottom);
+	expect(placed.bottom).toBeLessThan(540);
+
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(() => row(page), 'back to the row left').toBe(left);
+	const shown = await seen(page);
+	expect(shown, 'the row left is drawn whole').toMatchObject({ whole: true });
+	expect(shown.bottom, 'above the column’s end').toBeLessThanOrEqual(bottom);
+});
+
+/** From the screen's start into SELECT by its own button, with a row picked by OK. */
+async function selectOneRow(page: Page) {
+	await open(page);
+	await padToEdit(page);
+	await page.keyboard.press('ArrowRight');
+	// ↑ along the rows to the list's head, then → along its tools.
+	for (let i = 0; i < 12 && /^\d+ Chapter /.test((await row(page)) ?? ''); i++)
+		await page.keyboard.press('ArrowUp');
+	for (let i = 0; i < 4 && (await row(page)) !== 'SELECT'; i++)
+		await page.keyboard.press('ArrowRight');
+	expect(await row(page), 'the pad is on SELECT').toBe('SELECT');
+	await page.keyboard.press('Enter');
+	await expect(page.locator('.series.selecting')).toBeVisible();
+	await expect(page.locator('.panel-col')).toHaveCount(0);
+	for (let i = 0; i < 6; i++) {
+		if (await page.evaluate(() => !!document.activeElement?.closest('.entry-btn'))) break;
+		await page.keyboard.press('ArrowDown');
+	}
+	expect(await row(page), 'the pad is on a row').toMatch(/^\d+ Chapter /);
+	await page.keyboard.press('Enter');
+	await expect(page.getByText('1 SELECTED')).toBeVisible();
+}
+
+const inBulk = (page: Page) => page.evaluate(() => !!document.activeElement?.closest('.bulk'));
+
+test('in SELECT ↓ alone reaches the bulk bar, past the last row, and ↑ comes back', async ({
+	page
+}) => {
+	await selectOneRow(page);
+	const hidden: string[] = [];
+	let reached = false;
+	let lastRow = '';
+	for (let i = 0; i < 75; i++) {
+		await page.keyboard.press('ArrowDown');
+		if (await inBulk(page)) {
+			reached = true;
+			break;
+		}
+		const shown = await seen(page);
+		lastRow = shown.text;
+		if (!shown.whole) hidden.push(`${shown.text} at ${shown.top}-${shown.bottom}`);
+	}
+	expect(reached, '↓ reached the bar').toBe(true);
+	expect(await row(page), 'on the first action the selection can take').toContain('MARK READ');
+	expect(lastRow, 'it passed the last row').toContain('Chapter 60');
+	// On a TV the bar is 385 px at the right (`--sheet-left: auto`), so a row's middle stays drawn.
+	expect(hidden, 'every row’s middle stayed drawn on the way').toEqual([]);
+	await expect(page.locator('.list-col'), 'one column is not two sections').not.toHaveAttribute(
+		'data-focus-section'
+	);
+
+	await page.keyboard.press('ArrowUp');
+	expect(await inBulk(page), '↑ leaves the bar').toBe(false);
+	expect(await row(page), 'for the last row').toContain('Chapter 60');
+});
+
+test('when SELECT ends the columns are two sections again', async ({ page }) => {
+	await selectOneRow(page);
+	// ✕ is SELECT's way out: nothing on this screen's BACK ends it (the notes, "Premises").
+	await page.getByRole('button', { name: 'Stop selecting' }).focus();
+	await page.keyboard.press('Enter');
+	await expect(page.locator('.series.selecting')).toHaveCount(0);
+	await expect(page.locator('.panel-col')).toHaveAttribute('data-focus-section', 'details');
+	await expect(page.locator('.list-col')).toHaveAttribute('data-focus-section', 'list');
+
+	await page.locator('.panel-col a, .panel-col button').first().focus();
+	await padToEdit(page);
+	await page.keyboard.press('ArrowRight');
+	expect((await where(page)).col, '→ crossed into the list').toBe('list');
+	for (let i = 0; i < 80; i++) await page.keyboard.press('ArrowDown');
+	const end = await where(page);
+	expect(end.text).toContain('Chapter 60');
+	expect(end.list.top, 'the list scrolled to reach it').toBeGreaterThan(0);
+	await page.keyboard.press('ArrowDown');
+	expect(await where(page), 'at the end of the list ↓ does nothing again').toEqual(end);
+	await page.keyboard.press('ArrowUp');
+	expect((await where(page)).text, '↑ still walks the list').toContain('Chapter 59');
+});
+
+test('a book’s page grid is one column: no section, and ↓ walks it to its end', async ({
+	page
+}) => {
+	await page.goto(`${world.base}/series/${world.pages}?book=${world.book}`);
+	await expect(page.locator('.page .open').first()).toBeVisible();
+	await expect(page.locator('.panel-col')).toHaveCount(0);
+	await expect(page.locator('.list-col')).not.toHaveAttribute('data-focus-section');
+
+	await page.keyboard.press('ArrowDown');
+	const hidden: string[] = [];
+	const cells: number[] = [];
+	const cell = () =>
+		page.evaluate(() =>
+			Number(document.activeElement?.closest('[data-cell]')?.getAttribute('data-cell') ?? -1)
+		);
+	for (let i = 0; i < 60; i++) {
+		await page.keyboard.press('ArrowDown');
+		const at = await cell();
+		if (at === -1) continue;
+		cells.push(at);
+		const shown = await page.evaluate(() => {
+			const el = document.activeElement as HTMLElement;
+			const r = el.getBoundingClientRect();
+			const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+			return { whole: !!hit && el.contains(hit), top: Math.round(r.top) };
+		});
+		if (!shown.whole) hidden.push(`cell ${at} at ${shown.top}`);
+	}
+	expect(Math.max(...cells), '↓ alone reached the last row of pages').toBeGreaterThanOrEqual(190);
+	expect(hidden, 'every page ↓ lands on is drawn').toEqual([]);
+	await page.keyboard.press('ArrowRight');
+	expect(await cell(), 'the grid still takes →').toBeGreaterThan(0);
 });
 
 test('off a TV the columns are not sections: ↓ runs on into the list', async ({ page }) => {

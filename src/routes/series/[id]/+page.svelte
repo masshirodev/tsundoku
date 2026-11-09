@@ -288,6 +288,13 @@
 	// ---- selection -------------------------------------------------------------------
 
 	let selecting = $state(false);
+	/**
+	 * Whether the details column is drawn beside the list. Only then are the two
+	 * focus sections (doc/FOCUS.md, "Sections"): a lone list has nothing to be
+	 * kept apart from, and as a section it would strand SELECT's fixed bulk bar,
+	 * which sits over its bottom edge.
+	 */
+	const twoColumns = $derived(!selecting && !reordering && !data.book);
 	const selected = new SvelteSet<number>();
 	let anchor = $state<number | null>(null);
 	let rangeArmed = $state(false);
@@ -844,7 +851,7 @@
 	{/if}
 
 	<div class="body">
-		{#if !selecting && !reordering && !data.book}
+		{#if twoColumns}
 			<div class="panel-col" data-focus-section="details">
 				<SeriesPanel
 					{series}
@@ -897,7 +904,7 @@
 				/>
 			</div>
 		{/if}
-		<div class="list-col" data-focus-section="list">
+		<div class="list-col" data-focus-section={twoColumns ? 'list' : undefined}>
 			{#if data.book}
 				<PageGrid {series} book={data.book} cover={data.cover} />
 			{:else if books}

@@ -91,7 +91,13 @@ function take(el: HTMLElement): void {
  * `nearest` counts a thing under a pinned bar as shown: the TV's KIND band
  * stays at the top of the screen, and going ↑ through the grid put each row
  * under it, focused and out of sight (2026-11-02, the first real TV). So
- * after it, the page moves on by whatever a pinned bar still covers.
+ * after it, whatever a pinned bar still covers is made up.
+ *
+ * By the thing's own scrollers first, innermost out, and the page last (c861):
+ * the series screen's columns scroll themselves, so the page cannot move and a
+ * row left under the bar or the list's sticky head stayed there. Each takes
+ * what it can and the next one out takes the rest, as the browser's own
+ * scroll chains.
  */
 function reveal(el: HTMLElement): void {
 	const height = window.visualViewport?.height ?? window.innerHeight;
@@ -100,30 +106,72 @@ function reveal(el: HTMLElement): void {
 	if (r.top < 0 || r.left < 0 || r.bottom > height || r.right > width) {
 		el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
 	}
+	const { scrollers, pageMoves } = scrollersAround(el);
+	for (const scroller of scrollers) scrollToShow(el, scroller, height);
+	if (pageMoves) scrollToShow(el, null, height);
+}
+
+/**
+ * What can move `el` vertically, innermost first. Nothing outside a
+ * `position: fixed` box moves what is in it, the page included: a sheet drawn
+ * inside a column must not scroll that column.
+ */
+function scrollersAround(el: HTMLElement): { scrollers: HTMLElement[]; pageMoves: boolean } {
+	const scrollers: HTMLElement[] = [];
+	for (let n: HTMLElement | null = el; n && n !== document.body; n = n.parentElement) {
+		const style = getComputedStyle(n);
+		if (n !== el && (style.overflowY === 'auto' || style.overflowY === 'scroll')) scrollers.push(n);
+		if (style.position === 'fixed') return { scrollers, pageMoves: false };
+	}
+	return { scrollers, pageMoves: true };
+}
+
+/** Moves `scroller`, or the page, by whatever keeps `el` out of its clip and from under a bar. */
+function scrollToShow(el: HTMLElement, scroller: HTMLElement | null, height: number): void {
 	const now = el.getBoundingClientRect();
-	const { top, bottom } = uncovered(el, now, height);
-	if (now.top < top) window.scrollBy({ top: now.top - top, behavior: 'instant' });
-	else if (now.bottom > bottom && now.height <= bottom - top)
-		window.scrollBy({ top: now.bottom - bottom, behavior: 'instant' });
+	const clip = scroller?.getBoundingClientRect();
+	const { top, bottom } = uncovered(
+		el,
+		now,
+		height,
+		clip ? Math.max(clip.top + (scroller as HTMLElement).clientTop, 0) : 0,
+		clip
+			? Math.min(
+					clip.top + (scroller as HTMLElement).clientTop + (scroller as HTMLElement).clientHeight,
+					height
+				)
+			: height
+	);
+	let by = 0;
+	if (now.top < top) by = now.top - top;
+	else if (now.bottom > bottom && now.height <= bottom - top) by = now.bottom - bottom;
+	if (by !== 0) (scroller ?? window).scrollBy({ top: by, behavior: 'instant' });
 }
 
 /**
  * The band of the screen a pinned bar (sticky or fixed: the TV's KIND band,
- * a bottom bar) leaves `el` to be seen in. A bar is found at the element's
- * own top and bottom edges, so one that doesn't cover it doesn't count.
+ * a bottom bar) leaves `el` to be seen in, inside `from` and `to` (a scroller's
+ * clip; the whole screen by default). A bar is found at the element's own top
+ * and bottom edges, so one that doesn't cover it doesn't count.
  */
-function uncovered(el: HTMLElement, r: DOMRect, height: number): { top: number; bottom: number } {
+function uncovered(
+	el: HTMLElement,
+	r: DOMRect,
+	height: number,
+	from = 0,
+	to = height
+): { top: number; bottom: number } {
 	const x = Math.min(Math.max(r.left + r.width / 2, 0), window.innerWidth - 1);
 	// Bars stack: the library's focus line is pinned under its KIND band, so
 	// each one found is looked under (or over) again.
-	let top = 0;
+	let top = from;
 	for (let i = 0; i < 4; i++) {
 		const bar = pinnedAt(el, x, Math.min(Math.max(r.top, top) + 1, height - 1));
 		const end = bar?.getBoundingClientRect().bottom ?? top;
 		if (end <= top) break;
 		top = end;
 	}
-	let bottom = height;
+	let bottom = to;
 	for (let i = 0; i < 4; i++) {
 		const bar = pinnedAt(el, x, Math.max(Math.min(r.bottom, bottom) - 1, 0));
 		const end = bar?.getBoundingClientRect().top ?? bottom;
