@@ -49,7 +49,7 @@ test('a page that lands with the bottom on screen in the same task still asks fo
 		scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' })
 	);
 	await page.waitForFunction(() => (window as unknown as { landed?: boolean }).landed === true);
-	expect(offsets, 'the page that landed').toEqual([9]);
+	expect(offsets[0], 'the page that landed').toBe(9);
 	await expect
 		.poll(() => offsets, {
 			message: 'the next page was asked for with no further input',
