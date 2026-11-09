@@ -20,8 +20,9 @@ import {
 /**
  * An anime's AniList relation graph, cached (card c358; doc/LINKS.md, "The
  * relation cache"; rung 73, `series_relations`). The link pass fills it
- * (`refreshRelations`, called by `refreshLinks` in catalogue.ts); the series
- * screen reads it (`seasonsAroundOf`) and never waits on AniList.
+ * (`refreshRelations`, from `refreshLinks` and the background fill in
+ * catalogue.ts and relations-fill.ts); the series screen reads it
+ * (`seasonsAroundOf`) and never waits on AniList.
  *
  * Imports are relative and extension-ful: catalogue.ts is reached from
  * `scripts/` (tests/strip-types-db.spec.ts). Nothing here imports catalogue.ts,
@@ -33,8 +34,25 @@ export type Ask = (query: string, variables: Record<string, unknown>) => Promise
 
 /** A graph older than this is asked for again: a sequel announced, a season airing. */
 export const RELATIONS_STALE_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * How long the background fill leaves a series whose last ask failed (doc/LINKS.md,
+ * "How the cache fills"). A dead link stays due for good (`relationsStale`), so
+ * without this the fill would ask it every tick, forever. A link made since the
+ * failed ask is another question, and is not kept waiting (`waitsItsTurn`).
+ */
+export const RELATIONS_RETRY_MS = 24 * 60 * 60 * 1000;
 /** Rounds of requests one walk may take: back and forward each step once a round. */
 const MAX_ROUNDS = HOPS + 2;
+/** Series a pass asks at most: this many anime, and this many comics and novels beside them. */
+export const RELATIONS_PER_PASS = 10;
+/**
+ * The most requests one pass can make when each anime has `seasons` linked
+ * seasons: a walk's rounds, each anime's first round re-asked singly if voided
+ * (`askAlone`), and the comics' one request re-asked singly if voided. The
+ * reasoning is relations-fill.ts' doc comment.
+ */
+export const worstPassRequests = (seasons: number) =>
+	RELATIONS_PER_PASS * (MAX_ROUNDS + seasons) + 1 + RELATIONS_PER_PASS;
 
 const NODE_FIELDS = `id type format status episodes chapters volumes startDate { year } title { english romaji native }`;
 
@@ -270,13 +288,71 @@ export function relationsStale(
 export type RelationsPass = { refreshed: number; failed: number; dropped: number };
 
 /**
+ * Whether a series the fill would otherwise ask has to wait: its last ask
+ * failed (asked since its graph was stored, or no graph ever), under `retryMs`
+ * ago, and no link has been made since. Only a stamp `tried_at` wrote with no
+ * `fetched_at` beside it says "failed": `store` writes the two as one value.
+ */
+const waitsItsTurn = (
+	r: { tried: number | null; fetched: number | null; linked: number },
+	now: number,
+	retryMs: number | undefined
+) =>
+	retryMs !== undefined &&
+	r.tried !== null &&
+	(r.fetched === null || r.tried > r.fetched) &&
+	now - r.tried < retryMs &&
+	r.linked <= r.tried;
+
+/** A pass with no series left to it: a row whose series has no link any more (UNLINK). */
+const ORPHANED = `series_id NOT IN (SELECT series_id FROM series_season_links WHERE anilist_id IS NOT NULL)
+	AND series_id NOT IN (SELECT series_id FROM series_links WHERE anilist_id IS NOT NULL)`;
+
+/** Where `refreshLinks` says it is running, in any process (the 2.1 s queue is per process). */
+const LINK_PASS_KEY = 'link_pass_until';
+/** Long enough for a step of the pass; a pass that dies stops counting after this. */
+const LINK_PASS_LEASE_MS = 15 * 60 * 1000;
+
+/**
+ * Say a link pass is running, and until when; renewed as it goes. Best effort:
+ * a database too busy to say so must not cost the pass itself, and the worst
+ * that follows is the two passes sharing AniList's limit for a while.
+ */
+export function markLinkPass(now = Date.now(), db: Database.Database = getDb()): void {
+	try {
+		db.prepare(
+			`INSERT INTO settings (key, value) VALUES (?, ?)
+			ON CONFLICT (key) DO UPDATE SET value = excluded.value`
+		).run(LINK_PASS_KEY, String(now + LINK_PASS_LEASE_MS));
+	} catch {
+		// See above: not the pass's to fail on.
+	}
+}
+
+export function clearLinkPass(db: Database.Database = getDb()): void {
+	try {
+		db.prepare(`DELETE FROM settings WHERE key = ?`).run(LINK_PASS_KEY);
+	} catch {
+		// It ends by itself (`LINK_PASS_LEASE_MS`).
+	}
+}
+
+/** Whether a link pass is running somewhere, so the background fill stands aside. */
+export function linkPassRunning(now = Date.now(), db: Database.Database = getDb()): boolean {
+	const row = db.prepare(`SELECT value FROM settings WHERE key = ?`).get(LINK_PASS_KEY) as
+		{ value: string } | undefined;
+	return row !== undefined && Number(row.value) > now;
+}
+
+/**
  * The pass's step (called by `refreshLinks`): up to `limit` anime series whose
  * cache can't answer for them, the ones never asked first, then by when they
  * were last asked, each walked afresh and stored when the walk ends. A walk
  * that fails (AniList answering nothing, an error) keeps the graph the series
- * had and moves only `tried_at`, so the next pass asks the others first. An
- * `Unreachable` (catalogue.ts) is not caught here: the pass stops and the next
- * one carries on, as it does for the links. A cache whose series has no link
+ * had and moves only `tried_at`, so the next pass asks the others first. What
+ * `fatal` names (`Unreachable`, and for the fill `AnilistDown`; catalogue.ts) is
+ * not caught here: the pass stops and the next one carries on, as it does for
+ * the links. A cache whose series has no link
  * any more (UNLINK) is dropped, so a reader never meets a graph for a link
  * the series doesn't have.
  */
@@ -286,31 +362,37 @@ export async function refreshRelations(
 		limit?: number;
 		now?: number;
 		log?: (line: string) => void;
-		/** Whether a failure is the pass's to stop on (catalogue.ts' `Unreachable`). */
+		/** Whether a failure is the pass's to stop on (catalogue.ts' `Unreachable`, `AnilistDown`). */
 		fatal?: (e: unknown) => boolean;
+		/** The background fill's patience with a series that failed (`waitsItsTurn`). */
+		retryMs?: number;
+		/** Checked before each series: true ends the pass where it stands, and is no failure. */
+		stop?: () => boolean;
 	} = {},
 	db: Database.Database = getDb()
 ): Promise<RelationsPass> {
 	const now = opts.now ?? Date.now();
 	const out: RelationsPass = { refreshed: 0, failed: 0, dropped: 0 };
-	out.dropped = db
-		.prepare(
-			`DELETE FROM series_relations
-			WHERE series_id NOT IN (SELECT series_id FROM series_season_links WHERE anilist_id IS NOT NULL)
-				AND series_id NOT IN (SELECT series_id FROM series_links WHERE anilist_id IS NOT NULL)`
-		)
-		.run().changes;
+	// Looked for first: an idle tick of the fill takes no write lock.
+	if (db.prepare(`SELECT 1 FROM series_relations WHERE ${ORPHANED} LIMIT 1`).get())
+		out.dropped = db.prepare(`DELETE FROM series_relations WHERE ${ORPHANED}`).run().changes;
 	const rows = db
 		.prepare(
-			`SELECT DISTINCT l.series_id AS id, r.tried_at AS tried FROM series_season_links l
+			`SELECT l.series_id AS id, r.tried_at AS tried, r.fetched_at AS fetched,
+				MAX(l.linked_at) AS linked
+			FROM series_season_links l
 			LEFT JOIN series_relations r ON r.series_id = l.series_id
 			WHERE l.anilist_id IS NOT NULL
+			GROUP BY l.series_id
 			ORDER BY r.tried_at IS NOT NULL, r.tried_at, l.series_id`
 		)
-		.all() as { id: number; tried: number | null }[];
-	const due = rows.filter((r) => relationsStale(r.id, now, db)).slice(0, opts.limit ?? 10);
+		.all() as { id: number; tried: number | null; fetched: number | null; linked: number }[];
+	const due = rows
+		.filter((r) => !waitsItsTurn(r, now, opts.retryMs) && relationsStale(r.id, now, db))
+		.slice(0, opts.limit ?? RELATIONS_PER_PASS);
+	// By way of `series`, so a series deleted during its own ask has nothing to stamp.
 	const stamp = db.prepare(
-		`INSERT INTO series_relations (series_id, tried_at) VALUES (?, ?)
+		`INSERT INTO series_relations (series_id, tried_at) SELECT id, ? FROM series WHERE id = ?
 		ON CONFLICT (series_id) DO UPDATE SET tried_at = excluded.tried_at`
 	);
 	const store = db.prepare(
@@ -319,6 +401,7 @@ export async function refreshRelations(
 			fetched_at = excluded.fetched_at, tried_at = excluded.tried_at`
 	);
 	for (const { id } of due) {
+		if (opts.stop?.()) break;
 		const from = walkFrom(id, db);
 		if (!from) continue;
 		let graph: RelGraph | null = null;
@@ -335,11 +418,13 @@ export async function refreshRelations(
 			store.run(id, JSON.stringify(graph), now, now);
 			out.refreshed += 1;
 		} else {
-			stamp.run(id, now);
+			stamp.run(now, id);
 			out.failed += 1;
 		}
 	}
-	const comics = await refreshComics(ask, { ...opts, now }, stamp, store, db);
+	const comics = opts.stop?.()
+		? { asked: 0, refreshed: 0, failed: 0 }
+		: await refreshComics(ask, { ...opts, now }, stamp, store, db);
 	out.refreshed += comics.refreshed;
 	out.failed += comics.failed;
 	if (due.length || comics.asked)
@@ -358,7 +443,7 @@ export async function refreshRelations(
  */
 async function refreshComics(
 	ask: Ask,
-	opts: { limit?: number; now: number; fatal?: (e: unknown) => boolean },
+	opts: { limit?: number; now: number; fatal?: (e: unknown) => boolean; retryMs?: number },
 	stamp: Database.Statement,
 	store: Database.Statement,
 	db: Database.Database
@@ -366,7 +451,7 @@ async function refreshComics(
 	const rows = db
 		.prepare(
 			`SELECT l.series_id AS id, l.anilist_id AS anilist, l.format, s.kind,
-				r.fetched_at AS fetched
+				r.fetched_at AS fetched, r.tried_at AS tried, l.linked_at AS linked
 			FROM series_links l JOIN series s ON s.id = l.series_id
 			LEFT JOIN series_relations r ON r.series_id = l.series_id
 			WHERE l.anilist_id IS NOT NULL
@@ -378,12 +463,16 @@ async function refreshComics(
 		format: string | null;
 		kind: Kind;
 		fetched: number | null;
+		tried: number | null;
+		linked: number;
 	}[];
 	const fresh = (r: (typeof rows)[number]) =>
 		r.fetched !== null &&
 		opts.now - r.fetched < RELATIONS_STALE_MS &&
 		!!cached(r.id, db)?.nodes[String(r.anilist)]?.edges;
-	const due = rows.filter((r) => ownEntry(r) !== null && !fresh(r)).slice(0, opts.limit ?? 10);
+	const due = rows
+		.filter((r) => ownEntry(r) !== null && !waitsItsTurn(r, opts.now, opts.retryMs) && !fresh(r))
+		.slice(0, opts.limit ?? RELATIONS_PER_PASS);
 	if (!due.length) return { asked: 0, refreshed: 0, failed: 0 };
 	let answers = new Map<number, Answered | null>();
 	try {
@@ -406,7 +495,7 @@ async function refreshComics(
 			.prepare(`SELECT anilist_id AS anilist FROM series_links WHERE series_id = ?`)
 			.get(r.id) as { anilist: number | null } | undefined;
 		if (!m || now?.anilist !== r.anilist) {
-			stamp.run(r.id, opts.now);
+			stamp.run(opts.now, r.id);
 			continue;
 		}
 		const edges = (m.relations?.edges ?? []).filter((e) => e?.node?.id);

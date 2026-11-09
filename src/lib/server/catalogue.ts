@@ -44,7 +44,14 @@ import {
 	undoSeasonLink
 } from './season-links.ts';
 import { seasonSearchTitle } from '../library/anime.ts';
-import { refreshRelations } from './relations.ts';
+import {
+	RELATIONS_RETRY_MS,
+	clearLinkPass,
+	linkPassRunning,
+	markLinkPass,
+	refreshRelations,
+	type RelationsPass
+} from './relations.ts';
 
 /**
  * Catalogue links on the workstation (doc/LINKS.md): a series' MyAnimeList /
@@ -64,22 +71,51 @@ const ANILIST = 'https://graphql.anilist.co';
 /** The address, overridable so a spec can stand in for AniList (tests/links-flow.e2e.ts). */
 const anilistUrl = () => process.env.TSUNDOKU_ANILIST_URL ?? ANILIST;
 
-/** Nothing reached AniList: no internet, AniList down, or switched off for the specs. */
+/** Nothing reached AniList: no internet, no answer from it, or switched off for the specs. */
 export class Unreachable extends Error {}
+/**
+ * AniList answered, and the answer is about AniList rather than this request: a
+ * 5xx, a 403, or a body that isn't JSON (doc/LINKS.md, "How the cache fills").
+ * Only the background fill reads it, to stop a pass without costing a series its
+ * turn. It is not an `Unreachable`, whose other readers (the links page's 503,
+ * a season's count of zero, Ranobe's) were written for a failure to reach the
+ * service, and every other caller goes on seeing the plain `Error` it always did.
+ *
+ * A 403 is here because the fill asks with no token, for public ids, by one query
+ * shape: nothing in a request of it can be forbidden, so a 403 is AniList or its
+ * Cloudflare refusing this client. No 403 was ever seen from here, so that is
+ * reasoned from the request and not measured. The cost, if it is ever wrong, is a
+ * pass that stops at the same request each tick, one quiet request ten minutes.
+ */
+export class AnilistDown extends Error {}
 /** A catalogue refused the owner's sign-in: expired or revoked (doc/TRACKING.md). */
 export class SignedOut extends Error {}
 
 type Fetch = typeof fetch;
 let fetcher: Fetch = (...a) => fetch(...a);
 /** AniList asks for no more than 30 requests a minute (its degraded limit); one every 2.1 s. */
-let spacing = 2100;
+export const ANILIST_SPACING_MS = 2100;
+let spacing = ANILIST_SPACING_MS;
 let last = 0;
 let chain: Promise<unknown> = Promise.resolve();
+/** The wait in hand, and whether nothing should hold the process for a wait any more. */
+let waiting: ReturnType<typeof setTimeout> | null = null;
+let released = false;
+
+/**
+ * The server is stopping: a wait for AniList's turn, a 429's included (a minute
+ * or more, past `TimeoutStopSec`), no longer holds the process open. Only the
+ * served app calls this; a script's top-level await needs its waits to hold it.
+ */
+export function releaseAnilistWaits(): void {
+	released = true;
+	waiting?.unref();
+}
 
 /** For specs: a stand-in for the network, and no waiting between calls. */
 export function setAnilistFetch(f: Fetch | null, gapMs = 0): void {
 	fetcher = f ?? ((...a) => fetch(...a));
-	spacing = f ? gapMs : 2100;
+	spacing = f ? gapMs : ANILIST_SPACING_MS;
 	last = 0;
 }
 
@@ -91,7 +127,11 @@ async function post(
 	if (process.env.TSUNDOKU_ANILIST === 'off') throw new Unreachable('switched off');
 	for (let attempt = 0; attempt < 3; attempt++) {
 		const wait = Math.max(0, last + spacing - Date.now());
-		if (wait) await new Promise((r) => setTimeout(r, wait));
+		if (wait)
+			await new Promise((r) => {
+				waiting = setTimeout(r, wait);
+				if (released) waiting.unref();
+			});
 		last = Date.now();
 		let res: Response;
 		try {
@@ -118,13 +158,15 @@ async function post(
 			data?: unknown;
 			errors?: { message: string; status?: number }[];
 		} | null;
+		const down = res.status >= 500 || res.status === 403 || !body;
 		// A 404 inside the body is AniList's "no such entry", not a failure.
-		if (body?.errors?.every((e) => e.status === 404)) return body.data ?? null;
+		if (!down && body?.errors?.every((e) => e.status === 404)) return body.data ?? null;
 		if (res.status === 401 || body?.errors?.some((e) => e.status === 401))
 			throw new SignedOut('AniList refused the sign-in');
-		if (!res.ok || !body || body.errors?.length)
-			throw new Error(`AniList ${res.status}: ${body?.errors?.[0]?.message ?? 'no answer'}`);
-		return body.data;
+		const failed = `AniList ${res.status}: ${body?.errors?.[0]?.message ?? 'no answer'}`;
+		if (down) throw new AnilistDown(failed);
+		if (!res.ok || body?.errors?.length) throw new Error(failed);
+		return body?.data;
 	}
 	throw new Unreachable('rate limited');
 }
@@ -1382,6 +1424,9 @@ export async function refreshLinks(
 ): Promise<PassResult> {
 	const out: PassResult = { resolved: 0, searched: 0, linked: 0, offered: 0, unreachable: false };
 	const now = opts.now ?? Date.now();
+	// The background fill stands aside for this, in any process (doc/LINKS.md,
+	// "How the cache fills"). Real time, whatever `now` a spec passes.
+	markLinkPass();
 	try {
 		out.resolved = await resolveLinks(now);
 		// A season's own link, where only one id was known (c240).
@@ -1389,6 +1434,7 @@ export async function refreshLinks(
 		const rows = searchable(opts.limit ?? 60);
 		for (let i = 0; i < rows.length; i += 25) {
 			const r = await searchSeries(rows.slice(i, i + 25), now);
+			markLinkPass();
 			out.searched += Math.min(25, rows.length - i);
 			out.linked += r.linked;
 			out.offered += r.offered;
@@ -1409,6 +1455,55 @@ export async function refreshLinks(
 			out.unreachable = true;
 			out.reason = e.message;
 		} else throw e;
+	} finally {
+		clearLinkPass();
+	}
+	return out;
+}
+
+export type FillResult = RelationsPass & {
+	/** A link pass was running, so this one asked nothing. */
+	skipped: boolean;
+	unreachable: boolean;
+	/** Why AniList couldn't be reached, for the log. */
+	reason?: string;
+};
+
+const anilistIsOut = (e: unknown) => e instanceof Unreachable || e instanceof AnilistDown;
+
+/**
+ * The background fill's pass (relations-fill.ts; doc/LINKS.md, "How the cache
+ * fills"): only the relations step of `refreshLinks`, never its search. It
+ * stands aside for a link pass and gives way to one that starts while it
+ * runs. Unreachable is not an error here either, nor is AniList being down
+ * (`AnilistDown`): the next tick carries on, and no series lost its turn.
+ */
+export async function fillRelations(
+	opts: { now?: number; log?: (line: string) => void; stop?: () => boolean } = {}
+): Promise<FillResult> {
+	const out: FillResult = {
+		refreshed: 0,
+		failed: 0,
+		dropped: 0,
+		skipped: false,
+		unreachable: false
+	};
+	if (linkPassRunning()) return { ...out, skipped: true };
+	try {
+		Object.assign(
+			out,
+			await refreshRelations(anilistPublic, {
+				now: opts.now,
+				log: opts.log,
+				fatal: anilistIsOut,
+				retryMs: RELATIONS_RETRY_MS,
+				stop: () => !!opts.stop?.() || linkPassRunning()
+			})
+		);
+	} catch (e) {
+		if (!anilistIsOut(e)) throw e;
+		out.unreachable = true;
+		out.reason = e.message;
 	}
 	return out;
 }
