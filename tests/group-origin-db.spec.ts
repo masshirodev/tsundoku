@@ -1,7 +1,7 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -26,7 +26,7 @@ const engine = await import('$lib/server/engine/backend');
 const downloads = await import('$lib/server/downloads');
 const books = await import('$lib/server/books');
 const { readsOnline } = await import('$lib/server/pages/online');
-const { queueRows } = await import('$lib/server/engine/queue');
+const { queueRows, enqueue: enqueueEntries } = await import('$lib/server/engine/queue');
 const worker = await import('$lib/server/engine/worker');
 const { attachWritten } = await import('$lib/server/import/index');
 const { refreshMany, refreshSeries } = await import('$lib/server/refresh');
@@ -158,6 +158,12 @@ const engineRow = (id: number) =>
 const asEntries = (id: number) =>
 	entriesOf(id).map((e) => ({ id: e.id, available: !!e.available }));
 const group = (ids: number[]) => books.groupIntoSeries({ seriesIds: ids, name: 'A Pair' });
+const tagLanguage = (id: number, language: string) => {
+	db.prepare(`INSERT OR IGNORE INTO tags (namespace, value) VALUES ('language', ?)`).run(language);
+	db.prepare(
+		`INSERT INTO series_tags (series_id, tag_id) SELECT ?, id FROM tags WHERE namespace = 'language' AND value = ?`
+	).run(id, language);
+};
 
 /** Two undownloaded one-offs, grouped: the card's state. */
 async function pair(a = NH, b = NH) {
@@ -573,6 +579,258 @@ describe('UNGROUP and UNDO put the link back (c885)', () => {
 		expect(bookOrigins(seriesId).map((o) => o.key)).toEqual([key]);
 		const made = books.takeOutVolumes(seriesId, undefined, deps.now());
 		expect(made.map((id) => row(id).origin_key)).toEqual([key, null]);
+	});
+});
+
+describe('a group’s path when the Mihon root is the device folder (c885, round 2)', () => {
+	const home = join(library, 'Mihon');
+	const deviceRoot = join(library, 'devices', 'tsundoku', 'Mihon');
+	const rootAt = (path: string) =>
+		db.prepare(`UPDATE roots SET path = ? WHERE name = 'Mihon'`).run(path);
+	// `reset` keeps `roots`: every other case in this file wants the root back.
+	afterEach(() => rootAt(home));
+
+	const fetchAll = async (n: number) => {
+		const written: string[] = [];
+		const d = { ...deps, arrived: (f: string) => written.push(f) };
+		for (let i = 0; i < n; i++) expect(await worker.runOnce(d)).toBe(1);
+		expect(written).toHaveLength(n);
+		return written;
+	};
+
+	it('attaches two downloads in turn and neither is marked missing', async () => {
+		const first = await addOneOff();
+		rootAt(deviceRoot);
+		const second = await addOneOff();
+		const { seriesId, entryIds } = group([first.id, second.id]);
+		engine.enqueue(seriesId, entryIds);
+		const written = await fetchAll(2);
+		await attachWritten(library, [written[0]], deps.now());
+		expect(entriesOf(seriesId).map((e) => e.available)).toEqual([1, 0]);
+		await attachWritten(library, [written[1]], deps.now());
+		const after = entriesOf(seriesId);
+		expect(after.map((e) => e.available)).toEqual([1, 1]);
+		for (const e of after) expect(existsSync(join(row(seriesId).path, e.file))).toBe(true);
+	});
+
+	it.each([
+		['the device folder', join(library, 'devices', 'tsundoku', 'Mihon'), library],
+		['another device’s', join(library, 'devices', 'phone', 'Mihon'), library],
+		['the devices folder itself', join(library, 'devices'), library],
+		['a folder only named like it', join(library, 'devices-old', 'Mihon'), null],
+		['the library’s own Mihon', join(library, 'Mihon'), null]
+	])('names the group from where the root allows: %s', async (_name, root, expected) => {
+		const first = await addOneOff();
+		rootAt(root);
+		const second = await addOneOff();
+		const { seriesId } = group([first.id, second.id]);
+		expect(row(seriesId).path).toBe(expected ?? root);
+	});
+
+	it('widens a target inside the device folder to the library, and attaches beside its file', async () => {
+		const own = await addOneOff();
+		rootAt(deviceRoot);
+		const folder = join(deviceRoot, 'downloads', 'n (EN)', 'Own');
+		mkdirSync(folder, { recursive: true });
+		writeFileSync(join(folder, 'c.cbz'), 'held');
+		db.prepare(`UPDATE series SET path = ? WHERE id = ?`).run(folder, own.id);
+		db.prepare(`UPDATE entries SET file = 'c.cbz', available = 1 WHERE series_id = ?`).run(own.id);
+		const other = await addOneOff();
+		const {
+			entryIds: [book]
+		} = books.groupIntoSeries({ seriesIds: [other.id], into: own.id });
+		expect(row(own.id).path).toBe(library);
+		const [held] = entriesOf(own.id);
+		expect(join(row(own.id).path, held.file)).toBe(join(folder, 'c.cbz'));
+		engine.enqueue(own.id, [book]);
+		await attachWritten(library, await fetchAll(1), deps.now());
+		const after = entriesOf(own.id);
+		expect(after.map((e) => e.available)).toEqual([1, 1]);
+		for (const e of after) expect(existsSync(join(row(own.id).path, e.file))).toBe(true);
+	});
+
+	it('MOVE TO… onto a target in the device folder leaves it outside', async () => {
+		const own = await addOneOff();
+		rootAt(deviceRoot);
+		const folder = join(deviceRoot, 'downloads', 'n (EN)', 'Target');
+		db.prepare(`UPDATE series SET path = ? WHERE id = ?`).run(folder, own.id);
+		const other = await addOneOff();
+		const [entry] = entriesOf(other.id);
+		books.moveBook(other.id, entry.id, own.id);
+		expect(row(own.id).path).toBe(library);
+	});
+
+	it('FOLD keeps a base out of the folder too: a queued edition and its base attach in turn', async () => {
+		const base = await addOneOff();
+		const other = await addOneOff();
+		tagLanguage(base.id, 'english');
+		tagLanguage(other.id, 'japanese');
+		const [baseEntry] = entriesOf(base.id);
+		const [otherEntry] = entriesOf(other.id);
+		engine.enqueue(base.id, [baseEntry.id]);
+		engine.enqueue(other.id, [otherEntry.id]);
+		books.foldEditions(base.id, [other.id], () => [], deps.now());
+		expect(row(base.id).path.startsWith(join(library, 'devices'))).toBe(false);
+		expect(row(base.id).path).not.toBe('');
+		const written = await fetchAll(2);
+		await attachWritten(library, [written[0]], deps.now());
+		await attachWritten(library, [written[1]], deps.now());
+		const after = db
+			.prepare(`SELECT available, file FROM entries WHERE series_id = ? ORDER BY id`)
+			.all(base.id) as { available: number; file: string }[];
+		expect(after.map((e) => e.available)).toEqual([1, 1]);
+		for (const e of after) expect(existsSync(join(row(base.id).path, e.file))).toBe(true);
+	});
+});
+
+describe('a queued download goes where its entry goes (c885, round 2)', () => {
+	const queued = (entryId: number) => queueRows().find((r) => r.entryId === entryId);
+	const inQueue = (entryId: number) =>
+		engine.engineQueue().items.find((i) => i.chapterId === entryId);
+
+	it('UNGROUP of one queued book of three: its singleton, its own source and key', async () => {
+		const a = await addOneOff();
+		const b = await addOneOff(HI);
+		const c = await addOneOff();
+		const { seriesId, entryIds } = group([a.id, b.id, c.id]);
+		engine.enqueue(seriesId, [entryIds[1]]);
+		const before = queued(entryIds[1])!;
+		expect(before).toMatchObject({ seriesId, sourceId: HI.id });
+		const [single] = books.takeOut(seriesId, [entryIds[1]], deps.now());
+		expect(queued(entryIds[1])).toEqual({ ...before, seriesId: single });
+		expect(inQueue(entryIds[1])).toMatchObject({
+			key: b.key,
+			mangaId: single,
+			mangaTitle: row(single).title
+		});
+		expect(row(single).title).not.toBe('A Pair');
+		// And past the move: the worker still fetches it, as the singleton's.
+		const written: string[] = [];
+		expect(await worker.runOnce({ ...deps, arrived: (f: string) => written.push(f) })).toBe(1);
+		await attachWritten(library, written, deps.now());
+		expect(entriesOf(single).map((e) => e.available)).toEqual([1]);
+	});
+
+	it('GROUP of a queued one-off: the row follows it onto the group', async () => {
+		const a = await addOneOff();
+		const b = await addOneOff(HI);
+		const [entry] = entriesOf(b.id);
+		engine.enqueue(b.id, [entry.id]);
+		const before = queued(entry.id)!;
+		const { seriesId } = group([a.id, b.id]);
+		expect(queued(entry.id)).toEqual({ ...before, seriesId });
+		expect(inQueue(entry.id)).toMatchObject({ key: b.key, mangaId: seriesId });
+	});
+
+	it('GROUP into a series that already exists carries it too', async () => {
+		const { seriesId } = await pair();
+		const b = await addOneOff(HI);
+		const [entry] = entriesOf(b.id);
+		engine.enqueue(b.id, [entry.id]);
+		books.groupIntoSeries({ seriesIds: [b.id], into: seriesId });
+		expect(queued(entry.id)).toMatchObject({ seriesId, sourceId: HI.id });
+	});
+
+	it('a group of two, both taken out: the queued book survives the group going', async () => {
+		const { seriesId, entryIds, two } = await pair(NH, HI);
+		engine.enqueue(seriesId, [entryIds[1]]);
+		const made = books.takeOut(seriesId, entryIds, deps.now());
+		expect(row(seriesId)).toBeUndefined();
+		expect(queued(entryIds[1])).toMatchObject({ seriesId: made[1], sourceId: HI.id });
+		expect(inQueue(entryIds[1])).toMatchObject({ key: two.key, mangaId: made[1] });
+	});
+
+	it('a book mid-download goes with its state', async () => {
+		const { seriesId, entryIds } = await pair();
+		engine.enqueue(seriesId, [entryIds[0]]);
+		db.prepare(`UPDATE download_queue SET state = 'downloading', done_pages = 1, pages = 2`).run();
+		const [single] = books.takeOut(seriesId, [entryIds[0]], deps.now());
+		expect(queued(entryIds[0])).toMatchObject({
+			seriesId: single,
+			state: 'downloading',
+			donePages: 1,
+			pages: 2
+		});
+	});
+
+	it('MOVE TO… of a queued last book: the row survives on the target', async () => {
+		const lone = await addOneOff(HI);
+		const { seriesId } = await pair();
+		const [entry] = entriesOf(lone.id);
+		engine.enqueue(lone.id, [entry.id]);
+		books.moveBook(lone.id, entry.id, seriesId);
+		expect(row(lone.id)).toBeUndefined();
+		expect(queued(entry.id)).toMatchObject({ seriesId, sourceId: HI.id });
+		expect(inQueue(entry.id)).toMatchObject({ key: lone.key, mangaId: seriesId });
+	});
+
+	it('MOVE TO… of a queued book of a group: its own key and the target’s row', async () => {
+		const from = await pair(NH, HI);
+		const to = await pair();
+		engine.enqueue(from.seriesId, [from.entryIds[1]]);
+		books.moveBook(from.seriesId, from.entryIds[1], to.seriesId);
+		expect(queued(from.entryIds[1])).toMatchObject({ seriesId: to.seriesId, sourceId: HI.id });
+	});
+
+	it('MOVE TO… of a queued chapter that keeps no key: on the target, and failed where it shows', async () => {
+		const own = await addOneOff();
+		db.prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, source_url, available)
+			VALUES (?, 2, 'Ch. 2', 1, '/own/2', 0)`
+		).run(own.id);
+		const [, second] = entriesOf(own.id);
+		expect(engine.enqueue(own.id, [second.id])).toEqual({ queued: 1, missing: 0 });
+		const { seriesId } = await pair();
+		books.moveBook(own.id, second.id, seriesId);
+		expect(queued(second.id)).toMatchObject({ seriesId, sourceId: '', tries: 0 });
+		// Nothing to ask: the worker tries it, refuses it, and it waits on the list.
+		expect(await worker.runOnce(deps)).toBe(0);
+		expect(queued(second.id)).toMatchObject({ seriesId, tries: 1, failure: 'not-found' });
+	});
+
+	it('FOLD and UNFOLD carry a queued edition', async () => {
+		const base = await addOneOff();
+		const other = await addOneOff(HI);
+		tagLanguage(base.id, 'english');
+		tagLanguage(other.id, 'japanese');
+		const [otherEntry] = entriesOf(other.id);
+		engine.enqueue(other.id, [otherEntry.id]);
+		const [entry] = books.foldEditions(base.id, [other.id], () => [], deps.now());
+		expect(queued(entry)).toMatchObject({ seriesId: base.id, sourceId: HI.id });
+		const [single] = books.unfoldEditions(base.id, () => 0, deps.now());
+		expect(queued(entry)).toMatchObject({ seriesId: single, sourceId: HI.id });
+		expect(inQueue(entry)).toMatchObject({ key: other.key, mangaId: single });
+	});
+
+	it('volumes bound and taken out carry a queued chapter', async () => {
+		const volume = (title: string, key: string | null, file: string) => {
+			const id = Number(
+				db
+					.prepare(
+						`INSERT INTO series (root_id, title, kind, hue, added_at, indexed_at, origin_key, path)
+						VALUES ((SELECT id FROM roots LIMIT 1), ?, 'novel', 1, 1, 1, ?, '/n/q')`
+					)
+					.run(title, key).lastInsertRowid
+			);
+			const entry = Number(
+				db
+					.prepare(
+						`INSERT INTO entries (series_id, position, label, added_at, file, source_url, available)
+						VALUES (?, 1, 'Ch. 1', 1, ?, '/c/1', 0)`
+					)
+					.run(id, file).lastInsertRowid
+			);
+			return { id, entry };
+		};
+		const key = 'lnreader:plug:/novel-q';
+		const n = volume('Novel Q', key, 'q1.epub');
+		const m = volume('Other Q', null, 'q2.epub');
+		expect(enqueueEntries([n.entry])).toBe(1);
+		const before = queued(n.entry)!;
+		const { seriesId } = books.groupIntoSeries({ seriesIds: [n.id, m.id], name: 'Vols Q' });
+		expect(queued(n.entry)).toEqual({ ...before, seriesId });
+		const made = books.takeOutVolumes(seriesId, undefined, deps.now());
+		expect(queued(n.entry)).toEqual({ ...before, seriesId: made[0] });
 	});
 });
 

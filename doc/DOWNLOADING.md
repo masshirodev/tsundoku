@@ -247,7 +247,9 @@ its own key and in its own source's lane; the worker asks that book's source
 (`entry_origins.engine_title`), so the importer pairs the file with its book by
 its key. Six unasked books are asked in the background per look at a group; the
 worker asks for itself when it needs to. FOLLOW isn't offered on a group, and
-REFRESH asks each book's source and adds nothing.
+REFRESH asks each book's source and adds nothing. A queued book stays queued
+through GROUP, UNGROUP, MOVE TO… and FOLD: its row moves with its entry
+([`BOOKS.md`](BOOKS.md), "A queued book goes with its entry").
 
 ## FOLLOW
 

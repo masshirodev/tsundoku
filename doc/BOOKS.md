@@ -131,7 +131,20 @@ can.
 book's folder. The importer writes each download through the series its key
 finds, and a path of none, or one inside the device's folder, would make it
 read that one book's folder as the series' own and mark every other book's file
-gone.
+gone. A root can itself be the device's folder (a scan makes the Mihon root at
+`<library>/devices/<device>/Mihon` when no other exists, and ADD then uses it),
+so a root under the library's `devices` folder names the group from the library
+folder instead. GROUP, MOVE TO… and FOLD all apply this, whenever the book they
+bring holds a source's key.
+
+**A queued book goes with its entry.** `download_queue.series_id` is what the
+queue screen joins to find the series, and it cascades with that series, so
+every door that moves an entry to another series (GROUP, UNGROUP and the created
+band's UNDO, MOVE TO…, volumes bound and taken out, FOLD, UNFOLD) carries it, in
+any state, before the old series can go. A chapter that leaves a series which
+stays keeps no key: if its new series has none it stays on the queue and the
+worker fails it where it shows, as it fails any chapter its source can't be asked
+for.
 
 **On the series screen** a group offers READ (the panel's ▶, online for a book
 with no file) and DOWNLOAD (the panel's FIRST n / ALL n), both per book on the

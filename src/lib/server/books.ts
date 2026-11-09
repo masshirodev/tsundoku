@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import { posix } from './fspath.ts';
-import { commonDir, fileIn, widenTo } from './paths.ts';
+import { commonDir, fileIn, isUnder, widenTo } from './paths.ts';
+import { dataPaths } from './data-dirs.ts';
 import { libraryWhere } from './visibility.ts';
 import { getDb } from './db.ts';
 import { hueFor } from '../library/cover.ts';
@@ -228,6 +229,11 @@ function holdsSourceKey(db: Database.Database, s: SeriesRow, entryId: number): b
  * book's folder for the series' and mark every other book's file gone
  * (import/write.ts, `shared`): a path outside the device folder is what makes
  * it name this book's file from there and answer for this folder alone.
+ *
+ * A root can be that folder itself: a scan makes the Mihon root at
+ * `<library>/devices/<device>/Mihon` when no other exists (import/index.ts,
+ * `rootOf`), and ADD then uses it. Such a root names nothing outside the
+ * devices, so the library's own folder stands in for it.
  */
 function nameFromRoot(db: Database.Database, seriesId: number) {
 	const { path, root } = db
@@ -235,8 +241,21 @@ function nameFromRoot(db: Database.Database, seriesId: number) {
 			`SELECT s.path, r.path AS root FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ?`
 		)
 		.get(seriesId) as { path: string; root: string };
-	if (path === '') db.prepare(`UPDATE series SET path = ? WHERE id = ?`).run(root, seriesId);
-	else widenTo(db, seriesId, [join(root, 'book')]);
+	const { library } = dataPaths();
+	const home = isUnder(root, join(library, 'devices')) ? library : root;
+	if (path === '') db.prepare(`UPDATE series SET path = ? WHERE id = ?`).run(home, seriesId);
+	else widenTo(db, seriesId, [join(home, 'book')]);
+}
+
+/**
+ * A queued download goes where its entry goes. `download_queue.series_id` is
+ * what the queue's readers join to find the series, and it cascades: left
+ * behind, it names the wrong series, or the row goes with the series it names.
+ * Before the old series can be deleted.
+ */
+function carryQueued(db: Database.Database, target: number, entryIds: number[]) {
+	const set = db.prepare(`UPDATE download_queue SET series_id = ? WHERE entry_id = ?`);
+	for (const id of entryIds) set.run(target, id);
 }
 
 /**
@@ -255,6 +274,7 @@ function absorb(db: Database.Database, singleton: SeriesRow, target: number, pos
 			rating = ?, favourite = ?
 		WHERE id = ?`
 	).run(target, position, singleton.title, singleton.rating, singleton.favourite, entryId);
+	carryQueued(db, target, [entryId]);
 	db.prepare(
 		`INSERT OR IGNORE INTO entry_tags (entry_id, tag_id) SELECT ?, tag_id FROM series_tags WHERE series_id = ?`
 	).run(entryId, singleton.id);
@@ -587,6 +607,7 @@ function groupVolumes(
 				e.volume || b.title,
 				e.id
 			);
+			carryQueued(db, target.id, [e.id]);
 			moved.push(e.id);
 		}
 		db.prepare(
@@ -675,6 +696,7 @@ export function takeOutVolumes(seriesId: number, files?: string[], now = Date.no
 					`UPDATE entries SET series_id = ?, position = ?, file = ?, volume = '' WHERE id = ?`
 				);
 				vol.forEach((e, i) => set.run(single, i + 1, basename(abs), e.id));
+				carryQueued(db, single, volIds);
 				db.prepare(
 					`INSERT OR IGNORE INTO series_tags (series_id, tag_id) SELECT ?, tag_id FROM series_tags WHERE series_id = ?`
 				).run(single, seriesId);
@@ -745,6 +767,7 @@ export function takeOut(seriesId: number, entryIds: number[], now = Date.now()):
 				db.prepare(
 					`UPDATE entries SET series_id = ?, position = 1, rating = 0, favourite = 0 WHERE id = ?`
 				).run(single, e.id);
+				carryQueued(db, single, [e.id]);
 				// The book's own tags become the singleton's. A book grouped before it
 				// had any of its own takes the series' tags instead of none.
 				const own = db
@@ -821,6 +844,7 @@ export function moveBook(fromSeries: number, entryId: number, toSeries: number):
 			next,
 			entryId
 		);
+		carryQueued(db, toSeries, [entryId]);
 		db.prepare(
 			`INSERT OR IGNORE INTO series_tags (series_id, tag_id) SELECT ?, tag_id FROM entry_tags WHERE entry_id = ?`
 		).run(toSeries, entryId);
@@ -1118,12 +1142,15 @@ export function foldEditions(
 					`UPDATE entries SET title = CASE WHEN title = '' THEN ? ELSE title END WHERE id = ?`
 				).run(s.title, entry);
 				keepOrigin(db, s, [entry]);
+				// A queued edition still downloads, through this series' path.
+				if (holdsSourceKey(db, s, entry)) nameFromRoot(db, baseSeries);
 				rehome(db, entry, id, baseSeries);
 				db.prepare(
 					`UPDATE entries SET series_id = ?, position = ?, shadowed = 1, edition_of = ?,
 						language = ?, edition_rows = ?
 					WHERE id = ?`
 				).run(baseSeries, position, baseEntry, lang, JSON.stringify(rowsOf(entry)), entry);
+				carryQueued(db, baseSeries, [entry]);
 				// What the owner did with it: kept by the book.
 				db.prepare(
 					`UPDATE series SET rating = MAX(COALESCE(rating, 0), ?), favourite = MAX(favourite, ?) WHERE id = ?`
@@ -1202,6 +1229,7 @@ export function unfoldEditions(
 						edition_rows = NULL, read_at = ?, last_position = ?, last_opened_at = ?
 					WHERE id = ?`
 				).run(single, own.read_at, own.read_at === null ? page : null, own.last_opened_at, e.id);
+				carryQueued(db, single, [e.id]);
 				// Its tags back from the book: everything but the book's other languages.
 				db.prepare(
 					`INSERT OR IGNORE INTO series_tags (series_id, tag_id)
