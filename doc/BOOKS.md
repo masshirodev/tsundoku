@@ -133,6 +133,12 @@ finds, and a path of none, or one inside the device's folder, would make it
 read that one book's folder as the series' own and mark every other book's file
 gone.
 
+**On the series screen** a group offers READ (the panel's ▶, online for a book
+with no file) and DOWNLOAD (the panel's FIRST n / ALL n), both per book on the
+server. A tap on a single undownloaded book opens `?book=<id>`, which is still
+the empty page grid: no READ or DOWNLOAD of its own. That screen is the series
+route's, and c885's per-book offer is the patch its handoff note carries.
+
 **FOLLOW is a series' idea.** A group of one-offs has no one thing to follow,
 so the row leaves FOLLOW out and `setFollowed` still refuses. A series that
 holds a key of its own and has books grouped into it follows that key, as it
@@ -323,17 +329,18 @@ shelf leaves out a favourite person with no visible books for the same reason.
 
 ## Where it lives
 
-| Concern                                | Code                                                         |
-| -------------------------------------- | ------------------------------------------------------------ |
-| Pure rules (stems, order, labels)      | `src/lib/library/books.ts`, `series.ts`                      |
-| Grouping, take-out, order, suggestions | `src/lib/server/books.ts`                                    |
-| Person and tag pages, PEOPLE           | `src/lib/server/people.ts`                                   |
-| Series screen: books grid, book sheet  | `src/routes/series/[id]/BookGrid.svelte`, `BookSheet.svelte` |
-| Group sheet (library and suggestion)   | `src/routes/GroupSheet.svelte`                               |
-| Person page                            | `src/routes/PersonView.svelte`                               |
-| Volumes of a novel                     | `src/lib/server/books.ts` (`groupVolumes`, `takeOutVolumes`) |
-| Tests                                  | `tests/books-domain.spec.ts`, `tests/books-db.spec.ts`       |
-| Tests, volumes                         | `tests/epub-import-db.spec.ts`, `tests/volumes-flow.e2e.ts`  |
+| Concern                                | Code                                                                |
+| -------------------------------------- | ------------------------------------------------------------------- |
+| Pure rules (stems, order, labels)      | `src/lib/library/books.ts`, `series.ts`                             |
+| Grouping, take-out, order, suggestions | `src/lib/server/books.ts`                                           |
+| Person and tag pages, PEOPLE           | `src/lib/server/people.ts`                                          |
+| Series screen: books grid, book sheet  | `src/routes/series/[id]/BookGrid.svelte`, `BookSheet.svelte`        |
+| Group sheet (library and suggestion)   | `src/routes/GroupSheet.svelte`                                      |
+| Person page                            | `src/routes/PersonView.svelte`                                      |
+| Volumes of a novel                     | `src/lib/server/books.ts` (`groupVolumes`, `takeOutVolumes`)        |
+| Tests                                  | `tests/books-domain.spec.ts`, `tests/books-db.spec.ts`              |
+| Tests, volumes                         | `tests/epub-import-db.spec.ts`, `tests/volumes-flow.e2e.ts`         |
+| A book's origin, tests                 | `tests/group-origin-db.spec.ts`, `tests/browse-group-origin.e2e.ts` |
 
 ## Known gaps
 
