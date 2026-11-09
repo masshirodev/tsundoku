@@ -83,6 +83,13 @@ const row = (page: import('@playwright/test').Page, name: string) =>
 const cell = (page: import('@playwright/test').Page, name: string) =>
 	page.locator('.bulk .swc', { hasText: name });
 
+/** SELECT started, and its bar drawn: a row is only a tick once that is there. */
+async function startSelect(page: import('@playwright/test').Page) {
+	await page.locator('.cell.sel').click();
+	await expect(page.locator('.bulk')).toBeVisible();
+	await expect(page.locator('.cell.count')).toHaveText('0 SELECTED');
+}
+
 test('SELECT is INSTALLED’s, and ✕, Escape and Back each end it', async ({ page }) => {
 	await page.goto('/browse/extensions');
 	const select = page.locator('.cell.sel');
@@ -107,14 +114,14 @@ test('SELECT is INSTALLED’s, and ✕, Escape and Back each end it', async ({ p
 	await expect(page.locator('.cell.sel')).toBeVisible();
 
 	// ✕ too.
-	await page.locator('.cell.sel').click();
+	await startSelect(page);
 	await expect(page.locator('.bulk')).toBeVisible();
 	await page.getByRole('link', { name: 'Stop selecting' }).click();
 	await expect(page).not.toHaveURL(/select=1/);
 	await expect(page.locator('.bulk')).toHaveCount(0);
 
 	// And the browser's Back, which comes back to the plain list.
-	await page.locator('.cell.sel').click();
+	await startSelect(page);
 	await expect(page.locator('.bulk')).toBeVisible();
 	await page.goBack();
 	await expect(page).not.toHaveURL(/select=1/);
@@ -124,7 +131,7 @@ test('SELECT is INSTALLED’s, and ✕, Escape and Back each end it', async ({ p
 test('SELECT ALL ticks every drawn row, and the count is the drawn rows', async ({ page }) => {
 	await page.goto('/browse/extensions');
 	const drawn = await page.locator('.rows .row').count();
-	await page.locator('.cell.sel').click();
+	await startSelect(page);
 	await page.getByRole('button', { name: 'SELECT ALL' }).click();
 	await expect(page.locator('.cell.count')).toHaveText(`${drawn} SELECTED`);
 	await expect(page.locator('.rows .row input[type=checkbox]:checked')).toHaveCount(drawn);
@@ -147,7 +154,7 @@ test('a mixed selection reads MIXED, and one press sets every source of each', a
 	await expect(own).toHaveAttribute('aria-checked', 'true');
 
 	await page.goto('/browse/extensions');
-	await page.locator('.cell.sel').click();
+	await startSelect(page);
 	await row(page, 'Open Source').click();
 	await row(page, 'Shelf Novels').click();
 	await expect(page.locator('.cell.count')).toHaveText('2 SELECTED');
@@ -176,7 +183,7 @@ test('the bar counts UPDATE and OBSOLETE apart, and does not offer what it canno
 	page
 }) => {
 	await page.goto('/browse/extensions');
-	await page.locator('.cell.sel').click();
+	await startSelect(page);
 	// Nothing ticked: the switches and UPDATE have nothing to change.
 	await expect(page.locator('.bulk .swc', { hasText: 'UPDATE' })).toBeDisabled();
 	await expect(page.locator('.bulk .swc', { hasText: 'REMOVE' })).toHaveAttribute(
@@ -220,7 +227,7 @@ test('UNDO puts a mixed selection back mixed, and the band marks the rows it cou
 	await page.goto('/browse/100/settings');
 	await page.locator('form.own', { hasText: 'Never tracked' }).getByRole('switch').click();
 	await page.goto('/browse/extensions');
-	await page.locator('.cell.sel').click();
+	await startSelect(page);
 	await row(page, 'Open Source').click();
 	await row(page, 'Shelf Novels').click();
 	await cell(page, 'NEVER TRACKED').click();
@@ -251,7 +258,7 @@ test('a ticked row removed elsewhere is not counted as changed, and leaves the s
 	await addRepo(page);
 	await installWebtoons(page);
 	await page.goto('/browse/extensions');
-	await page.locator('.cell.sel').click();
+	await startSelect(page);
 	await row(page, 'Webtoons.com').click();
 	await row(page, 'Open Source').click();
 	// Another device removes the extension between the tick and the press.
@@ -270,7 +277,7 @@ test('a ticked row removed elsewhere is not counted as changed, and leaves the s
 
 test('HIDE leaves the list outside reveal, and its UNDO brings the row back', async ({ page }) => {
 	await page.goto('/browse/extensions');
-	await page.locator('.cell.sel').click();
+	await startSelect(page);
 	await row(page, 'Open Source').click();
 	await page.locator('.bulk .swc', { hasText: 'HIDE' }).click();
 	const band = page.locator('.band');
@@ -291,7 +298,7 @@ test('UPDATE narrows UPDATE ALL to the ticked row, and its UNDO is BACK TO', asy
 	await page.goto('/browse/extensions');
 	await page.getByRole('button', { name: 'CHECK NOW' }).click();
 	await expect(page.locator('.label', { hasText: 'UPDATES' })).toContainText('UPDATE ALL 1');
-	await page.locator('.cell.sel').click();
+	await startSelect(page);
 	await row(page, 'Webtoons.com').click();
 	await page.locator('.bulk .swc', { hasText: 'UPDATE 1' }).click();
 	const band = page.locator('.band');
@@ -309,7 +316,7 @@ test('REMOVE asks first for the whole selection, and has no UNDO', async ({ page
 	await addRepo(page);
 	await installWebtoons(page);
 	await page.goto('/browse/extensions');
-	await page.locator('.cell.sel').click();
+	await startSelect(page);
 	await row(page, 'Webtoons.com').click();
 	await row(page, 'Open Source').click();
 	// Open Source is OBSOLETE in this world (no repository lists it any more), so
