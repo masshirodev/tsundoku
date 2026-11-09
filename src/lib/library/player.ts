@@ -76,6 +76,51 @@ export const offerNextAt = (durationS: number, endingAt: number | null) =>
 export const NEXT_COUNT_S = 5;
 /** A stall this long moves to the next server by itself (Player Waiting, "Servers fail all the time"). */
 export const STALL_S = 15;
+
+/**
+ * The stall clock (c867; doc/ANIME.md, "What counts as a stall"). It counts
+ * only while the player is trying to play from a settled position, so a seek
+ * is never a stall: every seek restarts it, a step of a held key included,
+ * and a seek's landing restarts it again if there is nothing to play there.
+ *
+ * [since] is when it started, null while it isn't running. [seeking] is a seek
+ * asked for and not landed: a `seeking` the element announced with no `seeked`
+ * yet. Each seek supersedes the last, and only the last one fires `seeked`.
+ */
+export type StallClock = { since: number | null; seeking: boolean };
+export const NO_STALL: StallClock = { since: null, seeking: false };
+export type StallEvent = 'waiting' | 'seeking' | 'seeked' | 'playing' | 'paused' | 'reset';
+/** What the element says at the moment of the event. [canPlay]: `readyState >= HAVE_FUTURE_DATA`. */
+export type StallFacts = { now: number; paused: boolean; canPlay: boolean };
+
+export function stallClock(clock: StallClock, event: StallEvent, f: StallFacts): StallClock {
+	switch (event) {
+		// A seek restarts the clock from itself: a seek that never lands fires no
+		// `seeked`, so what's waited for must be counted from the asking, or a dead
+		// server would hang the player with no panel. A paused player isn't trying
+		// to play: nothing runs until it is.
+		case 'seeking':
+			return { since: f.paused ? null : f.now, seeking: true };
+		// `waiting` can come before `seeked` and not again after it, so the landing
+		// asks the element what it has rather than waiting for an event.
+		case 'seeked':
+			return { since: f.paused || f.canPlay ? null : f.now, seeking: false };
+		// Already counting (from a seek, or a stall): this is the same wait.
+		case 'waiting':
+			return clock.since !== null || f.paused ? clock : { ...clock, since: f.now };
+		// A `playing` queued before a seek says nothing about where the seek went.
+		case 'playing':
+			return clock.seeking ? clock : NO_STALL;
+		// Play again fires `waiting` if there's still nothing to play.
+		case 'paused':
+			return { ...clock, since: null };
+		case 'reset':
+			return NO_STALL;
+	}
+}
+
+/** Whole seconds on the clock: 15 is a full 15 s, never 14.5 rounded up. */
+export const stallElapsed = (since: number, now: number) => Math.floor((now - since) / 1000);
 /** Controls go after this long playing: 4 s on a touch screen, 2 s after the mouse stops. */
 export const HIDE_TOUCH_MS = 4000;
 export const HIDE_MOUSE_MS = 2000;

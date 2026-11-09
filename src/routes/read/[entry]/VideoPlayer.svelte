@@ -37,6 +37,11 @@
 		SKIP_ALONE_MS,
 		SPEEDS,
 		STALL_S,
+		NO_STALL,
+		stallClock,
+		stallElapsed,
+		type StallClock,
+		type StallEvent,
 		stallStep,
 		SUB_SIZES,
 		cleanVolume,
@@ -667,6 +672,8 @@
 	function detach() {
 		hls?.destroy();
 		hls = null;
+		// What was being waited for is gone with the stream it was on.
+		onStall('reset');
 	}
 
 	function pickAudio() {
@@ -727,7 +734,7 @@
 		serverN = n;
 		const same = s.qualities.findIndex((q) => q.height === height);
 		qualityIndex = same >= 0 ? same : 0;
-		stalled = null;
+		onStall('reset');
 		void tick().then(() => attach(at));
 	}
 
@@ -747,7 +754,7 @@
 		};
 		setTimeout(() => (qualityNotice = null), 4000);
 		qualityIndex = i;
-		stalled = null;
+		onStall('reset');
 		void tick().then(() => attach(at));
 	}
 
@@ -767,28 +774,35 @@
 		void tick().then(() => attach(position()));
 	}
 
-	// The stall clock: a buffer that doesn't fill for 15 s moves to the next server.
+	// The stall clock: a buffer that doesn't fill for 15 s moves to the next
+	// server. The rule of when it runs is stallClock's (c867); this is its timer.
 	let stallTimer: ReturnType<typeof setInterval> | undefined;
-	function onWaiting() {
-		if (stalled !== null) return;
-		stalled = Date.now();
+	let stallState: StallClock = NO_STALL;
+	/** HAVE_FUTURE_DATA: enough at the position to play on from it. */
+	const HAVE_FUTURE_DATA = 3;
+	function onStall(event: StallEvent) {
+		stallState = stallClock(stallState, event, {
+			now: Date.now(),
+			paused: video?.paused ?? true,
+			canPlay: (video?.readyState ?? 0) >= HAVE_FUTURE_DATA
+		});
+		if (stallState.since === stalled) return;
+		// A new start is a new count: a held key's every step goes through here,
+		// so the panel (from 2 s) can't paint until the key is let go.
+		stalled = stallState.since;
 		stallSeconds = 0;
 		clearInterval(stallTimer);
+		if (stalled === null) return;
 		stallTimer = setInterval(() => {
 			if (stalled === null) return clearInterval(stallTimer);
-			stallSeconds = Math.round((Date.now() - stalled) / 1000);
+			stallSeconds = stallElapsed(stalled, Date.now());
 			if (stallSeconds >= STALL_S) {
-				clearInterval(stallTimer);
-				stalled = null;
+				onStall('reset');
 				const step = stallNext();
 				if (step && 'quality' in step) stepDown(step.quality);
 				else void fail();
 			}
 		}, 500);
-	}
-	function onProgressing() {
-		stalled = null;
-		clearInterval(stallTimer);
 	}
 
 	// ---- progress: watching is reading --------------------------------------------------------------
@@ -899,6 +913,7 @@
 	}
 
 	function onEnded() {
+		onStall('reset');
 		if (!finished && heldAt === null) {
 			finished = true;
 			void send('finish');
@@ -1772,9 +1787,14 @@
 			{@attach nativePipEvents}
 			ontimeupdate={onTime}
 			ondurationchange={onDuration}
-			onwaiting={onWaiting}
-			onpause={() => watch.stop()}
-			onplaying={onProgressing}
+			onwaiting={() => onStall('waiting')}
+			onseeking={() => onStall('seeking')}
+			onseeked={() => onStall('seeked')}
+			onpause={() => {
+				watch.stop();
+				onStall('paused');
+			}}
+			onplaying={() => onStall('playing')}
 			onprogress={() =>
 				(buffered = video ? bufferedTo(rangesOf(video.buffered), video.currentTime) : 0)}
 			onended={onEnded}
