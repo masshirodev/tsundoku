@@ -141,13 +141,16 @@ test('a single book with look-alikes is offered as one series, and NOT A SERIES 
 	await page.goto(CIRCLE);
 	await page.waitForLoadState('networkidle');
 	await page.locator('.grid li', { hasText: 'Holiday Duty' }).getByRole('button').click();
-	await expect(page.getByText('MIGHT BE ONE SERIES')).toBeVisible();
+	// The bands are drawn twice, one copy per order, and CSS shows one (c556,
+	// doc/SERIES.md, "Two markups"): the band is the copy that can be seen.
+	const offer = page.getByText('MIGHT BE ONE SERIES').filter({ visible: true });
+	await expect(offer).toBeVisible();
 
 	// That it stays dismissed across visits is books-db.spec.ts's to prove.
 	await page.getByRole('button', { name: 'NOT A SERIES' }).click();
-	await expect(page.getByText('MIGHT BE ONE SERIES')).toHaveCount(0);
+	await expect(offer).toHaveCount(0);
 	await page.getByRole('button', { name: 'UNDO' }).click();
-	await expect(page.getByText('MIGHT BE ONE SERIES')).toBeVisible();
+	await expect(offer).toBeVisible();
 });
 
 test('every book in a series shows its own cover, made from its pages', async ({ page }) => {
@@ -320,7 +323,10 @@ test('a hand-made extra beside a doujin is drawn apart, is not counted, and open
 		await expect(page.locator('.names .meta')).toContainText('4 BOOKS');
 		await expect(page.getByRole('region', { name: 'Books' })).toBeVisible();
 		await expect(page.getByRole('region', { name: 'Books' }).locator('.cell')).toHaveCount(4);
-		await expect(page.getByText('FROM ITS 4 BOOKS · EACH KEEPS ITS OWN')).toBeVisible();
+		// Drawn twice with the panel's TAGS, and CSS shows one (c556, c837, doc/SERIES.md).
+		await expect(
+			page.getByText('FROM ITS 4 BOOKS · EACH KEEPS ITS OWN').filter({ visible: true })
+		).toBeVisible();
 		await expect(page.locator('a[data-extra]')).toHaveText([/A Second Extra/]);
 		// A book's sheet numbers it among the books, not the extra (c650).
 		const books = page.getByRole('region', { name: 'Books' });

@@ -513,10 +513,11 @@ test('KEEP BOTH says an earlier decision could not be carried out, and the note 
 		db.close();
 	}
 	await page.goto(`${BASE}/series/${ids.twin}`);
-	const band = page.locator('.twin');
+	// Drawn twice, one copy per order, and CSS shows one (c556, doc/SERIES.md).
+	const band = page.locator('.twin').filter({ visible: true });
 	await expect(band).toContainText('SAME BOOK AS');
 	await band.getByRole('button', { name: 'KEEP BOTH', exact: true }).click();
-	const note = page.locator('.kept-both');
+	const note = page.locator('.kept-both').filter({ visible: true });
 	await expect(note).toContainText('KEPT BOTH · 1 EARLIER DECISION COULDN’T BE CARRIED OUT');
 	await expect(note).toContainText('BACK IN THE REVIEW');
 	await expect(note.getByRole('link', { name: 'SEE DUPLICATES →' })).toHaveAttribute(
