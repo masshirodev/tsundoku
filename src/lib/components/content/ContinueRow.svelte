@@ -171,6 +171,12 @@
 		border-bottom: var(--hairline);
 		border-right: 1px solid transparent;
 		min-width: 0;
+		/* The hold is the row's, and iOS sends no `contextmenu` for `longpress` to
+		   cancel (doc/TOUCH.md): without these a held band draws the link's callout
+		   or starts a selection over the sheet, as a tile's rules say (CoverTile). */
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-touch-callout: none;
 	}
 	.unavailable {
 		opacity: 0.4;

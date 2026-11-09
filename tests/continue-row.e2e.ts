@@ -277,12 +277,48 @@ test.describe('a held press on the row (c860)', () => {
 		return page.getByRole('dialog', { name: title });
 	};
 
+	type Press = { down: (x: number, y: number) => Promise<unknown>; up: () => Promise<unknown> };
+
+	const mousePress = (page: Page): Press => ({
+		down: async (x, y) => {
+			await page.mouse.move(x, y);
+			await page.mouse.down();
+		},
+		up: () => page.mouse.up()
+	});
+
+	/**
+	 * A finger, as the browser gets one: `page.mouse` is a mouse pointer even in
+	 * a touch project, and `page.touchscreen` only taps.
+	 */
+	const fingerPress = async (page: Page): Promise<Press> => {
+		const cdp = await page.context().newCDPSession(page);
+		return {
+			down: (x, y) =>
+				cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] }),
+			up: () => cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+		};
+	};
+
+	/** What pressed `target`, so a case can say it reached the path it names. */
+	const notePointer = (target: Locator) =>
+		target.evaluate((n) =>
+			n.addEventListener('pointerdown', (e) =>
+				n.setAttribute('data-pressed-by', (e as PointerEvent).pointerType)
+			)
+		);
+
+	const centre = async (target: Locator) => {
+		const box = (await target.boundingBox())!;
+		return [box.x + box.width / 2, box.y + box.height / 2] as const;
+	};
+
 	/**
 	 * The release while the sheet is still on its way, with the sheet's read
 	 * held: the sheet would otherwise be drawn under the finger and take the
 	 * release, and a release on the row is what the guard is for.
 	 */
-	async function holdAndRelease(page: Page, target: Locator) {
+	async function holdAndRelease(page: Page, target: Locator, press: Press = mousePress(page)) {
 		let release = () => {};
 		const held = new Promise<void>((r) => (release = r));
 		await page.route(SERIES_READ, async (route) => {
@@ -298,11 +334,9 @@ test.describe('a held press on the row (c860)', () => {
 			if (new URL(r.url()).pathname.startsWith('/read/')) left.push(r.url());
 		};
 		page.on('request', leaving);
-		const box = (await target.boundingBox())!;
-		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-		await page.mouse.down();
+		await press.down(...(await centre(target)));
 		await asked; // the hold fired: its read is out
-		await page.mouse.up();
+		await press.up();
 		await page.waitForTimeout(800);
 		page.off('request', leaving);
 		expect(left, 'the release asked for no next screen').toEqual([]);
@@ -322,6 +356,38 @@ test.describe('a held press on the row (c860)', () => {
 	test('a long press on ▶ opens the options, and the release does not resume', async ({ page }) => {
 		await page.goto('/');
 		await holdAndRelease(page, row(page).locator('.go'));
+	});
+
+	for (const [name, part] of [
+		['band', 'a.band'],
+		['▶', '.go']
+	] as const)
+		test(`a finger held on the ${name} opens the options, and lifting it goes nowhere`, async ({
+			page
+		}, info) => {
+			test.skip(!info.project.use.hasTouch, 'a finger needs a touch screen');
+			await page.goto('/');
+			await hydrated(page);
+			const target = row(page).locator(part);
+			await notePointer(target);
+			await holdAndRelease(page, target, await fingerPress(page));
+			await expect(target, 'it was a finger, not a mouse').toHaveAttribute(
+				'data-pressed-by',
+				'touch'
+			);
+			expect(new URL(page.url()).pathname).toBe('/');
+		});
+
+	/**
+	 * iOS sends no `contextmenu` for a held link (`src/lib/styles/base.css`,
+	 * doc/TOUCH.md), so `longpress` has nothing to cancel there and the CSS is
+	 * what keeps the selection off. The callout's half of the rule cannot be
+	 * seen in Chromium: it is on the owner's list in the handoff notes.
+	 */
+	test('nothing on the row can be selected by a held finger', async ({ page }) => {
+		await page.goto('/');
+		for (const part of ['a.band', '.title', '.go'])
+			await expect(row(page).locator(part), part).toHaveCSS('user-select', 'none');
 	});
 
 	test('a right click opens them on the band and on ▶; a plain press after one still resumes', async ({

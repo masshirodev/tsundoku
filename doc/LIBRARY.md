@@ -242,8 +242,11 @@ either stop resumes.
 OK or MENU on a TV, a long press, or a right click, anywhere on the row, the
 band and ▶ alike. It is the sheet the grid opens (`sheetId`, `SeriesSheet`),
 through the action every long-press row uses (`use:longpress`), and the press
-that fires it neither follows the band nor resumes. Where the grid's tile has
-no options, nor does the row, and a held OK there is the plain press it was:
+that fires it neither follows the band nor resumes. The row carries a tile's
+touch rules too (`user-select`, `-webkit-touch-callout`: iOS sends no
+`contextmenu` for the action to cancel, [`TOUCH.md`](TOUCH.md)), on the row
+itself, because the hold is the row's. Where the grid's tile has no options,
+nor does the row, and a held OK there is the plain press it was:
 
 | Row               | A held press                                                                                  |
 | ----------------- | --------------------------------------------------------------------------------------------- |
