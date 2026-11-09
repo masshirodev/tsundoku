@@ -214,6 +214,33 @@ export function parsePackage(xml: string, opfPath: string): Package {
 	};
 }
 
+/**
+ * The pages a package offers as its cover when the package itself names no
+ * cover image (c835): a toc entry called Cover (Haibara's EPUBs), then a
+ * manifest document named `cover.xhtml`. Most likely first.
+ */
+export function coverPages(pkg: Package, toc: TocPoint[]): string[] {
+	const named = toc
+		.filter((t) => /^\s*cover(\s+page)?\s*$/i.test(t.label))
+		.map((t) => splitHref(t.href).doc);
+	const files = pkg.manifest
+		.filter((i) => i.type.includes('html') && /(^|\/)cover(\.[a-z0-9]+)?\.x?html?$/i.test(i.href))
+		.map((i) => i.href);
+	return [...new Set([...named, ...files].filter(Boolean))];
+}
+
+/**
+ * The image a cover page holds: its `<img src>`, or an SVG's `<image>`.
+ * Resolved against the page, so it is the zip member's name.
+ */
+export function coverImageOfPage(html: string, pageHref: string): string | null {
+	const m =
+		/<img\b[^>]*\bsrc\s*=\s*("([^"]*)"|'([^']*)')/i.exec(html) ??
+		/<image\b[^>]*\b(?:xlink:href|href)\s*=\s*("([^"]*)"|'([^']*)')/i.exec(html);
+	const raw = (m?.[2] ?? m?.[3] ?? '').trim();
+	return raw === '' ? null : resolveHref(pageHref, raw);
+}
+
 // ---- tables of contents -------------------------------------------------------
 
 /**
