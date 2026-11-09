@@ -115,6 +115,44 @@ async function tvMonoWidth(page: Page, selector: string): Promise<number> {
 	});
 }
 
+/**
+ * Lays [selector] out as a TV does, in a real browser: every glyph advances by
+ * a TV's 1229/2048 em ([tvMonoWidth] says where that comes from), by way of
+ * `letter-spacing` over this box's own monospace, whatever its width is.
+ *
+ * Counting characters is what let c863 through: `ceil(glyphs × 0.6 / width)`
+ * says 131 characters take two lines of 96, and a TV draws three, because a
+ * line can only break where a break is allowed and an address has almost no
+ * such place. Only the browser's own line breaking knows that.
+ */
+async function layOutAsTv(page: Page, selector: string): Promise<void> {
+	await page.evaluate(() => document.fonts.ready);
+	await page.locator(selector).evaluate((el) => {
+		const css = getComputedStyle(el);
+		const ruler = document.createElement('canvas').getContext('2d')!;
+		ruler.font = `${css.fontStyle} ${css.fontWeight} ${css.fontSize} ${css.fontFamily}`;
+		const here = ruler.measureText('M'.repeat(100)).width / 100;
+		const tv = (parseFloat(css.fontSize) * 1229) / 2048;
+		(el as HTMLElement).style.letterSpacing = `${tv - here}px`;
+	});
+}
+
+/** How [selector] sits over 9B's two buttons, once it is laid out as a TV does. */
+async function overTheButtons(page: Page, selector: string) {
+	await layOutAsTv(page, selector);
+	return page.evaluate((hint) => {
+		const el = document.querySelector(hint) as HTMLElement;
+		const bottom = el.getBoundingClientRect().bottom;
+		const height = el.getBoundingClientRect().height;
+		const top = (id: string) => document.getElementById(id)!.getBoundingClientRect().top;
+		return {
+			lines: height / parseFloat(getComputedStyle(el).lineHeight),
+			overNext: top('next') - bottom,
+			overToggle: top('whole-toggle') - bottom
+		};
+	}, selector);
+}
+
 test('START opens 9B on NEXT, so no number pad covers the buttons (c247)', async ({ page }) => {
 	await page.goto(page9);
 	await page.keyboard.press('Enter'); // START →
@@ -1881,18 +1919,9 @@ test('the question fits a TV: the band whole, an 80-character address over the b
 	// The meta line carries the address whole and ends above the buttons, at
 	// a TV's width: 0.6 em a glyph, not this box's narrower font.
 	await expect(page.locator('#tv-meta')).toContainText(longest);
-	const lines = await page.locator('#tv-meta').evaluate((el) => {
-		const css = getComputedStyle(el);
-		const size = parseFloat(css.fontSize);
-		const glyphs = (el as HTMLElement).innerText.trim().length;
-		const lineHeight = parseFloat(css.lineHeight);
-		const wide = Math.ceil((glyphs * size * (1229 / 2048)) / el.clientWidth);
-		return { height: wide * lineHeight, top: el.getBoundingClientRect().top };
-	});
-	const actions = await page
-		.locator('.address-actions')
-		.evaluate((el) => el.getBoundingClientRect().top);
-	expect(lines.top + lines.height).toBeLessThanOrEqual(actions);
+	const sits = await overTheButtons(page, '#tv-meta');
+	expect(sits.overNext).toBeGreaterThan(0);
+	expect(sits.overToggle).toBeGreaterThan(0);
 
 	// And the column sits under the band, as with every band on 9B.
 	const band = await page.locator('#already').evaluate((el) => el.getBoundingClientRect().bottom);
@@ -1901,6 +1930,67 @@ test('the question fits a TV: the band whole, an 80-character address over the b
 		.evaluate((el) => el.getBoundingClientRect().top);
 	expect(label).toBeGreaterThanOrEqual(band);
 });
+
+// ---- c863: the hint under the longest address -------------------------------
+
+/** 9B's ordinary hint, the whole-address one: what "the usual gap" is measured on. */
+async function usualGap(page: Page): Promise<number> {
+	await page.goto(page9);
+	await page.keyboard.press('Enter'); // START →
+	await page.locator('#whole-toggle').click();
+	await expect(page.locator('#tv-meta')).toContainText('OVER TAILSCALE');
+	const usual = await overTheButtons(page, '#tv-meta');
+	expect(usual.lines).toBe(2);
+	expect(usual.overNext).toBe(usual.overToggle);
+	return usual.overNext;
+}
+
+/**
+ * The addresses the limit allows, by how the line can break in them: the wrap
+ * is what c863 is about, so each shape is here, and the 79 beside the 80.
+ */
+const NO_BREAK = 'https://' + 'a'.repeat(60) + '.example.net';
+const HYPHENS = 'https://' + 'ab-'.repeat(19) + 'cde.example.net';
+const LAST_PORT = 'https://' + 'a'.repeat(66) + ':42143';
+for (const [what, at, length] of [
+	['of 79 characters', originOfLength(79), 79],
+	['of exactly 80', originOfLength(80), 80],
+	['of 80 with nowhere to break but the end', NO_BREAK, 80],
+	['of 80 with a break every three characters', HYPHENS, 80],
+	['of 80 ending in a port', LAST_PORT, 80],
+	['of 24', 'https://name.ts.net:8443', 24]
+] as const) {
+	test(`the question's hint ends above the buttons by the usual gap, for an address ${what} (c863)`, async ({
+		page
+	}) => {
+		expect(at.length).toBe(length);
+		const gap = await usualGap(page);
+		expect(gap).toBeGreaterThan(0);
+
+		await stubBridge(page, { answer: true });
+		await page.goto(`${page9}#ask=${encodeURIComponent(at)}`);
+		await expect(page.locator('#already')).toBeVisible();
+		await expect(page.locator('#next')).toHaveText('CONNECT →');
+		await expect(page.locator('#whole-toggle')).toHaveText('USE THE LAST NUMBER');
+		await expect(page.locator('#tv-meta')).toContainText(at);
+		await expect(page.locator('#tv-meta')).toContainText('BACK LEAVES WITHOUT SAVING IT');
+
+		const sits = await overTheButtons(page, '#tv-meta');
+		expect(sits.overNext).toBeGreaterThanOrEqual(gap);
+		expect(sits.overToggle).toBeGreaterThanOrEqual(gap);
+		expect(sits.lines).toBe(2);
+
+		// The address stands whole on its own line: the line that says whose
+		// server this is must not wrap, whatever the break opportunities in it.
+		expect(
+			await page.locator('#tv-meta').evaluate((el) => {
+				const range = document.createRange();
+				range.selectNode(el.firstChild!);
+				return new Set(Array.from(range.getClientRects(), (r) => Math.round(r.top))).size;
+			})
+		).toBe(1);
+	});
+}
 
 test.describe('on a phone, 360 x 780', () => {
 	test.use({ viewport: { width: 360, height: 780 } });

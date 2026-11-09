@@ -1556,7 +1556,12 @@
 				fill();
 				last.value = at;
 				document.getElementById('address-label').textContent = '01 — THE ADDRESS IN THE LINK';
-				tvMeta.textContent = `THE WHOLE ADDRESS: ${at} · BACK LEAVES WITHOUT SAVING IT`;
+				// Two lines, always (c863): the address alone on the first, so its
+				// 80 characters at a TV's 9 px fit the 864 px column whole, and
+				// the wrap never depends on where a host happens to allow a
+				// break. With THE WHOLE ADDRESS: in front it took 99, a third
+				// line, and sat on the buttons.
+				tvMeta.replaceChildren(at, document.createElement('br'), 'BACK LEAVES WITHOUT SAVING IT');
 				next.textContent = 'CONNECT →';
 				document.getElementById('already-line').textContent =
 					'THIS ADDRESS CAME FROM A LINK · NOTHING IS SAVED UNTIL YOU PRESS CONNECT';

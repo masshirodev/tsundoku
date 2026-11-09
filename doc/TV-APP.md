@@ -1060,7 +1060,13 @@ SAVED UNTIL YOU PRESS CONNECT`, the button reading `CONNECT →`, and the
      own font. Do the same with step 8's `location =` for an 81-character host,
      which comes through `#lost=`: the same band, and for more than five seconds
      no probe in the console. Then an address of exactly 80 characters: the
-     question, its whole address above the buttons and none of it under them.
+     question, its whole address above the buttons and none of it under them,
+     in two lines of hint (c863, wave 39): the address alone on the first,
+     `BACK LEAVES WITHOUT SAVING IT` on the second, and the same gap above
+     CONNECT → and USE THE LAST NUMBER as under 9B's ordinary hint (19 px at
+     the 960 frame). Before c863 the hint was one run beginning
+     `THE WHOLE ADDRESS:`, which a TV wrapped to three lines, its last one
+     3.5 px past the top of the buttons.
 
   **Then a URL `java.net.URI` cannot parse (c684, wave 34).** Until c684
   the host was read with `java.net.URI`, which throws on a `|` or `{` in the
@@ -1185,8 +1191,8 @@ SAVED UNTIL YOU PRESS CONNECT`, the button reading `CONNECT →`, and the
   cannot drive the Activity: `MainActivity` asks this rule and writes no door of
   its own, the page takes every door the rule can name, and the page holds the
   same limit as the rule.
-- `tests/tv-app-pair.e2e.ts`, c683's fifty-five (c683 in each title; 87 cases
-  in all): `#ask=` shows the address and calls neither `probe` nor `remember` until
+- `tests/tv-app-pair.e2e.ts`, c683's fifty-five (c683 in each title; 93 cases
+  in all, c863's six among them): `#ask=` shows the address and calls neither `probe` nor `remember` until
   CONNECT, then each once; the mark starts off CONNECT, so a stray OK leaves the
   question; `#connect=` for an address not in the list asks; a non-http `#ask=`
   is refused; the entry loses its fragment and a history step shows 9A; the same
