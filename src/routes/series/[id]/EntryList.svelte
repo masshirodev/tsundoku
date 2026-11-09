@@ -21,6 +21,7 @@
 		railTicks,
 		volumeMeta,
 		volumeOf,
+		volumeStarts,
 		volumeTicks,
 		type SeriesEntry,
 		type SeriesPage
@@ -207,6 +208,9 @@
 	const volumeRail = $derived(volumeTicks(series.entries, railHeight));
 	const thumbVolume = $derived(thumb ? volumeOf(series.entries, thumb) : null);
 	const draggingVolume = $derived(dragging ? volumeOf(series.entries, dragging) : null);
+	/** The first entry under each volume head after the first (c835, 1D): the row
+	 *  focused there carries the head's height in its scroll margin. */
+	const volumeStart = $derived(volumeStarts(series.entries));
 </script>
 
 <!-- The row that is the button (Download States, "The row is the button"): a form post, so it works without script. -->
@@ -325,6 +329,7 @@
 					<li
 						id="entry-{e.id}"
 						class="entry {row.state} {dl ? `dl-${dl.kind}` : ''}"
+						class:volume-start={volumeStart.has(e.id)}
 						class:missing={!e.available && !(online && offline.online)}
 						class:online-only={online && !offline.online}
 						class:matter={!!e.matter}
@@ -753,6 +758,19 @@
 			font-size: 16px;
 		}
 	}
+	/* A volume's head is not a focus stop, so a row under it carries the head's
+	   height in its scroll margin: arriving there with the D-pad shows the head
+	   above it (c835, 1D). */
+	.entry.volume-start .entry-btn,
+	.entry.volume-start .dl-cell {
+		scroll-margin-top: 104px;
+	}
+	@media (max-width: 599px) {
+		.entry.volume-start .entry-btn,
+		.entry.volume-start .dl-cell {
+			scroll-margin-top: 82px;
+		}
+	}
 	/* Front and back matter: reachable, but not read as chapters. */
 	.entry.matter .entry-btn {
 		height: 44px;
@@ -1110,6 +1128,10 @@
 		}
 		.vm {
 			font-size: 15px;
+		}
+		.entry.volume-start .entry-btn,
+		.entry.volume-start .dl-cell {
+			scroll-margin-top: 96px;
 		}
 	}
 </style>

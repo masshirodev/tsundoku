@@ -568,6 +568,16 @@ export function volumeOf(entries: SeriesEntry[], entry: SeriesEntry): number | n
 	return i < 0 ? null : i + 1;
 }
 
+/** The entries that begin a volume after the first: the rows a head sits above (c835, 1D). */
+export function volumeStarts(entries: SeriesEntry[]): Set<number> {
+	return new Set(
+		volumesIn(entries)
+			.slice(1)
+			.map((v) => v[0]?.id)
+			.filter((id): id is number => id !== undefined)
+	);
+}
+
 /**
  * The rail's volume ticks (c835, 1C): one per volume, where its first entry
  * is, labelled `V1`…`Vn`. A tick's label drops when it would sit closer than
