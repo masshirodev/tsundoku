@@ -13,11 +13,13 @@ import { expect, test } from './fixtures';
 /**
  * Two one-offs added from a source and grouped keep READ ONLINE and DOWNLOAD,
  * and UNDO and UNGROUP give each its link back (card c885; doc/BOOKS.md,
- * "Where a book's origin lives"). It's in the browse project (its name) for the
- * fake engine, but in a world of its own: a gallery source only exists here
- * (the browse world's sources aren't galleries, and a one-off from one is a
- * manga, which GROUP won't bind), and every case groups, downloads and ungroups.
- * The one-offs come through the app's own ADD and GROUP, never a seeded row.
+ * "Where a book's origin lives"). On a book's own page those two are its own
+ * offer, and a failed download offers RETRY (c885's last piece). It's in the
+ * browse project (its name) for the fake engine, but in a world of its own: a
+ * gallery source only exists here (the browse world's sources aren't galleries,
+ * and a one-off from one is a manga, which GROUP won't bind), and every case
+ * groups, downloads and ungroups. The one-offs come through the app's own ADD
+ * and GROUP, never a seeded row.
  */
 
 const SOURCE = { id: '500', pkg: 'e2e.gallery', name: 'nhentai' };
@@ -28,6 +30,8 @@ let dbPath: string;
 let base: string;
 let preview: ChildProcess | undefined;
 let engine: Server;
+/** Sources whose page list the fake refuses, so a download can fail (c885's RETRY). */
+const failing = new Set<string>();
 
 function freePort(): Promise<number> {
 	return new Promise((resolve) => {
@@ -51,8 +55,19 @@ function startEngine(port: number, image: Buffer): Promise<Server> {
 			const json = (v: unknown) =>
 				res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(v));
 			if (req.url === '/challenges') return json({ solving: {}, solved: {} });
-			const b = JSON.parse(raw || '{}') as { method: string; mangaData?: { url: string } };
+			const b = JSON.parse(raw || '{}') as {
+				method: string;
+				mangaData?: { url: string };
+				chapterData?: { url?: string };
+			};
 			const url = b.mangaData?.url ?? '';
+			if (
+				b.method === 'getPageList' &&
+				[...failing].some((f) => (b.chapterData?.url ?? '').includes(f))
+			)
+				// A site that refuses: the worker counts the try and fails the chapter
+				// after MAX_TRIES, which is what c885's RETRY waits for.
+				return res.writeHead(500, { 'content-type': 'application/json' }).end('{"code":500}');
 			switch (b.method) {
 				case 'getDetailsManga':
 					return json({ url, title: `Gallery ${url.split('/').pop()}`, status: 2 });
@@ -318,3 +333,195 @@ for (const [label, viewport] of [
 			await expect(page.locator('.cta')).toHaveAttribute('href', /\/read\/\d+/);
 		});
 	});
+
+/**
+ * A book's own page (c885's last piece): `?book=<id>` is where a tap on one
+ * book lands, and a book with no file offers READ ONLINE and DOWNLOAD there,
+ * each for that book alone. A queued book keeps READ ONLINE and drops DOWNLOAD;
+ * one whose download failed offers RETRY, as its row does on the list
+ * (`EntryList`), and that press queues it again. All through the app's doors.
+ */
+test.describe('on a book’s own page', () => {
+	let offerSeries: number;
+	let retrySeries: number;
+	let offerA: number;
+	let offerB: number;
+	let retryA: number;
+	let retryB: number;
+	const entryId = (series: number, title: string) =>
+		dbGet<{ id: number }>(
+			`SELECT id FROM entries WHERE series_id = ? AND title = ? ORDER BY id LIMIT 1`,
+			series,
+			title
+		).id;
+
+	async function makeGroup(
+		page: Page,
+		first: string,
+		second: string,
+		name: string
+	): Promise<number> {
+		await reveal(page);
+		await addFromSource(page, first);
+		await addFromSource(page, second);
+		const sheet = await openGroup(page, [`Gallery ${first}`, `Gallery ${second}`]);
+		await sheet.getByRole('textbox', { name: 'Series name' }).fill(name);
+		await sheet.getByRole('button', { name: /CREATE SERIES · 2 BOOKS/ }).click();
+		await expect(page).toHaveURL(/\/series\/\d+\?created=2/);
+		return Number(new URL(page.url()).pathname.split('/').pop());
+	}
+
+	// Both groups through the app's own ADD and GROUP, once, so any case can be
+	// run on its own (and each is falsified on its own).
+	test.beforeAll(async ({ browser }) => {
+		test.setTimeout(180_000);
+		const page = await browser.newPage();
+		try {
+			offerSeries = await makeGroup(page, '301', '302', 'The Offer');
+			retrySeries = await makeGroup(page, '501', '502', 'The Retry');
+			offerA = entryId(offerSeries, 'Gallery 301');
+			offerB = entryId(offerSeries, 'Gallery 302');
+			retryA = entryId(retrySeries, 'Gallery 501');
+			retryB = entryId(retrySeries, 'Gallery 502');
+		} finally {
+			await page.close();
+		}
+	});
+
+	test('a book with no file offers READ ONLINE and DOWNLOAD, its own', async ({ page }) => {
+		await reveal(page);
+		await page.goto(url(`/series/${offerSeries}`));
+		await page.locator('.grid .tile').filter({ hasText: 'Gallery 301' }).click();
+		await expect(page).toHaveURL(new RegExp(`[?&]book=${offerA}`));
+		await expect(page.locator('.book-offer')).toBeVisible();
+		await expect(page.getByRole('link', { name: /READ ONLINE/ })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'DOWNLOAD', exact: true })).toBeVisible();
+		// The panel's group offer is not on this screen: this pair is the book's.
+		await expect(page.locator('.cta')).toHaveCount(0);
+	});
+
+	test('READ ONLINE opens the reader on that book', async ({ page }) => {
+		await reveal(page);
+		await page.goto(url(`/series/${offerSeries}?book=${offerA}`));
+		await page.getByRole('link', { name: /READ ONLINE/ }).click();
+		await expect(page).toHaveURL(new RegExp(`/read/${offerA}(\\?|$)`));
+		await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
+			timeout: 20_000
+		});
+	});
+
+	test('DOWNLOAD queues that book alone, and the offer goes once it has a file', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		await reveal(page);
+		const a = offerA;
+		const b = offerB;
+		await page.goto(url(`/series/${offerSeries}?book=${a}`));
+		const [answer] = await Promise.all([
+			page.waitForResponse(
+				(r) => r.request().method() === 'POST' && r.url().includes('?/download')
+			),
+			page.getByRole('button', { name: 'DOWNLOAD', exact: true }).click()
+		]);
+		const body = (await answer.json()) as {
+			type: string;
+			// devalue's table, a string on the wire, as `$app/forms` decodes it.
+			data?: string;
+		};
+		expect(body.type).toBe('success');
+		const table = JSON.parse(body.data ?? '[]');
+		// The action's `{ downloaded: { queued, missing, already } }` as indices.
+		expect(table[table[table[0].downloaded].queued], 'one book asked for, one queued').toBe(1);
+		expect(table[table[table[0].downloaded].missing]).toBe(0);
+		await expect
+			.poll(
+				() =>
+					dbGet<{ n: number }>(
+						`SELECT COUNT(*) AS n FROM entries WHERE id = ? AND available = 1 AND file != ''`,
+						a
+					).n,
+				{ timeout: 45_000, message: 'the book downloaded and attached' }
+			)
+			.toBe(1);
+		expect(
+			dbGet<{ n: number }>(`SELECT COUNT(*) AS n FROM download_queue WHERE entry_id = ?`, b).n,
+			'the other book was never queued'
+		).toBe(0);
+		// A book that has a file has nothing to offer.
+		await page.reload();
+		await expect(page.locator('.book-offer')).toHaveCount(0);
+		// Its twin still does: the offer is the book's, not the group's.
+		await page.goto(url(`/series/${offerSeries}?book=${b}`));
+		await expect(page.locator('.book-offer')).toBeVisible();
+	});
+
+	test('a queued book offers only READ ONLINE, and a failed one RETRY', async ({ page }) => {
+		test.setTimeout(210_000);
+		await reveal(page);
+		const a = retryA;
+		failing.add('/g/501');
+		await page.goto(url(`/series/${retrySeries}?book=${a}`));
+		await page.getByRole('button', { name: 'DOWNLOAD', exact: true }).click();
+		// Queued: `rowAction` answers null, so DOWNLOAD goes and READ ONLINE stays.
+		await expect(page.getByRole('button', { name: 'DOWNLOAD', exact: true })).toHaveCount(0);
+		await expect(page.getByRole('link', { name: /READ ONLINE/ })).toBeVisible();
+		// The worker's own three tries, then a failure the screen can offer RETRY for.
+		await expect
+			.poll(
+				() =>
+					dbGet<{ state: string }>(`SELECT state FROM download_queue WHERE entry_id = ?`, a)?.state,
+				{ timeout: 150_000, message: 'the worker gave up on the chapter' }
+			)
+			.toBe('failed');
+		await page.reload();
+		await expect(page.getByRole('button', { name: 'RETRY', exact: true })).toBeVisible();
+		// The site answers again: RETRY queues the same chapter, and it lands.
+		failing.delete('/g/501');
+		await page.getByRole('button', { name: 'RETRY', exact: true }).click();
+		await expect
+			.poll(
+				() =>
+					dbGet<{ n: number }>(
+						`SELECT COUNT(*) AS n FROM entries WHERE id = ? AND available = 1 AND file != ''`,
+						a
+					).n,
+				{ timeout: 60_000, message: 'RETRY downloaded the book' }
+			)
+			.toBe(1);
+		await page.reload();
+		await expect(page.locator('.book-offer')).toHaveCount(0);
+	});
+
+	test('offline, the offer needs the workstation and is not drawn', async ({ page }) => {
+		await reveal(page);
+		const b = retryB;
+		await page.goto(url(`/series/${retrySeries}?book=${b}`));
+		await expect(page.locator('.book-offer')).toBeVisible();
+		await page.context().setOffline(true);
+		await expect(page.locator('.book-offer')).toHaveCount(0);
+		await page.context().setOffline(false);
+		await expect(page.locator('.book-offer')).toBeVisible();
+	});
+
+	test('hidden and incognito still draw the offer', async ({ page }) => {
+		await reveal(page);
+		// HIDE from the panel's own FILE row; reveal keeps the screen reachable.
+		await page.goto(url(`/series/${retrySeries}`));
+		await page.locator('.file-row').getByRole('button', { name: 'HIDE', exact: true }).click();
+		await expect
+			.poll(
+				() =>
+					dbGet<{ hidden: number }>(`SELECT hidden FROM series WHERE id = ?`, retrySeries).hidden,
+				{ message: 'the series is hidden' }
+			)
+			.toBe(1);
+		const b = retryB;
+		await page.goto(url(`/series/${retrySeries}?book=${b}`));
+		await expect(page.locator('.book-offer')).toBeVisible();
+		await page.context().addCookies([{ name: 'tsundoku_incognito', value: '1', url: base }]);
+		await page.reload();
+		await expect(page.getByRole('link', { name: /READ ONLINE/ })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'DOWNLOAD', exact: true })).toBeVisible();
+	});
+});

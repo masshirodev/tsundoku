@@ -148,9 +148,14 @@ for.
 
 **On the series screen** a group offers READ (the panel's ▶, online for a book
 with no file) and DOWNLOAD (the panel's FIRST n / ALL n), both per book on the
-server. A tap on a single undownloaded book opens `?book=<id>`, which is still
-the empty page grid: no READ or DOWNLOAD of its own. That screen is the series
-route's, and c885's per-book offer is the patch its handoff note carries.
+server. **One book's own page offers them for that book** (c885): a tap on a
+single undownloaded book opens `?book=<id>`, whose page grid draws ▶ READ
+ONLINE and DOWNLOAD in the house cells above the pages. READ ONLINE is drawn
+when the book has no file and the workstation is reachable; DOWNLOAD when
+`rowAction` would queue it, and RETRY when its download failed, as its row on
+the list does. Both ask `?/download` with that one entry, so each queues one
+book, and the state is the book's own row of `seriesDownloads`, not the
+group's. A folded book keeps the screen it had.
 
 **FOLLOW is a series' idea.** A group of one-offs has no one thing to follow,
 so the row leaves FOLLOW out and `setFollowed` still refuses. A series that
