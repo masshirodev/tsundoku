@@ -16,6 +16,9 @@
 	import { ago } from '$lib/library/tracking';
 	import { isSearchCommand, runSearchCommand } from '$lib/library/commands';
 	import ExtRow from './ExtRow.svelte';
+	import { SvelteSet } from 'svelte/reactivity';
+	import { untrack } from 'svelte';
+	import { registerBack } from '$lib/focus';
 
 	/**
 	 * EXTENSIONS (Index-Extensions; Browse Calls, "Extension states in words,
@@ -116,40 +119,231 @@
 		};
 	};
 	let checking = $state(false);
+
+	// ---- SELECT (card c696; doc/handoffs/extensions-select) ---------------------
+	/**
+	 * The four switches of a source's 01 — IN TSUNDOKU, in their order, named as
+	 * that page names them. SELECT changes every source of a ticked extension,
+	 * so a row here is a package and a mixed cell is counted in extensions.
+	 */
+	const SWITCHES = [
+		{ flag: 'hidden', name: 'HIDDEN' },
+		{ flag: 'addedHidden', name: 'ADDED HIDDEN' },
+		{ flag: 'offHistory', name: 'OFF HISTORY' },
+		{ flag: 'neverTracked', name: 'NEVER TRACKED' }
+	] as const;
+	type SwitchKey = (typeof SWITCHES)[number]['flag'];
+
+	/** Selecting is the URL (`?select=1`), so a reload and a no-script press keep it. */
+	const selecting = $derived(data.select);
+	/**
+	 * What is ticked. The URL carries it when the server answered a no-script
+	 * press (`?pkg=` per row); with script a tap only moves this set, so the
+	 * list is not read again per tick. A package that leaves the list (HIDE
+	 * outside reveal, REMOVE, gone on another device) leaves the selection.
+	 */
+	let selected = new SvelteSet<string>(untrack(() => data.selected));
+	$effect(() => {
+		const drawn = new Set(data.drawn);
+		for (const pkg of [...selected]) if (!drawn.has(pkg)) selected.delete(pkg);
+	});
+
+	function toggleSelection(pkg: string) {
+		if (selected.has(pkg)) selected.delete(pkg);
+		else selected.add(pkg);
+	}
+	function selectAll() {
+		// Every ticked row is drawn: INSTALLED is one page, so reveal decides what it takes.
+		for (const pkg of data.drawn) selected.add(pkg);
+	}
+	const sectionPkgs = (s: { rows: { pkg: string }[]; plugins: { id: string }[] }) => [
+		...s.rows.map((r) => r.pkg),
+		...s.plugins.map((p) => `ln:${p.id}`)
+	];
+	/** TICK n, or UNTICK n once every row of its section is ticked. */
+	function toggleSection(pkgs: string[]) {
+		const all = pkgs.every((p) => selected.has(p));
+		for (const pkg of pkgs) {
+			if (all) selected.delete(pkg);
+			else selected.add(pkg);
+		}
+	}
+	/** The same press as a link, so it works before the page hydrates. */
+	function sectionHref(pkgs: string[]): string {
+		const all = pkgs.every((p) => selected.has(p));
+		return selectHref(
+			all ? [...selected].filter((p) => !pkgs.includes(p)) : [...new Set([...selected, ...pkgs])]
+		);
+	}
+	/** A SELECT address: the state, the ticked rows, then whatever the link adds. */
+	function selectHref(pkgs: readonly string[], extra: Record<string, string | null> = {}): string {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
+		const p = new URLSearchParams({ select: '1' });
+		for (const pkg of pkgs) p.append('pkg', pkg);
+		for (const [k, v] of Object.entries(extra)) {
+			if (v === null) p.delete(k);
+			else p.set(k, v);
+		}
+		return `${base}?${p.toString()}`;
+	}
+	function stopSelecting() {
+		selected.clear();
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- link() builds it from base, the resolved path
+		void goto(link({ select: null, pkg: null, removeSel: null }), {
+			replaceState: true,
+			noScroll: true,
+			keepFocus: true
+		});
+	}
+	// The bar's cells post the form the rows are: one press, every ticked row's
+	// sources. The action name and its own fields travel in the button's
+	// formaction, so one form carries all of them and each works without script.
+	const flagHref = (flag: SwitchKey, on: boolean) =>
+		selectHref([...selected], { '/flags': '', flag, value: on ? 'true' : 'false' });
+	const updateHref = () => selectHref([...selected], { '/updateSome': '' });
+
+	/** A switch's state across the selection: on, off, or MIXED, counted in extensions. */
+	function cellFor(flag: SwitchKey) {
+		const total = selected.size;
+		let on = 0;
+		let off = 0;
+		let part = 0;
+		let known = 0;
+		for (const pkg of selected) {
+			const f = data.packageFlags[pkg];
+			if (!f || f.total === 0) continue;
+			known++;
+			const n = f.on[flag];
+			if (n >= f.total) on++;
+			else if (n === 0) off++;
+			else part++;
+		}
+		const state = known === 0 ? 'off' : on === known ? 'on' : off === known ? 'off' : 'mixed';
+		return { state: state as 'on' | 'off' | 'mixed', total, on, off, part, known };
+	}
+	/** The cell's second line: what the next press does, always (`Main` 03's slip fixed). */
+	function cellNote(c: ReturnType<typeof cellFor>, flag: SwitchKey): string {
+		if (c.known === 0) return 'SOURCES NOT KNOWN';
+		const extra = c.total > c.known ? ` · ${c.total - c.known} NOT KNOWN` : '';
+		if (c.state === 'on')
+			return `${c.known} OF ${c.total} · TAP: ${flag === 'hidden' ? 'SHOW ALL' : 'ALL OFF'}${extra}`;
+		const head =
+			c.state === 'mixed'
+				? `MIXED · ${c.on} OF ${c.total}${c.part ? ` · ${c.part} PART` : ''}`
+				: `0 OF ${c.total}`;
+		return `${head} · TAP: ALL ON${extra}`;
+	}
+	/** A row's read-only line in SELECT: its switches, or its split ones by source. */
+	function switchesOf(pkg: string): string {
+		const f = data.packageFlags[pkg];
+		if (!f || f.total === 0) return "ITS SOURCES AREN'T KNOWN";
+		const parts = SWITCHES
+			// Hidden means hidden: outside reveal a hidden source is not hinted at.
+			.filter((s) => s.flag !== 'hidden' || data.reveal)
+			.map((s) => {
+				const on = f.on[s.flag] ?? 0;
+				if (on === 0) return '';
+				if (on === f.total) return s.name;
+				return `${s.name} ${on} OF ${f.total} SOURCES`;
+			})
+			.filter(Boolean);
+		return parts.length ? parts.join(' · ') : 'NO SWITCHES ON';
+	}
+	const updateCount = $derived([...selected].filter((p) => data.updates.includes(p)).length);
+	const removableCount = $derived([...selected].filter((p) => !data.obsolete.includes(p)).length);
+
+	/** Escape while a tick has the focus: an `input` keeps Escape from the layer, so the form ends SELECT itself. */
+	function selectKey(e: KeyboardEvent) {
+		if (!selecting || e.key !== 'Escape' || data.removingSome) return;
+		e.preventDefault();
+		stopSelecting();
+	}
+
+	// BACK takes SELECT back down before it leaves the screen; with REMOVE's
+	// sheet open the sheet closes first (it is a scope, and this step declines).
+	$effect(() =>
+		registerBack(() => {
+			if (!selecting || data.removingSome) return false;
+			stopSelecting();
+			return true;
+		})
+	);
 </script>
 
 <svelte:head><title>extensions · tsundoku</title></svelte:head>
 
+<!-- Escape from a focused tick: an `input` keeps it from the layer (doc/FOCUS.md). -->
+<svelte:window onkeydown={selectKey} />
+
 <!-- eslint-disable svelte/no-navigation-without-resolve -- every href below is built from resolve(), by base, link() or icon() -->
 
-<div class="screen">
-	<TopBar sticky label="EXTENSIONS">
-		{#snippet middle()}
-			<a class="cell back" href={resolve('/browse')} aria-label="Back to BROWSE">←</a>
-			<span class="cell title"
-				><span class="name">EXTENSIONS</span><span class="sub">BROWSE</span></span
-			>
-			<form
-				method="POST"
-				action="{base}?/check"
-				class="cell check"
-				use:enhance={() => {
-					checking = true;
-					return async ({ update }) => {
-						await update({ reset: false });
-						checking = false;
-					};
-				}}
-			>
-				<span class="top"
-					>{data.checkedAt ? `CHECKED ${ago(data.checkedAt, data.now)}` : 'NEVER CHECKED'}</span
+<div class="screen" class:selecting>
+	{#if selecting}
+		<!-- SELECT's bar (Ext-Bulk Main; tablet and phone boards): ✕, the count, SELECT ALL. -->
+		<TopBar inverse sticky label="Selection">
+			{#snippet left()}
+				<a
+					class="cell x"
+					href={base}
+					aria-label="Stop selecting"
+					data-focus-mark="in"
+					onclick={(e) => {
+						e.preventDefault();
+						stopSelecting();
+					}}>✕<span class="esc">ESC</span></a
 				>
-				<button type="submit" disabled={checking || data.counts.repos === 0}
-					>{checking ? 'CHECKING…' : 'CHECK NOW'}</button
+			{/snippet}
+			{#snippet middle()}
+				<div class="cell count" aria-live="polite">{selected.size} SELECTED</div>
+			{/snippet}
+			{#snippet right()}
+				<button
+					type="button"
+					class="cell all"
+					aria-label="SELECT ALL"
+					data-focus-mark="in"
+					onclick={selectAll}
+					><span class="all-long">SELECT ALL</span><span class="all-short">ALL</span></button
 				>
-			</form>
-		{/snippet}
-	</TopBar>
+			{/snippet}
+		</TopBar>
+	{:else}
+		<TopBar sticky label="EXTENSIONS">
+			{#snippet middle()}
+				<a class="cell back" href={resolve('/browse')} aria-label="Back to BROWSE">←</a>
+				<span class="cell title"
+					><span class="name">EXTENSIONS</span><span class="sub">BROWSE</span></span
+				>
+				<!-- SELECT: INSTALLED's, a cell between the title and CHECK NOW (c696). Not on a TV. -->
+				{#if data.tab === 'installed'}
+					<a
+						class="cell sel"
+						href={link({ select: '1', pkg: null, removeSel: null })}
+						data-focus-mark="in">SELECT</a
+					>
+				{/if}
+				<form
+					method="POST"
+					action="{base}?/check"
+					class="cell check"
+					use:enhance={() => {
+						checking = true;
+						return async ({ update }) => {
+							await update({ reset: false });
+							checking = false;
+						};
+					}}
+				>
+					<span class="top"
+						>{data.checkedAt ? `CHECKED ${ago(data.checkedAt, data.now)}` : 'NEVER CHECKED'}</span
+					>
+					<button type="submit" disabled={checking || data.counts.repos === 0}
+						>{checking ? 'CHECKING…' : 'CHECK NOW'}</button
+					>
+				</form>
+			{/snippet}
+		</TopBar>
+	{/if}
 
 	{#if commandNote}<Band title={commandNote} ondismiss={() => (commandNote = '')} />{/if}
 
@@ -160,14 +354,26 @@
 		<a class="tab" class:on={data.tab === 'installed'} href={base}
 			>INSTALLED <span class="n">{data.counts.installed}</span></a
 		>
-		<a class="tab" class:on={data.tab === 'available'} href="{base}?tab=available"
-			>AVAILABLE <span class="n"
-				>{count(data.availableCounts.manga + data.availableCounts.anime)}</span
-			></a
-		>
-		<a class="tab" class:on={data.tab === 'repos'} href="{base}?tab=repos"
-			>REPOSITORIES <span class="n">{data.counts.repos}</span></a
-		>
+		{#if selecting}
+			<!-- Leaving the tab would drop the selection without a word: dimmed and inert. -->
+			<span class="tab off" aria-disabled="true"
+				>AVAILABLE <span class="n"
+					>{count(data.availableCounts.manga + data.availableCounts.anime)}</span
+				></span
+			>
+			<span class="tab off" aria-disabled="true"
+				>REPOSITORIES <span class="n">{data.counts.repos}</span></span
+			>
+		{:else}
+			<a class="tab" class:on={data.tab === 'available'} href="{base}?tab=available"
+				>AVAILABLE <span class="n"
+					>{count(data.availableCounts.manga + data.availableCounts.anime)}</span
+				></a
+			>
+			<a class="tab" class:on={data.tab === 'repos'} href="{base}?tab=repos"
+				>REPOSITORIES <span class="n">{data.counts.repos}</span></a
+			>
+		{/if}
 	</nav>
 
 	{#if untrustedKeys}
@@ -202,7 +408,11 @@
 
 	{#if data.installed}
 		{@const v = data.installed}
-		{#snippet installedRow(r: (typeof v.current)[number], section: 'hand' | 'updates' | 'current')}
+		{#snippet installedRow(
+			r: (typeof v.current)[number],
+			section: 'hand' | 'updates' | 'current',
+			selectMode: boolean
+		)}
 			{@const res = about(r.pkg)}
 			<!-- The settings' ← comes back to this list, this tab and filter (card c727). -->
 			{@const settings = r.shown[0]
@@ -213,11 +423,16 @@
 				: null}
 			<ExtRow
 				name={r.name}
+				pkg={r.pkg}
 				icon={icon(r.pkg)}
 				hue={hue(r.pkg)}
 				adult={r.adult}
 				hidden={r.mostlyHidden}
 				rule={section === 'hand'}
+				selecting={selectMode}
+				selected={selected.has(r.pkg)}
+				switches={selectMode ? switchesOf(r.pkg) : ''}
+				ontoggle={() => toggleSelection(r.pkg)}
 				state={busy === r.pkg
 					? 'UPDATING'
 					: r.failed
@@ -273,13 +488,22 @@
 		{/snippet}
 
 		{@const pv = data.plugins ?? { needsHand: [], updates: [], current: [] }}
-		{#snippet pluginRow(p: (typeof pv.current)[number], section: 'hand' | 'updates' | 'current')}
+		{#snippet pluginRow(
+			p: (typeof pv.current)[number],
+			section: 'hand' | 'updates' | 'current',
+			selectMode: boolean
+		)}
 			{@const key = `ln:${p.id}`}
 			<ExtRow
 				name={p.name}
+				pkg={key}
 				icon={icon(key)}
 				hue={hue(key)}
 				rule={section === 'hand'}
+				selecting={selectMode}
+				selected={selected.has(key)}
+				switches={selectMode ? switchesOf(key) : ''}
+				ontoggle={() => toggleSelection(key)}
 				state={busy === key
 					? 'UPDATING'
 					: p.failed
@@ -328,38 +552,120 @@
 		]
 			.map((s) => ({ ...s, n: s.rows.length + s.plugins.length }))
 			.filter((s) => s.n > 0)}
-		{#each sections as s, i (s.key)}
-			<div class="label" class:first={i === 0}>
-				<span class="l">{String(i + 1).padStart(2, '0')} — {s.title}</span>
-				<span class="r">
-					<span class="r-t"
-						>{s.n}{s.key === 'updates'
-							? ' · NOTHING UPDATES BY ITSELF'
-							: s.key === 'current'
-								? ' · UP TO DATE'
-								: ''}</span
-					>
-					{#if s.key === 'updates'}
-						<form method="POST" action="{base}?/updateAll" use:enhance={working('*')}>
-							<button class="all" disabled={!!busy}
-								>{busy === '*' ? 'UPDATING…' : `UPDATE ALL ${s.n}`}</button
+		{#snippet list(selectMode: boolean)}
+			{#each sections as s, i (s.key)}
+				{@const pkgs = sectionPkgs(s)}
+				{@const all = pkgs.length > 0 && pkgs.every((p) => selected.has(p))}
+				<div class="label" class:first={i === 0}>
+					<span class="l">{String(i + 1).padStart(2, '0')} — {s.title}</span>
+					<span class="r">
+						<span class="r-t"
+							>{s.n}{s.key === 'updates'
+								? ' · NOTHING UPDATES BY ITSELF'
+								: s.key === 'current'
+									? ' · UP TO DATE'
+									: ''}</span
+						>
+						{#if selectMode}
+							<!-- UPDATE ALL gives way to TICK n (Main 01): the quick way to a section. -->
+							<a
+								class="btn"
+								href={sectionHref(pkgs)}
+								onclick={(e) => {
+									e.preventDefault();
+									toggleSection(pkgs);
+								}}>{all ? 'UNTICK' : 'TICK'} {s.n}</a
 							>
-						</form>
-					{/if}
-				</span>
-			</div>
-			{#if i === 0}
-				<div class="cols" aria-hidden="true">
-					<span class="c0">NAME · SOURCES</span><span class="c1">KIND · LANGUAGE</span><span
-						class="c2">VERSION</span
-					><span class="c3"></span>
+						{:else if s.key === 'updates'}
+							<form method="POST" action="{base}?/updateAll" use:enhance={working('*')}>
+								<button class="all" disabled={!!busy}
+									>{busy === '*' ? 'UPDATING…' : `UPDATE ALL ${s.n}`}</button
+								>
+							</form>
+						{/if}
+					</span>
 				</div>
-			{/if}
-			<div class="rows" class:bt={i > 0}>
-				{#each s.rows as r (r.pkg)}{@render installedRow(r, s.key)}{/each}
-				{#each s.plugins as p (p.id)}{@render pluginRow(p, s.key)}{/each}
-			</div>
-		{/each}
+				{#if i === 0}
+					<div class="cols" aria-hidden="true">
+						<span class="c0">NAME · SOURCES</span><span class="c1">KIND · LANGUAGE</span><span
+							class="c2">VERSION</span
+						><span class="c3">{selectMode ? 'SWITCHES' : ''}</span>
+					</div>
+				{/if}
+				<div class="rows" class:bt={i > 0}>
+					{#each s.rows as r (r.pkg)}{@render installedRow(r, s.key, selectMode)}{/each}
+					{#each s.plugins as p (p.id)}{@render pluginRow(p, s.key, selectMode)}{/each}
+				</div>
+			{/each}
+		{/snippet}
+		{#if selecting}
+			<!-- One form: every ticked row's `pkg`, and each bar cell its own action. -->
+			<form method="POST" action="{base}?/flags" class="selform" use:enhance>
+				{@render list(true)}
+				<div class="bulk" role="toolbar" aria-label="Selection actions">
+					<div class="swr">
+						{#each SWITCHES as sw (sw.flag)}
+							{@const c = cellFor(sw.flag)}
+							{#if sw.flag === 'hidden' && !data.reveal}
+								<!-- Outside reveal HIDE is an action, not a switch: a count would
+								     hint that hidden sources exist, and hidden means hidden. -->
+								<button
+									type="submit"
+									class="swc"
+									formaction={flagHref('hidden', true)}
+									disabled={c.known === 0}
+								>
+									<span class="w"
+										><span class="k">HIDE</span><span class="n">THEY LEAVE THE LIST</span></span
+									>
+								</button>
+							{:else}
+								<button
+									type="submit"
+									class="swc"
+									formaction={flagHref(sw.flag, c.state !== 'on')}
+									role="switch"
+									aria-checked={c.state === 'mixed' ? 'mixed' : c.state === 'on'}
+									disabled={c.known === 0}
+								>
+									<span class="w"
+										><span class="k">{sw.name}</span><span class="n">{cellNote(c, sw.flag)}</span
+										></span
+									>
+									<span class="trk" class:on={c.state === 'on'} class:mix={c.state === 'mixed'}
+										><i></i></span
+									>
+								</button>
+							{/if}
+						{/each}
+						<button
+							type="submit"
+							class="swc go"
+							formaction={updateHref()}
+							disabled={updateCount === 0}
+						>
+							<span class="w"
+								><span class="k">UPDATE {updateCount}</span><span class="n">OF {selected.size}</span
+								></span
+							>
+						</button>
+						{#if removableCount}
+							<a class="swc go solo" href={selectHref([...selected], { removeSel: '1' })}
+								>REMOVE {removableCount}…</a
+							>
+						{:else}
+							<span class="swc go solo dis" aria-disabled="true"
+								><span class="w"
+									><span class="k">REMOVE</span><span class="n">NOTHING MAY GO</span></span
+								></span
+							>
+						{/if}
+					</div>
+				</div>
+			</form>
+		{:else}
+			{@render list(false)}
+		{/if}
 	{/if}
 
 	{#if data.available}
@@ -1099,6 +1405,205 @@
 	}
 	@media (max-width: 599px) {
 		.cols {
+			display: none;
+		}
+	}
+
+	/* ---- SELECT (card c696; doc/handoffs/extensions-select) ------------------ */
+	/* The present tab stays; the other two dim and stop (Main 01). */
+	.tab.off {
+		opacity: 0.4;
+	}
+	.cell.sel {
+		flex-shrink: 0;
+		justify-content: center;
+		padding: 0 18px;
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	/* The inverse bar's cells: ✕, the count, SELECT ALL. */
+	.cell.x,
+	.cell.all,
+	.cell.count {
+		color: var(--text-inverse);
+		text-decoration: none;
+	}
+	.cell.x {
+		justify-content: center;
+		font: 500 16px/1 var(--font-mono);
+	}
+	.esc {
+		margin-left: 10px;
+		font: 400 12px/1 var(--font-mono);
+		color: var(--text-2);
+	}
+	.cell.count {
+		flex: 1;
+		font: 500 17px/1 var(--font-mono);
+	}
+	.cell.all {
+		justify-content: center;
+		padding: 0 var(--pad);
+		border: 0;
+		border-radius: 0;
+		background: none;
+		cursor: pointer;
+	}
+	.all-short {
+		display: none;
+	}
+	/* The rows and the bar are one form; display: contents keeps the screen's
+	   own column of labels, headers and rows exactly as it was. */
+	.selform {
+		display: contents;
+	}
+	/* A section's TICK / UNTICK, on the label's line. */
+	.label .btn {
+		display: flex;
+		align-items: center;
+		height: 36px;
+		margin-bottom: 6px;
+		padding: 0 12px;
+		border: 1px solid var(--line-2);
+		color: var(--text-1);
+		font: 500 13px/1.2 var(--font-mono);
+		letter-spacing: 0.04em;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+	.screen.selecting {
+		padding-bottom: calc(64px + env(safe-area-inset-bottom));
+	}
+	/* The bulk bar: six cells, one row on the tablet and the desktop. */
+	.bulk {
+		position: fixed;
+		left: var(--sheet-left, 0);
+		right: 0;
+		bottom: 0;
+		z-index: 10;
+		background: var(--surface-page);
+		border-top: var(--rule-strong);
+		padding-bottom: env(safe-area-inset-bottom);
+	}
+	.swr {
+		display: grid;
+		grid-template-columns: repeat(6, minmax(0, 1fr));
+	}
+	.swc {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		min-width: 0;
+		height: 64px;
+		padding: 0 16px;
+		border: 0;
+		border-right: var(--hairline);
+		border-bottom: var(--hairline);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		text-align: left;
+		font: inherit;
+		text-decoration: none;
+		cursor: pointer;
+	}
+	.swc .w {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 0;
+	}
+	.swc .k {
+		font: 500 14px/1.2 var(--font-mono);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.swc .n {
+		font: 400 12px/1.2 var(--font-mono);
+		color: var(--text-2);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.swc.go {
+		justify-content: center;
+	}
+	.swc.go .w {
+		align-items: center;
+	}
+	.swc.solo {
+		border-right: 0;
+	}
+	.swc.dis,
+	.swc:disabled {
+		opacity: 0.4;
+		cursor: default;
+	}
+	/* The system's square switch, with the mixed state drawn as its own. */
+	.trk {
+		position: relative;
+		flex-shrink: 0;
+		width: 44px;
+		height: 24px;
+		border: 1px solid var(--line-2);
+	}
+	.trk i {
+		position: absolute;
+		top: 2px;
+		left: 2px;
+		width: 18px;
+		height: 18px;
+		background: var(--text-2);
+	}
+	.trk.on {
+		background: var(--accent);
+		border-color: var(--accent);
+	}
+	.trk.on i {
+		left: 22px;
+		background: var(--on-accent);
+	}
+	.trk.mix {
+		border-color: var(--text-1);
+	}
+	.trk.mix i {
+		left: 12px;
+		background: transparent;
+	}
+	.trk.mix i::after {
+		content: '';
+		position: absolute;
+		left: 3px;
+		right: 3px;
+		top: 8px;
+		height: 2px;
+		background: var(--text-1);
+	}
+	@media (max-width: 599px) {
+		.swr {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+		.swc {
+			padding: 0 12px;
+		}
+		.swc .k {
+			font-size: 12px;
+		}
+		.all-long {
+			display: none;
+		}
+		.all-short {
+			display: inline;
+		}
+		.screen.selecting {
+			padding-bottom: calc(192px + env(safe-area-inset-bottom));
+		}
+	}
+	/* A TV draws no SELECT (Main 01), as the library draws none. */
+	@media (pointer: none) and (min-width: 900px) {
+		.cell.sel {
 			display: none;
 		}
 	}

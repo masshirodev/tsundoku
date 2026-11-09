@@ -354,6 +354,18 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		selected: ticked,
 		drawn: [...drawn],
 		packageFlags: tab === 'installed' ? flagsByPackage() : {},
+		updates: [
+			...installedNow.updates.map((r) => r.pkg),
+			...pluginsNow.updates.map((p) => `ln:${p.id}`)
+		],
+		obsolete: [
+			...[...installedNow.needsHand, ...installedNow.updates, ...installedNow.current]
+				.filter((r) => r.obsolete)
+				.map((r) => r.pkg),
+			...[...pluginsNow.needsHand, ...pluginsNow.updates, ...pluginsNow.current]
+				.filter((p) => p.obsolete)
+				.map((p) => `ln:${p.id}`)
+		],
 		band,
 		updateBand,
 		removeBand,
@@ -462,11 +474,13 @@ export const actions: Actions = {
 	 * source of every ticked extension, in one transaction, with the band and
 	 * its facts. A switch press does not end SELECT.
 	 */
-	flags: async ({ cookies, request }) => {
+	flags: async ({ cookies, request, url }) => {
 		guard();
 		const form = await request.formData();
-		const flag = String(form.get('flag') ?? '');
-		const value = String(form.get('value') ?? '');
+		// Each bar cell carries its own switch and target in the button's formaction,
+		// so one form posts all six (Main 05): the action's URL says which.
+		const flag = String(form.get('flag') ?? url.searchParams.get('flag') ?? '');
+		const value = String(form.get('value') ?? url.searchParams.get('value') ?? '');
 		if (!isSourceFlag(flag)) return fail(400, { message: 'No such switch' });
 		if (value !== 'true' && value !== 'false') return fail(400, { message: 'Not on or off' });
 		// The browse world's hold (tests/browse-setup.ts, c636): off in any build
