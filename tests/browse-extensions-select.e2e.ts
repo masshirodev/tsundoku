@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures';
-import { resetEngine } from './browse-world';
+import { bumpWebtoons, REPO, resetEngine } from './browse-world';
 
 /**
  * EXTENSIONS' SELECT (card c696; doc/BROWSE.md, "Extensions and
@@ -15,9 +15,40 @@ const SHELF = 'ln:shelf';
 const WEBTOONS = 'eu.kanade.tachiyomi.extension.all.webtoons';
 const FLAGS = ['hidden', 'addedHidden', 'offHistory', 'neverTracked'] as const;
 
+/** The fake repository is added for the cases that install something of its own. */
+let repoAdded = false;
+
+/** The repository and anything installed from it, taken back: the world is shared. */
+async function removeFakeRepo(page: import('@playwright/test').Page) {
+	await page.goto('/browse/extensions?tab=repos');
+	const fake = page.locator('.rows .row', { hasText: 'Fake Repo' });
+	if ((await fake.count()) === 0) return;
+	const direct = fake.getByRole('button', { name: 'REMOVE' });
+	if (await direct.count()) {
+		await direct.click();
+		// The action answers on the tab it was posted from; wait for it to land.
+		await expect(page.locator('.rows .row', { hasText: 'Fake Repo' })).toHaveCount(0);
+		return;
+	}
+	// Something is installed from it: take that out first, and its row becomes a form.
+	const origin = new URL(page.url()).origin;
+	await page.request.post(`${origin}/browse/extensions?/remove`, {
+		form: { pkg: WEBTOONS },
+		headers: { origin, accept: 'text/html' },
+		maxRedirects: 0
+	});
+	await page.reload();
+	await page
+		.locator('.rows .row', { hasText: 'Fake Repo' })
+		.getByRole('button', { name: 'REMOVE' })
+		.click();
+	await expect(page.locator('.rows .row', { hasText: 'Fake Repo' })).toHaveCount(0);
+}
+
 test.beforeEach(async ({ page }) => {
 	await resetEngine();
-	await page.goto('/browse/extensions');
+	repoAdded = false;
+	await removeFakeRepo(page);
 });
 
 test.afterEach(async ({ page, baseURL }) => {
@@ -39,6 +70,10 @@ test.afterEach(async ({ page, baseURL }) => {
 		headers: { origin, accept: 'text/html' },
 		maxRedirects: 0
 	});
+	if (repoAdded) {
+		repoAdded = false;
+		await removeFakeRepo(page);
+	}
 });
 
 const row = (page: import('@playwright/test').Page, name: string) =>
@@ -153,4 +188,150 @@ test('the bar counts UPDATE and OBSOLETE apart, and does not offer what it canno
 	await expect(cell(page, 'NEVER TRACKED')).toBeEnabled();
 	await expect(cell(page, 'NEVER TRACKED')).toContainText('TAP: ALL ON');
 	await expect(page.locator('.bulk .swc', { hasText: 'UPDATE' })).toContainText('UPDATE 0');
+});
+
+async function addRepo(page: import('@playwright/test').Page) {
+	await page.goto(`/browse/extensions?tab=repos&add=${encodeURIComponent(REPO('good'))}`);
+	await page.getByRole('button', { name: 'ADD Fake Repo' }).click();
+	// The action's answer lands on the tab that lists it; wait for that URL, or
+	// the next goto races the redirect of the action still in flight.
+	await page.waitForURL(
+		(u) =>
+			u.pathname === '/browse/extensions' &&
+			u.searchParams.get('tab') === 'repos' &&
+			!u.searchParams.has('add'),
+		{ timeout: 15_000 }
+	);
+	await expect(page.locator('.rows .row', { hasText: 'Fake Repo' })).toContainText('2 EXTENSIONS');
+	repoAdded = true;
+}
+/** Installs Webtoons.com from it: the one package these cases may remove. */
+async function installWebtoons(page: import('@playwright/test').Page) {
+	await page.goto('/browse/extensions?tab=available');
+	const install = row(page, 'Webtoons.com').getByRole('button', { name: 'INSTALL' });
+	await install.click();
+	await expect(row(page, 'Webtoons.com')).toContainText('INSTALLED ✓', { timeout: 20_000 });
+}
+
+test('UNDO puts a mixed selection back mixed, and the band marks the rows it could not change', async ({
+	page
+}) => {
+	// One of the two already on: the press sets both, UNDO restores one each.
+	await page.goto('/browse/100/settings');
+	await page.locator('form.own', { hasText: 'Never tracked' }).getByRole('switch').click();
+	await page.goto('/browse/extensions');
+	await page.locator('.cell.sel').click();
+	await row(page, 'Open Source').click();
+	await row(page, 'Shelf Novels').click();
+	await cell(page, 'NEVER TRACKED').click();
+
+	const band = page.locator('.band');
+	await expect(band).toContainText('NEVER TRACKED · ON FOR 2');
+	await expect(band).toContainText('2 SOURCES');
+	await expect(band).toContainText('NOTHING FROM THEM IS SENT TO ANILIST, MAL OR RANOBE');
+	// SELECT stays on, and the cells read back what the press set.
+	await expect(page.locator('.cell.count')).toHaveText('2 SELECTED');
+	await expect(cell(page, 'NEVER TRACKED')).toHaveAttribute('aria-checked', 'true');
+
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	// A source already on stays on; the other goes back off, so MIXED again.
+	await expect(cell(page, 'NEVER TRACKED')).toHaveAttribute('aria-checked', 'mixed');
+	await expect(cell(page, 'NEVER TRACKED')).toContainText('MIXED · 1 OF 2');
+	await expect(page.locator('.cell.count')).toHaveText('2 SELECTED');
+	await page.goto('/browse/ln:shelf/settings');
+	await expect(
+		page.locator('form.own', { hasText: 'Never tracked' }).getByRole('switch')
+	).toHaveAttribute('aria-checked', 'false');
+});
+
+test('a ticked row removed elsewhere is not counted as changed, and leaves the selection', async ({
+	page,
+	baseURL
+}) => {
+	await addRepo(page);
+	await installWebtoons(page);
+	await page.goto('/browse/extensions');
+	await page.locator('.cell.sel').click();
+	await row(page, 'Webtoons.com').click();
+	await row(page, 'Open Source').click();
+	// Another device removes the extension between the tick and the press.
+	await page.request.post(`${new URL(baseURL!).origin}/browse/extensions?/remove`, {
+		form: { pkg: WEBTOONS },
+		headers: { origin: new URL(baseURL!).origin, accept: 'text/html' },
+		maxRedirects: 0
+	});
+	await cell(page, 'ADDED HIDDEN').click();
+	const band = page.locator('.band');
+	await expect(band).toContainText('ADDED HIDDEN · ON FOR 1 OF 2');
+	await expect(band).toContainText('1 NOT CHANGED: NO LONGER INSTALLED');
+	await expect(band).toContainText('IT LEFT THE LIST AND THE SELECTION');
+	await expect(page.locator('.cell.count')).toHaveText('1 SELECTED');
+});
+
+test('HIDE leaves the list outside reveal, and its UNDO brings the row back', async ({ page }) => {
+	await page.goto('/browse/extensions');
+	await page.locator('.cell.sel').click();
+	await row(page, 'Open Source').click();
+	await page.locator('.bulk .swc', { hasText: 'HIDE' }).click();
+	const band = page.locator('.band');
+	await expect(band).toContainText('HIDDEN · 1 EXTENSION');
+	await expect(band).toContainText('THEY LEFT THE LIST AND THE SELECTION · REVEAL SHOWS THEM');
+	await expect(row(page, 'Open Source')).toHaveCount(0);
+	// SELECT stays on at 0, so UNDO stays reachable (Results).
+	await expect(page.locator('.cell.count')).toHaveText('0 SELECTED');
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(row(page, 'Open Source')).toBeVisible();
+	await expect(page.locator('.band')).toHaveCount(0);
+});
+
+test('UPDATE narrows UPDATE ALL to the ticked row, and its UNDO is BACK TO', async ({ page }) => {
+	await addRepo(page);
+	await installWebtoons(page);
+	await bumpWebtoons();
+	await page.goto('/browse/extensions');
+	await page.getByRole('button', { name: 'CHECK NOW' }).click();
+	await expect(page.locator('.label', { hasText: 'UPDATES' })).toContainText('UPDATE ALL 1');
+	await page.locator('.cell.sel').click();
+	await row(page, 'Webtoons.com').click();
+	await page.locator('.bulk .swc', { hasText: 'UPDATE 1' }).click();
+	const band = page.locator('.band');
+	await expect(band).toContainText('UPDATED · 1 EXTENSION');
+	await expect(band).toContainText('UNDO GOES BACK TO THEM');
+	// SELECT ended on success, and the row is the new version.
+	await expect(page.locator('.bulk')).toHaveCount(0);
+	await expect(row(page, 'Webtoons.com')).toContainText('1.6.3');
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(row(page, 'Webtoons.com')).toContainText('1.6.2');
+	await expect(page.locator('.band')).toContainText('BACK TO · 1 EXTENSION');
+});
+
+test('REMOVE asks first for the whole selection, and has no UNDO', async ({ page }) => {
+	await addRepo(page);
+	await installWebtoons(page);
+	await page.goto('/browse/extensions');
+	await page.locator('.cell.sel').click();
+	await row(page, 'Webtoons.com').click();
+	await row(page, 'Open Source').click();
+	// Open Source is OBSOLETE in this world (no repository lists it any more), so
+	// it stays installed and the count is the one that may go (Results).
+	await page.locator('.bulk .swc', { hasText: 'REMOVE 1' }).click();
+	const sheet = page.getByRole('dialog');
+	await expect(sheet).toContainText('REMOVE 1 EXTENSION?');
+	await expect(sheet).toContainText('OF 2 SELECTED · WEBTOONS.COM');
+	await expect(sheet).toContainText('1 STAYS INSTALLED: OBSOLETE');
+	await expect(sheet).toContainText('SETTINGS ARE KEPT FOR A REINSTALL');
+	// CANCEL leaves everything as it was.
+	await sheet.getByRole('button', { name: 'CANCEL' }).click();
+	await expect(page.locator('.cell.count')).toHaveText('2 SELECTED');
+	// One of them only: the sheet's own count follows the selection.
+	await row(page, 'Open Source').click();
+	await expect(page.locator('.cell.count')).toHaveText('1 SELECTED');
+	await page.locator('.bulk .swc', { hasText: 'REMOVE 1' }).click();
+	await expect(page.getByRole('dialog')).toContainText('REMOVE 1 EXTENSION?');
+	await page.getByRole('dialog').getByRole('button', { name: 'REMOVE 1' }).click();
+	const band = page.locator('.band');
+	await expect(band).toContainText('REMOVED · 1 EXTENSION');
+	await expect(band.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
+	await expect(page.locator('.bulk')).toHaveCount(0);
+	await expect(row(page, 'Webtoons.com')).toHaveCount(0);
 });

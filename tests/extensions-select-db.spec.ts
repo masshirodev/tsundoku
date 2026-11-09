@@ -65,7 +65,7 @@ const extensionsPage = await import('../src/routes/browse/extensions/+page.serve
 
 /** Run one of the page's actions with a form, and answer its redirect (or its failure). */
 async function act(
-	name: 'flags' | 'undoFlags',
+	name: 'flags' | 'undoFlags' | 'updateSome' | 'undoUpdate' | 'removeSome',
 	fields: Record<string, string | string[]>,
 	reveal = false
 ): Promise<{ status: number; location?: string; data?: Record<string, unknown> }> {
@@ -264,5 +264,55 @@ describe('SELECT’s press (card c696)', () => {
 		expect(flags.sourceFlags('500').offHistory).toBe(false);
 		expect(flags.sourceFlags('501').offHistory).toBe(false);
 		expect(new URL(r.location!, 'http://localhost').searchParams.get('from')).toBe('500|1,501|0');
+	});
+});
+
+describe('SELECT’s UPDATE and REMOVE (card c696)', () => {
+	it('refuses UPDATE when nothing ticked has one', async () => {
+		const r = await act('updateSome', { pkg: ['en.multi', 'en.none'] });
+		expect(r.status).toBe(409);
+		expect(r.data?.message).toBe('NOTHING TICKED HAS AN UPDATE');
+	});
+
+	it('refuses a bulk BACK TO when the version before is no longer kept', async () => {
+		const r = await act('undoUpdate', { pkg: 'en.multi' });
+		expect(r.status).toBe(409);
+	});
+
+	it('removes the listed extensions and leaves an OBSOLETE one installed, with no undo', async () => {
+		// What a repository lists: en.multi is not obsolete; en.none has no listing.
+		db.prepare(`INSERT INTO engine_listings (repo_id, pkg, listing) VALUES (1, ?, ?)`).run(
+			'en.multi',
+			JSON.stringify({
+				pkg: 'en.multi',
+				name: 'en.multi',
+				kind: 'manga',
+				versionCode: 1,
+				versionName: '1.0',
+				lib: '1.4',
+				adult: false,
+				apkUrl: '',
+				jarUrl: null,
+				iconUrl: null,
+				sources: [{ id: '500', name: 'en.multi', lang: 'en', baseUrl: '' }]
+			})
+		);
+		const r = await act('removeSome', { pkg: ['en.multi', 'en.none'] });
+		expect(r.status).toBe(303);
+		const u = new URL(r.location!, 'http://localhost');
+		expect(u.searchParams.get('band')).toBe('remove');
+		expect(u.searchParams.get('done')).toBe('en.multi');
+		// The obsolete one stays: no repository lists it any more, so it could not
+		// be installed again, and REMOVE has no UNDO to bring it back.
+		expect(u.searchParams.get('stayed')).toBe('en.none');
+		const installed = db.prepare(`SELECT pkg FROM engine_extensions ORDER BY pkg`).all() as {
+			pkg: string;
+		}[];
+		expect(installed.map((x) => x.pkg)).toEqual(['en.none']);
+		// Its settings outlive it, as REMOVE's sheet says (c569): the switch this
+		// file's beforeEach set on source 500 is still there.
+		expect(
+			db.prepare(`SELECT COUNT(*) AS n FROM settings WHERE key LIKE 'source.%:500'`).get()
+		).toEqual({ n: 1 });
 	});
 });

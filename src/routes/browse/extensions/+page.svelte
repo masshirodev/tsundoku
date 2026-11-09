@@ -16,6 +16,7 @@
 	import { ago } from '$lib/library/tracking';
 	import { isSearchCommand, runSearchCommand } from '$lib/library/commands';
 	import ExtRow from './ExtRow.svelte';
+	import SelectBand from './SelectBand.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { untrack } from 'svelte';
 	import { registerBack } from '$lib/focus';
@@ -249,6 +250,16 @@
 			.filter(Boolean);
 		return parts.length ? parts.join(' · ') : 'NO SWITCHES ON';
 	}
+	/** The drawn rows' names, for a band that names a failed update. */
+	const names = $derived.by(() => {
+		const out: Record<string, string> = {};
+		const v = data.installed;
+		const pv = data.plugins;
+		if (v) for (const r of [...v.needsHand, ...v.updates, ...v.current]) out[r.pkg] = r.name;
+		if (pv)
+			for (const p of [...pv.needsHand, ...pv.updates, ...pv.current]) out[`ln:${p.id}`] = p.name;
+		return out;
+	});
 	const updateCount = $derived([...selected].filter((p) => data.updates.includes(p)).length);
 	const removableCount = $derived([...selected].filter((p) => !data.obsolete.includes(p)).length);
 
@@ -376,6 +387,19 @@
 		{/if}
 	</nav>
 
+	<!-- SELECT's band, under the tabs (Results); one at a time, its URL. -->
+	{#if !refusal}
+		<SelectBand
+			{base}
+			flags={data.band}
+			update={data.updateBand}
+			remove={data.removeBand}
+			back={data.backBand}
+			selection={[...selected]}
+			{names}
+		/>
+	{/if}
+
 	{#if untrustedKeys}
 		<!-- Never installed by a tap: the key it was signed with beside the one its repository lists. -->
 		<div class="untrusted" role="alert">
@@ -414,6 +438,13 @@
 			selectMode: boolean
 		)}
 			{@const res = about(r.pkg)}
+			{@const missed = data.band
+				? data.band.gone.includes(r.pkg)
+					? 'gone'
+					: data.band.miss.includes(r.pkg)
+						? 'miss'
+						: null
+				: null}
 			<!-- The settings' ← comes back to this list, this tab and filter (card c727). -->
 			{@const settings = r.shown[0]
 				? keepOrigin(
@@ -428,18 +459,22 @@
 				hue={hue(r.pkg)}
 				adult={r.adult}
 				hidden={r.mostlyHidden}
-				rule={section === 'hand'}
+				rule={section === 'hand' || !!missed}
 				selecting={selectMode}
 				selected={selected.has(r.pkg)}
 				switches={selectMode ? switchesOf(r.pkg) : ''}
 				ontoggle={() => toggleSelection(r.pkg)}
-				state={busy === r.pkg
-					? 'UPDATING'
-					: r.failed
-						? `FAILED TO LOAD · ${r.failed.toUpperCase().slice(0, 40)}`
-						: r.obsolete
-							? 'OBSOLETE'
-							: ''}
+				state={missed
+					? missed === 'gone'
+						? 'NOT CHANGED · NO LONGER INSTALLED'
+						: "NOT CHANGED · FAILED TO LOAD, SO ITS SOURCES AREN'T KNOWN"
+					: busy === r.pkg
+						? 'UPDATING'
+						: r.failed
+							? `FAILED TO LOAD · ${r.failed.toUpperCase().slice(0, 40)}`
+							: r.obsolete
+								? 'OBSOLETE'
+								: ''}
 				sub={r.obsolete && !r.failed
 					? " · GONE FROM ITS REPOSITORY · STILL LOADS, WON'T UPDATE"
 					: [
@@ -494,23 +529,34 @@
 			selectMode: boolean
 		)}
 			{@const key = `ln:${p.id}`}
+			{@const missed = data.band
+				? data.band.gone.includes(key)
+					? 'gone'
+					: data.band.miss.includes(key)
+						? 'miss'
+						: null
+				: null}
 			<ExtRow
 				name={p.name}
 				pkg={key}
 				icon={icon(key)}
 				hue={hue(key)}
-				rule={section === 'hand'}
+				rule={section === 'hand' || !!missed}
 				selecting={selectMode}
 				selected={selected.has(key)}
 				switches={selectMode ? switchesOf(key) : ''}
 				ontoggle={() => toggleSelection(key)}
-				state={busy === key
-					? 'UPDATING'
-					: p.failed
-						? `FAILED TO LOAD · ${p.failed.toUpperCase().slice(0, 40)}`
-						: p.obsolete
-							? 'OBSOLETE'
-							: ''}
+				state={missed
+					? missed === 'gone'
+						? 'NOT CHANGED · NO LONGER INSTALLED'
+						: "NOT CHANGED · FAILED TO LOAD, SO ITS SOURCES AREN'T KNOWN"
+					: busy === key
+						? 'UPDATING'
+						: p.failed
+							? `FAILED TO LOAD · ${p.failed.toUpperCase().slice(0, 40)}`
+							: p.obsolete
+								? 'OBSOLETE'
+								: ''}
 				sub={p.obsolete && !p.failed
 					? " · GONE FROM ITS REPOSITORY · STILL LOADS, WON'T UPDATE"
 					: `${p.failed || busy === key ? ' · ' : ''}1 SOURCE${p.series ? ` · ${hereLine(p.series, p.hidden)}` : ''}`}
@@ -979,6 +1025,28 @@
 		</p>
 	{/if}
 </div>
+
+{#if data.removingSome}
+	{@const r = data.removingSome}
+	{@const n = r.pkgs.length}
+	<ConfirmSheet
+		open
+		title="REMOVE {count(n)} {n === 1 ? 'EXTENSION' : 'EXTENSIONS'}?"
+		lines={[
+			`OF ${count(r.of)} SELECTED · ${r.names.map((x) => x.toUpperCase()).join(' · ')}`,
+			`THE ${count(r.series)} SERIES THAT COME FROM THEM STAY, FILES AND ALL.`,
+			`${count(r.queued)} QUEUED CHAPTERS LEAVE THE QUEUE. · ${count(r.followed)} FOLLOWED SERIES STOP BEING CHECKED.`,
+			'THEIR SETTINGS ARE KEPT FOR A REINSTALL.',
+			r.stayed.length
+				? `${count(r.stayed.length)} STAY${r.stayed.length === 1 ? 'S' : ''} INSTALLED: OBSOLETE · NO REPOSITORY LISTS ${r.stayed.length === 1 ? 'IT' : 'THEM'}, SO ONCE REMOVED ${r.stayed.length === 1 ? 'IT COULD' : 'THEY COULD'} NOT BE INSTALLED AGAIN AND ${r.stayed.length === 1 ? 'ITS' : 'THEIR'} SETTINGS COULD NOT BE REACHED. REMOVE ${r.stayed.length === 1 ? 'IT' : 'THEM'} ONE AT A TIME.`
+				: ''
+		].filter(Boolean)}
+		confirm="REMOVE {count(n)}"
+		action="{base}?/removeSome"
+		fields={{ pkg: r.pkgs }}
+		onclose={() => goto(link({ removeSel: null }), { noScroll: true, replaceState: true })}
+	/>
+{/if}
 
 {#if data.removing}
 	{@const r = data.removing}

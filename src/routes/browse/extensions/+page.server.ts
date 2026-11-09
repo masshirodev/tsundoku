@@ -301,6 +301,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		pkgs: string[];
 		stayed: string[];
 		names: string[];
+		of: number;
 		series: number;
 		queued: number;
 		followed: number;
@@ -340,7 +341,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 			queued += what.queued;
 			followed += what.followed;
 		}
-		removingSome = { pkgs, stayed, names, series, queued, followed };
+		removingSome = { pkgs, stayed, names, of: ticked.length, series, queued, followed };
 	}
 
 	return {
