@@ -1,12 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	arrival,
 	dismissRefused,
 	flushHighlights,
 	onQueueChange,
 	queueHighlight,
+	refusedDetail,
 	refusedHighlights,
+	RETRY_MS,
 	SOURCE_TRIES,
+	SOURCE_WAIT_MS,
 	takeBackHighlight,
 	useQueueStore,
 	waitingHighlights,
@@ -37,8 +40,7 @@ const page = (n: number): NewHighlight => ({
 	url: '/api/highlights/pages',
 	body: { entry: 7, page: n, pageEnd: null, rtl: false },
 	entry: 7,
-	label: `P. ${n + 1}`,
-	series: 'Lamplighter'
+	label: `P. ${n + 1}`
 });
 
 let store: ReturnType<typeof memory>;
@@ -52,6 +54,9 @@ beforeEach(() => {
 	fetchMock.mockReset();
 	vi.stubGlobal('fetch', fetchMock);
 });
+
+// A timer a case left behind is not the next case's.
+afterEach(() => useQueueStore(memory()));
 
 describe('what an answer means', () => {
 	it('every status family, in full', () => {
@@ -163,14 +168,6 @@ describe('the queue', () => {
 		expect((await waitingHighlights()).map((i) => [i.key, i.tries])).toEqual([['7:1:', 1]]);
 	});
 
-	it('its tries run out on the third failure, and it is told', async () => {
-		await queueHighlight(page(1), 10);
-		fetchMock.mockImplementation(async () => answer(502));
-		for (let i = 0; i < SOURCE_TRIES; i++) await flushHighlights();
-		expect(fetchMock).toHaveBeenCalledTimes(SOURCE_TRIES);
-		expect((await refusedHighlights()).map((r) => r.refused)).toEqual(['source']);
-	});
-
 	it('a tab that dies between the POST and the removal sends it again, and that is the whole of the cost', async () => {
 		await queueHighlight(page(1), 10);
 		const remove = store.remove;
@@ -226,5 +223,213 @@ describe('the queue', () => {
 			throw new Error('quota');
 		};
 		expect(await queueHighlight(page(1), 10)).toBe(false);
+	});
+});
+
+describe('pressing a page again', () => {
+	it('a refused page pressed again is a fresh item: one ask, and it goes', async () => {
+		await queueHighlight(page(1), 10);
+		fetchMock.mockImplementationOnce(async () => answer(404));
+		await flushHighlights();
+		expect(await refusedHighlights()).toHaveLength(1);
+
+		expect(await queueHighlight(page(1), 50)).toBe(true);
+		expect(await refusedHighlights()).toEqual([]);
+		expect((await waitingHighlights())[0]).toMatchObject({ at: 50, tries: 0, refused: null });
+
+		fetchMock.mockReset();
+		fetchMock.mockImplementation(async () => answer(201));
+		await flushHighlights();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(store.items.size).toBe(0);
+	});
+
+	it('pressed again while it waits, it is left exactly as it was', async () => {
+		await queueHighlight(page(1), 10);
+		fetchMock.mockImplementationOnce(async () => answer(502));
+		await flushHighlights();
+		const before = (await waitingHighlights())[0];
+		expect(before).toMatchObject({ at: 10, tries: 1 });
+		await queueHighlight(page(1), 99);
+		expect((await waitingHighlights())[0]).toEqual(before);
+	});
+
+	it('a DISMISS left on screen does not take a page pressed again since', async () => {
+		await queueHighlight(page(1), 10);
+		fetchMock.mockImplementationOnce(async () => answer(404));
+		await flushHighlights();
+		await queueHighlight(page(1), 50);
+		await dismissRefused(['7:1:']);
+		expect(await waitingHighlights()).toHaveLength(1);
+	});
+
+	it('the reason never says why a 404 was one, and no item carries a title', async () => {
+		expect(refusedDetail('gone')).not.toMatch(/hidden/i);
+		await queueHighlight(page(1), 10);
+		expect(Object.keys((await waitingHighlights())[0])).not.toContain('series');
+	});
+});
+
+describe('keeping on trying while anything waits', () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
+	});
+	const down = () => fetchMock.mockRejectedValue(new TypeError('network'));
+	const up = () => {
+		fetchMock.mockReset();
+		fetchMock.mockImplementation(async () => answer(201));
+	};
+
+	it('a flush asked for during a pass runs once more after it', async () => {
+		await queueHighlight(page(1), 10);
+		let release: (r: Response) => void = () => {};
+		fetchMock.mockImplementationOnce(() => new Promise((r) => (release = r)));
+		fetchMock.mockImplementation(async () => answer(201));
+		const pass = flushHighlights();
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+		// It reads its list at the start, so only a second pass can find this one.
+		await queueHighlight(page(2), 20);
+		await flushHighlights();
+		release(answer(201));
+		await pass;
+		expect(fetchMock.mock.calls.map((c) => JSON.parse(c[1].body).page)).toEqual([1, 2]);
+	});
+
+	it('with nothing waiting it asks nothing and leaves no timer', async () => {
+		await flushHighlights();
+		await vi.advanceTimersByTimeAsync(RETRY_MS * 4);
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it('tries on a timer while it waits, and the timer ends with the queue', async () => {
+		await queueHighlight(page(1), 10);
+		down();
+		await flushHighlights();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(vi.getTimerCount()).toBe(1);
+		await vi.advanceTimersByTimeAsync(RETRY_MS);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+
+		up();
+		await vi.advanceTimersByTimeAsync(RETRY_MS);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(store.items.size).toBe(0);
+		expect(vi.getTimerCount()).toBe(0);
+		await vi.advanceTimersByTimeAsync(RETRY_MS * 4);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('a press starts the trying by itself, with no flush asked for', async () => {
+		fetchMock.mockImplementation(async () => answer(201));
+		await queueHighlight(page(1), 10);
+		expect(vi.getTimerCount()).toBe(1);
+		await vi.advanceTimersByTimeAsync(RETRY_MS);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(store.items.size).toBe(0);
+	});
+
+	it('a press landing as a pass ends keeps its timer', async () => {
+		fetchMock.mockImplementation(async () => answer(201));
+		const all = store.all;
+		let reads = 0;
+		store.all = async () => {
+			const seen = await all();
+			// The second read is the one that decides whether anything still waits.
+			if (++reads === 2) await queueHighlight(page(1), 10);
+			return seen;
+		};
+		await flushHighlights();
+		expect(store.items.size).toBe(1);
+		expect(vi.getTimerCount()).toBe(1);
+	});
+
+	it('only a refused one left is not worth a timer', async () => {
+		await queueHighlight(page(1), 10);
+		fetchMock.mockImplementation(async () => answer(404));
+		await flushHighlights();
+		expect(await refusedHighlights()).toHaveLength(1);
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it('coming back to the app tries at once, and only while something waits', async () => {
+		const doc = Object.assign(new EventTarget(), { visibilityState: 'hidden' });
+		vi.stubGlobal('document', doc);
+		await queueHighlight(page(1), 10);
+		down();
+		await flushHighlights();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+
+		doc.dispatchEvent(new Event('visibilitychange'));
+		await vi.advanceTimersByTimeAsync(0);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+
+		doc.visibilityState = 'visible';
+		up();
+		doc.dispatchEvent(new Event('visibilitychange'));
+		await vi.advanceTimersByTimeAsync(0);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(store.items.size).toBe(0);
+
+		doc.dispatchEvent(new Event('visibilitychange'));
+		await vi.advanceTimersByTimeAsync(0);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('a device that says it is offline is asked nothing, and goes on waiting', async () => {
+		vi.stubGlobal('navigator', { onLine: false });
+		await queueHighlight(page(1), 10);
+		await vi.advanceTimersByTimeAsync(RETRY_MS * 2);
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(vi.getTimerCount()).toBe(1);
+	});
+
+	it.each([404, 502])("DON'T SEND during its POST: a %i does not bring it back", async (status) => {
+		await queueHighlight(page(1), 10);
+		fetchMock.mockImplementationOnce(async () => {
+			await takeBackHighlight('7:1:');
+			return answer(status);
+		});
+		await flushHighlights();
+		expect(store.items.size).toBe(0);
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it("a source that failed is left alone for a while, not spent on the connection's timer", async () => {
+		await queueHighlight(page(1), 10);
+		fetchMock.mockImplementation(async () => answer(502));
+		await flushHighlights();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		await vi.advanceTimersByTimeAsync(SOURCE_WAIT_MS - RETRY_MS);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		await vi.advanceTimersByTimeAsync(RETRY_MS * 2);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it('its tries run out on the third failure, and it is told', async () => {
+		await queueHighlight(page(1), 10);
+		fetchMock.mockImplementation(async () => answer(502));
+		await flushHighlights();
+		await vi.advanceTimersByTimeAsync(
+			SOURCE_WAIT_MS * (SOURCE_TRIES - 1) + RETRY_MS * SOURCE_TRIES
+		);
+		expect(fetchMock).toHaveBeenCalledTimes(SOURCE_TRIES);
+		expect((await refusedHighlights()).map((r) => r.refused)).toEqual(['source']);
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it('a change says what a pass refused, so a reader tells it once', async () => {
+		await queueHighlight(page(1), 10);
+		const told: string[][] = [];
+		const off = onQueueChange((c) => told.push(c.refused.map((r) => r.key)));
+		fetchMock.mockImplementation(async () => answer(404));
+		await flushHighlights();
+		await queueHighlight(page(2), 20);
+		off();
+		expect(told).toEqual([['7:1:'], []]);
 	});
 });

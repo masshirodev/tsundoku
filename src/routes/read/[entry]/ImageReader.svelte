@@ -1652,17 +1652,8 @@
 		const key = keepKey(entry, page, pageEnd);
 		if (waitingKeys.includes(key)) return showWaiting(key, page, pageEnd);
 		if (!offline.online) {
-			const queued = await queueHighlight({
-				key,
-				url: resolve('/api/highlights/pages'),
-				body: { entry, page, pageEnd, rtl: mode === 'rtl' },
-				entry,
-				label: pageName(page, pageEnd),
-				series: data.series.title
-			});
-			if (queued) showWaiting(key, page, pageEnd);
-			// Storage this browser refused: there is nowhere for it to wait.
-			else
+			// Nowhere it may wait (a hidden series, reveal, storage refused).
+			if (!(await waitOnDevice(key, entry, page, pageEnd)))
 				showHlBand({
 					title: '○ OFFLINE',
 					detail: 'HIGHLIGHT NEEDS THE WORKSTATION',
@@ -1689,8 +1680,12 @@
 			const { highlight } = (await answer.json()) as { highlight: KeptPage };
 			const list = keptOf(entry);
 			if (!list.some((k) => k.id === highlight.id)) setKept(entry, [...list, highlight]);
+			// Refused on arrival earlier and kept now: no reader should say NOT KEPT.
+			void dismissRefused([key]);
 			return;
 		}
+		// No answer at all is the workstation out of reach, whatever the device reports.
+		if (answer === null && (await waitOnDevice(key, entry, page, pageEnd))) return;
 		const p = pageName(page, pageEnd);
 		showHlBand(
 			{
@@ -1714,6 +1709,24 @@
 
 	const pageName = (page: number, pageEnd: number | null) =>
 		pageEnd === null ? `P. ${page + 1}` : `P. ${page + 1}–${pageEnd + 1}`;
+
+	/**
+	 * Waits on the device for the next connection. `false`: it may not, and the
+	 * press keeps its old band. The same rule as the device's other write
+	 * (doc/OFFLINE.md, "Never cached"): a hidden series or reveal leaves nothing.
+	 */
+	async function waitOnDevice(key: string, entry: number, page: number, pageEnd: number | null) {
+		if (data.series.hidden || data.reveal) return false;
+		const queued = await queueHighlight({
+			key,
+			url: resolve('/api/highlights/pages'),
+			body: { entry, page, pageEnd, rtl: mode === 'rtl' },
+			entry,
+			label: pageName(page, pageEnd)
+		});
+		if (queued) showWaiting(key, page, pageEnd);
+		return queued;
+	}
 
 	/** The band while a page waits: what it is, and the one way to take it back. */
 	function showWaiting(key: string, page: number, pageEnd: number | null) {
@@ -1739,7 +1752,7 @@
 			{
 				title:
 					refused.length === 1 ? `${first.label} NOT KEPT` : `${refused.length} PAGES NOT KEPT`,
-				detail: `${first.series.toUpperCase()} · ${refusedDetail(first.refused!)}`,
+				detail: refusedDetail(first.refused!),
 				action: {
 					label: 'DISMISS',
 					run: () => {
@@ -1752,22 +1765,28 @@
 		);
 	}
 
-	async function refreshQueue() {
+	async function refreshWaiting() {
 		waitingKeys = (await waitingHighlights()).map((i) => i.key);
+	}
+	async function tellWhatWasRefused() {
 		const refused = await refusedHighlights();
 		if (refused.length) tellRefused(refused);
 	}
 	// What waits is the device's, not this page's: it is read on opening, and a
 	// send started by the layout (+layout.svelte) tells this reader what it made.
+	// A refusal is told on opening and when a pass refuses something new, not on
+	// every change, or the retry's next tick would take DON'T SEND off the screen.
 	onMount(() => {
-		void refreshQueue();
-		return onQueueChange(({ sent }) => {
+		void refreshWaiting();
+		void tellWhatWasRefused();
+		return onQueueChange(({ sent, refused }) => {
 			for (const { item, answer } of sent) {
 				const made = (answer as { highlight?: KeptPage } | null)?.highlight;
 				const list = keptOf(item.entry);
 				if (made && !list.some((k) => k.id === made.id)) setKept(item.entry, [...list, made]);
 			}
-			void refreshQueue();
+			void refreshWaiting();
+			if (refused.length) void tellWhatWasRefused();
 		});
 	});
 

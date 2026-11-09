@@ -175,15 +175,23 @@ P. 23` (M4).
   wait") waits on the device in IndexedDB, as its entry, page and `pageEnd`; the
   workstation makes the copy when it arrives. The band says `WAITING TO BE SENT
 · P. 5 · AT THE NEXT CONNECTION` with **DON'T SEND**, which takes it back
-  before anything is asked. It goes with no further press, from any screen,
-  when the connection comes back or the app is next opened, and appears in
-  `/highlights` then. Two presses are one, and a resend (a tab that died between
-  the POST and the removal, the same page kept on a second device) is the same
-  one highlight, by the one-per-page rule below. A page refused on arrival (its
-  entry gone, its series hidden since, a source that didn't send it on three
-  tries) comes back as `P. 5 NOT KEPT · <SERIES> · ITS SERIES OR CHAPTER IS GONE`
-  at the next reader opened, with DISMISS. Incognito keeps nothing, online or
-  off.
+  before anything is asked. A press waits like this when the device says it's
+  offline, and when the device says it's online but the POST comes back with
+  no answer (the workstation asleep, the tunnel down). It goes with no further
+  press, from any screen: when the app is next opened, when the connection
+  comes back, every 15 seconds while anything waits, and on return to the app
+  (doc/OFFLINE.md, "Writes that wait"), and appears in `/highlights` the next
+  time that screen loads. Two presses are one, and a resend (a tab that died
+  between the POST and the removal, the same page kept on a second device) is
+  the same one highlight, by the one-per-page rule below. A page refused on
+  arrival (its entry gone, its series hidden since, a source that didn't send
+  it on three tries) comes back as `P. 5 NOT KEPT · ITS SERIES OR CHAPTER IS
+GONE` at the next image reader opened, with DISMISS; several are `2 PAGES NOT
+KEPT`, and no refusal ever names the series, because a 404 can't say which of
+  gone or hidden it was. Pressed again, a refused page is a fresh item. Nothing
+  waits from a hidden series or with reveal on: those presses keep
+  `○ OFFLINE · HIGHLIGHT NEEDS THE WORKSTATION`. Incognito keeps nothing,
+  online or off.
 
 ### The copy, and one per page
 

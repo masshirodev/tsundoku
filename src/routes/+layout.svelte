@@ -40,7 +40,7 @@
 
 	// Highlights kept offline go at the next connection, on any screen and with
 	// no further press (c842; doc/OFFLINE.md): on opening the app, and each time
-	// the connection comes back.
+	// the connection comes back. While anything waits, the call keeps itself going.
 	$effect(() => {
 		if (offline.online) void flushHighlights();
 	});

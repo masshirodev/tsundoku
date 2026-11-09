@@ -91,6 +91,26 @@ const keptPages = (entry: number) =>
 		entry
 	).map((r) => r.page);
 
+/** The workstation's own state changes under the reader: what a HIDE elsewhere leaves. */
+function hide(title: string, v: number) {
+	const db = new Database(dbPath);
+	try {
+		db.prepare('UPDATE series SET hidden = ? WHERE title = ?').run(v, title);
+	} finally {
+		db.close();
+	}
+}
+
+const PAGES = '**/api/highlights/pages';
+/** The app's own command box, as privacy-flow reaches reveal. */
+async function command(page: Page, text: string) {
+	await page.goto('/search');
+	await page.getByRole('searchbox').fill(text);
+	await page.keyboard.press('Enter');
+	await page.waitForURL(/\/$/);
+}
+const onLine = (page: Page) => page.evaluate(() => navigator.onLine);
+
 const banner = (page: Page) => page.getByRole('banner', { name: 'Reader' });
 async function controls(page: Page) {
 	const vp = page.viewportSize()!;
@@ -210,15 +230,7 @@ test('refused on arrival: the next reader says so, and DISMISS forgets it (c842)
 	await readAt(page, entry, 3);
 	await keepOffline(page, context);
 	// The workstation's own refusal: hidden since, so it no longer finds the entry.
-	const hide = (v: number) => {
-		const db = new Database(dbPath);
-		try {
-			db.prepare('UPDATE series SET hidden = ? WHERE title = ?').run(v, 'Dungeon Meshi');
-		} finally {
-			db.close();
-		}
-	};
-	hide(1);
+	hide('Dungeon Meshi', 1);
 	try {
 		await page.goto('about:blank');
 		await context.setOffline(false);
@@ -227,12 +239,15 @@ test('refused on arrival: the next reader says so, and DISMISS forgets it (c842)
 			.poll(async () => (await queued(page)).map((q) => q.refused), { timeout: 15_000 })
 			.toEqual(['gone']);
 		expect(keptPages(entry)).toEqual([]);
+		expect(JSON.stringify(await queued(page))).not.toMatch(/dungeon meshi/i);
 	} finally {
-		hide(0);
+		hide('Dungeon Meshi', 0);
 	}
 	await readAt(page, firstEntry('Chainsaw Man'), 2);
 	await expect(band(page)).toContainText('NOT KEPT');
 	await expect(band(page)).toContainText('GONE');
+	// A 404 is hidden as well as gone, and this reader is another series'.
+	await expect(band(page)).not.toContainText(/dungeon meshi/i);
 	await band(page).getByRole('button', { name: 'DISMISS' }).click();
 	await expect.poll(() => queued(page)).toEqual([]);
 	await page.reload();
@@ -251,4 +266,215 @@ test('incognito keeps nothing, online or off (c842)', async ({ page, context }) 
 	expect(await queued(page)).toEqual([]);
 	await context.setOffline(false);
 	expect(keptPages(entry)).toEqual([]);
+});
+
+test('a hidden series or reveal keeps nothing on the device, where a public page does (c842)', async ({
+	page,
+	context
+}) => {
+	// The other half first: the same press, public and with reveal off, writes a row.
+	await readAt(page, firstEntry('Chainsaw Man'), 14);
+	await keepOffline(page, context);
+	expect(await queued(page)).toHaveLength(1);
+	await band(page).getByRole('button', { name: "DON'T SEND" }).click();
+	await expect.poll(() => queued(page)).toEqual([]);
+	await context.setOffline(false);
+
+	hide('Dungeon Meshi', 1);
+	try {
+		await command(page, '/reveal');
+		await readAt(page, firstEntry('Dungeon Meshi'), 5);
+		await context.setOffline(true);
+		await expect(cell(page)).toHaveText('○ HIGHLIGHT');
+		await cell(page).click();
+		await expect(band(page)).toContainText('HIGHLIGHT NEEDS THE WORKSTATION');
+		expect(await queued(page)).toEqual([]);
+		await context.setOffline(false);
+
+		// The other door to the queue: online, and the POST comes back with nothing.
+		await expect(cell(page)).toHaveText('HIGHLIGHT');
+		await page.route(PAGES, (r) => r.abort('connectionrefused'));
+		await cell(page).click();
+		await expect(band(page)).toContainText('THE WORKSTATION DID NOT ANSWER');
+		expect(await queued(page)).toEqual([]);
+		await page.unroute(PAGES);
+
+		// Reveal on and a public series: what the device keeps is reveal's rule too.
+		await readAt(page, firstEntry('Chainsaw Man'), 16);
+		await context.setOffline(true);
+		await expect(cell(page)).toHaveText('○ HIGHLIGHT');
+		await cell(page).click();
+		await expect(band(page)).toContainText('HIGHLIGHT NEEDS THE WORKSTATION');
+		expect(await queued(page)).toEqual([]);
+	} finally {
+		await context.setOffline(false);
+		hide('Dungeon Meshi', 0);
+	}
+});
+
+test('several refused: the band counts them and names no series (c842)', async ({ page }) => {
+	const entry = firstEntry('Yofukashi no Uta');
+	let answer = 0;
+	await page.route(PAGES, (r) =>
+		answer ? r.fulfill({ status: answer, json: { error: 'not found' } }) : r.abort('failed')
+	);
+	await readAt(page, entry, 3);
+	await cell(page).click();
+	await expect(band(page)).toContainText('WAITING TO BE SENT');
+	await readAt(page, entry, 7);
+	await cell(page).click();
+	await expect(band(page)).toContainText('WAITING TO BE SENT');
+	answer = 404;
+	await page.goto('/');
+	await expect
+		.poll(async () => (await queued(page)).map((q) => q.refused), { timeout: 40_000 })
+		.toEqual(['gone', 'gone']);
+	await readAt(page, firstEntry('Chainsaw Man'), 4);
+	await expect(band(page)).toContainText('2 PAGES NOT KEPT');
+	await expect(band(page)).not.toContainText(/yofukashi/i);
+});
+
+test('the workstation does not answer and the device says online: it waits, and goes by itself (c842)', async ({
+	page
+}) => {
+	const entry = firstEntry('Chainsaw Man');
+	await readAt(page, entry, 12);
+	expect(await onLine(page)).toBe(true);
+	await page.route(PAGES, (r) => r.abort('connectionrefused'));
+	await cell(page).click();
+	await expect(band(page)).toContainText('WAITING TO BE SENT');
+	await expect.poll(() => queued(page)).toHaveLength(1);
+	expect(keptPages(entry)).not.toContain(11);
+
+	// A press with the retry running is the one item, as it was.
+	const [before] = await queued(page);
+	await expect(cell(page)).toHaveText('KEEPING…');
+	await cell(page).click();
+	await expect(band(page)).toContainText('WAITING TO BE SENT');
+	expect(await queued(page)).toEqual([before]);
+
+	await page.unroute(PAGES);
+	expect(await onLine(page)).toBe(true);
+	await expect.poll(() => keptPages(entry), { timeout: 40_000 }).toContain(11);
+	await expect(cell(page)).toHaveText('✓ HIGHLIGHTED', { timeout: 10_000 });
+	await expect.poll(() => queued(page)).toEqual([]);
+});
+
+test('a connection back that still cannot reach it: the item goes when it can (c842)', async ({
+	page,
+	context
+}) => {
+	const entry = firstEntry('Chainsaw Man');
+	await readAt(page, entry, 18);
+	await keepOffline(page, context);
+	let asked = 0;
+	await page.route(PAGES, (r) => {
+		asked++;
+		return r.abort('connectionrefused');
+	});
+	await context.setOffline(false);
+	await expect.poll(() => asked, { timeout: 40_000 }).toBeGreaterThan(0);
+	expect(await queued(page)).toHaveLength(1);
+	expect(keptPages(entry)).not.toContain(17);
+	await page.unroute(PAGES);
+	await expect.poll(() => keptPages(entry), { timeout: 40_000 }).toContain(17);
+	await expect.poll(() => queued(page)).toEqual([]);
+});
+
+test('a reload while the workstation is away: the row stays and the trying starts again (c842)', async ({
+	page
+}) => {
+	const entry = firstEntry('Chainsaw Man');
+	await readAt(page, entry, 20);
+	await page.route(PAGES, (r) => r.abort('connectionrefused'));
+	await cell(page).click();
+	await expect(band(page)).toContainText('WAITING TO BE SENT');
+	await page.reload();
+	await readerReady(page);
+	expect(await queued(page)).toHaveLength(1);
+	await page.unroute(PAGES);
+	await expect.poll(() => keptPages(entry), { timeout: 40_000 }).toContain(19);
+	await expect.poll(() => queued(page)).toEqual([]);
+});
+
+test('two tabs trying at once leave one highlight (c842)', async ({ page, context }) => {
+	const entry = firstEntry('Hikaru ga Shinda Natsu');
+	let asked = 0;
+	await context.route(PAGES, (r) => {
+		asked++;
+		return r.abort('connectionrefused');
+	});
+	await readAt(page, entry, 4);
+	await cell(page).click();
+	await expect(band(page)).toContainText('WAITING TO BE SENT');
+	const other = await context.newPage();
+	await other.goto('/');
+	// The press was the first ask, so this is the second tab's own: both are trying now.
+	await expect.poll(() => asked, { timeout: 40_000 }).toBeGreaterThan(1);
+	await context.unroute(PAGES);
+	await expect.poll(() => keptPages(entry), { timeout: 40_000 }).toEqual([3]);
+	await expect.poll(() => queued(page)).toEqual([]);
+	expect(keptPages(entry)).toEqual([3]);
+	await other.close();
+});
+
+test("DON'T SEND with the retry running: it stops asking, and nothing is kept (c842)", async ({
+	page
+}) => {
+	const entry = firstEntry('Hikaru ga Shinda Natsu');
+	await readAt(page, entry, 16);
+	const asks = countAsks(page);
+	await page.route(PAGES, (r) => r.abort('connectionrefused'));
+	await cell(page).click();
+	await expect(band(page)).toContainText('WAITING TO BE SENT');
+	// More than the press itself: the timer is what is being stopped.
+	await expect.poll(() => asks.length, { timeout: 40_000 }).toBeGreaterThan(1);
+	await expect(cell(page)).toHaveText('KEEPING…');
+	await cell(page).click();
+	await band(page).getByRole('button', { name: "DON'T SEND" }).click();
+	await expect.poll(() => queued(page)).toEqual([]);
+	await page.unroute(PAGES);
+	const after = asks.length;
+	// A full turn of the timer, connected: asking now would keep the page.
+	await page.waitForTimeout(16_000);
+	expect(asks).toHaveLength(after);
+	expect(keptPages(entry)).not.toContain(15);
+});
+
+test('incognito on at the retry: nothing is kept, it stays, and it goes when incognito ends (c842)', async ({
+	page,
+	context
+}) => {
+	const entry = firstEntry('Hikaru ga Shinda Natsu');
+	await page.route(PAGES, (r) => r.abort('connectionrefused'));
+	await readAt(page, entry, 8);
+	await cell(page).click();
+	await expect(band(page)).toContainText('WAITING TO BE SENT');
+	await context.addCookies([{ name: 'tsundoku_incognito', value: '1', url: base }]);
+	const refused = page.waitForResponse((r) => r.url().endsWith('/api/highlights/pages'), {
+		timeout: 40_000
+	});
+	await page.unroute(PAGES);
+	// The retry ran, and incognito answered it: the assertion below is not about nothing.
+	expect((await refused).status()).toBe(403);
+	expect(keptPages(entry)).not.toContain(7);
+	expect(await queued(page)).toHaveLength(1);
+	await context.clearCookies({ name: 'tsundoku_incognito' });
+	await expect.poll(() => keptPages(entry), { timeout: 40_000 }).toContain(7);
+});
+
+test('a page now kept online is not told as refused any more (c842)', async ({ page, context }) => {
+	const entry = firstEntry('Hikaru ga Shinda Natsu');
+	await readAt(page, entry, 12);
+	await page.route(PAGES, (r) => r.fulfill({ status: 404, json: { error: 'not found' } }));
+	await keepOffline(page, context);
+	await context.setOffline(false);
+	await expect
+		.poll(async () => (await queued(page)).map((q) => q.refused), { timeout: 40_000 })
+		.toEqual(['gone']);
+	await page.unroute(PAGES);
+	await expect(cell(page)).toHaveText('HIGHLIGHT');
+	await cell(page).click();
+	await expect.poll(() => keptPages(entry)).toContain(11);
+	await expect.poll(() => queued(page)).toEqual([]);
 });
