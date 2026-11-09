@@ -66,6 +66,14 @@
 	const dismiss = () => clearBandUrl(PARAMS);
 	// `encodeFacts`' shape (select.server.ts), said here so the client need not
 	// import the server module; `|` is in neither kind of source id.
+	/** UNDO's action, with the selection, so a no-script refusal lands still selecting. */
+	const undoAction = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
+		const p = new URLSearchParams({ select: '1' });
+		for (const pkg of selection) p.append('pkg', pkg);
+		p.set('/undoFlags', '');
+		return `${base}?${p}`;
+	});
 	const factsUrl = $derived(
 		(flags?.facts ?? []).map((f) => `${f.sourceId}|${f.previous ? 1 : 0}`).join(',')
 	);
@@ -151,7 +159,7 @@
 	<Band title={flagsTitle} detail={flagsDetail} ondismiss={dismiss}>
 		{#snippet action()}
 			{#if flags.facts.length}
-				<form method="POST" action="{base}?/undoFlags">
+				<form method="POST" action={undoAction}>
 					<input type="hidden" name="flag" value={flags.flag} />
 					<input type="hidden" name="to" value={flags.to ? '1' : '0'} />
 					<input type="hidden" name="from" value={factsUrl} />
