@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Cover from './Cover.svelte';
 	import ProgressBar from './ProgressBar.svelte';
+	import { longpress } from '$lib/actions/longpress';
 	import { percent } from '$lib/library/labels';
 
 	/**
@@ -19,6 +20,10 @@
 	 * there is no button inside a link. `href` is null where the band has
 	 * nowhere honest to go: the page decides that (SELECT, an offline row whose
 	 * screen this device never kept; doc/LIBRARY.md, "The CONTINUE row").
+	 *
+	 * A held press anywhere on the row, the band and ▶ alike, is `onlongpress`
+	 * (c860): a held OK, a long press and a right click, and the press that fired
+	 * it neither follows the band nor resumes.
 	 */
 	let {
 		title,
@@ -31,6 +36,7 @@
 		href = null,
 		onopen,
 		onresume,
+		onlongpress,
 		focusId,
 		linkFocusId,
 		focusDown,
@@ -60,6 +66,8 @@
 		/** Called as the band's link is followed, so the next screen can draw what this one knew. */
 		onopen?: () => void;
 		onresume?: () => void;
+		/** The entry's options, as a grid tile's hold opens them. Absent, a hold is a plain press. */
+		onlongpress?: () => void;
 		/** Where focus comes back to after a trip away (doc/FOCUS.md): the ▶ cell. */
 		focusId?: string;
 		/** The same for the band: its own stop, so a trip to the series returns to it. */
@@ -80,9 +88,30 @@
 		e.preventDefault();
 		onresume();
 	}
+
+	/**
+	 * `longpress` takes the `contextmenu` whether or not it has anything to open,
+	 * and to the remote's layer a taken `contextmenu` means "this had options"
+	 * (doc/FOCUS.md, "OK held"), so a row with nothing to offer would turn a held
+	 * OK into a dead press. Such a row carries no action at all.
+	 */
+	function holdable(node: HTMLElement, onlong: (() => void) | undefined) {
+		let held = onlong ? longpress(node, onlong) : undefined;
+		return {
+			update(next: (() => void) | undefined) {
+				if (next && held) held.update?.(next);
+				else if (next) held = longpress(node, next);
+				else {
+					held?.destroy?.();
+					held = undefined;
+				}
+			},
+			destroy: () => held?.destroy?.()
+		};
+	}
 </script>
 
-<div class="row" class:unavailable class:work>
+<div class="row" class:unavailable class:work use:holdable={onlongpress}>
 	<!-- Both handlers exist only on the <a>; the <div> takes no input at all. -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<svelte:element
@@ -142,6 +171,12 @@
 		border-bottom: var(--hairline);
 		border-right: 1px solid transparent;
 		min-width: 0;
+		/* The hold is the row's, and iOS sends no `contextmenu` for `longpress` to
+		   cancel (doc/TOUCH.md): without these a held band draws the link's callout
+		   or starts a selection over the sheet, as a tile's rules say (CoverTile). */
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-touch-callout: none;
 	}
 	.unavailable {
 		opacity: 0.4;
@@ -254,8 +289,9 @@
 		color: var(--on-accent);
 		border-color: var(--accent);
 	}
+	/* Through to the row, so a held press on a dash is still the row's hold. */
 	.go:disabled {
-		cursor: default;
+		pointer-events: none;
 	}
 	.tri {
 		width: 14px;

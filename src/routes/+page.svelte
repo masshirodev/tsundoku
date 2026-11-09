@@ -348,30 +348,68 @@
 	);
 	let shownKey = '';
 
+	/**
+	 * How long a page may take before it counts as lost, ending in RETRY (c858).
+	 * Without one, a request that never answers leaves the loading flag on and
+	 * every later ask is refused until a reload: a silent stall. 30 s against a
+	 * measured 6,800-series library (doc/LIBRARY.md, "Pages").
+	 */
+	const PAGE_WAIT_MS = 30_000;
+
+	/**
+	 * A timer and a controller, not `AbortSignal.timeout`: that is Chrome 103
+	 * and an old TV box's WebView may not have it, and a throw here would read
+	 * as every page failing. The controller goes back to Chrome 66.
+	 */
 	async function fetchPage(offset: number, limit: number): Promise<LibraryCard[] | null> {
+		const asking = new AbortController();
+		const timer = setTimeout(() => asking.abort(), PAGE_WAIT_MS);
 		try {
 			const res = await fetch(
-				`/api/library?${pageQuery({ shelf: data.shelf, tag: data.tag, filters: data.filters, sort: data.sort, dir: dirParam, seed: data.seed, offset, limit })}`
+				`/api/library?${pageQuery({ shelf: data.shelf, tag: data.tag, filters: data.filters, sort: data.sort, dir: dirParam, seed: data.seed, offset, limit })}`,
+				{ signal: asking.signal }
 			);
 			if (!res.ok) return null;
 			return ((await res.json()) as { series: LibraryCard[] }).series;
 		} catch {
 			return null;
+		} finally {
+			clearTimeout(timer);
 		}
 	}
+
+	/**
+	 * Positions the shelf has handed back that drew nothing new, the ones a page
+	 * repeated because the shelf moved under it. The next page's offset is the
+	 * tiles drawn plus these, so a page of nothing but repeats moves on instead
+	 * of asking for itself for ever (c858).
+	 */
+	let skipped = 0;
+	/**
+	 * Re-reads of the loaded pages queued or out. A check that fires during one
+	 * asks for nothing, because the re-read's own settle will look; a check on
+	 * every frame would otherwise add requests to a HIDE's or an UNDO's one read
+	 * of each page (wave 28's and c660's counts). The observer reporting a real
+	 * change still asks, as it always has (c615, r3 has a case on it).
+	 */
+	let rereads = 0;
+	/** Whether a check may ask, or look again: never while something is out or failed. */
+	const mayCheck = () => !loadingMore && !moreFailed && rereads === 0;
 
 	async function loadMore() {
 		if (loadingMore || !hasMore || isOffline) return;
 		loadingMore = true;
 		moreFailed = false;
 		const gen = generation;
-		const next = await fetchPage(series.length, data.pageSize);
+		const next = await fetchPage(series.length + skipped, data.pageSize);
 		if (gen === generation) {
 			if (next) {
 				// Pages are by position, and the shelf can move under them (a series
 				// hidden or grouped since): one already shown is not shown twice.
 				const have = new Set(series.map((c) => c.id));
-				more = [...more, ...next.filter((c) => !have.has(c.id))];
+				const fresh = next.filter((c) => !have.has(c.id));
+				more = [...more, ...fresh];
+				skipped += next.length - fresh.length;
 				if (next.length < data.pageSize) ended = true;
 			} else moreFailed = true;
 		}
@@ -379,16 +417,27 @@
 		void keepGoing();
 	}
 
+	/** Whether the end of the grid is in the next stretch to scroll through. */
+	const endInReach = (node: HTMLElement) =>
+		node.getBoundingClientRect().top < innerHeight + runway();
+
 	/**
-	 * The observer only speaks when the end comes near. Whenever the list
-	 * settles -- a page in, a refresh, a page dropped because the list changed
-	 * under it -- the end may still be near without having moved, so ask again
-	 * rather than leave the grid stalled.
+	 * The observer only speaks when the end comes near, and only on a change:
+	 * it compares each sample with its last, so a reader who reaches the bottom
+	 * before a sample sees the row leave leaves it nothing to say (c858). So
+	 * whenever the list settles -- a page in, a refresh, a page dropped because
+	 * the list changed under it -- measure, and otherwise have the observer look
+	 * afresh: `observe` after `unobserve` always delivers a first callback
+	 * with the true state.
 	 */
 	async function keepGoing() {
 		await tick();
-		if (loadingMore || moreFailed || !endNode) return;
-		if (endNode.getBoundingClientRect().top < innerHeight * 2.5) void loadMore();
+		if (!mayCheck() || !endNode) return;
+		if (endInReach(endNode)) void loadMore();
+		else if (endObserver) {
+			endObserver.unobserve(endNode);
+			endObserver.observe(endNode);
+		}
 	}
 
 	/**
@@ -413,26 +462,34 @@
 		if (more.length === 0) return refilling;
 		if (!force && refilledFor === first) return refilling;
 		refilledFor = first;
+		rereads += 1;
 		refilling = refilling.then(async () => {
-			// The list may have gone under it while it waited.
-			if (more.length === 0) return;
-			// The bump and the release go together, as the effect's own refill
-			// did before it was queued (base :355-356): the bump drops a page
-			// request already out, and one this refill's `keepGoing` starts must
-			// not be left holding the flag with its answer dropped (c615, r3).
-			const gen = ++generation;
-			loadingMore = false;
-			const offset = data.series.length;
-			const limit = more.length;
-			const pageAgain = await fetchPage(offset, limit);
-			if (gen !== generation) return;
-			const have = new Set(data.series.map((c) => c.id));
-			// Nothing came back: keep the pages already drawn. Emptying them
-			// would fold a deep grid to its first page on a blip, and a write
-			// that failed to reload would read its band off a tile now gone.
-			if (pageAgain) more = pageAgain.filter((c) => !have.has(c.id));
-			ended = false;
-			void keepGoing();
+			try {
+				// The list may have gone under it while it waited.
+				if (more.length === 0) return;
+				// The bump and the release go together, as the effect's own refill
+				// did before it was queued (base :355-356): the bump drops a page
+				// request already out, and one this refill's `keepGoing` starts must
+				// not be left holding the flag with its answer dropped (c615, r3).
+				const gen = ++generation;
+				loadingMore = false;
+				const offset = data.series.length;
+				const limit = more.length;
+				const pageAgain = await fetchPage(offset, limit);
+				if (gen !== generation) return;
+				const have = new Set(data.series.map((c) => c.id));
+				// Nothing came back: keep the pages already drawn. Emptying them
+				// would fold a deep grid to its first page on a blip, and a write
+				// that failed to reload would read its band off a tile now gone.
+				if (pageAgain) {
+					more = pageAgain.filter((c) => !have.has(c.id));
+					skipped = 0;
+				}
+				ended = false;
+			} finally {
+				rereads -= 1;
+				void keepGoing();
+			}
 		});
 		return refilling;
 	}
@@ -469,11 +526,13 @@
 				generation += 1;
 				refilledFor = null;
 				more = [];
+				skipped = 0;
 				void keepGoing();
 				return;
 			}
 			if (more.length === 0) {
 				generation += 1;
+				skipped = 0;
 				return void keepGoing();
 			}
 			void refillPages();
@@ -536,34 +595,75 @@
 				settleScroll(v.y);
 				return;
 			}
+			// The bump drops a page already out, so the flag goes with it, as the
+			// refill's does: a dropped answer never clears it (c615, r3; c858).
 			generation += 1;
+			loadingMore = false;
 			shownKey = v.key;
+			skipped = 0;
 			const have = new Set(data.series.map((c) => c.id));
 			more = v.more.filter((c) => !have.has(c.id));
 			await tick();
 			settleScroll(v.y);
 			// What they say now: a rating may have changed on the series screen.
 			const gen = generation;
-			const again = await fetchPage(data.series.length, v.more.length);
-			if (again && gen === generation) more = again.filter((c) => !have.has(c.id));
+			rereads += 1;
+			try {
+				const again = await fetchPage(data.series.length, v.more.length);
+				if (again && gen === generation) more = again.filter((c) => !have.has(c.id));
+			} finally {
+				rereads -= 1;
+				void keepGoing();
+			}
 		}
 	};
 
+	/**
+	 * How far ahead of the viewport a page is asked for: one and a half screens,
+	 * and on a TV 3,600 px, because a TV's 540 px screen makes that four rows,
+	 * gone in a fifth of a second under a held ↓ (doc/LIBRARY.md, "Pages", has
+	 * the measurement). Only a TV holds a key down through the grid.
+	 */
+	const TV_RUNWAY_PX = 3600;
+	const runway = () => (tvScreen.current ? TV_RUNWAY_PX : innerHeight * 1.5);
+
 	/** Asks for the next page while the end of the grid is still a screen or two away. */
 	let endNode: HTMLElement | null = null;
+	let endObserver: IntersectionObserver | null = null;
 	function nearEnd(node: HTMLElement) {
 		endNode = node;
 		const io = new IntersectionObserver(
 			(seen) => {
 				if (seen.some((e) => e.isIntersecting)) void loadMore();
 			},
-			{ rootMargin: '0px 0px 150% 0px' }
+			// A percentage off a TV, so it follows a turned screen as `runway()` does.
+			{ rootMargin: tvScreen.current ? `0px 0px ${TV_RUNWAY_PX}px 0px` : '0px 0px 150% 0px' }
 		);
+		endObserver = io;
 		io.observe(node);
+		/*
+		 * The observer's samples are the frames the page gets, and a big page or a
+		 * held ↓ takes those away, so the same measure runs on `scroll` too, once a
+		 * frame at most, whatever door brought the end near (`mayCheck`).
+		 */
+		let frame = 0;
+		const onScroll = () => {
+			if (frame) return;
+			frame = requestAnimationFrame(() => {
+				frame = 0;
+				if (mayCheck() && endNode && endInReach(endNode)) void loadMore();
+			});
+		};
+		addEventListener('scroll', onScroll, { passive: true });
 		return {
 			destroy: () => {
 				io.disconnect();
-				if (endNode === node) endNode = null;
+				removeEventListener('scroll', onScroll);
+				if (frame) cancelAnimationFrame(frame);
+				if (endNode === node) {
+					endNode = null;
+					endObserver = null;
+				}
 			}
 		};
 	}
@@ -2194,6 +2294,7 @@
 								? // eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves
 									() => goto(readHref(item.resumeId!))
 								: undefined}
+							onlongpress={item.work || selecting ? undefined : () => (sheetId = item.id)}
 						/>
 					{/each}
 				</div>
@@ -2987,13 +3088,19 @@
 	}
 	/* S1: the wordmark's cell, then ON <NAME> (TV-Servers.dc.html, `bar`). The
 	   left cell draws the rule after it; this draws the one between it and the
-	   wordmark. The name clips at 180 px, the cell at 200. Only the TV app
-	   draws it, so it carries the TV's control type at every size. */
+	   wordmark. The cell stops at 200 px and the padding is the design's 22 px
+	   (its tv.css `.cell`), not `.cell-btn`'s --pad: a TV's --pad is 48, which
+	   left a name 72 px and cut ARCHLINUX after four letters (c862). At 22 the
+	   name has 124 px, eleven characters in the TV's type, and a longer one ends
+	   in an ellipsis; the 180 px on the name is the design's, and never the
+	   limit that binds. Only the TV app draws it, so it carries the TV's control
+	   type at every size. */
 	.server-cell {
 		display: flex;
 		align-items: center;
 		gap: 10px;
 		max-width: 200px;
+		padding: 0 22px;
 		border-left: var(--hairline);
 		letter-spacing: 0.02em;
 	}

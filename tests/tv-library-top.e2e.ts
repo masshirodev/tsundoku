@@ -553,3 +553,158 @@ test('each stop draws the ring inside the card, and ▶ is a visible cell (c841)
 	await expect(band).toBeFocused();
 	expect(await band.evaluate(ring)).toContain('inset');
 });
+
+/**
+ * The bar's ON <NAME> cell at the TV's 960 px, in the TV's own type (c862). The
+ * APK's bridge, stood up as `tests/tv-servers.e2e.ts` does, with this page's
+ * own origin as the server in use, as `inUseOf` finds it. ARCHLINUX is the
+ * owner's computer, and 20 characters the longest case the card names.
+ */
+test.describe('the bar names the server in use (c862)', () => {
+	const cell = (page: Page) => page.locator('[data-focus-id="library-server"]');
+
+	async function onServer(page: Page, name: string) {
+		await page.addInitScript((shown) => {
+			const list = [
+				{ origin: location.origin, name: shown, tvName: '', opened: 2, shown, inUse: true },
+				{
+					origin: 'http://192.168.1.61:42143',
+					name: 'STUDIO',
+					tvName: '',
+					opened: 1,
+					shown: 'STUDIO',
+					inUse: false
+				}
+			];
+			(window as unknown as { TsundokuTV: object }).TsundokuTV = {
+				servers: () => JSON.stringify(list),
+				open: () => undefined,
+				probe: () => undefined,
+				forgetServer: () => '[]'
+			};
+		}, name);
+		await page.goto('/');
+		await expect(cell(page)).toBeVisible();
+		await page.evaluate(() => document.fonts.ready);
+	}
+
+	/** The drawn width of the name's text, and of the box that shows it. */
+	const measure = (page: Page) =>
+		cell(page)
+			.locator('.srv-name')
+			.evaluate((el) => {
+				const range = document.createRange();
+				range.selectNodeContents(el);
+				const face = getComputedStyle(el).fontFamily.split(',')[0].replace(/"/g, '');
+				return {
+					text: range.getBoundingClientRect().width,
+					shown: el.getBoundingClientRect().width,
+					scroll: el.scrollWidth,
+					client: el.clientWidth,
+					face,
+					// The face really drawn, not only the one asked for (the card's Iosevka trap).
+					loaded: [...document.fonts].some(
+						(f) => f.family.replace(/"/g, '') === face && f.status === 'loaded'
+					)
+				};
+			});
+
+	test('ARCHLINUX reads whole, in the frame the design draws', async ({ page }) => {
+		await onServer(page, 'ARCHLINUX');
+		const m = await measure(page);
+		expect(m.face).toBe('IBM Plex Mono');
+		expect(m.loaded, 'IBM Plex Mono drew it, not a fallback').toBe(true);
+		expect(m.text, 'the name has a width at all').toBeGreaterThan(90);
+		expect(m.scroll, 'nothing of the name is cut').toBeLessThanOrEqual(m.client);
+		expect(m.text).toBeLessThanOrEqual(m.shown + 0.5);
+
+		const brand = (await page.locator('header .brand').boundingBox())!;
+		const box = (await cell(page).boundingBox())!;
+		const search = (await page.locator('header .search-hint').boundingBox())!;
+		expect(box.x).toBeCloseTo(brand.x + brand.width, 0);
+		expect(box.width).toBeLessThanOrEqual(200);
+		expect(search.x).toBeGreaterThanOrEqual(box.x + box.width);
+		await expect(cell(page)).toHaveCSS('padding-left', '22px');
+		await expect(cell(page)).toHaveCSS('padding-right', '22px');
+	});
+
+	test('a 20-character name ends in an ellipsis at the end of the cell', async ({ page }) => {
+		await onServer(page, 'ABCDEFGHIJKLMNOPQRST');
+		const m = await measure(page);
+		const box = (await cell(page).boundingBox())!;
+		const name = (await cell(page).locator('.srv-name').boundingBox())!;
+		expect(m.scroll, 'the name is wider than its box').toBeGreaterThan(m.client);
+		await expect(cell(page).locator('.srv-name')).toHaveCSS('text-overflow', 'ellipsis');
+		await expect(cell(page).locator('.srv-name')).toHaveText('ABCDEFGHIJKLMNOPQRST');
+		expect(box.width).toBe(200);
+		// What the name is given: the cell less its rule, ON, the gap and 22 px a side.
+		expect(name.width).toBeGreaterThanOrEqual(120);
+		expect(box.x + box.width - (name.x + name.width)).toBeCloseTo(22, 0);
+	});
+});
+
+/**
+ * A held OK on a CONTINUE card opens the entry's options, on both of its
+ * stops (c860; doc/FOCUS.md, 'OK held'): the sheet is only read, so nothing
+ * here writes, and the plain OK that resumes is incognito.
+ */
+test.describe('a held OK on a CONTINUE card (c860)', () => {
+	const rowOf = (page: Page) => page.locator('.cont > .row').first();
+
+	async function holdOk(page: Page) {
+		await page.keyboard.down('Enter');
+		await page.waitForTimeout(550); // past the layer's 450 ms hold
+		await page.keyboard.up('Enter');
+	}
+
+	async function onResume(page: Page) {
+		await page
+			.context()
+			.addCookies([{ name: 'tsundoku_incognito', value: '1', url: 'http://localhost' }]);
+		await page.goto('/');
+		await page.keyboard.press('ArrowDown');
+		await expect.poll(() => focused(page)).toMatch(/^Resume /);
+		return (await rowOf(page).locator('.title').textContent())!.trim();
+	}
+
+	test('on ▶ it opens the options, not the reader; BACK returns to ▶; a plain OK still resumes', async ({
+		page
+	}) => {
+		const title = await onResume(page);
+		await holdOk(page);
+		const sheet = page.getByRole('dialog', { name: title });
+		await expect(sheet).toBeVisible();
+		expect(new URL(page.url()).pathname, 'the hold did not resume').toBe('/');
+		await page.keyboard.press('Escape');
+		await expect(sheet).toHaveCount(0);
+		await expect.poll(() => focused(page)).toMatch(/^Resume /);
+		await page.keyboard.press('Enter');
+		await page.waitForURL(/\/read\/\d+/);
+	});
+
+	test('on the band it opens the options, not the series; a plain OK still opens it', async ({
+		page
+	}) => {
+		const title = await onResume(page);
+		await page.keyboard.press('ArrowLeft');
+		const band = rowOf(page).locator('a.band');
+		await expect(band).toBeFocused();
+		const href = (await band.getAttribute('href'))!;
+		await holdOk(page);
+		const sheet = page.getByRole('dialog', { name: title });
+		await expect(sheet).toBeVisible();
+		expect(new URL(page.url()).pathname, 'the hold did not follow the band').toBe('/');
+		await page.keyboard.press('Escape');
+		await expect(sheet).toHaveCount(0);
+		await expect(band).toBeFocused();
+		await page.keyboard.press('Enter');
+		await page.waitForURL((u) => u.pathname + u.search === href);
+	});
+
+	test('MENU opens the same sheet at once', async ({ page }) => {
+		const title = await onResume(page);
+		await page.keyboard.press('ContextMenu');
+		await expect(page.getByRole('dialog', { name: title })).toBeVisible();
+		expect(new URL(page.url()).pathname).toBe('/');
+	});
+});

@@ -59,7 +59,10 @@ is a link to the library. Inside the TV app with two or more servers, the
 cell after it says whose library this is, `ON LIVING ROOM`, and OK on it
 opens SERVERS (S1, c261; [`TV-APP.md`](TV-APP.md), "The bar's server cell");
 the wordmark is then not an arrow stop, so ↑ from the library lands on that
-cell.
+cell. The cell is at most 200 px with the design's 22 px of padding, so a name
+has 124 px, eleven characters in the TV's type: `ARCHLINUX` reads whole, and a
+longer name ends in an ellipsis at the cell's padding (c862, pinned in
+`tests/tv-library-top.e2e.ts`).
 
 ## Rating
 
@@ -234,6 +237,23 @@ from the first ▶ goes to the first shelf tab (`data-focus-down`), where the
 whole card used to take it; everywhere else the rows stack and ↓ is the row
 under it. ▶❚❚ on
 either stop resumes.
+
+**A held press opens the entry's options, as a grid tile's does** (c860): a held
+OK or MENU on a TV, a long press, or a right click, anywhere on the row, the
+band and ▶ alike. It is the sheet the grid opens (`sheetId`, `SeriesSheet`),
+through the action every long-press row uses (`use:longpress`), and the press
+that fires it neither follows the band nor resumes. The row carries a tile's
+touch rules too (`user-select`, `-webkit-touch-callout`: iOS sends no
+`contextmenu` for the action to cancel, [`TOUCH.md`](TOUCH.md)), on the row
+itself, because the hold is the row's. Where the grid's tile has no options,
+nor does the row, and a held OK there is the plain press it was:
+
+| Row               | A held press                                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| A series          | the sheet                                                                                     |
+| A series, offline | what a tile's says offline: the sheet asks the server, so nothing opens                       |
+| A Work's          | nothing: a Work's tile has no sheet, so a held OK on ▶ resumes and on the band opens the Work |
+| Selecting         | nothing: a hold on a tile is a pick and a row is not one, so a held OK on ▶ resumes           |
 
 ## New chapters
 
@@ -495,10 +515,10 @@ Work's parts sit across the boundary (`doc/WORKS.md`).
 - **The rest** comes from `GET /api/library?shelf&tag&sort&offset&limit`. It
   answers the same units the first page does -- `listTiles`, one row per Work,
   one per series in no Work -- and takes the same `offset` in tiles. It's
-  asked for when the end of the grid comes within one and a half screens
-  (an `IntersectionObserver` on the row below the grid). After each page the
-  reader checks again, since on a tall screen a page may not push the end out
-  of reach.
+  asked for when the end of the grid comes within one and a half screens, or
+  3,600 px on a TV (an `IntersectionObserver` on the row below the grid, and
+  see "never stalls" below). After each page the reader checks again, since on
+  a tall screen a page may not push the end out of reach.
 - **The row below the grid** reads `240 OF 6,812`, then LOADING while a page
   is on its way. A page that fails says `THE REST DID NOT LOAD` with RETRY.
   Offline, it says `THE REST NEEDS THE WORKSTATION`.
@@ -548,9 +568,45 @@ Work's parts sit across the boundary (`doc/WORKS.md`).
   a scan's arrivals). Pages are by position, so a page can repeat a card
   already shown, which is dropped (a repeated key would stop the grid
   drawing). A page shorter than asked for is the end, whatever `total` said.
-- **The grid never stalls with its end on screen.** The observer only speaks
-  when the end comes near, so whenever the list settles (a page in, a refresh,
-  a page dropped because the list changed under it) the grid checks again.
+- **The grid never stalls with its end on screen** (c858). An
+  `IntersectionObserver` speaks only on a change, comparing each sample with
+  its last, so one transition is not enough: a page that lands and a reader at
+  the new bottom before any frame leaves it nothing to report, and with no
+  failure and no end nothing asks (the owner, on a TV, at 240; going to the top
+  and back gave it its change). Three doors now ask. **Every settle** (a page
+  in, a re-read of the loaded pages, a snapshot's re-read, a new list, a page
+  dropped because the list changed under it) measures, and otherwise re-arms
+  the observer, because `unobserve` then `observe` always delivers a first
+  callback with the true state. **`scroll`**, passive and at most once a frame,
+  runs the same measure, for whatever the frames did. The observer stays for
+  the plain case and goes on reporting a real change at any time. The other two
+  stop at the flags: no check asks or looks again while a page is out, after a
+  failure (RETRY or coming back to the row), or **while a re-read is queued or
+  out**, whose own settle looks instead, so a HIDE or an UNDO past the first
+  page still reads each loaded page once. A re-read's bump lets go of the
+  loading flag with it, the snapshot's as well as the refill's.
+- **A page that never answers ends in RETRY** after 30 s (`PAGE_WAIT_MS`). It
+  used to leave the loading flag on, and every later ask refused. Measured
+  against a copy of the seed grown to 6,831 series and 614,849 entries, at a
+  load average of 30: a page of 120 answered in 0.26 to 0.74 s (44 KB), a
+  re-read of 2,400 tiles in 0.75 s (813 KB), of 6,000 in 1.06 s (1.66 MB). The
+  slowest honest wait is that last one over a 1 Mbit/s link, about 14 s, and
+  `GRID_MAX`'s 10,000 tiles about 22 s, so 30 s is past anything that is still
+  coming. It is a timer and an `AbortController`, not `AbortSignal.timeout`,
+  because the TV app's `minSdk` is 23 and an old WebView may not have the
+  latter (Chrome 103), where a throw would read as every page failing.
+- **A page of nothing but repeats moves on** (c858). The offset is the tiles
+  drawn plus the positions that drew nothing (`skipped`), so the page the shelf
+  repeated (three series read elsewhere on RECENT put the next page's in front)
+  is passed, not asked for for ever. A re-read or a new list starts it again.
+- **A TV asks 3,600 px ahead, every other device one and a half screens.** At
+  960x540 a row is 199 px and a held ↓ moves one row per key repeat (measured);
+  Android's repeat is 50 ms (`ViewConfiguration`, not measured on the device),
+  so 3,980 px a second. One and a half screens was 810 px, four rows, 0.2 s:
+  less than a page's answer. 3,600 px is 0.9 s, past the answer's 0.74 s, and
+  about one page of 120 tiles (20 rows, 3,982 px). Drawing 120 tiles on the
+  TV itself is what could not be measured here; if the page is not in time the
+  row reads LOADING and the next page is asked for the moment it lands.
 - **The place to come back to is noted when a navigation begins**
   (`beforeNavigate`). By the time SvelteKit takes the snapshot, the waiting
   outline may already cover the library, with its scroll at 0. Coming back,
