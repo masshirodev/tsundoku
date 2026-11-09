@@ -144,13 +144,25 @@ test.describe('the volume head', () => {
 
 			const style = await read.evaluate((n) => {
 				const cs = (sel: string) => getComputedStyle(n.querySelector(sel)!);
+				const probe = document.createElement('span');
+				probe.style.background = 'var(--surface-page)';
+				document.body.append(probe);
+				const page = getComputedStyle(probe).backgroundColor;
+				probe.remove();
+				const vnum = n.querySelector('.vnum > span') as HTMLElement;
+				const box = vnum.getBoundingClientRect();
 				return {
 					title: cs('.vt').fontSize,
 					label: cs('.vk').fontSize,
 					meta: cs('.vm').fontSize,
 					readTitle: cs('.vt').color,
 					metaColor: cs('.vm').color,
-					weight: cs('.vt').fontWeight
+					weight: cs('.vt').fontWeight,
+					vnumText: vnum.textContent,
+					vnumSize: getComputedStyle(vnum).fontSize,
+					vnumWidth: Math.round(box.width),
+					vnumBg: getComputedStyle(vnum).backgroundColor,
+					page
 				};
 			});
 			expect(style.title, `${name}: the title's size`).toBe(`${titlePx}px`);
@@ -159,6 +171,16 @@ test.describe('the volume head', () => {
 			expect(style.meta, `${name}: the facts`).toBe(`${metaPx}px`);
 			// A read volume's title drops to text-2, as its facts are.
 			expect(style.readTitle, `${name}: a read title is text-2`).toBe(style.metaColor);
+			// No cover (the seed's novels have no files): the series' stripes with
+			// the volume's number in a page-coloured cell (c835, 1A/1C).
+			expect(style.vnumText, `${name}: the volume's number on the stripes`).toBe('1');
+			expect(style.vnumSize, `${name}: the number's size`).toBe(name === 'phone' ? '13px' : '15px');
+			expect(style.vnumWidth, `${name}: the number's cell`).toBe(name === 'phone' ? 22 : 26);
+			expect(style.vnumBg, `${name}: the number's page cell`).toBe(style.page);
+			// The seed's novels carry a sample with no cover: the endpoint 404s and
+			// the image takes itself out, leaving the stripes and the number.
+			if (await read.locator('.vcover img').count())
+				await expect(read.locator('.vcover img')).toBeHidden();
 
 			// The volume being read: its word and its bar are the accent.
 			const accent = await reading.evaluate((n) => ({

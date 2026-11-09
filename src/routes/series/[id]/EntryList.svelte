@@ -256,6 +256,9 @@
 					     it are what a D-pad walks. -->
 					<li class="volume {row.state}" aria-label="{row.label} {row.title}">
 						<span class="vcover" style:background={coverPlaceholder(series.hue)}>
+							<!-- A coverless volume draws the series' stripes with its number on
+							     them (c835, 1A/1C); an image, when the EPUB has one, covers it. -->
+							<span class="vnum"><span>{row.number}</span></span>
 							{#if row.available && row.entry > 0}
 								<img
 									src={resolve('/series/volume-cover/[entry]', { entry: String(row.entry) })}
@@ -629,6 +632,24 @@
 		height: 100%;
 		object-fit: cover;
 	}
+	.vnum {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.vnum > span {
+		min-width: 26px;
+		height: 26px;
+		padding: 0 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--surface-page);
+		color: var(--text-1);
+		font: 500 15px var(--font-mono);
+	}
 	.vtx {
 		flex: 1;
 		min-width: 0;
@@ -683,6 +704,11 @@
 		}
 		.vcover {
 			width: 40px;
+		}
+		.vnum > span {
+			min-width: 22px;
+			height: 22px;
+			font-size: 13px;
 		}
 		.vtx {
 			gap: 5px;
@@ -1010,6 +1036,11 @@
 		}
 		.vcover {
 			width: 48px;
+		}
+		.vnum > span {
+			min-width: 24px;
+			height: 24px;
+			font-size: 14px;
 		}
 		.vtx {
 			gap: 5px;
