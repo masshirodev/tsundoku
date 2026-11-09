@@ -342,6 +342,10 @@ export type VolumeHead = {
 	key: string;
 	/** Its place in the series, 1-based, the order the rail ticks are labelled in. */
 	number: number;
+	/** The volume's first entry on disk: the cover is its EPUB's (c835). */
+	entry: number;
+	/** Whether the volume's file is on disk (its cover is asked for only then). */
+	available: boolean;
 	/** `VOL. n`, the words the reader and the band find. */
 	label: string;
 	/** The volume's own name, verbatim (never uppercased). */
@@ -369,6 +373,8 @@ export function volumeHead(vol: SeriesEntry[], n: number, current: SeriesEntry |
 		type: 'volume',
 		key: `v${n}`,
 		number: n,
+		entry: vol.find((e) => e.available)?.id ?? vol[0]?.id ?? 0,
+		available: vol.some((e) => e.available),
 		label: `VOL. ${n}`,
 		title: vol[0]?.volume || 'UNTITLED',
 		state,

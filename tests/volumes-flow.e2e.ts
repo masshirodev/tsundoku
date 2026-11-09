@@ -31,8 +31,11 @@ test('GROUP takes novels as volumes; CONTENTS heads each; the reader crosses; UN
 	await expect(page.getByText('SERIES CREATED · 2 VOLUMES')).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Two Isekai', exact: true })).toBeVisible();
 	const list = page.getByRole('region', { name: 'Contents' });
-	await expect(list.getByText(`VOL. 1 · ${TWO.toUpperCase()}`)).toBeVisible();
-	await expect(list.getByText(`VOL. 2 · ${ONE.toUpperCase()}`)).toBeVisible();
+	// Each volume's head: its number as the label, its title verbatim (c835).
+	await expect(list.getByText('VOL. 1', { exact: true })).toBeVisible();
+	await expect(list.getByText('VOL. 2', { exact: true })).toBeVisible();
+	await expect(list.getByText(TWO, { exact: true })).toBeVisible();
+	await expect(list.getByText(ONE, { exact: true })).toBeVisible();
 	const series = page.url().replace(/\?.*$/, '');
 
 	// The last chapter of the first volume, then onward into the second's first.

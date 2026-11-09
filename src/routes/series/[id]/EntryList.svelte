@@ -7,6 +7,8 @@
 	import OtherForms from './OtherForms.svelte';
 	import type { GroupOther, OtherFormRow } from './other-forms.server';
 	import { offline } from '$lib/offline.svelte';
+	import { coverPlaceholder } from '$lib/library/cover';
+	import { resolve } from '$app/paths';
 	import {
 		currentEntry,
 		entryAtFraction,
@@ -17,6 +19,7 @@
 		listCount,
 		listRows,
 		railTicks,
+		volumeMeta,
 		type SeriesEntry,
 		type SeriesPage
 	} from '$lib/library/series';
@@ -248,11 +251,38 @@
 					<!-- A book's front and back matter, listed apart (doc/TEXT-READER.md). -->
 					<li class="section"><span>{row.label}</span><span>{row.detail}</span></li>
 				{:else if row.type === 'volume'}
-					<!-- A volume's head (c835), still today's text row until its cover and
-					     facts land in the next slice. -->
-					<li class="section">
-						<span>{row.label} · {row.title.toUpperCase()}</span>
-						<span>{row.chapters} · {row.read} READ</span>
+					<!-- A volume's head (c835): its cover, its number and state, its title
+					     and its chapters. Not a button and not a focus stop: the rows under
+					     it are what a D-pad walks. -->
+					<li class="volume {row.state}" aria-label="{row.label} {row.title}">
+						<span class="vcover" style:background={coverPlaceholder(series.hue)}>
+							{#if row.available && row.entry > 0}
+								<img
+									src={resolve('/series/volume-cover/[entry]', { entry: String(row.entry) })}
+									alt=""
+									loading="lazy"
+									decoding="async"
+									onerror={(e) => ((e.currentTarget as HTMLImageElement).hidden = true)}
+								/>
+							{/if}
+						</span>
+						<span class="vtx">
+							<span class="vk">
+								<span>{row.label}</span>
+								<span class="vst"
+									>{row.state === 'read'
+										? 'READ ✓'
+										: row.state === 'reading'
+											? 'READING'
+											: ''}</span
+								>
+							</span>
+							<span class="vt">{row.title}</span>
+							<span class="vm">{volumeMeta(row)}</span>
+							{#if row.progress !== null}
+								<span class="vpb"><i style:width="{row.progress * 100}%"></i></span>
+							{/if}
+						</span>
 					</li>
 				{:else if row.type === 'fold'}
 					<li class="fold">
@@ -571,6 +601,100 @@
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
+	/* A volume's head (c835, grouped volumes 1A–1C): its cover at 2:2.9, its
+	   number and state, its title verbatim, then its chapters. One fixed height,
+	   so the list stays a column of known sizes; the read volume's title drops
+	   to text-2 as a read row's does, and its 3px bar is the chapters read. */
+	.volume {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		height: 104px;
+		padding: 0 var(--pad);
+		border-bottom: var(--hairline);
+		background: var(--surface-page);
+	}
+	.vcover {
+		position: relative;
+		flex-shrink: 0;
+		width: 52px;
+		aspect-ratio: 2 / 2.9;
+		overflow: hidden;
+	}
+	.vcover img {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+	.vtx {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.vk {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		font: 500 13px/1.2 var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+		white-space: nowrap;
+	}
+	.vst {
+		letter-spacing: 0.04em;
+	}
+	.volume.reading .vst {
+		color: var(--accent);
+	}
+	.vt {
+		font: 500 17px/1.3 var(--font-sans);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.volume.read .vt {
+		color: var(--text-2);
+	}
+	.vm {
+		font: 400 13px/1.3 var(--font-mono);
+		color: var(--text-2);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.vpb {
+		height: 3px;
+		background: var(--line-1);
+	}
+	.vpb > i {
+		display: block;
+		height: 3px;
+		background: var(--accent);
+	}
+	@media (max-width: 599px) {
+		.volume {
+			height: 82px;
+			gap: 12px;
+		}
+		.vcover {
+			width: 40px;
+		}
+		.vtx {
+			gap: 5px;
+		}
+		.vk,
+		.vm {
+			font-size: 12px;
+		}
+		.vt {
+			font-size: 16px;
+		}
+	}
 	/* Front and back matter: reachable, but not read as chapters. */
 	.entry.matter .entry-btn {
 		height: 44px;
@@ -878,6 +1002,26 @@
 		}
 		.rail {
 			top: 36px;
+		}
+		/* A volume's head on a TV (Head-TV): 96px, a 48px cover, 20px title. */
+		.volume {
+			height: 96px;
+			gap: 16px;
+		}
+		.vcover {
+			width: 48px;
+		}
+		.vtx {
+			gap: 5px;
+		}
+		.vk {
+			font: 500 15px/1.2 var(--font-mono);
+		}
+		.vt {
+			font-size: 20px;
+		}
+		.vm {
+			font-size: 15px;
 		}
 	}
 </style>
