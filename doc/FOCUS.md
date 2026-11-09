@@ -263,6 +263,7 @@ of them in `keys.ts`, and `tests/tv-keys.e2e.ts` walks them.
   after a hold presses nothing, and `e.repeat` neither opens twice nor clicks:
   a short press is the click a keyboard's Enter would have made, made on the
   release (`keys.ts`, `OkPress`).
+- **The continue row** (`ContinueRow.svelte`, c860) answers a held OK, on the band and on ▶, with the options sheet a grid tile opens.
 - **MENU** (`ContextMenu`) is the same event at once, where the remote has the
   key.
 - **BACK** is Escape, `BrowserBack` or `GoBack`, and it goes in the design's
