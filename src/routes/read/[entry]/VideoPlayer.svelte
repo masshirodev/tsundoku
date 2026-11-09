@@ -1336,9 +1336,11 @@
 			e.preventDefault();
 			if (media === 'toggle') toggle();
 			// ⏩ ⏪ are the long jump (c865): a movie is not clicked through 10 s
-			// at a time, and ← → keep the fine step on every device. One press is
-			// one minute however long the button is held: a browser's repeats say
-			// so themselves, and a remote's are told by their pace (above).
+			// at a time, and ← → keep the fine step on every device. A browser's
+			// own repeats are dropped by `e.repeat`; a remote's arrive as fresh
+			// keydowns, which the pace above limits instead. So a held ⏩ moves a
+			// minute every 500 ms on a TV, and a real second press inside that
+			// pace is swallowed with the repeats.
 			else if (media === 'forward' || media === 'back') {
 				const now = Date.now();
 				if (e.repeat || (lastJump.of === media && now - lastJump.at < MEDIA_STEP_MS)) return;
