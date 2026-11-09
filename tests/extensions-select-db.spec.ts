@@ -3,6 +3,7 @@ import type Database from 'better-sqlite3';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
+process.env.ENGINE_URL = 'http://127.0.0.1:1';
 process.env.ENGINE_TOKEN = 'extensions-select';
 
 const { getDb } = await import('$lib/server/db');
@@ -21,11 +22,68 @@ const db = getDb();
 /** Three sources with a mixed past: only the middle one has the switch on. */
 const IDS = ['100', '200', '300'] as const;
 
+db.exec(`INSERT INTO engine_repos (id, base, name, fingerprint, added_at) VALUES (1, 'https://r/', 'Repo', 'f', 0);
+	INSERT INTO novel_repos (id, url, name, added_at) VALUES (1, 'https://n/plugins.min.json', 'Plugins', 0);`);
+
+const extension = (pkg: string, sources: { id: string; lang: string }[], failed = '') => {
+	db.prepare(
+		`INSERT INTO engine_extensions (pkg, repo_id, name, kind, version_code, version_name, lib, handle, installed_at, updated_at, failed)
+		VALUES (?, 1, ?, 'manga', 1, '1.0', '1.4', ?, 0, 0, ?)`
+	).run(pkg, pkg, pkg.padEnd(64, '0'), failed);
+	for (const s of sources)
+		db.prepare(
+			`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES (?, ?, ?, ?, 'https://example.org')`
+		).run(s.id, pkg, pkg, s.lang);
+};
+const plugin = (id: string, failed = '') =>
+	db
+		.prepare(
+			`INSERT INTO novel_plugins (id, repo_id, name, site, lang, version, hash, installed_at, updated_at, failed)
+			VALUES (?, 1, ?, 'https://novel.example/', 'en', '1.0.0', 'h', 0, 0, ?)`
+		)
+		.run(id, id, failed);
+
+// A two-language extension, a plugin, and one extension whose sources are not
+// known: the states the band must count and must not call a success.
+extension('en.multi', [
+	{ id: '500', lang: 'en' },
+	{ id: '501', lang: 'fr' }
+]);
+extension('en.none', []);
+plugin('good');
+
+const extras = ['500', '501', 'ln:good'] as const;
+
 beforeEach(() => {
-	for (const id of [...IDS, 'ln:plugin'])
+	for (const id of [...IDS, ...extras])
 		for (const f of flags.SOURCE_FLAGS) flags.setSourceFlag(id, f, false);
 	flags.setSourceFlag('200', 'offHistory', true);
+	flags.setSourceFlag('500', 'offHistory', true);
 });
+
+const extensionsPage = await import('../src/routes/browse/extensions/+page.server');
+
+/** Run one of the page's actions with a form, and answer its redirect (or its failure). */
+async function act(
+	name: 'flags' | 'undoFlags',
+	fields: Record<string, string | string[]>,
+	reveal = false
+): Promise<{ status: number; location?: string; data?: Record<string, unknown> }> {
+	const form = new FormData();
+	for (const [key, value] of Object.entries(fields))
+		for (const v of Array.isArray(value) ? value : [value]) form.append(key, v);
+	try {
+		const answer = (await extensionsPage.actions[name]({
+			request: new Request('http://localhost/browse/extensions', { method: 'POST', body: form }),
+			cookies: { get: (n: string) => (reveal && n === 'tsundoku_reveal' ? '1' : undefined) }
+		} as never)) as { status?: number; data?: Record<string, unknown> };
+		return { status: answer.status ?? 200, data: answer.data };
+	} catch (e) {
+		const redirect = e as { status?: number; location?: string };
+		if (redirect.status === 303) return { status: 303, location: redirect.location };
+		return { status: redirect.status ?? 500, data: e as never };
+	}
+}
 
 describe('one switch on many sources (card c696)', () => {
 	it('sets them all in one press and answers what each was before it', () => {
@@ -111,5 +169,100 @@ describe('one switch on many sources (card c696)', () => {
 		const facts = flags.setSourceFlags(['ln:plugin'], 'hidden', true);
 		expect(facts).toEqual([{ sourceId: 'ln:plugin', previous: false }]);
 		expect(flags.sourceFlags('ln:plugin').hidden).toBe(true);
+	});
+});
+
+describe('SELECT’s press (card c696)', () => {
+	it('changes every source of the extension, including a language BROWSE does not list', async () => {
+		const r = await act('flags', { pkg: 'en.multi', flag: 'offHistory', value: 'true' });
+		expect(r.status).toBe(303);
+		const u = new URL(r.location!, 'http://localhost');
+		// The fr source is not in the owner's languages (en, ja), so BROWSE never
+		// draws it; the press follows the extension, not the list.
+		expect(flags.sourceFlags('500').offHistory).toBe(true);
+		expect(flags.sourceFlags('501').offHistory).toBe(true);
+		// The band keeps the selection, and its facts hold each source's value before it.
+		expect(u.searchParams.get('select')).toBe('1');
+		expect(u.searchParams.getAll('pkg')).toEqual(['en.multi']);
+		expect(u.searchParams.get('band')).toBe('flags');
+		expect(u.searchParams.get('flag')).toBe('offHistory');
+		expect(u.searchParams.get('to')).toBe('1');
+		expect(u.searchParams.get('from')).toBe('500|1,501|0');
+		expect(u.searchParams.get('of')).toBe('1');
+		expect(u.searchParams.get('chg')).toBe('1');
+	});
+
+	it('undo puts every source back as it was: the one already on stays on', async () => {
+		const press = await act('flags', { pkg: 'en.multi', flag: 'offHistory', value: 'true' });
+		const from = new URL(press.location!, 'http://localhost').searchParams.get('from')!;
+		expect(flags.sourceFlags('501').offHistory).toBe(true);
+		const undo = await act('undoFlags', { pkg: 'en.multi', flag: 'offHistory', to: '1', from });
+		expect(undo.status).toBe(303);
+		expect(flags.sourceFlags('500').offHistory).toBe(true);
+		expect(flags.sourceFlags('501').offHistory).toBe(false);
+		// The selection comes back, so SELECT stays on with the rows it had.
+		expect(new URL(undo.location!, 'http://localhost').searchParams.getAll('pkg')).toEqual([
+			'en.multi'
+		]);
+	});
+
+	it('refuses an undo whole when a source was changed since on its own page', async () => {
+		await act('flags', { pkg: 'en.multi', flag: 'offHistory', value: 'true' });
+		// The settings page wrote one source between the press and UNDO.
+		flags.setSourceFlag('501', 'offHistory', false);
+		const undo = await act('undoFlags', {
+			pkg: 'en.multi',
+			flag: 'offHistory',
+			to: '1',
+			from: '500|1,501|0'
+		});
+		expect(undo.status).toBe(409);
+		// Whole or not at all: the source that still matched was not taken back either.
+		expect(flags.sourceFlags('500').offHistory).toBe(true);
+		expect(flags.sourceFlags('501').offHistory).toBe(false);
+	});
+
+	it('acts on a plugin’s one source, which is its own id', async () => {
+		const r = await act('flags', { pkg: 'ln:good', flag: 'neverTracked', value: 'true' });
+		expect(r.status).toBe(303);
+		expect(flags.sourceFlags('ln:good').neverTracked).toBe(true);
+		expect(flags.sourceFlags('ln:good').offHistory).toBe(false);
+		const u = new URL(r.location!, 'http://localhost');
+		expect(u.searchParams.get('from')).toBe('ln:good|0');
+		expect(u.searchParams.get('of')).toBe('1');
+	});
+
+	it('does not call a failed extension a success: its sources are not known', async () => {
+		const r = await act('flags', { pkg: 'en.none', flag: 'addedHidden', value: 'true' });
+		expect(r.status).toBe(303);
+		const u = new URL(r.location!, 'http://localhost');
+		expect(u.searchParams.get('miss')).toBe('en.none');
+		expect(u.searchParams.get('chg')).toBe('0');
+		expect(u.searchParams.get('of')).toBe('1');
+	});
+
+	it('does not call a package removed elsewhere a success, and drops it from the selection', async () => {
+		const r = await act('flags', { pkg: 'gone.pkg', flag: 'hidden', value: 'true' });
+		const u = new URL(r.location!, 'http://localhost');
+		expect(u.searchParams.get('gone')).toBe('gone.pkg');
+		expect(u.searchParams.get('chg')).toBe('0');
+		expect(u.searchParams.getAll('pkg')).toEqual([]);
+	});
+
+	it('hides a source outside reveal, and its package leaves the selection', async () => {
+		const r = await act('flags', { pkg: 'en.multi', flag: 'hidden', value: 'true' });
+		const u = new URL(r.location!, 'http://localhost');
+		expect(flags.sourceFlags('500').hidden).toBe(true);
+		expect(flags.sourceFlags('501').hidden).toBe(true);
+		// Hidden means hidden: outside reveal the package is no longer drawn.
+		expect(u.searchParams.getAll('pkg')).toEqual([]);
+	});
+
+	it('turns a switch off, and its facts hold the one source that was on', async () => {
+		const r = await act('flags', { pkg: 'en.multi', flag: 'offHistory', value: 'false' });
+		expect(r.status).toBe(303);
+		expect(flags.sourceFlags('500').offHistory).toBe(false);
+		expect(flags.sourceFlags('501').offHistory).toBe(false);
+		expect(new URL(r.location!, 'http://localhost').searchParams.get('from')).toBe('500|1,501|0');
 	});
 });
