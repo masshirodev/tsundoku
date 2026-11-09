@@ -7,6 +7,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -20,6 +22,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.core.content.pm.ShortcutInfoCompat
@@ -108,7 +111,21 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	/** Which launch owns the WebView: a later door wins over an earlier answer (c306). */
 	private val attempts = Attempts()
 
-	/** BACK is the page's while it can take it; then history; then leaving. */
+	/** The press that would leave only says so; the next one leaves (LeaveWindow.kt, c859). */
+	private val leave = LeaveWindow()
+
+	/** PRESS BACK AGAIN TO LEAVE, while the window it speaks for is open. */
+	private var leaveToast: Toast? = null
+
+	/** BACK's key repeated while it was down: [dispatchKeyEvent] saw it, [back] reads it. */
+	private var backHeld = false
+
+	/**
+	 * BACK is the page's while it can take it; then history; then leaving, on
+	 * the second press. The press's time and whether it was held are read here,
+	 * and handed on: the page answers asynchronously, so a key or a page change
+	 * can land before the answer does (LeaveWindow says why that matters).
+	 */
 	private val back =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
@@ -116,10 +133,17 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 				// page's: BACK takes the picture down first, as on a phone.
 				if (customView != null) {
 					hideCustomView()
+					backHeld = false
 					return
 				}
+				val at = SystemClock.uptimeMillis()
+				val held = backHeld
+				backHeld = false
 				webView.evaluateJavascript(BACK_JS) { value ->
-					if (value != "true") goBackOrLeave()
+					// This answer can land after the activity went, or behind a
+					// later press; the press it belongs to is what is decided.
+					if (isFinishing || isDestroyed) return@evaluateJavascript
+					if (value == "true") closeLeaveWindow(at) else goBackOrLeave(at, held)
 				}
 			}
 		}
@@ -244,6 +268,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	 * Everything else is the WebView's, including the D-pad and OK.
 	 */
 	override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+		noteKey(event)
 		// A phone has no remote: a headset's play key is the WebView's own.
 		if (!form.takesRemoteKeys) return super.dispatchKeyEvent(event)
 		val key = Keys.domKeyFor(event.keyCode)
@@ -252,6 +277,23 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			return true
 		}
 		return super.dispatchKeyEvent(event)
+	}
+
+	/**
+	 * The one place every key is seen before the WebView can have it, and so
+	 * the door "any other key ends the window" uses (c859). BACK's own events
+	 * pass through here too, which is the only way to see it repeat; that is
+	 * why the manifest turns the back-invoked path off, which at targetSdk 36
+	 * on Android 16 would otherwise take BACK before it reaches this method.
+	 */
+	private fun noteKey(event: KeyEvent) {
+		if (event.action != KeyEvent.ACTION_DOWN) return
+		if (event.keyCode == KeyEvent.KEYCODE_BACK) backHeld = event.repeatCount > 0 else closeLeaveWindow(event.eventTime)
+	}
+
+	/** The window ended, for whatever reason: its words go too. */
+	private fun closeLeaveWindow(at: Long) {
+		if (leave.end(at)) leaveToast?.cancel()
 	}
 
 	/**
@@ -472,6 +514,15 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 				showLost(originOf(request.url))
 			}
 
+			/**
+			 * A page change ends the leave window (c859). This is the door that
+			 * sees SvelteKit's client navigations, which never reach
+			 * `onPageStarted` or `onPageFinished`; it fires for a load too.
+			 */
+			override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+				if (leave.navigated(url ?: return, SystemClock.uptimeMillis())) leaveToast?.cancel()
+			}
+
 			override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
 				// A new document starts padded: a reader that left by a full
 				// load never got to say edge(false).
@@ -570,14 +621,38 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 
 	private fun frame() = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
 
-	/** The page took nothing: back to the screen before, or out (Back.kt says which). */
-	private fun goBackOrLeave() {
+	/**
+	 * The page took nothing: back to the screen before (Back.kt says which), or
+	 * toward the way out, which takes a second press (c859). Every door out
+	 * is here, the library as home and "no earlier screen" alike.
+	 *
+	 * `at` is when the key was pressed, read before the page was asked.
+	 */
+	private fun goBackOrLeave(at: Long, held: Boolean) {
 		val list = webView.copyBackForwardList()
-		val at = list.currentIndex
+		val index = list.currentIndex
 		val current = list.currentItem?.url ?: webView.url.orEmpty()
-		val history = (0 until at).mapNotNull { list.getItemAtIndex(it)?.url }
+		val history = (0 until index).mapNotNull { list.getItemAtIndex(it)?.url }
 		val steps = Back.steps(current, history)
-		if (steps != null && webView.canGoBackOrForward(-steps)) webView.goBackOrForward(-steps) else finish()
+		val canGoBack = steps != null && webView.canGoBackOrForward(-steps)
+		if (canGoBack) {
+			closeLeaveWindow(at)
+			webView.goBackOrForward(-steps)
+			return
+		}
+		val verdict = leave.press(at, held)
+		Log.i(BACK_LOG, Back.leaveLine(steps, canGoBack, current, webView.url, index, list.size, held, verdict))
+		when (verdict) {
+			LeaveWindow.Verdict.TOAST -> {
+				leaveToast?.cancel()
+				leaveToast = Toast.makeText(this, R.string.press_back_again, Toast.LENGTH_SHORT).also { it.show() }
+			}
+			LeaveWindow.Verdict.LEAVE -> {
+				leaveToast?.cancel()
+				finish()
+			}
+			LeaveWindow.Verdict.NOTHING -> Unit
+		}
 	}
 
 	private fun open(origin: String) {
@@ -717,6 +792,9 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	}
 
 	companion object {
+		/** `adb logcat -s TsundokuBack`: why BACK reached the way out (c859). */
+		private const val BACK_LOG = "TsundokuBack"
+
 		/** The launch extra, and the deep link's query parameter (c260). */
 		private const val EXTRA_URL = "url"
 
