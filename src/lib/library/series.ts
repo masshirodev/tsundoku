@@ -346,6 +346,8 @@ export type VolumeHead = {
 	entry: number;
 	/** Whether the volume's file is on disk (its cover is asked for only then). */
 	available: boolean;
+	/** The volume's entries, matter included: what its ↓ mark asks about (c835). */
+	entries: number[];
 	/** `VOL. n`, the words the reader and the band find. */
 	label: string;
 	/** The volume's own name, verbatim (never uppercased). */
@@ -375,6 +377,7 @@ export function volumeHead(vol: SeriesEntry[], n: number, current: SeriesEntry |
 		number: n,
 		entry: vol.find((e) => e.available)?.id ?? vol[0]?.id ?? 0,
 		available: vol.some((e) => e.available),
+		entries: vol.map((e) => e.id),
 		label: `VOL. ${n}`,
 		title: vol[0]?.volume || 'UNTITLED',
 		state,
@@ -382,6 +385,11 @@ export function volumeHead(vol: SeriesEntry[], n: number, current: SeriesEntry |
 		read,
 		progress: state === 'reading' && chapters.length > 0 ? read / chapters.length : null
 	};
+}
+
+/** A volume's ↓ (c835): every one of its entries is cached on this device. */
+export function volumeCached(entries: number[], cached: Set<number>): boolean {
+	return entries.length > 0 && entries.every((id) => cached.has(id));
 }
 
 /** "11 CHAPTERS · 4 READ", the head's meta line: 0 read says nothing after the count. */

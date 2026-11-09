@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	currentEntry,
 	listRows,
+	volumeCached,
 	volumeHead,
 	volumeMeta,
 	volumeOf,
@@ -234,5 +235,21 @@ describe("the rail's volume ticks", () => {
 		for (let v = 0; v < 6; v++)
 			for (const e of entries.slice(v * 2, v * 2 + 2)) expect(volumeOf(entries, e)).toBe(v + 1);
 		expect(volumeOf([entry(1), entry(2)], entry(1))).toBeNull();
+	});
+});
+
+describe("a volume's ↓", () => {
+	it('is true only when every entry of the volume is cached', () => {
+		for (let n = 0; n <= 3; n++) {
+			const ids = Array.from({ length: n }, (_, i) => 100 + i);
+			for (let mask = 0; mask < 1 << n; mask++) {
+				const cached = new Set(ids.filter((_, i) => mask & (1 << i)));
+				expect({ n, mask, cached: volumeCached(ids, cached) }).toEqual({
+					n,
+					mask,
+					cached: n > 0 && mask === (1 << n) - 1
+				});
+			}
+		}
 	});
 });

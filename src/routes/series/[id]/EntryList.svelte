@@ -19,6 +19,7 @@
 		listCount,
 		listRows,
 		railTicks,
+		volumeCached,
 		volumeMeta,
 		volumeOf,
 		volumeStarts,
@@ -278,6 +279,9 @@
 							<!-- A coverless volume draws the series' stripes with its number on
 							     them (c835, 1A/1C); an image, when the EPUB has one, covers it. -->
 							<span class="vnum"><span>{row.number}</span></span>
+							{#if !offline.online && volumeCached(row.entries, cached)}
+								<span class="vd" aria-label="Cached on this device">↓</span>
+							{/if}
 							{#if row.available && row.entry > 0}
 								<img
 									src={resolve('/series/volume-cover/[entry]', { entry: String(row.entry) })}
@@ -668,6 +672,16 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
+	}
+	.vd {
+		position: absolute;
+		z-index: 1;
+		right: 0;
+		bottom: 0;
+		padding: 2px 4px;
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+		font: 500 12px/1 var(--font-mono);
 	}
 	.vnum {
 		position: absolute;
