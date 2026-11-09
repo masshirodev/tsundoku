@@ -8,8 +8,8 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * A volume's head, measured in a real browser (c835; doc/handoffs/grouped-
- * volumes/Head-Devices.dc.html and Head-Phone.dc.html). Its three widths, its
+ * A volume's head, measured in a real browser (c835;
+ * doc/handoffs/grouped-volumes/Head-Devices.dc.html and Head-Phone.dc.html). Its three widths, its
  * cover, its three lines of facts, the 3px bar on the volume being read and a
  * read volume's title in text-2. The numbers are the handoff's hand-set ones
  * (52/104 and 40/82) and do not round to a spacing ladder, so this stops a
