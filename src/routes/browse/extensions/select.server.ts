@@ -67,19 +67,25 @@ export function tickedPackages(form: FormData): string[] {
 /**
  * How many facts `decodeFacts` will read from a band's URL: a ceiling on the
  * work a hand-made link can ask for, not a bound on the URL's length. The
- * length is `BAND_BUDGET`'s (below), because Node refuses a request head past
- * 16 KB and the band would arrive after the press was already written.
+ * length is `LOCATION_BUDGET`'s (below), on the whole redirect, because Node
+ * refuses a request head past 16 KB and the band would arrive after the press
+ * was already written.
  */
 export const FACTS_MAX = 2000;
 
 /**
- * The most a band's own query may cost, in bytes, before the press is
- * written: URLSearchParams encodes `|` and `,` (about 26 bytes a fact), and
- * Node answers a request head past 16 KB with 431. The rest of the URL has
- * `pkg` per ticked package, the path and any cookie, so the band's query is
- * kept to 12 KB here (measured: 600 sources of 19 digits = 15650 bytes).
+ * The most a press's whole `Location` may cost, in bytes, before it is
+ * written: the page's path, `select=1` and one `pkg` per ticked package, and
+ * the band's own query. URLSearchParams encodes `|` and `,` (about 26 bytes a
+ * fact), and Node answers a request head past 16 KB with 431 after the press
+ * has taken effect; 12 KB leaves 4 KB for the request line and the browser's
+ * headers, cookie included. The band's query alone is not the cost: `pkg` is
+ * bounded only by how many extensions the owner ticks.
  */
-export const BAND_BUDGET = 12_000;
+export const LOCATION_BUDGET = 12_000;
+
+/** Whether the redirect a press would write is small enough for a browser to follow. */
+export const pressFits = (location: string) => location.length <= LOCATION_BUDGET;
 
 /** A press with more sources than `FACTS_MAX`: refused before anything is written. */
 export class TooManySourcesError extends Error {
@@ -134,8 +140,9 @@ export type FlagPress = {
 /**
  * What a press would do, before anything is written: the ids it covers, what
  * each is before (UNDO's facts) and the packages it cannot change. The flags
- * action measures its band with this and refuses a press too large for a URL
- * (`BAND_BUDGET`) without writing; `applyFlag` is then the one write.
+ * action measures its whole redirect with this and refuses a press too large
+ * for a URL (`LOCATION_BUDGET`) without writing; `applyFlag` is then the one
+ * write.
  */
 export function planFlag(
 	pkgs: readonly string[],

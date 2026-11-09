@@ -18,12 +18,17 @@ mkdirSync(process.env.ENGINE_STORE, { recursive: true });
  * throw `UntrustedError` for a key that does not match, throw otherwise when
  * the repository does not answer.
  */
-const installs = vi.hoisted(() => ({ fail: new Set<string>(), untrusted: new Set<string>() }));
+const installs = vi.hoisted(() => ({
+	fail: new Set<string>(),
+	untrusted: new Set<string>(),
+	calls: [] as string[]
+}));
 vi.mock('$lib/server/engine/extensions', async (original) => {
 	const mod = await original<typeof import('../src/lib/server/engine/extensions')>();
 	return {
 		...mod,
 		install: async (pkg: string) => {
+			installs.calls.push(pkg);
 			if (installs.untrusted.has(pkg)) throw new mod.UntrustedError('signed by another key');
 			if (installs.fail.has(pkg)) throw new Error('its repository did not answer');
 		}
@@ -86,6 +91,7 @@ beforeEach(() => {
 	flags.setSourceFlag('500', 'offHistory', true);
 	installs.fail.clear();
 	installs.untrusted.clear();
+	installs.calls.length = 0;
 });
 
 const extensionsPage = await import('../src/routes/browse/extensions/+page.server');
@@ -584,7 +590,7 @@ describe('packageFlags names only what the viewer is drawn (card c696, round 2)'
  * once encoded (`|` and `,`), so 600 sources are already past Node's 16 KB
  * request head; the redirect's GET would answer 431 after the press was done.
  */
-describe('a press too large for its band is refused before it writes (card c696, round 2)', () => {
+describe('a press too large for its URL is refused before it writes (card c696, round 2)', () => {
 	const idsFrom = (n: number, start: bigint) =>
 		Array.from({ length: n }, (_, i) => String(start + BigInt(i)));
 
@@ -614,15 +620,8 @@ describe('a press too large for its band is refused before it writes (card c696,
 			value: 'true'
 		});
 		expect(justUnder.status).toBe(303);
-		const u = new URL(justUnder.location!, 'http://localhost');
-		const bandQueryLength = [...u.searchParams].reduce(
-			(n, [k, v]) => n + k.length + v.length + 2,
-			0
-		);
-		// The band's own query fits the budget, and the whole Location fits
-		// Node's 16 KB head with room for the cookie.
-		expect(bandQueryLength).toBeLessThanOrEqual(band.BAND_BUDGET);
-		expect(justUnder.location!.length).toBeLessThan(16_000);
+		// The whole Location — path, `pkg` and the band's facts — fits the budget.
+		expect(justUnder.location!.length).toBeLessThanOrEqual(band.LOCATION_BUDGET);
 		expect(flags.sourceFlags(under[0]).neverTracked).toBe(true);
 
 		dropPackages('x.under', 'x.over');
@@ -717,5 +716,80 @@ describe('a hidden source outside reveal (card c696, round 2)', () => {
 		dropPackages('x.hid', 'x.vis');
 		for (const id of ['631', '632'])
 			for (const f of flags.SOURCE_FLAGS) flags.setSourceFlag(id, f, false);
+	});
+});
+
+/**
+ * Round 2 of wave 42 measured the budget on the band's query alone, and wave
+ * 43's review found the rest of the redirect outside it: `selectQuery` adds one
+ * `pkg` per ticked package, and `?/updateSome` and `?/removeSome` had no check
+ * at all. A press of many real-length package names was written, then the
+ * redirect's GET answered 431 with no band and no UNDO. These cases use the
+ * packages' own names at about 52 bytes each, as an extension's name is.
+ */
+describe('the whole redirect is budgeted, for every press (card c696, wave 43)', () => {
+	const real = (i: number) =>
+		`eu.kanade.tachiyomi.extension.en.source${String(i).padStart(4, '0')}`;
+	/** [n] installed single-source extensions, from [start] on, in the test's own id range. */
+	const many = (n: number, start: number) =>
+		Array.from({ length: n }, (_, i) => {
+			const pkg = real(start + i);
+			extension(pkg, [{ id: String(900_000 + start + i), lang: 'en' }]);
+			return pkg;
+		});
+	const idsOf = (n: number, start: number) =>
+		Array.from({ length: n }, (_, i) => String(900_000 + start + i));
+
+	it('?/flags: 250 real-length packages refuse with nothing written, 190 fit the whole Location', async () => {
+		const over = many(250, 0);
+		const refused = await act('flags', { pkg: over, flag: 'neverTracked', value: 'true' });
+		expect(refused.status).toBe(409);
+		expect(refused.data?.message).toBe('TOO MANY SOURCES TO CHANGE AT ONCE');
+		expect(
+			db.prepare(`SELECT COUNT(*) AS n FROM settings WHERE key LIKE 'source.never-tracked:%'`).get()
+		).toEqual({ n: 0 });
+
+		const under = many(190, 1_000);
+		const taken = await act('flags', { pkg: under, flag: 'neverTracked', value: 'true' });
+		expect(taken.status).toBe(303);
+		expect(taken.location!.length).toBeLessThanOrEqual(band.LOCATION_BUDGET);
+		expect(new URL(taken.location!, 'http://localhost').searchParams.getAll('pkg')).toEqual(under);
+		expect(flags.sourceFlags(idsOf(190, 1_000)[0]).neverTracked).toBe(true);
+
+		dropPackages(...over, ...under);
+		for (const id of [...idsOf(250, 0), ...idsOf(190, 1_000)])
+			flags.setSourceFlag(id, 'neverTracked', false);
+	});
+
+	it('?/removeSome refuses before removing, and every row stays installed', async () => {
+		const pkgs = many(260, 3_000);
+		for (const pkg of pkgs) listAt(pkg, 1);
+		const refused = await act('removeSome', { pkg: pkgs });
+		expect(refused.status).toBe(409);
+		expect(
+			db
+				.prepare(
+					`SELECT COUNT(*) AS n FROM engine_extensions WHERE pkg IN (${pkgs.map(() => '?').join(',')})`
+				)
+				.get(...pkgs)
+		).toEqual({ n: 260 });
+		dropPackages(...pkgs);
+	});
+
+	it('?/updateSome refuses before the first install', async () => {
+		const pkgs = many(260, 5_000);
+		for (const pkg of pkgs) listAt(pkg, 9);
+		const refused = await act('updateSome', { pkg: pkgs });
+		expect(refused.status).toBe(409);
+		// The guard runs before the loop, so no repository was asked.
+		expect(installs.calls).toEqual([]);
+		expect(
+			db
+				.prepare(
+					`SELECT COUNT(*) AS n FROM engine_extensions WHERE pkg IN (${pkgs.map(() => '?').join(',')}) AND version_name = '1.0'`
+				)
+				.get(...pkgs)
+		).toEqual({ n: 260 });
+		dropPackages(...pkgs);
 	});
 });

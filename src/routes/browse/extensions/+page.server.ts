@@ -51,7 +51,6 @@ import {
 	type SourceFlag
 } from '$lib/server/engine/source-flags';
 import {
-	BAND_BUDGET,
 	TooManySourcesError,
 	applyFlag,
 	bandQuery,
@@ -63,6 +62,7 @@ import {
 	packageSources,
 	planFlag,
 	pluginOf,
+	pressFits,
 	selectQuery,
 	tickedPackages,
 	undoFlagPress,
@@ -525,7 +525,12 @@ export const actions: Actions = {
 		});
 		// Refuse before the write: past Node's 16 KB request head the redirect's
 		// GET is a 431, and the press would already be done with no band or UNDO.
-		if (q.length > BAND_BUDGET) return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE' });
+		// The whole Location is the cost, not the band alone: `selectQuery` adds
+		// one `pkg` per ticked package, which the band's own bytes never counted.
+		// The selection before the write is an upper bound (a HIDE drops rows
+		// after it), so this measures every package the press asked for.
+		if (!pressFits(`${PAGE}?${selectQuery(shownSelection(pkgs, reveal), q)}`))
+			return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE' });
 		applyFlag(plan);
 		const still = shownSelection(pkgs, reveal);
 		redirect(303, `${PAGE}?${selectQuery(still, q)}`);
@@ -565,6 +570,19 @@ export const actions: Actions = {
 		]);
 		const asked = pkgs.filter((pkg) => updatable.has(pkg));
 		if (asked.length === 0) return fail(409, { message: 'NOTHING TICKED HAS AN UPDATE' });
+		// Refuse before the first install, as the flags press does: every asked
+		// package will be one band row, so cost each in the longest list key the
+		// band can carry (`untrusted`), which is an upper bound on what it sends.
+		if (
+			!pressFits(
+				`${PAGE}?${bandQuery('update', {
+					untrusted: asked,
+					of: asked.length,
+					no: pkgs.length - asked.length
+				})}`
+			)
+		)
+			return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE' });
 		const done: string[] = [];
 		/** A repository that did not answer, and a signature that did not match, said apart. */
 		const failed: string[] = [];
@@ -639,6 +657,15 @@ export const actions: Actions = {
 		const reveal = isRevealed(cookies);
 		const asked = tickedPackages(form);
 		if (!asked.length) return fail(400, { message: 'Nothing to remove' });
+		// Refuse before the first removal, as the flags press does: every asked
+		// package will be one band row, and `stayed` is the longer of its two
+		// list keys, so it is the upper bound on what the redirect sends.
+		if (
+			!pressFits(
+				`${PAGE}?${bandQuery('remove', { stayed: asked, series: 0, queued: 0, followed: 0 })}`
+			)
+		)
+			return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE' });
 		const iv = installedView(reveal);
 		const pv = pluginsShown(pluginView(reveal), reveal);
 		const known = new Set([
