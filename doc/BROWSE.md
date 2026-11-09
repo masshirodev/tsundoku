@@ -865,6 +865,12 @@ found by those words and a locator matches by substring.
   FILTERED with its chip included and what the source was asked, a search for
   the rest, ← back to the preview, the series' sheet and each door with no
   sheet, the engine down or slow, and the remote's walk to a tag.
+- `tests/tv-browse-focus.e2e.ts` (the `tv` project, on a fake engine of its
+  own): the focus mark on a catalog tile (c864), on the cover as on a library
+  tile, in POPULAR, LATEST, a search, back from a preview by both ways back
+  (the remote's BACK and the preview's own ←, a `backLink`, so both are a
+  history step and the tile's `data-focus-id` puts it back) and under
+  FILTER's scrim.
 - `tests/source-flags-db.spec.ts`: a source's own switches (card c435): the
   rows they are kept in, `sourceIdSql` against `sourceOfKey` on every key,
   HIDDEN SOURCE at BROWSE, RECENT, EXTENSIONS (a package, and a plugin's

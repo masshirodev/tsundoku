@@ -2,6 +2,7 @@
 	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { page } from '$app/state';
 	import { trail } from '$lib/start-trail.svelte';
+	import { backLink } from '$lib/back';
 	import { enhance } from '$app/forms';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { formatNumber } from '$lib/library/series';
@@ -88,7 +89,7 @@
 <div class="preview">
 	<header class="bar">
 		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an in-app path, checked by sourceOrigin -->
-		<a class="back" href={back}
+		<a class="back" href={back} use:backLink
 			><span class="arrow">←</span><span>{data.from ? 'BROWSE' : 'SOURCES'}</span></a
 		>
 	</header>
