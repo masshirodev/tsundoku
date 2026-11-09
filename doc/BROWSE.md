@@ -478,6 +478,20 @@ known (an extension the engine never listed a source for) cannot change, and
 with none left the cells are disabled. Outside reveal HIDDEN is an **action**,
 not a switch: a count would hint at what is hidden, and hidden means hidden.
 
+**Bulk HIDE sets the switch, and nothing else** (decided alone, round 2 of wave
+42; the brief asked for the decision). At the single door, HIDDEN SOURCE hides
+the source while **CONCEAL ITS SERIES** hides the series already in the library
+from it, once and now (`Conceal its series`, below). A bulk HIDE does the first
+only: every source of every ticked extension leaves the list, its search and its
+pages' names, while the library's series from those sources **stay shown**, with
+their own hidden state untouched. The band says exactly that ("THEY LEFT THE
+LIST AND THE SELECTION · REVEAL SHOWS THEM"). Reasons: it is the same press
+HIDDEN SOURCE is on the settings page, not CONCEAL; it never hides a reader's
+series without CONCEAL's own question; and its UNDO brings the sources back,
+which a series write would not. **CONCEAL ITS SERIES stays on each source's
+settings page**, one source at a time; offering it for a selection would be a
+new cell and sheet (a design question), not part of this press.
+
 **One band, one UNDO** (Results board). The press carries each source's value
 before it (`from=id|1,id|0`), so UNDO puts a mixed selection back mixed and a
 source already on stays on; it refuses whole when a source was changed since on

@@ -307,6 +307,12 @@ test('UPDATE narrows UPDATE ALL to the ticked row, and its UNDO is BACK TO', asy
 	// SELECT ended on success, and the row is the new version.
 	await expect(page.locator('.bulk')).toHaveCount(0);
 	await expect(row(page, 'Webtoons.com')).toContainText('1.6.3');
+	// UNDO's form posts every updated row: the band loops over `update.done`
+	// (the two-row list is proven through the real load in
+	// tests/extensions-select-db.spec.ts).
+	const undoForm = band.locator('form');
+	await expect(undoForm.locator('input[name=pkg]')).toHaveCount(1);
+	await expect(undoForm.locator('input[name=pkg]')).toHaveValue(WEBTOONS);
 	await band.getByRole('button', { name: 'UNDO' }).click();
 	await expect(row(page, 'Webtoons.com')).toContainText('1.6.2');
 	await expect(page.locator('.band')).toContainText('BACK TO · 1 EXTENSION');

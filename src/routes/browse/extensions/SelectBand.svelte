@@ -32,7 +32,13 @@
 			miss: string[];
 			gone: string[];
 		} | null;
-		update?: { done: string[]; failed: string[]; of: number; noUpdate: number } | null;
+		update?: {
+			done: string[];
+			failed: string[];
+			untrusted: string[];
+			of: number;
+			noUpdate: number;
+		} | null;
 		remove?: {
 			done: string[];
 			stayed: string[];
@@ -59,6 +65,7 @@
 		'gone',
 		'done',
 		'stayed',
+		'untrusted',
 		'series',
 		'queued',
 		'followed'
@@ -133,13 +140,25 @@
 				: `UPDATED · ${count(update.done.length)} OF ${count(update.of)}`
 			: ''
 	);
-	const updateDetail = $derived(
-		update
-			? update.failed.length
-				? `${update.failed.map((p) => (names[p] ?? p).toUpperCase()).join(', ')}: ITS REPOSITORY DIDN'T ANSWER · ITS ROW STILL OFFERS UPDATE`
-				: `${count(update.noUpdate)} HAD NO UPDATE · THE OLD VERSIONS ARE KEPT A WEEK · UNDO GOES BACK TO THEM`
-			: ''
-	);
+	const updateDetail = $derived.by(() => {
+		if (!update) return '';
+		const named = (list: string[]) => list.map((p) => (names[p] ?? p).toUpperCase()).join(', ');
+		const parts: string[] = [];
+		if (update.failed.length)
+			parts.push(
+				`${named(update.failed)}: ITS REPOSITORY DIDN'T ANSWER · ITS ROW STILL OFFERS UPDATE`
+			);
+		if (update.untrusted.length)
+			parts.push(
+				`${named(update.untrusted)}: SIGNED WITH ANOTHER KEY THAN ITS REPOSITORY · NOTHING WAS INSTALLED`
+			);
+		// Nothing failed: say what had no update at all, and that UNDO goes back.
+		if (!parts.length)
+			parts.push(
+				`${count(update.noUpdate)} HAD NO UPDATE · THE OLD VERSIONS ARE KEPT A WEEK · UNDO GOES BACK TO THEM`
+			);
+		return parts.join(' · ');
+	});
 	const removeTitle = $derived(remove ? `REMOVED · ${ext(remove.done.length)}` : '');
 	const removeDetail = $derived(
 		remove

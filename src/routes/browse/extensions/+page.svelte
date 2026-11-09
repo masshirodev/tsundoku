@@ -238,16 +238,14 @@
 	function switchesOf(pkg: string): string {
 		const f = data.packageFlags[pkg];
 		if (!f || f.total === 0) return "ITS SOURCES AREN'T KNOWN";
-		const parts = SWITCHES
-			// Hidden means hidden: outside reveal a hidden source is not hinted at.
-			.filter((s) => s.flag !== 'hidden' || data.reveal)
-			.map((s) => {
-				const on = f.on[s.flag] ?? 0;
-				if (on === 0) return '';
-				if (on === f.total) return s.name;
-				return `${s.name} ${on} OF ${f.total} SOURCES`;
-			})
-			.filter(Boolean);
+		// Hidden is not filtered here: the server sends no hidden count outside
+		// reveal (`flagsByPackage`), so there is nothing to hide.
+		const parts = SWITCHES.map((s) => {
+			const on = f.on[s.flag] ?? 0;
+			if (on === 0) return '';
+			if (on === f.total) return s.name;
+			return `${s.name} ${on} OF ${f.total} SOURCES`;
+		}).filter(Boolean);
 		return parts.length ? parts.join(' · ') : 'NO SWITCHES ON';
 	}
 	/** The drawn rows' names, for a band that names a failed update. */

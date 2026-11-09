@@ -65,11 +65,29 @@ export function tickedPackages(form: FormData): string[] {
 }
 
 /**
- * At most this many facts are carried in a band's URL, so a press and its UNDO
- * stay well under Node's 16 KB for a request's head. A selection of every row
- * MangaDex has is 61 sources; the whole installed list is nowhere near it.
+ * How many facts `decodeFacts` will read from a band's URL: a ceiling on the
+ * work a hand-made link can ask for, not a bound on the URL's length. The
+ * length is `BAND_BUDGET`'s (below), because Node refuses a request head past
+ * 16 KB and the band would arrive after the press was already written.
  */
 export const FACTS_MAX = 2000;
+
+/**
+ * The most a band's own query may cost, in bytes, before the press is
+ * written: URLSearchParams encodes `|` and `,` (about 26 bytes a fact), and
+ * Node answers a request head past 16 KB with 431. The rest of the URL has
+ * `pkg` per ticked package, the path and any cookie, so the band's query is
+ * kept to 12 KB here (measured: 600 sources of 19 digits = 15650 bytes).
+ */
+export const BAND_BUDGET = 12_000;
+
+/** A press with more sources than `FACTS_MAX`: refused before anything is written. */
+export class TooManySourcesError extends Error {
+	constructor() {
+		super(`more than ${FACTS_MAX} sources`);
+		this.name = 'TooManySourcesError';
+	}
+}
 
 /** The facts as one compact URL value: `id|1,id|0`, where `|` is in neither kind of id. */
 export const encodeFacts = (facts: readonly FlagFact[]) =>
@@ -104,6 +122,8 @@ export type FlagPress = {
 	to: boolean;
 	/** Every package's sources, and what each was before: UNDO's facts. */
 	facts: FlagFact[];
+	/** The source ids the press would set. */
+	ids: string[];
 	/** Ticked packages, and those one or more sources of which changed. */
 	of: number;
 	chg: number;
@@ -111,7 +131,13 @@ export type FlagPress = {
 	gone: string[];
 };
 
-export function pressFlag(
+/**
+ * What a press would do, before anything is written: the ids it covers, what
+ * each is before (UNDO's facts) and the packages it cannot change. The flags
+ * action measures its band with this and refuses a press too large for a URL
+ * (`BAND_BUDGET`) without writing; `applyFlag` is then the one write.
+ */
+export function planFlag(
 	pkgs: readonly string[],
 	flag: SourceFlag,
 	to: boolean,
@@ -135,13 +161,14 @@ export function pressFlag(
 		}
 		byPkg.set(pkg, ids);
 	}
-	const all = [...new Set([...byPkg.values()].flat())];
-	if (all.length > FACTS_MAX) throw new Error(`more than ${FACTS_MAX} sources`);
-	const facts = all.length ? setSourceFlags(all, flag, to, db) : [];
+	const ids = [...new Set([...byPkg.values()].flat())];
+	if (ids.length > FACTS_MAX) throw new TooManySourcesError();
+	const current = sourceFlagsOf(ids, db);
 	return {
 		flag,
 		to,
-		facts,
+		ids,
+		facts: ids.map((sourceId) => ({ sourceId, previous: current.get(sourceId)?.[flag] ?? false })),
 		of: byPkg.size + miss.length + gone.length,
 		// Every package with a source is now at `to`: that is how many the band counts.
 		chg: byPkg.size,
@@ -150,16 +177,34 @@ export function pressFlag(
 	};
 }
 
+/** The one write a planned press makes: every source in one transaction. */
+export function applyFlag(plan: FlagPress, db = getDb()): FlagFact[] {
+	return plan.ids.length ? setSourceFlags(plan.ids, plan.flag, plan.to, db) : [];
+}
+
+/** Plan and write in one call, for a caller with no band to measure. */
+export function pressFlag(
+	pkgs: readonly string[],
+	flag: SourceFlag,
+	to: boolean,
+	db = getDb()
+): FlagPress & { facts: FlagFact[] } {
+	const plan = planFlag(pkgs, flag, to, db);
+	return { ...plan, facts: applyFlag(plan, db) };
+}
+
 /**
  * Whether UNDO may run whole: every source the press changed still has the
  * value it set. A source changed since, on its own settings page, is named by
  * its package; an UNDO that took back half a press would be a lie, so it
- * refuses whole (`doc/BANDS.md`'s c469 shape).
+ * refuses whole (`doc/BANDS.md`'s c469 shape). Outside reveal a source that is
+ * hidden now is not named: hidden means hidden, so the band says "A SOURCE".
  */
 export function undoRefusal(
 	flag: SourceFlag,
 	to: boolean,
 	facts: readonly FlagFact[],
+	reveal = false,
 	db = getDb()
 ): string | null {
 	const now = sourceFlagsOf(
@@ -168,8 +213,10 @@ export function undoRefusal(
 	);
 	const changed = facts.find((f) => now.get(f.sourceId)?.[flag] !== to);
 	if (!changed) return null;
-	const name = browseSources(true).find((s) => s.id === changed.sourceId)?.name ?? changed.sourceId;
-	return `UNDO REFUSED · ${name.toUpperCase()} WAS CHANGED SINCE`;
+	const name = (reveal ? browseSources(true) : browseSources(false)).find(
+		(s) => s.id === changed.sourceId
+	)?.name;
+	return `UNDO REFUSED · ${(name ?? 'A SOURCE').toUpperCase()} WAS CHANGED SINCE`;
 }
 
 /** UNDO: each source back to its value before the press, in one transaction. */
@@ -193,6 +240,7 @@ export const SELECT_BAND_PARAMS = [
 	'gone',
 	'done',
 	'stayed',
+	'untrusted',
 	'series',
 	'queued',
 	'followed'
@@ -220,6 +268,13 @@ export function selectQuery(pkgs: readonly string[], extra = ''): string {
 export const listOf = (raw: string | null | undefined) =>
 	(raw ?? '').split(',').filter((p) => /^(ln:)?[A-Za-z0-9._-]{1,200}$/.test(p));
 
+/**
+ * A band's repeated parameter as one list. `bandQuery` writes `done=a&done=b`,
+ * so a single `.get()` would keep only the first row; every reader of a list
+ * goes through this.
+ */
+export const listParam = (p: URLSearchParams, key: string) => listOf(p.getAll(key).join(','));
+
 export type FlagsBand = {
 	flag: SourceFlag;
 	to: boolean;
@@ -243,8 +298,8 @@ export function flagsBand(p: URLSearchParams): FlagsBand | null {
 		facts,
 		of: Number(p.get('of')) || 0,
 		chg: Number(p.get('chg')) || 0,
-		miss: listOf(p.get('miss')),
-		gone: listOf(p.get('gone'))
+		miss: listParam(p, 'miss'),
+		gone: listParam(p, 'gone')
 	};
 }
 

@@ -51,15 +51,18 @@ import {
 	type SourceFlag
 } from '$lib/server/engine/source-flags';
 import {
+	BAND_BUDGET,
+	TooManySourcesError,
+	applyFlag,
 	bandQuery,
 	decodeFacts,
 	encodeFacts,
 	flagsBand,
 	installedPackages,
-	listOf,
+	listParam,
 	packageSources,
+	planFlag,
 	pluginOf,
-	pressFlag,
 	selectQuery,
 	tickedPackages,
 	undoFlagPress,
@@ -140,32 +143,36 @@ function shownSelection(pkgs: readonly string[], reveal: boolean): string[] {
  * that have it on, out of every source it has (`browseSources(true)`), which
  * is what a mixed cell and a row's SWITCHES line are counted from. A package
  * whose sources are not known has no entry.
+ *
+ * Hidden means hidden: only the packages this viewer is drawn get an entry,
+ * and outside reveal no hidden count is sent at all, so a hidden package and
+ * the fact that a drawn one has hidden sources never reach a client outside
+ * reveal. A drawn package's total still counts every source, hidden ones
+ * included: the owner's every-source rule needs it.
  */
-function flagsByPackage(): Record<string, { total: number; on: Record<SourceFlag, number> }> {
+function flagsByPackage(
+	drawn: Set<string>,
+	reveal: boolean
+): Record<string, { total: number; on: Record<SourceFlag, number> }> {
 	const grouped = packageSources();
 	const out: Record<string, { total: number; on: Record<SourceFlag, number> }> = {};
-	for (const [pkg, ids] of grouped) {
+	for (const pkg of drawn) {
+		// A plugin is its one id even when its file failed: the switch is tsundoku's,
+		// keyed by `ln:<id>`, and nothing about the plugin can stop it.
+		const ids = grouped.get(pkg) ?? (pluginOf(pkg) ? [pkg] : []);
 		if (ids.length === 0) continue;
 		const current = sourceFlagsOf(ids);
 		out[pkg] = {
 			total: ids.length,
 			on: Object.fromEntries(
-				SOURCE_FLAGS.map((flag) => [flag, ids.filter((id) => current.get(id)?.[flag]).length])
+				SOURCE_FLAGS.map((flag) => [
+					flag,
+					// Hidden sources are not counted outside reveal; the row itself may be.
+					flag === 'hidden' && !reveal ? 0 : ids.filter((id) => current.get(id)?.[flag]).length
+				])
 			) as Record<SourceFlag, number>
 		};
 	}
-	// A plugin is its one id even when its file failed: the switch is tsundoku's,
-	// keyed by `ln:<id>`, and nothing about the plugin can stop it.
-	for (const pkg of installedPackages())
-		if (!out[pkg] && pluginOf(pkg)) {
-			const current = sourceFlagsOf([pkg]);
-			out[pkg] = {
-				total: 1,
-				on: Object.fromEntries(
-					SOURCE_FLAGS.map((flag) => [flag, current.get(pkg)?.[flag] ? 1 : 0])
-				) as Record<SourceFlag, number>
-			};
-		}
 	return out;
 }
 
@@ -185,7 +192,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	// the selection, so a no-script press lands with the rows it ticked still
 	// ticked. A package that left the list leaves the selection with it.
 	const select = url.searchParams.get('select') === '1';
-	const ticked = listOf(url.searchParams.getAll('pkg').join(',')).filter((p) => drawn.has(p));
+	const ticked = listParam(url.searchParams, 'pkg').filter((p) => drawn.has(p));
 	const counts = {
 		installed:
 			installedNow.needsHand.length +
@@ -272,8 +279,9 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	const updateBand =
 		url.searchParams.get('band') === 'update'
 			? {
-					done: listOf(url.searchParams.get('done')),
-					failed: listOf(url.searchParams.get('miss')),
+					done: listParam(url.searchParams, 'done'),
+					failed: listParam(url.searchParams, 'miss'),
+					untrusted: listParam(url.searchParams, 'untrusted'),
 					of: Number(url.searchParams.get('of')) || 0,
 					noUpdate: Number(url.searchParams.get('no')) || 0
 				}
@@ -281,15 +289,15 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	const removeBand =
 		url.searchParams.get('band') === 'remove'
 			? {
-					done: listOf(url.searchParams.get('done')),
-					stayed: listOf(url.searchParams.get('stayed')),
+					done: listParam(url.searchParams, 'done'),
+					stayed: listParam(url.searchParams, 'stayed'),
 					series: Number(url.searchParams.get('series')) || 0,
 					queued: Number(url.searchParams.get('queued')) || 0,
 					followed: Number(url.searchParams.get('followed')) || 0
 				}
 			: null;
 	const backBand =
-		url.searchParams.get('band') === 'back' ? { done: listOf(url.searchParams.get('done')) } : null;
+		url.searchParams.get('band') === 'back' ? { done: listParam(url.searchParams, 'done') } : null;
 
 	/**
 	 * REMOVE's question about a selection (the bar's REMOVE n…, `?removeSel=1`):
@@ -354,7 +362,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		select,
 		selected: ticked,
 		drawn: [...drawn],
-		packageFlags: tab === 'installed' ? flagsByPackage() : {},
+		packageFlags: tab === 'installed' ? flagsByPackage(drawn, reveal) : {},
 		updates: [
 			...installedNow.updates.map((r) => r.pkg),
 			...pluginsNow.updates.map((p) => `ln:${p.id}`)
@@ -487,28 +495,43 @@ export const actions: Actions = {
 		// The browse world's hold (tests/browse-setup.ts, c636): off in any build
 		// the owner runs, and only the post that asks for it waits.
 		await holdPost('flag', request);
-		const pkgs = tickedPackages(form);
-		let press: ReturnType<typeof pressFlag>;
-		try {
-			press = pressFlag(pkgs, flag, value === 'true');
-		} catch {
-			return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE' });
-		}
 		const reveal = isRevealed(cookies);
-		const still = shownSelection(pkgs, reveal);
+		// Hidden means hidden: a stale tab or a hand-made post changes only the
+		// packages this viewer is drawn, as the settings page answers 404 for a
+		// source it may not see. A package not installed at all still reaches the
+		// press, so the band can count it `gone` rather than call it a success.
+		// UNDO stays unrestricted, because HIDE outside reveal has to bring the
+		// package back.
+		const drawn = drawnPackages(installedView(reveal), pluginsShown(pluginView(reveal), reveal));
+		const installedNow = installedPackages();
+		const pkgs = tickedPackages(form).filter((pkg) => drawn.has(pkg) || !installedNow.has(pkg));
+		let plan: ReturnType<typeof planFlag>;
+		try {
+			plan = planFlag(pkgs, flag, value === 'true');
+		} catch (e) {
+			// Only the size guard is the bar's own refusal; anything else surfaces.
+			if (e instanceof TooManySourcesError)
+				return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE' });
+			throw e;
+		}
 		const q = bandQuery('flags', {
 			flag,
-			to: press.to ? '1' : '0',
-			from: encodeFacts(press.facts),
-			of: press.of,
-			chg: press.chg,
-			miss: press.miss,
-			gone: press.gone
+			to: plan.to ? '1' : '0',
+			from: encodeFacts(plan.facts),
+			of: plan.of,
+			chg: plan.chg,
+			miss: plan.miss,
+			gone: plan.gone
 		});
+		// Refuse before the write: past Node's 16 KB request head the redirect's
+		// GET is a 431, and the press would already be done with no band or UNDO.
+		if (q.length > BAND_BUDGET) return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE' });
+		applyFlag(plan);
+		const still = shownSelection(pkgs, reveal);
 		redirect(303, `${PAGE}?${selectQuery(still, q)}`);
 	},
 	/** UNDO on a switch press: each source back as it was, whole or not at all. */
-	undoFlags: async ({ request }) => {
+	undoFlags: async ({ cookies, request }) => {
 		guard();
 		const form = await request.formData();
 		const flag = String(form.get('flag') ?? '');
@@ -516,7 +539,7 @@ export const actions: Actions = {
 		const to = String(form.get('to') ?? '') === '1';
 		const facts = decodeFacts(String(form.get('from') ?? ''));
 		if (!facts.length) return fail(400, { message: 'Nothing to undo' });
-		const refused = undoRefusal(flag, to, facts);
+		const refused = undoRefusal(flag, to, facts, isRevealed(cookies));
 		if (refused) return fail(409, { message: refused });
 		undoFlagPress(flag, facts);
 		redirect(303, `${PAGE}?${selectQuery(tickedPackages(form))}`);
@@ -532,6 +555,10 @@ export const actions: Actions = {
 		const reveal = isRevealed(cookies);
 		const iv = installedView(reveal);
 		const pv = pluginsShown(pluginView(reveal), reveal);
+		const named = new Map<string, string>([
+			...[...iv.needsHand, ...iv.updates, ...iv.current].map((r) => [r.pkg, r.name] as const),
+			...[...pv.needsHand, ...pv.updates, ...pv.current].map((p) => [`ln:${p.id}`, p.name] as const)
+		]);
 		const updatable = new Set([
 			...iv.updates.map((r) => r.pkg),
 			...pv.updates.map((p) => `ln:${p.id}`)
@@ -539,7 +566,9 @@ export const actions: Actions = {
 		const asked = pkgs.filter((pkg) => updatable.has(pkg));
 		if (asked.length === 0) return fail(409, { message: 'NOTHING TICKED HAS AN UPDATE' });
 		const done: string[] = [];
+		/** A repository that did not answer, and a signature that did not match, said apart. */
 		const failed: string[] = [];
+		const untrusted: string[] = [];
 		for (const pkg of asked) {
 			try {
 				const plugin = pluginOf(pkg);
@@ -547,15 +576,25 @@ export const actions: Actions = {
 				else await install(pkg);
 				forgetPackage(pkg);
 				done.push(pkg);
-			} catch {
-				failed.push(pkg);
+			} catch (e) {
+				if (e instanceof UntrustedError) untrusted.push(pkg);
+				else failed.push(pkg);
 			}
+		}
+		// A failed update is not a success with a smaller count (the brief): with
+		// nothing taken, answer as UPDATE ALL does, and keep SELECT and its ticks.
+		if (done.length === 0) {
+			const why = untrusted.length ? ' (signed with another key than its repository)' : '';
+			return fail(502, {
+				message: `${asked.map((pkg) => named.get(pkg) ?? pkg).join(', ')} did not update${why}`
+			});
 		}
 		redirect(
 			303,
 			`${PAGE}?${bandQuery('update', {
 				done,
 				miss: failed,
+				untrusted,
 				of: asked.length,
 				no: pkgs.length - asked.length
 			})}`
@@ -577,13 +616,17 @@ export const actions: Actions = {
 		]);
 		if (!pkgs.length || pkgs.some((pkg) => !backable.has(pkg)))
 			return fail(409, { message: 'THE VERSION BEFORE IS NO LONGER KEPT · NOTHING CHANGED' });
+		// Count only what BACK TO actually took: a row can lose its kept version
+		// between the check above and the write.
+		const done: string[] = [];
 		for (const pkg of pkgs) {
 			const plugin = pluginOf(pkg);
-			if (plugin) backPlugin(plugin);
-			else back(pkg);
+			const back_ = plugin ? backPlugin(plugin) : back(pkg);
+			if (!back_) continue;
 			forgetPackage(pkg);
+			done.push(pkg);
 		}
-		redirect(303, `${PAGE}?${bandQuery('back', { done: pkgs })}`);
+		redirect(303, `${PAGE}?${bandQuery('back', { done })}`);
 	},
 	/**
 	 * REMOVE for a selection (card c696). The sheet asked first, so there is no

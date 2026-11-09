@@ -1,13 +1,38 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type Database from 'better-sqlite3';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
 process.env.ENGINE_URL = 'http://127.0.0.1:1';
 process.env.ENGINE_TOKEN = 'extensions-select';
+// BACK TO keeps the previous APK under this store; keep it in the worktree's
+// scratch, never the owner's data folder.
+process.env.ENGINE_STORE = join(process.cwd(), 'temp', 'extensions-select-store');
+mkdirSync(process.env.ENGINE_STORE, { recursive: true });
+
+/**
+ * UPDATE's installs, controlled: the real one fetches an APK, which no unit
+ * test can do. It answers the shapes the real one does — return when installed,
+ * throw `UntrustedError` for a key that does not match, throw otherwise when
+ * the repository does not answer.
+ */
+const installs = vi.hoisted(() => ({ fail: new Set<string>(), untrusted: new Set<string>() }));
+vi.mock('$lib/server/engine/extensions', async (original) => {
+	const mod = await original<typeof import('../src/lib/server/engine/extensions')>();
+	return {
+		...mod,
+		install: async (pkg: string) => {
+			if (installs.untrusted.has(pkg)) throw new mod.UntrustedError('signed by another key');
+			if (installs.fail.has(pkg)) throw new Error('its repository did not answer');
+		}
+	};
+});
 
 const { getDb } = await import('$lib/server/db');
 const flags = await import('$lib/server/engine/source-flags');
+const band = await import('../src/routes/browse/extensions/select.server');
 
 /**
  * EXTENSIONS' SELECT (card c696): setting one of tsundoku's switches on every
@@ -59,9 +84,27 @@ beforeEach(() => {
 		for (const f of flags.SOURCE_FLAGS) flags.setSourceFlag(id, f, false);
 	flags.setSourceFlag('200', 'offHistory', true);
 	flags.setSourceFlag('500', 'offHistory', true);
+	installs.fail.clear();
+	installs.untrusted.clear();
 });
 
 const extensionsPage = await import('../src/routes/browse/extensions/+page.server');
+
+/** The page's own load, at a band's Location: what a user meets after its redirect. */
+async function loadAt(location: string, reveal = false) {
+	const url = new URL(location, 'http://localhost');
+	return (await extensionsPage.load({
+		url,
+		cookies: { get: (n: string) => (reveal && n === 'tsundoku_reveal' ? '1' : undefined) }
+	} as never)) as unknown as {
+		removeBand: { done: string[]; stayed: string[] };
+		updateBand: { done: string[]; failed: string[]; untrusted: string[]; of: number };
+		backBand: { done: string[] };
+		band: { miss: string[]; gone: string[] };
+		drawn: string[];
+		packageFlags: Record<string, { total: number; on: Record<string, number> }>;
+	};
+}
 
 /** Run one of the page's actions with a form, and answer its redirect (or its failure). */
 async function act(
@@ -314,5 +357,306 @@ describe('SELECT’s UPDATE and REMOVE (card c696)', () => {
 		expect(
 			db.prepare(`SELECT COUNT(*) AS n FROM settings WHERE key LIKE 'source.%:500'`).get()
 		).toEqual({ n: 1 });
+	});
+});
+
+/** The rows a new case adds, taken out again so the file's shared database holds what it did. */
+const dropPackages = (...pkgs: string[]) => {
+	for (const pkg of pkgs) {
+		db.prepare(`DELETE FROM engine_extensions WHERE pkg = ?`).run(pkg);
+		db.prepare(`DELETE FROM engine_sources WHERE pkg = ?`).run(pkg);
+		db.prepare(`DELETE FROM engine_listings WHERE pkg = ?`).run(pkg);
+		db.prepare(`DELETE FROM novel_plugins WHERE id = ?`).run(pkg.replace(/^ln:/, ''));
+	}
+};
+
+/** A repository's listing for [pkg] at [versionCode]: what makes it installed, and updatable. */
+const listAt = (pkg: string, versionCode: number) =>
+	db.prepare(`INSERT INTO engine_listings (repo_id, pkg, listing) VALUES (1, ?, ?)`).run(
+		pkg,
+		JSON.stringify({
+			pkg,
+			name: pkg,
+			kind: 'manga',
+			versionCode,
+			versionName: `${versionCode}.0`,
+			lib: '1.4',
+			adult: false,
+			apkUrl: '',
+			jarUrl: null,
+			iconUrl: null,
+			sources: [{ id: `s-${pkg}`, name: pkg, lang: 'en', baseUrl: '' }]
+		})
+	);
+
+/**
+ * Round 2: a band keeps every row of every list. `bandQuery` writes `done=a&
+ * done=b` (a repeated parameter), so a reader taking `.get()` kept the first
+ * and dropped the rest: `UPDATED · 1 OF 3` on three, an UNDO that put one back.
+ * Every case here takes at least two rows through the action and then the real
+ * load, which is what a user meets after the 303.
+ */
+describe('a band keeps every row of its lists (card c696, round 2)', () => {
+	it('REMOVE reports two removed and two that stayed, through the real load', async () => {
+		for (const [pkg, id] of [
+			['x.listed1', '611'],
+			['x.listed2', '612']
+		] as const) {
+			extension(pkg, [{ id, lang: 'en' }]);
+			listAt(pkg, 1);
+		}
+		for (const [pkg, id] of [
+			['x.old1', '613'],
+			['x.old2', '614']
+		] as const)
+			extension(pkg, [{ id, lang: 'en' }]);
+		const r = await act('removeSome', { pkg: ['x.listed1', 'x.listed2', 'x.old1', 'x.old2'] });
+		expect(r.status).toBe(303);
+		const out = await loadAt(r.location!);
+		expect(out.removeBand.done).toEqual(['x.listed1', 'x.listed2']);
+		expect(out.removeBand.stayed).toEqual(['x.old1', 'x.old2']);
+		dropPackages('x.listed1', 'x.listed2', 'x.old1', 'x.old2');
+	});
+
+	it('the flags band reads two miss and two gone', async () => {
+		const q = band.bandQuery('flags', {
+			flag: 'offHistory',
+			to: '1',
+			of: 4,
+			chg: 0,
+			miss: ['x.m1', 'x.m2'],
+			gone: ['x.g1', 'x.g2']
+		});
+		const out = await loadAt(`/browse/extensions?select=1&${q}`);
+		expect(out.band.miss).toEqual(['x.m1', 'x.m2']);
+		expect(out.band.gone).toEqual(['x.g1', 'x.g2']);
+	});
+
+	it('the update band reads two done and two failed, and BACK TO two done', async () => {
+		const up = band.bandQuery('update', {
+			done: ['x.u1', 'x.u2'],
+			miss: ['x.f1', 'x.f2'],
+			of: 4,
+			no: 0
+		});
+		const out = await loadAt(`/browse/extensions?${up}`);
+		expect(out.updateBand.done).toEqual(['x.u1', 'x.u2']);
+		expect(out.updateBand.failed).toEqual(['x.f1', 'x.f2']);
+		const back = band.bandQuery('back', { done: ['x.b1', 'x.b2'] });
+		const outBack = await loadAt(`/browse/extensions?${back}`);
+		expect(outBack.backBand.done).toEqual(['x.b1', 'x.b2']);
+	});
+
+	it('BACK TO puts every row it counted back on its old version', async () => {
+		const until = Date.now() + 86_400_000;
+		for (const [pkg, handle, id] of [
+			['x.b1', 'prev-one', '621'],
+			['x.b2', 'prev-two', '622']
+		] as const) {
+			extension(pkg, [{ id, lang: 'en' }]);
+			db.prepare(
+				`UPDATE engine_extensions SET previous_handle = ?, previous_version = '0.9',
+					previous_until = ?, version_name = '1.9' WHERE pkg = ?`
+			).run(handle, until, pkg);
+			writeFileSync(join(process.env.ENGINE_STORE!, `${handle}.apk`), 'x');
+		}
+		const r = await act('undoUpdate', { pkg: ['x.b1', 'x.b2'] });
+		expect(r.status).toBe(303);
+		const out = await loadAt(r.location!);
+		expect(out.backBand.done).toEqual(['x.b1', 'x.b2']);
+		expect(
+			db
+				.prepare(
+					`SELECT pkg, version_name FROM engine_extensions WHERE pkg IN ('x.b1','x.b2') ORDER BY pkg`
+				)
+				.all()
+		).toEqual([
+			{ pkg: 'x.b1', version_name: '0.9' },
+			{ pkg: 'x.b2', version_name: '0.9' }
+		]);
+		dropPackages('x.b1', 'x.b2');
+		rmSync(join(process.env.ENGINE_STORE!, 'prev-one.apk'), { force: true });
+		rmSync(join(process.env.ENGINE_STORE!, 'prev-two.apk'), { force: true });
+	});
+});
+
+/**
+ * Round 2: hidden means hidden in the data too. `packageFlags` used to group
+ * every installed package, hidden ones included, and count hidden sources on
+ * every load; SvelteKit serialises that into the HTML and `__data.json`.
+ */
+describe('packageFlags names only what the viewer is drawn (card c696, round 2)', () => {
+	it('sends no hidden package id and no hidden count outside reveal, and both inside it', async () => {
+		extension('x.secret', [{ id: '701', lang: 'en' }]);
+		plugin('secretplugin');
+		// A drawn package with one hidden source of two: total counts every source
+		// (the owner's rule), but outside reveal its hidden count is not sent.
+		extension('x.mixed', [
+			{ id: '702', lang: 'en' },
+			{ id: '703', lang: 'fr' }
+		]);
+		flags.setSourceFlag('701', 'hidden', true);
+		flags.setSourceFlag('ln:secretplugin', 'hidden', true);
+		flags.setSourceFlag('703', 'hidden', true);
+
+		const out = await loadAt('/browse/extensions');
+		const json = JSON.stringify(out);
+		expect(json).not.toContain('x.secret');
+		expect(json).not.toContain('secretplugin');
+		expect(out.packageFlags['x.secret']).toBeUndefined();
+		expect(out.packageFlags['x.mixed'].total).toBe(2);
+		expect(out.packageFlags['x.mixed'].on.hidden).toBe(0);
+
+		const inside = await loadAt('/browse/extensions', true);
+		const insideJson = JSON.stringify(inside);
+		expect(insideJson).toContain('x.secret');
+		expect(insideJson).toContain('secretplugin');
+		expect(inside.packageFlags['x.secret'].on.hidden).toBe(1);
+		expect(inside.packageFlags['x.mixed'].on.hidden).toBe(1);
+
+		dropPackages('x.secret', 'x.mixed', 'ln:secretplugin');
+		for (const id of ['701', '702', '703']) flags.setSourceFlag(id, 'hidden', false);
+		flags.setSourceFlag('ln:secretplugin', 'hidden', false);
+	});
+});
+
+/**
+ * Round 2: the URL is bounded before the write. A fact costs about 26 bytes
+ * once encoded (`|` and `,`), so 600 sources are already past Node's 16 KB
+ * request head; the redirect's GET would answer 431 after the press was done.
+ */
+describe('a press too large for its band is refused before it writes (card c696, round 2)', () => {
+	const idsFrom = (n: number, start: bigint) =>
+		Array.from({ length: n }, (_, i) => String(start + BigInt(i)));
+
+	it('refuses over the budget with nothing written, and takes one just under it', async () => {
+		const under = idsFrom(400, 10n ** 18n + 1_000n);
+		const over = idsFrom(600, 2n * 10n ** 18n + 1_000n);
+		extension(
+			'x.under',
+			under.map((id) => ({ id, lang: 'en' }))
+		);
+		extension(
+			'x.over',
+			over.map((id) => ({ id, lang: 'en' }))
+		);
+
+		const tooBig = await act('flags', { pkg: 'x.over', flag: 'neverTracked', value: 'true' });
+		expect(tooBig.status).toBe(409);
+		expect(tooBig.data?.message).toBe('TOO MANY SOURCES TO CHANGE AT ONCE');
+		// Nothing was written: the press was refused before `setSourceFlags`.
+		expect(
+			db.prepare(`SELECT COUNT(*) AS n FROM settings WHERE key LIKE 'source.never-tracked:%'`).get()
+		).toEqual({ n: 0 });
+
+		const justUnder = await act('flags', {
+			pkg: 'x.under',
+			flag: 'neverTracked',
+			value: 'true'
+		});
+		expect(justUnder.status).toBe(303);
+		const u = new URL(justUnder.location!, 'http://localhost');
+		const bandQueryLength = [...u.searchParams].reduce(
+			(n, [k, v]) => n + k.length + v.length + 2,
+			0
+		);
+		// The band's own query fits the budget, and the whole Location fits
+		// Node's 16 KB head with room for the cookie.
+		expect(bandQueryLength).toBeLessThanOrEqual(band.BAND_BUDGET);
+		expect(justUnder.location!.length).toBeLessThan(16_000);
+		expect(flags.sourceFlags(under[0]).neverTracked).toBe(true);
+
+		dropPackages('x.under', 'x.over');
+		for (const id of under) flags.setSourceFlag(id, 'neverTracked', false);
+	});
+});
+
+/**
+ * Round 2: a bulk UPDATE where nothing took is not a success with a smaller
+ * count. UPDATE ALL answers `fail(502, '... did not update')`; so does this,
+ * and a refused signature is not reported as a repository that did not answer.
+ */
+describe('a bulk UPDATE where nothing took is not UPDATED (card c696, round 2)', () => {
+	const prep = () => {
+		for (const [pkg, id] of [
+			['x.upok', '801'],
+			['x.upf', '802']
+		] as const) {
+			extension(pkg, [{ id, lang: 'en' }]);
+			listAt(pkg, 9);
+		}
+	};
+
+	it('keeps the board’s UPDATED · 1 OF 2 when one of two took', async () => {
+		prep();
+		installs.fail.add('x.upf');
+		const r = await act('updateSome', { pkg: ['x.upok', 'x.upf'] });
+		expect(r.status).toBe(303);
+		const out = await loadAt(r.location!);
+		expect(out.updateBand.done).toEqual(['x.upok']);
+		expect(out.updateBand.failed).toEqual(['x.upf']);
+		expect(out.updateBand.of).toBe(2);
+		dropPackages('x.upok', 'x.upf');
+	});
+
+	it('answers did not update when every install failed, and keeps the reason', async () => {
+		prep();
+		installs.fail.add('x.upok');
+		installs.fail.add('x.upf');
+		const r = await act('updateSome', { pkg: ['x.upok', 'x.upf'] });
+		expect(r.status).toBe(502);
+		expect(String(r.data?.message)).toContain('did not update');
+		expect(String(r.data?.message)).not.toContain('UPDATED');
+
+		// A refused signature is its own reason, not "its repository didn't answer".
+		installs.fail.clear();
+		installs.untrusted.add('x.upok');
+		installs.untrusted.add('x.upf');
+		const untrusted = await act('updateSome', { pkg: ['x.upok', 'x.upf'] });
+		expect(untrusted.status).toBe(502);
+		expect(String(untrusted.data?.message)).toContain('signed with another key');
+		expect(String(untrusted.data?.message)).not.toContain('did not answer');
+		dropPackages('x.upok', 'x.upf');
+	});
+});
+
+/** Round 2's lows: the bulk doors are as guarded as the single one. */
+describe('a hidden source outside reveal (card c696, round 2)', () => {
+	it('cannot be changed by a hand-made bulk post, and UNDO names no source it may not see', async () => {
+		extension('x.hid', [{ id: '631', lang: 'en' }]);
+		flags.setSourceFlag('631', 'hidden', true);
+		const r = await act('flags', { pkg: 'x.hid', flag: 'neverTracked', value: 'true' }, false);
+		expect(r.status).toBe(303);
+		expect(flags.sourceFlags('631').neverTracked).toBe(false);
+		// Inside reveal the same press reaches it, as the row is drawn there.
+		const shown = await act('flags', { pkg: 'x.hid', flag: 'neverTracked', value: 'true' }, true);
+		expect(shown.status).toBe(303);
+		expect(flags.sourceFlags('631').neverTracked).toBe(true);
+
+		extension('x.vis', [{ id: '632', lang: 'en' }]);
+		expect((await act('flags', { pkg: 'x.vis', flag: 'offHistory', value: 'true' })).status).toBe(
+			303
+		);
+		// Changed since, and hidden since: the refusal outside reveal names no source.
+		flags.setSourceFlag('632', 'offHistory', false);
+		flags.setSourceFlag('632', 'hidden', true);
+		const hiddenNow = await act(
+			'undoFlags',
+			{ pkg: 'x.vis', flag: 'offHistory', to: '1', from: '632|0' },
+			false
+		);
+		expect(hiddenNow.status).toBe(409);
+		expect(String(hiddenNow.data?.message)).toBe('UNDO REFUSED · A SOURCE WAS CHANGED SINCE');
+		// Inside reveal the source may be named.
+		const seen = await act(
+			'undoFlags',
+			{ pkg: 'x.vis', flag: 'offHistory', to: '1', from: '632|0' },
+			true
+		);
+		expect(String(seen.data?.message)).toBe('UNDO REFUSED · X.VIS WAS CHANGED SINCE');
+
+		dropPackages('x.hid', 'x.vis');
+		for (const id of ['631', '632'])
+			for (const f of flags.SOURCE_FLAGS) flags.setSourceFlag(id, f, false);
 	});
 });
