@@ -21,7 +21,9 @@ import { expect, test } from './fixtures';
  * gv.css's `.vh` block). It seeds and serves its own database and port
  * because it groups two novels and marks chapters read; nothing of the shared
  * seed is written. It runs once, in tablet-portrait, and the TV's own
- * measurements are tests/tv-volume-head.e2e.ts's.
+ * measurements are tests/tv-volume-head.e2e.ts's. Its last case is the
+ * pointer's half of 1D: a tap focuses the row under a head and must move
+ * nothing.
  */
 
 let work: string;
@@ -210,8 +212,66 @@ test.describe('the volume head', () => {
 		await expect(page.locator('.rail .tick.vol.on')).toHaveCount(1);
 		const hairline = await ticks.first().evaluate((n) => getComputedStyle(n).borderTopWidth);
 		expect(hairline).toBe('1px');
-		// No volume ticks on a series with one book: the number ticks stay.
-		expect(await page.locator('.rail .tick.vol').count()).toBe(2);
+		// A series with one volume keeps today's list: no volume ticks, and the
+		// numbers' ticks stay (the brief's own case).
+		const one = seriesId('Mushoku Tensei');
+		await page.goto(url(`/series/${one}`));
+		await expect(page.locator('.rail .tick.vol')).toHaveCount(0);
+		expect(await page.locator('.rail .tick').count()).toBeGreaterThan(0);
+	});
+
+	test('a pointer’s tap on the row under a head focuses it and moves nothing (1D)', async ({
+		page
+	}) => {
+		await page.goto(url(`/series/${groupedSeries}`));
+		await page.setViewportSize({ width: 800, height: 1280 });
+		// V1's head: the first case left V1 read and V2 the volume being read, so
+		// V1 lists every chapter (no fold) and the page has room to scroll.
+		const files = volumeFiles(groupedSeries);
+		const under = page.locator(`#entry-${chapterIds(groupedSeries, files[0])[0]} .entry-btn`);
+		// Scroll the page so V1's head is behind the sticky bar and the row under
+		// it sits just below: the state the focus layer's reveal leaves.
+		const hidden = await page.evaluate(() => {
+			const list = document.querySelector('section.list') as HTMLElement;
+			const bar = list.querySelector(':scope > .head') as HTMLElement;
+			const heads = [...list.querySelectorAll('ol.rows > li.volume')];
+			let row = (heads[0] as HTMLElement).nextElementSibling;
+			while (row && !row.matches('li.entry, li.fold')) row = row.nextElementSibling;
+			// The page scrolls here, and the bar only pins once it reaches its own
+			// sticky top: aim at the row's place in the document, not at its
+			// distance from a bar that is still moving.
+			const docTop = (row as HTMLElement).getBoundingClientRect().top + window.scrollY;
+			const stick = Number.parseFloat(getComputedStyle(bar).top) || 0;
+			window.scrollTo({
+				top: docTop - stick - bar.getBoundingClientRect().height,
+				behavior: 'instant'
+			});
+			const r = (heads[0] as HTMLElement).getBoundingClientRect();
+			return document.elementFromPoint(r.left + 20, r.top + 2)?.closest('.volume') !== heads[0];
+		});
+		expect(hidden, 'the head starts behind the bar').toBe(true);
+
+		// A pointer's tap focuses the row and must move nothing. The click is
+		// stopped at the document, so the row is not also opened.
+		await page.evaluate(() => {
+			const stop = (e: Event) => {
+				e.preventDefault();
+				e.stopImmediatePropagation();
+			};
+			(window as unknown as { stopTap: (e: Event) => void }).stopTap = stop;
+			document.addEventListener('click', stop, true);
+		});
+		const before = await page.evaluate(() => window.scrollY);
+		await under.click();
+		expect(
+			await page.evaluate(() => document.activeElement?.closest('li')?.id ?? ''),
+			'the tap focused the row it landed on'
+		).toBe(await under.evaluate((n) => n.closest('li')!.id));
+		expect(await page.evaluate(() => window.scrollY), 'a tap moved nothing').toBe(before);
+		await page.evaluate(() => {
+			const w = window as unknown as { stopTap: (e: Event) => void };
+			document.removeEventListener('click', w.stopTap, true);
+		});
 	});
 });
 
@@ -242,6 +302,20 @@ function volumeFiles(series: number): string[] {
 				)
 				.all(series) as { file: string }[]
 		).map((r) => r.file);
+	} finally {
+		db.close();
+	}
+}
+
+/** A seeded series' id, by its title. */
+function seriesId(title: string): number {
+	const db = new Database(dbPath, { readonly: true });
+	try {
+		return (
+			db.prepare(`SELECT id FROM series WHERE title = ? AND in_library = 1`).get(title) as {
+				id: number;
+			}
+		).id;
 	} finally {
 		db.close();
 	}

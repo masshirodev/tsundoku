@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	currentEntry,
 	listRows,
+	rowsUnderHead,
 	volumeCached,
 	volumeHead,
 	volumeMeta,
@@ -186,6 +187,68 @@ describe("a volume's head", () => {
 		expect(head.progress).toBeCloseTo(1 / 3);
 		// A volume no current entry is in, part read and moved past, is not "being read".
 		expect(volumeHead(vol, 1, entry(9)).state).toBe('unread');
+	});
+});
+
+describe("the rows under a volume's head", () => {
+	const two = () => [
+		entry(1, { file: 'Vol 1.epub', volume: 'Book 1' }),
+		entry(2, { file: 'Vol 1.epub', volume: 'Book 1' }),
+		entry(3, { file: 'Vol 2.epub', volume: 'Book 2' }),
+		entry(4, { file: 'Vol 2.epub', volume: 'Book 2' })
+	];
+
+	it('marks the first row after every head, V1 included, either way round', () => {
+		// V1's head is above a row like any other's; descending, the row under a
+		// head is the volume's last chapter, because the list itself is flipped.
+		expect([...rowsUnderHead(listRows(two()))]).toEqual(['1001', '1003']);
+		expect([...rowsUnderHead(listRows(two(), { descending: true }))]).toEqual(['1004', '1002']);
+	});
+
+	it('skips a FRONT MATTER section to the entry under it, the real EPUB shape', () => {
+		const entries = [
+			entry(1, { file: 'Vol 1.epub', volume: 'Book 1' }),
+			entry(2, { file: 'Vol 2.epub', volume: 'Book 2', matter: 'front', title: 'Cover' }),
+			entry(3, { file: 'Vol 2.epub', volume: 'Book 2' }),
+			entry(4, { file: 'Vol 2.epub', volume: 'Book 2' })
+		];
+		const rows = listRows(entries);
+		// The shape a real import has: v1, its chapter, v2, v2:front, the front
+		// matter, v2:chapters, the chapters (measured, round 2).
+		const at = rows.findIndex((r) => r.type === 'volume' && r.number === 2);
+		expect(rows[at + 1]).toMatchObject({ type: 'section', key: 'v2:front' });
+		expect(rows[at + 2]).toMatchObject({ type: 'entry' });
+		expect([...rowsUnderHead(rows)]).toEqual(['1001', '1002']);
+	});
+
+	it('marks a fold when the fold is what sits under the head', () => {
+		const vol2 = Array.from({ length: 7 }, (_, i) =>
+			entry(i + 3, {
+				file: 'Vol 2.epub',
+				volume: 'Book 2',
+				// The seventh is where the reader is; the first six are read.
+				readAt: i < 6 ? 1 : null
+			})
+		);
+		const entries = [entry(1, { file: 'Vol 1.epub', volume: 'Book 1', readAt: 1 }), ...vol2];
+		const rows = listRows(entries);
+		const at = rows.findIndex((r) => r.type === 'volume' && r.number === 2);
+		expect(rows[at + 1]).toMatchObject({ type: 'fold' });
+		const under = rowsUnderHead(rows);
+		expect(under.has('fold')).toBe(true);
+		// V1's own row is still the chapter after its head.
+		expect(under.has('1001')).toBe(true);
+	});
+
+	it('marks nothing when only a section follows a head', () => {
+		const head = volumeHead([entry(1, { matter: 'front' })], 1, null);
+		const rows = [
+			head,
+			{ type: 'section' as const, key: 'front', label: 'FRONT MATTER', detail: '1' }
+		];
+		expect(rowsUnderHead(rows).size).toBe(0);
+		// A head with no row after it at all is the same.
+		expect(rowsUnderHead([head]).size).toBe(0);
 	});
 });
 

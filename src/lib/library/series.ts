@@ -576,14 +576,29 @@ export function volumeOf(entries: SeriesEntry[], entry: SeriesEntry): number | n
 	return i < 0 ? null : i + 1;
 }
 
-/** The entries that begin a volume after the first: the rows a head sits above (c835, 1D). */
-export function volumeStarts(entries: SeriesEntry[]): Set<number> {
-	return new Set(
-		volumesIn(entries)
-			.slice(1)
-			.map((v) => v[0]?.id)
-			.filter((id): id is number => id !== undefined)
-	);
+/**
+ * The rows that sit directly under a volume's head (c835, 1D): the first row
+ * after each `type: 'volume'` row that can take focus. A volume's list opens
+ * with its head, so what follows is its first chapter, a front-matter entry
+ * under its `FRONT MATTER` section, or a fold; descending, the list is flipped
+ * and it is the volume's last chapter. A `section` row is not a focus stop, so
+ * it is skipped, and a head with no row after it marks nothing. V1 counts too:
+ * its head is above a row like any other's. The keys are the list's own --
+ * `fold`, or an entry's id.
+ */
+export function rowsUnderHead(rows: Row[]): Set<string> {
+	const keys = new Set<string>();
+	let after = false;
+	for (const row of rows) {
+		if (row.type === 'volume') {
+			after = true;
+			continue;
+		}
+		if (!after || row.type === 'section') continue;
+		keys.add(row.type === 'fold' ? 'fold' : String(row.entry.id));
+		after = false;
+	}
+	return keys;
 }
 
 /**

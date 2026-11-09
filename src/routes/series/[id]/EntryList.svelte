@@ -19,10 +19,10 @@
 		listCount,
 		listRows,
 		railTicks,
+		rowsUnderHead,
 		volumeCached,
 		volumeMeta,
 		volumeOf,
-		volumeStarts,
 		volumeTicks,
 		type SeriesEntry,
 		type SeriesPage
@@ -209,9 +209,48 @@
 	const volumeRail = $derived(volumeTicks(series.entries, railHeight));
 	const thumbVolume = $derived(thumb ? volumeOf(series.entries, thumb) : null);
 	const draggingVolume = $derived(dragging ? volumeOf(series.entries, dragging) : null);
-	/** The first entry under each volume head after the first (c835, 1D): the row
-	 *  focused there carries the head's height in its scroll margin. */
-	const volumeStart = $derived(volumeStarts(series.entries));
+	/** The rows that sit under a volume's head (c835, 1D): arriving on one shows it. */
+	const underHead = $derived(rowsUnderHead(rows));
+	/** The list's own sticky bar, which an arriving head must be shown under. */
+	let headBar = $state<HTMLElement>();
+
+	/**
+	 * Arriving on the row under a volume's head shows that head (c835, 1D). The
+	 * focus layer's reveal puts the row just below the list's sticky bar, which
+	 * leaves the head above it, wholly hidden -- `scrollIntoView` honours a
+	 * scroll margin only when the row is off the viewport, and a row under a bar
+	 * is on it. So after that reveal, scroll by however far the head's top sits
+	 * above the bar's bottom. A pointer's tap focuses the row too and must move
+	 * nothing: only `:focus-visible` (a pad's or a keyboard's focus) may.
+	 */
+	function showHeadUnder(event: FocusEvent) {
+		const target = event.target;
+		if (!(target instanceof HTMLElement) || !target.matches(':focus-visible')) return;
+		const row = target.closest<HTMLElement>('li.under-head');
+		if (!row || !headBar) return;
+		// After the layer's own reveal, which runs synchronously after focus.
+		queueMicrotask(() => {
+			if (!row.isConnected) return;
+			let head = row.previousElementSibling;
+			while (head && !head.classList.contains('volume')) head = head.previousElementSibling;
+			if (!head) return;
+			const bar = headBar?.getBoundingClientRect();
+			const top = head.getBoundingClientRect().top;
+			if (!bar || top >= bar.bottom) return;
+			const by = top - bar.bottom;
+			const scroller = scrollerOf(row);
+			(scroller ?? window).scrollBy({ top: by, behavior: 'instant' });
+		});
+	}
+
+	/** What moves a row vertically: its nearest scroller, else the page. */
+	function scrollerOf(el: HTMLElement): HTMLElement | null {
+		for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+			const overflow = getComputedStyle(n).overflowY;
+			if (overflow === 'auto' || overflow === 'scroll') return n;
+		}
+		return null;
+	}
 </script>
 
 <!-- The row that is the button (Download States, "The row is the button"): a form post, so it works without script. -->
@@ -224,7 +263,7 @@
 	></form>{/if}
 
 <section class="list" aria-label={novel ? 'Contents' : 'Chapters'}>
-	<div class="head">
+	<div class="head" bind:this={headBar}>
 		{#if jumping}
 			<form class="jump" onsubmit={submitJump}>
 				<label for="jump-to">GO TO #</label>
@@ -265,7 +304,7 @@
 	</div>
 
 	<div class="body" class:with-rail={!selecting && series.entries.length > 1 && tools}>
-		<ol class="rows">
+		<ol class="rows" onfocusin={showHeadUnder}>
 			{#each rows as row (row.type === 'fold' ? 'fold' : row.type === 'entry' ? row.entry.id : row.key)}
 				{#if row.type === 'section'}
 					<!-- A book's front and back matter, listed apart (doc/TEXT-READER.md). -->
@@ -311,7 +350,7 @@
 						</span>
 					</li>
 				{:else if row.type === 'fold'}
-					<li class="fold">
+					<li class="fold" class:under-head={underHead.has('fold')}>
 						<!-- The stripes are a stylesheet picture: the hover tint must not replace them (c488, doc/MOTION.md). -->
 						<button type="button" data-picture onclick={() => (expanded = true)}>
 							<span>↑ {formatNumber(row.from)} – {formatNumber(row.to)}</span>
@@ -333,7 +372,7 @@
 					<li
 						id="entry-{e.id}"
 						class="entry {row.state} {dl ? `dl-${dl.kind}` : ''}"
-						class:volume-start={volumeStart.has(e.id)}
+						class:under-head={underHead.has(String(e.id))}
 						class:missing={!e.available && !(online && offline.online)}
 						class:online-only={online && !offline.online}
 						class:matter={!!e.matter}
@@ -772,19 +811,9 @@
 			font-size: 16px;
 		}
 	}
-	/* A volume's head is not a focus stop, so a row under it carries the head's
-	   height in its scroll margin: arriving there with the D-pad shows the head
-	   above it (c835, 1D). */
-	.entry.volume-start .entry-btn,
-	.entry.volume-start .dl-cell {
-		scroll-margin-top: 104px;
-	}
-	@media (max-width: 599px) {
-		.entry.volume-start .entry-btn,
-		.entry.volume-start .dl-cell {
-			scroll-margin-top: 82px;
-		}
-	}
+	/* A volume's head is not a focus stop: arriving on the row under it shows
+	   the head from the list itself (`showHeadUnder`, c835, 1D), so no scroll
+	   margin is set here -- nothing would honour one. */
 	/* Front and back matter: reachable, but not read as chapters. */
 	.entry.matter .entry-btn {
 		height: 44px;
@@ -1142,10 +1171,6 @@
 		}
 		.vm {
 			font-size: 15px;
-		}
-		.entry.volume-start .entry-btn,
-		.entry.volume-start .dl-cell {
-			scroll-margin-top: 96px;
 		}
 	}
 </style>

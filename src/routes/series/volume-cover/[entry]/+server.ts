@@ -5,9 +5,10 @@ import { readVolumeCover } from '$lib/server/covers';
 
 /**
  * A volume's own cover, for its head in a grouped novel's contents (c835;
- * doc/COVERS.md, "Volumes"). The id is any entry of the volume: a volume is
- * its EPUB file, and every chapter in it shares the one cover, made on first
- * ask and kept by the file. Hidden means hidden: 404 while reveal is off.
+ * doc/BOOKS.md, "A volume's cover"). The id is any entry of the volume: a
+ * volume is its EPUB file, and every chapter in it shares the one cover, made
+ * on first ask and kept by the file. Hidden means hidden: 404 while reveal is
+ * off.
  */
 export const GET: RequestHandler = async ({ params, cookies, url }) => {
 	const cover = await readVolumeCover(Number(params.entry), isRevealed(cookies));
