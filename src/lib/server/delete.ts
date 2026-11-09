@@ -171,7 +171,17 @@ export async function deleteSeries(
 		const theirs = highlights ? heldBy([id], reveal, db).ids : [];
 		const copies = db
 			.transaction((): string[] => {
-				bury(db, [row.origin_key ?? '', ...buried], row.title, now);
+				// A grouped book's own key (card c885): the group's deletion buries
+				// each book at its source, as its own would.
+				const ownKeys = (
+					db
+						.prepare(
+							`SELECT eo.origin_key AS k FROM entry_origins eo JOIN entries e ON e.id = eo.entry_id
+							WHERE e.series_id = ?`
+						)
+						.all(id) as { k: string }[]
+				).map((r) => r.k);
+				bury(db, [row.origin_key ?? '', ...ownKeys, ...buried], row.title, now);
 				db.prepare(`DELETE FROM series WHERE id = ?`).run(id);
 				const { gone, files } = removeHighlightRows(theirs, db);
 				result.highlights += gone;
@@ -221,7 +231,10 @@ export async function deleteBook(
 			const title = (
 				db.prepare(`SELECT title FROM entries WHERE id = ?`).get(entryId) as { title: string }
 			).title;
-			bury(db, [entries[0].source_url], title || row.title, now);
+			const own = db
+				.prepare(`SELECT origin_key AS k FROM entry_origins WHERE entry_id = ?`)
+				.get(entryId) as { k: string } | undefined;
+			bury(db, [entries[0].source_url, own?.k ?? ''], title || row.title, now);
 			db.prepare(`DELETE FROM entries WHERE id = ?`).run(entryId);
 			const left = db
 				.prepare(`SELECT id FROM entries WHERE series_id = ? ORDER BY position, id`)

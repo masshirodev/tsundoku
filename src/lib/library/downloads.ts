@@ -453,7 +453,12 @@ export type RowFacts =
  * FOLLOW's part: whether it's on, and when its source was last asked for new
  * chapters.
  */
-export type FollowFacts = { on: boolean; checked: number | null };
+export type FollowFacts = {
+	on: boolean;
+	checked: number | null;
+	/** False: nothing to follow, a group of one-offs (doc/BOOKS.md). The row leaves FOLLOW out. */
+	askable?: boolean;
+};
 
 /** What the row counts: chapters unread, or an anime's episodes unwatched (doc/ANIME.md). */
 export type RowNoun = { one: string; many: string; every: string; arriving: string };
@@ -551,7 +556,7 @@ export function downloadRow(
 ): DownloadRow {
 	const chapters = (n: number) => `${count(n)} ${n === 1 ? noun.one : noun.many} not downloaded`;
 	const followCell = (dim: boolean): DownloadCell[] =>
-		follow
+		follow && follow.askable !== false
 			? [
 					follow.on
 						? { label: 'FOLLOWING ✓', which: 'unfollow', acc: true, dim }

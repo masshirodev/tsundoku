@@ -4,6 +4,7 @@ import { engineConfigured, fetchProxied } from '../engine/client.ts';
 import { extensionFor } from '../engine/extensions.ts';
 import { imageType } from '../engine/protocol.ts';
 import { chapterAtSource } from '../engine/worker.ts';
+import { entryOriginSql } from '../season-facts.ts';
 
 /**
  * A chapter read online (doc/BROWSING.md, "Manga online"; card c166): a
@@ -22,9 +23,12 @@ const lists = new Map<number, { at: number; targets: string[] }>();
 /** Whether an entry reads online: no file, from a source an installed extension serves. */
 export function readsOnline(entryId: number, db = getDb()): boolean {
 	if (!engineConfigured()) return false;
+	// A book grouped from a source reads its own key (doc/BOOKS.md), through
+	// the one answer to where an entry comes from.
 	const r = db
 		.prepare(
-			`SELECT e.available, s.origin_key FROM entries e JOIN series s ON s.id = e.series_id WHERE e.id = ?`
+			`SELECT e.available, ${entryOriginSql('e', 's')} AS origin_key FROM entries e
+			JOIN series s ON s.id = e.series_id WHERE e.id = ?`
 		)
 		.get(entryId) as { available: number; origin_key: string | null } | undefined;
 	if (!r || r.available) return false;

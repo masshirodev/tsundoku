@@ -15,6 +15,10 @@ import { getDb } from './db.ts';
  *   row whose `origin_key` is NULL.
  * - **An entry with no season is season 0**, c240's flat list (`episodeEntry`):
  *   the same entry must not be one season to its link and another to its source.
+ * - **A book's own key comes before any season's** (rung 76; card c885;
+ *   doc/BOOKS.md, "Where a book's origin lives"). A one-off grouped into a
+ *   series of books keeps its key in `entry_origins`; its `entries.season` is
+ *   NULL, so a season row could otherwise answer for it as season 0.
  * - **Two seasons may share a key** (one source entry listing both). Two
  *   *series* may not: `heldByOther` is what a door asks, as `series_origin`'s
  *   unique index answers for `series.origin_key`.
@@ -53,7 +57,8 @@ export const seasonRowOf = (season: number | null): number => season ?? 0;
  * It says what `seasonOrigin` says, row by row.
  */
 export const entryOriginSql = (entry: string, series: string): string =>
-	`COALESCE((SELECT sf.origin_key FROM series_season_facts sf
+	`COALESCE((SELECT eo.origin_key FROM entry_origins eo WHERE eo.entry_id = ${entry}.id),
+		(SELECT sf.origin_key FROM series_season_facts sf
 		WHERE sf.series_id = ${entry}.series_id AND sf.season = COALESCE(${entry}.season, 0)),
 		${series}.origin_key)`;
 
@@ -139,7 +144,9 @@ export type FollowOrigin = {
 export function followOrigin(seriesId: number, db: Database.Database = getDb()): FollowOrigin {
 	const own = seriesKey(seriesId, db);
 	const facts = seasonFacts(seriesId, db);
-	if (facts.length === 0) return { key: own, season: null };
+	// A group of one-offs has no key of its own: its first book's says that the
+	// row has a source to ask, and `refreshSeries` asks every book.
+	if (facts.length === 0) return { key: own ?? firstBookKey(seriesId, db), season: null };
 	const last = lastSeason(seriesId, db);
 	const fact = facts.find((f) => f.season === last);
 	if (!fact?.originKey) return { key: own, season: null };
@@ -165,6 +172,12 @@ export function seriesHolding(key: string, db: Database.Database = getDb()): Key
 					SELECT s.id, s.title, s.in_library FROM series_season_facts f
 					JOIN series s ON s.id = f.series_id WHERE f.origin_key = @key ORDER BY s.id LIMIT 1
 				)
+				UNION ALL
+				SELECT * FROM (
+					SELECT s.id, s.title, s.in_library FROM entry_origins eo
+					JOIN entries e ON e.id = eo.entry_id JOIN series s ON s.id = e.series_id
+					WHERE eo.origin_key = @key ORDER BY s.id LIMIT 1
+				)
 				LIMIT 1`
 			)
 			.get({ key }) as KeyHolder | undefined) ?? null
@@ -188,6 +201,12 @@ export function heldByOther(
 				SELECT * FROM (
 					SELECT s.id, s.title FROM series_season_facts f JOIN series s ON s.id = f.series_id
 					WHERE f.origin_key = @key AND f.series_id != @id ORDER BY s.id LIMIT 1
+				)
+				UNION ALL
+				SELECT * FROM (
+					SELECT s.id, s.title FROM entry_origins eo
+					JOIN entries e ON e.id = eo.entry_id JOIN series s ON s.id = e.series_id
+					WHERE eo.origin_key = @key AND s.id != @id ORDER BY s.id LIMIT 1
 				)
 				LIMIT 1`
 			)
@@ -221,6 +240,73 @@ export function isSeasonFolder(
 	db: Database.Database = getDb()
 ): boolean {
 	return seasonFolders(seriesId, db).some((f) => path === f || path.endsWith(`/${f}`));
+}
+
+// ---- a book's own origin (rung 76; card c885) ---------------------------------------------------
+
+export type BookOrigin = {
+	entryId: number;
+	key: string;
+	/** What the singleton was called, the name its source knows it by. */
+	sourceTitle: string;
+	engineUrl: string | null;
+	/** `engine_series.title`'s twin: fixed at the first download, it names the folder. */
+	engineTitle: string | null;
+	resolvedAt: number | null;
+};
+
+type BookRow = {
+	entry_id: number;
+	origin_key: string;
+	source_title: string;
+	engine_url: string | null;
+	engine_title: string | null;
+	resolved_at: number | null;
+};
+
+const asBook = (r: BookRow): BookOrigin => ({
+	entryId: r.entry_id,
+	key: r.origin_key,
+	sourceTitle: r.source_title,
+	engineUrl: r.engine_url,
+	engineTitle: r.engine_title,
+	resolvedAt: r.resolved_at
+});
+
+/** A book's own origin; null for an entry that reads its series' key. */
+export function bookOrigin(entryId: number, db: Database.Database = getDb()): BookOrigin | null {
+	const r = db.prepare(`SELECT * FROM entry_origins WHERE entry_id = ?`).get(entryId) as
+		BookRow | undefined;
+	return r ? asBook(r) : null;
+}
+
+/** The origins of a series' books, in reading order. */
+export function bookOrigins(seriesId: number, db: Database.Database = getDb()): BookOrigin[] {
+	return (
+		db
+			.prepare(
+				`SELECT eo.* FROM entry_origins eo JOIN entries e ON e.id = eo.entry_id
+				WHERE e.series_id = ? ORDER BY e.position, e.id`
+			)
+			.all(seriesId) as BookRow[]
+	).map(asBook);
+}
+
+/**
+ * The first book's key that FOLLOW's and REFRESH's row can ask: a Mihon
+ * source's, the only family with a per-book downloader today.
+ */
+function firstBookKey(seriesId: number, db: Database.Database): string | null {
+	return (
+		(
+			db
+				.prepare(
+					`SELECT eo.origin_key AS k FROM entry_origins eo JOIN entries e ON e.id = eo.entry_id
+					WHERE e.series_id = ? AND eo.origin_key GLOB 'mihon:*' ORDER BY e.position, e.id LIMIT 1`
+				)
+				.get(seriesId) as { k: string } | undefined
+		)?.k ?? null
+	);
 }
 
 export class SeasonFactError extends Error {}

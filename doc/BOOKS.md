@@ -87,6 +87,62 @@ that:
   same root, keeping its values. A series left empty is deleted.
 - **UNGROUP** takes out every book.
 
+### Where a book's origin lives
+
+`series.origin_key` names **one** series at a source, and a group of one-offs
+is several: its books are several manga at their sources, and may come from
+different ones. So **each book's key is on the book** (rung 76; card c885): one
+row of `entry_origins`, keyed by the entry, holding the key the singleton had
+(`origin_key`), the name its source knows it by (`source_title`), and that
+singleton's `engine_series` row (`engine_url`, `engine_title`, `resolved_at`).
+
+- **`absorb` (GROUP), MOVE TO… of a series' last book and FOLD** put the key on
+  the entry before the emptied series goes (`keepOrigin`, books.ts). A book that
+  already holds one keeps it.
+- **`takeOut` (UNGROUP, and the created band's UNDO), UNFOLD** give it back
+  (`giveOriginBack`): the key is the new singleton's `origin_key` again, the
+  engine row is its `engine_series`. An UNDO's new singleton has another id, and
+  it's the entry that survives each step, which is why the row is keyed by it.
+  A key something else has come to hold stays on the book, and works from there.
+- **The one answer to "where does this entry come from"** is still
+  `entryOriginSql` / `entryOrigin` (`src/lib/server/season-facts.ts`). It reads
+  the book's own key first, then a season's, then the series': a one-off has no
+  season, and a season row must never answer for it as season 0.
+
+Every reader of a key says what it does with a book's:
+
+| Reader                                                           | A book in a group                                               |
+| ---------------------------------------------------------------- | --------------------------------------------------------------- |
+| `seriesDownloads`                                                | Answers per book (below)                                        |
+| `readsOnline`, `chapterAtSource`, the queue, `deviceBackup`      | Read the book's key; its source, its address, its folder        |
+| `resolveBook`                                                    | `resolveSeries` for one book, with the same six-hour keep       |
+| REFRESH                                                          | Asks every book's source; adds nothing: a book is one entry     |
+| Recognition (`seriesHolding`, `heldByOther`, `libraryIndex`)     | Finds the group by a book's key, so a book is never added twice |
+| Deleting a group, or one book                                    | Buries each book's key, as its own series would have            |
+| A source's switches (`sourceFlagSql`, `concealable`, `ofSource`) | A book in a group flags the group: a switch still reaches it    |
+
+`seriesDownloads` on a group: `none` when no book is from a source, `elsewhere`
+when no book's source has an extension, `down` when the engine isn't answering,
+otherwise `ok`, each book its own state. A book whose own extension is gone is
+a chapter its source can't be asked about (nothing to queue), beside one that
+can.
+
+**A grouped series is named from its root** (`nameFromRoot`), not from one
+book's folder. The importer writes each download through the series its key
+finds, and a path of none, or one inside the device's folder, would make it
+read that one book's folder as the series' own and mark every other book's file
+gone.
+
+**FOLLOW is a series' idea.** A group of one-offs has no one thing to follow,
+so the row leaves FOLLOW out and `setFollowed` still refuses. A series that
+holds a key of its own and has books grouped into it follows that key, as it
+always did.
+
+**Books grouped before rung 76 hold nothing to rebuild from.** What a book keeps
+is its chapter's address and `origin_source` (only MOVE writes it); the source
+id and the manga's address went with its series row, and nothing else recorded
+them. Such a book answers `none` until the owner re-adds it from the source.
+
 A series of books has a rating and FAV of its own too: they belong to the
 series, not to any book.
 

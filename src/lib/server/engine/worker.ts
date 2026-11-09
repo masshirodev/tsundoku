@@ -24,6 +24,7 @@ import {
 	type SourceChapter
 } from './device.ts';
 import { failed, isPaused, nextUp, recover } from './queue.ts';
+import { bookOrigin, entryOriginSql } from '../season-facts.ts';
 
 /**
  * The downloader (doc/DOWNLOADER.md; card c137): takes chapters off the
@@ -72,14 +73,62 @@ type Manga = {
 	thumbnail_url?: string;
 };
 
+/** What one ask at a source is about: a series, or one book of a group (card c885). */
+type Asked = {
+	sourceId: string;
+	/** The URL the source last knew it by. */
+	url: string;
+	title: string;
+	/** Every name it has gone by, for reading the source's chapter names (c555). */
+	names: string[];
+	/** Its chapters here, by what the source calls them. */
+	local: { id: number; url: string; position: number; scanlator: string }[];
+	/** Keep what the source said. */
+	save: (engineUrl: string, matched: Iterable<[number, SourceChapter]>) => void;
+};
+
 /**
- * What the source calls [seriesId] and its chapters now. A details call
- * first, on the URL last known: Toonily's extension answers an old URL with
- * its new one (and refuses the old one after, until the engine restarts, so
- * the new one is kept and used from then on). The chapter list is matched
- * onto the entries (matchSourceChapters); the series' key and the entries'
- * URLs never move. Returns the chapters no entry is: new ones.
+ * What the source calls it and its chapters now. A details call first, on the
+ * URL last known: Toonily's extension answers an old URL with its new one (and
+ * refuses the old one after, until the engine restarts, so the new one is kept
+ * and used from then on). The chapter list is matched onto the entries
+ * (matchSourceChapters); the key and the entries' URLs never move. Returns the
+ * chapters no entry is: new ones.
  */
+async function askSource(
+	a: Asked,
+	ext: NonNullable<ReturnType<typeof extensionFor>>,
+	db: Database.Database
+): Promise<SourceChapter[]> {
+	const opts = { sourceId: a.sourceId, preferences: preferences(a.sourceId, db) };
+	const details = await call<Manga>(
+		ext,
+		'getDetailsManga',
+		{ mangaData: { url: a.url, title: a.title } },
+		opts
+	);
+	// A 1.6 source may give back a blank URL (Mangahere): the one asked stays.
+	const engineUrl = details.url || a.url;
+	const chapters = await call<SourceChapter[]>(
+		ext,
+		'getChapterList',
+		{ mangaData: { ...details, url: engineUrl, title: details.title || a.title } },
+		opts
+	);
+	const { matched, unmatched } = matchSourceChapters(a.names, a.local, chapters);
+	a.save(engineUrl, matched);
+	return unmatched;
+}
+
+/** Writes the chapters a source listed, keyed by their entries. */
+function putChapters(db: Database.Database, matched: Iterable<[number, SourceChapter]>) {
+	const put = db.prepare(
+		`INSERT OR REPLACE INTO engine_chapters (entry_id, engine_url, name) VALUES (?, ?, ?)`
+	);
+	for (const [entryId, c] of matched) put.run(entryId, c.url, c.name);
+}
+
+/** What the source calls [seriesId] and its chapters now (`askSource`). */
 export async function resolveSeries(
 	seriesId: number,
 	d: Pick<Deps, 'db' | 'now'>,
@@ -97,48 +146,82 @@ export async function resolveSeries(
 		.get(seriesId) as { engine_url: string; title: string; resolved_at: number | null } | undefined;
 	if (known && !force && known.resolved_at && d.now() - known.resolved_at < RESOLVE_TTL) return [];
 
-	const opts = { sourceId: key.sourceId, preferences: preferences(key.sourceId, d.db) };
-	const asked = known?.engine_url ?? key.url;
-	const details = await call<Manga>(
+	return askSource(
+		{
+			sourceId: key.sourceId,
+			url: known?.engine_url ?? key.url,
+			title: s.title,
+			// By every name it has had: the source may still name chapters after the
+			// title it gave the series, which the owner has since renamed (c555).
+			names: namesOf(s.title, s.alt_titles),
+			// A book in this series with a key of its own is that key's to ask.
+			local: d.db
+				.prepare(
+					`SELECT id, source_url AS url, position, scanlator FROM entries
+					WHERE series_id = ? AND source_url != ''
+						AND id NOT IN (SELECT entry_id FROM entry_origins)`
+				)
+				.all(seriesId) as Asked['local'],
+			save: (engineUrl, matched) =>
+				d.db.transaction(() => {
+					d.db
+						.prepare(
+							`INSERT INTO engine_series (series_id, source_id, engine_url, title, resolved_at) VALUES (?, ?, ?, ?, ?)
+						ON CONFLICT (series_id) DO UPDATE SET engine_url = excluded.engine_url, resolved_at = excluded.resolved_at`
+						)
+						.run(seriesId, key.sourceId, engineUrl, known?.title ?? s.title, d.now());
+					putChapters(d.db, matched);
+				})()
+		},
 		ext,
-		'getDetailsManga',
-		{ mangaData: { url: asked, title: s.title } },
-		opts
-	);
-	// A 1.6 source may give back a blank URL (Mangahere): the one asked stays.
-	const engineUrl = details.url || asked;
-	const chapters = await call<SourceChapter[]>(
-		ext,
-		'getChapterList',
-		{ mangaData: { ...details, url: engineUrl, title: details.title || s.title } },
-		opts
-	);
-
-	const local = d.db
-		.prepare(
-			`SELECT id, source_url AS url, position, scanlator FROM entries WHERE series_id = ? AND source_url != ''`
-		)
-		.all(seriesId) as { id: number; url: string; position: number; scanlator: string }[];
-	// By every name it has had: the source may still name chapters after the
-	// title it gave the series, which the owner has since renamed (c555).
-	const { matched, unmatched } = matchSourceChapters(
-		namesOf(s.title, s.alt_titles),
-		local,
-		chapters
-	);
-	d.db.transaction(() => {
 		d.db
-			.prepare(
-				`INSERT INTO engine_series (series_id, source_id, engine_url, title, resolved_at) VALUES (?, ?, ?, ?, ?)
-			ON CONFLICT (series_id) DO UPDATE SET engine_url = excluded.engine_url, resolved_at = excluded.resolved_at`
-			)
-			.run(seriesId, key.sourceId, engineUrl, known?.title ?? s.title, d.now());
-		const put = d.db.prepare(
-			`INSERT OR REPLACE INTO engine_chapters (entry_id, engine_url, name) VALUES (?, ?, ?)`
-		);
-		for (const [entryId, c] of matched) put.run(entryId, c.url, c.name);
-	})();
-	return unmatched;
+	);
+}
+
+/**
+ * What the source calls one book of a group and its chapter now: `resolveSeries`
+ * for a book that holds its own key (`entry_origins`, rung 76; card c885). Its
+ * engine columns are that book's `engine_series`: its URL, the title that names
+ * its download folder (fixed at the first ask), and when it was asked.
+ */
+export async function resolveBook(
+	entryId: number,
+	d: Pick<Deps, 'db' | 'now'>,
+	force = false
+): Promise<SourceChapter[]> {
+	const book = bookOrigin(entryId, d.db);
+	const key = parseKey(book?.key ?? null);
+	if (!book || !key) throw new EngineError('Not a book from a source', 'not-found');
+	const ext = extensionFor(key.sourceId, d.db);
+	if (!ext) throw new EngineError('No installed extension has this source', 'not-found');
+	if (!force && book.resolvedAt && d.now() - book.resolvedAt < RESOLVE_TTL) return [];
+	const e = d.db
+		.prepare(`SELECT source_url AS url, position, scanlator, title FROM entries WHERE id = ?`)
+		.get(entryId) as { url: string; position: number; scanlator: string; title: string };
+	const title = book.sourceTitle || e.title;
+	return askSource(
+		{
+			sourceId: key.sourceId,
+			url: book.engineUrl ?? key.url,
+			title,
+			names: namesOf(title, '[]'),
+			local: e.url
+				? [{ id: entryId, url: e.url, position: e.position, scanlator: e.scanlator }]
+				: [],
+			save: (engineUrl, matched) =>
+				d.db.transaction(() => {
+					d.db
+						.prepare(
+							`UPDATE entry_origins SET engine_url = ?, engine_title = COALESCE(engine_title, ?),
+								resolved_at = ? WHERE entry_id = ?`
+						)
+						.run(engineUrl, title, d.now(), entryId);
+					putChapters(d.db, matched);
+				})()
+		},
+		ext,
+		d.db
+	);
 }
 
 /** Runs [work] over [items], [lanes] at a time, keeping their order in the result. */
@@ -175,7 +258,7 @@ export async function chapterAtSource(entryId: number, d: Pick<Deps, 'db' | 'now
 	const e = d.db
 		.prepare(
 			`SELECT e.id, e.series_id, e.label, e.title, e.scanlator, e.position, e.source_url, e.origin_source,
-				s.origin_key
+				${entryOriginSql('e', 's')} AS origin_key
 			FROM entries e JOIN series s ON s.id = e.series_id WHERE e.id = ?`
 		)
 		.get(entryId) as
@@ -203,16 +286,22 @@ export async function chapterAtSource(entryId: number, d: Pick<Deps, 'db' | 'now
 	let chapter = d.db
 		.prepare(`SELECT engine_url, name FROM engine_chapters WHERE entry_id = ?`)
 		.get(entryId) as { engine_url: string; name: string } | undefined;
+	const isBook = bookOrigin(entryId, d.db) !== null;
 	if (!chapter) {
-		await resolveSeries(e.series_id, d, true);
+		if (isBook) await resolveBook(entryId, d, true);
+		else await resolveSeries(e.series_id, d, true);
 		chapter = d.db
 			.prepare(`SELECT engine_url, name FROM engine_chapters WHERE entry_id = ?`)
 			.get(entryId) as typeof chapter;
 	}
 	if (!chapter) throw new EngineError('The source no longer lists this chapter', 'not-at-source');
-	const series = d.db
-		.prepare(`SELECT title FROM engine_series WHERE series_id = ?`)
-		.get(e.series_id) as { title: string };
+	// The folder a chapter goes to is named by what its source was first called.
+	const book = isBook ? bookOrigin(entryId, d.db)! : null;
+	const series = (
+		book
+			? { title: book.engineTitle ?? book.sourceTitle }
+			: d.db.prepare(`SELECT title FROM engine_series WHERE series_id = ?`).get(e.series_id)
+	) as { title: string };
 
 	const opts = { sourceId, preferences: preferences(sourceId, d.db) };
 	const pages = await call<{ index: number; url: string; imageUrl: string | null }[]>(
@@ -303,7 +392,8 @@ export function deviceBackup(db: Database.Database): MihonBackup {
 		.all() as { series_id: number; source_id: string; title: string; origin_key: string }[];
 	const entries = db.prepare(
 		`SELECT source_url, label, title, scanlator, position, added_at FROM entries
-		WHERE series_id = ? AND source_url != '' ORDER BY position DESC`
+		WHERE series_id = ? AND source_url != '' AND id NOT IN (SELECT entry_id FROM entry_origins)
+		ORDER BY position DESC`
 	);
 	const sources = new Map<string, string>();
 	const manga: MihonManga[] = [];
@@ -345,6 +435,62 @@ export function deviceBackup(db: Database.Database): MihonBackup {
 			dateAdded: null,
 			viewer: 0,
 			chapters,
+			categories: [],
+			favorite: true,
+			history: [],
+			trackers: []
+		});
+	}
+	// A grouped book is its own manga at its source (card c885): its folder and
+	// its file come back through its own key, whichever series holds it now.
+	const books = db
+		.prepare(
+			`SELECT eo.origin_key, eo.engine_title, eo.source_title, e.source_url, e.label, e.title,
+				e.scanlator, e.position, e.added_at
+			FROM entry_origins eo JOIN entries e ON e.id = eo.entry_id
+			WHERE eo.engine_url IS NOT NULL AND e.source_url != ''`
+		)
+		.all() as {
+		origin_key: string;
+		engine_title: string | null;
+		source_title: string;
+		source_url: string;
+		label: string;
+		title: string;
+		scanlator: string;
+		position: number;
+		added_at: number;
+	}[];
+	for (const b of books) {
+		const key = parseKey(b.origin_key);
+		if (!key) continue;
+		sources.set(key.sourceId, sourceInfo(db, key.sourceId)?.name ?? key.sourceId);
+		manga.push({
+			source: key.sourceId,
+			url: key.url,
+			title: b.engine_title ?? b.source_title,
+			artist: '',
+			author: '',
+			description: '',
+			genres: [],
+			status: 0,
+			thumbnailUrl: '',
+			dateAdded: null,
+			viewer: 0,
+			chapters: [
+				{
+					url: b.source_url,
+					name: chapterName(b),
+					scanlator: b.scanlator,
+					read: false,
+					bookmark: false,
+					lastPageRead: 0,
+					dateFetch: b.added_at,
+					dateUpload: b.added_at,
+					number: b.position,
+					sourceOrder: 0
+				}
+			],
 			categories: [],
 			favorite: true,
 			history: [],

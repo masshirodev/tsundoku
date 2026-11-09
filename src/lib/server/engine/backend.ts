@@ -25,6 +25,7 @@ import {
 	queueView,
 	sourcesToSearch,
 	type DownloadState,
+	type FollowFacts,
 	type QueueItem,
 	type ResultMatch
 } from '../../library/downloads.ts';
@@ -37,7 +38,8 @@ import { extensionFor, preferences } from './extensions.ts';
 import { splitMemo } from './protocol.ts';
 import { chapterName, namesOf, numbersUnderNames } from './device.ts';
 import * as queue from './queue.ts';
-import { resolveSeries } from './worker.ts';
+import { resolveBook, resolveSeries } from './worker.ts';
+import { bookOrigins, entryOriginSql, seriesHolding } from '../season-facts.ts';
 import { keepOrPromote } from '../browsing.ts';
 import type {
 	Queue,
@@ -71,7 +73,7 @@ export function engineQueue(): Queue {
 			`SELECT q.entry_id, q.series_id, q.state, q.tries, q.done_pages, q.pages,
 				-- An episode by its own number, which starts again each season (doc/ANIME.md).
 				COALESCE(e.episode_number, e.position) AS position, e.label, e.title,
-				s.origin_key, s.title AS series_title
+				${entryOriginSql('e', 's')} AS origin_key, s.title AS series_title
 			FROM download_queue q JOIN entries e ON e.id = q.entry_id JOIN series s ON s.id = q.series_id
 			ORDER BY q.position`
 		)
@@ -128,6 +130,24 @@ function resolveLater(seriesId: number, force = false) {
 		.finally(() => resolving.delete(seriesId));
 }
 
+const resolvingBooks = new Set<number>();
+
+/** Asks a book's own source (card c885), as `resolveLater` asks a series'. */
+function resolveBookLater(entryId: number) {
+	if (resolvingBooks.has(entryId)) return;
+	resolvingBooks.add(entryId);
+	void resolveBook(entryId, { db: db(), now: Date.now })
+		.catch(() => {})
+		.finally(() => resolvingBooks.delete(entryId));
+}
+
+/**
+ * How many unasked books one look at a group asks about in the background: the
+ * look is a page load, a group can be long, and an engine call serialises per
+ * source. The next look asks the next few, and the worker asks for itself.
+ */
+const BOOKS_AT_A_LOOK = 6;
+
 function sourceTag(seriesId: number, sourceId: string): string {
 	const tag = db()
 		.prepare(
@@ -152,17 +172,40 @@ export function seriesDownloads(
 	const s = db()
 		.prepare(`SELECT origin_key, followed_at FROM series WHERE id = ?`)
 		.get(seriesId) as { origin_key: string | null; followed_at: number | null } | undefined;
-	const key = parseKey(s?.origin_key ?? null);
-	if (!key) return { kind: 'none' };
-	if (!extensionFor(key.sourceId))
-		return { kind: 'elsewhere', source: sourceTag(seriesId, key.sourceId) };
+	const own = parseKey(s?.origin_key ?? null);
+	// A book grouped from a source has a key of its own (card c885; doc/BOOKS.md,
+	// "Where a book's origin lives"), so a group answers per book: `none` when
+	// nothing here is from a source, `elsewhere` when no book's source has an
+	// extension, `down` when the engine isn't answering, and otherwise `ok`, a
+	// book whose own source has no extension standing as a chapter its source
+	// can't be asked about.
+	const books = bookOrigins(seriesId, db()).flatMap((b) => {
+		const key = parseKey(b.key);
+		return key ? [{ ...b, parsed: key }] : [];
+	});
+	if (!own && books.length === 0) return { kind: 'none' };
+	const installed = new Map<string, boolean>();
+	const served = (sourceId: string) => {
+		if (!installed.has(sourceId)) installed.set(sourceId, !!extensionFor(sourceId));
+		return installed.get(sourceId)!;
+	};
+	if (!(own && served(own.sourceId)) && !books.some((b) => served(b.parsed.sourceId)))
+		return {
+			kind: 'elsewhere',
+			source: sourceTag(seriesId, (own ?? books[0].parsed).sourceId)
+		};
 	const since = engineDownSince();
 	if (since !== null) return { kind: 'down', since };
 
 	const resolved = db()
 		.prepare(`SELECT resolved_at FROM engine_series WHERE series_id = ?`)
 		.get(seriesId) as { resolved_at: number | null } | undefined;
-	if (!resolved) resolveLater(seriesId);
+	if (own && served(own.sourceId) && !resolved) resolveLater(seriesId);
+	books
+		.filter((b) => b.resolvedAt === null && served(b.parsed.sourceId))
+		.slice(0, BOOKS_AT_A_LOOK)
+		.forEach((b) => resolveBookLater(b.entryId));
+	const bookOf = new Map(books.map((b) => [b.entryId, b]));
 	const listed = new Map(
 		(
 			db()
@@ -203,21 +246,31 @@ export function seriesDownloads(
 			};
 		else if (q?.state === 'failed')
 			states[e.id] = { kind: 'failed', chapterId: e.id, tries: q.tries };
-		else
+		else {
+			const book = bookOf.get(e.id);
+			const source = book ? book.parsed.sourceId : own?.sourceId;
+			const asked = book ? book.resolvedAt !== null : !!resolved;
 			states[e.id] = {
 				kind: 'none',
-				chapterId: urls.has(e.id) && (!resolved || listed.has(e.id)) ? e.id : null
+				chapterId:
+					source !== undefined && served(source) && urls.has(e.id) && (!asked || listed.has(e.id))
+						? e.id
+						: null
 			};
+		}
 	}
 	const queuedElsewhere = [...rows.values()].filter(
 		(r) => r.seriesId !== seriesId && r.state !== 'failed'
 	).length;
-	return {
-		kind: 'ok',
-		states,
-		queuedElsewhere,
-		follow: { on: (s?.followed_at ?? null) !== null, checked: resolved?.resolved_at ?? null }
+	// FOLLOW is a series' idea (doc/BOOKS.md): a group of one-offs has no one
+	// thing to follow, so it isn't offered. `askable` rides on the answer past
+	// the shared type; `downloadRow` reads it.
+	const follow: FollowFacts = {
+		on: (s?.followed_at ?? null) !== null,
+		checked: resolved?.resolved_at ?? null,
+		askable: !!own && served(own.sourceId)
 	};
+	return { kind: 'ok', states, queuedElsewhere, follow };
 }
 
 export function enqueue(seriesId: number, entryIds: number[]): { queued: number; missing: number } {
@@ -605,17 +658,13 @@ export async function addToLibrary(
 	browsing = false
 ): Promise<number> {
 	const quick = mangaKey(id);
-	const known = quick
-		? (db().prepare(`SELECT id, in_library FROM series WHERE origin_key = ?`).get(quick) as
-				{ id: number; in_library: number } | undefined)
-		: undefined;
+	// Held by a series or by a book in a group (card c885): never added twice.
+	const known = quick ? seriesHolding(quick, db()) : null;
 	if (known) return keepOrPromote(known, browsing, now, db());
 	const m = await sourceManga(id);
 	if (!m) throw new AddError('That series isn’t at its source');
 	const key = keyOf(m.sourceId, splitMemo(m.url).url);
-	const existing = db()
-		.prepare(`SELECT id, in_library FROM series WHERE origin_key = ?`)
-		.get(key) as { id: number; in_library: number } | undefined;
+	const existing = seriesHolding(key, db());
 	if (existing) return keepOrPromote(existing, browsing, now, db());
 	// A library with no Mihon folder yet (a friend's new install, doc/BROWSING.md):
 	// the root a scan of `Mihon/` would make, made now, so the first ADD or

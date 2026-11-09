@@ -4,7 +4,9 @@ import { libraryWhere } from './visibility.ts';
 import { addNewChapters } from './engine/backend.ts';
 import { checkAnime } from './anime/follow.ts';
 import { checkNovel } from './novels/follow.ts';
-import { followOrigin } from './season-facts.ts';
+import { bookOrigins, followOrigin } from './season-facts.ts';
+import { resolveBook } from './engine/worker.ts';
+import { extensionFor } from './engine/extensions.ts';
 import type { RefreshBatch } from '../library/types.ts';
 
 /**
@@ -22,6 +24,29 @@ export type Refreshed = { kind: 'manga' | 'anime' | 'novel'; added: number };
 
 export async function refreshSeries(seriesId: number, now = Date.now()): Promise<Refreshed | null> {
 	const db = getDb();
+	// A group of one-offs (card c885; doc/BOOKS.md): every book's own source is
+	// asked where its chapter stands. Nothing new becomes an entry, since a book
+	// is one entry the owner chose, and a chapter that appeared at its source
+	// would be a book nobody grouped. One source failing is not the group's.
+	const own = (
+		db.prepare(`SELECT origin_key FROM series WHERE id = ?`).get(seriesId) as
+			{ origin_key: string | null } | undefined
+	)?.origin_key;
+	if (!parseKey(own ?? null)) {
+		const books = bookOrigins(seriesId, db).filter((b) => {
+			const key = parseKey(b.key);
+			return key && extensionFor(key.sourceId, db);
+		});
+		if (books.length > 0) {
+			const asked = await Promise.allSettled(
+				books.map((b) => resolveBook(b.entryId, { db, now: () => now }, true))
+			);
+			const failed = asked.find((a) => a.status === 'rejected');
+			if (failed && asked.every((a) => a.status === 'rejected'))
+				throw (failed as PromiseRejectedResult).reason;
+			return { kind: 'manga', added: 0 };
+		}
+	}
 	// The key FOLLOW asks (c282): a series' source, or its last season's when
 	// the seasons have their own. Which family answers is that key's.
 	const key = followOrigin(seriesId, db).key;

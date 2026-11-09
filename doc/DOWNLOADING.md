@@ -236,6 +236,19 @@ ANSWERING` and the DOWNLOAD row says why. The owner asked for it after a friend
   page read the preview's id as a number, which the engine's `<source>~<url>`
   ids aren't.)
 
+## A group of one-offs
+
+A series of books grouped from a source holds several sources' manga, and a
+book's key is on the book ([`BOOKS.md`](BOOKS.md), "Where a book's origin
+lives"; card c885). The DOWNLOAD row and the queue answer per book: `seriesDownloads`
+reads each book's source, its `resolved_at` and its listing; a book queues under
+its own key and in its own source's lane; the worker asks that book's source
+(`resolveBook`) and writes into a folder named from what the source called it
+(`entry_origins.engine_title`), so the importer pairs the file with its book by
+its key. Six unasked books are asked in the background per look at a group; the
+worker asks for itself when it needs to. FOLLOW isn't offered on a group, and
+REFRESH asks each book's source and adds nothing.
+
 ## FOLLOW
 
 The last cell of the DOWNLOAD row, as FAV ends the RATING row. It turns accent

@@ -118,8 +118,19 @@ export function sourceIdSql(col: string): string {
  * the switch's own row by primary key. A series from no source is never
  * flagged.
  */
-export const sourceFlagSql = (flag: SourceFlag, col = 's.origin_key') =>
-	`EXISTS (SELECT 1 FROM settings sf WHERE sf.key = '${PREFIX[flag]}' || ${sourceIdSql(col)} AND sf.value = '1')`;
+export const sourceFlagSql = (flag: SourceFlag, col = 's.origin_key') => {
+	const flagged = (key: string) =>
+		`EXISTS (SELECT 1 FROM settings sf WHERE sf.key = '${PREFIX[flag]}' || ${sourceIdSql(key)} AND sf.value = '1')`;
+	// A series is flagged when any book in it is (card c885): a group of books
+	// from two sources stays out of what either source's switch keeps it out of.
+	if (col !== 's.origin_key') return flagged(col);
+	return `(${flagged(col)} OR EXISTS (SELECT 1 FROM entry_origins eo JOIN entries oe ON oe.id = eo.entry_id
+		WHERE oe.series_id = s.id AND ${flagged('eo.origin_key')}))`;
+};
+
+/** The series `s` holds a book from this source (`?`), its own key or a grouped book's (c885). */
+const ofSourceSql = `(${sourceIdSql('s.origin_key')} = @source OR EXISTS (SELECT 1 FROM entry_origins eo
+	JOIN entries oe ON oe.id = eo.entry_id WHERE oe.series_id = s.id AND ${sourceIdSql('eo.origin_key')} = @source))`;
 
 /**
  * ADD's half of ADDED HIDDEN: a series that has just become the library's
@@ -155,9 +166,10 @@ export function hiddenByKey(key: string, db = getDb()): { id: number; hidden: bo
 	const r = db
 		.prepare(
 			`SELECT s.id, NOT ${VISIBLE_SQL} AS hidden FROM series s JOIN roots r ON r.id = s.root_id
-			WHERE s.origin_key = ?`
+			WHERE s.origin_key = @key OR s.id IN (SELECT oe.series_id FROM entry_origins eo
+				JOIN entries oe ON oe.id = eo.entry_id WHERE eo.origin_key = @key)`
 		)
-		.get(key) as { id: number; hidden: number } | undefined;
+		.get({ key }) as { id: number; hidden: number } | undefined;
 	return r ? { id: r.id, hidden: r.hidden === 1 } : null;
 }
 
@@ -227,10 +239,10 @@ export function concealable(sourceId: string, db = getDb()): { own: number[]; ot
 		db
 			.prepare(
 				`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id
-				WHERE ${IN_LIBRARY_SQL} AND ${VISIBLE_SQL} AND ${sourceIdSql('s.origin_key')} = ?
+				WHERE ${IN_LIBRARY_SQL} AND ${VISIBLE_SQL} AND ${ofSourceSql}
 				ORDER BY s.id`
 			)
-			.all(sourceId) as { id: number }[]
+			.all({ source: sourceId }) as { id: number }[]
 	).map((r) => r.id);
 	if (own.length === 0) return { own, others: [] };
 	const others = (
@@ -302,9 +314,9 @@ export function ofSource(ids: number[], sourceId: string, db = getDb()): number[
 		db
 			.prepare(
 				`SELECT s.id FROM series s
-				WHERE s.id IN (SELECT value FROM json_each(?)) AND ${sourceIdSql('s.origin_key')} = ?
+				WHERE s.id IN (SELECT value FROM json_each(@ids)) AND ${ofSourceSql}
 				ORDER BY s.id`
 			)
-			.all(JSON.stringify(ids), sourceId) as { id: number }[]
+			.all({ ids: JSON.stringify(ids), source: sourceId }) as { id: number }[]
 	).map((r) => r.id);
 }
