@@ -636,7 +636,8 @@
 			(seen) => {
 				if (seen.some((e) => e.isIntersecting)) void loadMore();
 			},
-			{ rootMargin: `0px 0px ${runway()}px 0px` }
+			// A percentage off a TV, so it follows a turned screen as `runway()` does.
+			{ rootMargin: tvScreen.current ? `0px 0px ${TV_RUNWAY_PX}px 0px` : '0px 0px 150% 0px' }
 		);
 		endObserver = io;
 		io.observe(node);
