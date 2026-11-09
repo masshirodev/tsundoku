@@ -34,8 +34,9 @@
 	 * "Arriving from a tag"). Each link names the tag, and `tag-search` waits for
 	 * the source's filters before it says where to go, so the link is right from
 	 * the first paint and never a search for a genre the filters name. The
-	 * source page's back cell returns here, and this page's own back is
-	 * untouched (its URL keeps its `from`).
+	 * source page's back cell returns here, and this page's own ← opens the
+	 * screen it names (its URL keeps its `from`), a plain link (c864): a back
+	 * link here would match the tag search it came through by path, and loop.
 	 */
 	const searchTag = (namespace: string, value: string) =>
 		tagRouteHref(

@@ -19,7 +19,7 @@
      extension), so it loads on tap, not hover: twenty hovered tiles queued
      forty calls ahead of the one opened (reported 2026-10-29). -->
 <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the page builds href from resolve() -->
-<a class="tile" {href} data-sveltekit-preload-data="tap">
+<a class="tile" {href} data-sveltekit-preload-data="tap" data-focus-id={`result-${hit.mangaId}`}>
 	<Cover src={hit.cover || null} {hue}>
 		{#if m.kind === 'in-library' && m.hidden}<Badge tone="reveal" corner="top-left">HIDDEN</Badge
 			>{/if}
@@ -50,6 +50,21 @@
 			1px 1px 0 var(--line-1);
 		color: var(--text-1);
 		text-decoration: none;
+	}
+	/*
+	 * The mark is around the cover, as on a library tile (CoverTile; doc/FOCUS.md,
+	 * "The mark"), and not on the tile (c864): this rule's three hairlines outweigh
+	 * the global `:focus-visible` ring, so a focused tile drew none at all, and an
+	 * outer ring on the tile would be painted under its neighbours' backgrounds in
+	 * a grid whose gap is 1 px. The cover's ring ends 7 px out, inside the padding.
+	 */
+	.tile:focus-visible :global(.cover) {
+		box-shadow: var(--focus-ring);
+	}
+	/* FILTER's scrim is drawn over the grid, and the pad can still walk under it. */
+	:global(.grid.dim) .tile:focus-visible {
+		position: relative;
+		z-index: 1;
 	}
 	.tile:active {
 		background: var(--surface-inverse);

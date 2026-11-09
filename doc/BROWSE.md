@@ -269,9 +269,21 @@ page answers from the same cache.
 preview's or the series' own address, query included, and the source page's
 ← goes there (`backOrigin`: only `/downloads/source/<id>` and `/series/<id>`,
 never another host or screen, as `sourceOrigin` refuses an open redirect).
-That screen's own ← is untouched, since its URL still carries its own `from`:
-preview → source page → ← → preview, whose ← still says BROWSE. **Every way
-to another list of the same source keeps it** (card c453): POPULAR and LATEST,
+That ← and the preview's own are plain links, never back links (c864): a
+source's list and its tag search share the path `/browse/<id>`, so a back
+link's path-only match would step onto the tag search the reader came
+through, and the two ←s would alternate between it and the preview for good.
+Wave 40's round 2 measured exactly that on `e12a4bfb`, where the preview's ←
+was a back link; its proposed `use:backLink` here too cannot work, because a
+tag page is a native navigation (its `tag-search` route is a server route) and
+the app's history map begins again there. The preview's ←
+names the list it was opened from, and the catalog puts the tile's focus back
+itself when that ← brings it back, and only then: `restoreFocus` reads the
+`data-focus-id` `saveFocus` noted for that URL, as on a popstate, while a list
+left by touch or mouse saved none. A forward visit starts at the top with no
+tile held, and a reload puts no tile back either (its scroll is the browser's
+own, SvelteKit restoring it); neither is a way back (c864's round 2). **Every way to another list of the same source keeps it**
+(card c453): POPULAR and LATEST,
 the search field (a hidden `from`), FILTER's APPLY (a hidden `from`) and
 RESET, paging and the panel's toggle (`link()` keeps every parameter), and
 SETTINGS, whose ← and rows carry it back (`keepOrigin`, tag-search.ts). Only
@@ -863,8 +875,19 @@ found by those words and a locator matches by substring.
   `tests/tv-tags.e2e.ts`, on a world of their own (`tests/helpers/tag-world.ts`:
   a fake engine whose manga has an author and genres): a genre lands on
   FILTERED with its chip included and what the source was asked, a search for
-  the rest, ← back to the preview, the series' sheet and each door with no
+  the rest, ← back to the preview (clicked, and its landing read), the series'
+  sheet and each door with no
   sheet, the engine down or slow, and the remote's walk to a tag.
+- `tests/tv-browse-focus.e2e.ts` (the `tv` project, on a fake engine of its
+  own): the focus mark on a catalog tile (c864), on the cover as on a library
+  tile, in POPULAR, LATEST, a search, back from a preview by both ways back
+  (the remote's BACK, and the preview's own plain ←, after which the catalog
+  restores the tile from `data-focus-id`), a forward arrival and a reload
+  (neither puts a tile back; the forward visit starts at the top), a tag round trip and
+  two of them
+  (every ← lands on the screen it names, never on the tag search it shares a
+  path with), a tag search opened by address with `from=` and none behind it
+  (and after a reload), and under FILTER's scrim.
 - `tests/source-flags-db.spec.ts`: a source's own switches (card c435): the
   rows they are kept in, `sourceIdSql` against `sourceOfKey` on every key,
   HIDDEN SOURCE at BROWSE, RECENT, EXTENSIONS (a package, and a plugin's
