@@ -189,6 +189,21 @@ describe('grouping a one-off keeps its link (c885)', () => {
 		expect(row(seriesId).path).toBe(join(library, 'Mihon'));
 	});
 
+	it('widens a target held inside a device folder when a book joins it', async () => {
+		// A series with its own key, downloaded: its path is inside the device folder.
+		const own = await addOneOff();
+		const folder = join(library, 'devices', 'tsundoku', 'Mihon', 'downloads', 'n (EN)', 'Own');
+		db.prepare(`UPDATE series SET path = ? WHERE id = ?`).run(folder, own.id);
+		db.prepare(`UPDATE entries SET file = 'c.cbz', available = 1 WHERE series_id = ?`).run(own.id);
+		const other = await addOneOff();
+		books.groupIntoSeries({ seriesIds: [other.id], into: own.id });
+		const path = row(own.id).path;
+		expect(path.startsWith(join(library, 'devices'))).toBe(false);
+		// The series' own file still names the same place on disk.
+		const [e] = entriesOf(own.id);
+		expect(join(path, e.file)).toBe(join(folder, 'c.cbz'));
+	});
+
 	it('reads a season as nothing: a book of no season is not season 0 of a season row', async () => {
 		const { one, seriesId, entryIds } = await pair();
 		// A season row, however a series came to have one, must not answer for a book.

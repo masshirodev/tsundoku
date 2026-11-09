@@ -371,10 +371,9 @@ export function groupIntoSeries(opts: {
 								.path
 					)
 				);
-				const only = paths.size === 1 ? [...paths][0] : '';
 				const path =
-					only !== ''
-						? only
+					paths.size === 1
+						? [...paths][0]
 						: (db.prepare(`SELECT path FROM roots WHERE id = ?`).get(root) as { path: string })
 								.path;
 				target = Number(
