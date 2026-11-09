@@ -642,3 +642,69 @@ test.describe('the bar names the server in use (c862)', () => {
 		expect(box.x + box.width - (name.x + name.width)).toBeCloseTo(22, 0);
 	});
 });
+
+/**
+ * A held OK on a CONTINUE card opens the entry's options, on both of its
+ * stops (c860; doc/FOCUS.md, 'OK held'): the sheet is only read, so nothing
+ * here writes, and the plain OK that resumes is incognito.
+ */
+test.describe('a held OK on a CONTINUE card (c860)', () => {
+	const rowOf = (page: Page) => page.locator('.cont > .row').first();
+
+	async function holdOk(page: Page) {
+		await page.keyboard.down('Enter');
+		await page.waitForTimeout(550); // past the layer's 450 ms hold
+		await page.keyboard.up('Enter');
+	}
+
+	async function onResume(page: Page) {
+		await page
+			.context()
+			.addCookies([{ name: 'tsundoku_incognito', value: '1', url: 'http://localhost' }]);
+		await page.goto('/');
+		await page.keyboard.press('ArrowDown');
+		await expect.poll(() => focused(page)).toMatch(/^Resume /);
+		return (await rowOf(page).locator('.title').textContent())!.trim();
+	}
+
+	test('on ▶ it opens the options, not the reader; BACK returns to ▶; a plain OK still resumes', async ({
+		page
+	}) => {
+		const title = await onResume(page);
+		await holdOk(page);
+		const sheet = page.getByRole('dialog', { name: title });
+		await expect(sheet).toBeVisible();
+		expect(new URL(page.url()).pathname, 'the hold did not resume').toBe('/');
+		await page.keyboard.press('Escape');
+		await expect(sheet).toHaveCount(0);
+		await expect.poll(() => focused(page)).toMatch(/^Resume /);
+		await page.keyboard.press('Enter');
+		await page.waitForURL(/\/read\/\d+/);
+	});
+
+	test('on the band it opens the options, not the series; a plain OK still opens it', async ({
+		page
+	}) => {
+		const title = await onResume(page);
+		await page.keyboard.press('ArrowLeft');
+		const band = rowOf(page).locator('a.band');
+		await expect(band).toBeFocused();
+		const href = (await band.getAttribute('href'))!;
+		await holdOk(page);
+		const sheet = page.getByRole('dialog', { name: title });
+		await expect(sheet).toBeVisible();
+		expect(new URL(page.url()).pathname, 'the hold did not follow the band').toBe('/');
+		await page.keyboard.press('Escape');
+		await expect(sheet).toHaveCount(0);
+		await expect(band).toBeFocused();
+		await page.keyboard.press('Enter');
+		await page.waitForURL((u) => u.pathname + u.search === href);
+	});
+
+	test('MENU opens the same sheet at once', async ({ page }) => {
+		const title = await onResume(page);
+		await page.keyboard.press('ContextMenu');
+		await expect(page.getByRole('dialog', { name: title })).toBeVisible();
+		expect(new URL(page.url()).pathname).toBe('/');
+	});
+});

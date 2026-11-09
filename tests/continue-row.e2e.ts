@@ -1,6 +1,12 @@
+import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
+import { rmSync } from 'node:fs';
+import { createServer, type AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { type Locator, type Page } from '@playwright/test';
+import { E2E_TOKEN } from '../playwright.config';
 import { markerPath } from '../src/lib/cache/policy';
-import { expect, test } from './fixtures';
+import { expect, hydrated, test } from './fixtures';
 
 /**
  * The library's CONTINUE row (c840, c841; doc/LIBRARY.md, "The CONTINUE row"):
@@ -257,5 +263,267 @@ test.describe('the band opens the entry, ▶ the reader (c841)', () => {
 			},
 			[markerPath(id, entry)]
 		);
+	});
+});
+
+/**
+ * A held press opens what a grid tile's hold opens (c860). The sheet is only
+ * read, so the shared database is untouched.
+ */
+test.describe('a held press on the row (c860)', () => {
+	const SERIES_READ = /\/api\/series\/\d+$/;
+	const sheetOf = async (page: Page) => {
+		const title = (await row(page).locator('.title').textContent())!.trim();
+		return page.getByRole('dialog', { name: title });
+	};
+
+	/**
+	 * The release while the sheet is still on its way, with the sheet's read
+	 * held: the sheet would otherwise be drawn under the finger and take the
+	 * release, and a release on the row is what the guard is for.
+	 */
+	async function holdAndRelease(page: Page, target: Locator) {
+		let release = () => {};
+		const held = new Promise<void>((r) => (release = r));
+		await page.route(SERIES_READ, async (route) => {
+			await held;
+			await route.continue();
+		});
+		const asked = page.waitForRequest(SERIES_READ);
+		const box = (await target.boundingBox())!;
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		await page.mouse.down();
+		await asked; // the hold fired: its read is out
+		await page.mouse.up();
+		// Time for a click to have followed the link or resumed: it would be on its way by now.
+		await page.waitForTimeout(400);
+		expect(new URL(page.url()).pathname, 'the release went nowhere').toBe('/');
+		release();
+		await expect(await sheetOf(page)).toBeVisible();
+		await page.unroute(SERIES_READ);
+	}
+
+	test('a long press on the band opens the options, and the release does not follow it', async ({
+		page
+	}) => {
+		await page.goto('/');
+		await holdAndRelease(page, row(page).locator('a.band'));
+	});
+
+	test('a long press on ▶ opens the options, and the release does not resume', async ({ page }) => {
+		await page.goto('/');
+		await holdAndRelease(page, row(page).locator('.go'));
+	});
+
+	test('a right click opens them on the band and on ▶; a plain press after one still resumes', async ({
+		page
+	}) => {
+		await page.goto('/');
+		const sheet = await sheetOf(page);
+		await row(page).locator('a.band').click({ button: 'right' });
+		await expect(sheet).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(sheet).toHaveCount(0);
+
+		await row(page).locator('.go').click({ button: 'right' });
+		await expect(sheet).toBeVisible();
+		expect(new URL(page.url()).pathname).toBe('/');
+		await page.keyboard.press('Escape');
+		await expect(sheet).toHaveCount(0);
+
+		await row(page).locator('.go').click();
+		await page.waitForURL(/\/read\/\d+/);
+	});
+
+	test('a press that travels is a scroll, not a hold', async ({ page }) => {
+		await page.goto('/');
+		const box = (await row(page).locator('a.band').boundingBox())!;
+		let asked = 0;
+		page.on('request', (r) => {
+			if (SERIES_READ.test(r.url())) asked += 1;
+		});
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 30, { steps: 3 });
+		await page.waitForTimeout(600);
+		// Off the band first, so the release is no click on it either.
+		await page.mouse.move(box.x + 1, box.y - 40);
+		await page.mouse.up();
+		expect(asked, 'no sheet was asked for').toBe(0);
+		await expect(await sheetOf(page)).toHaveCount(0);
+	});
+
+	test('a disabled ▶ still hands a hold to the row', async ({ page }, info) => {
+		test.skip(info.project.name !== 'tablet-portrait', 'one device: CSS on the cell');
+		await page.goto('/');
+		const go = row(page).locator('.go');
+		// `resumeId: null` draws this; the seed has no such row in view.
+		await go.evaluate((n) => ((n as HTMLButtonElement).disabled = true));
+		const box = (await go.boundingBox())!;
+		await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
+		await expect(await sheetOf(page)).toBeVisible();
+	});
+
+	test('offline it says what a tile says: the read fails and no sheet opens, on both', async ({
+		page,
+		context
+	}, info) => {
+		test.skip(info.project.name !== 'tablet-portrait', 'the state once');
+		await page.goto('/');
+		await expect(row(page).locator('a.band')).toHaveCount(1);
+		// Another series than the row's: a failed read leaves the sheet's id set,
+		// so a hold on the same one asks nothing (the note in doc/handoff-notes).
+		const rowTitle = (await row(page).locator('.title').textContent())!.trim();
+		const tile = page
+			.locator('.grid .tile')
+			.filter({ hasNot: page.locator('.title', { hasText: new RegExp(`^${rowTitle}$`) }) })
+			.first()
+			.locator('.open');
+		await expect(tile).toBeVisible();
+		await context.setOffline(true);
+		await page.evaluate(() => dispatchEvent(new Event('offline')));
+		await expect(row(page)).toHaveClass(/unavailable/);
+
+		const failed = () => page.waitForEvent('requestfailed', (r) => SERIES_READ.test(r.url()));
+		const onRow = failed();
+		await row(page).click({ button: 'right', position: { x: 3, y: 3 } });
+		await onRow; // the hold ran, and asked
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		expect(new URL(page.url()).pathname).toBe('/');
+
+		const onTile = failed();
+		await tile.click({ button: 'right' });
+		await onTile;
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		await context.setOffline(false);
+	});
+
+	test('while selecting a hold is not a pick: no sheet, and nothing is ticked', async ({
+		page
+	}, info) => {
+		test.skip(info.project.name === 'phone', 'the phone has no row while selecting');
+		await page.goto('/');
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		await expect(row(page).locator('a.band')).toHaveCount(0);
+		const taken = await row(page).evaluate(
+			(n) => !n.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+		);
+		expect(taken, 'a held OK here stays the press it was').toBe(false);
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		await expect(page.locator('.grid .tile .open[aria-pressed="true"]')).toHaveCount(0);
+
+		// Leaving SELECT gives the row its hold back, on the same node.
+		await page.getByRole('button', { name: 'Stop selecting' }).click();
+		await expect(row(page).locator('a.band')).toHaveCount(1);
+		const sheet = await sheetOf(page);
+		await row(page).locator('a.band').click({ button: 'right' });
+		await expect(sheet).toBeVisible();
+	});
+});
+
+/**
+ * A Work's row has no sheet, because a Work's tile has none. The seed has no
+ * Work, and a spec that made one on the shared database would hide two tiles
+ * from every flow beside it, so this is the frames' arrangement
+ * (`tests/works-library-frame.e2e.ts`): a seeded database of its own and a
+ * preview on an OS port, with the Work made through the app.
+ */
+test.describe('a Work’s row (c860)', () => {
+	const dbPath = join(tmpdir(), `tsundoku-e2e-continue-${process.pid}.sqlite`);
+	let server: ChildProcess | null = null;
+	let base = '';
+
+	test.beforeAll(async ({ browser }, info) => {
+		test.skip(info.project.name !== 'tablet-portrait', 'once');
+		test.setTimeout(120_000);
+		const port = await new Promise<number>((resolve, reject) => {
+			const probe = createServer();
+			probe.once('error', reject);
+			probe.listen(0, '127.0.0.1', () => {
+				const { port } = probe.address() as AddressInfo;
+				probe.close(() => resolve(port));
+			});
+		});
+		base = `http://localhost:${port}`;
+		rmSync(dbPath, { force: true });
+		execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
+			env: { ...process.env, DATABASE_PATH: dbPath, NODE_NO_WARNINGS: '1' },
+			stdio: 'pipe'
+		});
+		server = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
+			env: {
+				...process.env,
+				DATABASE_PATH: dbPath,
+				TSUNDOKU_TOKEN: E2E_TOKEN,
+				TSUNDOKU_ANILIST: 'off',
+				LIBRARY_ROOT: join(tmpdir(), `tsundoku-e2e-continue-empty-${process.pid}`),
+				TSUNDOKU_HOME: join(tmpdir(), `tsundoku-e2e-continue-home-${process.pid}`)
+			},
+			stdio: 'ignore'
+		});
+		let up = false;
+		for (let i = 0; i < 120 && !up; i++) {
+			try {
+				up = (await fetch(`${base}/`, { redirect: 'manual' })).status > 0;
+			} catch {
+				await new Promise((r) => setTimeout(r, 500));
+			}
+		}
+		if (!up) throw new Error('the preview never answered');
+		const context = await browser.newContext({
+			storageState: info.project.use.storageState as string,
+			baseURL: base
+		});
+		const page = await context.newPage();
+		await page.goto('/');
+		await hydrated(page);
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		for (const title of ["Omniscient Reader's Viewpoint", 'Hoshi no Umi no Tabibito'])
+			await page
+				.locator('.grid .tile')
+				.filter({ has: page.locator('.title', { hasText: new RegExp(`^${title}$`) }) })
+				.locator('.open')
+				.click();
+		await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+		const group = page.getByRole('dialog', { name: 'Group into a series' });
+		await group.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+		await group.getByRole('textbox', { name: 'Work name' }).fill('Held Run');
+		await group.getByRole('button', { name: /CREATE WORK/ }).click();
+		await expect(page.locator('.band', { hasText: 'HELD RUN IS A WORK' })).toBeVisible();
+		await context.close();
+	});
+
+	test.afterAll(() => {
+		server?.kill();
+		server = null;
+		rmSync(dbPath, { force: true });
+	});
+
+	test('takes no hold, so a held OK stays a press, and a tap still opens the Work', async ({
+		browser
+	}, info) => {
+		const context = await browser.newContext({
+			storageState: info.project.use.storageState as string,
+			baseURL: base
+		});
+		const page = await context.newPage();
+		await page.goto('/');
+		await hydrated(page);
+		const workRow = page.locator('.cont > .row.work').first();
+		await expect(workRow).toBeVisible();
+		// What the remote's layer asks (`openOptions`): did anything take it?
+		for (const part of ['a.band', '.go']) {
+			const taken = await workRow
+				.locator(part)
+				.evaluate(
+					(n) =>
+						!n.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+				);
+			expect(taken, `${part}: a Work's row offers nothing to hold`).toBe(false);
+		}
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		await workRow.locator('a.band').click();
+		await page.waitForURL(/\/work\/\d+/);
+		await context.close();
 	});
 });

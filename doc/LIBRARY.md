@@ -238,6 +238,20 @@ whole card used to take it; everywhere else the rows stack and ↓ is the row
 under it. ▶❚❚ on
 either stop resumes.
 
+**A held press opens the entry's options, as a grid tile's does** (c860): a held
+OK or MENU on a TV, a long press, or a right click, anywhere on the row, the
+band and ▶ alike. It is the sheet the grid opens (`sheetId`, `SeriesSheet`),
+through the action every long-press row uses (`use:longpress`), and the press
+that fires it neither follows the band nor resumes. Where the grid's tile has
+no options, nor does the row, and a held OK there is the plain press it was:
+
+| Row               | A held press                                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| A series          | the sheet                                                                                     |
+| A series, offline | what a tile's says offline: the sheet asks the server, so nothing opens                       |
+| A Work's          | nothing: a Work's tile has no sheet, so a held OK on ▶ resumes and on the band opens the Work |
+| Selecting         | nothing: a hold on a tile is a pick and a row is not one, so a held OK on ▶ resumes           |
+
 ## New chapters
 
 A tile's `+N` counts entries that **arrived after the series was last opened**:

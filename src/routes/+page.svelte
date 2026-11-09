@@ -2194,6 +2194,7 @@
 								? // eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves
 									() => goto(readHref(item.resumeId!))
 								: undefined}
+							onlongpress={item.work || selecting ? undefined : () => (sheetId = item.id)}
 						/>
 					{/each}
 				</div>
