@@ -323,7 +323,66 @@ export function continueAction(series: Pick<SeriesPage, 'kind' | 'entries'>): {
 export type Row =
 	| { type: 'fold'; from: number; to: number; count: number }
 	| { type: 'entry'; entry: SeriesEntry; state: EntryState }
+	| VolumeHead
 	| { type: 'section'; key: string; label: string; detail: string };
+
+/** Reading a volume: all of its chapters read, the one being read, or neither. */
+export type VolumeState = 'read' | 'reading' | 'unread';
+
+/**
+ * A volume's head in a grouped novel's contents (c835): its cover, its number,
+ * its title and its chapters. Not a `section` with more words: the list draws
+ * a cover and a progress bar here, and the rail asks each volume where it
+ * starts. The volume's front and back matter is not a chapter (`chaptersOf`),
+ * and stays its own row under the head.
+ */
+export type VolumeHead = {
+	type: 'volume';
+	/** `v<n>`, stable across a descending flip as the section's key was. */
+	key: string;
+	/** Its place in the series, 1-based, the order the rail ticks are labelled in. */
+	number: number;
+	/** `VOL. n`, the words the reader and the band find. */
+	label: string;
+	/** The volume's own name, verbatim (never uppercased). */
+	title: string;
+	state: VolumeState;
+	/** Its chapters, front and back matter not counted. */
+	chapters: number;
+	read: number;
+	/** How much of the volume is read, 0–1; null unless it is the one being read. */
+	progress: number | null;
+};
+
+/**
+ * One volume's head. [current] is the entry the reader would open, so the
+ * volume that holds it is the one "being read": a part-read volume the reader
+ * has moved past is not, and reads as unread (its chapters' own rows say more).
+ */
+export function volumeHead(vol: SeriesEntry[], n: number, current: SeriesEntry | null): VolumeHead {
+	const chapters = chaptersOf(vol);
+	const read = chapters.filter((e) => e.readAt !== null).length;
+	const here = !!current && vol.some((e) => e.id === current.id);
+	const state: VolumeState =
+		chapters.length > 0 && read === chapters.length ? 'read' : here ? 'reading' : 'unread';
+	return {
+		type: 'volume',
+		key: `v${n}`,
+		number: n,
+		label: `VOL. ${n}`,
+		title: vol[0]?.volume || 'UNTITLED',
+		state,
+		chapters: chapters.length,
+		read,
+		progress: state === 'reading' && chapters.length > 0 ? read / chapters.length : null
+	};
+}
+
+/** "11 CHAPTERS · 4 READ", the head's meta line: 0 read says nothing after the count. */
+export function volumeMeta(v: Pick<VolumeHead, 'chapters' | 'read'>): string {
+	const chapters = `${v.chapters} ${v.chapters === 1 ? 'CHAPTER' : 'CHAPTERS'}`;
+	return v.read > 0 ? `${chapters} · ${v.read} READ` : chapters;
+}
 
 /**
  * The chapter list in reading order. Everything read before the last two
@@ -347,8 +406,6 @@ export function listRows(
 		const ordered = opts.descending ? [...volumes].reverse() : volumes;
 		return ordered.flatMap((vol, i): Row[] => {
 			const n = opts.descending ? volumes.length - i : i + 1;
-			const chapters = chaptersOf(vol);
-			const read = chapters.filter((e) => e.readAt !== null).length;
 			const inner = listRows(
 				vol.map((e) => ({ ...e, volume: '' })),
 				{ ...opts, expanded: opts.expanded || !cur || !vol.includes(cur) }
@@ -363,15 +420,7 @@ export function listRows(
 					}
 					return r;
 				});
-			return [
-				{
-					type: 'section',
-					key: `v${n}`,
-					label: `VOL. ${n} · ${(vol[0].volume || 'UNTITLED').toUpperCase()}`,
-					detail: `${chapters.length} · ${read} READ`
-				},
-				...inner
-			];
+			return [volumeHead(vol, n, cur), ...inner];
 		});
 	}
 	// A book with front and back matter lists it apart, under its own labels,

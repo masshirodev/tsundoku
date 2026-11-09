@@ -24,6 +24,7 @@ import {
 	rangeBetween,
 	seriesMeta,
 	tagGroups,
+	volumeMeta,
 	type SeriesEntry
 } from '$lib/library/series';
 import { SerialSaves } from '../src/lib/serial-saves';
@@ -318,15 +319,19 @@ describe('volumes of a novel', () => {
 
 	it('heads each volume in CONTENTS, with its own matter and one current entry', () => {
 		const rows = listRows(volumes());
-		const sections = rows.filter((r) => r.type === 'section');
-		expect(sections.map((r) => r.label)).toEqual([
-			'VOL. 1 · FRIEREN: VOLUME 1',
-			'FRONT MATTER',
-			'VOL. 2 · FRIEREN: VOLUME 2',
-			'FRONT MATTER'
+		const heads = rows.filter((r) => r.type === 'volume');
+		expect(heads.map((h) => h.label)).toEqual(['VOL. 1', 'VOL. 2']);
+		expect(heads.map((h) => h.title)).toEqual(['Frieren: Volume 1', 'Frieren: Volume 2']);
+		expect(heads.map((h) => volumeMeta(h))).toEqual([
+			'11 CHAPTERS · 11 READ',
+			'11 CHAPTERS · 1 READ'
 		]);
-		expect(sections[0].detail).toBe('11 · 11 READ');
-		expect(new Set(rows.map((r) => (r.type === 'section' ? r.key : ''))).size).toBe(5);
+		const sections = rows.filter((r) => r.type === 'section');
+		expect(sections.map((r) => r.label)).toEqual(['FRONT MATTER', 'FRONT MATTER']);
+		expect(
+			new Set(rows.filter((r) => r.type === 'volume' || r.type === 'section').map((r) => r.key))
+				.size
+		).toBe(4);
 		expect(rows.filter((r) => r.type === 'entry' && r.state === 'progress')).toHaveLength(1);
 		// The volume being read holds the only fold; the first is shown whole.
 		expect(rows.filter((r) => r.type === 'fold')).toHaveLength(0);

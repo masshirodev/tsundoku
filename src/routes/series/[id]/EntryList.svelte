@@ -243,10 +243,17 @@
 
 	<div class="body" class:with-rail={!selecting && series.entries.length > 1 && tools}>
 		<ol class="rows">
-			{#each rows as row (row.type === 'fold' ? 'fold' : row.type === 'section' ? row.key : row.entry.id)}
+			{#each rows as row (row.type === 'fold' ? 'fold' : row.type === 'entry' ? row.entry.id : row.key)}
 				{#if row.type === 'section'}
 					<!-- A book's front and back matter, listed apart (doc/TEXT-READER.md). -->
 					<li class="section"><span>{row.label}</span><span>{row.detail}</span></li>
+				{:else if row.type === 'volume'}
+					<!-- A volume's head (c835), still today's text row until its cover and
+					     facts land in the next slice. -->
+					<li class="section">
+						<span>{row.label} · {row.title.toUpperCase()}</span>
+						<span>{row.chapters} · {row.read} READ</span>
+					</li>
 				{:else if row.type === 'fold'}
 					<li class="fold">
 						<!-- The stripes are a stylesheet picture: the hover tint must not replace them (c488, doc/MOTION.md). -->
