@@ -104,7 +104,13 @@ async function loadAt(location: string, reveal = false) {
 		cookies: { get: (n: string) => (reveal && n === 'tsundoku_reveal' ? '1' : undefined) }
 	} as never)) as unknown as {
 		removeBand: { done: string[]; stayed: string[] };
-		updateBand: { done: string[]; failed: string[]; untrusted: string[]; of: number };
+		updateBand: {
+			done: string[];
+			ver: string[];
+			failed: string[];
+			untrusted: string[];
+			of: number;
+		};
 		backBand: { done: string[] };
 		band: {
 			miss: string[];
@@ -118,7 +124,7 @@ async function loadAt(location: string, reveal = false) {
 
 /** Run one of the page's actions with a form, and answer its redirect (or its failure). */
 async function act(
-	name: 'flags' | 'undoFlags' | 'updateSome' | 'undoUpdate' | 'removeSome',
+	name: 'flags' | 'undoFlags' | 'updateSome' | 'undoUpdate' | 'removeSome' | 'back',
 	fields: Record<string, string | string[]>,
 	reveal = false
 ): Promise<{ status: number; location?: string; data?: Record<string, unknown> }> {
@@ -328,8 +334,9 @@ describe('SELECT’s UPDATE and REMOVE (card c696)', () => {
 	});
 
 	it('refuses a bulk BACK TO when the version before is no longer kept', async () => {
-		const r = await act('undoUpdate', { pkg: 'en.multi' });
+		const r = await act('undoUpdate', { pkg: 'en.multi', ver: '1.0' });
 		expect(r.status).toBe(409);
+		expect(String(r.data?.message)).toContain('NO LONGER KEPT');
 	});
 
 	it('removes the listed extensions and leaves an OBSOLETE one installed, with no undo', async () => {
@@ -500,12 +507,14 @@ describe('a band keeps every row of its lists (card c696, round 2)', () => {
 	it('the update band reads two done and two failed, and BACK TO two done', async () => {
 		const up = band.bandQuery('update', {
 			done: ['x.u1', 'x.u2'],
+			ver: ['9.0', '9.1'],
 			miss: ['x.f1', 'x.f2'],
 			of: 4,
 			no: 0
 		});
 		const out = await loadAt(`/browse/extensions?${up}`);
 		expect(out.updateBand.done).toEqual(['x.u1', 'x.u2']);
+		expect(out.updateBand.ver).toEqual(['9.0', '9.1']);
 		expect(out.updateBand.failed).toEqual(['x.f1', 'x.f2']);
 		const back = band.bandQuery('back', { done: ['x.b1', 'x.b2'] });
 		const outBack = await loadAt(`/browse/extensions?${back}`);
@@ -525,7 +534,7 @@ describe('a band keeps every row of its lists (card c696, round 2)', () => {
 			).run(handle, until, pkg);
 			writeFileSync(join(process.env.ENGINE_STORE!, `${handle}.apk`), 'x');
 		}
-		const r = await act('undoUpdate', { pkg: ['x.b1', 'x.b2'] });
+		const r = await act('undoUpdate', { pkg: ['x.b1', 'x.b2'], ver: ['1.9', '1.9'] });
 		expect(r.status).toBe(303);
 		const out = await loadAt(r.location!);
 		expect(out.backBand.done).toEqual(['x.b1', 'x.b2']);
@@ -654,6 +663,9 @@ describe('a bulk UPDATE where nothing took is not UPDATED (card c696, round 2)',
 		expect(out.updateBand.done).toEqual(['x.upok']);
 		expect(out.updateBand.failed).toEqual(['x.upf']);
 		expect(out.updateBand.of).toBe(2);
+		// The band carries one version per updated row, in `done`'s order: the
+		// mock install leaves the row where it was, so its version is still 1.0.
+		expect(out.updateBand.ver).toEqual(['1.0']);
 		dropPackages('x.upok', 'x.upf');
 	});
 
@@ -791,5 +803,86 @@ describe('the whole redirect is budgeted, for every press (card c696, wave 43)',
 				.get(...pkgs)
 		).toEqual({ n: 260 });
 		dropPackages(...pkgs);
+	});
+});
+
+/**
+ * Round 2 of wave 42: `back()`/`backPlugin()` swap versions and keep
+ * `previous_until`, so a row that has already gone back still looks
+ * "backable"; the band carried package names and no version, so UNDO swapped
+ * it forward again and reported it restored. The band now carries each updated
+ * row's new version (`ver=…`, one per `done`, in order) and UNDO refuses whole
+ * when any row's version is not the one the press installed.
+ */
+describe('UPDATE’s UNDO checks the version the press installed (card c696, wave 43)', () => {
+	const until = Date.now() + 86_400_000;
+	/** [pkg] as a row a bulk UPDATE has just left on 1.9, its 0.9 still kept. */
+	const updated = (pkg: string, handle: string, id: string) => {
+		extension(pkg, [{ id, lang: 'en' }]);
+		db.prepare(
+			`UPDATE engine_extensions SET previous_handle = ?, previous_version = '0.9',
+				previous_until = ?, version_name = '1.9' WHERE pkg = ?`
+		).run(handle, until, pkg);
+		writeFileSync(join(process.env.ENGINE_STORE!, `${handle}.apk`), 'x');
+	};
+	const versions = (pkgs: string[]) =>
+		Object.fromEntries(
+			(
+				db
+					.prepare(
+						`SELECT pkg, version_name FROM engine_extensions WHERE pkg IN (${pkgs.map(() => '?').join(',')}) ORDER BY pkg`
+					)
+					.all(...pkgs) as { pkg: string; version_name: string }[]
+			).map((r) => [r.pkg, r.version_name])
+		);
+
+	it('refuses whole when a row went back on its own since, a plugin included', async () => {
+		updated('x.ua', 'prev-a', '651');
+		updated('x.ub', 'prev-b', '652');
+		plugin('x.p');
+		db.prepare(
+			`UPDATE novel_plugins SET previous_hash = 'prev-p', previous_version = '0.9',
+				previous_until = ?, version = '1.9' WHERE id = 'x.p'`
+		).run(until);
+		mkdirSync(join(process.env.ENGINE_STORE!, 'novels'), { recursive: true });
+		writeFileSync(join(process.env.ENGINE_STORE!, 'novels', 'prev-p.js'), 'x');
+
+		// The row's own BACK TO: x.ua is 0.9 again, its kept "previous" now 1.9,
+		// so the backable check alone would still let the bulk UNDO through.
+		expect((await act('back', { pkg: 'x.ua' })).status).toBe(200);
+		const undo = await act('undoUpdate', {
+			pkg: ['x.ua', 'x.ub', 'ln:x.p'],
+			ver: ['1.9', '1.9', '1.9']
+		});
+		expect(undo.status).toBe(409);
+		// Whole: the two rows that still matched were not swapped either.
+		expect(versions(['x.ua', 'x.ub'])).toEqual({ 'x.ua': '0.9', 'x.ub': '1.9' });
+		expect(db.prepare(`SELECT version FROM novel_plugins WHERE id = 'x.p'`).get()).toEqual({
+			version: '1.9'
+		});
+
+		dropPackages('x.ua', 'x.ub', 'ln:x.p');
+		rmSync(join(process.env.ENGINE_STORE!, 'prev-a.apk'), { force: true });
+		rmSync(join(process.env.ENGINE_STORE!, 'prev-b.apk'), { force: true });
+		rmSync(join(process.env.ENGINE_STORE!, 'novels', 'prev-p.js'), { force: true });
+	});
+
+	it('a second UNDO after a successful one refuses with the versions unchanged', async () => {
+		updated('x.va', 'prev-va', '661');
+		updated('x.vb', 'prev-vb', '662');
+		const once = await act('undoUpdate', { pkg: ['x.va', 'x.vb'], ver: ['1.9', '1.9'] });
+		expect(once.status).toBe(303);
+		expect(versions(['x.va', 'x.vb'])).toEqual({ 'x.va': '0.9', 'x.vb': '0.9' });
+		expect((await loadAt(once.location!)).backBand.done).toEqual(['x.va', 'x.vb']);
+
+		// Browser Back to the band's URL, or a double press: the rows are 0.9,
+		// not the 1.9 the press installed, so nothing is swapped a second time.
+		const twice = await act('undoUpdate', { pkg: ['x.va', 'x.vb'], ver: ['1.9', '1.9'] });
+		expect(twice.status).toBe(409);
+		expect(versions(['x.va', 'x.vb'])).toEqual({ 'x.va': '0.9', 'x.vb': '0.9' });
+
+		dropPackages('x.va', 'x.vb');
+		rmSync(join(process.env.ENGINE_STORE!, 'prev-va.apk'), { force: true });
+		rmSync(join(process.env.ENGINE_STORE!, 'prev-vb.apk'), { force: true });
 	});
 });

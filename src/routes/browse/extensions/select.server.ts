@@ -246,6 +246,7 @@ export const SELECT_BAND_PARAMS = [
 	'miss',
 	'gone',
 	'done',
+	'ver',
 	'stayed',
 	'untrusted',
 	'series',

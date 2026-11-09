@@ -9,6 +9,7 @@ import {
 	back,
 	findListing,
 	install,
+	installed,
 	listRepos,
 	previewRepo,
 	refreshRepo,
@@ -280,6 +281,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		url.searchParams.get('band') === 'update'
 			? {
 					done: listParam(url.searchParams, 'done'),
+					ver: listParam(url.searchParams, 'ver'),
 					failed: listParam(url.searchParams, 'miss'),
 					untrusted: listParam(url.searchParams, 'untrusted'),
 					of: Number(url.searchParams.get('of')) || 0,
@@ -607,10 +609,16 @@ export const actions: Actions = {
 				message: `${asked.map((pkg) => named.get(pkg) ?? pkg).join(', ')} did not update${why}`
 			});
 		}
+		// What each updated row's version is now: UNDO carries it, so a row that
+		// has gone back since (its own BACK TO) cannot be swapped forward again.
+		const versions = new Map<string, string>();
+		for (const e of installed()) versions.set(e.pkg, e.versionName);
+		for (const p of installedPlugins()) versions.set(`ln:${p.id}`, p.version);
 		redirect(
 			303,
 			`${PAGE}?${bandQuery('update', {
 				done,
+				ver: done.map((pkg) => versions.get(pkg) ?? ''),
 				miss: failed,
 				untrusted,
 				of: asked.length,
@@ -623,7 +631,21 @@ export const actions: Actions = {
 		guard();
 		const form = await request.formData();
 		const pkgs = tickedPackages(form);
+		const vers = form.getAll('ver').map(String);
 		const reveal = isRevealed(cookies);
+		// The version each row is now: the band carried the one the press
+		// installed, so a row that changed since (its own BACK TO, an update from
+		// another tab) refuses the whole UNDO instead of being swapped forward
+		// and reported as restored. Raw stores, not the drawn view: a row hidden
+		// since is still checked, and nothing here is named.
+		const current = new Map<string, string>();
+		for (const e of installed()) current.set(e.pkg, e.versionName);
+		for (const p of installedPlugins()) current.set(`ln:${p.id}`, p.version);
+		const changed = pkgs.findIndex((pkg, i) => !vers[i] || current.get(pkg) !== vers[i]);
+		if (!pkgs.length || vers.length !== pkgs.length || changed !== -1)
+			return fail(409, {
+				message: 'UNDO REFUSED · A ROW CHANGED SINCE THE UPDATE · NOTHING CHANGED'
+			});
 		const iv = installedView(reveal);
 		const pv = pluginsShown(pluginView(reveal), reveal);
 		const backable = new Set([
@@ -632,7 +654,7 @@ export const actions: Actions = {
 				.filter((p) => p.backTo)
 				.map((p) => `ln:${p.id}`)
 		]);
-		if (!pkgs.length || pkgs.some((pkg) => !backable.has(pkg)))
+		if (pkgs.some((pkg) => !backable.has(pkg)))
 			return fail(409, { message: 'THE VERSION BEFORE IS NO LONGER KEPT · NOTHING CHANGED' });
 		// Count only what BACK TO actually took: a row can lose its kept version
 		// between the check above and the write.

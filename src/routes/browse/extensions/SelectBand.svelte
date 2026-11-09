@@ -34,6 +34,8 @@
 		} | null;
 		update?: {
 			done: string[];
+			/** Each done package's version after the press: UNDO checks it is still there. */
+			ver: string[];
 			failed: string[];
 			untrusted: string[];
 			of: number;
@@ -64,6 +66,7 @@
 		'miss',
 		'gone',
 		'done',
+		'ver',
 		'stayed',
 		'untrusted',
 		'series',
@@ -193,7 +196,11 @@
 		{#snippet action()}
 			{#if update.done.length}
 				<form method="POST" action="{base}?/undoUpdate">
-					{#each update.done as pkg (pkg)}<input type="hidden" name="pkg" value={pkg} />{/each}
+					{#each update.done as pkg, i (pkg)}<input type="hidden" name="pkg" value={pkg} /><input
+							type="hidden"
+							name="ver"
+							value={update.ver[i] ?? ''}
+						/>{/each}
 					<button type="submit">UNDO</button>
 				</form>
 			{/if}
