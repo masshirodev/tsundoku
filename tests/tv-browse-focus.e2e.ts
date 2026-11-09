@@ -329,6 +329,100 @@ test('back by the preview’s own ←: the same tile holds the mark again', asyn
 	await expectMark(page);
 });
 
+/** Down from an inner tile to the list's last row, far enough that a return to it scrolls. */
+async function padToLowTile(page: Page): Promise<void> {
+	await padToInnerTile(page);
+	for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown');
+	expect(await focusedTile(page), 'the pad is on a low tile').toBe(true);
+}
+
+/** The focused thing's title, before the screen is left by key. */
+const focusedTitle = (page: Page) =>
+	page.evaluate(() => (document.activeElement as HTMLElement).querySelector('.t')?.textContent);
+
+/** The preview's own ←, pressed the way the remote reaches it. */
+async function backByPreview(page: Page): Promise<void> {
+	await expect(page.getByText('A Preview').first()).toBeVisible();
+	const onBack = () => page.evaluate(() => !!document.activeElement?.matches('a.back'));
+	for (let i = 0; i < 12 && !(await onBack()); i++) await page.keyboard.press('ArrowUp');
+	expect(await onBack(), 'the pad reached the preview’s ←').toBe(true);
+	await page.keyboard.press('Enter');
+	await page.waitForURL(/\/browse\//);
+}
+
+/** Two frames, so a restore that would put a tile back has had its moment. */
+const twoFrames = (page: Page) =>
+	page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+
+test('a forward arrival with a saved id: no tile is focused, and the list starts at the top', async ({
+	page
+}) => {
+	await page.goto(`${world.base}/browse`);
+	const row = page.getByRole('link', { name: new RegExp(SOURCE.name) }).first();
+	await expect(row).toBeVisible();
+	await press(page, row);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 0');
+
+	// Down to the last row, so a tile put back would have to scroll the list.
+	await padToLowTile(page);
+	const left = await focusedTitle(page);
+	expect(left, 'a low tile was focused before leaving').toMatch(/^Popular \d+$/);
+	await page.keyboard.press('Enter');
+	await page.waitForURL(/\/downloads\/source\//);
+	await backByPreview(page);
+	// The leg that left this list puts the tile back, so an id was saved for it.
+	await expect(page.locator('.grid a.tile:focus .t')).toHaveText(left as string);
+	expect(await page.evaluate(() => scrollY), 'the saved tile pulled the list down').toBeGreaterThan(
+		0
+	);
+
+	// The catalog’s ← names BROWSE and opens it; the same row, pressed again,
+	// is a forward visit, which must start at the top with no tile held. The
+	// key first ends the restore that put the tile back, or the tile takes
+	// focus from the ← as it is focused from script.
+	await page.keyboard.press('ArrowUp');
+	const browseBack = page.getByRole('link', { name: 'Back to BROWSE' });
+	await expect(browseBack).toBeVisible();
+	await press(page, browseBack);
+	await expectWhere(page, '/browse');
+	await press(page, page.getByRole('link', { name: new RegExp(SOURCE.name) }).first());
+	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 0');
+	await twoFrames(page);
+	expect(await focusedTile(page), 'a forward visit holds no tile').toBe(false);
+	expect(await page.evaluate(() => scrollY), 'a forward visit starts at the top').toBe(0);
+});
+
+test('a reload with a saved id: no tile is focused, and only the page’s own scroll comes back', async ({
+	page
+}) => {
+	await page.goto(`${world.base}/browse/${SOURCE.id}`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 0');
+	await padToLowTile(page);
+	const left = await focusedTitle(page);
+	expect(left, 'a low tile was focused before leaving').toMatch(/^Popular \d+$/);
+	await page.keyboard.press('Enter');
+	await page.waitForURL(/\/downloads\/source\//);
+	await backByPreview(page);
+	// The leg that left this list puts the tile back, so an id was saved for it.
+	await expect(page.locator('.grid a.tile:focus .t')).toHaveText(left as string);
+	expect(await page.evaluate(() => scrollY), 'the saved tile pulled the list down').toBeGreaterThan(
+		0
+	);
+
+	await page.reload();
+	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 0');
+	await twoFrames(page);
+	// SvelteKit restores a reload's scroll itself (it puts `scrollRestoration`
+	// back to `auto` on `beforeunload`, client.js), so the list is not at the
+	// top here: what the fix changes is that no tile is put back. Measured with
+	// no saved id too, so this place is the page's own: 500 -> 467.
+	expect(await focusedTile(page), 'a reload holds no tile').toBe(false);
+	expect(
+		await page.evaluate(() => scrollY),
+		'the reload’s place is the page’s own'
+	).toBeGreaterThan(0);
+});
+
 test('a tag from a preview: each ← lands on the screen it names, and the list’s tile comes back', async ({
 	page
 }) => {

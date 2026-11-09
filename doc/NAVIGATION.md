@@ -76,7 +76,8 @@ link (c864): a source's list and its tag search share the path `/browse/<id>`,
 so a back link would match the tag search the reader came through instead of
 the preview it names, and the two ←s would alternate for good. The preview's
 own ← is a plain link for the same reason; the catalog itself puts the tile's
-focus back on arrival (`restoreFocus`). It keeps `from` on every way
+focus back when that ← brings it back, and not on a forward visit or a reload
+(`restoreFocus`). It keeps `from` on every way
 to another list of the same source (POPULAR, LATEST, its search, FILTER's
 APPLY and RESET, MORE, SETTINGS and back), so ← still lands on the preview
 after the reader has looked around (card c453). Only an in-app

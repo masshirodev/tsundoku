@@ -278,9 +278,11 @@ was a back link; its proposed `use:backLink` here too cannot work, because a
 tag page is a native navigation (its `tag-search` route is a server route) and
 the app's history map begins again there. The preview's ←
 names the list it was opened from, and the catalog puts the tile's focus back
-itself when it arrives that way: `restoreFocus` reads the `data-focus-id`
-`saveFocus` noted for that URL, as on a popstate, while a list left by touch
-or mouse saved none. **Every way to another list of the same source keeps it**
+itself when that ← brings it back, and only then: `restoreFocus` reads the
+`data-focus-id` `saveFocus` noted for that URL, as on a popstate, while a list
+left by touch or mouse saved none. A forward visit starts at the top with no
+tile held, and a reload puts no tile back either (its scroll is the browser's
+own, SvelteKit restoring it); neither is a way back (c864's round 2). **Every way to another list of the same source keeps it**
 (card c453): POPULAR and LATEST,
 the search field (a hidden `from`), FILTER's APPLY (a hidden `from`) and
 RESET, paging and the panel's toggle (`link()` keeps every parameter), and
@@ -880,7 +882,9 @@ found by those words and a locator matches by substring.
   own): the focus mark on a catalog tile (c864), on the cover as on a library
   tile, in POPULAR, LATEST, a search, back from a preview by both ways back
   (the remote's BACK, and the preview's own plain ←, after which the catalog
-  restores the tile from `data-focus-id`), a tag round trip and two of them
+  restores the tile from `data-focus-id`), a forward arrival and a reload
+  (neither puts a tile back; the forward visit starts at the top), a tag round trip and
+  two of them
   (every ← lands on the screen it names, never on the tag search it shares a
   path with), a tag search opened by address with `from=` and none behind it
   (and after a reload), and under FILTER's scrim.
