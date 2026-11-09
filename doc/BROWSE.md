@@ -446,6 +446,62 @@ without script): the series that come from it stay, files and all; its
 queued chapters leave the queue and its followed series stop being checked;
 its settings are kept for a reinstall. Counts are what reveal lets you see.
 
+### Selecting many at once
+
+**SELECT** (card c696, the owner's ask of 2026-11-07; designed
+`doc/handoffs/extensions-select/`) is **INSTALLED's**, a cell between the title
+and CHECK NOW; a TV draws none, as the library draws none. It is URL state
+(`?select=1`), and so is the selection (`pkg=…` once per ticked package), so a
+no-script press lands with its rows still ticked. AVAILABLE and REPOSITORIES
+dim and stop while it runs: leaving the tab would drop the selection without a
+word. ✕, Escape, BACK and a tab's own TICK / UNTICK all work without script.
+It ends on ✕, Escape (a focused tick included: an `input` keeps Escape from the
+focus layer, so the form ends SELECT itself), BACK (`registerBack`), a reload,
+or an UPDATE or REMOVE that succeeded; **a switch press does not end it**, so
+the cells read back what the press set.
+
+**A row is a package, a switch is a source id** (the owner's decision,
+2026-11-08): a press changes **every source of each ticked extension**,
+including a language BROWSE does not list, because that is what SETTINGS would
+do one source at a time. The ids come from the engine's own rows
+(`browseSources(true)`), never from the rows drawn, and an LNReader plugin is
+its one id `ln:<id>` (`pluginOf`, `select.server.ts`).
+
+**The bar** (six cells) sets HIDDEN (HIDE outside reveal), ADDED HIDDEN, OFF
+HISTORY and NEVER TRACKED, and carries UPDATE n and REMOVE n…; a section's
+label offers TICK n / UNTICK n where UPDATE ALL sat. A switch is counted in
+extensions: ON when every source of every ticked package has it, OFF when none,
+MIXED otherwise (a PART extension is one whose sources disagree), and **every
+cell's second line says what the next press does** (`MIXED · 3 OF 12 · 1 PART ·
+TAP: ALL ON`, `12 OF 12 · TAP: ALL OFF`). A package whose sources are not
+known (an extension the engine never listed a source for) cannot change, and
+with none left the cells are disabled. Outside reveal HIDDEN is an **action**,
+not a switch: a count would hint at what is hidden, and hidden means hidden.
+
+**One band, one UNDO** (Results board). The press carries each source's value
+before it (`from=id|1,id|0`), so UNDO puts a mixed selection back mixed and a
+source already on stays on; it refuses whole when a source was changed since on
+its own settings page ("UNDO REFUSED · <NAME> WAS CHANGED SINCE · NOTHING
+CHANGED"), because an UNDO that took back half a press would be a lie. A press
+and its facts are one transaction (`setSourceFlags`), so a failure part-way
+leaves nothing changed. A row that could not change keeps its ink rule and
+leads with `NOT CHANGED · …` until the next press or ✕; a package removed on
+another device since it was ticked leaves the list and the selection and is
+counted in the band, not called a success.
+
+**UPDATE and REMOVE in bulk** are the list's own actions narrowed to the
+selection. UPDATE installs what each repository lists now, keeps the old APK
+for a week and forgets each source's kept answers, and its UNDO is BACK TO for
+every row it updated; SELECT ends. REMOVE asks first through REMOVE's
+ConfirmSheet with its lines summed, and has **no UNDO** (the sheet asked; an
+install fetches what the repository lists then, which may not be the removed
+version). **An OBSOLETE row stays installed**: no repository lists it any more,
+so once removed it could not be installed again, and its settings could not be
+reached. The sheet counts what may go, and says which stay and why. Tested in
+`tests/extensions-select-db.spec.ts` and `tests/browse-extensions-select.e2e.ts`;
+the frame is `tests/browse-extensions-select-frame.e2e.ts` (the tablet's
+selecting state).
+
 **AVAILABLE** is every repository's listings, one tab per source family (MANGA
 for Mihon's APKs, ANIME for Aniyomi's, NOVELS for LNReader's plugins; the URL
 says `kind=anime` or `kind=novels`) with its count,
@@ -863,6 +919,17 @@ found by those words and a locator matches by substring.
   case and spacing, FILTER's 18+ ONLY, CLEAR ALL and DONE; an LNReader
   plugin installed, browsed, its HIDDEN SOURCE set (gone from INSTALLED and
   AVAILABLE's NOVELS outside reveal, there inside it) and removed.
+- `tests/browse-extensions-select.e2e.ts`: SELECT on EXTENSIONS (c696):
+  `?select=1`, a tick, the count, SELECT ALL, a section's TICK/UNTICK, ✕,
+  Escape and Back ending it; a mixed cell and one press setting every source of
+  each ticked package (a plugin's own id included); the band and its UNDO
+  putting a mixed selection back mixed; a ticked row removed elsewhere counted
+  as not changed; HIDE leaving the list and UNDO bringing the row back; UPDATE
+  narrowed to the selection with BACK TO as its UNDO; and REMOVE's sheet, an
+  OBSOLETE row staying installed, and no UNDO. `tests/extensions-select-db.spec.ts`
+  holds the transaction, the facts, the language BROWSE does not list, a
+  plugin's one id, the refusal whole, and REMOVE's obsolete rule. The frame is
+  `tests/browse-extensions-select-frame.e2e.ts`, the tablet's selecting state.
 - `tests/source-settings.spec.ts`: each of the five types read from the
   engine's shapes, a value no longer offered not shown as chosen, a form's
   answer stored or refused.
@@ -947,6 +1014,20 @@ found by those words and a locator matches by substring.
   without script nothing would send a tick.
 - **The end of a list says "48 IN ALL"** and drops the MORE row, which the mock
   doesn't draw.
+- **SELECT's cells always say what the next press does** (c696; the handoff's
+  own slip, and the card names it): every second line ends `TAP: ALL ON`,
+  `TAP: ALL OFF`, `TAP: SHOW ALL` (HIDDEN inside reveal), or `SOURCES NOT
+KNOWN`; the drawing leaves the line off some states.
+- **A FAILED extension whose listing names sources can still be switched.** The
+  board says a failed row's sources are not known; in the engine they are the
+  repository listing's (`setSources` runs even when the load failed), so the
+  press follows them and only an extension with no source row at all reads
+  `ITS SOURCES AREN'T KNOWN`.
+- **The frame pins the labels it can draw.** The browse world's seeded packages
+  have no repository listing, so they are all NEEDS A HAND: the frame asserts
+  the tab row, one section label and its right-hand cell, and the bulk bar and
+  its four switch cells. The other two labels are the same `.label` markup and
+  styles, which the map does not repeat.
 
 ## What it does not do yet
 

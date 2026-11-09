@@ -1169,9 +1169,13 @@
 		overflow-x: auto;
 	}
 	.tab {
-		padding: 16px 18px;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		height: 52px;
+		padding: 0 16px;
 		border-right: var(--hairline);
-		font: 500 14px var(--font-mono);
+		font: 500 14px/1.2 var(--font-mono);
 		white-space: nowrap;
 		color: var(--text-1);
 		text-decoration: none;
@@ -1189,19 +1193,16 @@
 	.label {
 		flex-shrink: 0;
 		display: flex;
-		align-items: flex-end;
+		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
-		padding: 24px 0 0 var(--pad);
+		padding: 22px var(--pad) 10px;
 		font: 500 13px/1.2 var(--font-mono);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
-	.label.first {
-		padding-top: 20px;
-	}
 	.label .l {
-		padding-bottom: 12px;
+		padding-bottom: 0;
 	}
 	/* The section's "?": its name and mark, the label's height its target. */
 	.label button.l.ask {
@@ -1220,17 +1221,9 @@
 	}
 	.label .r {
 		display: flex;
-		align-items: stretch;
+		align-items: center;
+		gap: 12px;
 		white-space: nowrap;
-	}
-	/* Words alone sit on the label's line; UPDATE ALL's cell fills to the rule. */
-	.label .r:not(:has(form)) {
-		padding: 0 var(--pad) 12px 0;
-		align-self: flex-end;
-	}
-	.label .r:has(form) .r-t {
-		padding: 0 var(--pad) 12px 0;
-		align-self: flex-end;
 	}
 	.label a.r {
 		color: var(--text-1);
