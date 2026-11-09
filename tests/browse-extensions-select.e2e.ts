@@ -324,6 +324,44 @@ test('UPDATE narrows UPDATE ALL to the ticked row, and its UNDO is BACK TO', asy
 	await expect(page.locator('.cell.count')).toHaveText('0 SELECTED');
 });
 
+test('a SELECT straight after UPDATE starts with nothing ticked, no UNDO in between', async ({
+	page
+}) => {
+	await addRepo(page);
+	await installWebtoons(page);
+	await bumpWebtoons();
+	await page.goto('/browse/extensions');
+	await page.getByRole('button', { name: 'CHECK NOW' }).click();
+	await expect(page.locator('.label', { hasText: 'UPDATES' })).toContainText('UPDATE ALL 1');
+	await startSelect(page);
+	await row(page, 'Webtoons.com').click();
+	await page.locator('.bulk .swc', { hasText: 'UPDATE 1' }).click();
+	await expect(page.locator('.band')).toContainText('UPDATED · 1 EXTENSION');
+	// The bulk form is `use:enhance`: the redirect is a client goto on this
+	// component and the tick set survives it. Press SELECT at once — this is the
+	// state wave 42's e2e ended before, because it pressed the band's native UNDO
+	// first and that full load emptied the set.
+	await expect(page.locator('.bulk')).toHaveCount(0);
+	await startSelect(page);
+	await expect(row(page, 'Webtoons.com').getByRole('checkbox')).not.toBeChecked();
+});
+
+test('a SELECT straight after REMOVE starts empty, even the row that stayed', async ({ page }) => {
+	await addRepo(page);
+	await installWebtoons(page);
+	await page.goto('/browse/extensions');
+	await startSelect(page);
+	await row(page, 'Webtoons.com').click();
+	await row(page, 'Open Source').click();
+	await page.locator('.bulk .swc', { hasText: 'REMOVE 1' }).click();
+	await page.getByRole('dialog').getByRole('button', { name: 'REMOVE 1' }).click();
+	await expect(page.locator('.band')).toContainText('REMOVED · 1 EXTENSION');
+	// Open Source stayed installed (OBSOLETE) and was ticked before the press.
+	await expect(row(page, 'Open Source')).toBeVisible();
+	await startSelect(page);
+	await expect(row(page, 'Open Source').getByRole('checkbox')).not.toBeChecked();
+});
+
 test('a band from its URL keeps every row of every list, and UPDATE’s UNDO posts each', async ({
 	page
 }) => {

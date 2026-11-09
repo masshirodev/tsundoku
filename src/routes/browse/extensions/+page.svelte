@@ -148,6 +148,17 @@
 		const drawn = new Set(data.drawn);
 		for (const pkg of [...selected]) if (!drawn.has(pkg)) selected.delete(pkg);
 	});
+	/**
+	 * SELECT ends on the server too: an UPDATE or REMOVE answers with a redirect
+	 * that has no `select=1`, and because both forms are `use:enhance` that
+	 * redirect is a client `goto` on this same component — the set would survive
+	 * into the next SELECT with the last press's ticks. ✕ clears it itself; this
+	 * covers every other way SELECT can end (UPDATE, REMOVE, Escape's Back, a
+	 * history move to the plain list).
+	 */
+	$effect(() => {
+		if (!data.select && selected.size > 0) selected.clear();
+	});
 
 	function toggleSelection(pkg: string) {
 		if (selected.has(pkg)) selected.delete(pkg);
