@@ -268,6 +268,26 @@ test('back from a preview: the same tile holds the mark again', async ({ page })
 	await expectMark(page);
 });
 
+test('back by the preview’s own ←: the same tile holds the mark again', async ({ page }) => {
+	await page.goto(`${world.base}/browse/${SOURCE.id}`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 0');
+	await padToInnerTile(page);
+	const left = await page.evaluate(
+		() => (document.activeElement as HTMLElement).querySelector('.t')?.textContent
+	);
+	expect(left, 'a tile was focused before leaving').toMatch(/^Popular \d+$/);
+	await page.keyboard.press('Enter');
+	await page.waitForURL(/\/downloads\/source\//);
+	await expect(page.getByText('A Preview').first()).toBeVisible();
+	const onBack = () => page.evaluate(() => !!document.activeElement?.matches('a.back'));
+	for (let i = 0; i < 12 && !(await onBack()); i++) await page.keyboard.press('ArrowUp');
+	expect(await onBack(), 'the pad reached the preview’s ←').toBe(true);
+	await page.keyboard.press('Enter');
+	await page.waitForURL(/\/browse\//);
+	await expect(page.locator('.grid a.tile:focus .t')).toHaveText(left as string);
+	await expectMark(page);
+});
+
 test('under FILTER’s scrim: the mark is drawn over it', async ({ page }) => {
 	await page.goto(`${world.base}/browse/${SOURCE.id}?panel=1`);
 	await expect(page.locator('.grid.dim a.tile').first()).toBeVisible();
