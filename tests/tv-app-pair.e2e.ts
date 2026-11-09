@@ -115,6 +115,44 @@ async function tvMonoWidth(page: Page, selector: string): Promise<number> {
 	});
 }
 
+/**
+ * Lays [selector] out as a TV does, in a real browser: every glyph advances by
+ * a TV's 1229/2048 em ([tvMonoWidth] says where that comes from), by way of
+ * `letter-spacing` over this box's own monospace, whatever its width is.
+ *
+ * Counting characters is what let c863 through: `ceil(glyphs × 0.6 / width)`
+ * says 131 characters take two lines of 96, and a TV draws three, because a
+ * line can only break where a break is allowed and an address has almost no
+ * such place. Only the browser's own line breaking knows that.
+ */
+async function layOutAsTv(page: Page, selector: string): Promise<void> {
+	await page.evaluate(() => document.fonts.ready);
+	await page.locator(selector).evaluate((el) => {
+		const css = getComputedStyle(el);
+		const ruler = document.createElement('canvas').getContext('2d')!;
+		ruler.font = `${css.fontStyle} ${css.fontWeight} ${css.fontSize} ${css.fontFamily}`;
+		const here = ruler.measureText('M'.repeat(100)).width / 100;
+		const tv = (parseFloat(css.fontSize) * 1229) / 2048;
+		(el as HTMLElement).style.letterSpacing = `${tv - here}px`;
+	});
+}
+
+/** How [selector] sits over 9B's two buttons, once it is laid out as a TV does. */
+async function overTheButtons(page: Page, selector: string) {
+	await layOutAsTv(page, selector);
+	return page.evaluate((hint) => {
+		const el = document.querySelector(hint) as HTMLElement;
+		const bottom = el.getBoundingClientRect().bottom;
+		const height = el.getBoundingClientRect().height;
+		const top = (id: string) => document.getElementById(id)!.getBoundingClientRect().top;
+		return {
+			lines: height / parseFloat(getComputedStyle(el).lineHeight),
+			overNext: top('next') - bottom,
+			overToggle: top('whole-toggle') - bottom
+		};
+	}, selector);
+}
+
 test('START opens 9B on NEXT, so no number pad covers the buttons (c247)', async ({ page }) => {
 	await page.goto(page9);
 	await page.keyboard.press('Enter'); // START →
@@ -989,8 +1027,10 @@ type Across = {
 	remembered: string[];
 	/** Every origin any document opened. */
 	opened: string[];
-	/** origin -> its answer; an origin with none is held, never answered. */
+	/** origin -> its answer; an origin with none is held until `release`. */
 	answers: Map<string, boolean>;
+	/** The oldest probe still held gets this answer, as a slow server finally does. */
+	release: (ok: boolean) => void;
 };
 
 /**
@@ -1002,16 +1042,27 @@ type Across = {
  * took out stays out: sessionStorage, because a document has nothing else it
  * can read synchronously, as the page reads `servers()`, that outlives it. A
  * probe is answered asynchronously,
- * as the real bridge answers from its own thread (`PairingBridge.probe`), and
- * an origin with no answer set is held, as a server that has not answered
- * yet is.
+ * as the real bridge answers from its own thread (`PairingBridge.probe`), with
+ * the origin alone whatever the field held, and an origin with no answer set
+ * is held, as a server that has not answered yet is.
  */
 async function stubAcross(page: Page, list: StubServer[]): Promise<Across> {
-	const across: Across = { probes: [], remembered: [], opened: [], answers: new Map() };
+	const held: ((ok: boolean) => void)[] = [];
+	const across: Across = {
+		probes: [],
+		remembered: [],
+		opened: [],
+		answers: new Map(),
+		release: (ok) => {
+			const answer = held.shift();
+			if (!answer) throw new Error('no probe is being held');
+			answer(ok);
+		}
+	};
 	await page.exposeFunction('__acrossProbe', (at: string) => {
 		across.probes.push(at);
 		const ok = across.answers.get(at);
-		return ok === undefined ? new Promise<boolean>(() => {}) : ok;
+		return ok === undefined ? new Promise<boolean>((answer) => held.push(answer)) : ok;
 	});
 	await page.exposeFunction('__acrossRemember', (at: string) => {
 		across.remembered.push(at);
@@ -1039,7 +1090,8 @@ async function stubAcross(page: Page, list: StubServer[]): Promise<Across> {
 				void w.__acrossRemember(at);
 			},
 			open: (at: string) => void w.__acrossOpen(at),
-			probe: (at: string) => void w.__acrossProbe(at).then((ok) => window.tsundokuProbe?.(at, ok))
+			probe: (at: string) =>
+				void w.__acrossProbe(at).then((ok) => window.tsundokuProbe?.(new URL(at).origin, ok))
 		};
 	}, list);
 	// The server's own pages, which the pair page leaves for. A real server
@@ -1470,9 +1522,10 @@ const pressBack = (page: Page) =>
  * on until that navigation commits, and a slow library leaves the probe's whole
  * 6 s for an answer to land in. So `open()` here records and stays, as the real
  * document does, and the probe is held until BACK has been pressed. With no
- * server BACK is the app's (`false`), and the answer must be dropped all the
- * same: the screen said BACK leaves without saving, and a 9D would take the
- * screen from whatever the app is doing next.
+ * server BACK is the app's (`false`): since c859 that first press only toasts
+ * and this page stays up, and the answer must be dropped all the same, because
+ * the screen said BACK leaves without saving. The cases after this loop go on
+ * from there, to what the owner can still do on the page that stayed.
  */
 for (const { where, list, backed, opened } of [
 	{ where: 'with a server in use', list: three, backed: true, opened: [HOME] },
@@ -1502,6 +1555,220 @@ for (const { where, list, backed, opened } of [
 			await expect(page.locator('#retry')).toBeHidden();
 			expect(across.probes).toEqual([LINKED]);
 		});
+
+// ---- c859: the BACK that used to end the app now leaves the page standing -----
+
+type Counted = { __answers: number; tsundokuProbe: (at: string, ok: boolean) => void };
+
+/**
+ * The question with CONNECT pressed and its probe held, and no server to go
+ * back to: a fresh TV or phone that opened a link. [typed] is the owner's
+ * correction of the field, which keeps a path and capitals where the bridge's
+ * answer never does (`PairingBridge.probe` hands back `Address.originOf`).
+ */
+async function checkingWithNoServer(page: Page, typed?: string) {
+	const across = await stubAcross(page, []);
+	const navigations = await holdPairing(page);
+	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
+	if (typed) await page.locator('#last').fill(typed);
+	await page.locator('#next').click();
+	await expect.poll(() => across.probes).toEqual([typed ?? LINKED]);
+	await expect(page.locator('#checking')).toContainText('CHECKING ');
+	await expect(page.locator('#next')).toBeDisabled();
+	// Counted at the page's own function, so "nothing changed" cannot pass on
+	// a page that was never told.
+	await page.evaluate(() => {
+		const w = window as unknown as Counted;
+		const real = w.tsundokuProbe;
+		w.__answers = 0;
+		w.tsundokuProbe = (at, ok) => {
+			w.__answers += 1;
+			real(at, ok);
+		};
+	});
+	return { across, navigations };
+}
+
+const answersLanded = (page: Page) => page.evaluate(() => (window as unknown as Counted).__answers);
+
+/** Time for anything an answer started: its write and its navigation are read next. */
+const settleAnswer = (page: Page) =>
+	page.evaluate(() => new Promise((done) => setTimeout(done, 200))).catch(() => {});
+
+/** The question as it was before CONNECT, with nothing stored and nowhere gone. */
+async function expectQuestionBack(page: Page, across: Across, navigations: string[]) {
+	await expect(page.locator('#next')).toBeEnabled();
+	await expect(page.locator('#next')).toHaveText('CONNECT →');
+	await expect(page.locator('#checking')).toHaveText('');
+	await expect(page.locator('#already')).toBeVisible();
+	expect(across.remembered).toEqual([]);
+	expect(across.opened).toEqual([]);
+	expect(navigations).toEqual([]);
+	expect(page.url().startsWith(page9)).toBe(true);
+}
+
+/** CONNECT by the remote's own key, the way the mark presses it. */
+async function connectByRemote(page: Page) {
+	await page.locator('#next').focus();
+	await expect(page.locator('#next')).toBeFocused();
+	await page.keyboard.press('Enter');
+}
+
+for (const ok of [true, false])
+	test(`BACK while CONNECT is checking, no server: the question comes back, a late ${ok ? 'answer' : 'failure'} changes nothing, and CONNECT works again (c859)`, async ({
+		page
+	}) => {
+		const { across, navigations } = await checkingWithNoServer(page);
+
+		expect(await pressBack(page)).toBe(false);
+		await expectQuestionBack(page, across, navigations);
+
+		across.release(ok);
+		await expect.poll(() => answersLanded(page)).toBe(1);
+		await settleAnswer(page);
+		await expectQuestionBack(page, across, navigations);
+		await expect(page.locator('#retry')).toBeHidden();
+		expect(across.probes).toEqual([LINKED]);
+
+		// Inside the page's 2 s window for that answer, on purpose.
+		await connectByRemote(page);
+		await expect.poll(() => across.probes).toEqual([LINKED, LINKED]);
+		await expect(page.locator('#next')).toBeDisabled();
+		await expect(page.locator('#checking')).toContainText('CHECKING library.example.com:8443');
+
+		across.release(true);
+		await expect.poll(() => across.remembered).toEqual([LINKED]);
+		await expect.poll(() => navigations).toEqual([`${LINKED}/pair/tv`]);
+		await settleAnswer(page);
+		expect(across.remembered).toEqual([LINKED]);
+	});
+
+test('BACK while CONNECT is checking, no server: a late answer landing after the second CONNECT pairs once (c859)', async ({
+	page
+}) => {
+	const { across, navigations } = await checkingWithNoServer(page);
+	expect(await pressBack(page)).toBe(false);
+	await connectByRemote(page);
+	await expect.poll(() => across.probes).toEqual([LINKED, LINKED]);
+
+	// The first attempt's answer, for the address now being asked about: it is
+	// as true for this CONNECT as for the one it was asked for.
+	across.release(true);
+	await expect.poll(() => across.remembered).toEqual([LINKED]);
+	await expect.poll(() => navigations).toEqual([`${LINKED}/pair/tv`]);
+
+	// The second CONNECT's answer has no document left to land in: this one
+	// went for /pair/tv, and that is why it is stored once.
+	across.release(true);
+	await settleAnswer(page);
+	expect(across.remembered).toEqual([LINKED]);
+	expect(navigations).toEqual([`${LINKED}/pair/tv`]);
+});
+
+test('BACK while CONNECT is checking, no server: a late failure landing after the second CONNECT reaches 9D, whose retry still pairs (c859)', async ({
+	page
+}) => {
+	const { across, navigations } = await checkingWithNoServer(page);
+	expect(await pressBack(page)).toBe(false);
+	await connectByRemote(page);
+	await expect.poll(() => across.probes).toEqual([LINKED, LINKED]);
+
+	across.release(false);
+	await expect(page.locator('#retry')).toBeVisible();
+	expect(across.remembered).toEqual([]);
+
+	// The second CONNECT's own answer, inside the 2 s window: the page has
+	// already said what it knows, and 9D's retry is what asks again.
+	across.release(true);
+	await expect.poll(() => answersLanded(page)).toBe(2);
+	await settleAnswer(page);
+	expect(across.remembered).toEqual([]);
+	await expect(page.locator('#retry')).toBeVisible();
+
+	await expect.poll(() => across.probes.length, { timeout: 9000 }).toBe(3);
+	across.release(true);
+	await expect.poll(() => across.remembered).toEqual([LINKED]);
+	await expect.poll(() => navigations).toEqual([`${LINKED}/pair/tv`]);
+});
+
+test('BACK again on the question it put back answers false and changes nothing (c859)', async ({
+	page
+}) => {
+	const { across, navigations } = await checkingWithNoServer(page);
+	expect(await pressBack(page)).toBe(false);
+	await expectQuestionBack(page, across, navigations);
+
+	expect(await pressBack(page)).toBe(false);
+	await expectQuestionBack(page, across, navigations);
+	await expect(page.locator('#last')).toHaveValue(LINKED);
+
+	across.release(true);
+	await expect.poll(() => answersLanded(page)).toBe(1);
+	expect(await pressBack(page)).toBe(false);
+	await settleAnswer(page);
+	await expectQuestionBack(page, across, navigations);
+	expect(across.probes).toEqual([LINKED]);
+});
+
+for (const typed of [`${LINKED}/shelf`, 'HTTPS://Library.Example.com:8443'])
+	test(`a late answer does not swallow the next CONNECT when the owner corrected the field to ${typed} (c859)`, async ({
+		page
+	}) => {
+		const { across, navigations } = await checkingWithNoServer(page, typed);
+		expect(await pressBack(page)).toBe(false);
+		across.release(true);
+		await expect.poll(() => answersLanded(page)).toBe(1);
+		await expectQuestionBack(page, across, navigations);
+
+		await connectByRemote(page);
+		await expect.poll(() => across.probes).toEqual([typed, typed]);
+		across.release(true);
+		await expect.poll(() => across.remembered).toEqual([LINKED]);
+		await expect.poll(() => navigations).toEqual([`${LINKED}/pair/tv`]);
+	});
+
+test('with the remote throughout, the mark goes back to CONNECT and OK presses it again (c859)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, []);
+	const navigations = await holdPairing(page);
+	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
+	await connectByRemote(page);
+	await expect.poll(() => across.probes).toEqual([LINKED]);
+	// What a disabled button does to the mark, which is the reason for the case.
+	await expect(page.locator('body')).toBeFocused();
+
+	expect(await pressBack(page)).toBe(false);
+	await expect(page.locator('#next')).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect.poll(() => across.probes).toEqual([LINKED, LINKED]);
+	expect(navigations).toEqual([]);
+});
+
+test('BACK while checking leaves a mark the owner already moved off CONNECT (c859)', async ({
+	page
+}) => {
+	const { across, navigations } = await checkingWithNoServer(page);
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('#last')).toBeFocused();
+	expect(await pressBack(page)).toBe(false);
+	await expectQuestionBack(page, across, navigations);
+	await expect(page.locator('#last')).toBeFocused();
+});
+
+test('BACK on a question nobody pressed CONNECT on leaves the mark where it was (c859)', async ({
+	page
+}) => {
+	const across = await stubAcross(page, []);
+	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
+	await expect(page.locator('#whole-toggle')).toBeFocused();
+	expect(await pressBack(page)).toBe(false);
+	await expect(page.locator('#whole-toggle')).toBeFocused();
+	await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+	expect(await pressBack(page)).toBe(false);
+	await expect(page.locator('#next')).not.toBeFocused();
+	expect(across.probes).toEqual([]);
+});
 
 // ---- c683, round 2: #lost= is a fragment too -------------------------------
 
@@ -1881,18 +2148,9 @@ test('the question fits a TV: the band whole, an 80-character address over the b
 	// The meta line carries the address whole and ends above the buttons, at
 	// a TV's width: 0.6 em a glyph, not this box's narrower font.
 	await expect(page.locator('#tv-meta')).toContainText(longest);
-	const lines = await page.locator('#tv-meta').evaluate((el) => {
-		const css = getComputedStyle(el);
-		const size = parseFloat(css.fontSize);
-		const glyphs = (el as HTMLElement).innerText.trim().length;
-		const lineHeight = parseFloat(css.lineHeight);
-		const wide = Math.ceil((glyphs * size * (1229 / 2048)) / el.clientWidth);
-		return { height: wide * lineHeight, top: el.getBoundingClientRect().top };
-	});
-	const actions = await page
-		.locator('.address-actions')
-		.evaluate((el) => el.getBoundingClientRect().top);
-	expect(lines.top + lines.height).toBeLessThanOrEqual(actions);
+	const sits = await overTheButtons(page, '#tv-meta');
+	expect(sits.overNext).toBeGreaterThan(0);
+	expect(sits.overToggle).toBeGreaterThan(0);
 
 	// And the column sits under the band, as with every band on 9B.
 	const band = await page.locator('#already').evaluate((el) => el.getBoundingClientRect().bottom);
@@ -1901,6 +2159,67 @@ test('the question fits a TV: the band whole, an 80-character address over the b
 		.evaluate((el) => el.getBoundingClientRect().top);
 	expect(label).toBeGreaterThanOrEqual(band);
 });
+
+// ---- c863: the hint under the longest address -------------------------------
+
+/** 9B's ordinary hint, the whole-address one: what "the usual gap" is measured on. */
+async function usualGap(page: Page): Promise<number> {
+	await page.goto(page9);
+	await page.keyboard.press('Enter'); // START →
+	await page.locator('#whole-toggle').click();
+	await expect(page.locator('#tv-meta')).toContainText('OVER TAILSCALE');
+	const usual = await overTheButtons(page, '#tv-meta');
+	expect(usual.lines).toBe(2);
+	expect(usual.overNext).toBe(usual.overToggle);
+	return usual.overNext;
+}
+
+/**
+ * The addresses the limit allows, by how the line can break in them: the wrap
+ * is what c863 is about, so each shape is here, and the 79 beside the 80.
+ */
+const NO_BREAK = 'https://' + 'a'.repeat(60) + '.example.net';
+const HYPHENS = 'https://' + 'ab-'.repeat(19) + 'cde.example.net';
+const LAST_PORT = 'https://' + 'a'.repeat(66) + ':42143';
+for (const [what, at, length] of [
+	['of 79 characters', originOfLength(79), 79],
+	['of exactly 80', originOfLength(80), 80],
+	['of 80 with nowhere to break but the end', NO_BREAK, 80],
+	['of 80 with a break every three characters', HYPHENS, 80],
+	['of 80 ending in a port', LAST_PORT, 80],
+	['of 24', 'https://name.ts.net:8443', 24]
+] as const) {
+	test(`the question's hint ends above the buttons by the usual gap, for an address ${what} (c863)`, async ({
+		page
+	}) => {
+		expect(at.length).toBe(length);
+		const gap = await usualGap(page);
+		expect(gap).toBeGreaterThan(0);
+
+		await stubBridge(page, { answer: true });
+		await page.goto(`${page9}#ask=${encodeURIComponent(at)}`);
+		await expect(page.locator('#already')).toBeVisible();
+		await expect(page.locator('#next')).toHaveText('CONNECT →');
+		await expect(page.locator('#whole-toggle')).toHaveText('USE THE LAST NUMBER');
+		await expect(page.locator('#tv-meta')).toContainText(at);
+		await expect(page.locator('#tv-meta')).toContainText('BACK LEAVES WITHOUT SAVING IT');
+
+		const sits = await overTheButtons(page, '#tv-meta');
+		expect(sits.overNext).toBeGreaterThanOrEqual(gap);
+		expect(sits.overToggle).toBeGreaterThanOrEqual(gap);
+		expect(sits.lines).toBe(2);
+
+		// The address stands whole on its own line: the line that says whose
+		// server this is must not wrap, whatever the break opportunities in it.
+		expect(
+			await page.locator('#tv-meta').evaluate((el) => {
+				const range = document.createRange();
+				range.selectNode(el.firstChild!);
+				return new Set(Array.from(range.getClientRects(), (r) => Math.round(r.top))).size;
+			})
+		).toBe(1);
+	});
+}
 
 test.describe('on a phone, 360 x 780', () => {
 	test.use({ viewport: { width: 360, height: 780 } });

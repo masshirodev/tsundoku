@@ -155,7 +155,8 @@ password is refused. A bare `host:port` is not enough here, although it is on
   nothing, and the TV stays on 9D retrying the mistyped address. **BACK** is
   the way back: the asset takes no BACK of its own, so `Back.kt` goes to the
   nearest earlier screen past the app's own pages, which is the library when
-  the app was open on it, and otherwise leaves the app. The next launch, with
+  the app was open on it, and otherwise asks for the second press that leaves
+  the app (c859). The next launch, with
   no address given, probes the last used server and opens its library.
 
 Only the attempt that is current has its answer acted on. A given address
@@ -270,7 +271,9 @@ than shown cut, with a band that says so), and NEXT reads `CONNECT →`.
   by a press, so the next stray OK must not be the answer. That button is the
   way out: 9B as START leaves it, the field empty.
 - **BACK** returns to the library of the server in use, and with no server it
-  is the app's to take. Neither saves anything, a CONNECT already pressed
+  is the app's to take: the first press only toasts (c859) and this page stays,
+  so the question goes back to what it was before CONNECT, with CHECKING gone,
+  CONNECT live and the mark on it. Neither saves anything, a CONNECT already pressed
   included: opening the library is a `loadUrl`, so this document runs on until
   that navigation commits, and an answer landing in that time is dropped. It
   neither stores the address nor puts 9D over the library's load.
@@ -762,14 +765,14 @@ fetches `/manifest.webmanifest` at the address it is given.
 The page's focus layer ([`FOCUS.md`](FOCUS.md)) reads DOM keys, so the app's
 job is to deliver them.
 
-| Key           | Where it goes                                                                                                                                                                                                                                                                                                                                    |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| D-pad, OK     | The WebView itself: arrows and Enter, the page's own keys.                                                                                                                                                                                                                                                                                       |
-| BACK          | The app. `window.tsundokuBack()` first (a sheet, a climb); `true` means the page took it. Then `Back.kt`: on the library the app leaves; elsewhere it goes back to the nearest earlier screen, past sign-in, pairing, set-up and the app's own first screens, and with none it leaves. `OnBackPressedDispatcher`, never the deprecated override. |
-| MENU          | Taken before the WebView: a synthetic `ContextMenu` keydown + keyup at `document.activeElement ?? document.body`, bubbling.                                                                                                                                                                                                                      |
-| ▶❚❚ ⏩ ⏪ ⏭ ⏮ | The same, as `MediaPlayPause`, `MediaFastForward`, `MediaRewind`, `MediaTrackNext`, `MediaTrackPrevious`, `MediaPlay`, `MediaPause`. The WebView would take them as media transport otherwise.                                                                                                                                                   |
-| Number keys   | Type into the address on 9B wherever the mark is, and into the six digits' field on 9C. ← erases.                                                                                                                                                                                                                                                |
-| MIC           | The TV's own voice search sits outside the app; nothing here forwards it.                                                                                                                                                                                                                                                                        |
+| Key           | Where it goes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-pad, OK     | The WebView itself: arrows and Enter, the page's own keys.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| BACK          | The app. `window.tsundokuBack()` first (a sheet, a climb); `true` means the page took it. Then `Back.kt`: elsewhere it goes back to the nearest earlier screen, past sign-in, pairing, set-up and the app's own first screens. On the library, or with no earlier screen, BACK takes two presses to leave: the first shows the toast `PRESS BACK AGAIN TO LEAVE` and the second, inside 2 s, leaves (c859, [below](#the-second-press-before-leaving-c859)). `OnBackPressedDispatcher`, never the deprecated override. |
+| MENU          | Taken before the WebView: a synthetic `ContextMenu` keydown + keyup at `document.activeElement ?? document.body`, bubbling.                                                                                                                                                                                                                                                                                                                                                                                           |
+| ▶❚❚ ⏩ ⏪ ⏭ ⏮ | The same, as `MediaPlayPause`, `MediaFastForward`, `MediaRewind`, `MediaTrackNext`, `MediaTrackPrevious`, `MediaPlay`, `MediaPause`. The WebView would take them as media transport otherwise.                                                                                                                                                                                                                                                                                                                        |
+| Number keys   | Type into the address on 9B wherever the mark is, and into the six digits' field on 9C. ← erases.                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| MIC           | The TV's own voice search sits outside the app; nothing here forwards it.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 `Keys.kt` is the whole mapping, and `KeysTest.kt` pins it. A remote without
 number keys uses the TV's on-screen keyboard: 9B opens it when the mark moves
@@ -853,6 +856,46 @@ as THIS APP, and the library offers it.
 
 Nothing here was run on a television: this machine has no emulator image, and
 no device was at hand. Built, unit-tested and installed nowhere, specifically:
+
+- **BACK from HELP, and the second press (c859, wave 39).** The toast and the
+  log are built and unit-tested; no remote has pressed them. **BACK from HELP
+  leaving too early is still not understood, and this card does not close
+  until this has been done on the owner's TV.** With a debug build,
+  `chrome://inspect` open on the app, and `adb logcat -s TsundokuBack` in a
+  terminal, using real D-pad presses, never console clicks (Chromium can mark
+  an entry a page added without a user gesture as skippable, so only real
+  presses count; that is what spoiled the last attempt):
+  1. MORE › HELP › a real topic, each opened with OK. BACK: the topic closes
+     and the HELP list shows. BACK: the library, with **no** toast, and no log
+     line. Note the entries with `history.length` and `location.href` in the
+     console at each stop.
+  2. BACK on the library: the toast, `PRESS BACK AGAIN TO LEAVE`, and the app
+     stays. The log reads `leave: TOAST steps=null canGoBack=false
+current=<host>/ shown=<host>/ index=N size=M held=false`.
+  3. BACK again once the toast has been read, inside 2 s: out. `leave: LEAVE`.
+  4. Open the app, BACK, wait more than 2 s, BACK: a second toast and no exit.
+  5. BACK, then any other key (an arrow, OK) inside 2 s, then BACK: the toast
+     goes at the other key, and the BACK is a new toast, not an exit. BACK,
+     then open something with OK and come back to the library: the same.
+  6. Three presses of BACK, all within 400 ms of the first: one toast and no
+     exit. A press from 401 ms to 2 s after the first is a real second press and
+     leaves. Hold BACK down for two seconds, then again: no exit.
+  7. The TV's language set to Portuguese (Brasil): `APERTE VOLTAR DE NOVO PARA
+SAIR`. Then a phone: the same toast and the same two presses from its
+     library, with the gesture and with a tablet's keyboard BACK.
+  8. On a TV with no server: open a link, press CONNECT on an address that
+     answers slowly, BACK once: the toast, CHECKING gone, the mark back on
+     CONNECT, and CONNECT works again.
+
+  What each suspect looks like if step 1 goes wrong. **`canGoBackOrForward`
+  refusing a skippable entry:** the toast comes up on HELP or the topic, and
+  the log says `steps=1 canGoBack=false current=<host>/help`. **A stale
+  `copyBackForwardList().currentItem`:** the toast on a screen that is not the
+  library, the log says `steps=null` and `current=<host>/` while
+  `shown=<host>/help`. **One remote press delivered as two:** HELP's BACK lands
+  on the library and the toast shows with no further press, or two log lines
+  in the same instant with `NOTHING` on the second. Write down which one it
+  was on the card.
 
 - **HLS in a TV's WebView on a low-end device.** The player is hls.js; whether
   a cheap TV's WebView decodes what a browser does is untested.
@@ -1060,7 +1103,13 @@ SAVED UNTIL YOU PRESS CONNECT`, the button reading `CONNECT →`, and the
      own font. Do the same with step 8's `location =` for an 81-character host,
      which comes through `#lost=`: the same band, and for more than five seconds
      no probe in the console. Then an address of exactly 80 characters: the
-     question, its whole address above the buttons and none of it under them.
+     question, its whole address above the buttons and none of it under them,
+     in two lines of hint (c863, wave 39): the address alone on the first,
+     `BACK LEAVES WITHOUT SAVING IT` on the second, and the same gap above
+     CONNECT → and USE THE LAST NUMBER as under 9B's ordinary hint (19 px at
+     the 960 frame). Before c863 the hint was one run beginning
+     `THE WHOLE ADDRESS:`, which a TV wrapped to three lines, its last one
+     3.5 px past the top of the buttons.
 
   **Then a URL `java.net.URI` cannot parse (c684, wave 34).** Until c684
   the host was read with `java.net.URI`, which throws on a `|` or `{` in the
@@ -1185,8 +1234,15 @@ SAVED UNTIL YOU PRESS CONNECT`, the button reading `CONNECT →`, and the
   cannot drive the Activity: `MainActivity` asks this rule and writes no door of
   its own, the page takes every door the rule can name, and the page holds the
   same limit as the rule.
-- `tests/tv-app-pair.e2e.ts`, c683's fifty-five (c683 in each title; 87 cases
-  in all): `#ask=` shows the address and calls neither `probe` nor `remember` until
+- `LeaveWindowTest` (17) is c859's window: two presses, the 2 s edge on each
+  side, a doubled press at 0 to 400 ms, a held one, a key or page change
+  ending it, a same-URL `replaceState` not ending it, and an end or a press
+  that arrives out of order. The doors themselves are read, not run: a JVM
+  test cannot drive the activity, so it pins the source (the one `finish()`,
+  `doUpdateVisitedHistory`, `repeatCount`, the manifest's flag) and the owner's
+  check runs the rest. `BackTest` holds `Back.forLog` and the log line.
+- `tests/tv-app-pair.e2e.ts`, c683's fifty-five (c683 in each title; 93 cases
+  in all, c863's six among them): `#ask=` shows the address and calls neither `probe` nor `remember` until
   CONNECT, then each once; the mark starts off CONNECT, so a stray OK leaves the
   question; `#connect=` for an address not in the list asks; a non-http `#ask=`
   is refused; the entry loses its fragment and a history step shows 9A; the same
@@ -1196,7 +1252,8 @@ SAVED UNTIL YOU PRESS CONNECT`, the button reading `CONNECT →`, and the
   reaches 9D and stores nothing until it answers; a refusal over the question
   leaves no half of it; BACK saves nothing, and BACK while CHECKING drops an
   answer or a failure that lands before the library has loaded, with a server
-  in use and with none; a `#lost=` for an origin not in the list asks, and
+  in use and with none, where the first BACK only toasts, the page stays and
+  CONNECT works again, before that answer lands and after it (c859); a `#lost=` for an origin not in the list asks, and
   probes and stores nothing until CONNECT, then once each, while one in the
   list (in any case) reaches 9D and its retry opens it, one not http(s) is
   refused, one just remembered is in the list, and asking stops the retry of
@@ -1307,8 +1364,56 @@ history still held the sign-in page, and going back to it sends a signed-in
 visitor to the library again, so BACK on the library went round in a circle
 and the app never closed. The library's shelf tabs each leave a history entry
 too, so even without that BACK walked back through every shelf opened. Now
-the library is home and BACK leaves from it; elsewhere `Back.steps` picks the
-nearest earlier screen worth returning to (`BackTest`).
+the library is home and BACK leaves from it, on the second press since c859
+(below); elsewhere `Back.steps` picks the nearest earlier screen worth
+returning to (`BackTest`).
+
+### The second press before leaving (c859)
+
+On 2026-11-08 the owner went MORE › HELP › a topic, BACK to the list, BACK
+again, and was out of the app. By `Back.steps` that should not happen: `/help`
+is one step from the library. **Why it did is not understood**, and what is
+built here is the toast and the logging, not a cure. See
+[What is not verified](#what-is-not-verified) for the check that finds it.
+
+BACK reaches the way out from two doors, the library as home and "no earlier
+screen" (including a step `canGoBackOrForward` refuses), and both go through
+`LeaveWindow`, which has one rule: the press that would leave says so
+(`PRESS BACK AGAIN TO LEAVE`, or `APERTE VOLTAR DE NOVO PARA SAIR` when the
+device's language is Brazilian Portuguese), and a second BACK within **2 s**,
+Android's short toast, leaves. On both the TV and the phone or tablet app, as
+the card applies it.
+
+- **A press delivered twice is one press.** A second BACK within **400 ms** of
+  the first is not a press at all, and neither is one whose key repeated while
+  held. An IR remote repeats its frame about every 108 ms, so a doubled
+  delivery sits under about 220 ms, and a person who has just read the toast
+  is far slower than 400. A deliberate quick double tap just costs a third
+  press; that is the cheaper mistake. `LeaveWindowTest` pins both numbers.
+- **The window is ended by** another key (`dispatchKeyEvent`, which sees every
+  key before the WebView), a page change (`doUpdateVisitedHistory`, the door
+  SvelteKit's client navigation uses and `onPageFinished` never sees; a page
+  writing back its own URL is not a change), the page taking BACK (a sheet
+  closed), and a BACK that took a history step. Whichever ends it takes the
+  toast down too.
+- **A held BACK must not leave.** Android delivers one back event for a held
+  key, on key up, so the only place to see the repeat is `dispatchKeyEvent`'s
+  `repeatCount`. On Android 16, at this app's `targetSdk` 36, that door closes
+  by default, which is why the manifest sets
+  `android:enableOnBackInvokedCallback="false"`: BACK keeps arriving as a key
+  there too, and the app has no predictive-back animation to lose, its callback
+  being always registered. A phone's gesture has no key at all, so it is never
+  held. Not run on an Android 16 device.
+- **The answer is asynchronous.** `evaluateJavascript` runs after the press;
+  the time is taken at the press, an end that came in after it still counts
+  against it, and an answer that lands once the activity is finishing or
+  destroyed does nothing. A press the page took never opens the window.
+- **`Log.i` under the tag `TsundokuBack`** writes one line for every BACK that
+  reaches the way out, saying what it decided and why: `leave: TOAST steps=1
+canGoBack=false current=<host>/help shown=<host>/help index=2 size=3
+held=false`. `current` is the history's idea of the page and `shown` the
+  WebView's. Neither carries a query, a fragment, userinfo or a `/pair/<code>`
+  path (`Back.forLog`): a pair token and a `#connect=` must not reach the log.
 
 ## The first TV's pairing bugs (2026-11-02)
 

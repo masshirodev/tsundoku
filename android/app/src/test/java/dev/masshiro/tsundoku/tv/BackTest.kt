@@ -58,4 +58,47 @@ class BackTest {
 		assertTrue(Back.passedOver("not a url"))
 		assertFalse(Back.passedOver("$host/history"))
 	}
+
+	@Test
+	fun `what reaches the log keeps nothing a stranger could use`() {
+		assertEquals("$host/help", Back.forLog("$host/help?from=a#b"))
+		assertEquals("$host/", Back.forLog("$host/?shelf=all"))
+		assertEquals(host, Back.forLog(host))
+		// The asset page's capability and the door it was opened through.
+		assertEquals(
+			"https://appassets.androidplatform.net/pair/…",
+			Back.forLog("https://appassets.androidplatform.net/pair/index.html?t=SECRET#connect=https%3A%2F%2Fx")
+		)
+		// A pairing code in the path is a token as much as one in the query.
+		assertEquals("$host/pair/…", Back.forLog("$host/pair/abc123"))
+		assertEquals("$host/pair/…", Back.forLog("$host/pair/tv"))
+		assertEquals("$host/pair/…", Back.forLog("$host/pair"))
+		assertEquals("https://h/x", Back.forLog("https://u:p@h/x?a#b"))
+		// A shape URI can not read still comes out cut, never thrown on.
+		assertEquals("not a url", Back.forLog("not a url?x"))
+		assertEquals("about:blank", Back.forLog("about:blank"))
+	}
+
+	@Test
+	fun `the leave line names the reason, and carries no token`() {
+		val line =
+			Back.leaveLine(
+				steps = 1,
+				canGoBack = false,
+				current = "$host/help?token=SECRET#connect=OTHER",
+				shown = "$host/pair/abc123",
+				index = 3,
+				size = 5,
+				held = true,
+				verdict = LeaveWindow.Verdict.LEAVE
+			)
+		assertEquals(
+			"leave: LEAVE steps=1 canGoBack=false current=$host/help shown=$host/pair/… index=3 size=5 held=true",
+			line
+		)
+		assertFalse(line.contains("SECRET"))
+		assertFalse(line.contains("OTHER"))
+		assertFalse(line.contains("abc123"))
+		assertTrue(Back.leaveLine(null, false, "$host/", null, 0, 1, false, LeaveWindow.Verdict.TOAST).contains("shown=null"))
+	}
 }
