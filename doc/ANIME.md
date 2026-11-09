@@ -539,9 +539,12 @@ screen but the video, and the subtitles, until a tap.
   and episode, "ANIME · S2 · EP. 7 OF 12 · 1:42 OF 24:00"), a 56px scrubber
   with buffered (the range the playhead is in, drawn in text-2 so it shows
   over a picture) and watched over 64px cells (← EP. 6, what's playing, EP. 8
-  →), and the one addition, −10 / pause / +10 in the middle, pause two drawn
-  bars, which steps aside while BUFFERING or a server's notice holds the
-  middle (they overlapped). The scrubber ticks the opening and ending. A desktop adds play, VOL,
+  →), and the one addition, −1m / −10 / pause / +10 / +1m in the middle (the
+  minute pair c865), pause two drawn bars, which steps aside while BUFFERING or
+  a server's notice holds the middle (they overlapped). A movie is not clicked
+  through 10 s at a time: a minute moves either way, from these cells, from the
+  bar's own pair on every device it draws them (a TV's and a desktop's, the
+  phone's portrait row), and from a remote's ⏩ ⏪. The scrubber ticks the opening and ending. A desktop adds play, VOL,
   PIP where the browser has picture-in-picture, ? KEYS and FULL SCREEN · F,
   and a time on hover, with the frame there above it (the seek preview,
   below).
@@ -561,7 +564,7 @@ screen but the video, and the subtitles, until a tap.
   sends a pixel or two of movement all the time, and the chrome flashed in on
   every one of them; it now takes 12px of travel — quickly from where the
   pointer was, or slowly from where the controls last left it. The middle
-  cluster (`−10`, pause, `+10`) does not fade with the bars: it is all there
+  cluster (`−1m`, `−10`, pause, `+10`, `+1m`) does not fade with the bars: it is all there
   from its first frame, where a box fading over the picture read as a patch
   coming and going. Its ground is translucent, 70% of the page's, so the frame
   shows through while the controls are up, and its glyphs keep AA over a white
@@ -666,9 +669,10 @@ screen but the video, and the subtitles, until a tap.
     "the seek preview on a TV (c457)".
 - **Keys**: space, ← →, ↑ ↓ (volume), F, M, C (subtitles), S (skip), N (next),
   Esc (full screen, then the player), ? (the KEYS sheet). A remote's media
-  keys work on every device (c235): ▶❚❚ plays or pauses, ⏩ ⏪ seek 10 s,
-  ⏭ the next episode and ⏮ the previous one — harmless where nothing sends
-  them, and the only player keys a remote has ([`TV.md`](TV.md)). On a TV,
+  keys work on every device (c235): ▶❚❚ plays or pauses, ⏩ ⏪ seek a minute
+  (c865), ⏭ the next episode and ⏮ the previous one — harmless where nothing
+  sends them, and the only player keys a remote has ([`TV.md`](TV.md)). ← →
+  stay 10 s on every device, and on a TV,
   SKIP INTRO, SKIP ENDING and the next-episode card's PLAY NOW → take focus
   when they are offered, so OK presses them (c296).
 - **The settings sheet**, the middle cell ("JA · EN SUBS · 1080P · 1×"): a
@@ -818,10 +822,12 @@ screen but the video, and the subtitles, until a tap.
   alone for 8 s, then with the controls. SKIP ENDING marks the episode
   watched as it is pressed.
 - **On a TV** (c235; [`TV.md`](TV.md)) the controls are a D-pad row: the
-  picture until a key, then, when no offer is up, focus on ▶❚❚ and all six
+  picture until a key, then, when no offer is up, focus on ▶❚❚ and all eight
   cells on one line —
-  ▶❚❚, −10, +10, ← EP. n, the cell naming the stream (which opens the
-  settings), EP. n+1 → — under a 60px scrubber, inside the 28px safe margin.
+  ▶❚❚, −1m, −10, +10, +1m, ← EP. n, the cell naming the stream (which opens
+  the settings), EP. n+1 → — under a 60px scrubber, inside the 28px safe
+  margin. The two minute cells are stops in that order (c865), so the pad
+  reaches them the same way it reaches the rest.
   With no offer up, OK on the picture brings the bar and that focus; BACK
   hides it, then leaves for the series. SKIP INTRO (or SKIP ENDING), where
   offered, shows alone and takes focus itself, as the next-episode card's PLAY

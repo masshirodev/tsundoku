@@ -1325,8 +1325,10 @@
 		if (media) {
 			e.preventDefault();
 			if (media === 'toggle') toggle();
-			else if (media === 'forward') seekWithFlash(10);
-			else if (media === 'back') seekWithFlash(-10);
+			// ⏩ ⏪ are the long jump (c865): a movie is not clicked through 10 s
+			// at a time, and ← → keep the fine step on every device.
+			else if (media === 'forward') seekWithFlash(60);
+			else if (media === 'back') seekWithFlash(-60);
 			else if (media === 'next' && next && playable(next)) playNext();
 			else if (media === 'prev' && prev) playPrev();
 			return;
@@ -1940,13 +1942,16 @@
 			</div>
 		{/if}
 
-		<!-- The middle cluster: −10, pause, +10, under the thumb. It steps aside while a
-		     waiting box holds the middle (Player Waiting 3a draws the box alone): the
-		     two overlapped (reported 2026-10-29). -->
+		<!-- The middle cluster: −1m, −10, pause, +10, +1m, under the thumb. It steps
+		     aside while a waiting box holds the middle (Player Waiting 3a draws the
+		     box alone): the two overlapped (reported 2026-10-29). -->
 		<div
 			class="cluster"
 			class:aside={(stalled !== null && stallSeconds >= 2) || !!serverNotice || !!qualityNotice}
 		>
+			<button type="button" aria-label="Back a minute" onclick={() => (seek(-60), showChrome())}
+				>−1m</button
+			>
 			<button type="button" aria-label="Back 10 seconds" onclick={() => (seek(-10), showChrome())}
 				>−10</button
 			>
@@ -1955,6 +1960,9 @@
 			</button>
 			<button type="button" aria-label="On 10 seconds" onclick={() => (seek(10), showChrome())}
 				>+10</button
+			>
+			<button type="button" aria-label="On a minute" onclick={() => (seek(60), showChrome())}
+				>+1m</button
 			>
 		</div>
 
@@ -2030,8 +2038,30 @@
 					onclick={toggle}
 					>{#if paused}▶{:else}<i></i><i></i>{/if}</button
 				>
-				<!-- A TV's bar, its six cells on one row (TV-Board-Player 6B). They are
-				     hidden elsewhere: there, the cluster in the middle is the thumb's. -->
+				<!-- A minute either side (c865): the desktop's bar has no 10 s cells
+				     (← → do that on a keyboard), so these stand on their own. -->
+				<button
+					type="button"
+					class="cell desk"
+					aria-label="Back a minute"
+					onclick={() => (seek(-60), showChrome())}>−1m</button
+				>
+				<button
+					type="button"
+					class="cell desk"
+					aria-label="On a minute"
+					onclick={() => (seek(60), showChrome())}>+1m</button
+				>
+				<!-- A TV's bar, its cells on one row (TV-Board-Player 6B). They are
+				     hidden elsewhere: there, the cluster in the middle is the thumb's.
+				     −1m / +1m sit outside the 10 s pair (c865), where a remote's ⏪ / ⏩
+				     are the same jump. -->
+				<button
+					type="button"
+					class="cell tv"
+					aria-label="Back a minute"
+					onclick={() => (seek(-60), showChrome())}>−1m</button
+				>
 				<button
 					type="button"
 					class="cell tv"
@@ -2043,6 +2073,12 @@
 					class="cell tv"
 					aria-label="On 10 seconds"
 					onclick={() => (seek(10), showChrome())}>+10</button
+				>
+				<button
+					type="button"
+					class="cell tv"
+					aria-label="On a minute"
+					onclick={() => (seek(60), showChrome())}>+1m</button
 				>
 				<button type="button" class="cell" disabled={!prev} onclick={playPrev}
 					>{prev ? `← ${epShort(prev)}` : '←'}</button
@@ -2195,11 +2231,13 @@
 			</div>
 			<div class="pbody">
 				<div class="pcells">
+					<button type="button" aria-label="Back a minute" onclick={() => seek(-60)}>−1m</button>
 					<button type="button" aria-label="Back 10 seconds" onclick={() => seek(-10)}>−10</button>
 					<button type="button" aria-label={paused ? 'Play' : 'Pause'} onclick={toggle}
 						>{#if paused}▶{:else}<i></i><i></i>{/if}</button
 					>
 					<button type="button" aria-label="On 10 seconds" onclick={() => seek(10)}>+10</button>
+					<button type="button" aria-label="On a minute" onclick={() => seek(60)}>+1m</button>
 					<button type="button" class="small" onclick={() => (sheet = true)}
 						>{[subLang, quality ? qualityName(quality) : null].filter(Boolean).join(' · ')}</button
 					>
@@ -2367,7 +2405,7 @@
 			onclick={() => (keysOpen = false)}
 		></button>
 		<!-- The rows scroll under a head that stays, as the settings sheet's do:
-		     ten 56px rows and the head are 616px, past a TV's 540px panel and a
+		     eleven 56px rows and the head are 672px, past a TV's 540px panel and a
 		     short window's (c715). Each row is a stop, so the pad walks to the
 		     last and the layer scrolls it into view; the scope keeps the pad in
 		     the sheet while it is open. -->
@@ -2383,7 +2421,7 @@
 				<button type="button" aria-label="Close" onclick={() => (keysOpen = false)}>✕</button>
 			</div>
 			<div class="krows">
-				{#each [['SPACE', 'Play or pause'], ['← →', 'Back or on 10 s'], ['↑ ↓', 'Volume'], ['F', 'Full screen'], ['M', 'Mute'], ['C', 'Subtitles on or off'], ['S', 'Skip the intro or ending, when offered'], ['N', 'Next episode'], ['ESC', 'Leave full screen, then the player'], ['?', 'These keys']] as [k, a], i (k)}
+				{#each [['SPACE', 'Play or pause'], ['← →', 'Back or on 10 s'], ['<< >>', 'Back or on a minute'], ['↑ ↓', 'Volume'], ['F', 'Full screen'], ['M', 'Mute'], ['C', 'Subtitles on or off'], ['S', 'Skip the intro or ending, when offered'], ['N', 'Next episode'], ['ESC', 'Leave full screen, then the player'], ['?', 'These keys']] as [k, a], i (k)}
 					<!-- A row is read, not pressed: the stop is there so a pad can scroll to it. -->
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
@@ -3810,7 +3848,7 @@
 	}
 	.pcells {
 		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-template-columns: repeat(6, minmax(0, 1fr));
 		height: 56px;
 		border-bottom: var(--hairline);
 		font: 500 14px var(--font-mono);
