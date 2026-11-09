@@ -715,6 +715,6 @@ describe('rung 75: a series’ sources, a season at a time (c282)', () => {
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(75);
+		expect(conn.pragma('user_version', { simple: true })).toBe(76);
 	});
 });

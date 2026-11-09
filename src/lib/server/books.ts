@@ -1,12 +1,14 @@
 import type Database from 'better-sqlite3';
 import { posix } from './fspath.ts';
-import { commonDir, fileIn, widenTo } from './paths.ts';
+import { commonDir, fileIn, isUnder, widenTo } from './paths.ts';
+import { dataPaths } from './data-dirs.ts';
 import { libraryWhere } from './visibility.ts';
 import { getDb } from './db.ts';
 import { hueFor } from '../library/cover.ts';
 import { setKey, suggestionSets, type Candidate, type Suggestion } from '../library/books.ts';
 import type { Rating } from '../library/types.ts';
 import { kindFacts, kindsGrouped, type Kind } from '../library/kinds.ts';
+import { keyFamily, parseKey } from '../library/downloads.ts';
 
 const { dirname, join, relative, basename } = posix;
 
@@ -135,13 +137,136 @@ export function isSingleton(seriesId: number): boolean {
 	return !!s && bindsBooks(s) && bookCount(db, seriesId) === 1;
 }
 
+// ---- a book's own origin (rung 76; card c885; doc/BOOKS.md) ---------------------------------
+
+/**
+ * A series about to go keeps its key on its entries, with what the engine
+ * called it: its row is the only copy, and `series.origin_key` names one series
+ * at a source where a group is several. `OR IGNORE`: a book that already holds
+ * its own key keeps it, whatever the series around it held.
+ */
+function keepOrigin(db: Database.Database, series: SeriesRow, entryIds: number[]) {
+	const { origin_key: key } = db
+		.prepare(`SELECT origin_key FROM series WHERE id = ?`)
+		.get(series.id) as { origin_key: string | null };
+	if (!key) return;
+	const engine = db
+		.prepare(`SELECT engine_url, title, resolved_at FROM engine_series WHERE series_id = ?`)
+		.get(series.id) as
+		{ engine_url: string; title: string; resolved_at: number | null } | undefined;
+	const put = db.prepare(
+		`INSERT OR IGNORE INTO entry_origins (entry_id, origin_key, source_title, engine_url, engine_title, resolved_at)
+		VALUES (?, ?, ?, ?, ?, ?)`
+	);
+	for (const id of entryIds)
+		put.run(
+			id,
+			key,
+			series.title,
+			engine?.engine_url ?? null,
+			engine?.title ?? null,
+			engine?.resolved_at ?? null
+		);
+}
+
+/**
+ * Give a book back the key it kept, as the series' own, and the engine's row
+ * with it. Before its entries move: a highlight takes the key of the series
+ * its entry moves into (rung 72's trigger). A key something else now holds
+ * stays on the book, which still reads and downloads by it.
+ */
+function giveOriginBack(db: Database.Database, seriesId: number, entryIds: number[]) {
+	const rows = db
+		.prepare(
+			`SELECT origin_key, engine_url, engine_title, source_title, resolved_at FROM entry_origins
+			WHERE entry_id IN (${entryIds.map(() => '?').join(',')})`
+		)
+		.all(...entryIds) as {
+		origin_key: string;
+		engine_url: string | null;
+		engine_title: string | null;
+		source_title: string;
+		resolved_at: number | null;
+	}[];
+	// Every entry of a volume holds its novel's key; one that doesn't is no one key.
+	if (rows.length !== entryIds.length || new Set(rows.map((r) => r.origin_key)).size !== 1) return;
+	const [o] = rows;
+	const held = db
+		.prepare(
+			`SELECT 1 FROM series WHERE origin_key = @key AND id != @series
+			UNION ALL SELECT 1 FROM series_season_facts WHERE origin_key = @key
+			UNION ALL SELECT 1 FROM entry_origins WHERE origin_key = @key
+				AND entry_id NOT IN (${entryIds.join(',')})`
+		)
+		.get({ key: o.origin_key, series: seriesId });
+	if (held) return;
+	db.prepare(`UPDATE series SET origin_key = ? WHERE id = ?`).run(o.origin_key, seriesId);
+	const key = parseKey(o.origin_key);
+	if (key && o.engine_url !== null)
+		db.prepare(
+			`INSERT OR REPLACE INTO engine_series (series_id, source_id, engine_url, title, resolved_at)
+			VALUES (?, ?, ?, ?, ?)`
+		).run(seriesId, key.sourceId, o.engine_url, o.engine_title ?? o.source_title, o.resolved_at);
+	db.prepare(
+		`DELETE FROM entry_origins WHERE entry_id IN (${entryIds.map(() => '?').join(',')})`
+	).run(...entryIds);
+}
+
+/** A Mihon source's key: the only family whose download a device folder brings back. */
+function holdsSourceKey(db: Database.Database, s: SeriesRow, entryId: number): boolean {
+	return !!db
+		.prepare(
+			`SELECT 1 FROM series WHERE id = ? AND origin_key GLOB 'mihon:*'
+			UNION ALL SELECT 1 FROM entry_origins WHERE entry_id = ? AND origin_key GLOB 'mihon:*'`
+		)
+		.get(s.id, entryId);
+}
+
+/**
+ * A series holding books from a source is named from its root or above. The
+ * importer writes each download through the series its key finds, and with a
+ * path of none, or one inside the device's folder, it would take that one
+ * book's folder for the series' and mark every other book's file gone
+ * (import/write.ts, `shared`): a path outside the device folder is what makes
+ * it name this book's file from there and answer for this folder alone.
+ *
+ * A root can be that folder itself: a scan makes the Mihon root at
+ * `<library>/devices/<device>/Mihon` when no other exists (import/index.ts,
+ * `rootOf`), and ADD then uses it. Such a root names nothing outside the
+ * devices, so the library's own folder stands in for it.
+ */
+function nameFromRoot(db: Database.Database, seriesId: number) {
+	const { path, root } = db
+		.prepare(
+			`SELECT s.path, r.path AS root FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ?`
+		)
+		.get(seriesId) as { path: string; root: string };
+	const { library } = dataPaths();
+	const home = isUnder(root, join(library, 'devices')) ? library : root;
+	if (path === '') db.prepare(`UPDATE series SET path = ? WHERE id = ?`).run(home, seriesId);
+	else widenTo(db, seriesId, [join(home, 'book')]);
+}
+
+/**
+ * A queued download goes where its entry goes. `download_queue.series_id` is
+ * what the queue's readers join to find the series, and it cascades: left
+ * behind, it names the wrong series, or the row goes with the series it names.
+ * Before the old series can be deleted.
+ */
+function carryQueued(db: Database.Database, target: number, entryIds: number[]) {
+	const set = db.prepare(`UPDATE download_queue SET series_id = ? WHERE entry_id = ?`);
+	for (const id of entryIds) set.run(target, id);
+}
+
 /**
  * Move one singleton's book into `target` at `position`: its rating, favourite
- * and tags go onto the book, its title becomes the book's own, its log rows
- * follow it, and the emptied singleton is deleted.
+ * and tags go onto the book, its title becomes the book's own, its key keeps
+ * it at its source, its log rows follow it, and the emptied singleton is
+ * deleted.
  */
 function absorb(db: Database.Database, singleton: SeriesRow, target: number, position: number) {
 	const [entryId] = entryIdsOf(db, singleton.id);
+	keepOrigin(db, singleton, [entryId]);
 	rehome(db, entryId, singleton.id, target);
 	db.prepare(
 		`UPDATE entries SET series_id = ?, position = ?,
@@ -149,6 +274,7 @@ function absorb(db: Database.Database, singleton: SeriesRow, target: number, pos
 			rating = ?, favourite = ?
 		WHERE id = ?`
 	).run(target, position, singleton.title, singleton.rating, singleton.favourite, entryId);
+	carryQueued(db, target, [entryId]);
 	db.prepare(
 		`INSERT OR IGNORE INTO entry_tags (entry_id, tag_id) SELECT ?, tag_id FROM series_tags WHERE series_id = ?`
 	).run(entryId, singleton.id);
@@ -300,6 +426,8 @@ export function groupIntoSeries(opts: {
 				);
 				next = 1;
 			}
+			if (singles.some((s) => holdsSourceKey(db, s, entryIdsOf(db, s.id)[0])))
+				nameFromRoot(db, target);
 			const entryIds = singles.map((s, i) => absorb(db, s, target, next + i));
 			return { seriesId: target, entryIds };
 		})
@@ -461,6 +589,16 @@ function groupVolumes(
 		const from = pathOf(db, b.id);
 		const entries = volumeEntries(db, b.id);
 		for (const vol of volumesOf(entries)) firsts.push(vol[0].id);
+		// A source's novel keeps its key; an EPUB's is its file, rebuilt from there.
+		const { origin_key: key } = db
+			.prepare(`SELECT origin_key FROM series WHERE id = ?`)
+			.get(b.id) as { origin_key: string | null };
+		if (keyFamily(key))
+			keepOrigin(
+				db,
+				b,
+				entries.map((e) => e.id)
+			);
 		for (const e of entries) {
 			move.run(
 				target.id,
@@ -469,6 +607,7 @@ function groupVolumes(
 				e.volume || b.title,
 				e.id
 			);
+			carryQueued(db, target.id, [e.id]);
 			moved.push(e.id);
 		}
 		db.prepare(
@@ -515,6 +654,7 @@ export function takeOutVolumes(seriesId: number, files?: string[], now = Date.no
 				const at = vol[0].source_url.lastIndexOf(`!${vol[0].locator}`);
 				const origin =
 					vol[0].source_url.startsWith('epub:') && at > 0 ? vol[0].source_url.slice(0, at) : null;
+				const volIds = vol.map((e) => e.id);
 				const single = Number(
 					db
 						.prepare(
@@ -551,10 +691,12 @@ export function takeOutVolumes(seriesId: number, files?: string[], now = Date.no
 								: null
 						).lastInsertRowid
 				);
+				giveOriginBack(db, single, volIds);
 				const set = db.prepare(
 					`UPDATE entries SET series_id = ?, position = ?, file = ?, volume = '' WHERE id = ?`
 				);
 				vol.forEach((e, i) => set.run(single, i + 1, basename(abs), e.id));
+				carryQueued(db, single, volIds);
 				db.prepare(
 					`INSERT OR IGNORE INTO series_tags (series_id, tag_id) SELECT ?, tag_id FROM series_tags WHERE series_id = ?`
 				).run(single, seriesId);
@@ -621,9 +763,11 @@ export function takeOut(seriesId: number, entryIds: number[], now = Date.now()):
 							seriesId
 						).lastInsertRowid
 				);
+				giveOriginBack(db, single, [e.id]);
 				db.prepare(
 					`UPDATE entries SET series_id = ?, position = 1, rating = 0, favourite = 0 WHERE id = ?`
 				).run(single, e.id);
+				carryQueued(db, single, [e.id]);
 				// The book's own tags become the singleton's. A book grouped before it
 				// had any of its own takes the series' tags instead of none.
 				const own = db
@@ -689,12 +833,18 @@ export function moveBook(fromSeries: number, entryId: number, toSeries: number):
 					p: number;
 				}
 			).p + 1;
+		// The last book of its series, which goes with it: keeps its key. A book
+		// leaving a series that stays is one chapter of that series' key, which
+		// the series keeps; that key has one holder.
+		if (entryIdsOf(db, fromSeries).length === 1) keepOrigin(db, from, [entryId]);
+		if (holdsSourceKey(db, from, entryId)) nameFromRoot(db, toSeries);
 		rehome(db, entryId, fromSeries, toSeries);
 		db.prepare(`UPDATE entries SET series_id = ?, position = ? WHERE id = ?`).run(
 			toSeries,
 			next,
 			entryId
 		);
+		carryQueued(db, toSeries, [entryId]);
 		db.prepare(
 			`INSERT OR IGNORE INTO series_tags (series_id, tag_id) SELECT ?, tag_id FROM entry_tags WHERE entry_id = ?`
 		).run(toSeries, entryId);
@@ -991,12 +1141,16 @@ export function foldEditions(
 				db.prepare(
 					`UPDATE entries SET title = CASE WHEN title = '' THEN ? ELSE title END WHERE id = ?`
 				).run(s.title, entry);
+				keepOrigin(db, s, [entry]);
+				// A queued edition still downloads, through this series' path.
+				if (holdsSourceKey(db, s, entry)) nameFromRoot(db, baseSeries);
 				rehome(db, entry, id, baseSeries);
 				db.prepare(
 					`UPDATE entries SET series_id = ?, position = ?, shadowed = 1, edition_of = ?,
 						language = ?, edition_rows = ?
 					WHERE id = ?`
 				).run(baseSeries, position, baseEntry, lang, JSON.stringify(rowsOf(entry)), entry);
+				carryQueued(db, baseSeries, [entry]);
 				// What the owner did with it: kept by the book.
 				db.prepare(
 					`UPDATE series SET rating = MAX(COALESCE(rating, 0), ?), favourite = MAX(favourite, ?) WHERE id = ?`
@@ -1067,6 +1221,7 @@ export function unfoldEditions(
 						.run(e.title || base.title, hueFor(e.title || base.title), now, seriesId)
 						.lastInsertRowid
 				);
+				giveOriginBack(db, single, [e.id]);
 				const rows = JSON.parse(e.edition_rows ?? '[]') as { a: number | null; b: number | null }[];
 				const page = own.last_position === null ? null : toEdition(rows, own.last_position);
 				db.prepare(
@@ -1074,6 +1229,7 @@ export function unfoldEditions(
 						edition_rows = NULL, read_at = ?, last_position = ?, last_opened_at = ?
 					WHERE id = ?`
 				).run(single, own.read_at, own.read_at === null ? page : null, own.last_opened_at, e.id);
+				carryQueued(db, single, [e.id]);
 				// Its tags back from the book: everything but the book's other languages.
 				db.prepare(
 					`INSERT OR IGNORE INTO series_tags (series_id, tag_id)

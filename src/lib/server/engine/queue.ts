@@ -3,6 +3,7 @@ import { getDb } from '../db.ts';
 import { getSetting, setSetting } from '../settings.ts';
 import { keyKind, sourceOfKey } from '../../library/downloads.ts';
 import { SOURCE_KINDS, type SourceKind } from '../../library/kinds.ts';
+import { entryOriginSql } from '../season-facts.ts';
 
 /**
  * tsundoku's download queue (doc/DOWNLOADER.md; card c137): chapters, as
@@ -61,7 +62,8 @@ export function enqueue(
 	db: Database.Database = getDb()
 ): number {
 	const row = db.prepare(
-		`SELECT e.id, e.series_id, s.origin_key FROM entries e JOIN series s ON s.id = e.series_id
+		`SELECT e.id, e.series_id, ${entryOriginSql('e', 's')} AS origin_key
+		FROM entries e JOIN series s ON s.id = e.series_id
 		WHERE e.id = ? AND e.available = 0 AND e.source_url != ''
 			AND NOT EXISTS (SELECT 1 FROM download_queue q WHERE q.entry_id = e.id)`
 	);
@@ -122,7 +124,8 @@ export function queueRows(db: Database.Database = getDb()): QueueRow[] {
 	return (
 		db
 			.prepare(
-				`SELECT q.entry_id, q.series_id, s.origin_key, e.origin_source, q.state, q.tries, q.failure, q.error,
+				`SELECT q.entry_id, q.series_id, ${entryOriginSql('e', 's')} AS origin_key, e.origin_source,
+					q.state, q.tries, q.failure, q.error,
 					q.next_at, q.done_pages, q.pages, q.position
 				FROM download_queue q JOIN series s ON s.id = q.series_id
 				JOIN entries e ON e.id = q.entry_id ORDER BY q.position`

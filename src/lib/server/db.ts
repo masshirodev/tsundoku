@@ -1909,6 +1909,34 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	) WITHOUT ROWID;
 	CREATE INDEX series_season_facts_origin ON series_season_facts(origin_key) WHERE origin_key IS NOT NULL;
 	CREATE UNIQUE INDEX series_season_facts_folder ON series_season_facts(folder) WHERE folder IS NOT NULL;
+	`,
+	// v76: a book's own origin (card c885; doc/BOOKS.md, "Where a book's origin
+	// lives"). `series.origin_key` names one series at a source, and a group of
+	// one-offs is several, so grouping moves a one-off's key here with what the
+	// engine called it, beside its entry, and taking it out moves them back.
+	// Keyed by the entry, because the entry is the one row that survives a
+	// group, an UNGROUP and an UNDO, where the singleton's series id does not.
+	// Beside `series_season_facts` and not in it: a one-off has no season, and
+	// every book of a group would read one row as season 0. `origin_key` isn't
+	// unique, since every chapter of a novel grouped as a volume holds its
+	// novel's key.
+	//
+	// **It repairs nothing.** A book grouped before this rung kept only its
+	// chapter's address (`entries.source_url`) and `origin_source`, which only
+	// MOVE writes; the source id and the manga's address went with its series
+	// row, and neither `engine_chapters` nor any other table holds them. A key
+	// is `mihon:<source>:<manga url>`, so one built from those would be a guess
+	// written into the library.
+	`
+	CREATE TABLE entry_origins (
+		entry_id INTEGER PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
+		origin_key TEXT NOT NULL,
+		source_title TEXT NOT NULL DEFAULT '',
+		engine_url TEXT,
+		engine_title TEXT,
+		resolved_at INTEGER
+	) WITHOUT ROWID;
+	CREATE INDEX entry_origins_key ON entry_origins(origin_key);
 	`
 ];
 

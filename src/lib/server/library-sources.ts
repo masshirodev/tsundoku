@@ -34,7 +34,12 @@ export function sourceUse(): Map<string, SourceUse> {
 			UNION ALL
 			SELECT s.id, f.origin_key, NOT ${VISIBLE_SQL}
 			FROM series_season_facts f JOIN series s ON s.id = f.series_id JOIN roots r ON r.id = s.root_id
-			WHERE ${IN_LIBRARY_SQL} AND ${HAS_SOURCE('f.origin_key')}`
+			WHERE ${IN_LIBRARY_SQL} AND ${HAS_SOURCE('f.origin_key')}
+			UNION ALL
+			SELECT s.id, eo.origin_key, NOT ${VISIBLE_SQL}
+			FROM entry_origins eo JOIN entries e ON e.id = eo.entry_id
+			JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
+			WHERE ${IN_LIBRARY_SQL} AND ${HAS_SOURCE('eo.origin_key')}`
 		)
 		.all() as { id: number; k: string; hidden: number }[];
 	const use = new Map<string, SourceUse>();
@@ -103,7 +108,19 @@ export function libraryIndex(reveal: boolean) {
 			GROUP BY s.id, f.origin_key ORDER BY s.id DESC`
 		)
 		.all() as Holding[];
-	const held = [...seasons, ...rows];
+	// A book in a group is held at its own source (card c885), under the name
+	// the source knows it by, so a result still says it's in the library.
+	const books = db
+		.prepare(
+			`SELECT s.id, COALESCE(NULLIF(eo.source_title, ''), NULLIF(e.title, ''), s.title) AS title,
+				'[]' AS alts, eo.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden,
+				1 AS total, e.available AS have
+			FROM entry_origins eo JOIN entries e ON e.id = eo.entry_id
+			JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
+			WHERE ${IN_LIBRARY_SQL} AND ${HAS_SOURCE('eo.origin_key')} AND e.shadowed = 0`
+		)
+		.all() as Holding[];
+	const held = [...seasons, ...books, ...rows];
 	const byKey = new Map(held.map((r) => [r.k, r]));
 	// SAME TITLE only within a kind of source: an anime named as a manga is an
 	// adaptation, not a copy of it from elsewhere ("Oshi no Ko" on KickAssAnime
@@ -161,10 +178,17 @@ export function mihonRoot(): number | null {
 export function seriesForKey(key: string): QueueSeries | null {
 	const row = getDb()
 		.prepare(
-			`SELECT s.id, s.title, NOT ${VISIBLE_SQL} AS hidden, s.cover_at, s.hue
+			`SELECT s.id,
+				-- The queue groups by key, so a book in a group goes by its own name there (c885).
+				COALESCE((SELECT NULLIF(eo.source_title, '') FROM entry_origins eo
+					JOIN entries e ON e.id = eo.entry_id
+					WHERE e.series_id = s.id AND eo.origin_key = @key), s.title) AS title,
+				NOT ${VISIBLE_SQL} AS hidden, s.cover_at, s.hue
 			FROM series s JOIN roots r ON r.id = s.root_id
 			WHERE (s.origin_key = @key OR EXISTS (SELECT 1 FROM series_season_facts f
-					WHERE f.series_id = s.id AND f.origin_key = @key))
+					WHERE f.series_id = s.id AND f.origin_key = @key)
+					OR EXISTS (SELECT 1 FROM entry_origins eo JOIN entries e ON e.id = eo.entry_id
+						WHERE e.series_id = s.id AND eo.origin_key = @key))
 				AND ${IN_LIBRARY_SQL}
 			ORDER BY s.origin_key IS @key DESC, s.id LIMIT 1`
 		)
