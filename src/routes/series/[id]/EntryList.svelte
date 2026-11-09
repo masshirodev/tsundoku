@@ -7,6 +7,8 @@
 	import OtherForms from './OtherForms.svelte';
 	import type { GroupOther, OtherFormRow } from './other-forms.server';
 	import { offline } from '$lib/offline.svelte';
+	import { coverPlaceholder } from '$lib/library/cover';
+	import { resolve } from '$app/paths';
 	import {
 		currentEntry,
 		entryAtFraction,
@@ -17,6 +19,11 @@
 		listCount,
 		listRows,
 		railTicks,
+		rowsUnderHead,
+		volumeCached,
+		volumeMeta,
+		volumeOf,
+		volumeTicks,
 		type SeriesEntry,
 		type SeriesPage
 	} from '$lib/library/series';
@@ -189,6 +196,61 @@
 	}
 
 	const thumb = $derived(dragging ?? current);
+	/** The volume ticks (c835): a ruler, so it needs the track's own height. */
+	let railHeight = $state(0);
+	$effect(() => {
+		const el = track;
+		if (!el) return;
+		railHeight = el.clientHeight;
+		const ro = new ResizeObserver(() => (railHeight = el.clientHeight));
+		ro.observe(el);
+		return () => ro.disconnect();
+	});
+	const volumeRail = $derived(volumeTicks(series.entries, railHeight));
+	const thumbVolume = $derived(thumb ? volumeOf(series.entries, thumb) : null);
+	const draggingVolume = $derived(dragging ? volumeOf(series.entries, dragging) : null);
+	/** The rows that sit under a volume's head (c835, 1D): arriving on one shows it. */
+	const underHead = $derived(rowsUnderHead(rows));
+	/** The list's own sticky bar, which an arriving head must be shown under. */
+	let headBar = $state<HTMLElement>();
+
+	/**
+	 * Arriving on the row under a volume's head shows that head (c835, 1D). The
+	 * focus layer's reveal puts the row just below the list's sticky bar, which
+	 * leaves the head above it, wholly hidden -- `scrollIntoView` honours a
+	 * scroll margin only when the row is off the viewport, and a row under a bar
+	 * is on it. So after that reveal, scroll by however far the head's top sits
+	 * above the bar's bottom. A pointer's tap focuses the row too and must move
+	 * nothing: only `:focus-visible` (a pad's or a keyboard's focus) may.
+	 */
+	function showHeadUnder(event: FocusEvent) {
+		const target = event.target;
+		if (!(target instanceof HTMLElement) || !target.matches(':focus-visible')) return;
+		const row = target.closest<HTMLElement>('li.under-head');
+		if (!row || !headBar) return;
+		// After the layer's own reveal, which runs synchronously after focus.
+		queueMicrotask(() => {
+			if (!row.isConnected) return;
+			let head = row.previousElementSibling;
+			while (head && !head.classList.contains('volume')) head = head.previousElementSibling;
+			if (!head) return;
+			const bar = headBar?.getBoundingClientRect();
+			const top = head.getBoundingClientRect().top;
+			if (!bar || top >= bar.bottom) return;
+			const by = top - bar.bottom;
+			const scroller = scrollerOf(row);
+			(scroller ?? window).scrollBy({ top: by, behavior: 'instant' });
+		});
+	}
+
+	/** What moves a row vertically: its nearest scroller, else the page. */
+	function scrollerOf(el: HTMLElement): HTMLElement | null {
+		for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+			const overflow = getComputedStyle(n).overflowY;
+			if (overflow === 'auto' || overflow === 'scroll') return n;
+		}
+		return null;
+	}
 </script>
 
 <!-- The row that is the button (Download States, "The row is the button"): a form post, so it works without script. -->
@@ -201,7 +263,7 @@
 	></form>{/if}
 
 <section class="list" aria-label={novel ? 'Contents' : 'Chapters'}>
-	<div class="head">
+	<div class="head" bind:this={headBar}>
 		{#if jumping}
 			<form class="jump" onsubmit={submitJump}>
 				<label for="jump-to">GO TO #</label>
@@ -242,13 +304,53 @@
 	</div>
 
 	<div class="body" class:with-rail={!selecting && series.entries.length > 1 && tools}>
-		<ol class="rows">
-			{#each rows as row (row.type === 'fold' ? 'fold' : row.type === 'section' ? row.key : row.entry.id)}
+		<ol class="rows" onfocusin={showHeadUnder}>
+			{#each rows as row (row.type === 'fold' ? 'fold' : row.type === 'entry' ? row.entry.id : row.key)}
 				{#if row.type === 'section'}
 					<!-- A book's front and back matter, listed apart (doc/TEXT-READER.md). -->
 					<li class="section"><span>{row.label}</span><span>{row.detail}</span></li>
+				{:else if row.type === 'volume'}
+					<!-- A volume's head (c835): its cover, its number and state, its title
+					     and its chapters. Not a button and not a focus stop: the rows under
+					     it are what a D-pad walks. -->
+					<li class="volume {row.state}" aria-label="{row.label} {row.title}">
+						<span class="vcover" style:background={coverPlaceholder(series.hue)}>
+							<!-- A coverless volume draws the series' stripes with its number on
+							     them (c835, 1A/1C); an image, when the EPUB has one, covers it. -->
+							<span class="vnum"><span>{row.number}</span></span>
+							{#if !offline.online && volumeCached(row.entries, cached)}
+								<span class="vd" aria-label="Cached on this device">↓</span>
+							{/if}
+							{#if row.available && row.entry > 0}
+								<img
+									src={resolve('/series/volume-cover/[entry]', { entry: String(row.entry) })}
+									alt=""
+									loading="lazy"
+									decoding="async"
+									onerror={(e) => ((e.currentTarget as HTMLImageElement).hidden = true)}
+								/>
+							{/if}
+						</span>
+						<span class="vtx">
+							<span class="vk">
+								<span>{row.label}</span>
+								<span class="vst"
+									>{row.state === 'read'
+										? 'READ ✓'
+										: row.state === 'reading'
+											? 'READING'
+											: ''}</span
+								>
+							</span>
+							<span class="vt">{row.title}</span>
+							<span class="vm">{volumeMeta(row)}</span>
+							{#if row.progress !== null}
+								<span class="vpb"><i style:width="{row.progress * 100}%"></i></span>
+							{/if}
+						</span>
+					</li>
 				{:else if row.type === 'fold'}
-					<li class="fold">
+					<li class="fold" class:under-head={underHead.has('fold')}>
 						<!-- The stripes are a stylesheet picture: the hover tint must not replace them (c488, doc/MOTION.md). -->
 						<button type="button" data-picture onclick={() => (expanded = true)}>
 							<span>↑ {formatNumber(row.from)} – {formatNumber(row.to)}</span>
@@ -270,6 +372,7 @@
 					<li
 						id="entry-{e.id}"
 						class="entry {row.state} {dl ? `dl-${dl.kind}` : ''}"
+						class:under-head={underHead.has(String(e.id))}
 						class:missing={!e.available && !(online && offline.online)}
 						class:online-only={online && !offline.online}
 						class:matter={!!e.matter}
@@ -384,9 +487,23 @@
 					onkeydown={railKey}
 				>
 					<div class="read-mark" style:height="{Math.max(0, fractionOf(readUpTo)) * 100}%"></div>
-					{#each ticks as t (t.label)}
-						<div class="tick" style:top="{t.fraction * 100}%">{t.label}</div>
-					{/each}
+					{#if volumeRail.length > 1}
+						<!-- One tick per volume (c835, 1C): a hairline at its first entry,
+						     its label in ink while the thumb is inside it. -->
+						{#each volumeRail as t (t.label)}
+							<div
+								class="tick vol"
+								class:on={thumbVolume === t.number}
+								style:top="{t.fraction * 100}%"
+							>
+								{#if t.labelShown}<span>{t.label}</span>{/if}
+							</div>
+						{/each}
+					{:else}
+						{#each ticks as t (t.label)}
+							<div class="tick" style:top="{t.fraction * 100}%">{t.label}</div>
+						{/each}
+					{/if}
 					{#if thumb}
 						<div
 							class="thumb"
@@ -399,7 +516,10 @@
 				</div>
 				{#if dragging}
 					<div class="bubble" style:top="{fractionOf(dragging.number) * 100}%" aria-live="polite">
-						<div class="b-label">DRAGGING · {dragging.readAt !== null ? 'READ' : 'UNREAD'}</div>
+						<div class="b-label">
+							{draggingVolume ? `VOL. ${draggingVolume} · ` : ''}DRAGGING ·
+							{dragging.readAt !== null ? 'READ' : 'UNREAD'}
+						</div>
 						<div class="b-num">{formatNumber(dragging.number)}</div>
 						<div class="b-title">{entryTitle(dragging, series.kind)}</div>
 					</div>
@@ -564,6 +684,136 @@
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
+	/* A volume's head (c835, grouped volumes 1A–1C): its cover at 2:2.9, its
+	   number and state, its title verbatim, then its chapters. One fixed height,
+	   so the list stays a column of known sizes; the read volume's title drops
+	   to text-2 as a read row's does, and its 3px bar is the chapters read. */
+	.volume {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		height: 104px;
+		padding: 0 var(--pad);
+		border-bottom: var(--hairline);
+		background: var(--surface-page);
+	}
+	.vcover {
+		position: relative;
+		flex-shrink: 0;
+		width: 52px;
+		aspect-ratio: 2 / 2.9;
+		overflow: hidden;
+	}
+	.vcover img {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+	.vd {
+		position: absolute;
+		z-index: 1;
+		right: 0;
+		bottom: 0;
+		padding: 2px 4px;
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+		font: 500 12px/1 var(--font-mono);
+	}
+	.vnum {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.vnum > span {
+		min-width: 26px;
+		height: 26px;
+		padding: 0 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--surface-page);
+		color: var(--text-1);
+		font: 500 15px var(--font-mono);
+	}
+	.vtx {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.vk {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		font: 500 13px/1.2 var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+		white-space: nowrap;
+	}
+	.vst {
+		letter-spacing: 0.04em;
+	}
+	.volume.reading .vst {
+		color: var(--accent);
+	}
+	.vt {
+		font: 500 17px/1.3 var(--font-sans);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.volume.read .vt {
+		color: var(--text-2);
+	}
+	.vm {
+		font: 400 13px/1.3 var(--font-mono);
+		color: var(--text-2);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.vpb {
+		height: 3px;
+		background: var(--line-1);
+	}
+	.vpb > i {
+		display: block;
+		height: 3px;
+		background: var(--accent);
+	}
+	@media (max-width: 599px) {
+		.volume {
+			height: 82px;
+			gap: 12px;
+		}
+		.vcover {
+			width: 40px;
+		}
+		.vnum > span {
+			min-width: 22px;
+			height: 22px;
+			font-size: 13px;
+		}
+		.vtx {
+			gap: 5px;
+		}
+		.vk,
+		.vm {
+			font-size: 12px;
+		}
+		.vt {
+			font-size: 16px;
+		}
+	}
+	/* A volume's head is not a focus stop: arriving on the row under it shows
+	   the head from the list itself (`showHeadUnder`, c835, 1D), so no scroll
+	   margin is set here -- nothing would honour one. */
 	/* Front and back matter: reachable, but not read as chapters. */
 	.entry.matter .entry-btn {
 		height: 44px;
@@ -801,6 +1051,31 @@
 		color: var(--text-2);
 		pointer-events: none;
 	}
+	/* A volume's tick (c835, 1C): the hairline everywhere, the label at the
+	   right; a label that would crowd its neighbour is dropped, the line stays. */
+	.tick.vol {
+		transform: none;
+		height: 0;
+		padding: 0;
+		border-top: 1px solid var(--line-2);
+	}
+	.tick.vol > span {
+		position: absolute;
+		right: 8px;
+		top: 3px;
+		font: 500 11px/1 var(--font-mono);
+		letter-spacing: 0.02em;
+		color: var(--text-2);
+	}
+	.tick.vol.on > span {
+		color: var(--text-1);
+	}
+	@media (max-width: 599px) {
+		.tick.vol > span {
+			right: 6px;
+			font-size: 10px;
+		}
+	}
 	.thumb {
 		position: absolute;
 		left: -1px;
@@ -871,6 +1146,31 @@
 		}
 		.rail {
 			top: 36px;
+		}
+		/* A volume's head on a TV (Head-TV): 96px, a 48px cover, 20px title. */
+		.volume {
+			height: 96px;
+			gap: 16px;
+		}
+		.vcover {
+			width: 48px;
+		}
+		.vnum > span {
+			min-width: 24px;
+			height: 24px;
+			font-size: 14px;
+		}
+		.vtx {
+			gap: 5px;
+		}
+		.vk {
+			font: 500 15px/1.2 var(--font-mono);
+		}
+		.vt {
+			font-size: 20px;
+		}
+		.vm {
+			font-size: 15px;
 		}
 	}
 </style>

@@ -8,7 +8,9 @@
 		type SeriesPage
 	} from '$lib/library/series';
 	import { pageThumbSrc, readHref } from '$lib/library/links';
+	import { rowAction, type DownloadState } from '$lib/library/downloads';
 	import { resolve } from '$app/paths';
+	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { longpress } from '$lib/actions/longpress';
 	import { offline } from '$lib/offline.svelte';
@@ -32,7 +34,9 @@
 		series,
 		book: only,
 		cover,
-		editions = null
+		editions = null,
+		downloads = null,
+		readOnline = false
 	}: {
 		series: SeriesPage;
 		book?: SeriesEntry | null;
@@ -44,6 +48,9 @@
 		};
 		/** A folded book (doc/EDITIONS.md): the grid is the opening edition's pages. */
 		editions?: BookEditions | null;
+		/** A book with no file (c885): READ ONLINE and DOWNLOAD, its own. */
+		downloads?: Map<number, DownloadState> | null;
+		readOnline?: boolean;
 	} = $props();
 
 	const opening = $derived(
@@ -71,6 +78,13 @@
 	const onlyHere = $derived(new Set(opening?.only ?? []));
 	const pages = $derived(book?.pageCount ?? 0);
 	const current = $derived(book && book.readAt === null ? (entryProgress(book)?.page ?? 0) : 0);
+	/**
+	 * A book with no file offers READ ONLINE and DOWNLOAD, its own (c885,
+	 * doc/BOOKS.md). A folded book keeps the screen it had: its pages are the
+	 * opening edition's, and a tap already opens the edition it means.
+	 */
+	const offered = $derived(!opening && book && !book.available ? book : null);
+	const act = $derived(offered && downloads ? rowAction(downloads.get(offered.id)) : null);
 	const countLabel = $derived(
 		!book
 			? '0'
@@ -174,6 +188,20 @@
 			{/snippet}
 		</Band>
 	{/if}
+	{#if offered && offline.online && (readOnline || act)}
+		<div class="book-offer">
+			{#if readOnline}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
+				<a class="cell" href={readHref(offered.id)}>▶ READ ONLINE</a>
+			{/if}
+			{#if act}
+				<form method="POST" action="?/download" use:enhance>
+					<input type="hidden" name="entry" value={offered.id} />
+					<button type="submit" class="cell">{act === 'retry' ? 'RETRY' : 'DOWNLOAD'}</button>
+				</form>
+			{/if}
+		</div>
+	{/if}
 	<ol class="grid">
 		{#each { length: pages }, i (i)}
 			{@const n = i + 1}
@@ -275,6 +303,40 @@
 		color: var(--text-2);
 		letter-spacing: var(--tracking-label);
 		white-space: nowrap;
+	}
+	/* The book's own offer (c885): the house cells, equal halves at every width. */
+	.book-offer {
+		display: grid;
+		grid-auto-flow: column;
+		grid-auto-columns: minmax(0, 1fr);
+		min-height: 52px;
+		border-bottom: var(--hairline);
+		background: var(--surface-page);
+	}
+	.book-offer form {
+		display: flex;
+	}
+	.book-offer .cell {
+		display: flex;
+		flex: 1;
+		align-items: center;
+		justify-content: center;
+		min-width: 0;
+		padding: 0 14px;
+		border: 0;
+		border-right: var(--hairline);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+		text-decoration: none;
+		cursor: pointer;
+	}
+	.book-offer > :last-child .cell,
+	.book-offer > .cell:last-child {
+		border-right: 0;
 	}
 	.grid {
 		list-style: none;

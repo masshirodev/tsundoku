@@ -148,9 +148,16 @@ for.
 
 **On the series screen** a group offers READ (the panel's ▶, online for a book
 with no file) and DOWNLOAD (the panel's FIRST n / ALL n), both per book on the
-server. A tap on a single undownloaded book opens `?book=<id>`, which is still
-the empty page grid: no READ or DOWNLOAD of its own. That screen is the series
-route's, and c885's per-book offer is the patch its handoff note carries.
+server. **One book's own page offers them for that book** (c885): a tap on a
+single undownloaded book opens `?book=<id>`, whose page grid draws ▶ READ
+ONLINE and DOWNLOAD in the house cells above the pages. READ ONLINE is drawn
+when `readsOnline(book.id)` says the book reads online and the workstation is
+reachable — the reader's own rule, not the group's state: a book whose own
+source has no extension, or which holds no key at all, is offered neither cell.
+DOWNLOAD is drawn when `rowAction` would queue that book's own row of
+`seriesDownloads`, and RETRY when its download failed, as its row on the list
+does. Both ask `?/download` with that one entry, so each queues one book. A
+folded book keeps the screen it had.
 
 **FOLLOW is a series' idea.** A group of one-offs has no one thing to follow,
 so the row leaves FOLLOW out and `setFollowed` still refuses. A series that
@@ -161,6 +168,26 @@ always did.
 is its chapter's address and `origin_source` (only MOVE writes it); the source
 id and the manga's address went with its series row, and nothing else recorded
 them. Such a book answers `none` until the owner re-adds it from the source.
+
+### A volume's cover
+
+A **volume's** cover is its EPUB's, kept in the cover directory by its **file**
+(c835), so no row or column names it: `readVolumeCover` (`src/lib/server/covers.ts`)
+hashes the file's path and its size and mtime, and keeps `volumes/<path>-<version>.webp`.
+Every chapter of a volume shares that one file, so every chapter asks the same
+cover; taking the volume out, UNGROUP or a re-group in another order leaves the
+same file, and its cover is kept. A rescan that replaces the file makes a new
+version, removes the old one on the next ask, and `refreshCovers` sweeps a
+cover whose file the library no longer has. The endpoint is
+`GET /series/volume-cover/<entry>` (any entry of the volume), and it is guarded
+as the series' cover is: hidden means a 404 while reveal is off.
+
+A book whose cover is a **page** rather than a manifest image (Haibara's) is
+read too: when the package names no `cover-image` and no `<meta name="cover">`,
+the image an XHTML page in a `Cover` entry holds (`<img src>` or an SVG's
+`<image>`) is taken as the cover, by the series' cover as well. Whether the
+owner's own six books have such a page is unverified here: `readEpub` is not
+given the live files in a spec (see the card's Gaps).
 
 A series of books has a rating and FAV of its own too: they belong to the
 series, not to any book.

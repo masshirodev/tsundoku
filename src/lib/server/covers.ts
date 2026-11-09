@@ -8,6 +8,7 @@ import { VISIBLE_SQL } from './visibility.ts';
 import { manifest, readPage } from './pages/index.ts';
 import { SAMPLE_PREFIX } from './pages/sample.ts';
 import { readEpub } from './import/epub.ts';
+import { coverImageOfPage, coverPages } from '../epub/epub.ts';
 import { bookCoverVersion } from '../library/cover.ts';
 import { listZip, readMember } from './zip.ts';
 import { getSetting } from './settings.ts';
@@ -90,23 +91,44 @@ function ownSource(s: SeriesRow): Source | null {
 		const path = join(s.path, first.file);
 		return {
 			key: `epub:${path}`,
-			read: async () => {
-				const { pkg } = await readEpub(path);
-				if (!pkg?.cover) return null;
-				const { open } = await import('node:fs/promises');
-				const fh = await open(path);
-				try {
-					const member = (await listZip(fh, (await fh.stat()).size)).find(
-						(m) => m.name === pkg.cover
-					);
-					return member ? await readMember(fh, member) : null;
-				} finally {
-					await fh.close();
-				}
-			}
+			read: () => epubCover(path)
 		};
 	}
 	return null;
+}
+
+/**
+ * An EPUB's cover image: the member its package names, else the image its
+ * `Cover` page holds (c835). Haibara's books have no manifest `cover-image`
+ * and no `<meta name="cover">`, but each lists a Cover entry whose page is an
+ * image alone, which `parsePackage` cannot see; the disk side can.
+ */
+async function epubCover(path: string): Promise<Buffer | null> {
+	const { pkg, toc } = await readEpub(path);
+	if (!pkg) return null;
+	const { open } = await import('node:fs/promises');
+	const fh = await open(path);
+	try {
+		const members = await listZip(fh, (await fh.stat()).size);
+		const byName = new Map(members.map((m) => [m.name, m]));
+		const read = async (name: string) => {
+			const m = byName.get(name);
+			return m ? readMember(fh, m) : null;
+		};
+		if (pkg.cover) {
+			const named = await read(pkg.cover).catch(() => null);
+			if (named) return named;
+		}
+		for (const page of coverPages(pkg, toc)) {
+			const html = (await read(page).catch(() => null))?.toString('utf8');
+			const image = html ? coverImageOfPage(html, page) : null;
+			const bytes = image ? await read(image).catch(() => null) : null;
+			if (bytes) return bytes;
+		}
+		return null;
+	} finally {
+		await fh.close();
+	}
 }
 
 function firstEntry(s: SeriesRow): { id: number; file: string } | undefined {
@@ -480,6 +502,7 @@ export async function refreshCovers(
 			tally(await refreshCover(needsRemote[next++], true, opts.now));
 	};
 	await Promise.all([worker(), worker(), worker()]);
+	await sweepVolumeCovers();
 	return counts;
 }
 
@@ -568,6 +591,85 @@ export async function readBookCover(
 	await writeFile(`${path}.partial`, made);
 	await rename(`${path}.partial`, path);
 	return { body: made, version };
+}
+
+// ---- volumes -------------------------------------------------------------------
+
+/** A volume's cover, kept by its EPUB file: every chapter of the volume shares one (c835). */
+const volumeCoverDir = () => join(coverDir(), 'volumes');
+const volumeKey = (path: string) => createHash('sha1').update(path).digest('hex').slice(0, 20);
+
+/**
+ * A volume's own cover (c835): the cover its EPUB carries, kept in the cover
+ * directory by its file, so no row names it and no column is new. A volume is
+ * a file, not an entry: taking it out, UNGROUP, or a re-group in another order
+ * leaves the same file, so its cover is kept; a rescan that replaces the file
+ * leaves the old cover for `refreshCovers`' sweep. Hidden means hidden, as for
+ * the series' and a book's cover: the same `VISIBLE_SQL`, and reveal off is a
+ * 404.
+ */
+export async function readVolumeCover(
+	entryId: number,
+	reveal: boolean
+): Promise<{ body: Buffer; version: string } | null> {
+	const row = getDb()
+		.prepare(
+			`SELECT e.file, s.path FROM entries e JOIN series s ON s.id = e.series_id
+			JOIN roots r ON r.id = s.root_id
+			WHERE e.id = ? AND e.available = 1 AND e.file LIKE '%.epub'
+			AND (? OR ${VISIBLE_SQL})`
+		)
+		.get(entryId, reveal ? 1 : 0) as { file: string; path: string } | undefined;
+	if (!row || !row.path || row.path.startsWith(SAMPLE_PREFIX)) return null;
+	const file = join(row.path, row.file);
+	let st;
+	try {
+		st = await stat(file);
+	} catch {
+		return null;
+	}
+	const version = createHash('sha1').update(`${st.size}|${st.mtimeMs}`).digest('hex').slice(0, 12);
+	const dir = volumeCoverDir();
+	const base = volumeKey(file);
+	const path = join(dir, `${base}-${version}.webp`);
+	const kept = await readFile(path).catch(() => null);
+	if (kept) return { body: kept, version };
+	const bytes = await epubCover(file);
+	if (!bytes) return null;
+	let made: Buffer;
+	try {
+		made = await thumbnail(bytes);
+	} catch {
+		return null;
+	}
+	await mkdir(dir, { recursive: true });
+	// One cover per file: what it was made from before is gone.
+	for (const f of await readdir(dir).catch(() => [] as string[]))
+		if (f.startsWith(`${base}-`)) await unlink(join(dir, f)).catch(() => undefined);
+	const partial = `${path}.partial`;
+	await writeFile(partial, made);
+	await rename(partial, path);
+	return { body: made, version };
+}
+
+/** A cover of an EPUB file the library no longer has: a replaced volume's, a deleted book's. */
+async function sweepVolumeCovers(): Promise<void> {
+	const dir = volumeCoverDir();
+	const files = await readdir(dir).catch(() => [] as string[]);
+	if (files.length === 0) return;
+	const live = new Set(
+		(
+			getDb()
+				.prepare(
+					`SELECT e.file, s.path FROM entries e JOIN series s ON s.id = e.series_id
+					WHERE e.available = 1 AND e.file LIKE '%.epub' AND s.path != ''`
+				)
+				.all() as { file: string; path: string }[]
+		).map((r) => volumeKey(join(r.path, r.file)))
+	);
+	for (const f of files)
+		if (![...live].some((k) => f.startsWith(`${k}-`)))
+			await unlink(join(dir, f)).catch(() => undefined);
 }
 
 // ---- page thumbnails ---------------------------------------------------------------

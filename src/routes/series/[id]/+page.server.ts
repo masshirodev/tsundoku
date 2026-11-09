@@ -8,6 +8,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { getDb } from '$lib/server/db';
 import { ocrPlace, restoreNotText, setSeriesOcr } from '$lib/server/japanese/ocr';
 import { wordsOf } from '$lib/server/japanese/mining';
+import { readsOnline } from '$lib/server/pages/online';
 import { decide, twinOf, type Decided } from '$lib/server/dupes';
 import {
 	linkState,
@@ -239,6 +240,9 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 	const single = series.kind === 'doujin' && series.entries.length === 1;
 	const bookParam = Number(url.searchParams.get('book'));
 	const root = rootOf(series.id);
+	// The book a `?book=` opens, if any: its own page's offer reads this book.
+	const openBook =
+		books || hasExtras ? (series.entries.find((e) => e.id === bookParam) ?? null) : null;
 	return {
 		series,
 		// TAGS search the series' own source too (c313); its filters only when IN <SOURCE> is followed (tag-search/).
@@ -253,7 +257,11 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		editing: url.searchParams.get('edit') === 'tags',
 		// A book of a series of books opened on its own: its pages. A doujin with
 		// an extra beside it takes one too (c650), which is how the extra is reached.
-		book: books || hasExtras ? (series.entries.find((e) => e.id === bookParam) ?? null) : null,
+		book: openBook,
+		// The open book's own answer to READ ONLINE (c885): the reader's own rule
+		// (`readsOnline`), never the group's state, so a book whose source has no
+		// extension -- or which holds no key at all -- is not offered it.
+		readOnline: openBook ? readsOnline(openBook.id) : false,
 		// Only a single book can be suggested into a series.
 		suggestion: single ? suggestionFor(series.id, reveal) : null,
 		// Where a book can move to, or singles can be added: same root only.

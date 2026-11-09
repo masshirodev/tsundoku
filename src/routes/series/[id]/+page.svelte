@@ -906,7 +906,13 @@
 		{/if}
 		<div class="list-col" data-focus-section={twoColumns ? 'list' : undefined}>
 			{#if data.book}
-				<PageGrid {series} book={data.book} cover={data.cover} />
+				<PageGrid
+					{series}
+					book={data.book}
+					cover={data.cover}
+					downloads={dlStates}
+					readOnline={data.readOnline && offline.online}
+				/>
 			{:else if books}
 				<BookGrid
 					{series}

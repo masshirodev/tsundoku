@@ -323,7 +323,80 @@ export function continueAction(series: Pick<SeriesPage, 'kind' | 'entries'>): {
 export type Row =
 	| { type: 'fold'; from: number; to: number; count: number }
 	| { type: 'entry'; entry: SeriesEntry; state: EntryState }
+	| VolumeHead
 	| { type: 'section'; key: string; label: string; detail: string };
+
+/** Reading a volume: all of its chapters read, the one being read, or neither. */
+export type VolumeState = 'read' | 'reading' | 'unread';
+
+/**
+ * A volume's head in a grouped novel's contents (c835): its cover, its number,
+ * its title and its chapters. Not a `section` with more words: the list draws
+ * a cover and a progress bar here, and the rail asks each volume where it
+ * starts. The volume's front and back matter is not a chapter (`chaptersOf`),
+ * and stays its own row under the head.
+ */
+export type VolumeHead = {
+	type: 'volume';
+	/** `v<n>`, stable across a descending flip as the section's key was. */
+	key: string;
+	/** Its place in the series, 1-based, the order the rail ticks are labelled in. */
+	number: number;
+	/** The volume's first entry on disk: the cover is its EPUB's (c835). */
+	entry: number;
+	/** Whether the volume's file is on disk (its cover is asked for only then). */
+	available: boolean;
+	/** The volume's entries, matter included: what its ↓ mark asks about (c835). */
+	entries: number[];
+	/** `VOL. n`, the words the reader and the band find. */
+	label: string;
+	/** The volume's own name, verbatim (never uppercased). */
+	title: string;
+	state: VolumeState;
+	/** Its chapters, front and back matter not counted. */
+	chapters: number;
+	read: number;
+	/** How much of the volume is read, 0–1; null unless it is the one being read. */
+	progress: number | null;
+};
+
+/**
+ * One volume's head. [current] is the entry the reader would open, so the
+ * volume that holds it is the one "being read": a part-read volume the reader
+ * has moved past is not, and reads as unread (its chapters' own rows say more).
+ */
+export function volumeHead(vol: SeriesEntry[], n: number, current: SeriesEntry | null): VolumeHead {
+	const chapters = chaptersOf(vol);
+	const read = chapters.filter((e) => e.readAt !== null).length;
+	const here = !!current && vol.some((e) => e.id === current.id);
+	const state: VolumeState =
+		chapters.length > 0 && read === chapters.length ? 'read' : here ? 'reading' : 'unread';
+	return {
+		type: 'volume',
+		key: `v${n}`,
+		number: n,
+		entry: vol.find((e) => e.available)?.id ?? vol[0]?.id ?? 0,
+		available: vol.some((e) => e.available),
+		entries: vol.map((e) => e.id),
+		label: `VOL. ${n}`,
+		title: vol[0]?.volume || 'UNTITLED',
+		state,
+		chapters: chapters.length,
+		read,
+		progress: state === 'reading' && chapters.length > 0 ? read / chapters.length : null
+	};
+}
+
+/** A volume's ↓ (c835): every one of its entries is cached on this device. */
+export function volumeCached(entries: number[], cached: Set<number>): boolean {
+	return entries.length > 0 && entries.every((id) => cached.has(id));
+}
+
+/** "11 CHAPTERS · 4 READ", the head's meta line: 0 read says nothing after the count. */
+export function volumeMeta(v: Pick<VolumeHead, 'chapters' | 'read'>): string {
+	const chapters = `${v.chapters} ${v.chapters === 1 ? 'CHAPTER' : 'CHAPTERS'}`;
+	return v.read > 0 ? `${chapters} · ${v.read} READ` : chapters;
+}
 
 /**
  * The chapter list in reading order. Everything read before the last two
@@ -347,8 +420,6 @@ export function listRows(
 		const ordered = opts.descending ? [...volumes].reverse() : volumes;
 		return ordered.flatMap((vol, i): Row[] => {
 			const n = opts.descending ? volumes.length - i : i + 1;
-			const chapters = chaptersOf(vol);
-			const read = chapters.filter((e) => e.readAt !== null).length;
 			const inner = listRows(
 				vol.map((e) => ({ ...e, volume: '' })),
 				{ ...opts, expanded: opts.expanded || !cur || !vol.includes(cur) }
@@ -363,15 +434,7 @@ export function listRows(
 					}
 					return r;
 				});
-			return [
-				{
-					type: 'section',
-					key: `v${n}`,
-					label: `VOL. ${n} · ${(vol[0].volume || 'UNTITLED').toUpperCase()}`,
-					detail: `${chapters.length} · ${read} READ`
-				},
-				...inner
-			];
+			return [volumeHead(vol, n, cur), ...inner];
 		});
 	}
 	// A book with front and back matter lists it apart, under its own labels,
@@ -503,6 +566,66 @@ export function railTicks(entries: SeriesEntry[]): { label: string; fraction: nu
 	}
 	marks.push(last);
 	return marks.map((n) => ({ label: formatNumber(n), fraction: (n - first) / span }));
+}
+
+/** The volume an entry is in, 1-based by its file; null when the series has one volume. */
+export function volumeOf(entries: SeriesEntry[], entry: SeriesEntry): number | null {
+	const volumes = volumesIn(entries);
+	if (volumes.length < 2) return null;
+	const i = volumes.findIndex((vol) => vol.some((e) => e.id === entry.id));
+	return i < 0 ? null : i + 1;
+}
+
+/**
+ * The rows that sit directly under a volume's head (c835, 1D): the first row
+ * after each `type: 'volume'` row that can take focus. A volume's list opens
+ * with its head, so what follows is its first chapter, a front-matter entry
+ * under its `FRONT MATTER` section, or a fold; descending, the list is flipped
+ * and it is the volume's last chapter. A `section` row is not a focus stop, so
+ * it is skipped, and a head with no row after it marks nothing. V1 counts too:
+ * its head is above a row like any other's. The keys are the list's own --
+ * `fold`, or an entry's id.
+ */
+export function rowsUnderHead(rows: Row[]): Set<string> {
+	const keys = new Set<string>();
+	let after = false;
+	for (const row of rows) {
+		if (row.type === 'volume') {
+			after = true;
+			continue;
+		}
+		if (!after || row.type === 'section') continue;
+		keys.add(row.type === 'fold' ? 'fold' : String(row.entry.id));
+		after = false;
+	}
+	return keys;
+}
+
+/**
+ * The rail's volume ticks (c835, 1C): one per volume, where its first entry
+ * is, labelled `V1`…`Vn`. A tick's label drops when it would sit closer than
+ * [gap] px to the last one drawn; the hairline stays, so a crowded rail still
+ * shows every volume. [height] is the track's own height in px, which is why
+ * this is a ruler and not a fraction rule: the rail maps entries, not pixels.
+ */
+export function volumeTicks(
+	entries: SeriesEntry[],
+	height: number,
+	gap = 28
+): { label: string; number: number; fraction: number; labelShown: boolean }[] {
+	const volumes = volumesIn(entries);
+	if (volumes.length < 2) return [];
+	const first = entries[0]?.number ?? 1;
+	const last = entries[entries.length - 1]?.number ?? 1;
+	const span = Math.max(1, last - first);
+	let lastY = -Infinity;
+	return volumes.map((vol, i) => {
+		const fraction = (vol[0].number - first) / span;
+		const y = fraction * height;
+		const labelShown = y - lastY >= gap;
+		if (labelShown) lastY = y;
+		return { label: `V${i + 1}`, number: i + 1, fraction, labelShown };
+	});
 }
 
 // ---- metadata ------------------------------------------------------------------
