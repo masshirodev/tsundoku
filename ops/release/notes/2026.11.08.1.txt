@@ -1,0 +1,9 @@
+Highlights: keep a page you like with HIGHLIGHT in the image reader's bottom row. The copy stays yours even if the chapter goes, and HIGHLIGHTS lists them all.
+Reading: zoom now goes from 20% to 500%. MARK UNREAD starts a read chapter from the top. Novels open each chapter with a band showing its number and title.
+Adding a series: ADDED TO THE LIBRARY now offers your shelves, so it lands where you want it.
+The library: SELECT keeps what you ticked across shelves, filters and the search, and SELECT ALL really takes every page.
+BROWSE: RECENT folds away and stays folded. SEARCH THE SOURCES has a KIND band. SETTINGS has an EXTENSIONS row, for anyone who looked for it there.
+Connecting a phone over WI-FI: it now says when a firewall has to let the phone in, with the commands for your system. GET STARTED ticks the phone's step without a reload.
+Updates: the notice now shows on the first page after tsundoku starts.
+Anime with several seasons: each season keeps its own source and folder, for downloads, FOLLOW, REFRESH and MOVE.
+TV: an address that arrives from outside now asks before it's remembered.
