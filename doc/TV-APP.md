@@ -271,7 +271,9 @@ than shown cut, with a band that says so), and NEXT reads `CONNECT →`.
   by a press, so the next stray OK must not be the answer. That button is the
   way out: 9B as START leaves it, the field empty.
 - **BACK** returns to the library of the server in use, and with no server it
-  is the app's to take. Neither saves anything, a CONNECT already pressed
+  is the app's to take: the first press only toasts (c859) and this page stays,
+  so the question goes back to what it was before CONNECT, with CHECKING gone,
+  CONNECT live and the mark on it. Neither saves anything, a CONNECT already pressed
   included: opening the library is a `loadUrl`, so this document runs on until
   that navigation commits, and an answer landing in that time is dropped. It
   neither stores the address nor puts 9D over the library's load.
@@ -875,11 +877,15 @@ current=<host>/ shown=<host>/ index=N size=M held=false`.
   5. BACK, then any other key (an arrow, OK) inside 2 s, then BACK: the toast
      goes at the other key, and the BACK is a new toast, not an exit. BACK,
      then open something with OK and come back to the library: the same.
-  6. BACK, then press BACK twice as fast as the thumb goes: at most one toast
-     and no exit. Hold BACK down for two seconds, then again: no exit.
+  6. Three presses of BACK, all within 400 ms of the first: one toast and no
+     exit. A press from 401 ms to 2 s after the first is a real second press and
+     leaves. Hold BACK down for two seconds, then again: no exit.
   7. The TV's language set to Portuguese (Brasil): `APERTE VOLTAR DE NOVO PARA
 SAIR`. Then a phone: the same toast and the same two presses from its
      library, with the gesture and with a tablet's keyboard BACK.
+  8. On a TV with no server: open a link, press CONNECT on an address that
+     answers slowly, BACK once: the toast, CHECKING gone, the mark back on
+     CONNECT, and CONNECT works again.
 
   What each suspect looks like if step 1 goes wrong. **`canGoBackOrForward`
   refusing a skippable entry:** the toast comes up on HELP or the topic, and
@@ -1246,7 +1252,8 @@ SAVED UNTIL YOU PRESS CONNECT`, the button reading `CONNECT →`, and the
   reaches 9D and stores nothing until it answers; a refusal over the question
   leaves no half of it; BACK saves nothing, and BACK while CHECKING drops an
   answer or a failure that lands before the library has loaded, with a server
-  in use and with none; a `#lost=` for an origin not in the list asks, and
+  in use and with none, where the first BACK only toasts, the page stays and
+  CONNECT works again, before that answer lands and after it (c859); a `#lost=` for an origin not in the list asks, and
   probes and stores nothing until CONNECT, then once each, while one in the
   list (in any case) reaches 9D and its retry opens it, one not http(s) is
   refused, one just remembered is in the list, and asking stops the retry of

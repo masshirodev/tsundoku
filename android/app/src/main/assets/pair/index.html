@@ -1426,7 +1426,9 @@
 				// A late answer for this origin may have filled the 2 s window
 				// while the question was up; this press must not be swallowed by
 				// it, or CHECKING never ends (c683, as connect() does for c260).
-				if (asking) seen.delete(at);
+				// By origin: that is what the bridge answers with, and the field
+				// can hold a path or capitals the owner typed (c859).
+				if (asking) seen.delete(atOrigin(at));
 				if (bridge) bridge.probe(at);
 				else checking.textContent = 'THE APP BRIDGE IS MISSING · THIS PAGE OPENS FROM THE APK';
 			}
@@ -1567,7 +1569,8 @@
 					'THIS ADDRESS CAME FROM A LINK · NOTHING IS SAVED UNTIL YOU PRESS CONNECT';
 				document.getElementById('already').hidden = false;
 				screens.address.classList.add('with-band');
-				// With no server to go back to, BACK is the app's: it leaves.
+				// With no server to go back to, BACK is the app's: its first press
+				// only asks for a second (c859), and this page stays up meanwhile.
 				backStep = leaveQuestion;
 				wholeToggle.focus();
 			}
@@ -1577,10 +1580,22 @@
 			 * on until that navigation commits, and an answer landing before
 			 * then would otherwise store the address and leave for its
 			 * /pair/tv, taking the owner from the library they went back to.
+			 *
+			 * With no server the app answers the first BACK with a toast and
+			 * this document stays, so the question goes back to what it was
+			 * before CONNECT: the dropped answer would otherwise be the only
+			 * thing that ever lifted CHECKING and the disabled button (c859).
+			 * Disabling CONNECT took the mark off it, so the mark goes back to
+			 * the button it was pressed on, or OK would do nothing here.
 			 */
 			function leaveQuestion() {
 				lastOrigin = '';
-				return backToLibrary();
+				if (backToLibrary()) return true;
+				const wasChecking = next.disabled;
+				next.disabled = false;
+				checking.textContent = '';
+				if (wasChecking && document.activeElement === document.body) next.focus();
+				return false;
 			}
 
 			/*

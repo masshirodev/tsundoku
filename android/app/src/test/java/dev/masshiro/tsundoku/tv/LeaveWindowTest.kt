@@ -164,9 +164,40 @@ class LeaveWindowTest {
 		// The toast is already gone: nothing is left to take down.
 		val w = LeaveWindow()
 		w.press(t)
-		assertEquals(TOAST, w.press(t + 2500))
-		assertEquals(LEAVE, w.press(t + 4000))
-		assertFalse(w.end(t + 5000))
+		assertFalse(w.end(t + 2500))
+		// The key still happened: a press decided behind it does not count.
+		assertEquals(NOTHING, w.press(t + 2400))
+		assertEquals(TOAST, w.press(t + 2600))
+	}
+
+	@Test
+	fun `a window still open at its edge takes its toast with it, and just past it does not`() {
+		LeaveWindow().let {
+			it.press(t)
+			assertTrue("a key at the last millisecond", it.end(t + 1999))
+		}
+		LeaveWindow().let {
+			it.press(t)
+			assertFalse("the first millisecond a second BACK would be a new toast", it.end(t + 2000))
+		}
+		LeaveWindow().let {
+			it.navigated("https://h/", t - 1000)
+			it.press(t)
+			assertTrue("a page change at the last millisecond", it.navigated("https://h/help", t + 1999))
+		}
+		LeaveWindow().let {
+			it.navigated("https://h/", t - 1000)
+			it.press(t)
+			assertFalse("a page change past it", it.navigated("https://h/help", t + 2500))
+		}
+	}
+
+	@Test
+	fun `a window a LEAVE closed is no window for a key to end`() {
+		val w = LeaveWindow()
+		w.press(t)
+		assertEquals(LEAVE, w.press(t + 1000))
+		assertFalse(w.end(t + 1100))
 	}
 
 	/**

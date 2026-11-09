@@ -43,7 +43,8 @@ class LeaveWindow(
 
 	private var page: String? = null
 
-	private fun open(): Long? = armed?.takeIf { it > ended }
+	/** The press that opened a window still running at [at], if there is one. */
+	private fun open(at: Long): Long? = armed?.takeIf { it > ended && at - it < lasts }
 
 	/**
 	 * A BACK the page did not take and history cannot step, at [at].
@@ -55,7 +56,7 @@ class LeaveWindow(
 		// Something else happened after this press, while the page was
 		// answering for it: the owner has moved on.
 		if (at <= ended) return Verdict.NOTHING
-		val since = open()?.takeIf { at - it < lasts }
+		val since = open(at)
 		if (since == null) {
 			armed = at
 			return Verdict.TOAST
@@ -71,10 +72,11 @@ class LeaveWindow(
 	 * The window ends here: another key, or a BACK that went elsewhere. True
 	 * when this closed one, so the activity can take its toast down. An end
 	 * older than the press that opened the window (a page's late answer)
-	 * closes nothing.
+	 * closes nothing, and neither does one past the window's own time: its
+	 * toast went by itself.
 	 */
 	fun end(at: Long): Boolean {
-		val window = open()
+		val window = open(at)
 		ended = maxOf(ended, at)
 		return window != null && window <= at
 	}
