@@ -229,8 +229,10 @@ inside the app is not kept and a row is usually in this state.
 
 On a TV the card has **two stops**: ▶ is a 48 px ruled cell at the card's end,
 the first stop and what BACK climbs to, and the band is the rest. A trip to the
-series comes back to the stop it left. ↓ from the first ▶ goes to the first
-shelf tab (`data-focus-down`), where the whole card used to take it. ▶❚❚ on
+series comes back to the stop it left. On a TV, whose cards sit three across, ↓
+from the first ▶ goes to the first shelf tab (`data-focus-down`), where the
+whole card used to take it; everywhere else the rows stack and ↓ is the row
+under it. ▶❚❚ on
 either stop resumes.
 
 ## New chapters
