@@ -327,7 +327,12 @@ finger never sees a mark, and a desktop keyboard sees exactly what a TV does.
 - **Inside** a cell of a ruled block, so the frame never crosses the hairline: a
   band cell, a bar cell, a list row. Those say so with `data-focus-mark="in"`.
 - **On a cover tile**, the mark frames the cover, not the tile's title and
-  rating bar: `CoverTile` and `BookTile` move it to the `.cover` child.
+  rating bar: `CoverTile` and `BookTile` move it to the `.cover` child, and
+  BROWSE's `ResultTile` (c864) draws it there too: its own three hairlines
+  outweigh the global ring, so a focused tile had none, and in a grid with a
+  1 px gap an outer ring on the tile would be painted under its neighbours.
+  The cover's ring ends 7 px out, inside the tile's 10 px padding. Under
+  FILTER's scrim the focused tile is lifted over it.
 - On a selected cover the mark replaces the accent select ring while focused;
   the two rings would sit on the same pixels.
 
@@ -356,6 +361,7 @@ The ids the app sets:
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Library | `series-<id>` (the tile), `continue-<id>` (the resume cell), `shelf-<key>`, `library-more`, `library-server` (S1, the TV app's server cell) |
 | Series  | `series-back`, `series-continue` (the bar's ▶ and the panel's), `entry-<id>`, `book-<id>`                                                   |
+| BROWSE  | `result-<mangaId>` (a catalog tile, c864: back from its preview puts the mark on it again)                                                  |
 | Sheets  | none: the opener is remembered in memory, not by id                                                                                         |
 
 ## What the audit changed
@@ -434,6 +440,9 @@ BACK climbs the screen before it leaves.
   inner scroller's top scrolling the page up. And c618: with the root locked
   (`html`, and `body`), ↓ moves nothing, while the same page still scrolls
   with no lock.
+- `tests/tv-browse-focus.e2e.ts` — the mark on BROWSE's tiles (c864): POPULAR,
+  LATEST, a search, back from a preview and under FILTER's scrim, each reading
+  the cover's computed ring and hitting all four sides and corners of it.
 - `tests/tv-library-top.e2e.ts` — the pinned rows never covering the first
   row's focus ring (`reveal()`'s bar step), and one BACK from deep in the
   grid landing on the first CONTINUE card at the top and staying there, every
