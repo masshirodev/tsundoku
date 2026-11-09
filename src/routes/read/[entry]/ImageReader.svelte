@@ -42,6 +42,16 @@
 	import { offline } from '$lib/offline.svelte';
 	import { keepAhead } from '$lib/cache/device';
 	import { flushPending, queuePending } from '$lib/cache/pending';
+	import {
+		dismissRefused,
+		onQueueChange,
+		queueHighlight,
+		refusedDetail,
+		refusedHighlights,
+		takeBackHighlight,
+		waitingHighlights,
+		type QueuedHighlight
+	} from '$lib/cache/pending-highlights';
 	import { SvelteMap } from 'svelte/reactivity';
 	import ReaderPageMenu from './ReaderPageMenu.svelte';
 	import HighlightSheet from './HighlightSheet.svelte';
@@ -1560,6 +1570,8 @@
 	const keptHere = $derived(keptOf(data.entry.id));
 	/** The asks on their way, by `keepKey`. */
 	let keeping = $state<string[]>([]);
+	/** Pages kept offline, waiting on the device for the next connection (c842), by `keepKey`. */
+	let waitingKeys = $state<string[]>([]);
 	let choices = $state<SpreadChoice[] | null>(null);
 	let hlOpen = $state<{ entry: number; kept: KeptPage; entryName: string } | null>(null);
 	let hlBand = $state<{
@@ -1575,16 +1587,18 @@
 	}
 	/** A browsing record is not in the library: it keeps nothing, as it rates nothing. */
 	const highlights = $derived(!data.record && !atEnd);
+	/** Is this `keepKey` a page on screen? */
+	const keyOnScreen = (key: string) => {
+		const [entry, page, end] = key.split(':');
+		return (
+			Number(entry) === data.entry.id &&
+			group.some((p) => p === Number(page) || (end !== '' && p === Number(end)))
+		);
+	};
 	/** An ask on its way for a page on screen: the cell is KEEPING… until it answers. */
-	const groupKeeping = $derived(
-		keeping.some((key) => {
-			const [entry, page, end] = key.split(':');
-			return (
-				Number(entry) === data.entry.id &&
-				group.some((p) => p === Number(page) || (end !== '' && p === Number(end)))
-			);
-		})
-	);
+	const groupKeeping = $derived([...keeping, ...waitingKeys].some(keyOnScreen));
+	/** KEEPING… because it waits on the device: pressing it brings DON'T SEND back. */
+	const groupWaiting = $derived(waitingKeys.some(keyOnScreen));
 	const hlState = $derived(
 		cellState({
 			kept: keptHere,
@@ -1598,6 +1612,7 @@
 		highlights
 			? {
 					state: hlState,
+					waiting: groupWaiting,
 					label: cellLabel(hlState, { strip: mode === 'vertical', page: group[0] })
 				}
 			: null
@@ -1634,15 +1649,27 @@
 
 	async function keep(entry: number, page: number, pageEnd: number | null) {
 		if (data.incognito) return;
+		const key = keepKey(entry, page, pageEnd);
+		if (waitingKeys.includes(key)) return showWaiting(key, page, pageEnd);
 		if (!offline.online) {
-			showHlBand({
-				title: '○ OFFLINE',
-				detail: 'HIGHLIGHT NEEDS THE WORKSTATION',
-				action: null
+			const queued = await queueHighlight({
+				key,
+				url: resolve('/api/highlights/pages'),
+				body: { entry, page, pageEnd, rtl: mode === 'rtl' },
+				entry,
+				label: pageName(page, pageEnd),
+				series: data.series.title
 			});
+			if (queued) showWaiting(key, page, pageEnd);
+			// Storage this browser refused: there is nowhere for it to wait.
+			else
+				showHlBand({
+					title: '○ OFFLINE',
+					detail: 'HIGHLIGHT NEEDS THE WORKSTATION',
+					action: null
+				});
 			return;
 		}
-		const key = keepKey(entry, page, pageEnd);
 		if (keeping.includes(key)) return;
 		keeping = [...keeping, key];
 		hlBand = null;
@@ -1664,7 +1691,7 @@
 			if (!list.some((k) => k.id === highlight.id)) setKept(entry, [...list, highlight]);
 			return;
 		}
-		const p = pageEnd === null ? `P. ${page + 1}` : `P. ${page + 1}–${pageEnd + 1}`;
+		const p = pageName(page, pageEnd);
 		showHlBand(
 			{
 				title: `${p} NOT KEPT`,
@@ -1684,6 +1711,65 @@
 			10_000
 		);
 	}
+
+	const pageName = (page: number, pageEnd: number | null) =>
+		pageEnd === null ? `P. ${page + 1}` : `P. ${page + 1}–${pageEnd + 1}`;
+
+	/** The band while a page waits: what it is, and the one way to take it back. */
+	function showWaiting(key: string, page: number, pageEnd: number | null) {
+		showHlBand(
+			{
+				title: 'WAITING TO BE SENT',
+				detail: `${pageName(page, pageEnd)} · AT THE NEXT CONNECTION`,
+				action: {
+					label: "DON'T SEND",
+					run: () => {
+						hlBand = null;
+						void takeBackHighlight(key);
+					}
+				}
+			},
+			10_000
+		);
+	}
+
+	function tellRefused(refused: QueuedHighlight[]) {
+		const [first] = refused;
+		showHlBand(
+			{
+				title:
+					refused.length === 1 ? `${first.label} NOT KEPT` : `${refused.length} PAGES NOT KEPT`,
+				detail: `${first.series.toUpperCase()} · ${refusedDetail(first.refused!)}`,
+				action: {
+					label: 'DISMISS',
+					run: () => {
+						hlBand = null;
+						void dismissRefused(refused.map((r) => r.key));
+					}
+				}
+			},
+			30_000
+		);
+	}
+
+	async function refreshQueue() {
+		waitingKeys = (await waitingHighlights()).map((i) => i.key);
+		const refused = await refusedHighlights();
+		if (refused.length) tellRefused(refused);
+	}
+	// What waits is the device's, not this page's: it is read on opening, and a
+	// send started by the layout (+layout.svelte) tells this reader what it made.
+	onMount(() => {
+		void refreshQueue();
+		return onQueueChange(({ sent }) => {
+			for (const { item, answer } of sent) {
+				const made = (answer as { highlight?: KeptPage } | null)?.highlight;
+				const list = keptOf(item.entry);
+				if (made && !list.some((k) => k.id === made.id)) setKept(item.entry, [...list, made]);
+			}
+			void refreshQueue();
+		});
+	});
 
 	async function noteKept(note: string): Promise<boolean> {
 		const o = hlOpen;

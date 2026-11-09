@@ -166,9 +166,24 @@ P. 23` (M4).
   incognito makes none, and `POST /api/highlights/pages` refuses one with 403
   whatever the page thinks); **KEEPING…**, dashed, while the workstation
   makes the copy; ✓ HIGHLIGHTED; **○ HIGHLIGHT**, at 0.4, offline, where a
-  press says `○ OFFLINE · HIGHLIGHT NEEDS THE WORKSTATION` in the band and
-  asks nothing; HIGHLIGHT. A browsing record (a series not in the library)
+  press keeps the page on the device for the next connection (c842, below); the
+  cell then reads **KEEPING…**, dashed, and pressing it brings the band back;
+  HIGHLIGHT. A browsing record (a series not in the library)
   has no cell, as it has no rating.
+
+  **A page kept offline** (c842; the queue is doc/OFFLINE.md, "Writes that
+  wait") waits on the device in IndexedDB, as its entry, page and `pageEnd`; the
+  workstation makes the copy when it arrives. The band says `WAITING TO BE SENT
+· P. 5 · AT THE NEXT CONNECTION` with **DON'T SEND**, which takes it back
+  before anything is asked. It goes with no further press, from any screen,
+  when the connection comes back or the app is next opened, and appears in
+  `/highlights` then. Two presses are one, and a resend (a tab that died between
+  the POST and the removal, the same page kept on a second device) is the same
+  one highlight, by the one-per-page rule below. A page refused on arrival (its
+  entry gone, its series hidden since, a source that didn't send it on three
+  tries) comes back as `P. 5 NOT KEPT · <SERIES> · ITS SERIES OR CHAPTER IS GONE`
+  at the next reader opened, with DISMISS. Incognito keeps nothing, online or
+  off.
 
 ### The copy, and one per page
 

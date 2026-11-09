@@ -88,7 +88,7 @@
 		 * its state; none where the reader offers no highlight (a browsing
 		 * record, which is not in the library).
 		 */
-		highlight?: { label: string; state: CellState } | null;
+		highlight?: { label: string; state: CellState; waiting?: boolean } | null;
 		/** The scrubber's yellow ticks, one at each kept page (0-based). */
 		ticks?: number[];
 		onhighlight?: () => void;
@@ -259,9 +259,10 @@
 				bind:this={hlCell}
 				aria-haspopup="dialog"
 				disabled={highlight.state === 'incognito'}
-				aria-disabled={highlight.state === 'keeping' || undefined}
+				aria-disabled={(highlight.state === 'keeping' && !highlight.waiting) || undefined}
 				data-focus-mark="in"
-				onclick={() => highlight?.state !== 'keeping' && onhighlight?.()}>{highlight.label}</button
+				onclick={() => (highlight?.state !== 'keeping' || highlight.waiting) && onhighlight?.()}
+				>{highlight.label}</button
 			>
 		{/if}
 		{#if fullscreen.available}

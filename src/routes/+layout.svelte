@@ -33,8 +33,17 @@
 	import SeriesOutline from './series/[id]/SeriesOutline.svelte';
 	import { followSurface } from '$lib/app/surface';
 	import { appUpdater } from '$lib/app/update.svelte';
+	import { offline } from '$lib/offline.svelte';
+	import { flushHighlights } from '$lib/cache/pending-highlights';
 
 	let { data, children } = $props();
+
+	// Highlights kept offline go at the next connection, on any screen and with
+	// no further press (c842; doc/OFFLINE.md): on opening the app, and each time
+	// the connection comes back.
+	$effect(() => {
+		if (offline.online) void flushHighlights();
+	});
 
 	// D-pad focus for the whole app (src/lib/focus, doc/FOCUS.md): one key
 	// listener, arrow keys moving by geometry, sheets as scopes.

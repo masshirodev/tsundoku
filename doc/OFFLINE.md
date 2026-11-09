@@ -98,6 +98,29 @@ puts it on the day it was read. Replayed events **never move progress
 backwards**: position and last-opened only advance in time, so an old event
 arriving late can't undo something read since.
 
+## Writes that wait
+
+Reading progress waits in `localStorage` (above). **A highlight kept offline is
+the first other write that waits, and `src/lib/cache/pending-highlights.ts` is
+the mechanism for any like it** (c842): an item names its own address and body,
+so a page (H3) goes through it now and a quote (H2) can; a rating or FAV could
+later, and doesn't yet. It is in IndexedDB, so it outlives the app being closed,
+and it's sent by the layout (`+layout.svelte`, on opening and whenever the
+connection comes back), so it doesn't need a reader open, where `flushPending`
+does.
+
+It sends once by two things together: one row per key on the device (two
+presses are one) and the workstation answering the same thing asked again with
+the one it already made (a resend after a reload, a tab that died between the
+POST and the removal, the same page kept on two devices). So a new user of the
+queue needs a door that answers a repeat with what it already made.
+
+What each answer does (`arrival`): 2xx sent; a dropped connection, a 401, a 403
+(incognito on at the moment, which says nothing of the item) and a 5xx stop the
+pass and everything waits for the next one; a 502 waits and the rest go on, and
+after three tries is told; any other 4xx is refused for good, and the reader is
+told at the next reader screen until it dismisses it.
+
 ## Tests
 
 - `tests/cache-policy.spec.ts`: the policy.
@@ -106,11 +129,14 @@ arriving late can't undo something read since.
   caches ahead, reads the next chapter with the network cut, queues the
   events, replays them when back online, and checks ↓ CACHE / REMOVE CACHE
   and the `no-store` rule.
+- `tests/highlights-queue.spec.ts`: the queue's rules, every answer and sending
+  once. `tests/highlights-queue-flow.e2e.ts`: a page kept offline, through a
+  reconnection, a closed app, a refusal, DON'T SEND and incognito.
 
 ## Not yet
 
 - **Installing the PWA** (a web manifest and icons) is its own small step.
 - **Offline history, series and library screens** show the last copy seen.
-  Changes made offline (a rating, FAV) need the network: writes aren't queued,
-  only reading progress.
+  Changes made offline (a rating, FAV) need the network: only reading
+  progress and highlights ("Writes that wait", above) are queued.
 - **Hidden series can't be read offline,** by design.

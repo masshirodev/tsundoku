@@ -291,7 +291,7 @@ test('a failure keeps nothing and says why; TRY AGAIN keeps one (M7)', async ({ 
 	expect(kept(entry).filter((r) => r.page === 8)).toHaveLength(1);
 });
 
-test('offline: ○ HIGHLIGHT at 0.4, and a press says it needs the workstation, asking nothing (M7)', async ({
+test('offline: ○ HIGHLIGHT at 0.4, and a press waits for the next connection, asking nothing yet (M7, c842)', async ({
 	page,
 	context
 }) => {
@@ -306,8 +306,11 @@ test('offline: ○ HIGHLIGHT at 0.4, and a press says it needs the workstation, 
 		await expect(cell(page)).toHaveText('○ HIGHLIGHT');
 		await expect(cell(page)).toHaveCSS('opacity', '0.4');
 		await cell(page).click();
-		await expect(band(page)).toContainText('HIGHLIGHT NEEDS THE WORKSTATION');
+		await expect(band(page)).toContainText('WAITING TO BE SENT');
 		expect(asks).toBe(0);
+		// It leaves nothing waiting behind for the next case's connection.
+		await band(page).getByRole('button', { name: "DON'T SEND" }).click();
+		await expect(cell(page)).toHaveText('○ HIGHLIGHT');
 	} finally {
 		await context.setOffline(false);
 	}
