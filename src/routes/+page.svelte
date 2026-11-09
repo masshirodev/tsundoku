@@ -2987,13 +2987,19 @@
 	}
 	/* S1: the wordmark's cell, then ON <NAME> (TV-Servers.dc.html, `bar`). The
 	   left cell draws the rule after it; this draws the one between it and the
-	   wordmark. The name clips at 180 px, the cell at 200. Only the TV app
-	   draws it, so it carries the TV's control type at every size. */
+	   wordmark. The cell stops at 200 px and the padding is the design's 22 px
+	   (its tv.css `.cell`), not `.cell-btn`'s --pad: a TV's --pad is 48, which
+	   left a name 72 px and cut ARCHLINUX after four letters (c862). At 22 the
+	   name has 124 px, eleven characters in the TV's type, and a longer one ends
+	   in an ellipsis; the 180 px on the name is the design's, and never the
+	   limit that binds. Only the TV app draws it, so it carries the TV's control
+	   type at every size. */
 	.server-cell {
 		display: flex;
 		align-items: center;
 		gap: 10px;
 		max-width: 200px;
+		padding: 0 22px;
 		border-left: var(--hairline);
 		letter-spacing: 0.02em;
 	}

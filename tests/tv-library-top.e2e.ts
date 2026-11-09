@@ -553,3 +553,92 @@ test('each stop draws the ring inside the card, and ▶ is a visible cell (c841)
 	await expect(band).toBeFocused();
 	expect(await band.evaluate(ring)).toContain('inset');
 });
+
+/**
+ * The bar's ON <NAME> cell at the TV's 960 px, in the TV's own type (c862). The
+ * APK's bridge, stood up as `tests/tv-servers.e2e.ts` does, with this page's
+ * own origin as the server in use, as `inUseOf` finds it. ARCHLINUX is the
+ * owner's computer, and 20 characters the longest case the card names.
+ */
+test.describe('the bar names the server in use (c862)', () => {
+	const cell = (page: Page) => page.locator('[data-focus-id="library-server"]');
+
+	async function onServer(page: Page, name: string) {
+		await page.addInitScript((shown) => {
+			const list = [
+				{ origin: location.origin, name: shown, tvName: '', opened: 2, shown, inUse: true },
+				{
+					origin: 'http://192.168.1.61:42143',
+					name: 'STUDIO',
+					tvName: '',
+					opened: 1,
+					shown: 'STUDIO',
+					inUse: false
+				}
+			];
+			(window as unknown as { TsundokuTV: object }).TsundokuTV = {
+				servers: () => JSON.stringify(list),
+				open: () => undefined,
+				probe: () => undefined,
+				forgetServer: () => '[]'
+			};
+		}, name);
+		await page.goto('/');
+		await expect(cell(page)).toBeVisible();
+		await page.evaluate(() => document.fonts.ready);
+	}
+
+	/** The drawn width of the name's text, and of the box that shows it. */
+	const measure = (page: Page) =>
+		cell(page)
+			.locator('.srv-name')
+			.evaluate((el) => {
+				const range = document.createRange();
+				range.selectNodeContents(el);
+				const face = getComputedStyle(el).fontFamily.split(',')[0].replace(/"/g, '');
+				return {
+					text: range.getBoundingClientRect().width,
+					shown: el.getBoundingClientRect().width,
+					scroll: el.scrollWidth,
+					client: el.clientWidth,
+					face,
+					// The face really drawn, not only the one asked for (the card's Iosevka trap).
+					loaded: [...document.fonts].some(
+						(f) => f.family.replace(/"/g, '') === face && f.status === 'loaded'
+					)
+				};
+			});
+
+	test('ARCHLINUX reads whole, in the frame the design draws', async ({ page }) => {
+		await onServer(page, 'ARCHLINUX');
+		const m = await measure(page);
+		expect(m.face).toBe('IBM Plex Mono');
+		expect(m.loaded, 'IBM Plex Mono drew it, not a fallback').toBe(true);
+		expect(m.text, 'the name has a width at all').toBeGreaterThan(90);
+		expect(m.scroll, 'nothing of the name is cut').toBeLessThanOrEqual(m.client);
+		expect(m.text).toBeLessThanOrEqual(m.shown + 0.5);
+
+		const brand = (await page.locator('header .brand').boundingBox())!;
+		const box = (await cell(page).boundingBox())!;
+		const search = (await page.locator('header .search-hint').boundingBox())!;
+		expect(box.x).toBeCloseTo(brand.x + brand.width, 0);
+		expect(box.width).toBeLessThanOrEqual(200);
+		expect(search.x).toBeGreaterThanOrEqual(box.x + box.width);
+		await expect(cell(page)).toHaveCSS('padding-left', '22px');
+		await expect(cell(page)).toHaveCSS('padding-right', '22px');
+	});
+
+	test('a 20-character name ends in an ellipsis at the end of the cell', async ({ page }) => {
+		await onServer(page, 'ABCDEFGHIJKLMNOPQRST');
+		const m = await measure(page);
+		const box = (await cell(page).boundingBox())!;
+		const name = (await cell(page).locator('.srv-name').boundingBox())!;
+		expect(m.scroll, 'the name is wider than its box').toBeGreaterThan(m.client);
+		await expect(cell(page).locator('.srv-name')).toHaveCSS('text-overflow', 'ellipsis');
+		await expect(cell(page).locator('.srv-name')).toHaveText('ABCDEFGHIJKLMNOPQRST');
+		expect(box.width).toBe(200);
+		// What the name is given: the cell less its rule, ON, the gap and 22 px a side.
+		expect(name.width).toBeGreaterThanOrEqual(120);
+		expect(box.x + box.width - (name.x + name.width)).toBeCloseTo(22, 0);
+	});
+});

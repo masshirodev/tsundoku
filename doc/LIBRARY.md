@@ -59,7 +59,10 @@ is a link to the library. Inside the TV app with two or more servers, the
 cell after it says whose library this is, `ON LIVING ROOM`, and OK on it
 opens SERVERS (S1, c261; [`TV-APP.md`](TV-APP.md), "The bar's server cell");
 the wordmark is then not an arrow stop, so ↑ from the library lands on that
-cell.
+cell. The cell is at most 200 px with the design's 22 px of padding, so a name
+has 124 px, eleven characters in the TV's type: `ARCHLINUX` reads whole, and a
+longer name ends in an ellipsis at the cell's padding (c862, pinned in
+`tests/tv-library-top.e2e.ts`).
 
 ## Rating
 
