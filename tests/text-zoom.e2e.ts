@@ -83,7 +83,11 @@ test('at 130% text every series row’s label fits its column, SHELVES included'
 		await page.waitForURL(/\/series\/\d+/, { timeout: 2_000 });
 	}).toPass({ timeout: 20_000 });
 	const panel = page.getByRole('region', { name: 'About this series' });
-	await expect(panel.locator('.label', { hasText: 'SHELVES' })).toBeVisible();
+	// SHELVES is drawn twice, one copy per order, and CSS shows one (c556,
+	// doc/SERIES.md, "Two markups"): the row to read is the copy that can be seen.
+	await expect(
+		panel.locator('.label', { hasText: 'SHELVES' }).filter({ visible: true })
+	).toBeVisible();
 	const overflowing = () =>
 		panel.locator('.label').evaluateAll((els) =>
 			els

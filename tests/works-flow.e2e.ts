@@ -754,6 +754,17 @@ test('a HIDE and an UNDO past the first page read the loaded pages once each too
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	await tile.locator('.open').click();
 	await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+
+	// A Work is hidden whole, so a deep tile's HIDE asks as well (W4). Asking
+	// writes nothing and reads nothing: the one read below is the answer's.
+	const hide = page.getByRole('dialog', { name: 'Hide' });
+	await expect(hide.locator('.h-title .t')).toHaveText('HIDE 2 SERIES?');
+	await expect(hide.locator('.h-title .s')).toHaveText('PART OF ZZZ REFILL RUN');
+	await list.settled();
+	expect(list.refills()).toHaveLength(0);
+	await expect(tile).toHaveCount(1);
+
+	await hide.getByRole('button', { name: 'HIDE ALL 2', exact: true }).click();
 	await expect(page.locator('.band', { hasText: 'HIDDEN · THE WORK, WHOLE' })).toBeVisible();
 	await expect(tile).toHaveCount(0);
 	await list.settled();
@@ -768,8 +779,9 @@ test('a HIDE and an UNDO past the first page read the loaded pages once each too
 	await list.settled();
 	expect(list.refills()).toHaveLength(1);
 
-	// Done: end the Work, so the seed is what the other cases expect.
-	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	// Done: end the Work, so the seed is what the other cases expect. Answering
+	// the sheet ended the selection, so a tap on the tile opens the Work.
+	await expect(page.getByRole('button', { name: 'Stop selecting' })).toHaveCount(0);
 	await tile.click();
 	await endWork(page);
 });
@@ -2126,7 +2138,11 @@ test('MIGHT CONTINUE <WORK>: REVIEW opens ADD TO A WORK with it last and ticked,
 
 	// NOT THIS: its band's UNDO brings the offer straight back.
 	await offer.getByRole('button', { name: 'NOT THIS' }).click();
-	const dismissed = page.locator('.band', { hasText: "NOT THIS · WON'T ASK AGAIN" });
+	// The bands are drawn twice, one copy per order, and CSS shows one (c556,
+	// doc/SERIES.md, "Two markups"): the band is the copy that can be seen.
+	const dismissed = page
+		.locator('.band', { hasText: "NOT THIS · WON'T ASK AGAIN" })
+		.filter({ visible: true });
 	await expect(dismissed).toBeVisible();
 	await expect(offer).toHaveCount(0);
 	await dismissed.getByRole('button', { name: 'UNDO' }).click();
