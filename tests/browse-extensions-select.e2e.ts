@@ -321,6 +321,21 @@ test('UPDATE narrows UPDATE ALL to the ticked row, and its UNDO is BACK TO', asy
 	await expect(page.locator('.cell.count')).toHaveText('0 SELECTED');
 });
 
+test('a band from its URL keeps every row of every list, and UPDATE’s UNDO posts each', async ({
+	page
+}) => {
+	// The action writes `done=a&done=b`; the load must read both, and the form
+	// must post one `pkg` per updated row (round 2: it used to keep the first).
+	await page.goto(
+		'/browse/extensions?band=update&done=e2e.open&done=ln:shelf&miss=e2e.hidden&of=3&no=0'
+	);
+	const band = page.locator('.band');
+	await expect(band).toContainText('UPDATED · 2 OF 3');
+	await expect(band.locator('input[name=pkg]')).toHaveCount(2);
+	await expect(band.locator('input[name=pkg]').nth(0)).toHaveValue('e2e.open');
+	await expect(band.locator('input[name=pkg]').nth(1)).toHaveValue('ln:shelf');
+});
+
 test('REMOVE asks first for the whole selection, and has no UNDO', async ({ page }) => {
 	await addRepo(page);
 	await installWebtoons(page);
