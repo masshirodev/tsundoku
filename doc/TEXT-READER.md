@@ -97,13 +97,19 @@ made of.
   the edge.
 - **Scroll** is one column that runs past the screen. The next chapter is
   already below the band that ends this one. Once its start passes the middle
-  of the screen, the reader moves to it. Nothing above a chapter is kept (it
-  doesn't carry back, "What it doesn't do yet"), so the new chapter's start
-  goes to the top, under its band: measured in wave 32, a crossing with the
-  start 600 px down landed it at 88 px at `071465ee` (the margin) and at
-  166 px with the band. Only a crossing caught late, its start already higher
-  than that, keeps it where it stood (the reader's notes, wave 32, have the
-  measurement; keeping the old chapter's end above is a suggestion there).
+  of the screen, the reader moves to it, and **nothing on screen moves**
+  (c744): the line being read stays at the height it was. A screen of the old
+  chapter's end and its END band are kept above the new chapter's start band
+  as copies (`.kept`, the whole chapter when it is shorter than the screen),
+  so there is room above for the jump the crossing would otherwise clamp to
+  the top. A next volume (c347) keeps nothing: it is crossed as an empty room
+  under OPENING, nothing on screen runs on into it, and it opens at its own
+  top. The kept part is not the chapter: it carries no `data-b` and is
+  `inert`, so it isn't a position, a lookup or a press; the progress, `?at=`
+  and CONTENTS count from the new chapter's own top; the next crossing
+  replaces it, it doesn't grow; and every other way into a chapter empties
+  it, as does a reload ("What it doesn't do yet": it doesn't carry back, so
+  scrolling up reads it and stops at its top).
 
 ### WIDTH
 
@@ -224,10 +230,10 @@ rule and colours (`.cstart` in `TextReader.svelte`; no design round):
   stands at under the band, so a face arriving doesn't scroll the band away.
   Below this chapter: END, then the next chapter's start band (once its text
   is ready), then its text. The crossing into the next chapter is still its
-  first block passing the middle of the screen, as it was, and the chapter
-  then stands at the top with its band ("Pages", above, for the jump that
-  makes); a relayout right after keeps its first line where the crossing put
-  it. A next volume's room (c347) has no band
+  first block passing the middle of the screen, as it was, and its first
+  line stays where it stood, under its band ("Pages", above, for what is kept
+  above it); a relayout right after keeps its first line where the crossing
+  put it. A next volume's room (c347) has no band
   before it: that chapter isn't read until it opens, and its band is then at
   its top. **Where you are counts from the band down** (c742): the scroll's
   fraction (the progress bar, the scrubber's 1–100, and the finish at 0.999)
@@ -651,7 +657,8 @@ There's always ← SERIES and LIBRARY.
   in `fonts-reading.css` (not an `@import` of @fontsource's CSS, which would
   put woff back in every device's precache), and the TYPEFACE row's option.
 - **Scroll doesn't carry back into the previous chapter.** Scrolling up past
-  the top stops there, and `← CH.` goes back.
+  the top (or past the end a crossing kept, c744, which isn't the chapter)
+  stops there, and `← CH.` goes back.
 - **The budget ignores books' weight after the first marker,** and letting go
   of an entry's marker doesn't delete the EPUB from the device cache.
 - **Pasted web-novel chapters** (ARCHITECTURE.md, "Web novels").

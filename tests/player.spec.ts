@@ -24,6 +24,11 @@ import {
 	startTracks,
 	seekFor,
 	stallStep,
+	stallClock,
+	stallElapsed,
+	NO_STALL,
+	type StallClock,
+	type StallEvent,
 	subtitlePx,
 	TAP_SLOP_PX
 } from '$lib/library/player';
@@ -305,5 +310,147 @@ describe('nearFrame', () => {
 		expect(nearFrame(10, 11, 0)).toBe(true);
 		expect(nearFrame(10, 11, Number.NaN)).toBe(true);
 		expect(nearFrame(10, 11.01, Number.POSITIVE_INFINITY)).toBe(false);
+	});
+});
+
+describe('the stall clock (c867)', () => {
+	const at = (now: number, over: Partial<{ paused: boolean; canPlay: boolean }> = {}) => ({
+		now,
+		paused: false,
+		canPlay: false,
+		...over
+	});
+	const run = (events: [StallEvent, number, Partial<{ paused: boolean; canPlay: boolean }>?][]) =>
+		events.reduce<StallClock>((c, [e, t, o]) => stallClock(c, e, at(t, o)), NO_STALL);
+
+	it('a stall with no seek starts at the waiting, and playing ends it', () => {
+		expect(run([['waiting', 100]])).toEqual({ since: 100, seeking: false });
+		expect(
+			run([
+				['waiting', 100],
+				['waiting', 900]
+			])
+		).toEqual({ since: 100, seeking: false });
+		expect(
+			run([
+				['waiting', 100],
+				['playing', 900]
+			])
+		).toEqual(NO_STALL);
+	});
+
+	it('every step of a held key restarts it, so it counts from the last', () => {
+		const held = Array.from({ length: 200 }, (_, i): [StallEvent, number] => ['seeking', i * 100]);
+		expect(run(held)).toEqual({ since: 19_900, seeking: true });
+	});
+
+	it('a waiting during a seek changes nothing, whichever came first', () => {
+		expect(
+			run([
+				['seeking', 100],
+				['waiting', 150]
+			])
+		).toEqual({ since: 100, seeking: true });
+		expect(
+			run([
+				['waiting', 50],
+				['seeking', 100]
+			])
+		).toEqual({ since: 100, seeking: true });
+	});
+
+	it('a seek that never lands has run from the last input', () => {
+		expect(
+			run([
+				['seeking', 100],
+				['seeking', 400]
+			]).since
+		).toBe(400);
+	});
+
+	it('a seek that lands with something to play stops it', () => {
+		expect(
+			run([
+				['seeking', 100],
+				['seeked', 900, { canPlay: true }]
+			])
+		).toEqual(NO_STALL);
+	});
+
+	it('a seek that lands with nothing to play starts afresh from the landing, with no event left', () => {
+		expect(
+			run([
+				['seeking', 100],
+				['waiting', 120],
+				['seeked', 9000]
+			])
+		).toEqual({
+			since: 9000,
+			seeking: false
+		});
+	});
+
+	it('a playing queued before the seek does not end a seek in progress', () => {
+		expect(
+			run([
+				['seeking', 100],
+				['playing', 110]
+			])
+		).toEqual({ since: 100, seeking: true });
+	});
+
+	it('a paused player runs no clock, seeking or landing', () => {
+		expect(run([['seeking', 100, { paused: true }]])).toEqual({ since: null, seeking: true });
+		expect(run([['seeked', 100, { paused: true }]]).since).toBeNull();
+		expect(run([['waiting', 100, { paused: true }]])).toEqual(NO_STALL);
+	});
+
+	it('pausing stops it, and play from a seek still in progress starts it at the waiting', () => {
+		expect(
+			run([
+				['waiting', 100],
+				['paused', 200, { paused: true }]
+			])
+		).toEqual(NO_STALL);
+		const paused = run([['seeking', 100, { paused: true }]]);
+		expect(stallClock(paused, 'waiting', at(500))).toEqual({ since: 500, seeking: true });
+	});
+
+	it('a reset forgets a stall and a seek', () => {
+		expect(
+			run([
+				['seeking', 100],
+				['reset', 200]
+			])
+		).toEqual(NO_STALL);
+	});
+
+	it('every event from every state keeps seeking true only until a landing or a reset', () => {
+		const events: StallEvent[] = ['waiting', 'seeking', 'seeked', 'playing', 'paused', 'reset'];
+		const states: StallClock[] = [
+			{ since: null, seeking: false },
+			{ since: 5, seeking: false },
+			{ since: null, seeking: true },
+			{ since: 5, seeking: true }
+		];
+		for (const state of states)
+			for (const event of events)
+				for (const paused of [false, true])
+					for (const canPlay of [false, true]) {
+						const next = stallClock(state, event, { now: 9, paused, canPlay });
+						const seeking =
+							event === 'seeking' || (state.seeking && event !== 'seeked' && event !== 'reset');
+						expect(next.seeking, `${JSON.stringify(state)} ${event}`).toBe(seeking);
+						// A running clock never moves earlier, and a paused player never starts one.
+						if (next.since !== null && next.since !== state.since) {
+							expect(paused).toBe(false);
+							expect(next.since).toBe(9);
+						}
+					}
+	});
+
+	it('counts whole seconds, so 15 is a full 15 s', () => {
+		expect(stallElapsed(0, 14_999)).toBe(14);
+		expect(stallElapsed(0, 15_000)).toBe(15);
 	});
 });

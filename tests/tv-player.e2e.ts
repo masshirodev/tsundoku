@@ -1298,3 +1298,97 @@ test.describe('the seek preview on a TV (c457)', () => {
 		expect(low, 'a stream on a TV started a seek preview').toEqual([]);
 	});
 });
+
+/**
+ * c867 on a TV: a held → is the reader moving, not a stall. Tests/browse-player-stall.e2e.ts
+ * is the whole account and the other devices; this is the same stream made to
+ * buffer, on the remote's own door (the bar's slider keeps the key once it has it).
+ */
+test('a held → leaves the full 15 s after the release on a TV (c867)', async ({ page }) => {
+	test.setTimeout(120_000);
+	const KEPT = 36_000;
+	let clip: string | null = null;
+	await page.route(
+		(u) => /\/api\/anime\/episode\/\d+\/videos/.test(u.pathname),
+		async (route) => {
+			const answer = await route.fetch();
+			const list = await answer.json();
+			const last = list.servers[list.servers.length - 1];
+			const q = last.qualities[0];
+			clip = new URL(q.src, page.url()).pathname;
+			last.qualities = [
+				{ ...q, label: '1080p', height: 1080, src: `${q.src}#1080` },
+				{ ...q, label: '720p', height: 720, src: `${q.src}#720` }
+			];
+			await route.fulfill({ response: answer, json: { ...list, servers: [last] } });
+		}
+	);
+	await page.route(
+		(u) => u.pathname === clip,
+		async (route) => {
+			const from = Number(/bytes=(\d+)-/.exec(route.request().headers().range ?? '')?.[1] ?? 0);
+			// Left hanging, not refused: a server that stopped sending.
+			if (from >= KEPT) return;
+			const whole = await route.fetch({ headers: { range: '' } });
+			const body = await whole.body();
+			await route.fulfill({
+				status: 206,
+				headers: {
+					'content-type': 'video/webm',
+					'accept-ranges': 'bytes',
+					'content-range': `bytes ${from}-${KEPT - 1}/${body.length}`
+				},
+				body: body.subarray(from, KEPT)
+			});
+		}
+	);
+	await page.addInitScript(() => {
+		const w = window as unknown as { __seekings: number[]; __panels: number[]; __drop: number[] };
+		w.__seekings = [];
+		w.__panels = [];
+		w.__drop = [];
+		document.addEventListener('seeking', () => w.__seekings.push(performance.now()), true);
+		setInterval(() => {
+			if (document.querySelector('.panel.buffer')) w.__panels.push(performance.now());
+			if (document.body?.textContent?.includes("COULDN'T KEEP UP"))
+				w.__drop.push(performance.now());
+		}, 100);
+	});
+	// The last episode: a clamped seek reaches the clip's end, where any other
+	// episode's next-up card takes the focus and with it the remote's arrows.
+	await openLastEpisode(page);
+	await page.waitForFunction(
+		() => {
+			const v = document.querySelector('video');
+			return !!v && !v.paused && v.currentTime > 0.1;
+		},
+		undefined,
+		{ timeout: 30_000 }
+	);
+	const end = Date.now() + 12_000;
+	while (Date.now() < end) {
+		await page.keyboard.down('ArrowRight');
+		await page.waitForTimeout(100);
+	}
+	await page.keyboard.up('ArrowRight');
+	const read = () =>
+		page.evaluate(() => {
+			const w = window as unknown as { __seekings: number[]; __panels: number[]; __drop: number[] };
+			return { seekings: w.__seekings, panels: w.__panels, drop: w.__drop };
+		});
+	const held = await read();
+	expect(held.seekings.length).toBeGreaterThan(30);
+	const last = held.seekings[held.seekings.length - 1];
+	expect(held.panels.filter((t) => t <= last)).toEqual([]);
+	expect(held.drop.filter((t) => t <= last)).toEqual([]);
+	await page.waitForFunction(
+		() => (window as unknown as { __drop: number[] }).__drop.length > 0,
+		undefined,
+		{
+			timeout: 25_000
+		}
+	);
+	const after = await read();
+	expect(after.drop[0] - last).toBeGreaterThanOrEqual(15_000);
+	await page.unrouteAll({ behavior: 'ignoreErrors' });
+});

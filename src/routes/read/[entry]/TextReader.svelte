@@ -311,6 +311,8 @@
 	let flowEl = $state<HTMLElement | null>(null);
 	let blocksEl = $state<HTMLElement | null>(null);
 	let nextEl = $state<HTMLElement | null>(null);
+	/** SCROLL: what a crossing keeps of the chapter before (c744); never the chapter. */
+	let keptEl = $state<HTMLElement | null>(null);
 
 	const short = (e: (typeof entries)[number] | null | undefined) =>
 		!e ? '' : e.matter ? e.label.toUpperCase() : `CH. ${chapters.indexOf(e) + 1}`;
@@ -499,7 +501,8 @@
 	async function openChapter(
 		i: number,
 		at: 'start' | 'end' | TextPosition,
-		y: number | null = null
+		y: number | null = null,
+		kept: Node[] = []
 	) {
 		moves++;
 		if (!book || !entries[i]) return;
@@ -536,6 +539,9 @@
 		// the book's text, rebuilt by text-dom.ts, which Svelte never renders.
 		// eslint-disable-next-line svelte/no-dom-manipulating
 		blocksEl?.replaceChildren(...ch.blocks);
+		// Every door but a crossing empties it: only a crossing has an end above it.
+		// eslint-disable-next-line svelte/no-dom-manipulating -- as blocksEl, above
+		keptEl?.replaceChildren(...kept);
 		if (vertical && blocksEl) tateChuYoko(blocksEl);
 		watchWide(blocksEl);
 		finished = false;
@@ -900,17 +906,66 @@
 		return bottom - page.clientHeight;
 	}
 
+	/** SCROLL: how far down the page this chapter starts, past what a crossing kept. */
+	const keptHeight = () => keptEl?.offsetHeight ?? 0;
+
+	/**
+	 * SCROLL: a screen of this chapter's end and its END band, as copies, to
+	 * stand above the next chapter after a crossing, so the line being read stays
+	 * where it was (c744). The whole chapter, its start band too, if it is shorter
+	 * than that. Copies with no `data-b` or `id`: only the current chapter
+	 * answers positions, and `.kept` is inert, so a press or a lookup goes
+	 * through it.
+	 */
+	function keepForCrossing(): Node[] {
+		if (!pageEl || !blocksEl || !flowEl) return [];
+		const room = pageEl.clientHeight;
+		const tail: HTMLElement[] = [];
+		let height = 0;
+		for (
+			let el = blocksEl.lastElementChild as HTMLElement | null;
+			el && height < room;
+			el = el.previousElementSibling as HTMLElement | null
+		) {
+			tail.unshift(el);
+			height += el.offsetHeight;
+		}
+		const text = document.createElement('div');
+		text.className = 'kept-text';
+		for (const el of tail) {
+			const copy = el.cloneNode(true) as HTMLElement;
+			delete copy.dataset.b;
+			copy.removeAttribute('id');
+			for (const n of copy.querySelectorAll<HTMLElement>('[data-b], [id]')) {
+				delete n.dataset.b;
+				n.removeAttribute('id');
+			}
+			text.append(copy);
+		}
+		const copyOf = (selector: string) =>
+			flowEl?.querySelector(`:scope > ${selector}`)?.cloneNode(true) as HTMLElement | undefined;
+		const band = copyOf('.sband');
+		const start = height < room ? copyOf('.cstart') : undefined;
+		return [start, text, band].filter((n): n is HTMLElement => !!n);
+	}
+
 	function onscroll() {
 		if (!pageEl || layout !== 'scroll') return;
 		// The end page is over the text: what happens under it is not the reader's.
 		if (atEnd) return;
-		const max = Math.max(1, scrollEnd(pageEl, blocksEl));
-		scrollFraction = Math.min(1, pageEl.scrollTop / max);
+		const kept = keptHeight();
+		const max = Math.max(1, scrollEnd(pageEl, blocksEl) - kept);
+		// Nothing kept above is this chapter: its progress starts at its own top.
+		scrollFraction = Math.max(0, Math.min(1, (pageEl.scrollTop - kept) / max));
 		const first = nextEl?.firstElementChild as HTMLElement | null;
 		if (first && first.getBoundingClientRect().top < pageEl.clientHeight / 2) {
 			const y = first.getBoundingClientRect().top;
 			markFinished();
-			void openChapter(index + 1, 'start').then(async () => {
+			// Before the blocks are replaced, while they're still the old chapter's. A
+			// next volume is an empty room crossed under OPENING: nothing on screen
+			// runs on into it, so it opens at its own top, with nothing kept.
+			const kept = nextReadable?.file === bookFile ? keepForCrossing() : [];
+			void openChapter(index + 1, 'start', null, kept).then(async () => {
 				await tick();
 				const top = blocksEl?.firstElementChild as HTMLElement | null;
 				if (top && pageEl) {
@@ -1633,6 +1688,11 @@
 			style:--turn-ms="{TURN_MS}ms"
 			style:--turn-ease={TURN_EASE}
 		>
+			{#if layout === 'scroll'}
+				<!-- What a crossing kept of the chapter before (c744), filled by
+				     keepForCrossing and only ever by it: copies, unnumbered and inert. -->
+				<div class="kept" bind:this={keptEl} inert aria-hidden="true"></div>
+			{/if}
 			{#if chapter && entry}
 				<!-- The chapter's start (c705), END's twin: not a block, so `data-b` and
 				     every saved place are what they were. -->
@@ -1723,7 +1783,8 @@
 			onfav={toggleFav}
 			onscrub={(p) => {
 				if (layout === 'scroll' && pageEl && blocksEl)
-					pageEl.scrollTop = (p / 99) * Math.max(0, scrollEnd(pageEl, blocksEl));
+					pageEl.scrollTop =
+						keptHeight() + (p / 99) * Math.max(0, scrollEnd(pageEl, blocksEl) - keptHeight());
 				else void go(p);
 			}}
 			onprev={() => prevReadable && jump(index - 1)}
@@ -1974,6 +2035,10 @@
 	 */
 	.text-reader:not(.scroll) {
 		touch-action: pan-y pinch-zoom;
+	}
+	.kept {
+		pointer-events: none;
+		user-select: none;
 	}
 	.flow.moving {
 		will-change: transform;

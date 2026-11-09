@@ -847,6 +847,19 @@ screen but the video, and the subtitles, until a tap.
   4.58 Mbps): a link that couldn't carry it stalled there on every try. A
   fatal error still moves servers, never quality: that's a server broken,
   not a link too thin.
+- **What counts as a stall** (c867; `stallClock` in `src/lib/library/player.ts`).
+  The 15 s clock runs only while the player is trying to play from a settled
+  position. A seek isn't a stall, by any door (a held ← or →, the media keys, the
+  ±10 cells, the scrubber, a double-tap run, SKIP): the element's own `seeking`
+  restarts the clock, so a key held for a minute still leaves a full 15 s after
+  it is let go, and the BUFFERING panel (from 2 s) can't paint while it is held.
+  The seek's landing asks the element what it has (`readyState`): something to
+  play stops the clock; nothing starts it afresh from the landing, because
+  `waiting` may already have fired and won't again. A seek that never lands (a
+  dead server fires no `seeked`) has been running from the last input, and steps
+  a full 15 s after it. A paused player runs no clock; PLAY with nothing to play
+  fires `waiting`, which starts one. `seconds` are whole: 15 is a full 15 s,
+  where it used to step at 14.5 rounded up.
 - **ANOTHER SOURCE →** comes before TRY AGAIN on every NO SERVER (never on
   SOURCES NOT ANSWERING, where the engine is down and every source would
   fail). When the same series has failed the same way on more than one

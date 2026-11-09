@@ -1185,6 +1185,39 @@ async function bandBook(): Promise<Buffer> {
 }
 
 /** Open a chapter from CONTENTS, at its start, as a reader does. */
+/**
+ * SCROLL (c744): the next chapter's first block a few px short of the middle,
+ * then one small scroll over it, which is the reader's own crossing. Where it
+ * and its start band stood before and stand after. [short]: px short of the
+ * threshold before that scroll.
+ */
+async function crossOnce(page: Page, short = 5) {
+	return page.locator('.page').evaluate(async (n, short) => {
+		const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
+		const mid = n.clientHeight / 2;
+		const first = n.querySelector<HTMLElement>('.blocks.next > *')!;
+		const band = n.querySelector<HTMLElement>('.flow > .sband + .cstart')!;
+		const was = n.querySelector<HTMLElement>('.blocks:not(.next) > *')!.textContent;
+		n.scrollTop += first.getBoundingClientRect().top - (mid + short);
+		await frame();
+		await frame();
+		const firstBefore = first.getBoundingClientRect().top;
+		const bandBefore = band.getBoundingClientRect().top;
+		n.scrollTop += 10;
+		const head = () => n.querySelector<HTMLElement>('.blocks:not(.next) > *');
+		for (let i = 0; i < 240 && head()?.textContent === was; i++) await frame();
+		await frame();
+		await frame();
+		return {
+			firstBefore,
+			bandBefore,
+			firstAfter: head()!.getBoundingClientRect().top,
+			bandAfter: n.querySelector<HTMLElement>('.flow > .cstart')!.getBoundingClientRect().top,
+			heading: head()!.textContent ?? ''
+		};
+	}, short);
+}
+
 async function openFromContents(page: Page, label: string) {
 	await middle(page);
 	await page.getByRole('button', { name: 'CONTENTS' }).click();
@@ -1535,19 +1568,20 @@ test.describe("the band at a chapter's start (c705)", () => {
 								? 'next'
 								: c.classList.contains('blocks')
 									? 'blocks'
-									: c.className
+									: c.classList.contains('kept')
+										? `kept:${c.children.length}`
+										: c.className
 				)
 			);
-		expect(order).toEqual(['start:Vol. 2', 'blocks', 'end', 'start:Vol. 3', 'next']);
+		// The kept part (c744) is there, empty: nothing has crossed yet.
+		expect(order).toEqual(['kept:0', 'start:Vol. 2', 'blocks', 'end', 'start:Vol. 3', 'next']);
 		// The next chapter's blocks are not numbered: only the chapter on screen answers places.
 		await expect(page.locator('.blocks.next [data-b]')).toHaveCount(0);
 
 		// Scroll on until Vol. 3 opens: its band is the one that was below END.
-		// Nothing above a chapter is kept in SCROLL, so a crossing at the middle
-		// takes its start to the top, under its band (and to the margin before
-		// c705; measured in the reader's notes, wave 32). A crossing caught late,
-		// the start already higher than that, as a fling leaves it, keeps the
-		// line where it stood: that is the one case below. All in the page, so
+		// A crossing keeps the line where it stood (c744; its own case, below);
+		// this one is caught late, the start already high, as a fling leaves it,
+		// and its relayout is what's measured. All in the page, so
 		// nothing waits on a round trip: the crossing, then a relayout at once,
 		// before the reader's place is read again (250 ms after the last
 		// scroll), as a face the new heading is the first to use arrives then.
@@ -1590,6 +1624,120 @@ test.describe("the band at a chapter's start (c705)", () => {
 			Math.abs((await heading.evaluate((h) => h.getBoundingClientRect().top)) - y)
 		).toBeLessThanOrEqual(1);
 	});
+	/**
+	 * c744: a crossing keeps a screen of the old chapter's end above the new
+	 * chapter, so nothing on screen moves. Measured across the threshold the
+	 * reader's own `onscroll` uses, so the crossing is reached by a scroll, and
+	 * then the kept part's own states: not numbered, not hit, not progress,
+	 * through a change of type, replaced by the next crossing, gone on a reload.
+	 */
+	test('SCROLL: across END the next chapter stays where it was on screen, and what is kept above it is not the chapter (c744)', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		await middle(page);
+		await page.getByRole('button', { name: /^PAGED · / }).click();
+		await page.getByRole('radio', { name: 'SCROLL' }).click();
+		await page.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+		await openFromContents(page, 'Vol. 2');
+		await expect(page.locator('.blocks.next > *').first()).toHaveText('Interlude');
+
+		const crossing = await crossOnce(page);
+		expect(crossing.heading).toBe('Interlude');
+		// The case reached: the old code clamps this to the margin.
+		expect(crossing.firstBefore).toBeGreaterThan(200);
+		expect(Math.abs(crossing.firstAfter - (crossing.firstBefore - 10))).toBeLessThanOrEqual(3);
+		expect(Math.abs(crossing.bandAfter - (crossing.bandBefore - 10))).toBeLessThanOrEqual(3);
+
+		const kept = page.locator('.kept');
+		await expect(kept).toHaveAttribute('inert', '');
+		await expect(kept.locator('.sband')).toHaveCount(1);
+		expect(
+			await kept.evaluate((k) => ({
+				numbered: k.querySelectorAll('[data-b], [id]').length,
+				text: (k.textContent ?? '').length
+			}))
+		).toEqual({ numbered: 0, text: expect.any(Number) });
+		expect(await kept.evaluate((k) => (k.textContent ?? '').length)).toBeGreaterThan(100);
+		await expect(page.locator('.flow > .cstart .t').first()).toHaveText('Vol. 3');
+
+		// Back up into what's kept: it can't be hit, and it isn't where the reader is.
+		const up = await page.locator('.page').evaluate(async (n) => {
+			const k = n.querySelector<HTMLElement>('.kept')!;
+			n.scrollTop = Math.max(0, k.offsetHeight - n.clientHeight / 2);
+			await new Promise((r) => setTimeout(r, 400));
+			const hit = document.elementFromPoint(n.clientWidth / 2, n.clientHeight / 4);
+			return { inKept: !!hit?.closest('.kept'), top: n.scrollTop };
+		});
+		expect(up.top).toBeGreaterThan(0);
+		expect(up.inKept).toBe(false);
+		await expect.poll(() => new URL(page.url()).searchParams.get('at') ?? '').toMatch(/^0\.0/);
+		const progress = page.locator('.progress');
+		if (!(await progress.count())) await middle(page);
+		await expect(progress).toHaveAttribute('style', /width:\s*0%/);
+		await page.locator('.page').evaluate((n) => {
+			n.scrollTop = n.querySelector<HTMLElement>('.kept')!.offsetHeight;
+		});
+
+		// A change of type while kept: the chapter's first line stays where it was.
+		await page.waitForTimeout(400);
+		const line = () =>
+			page
+				.locator('.blocks:not(.next) > *')
+				.first()
+				.evaluate((b) => b.getBoundingClientRect().top);
+		const before = await line();
+		await middle(page);
+		await page.getByRole('button', { name: /^SCROLL · / }).click();
+		await page.getByRole('button', { name: 'Larger' }).click();
+		await page.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect.poll(async () => Math.abs((await line()) - before)).toBeLessThanOrEqual(24);
+
+		// A second crossing replaces what's kept: it doesn't grow.
+		const firstKept = await kept.evaluate((k) => k.textContent ?? '');
+		const firstHeight = await kept.evaluate((k) => (k as HTMLElement).offsetHeight);
+		await expect(page.locator('.blocks.next > *').first()).toBeAttached();
+		await crossOnce(page);
+		await expect(page.locator('.kept')).toHaveCount(1);
+		const secondKept = await kept.evaluate((k) => k.textContent ?? '');
+		expect(secondKept).not.toEqual(firstKept);
+		expect(await kept.evaluate((k) => (k as HTMLElement).offsetHeight)).toBeLessThan(
+			firstHeight + (page.viewportSize()!.height + 500)
+		);
+
+		// A reload keeps none of it: it was never the chapter.
+		await page.reload();
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		await expect(page.locator('.kept > *')).toHaveCount(0);
+	});
+
+	test('SCROLL: a chapter shorter than the screen crosses without a jump, and is kept whole (c744)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		await middle(page);
+		await page.getByRole('button', { name: /^PAGED · / }).click();
+		await page.getByRole('radio', { name: 'SCROLL' }).click();
+		await page.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+		await openFromContents(page, 'Vol. 2');
+		await expect(page.locator('.blocks.next > *').first()).toHaveText('Interlude');
+		// Just taller than this chapter: shorter than the screen, and the next
+		// chapter's start still comes from below the middle.
+		const blocks = page.locator('.blocks:not(.next)');
+		const height = await blocks.evaluate((b) => (b as HTMLElement).offsetHeight);
+		await page.setViewportSize({ width: page.viewportSize()!.width, height: height + 200 });
+		await page.waitForTimeout(400);
+		expect(await blocks.evaluate((b) => (b as HTMLElement).offsetHeight)).toBeLessThan(
+			height + 200
+		);
+		const crossing = await crossOnce(page);
+		expect(crossing.heading).toBe('Interlude');
+		expect(Math.abs(crossing.firstAfter - (crossing.firstBefore - 10))).toBeLessThanOrEqual(3);
+		await expect(page.locator('.kept .cstart')).toHaveCount(1);
+	});
+
 	/**
 	 * c742: in SCROLL the start band (c705) and the flow's padding sit above
 	 * `.blocks`, so a fraction over the blocks' height alone reached 1, and

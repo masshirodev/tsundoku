@@ -98,6 +98,50 @@ puts it on the day it was read. Replayed events **never move progress
 backwards**: position and last-opened only advance in time, so an old event
 arriving late can't undo something read since.
 
+## Writes that wait
+
+Reading progress waits in `localStorage` (above). **A highlight kept offline is
+the first other write that waits, and `src/lib/cache/pending-highlights.ts` is
+the mechanism for any like it** (c842): an item names its own address and body,
+so a page (H3) goes through it now and a quote (H2) can; a rating or FAV could
+later, and doesn't yet. It is in IndexedDB, so it outlives the app being closed,
+and it's sent by the layout (`+layout.svelte`, on opening and whenever the
+device's connection comes back), so it doesn't need a reader open, where
+`flushPending` does.
+
+**Offline here is what the top of this page says: the workstation can't be
+reached.** The device may still report that it's online (the workstation
+asleep, the tunnel down), so a press also waits when its POST comes back with
+no answer at all, not only when the device says offline. An answer of any
+status is the workstation speaking, and keeps its own band.
+
+**When it tries again**, with no press: when the app opens, when the device
+says the connection is back, every 15 seconds while anything waits, and on
+coming back to the app. The timer and the return-to-app listener exist only
+while something waits, and end with the queue; a device that says it's offline
+is asked nothing. A connection that returns during a pass gets one more pass
+after it. A source that failed (a 502) waits five minutes between tries, so its
+three tries aren't spent in the first minute by the connection's timer.
+
+**What isn't queued, ever:** a press in a hidden series or with reveal on (the
+"Never cached" rule above) keeps its old band and writes nothing, and incognito
+keeps nothing. No item holds a series' title, only the entry's id, the page and
+its label, because a 404 can't say whether a series is gone or hidden since.
+
+It sends once by two things together: one row per key on the device (two
+presses are one) and the workstation answering the same thing asked again with
+the one it already made (a resend after a reload, a tab that died between the
+POST and the removal, the same page kept on two devices). So a new user of the
+queue needs a door that answers a repeat with what it already made.
+
+What each answer does (`arrival`): 2xx sent; a dropped connection, a 401, a 403
+(incognito on at the moment, which says nothing of the item) and a 5xx stop the
+pass and everything waits for the next one; a 502 waits and the rest go on, and
+after three tries is told; any other 4xx is refused for good, and the reader is
+told at the next image reader opened (or in the one open, when a pass refuses
+it), until it dismisses it. A refused page pressed again is a fresh item, and
+kept online it is forgotten; one still waiting is left exactly as it is.
+
 ## Tests
 
 - `tests/cache-policy.spec.ts`: the policy.
@@ -106,11 +150,16 @@ arriving late can't undo something read since.
   caches ahead, reads the next chapter with the network cut, queues the
   events, replays them when back online, and checks ↓ CACHE / REMOVE CACHE
   and the `no-store` rule.
+- `tests/highlights-queue.spec.ts`: the queue's rules, every answer and sending
+  once, and the trying again. `tests/highlights-queue-flow.e2e.ts`: a page kept
+  offline, through a reconnection, a closed app, a refusal, DON'T SEND,
+  incognito, a hidden series or reveal, and a workstation that doesn't answer
+  while the device says it's online.
 
 ## Not yet
 
 - **Installing the PWA** (a web manifest and icons) is its own small step.
 - **Offline history, series and library screens** show the last copy seen.
-  Changes made offline (a rating, FAV) need the network: writes aren't queued,
-  only reading progress.
+  Changes made offline (a rating, FAV) need the network: only reading
+  progress and highlights ("Writes that wait", above) are queued.
 - **Hidden series can't be read offline,** by design.
