@@ -205,9 +205,13 @@ function jumpsPast(next: Rect, direction: 'up' | 'down', view: ScrollView): bool
  * nearest thing outside any section (the screen's top bar), so that bar is
  * still reached, and never another section; with none, the key does nothing.
  *
- * What lies outside is looked for from the section's own edge (`area`), not
- * from the focused stop: a stop the column has scrolled away is far above the
- * bar on the page, and the bar would count as below it.
+ * What lies outside is looked for from the section's own box (`area`), because
+ * a stop the column has scrolled away is far above the bar on the page, and the
+ * bar would count as below it. For ↓ the edge is the focused stop's bottom held
+ * inside that box, not the box's own bottom: a stop pinned over the section's
+ * bottom edge (`SaveBand`) starts above that edge, so from the edge it would
+ * never be below anything. ↑ stays on the box's top, or a stop scrolled away
+ * below the screen would count that same band as above it.
  */
 export function stepInSection<T>(
 	from: Rect,
@@ -225,6 +229,11 @@ export function stepInSection<T>(
 	}
 	if (view) return { kind: 'scroll' };
 	const outside = candidates.filter((c) => c.section === null);
-	const out = nextIndex(area, direction, outside);
+	const edge = Math.min(Math.max(from.bottom, area.top), area.bottom);
+	const out = nextIndex(
+		direction === 'down' ? { ...area, bottom: edge } : area,
+		direction,
+		outside
+	);
 	return out === null ? { kind: 'stay' } : { kind: 'move', value: outside[out].value };
 }

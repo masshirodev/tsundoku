@@ -24,6 +24,9 @@ let world: {
 	worked: number;
 	pages: number;
 	book: number;
+	short: number;
+	six: number;
+	seven: number;
 	stop: () => Promise<void>;
 };
 
@@ -33,6 +36,9 @@ function seed(dbPath: string): {
 	worked: number;
 	pages: number;
 	book: number;
+	short: number;
+	six: number;
+	seven: number;
 } {
 	rmSync(dbPath, { force: true });
 	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
@@ -98,7 +104,15 @@ function seed(dbPath: string): {
 		);
 		const first = Number(book.run(pages, 1, 'Book 1', 'First Book', now).lastInsertRowid);
 		book.run(pages, 2, 'Book 2', 'Second Book', now);
-		return { id, other, worked, pages, book: first };
+		// A list that ends above a failed save's band, so nothing covers its last row.
+		const short = series('Short Rows');
+		for (let i = 1; i <= 3; i++) entry.run(short, i, `Chapter ${i}`, now);
+		// Either side of the band's top: the last whose rows all clear it, and the first that doesn't.
+		const six = series('Six Rows');
+		for (let i = 1; i <= 6; i++) entry.run(six, i, `Chapter ${i}`, now);
+		const seven = series('Seven Rows');
+		for (let i = 1; i <= 7; i++) entry.run(seven, i, `Chapter ${i}`, now);
+		return { id, other, worked, pages, book: first, short, six, seven };
 	} finally {
 		db.close();
 	}
@@ -107,7 +121,7 @@ function seed(dbPath: string): {
 async function start() {
 	const work = mkdtempSync(join(tmpdir(), 'tsundoku-e2e-tv-series-sections-'));
 	const dbPath = join(work, 'library.sqlite');
-	const { id, other, worked, pages, book } = seed(dbPath);
+	const { id, other, worked, pages, book, short, six, seven } = seed(dbPath);
 	const port = await freePort();
 	const base = `http://localhost:${port}`;
 	const preview: ChildProcess = spawn(
@@ -143,6 +157,9 @@ async function start() {
 		worked,
 		pages,
 		book,
+		short,
+		six,
+		seven,
 		stop: async () => {
 			preview.kill();
 			rmSync(work, { recursive: true, force: true });
@@ -818,4 +835,267 @@ test('off a TV the columns are not sections: ↓ runs on into the list', async (
 		seen.push((await where(page)).col);
 	}
 	expect(seen, 'the stacked panel hands ↓ on to the list').toContain('list');
+});
+
+/**
+ * A failed save's band (`SaveBand`, from the layout on every screen) is pinned
+ * over the columns' bottom edge while both are drawn. It is what FAV's refused
+ * POST really raises: the panel's own save, aborted as saves-flow's are.
+ */
+const lostFav = (u: URL) => /^\/series\/\d+$/.test(u.pathname) && u.search === '?/favourite';
+const inBand = (page: Page) => page.evaluate(() => !!document.activeElement?.closest('.stack'));
+const favOf = (page: Page) =>
+	page.getByRole('region', { name: 'About this series' }).getByRole('button', {
+		name: /^FAV( ✓)?$/
+	});
+
+/** FAV, by the remote, with its POST refused: the band is up and the pad on FAV. */
+async function failFav(page: Page) {
+	await page.route(lostFav, (route) => route.abort());
+	await favOf(page).focus();
+	await page.keyboard.press('Enter');
+	await expect(page.locator('.stack .band')).toBeVisible();
+}
+
+/** ↓ until the pad is in the band, or `presses` have gone by; the rows it passed. */
+async function downToBand(page: Page, presses = 12) {
+	const rows: string[] = [];
+	for (let i = 0; i < presses; i++) {
+		await page.keyboard.press('ArrowDown');
+		if (await inBand(page)) return { reached: true, rows };
+		rows.push((await where(page)).text);
+	}
+	return { reached: false, rows };
+}
+
+test('a failed save’s band is reached from the end of a short list, and ↑ comes back', async ({
+	page
+}) => {
+	await open(page, world.short);
+	await failFav(page);
+	await page.keyboard.press('ArrowRight');
+	expect((await where(page)).col, '→ crossed into the list').toBe('list');
+
+	const walk = await downToBand(page);
+	expect(walk.reached, `↓ alone reached the band, past ${walk.rows.join(' | ')}`).toBe(true);
+	expect(walk.rows.at(-1), 'after the last row').toContain('Chapter 3');
+	expect(await row(page), 'on its first button').toMatch(/^PUT BACK/);
+	await page.keyboard.press('ArrowUp');
+	expect(await inBand(page), '↑ leaves the band').toBe(false);
+	expect(await row(page), 'for the row it came from').toContain('Chapter 3');
+});
+
+/** The pad on the short list's last row, with the band still up. */
+async function padToLastRow(page: Page) {
+	await page.keyboard.press('ArrowRight');
+	for (let i = 0; i < 12; i++) {
+		if ((await row(page))?.includes('Chapter 3')) return;
+		await page.keyboard.press('ArrowDown');
+	}
+	throw new Error(`never reached the last row: ${await row(page)}`);
+}
+
+test('with the band gone, ↓ at that list’s end does nothing', async ({ page }) => {
+	await open(page, world.short);
+	await failFav(page);
+	await page.keyboard.press('ArrowRight');
+	expect((await downToBand(page)).reached, 'the band took ↓ while it was up').toBe(true);
+	await page.keyboard.press('ArrowUp');
+	expect(await row(page)).toContain('Chapter 3');
+
+	await page.unroute(lostFav);
+	// The band's own handler, by script: a click would take focus off the row this is about.
+	await page.locator('.stack .retry').evaluate((b: HTMLElement) => b.click());
+	await expect(page.locator('.stack .band')).toHaveCount(0);
+	const before = await where(page);
+	expect(before.text, 'the pad never left the last row').toContain('Chapter 3');
+
+	await page.keyboard.press('ArrowDown');
+	expect(await where(page), 'nothing below it now, and the panel takes nothing').toEqual(before);
+	await page.keyboard.press('ArrowUp');
+	expect(await row(page), 'and the keys still work: ↑ walks the list').toContain('Chapter 2');
+	await page.keyboard.press('ArrowDown');
+	expect(await row(page), 'as ↓ does, up to that end').toContain('Chapter 3');
+});
+
+test('a list that ends exactly at the band reaches it; one that runs under it does not', async ({
+	page
+}) => {
+	await open(page, world.short);
+	await failFav(page);
+	await padToLastRow(page);
+	// Rows are the height they are, so the first row's margin puts the list's end on the band's
+	// top, measured with the column at its real end (it has 2 px to scroll even at three rows).
+	const place = (past: number) =>
+		page.evaluate((past) => {
+			const first = document.querySelector('.list-col .entry') as HTMLElement;
+			const list = document.querySelector('.list-col') as HTMLElement;
+			const gap = () =>
+				document.querySelector('.stack .put')!.getBoundingClientRect().top -
+				document.activeElement!.getBoundingClientRect().bottom;
+			const toEnd = () => list.scrollTo(0, list.scrollHeight);
+			first.style.marginTop = '0px';
+			toEnd();
+			first.style.marginTop = `${gap() + past}px`;
+			toEnd();
+			return gap();
+		}, past);
+
+	expect(Math.abs(await place(0)), 'the last row ends on the band’s top').toBeLessThan(0.25);
+	await page.keyboard.press('ArrowDown');
+	expect(await inBand(page), 'touching counts as below').toBe(true);
+	await page.keyboard.press('ArrowUp');
+	expect(await row(page)).toContain('Chapter 3');
+
+	expect(await place(8), 'the band covers the row’s last 8 px').toBeCloseTo(-8, 0);
+	const before = await where(page);
+	await page.keyboard.press('ArrowDown');
+	expect(await where(page), 'a row the band covers has nothing below it').toEqual(before);
+	expect(await inBand(page)).toBe(false);
+});
+
+test('the band arriving while the pad is mid-column changes nothing until the list’s end', async ({
+	page
+}) => {
+	await open(page, world.short);
+	let release = () => {};
+	const held = new Promise<void>((r) => (release = r));
+	await page.route(lostFav, async (route) => {
+		await held;
+		await route.abort();
+	});
+	await favOf(page).focus();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowRight');
+	// → lands on the row nearest FAV, which is not the first.
+	for (let i = 0; i < 4 && !/Chapter 1$/.test((await row(page)) ?? ''); i++)
+		await page.keyboard.press('ArrowUp');
+	expect(await row(page), 'the pad is on the list’s first row').toMatch(/Chapter 1$/);
+	await expect(page.locator('.stack .band')).toHaveCount(0);
+
+	release();
+	await expect(page.locator('.stack .band')).toBeVisible();
+	expect(await row(page), 'it took nothing from the pad').toContain('Chapter 1');
+
+	await page.keyboard.press('ArrowDown');
+	expect(await row(page), 'the list’s own rows come first').toContain('Chapter 2');
+	await page.keyboard.press('ArrowDown');
+	expect(await row(page)).toContain('Chapter 3');
+	// The column has its 2 px to scroll first, then the band.
+	expect((await downToBand(page, 3)).reached, 'and then the band').toBe(true);
+});
+
+test('the band leaving under the pad does not strand it, and the columns are sections again', async ({
+	page
+}) => {
+	await open(page, world.short);
+	await failFav(page);
+	await page.keyboard.press('ArrowRight');
+	expect((await downToBand(page)).reached).toBe(true);
+	expect(await row(page)).toMatch(/^PUT BACK/);
+
+	await page.keyboard.press('Enter');
+	await expect(page.locator('.stack .band')).toHaveCount(0);
+	// What had focus is gone, as for anything removed under it: the next arrow finds the screen.
+	expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+	await page.keyboard.press('ArrowDown');
+	const landed = await where(page);
+	expect(['panel', 'list'], `the first arrow put the pad on ${landed.text}`).toContain(landed.col);
+
+	await page.locator('.list-col a, .list-col button').last().focus();
+	const end = await where(page);
+	expect(end.col).toBe('list');
+	await page.keyboard.press('ArrowDown');
+	expect(await where(page), 'nothing below the list’s end again').toEqual(end);
+});
+
+test('a long list keeps ↓ with a band up, and at its end stays on its last row', async ({
+	page
+}) => {
+	await open(page);
+	await failFav(page);
+	await page.keyboard.press('ArrowRight');
+	const columns: string[] = [];
+	for (let i = 0; i < 80; i++) {
+		await page.keyboard.press('ArrowDown');
+		columns.push((await where(page)).col);
+	}
+	expect(new Set(columns), '↓ stayed in the list').toEqual(new Set(['list']));
+	const end = await where(page);
+	expect(end.text).toContain('Chapter 60');
+	expect(end.list.top, 'the list scrolled to reach it').toBeGreaterThan(0);
+	await expect(page.locator('.stack .band')).toBeVisible();
+	// The last row sits under the band at the column's real end: not above it, so not "that way".
+	await page.keyboard.press('ArrowDown');
+	expect(await where(page), 'it stays, and falls into nothing').toEqual(end);
+});
+
+test('the band covers the details column’s last stop: ↓ there takes nothing, and never the list', async ({
+	page
+}) => {
+	await open(page, world.short);
+	await failFav(page);
+	const columns: string[] = [];
+	for (let i = 0; i < 12; i++) {
+		await page.keyboard.press('ArrowDown');
+		columns.push((await where(page)).col);
+	}
+	expect(new Set(columns), 'through the panel alone, never the list').toEqual(new Set(['panel']));
+	const end = await where(page);
+	expect(end.text, 'on the column’s last stop').toContain('DETAILS');
+	expect(end.panel.top, 'having read the column first').toBeGreaterThan(0);
+	expect(end.panel.top + end.panel.client).toBeGreaterThanOrEqual(end.panel.scroll - 1);
+	const covered = await page.evaluate(
+		() =>
+			document.activeElement!.getBoundingClientRect().bottom >
+			document.querySelector('.stack .put')!.getBoundingClientRect().top
+	);
+	expect(covered, 'the band covers its end: that is why nothing lies below it').toBe(true);
+	await page.keyboard.press('ArrowDown');
+	expect(await where(page), 'a covered stop has nothing below it').toEqual(end);
+	expect(await inBand(page)).toBe(false);
+});
+
+for (const [rows, reached] of [
+	[6, true],
+	[7, false]
+] as const)
+	test(`a list of ${rows} rows ${reached ? 'ends above the band and reaches it' : 'runs under the band, so ↓ stays on its last row'}`, async ({
+		page
+	}) => {
+		await open(page, reached ? world.six : world.seven);
+		await failFav(page);
+		await page.keyboard.press('ArrowRight');
+		const walk = await downToBand(page);
+		expect(walk.reached, walk.rows.join(' | ')).toBe(reached);
+		if (reached) expect(await row(page)).toMatch(/^PUT BACK/);
+		else expect(await row(page), 'the last row kept the pad').toContain(`Chapter ${rows}`);
+	});
+
+test('two failed saves: ↓ reaches the upper band first, then the lower', async ({ page }) => {
+	await open(page, world.short);
+	const lostRate = (u: URL) => /^\/series\/\d+$/.test(u.pathname) && u.search === '?/rate';
+	await page.route(lostRate, (route) => route.abort());
+	await failFav(page);
+	await page
+		.getByRole('region', { name: 'About this series' })
+		.getByRole('button', { name: 'Rate 3 of 10' })
+		.focus();
+	await page.keyboard.press('Enter');
+	await expect(page.locator('.stack .band')).toHaveCount(2);
+	// → from a rating walks the rating's own cells, so the pad crosses from FAV.
+	await favOf(page).focus();
+	await page.keyboard.press('ArrowRight');
+	expect((await where(page)).col, '→ crossed into the list').toBe('list');
+	expect((await downToBand(page)).reached).toBe(true);
+	const band = () =>
+		page.evaluate(() => {
+			const a = document.activeElement as HTMLElement;
+			return [...document.querySelectorAll('.stack .band')].indexOf(a.closest('.band')!);
+		});
+	expect(await band(), 'the upper one').toBe(0);
+	expect(await row(page)).toMatch(/^PUT BACK/);
+	await page.keyboard.press('ArrowDown');
+	expect(await band(), 'then the lower one').toBe(1);
+	expect(await row(page)).toMatch(/^PUT BACK/);
 });

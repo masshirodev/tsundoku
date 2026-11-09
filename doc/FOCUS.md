@@ -160,13 +160,25 @@ a tablet stack is not a column, and a desktop's browser scrolls for itself):
   "Real end" is `canScroll` on the nearest ancestor up to and including the
   section's own element (`scrollerFrom`), so a stop inside an inner scroller
   scrolls that first. The one exception is ↑ or ↓ with a stop **outside any
-  section** that way, looked for from the section's edge rather than the stop:
-  the series screen's bar above the columns. Another section is never it. A
-  stop pinned over the section's own edge (`position: fixed`, as SELECT's
-  bulk bar is over the list's bottom) is not "that way" from the edge, so it
-  would never be found: a screen with such a bar does not wear the mark around
-  it. On the series screen that case cannot arise, since that bar only exists
-  while the list is the only column.
+  section** that way, and another section is never it. ↑ looks from the
+  section's top edge, for the series screen's bar above the columns; it is not
+  looked for from the stop, because a stop the column scrolled away below the
+  screen would count what is pinned at the bottom as above it. ↓ looks from the
+  focused stop's bottom, held inside the section's box (a stop scrolled away
+  above the screen starts from the section's top, so the bar above is not below
+  it).
+- **A stop pinned over a section's bottom edge is below what ends above it.**
+  `position: fixed` puts it over the edge, so measured from the edge it would
+  be nothing's next: that is `SaveBand` on the series screen, a failed save's
+  PUT BACK and RETRY, drawn on every screen and so while both columns are. ↓
+  reaches it from the last stop of a section whose stops end above it (at
+  960×540, a list of six rows or fewer), once the section's own stops and its
+  scroll are spent; touching counts. A stop the band covers has nothing below
+  it, as under the ordinary rule: a list of seven rows or more ends under it
+  and stays on its last row, and so does `DETAILS`, the panel's last stop.
+  SELECT's bulk bar (`.bulk`) is the same shape and leaves by the other door: in
+  SELECT the list is the only column, wears no mark, and the ordinary rule
+  reaches the bar.
 - **← and → cross**, to the nearest thing the other side, by the ordinary rule.
 - **Coming back lands on the row left.** Leaving a section by ← or → notes
   the row left, for that section only (`sectionRows`). A later crossing into it
