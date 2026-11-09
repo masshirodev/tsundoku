@@ -100,7 +100,11 @@ async function loadAt(location: string, reveal = false) {
 		removeBand: { done: string[]; stayed: string[] };
 		updateBand: { done: string[]; failed: string[]; untrusted: string[]; of: number };
 		backBand: { done: string[] };
-		band: { miss: string[]; gone: string[] };
+		band: {
+			miss: string[];
+			gone: string[];
+			facts: { sourceId: string; previous: boolean }[];
+		};
 		drawn: string[];
 		packageFlags: Record<string, { total: number; on: Record<string, number> }>;
 	};
@@ -430,6 +434,61 @@ describe('a band keeps every row of its lists (card c696, round 2)', () => {
 		const out = await loadAt(`/browse/extensions?select=1&${q}`);
 		expect(out.band.miss).toEqual(['x.m1', 'x.m2']);
 		expect(out.band.gone).toEqual(['x.g1', 'x.g2']);
+		// Sizes 0 and 1 read the same way.
+		const none = await loadAt(
+			`/browse/extensions?select=1&${band.bandQuery('flags', {
+				flag: 'offHistory',
+				to: '0',
+				of: 0,
+				chg: 0
+			})}`
+		);
+		expect(none.band.miss).toEqual([]);
+		expect(none.band.gone).toEqual([]);
+		const one = await loadAt(
+			`/browse/extensions?select=1&${band.bandQuery('flags', {
+				flag: 'offHistory',
+				to: '0',
+				of: 2,
+				chg: 0,
+				miss: ['x.only'],
+				gone: ['x.oneGone']
+			})}`
+		);
+		expect(one.band.miss).toEqual(['x.only']);
+		expect(one.band.gone).toEqual(['x.oneGone']);
+	});
+
+	it('a reload of the band’s URL says the same, and a second UNDO refuses whole', async () => {
+		// A package of this case's own: the describe above removes en.multi.
+		extension('x.mixedflags', [
+			{ id: '641', lang: 'en' },
+			{ id: '642', lang: 'fr' }
+		]);
+		flags.setSourceFlag('641', 'offHistory', true);
+		const press = await act('flags', { pkg: 'x.mixedflags', flag: 'offHistory', value: 'true' });
+		const from = new URL(press.location!, 'http://localhost').searchParams.get('from')!;
+		expect(from).toBe('641|1,642|0');
+		const reloaded = await loadAt(press.location!);
+		expect(reloaded.band.facts.map((f) => f.sourceId)).toEqual(['641', '642']);
+		expect(
+			(await act('undoFlags', { pkg: 'x.mixedflags', flag: 'offHistory', to: '1', from })).status
+		).toBe(303);
+		expect(flags.sourceFlags('641').offHistory).toBe(true);
+		expect(flags.sourceFlags('642').offHistory).toBe(false);
+		// The band is gone from the screen after UNDO; its remembered URL pressed
+		// again must not take the press back twice.
+		const twice = await act('undoFlags', {
+			pkg: 'x.mixedflags',
+			flag: 'offHistory',
+			to: '1',
+			from
+		});
+		expect(twice.status).toBe(409);
+		expect(flags.sourceFlags('641').offHistory).toBe(true);
+		expect(flags.sourceFlags('642').offHistory).toBe(false);
+		dropPackages('x.mixedflags');
+		for (const id of ['641', '642']) flags.setSourceFlag(id, 'offHistory', false);
 	});
 
 	it('the update band reads two done and two failed, and BACK TO two done', async () => {
