@@ -630,6 +630,13 @@
 	const action = $derived(anime ? animeContinue(series.entries) : continueAction(series));
 	const direction = $derived(effectiveDirection(series, series.kindDirection));
 	const tags = $derived(tagGroups(series.tags));
+	/**
+	 * Which series has `+ N MORE` open (c837). The id, not a flag: this component
+	 * outlives a move from one series to another, and the next one's tags start
+	 * folded. Both copies of TAGS read it, so a resize across the fold keeps it.
+	 */
+	let tagsOpenOn = $state<number | null>(null);
+	const tagsOpen = $derived(tagsOpenOn === series.id);
 
 	// ---- a tag searched for (c313; doc/SERIES.md, the TAGS row) ------------------------------
 	// Every value is a link to the library; with a source BROWSE can open, a tap
@@ -645,7 +652,7 @@
 	 * and link to `?tag=Mecha`.
 	 */
 	const groupTags = $derived(
-		tags.groups.map((g) => ({
+		(tagsOpen ? [...tags.groups, ...tags.rest] : tags.groups).map((g) => ({
 			...g,
 			tags: series.tags.filter((t) => (t.namespace || 'tag') === g.namespace)
 		}))
@@ -903,9 +910,10 @@
 	<!-- DETAILS (c425, c556; doc/SERIES.md, "DETAILS"; doc/handoffs/series-phone/):
 	     on a phone and a TV the rows a visit rarely touches fold behind one line.
 	     The screen's order is the markup's where nothing folds, and the fold's
-	     where it applies, so Tab and a screen reader read what is drawn. The three
-	     groups the two orders place differently are drawn twice, once each side of
-	     the line (`foldOnly`, `screenOnly`), and CSS shows one: no script, so the
+	     where it applies, so Tab and a screen reader read what is drawn. The four
+	     groups the two orders place differently (the bands, SHELVES, ABOUT and,
+	     since c837, TAGS) are drawn twice, one copy for each order
+	     (`fold-only`, `screen-only`), and CSS shows one: no script, so the
 	     first paint is right, and `display: none` takes the other out of Tab, the
 	     focus layer and the screen reader. Neither copy holds an id, a `bind:this`
 	     or a focus scope, and their state is this component's. -->
@@ -979,6 +987,13 @@
 				{#if dlRow.cells.length}<div class="lcs stack">{@render dlCells()}</div>{/if}
 			{/if}
 		</div>
+		{#if !outline}
+			<!-- ABOUT and TAGS under REFRESH and FOLLOW where nothing folds (c837). -->
+			{#if series.description}
+				<div class="o o6 screen-only">{@render aboutGroup()}</div>
+			{/if}
+			<div class="o o8 screen-only">{@render tagsGroup()}</div>
+		{/if}
 		<div class="o o2 screen-only">{@render bandsGroup()}</div>
 		<div class="o o3">
 			{#if !outline && editions && opening}
@@ -1159,41 +1174,9 @@
 					</div>
 					<div class="lcs stack">{@render sourceCells()}</div>
 				{/if}
-
-				<div class="row top">
-					<div class="label">TAGS</div>
-					<div class="tags">
-						{#each groupTags as g (g.namespace)}
-							<div class="tag-line">
-								<span class="ns">{g.namespace}</span>
-								<span class="vals">
-									<!-- Every value opens the library's person or tag page (Index Books), or,
-								     with a source, asks where to look (c313). -->
-									<!-- eslint-disable svelte/no-navigation-without-resolve -- tagHref() resolves -->
-									{#each g.tags as t, i (i)}{#if i > 0}<span class="sep"> · </span>{/if}<a
-											class="person"
-											href={tagLibraryHref(t)}
-											aria-haspopup={tagSource ? 'dialog' : undefined}
-											onclick={(e) => askTag(e, t)}>{t.value}</a
-										>{/each}
-									<!-- eslint-enable svelte/no-navigation-without-resolve -->
-								</span>
-							</div>
-						{/each}
-						{#if tags.groups.length === 0}<span class="none">NO TAGS</span>{/if}
-						{#if tags.more > 0}<div class="more">+ {tags.more} MORE</div>{/if}
-						{#if isBookSeries(series)}
-							<div class="more">
-								FROM ITS {booksOf(series.entries).length} BOOKS · EACH KEEPS ITS OWN
-							</div>
-						{/if}
-					</div>
-					<button type="button" class="edit" onclick={onedit}>EDIT</button>
-				</div>
 			</div>
-			{#if series.description}
-				<div class="o o6 screen-only">{@render aboutGroup()}</div>
-			{/if}
+			<!-- TAGS inside DETAILS, where 1A/1C keep it on a phone and a TV (c837). -->
+			<div class="o o8 fold-only">{@render tagsGroup()}</div>
 			<div class="o o7">
 				{#if editions && opening}
 					<!-- EDITIONS (Editions 1b): each language's copy, what only it has, and where it is. -->
@@ -1461,6 +1444,50 @@
 		<div class="chips">
 			{#each onShelves as s (s.key)}<span class="chip">{s.name}</span>{/each}
 			{#if onShelves.length === 0}<span class="none">ON NO SHELF</span>{/if}
+		</div>
+		<button type="button" class="edit" onclick={onedit}>EDIT</button>
+	</div>
+{/snippet}
+
+{#snippet tagsGroup()}
+	<div class="row top">
+		<div class="label">TAGS</div>
+		<div class="tags">
+			{#each groupTags as g (g.namespace)}
+				<div class="tag-line">
+					<span class="ns">{g.namespace}</span>
+					<span class="vals">
+						<!-- Every value opens the library's person or tag page (Index Books), or,
+						     with a source, asks where to look (c313). -->
+						<!-- eslint-disable svelte/no-navigation-without-resolve -- tagHref() resolves -->
+						{#each g.tags as t, i (i)}<span class="val"
+								><a
+									class="person"
+									href={tagLibraryHref(t)}
+									aria-haspopup={tagSource ? 'dialog' : undefined}
+									onclick={(e) => askTag(e, t)}>{t.value}</a
+								>{#if i < g.tags.length - 1}<span class="sep">·</span>{/if}</span
+							>{/each}
+						<!-- eslint-enable svelte/no-navigation-without-resolve -->
+					</span>
+				</div>
+			{/each}
+			{#if tags.groups.length === 0}<span class="none">NO TAGS</span>{/if}
+			{#if tags.more > 0}
+				<button
+					type="button"
+					class="more tags-more"
+					aria-expanded={tagsOpen}
+					onclick={() => (tagsOpenOn = tagsOpen ? null : series.id)}
+				>
+					{tagsOpen ? 'LESS ↑' : `+ ${tags.more} MORE ↓`}
+				</button>
+			{/if}
+			{#if isBookSeries(series)}
+				<div class="more">
+					FROM ITS {booksOf(series.entries).length} BOOKS · EACH KEEPS ITS OWN
+				</div>
+			{/if}
 		</div>
 		<button type="button" class="edit" onclick={onedit}>EDIT</button>
 	</div>
@@ -2163,18 +2190,24 @@
 	}
 	.ns {
 		flex-shrink: 0;
-		width: var(--ns-w);
+		/* A namespace can be any length (parseTag), so a long one wraps rather than
+		   painting over its values (c837). The box borrows 8px of the 12px gutter and
+		   gives them back in the margin, so `.vals` stays where `.tags-more` aligns to
+		   it: inside the phone's bare 56px, `language`, one the design draws, broke. */
+		width: calc(var(--ns-w) + 8px);
+		margin-right: -8px;
 		font: 400 12px var(--font-mono);
 		color: var(--text-2);
 		letter-spacing: 0.04em;
+		overflow-wrap: anywhere;
 	}
 	.vals {
 		flex: 1;
 		min-width: 0;
 		font: 400 15px/1.35 var(--font-sans);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
+		/* Every value is read whole (c837): lines wrap, and one longer than the
+		   row breaks inside itself rather than pushing the row wider. */
+		overflow-wrap: anywhere;
 	}
 	.more {
 		align-self: flex-start;
@@ -2185,6 +2218,11 @@
 		color: var(--text-2);
 		letter-spacing: 0.04em;
 		cursor: pointer;
+	}
+	/* Under the values, not the namespaces: on a TV ↑ and ↓ go by column overlap,
+	   and in the namespaces' column the pad would pass every line of tags. */
+	.tags-more {
+		margin-left: calc(var(--ns-w) + 12px);
 	}
 	.about {
 		flex: 1;
@@ -2208,7 +2246,21 @@
 	.about p.open {
 		display: block;
 	}
+	/* One box per value, so a value that wraps is still a stop the pad can reach
+	   (the layer compares boxes; an inline link's is the whole wrapped area), and
+	   its dot goes with it, so no line starts on one. */
+	.val {
+		display: inline-flex;
+		align-items: baseline;
+		max-width: 100%;
+	}
+	.val .sep {
+		flex-shrink: 0;
+		margin: 0 6px;
+		color: var(--text-2);
+	}
 	.person {
+		min-width: 0;
 		color: inherit;
 		text-decoration: underline;
 		text-underline-offset: 4px;
@@ -2606,10 +2658,11 @@
 	}
 	/* ---- DETAILS (c425, c556; doc/handoffs/series-phone/) -------------------
 	   Where nothing folds the wrappers are no boxes, and the screen's order is
-	   the markup's: DOWNLOAD, the bands, LANGUAGE to SCANLATOR, SHELVES, LISTS to
-	   TAGS, ABOUT, EDITIONS and FILE. Folded, the bands, SHELVES and ABOUT stand
-	   above the line. Those three are drawn once each side of it, and each is
-	   hidden by the other's query. */
+	   the markup's: DOWNLOAD, ABOUT, TAGS, the bands, LANGUAGE to SCANLATOR,
+	   SHELVES, LISTS to SOURCE, EDITIONS and FILE. Folded, the bands, SHELVES and
+	   ABOUT stand above the line and TAGS stays inside it, after SOURCE (c837).
+	   Those four are drawn once in each order, and each copy is hidden by the
+	   other's query. */
 	.o,
 	.details {
 		display: contents;

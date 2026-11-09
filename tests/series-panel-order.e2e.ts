@@ -4,9 +4,10 @@ import { expect, test } from './fixtures';
 /**
  * Tab and a screen reader read the series panel in the order it is drawn
  * (c556, WCAG 2.4.3; doc/SERIES.md, "Two markups"). Where nothing folds, the
- * screen's order is the DOM's: DOWNLOAD, the bands, DIRECTION, SHELVES, LISTS
- * to TAGS, ABOUT, FILE; on a phone or a TV the bands, SHELVES and ABOUT stand
- * above DETAILS instead, and the other copy of each is `display: none`. A plain
+ * screen's order is the DOM's: DOWNLOAD, ABOUT, TAGS (c837), the bands,
+ * DIRECTION, SHELVES, LISTS to SOURCE, FILE; on a phone or a TV the bands,
+ * SHELVES and ABOUT stand above DETAILS and TAGS stays inside it, and the other
+ * copy of each of the four is `display: none`. A plain
  * `*.e2e.ts`, so it runs on the four device projects: the walk by Tab needs a
  * fine pointer and a panel that does not fold, so it is the desktop's, and the
  * "one copy is drawn" case is every project's. It only reads the shared seed:
@@ -76,11 +77,15 @@ test.describe('Tab through the panel', () => {
 		const direction = stops.findIndex((s) => /^(READ|DIRECTION)|R→L|L→R|PAGED|STRIP/.test(s.group));
 		expect(band, stops.map((s) => s.label).join(' | ')).toBeGreaterThan(-1);
 		expect(shelves).toBeGreaterThan(band);
+		// ABOUT and TAGS come under DOWNLOAD, before the bands (c837).
+		const tags = stops.findIndex((s) => s.group === 'TAGS');
+		expect(tags, stops.map((s) => s.label).join(' | ')).toBeGreaterThan(-1);
+		expect(tags).toBeLessThan(band);
 		// The row the fold's order moved under SHELVES comes first where nothing folds.
 		if (direction !== -1) expect(direction).toBeLessThan(shelves);
 	});
 
-	test('reaches DIRECTION before SHELVES, and ABOUT after LISTS', async ({ page }) => {
+	test('reaches ABOUT and TAGS first, then DIRECTION, then SHELVES (c837)', async ({ page }) => {
 		await openCircle(page, 'Tower of God');
 		const stops = await walk(page);
 		const names = stops.map((s) => `${s.group}:${s.label}`);
@@ -90,11 +95,16 @@ test.describe('Tab through the panel', () => {
 		expect(edit, names.join(' | ')).toBeGreaterThan(-1);
 		expect(r2l, names.join(' | ')).toBeGreaterThan(-1);
 		expect(r2l).toBeLessThan(edit);
-		expect(more, names.join(' | ')).toBeGreaterThan(edit);
+		const tags = names.findIndex((n) => n.startsWith('TAGS:EDIT'));
+		expect(more, names.join(' | ')).toBeGreaterThan(-1);
+		expect(more).toBeLessThan(tags);
+		expect(tags, names.join(' | ')).toBeLessThan(r2l);
 	});
 });
 
-test('one copy of the bands, SHELVES and ABOUT is drawn, on every device', async ({ page }) => {
+test('one copy of the bands, SHELVES, ABOUT and TAGS is drawn, on every device', async ({
+	page
+}) => {
 	await openCircle(page, 'Tower of God');
 	// Where the fold applies, open it: the screen's copies are inside it.
 	const line = page.locator('[data-row="details"]');
@@ -104,6 +114,7 @@ test('one copy of the bands, SHELVES and ABOUT is drawn, on every device', async
 			await expect(line).toHaveAttribute('aria-expanded', 'true', { timeout: 1_000 });
 		}).toPass();
 	await expect(page.locator('.panel .about:visible')).toHaveCount(1);
+	await expect(page.locator('.panel .tags:visible')).toHaveCount(1);
 	await expect(
 		page
 			.locator('.panel .row:visible', { hasText: 'SHELVES' })

@@ -60,6 +60,39 @@ test('the series frame matches the design for this device', async ({ page }, inf
 	expect(rail.width).toBe(frame.rail);
 });
 
+test('ABOUT and TAGS stand above the other rows, where the fold is not in the way (c837)', async ({
+	page
+}, info) => {
+	const tv = info.project.name === 'tv';
+	await page.goto('/?sort=title');
+	await page.locator('.grid .tile', { hasText: 'Tower of God' }).click();
+	await page.waitForURL(/\/series\/\d+/);
+	await expect(page.getByRole('heading', { name: 'Tower of God' })).toBeVisible();
+	await screenSettled(page);
+	const details = page.locator('[data-row="details"]');
+	const at = (label: string) =>
+		page
+			.locator('.panel .label:visible', { hasText: new RegExp(`^${label}`) })
+			.first()
+			.evaluate((n) => n.getBoundingClientRect().top + window.scrollY);
+	if (await details.isVisible()) {
+		// The phone's and the TV's 1A and 1C hold: ABOUT above the line, TAGS inside it.
+		expect(['phone', 'tv']).toContain(info.project.name);
+		expect(await at('ABOUT')).toBeLessThan(
+			(await details.boundingBox())!.y + (await page.evaluate(() => window.scrollY))
+		);
+		await expect(page.locator('.panel .tags:visible')).toHaveCount(0);
+		return;
+	}
+	expect(tv).toBe(false);
+	const about = await at('ABOUT');
+	const tags = await at('TAGS');
+	expect(about).toBeLessThan(tags);
+	expect(tags).toBeLessThan(await at('SHELVES'));
+	expect(tags).toBeLessThan(await at('DIRECTION'));
+	// The seed's series has no DOWNLOAD row: series-details.e2e.ts pins the rows under it.
+});
+
 // c488: the hover tint (motion.css) is a background-image, so it replaces a
 // picture drawn by the element's own stylesheet unless the element says
 // `data-picture`. The fold's stripes are that picture. A hover needs a fine
@@ -178,7 +211,9 @@ test('a novel shows its contents without numbers, and a typeset cover', async ({
 	await expect(page.getByText('NO COVER · EPUB')).toBeVisible();
 	// LAYOUT is a row DETAILS folds on a phone and a TV (c425).
 	await openDetails(page);
-	await expect(page.getByText('LAYOUT', { exact: true })).toBeVisible();
+	// The row itself: while the series is still arriving its outline draws the same
+	// label, in both copies of the bands (c556), and a text locator refuses two.
+	await expect(page.locator('form.row .label', { hasText: /^LAYOUT$/ })).toBeVisible();
 	await expect(page.locator('.entry .num')).toHaveCount(0);
 });
 

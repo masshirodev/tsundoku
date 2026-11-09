@@ -522,15 +522,20 @@ export function seriesMeta(s: Pick<SeriesPage, 'kind' | 'source' | 'status' | 'e
 
 /**
  * Tags grouped by namespace, values joined with " · ", in a stable order that
- * puts the namespaces a reader looks for first. `limit` namespaces are shown;
- * the rest are counted in `more`.
+ * puts the namespaces a reader looks for first. `limit` namespaces are `groups`;
+ * the others are `rest`, in the same order, and `more` counts their values, so
+ * the row can say how many a `+ N MORE` opens (c837).
  */
 const NAMESPACE_ORDER = ['genre', 'circle', 'artist', 'language', 'source'];
 
 export function tagGroups(
 	tags: SeriesTag[],
 	limit = 4
-): { groups: { namespace: string; values: string[] }[]; more: number } {
+): {
+	groups: { namespace: string; values: string[] }[];
+	rest: { namespace: string; values: string[] }[];
+	more: number;
+} {
 	const by = new Map<string, string[]>();
 	for (const t of tags) {
 		const ns = t.namespace || 'tag';
@@ -543,9 +548,12 @@ export function tagGroups(
 	const all = [...by.entries()]
 		.sort((a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0]))
 		.map(([namespace, values]) => ({ namespace, values }));
-	const shown = all.slice(0, limit);
-	const more = all.slice(limit).reduce((n, g) => n + g.values.length, 0);
-	return { groups: shown, more };
+	const rest = all.slice(limit);
+	return {
+		groups: all.slice(0, limit),
+		rest,
+		more: rest.reduce((n, g) => n + g.values.length, 0)
+	};
 }
 
 /** Parse "artist:Seo Haram" into a tag. A bare value has no namespace. */
