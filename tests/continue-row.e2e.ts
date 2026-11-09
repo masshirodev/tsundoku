@@ -3,7 +3,7 @@ import { rmSync } from 'node:fs';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type Locator, type Page } from '@playwright/test';
+import { type Locator, type Page, type Request } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
 import { markerPath } from '../src/lib/cache/policy';
 import { expect, hydrated, test } from './fixtures';
@@ -290,13 +290,22 @@ test.describe('a held press on the row (c860)', () => {
 			await route.continue();
 		});
 		const asked = page.waitForRequest(SERIES_READ);
+		// A resume asks for the reader's data well before the URL moves, so that
+		// request is what is counted. The band needs no such count: hovering it
+		// has preloaded its data, so a click on it lands at once, on the URL.
+		const left: string[] = [];
+		const leaving = (r: Request) => {
+			if (new URL(r.url()).pathname.startsWith('/read/')) left.push(r.url());
+		};
+		page.on('request', leaving);
 		const box = (await target.boundingBox())!;
 		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 		await page.mouse.down();
 		await asked; // the hold fired: its read is out
 		await page.mouse.up();
-		// Time for a click to have followed the link or resumed: it would be on its way by now.
-		await page.waitForTimeout(400);
+		await page.waitForTimeout(800);
+		page.off('request', leaving);
+		expect(left, 'the release asked for no next screen').toEqual([]);
 		expect(new URL(page.url()).pathname, 'the release went nowhere').toBe('/');
 		release();
 		await expect(await sheetOf(page)).toBeVisible();
