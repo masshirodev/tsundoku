@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer as createHttp, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 import { freePort } from './helpers/tag-world';
@@ -82,7 +82,9 @@ function startEngine(port: number): Promise<Server> {
 						url,
 						title: 'A Preview',
 						description: 'One to come back from.',
-						status: 1
+						status: 1,
+						// A tag to leave the preview by (c456); the search for it is a plain `q=`.
+						author: 'Ren Kisaragi'
 					});
 				case 'getChapterList':
 					return json([{ url: `${url}/c1`, name: 'Chapter 1', chapter_number: 1 }]);
@@ -152,6 +154,42 @@ test.afterAll(async () => {
 
 const focusedTile = (page: Page) =>
 	page.evaluate(() => !!document.activeElement?.closest('.grid a.tile'));
+
+/** The page's address as the click left it, for asserting a destination rather than an href. */
+const where = (page: Page) => {
+	const u = new URL(page.url());
+	return u.pathname + u.search;
+};
+
+/** Follow a link the way the remote does: focus it, then Enter. */
+async function press(page: Page, link: Locator): Promise<void> {
+	await link.focus();
+	await page.keyboard.press('Enter');
+}
+
+/** Wait for the address a link's click lands on, never the address it names. */
+async function expectWhere(page: Page, want: string): Promise<void> {
+	await expect.poll(() => where(page)).toBe(want);
+}
+
+/** The preview's own ←, never a catalog's ←, and only the one naming `href`. */
+const previewBack = (page: Page, href: string) =>
+	page.locator('.preview header.bar a.back').and(page.locator(`a[href="${href}"]`));
+
+/**
+ * The catalog's ← a tag sent the reader to, naming `href`, once its screen is
+ * up. A key comes first: the arrival may still be putting a tile back
+ * (`restoreFocus`), and the reader's first key is what ends that, so focussing
+ * the ← from script must end it too or the tile takes focus back mid-frame.
+ */
+async function catalogBack(page: Page, href: string) {
+	await page.keyboard.press('ArrowUp');
+	const link = page
+		.getByRole('link', { name: 'Back to the preview' })
+		.and(page.locator(`a[href="${href}"]`));
+	await expect(link).toBeVisible();
+	return link;
+}
 
 /** Down from wherever the pad is to the grid, then in to a tile with neighbours on every side. */
 async function padToInnerTile(page: Page): Promise<void> {
@@ -286,6 +324,104 @@ test('back by the preview’s own ←: the same tile holds the mark again', asyn
 	await page.waitForURL(/\/browse\//);
 	await expect(page.locator('.grid a.tile:focus .t')).toHaveText(left as string);
 	await expectMark(page);
+});
+
+test('a tag from a preview: each ← lands on the screen it names, and the list’s tile comes back', async ({
+	page
+}) => {
+	await page.goto(`${world.base}/browse/${SOURCE.id}?tab=latest`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Latest 0');
+	await padToInnerTile(page);
+	const left = await page.evaluate(
+		() => (document.activeElement as HTMLElement).querySelector('.t')?.textContent
+	);
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('heading', { name: 'A Preview' })).toBeVisible();
+	const preview = where(page);
+	expect(preview).toContain(`/downloads/source/${SOURCE.id}~`);
+	await press(page, page.getByRole('link', { name: 'Ren Kisaragi', exact: true }));
+	await expect.poll(() => where(page)).toContain(`/browse/${SOURCE.id}?`);
+	expect(new URL(page.url()).searchParams.get('q')).toBe('Ren Kisaragi');
+	expect(new URL(page.url()).searchParams.get('from')).toBe(preview);
+	// The catalog's ← opens the preview it names, and the preview's ← opens the
+	// list: neither matches the tag search by path, so the two cannot loop.
+	await press(page, await catalogBack(page, preview));
+	await expectWhere(page, preview);
+	await press(page, previewBack(page, `/browse/${SOURCE.id}?tab=latest`));
+	await expectWhere(page, `/browse/${SOURCE.id}?tab=latest`);
+	// The list's own mark still comes back with it: a plain way back has no
+	// popstate to restore it, so the catalog restores it on arrival (c864).
+	await expect(page.locator('.grid a.tile:focus .t')).toHaveText(left as string);
+	await expectMark(page);
+});
+
+test('two tag round trips: ← walks the tag, its preview, the first tag, its preview, the list', async ({
+	page
+}) => {
+	const list = `/browse/${SOURCE.id}?tab=latest`;
+	await page.goto(`${world.base}${list}`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Latest 0');
+
+	// X, from the list; tag A, from X.
+	await padToInnerTile(page);
+	const left = await page.evaluate(
+		() => (document.activeElement as HTMLElement).querySelector('.t')?.textContent
+	);
+	expect(left, 'a tile was focused before leaving').toMatch(/^Latest \d+$/);
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('heading', { name: 'A Preview' })).toBeVisible();
+	const x = where(page);
+	await press(page, page.getByRole('link', { name: 'Ren Kisaragi', exact: true }));
+	await expect.poll(() => where(page)).toContain(`/browse/${SOURCE.id}?`);
+	const a = where(page);
+	expect(a).not.toBe(list);
+
+	// Y, from A's grid; tag B, from Y. Different tiles, so a different preview.
+	await padToInnerTile(page);
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('heading', { name: 'A Preview' })).toBeVisible();
+	const y = where(page);
+	expect(y).not.toBe(x);
+	await press(page, page.getByRole('link', { name: 'Ren Kisaragi', exact: true }));
+	await expect.poll(() => where(page)).toContain(`/browse/${SOURCE.id}?`);
+	const b = where(page);
+	expect(b).not.toBe(a);
+
+	// B -> Y -> A -> X -> the list, one ← at a time, with no loop.
+	await press(page, await catalogBack(page, y));
+	await expectWhere(page, y);
+	await press(page, previewBack(page, a));
+	await expectWhere(page, a);
+	await press(page, await catalogBack(page, x));
+	await expectWhere(page, x);
+	await press(page, previewBack(page, list));
+	await expectWhere(page, list);
+	// And the tile the walk began from is marked again, three screens later.
+	await expect(page.locator('.grid a.tile:focus .t')).toHaveText(left as string);
+	await expectMark(page);
+});
+
+test('a tag search opened by address, with nothing behind it: ← opens the screen it names', async ({
+	page
+}) => {
+	const from = `/downloads/source/${SOURCE.id}~${Buffer.from('/manga/Popular-2').toString('base64url')}?from=${encodeURIComponent(`/browse/${SOURCE.id}`)}`;
+	await page.goto(
+		`${world.base}/browse/${SOURCE.id}?q=Ren+Kisaragi&from=${encodeURIComponent(from)}`
+	);
+	await expect(page.locator('.grid a.tile').first()).toBeVisible();
+	await press(page, await catalogBack(page, from));
+	await expectWhere(page, from);
+});
+
+test('the same after a reload: ← still opens the screen it names', async ({ page }) => {
+	const from = `/downloads/source/${SOURCE.id}~${Buffer.from('/manga/Popular-3').toString('base64url')}?from=${encodeURIComponent(`/browse/${SOURCE.id}`)}`;
+	await page.goto(
+		`${world.base}/browse/${SOURCE.id}?q=Ren+Kisaragi&from=${encodeURIComponent(from)}`
+	);
+	await page.reload();
+	await expect(page.locator('.grid a.tile').first()).toBeVisible();
+	await press(page, await catalogBack(page, from));
+	await expectWhere(page, from);
 });
 
 test('under FILTER’s scrim: the mark is drawn over it', async ({ page }) => {

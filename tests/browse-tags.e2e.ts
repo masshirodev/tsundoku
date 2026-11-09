@@ -249,7 +249,11 @@ test('a genre on the preview lands on FILTERED with its chip included, and ← c
 	expect(at(page).pathname + at(page).search).toBe(previewPath);
 	const own = page.locator('header.bar a.back');
 	await expect(own).toHaveText(/BROWSE/);
-	expect(new URL((await own.getAttribute('href'))!, world.base).pathname).toBe(fromBrowse);
+	// Since c864 the href and the landing can differ, so press it: it goes back
+	// to the list it names, not to the tag search whose path it shares.
+	await own.click();
+	await expect(page.locator('.grid a.tile').first()).toBeVisible();
+	expect(at(page).pathname + at(page).search).toBe(fromBrowse);
 });
 
 /**

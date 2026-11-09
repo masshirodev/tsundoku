@@ -8,6 +8,7 @@
 	import Band from '$lib/components/chrome/Band.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { count } from '$lib/library/downloads';
+	import { restoreFocus } from '$lib/focus';
 	import { writeFilters } from '$lib/library/browse-filters';
 	import { backOriginLabel, keepOrigin } from '$lib/library/tag-search';
 	import { isRefusedCheck } from './refused-check';
@@ -47,6 +48,18 @@
 
 	type Answer = Extract<Awaited<typeof data.answer>, { ok: true }>['value'];
 	type Shown = { key: string; ok: true; value: Answer } | { key: string; ok: false; error: string };
+
+	/**
+	 * A tile's focus comes back with a plain way back from a preview (c864).
+	 * The preview's ← is a plain link, not a back link: a tag search and a
+	 * source's list share the path `/browse/<id>`, so matching by path would
+	 * take the tag search the reader came through and the two ←s would
+	 * alternate for good. Focus is put back here instead, from the id the root
+	 * layout's `saveFocus` noted for this URL, as `restoreFocus` does on a
+	 * popstate; a visit left by touch or mouse saved none, so a phone's way
+	 * back draws no focus. It waits for the streamed grid, as the layout does.
+	 */
+	onMount(() => restoreFocus(page.url.pathname, page.url.search));
 
 	const base = $derived(resolve('/browse/[source]', { source: data.source.id }));
 	/** The ADDED band's parameters (c505): said once, and never part of which list this is. */
