@@ -229,6 +229,53 @@ test.describe('each door, on its own', () => {
 	});
 });
 
+test('a page out when a snapshot comes back does not keep the flag for ever', async ({ page }) => {
+	// The first page's tiles short, so the screen coming back asks for a page
+	// by itself, and the snapshot's bump drops that answer.
+	await page.addInitScript(() => {
+		const sheet = new CSSStyleSheet();
+		sheet.replaceSync('.grid .tile:nth-child(n+8) { height: 4000px; }');
+		document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+	});
+	await shortPages(page, 7);
+	const offsets = pageRequests(page);
+	const third = (u: URL) => isPageRead(u) && u.searchParams.get('offset') === '21';
+	await page.route(third, () => undefined);
+	await page.goto('/?sort=title');
+	await expect.poll(() => page.locator('.grid .tile').count()).toBeGreaterThanOrEqual(14);
+	await toBottom(page);
+	await expect.poll(() => page.locator('.grid .tile').count()).toBeGreaterThanOrEqual(21);
+	await page.locator('.grid .tile .open').first().click();
+	await page.waitForURL(/\/series\/\d+/);
+	await page.unroute(third);
+	offsets.length = 0;
+
+	// Whether the mount asks before the snapshot lands is the browser's timing,
+	// so the case holds that request when it comes and asserts the outcome.
+	const out: Route[] = [];
+	await page.route(
+		(u) =>
+			isPageRead(u) && u.searchParams.get('offset') === '7' && u.searchParams.get('limit') === '7',
+		(route) => void out.push(route) // kept out past the restore, so its bump drops the answer
+	);
+	await page.goBack();
+	await page.waitForURL((u) => u.pathname === '/');
+	await expect.poll(() => page.locator('.grid .tile').count()).toBeGreaterThanOrEqual(21);
+	// A dropped answer is no help to the flag; it only ever frees one still current.
+	for (const route of out) await route.continue().catch(() => undefined);
+	// To the end by hand, again each poll: `settleScroll` keeps putting the page
+	// back at its place for up to two seconds. Only a free flag asks.
+	await expect
+		.poll(
+			async () => {
+				await toBottom(page);
+				return offsets.filter((o) => o === 21);
+			},
+			{ message: 'the next page', timeout: 8000 }
+		)
+		.toEqual([21]);
+});
+
 test.describe('a page that never answers', () => {
 	test('ends in RETRY; a scroll does not ask again; the late answer is dropped; RETRY brings it', async ({
 		page
