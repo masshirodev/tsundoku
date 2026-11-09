@@ -310,6 +310,9 @@ test('UPDATE narrows UPDATE ALL to the ticked row, and its UNDO is BACK TO', asy
 	await band.getByRole('button', { name: 'UNDO' }).click();
 	await expect(row(page, 'Webtoons.com')).toContainText('1.6.2');
 	await expect(page.locator('.band')).toContainText('BACK TO · 1 EXTENSION');
+	// SELECT ended on success, and the next one starts with nothing ticked.
+	await startSelect(page);
+	await expect(page.locator('.cell.count')).toHaveText('0 SELECTED');
 });
 
 test('REMOVE asks first for the whole selection, and has no UNDO', async ({ page }) => {

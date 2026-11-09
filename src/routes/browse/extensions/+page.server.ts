@@ -488,7 +488,12 @@ export const actions: Actions = {
 		// the owner runs, and only the post that asks for it waits.
 		await holdPost('flag', request);
 		const pkgs = tickedPackages(form);
-		const press = pressFlag(pkgs, flag, value === 'true');
+		let press: ReturnType<typeof pressFlag>;
+		try {
+			press = pressFlag(pkgs, flag, value === 'true');
+		} catch {
+			return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE' });
+		}
 		const reveal = isRevealed(cookies);
 		const still = shownSelection(pkgs, reveal);
 		const q = bandQuery('flags', {
@@ -605,11 +610,6 @@ export const actions: Actions = {
 		for (const pkg of asked) {
 			if (!known.has(pkg)) continue;
 			const plugin = pluginOf(pkg);
-			const what = plugin ? pluginRemoval(plugin, reveal) : removal(pkg, reveal);
-			if (!what) continue;
-			series += what.series;
-			queued += what.queued;
-			followed += what.followed;
 			const obsolete = plugin
 				? !!installedPlugins().find((p) => p.id === plugin)?.obsolete
 				: findListing(pkg, getDb()) === null;
@@ -617,6 +617,11 @@ export const actions: Actions = {
 				stayed.push(pkg);
 				continue;
 			}
+			const what = plugin ? pluginRemoval(plugin, reveal) : removal(pkg, reveal);
+			if (!what) continue;
+			series += what.series;
+			queued += what.queued;
+			followed += what.followed;
 			if (plugin) removePlugin(plugin);
 			else removeExtension(pkg);
 			done.push(pkg);

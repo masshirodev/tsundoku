@@ -148,6 +148,11 @@
 		const drawn = new Set(data.drawn);
 		for (const pkg of [...selected]) if (!drawn.has(pkg)) selected.delete(pkg);
 	});
+	// UPDATE or REMOVE succeeded and ended SELECT: the next one starts empty, as
+	// ✕'s would (the redirect left the URL without the ticks).
+	$effect(() => {
+		if (!data.select && selected.size > 0) selected.clear();
+	});
 
 	function toggleSelection(pkg: string) {
 		if (selected.has(pkg)) selected.delete(pkg);
@@ -1523,7 +1528,6 @@
 		display: flex;
 		align-items: center;
 		height: 36px;
-		margin-bottom: 6px;
 		padding: 0 12px;
 		border: 1px solid var(--line-2);
 		color: var(--text-1);
