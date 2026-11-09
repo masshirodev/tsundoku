@@ -58,6 +58,10 @@ only what the row offers and stores the default as a reset).
     wider), and **IN USE** on the two this screen uses.
 - **DIM** is listed with its value and no control: a dim set without the page
   behind it is a guess.
+- **CURSOR** (`tsundoku.reader.cursor`, off, c678) is both readers': on hides
+  the cursor after three seconds without the mouse moving. It is listed on every
+  device, though only a mouse has a cursor, so the READING sheets leave their row
+  out where there is none and this one says WITH A MOUSE.
 
 Two rows of a friend's (2026-10-30) close 01's strip settings: **CHAPTERS** (RUN ON
 | STOP AT THE END) and **TO THE TOP** (OFF | ON), both this device's, both
@@ -72,7 +76,7 @@ paged reader's zones drawn as a chapter opens, by finger ([`READER.md`](READER.m
   direction is per series only (`series.text_direction`, c440;
   [`TEXT-READER.md`](TEXT-READER.md), "Direction"), and the owner chose no
   SETTINGS default for it (2026-11-05), so NULL, L→R, is what it differs
-  from. A stored `'ltr'` reads as NULL does and is not counted. A novel that
+  from. A chosen `'ltr'` (c617) reads as NULL does and is not counted. A novel that
   differs in both is counted once, and its line says both (`PAGED · R→L ·
 NOVEL · CHOSEN IN THE READER`, `src/routes/settings/mode-line.ts`). ✕ and
   CLEAR ALL N clear **only what the line names** (c637, the owner's decision
@@ -80,8 +84,10 @@ NOVEL · CHOSEN IN THE READER`, `src/routes/settings/mode-line.ts`). ✕ and
   NULL. A novel listed only for R→L keeps a `direction` stored equal to the
   LAYOUT default: REMEMBER stored it as a choice, so it does not start
   following a later change of default (when the default does change, that
-  series then differs, and its line says so). A stored `'ltr'` is not on the
-  line and stays. A comic's `text_direction`, left from a time it was a
+  series then differs, and its line says so). A chosen `'ltr'` has nothing for
+  the line to name, since it reads as NULL does, and ✕ clears it with the rest
+  of the series' page direction (c617): left behind, it would travel through a
+  later fold as a choice the owner had just cleared. A comic's `text_direction`, left from a time it was a
   novel, is neither counted nor cleared, and a kind with no default of its
   own (an anime) is never listed, so a posted id of one changes nothing
   (`clearModes`, `src/lib/server/settings-page.ts`).
@@ -110,6 +116,15 @@ NOVEL · CHOSEN IN THE READER`, `src/routes/settings/mode-line.ts`). ✕ and
   (`tsundoku:anime:volume`, the device's, c385) is where the next episode
   starts, set by the player's VOL slider, wheel and ↑ ↓; mute is never kept,
   so a muted episode does not leave the next one silent.
+- **CURSOR** (`tsundoku:anime:cursor`, on, c713) is the player's own: on hides
+  the cursor when the controls go during playback. It is a separate key from
+  the readers' because the two defaults differ, and one key with two defaults
+  made this page say OFF while the player hid the cursor. Until c713 the player
+  read the readers' key, so the first time a device opens the player an answer
+  stored there is carried to this one, once (`src/lib/reader/cursor.ts`): a
+  RESET removes this value, and reading the readers' key again would bring the
+  old OFF back. On a device holding that OFF, this row reads ON until the player
+  has been opened once there, since the carry happens in the player.
 
 ## 04 — Downloading
 

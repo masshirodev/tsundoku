@@ -33,7 +33,7 @@ describe('a novel’s reading direction', () => {
 		expect(dir.textDirectionOf(id)).toBe('ltr');
 	});
 
-	it('keeps R→L, and REMEMBER L→R puts back the NULL that means the default', () => {
+	it('keeps R→L, and REMEMBER L→R stores L→R as a choice (c617)', () => {
 		const id = idOf('Mushoku Tensei');
 		const layout = getDb().prepare(`SELECT direction FROM series WHERE id = ?`).get(id);
 		dir.setTextDirection(id, 'rtl');
@@ -42,7 +42,7 @@ describe('a novel’s reading direction', () => {
 		// The layout, in `direction`, is untouched: the two are separate columns.
 		expect(getDb().prepare(`SELECT direction FROM series WHERE id = ?`).get(id)).toEqual(layout);
 		dir.setTextDirection(id, 'ltr');
-		expect(stored(id)).toBeNull();
+		expect(stored(id)).toBe('ltr');
 		expect(dir.textDirectionOf(id)).toBe('ltr');
 	});
 

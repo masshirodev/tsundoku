@@ -1266,7 +1266,7 @@
 	/** The controls came up because the mouse reached an edge: they go when it leaves. */
 	let byHover = false;
 	/**
-	 * HIDE CURSOR (c678): with the option on, the cursor goes after three
+	 * CURSOR (c678): with the option on, the cursor goes after three
 	 * seconds without the mouse moving, and a move or a press brings it back at
 	 * once. Keys and the wheel do not. It never hides while the bars, the
 	 * sheet, CONTENTS, the lookup, a full-screen image, a wide block or the end
@@ -1930,7 +1930,7 @@
 		-webkit-user-select: none;
 		-webkit-touch-callout: none;
 	}
-	/* HIDE CURSOR on, and the mouse still for three seconds (c678): the class is
+	/* CURSOR on, and the mouse still for three seconds (c678): the class is
 	   the whole change, so nothing reflows. Every descendant is covered because
 	   a cell or a button sets its own pointer cursor. */
 	.text-reader.cursor-idle,

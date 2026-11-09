@@ -356,6 +356,28 @@ SERIES`, where the handoff wrote CHAPTER.
 - **The page's sheet on a TV** is READING's 420px panel from the right, which
   the pad reaches; M6 draws the phone's bottom sheet only.
 
+## The way back to a clip
+
+EPISODE · 12:04 → opens the episode at the clip's in point, by `?t=<seconds>` on
+the player's URL (c734; `wayBackHref` writes it, `startSecond` reads it, both in
+`src/lib/library/highlights.ts`). The rules, for anything else that links there:
+
+- **It wins over the saved place once.** The URL loses it as the player spends
+  it, so a reload opens at the place the episode has reached, and NEXT and
+  PREVIOUS never carry it. A failover or TRY AGAIN keeps the second it was
+  heading for. A `?t=` beside a saved place draws no RESUMED band: the band says
+  the saved place won.
+- **Only plain seconds count** (`734`, `734.5`). Anything else, and a second at
+  or past a known length, is no place: the saved place and its band stand. A
+  length the catalogue didn't give is checked against the file's when it comes.
+  A second the file itself refuses makes this the plain open it would have been,
+  from the saved place, showing and recording its place as any other does.
+- **It is not progress until the picture plays from it.** Nothing is saved while
+  the picture sits where the link put it, by a seek's own `timeupdate` or by
+  leaving; a refused autoplay leaves the saved place where it was. A full second
+  played from there makes it the viewer's. An in point past the ending does not
+  mark the episode watched on arrival.
+
 ## What it does not do yet
 
 - **Make a quote or a clip** (H2, H4), and everything that only matters once
@@ -374,8 +396,6 @@ SERIES`, where the handoff wrote CHAPTER.
 - **MP4 with a track burned in.** It is made on the workstation by ffmpeg in
   the clip lane, which H4 brings (Main 05, "The clip's job"); SAVE CLIP saves
   the MKV.
-- **A clip's in point from the URL.** EPISODE → opens the episode; the player
-  reads no start time from its URL yet.
 - **The library's bulk DELETE line** (`31 HIGHLIGHTS IN 4 SERIES ARE KEPT`):
   `deleteSeries` takes the option and `keptAcrossLine` says it, but the bulk
   bar is the library page's (doc/handoff-notes/highlights.md, Gaps).

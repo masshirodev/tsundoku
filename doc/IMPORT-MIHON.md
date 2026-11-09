@@ -325,7 +325,10 @@ plan meets the series a backup names, including a pair that already exists.
   be the import's name over the owner's. A folder's series still named as its
   folder carries no edit, and the survivor keeps its own, except that a page
   direction fills in where the survivor has none, as a rating does: R→L set on
-  either row survives the fold.
+  either row survives the fold. The renamed folder passes its page direction
+  only if it chose one (c617): NULL is 'never chosen' and leaves a survivor's
+  R→L alone, and a chosen L→R, stored `'ltr'`, wins over it. A row stored NULL
+  before c617 reads as never chosen, whichever it was.
 
 **A folder whose chapters the backup does not share waits beside it.** The
 source and title are not enough on their own: adopting would take the folder's

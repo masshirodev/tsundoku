@@ -1074,6 +1074,12 @@ test.describe('the Work card on a TV (c517)', () => {
  * every 2 s of the 8 s clip. A stream keeps the time alone.
  */
 test.describe('the seek preview on a TV (c457)', () => {
+	// The stand-ins below are `page.route`s on the stream list, which a service
+	// worker answers without passing them (src/service-worker.ts): once it had
+	// claimed the page in time, the player got the real two servers and no sprite
+	// (c709: 4 of 30 alone, exactly the 4 `fromServiceWorker` answers).
+	test.use({ serviceWorkers: 'block' });
+
 	const SPRITE = '/__preview/tv-sprite.jpg';
 	type Answer = { servers: { n: number; name: string; qualities: Record<string, unknown>[] }[] };
 

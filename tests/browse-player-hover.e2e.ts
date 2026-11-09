@@ -3,6 +3,7 @@ import { devices, type Page } from '@playwright/test';
 import Database from 'better-sqlite3';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { hydrated } from './helpers/hydration';
 
 /**
  * Hovering the picture never tints it, and clicking it never flashes it
@@ -117,8 +118,92 @@ test('hovering the picture leaves it untinted, and a visible control still tints
 });
 
 /**
- * c678: the player's cursor follows its controls. The option is the readers'
- * (HIDE CURSOR) and the player's default is on, so no row is touched here; the
+ * c713: the player's own key. SETTINGS says what the player does on a device
+ * that never touched it, an OFF already stored on the readers' key is carried
+ * once, and after that the two are apart: RESET does not bring the old OFF
+ * back, and the readers' key no longer moves the player. Through SETTINGS' own
+ * row. A context of its own each, because the keys are this browser's storage.
+ */
+test.describe('the player’s CURSOR has its own key (c713)', () => {
+	const SHARED = 'tsundoku.reader.cursor';
+	const OWN = 'tsundoku:anime:cursor';
+	const local = (page: Page, key: string) => page.evaluate((k) => localStorage.getItem(k), key);
+	const setLocal = (page: Page, key: string, value: string) =>
+		page.evaluate(([k, v]) => localStorage.setItem(k, v), [key, value]);
+	const row = (page: Page, id: string) => page.locator(`[data-row="${id}"]`);
+	const pressed = (page: Page, id: string) => row(page, id).locator('button[aria-pressed="true"]');
+
+	async function settings(page: Page) {
+		await page.goto('/settings');
+		await hydrated(page);
+		await expect(row(page, 'player-cursor')).toBeVisible();
+	}
+
+	/** Open the episode, let the controls go, and read the cursor over the picture. */
+	async function cursorWhilePlaying(page: Page) {
+		await openEpisode(page);
+		const player = page.locator('.player');
+		await page.evaluate(() => (document.querySelector('video') as HTMLVideoElement).play());
+		await expect(player).not.toHaveClass(/chrome/, { timeout: 15_000 });
+		// The class goes on the same render as `chrome`, so this reads the settled value.
+		return player.evaluate((el) => getComputedStyle(el).cursor);
+	}
+
+	test('a device that never touched either: SETTINGS says what each one does, and the player hides it', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		await incognito(page);
+		await settings(page);
+		await expect(pressed(page, 'cursor')).toHaveText('OFF');
+		await expect(pressed(page, 'player-cursor')).toHaveText('ON');
+		// The readers' row writes the key the readers read.
+		await row(page, 'cursor').getByRole('button', { name: 'ON', exact: true }).click();
+		await expect.poll(() => local(page, SHARED)).toBe('true');
+		expect(await cursorWhilePlaying(page)).toBe('none');
+	});
+
+	test('an OFF stored on the readers’ key is carried once, and RESET does not bring it back', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		await incognito(page);
+		await setLocal(page, SHARED, 'false');
+		expect(await cursorWhilePlaying(page)).toBe('auto');
+		expect(await local(page, OWN)).toBe('false');
+		// SETTINGS now says what the player did.
+		await settings(page);
+		await expect(pressed(page, 'player-cursor')).toHaveText('OFF');
+		// ON is the default, so the page stores nothing: the key is removed.
+		await row(page, 'player-cursor').getByRole('button', { name: 'ON', exact: true }).click();
+		await expect.poll(() => local(page, OWN)).toBeNull();
+		expect(await local(page, SHARED)).toBe('false');
+		// The readers' OFF is still stored, and must not be read a second time.
+		expect(await cursorWhilePlaying(page)).toBe('none');
+	});
+
+	test('after the carry, the readers’ key does not move the player, and the player’s row does', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		await incognito(page);
+		// Nothing stored: the carry is a no-op, and the player's default holds.
+		expect(await cursorWhilePlaying(page)).toBe('none');
+		await setLocal(page, SHARED, 'false');
+		expect(await cursorWhilePlaying(page)).toBe('none');
+		await settings(page);
+		await expect(pressed(page, 'player-cursor')).toHaveText('ON');
+		await row(page, 'player-cursor').getByRole('button', { name: 'OFF', exact: true }).click();
+		await expect.poll(() => local(page, OWN)).toBe('false');
+		// And the reverse: the player's row left the readers' key alone.
+		expect(await local(page, SHARED)).toBe('false');
+		expect(await cursorWhilePlaying(page)).toBe('auto');
+	});
+});
+
+/**
+ * c678: the player's cursor follows its controls. The player's CURSOR defaults
+ * to on (c713, a key of its own), so no row is touched here; the
  * player has no timer of its own, and the cursor goes exactly when the controls
  * go during playback (`HIDE_MOUSE_MS` after the last move) and comes back with
  * them: a move, a key, a pause. Incognito, so nothing is logged.

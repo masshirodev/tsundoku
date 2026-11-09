@@ -75,7 +75,7 @@
 		/** WIDTH (c437): this series' own, else the device's last choice. */
 		width: TextWidth;
 		dim: number;
-		/** HIDE CURSOR (c678): the device's, shared with the image reader and the player. */
+		/** CURSOR (c678): the device's, shared with the image reader. */
 		cursor: boolean;
 		rating: number;
 		onlayout: (l: Layout) => void;
@@ -371,7 +371,7 @@
 	</div>
 
 	{#if pointerFine.current}
-		<!-- HIDE CURSOR (c678): the cursor goes after three seconds still, and a
+		<!-- CURSOR (c678): the cursor goes after three seconds still, and a
 		     move or a press brings it back. Only where there is a mouse. -->
 		<div class="row">
 			<div class="label">CURSOR</div>
