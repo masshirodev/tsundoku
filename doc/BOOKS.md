@@ -151,11 +151,13 @@ with no file) and DOWNLOAD (the panel's FIRST n / ALL n), both per book on the
 server. **One book's own page offers them for that book** (c885): a tap on a
 single undownloaded book opens `?book=<id>`, whose page grid draws ▶ READ
 ONLINE and DOWNLOAD in the house cells above the pages. READ ONLINE is drawn
-when the book has no file and the workstation is reachable; DOWNLOAD when
-`rowAction` would queue it, and RETRY when its download failed, as its row on
-the list does. Both ask `?/download` with that one entry, so each queues one
-book, and the state is the book's own row of `seriesDownloads`, not the
-group's. A folded book keeps the screen it had.
+when `readsOnline(book.id)` says the book reads online and the workstation is
+reachable — the reader's own rule, not the group's state: a book whose own
+source has no extension, or which holds no key at all, is offered neither cell.
+DOWNLOAD is drawn when `rowAction` would queue that book's own row of
+`seriesDownloads`, and RETRY when its download failed, as its row on the list
+does. Both ask `?/download` with that one entry, so each queues one book. A
+folded book keeps the screen it had.
 
 **FOLLOW is a series' idea.** A group of one-offs has no one thing to follow,
 so the row leaves FOLLOW out and `setFollowed` still refuses. A series that

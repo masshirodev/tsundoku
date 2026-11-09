@@ -338,10 +338,6 @@
 	.book-offer > .cell:last-child {
 		border-right: 0;
 	}
-	.book-offer .cell:active {
-		background: var(--surface-inverse);
-		color: var(--text-inverse);
-	}
 	.grid {
 		list-style: none;
 		margin: 0;

@@ -911,7 +911,7 @@
 					book={data.book}
 					cover={data.cover}
 					downloads={dlStates}
-					readOnline={!!dlStates && offline.online}
+					readOnline={data.readOnline && offline.online}
 				/>
 			{:else if books}
 				<BookGrid

@@ -14,16 +14,23 @@ import { expect, test } from './fixtures';
  * Two one-offs added from a source and grouped keep READ ONLINE and DOWNLOAD,
  * and UNDO and UNGROUP give each its link back (card c885; doc/BOOKS.md,
  * "Where a book's origin lives"). On a book's own page those two are its own
- * offer, and a failed download offers RETRY (c885's last piece). It's in the
- * browse project (its name) for the fake engine, but in a world of its own: a
- * gallery source only exists here (the browse world's sources aren't galleries,
- * and a one-off from one is a manga, which GROUP won't bind), and every case
- * groups, downloads and ungroups. The one-offs come through the app's own ADD
- * and GROUP, never a seeded row.
+ * offer, and a failed download offers RETRY (c885's last piece). READ ONLINE is
+ * the book's own answer, not the group's: a book whose source lost its
+ * extension, or which holds no key at all, is offered neither cell while its
+ * twin is offered both (c885, round 2). It's in the browse project (its name)
+ * for the fake engine, but in a world of its own: a gallery source only exists
+ * here (the browse world's sources aren't galleries, and a one-off from one is
+ * a manga, which GROUP won't bind), and every case groups, downloads and
+ * ungroups. The one-offs come through the app's own ADD and GROUP, never a
+ * seeded row; the two lost states are the world's own rows, which no door
+ * writes.
  */
 
 const SOURCE = { id: '500', pkg: 'e2e.gallery', name: 'nhentai' };
-const previewOf = (url: string) => `${SOURCE.id}~${Buffer.from(url).toString('base64url')}`;
+/** A second gallery source, so one book's own source can lose its extension (c885, round 2). */
+const SOURCE2 = { id: '501', pkg: 'e2e.gallery2', name: 'hitomi' };
+const previewOf = (url: string, sourceId = SOURCE.id) =>
+	`${sourceId}~${Buffer.from(url).toString('base64url')}`;
 
 let work: string;
 let dbPath: string;
@@ -104,13 +111,15 @@ test.beforeAll(async () => {
 	});
 	const db = new Database(dbPath);
 	try {
-		db.prepare(
-			`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at, failed)
-			VALUES (?, ?, 'manga', 1, '1', '1.6', ?, 0, 0, '')`
-		).run(SOURCE.pkg, SOURCE.name, SOURCE.pkg.padEnd(64, '0'));
-		db.prepare(
-			`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES (?, ?, ?, 'en', 'https://g.example')`
-		).run(SOURCE.id, SOURCE.pkg, SOURCE.name);
+		for (const s of [SOURCE, SOURCE2]) {
+			db.prepare(
+				`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at, failed)
+				VALUES (?, ?, 'manga', 1, '1', '1.6', ?, 0, 0, '')`
+			).run(s.pkg, s.name, s.pkg.padEnd(64, '0'));
+			db.prepare(
+				`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES (?, ?, ?, 'en', 'https://g.example')`
+			).run(s.id, s.pkg, s.name);
+		}
 	} finally {
 		db.close();
 	}
@@ -163,8 +172,8 @@ async function reveal(page: Page) {
 }
 
 /** ADD from the preview: a one-off, as the owner's were. */
-async function addFromSource(page: Page, n: string) {
-	await page.goto(url(`/downloads/source/${previewOf(`/g/${n}`)}`));
+async function addFromSource(page: Page, n: string, source = SOURCE) {
+	await page.goto(url(`/downloads/source/${previewOf(`/g/${n}`, source.id)}`));
 	await page.getByRole('button', { name: /^\+ ADD/ }).click();
 	await page.waitForURL(/\/series\/\d+/);
 	return Number(new URL(page.url()).pathname.split('/').pop());
@@ -194,6 +203,25 @@ function dbGet<T>(sql: string, ...args: unknown[]): T {
 		db.close();
 	}
 }
+
+/** The world's own rows, written the way a lost extension row really is (c885). */
+function dbRun(sql: string, ...args: unknown[]): void {
+	const db = new Database(dbPath);
+	try {
+		db.pragma('busy_timeout = 5000');
+		db.prepare(sql).run(...args);
+	} finally {
+		db.close();
+	}
+}
+
+/** A book's entry, by the title the world's fake gave it. */
+const entryId = (series: number, title: string) =>
+	dbGet<{ id: number }>(
+		`SELECT id FROM entries WHERE series_id = ? AND title = ? ORDER BY id LIMIT 1`,
+		series,
+		title
+	).id;
 
 test.describe('as a series of books', () => {
 	let seriesId: number;
@@ -348,12 +376,6 @@ test.describe('on a book’s own page', () => {
 	let offerB: number;
 	let retryA: number;
 	let retryB: number;
-	const entryId = (series: number, title: string) =>
-		dbGet<{ id: number }>(
-			`SELECT id FROM entries WHERE series_id = ? AND title = ? ORDER BY id LIMIT 1`,
-			series,
-			title
-		).id;
 
 	async function makeGroup(
 		page: Page,
@@ -521,6 +543,106 @@ test.describe('on a book’s own page', () => {
 		await expect(page.locator('.book-offer')).toBeVisible();
 		await page.context().addCookies([{ name: 'tsundoku_incognito', value: '1', url: base }]);
 		await page.reload();
+		await expect(page.getByRole('link', { name: /READ ONLINE/ })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'DOWNLOAD', exact: true })).toBeVisible();
+	});
+});
+
+/**
+ * A group stays `ok` with a book whose own source has no extension, and with a
+ * book that holds no key at all (grouped before rung 76). READ ONLINE is the
+ * book's own answer (`readsOnline`), never the group's, and DOWNLOAD is the
+ * book's own row of `seriesDownloads`: neither cell on those books, both on a
+ * twin that can be read. The two groups come through the app's own ADD and
+ * GROUP; the lost states are the world's own rows, because no door makes them.
+ */
+test.describe('READ ONLINE and DOWNLOAD are the book’s own answers', () => {
+	let missingSeries: number;
+	let missingBook: number;
+	let missingTwin: number;
+	let keylessSeries: number;
+	let keylessBook: number;
+	let keylessTwin: number;
+
+	async function makeMixedGroup(
+		page: Page,
+		first: { n: string; source?: typeof SOURCE },
+		second: { n: string; source?: typeof SOURCE },
+		name: string
+	): Promise<number> {
+		await reveal(page);
+		await addFromSource(page, first.n, first.source);
+		await addFromSource(page, second.n, second.source);
+		const sheet = await openGroup(page, [`Gallery ${first.n}`, `Gallery ${second.n}`]);
+		await sheet.getByRole('textbox', { name: 'Series name' }).fill(name);
+		await sheet.getByRole('button', { name: /CREATE SERIES · 2 BOOKS/ }).click();
+		await expect(page).toHaveURL(/\/series\/\d+\?created=2/);
+		return Number(new URL(page.url()).pathname.split('/').pop());
+	}
+
+	test.beforeAll(async ({ browser }) => {
+		test.setTimeout(180_000);
+		const page = await browser.newPage();
+		try {
+			missingSeries = await makeMixedGroup(
+				page,
+				{ n: '601' },
+				{ n: '602', source: SOURCE2 },
+				'The Half Served'
+			);
+			missingTwin = entryId(missingSeries, 'Gallery 601');
+			missingBook = entryId(missingSeries, 'Gallery 602');
+			// Its extension is gone; the group's other book still is served, so the
+			// group answers `ok` and only this book's own answer changes.
+			dbRun(`DELETE FROM engine_extensions WHERE pkg = ?`, SOURCE2.pkg);
+			keylessSeries = await makeMixedGroup(page, { n: '701' }, { n: '702' }, 'A Keyless Book');
+			keylessTwin = entryId(keylessSeries, 'Gallery 701');
+			keylessBook = entryId(keylessSeries, 'Gallery 702');
+			// A book grouped before rung 76 holds no key: no door writes that state now.
+			dbRun(`DELETE FROM entry_origins WHERE entry_id = ?`, keylessBook);
+		} finally {
+			await page.close();
+		}
+	});
+
+	test('a book whose source lost its extension offers neither cell, its twin both', async ({
+		page
+	}) => {
+		await reveal(page);
+		// The group really is `ok`: its twin's row has something to queue.
+		expect(
+			dbGet<{ n: number }>(
+				`SELECT COUNT(*) AS n FROM entry_origins eo JOIN entries e ON e.id = eo.entry_id WHERE e.series_id = ?`,
+				missingSeries
+			).n
+		).toBe(2);
+		await page.goto(url(`/series/${missingSeries}?book=${missingBook}`));
+		await expect(page.locator('.book-offer')).toHaveCount(0);
+		await expect(page.getByRole('link', { name: /READ ONLINE/ })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'DOWNLOAD', exact: true })).toHaveCount(0);
+		await page.goto(url(`/series/${missingSeries}?book=${missingTwin}`));
+		await expect(page.getByRole('link', { name: /READ ONLINE/ })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'DOWNLOAD', exact: true })).toBeVisible();
+	});
+
+	test('its twin’s READ ONLINE still lands on its reader', async ({ page }) => {
+		await reveal(page);
+		await page.goto(url(`/series/${missingSeries}?book=${missingTwin}`));
+		await page.getByRole('link', { name: /READ ONLINE/ }).click();
+		await expect(page).toHaveURL(new RegExp(`/read/${missingTwin}(\\?|$)`));
+		await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
+			timeout: 20_000
+		});
+	});
+
+	test('a book with no key and no file offers neither cell', async ({ page }) => {
+		await reveal(page);
+		await page.goto(url(`/series/${keylessSeries}?book=${keylessBook}`));
+		await expect(page.locator('.book-offer')).toHaveCount(0);
+		await expect(page.getByRole('link', { name: /READ ONLINE/ })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'DOWNLOAD', exact: true })).toHaveCount(0);
+		// Its twin is served, so the group's own state would have drawn both.
+		await page.goto(url(`/series/${keylessSeries}?book=${keylessTwin}`));
 		await expect(page.getByRole('link', { name: /READ ONLINE/ })).toBeVisible();
 		await expect(page.getByRole('button', { name: 'DOWNLOAD', exact: true })).toBeVisible();
 	});
