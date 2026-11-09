@@ -6,6 +6,7 @@ import {
 	isInDirection,
 	nextIndex,
 	nextInDirection,
+	stepInSection,
 	type Candidate,
 	type Rect
 } from '$lib/focus/geometry';
@@ -203,5 +204,160 @@ describe('canScroll (c578)', () => {
 			expect(canScroll(at(0, 300, 301), d)).toBe(false);
 		}
 		expect(canScroll(at(0, 300, 302), 'down')).toBe(true);
+	});
+});
+
+describe('stepInSection (c861)', () => {
+	/** A two-column screen: the panel at x 0 to 100, the list at x 200 to 300. */
+	const panel = (top: number, bottom = top + 40) => rect(0, top, 100, bottom);
+	const list = (top: number, bottom = top + 40) => rect(200, top, 300, bottom);
+	const stops = (...c: [Rect, 'panel' | 'list' | null][]) =>
+		c.map(([r, section], i) => ({ rect: r, value: `c${i}`, section }));
+	const view = { top: 0, bottom: 400 };
+	/** The panel column's own box. */
+	const area = rect(0, 0, 100, 400);
+
+	it('keeps ↓ in its own section, however near the other column is', () => {
+		const c = stops([panel(100), 'panel'], [list(50), 'list']);
+		expect(stepInSection(panel(0), 'down', 'panel', c, null, area)).toEqual({
+			kind: 'move',
+			value: 'c0'
+		});
+	});
+
+	it('keeps ↑ in its own section', () => {
+		const c = stops([panel(100), 'panel'], [list(250), 'list']);
+		expect(stepInSection(panel(300), 'up', 'panel', c, null, area)).toEqual({
+			kind: 'move',
+			value: 'c0'
+		});
+	});
+
+	it('at the last stop scrolls while the section can, never the other column', () => {
+		const c = stops([list(300), 'list']);
+		expect(stepInSection(panel(100), 'down', 'panel', c, view, area)).toEqual({ kind: 'scroll' });
+		expect(stepInSection(panel(100), 'up', 'panel', c, view, area)).toEqual({ kind: 'scroll' });
+	});
+
+	it('at the section’s real end does nothing, with the other column right there', () => {
+		const c = stops([list(300), 'list']);
+		expect(stepInSection(panel(100), 'down', 'panel', c, null, area)).toEqual({ kind: 'stay' });
+		expect(stepInSection(panel(100), 'up', 'panel', stops([list(0), 'list']), null, area)).toEqual({
+			kind: 'stay'
+		});
+	});
+
+	it('at its real end reaches a thing outside any section, such as the screen’s bar', () => {
+		const c = stops([list(0), 'list'], [rect(0, -60, 100, -20), null]);
+		expect(stepInSection(panel(0), 'up', 'panel', c, null, area)).toEqual({
+			kind: 'move',
+			value: 'c1'
+		});
+	});
+
+	it('looks for the bar from the section’s edge, not from a stop scrolled away', () => {
+		const bar = stops([rect(0, -60, 100, -20), null]);
+		// DETAILS, scrolled 400 px up the column: the bar is "below" it on the page.
+		expect(stepInSection(panel(-400), 'down', 'panel', bar, null, area)).toEqual({ kind: 'stay' });
+	});
+
+	it('scrolls before it leaves for the bar', () => {
+		const c = stops([rect(0, -60, 100, -20), null]);
+		expect(stepInSection(panel(0), 'up', 'panel', c, view, area)).toEqual({ kind: 'scroll' });
+	});
+
+	it('scrolls rather than jump over more than the column shows', () => {
+		const far = stops([panel(900), 'panel']);
+		expect(stepInSection(panel(100), 'down', 'panel', far, view, area)).toEqual({ kind: 'scroll' });
+		const above = stops([panel(-500), 'panel']);
+		expect(stepInSection(panel(100), 'up', 'panel', above, view, area)).toEqual({ kind: 'scroll' });
+	});
+
+	it('goes straight to a stop within one column’s height, either way', () => {
+		// next.bottom − view.bottom is exactly the view's height: nothing passes unseen.
+		const edge = stops([panel(760), 'panel']);
+		expect(stepInSection(panel(100), 'down', 'panel', edge, view, area)).toEqual({
+			kind: 'move',
+			value: 'c0'
+		});
+		const up = stops([panel(-400), 'panel']);
+		expect(stepInSection(panel(100), 'up', 'panel', up, view, area)).toEqual({
+			kind: 'move',
+			value: 'c0'
+		});
+	});
+
+	describe('a stop pinned over the section’s bottom edge (SaveBand)', () => {
+		/** A column under a 56 px bar, down to the screen's bottom; its band, pinned over that. */
+		const column = rect(0, 84, 100, 540);
+		const topBar = rect(0, 0, 100, 56);
+		const band = rect(0, 460, 100, 540);
+		const row = (top: number) => rect(0, top, 100, top + 56);
+
+		it('is taken by ↓ from a stop above it, though it starts above the section’s edge', () => {
+			expect(stepInSection(row(200), 'down', 'panel', stops([band, null]), null, column)).toEqual({
+				kind: 'move',
+				value: 'c0'
+			});
+		});
+
+		it('is taken by a stop that ends exactly where it starts', () => {
+			expect(stepInSection(row(404), 'down', 'panel', stops([band, null]), null, column)).toEqual({
+				kind: 'move',
+				value: 'c0'
+			});
+		});
+
+		it('is not taken by a stop it covers part of, as the ordinary rule would not', () => {
+			expect(stepInSection(row(440), 'down', 'panel', stops([band, null]), null, column)).toEqual({
+				kind: 'stay'
+			});
+		});
+
+		it('waits for the section’s own stops, and for its scroller', () => {
+			const c = stops([band, null], [row(300), 'panel']);
+			expect(stepInSection(row(200), 'down', 'panel', c, null, column)).toEqual({
+				kind: 'move',
+				value: 'c1'
+			});
+			const v = { top: 84, bottom: 540 };
+			expect(stepInSection(row(200), 'down', 'panel', stops([band, null]), v, column)).toEqual({
+				kind: 'scroll'
+			});
+		});
+
+		it('is still below a stop the column scrolled away above the screen', () => {
+			expect(stepInSection(row(-400), 'down', 'panel', stops([band, null]), null, column)).toEqual({
+				kind: 'move',
+				value: 'c0'
+			});
+		});
+
+		it('does not make the top bar count as below a stop scrolled away above it', () => {
+			expect(
+				stepInSection(row(-400), 'down', 'panel', stops([topBar, null]), null, column)
+			).toEqual({ kind: 'stay' });
+		});
+
+		it('is not above a stop the column scrolled away below the screen', () => {
+			expect(stepInSection(row(900), 'up', 'panel', stops([band, null]), null, column)).toEqual({
+				kind: 'stay'
+			});
+		});
+
+		it('never makes another section count, pinned over the edge or not', () => {
+			const other = stops([rect(200, 460, 300, 540), 'list'], [rect(0, 460, 100, 540), 'list']);
+			expect(stepInSection(row(200), 'down', 'panel', other, null, column)).toEqual({
+				kind: 'stay'
+			});
+		});
+	});
+
+	it('goes straight to the stop when the section cannot scroll, however far', () => {
+		const far = stops([panel(900), 'panel']);
+		expect(stepInSection(panel(100), 'down', 'panel', far, null, area)).toEqual({
+			kind: 'move',
+			value: 'c0'
+		});
 	});
 });

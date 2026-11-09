@@ -14,7 +14,14 @@
  * rather than to the page.
  */
 
-import { canScroll, directionOf, nextInDirection, type Direction } from './geometry';
+import {
+	canScroll,
+	directionOf,
+	nextInDirection,
+	stepInSection,
+	type Direction,
+	type ScrollView
+} from './geometry';
 import { focusablesIn, isFocusable, isVisible, keepsArrow, rectOf } from './dom';
 import { isBackKey, isOkKey, isOptionsKey, OkPress } from './keys';
 import { TV } from '$lib/device.svelte';
@@ -36,6 +43,15 @@ declare global {
 
 const scopes: Scope[] = [];
 const SAVED = 'tsundoku.focus';
+
+/**
+ * The row each section was left from (c861), which ← or → coming back lands
+ * on. Keyed by the section's element and holding the row's, so a screen that
+ * is gone takes its entries with it. Nothing clears it: a row the next series
+ * replaced is refused by `rowLeftIn`, and each crossing writes its section's
+ * row again.
+ */
+const sectionRows = new WeakMap<HTMLElement, HTMLElement>();
 
 /** The scope taking keys right now: the innermost open sheet, else the page. */
 function activeScope(): HTMLElement {
@@ -75,7 +91,13 @@ function take(el: HTMLElement): void {
  * `nearest` counts a thing under a pinned bar as shown: the TV's KIND band
  * stays at the top of the screen, and going ↑ through the grid put each row
  * under it, focused and out of sight (2026-11-02, the first real TV). So
- * after it, the page moves on by whatever a pinned bar still covers.
+ * after it, whatever a pinned bar still covers is made up.
+ *
+ * By the thing's own scrollers first, innermost out, and the page last (c861):
+ * the series screen's columns scroll themselves, so the page cannot move and a
+ * row left under the bar or the list's sticky head stayed there. Each takes
+ * what it can and the next one out takes the rest, as the browser's own
+ * scroll chains.
  */
 function reveal(el: HTMLElement): void {
 	const height = window.visualViewport?.height ?? window.innerHeight;
@@ -84,30 +106,72 @@ function reveal(el: HTMLElement): void {
 	if (r.top < 0 || r.left < 0 || r.bottom > height || r.right > width) {
 		el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
 	}
+	const { scrollers, pageMoves } = scrollersAround(el);
+	for (const scroller of scrollers) scrollToShow(el, scroller, height);
+	if (pageMoves) scrollToShow(el, null, height);
+}
+
+/**
+ * What can move `el` vertically, innermost first. Nothing outside a
+ * `position: fixed` box moves what is in it, the page included: a sheet drawn
+ * inside a column must not scroll that column.
+ */
+function scrollersAround(el: HTMLElement): { scrollers: HTMLElement[]; pageMoves: boolean } {
+	const scrollers: HTMLElement[] = [];
+	for (let n: HTMLElement | null = el; n && n !== document.body; n = n.parentElement) {
+		const style = getComputedStyle(n);
+		if (n !== el && (style.overflowY === 'auto' || style.overflowY === 'scroll')) scrollers.push(n);
+		if (style.position === 'fixed') return { scrollers, pageMoves: false };
+	}
+	return { scrollers, pageMoves: true };
+}
+
+/** Moves `scroller`, or the page, by whatever keeps `el` out of its clip and from under a bar. */
+function scrollToShow(el: HTMLElement, scroller: HTMLElement | null, height: number): void {
 	const now = el.getBoundingClientRect();
-	const { top, bottom } = uncovered(el, now, height);
-	if (now.top < top) window.scrollBy({ top: now.top - top, behavior: 'instant' });
-	else if (now.bottom > bottom && now.height <= bottom - top)
-		window.scrollBy({ top: now.bottom - bottom, behavior: 'instant' });
+	const clip = scroller?.getBoundingClientRect();
+	const { top, bottom } = uncovered(
+		el,
+		now,
+		height,
+		clip ? Math.max(clip.top + (scroller as HTMLElement).clientTop, 0) : 0,
+		clip
+			? Math.min(
+					clip.top + (scroller as HTMLElement).clientTop + (scroller as HTMLElement).clientHeight,
+					height
+				)
+			: height
+	);
+	let by = 0;
+	if (now.top < top) by = now.top - top;
+	else if (now.bottom > bottom && now.height <= bottom - top) by = now.bottom - bottom;
+	if (by !== 0) (scroller ?? window).scrollBy({ top: by, behavior: 'instant' });
 }
 
 /**
  * The band of the screen a pinned bar (sticky or fixed: the TV's KIND band,
- * a bottom bar) leaves `el` to be seen in. A bar is found at the element's
- * own top and bottom edges, so one that doesn't cover it doesn't count.
+ * a bottom bar) leaves `el` to be seen in, inside `from` and `to` (a scroller's
+ * clip; the whole screen by default). A bar is found at the element's own top
+ * and bottom edges, so one that doesn't cover it doesn't count.
  */
-function uncovered(el: HTMLElement, r: DOMRect, height: number): { top: number; bottom: number } {
+function uncovered(
+	el: HTMLElement,
+	r: DOMRect,
+	height: number,
+	from = 0,
+	to = height
+): { top: number; bottom: number } {
 	const x = Math.min(Math.max(r.left + r.width / 2, 0), window.innerWidth - 1);
 	// Bars stack: the library's focus line is pinned under its KIND band, so
 	// each one found is looked under (or over) again.
-	let top = 0;
+	let top = from;
 	for (let i = 0; i < 4; i++) {
 		const bar = pinnedAt(el, x, Math.min(Math.max(r.top, top) + 1, height - 1));
 		const end = bar?.getBoundingClientRect().bottom ?? top;
 		if (end <= top) break;
 		top = end;
 	}
-	let bottom = height;
+	let bottom = to;
 	for (let i = 0; i < 4; i++) {
 		const bar = pinnedAt(el, x, Math.max(Math.min(r.bottom, bottom) - 1, 0));
 		const end = bar?.getBoundingClientRect().top ?? bottom;
@@ -391,21 +455,57 @@ const LINE_STEP = 40;
  * viewport Chromium computes it as `clip` and a script's `scrollBy` still
  * moves it, so it has to be checked beside `hidden`.
  */
-function stepScroll(from: HTMLElement, direction: 'up' | 'down'): void {
-	let scroller: Element | null = null;
-	for (let n = from.parentElement; n && n !== document.body; n = n.parentElement) {
-		const overflow = getComputedStyle(n).overflowY;
-		if ((overflow === 'auto' || overflow === 'scroll') && canScroll(n, direction)) {
-			scroller = n;
-			break;
-		}
-	}
+function stepScroll(
+	from: HTMLElement,
+	direction: 'up' | 'down',
+	section: HTMLElement | null
+): void {
+	let scroller: Element | null = scrollerFrom(from, direction, section);
 	if (!scroller) {
 		const viewport = viewportOverflowY();
 		if (viewport === 'hidden' || viewport === 'clip') return;
 		scroller = document.scrollingElement ?? document.documentElement;
 	}
 	scroller.scrollBy({ top: direction === 'up' ? -LINE_STEP : LINE_STEP, behavior: 'instant' });
+}
+
+/**
+ * The nearest ancestor of `from` that scrolls vertically and can still move
+ * `direction`. With a section, the walk ends at the section's own element,
+ * which is often the scroller itself (the series screen's columns).
+ */
+function scrollerFrom(
+	from: HTMLElement,
+	direction: 'up' | 'down',
+	section: HTMLElement | null
+): HTMLElement | null {
+	for (let n = from.parentElement; n && n !== document.body; n = n.parentElement) {
+		const overflow = getComputedStyle(n).overflowY;
+		if ((overflow === 'auto' || overflow === 'scroll') && canScroll(n, direction)) return n;
+		if (n === section) return null;
+	}
+	return null;
+}
+
+/** What a scroller shows on screen, for `stepInSection`. */
+function viewOf(scroller: HTMLElement): ScrollView {
+	const r = scroller.getBoundingClientRect();
+	return { top: Math.max(r.top, 0), bottom: Math.min(r.bottom, window.innerHeight) };
+}
+
+/**
+ * The section around a stop, where sections apply: on a TV, and never under a
+ * sheet, whose scope owns the keys whatever the sheet sits inside.
+ */
+function sectionOf(el: HTMLElement, scope: HTMLElement): HTMLElement | null {
+	if (isManagedScope(scope) || !window.matchMedia(TV).matches) return null;
+	return el.closest<HTMLElement>('[data-focus-section]');
+}
+
+/** The row this section was left from, if it can still take focus. */
+function rowLeftIn(section: HTMLElement): HTMLElement | null {
+	const row = sectionRows.get(section);
+	return row && section.contains(row) && isFocusable(row) ? row : null;
 }
 
 /**
@@ -433,12 +533,17 @@ function viewportOverflowY(): string {
  * bound to that one key: one left behind by a key a screen stopped removes
  * itself on the next, doing nothing.
  */
-function stepWhenUntaken(e: KeyboardEvent, from: HTMLElement, direction: 'up' | 'down'): void {
+function stepWhenUntaken(
+	e: KeyboardEvent,
+	from: HTMLElement,
+	direction: 'up' | 'down',
+	section: HTMLElement | null = null
+): void {
 	const after = (ev: KeyboardEvent) => {
 		window.removeEventListener('keydown', after);
 		if (ev !== e || ev.defaultPrevented) return;
 		ev.preventDefault();
-		stepScroll(from, direction);
+		stepScroll(from, direction, section);
 	};
 	window.addEventListener('keydown', after);
 }
@@ -581,11 +686,46 @@ function handleKeydown(e: KeyboardEvent): void {
 	}
 
 	const candidates = focusablesIn(scope).filter((el) => el !== current);
-	const next = nextInDirection(
+	const section = sectionOf(current, scope);
+
+	if (section && (direction === 'up' || direction === 'down')) {
+		const scroller = scrollerFrom(current, direction, section);
+		const step = stepInSection(
+			rectOf(current),
+			direction,
+			section,
+			candidates.map((el) => ({
+				rect: rectOf(el),
+				value: el,
+				section: el.closest('[data-focus-section]')
+			})),
+			scroller && viewOf(scroller),
+			rectOf(section)
+		);
+		if (step.kind === 'scroll') {
+			stepWhenUntaken(e, current, direction, section);
+			return;
+		}
+		e.preventDefault();
+		e.stopPropagation();
+		if (step.kind === 'move') move(step.value);
+		return;
+	}
+
+	let next = nextInDirection(
 		rectOf(current),
 		direction,
 		candidates.map((el) => ({ rect: rectOf(el), value: el }))
 	);
+
+	// ← or → across sections: back to the row left, if the way back is this one.
+	if (next && section) {
+		const to = next.closest<HTMLElement>('[data-focus-section]');
+		if (to !== section) {
+			sectionRows.set(section, current);
+			if (to) next = rowLeftIn(to) ?? next;
+		}
+	}
 
 	// Nothing that way: a desktop keyboard still scrolls prose (HELP, a
 	// series' ABOUT) past the last stop, by the browser's own scroll. A TV's

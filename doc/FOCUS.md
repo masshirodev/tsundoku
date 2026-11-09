@@ -72,9 +72,16 @@ instant, never smooth; in a uniform grid that moves a whole row — and then a
 `scrollBy` for whatever a pinned bar still covers. `nearest` counts a thing
 under a sticky or fixed bar as shown, so `uncovered()` finds the bars drawn
 over the thing's own top and bottom edges (stacked: the library's focus line
-under its KIND band, under the top bar) and the page moves on by the
-difference (the first real TV, 2026-11-02). A scrim or a sheet, half the
-screen or taller, is not a bar. The TV's focus line and pinned rows are built
+under its KIND band, under the top bar) and the difference is made up (the
+first real TV, 2026-11-02). By the thing's own vertical scrollers first,
+innermost out, each measured against its own clip as well as the bars, and
+only then the page (c861): the series screen's columns scroll themselves, so
+moving the page did nothing and ↑ left a row under the bar or the list's
+sticky head on most presses. A `position: fixed` box ends the walk, because
+nothing outside it moves what is in it: a sheet drawn inside a column leaves
+the column alone. A bar is looked for at the middle of the thing's width, so
+one covering only its right part (SELECT's bulk bar on a TV) does not count.
+A scrim or a sheet, half the screen or taller, is not a bar. The TV's focus line and pinned rows are built
 (`doc/TV.md`, c238; the KIND band pins since c436); whole-row scrolling is
 still the layer's nearest.
 
@@ -119,6 +126,78 @@ layout's own scrollers, the readers' READING and text sheets and their
 views, the lookup panel and the page menu. A `Sheet.svelte` panel is one too,
 but a sheet is a scope, so its arrows are swallowed before they get here. The
 whole `tv` project ran on this rule (wave 25).
+
+## Sections
+
+On a TV a screen of two columns is two **sections**: the mark goes where the
+arrows send it, and the arrows do not walk out of a column at its edge. Put
+`data-focus-section` on the column (`src/routes/series/[id]/+page.svelte` is
+the one user so far, its `.panel-col` and `.list-col`, card c861).
+
+The series screen wears the mark **only while both columns are drawn**
+(`twoColumns`: not in SELECT, not while reordering, not on a book's page grid).
+A lone column has nothing to be kept apart from, and as a section it stranded
+SELECT's bulk bar, so those screens take the ordinary rule.
+
+Why it exists: an arrow goes to the nearest thing that way over the whole
+screen, so ↓ at the left column's last row went into the chapter list, and
+the rest of the column could only be reached by a candidate landing in it.
+Rows that are not stops, labels and prose, never got a turn, which is how
+part of the details column could never be seen (the owner's TV, 2026-11-08).
+
+**What it does**, on a TV and only there (`sectionOf`; a section on a phone or
+a tablet stack is not a column, and a desktop's browser scrolls for itself):
+
+- **↑ and ↓ stay in the section** (`stepInSection`, pure, in `geometry.ts`,
+  and `tests/focus-geometry.spec.ts` pins it). The nearest stop of its own,
+  unless the way there would carry more than the section shows past the screen
+  unseen (prose between two stops, taller than the column): then a step instead,
+  so it can all be read. With no stop that way, a step of the section's scroller
+  (`stepScroll`, the layer's 40 px) while it can still move. The focused thing
+  keeps the mark while the column moves under it, so it may be out of sight for
+  a press or two.
+- **At the section's real end**, ↑ or ↓ does nothing, the page behind included.
+  "Real end" is `canScroll` on the nearest ancestor up to and including the
+  section's own element (`scrollerFrom`), so a stop inside an inner scroller
+  scrolls that first. The one exception is ↑ or ↓ with a stop **outside any
+  section** that way, and another section is never it. ↑ looks from the
+  section's top edge, for the series screen's bar above the columns; it is not
+  looked for from the stop, because a stop the column scrolled away below the
+  screen would count what is pinned at the bottom as above it. ↓ looks from the
+  focused stop's bottom, held inside the section's box (a stop scrolled away
+  above the screen starts from the section's top, so the bar above is not below
+  it).
+- **A stop pinned over a section's bottom edge is below what ends above it.**
+  `position: fixed` puts it over the edge, so measured from the edge it would
+  be nothing's next: that is `SaveBand` on the series screen, a failed save's
+  PUT BACK and RETRY, drawn on every screen and so while both columns are. ↓
+  reaches it from the last stop of a section whose stops end above it (at
+  960×540, a list of six rows or fewer), once the section's own stops and its
+  scroll are spent; touching counts. A stop the band covers has nothing below
+  it, as under the ordinary rule: a list of seven rows or more ends under it
+  and stays on its last row, and so does `DETAILS`, the panel's last stop.
+  SELECT's bulk bar (`.bulk`) is the same shape and leaves by the other door: in
+  SELECT the list is the only column, wears no mark, and the ordinary rule
+  reaches the bar.
+- **← and → cross**, to the nearest thing the other side, by the ordinary rule.
+- **Coming back lands on the row left.** Leaving a section by ← or → notes
+  the row left, for that section only (`sectionRows`). A later crossing into it
+  goes there instead of the nearest. It holds the element itself, and a row
+  that can no longer take focus is refused and the nearest used: the row is
+  gone (the list redrew), a fold it was in closed, or the page reloaded. A
+  sheet opened and closed does not end it; each crossing writes its row anew.
+
+**What beats it.** A scope first: a sheet is not a section's, even one drawn
+inside the column (the WORK row's), because the scope owns the keys whatever
+the sheet sits inside. Then `data-focus-up` / `-down`, `data-focus-skip`,
+`data-focus-off` and a hidden copy are as they are everywhere else: a named
+target goes first, and what is not a stop is no candidate (the panel draws
+`fold-only` and `screen-only` copies, and the `display: none` one has no
+box).
+
+Nothing else wears the mark yet. `work/[id]` is the closest fit (a panel
+beside a list, like the series screen) and the two-column settings on a TV
+could use it; neither is changed here.
 
 ## Scopes
 
@@ -263,6 +342,7 @@ of them in `keys.ts`, and `tests/tv-keys.e2e.ts` walks them.
   after a hold presses nothing, and `e.repeat` neither opens twice nor clicks:
   a short press is the click a keyboard's Enter would have made, made on the
   release (`keys.ts`, `OkPress`).
+- **The continue row** (`ContinueRow.svelte`, c860) answers a held OK, on the band and on ▶, with the options sheet a grid tile opens.
 - **MENU** (`ContextMenu`) is the same event at once, where the remote has the
   key.
 - **BACK** is Escape, `BrowserBack` or `GoBack`, and it goes in the design's
@@ -327,7 +407,12 @@ finger never sees a mark, and a desktop keyboard sees exactly what a TV does.
 - **Inside** a cell of a ruled block, so the frame never crosses the hairline: a
   band cell, a bar cell, a list row. Those say so with `data-focus-mark="in"`.
 - **On a cover tile**, the mark frames the cover, not the tile's title and
-  rating bar: `CoverTile` and `BookTile` move it to the `.cover` child.
+  rating bar: `CoverTile` and `BookTile` move it to the `.cover` child, and
+  BROWSE's `ResultTile` (c864) draws it there too: its own three hairlines
+  outweigh the global ring, so a focused tile had none, and in a grid with a
+  1 px gap an outer ring on the tile would be painted under its neighbours.
+  The cover's ring ends 7 px out, inside the tile's 10 px padding. Under
+  FILTER's scrim the focused tile is lifted over it.
 - On a selected cover the mark replaces the accent select ring while focused;
   the two rings would sit on the same pixels.
 
@@ -356,6 +441,7 @@ The ids the app sets:
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Library | `series-<id>` (the tile), `continue-<id>` (the resume cell), `shelf-<key>`, `library-more`, `library-server` (S1, the TV app's server cell) |
 | Series  | `series-back`, `series-continue` (the bar's ▶ and the panel's), `entry-<id>`, `book-<id>`                                                   |
+| BROWSE  | `result-<mangaId>` (a catalog tile, c864: back from its preview puts the mark on it again)                                                  |
 | Sheets  | none: the opener is remembered in memory, not by id                                                                                         |
 
 ## What the audit changed
@@ -424,6 +510,12 @@ BACK climbs the screen before it leaves.
   writes progress, so tablet-portrait only; it owns Hoshi no Umi no Tabibito);
   and, on the desktop, the page scrubber at the end page steps the page with
   the mark still on it (c611).
+- `tests/tv-series-sections.e2e.ts` — the series screen's columns as sections
+  (c861), on a world of its own with a 60-chapter series: both directions at
+  both ends of each column, crossing and the row left, and what ends that
+  memory (a row gone, a fold closed, a reload, a new series) and what does not
+  (a sheet, ← then ← again); a sheet inside the column keeping its keys; off a
+  TV, the columns are no sections.
 - `tests/tv-keys.e2e.ts` — OK held and MENU on a cover, a chapter row and a
   history row; BACK closing a sheet, climbing the KIND band → CONTINUE, and
   `window.tsundokuBack()` answering false at the top (c235). And c578's
@@ -433,7 +525,11 @@ BACK climbs the screen before it leaves.
   over, the page at its end moving nothing and throwing nothing, and ↑ at an
   inner scroller's top scrolling the page up. And c618: with the root locked
   (`html`, and `body`), ↓ moves nothing, while the same page still scrolls
-  with no lock.
+  with no lock. And c861: a section's end moves nothing outside it, not even
+  the page, with the step still running inside it.
+- `tests/tv-browse-focus.e2e.ts` — the mark on BROWSE's tiles (c864): POPULAR,
+  LATEST, a search, back from a preview and under FILTER's scrim, each reading
+  the cover's computed ring and hitting all four sides and corners of it.
 - `tests/tv-library-top.e2e.ts` — the pinned rows never covering the first
   row's focus ring (`reveal()`'s bar step), and one BACK from deep in the
   grid landing on the first CONTINUE card at the top and staying there, every

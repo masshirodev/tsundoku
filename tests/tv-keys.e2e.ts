@@ -337,6 +337,27 @@ test('↓ passes over a box that hides its overflow, and the page at its end mov
 	expect(errors).toEqual([]);
 });
 
+test('↓ in a section at its end moves nothing outside it, not even the page (c861)', async ({
+	page
+}) => {
+	const read = await scrollers(page, { around: 'outer', at: 'bottom' });
+	await page.evaluate(() =>
+		document.getElementById('inner')!.setAttribute('data-focus-section', 'column')
+	);
+	await setUp(page, { inner: 100 });
+	const moving = await read();
+	await arrow(page, 'ArrowDown');
+	expect(await read(), 'in the section, the step still runs').toEqual({
+		...moving,
+		inner: moving.inner + 40
+	});
+
+	await setUp(page, { inner: -1 });
+	const end = await read();
+	await arrow(page, 'ArrowDown');
+	expect(await read(), 'the section’s end is the end').toEqual(end);
+});
+
 test('↑ in a scroller at its top scrolls the page up (c578)', async ({ page }) => {
 	const read = await scrollers(page, { around: 'outer', at: 'top' });
 	await setUp(page, { page: 400 });
