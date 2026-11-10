@@ -175,6 +175,41 @@ async function remoteKey(
 	);
 }
 
+/**
+ * A remote's hold, as MainActivity sends one (Keys.kt): repeats are fresh
+ * keydowns with no `repeat` flag, at a remote's ~16/s. The burst is bounded by
+ * the page's own clock, not by a count: eight 60 ms waits are 480 ms nominal
+ * and ran past the player's 500 ms pace under load, moving two minutes where
+ * the case says one. Every keydown here lands inside [deadlineMs] of the first.
+ *
+ * Returns how many keydowns it sent, so a case can prove repeats happened.
+ */
+async function holdKey(
+	page: import('@playwright/test').Page,
+	key: string,
+	{ deadlineMs = 400, release = true, pressAfter = false } = {}
+): Promise<number> {
+	return page.evaluate(
+		async ({ key, deadlineMs, release, pressAfter }) => {
+			const send = (type: string) =>
+				(document.activeElement ?? document.body).dispatchEvent(
+					new KeyboardEvent(type, { key, bubbles: true })
+				);
+			const start = performance.now();
+			let n = 0;
+			do {
+				send('keydown');
+				n++;
+				await new Promise((r) => setTimeout(r, 60));
+			} while (performance.now() - start < deadlineMs);
+			if (release) send('keyup');
+			if (pressAfter) send('keydown');
+			return n;
+		},
+		{ key, deadlineMs, release, pressAfter }
+	);
+}
+
 /** A remote's media key, pressed and released. */
 async function mediaKey(page: import('@playwright/test').Page, key: string): Promise<void> {
 	await remoteKey(page, 'keydown', key);
@@ -418,15 +453,10 @@ test.describe('the minute step (c865)', () => {
 		});
 		// The app's own key, as MainActivity sends an Android repeat: a fresh
 		// keydown with no `repeat` flag (Keys.kt), at a remote's ~16/s. A hold
-		// must move a minute, not one per repeat.
-		await page.evaluate(async () => {
-			for (let i = 0; i < 8; i++) {
-				(document.activeElement ?? document.body).dispatchEvent(
-					new KeyboardEvent('keydown', { key: 'MediaFastForward', bubbles: true })
-				);
-				await new Promise((r) => setTimeout(r, 60));
-			}
-		});
+		// must move a minute, not one per repeat. No keyup here: this also
+		// leaves the pace to expire on its own, below.
+		const sent = await holdKey(page, 'MediaFastForward', { release: false });
+		expect(sent).toBeGreaterThanOrEqual(3);
 		await expect.poll(at).toBeCloseTo(160, 1);
 		await expect(page.locator('.flash .by')).toHaveText('+60 S');
 		// A browser's own repeats (a keyboard's, or a desktop's remote) are no
@@ -443,7 +473,8 @@ test.describe('the minute step (c865)', () => {
 		});
 		await page.waitForTimeout(100);
 		expect(await at()).toBeCloseTo(160, 1);
-		// And the throttle is no lock: a press after the interval moves again.
+		// And the pace is no lock: a door that sends no keyup still lets go once
+		// the interval has passed.
 		await page.waitForTimeout(600);
 		await mediaKey(page, 'MediaFastForward');
 		await expect.poll(at).toBeCloseTo(220, 1);
@@ -460,21 +491,12 @@ test.describe('the minute step (c865)', () => {
 			v.pause();
 			v.currentTime = 100;
 		});
-		// A hold as MainActivity sends it: repeats are ACTION_DOWNs, and the
-		// release is the one keyup (Keys.kt). The pace must end with the key, or
-		// the press after it is swallowed as if the button were still down.
-		await page.evaluate(async () => {
-			const send = (type: string) =>
-				(document.activeElement ?? document.body).dispatchEvent(
-					new KeyboardEvent(type, { key: 'MediaFastForward', bubbles: true })
-				);
-			for (let i = 0; i < 8; i++) {
-				send('keydown');
-				await new Promise((r) => setTimeout(r, 60));
-			}
-			send('keyup');
-			send('keydown');
-		});
+		// A hold as MainActivity sends it, then the release and a press in the
+		// same breath: repeats are ACTION_DOWNs, the release is the one keyup
+		// (Keys.kt). The pace must end with the key, or that press is swallowed
+		// as if the button were still down.
+		const sent = await holdKey(page, 'MediaFastForward', { pressAfter: true });
+		expect(sent).toBeGreaterThanOrEqual(3);
 		// One minute for the hold, one for the press: 1:40 to 2:20 to 3:40.
 		await expect.poll(at).toBeCloseTo(220, 1);
 		// The pace is per direction, so the other way moves at once.
