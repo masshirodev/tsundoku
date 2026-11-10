@@ -52,6 +52,26 @@ async function openListAt(page: import('@playwright/test').Page) {
 	return place(page);
 }
 
+/**
+ * Open a tile wholly in view, the [n]th of those drawn last: a click on a tile
+ * cut by the viewport's edge is scrolled into view first, which moves the very
+ * place the return has to come back to. The last ones are page 2's, which no
+ * other spec opens.
+ */
+async function openVisible(page: import('@playwright/test').Page, n = 0) {
+	const title = await page.evaluate((i) => {
+		const whole = [...document.querySelectorAll<HTMLElement>('.grid a.tile')].filter((el) => {
+			const r = el.getBoundingClientRect();
+			return r.top >= 0 && r.bottom <= innerHeight;
+		});
+		const pick = whole[whole.length - 1 - i];
+		return pick?.querySelector('.t')?.textContent ?? null;
+	}, n);
+	expect(title, 'a tile is whole in the viewport').toBeTruthy();
+	await tile(page, title!).click();
+	return title!;
+}
+
 /** The place a way back landed on: the same scroll (within a couple of pixels), the same tile. */
 async function expectBackAt(
 	page: import('@playwright/test').Page,
@@ -98,7 +118,7 @@ test('ADD replaces the preview’s entry: one swipe back lands on the catalog, a
 	page
 }) => {
 	const before = await openListAt(page);
-	await tile(page, 'Open Source 1-3').click();
+	await openVisible(page);
 	await expect(addButton(page)).toBeVisible();
 	const stepsOnPreview = await page.evaluate(() => history.length);
 
@@ -119,9 +139,14 @@ test('ADD replaces the preview’s entry: one swipe back lands on the catalog, a
 	await undoFromTheSeries(page);
 });
 
-test('ADD AND DOWNLOAD: the same one swipe, with what it queued on the band', async ({ page }) => {
+test('ADD AND DOWNLOAD: the same one swipe, with what it queued on the band', async ({
+	page
+}, testInfo) => {
+	// A tile no other spec opens, and a different one per repeat: its queued
+	// chapters really download here, so a second press of this case must not
+	// find the first one's series already in the library.
 	const before = await openListAt(page);
-	await tile(page, 'Open Source 1-4').click();
+	await openVisible(page, 1 + (testInfo.repeatEachIndex % 6));
 	await expect(addButton(page)).toBeVisible();
 	await page.getByRole('button', { name: 'FIRST 3' }).click();
 	// Ours, asking first (card c205), and on top.
@@ -142,7 +167,18 @@ test('ADD AND DOWNLOAD: the same one swipe, with what it queued on the band', as
 	await expectBackAt(page, before);
 	expect(await pageCalls(), 'no page already drawn is asked again').toEqual([]);
 
-	await undoFromTheSeries(page);
+	// The library back as it was, usually: the queued chapters download at once,
+	// and once one has the band rightly offers no UNDO (c505's rule), so the
+	// series stays for a repeat that opens another tile.
+	await page.goForward();
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/series\/\d+$/);
+	const undo = page
+		.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })
+		.getByRole('button', { name: 'UNDO' });
+	if (await undo.count()) {
+		await undo.click();
+		await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
+	}
 });
 
 test('an ADD that hid the series lands on the source’s page, and one swipe back still reaches the list', async ({
