@@ -452,16 +452,25 @@ its settings are kept for a reinstall. Counts are what reveal lets you see.
 `doc/handoffs/extensions-select/`) is **INSTALLED's**, a cell between the title
 and CHECK NOW; a TV draws none, as the library draws none. It is URL state
 (`?select=1`), and so is the selection (`pkg=…` once per ticked package), so a
-no-script press lands with its rows still ticked. AVAILABLE and REPOSITORIES
-dim and stop while it runs: leaving the tab would drop the selection without a
-word. ✕, Escape, BACK and a tab's own TICK / UNTICK all work without script.
-It ends on ✕, Escape (a focused tick included: an `input` keeps Escape from the
-focus layer, so the form ends SELECT itself), BACK (`registerBack`), a reload,
-or an UPDATE or REMOVE that succeeded; **a switch press does not end it**, so
-the cells read back what the press set. Those two bulk forms are `use:enhance`,
-so their redirect is a client `goto` on the same component: the tick set is
-cleared whenever `?select` leaves the URL, and the **next SELECT starts with
-nothing ticked** whichever way the last one ended (✕ clears it itself).
+reload keeps both and a no-script press lands with its rows still ticked. A
+press's ticks travel in the form's body (the rows' own checkboxes); with script
+an empty selection disables the bar's cells, while the server draws them
+pressable, so a tick can be pressed before the page hydrates or with no script
+at all. An empty press is then refused by the band (`NOTHING TICKED`), and a
+refused press answers with the ticks it read, so they come back with its page.
+AVAILABLE and REPOSITORIES dim and stop while it runs: leaving the tab would
+drop the selection without a word. ✕, BACK and a tab's own TICK / UNTICK work
+without script; Escape is the focus layer's, so it needs script. It ends on
+✕, Escape (a focused tick included: an `input` keeps Escape from the focus
+layer, so the form ends SELECT itself), BACK (`registerBack`), or an UPDATE or
+REMOVE that succeeded; **a switch press does not end it**, so the cells read
+back what the press set. Those two bulk forms are `use:enhance`, so their
+redirect is a client `goto` on the same component: the tick set is cleared
+whenever `?select` leaves the URL, and the **next SELECT starts with nothing
+ticked** whichever way the last one ended (✕ clears it itself). REMOVE's
+question is a GET of the same form, so without script it carries the ticked
+rows' packages to `?removeSel=1`; a selection too big for a request head is
+refused on the spot instead.
 
 **A row is a package, a switch is a source id** (the owner's decision,
 2026-11-08): a press changes **every source of each ticked extension**,

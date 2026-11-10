@@ -18,7 +18,7 @@
 	import ExtRow from './ExtRow.svelte';
 	import SelectBand from './SelectBand.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { registerBack } from '$lib/focus';
 
 	/**
@@ -152,6 +152,14 @@
 	let selected = new SvelteSet<string>(untrack(startTicked));
 	/** A selection too big for REMOVE's question URL, refused on the spot. */
 	let tooMany = $state(false);
+	/**
+	 * Whether the page has hydrated. The bar's cells are disabled on an empty
+	 * selection only here: the server cannot know which boxes a no-script page
+	 * will tick, so it must draw them pressable, and an empty no-script press
+	 * answers the refusal band instead (the actions refuse it).
+	 */
+	let js = $state(false);
+	onMount(() => (js = true));
 	$effect(() => {
 		const drawn = new Set(data.drawn);
 		for (const pkg of [...selected]) if (!drawn.has(pkg)) selected.delete(pkg);
@@ -429,7 +437,7 @@
 	</nav>
 
 	<!-- SELECT's band, under the tabs (Results); one at a time, its URL. -->
-	{#if !refusal && !tooMany}
+	{#if !refusal && !tooMany && !data.removeRefusal}
 		<SelectBand
 			{base}
 			flags={data.band}
@@ -465,6 +473,13 @@
 			title={String(refusal.message).toUpperCase().slice(0, 160)}
 			detail="NOTHING CHANGED"
 			ondismiss={dropAnswer}
+		/>
+	{:else if data.removeRefusal}
+		<!-- REMOVE's GET carried no ticks: nothing was asked, nothing changed. -->
+		<Band
+			title={data.removeRefusal}
+			detail="NOTHING CHANGED"
+			ondismiss={() => goto(link({ removeSel: null }), { noScroll: true, replaceState: true })}
 		/>
 	{/if}
 
@@ -698,6 +713,11 @@
 			<form method="POST" action="{base}?/flags" class="selform" use:enhance>
 				{@render list(true)}
 				<div class="bulk" role="toolbar" aria-label="Selection actions">
+					<!-- REMOVE's question is a GET, and a GET replaces the action's query
+					     with the form's own data: the state it needs is carried as
+					     fields. Both are ignored by the POST actions. -->
+					<input type="hidden" name="select" value="1" />
+					<input type="hidden" name="removeSel" value="1" />
 					<div class="swr">
 						{#each SWITCHES as sw (sw.flag)}
 							{@const c = cellFor(sw.flag)}
@@ -708,7 +728,7 @@
 									type="submit"
 									class="swc"
 									formaction={flagHref('hidden', true)}
-									disabled={c.known === 0}
+									disabled={js && c.known === 0}
 								>
 									<span class="w"
 										><span class="k">HIDE</span><span class="n">THEY LEAVE THE LIST</span></span
@@ -721,7 +741,7 @@
 									formaction={flagHref(sw.flag, c.state !== 'on')}
 									role="switch"
 									aria-checked={c.state === 'mixed' ? 'mixed' : c.state === 'on'}
-									disabled={c.known === 0}
+									disabled={js && c.known === 0}
 								>
 									<span class="w"
 										><span class="k">{sw.name}</span><span class="n">{cellNote(c, sw.flag)}</span
@@ -737,14 +757,20 @@
 							type="submit"
 							class="swc go"
 							formaction={updateHref()}
-							disabled={updateCount === 0}
+							disabled={js && updateCount === 0}
 						>
 							<span class="w"
 								><span class="k">UPDATE {updateCount}</span><span class="n">OF {selected.size}</span
 								></span
 							>
 						</button>
-						{#if removableCount}
+						{#if js && removableCount === 0}
+							<span class="swc go solo dis" aria-disabled="true"
+								><span class="w"
+									><span class="k">REMOVE</span><span class="n">NOTHING MAY GO</span></span
+								></span
+							>
+						{:else}
 							<!-- The same form's GET: its ticks are the checked boxes, so
 							     REMOVE works without script, and a too-long URL is
 							     refused in `askRemove` before the browser asks. -->
@@ -752,14 +778,9 @@
 								type="submit"
 								class="swc go solo"
 								formmethod="get"
-								formaction="{base}?select=1&removeSel=1"
-								onclick={askRemove}>REMOVE {removableCount}…</button
-							>
-						{:else}
-							<span class="swc go solo dis" aria-disabled="true"
-								><span class="w"
-									><span class="k">REMOVE</span><span class="n">NOTHING MAY GO</span></span
-								></span
+								formaction={base}
+								onclick={askRemove}
+								>{removableCount ? `REMOVE ${removableCount}…` : 'REMOVE…'}</button
 							>
 						{/if}
 					</div>

@@ -544,6 +544,107 @@ test('320 real-length ticked rows reach the refusal band, not the error page', a
 	db.close();
 });
 
+test.describe('without script', () => {
+	test.use({ javaScriptEnabled: false });
+
+	/**
+	 * The fake repository and Webtoons.com, through the actions themselves (a
+	 * request needs no script): added, installed, and its listing moved one
+	 * version on so UPDATE has something to take. `repoAdded` is set at once so
+	 * afterEach takes the repository out even if this fails half-way.
+	 */
+	async function addAndInstall(page: import('@playwright/test').Page, base: string) {
+		const origin = new URL(base).origin;
+		const post = (path: string, form: Record<string, string>) =>
+			page.request.post(`${origin}${path}`, {
+				form,
+				headers: { origin, accept: 'text/html' },
+				maxRedirects: 0
+			});
+		expect((await post('/browse/extensions?/addRepo', { address: REPO('good') })).status()).toBe(
+			303
+		);
+		repoAdded = true;
+		expect((await post('/browse/extensions?/install', { pkg: WEBTOONS })).status()).toBe(200);
+		await bumpWebtoons();
+		expect((await post('/browse/extensions?/check', {})).status()).toBe(200);
+	}
+
+	test('a ticked row can be switched, updated and removed', async ({ page, baseURL }) => {
+		await addAndInstall(page, baseURL!);
+		await page.goto('/browse/extensions?select=1');
+		// SELECT is the URL, and the server draws its bar and cells pressable: a
+		// native checkbox is the form's own field even with no script.
+		await expect(page.locator('.bulk')).toBeVisible();
+		await expect(cell(page, 'NEVER TRACKED')).toBeEnabled();
+		await expect(page.locator('.bulk .swc', { hasText: 'UPDATE' })).toBeEnabled();
+
+		await row(page, 'Open Source').getByRole('checkbox').check();
+		await cell(page, 'NEVER TRACKED').click();
+		// The press posts the form's own ticks; the redirect carries them back.
+		const band = page.locator('.band');
+		await expect(band).toContainText('NEVER TRACKED · ON FOR 1');
+		await expect(band).toContainText('1 SOURCE');
+		await expect(row(page, 'Open Source').getByRole('checkbox')).toBeChecked();
+		const db = browseDb();
+		expect(
+			db.prepare(`SELECT value FROM settings WHERE key = ?`).get('source.never-tracked:100')
+		).toEqual({ value: '1' });
+		db.close();
+
+		// UPDATE takes the row whose repository lists a newer version.
+		await row(page, 'Webtoons.com').getByRole('checkbox').check();
+		await page.locator('.bulk .swc', { hasText: 'UPDATE' }).click();
+		await expect(page.locator('.band')).toContainText('UPDATED · 1 EXTENSION');
+		await expect(row(page, 'Webtoons.com')).toContainText('1.6.3');
+
+		// REMOVE asks through its sheet: the bar's cell is a GET of the form, so
+		// the ticked row's package travels without a link built from `selected`.
+		await page.goto('/browse/extensions?select=1');
+		await row(page, 'Webtoons.com').getByRole('checkbox').check();
+		await page.locator('.bulk .swc', { hasText: 'REMOVE' }).click();
+		const sheet = page.getByRole('dialog');
+		await expect(sheet).toContainText('REMOVE 1 EXTENSION?');
+		await expect(sheet).toContainText('WEBTOONS.COM');
+		// The sheet rises in; Enter submits its form without waiting on the
+		// entrance animation's box, which a click's stability check times out on.
+		await sheet.getByRole('button', { name: 'REMOVE 1' }).press('Enter');
+		await expect(page.locator('.band')).toContainText('REMOVED · 1 EXTENSION');
+		await expect(row(page, 'Webtoons.com')).toHaveCount(0);
+	});
+
+	test('a press with nothing ticked is refused, and the POST is made', async ({ page }) => {
+		await page.goto('/browse/extensions?select=1');
+		// Drawn pressable on the server: with script it would be disabled once
+		// hydrated, but this page never hydrates.
+		await expect(cell(page, 'NEVER TRACKED')).toBeEnabled();
+		const posted = page.waitForRequest(
+			(r) => r.method() === 'POST' && new URL(r.url()).searchParams.has('/flags')
+		);
+		await cell(page, 'NEVER TRACKED').click();
+		await posted;
+		await expect(page.locator('.band .title')).toHaveText('NOTHING TICKED');
+		// Nothing was written.
+		const db = browseDb();
+		expect(
+			db.prepare(`SELECT value FROM settings WHERE key = ?`).get('source.never-tracked:100')
+		).toBeUndefined();
+		db.close();
+	});
+
+	test('a refused press comes back with its row still ticked', async ({ page }) => {
+		await page.goto('/browse/extensions?select=1');
+		await row(page, 'Open Source').getByRole('checkbox').check();
+		// Open Source is OBSOLETE in this world: nothing lists an update for it,
+		// so UPDATE refuses. The page is a fresh mount on an action URL with no
+		// ticks: only the refusal's own `selected` can tick the row again.
+		await page.locator('.bulk .swc', { hasText: 'UPDATE' }).click();
+		await expect(page.locator('.band .title')).toHaveText('NOTHING TICKED HAS AN UPDATE');
+		await expect(row(page, 'Open Source').getByRole('checkbox')).toBeChecked();
+		await expect(page.locator('.cell.count')).toHaveText('1 SELECTED');
+	});
+});
+
 test('REMOVE asks first for the whole selection, and has no UNDO', async ({ page }) => {
 	await addRepo(page);
 	await installWebtoons(page);

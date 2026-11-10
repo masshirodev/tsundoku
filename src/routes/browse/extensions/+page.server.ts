@@ -353,6 +353,11 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		}
 		removingSome = { pkgs, stayed, names, of: ticked.length, series, queued, followed };
 	}
+	// REMOVE's question is a GET of the bulk form, so without script it can
+	// arrive with no ticks: the bar is drawn pressable on an empty selection
+	// before hydration. Answer the page's refusal band rather than nothing.
+	const removeRefusal =
+		url.searchParams.get('removeSel') === '1' && ticked.length === 0 ? 'NOTHING TICKED' : null;
 
 	return {
 		tab,
@@ -398,6 +403,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		preview,
 		removing: removingNow ? { pkg: removeAsked, ...removingNow } : null,
 		removingSome,
+		removeRefusal,
 		removingRepo: repoAsked ? (repos.find((r) => r.id === repoAsked) ?? null) : null,
 		removingNovelRepo: novelRepoAsked
 			? (novelRepos.find((r) => r.id === novelRepoAsked) ?? null)
@@ -506,7 +512,14 @@ export const actions: Actions = {
 		// package back.
 		const drawn = drawnPackages(installedView(reveal), pluginsShown(pluginView(reveal), reveal));
 		const installedNow = installedPackages();
-		const pkgs = tickedPackages(form).filter((pkg) => drawn.has(pkg) || !installedNow.has(pkg));
+		// A no-script page is drawn with the cells pressable on an empty
+		// selection (they are disabled only once hydrated), so a press with no
+		// tick can arrive: refuse it with the band and write nothing. A press
+		// that named only hidden packages is not empty — it is filtered below
+		// and answers what every other filtered press does.
+		const ticked = tickedPackages(form);
+		if (!ticked.length) return fail(409, { message: 'NOTHING TICKED', selected: [] });
+		const pkgs = ticked.filter((pkg) => drawn.has(pkg) || !installedNow.has(pkg));
 		let plan: ReturnType<typeof planFlag>;
 		try {
 			plan = planFlag(pkgs, flag, value === 'true');
@@ -702,7 +715,7 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const reveal = isRevealed(cookies);
 		const asked = tickedPackages(form);
-		if (!asked.length) return fail(400, { message: 'Nothing to remove' });
+		if (!asked.length) return fail(409, { message: 'NOTHING TICKED', selected: [] });
 		// Refuse before the first removal, as the flags press does: every asked
 		// package will be one band row, and `stayed` is the longer of its two
 		// list keys, so it is the upper bound on what the redirect sends.

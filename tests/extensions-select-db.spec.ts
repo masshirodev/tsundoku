@@ -119,6 +119,7 @@ async function loadAt(location: string, reveal = false) {
 		};
 		drawn: string[];
 		packageFlags: Record<string, { total: number; on: Record<string, number> }>;
+		removeRefusal: string | null;
 	};
 }
 
@@ -769,6 +770,9 @@ describe('the whole redirect is budgeted, for every press (card c696, wave 43)',
 		const refused = await act('flags', { pkg: over, flag: 'neverTracked', value: 'true' });
 		expect(refused.status).toBe(409);
 		expect(refused.data?.message).toBe('TOO MANY SOURCES TO CHANGE AT ONCE');
+		// The refusal answers with the ticks it read, so a no-script page comes
+		// back still selecting them.
+		expect(refused.data?.selected).toEqual(over);
 		expect(
 			db.prepare(`SELECT COUNT(*) AS n FROM settings WHERE key LIKE 'source.never-tracked:%'`).get()
 		).toEqual({ n: 0 });
@@ -790,6 +794,7 @@ describe('the whole redirect is budgeted, for every press (card c696, wave 43)',
 		for (const pkg of pkgs) listAt(pkg, 1);
 		const refused = await act('removeSome', { pkg: pkgs });
 		expect(refused.status).toBe(409);
+		expect(refused.data?.selected).toEqual(pkgs);
 		expect(
 			db
 				.prepare(
@@ -805,6 +810,7 @@ describe('the whole redirect is budgeted, for every press (card c696, wave 43)',
 		for (const pkg of pkgs) listAt(pkg, 9);
 		const refused = await act('updateSome', { pkg: pkgs });
 		expect(refused.status).toBe(409);
+		expect(refused.data?.selected).toEqual(pkgs);
 		// The guard runs before the loop, so no repository was asked.
 		expect(installs.calls).toEqual([]);
 		expect(
@@ -977,5 +983,49 @@ describe('UPDATE’s redirect counts the version it carries (card c696, wave 43)
 			180
 		);
 		dropPackages(...under);
+	});
+});
+
+/**
+ * Round 2's second medium: without script a tick could never be pressed,
+ * because `selected` lived only in the URL and the server therefore drew every
+ * bar cell disabled. The server now draws them pressable (they are disabled
+ * only after hydration), so an empty press can arrive and must be refused with
+ * the band and write nothing; a refusal answers with the ticks it read, so the
+ * fresh page a no-script press lands on comes back still selecting them.
+ */
+describe('an empty press, and the ticks a refusal answers with (card c696, wave 43 round 2)', () => {
+	it('?/flags refuses an empty press with the band and writes nothing', async () => {
+		const r = await act('flags', { flag: 'neverTracked', value: 'true' });
+		expect(r.status).toBe(409);
+		expect(r.data?.message).toBe('NOTHING TICKED');
+		expect(r.data?.selected).toEqual([]);
+		expect(
+			db.prepare(`SELECT COUNT(*) AS n FROM settings WHERE key LIKE 'source.never-tracked:%'`).get()
+		).toEqual({ n: 0 });
+	});
+
+	it('?/updateSome and ?/removeSome refuse an empty press too', async () => {
+		const update = await act('updateSome', {});
+		expect(update.status).toBe(409);
+		expect(update.data?.message).toBe('NOTHING TICKED HAS AN UPDATE');
+		expect(update.data?.selected).toEqual([]);
+		const remove = await act('removeSome', {});
+		expect(remove.status).toBe(409);
+		expect(remove.data?.message).toBe('NOTHING TICKED');
+		expect(remove.data?.selected).toEqual([]);
+	});
+
+	it('a refused UPDATE answers with the ticks it read', async () => {
+		extension('x.notupd', [{ id: '641', lang: 'en' }]);
+		const r = await act('updateSome', { pkg: 'x.notupd' });
+		expect(r.status).toBe(409);
+		expect(r.data?.selected).toEqual(['x.notupd']);
+		dropPackages('x.notupd');
+	});
+
+	it('REMOVE’s question with no ticks answers the page’s refusal band', async () => {
+		const out = await loadAt('/browse/extensions?select=1&removeSel=1');
+		expect(out.removeRefusal).toBe('NOTHING TICKED');
 	});
 });
