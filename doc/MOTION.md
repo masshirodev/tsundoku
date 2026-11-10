@@ -137,7 +137,10 @@ hover can belong to a group:
   matched by padding, so nothing moves), and its tint runs the full width.
   FAV keeps its own box.
 
-`WorkTile` does the same with its one button. `BookTile` (the tiles inside a
+`WorkTile` does the same with its one button. So does the library's CONTINUE
+row (`ContinueRow`, owner 2026-11-10): the band alone stopped 16px short of ▶,
+so the row is the group, the band is `off`, and ▶ keeps its own tint on top. A
+row with nowhere to go (no `href`) is not a group and is never tinted. `BookTile` (the tiles inside a
 series' book grid) is one button already, so it was always tinted whole.
 `motion.e2e.ts`, "a library tile hovers as one", reads the tint on the tile,
 none on `.open`, the cover's picture unchanged, the rating as wide as the tile,

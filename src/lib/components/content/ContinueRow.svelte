@@ -111,12 +111,22 @@
 	}
 </script>
 
-<div class="row" class:unavailable class:work use:holdable={onlongpress}>
+<!-- The row hovers as one, ▶'s cell and the row's padding included (owner,
+     2026-11-10): the band's own tint stopped 16px short of ▶ (doc/MOTION.md,
+     "hover can belong to a group"). Only a row that opens something is tinted. -->
+<div
+	class="row"
+	class:unavailable
+	class:work
+	data-hover={href ? 'group' : undefined}
+	use:holdable={onlongpress}
+>
 	<!-- Both handlers exist only on the <a>; the <div> takes no input at all. -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<svelte:element
 		this={href ? 'a' : 'div'}
 		class="band"
+		data-hover="off"
 		{href}
 		data-focus-id={href ? linkFocusId : undefined}
 		data-focus-mark={href ? 'in' : undefined}

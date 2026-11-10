@@ -100,6 +100,43 @@ test.describe('▶ in its cell (c840)', () => {
 });
 
 /**
+ * The row hovers as one (owner, 2026-11-10): the band's own tint stopped short
+ * of ▶, so half the row lit and the rest didn't. The row is tinted whole, ▶
+ * keeps its own tint on top, and nothing moves (doc/MOTION.md).
+ */
+test('a CONTINUE row hovers as one, all the way past ▶', async ({ page, isMobile }) => {
+	test.skip(isMobile, 'a tap fires a false hover on touch, so touch gets none');
+	await page.goto('/');
+	const r = page.locator('.cont > .row:has(a.band)').first();
+	await expect(r).toBeVisible();
+	await hydrated(page);
+	const band = r.locator('a.band');
+	const go = r.locator('.go');
+	const bg = (l: Locator) => l.evaluate((el) => getComputedStyle(el).backgroundImage);
+	const box = (l: Locator) =>
+		l.evaluate((el) => {
+			const b = el.getBoundingClientRect();
+			return { left: b.left, top: b.top, width: b.width, height: b.height };
+		});
+	await page.mouse.move(0, 0);
+	await expect.poll(() => bg(r)).toBe('none');
+	const before = await box(r);
+
+	await band.hover();
+	await expect.poll(() => bg(r)).toMatch(/linear-gradient/);
+	expect(await bg(band)).toBe('none');
+	// The tinted box reaches past ▶ to the row's right edge.
+	const g = await box(go);
+	expect(before.left + before.width).toBeGreaterThan(g.left + g.width);
+	expect(await box(r)).toEqual(before);
+
+	await go.hover();
+	await expect.poll(() => bg(go)).toMatch(/linear-gradient/);
+	expect(await bg(r)).toMatch(/linear-gradient/);
+	expect(await box(r)).toEqual(before);
+});
+
+/**
  * The band is a link and ▶ its sibling (c841). The seed's CONTINUE has only
  * series; a Work's row is walked in `tests/works-library-frame.e2e.ts`, whose
  * own database has one.
