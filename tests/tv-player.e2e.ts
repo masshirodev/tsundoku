@@ -477,6 +477,9 @@ test.describe('the minute step (c865)', () => {
 		});
 		// One minute for the hold, one for the press: 1:40 to 2:20 to 3:40.
 		await expect.poll(at).toBeCloseTo(220, 1);
+		// The pace is per direction, so the other way moves at once.
+		await mediaKey(page, 'MediaRewind');
+		await expect.poll(at).toBeCloseTo(160, 1);
 	});
 
 	test('the bar’s −1m and +1m are stops in reading order, and each moves a minute (c865)', async ({
