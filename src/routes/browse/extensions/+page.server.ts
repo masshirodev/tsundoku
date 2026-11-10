@@ -580,12 +580,22 @@ export const actions: Actions = {
 		const asked = pkgs.filter((pkg) => updatable.has(pkg));
 		if (asked.length === 0) return fail(409, { message: 'NOTHING TICKED HAS AN UPDATE' });
 		// Refuse before the first install, as the flags press does: every asked
-		// package will be one band row, so cost each in the longest list key the
-		// band can carry (`untrusted`), which is an upper bound on what it sends.
+		// package will be one band row. `done` is the longest path (it carries the
+		// `pkg` and, since UPDATE's UNDO checks the version, the `ver` too), so
+		// cost each asked package as `done` and its version together. The version
+		// the press will leave is the one its repository lists; no shorter than 8
+		// bytes is counted, and the 4 KB under Node's head absorbs a loader that
+		// reports a longer name than its repository.
+		const upcoming = new Map<string, string>([
+			...iv.updates.map((r) => [r.pkg, r.update ?? ''] as const),
+			...pv.updates.map((p) => [`ln:${p.id}`, p.update ?? ''] as const)
+		]);
+		const verCost = asked.map((pkg) => 'x'.repeat(Math.max(8, upcoming.get(pkg)?.length ?? 0)));
 		if (
 			!pressFits(
 				`${PAGE}?${bandQuery('update', {
-					untrusted: asked,
+					done: asked,
+					ver: verCost,
 					of: asked.length,
 					no: pkgs.length - asked.length
 				})}`

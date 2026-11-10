@@ -941,3 +941,41 @@ describe('a HIDE press leaves already-hidden sources out of its facts (c696)', (
 			for (const f of flags.SOURCE_FLAGS) flags.setSourceFlag(id, f, false);
 	});
 });
+
+/**
+ * The item-2 fix added one `ver` parameter per updated row to the update band,
+ * which the item-1 guard did not count. This is the same shape the review
+ * named: a press just under the guard can still send a Location over the
+ * budget. The versions here are what the mocked install leaves (1.0); the
+ * bound must cost `done` and `ver` together.
+ */
+describe('UPDATE’s redirect counts the version it carries (card c696, wave 43)', () => {
+	const real = (i: number) =>
+		`eu.kanade.tachiyomi.extension.en.source${String(i).padStart(4, '0')}`;
+	const many = (n: number, start: number) =>
+		Array.from({ length: n }, (_, i) => {
+			const pkg = real(start + i);
+			extension(pkg, [{ id: String(900_000 + start + i), lang: 'en' }]);
+			listAt(pkg, 9);
+			return pkg;
+		});
+
+	it('refuses before the first install when `done` and `ver` together pass the budget', async () => {
+		const over = many(220, 7_000);
+		const refused = await act('updateSome', { pkg: over });
+		expect(refused.status).toBe(409);
+		expect(installs.calls).toEqual([]);
+		dropPackages(...over);
+	});
+
+	it('takes a press whose whole Location, versions included, fits the budget', async () => {
+		const under = many(180, 9_000);
+		const taken = await act('updateSome', { pkg: under });
+		expect(taken.status).toBe(303);
+		expect(taken.location!.length).toBeLessThanOrEqual(band.LOCATION_BUDGET);
+		expect(new URL(taken.location!, 'http://localhost').searchParams.getAll('ver')).toHaveLength(
+			180
+		);
+		dropPackages(...under);
+	});
+});
