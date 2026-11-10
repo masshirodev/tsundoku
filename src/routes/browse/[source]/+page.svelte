@@ -178,8 +178,8 @@
 	 * under reveal or incognito is kept by neither record.
 	 */
 	type Kept = { key: string; shown: Shown; y: number };
-	/** One departure toward a preview, for its ←: where it was and when. */
-	type Left = Kept & { href: string; at: number };
+	/** One departure toward a preview, for its ←: where it was. */
+	type Left = Kept & { href: string };
 
 	const LEFT_KEY = 'tsundoku.browse-left';
 	/** Where the grid was when a navigation began: SvelteKit's capture may run after an outline moved it. */
@@ -202,8 +202,7 @@
 					key: shown.key,
 					shown,
 					y: scrollY,
-					href: (n.from?.url ?? page.url).pathname + (n.from?.url ?? page.url).search,
-					at: Date.now()
+					href: (n.from?.url ?? page.url).pathname + (n.from?.url ?? page.url).search
 				} satisfies Left)
 			);
 		} catch {
