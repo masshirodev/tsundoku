@@ -18,6 +18,12 @@ import { freePort } from './helpers/tag-world';
  * cover already shown fetched again; a reload and a forward visit keep
  * today's behaviour (the top), and nothing of a revealed list comes back.
  *
+ * The list a way back draws is this visit's own answer, never the one kept:
+ * a series hidden since the list was left (HIDE on its screen, another tab,
+ * an ADDED HIDDEN add) must not be drawn, title or cover, while the answer is
+ * on its way — an outline of the kept list's size holds the place instead
+ * (round 2's high finding).
+ *
  * It runs in the `browse` project against its own seeded database and a fake
  * engine on ports the OS gives, because it counts what the source is asked
  * (the shared browse world's engine is steered by the specs beside it) and
@@ -35,9 +41,14 @@ const PAGES = 25;
 const PER = 13;
 /** What the cap leaves: `MAX_PAGES` in `src/lib/server/engine/browse.ts`. */
 const CAP = 20;
+/** The last result of a ten-page search: a library series the HIDE cases hide between leaving and coming back. */
+const FOUND_PAGES = 10;
+const HIDDEN_TITLE = `Found ${FOUND_PAGES}-${PER - 1}`;
 
 type World = {
 	base: string;
+	/** The library series one of the source's own search results matches (the HIDE cases). */
+	foundSeriesId: number;
 	/** Page-list calls the source was asked for, in order: `getPopularManga:3`. */
 	calls: () => string[];
 	/** `/image/` fetches the source answered: what a cover *refetch* costs. */
@@ -49,7 +60,7 @@ type World = {
 };
 let world: World;
 
-function seed(dbPath: string, store: string): void {
+function seed(dbPath: string, store: string): { found: number } {
 	rmSync(dbPath, { force: true });
 	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
 		env: { ...process.env, DATABASE_PATH: dbPath, NODE_NO_WARNINGS: '1' },
@@ -83,6 +94,19 @@ function seed(dbPath: string, store: string): void {
 		series.run(root, 'Popular 1-5', now, now, `mihon:${MANGA.id}:/manga/Popular-1-5`, 1);
 		series.run(root, 'Seeded One', now, now, `mihon:${MANGA.id}:/manga/Seeded-1`, 0);
 		series.run(root, 'Seeded Two', now, now, `mihon:${MANGA.id}:/manga/Seeded-2`, 0);
+		// A result of the source's search, shown: the HIDE cases hide it after the
+		// list has been left, and a way back must never draw it. Its own name is
+		// the last of a ten-page search.
+		const found = Number(
+			series.run(
+				root,
+				HIDDEN_TITLE,
+				now,
+				now,
+				`mihon:${MANGA.id}:/manga/${HIDDEN_TITLE.replace(/ /g, '-')}`,
+				0
+			).lastInsertRowid
+		);
 		// The novel source BROWSE already knows how to install (tests/browse-setup.ts):
 		// an LNReader plugin whose file is its own hash in the store.
 		const shelf = readFileSync('tests/fixtures/lnreader/shelf.js');
@@ -93,6 +117,7 @@ function seed(dbPath: string, store: string): void {
 			`INSERT INTO novel_plugins (id, name, site, lang, version, hash, installed_at, updated_at, failed)
 			VALUES (?, 'Shelf Novels', 'https://shelf.example/', 'en', '1.0.0', ?, 0, 0, '')`
 		).run(PLUGIN, hash);
+		return { found };
 	} finally {
 		db.close();
 	}
@@ -238,7 +263,7 @@ async function startWorld(): Promise<World> {
 	const work = mkdtempSync(join(tmpdir(), 'tsundoku-e2e-browse-back-'));
 	const dbPath = join(work, 'library.sqlite');
 	const store = join(work, 'store');
-	seed(dbPath, store);
+	const { found } = seed(dbPath, store);
 	const enginePort = await freePort();
 	// A real 64×90 PNG, so the thumbnail step has something to resize.
 	const { default: sharp } = await import('sharp');
@@ -281,6 +306,7 @@ async function startWorld(): Promise<World> {
 	if (!up) throw new Error('the browse-back preview never answered');
 	return {
 		base,
+		foundSeriesId: found,
 		calls: () => engine.calls(),
 		images: () => engine.images(),
 		slow: (ms: number) => engine.slow(ms),
@@ -420,6 +446,72 @@ const pagesReasked = (asks: string[], upTo: number) =>
 			return page >= 1 && page <= upTo;
 		});
 
+/**
+ * The source's kept answers forgotten, as its settings page's own `set` does
+ * (`settings/+page.server.ts`, `forgetSource`): the way back must ask again,
+ * which is what makes a cold answer, slowly.
+ */
+async function forgetKept(page: Page) {
+	// The settings page's load is what keeps the source's preferences, and the
+	// action reads them; asked without navigating, so history is left alone.
+	await page.request.get(`${world.base}/browse/${MANGA.id}/settings`);
+	const set = await page.request.post(`${world.base}/browse/${MANGA.id}/settings?/set`, {
+		form: { key: 'quality', value: '1' },
+		headers: { origin: world.base }
+	});
+	expect(set.ok(), 'the setting was saved').toBe(true);
+}
+
+/**
+ * Record every tile title the document attaches from here on. A kept list drawn
+ * for a frame (or a second) leaves its record, and no polling of the count can
+ * see it: the observer sees every node as it is added.
+ */
+async function watchTiles(page: Page) {
+	await page.evaluate(() => {
+		const seen: string[] = [];
+		(window as unknown as { __tiles: string[] }).__tiles = seen;
+		const note = (node: Node) => {
+			if (!(node instanceof Element)) return;
+			const tiles = [
+				...(node.matches('.grid a.tile') ? [node] : []),
+				...node.querySelectorAll('.grid a.tile')
+			];
+			for (const t of tiles) seen.push(t.querySelector('.t')?.textContent ?? '');
+		};
+		new MutationObserver((records) => {
+			for (const r of records) for (const n of r.addedNodes) note(n);
+		}).observe(document.body, { childList: true, subtree: true });
+	});
+}
+
+/** Every tile title attached since `watchTiles`. */
+const tilesSeen = (page: Page) =>
+	page.evaluate(() => (window as unknown as { __tiles?: string[] }).__tiles ?? []);
+
+/** The waiting outline's cells: the kept list's size, no title and no cover. */
+const outlineCells = (page: Page) => page.locator('.grid[aria-hidden="true"] .tile').count();
+
+/** The library series the HIDE cases hide, through the series screen's own action. */
+async function hideFound(page: Page, on: boolean) {
+	// Hiding is the reader's own act with reveal off (the action answers it with a
+	// 303 to the library). Showing it again needs reveal: hidden with reveal off,
+	// the series is not found, so the screen's own action 404s.
+	if (!on)
+		await page
+			.context()
+			.addCookies([{ name: 'tsundoku_reveal', value: '1', domain: 'localhost', path: '/' }]);
+	try {
+		const answer = await page.request.post(`${world.base}/series/${world.foundSeriesId}?/hide`, {
+			form: { on: on ? '1' : '0' },
+			headers: { origin: world.base }
+		});
+		expect(answer.ok(), 'the series screen hid or showed it').toBe(true);
+	} finally {
+		if (!on) await page.context().clearCookies({ name: 'tsundoku_reveal' });
+	}
+}
+
 test('the browser’s back, from a preview at the 20-page cap: the same scroll, the same tile, nothing asked again', async ({
 	page
 }) => {
@@ -456,15 +548,13 @@ test('the browser’s back, from a preview at the 20-page cap: the same scroll, 
 	expect(covers.again(drawn), 'no cover already shown is sent again').toEqual([]);
 });
 
-test('a source that answers slowly: the kept list is drawn at once, so the place is not lost', async ({
+test('a source that answers slowly: the place is held while this visit’s answer is on its way', async ({
 	page
 }) => {
 	test.setTimeout(120_000);
 	// The source's own settings first, so changing one can forget its kept
 	// answers the way the app's own action does (settings/+page.server.ts, `set`).
-	await page.goto(`${world.base}/browse/${MANGA.id}/settings`);
-	await expect(page.getByRole('banner', { name: `Settings for ${MANGA.name}` })).toBeVisible();
-	await expect(page.getByText('Cover quality')).toBeVisible();
+	await page.request.get(`${world.base}/browse/${MANGA.id}/settings`);
 	await page.goto(`${world.base}/browse/${MANGA.id}?q=cold&pages=1`);
 	await expect(page.locator('.grid a.tile').first()).toContainText('Found 1-0');
 	const pages = await settleList(page, PER, 0);
@@ -474,27 +564,129 @@ test('a source that answers slowly: the kept list is drawn at once, so the place
 
 	await openTopTile(page);
 	// Forgotten answers: the way back must ask the source, which then answers
-	// slowly, so the page is an outline for a while before the list is there.
-	const set = await page.request.post(`${world.base}/browse/${MANGA.id}/settings?/set`, {
-		form: { key: 'quality', value: 'm' },
-		// The session's own origin: SvelteKit refuses a form post from nowhere.
-		headers: { origin: world.base }
-	});
-	expect(set.ok(), 'the setting was saved').toBe(true);
-	world.slow(3000);
+	// slowly, so this visit's list is on its way for seconds.
+	await forgetKept(page);
+	world.reset();
+	world.slow(4000);
 	await page.goBack();
 	await page.waitForURL(/\/browse\//);
-
+	// While the answer is out, the place is an outline of the kept list's size:
+	// not one tile of the kept list is drawn (round 2's high finding).
 	await expect
-		.poll(async () => (await place(page)).y, { timeout: 10_000 })
+		.poll(() => page.evaluate(() => Math.round(scrollY)), { timeout: 10_000 })
 		.toBeGreaterThanOrEqual(before.y - 2);
+	expect(await gridCount(page), 'no kept tile is drawn before the answer').toBe(0);
+	expect(await outlineCells(page), 'an outline holds the place').toBeGreaterThan(0);
+
+	// Then this visit's answer draws in that place.
+	await expect
+		.poll(() => gridCount(page), { timeout: 30_000 })
+		.toBeGreaterThanOrEqual(drawnBy(pages, PER, 0));
 	const after = await place(page);
 	expect(after.top, 'the same result is at the top').toBe(before.top);
+	expect(Math.abs(after.y - before.y), 'the same scroll').toBeLessThanOrEqual(2);
 	// And it really ran cold: the source was asked for the pages it had drawn.
 	expect(
 		pagesReasked(world.calls(), pages).length,
 		'the cold list was asked for again'
 	).toBeGreaterThan(0);
+});
+
+test('a series hidden after the list was left is never drawn on a popstate', async ({ page }) => {
+	test.setTimeout(180_000);
+	await page.goto(`${world.base}/browse/${MANGA.id}?q=hidden&pages=${FOUND_PAGES}`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Found 1-0');
+	await expect.poll(() => gridCount(page), { timeout: 60_000 }).toBe(drawnBy(FOUND_PAGES, PER, 0));
+	await scrollInto(page, 2500);
+	const before = await place(page);
+	expect(before.top, 'a result is at the top').toMatch(/^Found \d+-\d+$/);
+	await expect(tileTitled(page, HIDDEN_TITLE), 'the series is drawn now').toHaveCount(1);
+
+	await openTopTile(page);
+	try {
+		// Hidden between leaving and coming back, by the series screen's own HIDE.
+		await hideFound(page, true);
+		// The way back asks the source again, slowly: the kept answer would be on
+		// screen for seconds if it were drawn.
+		await forgetKept(page);
+		world.reset();
+		world.slow(4000);
+		await watchTiles(page);
+		await page.goBack();
+		await page.waitForURL(/\/browse\//);
+
+		// An outline the kept list's size holds the place, and no kept tile is drawn.
+		await expect
+			.poll(() => page.evaluate(() => Math.round(scrollY)), { timeout: 10_000 })
+			.toBeGreaterThanOrEqual(before.y - 2);
+		expect(await gridCount(page), 'no kept tile is drawn before the answer').toBe(0);
+		expect(await outlineCells(page), 'an outline holds the place').toBeGreaterThan(0);
+
+		// This visit's answer: the list, one shorter, at the same place.
+		await expect
+			.poll(() => gridCount(page), { timeout: 30_000 })
+			.toBe(drawnBy(FOUND_PAGES, PER, 0) - 1);
+		const after = await place(page);
+		expect(after.top, 'the same result is at the top').toBe(before.top);
+		expect(Math.abs(after.y - before.y), 'the same scroll').toBeLessThanOrEqual(2);
+
+		// Not once, not for a frame: the observer saw every tile the document took,
+		// and the hidden series is not among them.
+		await expect
+			.poll(async () => (await tilesSeen(page)).length, { timeout: 10_000 })
+			.toBeGreaterThan(0);
+		const seen = await tilesSeen(page);
+		expect(seen, 'the hidden series was never attached').not.toContain(HIDDEN_TITLE);
+		expect(seen, 'the list was drawn after the observer watched').toContain(before.top!);
+	} finally {
+		await hideFound(page, false);
+	}
+});
+
+test('a series hidden after the list was left is never drawn by the preview’s ←', async ({
+	page
+}) => {
+	test.setTimeout(180_000);
+	await page.goto(`${world.base}/browse/${MANGA.id}?q=hidden-left&pages=${FOUND_PAGES}`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Found 1-0');
+	await expect.poll(() => gridCount(page), { timeout: 60_000 }).toBe(drawnBy(FOUND_PAGES, PER, 0));
+	await scrollInto(page, 2500);
+	const before = await place(page);
+	expect(before.top, 'a result is at the top').toMatch(/^Found \d+-\d+$/);
+
+	// The departure toward the preview leaves the record the ← reads.
+	await openTopTile(page);
+	try {
+		await hideFound(page, true);
+		await forgetKept(page);
+		world.reset();
+		world.slow(4000);
+		await watchTiles(page);
+		await page.locator('.preview header.bar a.back').click();
+		await page.waitForURL(/\/browse\//);
+
+		await expect
+			.poll(() => page.evaluate(() => Math.round(scrollY)), { timeout: 10_000 })
+			.toBeGreaterThanOrEqual(before.y - 2);
+		expect(await gridCount(page), 'no kept tile is drawn before the answer').toBe(0);
+		expect(await outlineCells(page), 'an outline holds the place').toBeGreaterThan(0);
+
+		await expect
+			.poll(() => gridCount(page), { timeout: 30_000 })
+			.toBe(drawnBy(FOUND_PAGES, PER, 0) - 1);
+		const after = await place(page);
+		expect(after.top, 'the same result is at the top').toBe(before.top);
+		expect(Math.abs(after.y - before.y), 'the same scroll').toBeLessThanOrEqual(2);
+
+		await expect
+			.poll(async () => (await tilesSeen(page)).length, { timeout: 10_000 })
+			.toBeGreaterThan(0);
+		const seen = await tilesSeen(page);
+		expect(seen, 'the hidden series was never attached').not.toContain(HIDDEN_TITLE);
+		expect(seen, 'the list was drawn after the observer watched').toContain(before.top!);
+	} finally {
+		await hideFound(page, false);
+	}
 });
 
 test('the preview’s plain ←: the same scroll, the same tile, nothing asked again', async ({

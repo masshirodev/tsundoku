@@ -21,15 +21,25 @@ MANGA was a shelf then (`?shelf=k:manga`); since c436 it is the band's
 **The screens that keep a place, and what keeps it.** Two have a SvelteKit
 snapshot: the **library** (its loaded pages and scroll, per history entry,
 [`LIBRARY.md`](LIBRARY.md), "Pages") and **BROWSE's catalog for a source**
-(`src/routes/browse/[source]/+page.svelte`: the list's key, the answer already
-drawn and the scroll, card c930; [`BROWSE.md`](BROWSE.md), "A way back comes
-back to the place"). It is restored on a popstate only, so a reload and a
+(`src/routes/browse/[source]/+page.svelte`: the list's key, how many tiles it
+had drawn and the scroll, card c930; [`BROWSE.md`](BROWSE.md), "A way back
+comes back to the place"). It is restored on a popstate only, so a reload and a
 forward visit keep today's behaviour (the top), and a list drawn under reveal
-or incognito writes none at all. One more place is kept by hand, because the
-preview's ← is a plain link and not a history step: the catalog leaves one
-record of where it was when the reader opens a preview (`tsundoku.browse-left`)
-and that ← is the only arrival that reads it. Every other screen's place is
-its URL alone, which is why the readers write `?p=` and `?at=`.
+or incognito writes none at all. The catalog keeps a count, never the answer:
+the kept list would draw a series hidden since it was left, and a restore holds
+the place on an outline of that size until the server's answer for this visit
+is there. One more place is kept by hand, because the preview's ← is a plain
+link and not a history step: the catalog leaves one record of where it was when
+the reader opens a preview (`tsundoku.browse-left`) and that ← is the only
+arrival that reads it. Every other screen's place is its URL alone, which is
+why the readers write `?p=` and `?at=`.
+
+**Every snapshot is one blob.** SvelteKit keeps every screen's snapshot for
+every history entry in a single `sveltekit:snapshot` sessionStorage value, and
+its write is best-effort: a value over the browser's storage quota is dropped
+silently (no error reaches the page), so a tab full of screens then keeps no
+place at all — the library's own included. That is why the catalog keeps a
+count and a scroll rather than the answer it drew.
 
 ## How a back link decides
 
