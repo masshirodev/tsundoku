@@ -10,8 +10,8 @@ import { expect, test } from './helpers/hydrated';
 
 /**
  * The player on a TV (c235; TV-Player, TV-Board-Player): the picture until a
- * key, then all six cells on one row with the scrubber above, the settings as a
- * 420px panel, and the media keys a remote sends.
+ * key, then all eight cells on one row with the scrubber above (the minute pair
+ * is c865), the settings as a 420px panel, and the media keys a remote sends.
  *
  * The seeded library has no anime -- the sample shelf is all books -- so this
  * runs against the browse world's own server, the one `tests/browse-anime.e2e.ts`
