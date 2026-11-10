@@ -35,6 +35,54 @@ const place = (page: import('@playwright/test').Page) =>
 const pageCalls = async () =>
 	(await engineCalls()).filter((c) => /^get(Popular|Latest|Search)Manga$/.test(c.method));
 
+/**
+ * The source's kept answers forgotten, as its settings page's own `set` does
+ * (`settings/+page.server.ts`, `forgetSource`): the way back asks the source
+ * again, so its answer is cold and this visit's tiles cannot be the kept list's.
+ */
+async function forgetKept(page: import('@playwright/test').Page) {
+	// The settings page's load is what keeps the source's preferences, and the
+	// action reads them; asked without navigating, so history is left alone.
+	await page.request.get(`${OPEN}/settings`);
+	const set = await page.request.post(`${OPEN}/settings?/set`, {
+		form: { key: 'quality', value: '1' },
+		headers: { origin: new URL(page.url()).origin }
+	});
+	expect(set.ok(), 'the setting was saved').toBe(true);
+}
+
+/**
+ * Record every tile title the document attaches from here on: a kept list drawn
+ * for a frame leaves no other trace, and a count that settles cannot see it.
+ */
+async function watchTiles(page: import('@playwright/test').Page) {
+	await page.evaluate(() => {
+		const seen: string[] = [];
+		const w = window as unknown as { __tiles: string[]; __mutations: number };
+		w.__tiles = seen;
+		w.__mutations = 0;
+		const note = (node: Node) => {
+			if (!(node instanceof Element)) return;
+			const tiles = [
+				...(node.matches('.grid a.tile') ? [node] : []),
+				...node.querySelectorAll('.grid a.tile')
+			];
+			for (const t of tiles) seen.push(t.querySelector('.t')?.textContent ?? '');
+		};
+		new MutationObserver((records) => {
+			w.__mutations += records.length;
+			for (const r of records) for (const n of r.addedNodes) note(n);
+		}).observe(document.body, { childList: true, subtree: true });
+	});
+}
+
+/** What the observer watched: mutations seen, and every tile title the document took. */
+const watched = (page: import('@playwright/test').Page) =>
+	page.evaluate(() => {
+		const w = window as unknown as { __tiles?: string[]; __mutations?: number };
+		return { tiles: w.__tiles ?? [], mutations: w.__mutations ?? 0 };
+	});
+
 /** Scroll into the list, at a place a return has to come back to. */
 async function scrollInto(page: import('@playwright/test').Page, y: number) {
 	await page.evaluate((top) => scrollTo({ top, behavior: 'instant' }), y);
@@ -193,7 +241,8 @@ test('an ADD that hid the series lands on the source’s page, and one swipe bac
 		headers: { origin: new URL(page.url()).origin }
 	});
 	expect(on.ok()).toBe(true);
-	await tile(page, 'Open Source 1-5').click();
+	const added = 'Open Source 1-5';
+	await tile(page, added).click();
 	await expect(addButton(page)).toBeVisible();
 	const stepsOnPreview = await page.evaluate(() => history.length);
 	await addButton(page).click();
@@ -206,10 +255,23 @@ test('an ADD that hid the series lands on the source’s page, and one swipe bac
 		stepsOnPreview
 	);
 
+	// The way back asks the source again (its kept answers forgotten), so its
+	// answer is cold: a kept list would be on screen for as long as it takes.
+	await forgetKept(page);
+	await watchTiles(page);
 	await page.goBack();
 	// The series the add hid is one of the source's own results, so the list is
 	// one shorter outside reveal: the place is still the same.
 	await expectBackAt(page, before, 25);
+	// Not once, not for a frame: the observer saw every tile the document took.
+	// This back is the same route as the landing, so the drawn tiles are the ones
+	// already there (SvelteKit reuses them by mangaId) and nothing is attached —
+	// measured, and why the flash this pins is in `browse-catalog-back.e2e.ts`,
+	// where the way back remounts the list. The record count says the observer
+	// was watching through the popstate.
+	const seen = await watched(page);
+	expect(seen.mutations, 'the observer watched the popstate').toBeGreaterThan(0);
+	expect(seen.tiles, 'the added-and-hidden result was never attached').not.toContain(added);
 
 	// The library back as it was: forward to the band's page, UNDO it there.
 	await page.goForward();
@@ -221,4 +283,10 @@ test('an ADD that hid the series lands on the source’s page, and one swipe bac
 	await undo.click();
 	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
 	await expect(addButton(page)).toBeVisible();
+
+	// The source's own setting back as it was, for the specs beside this one.
+	await page.request.post(`${OPEN}/settings?/set`, {
+		form: { key: 'quality', value: '0' },
+		headers: { origin: new URL(page.url()).origin }
+	});
 });
