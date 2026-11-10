@@ -165,6 +165,42 @@ without script, and what back returns to. The label counts what's loaded
 SCROLL" only once script runs. Twenty pages at most. **One page at a time**:
 while one is asked for, MORE ↓ is dimmed and a click on it does nothing, since
 every extra click only queued more calls at the source (reported 2026-10-29).
+**The next page adds, it does not redraw** (c930, measured): `pages` is not
+part of the list's key, so the answer already drawn stays while the next one is
+asked for, the tiles are keyed by their result (`{#each … (h.mangaId)}`), and
+the source is asked only for the page that is new (0 calls for pages 1 to N,
+measured at the 20-page cap). The covers are the browser's own cache, not a
+second request: `/api/downloads/engine-image/<token>` sends `private,
+max-age=86400` and the token is the engine's, the same one on every draw, so a
+list drawn again asks for none of the covers it already showed (measured: 0 of
+259). What looks like "downloading every cover again" is the list being drawn
+again, which is what a way back used to do.
+
+**A way back comes back to the place** (card c930; the owner's report of
+2026-11-09). From a preview, by the browser's back, Android's edge swipe, a
+TV's BACK or the preview's ←, the list is the one that was left — `?pages=N`,
+its tiles in order, and the scroll — with no page asked of the source again
+inside the fifteen minutes its answers are kept. Two records, one per way
+back:
+
+- a **popstate** restores the history entry's own SvelteKit snapshot: the
+  list's key, the answer already drawn, and the scroll (`snapshot` in
+  `src/routes/browse/[source]/+page.svelte`, the library's arrangement);
+- the **preview's plain ←** (c864) is a forward visit, so it has no entry to
+  restore. The one departure toward a preview writes a record
+  (`tsundoku.browse-left`): the same three things and the address it was left
+  at, and only a link arrival from the preview reads it, once (it is taken, so
+  a stale one is never applied twice). A preview reached any other way leaves
+  none, and ← then opens the top.
+
+The answer is drawn at once, so the page is as tall as the place before a
+fresh answer streams in, and the scroll is set again once it is drawn (two
+seconds of frames, given up the moment the reader scrolls or presses). A
+**reload** keeps today's behaviour — the URL's pages and the browser's own
+scroll — because a snapshot is restored only for a popstate, not while a
+document boots; a **forward visit** keeps it too, the top. The key carries
+reveal and incognito, and a list drawn under either writes no record at all, so
+nothing of a revealed list outlives reveal's end (`doc/PRIVACY.md`).
 
 **A preview loads on tap, not hover.** A preview asks the source for details
 and episodes, one call at a time per extension, and the app preloads links
@@ -280,7 +316,10 @@ the app's history map begins again there. The preview's ←
 names the list it was opened from, and the catalog puts the tile's focus back
 itself when that ← brings it back, and only then: `restoreFocus` reads the
 `data-focus-id` `saveFocus` noted for that URL, as on a popstate, while a list
-left by touch or mouse saved none. A forward visit starts at the top with no
+left by touch or mouse saved none. It puts the **place** back with the focus
+too (c930, above): the departure toward a preview left the list's key, the
+answer it had drawn and its scroll in `tsundoku.browse-left`, and that ← is the
+one arrival that reads it. A forward visit starts at the top with no
 tile held, and a reload puts no tile back either (its scroll is the browser's
 own, SvelteKit restoring it); neither is a way back (c864's round 2). **Every way to another list of the same source keeps it**
 (card c453): POPULAR and LATEST,
@@ -1005,6 +1044,17 @@ found by those words and a locator matches by substring.
   (every ← lands on the screen it names, never on the tag search it shares a
   path with), a tag search opened by address with `from=` and none behind it
   (and after a reload), and under FILTER's scrim.
+- `tests/browse-catalog-back.e2e.ts` (the `browse` project, on a seeded
+  database and a fake source of its own): the catalog's place comes back
+  (c930). By the browser's back at the 20-page cap (the scroll, the tile at
+  the top, **0** page calls and **0** cover fetches for what was drawn), by the
+  preview's plain ←, by a TV's BACK (`tests/tv-browse-focus.e2e.ts`), from a
+  source that answers slowly (its answers forgotten, so the return must ask:
+  the kept list is drawn at once and the place holds), and on a novel plugin
+  and an anime source; the next page adds its tiles and leaves the drawn ones
+  alone (the same elements, one call, no cover again); a reload and a forward
+  visit keep the top; and under reveal nothing of the revealed list comes back
+  after reveal ends (no record written, and not one frame draws it).
 - `tests/source-flags-db.spec.ts`: a source's own switches (card c435): the
   rows they are kept in, `sourceIdSql` against `sourceOfKey` on every key,
   HIDDEN SOURCE at BROWSE, RECENT, EXTENSIONS (a package, and a plugin's

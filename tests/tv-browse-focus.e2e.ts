@@ -49,6 +49,12 @@ function seed(dbPath: string): void {
 }
 
 /** A page of a list, as a source answers: enough tiles for a row below a row. */
+/**
+ * The page-list calls the fake source is asked for, so a way back can say it
+ * asked for none of what was drawn (c930). Reset before the return.
+ */
+let asks: string[] = [];
+
 const page14 = (prefix: string, hasNextPage = false) => ({
 	mangas: Array.from({ length: 14 }, (_, i) => ({
 		url: `/manga/${prefix}-${i}`,
@@ -67,15 +73,22 @@ function startEngine(port: number): Promise<Server> {
 		let raw = '';
 		req.on('data', (c) => (raw += c));
 		req.on('end', () => {
-			const b = JSON.parse(raw || '{}') as { method: string; mangaData?: { url: string } };
+			const b = JSON.parse(raw || '{}') as {
+				method: string;
+				page?: number;
+				mangaData?: { url: string };
+			};
 			const url = b.mangaData?.url ?? '';
+			if (/^get(Popular|Latest|Search)Manga$/.test(b.method))
+				asks.push(`${b.method}:${b.page ?? 1}`);
 			switch (b.method) {
 				case 'filterSchemaManga':
 					return json([]);
 				case 'supportLatestManga':
 					return json(true);
 				case 'getPopularManga':
-					return json(page14('Popular'));
+					// Two pages, so a place deep in the list is a real one (c930).
+					return json((b.page ?? 1) === 1 ? page14('Popular', true) : page14('Popular two'));
 				case 'getLatestManga':
 					return json(page14('Latest'));
 				case 'getSearchManga':
@@ -300,13 +313,45 @@ test('back from a preview: the same tile holds the mark again', async ({ page })
 	const left = await page.evaluate(
 		() => (document.activeElement as HTMLElement).querySelector('.t')?.textContent
 	);
-	expect(left, 'a tile was focused before leaving').toMatch(/^Popular \d+$/);
+	expect(left, 'a tile was focused before leaving').toMatch(/^Popular/);
 	await page.keyboard.press('Enter');
 	await page.waitForURL(/\/downloads\/source\//);
 	await page.goBack();
 	await page.waitForURL(/\/browse\//);
 	await expect(page.locator('.grid a.tile:focus .t')).toHaveText(left as string);
 	await expectMark(page);
+});
+
+test('BACK from a preview, deep in the list: the same tile, and the same scroll', async ({
+	page
+}) => {
+	await page.goto(`${world.base}/browse/${SOURCE.id}?pages=2`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 0');
+	await expect.poll(() => page.locator('.grid a.tile').count()).toBe(28);
+	// Down into the lower rows, so the place is not the top of the list.
+	await padToInnerTile(page);
+	for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowDown');
+	const left = await focusedTitle(page);
+	expect(left, 'a tile was focused before leaving').toMatch(/^Popular/);
+	const y = await page.evaluate(() => Math.round(scrollY));
+	expect(y, 'the list is scrolled away from the top').toBeGreaterThan(0);
+
+	asks = [];
+	await page.keyboard.press('Enter');
+	await page.waitForURL(/\/downloads\/source\//);
+	await expect(page.getByText('A Preview').first()).toBeVisible();
+	// The remote's BACK (doc/FOCUS.md): a GoBack key through the layer, which
+	// leaves the screen when there is nothing open for it to close.
+	await page.evaluate(() =>
+		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'GoBack', bubbles: true }))
+	);
+	await page.waitForURL(/\/browse\//);
+	await expect(page.locator('.grid a.tile:focus .t')).toHaveText(left as string);
+	await expectMark(page);
+	await expect
+		.poll(() => page.evaluate(() => Math.round(scrollY)), { timeout: 10_000 })
+		.toBeGreaterThanOrEqual(y - 2);
+	expect(asks, 'the source was asked nothing it had drawn again').toEqual([]);
 });
 
 test('back by the preview’s own ←: the same tile holds the mark again', async ({ page }) => {
@@ -316,7 +361,7 @@ test('back by the preview’s own ←: the same tile holds the mark again', asyn
 	const left = await page.evaluate(
 		() => (document.activeElement as HTMLElement).querySelector('.t')?.textContent
 	);
-	expect(left, 'a tile was focused before leaving').toMatch(/^Popular \d+$/);
+	expect(left, 'a tile was focused before leaving').toMatch(/^Popular/);
 	await page.keyboard.press('Enter');
 	await page.waitForURL(/\/downloads\/source\//);
 	await expect(page.getByText('A Preview').first()).toBeVisible();
@@ -366,7 +411,7 @@ test('a forward arrival with a saved id: no tile is focused, and the list starts
 	// Down to the last row, so a tile put back would have to scroll the list.
 	await padToLowTile(page);
 	const left = await focusedTitle(page);
-	expect(left, 'a low tile was focused before leaving').toMatch(/^Popular \d+$/);
+	expect(left, 'a low tile was focused before leaving').toMatch(/^Popular/);
 	await page.keyboard.press('Enter');
 	await page.waitForURL(/\/downloads\/source\//);
 	await backByPreview(page);
@@ -399,7 +444,7 @@ test('a reload with a saved id: no tile is focused, and only the page’s own sc
 	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 0');
 	await padToLowTile(page);
 	const left = await focusedTitle(page);
-	expect(left, 'a low tile was focused before leaving').toMatch(/^Popular \d+$/);
+	expect(left, 'a low tile was focused before leaving').toMatch(/^Popular/);
 	await page.keyboard.press('Enter');
 	await page.waitForURL(/\/downloads\/source\//);
 	await backByPreview(page);

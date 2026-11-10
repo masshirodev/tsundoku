@@ -18,6 +18,19 @@ MANGA was a shelf then (`?shelf=k:manga`); since c436 it is the band's
   instead, when the reader came from the screen it points to
   (`backLink`, `src/lib/back.ts`).
 
+**The screens that keep a place, and what keeps it.** Two have a SvelteKit
+snapshot: the **library** (its loaded pages and scroll, per history entry,
+[`LIBRARY.md`](LIBRARY.md), "Pages") and **BROWSE's catalog for a source**
+(`src/routes/browse/[source]/+page.svelte`: the list's key, the answer already
+drawn and the scroll, card c930; [`BROWSE.md`](BROWSE.md), "A way back comes
+back to the place"). It is restored on a popstate only, so a reload and a
+forward visit keep today's behaviour (the top), and a list drawn under reveal
+or incognito writes none at all. One more place is kept by hand, because the
+preview's ← is a plain link and not a history step: the catalog leaves one
+record of where it was when the reader opens a preview (`tsundoku.browse-left`)
+and that ← is the only arrival that reads it. Every other screen's place is
+its URL alone, which is why the readers write `?p=` and `?at=`.
+
 ## How a back link decides
 
 Every navigation notes where its history entry is (`noteVisit`, in the root

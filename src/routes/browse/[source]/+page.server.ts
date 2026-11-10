@@ -105,6 +105,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 	return {
 		source,
 		reveal,
+		// An incognito visit leaves nothing behind (doc/PRIVACY.md), the list's
+		// kept place included: the page keeps no snapshot for one (c930).
+		incognito: isIncognito(cookies),
 		mode,
 		pages,
 		q,

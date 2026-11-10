@@ -1,34 +1,55 @@
-/**
- * MEASUREMENT PROBE (temporary; the real file replaces this): what a way back
- * from a preview does to BROWSE's catalog today (c930).
- */
 import Database from 'better-sqlite3';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createServer as createHttp, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { Page } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 import { freePort } from './helpers/tag-world';
 
-const SOURCE = { id: '600', name: 'Back Source' };
-const ANIME = { id: '601', name: 'Back Anime' };
+/**
+ * BROWSE's catalog coming back (c930; doc/BROWSE.md, "It scrolls on, and the
+ * URL keeps the place" and "Back returns to where the tag was"): a way back
+ * from a preview lands at the same scroll on the same tile, with the pages
+ * already loaded drawn at once, no page asked of the source again and no
+ * cover already shown fetched again; a reload and a forward visit keep
+ * today's behaviour (the top), and nothing of a revealed list comes back.
+ *
+ * It runs in the `browse` project against its own seeded database and a fake
+ * engine on ports the OS gives, because it counts what the source is asked
+ * (the shared browse world's engine is steered by the specs beside it) and
+ * needs a list at the 20-page cap. The TV's own BACK is in
+ * `tests/tv-browse-focus.e2e.ts`, the project that has a remote.
+ */
 
+const MANGA = { id: '600', name: 'Back Source' };
+const ANIME = { id: '601', name: 'Back Anime' };
+/** The LNReader plugin the world installs (tests/fixtures/lnreader/shelf.js). */
+const PLUGIN = 'shelf';
+
+/** Pages the fake source has, and results a page carries. Past the 20-page cap on purpose. */
 const PAGES = 25;
 const PER = 13;
+/** What the cap leaves: `MAX_PAGES` in `src/lib/server/engine/browse.ts`. */
+const CAP = 20;
 
 type World = {
 	base: string;
-	engine: () => number;
-	kinds: () => string[];
+	/** Page-list calls the source was asked for, in order: `getPopularManga:3`. */
+	calls: () => string[];
+	/** `/image/` fetches the source answered: what a cover *refetch* costs. */
 	images: () => number;
+	/** Make the next search wait [ms]: a source that answers slowly, as a cold one does. */
+	slow: (ms: number) => void;
 	reset: () => void;
 	stop: () => Promise<void>;
 };
 let world: World;
 
-function seed(dbPath: string): void {
+function seed(dbPath: string, store: string): void {
 	rmSync(dbPath, { force: true });
 	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
 		env: { ...process.env, DATABASE_PATH: dbPath, NODE_NO_WARNINGS: '1' },
@@ -36,25 +57,58 @@ function seed(dbPath: string): void {
 	});
 	const db = new Database(dbPath);
 	try {
+		const root = (db.prepare(`SELECT id FROM roots WHERE name = 'Library'`).get() as { id: number })
+			.id;
+		const now = Date.UTC(2026, 9, 28, 12);
 		const ext = db.prepare(
 			`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at, failed)
-			VALUES (?, ?, ?, 1, '1', '1', ?, 0, 0, '')`
+			VALUES (?, ?, ?, 1, '1', ?, ?, 0, 0, '')`
 		);
 		const src = db.prepare(
 			`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES (?, ?, ?, 'en', ?)`
 		);
-		ext.run('e2e.back', SOURCE.name, 'manga', 'e2e.back'.padEnd(64, '0'));
-		src.run(SOURCE.id, 'e2e.back', SOURCE.name, 'https://back.example');
-		ext.run('e2e.backanime', ANIME.name, 'anime', 'e2e.backanime'.padEnd(64, '0'));
+		ext.run('e2e.back', MANGA.name, 'manga', '1', 'e2e.back'.padEnd(64, '0'));
+		src.run(MANGA.id, 'e2e.back', MANGA.name, 'https://back.example');
+		ext.run('e2e.backanime', ANIME.name, 'anime', '16', 'e2e.backanime'.padEnd(64, '0'));
 		src.run(ANIME.id, 'e2e.backanime', ANIME.name, 'https://backanime.example');
+		// A hidden series the manga source lists, so a revealed list differs from
+		// the one reveal off draws (the reveal case, below). Its key is the
+		// source's own (`asHits`: `keyOf(sourceId, url)`). Two more, shown, keep
+		// the source from being *mostly* hidden (which would 404 it with reveal
+		// off); they name no result it lists.
+		const series = db.prepare(
+			`INSERT INTO series (root_id, title, kind, source, hue, added_at, indexed_at, origin_key, hidden)
+			VALUES (?, ?, 'manga', 'mihon', 210, ?, ?, ?, ?)`
+		);
+		series.run(root, 'Popular 1-5', now, now, `mihon:${MANGA.id}:/manga/Popular-1-5`, 1);
+		series.run(root, 'Seeded One', now, now, `mihon:${MANGA.id}:/manga/Seeded-1`, 0);
+		series.run(root, 'Seeded Two', now, now, `mihon:${MANGA.id}:/manga/Seeded-2`, 0);
+		// The novel source BROWSE already knows how to install (tests/browse-setup.ts):
+		// an LNReader plugin whose file is its own hash in the store.
+		const shelf = readFileSync('tests/fixtures/lnreader/shelf.js');
+		const hash = createHash('sha256').update(shelf).digest('hex');
+		mkdirSync(join(store, 'novels'), { recursive: true });
+		writeFileSync(join(store, 'novels', `${hash}.js`), shelf);
+		db.prepare(
+			`INSERT INTO novel_plugins (id, name, site, lang, version, hash, installed_at, updated_at, failed)
+			VALUES (?, 'Shelf Novels', 'https://shelf.example/', 'en', '1.0.0', ?, 0, 0, '')`
+		).run(PLUGIN, hash);
 	} finally {
 		db.close();
 	}
 }
 
+/**
+ * A source with [PAGES] pages of [PER] results each, every one with a cover on
+ * the engine's own loopback `/image/` path — the shape a real extension answers
+ * (`thumbnail_url`), which is what makes the app ask
+ * `/api/downloads/engine-image/<token>` and the engine's `/image/<token>`.
+ */
 function startEngine(port: number, cover: Buffer) {
-	let calls: { method: string; page?: number }[] = [];
+	let calls: string[] = [];
 	let images = 0;
+	/** How long the next search waits, once (`/__slow`). */
+	let slowMs = 0;
 	const server = createHttp((req, res) => {
 		const json = (v: unknown) =>
 			res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(v));
@@ -63,6 +117,11 @@ function startEngine(port: number, cover: Buffer) {
 		if (req.url === '/__reset') {
 			calls = [];
 			images = 0;
+			slowMs = 0;
+			return json({});
+		}
+		if (req.url?.startsWith('/__slow')) {
+			slowMs = Number(new URL(req.url, 'http://x').searchParams.get('ms')) || 0;
 			return json({});
 		}
 		if (req.url === '/challenges') return json({ solving: {}, solved: {} });
@@ -76,11 +135,10 @@ function startEngine(port: number, cover: Buffer) {
 			const b = JSON.parse(raw || '{}') as {
 				method: string;
 				page?: number;
-				search?: string;
 				mangaData?: { url: string };
 				animeData?: { url: string };
 			};
-			calls.push({ method: b.method, page: b.page });
+			calls.push(`${b.method}:${b.page ?? ''}`);
 			const page = b.page ?? 1;
 			const list = (prefix: string) => ({
 				mangas: Array.from({ length: PER }, (_, i) => ({
@@ -95,6 +153,21 @@ function startEngine(port: number, cover: Buffer) {
 				case 'filterSchemaManga':
 				case 'filterSchemaAnime':
 					return json([]);
+				// One setting of the source's own, so a change of it can forget the
+				// source's kept answers through the app's own action (the slow case).
+				case 'preferencesManga':
+					return json([
+						{
+							key: 'quality',
+							listPreference: {
+								title: 'Cover quality',
+								summary: '%s',
+								valueIndex: 0,
+								entries: ['Original', 'Medium', 'Low'],
+								entryValues: ['o', 'm', 'l']
+							}
+						}
+					]);
 				case 'supportLatestManga':
 					return json(true);
 				case 'supportLatestAnime':
@@ -103,9 +176,15 @@ function startEngine(port: number, cover: Buffer) {
 					return json(list('Popular'));
 				case 'getLatestManga':
 					return json(list('Latest'));
-				case 'getSearchManga':
-					return json(list('Found'));
+				case 'getSearchManga': {
+					const answer = list('Found');
+					if (!slowMs) return json(answer);
+					const ms = slowMs;
+					slowMs = 0;
+					return setTimeout(() => json(answer), ms);
+				}
 				case 'getPopularAnime':
+				case 'getLatestAnime':
 					return json({
 						animes: Array.from({ length: PER }, (_, i) => ({
 							url: `/show/${page}-${i}`,
@@ -143,9 +222,13 @@ function startEngine(port: number, cover: Buffer) {
 			server: s,
 			calls: () => calls,
 			images: () => images,
+			slow: (ms: number) => {
+				slowMs = ms;
+			},
 			reset: () => {
 				calls = [];
 				images = 0;
+				slowMs = 0;
 			}
 		})
 	);
@@ -154,7 +237,8 @@ function startEngine(port: number, cover: Buffer) {
 async function startWorld(): Promise<World> {
 	const work = mkdtempSync(join(tmpdir(), 'tsundoku-e2e-browse-back-'));
 	const dbPath = join(work, 'library.sqlite');
-	seed(dbPath);
+	const store = join(work, 'store');
+	seed(dbPath, store);
 	const enginePort = await freePort();
 	// A real 64×90 PNG, so the thumbnail step has something to resize.
 	const { default: sharp } = await import('sharp');
@@ -180,7 +264,7 @@ async function startWorld(): Promise<World> {
 				TSUNDOKU_HOME: join(work, 'home'),
 				LIBRARY_ROOT: join(work, 'library'),
 				COVER_DIR: join(work, 'covers'),
-				ENGINE_STORE: join(work, 'store'),
+				ENGINE_STORE: store,
 				BACKUP_DIR: join(work, 'backups')
 			},
 			stdio: 'ignore'
@@ -197,9 +281,9 @@ async function startWorld(): Promise<World> {
 	if (!up) throw new Error('the browse-back preview never answered');
 	return {
 		base,
-		engine: () => engine.calls().length,
-		kinds: () => engine.calls().map((c) => `${c.method}:${c.page ?? ''}`),
+		calls: () => engine.calls(),
 		images: () => engine.images(),
+		slow: (ms: number) => engine.slow(ms),
 		reset: () => engine.reset(),
 		stop: async () => {
 			preview.kill();
@@ -212,14 +296,50 @@ async function startWorld(): Promise<World> {
 
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(async () => {
+	// A seeded database and a preview of this build: the shared server is the
+	// browse world's, steered by the project beside this one.
+	test.setTimeout(120_000);
 	world = await startWorld();
 });
 test.afterAll(async () => {
 	await world?.stop();
 });
 
-/** The tile at the top of the viewport, by its title, and the scroll. */
-const place = (page: import('@playwright/test').Page) =>
+/** One tile, by its title exactly (a title is a prefix of longer ones: "Popular 1-1"). */
+const tileTitled = (page: Page, title: string) =>
+	page
+		.locator('.grid a.tile')
+		.filter({
+			has: page.locator('.t', {
+				hasText: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
+			})
+		})
+		.first();
+
+/**
+ * How many tiles pages 1..n draw. The source's popular list is one short of
+ * [per] per page, because the hidden series it lists is dropped outside
+ * reveal; a search of it is not.
+ */
+const drawnBy = (pages: number, per = PER, offset = 1) => pages * per - offset;
+
+/**
+ * Let the list finish growing by itself — the end of a short list is on screen
+ * at once, so it asks for its next page — and return the pages the URL says it
+ * drew. Not for a list at the cap: there the URL can say more than was asked.
+ */
+async function settleList(page: Page, per = PER, offset = 1): Promise<number> {
+	const pages = (u: string) => Number(new URL(u).searchParams.get('pages') ?? 1);
+	await expect
+		.poll(async () => (await gridCount(page)) === drawnBy(pages(page.url()), per, offset), {
+			timeout: 30_000
+		})
+		.toBe(true);
+	return pages(page.url());
+}
+
+/** The scroll and the tile at the top of the viewport, by its title. */
+const place = (page: Page) =>
 	page.evaluate(() => {
 		const tiles = [...document.querySelectorAll<HTMLElement>('.grid a.tile')];
 		const top = tiles
@@ -228,151 +348,392 @@ const place = (page: import('@playwright/test').Page) =>
 		return { y: Math.round(scrollY), top: top?.querySelector('.t')?.textContent ?? null };
 	});
 
-test('MEASURE: goBack from a preview', async ({ page }) => {
-	test.setTimeout(180_000);
-	const covers: string[] = [];
-	const fromCache: string[] = [];
-	page.on('request', (r) => {
-		if (r.url().includes('/api/downloads/engine-image/')) covers.push(r.url());
-	});
-	page.on('response', (r) => {
-		if (!r.url().includes('/api/downloads/engine-image/')) return;
-		const h = r.headers();
-		fromCache.push(
-			`${r.status()} sw=${r.fromServiceWorker()} cc=${h['cache-control']} age=${h['age']} date=${h['date']} vary=${h['vary']} setcookie=${'set-cookie' in h} timing=${JSON.stringify(r.request().timing())}`
-		);
-	});
-	await page.goto(`${world.base}/browse/${SOURCE.id}?pages=3`);
-	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 1-0');
-	await expect.poll(() => page.locator('.grid a.tile').count()).toBeGreaterThanOrEqual(3 * PER);
-	await page.waitForTimeout(1000);
-	console.log('measure: tiles drawn', await page.locator('.grid a.tile').count(), page.url());
-	const urlsBefore = await page.evaluate(() =>
-		[...document.querySelectorAll<HTMLImageElement>('.grid .cover img')].map((i) => i.src)
-	);
-	console.log(
-		'measure: covers on the first draw',
-		covers.length,
-		JSON.stringify(fromCache.slice(0, 2))
-	);
-	await page.evaluate(() => scrollTo({ top: 900, behavior: 'instant' }));
-	const before = await place(page);
-	console.log('measure: before leaving', JSON.stringify(before));
-	await world.reset();
-	covers.length = 0;
-	fromCache.length = 0;
+const gridCount = (page: Page) => page.locator('.grid a.tile').count();
 
-	// Open a tile at the top of the viewport (a link, then the preview).
-	const tile = page.locator('.grid a.tile').nth(6);
-	await tile.click();
+/** The covers drawn now, as the app's own token names them. */
+const coversDrawn = (page: Page) =>
+	page.evaluate(() =>
+		[...document.querySelectorAll<HTMLElement>('.grid .cover')].flatMap((el) => {
+			const m = /\/api\/downloads\/engine-image\/([^/?#"')]+)/.exec(el.style.background);
+			return m ? [m[1]] : [];
+		})
+	);
+
+/** Cover requests the browser makes, and which of them were for covers drawn before leaving. */
+function watchCovers(page: Page) {
+	const sent: string[] = [];
+	page.on('request', (r) => {
+		const m = /\/api\/downloads\/engine-image\/([^/?#]+)/.exec(r.url());
+		if (m) sent.push(m[1]);
+	});
+	return {
+		clear: () => (sent.length = 0),
+		sent: () => sent.slice(),
+		again: (drawn: string[]) => sent.filter((t) => drawn.includes(t))
+	};
+}
+
+/** Scroll into the list, at a place a return has to come back to. */
+async function scrollInto(page: Page, y: number) {
+	await page.evaluate((top) => scrollTo({ top, behavior: 'instant' }), y);
+	await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0);
+}
+
+/**
+ * Leave the list by a tile wholly in view, and wait for its preview. Wholly:
+ * a tile cut by the viewport's top edge is scrolled into place by the click,
+ * which moves the very place the return has to come back to.
+ */
+async function openTopTile(page: Page) {
+	const title = await page.evaluate(() => {
+		const tiles = [...document.querySelectorAll<HTMLElement>('.grid a.tile')];
+		const seen = tiles.find((el) => {
+			const r = el.getBoundingClientRect();
+			return r.top >= 0 && r.bottom <= innerHeight;
+		});
+		return seen?.querySelector('.t')?.textContent ?? null;
+	});
+	expect(title, 'a tile is whole in the viewport').toBeTruthy();
+	await tileTitled(page, title!).click();
 	await page.waitForURL(/\/downloads\/source\//);
 	await expect(page.getByText('A Preview').first()).toBeVisible();
+	return title!;
+}
+
+/** A tile wholly in view, for a source whose preview is not "A Preview" (an anime's). */
+const visibleTitle = (page: Page) =>
+	page.evaluate(() => {
+		const tiles = [...document.querySelectorAll<HTMLElement>('.grid a.tile')];
+		const seen = tiles.find((el) => {
+			const r = el.getBoundingClientRect();
+			return r.top >= 0 && r.bottom <= innerHeight;
+		});
+		return seen?.querySelector('.t')?.textContent ?? null;
+	});
+
+/** The source's page-list calls for pages that were already drawn. */
+const pagesReasked = (asks: string[], upTo: number) =>
+	asks
+		.filter((c) => /^(getPopularManga|getLatestManga|getSearchManga):\d+$/.test(c))
+		.filter((c) => {
+			const page = Number(c.split(':')[1]);
+			return page >= 1 && page <= upTo;
+		});
+
+test('the browser’s back, from a preview at the 20-page cap: the same scroll, the same tile, nothing asked again', async ({
+	page
+}) => {
+	test.setTimeout(120_000);
+	const covers = watchCovers(page);
+	// Past the cap on purpose: the server asks 20 pages at most.
+	await page.goto(`${world.base}/browse/${MANGA.id}?pages=30`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 1-0');
+	await expect.poll(() => gridCount(page), { timeout: 60_000 }).toBe(drawnBy(CAP));
+
+	await scrollInto(page, 5000);
+	const before = await place(page);
+	expect(before.top, 'a tile is at the top').toMatch(/^Popular \d+-\d+$/);
+	const drawn = await coversDrawn(page);
+	expect(drawn.length, 'the covers are drawn').toBe(drawnBy(CAP));
+
+	await openTopTile(page);
+	// From here on: only what the way back asks.
+	world.reset();
+	covers.clear();
 	await page.goBack();
 	await page.waitForURL(/\/browse\//);
-	await expect(page.locator('.grid a.tile').first()).toBeVisible();
-	await page.waitForTimeout(1200);
+	await expect.poll(() => gridCount(page), { timeout: 30_000 }).toBe(drawnBy(CAP));
+	await expect
+		.poll(async () => (await place(page)).y, { timeout: 10_000 })
+		.toBeGreaterThanOrEqual(before.y - 2);
+
 	const after = await place(page);
-	const urlsAfter = await page.evaluate(() =>
-		[...document.querySelectorAll<HTMLImageElement>('.grid .cover img')].map((i) => i.src)
-	);
-	console.log('measure: after goBack', JSON.stringify(after));
-	console.log('measure: page requests at the source after goBack', world.engine(), world.kinds());
-	console.log(
-		'measure: engine image fetches after goBack',
-		world.images(),
-		'of',
-		covers.length,
-		'browser requests'
-	);
-	console.log('measure: cover requests after goBack', JSON.stringify(covers.slice(0, 2)));
-	console.log('measure: cover responses after goBack', JSON.stringify(fromCache.slice(0, 3)));
-	console.log(
-		'measure: cover urls (from the background styles)',
-		await page.evaluate(() =>
-			[...document.querySelectorAll<HTMLElement>('.grid .cover')]
-				.slice(0, 2)
-				.map((el) => el.style.background)
-		)
-	);
-	console.log(
-		'measure: cover urls stable',
-		urlsBefore.length === urlsAfter.length && urlsBefore.every((u, i) => u === urlsAfter[i]),
-		urlsBefore[0],
-		urlsAfter[0]
-	);
+	expect(after.top, 'the same tile is at the top').toBe(before.top);
+	expect(Math.abs(after.y - before.y), 'the same scroll').toBeLessThanOrEqual(2);
+	// The answer is still the source's own, kept: nothing is asked at all.
+	expect(world.calls(), 'the source is asked nothing on the way back').toEqual([]);
+	expect(world.images(), 'no cover is fetched again').toBe(0);
+	expect(covers.again(drawn), 'no cover already shown is sent again').toEqual([]);
 });
 
-test('MEASURE: the preview’s ←', async ({ page }) => {
-	test.setTimeout(180_000);
-	const covers: string[] = [];
-	page.on('request', (r) => {
-		if (r.url().includes('/api/downloads/engine-image/')) covers.push(r.url());
-	});
-	await page.goto(`${world.base}/browse/${SOURCE.id}?pages=3`);
-	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 1-0');
-	await expect.poll(() => page.locator('.grid a.tile').count()).toBeGreaterThanOrEqual(3 * PER);
-	await page.waitForTimeout(1000);
-	await page.evaluate(() => scrollTo({ top: 900, behavior: 'instant' }));
+test('a source that answers slowly: the kept list is drawn at once, so the place is not lost', async ({
+	page
+}) => {
+	test.setTimeout(120_000);
+	// The source's own settings first, so changing one can forget its kept
+	// answers the way the app's own action does (settings/+page.server.ts, `set`).
+	await page.goto(`${world.base}/browse/${MANGA.id}/settings`);
+	await expect(page.getByRole('banner', { name: `Settings for ${MANGA.name}` })).toBeVisible();
+	await expect(page.getByText('Cover quality')).toBeVisible();
+	await page.goto(`${world.base}/browse/${MANGA.id}?q=cold&pages=1`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Found 1-0');
+	const pages = await settleList(page, PER, 0);
+	await scrollInto(page, 900);
 	const before = await place(page);
-	console.log('measure: before ←', JSON.stringify(before), page.url());
-	await world.reset();
-	covers.length = 0;
-	await page.locator('.grid a.tile').nth(6).click();
-	await page.waitForURL(/\/downloads\/source\//);
-	await expect(page.getByText('A Preview').first()).toBeVisible();
+	expect(before.top, 'a result is at the top').toMatch(/^Found \d+-\d+$/);
+
+	await openTopTile(page);
+	// Forgotten answers: the way back must ask the source, which then answers
+	// slowly, so the page is an outline for a while before the list is there.
+	const set = await page.request.post(`${world.base}/browse/${MANGA.id}/settings?/set`, {
+		form: { key: 'quality', value: 'm' },
+		// The session's own origin: SvelteKit refuses a form post from nowhere.
+		headers: { origin: world.base }
+	});
+	expect(set.ok(), 'the setting was saved').toBe(true);
+	world.slow(3000);
+	await page.goBack();
+	await page.waitForURL(/\/browse\//);
+
+	await expect
+		.poll(async () => (await place(page)).y, { timeout: 10_000 })
+		.toBeGreaterThanOrEqual(before.y - 2);
+	const after = await place(page);
+	expect(after.top, 'the same result is at the top').toBe(before.top);
+	// And it really ran cold: the source was asked for the pages it had drawn.
+	expect(
+		pagesReasked(world.calls(), pages).length,
+		'the cold list was asked for again'
+	).toBeGreaterThan(0);
+});
+
+test('the preview’s plain ←: the same scroll, the same tile, nothing asked again', async ({
+	page
+}) => {
+	test.setTimeout(120_000);
+	const covers = watchCovers(page);
+	await page.goto(`${world.base}/browse/${MANGA.id}?pages=4`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 1-0');
+	const pages = await settleList(page);
+
+	await scrollInto(page, 900);
+	const before = await place(page);
+	const drawn = await coversDrawn(page);
+	await openTopTile(page);
+	world.reset();
+	covers.clear();
 	await page.locator('.preview header.bar a.back').click();
 	await page.waitForURL(/\/browse\//);
 	await expect(page.locator('.grid a.tile').first()).toBeVisible();
-	await page.waitForTimeout(1200);
-	console.log('measure: after ←', JSON.stringify(await place(page)));
-	console.log('measure: page requests at the source after ←', world.engine(), world.kinds());
-	console.log(
-		'measure: engine image fetches after ←',
-		world.images(),
-		'of',
-		covers.length,
-		'browser requests'
-	);
+	await expect
+		.poll(async () => (await place(page)).y, { timeout: 10_000 })
+		.toBeGreaterThanOrEqual(before.y - 2);
+
+	const after = await place(page);
+	expect(after.top, 'the same tile is at the top').toBe(before.top);
+	expect(Math.abs(after.y - before.y), 'the same scroll').toBeLessThanOrEqual(2);
+	expect(pagesReasked(world.calls(), pages), 'no page already drawn is asked again').toEqual([]);
+	expect(covers.again(drawn), 'no cover already shown is sent again').toEqual([]);
 });
 
-test('MEASURE: ?pages=N+1 adds', async ({ page }) => {
-	test.setTimeout(180_000);
-	const covers: string[] = [];
-	page.on('request', (r) => {
-		if (r.url().includes('/api/downloads/engine-image/')) covers.push(r.url());
-	});
-	await page.goto(`${world.base}/browse/${SOURCE.id}?pages=2`);
-	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 1-0');
-	await expect.poll(() => page.locator('.grid a.tile').count()).toBeGreaterThanOrEqual(2 * PER);
-	await page.waitForTimeout(1200);
-	const atStart = await page.locator('.grid a.tile').count();
-	console.log('measure: pages+1 started at', atStart, page.url());
-	// Mark the first tile, to see whether the next page remounts it.
+test('the next page adds its tiles and leaves the drawn ones alone', async ({ page }) => {
+	test.setTimeout(120_000);
+	// A search of this source, so the pages are ones no earlier case asked the
+	// source for (its kept answers live in the preview's process, not the test's).
+	await page.goto(`${world.base}/browse/${MANGA.id}?q=found&pages=1`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Found 1-0');
+	// The end of a short list comes into view at once, so it asks for more by
+	// itself: settle where it stopped, which is the URL's own `pages`.
+	const startsAt = await settleList(page, PER, 0);
+	expect(startsAt).toBeGreaterThan(1);
+	expect(await gridCount(page)).toBe(drawnBy(startsAt, PER, 0));
+	const drawn = await coversDrawn(page);
+
 	await page.evaluate(() => {
-		const t = document.querySelector('.grid a.tile');
-		t?.setAttribute('data-probe', 'kept');
+		document.querySelector('.grid a.tile')?.setAttribute('data-probe', 'kept');
 	});
-	const before = await page.locator('.grid a.tile').first().boundingBox();
-	await world.reset();
-	covers.length = 0;
-	const urlsBefore = await page.evaluate(() =>
-		[...document.querySelectorAll<HTMLImageElement>('.grid .cover img')].map((i) => i.src)
+	world.reset();
+	const covers = watchCovers(page);
+	covers.clear();
+	// MORE ↓ is the same `?pages=N+1` load as the one scrolling on asks for, and
+	// the door a short list keeps: the observer speaks only on a change, and the
+	// row below the grid is already in view at this width (a stall of its own,
+	// measured in the notes and suggested there, not this card's).
+	await page.locator('.more .go').click();
+	await expect.poll(() => gridCount(page), { timeout: 30_000 }).toBe(drawnBy(startsAt + 1, PER, 0));
+
+	expect(
+		await page.evaluate(() => document.querySelector('.grid a.tile')?.getAttribute('data-probe')),
+		'the tiles already drawn are the same elements'
+	).toBe('kept');
+	const asks = world
+		.calls()
+		.filter((c) => /^(getPopularManga|getLatestManga|getSearchManga):\d+$/.test(c));
+	expect(asks, 'the new page is the only page asked for').toEqual([
+		`getSearchManga:${startsAt + 1}`
+	]);
+	expect(covers.again(drawn), 'no cover already shown is sent again').toEqual([]);
+});
+
+test('a reload keeps today’s behaviour: the URL’s pages, and no place put back', async ({
+	page
+}) => {
+	test.setTimeout(120_000);
+	await page.goto(`${world.base}/browse/${MANGA.id}?pages=4`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 1-0');
+	const pages = await settleList(page);
+	await scrollInto(page, 900);
+	const before = await place(page);
+	// A kept place is in the entry now: leaving and coming back by the browser's
+	// back puts it there, and its snapshot is what a reload would restore.
+	await openTopTile(page);
+	await page.goBack();
+	await page.waitForURL(/\/browse\//);
+	await expect.poll(async () => (await place(page)).y).toBeGreaterThanOrEqual(before.y - 2);
+
+	// The browser's own reload scroll is taken out of it, so what is left is the
+	// page's: a restored snapshot would land at 900, today's page at the top.
+	await page.addInitScript(() => (history.scrollRestoration = 'manual'));
+	await page.reload();
+	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 1-0');
+	// The URL's pages, and the one a fresh mount asks for by itself: what the
+	// page does at the top, not a kept list.
+	await expect
+		.poll(() => gridCount(page), { timeout: 30_000 })
+		.toBeGreaterThanOrEqual(drawnBy(pages));
+	await expect.poll(() => page.evaluate(() => scrollY)).toBeLessThanOrEqual(1);
+	expect(await place(page)).toEqual({ y: 0, top: 'Popular 1-0' });
+});
+
+test('a forward visit keeps today’s behaviour: the top, with no place put back', async ({
+	page
+}) => {
+	test.setTimeout(120_000);
+	await page.goto(`${world.base}/browse/${MANGA.id}?pages=4`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 1-0');
+	await settleList(page);
+	await scrollInto(page, 900);
+	const before = await place(page);
+	expect(before.top).toMatch(/^Popular \d+-\d+$/);
+	// The preview's ← puts the place back, so the departure left a record.
+	await openTopTile(page);
+	await page.locator('.preview header.bar a.back').click();
+	await page.waitForURL(/\/browse\//);
+	await expect.poll(async () => (await place(page)).y).toBeGreaterThanOrEqual(before.y - 2);
+
+	// The catalog's ← names BROWSE; the same source, pressed there, is a forward
+	// visit, and it starts at the top.
+	await page.locator('a[aria-label="Back to BROWSE"]').click();
+	await page.waitForURL(/\/browse$/);
+	const row = page.getByRole('link', { name: new RegExp(MANGA.name) }).first();
+	await expect(row).toBeVisible();
+	await row.click();
+	await page.waitForURL(new RegExp(`/browse/${MANGA.id}`));
+	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 1-0');
+	await expect.poll(() => page.evaluate(() => scrollY)).toBeLessThanOrEqual(1);
+	expect((await place(page)).top).toBe('Popular 1-0');
+});
+
+test('under reveal: nothing of the revealed list comes back after reveal ends', async ({
+	page,
+	context
+}) => {
+	test.setTimeout(120_000);
+	const reveal = (on: boolean) =>
+		on
+			? context.addCookies([
+					{ name: 'tsundoku_reveal', value: '1', domain: 'localhost', path: '/', httpOnly: true }
+				])
+			: context.clearCookies({ name: 'tsundoku_reveal' });
+	await reveal(true);
+	await page.goto(`${world.base}/browse/${MANGA.id}?pages=2`);
+	// The hidden series is drawn inside reveal, and is not with it off.
+	const hidden = tileTitled(page, 'Popular 1-5');
+	await expect(hidden).toBeVisible();
+	await expect(hidden.locator('.badge.reveal')).toHaveText('HIDDEN');
+	// Inside reveal nothing is dropped, so a page carries all of them.
+	const pages = await settleList(page, PER, 0);
+	expect(pages, 'more than one page, so the place is a real one').toBeGreaterThan(1);
+	await page.evaluate(() => scrollTo({ top: 40, behavior: 'instant' }));
+
+	// Leave toward the preview inside reveal: no record may be kept for it.
+	await openTopTile(page);
+	expect(
+		await page.evaluate(() => sessionStorage.getItem('tsundoku.browse-left')),
+		'a revealed list leaves no place'
+	).toBeNull();
+
+	await reveal(false);
+	// What the eye would see of a kept list, frame by frame: the document stays
+	// while the popstate draws the list again, so this samples every frame.
+	await page.evaluate(() => {
+		const seen: { tiles: number; hidden: number }[] = [];
+		(window as unknown as { __seen: typeof seen }).__seen = seen;
+		const tick = () => {
+			seen.push({
+				tiles: document.querySelectorAll('.grid a.tile').length,
+				hidden: document.querySelectorAll('.grid .badge.reveal').length
+			});
+			if (seen.length < 600) requestAnimationFrame(tick);
+		};
+		requestAnimationFrame(tick);
+	});
+	await page.goBack();
+	await page.waitForURL(/\/browse\//);
+	// The reveal-off list: the hidden series gone, so one fewer than the pages
+	// would carry.
+	await expect
+		.poll(() => gridCount(page), { timeout: 30_000 })
+		.toBeGreaterThanOrEqual(pages * PER - 1);
+	await expect(tileTitled(page, 'Popular 1-5')).toHaveCount(0);
+	const seen = await page.evaluate(
+		() => (window as unknown as { __seen: { tiles: number; hidden: number }[] }).__seen
 	);
-	await page.evaluate(() => scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }));
-	await expect.poll(() => page.locator('.grid a.tile').count(), { timeout: 20_000 }).toBe(3 * PER);
-	await page.waitForTimeout(800);
-	const kept = await page.evaluate(() =>
-		document.querySelector('.grid a.tile')?.getAttribute('data-probe')
-	);
-	console.log('measure: pages+1 page requests at the source', world.engine());
-	console.log('measure: pages+1 cover requests sent', covers.length);
-	console.log('measure: pages+1 tile kept (not remounted)', kept === 'kept');
-	console.log('measure: pages+1 first tile box before', JSON.stringify(before));
-	const urlsAfter = await page.evaluate(() =>
-		[...document.querySelectorAll<HTMLImageElement>('.grid .cover img')].map((i) => i.src)
-	);
-	console.log(
-		'measure: pages+1 prefixes stable',
-		urlsBefore.every((u, i) => u === urlsAfter[i])
-	);
+	expect(
+		seen.some((s) => s.tiles > 0),
+		'the sampler saw the list drawn'
+	).toBe(true);
+	expect(
+		seen.filter((s) => s.hidden > 0),
+		'no frame drew the revealed list'
+	).toEqual([]);
+});
+
+test('a novel source: its place comes back too', async ({ page }) => {
+	test.setTimeout(120_000);
+	await page.goto(`${world.base}/browse/ln:${PLUGIN}`);
+	const tile = page.locator('.grid a.tile', { hasText: 'The Quiet Shelf' }).first();
+	await expect(tile).toBeVisible();
+	await tile.click();
+	await page.waitForURL(/\/downloads\/source\/ln%3A|^[^?]*\/downloads\/source\//);
+	await expect(page.getByText('The Quiet Shelf').first()).toBeVisible();
+	await page.goBack();
+	await expect.poll(() => new URL(page.url()).pathname).toBe(`/browse/ln:${PLUGIN}`);
+	await expect(page.locator('.grid a.tile', { hasText: 'The Quiet Shelf' })).toHaveCount(1);
+	expect((await place(page)).top).toBe('The Quiet Shelf');
+
+	// And the preview's ←, which this plugin's list shares the path with.
+	await tile.click();
+	await expect(page.getByText('The Quiet Shelf').first()).toBeVisible();
+	await page.locator('.preview header.bar a.back').click();
+	await expect.poll(() => new URL(page.url()).pathname).toBe(`/browse/ln:${PLUGIN}`);
+	await expect(page.locator('.grid a.tile', { hasText: 'The Quiet Shelf' })).toHaveCount(1);
+});
+
+test('an anime source: the same scroll and tile come back', async ({ page }) => {
+	test.setTimeout(120_000);
+	const covers = watchCovers(page);
+	await page.goto(`${world.base}/browse/${ANIME.id}?pages=2`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Show 1-0');
+	await expect.poll(() => gridCount(page), { timeout: 30_000 }).toBe(2 * PER);
+	await scrollInto(page, 260);
+	const before = await place(page);
+	expect(before.top, 'a show is at the top').toMatch(/^Show \d+-\d+$/);
+	const drawn = await coversDrawn(page);
+	world.reset();
+	covers.clear();
+	const leaving = (await visibleTitle(page))!;
+	await tileTitled(page, leaving).click();
+	await page.waitForURL(/\/downloads\/source\//);
+	await expect(page.getByRole('heading', { name: 'A Show' })).toBeVisible();
+	await page.goBack();
+	await page.waitForURL(/\/browse\//);
+	await expect.poll(() => gridCount(page), { timeout: 30_000 }).toBe(2 * PER);
+	await expect
+		.poll(async () => (await place(page)).y, { timeout: 10_000 })
+		.toBeGreaterThanOrEqual(before.y - 2);
+	const after = await place(page);
+	expect(after.top, 'the same show is at the top').toBe(before.top);
+	expect(pagesReasked(world.calls(), 2), 'no page already drawn is asked again').toEqual([]);
+	expect(covers.again(drawn), 'no cover already shown is sent again').toEqual([]);
 });
