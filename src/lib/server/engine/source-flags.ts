@@ -78,6 +78,76 @@ export function setSourceFlag(sourceId: string, flag: SourceFlag, on: boolean, d
 	else db.prepare(`DELETE FROM settings WHERE key = ?`).run(key);
 }
 
+/**
+ * Every switch of many sources at once, keyed by BROWSE's id: one query per
+ * switch, for the lists that ask about a whole extension (EXTENSIONS' SELECT,
+ * card c696) rather than one source. An id nothing was set on is all off, as
+ * `sourceFlags` answers.
+ */
+export function sourceFlagsOf(
+	sourceIds: readonly string[],
+	db = getDb()
+): Map<string, SourceFlags> {
+	const out = new Map<string, SourceFlags>(
+		[...new Set(sourceIds)].map((id) => [
+			id,
+			Object.fromEntries(SOURCE_FLAGS.map((f) => [f, false])) as SourceFlags
+		])
+	);
+	if (out.size === 0) return out;
+	for (const flag of SOURCE_FLAGS)
+		for (const r of db
+			.prepare(`SELECT substr(key, ?) AS id FROM settings WHERE key LIKE ? AND value = '1'`)
+			.all(PREFIX[flag].length + 1, `${PREFIX[flag]}%`) as { id: string }[]) {
+			const s = out.get(r.id);
+			if (s) s[flag] = true;
+		}
+	return out;
+}
+
+/**
+ * What a switch was on one source before a press: UNDO's fact. UNDO writes it
+ * back, so a source already on stays on.
+ */
+export type FlagFact = { sourceId: string; previous: boolean };
+
+/**
+ * Sets one switch on many sources in one transaction, and answers each
+ * source's value before the press (card c696). A phone's SELECT press changes
+ * every source of every ticked extension, which is dozens of rows: they are
+ * one write, so a failure part-way leaves nothing changed. UNDO is
+ * `setSourceFlagValues` over these facts.
+ */
+export function setSourceFlags(
+	sourceIds: readonly string[],
+	flag: SourceFlag,
+	on: boolean,
+	db = getDb()
+): FlagFact[] {
+	const ids = [...new Set(sourceIds)];
+	return db.transaction(() => {
+		const facts = ids.map((sourceId) => ({ sourceId, previous: sourceFlags(sourceId, db)[flag] }));
+		for (const f of facts) setSourceFlag(f.sourceId, flag, on, db);
+		return facts;
+	})();
+}
+
+/**
+ * Writes each source's own value of one switch, in one transaction: UNDO's
+ * write, over the facts the press answered. Unlike `setSourceFlags` the
+ * values differ per source, which is what makes a mixed selection come back
+ * mixed.
+ */
+export function setSourceFlagValues(
+	flag: SourceFlag,
+	values: readonly { sourceId: string; on: boolean }[],
+	db = getDb()
+): void {
+	db.transaction(() => {
+		for (const v of values) setSourceFlag(v.sourceId, flag, v.on, db);
+	})();
+}
+
 /** Every source with one switch on, by BROWSE's id. */
 export function sourcesWith(flag: SourceFlag, db = getDb()): Set<string> {
 	return new Set(
