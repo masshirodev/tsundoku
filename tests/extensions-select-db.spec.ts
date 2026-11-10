@@ -686,6 +686,18 @@ describe('a bulk UPDATE where nothing took is not UPDATED (card c696, round 2)',
 		expect(untrusted.status).toBe(502);
 		expect(String(untrusted.data?.message)).toContain('signed with another key');
 		expect(String(untrusted.data?.message)).not.toContain('did not answer');
+		// With one of each, each group is named with its own reason: one suffix
+		// for every name reported a repository that did not answer as a signature.
+		installs.fail.clear();
+		installs.untrusted.clear();
+		installs.fail.add('x.upok');
+		installs.untrusted.add('x.upf');
+		const mixed = await act('updateSome', { pkg: ['x.upok', 'x.upf'] });
+		expect(mixed.status).toBe(502);
+		expect(String(mixed.data?.message)).toContain('x.upok did not update');
+		expect(String(mixed.data?.message)).toContain(
+			'x.upf (signed with another key than its repository)'
+		);
 		dropPackages('x.upok', 'x.upf');
 	});
 });
@@ -884,5 +896,48 @@ describe('UPDATE’s UNDO checks the version the press installed (card c696, wav
 		dropPackages('x.va', 'x.vb');
 		rmSync(join(process.env.ENGINE_STORE!, 'prev-va.apk'), { force: true });
 		rmSync(join(process.env.ENGINE_STORE!, 'prev-vb.apk'), { force: true });
+	});
+});
+
+/**
+ * Wave 43's lows, cheap ones. Outside reveal a HIDE press on a package with an
+ * already-hidden source wrote that source's id and one bit into the band, which
+ * the round-2 fix otherwise keeps from the client; the source is not changed by
+ * the press, so it leaves the facts and UNDO does not touch it.
+ */
+describe('a HIDE press leaves already-hidden sources out of its facts (c696)', () => {
+	it('carries only the sources it changes outside reveal, and every one inside', async () => {
+		extension('x.hide2', [
+			{ id: '671', lang: 'en' },
+			{ id: '672', lang: 'en' }
+		]);
+		flags.setSourceFlag('672', 'hidden', true);
+		const outside = await act('flags', { pkg: 'x.hide2', flag: 'hidden', value: 'true' });
+		expect(outside.status).toBe(303);
+		const from = new URL(outside.location!, 'http://localhost').searchParams.get('from')!;
+		expect(from).toBe('671|0');
+		// Both are hidden by the press, but the band does not name the one it did
+		// not change, and UNDO leaves it hidden.
+		expect(flags.sourceFlags('671').hidden).toBe(true);
+		const undo = await act('undoFlags', {
+			pkg: 'x.hide2',
+			flag: 'hidden',
+			to: '1',
+			from
+		});
+		expect(undo.status).toBe(303);
+		expect(flags.sourceFlags('671').hidden).toBe(false);
+		expect(flags.sourceFlags('672').hidden).toBe(true);
+
+		// Inside reveal the same press carries both, each with its own value:
+		// the count is revealed there, and UNDO puts a mixed pair back mixed.
+		flags.setSourceFlag('672', 'hidden', true);
+		const inside = await act('flags', { pkg: 'x.hide2', flag: 'hidden', value: 'true' }, true);
+		const seen = new URL(inside.location!, 'http://localhost').searchParams.get('from')!;
+		expect(seen.split(',').sort()).toEqual(['671|0', '672|1']);
+
+		dropPackages('x.hide2');
+		for (const id of ['671', '672'])
+			for (const f of flags.SOURCE_FLAGS) flags.setSourceFlag(id, f, false);
 	});
 });

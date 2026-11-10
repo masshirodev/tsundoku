@@ -113,20 +113,25 @@
 	};
 
 	const ext = (n: number) => `${count(n)} ${n === 1 ? 'EXTENSION' : 'EXTENSIONS'}`;
+	const sources = (n: number) => `${count(n)} ${n === 1 ? 'SOURCE' : 'SOURCES'}`;
 	const flagsTitle = $derived(
 		flags
-			? flags.flag === 'hidden' && flags.to
-				? `HIDDEN · ${ext(flags.chg)}`
-				: `${FLAG_NAMES[flags.flag]} · ${flags.to ? 'ON' : 'OFF'} FOR ${count(flags.chg)}${
-						flags.chg === flags.of ? '' : ` OF ${count(flags.of)}`
-					}`
+			? // Nothing could change (every row was gone or its sources unknown):
+				// do not name the switch as if it went on.
+				flags.chg === 0
+				? 'NOT CHANGED'
+				: flags.flag === 'hidden' && flags.to
+					? `HIDDEN · ${ext(flags.chg)}`
+					: `${FLAG_NAMES[flags.flag]} · ${flags.to ? 'ON' : 'OFF'} FOR ${count(flags.chg)}${
+							flags.chg === flags.of ? '' : ` OF ${count(flags.of)}`
+						}`
 			: ''
 	);
 	const flagsDetail = $derived(
 		flags
 			? [
-					`${count(flags.facts.length)} SOURCES`,
-					meaning(flags.flag, flags.to),
+					sources(flags.facts.length),
+					flags.chg === 0 ? '' : meaning(flags.flag, flags.to),
 					flags.gone.length
 						? `${count(flags.gone.length)} NOT CHANGED: NO LONGER INSTALLED · IT LEFT THE LIST AND THE SELECTION`
 						: '',

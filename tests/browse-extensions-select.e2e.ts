@@ -362,6 +362,37 @@ test('a SELECT straight after REMOVE starts empty, even the row that stayed', as
 	await expect(row(page, 'Open Source').getByRole('checkbox')).not.toBeChecked();
 });
 
+test('a press on one source says 1 SOURCE, not 1 SOURCES', async ({ page }) => {
+	await page.goto('/browse/extensions');
+	await startSelect(page);
+	// Shelf Novels is the LNReader plugin: its one source is its one id.
+	await row(page, 'Shelf Novels').click();
+	await cell(page, 'NEVER TRACKED').click();
+	await expect(page.locator('.band .detail')).toContainText('1 SOURCE ·');
+});
+
+test('a press whose every row left the list says NOT CHANGED, not the switch', async ({
+	page,
+	baseURL
+}) => {
+	await addRepo(page);
+	await installWebtoons(page);
+	await page.goto('/browse/extensions');
+	await startSelect(page);
+	await row(page, 'Webtoons.com').click();
+	// Another device removes it between the tick and the press: nothing can change.
+	await page.request.post(`${new URL(baseURL!).origin}/browse/extensions?/remove`, {
+		form: { pkg: WEBTOONS },
+		headers: { origin: new URL(baseURL!).origin, accept: 'text/html' },
+		maxRedirects: 0
+	});
+	await page.locator('.bulk .swc', { hasText: 'HIDE' }).click();
+	const band = page.locator('.band');
+	await expect(band.locator('.title')).toHaveText('NOT CHANGED');
+	await expect(band).not.toContainText('THEY LEFT THE LIST AND THE SELECTION');
+	await expect(band.locator('.detail')).toContainText('1 NOT CHANGED: NO LONGER INSTALLED');
+});
+
 test('a band from its URL keeps every row of every list, and UPDATE’s UNDO posts each', async ({
 	page
 }) => {

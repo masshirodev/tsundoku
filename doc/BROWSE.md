@@ -458,7 +458,10 @@ word. ✕, Escape, BACK and a tab's own TICK / UNTICK all work without script.
 It ends on ✕, Escape (a focused tick included: an `input` keeps Escape from the
 focus layer, so the form ends SELECT itself), BACK (`registerBack`), a reload,
 or an UPDATE or REMOVE that succeeded; **a switch press does not end it**, so
-the cells read back what the press set.
+the cells read back what the press set. Those two bulk forms are `use:enhance`,
+so their redirect is a client `goto` on the same component: the tick set is
+cleared whenever `?select` leaves the URL, and the **next SELECT starts with
+nothing ticked** whichever way the last one ended (✕ clears it itself).
 
 **A row is a package, a switch is a source id** (the owner's decision,
 2026-11-08): a press changes **every source of each ticked extension**,
@@ -473,10 +476,13 @@ label offers TICK n / UNTICK n where UPDATE ALL sat. A switch is counted in
 extensions: ON when every source of every ticked package has it, OFF when none,
 MIXED otherwise (a PART extension is one whose sources disagree), and **every
 cell's second line says what the next press does** (`MIXED · 3 OF 12 · 1 PART ·
-TAP: ALL ON`, `12 OF 12 · TAP: ALL OFF`). A package whose sources are not
-known (an extension the engine never listed a source for) cannot change, and
-with none left the cells are disabled. Outside reveal HIDDEN is an **action**,
-not a switch: a count would hint at what is hidden, and hidden means hidden.
+TAP: ALL ON`, `12 OF 12 · TAP: ALL OFF`). A press that could change no row
+draws `NOT CHANGED` in the band, with no switch meaning to contradict it, and
+its facts are counted in sources (`1 SOURCE`, `2 SOURCES`). A package whose
+sources are not known (an extension the engine never listed a source for)
+cannot change, and with none left the cells are disabled. Outside reveal HIDDEN
+is an **action**, not a switch: a count would hint at what is hidden, and
+hidden means hidden.
 
 **Bulk HIDE sets the switch, and nothing else** (decided alone, round 2 of wave
 42; the brief asked for the decision). At the single door, HIDDEN SOURCE hides
@@ -503,13 +509,27 @@ leads with `NOT CHANGED · …` until the next press or ✕; a package removed o
 another device since it was ticked leaves the list and the selection and is
 counted in the band, not called a success.
 
+**Every press is budgeted before it is written.** The guard is on the whole
+redirect — `/browse/extensions`, `select=1`, one `pkg` per ticked package and
+the band's facts — not on the band alone, because Node answers a request head
+past 16 KB with 431 after the write would have landed and the user would get no
+band and no UNDO. `LOCATION_BUDGET` is 12 KB, leaving room for the request line
+and the browser's headers; `?/flags`, `?/updateSome` and `?/removeSome` all
+refuse with `TOO MANY SOURCES TO CHANGE AT ONCE` and change nothing. A switch
+press outside reveal leaves sources that are already hidden out of its facts
+(they were not changed, and UNDO must not touch them), so their ids do not
+reach the client.
+
 **UPDATE and REMOVE in bulk** are the list's own actions narrowed to the
 selection. UPDATE installs what each repository lists now, keeps the old APK
 for a week and forgets each source's kept answers, and its UNDO is BACK TO for
-every row it updated; SELECT ends. REMOVE asks first through REMOVE's
-ConfirmSheet with its lines summed, and has **no UNDO** (the sheet asked; an
-install fetches what the repository lists then, which may not be the removed
-version). **An OBSOLETE row stays installed**: no repository lists it any more,
+every row it updated; SELECT ends. The band carries each updated row's new
+version, so UNDO refuses whole (409, nothing changed) when a row's version is no
+longer the one the press installed — one that took its own BACK TO since, or
+another update — instead of swapping it forward again and calling it restored.
+REMOVE asks first through REMOVE's ConfirmSheet with its lines summed, and has
+**no UNDO** (the sheet asked; an install fetches what the repository lists
+then, which may not be the removed version). **An OBSOLETE row stays installed**: no repository lists it any more,
 so once removed it could not be installed again, and its settings could not be
 reached. The sheet counts what may go, and says which stay and why. Tested in
 `tests/extensions-select-db.spec.ts` and `tests/browse-extensions-select.e2e.ts`;

@@ -519,7 +519,14 @@ export const actions: Actions = {
 		const q = bandQuery('flags', {
 			flag,
 			to: plan.to ? '1' : '0',
-			from: encodeFacts(plan.facts),
+			// Outside reveal a HIDE press on a package with an already-hidden source
+			// would otherwise write that source's id and its previous state into the
+			// band (hidden means hidden: `flagsByPackage` sends no hidden count
+			// outside reveal). The press does not change it, and UNDO must not touch
+			// it, so it leaves the facts; inside reveal the count is the band's own.
+			from: encodeFacts(
+				!reveal && flag === 'hidden' && plan.to ? plan.facts.filter((f) => !f.previous) : plan.facts
+			),
 			of: plan.of,
 			chg: plan.chg,
 			miss: plan.miss,
@@ -603,11 +610,15 @@ export const actions: Actions = {
 		}
 		// A failed update is not a success with a smaller count (the brief): with
 		// nothing taken, answer as UPDATE ALL does, and keep SELECT and its ticks.
+		// A repository that did not answer and a signature that did not match are
+		// named apart: one suffix for all names reported the wrong one for each.
 		if (done.length === 0) {
-			const why = untrusted.length ? ' (signed with another key than its repository)' : '';
-			return fail(502, {
-				message: `${asked.map((pkg) => named.get(pkg) ?? pkg).join(', ')} did not update${why}`
-			});
+			const namesOf = (list: string[]) => list.map((pkg) => named.get(pkg) ?? pkg).join(', ');
+			const parts: string[] = [];
+			if (failed.length) parts.push(`${namesOf(failed)} did not update`);
+			if (untrusted.length)
+				parts.push(`${namesOf(untrusted)} (signed with another key than its repository)`);
+			return fail(502, { message: parts.join(' · ') });
 		}
 		// What each updated row's version is now: UNDO carries it, so a row that
 		// has gone back since (its own BACK TO) cannot be swapped forward again.
