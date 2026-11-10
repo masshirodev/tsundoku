@@ -14,6 +14,8 @@
 	import { coverPlaceholder } from '$lib/library/cover';
 	import { offline } from '$lib/offline.svelte';
 	import { continueCell, KEEP_DAYS, keptLine, recordLine, rowLook } from '$lib/library/browsing';
+	import { beforeNavigate, goto } from '$app/navigation';
+	import { browseSelection } from '$lib/library/browse-selection.svelte';
 
 	/**
 	 * A search result's preview (Download States 1e, state 7): the series
@@ -52,6 +54,32 @@
 	 * restored by BACK (the bfcache, where nothing else runs) clears it.
 	 */
 	let tagWaiting = $state<string | null>(null);
+	/**
+	 * A preview opened by a long press while selecting in a catalog (card
+	 * c868) is part of the browse world: its ← goes back still selecting, and
+	 * so does a tag tapped here. A tag link is a document load
+	 * (`data-sveltekit-reload`, since `tag-search` is a server route), which
+	 * would end a selection held in this tab's memory, so while selecting the
+	 * address is asked for and gone to inside the app. Anywhere else ends it.
+	 */
+	beforeNavigate((n) => browseSelection.follow(n.to?.route.id));
+	async function tagWhileSelecting(e: MouseEvent) {
+		if (!browseSelection.selecting) return;
+		const a = (e.target as HTMLElement | null)?.closest('a');
+		if (!a || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
+		e.preventDefault();
+		e.stopPropagation();
+		tagWaiting = a.dataset.tag ?? null;
+		try {
+			const res = await fetch(a.href, { headers: { accept: 'application/json' } });
+			const { to } = (await res.json()) as { to: string };
+			// eslint-disable-next-line svelte/no-navigation-without-resolve -- the server's tagSearchHref, built on resolve()
+			await goto(to);
+		} catch {
+			// Not answered: the plain link, which ends SELECT but still finds the tag.
+			location.href = a.href;
+		}
+	}
 	/** The author and artist lines, one link a person (c456; `previewPeople`). */
 	const people = (m: { author?: string | null; artist?: string | null }) =>
 		previewPeople(m.author, m.artist);
@@ -244,7 +272,8 @@
 
 					<div class="row top">
 						<div class="label">TAGS</div>
-						<div class="tags" data-sveltekit-reload>
+						<!-- `onclickcapture` reroutes the links inside while selecting (c868); they stay the controls. -->
+						<div class="tags" data-sveltekit-reload onclickcapture={tagWhileSelecting}>
 							<!-- eslint-disable svelte/no-navigation-without-resolve -- searchTag() builds on resolve() -->
 							<!-- tag-search is a server route, not a page: the browser follows its 303. -->
 							<!-- One link a person (c456): "A, B" is two, each searched on its own. -->
@@ -257,6 +286,7 @@
 												class:pending={tagWaiting === `${line.ns}:${name}`}
 												aria-busy={tagWaiting === `${line.ns}:${name}` ? 'true' : undefined}
 												href={searchTag(line.ns, name)}
+												data-tag="{line.ns}:{name}"
 												onclick={() => (tagWaiting = `${line.ns}:${name}`)}>{name}</a
 											>{/each}</span
 									>
@@ -270,6 +300,7 @@
 												class:pending={tagWaiting === `genre:${g}`}
 												aria-busy={tagWaiting === `genre:${g}` ? 'true' : undefined}
 												href={searchTag('genre', g)}
+												data-tag="genre:{g}"
 												onclick={() => (tagWaiting = `genre:${g}`)}>{g}</a
 											>{/each}</span
 									>

@@ -15,6 +15,7 @@ import {
 import { changedCount, readFilters, type FilterField } from '$lib/library/browse-filters';
 import { backOrigin } from '$lib/library/tag-search';
 import { forgetSiteCheck } from '$lib/server/novels/source';
+import { sourceFlags } from '$lib/server/engine/source-flags';
 import type { Settled } from '$lib/library/settled';
 import {
 	addedBand,
@@ -119,6 +120,8 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		addedHidden,
 		// The shelves its series is on, for the band's chips (card c724).
 		addedShelves: bandShelves(addedHidden),
+		// SELECT's ticks note it, so the bulk bar can say "ADDS ITS 3 HIDDEN" (card c868).
+		addsHidden: sourceFlags(source.id).addedHidden,
 		// Arrived from a tag (c313): ← returns to where it was tapped, never anywhere else.
 		back: backOrigin(url.searchParams.get('from')),
 		// Without script a streamed promise never resolves, so the page waits for it instead.

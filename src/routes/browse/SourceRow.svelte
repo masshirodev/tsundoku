@@ -10,7 +10,16 @@
 	 * the reason in a word) and leads to EXTENSIONS. HIDDEN sits on the icon of
 	 * a mostly-hidden source, which is only ever listed inside reveal.
 	 */
-	let { r, meta }: { r: BrowseRow; meta: string } = $props();
+	let {
+		r,
+		meta,
+		ticked = ''
+	}: {
+		r: BrowseRow;
+		meta: string;
+		/** While selecting (c868): how many of its series are ticked, `9 TICKED`, in ink. */
+		ticked?: string;
+	} = $props();
 	const hue = $derived([...r.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 0));
 	const m = $derived(meta);
 	const extensionsHref = resolve('/browse/extensions');
@@ -42,7 +51,9 @@
 			</span>
 			<span class="text">
 				<span class="t">{r.label}</span>
-				<span class="m">{m}</span>
+				<span class="m"
+					>{m}{#if ticked}{m ? ' · ' : ''}<span class="lead">{ticked}</span>{/if}</span
+				>
 			</span>
 		</span>
 		<span class="go" aria-hidden="true">→</span>

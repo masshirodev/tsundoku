@@ -1,4 +1,4 @@
-import { error, redirect } from '@sveltejs/kit';
+import { error, json, redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { resolve } from '$app/paths';
 import { isRevealed } from '$lib/server/prefs';
@@ -23,20 +23,23 @@ import {
  * a source BROWSE lists with this reveal (a mostly-hidden source is not found
  * with reveal off).
  */
-export const GET: RequestHandler = async ({ params, url, cookies }) => {
+export const GET: RequestHandler = async ({ params, url, cookies, request }) => {
 	const asked = readTagRoute(url);
 	const sourceId =
 		asked && configured() && isSourceMangaId(params.id) ? sourceOfMangaId(params.id) : null;
 	const source = sourceId ? browseSource(sourceId, isRevealed(cookies)) : null;
 	if (!asked || !source) error(404, 'not found');
 	const schema = await settleWithin(filterSchema(source.id), TAG_SCHEMA_WAIT_MS, []);
-	redirect(
-		303,
-		tagSearchHref(
-			resolve('/browse/[source]', { source: source.id }),
-			schema,
-			asked.tag,
-			asked.from || null
-		)
+	const to = tagSearchHref(
+		resolve('/browse/[source]', { source: source.id }),
+		schema,
+		asked.tag,
+		asked.from || null
 	);
+	// While SELECT is on (card c868) the preview asks for the address and goes
+	// there itself, inside the app: a document load would end the selection,
+	// which lives in the tab's memory, and a tag's arrival is part of the
+	// browse world it lasts through. The answer is the same address.
+	if (request.headers.get('accept')?.includes('application/json')) return json({ to });
+	redirect(303, to);
 };
