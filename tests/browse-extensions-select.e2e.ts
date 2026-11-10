@@ -1,5 +1,9 @@
+import Database from 'better-sqlite3';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test } from './fixtures';
 import { bumpWebtoons, REPO, resetEngine } from './browse-world';
+import { RUN_DIR } from './helpers/run-dir';
 
 /**
  * EXTENSIONS' SELECT (card c696; doc/BROWSE.md, "Extensions and
@@ -17,6 +21,90 @@ const FLAGS = ['hidden', 'addedHidden', 'offHistory', 'neverTracked'] as const;
 
 /** The fake repository is added for the cases that install something of its own. */
 let repoAdded = false;
+
+/**
+ * A selection bigger than the URL that used to carry it (round 2's second
+ * review): 320 installed single-source extensions with package names of a real
+ * length, so one `pkg=` per ticked row passes Node's 16 KB request head. The
+ * rows are seeded into the browse world's own database — the project runs one
+ * worker, and the case removes them — because a browser can only tick rows the
+ * list draws. `bigSeeded` is emptied in afterEach even when a case fails.
+ */
+const BIG = 320;
+const BIG_REPO = 9_000;
+const bigPkg = (i: number) =>
+	`eu.kanade.tachiyomi.extension.all.realsourcesite${String(i).padStart(4, '0')}`;
+const bigId = (i: number) => `big-${String(i).padStart(4, '0')}`;
+let bigSeeded: string[] = [];
+
+/** The browse world's database, the one its preview serves. */
+function browseDb() {
+	const file = readdirSync(RUN_DIR).find((f) => /^tsundoku-e2e-browse-\d+\.sqlite$/.test(f));
+	if (!file) throw new Error(`no browse database under the run's directory`);
+	return new Database(join(RUN_DIR, file));
+}
+
+function seedBig(n: number): string[] {
+	const db = browseDb();
+	db.prepare(
+		`INSERT OR REPLACE INTO engine_repos (id, base, name, fingerprint, added_at)
+		 VALUES (?, 'https://127.0.0.1:1/big/index.min.json', 'Big Repo', 'f', 0)`
+	).run(BIG_REPO);
+	const ext = db.prepare(
+		`INSERT OR REPLACE INTO engine_extensions
+		 (pkg, repo_id, name, kind, version_code, version_name, lib, handle, installed_at, updated_at, failed)
+		 VALUES (?, ?, ?, 'manga', 1, '1.0', '1.4', ?, 0, 0, '')`
+	);
+	const src = db.prepare(
+		`INSERT OR REPLACE INTO engine_sources (id, pkg, name, lang, base_url)
+		 VALUES (?, ?, ?, 'en', 'https://example.org')`
+	);
+	const list = db.prepare(
+		`INSERT OR REPLACE INTO engine_listings (repo_id, pkg, listing) VALUES (?, ?, ?)`
+	);
+	const pkgs: string[] = [];
+	for (let i = 0; i < n; i++) {
+		const pkg = bigPkg(i);
+		const id = bigId(i);
+		ext.run(pkg, BIG_REPO, pkg, pkg.padEnd(64, '0'));
+		src.run(id, pkg, pkg);
+		// A listing one version ahead: each row is one of UPDATES, so UPDATE n
+		// reaches the budget rather than answering that nothing has an update.
+		list.run(
+			BIG_REPO,
+			pkg,
+			JSON.stringify({
+				pkg,
+				name: pkg,
+				kind: 'manga',
+				versionCode: 9,
+				versionName: '9.0',
+				lib: '1.4',
+				adult: false,
+				apkUrl: '',
+				jarUrl: null,
+				iconUrl: null,
+				sources: [{ id, name: pkg, lang: 'en', baseUrl: '' }]
+			})
+		);
+		pkgs.push(pkg);
+	}
+	db.close();
+	return pkgs;
+}
+
+function dropBig() {
+	if (!bigSeeded.length) return;
+	const db = browseDb();
+	for (const pkg of bigSeeded) {
+		db.prepare(`DELETE FROM engine_extensions WHERE pkg = ?`).run(pkg);
+		db.prepare(`DELETE FROM engine_sources WHERE pkg = ?`).run(pkg);
+	}
+	// The repository's listings go with it (ON DELETE CASCADE).
+	db.prepare(`DELETE FROM engine_repos WHERE id = ?`).run(BIG_REPO);
+	db.close();
+	bigSeeded = [];
+}
 
 /** The repository and anything installed from it, taken back: the world is shared. */
 async function removeFakeRepo(page: import('@playwright/test').Page) {
@@ -52,6 +140,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.afterEach(async ({ page, baseURL }) => {
+	dropBig();
 	const origin = new URL(baseURL!).origin;
 	// Every switch this file sets goes back off, for the two seeded packages it
 	// ticks; REMOVE keeps a switch the way it keeps its settings (c569).
@@ -406,6 +495,53 @@ test('a band from its URL keeps every row of every list, and UPDATE’s UNDO pos
 	await expect(band.locator('input[name=pkg]')).toHaveCount(2);
 	await expect(band.locator('input[name=pkg]').nth(0)).toHaveValue('e2e.open');
 	await expect(band.locator('input[name=pkg]').nth(1)).toHaveValue('ln:shelf');
+});
+
+test('320 real-length ticked rows reach the refusal band, not the error page', async ({ page }) => {
+	bigSeeded = seedBig(BIG);
+	await page.goto('/browse/extensions');
+	await startSelect(page);
+	const drawn = await page.locator('.rows .row').count();
+	await page.getByRole('button', { name: 'SELECT ALL' }).click();
+	await expect(page.locator('.cell.count')).toHaveText(`${drawn} SELECTED`);
+
+	// Each press's own request carries its ticks in the body, never in the URL:
+	// before the fix the formaction held one `pkg=` per row (~18 KB here) and
+	// the browser met a 431 error page before any guard could refuse.
+	const band = page.locator('.band');
+	await cell(page, 'NEVER TRACKED').click();
+	await expect(band.locator('.title')).toHaveText('TOO MANY SOURCES TO CHANGE AT ONCE');
+	await expect(page.locator('.bulk')).toBeVisible();
+	await expect(page.locator('.cell.count')).toHaveText(`${drawn} SELECTED`);
+
+	await page.locator('.bulk .swc', { hasText: 'UPDATE' }).click();
+	await expect(band.locator('.title')).toHaveText('TOO MANY SOURCES TO CHANGE AT ONCE');
+	await expect(page.locator('.bulk')).toBeVisible();
+
+	// REMOVE's question is a URL again, so it is refused before the browser asks
+	// for one too long to send.
+	await page.locator('.bulk .swc', { hasText: 'REMOVE' }).click();
+	await expect(band.locator('.title')).toHaveText('TOO MANY SOURCES TO CHANGE AT ONCE');
+	await expect(page.locator('.bulk')).toBeVisible();
+	await expect(page.locator('.cell.count')).toHaveText(`${drawn} SELECTED`);
+
+	// Nothing was written: no switch, no install, no removal.
+	const db = browseDb();
+	const keys = bigSeeded.map((_, i) => `source.never-tracked:${bigId(i)}`);
+	expect(
+		db
+			.prepare(`SELECT COUNT(*) AS n FROM settings WHERE key IN (${keys.map(() => '?').join(',')})`)
+			.get(...keys)
+	).toEqual({ n: 0 });
+	expect(
+		db
+			.prepare(
+				`SELECT COUNT(*) AS n FROM engine_extensions
+				 WHERE pkg IN (SELECT value FROM json_each(?)) AND version_name = '1.0'`
+			)
+			.get(JSON.stringify(bigSeeded))
+	).toEqual({ n: BIG });
+	db.close();
 });
 
 test('REMOVE asks first for the whole selection, and has no UNDO', async ({ page }) => {

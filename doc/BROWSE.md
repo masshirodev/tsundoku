@@ -509,15 +509,22 @@ leads with `NOT CHANGED · …` until the next press or ✕; a package removed o
 another device since it was ticked leaves the list and the selection and is
 counted in the band, not called a success.
 
-**Every press is budgeted before it is written.** The guard is on the whole
-redirect — `/browse/extensions`, `select=1`, one `pkg` per ticked package and
-the band's facts — not on the band alone, because Node answers a request head
-past 16 KB with 431 after the write would have landed and the user would get no
-band and no UNDO. `LOCATION_BUDGET` is 12 KB, leaving room for the request line
-and the browser's headers; `?/flags`, `?/updateSome` and `?/removeSome` all
-refuse with `TOO MANY SOURCES TO CHANGE AT ONCE` and change nothing. A switch
-press outside reveal leaves sources that are already hidden out of its facts
-(they were not changed, and UNDO must not touch them), so their ids do not
+**Every press's redirect is budgeted before it is written.** The guard is on the
+whole `Location` — `/browse/extensions`, `select=1`, one `pkg` per ticked
+package and the band's facts — not on the band alone, because Node answers a
+request head past 16 KB with 431 after the write would have landed and the user
+would get no band and no UNDO. `LOCATION_BUDGET` is 12 KB, leaving room for the
+request line and the browser's headers; `?/flags`, `?/updateSome` and
+`?/removeSome` all refuse with `TOO MANY SOURCES TO CHANGE AT ONCE` and change
+nothing. **The press's own request is not that URL**: its ticks travel in the
+form's body, so the POST's address is the action's name and `select=1` whatever
+is ticked. (A formaction carrying them was measured at ~18 KB for 320 real-length
+rows, and Node answered 431 before any guard ran; `use:enhance` then drew the
+error page.) REMOVE's question is a GET of the same form, so without script it
+does carry the ticks; a selection whose question URL would pass the request head
+is refused on the spot, with the same band, before the browser asks for it. A
+switch press outside reveal leaves sources that are already hidden out of its
+facts (they were not changed, and UNDO must not touch them), so their ids do not
 reach the client.
 
 **UPDATE and REMOVE in bulk** are the list's own actions narrowed to the

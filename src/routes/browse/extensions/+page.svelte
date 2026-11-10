@@ -141,9 +141,17 @@
 	 * What is ticked. The URL carries it when the server answered a no-script
 	 * press (`?pkg=` per row); with script a tap only moves this set, so the
 	 * list is not read again per tick. A package that leaves the list (HIDE
-	 * outside reveal, REMOVE, gone on another device) leaves the selection.
+	 * outside reveal, REMOVE, gone on another device) leaves the selection. A
+	 * refused no-script press answers with the ticks it read (`form.selected`),
+	 * because its page is a fresh mount on an action URL that carries none.
 	 */
-	let selected = new SvelteSet<string>(untrack(() => data.selected));
+	const startTicked = () =>
+		form && 'selected' in form && Array.isArray(form.selected)
+			? (form.selected as string[])
+			: data.selected;
+	let selected = new SvelteSet<string>(untrack(startTicked));
+	/** A selection too big for REMOVE's question URL, refused on the spot. */
+	let tooMany = $state(false);
 	$effect(() => {
 		const drawn = new Set(data.drawn);
 		for (const pkg of [...selected]) if (!drawn.has(pkg)) selected.delete(pkg);
@@ -161,11 +169,13 @@
 	});
 
 	function toggleSelection(pkg: string) {
+		tooMany = false;
 		if (selected.has(pkg)) selected.delete(pkg);
 		else selected.add(pkg);
 	}
 	function selectAll() {
 		// Every ticked row is drawn: INSTALLED is one page, so reveal decides what it takes.
+		tooMany = false;
 		for (const pkg of data.drawn) selected.add(pkg);
 	}
 	const sectionPkgs = (s: { rows: { pkg: string }[]; plugins: { id: string }[] }) => [
@@ -174,6 +184,7 @@
 	];
 	/** TICK n, or UNTICK n once every row of its section is ticked. */
 	function toggleSection(pkgs: string[]) {
+		tooMany = false;
 		const all = pkgs.every((p) => selected.has(p));
 		for (const pkg of pkgs) {
 			if (all) selected.delete(pkg);
@@ -208,11 +219,32 @@
 		});
 	}
 	// The bar's cells post the form the rows are: one press, every ticked row's
-	// sources. The action name and its own fields travel in the button's
-	// formaction, so one form carries all of them and each works without script.
+	// sources. The ticks travel in the **body**, as the rows' own checkboxes;
+	// they are not repeated in the action's URL, which is why `selectHref` gets
+	// an empty list here. A request head past Node's 16 KB is answered with 431
+	// before any action runs, and `use:enhance` then fails in `JSON.parse` and
+	// draws the error page instead of the refusal — measured: 320 real-length
+	// rows put ~18 KB in the formaction. The redirect a press writes still
+	// carries the selection, and is budgeted (`select.server.ts`).
 	const flagHref = (flag: SwitchKey, on: boolean) =>
-		selectHref([...selected], { '/flags': '', flag, value: on ? 'true' : 'false' });
-	const updateHref = () => selectHref([...selected], { '/updateSome': '' });
+		selectHref([], { '/flags': '', flag, value: on ? 'true' : 'false' });
+	const updateHref = () => selectHref([], { '/updateSome': '' });
+	/**
+	 * REMOVE's question is the same form's GET, so its ticks are the checked
+	 * boxes: a link built from `selected` could not be pressed at all without
+	 * script. A question URL that would pass the request head is refused here,
+	 * before the browser asks for it, with the band the actions answer; the
+	 * number is `select.server.ts`'s `LOCATION_BUDGET`, mirrored because that
+	 * module is the server's.
+	 */
+	const LOCATION_BUDGET = 12_000;
+	const removeHref = () => selectHref([...selected], { removeSel: '1' });
+	function askRemove(e: MouseEvent) {
+		if (removeHref().length > LOCATION_BUDGET) {
+			e.preventDefault();
+			tooMany = true;
+		}
+	}
 
 	/** A switch's state across the selection: on, off, or MIXED, counted in extensions. */
 	function cellFor(flag: SwitchKey) {
@@ -397,7 +429,7 @@
 	</nav>
 
 	<!-- SELECT's band, under the tabs (Results); one at a time, its URL. -->
-	{#if !refusal}
+	{#if !refusal && !tooMany}
 		<SelectBand
 			{base}
 			flags={data.band}
@@ -409,7 +441,15 @@
 		/>
 	{/if}
 
-	{#if untrustedKeys}
+	{#if tooMany}
+		<!-- REMOVE's question would not fit the request head: refused before it
+		     was asked, so nothing was sent and nothing changed. -->
+		<Band
+			title="TOO MANY SOURCES TO CHANGE AT ONCE"
+			detail="NOTHING CHANGED"
+			ondismiss={() => (tooMany = false)}
+		/>
+	{:else if untrustedKeys}
 		<!-- Never installed by a tap: the key it was signed with beside the one its repository lists. -->
 		<div class="untrusted" role="alert">
 			<div class="u-t">UNTRUSTED · NOTHING WAS INSTALLED</div>
@@ -705,8 +745,15 @@
 							>
 						</button>
 						{#if removableCount}
-							<a class="swc go solo" href={selectHref([...selected], { removeSel: '1' })}
-								>REMOVE {removableCount}…</a
+							<!-- The same form's GET: its ticks are the checked boxes, so
+							     REMOVE works without script, and a too-long URL is
+							     refused in `askRemove` before the browser asks. -->
+							<button
+								type="submit"
+								class="swc go solo"
+								formmethod="get"
+								formaction="{base}?select=1&removeSel=1"
+								onclick={askRemove}>REMOVE {removableCount}…</button
 							>
 						{:else}
 							<span class="swc go solo dis" aria-disabled="true"

@@ -513,7 +513,7 @@ export const actions: Actions = {
 		} catch (e) {
 			// Only the size guard is the bar's own refusal; anything else surfaces.
 			if (e instanceof TooManySourcesError)
-				return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE' });
+				return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE', selected: pkgs });
 			throw e;
 		}
 		const q = bandQuery('flags', {
@@ -537,9 +537,11 @@ export const actions: Actions = {
 		// The whole Location is the cost, not the band alone: `selectQuery` adds
 		// one `pkg` per ticked package, which the band's own bytes never counted.
 		// The selection before the write is an upper bound (a HIDE drops rows
-		// after it), so this measures every package the press asked for.
+		// after it), so this measures every package the press asked for. A
+		// refusal answers with those ticks: without script the page is a fresh
+		// mount on an action URL that carries none of them.
 		if (!pressFits(`${PAGE}?${selectQuery(shownSelection(pkgs, reveal), q)}`))
-			return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE' });
+			return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE', selected: pkgs });
 		applyFlag(plan);
 		const still = shownSelection(pkgs, reveal);
 		redirect(303, `${PAGE}?${selectQuery(still, q)}`);
@@ -578,7 +580,8 @@ export const actions: Actions = {
 			...pv.updates.map((p) => `ln:${p.id}`)
 		]);
 		const asked = pkgs.filter((pkg) => updatable.has(pkg));
-		if (asked.length === 0) return fail(409, { message: 'NOTHING TICKED HAS AN UPDATE' });
+		if (asked.length === 0)
+			return fail(409, { message: 'NOTHING TICKED HAS AN UPDATE', selected: pkgs });
 		// Refuse before the first install, as the flags press does: every asked
 		// package will be one band row. `done` is the longest path (it carries the
 		// `pkg` and, since UPDATE's UNDO checks the version, the `ver` too), so
@@ -601,7 +604,7 @@ export const actions: Actions = {
 				})}`
 			)
 		)
-			return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE' });
+			return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE', selected: pkgs });
 		const done: string[] = [];
 		/** A repository that did not answer, and a signature that did not match, said apart. */
 		const failed: string[] = [];
@@ -628,7 +631,7 @@ export const actions: Actions = {
 			if (failed.length) parts.push(`${namesOf(failed)} did not update`);
 			if (untrusted.length)
 				parts.push(`${namesOf(untrusted)} (signed with another key than its repository)`);
-			return fail(502, { message: parts.join(' · ') });
+			return fail(502, { message: parts.join(' · '), selected: pkgs });
 		}
 		// What each updated row's version is now: UNDO carries it, so a row that
 		// has gone back since (its own BACK TO) cannot be swapped forward again.
@@ -708,7 +711,7 @@ export const actions: Actions = {
 				`${PAGE}?${bandQuery('remove', { stayed: asked, series: 0, queued: 0, followed: 0 })}`
 			)
 		)
-			return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE' });
+			return fail(409, { message: 'TOO MANY SOURCES TO CHANGE AT ONCE', selected: asked });
 		const iv = installedView(reveal);
 		const pv = pluginsShown(pluginView(reveal), reveal);
 		const known = new Set([
