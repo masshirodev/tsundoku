@@ -34,7 +34,9 @@
 		start = null,
 		onclose,
 		onnottext,
-		other = null
+		other = null,
+		onfoot,
+		canKeep = false
 	}: {
 		/** The block's or paragraph's text. */
 		text: string;
@@ -53,6 +55,15 @@
 		onnottext?: () => void;
 		/** A folded book: "EN P. 13 →", the same page in its other language. */
 		other?: { label: string; go: () => void } | null;
+		/**
+		 * The text reader's foot (c702; Novel J2): HIGHLIGHT and NOTE keep the word
+		 * selected, SELECT MORE turns it into a selection. The offsets are in the
+		 * paragraph's text, `text`. Absent everywhere else: the image reader has
+		 * no words to mark.
+		 */
+		onfoot?: (what: 'highlight' | 'note' | 'more', from: number, to: number) => void;
+		/** HIGHLIGHT and NOTE are offered; incognito and a browsing record keep none. */
+		canKeep?: boolean;
 	} = $props();
 
 	let tokens = $state<Token[] | null>(null);
@@ -86,6 +97,18 @@
 	}
 
 	const token = $derived(tokens?.[selected] ?? null);
+
+	/** The selected word, in `text`: where it starts and where it ends. */
+	function selectedRange(): { from: number; to: number } | null {
+		if (!tokens || !token) return null;
+		let from = 0;
+		for (let i = 0; i < selected; i++) from += tokens[i].surface.length;
+		return { from, to: from + token.surface.length };
+	}
+	function foot(what: 'highlight' | 'note' | 'more') {
+		const r = selectedRange();
+		if (r) onfoot?.(what, r.from, r.to);
+	}
 
 	// A word selected: its meanings, and a line in the log.
 	$effect(() => {
@@ -243,6 +266,15 @@
 		{/if}
 	</div>
 
+	{#if onfoot && token?.lookupable}
+		<div class="keep">
+			{#if canKeep}
+				<button type="button" onclick={() => foot('highlight')}>HIGHLIGHT</button>
+				<button type="button" onclick={() => foot('note')}>NOTE</button>
+			{/if}
+			<button type="button" onclick={() => foot('more')}>SELECT MORE</button>
+		</div>
+	{/if}
 	<div class="foot" class:dashed={incognito}>
 		{#if incognito}
 			<span class="fl">NOT LOGGED · NO CANDIDATES</span>
@@ -470,6 +502,32 @@
 		max-width: 560px;
 		font: 400 16px/1.5 var(--font-sans);
 		color: var(--text-2);
+	}
+	/* Novel J2: the foot's row of three, over LOGGED. */
+	.keep {
+		display: flex;
+		flex-shrink: 0;
+		align-items: stretch;
+		height: 56px;
+		border-top: var(--hairline);
+	}
+	.keep button {
+		display: flex;
+		flex: 1 1 0%;
+		align-items: center;
+		justify-content: center;
+		padding: 0 18px;
+		border: 0;
+		border-left: var(--hairline);
+		background: transparent;
+		color: var(--text-1);
+		font: 500 13px/1 var(--font-mono);
+		letter-spacing: 0.06em;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+	.keep button:first-child {
+		border-left: 0;
 	}
 	.foot {
 		display: flex;

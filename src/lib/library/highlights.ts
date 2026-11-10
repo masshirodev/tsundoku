@@ -641,3 +641,383 @@ export function pageSheetHead(entryName: string, k: Pick<KeptPage, 'page' | 'pag
 /** The page sheet's line (Manga M6): MADE 4 NOV · A COPY ON THE WORKSTATION · 1 MB. */
 export const pageSheetLine = (k: Pick<KeptPage, 'madeAt' | 'bytes'>, now: number) =>
 	`MADE ${dayWord(k.madeAt, now)} · A COPY ON THE WORKSTATION · ${sizeWord(k.bytes)}`;
+
+// ---- a passage kept from the text reader (H2, card c702) ------------------------------
+
+/** How much of the chapter a quote keeps either side, for re-finding it (Main 05). */
+export const QUOTE_CONTEXT = 32;
+
+/** A run of a chapter's text: where it starts and where it ends (exclusive), block and offset. */
+export type TextSpan = { block: number; offset: number; endBlock: number; endOffset: number };
+
+/** A quote kept, as the text reader holds it (`quoteHighlights` on the workstation). */
+export type KeptQuote = TextSpan & {
+	id: number;
+	quote: string;
+	before: string;
+	after: string;
+	paragraph: string;
+	context: string;
+	colour: Colour;
+	note: string;
+	madeAt: number;
+	state: 'ok' | 'detached';
+};
+
+/** What a chapter's opening found of a quote: a new place, or that its words are gone. */
+export type AnchorChange =
+	({ id: number; state: 'ok' } & TextSpan) | { id: number; state: 'detached' };
+
+/** What is asked of the workstation for a quote. One row per [entry, span], as `quotes.ts` says. */
+export type QuoteBody = TextSpan & {
+	entry: number;
+	quote: string;
+	before: string;
+	after: string;
+	paragraph: string;
+	context: string;
+	colour: Colour;
+	note: string;
+};
+
+/**
+ * A chapter as the rules read it: each block's words with every run of white
+ * space as one space and none at its ends, the blocks joined by a newline, and,
+ * for each character of that, where in its block it came from. A block with no
+ * words (an illustration, a rule) is not in it, so an illustration added or
+ * taken away never moves a quote. Offsets are into the words the caller passed
+ * (furigana already out: `src/lib/reader/text-marks.ts`).
+ */
+export type Flat = { text: string; blockAt: number[]; offsetAt: number[] };
+
+const SPACE = /\s/;
+
+export function flatten(blocks: readonly string[]): Flat {
+	const chars: string[] = [];
+	const blockAt: number[] = [];
+	const offsetAt: number[] = [];
+	blocks.forEach((words, b) => {
+		const from = chars.length;
+		let pending = -1;
+		for (let i = 0; i < words.length; i++) {
+			if (SPACE.test(words[i])) {
+				if (pending < 0) pending = i;
+				continue;
+			}
+			// One space where the run was, and none before the block's first word.
+			if (pending >= 0 && chars.length > from) {
+				chars.push(' ');
+				blockAt.push(b);
+				offsetAt.push(pending);
+			}
+			pending = -1;
+			chars.push(words[i]);
+			blockAt.push(b);
+			offsetAt.push(i);
+		}
+		// The block's end, as the character that follows it.
+		if (chars.length > from) {
+			chars.push('\n');
+			blockAt.push(b);
+			offsetAt.push(words.length);
+		}
+	});
+	// The last block's newline is only an end to stand on, and is left out of the text.
+	if (chars.at(-1) === '\n') chars.pop();
+	return { text: chars.join(''), blockAt, offsetAt };
+}
+
+/** Where (block, offset) falls in the flat text: the first character at or after it. */
+export function flatIndex(flat: Flat, block: number, offset: number): number {
+	let lo = 0;
+	let hi = flat.blockAt.length;
+	while (lo < hi) {
+		const mid = (lo + hi) >> 1;
+		const before =
+			flat.blockAt[mid] < block || (flat.blockAt[mid] === block && flat.offsetAt[mid] < offset);
+		if (before) lo = mid + 1;
+		else hi = mid;
+	}
+	return lo;
+}
+
+/** A character's first half and its second, which SQLite's UTF-8 could not keep apart. */
+const high = (c: number) => c >= 0xd800 && c <= 0xdbff;
+const low = (c: number) => c >= 0xdc00 && c <= 0xdfff;
+/** An index that doesn't split a character: earlier, or later with `up`. */
+function whole(text: string, i: number, up = false): number {
+	if (i <= 0 || i >= text.length) return i;
+	return high(text.charCodeAt(i - 1)) && low(text.charCodeAt(i)) ? i + (up ? 1 : -1) : i;
+}
+
+const posOf = (flat: Flat, i: number) => ({ block: flat.blockAt[i], offset: flat.offsetAt[i] });
+
+/** The flat run [from, to) as a span: its end is just past its last character. */
+function spanOf(flat: Flat, from: number, to: number): TextSpan {
+	const start = posOf(flat, from);
+	const last = posOf(flat, to - 1);
+	return {
+		block: start.block,
+		offset: start.offset,
+		endBlock: last.block,
+		endOffset: last.offset + 1
+	};
+}
+
+export type QuoteParts = {
+	/** The span with white space at its ends taken off. */
+	span: TextSpan;
+	quote: string;
+	before: string;
+	after: string;
+	/** The blocks the quote lies in, so the words can be found inside them. */
+	paragraph: string;
+	/** The block before. */
+	context: string;
+};
+
+/**
+ * The copy of a span (Main 05): the quote, QUOTE_CONTEXT characters either
+ * side for re-finding it, its paragraph and the one before. Null when the span
+ * holds no words. Pure white space at either end isn't part of a quote.
+ */
+export function quoteParts(flat: Flat, span: TextSpan): QuoteParts | null {
+	let from = whole(flat.text, flatIndex(flat, span.block, span.offset));
+	let to = whole(flat.text, flatIndex(flat, span.endBlock, span.endOffset), true);
+	to = Math.min(to, flat.text.length);
+	while (from < to && SPACE.test(flat.text[from])) from++;
+	while (to > from && SPACE.test(flat.text[to - 1])) to--;
+	if (from >= to) return null;
+	const trimmed = spanOf(flat, from, to);
+	// Blocks are lines of the flat text: a quote's are the lines it touches.
+	const lineStart = flat.text.lastIndexOf('\n', from - 1) + 1;
+	const next = flat.text.indexOf('\n', to);
+	const lineEnd = next < 0 ? flat.text.length : next;
+	const prevStart = lineStart > 0 ? flat.text.lastIndexOf('\n', lineStart - 2) + 1 : -1;
+	return {
+		span: trimmed,
+		quote: flat.text.slice(from, to),
+		before: flat.text.slice(whole(flat.text, Math.max(0, from - QUOTE_CONTEXT), true), from),
+		after: flat.text.slice(to, whole(flat.text, Math.min(flat.text.length, to + QUOTE_CONTEXT))),
+		paragraph: flat.text.slice(lineStart, lineEnd),
+		context: prevStart < 0 ? '' : flat.text.slice(prevStart, lineStart - 1)
+	};
+}
+
+export type Anchored = { state: 'ok'; span: TextSpan; moved: boolean } | { state: 'detached' };
+
+type Findable = TextSpan & Pick<KeptQuote, 'quote' | 'before' | 'after'>;
+
+/**
+ * Where a kept quote is in the chapter as it stands now (Main 05, RE-FINDING A
+ * QUOTE). Still at its place, words and both sides: nothing to do, and that is
+ * asked first, since the same words with the same sides twice in a chapter are
+ * only a problem once the place is lost. Otherwise the whole of it (its 32
+ * characters either side, the quote) is searched for: one match re-anchors it,
+ * none or two makes it DETACHED. Never fuzzy: every comparison is a character's.
+ */
+export function reanchor(flat: Flat, q: Findable): Anchored {
+	const needle = q.before + q.quote + q.after;
+	const at = flatIndex(flat, q.block, q.offset);
+	const here = at - q.before.length;
+	if (needle !== '' && here >= 0 && flat.text.startsWith(needle, here))
+		return {
+			state: 'ok',
+			span: spanOf(flat, at, at + q.quote.length),
+			moved: false
+		};
+	if (q.quote === '') return { state: 'detached' };
+	const first = flat.text.indexOf(needle);
+	if (first < 0 || flat.text.indexOf(needle, first + 1) >= 0) return { state: 'detached' };
+	const from = first + q.before.length;
+	return { state: 'ok', span: spanOf(flat, from, from + q.quote.length), moved: true };
+}
+
+/** Which of two spans' starts comes first, read in the chapter's order. */
+export function compareAt(a: number, ao: number, b: number, bo: number): number {
+	return a - b || ao - bo;
+}
+
+/** They share a character: touching end to start doesn't count. */
+export function overlaps(a: TextSpan, b: TextSpan): boolean {
+	return (
+		compareAt(a.block, a.offset, b.endBlock, b.endOffset) < 0 &&
+		compareAt(b.block, b.offset, a.endBlock, a.endOffset) < 0
+	);
+}
+
+/** Inside `outer`, ends included. */
+export function contains(outer: TextSpan, inner: TextSpan): boolean {
+	return (
+		compareAt(outer.block, outer.offset, inner.block, inner.offset) <= 0 &&
+		compareAt(inner.endBlock, inner.endOffset, outer.endBlock, outer.endOffset) <= 0
+	);
+}
+
+/** Both ways round: the span a start and an end make, whichever the reader dragged first. */
+export function ordered(a: { block: number; offset: number }, b: typeof a): TextSpan {
+	const [s, e] = compareAt(a.block, a.offset, b.block, b.offset) <= 0 ? [a, b] : [b, a];
+	return { block: s.block, offset: s.offset, endBlock: e.block, endOffset: e.offset };
+}
+
+/**
+ * A selection overlapping a highlight joins it (Main 02, THE BAR SITS OVER THE
+ * SELECTION; c702): the one span covering them all, and the highlights it takes
+ * in, the oldest first, so the older note is kept. A DETACHED quote is on no
+ * words, so nothing overlaps it.
+ */
+export function joinSpans<T extends TextSpan & { state?: string; madeAt: number; id: number }>(
+	selection: TextSpan,
+	kept: readonly T[]
+): { span: TextSpan; joined: T[] } {
+	const joined: T[] = [];
+	let span = selection;
+	// Joining can reach a highlight the selection alone didn't.
+	for (let grew = true; grew;) {
+		grew = false;
+		for (const k of kept) {
+			if (k.state === 'detached' || joined.includes(k) || !overlaps(span, k)) continue;
+			joined.push(k);
+			grew = true;
+			span = {
+				...(compareAt(k.block, k.offset, span.block, span.offset) < 0
+					? { block: k.block, offset: k.offset }
+					: { block: span.block, offset: span.offset }),
+				...(compareAt(k.endBlock, k.endOffset, span.endBlock, span.endOffset) > 0
+					? { endBlock: k.endBlock, endOffset: k.endOffset }
+					: { endBlock: span.endBlock, endOffset: span.endOffset })
+			};
+		}
+	}
+	joined.sort((a, b) => a.madeAt - b.madeAt || a.id - b.id);
+	return { span, joined };
+}
+
+/** How long a note may be, here and at the door. */
+export const NOTE_LIMIT = 4000;
+const NOTE_BETWEEN = '\n\n';
+
+/**
+ * What a highlight's note is when a body arrives for a row that may have one
+ * (c702): the queue's note written against a highlight it didn't know of, a
+ * join's, a revive's. A reader's words are never dropped. Two different notes
+ * are both kept, the row's first, a blank line between. A body that only
+ * continues the row's note replaces it (typing went on), and a note the row
+ * already holds is no change at all, so a resend writes nothing.
+ */
+export function mergeNotes(row: string, asked: string, limit = NOTE_LIMIT): string {
+	const kept = row.trim();
+	const more = asked.trim();
+	if (
+		more === '' ||
+		`${NOTE_BETWEEN}${kept}${NOTE_BETWEEN}`.includes(`${NOTE_BETWEEN}${more}${NOTE_BETWEEN}`)
+	)
+		return row;
+	if (kept === '' || more.startsWith(kept)) return more.slice(0, limit);
+	return `${kept}${NOTE_BETWEEN}${more}`.slice(0, limit);
+}
+
+const WORD_FALLBACK = /[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu;
+
+type Word = { start: number; end: number };
+
+/**
+ * A book's `dc:language` as a tag the platform takes. The field is whatever the
+ * book's maker typed: `en_US` and `pt_BR` are common, and `Intl` throws on them.
+ * None when it can't be read as a language at all.
+ */
+export function bookLocale(tag: string | null | undefined): string | undefined {
+	const clean = (tag ?? '').trim().replaceAll('_', '-');
+	if (clean === '') return undefined;
+	try {
+		return Intl.getCanonicalLocales(clean)[0];
+	} catch {
+		return undefined;
+	}
+}
+
+function wordsOf(text: string, language: string | undefined): Word[] {
+	const out: Word[] = [];
+	if (typeof Intl !== 'undefined' && 'Segmenter' in Intl) {
+		const locale = bookLocale(language);
+		const seg = new Intl.Segmenter(locale ? [locale, 'en'] : undefined, { granularity: 'word' });
+		for (const s of seg.segment(text))
+			if (s.isWordLike) out.push({ start: s.index, end: s.index + s.segment.length });
+		return out;
+	}
+	for (const m of text.matchAll(WORD_FALLBACK))
+		out.push({ start: m.index, end: m.index + m[0].length });
+	return out;
+}
+
+/**
+ * The word a long press selects (Novel N1): the one under `at`, or, on a space
+ * or a mark, the nearest after it and then before it in that block. Null in a
+ * block with no word.
+ */
+export function wordAround(text: string, at: number, locale?: string): Word | null {
+	const words = wordsOf(text, locale);
+	if (words.length === 0) return null;
+	const pos = Math.max(0, Math.min(at, text.length - 1));
+	const under = words.find((w) => pos >= w.start && pos < w.end);
+	if (under) return under;
+	return words.find((w) => w.start > pos) ?? words.at(-1) ?? null;
+}
+
+/** The sheet's and the panel's head (Novel N5): HIGHLIGHT · CH. 3 · ¶ 4. */
+export const quoteSheetHead = (entryName: string, q: Pick<TextSpan, 'block'>) =>
+	['HIGHLIGHT', entryName.toUpperCase(), `¶ ${q.block + 1}`].filter(Boolean).join(' · ');
+
+/** The sheet's line (Novel D2): MADE 2 NOV · KEPT ON THE WORKSTATION. */
+export const quoteSheetLine = (madeAt: number, now: number) =>
+	`MADE ${dayWord(madeAt, now)} · KEPT ON THE WORKSTATION`;
+
+/** How long the end handle waits at the page's end before the page turns (Main 02). */
+export const HOLD_TURN_MS = 600;
+/** The strip at the page's foot the end handle waits in (Novel N3). */
+export const HOLD_STRIP = 64;
+/** A pointer this near the window's edge has reached it (Novel D1). */
+const EDGE = 24;
+
+/**
+ * The handle or the mouse is at the page's end: the bottom strip, or the edge
+ * the next page lies past. Vertical Japanese reads down a column and on to the
+ * next on the left, so its page ends at the bottom left.
+ */
+export function atPageEnd(
+	p: { x: number; y: number },
+	view: { w: number; h: number },
+	o: { rtl: boolean; vertical: boolean }
+): boolean {
+	if (o.vertical) return p.x <= HOLD_STRIP || p.y >= view.h - EDGE;
+	if (p.y >= view.h - HOLD_STRIP) return true;
+	return o.rtl ? p.x <= EDGE : p.x >= view.w - EDGE;
+}
+
+/** How high the bar is, its gap over the first line, and the screen edge it keeps off (Novel N1). */
+export const BAR_H = 48;
+const BAR_GAP = 14;
+const BAR_EDGE = 16;
+/** The bar's top across a vertical book's top (Novel J3). */
+const BAR_TOP_VERTICAL = 24;
+
+/**
+ * Where the bar goes (Main 02, THE BAR SITS OVER THE SELECTION): above the
+ * first line selected, or below it where that would leave the screen; a
+ * vertical book's across the top, over the first column selected. Pure, so a
+ * bar is never off the screen for a selection at its edge.
+ */
+export function barPlace(
+	first: { left: number; right: number; top: number; bottom: number },
+	view: { w: number; h: number },
+	barW: number,
+	vertical: boolean
+): { left: number; top: number } {
+	const span = Math.max(0, view.w - barW - BAR_EDGE * 2);
+	const want = vertical ? first.right - barW : first.left;
+	const left = Math.round(BAR_EDGE + Math.max(0, Math.min(span, want - BAR_EDGE)));
+	if (vertical) return { left, top: BAR_TOP_VERTICAL };
+	const over = first.top - BAR_H - BAR_GAP;
+	const top = over >= BAR_EDGE ? over : first.bottom + BAR_GAP;
+	return { left, top: Math.round(Math.min(top, view.h - BAR_H - BAR_EDGE)) };
+}

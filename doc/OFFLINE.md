@@ -103,11 +103,16 @@ arriving late can't undo something read since.
 Reading progress waits in `localStorage` (above). **A highlight kept offline is
 the first other write that waits, and `src/lib/cache/pending-highlights.ts` is
 the mechanism for any like it** (c842): an item names its own address and body,
-so a page (H3) goes through it now and a quote (H2) can; a rating or FAV could
-later, and doesn't yet. It is in IndexedDB, so it outlives the app being closed,
+so a page (H3) and a quote (H2) go through it; a rating or FAV could later, and
+doesn't yet. It is in IndexedDB, so it outlives the app being closed,
 and it's sent by the layout (`+layout.svelte`, on opening and whenever the
 device's connection comes back), so it doesn't need a reader open, where
 `flushPending` does.
+
+A quote's item holds the book's words, so a hidden series' reader and reveal never
+queue one, and a refused one is stripped to its key and label. Each reader tells
+only its own: a quote refused is the text reader's to say, a page's the image
+reader's, by the `quote:` key prefix.
 
 **Offline here is what the top of this page says: the workstation can't be
 reached.** The device may still report that it's online (the workstation
@@ -133,6 +138,24 @@ presses are one) and the workstation answering the same thing asked again with
 the one it already made (a resend after a reload, a tab that died between the
 POST and the removal, the same page kept on two devices). So a new user of the
 queue needs a door that answers a repeat with what it already made.
+
+An item can change while it waits (`reviseHighlight`, which names the fields it
+changed in `revised`) and while its POST is out. So the sender reads the row again
+just before the POST, and again after: what was revised during it, and a colour
+chosen for a row that turned out to exist already, goes to the row the answer
+named by PATCH, beside the door (`/api/highlights/<id>`). An item taken back during
+its POST has what that POST **made** set aside by DELETE, and only that: an answer
+of a row already there leaves the row. Taken back because a later press covers it
+(a selection joining a waiting quote) the item is **superseded** instead: the
+workstation folds what that POST made into the covering row and keeps its id, so
+no DELETE is sent. That record is the tab's own (`supersedeHighlight`) and
+only the page running `landed` reads it: a reload ends that page, so no DELETE is
+sent and the row is left for the join to fold; a second tab sending the queue
+cannot see it, and there the DELETE goes. A join that itself waits carries the
+quotes it covered on its own item (`covers`), so a refusal of that join puts them
+back with their notes; `takeBackHighlight` hands the removed item back, so UNDO
+restores all of that rather than a body rebuilt from the page. Each item
+is told the moment it lands.
 
 What each answer does (`arrival`): 2xx sent; a dropped connection, a 401, a 403
 (incognito on at the moment, which says nothing of the item) and a 5xx stop the

@@ -23,6 +23,7 @@ import { previewIdOf } from '$lib/server/downloads';
 import { noVideoLine, staleSource } from '$lib/server/move';
 import { workEndOf } from '$lib/server/works';
 import { pageHighlights } from '$lib/server/highlights/pages';
+import { quoteHighlights } from '$lib/server/highlights/quotes';
 import { parseTextDirection } from '$lib/reader/text';
 import { setTextDirection, takesTextDirection, textDirectionOf } from './text-direction.server';
 
@@ -193,6 +194,8 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			record: recordPreview,
 			// What the end page's DELETE asks with (c655).
 			deleteAsk: deleteAsk(series, reveal),
+			// Its passages kept as highlights (c702), for the markers.
+			quotes: quoteHighlights(entry.id, reveal),
 			// The Work's next part, at the end of a novel's last volume (doc/WORKS.md, W6).
 			work: workEndOf(series.id, reveal)
 		};

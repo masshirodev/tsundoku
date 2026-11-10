@@ -187,6 +187,14 @@ a phone). Furigana already in the book (`rt`) isn't read as text. The panel is
 headed `LOOKUP · CH. 212 · ¶ 1` and has no NOT TEXT. Taps keep turning pages
 and showing the controls (see Departures).
 
+**The panel's foot** (c702, Novel J2 and J3) gains HIGHLIGHT, NOTE and SELECT MORE
+over its LOGGED line, in the text reader only: HIGHLIGHT keeps the word the panel
+has selected, NOTE keeps it and opens its sheet on the note, and SELECT MORE
+closes the panel with that word as a selection with handles and the reader's bar
+(with LOOK UP on it, the one language that has a pack). In incognito and a
+browsing record, HIGHLIGHT and NOTE aren't offered. A long press on a Japanese
+book is still the lookup: selecting is its foot's, or a mouse's drag.
+
 ## Mining
 
 Every lookup is logged (`lookups`, rung 20: series, chapter, where, the

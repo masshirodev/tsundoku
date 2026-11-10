@@ -1,5 +1,25 @@
 import { describe, expect, it } from 'vitest';
+import { isVerticalBook } from '$lib/reader/text';
 import {
+	atPageEnd,
+	BAR_H,
+	barPlace,
+	bookLocale,
+	contains,
+	flatIndex,
+	flatten,
+	HOLD_STRIP,
+	joinSpans,
+	mergeNotes,
+	NOTE_LIMIT,
+	ordered,
+	overlaps,
+	quoteParts,
+	quoteSheetHead,
+	quoteSheetLine,
+	reanchor,
+	wordAround,
+	type TextSpan,
 	cellLabel,
 	cellState,
 	keepKey,
@@ -564,5 +584,420 @@ describe('the gutter rule and the page sheet (c703, Manga M3, M6)', () => {
 		expect(pageSheetLine(kp(1, 0), Date.UTC(2026, 10, 7, 12))).toBe(
 			'MADE 4 NOV · A COPY ON THE WORKSTATION · 1 MB'
 		);
+	});
+});
+
+// ---- H2: a passage kept from the text reader (c702) ------------------------------------
+
+describe('flatten: a chapter as the rules read it', () => {
+	it('collapses white space, drops the ends and joins blocks by a newline', () => {
+		const f = flatten(['  one\n   two ', '', 'three']);
+		expect(f.text).toBe('one two\nthree');
+		// Each character says where it came from in its own block.
+		expect(flatIndex(f, 0, 2)).toBe(0);
+		expect(f.offsetAt[f.text.indexOf('t')]).toBe(9);
+		expect(f.blockAt[f.text.indexOf('r')]).toBe(2);
+	});
+	it('holds on its own output (a normaliser must)', () => {
+		for (const blocks of [[' a  b '], ['a', '', ' b\nc']]) {
+			const once = flatten(blocks).text;
+			expect(flatten(once.split('\n')).text).toBe(once);
+		}
+	});
+	it('an illustration has no words and is not in it, so it never moves a quote', () => {
+		expect(flatten(['a', '', 'b']).text).toBe(flatten(['a', 'b']).text);
+	});
+});
+
+describe('quoteParts: the copy of a span', () => {
+	const f = flatten([
+		'First paragraph of the chapter, long enough to have context.',
+		'Nothing is only anything, she said.'
+	]);
+	const span = { block: 1, offset: 0, endBlock: 1, endOffset: 7 };
+	it('keeps the quote, its 32 characters either side, the paragraph and the one before', () => {
+		const q = quoteParts(f, span)!;
+		expect(q.quote).toBe('Nothing');
+		expect(q.before).toBe('r, long enough to have context.\n');
+		expect(q.before).toHaveLength(32);
+		expect(q.after).toBe(' is only anything, she said.');
+		expect(q.paragraph).toBe('Nothing is only anything, she said.');
+		expect(q.context).toBe('First paragraph of the chapter, long enough to have context.');
+	});
+	it('a span of white space is no quote, and white space at its ends is not part of it', () => {
+		const g = flatten(['one two three']);
+		expect(quoteParts(g, { block: 0, offset: 3, endBlock: 0, endOffset: 4 })).toBeNull();
+		const q = quoteParts(g, { block: 0, offset: 3, endBlock: 0, endOffset: 8 })!;
+		expect(q.quote).toBe('two');
+		expect(q.span).toEqual({ block: 0, offset: 4, endBlock: 0, endOffset: 7 });
+	});
+	it('across two blocks the quote has its newline and the paragraph is both', () => {
+		const q = quoteParts(f, { block: 0, offset: 52, endBlock: 1, endOffset: 7 })!;
+		expect(q.quote).toBe('context.\nNothing');
+		expect(q.paragraph).toContain(q.quote);
+	});
+	it('never splits a character at the edge of the 32', () => {
+		const clef = '𝄞';
+		// One letter either side, so the 32 lands between a character's two halves.
+		const text = clef.repeat(20) + 'x' + 'word' + 'x' + clef.repeat(20);
+		const f2 = flatten([text]);
+		const at = text.indexOf('word');
+		expect((at - 32) % 2).toBe(1);
+		const q = quoteParts(f2, { block: 0, offset: at, endBlock: 0, endOffset: at + 4 })!;
+		const whole = (s: string) => /^(?:[^\uD800-\uDFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF])*$/.test(s);
+		expect(whole(q.before)).toBe(true);
+		expect(whole(q.after)).toBe(true);
+		expect(q.before.length).toBeGreaterThan(0);
+	});
+});
+
+/** A span's words, at its place. */
+function kept(blocks: string[], s: TextSpan) {
+	const f = flatten(blocks);
+	const q = quoteParts(f, s)!;
+	return { ...q.span, quote: q.quote, before: q.before, after: q.after };
+}
+
+describe('reanchor: re-finding a quote, never fuzzy', () => {
+	const old = ['The fog came up the steps.', 'She said nothing at all.'];
+	const span = { block: 1, offset: 4, endBlock: 1, endOffset: 8 }; // "said"
+	it('unchanged: where it was, and no write', () => {
+		const k = kept(old, span);
+		expect(reanchor(flatten(old), k)).toEqual({ state: 'ok', span, moved: false });
+	});
+	it('a paragraph added above: one match, re-anchored', () => {
+		const r = reanchor(flatten(['New opening line.', ...old]), kept(old, span));
+		expect(r).toEqual({
+			state: 'ok',
+			moved: true,
+			span: { block: 2, offset: 4, endBlock: 2, endOffset: 8 }
+		});
+	});
+	it('its words gone: DETACHED', () => {
+		expect(reanchor(flatten(['The fog came up.']), kept(old, span)).state).toBe('detached');
+	});
+	it('the same words and sides twice: DETACHED', () => {
+		const k = kept(old, span);
+		const twice = ['Other.', ...old, 'Between.', ...old];
+		expect(reanchor(flatten(twice), k).state).toBe('detached');
+	});
+	it('one letter different is no match: never fuzzy', () => {
+		const k = kept(old, span);
+		expect(reanchor(flatten([old[0], 'She sald nothing at all.']), k).state).toBe('detached');
+	});
+	it('a two-block quote whose second block went: DETACHED', () => {
+		const k = kept(old, { block: 0, offset: 8, endBlock: 1, endOffset: 3 });
+		expect(k.quote).toContain('\n');
+		expect(reanchor(flatten([old[0]]), k).state).toBe('detached');
+	});
+	it('a chapter that comes back: DETACHED finds its place again by the same search', () => {
+		const k = kept(old, span);
+		expect(reanchor(flatten(['Nope']), k).state).toBe('detached');
+		expect(reanchor(flatten(old), k).state).toBe('ok');
+	});
+	it('the same words twice with different sides: each finds its own', () => {
+		const blocks = ['alpha lamp beta', 'gamma lamp delta'];
+		const a = kept(blocks, { block: 0, offset: 6, endBlock: 0, endOffset: 10 });
+		const b = kept(blocks, { block: 1, offset: 6, endBlock: 1, endOffset: 10 });
+		expect(reanchor(flatten(['intro', ...blocks]), a)).toMatchObject({
+			state: 'ok',
+			span: { block: 1, offset: 6 }
+		});
+		expect(reanchor(flatten(['intro', ...blocks]), b)).toMatchObject({
+			state: 'ok',
+			span: { block: 2, offset: 6 }
+		});
+	});
+});
+
+describe('reanchor against a naive search: a finite domain, all of it', () => {
+	// Every text of up to five letters from {a, b, space}, as one block or two,
+	// every span of every one, against every other text. The model is the rule
+	// written the slow, obvious way, over the same flat text.
+	const letters = ['a', 'b', ' '];
+	const texts: string[] = [''];
+	for (let n = 1, layer = ['']; n <= 5; n++) {
+		layer = layer.flatMap((t) => letters.map((l) => t + l));
+		texts.push(...layer);
+	}
+	const blockings = texts.flatMap((t) =>
+		t.length < 2 ? [[t]] : [[t], [t.slice(0, 2), t.slice(2)]]
+	);
+	it('agrees on every pair', () => {
+		let ran = 0;
+		let different = 0;
+		for (const original of blockings) {
+			const f0 = flatten(original);
+			if (f0.text.length === 0 || f0.text.length > 4) continue;
+			for (let from = 0; from < f0.text.length; from++) {
+				for (let to = from + 1; to <= f0.text.length; to++) {
+					if (f0.text[from] === ' ' || f0.text[to - 1] === ' ') continue;
+					if (f0.text.slice(from, to).includes('\n')) continue;
+					const b = f0.blockAt[from];
+					const span = {
+						block: b,
+						offset: f0.offsetAt[from],
+						endBlock: b,
+						endOffset: f0.offsetAt[to - 1] + 1
+					};
+					const q = quoteParts(f0, span)!;
+					for (const target of blockings) {
+						ran++;
+						const f = flatten(target);
+						const needle = q.before + q.quote + q.after;
+						const at = flatIndex(f, span.block, span.offset);
+						const here = at >= q.before.length && f.text.startsWith(needle, at - q.before.length);
+						const hits: number[] = [];
+						for (let i = 0; i + needle.length <= f.text.length; i++)
+							if (f.text.startsWith(needle, i)) hits.push(i);
+						const expected = here ? 'ok' : hits.length === 1 ? 'ok' : 'detached';
+						const got = reanchor(f, { ...span, quote: q.quote, before: q.before, after: q.after });
+						if (got.state !== expected) different++;
+						if (expected === 'ok' && !here && got.state === 'ok') {
+							const i = hits[0] + q.before.length;
+							if (got.span.block !== f.blockAt[i] || got.span.offset !== f.offsetAt[i]) different++;
+							if (!got.moved) different++;
+						}
+					}
+				}
+			}
+		}
+		expect(ran).toBeGreaterThan(1_000_000);
+		expect(different).toBe(0);
+		console.info(`reanchor differential: ${ran} pairs, ${different} differences`);
+	});
+});
+
+describe('spans', () => {
+	const at = (block: number, offset: number, endBlock: number, endOffset: number): TextSpan => ({
+		block,
+		offset,
+		endBlock,
+		endOffset
+	});
+	it('overlaps means a shared character: touching does not count', () => {
+		expect(overlaps(at(0, 0, 0, 5), at(0, 5, 0, 9))).toBe(false);
+		expect(overlaps(at(0, 0, 0, 6), at(0, 5, 0, 9))).toBe(true);
+		expect(overlaps(at(0, 0, 2, 1), at(1, 0, 1, 2))).toBe(true);
+		expect(overlaps(at(1, 0, 1, 2), at(0, 0, 2, 1))).toBe(true);
+	});
+	it('every order of two small spans agrees with a character-by-character model', () => {
+		const spans: TextSpan[] = [];
+		for (let s = 0; s < 8; s++)
+			for (let e = s + 1; e <= 8; e++) spans.push(at(s >> 2, s & 3, e >> 2, e & 3));
+		const cells = (a: TextSpan) => {
+			const out = new Set<number>();
+			for (let i = a.block * 4 + a.offset; i < a.endBlock * 4 + a.endOffset; i++) out.add(i);
+			return out;
+		};
+		let ran = 0;
+		for (const a of spans)
+			for (const b of spans) {
+				ran++;
+				const ca = cells(a);
+				const cb = cells(b);
+				expect(overlaps(a, b)).toBe([...ca].some((c) => cb.has(c)));
+				expect(contains(a, b)).toBe([...cb].every((c) => ca.has(c)));
+			}
+		expect(ran).toBe(spans.length ** 2);
+	});
+	it('a start and an end, whichever was dragged first', () => {
+		expect(ordered({ block: 3, offset: 1 }, { block: 1, offset: 9 })).toEqual(at(1, 9, 3, 1));
+		expect(ordered({ block: 1, offset: 2 }, { block: 1, offset: 5 })).toEqual(at(1, 2, 1, 5));
+	});
+});
+
+describe('joinSpans: a selection overlapping a highlight joins it', () => {
+	const k = (id: number, madeAt: number, s: TextSpan, state: 'ok' | 'detached' = 'ok') => ({
+		id,
+		madeAt,
+		state,
+		...s
+	});
+	const span = (a: number, b: number): TextSpan => ({
+		block: 0,
+		offset: a,
+		endBlock: 0,
+		endOffset: b
+	});
+	it('takes the highlights it touches, the oldest first', () => {
+		const list = [k(1, 20, span(0, 5)), k(2, 10, span(8, 12)), k(3, 30, span(20, 25))];
+		const r = joinSpans(span(4, 9), list);
+		expect(r.span).toEqual(span(0, 12));
+		expect(r.joined.map((j) => j.id)).toEqual([2, 1]);
+	});
+	it('joins through a chain: joining reaches what the selection alone did not', () => {
+		const list = [k(1, 1, span(0, 5)), k(2, 2, span(4, 9)), k(3, 3, span(8, 12))];
+		const r = joinSpans(span(0, 2), list);
+		expect(r.span).toEqual(span(0, 12));
+		expect(r.joined).toHaveLength(3);
+	});
+	it('nothing touched: the selection alone', () => {
+		const r = joinSpans(span(6, 7), [k(1, 1, span(0, 5))]);
+		expect(r).toEqual({ span: span(6, 7), joined: [] });
+	});
+	it('a DETACHED quote is on no words', () => {
+		const r = joinSpans(span(0, 5), [k(1, 1, span(0, 5), 'detached')]);
+		expect(r.joined).toEqual([]);
+	});
+});
+
+describe('a book’s language as the platform takes it (c702)', () => {
+	// What `firstText(xml, 'language')` hands over: whatever the book's maker typed.
+	it.each([
+		['en_US', 'en-US'],
+		['pt_BR', 'pt-BR'],
+		['EN-us', 'en-US'],
+		[' ja ', 'ja'],
+		['ja_JP', 'ja-JP'],
+		['zh-Hant-TW', 'zh-Hant-TW']
+	])('%s reads as %s', (raw, want) => {
+		expect(bookLocale(raw)).toBe(want);
+		// A normaliser holds on its own output.
+		expect(bookLocale(bookLocale(raw))).toBe(want);
+	});
+	it.each(['', '   ', 'not a language', 'x', '!!', 'en_', '_'])('%j is no language', (raw) => {
+		expect(bookLocale(raw)).toBeUndefined();
+	});
+	it('nothing and null are no language', () => {
+		expect(bookLocale(undefined)).toBeUndefined();
+		expect(bookLocale(null)).toBeUndefined();
+	});
+	it.each(['en_US', 'pt_BR', '', 'not a language', '!!', 'x'])(
+		'a long press on a book tagged %j finds the word and does not throw',
+		(tag) => {
+			expect(wordAround('Nothing is only', 8, tag)).toEqual({ start: 8, end: 10 });
+		}
+	);
+	it('Japanese with an underscore is still set vertically', () => {
+		expect(isVerticalBook('ja_JP', false)).toBe(true);
+		expect(isVerticalBook('ja', false)).toBe(true);
+		expect(isVerticalBook('ja-JP', false)).toBe(true);
+		expect(isVerticalBook('jav', false)).toBe(false);
+		expect(isVerticalBook('en_US', false)).toBe(false);
+	});
+});
+
+describe('mergeNotes: a reader’s words are never dropped (c702)', () => {
+	const AB = 'a\n\nb';
+	it('nothing asked is no change', () => {
+		expect(mergeNotes('kept', '')).toBe('kept');
+		expect(mergeNotes('kept', '   ')).toBe('kept');
+		expect(mergeNotes('', '')).toBe('');
+	});
+	it('a row with none takes it', () => expect(mergeNotes('', 'new')).toBe('new'));
+	it('a note the row already holds is no change, wherever it stands', () => {
+		expect(mergeNotes('same', 'same')).toBe('same');
+		expect(mergeNotes(AB, 'a')).toBe(AB);
+		expect(mergeNotes(AB, 'b')).toBe(AB);
+		expect(mergeNotes(`x\n\n${AB}\n\ny`, AB)).toBe(`x\n\n${AB}\n\ny`);
+	});
+	it('words that only look like part of it are not it', () => {
+		expect(mergeNotes('this is a hint', 'hi')).toBe('this is a hint\n\nhi');
+	});
+	it('typing that went on replaces what it continues', () => {
+		expect(mergeNotes('abc', 'abcd')).toBe('abcd');
+	});
+	it('two different notes: both, the row first', () => {
+		expect(mergeNotes('row', 'mine')).toBe('row\n\nmine');
+	});
+	it('held to the limit', () => {
+		const long = 'x'.repeat(NOTE_LIMIT);
+		expect(mergeNotes(long, 'more')).toBe(long);
+		expect(mergeNotes('', 'y'.repeat(NOTE_LIMIT + 9))).toHaveLength(NOTE_LIMIT);
+		expect(mergeNotes('ab', 'c', 3)).toBe('ab\n');
+	});
+	it('every pair of a finite domain: nothing lost, and a resend changes nothing', () => {
+		const notes = ['', ' ', 'a', 'ab', 'abc', 'b', AB, `b\n\na`, 'a b', ' a '];
+		let pairs = 0;
+		for (const row of notes)
+			for (const asked of notes) {
+				pairs++;
+				const once = mergeNotes(row, asked);
+				const label = JSON.stringify([row, asked]);
+				// Idempotent: what the queue's resend relies on.
+				expect(mergeNotes(once, asked), label).toBe(once);
+				// The reader's words are in it, as written (trimmed by the door).
+				expect(once.includes(asked.trim()), label).toBe(true);
+				// The row's are too, unless the reader's only continued them.
+				if (!asked.trim().startsWith(row.trim()))
+					expect(once.includes(row.trim()), label).toBe(true);
+			}
+		expect(pairs).toBe(100);
+	});
+});
+
+describe('wordAround', () => {
+	it('the word under the character', () => {
+		expect(wordAround('Nothing is only', 3)).toEqual({ start: 0, end: 7 });
+		expect(wordAround('Nothing is only', 8)).toEqual({ start: 8, end: 10 });
+	});
+	it('on a space or a mark, the next word; past the last, the last', () => {
+		expect(wordAround('Nothing is', 7)).toEqual({ start: 8, end: 10 });
+		expect(wordAround('“Nothing', 0)).toEqual({ start: 1, end: 8 });
+		expect(wordAround('word.', 4)).toEqual({ start: 0, end: 4 });
+	});
+	it('no word in the block', () => {
+		expect(wordAround('…', 0)).toBeNull();
+		expect(wordAround('', 0)).toBeNull();
+	});
+	it('Japanese splits by the language', () => {
+		const w = wordAround('港の灯りが', 2, 'ja')!;
+		expect(w.start).toBeLessThanOrEqual(2);
+		expect(w.end).toBeGreaterThan(2);
+		expect(w.end - w.start).toBeLessThan(5);
+	});
+});
+
+describe('the sheet and the page end', () => {
+	it('says where it is', () => {
+		expect(quoteSheetHead('Ch. 3', { block: 3 })).toBe('HIGHLIGHT · CH. 3 · ¶ 4');
+		expect(quoteSheetLine(Date.UTC(2026, 10, 2, 12), Date.UTC(2026, 10, 9, 12))).toBe(
+			'MADE 2 NOV · KEPT ON THE WORKSTATION'
+		);
+	});
+	const view = { w: 390, h: 780 };
+	it('the page ends in the bottom strip, and at the edge the next page lies past', () => {
+		const horizontal = { rtl: false, vertical: false };
+		expect(atPageEnd({ x: 100, y: 780 - HOLD_STRIP }, view, horizontal)).toBe(true);
+		expect(atPageEnd({ x: 100, y: 780 - HOLD_STRIP - 1 }, view, horizontal)).toBe(false);
+		expect(atPageEnd({ x: 380, y: 100 }, view, horizontal)).toBe(true);
+		expect(atPageEnd({ x: 10, y: 100 }, view, horizontal)).toBe(false);
+		expect(atPageEnd({ x: 10, y: 100 }, view, { rtl: true, vertical: false })).toBe(true);
+		expect(atPageEnd({ x: 380, y: 100 }, view, { rtl: true, vertical: false })).toBe(false);
+	});
+	it('a vertical page ends bottom left: the last column, or the last of a column', () => {
+		const v = { rtl: true, vertical: true };
+		expect(atPageEnd({ x: 40, y: 100 }, view, v)).toBe(true);
+		expect(atPageEnd({ x: 300, y: 770 }, view, v)).toBe(true);
+		expect(atPageEnd({ x: 300, y: 300 }, view, v)).toBe(false);
+	});
+});
+
+describe('barPlace', () => {
+	const view = { w: 390, h: 780 };
+	const barW = 320;
+	it('above the first line, clearing the handle (Novel N1)', () => {
+		const p = barPlace({ left: 24, right: 90, top: 96, bottom: 126 }, view, barW, false);
+		expect(p).toEqual({ left: 24, top: 96 - BAR_H - 14 });
+	});
+	it('below it at the top of the page', () => {
+		const p = barPlace({ left: 24, right: 90, top: 30, bottom: 60 }, view, barW, false);
+		expect(p.top).toBe(60 + 14);
+	});
+	it('never off the screen', () => {
+		for (const left of [-50, 0, 16, 200, 390, 900])
+			for (const top of [-20, 0, 60, 400, 760, 1000]) {
+				const p = barPlace({ left, right: left + 30, top, bottom: top + 28 }, view, barW, false);
+				expect(p.left).toBeGreaterThanOrEqual(16);
+				expect(p.left + barW).toBeLessThanOrEqual(view.w - 16);
+				expect(p.top).toBeGreaterThanOrEqual(16);
+				expect(p.top + BAR_H).toBeLessThanOrEqual(view.h - 16);
+			}
+	});
+	it('vertical: across the top, over the first column selected (Novel J3)', () => {
+		const p = barPlace({ left: 300, right: 330, top: 200, bottom: 400 }, view, barW, true);
+		expect(p.top).toBe(24);
+		expect(p.left).toBe(16);
 	});
 });

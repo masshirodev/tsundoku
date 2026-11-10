@@ -1,15 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	arrival,
+	carriedBy,
 	dismissRefused,
 	flushHighlights,
+	isQuoteKey,
 	onQueueChange,
 	queueHighlight,
+	quoteKey,
 	refusedDetail,
 	refusedHighlights,
+	reviseHighlight,
 	RETRY_MS,
 	SOURCE_TRIES,
 	SOURCE_WAIT_MS,
+	supersedeHighlight,
+	supersededKeys,
 	takeBackHighlight,
 	useQueueStore,
 	waitingHighlights,
@@ -32,6 +38,35 @@ function memory(): QueueStore & { items: Map<string, QueuedHighlight> } {
 		get: async (k) => items.get(k),
 		put: async (i) => void items.set(i.key, i),
 		remove: async (k) => void items.delete(k)
+	};
+}
+
+/**
+ * A store whose reads and deletes take a real turn, as IndexedDB's do: the
+ * race between a take-back and the press that covers it needs the two to
+ * interleave, and a Map resolves both in one microtask.
+ */
+function slow(): QueueStore & { items: Map<string, QueuedHighlight> } {
+	const items = new Map<string, QueuedHighlight>();
+	const turn = () => new Promise<void>((ok) => setTimeout(ok, 2));
+	return {
+		items,
+		all: async () => {
+			await turn();
+			return [...items.values()];
+		},
+		get: async (k) => {
+			await turn();
+			return items.get(k);
+		},
+		put: async (i) => {
+			await turn();
+			items.set(i.key, i);
+		},
+		remove: async (k) => {
+			await turn();
+			items.delete(k);
+		}
 	};
 }
 
@@ -216,6 +251,24 @@ describe('the queue', () => {
 		await flushHighlights();
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		expect(store.items.size).toBe(0);
+	});
+
+	it('a take-back still landing does not swallow the press that covers it', async () => {
+		// `keepSpan`'s order, in one tick: the supersede, then the covering
+		// press, with nothing awaited between them. On a store that takes real
+		// turns, an unsequenced press reads the item it is replacing, writes
+		// nothing, and the take-back's removal leaves the queue empty.
+		const s = slow();
+		useQueueStore(s);
+		expect(await queueHighlight(page(1), 10)).toBe(true);
+		const taken = supersedeHighlight('7:1:');
+		const pressed = queueHighlight(page(1), 20);
+		await taken;
+		expect(await pressed).toBe(true);
+		const items = await waitingHighlights();
+		expect(items).toHaveLength(1);
+		expect(items[0]).toMatchObject({ key: '7:1:', at: 20 });
+		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
 	it('storage that refuses says so, so the press can', async () => {
@@ -431,5 +484,589 @@ describe('keeping on trying while anything waits', () => {
 		await queueHighlight(page(2), 20);
 		off();
 		expect(told).toEqual([['7:1:'], []]);
+	});
+});
+
+describe('a quote waits like a page (c702)', () => {
+	const key = 'quote:9:0.0-0.5';
+	const quote = (body: Record<string, unknown>): NewHighlight => ({
+		key,
+		url: '/api/highlights/quotes',
+		body,
+		entry: 9,
+		label: '¶ 1'
+	});
+	it('its key says it is a quote, and a page key does not', () => {
+		expect(isQuoteKey(key)).toBe(true);
+		expect(isQuoteKey('7:2:')).toBe(false);
+		expect(quoteKey(9, 0, 0, 0, 5)).toBe(key);
+	});
+	it('what waits can change before it goes', async () => {
+		await queueHighlight(quote({ note: '' }), 1);
+		await reviseHighlight(key, { note: 'mine', colour: 'blue' });
+		const [item] = await waitingHighlights();
+		expect(item.body).toEqual({ note: 'mine', colour: 'blue' });
+		fetchMock.mockResolvedValue(answer(201));
+		await flushHighlights();
+		expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ note: 'mine', colour: 'blue' });
+	});
+	it('a revision of what is not waiting is nothing', async () => {
+		await reviseHighlight(key, { note: 'x' });
+		expect(await waitingHighlights()).toEqual([]);
+		expect(store.items.size).toBe(0);
+	});
+	it('a refused quote keeps no words on the device', async () => {
+		await queueHighlight(quote({ quote: 'the words of the book' }), 1);
+		fetchMock.mockResolvedValue(answer(404));
+		await flushHighlights();
+		const [told] = await refusedHighlights();
+		expect(told.refused).toBe('gone');
+		expect(JSON.stringify(told)).not.toContain('the words of the book');
+		expect(told.body).toEqual({});
+	});
+
+	describe('what happens to a quote while its POST is out (c702)', () => {
+		/** Runs `during` while the POST is held, then answers it. */
+		const holding = (during: () => Promise<unknown>, status = 201, body?: unknown) =>
+			fetchMock.mockImplementationOnce(async () => {
+				await during();
+				return answer(status, body);
+			});
+		const made = (over: Record<string, unknown> = {}) => ({
+			highlight: { id: 41, note: '', colour: 'yellow', ...over },
+			made: true,
+			folded: []
+		});
+		const calls = (method: string) =>
+			fetchMock.mock.calls.filter((c) => (c[1] as RequestInit).method === method);
+
+		it('a revision during the held POST is sent after it, and the answer says so', async () => {
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			holding(() => reviseHighlight(key, { note: 'typed during the POST' }), 201, made());
+			fetchMock.mockResolvedValueOnce(answer(200, { ok: true }));
+			const told: unknown[] = [];
+			const off = onQueueChange((c) => told.push(...c.sent.map((s) => s.answer)));
+			await flushHighlights();
+			off();
+			const [patch] = calls('PATCH');
+			expect(patch[0]).toBe('/api/highlights/41');
+			expect(JSON.parse((patch[1] as RequestInit).body as string)).toEqual({
+				note: 'typed during the POST'
+			});
+			expect(store.items.size).toBe(0);
+			expect(told).toEqual([
+				expect.objectContaining({
+					highlight: expect.objectContaining({ id: 41, note: 'typed during the POST' })
+				})
+			]);
+		});
+
+		it('a note the POST carried is replaced by the reader’s next, not appended to', async () => {
+			await queueHighlight(quote({ note: 'abc', colour: 'yellow' }), 1);
+			holding(() => reviseHighlight(key, { note: 'xyz' }), 201, made({ note: 'abc' }));
+			fetchMock.mockResolvedValueOnce(answer(200, { ok: true }));
+			await flushHighlights();
+			expect(JSON.parse((calls('PATCH')[0][1] as RequestInit).body as string)).toEqual({
+				note: 'xyz'
+			});
+		});
+
+		it('a note the row had first is merged, not replaced', async () => {
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			holding(() => reviseHighlight(key, { note: 'mine' }), 200, {
+				...made({ note: 'on the row' }),
+				made: false
+			});
+			fetchMock.mockResolvedValueOnce(answer(200, { ok: true }));
+			await flushHighlights();
+			expect(JSON.parse((calls('PATCH')[0][1] as RequestInit).body as string)).toEqual({
+				note: 'on the row\n\nmine'
+			});
+		});
+
+		it('a colour chosen while it waited is set on a row that was already there', async () => {
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			await reviseHighlight(key, { colour: 'blue' });
+			fetchMock.mockResolvedValueOnce(answer(200, { ...made({ colour: 'orange' }), made: false }));
+			fetchMock.mockResolvedValueOnce(answer(200, { ok: true }));
+			await flushHighlights();
+			expect(JSON.parse((calls('PATCH')[0][1] as RequestInit).body as string)).toEqual({
+				colour: 'blue'
+			});
+		});
+
+		it('a colour nobody chose leaves the row’s alone', async () => {
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			fetchMock.mockResolvedValueOnce(answer(200, { ...made({ colour: 'orange' }), made: false }));
+			await flushHighlights();
+			expect(calls('PATCH')).toHaveLength(0);
+			expect(store.items.size).toBe(0);
+		});
+
+		it('nothing revised asks nothing after the POST', async () => {
+			await queueHighlight(quote({ note: 'n', colour: 'yellow' }), 1);
+			fetchMock.mockResolvedValueOnce(answer(201, made({ note: 'n' })));
+			await flushHighlights();
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+			expect(store.items.size).toBe(0);
+		});
+
+		it('a revision the workstation did not take keeps it waiting, with the words', async () => {
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			holding(() => reviseHighlight(key, { note: 'still mine' }), 201, made());
+			fetchMock.mockResolvedValueOnce(answer(500));
+			await flushHighlights();
+			expect(store.items.size).toBe(1);
+			const [item] = await waitingHighlights();
+			expect(item.body.note).toBe('still mine');
+		});
+
+		it('the POST sends what the row says when it goes, not what the list read', async () => {
+			await queueHighlight(page(1), 1);
+			await queueHighlight(quote({ note: 'old', colour: 'yellow' }), 2);
+			// The first POST is held, and this one's note changes behind the list.
+			holding(() => reviseHighlight(key, { note: 'newer' }), 201);
+			fetchMock.mockResolvedValueOnce(answer(201, made({ note: 'newer' })));
+			await flushHighlights();
+			expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string).note).toBe(
+				'newer'
+			);
+		});
+
+		it('a revision of what has just been sent says it took nothing', async () => {
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			expect(await reviseHighlight(key, { note: 'waits' })).toBe(true);
+			fetchMock.mockResolvedValueOnce(answer(201, made({ note: 'waits' })));
+			await flushHighlights();
+			expect(await reviseHighlight(key, { note: 'too late' })).toBe(false);
+		});
+
+		it('taken back during a POST that made it: what it made is set aside', async () => {
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			holding(() => takeBackHighlight(key), 201, made());
+			fetchMock.mockResolvedValueOnce(answer(200, { ok: true }));
+			const told: string[] = [];
+			const off = onQueueChange((c) => told.push(...c.sent.map((s) => s.item.key)));
+			await flushHighlights();
+			off();
+			const [del] = calls('DELETE');
+			expect(del[0]).toBe('/api/highlights/41');
+			expect(store.items.size).toBe(0);
+			expect(told).toEqual([]);
+		});
+
+		it('superseded during a POST that made it: the join keeps the row, so no DELETE', async () => {
+			// A selection joins a waiting quote (c702): its take-back is 'the press
+			// covers this', not 'not wanted'. The workstation makes the row this
+			// POST asks for, then folds it into the covering press's row and keeps
+			// its id, so a DELETE here would take the join and its note away.
+			await queueHighlight(quote({ note: 'kept by the join', colour: 'yellow' }), 1);
+			holding(() => supersedeHighlight(key), 201, made());
+			await flushHighlights();
+			// The POST really ran: the absence of a DELETE is not a POST that never was.
+			expect(calls('POST')).toHaveLength(1);
+			expect(calls('DELETE')).toHaveLength(0);
+			expect(store.items.size).toBe(0);
+		});
+
+		it('superseded before its POST was out: a later take-back still says the DELETE', async () => {
+			// The record names the item it was made for, not the key forever: a
+			// take-back with nothing on its way leaves one nobody will consume.
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			await supersedeHighlight(key);
+			expect(await waitingHighlights()).toEqual([]);
+			// The same key waits again from elsewhere (a second tab's press), and
+			// this time it is genuinely not wanted while its POST is out.
+			await store.put({
+				...quote({ note: '', colour: 'yellow' }),
+				at: 9,
+				tries: 0,
+				refused: null
+			});
+			holding(() => takeBackHighlight(key), 201, made());
+			await flushHighlights();
+			expect(calls('POST')).toHaveLength(1);
+			expect(calls('DELETE')).toHaveLength(1);
+			expect(store.items.size).toBe(0);
+		});
+
+		it('superseded during a POST that answered an existing row: no DELETE, and the item goes', async () => {
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			holding(() => supersedeHighlight(key), 200, { ...made(), made: false });
+			await flushHighlights();
+			expect(calls('POST')).toHaveLength(1);
+			expect(calls('DELETE')).toHaveLength(0);
+			expect(store.items.size).toBe(0);
+		});
+
+		it('a re-queue of a superseded key clears the record the take-back left', async () => {
+			// A join refused at the workstation puts back what it took in: the item
+			// is written anew under the same key, and that clears the record, so a
+			// later POST's end cannot mistake the new item for the old one's.
+			await queueHighlight(quote({ note: 'kept by the join', colour: 'yellow' }), 1);
+			await supersedeHighlight(key);
+			expect(supersededKeys()).toEqual([key]);
+			await queueHighlight(quote({ note: 'kept by the join', colour: 'yellow' }), 2);
+			expect(supersededKeys()).toEqual([]);
+			expect((await waitingHighlights()).map((i) => i.at)).toEqual([2]);
+		});
+
+		it('superseded and pressed again during the POST: the row stands, and the item goes', async () => {
+			// The exact re-press of the same span: the same key, a new incarnation.
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			holding(
+				async () => {
+					await supersedeHighlight(key);
+					await queueHighlight(quote({ note: '', colour: 'yellow' }), 2);
+				},
+				201,
+				made()
+			);
+			await flushHighlights();
+			expect(calls('POST')).toHaveLength(1);
+			expect(calls('DELETE')).toHaveLength(0);
+			expect(store.items.size).toBe(0);
+		});
+
+		it('superseded during a POST that was refused: the item goes, and nothing is left behind', async () => {
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			holding(() => supersedeHighlight(key), 404);
+			await flushHighlights();
+			expect(calls('POST')).toHaveLength(1);
+			expect(calls('DELETE')).toHaveLength(0);
+			expect(store.items.size).toBe(0);
+			expect(await refusedHighlights()).toEqual([]);
+			// Nothing will ever consume the record: this end clears it.
+			expect(supersededKeys()).toEqual([]);
+		});
+
+		it('superseded during a POST that stops: the record is cleared, and the next pass has nothing', async () => {
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			fetchMock.mockImplementationOnce(async () => {
+				await supersedeHighlight(key);
+				throw new TypeError('the connection dropped');
+			});
+			await flushHighlights();
+			expect(calls('POST')).toHaveLength(1);
+			expect(await waitingHighlights()).toEqual([]);
+			// The item is gone and no `landed` will read the record: this end is
+			// its last chance to clear it.
+			expect(supersededKeys()).toEqual([]);
+			fetchMock.mockReset();
+			fetchMock.mockImplementation(async () => answer(201));
+			await flushHighlights();
+			expect(fetchMock).not.toHaveBeenCalled();
+		});
+
+		it('a press covering it during a refused POST leaves the new item refused, not DELETEd', async () => {
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			holding(async () => {
+				await supersedeHighlight(key);
+				await queueHighlight(quote({ note: '', colour: 'yellow' }), 2);
+			}, 404);
+			await flushHighlights();
+			expect(calls('POST')).toHaveLength(1);
+			expect(calls('DELETE')).toHaveLength(0);
+			expect((await refusedHighlights()).map((i) => i.at)).toEqual([2]);
+		});
+
+		it('a second join takes back the first join’s waiting item while its POST is out', async () => {
+			const first = 'quote:9:0.0-0.5';
+			const second = 'quote:9:0.0-0.9';
+			await queueHighlight({ ...quote({ note: 'the join’s note' }), key: first }, 1);
+			holding(
+				async () => {
+					await supersedeHighlight(first);
+					await queueHighlight({ ...quote({ note: 'the join’s note' }), key: second }, 2);
+				},
+				201,
+				made()
+			);
+			await flushHighlights();
+			expect(calls('POST')).toHaveLength(1);
+			expect(calls('DELETE')).toHaveLength(0);
+			// The first join's row was folded into the second's press, not DELETEd.
+			const left = await waitingHighlights();
+			expect(left.map((i) => i.key)).toEqual([second]);
+		});
+
+		it('taken back during a POST that answered an existing row: that row is left alone', async () => {
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			holding(() => takeBackHighlight(key), 200, { ...made(), made: false });
+			await flushHighlights();
+			expect(calls('DELETE')).toHaveLength(0);
+			expect(store.items.size).toBe(0);
+		});
+
+		it('taken back and pressed again during the POST: the row stands, and the item goes', async () => {
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			holding(
+				async () => {
+					await takeBackHighlight(key);
+					await queueHighlight(quote({ note: '', colour: 'yellow' }), 2);
+				},
+				201,
+				made()
+			);
+			await flushHighlights();
+			expect(calls('DELETE')).toHaveLength(0);
+			expect(store.items.size).toBe(0);
+		});
+
+		it('an answer that is not JSON is still sent: it leaves the queue', async () => {
+			await queueHighlight(quote({ note: '', colour: 'yellow' }), 1);
+			fetchMock.mockResolvedValueOnce(new Response('not json', { status: 201 }));
+			await flushHighlights();
+			expect(store.items.size).toBe(0);
+		});
+
+		it('every item is told as it lands, so a late note finds its row', async () => {
+			await queueHighlight(page(1), 1);
+			await queueHighlight(page(2), 2);
+			fetchMock.mockImplementation(async () => answer(201));
+			const sizes: number[] = [];
+			const off = onQueueChange((c) => {
+				if (c.sent.length) sizes.push(store.items.size);
+			});
+			await flushHighlights();
+			off();
+			expect(sizes).toEqual([1, 0]);
+		});
+	});
+
+	describe('what a queued join covers (c702, round 3)', () => {
+		/** The waiting quote a join takes in: its own key, with the note a refusal must keep. */
+		const covered: NewHighlight = {
+			key: 'quote:9:0.0-0.2',
+			url: '/api/highlights/quotes',
+			body: {
+				entry: 9,
+				block: 0,
+				offset: 0,
+				endBlock: 0,
+				endOffset: 2,
+				quote: 'two',
+				note: 'the note the refusal must keep',
+				colour: 'yellow'
+			},
+			entry: 9,
+			label: '¶ 1'
+		};
+		const made = (over: Record<string, unknown> = {}) => ({
+			highlight: { id: 41, note: '', colour: 'yellow', ...over },
+			made: true,
+			folded: []
+		});
+		/** The press that covers it: a union span, its item carrying `covers`. */
+		const join = (covers: NewHighlight[]): NewHighlight => ({
+			key: 'quote:9:0.0-0.9',
+			url: '/api/highlights/quotes',
+			body: {
+				entry: 9,
+				block: 0,
+				offset: 0,
+				endBlock: 0,
+				endOffset: 9,
+				note: '',
+				colour: 'yellow'
+			},
+			entry: 9,
+			label: '¶ 1',
+			covers
+		});
+		/** A quote waits, then a join takes it in and goes on waiting in its place. */
+		async function waitingJoin(cover: NewHighlight = covered) {
+			await queueHighlight(cover, 1);
+			await supersedeHighlight(cover.key);
+			const press = join([cover]);
+			await queueHighlight(press, 2);
+			return press;
+		}
+
+		it('refused: puts back what it covered, with its note, and clears the record', async () => {
+			const press = await waitingJoin();
+			expect(supersededKeys()).toEqual([covered.key]);
+			fetchMock.mockImplementationOnce(async () => answer(400));
+			await flushHighlights();
+			const waiting = await waitingHighlights();
+			expect(waiting.map((i) => i.key)).toEqual([covered.key]);
+			expect(waiting[0].body).toEqual(covered.body);
+			expect(await refusedHighlights()).toEqual([
+				expect.objectContaining({ key: press.key, refused: 'refused', body: {} })
+			]);
+			expect(supersededKeys()).toEqual([]);
+		});
+
+		it('sent: what it covered stays taken back', async () => {
+			await waitingJoin();
+			fetchMock.mockImplementationOnce(async () => answer(201, made()));
+			await flushHighlights();
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+			expect(store.items.size).toBe(0);
+			expect(await waitingHighlights()).toEqual([]);
+		});
+
+		it('taken back before it goes: covers go with it, and nothing is asked', async () => {
+			const press = await waitingJoin();
+			await takeBackHighlight(press.key);
+			await flushHighlights();
+			expect(fetchMock).not.toHaveBeenCalled();
+			expect(store.items.size).toBe(0);
+			expect(await refusedHighlights()).toEqual([]);
+		});
+
+		it('revised while its POST is out: the covers still come back', async () => {
+			// The reader changes the join itself while the flush's POST is out: the
+			// item's latest copy is what a refusal reads, and its covers are unchanged.
+			const press = await waitingJoin();
+			fetchMock.mockImplementationOnce(async () => {
+				expect(await reviseHighlight(press.key, { colour: 'blue' })).toBe(true);
+				return answer(400);
+			});
+			await flushHighlights();
+			const waiting = await waitingHighlights();
+			expect(waiting.map((i) => i.key)).toEqual([covered.key]);
+			expect(waiting[0].body.note).toBe(covered.body.note);
+		});
+
+		it('a second join over a waiting join carries its covers on', async () => {
+			const first = await waitingJoin();
+			await supersedeHighlight(first.key);
+			const carried = carriedBy(first.key)!;
+			expect(carried.covers?.map((c) => c.key)).toEqual([covered.key]);
+			const second = { ...carried, key: 'quote:9:0.0-0.12', covers: [carried] };
+			await queueHighlight(second, 3);
+			// The second refused: the first comes back waiting, with its own covers.
+			fetchMock.mockImplementationOnce(async () => answer(400));
+			await flushHighlights();
+			let waiting = await waitingHighlights();
+			expect(waiting.map((i) => i.key)).toEqual([first.key]);
+			expect(waiting[0].covers?.map((c) => c.key)).toEqual([covered.key]);
+			// And when it too is refused, the quote it covered is back with its note.
+			fetchMock.mockImplementationOnce(async () => answer(400));
+			await flushHighlights();
+			waiting = await waitingHighlights();
+			expect(waiting.map((i) => i.key)).toEqual([covered.key]);
+			expect(waiting[0].body.note).toBe(covered.body.note);
+		});
+
+		it('what the reader changed while it waited comes back with it', async () => {
+			// W's own POST is out and the reader turns it blue (the low round 3
+			// named): the join that covers it is refused, and the item put back
+			// must still say the colour was changed, or a row already made keeps
+			// the colour nobody chose.
+			await queueHighlight(covered, 1);
+			expect(await reviseHighlight(covered.key, { colour: 'blue' })).toBe(true);
+			await supersedeHighlight(covered.key);
+			expect(carriedBy(covered.key)?.revised).toEqual(['colour']);
+			// The cover is what `coverOf` builds: the drawn quote's body plus what
+			// the queue knew of it, `revised` included.
+			const press = join([
+				{ ...covered, body: { ...covered.body, colour: 'blue' }, revised: ['colour'] }
+			]);
+			await queueHighlight(press, 2);
+			fetchMock.mockImplementationOnce(async () => answer(400));
+			await flushHighlights();
+			const [back] = await waitingHighlights();
+			expect(back.revised).toEqual(['colour']);
+			expect(back.body.colour).toBe('blue');
+			// Its own POST lands against a row made with the old colour: only the
+			// carried list says to patch it, as `unsaid` reads.
+			fetchMock.mockReset();
+			fetchMock.mockResolvedValueOnce(answer(200, { ...made({ colour: 'orange' }), made: false }));
+			fetchMock.mockResolvedValueOnce(answer(200, { ok: true }));
+			await flushHighlights();
+			const [patch] = fetchMock.mock.calls.filter((c) => (c[1] as RequestInit).method === 'PATCH');
+			expect(JSON.parse((patch[1] as RequestInit).body as string)).toEqual({ colour: 'blue' });
+			expect(await waitingHighlights()).toEqual([]);
+		});
+
+		it('a take-back hands back what the item covered, and UNDO puts it all back', async () => {
+			// Round 5: DELETE of a waiting join, then UNDO. The take-back used to
+			// return nothing, so the UNDO could only rebuild the page's body and a
+			// refusal of that join lost the quote and its note for good.
+			const press = await waitingJoin();
+			const taken = await takeBackHighlight(press.key);
+			expect(taken?.key).toBe(press.key);
+			expect(taken?.covers?.map((c) => c.key)).toEqual([covered.key]);
+			expect(taken?.covers?.[0]?.body.note).toBe(covered.body.note);
+			expect(await waitingHighlights()).toEqual([]);
+			// The UNDO re-queues what the take-back handed back, as the reader does.
+			await queueHighlight(
+				{
+					key: press.key,
+					url: press.url,
+					body: press.body,
+					entry: press.entry,
+					label: press.label,
+					covers: taken?.covers,
+					revised: taken?.revised
+				},
+				3
+			);
+			fetchMock.mockImplementationOnce(async () => answer(400));
+			await flushHighlights();
+			const waiting = await waitingHighlights();
+			expect(waiting.map((i) => i.key)).toEqual([covered.key]);
+			expect(waiting[0].body.note).toBe(covered.body.note);
+		});
+
+		it('a stop or a later keeps the join and what it covers', async () => {
+			// A reload's retry or a refused connection answers 401 (stop) or a
+			// source's 502 (later): the item stays, and so must what it covers.
+			const press = await waitingJoin();
+			fetchMock.mockImplementationOnce(async () => answer(401));
+			await flushHighlights();
+			let [waiting] = await waitingHighlights();
+			expect(waiting.key).toBe(press.key);
+			expect(waiting.covers?.map((c) => c.key)).toEqual([covered.key]);
+			fetchMock.mockImplementationOnce(async () => answer(502));
+			await flushHighlights();
+			[waiting] = await waitingHighlights();
+			expect(waiting.key).toBe(press.key);
+			expect(waiting.covers?.map((c) => c.key)).toEqual([covered.key]);
+		});
+
+		it('a fresh press does not inherit a stale revised from a join that was sent', async () => {
+			// W is turned blue while it waits, then a join J under another key
+			// covers it and is sent (round 2's low). `remembered` still holds W,
+			// because it outlives the item it was; a press of W's span afterwards
+			// is a new request, and no colour was changed of it.
+			await queueHighlight(covered, 1);
+			expect(await reviseHighlight(covered.key, { colour: 'blue' })).toBe(true);
+			const press = join([covered]);
+			await supersedeHighlight(covered.key);
+			await queueHighlight(press, 2);
+			fetchMock.mockImplementationOnce(async () => answer(201, made()));
+			await flushHighlights();
+			expect(await waitingHighlights()).toEqual([]);
+			expect(carriedBy(covered.key)?.revised).toEqual(['colour']);
+			await queueHighlight(covered, 3);
+			const [fresh] = await waitingHighlights();
+			expect(fresh.key).toBe(covered.key);
+			expect(fresh.revised).toBeUndefined();
+		});
+
+		it('the exact re-press of a waiting quote carries the colour the reader chose', async () => {
+			// `waitOnDevice`'s own-span branch: the same key again is this press,
+			// and what the reader changed of it while it waited rides the new item.
+			// The door answers the repeat with the row it already holds, yellow:
+			// only the carried `revised` sends the chosen colour after it.
+			await queueHighlight(covered, 1);
+			expect(await reviseHighlight(covered.key, { colour: 'blue' })).toBe(true);
+			await supersedeHighlight(covered.key);
+			const own = carriedBy(covered.key)!;
+			expect(own.revised).toEqual(['colour']);
+			await queueHighlight({ ...covered, body: { ...own.body }, revised: own.revised }, 2);
+			fetchMock.mockResolvedValueOnce(
+				answer(200, { highlight: { id: 41, colour: 'yellow' }, made: false })
+			);
+			fetchMock.mockResolvedValueOnce(answer(200, { ok: true }));
+			await flushHighlights();
+			const [patch] = fetchMock.mock.calls.filter((c) => (c[1] as RequestInit).method === 'PATCH');
+			expect(patch).toBeDefined();
+			expect(JSON.parse((patch[1] as RequestInit).body as string)).toEqual({ colour: 'blue' });
+			expect(await waitingHighlights()).toEqual([]);
+		});
 	});
 });

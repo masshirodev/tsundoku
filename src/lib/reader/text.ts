@@ -285,7 +285,7 @@ export function textMode(
  * turn right to left. Other languages keep horizontal lines.
  */
 export const isVerticalBook = (language: string, rtl: boolean) =>
-	/^ja\b/i.test(language.trim()) || rtl;
+	/^ja(?![a-z0-9])/i.test(language.trim()) || rtl;
 
 // ---- where you are --------------------------------------------------------------
 

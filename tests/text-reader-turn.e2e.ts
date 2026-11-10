@@ -102,10 +102,20 @@ const bandOnly = (page: Page) =>
 		return true;
 	});
 
-/** The middle of the page, where a drag starts: no strip, no illustration. */
-function middleOf(page: Page) {
+/**
+ * Where a drag starts: no strip, no illustration, and off the words where the
+ * pointer is fine, because a mouse's drag on the words selects them and never
+ * turns a page (c702; Novel D1): in the page's own margin, the one it drags
+ * away from, so a long drag stays on the window.
+ */
+async function middleOf(page: Page, drags: 'left' | 'right' = 'left') {
 	const v = page.viewportSize()!;
-	return { x: v.width / 2, y: v.height / 2 };
+	const fine = await page.evaluate(() => matchMedia('(pointer: fine)').matches);
+	if (!fine) return { x: v.width / 2, y: v.height / 2 };
+	const box = await page.locator('.page').boundingBox();
+	// The margin it drags away from, so a long drag stays on the window.
+	const x = drags === 'left' ? Math.ceil(box!.x + box!.width) + 8 : Math.floor(box!.x) - 8;
+	return { x, y: v.height / 2 };
 }
 
 test('a drag short of the threshold follows the finger and goes back; past it, the page turns (c441)', async ({
@@ -118,7 +128,7 @@ test('a drag short of the threshold follows the finger and goes back; past it, t
 	expect(start.at).toBe(0);
 	expect(start.pages).toBeGreaterThanOrEqual(3);
 	const slides = await countSlides(page);
-	const { x, y } = middleOf(page);
+	const { x, y } = await middleOf(page);
 
 	// 24px to the left, under the 40px swipe: the page is 24px over, and back on release.
 	await page.mouse.move(x, y);
@@ -324,7 +334,7 @@ test('a second finger cancels a drag: the page goes back rather than jerking to 
 	await page.keyboard.press('ArrowRight');
 	await expect.poll(async () => (await flow(page)).at).toBe(-step);
 	await landed(page);
-	const { x, y } = middleOf(page);
+	const { x, y } = await middleOf(page);
 	const cdp = await page.context().newCDPSession(page);
 	const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', pts: { x: number; y: number }[]) =>
 		cdp.send('Input.dispatchTouchEvent', {
@@ -402,7 +412,7 @@ test('R→L: the next page lies to the left, and arrows, swipes and the edges al
 
 	// A drag to the right pulls the next page in: the page follows the finger
 	// right, and past the swipe it turns forward.
-	const { x, y } = middleOf(page);
+	const { x, y } = await middleOf(page, 'right');
 	await page.mouse.move(x, y);
 	await page.mouse.down();
 	await page.mouse.move(x + 24, y, { steps: 4 });
@@ -469,7 +479,7 @@ test('with reduced motion a turn is instant and a drag does not move the page (c
 	const { step, pages } = await flow(page);
 	expect(pages).toBeGreaterThanOrEqual(3);
 	const slides = await countSlides(page);
-	const { x, y } = middleOf(page);
+	const { x, y } = await middleOf(page);
 
 	await page.mouse.move(x, y);
 	await page.mouse.down();

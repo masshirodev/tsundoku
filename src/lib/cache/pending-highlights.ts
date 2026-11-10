@@ -17,7 +17,7 @@
  * It is the first queued write that isn't reading progress, and it is built as
  * the mechanism rather than for one caller: an item names its own address and
  * body, so a page (H3) and a quote (H2) go through the same door, and a rating
- * or FAV could later. Nothing else uses it yet.
+ * or FAV could later.
  *
  * **It sends once** by two things together. One row per [key] here, so two
  * presses are one item. And the workstation's answer to the same thing asked
@@ -27,10 +27,29 @@
  * reach it twice and leave one row.
  */
 
+import { mergeNotes } from '$lib/library/highlights';
+
 export type RefusedWhy = 'gone' | 'source' | 'refused';
 
+/**
+ * A quote a press took in while it waited (c702's round 3), carried on the
+ * press's item so a refusal of that press can put it back. The words are the
+ * book's, so it lives only as long as the item that covers it.
+ */
+export interface CoveredHighlight {
+	key: string;
+	url: string;
+	body: Record<string, unknown>;
+	entry: number;
+	label: string;
+	/** What the reader changed while it waited (N7), carried to the item put back. */
+	revised?: string[];
+	/** A covered join's own covers, so a chain of joins keeps them all. */
+	covers?: CoveredHighlight[];
+}
+
 export interface QueuedHighlight {
-	/** One per highlight: `keepKey` for a page. */
+	/** One per highlight: `keepKey` for a page, `quoteKey` for a quote. */
 	key: string;
 	/** Where it goes and what it says, as the online press would have sent it. */
 	url: string;
@@ -44,9 +63,27 @@ export interface QueuedHighlight {
 	after?: number;
 	/** Set when the workstation refused it: kept only until the reader has been told. */
 	refused: RefusedWhy | null;
+	/** Which of the body's fields the reader changed while it waited (Novel N7). */
+	revised?: string[];
+	/** What this item took in as a join: put back if the join itself is refused (c702). */
+	covers?: CoveredHighlight[];
 }
 
-export type NewHighlight = Pick<QueuedHighlight, 'key' | 'url' | 'body' | 'entry' | 'label'>;
+/** A quote's item (H2), told from a page's by its key: each reader tells only its own. */
+export const QUOTE_KEY_PREFIX = 'quote:';
+export const isQuoteKey = (key: string) => key.startsWith(QUOTE_KEY_PREFIX);
+export const quoteKey = (
+	entry: number,
+	block: number,
+	offset: number,
+	endBlock: number,
+	endOffset: number
+) => `${QUOTE_KEY_PREFIX}${entry}:${block}.${offset}-${endBlock}.${endOffset}`;
+
+export type NewHighlight = Pick<QueuedHighlight, 'key' | 'url' | 'body' | 'entry' | 'label'> & {
+	covers?: CoveredHighlight[];
+	revised?: string[];
+};
 
 /** The little of IndexedDB the queue uses, so its rules can be tested without one. */
 export interface QueueStore {
@@ -128,12 +165,45 @@ const indexedStore: QueueStore = {
 };
 
 let store: QueueStore = indexedStore;
+/**
+ * Items a later press covers, and which incarnation of each: its key and the
+ * `at` that names that very item. A take-back is not always "not wanted":
+ * a selection joining a waiting quote removes it because the press that covers
+ * it is sent by its own door (c702). The POST already out for the removed item
+ * may still make a row, and the workstation folds that row into the covering
+ * one, keeping its id — so a DELETE there would take the join, note and all.
+ */
+const superseded = new Map<string, number>();
+/**
+ * The item the queue last knew waiting under each key, kept past a take-back
+ * that a covering press made (`supersedeHighlight` removes the item but what a
+ * joining press needs to carry on is still here), and repopulated by every read
+ * so a reload's press finds what the page before it queued. A take-back that
+ * wants the item gone clears it.
+ */
+const remembered = new Map<string, QueuedHighlight>();
+function remember(item: QueuedHighlight) {
+	if (item.refused) remembered.delete(item.key);
+	else remembered.set(item.key, item);
+}
+/** What the queue last knew under [key]: a joining press carries its fields on (c702). */
+export function carriedBy(key: string): QueuedHighlight | undefined {
+	return remembered.get(key);
+}
 /** Tests only: the rules without a browser's IndexedDB, and none of the last case's trying. */
 export function useQueueStore(s: QueueStore) {
 	store = s;
 	stopTrying();
 	sending = false;
 	again = false;
+	superseded.clear();
+	remembered.clear();
+	running.clear();
+}
+
+/** Tests only: which keys still carry a take-back record, so its clearing can be seen. */
+export function supersededKeys(): string[] {
+	return [...superseded.keys()];
 }
 
 export type QueueChange = {
@@ -176,33 +246,126 @@ function stopTrying() {
 }
 
 /**
+ * One store mutation at a time per key (c702's round 2): `keepSpan` takes a
+ * waiting quote back and then writes the press that covers it in the same
+ * tick, without awaiting the first. Both read and write the one key, so a press
+ * started before the take-back's removal is done would find the item it is
+ * replacing, write nothing, and then be removed — the queue empty under
+ * `WAITING TO BE SENT`. Chaining them keeps `inFlight.set` where it is (a
+ * DELETE must find a press in flight synchronously) and holds nothing across a
+ * POST, whose answer still reads the store while the next press waits.
+ */
+const running = new Map<string, Promise<unknown>>();
+function serial<T>(key: string, run: () => Promise<T>): Promise<T> {
+	const before = running.get(key) ?? Promise.resolve();
+	const next = before.then(run, run);
+	const done = next.catch(() => undefined);
+	running.set(key, done);
+	void done.then(() => {
+		if (running.get(key) === done) running.delete(key);
+	});
+	return next;
+}
+
+/**
  * Waits on the device until the next connection. `false`: this browser won't
  * keep it (storage refused), and the press must say so. The same key twice is
  * the one item, so a second press changes nothing and asks nothing; but a page
  * refused and pressed again is a new request, and its row starts over.
  */
-export async function queueHighlight(h: NewHighlight, now = Date.now()): Promise<boolean> {
-	try {
-		const had = await store.get(h.key);
-		if (!had || had.refused) await store.put({ ...h, at: now, tries: 0, refused: null });
-		presses++;
-		keepTrying();
-		changed();
-		return true;
-	} catch {
-		return false;
-	}
+export function queueHighlight(h: NewHighlight, now = Date.now()): Promise<boolean> {
+	return serial(h.key, async () => {
+		try {
+			const had = await store.get(h.key);
+			if (!had || had.refused) {
+				// This key now names this very item: a record left by an earlier
+				// take-back is not about the POST it will have.
+				superseded.delete(h.key);
+				const item: QueuedHighlight = {
+					...h,
+					// Only what the caller says this press changed: a `remembered`
+					// entry can outlive the item it was (a join sent, then its span
+					// pressed afresh), and a fresh press must not inherit it.
+					revised: h.revised,
+					at: now,
+					tries: 0,
+					refused: null
+				};
+				await store.put(item);
+				remember(item);
+			} else remember(had);
+			presses++;
+			keepTrying();
+			changed();
+			return true;
+		} catch {
+			return false;
+		}
+	});
 }
 
-/** Taken back before it was sent. Nothing was asked of the workstation. */
-export async function takeBackHighlight(key: string): Promise<void> {
-	await store.remove(key).catch(() => undefined);
-	changed();
+/**
+ * A change to something still waiting (Novel N7: its note and colour can be
+ * changed before it goes): the item's body, merged. Nothing is told to the
+ * workstation, since it hasn't heard of the highlight yet. `false`: nothing
+ * took the change (it was sent in the moment, or storage refused), so the
+ * caller doesn't claim it.
+ */
+export function reviseHighlight(key: string, patch: Record<string, unknown>): Promise<boolean> {
+	return serial(key, async () => {
+		const had = await store.get(key).catch(() => undefined);
+		if (!had || had.refused) return false;
+		const revised = [...new Set([...(had.revised ?? []), ...Object.keys(patch)])];
+		return store.put({ ...had, body: { ...had.body, ...patch }, revised }).then(
+			() => {
+				remember({ ...had, body: { ...had.body, ...patch }, revised });
+				return true;
+			},
+			() => false
+		);
+	});
+}
+
+/**
+ * Taken back before it was sent, and not wanted. Nothing was asked of the
+ * workstation. Hands back the item it removed: an UNDO has to restore what the
+ * DELETE took, covers and `revised` included (c702), not a body rebuilt from
+ * the page, which cannot say what waited inside it.
+ */
+export function takeBackHighlight(key: string): Promise<QueuedHighlight | undefined> {
+	return serial(key, async () => {
+		const item = await store.get(key).catch(() => undefined);
+		await store.remove(key).catch(() => undefined);
+		remembered.delete(key);
+		changed();
+		return item;
+	});
+}
+
+/**
+ * Taken back because a later press covers it: a selection joined a quote still
+ * waiting on the device. Nothing is owed to the workstation for this item, and
+ * a POST already on its way must not DELETE what it made (`landed`).
+ */
+export function supersedeHighlight(key: string): Promise<void> {
+	return serial(key, async () => {
+		const item = await store.get(key).catch(() => undefined);
+		if (item) {
+			superseded.set(key, item.at);
+			// What it was waits here for the press that covers it: that press puts
+			// it on its own item and hands it back if the press is refused.
+			remember(item);
+		}
+		await store.remove(key).catch(() => undefined);
+		changed();
+	});
 }
 
 async function everything(): Promise<QueuedHighlight[]> {
 	try {
-		return (await store.all()).sort((a, b) => a.at - b.at);
+		const list = (await store.all()).sort((a, b) => a.at - b.at);
+		for (const item of list) remember(item);
+		return list;
 	} catch {
 		return [];
 	}
@@ -218,20 +381,106 @@ export const refusedHighlights = async () => (await everything()).filter((i) => 
  */
 export async function dismissRefused(keys: string[]): Promise<void> {
 	for (const key of keys) {
-		const item = await store.get(key).catch(() => undefined);
-		if (item?.refused) await store.remove(key).catch(() => undefined);
+		await serial(key, async () => {
+			const item = await store.get(key).catch(() => undefined);
+			if (item?.refused) {
+				await store.remove(key).catch(() => undefined);
+				remembered.delete(key);
+			}
+		});
 	}
 	changed();
 }
 
+type RowAnswer = {
+	highlight?: { id?: number; note?: string; colour?: string };
+	made?: boolean;
+};
+
+/** A highlight's own address, beside the door that made it: `/api/highlights/<id>`. */
+const rowUrl = (item: QueuedHighlight, id: number) => item.url.replace(/\/[^/]*$/, `/${id}`);
+
+/**
+ * What the reader changed that the answer doesn't say (a note typed during the
+ * POST, a colour chosen for a row that was already there): the row's fields
+ * to set. A note the POST itself wrote is replaced, since that's still the
+ * reader's draft; a note the row had first is merged with it, as the door would.
+ */
+function unsaid(
+	posted: QueuedHighlight,
+	latest: QueuedHighlight,
+	row: NonNullable<RowAnswer['highlight']>
+): Record<string, string> {
+	const was = posted.body as { note?: string };
+	const now = latest.body as { note?: string; colour?: string };
+	const patch: Record<string, string> = {};
+	if (latest.revised?.includes('colour') && now.colour && now.colour !== row.colour)
+		patch.colour = now.colour;
+	if (typeof now.note === 'string' && now.note !== was.note) {
+		const had = row.note ?? '';
+		const note = had === (was.note ?? '').trim() ? now.note : mergeNotes(had, now.note);
+		if (note.trim() !== had) patch.note = note.trim();
+	}
+	return patch;
+}
+
+/** A POST that landed but whose item stays or has gone: nothing to tell the reader yet. */
+const NOT_DONE = Symbol('not done');
+
+/**
+ * The answer to a POST that landed, with whatever was revised while it was out
+ * sent after it. `NOT_DONE`: a change couldn't be sent, so the item goes on
+ * waiting and the next pass carries it; or it was taken back meanwhile, and
+ * what the press made has been set aside again. (`null` is a real answer: a
+ * body that wasn't JSON, from a door that kept the highlight.)
+ */
+async function landed(item: QueuedHighlight, answer: unknown): Promise<unknown> {
+	const a = answer as RowAnswer | null;
+	const id = a?.highlight?.id;
+	let posted = item;
+	let row = a?.highlight;
+	// Bounded: each round needs the reader to have typed during the last PATCH.
+	for (let round = 0; round < 4; round++) {
+		const latest = await store.get(item.key).catch(() => undefined);
+		if (!latest) {
+			// The item went while its POST was out. Two meanings, and only one of
+			// them is a DELETE: DON'T SEND or DELETE takes back what this POST made
+			// (`made: true`), while a press covering it (`supersedeHighlight`) has
+			// had this row folded into the covering one, whose id it kept.
+			const covered = superseded.get(item.key) === item.at;
+			superseded.delete(item.key);
+			if (!covered && id && a?.made)
+				await fetch(rowUrl(item, id), { method: 'DELETE' }).catch(() => undefined);
+			return NOT_DONE;
+		}
+		// The item is here: whatever a record said of this key is an older item's.
+		superseded.delete(item.key);
+		if (!id || !row) return answer;
+		const patch = unsaid(posted, latest, row);
+		if (Object.keys(patch).length === 0) break;
+		const ok = await fetch(rowUrl(item, id), {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(patch)
+		}).then(
+			(r) => r.ok,
+			() => false
+		);
+		if (!ok) return NOT_DONE;
+		posted = latest;
+		row = { ...row, ...patch };
+	}
+	return { ...a, highlight: row };
+}
+
 async function sendAll(): Promise<void> {
-	const sent: QueueChange['sent'] = [];
 	const refused: QueuedHighlight[] = [];
 	let moved = false;
-	for (const item of await waitingHighlights()) {
-		if (item.after && Date.now() < item.after) continue;
-		// Taken back since the list was read.
-		if (!(await store.get(item.key).catch(() => undefined))) continue;
+	for (const listed of await waitingHighlights()) {
+		if (listed.after && Date.now() < listed.after) continue;
+		// Read again: taken back or revised since the list was.
+		const item = await store.get(listed.key).catch(() => undefined);
+		if (!item || item.refused) continue;
 		let status: number | null;
 		let answer: unknown = null;
 		try {
@@ -247,25 +496,59 @@ async function sendAll(): Promise<void> {
 			status = null;
 		}
 		const a = arrival(status, item.tries);
-		if (a.do === 'stop') break;
+		if (a.do === 'stop') {
+			// A taken-back item is gone, and nothing will ever read its record: this
+			// POST's own end is the last chance to clear it.
+			superseded.delete(item.key);
+			break;
+		}
 		moved = true;
 		if (a.do === 'sent') {
+			const told = await landed(item, answer);
+			if (told === NOT_DONE) continue;
 			await store.remove(item.key).catch(() => undefined);
-			sent.push({ item, answer });
+			remembered.delete(item.key);
+			// At once and not at the pass's end: the reader's copy stops being `waiting`
+			// the moment its row in the store does, so a late note finds the real row.
+			changed([{ item, answer: told }]);
 			continue;
 		}
 		// DON'T SEND during the POST: writing the answer down would bring it back.
-		if (!(await store.get(item.key).catch(() => undefined))) continue;
+		const latest = await store.get(item.key).catch(() => undefined);
+		if (!latest) {
+			superseded.delete(item.key);
+			remembered.delete(item.key);
+			continue;
+		}
 		if (a.do === 'later') {
 			const after = Date.now() + SOURCE_WAIT_MS;
-			await store.put({ ...item, tries: item.tries + 1, after }).catch(() => undefined);
+			const later: QueuedHighlight = { ...latest, tries: latest.tries + 1, after };
+			await store.put(later).catch(() => undefined);
+			remember(later);
 		} else {
-			const told = { ...item, refused: a.why };
+			// A join covers the waiting quotes it took in (c702's round 3): a
+			// refusal of the join must not lose them, notes included. Put each
+			// back as `queueHighlight` would (which clears the record its
+			// take-back left) before the join is stored refused. A cover under
+			// the item's own key is the press itself, not something it covers.
+			for (const c of latest.covers ?? []) {
+				if (c.key === item.key) continue;
+				await queueHighlight(c).catch(() => false);
+			}
+			// Nothing to resend, and a quote's body is the book's words: gone with the refusal.
+			const told: QueuedHighlight = {
+				...latest,
+				body: {},
+				covers: undefined,
+				revised: undefined,
+				refused: a.why
+			};
 			await store.put(told).catch(() => undefined);
+			remembered.delete(item.key);
 			refused.push(told);
 		}
 	}
-	if (moved) changed(sent, refused);
+	if (moved) changed([], refused);
 }
 
 type Locks = {

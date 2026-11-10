@@ -263,7 +263,11 @@ test('a wide block opens whole, and an illustration full screen', async ({ page 
 		return !!b && b.x >= 0 && b.x + b.width <= v.width;
 	};
 	for (let i = 0; i < 8 && !(await onScreen()); i++) await forward(page);
-	await expect(page.locator('.wide.code .wlabel')).toHaveText(/^LISTING · \d+ COLUMNS, \d+ SHOWN$/);
+	await expect(page.locator('.wide.code .wlabel')).toHaveText('LISTING');
+	await expect(page.locator('.wide.code .wlabel')).toHaveAttribute(
+		'data-shown',
+		/^· \d+ COLUMNS, \d+ SHOWN$/
+	);
 	await open.click();
 	const view = page.getByRole('dialog', { name: 'Listing' });
 	await expect(view.locator('pre')).toContainText('walk the import descriptors');

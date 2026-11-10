@@ -17,6 +17,55 @@
 	import { flushPending, queuePending } from '$lib/cache/pending';
 	import { entryDocs } from '$lib/epub/epub';
 	import { paragraphAt } from '$lib/japanese/paragraph';
+	import {
+		HOLD_TURN_MS,
+		atPageEnd,
+		barPlace,
+		flatten,
+		bookLocale,
+		joinSpans,
+		ordered,
+		quoteParts,
+		reanchor,
+		quoteSheetHead,
+		quoteSheetLine,
+		wordAround,
+		type AnchorChange,
+		type Colour,
+		type Flat,
+		type KeptQuote,
+		type QuoteBody,
+		type TextSpan
+	} from '$lib/library/highlights';
+	import {
+		MARK_SELECTOR,
+		blockWords,
+		cellAround,
+		copyText,
+		onRect,
+		paintSpan,
+		shiftWord,
+		unpaint,
+		wordsBefore,
+		type BlockWords
+	} from '$lib/reader/text-marks';
+	import {
+		carriedBy,
+		isQuoteKey,
+		onQueueChange,
+		queueHighlight,
+		quoteKey,
+		refusedDetail,
+		refusedHighlights,
+		reviseHighlight,
+		supersedeHighlight,
+		takeBackHighlight,
+		waitingHighlights,
+		dismissRefused,
+		type CoveredHighlight,
+		type NewHighlight,
+		type QueuedHighlight
+	} from '$lib/cache/pending-highlights';
 	import { PHONE_W, type Placement } from '$lib/japanese/panel';
 	import { flushLookups } from '$lib/japanese/lookups';
 	import LookupPanel from '$lib/components/japanese/LookupPanel.svelte';
@@ -78,6 +127,8 @@
 	} from '$lib/reader/text';
 	import { bandTitle, leadLines } from '$lib/reader/start-band';
 	import EntryList from '../../series/[id]/EntryList.svelte';
+	import TextSelection from './TextSelection.svelte';
+	import QuoteSheet from './QuoteSheet.svelte';
 	import TextChrome from './TextChrome.svelte';
 	import TextSheet from './TextSheet.svelte';
 	import TextScreen from './TextScreen.svelte';
@@ -364,6 +415,12 @@
 		}
 	}
 
+	/** A wide block's label as it reads: what it is, and how much of it is hidden. */
+	const wideLabel = (box: Element) => {
+		const label = box.querySelector<HTMLElement>('.wlabel');
+		return [label?.textContent, label?.dataset.shown].filter(Boolean).join(' ');
+	};
+
 	function labelOne(box: HTMLElement) {
 		const body = box.querySelector<HTMLElement>('.wide-body');
 		const inner = body?.firstElementChild as HTMLElement | null;
@@ -374,11 +431,9 @@
 		if (box.classList.contains('code')) {
 			const cols = Math.max(...(inner.textContent ?? '').split('\n').map((l) => l.length));
 			const shown = Math.floor((body.clientWidth - 28) / (inner.scrollWidth / Math.max(1, cols)));
-			label.textContent = cut ? `LISTING · ${cols} COLUMNS, ${shown} SHOWN` : 'LISTING';
+			label.dataset.shown = cut ? `· ${cols} COLUMNS, ${shown} SHOWN` : '';
 		} else {
-			label.textContent = cut
-				? `TABLE · ${inner.scrollWidth}PX, ${body.clientWidth} SHOWN`
-				: 'TABLE';
+			label.dataset.shown = cut ? `· ${inner.scrollWidth}PX, ${body.clientWidth} SHOWN` : '';
 		}
 	}
 
@@ -471,6 +526,7 @@
 		} else {
 			page = onBand ? pages - 1 : onLead ? 0 : pageOf(pos);
 		}
+		placeSelection();
 	}
 
 	/**
@@ -513,6 +569,7 @@
 			if (!(await openFile(entries[i].file)) || !book) return;
 		}
 		switching = null;
+		clearSelection();
 		let ch: Awaited<ReturnType<typeof chapterBlocks>>;
 		try {
 			ch = await chapterBlocks(book.zip, docsOf(book, i), book.images);
@@ -535,6 +592,10 @@
 		atEnd = false;
 		chapter = ch;
 		nextChapter = null;
+		// Nothing of the last chapter's may be read against this one's numbers.
+		quotes = [];
+		goneHere.clear();
+		openId = null;
 		// The blocks container is empty as far as Svelte knows: it only ever holds
 		// the book's text, rebuilt by text-dom.ts, which Svelte never renders.
 		// eslint-disable-next-line svelte/no-dom-manipulating
@@ -544,6 +605,8 @@
 		keptEl?.replaceChildren(...kept);
 		if (vertical && blocksEl) tateChuYoko(blocksEl);
 		watchWide(blocksEl);
+		readWords(ch);
+		void loadMarks(i);
 		finished = false;
 		page = 0;
 		if (pageEl) pageEl.scrollTop = 0;
@@ -621,6 +684,8 @@
 		nextEl?.replaceChildren(...nextChapter.blocks);
 		// Its blocks are numbered from 0 too: only the current chapter answers positions.
 		for (const b of nextChapter.blocks) delete b.dataset.b;
+		// Its highlights are ready for the crossing, so they don't arrive after the text.
+		void fetchQuotes(nextReadable.id).then((q) => quotesOf.set(nextReadable.id, q));
 	}
 
 	// Once only: moving into another volume empties `chapter` too, while its book opens.
@@ -791,6 +856,8 @@
 	 */
 	async function turn(dir: 'next' | 'prev') {
 		if (layout === 'scroll' || !chapter) return;
+		// A swipe, a key or the wheel turns and clears; HOLD TO TURN carries it on (Main 02).
+		if (!carrying) clearSelection();
 		if (turning) {
 			queuedTurn = dir;
 			return;
@@ -934,6 +1001,8 @@
 		text.className = 'kept-text';
 		for (const el of tail) {
 			const copy = el.cloneNode(true) as HTMLElement;
+			// A kept copy is no chapter: no highlight is drawn on it, and no selection.
+			unpaint(copy, `${MARK_SELECTOR}, .sel`);
 			delete copy.dataset.b;
 			copy.removeAttribute('id');
 			for (const n of copy.querySelectorAll<HTMLElement>('[data-b], [id]')) {
@@ -951,6 +1020,7 @@
 
 	function onscroll() {
 		if (!pageEl || layout !== 'scroll') return;
+		placeSelection();
 		// The end page is over the text: what happens under it is not the reader's.
 		if (atEnd) return;
 		const kept = keptHeight();
@@ -1171,8 +1241,16 @@
 	// A book's page is all text, so a tap can't be the lookup's as it is on a
 	// manga page: taps keep turning and showing the controls, and a long press
 	// on a word opens the shared panel, in a column away from it.
-	const japanese = $derived(/^ja\b/i.test(book?.pkg.language ?? ''));
-	type Lookup = { text: string; at: number; n: number; place: Placement };
+	const japanese = $derived(/^ja\b/i.test(bookLocale(book?.pkg.language) ?? ''));
+	type Lookup = {
+		text: string;
+		at: number;
+		n: number;
+		place: Placement;
+		/** Where the paragraph is, for the foot's HIGHLIGHT: its block, and the words before it there. */
+		block: number | null;
+		base: number;
+	};
 	let lookup = $state<Lookup | null>(null);
 	let press: ReturnType<typeof setTimeout> | undefined;
 	/** The long press fired: the finger lifting afterwards isn't a tap. */
@@ -1184,7 +1262,10 @@
 		if (!hit) return;
 		pressed = true;
 		chrome = false;
+		const block = hit.el.closest<HTMLElement>('[data-b]');
 		lookup = {
+			block: block && root === blocksEl ? Number(block.dataset.b) : null,
+			base: block && root === blocksEl ? wordsBefore(block, hit.el) : 0,
 			text: hit.text,
 			at: hit.at,
 			n: hit.n,
@@ -1202,7 +1283,945 @@
 		return () => removeEventListener('online', online);
 	});
 
-	let down: { x: number; y: number } | null = null;
+	// ---- highlights (doc/TEXT-READER.md, "Highlights"; c702) ----------------------------------
+	/** What the bar may keep. A browsing record is on no shelf, and incognito makes none. */
+	const canKeep = $derived(!data.incognito && !data.record);
+	/** Long press and drag select, except on a TV, on the end page and with something over the page. */
+	const selectable = $derived(!tvScreen.current && !atEnd && !!chapter && !failure);
+	const QUOTES_URL = resolve('/api/highlights/quotes');
+	/** A quote on screen; `waiting` is its queue key while it waits on the device (Novel N7). */
+	type Shown = KeptQuote & { waiting?: string };
+	let quotes = $state<Shown[]>([]);
+	/** Rows this chapter has since lost, so a list asked for before that can't bring them back. */
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never drawn
+	const goneHere = new Set<number>();
+	/** A chapter's quotes fetched ahead of its opening (the first with the page, the next in SCROLL). */
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a cache read once per chapter opening
+	const quotesOf = new Map<number, KeptQuote[]>();
+	// svelte-ignore state_referenced_locally
+	quotesOf.set(data.entry.id, data.quotes);
+
+	/** The chapter's words, and the flat text the rules read. Remade as a chapter opens. */
+	let words: BlockWords[] = [];
+	let flat: Flat | null = null;
+	const blockOf = (n: number) => chapter?.blocks[n] ?? null;
+	function readWords(ch: Chapter) {
+		words = ch.blocks.map(blockWords);
+		flat = flatten(words.map((w) => w.words));
+	}
+	/** A position, in the words the rules compare. */
+	const toWords = (s: TextSpan): TextSpan => ({
+		block: s.block,
+		offset: words[s.block]?.wordsAt(s.offset) ?? s.offset,
+		endBlock: s.endBlock,
+		endOffset: words[s.endBlock]?.wordsAt(s.endOffset) ?? s.endOffset
+	});
+	/** And back: a place in the words, as the reader's own position. */
+	const toFull = (s: TextSpan): TextSpan => ({
+		block: s.block,
+		offset: words[s.block]?.fullAt(s.offset) ?? s.offset,
+		endBlock: s.endBlock,
+		endOffset: (words[s.endBlock]?.fullAt(s.endOffset - 1) ?? s.endOffset - 1) + 1
+	});
+
+	const fetchQuotes = (id: number): Promise<KeptQuote[]> =>
+		fetch(`${QUOTES_URL}?entry=${id}`)
+			.then((r) => (r.ok ? (r.json() as Promise<{ quotes: KeptQuote[] }>) : { quotes: [] }))
+			.then((j) => j.quotes)
+			.catch(() => []);
+
+	/** Bumped as each chapter opens, so an answer for an older one is dropped. */
+	let marksLoad = 0;
+	/** The chapter on screen has opened: re-find what it holds, say what moved, and draw. */
+	async function loadMarks(i: number) {
+		const load = ++marksLoad;
+		const id = entries[i].id;
+		const list = quotesOf.get(id) ?? (await fetchQuotes(id));
+		quotesOf.delete(id);
+		// A newer chapter opened while this one's were on their way.
+		if (load !== marksLoad) return;
+		const waiting = (await waitingHighlights()).filter((i) => isQuoteKey(i.key) && i.entry === id);
+		if (load !== marksLoad) return;
+		const fresh = anchored(list, id).filter((q) => !goneHere.has(q.id));
+		// Made while this list was out: `quotes` was emptied as the chapter opened, so all of it is this chapter's.
+		const pressed = quotes.filter((q) => !fresh.some((f) => f.id === q.id));
+		const drawn = new Set(pressed.map((q) => q.waiting));
+		quotes = [
+			...fresh,
+			...pressed,
+			...waiting
+				.filter((i) => !drawn.has(i.key))
+				.map((i): Shown => ({ ...(i.body as KeptQuote), id: nextTemp--, waiting: i.key }))
+		];
+		drawMarks();
+	}
+
+	/** Every quote against the words as they are now (Main 05); what changed is told, not asked. */
+	function anchored(list: KeptQuote[], id: number): KeptQuote[] {
+		if (!flat) return list;
+		const changes: AnchorChange[] = [];
+		const next = list.map((q): KeptQuote => {
+			const found = reanchor(flat!, { ...q, ...toWords(q) });
+			if (found.state === 'detached') {
+				if (q.state !== 'detached') changes.push({ id: q.id, state: 'detached' });
+				return { ...q, state: 'detached' };
+			}
+			const span = toFull(found.span);
+			if (!found.moved && q.state === 'ok') return q;
+			changes.push({ id: q.id, state: 'ok', ...span });
+			return { ...q, ...span, state: 'ok' };
+		});
+		// Incognito moves nothing; offline, the next open finds the same thing again.
+		if (changes.length && !data.incognito && offline.online)
+			void fetch(QUOTES_URL, {
+				method: 'PUT',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ entry: id, changes })
+			}).catch(() => undefined);
+		return next;
+	}
+
+	function makeMark(q: KeptQuote) {
+		const el = document.createElement('span');
+		el.className = `mk ${q.colour}`;
+		el.dataset.h = String(q.id);
+		return el;
+	}
+
+	/** The markers, from `quotes`. The selection is painted over them, so it is painted again. */
+	function drawMarks() {
+		if (!blocksEl) return;
+		unpaint(blocksEl, `${MARK_SELECTOR}, .sel`);
+		for (const q of quotes) {
+			if (q.state !== 'ok') continue;
+			const pieces = paintSpan(blockOf, q, () => makeMark(q));
+			if (!q.note.trim() || pieces.length === 0) continue;
+			// A note's cell after the last word; empty, so a block's text doesn't change.
+			const cell = document.createElement('span');
+			cell.className = 'nm';
+			cell.dataset.h = String(q.id);
+			cell.setAttribute('aria-hidden', 'true');
+			pieces[pieces.length - 1].after(cell);
+		}
+		if (selection) paintSelection();
+	}
+
+	let selection = $state<TextSpan | null>(null);
+	/** Where the bar and the handles stand; null while a selection has no line on this page. */
+	let selGeom = $state<{
+		bar: { left: number; top: number } | null;
+		start: { x: number; y: number; h: number } | null;
+		end: { x: number; y: number; h: number } | null;
+	} | null>(null);
+	let barWidth = 320;
+	let handleDragging = $state(false);
+	let copied = $state(false);
+	let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function paintSelection() {
+		if (!blocksEl || !selection) return;
+		unpaint(blocksEl, '.sel');
+		paintSpan(blockOf, selection, () => {
+			const el = document.createElement('span');
+			el.className = 'sel';
+			return el;
+		});
+	}
+
+	function setSelection(span: TextSpan | null) {
+		selection = span;
+		if (blocksEl) unpaint(blocksEl, '.sel');
+		if (span) paintSelection();
+		placeSelection();
+	}
+
+	function clearSelection() {
+		if (!selection && !selGeom) return;
+		setSelection(null);
+		copied = false;
+		stopHold();
+	}
+
+	function placeSelection() {
+		if (!selection || !blocksEl || !pageEl) {
+			selGeom = null;
+			return;
+		}
+		const box = pageEl.getBoundingClientRect();
+		const rects = [...blocksEl.querySelectorAll<HTMLElement>('.sel')].flatMap((p) => [
+			...p.getClientRects()
+		]);
+		const here = (r: DOMRect) => {
+			const cx = r.left + r.width / 2;
+			const cy = r.top + r.height / 2;
+			return cx >= box.left && cx <= box.right && cy >= box.top && cy <= box.bottom;
+		};
+		const shown = rects.filter(here);
+		const first = shown[0];
+		if (!first) {
+			selGeom = { bar: null, start: null, end: null };
+			return;
+		}
+		const a = rects[0];
+		const b = rects[rects.length - 1];
+		const lineH = (r: DOMRect) => (vertical ? r.width : r.height);
+		const at = (r: DOMRect, end: boolean) => ({
+			x: vertical ? r.left + r.width / 2 : end ? r.right : r.left,
+			y: end ? (vertical ? r.bottom : r.bottom) : r.top,
+			h: lineH(r)
+		});
+		selGeom = {
+			bar:
+				selecting || handleDragging
+					? null
+					: barPlace(first, { w: innerWidth, h: innerHeight }, barWidth, vertical),
+			start: here(a) ? at(a, false) : null,
+			end: here(b) ? at(b, true) : null
+		};
+	}
+
+	/** The character under the press, or nothing when the press isn't on the words. */
+	function onText(x: number, y: number) {
+		const p = positionAt(x, y);
+		return !!p && !!flowEl && onRect(rectOf(flowEl, p), x, y);
+	}
+
+	/** A long press selects the word (Novel N1). */
+	function selectWordAt(x: number, y: number) {
+		const p = positionAt(x, y);
+		const w = p && words[p.block];
+		if (!p || !w) return;
+		const at = w.wordsAt(p.offset);
+		const language = book?.pkg.language || undefined;
+		// A table's cells have nothing between them, so a cell is what a word can't leave.
+		const cell = chapter ? cellAround(chapter.blocks[p.block], at) : null;
+		const word = cell
+			? shiftWord(wordAround(w.words.slice(cell.start, cell.end), at - cell.start, language), cell)
+			: wordAround(w.words, at, language);
+		if (!word) return;
+		pressed = true;
+		chrome = false;
+		setSelection({
+			block: p.block,
+			offset: w.fullAt(word.start),
+			endBlock: p.block,
+			endOffset: w.fullAt(word.end - 1) + 1
+		});
+	}
+
+	// A drag with a mouse, or a handle: the fixed end and where the other is now.
+	type DragSelect = { anchor: { block: number; offset: number } };
+	let selecting: DragSelect | null = null;
+	let lastPoint = { x: 0, y: 0 };
+
+	function extendTo(anchor: DragSelect['anchor'], x: number, y: number) {
+		const p = positionAt(x, y);
+		if (!p) return;
+		const s = ordered(anchor, p);
+		if (s.block !== s.endBlock || s.offset !== s.endOffset) setSelection(s);
+	}
+
+	// HOLD TO TURN (Main 02, A SELECTION CROSSES THE PAGE'S END; Novel N3). Paged, a
+	// handle or a mouse held at the page's end shows the cue and after 0.6 s the page
+	// turns under it and the selection carries on; never into the next chapter, where
+	// positions stop. SCROLL just scrolls as the handle nears the bottom.
+	let holdCue = $state(false);
+	let holdTimer: ReturnType<typeof setTimeout> | undefined;
+	let carrying = false;
+	let autoScrollFrame = 0;
+	let carryAnchor: DragSelect['anchor'] | null = null;
+	const AUTOSCROLL_ZONE = 64;
+	const AUTOSCROLL_PX = 8;
+
+	function stopHold() {
+		clearTimeout(holdTimer);
+		holdTimer = undefined;
+		holdCue = false;
+		if (autoScrollFrame) cancelAnimationFrame(autoScrollFrame);
+		autoScrollFrame = 0;
+	}
+
+	function holdCheck(anchor: DragSelect['anchor'], forward: boolean) {
+		const { x, y } = lastPoint;
+		carryAnchor = anchor;
+		if (layout === 'scroll') {
+			if (!autoScrollFrame) autoScrollFrame = requestAnimationFrame(autoScroll);
+			return;
+		}
+		const atEndOfPage =
+			forward &&
+			!turning &&
+			pageThat('next') &&
+			atPageEnd({ x, y }, { w: innerWidth, h: innerHeight }, { rtl, vertical });
+		if (!atEndOfPage) {
+			clearTimeout(holdTimer);
+			holdTimer = undefined;
+			holdCue = false;
+			return;
+		}
+		if (holdTimer !== undefined) return;
+		holdCue = true;
+		holdTimer = setTimeout(async () => {
+			holdTimer = undefined;
+			holdCue = false;
+			carrying = true;
+			await turn('next');
+			carrying = false;
+			// Whatever the finger is over now, the selection reaches the new page: its
+			// first character, at least, or it would end on a page no longer on screen.
+			const first = positionOnPage();
+			const box = pageEl?.getBoundingClientRect();
+			const onPage =
+				!!box &&
+				lastPoint.x >= box.left &&
+				lastPoint.x <= box.right &&
+				lastPoint.y >= box.top &&
+				lastPoint.y <= box.bottom;
+			if (onPage && onText(lastPoint.x, lastPoint.y)) extendTo(anchor, lastPoint.x, lastPoint.y);
+			else if (first) carryTo(anchor, first);
+			if (selecting || handleDragging) holdCheck(anchor, forward);
+		}, HOLD_TURN_MS);
+	}
+
+	/** A selection held over a turn reaches at least the first word of the page turned to. */
+	function carryTo(anchor: DragSelect['anchor'], first: TextPosition) {
+		for (let b = first.block; b < words.length; b++) {
+			const w = words[b];
+			const at = b === first.block ? w.wordsAt(first.offset) : 0;
+			const i = at + w.words.slice(at).search(/\S/);
+			if (i >= at && w.words.slice(at).search(/\S/) >= 0) {
+				setSelection(ordered(anchor, { block: b, offset: w.fullAt(i) + 1 }));
+				return;
+			}
+		}
+	}
+
+	function autoScroll() {
+		autoScrollFrame = 0;
+		if (!pageEl || !carryAnchor || !(selecting || handleDragging)) return;
+		const { x, y } = lastPoint;
+		const down = y >= innerHeight - AUTOSCROLL_ZONE;
+		const up = y <= AUTOSCROLL_ZONE;
+		if (!down && !up) return;
+		pageEl.scrollTop += down ? AUTOSCROLL_PX : -AUTOSCROLL_PX;
+		extendTo(carryAnchor, x, y);
+		autoScrollFrame = requestAnimationFrame(autoScroll);
+	}
+
+	/** A handle is taken: the other end stays and this one follows the finger. */
+	function handleDown(edge: 'start' | 'end', e: PointerEvent) {
+		if (!selection) return;
+		e.preventDefault();
+		const s = selection;
+		const anchor =
+			edge === 'start'
+				? { block: s.endBlock, offset: s.endOffset }
+				: { block: s.block, offset: s.offset };
+		const id = e.pointerId;
+		handleDragging = true;
+		lastPoint = { x: e.clientX, y: e.clientY };
+		const move = (ev: PointerEvent) => {
+			if (ev.pointerId !== id) return;
+			lastPoint = { x: ev.clientX, y: ev.clientY };
+			extendTo(anchor, ev.clientX, ev.clientY);
+			holdCheck(anchor, edge === 'end');
+		};
+		const done = (ev: PointerEvent) => {
+			if (ev.pointerId !== id) return;
+			removeEventListener('pointermove', move);
+			removeEventListener('pointerup', done);
+			removeEventListener('pointercancel', done);
+			handleDragging = false;
+			stopHold();
+			placeSelection();
+		};
+		addEventListener('pointermove', move);
+		addEventListener('pointerup', done);
+		addEventListener('pointercancel', done);
+		placeSelection();
+	}
+
+	// ---- keeping one: HIGHLIGHT, NOTE, H and N ----------------------------------------------
+	const COLOUR_KEY = 'tsundoku.text.colour';
+	let colour = $state<Colour>('yellow');
+	onMount(() => {
+		colour = stored<Colour>(COLOUR_KEY, 'yellow');
+	});
+
+	let nextTemp = -1;
+	/** How a press's trip ended: its row, or that the workstation couldn't be reached. */
+	type Sent = { row: KeptQuote | null; unreachable: boolean };
+	/** What's kept while its POST is on its way: its id then is its own, its answer the row's. */
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never drawn
+	const inFlight = new Map<number, Promise<Sent>>();
+	/** A temp's row once it has one, for what outlives the answer: a sheet's draft, a band. */
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never drawn
+	const settledAs = new Map<number, number>();
+	/** DELETE pressed while its POST was out: that POST's end mustn't bring it back. */
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never drawn
+	const deletedInFlight = new Set<number>();
+	/** Saved highlights a press took in, put back if the press doesn't take. */
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never drawn
+	const joinedBy = new Map<number, Shown[]>();
+	/**
+	 * Waiting quotes a press took in. A refusal restores only saved rows, and the
+	 * device no longer holds these (`supersedeHighlight` removed them), so they
+	 * are kept here until the press has an answer.
+	 */
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never drawn
+	const joinedWaiting = new Map<number, Shown[]>();
+	/**
+	 * What the device wrote for a temp just before its DELETE: `takeBackHighlight`
+	 * clears `remembered` for the item's own key, so the in-flight UNDO's only
+	 * copy of what an exact re-press carried is the item the take-back returned.
+	 */
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never drawn
+	const takenInFlight = new Map<number, QueuedHighlight>();
+
+	/** The quote as it is now: a temp that has been answered is its row. */
+	function currentOf(held: Shown): Shown {
+		const id = settledAs.get(held.id) ?? held.id;
+		const now = quotes.find((q) => q.id === id);
+		if (now) return now;
+		return id === held.id ? held : { ...held, id, waiting: undefined };
+	}
+
+	/**
+	 * Keep a span, and answer the highlight it became. Every door comes here
+	 * (the bar, H and N, the lookup panel's foot), and this is where a selection
+	 * overlapping a highlight joins it: the span sent covers them all, and the
+	 * workstation folds what it covers (the oldest's note kept).
+	 */
+	function keepSpan(span: TextSpan, openNote: boolean) {
+		if (!flat || !entry || !canKeep) return;
+		const { span: covered, joined } = joinSpans(
+			span,
+			quotes.filter((q) => q.state === 'ok')
+		);
+		const parts = quoteParts(flat, toWords(covered));
+		if (!parts) return;
+		const place = toFull(parts.span);
+		const oldest = joined[0];
+		// What joined was waiting too: the new item, which covers them, goes in their
+		// place. Superseded, not unwanted: the workstation folds their row into the
+		// join, and its id lives on, so no DELETE is owed for what their POST makes.
+		for (const j of joined) if (j.waiting) void supersedeHighlight(j.waiting);
+		const temp: KeptQuote = {
+			...place,
+			id: nextTemp--,
+			quote: parts.quote,
+			before: parts.before,
+			after: parts.after,
+			paragraph: parts.paragraph,
+			context: parts.context,
+			colour: oldest?.colour ?? colour,
+			// The oldest note there is, as the workstation's fold keeps.
+			note: joined.find((j) => j.note.trim() !== '')?.note ?? '',
+			madeAt: oldest?.madeAt ?? Date.now(),
+			state: 'ok'
+		};
+		quotes = [...quotes.filter((q) => !joined.includes(q)), temp];
+		const saved = joined.filter((j) => !j.waiting);
+		if (saved.length) joinedBy.set(temp.id, saved);
+		const waiting = joined.filter((j) => j.waiting);
+		if (waiting.length) joinedWaiting.set(temp.id, waiting);
+		clearSelection();
+		drawMarks();
+		const body: QuoteBody = { ...temp, entry: entry.id };
+		// Offline too: a DELETE during the device's own write has to find it in flight.
+		const going = offline.online
+			? sendQuote(temp.id, body)
+			: waitOnDevice(temp.id, body).then((): Sent => ({ row: null, unreachable: true }));
+		inFlight.set(
+			temp.id,
+			going.finally(() => inFlight.delete(temp.id))
+		);
+		if (openNote) openHighlight(temp.id, place, true);
+	}
+
+	/**
+	 * Nothing a hidden series' reader must not leave behind goes on the device:
+	 * the item holds the words. Those presses are told the reader needs the
+	 * workstation, as a page's are (c842).
+	 */
+	const mayWait = () => !series.hidden && !data.reveal;
+
+	/**
+	 * What a press at [key] carries for the item that will stand for it: the
+	 * quotes it covers, and what the reader changed of an item whose own span was
+	 * pressed again. Both doors build the same thing — `waitOnDevice` queues it,
+	 * and the DELETE-inside-the-POST door hands it to UNDO — so a re-press keeps
+	 * its inner covers and its `revised` whichever end the press meets. The
+	 * own-span item is read from the take-back the device just made when there is
+	 * one: its `remembered` entry is gone by then.
+	 */
+	function carryFor(
+		id: number,
+		key: string,
+		of: number
+	): { covers: CoveredHighlight[]; revised: string[] } {
+		const covers: CoveredHighlight[] = [];
+		const revised: string[] = [];
+		for (const j of joinedWaiting.get(id) ?? []) {
+			if (!j.waiting) continue;
+			if (j.waiting === key) {
+				// The press is that item's own span again: it is this item, not
+				// something this item covers. What it covered is carried on.
+				const own = takenInFlight.get(id) ?? carriedBy(j.waiting);
+				if (own?.covers?.length) covers.push(...own.covers);
+				for (const field of own?.revised ?? []) if (!revised.includes(field)) revised.push(field);
+				continue;
+			}
+			covers.push(coverOf(j, of));
+		}
+		takenInFlight.delete(id);
+		return { covers, revised };
+	}
+
+	/** The workstation can't be reached: it waits on the device, drawn, and `waiting` says so. */
+	async function waitOnDevice(id: number, body: QuoteBody) {
+		if (deletedInFlight.has(id)) return;
+		if (!mayWait()) {
+			// A third end that leaves no row and no queue item: a reader that may
+			// no longer queue still owes the quotes the press took in their place.
+			restoreJoinedWaiting(id, body.entry);
+			settleQuote(id, null, [], body.entry);
+			say('○ OFFLINE · HIGHLIGHT NEEDS THE WORKSTATION');
+			return;
+		}
+		const key = quoteKey(body.entry, body.block, body.offset, body.endBlock, body.endOffset);
+		// What this press took in waits inside its own item, so a refusal of that
+		// item can put them back (a refusal the page may not be open to hear).
+		const { covers, revised } = carryFor(id, key, body.entry);
+		const queued = await queueHighlight({
+			key,
+			url: QUOTES_URL,
+			body: body as unknown as Record<string, unknown>,
+			entry: body.entry,
+			label: `¶ ${body.block + 1}`,
+			...(covers.length ? { covers } : {}),
+			...(revised.length ? { revised } : {})
+		});
+		if (!queued) {
+			// The browser won't keep it: nothing here may claim that it waits.
+			restoreJoinedWaiting(id, body.entry);
+			settleQuote(id, null, [], body.entry);
+			say('NOT KEPT · THE WORKSTATION DID NOT ANSWER');
+			return;
+		}
+		// Deleted while the device was writing it down: the item goes, but what it
+		// covered stays in `joinedWaiting`, the one copy left. `deleteQuote`'s
+		// in-flight door reads it there and deletes it, so its UNDO is DELETE's
+		// inverse here too, covers and all.
+		if (deletedInFlight.has(id)) {
+			const taken = await takeBackHighlight(key);
+			// The take-back cleared `remembered` for the item's own key: keep it
+			// for the door's UNDO, which builds the same carry `waitOnDevice` did.
+			if (taken) takenInFlight.set(id, taken);
+			return;
+		}
+		// The join is the item now: what it covered waits inside it, not beside it.
+		joinedWaiting.delete(id);
+		quotes = quotes.map((q) => (q.id === id ? { ...q, waiting: key } : q));
+	}
+
+	/**
+	 * Whichever is showing now as `id`, replaced by what the workstation says of
+	 * it. `of` is the entry the press was made on: an answer for a chapter no
+	 * longer on screen is a row that is right where it is, and nothing to draw here.
+	 */
+	function settleQuote(id: number, q: KeptQuote | null, folded: number[], of: number) {
+		const joined = joinedBy.get(id) ?? [];
+		joinedBy.delete(id);
+		joinedWaiting.delete(id);
+		if (q) settledAs.set(id, q.id);
+		if (of !== entry?.id) return;
+		for (const row of folded) goneHere.add(row);
+		if (openId === id) {
+			openId = q?.id ?? null;
+			if (q) openNoteFocus = false;
+		}
+		const gone = new Set([...folded, id]);
+		quotes = q
+			? [...quotes.filter((x) => !gone.has(x.id) && x.id !== q.id), q]
+			: [...quotes.filter((x) => !gone.has(x.id)), ...(deletedInFlight.has(id) ? [] : joined)];
+		drawMarks();
+	}
+
+	/**
+	 * What a waiting quote was, for the press that covers it (c702's round 3).
+	 * The drawn quote is the body: the device's copy was taken back with the
+	 * press, and a note or colour typed then is on the drawn quote. What the
+	 * queue last knew of it adds the fields only the item has — what the reader
+	 * changed while it waited, and anything that item itself covered.
+	 */
+	function coverOf(j: Shown, of: number): NewHighlight {
+		const key = j.waiting!;
+		const body: Shown = { ...j };
+		delete body.waiting;
+		const carried = carriedBy(key);
+		return {
+			key,
+			url: QUOTES_URL,
+			body: { ...body, entry: of } as unknown as Record<string, unknown>,
+			entry: of,
+			label: `¶ ${j.block + 1}`,
+			revised: carried?.revised,
+			covers: carried?.covers
+		};
+	}
+
+	/**
+	 * A join the workstation refused took each waiting quote it covered off the
+	 * device first (`keepSpan`), and the refusal restores only saved rows. Put
+	 * them back, each under its own body and key, as the UNDO band's re-queue
+	 * does, and draw it waiting again. A join deleted in flight is wanted gone,
+	 * so its quotes stay taken back.
+	 */
+	function restoreJoinedWaiting(id: number, of: number) {
+		const joined = joinedWaiting.get(id) ?? [];
+		joinedWaiting.delete(id);
+		if (deletedInFlight.has(id)) return;
+		for (const j of joined) {
+			if (!j.waiting) continue;
+			const cover = coverOf(j, of);
+			void queueHighlight(cover).then((queued) => {
+				if (queued) putBack({ ...j, waiting: cover.key }, of);
+			});
+		}
+	}
+
+	/** Band's say-so for a press that didn't take, and marks taken back. */
+	async function sendQuote(id: number, body: QuoteBody): Promise<Sent> {
+		try {
+			const res = await fetch(QUOTES_URL, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body)
+			});
+			if (!res.ok) {
+				restoreJoinedWaiting(id, body.entry);
+				settleQuote(id, null, [], body.entry);
+				if (!deletedInFlight.has(id))
+					say(`NOT KEPT · ${refusedDetail(res.status === 404 ? 'gone' : 'refused')}`);
+				return { row: null, unreachable: false };
+			}
+			const j = (await res.json()) as { highlight: KeptQuote; folded: number[] };
+			// Deleted on its way: the row is DELETE's now, and it isn't drawn again.
+			settleQuote(id, deletedInFlight.has(id) ? null : j.highlight, j.folded, body.entry);
+			return { row: j.highlight, unreachable: false };
+		} catch {
+			// The device says it's online and the workstation didn't answer (c842).
+			await waitOnDevice(id, body);
+			return { row: null, unreachable: true };
+		}
+	}
+
+	// Sent, or refused, from any page of the app: the layout's flush is what sends.
+	onMount(() => {
+		const tellRefused = async () => {
+			const refused = (await refusedHighlights()).filter((i) => isQuoteKey(i.key));
+			if (refused.length === 0) return;
+			const keys = refused.map((i) => i.key);
+			say(
+				`${refused.length === 1 ? `${refused[0].label} NOT KEPT` : `${refused.length} HIGHLIGHTS NOT KEPT`} · ${refusedDetail(refused[0].refused ?? 'refused')}`,
+				'DISMISS',
+				() => {
+					hlBand = null;
+					void dismissRefused(keys);
+				}
+			);
+		};
+		void tellRefused();
+		return onQueueChange(({ sent, refused }) => {
+			const mine = entry?.id;
+			for (const { item, answer } of sent) {
+				if (!isQuoteKey(item.key) || item.entry !== mine) continue;
+				const made = (answer as { highlight?: KeptQuote; folded?: number[] } | null)?.highlight;
+				const showing = quotes.find((q) => q.waiting === item.key);
+				if (showing && made)
+					settleQuote(showing.id, made, (answer as { folded?: number[] }).folded ?? [], item.entry);
+			}
+			if (refused.some((i) => isQuoteKey(i.key) && i.entry === mine)) {
+				const gone = quotes.filter((q) => refused.some((i) => i.key === q.waiting));
+				for (const q of gone) {
+					joinedBy.delete(q.id);
+					joinedWaiting.delete(q.id);
+				}
+				quotes = quotes.filter((q) => !gone.includes(q));
+				drawMarks();
+				// A refused join puts back the waiting quotes it covered: read them
+				// from the device and draw them waiting again.
+				if (entry) void loadMarks(index);
+			}
+			if (refused.some((i) => isQuoteKey(i.key))) void tellRefused();
+		});
+	});
+
+	// ---- the open highlight's sheet (Novel N5, D2) --------------------------------------------
+	let openId = $state<number | null>(null);
+	let openNoteFocus = $state(false);
+	let sheetSide = $state<'left' | 'right'>('right');
+	const openQuote = $derived(
+		openId === null ? null : (quotes.find((q) => q.id === openId) ?? null)
+	);
+	/** The open sheet's quote, kept past its closing: a draft still has to reach it. */
+	let heldQuote: Shown | null = null;
+	$effect.pre(() => {
+		if (openQuote) heldQuote = openQuote;
+	});
+	let quoteCopied = $state(false);
+
+	function openHighlight(id: number, at: TextSpan | null, focusNote: boolean) {
+		const r = at && flowEl ? rectOf(flowEl, { block: at.block, offset: at.offset }) : null;
+		sheetSide = r && r.left + r.width / 2 < innerWidth / 2 ? 'right' : 'left';
+		openId = id;
+		openNoteFocus = focusNote;
+		quoteCopied = false;
+		chrome = false;
+	}
+
+	function changeQuote(id: number, patch: Partial<Shown>) {
+		quotes = quotes.map((q) => (q.id === id ? { ...q, ...patch } : q));
+		drawMarks();
+	}
+
+	async function patchQuote(held: Shown, body: Record<string, string>): Promise<boolean> {
+		let q = currentOf(held);
+		// On its way: it will have a row, or a place in the queue, when that's over.
+		if (q.id < 0 && !q.waiting) {
+			await inFlight.get(q.id);
+			q = currentOf(held);
+		}
+		if (q.waiting) {
+			if (await reviseHighlight(q.waiting, body)) return true;
+			// Sent in the moment: the row is what's left to change.
+			q = currentOf(held);
+			if (q.waiting) return false;
+		}
+		if (q.id < 0) return false;
+		try {
+			const res = await fetch(resolve('/api/highlights/[id]', { id: String(q.id) }), {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body)
+			});
+			return res.ok;
+		} catch {
+			return false;
+		}
+	}
+
+	async function saveNote(held: Shown, note: string): Promise<boolean> {
+		const ok = await patchQuote(held, { note });
+		if (ok) changeQuote(currentOf(held).id, { note: note.trim() });
+		return ok;
+	}
+
+	/** Counts colour presses, so only the last one's failure speaks for what's on screen. */
+	let colourPresses = 0;
+	/** The colour the workstation last agreed to, across presses still out. */
+	let colourSure: Colour | null = null;
+
+	async function setColour(held: Shown, c: Colour) {
+		const press = ++colourPresses;
+		colourSure ??= currentOf(held).colour;
+		colour = c;
+		store(COLOUR_KEY, c);
+		changeQuote(currentOf(held).id, { colour: c });
+		const ok = await patchQuote(held, { colour: c });
+		if (ok && colourSure !== null) colourSure = c;
+		if (press !== colourPresses) return;
+		const sure = colourSure ?? c;
+		colourSure = null;
+		if (ok) return;
+		changeQuote(currentOf(held).id, { colour: sure });
+		say('COLOUR NOT CHANGED · THE WORKSTATION DID NOT ANSWER');
+	}
+
+	async function copyQuote(q: KeptQuote) {
+		quoteCopied = await copyText(q.quote);
+	}
+
+	// HIGHLIGHT DELETED · UNDO (Novel N6): the app's band, at once, and six seconds to take it back.
+	type Band = { text: string; label?: string; act?: () => void };
+	let hlBand = $state<Band | null>(null);
+	let hlBandTimer: ReturnType<typeof setTimeout> | undefined;
+	const UNDO_BAND_MS = 6000;
+
+	function say(text: string, label?: string, act?: () => void) {
+		clearTimeout(hlBandTimer);
+		hlBand = { text, label, act };
+		hlBandTimer = setTimeout(() => (hlBand = null), UNDO_BAND_MS);
+	}
+
+	/** Back on the page it was taken off, unless the reader has since left that chapter. */
+	function putBack(q: Shown, of: number) {
+		if (of !== entry?.id) return;
+		goneHere.delete(q.id);
+		quotes = [...quotes.filter((x) => x.id !== q.id), q];
+		drawMarks();
+	}
+
+	/**
+	 * Nothing the workstation holds was touched, so UNDO waits on the device
+	 * again, as the entry it was pressed on: the band outlives a chapter's turn.
+	 * `carried` is what the DELETE took off the item — what it covered and what
+	 * the reader had changed of it — so the UNDO puts back all of it, not a
+	 * body rebuilt from the page that cannot say what waited inside it.
+	 */
+	function offerRequeue(
+		q: Shown,
+		of: number,
+		carried?: { covers?: CoveredHighlight[]; revised?: string[] }
+	) {
+		if (!mayWait()) {
+			say('HIGHLIGHT DELETED');
+			return;
+		}
+		const key = quoteKey(of, q.block, q.offset, q.endBlock, q.endOffset);
+		const body: Shown = { ...q };
+		delete body.waiting;
+		say('HIGHLIGHT DELETED', 'UNDO', () => {
+			hlBand = null;
+			void queueHighlight({
+				key,
+				url: QUOTES_URL,
+				body: { ...body, entry: of } as unknown as Record<string, unknown>,
+				entry: of,
+				label: `¶ ${q.block + 1}`,
+				...(carried?.covers?.length ? { covers: carried.covers } : {}),
+				...(carried?.revised?.length ? { revised: carried.revised } : {})
+			}).then((queued) => {
+				if (queued) putBack({ ...q, waiting: key }, of);
+				else say('NOT BROUGHT BACK · THE WORKSTATION DID NOT ANSWER');
+			});
+		});
+	}
+
+	async function deleteQuote(q: Shown) {
+		const of = entry?.id ?? 0;
+		openId = null;
+		quotes = quotes.filter((x) => x.id !== q.id);
+		goneHere.add(q.id);
+		drawMarks();
+		// Deleted before it was sent: nothing was asked of the workstation (Novel N7).
+		if (q.waiting) {
+			// The take-back hands back what the item was: the UNDO puts all of it back.
+			const taken = await takeBackHighlight(q.waiting);
+			offerRequeue(q, of, { covers: taken?.covers, revised: taken?.revised });
+			return;
+		}
+		// Its POST is still out: that POST's own end is what decides what's left to do.
+		let trip: Sent | undefined;
+		if (q.id < 0 && inFlight.has(q.id)) {
+			deletedInFlight.add(q.id);
+			trip = await inFlight.get(q.id);
+			deletedInFlight.delete(q.id);
+		}
+		const id = q.id > 0 ? q.id : (trip?.row?.id ?? settledAs.get(q.id) ?? null);
+		if (id === null) {
+			if (trip?.unreachable) {
+				// The press went to the device, but the DELETE came first: `waitOnDevice`
+				// returned without putting what it carried on an item, so the reader's
+				// map still holds it (and, for a write already made, a take-back does).
+				// UNDO carries exactly what the queue would have.
+				const key = quoteKey(of, q.block, q.offset, q.endBlock, q.endOffset);
+				const carried = carryFor(q.id, key, of);
+				joinedWaiting.delete(q.id);
+				offerRequeue(q, of, {
+					covers: carried.covers.length ? carried.covers : undefined,
+					revised: carried.revised.length ? carried.revised : undefined
+				});
+			} else say('HIGHLIGHT DELETED');
+			return;
+		}
+		const ok = await fetch(resolve('/api/highlights/[id]', { id: String(id) }), {
+			method: 'DELETE'
+		}).then(
+			(r) => r.ok,
+			() => false
+		);
+		if (!ok) {
+			putBack({ ...q, id, waiting: undefined }, of);
+			say('NOT DELETED · THE WORKSTATION DID NOT ANSWER');
+			return;
+		}
+		if (of === entry?.id) goneHere.add(id);
+		say('HIGHLIGHT DELETED', 'UNDO', () => {
+			hlBand = null;
+			void undoDelete(id, q, of);
+		});
+	}
+
+	async function undoDelete(id: number, q: Shown, of: number) {
+		const ok = await fetch(resolve('/api/highlights/[id]', { id: String(id) }), {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ undo: true })
+		}).then(
+			(r) => r.ok,
+			() => false
+		);
+		if (!ok) {
+			say('NOT BROUGHT BACK · THE WORKSTATION DID NOT ANSWER');
+			return;
+		}
+		// Its row and its note, where its words still are.
+		putBack({ ...q, id, waiting: undefined }, of);
+	}
+
+	/** The lookup panel's foot (Novel J2, J3): HIGHLIGHT and NOTE the looked-up word, SELECT MORE. */
+	function footAction(
+		what: 'highlight' | 'note' | 'more',
+		block: number,
+		from: number,
+		to: number
+	) {
+		const span = toFull({ block, offset: from, endBlock: block, endOffset: to });
+		lookup = null;
+		if (what === 'more') setSelection(span);
+		else keepSpan(span, what === 'note');
+	}
+
+	/** The selection's words, for COPY and Ctrl+C: what would be kept. */
+	function selectedWords(): string | null {
+		if (!selection || !flat) return null;
+		return quoteParts(flat, toWords(selection))?.quote ?? null;
+	}
+
+	async function copySelection() {
+		const text = selectedWords();
+		if (text === null) return;
+		copied = await copyText(text);
+		clearTimeout(copiedTimer);
+		copiedTimer = setTimeout(() => (copied = false), 1200);
+	}
+
+	/** LOOK UP: the panel, on the selection's first word. */
+	function lookUpSelection() {
+		if (!selection || !flowEl) return;
+		const { block, offset } = selection;
+		const w = words[block];
+		const r = rectOf(flowEl, { block, offset });
+		if (!w || !r) return;
+		clearSelection();
+		// Built from the selection and not from a point: the bar stands over the words.
+		chrome = false;
+		lookup = {
+			text: w.words,
+			at: w.wordsAt(offset),
+			n: block + 1,
+			block,
+			base: 0,
+			place:
+				innerWidth < PHONE_W
+					? { kind: 'phone', lift: 0 }
+					: { kind: 'side', side: r.left < innerWidth / 2 ? 'right' : 'left' }
+		};
+	}
+
+	let down: { x: number; y: number; text: boolean } | null = null;
 	/** The press's own pointer: a second finger cancels it (c515, src/lib/reader/pointer.ts). */
 	const finger = new OnePointer();
 	function pointerdown(e: PointerEvent) {
@@ -1212,16 +2231,23 @@
 		// A press on the controls, a sheet or an overlay is theirs, not the page's.
 		const t = e.target as HTMLElement;
 		down = t.closest(
-			'header, footer, [role="dialog"], .contents, .scrim, .screen, .loading, [aria-label="Lookup"]'
+			'header, footer, [role="dialog"], .contents, .scrim, .screen, .loading, [aria-label="Lookup"], .sb, .hd, .hl-band'
 		)
 			? null
-			: { x: e.clientX, y: e.clientY };
+			: {
+					x: e.clientX,
+					y: e.clientY,
+					text: selectable && onText(e.clientX, e.clientY)
+				};
 		pressed = false;
 		dragging = false;
 		clearTimeout(press);
 		if (down && japanese && !atEnd) {
 			const { x, y } = down;
 			press = setTimeout(() => lookUpAt(x, y), PRESS_MS);
+		} else if (down?.text) {
+			const { x, y } = down;
+			press = setTimeout(() => selectWordAt(x, y), PRESS_MS);
 		}
 	}
 	/**
@@ -1232,7 +2258,31 @@
 	 */
 	function pointermove(e: PointerEvent) {
 		if (!finger.owns(e)) return;
+		if (selecting) {
+			lastPoint = { x: e.clientX, y: e.clientY };
+			extendTo(selecting.anchor, e.clientX, e.clientY);
+			holdCheck(selecting.anchor, true);
+			return;
+		}
 		if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) clearTimeout(press);
+		// A mouse's drag on the words selects, and never turns a page (Novel D1).
+		if (
+			down?.text &&
+			e.pointerType === 'mouse' &&
+			pointerFine.current &&
+			!lookup &&
+			Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4
+		) {
+			const anchor = positionAt(down.x, down.y);
+			if (anchor) {
+				clearTimeout(press);
+				selecting = { anchor };
+				chrome = false;
+				lastPoint = { x: e.clientX, y: e.clientY };
+				extendTo(anchor, e.clientX, e.clientY);
+				return;
+			}
+		}
 		if (!down || layout === 'scroll' || turning || lookup || atEnd || reduceMotion.current) return;
 		const dx = e.clientX - down.x;
 		const dy = e.clientY - down.y;
@@ -1247,14 +2297,27 @@
 	function dropPress() {
 		finger.end();
 		clearTimeout(press);
+		endDragSelect();
 		down = null;
 		if (dragging) void settleBack();
 		dragging = false;
+	}
+	/** The drag let go: the selection stands and the bar comes up over it. */
+	function endDragSelect() {
+		if (!selecting) return false;
+		selecting = null;
+		stopHold();
+		placeSelection();
+		return true;
 	}
 	function pointerup(e: PointerEvent) {
 		if (!finger.owns(e)) return;
 		finger.end();
 		clearTimeout(press);
+		if (endDragSelect()) {
+			down = null;
+			return;
+		}
 		if (pressed) {
 			pressed = false;
 			down = null;
@@ -1285,11 +2348,19 @@
 		}
 		if (dragged) return void settleBack();
 		if (Math.hypot(dx, dy) > 10) return;
+		// With a selection up a tap anywhere else only clears it (Main 02).
+		if (selection) return clearSelection();
 		if (atEnd) {
 			if (tapAction(e.clientX, window.innerWidth, mode, TEXT_EDGE) === 'prev') prev();
 			return;
 		}
 		const target = e.target as HTMLElement;
+		// A tap on a highlight opens it (Main 02), a note's cell included.
+		const marked = target.closest<HTMLElement>('[data-h]');
+		if (marked && !chrome) {
+			const id = Number(marked.dataset.h);
+			return openHighlight(id, quotes.find((q) => q.id === id) ?? null, false);
+		}
 		// An illustration opens full screen; OPEN opens a wide block.
 		const img = target.closest('figure.illus img') as HTMLImageElement | null;
 		if (img?.src && !chrome) {
@@ -1302,7 +2373,7 @@
 			const inner = box.querySelector('.wide-body')?.firstElementChild;
 			wide = {
 				title: box.classList.contains('code') ? 'Listing' : 'Table',
-				meta: `${series.title.toUpperCase()} · ${short(entry)} · ${box.querySelector('.wlabel')?.textContent ?? ''}`,
+				meta: `${series.title.toUpperCase()} · ${short(entry)} · ${wideLabel(box)}`,
 				html: inner?.outerHTML ?? '',
 				code: box.classList.contains('code')
 			};
@@ -1410,6 +2481,12 @@
 	function keydown(e: KeyboardEvent) {
 		// The lookup, and DELETE's confirmation, have the keyboard (their own Escape).
 		if (lookup || endSheetOpen()) return;
+		if (openQuote) {
+			if (e.key === 'Escape') openId = null;
+			else if (e.key === 'Delete' && !(e.target as HTMLElement).closest?.('textarea, input'))
+				void deleteQuote(openQuote);
+			return;
+		}
 		if (fullImage || wide) {
 			if (e.key === 'Escape') fullImage = wide = null;
 			return;
@@ -1417,6 +2494,31 @@
 		if (sheet || contents) {
 			if (e.key === 'Escape') sheet = contents = false;
 			return;
+		}
+		if (selection) {
+			const key = e.key.toLowerCase();
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				clearSelection();
+				return;
+			}
+			if ((e.ctrlKey || e.metaKey) && key === 'c') {
+				e.preventDefault();
+				void copySelection();
+				return;
+			}
+			if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+				if ((key === 'h' || key === 'n') && canKeep) {
+					e.preventDefault();
+					keepSpan(selection, key === 'n');
+					return;
+				}
+				if (key === 'l' && japanese) {
+					e.preventDefault();
+					lookUpSelection();
+					return;
+				}
+			}
 		}
 		if (e.key === 'Enter' && !e.repeat) {
 			// OK on a TV: the chrome, as it is in the image reader (doc/TV.md).
@@ -1472,6 +2574,14 @@
 	// layer hands it here because this screen reads its own keys.
 	$effect(() =>
 		registerBack(() => {
+			if (selection) {
+				clearSelection();
+				return true;
+			}
+			if (openId !== null) {
+				openId = null;
+				return true;
+			}
 			if (fullImage || wide) {
 				fullImage = wide = null;
 				return true;
@@ -1495,7 +2605,16 @@
 	function wheel(e: WheelEvent) {
 		// Ctrl is the browser's zoom, and a touchpad's pinch.
 		if (e.ctrlKey) return;
-		if (lookup || fullImage || wide || sheet || contents || holdWheelForEndSheet(e)) return;
+		if (
+			lookup ||
+			openId !== null ||
+			fullImage ||
+			wide ||
+			sheet ||
+			contents ||
+			holdWheelForEndSheet(e)
+		)
+			return;
 		if (layout === 'scroll') {
 			// A last chapter too short to scroll never fires onscroll, so the
 			// wheel that would have scrolled it is the one that ends it. The end
@@ -1748,6 +2867,31 @@
 		</div>
 	</div>
 
+	{#if selection && selGeom}
+		<TextSelection
+			bar={selGeom.bar}
+			start={selGeom.start}
+			end={selGeom.end}
+			{vertical}
+			dragging={handleDragging}
+			cue={holdCue}
+			incognito={data.incognito}
+			{canKeep}
+			lookUp={japanese}
+			fine={pointerFine.current}
+			{copied}
+			onwidth={(w) => {
+				barWidth = w;
+				placeSelection();
+			}}
+			onhandle={handleDown}
+			onkeep={() => selection && keepSpan(selection, false)}
+			onnote={() => selection && keepSpan(selection, true)}
+			oncopy={() => void copySelection()}
+			onlookup={lookUpSelection}
+		/>
+	{/if}
+
 	{#if chapter && !chrome && !atEnd}
 		<div
 			class="progress"
@@ -1856,8 +3000,40 @@
 		</div>
 	{/if}
 
+	{#if openQuote && entry}
+		<QuoteSheet
+			head={quoteSheetHead(short(entry) || entry.label, openQuote)}
+			quote={openQuote.quote}
+			colour={openQuote.colour}
+			note={openQuote.note}
+			line={quoteSheetLine(openQuote.madeAt, Date.now())}
+			side={sheetSide}
+			focusNote={openNoteFocus}
+			copied={quoteCopied}
+			waiting={!!openQuote.waiting}
+			onnote={(n) => saveNote(heldQuote ?? openQuote, n)}
+			oncolour={(c) => setColour(openQuote, c)}
+			oncopy={() => void copyQuote(openQuote)}
+			ondelete={() => void deleteQuote(currentOf(heldQuote ?? openQuote))}
+			onclose={() => (openId = null)}
+		/>
+	{/if}
+
+	{#if hlBand}
+		<div class="hl-band appear" out:leave role="status">
+			<span>{hlBand.text}</span>{#if hlBand.act}<button type="button" onclick={hlBand.act}
+					>{hlBand.label}</button
+				>{/if}
+		</div>
+	{/if}
+
 	{#if lookup && entry}
 		<LookupPanel
+			onfoot={lookup.block === null
+				? undefined
+				: (what, from, to) =>
+						footAction(what, lookup!.block!, lookup!.base + from, lookup!.base + to)}
+			{canKeep}
 			text={lookup.text}
 			start={lookup.at}
 			context="{short(entry)} · ¶ {lookup.n}"
@@ -1982,6 +3158,13 @@
 		--pl1: var(--graphite-700);
 		--pl2: var(--graphite-600);
 		--ill: 0.85;
+		/* The marker's three colours and its ink, and a selection's tint: Main 02's own. */
+		--mk-y: oklch(0.5 0.09 95);
+		--mk-o: oklch(0.44 0.1 52);
+		--mk-b: oklch(0.38 0.08 250);
+		--mk-ink: #e8e8e6;
+		--hl-accent: var(--lime-400);
+		--hl-select: oklch(0.86 0.17 125 / 0.24);
 		position: fixed;
 		inset: 0;
 		overflow: hidden;
@@ -2006,6 +3189,12 @@
 		--pl1: var(--paper-200);
 		--pl2: var(--paper-300);
 		--ill: 1;
+		--mk-y: oklch(0.9 0.12 98);
+		--mk-o: oklch(0.85 0.09 62);
+		--mk-b: oklch(0.82 0.06 240);
+		--mk-ink: oklch(0.2 0.01 95);
+		--hl-accent: var(--green-600);
+		--hl-select: oklch(0.52 0.13 150 / 0.22);
 	}
 	.page {
 		position: absolute;
@@ -2035,6 +3224,53 @@
 	 */
 	.text-reader:not(.scroll) {
 		touch-action: pan-y pinch-zoom;
+	}
+	/*
+	 * Novel 02, transcribed. The marker fills the lower two-thirds of the line and
+	 * the words on it go to full ink; a selection tints the whole line. Square
+	 * ends, each line of a run its own band. The 1px each side is drawn outside
+	 * the layout (the negative margin), so a mark never moves the words.
+	 */
+	.flow :global(.mk) {
+		--mc: var(--mk-y);
+		padding: 0 1px;
+		margin: 0 -1px;
+		color: var(--mk-ink);
+		box-shadow: inset 0 -0.66em 0 var(--mc);
+		-webkit-box-decoration-break: clone;
+		box-decoration-break: clone;
+	}
+	.flow :global(.mk.orange) {
+		--mc: var(--mk-o);
+	}
+	.flow :global(.mk.blue) {
+		--mc: var(--mk-b);
+	}
+	.vertical .flow :global(.mk) {
+		box-shadow: inset 0.66em 0 0 var(--mc);
+	}
+	.flow :global(.nm) {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		box-sizing: border-box;
+		width: 17px;
+		height: 17px;
+		margin-inline-start: 3px;
+		vertical-align: 0.15em;
+		border: 1px solid var(--mk-ink);
+		text-indent: 0;
+		font: 500 11px/1 var(--font-mono);
+		color: var(--mk-ink);
+	}
+	.flow :global(.nm::before) {
+		content: '≡';
+	}
+	.flow :global(.sel) {
+		background: var(--hl-select);
+		color: var(--mk-ink);
+		-webkit-box-decoration-break: clone;
+		box-decoration-break: clone;
 	}
 	.kept {
 		pointer-events: none;
@@ -2167,6 +3403,11 @@
 		color: var(--mut);
 		white-space: nowrap;
 		overflow: hidden;
+	}
+	/* What's cut is an attribute, so no position in the block ever counts it. */
+	.flow :global(.wlabel)::after {
+		content: attr(data-shown);
+		margin-left: 0.5em;
 	}
 	.flow :global(.wide .open) {
 		display: none;
@@ -2387,6 +3628,39 @@
 	}
 	.contents.short {
 		top: 120px;
+	}
+	/* Novel N6: the app's band along the foot, while UNDO can still take it back. */
+	.hl-band {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 45;
+		display: flex;
+		align-items: stretch;
+		min-height: 52px;
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+		font: 500 13px/1.3 var(--font-mono);
+		letter-spacing: 0.06em;
+	}
+	.hl-band span {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		padding: 10px 18px;
+	}
+	.hl-band button {
+		display: flex;
+		align-items: center;
+		padding: 0 18px;
+		border: 0;
+		border-left: 1px solid color-mix(in oklab, var(--text-inverse) 35%, transparent);
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		letter-spacing: inherit;
+		cursor: pointer;
 	}
 	.dim {
 		position: absolute;

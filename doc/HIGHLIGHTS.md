@@ -14,13 +14,14 @@ It ships in slices:
 | Slice  | Card | What it adds                                                                                                                                                    |
 | ------ | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **H1** | c701 | The record and its life, the copies' folder and its backup, `/highlights`, the series screen's row, DELETE's and MOVE's lines, the exports. No way to make one. |
-| H2     |      | Quotes: the text reader's long press, the bar, the marker in every theme, re-finding a quote in a changed chapter (DETACHED).                                   |
+| **H2** | c702 | Quotes: the text reader's long press, the bar, the marker in every theme, re-finding a quote in a changed chapter (DETACHED). Below, "Quotes (H2)".             |
 | **H3** | c703 | Pages: HIGHLIGHT in the image reader's bottom row and page menu, a spread's choice, the strip's page. Below, "Pages (H3)".                                      |
 | H4     |      | Clips: MARK IN, MARK OUT and KEEP in the player, the clip lane, MP4 with a track burned in.                                                                     |
 
-H1 is everything a highlight needs once it exists. H3 (wave 33) is the first
-way to make one: a page, from the image reader. Until H2 and H4 land, a quote
-or a clip exists only where a test (or a hand) puts it in the table.
+H1 is everything a highlight needs once it exists. H3 (wave 33) made the first
+way to make one: a page, from the image reader. H2 (wave 40) makes a quote, from
+the text reader. Until H4 lands, a clip exists only where a test (or a hand) puts
+it in the table.
 
 ## The record (Main 05)
 
@@ -52,7 +53,7 @@ or a clip exists only where a test (or a hand) puts it in the table.
 
 **state** is `ok`, `orphan_series` (the series is no longer in the library),
 `orphan_entry` (the series is, the chapter or episode isn't) or `detached` (a
-quote its chapter's text no longer holds; H2 sets it).
+quote its chapter's text no longer holds; the reader finds that, below).
 
 ## The pointer's life
 
@@ -243,6 +244,202 @@ page's own size.
   DELETE's line counts it; MOVE's line counts it (`6 FOLLOW`, and
   `CH. 50 · P. 7` named when the move takes its chapter away).
 
+## Quotes (H2)
+
+Card c702, from [`handoffs/highlights/Novel.dc.html`](handoffs/highlights/Novel.dc.html)
+(_Novel N1_ to _N8_, _J1_ to _J3_, _D1_ and _D2_) and Main 02, built by
+`~/.config/myconf/HANDOFF.md`. Its store is `src/lib/server/highlights/quotes.ts`,
+its door `src/routes/api/highlights/quotes/`, and the rules that read a chapter
+are in `src/lib/library/highlights.ts`; the reader's side is in
+[`TEXT-READER.md`](TEXT-READER.md), "Highlights".
+
+### The copy
+
+The quote, its paragraph (the blocks it lies in), the block before, and 32
+characters either side for re-finding it. All of it from the same **words of
+the chapter**: a block's text with furigana out (`rt`, `rp`) and a wide block's
+head out, every run of white space as one space, the blocks joined by a newline
+(`flatten`). A block with no words (an illustration, a rule) is not in it, so
+one added or taken away never moves a quote. The sides never split a character
+in two, which SQLite's UTF-8 could not keep.
+
+The place is the reader's own position (`block`, `block_offset`, `end_block`,
+`end_offset`), a count of every character of the block's text, furigana included;
+the words are what's compared. `src/lib/reader/text-marks.ts` turns one into the
+other. Nothing about a kept quote is a file: no copy, no bytes on the disk line.
+
+### One per place: which columns, and why
+
+A repeat is recognised by `kind`, `entry_id`, `block`, `block_offset`,
+`end_block`, `end_offset`, **not the words**: the same words twice in a chapter
+are two highlights, and the numbers are the place. The same place again answers
+the row already there (`made: false`) and writes nothing, whether a second press
+or a resend (c842's queue resends when a tab dies between its POST and its
+removal, and a second device gets the same), **except a note the row doesn't have**.
+No rung: those columns are rung 72's.
+
+### A note in the body is never dropped
+
+A press can arrive for a row it didn't know of: a note written offline on words
+already highlighted, or on a chapter whose markers hadn't loaded. On all three
+paths that don't insert (the same place, a fold, a revive) `mergeNotes` decides:
+
+- the body has none, or the row already holds exactly that note: no change, so a
+  true resend still writes nothing;
+- the row has none: the body's;
+- the body only continues the row's (typing went on): the body's;
+- **two different notes: both, the row's first, a blank line between**, cut at
+  the note's 4,000 characters. Appending is the one choice that loses nobody's
+  words; the reader can delete the half they didn't want.
+
+The colour is not merged. A body's colour is often only the reader's current
+pen, so on a row already there it is applied only if the reader chose it while
+the press waited (the item's `revised`), by the queue's PATCH after the answer.
+A press of exactly a waiting quote's span is that item again, not a new one:
+what the reader changed while it waited rides the re-queued item, so a row the
+door already holds is still patched to the chosen colour.
+
+### A selection overlapping a highlight joins it
+
+Every door (the bar's HIGHLIGHT and NOTE, H and N, the lookup panel's foot)
+goes through one function, so the rule is one rule. The reader sends the span
+that covers the selection and everything it touches, and the workstation folds
+every live quote wholly inside what it was asked for into the oldest of them,
+which keeps its colour and `made_at`, and **the oldest note there is**, so an older
+highlight with no note doesn't cost a newer one its words (`keepQuote`, and
+`keepSpan` for what's drawn before the answer); the others are removed
+(a quote has no file to unlink). A row only partly inside the asked span is left
+alone: no reader that knew of it asks for that, and the words of a union can't
+be made on the workstation, which has no chapter text. A DETACHED row never
+folds: its numbers are where the words used to be.
+
+**A body lying wholly inside a live quote is that quote.** The join can reach
+the workstation before a waiting quote's own POST does, and then the body it
+sent names words already in a row: it answers that row (`made: false`) with its
+span unchanged and its note merged, as the fold merges one, rather than making a
+second row over it. A DETACHED row is not answered this way, since its numbers
+are where the words used to be. The merge has one narrow side: a note edited or
+cleared on the join before the late body arrives comes back merged, and the open
+reader is not told, because the queue's answer draws nothing.
+
+### DETACHED, and back
+
+The words are only ever read on the device (the chapter is an EPUB parsed in
+the browser), so the reader finds this and tells the workstation
+(`PUT /api/highlights/quotes`). Each opened chapter's quotes are re-found (the
+first with the page, a chapter opened since by `GET ?entry=`):
+
+- **Still at its place** (the quote and both sides, character for character):
+  nothing is written. Asked first, because the same words with the same sides
+  twice are only a problem once the place is lost.
+- **Moved**: the whole of it (32 either side, the quote) is searched for. One
+  match re-anchors it and the new numbers are written. Never fuzzy.
+- **None, or two**: DETACHED. Its words, note and colour stay; it is drawn nowhere
+  in the chapter; on `/highlights` it says `DETACHED · THE CHAPTER CHANGED`, and
+  its → opens the chapter at the paragraph where it was.
+- **DETACHED, and found again** by the same search (the words came back): `ok`
+  and its new place. That is every event the reader can tell apart, so each of
+  them is the same check: the chapter's text changed, a re-import, a re-download,
+  the same words twice in the chapter, a two-block quote whose second block went.
+- **A note or colour on a DETACHED highlight** is an ordinary note or colour.
+- **UNDO of a DELETE after the text changed** brings the row back as it was;
+  nothing is told about it while it is set aside (`setAnchors` skips a deleted
+  row), and the next open checks it like any other.
+- **An orphan is left alone**: it has no entry to be re-found in.
+- **Incognito moves nothing**: the reader finds and draws, and sends no PUT;
+  `PUT` refuses it too. A quote re-found while offline isn't written; the next
+  open finds the same thing again.
+
+A chapter opened on two devices with two versions of a book could turn one
+quote back and forth: the reader believes the text it has. The result is a
+drawn or undrawn marker, never lost words.
+
+### UNDO, and a quote kept twice
+
+DELETE is at once, with `HIGHLIGHT DELETED · UNDO` for 6 s, against the same
+`UNDO_MS` as `/highlights`. As for a page (H3), **the same place kept again
+within its UNDO window is the same highlight brought back**, its note with it, on
+the words and in the colour just asked; after the window it is a new one. UNDO
+after that finds nothing set aside and answers 404.
+
+**A write that didn't happen says so.** The marker goes at the press, as DELETE
+is at once; if the workstation doesn't take it (no answer or any non-2xx) the
+marker comes back and the band says `NOT DELETED · THE WORKSTATION DID NOT ANSWER`
+with no UNDO. A colour goes back to the last one the workstation agreed to, with
+`COLOUR NOT CHANGED · …`. A failed UNDO says `NOT BROUGHT BACK · …`.
+
+**A band outlives a chapter's turn, so what it does was decided at the press.**
+UNDO names the entry it was pressed on: a waiting quote goes back in the queue
+under its own chapter, and neither UNDO nor a POST answered late draws on a
+chapter it isn't of. The reader's list of quotes is emptied as a chapter opens,
+so nothing joins against the last chapter's numbers while this one's are on
+their way, and a press made in that window survives their arrival.
+
+### A quote waits on the device (c842's queue)
+
+Offline, or with no answer from the workstation, a quote is drawn at once and
+goes in the same IndexedDB queue as a page, key `quote:<entry>:<span>`, its
+body the words. `WAITING TO BE SENT` is in its sheet, and the note and colour
+change the waiting item (`reviseHighlight`). Three ends:
+
+- **Sent**: the marker stays, with the workstation's id; an open sheet follows it.
+- **Refused on arrival** (its entry gone, hidden since): the marker goes, and
+  the band says `¶ 4 NOT KEPT · ITS SERIES OR CHAPTER IS GONE`, `2 HIGHLIGHTS
+NOT KEPT` when several, with DISMISS. The row keeps no words (`sendAll` drops
+  the body), and no title, ever.
+- **Deleted before it was sent** (`DELETE`, `takeBackHighlight`): nothing is
+  asked; UNDO puts it back in the queue. **Deleted while its POST is out** is the
+  same promise kept the hard way: a POST that fails isn't queued, and one that
+  succeeded has its row set aside (the reader's own POST by DELETE; the queue's,
+  only when that POST `made` the row, so a press answered by an existing row
+  leaves that row alone).
+
+**A waiting quote joined by a selection is superseded, not deleted.** The join's
+own press is what is sent (`keepSpan`), so the waiting item is taken back with
+`supersedeHighlight`, which records the item's key and `at`. When the queue's POST
+then finds that item gone, `landed` consumes the record and sends no DELETE: the
+workstation folded what that POST made into the join's row and kept its id, so a
+DELETE would take the joined highlight and its note away. A genuine DELETE or
+DON'T SEND keeps `takeBackHighlight` and still sets aside what its POST made. The
+record is the tab's own, and it only matters to the page that was running
+`landed`: a reload ends that page, so no DELETE is sent at all and the row is
+left for the join to fold; only a second tab holding the queue still sends it.
+
+**A join that waits carries what it took in.** A selection over a waiting quote
+takes it off the device before the join has an answer, so if the join itself
+waits (offline, or a POST that got no answer) the covered quote would exist
+nowhere. The join's queue item therefore carries each covered quote — key, body,
+entry, label, and what the reader changed of it while it waited — and
+`sendAll` puts every one back, with its note, **before** it records the join
+refused. A refusal of the join is reachable without a reader bug: the
+workstation caps a quote at 20,000 characters and its paragraph and context at
+40,000 (`quotes.ts`), and a join covers the union of every span it took in.
+Sent, the join absorbs them; DON'T SEND and DELETE take them with it.
+
+**UNDO is DELETE's inverse.** `takeBackHighlight` hands the removed item back,
+`covers` and `revised` with it, so an UNDOne join is queued as it was and a later
+refusal still restores the quote and its note. The same holds for a join deleted
+while its POST is out and then found unreachable: what it covered is still in
+the reader's map, and the UNDO carries it from there. That includes a DELETE
+that lands while the device is still writing the join down: its entry is left
+for the same door to read, so the UNDO has the covers there too.
+
+What's typed or chosen while its POST is out is not lost either: the queue reads
+the row again just before the POST and just after, and sends the difference to
+the row the answer named (`landed`). If that can't be sent the item goes on
+waiting, and the next pass carries it. A note written in the moment the item
+left the queue finds the row by its own id; if nothing took it, the sheet says
+`NOTE NOT SAVED` rather than claiming it.
+
+**Every way of closing the sheet sends the draft**: ✕ and the scrim wait for it,
+and Escape, BACK, DELETE and a chapter's opening reach the same save (the sheet's
+teardown, which holds the quote rather than asking which is open).
+
+**Hidden means hidden on the device too.** A press in a hidden series or with
+reveal on is not queued (the words would stay behind): the band says
+`○ OFFLINE · HIGHLIGHT NEEDS THE WORKSTATION` and no marker stays. Incognito
+keeps nothing, online or off, and a highlight made before still draws and opens.
+
 ## Hidden means hidden
 
 `hidden` is **copied from the series when a highlight is made, and kept**
@@ -360,7 +557,14 @@ SERIES`, where the handoff wrote CHAPTER.
 - **DELETE's sheet** draws its row with the screen's mono labels in capitals,
   as every other confirmation here does, not the mock's sentence-case sans.
 - **The marker's three colours** are the handoff's (Main 02, both themes),
-  kept on the page until `src/lib/styles/` has them.
+  kept on the page until `src/lib/styles/` has them. The text reader's copy
+  of them is on `.text-reader` (`TextReader.svelte`), per theme.
+- **A vertical marker sits on the column's left** two-thirds, as J1's caption
+  says and `.vt .mk`'s own `inset -0.66em` (which draws on the right) does not.
+- **A mouse's drag on the words selects; off the words it still turns** (D1: "A
+  drag selects"; the reader's drag-to-turn from c441 is touch and the margins).
+- **The 1 px padding either side of a marker** has a matching negative margin:
+  `.mk`'s drawn the same, without moving a word when one is made.
 - **The TV's page** is the same page (X6 draws a ruled grid of copies); its
   own layout is not built.
 - **H3's cell is the reader's own cell** (H3): the bottom row's 24px sides and
@@ -403,9 +607,13 @@ the player's URL (c734; `wayBackHref` writes it, `startSecond` reads it, both in
 
 ## What it does not do yet
 
-- **Make a quote or a clip** (H2, H4), and everything that only matters once
-  one is made: the marker in the text reader, re-finding a quote (DETACHED),
-  offline quotes waiting to be sent.
+- **Make a clip** (H4).
+- **A chapter's highlights while offline** come from the page's load or a fetch;
+  a chapter opened offline that the page did not bring shows only what waits on
+  the device.
+- **Two devices overlapping the same words** while neither knows of the other:
+  partly-overlapping rows stand as two, drawn over each other, until one is
+  deleted; a selection made knowing both joins them.
 - **A page kept in another chapter of the strip** is known only by the
   workstation until the reader opens that chapter: the page menu on a page of
   the chapter above or below offers HIGHLIGHT THIS PAGE even when it is kept,
@@ -453,5 +661,16 @@ the player's URL (c734; `wayBackHref` writes it, `startSecond` reads it, both in
   generated from `Manga.dc.html` and hand-edited (its preamble says how).
 - `tests/tv-highlights-manga.e2e.ts` (H3): the TV's OK on the cell, the
   spread's choice by the pad, and MENU's row.
+- `tests/highlights-quote-db.spec.ts` (H2): keeping a quote, the repeat, folding,
+  the UNDO window, re-anchoring and its events, what a body must be.
+- `tests/highlights-domain.spec.ts` also holds H2's rules: the words of a
+  chapter, the 32 each side, `reanchor` against a naive search over every pair in
+  a finite domain, spans, joins, the word, the page's end, the bar's place.
+- `tests/highlights-novel-flow.e2e.ts` (H2): the long press, handles, tap and
+  swipe, a mouse's drag and H, HOLD TO TURN, the marker in both themes, the sheet,
+  DELETE and UNDO, NOTE with a late answer, joining at every door, DETACHED,
+  incognito, a crossing's kept copy, offline and its three ends, Japanese.
+- `tests/highlights-novel-frame.e2e.ts` (H2): N1's and N5's phone, D2's panel.
+- `tests/tv-highlights-novel.e2e.ts` (H2): a TV shows and makes none.
 - `tests/backup-db.spec.ts`: the copies' mirror.
 - `tests/search-commands.spec.ts`: `/highlights`.

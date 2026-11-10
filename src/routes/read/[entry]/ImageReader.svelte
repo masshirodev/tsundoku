@@ -44,6 +44,7 @@
 	import { flushPending, queuePending } from '$lib/cache/pending';
 	import {
 		dismissRefused,
+		isQuoteKey,
 		onQueueChange,
 		queueHighlight,
 		refusedDetail,
@@ -1766,10 +1767,11 @@
 	}
 
 	async function refreshWaiting() {
-		waitingKeys = (await waitingHighlights()).map((i) => i.key);
+		waitingKeys = (await waitingHighlights()).filter((i) => !isQuoteKey(i.key)).map((i) => i.key);
 	}
 	async function tellWhatWasRefused() {
-		const refused = await refusedHighlights();
+		// A page's only: a quote refused is the text reader's to tell (c702).
+		const refused = (await refusedHighlights()).filter((i) => !isQuoteKey(i.key));
 		if (refused.length) tellRefused(refused);
 	}
 	// What waits is the device's, not this page's: it is read on opening, and a
@@ -1781,6 +1783,7 @@
 		void tellWhatWasRefused();
 		return onQueueChange(({ sent, refused }) => {
 			for (const { item, answer } of sent) {
+				if (isQuoteKey(item.key)) continue;
 				const made = (answer as { highlight?: KeptPage } | null)?.highlight;
 				const list = keptOf(item.entry);
 				if (made && !list.some((k) => k.id === made.id)) setKept(item.entry, [...list, made]);

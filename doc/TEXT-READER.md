@@ -414,9 +414,13 @@ wider strips:
   the left strip turns forward and a swipe to the right reads on;
 - in scroll a tap never turns.
 
-Everywhere else a tap shows the controls, the text included. In a Japanese
-book a **long press** on a word looks it up in the shared lookup panel; taps
-are unchanged ([`JAPANESE.md`](JAPANESE.md), "In a book").
+Everywhere else a tap shows the controls, the text included. A **long press**
+on a word selects it, in every book but a Japanese one, where it still looks the
+word up in the shared lookup panel; taps are unchanged ([`JAPANESE.md`](JAPANESE.md),
+"In a book"; "Highlights", below).
+
+A tap on a marked word opens that highlight, before the edge strips: a marker
+is the words' own, and the strips are for the margins' bits of page.
 
 A tap on an illustration opens it full screen: black ground, pinch to zoom, one
 finger pans, the zoom level shows for a moment, and a tap closes it. A tap on
@@ -433,6 +437,9 @@ included, is spent until the wheel has been quiet for 200ms (`WheelTurn`,
 `tests/reader-domain.spec.ts`). Ctrl+wheel stays the browser's zoom, the wheel
 does nothing while a sheet (the end page's DELETE among them), CONTENTS, the lookup or a full-screen image is open,
 and scroll layout scrolls as before. The owner asked for this on 2026-10-22.
+
+A drag on the words selects, with a mouse (it never turns a page; off the words it
+still does): "Highlights", below.
 
 Arrows, Space, PageUp and PageDown turn too; OK (Enter), Esc or the mouse at
 the top or bottom of the window shows the controls. On a TV, OK shows the
@@ -459,6 +466,58 @@ bars, the sheet, CONTENTS, the lookup, a full-screen image, a wide block or
 the end page is open. The row is left out where there is no mouse, so a phone,
 a tablet and a TV show none. It is the same device setting
 (`tsundoku.reader.cursor`), and SETTINGS lists it under 01 (c713).
+
+## Highlights
+
+c702 (H2; the rules and the record are [`HIGHLIGHTS.md`](HIGHLIGHTS.md), "Quotes"). Text
+stays `user-select: none`: a selection is the reader's own state, a span in
+`TextReader.svelte`, painted as spans around pieces of its text nodes
+(`src/lib/reader/text-marks.ts`). Wrapping never changes a block's text, so a saved
+position is unaffected by a mark on or off.
+
+- **Making one.** A **long press** (450 ms, the reader's own) selects the word and the
+  bar comes up over it; a Japanese book keeps the long press for the lookup, and its
+  panel's foot has HIGHLIGHT, NOTE and SELECT MORE. Two square handles extend it,
+  a sideways drag on a vertical book reaching the next column. With a **fine pointer
+  a drag on the words selects** (never turns a page, and off the words it still
+  turns); on touch, drags still turn. HIGHLIGHT keeps it, at once and with nothing
+  else (no band, no toast: the stroke says so), and the marker takes the colour last
+  chosen here. NOTE keeps it and opens its sheet on the note. H and N are the keys
+  (shown on a mouse's bar), L is LOOK UP (the Japanese bar), Ctrl+C copies, Esc
+  clears; with nothing selected H does nothing and the arrows still turn.
+- **The bar** sits over the first selected line, below it near the page's top
+  (`barPlace`), across the top of a vertical book. LOOK UP only where a pack answers;
+  incognito leaves HIGHLIGHT and NOTE out and adds an INCOGNITO cell, and a browsing
+  record offers neither, as it has no rating.
+- **Taps clear, swipes turn and clear.** With a selection up a tap anywhere else
+  only clears it. A key, the wheel and the scrubber clear it too.
+- **HOLD TO TURN →**, paged: the end handle (or a mouse) held at the page's end
+  shows the cue; after 0.6 s the page turns under it and the selection reaches the
+  page turned to (the first word there, at least, or wherever the finger is on the
+  text), and it arms again. In SCROLL the page just scrolls as the handle nears an
+  edge. Never into another chapter: no position exists past the chapter's end, so a
+  highlight crosses pages but never chapters. The cue never shows at the last page.
+- **The marker** (`.mk`, DARK and PAPER, `--mk-y`/`-o`/`-b`): the lower two-thirds of
+  the line, the words in full ink, square-ended; in vertical Japanese the left of the
+  column. Its 1 px either side is a padding with an equal negative margin, so making
+  one moves no word. A note shows as the empty `≡` cell after the last word, drawn by
+  CSS so the block's text doesn't change. DIM lies over it as over everything.
+- **A tap on the words opens it**, the sheet on a phone and a 420 px panel on the side
+  away from the words: the quote, its place, the three colours, NOTE (saved as typed),
+  `MADE 2 NOV · KEPT ON THE WORKSTATION`, COPY and DELETE. DELETE is at once, with
+  `HIGHLIGHT DELETED · UNDO`. DELETE (the key) deletes too.
+- **A wide block's numbers don't depend on the screen.** Its head says `TABLE` or
+  `LISTING` and never another length: `· 640PX, 320 SHOWN` is the label's `data-shown`,
+  drawn by CSS, so the same stored span paints the same words on a cut and an uncut
+  screen. In a table a long press takes a word from its own cell, since cells have
+  nothing between them.
+- **Only the current chapter holds marks and selections.** The `.kept` copies a
+  SCROLL crossing leaves have every mark removed (`keepForCrossing`), and nothing in
+  them answers a press (`data-b` is gone), so a selection can't start there. Next-chapter
+  text below the current one is unmarked until the crossing opens it.
+
+The TV shows the markers and has no selection: no long press, no handles, no bar, H
+does nothing, and no focus stop moved.
 
 ## Direction
 
