@@ -241,13 +241,20 @@ class BrowseSelection {
 	 * tiles say IN LIBRARY.
 	 */
 	press(which: Which, onEnd: () => void) {
-		if (!inBrowser()) return;
+		// One press at a time in cut 1: the band holds one run, and a second
+		// would take its band (and its UNDO) away from the first.
+		if (!inBrowser() || this.running) return;
 		const ticks = this.list;
 		if (ticks.length === 0) return;
 		this.end();
 		const run = new PressRun(ticks, which, onEnd);
 		this.run = run;
 		void run.go();
+	}
+
+	/** A press is still adding (or retrying): the bulk bar waits for it. */
+	get running(): boolean {
+		return !!this.run && !this.run.finished;
 	}
 
 	/** ✕ on a finished band. */

@@ -456,6 +456,226 @@ source isn't named: "FROM TOONILY" said what reveal hides. That was true of
 SEARCH THE SOURCES too, before this, and is fixed for both
 (`libraryIndex().nameable`).
 
+### SELECT in a catalog
+
+**SELECT** on a source's page (card c868, the owner's ask; designed in
+`doc/handoffs/browse-select/` from the brief
+[`briefs/BROWSE-SELECT.md`](briefs/BROWSE-SELECT.md)) ticks as many results as
+the owner likes while browsing, then adds them to the library, and downloads
+them, in one press. This is **cut 1** (the owner's split): the selection, the
+bulk bar and a press driven by the page. What cut 2 adds is under "What it does
+not do yet".
+
+**Starting and ending.** SELECT is a cell in the source page's bar, before
+SETTINGS (after `/` on a phone, where SETTINGS then says SET.). It needs
+script, so it is drawn once the page runs, and a TV draws none (the
+`(pointer: none)` query). Selecting turns the bar inverse: `✕ · N SELECTED ·
+SHOW · / SEARCH <SOURCE> TO TICK` (`/` alone on a phone), with `· 2 SOURCES`
+beside the count on a tablet and a desktop once two sources are ticked.
+SETTINGS is left out while selecting (its switches, HIDDEN SOURCE and ADDED
+HIDDEN, change what a press would do), and the source's name moves to the head
+of the tab row (`IN MANGADEX · MANGA · EN`; the name alone on a phone). There
+is **no SELECT ALL**: a catalog has no end ("never a total the source doesn't
+give"), and every tick is a request at the press. SELECT ends on ✕, on Escape
+once no sheet and no FILTER panel is open (those close first), on a press, on
+a reload, on reveal turning on or off, and on leaving the browse world (the
+library, a series, settings, a source's SETTINGS, the queue). Escape is the
+one difference from the library, which keeps it on Escape; the handoff says the
+library should follow, and [`LIBRARY.md`](LIBRARY.md) carries that line.
+
+**A tap ticks, and opens nothing.** A tile becomes a button
+(`aria-pressed`): an empty box top-left (GROUP's check, where HIDDEN would
+be), filled accent once ticked, and the cover's 3px select ring. So selecting
+asks the site nothing until the press. **A long press** (or a right-click)
+opens the preview in this tab, and its ← comes back still selecting.
+
+**What can be ticked** is only what the press could add (`tickable`,
+`src/lib/library/browse-select.ts`): **IN LIBRARY** (and, inside reveal, IN
+LIBRARY + HIDDEN) is dimmed to 0.4 with no box, its badge kept, and takes no
+tap; **ADDING**, a series being added right now, is the same with the ink
+ADDING badge in IN LIBRARY's corner. **SAME TITLE · FROM …** is tickable (it is
+another source's copy, which the owner may want), and the bulk bar counts it.
+A result is ADDING while this tab's press still has it to add, or while any
+add of it is running on the server: `addToLibrary` (`server/downloads.ts`)
+marks its result for as long as the add runs (`whileAdding`,
+`server/engine/adding.ts`), so a preview's ADD in another tab shows too, and
+`shelf` says so on each answer (`SearchHit.adding`). Outside SELECT the page is
+unchanged, and draws no ADDING.
+
+**The lists stay live.** POPULAR, LATEST, FILTERED, FILTER (the panel and
+APPLY), the source's own search and MORE all keep working while selecting, and
+the ticks stay through them; a ticked series the list on screen doesn't draw is
+still held, and SHOW lists it. **A tag's arrival** keeps it too: a tag on the
+preview is a document load (`data-sveltekit-reload`, since `tag-search` is a
+server route), which would end a selection held in the tab's memory, so while
+selecting the preview asks `tag-search` for the address
+(`accept: application/json`, answered `{ to }`) and goes there inside the app.
+**Other sources and BROWSE** keep it as well: BROWSE draws the selecting bar
+(no search hint there), and each source row says how many of its series are
+ticked (`MANGA · EN · 9 TICKED`, in ink). The selecting bar has no ←, as the
+board draws it: BROWSE is reached by the browser's or the phone's back, and a
+source opens still selecting.
+
+**Where a selection lives.** In this tab's memory and nowhere else: never the
+URL (a link or a new tab must not arrive selecting) and never history state (a
+reload ends it). That is the library's idiom (`carrySelection` /
+`takeCarried`, `src/lib/library/selection.ts`), held here once, in one module
+(`browseSelection`, `src/lib/library/browse-selection.svelte.ts`), rather than
+handed from screen to screen: the selection lasts across three screens and a
+run outlives each of them. Each screen of the browse world ends it from its
+`beforeNavigate` when the navigation leaves the world (`follow`,
+`BROWSE_WORLD`), and a reload needs nothing, since the module's memory does not
+survive one. Only the browser writes it; on the server the module is shared by
+every request, so every write refuses to run there. Each tick keeps its facts
+when it is ticked (`Tick`: title, cover, the source and its ADDED HIDDEN
+switch, SAME TITLE, and where it was ticked), as the library's `Picked` does,
+so SHOW and the bulk bar never read them off the tiles on screen.
+
+**SHOW** (`TickSheet.svelte`) lists the whole selection grouped by source,
+each group in the order it was ticked, with what the list on screen doesn't
+draw counted in the group's head (`4 NOT IN THE LIST YOU ARE ON`). A row's box
+unticks it and a second tap puts it back; rows stay until the sheet closes.
+A row says where it was ticked: `TICKED IN POPULAR`, `TICKED IN LATEST`,
+`TICKED IN SEARCH "solo"`, `TICKED IN GENRE: ACTION` (a filtered list whose one
+change from the source's own choices is an included tri-state or a ticked
+checkbox: a tag's arrival, `oneTag`), else `TICKED IN FILTERED`.
+
+**The bulk bar** (`PressBar.svelte`) is a line, then three cells: **ADD TO
+LIBRARY** (`9 SERIES · NOTHING DOWNLOADS`), **ADD + FIRST 10 EACH** (accent,
+the common case; `UP TO 90 CHAPTERS`, chapters and episodes counted apart) and
+**ADD + ALL**, which asks first. These are the preview's ADD and its two
+DOWNLOAD cells, for many; FIRST 10, not NEXT 10, since nothing of a catalog's
+series is on disk yet (DOWNLOADING.md). The line counts what the press will do
+(`pressLine`): `14 TO ADD`, the kinds when there are two or more, each
+source's count with two sources, `1 HAS A TWIN IN LIBRARY`, `WEEB CENTRAL ADDS
+ITS 3 HIDDEN` for a source whose ADDED HIDDEN switch is on, and the ticks the
+list on screen does not draw (`4 OF THEM TICKED IN LATEST`); at its right end
+the one source's name, or `2 SOURCES`. A phone's line says less (`9 TO ADD · 1
+TWIN IN LIBRARY`, `1 SOURCE`) and its cells are `ADD`, `ADD + 10`, `ADD +
+ALL`. With nothing ticked the cells are dimmed and the line says `A TAP ON A
+TILE TICKS IT`. Nothing else belongs in it: FAV, RATE, GROUP, HIDE, DELETE,
+REFRESH and FOLLOW act on series already in the library, whose own SELECT does
+them once they are added.
+
+**ADD + ALL asks with a plain sheet** in cut 1: `ADD 9 SERIES AND DOWNLOAD
+EVERY CHAPTER?`, what ALL queues (every chapter or episode, never one already
+read, nothing twice), and that the count is known only as each series is
+asked; CANCEL and `ADD 9 + ALL`. The design's counting sheet (`COUNTING · 9 OF
+14 ASKED`, totals by kind, the size) is cut 2: it asks every series' details
+before the press, which is the press's own work, and doing it twice or keeping
+the answers between the two is the part cut 2 sizes. ADD and ADD + FIRST 10
+EACH ask nothing first, as the board says.
+
+### The press
+
+**One press, one run, a lane per source** (`runLanes`,
+`src/lib/library/browse-press.ts`): every source's series are asked at once
+across sources, one at a time within a source, in the order they were ticked,
+so a slow site doesn't hold a quick one up and no site is asked twice at once
+by a press. Each series is one request to `POST /api/browse/press`
+(`pressOne`, `src/lib/server/browse-press.ts`), which:
+
+- checks again **now**: a series IN LIBRARY since it was ticked (another tab, a
+  preview) is skipped, and so is one another request is adding; both are said
+  in the result (`2 SKIPPED · 1 WAS IN THE LIBRARY BY THEN · 1 WAS ALREADY
+BEING ADDED`);
+- adds it through **the existing add door**, `addToLibrary` (the families'
+  `addNovel` / `addAnime` / the engine's, `keepOrPromote` within), watching
+  whether this add hid it (`addWatchingHidden`, c505);
+- for FIRST 10 or ALL, queues it through **the existing queue**, `queueSeries`
+  with `next` (what the preview's ADD AND DOWNLOAD's FIRST 10 asks) or `all`.
+  An add that stands while the queue doesn't answer is still an add, said as
+  `SOME NOT QUEUED · DOWNLOADING ISN’T ANSWERING`.
+
+A failed series is asked **once more at the end of its lane**, then left NOT
+ADDED with its reason in a word (`REFUSED`, `DID NOT ANSWER`, `IS NOT AT ITS
+SOURCE`, `WAS DELETED HERE ONCE`, `IS ANOTHER SERIES HERE`, `FAILED`). A series
+deleted here once, one whose chapters are another series', or one its source
+no longer has would answer the same again, so it is not asked twice. **One
+press at a time**: while a run is adding, ticking goes on but the bulk bar's
+cells wait (`ONE PRESS AT A TIME · THE BAND SAYS WHEN IT ENDS`), since the band
+holds one run and a second would take its UNDO away.
+
+**One band** (`PressBand.svelte`), under the bar of every browse screen while
+this tab has a run: `ADDING 14 SERIES`, an ink progress line, and the lanes
+(`MANGADEX 6 OF 9 · ASURA SCANS 2 OF 5`). Then **one result**: `ADDED 14 SERIES
+· 140 CHAPTERS QUEUED`, or `ADDED 11 OF 14 · 110 CHAPTERS QUEUED` with `3 NOT
+ADDED · ASURA SCANS REFUSED 2 · KAGURABACHI DID NOT ANSWER` and **RETRY 3**,
+which asks the failed ones again in their lanes, in the same band. All added,
+its line names each source's count and the shelves chosen (`MANGADEX 9 · ASURA
+SCANS 5 · ON LATER`). When it ends, the screen's loads are read again, so the
+tiles say IN LIBRARY. ✕ closes it.
+
+**PUT ON A SHELF** is the ADD band's chips (c724), applied to the whole press,
+and live from the run's start: a chip chosen while it runs reaches every series
+added after it, as well as those already added (`POST
+/api/browse/press/shelve`, `shelvePress`, the SHELVES sheet's own write). The
+last chip chosen on this device is first, as on the ADD band.
+
+**One UNDO for the press** (`POST /api/browse/press/undo`, `undoPress`) takes
+out every series of it with nothing downloaded or read, and its queued
+chapters with it (the queue's rows go with their series), through `undoAdd`.
+A series is trusted only while its id and its key are still the ones the press
+added (`addedHere`), since an id is reused once its series is gone. Before it
+is pressed the band says what it would leave (`UNDO 12`, `2 HAVE A CHAPTER
+DOWNLOADED NOW · UNDO LEAVES THOSE 2`; asked when the run ends and every ten
+seconds while the band is up, `touchedOf`), and after it what it took and what
+stayed (`UNDONE · 12 TAKEN OUT, WITH THEIR 120 QUEUED CHAPTERS`, `2 STAY:
+SOMETHING OF THEM IS DOWNLOADED OR READ · THE LIBRARY'S DELETE TAKES THEM
+OUT`).
+
+**A tab closed mid-run** (cut 1's run is the page's): every series is one
+request and one add, so each is either added whole, with its queue, or not
+asked at all. The one being asked when the tab closes finishes on the server.
+What is lost is the band, its UNDO and its shelves for the series added so far:
+they stay in the library, and the library's own SELECT and DELETE take them out.
+A run kept on the workstation that outlives the tab is cut 2.
+
+### SELECT, hidden, reveal and incognito
+
+Today's rules, kept (the Rules board):
+
+- **Reveal off.** A hidden source's page is not found, so nothing of it can be
+  ticked; a hidden series in the library is never sent, so no tile is drawn
+  for it. No count anywhere says something hidden is held. The server refuses
+  a press from a source outside reveal (`IS NOT AT ITS SOURCE`), with one
+  exception: a source whose ADDED HIDDEN switch is on (and HIDDEN SOURCE off)
+  becomes mostly hidden _by the press itself_ after its first adds, and the
+  rest of its lane is still the owner's own to add (`mayAddFrom`).
+- **Inside reveal.** Every source can be ticked, HIDDEN badges as today, and
+  IN LIBRARY + HIDDEN is not tickable. **Reveal turning on or off ends
+  SELECT**: a selection never outlives the reveal it was made in. A run started
+  inside reveal goes on after it; outside reveal its band counts only what can
+  be seen, a run of hidden sources alone draws no band at all, and UNDO there
+  takes only what can be seen. The rest waits for reveal.
+- **ADDED HIDDEN.** Each series from such a source arrives hidden, as a single
+  ADD does (c505), and FIRST 10 queues it. The bar's line says `WEEB CENTRAL
+ADDS ITS 3 HIDDEN`; the result says `ADDED 14 SERIES · 3 OF THEM HIDDEN`, then
+  `WEEB CENTRAL ADDS ITS SERIES HIDDEN · 140 CHAPTERS QUEUED · REVEAL SHOWS
+THEM`, or, once the press left the source mostly hidden, `3 OF THEM HIDDEN BY
+THEIR SOURCE · THE SOURCE IS HIDDEN WITH THEM · REVEAL SHOWS BOTH`. Inside
+  reveal the source is named and the tail goes (c605). UNDO takes them out.
+- **Incognito.** Unchanged: adding and downloading are deliberate edits, like
+  FAV and MARK READ, so they go ahead, and a shelf chip and UNDO save.
+
+#### Decisions for the owner
+
+Made alone, closest to the design, for the owner to overrule:
+
+- **ADD + ALL's question** says what ALL does in plain lines and how many
+  series, without totals or a size (above): the cheapest honest sheet. The
+  counting sheet is cut 2.
+- **One press at a time** in cut 1, rather than a second run replacing the
+  first's band (and losing its UNDO). The board's `+ 1 EARLIER RUN · IN THE
+QUEUE` needs the run kept on the workstation, which is cut 2.
+- **A stale tick that became a hidden series** (added hidden from another tab
+  while reveal is off) is skipped and said as `WAS IN THE LIBRARY BY THEN`, like
+  any other: the owner ticked that title themselves, so the line hides nothing
+  they did not already know, and saying nothing would make the press's count
+  not add up.
+- **A refusal is asked once more, a permanent failure is not** (above), where
+  the board says every failure is tried once more.
+
 ## A site's check
 
 Some sites sit behind a Cloudflare check, and the engine passes it through
@@ -1004,20 +1224,21 @@ found by those words and a locator matches by substring.
 
 ## Where it lives in the code
 
-| What                                                      | Where                                                                                                                                                                                                                                     |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The filter logic                                          | `src/lib/library/browse-filters.ts`                                                                                                                                                                                                       |
-| A tag's address on a source's page, and ← back            | `src/lib/library/tag-search.ts`; the preview's links in `src/routes/downloads/source/[id]/`, the series' sheet in `src/routes/series/[id]/` (`TagSheet.svelte`, `tag-source.server.ts`, `tag-search/`); the preview's `tag-search/` route |
-| Which sources, their shelves, what's kept                 | `src/lib/server/engine/browse.ts`                                                                                                                                                                                                         |
-| A result matched against the library (shared with search) | `asHits` in `src/lib/server/engine/backend.ts`                                                                                                                                                                                            |
-| BROWSE                                                    | `src/routes/browse/` (`+page.server.ts`, `+page.svelte`, `SourceRow.svelte`, shared with the empty search)                                                                                                                                |
-| An extension's icon                                       | `src/routes/api/browse/icon/[pkg]/+server.ts`                                                                                                                                                                                             |
-| A source's page                                           | `src/routes/browse/[source]/` (`+page.server.ts`, `+page.svelte`, `FilterForm.svelte`, `ResultTile.svelte`)                                                                                                                               |
-| A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`; tsundoku's own switches in `src/lib/server/engine/source-flags.ts`; CONCEAL in `src/routes/browse/conceal.server.ts` and `ConcealBand.svelte`               |
-| Extensions and repositories                               | `src/routes/browse/extensions/` (`ExtRow.svelte`), `src/lib/server/engine/manage.ts`                                                                                                                                                      |
-| BROWSE's languages                                        | `src/routes/settings/` (03 — BROWSE)                                                                                                                                                                                                      |
-| A site's check                                            | `checkingSince` / `noteSolvedChecks` in `engine/browse.ts`, `novels/solver.ts` (the app's own solve, c152), `src/routes/api/browse/check/[source]/`, `src/lib/site-check.svelte.ts`; the fork's `ChallengeLog`                            |
-| The engine's schema                                       | the fork, `server/src/main/kotlin/mextensionserver/impl/FilterSchema.kt`                                                                                                                                                                  |
+| What                                                      | Where                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The filter logic                                          | `src/lib/library/browse-filters.ts`                                                                                                                                                                                                                                                                                                                                                |
+| A tag's address on a source's page, and ← back            | `src/lib/library/tag-search.ts`; the preview's links in `src/routes/downloads/source/[id]/`, the series' sheet in `src/routes/series/[id]/` (`TagSheet.svelte`, `tag-source.server.ts`, `tag-search/`); the preview's `tag-search/` route                                                                                                                                          |
+| Which sources, their shelves, what's kept                 | `src/lib/server/engine/browse.ts`                                                                                                                                                                                                                                                                                                                                                  |
+| SELECT in a catalog (c868)                                | `src/lib/library/browse-select.ts` (what can be ticked, the lines), `browse-press.ts` (the lanes, the band's words), `browse-selection.svelte.ts` (the selection and the run in this tab's memory); `src/routes/browse/` `SelectBar`, `PressBar`, `TickSheet`, `PressBand`; `src/lib/server/browse-press.ts` and `src/routes/api/browse/press/`; `src/lib/server/engine/adding.ts` |
+| A result matched against the library (shared with search) | `asHits` in `src/lib/server/engine/backend.ts`                                                                                                                                                                                                                                                                                                                                     |
+| BROWSE                                                    | `src/routes/browse/` (`+page.server.ts`, `+page.svelte`, `SourceRow.svelte`, shared with the empty search)                                                                                                                                                                                                                                                                         |
+| An extension's icon                                       | `src/routes/api/browse/icon/[pkg]/+server.ts`                                                                                                                                                                                                                                                                                                                                      |
+| A source's page                                           | `src/routes/browse/[source]/` (`+page.server.ts`, `+page.svelte`, `FilterForm.svelte`, `ResultTile.svelte`)                                                                                                                                                                                                                                                                        |
+| A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`; tsundoku's own switches in `src/lib/server/engine/source-flags.ts`; CONCEAL in `src/routes/browse/conceal.server.ts` and `ConcealBand.svelte`                                                                                                                                                        |
+| Extensions and repositories                               | `src/routes/browse/extensions/` (`ExtRow.svelte`), `src/lib/server/engine/manage.ts`                                                                                                                                                                                                                                                                                               |
+| BROWSE's languages                                        | `src/routes/settings/` (03 — BROWSE)                                                                                                                                                                                                                                                                                                                                               |
+| A site's check                                            | `checkingSince` / `noteSolvedChecks` in `engine/browse.ts`, `novels/solver.ts` (the app's own solve, c152), `src/routes/api/browse/check/[source]/`, `src/lib/site-check.svelte.ts`; the fork's `ChallengeLog`                                                                                                                                                                     |
+| The engine's schema                                       | the fork, `server/src/main/kotlin/mextensionserver/impl/FilterSchema.kt`                                                                                                                                                                                                                                                                                                           |
 
 ## Tests
 
@@ -1114,6 +1335,21 @@ found by those words and a locator matches by substring.
   alone; the switch off). `tests/browse-source-flags.e2e.ts`, on its own tag
   world: the page's rows, and each switch followed to the screens it
   changes.
+- SELECT in a catalog (c868): `tests/browse-select.spec.ts` (what can be
+  ticked, every line of the bar, the bulk bar, SHOW and the band, the lanes
+  and their one retry, the selection in a tab's memory ending where it
+  should, a run, RETRY, a shelf chosen while it runs, UNDO);
+  `tests/browse-press-db.spec.ts` (the press's server half on an in-memory
+  library through the real writers: FIRST 10, ALL and nothing queued, a stale
+  tick and a series being added skipped, failures in a word, a hidden source,
+  ADDED HIDDEN for many after the source is mostly hidden, the shelves, UNDO
+  leaving what is touched and never trusting an id alone);
+  `tests/browse-select.e2e.ts` on a world of its own
+  (`tests/helpers/select-world.ts`: two sources, a press adds series): the
+  flow on a tablet, a phone and a desktop; the generated frame
+  `tests/browse-select-frame.e2e.ts` (Select-Tablet) and its sibling
+  `tests/browse-select-measure.e2e.ts` (the bar's cells, the box and ring,
+  the bulk bar's line and 60px cells, SHOW's rows).
 - `tests/browse-flow.e2e.ts` and the generated `tests/browse-frame.e2e.ts`
   (a source's page) and `tests/browse-list-frame.e2e.ts` (BROWSE),
   in the `browse` project against a fake engine (`tests/browse-setup.ts`,
@@ -1178,8 +1414,44 @@ KNOWN`; the drawing leaves the line off some states.
   its four switch cells. The other two labels are the same `.label` markup and
   styles, which the map does not repeat.
 
+- **SELECT's selection is held in one module, not handed from screen to
+  screen** (c868): the library's `carrySelection` / `takeCarried` rules (this
+  tab's memory, never the URL or history state, a reload ends it), kept by
+  `browseSelection` across BROWSE, every source's page and a preview, since a
+  run outlives each screen. Each screen ends it from `beforeNavigate` when a
+  navigation leaves the browse world.
+- **A tag tapped on a preview while selecting goes inside the app** (c868):
+  `tag-search` answers `{ to }` to a request that accepts JSON, and the
+  preview goes there itself. The board says the selection survives a tag's
+  arrival; a document load would have ended it.
+- **ADD + ALL's question is a plain sheet** (c868; "Decisions for the
+  owner"): no counting, totals or size in cut 1.
+- **PUT ON A SHELF on a press's band is the chips alone** (c868): no `N OTHER
+SHELVES` sheet and no `+ NEW SHELF`. Both act on one series today
+  (`ShelfPicker`, `NewShelfSheet`); for a press they need its series and
+  those it has yet to add.
+- **The band has no QUEUE →, REVIEW → or STOP**, and BROWSE's selecting bar
+  has no search hint (c868): the queue's ADDING section and STOP are cut 2,
+  and BROWSE has no one source to search.
+- **The ADDING badge is drawn only while selecting** (c868): outside SELECT the
+  page is unchanged, as the board asks.
+- **The frame's grid is the app's** (c868): the board draws six columns at
+  1280px; the page keeps the library's `--grid-cols` for its width.
+
 ## What it does not do yet
 
+- **SELECT in a catalog, cut 2** (c868; the owner's split): a run kept on
+  the workstation that outlives the page, the tab and the device; the queue's
+  `01 — ADDING` section (`/downloads`) and the library's QUEUE cell `ADDING 8`
+  (and the desktop sidebar's DOWNLOADS row) to find a run again; **STOP**; a
+  source that starts refusing pausing only its lane, with TRY NOW and DROP n;
+  ADD + ALL's counting sheet (`COUNTING · 9 OF 14 ASKED`, totals by kind, the
+  size at the library's own average); `+ 1 EARLIER RUN · IN THE QUEUE` for a
+  second press while one runs; the band's QUEUE → and REVIEW →; the offline
+  and engine-down states of the bulk bar (Bars E: the press waiting for the
+  workstation); and the shelves sheet and + NEW SHELF on a press's band. In
+  cut 1 a press offline fails each series as `DID NOT ANSWER`, and RETRY asks
+  again.
 - **NEEDS A BROWSER** isn't drawn: nothing records that an extension failed
   for want of a WebView, which the engine reports only as an error at first
   use. Such a source fails as any other does, on its page.

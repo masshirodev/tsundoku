@@ -373,7 +373,11 @@ TAKEN OUT`, counting only ids still out: one ticked again by hand is
   leaving the library and the search for any other screen (a series screen, a
   Work, settings, a sidebar link other than a shelf) and coming back. ESC does
   not end SELECT (it never has: a Sheet's ESC closes the sheet). A second tab
-  has a selection of its own. A TV has no SELECT.
+  has a selection of its own. A TV has no SELECT. **The library should follow
+  the catalog here** (c868's handoff, Main board, "What ends it"): in a
+  source's catalog Escape ends SELECT once no sheet or FILTER panel is open to
+  close first ([`BROWSE.md`](BROWSE.md), "SELECT in a catalog"); the library's
+  own ESC is unchanged until a card of its own takes that.
 
 ### SELECT across the search
 

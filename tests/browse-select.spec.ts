@@ -498,6 +498,13 @@ describe('the selection in this tab', () => {
 		s.press('first', () => ended++);
 		expect(s.selecting).toBe(false);
 		const run = s.run!;
+		// One press at a time: a second while this one runs starts nothing.
+		expect(s.running).toBe(true);
+		s.start(false);
+		s.toggle(tick(MD));
+		s.press('none', () => {});
+		expect(s.run).toBe(run);
+		s.end();
 		expect(s.addingIds().size).toBe(2);
 		expect(run.lines(false)?.kind).toBe('running');
 		await vi.waitFor(() => expect(run.finished).toBe(true));

@@ -25,6 +25,9 @@
 	const ticks = $derived(sel.list);
 	const line = $derived(pressLine(ticks, here));
 	const none = $derived(ticks.length === 0);
+	/** One press at a time (cut 1): ticking goes on while one runs, pressing waits for it. */
+	const busy = $derived(sel.running);
+	const off = $derived(none || busy);
 	let asking = $state(false);
 
 	function go(which: Which) {
@@ -37,6 +40,10 @@
 	<div class="say" aria-live="polite">
 		{#if none}
 			<span>A TAP ON A TILE TICKS IT</span>
+		{:else if busy}
+			<span
+				><span class="ink">{line.lead}</span> · ONE PRESS AT A TIME · THE BAND SAYS WHEN IT ENDS</span
+			>
 		{:else}
 			<span
 				><span class="ink">{line.lead}</span>{#each line.wide as w (w)}<span class="wide"
@@ -49,21 +56,21 @@
 		{/if}
 	</div>
 	<div class="acts">
-		<button type="button" disabled={none} onclick={() => go('none')}>
+		<button type="button" disabled={off} onclick={() => go('none')}>
 			<span class="wide">ADD TO LIBRARY</span><span class="phone">ADD</span>
 			<small
 				><span class="wide">{addOnlyLine(ticks.length)}</span><span class="phone">NO DOWNLOAD</span
 				></small
 			>
 		</button>
-		<button type="button" class="acc" disabled={none} onclick={() => go('first')}>
+		<button type="button" class="acc" disabled={off} onclick={() => go('first')}>
 			<span class="wide">ADD + FIRST 10 EACH</span><span class="phone">ADD + 10</span>
 			<small
 				><span class="wide">{firstTenLine(ticks)}</span><span class="phone">FIRST 10 EACH</span
 				></small
 			>
 		</button>
-		<button type="button" disabled={none} onclick={() => (asking = true)}>
+		<button type="button" disabled={off} onclick={() => (asking = true)}>
 			ADD + ALL
 			<small><span class="wide">ASKS FIRST</span><span class="phone">ASKS</span></small>
 		</button>
