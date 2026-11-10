@@ -22,6 +22,7 @@ import {
 } from '../novels/source.ts';
 import { installedPlugins } from '../novels/plugins.ts';
 import { solvingSince } from '../novels/solver.ts';
+import { isAdding } from './adding.ts';
 
 /**
  * Browsing a source (doc/BROWSE.md; card c141): its POPULAR and LATEST
@@ -433,7 +434,7 @@ export async function shelf(
 			if (!more) break;
 		}
 		return {
-			hits: novelHits(sourceId, items, opts.reveal),
+			hits: markAdding(novelHits(sourceId, items, opts.reveal)),
 			more: more && pages < MAX_PAGES,
 			pages
 		};
@@ -448,8 +449,22 @@ export async function shelf(
 		more = got.hasNextPage && got.mangas.length > 0;
 		if (!more) break;
 	}
-	return { hits: asHits(sourceId, mangas, opts.reveal), more: more && pages < MAX_PAGES, pages };
+	return {
+		hits: markAdding(asHits(sourceId, mangas, opts.reveal)),
+		more: more && pages < MAX_PAGES,
+		pages
+	};
 }
+
+/**
+ * A result being added right now says so (card c868): asked as the list is
+ * answered, never kept, since the kept pages are the source's and an add
+ * lasts a request.
+ */
+const markAdding = (hits: SearchHit[]): SearchHit[] =>
+	hits.map((h) =>
+		h.match.kind !== 'in-library' && isAdding(h.mangaId) ? { ...h, adding: true } : h
+	);
 
 /** For tests: forget everything kept. */
 export const forgetAll = () => kept.clear();

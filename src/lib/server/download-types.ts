@@ -47,6 +47,12 @@ export type SearchHit = {
 	cover: string;
 	meta: string;
 	match: ResultMatch;
+	/**
+	 * A preview's ADD or a SELECT press is adding it right now (card c868;
+	 * `isAdding`): a source's page draws it ADDING, not tickable. Set by
+	 * `shelf` as it answers; absent elsewhere.
+	 */
+	adding?: boolean;
 };
 
 export type SourceManga = {

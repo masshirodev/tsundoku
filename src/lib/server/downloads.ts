@@ -23,6 +23,7 @@ import { NovelHostError } from './novels/host.ts';
 import type { SeriesDownloads } from './download-types.ts';
 import type { SourceFamily } from '../library/kinds.ts';
 import { followOrigin } from './season-facts.ts';
+import { whileAdding } from './engine/adding.ts';
 
 /**
  * What the download screens ask (doc/DOWNLOADING.md, doc/DOWNLOADER.md):
@@ -219,12 +220,19 @@ export const mangaKey = async (id: string) =>
 		: isAnimeId(id)
 			? anime.animeKey(id)
 			: engine.mangaKey(id);
-export const addToLibrary = async (id: string) =>
-	novels.parseNovelMangaId(id)
-		? novels.addNovel(id)
-		: isAnimeId(id)
-			? anime.addAnime(id)
-			: engine.addToLibrary(id);
+/**
+ * ADD, whichever family the result is (the preview's, and each series of a
+ * SELECT press: card c868). While it runs the result is marked as being added
+ * (`whileAdding`), so a source's page draws it ADDING and a press skips it.
+ */
+export const addToLibrary = (id: string): Promise<number> =>
+	whileAdding(id, () =>
+		novels.parseNovelMangaId(id)
+			? novels.addNovel(id)
+			: isAnimeId(id)
+				? anime.addAnime(id)
+				: engine.addToLibrary(id)
+	);
 export const undoAdd = async (seriesId: number) => engine.undoAdd(seriesId);
 
 /** A chapter's or episode's address as its entry keeps it: without the engine's memo. */
