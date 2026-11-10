@@ -49,6 +49,8 @@ beforeAll(async () => {
 			const url = b.mangaData?.url ?? '';
 			if (b.method === 'getDetailsManga') {
 				if (url.includes('refuse')) return json(500, { error: 'Forbidden', code: 403 });
+				if (url.includes('vanished')) return json(500, { error: 'Not found', code: 404 });
+				if (url.includes('broken')) return json(500, { error: 'NullPointerException' });
 				return setTimeout(
 					() => json(200, { url, title: `Title of ${url}`, author: 'A', status: 1 }),
 					detailsMs
@@ -157,6 +159,14 @@ describe('one series of a press', () => {
 		expect(await press.pressOne(result(OPEN, '/m/buried'), 'none', false)).toEqual({
 			status: 'failed',
 			reason: 'deleted'
+		});
+		expect(await press.pressOne(result(OPEN, '/m/vanished'), 'none', false)).toEqual({
+			status: 'failed',
+			reason: 'gone'
+		});
+		expect(await press.pressOne(result(OPEN, '/m/broken'), 'none', false)).toEqual({
+			status: 'failed',
+			reason: 'failed'
 		});
 		expect(await press.pressOne('not-a-result', 'none', false)).toEqual({
 			status: 'failed',
