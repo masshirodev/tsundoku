@@ -9,7 +9,7 @@ designer's decisions, the canvas's `Main.dc.html`), the `Seasons-*` and
 `Work-*` boards, `wk.css`, and `Works canvas.json`.
 
 **Status: Part B (Works, c216) built, W1 to W7; Part A (merged seasons,
-c215) designed, S1 to S4 not built** (the table at the end). Read
+c215) S1 and S2 built, S3 and S4 not** (the table at the end). Read
 `Works Calls.dc.html` whole before a slice: it answers the brief's seven
 questions, and this file only records what the build decided on top of it.
 
@@ -97,6 +97,203 @@ it did. An entry with a NULL season reads season 0's row (a flat list, c240's
 own rule). Two seasons of one series may share a key; two series may not hold
 one (`heldByOther`, which MOVE and the writer ask).
 
+**S2 (c283) writes the first row**, from GROUP's ONE SHOW, below.
+
+## Grouping seasons into one show (S2, c283)
+
+The GROUP sheet's AS row gains `ONE SHOW · SEASONS OF ONE SERIES`, beside
+`A WORK`, and it is the default answer when every selected series is video
+(`isSeasonSet`, `src/lib/library/books.ts`; the library's and `/search`'s
+selection bars prepend it to `groupAnswers`, which stays the books' rule).
+`A WORK` stays for any selection. The rest of the sheet is the Work's shape:
+
+- `INTO`: `NEW SERIES` / `ADD TO A SHOW · 0`. **Adding a season to an existing
+  show has no door yet** (S3's SEASONS · EDIT), so the cell is drawn disabled,
+  as the board draws it, and `?/group` takes only a new show.
+- `NAME`: **the shortest title, with its trailing season marker taken off** —
+  _Season 2_, _2nd Season_, _S2_, _Part 2_, _II_, and a numeral after a
+  Season or Part word (_Season III_, _Part II_), with a Part after a Season
+  taken as one marker (_Season 3 Part 2_). A bare numeral is a marker only as
+  _II_: _Final Fantasy VII_ keeps its name. `defaultShowName`
+  (`src/lib/library/season-name.ts`) is the rule, pure and tested by
+  `tests/season-name.spec.ts`; rung 55's inlined SQL stays as it is, because a
+  rung says the same thing in ten years. The label says which suffix the set
+  is without: `WITHOUT “SEASON 2”`.
+- `SEASONS · N` / `THE ORDER IS THE NUMBERING`, ordered `BY DATE ADDED`,
+  `BY TITLE` or `BY HAND`, with `S1`, `S2`, … in the 52px number cell, a 34px
+  cover, the season's title and its meta line. **The order is the numbering.**
+- `MERGE · N SEASONS INTO ONE SERIES`, with `UNDO AFTER` beside it.
+
+### The merge
+
+`mergeSeasons` (`src/lib/server/books.ts`, beside `groupIntoSeries`) does the
+whole of it in one transaction, the first season's series row becoming the
+show:
+
+- **Every episode moves to the first season's series**, with its watched
+  state, its position in the new run and its reading-log rows. `entries.season`
+  becomes the season's number in the sheet's order; `episode_number` stays the
+  source's, so a two-season show has two `EP. 1`s. `resequenceAnime` puts the
+  positions in season order.
+- **A moved episode's `entries.file` is named again from the show's folder**,
+  as `nameFilesFrom` does, because the column is relative to `series.path`:
+  without it seasons 2 and 3 would play season 1's file of the same name. An
+  empty path at either end means "no file" (`episodeFile`'s own rule), so the
+  file becomes `''` rather than a path under somebody else's folder. A
+  take-one-out names its episodes back from the season's folder, and the
+  journal restores the original.
+- **Each season's source, folder and title go into `series_season_facts`**,
+  one row a season; its link (and `season_link_searches`, `season_link_*`,
+  `season_tracker_*`) moves into S1's rows with the same new season number. A
+  legacy `series_links` row is the season's link when it has no season row.
+- The show takes **the highest rating, FAV if any had it, every tag and
+  shelf, S1's cover and the typed name**.
+- A season's own **Work membership moves with it**: the show joins the Work
+  the seasons were in. A Work left holding only the show ends, as any Work of
+  one does (`series_deleted_ends_work`); UNDO brings the same Work back.
+- **FOLLOW follows the last season** (`followOrigin`), and what that source
+  lists lands in that season's number. The show takes the **last season's**
+  `followed_at`: a last season nobody follows leaves the show unfollowed, and
+  an earlier season's follow does not follow it.
+
+It refuses a selection that is not all video (the registry's `medium`, never a
+kind's name), mixed hidden and visible roots (`alike`), a series already part
+of a merged show, a selection touching **two Works**, and a series that
+already holds more than one season of its own (its link and source would not
+have one season number to take). The sheet offers ONE SHOW only for what the
+merge would accept: two or more video series, all hidden or all visible, and in
+at most one Work (`isSeasonSet` reads `Picked`'s `hidden` and `work`). A
+selection already part of a merged show is the one refusal the page cannot know
+before it posts; that limit is a Gaps line in
+`doc/handoff-notes/seasons.md`. `?/group` posts `answer=show`, lands on the
+show's screen with `?created=N&merge=1`, and that band's UNDO is **UNGROUP**.
+The band draws only while the journal exists, and its form carries `show=1` so
+a second press, or a tab left on the URL, is a no-op redirect rather than the
+books' take-out (which would break the anime into doujin singles).
+
+### UNGROUP, and taking a season out
+
+**A merge's undo restores the merge's own picture exactly.** `season_merges`
+(rung 77) keeps, as JSON, every series the merge touched and every row of every
+table that names one — walked from `sqlite_master` and `PRAGMA
+foreign_key_list`, plus any table with a `series_id` column and no foreign key
+(`highlights`, measured: the only one) — plus each entry's own series, season,
+position and file. UNGROUP restores each series **under its own id**, with its
+own rating, FAV, tags, shelves, Work, links, folder and tracking state, and
+deletes the journal. That is why it is a rung: `series_season_facts` and
+`series_season_links` know a season's source and link, but neither holds an
+original series id, a rating or a FAV, and an id that changes breaks every
+outside reference. `tests/seasons-merge-db.spec.ts` dumps every table before
+the merge and after the undo and asserts deep equality over three seasons,
+watched, partly watched and streaming.
+
+**A hide made while merged is the show's, and survives the undo.** HIDE and
+UNHIDE write the show's `hidden` and `public` (`library.setHidden`), while the
+journal holds each season's own from merge time. Privacy must not be undone by
+putting a show back together, so the undo compares the show's live `hidden`
+with the journal's and, when they differ, gives **every season** that value
+with `setHidden`'s own rule: hiding takes back `public`, unhiding clears the
+flag and in a hidden root makes the series public. A season taken out takes the
+show's live hide state too. **Rating, FAV, FOLLOW and a RENAME made while
+merged are the show's** and are not carried: the undo puts each season's own
+back from the journal, exactly as the merge found them.
+
+**The journal is a picture of merge time, and the show goes on being used.**
+So an undo also carries what was written while merged to the series that now
+holds it, instead of deleting and reinserting the journal's stale copy:
+
+- a `reading_events`, `download_queue` or `episode_failures` row follows its
+  entry's series, and a log row with no entry stays with the show;
+- a `season_tracker_state` or `season_tracker_sends` row follows its sheet
+  season to that season's series, under that season's own number;
+- a `tracker_state` row, and every other row the show itself wrote, stays with
+  the show;
+- a highlight made since follows its episode; a highlight the merge orphaned
+  is restored exactly, even though the app's own `highlights_entry_numbered`
+  trigger would rejoin it when its episode comes back by number;
+- an episode FOLLOW added while merged goes to the series of its season,
+  under that season's own numbering, and the receiving series is resequenced.
+
+The tables the merge writes itself — `series_season_facts`,
+`series_season_links`, the `season_link_*` rows, the united tags, shelves and
+Work — are the journal's and are not carried.
+
+**An absorbed id is held open while the journal lives.** SQLite hands the next
+row the largest id plus one, so after a merge the next series or Work added
+would take a deleted season's id and the undo could no longer put it back. The
+merge leaves a placeholder row in `series` (and `works` when the merge ended
+one) with `reserve_at` set, and `season_reservations` binds it to the journal;
+the placeholder is `in_library = 0`, hidden, keyless and pruned, so no listing
+sees it, and a trigger takes it away when the merge is undone or the show is
+deleted. `tests/migrations-db.spec.ts` proves the cascade; the merge spec adds
+a series and a Work between merge and undo and watches both come back.
+
+**A Work that was live at the merge is the journal's only while its id is its
+own.** The merge writes no reservation for a Work that keeps two members
+through it, so the owner can still end that Work while the show is merged. If
+it is gone and no one took its id, the undo puts it back under that id with its
+members; if a new Work has taken the id, **the undo decides by the moment of
+making (`works.created_at`) alone and leaves the newcomer alone**, because the
+id is not the Work. A rename while merged is an ordinary owner action and the
+name is no part of that identity: the Work comes back under the name the owner
+gave it, with the membership the journal holds (below, for the members the owner
+has not grouped since). The journal's Work is lost for
+good only when a stranger holds its id, and its membership is then not put back
+on the stranger; the seasons themselves still come back. That comparison is
+`restoreWorkRow`'s, and `tests/seasons-merge-db.spec.ts` proves it through
+`works.ungroup` plus `createWork` and through a `works.takeOut` that leaves the
+Work short of members.
+
+**The journal holds a Work's whole membership, not only the seasons'.** A
+member outside the merge has no season snapshot, so the merge records every
+`work_series` row and its position. A reorder, or a take-out of the show while
+merged, therefore cannot lose that member's place: the undo puts the journal's
+rows back, at the journal's positions. **A series the owner has grouped since is
+the owner's.** A `work_series` row goes back only where the series is in no Work
+now, or still in the Work the journal names (then the journal's position wins).
+The undo never takes a series out of another live Work — the merged show itself
+included, when the owner grouped a Work around the show while it was merged —
+and it never ends a Work as a side effect of putting rows back. A Work the owner
+ended while merged comes back only with two of its members or more, since a Work
+of one cannot exist; if the owner has taken them elsewhere, it stays ended. A
+HIDE or UNHIDE made while merged covers the Work's members that are still its
+own, because a Work is hidden whole; a series the owner has grouped elsewhere is
+not one. A season taken out of the show is dropped from the journal's
+membership too, so the show's later undo does not reach the series the owner has
+since made of it. `tests/seasons-merge-db.spec.ts` proves each of these through
+`works.createWork`, `addSeries`, `takeOut`, `reorder` and `rename`.
+
+The series screen's FILE row offers **UNGROUP** only while the journal exists,
+so an ordinary anime that already holds several seasons (rung 55) never draws
+it. `takeOutSeason(seriesId, season)` is the take-one-out server function
+(S3's SEASONS · EDIT has no door yet): a season becomes a series of its own
+again with its source, link, files and watched state, and the show keeps the
+rest, renumbered. Taking the **first** season out hands the show to the next
+season's row, under the name it was merged with, and puts the first back as
+the series it was; the show's folder is the first remaining season's that has
+one, so a streaming season beside it does not erase the later files. A season
+with no folder that holds a file takes the file's own directory instead. The
+show's Work membership is the journal's here too: the next season keeps the
+place it had, the taken-out first season keeps its own like any taken-out
+season, and the take-out never fails on the Work it was in. **A Work the owner
+made around the show while merged follows the show**, as the show's shelves do
+(the owner's decision, 2026-11-10): the row that held the first season moves to
+the season that now holds the show, at the same place, and the first season is
+left in no Work. A Work the journal restores is the merge's own and is not
+moved, and a Work the owner added the show to follows it the same way, since it
+is the Work that holds the show. Only one Work can hold the show, so if the new
+show were already in a Work of the owner's own the two are left as they are;
+the doors that make a Work refuse a merged season outright (it is out of the
+library while merged), so that refusal has no door to reach it and exists for
+the id a stranger may hold.
+
+The one rung this slice adds is v77 (`season_merges`, `season_reservations`,
+and `reserve_at` on `series` and `works`); before it the ladder ended at v76.
+
+The series screen's UNGROUP also catches a `GroupingError` and shows its
+message in the refusal band, so a restore that cannot put a series back says so
+rather than answering 500.
+
 ## Where it departs from the handoff
 
 - A Work has a derived rating and FAV (above), not "neither".
@@ -112,6 +309,13 @@ one (`heldByOther`, which MOVE and the writer ask).
   row, and a menu with nothing new in it is a second door to the same two.
 - Merged seasons' links are c240's per-season links, built by c240, not
   something that already exists.
+- The season sheet's `ADD TO A SHOW` cell is drawn as the board draws it, at
+  `· 0` and disabled: adding a season to an existing show is S3's, and no
+  screen lists the shows there are.
+- A season's row in the sheet says the library's own meta (`ANIME · 12 EP. · 6
+WATCHED`) rather than the board's `<SOURCE> · 12 EP. · 2026 · 6 WATCHED · 3
+HERE`: the selection facts the sheet is handed carry no source, year or
+  downloaded count (see the notes' Gaps).
 
 ## Schema
 
@@ -150,6 +354,15 @@ existing one.
   wrote `work:<workId>:<seriesId>`, but nothing stored a row before W7, so no
   library holds the old shape and no rung is needed.
 
+Rung 75 (c282, S1) adds `series_season_facts (series_id, season, origin_key,
+folder, source_title)`, keyed by series and season, with `folder` unique and
+`origin_key` deliberately not; it holds no link column (c240's
+`series_season_links` has one, keyed with a `part`). **Rung 77 (c283, S2) adds
+`season_merges (series_id, made_at, facts)`**: one JSON journal a merged show,
+written by the merge and deleted by UNGROUP or a take-one-out. It references
+the show with CASCADE; nothing else reads it. A merge and its undo add no row
+to any other table and change no existing one.
+
 ## Rules
 
 `src/lib/library/works.ts` holds them and `tests/works.spec.ts` tests them;
@@ -187,6 +400,12 @@ PAGE SEES ONLY SOME OF THE PARTS`, never the Work's own: a Work-wide average
   and its CREATE cell waits for a name (W4).
 - **Kinds and the verb:** `WORK · MANGA + ANIME`, each kind once in the parts'
   order, and CONTINUE says WATCH for an anime and READ for anything else.
+- **A merged show is one series** (S2): one tile, one CONTINUE, `entries.season`
+  is its seasons' numbering, and every source, folder, link and tracking row
+  hangs off a season. Its seasons are ordered by the sheet's answer, which is
+  the numbering. UNGROUP is its undo and only its own (the journal's presence
+  says so); an ordinary anime with several seasons has no journal and no
+  UNGROUP. Take-one-out is the same rule for one season, with no screen yet.
 
 ## The library and the Work screen (W2, W3)
 
@@ -324,8 +543,9 @@ parts' average and `N OF M` over the visible parts (c309, the Rules above).
 GROUP opens the AS sheet (Work-Group B5; doc/BOOKS.md, "The AS row"). The bulk
 bar offers GROUP for any selection, and the sheet's first row says what the
 selection can become: `ONE SERIES · BOOKS`, `ONE SERIES · VOLUMES`
-(doc/BOOKS.md's), and `A WORK · SERIES`, which is always one of the answers. A Work
-takes any series; the other two take only the selection they fit.
+(doc/BOOKS.md's), `ONE SHOW · SEASONS` on an all-video selection (above), and
+`A WORK · SERIES`, which is always one of the answers. A Work
+takes any series; the other three take only the selection they fit.
 
 For a Work the sheet reads `NEW WORK` or `ADD TO A WORK · N`, a NAME (the words
 every title starts with, or empty with `THE TITLES SHARE NO WORDS`), ORDER
@@ -732,6 +952,17 @@ It makes two Works in SQL -- one caught mid-run, one with its second part read
 through -- and its hand-written cases walk the row's links, ← from the Work, a
 stale `from=work:` id, MOVE and TAKE OUT with its band and UNDO.
 
+`tests/seasons-group-frame.e2e.ts` (S2) pins `Seasons-Group.dc.html`'s sheet:
+the AS row's two answers, NAME and its `WITHOUT “SEASON 2”` label, SEASONS'
+order, the 52px number cell and 34px cover of its rows, the explanation and
+the merge foot. It is hand-pinned from `extract-spec.mjs` and `wk.css` rather
+than regenerated, because the generator would write `@playwright/test` back
+(c542; doc/TESTING.md, "Regenerating the frame spec"), and it runs once, in
+`tablet-landscape`, skipping the other device projects; the line it would want
+in `playwright.config.ts` (a `DEVICE_IGNORE` entry and a `seasons-frame`
+project) is in the wave's notes' Gaps. It seeds three anime seasons of its own,
+because the seed holds no anime.
+
 ### The flow
 
 `tests/works-flow.e2e.ts` is W2's, W3's, W4's and W7's end to end. W7's
@@ -757,6 +988,14 @@ another spec, and a case that fails halfway leaves the suite's database as it
 was. The one destructive step that is not a browser case -- SELECT ALL under a kind of the KIND band takes a Work's part of another kind, and a bulk HIDE hides the run whole --
 is in `tests/works-library-db.spec.ts`, which reseeds before every case.
 
+`tests/seasons-group-flow.e2e.ts` (S2) is the ONE SHOW flow end to end: an
+anime selection opens the sheet on ONE SHOW, the NAME loses its `Season 2`,
+`S1`/`S2`/`S3` say the order, MERGE lands on the show's screen with its band,
+UNDO restores all three under their own tiles, an ordinary anime with seasons
+never draws UNGROUP, and a direct `?/group` with `answer=show` and a manga is
+refused. It merges series, so it seeds its own database and serves it on a free
+port (the works-flow arrangement), and it runs once, in `tablet-portrait`.
+
 ## What it does not do yet
 
 Everything in the slices below that is not marked done. Also, by the brief:
@@ -765,7 +1004,10 @@ two sources of one work stay the duplicates review's; the next part is not
 kept cached on the tablet.
 
 The offer is the title-stem rule alone; MIGHT BE SEASON N (S4) and the rest of
-Part A are not built. The Work screen
+Part A are not built: S3's SEASONS · EDIT (the merged show's own screen and
+take-one-out) and S4's offers. A season cannot yet be added to an existing
+show, and the sheet's row does not name its source, year or downloaded count
+(its notes' Gaps). The Work screen
 does not draw the handoff's `↓ 10` download cell: a tap on a row opens the
 series, where DOWNLOAD's NEXT 10 lives, and this slice adds no download action
 of its own. W6's block offers DOWNLOAD FIRST 10 for the next part, which is
@@ -789,7 +1031,7 @@ beside). A slice's card names its boards, files, specs and docs.
 | W5    | c279 | The series screen's WORK row and back cell (built)                     |
 | W6    | c280 | The end of a series: the end page and the player (built)               |
 | W7    | c281 | MIGHT CONTINUE offers, the phone, and one flow end to end (built)      |
-| S1    | c282 | Merged seasons: per-season source and folder (after c240)              |
-| S2    | c283 | GROUP AS SEASONS: the merge, UNDO, UNGROUP                             |
+| S1    | c282 | Merged seasons: per-season source and folder (built)                   |
+| S2    | c283 | GROUP AS SEASONS: the merge, UNDO, UNGROUP (built)                     |
 | S3    | c284 | The merged show's series screen                                        |
 | S4    | c285 | MIGHT BE SEASON N                                                      |

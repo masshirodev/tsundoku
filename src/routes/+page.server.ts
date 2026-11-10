@@ -29,10 +29,13 @@ import {
 	dismissSuggestion,
 	groupIntoSeries,
 	isBookSql,
+	isReservedWork,
+	mergeSeasons,
 	seriesOfBooks,
 	seriesOfVolumes
 } from '$lib/server/books';
 import { setPersonFavourite, tagPage } from '$lib/server/people';
+import { showRowFacts } from '$lib/server/season-facts';
 import { libraryRoot, SCAN_WAITS, startScan } from '$lib/server/import';
 import { lastImport, tickingImport } from '$lib/server/import/log';
 import { firstReadExtras, readSources } from '$lib/server/start';
@@ -169,14 +172,11 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// browsing Work tile carries its parts, so a selection made through it can
 	// name the Work it would move them out of (W4's MOVES HERE). One query for
 	// the page, never one per tile.
-	const workFeet = Object.fromEntries(
-		[
-			...workFeetFor([
-				...(person ? person.items.map((i) => i.seriesId) : []),
-				...tiles.flatMap((c) => (c.tile ? c.tile.parts.map((p) => p.seriesId) : [c.id]))
-			])
-		].map(([id, w]) => [String(id), w])
-	);
+	const tileIds = [
+		...(person ? person.items.map((i) => i.seriesId) : []),
+		...tiles.flatMap((c) => (c.tile ? c.tile.parts.map((p) => p.seriesId) : [c.id]))
+	];
+	const workFeet = Object.fromEntries([...workFeetFor(tileIds)].map(([id, w]) => [String(id), w]));
 	return {
 		shelf,
 		tag,
@@ -189,6 +189,9 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 				: null,
 		person,
 		workFeet,
+		// A GROUP row's show line (c283; season-facts.ts): source, year and files
+		// on disk, read for the tiles this page drew and no other.
+		groupFacts: showRowFacts(tileIds, reveal),
 		existing: seriesOfBooks(reveal),
 		existingVolumes: seriesOfVolumes(reveal),
 		sort,
@@ -221,7 +224,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		gone: goneBand(url),
 		// What GROUP can make of a selection (doc/BOOKS.md, "The AS row"): the
 		// Works a selection may move into, and the series' own Work names.
-		existingWorks: workChoices(),
+		existingWorks: workChoices().filter((w) => !isReservedWork(w.id)),
 		// A person's page says the run exists without pulling it in (W4).
 		works: person
 			? worksOnTagPage(
@@ -606,10 +609,25 @@ export const actions: Actions = {
 	 * GROUP: singles into a new series, or onto the end of an existing one, in
 	 * the order the sheet sent them. From a suggestion, the whole suggested set
 	 * is also stored as dismissed, so books left unticked don't bring it back.
+	 *
+	 * `answer=show` is the season sheet's own door (c283): the same selection,
+	 * merged into one show, landing on the show's screen with the band whose
+	 * UNDO is UNGROUP.
 	 */
 	group: async ({ request }) => {
 		const form = await request.formData();
 		const seriesIds = form.getAll('series').map(Number).filter(Number.isInteger);
+		if (form.get('answer') === 'show') {
+			let made;
+			try {
+				made = mergeSeasons({ seriesIds, name: String(form.get('name') ?? '') });
+			} catch (e) {
+				if (e instanceof GroupingError) return fail(400, { groupMessage: e.message.toUpperCase() });
+				throw e;
+			}
+			const params = new URLSearchParams({ created: String(made.seasons), merge: '1' });
+			redirect(303, `/series/${made.seriesId}?${params}`);
+		}
 		const suggested = form.getAll('suggested').map(Number).filter(Number.isInteger);
 		const into = form.get('mode') === 'existing' ? Number(form.get('into')) : undefined;
 		let result;

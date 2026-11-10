@@ -3,6 +3,7 @@ import { VISIBLE_SQL } from '$lib/server/visibility';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { browseSource } from '$lib/server/engine/browse';
 import { sourceOfKey } from '$lib/library/downloads';
+import { followOrigin } from '$lib/server/season-facts';
 
 /**
  * The source a series' tags search (card c313; doc/SERIES.md, the TAGS row):
@@ -31,11 +32,14 @@ export function tagSourceOf(
 	if (downloadsBackend() !== 'engine') return null;
 	const row = getDb()
 		.prepare(
-			`SELECT s.origin_key FROM series s JOIN roots r ON r.id = s.root_id
+			`SELECT 1 FROM series s JOIN roots r ON r.id = s.root_id
 			WHERE s.id = ? AND (? OR ${VISIBLE_SQL})`
 		)
-		.get(seriesId, reveal ? 1 : 0) as { origin_key: string | null } | undefined;
-	const id = sourceOfKey(row?.origin_key ?? null);
+		.get(seriesId, reveal ? 1 : 0);
+	// A merged show's tags come from its last season's source (c283): the key
+	// the series itself holds names the first season, which may have no tag
+	// page. `followOrigin` is the same rule FOLLOW uses.
+	const id = sourceOfKey(row ? followOrigin(seriesId).key : null);
 	if (!id) return null;
 	const source = browseSource(id, reveal);
 	if (!source || source.failed) return null;

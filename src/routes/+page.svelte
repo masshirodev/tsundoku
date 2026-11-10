@@ -98,7 +98,9 @@
 		drawnToNote,
 		takeCarried,
 		UnseenFacts,
-		type Picked
+		readShowFacts,
+		type Picked,
+		type ShowFacts
 	} from '$lib/library/selection';
 	import type { Snapshot } from './$types';
 
@@ -317,6 +319,16 @@
 	// sends the first, and the rest are asked for as the end of the grid comes
 	// near. `more` is every page after the first.
 	let more = $state<LibraryCard[]>([]);
+	/**
+	 * The show facts of the pages drawn after the first (c283's meta line, round
+	 * 2): the load's `groupFacts` covers its own first page only, and GROUP's
+	 * sheet can hold a season from further down. Read through `/series/facts`,
+	 * the same ask a by-id selection makes; a hidden series outside reveal is not
+	 * answered, so nothing is read for one.
+	 */
+	let pageShowFacts = $state<Record<string, ShowFacts>>({});
+	const showFactsOf = (id: number): ShowFacts | null =>
+		data.groupFacts[String(id)] ?? pageShowFacts[String(id)] ?? null;
 	let loadingMore = $state(false);
 	let moreFailed = $state(false);
 	/** Bumped whenever the list changes under a request, so a late answer is dropped. */
@@ -379,6 +391,37 @@
 	}
 
 	/**
+	 * Note the show facts of the cards a page brought (c283's meta line, round
+	 * 2). The load's `groupFacts` already answers its own first page; a page
+	 * after it has none, so GROUP's sheet would draw the library's line for a
+	 * season past the first page. One ask for the ids neither map holds yet.
+	 * `refresh` re-reads the ids a write may have changed (a download's HERE
+	 * count) rather than only the new ones. A failed read leaves those rows with
+	 * the library's line rather than failing the page.
+	 */
+	async function noteShowFacts(cards: readonly LibraryCard[], refresh = false) {
+		// A plain record, not a `Set`: a component's `Set` is the lint's
+		// `SvelteSet`, and this one is built and thrown away in one turn.
+		const want: Record<string, true> = {};
+		const known = (id: number) =>
+			!refresh &&
+			(data.groupFacts[String(id)] !== undefined || pageShowFacts[String(id)] !== undefined);
+		const add = (id: number) => {
+			if (!known(id)) want[String(id)] = true;
+		};
+		for (const c of cards) {
+			if (c.tile) {
+				for (const p of c.tile.parts) add(p.seriesId);
+			} else add(c.id);
+		}
+		const ids = Object.keys(want).map(Number);
+		if (ids.length === 0) return;
+		const got = await readShowFacts(ids);
+		if (!got) return;
+		pageShowFacts = { ...pageShowFacts, ...got };
+	}
+
+	/**
 	 * Positions the shelf has handed back that drew nothing new, the ones a page
 	 * repeated because the shelf moved under it. The next page's offset is the
 	 * tiles drawn plus these, so a page of nothing but repeats moves on instead
@@ -409,6 +452,7 @@
 				const have = new Set(series.map((c) => c.id));
 				const fresh = next.filter((c) => !have.has(c.id));
 				more = [...more, ...fresh];
+				void noteShowFacts(fresh);
 				skipped += next.length - fresh.length;
 				if (next.length < data.pageSize) ended = true;
 			} else moreFailed = true;
@@ -483,6 +527,7 @@
 				// that failed to reload would read its band off a tile now gone.
 				if (pageAgain) {
 					more = pageAgain.filter((c) => !have.has(c.id));
+					void noteShowFacts(more, true);
 					skipped = 0;
 				}
 				ended = false;
@@ -603,6 +648,7 @@
 			skipped = 0;
 			const have = new Set(data.series.map((c) => c.id));
 			more = v.more.filter((c) => !have.has(c.id));
+			void noteShowFacts(more);
 			await tick();
 			settleScroll(v.y);
 			// What they say now: a rating may have changed on the series screen.
@@ -610,7 +656,10 @@
 			rereads += 1;
 			try {
 				const again = await fetchPage(data.series.length, v.more.length);
-				if (again && gen === generation) more = again.filter((c) => !have.has(c.id));
+				if (again && gen === generation) {
+					more = again.filter((c) => !have.has(c.id));
+					void noteShowFacts(again, true);
+				}
 			} finally {
 				rereads -= 1;
 				void keepGoing();
@@ -911,6 +960,10 @@
 				cover: i.cover,
 				kind: i.kind,
 				entryCount: i.entries,
+				// A person page's tag item carries a READ flag, not a count, and the
+				// page reads no show facts for it: its row keeps the library's line.
+				readCount: 0,
+				show: null,
 				meta: `${kindLabel(i.kind)} · ${count(i.entries)} ${unitLabel(i.kind)}${i.read ? ' · READ' : ''}`,
 				work: work(i.seriesId),
 				inWork: work(i.seriesId)?.name ?? null,
@@ -922,13 +975,14 @@
 		}
 		for (const c of series) {
 			if (!c.tile) {
-				out.push(pickedOfCard(c, work(c.id)));
+				out.push(pickedOfCard(c, work(c.id), showFactsOf(c.id)));
 				continue;
 			}
 			// The tile's own word on its Work: `workFeet` is the first page's, so
 			// a tile past it has none (c686).
 			const theWork = { id: c.tile.id, name: c.tile.name };
-			for (const p of c.tile.parts) out.push(pickedOfPart(p, c.tile.name, theWork));
+			for (const p of c.tile.parts)
+				out.push(pickedOfPart(p, c.tile.name, theWork, showFactsOf(p.seriesId)));
 		}
 		return out;
 	});

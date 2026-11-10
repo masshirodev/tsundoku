@@ -18,6 +18,14 @@ import type { Kind } from './types.ts';
  * time it is drawn again. The server stays the judge of every action: a fact
  * gone stale since it was noted only words a sheet, never decides a write.
  */
+/**
+ * The show facts one GROUP row's second line draws beyond the card
+ * (`Seasons-Group.dc.html`, A1; c283): the season's source, its AniList year
+ * and how many episodes are on disk. Server-read (`season-facts.ts`,
+ * `showRowFacts`), because no card carries them.
+ */
+export type ShowFacts = { source: string | null; year: number | null; here: number };
+
 export type Picked = {
 	id: number;
 	title: string;
@@ -28,6 +36,10 @@ export type Picked = {
 	entryCount: number;
 	/** The row's second line, as GROUP's sheet draws it: "MANGA · 58 CH. · 41 READ". */
 	meta: string;
+	/** Finished entries: WATCHED on a show's row (the card's own `readCount`). */
+	readCount?: number;
+	/** A show's own line (`<SOURCE> · 12 EP. · 2026 · 6 WATCHED · 3 HERE`), when the page read it. */
+	show?: ShowFacts | null;
 	/**
 	 * The Work it is a part of, as its tile or card said: HIDE asks first about
 	 * a Work (W4), past the first page as well as on it (c686).
@@ -142,6 +154,10 @@ function samePicked(a: Picked, b: Picked): boolean {
 		a.kind === b.kind &&
 		a.entryCount === b.entryCount &&
 		a.meta === b.meta &&
+		a.readCount === b.readCount &&
+		a.show?.source === b.show?.source &&
+		a.show?.year === b.show?.year &&
+		a.show?.here === b.show?.here &&
 		a.work?.id === b.work?.id &&
 		a.work?.name === b.work?.name &&
 		a.inWork === b.inWork &&
@@ -161,7 +177,11 @@ type WorkName = { id: number; name: string };
  * `LibraryCard & { why }`). `work` is the Work it is a part of, where the
  * page knows it.
  */
-export function pickedOfCard(c: LibraryCard, work: WorkName | null): Picked {
+export function pickedOfCard(
+	c: LibraryCard,
+	work: WorkName | null,
+	show: ShowFacts | null = null
+): Picked {
 	return {
 		id: c.id,
 		title: c.title,
@@ -170,7 +190,9 @@ export function pickedOfCard(c: LibraryCard, work: WorkName | null): Picked {
 		cover: c.cover,
 		kind: c.kind,
 		entryCount: c.entryCount,
+		readCount: c.readCount,
 		meta: sheetMeta(c),
+		show,
 		work,
 		inWork: work?.name ?? null,
 		hidden: c.hidden,
@@ -185,7 +207,12 @@ export function pickedOfCard(c: LibraryCard, work: WorkName | null): Picked {
  * library, or of a Work the search found by name. `inWork` is the Work's own
  * name, which GROUP's row reads ("IN <WORK> · MOVES HERE").
  */
-export function pickedOfPart(p: WorkPart, inWork: string, work: WorkName | null): Picked {
+export function pickedOfPart(
+	p: WorkPart,
+	inWork: string,
+	work: WorkName | null,
+	show: ShowFacts | null = null
+): Picked {
 	return {
 		id: p.seriesId,
 		title: p.title,
@@ -194,7 +221,9 @@ export function pickedOfPart(p: WorkPart, inWork: string, work: WorkName | null)
 		cover: p.cover,
 		kind: p.kind,
 		entryCount: p.entries,
+		readCount: p.read,
 		meta: `${kindLabel(p.kind)} · ${count(p.entries)} ${unitLabel(p.kind)}${isFinished(p) ? ' · READ ✓' : ''}`,
+		show,
 		work,
 		inWork,
 		hidden: p.hidden,
@@ -276,16 +305,21 @@ export const landing = (u: URL): string => `${u.pathname}${u.search}`;
  * a Work tile's wanted parts as parts. A wanted id the answer does not hold
  * (deleted since, or hidden with reveal off) is simply absent.
  */
-export function pickedOfCards(cards: readonly LibraryCard[], want: ReadonlySet<number>): Picked[] {
+export function pickedOfCards(
+	cards: readonly LibraryCard[],
+	want: ReadonlySet<number>,
+	show: Readonly<Record<string, ShowFacts>> = {}
+): Picked[] {
 	const out: Picked[] = [];
 	for (const c of cards) {
 		if (!c.tile) {
-			if (want.has(c.id)) out.push(pickedOfCard(c, null));
+			if (want.has(c.id)) out.push(pickedOfCard(c, null, show[String(c.id)] ?? null));
 			continue;
 		}
 		const work = { id: c.tile.id, name: c.tile.name };
 		for (const p of c.tile.parts)
-			if (want.has(p.seriesId)) out.push(pickedOfPart(p, c.tile.name, work));
+			if (want.has(p.seriesId))
+				out.push(pickedOfPart(p, c.tile.name, work, show[String(p.seriesId)] ?? null));
 	}
 	return out;
 }
@@ -300,6 +334,29 @@ export const FACTS_MAX = 10_000;
  * chunk that failed) and is not gone.
  */
 export type FactsAnswer = { picked: Picked[]; missing: number[] };
+
+/**
+ * A show's row facts (c283's meta line) for a by-id read: a second ask, because
+ * the card the library answers carries no source, year or file count. A read
+ * that fails leaves the rows without the line rather than failing the cards.
+ * The library page's later pages ask it too (`+page.svelte`, `fetchPage`),
+ * since the load's `groupFacts` only covers its own first page.
+ */
+export async function readShowFacts(
+	ids: readonly number[]
+): Promise<Record<string, ShowFacts> | null> {
+	try {
+		const res = await fetch('/series/facts', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ ids })
+		});
+		if (!res.ok) return null;
+		return (await res.json()) as Record<string, ShowFacts>;
+	} catch {
+		return null;
+	}
+}
 
 /**
  * The facts of `ids` from the library by id (c737), in chunks of `FACTS_MAX`
@@ -321,7 +378,7 @@ export async function readFacts(ids: readonly number[]): Promise<FactsAnswer | n
 				series: LibraryCard[];
 				missing?: number[];
 			};
-			out.picked.push(...pickedOfCards(series, new Set(chunk)));
+			out.picked.push(...pickedOfCards(series, new Set(chunk), (await readShowFacts(chunk)) ?? {}));
 			out.missing.push(...(missing ?? []));
 		} catch {
 			return at === 0 ? null : out;
