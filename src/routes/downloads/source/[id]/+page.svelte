@@ -2,7 +2,8 @@
 	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { page } from '$app/state';
 	import { trail } from '$lib/start-trail.svelte';
-	import { enhance } from '$app/forms';
+	import { applyAction, enhance } from '$app/forms';
+	import { settleReplacing } from '$lib/back';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { formatNumber } from '$lib/library/series';
 	import { kindFacts } from '$lib/library/kinds';
@@ -150,8 +151,9 @@
 							action="?/add"
 							use:enhance={() => {
 								adding = true;
-								return async ({ update }) => {
-									await update();
+								return async ({ result, update }) => {
+									// The add ends this screen: its entry is the one the series takes.
+									await settleReplacing({ result, update });
 									adding = false;
 								};
 							}}
@@ -202,6 +204,10 @@
 						action="?/addDownload"
 						fields={{ which: asking ?? 'next', from: data.origin }}
 						onclose={() => (asking = null)}
+						ondone={(result) =>
+							// The same: ADD AND DOWNLOAD ends the preview. A failure is drawn
+							// in its band, as `update()` would (c932).
+							settleReplacing({ result, update: () => applyAction(result) })}
 					/>
 
 					{#if data.record}

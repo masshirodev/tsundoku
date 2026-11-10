@@ -223,6 +223,24 @@ was, the titled one's source is named. Anything else opens c94's
 preview (`/downloads/source/<manga>?from=<this page>`), whose back cell then
 says BROWSE and returns here.
 
+### The add replaces the preview
+
+**+ ADD TO LIBRARY and ADD AND DOWNLOAD end the preview, so they take its
+history entry** (card c932, stage 1, the owner's report of 2026-11-09). Both
+follow their redirect with `replaceState` (`settleReplacing`, `src/lib/back.ts`),
+as an action that ends a screen does: one swipe back from the new series lands
+on the catalog it was found in, at the place c930 keeps, not on the preview a
+second time. Pushed, it cost two swipes, and the second one opened a preview
+of a series that was now in the library (which redirects to its series) — the
+"transient gap" the owner named. The band, its UNDO, `?from=` (c262), the
+hidden landing (c435, c505) and a refusal's band are unchanged: only where the
+landing sits in history moved. **Without script** a native POST's 303 is a full
+navigation, which no page can replace: ADD still costs two swipes there, and
+the no-script path is left as it was.
+
+The preview of a series already in the library still redirects to the series
+(`+page.server.ts`:66), so a shared preview link opens the series.
+
 ### Arriving from a tag
 
 An author, an artist or a genre on a source's preview, and a tag on a library
@@ -1055,6 +1073,12 @@ found by those words and a locator matches by substring.
   alone (the same elements, one call, no cover again); a reload and a forward
   visit keep the top; and under reveal nothing of the revealed list comes back
   after reveal ends (no record written, and not one frame draws it).
+- `tests/browse-add-back.e2e.ts` (the `browse` project, on the fake engine):
+  the add takes the preview's history entry (c932, stage 1) — ADD and ADD AND
+  DOWNLOAD each leave `history.length` as it was and one `page.goBack()` on the
+  catalog at its place, with no page asked again; the ADDED HIDDEN landing on
+  the source's page the same; and each case's UNDO puts the library back. A TV's
+  ADD then BACK is in `tests/tv-browse-focus.e2e.ts`.
 - `tests/source-flags-db.spec.ts`: a source's own switches (card c435): the
   rows they are kept in, `sourceIdSql` against `sourceOfKey` on every key,
   HIDDEN SOURCE at BROWSE, RECENT, EXTENSIONS (a package, and a plugin's

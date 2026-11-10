@@ -354,6 +354,50 @@ test('BACK from a preview, deep in the list: the same tile, and the same scroll'
 	expect(asks, 'the source was asked nothing it had drawn again').toEqual([]);
 });
 
+test('ADD from a preview: BACK is one press, onto the catalog at its place', async ({ page }) => {
+	await page.goto(`${world.base}/browse/${SOURCE.id}`);
+	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 0');
+	await expect.poll(() => page.locator('.grid a.tile').count()).toBe(28);
+	await padToInnerTile(page);
+	for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowDown');
+	const left = await focusedTitle(page);
+	expect(left, 'a tile was focused before leaving').toMatch(/^Popular/);
+	const y = await page.evaluate(() => Math.round(scrollY));
+	expect(y, 'the list is scrolled away from the top').toBeGreaterThan(0);
+	await page.keyboard.press('Enter');
+	await page.waitForURL(/\/downloads\/source\//);
+	await expect(page.getByText('A Preview').first()).toBeVisible();
+
+	// + ADD TO LIBRARY, pressed the remote's way: the button focused, then OK.
+	const add = page.getByRole('button', { name: /ADD TO LIBRARY/ });
+	await add.focus();
+	await page.keyboard.press('Enter');
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/series\/\d+$/);
+	await expect(page.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })).toBeVisible();
+	// One press of BACK (c932: the add replaced the preview's entry) lands on the
+	// catalog, not on the preview again.
+	await page.evaluate(() =>
+		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'GoBack', bubbles: true }))
+	);
+	await page.waitForURL(/\/browse\//);
+	await expect(page.locator('.grid a.tile:focus .t')).toHaveText(left as string);
+	await expectMark(page);
+	await expect
+		.poll(() => page.evaluate(() => Math.round(scrollY)), { timeout: 10_000 })
+		.toBeGreaterThanOrEqual(y - 2);
+
+	// The library back as it was: forward to the series, UNDO on its band.
+	await page.goForward();
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/series\/\d+$/);
+	const undo = page
+		.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })
+		.getByRole('button', { name: 'UNDO' });
+	await expect(undo).toBeVisible();
+	await undo.click();
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
+	await expect(add).toBeVisible();
+});
+
 test('back by the preview’s own ←: the same tile holds the mark again', async ({ page }) => {
 	await page.goto(`${world.base}/browse/${SOURCE.id}`);
 	await expect(page.locator('.grid a.tile').first()).toContainText('Popular 0');

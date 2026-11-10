@@ -167,6 +167,13 @@ screen in history (`replacing` / `settleReplacing` in `src/lib/back.ts`), so
 back goes to wherever that screen was opened from. DELETE on the series
 itself already did (`leaveDeleted`).
 
+**A preview ends in the same way** (card c932, stage 1). + ADD TO LIBRARY and
+ADD AND DOWNLOAD end the preview, so the series they open takes its history
+entry rather than a new one: one swipe back from the new series is the catalog
+it was found in, at the place it was left ([`BROWSE.md`](BROWSE.md), "The add
+replaces the preview"). Without script the 303 is a full navigation, which no
+page can replace, and it still pushes.
+
 GROUP from the library or a person page still pushes: the screen it was sent
 from is still there to go back to.
 
