@@ -195,8 +195,6 @@
 		leftAt = scrollY;
 		if (n.type !== 'link' || n.to?.route.id !== '/downloads/source/[id]') return;
 		if (data.reveal || data.incognito || !shown) return;
-		const at = performance.now();
-		void at;
 		try {
 			sessionStorage.setItem(
 				LEFT_KEY,
