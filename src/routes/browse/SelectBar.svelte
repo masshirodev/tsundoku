@@ -29,7 +29,8 @@
 </script>
 
 <TopBar inverse sticky label="Selection">
-	{#snippet left()}
+	{#snippet middle()}
+		<!-- Every cell in the middle, each with its own left rule, as the mock builds the bar. -->
 		<button
 			type="button"
 			class="cell-btn x"
@@ -37,8 +38,6 @@
 			data-focus-mark="in"
 			onclick={() => sel.end()}>✕</button
 		>
-	{/snippet}
-	{#snippet middle()}
 		<div class="count" aria-live="polite">
 			{c.count}{#if c.sources}<small>{` ${c.sources}`}</small>{/if}
 		</div>
@@ -84,6 +83,7 @@
 	.count {
 		gap: 10px;
 		padding: 0 18px;
+		border-left: 1px solid var(--text-2);
 		font: 500 17px var(--font-mono);
 		white-space: nowrap;
 	}

@@ -790,9 +790,14 @@
 	.screen.selecting {
 		padding-bottom: 120px;
 	}
+	/* The source's name at the head of the tabs while selecting (Select-Tablet's
+	   `.tab.where`): drawn as the mock draws a tab, its own weight and ink. */
 	.tab.where {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font: 400 14px/1.2 var(--font-mono);
 		color: var(--text-2);
-		font-weight: 400;
 	}
 	.tabs {
 		flex-shrink: 0;
