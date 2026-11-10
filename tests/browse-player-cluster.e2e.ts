@@ -5,7 +5,7 @@ import { devices, type Page } from '@playwright/test';
  * The player's seek bar and middle cluster off a TV (doc/ANIME.md, "The
  * player"). c315: the strip between the elapsed time and the line is inert on
  * a desktop, a touch tablet and a phone's portrait scrubber, as it was before
- * c296's TV-only border reached every bar. c429: the −10 / pause / +10 cluster
+ * c296's TV-only border reached every bar. c429: the −1m / −10 / pause / +10 / +1m cluster
  * over the picture is translucent, and its labels keep AA contrast over a
  * white and a black frame, on a desktop and a touch tablet in landscape (in
  * portrait and on a TV there is no cluster over the picture). On the browse server's "Tsukiakari no Ryokōsha",
@@ -200,7 +200,7 @@ test.describe('on a desktop', () => {
 		await stripIsInert(page, '.scrubrow', (x, y) => page.mouse.click(x, y));
 	});
 
-	test('the −10 / pause / +10 cluster lets the picture through and keeps AA (c429)', async ({
+	test('the −1m / −10 / pause / +10 / +1m cluster lets the picture through and keeps AA (c429)', async ({
 		page
 	}) => {
 		test.setTimeout(60_000);
@@ -228,7 +228,7 @@ test.describe('on a touch tablet', () => {
 		await stripIsInert(page, '.scrubrow', (x, y) => page.touchscreen.tap(x, y));
 	});
 
-	test('the −10 / pause / +10 cluster lets the picture through and keeps AA (c429)', async ({
+	test('the −1m / −10 / pause / +10 / +1m cluster lets the picture through and keeps AA (c429)', async ({
 		page
 	}) => {
 		test.setTimeout(60_000);

@@ -1213,10 +1213,12 @@
 		w.document.addEventListener('pointerdown', down);
 		w.document.addEventListener('pointerup', up);
 		w.addEventListener('keydown', key);
+		w.addEventListener('keyup', mediaKeyUp);
 		return () => {
 			w.document.removeEventListener('pointerdown', down);
 			w.document.removeEventListener('pointerup', up);
 			w.removeEventListener('keydown', key);
+			w.removeEventListener('keyup', mediaKeyUp);
 		};
 	}
 	/** The picture layer back in its place: the player's first child, as the markup has it. */
@@ -1307,6 +1309,27 @@
 		else taps.timer = setTimeout(act, 320);
 	}
 
+	/**
+	 * A held ⏩ / ⏪ moves at most one step this often (c865). The TV app turns
+	 * every Android `ACTION_DOWN` into a DOM keydown, repeats included, and its
+	 * synthetic event claims `repeat: false` (Keys.kt's `dispatchScript`), so
+	 * `e.repeat` alone cannot tell a hold from presses; the pace can. It is
+	 * kept per direction, so ⏪ then ⏩ in quick succession both move.
+	 *
+	 * The pace ends with the key: the app sends the one `ACTION_UP` as a keyup
+	 * (Keys.kt), so a press after the button is released is a press again, not
+	 * a repeat inside the hold. A door that never sends a keyup still leaves it
+	 * at most this old.
+	 */
+	const MEDIA_STEP_MS = 500;
+	let lastJump: { of: 'forward' | 'back' | null; at: number } = { of: null, at: 0 };
+
+	/** ⏩ or ⏪ let go: the hold is over, so the next press moves (c865). */
+	function mediaKeyUp(e: KeyboardEvent) {
+		const of = e.key === 'MediaFastForward' ? 'forward' : e.key === 'MediaRewind' ? 'back' : null;
+		if (of && lastJump.of === of) lastJump = { of: null, at: 0 };
+	}
+
 	function keydown(e: KeyboardEvent) {
 		// A TV's remote sends these (doc/TV.md), and they are harmless where
 		// nothing does: the same verb as the control it names, on every device.
@@ -1325,9 +1348,18 @@
 		if (media) {
 			e.preventDefault();
 			if (media === 'toggle') toggle();
-			else if (media === 'forward') seekWithFlash(10);
-			else if (media === 'back') seekWithFlash(-10);
-			else if (media === 'next' && next && playable(next)) playNext();
+			// ⏩ ⏪ are the long jump (c865): a movie is not clicked through 10 s
+			// at a time, and ← → keep the fine step on every device. A browser's
+			// own repeats are dropped by `e.repeat`; a remote's arrive as fresh
+			// keydowns, which the pace above limits instead. So a held ⏩ moves a
+			// minute every 500 ms on a TV; the release ends the pace, so the next
+			// press moves even straight after it.
+			else if (media === 'forward' || media === 'back') {
+				const now = Date.now();
+				if (e.repeat || (lastJump.of === media && now - lastJump.at < MEDIA_STEP_MS)) return;
+				lastJump = { of: media, at: now };
+				seekWithFlash(media === 'forward' ? 60 : -60);
+			} else if (media === 'next' && next && playable(next)) playNext();
 			else if (media === 'prev' && prev) playPrev();
 			return;
 		}
@@ -1637,7 +1669,7 @@
 	);
 </script>
 
-<svelte:window onkeydown={keydown} />
+<svelte:window onkeydown={keydown} onkeyup={mediaKeyUp} />
 
 <!-- A language row of the sheet (c386): equal cells of codes, as many to a line
      as fit, the name in full as each one's title; MORE · N opens the rest as a
@@ -1940,13 +1972,16 @@
 			</div>
 		{/if}
 
-		<!-- The middle cluster: −10, pause, +10, under the thumb. It steps aside while a
-		     waiting box holds the middle (Player Waiting 3a draws the box alone): the
-		     two overlapped (reported 2026-10-29). -->
+		<!-- The middle cluster: −1m, −10, pause, +10, +1m, under the thumb. It steps
+		     aside while a waiting box holds the middle (Player Waiting 3a draws the
+		     box alone): the two overlapped (reported 2026-10-29). -->
 		<div
 			class="cluster"
 			class:aside={(stalled !== null && stallSeconds >= 2) || !!serverNotice || !!qualityNotice}
 		>
+			<button type="button" aria-label="Back a minute" onclick={() => (seek(-60), showChrome())}
+				>−1m</button
+			>
 			<button type="button" aria-label="Back 10 seconds" onclick={() => (seek(-10), showChrome())}
 				>−10</button
 			>
@@ -1955,6 +1990,9 @@
 			</button>
 			<button type="button" aria-label="On 10 seconds" onclick={() => (seek(10), showChrome())}
 				>+10</button
+			>
+			<button type="button" aria-label="On a minute" onclick={() => (seek(60), showChrome())}
+				>+1m</button
 			>
 		</div>
 
@@ -2030,8 +2068,30 @@
 					onclick={toggle}
 					>{#if paused}▶{:else}<i></i><i></i>{/if}</button
 				>
-				<!-- A TV's bar, its six cells on one row (TV-Board-Player 6B). They are
-				     hidden elsewhere: there, the cluster in the middle is the thumb's. -->
+				<!-- A minute either side (c865): the desktop's bar has no 10 s cells
+				     (← → do that on a keyboard), so these stand on their own. -->
+				<button
+					type="button"
+					class="cell desk"
+					aria-label="Back a minute"
+					onclick={() => (seek(-60), showChrome())}>−1m</button
+				>
+				<button
+					type="button"
+					class="cell desk"
+					aria-label="On a minute"
+					onclick={() => (seek(60), showChrome())}>+1m</button
+				>
+				<!-- A TV's bar, its cells on one row (TV-Board-Player 6B). They are
+				     hidden elsewhere: there, the cluster in the middle is the thumb's.
+				     −1m / +1m sit outside the 10 s pair (c865), where a remote's ⏪ / ⏩
+				     are the same jump. -->
+				<button
+					type="button"
+					class="cell tv"
+					aria-label="Back a minute"
+					onclick={() => (seek(-60), showChrome())}>−1m</button
+				>
 				<button
 					type="button"
 					class="cell tv"
@@ -2043,6 +2103,12 @@
 					class="cell tv"
 					aria-label="On 10 seconds"
 					onclick={() => (seek(10), showChrome())}>+10</button
+				>
+				<button
+					type="button"
+					class="cell tv"
+					aria-label="On a minute"
+					onclick={() => (seek(60), showChrome())}>+1m</button
 				>
 				<button type="button" class="cell" disabled={!prev} onclick={playPrev}
 					>{prev ? `← ${epShort(prev)}` : '←'}</button
@@ -2195,13 +2261,18 @@
 			</div>
 			<div class="pbody">
 				<div class="pcells">
+					<button type="button" aria-label="Back a minute" onclick={() => seek(-60)}>−1m</button>
 					<button type="button" aria-label="Back 10 seconds" onclick={() => seek(-10)}>−10</button>
 					<button type="button" aria-label={paused ? 'Play' : 'Pause'} onclick={toggle}
 						>{#if paused}▶{:else}<i></i><i></i>{/if}</button
 					>
 					<button type="button" aria-label="On 10 seconds" onclick={() => seek(10)}>+10</button>
+					<button type="button" aria-label="On a minute" onclick={() => seek(60)}>+1m</button>
+					<!-- Six 60 px cells at 360 px (c865): the handoff's 'EN · 720P'
+					     wraps there, so the phone's cell shows the code alone; the
+					     sheet's own rows carry the language and the quality. -->
 					<button type="button" class="small" onclick={() => (sheet = true)}
-						>{[subLang, quality ? qualityName(quality) : null].filter(Boolean).join(' · ')}</button
+						>{subLang || (quality ? qualityName(quality) : '')}</button
 					>
 				</div>
 				<div class="pnames">
@@ -2367,7 +2438,7 @@
 			onclick={() => (keysOpen = false)}
 		></button>
 		<!-- The rows scroll under a head that stays, as the settings sheet's do:
-		     ten 56px rows and the head are 616px, past a TV's 540px panel and a
+		     eleven 56px rows and the head are 672px, past a TV's 540px panel and a
 		     short window's (c715). Each row is a stop, so the pad walks to the
 		     last and the layer scrolls it into view; the scope keeps the pad in
 		     the sheet while it is open. -->
@@ -2383,7 +2454,7 @@
 				<button type="button" aria-label="Close" onclick={() => (keysOpen = false)}>✕</button>
 			</div>
 			<div class="krows">
-				{#each [['SPACE', 'Play or pause'], ['← →', 'Back or on 10 s'], ['↑ ↓', 'Volume'], ['F', 'Full screen'], ['M', 'Mute'], ['C', 'Subtitles on or off'], ['S', 'Skip the intro or ending, when offered'], ['N', 'Next episode'], ['ESC', 'Leave full screen, then the player'], ['?', 'These keys']] as [k, a], i (k)}
+				{#each [['SPACE', 'Play or pause'], ['← →', 'Back or on 10 s'], ['<< >>', 'Back or on a minute'], ['↑ ↓', 'Volume'], ['F', 'Full screen'], ['M', 'Mute'], ['C', 'Subtitles on or off'], ['S', 'Skip the intro or ending, when offered'], ['N', 'Next episode'], ['ESC', 'Leave full screen, then the player'], ['?', 'These keys']] as [k, a], i (k)}
 					<!-- A row is read, not pressed: the stop is there so a pad can scroll to it. -->
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
@@ -3810,7 +3881,7 @@
 	}
 	.pcells {
 		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-template-columns: repeat(6, minmax(0, 1fr));
 		height: 56px;
 		border-bottom: var(--hairline);
 		font: 500 14px var(--font-mono);

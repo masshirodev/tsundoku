@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import { rmSync, readFileSync } from 'node:fs';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,8 +10,8 @@ import { expect, test } from './helpers/hydrated';
 
 /**
  * The player on a TV (c235; TV-Player, TV-Board-Player): the picture until a
- * key, then all six cells on one row with the scrubber above, the settings as a
- * 420px panel, and the media keys a remote sends.
+ * key, then all eight cells on one row with the scrubber above (the minute pair
+ * is c865), the settings as a 420px panel, and the media keys a remote sends.
  *
  * The seeded library has no anime -- the sample shelf is all books -- so this
  * runs against the browse world's own server, the one `tests/browse-anime.e2e.ts`
@@ -122,30 +122,119 @@ async function streamReady(page: import('@playwright/test').Page): Promise<void>
 
 const bar = (page: import('@playwright/test').Page) => page.locator('.bottom .cells > :visible');
 
-/** A remote's media key. Playwright has no name for most of them. */
-async function mediaKey(page: import('@playwright/test').Page, key: string): Promise<void> {
+/**
+ * The fixture clip claiming ten minutes (c865): at 8 s a 60 s jump and a 10 s
+ * one both reach the same end, so the minute's landing could not be told from
+ * the fine step's. The WebM's `Duration` (ID 0x4489, size 0x88, a double in
+ * milliseconds) is raised, and the source's 6–8 s ending is taken out of the
+ * answer so the next-episode card does not take the bar's focus mid-case.
+ */
+const DURATION = readFileSync('tests/fixtures/video/clip.webm').indexOf(
+	Buffer.from([0x44, 0x89, 0x88])
+);
+async function longEpisode(page: import('@playwright/test').Page): Promise<void> {
+	const clip = Buffer.from(readFileSync('tests/fixtures/video/clip.webm'));
+	if (DURATION < 0) throw new Error('clip.webm has no Duration element');
+	clip.writeDoubleBE(600_000, DURATION + 3);
+	// A data URL, not the media route: the patched file over HTTP is only as
+	// seekable as the bytes the server really has, and those stop at 8 s.
+	const src = `data:video/webm;base64,${clip.toString('base64')}`;
+	await page.route('**/api/anime/episode/*/videos*', async (route) => {
+		const response = await route.fetch();
+		const body = await response.json();
+		body.intro = null;
+		body.ending = null;
+		body.servers = body.servers.map((s: { n: number; qualities: { src: string }[] }) =>
+			s.n === 1 ? s : { ...s, qualities: s.qualities.map((q) => ({ ...q, src })) }
+		);
+		return route.fulfill({
+			status: 200,
+			headers: { 'content-type': 'application/json', 'cache-control': 'private, no-store' },
+			body: JSON.stringify(body)
+		});
+	});
+}
+
+/**
+ * One key as the TV app sends it (`Keys.kt`'s `dispatchScript`): a synthetic
+ * keydown or keyup at the focused thing, bubbling to the window the player
+ * listens on. Playwright has no name for most media keys.
+ */
+async function remoteKey(
+	page: import('@playwright/test').Page,
+	type: 'keydown' | 'keyup',
+	key: string,
+	repeat = false
+): Promise<void> {
 	await page.evaluate(
-		(k) => window.dispatchEvent(new KeyboardEvent('keydown', { key: k, cancelable: true })),
-		key
+		({ type, key, repeat }) => {
+			const at = document.activeElement ?? document.body;
+			at.dispatchEvent(new KeyboardEvent(type, { key, repeat, bubbles: true }));
+		},
+		{ type, key, repeat }
 	);
 }
 
-test('six cells on one row, and the first arrow lands on ▶❚❚', async ({ page }) => {
+/**
+ * A remote's hold, as MainActivity sends one (Keys.kt): repeats are fresh
+ * keydowns with no `repeat` flag, at a remote's ~16/s. The burst is bounded by
+ * the page's own clock, not by a count: eight 60 ms waits are 480 ms nominal
+ * and ran past the player's 500 ms pace under load, moving two minutes where
+ * the case says one. Every keydown here lands inside [deadlineMs] of the first.
+ *
+ * Returns how many keydowns it sent, so a case can prove repeats happened.
+ */
+async function holdKey(
+	page: import('@playwright/test').Page,
+	key: string,
+	{ deadlineMs = 400, release = true, pressAfter = false } = {}
+): Promise<number> {
+	return page.evaluate(
+		async ({ key, deadlineMs, release, pressAfter }) => {
+			const send = (type: string) =>
+				(document.activeElement ?? document.body).dispatchEvent(
+					new KeyboardEvent(type, { key, bubbles: true })
+				);
+			const start = performance.now();
+			let n = 0;
+			do {
+				send('keydown');
+				n++;
+				await new Promise((r) => setTimeout(r, 60));
+			} while (performance.now() - start < deadlineMs);
+			if (release) send('keyup');
+			if (pressAfter) send('keydown');
+			return n;
+		},
+		{ key, deadlineMs, release, pressAfter }
+	);
+}
+
+/** A remote's media key, pressed and released. */
+async function mediaKey(page: import('@playwright/test').Page, key: string): Promise<void> {
+	await remoteKey(page, 'keydown', key);
+	await remoteKey(page, 'keyup', key);
+}
+
+test('eight cells on one row, and the first arrow lands on ▶❚❚', async ({ page }) => {
 	await openEpisode(page);
 	await play(page);
 
-	// 6B: the bar's own six cells, in the design's order, on one row. (The
-	// eighth and seventh are the desktop's volume and ? KEYS, not drawn here.)
-	await expect(bar(page)).toHaveCount(6);
+	// 6B: the bar's own cells, in the design's order, on one row. The minute
+	// pair (c865) sits outside the 10 s pair. (The volume, ? KEYS and the
+	// desktop's minute cells are not drawn here.)
+	await expect(bar(page)).toHaveCount(8);
 	await expect(bar(page).nth(0)).toHaveAttribute('aria-label', /Pause|Play/);
-	await expect(bar(page).nth(1)).toHaveText('−10');
-	await expect(bar(page).nth(2)).toHaveText('+10');
-	await expect(bar(page).nth(3)).toContainText('← EP. 10');
+	await expect(bar(page).nth(1)).toHaveText('−1m');
+	await expect(bar(page).nth(2)).toHaveText('−10');
+	await expect(bar(page).nth(3)).toHaveText('+10');
+	await expect(bar(page).nth(4)).toHaveText('+1m');
+	await expect(bar(page).nth(5)).toContainText('← EP. 10');
 	// The one cell that names the stream and opens the settings.
-	await expect(bar(page).nth(4)).toContainText('SUBS');
-	await expect(bar(page).nth(5)).toContainText('EP. 12 →');
-	// The first three are 76px, as TV-Focus draws the same bar.
-	for (const i of [0, 1, 2]) expect((await bar(page).nth(i).boundingBox())!.width).toBe(76);
+	await expect(bar(page).nth(6)).toContainText('SUBS');
+	await expect(bar(page).nth(7)).toContainText('EP. 12 →');
+	// The first five are 76px, as TV-Focus draws the same bar.
+	for (const i of [0, 1, 2, 3, 4]) expect((await bar(page).nth(i).boundingBox())!.width).toBe(76);
 	// 56px under a 60px scrubber, inside the 28px safe bottom and the 48px
 	// sides. The bars themselves reach the screen's edges (TV-Player: the
 	// margin is their padding), so no picture shows above or under them.
@@ -230,10 +319,10 @@ test('KEYS: the pad walks to the last row, and it is wholly on the panel (c715)'
 	const keys = page.getByRole('dialog', { name: 'Keys' });
 	await expect(keys).toBeVisible();
 	const rows = keys.locator('.krow');
-	await expect(rows).toHaveCount(10);
+	await expect(rows).toHaveCount(11);
 	// It opens on its first row, as the settings panel does.
 	await expect(rows.first()).toBeFocused();
-	for (let i = 1; i < 10; i++) {
+	for (let i = 1; i < 11; i++) {
 		await page.keyboard.press('ArrowDown');
 		await expect(rows.nth(i)).toBeFocused();
 	}
@@ -255,7 +344,7 @@ test('KEYS: the pad walks to the last row, and it is wholly on the panel (c715)'
 	// The layer's reveal is instant, but wait on the page's own geometry.
 	await expect.poll(async () => (await fits()).inside).toBe(true);
 	// And back up: the first row comes back into view under the head.
-	for (let i = 0; i < 9; i++) await page.keyboard.press('ArrowUp');
+	for (let i = 0; i < 10; i++) await page.keyboard.press('ArrowUp');
 	await expect(rows.first()).toBeFocused();
 	const first = await rows.first().evaluate((r) => {
 		const head = r.closest('.sheet')!.querySelector('.shead')!.getBoundingClientRect();
@@ -319,30 +408,137 @@ test('the DIM range keeps ← → and lets ↑ leave it on a TV (c611)', async (
 	await expect.poll(at).toBe('0');
 });
 
-test('the media keys a remote sends: ▶❚❚, ⏩ and ⏪', async ({ page }) => {
-	await openEpisode(page);
-	await play(page);
-	const pp = page.locator('.cells .pause');
-	await expect(pp).toHaveAttribute('aria-label', 'Pause');
-	await mediaKey(page, 'MediaPlayPause');
-	await expect(pp).toHaveAttribute('aria-label', 'Play');
-	await mediaKey(page, 'MediaPlayPause');
-	await expect(pp).toHaveAttribute('aria-label', 'Pause');
+test.describe('the minute step (c865)', () => {
+	// The worker answers an episode's videos and media itself once it has
+	// installed, past page.route (doc/TESTING.md, "Load"): the stand-in long
+	// episode below can only be seen with it out of the way.
+	test.use({ serviceWorkers: 'block' });
 
-	const at = () => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime);
-	const video = page.locator('video');
-	// The fixture clip is 8s, so a ±10s key reaches its end: rewinding first
-	// keeps both moves inside the clip and off the END card.
-	await video.evaluate((v: HTMLVideoElement) => {
-		v.pause();
-		v.currentTime = 3;
+	test('the media keys a remote sends: ▶❚❚, ⏩ and ⏪', async ({ page }) => {
+		await longEpisode(page);
+		await openEpisode(page);
+		await play(page);
+		const pp = page.locator('.cells .pause');
+		await expect(pp).toHaveAttribute('aria-label', 'Pause');
+		await mediaKey(page, 'MediaPlayPause');
+		await expect(pp).toHaveAttribute('aria-label', 'Play');
+		await mediaKey(page, 'MediaPlayPause');
+		await expect(pp).toHaveAttribute('aria-label', 'Pause');
+
+		const at = () => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime);
+		const video = page.locator('video');
+		// ⏪ ⏩ are a minute each (c865): 1:40 back to 0:40, and on to 1:40 again,
+		// on the ten-minute stand-in, where a 10 s step could not reach either.
+		await video.evaluate((v: HTMLVideoElement) => {
+			v.pause();
+			v.currentTime = 100;
+		});
+		await mediaKey(page, 'MediaRewind');
+		await expect.poll(at).toBeCloseTo(40, 1);
+		await expect(page.locator('.flash .by')).toHaveText('−60 S');
+		await mediaKey(page, 'MediaFastForward');
+		await expect.poll(at).toBeCloseTo(100, 1);
+		await expect(page.locator('.flash .by')).toHaveText('+60 S');
 	});
-	await mediaKey(page, 'MediaRewind');
-	await expect.poll(at).toBeLessThan(1);
-	await expect(page.locator('.flash .by')).toHaveText('−10 S');
-	await video.evaluate((v: HTMLVideoElement) => (v.currentTime = 0));
-	await mediaKey(page, 'MediaFastForward');
-	await expect.poll(at).toBeGreaterThan(5);
+
+	test('a held ⏩ is one minute, not a minute per repeat (c865)', async ({ page }) => {
+		await longEpisode(page);
+		await openEpisode(page);
+		await play(page);
+		const video = page.locator('video');
+		const at = () => video.evaluate((v: HTMLVideoElement) => v.currentTime);
+		await video.evaluate((v: HTMLVideoElement) => {
+			v.pause();
+			v.currentTime = 100;
+		});
+		// The app's own key, as MainActivity sends an Android repeat: a fresh
+		// keydown with no `repeat` flag (Keys.kt), at a remote's ~16/s. A hold
+		// must move a minute, not one per repeat. No keyup here: this also
+		// leaves the pace to expire on its own, below.
+		const sent = await holdKey(page, 'MediaFastForward', { release: false });
+		expect(sent).toBeGreaterThanOrEqual(3);
+		await expect.poll(at).toBeCloseTo(160, 1);
+		await expect(page.locator('.flash .by')).toHaveText('+60 S');
+		// A browser's own repeats (a keyboard's, or a desktop's remote) are no
+		// step at all, however quickly they come.
+		await page.evaluate(() => {
+			for (let i = 0; i < 5; i++)
+				(document.activeElement ?? document.body).dispatchEvent(
+					new KeyboardEvent('keydown', {
+						key: 'MediaFastForward',
+						repeat: true,
+						bubbles: true
+					})
+				);
+		});
+		await page.waitForTimeout(100);
+		expect(await at()).toBeCloseTo(160, 1);
+		// And the pace is no lock: a door that sends no keyup still lets go once
+		// the interval has passed.
+		await page.waitForTimeout(600);
+		await mediaKey(page, 'MediaFastForward');
+		await expect.poll(at).toBeCloseTo(220, 1);
+	});
+
+	test('a press right after a held ⏩ is released moves a minute again (c865)', async ({
+		page
+	}) => {
+		await longEpisode(page);
+		await openEpisode(page);
+		await play(page);
+		const at = () => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime);
+		await page.locator('video').evaluate((v: HTMLVideoElement) => {
+			v.pause();
+			v.currentTime = 100;
+		});
+		// A hold as MainActivity sends it, then the release and a press in the
+		// same breath: repeats are ACTION_DOWNs, the release is the one keyup
+		// (Keys.kt). The pace must end with the key, or that press is swallowed
+		// as if the button were still down.
+		const sent = await holdKey(page, 'MediaFastForward', { pressAfter: true });
+		expect(sent).toBeGreaterThanOrEqual(3);
+		// One minute for the hold, one for the press: 1:40 to 2:20 to 3:40.
+		await expect.poll(at).toBeCloseTo(220, 1);
+		// The pace is per direction, so the other way moves at once.
+		await mediaKey(page, 'MediaRewind');
+		await expect.poll(at).toBeCloseTo(160, 1);
+	});
+
+	test('the bar’s −1m and +1m are stops in reading order, and each moves a minute (c865)', async ({
+		page
+	}) => {
+		await longEpisode(page);
+		await openEpisode(page);
+		await play(page);
+		const at = () => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime);
+		await page.locator('video').evaluate((v: HTMLVideoElement) => {
+			v.pause();
+			v.currentTime = 100;
+		});
+		// ↓ from the picture puts the pad on ▶❚❚; nothing may hold focus first
+		// (play() leaves the pad wherever its own ↑ put it).
+		await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+		await expect(page.locator('.player')).toHaveClass(/chrome/);
+		await page.keyboard.press('ArrowDown');
+		await expect(page.locator('.cells .pause')).toBeFocused();
+		await page.keyboard.press('ArrowRight');
+		await expect(bar(page).nth(1)).toBeFocused();
+		await page.keyboard.press('Enter');
+		await expect.poll(at).toBeCloseTo(40, 1);
+		await page.keyboard.press('ArrowRight');
+		await page.keyboard.press('ArrowRight');
+		await page.keyboard.press('ArrowRight');
+		await expect(bar(page).nth(4)).toBeFocused();
+		await page.keyboard.press('Enter');
+		await expect.poll(at).toBeCloseTo(100, 1);
+		// ← → stay 10 s: on the seek bar they seek and flash 10.
+		await page.locator('.cells .pause').focus();
+		await page.keyboard.press('ArrowUp');
+		await expect(page.locator('.scrubrow .track')).toBeFocused();
+		await page.keyboard.press('ArrowRight');
+		await expect.poll(at).toBeCloseTo(110, 1);
+		await expect(page.locator('.flash .by')).toHaveText('+10 S');
+	});
 });
 
 test('the picture until a key, SKIP INTRO taking OK, and BACK hiding then leaving', async ({
