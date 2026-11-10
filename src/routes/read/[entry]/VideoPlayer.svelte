@@ -1213,10 +1213,12 @@
 		w.document.addEventListener('pointerdown', down);
 		w.document.addEventListener('pointerup', up);
 		w.addEventListener('keydown', key);
+		w.addEventListener('keyup', mediaKeyUp);
 		return () => {
 			w.document.removeEventListener('pointerdown', down);
 			w.document.removeEventListener('pointerup', up);
 			w.removeEventListener('keydown', key);
+			w.removeEventListener('keyup', mediaKeyUp);
 		};
 	}
 	/** The picture layer back in its place: the player's first child, as the markup has it. */
@@ -1313,9 +1315,20 @@
 	 * synthetic event claims `repeat: false` (Keys.kt's `dispatchScript`), so
 	 * `e.repeat` alone cannot tell a hold from presses; the pace can. It is
 	 * kept per direction, so ⏪ then ⏩ in quick succession both move.
+	 *
+	 * The pace ends with the key: the app sends the one `ACTION_UP` as a keyup
+	 * (Keys.kt), so a press after the button is released is a press again, not
+	 * a repeat inside the hold. A door that never sends a keyup still leaves it
+	 * at most this old.
 	 */
 	const MEDIA_STEP_MS = 500;
 	let lastJump: { of: 'forward' | 'back' | null; at: number } = { of: null, at: 0 };
+
+	/** ⏩ or ⏪ let go: the hold is over, so the next press moves (c865). */
+	function mediaKeyUp(e: KeyboardEvent) {
+		const of = e.key === 'MediaFastForward' ? 'forward' : e.key === 'MediaRewind' ? 'back' : null;
+		if (of && lastJump.of === of) lastJump = { of: null, at: 0 };
+	}
 
 	function keydown(e: KeyboardEvent) {
 		// A TV's remote sends these (doc/TV.md), and they are harmless where
@@ -1339,8 +1352,8 @@
 			// at a time, and ← → keep the fine step on every device. A browser's
 			// own repeats are dropped by `e.repeat`; a remote's arrive as fresh
 			// keydowns, which the pace above limits instead. So a held ⏩ moves a
-			// minute every 500 ms on a TV, and a real second press inside that
-			// pace is swallowed with the repeats.
+			// minute every 500 ms on a TV; the release ends the pace, so the next
+			// press moves even straight after it.
 			else if (media === 'forward' || media === 'back') {
 				const now = Date.now();
 				if (e.repeat || (lastJump.of === media && now - lastJump.at < MEDIA_STEP_MS)) return;
@@ -1656,7 +1669,7 @@
 	);
 </script>
 
-<svelte:window onkeydown={keydown} />
+<svelte:window onkeydown={keydown} onkeyup={mediaKeyUp} />
 
 <!-- A language row of the sheet (c386): equal cells of codes, as many to a line
      as fit, the name in full as each one's title; MORE · N opens the rest as a

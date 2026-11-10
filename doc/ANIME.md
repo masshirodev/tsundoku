@@ -542,12 +542,12 @@ screen but the video, and the subtitles, until a tap.
   →), and the one addition, −1m / −10 / pause / +10 / +1m in the middle (the
   minute pair c865), pause two drawn bars, which steps aside while BUFFERING or
   a server's notice holds the middle (they overlapped). A movie is not clicked
-  through 10 s at a time: a minute moves either way, from these cells, from the
-  bar's own pair on every device it draws them (a TV's and a desktop's, the
-  phone's portrait row), and from a remote's ⏩ ⏪. The scrubber ticks the opening and ending. A desktop adds play, VOL,
-  PIP where the browser has picture-in-picture, ? KEYS and FULL SCREEN · F,
-  and a time on hover, with the frame there above it (the seek preview,
-  below).
+  through 10 s at a time: a minute moves either way, from these cells, from
+  the bar's own pair on every device it draws them (a TV's and a desktop's,
+  the phone's portrait row), and from a remote's ⏩ ⏪. The scrubber ticks the
+  opening and ending. A desktop adds play, VOL, PIP where the browser has
+  picture-in-picture, ? KEYS and FULL SCREEN · F, and a time on hover, with
+  the frame there above it (the seek preview, below).
 - **The picture never tints** (c485). The tap zone over it is a `<button>`
   (`.tapzone`) that draws nothing, so it says `data-press="off"`: a mouse over
   the picture laid motion.css's 9% hover gradient over the frame until it did.
@@ -564,11 +564,11 @@ screen but the video, and the subtitles, until a tap.
   sends a pixel or two of movement all the time, and the chrome flashed in on
   every one of them; it now takes 12px of travel — quickly from where the
   pointer was, or slowly from where the controls last left it. The middle
-  cluster (`−1m`, `−10`, pause, `+10`, `+1m`) does not fade with the bars: it is all there
-  from its first frame, where a box fading over the picture read as a patch
-  coming and going. Its ground is translucent, 70% of the page's, so the frame
-  shows through while the controls are up, and its glyphs keep AA over a white
-  frame and a black one (c429).
+  cluster (`−1m`, `−10`, pause, `+10`, `+1m`) does not fade with the bars: it
+  is all there from its first frame, where a box fading over the picture read
+  as a patch coming and going. Its ground is translucent, 70% of the page's,
+  so the frame shows through while the controls are up, and its glyphs keep AA
+  over a white frame and a black one (c429).
 - **The cursor goes with the controls** (c678). The readers' CURSOR row
   (`tsundoku.reader.cursor`) is on for the player by default, and the player
   has no timer of its own: the cursor disappears exactly when the controls go
@@ -672,13 +672,13 @@ screen but the video, and the subtitles, until a tap.
   keys work on every device (c235): ▶❚❚ plays or pauses, ⏩ ⏪ seek a minute
   (c865), ⏭ the next episode and ⏮ the previous one — harmless where nothing
   sends them, and the only player keys a remote has ([`TV.md`](TV.md)). A
-  minute is one press, however long the button is held: a remote's repeats
-  arrive as fresh keydowns with no repeat flag on them (the TV app's
-  `Keys.dispatchScript`), so a held ⏩ moves about two minutes a second rather
-  than a minute per repeat. ← →
-  stay 10 s on every device, and on a TV,
-  SKIP INTRO, SKIP ENDING and the next-episode card's PLAY NOW → take focus
-  when they are offered, so OK presses them (c296).
+  press of ⏩ or ⏪ is a minute; a held one steps again every 500 ms, about
+  two minutes a second, because a remote's repeats arrive as fresh keydowns
+  with no repeat flag on them (the TV app's `Keys.dispatchScript`) and the
+  player paces them itself. Releasing the key ends the pace, so the next
+  press moves a minute however soon it comes. ← → stay 10 s on every device,
+  and on a TV, SKIP INTRO, SKIP ENDING and the next-episode card's PLAY NOW →
+  take focus when they are offered, so OK presses them (c296).
 - **The settings sheet**, the middle cell ("JA · EN SUBS · 1080P · 1×"): a
   520px side sheet with the picture playing beside it. QUALITY (this
   server's), SERVER (the hosters by name, the one playing and the ones that

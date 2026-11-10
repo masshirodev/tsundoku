@@ -155,12 +155,30 @@ async function longEpisode(page: import('@playwright/test').Page): Promise<void>
 	});
 }
 
-/** A remote's media key. Playwright has no name for most of them. */
-async function mediaKey(page: import('@playwright/test').Page, key: string): Promise<void> {
+/**
+ * One key as the TV app sends it (`Keys.kt`'s `dispatchScript`): a synthetic
+ * keydown or keyup at the focused thing, bubbling to the window the player
+ * listens on. Playwright has no name for most media keys.
+ */
+async function remoteKey(
+	page: import('@playwright/test').Page,
+	type: 'keydown' | 'keyup',
+	key: string,
+	repeat = false
+): Promise<void> {
 	await page.evaluate(
-		(k) => window.dispatchEvent(new KeyboardEvent('keydown', { key: k, cancelable: true })),
-		key
+		({ type, key, repeat }) => {
+			const at = document.activeElement ?? document.body;
+			at.dispatchEvent(new KeyboardEvent(type, { key, repeat, bubbles: true }));
+		},
+		{ type, key, repeat }
 	);
+}
+
+/** A remote's media key, pressed and released. */
+async function mediaKey(page: import('@playwright/test').Page, key: string): Promise<void> {
+	await remoteKey(page, 'keydown', key);
+	await remoteKey(page, 'keyup', key);
 }
 
 test('eight cells on one row, and the first arrow lands on ▶❚❚', async ({ page }) => {
@@ -403,8 +421,8 @@ test.describe('the minute step (c865)', () => {
 		// must move a minute, not one per repeat.
 		await page.evaluate(async () => {
 			for (let i = 0; i < 8; i++) {
-				window.dispatchEvent(
-					new KeyboardEvent('keydown', { key: 'MediaFastForward', cancelable: true })
+				(document.activeElement ?? document.body).dispatchEvent(
+					new KeyboardEvent('keydown', { key: 'MediaFastForward', bubbles: true })
 				);
 				await new Promise((r) => setTimeout(r, 60));
 			}
@@ -415,8 +433,12 @@ test.describe('the minute step (c865)', () => {
 		// step at all, however quickly they come.
 		await page.evaluate(() => {
 			for (let i = 0; i < 5; i++)
-				window.dispatchEvent(
-					new KeyboardEvent('keydown', { key: 'MediaFastForward', repeat: true, cancelable: true })
+				(document.activeElement ?? document.body).dispatchEvent(
+					new KeyboardEvent('keydown', {
+						key: 'MediaFastForward',
+						repeat: true,
+						bubbles: true
+					})
 				);
 		});
 		await page.waitForTimeout(100);
@@ -424,6 +446,36 @@ test.describe('the minute step (c865)', () => {
 		// And the throttle is no lock: a press after the interval moves again.
 		await page.waitForTimeout(600);
 		await mediaKey(page, 'MediaFastForward');
+		await expect.poll(at).toBeCloseTo(220, 1);
+	});
+
+	test('a press right after a held ⏩ is released moves a minute again (c865)', async ({
+		page
+	}) => {
+		await longEpisode(page);
+		await openEpisode(page);
+		await play(page);
+		const at = () => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime);
+		await page.locator('video').evaluate((v: HTMLVideoElement) => {
+			v.pause();
+			v.currentTime = 100;
+		});
+		// A hold as MainActivity sends it: repeats are ACTION_DOWNs, and the
+		// release is the one keyup (Keys.kt). The pace must end with the key, or
+		// the press after it is swallowed as if the button were still down.
+		await page.evaluate(async () => {
+			const send = (type: string) =>
+				(document.activeElement ?? document.body).dispatchEvent(
+					new KeyboardEvent(type, { key: 'MediaFastForward', bubbles: true })
+				);
+			for (let i = 0; i < 8; i++) {
+				send('keydown');
+				await new Promise((r) => setTimeout(r, 60));
+			}
+			send('keyup');
+			send('keydown');
+		});
+		// One minute for the hold, one for the press: 1:40 to 2:20 to 3:40.
 		await expect.poll(at).toBeCloseTo(220, 1);
 	});
 
