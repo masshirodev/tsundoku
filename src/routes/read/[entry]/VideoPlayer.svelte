@@ -2268,8 +2268,11 @@
 					>
 					<button type="button" aria-label="On 10 seconds" onclick={() => seek(10)}>+10</button>
 					<button type="button" aria-label="On a minute" onclick={() => seek(60)}>+1m</button>
+					<!-- Six 60 px cells at 360 px (c865): the handoff's 'EN · 720P'
+					     wraps there, so the phone's cell shows the code alone; the
+					     sheet's own rows carry the language and the quality. -->
 					<button type="button" class="small" onclick={() => (sheet = true)}
-						>{[subLang, quality ? qualityName(quality) : null].filter(Boolean).join(' · ')}</button
+						>{subLang || (quality ? qualityName(quality) : '')}</button
 					>
 				</div>
 				<div class="pnames">

@@ -165,12 +165,23 @@ for (const width of [390, 360]) {
 			serviceWorkers: 'block'
 		});
 
-		test('the row has +1m and −1m, and it does not overlap itself', async ({ page }) => {
+		test('the row has +1m and −1m, and with subtitles on no label wraps', async ({ page }) => {
 			test.setTimeout(60_000);
 			await longEpisode(page);
 			await openEpisode(page);
+			// Anime is watched with subtitles on, and the handoff draws the
+			// stream cell as 'EN · 720P' (Index Player.dc.html:288): the row has
+			// to fit that state, not the bare quality it reads with subs off.
+			// The stream cell opens the playback sheet; EN is the fixture's one
+			// track, picked there as a person picks it.
+			await page.locator('.pcells .small').click();
+			const sheet = page.getByRole('dialog', { name: 'Playback settings' });
+			await expect(sheet).toBeVisible();
+			await sheet.locator('.langs[data-which="subs"] [data-lang="EN"]').click();
+			await sheet.getByRole('button', { name: 'Close', exact: true }).click();
 			const cells = page.locator('.pcells');
 			await expect(cells).toBeVisible();
+			await expect(cells.locator('.small')).toContainText('EN');
 			// The six cells share one row: every label is inside its own cell,
 			// and no cell's text runs under the next border.
 			const fit = await cells.evaluate((row) =>
@@ -186,6 +197,24 @@ for (const width of [390, 360]) {
 			// The stream's own cell keeps a label of its own in the last column.
 			expect(fit[5].name).not.toBe('');
 			expect(fit.filter((f) => f.over)).toEqual([]);
+			// Wrapped text never makes scrollWidth exceed clientWidth, so the
+			// overlap check above cannot see it: a Range over the cell's text
+			// gives one rect per line box, and 60 px of cell holds one line.
+			const stream = await cells.evaluate((row) => {
+				const cell = row.querySelector('button.small')!;
+				const range = document.createRange();
+				range.selectNodeContents(cell);
+				const box = cell.getBoundingClientRect();
+				const text = range.getBoundingClientRect();
+				return {
+					text: cell.textContent?.trim() ?? '',
+					width: box.width,
+					height: box.height,
+					textHeight: text.height,
+					lines: range.getClientRects().length
+				};
+			});
+			expect(stream.lines, JSON.stringify(stream)).toBe(1);
 
 			const plus = cells.getByRole('button', { name: 'On a minute' });
 			const box = (await plus.boundingBox())!;
