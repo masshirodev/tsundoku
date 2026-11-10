@@ -1,12 +1,25 @@
+<script module lang="ts">
+	/**
+	 * Whether this document has navigated since it loaded. SvelteKit restores a
+	 * history entry's snapshot on a popstate **and** while a fresh document boots
+	 * (a reload: the entry's snapshot is in sessionStorage, client.js's
+	 * `restore_snapshot`). A reload keeps today's behaviour — the URL's pages, and
+	 * the browser's own scroll — so the boot's restore is refused (c930).
+	 */
+	let navigated = false;
+</script>
+
 <script lang="ts">
 	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { resolve } from '$app/paths';
-	import { afterNavigate, goto } from '$app/navigation';
+	import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { onMount, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
+	import type { Snapshot } from './$types';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
+	import KeptOutline from './KeptOutline.svelte';
 	import { count } from '$lib/library/downloads';
 	import { restoreFocus } from '$lib/focus';
 	import { writeFilters } from '$lib/library/browse-filters';
@@ -61,10 +74,17 @@
 	 * would open the list mid-way down, on a tile the source may have reordered
 	 * since. A visit left by touch or mouse saved none, so a phone's way back
 	 * draws no focus. It waits for the streamed grid, as the layout does.
+	 *
+	 * The same arrival gets its place back too (c930), from the one record a
+	 * departure toward a preview leaves; see `leftFor` below. Every other forward
+	 * visit and a reload keep today's behaviour: the top.
 	 */
 	afterNavigate((n) => {
-		if (n.type === 'link' && n.from?.route.id === '/downloads/source/[id]')
+		if (n.type !== 'enter') navigated = true;
+		if (n.type === 'link' && n.from?.route.id === '/downloads/source/[id]') {
 			restoreFocus(page.url.pathname, page.url.search);
+			void restoreLeft();
+		}
 	});
 
 	const base = $derived(resolve('/browse/[source]', { source: data.source.id }));
@@ -90,12 +110,17 @@
 	 */
 	const fromPair = $derived<[string, string][]>(data.back ? [['from', data.back]] : []);
 	const withFrom = (href: string) => keepOrigin(href, data.back);
-	/** Which list this is, whatever page it's on: what decides appending vs starting over. */
+	/**
+	 * Which list this is, whatever page it's on: what decides appending vs
+	 * starting over, and what a kept place is kept for. Reveal and incognito are
+	 * part of it (c930): a revealed list may not be drawn to a non-revealed
+	 * visit, and an incognito one leaves nothing (doc/PRIVACY.md).
+	 */
 	const listKey = (u: URL) => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
 		const p = new URLSearchParams(u.searchParams);
 		for (const k of ['pages', 'panel', 'find', 'refused', 'new', ...ADDED_BAND]) p.delete(k);
-		return `${u.pathname}?${p}`;
+		return `${u.pathname}?${p}|${data.reveal ? 'reveal' : ''}|${data.incognito ? 'incognito' : ''}`;
 	};
 
 	// The answer on screen. Kept while the next page is asked for, so the grid
@@ -105,6 +130,19 @@
 	let shown = $state<Shown | null>(
 		isSettled(data.answer) ? { key: listKey(page.url), ...data.answer } : null
 	);
+	/**
+	 * The kept list's height and its MORE row, drawn as an outline until this
+	 * visit's answer is here (c930; see "the place, kept" below). Null when
+	 * nothing is kept or the answer has arrived.
+	 */
+	let held = $state<{ count: number; more: boolean } | null>(null);
+	/**
+	 * How many answers the load has drawn on this screen. A kept place draws its
+	 * outline at once, and a load that has already answered for this list wins
+	 * over it: the answer the server sent for this visit is never covered by
+	 * anything kept (c930).
+	 */
+	let answered = 0;
 	let asking = $state(false);
 	$effect(() => {
 		const a = data.answer;
@@ -113,7 +151,9 @@
 		if (untrack(() => shown && shown.key !== key)) shown = null;
 		if (isSettled(a)) {
 			shown = { key, ...a };
+			answered += 1;
 			asking = false;
+			held = null;
 			return;
 		}
 		let current = true;
@@ -121,10 +161,162 @@
 		void a.then((s) => {
 			if (!current) return;
 			shown = { key, ...s };
+			answered += 1;
 			asking = false;
+			held = null;
 		});
 		return () => (current = false);
 	});
+
+	// ---- the place, kept ----------------------------------------------------------
+	/*
+	 * Back to the catalog comes back to the pages loaded and the place in them
+	 * (c930; doc/BROWSE.md, doc/NAVIGATION.md). Two records, because the two ways
+	 * back differ:
+	 *
+	 * - a **popstate** (the browser's back, Android's edge swipe, a TV's BACK)
+	 *   restores the history entry's own snapshot, kept by SvelteKit for this
+	 *   route's instance: `{ key, count, more, y }`, below;
+	 * - the preview's **plain ←** (c864) is a forward visit, so it has no entry of
+	 *   its own to restore. The one departure toward a preview leaves the same
+	 *   record in sessionStorage (`takeLeft`), and only that arrival reads it.
+	 *
+	 * What is kept is a list's own key (reveal and incognito in it), how many
+	 * tiles it had drawn and the scroll — never the answer itself. The answer
+	 * drawn at the time is the list as it was then, and a result of it may have
+	 * become a hidden library series since (ADD with ADDED HIDDEN, HIDE, another
+	 * screen): drawing it again, title and cover, until this visit's answer
+	 * arrives would break "hidden means hidden" (doc/BROWSE.md, "A result that
+	 * is a hidden series isn't sent"). So a restore draws an outline of the kept
+	 * list's size — no title and no cover — holds the place on it, and this
+	 * visit's own answer, which the server cleared for it, draws in its place.
+	 * The covers come from the browser's cache either way, so redrawing them
+	 * asks the source for nothing (measured: 0 requests, doc/BROWSE.md). A list
+	 * drawn under reveal or incognito is kept by neither record.
+	 */
+	type Kept = { key: string; count: number; more: boolean; y: number };
+	/** One departure toward a preview, for its ←: where it was. */
+	type Left = Kept & { href: string };
+
+	const LEFT_KEY = 'tsundoku.browse-left';
+	/** Where the grid was when a navigation began: SvelteKit's capture may run after an outline moved it. */
+	let leftAt: number | null = null;
+
+	/** What a way back's outline is sized to: the tiles and the MORE row it had. */
+	const keptOf = (s: Shown) =>
+		s.ok
+			? { count: s.value.results.hits.length, more: s.value.results.more }
+			: { count: 0, more: false };
+
+	/**
+	 * One record, one departure: the next departure toward a preview replaces it,
+	 * and a read takes it, so a stale one is never applied twice. A preview
+	 * reached another way (a forward or a back through history) leaves none: its
+	 * ← then opens the list at the top, as it did before c930.
+	 */
+	beforeNavigate((n) => {
+		leftAt = scrollY;
+		if (n.type !== 'link' || n.to?.route.id !== '/downloads/source/[id]') return;
+		if (data.reveal || data.incognito || !shown) return;
+		try {
+			sessionStorage.setItem(
+				LEFT_KEY,
+				JSON.stringify({
+					key: shown.key,
+					...keptOf(shown),
+					y: scrollY,
+					href: (n.from?.url ?? page.url).pathname + (n.from?.url ?? page.url).search
+				} satisfies Left)
+			);
+		} catch {
+			// No storage, or full: ← opens the list at the top, as it did.
+		}
+	});
+
+	/**
+	 * The record, if it is for this arrival: its address and list key must both
+	 * still be the page's. Read, not taken, when they are not — a link arrival
+	 * from the preview that lands somewhere else (a genre, an author: the same
+	 * `/browse/<source>` route) leaves it for the preview's own ←, which comes
+	 * back here.
+	 */
+	function takeLeft(at: string, key: string): Left | null {
+		try {
+			const raw = sessionStorage.getItem(LEFT_KEY);
+			if (!raw) return null;
+			const left = JSON.parse(raw) as Left;
+			if (left.href !== at || left.key !== key) return null;
+			sessionStorage.removeItem(LEFT_KEY);
+			return left;
+		} catch {
+			return null;
+		}
+	}
+
+	/**
+	 * Scroll to `y` once the grid is drawn: the page can be shorter than the
+	 * place for a moment while the answer streams, and a scroll then lands short.
+	 * Tried each frame for two seconds, and given up the moment the reader
+	 * touches or scrolls themselves.
+	 */
+	function settleScroll(y: number, drawn: () => boolean = () => true) {
+		const until = performance.now() + 2000;
+		let stop = false;
+		const halt = () => (stop = true);
+		const opts = { once: true, passive: true } as const;
+		addEventListener('pointerdown', halt, opts);
+		addEventListener('wheel', halt, opts);
+		addEventListener('keydown', halt, opts);
+		const place = () => {
+			if (stop) return;
+			scrollTo({ top: y, behavior: 'instant' });
+			if (Math.abs(scrollY - y) <= 2 && drawn()) return;
+			if (performance.now() < until) requestAnimationFrame(place);
+		};
+		place();
+	}
+
+	/**
+	 * Hold a kept place, without drawing what is in it: an outline of its own
+	 * size, the scroll set on that. This visit's answer draws in its place when
+	 * it lands, and the scroll is set again as it does so. A load that has
+	 * already answered for this list wins — a fast server on a popstate — and
+	 * then only the place comes back.
+	 */
+	async function keepPlace(v: Kept) {
+		if (answered === 0 && !shown) held = { count: v.count, more: v.more };
+		await tick();
+		settleScroll(v.y, () => shown !== null);
+	}
+
+	/** The preview's ←: the one forward visit that gets its place back. */
+	async function restoreLeft() {
+		// Nothing of a revealed list comes back, and incognito leaves nothing:
+		// neither reads the record, nor takes it away from an earlier one.
+		if (data.reveal || data.incognito) return;
+		const left = takeLeft(page.url.pathname + page.url.search, listKey(page.url));
+		if (!left) return;
+		await keepPlace(left);
+	}
+
+	/**
+	 * A snapshot belongs to a history entry: a popstate restores it. A reload does
+	 * not (its `restore` runs while the document boots, with `navigated` false),
+	 * and a forward visit has no entry of its own.
+	 */
+	export const snapshot: Snapshot<Kept | undefined> = {
+		capture: () => {
+			// Nothing of a revealed list outlives reveal's end, and incognito leaves
+			// nothing behind (doc/PRIVACY.md): neither keeps a place at all.
+			if (data.reveal || data.incognito || !shown) return undefined;
+			return { key: shown.key, ...keptOf(shown), y: leftAt ?? scrollY };
+		},
+		restore: async (v) => {
+			if (!navigated || !v || data.reveal || data.incognito) return;
+			if (v.key !== listKey(page.url)) return;
+			await keepPlace(v);
+		}
+	};
 
 	// Waiting for the first answer: is the engine passing the site's browser check? (c143)
 	const check = new SiteCheck();
@@ -359,7 +551,13 @@
 		</div>
 
 		{#if !results}
-			<GridOutline />
+			{#if held}
+				<!-- The kept list's size, no title and no cover (c930): the place a
+				     way back holds while this visit's answer is on its way. -->
+				<KeptOutline count={held.count} more={held.more} />
+			{:else}
+				<GridOutline />
+			{/if}
 		{:else if results.hits.length === 0}
 			<div class="none">NOTHING HERE{data.mode === 'filtered' ? ' · TRY FEWER FILTERS' : ''}</div>
 		{:else}
