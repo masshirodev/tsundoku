@@ -269,6 +269,8 @@ describe('pickedOfCard and pickedOfPart (c698): a search hit carries what GROUP 
 			cover: 2,
 			kind: 'novel',
 			entryCount: 3,
+			readCount: 1,
+			show: null,
 			meta: 'NOVEL · 3 VOL · 1 READ',
 			work: { id: 3, name: 'Saga' },
 			inWork: 'Saga',
@@ -538,8 +540,10 @@ describe('readFacts (c737): the by-id read, in chunks', () => {
 		const bodies: number[][] = [];
 		vi.stubGlobal(
 			'fetch',
-			vi.fn(async (_url: string, init: RequestInit) => {
+			vi.fn(async (url: string, init: RequestInit) => {
 				const { ids } = JSON.parse(String(init.body)) as { ids: number[] };
+				// The show row's own read (c283), asked beside the cards: no row has one here.
+				if (String(url).endsWith('/series/facts')) return new Response('{}');
 				bodies.push(ids);
 				return new Response(
 					JSON.stringify({ series: [card({ id: ids[0] })], missing: [ids[ids.length - 1]] })

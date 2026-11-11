@@ -5,6 +5,7 @@ import {
 	pinchZoom,
 	resetZoom,
 	screenClass,
+	showsDouble,
 	stepZoom,
 	zoomKey,
 	zoomLabel,
@@ -117,6 +118,21 @@ describe('zoom', () => {
 		expect(keptZoom(1.5)).toBe(1.5);
 		expect(keptZoom(7)).toBeNull();
 		expect(keptZoom('1.5')).toBeNull();
+	});
+
+	it('keeps a double page’s zoom apart, per screen class (the owner, 2026-11-11)', () => {
+		expect(zoomKey('double', screenClass(1440))).toBe('zoom.double.wide');
+		expect(zoomKey('double', screenClass(390))).toBe('zoom.double.phone');
+	});
+
+	it('reads the double zoom only for one wide page shown whole on a paged screen', () => {
+		const base = { vertical: false, pages: 1, wide: true, whole: true };
+		expect(showsDouble(base)).toBe(true);
+		// A single page, the strip, a spread of two, or a wide page split or turned: the page's zoom.
+		expect(showsDouble({ ...base, wide: false })).toBe(false);
+		expect(showsDouble({ ...base, vertical: true })).toBe(false);
+		expect(showsDouble({ ...base, pages: 2 })).toBe(false);
+		expect(showsDouble({ ...base, whole: false })).toBe(false);
 	});
 });
 

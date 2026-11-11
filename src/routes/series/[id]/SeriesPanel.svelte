@@ -115,6 +115,7 @@
 		noVideo = null,
 		readOnline = false,
 		work = null,
+		merged = false,
 		readMs = 0,
 		takenOut = null,
 		dropAnswer = () => undefined,
@@ -142,6 +143,8 @@
 		onreview?: () => void;
 		/** MIGHT CONTINUE <WORK> · AS PART N (W7): only for a series in no Work. */
 		workOffer?: WorkOffer | null;
+		/** A merged show (c283): UNGROUP is its undo. Never an ordinary anime with seasons. */
+		merged?: boolean;
 		/** Set just after NOT THIS, so its band can offer UNDO. */
 		workOfferDismissed?: string | null;
 		/** REVIEW → on the offer: the page opens the sheet in ADD TO A WORK. */
@@ -1262,8 +1265,9 @@
 								aria-expanded={renaming}
 								onclick={() => (renaming = !renaming)}>RENAME</button
 							>
-							{#if isBookSeries(series) || isVolumeSeries(series)}
-								<!-- Every book (or volume) back out on its own; the series goes. -->
+							{#if merged || isBookSeries(series) || isVolumeSeries(series)}
+								<!-- Every book (or volume) back out on its own; the series goes.
+								     A merged show's seasons go back under their own ids (c283). -->
 								<form method="POST" action="?/ungroup" use:enhance={replacing} class="hide-form">
 									<button type="submit" class="edit">UNGROUP</button>
 								</form>

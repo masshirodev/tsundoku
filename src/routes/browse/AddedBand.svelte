@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import type { SubmitFunction } from '@sveltejs/kit';
+	import { replacing } from '$lib/back';
 	import Band, { clearBandUrl } from '$lib/components/chrome/Band.svelte';
 	import { addedDetail } from '$lib/library/downloads';
 	import {
@@ -94,12 +95,21 @@
 		const q = p.toString();
 		return `${page.url.pathname}${q ? `?${q}` : ''}`;
 	};
+	/**
+	 * The catalog the ADD was made from, as `addedLanding` recorded it on the
+	 * band's URL (wave 46): UNDO hands it back to the preview, so its ← names
+	 * BROWSE rather than SOURCES. Read from the URL here, not from the page's
+	 * load, since the band is drawn in two routes and the value is the band's
+	 * own. A band from a shared link's preview has none, and UNDO keeps none.
+	 */
+	const catalog = $derived(page.url.searchParams.get('catalog') ?? '');
 	const naming = $derived(!!shelve && page.url.searchParams.get('new') === 'shelf');
 	/** A chip's post: without script the answer is a load of this URL, so it carries the band (as UNDO's does). */
 	const shelveSubmit = $derived(
 		`${shelve}&added=hidden&series=${band.seriesId}&preview=${encodeURIComponent(band.preview)}` +
 			(band.queued ? `&queued=${encodeURIComponent(band.queued)}` : '') +
-			(from ? `&from=${encodeURIComponent(from)}` : '')
+			(from ? `&from=${encodeURIComponent(from)}` : '') +
+			(catalog ? `&catalog=${encodeURIComponent(catalog)}` : '')
 	);
 	/**
 	 * A chip put on: remembered as the last chosen, once the write answered.
@@ -154,13 +164,16 @@
 		band.queued,
 		band.video
 	)}{tail}"
-	ondismiss={() => clearBandUrl(['added', 'series', 'preview', 'queued', 'new', 'refused'])}
+	ondismiss={() =>
+		clearBandUrl(['added', 'series', 'preview', 'queued', 'catalog', 'new', 'refused'])}
 >
 	{#snippet action()}
 		{#if !refused}
-			<form method="POST" action={submit} use:enhance>
+			<!-- UNDO replaces the landing page's entry rather than pushing over it (wave 46, as the series' own UNDO does): one swipe back is the catalog. -->
+			<form method="POST" action={submit} use:enhance={replacing}>
 				<input type="hidden" name="series" value={band.seriesId} />
 				<input type="hidden" name="preview" value={band.preview} />
+				{#if catalog}<input type="hidden" name="catalog" value={catalog} />{/if}
 				<button type="submit">UNDO</button>
 			</form>
 		{/if}

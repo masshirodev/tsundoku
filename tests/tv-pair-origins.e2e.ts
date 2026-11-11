@@ -15,6 +15,7 @@ import {
 } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { hydrated } from './helpers/hydration';
+import { HOST_ARGS } from './helpers/host-args';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
@@ -171,11 +172,12 @@ test.beforeAll(async () => {
 	// The TV's jar: one host for both servers, as a WebView keeps it.
 	browser = await chromium.launch({
 		args: [
+			...HOST_ARGS,
 			'--host-resolver-rules=MAP tsundoku.test 127.0.0.1',
 			'--blink-settings=availablePointerTypes=none,availableHoverTypes=none'
 		]
 	});
-	desk = await chromium.launch();
+	desk = await chromium.launch({ args: HOST_ARGS });
 	for (const at of [A, B])
 		computers.set(
 			at,

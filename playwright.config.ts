@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { BROWSE_PORT } from './tests/browse-world';
 import { FRIEND_PORT } from './tests/friend-world';
+import { HOST_ARGS } from './tests/helpers/host-args';
 
 const previewPort = Number.parseInt(process.env.PLAYWRIGHT_PORT ?? '4183', 10);
 
@@ -106,6 +107,9 @@ export default defineConfig({
 	reporter: [[process.env.CI ? 'github' : 'list'], ['./tests/helpers/not-run-reporter.ts']],
 	use: {
 		baseURL: `http://localhost:${previewPort}`,
+		// What this machine needs of Chromium (tests/helpers/host-args.ts): no
+		// GPU under WSL. A project that sets its own launchOptions repeats it.
+		launchOptions: { args: HOST_ARGS },
 		// The specs read English (doc/I18N.md): AUTO follows the browser, so the
 		// browser is told what to say rather than inheriting the machine's.
 		locale: 'en-US',
@@ -224,7 +228,10 @@ export default defineConfig({
 				viewport: { width: 960, height: 540 },
 				deviceScaleFactor: 1,
 				launchOptions: {
-					args: ['--blink-settings=availablePointerTypes=none,availableHoverTypes=none']
+					args: [
+						...HOST_ARGS,
+						'--blink-settings=availablePointerTypes=none,availableHoverTypes=none'
+					]
 				}
 			}
 		},

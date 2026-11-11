@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures';
-import { engineCalls, resetEngine, SOURCES } from './browse-world';
+import { ANIME_SOURCE, engineCalls, resetEngine, SOURCES } from './browse-world';
 
 /**
  * + ADD TO LIBRARY and ADD AND DOWNLOAD from a preview replace the preview's
@@ -137,16 +137,39 @@ async function expectBackAt(
 	expect(Math.abs(after.y - before.y), 'the same scroll').toBeLessThanOrEqual(2);
 }
 
-/** UNDO on the new series' band, forward in history: it puts the library back. */
-async function undoFromTheSeries(page: import('@playwright/test').Page) {
-	await page.goForward();
-	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/series\/\d+$/);
+/** The preview's ← cell, whose word says where the entry was found. */
+const previewBack = (page: import('@playwright/test').Page) =>
+	page.locator('.preview a.back').first();
+
+/**
+ * UNDO on the new series' band (c932): the preview it was added from replaces
+ * the series' history entry, so one swipe back is the catalog, and the
+ * preview's ← still names that catalog rather than SOURCES (c262).
+ */
+async function undoOntoThePreview(page: import('@playwright/test').Page) {
+	const stepsOnSeries = await page.evaluate(() => history.length);
 	const undo = page
 		.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })
 		.getByRole('button', { name: 'UNDO' });
 	await expect(undo).toBeVisible();
 	await undo.click();
 	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
+	expect(
+		await page.evaluate(() => history.length),
+		'UNDO replaced the series’ entry, rather than pushing over it'
+	).toBe(stepsOnSeries);
+	expect(
+		decodeURIComponent(new URL(page.url()).searchParams.get('from') ?? ''),
+		'the preview’s origin survived UNDO'
+	).toMatch(new RegExp(`^${OPEN}`));
+	await expect(previewBack(page)).toContainText('BROWSE');
+}
+
+/** UNDO on the new series' band, forward in history: it puts the library back. */
+async function undoFromTheSeries(page: import('@playwright/test').Page) {
+	await page.goForward();
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/series\/\d+$/);
+	await undoOntoThePreview(page);
 	await expect(addButton(page)).toBeVisible();
 }
 
@@ -187,6 +210,53 @@ test('ADD replaces the preview’s entry: one swipe back lands on the catalog, a
 	await undoFromTheSeries(page);
 });
 
+test('UNDO after ADD: no entry of its own, the preview’s ← names the catalog, and one swipe back is the catalog', async ({
+	page
+}) => {
+	const before = await openListAt(page);
+	await openVisible(page);
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
+	// The preview knows the catalog it was opened from, and ← says so (c262).
+	expect(
+		decodeURIComponent(new URL(page.url()).searchParams.get('from') ?? ''),
+		'the preview carries its origin'
+	).toMatch(new RegExp(`^${OPEN}`));
+	await expect(previewBack(page)).toContainText('BROWSE');
+
+	await addButton(page).click();
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/series\/\d+$/);
+
+	await undoOntoThePreview(page);
+	// The whole point: one swipe back from the preview lands on the catalog, at
+	// its kept place — not on the series UNDO deleted (a 404), and not on the
+	// preview twice.
+	await page.goBack();
+	await expectBackAt(page, before);
+});
+
+test('UNDO in incognito: the same one swipe, and the visit keeps nothing', async ({
+	page,
+	baseURL
+}) => {
+	await page.context().addCookies([{ name: 'tsundoku_incognito', value: '1', url: baseURL! }]);
+	await openListAt(page);
+	await openVisible(page);
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
+	await addButton(page).click();
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/series\/\d+$/);
+	await undoOntoThePreview(page);
+	// One swipe back is the catalog, not the 404 of the series UNDO deleted. The
+	// place is the browser's own restore, not a kept list: c930's snapshot
+	// refuses incognito, so nothing of this visit outlives it.
+	await page.goBack();
+	await expect.poll(() => new URL(page.url()).pathname).toBe(OPEN);
+	await expect.poll(() => page.locator('.grid a.tile').count()).toBe(26);
+	expect(
+		await page.evaluate(() => sessionStorage.getItem('sveltekit:snapshot')),
+		'incognito kept no list'
+	).toBeNull();
+});
+
 test('ADD AND DOWNLOAD: the same one swipe, with what it queued on the band', async ({
 	page
 }, testInfo) => {
@@ -217,15 +287,16 @@ test('ADD AND DOWNLOAD: the same one swipe, with what it queued on the band', as
 
 	// The library back as it was, usually: the queued chapters download at once,
 	// and once one has the band rightly offers no UNDO (c505's rule), so the
-	// series stays for a repeat that opens another tile.
+	// series stays for a repeat that opens another tile. When it is offered, it
+	// is the same action as + ADD's, and it replaces the series' entry too.
 	await page.goForward();
 	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/series\/\d+$/);
 	const undo = page
 		.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })
 		.getByRole('button', { name: 'UNDO' });
 	if (await undo.count()) {
-		await undo.click();
-		await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
+		await undoOntoThePreview(page);
+		await expect(addButton(page)).toBeVisible();
 	}
 });
 
@@ -273,20 +344,181 @@ test('an ADD that hid the series lands on the source’s page, and one swipe bac
 	expect(seen.mutations, 'the observer watched the popstate').toBeGreaterThan(0);
 	expect(seen.tiles, 'the added-and-hidden result was never attached').not.toContain(added);
 
-	// The library back as it was: forward to the band's page, UNDO it there.
+	// The library back as it was: forward to the band's page, UNDO it there. The
+	// band's UNDO is the same one the series' band has (wave 46): it replaces the
+	// landing's entry rather than pushing over it, and it hands the preview the
+	// catalog it was found in, so ← says BROWSE rather than SOURCES and one swipe
+	// back is the list at its place (c932's UNDO line, the hidden band).
 	await page.goForward();
 	await expect.poll(() => new URL(page.url()).searchParams.get('added')).toBe('hidden');
-	const undo = page
-		.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' })
-		.getByRole('button', { name: 'UNDO' });
-	await expect(undo).toBeVisible();
-	await undo.click();
-	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
+	await undoOntoThePreview(page);
 	await expect(addButton(page)).toBeVisible();
+	// One swipe back: the catalog, not the band's own landing page, and the list
+	// is drawn under today's rules — the series UNDO took out is not hidden any
+	// more, so its result is one of 26 again, and no band is left behind it.
+	await page.goBack();
+	await expectBackAt(page, before, 26);
+	expect(
+		await page.locator('.band', { hasText: 'ADDED TO THE LIBRARY' }).count(),
+		'nothing of the band stays on the catalog'
+	).toBe(0);
 
 	// The source's own setting back as it was, for the specs beside this one.
 	await page.request.post(`${OPEN}/settings?/set`, {
 		form: { key: 'quality', value: '0' },
 		headers: { origin: new URL(page.url()).origin }
 	});
+});
+
+/**
+ * A shared link to a preview (c932's UNDO line, round 2): `/downloads/source/<id>`
+ * opened in a fresh page, with no catalog behind it. ADD replaces the preview's
+ * entry and UNDO replaces the series', so neither grows history; UNDO lands on
+ * the preview with no `from=` invented -- its ← says SOURCES, which is true,
+ * because there is nothing in the app behind the link -- and one swipe back
+ * leaves the app for the blank page the fresh tab started on.
+ */
+test('a shared link to a preview: ADD and UNDO neither grows history, and the landing invents no origin', async ({
+	page
+}) => {
+	// The anime source's one search hit (c735): no other spec adds it.
+	const shared = `/downloads/source/${ANIME_SOURCE.id}~${Buffer.from('/show/search-hit').toString('base64url')}`;
+	const fresh = await page.context().newPage();
+	try {
+		await fresh.goto(shared);
+		await expect.poll(() => new URL(fresh.url()).pathname).toBe(shared);
+		expect(
+			new URL(fresh.url()).searchParams.get('from'),
+			'a shared link has no origin of its own'
+		).toBeNull();
+		await expect(previewBack(fresh)).toContainText('SOURCES');
+		await expect(addButton(fresh)).toBeVisible();
+		const onPreview = await fresh.evaluate(() => history.length);
+		// The tab's own blank page, then the link: nothing in the app behind it.
+		expect(onPreview, 'a fresh tab has only its blank page behind the link').toBe(2);
+
+		await addButton(fresh).click();
+		await expect.poll(() => new URL(fresh.url()).pathname).toMatch(/^\/series\/\d+$/);
+		expect(await fresh.evaluate(() => history.length), 'the add replaced the preview’s entry').toBe(
+			onPreview
+		);
+
+		const undo = fresh
+			.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })
+			.getByRole('button', { name: 'UNDO' });
+		await expect(undo).toBeVisible();
+		await undo.click();
+		await expect.poll(() => new URL(fresh.url()).pathname).toBe(shared);
+		expect(
+			await fresh.evaluate(() => history.length),
+			'UNDO replaced the series’ entry, rather than pushing over it'
+		).toBe(onPreview);
+		expect(
+			new URL(fresh.url()).searchParams.get('from'),
+			'UNDO invented no origin a shared link never had'
+		).toBeNull();
+		await expect(previewBack(fresh)).toContainText('SOURCES');
+		await expect(addButton(fresh)).toBeVisible();
+
+		// Nothing in the app was behind the link: one swipe back is the tab's own
+		// blank page, not a 404 and not a catalog it never had.
+		await fresh.goBack();
+		await expect.poll(() => fresh.url()).toBe('about:blank');
+	} finally {
+		await fresh.close();
+	}
+});
+
+/**
+ * The other half of the band's UNDO (wave 46): a shared link's ADD can hide the
+ * series too, and then the band is BROWSE's. There is no catalog behind that
+ * entry either, so UNDO hands the preview no `from=` — ← says SOURCES, one
+ * swipe back leaves the app — and the recorded catalog is what keeps the two
+ * apart: only an ADD the catalog itself carried records one.
+ */
+test('a shared link’s ADD that hid the series: the band’s UNDO invents no catalog behind it', async ({
+	page,
+	baseURL
+}) => {
+	const source = `/browse/${ANIME_SOURCE.id}`;
+	const flag = async (value: string) =>
+		page.request.post(`${source}/settings?/flag`, {
+			form: { flag: 'addedHidden', value },
+			headers: { origin: baseURL! }
+		});
+	expect((await flag('true')).ok()).toBe(true);
+	try {
+		const shared = `/downloads/source/${ANIME_SOURCE.id}~${Buffer.from('/show/search-hit').toString('base64url')}`;
+		const fresh = await page.context().newPage();
+		try {
+			await fresh.goto(shared);
+			await expect(addButton(fresh)).toBeVisible();
+			const onPreview = await fresh.evaluate(() => history.length);
+			await addButton(fresh).click();
+			// The source is all but hidden now, so the band is BROWSE's (c435).
+			await expect.poll(() => new URL(fresh.url()).searchParams.get('added')).toBe('hidden');
+			const undo = fresh
+				.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' })
+				.getByRole('button', { name: 'UNDO' });
+			await expect(undo).toBeVisible();
+			await undo.click();
+			await expect.poll(() => new URL(fresh.url()).pathname).toBe(shared);
+			expect(
+				await fresh.evaluate(() => history.length),
+				'UNDO replaced the landing’s entry, rather than pushing over it'
+			).toBe(onPreview);
+			expect(
+				new URL(fresh.url()).searchParams.get('from'),
+				'UNDO invented no catalog a shared link never had'
+			).toBeNull();
+			await expect(previewBack(fresh)).toContainText('SOURCES');
+			await fresh.goBack();
+			await expect.poll(() => fresh.url()).toBe('about:blank');
+		} finally {
+			await fresh.close();
+		}
+	} finally {
+		expect((await flag('false')).ok(), 'the switch back as it was').toBe(true);
+	}
+});
+
+/**
+ * UNDO after an ADD from a search keeps the search's query (c932, wave 46): the
+ * preview reads its search origin from `q` alone (`downloads/source/[id]`'s
+ * load), so `?from=/downloads/search?q=…` alone leaves ← on the bare search
+ * page. The series' UNDO is the slot's own side of it: the preview gets the `q`
+ * back as well as its `from=`.
+ */
+test('UNDO after an ADD from a search: the preview’s ← keeps the query, and one swipe back is the search', async ({
+	page
+}) => {
+	await page.goto('/downloads/search?q=filtered');
+	const hit = page.locator('a.hit[href^="/downloads/source/"]').first();
+	await expect(hit).toBeVisible();
+	// The query the page really wrote on the hit's own link, not one built here.
+	const q = new URL((await hit.getAttribute('href'))!, 'http://in.app').searchParams.get('q');
+	expect(q, 'a search hit carries its query').toBeTruthy();
+	await hit.click();
+	await expect(addButton(page)).toBeVisible();
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
+
+	await addButton(page).click();
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/series\/\d+$/);
+	const onSeries = await page.evaluate(() => history.length);
+	const undo = page
+		.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })
+		.getByRole('button', { name: 'UNDO' });
+	await expect(undo).toBeVisible();
+	await undo.click();
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
+	expect(await page.evaluate(() => history.length), 'UNDO replaced the series’ entry').toBe(
+		onSeries
+	);
+	// ← goes back to the search it was found in, with the query it was found by.
+	await expect(previewBack(page)).toHaveAttribute('href', `/downloads/search?q=${q}`);
+	// One swipe back is that search, and its results with it.
+	await page.goBack();
+	await expect.poll(() => new URL(page.url()).pathname).toBe('/downloads/search');
+	expect(new URL(page.url()).searchParams.get('q')).toBe(q);
+	await expect(page.locator('a.hit').first()).toBeVisible();
 });

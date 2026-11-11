@@ -249,11 +249,26 @@ as an action that ends a screen does: one swipe back from the new series lands
 on the catalog it was found in, at the place c930 keeps, not on the preview a
 second time. Pushed, it cost two swipes, and the second one opened a preview
 of a series that was now in the library (which redirects to its series) — the
-"transient gap" the owner named. The band, its UNDO, `?from=` (c262), the
+"transient gap" the owner named. The band's **UNDO** ends the series in turn,
+so it replaces the series' entry as well and lands on the preview with the
+origin put back (`?from=`, c262): one swipe back from the preview is the
+catalog, and the preview's ← says BROWSE
+([`SERIES.md`](SERIES.md), "The ADDED band's place in history"). The band, the
 hidden landing (c435, c505) and a refusal's band are unchanged: only where the
-landing sits in history moved. **Without script** a native POST's 303 is a full
-navigation, which no page can replace: ADD still costs two swipes there, and
-the no-script path is left as it was.
+landing and the UNDO sit in history moved. **Without script** a native POST's
+303 is a full navigation, which no page can replace: ADD and UNDO still cost
+two swipes there, and the no-script path is left as it was.
+
+**The hidden band's UNDO is the same one** (c932, wave 46). When the ADD hid
+the series the band is the source's page's, or BROWSE's once the source is
+mostly hidden, and there is no series screen to come back to: its UNDO replaces
+that landing's entry too, and hands the preview the catalog the ADD recorded
+(a `catalog` band parameter, written by `addedLanding`), so the preview's ←
+says BROWSE and one swipe back is the list at the place it was left. Only an
+ADD the catalog itself carried records one, so a shared link's preview gets no
+`from=` from it and ← still says SOURCES, where the entry was never found
+(`src/routes/browse/added.server.ts`, `afterUndo`; `doc/SERIES.md`, "The ADDED
+band's place in history").
 
 The preview of a series already in the library still redirects to the series
 (`+page.server.ts`:66), so a shared preview link opens the series.
@@ -924,6 +939,19 @@ source's page or the search (`sourceOrigin`), so the tag's origin cannot be
 its `from` directly: ← goes where it did before the ADD, to the source's page,
 whose own ← is the tag's screen. With no origin, a refused one, or a landing on
 BROWSE, there is no `from`.
+
+The **series page's** own UNDO after an ADD does keep it (c932): its form
+carries the origin the add landed with, and the redirect puts it on the
+preview's URL ([`SERIES.md`](SERIES.md), "The ADDED band's place in history").
+So does the hidden band's, on BROWSE's route (wave 46): it hands back the
+catalog the ADD recorded on the band's URL, and a preview reached by a shared
+link, which has no catalog behind it, gets no `from=` at all.
+
+**A search's query comes back with it** (c932, wave 46). An ADD found by a
+search hands back `/downloads/search?q=<query>`, and the preview reads where it
+was found from `q` alone (`downloads/source/[id]`'s load, `searchOrigin`), so
+`from=` on its own would leave its ← on the bare search page: UNDO puts the
+query on the preview's URL too, and ← is the search the entry was found by.
 
 **ADD AND DOWNLOAD queues only what its own ADD hid** (c505). Outside reveal
 a hidden series is not the viewer's, but the one ADDED HIDDEN has just hidden

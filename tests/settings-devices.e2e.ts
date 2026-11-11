@@ -13,6 +13,7 @@ import {
 import { expect, test } from './fixtures';
 import { hydrated } from './helpers/hydration';
 import { E2E_TOKEN } from '../playwright.config';
+import { HOST_ARGS } from './helpers/host-args';
 
 /**
  * SETTINGS › 08 — DEVICES' TV row, end to end, on two token installs of this
@@ -511,7 +512,7 @@ test('a TV walks to the EXTENSIONS row with the arrows and opens it (c725)', asy
 	playwright
 }, info) => {
 	const tv = await playwright.chromium.launch({
-		args: ['--blink-settings=availablePointerTypes=none,availableHoverTypes=none']
+		args: [...HOST_ARGS, '--blink-settings=availablePointerTypes=none,availableHoverTypes=none']
 	});
 	try {
 		const context = await tv.newContext({

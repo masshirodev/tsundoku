@@ -1937,6 +1937,57 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		resolved_at INTEGER
 	) WITHOUT ROWID;
 	CREATE INDEX entry_origins_key ON entry_origins(origin_key);
+	`,
+	// v77: what a merged show was (card c283, S2; doc/WORKS.md, "Per-season
+	// sources"). The merge keeps S1's series row as the show and deletes every
+	// other season's, which cascades everything that references it; UNDO must
+	// put each one back **under its own id**, with its own rating, FAV, tags,
+	// shelves, links, folders and tracking state, because an id that changes
+	// breaks every outside reference (doc/handoff-notes/seasons.md, "Wave 42").
+	// `series_season_facts` knows each season's source and folder, and
+	// `series_season_links` its links, but neither holds an original series
+	// id, a rating or a FAV. So the merge records the whole of every series it
+	// touches, as JSON, here; UNGROUP and a take-one-out restore from it and
+	// delete the row. One show holds one row, and nothing else reads it.
+	`
+	CREATE TABLE season_merges (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		made_at INTEGER NOT NULL,
+		facts TEXT NOT NULL
+	) WITHOUT ROWID;
+
+	-- The merge deletes the absorbed seasons' series rows, and SQLite hands a
+	-- new row the largest id plus one, so the next series added would take an
+	-- absorbed id (measured: the second season's) and the undo would fail for
+	-- good (round 2). A row left in the table keeps the id from being handed
+	-- out; reserve_at marks it, season_reservations says which merge it
+	-- belongs to, and the trigger below takes it away when that merge is
+	-- undone or the show is deleted. A placeholder is no library row:
+	-- in_library = 0, hidden, no key, pruned, and favourite so the importer's
+	-- empty-series sweep never takes it (import/index.ts).
+	ALTER TABLE series ADD COLUMN reserve_at INTEGER;
+	ALTER TABLE works ADD COLUMN reserve_at INTEGER;
+	CREATE TABLE season_reservations (
+		merge INTEGER NOT NULL REFERENCES season_merges(series_id)
+			ON DELETE CASCADE ON UPDATE CASCADE,
+		kind TEXT NOT NULL CHECK (kind IN ('series', 'works')),
+		id INTEGER NOT NULL,
+		PRIMARY KEY (merge, kind, id)
+	) WITHOUT ROWID;
+	CREATE TRIGGER season_reservations_cleared AFTER DELETE ON season_reservations
+	BEGIN
+		DELETE FROM series WHERE reserve_at IS NOT NULL AND id = OLD.id;
+		DELETE FROM works WHERE reserve_at IS NOT NULL AND id = OLD.id;
+	END;
+
+	-- A Work of one ends, but a placeholder Work has no members and must wait
+	-- for its merge's undo (round 2). The reservation trigger removes it.
+	DROP TRIGGER series_deleted_ends_work;
+	CREATE TRIGGER series_deleted_ends_work AFTER DELETE ON series
+	BEGIN
+		DELETE FROM works WHERE reserve_at IS NULL
+			AND (SELECT COUNT(*) FROM work_series ws WHERE ws.work_id = works.id) < 2;
+	END;
 	`
 ];
 
