@@ -327,6 +327,18 @@
 	 * answered, so nothing is read for one.
 	 */
 	let pageShowFacts = $state<Record<string, ShowFacts>>({});
+	/**
+	 * The show-fact asks still out, as one chain (round 3): GROUP's sheet takes
+	 * its rows once, on open, so it waits for the last of them before it reads
+	 * the selection.
+	 */
+	let showFactsOut: Promise<void> = Promise.resolve();
+	/**
+	 * How long a sheet waits for one before opening without the line. A read that
+	 * never answers must not hold the sheet shut, the rule DELETE's held read
+	 * follows (`HELD_READ_MS`, the bar).
+	 */
+	const SHOW_FACTS_WAIT_MS = 3000;
 	const showFactsOf = (id: number): ShowFacts | null =>
 		data.groupFacts[String(id)] ?? pageShowFacts[String(id)] ?? null;
 	let loadingMore = $state(false);
@@ -398,6 +410,11 @@
 	 * `refresh` re-reads the ids a write may have changed (a download's HERE
 	 * count) rather than only the new ones. A failed read leaves those rows with
 	 * the library's line rather than failing the page.
+	 *
+	 * The ask is chained (`showFactsOut`), so a sheet opened while one is out can
+	 * wait for it, and an answer that lands after the list changed (a search, a
+	 * filter, a sort) is dropped rather than drawn on the new page's selection,
+	 * as `fetchPage`'s is (round 3).
 	 */
 	async function noteShowFacts(cards: readonly LibraryCard[], refresh = false) {
 		// A plain record, not a `Set`: a component's `Set` is the lint's
@@ -416,9 +433,13 @@
 		}
 		const ids = Object.keys(want).map(Number);
 		if (ids.length === 0) return;
-		const got = await readShowFacts(ids);
-		if (!got) return;
-		pageShowFacts = { ...pageShowFacts, ...got };
+		const gen = generation;
+		showFactsOut = showFactsOut.then(async () => {
+			const got = await readShowFacts(ids);
+			if (!got || gen !== generation) return;
+			pageShowFacts = { ...pageShowFacts, ...got };
+		});
+		await showFactsOut;
 	}
 
 	/**
@@ -754,6 +775,14 @@
 	async function fillUnseen(): Promise<void> {
 		while (selectingAll) await selectingAll;
 		await unseen.fill(selected, facts, heldBySheet);
+		// GROUP's sheet takes its rows once, on open (and SHOW lists them), so a
+		// show line whose read is still out would stay the library's line for the
+		// whole sheet. Waited for, but not for ever: a read that never answers
+		// must not hold the sheet shut (DELETE's HELD_READ_MS is the same rule).
+		await Promise.race([
+			showFactsOut,
+			new Promise<void>((resolve) => setTimeout(resolve, SHOW_FACTS_WAIT_MS))
+		]);
 	}
 	/**
 	 * A selection carried back from the search (c698; doc/LIBRARY.md, "What

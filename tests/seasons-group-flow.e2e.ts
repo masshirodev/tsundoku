@@ -584,3 +584,206 @@ test.describe('the row’s meta line at 360 px', () => {
 		expect(height, 'the row does not grow').toBe(64);
 	});
 });
+
+/**
+ * GROUP opened before a page's show facts have answered (round 3): the sheet
+ * takes its rows once, on open (`GroupSheet`'s reset), so a row whose
+ * `/series/facts` ask is still out would keep the library's `ANIME · … WATCHED`
+ * line for the whole sheet. The page's `fill` waits for those asks, bounded, and
+ * an ask that answers after the list changed is dropped rather than drawn.
+ */
+const TAUS = ['Tau One', 'Tau Two', 'Tau Three'];
+
+/** Three seasons of their own, newest last, so the grid's first page of 2 holds the newest. */
+function seedTaus() {
+	const db = new Database(dbPath);
+	const now = Date.UTC(2026, 10, 10);
+	const root = (db.prepare(`SELECT id FROM roots ORDER BY id LIMIT 1`).get() as { id: number }).id;
+	if (db.prepare(`SELECT 1 FROM series WHERE title = ?`).get(TAUS[0])) {
+		db.close();
+		return;
+	}
+	TAUS.forEach((title, i) => {
+		const at = now + (i + 1) * 1000;
+		const id = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, status, source, path, origin_key,
+						source_url, added_at, indexed_at, in_library, hue)
+					VALUES (?, ?, 'anime', 'completed', 'Kakkoi', '', ?, ?, ?, ?, 1, 200)`
+				)
+				.run(root, title, `aniyomi:7:/tau-${i + 1}`, `https://example.test/tau-${i + 1}`, at, at)
+				.lastInsertRowid
+		);
+		db.prepare(`INSERT INTO anime_series (series_id, folder) VALUES (?, ?)`).run(id, title);
+		db.prepare(
+			`INSERT INTO series_season_links (series_id, season, part, via, linked_at, year, episodes)
+			VALUES (?, 1, 1, 'list', ?, 2027, 2)`
+		).run(id, at);
+		for (const n of [1, 2])
+			db.prepare(
+				`INSERT INTO entries (series_id, position, label, title, added_at, page_count, file,
+					available, duration_s, season, episode_number, source_url, origin_source, read_at)
+				VALUES (?, ?, ?, ?, ?, 0, '', ?, 1440, 1, ?, ?, '', ?)`
+			).run(
+				id,
+				n,
+				`Ep. ${n}`,
+				`${title} ${n}`,
+				at,
+				n === 1 ? 1 : 0,
+				n,
+				`https://example.test/tau-${i + 1}/${n}`,
+				n === 1 ? at : null
+			);
+	});
+	db.close();
+}
+
+/**
+ * Hold the page's `/series/facts` asks, make them fail, or leave them hanging,
+ * so a row's show line is late (or never comes) exactly when the sheet opens.
+ * A wrapped `fetch` in the page, not a Playwright route: a pending route holds
+ * `page.goto` itself, and what the app must see is only a fetch that has not
+ * answered. `asked` counts the asks the page has really made; `release` lets
+ * them all through, as a slow answer would.
+ */
+async function factsUnderControl(page: Page, answer: 'hold' | 'fail' | 'never') {
+	await page.addInitScript((mode) => {
+		const w = window as unknown as { __facts: { asked: number; release: () => void } };
+		const waiting: Array<() => void> = [];
+		w.__facts = {
+			asked: 0,
+			release: () => {
+				for (const go of waiting.splice(0)) go();
+			}
+		};
+		const real = window.fetch.bind(window);
+		window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+			if (!url.includes('/series/facts')) return real(input, init);
+			w.__facts.asked += 1;
+			if (mode === 'fail') return Promise.resolve(new Response('no', { status: 500 }));
+			if (mode === 'never') return new Promise<Response>(() => {});
+			return new Promise<Response>((resolve, reject) => {
+				waiting.push(() => void real(input, init).then(resolve, reject));
+			});
+		};
+	}, answer);
+	return {
+		asked: () =>
+			page.evaluate(() => (window as unknown as { __facts: { asked: number } }).__facts.asked),
+		release: () =>
+			page.evaluate(() =>
+				(window as unknown as { __facts: { release: () => void } }).__facts.release()
+			)
+	};
+}
+
+/** The grid's second page ticked: the newest from the tree, the oldest from the page after it. */
+async function tickPastTheFirstPage(page: Page) {
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await tileByTitle(page, TAUS[2]).locator('.open').click();
+	const past = tileByTitle(page, TAUS[0]);
+	await page.evaluate(() => scrollTo({ top: document.body.scrollHeight }));
+	await expect(past).toHaveCount(1);
+	await past.locator('.open').click();
+}
+
+const rowIn = (page: Page, sheet: ReturnType<typeof groupSheet>, title: string) =>
+	sheet
+		.locator('.rows.grows .row')
+		.filter({ has: page.locator('.a', { hasText: new RegExp(`^${title}$`) }) });
+
+test('GROUP waits for a page’s show facts, however late they answer (round 3)', async ({
+	page
+}) => {
+	seedTaus();
+	await page.context().addCookies([{ name: 'tsundoku_grid_page', value: '2', url: base }]);
+	const facts = await factsUnderControl(page, 'hold');
+	await page.goto('/?shelf=k:anime&sort=added');
+	// The page's ask for the pages after the first is out, and held.
+	await expect.poll(() => facts.asked(), 'the page asked for the show line').toBeGreaterThan(0);
+	await tickPastTheFirstPage(page);
+	await expect.poll(() => facts.asked()).toBeGreaterThan(0);
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	// The sheet's rows are taken once, on open: it waits for the line rather
+	// than drawing the library's and never updating it.
+	await expect(groupSheet(page)).toHaveCount(0);
+	await facts.release();
+	const sheet = groupSheet(page);
+	await expect(sheet).toBeVisible();
+	for (const title of [TAUS[0], TAUS[2]])
+		await expect(rowIn(page, sheet, title).locator('.b')).toHaveText(
+			'KICKASSANIME · 2 EP. · 2027 · 1 WATCHED · 1 HERE'
+		);
+	await sheet.getByRole('button', { name: 'CANCEL' }).click();
+});
+
+test('a show-facts ask that answers after the list changed is not drawn (round 3)', async ({
+	page
+}) => {
+	seedTaus();
+	await page.context().addCookies([{ name: 'tsundoku_grid_page', value: '2', url: base }]);
+	const facts = await factsUnderControl(page, 'hold');
+	{
+		await page.goto('/?shelf=k:anime&sort=added');
+		await expect.poll(() => facts.asked()).toBeGreaterThan(0);
+		await tickPastTheFirstPage(page);
+		await expect.poll(() => facts.asked()).toBeGreaterThan(0);
+		// Another kind is another list: the page bumps its generation, so an
+		// answer for the old one is not drawn on the new one's selection. (The
+		// SORT cell is the library bar's, which SELECT's bar covers.)
+		await page.locator('.kinds .kc', { hasText: 'Manga' }).click();
+		await expect(page).toHaveURL(/kind=manga/);
+		await page.evaluate(() => scrollTo({ top: 0 }));
+		await facts.release();
+		await expect(page.getByRole('button', { name: 'GROUP', exact: true })).toBeVisible();
+		await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+		const sheet = groupSheet(page);
+		await expect(sheet).toBeVisible();
+		// The selection outlives the sort, and its row keeps the line it was
+		// drawn with: the late answer belongs to the list that is gone.
+		await expect(rowIn(page, sheet, TAUS[0]).locator('.b')).toHaveText('ANIME · 2 EP · 1 WATCHED');
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+	}
+});
+
+test('a show-facts ask that fails: GROUP still opens, with the line the row has (round 3)', async ({
+	page
+}) => {
+	seedTaus();
+	await page.context().addCookies([{ name: 'tsundoku_grid_page', value: '2', url: base }]);
+	await factsUnderControl(page, 'fail');
+	{
+		await page.goto('/?shelf=k:anime&sort=added');
+		await tickPastTheFirstPage(page);
+		await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+		const sheet = groupSheet(page);
+		await expect(sheet).toBeVisible();
+		await expect(rowIn(page, sheet, TAUS[0]).locator('.b')).toHaveText('ANIME · 2 EP · 1 WATCHED');
+		await expect(rowIn(page, sheet, TAUS[2]).locator('.b')).toHaveText(
+			'KICKASSANIME · 2 EP. · 2027 · 1 WATCHED · 1 HERE'
+		);
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+	}
+});
+
+test('a show-facts ask that never answers: GROUP opens anyway, after its wait (round 3)', async ({
+	page
+}) => {
+	seedTaus();
+	await page.context().addCookies([{ name: 'tsundoku_grid_page', value: '2', url: base }]);
+	await factsUnderControl(page, 'never');
+	{
+		await page.goto('/?shelf=k:anime&sort=added');
+		await tickPastTheFirstPage(page);
+		await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+		const sheet = groupSheet(page);
+		// The wait is bounded (3 s): a read that never answers must not hold the
+		// sheet shut, the rule DELETE's own held read follows.
+		await expect(sheet).toBeVisible({ timeout: 10_000 });
+		await expect(rowIn(page, sheet, TAUS[0]).locator('.b')).toHaveText('ANIME · 2 EP · 1 WATCHED');
+		await sheet.getByRole('button', { name: 'CANCEL' }).click();
+	}
+});

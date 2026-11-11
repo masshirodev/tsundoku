@@ -312,10 +312,16 @@ rather than answering 500.
 - The season sheet's `ADD TO A SHOW` cell is drawn as the board draws it, at
   `· 0` and disabled: adding a season to an existing show is S3's, and no
   screen lists the shows there are.
-- A season's row in the sheet says the library's own meta (`ANIME · 12 EP. · 6
-WATCHED`) rather than the board's `<SOURCE> · 12 EP. · 2026 · 6 WATCHED · 3
-HERE`: the selection facts the sheet is handed carry no source, year or
-  downloaded count (see the notes' Gaps).
+- A season's row says **the board's own line**, `<SOURCE> · 12 EP. · 2026 · 6
+WATCHED · 3 HERE`, read through `POST /series/facts`
+  (`src/lib/server/season-facts.ts`): the library's load answers its own first
+  page, each page after it is read as it arrives, and a by-id selection asks
+  for the ids it holds. GROUP's sheet takes its rows once, on open, so SHOW and
+  GROUP wait for those reads — bounded at 3 s — before the sheet reads the
+  selection: a season past the first page draws its own line rather than the
+  library's `ANIME · … WATCHED`, and a read that fails or never answers still
+  opens the sheet, with the line the row has (wave 46). A person page's row,
+  whose `TagItem` carries a READ flag and no count, keeps the library's line.
 
 ## Schema
 
