@@ -14,6 +14,11 @@
 	} from '$lib/library/books';
 	import { untrack } from 'svelte';
 	import { defaultWorkName } from '$lib/library/works';
+	import { defaultShowName } from '$lib/library/season-name';
+	import { count, unitLabel } from '$lib/library/labels';
+	import { kindFacts } from '$lib/library/kinds';
+	import type { ShowFacts } from '$lib/library/selection';
+	import type { Kind } from '$lib/library/types';
 	import { addedMonth } from '$lib/library/series';
 	import { coverSrc } from '$lib/library/links';
 	import { m } from '$lib/paraglide/messages';
@@ -48,6 +53,17 @@
 		cover?: number | null;
 		/** "MANGA · 281 CH. · 41 READ": the row's second line. Absent on a suggestion. */
 		meta?: string;
+		/** Finished entries, for a show's WATCHED (the card's `readCount`). */
+		readCount?: number;
+		/** The row's kind and count, as the selection keeps them: the show line's EP. and WATCHED. */
+		kind?: Kind;
+		entryCount?: number;
+		/**
+		 * A show's own line's facts (c283; `season-facts.ts`): the season's
+		 * source, its AniList year and how many episodes have a file. Null where
+		 * the page read none, and the row keeps `meta`.
+		 */
+		show?: ShowFacts | null;
 		/** The Work it is in now: the row says IN <WORK> · MOVES HERE (W4). */
 		inWork?: string | null;
 	};
@@ -95,7 +111,7 @@
 		 */
 		offer?: { workId: number; name: string; part: number; key: string; parts: Book[] } | null;
 		/** VOLUMES when the answer is volumes: the same sheet, the same steps. */
-		noun?: 'BOOKS' | 'VOLUMES';
+		noun?: 'BOOKS' | 'VOLUMES' | 'SEASONS';
 		/**
 		 * After a Work is made or added to: the sheet closes and the selection
 		 * ends. On a series screen it is handed the action's answer: `?/work` is
@@ -119,6 +135,8 @@
 	let rows = $state<Book[]>([]);
 	let ticked = $state<number[]>([]);
 	let name = $state('');
+	/** What a show's default name lost: `SEASON 2`, for the NAME label (c283). */
+	let showWithout = $state<string | null>(null);
 	let into = $state<number | null>(null);
 	/** Why the last try didn't group, from the server; shown until the next. */
 	let refused = $state('');
@@ -138,6 +156,32 @@
 			? defaultWorkName(books.map((b) => b.title))
 			: sharedStart(books.map((b) => b.title));
 
+	/**
+	 * A show row's second line (`Seasons-Group.dc.html`, A1): the season's
+	 * source, its episodes, the year, WATCHED in ink and how many are on disk.
+	 * A fact the server did not answer drops out with its dot -- a source a
+	 * series has none of, a year with no AniList entry -- and a row with no
+	 * facts at all keeps the library's line.
+	 */
+	function showLine(b: Book): { text: string; ink?: boolean }[] | null {
+		if (!b.show || !b.kind || b.entryCount === undefined) return null;
+		const unit = kindFacts(b.kind).unit;
+		const parts = [
+			b.show.source ? { text: b.show.source.toUpperCase() } : null,
+			{ text: `${count(b.entryCount)} ${unitLabel(b.kind)}.` },
+			b.show.year ? { text: String(b.show.year) } : null,
+			{ text: `${count(b.readCount ?? 0)} ${unit.done}`, ink: true },
+			{ text: `${count(b.show.here)} HERE` }
+		];
+		return parts.filter((p) => p !== null);
+	}
+
+	/** A show's name is the shortest title without its trailing season marker (c283). */
+	function defaultFor(a: GroupAnswer): { name: string; without: string | null } {
+		if (a === 'show') return defaultShowName(books.map((b) => b.title));
+		return { name: defaultName(a), without: null };
+	}
+
 	// Each time the sheet opens, start from the given books. The reset reads them
 	// untracked: only `open` may run it again, or choosing an AS answer would be
 	// undone the next time the page handed down a new array (W4's AS row).
@@ -156,7 +200,9 @@
 			into = offer ? offer.workId : null;
 			ticked = books.map((b) => b.seriesId);
 			refused = '';
-			name = defaultName(answer);
+			const def = defaultFor(answer);
+			name = def.name;
+			showWithout = def.without;
 		});
 	});
 
@@ -173,7 +219,9 @@
 		// The answer's own first, chosen by `intoValue`; a target from the old
 		// answer's list is not carried over.
 		into = null;
-		name = defaultName(a);
+		const def = defaultFor(a);
+		name = def.name;
+		showWithout = def.without;
 		refused = '';
 	}
 
@@ -192,8 +240,11 @@
 	}
 
 	const work = $derived(answer === 'work');
-	const nouns = $derived(work ? 'SERIES' : answer === 'volumes' ? 'VOLUMES' : 'BOOKS');
-	const sheetNoun = $derived(work ? 'SERIES' : noun);
+	const show = $derived(answer === 'show');
+	const nouns = $derived(
+		show ? 'SEASONS' : work ? 'SERIES' : answer === 'volumes' ? 'VOLUMES' : 'BOOKS'
+	);
+	const sheetNoun = $derived(show ? 'SEASONS' : work ? 'SERIES' : noun);
 	const chosen = $derived(rows.filter((b) => ticked.includes(b.seriesId)));
 	/** Reading positions for the ticked rows; an unticked row shows a dash. An
 	 * offer's newcomer counts on from the run it would join: it goes last. */
@@ -209,11 +260,13 @@
 	);
 	/** The INTO choice's list: the answer's own, so a Work never offers a series. */
 	const intoList = $derived(
-		work
-			? existingWorks.map((w) => ({ id: w.id, title: w.name, books: w.series }))
-			: answer === 'volumes'
-				? existingVolumes
-				: existing
+		show
+			? []
+			: work
+				? existingWorks.map((w) => ({ id: w.id, title: w.name, books: w.series }))
+				: answer === 'volumes'
+					? existingVolumes
+					: existing
 	);
 	/**
 	 * The INTO target that is actually offered, checked and posted: never an id
@@ -235,7 +288,9 @@
 			? m.offer_into_part({ name: offer.name.toUpperCase(), part: offer.part })
 			: suggested
 				? `SUGGESTED · ${chosen.length} OF ${books.length} TICKED`
-				: `GROUP ${books.length} ${sheetNoun}`
+				: show
+					? `GROUP · ${books.length} SELECTED`
+					: `GROUP ${books.length} ${sheetNoun}`
 	);
 	/** Ticks on the rows: a books suggestion's, and an offer's one newcomer. */
 	const ticks = $derived(suggested || offer !== null);
@@ -244,6 +299,7 @@
 	function answerMeta(a: GroupAnswer): string {
 		const n = books.length;
 		if (a === 'work') return `${n} SERIES, KEPT APART`;
+		if (a === 'show') return `${n} SEASONS, ONE SERIES`;
 		if (a === 'volumes') return `${n} VOLUMES, ONE SERIES`;
 		return `${n} ${n === 1 ? 'BOOK' : 'BOOKS'}, ONE SERIES`;
 	}
@@ -324,7 +380,9 @@
 							? 'ONE SERIES · BOOKS'
 							: a === 'volumes'
 								? 'ONE SERIES · VOLUMES'
-								: 'A WORK · SERIES'}<span class="m">{answerMeta(a)}</span>
+								: a === 'show'
+									? 'ONE SHOW'
+									: 'A WORK · SERIES'}<span class="m">{answerMeta(a)}</span>
 					</button>
 				{/each}
 			</div>
@@ -347,7 +405,7 @@
 					class:on={mode === 'existing'}
 					disabled={intoList.length === 0}
 					onclick={() => (mode = 'existing')}
-					>{work ? 'ADD TO A WORK' : 'ADD TO EXISTING'} · {intoList.length}</button
+					>{work ? 'ADD TO A WORK' : show ? 'ADD TO A SHOW' : 'ADD TO EXISTING'} · {intoList.length}</button
 				>
 			</div>
 		{/if}
@@ -356,16 +414,21 @@
 			<div class="sl name-label">
 				<span>NAME</span>
 				<span
-					>{work && name.trim() === ''
-						? 'THE TITLES SHARE NO WORDS'
-						: 'WORDS EVERY TITLE STARTS WITH'}</span
+					>{show
+						? showWithout
+							? `WITHOUT “${showWithout}”`
+							: 'THE SHORTEST TITLE'
+						: work && name.trim() === ''
+							? 'THE TITLES SHARE NO WORDS'
+							: 'WORDS EVERY TITLE STARTS WITH'}</span
 				>
 			</div>
 			<input
 				class="name"
+				class:show
 				name="name"
 				bind:value={name}
-				aria-label={work ? 'Work name' : 'Series name'}
+				aria-label={work ? 'Work name' : show ? 'Show name' : 'Series name'}
 				placeholder={work ? 'NAME IT FOR YOURSELF' : ''}
 				autocomplete="off"
 			/>
@@ -394,8 +457,12 @@
 
 		{#if !offer}
 			<div class="sl order-label">
-				<span>ORDER</span><span
-					>{work && orderMode === 'hand' ? 'BY HAND: AS SELECTED' : orderLabel}</span
+				<span>{show ? `SEASONS · ${chosen.length}` : 'ORDER'}</span><span
+					>{show
+						? 'THE ORDER IS THE NUMBERING'
+						: work && orderMode === 'hand'
+							? 'BY HAND: AS SELECTED'
+							: orderLabel}</span
 				>
 			</div>
 			<div class="seg order">
@@ -404,14 +471,14 @@
 						>BY HAND</button
 					>
 					<button type="button" class:on={orderMode === 'date'} onclick={() => setOrder('date')}
-						>BY DATE ADDED</button
+						>{show ? 'BY DATE ADDED' : 'BY DATE'}</button
 					>
 					<button type="button" class:on={orderMode === 'title'} onclick={() => setOrder('title')}
 						>BY TITLE</button
 					>
 				{:else}
 					<button type="button" class:on={orderMode === 'date'} onclick={() => setOrder('date')}
-						>BY DATE</button
+						>{show ? 'BY DATE ADDED' : 'BY DATE'}</button
 					>
 					<button type="button" class:on={orderMode === 'title'} onclick={() => setOrder('title')}
 						>BY TITLE</button
@@ -423,7 +490,7 @@
 			</div>
 		{/if}
 
-		<ol class="rows" class:grows={work}>
+		<ol class="rows" class:grows={work || show}>
 			{#if offer}
 				<!-- The run it would join, as it stands: numbered, not ticked, not posted. -->
 				{#each offer.parts as p, i (p.seriesId)}
@@ -445,7 +512,7 @@
 			{/if}
 			{#each rows as b, i (b.seriesId)}
 				{@const on = ticked.includes(b.seriesId)}
-				<li class="row" class:off={!on} class:gr={work}>
+				<li class="row" class:off={!on} class:gr={work || show}>
 					{#if ticks}
 						<button
 							type="button"
@@ -457,7 +524,7 @@
 							><span class="box" class:on>{on ? '✓' : ''}</span></button
 						>
 					{/if}
-					<span class="num">{numbers[b.seriesId]}</span>
+					<span class="num">{show ? `S${i + 1}` : numbers[b.seriesId]}</span>
 					<span class="cov"
 						><Cover src={coverSrc(b.seriesId, b.cover)} hue={b.hue} width={34} height={49} /></span
 					>
@@ -468,6 +535,16 @@
 								{b.meta ?? ''}{b.inWork
 									? `${b.meta ? ' · ' : ''}IN ${b.inWork.toUpperCase()} · MOVES HERE`
 									: ''}
+							</span>
+						</span>
+					{:else if show}
+						{@const line = showLine(b)}
+						<span class="t">
+							<span class="a">{b.title}</span>
+							<span class="b">
+								{#if line}{#each line as p, i (i)}{i > 0 ? ' · ' : ''}{#if p.ink}<span class="ink"
+												>{p.text}</span
+											>{:else}{p.text}{/if}{/each}{:else}{b.meta ?? addedMonth(b.addedAt)}{/if}
 							</span>
 						</span>
 					{:else}
@@ -500,6 +577,13 @@
 				EACH KEEPS ITS OWN <span class="ink">RATING, FAV, FOLLOW, LINK AND FOLDER</span>. NOTHING
 				MERGES; UNGROUP PUTS {chosen.length === 1 ? 'ONE SERIES' : `${chosen.length} SERIES`} BACK.
 			</div>
+		{:else if show}
+			<!-- What the merge promises: one tile, and every season's own things stay its own. -->
+			<div class="keeps">
+				S{chosen.length}'S EPISODES BECOME <span class="ink">SEASON {chosen.length}</span> OF ONE
+				SERIES: ONE TILE, ONE CONTINUE (S{chosen.length} · EP. 1). EACH SEASON KEEPS ITS SOURCE ENTRY,
+				ITS ANILIST LINK, ITS FOLDER AND WHAT'S WATCHED.
+			</div>
 		{/if}
 
 		{#each chosen as b (b.seriesId)}<input type="hidden" name="series" value={b.seriesId} />{/each}
@@ -528,16 +612,17 @@
 		{:else}
 			<input type="hidden" name="order" value={orderLabel} />
 			<input type="hidden" name="mode" value={mode} />
+			{#if show}<input type="hidden" name="answer" value="show" />{/if}
 		{/if}
 
 		{#if refused}
 			<div class="refused" role="alert">{refused}</div>
 		{/if}
-		<div class="foot" class:sfoot={work}>
+		<div class="foot" class:sfoot={work || show}>
 			<button
 				type="submit"
 				class="create"
-				class:acc={work}
+				class:acc={work || show}
 				disabled={!canCreate || busy}
 				formaction={work && mode === 'existing'
 					? absolute
@@ -545,7 +630,9 @@
 						: '?/addToWork'
 					: undefined}
 			>
-				{#if !work}
+				{#if show}
+					MERGE · {chosen.length} SEASONS INTO ONE SERIES<span class="m">UNDO AFTER</span>
+				{:else if !work}
 					{mode === 'new'
 						? `CREATE SERIES · ${chosen.length} ${noun}`
 						: `ADD ${chosen.length} ${noun}`}
@@ -672,6 +759,12 @@
 		caret-color: var(--accent);
 		font: 500 17px var(--font-sans);
 		outline: none;
+	}
+	/* The show answer is the board's cell: a 14px inset and 16px type (c283).
+	   The books' and the Work's sheets keep the 16/17 they have always had. */
+	.name.show {
+		padding: 0 14px;
+		font: 500 16px var(--font-sans);
 	}
 	.existing {
 		display: flex;
@@ -821,6 +914,10 @@
 		text-overflow: ellipsis;
 		max-width: 100%;
 	}
+	/* WATCHED is ink, the board's own emphasis (A1). */
+	.rows.grows .t .b .ink {
+		color: var(--text-1);
+	}
 	.d {
 		display: flex;
 		align-items: center;
@@ -871,6 +968,10 @@
 		background: var(--accent);
 		color: var(--on-accent);
 		font: 500 15px var(--font-mono);
+	}
+	.create .m {
+		font-weight: 400;
+		font-size: 12px;
 	}
 	.create.acc {
 		flex: 1;

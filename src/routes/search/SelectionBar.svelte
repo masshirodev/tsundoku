@@ -8,7 +8,7 @@
 	import Switch from '$lib/components/controls/Switch.svelte';
 	import { deleteWithLine, keptAcrossLine } from '$lib/library/highlights';
 	import { langCode } from '$lib/library/editions';
-	import { groupAnswers } from '$lib/library/books';
+	import { groupAnswers, isSeasonSet } from '$lib/library/books';
 	import { allHiddenAmong } from '$lib/library/works';
 	import { pickedInOrder, titlesLine, workOf, type Picked } from '$lib/library/selection';
 	import type { Kind, RefreshBatch, Shelf } from '$lib/library/types';
@@ -87,7 +87,12 @@
 		kind: Kind;
 		entryCount: number;
 		meta: string;
+		readCount?: number;
+		show?: import('$lib/library/selection').ShowFacts | null;
 		inWork: string | null;
+		/** ONE SHOW's own checks (round 2): a mixed hidden set, or two Works, withdraws it. */
+		hidden: boolean;
+		work: number | string | null;
 	};
 	const groupRows = $derived(
 		pickedInOrder(selected, facts).map((p): GroupRow => ({
@@ -99,14 +104,29 @@
 			kind: p.kind,
 			entryCount: p.entryCount,
 			meta: p.meta,
-			inWork: p.inWork
+			readCount: p.readCount,
+			show: p.show,
+			inWork: p.inWork,
+			hidden: p.hidden,
+			work: p.work?.id ?? p.inWork
 		}))
 	);
-	const answers = $derived(
-		groupAnswers(groupRows.map((r) => ({ kind: r.kind, entryCount: r.entryCount })))
-	);
+	const answers = $derived.by(() => {
+		const items = groupRows.map((r) => ({
+			kind: r.kind,
+			entryCount: r.entryCount,
+			hidden: r.hidden,
+			work: r.work
+		}));
+		const base = groupAnswers(items);
+		// ONE SHOW is the default for a selection of a show's seasons (c283),
+		// and only such a selection offers it.
+		return isSeasonSet(items) ? (['show', ...base] as typeof base) : base;
+	});
 	/** The noun the sheet's title reads: the first answer the selection allows. */
-	const noun = $derived(answers[0] === 'volumes' ? 'VOLUMES' : 'BOOKS');
+	const noun = $derived(
+		answers[0] === 'show' ? 'SEASONS' : answers[0] === 'volumes' ? 'VOLUMES' : 'BOOKS'
+	);
 	/** The Works the selection touches: HIDE asks when there is one (W4). */
 	const selectedWorks = $derived([
 		...new Set(
