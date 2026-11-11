@@ -345,7 +345,13 @@ that stays.
   `PageImage` multiplies its `vw` and `dvh` by), so a zoomed page scrolls both
   ways inside its screen and each page starts at the top (at its right in
   R→L). While zoomed a drag pans the page instead of turning it; the edges
-  and the keys still turn.
+  and the keys still turn. **↑ / ↓ scroll the page** whenever it is taller
+  than its screen (zoomed, or fit width): a screen at a time less the strip's
+  overlap (`screenStep`), Ctrl + ↑ / ↓ the 100 px nudge, eased unless motion
+  is reduced. The page scrolls in its own box, which the browser's arrows
+  reach only once a click has put the keyboard in it, so they did nothing
+  until 2026-11-11 (the owner: "up and down arrows doesnt scroll a zoomed
+  manga page"). Its bottom is not a turn: → / Space turn.
 - **Paged, zoomed out** (c719): the page box shrinks inside its screen,
   centred both ways on the reader's black, in every fit and in a spread (the
   pair is centred). Fit width starts a page at the top, so below 100% it

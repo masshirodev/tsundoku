@@ -851,6 +851,20 @@ test('zoom: a paged page grows and scrolls, KEEP makes it every paged series’ 
 	expect(await screen.evaluate((e) => e.scrollHeight > e.clientHeight && e.scrollTop === 0)).toBe(
 		true
 	);
+	// ↓ / ↑ scroll it, with the keyboard on the page, not in the screen's box;
+	// neither turns the page.
+	const top = () => screen.evaluate((e) => e.scrollTop);
+	const pageNo = await page
+		.locator('.stage .screen:not([aria-hidden]) [data-page]')
+		.first()
+		.getAttribute('data-page');
+	await page.keyboard.press('ArrowDown');
+	await expect.poll(top).toBeGreaterThan(50);
+	await page.keyboard.press('ArrowUp');
+	await expect.poll(top).toBe(0);
+	await expect(
+		page.locator('.stage .screen:not([aria-hidden]) [data-page]').first()
+	).toHaveAttribute('data-page', pageNo!);
 	await tap(page, 0.5);
 	await page.getByRole('button', { name: /R→L/ }).click();
 	const sheet = page.getByRole('dialog', { name: 'Reading settings' });

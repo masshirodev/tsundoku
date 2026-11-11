@@ -373,6 +373,10 @@
 	 * The strip's lane, when a zoom has made the strip wider than the screen and
 	 * it scrolls sideways inside it (Strip.svelte, `.lane.wider`); null otherwise.
 	 */
+	/** The paged screen in view (the turn's neighbours sit aside, hidden). */
+	function shownScreen() {
+		return document.querySelector<HTMLElement>('.screen:not([aria-hidden="true"])');
+	}
 	function wideLane() {
 		const lane = document.querySelector<HTMLElement>('.lane.wider');
 		return lane && lane.scrollWidth > lane.clientWidth + 1 ? lane : null;
@@ -2232,6 +2236,22 @@
 			if (down || up) {
 				e.preventDefault();
 				moveKey(e, screenStep(innerHeight) * (down ? 1 : -1), GLIDE_SCREEN);
+			}
+			return;
+		}
+		// ↑ / ↓ scroll the page on screen when it is taller than the screen (a
+		// zoom, or fit width): it scrolls in its own box, which the browser's
+		// arrows never reach with the keyboard on the page. A screen at a time
+		// as on the strip, Ctrl a nudge; the end of the page is not a turn.
+		const vert = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+		if (vert) {
+			const page = shownScreen();
+			if (page && page.scrollHeight > page.clientHeight + 1) {
+				e.preventDefault();
+				page.scrollBy({
+					top: (e.ctrlKey ? NUDGE : screenStep(page.clientHeight)) * vert,
+					behavior: reducedMotion() || e.repeat ? 'instant' : 'smooth'
+				});
 			}
 			return;
 		}
