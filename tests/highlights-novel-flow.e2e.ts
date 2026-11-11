@@ -2626,3 +2626,90 @@ test('R8 UNDO of a join deleted in flight keeps the quote it covered', async ({ 
 	const back = (await queued(page)).find((i) => i.key === x.key);
 	expect(back?.body.note).toBe(x.note);
 });
+
+/**
+ * Round 9 (c702, wave 46): the chapter's own re-read can land after a press took
+ * a saved row in. `onQueueChange`'s refused event calls `loadMarks`, whose GET
+ * may still be out when the press removes that row from `quotes`; the answer it
+ * carries names the row again, so `fresh` draws it beside the press that covers
+ * it: two markers over the same words, and the sheet can open the row the join
+ * already took in. A refusal is what re-reads the chapter here, and both ends of
+ * the press's own answer are run: a fold into the saved row, and a refusal that
+ * puts the saved row back. Either way the words are drawn once.
+ */
+const QUOTES_GET = '**/api/highlights/quotes?entry=*';
+
+for (const how of ['lands', 'refused'] as const) {
+	test(`R9 a join over a saved row while the chapter's quotes are re-read draws it once (the press ${how})`, async ({
+		page
+	}) => {
+		const id = chapterId();
+		await open(page, id);
+		// The saved row, made through the app: the press below lands on its word.
+		const x = await keepWord(page, id, 2);
+		const rowId = quotesOf(id)[0].id as number;
+
+		// A waiting quote whose refusal is the event that re-reads the chapter.
+		await page.context().setOffline(true);
+		const q = await word(page, 5);
+		await longPress(page, q.x, q.y);
+		await expect(bar(page)).toBeVisible();
+		await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+		await expect.poll(async () => (await queued(page)).length).toBe(1);
+
+		// The re-read is answered from the database now and delivered later, so its
+		// answer still names the saved row when the press has taken it in. The
+		// press's own POST is held for the same reason: its answer ends that state.
+		let deliver!: () => void;
+		const gate = new Promise<void>((ok) => (deliver = ok));
+		let answered = false;
+		await page.route(QUOTES_GET, async (r) => {
+			const res = await r.fetch();
+			answered = true;
+			await gate;
+			await r.fulfill({ response: res }).catch(() => undefined);
+		});
+		let posts = 0;
+		let endJoin!: () => void;
+		const joinGate = new Promise<void>((ok) => (endJoin = ok));
+		await page.route(QUOTES_POST, async (r) => {
+			if (r.request().method() !== 'POST') return r.continue();
+			posts++;
+			// The waiting quote is refused on arrival: the refusal re-reads the chapter.
+			if (posts === 1) return r.fulfill({ status: 400, body: 'no' });
+			await joinGate;
+			return how === 'lands' ? r.continue() : r.fulfill({ status: 400, body: 'no' });
+		});
+
+		await page.context().setOffline(false);
+		await expect(band(page, 'NOT KEPT')).toBeVisible({ timeout: 30_000 });
+		await expect.poll(() => answered, { timeout: 30_000 }).toBe(true);
+
+		// Inside the saved row, while its chapter's list is on its way back.
+		await longPress(page, x.x, x.y);
+		await expect(bar(page)).toBeVisible();
+		await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+		await expect.poll(() => posts, { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+
+		// The held list lands. Its arrival is seen in the page's own paint: `loadMarks`
+		// ends by drawing every marker again, so the mark standing now is replaced.
+		await page.evaluate(() => document.querySelector('.mk')?.setAttribute('data-before', '1'));
+		deliver();
+		await page.waitForFunction(() => !document.querySelector('.mk[data-before]'), null, {
+			timeout: 10_000
+		});
+		// The row the press took in must not be drawn beside it.
+		await expect(page.locator('.mk')).toHaveCount(1);
+		await expect(page.locator('.mk')).toHaveText(x.word);
+
+		// The press's own answer, either end: one row, drawn once, after a reload too.
+		endJoin();
+		await expect.poll(() => quotesOf(id).length, { timeout: 30_000 }).toBe(1);
+		expect(quotesOf(id)[0].id).toBe(rowId);
+		await expect(page.locator('.mk')).toHaveCount(1);
+		await open(page, id);
+		await expect(page.locator('.mk')).toHaveCount(1);
+		await expect(page.locator('.mk')).toHaveText(x.word);
+		expect(quotesOf(id)).toHaveLength(1);
+	});
+}

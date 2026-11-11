@@ -1342,7 +1342,12 @@
 		if (load !== marksLoad) return;
 		const waiting = (await waitingHighlights()).filter((i) => isQuoteKey(i.key) && i.entry === id);
 		if (load !== marksLoad) return;
-		const fresh = anchored(list, id).filter((q) => !goneHere.has(q.id));
+		// A saved row a press has taken in since this list was asked for: the answer
+		// still names it, and drawing it here would stand a second marker over the
+		// words the press already covers (c702's round 9). `settleQuote` puts it back
+		// if the press doesn't take, so nothing needs this copy.
+		const joining = new Set([...joinedBy.values()].flat().map((j) => j.id));
+		const fresh = anchored(list, id).filter((q) => !goneHere.has(q.id) && !joining.has(q.id));
 		// Made while this list was out: `quotes` was emptied as the chapter opened, so all of it is this chapter's.
 		const pressed = quotes.filter((q) => !fresh.some((f) => f.id === q.id));
 		const drawn = new Set(pressed.map((q) => q.waiting));
