@@ -787,3 +787,108 @@ test('a show-facts ask that never answers: GROUP opens anyway, after its wait (r
 		await sheet.getByRole('button', { name: 'CANCEL' }).click();
 	}
 });
+
+/**
+ * The page's `/series/facts` asks, answered at the ask and delivered only when
+ * told (round 4). `factsUnderControl` above defers the fetch itself, so a held
+ * answer it releases is the world at release time; this one sends the request
+ * at the ask, so a held answer is the world then and can be stale. `log` names
+ * each ask and delivery, in order, so a case can prove which landed first.
+ */
+async function factsHeld(page: Page) {
+	await page.addInitScript(() => {
+		type Held = { n: number; deliver: () => void };
+		const w = window as unknown as {
+			__facts: { log: string[]; held: Held[]; release: () => void };
+		};
+		let n = 0;
+		const held: Held[] = [];
+		const log: string[] = [];
+		w.__facts = {
+			log,
+			held,
+			release: () => {
+				for (const h of held.splice(0)) {
+					log.push(`deliver ${h.n}`);
+					h.deliver();
+				}
+			}
+		};
+		const real = window.fetch.bind(window);
+		window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+			if (!url.includes('/series/facts')) return real(input, init);
+			const id = ++n;
+			log.push(`ask ${id} ${typeof init?.body === 'string' ? init.body : ''}`);
+			const answered = real(input, init);
+			return new Promise<Response>((resolve, reject) => {
+				held.push({ n: id, deliver: () => void answered.then(resolve, reject) });
+			});
+		};
+	});
+	return {
+		log: () =>
+			page.evaluate(() => (window as unknown as { __facts: { log: string[] } }).__facts.log),
+		asked: () =>
+			page.evaluate(
+				() =>
+					(window as unknown as { __facts: { log: string[] } }).__facts.log.filter((l) =>
+						l.startsWith('ask')
+					).length
+			),
+		release: () =>
+			page.evaluate(() =>
+				(window as unknown as { __facts: { release: () => void } }).__facts.release()
+			)
+	};
+}
+
+/**
+ * The show facts a page asked for before the list changed are dropped, not
+ * drawn on the new list (round 4). This is the `generation` guard's only
+ * observable decision: the answer is not wrong about the series, but it was
+ * asked for a list that is gone, so a value it names (HERE) can be older than
+ * the world it would be drawn beside. That the row then keeps the library's
+ * line is the guard working, not a want.
+ *
+ * The order the guard *cannot* decide is a stale answer arriving after a fresh
+ * one: `noteShowFacts` chains every ask on `showFactsOut`, so a later ask is
+ * not even sent until the earlier answer is delivered (measured: the log is
+ * `ask 1` while A is held, then `deliver 1`, then `ask 2`). And the count the
+ * brief's case would compare, WATCHED, is the card's `readCount`, not a
+ * `/series/facts` value: the facts carry SOURCE, YEAR and HERE. So a stale
+ * answer can only be shown as a stale HERE.
+ */
+test('a show-facts answer asked for the old list is dropped after the filter changes (round 4)', async ({
+	page
+}) => {
+	seedTaus();
+	await page.context().addCookies([{ name: 'tsundoku_grid_page', value: '2', url: base }]);
+	const facts = await factsHeld(page);
+	await page.goto('/?shelf=k:anime&sort=added');
+	// A: the page's first ask, for the second page (Tau One and Two Seasons).
+	await expect.poll(() => facts.asked(), 'the page asked for the show line').toBeGreaterThan(0);
+	await tickPastTheFirstPage(page);
+	// The world A describes changes: Tau One's second episode is on disk now, so
+	// a fresh ask would say 2 HERE.
+	const db = new Database(dbPath);
+	const tau = db.prepare(`SELECT id FROM series WHERE title = ?`).get(TAUS[0]) as { id: number };
+	db.prepare(`UPDATE entries SET available = 1 WHERE series_id = ? AND position = 2`).run(tau.id);
+	db.close();
+	// The list changes, and comes back: Tau One is drawn again, selected, and
+	// its facts are asked for again -- after A, so B cannot overtake it.
+	await page.locator('.kinds .kc', { hasText: 'Manga' }).click();
+	await expect(page).toHaveURL(/kind=manga/);
+	await page.locator('.kinds .kc', { hasText: 'Anime' }).click();
+	await expect(page).toHaveURL(/kind=anime/);
+	// A answers now, with the old world; B is sent only behind it, and is left
+	// unanswered, so A is the only answer the map could take.
+	await facts.release();
+	await expect.poll(() => facts.asked(), 'B is sent only after A is delivered').toBeGreaterThan(1);
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = groupSheet(page);
+	await expect(sheet).toBeVisible({ timeout: 10_000 });
+	// Dropped: the row keeps the library's line, never A's stale 1 HERE.
+	await expect(rowIn(page, sheet, TAUS[0]).locator('.b')).toHaveText('ANIME · 2 EP · 1 WATCHED');
+	await sheet.getByRole('button', { name: 'CANCEL' }).click();
+});
