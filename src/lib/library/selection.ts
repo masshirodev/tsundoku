@@ -336,20 +336,33 @@ export const FACTS_MAX = 10_000;
 export type FactsAnswer = { picked: Picked[]; missing: number[] };
 
 /**
+ * How long a show-facts read waits before it is given up (c283; round 2 of wave
+ * 48). The page's asks are one chain (`+page.svelte`, `noteShowFacts`), and a
+ * sheet waits on that chain before it takes its rows, so a request that never
+ * answers must end in `null` rather than leave every later ask queued behind it
+ * for the life of the page. The same bound DELETE's held read takes
+ * (`HELD_READ_MS`, `search/SelectionBar.svelte`).
+ */
+export const SHOW_FACTS_WAIT_MS = 3000;
+
+/**
  * A show's row facts (c283's meta line) for a by-id read: a second ask, because
  * the card the library answers carries no source, year or file count. A read
  * that fails leaves the rows without the line rather than failing the cards.
- * The library page's later pages ask it too (`+page.svelte`, `fetchPage`),
- * since the load's `groupFacts` only covers its own first page.
+ * The library page's later pages ask it too (`+page.svelte`), since the load's
+ * `groupFacts` only covers its own first page. Bounded (`SHOW_FACTS_WAIT_MS`),
+ * so a stalled request cannot hold the chain.
  */
 export async function readShowFacts(
-	ids: readonly number[]
+	ids: readonly number[],
+	waitMs: number = SHOW_FACTS_WAIT_MS
 ): Promise<Record<string, ShowFacts> | null> {
 	try {
 		const res = await fetch('/series/facts', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ ids })
+			body: JSON.stringify({ ids }),
+			signal: AbortSignal.timeout(waitMs)
 		});
 		if (!res.ok) return null;
 		return (await res.json()) as Record<string, ShowFacts>;

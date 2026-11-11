@@ -92,6 +92,7 @@
 	import {
 		carrySelection,
 		landing,
+		pickedInOrder,
 		pickedOfCard,
 		pickedOfPart,
 		refreshFacts,
@@ -99,9 +100,11 @@
 		takeCarried,
 		UnseenFacts,
 		readShowFacts,
+		SHOW_FACTS_WAIT_MS,
 		type Picked,
 		type ShowFacts
 	} from '$lib/library/selection';
+	import { kindFacts } from '$lib/library/kinds';
 	import type { Snapshot } from './$types';
 
 	let { data, form } = $props();
@@ -333,12 +336,6 @@
 	 * the selection.
 	 */
 	let showFactsOut: Promise<void> = Promise.resolve();
-	/**
-	 * How long a sheet waits for one before opening without the line. A read that
-	 * never answers must not hold the sheet shut, the rule DELETE's held read
-	 * follows (`HELD_READ_MS`, the bar).
-	 */
-	const SHOW_FACTS_WAIT_MS = 3000;
 	const showFactsOf = (id: number): ShowFacts | null =>
 		data.groupFacts[String(id)] ?? pageShowFacts[String(id)] ?? null;
 	let loadingMore = $state(false);
@@ -414,7 +411,9 @@
 	 * The ask is chained (`showFactsOut`), so a sheet opened while one is out can
 	 * wait for it, and an answer that lands after the list changed (a search, a
 	 * filter, a sort) is dropped rather than drawn on the new page's selection,
-	 * as `fetchPage`'s is (round 3).
+	 * as `fetchPage`'s is (round 3). Each read is bounded (`readShowFacts`), so a
+	 * request that never answers settles `null` and the chain moves on rather
+	 * than holding every later ask for the life of the page (round 2).
 	 */
 	async function noteShowFacts(cards: readonly LibraryCard[], refresh = false) {
 		// A plain record, not a `Set`: a component's `Set` is the lint's
@@ -775,10 +774,15 @@
 	async function fillUnseen(): Promise<void> {
 		while (selectingAll) await selectingAll;
 		await unseen.fill(selected, facts, heldBySheet);
-		// GROUP's sheet takes its rows once, on open (and SHOW lists them), so a
-		// show line whose read is still out would stay the library's line for the
-		// whole sheet. Waited for, but not for ever: a read that never answers
-		// must not hold the sheet shut (DELETE's HELD_READ_MS is the same rule).
+		// A read that never answers must not hold the sheet shut (DELETE's
+		// HELD_READ_MS is the same rule). But a sheet waits only for a line it
+		// could draw: a selection of books has no show row (`showRowFacts` answers
+		// none for a kind whose medium is not video), so it opens at once however
+		// long the page's own ask is out (round 2).
+		const owed = pickedInOrder(selected, facts).some(
+			(p) => kindFacts(p.kind).medium === 'video' && p.show == null
+		);
+		if (!owed) return;
 		await Promise.race([
 			showFactsOut,
 			new Promise<void>((resolve) => setTimeout(resolve, SHOW_FACTS_WAIT_MS))

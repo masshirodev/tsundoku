@@ -892,3 +892,130 @@ test('a show-facts answer asked for the old list is dropped after the filter cha
 	await expect(rowIn(page, sheet, TAUS[0]).locator('.b')).toHaveText('ANIME · 2 EP · 1 WATCHED');
 	await sheet.getByRole('button', { name: 'CANCEL' }).click();
 });
+
+/**
+ * The page's `/series/facts` asks, where the **first** one is stalled on the
+ * wire and every later one is not (round 2, the review's medium). `signal`'s
+ * abort rejects the held promise, the way a real stalled request bounded by its
+ * own caller ends, so only a caller that bounds its read can settle the chain.
+ * `bodies` keeps each ask's body, so a case can prove which series a later ask
+ * was for.
+ */
+async function factsFirstHangs(page: Page) {
+	await page.addInitScript(() => {
+		const w = window as unknown as { __facts: { asked: number; bodies: string[] } };
+		w.__facts = { asked: 0, bodies: [] };
+		let first = true;
+		const real = window.fetch.bind(window);
+		window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+			if (!url.includes('/series/facts')) return real(input, init);
+			w.__facts.asked += 1;
+			w.__facts.bodies.push(typeof init?.body === 'string' ? init.body : '');
+			if (!first) return real(input, init);
+			first = false;
+			return new Promise<Response>((_resolve, reject) => {
+				const stop = () => reject(new DOMException('aborted', 'AbortError'));
+				if (init?.signal?.aborted) {
+					stop();
+					return;
+				}
+				init?.signal?.addEventListener('abort', stop);
+			});
+		};
+	});
+	return {
+		asked: () =>
+			page.evaluate(() => (window as unknown as { __facts: { asked: number } }).__facts.asked),
+		bodies: () =>
+			page.evaluate(() => (window as unknown as { __facts: { bodies: string[] } }).__facts.bodies)
+	};
+}
+
+/**
+ * A `/series/facts` ask that never answers must not wedge the chain of asks
+ * behind it (round 2, the review's medium). The page's asks are one chain, so a
+ * first ask that never settles used to queue every later one behind it for the
+ * life of the page: a page loaded afterwards never got its show line, and every
+ * sheet then waited out its 3 s on a chain that would not move.
+ */
+test('a show-facts ask that never answers does not hold the one behind it (round 2)', async ({
+	page
+}) => {
+	seedTaus();
+	await page.context().addCookies([{ name: 'tsundoku_grid_page', value: '2', url: base }]);
+	const facts = await factsFirstHangs(page);
+	await page.goto('/?shelf=k:anime&sort=added');
+
+	// 1. A season past the first page, and its ask: the first one, stalled.
+	// GROUP opens -- after its wait, since nothing has answered.
+	await tickPastTheFirstPage(page);
+	await expect.poll(() => facts.asked(), 'the first ask is out').toBe(1);
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	let sheet = groupSheet(page);
+	await expect(sheet).toBeVisible({ timeout: 10_000 });
+	await sheet.getByRole('button', { name: 'CANCEL' }).click();
+
+	// 2. The list changes and comes back, so its second page is asked for again.
+	await page.locator('.kinds .kc', { hasText: 'Manga' }).click();
+	await expect(page).toHaveURL(/kind=manga/);
+	await page.locator('.kinds .kc', { hasText: 'Anime' }).click();
+	await expect(page).toHaveURL(/kind=anime/);
+	await page.evaluate(() => scrollTo({ top: document.body.scrollHeight }));
+
+	// 3. A later ask is sent, past the stalled one, and it names Tau One: the
+	// row it is for draws the show line rather than the library's.
+	const db = new Database(dbPath, { readonly: true });
+	const tau = db.prepare(`SELECT id FROM series WHERE title = ?`).get(TAUS[0]) as { id: number };
+	db.close();
+	await expect
+		.poll(() => facts.asked(), {
+			message: 'a later ask is sent past a hung one',
+			timeout: 10_000
+		})
+		.toBeGreaterThan(1);
+	await expect
+		.poll(async () => (await facts.bodies()).some((b) => b.includes(String(tau.id))), {
+			message: 'a later ask is for Tau One'
+		})
+		.toBe(true);
+
+	// 4. A second sheet opens at once: the stalled ask settled on its own bound,
+	// the ask behind it answered, and nothing a sheet needs is out.
+	const again = Date.now();
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	sheet = groupSheet(page);
+	await expect(sheet).toBeVisible({ timeout: 10_000 });
+	const waited = Date.now() - again;
+	await expect(rowIn(page, sheet, TAUS[0]).locator('.b')).toHaveText(/^KICKASSANIME · .* HERE$/);
+	expect(waited, 'a second sheet does not wait again').toBeLessThan(2500);
+	await sheet.getByRole('button', { name: 'CANCEL' }).click();
+});
+
+/**
+ * The other half of the same fix (round 2): a selection nothing a `/series/facts`
+ * read could describe -- a manga is not a show (`kindFacts`' medium) -- must not
+ * wait on the chain at all. Every ask here hangs, and the sheet still opens at
+ * once instead of on the 3 s bound.
+ */
+test('a sheet on a selection no show line could describe does not wait for one (round 2)', async ({
+	page
+}) => {
+	await page.context().addCookies([{ name: 'tsundoku_grid_page', value: '2', url: base }]);
+	const facts = await factsUnderControl(page, 'never');
+	await page.goto('/');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.locator('.kinds .kc', { hasText: 'Manga' }).click();
+	await expect(page).toHaveURL(/kind=manga/);
+	await page.locator('.grid .tile .open').first().click();
+	// The page after the first is asked for, and its ask hangs: the chain is out.
+	await page.evaluate(() => scrollTo({ top: document.body.scrollHeight }));
+	await expect.poll(() => facts.asked(), 'an ask is out').toBeGreaterThan(0);
+	const at = Date.now();
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = groupSheet(page);
+	await expect(sheet).toBeVisible({ timeout: 10_000 });
+	const waited = Date.now() - at;
+	expect(waited, 'a sheet with no show rows opens at once').toBeLessThan(2500);
+	await sheet.getByRole('button', { name: 'CANCEL' }).click();
+});
