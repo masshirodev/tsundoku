@@ -187,9 +187,10 @@ it replaces the series' entry too and lands on the preview with its `from=`
 ← still says BROWSE ([`SERIES.md`](SERIES.md), "The ADDED band's place in
 history"). The hidden band's UNDO, on the source page's route, does the same:
 it replaces its landing's entry and hands the preview the catalog the ADD
-recorded ([`BROWSE.md`](BROWSE.md), "The add replaces the preview"). Without
-script either 303 is a full navigation, which no page can replace, and it
-still pushes.
+recorded ([`BROWSE.md`](BROWSE.md), "The add replaces the preview"). An ADD
+found by a search hands its query back as well (`q`), so the preview's ← is
+that search with its results. Without script either 303 is a full navigation,
+which no page can replace, and it still pushes.
 
 GROUP from the library or a person page still pushes: the screen it was sent
 from is still there to go back to.

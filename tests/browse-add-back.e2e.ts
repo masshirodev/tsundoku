@@ -481,3 +481,44 @@ test('a shared link’s ADD that hid the series: the band’s UNDO invents no ca
 		expect((await flag('false')).ok(), 'the switch back as it was').toBe(true);
 	}
 });
+
+/**
+ * UNDO after an ADD from a search keeps the search's query (c932, wave 46): the
+ * preview reads its search origin from `q` alone (`downloads/source/[id]`'s
+ * load), so `?from=/downloads/search?q=…` alone leaves ← on the bare search
+ * page. The series' UNDO is the slot's own side of it: the preview gets the `q`
+ * back as well as its `from=`.
+ */
+test('UNDO after an ADD from a search: the preview’s ← keeps the query, and one swipe back is the search', async ({
+	page
+}) => {
+	await page.goto('/downloads/search?q=filtered');
+	const hit = page.locator('a.hit[href^="/downloads/source/"]').first();
+	await expect(hit).toBeVisible();
+	// The query the page really wrote on the hit's own link, not one built here.
+	const q = new URL((await hit.getAttribute('href'))!, 'http://in.app').searchParams.get('q');
+	expect(q, 'a search hit carries its query').toBeTruthy();
+	await hit.click();
+	await expect(addButton(page)).toBeVisible();
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
+
+	await addButton(page).click();
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/series\/\d+$/);
+	const onSeries = await page.evaluate(() => history.length);
+	const undo = page
+		.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })
+		.getByRole('button', { name: 'UNDO' });
+	await expect(undo).toBeVisible();
+	await undo.click();
+	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
+	expect(await page.evaluate(() => history.length), 'UNDO replaced the series’ entry').toBe(
+		onSeries
+	);
+	// ← goes back to the search it was found in, with the query it was found by.
+	await expect(previewBack(page)).toHaveAttribute('href', `/downloads/search?q=${q}`);
+	// One swipe back is that search, and its results with it.
+	await page.goBack();
+	await expect.poll(() => new URL(page.url()).pathname).toBe('/downloads/search');
+	expect(new URL(page.url()).searchParams.get('q')).toBe(q);
+	await expect(page.locator('a.hit').first()).toBeVisible();
+});

@@ -947,6 +947,12 @@ So does the hidden band's, on BROWSE's route (wave 46): it hands back the
 catalog the ADD recorded on the band's URL, and a preview reached by a shared
 link, which has no catalog behind it, gets no `from=` at all.
 
+**A search's query comes back with it** (c932, wave 46). An ADD found by a
+search hands back `/downloads/search?q=<query>`, and the preview reads where it
+was found from `q` alone (`downloads/source/[id]`'s load, `searchOrigin`), so
+`from=` on its own would leave its ← on the bare search page: UNDO puts the
+query on the preview's URL too, and ← is the search the entry was found by.
+
 **ADD AND DOWNLOAD queues only what its own ADD hid** (c505). Outside reveal
 a hidden series is not the viewer's, but the one ADDED HIDDEN has just hidden
 is: it is queued, and queueing it shows nothing. Every ADD door also answers

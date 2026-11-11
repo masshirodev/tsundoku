@@ -730,8 +730,11 @@ preview"). The band's own **UNDO ends the series and returns to the preview, so
 it replaces the series' entry too**: one swipe back from the preview is that
 same catalog, not the series UNDO deleted (a 404), and the preview's ← says
 BROWSE because the origin rides back with it (`?from=`, c262). Both forms are
-`use:enhance={replacing}` (`src/lib/back.ts`). Without script the POST's 303
-is a full navigation, which no page can replace: it still pushes.
+`use:enhance={replacing}` (`src/lib/back.ts`). A search's origin comes back as
+its query too (`?q=`, wave 46): the preview reads where it was found from `q`
+alone, so `from=` alone would leave its ← on the bare search page. Without
+script the POST's 303 is a full navigation, which no page can replace: it still
+pushes.
 
 The **hidden band** (`/browse/<source>`'s, or `/browse`'s once the source is
 mostly hidden; `src/routes/browse/AddedBand.svelte`) has the same UNDO, and

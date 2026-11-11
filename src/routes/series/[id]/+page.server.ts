@@ -1256,9 +1256,19 @@ export const actions: Actions = {
 		if (!undone) return fail(409, { message: 'something of it is downloaded or read now' });
 		// Its own `from` (c262) goes back too, or the preview's ← says SOURCES after UNDO.
 		const origin = sourceOrigin(String(form.get('origin') ?? url.searchParams.get('from') ?? ''));
+		// A search's query goes back as `q` as well (c932, wave 46): the preview
+		// reads where it was found from `q` alone (`downloads/source/[id]`'s
+		// load, `searchOrigin`), so `from=` on its own would leave ← on the bare
+		// search page, though the swipe back is right.
+		const preview = /^[\w~.:-]{1,512}$/.test(from) ? `/downloads/source/${from}` : '';
+		const query =
+			preview && origin.startsWith('/downloads/search')
+				? new URL(origin, 'http://in.app').searchParams.get('q')
+				: null;
+		if (!preview) redirect(303, '/');
 		redirect(
 			303,
-			/^[\w~.:-]{1,512}$/.test(from) ? keepOrigin(`/downloads/source/${from}`, origin) : '/'
+			keepOrigin(query ? `${preview}?q=${encodeURIComponent(query)}` : preview, origin)
 		);
 	},
 
