@@ -2929,3 +2929,211 @@ test('R14 a browser that will not keep the queue: the press says so, and the row
 	await expect(page.locator('.mk')).toHaveCount(1);
 	expect(quotesOf(id)).toHaveLength(1);
 });
+
+/**
+ * Holds every open of the queue's database until `release`, as R2's "deleted
+ * while the device is still writing it down" does: the store opens a connection
+ * per read and write (`pending-highlights.ts`, `tx`), so this holds the device's
+ * real IndexedDB write, not a stand-in for it, and a DELETE can land inside it.
+ * Installed before the page loads; `hold` arms it, `release` lets every held
+ * open through in the order it was asked for.
+ */
+async function gateQueueDb(page: Page) {
+	await page.addInitScript(() => {
+		const w = window as unknown as { dbGate?: Promise<void> };
+		const open = IDBFactory.prototype.open;
+		IDBFactory.prototype.open = function (this: IDBFactory, ...a: [string, number?]) {
+			const r = open.apply(this, a);
+			if (w.dbGate)
+				Object.defineProperty(r, 'onsuccess', {
+					set(f: (e: Event) => void) {
+						r.addEventListener('success', (e) => void w.dbGate!.then(() => f(e)));
+					}
+				});
+			return r;
+		};
+	});
+	return {
+		hold: () =>
+			page.evaluate(() => {
+				const w = window as unknown as { dbGate?: Promise<void>; openDb?: () => void };
+				w.dbGate = new Promise<void>((ok) => (w.openDb = ok));
+			}),
+		release: () =>
+			page.evaluate(() => {
+				const w = window as unknown as { dbGate?: Promise<void>; openDb?: () => void };
+				w.openDb!();
+				delete w.dbGate;
+			})
+	};
+}
+
+/**
+ * Round 15 (c702, wave 46): the door R7 and R8 never reach. A DELETE that lands
+ * while the device is still writing the press down finds `waitOnDevice` past its
+ * early return: the item is written, then taken back (`takeBackHighlight`), and
+ * the take-back clears `remembered` for the item's own key. On the exact
+ * re-press of a waiting join W, that key is W's, so the only copy of what W
+ * carried (its colour, and the quote X it covered, note and all) is the item
+ * the take-back returned, which `waitOnDevice` keeps in `takenInFlight` for the
+ * in-flight door's UNDO. The notes called this window untimeable; R2's gate on
+ * the queue's own database opens reaches it.
+ */
+test('R15 UNDO of a re-press deleted while the device writes it keeps its colour and its quote', async ({
+	page
+}) => {
+	const gate = await gateQueueDb(page);
+	const id = chapterId();
+	await open(page, id);
+	const x = await waitingQuote(page);
+	// Still offline: W joins X, and W is turned blue while it waits.
+	const b = await word(page, 4);
+	await selectThrough(page, x, b);
+	await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+	await expect
+		.poll(async () => (await queued(page)).some((i) => i.key !== x.key), { timeout: 30_000 })
+		.toBe(true);
+	const w = (await queued(page)).find((i) => i.key !== x.key)!;
+	expect(w.covers?.map((c) => c.key)).toEqual([x.key]);
+	await page.locator('.mk').first().click();
+	await expect(sheet(page).getByText('WAITING TO BE SENT')).toBeVisible();
+	await sheet(page).getByRole('button', { name: 'Blue' }).click();
+	await expect.poll(async () => (await queued(page))[0]?.revised).toContain('colour');
+	await page.keyboard.press('Escape');
+	await expect(sheet(page)).toHaveCount(0);
+
+	// The exact re-press of W, with the device's write held, and DELETE inside it.
+	await gate.hold();
+	await longPress(page, x.x, x.y);
+	await expect(bar(page)).toBeVisible();
+	await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+	// The press is drawn at once (a join of several words is painted in several marks).
+	await expect(bar(page)).toHaveCount(0);
+	await expect(page.locator('.mk').first()).toBeVisible();
+	await page.locator('.mk').first().click();
+	await sheet(page).getByRole('button', { name: 'DELETE' }).click();
+	await expect(page.locator('.mk')).toHaveCount(0);
+	await gate.release();
+	const deleted = band(page, 'HIGHLIGHT DELETED');
+	await expect(deleted).toBeVisible();
+	// The write was made and taken back: nothing waits until UNDO.
+	await expect.poll(async () => (await queued(page)).length).toBe(0);
+
+	await deleted.getByRole('button', { name: 'UNDO' }).click();
+	await expect.poll(async () => (await queued(page)).length).toBe(1);
+	const again = (await queued(page))[0];
+	expect(again.key).toBe(w.key);
+	expect.soft(again.revised).toContain('colour');
+	expect.soft(again.covers?.map((c) => c.key)).toEqual([x.key]);
+	expect.soft(again.covers?.[0]?.body.note).toBe(x.note);
+
+	// Refused at the next connection: X is put back, drawn waiting with its note.
+	await refuseFirstPost(page);
+	await page.context().setOffline(false);
+	await expect(band(page, 'NOT KEPT')).toBeVisible({ timeout: 30_000 });
+	await expect(page.locator('.mk')).toHaveCount(1);
+	await expect(page.locator('.mk')).toHaveText(x.word);
+	await expect(page.locator('.nm')).toHaveCount(1);
+	const back = (await queued(page)).find((i) => i.key === x.key);
+	expect(back?.body.note).toBe(x.note);
+});
+
+/**
+ * Round 16 (c702, wave 46): the in-flight DELETE door's band across a chapter's
+ * end. `carryFor` has consumed the carry when the band is drawn, and the band
+ * outlives the turn, so UNDO on the next chapter must queue W under its own
+ * chapter, with what it carried, and draw nothing on the chapter it is not of.
+ */
+test('R16 UNDO of a re-press deleted in flight, after a crossing, keeps it under its own chapter', async ({
+	page
+}) => {
+	const first = chapterId(1);
+	const second = chapterId(2);
+	await openLast(page, first);
+	await page.context().setOffline(true);
+	const w = await word(page, 1);
+	await longPress(page, w.x, w.y);
+	await expect(bar(page)).toBeVisible();
+	await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+	await expect.poll(async () => (await queued(page)).length).toBe(1);
+	const key = (await queued(page))[0].key;
+	expect(key).toContain(`quote:${first}:`);
+	await page.locator('.mk').first().click();
+	await expect(sheet(page).getByText('WAITING TO BE SENT')).toBeVisible();
+	await sheet(page).getByRole('button', { name: 'Blue' }).click();
+	await expect.poll(async () => (await queued(page))[0]?.revised).toContain('colour');
+	await page.keyboard.press('Escape');
+	await expect(sheet(page)).toHaveCount(0);
+
+	const held = await holdQueueThenJoin(page);
+	await page.context().setOffline(false);
+	await expect.poll(held.held, { timeout: 30_000 }).toBe(true);
+	await longPress(page, w.x, w.y);
+	await expect(bar(page)).toBeVisible();
+	await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+	await expect.poll(() => held.posts(), { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+	await page.locator('.mk').first().click();
+	await sheet(page).getByRole('button', { name: 'DELETE' }).click();
+	held.answerJoin('abort');
+	const deleted = band(page, 'HIGHLIGHT DELETED');
+	await expect(deleted).toBeVisible();
+
+	await cross(page);
+	await expect.poll(() => new URL(page.url()).pathname).toBe(`/read/${second}`);
+	await deleted.getByRole('button', { name: 'UNDO' }).click();
+	await expect.poll(async () => (await queued(page)).filter((i) => !i.refused).length).toBe(1);
+	const item = (await queued(page)).find((i) => !i.refused)!;
+	expect(item.key).toBe(key);
+	expect(item.entry).toBe(first);
+	expect(item.body.entry).toBe(first);
+	expect(item.revised).toContain('colour');
+	// Not drawn on the chapter it is not of.
+	await expect(page.locator('.mk')).toHaveCount(0);
+	held.releaseQueue('abort');
+});
+
+/**
+ * Round 17 (c702, wave 46): a device whose storage stops keeping new writes
+ * after a quote already waits there (a full quota: a delete still goes through,
+ * a larger put is aborted). A press joining that quote takes it off the device
+ * first (`supersedeHighlight`), then cannot write the join (`!queued`), and
+ * `restoreJoinedWaiting` cannot write the quote back either: the quote and its
+ * note exist nowhere. The notes called this half unreachable, on the claim that
+ * one page's storage keeps every write or refuses every one; a quota does not.
+ * The put's transaction is aborted by the browser's own `abort()` here.
+ *
+ * `fixme`, not fixed (wave 46): red on the head, the quote is drawn nowhere and
+ * the device's queue is empty after the press. Every way back for the quote is
+ * another `put`, which this device refuses, so no builder the reader has
+ * (`carryFor`, `coverOf`, the take-back's item) can restore it. The fix is a new
+ * mechanism: take a waiting quote off the device only once the press that
+ * covers it is written there. That is a decision for c702's next round, in the
+ * notes' Gaps; this case is its proof.
+ */
+test.fixme('R17 storage that stops keeping writes: a press over a waiting quote does not lose it', async ({
+	page
+}) => {
+	await page.addInitScript(() => {
+		const put = IDBObjectStore.prototype.put;
+		IDBObjectStore.prototype.put = function (this: IDBObjectStore, ...a: [unknown, IDBValidKey?]) {
+			const r = put.apply(this, a);
+			if ((window as unknown as { refusePut?: boolean }).refusePut) this.transaction.abort();
+			return r;
+		};
+	});
+	const id = chapterId();
+	await open(page, id);
+	const x = await waitingQuote(page);
+	await page.evaluate(() => ((window as unknown as { refusePut?: boolean }).refusePut = true));
+	const b = await word(page, 4);
+	await selectThrough(page, x, b);
+	await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+	await expect(band(page, 'NOT KEPT')).toBeVisible();
+	// The quote that waited before the press still waits, drawn, with its note.
+	await expect(page.locator('.mk')).toHaveCount(1);
+	await expect(page.locator('.mk')).toHaveText(x.word);
+	await expect(page.locator('.nm')).toHaveCount(1);
+	const left = await queued(page);
+	expect(left.map((i) => i.key)).toEqual([x.key]);
+	expect(left[0].body.note).toBe(x.note);
+});
