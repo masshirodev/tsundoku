@@ -34,7 +34,7 @@ import {
  */
 
 /** The band's own URL parameters: replaced by a later ADD, never part of another link. */
-export const ADDED_PARAMS = ['added', 'series', 'preview', 'queued'] as const;
+export const ADDED_PARAMS = ['added', 'series', 'preview', 'queued', 'catalog'] as const;
 
 export type Added = { seriesId: number; hidByThisAdd: boolean };
 
@@ -71,6 +71,12 @@ export function addedLanding(
 		kept.set('series', String(added.seriesId));
 		kept.set('preview', mangaId);
 		if (params.queued) kept.set('queued', params.queued);
+		// The catalog the entry was found in, for the band's UNDO to hand back to
+		// the preview (wave 46): recorded here, where the ADD still knows it, and
+		// only when there was one — a shared link's preview has no catalog behind
+		// it, and an invented `from=` would make ← point at a place the entry was
+		// never found. The page itself is a source's, so the preview answers it.
+		if (found && safe.startsWith('/browse/')) kept.set('catalog', safe);
 	}
 	const q = kept.toString();
 	return q ? `${path}?${q}` : path;
@@ -221,19 +227,39 @@ export async function newShelfAdded(
 /**
  * Where UNDO lands: the preview the series was added from, while its source
  * is found; BROWSE when it is not (the source is mostly hidden for other
- * series, so the preview would not be found either). `origin` is the tag
- * origin the source's page was opened with, already through `backOrigin`
- * (c690). A preview's ← takes only a source's page or the search
- * (`sourceOrigin`), never that origin itself, so it goes where the tile's did
- * before the ADD: to the source's page, whose own ← is the tag's screen.
+ * series, so the preview would not be found either). Two values put the way
+ * back on the preview's URL, and the first that is real wins:
+ *
+ * - `catalog`, the BROWSE page the ADD was made from, as `addedLanding`
+ *   recorded it (wave 46): the preview's ← says BROWSE and one swipe back is
+ *   that list at its place. Its own query rides along, so a tag origin the
+ *   source's page carried is still there.
+ * - `origin`, the tag origin the source's page was opened with, already
+ *   through `backOrigin` (c690). A preview's ← takes only a source's page or
+ *   the search (`sourceOrigin`), never that origin itself, so it goes where
+ *   the tile's did before the ADD: to the source's page, whose own ← is the
+ *   tag's screen.
+ *
+ * With neither — a preview opened by a shared link, which has nothing in the
+ * app behind it — no `from=` is written at all: ← says SOURCES, and one swipe
+ * back leaves the app.
  */
-export function afterUndo(preview: string, reveal: boolean, origin = ''): string {
+export function afterUndo(
+	preview: string,
+	reveal: boolean,
+	origin = '',
+	/** The catalog the entry was found in, as the ADD recorded it, or ''. */
+	catalog = ''
+): string {
 	const source = isSourceMangaId(preview) ? sourceOfMangaId(preview) : null;
 	if (!source || !browseSource(source, reveal)) return '/browse';
-	return keepOrigin(
-		`/downloads/source/${preview}`,
-		origin ? keepOrigin(`/browse/${source}`, origin) : ''
-	);
+	const home = sourceOrigin(catalog);
+	const back = home.startsWith('/browse/')
+		? home
+		: origin
+			? keepOrigin(`/browse/${source}`, origin)
+			: '';
+	return keepOrigin(`/downloads/source/${preview}`, back);
 }
 
 /** The refusal words the band shows, and the e2e reads. */
@@ -291,6 +317,7 @@ export async function undoAdded(
 	const preview = String(form.get('preview') ?? '');
 	const s = await bandSeries(sourceId, String(form.get('series') ?? ''), preview);
 	if (s && !(await undoAdd(s.seriesId))) return { status: 409, message: UNDO_REFUSED };
-	if (isSourceMangaId(preview)) return { to: afterUndo(preview, reveal, origin) };
+	if (isSourceMangaId(preview))
+		return { to: afterUndo(preview, reveal, origin, String(form.get('catalog') ?? '')) };
 	return { to: sourceId ? `/browse/${sourceId}` : '/browse' };
 }

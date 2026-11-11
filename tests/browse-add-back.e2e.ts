@@ -344,16 +344,24 @@ test('an ADD that hid the series lands on the source’s page, and one swipe bac
 	expect(seen.mutations, 'the observer watched the popstate').toBeGreaterThan(0);
 	expect(seen.tiles, 'the added-and-hidden result was never attached').not.toContain(added);
 
-	// The library back as it was: forward to the band's page, UNDO it there.
+	// The library back as it was: forward to the band's page, UNDO it there. The
+	// band's UNDO is the same one the series' band has (wave 46): it replaces the
+	// landing's entry rather than pushing over it, and it hands the preview the
+	// catalog it was found in, so ← says BROWSE rather than SOURCES and one swipe
+	// back is the list at its place (c932's UNDO line, the hidden band).
 	await page.goForward();
 	await expect.poll(() => new URL(page.url()).searchParams.get('added')).toBe('hidden');
-	const undo = page
-		.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' })
-		.getByRole('button', { name: 'UNDO' });
-	await expect(undo).toBeVisible();
-	await undo.click();
-	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
+	await undoOntoThePreview(page);
 	await expect(addButton(page)).toBeVisible();
+	// One swipe back: the catalog, not the band's own landing page, and the list
+	// is drawn under today's rules — the series UNDO took out is not hidden any
+	// more, so its result is one of 26 again, and no band is left behind it.
+	await page.goBack();
+	await expectBackAt(page, before, 26);
+	expect(
+		await page.locator('.band', { hasText: 'ADDED TO THE LIBRARY' }).count(),
+		'nothing of the band stays on the catalog'
+	).toBe(0);
 
 	// The source's own setting back as it was, for the specs beside this one.
 	await page.request.post(`${OPEN}/settings?/set`, {
@@ -418,5 +426,58 @@ test('a shared link to a preview: ADD and UNDO neither grows history, and the la
 		await expect.poll(() => fresh.url()).toBe('about:blank');
 	} finally {
 		await fresh.close();
+	}
+});
+
+/**
+ * The other half of the band's UNDO (wave 46): a shared link's ADD can hide the
+ * series too, and then the band is BROWSE's. There is no catalog behind that
+ * entry either, so UNDO hands the preview no `from=` — ← says SOURCES, one
+ * swipe back leaves the app — and the recorded catalog is what keeps the two
+ * apart: only an ADD the catalog itself carried records one.
+ */
+test('a shared link’s ADD that hid the series: the band’s UNDO invents no catalog behind it', async ({
+	page,
+	baseURL
+}) => {
+	const source = `/browse/${ANIME_SOURCE.id}`;
+	const flag = async (value: string) =>
+		page.request.post(`${source}/settings?/flag`, {
+			form: { flag: 'addedHidden', value },
+			headers: { origin: baseURL! }
+		});
+	expect((await flag('true')).ok()).toBe(true);
+	try {
+		const shared = `/downloads/source/${ANIME_SOURCE.id}~${Buffer.from('/show/search-hit').toString('base64url')}`;
+		const fresh = await page.context().newPage();
+		try {
+			await fresh.goto(shared);
+			await expect(addButton(fresh)).toBeVisible();
+			const onPreview = await fresh.evaluate(() => history.length);
+			await addButton(fresh).click();
+			// The source is all but hidden now, so the band is BROWSE's (c435).
+			await expect.poll(() => new URL(fresh.url()).searchParams.get('added')).toBe('hidden');
+			const undo = fresh
+				.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' })
+				.getByRole('button', { name: 'UNDO' });
+			await expect(undo).toBeVisible();
+			await undo.click();
+			await expect.poll(() => new URL(fresh.url()).pathname).toBe(shared);
+			expect(
+				await fresh.evaluate(() => history.length),
+				'UNDO replaced the landing’s entry, rather than pushing over it'
+			).toBe(onPreview);
+			expect(
+				new URL(fresh.url()).searchParams.get('from'),
+				'UNDO invented no catalog a shared link never had'
+			).toBeNull();
+			await expect(previewBack(fresh)).toContainText('SOURCES');
+			await fresh.goBack();
+			await expect.poll(() => fresh.url()).toBe('about:blank');
+		} finally {
+			await fresh.close();
+		}
+	} finally {
+		expect((await flag('false')).ok(), 'the switch back as it was').toBe(true);
 	}
 });

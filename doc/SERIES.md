@@ -733,6 +733,13 @@ BROWSE because the origin rides back with it (`?from=`, c262). Both forms are
 `use:enhance={replacing}` (`src/lib/back.ts`). Without script the POST's 303
 is a full navigation, which no page can replace: it still pushes.
 
+The **hidden band** (`/browse/<source>`'s, or `/browse`'s once the source is
+mostly hidden; `src/routes/browse/AddedBand.svelte`) has the same UNDO, and
+none of this screen's route: it replaces the landing's entry, and the catalog
+the ADD recorded on its URL (`catalog`) rides back to the preview, so ← says
+BROWSE there too. A preview reached by a shared link records no catalog, so
+its ← says SOURCES ([`BROWSE.md`](BROWSE.md), "The add replaces the preview").
+
 ## Shelves in the ADDED band (c724)
 
 A preview's **+ ADD TO LIBRARY** (and ADD AND DOWNLOAD) lands here with
