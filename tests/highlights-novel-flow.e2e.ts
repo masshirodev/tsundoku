@@ -2713,3 +2713,193 @@ for (const how of ['lands', 'refused'] as const) {
 		expect(quotesOf(id)).toHaveLength(1);
 	});
 }
+
+/**
+ * Round 11 (c702, wave 46): DISMISS is not a door onto a cover. The refusal puts
+ * each waiting quote back before the join is stored refused (`sendAll`), so the
+ * band's DISMISS only takes the refused item: the quote it covered stays drawn,
+ * stays on the device with its note, and is sent at the next connection. The
+ * notes' table had this row marked 'not a door' with no case.
+ */
+test('R11 DISMISS takes only the refused join: the quote it covered stays waiting', async ({
+	page
+}) => {
+	const id = chapterId();
+	await open(page, id);
+	const w = await waitingQuote(page);
+	const refused = await refuseFirstPost(page);
+	const b = await word(page, 4);
+	await selectThrough(page, w, b);
+	await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+	await expect.poll(async () => (await queued(page)).length).toBe(1);
+	// Online, the join is refused: the quote it covered is put back and drawn.
+	await page.context().setOffline(false);
+	await expect(band(page, 'NOT KEPT')).toBeVisible({ timeout: 30_000 });
+	expect(refused()).toBe(1);
+	await expect(page.locator('.mk')).toHaveCount(1);
+	await expect(page.locator('.mk')).toHaveText(w.word);
+	await expect(page.locator('.nm')).toHaveCount(1);
+	// DISMISS takes the refused join and nothing else.
+	await band(page, 'NOT KEPT').getByRole('button', { name: 'DISMISS' }).click();
+	await expect(band(page, 'NOT KEPT')).toHaveCount(0);
+	const left = await queued(page);
+	expect(left.map((i) => i.key)).toEqual([w.key]);
+	expect(left[0].body.note).toBe(w.note);
+	await expect(page.locator('.mk')).toHaveCount(1);
+	await expect(page.locator('.mk')).toHaveText(w.word);
+	await expect(page.locator('.nm')).toHaveCount(1);
+	// It goes at the next connection, and one row with its note stands.
+	await page.context().setOffline(true);
+	await page.context().setOffline(false);
+	await expect.poll(() => quotesOf(id).length, { timeout: 30_000 }).toBe(1);
+	expect(quotesOf(id)[0].note).toBe(w.note);
+	await open(page, id);
+	await expect(page.locator(SETTLED)).toHaveText(w.word);
+	expect(quotesOf(id)).toHaveLength(1);
+});
+
+/**
+ * Round 12 (c702, wave 46): the in-flight DELETE's stash (`TextReader`'s
+ * `takenInFlight`) with nothing to consume it. DELETE takes the item back and
+ * offers UNDO for six seconds; if the band is left alone, the stash stays with
+ * the page, and nothing may come back from it: no marker, no queue item, no
+ * row. The row the answer had made is still there, as it was before the press.
+ */
+test('R12 a DELETE left un-undone in flight leaves nothing drawn and nothing waiting', async ({
+	page
+}) => {
+	const id = chapterId();
+	await open(page, id);
+	await page.context().setOffline(true);
+	const w = await word(page, 2);
+	await longPress(page, w.x, w.y);
+	await expect(bar(page)).toBeVisible();
+	await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+	await expect(page.locator('.mk')).toHaveText(w.word);
+	await expect.poll(async () => (await queued(page)).length).toBe(1);
+	// The item's earlier POST reached the workstation and its answer was lost: the row is there.
+	const item = (await queued(page))[0] as unknown as { body: Record<string, unknown> };
+	seedQuote(id, item.body, 'yellow');
+
+	const held = await holdQueueThenJoin(page);
+	await page.context().setOffline(false);
+	await expect.poll(held.held, { timeout: 30_000 }).toBe(true);
+	// The exact re-press, then DELETE while that POST is out, and the POST fails.
+	await longPress(page, w.x, w.y);
+	await expect(bar(page)).toBeVisible();
+	await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+	await expect.poll(() => held.posts(), { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+	await page.locator('.mk').first().click();
+	await sheet(page).getByRole('button', { name: 'DELETE' }).click();
+	held.answerJoin('abort');
+	await expect(band(page, 'HIGHLIGHT DELETED')).toBeVisible();
+	// No UNDO: the band's six seconds run out.
+	await expect(band(page, 'HIGHLIGHT DELETED')).toHaveCount(0, { timeout: 15_000 });
+	await expect(page.locator('.mk')).toHaveCount(0);
+	expect((await queued(page)).filter((i) => !i.refused)).toHaveLength(0);
+	held.releaseQueue('abort');
+	// What the press's lost answer made is the row that was already there: one, yellow.
+	await open(page, id);
+	await expect(page.locator(SETTLED)).toHaveText(w.word);
+	expect(quotesOf(id)).toHaveLength(1);
+	expect(quotesOf(id)[0].colour).toBe('yellow');
+});
+
+/**
+ * Round 13 (c702, wave 46): the press that may not wait. In reveal a hidden
+ * series is read but nothing is queued (`mayWait`), and a press that took a
+ * waiting quote in would otherwise keep it off the device for good. Its end here
+ * is `restoreJoinedWaiting`: the quote comes back under its own key with its
+ * note, and the join that may not wait leaves nothing. The case is set up the
+ * way a reader reaches it: the quote queued while the series was shown, then the
+ * series hidden and reveal opened, with the queue's own POST held so the quote
+ * is still waiting when the reveal page loads.
+ */
+test('R13 a press in reveal puts back the waiting quote it took in, and keeps the join off the device', async ({
+	page
+}) => {
+	const id = chapterId();
+	await open(page, id);
+	const w = await waitingQuote(page);
+
+	// The queue's own POST is refused on arrival, the "stop" end: the quote stays
+	// waiting across the reload that opens the hidden series in reveal.
+	await page.route(QUOTES_POST, (r) =>
+		r.request().method() !== 'POST' ? r.continue() : r.abort()
+	);
+	await page.context().setOffline(false);
+	// Hidden, with reveal: this page keeps highlights and queues none.
+	const d = db();
+	d.prepare(`UPDATE series SET hidden = 1 WHERE title = 'Mushoku Tensei'`).run();
+	d.close();
+	await page.context().addCookies([{ name: 'tsundoku_reveal', value: '1', url: base }]);
+	await open(page, id);
+	await expect(page.locator('.mk')).toHaveText(w.word);
+
+	await page.context().setOffline(true);
+	await longPress(page, w.x, w.y);
+	await expect(bar(page)).toBeVisible();
+	await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+	await expect(
+		page.getByRole('status').filter({ hasText: 'HIGHLIGHT NEEDS THE WORKSTATION' })
+	).toBeVisible();
+	// The join leaves nothing on the device, and the quote it took in is drawn
+	// waiting again under its own key.
+	await expect(page.locator('.mk')).toHaveCount(1);
+	await expect(page.locator('.mk')).toHaveText(w.word);
+	const back = await queued(page);
+	expect(back).toHaveLength(1);
+	expect(back[0].key).toBe(w.key);
+	expect(back[0].body.note).toBe(w.note);
+	await page.unroute(QUOTES_POST);
+
+	// Shown again, it is sent as it was: one row, and its note with it.
+	const e = db();
+	e.prepare(`UPDATE series SET hidden = 0 WHERE title = 'Mushoku Tensei'`).run();
+	e.close();
+	await page.context().clearCookies({ name: 'tsundoku_reveal' });
+	await page.context().setOffline(false);
+	await open(page, id);
+	await expect.poll(() => quotesOf(id).length, { timeout: 30_000 }).toBe(1);
+	expect(quotesOf(id)[0].note).toBe(w.note);
+	await expect(page.locator(SETTLED)).toHaveText(w.word);
+});
+
+/**
+ * Round 14 (c702, wave 46): the browser that will not keep the queue. A press
+ * that cannot be put on the device says so (`NOT KEPT`), and the saved row it
+ * took in is drawn again by `settleQuote`, not lost with the join. The notes'
+ * table marked this row `none`, on the claim that a browser's refused storage
+ * cannot be made here; it can: an init script takes `indexedDB` away before the
+ * reader mounts, which is the same `false` `queueHighlight` returns on a refused
+ * `put`.
+ */
+test('R14 a browser that will not keep the queue: the press says so, and the row it took in stays', async ({
+	page
+}) => {
+	const id = chapterId();
+	await open(page, id);
+	const x = await keepWord(page, id, 2);
+	await page.addInitScript(() => {
+		Object.defineProperty(window, 'indexedDB', { value: undefined, configurable: true });
+	});
+	await open(page, id);
+	await expect(page.locator(SETTLED)).toHaveText(x.word);
+
+	await page.context().setOffline(true);
+	await longPress(page, x.x, x.y);
+	await expect(bar(page)).toBeVisible();
+	await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+	const told = band(page, 'NOT KEPT');
+	await expect(told).toBeVisible();
+	await expect(told).toContainText('THE WORKSTATION DID NOT ANSWER');
+	// The row the press took in is back where it was, drawn once, and still the only row.
+	await expect(page.locator('.mk')).toHaveCount(1);
+	await expect(page.locator(SETTLED)).toHaveText(x.word);
+	expect(quotesOf(id)).toHaveLength(1);
+	// Nothing waits anywhere: the device refused the item, so no reload brings one.
+	await page.context().setOffline(false);
+	await open(page, id);
+	await expect(page.locator('.mk')).toHaveCount(1);
+	expect(quotesOf(id)).toHaveLength(1);
+});
