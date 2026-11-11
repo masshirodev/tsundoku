@@ -51,6 +51,18 @@ export const VALUES = {
 		def: 1,
 		label: pct
 	},
+	'zoom.double.phone': {
+		where: 'device',
+		key: 'tsundoku.reader.zoom.double.phone',
+		def: 1,
+		label: pct
+	},
+	'zoom.double.wide': {
+		where: 'device',
+		key: 'tsundoku.reader.zoom.double.wide',
+		def: 1,
+		label: pct
+	},
 	'zoom.vertical.phone': {
 		where: 'device',
 		key: 'tsundoku.reader.zoom.vertical.phone',
@@ -308,6 +320,8 @@ export const SECTIONS: SectionDef[] = [
 					cells: [
 						{ h: 'PAGED · PHONE', value: 'zoom.paged.phone' },
 						{ h: 'PAGED · WIDER', value: 'zoom.paged.wide' },
+						{ h: 'DOUBLE PAGE · PHONE', value: 'zoom.double.phone' },
+						{ h: 'DOUBLE PAGE · WIDER', value: 'zoom.double.wide' },
 						{ h: 'VERTICAL · PHONE', value: 'zoom.vertical.phone' },
 						{ h: 'VERTICAL · WIDER', value: 'zoom.vertical.wide' }
 					]

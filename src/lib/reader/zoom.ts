@@ -7,6 +7,11 @@
  * A kept zoom is a default per reading mode and per screen class, on this
  * device: manga (paged) and manhwa (the strip) keep different values, and a
  * phone-width window keeps its own, so neither overwrites the other.
+ *
+ * A double page (one image wider than it is tall, shown whole) has a zoom of
+ * its own, `double` (the owner, 2026-11-11): it fits at about half a single
+ * page's scale, so the zoom a single page reads at overflows it, and zooming
+ * out to read one used to throw the single pages' zoom away.
  */
 
 /**
@@ -34,7 +39,7 @@ export function stepZoom(z: number, dir: 1 | -1): number {
 	return [...ZOOM_STEPS].reverse().find((s) => s < z - 0.001) ?? ZOOM_MIN;
 }
 
-export type ZoomMode = 'paged' | 'vertical';
+export type ZoomMode = 'paged' | 'vertical' | 'double';
 export type ScreenClass = 'phone' | 'wide';
 
 /** Phone below 600px, as everywhere else in tsundoku. */
@@ -42,6 +47,18 @@ export const screenClass = (width: number): ScreenClass => (width < 600 ? 'phone
 
 /** Where a kept zoom lives in this device's storage, under the reader's prefix. */
 export const zoomKey = (mode: ZoomMode, screen: ScreenClass) => `zoom.${mode}.${screen}`;
+
+/**
+ * Whether a paged screen shows a double page, and so reads the double zoom:
+ * one page on the screen, wider than it is tall, shown whole (not split into
+ * halves, not turned, which make it single-page shaped again).
+ */
+export const showsDouble = (o: {
+	vertical: boolean;
+	pages: number;
+	wide: boolean;
+	whole: boolean;
+}) => !o.vertical && o.pages === 1 && o.wide && o.whole;
 
 /**
  * RESET: back to the kept zoom, and from the kept zoom to 100%. The kept

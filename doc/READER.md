@@ -395,6 +395,22 @@ that stays.
   and a desktop never overwrite each other's; a desktop window narrowed to
   phone width uses the phone's. RESET goes to the kept zoom first, then to
   100%.
+- **A double page has its own zoom** (the owner, 2026-11-11: "when I get to
+  those, im forced to zoom out and lose my prefered zoom"). One image wider
+  than it is tall, shown whole on a paged screen (not SPLIT into halves, not
+  ROTATEd, not a landscape pair), fits at about half a single page's scale,
+  so the single pages' zoom overflows it. It reads its own zoom instead
+  (`showsDouble` in `zoom.ts`), starting at its kept one or 100%: zooming on
+  it, by key, pinch, wheel or the ZOOM row, changes only it, and the next
+  single page is back at its own. The ZOOM row says so (`DOUBLE PAGE ·`), and
+  its KEEP is **KEEP FOR ALL DOUBLE PAGES**, kept per screen class like the
+  others (`tsundoku.reader.zoom.double.<phone|wide>`, SETTINGS' DOUBLE PAGE
+  cells). Each screen carries its own `--zoom`, so a turn slides the next page
+  in at the size it settles at. A page's shape is the manifest's, or for an
+  online source what its image arrived at, so an online double page switches
+  to its zoom once it has loaded. Considered and not taken: keeping the text
+  the same size, which makes every double page wider than the screen to pan
+  sideways, with ← → already turning pages.
 
 The rules are in `src/lib/reader/zoom.ts` (`tests/reader-zoom.spec.ts`, which
 walks the whole step list both ways and the clamp at both ends);
