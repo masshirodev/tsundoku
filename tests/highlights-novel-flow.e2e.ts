@@ -196,8 +196,11 @@ async function word(page: Page, n: number) {
  */
 async function longPress(page: Page, x: number, y: number) {
 	await page.mouse.move(x, y);
-	// A selection left up by an earlier step is not this press's answer.
-	await page.evaluate(() => document.querySelector('.sel')?.setAttribute('data-before', '1'));
+	// A selection left up by an earlier step is not this press's answer. Every one
+	// of its spans: a selection over several words is painted in several.
+	await page.evaluate(() =>
+		document.querySelectorAll('.sel').forEach((s) => s.setAttribute('data-before', '1'))
+	);
 	await page.mouse.down();
 	await page
 		.waitForFunction(
@@ -2119,6 +2122,10 @@ test('R3 a chapter turned while the join’s POST is out: the quote waits under 
 	held.answerJoin(401);
 	await expect(band(page, 'NOT KEPT')).toBeVisible();
 	// Waiting on the device under the chapter it was pressed on, drawn nowhere here.
+	// The band is said before `restoreJoinedWaiting`'s write ends, and on another
+	// chapter no marker is drawn to wait on (the other R3 refusals wait on `.mk`,
+	// which `putBack` draws after the write): wait on the device itself.
+	await expect.poll(async () => (await queued(page)).length).toBe(1);
 	const kept = await queued(page);
 	expect(kept).toHaveLength(1);
 	expect(kept[0].key).toBe(w.key);
