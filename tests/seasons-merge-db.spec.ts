@@ -2608,6 +2608,37 @@ describe('a placeholder in a journal’s Work (round 6)', () => {
 		]);
 		expect(placeholderRows()).toEqual([]);
 	});
+
+	/** The row as it stands, every column: the placeholder is another journal's. */
+	const rowOf = (id: number) => db.prepare(`SELECT * FROM series WHERE id = ?`).get(id);
+
+	it('writes nothing onto the second show’s placeholder when the show is shown while merged', () => {
+		// The same setup, with the show hidden at merge time so that a SHOW while
+		// merged is the hide the journal carries (its word is `hidden: 1`, the
+		// live row 0). 11 is the second merge's placeholder by then.
+		twoWorks();
+		library.setHidden([101], true);
+		books.mergeSeasons({ seriesIds: [101, 102], now: NOW });
+		books.mergeSeasons({ seriesIds: [20, 11], now: at(6) });
+		library.setHidden([101], false);
+		const placeholder = rowOf(11);
+		expect(placeholder).toMatchObject({ hidden: 1, reserve_at: at(6), in_library: 0 });
+
+		books.ungroupSeasons(101, NOW);
+		// 11 is no series this journal may touch: it is out of the library, held
+		// for the second merge's undo, and `applyHidden` would rewrite `public` on
+		// a row that journal restores.
+		expect(rowOf(11), 'the placeholder is the other journal’s row').toEqual(placeholder);
+
+		books.ungroupSeasons(20, at(7));
+		// And its own journal gives it back as it was: in the library, not hidden.
+		expect(rowOf(11)).toMatchObject({
+			hidden: 0,
+			public: 1,
+			reserve_at: null,
+			in_library: 1
+		});
+	});
 });
 
 /**

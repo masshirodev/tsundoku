@@ -1514,6 +1514,20 @@ function canRestoreMember(db: Database.Database, m: JsonRow): boolean {
 }
 
 /**
+ * Whether a journal member's series will exist when the undo puts it back: a
+ * real row. A placeholder (`reserve_at` set) belongs to a second merge's
+ * journal — its id is held for that merge's own undo, its row is out of the
+ * library and hidden — so this undo counts it nowhere and writes nothing onto
+ * it. One test for the three loops that walk a journal's members: the plan
+ * (`planWorkMembers`), the reinsertion (`restoreWorkMembers`) and the hide a
+ * merge carried (`restoreAll`), so they cannot drift apart again (round 6's
+ * medium, and round 2's low that named this loop).
+ */
+function willExist(db: Database.Database, seriesId: number | string | null): boolean {
+	return !!db.prepare(`SELECT 1 FROM series WHERE id = ? AND reserve_at IS NULL`).get(seriesId);
+}
+
+/**
  * The members each journal Work can have back: the ones the owner has not
  * grouped elsewhere since (round 4), and the ones whose series will exist when
  * the restore runs (round 5). The seasons are put back by `restoreAll` before
@@ -1534,13 +1548,12 @@ function planWorkMembers(db: Database.Database, journal: MergeJournal): Map<numb
 	const plan = new Map<number, JsonRow[]>();
 	for (const w of journal.works) plan.set(Number(w.id), []);
 	const comesBack = new Set<number>(journal.order);
-	const exists = db.prepare(`SELECT 1 FROM series WHERE id = ? AND reserve_at IS NULL`);
 	for (const m of journal.workMembers ?? []) {
 		const id = Number(m.work_id);
 		const members = plan.get(id);
 		if (!members) continue;
 		const seriesId = Number(m.series_id);
-		if (!comesBack.has(seriesId) && !exists.get(seriesId)) continue;
+		if (!comesBack.has(seriesId) && !willExist(db, seriesId)) continue;
 		if (canRestoreMember(db, m)) members.push(m);
 	}
 	return plan;
@@ -2177,7 +2190,11 @@ function restoreAll(db: Database.Database, journal: MergeJournal, tables: ChildT
 	if (liveHidden !== null && liveHidden !== journalHidden(journal)) {
 		for (const id of journal.order) applyHidden(db, id, liveHidden);
 		for (const m of journal.workMembers ?? [])
-			if (!lostWorks.has(Number(m.work_id)) && canRestoreMember(db, m))
+			if (
+				!lostWorks.has(Number(m.work_id)) &&
+				canRestoreMember(db, m) &&
+				willExist(db, m.series_id)
+			)
 				applyHidden(db, m.series_id, liveHidden);
 	}
 }
@@ -2194,10 +2211,9 @@ function restoreAll(db: Database.Database, journal: MergeJournal, tables: ChildT
 function restoreWorkMembers(db: Database.Database, journal: MergeJournal, lostWorks: Set<number>) {
 	// The same test `planWorkMembers` counts with: a placeholder belongs to the
 	// second merge's journal, not this one (round 6).
-	const exists = db.prepare(`SELECT 1 FROM series WHERE id = ? AND reserve_at IS NULL`);
 	for (const m of journal.workMembers ?? []) {
 		if (lostWorks.has(Number(m.work_id))) continue;
-		if (!exists.get(m.series_id)) continue;
+		if (!willExist(db, m.series_id)) continue;
 		if (!canRestoreMember(db, m)) continue;
 		insertRow(db, 'work_series', m);
 	}
