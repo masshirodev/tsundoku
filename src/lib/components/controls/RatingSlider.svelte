@@ -430,7 +430,10 @@
 	@media (hover: hover) and (pointer: fine) {
 		.rs {
 			--rs-preview: color-mix(in oklab, var(--rating-on) 30%, transparent);
-			--rs-drop: repeating-linear-gradient(135deg, var(--rating-on) 0 2px, transparent 2px 6px);
+			/* Stripes on a faint fill of the same colour, so a half it would take
+			   away still reads as that colour against the empty track. */
+			--rs-drop: repeating-linear-gradient(135deg, var(--rating-on) 0 3px, transparent 3px 7px)
+				color-mix(in oklab, var(--rating-on) 22%, transparent);
 		}
 		.rs:not(.disabled, .min)
 			:is(.half:hover, .half:has(~ .half:hover), .block:has(~ .block .half:hover) .half):not(.on),
@@ -443,6 +446,10 @@
 		.rs.min:not(.disabled)
 			:is(.half:has(~ .half:hover), .block:has(~ .block .half:hover) .half).on {
 			background: var(--rs-drop);
+			/* Each half is its own box, so a scrolled gradient restarts at every
+			   half's corner and the stripes break at each edge; anchored to the
+			   viewport they run as one hatch across the whole drop. */
+			background-attachment: fixed;
 		}
 	}
 	.tick {
@@ -475,6 +482,11 @@
 	}
 	.digit.on {
 		color: var(--on-accent);
+		/* A chip of the fill under the digit: invisible on a solid half, and
+		   what keeps the digit legible when hovering hatches that half. */
+		background: var(--rating-on);
+		margin: -2px -3px;
+		padding: 2px 3px;
 	}
 	.dash {
 		position: absolute;
