@@ -185,11 +185,29 @@ async function word(page: Page, n: number) {
 	}, n);
 }
 
-/** A long press where a mouse can stand in for a finger (the rule reads time, not the pointer). */
+/**
+ * A long press where a mouse can stand in for a finger (the rule reads time, not
+ * the pointer). The release waits for the app's own answer — the bar over a
+ * selection, or the lookup a Japanese book opens — rather than for a fixed hold:
+ * the reader's timer is 450 ms, and a release a fixed 550 ms later is a tap on a
+ * busy main thread, which clears the very selection it was meant to keep (R8 and
+ * `R2 a joining press refused` failed that way). The cap only keeps a press that
+ * is answered by nothing from hanging.
+ */
 async function longPress(page: Page, x: number, y: number) {
 	await page.mouse.move(x, y);
+	// A selection left up by an earlier step is not this press's answer.
+	await page.evaluate(() => document.querySelector('.sel')?.setAttribute('data-before', '1'));
 	await page.mouse.down();
-	await page.waitForTimeout(550);
+	await page
+		.waitForFunction(
+			() =>
+				!!document.querySelector('.sel:not([data-before])') ||
+				!!document.querySelector('[aria-label="Lookup"]'),
+			null,
+			{ timeout: 3_000 }
+		)
+		.catch(() => undefined);
 	await page.mouse.up();
 }
 
@@ -2759,11 +2777,12 @@ test('R11 DISMISS takes only the refused join: the quote it covered stays waitin
 });
 
 /**
- * Round 12 (c702, wave 46): the in-flight DELETE's stash (`TextReader`'s
- * `takenInFlight`) with nothing to consume it. DELETE takes the item back and
- * offers UNDO for six seconds; if the band is left alone, the stash stays with
- * the page, and nothing may come back from it: no marker, no queue item, no
- * row. The row the answer had made is still there, as it was before the press.
+ * Round 12 (c702, wave 46): the in-flight DELETE door's band with no UNDO. The
+ * door consumes its carry when it builds the band (`carryFor` reads the stash,
+ * or `carriedBy` on the early-return path R7 takes), so nothing waits on the
+ * reader's press: leaving the band alone for its six seconds must draw nothing,
+ * queue nothing, and bring nothing back. The row the press's lost answer had
+ * already made is still the one row, as it was before the press.
  */
 test('R12 a DELETE left un-undone in flight leaves nothing drawn and nothing waiting', async ({
 	page
