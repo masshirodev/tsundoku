@@ -122,14 +122,14 @@ export type OrderMode = 'date' | 'title' | 'hand';
 
 /**
  * What GROUP can make of a selection (Works Calls, question 7; Work-Group B5):
- * one series of books, one series of volumes, or a Work. Only the answers the
- * selection allows are offered, and a Work is always one of them.
+ * one series of books, one series of volumes, one show of a season's series,
+ * or a Work. Only the answers the selection allows are offered, and a Work is
+ * always one of them.
  *
  * The library passes what it already holds -- a selected item's kind and how
- * many books it has -- so no route writes the rule a second time. SEASONS
- * (S2) is a fourth answer, not built yet.
+ * many books it has -- so no route writes the rule a second time.
  */
-export type GroupAnswer = 'books' | 'volumes' | 'work';
+export type GroupAnswer = 'books' | 'volumes' | 'show' | 'work';
 
 /** What `groupAnswers` reads off a selection: its kind and its books. */
 export type AnswerItem = { kind: Kind; entryCount: number };
@@ -146,6 +146,31 @@ export function groupAnswers(items: AnswerItem[]): GroupAnswer[] {
 	if (items.length > 0 && items.every((i) => binds(i) === 'volumes')) out.push('volumes');
 	out.push('work');
 	return out;
+}
+
+/** What ONE SHOW's own check reads beside the kind: the facts `Picked` holds. */
+export type SeasonItem = AnswerItem & {
+	/** The effective hidden flag the library drew. */
+	hidden?: boolean;
+	/** The Work the series is part of: its id, or its name when the page knows only that. */
+	work?: number | string | null;
+};
+
+/**
+ * Whether a selection can become one show (c283): two or more series, every
+ * one of them video, all hidden or all visible (`alike` refuses a mixed set),
+ * and in at most one Work (a show is one series, so it can join only one). The
+ * sheet's pages prepend `show` themselves -- the library's and `/search`'s,
+ * from the facts they already hold -- so this stays a question about the
+ * selection, not a fourth thing `groupAnswers` must learn about kinds it
+ * cannot bind (round 2).
+ */
+export function isSeasonSet(items: SeasonItem[]): boolean {
+	if (items.length < 2) return false;
+	if (!items.every((i) => kindFacts(i.kind).medium === 'video')) return false;
+	if (new Set(items.map((i) => i.hidden === true)).size > 1) return false;
+	const works = new Set(items.map((i) => i.work).filter((w) => w !== null && w !== undefined));
+	return works.size <= 1;
 }
 
 /** A book's place in the grouping sheet and the ORDER screen. */

@@ -7,7 +7,7 @@
 	import DeleteSheet from './DeleteSheet.svelte';
 	import { entriesLine } from '$lib/reader/library-row';
 	import { lostLine } from '$lib/library/highlights';
-	import { replacing, stepsBackTo } from '$lib/back';
+	import { replacing, settleReplacing, stepsBackTo } from '$lib/back';
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
 	import { backLink } from '$lib/back';
 	import { enhance } from '$app/forms';
@@ -144,6 +144,27 @@
 
 	/** "SERIES CREATED · 6 BOOKS", from the grouping sheet's redirect. */
 	const created = $derived(Number(page.url.searchParams.get('created')) || 0);
+	/**
+	 * A merged show's band (c283): the redirect's own flag, whose UNDO is
+	 * UNGROUP. Only while the journal is there: after an undo the band's URL
+	 * can be stale, and a stale band must not offer a press that could reach
+	 * the books' take-out (round 2).
+	 */
+	const mergedShow = $derived(
+		!!data.merged && page.url.searchParams.get('merge') === '1' && created > 0
+	);
+	/** Its UNDO is in flight: a second press is the 500 this band once caused. */
+	let undoingShow = $state(false);
+	const undoShow: SubmitFunction = () => {
+		undoingShow = true;
+		return async (args) => {
+			try {
+				await settleReplacing(args);
+			} finally {
+				undoingShow = false;
+			}
+		};
+	};
 	const added = $derived(page.url.searchParams.get('added'));
 	// Grouped novels are counted by the volume (doc/BOOKS.md).
 	const unit = $derived(page.url.searchParams.get('unit') === 'volumes' ? 'VOLUMES' : 'BOOKS');
@@ -631,8 +652,9 @@
 			prefix={addedDetail(series.entries.length, data.addedQueued, !!data.anime)}
 		>
 			{#snippet extra()}
-				<form method="POST" action="?/undoSourceAdd" use:enhance>
+				<form method="POST" action="?/undoSourceAdd" use:enhance={replacing}>
 					<input type="hidden" name="from" value={data.addedFrom} />
+					<input type="hidden" name="origin" value={data.addedOrigin} />
 					<button type="submit">{m.start_undo()}</button>
 				</form>
 			{/snippet}
@@ -651,8 +673,9 @@
 			ondismiss={() => clearBandUrl(['added', 'queued'])}
 		>
 			{#snippet action()}
-				<form method="POST" action="?/undoSourceAdd" use:enhance>
+				<form method="POST" action="?/undoSourceAdd" use:enhance={replacing}>
 					<input type="hidden" name="from" value={data.addedFrom} />
+					<input type="hidden" name="origin" value={data.addedOrigin} />
 					<button type="submit">UNDO</button>
 				</form>
 			{/snippet}
@@ -831,7 +854,21 @@
 				</form>
 			{/snippet}
 		</Band>
-	{:else if created > 0 && !reordering}
+	{:else if mergedShow}
+		<!-- GROUP AS ONE SHOW (c283): one tile, one CONTINUE, and UNDO is UNGROUP. -->
+		<Band
+			title="MERGED · {created} SEASONS INTO ONE SERIES"
+			detail="ONE TILE, ONE CONTINUE · UNDO PUTS THEM BACK"
+			ondismiss={() => clearBandUrl(['created', 'merge'])}
+		>
+			{#snippet action()}
+				<form method="POST" action="?/ungroup" use:enhance={undoShow}>
+					<input type="hidden" name="show" value="1" />
+					<button type="submit" disabled={undoingShow}>UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
+	{:else if created > 0 && !reordering && page.url.searchParams.get('merge') !== '1'}
 		<Band
 			title={added ? `${created} ${unit} ADDED` : `SERIES CREATED · ${created} ${unit}`}
 			detail={added ? 'AT THE END · ORDER TO CHANGE' : `ORDERED ${createdOrder} · ORDER TO CHANGE`}
@@ -885,6 +922,7 @@
 					tagSource={data.tagSource}
 					noVideo={data.move.band}
 					work={data.work}
+					merged={!!data.merged}
 					readMs={data.readMs}
 					takenOut={latest && 'workTakenOut' in latest
 						? {

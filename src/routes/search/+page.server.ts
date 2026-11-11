@@ -5,6 +5,7 @@ import { isRevealed, runCommand } from '$lib/server/prefs';
 import { startScan } from '$lib/server/import';
 import { isGated } from '$lib/server/unlock';
 import { parseSearch } from '$lib/library/search';
+import { showRowFacts } from '$lib/server/season-facts';
 import { configured, searchSources } from '$lib/server/downloads';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { browseList } from '$lib/server/engine/browse';
@@ -43,9 +44,16 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 				() => null
 			)
 		: null;
+	const result = search(input.text, reveal);
+	// A GROUP row's show line (c283; `season-facts.ts`), for what the search drew.
+	const ids = [
+		...result.titles.map((t) => t.id),
+		...result.works.flatMap((w) => w.parts.map((p) => p.seriesId))
+	];
 	return {
 		q,
-		result: search(input.text, reveal),
+		result,
+		groupFacts: showRowFacts(ids, reveal),
 		sources: asking?.n ?? null,
 		sourcesKind: asking?.kind ?? null,
 		browse: null,
