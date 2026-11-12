@@ -1337,6 +1337,8 @@
 	async function loadMarks(i: number) {
 		const load = ++marksLoad;
 		const id = entries[i].id;
+		// Taken before this chapter opened: the page's own load, or SCROLL's prefetch.
+		const early = quotesOf.has(id);
 		const list = quotesOf.get(id) ?? (await fetchQuotes(id));
 		quotesOf.delete(id);
 		// A newer chapter opened while this one's were on their way.
@@ -1362,6 +1364,29 @@
 				.filter((i) => !drawn.has(i.key) && !covering.has(i.key))
 				.map((i): Shown => ({ ...(i.body as KeptQuote), id: nextTemp--, waiting: i.key }))
 		];
+		drawMarks();
+		// A list taken early can predate a quote this browser sent since (another page
+		// of the app, or this one from another chapter): its row is not in the list
+		// and the device no longer holds it, so it was drawn nowhere (c702's R13,
+		// R20). Asked again now that the device has been read, what is new is drawn.
+		if (early && offline.online) void redrawNewer(id, load);
+	}
+
+	const spanOf = (q: TextSpan) => `${q.block}.${q.offset}-${q.endBlock}.${q.endOffset}`;
+
+	/** Rows the workstation holds for chapter [id] that the page doesn't draw yet. */
+	async function redrawNewer(id: number, load: number) {
+		const newer = await fetchQuotes(id);
+		if (load !== marksLoad) return;
+		const have = new Set(quotes.map((q) => q.id));
+		const joining = new Set([...joinedBy.values()].flat().map((j) => j.id));
+		const fresh = newer.filter((q) => !have.has(q.id) && !goneHere.has(q.id) && !joining.has(q.id));
+		if (fresh.length === 0) return;
+		const added = anchored(fresh, id);
+		// A waiting quote over exactly a row's words is that row: the door answers
+		// its POST with it (the `same` branch), so the row is what is drawn.
+		const spans = new Set(added.map(spanOf));
+		quotes = [...quotes.filter((q) => !(q.waiting && spans.has(spanOf(q)))), ...added];
 		drawMarks();
 	}
 

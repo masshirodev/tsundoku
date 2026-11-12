@@ -3280,3 +3280,68 @@ test('R19 the queue sends a covered quote while its join is out, and the join is
 	expect(quotesOf(id)[0].note).toBe(x.note);
 	expect(held.deletes).toEqual([]);
 });
+
+/**
+ * Round 20 (c702, round 4; R13's cause): a chapter's list of quotes taken before
+ * a waiting quote of that chapter is sent. The reader draws a chapter from its
+ * list (the page's own load, or the next chapter's prefetch) and from the
+ * device, read when the chapter opens. A quote sent in between is in neither:
+ * the list predates its row, and the device no longer holds it, so it was drawn
+ * nowhere until the next load. R13 met it through the page's load (its reveal
+ * page sent the quote as the case reopened the chapter); this case reaches it
+ * through the prefetch, where the timing is the case's own: the quote is sent
+ * from the chapter before, after its list was fetched, and the reader crosses.
+ */
+test('R20 a quote sent after its chapter was prefetched is drawn when that chapter opens', async ({
+	page
+}) => {
+	const first = chapterId(1);
+	const second = chapterId(2);
+	await open(page, second);
+	const w = await waitingQuote(page);
+	// It stays on the device: its POST does not reach the workstation yet.
+	await page.route(QUOTES_POST, (r) =>
+		r.request().method() === 'POST' ? r.abort() : r.continue()
+	);
+	await page.context().setOffline(false);
+	// SCROLL, by the series' own setting: there the next chapter is laid out below
+	// this one, and its list fetched with it (`loadNext`).
+	const d = db();
+	d.prepare(`UPDATE series SET direction = 'scroll' WHERE title = 'Mushoku Tensei'`).run();
+	d.close();
+	try {
+		const prefetch = page.waitForResponse(
+			(r) => r.url().includes(`/api/highlights/quotes?entry=${second}`),
+			{ timeout: 30_000 }
+		);
+		await page.goto(`/read/${first}?at=2.0`);
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15_000 });
+		// The next chapter's list is fetched before its quote is sent: empty.
+		const listed = (await (await prefetch).json()) as { quotes: unknown[] };
+		expect(listed.quotes).toHaveLength(0);
+		expect((await queued(page)).map((i) => i.key)).toEqual([w.key]);
+
+		// Sent from this chapter's page, where it is not drawn: one row, the device empty.
+		await page.unroute(QUOTES_POST);
+		await page.context().setOffline(true);
+		await page.context().setOffline(false);
+		await expect.poll(() => quotesOf(second).length, { timeout: 30_000 }).toBe(1);
+		await expect.poll(async () => (await queued(page)).length, { timeout: 30_000 }).toBe(0);
+
+		// Reading on into the next chapter, and stopping at the crossing: the URL is
+		// written once the reader settles, so the copy kept above is the crossing's sign.
+		await page.locator('.page').evaluate(async (el) => {
+			for (let i = 0; i < 400 && !document.querySelector('.kept')?.childElementCount; i++) {
+				el.scrollTop = el.scrollTop + 200;
+				await new Promise((r) => requestAnimationFrame(r));
+			}
+		});
+		await expect.poll(() => new URL(page.url()).pathname).toBe(`/read/${second}`);
+		// Its row is what the chapter shows, with its note.
+		await expect(page.locator(`.blocks ${SETTLED}`)).toHaveText(w.word, { timeout: 10_000 });
+	} finally {
+		const e = db();
+		e.prepare(`UPDATE series SET direction = NULL WHERE title = 'Mushoku Tensei'`).run();
+		e.close();
+	}
+});

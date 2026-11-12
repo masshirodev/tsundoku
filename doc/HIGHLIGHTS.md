@@ -322,6 +322,16 @@ are where the words used to be. The merge has one narrow side: a note edited or
 cleared on the join before the late body arrives comes back merged, and the open
 reader is not told, because the queue's answer draws nothing.
 
+**A list taken early is asked again.** A chapter is drawn from its list of
+quotes and from what waits on the device, read as it opens. The first chapter's
+list comes with the page, and in SCROLL the next chapter's is fetched while the
+reader is still above it. A quote this browser sends between that list and the
+device's read is in neither: the list predates its row, and the device no
+longer holds it. So when the list was taken early and the reader is online, it
+is asked again once the device has been read, and any row not drawn yet is
+drawn. A waiting quote over exactly that row's words gives way to it: the door
+answers that quote's POST with the same row (c702, R13 and R20).
+
 ### DETACHED, and back
 
 The words are only ever read on the device (the chapter is an EPUB parsed in
