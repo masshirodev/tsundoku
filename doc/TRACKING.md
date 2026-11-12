@@ -316,9 +316,7 @@ the plan:
   source's cover and `FILM · <SOURCE> · 1 FILE`; no ABOUT, year, runtime or
   collection, nothing dimmed or marked unknown, and LISTS' TMDB line is the
   one place that says why. A show lists the source's episodes with no SEASONS
-  and no NEXT SEASON. (This contradicts the film handoff's `00 — FROM THE
-SOURCE ONLY` block; the owner settles it — see `MOVIES-TV.md`, "The
-  handoff".)
+  and no NEXT SEASON. (Settled on the owner's call, 2026-11-12: this version wins; see `MOVIES-TV.md`, "The handoff".)
 - **One account and one key per service.** Swapping is `SIGN OUT`, then
   `SIGN IN →`; there is no second account, which would suggest a shared
   install.

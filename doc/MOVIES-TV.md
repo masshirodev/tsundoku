@@ -164,17 +164,16 @@ LIBRARY · FIND THE REST →` row sits under LINK; no key, no row.
   PLAY is the one focus stop, the panel is 352px, and the stage's collection
   is facts only.
 
-**Open: the no-key film screen.** This handoff draws it as `00 — FROM THE
-SOURCE ONLY`, one sentence, plus a closed block naming what a key would add
-(`YEAR · RUNTIME · ABOUT · CAST · THE FILMS AROUND THIS ONE`, with
-`SET UP →`). The sibling handoff
-[`handoffs/keys-accounts/`](handoffs/keys-accounts/) says the opposite: with
-no key **nothing** is drawn — the title, the source's cover and `FILM · MOVIES
-MOD · 1 FILE`, no ABOUT, no year, no runtime, no collection, nothing dimmed or
-marked unknown, and the only explanation is LISTS' TMDB line. It calls this
-out itself ("MOVIES-SHOWS should take its no-key states from Board 6, or say
-where it differs"). **Not settled**; the owner's call, and c992's states wait
-on it.
+**Decided (2026-11-12): the keys handoff's version.** The owner took the
+recommendation, so a film with no key **closes up**: the title, the source's
+cover and `FILM · <SOURCE> · 1 FILE` — no ABOUT, no year, no runtime, no
+collection, nothing dimmed or marked unknown. The one place that says why is
+LISTS' `TMDB · NOT LOOKED UP` line with `SET UP →`. The film handoff's
+`00 — FROM THE SOURCE ONLY` block and its list of what a key would add are a
+**departure** from that board (`Film-NoKey.dc.html`), recorded here: a working
+screen is not made to look deficient, and the LISTS line is already where a
+missing catalogue belongs. The same rule on a show: the source's episodes, no
+SEASONS, no NEXT SEASON, no block.
 
 **Where it expected the code to be, and is not**: `doc/TRACKING.md` said
 CATALOGUES is SETTINGS' `02`; it is `06` and has been since SETTINGS became
