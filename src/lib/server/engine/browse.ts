@@ -22,6 +22,7 @@ import {
 } from '../novels/source.ts';
 import { installedPlugins } from '../novels/plugins.ts';
 import { solvingSince } from '../novels/solver.ts';
+import { isAdding } from './adding.ts';
 
 /**
  * Browsing a source (doc/BROWSE.md; card c141): its POPULAR and LATEST
@@ -58,6 +59,11 @@ export type BrowseSource = {
 	hiddenSource: boolean;
 	/** The extension's own word when the engine refused it, else ''. */
 	failed: string;
+	/**
+	 * Its extension's code uses a WebView (rung 78; doc/BROWSE.md, "Extensions
+	 * that need a WebView"): NEEDS A WEBVIEW. Never an LNReader plugin's.
+	 */
+	webview: boolean;
 };
 
 /**
@@ -73,7 +79,7 @@ export function browseSources(reveal: boolean): BrowseSource[] {
 function engineSources(reveal: boolean): BrowseSource[] {
 	const rows = getDb()
 		.prepare(
-			`SELECT s.id, s.pkg, s.name, s.lang, e.kind, e.failed
+			`SELECT s.id, s.pkg, s.name, s.lang, e.kind, e.failed, e.webview
 			FROM engine_sources s JOIN engine_extensions e ON e.pkg = s.pkg
 			ORDER BY s.name COLLATE NOCASE, s.lang`
 		)
@@ -84,6 +90,7 @@ function engineSources(reveal: boolean): BrowseSource[] {
 		lang: string;
 		kind: 'manga' | 'anime';
 		failed: string;
+		webview: number | null;
 	}[];
 	const use = sourceUse();
 	const switchedOff = sourcesWith('hidden');
@@ -99,6 +106,7 @@ function engineSources(reveal: boolean): BrowseSource[] {
 		// Counts are what reveal lets the viewer see.
 		out.push({
 			...r,
+			webview: r.webview === 1,
 			family,
 			series: reveal ? u.series : u.series - u.hidden,
 			hidden: reveal ? u.hidden : 0,
@@ -433,7 +441,7 @@ export async function shelf(
 			if (!more) break;
 		}
 		return {
-			hits: novelHits(sourceId, items, opts.reveal),
+			hits: markAdding(novelHits(sourceId, items, opts.reveal)),
 			more: more && pages < MAX_PAGES,
 			pages
 		};
@@ -448,8 +456,22 @@ export async function shelf(
 		more = got.hasNextPage && got.mangas.length > 0;
 		if (!more) break;
 	}
-	return { hits: asHits(sourceId, mangas, opts.reveal), more: more && pages < MAX_PAGES, pages };
+	return {
+		hits: markAdding(asHits(sourceId, mangas, opts.reveal)),
+		more: more && pages < MAX_PAGES,
+		pages
+	};
 }
+
+/**
+ * A result being added right now says so (card c868): asked as the list is
+ * answered, never kept, since the kept pages are the source's and an add
+ * lasts a request.
+ */
+const markAdding = (hits: SearchHit[]): SearchHit[] =>
+	hits.map((h) =>
+		h.match.kind !== 'in-library' && isAdding(h.mangaId) ? { ...h, adding: true } : h
+	);
 
 /** For tests: forget everything kept. */
 export const forgetAll = () => kept.clear();

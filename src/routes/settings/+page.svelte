@@ -58,6 +58,9 @@
 	import { clampZoom, stepZoom, zoomLabel } from '$lib/reader/zoom';
 	import { modeLine } from './mode-line';
 	import { SIZE_MAX, SIZE_MIN, baseFontSize, deviceOf } from '$lib/reader/text';
+	import { WebViewWatch } from '$lib/webview-watch.svelte';
+	import { CHROMIUM_MB, sizeWords } from '$lib/webview';
+	import type { WebViewView } from '$lib/server/engine/webview';
 
 	/**
 	 * SETTINGS, one page (doc/SETTINGS.md; card c171, Settings.dc.html): every
@@ -66,6 +69,35 @@
 	 * applies at once and says what moved, with UNDO. No modal anywhere.
 	 */
 	let { data, form } = $props();
+	/**
+	 * WEBVIEW (doc/SETTINGS.md, "07 — BROWSE"): the server's view, and, while
+	 * it changes (the engine restarting to take the switch, or Chromium
+	 * downloading), the engine's own, asked every two seconds until it settles.
+	 * The engine not answering counts as changing: a restart passes through it.
+	 */
+	const webview = new WebViewWatch();
+	const settling = (v: WebViewView | null) =>
+		!!v && (v.restarting || v.status === null || v.status.state === 'starting');
+	$effect(() => {
+		const v = data.webview;
+		// A fresh load's view is the newest: the last poll's gives way to it.
+		webview.view = null;
+		if (!settling(v)) return;
+		webview.start();
+		return () => webview.stop();
+	});
+	$effect(() => {
+		if (webview.view && !settling(webview.view)) webview.stop();
+	});
+	const wv = $derived(webview.view ?? data.webview);
+	let webviewBusy = $state(false);
+	const webviewPost = () => {
+		webviewBusy = true;
+		return async ({ update }: { update: (o?: { reset?: boolean }) => Promise<void> }) => {
+			await update({ reset: false });
+			webviewBusy = false;
+		};
+	};
 	/**
 	 * WI-FI (doc/WIFI.md; Wifi.dc.html): the server's view, overridden by ON,
 	 * OFF and NEW CODE, and polled while the panel is open, so the code counts
@@ -779,6 +811,9 @@
 						{/if}
 						{#if s.id === 'browse' && data.browse}
 							{@render extensionsRow(data.browse.extensions)}
+							{#if wv}
+								{@render webviewRow(wv)}
+							{/if}
 						{/if}
 						{#if s.id === 'devices'}
 							{#if wf}
@@ -1126,6 +1161,78 @@
 			</a>
 		</div>
 		{#if !phone.current}<div class="scope"><span class="sa quiet">ALL DEVICES</span></div>{/if}
+	</div>
+{/snippet}
+
+{#snippet webviewRow(v: WebViewView)}
+	<!-- WEBVIEW (doc/SETTINGS.md, "07 — BROWSE"; not drawn in a handoff: WI-FI's
+	     row again, its OFF | ON, meta and strip). The engine's headless browser
+	     for the extensions that need one; off unless this install turns it on
+	     (card c978). The launcher restarts the engine to take a change. -->
+	{@const on = v.on ?? v.support === 'on'}
+	{@const lan = data.viaLan}
+	{@const removable = v.managed && !v.on && !v.restarting && v.chromium.bytes !== null}
+	<div class="row wifi webview" class:dim={off}>
+		<div class="label top">WEBVIEW</div>
+		<div class="ctl col">
+			{#if v.managed}
+				<form
+					method="POST"
+					action="?/webview"
+					use:enhance={webviewPost}
+					class="wifi-seg"
+					role="group"
+					aria-label="The engine's WebView"
+				>
+					<button name="on" value="off" aria-pressed={!on} disabled={webviewBusy || lan || off}
+						>{!on && v.restarting ? 'OFF · RESTARTING THE ENGINE…' : 'OFF'}</button
+					>
+					<button
+						name="on"
+						value="on"
+						aria-pressed={on}
+						disabled={webviewBusy || lan || off || v.support === 'unsupported'}
+						>{on && v.restarting ? 'ON · RESTARTING THE ENGINE…' : 'ON'}</button
+					>
+				</form>
+			{:else}
+				<div class="wifi-value">{v.support === 'on' ? 'ON' : 'OFF'}</div>
+			{/if}
+			<div class="wifi-meta" class:loud={v.status?.state === 'failed'}>
+				{v.managed ? '' : 'SET WHERE THE ENGINE IS STARTED (ENGINE_WEBVIEW) · '}{v.line}
+			</div>
+			<div class="wifi-meta">
+				FOR THE FEW EXTENSIONS THAT NEED A BROWSER · CHROMIUM 111, ABOUT {CHROMIUM_MB} MB, DOWNLOADED
+				THE FIRST TIME ONE DOES · IT RUNS THEIR SITES' SCRIPTS WITHOUT A SANDBOX, SO IT STAYS OFF UNLESS
+				TURNED ON HERE
+			</div>
+			<div class="wifi-strip">
+				<div>
+					<div class="sk">CHROMIUM</div>
+					<div class="sv wv-dir">{v.chromium.dir ?? '—'}</div>
+				</div>
+				<div class="wv-size">
+					<div class="wv-size-text">
+						<div class="sk">ON DISK</div>
+						<div class="sv">
+							{v.chromium.bytes === null ? 'NOT DOWNLOADED' : sizeWords(v.chromium.bytes)}
+						</div>
+					</div>
+					{#if removable}
+						<form method="POST" action="?/removeChromium" use:enhance={webviewPost}>
+							<button class="cell" disabled={webviewBusy || lan || off}>REMOVE</button>
+						</form>
+					{/if}
+				</div>
+			</div>
+			{#if form && 'webview' in form && typeof form.webview === 'string'}
+				<div class="wifi-meta loud">{form.webview.toUpperCase()}</div>
+			{/if}
+		</div>
+		{#if !phone.current}<div class="scope wifi-scope">
+				<span class="sa">THIS COMPUTER</span>
+				<span class="sb2">OFF UNTIL TURNED ON HERE</span>
+			</div>{/if}
 	</div>
 {/snippet}
 
@@ -2469,6 +2576,20 @@
 	.sv {
 		font: 400 12px/1.45 var(--font-mono);
 		color: var(--text-2);
+	}
+	/* WEBVIEW: WI-FI's strip, with REMOVE as the size cell's own button. */
+	.wv-dir {
+		overflow-wrap: anywhere;
+	}
+	.wifi-strip > .wv-size {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+	}
+	.wv-size-text {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
 	}
 	.wifi-scope {
 		flex-direction: column;

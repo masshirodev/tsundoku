@@ -12,6 +12,8 @@ import {
 import { isRevealed } from '$lib/server/prefs';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { browseList, noteSolvedChecks } from '$lib/server/engine/browse';
+import { fillWebViewFlags } from '$lib/server/engine/extensions';
+import { mark } from '$lib/server/engine/webview';
 
 /**
  * BROWSE (Index-Browse, sources; doc/BROWSE.md; card c142): every installed
@@ -23,9 +25,17 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 	const reveal = isRevealed(cookies);
 	// Sites the engine has passed a check for since it started, so their lines say so.
 	await noteSolvedChecks();
+	// Extensions installed before tsundoku asked whether they use a WebView, read once (rung 78).
+	await fillWebViewFlags();
 	const added = await addedBand(url.searchParams, null, reveal);
+	const list = browseList(reveal);
+	const rows = [...list.recent, ...list.manga, ...list.anime];
 	return {
-		list: browseList(reveal),
+		list,
+		// NEEDS A WEBVIEW, in words where this install can't give one
+		// (doc/BROWSE.md, "Extensions that need a WebView"). The engine is asked
+		// only when a listed source needs one.
+		webviewMark: rows.some((r) => r.webview) ? await mark() : null,
 		reveal,
 		now: Date.now(),
 		// CONCEAL ITS SERIES outside reveal (card c523): the source is mostly

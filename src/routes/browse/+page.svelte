@@ -15,6 +15,13 @@
 		recentFolded,
 		recentRight
 	} from '$lib/library/browse-recent';
+	import { beforeNavigate } from '$app/navigation';
+	import SelectBar from './SelectBar.svelte';
+	import PressBar from './PressBar.svelte';
+	import PressBand from './PressBand.svelte';
+	import TickSheet from './TickSheet.svelte';
+	import { browseSelection } from '$lib/library/browse-selection.svelte';
+	import { tickedHere } from '$lib/library/browse-select';
 
 	/**
 	 * BROWSE (Index-Browse: sources, revealOff, revealOn; Browse Calls, "Browse
@@ -36,14 +43,18 @@
 		if (r.hidden === 0) return n;
 		return r.hidden === r.series ? `${n}, ALL HIDDEN` : `${n}, ${count(r.hidden)} HIDDEN`;
 	};
+	// NEEDS A WEBVIEW (doc/BROWSE.md, "Extensions that need a WebView"): a quiet
+	// fact beside the language, said in words where this install can't give one.
+	const needs = (r: Row) => r.webview && data.webviewMark;
 	const meta = (r: Row) =>
-		[r.lang.toUpperCase(), here(r), r.check && "FIRST VISIT WAITS FOR THE SITE'S CHECK"]
+		[r.lang.toUpperCase(), needs(r), here(r), r.check && "FIRST VISIT WAITS FOR THE SITE'S CHECK"]
 			.filter(Boolean)
 			.join(' · ');
 	const recentMeta = (r: Row) =>
 		[
 			r.kind.toUpperCase(),
 			r.lang.toUpperCase(),
+			needs(r),
 			r.browsedAt && `BROWSED ${ago(r.browsedAt, data.now)}`
 		]
 			.filter(Boolean)
@@ -108,6 +119,23 @@
 			// Storage unavailable: the fold still holds for this visit.
 		}
 	}
+	/**
+	 * SELECT made on a source's page lasts here (card c868; BROWSE-Phone): the
+	 * bar stays inverse, each source row says how many of its series are
+	 * ticked, and the bulk bar presses the lot. A source opens still selecting.
+	 */
+	const sel = browseSelection;
+	const selecting = $derived(sel.selecting);
+	let showing = $state(false);
+	beforeNavigate((n) => sel.follow(n.to?.route.id));
+	$effect(() => sel.checkReveal(data.reveal));
+	const ticked = (r: Row) => (selecting ? tickedHere(sel.list, r.id) : '');
+	function onKey(e: KeyboardEvent) {
+		if (!sel.selecting || e.key !== 'Escape' || showing) return;
+		if (document.querySelector('[role="dialog"]')) return;
+		sel.end();
+	}
+
 	const recentOpen = $derived(recentRight(false, list.recent.length));
 	const recentClosed = $derived(recentRight(true, list.recent.length));
 </script>
@@ -127,24 +155,32 @@
 	>
 </svelte:head>
 
-<div class="screen">
-	<TopBar sticky label="BROWSE">
-		{#snippet middle()}
-			<a class="cell back" href={resolve('/')} aria-label="Back to the library">←</a>
-			<span class="cell title">BROWSE</span>
-			<a class="cell hint" href={resolve('/downloads/search')}>/ search every source</a>
-			<a class="cell ext" href={extensionsHref}>
-				<span class="top">EXTENSIONS</span>
-				<span
-					>{list.updates
-						? `${count(list.updates)} UPDATE${list.updates === 1 ? '' : 'S'}`
-						: 'MANAGE'}</span
-				>
-			</a>
-		{/snippet}
-	</TopBar>
+<svelte:window onkeydown={onKey} />
+
+<div class="screen" class:selecting>
+	{#if selecting}
+		<SelectBar onshow={() => (showing = true)} />
+	{:else}
+		<TopBar sticky label="BROWSE">
+			{#snippet middle()}
+				<a class="cell back" href={resolve('/')} aria-label="Back to the library">←</a>
+				<span class="cell title">BROWSE</span>
+				<a class="cell hint" href={resolve('/downloads/search')}>/ search every source</a>
+				<a class="cell ext" href={extensionsHref}>
+					<span class="top">EXTENSIONS</span>
+					<span
+						>{list.updates
+							? `${count(list.updates)} UPDATE${list.updates === 1 ? '' : 'S'}`
+							: 'MANAGE'}</span
+					>
+				</a>
+			{/snippet}
+		</TopBar>
+	{/if}
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
+	<!-- A press's band (c868): while it runs and its one result, on every browse screen. -->
+	<PressBand reveal={data.reveal} />
 	<!-- CONCEAL ITS SERIES outside reveal (card c523): its source is mostly
 	     hidden now, so the band is here, and names no source. -->
 	{#if data.concealed}
@@ -230,7 +266,11 @@
 				</span>
 			</button>
 			<div class="rows recent-rows" class:shut={recentShut} id="browse-recent">
-				{#each list.recent as r (r.id)}<SourceRow {r} meta={recentMeta(r)} />{/each}
+				{#each list.recent as r (r.id)}<SourceRow
+						{r}
+						meta={recentMeta(r)}
+						ticked={ticked(r)}
+					/>{/each}
 			</div>
 		{/if}
 		{#each sections as s, i (s.title)}
@@ -239,13 +279,22 @@
 				<span>{s.right}</span>
 			</div>
 			<div class="rows">
-				{#each s.rows as r (r.id)}<SourceRow {r} meta={meta(r)} />{/each}
+				{#each s.rows as r (r.id)}<SourceRow {r} meta={meta(r)} ticked={ticked(r)} />{/each}
 			</div>
 		{/each}
 	{/if}
 </div>
 
+{#if selecting}
+	<PressBar />
+	<TickSheet open={showing} onclose={() => (showing = false)} />
+{/if}
+
 <style>
+	/* Selecting (c868): the bulk bar is pinned under the list, so the list ends above it. */
+	.screen.selecting {
+		padding-bottom: 120px;
+	}
 	/* Index-Browse, sources, transcribed: the mock's literals; colours are tokens. */
 	.screen {
 		display: flex;

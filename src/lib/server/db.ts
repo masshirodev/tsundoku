@@ -1988,7 +1988,14 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		DELETE FROM works WHERE reserve_at IS NULL
 			AND (SELECT COUNT(*) FROM work_series ws WHERE ws.work_id = works.id) < 2;
 	END;
-	`
+	`,
+	// v78: whether an extension's code uses a WebView (doc/EXTENSION-ENGINE.md,
+	// "WebView support"; doc/BROWSE.md, "Extensions that need a WebView"): 1 or
+	// 0, from the engine's `extensionInfo.usesWebView` at install, or from the
+	// APK's own dex (`apkUsesWebView`). NULL until known: an extension
+	// installed before this rung is read from its stored APK on the first
+	// BROWSE or EXTENSIONS visit (`fillWebViewFlags`).
+	`ALTER TABLE engine_extensions ADD COLUMN webview INTEGER;`
 ];
 
 /**

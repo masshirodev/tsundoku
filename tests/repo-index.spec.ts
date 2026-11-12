@@ -5,7 +5,8 @@ import {
 	parseIndexV2,
 	parseRepoJson,
 	repoBase,
-	RepoError
+	RepoError,
+	isLoopbackHost
 } from '$lib/server/engine/repo-index';
 
 // Shaped as Keiyoushi's and Yuzono's were on 2026-10-28 (doc/DOWNLOADER.md).
@@ -25,6 +26,23 @@ describe('a pasted repository address', () => {
 	it('refuses what isn’t an https address', () => {
 		expect(() => repoBase('keiyoushi')).toThrow(RepoError);
 		expect(() => repoBase('http://example.org/repo/index.min.json')).toThrow(/https/);
+		// Plain http on the network is refused, a home address and a name that only starts like loopback included.
+		for (const a of [
+			'http://192.168.1.20:47830/index.min.json',
+			'http://127.0.0.1.example.org/index.min.json',
+			'http://localhost.example.org/index.min.json',
+			'ftp://127.0.0.1/index.min.json'
+		])
+			expect(() => repoBase(a)).toThrow(/https/);
+	});
+
+	it('takes plain http from this computer itself, the owner’s personal repository', () => {
+		expect(repoBase('http://127.0.0.1:47830/index.min.json')).toBe('http://127.0.0.1:47830/');
+		expect(repoBase('http://localhost:47830/repo.json')).toBe('http://localhost:47830/');
+		expect(repoBase('http://[::1]:47830/')).toBe('http://[::1]:47830/');
+		expect(repoBase('http://127.4.5.6/x/index.min.json')).toBe('http://127.4.5.6/x/');
+		expect(isLoopbackHost('LOCALHOST')).toBe(true);
+		expect(isLoopbackHost('10.0.0.1')).toBe(false);
 	});
 });
 

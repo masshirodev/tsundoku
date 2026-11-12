@@ -7,6 +7,7 @@ import {
 	type EngineFailure,
 	type Preference
 } from './protocol.ts';
+import { parseWebViewStatus, webviewFailure, type WebViewStatus } from '../../webview.ts';
 
 /**
  * tsundoku calling the extension engine (doc/EXTENSION-ENGINE.md, "Running
@@ -28,10 +29,18 @@ export const engineDownSince = () => downSince;
 export class EngineError extends Error {
 	readonly failure: EngineFailure;
 	readonly status: number;
-	constructor(message: string, failure: EngineFailure, status = 0) {
+	/** A WebView extension's error carries the WebView's status (doc/EXTENSION-ENGINE.md). */
+	readonly webview: WebViewStatus | null;
+	constructor(
+		message: string,
+		failure: EngineFailure,
+		status = 0,
+		webview: WebViewStatus | null = null
+	) {
 		super(message);
 		this.failure = failure;
 		this.status = status;
+		this.webview = webview;
 	}
 }
 
@@ -99,13 +108,31 @@ async function post(body: Record<string, unknown>, timeoutMs: number): Promise<R
 	}
 }
 
-async function failure(res: Response): Promise<EngineError> {
-	const body = (await res.json().catch(() => null)) as { error?: string; code?: number } | null;
+/**
+ * A failed call, in tsundoku's terms. A WebView extension's error carries
+ * the WebView's status (`webview`), since its own message is only its
+ * timeout: while Chromium is still coming, failed, or off on this install,
+ * that is what the call failed of, and what it says (`webviewFailure`).
+ */
+export function failureFrom(status: number, body: unknown): EngineError {
+	const b = (body && typeof body === 'object' ? body : null) as {
+		error?: string;
+		code?: number;
+		webview?: unknown;
+	} | null;
+	const webview = parseWebViewStatus(b?.webview);
+	const instead = webviewFailure(webview);
+	if (instead) return new EngineError(instead.line, 'webview', status, webview);
 	return new EngineError(
-		body?.error ?? `The engine answered ${res.status}`,
-		failureOf(res.status, body),
-		res.status
+		b?.error ?? `The engine answered ${status}`,
+		failureOf(status, b),
+		status,
+		webview
 	);
+}
+
+async function failure(res: Response): Promise<EngineError> {
+	return failureFrom(res.status, await res.json().catch(() => null));
 }
 
 export type CallOptions = {
@@ -193,6 +220,42 @@ export async function challenges(timeoutMs = 2_000): Promise<Challenges> {
 	if (!res.ok) throw new EngineError(`The engine answered ${res.status}`, 'source', res.status);
 	const j = (await res.json()) as Partial<Challenges>;
 	return { solving: j.solving ?? {}, solved: j.solved ?? {} };
+}
+
+/**
+ * The engine's `/capabilities`, or null when it doesn't answer. Its `webview`
+ * says whether this engine runs WebView extensions (an older one has no such
+ * key at all: `webviewSupport`, src/lib/webview.ts).
+ */
+export async function capabilities(timeoutMs = 1_500): Promise<Record<string, unknown> | null> {
+	try {
+		const res = await fetch(`${engineUrl()}/capabilities`, {
+			headers: authorization(),
+			signal: AbortSignal.timeout(timeoutMs)
+		});
+		if (!res.ok) return null;
+		const j = (await res.json()) as unknown;
+		return j && typeof j === 'object' ? (j as Record<string, unknown>) : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * The engine's `GET /webview`: how its headless Chromium is (off, idle,
+ * starting with the phase and percent, ready, failed and why). Null when the
+ * engine doesn't answer, or is older than it (404). Never starts anything.
+ */
+export async function webviewStatus(timeoutMs = 1_500): Promise<WebViewStatus | null> {
+	try {
+		const res = await fetch(`${engineUrl()}/webview`, {
+			headers: authorization(),
+			signal: AbortSignal.timeout(timeoutMs)
+		});
+		return res.ok ? parseWebViewStatus(await res.json()) : null;
+	} catch {
+		return null;
+	}
 }
 
 /**

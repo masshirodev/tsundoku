@@ -168,7 +168,7 @@ Costs the fork does not remove, which tsundoku's side must absorb:
 
 - No state is kept. Extension handles, image and video proxy tokens and preferences live in memory or in the container; a restart forgets them all.
 - Calls into one extension are serialised. A 30-second search timeout holds up every page-list call for that source.
-- No browser. Cloudflare is solved only through a FlareSolverr/Byparr URL sent per request, and WebView extensions fail (AniZone).
+- No browser. Cloudflare is solved only through a FlareSolverr/Byparr URL sent per request, and WebView extensions fail. (Since tsundoku-engine's `engine-webview` branch, 2026-11-11, `ENGINE_WEBVIEW=on` runs them in a headless Chromium: "Cloudflare and WebView" below. AniZone, named here at the time, never used a WebView: its failure was a stack overflow, fixed beside it.)
 - Bus factor of one: 5 stars, 5 forks, one active maintainer, shaped around Mangayomi (header names, the |mangayomi-memo| marker, an iOS runtime).
 - A dex2jar mistranslation breaks Toonily and Toonily.me search. It is probably not fixable in the engine, but a fork could load Keiyoushi's prebuilt JARs instead.
 
@@ -196,7 +196,7 @@ No endpoint is authenticated, and /stop stops the server. Bind it to loopback or
 Routes:
 
 - GET / returns "mextensionserver Server Running".
-- GET /capabilities returns a JSON object of feature flags: mangayomiMihonBridge, sourceFactory, preferenceCallbacks, imageProxy, videoProxy, youtubeResolver, sourceUrls, extensionHandles, extensionInfo, webviewBridge.
+- GET /capabilities returns a JSON object of feature flags: mangayomiMihonBridge, sourceFactory, preferenceCallbacks, imageProxy, videoProxy, youtubeResolver, sourceUrls, extensionHandles, extensionInfo, webviewBridge, and (the fork's, `engine-webview`) `webview`: whether this engine runs WebView extensions at all (`ENGINE_WEBVIEW`).
 - Any method on /stop stops the server 100 ms later.
 - POST /dalvik is the RPC (below).
 - GET /image/<token> returns page or cover bytes, fetched through the source's client.
@@ -266,6 +266,7 @@ Methods (manga; the anime ones are the same with Anime/Episode, plus getVideoLis
 - getMangaUrl and getChapterUrl return the web URL.
 - filtersManga returns the filter list; headersManga returns the default headers as [name, value, ...]; supportLatestManga returns a boolean.
 - filterSchemaManga / filterSchemaAnime (the fork's, c140, 2026-10-28) return the same filters typed: `[{type, name, state, values, children}]`, type one of select, sort, checkbox, tristate, text, group, header, separator. A select's state is its index and `values` its labels (each value's toString, as Mihon draws it); a sort's state is `{index, ascending}` or null; a tri-state's 0 ignore, 1 include, 2 exclude; a group has `children` and no state. filtersManga itself is Jackson's dump of the extension's classes: no type, and the extension's minified fields (`a`, `b`, ...) beside the base ones, so read the schema, never it.
+- `GET /webview` (the fork's, `engine-webview`, 2026-11-11): the headless Chromium WebView extensions run in. `{"enabled", "state", "phase", "percent", "error", "openPages", "waitingPages", "maxPages", "chromium", "dir"}`; `state` is `off` (`ENGINE_WEBVIEW` unset), `idle` (never needed yet), `starting` (`phase` locating, downloading with `percent`, extracting, installing, initializing, starting), `ready`, or `failed` with `error` saying why in words a person can act on ("needs an X display ... install Xvfb", "a library Chromium needs is missing: libXtst.so.6 ..."). Never starts anything. `extensionInfo` carries `usesWebView` (the extension's code names android.webkit.WebView), and an error from such an extension carries this same object under `webview`, since the extension's own message is only its timeout.
 - `GET /challenges` (the fork's, c143, 2026-10-28): `{"solving": {host: since}, "solved": {host: at}}`, epoch ms, behind the token like every route. A host is under `solving` while CloudflareInterceptor's solve through FlareSolverr runs, and in `solved` once one succeeded. In memory; a restart forgets.
 - Filters go back into getSearchManga as `filterList: [{name, type, stateInt | stateString | stateSort | stateList}]`, matched against the source's own list **by name**; a name the source doesn't have is ignored (measured: Weeb Central has no "Cooking" tag, and asking for it changed nothing). select and tristate send stateInt, text stateString, sort stateSort `{index, ascending}`, a group stateList `[{name, type, stateBoolean | stateInt}]` (checkbox children stateBoolean, tristate and select children stateInt). Two quirks of upstream's reader: a **top-level** checkbox is read from `stateList[0].stateBoolean`, not a field of its own, and a text inside a group is read from the child's `name`. Measured live on 2026-10-28: Weeb Central's sort select and a status checkbox group, MangaDex's Theme tri-state, Asura's sort.
 - preferencesManga and setPreferenceManga return the preference screen as maps.
@@ -373,8 +374,114 @@ URLs (Suwayomi library series against the engine, memo stripped):
 - The bundled Chromium does nothing. KcefWebViewProvider is registered but KCEF.init is never called; the source says so, and the log reads "Desktop WebView (CEF) is unavailable; will use bridge or stub".
 - The only solvers are a FlareSolverr/Byparr URL (cf-proxy-url) and Mangayomi's WebView bridge, which tsundoku doesn't have.
 - Only Kumaraw of the nine sits behind a managed challenge. FlareSolverr v3.4.6 solved it: 16.7 s once, then 0.1-0.5 s a call. AnimePahe's first call took 42 s through the solver.
-- WebView extensions fail. AniZone (lib 16) crashes its request thread with StackOverflowError after "Cef was not initialized", and the client sees the connection close.
+- WebView extensions fail. AniZone (lib 16) crashes its request thread with StackOverflowError after "Cef was not initialized", and the client sees the connection close. (Corrected 2026-11-11: AniZone 16.15 and 16.16 contain no WebView code; the overflow is the JVM's recursive regex on the request thread's 1 MB stack, and the engine now gives request threads 64 MB. AniZone 16.16 lists, gives episodes and 2 videos.)
 - Suwayomi has FlareSolverr off (flareSolverrEnabled: false) and relies on its own KCEF. Without Suwayomi, tsundoku needs a solver container it doesn't run today.
+
+**WebView support, since tsundoku-engine `engine-webview` (2026-11-11).**
+The bullets above are the spike's. The engine now gives every extension that
+uses `android.webkit.WebView`, manga or anime, for any site, a real browser
+nobody sees, when started with `ENGINE_WEBVIEW=on`: pages load and run their
+scripts, `evaluateJavascript`, JavaScript interfaces and
+`shouldInterceptRequest` behave as on Android, and the page's cookies are the
+extension's HTTP client's. Nothing in the engine knows an extension or a
+site. The design, why each part is so, and what was measured is the engine's
+`doc/FORK.md`, "Headless WebView"; what tsundoku needs to know:
+
+- Off unless the launcher sets `ENGINE_WEBVIEW=on` (the fork keeps additions
+  off by default). tsundoku's launcher sets it only where SETTINGS' WEBVIEW
+  switch is on, and that is off on every install until someone turns it on
+  (the owner's decision, below).
+- Chromium (JetBrains Runtime JCEF, Chromium 111) is downloaded the first
+  time an extension that uses a WebView is loaded, into
+  `<engine app dir>/webview/chromium` (`ENGINE_WEBVIEW_DIR`): 169-186 MB per
+  platform, 359 MB on disk. Never for an install whose extensions don't need
+  it. The bundle doesn't grow.
+- Nothing appears on screen: pages render windowless; on Linux Chromium gets
+  a private Xvfb (it needs an X display even windowless), so **a Linux friend
+  needs Xvfb installed** (`xvfb`), or a desktop `DISPLAY`; without either the
+  WebView fails with that instruction. Headless servers also need Chromium's
+  libraries (the list is in FORK.md).
+- Failures are answers, not crashes: Chromium is proven in a child JVM before
+  the engine starts it, an extension that can't get a page hears a load
+  error, and a call that comes back empty after the extension's WebView
+  failed answers with an error saying what happened (it used to answer `[]`,
+  which read as "no videos"). `GET /webview` and the `webview` object on a
+  WebView extension's errors say why, so tsundoku can say "needs a WebView:
+  downloading Chromium, 40 %" or "needs Xvfb" instead of "timed out".
+- At most 2 pages at once (`ENGINE_WEBVIEW_PAGES`), each closed when the
+  extension is done and after 120 s at most; idle, no Chromium process runs
+  but the Xvfb, while the runtime stays in the engine (about 260 MB RSS, 200
+  of it file-backed) until it restarts.
+- Measured: MKissa 16.75 resolves an episode's 8 videos in 8-17 s through it,
+  and an extension that runs its site's own player in the page and catches
+  the playlist request resolves HLS episodes in 3-11 s. Proven on Linux (the
+  workstation, `DISPLAY` unset); not yet on Windows, macOS or WSL, and a
+  headless Ubuntu container loads Chromium but MKissa's page didn't finish
+  there (FORK.md, "Proven, and not").
+- A process-group stop takes it all: Xvfb and Chromium's processes
+  (`jcef_helper`) are the engine JVM's children in its group and session.
+  Measured 2026-11-12 with the bundle's JRE and MKissa, a renderer open: a
+  SIGTERM to the group ended Xvfb and the renderer at once, but the JVM
+  itself lived on until the extension's call in flight timed out (27 s).
+  The launcher's restart for the switch waits 10 s, then kills the group
+  (below).
+- **Cloudflare is still FlareSolverr's.** The same browser could solve a
+  challenge itself, as Mihon's interceptor does in its WebView (open the URL,
+  wait for `cf_clearance`, take the cookies and the user agent, retry); what
+  that would take is in FORK.md, "Not done yet". Not built: Chromium 111 may
+  well be refused by today's checks, which only trying shows.
+
+### tsundoku's side
+
+Since the `webview-tsundoku` branch (2026-11-12):
+
+- **The switch.** The owner decided (2026-11-12, card c978, "Engine WebView:
+  Chromium 111 runs streaming sites' scripts unsandboxed, accept or
+  harden?") that the WebView is **on for the owner's own workstation
+  install and off for friends'**: a per-install switch, off by default, set
+  in SETTINGS › 07 — BROWSE › WEBVIEW ([`SETTINGS.md`](SETTINGS.md)). It is a
+  file in the data folder, `engine/webview.json` (`{"on":true}`), as WI-FI
+  keeps `wifi.json`, because the launcher has to read it before the engine
+  starts and has no database (`src/lib/server/engine/webview-switch.ts`).
+- **The launcher** (`ops/release/launcher/launch.ts`, `plan.ts`) reads the
+  switch at every engine start and starts the engine with `ENGINE_WEBVIEW=on`
+  or `off`, always said, so a stray `ENGINE_WEBVIEW=on` in the data folder's
+  `.env` (which reaches the engine through the launcher's environment)
+  can't turn on what the switch has off (`engineWebViewEnv`). It names
+  Chromium's folder to both sides (`ENGINE_WEBVIEW_DIR`,
+  `<data>/engine/app/webview/chromium`, the engine's own default) and tells
+  the app where the switch is (`ENGINE_WEBVIEW_SWITCH`). It polls the file
+  every 2 s; when it changes, the engine's process group is stopped and the
+  engine started again with the new value, and killed outright if it hasn't
+  gone 10 s later (its JVM waits out a WebView call in flight). Measured
+  through a stand-in bundle: on took 4 s to show on `/capabilities`, off 3 s,
+  and Xvfb went with the old engine.
+- **Where nothing reads the switch** (development's compose engine, a test's
+  fake), neither variable reaches the app: the engine's own `ENGINE_WEBVIEW`
+  counts, and SETTINGS shows the state without a control.
+- **Capability.** `support()` (`src/lib/server/engine/webview.ts`) reads
+  `/capabilities`, cached 5 s: `webview: true` is `on`, `false` is `off`, no
+  key at all is an older engine (`unsupported`), and no answer falls back to
+  the switch (`webviewSupport`, `src/lib/webview.ts`). It is asked only when
+  a screen shows an extension that uses a WebView.
+- **Which extensions.** `engine_extensions.webview` (rung 78): the engine's
+  `extensionInfo.usesWebView` at install and at TRY AGAIN, else the APK's own
+  dex read the way the engine reads it (`apk-webview.ts`). Extensions
+  installed before the rung are read from their stored APK on the first
+  BROWSE or EXTENSIONS visit of a process (`fillWebViewFlags`); BACK TO
+  forgets the flag, since the version gone back to may differ.
+- **Failed calls.** An error that carries the `webview` object in a
+  `starting`, `failed` or `off` state is `EngineFailure` `webview`
+  (`failureFrom`, `client.ts`), and its message is the WebView's words
+  instead of the extension's timeout: the first-use line while it comes, the
+  engine's own error when it failed, "NEEDS A WEBVIEW, WHICH THIS INSTALL
+  HAS TURNED OFF" when off. In a `ready` or `idle` state the extension's own
+  words stand: its browser was there. A chapter that fails so waits 60 s
+  before its next try, as a rate limit does (`backoffMs`), and an episode
+  isn't recorded as having no video.
+- **What the screens say** is [`BROWSE.md`](BROWSE.md), "Extensions that
+  need a WebView", and [`SETTINGS.md`](SETTINGS.md), "07 — BROWSE". The words
+  are `src/lib/webview.ts`'s, one set for every screen.
 
 ## Aniyomi anime
 
@@ -394,7 +501,7 @@ Results (query "frieren", with cf-proxy-url):
   - Popular ✓ 24, search ✓ 3, details ✓, episodes ✓ 28, videos ✓ 3 (direct HLS plus headers).
   - Audio and subtitles are separate proxied .m3u8 and .vtt tracks.
   - Segments are MPEG-TS disguised as .jpg on rotating hosts; the first bytes are 0x47, the MPEG-TS sync byte.
-- AniZone 16.15: ✗, needs a WebView.
+- AniZone 16.15: ✗, needs a WebView. (Corrected 2026-11-11: it never needed one; a regex overflowed the request thread's stack. Fixed in the engine; 16.16 works.)
 
 Download proof (ffmpeg n9.0.1, using the returned headers and -extension_picky 0):
 

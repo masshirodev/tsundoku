@@ -29,10 +29,19 @@
 	import ResultTile from './ResultTile.svelte';
 	import AddedBand from '../AddedBand.svelte';
 	import { SiteCheck, checkLine } from '$lib/site-check.svelte';
+	import { WebViewWatch } from '$lib/webview-watch.svelte';
+	import { NEEDS, parseWebViewError } from '$lib/webview';
 	import { askedLine } from '$lib/waiting';
 	import FilterForm from './FilterForm.svelte';
 	import { m } from '$lib/paraglide/messages';
 	import { isSearchCommand, runSearchCommand } from '$lib/library/commands';
+	import SelectBar from '../SelectBar.svelte';
+	import PressBar from '../PressBar.svelte';
+	import PressBand from '../PressBand.svelte';
+	import TickSheet from '../TickSheet.svelte';
+	import { browseSelection } from '$lib/library/browse-selection.svelte';
+	import { oneTag, tickable, whereLabel, type Tick } from '$lib/library/browse-select';
+	import type { SearchHit } from '$lib/server/download-types';
 
 	/**
 	 * A source's page in BROWSE (Index-Browse: popular, filters, phoneGrid;
@@ -215,6 +224,8 @@
 	 * ← then opens the list at the top, as it did before c930.
 	 */
 	beforeNavigate((n) => {
+		// SELECT lasts through the browse world, and ends anywhere else (c868).
+		sel.follow(n.to?.route.id);
 		leftAt = scrollY;
 		if (n.type !== 'link' || n.to?.route.id !== '/downloads/source/[id]') return;
 		if (data.reveal || data.incognito || !shown) return;
@@ -326,6 +337,21 @@
 		return () => check.stop();
 	});
 
+	// A WebView source (doc/BROWSE.md, "Extensions that need a WebView"): while
+	// it waits, or after a call failed for want of the browser, the engine's
+	// first download of it is watched, so the page says how far it is, and
+	// offers TRY AGAIN only once it's ready.
+	const webviewFailed = $derived(shown && !shown.ok ? parseWebViewError(shown.error) : null);
+	const webview = new WebViewWatch();
+	$effect(() => {
+		if (data.webviewMark !== NEEDS) return;
+		if (shown && !(webviewFailed && webviewFailed.state !== 'off')) return;
+		webview.start();
+		return () => webview.stop();
+	});
+	/** The browser as the watch last saw it: starting, ready, failed; null before it answers. */
+	const browserState = $derived(webview.view?.status?.state ?? null);
+
 	const value = $derived(shown?.ok ? shown.value : null);
 	const results = $derived(value?.results ?? null);
 	const name = $derived(data.source.name);
@@ -378,6 +404,54 @@
 			: `${resolve('/downloads/source/[id]', { id: h.mangaId })}?from=${here}`;
 	const hue = (id: string) => [...id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 0);
 
+	// ---- SELECT (card c868; doc/BROWSE.md, "SELECT in a catalog") ---------------
+	/*
+	 * Held in this tab's memory (`browseSelection`), never the URL: it outlives
+	 * POPULAR, LATEST, FILTER, a search, a tag's arrival, MORE, other sources and
+	 * BROWSE, and a reload ends it. A tap on a tile ticks it, a long press opens
+	 * its preview (and ← comes back still selecting). SETTINGS goes while
+	 * selecting, since its switches change what a press would do.
+	 */
+	const sel = browseSelection;
+	const selecting = $derived(sel.selecting);
+	let showing = $state(false);
+	// A selection never outlives the reveal it was made in (the Rules board).
+	$effect(() => sel.checkReveal(data.reveal));
+	/** Where a tick is made, in SHOW's words: the tab, a search, or a tag's arrival. */
+	const where = $derived(
+		whereLabel(
+			data.mode,
+			data.q,
+			data.mode === 'filtered' && !data.q && value ? oneTag(value.schema, value.applied) : null
+		)
+	);
+	/** The list on screen, as a tick notes it: SHOW and the bulk bar count what it does not draw. */
+	const onList = $derived(shown?.key ?? listKey(page.url));
+	const addingHere = $derived(sel.addingIds());
+	const tickOf = (h: SearchHit): Tick => ({
+		id: h.mangaId,
+		title: h.title,
+		cover: h.cover,
+		hue: hue(h.mangaId),
+		meta: h.meta,
+		source: {
+			id: data.source.id,
+			name,
+			family: data.source.family,
+			addsHidden: data.addsHidden,
+			hidden: data.source.mostlyHidden
+		},
+		twin: h.match.kind === 'same-title',
+		where,
+		list: onList
+	});
+	/** ✕ is the bar's; Escape ends SELECT too, once no sheet and no FILTER panel is open to close first. */
+	function onKey(e: KeyboardEvent) {
+		if (!sel.selecting || e.key !== 'Escape' || data.panel || showing) return;
+		if (document.querySelector('[role="dialog"]')) return;
+		sel.end();
+	}
+
 	/** RESET is the source's own choices, on the filtered tab, with the panel open. */
 	const resetHref = $derived(
 		value
@@ -391,49 +465,74 @@
 </script>
 
 <svelte:head><title>{name.toLowerCase()} · browse · tsundoku</title></svelte:head>
+<svelte:window onkeydown={onKey} />
 
 <!-- eslint-disable svelte/no-navigation-without-resolve -- every href below is built from resolve(), by base, link() or tileHref() -->
 
-<div class="screen">
-	<TopBar sticky label="{name} in BROWSE">
-		<!-- Every cell in the middle, each with its own left rule, as the mock builds the bar. -->
-		{#snippet middle()}
-			{#if data.back}
-				<!-- From a tag on a preview or a series (c313): back to it, whose own ← is unchanged. -->
-				<a class="cell back" href={data.back} aria-label={backOriginLabel(data.back)}>←</a>
-			{:else}
-				<a class="cell back" href={resolve('/browse')} aria-label="Back to BROWSE">←</a>
-			{/if}
-			<div class="title" class:searching={data.find || !!data.q}>
-				<span class="name">{name.toUpperCase()}</span>
-				<span class="sub">{data.source.kind.toUpperCase()} · {data.source.lang.toUpperCase()}</span>
-			</div>
-			<form
-				method="GET"
-				action={base}
-				class="find"
-				class:open={data.find || !!data.q}
-				onsubmit={onSearch}
-			>
-				{#each keptFilters as [k, v] (k)}<input type="hidden" name={k} value={v} />{/each}
-				{#if keptFilters.length}<input type="hidden" name="tab" value="filtered" />{/if}
-				{#each fromPair as [k, v] (k)}<input type="hidden" name={k} value={v} />{/each}
-				<input
-					type="search"
-					name="q"
-					value={data.q}
-					placeholder={novel ? `/ search ${name}` : `/ search ${name}, with its filters`}
-					aria-label="Search {name}"
-					autocomplete="off"
-				/>
-			</form>
-			<a class="cell slash" href={link({ find: '1' })} aria-label="Search {name}">/</a>
-			<!-- Every family's, since tsundoku's own switches are every source's (c435). -->
-			<a class="cell settings" href={withFrom(`${base}/settings`)}>SETTINGS</a>
-		{/snippet}
-	</TopBar>
+<div class="screen" class:selecting>
+	{#if !selecting || data.find || data.q}
+		<TopBar sticky={!selecting} label="{name} in BROWSE">
+			<!-- Every cell in the middle, each with its own left rule, as the mock builds the bar. -->
+			{#snippet middle()}
+				{#if data.back}
+					<!-- From a tag on a preview or a series (c313): back to it, whose own ← is unchanged. -->
+					<a class="cell back" href={data.back} aria-label={backOriginLabel(data.back)}>←</a>
+				{:else}
+					<a class="cell back" href={resolve('/browse')} aria-label="Back to BROWSE">←</a>
+				{/if}
+				<div class="title" class:searching={data.find || !!data.q}>
+					<span class="name">{name.toUpperCase()}</span>
+					<span class="sub"
+						>{data.source.kind.toUpperCase()} · {data.source.lang.toUpperCase()}</span
+					>
+				</div>
+				<form
+					method="GET"
+					action={base}
+					class="find"
+					class:open={data.find || !!data.q}
+					onsubmit={onSearch}
+				>
+					{#each keptFilters as [k, v] (k)}<input type="hidden" name={k} value={v} />{/each}
+					{#if keptFilters.length}<input type="hidden" name="tab" value="filtered" />{/if}
+					{#each fromPair as [k, v] (k)}<input type="hidden" name={k} value={v} />{/each}
+					<input
+						type="search"
+						name="q"
+						value={data.q}
+						placeholder={novel ? `/ search ${name}` : `/ search ${name}, with its filters`}
+						aria-label="Search {name}"
+						autocomplete="off"
+					/>
+				</form>
+				<a class="cell slash" href={link({ find: '1' })} aria-label="Search {name}">/</a>
+				{#if !selecting}
+					<!-- SELECT (c868): before SETTINGS, after / on a phone. It needs script,
+				     so it is drawn once the page runs; a TV has no SELECT. -->
+					{#if js}
+						<button type="button" class="cell select" onclick={() => sel.start(data.reveal)}
+							>SELECT</button
+						>
+					{/if}
+					<!-- Every family's, since tsundoku's own switches are every source's (c435). -->
+					<a class="cell settings" href={withFrom(`${base}/settings`)} aria-label="SETTINGS"
+						><span class="long">SETTINGS</span><span class="short">SET.</span></a
+					>
+				{/if}
+			{/snippet}
+		</TopBar>
+	{/if}
+	{#if selecting}
+		<SelectBar
+			find={data.find || data.q ? null : link({ find: '1' })}
+			findLabel={name}
+			onshow={() => (showing = true)}
+		/>
+	{/if}
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
+	<!-- A press's band (c868): while it runs and its one result, on every browse screen. -->
+	<PressBand reveal={data.reveal} />
 	{#if commandNote}<Band title={commandNote} ondismiss={() => (commandNote = '')} />{/if}
 	{#if data.addedHidden}
 		<!-- What the series page's band would have said (c505): what ADD AND
@@ -455,6 +554,14 @@
 
 	<nav class="tabs" aria-label="Lists">
 		<div class="tab-list">
+			{#if selecting}
+				<!-- The source's name moves here while the bar holds the selection (c868). -->
+				<span class="tab where"
+					>IN {name.toUpperCase()}<span class="long"
+						>{` · ${data.source.kind.toUpperCase()} · ${data.source.lang.toUpperCase()}`}</span
+					></span
+				>
+			{/if}
 			<a class="tab" class:on={data.mode === 'popular'} href={withFrom(base)}>POPULAR</a>
 			{#if value?.latest}
 				<a class="tab" class:on={data.mode === 'latest'} href={withFrom(`${base}?tab=latest`)}
@@ -494,7 +601,9 @@
 	{/if}
 
 	{#if shown && !shown.ok}
-		{#if shown.error === 'down'}
+		{#if webviewFailed}
+			{@render webviewBand(webviewFailed)}
+		{:else if shown.error === 'down'}
 			<Band
 				title="○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION"
 				detail="THE LIBRARY AND CACHED CHAPTERS STILL OPEN"
@@ -531,7 +640,17 @@
 			</Band>
 		{/if}
 	{:else}
-		{#if !results && check.since !== null}
+		{#if !results && webview.view?.firstUse}
+			<!-- Non-blocking: the source answers once its browser is there. -->
+			{#if browserState === 'failed'}
+				<Band title="THE BROWSER THIS SOURCE NEEDS DIDN'T START" detail={webview.view.firstUse} />
+			{:else}
+				<Band
+					title={webview.view.firstUse}
+					detail="ONCE, THE FIRST TIME · THEN THE SOURCE ANSWERS"
+				/>
+			{/if}
+		{:else if !results && check.since !== null}
 			<Band
 				title="{name.toUpperCase()} · PASSING THE SITE'S BROWSER CHECK"
 				detail={checkLine(check.elapsed)}
@@ -563,7 +682,17 @@
 		{:else}
 			<div class="grid" class:dim={data.panel}>
 				{#each results.hits as h (h.mangaId)}
-					<ResultTile hit={h} href={tileHref(h)} hue={hue(h.mangaId)} />
+					<ResultTile
+						hit={h}
+						href={tileHref(h)}
+						hue={hue(h.mangaId)}
+						{selecting}
+						ticked={sel.has(h.mangaId)}
+						tickable={tickable(h, addingHere.has(h.mangaId))}
+						adding={!!h.adding || addingHere.has(h.mangaId)}
+						ontick={() => sel.toggle(tickOf(h))}
+						onlong={() => void goto(tileHref(h))}
+					/>
 				{/each}
 			</div>
 			{#if results.more}
@@ -586,6 +715,36 @@
 		{/if}
 	{/if}
 </div>
+
+{#if selecting}
+	<PressBar here={onList} />
+	<TickSheet open={showing} here={onList} onclose={() => (showing = false)} />
+{/if}
+
+{#snippet webviewBand(f: { state: 'starting' | 'failed' | 'off'; line: string })}
+	{#if f.state === 'off'}
+		<!-- Said in words, not as an error: this install has it off (card c978). -->
+		<Band title={f.line} detail="SETTINGS › BROWSE › WEBVIEW" />
+	{:else if f.state === 'starting' && browserState !== 'ready' && browserState !== 'failed'}
+		<!-- No TRY AGAIN while the browser comes: asking now would only wait again. -->
+		<Band
+			title={webview.view?.firstUse ?? f.line}
+			detail="ONCE, THE FIRST TIME · TRY AGAIN COMES WHEN IT'S READY"
+		/>
+	{:else}
+		{@const failed =
+			browserState === 'failed' || (f.state === 'failed' && browserState !== 'ready')}
+		<Band
+			title={failed
+				? "THE BROWSER THIS SOURCE NEEDS DIDN'T START"
+				: 'THE BROWSER THIS SOURCE NEEDS IS READY'}
+			detail={failed ? (webview.view?.firstUse ?? f.line) : `ASK ${name.toUpperCase()} AGAIN`}
+		>
+			{#snippet action()}<a class="again" data-sveltekit-reload href={link({})}>TRY AGAIN</a
+				>{/snippet}
+		</Band>
+	{/if}
+{/snippet}
 
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
 
@@ -667,6 +826,32 @@
 	.slash {
 		display: none;
 		font: 500 16px/1 var(--font-mono);
+	}
+	/* SELECT (c868): a cell like SETTINGS, a button. */
+	button.cell {
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		cursor: pointer;
+	}
+	button.cell + .cell {
+		border-left: var(--hairline);
+	}
+	.settings .short {
+		display: none;
+	}
+	/* Selecting: the bulk bar is pinned under the grid, so the grid ends above it. */
+	.screen.selecting {
+		padding-bottom: 120px;
+	}
+	/* The source's name at the head of the tabs while selecting (Select-Tablet's
+	   `.tab.where`): drawn as the mock draws a tab, its own weight and ink. */
+	.tab.where {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font: 400 14px/1.2 var(--font-mono);
+		color: var(--text-2);
 	}
 	.tabs {
 		flex-shrink: 0;
@@ -788,8 +973,23 @@
 		font: 500 14px var(--font-mono);
 	}
 
+	/* The TV has no SELECT (c868): every tap there is a remote's OK. */
+	@media (pointer: none) and (min-width: 900px) {
+		.select {
+			display: none;
+		}
+	}
+
 	/* The phone: no room for the field, so / opens it in the title's place. */
 	@media (max-width: 599px) {
+		/* SETTINGS says SET. beside SELECT (the Tiles board's phone bar). */
+		.settings .long,
+		.where .long {
+			display: none;
+		}
+		.settings .short {
+			display: inline;
+		}
 		.title {
 			flex: 1 1 auto;
 		}

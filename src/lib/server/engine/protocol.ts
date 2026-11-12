@@ -69,6 +69,13 @@ export type EngineFailure =
 	| 'not-found'
 	/** The source no longer lists the chapter: retrying won't bring it back. */
 	| 'not-at-source'
+	/**
+	 * A WebView extension whose browser wasn't there: still downloading or
+	 * starting, failed, or turned off on this install (doc/EXTENSION-ENGINE.md,
+	 * "WebView support"). The message says which, in place of the extension's
+	 * own "timed out".
+	 */
+	| 'webview'
 	/** Anything else the source threw. */
 	| 'source';
 

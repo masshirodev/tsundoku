@@ -229,6 +229,13 @@ ANSWERING` and the DOWNLOAD row says why. The owner asked for it after a friend
   TO THE LIBRARY, AND HIDDEN, whose second line puts it on a shelf (card c724;
   [`BROWSE.md`](BROWSE.md), "Shelves in the ADD band"); the series screen's
   band has no shelves yet.
+- **Many at once** (card c868; [`BROWSE.md`](BROWSE.md), "The press"):
+  SELECT in a source's catalog adds the ticked series one at a time per
+  source, each through this same ADD (`addToLibrary`, ADDED HIDDEN watched as
+  c505 watches it) and, for ADD + FIRST 10 EACH or ADD + ALL, this same
+  `queueSeries` with `next` or `all`, so a press can't count or queue
+  differently from one preview's ADD AND DOWNLOAD. The queue itself is
+  unchanged: no section of its own for a press yet (cut 2).
 - **UNDO** takes it out again while nothing of it is downloaded or read, and
   goes back to the preview. After ADD AND DOWNLOAD, its queued chapters go
   with it (the queue's rows cascade). It isn't a delete: no tombstone, so it can be

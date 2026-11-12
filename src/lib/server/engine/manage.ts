@@ -370,6 +370,12 @@ export async function loadAgain(
 				info.name,
 				pkg
 			);
+			// The engine's word on its WebView, where it gave one (the fork's `usesWebView`).
+			if (typeof info.usesWebView === 'boolean')
+				db.prepare(`UPDATE engine_extensions SET webview = ? WHERE pkg = ?`).run(
+					info.usesWebView ? 1 : 0,
+					pkg
+				);
 			db.prepare(`DELETE FROM engine_sources WHERE pkg = ?`).run(pkg);
 			const put = db.prepare(
 				`INSERT OR REPLACE INTO engine_sources (id, pkg, name, lang, base_url) VALUES (?, ?, ?, ?, ?)`

@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -11,6 +11,7 @@ process.env.ENGINE_STORE = store;
 const { getDb } = await import('$lib/server/db');
 const ext = await import('$lib/server/engine/extensions');
 const { handleOf } = await import('$lib/server/engine/client');
+const { zip } = await import('$lib/server/zip-write');
 type Fetcher = import('$lib/server/engine/extensions').Fetcher;
 type Loader = import('$lib/server/engine/extensions').Loader;
 
@@ -204,6 +205,65 @@ describe('installing', () => {
 		});
 		expect(ext.installed()[0].failed).toBe('No Injekt instance for ProtoBuf');
 		expect(ext.extensionFor('2522335540328470744')).toBeNull();
+	});
+});
+
+describe('whether it uses a WebView (rung 78; doc/BROWSE.md, "Extensions that need a WebView")', () => {
+	it('takes the engine’s word at install', async () => {
+		await ext.addRepo(BASE, 1000, fetcher);
+		await ext.install(PKG, 2000, fetcher, async (apk) => {
+			const { info } = await loader(apk);
+			return { handle: handleOf(apk), info: { ...info, usesWebView: true } };
+		});
+		expect(ext.installed()[0].webview).toBe(true);
+	});
+
+	it('reads the APK when the engine doesn’t say: an older one, or one that refused it', async () => {
+		await ext.addRepo(BASE, 1000, fetcher);
+		await ext.install(PKG, 2000, fetcher, async () => {
+			throw new Error('Cef was not initialized');
+		});
+		expect(db.prepare(`SELECT webview FROM engine_extensions`).get()).toEqual({ webview: 0 });
+	});
+
+	it('fills what was installed before tsundoku asked, from the store, once', async () => {
+		await ext.addRepo(BASE, 1000, fetcher);
+		await ext.install(PKG, 2000, fetcher, loader);
+		// A WebView extension's APK in the store, and a row whose APK is gone.
+		const apk = zip([
+			{ name: 'classes.dex', data: Buffer.from('dex\n035\0Landroid/webkit/WebView;\0', 'latin1') }
+		]);
+		const handle = handleOf(new Uint8Array(apk));
+		writeFileSync(join(store, `${handle}.apk`), apk);
+		db.prepare(
+			`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at)
+			VALUES ('x.mkissa', 'MKissa', 'anime', 1, '16.75', '16', ?, 1, 1),
+				('x.gone', 'Gone', 'anime', 1, '1', '16', ?, 1, 1)`
+		).run(handle, 'f'.repeat(64));
+		db.prepare(`UPDATE engine_extensions SET webview = NULL`).run();
+
+		ext.refillWebViewFlags();
+		expect(await ext.fillWebViewFlags()).toBe(2);
+		expect(db.prepare(`SELECT pkg, webview FROM engine_extensions ORDER BY pkg`).all()).toEqual([
+			{ pkg: PKG, webview: 0 },
+			{ pkg: 'x.gone', webview: null },
+			{ pkg: 'x.mkissa', webview: 1 }
+		]);
+		expect(ext.installed().find((e) => e.pkg === 'x.mkissa')!.webview).toBe(true);
+		// Once a process: the row whose APK is gone isn't read again on every visit.
+		expect(await ext.fillWebViewFlags()).toBe(0);
+	});
+
+	it('forgets it on BACK TO, whose version may differ, and reads it again', async () => {
+		await ext.addRepo(BASE, 1000, fetcher);
+		await ext.install(PKG, 2000, fetcher, loader);
+		files[`${BASE}index.json`] = index(listing(3, 'mangadex.apk'));
+		await ext.refreshRepo(1, 3000, fetcher);
+		await ext.install(PKG, 4000, fetcher, loader);
+		expect(ext.back(PKG, 5000)).toBe(true);
+		expect(db.prepare(`SELECT webview FROM engine_extensions`).get()).toEqual({ webview: null });
+		await ext.fillWebViewFlags();
+		expect(db.prepare(`SELECT webview FROM engine_extensions`).get()).toEqual({ webview: 0 });
 	});
 });
 

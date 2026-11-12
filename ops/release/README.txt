@@ -134,6 +134,26 @@ and quit and start tsundoku again. It stays there through updates and
 reinstalls.
 
 
+Sources that need a browser of their own
+----------------------------------------
+
+A few extensions run their site in a browser (a "WebView"): BROWSE marks
+them NEEDS A WEBVIEW. tsundoku can give them one, a Chromium nobody sees,
+but it's off unless you turn it on, in SETTINGS > BROWSE > WEBVIEW: that
+Chromium is an old one (111) and runs those sites' scripts without a
+sandbox. Turned on, it downloads once (about 180 MB) the first time such an
+extension is used; REMOVE there deletes it again.
+
+On Linux it also needs Xvfb, which gives it a screen nobody sees:
+
+  sudo apt install xvfb        (Debian, Ubuntu)
+  sudo dnf install xorg-x11-server-Xvfb   (Fedora)
+  sudo pacman -S xorg-server-xvfb          (Arch)
+
+Without it, SETTINGS > BROWSE > WEBVIEW says FAILED and what to install.
+Nothing else in tsundoku needs it.
+
+
 Updates
 -------
 
