@@ -36,6 +36,7 @@ describe('dataPaths', () => {
 			engineStore: '/mnt/hdd2/tsundoku/engine/store',
 			novelStore: '/mnt/hdd2/tsundoku/engine/store/novels',
 			ocrScratch: '/mnt/hdd2/tsundoku/ocr-scratch',
+			packs: '/mnt/hdd2/tsundoku/packs',
 			mokuro: '/mnt/hdd2/tsundoku/mokuro/venv/bin/mokuro'
 		});
 	});
@@ -46,7 +47,8 @@ describe('dataPaths', () => {
 				TSUNDOKU_HOME: '/h',
 				LIBRARY_ROOT: '/lib',
 				BACKUP_DIR: '/mnt/backup/tsundoku',
-				ENGINE_STORE: '/store'
+				ENGINE_STORE: '/store',
+				PACK_DIR: '/packs'
 			},
 			'linux',
 			'/home/x'
@@ -55,6 +57,7 @@ describe('dataPaths', () => {
 		expect(p.backups).toBe('/mnt/backup/tsundoku');
 		expect(p.novelStore).toBe('/store/novels');
 		expect(p.covers).toBe('/h/covers');
+		expect(p.packs).toBe('/packs');
 	});
 
 	it('treats an empty variable as unset', () => {

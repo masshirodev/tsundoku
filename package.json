@@ -33,6 +33,8 @@
 		"sync-import": "node --experimental-strip-types scripts/sync-import.ts",
 		"sync-setup": "node --experimental-strip-types scripts/sync-setup.ts",
 		"ocr": "node --experimental-strip-types scripts/ocr.ts",
+		"pack:en": "node --experimental-strip-types scripts/pack-en.ts",
+		"pack:en:check": "node --experimental-strip-types scripts/pack-en-check.ts",
 		"dupes": "node --experimental-strip-types scripts/dupes.ts",
 		"links": "node --experimental-strip-types scripts/links.ts",
 		"ranobe": "node --experimental-strip-types scripts/ranobe.ts",

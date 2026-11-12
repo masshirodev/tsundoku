@@ -11,6 +11,10 @@ workstation; **lookup** splits text into words and finds them in JMdict;
 **mining** turns looked-up words into cards, only when approved. What differs
 from the handoff is under **Departures**.
 
+Japanese is one **language pack** of the lookup; the language-agnostic contract,
+and the English pack that is its first other user, are in
+[`LANGUAGES.md`](LANGUAGES.md).
+
 ## kotoba: the lookup yomu and tsundoku share
 
 The tokenizer, JMdict, furigana, romaji and the mining rules live in

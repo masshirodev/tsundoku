@@ -52,6 +52,9 @@ export function dataPaths(
 		engineStore,
 		novelStore: given(env.NOVEL_STORE) ?? p.join(engineStore, 'novels'),
 		ocrScratch: given(env.OCR_SCRATCH) ?? p.join(root, 'ocr-scratch'),
+		// Language packs: dictionaries downloaded on demand, never bundled
+		// (doc/LANGUAGES.md, c195).
+		packs: given(env.PACK_DIR) ?? p.join(root, 'packs'),
 		// A Python venv keeps its programs in Scripts\ on Windows, bin/ elsewhere.
 		mokuro:
 			given(env.MOKURO_BIN) ??
