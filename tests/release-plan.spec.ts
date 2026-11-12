@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { opener, plan, solverAt, solverSetAside } from '../ops/release/launcher/plan.ts';
+import {
+	chromiumPath,
+	engineWebViewEnv,
+	opener,
+	plan,
+	solverAt,
+	solverSetAside,
+	switchPath
+} from '../ops/release/launcher/plan.ts';
 
 const base = { engineToken: 'eng', solverDir: null };
 
@@ -198,5 +206,56 @@ describe('updates (doc/UPDATES.md)', () => {
 		// Already set aside, or never there: nothing to do.
 		expect(solverSetAside('/h/flaresolverr', 'linux', () => false)).toEqual([]);
 		expect(solverSetAside('C:/h/flaresolverr', 'win32', () => true)).toEqual([]);
+	});
+});
+
+describe('the WebView switch (doc/EXTENSION-ENGINE.md, "WebView support"; card c978)', () => {
+	it('starts the engine with ENGINE_WEBVIEW=on only when the switch is on', () => {
+		const on = plan({ ...base, root: '/t', home: '/h', env: {}, platform: 'linux', webview: true });
+		expect(on.engine.env.ENGINE_WEBVIEW).toBe('on');
+		const off = plan({
+			...base,
+			root: '/t',
+			home: '/h',
+			env: {},
+			platform: 'linux',
+			webview: false
+		});
+		expect(off.engine.env.ENGINE_WEBVIEW).toBe('off');
+	});
+
+	it('is off by default: a plan that wasn’t told is a friend’s install', () => {
+		const p = plan({ ...base, root: '/t', home: '/h', env: {}, platform: 'linux' });
+		expect(p.engine.env.ENGINE_WEBVIEW).toBe('off');
+	});
+
+	it('says off out loud, so a stray ENGINE_WEBVIEW=on in the data folder’s .env can’t turn it on', () => {
+		// The launcher spawns the engine with its own environment under the
+		// plan's, and the data folder's .env is read into the former.
+		const p = plan({
+			...base,
+			root: '/t',
+			home: '/h',
+			env: { ENGINE_WEBVIEW: 'on' },
+			platform: 'linux'
+		});
+		expect({ ...{ ENGINE_WEBVIEW: 'on' }, ...p.engine.env }.ENGINE_WEBVIEW).toBe('off');
+		expect(engineWebViewEnv(true)).toEqual({ ENGINE_WEBVIEW: 'on' });
+		expect(engineWebViewEnv(false)).toEqual({ ENGINE_WEBVIEW: 'off' });
+	});
+
+	it('tells the engine and the app the same Chromium folder, and the app where the switch is', () => {
+		const p = plan({ ...base, root: '/t', home: '/h', env: {}, platform: 'linux', webview: true });
+		expect(p.engine.env.ENGINE_WEBVIEW_DIR).toBe('/h/engine/app/webview/chromium');
+		expect(p.server.env.ENGINE_WEBVIEW_DIR).toBe('/h/engine/app/webview/chromium');
+		expect(p.server.env.ENGINE_WEBVIEW_SWITCH).toBe('/h/engine/webview.json');
+		// The engine's own default, under the app dir it's given as its last argument.
+		expect(p.engine.args.at(-1)).toBe('/h/engine/app');
+	});
+
+	it('writes Windows paths on Windows', () => {
+		const home = 'C:\\Users\\Ami\\AppData\\Local\\tsundoku';
+		expect(switchPath(home, 'win32')).toBe(`${home}\\engine\\webview.json`);
+		expect(chromiumPath(home, 'win32')).toBe(`${home}\\engine\\app\\webview\\chromium`);
 	});
 });

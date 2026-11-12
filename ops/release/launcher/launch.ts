@@ -20,7 +20,15 @@
  * `./tsundoku --foreground` still run it in a window, as before.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	renameSync,
+	rmSync,
+	unwatchFile,
+	watchFile
+} from 'node:fs';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -32,8 +40,9 @@ import {
 import { dataPaths } from '../app/src/lib/server/data-dirs.ts';
 import { ensureSetting, newToken } from '../app/src/lib/server/first-run.ts';
 import { clearLogin, readLogin } from '../app/src/lib/server/login.ts';
+import { readSwitch } from '../app/src/lib/server/engine/webview-switch.ts';
 import { Log } from './log.ts';
-import { opener, plan, solverAt, solverSetAside, type Proc } from './plan.ts';
+import { opener, plan, solverAt, solverSetAside, switchPath, type Proc } from './plan.ts';
 import { CommandReader, eventLine, type TrayEvent } from './tray.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -106,15 +115,21 @@ emit({ event: 'home', home, logs: join(home, 'logs') });
 const engineToken =
 	process.env.ENGINE_TOKEN || ensureSetting(homeEnv, 'ENGINE_TOKEN', newToken).value;
 const solverDir = solverAt(root, home, process.platform, existsSync);
-const p = plan({
-	root,
-	home,
-	env: process.env,
-	platform: process.platform,
-	engineToken,
-	solverDir,
-	installed: windows && existsSync(join(root, 'uninstall.exe'))
-});
+const planWith = (webview: boolean) =>
+	plan({
+		root,
+		home,
+		env: process.env,
+		platform: process.platform,
+		engineToken,
+		solverDir,
+		installed: windows && existsSync(join(root, 'uninstall.exe')),
+		webview
+	});
+// The app, FlareSolverr and the ports don't depend on the WebView switch; the
+// engine's start reads it each time (`engineProc`, below).
+const p = planWith(false);
+const webviewFile = switchPath(home, process.platform);
 
 console.log(`tsundoku ${version}`);
 console.log(`  data:   ${home}`);
@@ -195,6 +210,7 @@ function stop(child: ChildProcess) {
 function stopAll(code: number) {
 	if (stopping) return;
 	stopping = true;
+	unwatchFile(webviewFile);
 	for (const c of children) stop(c);
 	exit(code);
 }
@@ -205,12 +221,18 @@ function exit(code: number) {
 	else process.exit(code);
 }
 
+/** Children stopped on purpose, to start again at once (the WebView switch), not as a crash. */
+const restarting = new Set<ChildProcess>();
+
 /**
  * A helper (the engine, FlareSolverr), its output to its log, started again
  * if it stops while tsundoku runs: the app's screens say what's missing
- * meanwhile, as they do on the workstation.
+ * meanwhile, as they do on the workstation. `make` is asked for each start,
+ * so the engine's reads the WebView switch as it stands then. `started` is
+ * told each child.
  */
-function helper(proc: Proc, delay = 2000) {
+function helper(make: () => Proc, delay = 2000, started?: (c: ChildProcess) => void) {
+	const proc = make();
 	// Stamped and rotated (log.ts, c193).
 	const log = new Log(join(home, 'logs', `${proc.name}.log`));
 	log.line('INFO', `--- starting ${proc.name}`);
@@ -222,6 +244,7 @@ function helper(proc: Proc, delay = 2000) {
 		detached: !windows
 	});
 	children.add(child);
+	started?.(child);
 	child.stdout?.on('data', (c: Buffer) => log.write('INFO', c));
 	child.stderr?.on('data', (c: Buffer) => log.write('ERROR', c));
 	child.on('error', (e) => log.line('ERROR', `${proc.name} didn't start: ${e.message}`));
@@ -229,8 +252,63 @@ function helper(proc: Proc, delay = 2000) {
 		children.delete(child);
 		log.line(code ? 'ERROR' : 'INFO', `--- ${proc.name} stopped (${code})`);
 		if (stopping) return;
+		if (restarting.delete(child)) {
+			// Asked for: started again at once, and not counted as a crash.
+			setTimeout(() => helper(make, 2000, started), 500);
+			return;
+		}
 		console.warn(`${proc.name} stopped; starting it again (its log: ${log.file}).`);
-		setTimeout(() => helper(proc, Math.min(delay * 2, 60_000)), delay);
+		setTimeout(() => helper(make, Math.min(delay * 2, 60_000), started), delay);
+	});
+}
+
+/**
+ * The engine, with the WebView switch as it stands at each start
+ * (doc/EXTENSION-ENGINE.md, "WebView support"), and the switch watched: when
+ * SETTINGS turns it on or off, the engine is stopped (its process group, so a
+ * private Xvfb and any Chromium go with it) and started again with the new
+ * value. The app sees the change on `/capabilities` a few seconds later.
+ */
+let engineChild: ChildProcess | null = null;
+let engineWebView = false;
+function engineProc(): Proc {
+	engineWebView = readSwitch(webviewFile);
+	if (engineWebView)
+		console.log(`  The engine runs WebView extensions (SETTINGS > BROWSE > WEBVIEW).`);
+	return planWith(engineWebView).engine;
+}
+function watchWebView() {
+	// Polled, not fs.watch: the file is renamed into place, which fs.watch
+	// follows differently on each platform; a 2 s poll of one stat is nothing.
+	watchFile(webviewFile, { interval: 2000, persistent: false }, () => {
+		// A stopped engine reads the switch when it starts again anyway.
+		if (
+			stopping ||
+			!engineChild ||
+			engineChild.exitCode !== null ||
+			engineChild.signalCode !== null
+		)
+			return;
+		if (readSwitch(webviewFile) === engineWebView) return;
+		console.log(
+			`  The WebView was switched ${engineWebView ? 'off' : 'on'} in SETTINGS: restarting the engine.`
+		);
+		const old = engineChild;
+		restarting.add(old);
+		stop(old);
+		// The engine's JVM outlives SIGTERM while an extension's WebView call is
+		// in flight, until that call times out (measured 2026-11-12: 27 s, its
+		// Xvfb and Chromium gone at once). The switch is asked for now, so after
+		// a grace the old engine is ended outright.
+		setTimeout(() => {
+			if (old.exitCode !== null || old.signalCode !== null || old.pid === undefined) return;
+			try {
+				if (windows) old.kill('SIGKILL');
+				else process.kill(-old.pid, 'SIGKILL');
+			} catch {
+				// Gone between the check and the kill.
+			}
+		}, 10_000).unref();
 	});
 }
 
@@ -266,7 +344,8 @@ for (const at of [serving(), localOnly]) {
 rmSync(servingFile, { force: true });
 
 mkdirSync(join(home, 'engine'), { recursive: true });
-helper(p.engine);
+helper(engineProc, 2000, (c) => (engineChild = c));
+watchWebView();
 if (p.solver && solverDir) {
 	for (const { from, to } of solverSetAside(solverDir, process.platform, existsSync)) {
 		try {
@@ -276,7 +355,8 @@ if (p.solver && solverDir) {
 			console.log(`  FlareSolverr: couldn't set ${from} aside: ${(e as Error).message}`);
 		}
 	}
-	helper(p.solver);
+	const solver = p.solver;
+	helper(() => solver);
 } else
 	console.log(
 		`  FlareSolverr isn't installed: sources behind a browser check won't load.\n` +
