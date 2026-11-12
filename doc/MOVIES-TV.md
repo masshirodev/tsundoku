@@ -22,6 +22,73 @@ and tracking have no source at all. The caveats are listed under "What
 tsundoku would still lack", and the recommended follow-ups under "Follow-up
 cards".
 
+## Decided, 2026-11-12
+
+The owner read the spike and the follow-ups, and the shape is settled: two
+kinds in tsundoku, seasons as the source returned them, NEXT from whichever
+catalogue is linked, one library root, and trackers as accounts. The cards
+are on the Tsundoku board under **Movies & TV**; the table at the end of this
+section is their order.
+
+- **Two kinds, in tsundoku.** `movie` and `show` live here, play in tsundoku's
+  player and download like an anime's episodes. A film is a series with one
+  entry, no unit and no list; a show is an anime-shaped series.
+- **Seasons follow the source** (the owner). A flat list stays flat, and four
+  seasons added separately stay four series until the owner merges them into
+  one through the per-season sources (`doc/WORKS.md`). TMDB is used to _find_
+  what is missing, never to renumber what the source said.
+- **NEXT is the catalogue's question.** AniList for anime (no key), TMDB
+  `seasons` and `next_episode_to_air` for a show, TMDB `belongs_to_collection`
+  for a film's sequels and prequels. **A film franchise is a Work**: the Work
+  row is the NEXT, ORDER is the owner's, and the collection is only the
+  offer — never an automatic chain.
+- **One library root, kind subfolders.** `Movies/`, `Shows/` and `Anime/` sit
+  under the one root, Jellyfin-shaped by naming alone. tsundoku does not
+  depend on Jellyfin (the owner: "we dont depend on jellyfin at all"); the
+  NFOs stay because tsundoku reads them back. No second root: the delete
+  guard, backups, hidden folders and RESCAN all assume one.
+- **Trackers are accounts**, and a service declares the kinds it takes:
+  AniList and MAL for comics and anime, Trakt and Simkl for films and shows
+  (and anime), TMDB a catalogue and rating store rather than a watch log.
+  First-party adapters first; third-party plugins through the novels' plugin
+  host only if they are ever wanted.
+- **Credentials are the install's own, and nothing requires one.** Every
+  friend's key is theirs, the app guides and HELP explains, and everything
+  degrades to fewer niceties:
+
+  | Without           | Works                                                                                                         | Off                                                                                                |
+  | ----------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+  | A TMDB key        | browse, add, download, play, the local watch log, the source's title and cover, the source's own next episode | the TMDB link, overview, cast, runtime, year, the seasons list, and a film's collection (its NEXT) |
+  | A tracker account | the local log, statistics, ratings                                                                            | MAL / Trakt / Simkl sends and pulls                                                                |
+  | Anything at all   | anime keeps AniList: links, covers, NEXT SEASON and relations are public                                      | —                                                                                                  |
+
+  A key added later backfills: the like of the link pass offers matches for
+  what is already in the library, and never invents one.
+
+- **The player does not change.** A film plays like an episode; the only video
+  work is the aspect ratio (portrait video, c16 on the dramas-extensions
+  board).
+
+**The cards, in dependency order**
+
+| #   | Card                                                                                             | Waits on                                     |
+| --- | ------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| 1   | c986 "Kinds: a source's kind is not its family's, once an Aniyomi source serves films and shows" | —                                            |
+| 2   | c988 "Catalogue: one contract, and 'no catalogue' is a normal state"                             | —                                            |
+| 3   | c987 "Kinds: a film and a show, and a kind whose unit can be absent"                             | c986, K5 (c305)                              |
+| 4   | c989 "TMDB as the film and show catalogue, with no key meaning fewer niceties"                   | c987, c988                                   |
+| 5   | c990 "What surrounds this: seasons and collections, from whichever catalogue is linked"          | c989                                         |
+| 6   | c991 "Movies/ and Shows/ on disk, Jellyfin-shaped because it costs nothing"                      | c987                                         |
+| 7   | c992 "A film's screen has no list, and a show's seasons are the source's"                        | c987, c991                                   |
+| 8   | c993 "Trackers: any service, any kind, and a local answer with none"                             | c987                                         |
+| 9   | c994 "The setup brief, and HELP's keys-and-accounts topic"                                       | the brief now; the topic after c989 and c993 |
+| 10  | c995 "Adding the rest of a show: tsundoku lists the seasons it found, the owner picks"           | c989, c990                                   |
+| 11  | c979 "Kinds: a live-action drama is read as a show, not as anime"                                | c986, c987, c992                             |
+
+**Two questions the owner still has.** Whether the workstation gets a TMDB
+key to dogfood this (the bundle's own key, never the release host's), and
+whether Trakt or Simkl is the first tracker actually connected.
+
 ## Where the sources are
 
 The living Aniyomi-family repository is **`mojuru/anime-repo`** (formerly
@@ -296,7 +363,11 @@ against, and Jellyfin makes it provable without depending on a scraper at all.
 
 ## Follow-up cards this would take
 
-Proposed, not created (the owner decides):
+Created on 2026-11-12 as the cards in "Decided" above; the list is kept for
+the reasoning behind them. What changed from this proposal: the film kind is
+`movie` and the show kind is `show`; `storage` is deleted rather than set to
+`jellyfin`; seasons are not stamped from TMDB; and a film franchise is a
+Work, not a chain of its own.
 
 1. **A film is a kind** (`kind = 'film'`): one entry, no FOLLOW, no NEXT, its
    own shelf and count, and every door that switches on `kind` taught the

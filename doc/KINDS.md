@@ -24,7 +24,7 @@ new kind checks") applies from here on.
 ## Why
 
 tsundoku started as a manga library. Novels came next, then anime (rung 47,
-c153), and movies and TV shows are being considered (c295). Each kind was
+c153), and movies and TV shows are decided (c295, [`MOVIES-TV.md`](MOVIES-TV.md)). Each kind was
 added by teaching the places that broke about it, one `kind === 'anime'` at a
 time. Nothing says, in one place, what a kind is or what it can do. So any
 place nobody remembered stays manga-shaped, and that only shows up as a bug.
@@ -251,9 +251,10 @@ What each fact says today, and the lines it was read from:
   old parsers.
   `SOURCE_KINDS` is the same fact the other way round, and is what
   `FirstReadSource.kind` is now.
-- **Storage** is `library` for all five; `jellyfin` is the movies card's.
-  K3 read it and changed nothing by it: every current kind's files go under
-  the library root, so no writer asks yet.
+- **Storage** is being deleted with the movies cards (2026-11-12): one library
+  root with a folder per kind (`Movies/`, `Shows/`, `Anime/`), Jellyfin-shaped
+  by naming only. K3 read the fact and changed nothing by it: no writer asked,
+  and none will. [`MOVIES-TV.md`](MOVIES-TV.md), "Decided".
 - **Grouping** (since K3) is what GROUP binds a kind's series into
   (`src/lib/server/books.ts`): `books` for a doujin (single books into a
   series of books, which also fold editions and give the series its first
@@ -447,28 +448,52 @@ spec's failure message prints every counted line with its file and number, so
 a merge that changes the count is a one-line conversation rather than a
 mystery. When K5 lands, the baseline is what the allow-list alone leaves.
 
-## Movies and TV shows, once the registry exists
+## Movies and TV shows
 
-The owner's decisions, 2026-11-02:
+The owner's decisions, 2026-11-02 and 2026-11-12 (`doc/MOVIES-TV.md`,
+"Decided"):
 
-- Movies and TV shows live **in tsundoku**, not in another app.
-- Their files go into **Jellyfin's folders**. tsundoku downloads them **and
-  plays them too**, with its own player; Jellyfin serves them as well.
-- **Aniyomi-family extensions first** (whatever c295's spike finds works).
-  Stremio and debrid are not in scope.
-- Metadata from **TMDB**, tracking through **Trakt or Simkl** (c295 compares).
+- Movies and shows live **in tsundoku**, not in another app. tsundoku
+  downloads them and plays them in its own player.
+- Their files go under **the one library root**, in `Movies/` and `Shows/`,
+  Jellyfin-shaped by naming only: tsundoku does not depend on Jellyfin.
+- **Aniyomi-family extensions first.** Stremio and debrid are not in scope.
+- Metadata from **TMDB**, optional per install: no key means no link, no
+  overview, no collection, never an error.
+- **Trackers are accounts**, and a service says which kinds it takes
+  ([`TRACKING.md`](TRACKING.md)).
+- **Seasons are what the source returned.** A flat list stays flat, and
+  separate seasons are merged by the owner; TMDB finds what is missing and
+  never renumbers.
+- **A film franchise is a Work**, and a film's NEXT is the collection's next
+  part.
 
-In the registry, that is two entries:
+In the registry, that is two entries, and two facts change shape first:
 
-| Kind    | Medium | Unit | Catalogue  | Sources | Storage  | Movable |
-| ------- | ------ | ---- | ---------- | ------- | -------- | ------- |
-| `movie` | video  | —    | TMDB movie | aniyomi | jellyfin | yes     |
-| `show`  | video  | EP   | TMDB tv    | aniyomi | jellyfin | yes     |
+| Kind    | Medium | Unit | Catalogue  | Matches | Sources | Movable |
+| ------- | ------ | ---- | ---------- | ------- | ------- | ------- |
+| `movie` | video  | —    | TMDB movie | movie   | aniyomi | yes     |
+| `show`  | video  | EP   | TMDB tv    | show    | aniyomi | yes     |
 
-A movie is a series with one entry. Screens ask the registry for its unit (none),
-so it shows no episode list and no NEXT. A show's seasons ride on Works and
-Seasons (`doc/WORKS.md`) the way anime's do. The rung that adds both to the
-CHECK is the first movies card's, and it comes after c295 says the sources hold.
+- **`unit` becomes optional.** A film has none, and every reader
+  (`unitLabel`, `sheetMeta`, MOVE's nouns, the player's words) says what it
+  does then.
+- **`storage` goes.** One root with a folder per kind leaves the fact nothing
+  to say, and K3 recorded that no writer read it.
+- **A kind's catalogue may be unlinked** (no key): a state every door
+  answers, never a throw. `anilistType` still throws for a kind AniList does
+  not hold, so its call sites narrow or go through the catalogue contract.
+- **`SOURCE_KINDS` stops being one-to-one.** An Aniyomi source can serve
+  anime, films or shows, so the kind is a fact of the source and one series'
+  kind can be changed on its screen (card c986; c979's drama is the same
+  question).
+- **`MOVE_MAP`** gains both kinds, each mapping to `anime` because both are
+  video.
+
+A movie is a series with one entry. Screens ask the registry for its unit
+(none), so it shows no episode list and no NEXT — except the collection row.
+A show's seasons ride on the season facts and Works (`doc/WORKS.md`) the way
+anime's do. The rung that adds both to the CHECK is c987, after K5 (c305).
 
 ## The slices
 

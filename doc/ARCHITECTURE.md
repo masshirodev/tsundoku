@@ -97,10 +97,12 @@ can be handed to other people without asking them to run Suwayomi too.
 | Manga, manhwa, doujinshi | Mihon (Keiyoushi) | a headless JVM engine beside tsundoku                           |
 | Anime                    | Aniyomi           | the same engine                                                 |
 | Light and web novels     | LNReader plugins  | inside tsundoku, in a sandboxed host ([`NOVELS.md`](NOVELS.md)) |
+| Films and live-action TV | Aniyomi           | the same engine (decided 2026-11-12)                            |
 
 What each kind _is_ (its medium, unit, catalogue, sources, storage, and
-whether it moves) is planned to live in one registry, with movies and TV
-shows as its next entries: [`KINDS.md`](KINDS.md).
+whether it moves) lives in one registry, `src/lib/library/kinds.ts`, and
+films and TV shows are its next entries, decided: [`KINDS.md`](KINDS.md) and
+[`MOVIES-TV.md`](MOVIES-TV.md).
 
 **Extensions aren't self-contained, and they don't download.** A Mihon or
 Aniyomi extension is an Android APK built against `extensions-lib`, which is

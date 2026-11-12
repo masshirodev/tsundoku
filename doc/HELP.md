@@ -25,6 +25,16 @@ same IN SHORT as the page, so the two can't drift.
 | 06  | Backups and importing   | `backups`     | the library folder                                                                                                                              |
 | 07  | When something breaks   | `report`      | SAVE A REPORT                                                                                                                                   |
 
+**Planned (2026-11-12): a setup topic.** Films and shows use TMDB, and
+trackers use the user's own account, so the app has to explain the keys it
+asks for: a free TMDB key, a Trakt account, MAL — what each can track, what is
+off without it, and that nothing is required ([`MOVIES-TV.md`](MOVIES-TV.md),
+"Zero setup"). It is one new topic (probably `08 · Keys and accounts`), its
+text `src/lib/help/topics.ts` data like the rest, opened from every empty LINK
+or tracker row as `SET UP →`. `tests/help-domain.spec.ts` asserts seven topics
+today and will assert eight, or more if the design splits the services. Brief:
+`doc/briefs/SETUP.md` (to be written, card c994).
+
 **Words to keep true.** They describe the app: when a screen's word changes,
 its topic's line changes with it. `tests/help-domain.spec.ts` checks the
 shape (seven, three lines at most, unique anchors), that SETTINGS can open

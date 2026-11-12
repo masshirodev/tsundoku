@@ -249,6 +249,39 @@ SHOW`), and SHOW opens the row. A season with no link says why in the
   counted straight through ([`RANOBE.md`](RANOBE.md), "Anime"), and its EDIT
   is the same sheet with nothing to set.
 
+## Films, shows, and a tracker for any kind (planned, 2026-11-12)
+
+The owner: "we can do a extension like system for trackers too, so the user can
+use myanimelist, tmdb, etc for whatever kind they want." The accounts and the
+queue are already per service (`tracker_accounts`, `tracker_state`,
+`tracker_sends`), so what is missing is a declared capability per service and a
+service that can take live-action.
+
+| Service | Kinds it takes      | What it is here                                                                       |
+| ------- | ------------------- | ------------------------------------------------------------------------------------- |
+| AniList | manga, anime        | the main list, both today                                                             |
+| MAL     | manga, anime        | the second, today; it has no live-action entry, so never offered for a film or a show |
+| Trakt   | films, shows, anime | the first new one                                                                     |
+| Simkl   | films, shows, anime | after Trakt; it can be the one tracker for every kind                                 |
+| TMDB    | —                   | a catalogue and a rating store, not a watch log                                       |
+
+- **A film links once**, a series-level id with no season rows. **A show links
+  a season at a time**, as an anime does (`series_season_links`), or one row
+  where the source is flat.
+- **A film's watch is the event**: the player's `finish` when it ends, which
+  sends COMPLETED and its rating. A show sends episode progress.
+- **Nothing a film does may be sent to MAL.** The capability list is the
+  gate; there is no runtime guess.
+- **No account is required.** With none, the local log is the record, the
+  LISTS rows are absent rather than failing, and SETTINGS points at HELP's
+  setup topic ([`HELP.md`](HELP.md)).
+- **Installable third-party trackers** would go through the novels' plugin
+  host ([`NOVELS.md`](NOVELS.md)); first-party adapters come first.
+
+Cards: c993 ("Trackers: any service, any kind, and a local answer with none")
+and c994 (the setup brief and HELP's topic); the whole effort is
+[`MOVIES-TV.md`](MOVIES-TV.md), "Decided".
+
 ## Where it departs from the handoff
 
 - **The rating reaches only the season being watched**, which is what

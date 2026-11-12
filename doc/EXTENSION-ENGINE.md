@@ -520,7 +520,8 @@ and the same calls serve them: a film comes back as one episode and a show as
 one entry with every season flattened. Two of the ten English sources
 loaded played; what is missing is tsundoku's own model of a film and a show, not a
 source or an engine change. The measurements, the sources and the recommendation
-are in [`MOVIES-TV.md`](MOVIES-TV.md) (c295).
+are in [`MOVIES-TV.md`](MOVIES-TV.md) (c295); the plan is decided there
+("Decided, 2026-11-12") and carded under **Movies & TV**.
 
 ## KeiSource and how current the engine's API is
 
