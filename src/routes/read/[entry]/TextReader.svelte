@@ -16,7 +16,6 @@
 	import { MemberUnavailable } from '$lib/epub/remote';
 	import { flushPending, queuePending } from '$lib/cache/pending';
 	import { entryDocs } from '$lib/epub/epub';
-	import { paragraphAt } from '$lib/japanese/paragraph';
 	import {
 		HOLD_TURN_MS,
 		atPageEnd,
@@ -46,7 +45,6 @@
 		paintSpan,
 		shiftWord,
 		unpaint,
-		wordsBefore,
 		type BlockWords
 	} from '$lib/reader/text-marks';
 	import {
@@ -69,7 +67,8 @@
 	} from '$lib/cache/pending-highlights';
 	import { PHONE_W, type Placement } from '$lib/japanese/panel';
 	import { flushLookups } from '$lib/japanese/lookups';
-	import LookupPanel from '$lib/components/japanese/LookupPanel.svelte';
+	import LookupPanel from '$lib/components/lookup/LookupPanel.svelte';
+	import { packFor } from '$lib/languages';
 	import {
 		CURSOR_IDLE_MS,
 		CURSOR_KEY,
@@ -1242,7 +1241,8 @@
 	// A book's page is all text, so a tap can't be the lookup's as it is on a
 	// manga page: taps keep turning and showing the controls, and a long press
 	// on a word opens the shared panel, in a column away from it.
-	const japanese = $derived(/^ja\b/i.test(bookLocale(book?.pkg.language) ?? ''));
+	/** The pack that reads this book's language, or none (doc/LANGUAGES.md). */
+	const lookupPack = $derived(packFor(bookLocale(book?.pkg.language)));
 	type Lookup = {
 		text: string;
 		at: number;
@@ -1257,27 +1257,8 @@
 	/** The long press fired: the finger lifting afterwards isn't a tap. */
 	let pressed = false;
 	const PRESS_MS = 450;
-	function lookUpAt(x: number, y: number) {
-		const root = blocksEl?.contains(document.elementFromPoint(x, y)) ? blocksEl : nextEl;
-		const hit = root ? paragraphAt(root, x, y) : null;
-		if (!hit) return;
-		pressed = true;
-		chrome = false;
-		const block = hit.el.closest<HTMLElement>('[data-b]');
-		lookup = {
-			block: block && root === blocksEl ? Number(block.dataset.b) : null,
-			base: block && root === blocksEl ? wordsBefore(block, hit.el) : 0,
-			text: hit.text,
-			at: hit.at,
-			n: hit.n,
-			place:
-				innerWidth < PHONE_W
-					? { kind: 'phone', lift: 0 }
-					: { kind: 'side', side: x < innerWidth / 2 ? 'right' : 'left' }
-		};
-	}
 	$effect(() => {
-		if (!japanese) return;
+		if (!lookupPack) return;
 		void flushLookups();
 		const online = () => void flushLookups();
 		addEventListener('online', online);
@@ -2308,10 +2289,7 @@
 		pressed = false;
 		dragging = false;
 		clearTimeout(press);
-		if (down && japanese && !atEnd) {
-			const { x, y } = down;
-			press = setTimeout(() => lookUpAt(x, y), PRESS_MS);
-		} else if (down?.text) {
+		if (down?.text) {
 			const { x, y } = down;
 			press = setTimeout(() => selectWordAt(x, y), PRESS_MS);
 		}
@@ -2579,7 +2557,7 @@
 					keepSpan(selection, key === 'n');
 					return;
 				}
-				if (key === 'l' && japanese) {
+				if (key === 'l' && lookupPack) {
 					e.preventDefault();
 					lookUpSelection();
 					return;
@@ -2845,7 +2823,7 @@
 	onpointermove={pointermove}
 	onpointerup={pointerup}
 	onpointercancel={pointercancel}
-	oncontextmenu={(e) => japanese && e.preventDefault()}
+	oncontextmenu={(e) => e.preventDefault()}
 >
 	<div
 		class="page"
@@ -2943,7 +2921,7 @@
 			cue={holdCue}
 			incognito={data.incognito}
 			{canKeep}
-			lookUp={japanese}
+			lookUp={!!lookupPack}
 			fine={pointerFine.current}
 			{copied}
 			onwidth={(w) => {
@@ -3093,8 +3071,9 @@
 		</div>
 	{/if}
 
-	{#if lookup && entry}
+	{#if lookup && entry && lookupPack}
 		<LookupPanel
+			pack={lookupPack}
 			onfoot={lookup.block === null
 				? undefined
 				: (what, from, to) =>

@@ -125,7 +125,8 @@
 	} from '$lib/japanese/blocks';
 	import { placement, type Placement } from '$lib/japanese/panel';
 	import { flushLookups } from '$lib/japanese/lookups';
-	import LookupPanel from '$lib/components/japanese/LookupPanel.svelte';
+	import LookupPanel from '$lib/components/lookup/LookupPanel.svelte';
+	import { packs } from '$lib/languages';
 	import { between } from '$lib/library/editions';
 	import { registerBack } from '$lib/focus';
 
@@ -2682,6 +2683,7 @@
 
 	{#if lookup}
 		<LookupPanel
+			pack={packs.ja}
 			text={lookup.block.lines.join('')}
 			context={lookupContext}
 			placement={lookup.place}

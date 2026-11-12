@@ -27,7 +27,7 @@ import type { Entry, Gloss, Sense } from '../../languages/types.ts';
 
 const SOURCE = {
 	name: 'Wiktionary',
-	licence: 'CC BY-SA 3.0',
+	licence: 'CC BY-SA 4.0',
 	url: 'https://en.wiktionary.org/'
 } as const;
 

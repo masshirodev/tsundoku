@@ -1,7 +1,7 @@
 import { composeCard, furigana, rankCandidates, type LookupRecord } from 'kotoba';
 import { getDb } from '../db.ts';
 import { VISIBLE_SQL } from '../visibility.ts';
-import { define } from './dict.ts';
+import { lookupJmdict } from './dict.ts';
 
 /**
  * Mining (doc/JAPANESE.md): every lookup is logged; looked-up words become
@@ -126,7 +126,7 @@ export function candidates(reveal: boolean): Candidate[] {
 		.map((c): Candidate => {
 			const r = byId.get(c.lineId!)!;
 			const at = r.sentence.indexOf(r.surface);
-			const entry = define({
+			const entry = lookupJmdict({
 				lemma: r.lemma,
 				surface: r.surface,
 				reading: r.reading ?? undefined
@@ -178,7 +178,11 @@ function cardFor(lemma: string) {
 		)
 		.get(lemma) as
 		{ surface: string; reading: string | null; sentence: string; title: string } | undefined;
-	const entry = define({ lemma, surface: last?.surface, reading: last?.reading ?? undefined })[0];
+	const entry = lookupJmdict({
+		lemma,
+		surface: last?.surface,
+		reading: last?.reading ?? undefined
+	})[0];
 	const reading = last?.reading ?? entry?.kana[0] ?? null;
 	return composeCard({
 		lemma,

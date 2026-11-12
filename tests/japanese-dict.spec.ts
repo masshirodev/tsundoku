@@ -14,8 +14,8 @@ describe.skipIf(!existsSync(path))('looking words up through kotoba', () => {
 
 	it('finds a word by its dictionary form, with readings and meanings', () => {
 		const [first] = define({ lemma: '殺し屋' });
-		expect(first.kana).toContain('ころしや');
-		expect(first.senses[0].gloss.join(' ')).toMatch(/killer|assassin/i);
+		expect(first.reading).toContain('ころしや');
+		expect(first.senses[0].glosses.map((g) => g.text).join(' ')).toMatch(/killer|assassin/i);
 	});
 
 	it('falls back to the surface, then the reading', () => {

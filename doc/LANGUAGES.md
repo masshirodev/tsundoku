@@ -24,7 +24,7 @@ and the definitions come **from the workstation**.
   `{ pos, glosses }`, and a gloss is `{ lang, text }` with `lang` in `'en'` or
   `'pt'` (c200: definitions in English, PT-BR or both, per device).
 - **`source`** — dictionary name, licence and URL, on every entry. Wiktionary is
-  CC BY-SA 3.0, so the panel draws the line it names rather than the app having
+  CC BY-SA 4.0, so the panel draws the line it names rather than the app having
   to remember.
 
 A pack is two functions and a path:
@@ -127,15 +127,22 @@ install; that is the download card c195 still owes.
 3. A test with a fixture pack, and a `pack:<id>:check` with the numbers it was
    measured at.
 
+## In the reader
+
+`LookupPanel.svelte` takes a **pack**, not a language: it asks the pack to split
+the block, sets the words in the pack's face and size (Plex Sans JP 30px for
+Japanese, Plex Sans 24px for English — the handoff's Main 175), draws whatever
+ruby that language has, and renders one normalised entry with its source and
+licence line under it (Main 104). `packFor(locale)` picks the pack from the
+book's language, and a language with none shows no LOOK UP rather than a panel
+that answers nothing.
+
+**The gesture is one, not one per language.** In a book, a long press selects
+the word and raises the reader's bar, and LOOK UP on that bar opens the panel —
+English and Japanese alike. A manga keeps the tap: a page has no text to select.
+
 ## Not built yet
 
-- **The panel draws Japanese.** `LookupPanel.svelte` still sets furigana and asks
-  for a Japanese entry; the generic body is designed
-  ([`handoffs/lookup-panel/`](handoffs/lookup-panel/), the c202 brief) but not
-  wired.
-- **The reader resolves no pack.** `TextReader.svelte` gates lookup on
-  `const japanese = /^ja\b/i.test(locale)` — the one line that makes an English
-  novel show no LOOK UP at all.
 - **Downloading a pack**, and the Dictionary tab in Browse (c204).
 - **OCR** for a language that has no text to select (c195, c196), and mining a
   pack's words into flashcards (c203).

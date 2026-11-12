@@ -184,20 +184,25 @@ before UNDO, and it was put back by reading the chapter again.
 
 ### In a book (text reader)
 
-A Japanese EPUB (`dc:language` `ja…`) looks words up with a **long press**
-(450ms) on a word: the paragraph goes to the same panel, opened on the word
-pressed, as a 420px column on the side away from the finger (from the bottom on
-a phone). Furigana already in the book (`rt`) isn't read as text. The panel is
-headed `LOOKUP · CH. 212 · ¶ 1` and has no NOT TEXT. Taps keep turning pages
-and showing the controls (see Departures).
+A Japanese EPUB (`dc:language` `ja…`) looks words up from the reader's own
+selection bar. A **long press** (450ms) selects the word and raises HIGHLIGHT,
+NOTE, COPY and LOOK UP; LOOK UP sends the paragraph to the same panel, opened on
+the word selected, as a 420px column on the side away from the finger (from the
+bottom on a phone). Furigana already in the book (`rt`) isn't read as text. The
+panel is headed `LOOKUP · CH. 212 · ¶ 1` and has no NOT TEXT. Taps keep turning
+pages and showing the controls (see Departures).
+
+**The gesture is the language's, not the reader's** (c198): press, then LOOK UP,
+in every language with a pack. A manga keeps the tap, because a page has no text
+to select — the image reader looks up on a tap.
 
 **The panel's foot** (c702, Novel J2 and J3) gains HIGHLIGHT, NOTE and SELECT MORE
 over its LOGGED line, in the text reader only: HIGHLIGHT keeps the word the panel
 has selected, NOTE keeps it and opens its sheet on the note, and SELECT MORE
 closes the panel with that word as a selection with handles and the reader's bar
 (with LOOK UP on it, the one language that has a pack). In incognito and a
-browsing record, HIGHLIGHT and NOTE aren't offered. A long press on a Japanese
-book is still the lookup: selecting is its foot's, or a mouse's drag.
+browsing record, HIGHLIGHT and NOTE aren't offered. The foot closes the loop the
+other way: SELECT MORE turns the panel's word back into a selection.
 
 ## Mining
 
@@ -244,8 +249,9 @@ token), keeps them marked, and **RETRY SEND** sends them again.
   base form, not the conjugation's name.
 - **No blocks on a split or turned wide page**: the half or the turn isn't
   where OCR saw the text. They come back with WIDE PAGES on WHOLE.
-- **In a book, a long press, not a tap.** A book's page is all text; if a tap
-  looked up, pages could never turn or show the controls by tapping.
+- **In a book, a long press and then LOOK UP, not a tap.** A book's page is all
+  text; if a tap looked up, pages could never turn or show the controls by
+  tapping, and the press is the reader's own selection.
 - **The series OCR row shows on every manga, manhwa and doujin**, as 4a's
   NOT DETECTED frame implies, so a series the workstation missed can be
   switched on.

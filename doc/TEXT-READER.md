@@ -476,8 +476,8 @@ stays `user-select: none`: a selection is the reader's own state, a span in
 position is unaffected by a mark on or off.
 
 - **Making one.** A **long press** (450 ms, the reader's own) selects the word and the
-  bar comes up over it; a Japanese book keeps the long press for the lookup, and its
-  panel's foot has HIGHLIGHT, NOTE and SELECT MORE. Two square handles extend it,
+  bar comes up over it, with LOOK UP on it whenever the book's language has a pack
+  (doc/LANGUAGES.md, c198); that panel's foot has HIGHLIGHT, NOTE and SELECT MORE. Two square handles extend it,
   a sideways drag on a vertical book reaching the next column. With a **fine pointer
   a drag on the words selects** (never turns a page, and off the words it still
   turns); on touch, drags still turn. HIGHLIGHT keeps it, at once and with nothing

@@ -1,29 +1,27 @@
 <script lang="ts">
-	import { tokenize, type Token } from 'kotoba';
 	import { resolve } from '$app/paths';
 	import { offline } from '$lib/offline.svelte';
-	import { firstWord, inflection, ordinal, posLabel, type Placement } from '$lib/japanese/panel';
+	import { firstWord, ordinal, type Placement } from '$lib/japanese/panel';
 	import { queueLookup, type LookupBody } from '$lib/japanese/lookups';
+	import type { Pack } from '$lib/languages';
+	import type { Entry, Token } from '$lib/languages/types';
 
 	/**
-	 * The lookup panel (Index Japanese, 1b / 1c / 2a; doc/JAPANESE.md), shared
-	 * by the image reader (a text block) and the text reader (a paragraph).
+	 * The lookup panel (Index Japanese 1b / 1c / 2a; then
+	 * handoffs/lookup-panel/, Panel.dc.html, c202 / c195), shared by the image
+	 * reader (a text block) and the text reader (a paragraph).
 	 *
-	 * The text is split into words on this device (kotoba, kuromoji), set
-	 * horizontally with furigana whatever it was on the page, so the words are
-	 * wide tap targets in reading order. The selected word is inverted. Its
-	 * meanings come from JMdict on the workstation. Every word looked up is
-	 * logged for mining, except in incognito, and on this device while
-	 * offline, to send later.
+	 * The text is split into words on this device by the series' **pack**, set
+	 * horizontally with whatever ruby that language has (none, in English), so
+	 * the words are wide tap targets in reading order. The selected word is
+	 * inverted. Its meanings come from the pack's dictionary on the
+	 * workstation, in one normalised entry shape: this component never asks
+	 * which language answered, and every entry ends with its source and licence
+	 * (Main 104). Every word looked up is logged for mining, except in
+	 * incognito, and on this device while offline, to send later.
 	 */
-	type Entry = {
-		kanji: string[];
-		kana: string[];
-		common: boolean;
-		senses: { pos: string[]; gloss: string[] }[];
-	};
-
 	let {
+		pack,
 		text,
 		context,
 		placement,
@@ -38,6 +36,8 @@
 		onfoot,
 		canKeep = false
 	}: {
+		/** The language's pack: the words, the face, the dictionary's query. */
+		pack: Pack;
 		/** The block's or paragraph's text. */
 		text: string;
 		/** "P. 14 · BLOCK 1", "CH. 212 · ¶ 1" */
@@ -76,9 +76,10 @@
 	$effect(() => {
 		const t = text;
 		const at = start;
+		const p = pack;
 		tokens = null;
 		failed = false;
-		tokenize(t)
+		p.segment(t)
 			.then((tk) => {
 				tokens = tk;
 				selected = at === null ? firstWord(tk) : wordAt(tk, at);
@@ -119,11 +120,12 @@
 		loggedHere = false;
 		let gone = false;
 		if (offline.online) {
-			const q = new URLSearchParams({
-				lemma: t.lemma,
-				surface: t.surface,
-				...(t.reading ? { reading: t.reading } : {})
-			});
+			const range = selectedRange();
+			// The text after the word, so the dictionary can complete a phrase
+			// ("give up" for a tap on "give"); each pack asks for what it needs.
+			const after = range ? text.slice(range.to) : '';
+			const q = pack.query(t, after.slice(0, 80));
+			q.set('pack', pack.id);
 			void fetch(`${resolve('/api/define')}?${q}`)
 				.then((r) => (r.ok ? (r.json() as Promise<{ entries: Entry[] }>) : null))
 				.then((r) => {
@@ -170,6 +172,10 @@
 
 	const head = $derived(entries?.[0] ?? null);
 	const shown = $derived((entries ?? []).slice(0, 3));
+	/** The form met and the one answered: "gave ← give", "描いた ← 描く". */
+	const inflection = $derived(
+		token ? pack.inflection(token.surface, token.lemma, head?.headword ?? null) : ''
+	);
 </script>
 
 <svelte:window
@@ -199,7 +205,11 @@
 		<button type="button" class="cell x" aria-label="Close lookup" onclick={onclose}>✕</button>
 	</div>
 
-	<div class="words" lang="ja">
+	<div
+		class="words"
+		lang={pack.lang}
+		style="--words-family: {pack.words.family}; --words-size: {pack.words.size}"
+	>
 		{#if tokens}
 			{#each tokens as t, i (i)}
 				{#if t.lookupable}
@@ -214,6 +224,7 @@
 							{#if sg.ruby}<ruby>{sg.text}<rt>{sg.ruby}</rt></ruby>{:else}<span>{sg.text}</span
 								>{/if}
 						{/each}
+						{#if t.segments.length === 0}{t.surface}{/if}
 					</button>
 				{:else}
 					<span class="w p">{t.surface}</span>
@@ -229,39 +240,47 @@
 	<div class="entry">
 		{#if token && token.lookupable}
 			<div class="hw">
-				<span class="lemma" lang="ja">{head?.kanji[0] ?? token.lemma}</span>
-				<span class="readings" lang="ja"
-					>{(head?.kana ?? (token.reading ? [token.reading] : [])).join(' · ')}</span
-				>
+				<span class="lemma" lang={pack.lang}>{head?.headword ?? token.lemma}</span>
+				{#if head?.reading}<span class="readings" lang={pack.lang}>{head.reading}</span>{/if}
 				{#if head?.common}<span class="common">COMMON</span>{/if}
 			</div>
-			{#if inflection(token.surface, token.lemma)}
-				<div class="infl" lang="ja">{inflection(token.surface, token.lemma)}</div>
+			{#if inflection}
+				<div class="infl" lang={pack.lang}>{inflection}</div>
 			{/if}
 			{#if !offline.online}
 				<div class="offline">
 					<div class="ot">○ NO MEANINGS OFFLINE</div>
 					<p>
-						The words and readings come from this device. The meanings are in JMdict on the
+						The words and readings come from this device. The meanings are in {pack.dictionary} on the
 						workstation, and show once it is reachable.
 					</p>
 				</div>
 			{:else if entries && shown.length === 0}
-				<div class="offline"><div class="ot">NOT IN JMDICT</div></div>
+				<div class="offline"><div class="ot">NOT IN THE DICTIONARY</div></div>
 			{:else}
 				{#each shown as e, n (n)}
 					<div class="sense-block">
 						<div class="n">{n + 1}</div>
 						<div class="senses">
-							<div class="pos">{posLabel(e.senses[0]?.pos ?? [])}</div>
-							{#each e.senses.slice(0, 3) as s, k (k)}
+							<div class="pos">{pack.posLabel(e.senses[0]?.pos ?? [])}</div>
+							{#each e.senses.slice(0, 4) as s, k (k)}
 								<div class="sense">
-									<span class="sn">{k + 1}</span><span>{s.gloss.join('; ')}</span>
+									<span class="sn">{k + 1}</span><span
+										>{s.glosses.map((g) => g.text).join('; ')}</span
+									>
 								</div>
 							{/each}
 						</div>
 					</div>
 				{/each}
+				{#if head?.source}
+					<!-- The source line ends every entry: CC BY-SA asks for the attribution. -->
+					<div class="source">
+						<span>{head.source.name.toUpperCase()} · {head.source.licence.toUpperCase()}</span>
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a dictionary's own page, not a route of ours -->
+						<a href={head.source.url} target="_blank" rel="noreferrer">PAGE ↗</a>
+					</div>
+				{/if}
 			{/if}
 		{/if}
 	</div>
@@ -374,9 +393,7 @@
 		overflow-y: auto;
 		padding: 18px 24px 20px;
 		border-bottom: var(--rule-strong);
-		font:
-			500 30px/1 'IBM Plex Sans JP',
-			var(--font-sans);
+		font: 500 var(--words-size, 30px) / 1 var(--words-family, var(--font-sans));
 	}
 	.w {
 		display: flex;
@@ -488,6 +505,22 @@
 	.sn {
 		font: 400 13px/1.8 var(--font-mono);
 		color: var(--text-2);
+	}
+	.source {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 14px 24px;
+		border-top: var(--hairline);
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.04em;
+		color: var(--text-2);
+	}
+	.source a {
+		color: inherit;
+		text-decoration: none;
+		border-bottom: 1px solid var(--text-2);
 	}
 	.offline {
 		padding: 16px 24px;

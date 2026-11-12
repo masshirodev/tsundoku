@@ -255,7 +255,9 @@ test('N1: a long press selects the word and brings up the bar over it', async ({
 	const box = await bar(page).boundingBox();
 	const line = await page.locator('.sel').boundingBox();
 	expect(box!.y + box!.height).toBeLessThanOrEqual(line!.y + 1);
-	await expect(bar(page).getByRole('button')).toHaveText(['HIGHLIGHT', 'NOTE', 'COPY']);
+	// LOOK UP is the bar's fourth cell wherever the book's language has a pack
+	// (c198): the panel opens from the selection, not from the press itself.
+	await expect(bar(page).getByRole('button')).toHaveText(['HIGHLIGHT', 'NOTE', 'COPY', 'LOOK UP']);
 });
 
 /** The selection's words, as the page shows them. */
@@ -372,7 +374,8 @@ test.describe('a mouse', () => {
 		await page.mouse.up();
 		await expect(bar(page)).toBeVisible();
 		expect(await page.locator('.flow').evaluate((el: HTMLElement) => el.style.transform)).toBe(tx);
-		await expect(bar(page).locator('.key')).toHaveText(['H', 'N']);
+		// H, N and L: LOOK UP is on the bar for a book whose language has a pack.
+		await expect(bar(page).locator('.key')).toHaveText(['H', 'N', 'L']);
 		const text = await selected(page);
 		await page.keyboard.press('h');
 		await expect(page.locator('.mk').first()).toBeVisible();
@@ -719,7 +722,8 @@ test('incognito: no HIGHLIGHT or NOTE, one INCOGNITO cell, a highlight still ope
 	await longPress(page, b.x, b.y);
 	await expect(bar(page)).toBeVisible();
 	await expect(bar(page).locator('.x')).toHaveText('INCOGNITO');
-	await expect(bar(page).getByRole('button')).toHaveText(['COPY']);
+	// Incognito keeps LOOK UP: a lookup may be made, it is just never logged.
+	await expect(bar(page).getByRole('button')).toHaveText(['COPY', 'LOOK UP']);
 	await page.mouse.click(page.viewportSize()!.width / 2, page.viewportSize()!.height - 90);
 	await page.locator('.mk').first().click();
 	await sheet(page).getByLabel('NOTE').fill('still mine');
@@ -1022,14 +1026,24 @@ test.describe('a Japanese book', () => {
 			return { x: c.left + c.width / 2, y: c.top + c.height / 2 };
 		});
 
+	/**
+	 * The way into the panel for any language with a pack (c198): a long press
+	 * selects the word, and LOOK UP on the bar opens the panel over it.
+	 */
+	async function lookUpFrom(page: Page, p: { x: number; y: number }) {
+		await longPress(page, p.x, p.y);
+		await expect(bar(page)).toBeVisible();
+		await bar(page).getByRole('button', { name: 'LOOK UP' }).click();
+		const panel = page.getByRole('region', { name: 'Lookup' });
+		await expect(panel.locator('.words .w.on')).toBeVisible({ timeout: 15_000 });
+		return panel;
+	}
+
 	test('J2: a long press is still the lookup, and its foot keeps the word', async ({ page }) => {
 		const id = await openJapanese(page);
 		const p = await textPoint(page);
-		await longPress(page, p.x, p.y);
-		const panel = page.getByRole('region', { name: 'Lookup' });
-		await expect(panel).toBeVisible();
+		const panel = await lookUpFrom(page, p);
 		await expect(bar(page)).toHaveCount(0);
-		await expect(panel.locator('.words .w.on')).toBeVisible({ timeout: 15_000 });
 		await expect(panel.getByRole('button', { name: 'HIGHLIGHT' })).toBeVisible();
 		await panel.getByRole('button', { name: 'HIGHLIGHT' }).click();
 		await expect(panel).toHaveCount(0);
@@ -1058,9 +1072,7 @@ test.describe('a Japanese book', () => {
 	test('J3: SELECT MORE makes it a selection with the bar, LOOK UP and all', async ({ page }) => {
 		const id = await openJapanese(page);
 		const p = await textPoint(page);
-		await longPress(page, p.x, p.y);
-		const panel = page.getByRole('region', { name: 'Lookup' });
-		await expect(panel.locator('.words .w.on')).toBeVisible({ timeout: 15_000 });
+		const panel = await lookUpFrom(page, p);
 		await panel.getByRole('button', { name: 'SELECT MORE' }).click();
 		await expect(panel).toHaveCount(0);
 		await expect(bar(page)).toBeVisible();
@@ -1074,9 +1086,7 @@ test.describe('a Japanese book', () => {
 	test('a selection overlapping a highlight joins it at the foot too', async ({ page }) => {
 		const id = await openJapanese(page);
 		const p = await textPoint(page);
-		await longPress(page, p.x, p.y);
-		const panel = page.getByRole('region', { name: 'Lookup' });
-		await expect(panel.locator('.words .w.on')).toBeVisible({ timeout: 15_000 });
+		const panel = await lookUpFrom(page, p);
 		await panel.getByRole('button', { name: 'NOTE' }).click();
 		await expect(panel).toHaveCount(0);
 		await expect(sheet(page)).toBeVisible();
@@ -1084,8 +1094,7 @@ test.describe('a Japanese book', () => {
 		await expect.poll(() => quotesOf(id)[0]?.note).toBe('first');
 		await page.keyboard.press('Escape');
 		// The same word pressed again, kept again: one row, the older note kept.
-		await longPress(page, p.x, p.y);
-		await expect(panel.locator('.words .w.on')).toBeVisible({ timeout: 15_000 });
+		await lookUpFrom(page, p);
 		await panel.getByRole('button', { name: 'HIGHLIGHT' }).click();
 		await expect(page.locator('.mk')).toHaveCount(1);
 		await page.waitForTimeout(200);

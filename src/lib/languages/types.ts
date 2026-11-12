@@ -44,6 +44,8 @@ export type Entry = {
 	/** The word or phrase this entry defines: "give", "give up". */
 	headword: string;
 	reading: string | null;
+	/** A dictionary marks the everyday word: JMdict sets this, Wiktionary does not. */
+	common?: boolean;
 	/**
 	 * Senses in the dictionary's own order. The panel draws each entry whole,
 	 * so a phrase entry and the single word inside it are two entries in the

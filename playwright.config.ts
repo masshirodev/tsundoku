@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { BROWSE_PORT } from './tests/browse-world';
 import { FRIEND_PORT } from './tests/friend-world';
 import { HOST_ARGS } from './tests/helpers/host-args';
+import { EN_PACK_PATH } from './tests/helpers/en-pack-path';
 
 const previewPort = Number.parseInt(process.env.PLAYWRIGHT_PORT ?? '4183', 10);
 
@@ -100,7 +101,13 @@ export default defineConfig({
 	// built (tests/browse-setup.ts): the browse project below runs against it.
 	// And a friend's install (tests/friend-setup.ts), for the friend project.
 	// The run's directory first, so its teardown -- removing it -- runs last.
-	globalSetup: ['./tests/helpers/run-dir.ts', './tests/browse-setup.ts', './tests/friend-setup.ts'],
+	globalSetup: [
+		'./tests/helpers/run-dir.ts',
+		// The English pack the preview is told about below (c198): five words, not 300 MB.
+		'./tests/en-pack-setup.ts',
+		'./tests/browse-setup.ts',
+		'./tests/friend-setup.ts'
+	],
 	// The second names the tests that did not run and the reds that kept them
 	// out (tests/helpers/not-run-reporter.ts, c439): a bare "12 did not run" was
 	// read as a green `duplicates` and `gate` in wave 19's gate.
@@ -162,7 +169,9 @@ export default defineConfig({
 					// Nor may a snapshot of the test database land beside the real ones.
 					BACKUP_DIR: join(tmpdir(), 'tsundoku-e2e-backups'),
 					// Nor may it reach AniList: a paste reads as unreachable (doc/LINKS.md).
-					TSUNDOKU_ANILIST: 'off'
+					TSUNDOKU_ANILIST: 'off',
+					// The English pack globalSetup writes, so an English novel's lookup answers.
+					TSUNDOKU_EN_PACK: EN_PACK_PATH
 				},
 				port: previewPort,
 				reuseExistingServer: !process.env.CI,
