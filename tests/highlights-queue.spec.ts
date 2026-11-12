@@ -6,6 +6,7 @@ import {
 	flushHighlights,
 	isQuoteKey,
 	onQueueChange,
+	queueCovering,
 	queueHighlight,
 	quoteKey,
 	refusedDetail,
@@ -1045,6 +1046,59 @@ describe('a quote waits like a page (c702)', () => {
 			const [fresh] = await waitingHighlights();
 			expect(fresh.key).toBe(covered.key);
 			expect(fresh.revised).toBeUndefined();
+		});
+
+		it('a press the device will not keep leaves what it covers waiting (round 4)', async () => {
+			await queueHighlight(covered, 1);
+			// Storage that still deletes but aborts a write, as a full quota does.
+			const put = store.put;
+			store.put = async () => {
+				throw new DOMException('full', 'QuotaExceededError');
+			};
+			const kept = await queueCovering(join([covered]), [covered.key], 2);
+			store.put = put;
+			expect(kept).toBe(false);
+			const waiting = await waitingHighlights();
+			expect(waiting.map((i) => i.key)).toEqual([covered.key]);
+			expect(waiting[0].body).toEqual(covered.body);
+			expect(supersededKeys()).toEqual([]);
+		});
+
+		it('a press kept on the device supersedes what it covers, after the write', async () => {
+			await queueHighlight(covered, 1);
+			const press = join([covered]);
+			expect(await queueCovering(press, [covered.key], 2)).toBe(true);
+			expect((await waitingHighlights()).map((i) => i.key)).toEqual([press.key]);
+			// Superseded, not taken back: a POST of the quote's still out DELETEs nothing.
+			expect(supersededKeys()).toEqual([covered.key]);
+			expect(carriedBy(covered.key)?.body).toEqual(covered.body);
+		});
+
+		it('the exact re-press replaces the item in one write, and a refused one keeps the old', async () => {
+			await queueHighlight(covered, 1);
+			expect(await reviseHighlight(covered.key, { colour: 'blue' })).toBe(true);
+			const again: NewHighlight = {
+				...covered,
+				body: { ...covered.body, colour: 'blue' },
+				revised: ['colour']
+			};
+			const put = store.put;
+			store.put = async () => {
+				throw new DOMException('full', 'QuotaExceededError');
+			};
+			expect(await queueCovering(again, [covered.key], 2)).toBe(false);
+			store.put = put;
+			// Refused: the item that waited is the one still there, revised as it was.
+			let [only] = await waitingHighlights();
+			expect(only.at).toBe(1);
+			expect(only.revised).toEqual(['colour']);
+			// Kept: the new item stands in its place, never absent between.
+			expect(await queueCovering(again, [covered.key], 3)).toBe(true);
+			[only] = await waitingHighlights();
+			expect(store.items.size).toBe(1);
+			expect(only.at).toBe(3);
+			expect(only.revised).toEqual(['colour']);
+			expect(supersededKeys()).toEqual([]);
 		});
 
 		it('the exact re-press of a waiting quote carries the colour the reader chose', async () => {

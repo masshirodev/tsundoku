@@ -394,9 +394,16 @@ NOT KEPT` when several, with DISMISS. The row keeps no words (`sendAll` drops
   only when that POST `made` the row, so a press answered by an existing row
   leaves that row alone).
 
-**A waiting quote joined by a selection is superseded, not deleted.** The join's
-own press is what is sent (`keepSpan`), so the waiting item is taken back with
-`supersedeHighlight`, which records the item's key and `at`. When the queue's POST
+**A waiting quote joined by a selection is superseded, not deleted, and only
+once the join is kept.** The join's own press is what is sent (`keepSpan`), but
+the waiting item stays on the device until that press is kept somewhere: written
+to the device (`queueCovering` writes the press, then supersedes what it covers)
+or answered by the workstation (`sendQuote`). A press kept nowhere (a device
+that refuses the write, a refused POST, a reader in reveal) leaves the quote
+waiting as it was, note and all, and draws it again. The exact re-press of a
+waiting quote is one write over the item, so the item is never absent. Only then
+is the waiting item taken back with `supersedeHighlight`, which records the
+item's key and `at`. When the queue's POST
 then finds that item gone, `landed` consumes the record and sends no DELETE: the
 workstation folded what that POST made into the join's row and kept its id, so a
 DELETE would take the joined highlight and its note away. A genuine DELETE or
@@ -405,16 +412,18 @@ record is the tab's own, and it only matters to the page that was running
 `landed`: a reload ends that page, so no DELETE is sent at all and the row is
 left for the join to fold; only a second tab holding the queue still sends it.
 
-**A join that waits carries what it took in.** A selection over a waiting quote
-takes it off the device before the join has an answer, so if the join itself
-waits (offline, or a POST that got no answer) the covered quote would exist
-nowhere. The join's queue item therefore carries each covered quote — key, body,
+**A join that waits carries what it took in.** Once a join waiting on the
+device is written, the quotes it covered leave the device, so if the join is
+later refused the covered quote would exist nowhere. The join's queue item therefore carries each covered quote — key, body,
 entry, label, and what the reader changed of it while it waited — and
 `sendAll` puts every one back, with its note, **before** it records the join
 refused. A refusal of the join is reachable without a reader bug: the
 workstation caps a quote at 20,000 characters and its paragraph and context at
 40,000 (`quotes.ts`), and a join covers the union of every span it took in.
-Sent, the join absorbs them; DON'T SEND and DELETE take them with it.
+Sent, the join absorbs them; DON'T SEND and DELETE take them with it. A join
+deleted while its POST is out takes them back too (`takeBackHighlight`, not a
+supersede), so a POST of theirs already out has what it made set aside: the
+reader deleted the highlight that held them.
 
 **UNDO is DELETE's inverse.** `takeBackHighlight` hands the removed item back,
 `covers` and `revised` with it, so an UNDOne join is queued as it was and a later

@@ -146,7 +146,9 @@ chosen for a row that turned out to exist already, goes to the row the answer
 named by PATCH, beside the door (`/api/highlights/<id>`). An item taken back during
 its POST has what that POST **made** set aside by DELETE, and only that: an answer
 of a row already there leaves the row. Taken back because a later press covers it
-(a selection joining a waiting quote) the item is **superseded** instead: the
+(a selection joining a waiting quote), and only once that press is kept, written
+on the device or answered by the workstation, the item is **superseded** instead
+(a press kept nowhere leaves it waiting): the
 workstation folds what that POST made into the covering row and keeps its id, so
 no DELETE is sent. That record is the tab's own (`supersedeHighlight`) and
 only the page running `landed` reads it: a reload ends that page, so no DELETE is

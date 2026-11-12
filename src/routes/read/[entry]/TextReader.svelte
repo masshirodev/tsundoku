@@ -53,6 +53,7 @@
 		carriedBy,
 		isQuoteKey,
 		onQueueChange,
+		queueCovering,
 		queueHighlight,
 		quoteKey,
 		refusedDetail,
@@ -1347,6 +1348,9 @@
 		// words the press already covers (c702's round 9). `settleQuote` puts it back
 		// if the press doesn't take, so nothing needs this copy.
 		const joining = new Set([...joinedBy.values()].flat().map((j) => j.id));
+		// Likewise a waiting quote a press took in: it stays on the device until the
+		// press is kept (round 4), and the press is what is drawn over its words.
+		const covering = new Set([...joinedWaiting.keys()].flatMap((id) => waitingKeysOf(id)));
 		const fresh = anchored(list, id).filter((q) => !goneHere.has(q.id) && !joining.has(q.id));
 		// Made while this list was out: `quotes` was emptied as the chapter opened, so all of it is this chapter's.
 		const pressed = quotes.filter((q) => !fresh.some((f) => f.id === q.id));
@@ -1355,7 +1359,7 @@
 			...fresh,
 			...pressed,
 			...waiting
-				.filter((i) => !drawn.has(i.key))
+				.filter((i) => !drawn.has(i.key) && !covering.has(i.key))
 				.map((i): Shown => ({ ...(i.body as KeptQuote), id: nextTemp--, waiting: i.key }))
 		];
 		drawMarks();
@@ -1707,10 +1711,10 @@
 		if (!parts) return;
 		const place = toFull(parts.span);
 		const oldest = joined[0];
-		// What joined was waiting too: the new item, which covers them, goes in their
-		// place. Superseded, not unwanted: the workstation folds their row into the
-		// join, and its id lives on, so no DELETE is owed for what their POST makes.
-		for (const j of joined) if (j.waiting) void supersedeHighlight(j.waiting);
+		// What joined was waiting too stays on the device until this press is kept
+		// somewhere (round 4): the queue's own write (`queueCovering`) or the
+		// workstation's answer (`sendQuote`) supersedes it, and a press that is kept
+		// nowhere leaves it waiting as it was, note and all.
 		const temp: KeptQuote = {
 			...place,
 			id: nextTemp--,
@@ -1798,15 +1802,19 @@
 		// What this press took in waits inside its own item, so a refusal of that
 		// item can put them back (a refusal the page may not be open to hear).
 		const { covers, revised } = carryFor(id, key, body.entry);
-		const queued = await queueHighlight({
-			key,
-			url: QUOTES_URL,
-			body: body as unknown as Record<string, unknown>,
-			entry: body.entry,
-			label: `¶ ${body.block + 1}`,
-			...(covers.length ? { covers } : {}),
-			...(revised.length ? { revised } : {})
-		});
+		// The press first, then what it covers leaves the device: refused, they stay.
+		const queued = await queueCovering(
+			{
+				key,
+				url: QUOTES_URL,
+				body: body as unknown as Record<string, unknown>,
+				entry: body.entry,
+				label: `¶ ${body.block + 1}`,
+				...(covers.length ? { covers } : {}),
+				...(revised.length ? { revised } : {})
+			},
+			waitingKeysOf(id)
+		);
 		if (!queued) {
 			// The browser won't keep it: nothing here may claim that it waits.
 			restoreJoinedWaiting(id, body.entry);
@@ -1886,14 +1894,36 @@
 	function restoreJoinedWaiting(id: number, of: number) {
 		const joined = joinedWaiting.get(id) ?? [];
 		joinedWaiting.delete(id);
-		if (deletedInFlight.has(id)) return;
-		for (const j of joined) {
-			if (!j.waiting) continue;
-			const cover = coverOf(j, of);
-			void queueHighlight(cover).then((queued) => {
-				if (queued) putBack({ ...j, waiting: cover.key }, of);
-			});
+		const waiting = joined.filter((j) => j.waiting);
+		if (waiting.length === 0) return;
+		// Deleted in flight: what it took in goes with it. Since round 4 those
+		// quotes are still on the device (nothing superseded them), so they are
+		// taken back here, as DELETE takes back a waiting quote.
+		if (deletedInFlight.has(id)) {
+			for (const j of waiting) void takeBackHighlight(j.waiting!);
+			return;
 		}
+		void waitingHighlights().then((items) => {
+			const held = new Set(items.map((i) => i.key));
+			for (const j of waiting) {
+				// Never taken off the device (round 4): it waits as it was; draw it.
+				if (held.has(j.waiting!)) {
+					putBack(j, of);
+					continue;
+				}
+				// Gone meanwhile (the queue sent it while the press was out): put it
+				// back as it was, and the door answers the repeat with its row.
+				const cover = coverOf(j, of);
+				void queueHighlight(cover).then((queued) => {
+					if (queued) putBack({ ...j, waiting: cover.key }, of);
+				});
+			}
+		});
+	}
+
+	/** The waiting quotes a press at temp [id] took in, by their keys on the device. */
+	function waitingKeysOf(id: number): string[] {
+		return (joinedWaiting.get(id) ?? []).flatMap((j) => (j.waiting ? [j.waiting] : []));
 	}
 
 	/** Band's say-so for a press that didn't take, and marks taken back. */
@@ -1912,6 +1942,9 @@
 				return { row: null, unreachable: false };
 			}
 			const j = (await res.json()) as { highlight: KeptQuote; folded: number[] };
+			// Kept by the workstation, which folded what it covers: those leave the
+			// device now (superseded, so a POST of theirs still out DELETEs nothing).
+			for (const key of waitingKeysOf(id)) void supersedeHighlight(key);
 			// Deleted on its way: the row is DELETE's now, and it isn't drawn again.
 			settleQuote(id, deletedInFlight.has(id) ? null : j.highlight, j.folded, body.entry);
 			return { row: j.highlight, unreachable: false };
@@ -2133,6 +2166,9 @@
 				// UNDO carries exactly what the queue would have.
 				const key = quoteKey(of, q.block, q.offset, q.endBlock, q.endOffset);
 				const carried = carryFor(q.id, key, of);
+				// What it took in is DELETE's too: still on the device unless the
+				// device's write already superseded it (round 4).
+				for (const k of waitingKeysOf(q.id)) void takeBackHighlight(k);
 				joinedWaiting.delete(q.id);
 				offerRequeue(q, of, {
 					covers: carried.covers.length ? carried.covers : undefined,

@@ -2097,11 +2097,12 @@ test('R3 a join deleted while its POST is out, then refused: nothing is put back
 	// The reader wanted the join gone, so the quote it took in is not put back.
 	expect(await queued(page)).toHaveLength(0);
 	await expect(page.locator('.mk')).toHaveCount(0);
-	// The POST already out for that quote is past recall: its row stands (the
-	// record's documented narrow cost), and nothing is DELETEd for it.
+	// The POST already out for that quote makes its row, and that row is set aside:
+	// since round 4 the quote was still on the device when the join was deleted,
+	// so DELETE took it back (not a supersede), and what its POST made goes too.
 	held.releaseQueue('continue');
-	await expect.poll(() => quotesOf(id).length, { timeout: 30_000 }).toBe(1);
-	expect(held.deletes).toEqual([]);
+	await expect.poll(() => held.deletes.length, { timeout: 30_000 }).toBe(1);
+	await expect.poll(() => quotesOf(id).length).toBe(0);
 	await expect(page.locator('.mk')).toHaveCount(0);
 });
 
@@ -3093,47 +3094,189 @@ test('R16 UNDO of a re-press deleted in flight, after a crossing, keeps it under
 });
 
 /**
- * Round 17 (c702, wave 46): a device whose storage stops keeping new writes
- * after a quote already waits there (a full quota: a delete still goes through,
- * a larger put is aborted). A press joining that quote takes it off the device
- * first (`supersedeHighlight`), then cannot write the join (`!queued`), and
- * `restoreJoinedWaiting` cannot write the quote back either: the quote and its
- * note exist nowhere. The notes called this half unreachable, on the claim that
- * one page's storage keeps every write or refuses every one; a quota does not.
- * The put's transaction is aborted by the browser's own `abort()` here.
- *
- * `fixme`, not fixed (wave 46): red on the head, the quote is drawn nowhere and
- * the device's queue is empty after the press. Every way back for the quote is
- * another `put`, which this device refuses, so no builder the reader has
- * (`carryFor`, `coverOf`, the take-back's item) can restore it. The fix is a new
- * mechanism: take a waiting quote off the device only once the press that
- * covers it is written there. That is a decision for c702's next round, in the
- * notes' Gaps; this case is its proof.
+ * Round 17 (c702, wave 46; fixed in round 4): a device whose storage stops
+ * keeping new writes after a quote already waits there (a full quota: a delete
+ * still goes through, a larger put is aborted, here by the browser's own
+ * `abort()`). Every press that covers that quote used to take it off the device
+ * first (`supersedeHighlight`) and then fail to write itself, and the quote's
+ * way back was another `put`: the quote and its note existed nowhere. Since
+ * round 4 a waiting quote leaves the device only once the press that covers it
+ * is kept, so each door below leaves it waiting, drawn, with its note: a join
+ * offline (`queueCovering` refused), the exact re-press of the quote itself
+ * (one write over the item, refused), and a join online that the workstation
+ * refuses (`restoreJoinedWaiting` draws it again without a write).
  */
-test.fixme('R17 storage that stops keeping writes: a press over a waiting quote does not lose it', async ({
+for (const door of ['a join offline', 'the exact re-press', 'a join refused online'] as const) {
+	test(`R17 storage that stops keeping writes: ${door} does not lose the waiting quote`, async ({
+		page
+	}) => {
+		await page.addInitScript(() => {
+			const put = IDBObjectStore.prototype.put;
+			IDBObjectStore.prototype.put = function (
+				this: IDBObjectStore,
+				...a: [unknown, IDBValidKey?]
+			) {
+				const r = put.apply(this, a);
+				if ((window as unknown as { refusePut?: boolean }).refusePut) this.transaction.abort();
+				return r;
+			};
+		});
+		const id = chapterId();
+		await open(page, id);
+		const x = await waitingQuote(page);
+		const held = door === 'a join refused online' ? await holdQueueThenJoin(page) : null;
+		if (held) {
+			await page.context().setOffline(false);
+			await expect.poll(held.held, { timeout: 30_000 }).toBe(true);
+		}
+		await page.evaluate(() => ((window as unknown as { refusePut?: boolean }).refusePut = true));
+		if (door === 'the exact re-press') {
+			await longPress(page, x.x, x.y);
+			await expect(bar(page)).toBeVisible();
+		} else {
+			await selectThrough(page, x, await word(page, 4));
+		}
+		await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+		held?.answerJoin(400);
+		await expect(band(page, 'NOT KEPT')).toBeVisible({ timeout: 30_000 });
+		// The quote that waited before the press still waits, drawn, with its note.
+		await expect(page.locator('.mk')).toHaveCount(1);
+		await expect(page.locator('.mk')).toHaveText(x.word);
+		await expect(page.locator('.nm')).toHaveCount(1);
+		const left = await queued(page);
+		expect(left.map((i) => i.key)).toEqual([x.key]);
+		expect(left[0].body.note).toBe(x.note);
+		held?.releaseQueue('abort');
+	});
+}
+
+/**
+ * Round 19 (c702, round 4): the new state round 4 makes. A waiting quote now
+ * stays on the device while the press that covers it is out, so two things can
+ * reach it there that could not before.
+ *
+ * (a) The chapter is re-read meanwhile (a refusal of another quote does it):
+ * `loadMarks` reads the device and would draw the covered quote again beside the
+ * press over it. `covering` keeps it off, as `joining` does for a saved row (R9).
+ *
+ * (b) The queue sends the covered quote while the press is out, and the press is
+ * then refused: the quote is no longer on the device, so `restoreJoinedWaiting`
+ * puts it back as it was (the door answers the repeat with the row it made) and
+ * it ends drawn once, as its one row, with its note.
+ */
+test('R19 a re-read while a join over a waiting quote is out draws the quote once', async ({
 	page
 }) => {
-	await page.addInitScript(() => {
-		const put = IDBObjectStore.prototype.put;
-		IDBObjectStore.prototype.put = function (this: IDBObjectStore, ...a: [unknown, IDBValidKey?]) {
-			const r = put.apply(this, a);
-			if ((window as unknown as { refusePut?: boolean }).refusePut) this.transaction.abort();
-			return r;
-		};
+	const id = chapterId();
+	await open(page, id);
+	// A quote whose refusal is what re-reads the chapter, queued first so it goes first.
+	await page.context().setOffline(true);
+	const q = await word(page, 7);
+	await longPress(page, q.x, q.y);
+	await expect(bar(page)).toBeVisible();
+	await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+	await expect.poll(async () => (await queued(page)).length).toBe(1);
+	// x, waiting with its note (`waitingQuote`, made by hand: q is drawn already).
+	const w = await word(page, 2);
+	await longPress(page, w.x, w.y);
+	await expect(bar(page)).toBeVisible();
+	await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+	await expect.poll(async () => (await queued(page)).length).toBe(2);
+	await page.locator('.mk', { hasText: w.word }).first().click();
+	await expect(sheet(page).getByText('WAITING TO BE SENT')).toBeVisible();
+	await sheet(page).getByLabel('NOTE').fill(KEPT_NOTE);
+	await expect
+		.poll(async () => (await queued(page)).find((i) => i.body.note === KEPT_NOTE)?.key)
+		.toBeTruthy();
+	await page.keyboard.press('Escape');
+	await expect(sheet(page)).toHaveCount(0);
+	const x = { ...w, note: KEPT_NOTE };
+
+	let deliver!: () => void;
+	const gate = new Promise<void>((ok) => (deliver = ok));
+	let answered = false;
+	await page.route(QUOTES_GET, async (r) => {
+		const res = await r.fetch();
+		answered = true;
+		await gate;
+		await r.fulfill({ response: res }).catch(() => undefined);
 	});
+	// The first POST is q's, refused; the second is x's own, unreachable, which
+	// ends the pass (a refusal is told at a pass's end) and leaves x on the device;
+	// the third is the join's, held until the end.
+	let posts = 0;
+	let endJoin!: () => void;
+	const joinGate = new Promise<void>((ok) => (endJoin = ok));
+	await page.route(QUOTES_POST, async (r) => {
+		if (r.request().method() !== 'POST') return r.continue();
+		posts++;
+		if (posts === 1) return r.fulfill({ status: 400, body: 'no' });
+		if (posts === 2) return r.abort();
+		await joinGate;
+		return r.continue().catch(() => undefined);
+	});
+	await page.context().setOffline(false);
+	await expect(band(page, 'NOT KEPT')).toBeVisible({ timeout: 30_000 });
+	await expect.poll(() => answered, { timeout: 30_000 }).toBe(true);
+	await expect.poll(() => posts, { timeout: 30_000 }).toBe(2);
+
+	// The join over x, while the chapter's list is on its way back.
+	await selectThrough(page, x, await word(page, 4));
+	await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
+	await expect.poll(() => posts, { timeout: 30_000 }).toBe(3);
+	expect((await queued(page)).some((i) => i.body.note === x.note)).toBe(true);
+
+	await page.evaluate(() =>
+		document.querySelectorAll('.mk').forEach((m) => m.setAttribute('data-before', '1'))
+	);
+	deliver();
+	await page.waitForFunction(() => !document.querySelector('.mk[data-before]'), null, {
+		timeout: 10_000
+	});
+	// One highlight is drawn over those words: the join's, not x beside it.
+	const drawn = await page.evaluate(
+		() => new Set([...document.querySelectorAll('.mk')].map((m) => m.getAttribute('data-h'))).size
+	);
+	expect(drawn).toBe(1);
+
+	// Both POSTs end: one row, with x's note, drawn once.
+	endJoin();
+	await expect.poll(() => quotesOf(id).length, { timeout: 30_000 }).toBe(1);
+	expect(quotesOf(id)[0].note).toBe(x.note);
+	await open(page, id);
+	await expect(page.locator(SETTLED).first()).toBeVisible();
+	expect(quotesOf(id)).toHaveLength(1);
+});
+
+test('R19 the queue sends a covered quote while its join is out, and the join is refused: one row', async ({
+	page
+}) => {
 	const id = chapterId();
 	await open(page, id);
 	const x = await waitingQuote(page);
-	await page.evaluate(() => ((window as unknown as { refusePut?: boolean }).refusePut = true));
-	const b = await word(page, 4);
-	await selectThrough(page, x, b);
+	const held = await holdQueueThenJoin(page);
+	await page.context().setOffline(false);
+	await expect.poll(held.held, { timeout: 30_000 }).toBe(true);
+	await selectThrough(page, x, await word(page, 4));
 	await bar(page).getByRole('button', { name: 'HIGHLIGHT' }).click();
-	await expect(band(page, 'NOT KEPT')).toBeVisible();
-	// The quote that waited before the press still waits, drawn, with its note.
-	await expect(page.locator('.mk')).toHaveCount(1);
-	await expect(page.locator('.mk')).toHaveText(x.word);
+	await expect.poll(() => held.posts(), { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+	// x's own POST lands while the join is out: its row is made, and x leaves the device as sent.
+	held.releaseQueue('continue');
+	await expect.poll(() => quotesOf(id).length, { timeout: 30_000 }).toBe(1);
+	await expect.poll(async () => (await queued(page)).length, { timeout: 30_000 }).toBe(0);
+	// The join is refused: x is not on the device to draw, so it is put back as it
+	// was, and the next pass is answered with the row x already made.
+	held.answerJoin(400);
+	await expect(band(page, 'NOT KEPT')).toBeVisible({ timeout: 30_000 });
+	await expect.poll(async () => (await queued(page)).map((i) => i.key)).toContain(x.key);
+	// Its repeat goes through to the door, which answers with x's row.
+	held.answerJoin('continue');
+	await page.context().setOffline(true);
+	await page.context().setOffline(false);
+	await expect(page.locator(SETTLED)).toHaveText(x.word, { timeout: 30_000 });
 	await expect(page.locator('.nm')).toHaveCount(1);
-	const left = await queued(page);
-	expect(left.map((i) => i.key)).toEqual([x.key]);
-	expect(left[0].body.note).toBe(x.note);
+	await expect.poll(async () => (await queued(page)).length, { timeout: 30_000 }).toBe(0);
+	expect(quotesOf(id)).toHaveLength(1);
+	expect(quotesOf(id)[0].note).toBe(x.note);
+	expect(held.deletes).toEqual([]);
 });

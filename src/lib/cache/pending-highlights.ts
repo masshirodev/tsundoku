@@ -305,6 +305,47 @@ export function queueHighlight(h: NewHighlight, now = Date.now()): Promise<boole
 }
 
 /**
+ * A press that covers waiting items goes on the device, and only then do they
+ * leave it (c702's round 4): a device that will not keep the press keeps what
+ * it covers, so nothing waiting is lost to a refused write. `covered` are the
+ * keys the press takes in; the press's own key among them is the exact re-press
+ * of that item, which this write replaces whole (one `put`, so the item is never
+ * absent) rather than finding it there and keeping the older one. `false`: the
+ * press was not kept, and every covered item is still on the device.
+ */
+export async function queueCovering(
+	h: NewHighlight,
+	covered: string[],
+	now = Date.now()
+): Promise<boolean> {
+	const kept = covered.includes(h.key)
+		? await replaceHighlight(h, now)
+		: await queueHighlight(h, now);
+	if (!kept) return false;
+	for (const key of covered) if (key !== h.key) await supersedeHighlight(key);
+	return true;
+}
+
+/** [h] written over whatever waits under its key: the exact re-press's one write. */
+function replaceHighlight(h: NewHighlight, now: number): Promise<boolean> {
+	return serial(h.key, async () => {
+		try {
+			// The key names this press now; a record a take-back left is an older item's.
+			superseded.delete(h.key);
+			const item: QueuedHighlight = { ...h, revised: h.revised, at: now, tries: 0, refused: null };
+			await store.put(item);
+			remember(item);
+			presses++;
+			keepTrying();
+			changed();
+			return true;
+		} catch {
+			return false;
+		}
+	});
+}
+
+/**
  * A change to something still waiting (Novel N7: its note and colour can be
  * changed before it goes): the item's body, merged. Nothing is told to the
  * workstation, since it hasn't heard of the highlight yet. `false`: nothing
