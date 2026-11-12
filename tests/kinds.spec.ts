@@ -14,6 +14,7 @@ import {
 	moveKindOf,
 	SOURCE_FAMILIES,
 	SOURCE_KINDS,
+	SOURCE_KIND_CHOICES,
 	sourceFamilyOf,
 	type Kind,
 	type KindFacts,
@@ -772,5 +773,17 @@ describe('no new kind checks', () => {
 			found.length,
 			`${found.length} kind comparisons, baseline ${BASELINE}:\n${found.join('\n')}`
 		).toBe(BASELINE);
+	});
+});
+
+describe('the kinds a source family may serve (c986)', () => {
+	it('defaults every family to the first kind it may serve', () => {
+		for (const family of SOURCE_FAMILIES)
+			expect(SOURCE_KIND_CHOICES[family][0], family).toBe(SOURCE_KINDS[family]);
+	});
+	it('lists only kinds whose sources include that family', () => {
+		for (const family of SOURCE_FAMILIES)
+			for (const kind of SOURCE_KIND_CHOICES[family])
+				expect(kindFacts(kind).sources, `${kind} from ${family}`).toContain(family);
 	});
 });

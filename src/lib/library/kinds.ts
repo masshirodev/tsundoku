@@ -301,6 +301,31 @@ export const KEY_PREFIX = {
 export const SOURCE_FAMILIES = Object.keys(SOURCE_KINDS) as readonly SourceFamily[];
 
 /**
+ * The kinds a source of a family may serve (card c986): the family's own
+ * default first, then any kind a source of it can be set to. A Mihon source
+ * feeds comics, so it may be a manga, a manhwa (a webtoon-only source, a
+ * source whose series all say so) or a gallery's doujin; LNReader is novels
+ * and Aniyomi is anime, one each until the film and show kinds land.
+ *
+ * `SOURCE_KINDS` stays the family's default — what a source serves until the
+ * owner says otherwise — and a reader that asked it for "what this row is"
+ * must ask the source instead once it can serve more than one
+ * (`source-kind.ts`). `tests/kinds.spec.ts` holds the two lists together.
+ */
+export const SOURCE_KIND_CHOICES = {
+	mihon: ['manga', 'manhwa', 'doujin'],
+	lnreader: ['novel'],
+	aniyomi: ['anime']
+} as const satisfies Record<SourceFamily, readonly Kind[]>;
+
+/** The kinds one source family can serve, its default first. */
+export const sourceKindChoices = (family: SourceFamily): readonly Kind[] =>
+	SOURCE_KIND_CHOICES[family];
+
+/** What a source of this family serves until the owner sets a kind: its family's own. */
+export const defaultSourceKind = (family: SourceFamily): Kind => SOURCE_KIND_CHOICES[family][0];
+
+/**
  * The source family a stored kind names (card c420, moved here by c508): the
  * inverse of `SOURCE_KINDS`, which gives each family one kind of its own. An
  * extension's row stores `manga` or `anime` (`engine_extensions.kind`, an

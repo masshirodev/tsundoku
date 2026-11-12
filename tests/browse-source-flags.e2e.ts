@@ -100,7 +100,7 @@ async function settle(body: () => Promise<void>, cleanup: () => Promise<void>): 
 	if (bodyFailed) throw bodyError;
 }
 
-test('every source’s settings page has tsundoku’s four switches, above the extension’s own', async ({
+test('every source’s settings page has tsundoku’s four switches and its kind, above the extension’s own', async ({
 	page
 }) => {
 	await page.goto(url(settings));
@@ -108,12 +108,31 @@ test('every source’s settings page has tsundoku’s four switches, above the e
 		'Hidden source',
 		'Added hidden',
 		'Off history',
-		'Never tracked'
+		'Never tracked',
+		'Kind'
 	]);
 	for (const s of await page.locator('form.own').getByRole('switch').all())
 		await expect(s).toHaveAttribute('aria-checked', 'false');
 	await expect(page.getByText('01 — IN TSUNDOKU')).toBeVisible();
 	await expect(page.getByText(/^02 — TAG SOURCE · EN$/)).toBeVisible();
+});
+
+test('the kind it serves is set on the source, and AUTO clears it', async ({ page }) => {
+	await page.goto(url(settings));
+	const kind = () => page.getByRole('radiogroup', { name: 'Kind' });
+	await expect(kind().getByRole('radio', { name: 'AUTO' })).toHaveAttribute('aria-checked', 'true');
+	await kind().getByRole('radio', { name: 'MANHWA' }).click();
+	await expect(kind().getByRole('radio', { name: 'MANHWA' })).toHaveAttribute(
+		'aria-checked',
+		'true'
+	);
+	await page.reload();
+	await expect(kind().getByRole('radio', { name: 'MANHWA' })).toHaveAttribute(
+		'aria-checked',
+		'true'
+	);
+	await kind().getByRole('radio', { name: 'AUTO' }).click();
+	await expect(kind().getByRole('radio', { name: 'AUTO' })).toHaveAttribute('aria-checked', 'true');
 });
 
 test('HIDDEN SOURCE: the source is gone outside reveal, at every door, and back inside it', async ({

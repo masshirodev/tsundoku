@@ -8,6 +8,7 @@ import { linkFromTracker } from '../catalogue.ts';
 import type { PlannedEntry, PlannedSeries } from '../../import/plan.ts';
 import { adoptFolder, adoptFormer, adoptNamed, folderSourceId, type Dropped } from './fold.ts';
 import { hideIfAddedHidden, sourceFlags } from '../engine/source-flags.ts';
+import { sourceKindOfKey } from '../engine/source-kind.ts';
 
 /**
  * The one writer every importer uses (doc/IMPORT-MIHON.md, doc/IMPORT-HENTOID.md):
@@ -278,6 +279,11 @@ export function writeSeries(
 				).run(path, path, s.status, s.description, s.coverUrl ?? '', s.coverUrl ?? '', seriesId);
 			} else if (seriesId === null) {
 				created = true;
+				// The kind the owner set on its source wins over the plan's own
+				// inference (card c986): explicit beats a gallery, a genre or a
+				// webtoon-only source. Set only when the series is made; a series
+				// already here keeps the kind it has.
+				const kind = sourceKindOfKey(s.originKey, db) ?? s.kind;
 				seriesId = Number(
 					db
 						.prepare(
@@ -289,7 +295,7 @@ export function writeSeries(
 						.run(
 							opts.rootId,
 							s.title,
-							s.kind,
+							kind,
 							s.rating,
 							s.favourite ? 1 : 0,
 							s.hidden ? 1 : 0,

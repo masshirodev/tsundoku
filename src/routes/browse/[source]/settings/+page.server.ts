@@ -4,6 +4,8 @@ import { isRevealed } from '$lib/server/prefs';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { browseSource, forgetSource } from '$lib/server/engine/browse';
 import { isSourceFlag, setSourceFlag, sourceFlags } from '$lib/server/engine/source-flags';
+import { setSourceKind, sourceKind } from '$lib/server/engine/source-kind';
+import { sourceKindChoices, type Kind } from '$lib/library/kinds';
 import { callSource } from '$lib/server/engine/backend';
 import { EngineError } from '$lib/server/engine/client';
 import { keepPreferences, preferences, setPreference } from '$lib/server/engine/extensions';
@@ -60,6 +62,12 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 		source: s,
 		// tsundoku's own switches for it (card c435), above the extension's.
 		flags: sourceFlags(s.id),
+		// The kind it serves (card c986): what new series from it start as, and
+		// the kinds its family can be set to. No row is AUTO, the planner's own
+		// inference; a family with one kind (LNReader's, Aniyomi's today) draws
+		// no row.
+		kind: sourceKind(s.id, s.family),
+		kindChoices: sourceKindChoices(s.family),
 		preferences: hasPreferences(s),
 		settings: preferences(s.id)
 			.map(settingOf)
@@ -111,6 +119,20 @@ export const actions: Actions = {
 		// found, this page included, so the switch lands on BROWSE.
 		if (flag === 'hidden' && on && !isRevealed(cookies)) redirect(303, '/browse');
 		return { saved: `flag:${flag}` };
+	},
+	/**
+	 * The kind this source serves (card c986): the default for every series
+	 * added from it, and nothing to existing series. An empty value, or the
+	 * family's default, clears the row.
+	 */
+	kind: async ({ params, cookies, request }) => {
+		const s = source(params.source, isRevealed(cookies));
+		const form = await request.formData();
+		const wanted = String(form.get('kind') ?? '');
+		if (wanted !== '' && !sourceKindChoices(s.family).includes(wanted as Kind))
+			return fail(400, { message: 'Not a kind this source can serve' });
+		setSourceKind(s.id, s.family, wanted === '' ? null : (wanted as Kind));
+		return { saved: 'kind' };
 	},
 	/**
 	 * CONCEAL ITS SERIES (card c523): every series from the source the library

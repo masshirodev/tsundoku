@@ -167,6 +167,52 @@
 			</div>
 		</form>
 	{/each}
+	<!-- The kind this source serves (card c986): the default for every series
+	     added from it, never a rewrite of the ones already here. A family with
+	     one kind (LNReader's, Aniyomi's today) has nothing to choose and draws
+	     no row. -->
+	{#if data.kindChoices.length > 1}
+		{@const chosen = data.kind ?? ''}
+		<form
+			method="POST"
+			action={act('kind')}
+			class="own"
+			class:saved={form && 'saved' in form && form.saved === 'kind'}
+			use:enhance={keep}
+		>
+			<div class="what">
+				<div class="t">Kind</div>
+				<div class="s">
+					New series added from it start as this. Auto reads each one: a gallery's book, a webtoon
+					source. The series already here keep theirs.
+				</div>
+			</div>
+			<div class="ctl">
+				<div class="cells" role="radiogroup" aria-label="Kind">
+					<button
+						type="submit"
+						name="kind"
+						value=""
+						class="cell-opt"
+						class:on={chosen === ''}
+						role="radio"
+						aria-checked={chosen === ''}>AUTO</button
+					>
+					{#each data.kindChoices as k (k)}
+						<button
+							type="submit"
+							name="kind"
+							value={k}
+							class="cell-opt"
+							class:on={k === chosen}
+							role="radio"
+							aria-checked={k === chosen}>{k.toUpperCase()}</button
+						>
+					{/each}
+				</div>
+			</div>
+		</form>
+	{/if}
 	<!-- CONCEAL ITS SERIES (card c523): an action beside the switches, which
 	     stores nothing; its own words, so no locator for HIDDEN SOURCE or a
 	     HIDE button finds it. -->

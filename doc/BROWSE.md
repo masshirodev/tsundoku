@@ -1027,9 +1027,11 @@ cell and its page answered 404).
 
 ### A source's own switches
 
-Four rows above the extension's own (`01 — IN TSUNDOKU`), drawn as the
+Four switch rows above the extension's own (`01 — IN TSUNDOKU`), drawn as the
 page's switch rows are, each its own form posting `?/flag`, and under them
-one action, CONCEAL ("Conceal its series", below). They are
+one action, CONCEAL ("Conceal its series", below). A source whose family has
+more than one kind to choose has a fifth row, KIND, under the switches
+(c986; "The kind it serves", below). They are
 tsundoku's, not the extension's: nothing is sent to the source. Card c435,
 the owner's request of 2026-11-03; NEVER TRACKED is c522, the owner's pick
 from c504 (2026-11-04).
@@ -1049,6 +1051,19 @@ lookup for SQL (`sourceFlagSql`, `src/lib/server/engine/source-flags.ts`),
 which is how HISTORY filters in SQL. A series' source in SQL is
 `sourceIdSql(origin_key)`, held to `sourceOfKey` over every key a writer
 stores (`tests/source-flags-db.spec.ts`).
+
+**The kind it serves** (card c986): a fifth row, KIND, under the switches and
+above CONCEAL — only for a family with more than one kind to choose (a Mihon
+source: AUTO, MANGA, MANHWA, DOUJIN; an LNReader or Aniyomi source today draws
+none). **AUTO** is no row, and means what ADD already inferred: a gallery's
+book, a webtoon-only source, a "Manhwa" genre. A chosen kind is kept as
+`source.kind:<id>` = the kind's name, and every **new** series from that
+source starts as it, at the importers' one writer; a series already in the
+library keeps its own, and the series screen's own switch is c992's
+([`KINDS.md`](KINDS.md), "The kind a source cannot name"). SEARCH THE SOURCES
+reads the same answer (`kindOfSource`, `src/routes/downloads/search/kinds.server.ts`),
+so a Mihon source marked MANHWA is a MANHWA cell there. REMOVE keeps it, like
+the switches. `tests/source-kind-db.spec.ts` holds it.
 
 **REMOVE keeps them** (card c569, the owner's (b), 2026-11-05): removing an
 extension or a novel plugin deletes only its row (`removeExtension`,

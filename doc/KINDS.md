@@ -448,6 +448,41 @@ spec's failure message prints every counted line with its file and number, so
 a merge that changes the count is a one-line conversation rather than a
 mystery. When K5 lands, the baseline is what the allow-list alone leaves.
 
+## The kind a source cannot name
+
+`SOURCE_KINDS` gives each family one kind, and that is still the family's
+default: a Mihon row is a manga, an LNReader one a novel, an Aniyomi one an
+anime. But a family is not a kind (card c986). A Mihon source can serve
+manhwa, a gallery source's series are doujin, and once films and shows land an
+Aniyomi source can serve any of three. So the kind is a fact of the
+**source**:
+
+- `SOURCE_KIND_CHOICES` (`library/kinds.ts`) lists what each family may serve,
+  its default first; `sourceKindChoices` and `defaultSourceKind` read it, and
+  `tests/kinds.spec.ts` holds it to `SOURCE_KINDS` and to each kind's
+  `sources`.
+- `engine/source-kind.ts` keeps the owner's choice in `settings` as
+  `source.kind:<id>`, with **no row meaning AUTO**: the plan's own inference
+  (a gallery's doujin, a "Manhwa" genre, a webtoon-only source). An explicit
+  row wins over every inference, `manga` on a gallery included, which is why
+  the default is not "no row".
+- `import/write.ts` asks it once, at the insert: a new series takes its
+  source's kind, and a series already in the library keeps its own. That is
+  every door in one place — a backup, ADD, an anime's ADD, a novel's, a sync,
+  FOLLOW. The series screen's own switch is c992's.
+- A source's settings page draws AUTO and the family's kinds only where there
+  is a choice (`doc/BROWSE.md`, "The kind it serves"), and SEARCH THE SOURCES
+  reads the same answer (`kindOfSource`).
+- `sourceFamilyOf` is untouched: the inverse of `SOURCE_KINDS`, the word an
+  APK family stores (`engine_extensions.kind`), not what a source serves.
+
+**What is left**: every reader that still asks `SOURCE_KINDS[family]` for a
+_row's_ kind — browse's preview chips, the queue's labels, FIRST READ's, and
+`sourceMedium`. They are right while a family's kinds share a medium (every
+Mihon kind is pages, so a manhwa downloads as a manga already), and they move
+when `movie`/`show` make one family's kinds differ (c987). The ratchet counts
+none of them as new: this card adds no kind-name comparison.
+
 ## Movies and TV shows
 
 The owner's decisions, 2026-11-02 and 2026-11-12 (`doc/MOVIES-TV.md`,
