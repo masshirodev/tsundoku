@@ -713,8 +713,12 @@ EXIT FULL gives them back. A phone over home Wi-Fi gets plain http, where a
 browser won't install tsundoku as an app ([`WIFI.md`](WIFI.md)): this is how it
 loses the frame (the owner, 2026-10-30). Offered only where the browser can
 (`document.fullscreenEnabled`: Android's browsers, desktops; not an iPhone's
-Safari, which allows it for video only) and not in an installed app, which is
-full screen already. Decided after hydration: the server can't know.
+Safari, which allows it for video only), not in an installed app, which is
+full screen already, and not in tsundoku's own Android app either: its window
+is the screen, and a fullscreen element there turns the phone to landscape for
+a picture ([`PHONE-APP.md`](PHONE-APP.md)), which reading does not want.
+Decided after hydration: the server can't know (`fullscreenOffered`, counted
+by `tests/fullscreen.spec.ts`).
 
 **The reading settings' cell says what it does.** It showed the summary
 (R→L · FIT SCREEN) and read as a status line; it now ends in SETTINGS ↑, which

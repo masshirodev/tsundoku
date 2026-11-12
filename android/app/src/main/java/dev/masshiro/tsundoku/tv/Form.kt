@@ -15,6 +15,8 @@ package dev.masshiro.tsundoku.tv
  * | Remote keys     | MENU and the media keys (Keys.kt)    | none: a finger and the keyboard          |
  * | The cutout      | none to pad                          | padded natively (Insets.kt)              |
  * | The keyboard    | never raised by a page (c247)        | raised when a page focuses a field       |
+ * | A picture full  | never: the TV is landscape           | turned to landscape by the app           |
+ * | screen          | already                              | (screen.orientation.lock is refused)     |
  *
  * The bridge keeps the TV's name, `TsundokuTV`, on both: it is the contract
  * the web app already reads (MoreSheet's SERVERS, the layout's name), so the
@@ -43,6 +45,15 @@ enum class Form(val id: String) {
 
 	/** A TV has no cutout and no keyboard pushing the page; a phone has both. */
 	val padsInsets: Boolean
+		get() = this == MOBILE
+
+	/**
+	 * A fullscreen picture turns the phone to landscape. A WebView refuses
+	 * `screen.orientation.lock` (NotSupportedError, "not available on this
+	 * device"), so the activity turns the window itself (MainActivity,
+	 * turnForVideo); a TV is landscape already and never turns.
+	 */
+	val turnsForVideo: Boolean
 		get() = this == MOBILE
 
 	/**

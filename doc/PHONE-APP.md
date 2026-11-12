@@ -150,6 +150,28 @@ mount and gives the band back on leaving; `Chrome.svelte`'s top bar is
 `64px + var(--app-inset-top)` tall with the band as its top padding. In a
 browser the variable is unset and both bars are as they were.
 
+## A fullscreen picture
+
+The player's FULL in portrait asks the page to go fullscreen and then to turn
+the phone (`screen.orientation.lock('landscape')`). A WebView refuses the
+second half with `NotSupportedError — screen.orientation.lock() is not
+available on this device`, so the element went fullscreen inside a WebView
+that is already the whole screen and the phone stayed upright: the screen
+flashed black while the WebView was swapped for the picture, and almost
+nothing else changed (the owner, 2026-11-12).
+
+The activity turns the window itself when a fullscreen picture arrives
+(`Form.turnsForVideo`, `MainActivity.turnForVideo`): landscape either way up,
+because FULL is a deliberate ask, and back to whatever the phone was when the
+picture goes, so upright is portrait again. BACK takes the picture down first,
+as it always did (LeaveWindow.kt).
+
+The readers' FULL SCREEN cell is **not offered in the app**
+(`fullscreenOffered`, `src/lib/reader/fullscreen.svelte.ts`): the window is the
+screen already, and an element fullscreen there would turn the phone
+mid-read. It is still offered in a browser over the home Wi-Fi
+(doc/READER.md, "Full screen").
+
 ## Text size
 
 The WebView's `textZoom` follows Android's font size, up to 130%
@@ -316,6 +338,14 @@ phone was at hand. Built, unit-tested and browser-tested only, specifically:
 What the owner's phone has confirmed (2026-11-05, the first build): the app
 installs and pairs, the page sits below the camera band, and zoom is off.
 
+**The fullscreen turn was seen on an emulator** (2026-11-12; Pixel 6, API 34,
+the `mobile` debug build): a page's `requestFullscreen()` called
+`onShowCustomView`, the window turned to `landscape-primary`, the page was
+never unloaded and fullscreen stayed held, and BACK hid the picture and put
+the window back to `1080x2400` portrait. What the emulator cannot say is
+whether a real phone's WebView ever implements `screen.orientation.lock` (the
+app no longer depends on it) or how the swap looks at 412x834.
+
 ## Tests
 
 - `android/app/src/test/`: `FormTest` (each row of Form.kt's table),
@@ -324,6 +354,8 @@ installs and pairs, the page sits below the camera band, and zoom is off.
   both flavors by `./gradlew testMobileDebugUnitTest testTvDebugUnitTest`.
 - `tests/app-ua.spec.ts`: the user agent, `appDevice`, and the DEVICES label
   and cell.
+- `tests/fullscreen.spec.ts`: when the readers offer FULL SCREEN, and when
+  they must not (an installed app, the Android app).
 - `tests/phone-app-pair.e2e.ts`: the app's own pages with a stand-in bridge
   saying `mobile`, at 360x780, 1280x800, 800x1280 and 780x360, with the
   handoff's measurements, the pinned buttons riding a shorter viewport (the

@@ -2,6 +2,7 @@ package dev.masshiro.tsundoku.tv
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
@@ -59,6 +60,12 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	private lateinit var servers: Servers
 	private var customView: View? = null
 	private var customCallback: WebChromeClient.CustomViewCallback? = null
+
+	/**
+	 * What [requestedOrientation] was before a fullscreen picture turned the
+	 * phone ([turnForVideo]), to put it back when the picture goes.
+	 */
+	private var wasOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
 	private val io = Executors.newSingleThreadExecutor()
 
 	/** The updater's own thread: a download never holds up the launch's probe. */
@@ -597,6 +604,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 				customCallback = callback
 				root.addView(view, frame())
 				webView.visibility = View.GONE
+				turnForVideo()
 				hideSystemUi()
 			}
 
@@ -616,7 +624,31 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		customCallback = null
 		webView.visibility = View.VISIBLE
 		callback?.onCustomViewHidden()
+		endTurnForVideo()
 		hideSystemUi()
+	}
+
+	/**
+	 * A phone turns for a picture on the whole screen, as a browser's
+	 * fullscreen video does (doc/ANIME.md, "Portrait"). The page asks for it
+	 * (`screen.orientation.lock('landscape')`), which a WebView refuses with
+	 * `NotSupportedError — not available on this device`, so the app turns the
+	 * window instead. Never on a TV, which is landscape already (Form.kt).
+	 *
+	 * SENSOR_LANDSCAPE rather than USER_LANDSCAPE: Chrome's lock turns the
+	 * picture whatever the phone's auto-rotate says, and FULL is a deliberate
+	 * ask for landscape.
+	 */
+	private fun turnForVideo() {
+		if (!form.turnsForVideo) return
+		wasOrientation = requestedOrientation
+		requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+	}
+
+	/** The picture is gone: back to however the phone was, so upright is portrait again. */
+	private fun endTurnForVideo() {
+		if (!form.turnsForVideo) return
+		requestedOrientation = wasOrientation
 	}
 
 	private fun frame() = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)

@@ -35,6 +35,12 @@ class FormTest {
 	}
 
 	@Test
+	fun `only the phone turns for a fullscreen picture`() {
+		assertTrue(Form.MOBILE.turnsForVideo)
+		assertFalse(Form.TV.turnsForVideo)
+	}
+
+	@Test
 	fun `only the phone raises the keyboard for a page, never the TV (c247)`() {
 		assertTrue(Form.MOBILE.raisesKeyboard)
 		assertFalse(Form.TV.raisesKeyboard)

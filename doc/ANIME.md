@@ -896,7 +896,11 @@ THE SAME WAY SINCE 1 NOV` — and the cell opens MOVE ([`MOVE.md`](MOVE.md)).
   AVAILABLE page gains the same card (doc/WORKS.md, "The end of a series (W6)", the player).
 - **Portrait** (a phone or tablet held upright) puts the picture on top, the
   controls always shown beneath it, and UP NEXT below; FULL goes full screen
-  and turns it where the browser allows. **The scrubber under the picture
+  and turns it where the browser allows. A browser turns it with
+  `screen.orientation.lock('landscape')`; a WebView refuses that
+  (`NotSupportedError`), so tsundoku's Android app turns the window itself
+  (`Form.turnsForVideo`, `MainActivity.turnForVideo`) and puts it back when the
+  picture goes (doc/PHONE-APP.md). **The scrubber under the picture
   seeks** (c387): a tap goes there, a drag follows the finger with the time
   under it shown over the picture, and the whole 44px row is the target, not
   the 4px line. It is a slider like the bar's (`role="slider"`, its aria
