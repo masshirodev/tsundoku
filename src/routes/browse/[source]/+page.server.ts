@@ -17,6 +17,8 @@ import { backOrigin } from '$lib/library/tag-search';
 import { forgetSiteCheck } from '$lib/server/novels/source';
 import { sourceFlags } from '$lib/server/engine/source-flags';
 import type { Settled } from '$lib/library/settled';
+import { mark } from '$lib/server/engine/webview';
+import { webviewError } from '$lib/webview';
 import {
 	addedBand,
 	bandShelves,
@@ -50,6 +52,12 @@ type Answer = {
 
 /** Why the source didn't answer, in the band's words. */
 function why(e: unknown): string {
+	// A WebView extension whose browser wasn't there: the WebView's band, not "timed out".
+	if (e instanceof EngineError && e.failure === 'webview' && e.webview)
+		return webviewError(
+			e.webview.state === 'starting' ? 'starting' : e.webview.state === 'off' ? 'off' : 'failed',
+			e.message
+		);
 	if (e instanceof EngineError)
 		return e.failure === 'down' || e.failure === 'rate-limited' ? e.failure : e.message;
 	return (e as Error).message ?? 'failed';
@@ -105,6 +113,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 	const addedHidden = await addedBand(url.searchParams, source.id, reveal);
 	return {
 		source,
+		// Its extension uses a WebView (doc/BROWSE.md, "Extensions that need a
+		// WebView"): NEEDS A WEBVIEW, in words where this install can't give one.
+		webviewMark: source.webview ? await mark() : null,
 		reveal,
 		// An incognito visit leaves nothing behind (doc/PRIVACY.md), the list's
 		// kept place included: the page keeps no snapshot for one (c930).

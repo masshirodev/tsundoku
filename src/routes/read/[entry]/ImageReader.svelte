@@ -25,6 +25,7 @@
 	import { TV } from '$lib/device.svelte';
 	import {
 		clampZoom,
+		showsDouble,
 		DOUBLE_TAP_MS,
 		DoubleTap,
 		doubleTapZoom,
@@ -89,6 +90,7 @@
 		type Mode,
 		type Page,
 		wideTreatment,
+		isWide,
 		firstHalf,
 		type Wide,
 		pagesAhead,
@@ -200,20 +202,50 @@
 	// The session's zoom starts from the kept one: per mode (manga paged, manhwa the
 	// strip) and per screen class on this device, so a phone never overwrites the PC.
 	const narrow = new MediaQuery('(max-width: 599px)', false);
-	const zoomAt = $derived(
-		zoomKey(mode === 'vertical' ? 'vertical' : 'paged', narrow.current ? 'phone' : 'wide')
-	);
-	let zoom = $state(1);
-	let kept = $state(1);
+	const zoomClass = $derived(narrow.current ? 'phone' : 'wide');
+	const zoomAt = $derived(zoomKey(mode === 'vertical' ? 'vertical' : 'paged', zoomClass));
+	const doubleAt = $derived(zoomKey('double', zoomClass));
+	// A double page reads its own zoom (zoom.ts, `showsDouble`): the screen's
+	// one page, wide, shown whole. Its shape is the manifest's, or what the
+	// image arrived at for a source that never says; the treatment (whole,
+	// halves, turned) goes by the manifest, as everywhere.
+	function isDouble(g: number[]) {
+		const i = g[0];
+		const p = pages[i];
+		return showsDouble({
+			vertical: mode === 'vertical',
+			pages: g.length,
+			wide: !!p && isWide(shaped(data.entry.id, i, p)),
+			whole: treatment(i) === 'fit'
+		});
+	}
+	let single = $state({ zoom: 1, kept: 1 });
+	let double = $state({ zoom: 1, kept: 1 });
 	$effect(() => {
-		kept = keptZoom(stored<unknown>(zoomAt, null)) ?? 1;
-		zoom = kept;
+		const k = keptZoom(stored<unknown>(zoomAt, null)) ?? 1;
+		single = { zoom: k, kept: k };
 	});
-	const setZoom = (z: number) => (zoom = clampZoom(z));
-	/** KEEP: this zoom is where every series of this mode starts, on this screen. */
+	$effect(() => {
+		const k = keptZoom(stored<unknown>(doubleAt, null)) ?? 1;
+		double = { zoom: k, kept: k };
+	});
+	// Closures: `group` is declared further down, with the screens.
+	/** The screen shows a double page, which reads its own zoom. */
+	const onDouble = $derived.by(() => isDouble(group));
+	const zoom = $derived.by(() => (onDouble ? double.zoom : single.zoom));
+	const kept = $derived.by(() => (onDouble ? double.kept : single.kept));
+	/** Sets the zoom of what is on screen: a double page's never touches the single pages'. */
+	/** A screen's own zoom, so a turn slides the next page in at the size it will settle at. */
+	const zoomOf = (g: number[]) => (isDouble(g) ? double.zoom : single.zoom);
+	const setZoom = (z: number) => {
+		if (onDouble) double.zoom = clampZoom(z);
+		else single.zoom = clampZoom(z);
+	};
+	/** KEEP: this zoom is where every series of this mode (or every double page) starts, on this screen. */
 	function keepZoom() {
-		kept = zoom;
-		store(zoomAt, zoom);
+		const slot = onDouble ? double : single;
+		slot.kept = slot.zoom;
+		store(onDouble ? doubleAt : zoomAt, slot.zoom);
 	}
 	/** The strip, for keeping a zoom's point in place on it. */
 	let stripView = $state<{ anchorAt: (x: number, y: number) => void } | null>(null);
@@ -373,6 +405,10 @@
 	 * The strip's lane, when a zoom has made the strip wider than the screen and
 	 * it scrolls sideways inside it (Strip.svelte, `.lane.wider`); null otherwise.
 	 */
+	/** The paged screen in view (the turn's neighbours sit aside, hidden). */
+	function shownScreen() {
+		return document.querySelector<HTMLElement>('.screen:not([aria-hidden="true"])');
+	}
 	function wideLane() {
 		const lane = document.querySelector<HTMLElement>('.lane.wider');
 		return lane && lane.scrollWidth > lane.clientWidth + 1 ? lane : null;
@@ -2235,6 +2271,22 @@
 			}
 			return;
 		}
+		// ↑ / ↓ scroll the page on screen when it is taller than the screen (a
+		// zoom, or fit width): it scrolls in its own box, which the browser's
+		// arrows never reach with the keyboard on the page. A screen at a time
+		// as on the strip, Ctrl a nudge; the end of the page is not a turn.
+		const vert = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+		if (vert) {
+			const page = shownScreen();
+			if (page && page.scrollHeight > page.clientHeight + 1) {
+				e.preventDefault();
+				page.scrollBy({
+					top: (e.ctrlKey ? NUDGE : screenStep(page.clientHeight)) * vert,
+					behavior: reducedMotion() || e.repeat ? 'instant' : 'smooth'
+				});
+			}
+			return;
+		}
 		const left = e.key === 'ArrowLeft';
 		const right = e.key === 'ArrowRight';
 		if (left || right) {
@@ -2510,8 +2562,9 @@
 				{#each screens as sc (sc.key)}
 					<div
 						class="screen fit-{fit}"
-						class:zoomed={zoom > 1}
-						class:shrunk={zoom < 1}
+						class:zoomed={zoomOf(sc.pages) > 1}
+						class:shrunk={zoomOf(sc.pages) < 1}
+						style:--zoom={zoomOf(sc.pages)}
 						use:startAtTop
 						style:transform={sc.pos === 0 ? undefined : `translateX(${sc.pos * 100}%)`}
 						aria-hidden={sc.pos === 0 ? undefined : 'true'}
@@ -2794,6 +2847,7 @@
 			}}
 			{zoom}
 			keptZoom={kept}
+			doublePage={onDouble}
 			onzoom={setZoom}
 			onkeepzoom={keepZoom}
 			cursor={cursorOn}

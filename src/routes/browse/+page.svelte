@@ -43,14 +43,18 @@
 		if (r.hidden === 0) return n;
 		return r.hidden === r.series ? `${n}, ALL HIDDEN` : `${n}, ${count(r.hidden)} HIDDEN`;
 	};
+	// NEEDS A WEBVIEW (doc/BROWSE.md, "Extensions that need a WebView"): a quiet
+	// fact beside the language, said in words where this install can't give one.
+	const needs = (r: Row) => r.webview && data.webviewMark;
 	const meta = (r: Row) =>
-		[r.lang.toUpperCase(), here(r), r.check && "FIRST VISIT WAITS FOR THE SITE'S CHECK"]
+		[r.lang.toUpperCase(), needs(r), here(r), r.check && "FIRST VISIT WAITS FOR THE SITE'S CHECK"]
 			.filter(Boolean)
 			.join(' · ');
 	const recentMeta = (r: Row) =>
 		[
 			r.kind.toUpperCase(),
 			r.lang.toUpperCase(),
+			needs(r),
 			r.browsedAt && `BROWSED ${ago(r.browsedAt, data.now)}`
 		]
 			.filter(Boolean)

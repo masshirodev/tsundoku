@@ -48,7 +48,7 @@ import { isRevealed } from '$lib/server/prefs';
 import { seriesReadingTime } from '$lib/server/reading-time';
 import { setScanlator } from '$lib/server/duplicates';
 import { parseRating } from '$lib/library/rating';
-import { isBookSeries, parseDirection, parseTag } from '$lib/library/series';
+import { isBookSeries, isVolumeSeries, parseDirection, parseTag } from '$lib/library/series';
 import { kindFacts } from '$lib/library/kinds';
 import {
 	GroupingError,
@@ -67,7 +67,9 @@ import {
 	addBookTag,
 	removeBookTag,
 	EditionError,
-	unfoldEditions
+	unfoldEditions,
+	mergeState,
+	ungroupSeasons
 } from '$lib/server/books';
 import { bookEditions, setBookLanguage } from '$lib/server/editions';
 import {
@@ -93,6 +95,7 @@ import { libraryRoot } from '$lib/server/import';
 import { ANIME_FOLDER, HIDDEN_ANIME_FOLDER, seriesFolderName } from '$lib/library/anime-files';
 import { join } from '$lib/server/fspath';
 import { originLabel, sourceOrigin } from '$lib/library/origin';
+import { keepOrigin } from '$lib/library/tag-search';
 import { tagSourceOf } from './tag-source.server';
 import { seasonsAroundOf } from '$lib/server/relations';
 import { otherFormsView } from './other-forms.server';
@@ -201,6 +204,19 @@ function backTo(from: string | null, seriesId: number, shelves: { key: string; n
 	return { label: 'Library', href: '/' };
 }
 
+/**
+ * The origin an ADD carried to the series (c262), as UNDO gives it back: the
+ * catalog it was found in, or a search with its query. The bare search page is
+ * the preview's own fallback (`origin.ts`, `searchOrigin`), not a place the
+ * entry was found, so it is no origin at all: a shared link that had no `from`
+ * comes back without one, and its ← says SOURCES either way (c932's UNDO,
+ * round 2).
+ */
+const addedOriginOf = (raw: string | null): string => {
+	const origin = sourceOrigin(raw);
+	return origin === '/downloads/search' ? '' : origin;
+};
+
 export const load: PageServerLoad = async ({ params, cookies, url, parent }) => {
 	const reveal = isRevealed(cookies);
 	// A hidden series is unreachable while reveal is off: the same 404 as a
@@ -267,6 +283,9 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// Where a book can move to, or singles can be added: same root only.
 		otherSeries: seriesOfBooks(reveal).filter((o) => o.rootId === root && o.id !== series.id),
 		created: url.searchParams.get('created') === '1',
+		// A merged show (c283, S2): UNGROUP is its undo, and only a show that
+		// has a journal offers it. An ordinary anime with seasons has none.
+		merged: mergeState(series.id),
 		// Japanese (doc/JAPANESE.md): OCR's progress, and the words looked up. Never for
 		// novels, which are text, nor anime, which has no pages (doc/ANIME.md).
 		ocr: series.kind === 'novel' || series.kind === 'anime' ? null : ocrPlace(series.id),
@@ -318,6 +337,14 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 			/^[\w~.:-]{1,512}$/.test(url.searchParams.get('added') ?? '')
 				? url.searchParams.get('added')
 				: null,
+		// Where the entry was found (c262), as the ADD carried it: UNDO goes back
+		// there, and puts it on the preview's own URL. In a form, not the action's
+		// `url`, because `?/undoSourceAdd` replaces the page's whole query.
+		// The search page is the preview's own fallback origin (`searchOrigin`),
+		// not something the entry was found in: a shared link that had no `from`
+		// must not come back with `?from=/downloads/search` invented on it (c932's
+		// UNDO, round 2). Its ← says SOURCES either way.
+		addedOrigin: addedOriginOf(url.searchParams.get('from')),
 		// ADD AND DOWNLOAD (card c205): how many it queued, or `down` when the queue didn't answer.
 		addedQueued: /^(\d+|down)$/.test(url.searchParams.get('queued') ?? '')
 			? url.searchParams.get('queued')
@@ -1030,21 +1057,46 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * UNGROUP: every book back out as a single, or every volume of a novel
-	 * back into a series of its own (doc/BOOKS.md); the series goes.
+	 * UNGROUP: every book back out as a single, every volume of a novel back
+	 * into a series of its own (doc/BOOKS.md), or a merged show's seasons back
+	 * into the series they were, each under its own id (doc/WORKS.md, "Per-season
+	 * sources"). The series goes in the first two; a merged show is restored by
+	 * its journal.
 	 */
-	ungroup: async ({ params, cookies }) => {
+	ungroup: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		if (s.kind === 'novel') {
-			const made = takeOutVolumes(s.id);
-			void refreshCovers({ ids: made, remote: false });
-		} else
-			recover(
-				takeOut(
-					s.id,
-					s.entries.map((e) => e.id)
-				)
-			);
+		const form = await request.formData();
+		// The show band's own form says what it is undoing (c283, round 2). A
+		// second press, or a tab left on `?created=N&merge=1`, reaches here after
+		// the journal is gone; the show's first season still exists, so without
+		// this flag it would fall through to the books' take-out and delete the
+		// anime. It is a no-op redirect now.
+		const fromShow = form.get('show') === '1';
+		try {
+			if (mergeState(s.id)) {
+				const made = ungroupSeasons(s.id);
+				void refreshCovers({ ids: made, remote: false });
+			} else if (fromShow) {
+				redirect(303, `/series/${s.id}`);
+			} else if (s.kind === 'novel' && isVolumeSeries(s)) {
+				const made = takeOutVolumes(s.id);
+				void refreshCovers({ ids: made, remote: false });
+			} else if (isBookSeries(s)) {
+				recover(
+					takeOut(
+						s.id,
+						s.entries.map((e) => e.id)
+					)
+				);
+			} else {
+				return fail(400, {
+					message: 'only a series of books or a merged show can ungroup'
+				});
+			}
+		} catch (e) {
+			if (e instanceof GroupingError) return fail(400, { message: e.message });
+			throw e;
+		}
 		redirect(303, '/?sort=added');
 	},
 
@@ -1189,10 +1241,11 @@ export const actions: Actions = {
 	 * UNDO on ADDED TO THE LIBRARY: out of both libraries again, while nothing
 	 * of it is downloaded or read, and back to the result it was added from.
 	 */
-	undoSourceAdd: async ({ request, params, cookies }) => {
+	undoSourceAdd: async ({ request, params, cookies, url }) => {
 		const s = target(params, cookies);
+		const form = await request.formData();
 		// The preview it was added from, by the backend's own id for it.
-		const from = String((await request.formData()).get('from') ?? '');
+		const from = String(form.get('from') ?? '');
 		let undone: boolean;
 		try {
 			undone = await undoSourceAdd(s.id);
@@ -1201,7 +1254,22 @@ export const actions: Actions = {
 			throw e;
 		}
 		if (!undone) return fail(409, { message: 'something of it is downloaded or read now' });
-		redirect(303, /^[\w~.:-]{1,512}$/.test(from) ? `/downloads/source/${from}` : '/');
+		// Its own `from` (c262) goes back too, or the preview's ← says SOURCES after UNDO.
+		const origin = sourceOrigin(String(form.get('origin') ?? url.searchParams.get('from') ?? ''));
+		// A search's query goes back as `q` as well (c932, wave 46): the preview
+		// reads where it was found from `q` alone (`downloads/source/[id]`'s
+		// load, `searchOrigin`), so `from=` on its own would leave ← on the bare
+		// search page, though the swipe back is right.
+		const preview = /^[\w~.:-]{1,512}$/.test(from) ? `/downloads/source/${from}` : '';
+		const query =
+			preview && origin.startsWith('/downloads/search')
+				? new URL(origin, 'http://in.app').searchParams.get('q')
+				: null;
+		if (!preview) redirect(303, '/');
+		redirect(
+			303,
+			keepOrigin(query ? `${preview}?q=${encodeURIComponent(query)}` : preview, origin)
+		);
 	},
 
 	/** A long press on a chapter row: it and everything before it, read. */

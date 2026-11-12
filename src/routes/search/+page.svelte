@@ -164,9 +164,23 @@
 		if (!r) return [];
 		const out: Picked[] = [];
 		for (const w of r.works)
-			for (const p of w.parts) out.push(pickedOfPart(p, w.name, { id: w.id, name: w.name }));
+			for (const p of w.parts)
+				out.push(
+					pickedOfPart(
+						p,
+						w.name,
+						{ id: w.id, name: w.name },
+						data.groupFacts[String(p.seriesId)] ?? null
+					)
+				);
 		for (const t of r.titles)
-			out.push(pickedOfCard(t, t.work ? { id: t.work.id, name: t.work.name } : null));
+			out.push(
+				pickedOfCard(
+					t,
+					t.work ? { id: t.work.id, name: t.work.name } : null,
+					data.groupFacts[String(t.id)] ?? null
+				)
+			);
 		return out;
 	});
 	// As on the library: note what is drawn of the selection and forget what

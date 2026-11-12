@@ -44,6 +44,13 @@ export function plan(o: {
 	solverDir: string | null;
 	/** Put there by the installer (its uninstaller beside it), so UPDATE can run the next one. */
 	installed?: boolean;
+	/**
+	 * SETTINGS' WEBVIEW switch as it stands (`readSwitch`, webview-switch.ts):
+	 * the engine runs WebView extensions only when it's on. Off by default
+	 * (card c978). Read again for every engine start, so it's the plan's
+	 * input, not the plan's to read.
+	 */
+	webview?: boolean;
 }): Plan {
 	const p = o.platform === 'win32' ? path.win32 : path.posix;
 	const exe = o.platform === 'win32' ? '.exe' : '';
@@ -81,6 +88,11 @@ export function plan(o: {
 			ENGINE_URL: `http://127.0.0.1:${ports.engine}`,
 			ENGINE_TOKEN: o.engineToken,
 			...(o.solverDir ? { ENGINE_SOLVER_URL: `http://127.0.0.1:${ports.solver}/v1` } : {}),
+			// The WEBVIEW switch the launcher reads, and the folder Chromium goes to:
+			// SETTINGS turns it on and off, and shows and removes the folder
+			// (doc/SETTINGS.md, "07 — BROWSE").
+			ENGINE_WEBVIEW_SWITCH: switchPath(o.home, o.platform),
+			ENGINE_WEBVIEW_DIR: chromiumPath(o.home, o.platform),
 			FFMPEG: o.env.FFMPEG || p.join(ffmpeg, `ffmpeg${exe}`),
 			FFPROBE: o.env.FFPROBE || p.join(ffmpeg, `ffprobe${exe}`)
 		}
@@ -102,7 +114,12 @@ export function plan(o: {
 			ENGINE_TOKEN: o.engineToken,
 			// Loopback only: the proxies fetch through every source's cookies.
 			ENGINE_HOST: '127.0.0.1',
-			ENGINE_APK_DIR: p.join(o.home, 'engine', 'apks')
+			ENGINE_APK_DIR: p.join(o.home, 'engine', 'apks'),
+			// Headless Chromium for WebView extensions, only when SETTINGS has it on
+			// (doc/EXTENSION-ENGINE.md, "WebView support"). Its folder is named so the
+			// app and the engine agree on it.
+			...engineWebViewEnv(o.webview === true),
+			ENGINE_WEBVIEW_DIR: chromiumPath(o.home, o.platform)
 		}
 	};
 
@@ -158,6 +175,43 @@ export function solverSetAside(
 	const from = path.posix.join(solverDir, '_internal', 'libreadline.so.8');
 	return exists(from) ? [{ from, to: `${from}.bundled-off` }] : [];
 }
+
+// ---- the WebView switch (doc/EXTENSION-ENGINE.md, "WebView support") ---------------------
+
+/**
+ * Where SETTINGS' WEBVIEW switch is kept, under the data folder, as WI-FI
+ * keeps `wifi.json`: the launcher reads it before every engine start, having
+ * no database (`readSwitch`, src/lib/server/engine/webview-switch.ts).
+ */
+export const switchPath = (home: string, platform: NodeJS.Platform) =>
+	(platform === 'win32' ? path.win32 : path.posix).join(home, 'engine', 'webview.json');
+
+/**
+ * Where the engine downloads Chromium to and runs it from (`ENGINE_WEBVIEW_DIR`):
+ * the engine's own default, `<app dir>/webview/chromium`, said out loud so the
+ * app knows the folder SETTINGS shows and REMOVE deletes.
+ */
+export const chromiumPath = (home: string, platform: NodeJS.Platform) =>
+	(platform === 'win32' ? path.win32 : path.posix).join(
+		home,
+		'engine',
+		'app',
+		'webview',
+		'chromium'
+	);
+
+/**
+ * What the engine is started with: on only when the switch is (the owner's
+ * decision of 2026-11-12, card c978: the WebView runs sites' scripts in
+ * Chromium 111 without a sandbox, so it is on for an install that turns it
+ * on, and off on every other). Always said, `off` included: the launcher's
+ * environment, the data folder's `.env` read into it, reaches the engine too,
+ * and a stray `ENGINE_WEBVIEW=on` there must not turn on what the switch has
+ * off.
+ */
+export const engineWebViewEnv = (on: boolean): { ENGINE_WEBVIEW: 'on' | 'off' } => ({
+	ENGINE_WEBVIEW: on ? 'on' : 'off'
+});
 
 /** How to open a page in the friend's browser. */
 export function opener(platform: NodeJS.Platform, url: string): { cmd: string; args: string[] } {

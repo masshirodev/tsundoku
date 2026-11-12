@@ -1,5 +1,8 @@
 import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
+import { parseAnimeKey } from '../library/downloads.ts';
+import { KINDS, kindFacts } from '../library/kinds.ts';
+import { libraryWhere } from './visibility.ts';
 
 /**
  * What a series knows of each season's source (rung 75; card c282, the first
@@ -365,4 +368,73 @@ export function resequenceAnime(db: Database.Database, seriesId: number): void {
 	);
 	const set = db.prepare(`UPDATE entries SET position = ? WHERE id = ?`);
 	rows.forEach((r, i) => set.run(i + 1, r.id));
+}
+
+/**
+ * The facts one GROUP AS ONE SHOW row's second line draws (c283's Build list;
+ * `Seasons-Group.dc.html`, A1): `<SOURCE> · 12 EP. · 2026 · 6 WATCHED · 3 HERE`.
+ * The episode count and WATCHED come off the library card the selection
+ * already keeps; these three are the rest, and each one's writer is named
+ * beside it:
+ *
+ * - **`source`** is the season's own source, the name its SOURCE row shows:
+ *   `engine_sources.name` for the id in the key `seasonOrigin` answers (c282;
+ *   `move.ts`'s `sourceName`). A series with no source answers null.
+ * - **`year`** is the season's AniList entry, `series_season_links.year`, which
+ *   `season-links.ts` writes from the catalogue's `seasonYear` (the board's
+ *   2023 and 2026 are Frieren's two seasons, not an arrival date).
+ * - **`here`** is a file on disk: `entries.available = 1`, which for an anime
+ *   is what `import/write.ts` sets when the episode's file is named. It is not
+ *   "has a source" and not "watched".
+ *
+ * Only the series the viewer can see are answered (`libraryWhere`), so a
+ * hidden series outside reveal is never read for, nor drawn.
+ */
+export type ShowRowFacts = { source: string | null; year: number | null; here: number };
+
+export function showRowFacts(
+	ids: readonly number[],
+	reveal: boolean,
+	db: Database.Database = getDb()
+): Record<string, ShowRowFacts> {
+	const out: Record<string, ShowRowFacts> = {};
+	if (ids.length === 0) return out;
+	// Only a kind whose seasons can merge draws this line (`mergeSeasons` asks
+	// the registry's `medium`), and the library asks for every tile it draws:
+	// without the narrowing this is five queries per tile for rows that can
+	// never show a word of it (round 2's low 8).
+	const mergeable = KINDS.filter((k) => kindFacts(k).medium === 'video');
+	if (mergeable.length === 0) return out;
+	const rows = db
+		.prepare(
+			`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id
+			WHERE s.id IN (${ids.map(() => '?').join(',')})
+			AND s.kind IN (${mergeable.map(() => '?').join(',')})
+			AND ${libraryWhere(reveal)}`
+		)
+		.all(...ids, ...mergeable) as { id: number }[];
+	const year = db.prepare(
+		`SELECT year FROM series_season_links WHERE series_id = ? ORDER BY season, part LIMIT 1`
+	);
+	const here = db.prepare(
+		`SELECT COUNT(*) AS n FROM entries WHERE series_id = ? AND available = 1`
+	);
+	for (const row of rows) {
+		const key = seasonOrigin(row.id, 0, db);
+		// `engine_sources.name`, the column `sourceName` reads (move.ts); asked here
+		// rather than imported, so this module stays out of the engine's own graph
+		// (`site/`'s tsconfig reaches `books.ts`, and through it this file).
+		const id = parseAnimeKey(key)?.sourceId ?? '';
+		const source =
+			(
+				db.prepare(`SELECT name FROM engine_sources WHERE id = ?`).get(id) as
+					{ name: string } | undefined
+			)?.name || null;
+		out[String(row.id)] = {
+			source,
+			year: (year.get(row.id) as { year: number | null } | undefined)?.year ?? null,
+			here: (here.get(row.id) as { n: number }).n
+		};
+	}
+	return out;
 }

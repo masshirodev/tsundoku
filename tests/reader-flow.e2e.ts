@@ -851,6 +851,20 @@ test('zoom: a paged page grows and scrolls, KEEP makes it every paged series’ 
 	expect(await screen.evaluate((e) => e.scrollHeight > e.clientHeight && e.scrollTop === 0)).toBe(
 		true
 	);
+	// ↓ / ↑ scroll it, with the keyboard on the page, not in the screen's box;
+	// neither turns the page.
+	const top = () => screen.evaluate((e) => e.scrollTop);
+	const pageNo = await page
+		.locator('.stage .screen:not([aria-hidden]) [data-page]')
+		.first()
+		.getAttribute('data-page');
+	await page.keyboard.press('ArrowDown');
+	await expect.poll(top).toBeGreaterThan(50);
+	await page.keyboard.press('ArrowUp');
+	await expect.poll(top).toBe(0);
+	await expect(
+		page.locator('.stage .screen:not([aria-hidden]) [data-page]').first()
+	).toHaveAttribute('data-page', pageNo!);
 	await tap(page, 0.5);
 	await page.getByRole('button', { name: /R→L/ }).click();
 	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
@@ -1051,6 +1065,55 @@ test('a pinch zooms around the fingers, not the page’s top left (c185)', async
 	expect(after.fx).toBeCloseTo(before.fx, 2);
 	expect(after.fy).toBeCloseTo(before.fy, 2);
 	await page.keyboard.press('0');
+});
+
+test('a double page keeps its own zoom, and leaves the single pages’ alone (the owner, 2026-11-11)', async ({
+	page
+}) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	const href = await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.getAttribute('href');
+	// The sample's seventh page is a double page; the sixth is a single one.
+	await page.goto(`${href}?p=6`);
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	const box = page.locator('.stage .screen:not([aria-hidden]) .page').first();
+	const height = () => box.evaluate((e) => e.getBoundingClientRect().height);
+	const fitted = await height();
+	// A single page read at 150%.
+	await page.keyboard.press('+');
+	await page.keyboard.press('+');
+	await expect.poll(height).toBeCloseTo(fitted * 1.5, 0);
+	// R→L: ← is the next page, the double one. It starts at its own zoom, 100%.
+	await page.keyboard.press('ArrowLeft');
+	await expect(page).toHaveURL(/p=7/);
+	const wideFit = await box.evaluate((e) => e.getBoundingClientRect().width);
+	expect(wideFit).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+	// Zoomed out on it to 75%, and the sheet says whose zoom that is.
+	await page.keyboard.press('-');
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await tap(page, 0.5);
+	await page.getByRole('button', { name: /R→L/ }).click();
+	await expect(sheet.locator('.zval')).toHaveText('75%');
+	await expect(sheet).toContainText('DOUBLE PAGE · KEPT: 100%');
+	// KEEP on it keeps the double pages' zoom, never the single pages'.
+	await sheet.getByRole('button', { name: 'KEEP FOR ALL DOUBLE PAGES' }).click();
+	await expect(sheet).toContainText('EVERY DOUBLE PAGE STARTS HERE ON THIS SCREEN');
+	await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+	await tap(page, 0.5);
+	expect(await page.evaluate(() => localStorage.getItem('tsundoku.reader.zoom.double.wide'))).toBe(
+		'0.75'
+	);
+	expect(
+		await page.evaluate(() => localStorage.getItem('tsundoku.reader.zoom.paged.wide'))
+	).toBeNull();
+	// Back on the single page, its 150% is still there.
+	await page.keyboard.press('ArrowRight');
+	await expect(page).toHaveURL(/p=6/);
+	await expect.poll(height).toBeCloseTo(fitted * 1.5, 0);
+	await page.evaluate(() => localStorage.removeItem('tsundoku.reader.zoom.double.wide'));
 });
 
 test('wide pages: SPLIT reads the halves in order, ROTATE turns the page, WHOLE as before', async ({

@@ -29,6 +29,8 @@
 	import ResultTile from './ResultTile.svelte';
 	import AddedBand from '../AddedBand.svelte';
 	import { SiteCheck, checkLine } from '$lib/site-check.svelte';
+	import { WebViewWatch } from '$lib/webview-watch.svelte';
+	import { NEEDS, parseWebViewError } from '$lib/webview';
 	import { askedLine } from '$lib/waiting';
 	import FilterForm from './FilterForm.svelte';
 	import { m } from '$lib/paraglide/messages';
@@ -335,6 +337,21 @@
 		return () => check.stop();
 	});
 
+	// A WebView source (doc/BROWSE.md, "Extensions that need a WebView"): while
+	// it waits, or after a call failed for want of the browser, the engine's
+	// first download of it is watched, so the page says how far it is, and
+	// offers TRY AGAIN only once it's ready.
+	const webviewFailed = $derived(shown && !shown.ok ? parseWebViewError(shown.error) : null);
+	const webview = new WebViewWatch();
+	$effect(() => {
+		if (data.webviewMark !== NEEDS) return;
+		if (shown && !(webviewFailed && webviewFailed.state !== 'off')) return;
+		webview.start();
+		return () => webview.stop();
+	});
+	/** The browser as the watch last saw it: starting, ready, failed; null before it answers. */
+	const browserState = $derived(webview.view?.status?.state ?? null);
+
 	const value = $derived(shown?.ok ? shown.value : null);
 	const results = $derived(value?.results ?? null);
 	const name = $derived(data.source.name);
@@ -584,7 +601,9 @@
 	{/if}
 
 	{#if shown && !shown.ok}
-		{#if shown.error === 'down'}
+		{#if webviewFailed}
+			{@render webviewBand(webviewFailed)}
+		{:else if shown.error === 'down'}
 			<Band
 				title="○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION"
 				detail="THE LIBRARY AND CACHED CHAPTERS STILL OPEN"
@@ -621,7 +640,17 @@
 			</Band>
 		{/if}
 	{:else}
-		{#if !results && check.since !== null}
+		{#if !results && webview.view?.firstUse}
+			<!-- Non-blocking: the source answers once its browser is there. -->
+			{#if browserState === 'failed'}
+				<Band title="THE BROWSER THIS SOURCE NEEDS DIDN'T START" detail={webview.view.firstUse} />
+			{:else}
+				<Band
+					title={webview.view.firstUse}
+					detail="ONCE, THE FIRST TIME · THEN THE SOURCE ANSWERS"
+				/>
+			{/if}
+		{:else if !results && check.since !== null}
 			<Band
 				title="{name.toUpperCase()} · PASSING THE SITE'S BROWSER CHECK"
 				detail={checkLine(check.elapsed)}
@@ -691,6 +720,31 @@
 	<PressBar here={onList} />
 	<TickSheet open={showing} here={onList} onclose={() => (showing = false)} />
 {/if}
+
+{#snippet webviewBand(f: { state: 'starting' | 'failed' | 'off'; line: string })}
+	{#if f.state === 'off'}
+		<!-- Said in words, not as an error: this install has it off (card c978). -->
+		<Band title={f.line} detail="SETTINGS › BROWSE › WEBVIEW" />
+	{:else if f.state === 'starting' && browserState !== 'ready' && browserState !== 'failed'}
+		<!-- No TRY AGAIN while the browser comes: asking now would only wait again. -->
+		<Band
+			title={webview.view?.firstUse ?? f.line}
+			detail="ONCE, THE FIRST TIME · TRY AGAIN COMES WHEN IT'S READY"
+		/>
+	{:else}
+		{@const failed =
+			browserState === 'failed' || (f.state === 'failed' && browserState !== 'ready')}
+		<Band
+			title={failed
+				? "THE BROWSER THIS SOURCE NEEDS DIDN'T START"
+				: 'THE BROWSER THIS SOURCE NEEDS IS READY'}
+			detail={failed ? (webview.view?.firstUse ?? f.line) : `ASK ${name.toUpperCase()} AGAIN`}
+		>
+			{#snippet action()}<a class="again" data-sveltekit-reload href={link({})}>TRY AGAIN</a
+				>{/snippet}
+		</Band>
+	{/if}
+{/snippet}
 
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
 

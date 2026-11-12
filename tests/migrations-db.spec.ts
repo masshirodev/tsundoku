@@ -710,11 +710,110 @@ describe('rung 75: a series’ sources, a season at a time (c282)', () => {
 			{ series_id: 2 }
 		]);
 	});
+});
+
+describe('rung 77: what a merged show was (c283)', () => {
+	const stopped = () => {
+		const conn = new Database(':memory:');
+		climb(conn, 76);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Aniyomi', '/nowhere');
+			INSERT INTO series (id, root_id, title, kind, added_at) VALUES
+				(1, 1, 'A show', 'anime', 1),
+				(2, 1, 'Another', 'anime', 1);
+		`);
+		return conn;
+	};
+
+	it('starts empty, so no library has a merge to restore', () => {
+		const conn = stopped();
+		climb(conn, 77);
+		expect(conn.prepare(`SELECT COUNT(*) AS n FROM season_merges`).get()).toEqual({ n: 0 });
+		const columns = (conn.pragma('table_info(season_merges)') as { name: string }[]).map(
+			(c) => c.name
+		);
+		expect(columns).toEqual(['series_id', 'made_at', 'facts']);
+		expect(conn.prepare(`SELECT COUNT(*) AS n FROM season_reservations`).get()).toEqual({ n: 0 });
+		// The reservation's own columns: an id held open, and its merge.
+		expect(
+			(conn.pragma('table_info(season_reservations)') as { name: string }[]).map((c) => c.name)
+		).toEqual(['merge', 'kind', 'id']);
+		expect(
+			(conn.pragma('table_info(series)') as { name: string }[]).some((c) => c.name === 'reserve_at')
+		).toBe(true);
+		expect(
+			(conn.pragma('table_info(works)') as { name: string }[]).some((c) => c.name === 'reserve_at')
+		).toBe(true);
+	});
+
+	it('keeps one journal a show, which goes with it', () => {
+		const conn = stopped();
+		climb(conn, 77);
+		conn.pragma('foreign_keys = ON');
+		conn
+			.prepare(`INSERT INTO season_merges (series_id, made_at, facts) VALUES (1, 5, '{"a":1}')`)
+			.run();
+		expect(() =>
+			conn
+				.prepare(`INSERT INTO season_merges (series_id, made_at, facts) VALUES (1, 6, '{}')`)
+				.run()
+		).toThrow(/UNIQUE|PRIMARY/);
+		conn.prepare(`DELETE FROM series WHERE id = 1`).run();
+		expect(conn.prepare(`SELECT COUNT(*) AS n FROM season_merges`).get()).toEqual({ n: 0 });
+	});
+
+	it('holds an absorbed id open, and lets it go when the merge does (round 2)', () => {
+		const conn = stopped();
+		climb(conn, 77);
+		conn.pragma('foreign_keys = ON');
+		// The merge keeps a placeholder series and Work in the table so SQLite
+		// cannot hand their ids to the next row added; the reservation binds
+		// them to the journal.
+		conn
+			.prepare(
+				`INSERT INTO series (id, root_id, title, kind, added_at, in_library, hidden,
+					favourite, rating, reserve_at)
+				VALUES (3, 1, '', 'anime', 1, 0, 1, 1, 1, 5)`
+			)
+			.run();
+		conn
+			.prepare(
+				`INSERT INTO works (id, name, created_at, order_mode, reserve_at)
+				VALUES (9, '', 1, 'hand', 5)`
+			)
+			.run();
+		conn.prepare(`INSERT INTO season_merges (series_id, made_at, facts) VALUES (1, 5, '{}')`).run();
+		conn
+			.prepare(
+				`INSERT INTO season_reservations (merge, kind, id) VALUES (1, 'series', 3), (1, 'works', 9)`
+			)
+			.run();
+		// Deleting the show cascades the journal, which cascades the reservations,
+		// whose own trigger takes the placeholders with them.
+		conn.prepare(`DELETE FROM series WHERE id = 1`).run();
+		expect(conn.prepare(`SELECT id FROM series ORDER BY id`).all()).toEqual([{ id: 2 }]);
+		expect(conn.prepare(`SELECT COUNT(*) AS n FROM works`).get()).toEqual({ n: 0 });
+	});
+});
+
+describe('rung 78: whether an extension uses a WebView', () => {
+	it('adds the flag, unknown for what was installed before', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 77);
+		conn
+			.prepare(
+				`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at)
+				VALUES ('a.b', 'A', 'anime', 1, '1', '16', 'h', 1, 1)`
+			)
+			.run();
+		climb(conn, 78);
+		expect(conn.prepare(`SELECT webview FROM engine_extensions`).get()).toEqual({ webview: null });
+	});
 
 	// The top rung's own block says it is the top; the next rung moves this line.
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(76);
+		expect(conn.pragma('user_version', { simple: true })).toBe(78);
 	});
 });

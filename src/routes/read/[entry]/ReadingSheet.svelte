@@ -35,6 +35,7 @@
 		cursor,
 		zoom = 1,
 		keptZoom = 1,
+		doublePage = false,
 		rating,
 		blocks = null,
 		onblocks = () => undefined,
@@ -71,6 +72,8 @@
 		/** The session's zoom and the kept one for this mode on this screen (doc/READER.md, "Zoom"). */
 		zoom?: number;
 		keptZoom?: number;
+		/** The screen shows a double page, whose zoom is its own (doc/READER.md, "Zoom"). */
+		doublePage?: boolean;
 		rating: number;
 		/** A Japanese series: when its text blocks are outlined (doc/JAPANESE.md). Null hides the row. */
 		blocks?: BlocksShown | null;
@@ -329,13 +332,15 @@
 				</div>
 				<div class="under">
 					<span class="note"
-						>{zoom === keptZoom
-							? `EVERY ${paged ? 'PAGED' : 'VERTICAL'} SERIES STARTS HERE ON THIS SCREEN`
+						>{doublePage ? 'DOUBLE PAGE · ' : ''}{zoom === keptZoom
+							? doublePage
+								? 'EVERY DOUBLE PAGE STARTS HERE ON THIS SCREEN'
+								: `EVERY ${paged ? 'PAGED' : 'VERTICAL'} SERIES STARTS HERE ON THIS SCREEN`
 							: `KEPT: ${zoomLabel(keptZoom)}`}</span
 					>
 					{#if zoom !== keptZoom}
 						<button type="button" class="remember" onclick={onkeepzoom}
-							>KEEP FOR ALL {paged ? 'PAGED' : 'VERTICAL'}</button
+							>KEEP FOR ALL {doublePage ? 'DOUBLE PAGES' : paged ? 'PAGED' : 'VERTICAL'}</button
 						>
 					{/if}
 				</div>

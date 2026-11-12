@@ -238,14 +238,17 @@ it shows only the answers the selection allows:
 | ---------------------- | ----------------------------------------------------------------- |
 | `ONE SERIES · BOOKS`   | doujin singletons, every selected item one book                   |
 | `ONE SERIES · VOLUMES` | novels, every selected item one file's series                     |
+| `ONE SHOW · SEASONS`   | anime, two or more: seasons of one run, merged (doc/WORKS.md)     |
 | `A WORK · SERIES`      | any series: a Work keeps them apart, so nothing here has to merge |
 
 The answer names the noun for the rest of the sheet, which is otherwise the
 same as it always was: NEW SERIES / ADD TO EXISTING, NAME, ORDER, rows, and
 CREATE. Books and volumes behave exactly as they did; the AS row only decides
-which grouping the sheet is asking about. `ONE SHOW · SEASONS` is S2's, and
-`groupAnswers()` in `src/lib/library/books.ts` is where the rule lives.
-Selecting the work's answer is doc/WORKS.md, "Making one".
+which grouping the sheet is asking about. `ONE SHOW · SEASONS` is S2's
+(c283): `isSeasonSet()` in `src/lib/library/books.ts` decides it, the selection
+bars prepend it, and the merge, its UNDO and its rows are doc/WORKS.md,
+"Grouping seasons into one show". Selecting the work's answer is doc/WORKS.md,
+"Making one".
 
 The model is the same tables again:
 

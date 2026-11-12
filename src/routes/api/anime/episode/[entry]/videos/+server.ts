@@ -51,7 +51,8 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
 	} catch (e) {
 		// The source service not answering is said without naming the engine (Player Waiting 3b).
 		if (e instanceof EngineError) {
-			if (e.failure !== 'down' && !incognito) recordNoVideo(id);
+			// A browser still downloading, or turned off, says nothing of the episode.
+			if (e.failure !== 'down' && e.failure !== 'webview' && !incognito) recordNoVideo(id);
 			return json(
 				{ failed: e.failure === 'down' ? 'down' : 'source', message: e.message },
 				{ status: 503, headers: { 'cache-control': 'private, no-store' } }

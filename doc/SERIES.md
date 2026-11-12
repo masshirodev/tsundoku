@@ -495,7 +495,9 @@ file for ABOUT's body and the line's text at 390).
 
 **The row.** FILE (FOLDED on a book folded from editions) is its label, the
 text (the path, then `13 EPUB · 6.8 MB`), and its cells: RENAME, UNGROUP on a
-series of books or volumes, HIDE (UNHIDE), DELETE (UNFOLD in FOLDED's place).
+series of books, a series of volumes or a merged show (doc/WORKS.md,
+"UNGROUP, and taking a season out"), HIDE (UNHIDE), DELETE (UNFOLD in FOLDED's
+place).
 It follows LISTS' rule (`doc/handoffs/series-lists/`): where the panel is
 narrow (the phone, the 440px landscape panel and the TV's 352px column, the
 same query as the LINK row's) two or more cells drop under the line in equal
@@ -718,6 +720,28 @@ cells, with the house's inset focus mark.
 
 - The fold in the phone's series header (c425, `doc/handoffs/series-phone/`):
   the next wave folds these rows.
+
+## The ADDED band's place in history (c932)
+
+**The add replaces the preview's history entry** (c932): the series takes its
+place in history, so one swipe back from it is the catalog it was found in, at
+the place it was left ([`BROWSE.md`](BROWSE.md), "The add replaces the
+preview"). The band's own **UNDO ends the series and returns to the preview, so
+it replaces the series' entry too**: one swipe back from the preview is that
+same catalog, not the series UNDO deleted (a 404), and the preview's ← says
+BROWSE because the origin rides back with it (`?from=`, c262). Both forms are
+`use:enhance={replacing}` (`src/lib/back.ts`). A search's origin comes back as
+its query too (`?q=`, wave 46): the preview reads where it was found from `q`
+alone, so `from=` alone would leave its ← on the bare search page. Without
+script the POST's 303 is a full navigation, which no page can replace: it still
+pushes.
+
+The **hidden band** (`/browse/<source>`'s, or `/browse`'s once the source is
+mostly hidden; `src/routes/browse/AddedBand.svelte`) has the same UNDO, and
+none of this screen's route: it replaces the landing's entry, and the catalog
+the ADD recorded on its URL (`catalog`) rides back to the preview, so ← says
+BROWSE there too. A preview reached by a shared link records no catalog, so
+its ← says SOURCES ([`BROWSE.md`](BROWSE.md), "The add replaces the preview").
 
 ## Shelves in the ADDED band (c724)
 

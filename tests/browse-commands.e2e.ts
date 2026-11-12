@@ -8,6 +8,7 @@ import { chromium, devices } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 import { startPreview } from './highlights-preview';
+import { HOST_ARGS } from './helpers/host-args';
 
 /**
  * Commands in every top search bar (card c697), in BROWSE's world so the
@@ -159,7 +160,7 @@ test('a command that got no answer lets the next press run', async ({ page }) =>
  */
 async function onATv(page: Page, baseURL: string, body: (screen: Page) => Promise<void>) {
 	const browser = await chromium.launch({
-		args: ['--blink-settings=availablePointerTypes=none,availableHoverTypes=none']
+		args: [...HOST_ARGS, '--blink-settings=availablePointerTypes=none,availableHoverTypes=none']
 	});
 	try {
 		// A context made in a test inherits the project's own device options

@@ -249,11 +249,26 @@ as an action that ends a screen does: one swipe back from the new series lands
 on the catalog it was found in, at the place c930 keeps, not on the preview a
 second time. Pushed, it cost two swipes, and the second one opened a preview
 of a series that was now in the library (which redirects to its series) — the
-"transient gap" the owner named. The band, its UNDO, `?from=` (c262), the
+"transient gap" the owner named. The band's **UNDO** ends the series in turn,
+so it replaces the series' entry as well and lands on the preview with the
+origin put back (`?from=`, c262): one swipe back from the preview is the
+catalog, and the preview's ← says BROWSE
+([`SERIES.md`](SERIES.md), "The ADDED band's place in history"). The band, the
 hidden landing (c435, c505) and a refusal's band are unchanged: only where the
-landing sits in history moved. **Without script** a native POST's 303 is a full
-navigation, which no page can replace: ADD still costs two swipes there, and
-the no-script path is left as it was.
+landing and the UNDO sit in history moved. **Without script** a native POST's
+303 is a full navigation, which no page can replace: ADD and UNDO still cost
+two swipes there, and the no-script path is left as it was.
+
+**The hidden band's UNDO is the same one** (c932, wave 46). When the ADD hid
+the series the band is the source's page's, or BROWSE's once the source is
+mostly hidden, and there is no series screen to come back to: its UNDO replaces
+that landing's entry too, and hands the preview the catalog the ADD recorded
+(a `catalog` band parameter, written by `addedLanding`), so the preview's ←
+says BROWSE and one swipe back is the list at the place it was left. Only an
+ADD the catalog itself carried records one, so a shared link's preview gets no
+`from=` from it and ← still says SOURCES, where the entry was never found
+(`src/routes/browse/added.server.ts`, `afterUndo`; `doc/SERIES.md`, "The ADDED
+band's place in history").
 
 The preview of a series already in the library still redirects to the series
 (`+page.server.ts`:66), so a shared preview link opens the series.
@@ -741,6 +756,48 @@ without script): the series that come from it stay, files and all; its
 queued chapters leave the queue and its followed series stop being checked;
 its settings are kept for a reinstall. Counts are what reveal lets you see.
 
+### Extensions that need a WebView
+
+Some extensions, manga or anime, run their site in an Android WebView. The
+engine gives them a headless Chromium when this install turns its WebView on
+([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md), "WebView support"; SETTINGS ›
+07 — BROWSE › WEBVIEW, [`SETTINGS.md`](SETTINGS.md)). It is off on every
+install until turned on: the owner's decision of 2026-11-12 (card c978) is
+on for the owner's own workstation, off for friends', since it runs those
+sites' scripts in Chromium 111 without a sandbox. Small in-place work on
+existing screens, not drawn in a handoff; the words are
+`src/lib/webview.ts`'s.
+
+- **The mark.** An installed extension whose code uses a WebView
+  (`engine_extensions.webview`, rung 78), and each of its sources on BROWSE's
+  list and in RECENT, carry **NEEDS A WEBVIEW** in their line, a quiet fact
+  in the line's text-2 like the language beside it, no new colour. Where this
+  install can't give it one it is said in words, not as an error: **NEEDS A
+  WEBVIEW, WHICH THIS INSTALL HAS TURNED OFF**, or **NEEDS A WEBVIEW, WHICH
+  THIS ENGINE CAN'T RUN** on an engine older than the support (its
+  `/capabilities` has no `webview`). An OBSOLETE row keeps the mark after its
+  repository words. AVAILABLE has no mark: whether an APK uses a WebView is
+  known only once it's downloaded.
+- **The first download.** The engine fetches Chromium (about 180 MB) the
+  first time a WebView extension is loaded. While it comes, EXTENSIONS (where
+  one was installed) and a WebView source's page (while it waits) show a
+  non-blocking band, **GETTING THE BROWSER THIS SOURCE NEEDS · 40 % OF ABOUT
+  180 MB**, asked of `/api/browse/webview` every 2 s
+  (`src/lib/webview-watch.svelte.ts`). Nothing is said when it's ready or
+  idle. When it failed, the band is **THE BROWSER … DIDN'T START** with the
+  engine's error verbatim (it is written for people: "needs an X display ...
+  install Xvfb"), and EXTENSIONS' band links to SETTINGS.
+- **A failed call.** A WebView extension's error carries the WebView's
+  status; while the browser is starting, failed, or off, the source's page
+  draws that instead of DID NOT ANSWER and the extension's "timed out"
+  (`webviewError` through the page's settled answer, `parseWebViewError`).
+  Starting: the first-use line, and no TRY AGAIN, since asking now would
+  only wait again; once the watch sees it ready, **THE BROWSER THIS SOURCE
+  NEEDS IS READY** with TRY AGAIN. Failed: the engine's words, with TRY
+  AGAIN. Off: the mark's words, and SETTINGS › BROWSE › WEBVIEW. The same
+  words reach every other place a call's message shows (the queue, the
+  player).
+
 ### Selecting many at once
 
 **SELECT** (card c696, the owner's ask of 2026-11-07; designed
@@ -891,7 +948,12 @@ the key it was signed with beside the repository's. There's no install
 anyway: a tap that runs code signed by an unknown key is what the check is
 there to stop.
 
-**REPOSITORIES** adds one by its address. Pasted, it's asked before anything
+**REPOSITORIES** adds one by its address, over https; plain http only from
+this computer itself (`127.x.x.x`, `localhost`, `[::1]`; `isLoopbackHost`), for
+a repository the owner serves to their own install, since 2026-11-12. Nothing
+crosses a network there, and the transport was never what an install trusts:
+an APK is kept only when it's signed by the key the repository lists. A home
+network's address over http is still refused. Pasted, it's asked before anything
 is added (`?add=<address>`): FOUND · Keiyoushi · 1,435 MANGA EXTENSIONS, and
 ADD; or NOT A REPOSITORY with the reason. The list shows each with its kind,
 what it holds, and REMOVE (which asks, through the sheet, when extensions
@@ -1145,6 +1207,19 @@ its `from` directly: ← goes where it did before the ADD, to the source's page,
 whose own ← is the tag's screen. With no origin, a refused one, or a landing on
 BROWSE, there is no `from`.
 
+The **series page's** own UNDO after an ADD does keep it (c932): its form
+carries the origin the add landed with, and the redirect puts it on the
+preview's URL ([`SERIES.md`](SERIES.md), "The ADDED band's place in history").
+So does the hidden band's, on BROWSE's route (wave 46): it hands back the
+catalog the ADD recorded on the band's URL, and a preview reached by a shared
+link, which has no catalog behind it, gets no `from=` at all.
+
+**A search's query comes back with it** (c932, wave 46). An ADD found by a
+search hands back `/downloads/search?q=<query>`, and the preview reads where it
+was found from `q` alone (`downloads/source/[id]`'s load, `searchOrigin`), so
+`from=` on its own would leave its ← on the bare search page: UNDO puts the
+query on the preview's URL too, and ← is the search the entry was found by.
+
 **ADD AND DOWNLOAD queues only what its own ADD hid** (c505). Outside reveal
 a hidden series is not the viewer's, but the one ADDED HIDDEN has just hidden
 is: it is queued, and queueing it shows nothing. Every ADD door also answers
@@ -1237,6 +1312,7 @@ found by those words and a locator matches by substring.
 | A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`; tsundoku's own switches in `src/lib/server/engine/source-flags.ts`; CONCEAL in `src/routes/browse/conceal.server.ts` and `ConcealBand.svelte`                                                                                                                                                        |
 | Extensions and repositories                               | `src/routes/browse/extensions/` (`ExtRow.svelte`), `src/lib/server/engine/manage.ts`                                                                                                                                                                                                                                                                                               |
 | BROWSE's languages                                        | `src/routes/settings/` (03 — BROWSE)                                                                                                                                                                                                                                                                                                                                               |
+| A WebView extension (mark, first download, failed call)   | `src/lib/webview.ts` (the words), `src/lib/server/engine/webview.ts`, `apk-webview.ts`, `src/routes/api/browse/webview/`, `src/lib/webview-watch.svelte.ts`                                                                                                                                                                                                                        |
 | A site's check                                            | `checkingSince` / `noteSolvedChecks` in `engine/browse.ts`, `novels/solver.ts` (the app's own solve, c152), `src/routes/api/browse/check/[source]/`, `src/lib/site-check.svelte.ts`; the fork's `ChallengeLog`                                                                                                                                                                     |
 | The engine's schema                                       | the fork, `server/src/main/kotlin/mextensionserver/impl/FilterSchema.kt`                                                                                                                                                                                                                                                                                                           |
 
@@ -1354,6 +1430,18 @@ found by those words and a locator matches by substring.
   (a source's page) and `tests/browse-list-frame.e2e.ts` (BROWSE),
   in the `browse` project against a fake engine (`tests/browse-setup.ts`,
   [`TESTING.md`](TESTING.md)).
+- The WebView ("Extensions that need a WebView"): `tests/webview-words.spec.ts`
+  (every line, the mark, the capability, a failed call's mapping),
+  `tests/engine-webview.spec.ts` (against a fake engine: a failed call's
+  message and failure, the capability and its cache, SETTINGS' view, the
+  switch, REMOVE's refusals), `tests/apk-webview.spec.ts` (the dex read),
+  `tests/engine-extensions-db.spec.ts` (the flag at install, the fill, BACK
+  TO), `tests/webview-switch.spec.ts` and `tests/release-plan.spec.ts` (the
+  switch's file, and `ENGINE_WEBVIEW` on only when it's on), and
+  `tests/browse-webview.e2e.ts` (the `browse` project, a world and fake
+  engine of its own: the mark on and off, SETTINGS' row through ON, a
+  restart, OFF and REMOVE, the first-use band, TRY AGAIN only once ready,
+  and a failed browser's words).
 
 ## Where it departs from the handoff
 
@@ -1452,9 +1540,9 @@ SHELVES` sheet and no `+ NEW SHELF`. Both act on one series today
   workstation); and the shelves sheet and + NEW SHELF on a press's band. In
   cut 1 a press offline fails each series as `DID NOT ANSWER`, and RETRY asks
   again.
-- **NEEDS A BROWSER** isn't drawn: nothing records that an extension failed
-  for want of a WebView, which the engine reports only as an error at first
-  use. Such a source fails as any other does, on its page.
+- **The WebView is untested beyond Linux.** The engine's WebView is proven
+  on the workstation only (FORK.md, "Proven, and not"); a friend on Windows
+  who turns it on is the first to try it there.
 - **Repositories are checked when asked** (CHECK NOW), not every few hours.
   Nothing updates by itself either way, so a periodic check would only move
   the count on EXTENSIONS sooner.

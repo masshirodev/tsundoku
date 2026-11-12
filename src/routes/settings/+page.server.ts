@@ -14,6 +14,8 @@ import { browseLanguages } from '$lib/server/engine/browse';
 import { installedView, pluginsShown } from '$lib/server/engine/manage';
 import { pluginView } from '$lib/server/novels/plugins';
 import { listings } from '$lib/server/engine/extensions';
+import { engineConfigured } from '$lib/server/engine/client';
+import { removeChromium, setWebView, webviewView } from '$lib/server/engine/webview';
 import { lastImport } from '$lib/server/import/log';
 import {
 	clearModes,
@@ -189,7 +191,11 @@ export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest
 							extensions: extensionCounts(reveal)
 						};
 					})()
-				: null
+				: null,
+		// WEBVIEW (doc/SETTINGS.md, "07 — BROWSE"): the engine's headless browser
+		// for the extensions that need one, off unless this install turns it on
+		// (card c978). Drawn wherever 07 is and an engine is set up.
+		webview: downloadsBackend() === 'engine' && engineConfigured() ? await webviewView() : null
 	};
 };
 
@@ -368,6 +374,26 @@ export const actions: Actions = {
 	},
 	retryRanobe: async () => {
 		await retryRanobe();
+		return { ok: true };
+	},
+	/**
+	 * WEBVIEW's OFF | ON (doc/SETTINGS.md, "07 — BROWSE"): the switch the
+	 * launcher reads, which restarts the engine to take it. Set on the
+	 * computer, never from a phone over Wi-Fi, as WI-FI is.
+	 */
+	webview: async ({ request, locals }) => {
+		if (locals.via === 'lan') return fail(403, { webview: 'set on the computer only' });
+		const v = String((await request.formData()).get('on') ?? '');
+		if (v !== 'on' && v !== 'off') return fail(400, { webview: 'on or off' });
+		if (!setWebView(v === 'on'))
+			return fail(409, { webview: "this engine isn't started by tsundoku's launcher" });
+		return { ok: true };
+	},
+	/** WEBVIEW's REMOVE: the downloaded Chromium, with the switch off (`removeChromium`). */
+	removeChromium: async ({ locals }) => {
+		if (locals.via === 'lan') return fail(403, { webview: 'set on the computer only' });
+		const refused = await removeChromium();
+		if (refused) return fail(409, { webview: refused });
 		return { ok: true };
 	},
 	/** A language in or out of BROWSE's; at least one stays, or nothing would be listed. */
