@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { END_PAGE_CONTROLS, endSheetOpen, holdWheelForEndSheet } from '$lib/reader/library-row';
+	import { kindFacts } from '$lib/library/kinds';
 	import { leave } from '$lib/motion';
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
@@ -1430,7 +1431,11 @@
 	const coverFiles = new Set(data.series.entries.filter((e) => e.hasCoverFile).map((e) => e.id));
 	const labelOf = (id: number) => data.series.entries.find((e) => e.id === id)?.label ?? '';
 	const menuKind = $derived<MenuKind>(
-		data.series.kind !== 'doujin' ? 'series' : data.series.books ? 'book' : 'single'
+		kindFacts(data.series.kind).grouping !== 'books'
+			? 'series'
+			: data.series.books
+				? 'book'
+				: 'single'
 	);
 	const menuRowsNow = $derived(
 		menu

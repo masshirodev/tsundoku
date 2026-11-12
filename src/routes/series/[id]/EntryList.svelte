@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { longpress } from '$lib/actions/longpress';
+	import { kindFacts } from '$lib/library/kinds';
 	import { enhance } from '$app/forms';
 	import { downloadStatus, rowAction, type DownloadState } from '$lib/library/downloads';
 	import { withLive } from '$lib/downloads-live.svelte';
@@ -90,7 +91,7 @@
 	let expanded = $state(false);
 	const rows = $derived(listRows(series.entries, { descending, expanded }));
 	const ticks = $derived(railTicks(series.entries));
-	const novel = $derived(series.kind === 'novel');
+	const novel = $derived(kindFacts(series.kind).medium === 'text');
 	const first = $derived(series.entries[0]?.number ?? 1);
 	const last = $derived(series.entries[series.entries.length - 1]?.number ?? 1);
 	const span = $derived(Math.max(1, last - first));

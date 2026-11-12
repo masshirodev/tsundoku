@@ -1,5 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { playerStart } from '$lib/server/anime/choices';
+import { kindFacts } from '$lib/library/kinds';
 import type { Actions, PageServerLoad } from './$types';
 import { getDb } from '$lib/server/db';
 import { isIncognito, isRevealed } from '$lib/server/prefs';
@@ -54,7 +55,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 	if (!series) error(404, 'not found');
 
 	// A folded book (doc/EDITIONS.md): one book, read in any of its languages.
-	const folded = series.kind === 'doujin' ? bookEditions(series.id) : null;
+	const folded = kindFacts(series.kind).grouping === 'books' ? bookEditions(series.id) : null;
 	const p0 = url.searchParams.get('p');
 	if (folded && !row!.edition_of && !url.searchParams.has('ed') && folded.opens !== entryId) {
 		// The book itself opens in its opening edition, at the same page.
@@ -98,7 +99,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 	}
 
 	// An episode is watched in the player (doc/ANIME.md, "The player").
-	if (series.kind === 'anime') {
+	if (kindFacts(series.kind).medium === 'video') {
 		const row = getDb()
 			.prepare(`SELECT origin_key, in_library FROM series WHERE id = ?`)
 			.get(series.id) as { origin_key: string | null; in_library: number };
@@ -136,7 +137,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 	}
 
 	// A novel is read as text, from its EPUB (doc/TEXT-READER.md).
-	if (series.kind === 'novel') {
+	if (kindFacts(series.kind).medium === 'text') {
 		// One EPUB per volume: a novel grouped from several books reads each
 		// from its own file (doc/BOOKS.md).
 		const filed = await epubVersions(series.id, reveal);

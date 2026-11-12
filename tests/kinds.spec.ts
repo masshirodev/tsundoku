@@ -708,7 +708,7 @@ describe('the unit and READ/WATCHED words (labels.ts)', () => {
  * How to lower it: delete or replace a check, then lower BASELINE by exactly
  * the count removed. Never raise it without a card saying which check and why.
  */
-const BASELINE = 87;
+const BASELINE = 42;
 /** One of `KINDS`' own names, as a bare alternation. */
 const NAME = String.raw`(?:manga|manhwa|doujin|novel|anime)`;
 /** A kind written down: a name in quotes, or a family's kind (`SOURCE_KINDS.x`, `SOURCE_KINDS[f]`). */

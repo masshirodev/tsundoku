@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import NavLine from '$lib/components/waiting/NavLine.svelte';
+	import { kindFacts } from '$lib/library/kinds';
 	import type { SeriesPage } from '$lib/library/series';
 	import type { Kind } from '$lib/library/types';
 	import type { SeriesPreview } from '$lib/waiting.svelte';
@@ -73,7 +74,7 @@
 		</div>
 		<div class="list-col" aria-hidden="true">
 			<div class="head">
-				<span>01 — {series.kind === 'novel' ? 'CONTENTS' : 'CHAPTERS'}</span>
+				<span>01 — {kindFacts(series.kind).medium === 'text' ? 'CONTENTS' : 'CHAPTERS'}</span>
 				<span>{series.entryCount} · {series.readCount} READ</span>
 			</div>
 			{#each widths as w, i (i)}

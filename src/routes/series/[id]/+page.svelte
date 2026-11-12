@@ -35,6 +35,7 @@
 	import { watchQueue } from '$lib/downloads-live.svelte';
 	import { cacheMany, dropMany } from '$lib/cache/device';
 	import { orderBooks } from '$lib/library/books';
+	import { kindFacts } from '$lib/library/kinds';
 	import { partDone } from '$lib/library/works';
 	import type { AddFacts, TakeOutFacts } from '$lib/server/works';
 	import type { SeriesRenameFacts } from '$lib/server/series';
@@ -98,7 +99,7 @@
 	);
 
 	const series = $derived(data.series);
-	const doujin = $derived(series.kind === 'doujin');
+	const doujin = $derived(kindFacts(series.kind).grouping === 'books');
 	const books = $derived(isBookSeries(series));
 
 	// ---- series of books ---------------------------------------------------------------
@@ -267,7 +268,9 @@
 	}
 	const dismissedKey = $derived(latest && 'dismissed' in latest ? latest.dismissed : null);
 	const action = $derived(
-		series.kind === 'anime' ? animeContinue(series.entries) : continueAction(series)
+		kindFacts(series.kind).medium === 'video'
+			? animeContinue(series.entries)
+			: continueAction(series)
 	);
 	/**
 	 * The run's accent (W5; Work-Row B3): a part that is done makes CONTINUE
@@ -390,7 +393,7 @@
 	async function cacheSelection() {
 		caching = true;
 		try {
-			await cacheMany(series.id, toCache, series.kind === 'anime');
+			await cacheMany(series.id, toCache, kindFacts(series.kind).medium === 'video');
 		} finally {
 			caching = false;
 		}
@@ -743,7 +746,7 @@
 		<Band
 			title={refreshed.added === 0
 				? m.series_refresh_none()
-				: refreshed.kind === 'anime'
+				: kindFacts(refreshed.kind).medium === 'video'
 					? m.series_refresh_new_episode({ count: refreshed.added, n: num(refreshed.added) })
 					: m.series_refresh_new({ count: refreshed.added, n: num(refreshed.added) })}
 			detail={refreshed.added === 0 ? m.series_refresh_none_detail() : m.series_refresh_detail()}
@@ -962,7 +965,7 @@
 				/>
 			{:else if doujin}
 				<PageGrid {series} cover={data.cover} editions={data.editions} />
-			{:else if series.kind === 'anime'}
+			{:else if kindFacts(series.kind).medium === 'video'}
 				<EpisodeList
 					{series}
 					{selecting}

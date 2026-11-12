@@ -237,7 +237,7 @@
 	});
 
 	/** An anime series: episodes for chapters, here and in DOWNLOAD (doc/ANIME.md). */
-	const anime = $derived(series.kind === 'anime');
+	const anime = $derived(kindFacts(series.kind).medium === 'video');
 
 	/** SHOW on a fold opens every season's line, and closes when the screen is left. */
 	let seasonsOpen = $state(false);
@@ -685,7 +685,7 @@
 		)
 	);
 	// A novel without a cover image of its own is set in type, not striped.
-	const noCover = $derived(series.kind === 'novel' && !series.cover);
+	const noCover = $derived(kindFacts(series.kind).medium === 'text' && !series.cover);
 	let aboutOpen = $state(false);
 	/** Where the cover goes: the same place as ▶ CONTINUE, once it's known. */
 	const resumeHref = $derived(
@@ -797,7 +797,8 @@
 					<span class="short">{opening.code}</span>
 				{:else}
 					<span class="long"
-						>{action.meta}{noFile ? ' · NOT DOWNLOADED' : ''}{series.kind === 'doujin' && cached > 0
+						>{action.meta}{noFile ? ' · NOT DOWNLOADED' : ''}{kindFacts(series.kind).grouping ===
+							'books' && cached > 0
 							? ' · ↓ CACHED'
 							: ''}</span
 					>
@@ -1253,7 +1254,8 @@
 						<div class="file">
 							{#if series.path}<div class="path">{series.path}</div>{/if}
 							<div class="file-meta">
-								{fileMeta(series.entries, dlFile)}{series.kind !== 'doujin' && cached > 0
+								{fileMeta(series.entries, dlFile)}{kindFacts(series.kind).grouping !== 'books' &&
+								cached > 0
 									? ` · ↓ ${cached} CACHED`
 									: ''}{elsewhere}
 							</div>

@@ -3,6 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
+	import { kindFacts } from '$lib/library/kinds';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { longpress } from '$lib/actions/longpress';
@@ -48,7 +49,8 @@
 	/** "CH. 22 STAYS": what the pressed row promises to keep. */
 	function stays(r: HistoryRow): string {
 		if (r.entryCount <= 1) return 'PROGRESS STAYS';
-		const where = r.kind === 'doujin' ? `BOOK ${r.last.rank}` : r.last.label.toUpperCase();
+		const where =
+			kindFacts(r.kind).grouping === 'books' ? `BOOK ${r.last.rank}` : r.last.label.toUpperCase();
 		return `${where} STAYS`;
 	}
 

@@ -1,6 +1,6 @@
 import type { Direction } from '$lib/library/series';
 import type { Kind } from '$lib/library/types';
-import type { Medium } from '$lib/library/kinds';
+import { kindFacts, type Medium } from '$lib/library/kinds';
 
 /**
  * The image reader's rules (doc/READER.md), pure so they can be tested
@@ -173,7 +173,8 @@ export type EntryRef = { id: number; label: string; number: number };
 /** "CH. 41", "BOOK 2", "VOL. 3": an entry as the chrome names it. */
 export function entryName(e: { label: string } | null, kind: Kind, bookIndex?: number): string {
 	if (!e) return '';
-	if (kind === 'doujin' && bookIndex !== undefined) return `BOOK ${bookIndex + 1}`;
+	if (kindFacts(kind).grouping === 'books' && bookIndex !== undefined)
+		return `BOOK ${bookIndex + 1}`;
 	return e.label.toUpperCase();
 }
 

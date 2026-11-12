@@ -4,6 +4,7 @@ import { m } from '../paraglide/messages.js';
 import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL } from './visibility.ts';
 import { getSetting } from './settings.ts';
 import { langCode, openingEdition } from '../library/editions.ts';
+import { kindFacts } from '../library/kinds.ts';
 import { likePattern } from '../library/search.ts';
 import {
 	dayStart,
@@ -862,7 +863,7 @@ export function continueReading(
 		if (!entry) return null;
 		// An episode says where watching got to: "S2 EP. 7 · 14:32 LEFT" (doc/ANIME.md).
 		const entryLabel =
-			card.kind === 'anime'
+			kindFacts(card.kind).medium === 'video'
 				? watchingAt(
 						{
 							id: entry.id,
@@ -881,14 +882,16 @@ export function continueReading(
 						},
 						entry.seasons === 1
 					)
-				: card.kind === 'doujin' && card.entryCount > 1
+				: kindFacts(card.kind).grouping === 'books' && card.entryCount > 1
 					? `Book ${entry.rank}`
 					: entry.label;
 		return {
 			entryLabel,
 			lastReadAt: entry.last_opened_at,
 			resumeId: resumeEntry(card.id)?.id ?? null,
-			...(card.kind === 'anime' && entry.duration_s && entry.last_position !== null
+			...(kindFacts(card.kind).medium === 'video' &&
+			entry.duration_s &&
+			entry.last_position !== null
 				? { entryFraction: Math.min(1, entry.last_position / entry.duration_s) }
 				: {})
 		};

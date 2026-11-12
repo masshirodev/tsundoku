@@ -235,7 +235,7 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 	}
 	// Episodes without a picture get one in the background (doc/ANIME.md,
 	// "Episode pictures"): they show on the next visit.
-	if (series.kind === 'anime')
+	if (kindFacts(series.kind).medium === 'video')
 		wantPictures(series.entries.filter((e) => !e.episode?.thumb).map((e) => e.id));
 	const { shelves } = await parent();
 	const books = isBookSeries(series);
@@ -253,7 +253,7 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 	// nothing beside it: `singletonCandidates` counts the `isBookSql` entries
 	// and the entries with no `edition_of`, so a book with a hand-made extra is
 	// not suggested whatever this says (c650). Counted by entry, as before.
-	const single = series.kind === 'doujin' && series.entries.length === 1;
+	const single = kindFacts(series.kind).grouping === 'books' && series.entries.length === 1;
 	const bookParam = Number(url.searchParams.get('book'));
 	const root = rootOf(series.id);
 	// The book a `?book=` opens, if any: its own page's offer reads this book.
@@ -288,14 +288,14 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		merged: mergeState(series.id),
 		// Japanese (doc/JAPANESE.md): OCR's progress, and the words looked up. Never for
 		// novels, which are text, nor anime, which has no pages (doc/ANIME.md).
-		ocr: series.kind === 'novel' || series.kind === 'anime' ? null : ocrPlace(series.id),
+		ocr: kindFacts(series.kind).medium === 'pages' ? ocrPlace(series.id) : null,
 		// The PAGES grid's page menu (c26): where the covers come from now.
 		cover: coverState(series.id),
 		// A book here with a likely twin (doc/DUPLICATE-BOOKS.md): the band.
 		twin: twinBand(series.id, reveal),
 		// One book in several languages (doc/EDITIONS.md): its LANGUAGE and EDITIONS rows.
-		editions: series.kind === 'doujin' ? bookEditions(series.id) : null,
-		words: series.kind === 'novel' || series.kind === 'anime' ? null : wordsOf(series.id, reveal),
+		editions: kindFacts(series.kind).grouping === 'books' ? bookEditions(series.id) : null,
+		words: kindFacts(series.kind).medium === 'pages' ? wordsOf(series.id, reveal) : null,
 		// Its MyAnimeList / AniList entry (doc/LINKS.md): the LINK and COVER rows.
 		link: linkState(series.id),
 		// An anime's seasons (c240): a link each, and the row folds round the one
@@ -316,7 +316,7 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		downloads: await seriesDownloads(series.id, series.entries),
 		// An anime's ALL asks its QUALITY (doc/ANIME.md, "Downloading"): SETTINGS' height, and where it goes.
 		anime:
-			series.kind === 'anime'
+			kindFacts(series.kind).medium === 'video'
 				? {
 						quality: Number(getSetting('anime_download_quality')) || 1080,
 						folder: animeFolderOf(series.id, series.title, series.hidden)
@@ -515,8 +515,10 @@ export const actions: Actions = {
 	/** OCR on the NOT DETECTED row: the series is Japanese, and its chapters queue. */
 	ocr: async ({ params, cookies }) => {
 		const s = target(params, cookies);
-		if (s.kind === 'novel') return fail(400, { message: 'novels are text already' });
-		if (s.kind === 'anime') return fail(400, { message: 'an episode has no pages' });
+		if (kindFacts(s.kind).medium === 'text')
+			return fail(400, { message: 'novels are text already' });
+		if (kindFacts(s.kind).medium === 'video')
+			return fail(400, { message: 'an episode has no pages' });
 		setSeriesOcr(s.id, true);
 		return { ok: true };
 	},
@@ -1047,7 +1049,7 @@ export const actions: Actions = {
 	undoAdd: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const ids = entryIds(await request.formData());
-		if (s.kind === 'novel')
+		if (kindFacts(s.kind).medium === 'text')
 			takeOutVolumes(
 				s.id,
 				s.entries.filter((e) => ids.includes(e.id)).map((e) => e.file)
@@ -1078,7 +1080,7 @@ export const actions: Actions = {
 				void refreshCovers({ ids: made, remote: false });
 			} else if (fromShow) {
 				redirect(303, `/series/${s.id}`);
-			} else if (s.kind === 'novel' && isVolumeSeries(s)) {
+			} else if (isVolumeSeries(s)) {
 				const made = takeOutVolumes(s.id);
 				void refreshCovers({ ids: made, remote: false });
 			} else if (isBookSeries(s)) {

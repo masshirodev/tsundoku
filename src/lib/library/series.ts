@@ -1,5 +1,6 @@
 import type { Episode } from './anime.ts';
 import type { Kind, Rating, SeriesCard } from './types.ts';
+import { kindFacts } from './kinds.ts';
 
 /**
  * The series screen's rules, as pure functions. Everything the screen derives
@@ -87,9 +88,7 @@ export type SeriesPage = SeriesCard & {
 
 /** What a kind reads as until the owner says otherwise. */
 export function defaultDirection(kind: Kind): Direction {
-	if (kind === 'manhwa') return 'vertical';
-	if (kind === 'novel') return 'paged';
-	return 'rtl';
+	return kindFacts(kind).layout ?? 'rtl';
 }
 
 /**
@@ -108,7 +107,7 @@ export function effectiveDirection(
 
 /** The DIRECTION row for pages, the LAYOUT row for a novel. */
 export function directionOptions(kind: Kind): { value: Direction; label: string }[] {
-	if (kind === 'novel') {
+	if (kindFacts(kind).medium === 'text') {
 		return [
 			{ value: 'paged', label: 'PAGED' },
 			{ value: 'scroll', label: 'SCROLL' }
@@ -121,7 +120,8 @@ export function directionOptions(kind: Kind): { value: Direction; label: string 
 	];
 }
 
-export const directionRowLabel = (kind: Kind) => (kind === 'novel' ? 'LAYOUT' : 'DIRECTION');
+export const directionRowLabel = (kind: Kind) =>
+	kindFacts(kind).medium === 'text' ? 'LAYOUT' : 'DIRECTION';
 
 export function parseDirection(raw: unknown, kind: Kind): Direction | undefined {
 	return directionOptions(kind).find((o) => o.value === raw)?.value;
@@ -174,7 +174,7 @@ export function entryStatus(e: SeriesEntry, state: EntryState, kind: Kind, short
 	if (state !== 'progress') return '';
 	const p = entryProgress(e);
 	if (!p) return '';
-	if (kind === 'novel') return `${Math.round(p.fraction * 100)}%`;
+	if (kindFacts(kind).medium === 'text') return `${Math.round(p.fraction * 100)}%`;
 	return short ? `P. ${p.page}` : `P. ${p.page} / ${e.pageCount}`;
 }
 
@@ -184,7 +184,7 @@ export function entryStatus(e: SeriesEntry, state: EntryState, kind: Kind, short
  */
 export function entryTitle(e: SeriesEntry, kind: Kind): string {
 	const n = formatNumber(e.number);
-	if (kind === 'novel') return e.title ? `${n} — ${e.title}` : e.label;
+	if (kindFacts(kind).medium === 'text') return e.title ? `${n} — ${e.title}` : e.label;
 	return e.title ? `Chapter ${n} - ${e.title}` : `Chapter ${n}`;
 }
 
@@ -202,11 +202,11 @@ export function volumesIn(entries: SeriesEntry[]): SeriesEntry[][] {
 
 /** A novel grouped from several EPUBs (doc/BOOKS.md): UNGROUP splits it again. */
 export const isVolumeSeries = (s: Pick<SeriesPage, 'kind' | 'entries'>) =>
-	s.kind === 'novel' && volumesIn(s.entries).length > 1;
+	kindFacts(s.kind).grouping === 'volumes' && volumesIn(s.entries).length > 1;
 
 /** A doujin series of two or more books: its contents are a cover grid of books. */
 export const isBookSeries = (s: Pick<SeriesPage, 'kind' | 'entries'>) =>
-	s.kind === 'doujin' && s.entries.filter((e) => e.matter === '').length > 1;
+	kindFacts(s.kind).grouping === 'books' && s.entries.filter((e) => e.matter === '').length > 1;
 
 /**
  * A doujin's books: its entries that are not front or back matter (c650). The
@@ -278,7 +278,7 @@ export function continueAction(series: Pick<SeriesPage, 'kind' | 'entries'>): {
 			entry: cur
 		};
 	}
-	if (kind === 'doujin') {
+	if (kindFacts(kind).grouping === 'books') {
 		// The book alone: an extra beside it is never what READ opens (c650),
 		// even when its row sorts before the book's.
 		const book = booksOf(entries)[0] ?? null;
@@ -310,7 +310,7 @@ export function continueAction(series: Pick<SeriesPage, 'kind' | 'entries'>): {
 	const started = entries.some((e) => e.readAt !== null || e.lastOpenedAt !== null);
 	const p = entryProgress(cur);
 	const detail =
-		p && kind === 'novel'
+		p && kindFacts(kind).medium === 'text'
 			? `${where} · ${Math.round(p.fraction * 100)}%`
 			: p
 				? `${where} · P. ${p.page} OF ${cur.pageCount}`
@@ -635,10 +635,10 @@ export function seriesMeta(s: Pick<SeriesPage, 'kind' | 'source' | 'status' | 'e
 	// A doujin's books, never the hand-made extras beside them (c650).
 	const books = booksOf(s.entries).length;
 	if (isBookSeries(s)) return `DOUJIN SERIES · ${books} BOOKS`;
-	const kind = s.kind === 'novel' ? 'WEB NOVEL' : s.kind.toUpperCase();
+	const kind = kindFacts(s.kind).medium === 'text' ? 'WEB NOVEL' : s.kind.toUpperCase();
 	const parts = [kind];
 	if (s.source) parts.push(s.source.toUpperCase());
-	if (s.kind === 'doujin') parts.push(books === 1 ? '1 BOOK' : `${books} BOOKS`);
+	if (kindFacts(s.kind).grouping === 'books') parts.push(books === 1 ? '1 BOOK' : `${books} BOOKS`);
 	else if (s.status) parts.push(s.status.toUpperCase());
 	return parts.join(' · ');
 }

@@ -1,6 +1,7 @@
 import { KEEP_DAYS } from './keep.ts';
 import { clock as timeAt } from './anime.ts';
 import { kindLabel } from './labels.ts';
+import { kindFacts } from './kinds.ts';
 import type { Kind } from './types.ts';
 
 /**
@@ -85,7 +86,7 @@ export function historyMeta(d: HistoryDay, short = false): string {
 	const range = d.first.rank !== d.last.rank;
 	if (!single) {
 		parts.push(
-			d.kind === 'doujin'
+			kindFacts(d.kind).grouping === 'books'
 				? range
 					? `BOOK ${d.first.rank} → ${d.last.rank}`
 					: `BOOK ${d.last.rank}`
@@ -96,12 +97,13 @@ export function historyMeta(d: HistoryDay, short = false): string {
 	if (atEnd) {
 		if (single || d.status === 'completed') parts.push('FINISHED');
 		else if (!(short && range)) parts.push('UP TO DATE');
-	} else if (d.kind === 'anime' && !d.last.finished && d.last.page !== null) {
+	} else if (kindFacts(d.kind).medium === 'video' && !d.last.finished && d.last.page !== null) {
 		// An episode's place is seconds into it (doc/ANIME.md): "EP. 7 · 9:28".
 		if (!(short && range)) parts.push(timeAt(d.last.page));
 	} else if (!d.last.finished && d.last.page !== null && d.last.pageCount > 0) {
 		const page = Math.min(d.last.pageCount, d.last.page + 1);
-		if (d.kind === 'novel') parts.push(`${Math.round((page / d.last.pageCount) * 100)}%`);
+		if (kindFacts(d.kind).medium === 'text')
+			parts.push(`${Math.round((page / d.last.pageCount) * 100)}%`);
 		else if (!range) parts.push(`P. ${page} OF ${d.last.pageCount}`);
 		else if (!short) parts.push(`P. ${page}`);
 	}
