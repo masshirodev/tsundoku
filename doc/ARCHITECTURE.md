@@ -122,9 +122,12 @@ So:
   (M-Extension-Server)"). It ran all nine of the library's sources and two
   anime sources; the fork carries two fixes it needed and drops its GPLv3
   YouTube part (c131, "Fork M-Extension-Server as tsundoku's engine, with a
-  solver beside it"). Its bundled Chromium never starts, so **Cloudflare is a
-  FlareSolverr container beside it**, and an extension that needs a real
-  WebView doesn't run. The engine keeps nothing: repos, APKs, preferences and
+  solver beside it"). Its bundled Chromium never started, so **Cloudflare is a
+  FlareSolverr container beside it**; since the engine's `engine-webview`
+  branch (2026-11-11), `ENGINE_WEBVIEW=on` runs WebView extensions in a
+  headless, never-visible Chromium the engine downloads the first time one
+  needs it (`EXTENSION-ENGINE.md`, "Cloudflare and WebView"); tsundoku's
+  launcher doesn't set it yet. The engine keeps nothing: repos, APKs, preferences and
   state are tsundoku's. The contract, and everything the spike measured, is
   [`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md).
 - **Images and streams are fetched through the source's client**, never by
