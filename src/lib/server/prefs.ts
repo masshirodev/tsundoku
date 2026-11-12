@@ -12,8 +12,8 @@ export const REVEAL_COOKIE = 'tsundoku_reveal';
 export const THEME_COOKIE = 'tsundoku_theme';
 /**
  * Incognito reading (doc/PRIVACY.md): while set, the reader's progress calls
- * are refused before they reach the log. A session cookie like reveal, and
- * like reveal it ends when the app goes to the background.
+ * are refused before they reach the log. A session cookie like reveal; END
+ * ends it, and a trip to the background does not.
  */
 export const INCOGNITO_COOKIE = 'tsundoku_incognito';
 
@@ -46,14 +46,6 @@ export function setIncognito(cookies: Cookies, on: boolean, secure: boolean): vo
 	if (on)
 		cookies.set(INCOGNITO_COOKIE, '1', { path: '/', httpOnly: true, sameSite: 'lax', secure });
 	else cookies.delete(INCOGNITO_COOKIE, { path: '/' });
-}
-
-/** Leaving the app ends both session modes: nothing hidden or untracked survives a trip to the background. */
-export function endSessionModes(cookies: Cookies): boolean {
-	const was = isRevealed(cookies) || isIncognito(cookies);
-	cookies.delete(REVEAL_COOKIE, { path: '/' });
-	cookies.delete(INCOGNITO_COOKIE, { path: '/' });
-	return was;
 }
 
 export function themeOf(cookies: Cookies): Theme {

@@ -120,7 +120,7 @@ test('the reading call refuses a hidden series while reveal is off', async ({ pa
 	expect(bad.status()).toBe(400);
 });
 
-test('going to the background blanks the page, ends reveal, and comes back to the library', async ({
+test('going to the background blanks the page, and comes back to it with reveal still on', async ({
 	page
 }) => {
 	await command(page, '/reveal');
@@ -131,11 +131,27 @@ test('going to the background blanks the page, ends reveal, and comes back to th
 	await expect(page.getByTestId('privacy-blank')).toBeVisible();
 	await visibility(page, 'visible');
 
-	await expect(page).toHaveURL(/\/$/);
 	await expect(page.getByTestId('privacy-blank')).toHaveCount(0);
-	await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+	await expect(page).toHaveURL(/\/history$/);
+	await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
 	const names = (await page.context().cookies()).map((c) => c.name);
-	expect(names).not.toContain('tsundoku_reveal');
+	expect(names).toContain('tsundoku_reveal');
+	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+});
+
+test('incognito survives the background too', async ({ page }) => {
+	await command(page, '/incognito');
+	await page.goto('/history');
+
+	await visibility(page, 'hidden');
+	await expect(page.getByTestId('privacy-blank')).toBeVisible();
+	await visibility(page, 'visible');
+
+	await expect(page.getByTestId('privacy-blank')).toHaveCount(0);
+	await expect(page.getByText('INCOGNITO · NOTHING SAVED')).toBeVisible();
+	const names = (await page.context().cookies()).map((c) => c.name);
+	expect(names).toContain('tsundoku_incognito');
+	await page.getByRole('button', { name: 'END' }).click();
 });
 
 test('a reload is not leaving: reveal survives it', async ({ page }) => {
@@ -153,23 +169,26 @@ test('without reveal or incognito, coming back stays where it was', async ({ pag
 	await expect(page).toHaveURL(/\/history$/);
 });
 
-// ---- c680: a reader opened incognito sends nothing after the hide ends it ----------------
+// ---- c680: a reader opened incognito sends nothing after the mode ends it ----------------
 //
-// The app's hide ends incognito in a beacon (doc/PRIVACY.md, step 2) while the
-// reader's own `data.incognito` stays true: `/api/reading` reads the cookie at
-// the moment of each post, so anything the reader sends after it is saved as
-// ordinary reading. Chromium cannot be put in the background headless (a
-// second page brought to the front leaves `visibilityState` visible; see the
-// notes), so the two things the shield does are done as the shield does them:
-// the step-2 beacon as a POST to `/leave`, and the step-3 landing as the
-// `goto('/')` that takes the reader away. What each case pins is a writer the
-// reader still has after that.
+// END pressed elsewhere -- another tab, while the reader stays open -- ends the
+// cookie, and the reader's own `data.incognito` stays true: `/api/reading`
+// reads the cookie at the moment of each post, so anything the reader sends
+// after it would be saved as ordinary reading. What each case pins is a writer
+// the reader still has after that. (Before 2026-11-12 the shield's hide ended
+// incognito; it no longer does, doc/PRIVACY.md.)
 
-/** The shield's step 2: the beacon that ends incognito (204, `x-ended: 1`). */
-async function leave(page: Page) {
-	const res = await page.request.post('/leave');
-	expect(res.status()).toBe(204);
-	expect(res.headers()['x-ended']).toBe('1');
+/** END in the incognito band, pressed from another tab, as a person with two tabs would. */
+async function endIncognito(page: Page) {
+	const other = await page.context().newPage();
+	await other.goto('/');
+	const end = other.getByRole('button', { name: 'END' });
+	await expect(end).toBeVisible();
+	await end.click();
+	await expect(other.getByText('INCOGNITO · NOTHING SAVED')).toHaveCount(0);
+	await other.close();
+	const names = (await page.context().cookies()).map((c) => c.name);
+	expect(names).not.toContain('tsundoku_incognito');
 }
 
 test('image reader: a page still to come when the app is left writes nothing incognito (c680)', async ({
@@ -180,10 +199,10 @@ test('image reader: a page still to come when the app is left writes nothing inc
 	const before = readingIn(id);
 	await page.goto(`/read/${entry}?p=3`);
 	await readerReady(page);
-	// A turn leaves the reader's 800 ms settle behind; the app goes away inside
-	// it, as a person's thumb does, and the report fires on its own.
+	// A turn leaves the reader's 800 ms settle behind; the mode ends inside it,
+	// as another tab's END does, and the report fires on its own.
 	await page.keyboard.press('ArrowRight');
-	await leave(page);
+	await endIncognito(page);
 	await page.waitForTimeout(1500);
 	expect(readingIn(id)).toEqual(before);
 });
@@ -194,9 +213,8 @@ test('image reader: closing on the way back writes nothing incognito (c680)', as
 	const before = readingIn(id);
 	await page.goto(`/read/${entry}?p=3`);
 	await readerReady(page);
-	await leave(page);
-	// The shield's step 3: the fresh landing that takes the reader away, whose
-	// pagehide sends its `close`.
+	await endIncognito(page);
+	// The reader taken away by hand, whose pagehide sends its `close`.
 	await page.goto('/');
 	expect(readingIn(id)).toEqual(before);
 	await page.goto('/history');
@@ -213,9 +231,9 @@ test('text reader: a page still to come when the app is left writes nothing inco
 	const before = readingIn(id);
 	await page.goto(`/read/${entry}`);
 	await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15_000 });
-	// A turn schedules the paragraph report; the app is left inside its settle.
+	// A turn schedules the paragraph report; the mode ends inside its settle.
 	await page.keyboard.press('ArrowRight');
-	await leave(page);
+	await endIncognito(page);
 	await page.waitForTimeout(1500);
 	expect(readingIn(id)).toEqual(before);
 });
@@ -226,7 +244,7 @@ test('text reader: closing on the way back writes nothing incognito (c680)', asy
 	const before = readingIn(id);
 	await page.goto(`/read/${entry}`);
 	await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15_000 });
-	await leave(page);
+	await endIncognito(page);
 	await page.goto('/');
 	expect(readingIn(id)).toEqual(before);
 });

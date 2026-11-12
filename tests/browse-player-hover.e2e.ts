@@ -263,13 +263,14 @@ test('the cursor goes with the controls during playback and comes back with them
 /**
  * c680: the player's half of "a reader opened incognito sends nothing". Every
  * writer goes through `send`, which returns on `data.incognito` taken at open,
- * so a hide that ends the cookie cannot turn its `open`, a `page` or the close
- * on the way out into saved reading. The browse world is where an anime exists
- * (the shared seed has none); its database is this run's one, and the anime's
- * events are counted before and after.
+ * so END pressed from another tab cannot turn its `open`, a `page` or the
+ * close on the way out into saved reading. The browse world is where an anime
+ * exists (the shared seed has none); its database is this run's one, and the
+ * anime's events are counted before and after.
  */
-test('an episode watched incognito posts nothing, even when the app goes away (c680)', async ({
-	page
+test('an episode watched incognito posts nothing, even when END is pressed elsewhere (c680)', async ({
+	page,
+	context
 }) => {
 	test.setTimeout(90_000);
 	const dbPath = () => {
@@ -299,9 +300,13 @@ test('an episode watched incognito posts nothing, even when the app goes away (c
 	await page.evaluate(() => (document.querySelector('video') as HTMLVideoElement).play());
 	// Long enough for the open and a page report to have been due.
 	await page.waitForTimeout(3000);
-	// The hide that ends incognito (step 2), then the landing that takes the
-	// player away (step 3), whose pagehide sends its close.
-	expect((await page.request.post('/leave')).status()).toBe(204);
+	// END in the band, pressed from another tab, then the player taken away by
+	// hand, whose pagehide sends its close.
+	const other = await context.newPage();
+	await other.goto('/');
+	await other.getByRole('button', { name: 'END' }).click();
+	await expect(other.getByText('INCOGNITO · NOTHING SAVED')).toHaveCount(0);
+	await other.close();
 	await page.goto('/');
 	await page.waitForTimeout(1000);
 	expect(posts).toEqual([]);

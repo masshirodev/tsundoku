@@ -162,7 +162,7 @@ sw.addEventListener('fetch', (event) => {
 		event.respondWith(networkFirst(req, [ENTRIES, EPISODES, SCREENS]));
 		return;
 	}
-	if (path.startsWith('/api/') || path === '/leave') return;
+	if (path.startsWith('/api/')) return;
 	// Screens and their data: the network, with the last copy kept.
 	if (req.mode === 'navigate' || path.endsWith('/__data.json')) {
 		event.respondWith(networkFirst(req, [SCREENS], SCREENS));

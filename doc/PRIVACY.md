@@ -22,53 +22,49 @@ CONTINUE. **The row is never written.** It isn't written and then hidden.
   on the server, where the reader can't forget it. The reader shows NOT SAVED
   from that answer.
 - **A reader opened incognito sends nothing at all** (c680). The cookie alone
-  is not enough: leaving the app ends incognito in a beacon while the reader
-  keeps running until the return takes it away (step 2 and step 3, below), so
-  a page still settling, a finish or the close on the way out would reach the
-  server with no cookie and be written as ordinary reading. The image reader,
-  the text reader and the player each check what they opened with
-  (`data.incognito`) before every `POST /api/reading`; the server's answer is
-  the second line, not the only one. `tests/privacy-flow.e2e.ts` reads one of
-  each in incognito, leaves the app, and checks the log and `last_opened_at`
-  are where they were.
+  is not enough: END pressed in another tab ends incognito while the reader
+  that opened with it keeps running, so a page still settling, a finish or
+  the close on the way out would reach the server with no cookie and be
+  written as ordinary reading. The image reader, the text reader and the
+  player each check what they opened with (`data.incognito`) before every
+  `POST /api/reading`; the server's answer is the second line, not the only
+  one. `tests/privacy-flow.e2e.ts` reads one of each in incognito, presses END
+  in another tab, and checks the log and `last_opened_at` are where they were.
 - **What still saves:** rating and FAV. They're deliberate edits, not traces.
   MARK READ still saves too, for the same reason.
 - **How it shows:** outside the reader, a panel band reads **INCOGNITO ·
   NOTHING SAVED** with END. Dashed is Index's "not stored yet"; magenta stays
   reveal's. In the reader ([`READER.md`](READER.md)), a 2px dashed rule runs along the top
   edge, with an INCOGNITO cell and NOT SAVED on the meta line.
-- A **session cookie**, and it also ends when the app goes to the background
-  (below). END ends it by hand.
+- A **session cookie**, so closing the browser ends it; END ends it by hand.
+  A trip to the background does **not** end it (below).
 
 ## Leaving the app
 
 `PrivacyShield` (`src/lib/components/chrome/PrivacyShield.svelte`) sits in the
-root layout:
+root layout, and it does one thing: on `visibilitychange` to hidden it covers
+the page at once with the graphite ground and the wordmark, so the
+recent-apps thumbnail shows nothing. It does this every time, since it costs
+nothing. On return it uncovers the page where it was.
 
-1. On `visibilitychange` to hidden, it covers the page at once with the
-   graphite ground and the wordmark, so the recent-apps thumbnail shows
-   nothing. It does this every time, since it costs nothing.
-2. If reveal or incognito was on, it sends a beacon to `POST /leave`, which
-   deletes both cookies.
-3. On return, if either was on, it posts `/leave` again (the beacon may not
-   have gone out), then lands on the library with fresh data and **no
-   message**. Otherwise it simply uncovers the page where it was.
-
-**Unloading isn't leaving.** A reload, a full navigation or a form POST without
-JavaScript also fires `visibilitychange`. Treated as leaving, typing
-`/incognito` in search would have ended `/reveal`. Unloading fires `pagehide`
-first, so the shield ignores a hide that follows one.
-`tests/privacy-flow.e2e.ts` checks both paths.
+**It does not end either mode** (the owner, 2026-11-12: ending them on every
+glance at another tab or app was too sensitive). Reveal and incognito survive
+a trip to the background: HIDE AGAIN ends reveal, END ends incognito, and both
+are session cookies besides, so closing the browser does too. END pressed in
+another tab ends incognito while a reader opened with it is still open; the
+reader's own `data.incognito` keeps it from posting (the c680 cases in
+`tests/privacy-flow.e2e.ts` and `tests/browse-player-hover.e2e.ts`).
 
 **Best effort, and nothing claims otherwise.** Android may take its thumbnail
 before the event fires, and a PWA can't block screenshots. The design says
 neither, and neither does the code.
 
-**Known gap:** closing the app outright (swiping it away) is an unload, so
-the shield doesn't end the modes. They're session cookies, so a real browser
-restart ends them, but an Android PWA may keep its session across a swipe.
-If that turns out to happen on the tablet, the fix is a server-side idle
-expiry on both cookies.
+**Known gap:** closing the app outright (swiping it away) is an unload, and
+the shield never ended the modes on one. They're session cookies, so a real
+browser restart ends them, but an Android PWA may keep its session across a
+swipe — which, now that the background no longer ends them, is the only
+automatic end there is. If that turns out to happen on the tablet, the fix is
+a server-side idle expiry on both cookies.
 
 ## The fingerprint gate for `/reveal`
 

@@ -465,10 +465,6 @@ test.describe('a held arrow', () => {
 	});
 
 	test('the page being hidden ends the hold (c668)', async ({ page }) => {
-		// Hidden is leaving the app, whose beacon ends incognito (doc/PRIVACY.md):
-		// kept out, or the reader's next page lands in the shared database and
-		// takes Frieren's +1 from library-layout on every device after this one.
-		await page.route('**/leave', (r) => r.abort());
 		await openForHold(page);
 		const y = () => scrollAt(page);
 		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
@@ -560,7 +556,6 @@ test.describe('a held arrow', () => {
 	test('the page hidden mid-ramp stops there, and no later repeat or return moves it (c691, c692)', async ({
 		page
 	}) => {
-		await page.route('**/leave', (r) => r.abort());
 		await openForHold(page);
 		const y = () => scrollAt(page);
 		const start = await y();

@@ -360,7 +360,7 @@
 		crowds the page. Leaving the app still blanks it.
 	-->
 	{@render children()}
-	<PrivacyShield armed={data.reveal || data.incognito} />
+	<PrivacyShield />
 {:else}
 	<div class="app" class:revealed={data.reveal}>
 		{#if !['/login', '/setup', '/welcome', '/pair/tv'].includes(page.url.pathname)}
@@ -596,7 +596,7 @@
 			onclose={() => (rescanAsking = false)}
 			ondone={rescanDone}
 		/>
-		<PrivacyShield armed={data.reveal || data.incognito} />
+		<PrivacyShield />
 
 		{#if data.reveal}
 			<!-- The 4px magenta frame: on every screen but the reader, for as long as reveal is on. -->
