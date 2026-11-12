@@ -41,6 +41,18 @@ export type RepoMeta = { name: string; fingerprint: string; website: string };
 export class RepoError extends Error {}
 
 /**
+ * A repository on this computer itself, which plain http may serve (the
+ * owner's personal repository, 2026-11-12): nothing crosses a network, and
+ * what an install trusts was never the transport anyway: an APK is kept only
+ * when its signature matches the key the repository lists. Every other
+ * address is still https.
+ */
+export function isLoopbackHost(hostname: string): boolean {
+	const h = hostname.toLowerCase();
+	return h === 'localhost' || h === '[::1]' || /^127(?:\.\d{1,3}){3}$/.test(h);
+}
+
+/**
  * The folder a pasted address names: people paste a repo's `index.min.json`
  * (what Mihon asks for), its `repo.json`, or the folder itself.
  */
@@ -51,7 +63,8 @@ export function repoBase(address: string): string {
 	} catch {
 		throw new RepoError('That isn’t an address');
 	}
-	if (url.protocol !== 'https:') throw new RepoError('A repository is served over https');
+	if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopbackHost(url.hostname)))
+		throw new RepoError('A repository is served over https');
 	url.search = '';
 	url.hash = '';
 	url.pathname = url.pathname.replace(

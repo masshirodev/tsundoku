@@ -686,7 +686,12 @@ the key it was signed with beside the repository's. There's no install
 anyway: a tap that runs code signed by an unknown key is what the check is
 there to stop.
 
-**REPOSITORIES** adds one by its address. Pasted, it's asked before anything
+**REPOSITORIES** adds one by its address, over https; plain http only from
+this computer itself (`127.x.x.x`, `localhost`, `[::1]`; `isLoopbackHost`), for
+a repository the owner serves to their own install, since 2026-11-12. Nothing
+crosses a network there, and the transport was never what an install trusts:
+an APK is kept only when it's signed by the key the repository lists. A home
+network's address over http is still refused. Pasted, it's asked before anything
 is added (`?add=<address>`): FOUND · Keiyoushi · 1,435 MANGA EXTENSIONS, and
 ADD; or NOT A REPOSITORY with the reason. The list shows each with its kind,
 what it holds, and REMOVE (which asks, through the sheet, when extensions
