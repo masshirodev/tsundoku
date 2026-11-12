@@ -24,6 +24,40 @@ the Ranobe pass couldn't link by its ids comes to the same `/links`, with
 Ranobe's candidates, ahead of its AniList item if it has one. That half is
 [`RANOBE.md`](RANOBE.md), "The review".
 
+## Which catalogue, and whether it can answer
+
+The registry gives each kind one catalogue (`kindFacts(kind).catalogue`; card
+c988, `doc/KINDS.md`), and two modules are the one answer to the two halves:
+
+- **Which** is pure: `src/lib/library/catalogues.ts` — `catalogueOf`,
+  `catalogueType`, `catalogueName`, `catalogueHolds`, and `catalogueUrl` for
+  the OPEN ↗ cell. AniList for comics and anime; TMDB for films and shows
+  (c987).
+- **Whether it can answer here** is the install's: `src/lib/server/catalogues.ts`
+  — `catalogueConfigured`, `catalogueFor(kind)`, `catalogueMissing(kind)`.
+  AniList is public and always answers. TMDB needs the install's own key,
+  `TMDB_API_RC_TOKEN` (the v4 read token) or `TMDB_API_KEY`, read at call
+  time, so a key added in SETTINGS counts without a restart. A friend's
+  install with no key is a **state, not an error**: a door says `SET UP →`,
+  the film still works, and no request is made (`doc/MOVIES-TV.md`, "Decided",
+  and `doc/handoffs/keys-accounts/`).
+
+Two doors narrowed with it, so a kind another catalogue holds is never asked
+of AniList:
+
+- `parsePasted` answers null for a kind AniList does not hold (`anilistTypeOf`
+  in `library/kinds.ts` is the safe question; `anilistType` stays the loud one
+  for code that is AniList's by construction).
+- The background link pass (`resolveLinks`) and the search
+  (`searchSeries`) skip those kinds, so a film's or a show's title never
+  leaves for a catalogue that cannot hold it.
+
+**Not built here:** the `search`/`byId` adapter. c988 stopped at the registry
+and the states on purpose: with one implementation an interface is decoration,
+and TMDB's client is c989's, where the second implementation forces the
+boundary (the pure `Candidate` shape is already what a review draws, and TMDB
+will answer with it).
+
 ## What the owner decided (2026-09-24)
 
 1. **Titles of series that aren't hidden may be sent to AniList** to search.

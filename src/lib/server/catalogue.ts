@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
 import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL, visibleWhere } from './visibility.ts';
 import { clearAniSkip } from './anime/marks.ts';
-import { KINDS, anilistType } from '../library/kinds.ts';
+import { KINDS, anilistType, anilistTypeOf } from '../library/kinds.ts';
 import {
 	ANIME_FORMATS,
 	candidateKind,
@@ -950,7 +950,7 @@ export function kindOf(seriesId: number): Kind | null {
  */
 export async function resolveLinks(now = Date.now()): Promise<number> {
 	const db = getDb();
-	const waiting = db
+	const waitingAll = db
 		// Also a link from before rung 26, which doesn't know its entry's format
 		// yet, and one from before rung 70, which doesn't know its country or year
 		// (c520). Not an anime's that has season rows: those are its links, and
@@ -971,6 +971,10 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 		/** Resolved and its format known: only its country and year are asked (rung 70). */
 		known: number;
 	}[];
+	// A kind AniList does not hold is another catalogue's to resolve (c988): a
+	// film's or a show's TMDB id is never asked of AniList, which has no entry
+	// for it.
+	const waiting = waitingAll.filter((w) => anilistTypeOf(w.kind) !== null);
 	if (!waiting.length) return 0;
 	const kinds: Kind[] = [...new Set(waiting.map((w) => w.kind))];
 	/** The ids of one field, read in each kind's own catalogue. */
@@ -1217,6 +1221,9 @@ export async function searchSeries(
 ): Promise<{ linked: number; offered: number }> {
 	const autoLink = opts.autoLink ?? true;
 	const db = getDb();
+	// Only AniList's kinds are searched here (c988): a film's or a show's link
+	// is TMDB's, and its title never leaves for a catalogue that cannot hold it.
+	const searched = all.filter((r) => anilistTypeOf(r.kind) !== null);
 	// The owner's own title for a SEARCH AGAIN, as typed; the pass's cleaned,
 	// with a shorter one to fall back on. An anime is searched by its season's
 	// own title, since each season is its own catalogue entry (c240): the
@@ -1224,9 +1231,11 @@ export async function searchSeries(
 	// named the one that still wants a look, never the one CONTINUE is in,
 	// which may be linked already. An anime with no such season is not
 	// searched at all.
-	const named = all.map((r) => (isAnime(r.kind) ? (r.season ?? seasonToLook(r.id)) : undefined));
-	const rows = all.filter((r, i) => !isAnime(r.kind) || named[i] !== undefined);
-	const seasonOfRow = named.filter((_, i) => !isAnime(all[i].kind) || named[i] !== undefined);
+	const named = searched.map((r) =>
+		isAnime(r.kind) ? (r.season ?? seasonToLook(r.id)) : undefined
+	);
+	const rows = searched.filter((r, i) => !isAnime(r.kind) || named[i] !== undefined);
+	const seasonOfRow = named.filter((_, i) => !isAnime(searched[i].kind) || named[i] !== undefined);
 	const tries = rows.map((r, i) => {
 		if (r.query) return [r.query];
 		if (isAnime(r.kind)) {

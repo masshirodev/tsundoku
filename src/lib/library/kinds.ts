@@ -353,3 +353,14 @@ export function anilistType(kind: Kind): 'MANGA' | 'ANIME' {
 	if (c.provider !== 'anilist') throw new Error(`${kind} is not in AniList's catalogue`);
 	return c.type;
 }
+
+/**
+ * The AniList type a kind is looked up in, or **null** for a kind another
+ * catalogue holds (a film's TMDB, a show's) — the safe question a door asks
+ * when it is not certain the series is AniList's (card c988). `anilistType`
+ * stays the loud one for the code that is AniList's by construction.
+ */
+export function anilistTypeOf(kind: Kind): 'MANGA' | 'ANIME' | null {
+	const c = kindFacts(kind).catalogue;
+	return c.provider === 'anilist' ? c.type : null;
+}

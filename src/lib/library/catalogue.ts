@@ -4,7 +4,7 @@
  * the review shows beside each candidate. No database, no network.
  */
 
-import { anilistType, kindFacts, type KindFacts } from './kinds.ts';
+import { anilistType, anilistTypeOf, kindFacts, type KindFacts } from './kinds.ts';
 import type { Kind } from './types.ts';
 export type { Kind };
 
@@ -268,7 +268,10 @@ export function parsePasted(text: string, kind: Kind = 'manga'): Pasted | null {
 			t
 		);
 	if (!m) return null;
-	const asAnime = anilistType(kind) === 'ANIME';
+	// A kind another catalogue holds has no AniList page to read (c988).
+	const type = anilistTypeOf(kind);
+	if (type === null) return null;
+	const asAnime = type === 'ANIME';
 	if ((m[2].toLowerCase() === 'anime') !== asAnime) return null;
 	const id = Number(m[3]);
 	if (!Number.isSafeInteger(id) || id <= 0) return null;

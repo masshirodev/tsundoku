@@ -517,7 +517,10 @@ In the registry, that is two entries, and two facts change shape first:
   to say, and K3 recorded that no writer read it.
 - **A kind's catalogue may be unlinked** (no key): a state every door
   answers, never a throw. `anilistType` still throws for a kind AniList does
-  not hold, so its call sites narrow or go through the catalogue contract.
+  not hold, so its call sites narrow (`anilistTypeOf`) or go through the
+  catalogue contract; `library/catalogues.ts` says which provider a kind is,
+  `server/catalogues.ts` whether this install can ask it (`doc/LINKS.md`,
+  "Which catalogue, and whether it can answer"; card c988).
 - **`SOURCE_KINDS` stops being one-to-one.** An Aniyomi source can serve
   anime, films or shows, so the kind is a fact of the source and one series'
   kind can be changed on its screen (card c986; c979's drama is the same
