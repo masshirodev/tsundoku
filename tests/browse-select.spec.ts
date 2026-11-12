@@ -429,7 +429,9 @@ describe('the press', () => {
 	});
 });
 
-describe('the selection in this tab', () => {
+// Each case imports the store afresh (`vi.resetModules`), and its first
+// import compiles the rune module: seconds on a loaded box, so not 5 s.
+describe('the selection in this tab', { timeout: 30_000 }, () => {
 	afterEach(() => {
 		vi.unstubAllGlobals();
 		vi.resetModules();
