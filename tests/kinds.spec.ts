@@ -678,8 +678,9 @@ describe('the unit and READ/WATCHED words (labels.ts)', () => {
 });
 
 /**
- * The ratchet (doc/KINDS.md, "No new kind checks"): the number of places that
- * still compare a kind by name, which may only go down.
+ * The registry's guard (doc/KINDS.md, "No new kind checks"; cards c301 and
+ * c305): outside the registry and a short allow-list, no `kind` is compared
+ * against a kind's name.
  *
  * What it counts: one line in any `src/**\/*.ts` or `src/**\/*.svelte` where a
  * `kind` (a series', a source's, a candidate's) is compared against one of
@@ -698,17 +699,47 @@ describe('the unit and READ/WATCHED words (labels.ts)', () => {
  * download's state), nor a helper (`movableKind`), nor a question asked
  * through one (`familyOfKind(l.kind) === 'mihon'` names a family, not a kind).
  *
- * What is allow-listed: `src/lib/library/kinds.ts` alone, because that file
- * is where a kind may be named -- its `matches` and `MOVE_MAP` are the rules.
- * The modules that own a kind's own peculiarity (`series.ts`'s doujin books
- * and manhwa strip, `ImageReader.svelte`'s vertical strip, `catalogue.ts`'s
- * cover-only crossing and format lists, `labels.ts`'s doujin book line) are
- * counted: they are what K2-K5 lower by moving the question into the registry.
- *
- * How to lower it: delete or replace a check, then lower BASELINE by exactly
- * the count removed. Never raise it without a card saying which check and why.
+ * The allow-list is by file, with the reason that file may name kinds. What
+ * is left is not "not yet migrated": it is another service's vocabulary
+ * (AniList's formats and ids), Ranobe's own kinds, SQL that cannot ask the
+ * registry, fixtures, or a tracker's rule. A new check in an allowed file is
+ * still a decision someone must be able to justify in its reason, and a kind
+ * added to the registry must be answered everywhere the compiler asks.
  */
-const BASELINE = 42;
+const ALLOWED: { file: string; reason: string }[] = [
+	{
+		file: 'src/lib/library/catalogue.ts',
+		reason:
+			"AniList's own words: a format and a country become a kind, and the cover-only crossing is between a novel and its comic."
+	},
+	{
+		file: 'src/lib/server/catalogue.ts',
+		reason:
+			"AniList's transport: the MAL id family, the GraphQL type, and the format list each kind is asked with."
+	},
+	{
+		file: 'src/lib/server/fixtures.ts',
+		reason: 'Fixtures: one series of each kind, shaped like what an importer makes.'
+	},
+	{
+		file: 'src/lib/server/japanese/ocr.ts',
+		reason:
+			"SQL: OCR is for pages and the registry's medium is not a column. The one text kind is named; a new text kind must change the line."
+	},
+	{
+		file: 'src/lib/server/ranobe.ts',
+		reason: "Ranobe's own kinds and its work-versus-edition rule (doc/RANOBE.md)."
+	},
+	{
+		file: 'src/lib/library/ranobe.ts',
+		reason: "`RANOBE_KINDS`/`byWork`: which kinds Ranobe tracks, which is Ranobe's list."
+	},
+	{
+		file: 'src/lib/server/tracking.ts',
+		reason:
+			'MAL and AniList track a comic and an anime, never a doujin or a novel: the trackers’ rule, not a kind fact.'
+	}
+];
 /** One of `KINDS`' own names, as a bare alternation. */
 const NAME = String.raw`(?:manga|manhwa|doujin|novel|anime)`;
 /** A kind written down: a name in quotes, or a family's kind (`SOURCE_KINDS.x`, `SOURCE_KINDS[f]`). */
@@ -755,12 +786,12 @@ function sourceFiles(dir: string): string[] {
 }
 
 describe('no new kind checks', () => {
-	it(`holds the baseline of ${BASELINE} comparisons outside the registry`, () => {
+	it('finds none outside the registry and the files that own a kind\u2019s peculiarity', () => {
 		const root = join(process.cwd(), 'src');
-		const allowed = join(root, 'lib', 'library', 'kinds.ts');
+		const registry = join(root, 'lib', 'library', 'kinds.ts');
 		const found: string[] = [];
 		for (const file of sourceFiles(root)) {
-			if (file === allowed) continue;
+			if (file === registry) continue;
 			const lines = readFileSync(file, 'utf8').split('\n');
 			lines.forEach((line, i) => {
 				if (COMPARED.test(line))
@@ -769,10 +800,13 @@ describe('no new kind checks', () => {
 		}
 		// The message is the diff: every line that counts, so a merge that adds
 		// one names it instead of only moving a number.
+		const outside = found.filter(
+			(line) => !ALLOWED.some((allowed) => line.startsWith(`${allowed.file}:`))
+		);
 		expect(
-			found.length,
-			`${found.length} kind comparisons, baseline ${BASELINE}:\n${found.join('\n')}`
-		).toBe(BASELINE);
+			outside,
+			`${outside.length} kind comparisons outside the allow-list:\n${outside.join('\n')}`
+		).toEqual([]);
 	});
 });
 

@@ -15,6 +15,8 @@ import { kindFacts } from './kinds.ts';
  * doc/RANOBE.md, "Anime"). Doujinshi never, whichever importer made them:
  * Hentoid's books, or a Mihon gallery source's series.
  */
+// Its own order (novel first, then the comics, then anime): the search's kind
+// options read it, so it is stated, not derived and sorted.
 export const RANOBE_KINDS: readonly Kind[] = ['novel', 'manga', 'manhwa', 'anime'];
 
 /**

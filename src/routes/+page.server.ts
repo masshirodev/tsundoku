@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { kindFacts, type Kind } from '$lib/library/kinds';
 import type { Actions, PageServerLoad } from './$types';
 import { applyPending, offerFold, reviewQueue } from '$lib/server/dupes';
 import { linkQueueCount } from '$lib/server/catalogue';
@@ -506,7 +507,10 @@ export const actions: Actions = {
 				FROM series s WHERE s.id IN (${target.map(() => '?').join(',')})`
 			)
 			.all(...target) as { id: number; kind: string; n: number; whole: number; entry: number }[];
-		if (rows.length !== target.length || rows.some((r) => r.kind !== 'doujin' || r.n !== 1))
+		if (
+			rows.length !== target.length ||
+			rows.some((r) => kindFacts(r.kind as Kind).grouping !== 'books' || r.n !== 1)
+		)
 			return fail(400, { foldMessage: 'ONLY SINGLE BOOKS FOLD' });
 		if (rows.some((r) => r.whole !== 1))
 			return fail(400, { foldMessage: 'A BOOK WITH AN EXTRA OR A DUPLICATE BESIDE IT CAN’T FOLD' });

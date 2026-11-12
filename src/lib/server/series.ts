@@ -1,5 +1,6 @@
 import type { Episode } from '../library/anime.ts';
 import { pictureRoute } from './anime/pictures.ts';
+import { kindFacts } from '../library/kinds.ts';
 import { getDb } from './db.ts';
 import { editionToBase } from '../library/editions.ts';
 import { libraryWhere, VISIBLE_SQL } from './visibility.ts';
@@ -150,7 +151,7 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		tags: [],
 		// An episode's own (doc/ANIME.md). Its picture is made on the workstation (c225).
 		episode:
-			card.kind === 'anime'
+			kindFacts(card.kind).medium === 'video'
 				? {
 						durationS: e.duration_s,
 						season: e.season,

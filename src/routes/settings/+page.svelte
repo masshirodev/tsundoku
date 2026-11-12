@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { updateRun } from '$lib/update-run.svelte';
+	import { kindFacts } from '$lib/library/kinds';
 	import { appUpdater } from '$lib/app/update.svelte';
 	import { appLine, type AppUpdate } from '$lib/app/update';
 	import { m } from '$lib/paraglide/messages';
@@ -477,7 +478,7 @@
 			return {
 				what: 'mode',
 				items: data.lists.mode
-					.filter((o) => (o.kind === 'novel') === novel)
+					.filter((o) => (kindFacts(o.kind).medium === 'text') === novel)
 					.map((o) => ({
 						href: href(o.seriesId),
 						t: o.title,

@@ -381,7 +381,7 @@ export function workKinds(parts: WorkPart[]): string {
 }
 
 /** WATCH for an episode, READ for a page. */
-export const kindVerb = (kind: Kind) => (kind === 'anime' ? 'WATCH' : 'READ');
+export const kindVerb = (kind: Kind) => (kindFacts(kind).medium === 'video' ? 'WATCH' : 'READ');
 
 /** What CONTINUE does with the part it opens: WATCH, READ, or null once the run is read. */
 export function workVerb(parts: WorkPart[]): 'READ' | 'WATCH' | null {

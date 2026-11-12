@@ -30,9 +30,9 @@ export function continueSub(item: ContinueItem, offline?: { cached: boolean }): 
 	// A single book has nothing to count: "DOUJIN", not "DOUJIN · Book of 1".
 	// An episode says the time left instead (doc/ANIME.md): "S2 EP. 7 · 14:32 LEFT".
 	const where =
-		item.kind === 'anime'
+		kindFacts(item.kind).medium === 'video'
 			? item.entryLabel
-			: item.kind === 'doujin' && item.entryCount <= 1
+			: kindFacts(item.kind).grouping === 'books' && item.entryCount <= 1
 				? null
 				: item.entryCount > 0
 					? `${item.entryLabel} of ${item.entryCount}`

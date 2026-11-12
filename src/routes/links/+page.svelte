@@ -6,6 +6,7 @@
 	import {
 		anilistUrl,
 		candidateKind,
+		isAnime,
 		isExact,
 		matchTitles,
 		parsePasted
@@ -764,7 +765,7 @@
 			pasteNote = text.trim()
 				? r1
 					? 'NOT A RANOBE WORK LINK'
-					: it.kind === 'anime'
+					: isAnime(it.kind)
 						? 'NOT AN ANILIST OR MAL ANIME LINK'
 						: 'NOT AN ANILIST OR MAL MANGA LINK'
 				: null;
@@ -1032,7 +1033,7 @@
 				label: 'SOURCE',
 				value: [...new Set([item.sourceKind, item.source].filter(Boolean))].join(' · ')
 			},
-			{ label: item.kind === 'anime' ? 'EPISODES' : 'CHAPTERS', value: String(item.chapters) },
+			{ label: isAnime(item.kind) ? 'EPISODES' : 'CHAPTERS', value: String(item.chapters) },
 			{ label: 'COVER', value: [item.cover.a, item.cover.b].filter(Boolean).join(' · ') }
 		];
 	});
@@ -1450,7 +1451,7 @@
 								oninput={(e) => readPaste(e.currentTarget.value)}
 								placeholder={ranobe
 									? 'ranobe.ink/w…'
-									: item?.kind === 'anime'
+									: item && isAnime(item.kind)
 										? 'anilist.co/anime/… or myanimelist.net/anime/…'
 										: 'anilist.co/manga/… or myanimelist.net/manga/…'}
 								aria-label={ranobe ? 'Ranobe link' : 'AniList or MAL link'}

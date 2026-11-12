@@ -521,7 +521,11 @@ function anilistLine(i: ListsInput, season: SeasonTrack | null, oneSeason: Seaso
 		const sl = oneSeason?.link ?? null;
 		meta = [
 			// The comparison moved here from the LINK row with its logic (the kind ratchet).
-			l.coverOnly ? (i.kind === 'novel' ? 'THE COMIC’S ENTRY' : 'THE NOVEL’S ENTRY') : '',
+			l.coverOnly
+				? kindFacts(i.kind).medium === 'text'
+					? 'THE COMIC’S ENTRY'
+					: 'THE NOVEL’S ENTRY'
+				: '',
 			entryWords(l.format, l.country),
 			sl?.episodes ? `${sl.episodes} EP.` : '',
 			// A season's own year, else the comic's (rung 70); never `null`.

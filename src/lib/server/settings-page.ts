@@ -90,7 +90,8 @@ export type OverrideCounts = {
 export function overrideCounts(reveal: boolean): OverrideCounts {
 	const db = getDb();
 	const mode: Partial<Record<Kind, number>> = {};
-	for (const kind of ['manga', 'manhwa', 'doujin', 'novel'] as Kind[]) {
+	// Every kind with a direction: a video kind has none to override (card c305).
+	for (const kind of KINDS.filter((k) => kindFacts(k).medium !== 'video')) {
 		const def = kindDirection(kind);
 		mode[kind] = (
 			db

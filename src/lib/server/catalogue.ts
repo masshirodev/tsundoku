@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
 import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL, visibleWhere } from './visibility.ts';
 import { clearAniSkip } from './anime/marks.ts';
-import { KINDS, anilistType, anilistTypeOf } from '../library/kinds.ts';
+import { KINDS, anilistType, anilistTypeOf, kindFacts } from '../library/kinds.ts';
 import {
 	ANIME_FORMATS,
 	candidateKind,
@@ -1042,7 +1042,8 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
  * tracker is the other door, and it can link a doujin (`resolveLinks`).
  */
 // A browsing record (doc/BROWSING.md) is never in the LINK queue: it isn't the library's.
-const LINKABLE = `s.kind IN ('manga', 'manhwa', 'novel', 'anime') AND s.source != 'hentoid' AND ${IN_LIBRARY_SQL}`;
+const LINKABLE_KINDS = KINDS.filter((k) => kindFacts(k).grouping !== 'books');
+const LINKABLE = `s.kind IN (${LINKABLE_KINDS.map((k) => `'${k}'`).join(', ')}) AND s.source != 'hentoid' AND ${IN_LIBRARY_SQL}`;
 
 /**
  * A series still wants a look: the one rule of "not linked and not settled"

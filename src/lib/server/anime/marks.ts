@@ -10,7 +10,7 @@ import {
 } from '../../library/marks.ts';
 import type { Range } from '../../library/streams.ts';
 import { candidateKind, sameKind } from '../../library/catalogue.ts';
-import type { Kind } from '../../library/kinds.ts';
+import { kindFacts, type Kind } from '../../library/kinds.ts';
 
 /**
  * An episode's opening and ending, kept (doc/ANIME.md, "Openings and
@@ -157,7 +157,7 @@ export function clearAniSkip(seriesId: number, db: Database.Database = getDb()):
 	// other series has nothing to clear and nothing to recompute.
 	const kind = db.prepare(`SELECT kind FROM series WHERE id = ?`).get(seriesId) as
 		{ kind: string } | undefined;
-	if (kind?.kind !== 'anime') return;
+	if (!kind || kindFacts(kind.kind as Kind).medium !== 'video') return;
 	const gone = db
 		.prepare(
 			`DELETE FROM episode_marks WHERE method = 'aniskip'

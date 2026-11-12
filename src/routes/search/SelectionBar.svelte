@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { deserialize, enhance } from '$app/forms';
+	import { kindFacts } from '$lib/library/kinds';
 	import { invalidateAll } from '$app/navigation';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import BulkBar from '$lib/components/chrome/BulkBar.svelte';
@@ -160,7 +161,12 @@
 		if (picked.length !== selected.size) return null;
 		if (
 			picked.some(
-				(s) => s.kind !== 'doujin' || s.entryCount !== 1 || !s.alone || !s.language || s.languages
+				(s) =>
+					kindFacts(s.kind).grouping !== 'books' ||
+					s.entryCount !== 1 ||
+					!s.alone ||
+					!s.language ||
+					s.languages
 			)
 		)
 			return null;

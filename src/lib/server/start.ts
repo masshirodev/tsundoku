@@ -1,6 +1,7 @@
 import { getDb } from './db.ts';
 import { getSetting, setSetting } from './settings.ts';
 import { VISIBLE_SQL } from './visibility.ts';
+import { kindFacts, type Kind } from '../library/kinds.ts';
 import { recordView } from './browsing.ts';
 import { previewIdOf } from './downloads.ts';
 import { browseList } from './engine/browse.ts';
@@ -106,7 +107,7 @@ export function firstReadExtras(
 			.prepare(`SELECT id FROM entries WHERE series_id = ? AND shadowed = 0 ORDER BY position`)
 			.all(rec.id) as { id: number }[];
 		const at = view.next ? order.findIndex((e) => e.id === view.next!.id) + 1 : view.total;
-		const anime = rec.kind === 'anime';
+		const anime = kindFacts(rec.kind as Kind).medium === 'video';
 		record = {
 			previewId,
 			title: rec.title,
@@ -147,7 +148,7 @@ export function firstReadExtras(
 			? {
 					id: p.id,
 					title: p.title,
-					anime: p.kind === 'anime',
+					anime: kindFacts(p.kind as Kind).medium === 'video',
 					total: p.total,
 					downloaded: p.downloaded,
 					missing: p.missing

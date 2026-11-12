@@ -2,6 +2,7 @@ import { getDb } from './db.ts';
 import { HIDDEN_SQL, libraryWhere } from './visibility.ts';
 import { isPersonNamespace, type TagItem, type TagPage } from '../library/books.ts';
 import type { Kind, Rating } from '../library/types.ts';
+import { kindFacts } from '../library/kinds.ts';
 import { langCode } from '../library/editions.ts';
 
 /**
@@ -181,7 +182,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 			pages: s.pages,
 			read: s.entries > 0 && s.readCount === s.entries,
 			progress:
-				s.kind === 'doujin' && s.lastPosition !== null && s.pages > 0
+				kindFacts(s.kind).grouping === 'books' && s.lastPosition !== null && s.pages > 0
 					? (s.lastPosition + 1) / s.pages
 					: null,
 			seriesTitle: null,
@@ -189,7 +190,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 			total: null,
 			// GROUP takes one book with nothing beside it (`groupIntoSeries`), so a
 			// book with an extra or a set-aside duplicate is no singleton here (c558).
-			groupable: s.kind === 'doujin' && s.entries === 1 && s.whole === 1,
+			groupable: kindFacts(s.kind).grouping === 'books' && s.entries === 1 && s.whole === 1,
 			addedAt: s.addedAt,
 			entries: s.entries,
 			languages: seriesLangs.get(s.seriesId) ?? [],
@@ -276,9 +277,12 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 		series: [...bookSeries.values()],
 		members,
 		counts: {
-			books: books.length + items.filter((i) => i.kind === 'doujin' && i.entryId === null).length,
+			books:
+				books.length +
+				items.filter((i) => kindFacts(i.kind).grouping === 'books' && i.entryId === null).length,
 			series:
-				bookSeries.size + items.filter((i) => i.entryId === null && i.kind !== 'doujin').length,
+				bookSeries.size +
+				items.filter((i) => i.entryId === null && kindFacts(i.kind).grouping !== 'books').length,
 			single,
 			read: items.filter((i) => i.read).length,
 			favourite: items.filter((i) => i.favourite).length

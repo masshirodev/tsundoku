@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { kindFacts } from '$lib/library/kinds';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import BookTile from '$lib/components/content/BookTile.svelte';
@@ -115,8 +116,8 @@
 			const series = bySeries ? `${i.total} BOOKS` : `${i.position}/${i.total}`;
 			return { text: `${i.seriesTitle.toUpperCase()} · ${series}`, accent: false };
 		}
-		if (i.kind !== 'doujin') {
-			const unit = i.kind === 'novel' ? 'VOL' : 'CH';
+		if (kindFacts(i.kind).grouping !== 'books') {
+			const unit = kindFacts(i.kind).medium === 'text' ? 'VOL' : 'CH';
 			return {
 				text: i.read
 					? `${i.kind.toUpperCase()} · READ`

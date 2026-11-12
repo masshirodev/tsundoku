@@ -402,51 +402,51 @@ rg -n --glob '*.ts' --glob '*.svelte' --glob '!src/lib/library/kinds.ts' \
   src | wc -l
 ```
 
-Until wave 20 the command had only the quoted names (the first half of each
-pattern); the counts below up to 89 are by that command.
+The numbers below are history: the command's count, and the spec's
+`BASELINE` at the time. Since c305 the spec holds an **allow-list**, not a
+number.
 
-At `c14a5d4e`, before K1, that prints **158**. After K1 it prints **152**: the
-six lines it removed are `mediaTypeOf`'s type choice, `unitLabel`'s and
-`sheetMeta`'s, and the AniList and MAL URL paths and the paste path. The
-spec's `BASELINE` was 152, and it skips the same one file this command does.
-After K4 (wave 17) it prints **121**: the 31 lines it removed are every
-comparison left in `src/lib/server/move.ts` (27) and `src/lib/library/move.ts`
-(4). After K3 (the same wave) it prints **93**: 28 more, from
-`server/books.ts` (9), `server/covers.ts` (4), the extensions page (4 + 2),
-`engine/browse.ts` (3), the source preview (3), `engine/backend.ts` (1) and
-BROWSE's source page and its settings (1 + 1). After K4's last part (wave 18) it prints **89**: the move route's three (`src/routes/series/[id]/move/`:
-SEARCH's source word, the comparison's kind and PASTE A LINK's source) and
-the series screen's MOVED band, now `moveKindOf`, `movesVideo`,
-`sourceMedium` and `kindFacts(moveKindOf(kind)).unit.long`
-(`series/[id]/move-words.ts`, `move/paste.server.ts`). In wave 20 (cards
-c420 and c375, `agent/k20-browse` from `d5c4bf6f`) the widened command
-prints **95** at `d5c4bf6f` (89 and the six `SOURCE_KINDS` lines: BROWSE's
-source page and its settings, the extensions page's two APK counts,
-`engine/browse.ts`'s family lists and `engine/backend.ts`'s `sourceFamily`),
-and **87** after them: those six ask the family, and GROUP's two answers in
-`library/books.ts` (`groupAnswers`) ask `grouping`. `BASELINE` follows
-the latest slice; the handoff notes (`doc/handoff-notes/kinds.md`) record each one's number.
-The number is smaller than the audit's rough ~340 because this counts only a
-`kind` compared against a kind name: not the `isAnime…`-style helpers, not a
-download's or a device's `kind`, and not a comparison between two variables.
+At `c14a5d4e`, before K1, the command prints **158**. After K1 it prints
+**152**: the six lines it removed are `mediaTypeOf`'s type choice,
+`unitLabel`'s and `sheetMeta`'s, and the AniList and MAL URL paths and the
+paste path. After K4 (wave 17) it prints **121**: every comparison left in
+`src/lib/server/move.ts` (27) and `src/lib/library/move.ts` (4). After K3
+(the same wave) it prints **93**: 28 more, from `server/books.ts` (9),
+`server/covers.ts` (4), the extensions page (4 + 2), `engine/browse.ts` (3),
+the source preview (3), `engine/backend.ts` (1) and BROWSE's source page and
+its settings (1 + 1). After K4's last part (wave 18) it prints **89**: the
+move route's three and the series screen's MOVED band. In wave 20 (cards c420
+and c375) the widened command prints **95** at `d5c4bf6f`, and **87** after
+it: six `SOURCE_KINDS` lines now ask the family, and GROUP's two answers ask
+`grouping`. K2 (c302) took the series screen, the library, the readers and the
+player to **42**; K5 (c305) took the rest to **21**. The number is smaller
+than the audit's rough ~340 because it counts only a `kind` compared with a
+kind name: not the `isAnime…`-style helpers, not a download's or a device's
+`kind`, and not a comparison between two variables.
 
-**Allow-listed: `src/lib/library/kinds.ts` alone**, because that is where a
-kind may be named -- `matches`, `MOVE_MAP` and `SOURCE_KINDS` are the rules.
-The modules that own a kind's own peculiarity are **counted, not excused**:
-`library/series.ts` (a doujin's books, manhwa's strip, a novel's volumes),
-`library/labels.ts` (a doujin's single book line, an anime's episode line),
-`library/catalogue.ts` (the cover-only crossing, an entry's path, the review's
-words), `server/catalogue.ts` (the per-kind format lists),
-`read/[entry]/ImageReader.svelte` (manhwa's vertical strip). They are what
-K2-K5 lower, by asking the registry instead. `move.ts` and `server/move.ts`
-(anime's seasons) were on this list and count none since K4: their seasons are
-a question about video, asked as `movesVideo`.
+**The spec's allow-list** (c305) is by file, with the reason that file may
+name a kind:
 
-How to lower it: delete or replace a check, then lower `BASELINE` by exactly
-the count. **Never raise it without a card** saying which check and why. The
-spec's failure message prints every counted line with its file and number, so
-a merge that changes the count is a one-line conversation rather than a
-mystery. When K5 lands, the baseline is what the allow-list alone leaves.
+- **`src/lib/library/kinds.ts`** is where a kind is named: its `matches`,
+  `MOVE_MAP` and `SOURCE_KINDS` are the rules.
+- **`library/catalogue.ts` and `server/catalogue.ts`**: AniList's own words —
+  a format and a country become a kind, the MAL id family, the GraphQL type,
+  the format list a kind is asked with.
+- **`library/ranobe.ts` and `server/ranobe.ts`**: which kinds Ranobe tracks
+  and its work-versus-edition rule ([`RANOBE.md`](RANOBE.md)).
+- **`server/japanese/ocr.ts`**: SQL that cannot ask the registry; OCR is for
+  pages, and the one text kind is named.
+- **`server/tracking.ts`**: MAL and AniList track a comic and an anime, never
+  a doujin or a novel.
+- **`server/fixtures.ts`**: one series of each kind, shaped like an import's.
+
+Everything else asks the registry, and the spec's failure message is the diff:
+every counted line with its file and number, so a merge that adds one names it
+rather than moving a number. A new check inside an allowed file still needs a
+sentence in that file's reason; a new check outside one fails outright. Three
+lists that the scan could not see are folded too (c305): `RANOBE_KINDS` and
+the settings page's override kinds are `KINDS` filtered by a fact, and
+`LINKABLE` is built from the registry's kinds.
 
 ## The kind a source cannot name
 

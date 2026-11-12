@@ -185,7 +185,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			if (!p)
 				error(
 					400,
-					item.kind === 'anime'
+					isAnime(item.kind)
 						? 'not an AniList or MAL anime link'
 						: 'not an AniList or MAL manga link'
 				);
