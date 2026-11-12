@@ -605,6 +605,19 @@ function notices(
 	const kuromoji = join(kotobaRepo, 'node_modules/@patdx/kuromoji');
 	if (existsSync(kuromoji)) pkgNotice(kuromoji, seen);
 	walk(join(dir, 'app/node_modules'), seen);
+	// Not shipped: the engine downloads it, on an install that turned its WebView
+	// on, the first time an extension needs one (doc/RELEASE.md, "The engine's
+	// WebView, for a release"). Named because tsundoku is what fetches it.
+	parts.push(
+		'Chromium 111.0.5563.64, in JetBrains Runtime JCEF jbr-release-17.0.10b1087.23\n' +
+			'(downloaded by the engine into engine/app/webview/chromium in your data\n' +
+			'folder, only if SETTINGS > BROWSE > WEBVIEW is turned on)\n' +
+			'Licence: Chromium is BSD-3-Clause, with the third-party components it\n' +
+			'lists in its own credits; JCEF and the Chromium Embedded Framework are\n' +
+			'BSD-3-Clause; the JetBrains Runtime is GPL-2.0 with the Classpath\n' +
+			"Exception. Downloaded unmodified from JetBrains' releases\n" +
+			'(https://github.com/JetBrains/JetBrainsRuntime), with their notices inside.'
+	);
 	parts.push(
 		`FlareSolverr ${pins.flaresolverr.version} (the optional flaresolverr archive)\n` +
 			'Licence: MIT. Shipped unmodified as its project releases it, with the\n' +

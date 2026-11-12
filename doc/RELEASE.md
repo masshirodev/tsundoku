@@ -249,7 +249,12 @@ The launcher is `launcher/launch.ts`, run with the bundle's Node. It:
    c228); `--reset-password` forgets it and exits;
 3. if a tsundoku already answers on the port, opens it and exits;
 4. starts the engine (`java -jar`, `ENGINE_HOST=127.0.0.1`, its APKs,
-   preferences and app folder under `engine/` in the data folder) and
+   preferences and app folder under `engine/` in the data folder, and
+   `ENGINE_WEBVIEW=on` only where SETTINGS' WEBVIEW switch,
+   `engine/webview.json`, is on: off on a friend's install unless they turn
+   it on, card c978; the switch is read at every engine start and watched,
+   and a change restarts the engine: [`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md),
+   "tsundoku's side") and
    FlareSolverr if present (`HOST=127.0.0.1`), each logging to `logs/`, and
    starts either again if it stops. On Linux it first renames FlareSolverr's
    own `_internal/libreadline.so.8` to `.bundled-off` (`solverSetAside`):
@@ -472,6 +477,25 @@ The APKs don't count, since no smoke test runs them: `android-apk.sh` can run
 before or after smoke.sh, and leaves the marks alone. Each mark's line is
 `<version> <when>`, with no checksums, because smoke.sh runs the tag's own copy
 and the tags already made write exactly that.
+
+## The engine's WebView, for a release
+
+The engine's headless WebView (tsundoku-engine `engine-webview`, on its
+`main` since b22055e) ships inside `engine.jar` like the rest of the engine:
+the bundle doesn't grow, and Chromium is downloaded by the engine, on an
+install that turned the WebView on, the first time an extension needs it.
+
+- **Linux friends need Xvfb** for it (`xvfb`; the README says how, in
+  "Sources that need a browser of their own"), or a desktop `DISPLAY`.
+  Without either, turning it on gives FAILED with what to install;
+  nothing else changes. Windows needs nothing more, but is unproven (FORK.md,
+  "Proven, and not").
+- **THIRD-PARTY-NOTICES** names Chromium and JetBrains' JCEF, which the
+  engine downloads rather than ships (`release.ts`, `notices`).
+- **Either side alone is safe.** A tsundoku without its side starts the
+  engine without `ENGINE_WEBVIEW`, so it stays off; an engine older than the
+  support has no `webview` capability, and BROWSE says WebView extensions
+  can't run on it.
 
 ## Not in a release yet
 

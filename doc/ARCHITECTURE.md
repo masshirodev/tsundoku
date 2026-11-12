@@ -127,7 +127,9 @@ So:
   branch (2026-11-11), `ENGINE_WEBVIEW=on` runs WebView extensions in a
   headless, never-visible Chromium the engine downloads the first time one
   needs it (`EXTENSION-ENGINE.md`, "Cloudflare and WebView"); tsundoku's
-  launcher doesn't set it yet. The engine keeps nothing: repos, APKs, preferences and
+  launcher sets it only where SETTINGS' WEBVIEW switch is on, which is off
+  on every install until turned on (card c978: the owner's workstation
+  only). The engine keeps nothing: repos, APKs, preferences and
   state are tsundoku's. The contract, and everything the spike measured, is
   [`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md).
 - **Images and streams are fetched through the source's client**, never by

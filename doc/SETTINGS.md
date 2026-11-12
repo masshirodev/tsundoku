@@ -204,6 +204,42 @@ line). Nothing is managed from here.
   up: the row, its tap landing on EXTENSIONS, a TV's arrows reaching it, and
   no 07 without the engine).
 
+**WEBVIEW**, after EXTENSIONS (not drawn in a handoff: WI-FI's row again,
+its OFF | ON, meta lines and two-cell strip): the engine's headless browser
+for the few extensions that need one ([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md),
+"WebView support"; [`BROWSE.md`](BROWSE.md), "Extensions that need a
+WebView"). **Off by default, on every install**: it runs those extensions'
+sites' scripts in Chromium 111 without a sandbox, so the owner decided
+(2026-11-12, card c978) it is on for the owner's own workstation and off for
+friends'. The row says so in its second meta line.
+
+- **OFF | ON** writes the switch, a file in the data folder
+  (`engine/webview.json`), which the launcher reads at every engine start
+  and watches: it restarts the engine to take a change, and the ON cell
+  reads **ON · RESTARTING THE ENGINE…** until `/capabilities` agrees. Set on
+  the computer, never from a phone over Wi-Fi (403), as WI-FI is. Where
+  tsundoku's launcher doesn't start the engine (development's compose
+  engine), there is no switch: the row shows ON or OFF and says it is set
+  where the engine is started (`ENGINE_WEBVIEW`).
+- **Its state**, the first meta line, from the engine's `GET /webview`:
+  **NOT NEEDED YET**, **DOWNLOADING 40 %**, **READY · 1 PAGE OPEN**, or
+  **FAILED: <the engine's reason>**, verbatim (the reason is written for
+  people). An engine older than the support says so; one that isn't
+  answering says that. While it changes (a restart, a download, the engine
+  not answering) the row asks `/api/browse/webview` every 2 s until it
+  settles.
+- **CHROMIUM** and **ON DISK**: where Chromium lives
+  (`<data folder>/engine/app/webview/chromium`) and its size (about 360 MB
+  unpacked), or NOT DOWNLOADED. **REMOVE** deletes the folder, offered only
+  with the switch off and the engine restarted without it (an engine still
+  running Chromium has its files open, and would download them again);
+  `removeChromium` refuses otherwise, and refuses any folder that isn't
+  `…/webview/chromium`.
+- The page limit (`ENGINE_WEBVIEW_PAGES`) is left out of the UI.
+- Kept per install, not in the `settings` table: the launcher has no
+  database. Its scope cell is THIS COMPUTER · OFF UNTIL TURNED ON HERE.
+- Tests: `tests/engine-webview.spec.ts`, `tests/browse-webview.e2e.ts`.
+
 A source's own switches are not here but on its settings page in BROWSE
 (`/browse/<source>/settings`, `01 — IN TSUNDOKU`): **HIDDEN SOURCE** (listed,
 searched and named only inside reveal), **ADDED HIDDEN** (a series added

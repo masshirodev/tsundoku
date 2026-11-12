@@ -388,7 +388,9 @@ site. The design, why each part is so, and what was measured is the engine's
 `doc/FORK.md`, "Headless WebView"; what tsundoku needs to know:
 
 - Off unless the launcher sets `ENGINE_WEBVIEW=on` (the fork keeps additions
-  off by default). Nothing in tsundoku sets it yet.
+  off by default). tsundoku's launcher sets it only where SETTINGS' WEBVIEW
+  switch is on, and that is off on every install until someone turns it on
+  (the owner's decision, below).
 - Chromium (JetBrains Runtime JCEF, Chromium 111) is downloaded the first
   time an extension that uses a WebView is loaded, into
   `<engine app dir>/webview/chromium` (`ENGINE_WEBVIEW_DIR`): 169-186 MB per
@@ -416,11 +418,70 @@ site. The design, why each part is so, and what was measured is the engine's
   workstation, `DISPLAY` unset); not yet on Windows, macOS or WSL, and a
   headless Ubuntu container loads Chromium but MKissa's page didn't finish
   there (FORK.md, "Proven, and not").
+- A process-group stop takes it all: Xvfb and Chromium's processes
+  (`jcef_helper`) are the engine JVM's children in its group and session.
+  Measured 2026-11-12 with the bundle's JRE and MKissa, a renderer open: a
+  SIGTERM to the group ended Xvfb and the renderer at once, but the JVM
+  itself lived on until the extension's call in flight timed out (27 s).
+  The launcher's restart for the switch waits 10 s, then kills the group
+  (below).
 - **Cloudflare is still FlareSolverr's.** The same browser could solve a
   challenge itself, as Mihon's interceptor does in its WebView (open the URL,
   wait for `cf_clearance`, take the cookies and the user agent, retry); what
   that would take is in FORK.md, "Not done yet". Not built: Chromium 111 may
   well be refused by today's checks, which only trying shows.
+
+### tsundoku's side
+
+Since the `webview-tsundoku` branch (2026-11-12):
+
+- **The switch.** The owner decided (2026-11-12, card c978, "Engine WebView:
+  Chromium 111 runs streaming sites' scripts unsandboxed, accept or
+  harden?") that the WebView is **on for the owner's own workstation
+  install and off for friends'**: a per-install switch, off by default, set
+  in SETTINGS › 07 — BROWSE › WEBVIEW ([`SETTINGS.md`](SETTINGS.md)). It is a
+  file in the data folder, `engine/webview.json` (`{"on":true}`), as WI-FI
+  keeps `wifi.json`, because the launcher has to read it before the engine
+  starts and has no database (`src/lib/server/engine/webview-switch.ts`).
+- **The launcher** (`ops/release/launcher/launch.ts`, `plan.ts`) reads the
+  switch at every engine start and starts the engine with `ENGINE_WEBVIEW=on`
+  or `off`, always said, so a stray `ENGINE_WEBVIEW=on` in the data folder's
+  `.env` (which reaches the engine through the launcher's environment)
+  can't turn on what the switch has off (`engineWebViewEnv`). It names
+  Chromium's folder to both sides (`ENGINE_WEBVIEW_DIR`,
+  `<data>/engine/app/webview/chromium`, the engine's own default) and tells
+  the app where the switch is (`ENGINE_WEBVIEW_SWITCH`). It polls the file
+  every 2 s; when it changes, the engine's process group is stopped and the
+  engine started again with the new value, and killed outright if it hasn't
+  gone 10 s later (its JVM waits out a WebView call in flight). Measured
+  through a stand-in bundle: on took 4 s to show on `/capabilities`, off 3 s,
+  and Xvfb went with the old engine.
+- **Where nothing reads the switch** (development's compose engine, a test's
+  fake), neither variable reaches the app: the engine's own `ENGINE_WEBVIEW`
+  counts, and SETTINGS shows the state without a control.
+- **Capability.** `support()` (`src/lib/server/engine/webview.ts`) reads
+  `/capabilities`, cached 5 s: `webview: true` is `on`, `false` is `off`, no
+  key at all is an older engine (`unsupported`), and no answer falls back to
+  the switch (`webviewSupport`, `src/lib/webview.ts`). It is asked only when
+  a screen shows an extension that uses a WebView.
+- **Which extensions.** `engine_extensions.webview` (rung 78): the engine's
+  `extensionInfo.usesWebView` at install and at TRY AGAIN, else the APK's own
+  dex read the way the engine reads it (`apk-webview.ts`). Extensions
+  installed before the rung are read from their stored APK on the first
+  BROWSE or EXTENSIONS visit of a process (`fillWebViewFlags`); BACK TO
+  forgets the flag, since the version gone back to may differ.
+- **Failed calls.** An error that carries the `webview` object in a
+  `starting`, `failed` or `off` state is `EngineFailure` `webview`
+  (`failureFrom`, `client.ts`), and its message is the WebView's words
+  instead of the extension's timeout: the first-use line while it comes, the
+  engine's own error when it failed, "NEEDS A WEBVIEW, WHICH THIS INSTALL
+  HAS TURNED OFF" when off. In a `ready` or `idle` state the extension's own
+  words stand: its browser was there. A chapter that fails so waits 60 s
+  before its next try, as a rate limit does (`backoffMs`), and an episode
+  isn't recorded as having no video.
+- **What the screens say** is [`BROWSE.md`](BROWSE.md), "Extensions that
+  need a WebView", and [`SETTINGS.md`](SETTINGS.md), "07 — BROWSE". The words
+  are `src/lib/webview.ts`'s, one set for every screen.
 
 ## Aniyomi anime
 
