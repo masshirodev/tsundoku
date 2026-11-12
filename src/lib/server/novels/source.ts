@@ -105,6 +105,8 @@ export function novelSources(reveal: boolean): BrowseSource[] {
 			hidden: reveal ? u.hidden : 0,
 			mostlyHidden: hiddenMostly,
 			hiddenSource,
+			// The engine's WebView is the engine's extensions'; a plugin runs in the app.
+			webview: false,
 			failed: p.failed
 		});
 	}

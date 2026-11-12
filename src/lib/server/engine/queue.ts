@@ -189,11 +189,13 @@ export function nextUp(
 
 /**
  * How long to wait before trying a chapter again: longer each time, and
- * longer for a site that asked to slow down. Capped, so a chapter that
- * failed overnight isn't still waiting at noon.
+ * longer for a site that asked to slow down or a WebView still coming.
+ * Capped, so a chapter that failed overnight isn't still waiting at noon.
  */
 export function backoffMs(tries: number, failure: string): number {
-	const base = failure === 'rate-limited' ? 60_000 : 15_000;
+	// A WebView extension's browser downloads once, in a minute or so: asking
+	// again every 15 s would only spend the chapter's tries on it.
+	const base = failure === 'rate-limited' || failure === 'webview' ? 60_000 : 15_000;
 	return Math.min(base * 2 ** Math.max(0, tries - 1), 30 * 60_000);
 }
 

@@ -710,13 +710,6 @@ describe('rung 75: a series’ sources, a season at a time (c282)', () => {
 			{ series_id: 2 }
 		]);
 	});
-
-	// The top rung's own block says it is the top; the next rung moves this line.
-	it('is the top of a fresh database', () => {
-		const conn = new Database(':memory:');
-		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(77);
-	});
 });
 
 describe('rung 77: what a merged show was (c283)', () => {
@@ -800,5 +793,27 @@ describe('rung 77: what a merged show was (c283)', () => {
 		conn.prepare(`DELETE FROM series WHERE id = 1`).run();
 		expect(conn.prepare(`SELECT id FROM series ORDER BY id`).all()).toEqual([{ id: 2 }]);
 		expect(conn.prepare(`SELECT COUNT(*) AS n FROM works`).get()).toEqual({ n: 0 });
+	});
+});
+
+describe('rung 78: whether an extension uses a WebView', () => {
+	it('adds the flag, unknown for what was installed before', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 77);
+		conn
+			.prepare(
+				`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at)
+				VALUES ('a.b', 'A', 'anime', 1, '1', '16', 'h', 1, 1)`
+			)
+			.run();
+		climb(conn, 78);
+		expect(conn.prepare(`SELECT webview FROM engine_extensions`).get()).toEqual({ webview: null });
+	});
+
+	// The top rung's own block says it is the top; the next rung moves this line.
+	it('is the top of a fresh database', () => {
+		const conn = new Database(':memory:');
+		climb(conn);
+		expect(conn.pragma('user_version', { simple: true })).toBe(78);
 	});
 });

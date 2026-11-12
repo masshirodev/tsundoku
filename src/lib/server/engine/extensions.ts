@@ -16,6 +16,7 @@ import {
 	type RepoMeta
 } from './repo-index.ts';
 import { dataPaths } from '../data-dirs.ts';
+import { apkUsesWebView } from './apk-webview.ts';
 
 /**
  * Repositories, installed extensions and their sources' preferences
@@ -74,6 +75,61 @@ export type ExtensionInfo = {
 	versionName: string;
 	versionCode: number;
 	sources: { id: string | number; name: string; lang: string; baseUrl?: string }[];
+	/** The extension's code names android.webkit.WebView (the fork's, `engine-webview`). */
+	usesWebView?: boolean;
+};
+
+/**
+ * Whether an installed APK uses a WebView: the engine's word when it gave one
+ * (`extensionInfo.usesWebView`), else the APK's own dex (an engine older than
+ * the support, or one that refused to load it). Null when neither can say.
+ */
+export async function webviewFlag(
+	info: { usesWebView?: unknown } | null,
+	handle: string
+): Promise<0 | 1 | null> {
+	if (typeof info?.usesWebView === 'boolean') return info.usesWebView ? 1 : 0;
+	const path = apkPath(handle);
+	if (!existsSync(path)) return null;
+	try {
+		return (await apkUsesWebView(path)) ? 1 : 0;
+	} catch {
+		// Not a zip we can read: the engine's word, at its next load, will do.
+		return null;
+	}
+}
+
+let flagsFilled = false;
+
+/**
+ * Reads the WebView flag (rung 78) of every extension installed before it,
+ * from its stored APK. Once a process: an install and a TRY AGAIN set the
+ * flag themselves, so only rows from before the rung are ever unknown, and
+ * an APK missing from the store stays unknown until its next install.
+ */
+export async function fillWebViewFlags(db: Database.Database = getDb()): Promise<number> {
+	if (flagsFilled) return 0;
+	flagsFilled = true;
+	const rows = db
+		.prepare(`SELECT pkg, handle FROM engine_extensions WHERE webview IS NULL`)
+		.all() as { pkg: string; handle: string }[];
+	let n = 0;
+	for (const r of rows) {
+		const flag = await webviewFlag(null, r.handle);
+		if (flag === null) continue;
+		db.prepare(`UPDATE engine_extensions SET webview = ? WHERE pkg = ? AND handle = ?`).run(
+			flag,
+			r.pkg,
+			r.handle
+		);
+		n++;
+	}
+	return n;
+}
+
+/** For a test that fills twice in one process. */
+export const refillWebViewFlags = () => {
+	flagsFilled = false;
 };
 export type Loader = (apk: Uint8Array) => Promise<{ handle: string; info: ExtensionInfo }>;
 const engineLoader: Loader = (apk) => engineLoad<ExtensionInfo>(apk);
@@ -318,6 +374,7 @@ export async function install(
 		// Kept installed, and said so: NEEDS A HAND · FAILED TO LOAD (c126).
 		failed = (e as Error).message || 'failed to load';
 	}
+	const webview = await webviewFlag(info, handle);
 	const before = db
 		.prepare(`SELECT handle, version_name FROM engine_extensions WHERE pkg = ?`)
 		.get(pkg) as { handle: string; version_name: string } | undefined;
@@ -325,10 +382,11 @@ export async function install(
 		const isUpdate = before && before.handle !== handle;
 		db.prepare(
 			`INSERT INTO engine_extensions (pkg, repo_id, name, kind, version_code, version_name, lib, adult, handle,
-				previous_handle, previous_version, previous_until, installed_at, updated_at, failed)
-			VALUES (@pkg, @repo, @name, @kind, @code, @version, @lib, @adult, @handle, NULL, NULL, NULL, @now, @now, @failed)
+				previous_handle, previous_version, previous_until, installed_at, updated_at, failed, webview)
+			VALUES (@pkg, @repo, @name, @kind, @code, @version, @lib, @adult, @handle, NULL, NULL, NULL, @now, @now, @failed, @webview)
 			ON CONFLICT (pkg) DO UPDATE SET repo_id = @repo, name = @name, kind = @kind, version_code = @code,
 				version_name = @version, lib = @lib, adult = @adult, handle = @handle, updated_at = @now, failed = @failed,
+				webview = @webview,
 				previous_handle = CASE WHEN @isUpdate THEN engine_extensions.handle ELSE previous_handle END,
 				previous_version = CASE WHEN @isUpdate THEN engine_extensions.version_name ELSE previous_version END,
 				previous_until = CASE WHEN @isUpdate THEN @until ELSE previous_until END`
@@ -344,6 +402,7 @@ export async function install(
 			handle,
 			now,
 			failed,
+			webview,
 			isUpdate: isUpdate ? 1 : 0,
 			until: now + KEEP_PREVIOUS_MS
 		});
@@ -393,8 +452,10 @@ export function back(pkg: string, now = Date.now(), db: Database.Database = getD
 	)
 		return false;
 	db.prepare(
-		`UPDATE engine_extensions SET handle = ?, version_name = ?, previous_handle = ?, previous_version = ?, updated_at = ?, failed = '' WHERE pkg = ?`
+		`UPDATE engine_extensions SET handle = ?, version_name = ?, previous_handle = ?, previous_version = ?, updated_at = ?, failed = '', webview = NULL WHERE pkg = ?`
 	).run(row.previous_handle, row.previous_version, row.handle, row.version_name, now, pkg);
+	// The version gone back to may differ in its WebView: read again on the next visit.
+	flagsFilled = false;
 	return true;
 }
 
@@ -446,12 +507,14 @@ export type Installed = {
 	/** The repository's newer version, when it has one. */
 	update: string | null;
 	sources: { id: string; name: string; lang: string }[];
+	/** Its code uses a WebView (rung 78): NEEDS A WEBVIEW. False while not known. */
+	webview: boolean;
 };
 
 export function installed(db: Database.Database = getDb()): Installed[] {
 	const rows = db
 		.prepare(
-			`SELECT pkg, name, kind, version_name, version_code, adult, failed, repo_id, previous_version, previous_until
+			`SELECT pkg, name, kind, version_name, version_code, adult, failed, repo_id, previous_version, previous_until, webview
 			FROM engine_extensions ORDER BY name COLLATE NOCASE`
 		)
 		.all() as {
@@ -465,6 +528,7 @@ export function installed(db: Database.Database = getDb()): Installed[] {
 		repo_id: number | null;
 		previous_version: string | null;
 		previous_until: number | null;
+		webview: number | null;
 	}[];
 	const sources = db.prepare(
 		`SELECT id, name, lang FROM engine_sources WHERE pkg = ? ORDER BY lang, name`
@@ -483,7 +547,8 @@ export function installed(db: Database.Database = getDb()): Installed[] {
 			previousVersion: r.previous_version,
 			previousUntil: r.previous_until,
 			update: listing && listing.versionCode > r.version_code ? listing.versionName : null,
-			sources: sources.all(r.pkg) as { id: string; name: string; lang: string }[]
+			sources: sources.all(r.pkg) as { id: string; name: string; lang: string }[],
+			webview: r.webview === 1
 		};
 	});
 }

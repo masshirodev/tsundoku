@@ -58,6 +58,11 @@ export type BrowseSource = {
 	hiddenSource: boolean;
 	/** The extension's own word when the engine refused it, else ''. */
 	failed: string;
+	/**
+	 * Its extension's code uses a WebView (rung 78; doc/BROWSE.md, "Extensions
+	 * that need a WebView"): NEEDS A WEBVIEW. Never an LNReader plugin's.
+	 */
+	webview: boolean;
 };
 
 /**
@@ -73,7 +78,7 @@ export function browseSources(reveal: boolean): BrowseSource[] {
 function engineSources(reveal: boolean): BrowseSource[] {
 	const rows = getDb()
 		.prepare(
-			`SELECT s.id, s.pkg, s.name, s.lang, e.kind, e.failed
+			`SELECT s.id, s.pkg, s.name, s.lang, e.kind, e.failed, e.webview
 			FROM engine_sources s JOIN engine_extensions e ON e.pkg = s.pkg
 			ORDER BY s.name COLLATE NOCASE, s.lang`
 		)
@@ -84,6 +89,7 @@ function engineSources(reveal: boolean): BrowseSource[] {
 		lang: string;
 		kind: 'manga' | 'anime';
 		failed: string;
+		webview: number | null;
 	}[];
 	const use = sourceUse();
 	const switchedOff = sourcesWith('hidden');
@@ -99,6 +105,7 @@ function engineSources(reveal: boolean): BrowseSource[] {
 		// Counts are what reveal lets the viewer see.
 		out.push({
 			...r,
+			webview: r.webview === 1,
 			family,
 			series: reveal ? u.series : u.series - u.hidden,
 			hidden: reveal ? u.hidden : 0,

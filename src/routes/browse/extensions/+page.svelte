@@ -20,6 +20,8 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { onMount, untrack } from 'svelte';
 	import { registerBack } from '$lib/focus';
+	import { WebViewWatch } from '$lib/webview-watch.svelte';
+	import { NEEDS } from '$lib/webview';
 
 	/**
 	 * EXTENSIONS (Index-Extensions; Browse Calls, "Extension states in words,
@@ -108,6 +110,30 @@
 					expected: 'expected' in form ? String(form.expected) : ''
 				}
 			: null
+	);
+
+	// ---- the WebView (doc/BROWSE.md, "Extensions that need a WebView") -------------
+	/** The installed extensions whose code uses a WebView, by name, for the band. */
+	const webviewNames = $derived(
+		data.installed
+			? [...data.installed.needsHand, ...data.installed.updates, ...data.installed.current]
+					.filter((r) => r.webview)
+					.map((r) => r.name)
+			: []
+	);
+	/**
+	 * While one is installed and this install runs WebViews, the engine's first
+	 * download of the browser is watched, so the line says how far it is where
+	 * the extension was installed. Nothing is said when it's ready or idle.
+	 */
+	const webview = new WebViewWatch();
+	$effect(() => {
+		if (webviewNames.length === 0 || data.webviewMark !== NEEDS) return;
+		webview.start();
+		return () => webview.stop();
+	});
+	const webviewSay = $derived(
+		webviewNames.length && data.webviewMark === NEEDS ? (webview.view?.firstUse ?? null) : null
 	);
 
 	/** Which package's button is working, for INSTALLING / UPDATING. */
@@ -483,6 +509,23 @@
 		/>
 	{/if}
 
+	{#if webviewSay && webview.view?.status?.state === 'failed'}
+		<!-- The engine's own words: written for a person to act on (FORK.md). -->
+		<Band
+			title="THE BROWSER {webviewNames.join(', ').toUpperCase()} NEEDS DIDN'T START"
+			detail={webviewSay}
+		>
+			{#snippet action()}<a class="again" href="{resolve('/settings')}?section=browse">SETTINGS →</a
+				>{/snippet}
+		</Band>
+	{:else if webviewSay}
+		<!-- Non-blocking: everything else here works while it comes. -->
+		<Band
+			title={webviewSay}
+			detail="FOR {webviewNames.join(', ').toUpperCase()} · ONCE, THE FIRST TIME"
+		/>
+	{/if}
+
 	{#if data.counts.repos === 0 && data.tab !== 'repos'}
 		<div class="empty">
 			<div class="lab">00 — NO REPOSITORIES YET</div>
@@ -540,10 +583,11 @@
 								? 'OBSOLETE'
 								: ''}
 				sub={r.obsolete && !r.failed
-					? " · GONE FROM ITS REPOSITORY · STILL LOADS, WON'T UPDATE"
+					? ` · GONE FROM ITS REPOSITORY · STILL LOADS, WON'T UPDATE${r.webview && data.webviewMark ? ` · ${data.webviewMark}` : ''}`
 					: [
 							(r.failed || busy === r.pkg) && '',
 							sourcesLine(r.shown, r.sources.length),
+							(r.webview && data.webviewMark) || '',
 							hereLine(r.series, r.hidden),
 							res && 'done' in res ? 'DONE' : ''
 						]
@@ -1498,6 +1542,11 @@
 	.u-k code {
 		color: var(--text-1);
 		overflow-wrap: anywhere;
+	}
+	/* A band's own link (the WebView's SETTINGS →), as a source page's TRY AGAIN. */
+	.again {
+		color: inherit;
+		font: 500 14px var(--font-mono);
 	}
 	.empty {
 		display: flex;

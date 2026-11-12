@@ -7,6 +7,7 @@ import { familyOfKind, RepoError } from '$lib/server/engine/repo-index';
 import {
 	addRepo,
 	back,
+	fillWebViewFlags,
 	findListing,
 	install,
 	installed,
@@ -26,6 +27,7 @@ import {
 	removeExtension
 } from '$lib/server/engine/manage';
 import { browseLanguages, browseSources, forgetSource } from '$lib/server/engine/browse';
+import { mark } from '$lib/server/engine/webview';
 import type { Kind } from '$lib/server/engine/repo-index';
 import { SOURCE_KINDS, type SourceFamily } from '$lib/library/kinds';
 import {
@@ -184,6 +186,8 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	const tab: Tab = asked === 'available' || asked === 'repos' ? asked : 'installed';
 	const repos = listRepos();
 	const novelRepos = listNovelRepos();
+	// Extensions installed before tsundoku asked whether they use a WebView, read once (rung 78).
+	await fillWebViewFlags();
 	const installedNow = installedView(reveal);
 	// Hidden means hidden: a plugin with HIDDEN SOURCE on, or mostly hidden, is
 	// drawn and counted only inside reveal, as a package is (card c435).
@@ -387,6 +391,17 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		removeBand,
 		backBand,
 		installed: tab === 'installed' ? installedNow : null,
+		// NEEDS A WEBVIEW on an installed extension whose code uses one, in words
+		// where this install can't give it one (doc/BROWSE.md, "Extensions that
+		// need a WebView"); the page watches the browser's first download while
+		// one is installed. The engine is asked only when one is.
+		webviewMark:
+			tab === 'installed' &&
+			[...installedNow.needsHand, ...installedNow.updates, ...installedNow.current].some(
+				(r) => r.webview
+			)
+				? await mark()
+				: null,
 		plugins: tab === 'installed' ? pluginsNow : null,
 		available: tab === 'available' ? { ...available, kind, family } : null,
 		novelsAvailable: tab === 'available' && family === 'lnreader' ? plugins : null,
