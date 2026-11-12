@@ -33,7 +33,7 @@ off without it, and that nothing is required ([`MOVIES-TV.md`](MOVIES-TV.md),
 text `src/lib/help/topics.ts` data like the rest, opened from every empty LINK
 or tracker row as `SET UP →`. `tests/help-domain.spec.ts` asserts seven topics
 today and will assert eight, or more if the design splits the services. Brief:
-`doc/briefs/SETUP.md` (to be written, card c994).
+[`briefs/SETUP.md`](briefs/SETUP.md) (card c994).
 
 **Words to keep true.** They describe the app: when a screen's word changes,
 its topic's line changes with it. `tests/help-domain.spec.ts` checks the

@@ -85,9 +85,17 @@ section is their order.
 | 10  | c995 "Adding the rest of a show: tsundoku lists the seasons it found, the owner picks"           | c989, c990                                   |
 | 11  | c979 "Kinds: a live-action drama is read as a show, not as anime"                                | c986, c987, c992                             |
 
-**Two questions the owner still has.** Whether the workstation gets a TMDB
-key to dogfood this (the bundle's own key, never the release host's), and
-whether Trakt or Simkl is the first tracker actually connected.
+**The two design briefs** are written: `doc/briefs/MOVIES-SHOWS.md` (the film's
+screen, the collection, and adding a show's seasons — c992, c990, c995) and
+`doc/briefs/SETUP.md` (keys and accounts — c994). Both need a handoff before
+their cards are built, per the repository's rule.
+
+**Answered (2026-11-12).** A TMDB key is set on the workstation: `TMDB_API_KEY`
+and `TMDB_API_RC_TOKEN` are in the dev checkout's `.env` and in the shell's
+env; the v4 read token is the one to prefer, the v3 key the fallback. The live
+data folder gets them when this ships, and a friend's install gets its own.
+**Trakt is the first tracker**, Simkl only after it if it still earns the
+place.
 
 ## Where the sources are
 
