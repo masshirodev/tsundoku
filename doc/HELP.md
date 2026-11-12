@@ -25,15 +25,43 @@ same IN SHORT as the page, so the two can't drift.
 | 06  | Backups and importing   | `backups`     | the library folder                                                                                                                              |
 | 07  | When something breaks   | `report`      | SAVE A REPORT                                                                                                                                   |
 
-**Planned (2026-11-12): a setup topic.** Films and shows use TMDB, and
-trackers use the user's own account, so the app has to explain the keys it
-asks for: a free TMDB key, a Trakt account, MAL — what each can track, what is
-off without it, and that nothing is required ([`MOVIES-TV.md`](MOVIES-TV.md),
-"Zero setup"). It is one new topic (probably `08 · Keys and accounts`), its
-text `src/lib/help/topics.ts` data like the rest, opened from every empty LINK
-or tracker row as `SET UP →`. `tests/help-domain.spec.ts` asserts seven topics
-today and will assert eight, or more if the design splits the services. Brief:
-[`briefs/SETUP.md`](briefs/SETUP.md) (card c994).
+**The handoff (2026-11-12): topic 08.** Mirrored at
+[`handoffs/keys-accounts/`](handoffs/keys-accounts/) (`Main.dc.html`, seven
+boards, `Status: finished`). The design's answers, in its own words:
+
+- **One topic, `08 — Keys and accounts`**, opening with a table that puts the
+  services side by side, then a part each: `01 What each one gives`,
+  `02 TMDB`, `03 Trakt`, `04 AniList and MAL` (`05` Simkl, if it earns a
+  place). A sign-in does not get a page of its own — its steps fit in five
+  rows. HELP's index grows to **eight** rows, and
+  `tests/help-domain.spec.ts` counts eight.
+- **Steps are a new shape**: a ruled, numbered block — a number cell, the
+  step in sans, and above it in mono where the step happens (`THEMOVIEDB.ORG`,
+  `TRAKT.TV`, `TSUNDOKU`). A step that ends in tsundoku carries a `SETTINGS →`
+  cell in the accent. In the data a part gains
+  `steps: { where, text, link? }[]` beside its paragraphs and tables, and
+  `HelpPart.short`: three lines for `SET UP`'s sheet. `04`'s Tailscale part
+  should switch its numbered table to steps too.
+- **`SET UP →` opens the service's part, not the topic's top**, in the same
+  sheet a "?" uses: the part's own three lines, then `STEPS →` and
+  `SETTINGS →`, so the friend stays on the film and the field is one tap
+  away.
+- **Phone**: the number cell is 44px, the step wraps, cells drop under the
+  text at full width and 48px. **TV**: steps are read, not typed — SETTINGS
+  says `TYPED ON A PHONE OR COMPUTER`; nobody types a key with a remote.
+- **The words in HELP, the field in SETTINGS › 06 — CATALOGUES.** HELP never
+  takes a secret, and SETTINGS explains no more than a meta line: each row's
+  label has a `?` that opens that service's part. The only doors are a row's
+  `SET UP →`, SETTINGS' rows and HELP's eighth row — no first run, band,
+  badge, checklist step or count.
+- **The handoff found the brief's map stale**: CATALOGUES is section `06`,
+  not the brief's `02` (SETTINGS has been one page since `doc/SETTINGS.md`'s
+  numbering). The brief stays as it was sent; [`../TRACKING.md`](../TRACKING.md)
+  and this page carry the truth.
+
+The tests it asks for: eight topics, every `SET UP →` opening a part that
+exists, `08` naming no key, address or account, and SETTINGS opening
+`?section=catalogues` at each service's row.
 
 **Words to keep true.** They describe the app: when a screen's word changes,
 its topic's line changes with it. `tests/help-domain.spec.ts` checks the

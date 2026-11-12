@@ -37,7 +37,7 @@ link.
 
 ## Signing in
 
-On SETTINGS, **02 — CATALOGUES**. Each catalogue's app is registered by the
+On SETTINGS, **06 — CATALOGUES**. Each catalogue's app is registered by the
 owner. Its keys (`ANILIST_CLIENT_ID`/`_SECRET`, `MAL_CLIENT_ID`/`_SECRET`)
 are in Infisical and pulled into `.env` ([`SECRETS.md`](SECRETS.md)). Each
 app's redirect is registered as exactly
@@ -281,6 +281,58 @@ service that can take live-action.
 Cards: c993 ("Trackers: any service, any kind, and a local answer with none")
 and c994 (the setup brief and HELP's topic); the whole effort is
 [`MOVIES-TV.md`](MOVIES-TV.md), "Decided".
+
+### The handoff (2026-11-12)
+
+Mirrored at [`handoffs/keys-accounts/`](handoffs/keys-accounts/)
+(`Main.dc.html`, seven boards, dark, `Status: finished`). What it changed in
+the plan:
+
+- **Every service declares `takes: Kind[]` and
+  `connect: 'key' | 'app-then-sign-in'`.** The row and EDIT's sheet draw a
+  line only for a service whose `takes` include the series' kind; MAL is
+  **hidden** on a film and a show (not dimmed), and its kinds are said once on
+  its SETTINGS row (`COMICS AND ANIME · NEVER FILMS OR SHOWS`) and in HELP's
+  table. The capability list is the gate.
+- **A friend's sign-in needs an app of their own.** The finding: AniList's and
+  MAL's apps are the owner's, from `.env`; on a friend's install SETTINGS
+  reads `THE APP ISN'T REGISTERED · SEE DOC/SECRETS.MD`, a developer's line.
+  Trakt works the same way — any program that writes to a Trakt list must be a
+  registered app. So every sign-in is two steps, **an app of their own, then
+  `SIGN IN →`**, and the app's id and secret are typed in the same field as a
+  TMDB key, with the redirect address shown and `COPY` beside it.
+  [`DISTRIBUTION.md`](DISTRIBUTION.md) already says a friend needs their own
+  client ids; the workstation is unchanged (its apps still come from `.env`,
+  so its rows start at `SIGN IN →`).
+- **The fields** (`doc/SETTINGS.md`, 06): a password field with `SHOW`; SAVE
+  checks the key with the service first, so a wrong key is never saved; a
+  saved row reads `KEY SAVED · ENDS IN a41f`; `REPLACE` opens an empty field
+  and `REMOVE` asks once. The whole key or secret is never shown again.
+- **With nothing set up**, a film's or a show's LISTS row still appears:
+  `TMDB · NOT LOOKED UP` and `LIST · KEPT IN HISTORY`, each with `SET UP →`,
+  muted — the next thing to do, not a fault. It sits in DETAILS on a phone,
+  so a friend who never opens DETAILS is never asked.
+- **No metadata means no block**: a film without a key is the title, the
+  source's cover and `FILM · <SOURCE> · 1 FILE`; no ABOUT, year, runtime or
+  collection, nothing dimmed or marked unknown, and LISTS' TMDB line is the
+  one place that says why. A show lists the source's episodes with no SEASONS
+  and no NEXT SEASON. (This contradicts the film handoff's `00 — FROM THE
+SOURCE ONLY` block; the owner settles it — see `MOVIES-TV.md`, "The
+  handoff".)
+- **One account and one key per service.** Swapping is `SIGN OUT`, then
+  `SIGN IN →`; there is no second account, which would suggest a shared
+  install.
+- **The way back lands on SETTINGS** with a band, and if the sign-in began
+  from a series the band carries a cell back to it (`← KAMEN NO SHITA`). An
+  address the app does not name, or a return after the ten minutes, says so in
+  the band.
+- **Never shown**: a key or secret after SAVE (four characters at most), a
+  token, an email (only the account's name, as `SIGNED IN AS kaito`), the
+  owner's keys, or any word suggesting a shared list. SAVE A REPORT leaves out
+  keys and app secrets too.
+
+The topic itself is `doc/HELP.md`, "The handoff (2026-11-12)": 08 — Keys and
+accounts, with the new steps shape.
 
 ## Where it departs from the handoff
 

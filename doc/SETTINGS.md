@@ -167,6 +167,19 @@ and TRY AGAIN. The header counts the links and what's waiting in the link
 review. Coming back from a sign-in, a band says how it went
 (`?signin=ok|failed|refused|unconfigured`).
 
+**Planned (2026-11-12): keys and apps.** TMDB and Trakt join this section, and
+a service that needs a key or an app's codes gets its field here — the one
+place a secret is typed (`doc/handoffs/keys-accounts/`; [`TRACKING.md`](TRACKING.md),
+"Films, shows, and a tracker for any kind"). A password field with SHOW;
+SAVE checks it with the service first; a saved row reads `KEY SAVED · ENDS IN
+a41f`; REPLACE and REMOVE; never shown whole again. A friend's AniList, MAL
+and Trakt need **their own app**, so the row takes the id and the secret and
+shows the redirect address with COPY — the workstation's still come from
+`.env` and start at `SIGN IN →`. Each row's label carries a `?` that opens
+that service's part in HELP (`?section=catalogues#<service>`); the words never
+live here. MAL's row says what it takes (`COMICS AND ANIME · NEVER FILMS OR
+SHOWS`), since it is not drawn on a film at all.
+
 ## 07 — BROWSE
 
 Only while tsundoku downloads on its own engine. **LANGUAGES** has a chip for

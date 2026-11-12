@@ -97,6 +97,89 @@ data folder gets them when this ships, and a friend's install gets its own.
 **Trakt is the first tracker**, Simkl only after it if it still earns the
 place.
 
+## The handoff (2026-11-12)
+
+Mirrored at [`handoffs/movies-shows/`](handoffs/movies-shows/): the canvas
+(`canvas.json`, title `… [finished]`, `Status: finished`), `Main.dc.html` (the
+designer's decisions and answers) and eleven boards, dark. The palette is all
+tokens (7 of 7); the theme declares no length tokens, so the mock's literal px
+are the decisions and are transcribed (`temp/design/film-desk.json`, from
+`design-tools/extract-spec.mjs`; `reconcile-tokens.mjs` finds no ladder).
+
+Both this handoff and the keys one were drawn from a design system copied on
+2026-11-12 (artifact `1a1c2781-9bf8-44f2-b38d-23b795fcd8b9`, version
+`1794004545-603b`), which is newer than the URL `doc/design/README.md` names.
+Its palette is the repository's (`colors.css`), so the drawing and the app
+agree on colour whatever the canonical copy is called; the handoffs carry
+their own `ft.css` and inline values.
+
+**What it decided, in the owner's terms**
+
+- **A film keeps the 2:2.9 poster** in the identity, so it reads like every
+  series and the tile, CONTINUE and the screen show the same picture. A wide
+  device's list column becomes **the stage**: the backdrop at 16:9 with
+  nothing laid over it, then `01 — THE COLLECTION`, then `02 — ABOUT` (ABOUT
+  leaves the panel on landscape and desktop; on a phone it stays above
+  DETAILS). The panel keeps identity, RATING and FAV, PLAY, the WORK row,
+  DOWNLOAD, LINK, SHELVES, SOURCE, KIND, FILE.
+- **One primary cell**: `▶ PLAY · 1 H 58` → `▶ CONTINUE · 42 MIN LEFT` (with a
+  3px on-accent line at its foot) → `↺ WATCH AGAIN · WATCHED 3 NOV`. The count
+  line reads `2024 · 1 H 58 · DRAMA`, or `MOVIE · NOT LINKED` with no key. The
+  film's PLAY and the run's NEXT are the only accents; the collection offers,
+  it does not lead.
+- **DOWNLOAD loses NEXT 10, ALL, REFRESH and FOLLOW**: `NOT ON THIS COMPUTER ·
+DOWNLOAD` → `QUEUED · 2 AHEAD` → `DOWNLOADING · 35%` → `ON THIS COMPUTER`,
+  with `1 FILE · 1080P · 1.19 GB` under it and the queue's 3px track.
+- **The collection takes the list's place on every device** (landscape: `01`
+  under the backdrop; phone: after DETAILS). Rows are `PART 1 · THIS FILM`,
+  `PART 2 · IN LIBRARY →`, `PART 3 · NOT IN THE LIBRARY · FIND`, in TMDB's
+  order with this film inverted, so a prequel is the row above. More than six
+  fold round this one. Its foot offers `2 OF 3 IN THE LIBRARY · NOT A WORK ·
+GROUP →` only when two or more parts are here and none is in a Work. In a
+  Work it collapses to one line that says only what the Work does not
+  (`ALL 3 IN THE WORK`, or `PART 3 NOT IN THE LIBRARY · FIND`).
+- **Adding a show's seasons is a sheet** (side sheet on landscape, full-height
+  on a phone), in two sections: what the source lists and can be ticked, then
+  what TMDB lists that the source does not. Each row shows the source's own
+  title, its count and the TMDB season it matched; the head says
+  `TMDB LISTS 4 SEASONS · YOUR SOURCE LISTS 1`; a flat entry that holds all
+  four is one tick. A season already here says `IN LIBRARY →`, unchanged.
+- **The suggestion band** is MIGHT CONTINUE's, under CONTINUE and only on the
+  show's screen: `SEASON 4 IS OUT · NOT IN YOUR LIBRARY · FIND · NOT THIS`,
+  with `NOT THIS · WON'T ASK AGAIN` and UNDO. A `SEASONS · 3 OF 4 IN THE
+LIBRARY · FIND THE REST →` row sits under LINK; no key, no row.
+- **The kind switch** takes DIRECTION's slot (after LANGUAGE) on landscape,
+  and lives inside DETAILS on a phone and a TV. It is a CHANGE row, not a
+  segmented control, because it moves a file: the sheet shows both paths, says
+  what else changes (the film becomes episode 1, the collection goes, TMDB is
+  asked again) and what stays (progress, rating, shelves, the Work), and
+  refuses in place (`MOVIE · A MOVIE IS ONE ENTRY, THIS HAS 8`). Done:
+  `NOW A SHOW · 1 FILE MOVED TO SHOWS/` with UNDO.
+- **The kind band and the film tile are confirmed, not redrawn.** The board's
+  words stand: `NOT WATCHED` / `WATCHED` alone, no year — a year would be the
+  only meta line in the grid that is not progress. `doc/handoffs/kinds-band/`
+  is the reference.
+- **Hidden and TV are the existing rules**: the reveal band and HIDDEN on the
+  poster, 404 with reveal off, the collection naming no hidden part; on a TV
+  PLAY is the one focus stop, the panel is 352px, and the stage's collection
+  is facts only.
+
+**Open: the no-key film screen.** This handoff draws it as `00 — FROM THE
+SOURCE ONLY`, one sentence, plus a closed block naming what a key would add
+(`YEAR · RUNTIME · ABOUT · CAST · THE FILMS AROUND THIS ONE`, with
+`SET UP →`). The sibling handoff
+[`handoffs/keys-accounts/`](handoffs/keys-accounts/) says the opposite: with
+no key **nothing** is drawn — the title, the source's cover and `FILM · MOVIES
+MOD · 1 FILE`, no ABOUT, no year, no runtime, no collection, nothing dimmed or
+marked unknown, and the only explanation is LISTS' TMDB line. It calls this
+out itself ("MOVIES-SHOWS should take its no-key states from Board 6, or say
+where it differs"). **Not settled**; the owner's call, and c992's states wait
+on it.
+
+**Where it expected the code to be, and is not**: `doc/TRACKING.md` said
+CATALOGUES is SETTINGS' `02`; it is `06` and has been since SETTINGS became
+one page (`doc/SETTINGS.md`). Fixed in TRACKING.md with this handoff.
+
 ## Where the sources are
 
 The living Aniyomi-family repository is **`mojuru/anime-repo`** (formerly
