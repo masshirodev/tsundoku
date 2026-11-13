@@ -118,7 +118,8 @@ export function sourcesIn(library: string): Source[] {
  *
  * "Linked" is every row a link leaves (c382): `series_links` (a comic's, or an
  * anime's from before rung 62), and since rung 62 a season's own link or
- * decision. The cascade would take those rows with the series. A Work is the owner's
+ * decision, and since rung 80 a film's or a show's TMDB link or decision
+ * (c989). The cascade would take those rows with the series. A Work is the owner's
  * grouping, as a shelf is, and its delete would end the Work it leaves with
  * one (rung 61's trigger).
  */
@@ -152,6 +153,9 @@ export function prunePageless(
 				AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = series.id)
 				AND NOT EXISTS (SELECT 1 FROM series_season_links l WHERE l.series_id = series.id)
 				AND NOT EXISTS (SELECT 1 FROM season_link_decisions d WHERE d.series_id = series.id)
+				AND NOT EXISTS (SELECT 1 FROM series_tmdb_links l WHERE l.series_id = series.id)
+				AND NOT EXISTS (SELECT 1 FROM tmdb_link_searches d WHERE d.series_id = series.id
+					AND d.decision IS NOT NULL)
 				AND NOT EXISTS (SELECT 1 FROM work_series w WHERE w.series_id = series.id)`
 		)
 		.run(rootId).changes;

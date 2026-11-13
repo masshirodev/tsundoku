@@ -52,11 +52,67 @@ of AniList:
   (`searchSeries`) skip those kinds, so a film's or a show's title never
   leaves for a catalogue that cannot hold it.
 
-**Not built here:** the `search`/`byId` adapter. c988 stopped at the registry
-and the states on purpose: with one implementation an interface is decoration,
-and TMDB's client is c989's, where the second implementation forces the
-boundary (the pure `Candidate` shape is already what a review draws, and TMDB
-will answer with it).
+### The contract
+
+Since c989, both catalogues answer one contract
+(`src/lib/server/catalogue-clients.ts`): **search** a kind by a title, with a
+year when one is known, best match first; and read **one entry by id**, or null.
+Each answers in its own entry shape — AniList's `Candidate`, TMDB's `TmdbTitle`
+(`src/lib/library/tmdb.ts`) — because each review draws what only its catalogue
+knows (an anime's broadcast season, a film's runtime). `entryOf` is the
+projection either can be drawn as (`provider`, `id`, `title`, `alts`, `year`,
+`poster`).
+
+What goes through it: every TMDB door, and AniList's one-title doors, a season's
+SEARCH AGAIN and a pasted AniList id. **AniList's background pass does not**: it
+packs five titles into one request (`searchMany`) because of AniList's rate
+limit, and a one-title contract would spend five requests where it spends one.
+That is the measured reason the pass keeps its own shape; it is not an
+oversight to tidy away.
+
+### TMDB links
+
+A film's or a show's link is TMDB's (card c989), with the AniList link's rules in
+TMDB's terms, kept in **their own three tables** (rung 80; `src/lib/server/tmdb-links.ts`):
+
+| Table                  | Holds                                                                                                                              |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `series_tmdb_links`    | the link, and what the screen draws without asking again: overview, poster, a film's runtime and collection, a show's season count |
+| `tmdb_link_searches`   | the pass's record (a NULL `searched_at` is a search waiting for the pass) and the owner's NONE OF THESE or UNLINK                  |
+| `tmdb_link_candidates` | what the last search found, best first, for the review                                                                             |
+
+Not columns on `series_links`: those are AniList's by construction (`anilist_id`,
+`mal_id`, the season rows, the trackers' joins), and `requeueSearched` and
+`NEEDS_LOOK` read `link_searches` with no kind filter, so a film's row there
+would be judged by a comic's rules. `linkState` answers null for a kind AniList
+does not hold, so a film never gets an AniList line; `tmdbLinkState` is its.
+
+- **The query.** `tmdbQuery` takes a release site's title to what TMDB is asked:
+  `cleanTitle`'s brackets and volumes, then the release group's words
+  (`1080p`, `WEB-DL`, `x264`, `DUAL`, `ESub`) and a season number, with the
+  year read from the source title before the bracket that holds it goes.
+- **Sure.** `tmdbSure`: one result whose title or original title equals one of
+  the series' (cleaned the AniList way, and as its TMDB query), and, when the
+  source named a year, of that year **one either way** (a festival premiere or a
+  December release is dated a year off often enough). A remake shares its title
+  with the original; the year is what tells them apart, and two equal titles
+  with no year are no sure link.
+- **Linked once, read by id.** A link reads the entry by id first, so it keeps a
+  film's runtime and collection and a show's season count, which a search
+  result does not carry. A show links **as the whole show**: TMDB's seasons are
+  inside its one entry, and the source's seasons stay the source's
+  (`doc/MOVIES-TV.md`, "Decided").
+- **The pass** runs in `refreshLinks` after AniList's, **in its own `try`**: an
+  AniList outage never stops it, and a TMDB failure is `tmdbError`, never
+  AniList's `unreachable`. AniList's own failure still reaches the caller,
+  after TMDB ran. A hidden series is never searched; a settled one never again.
+- **No key is a state.** With no key the pass searches nothing and **marks
+  nothing**, so the first pass after a key is added finds the library
+  unsearched: that pass **is the backfill**. It offers matches and links only
+  sure ones, the same as any pass; it never invents one.
+- **The owner's doors** — LINK from the review, a pasted TMDB link, NONE OF
+  THESE, UNLINK, SEARCH AGAIN — each answer what they replaced (`TmdbBefore`),
+  which UNDO puts back. A search the owner runs never links by itself.
 
 ## What the owner decided (2026-09-24)
 

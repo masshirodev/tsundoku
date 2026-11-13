@@ -2000,7 +2000,58 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// v79: films and live-action shows are kinds (doc/KINDS.md, "Movies and TV
 	// shows"; cards c987, c989). Same reason and same way as rung 47: only the
 	// CHECK widens, and nothing stored changes.
-	(conn) => widenKindsForFilms(conn)
+	(conn) => widenKindsForFilms(conn),
+
+	// v80: TMDB links, a film's and a show's (card c989; doc/LINKS.md, "TMDB
+	// links"). Their own three tables, not columns on `series_links`: those
+	// are AniList's by construction (`anilist_id`, `mal_id`, the season rows,
+	// the trackers' joins), and `requeueSearched` and `NEEDS_LOOK` read
+	// `link_searches` with no kind filter, so a film's row there would be
+	// judged by a comic's rules. A show links once, the whole show: TMDB's
+	// seasons are inside its one entry, and the source's seasons stay the
+	// source's (doc/MOVIES-TV.md, "Decided").
+	//
+	// `series_tmdb_links` keeps what the screen draws without asking again
+	// (the overview, the poster, a film's runtime and collection, a show's
+	// season count). `tmdb_link_searches` is the pass's record and the
+	// owner's decision in one row: a NULL `searched_at` is a search waiting
+	// for the pass, and `decision` is NONE OF THESE or an UNLINK, which no
+	// pass undoes. The candidates wait for the review, best first.
+	`
+	CREATE TABLE series_tmdb_links (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		tmdb_id INTEGER NOT NULL,
+		media TEXT NOT NULL CHECK (media IN ('movie', 'tv')),
+		via TEXT NOT NULL CHECK (via IN ('exact', 'review', 'pasted')),
+		title TEXT NOT NULL DEFAULT '',
+		original_title TEXT NOT NULL DEFAULT '',
+		year INTEGER,
+		overview TEXT NOT NULL DEFAULT '',
+		poster_url TEXT NOT NULL DEFAULT '',
+		runtime INTEGER,
+		seasons INTEGER,
+		collection_id INTEGER,
+		collection_name TEXT NOT NULL DEFAULT '',
+		linked_at INTEGER NOT NULL
+	);
+	CREATE INDEX series_tmdb_links_tmdb ON series_tmdb_links(media, tmdb_id);
+	CREATE TABLE tmdb_link_searches (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		query TEXT NOT NULL,
+		year INTEGER,
+		searched_at INTEGER,
+		found INTEGER NOT NULL DEFAULT 0,
+		decision TEXT CHECK (decision IN ('none', 'unlinked')),
+		decided_at INTEGER
+	);
+	CREATE TABLE tmdb_link_candidates (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		tmdb_id INTEGER NOT NULL,
+		rank INTEGER NOT NULL,
+		data TEXT NOT NULL,
+		PRIMARY KEY (series_id, tmdb_id)
+	) WITHOUT ROWID;
+	`
 ];
 
 /**

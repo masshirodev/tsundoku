@@ -1,5 +1,7 @@
 import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
+import { catalogueClient } from './catalogue-clients.ts';
+import { tmdbPass, type TmdbPassResult } from './tmdb-links.ts';
 import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL, visibleWhere } from './visibility.ts';
 import { clearAniSkip } from './anime/marks.ts';
 import { KINDS, anilistType, anilistTypeOf, kindFacts } from '../library/kinds.ts';
@@ -251,7 +253,11 @@ const formatsOf = (kind: Kind): string[] =>
 	kind === 'anime' ? [...ANIME_FORMATS] : kind === 'novel' ? ['NOVEL'] : ['MANGA', 'ONE_SHOT'];
 
 /** Entries by AniList id or by MAL id, fifty to a request, in the kind's own catalogue. */
-async function byIds(ids: number[], field: 'id_in' | 'idMal_in', kind: Kind): Promise<Candidate[]> {
+export async function byIds(
+	ids: number[],
+	field: 'id_in' | 'idMal_in',
+	kind: Kind
+): Promise<Candidate[]> {
 	const out: Candidate[] = [];
 	for (let i = 0; i < ids.length; i += 50) {
 		const data = (await anilist(
@@ -269,7 +275,7 @@ async function byIds(ids: number[], field: 'id_in' | 'idMal_in', kind: Kind): Pr
  * format keep a manga out of an anime's candidates, a novel out of a
  * manhwa's (The Beginning After the End is both), and the other way round.
  */
-async function searchMany(
+export async function searchMany(
 	queries: { title: string; kind: Kind }[],
 	per = 6
 ): Promise<Candidate[][]> {
@@ -924,8 +930,12 @@ export function unqueueSearch(
  * can't be shown, and says so.
  */
 export async function readPasted(p: Pasted, kind: Kind): Promise<Candidate> {
-	const found = await byIds([p.id], p.service === 'anilist' ? 'id_in' : 'idMal_in', kind);
-	const c = found.find((x) => (p.service === 'anilist' ? x.anilistId : x.malId) === p.id);
+	// An AniList id is the contract's one-entry read (catalogue-clients.ts); a
+	// MAL id is AniList's own question, asked of its idMal field.
+	const c =
+		p.service === 'anilist'
+			? await catalogueClient('anilist').byId(kind, p.id)
+			: ((await byIds([p.id], 'idMal_in', kind)).find((x) => x.malId === p.id) ?? null);
 	if (!c)
 		throw new Error(
 			p.service === 'anilist' ? 'no such AniList entry' : 'AniList has no entry for that MAL id'
@@ -1199,10 +1209,11 @@ export function searchable(limit: number): SearchRow[] {
 		.all(limit) as SearchRow[];
 }
 
-const titlesOfRow = (r: { title: string; alt_titles: string }): string[] => {
+/** A series' titles: its own, then the alternatives it stores as a JSON list (TMDB's links read it too). */
+export const titlesOfRow = (r: { title: string; alt_titles: string | null }): string[] => {
 	let alts: string[] = [];
 	try {
-		alts = JSON.parse(r.alt_titles) as string[];
+		alts = JSON.parse(r.alt_titles ?? '[]') as string[];
 	} catch {
 		// Not a list: the title alone.
 	}
@@ -1417,6 +1428,10 @@ export type PassResult = {
 	unreachable: boolean;
 	/** Why AniList couldn't be reached, for the log. */
 	reason?: string;
+	/** Films and shows, TMDB's (c989): nothing searched without a key. */
+	tmdb?: TmdbPassResult;
+	/** Why TMDB failed, when it did: its own, never AniList's `unreachable`. */
+	tmdbError?: string;
 };
 
 /**
@@ -1436,6 +1451,7 @@ export async function refreshLinks(
 ): Promise<PassResult> {
 	const out: PassResult = { resolved: 0, searched: 0, linked: 0, offered: 0, unreachable: false };
 	const now = opts.now ?? Date.now();
+	let aniListFailed: unknown;
 	// The background fill stands aside for this, in any process (doc/LINKS.md,
 	// "How the cache fills"). Real time, whatever `now` a spec passes.
 	markLinkPass();
@@ -1466,10 +1482,21 @@ export async function refreshLinks(
 		if (e instanceof Unreachable) {
 			out.unreachable = true;
 			out.reason = e.message;
-		} else throw e;
+		} else aniListFailed = e;
 	} finally {
 		clearLinkPass();
 	}
+	// TMDB's films and shows, apart: an AniList outage or failure never stops
+	// it, and a TMDB failure never marks AniList unreachable. With no key it does
+	// nothing, and the first pass after a key is added is the backfill (c989).
+	try {
+		out.tmdb = await tmdbPass({ limit: opts.limit, now, log: opts.log });
+	} catch (e) {
+		out.tmdbError = e instanceof Error ? e.message : String(e);
+		opts.log?.(`tmdb: ${out.tmdbError}`);
+	}
+	// AniList's own failure still reaches the caller, as it did before TMDB ran beside it.
+	if (aniListFailed !== undefined) throw aniListFailed;
 	return out;
 }
 
@@ -1853,6 +1880,8 @@ export function linkState(seriesId: number, season?: number): LinkState | null {
 		)
 		.get(seriesId) as (ItemRow & { hidden: number }) | undefined;
 	if (!r || r.kind === 'doujin') return null;
+	// A film or a show is TMDB's (c989): its state is `tmdbLinkState`, never an AniList line.
+	if (kindFacts(r.kind).catalogue.provider !== 'anilist') return null;
 	if (isAnime(r.kind)) return seasonLinkState(seriesId, r, season);
 	const l = linkOf(db, seriesId);
 	const item = itemOf(r);
@@ -2089,7 +2118,7 @@ export async function searchNow(
 			};
 	try {
 		if (at) {
-			const hits = (await searchMany([{ title: q, kind: row.kind }]))[0] ?? [];
+			const hits = await catalogueClient('anilist').search(row.kind, q);
 			const found = saveSeasonSearch(seriesId, at.season, at.part, q, hits, now);
 			before.set(beforeKey(seriesId, at), snapshot);
 			return { outcome: 'found', found };

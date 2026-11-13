@@ -1,4 +1,5 @@
 import { tmdbKey } from './catalogues.ts';
+import type { TmdbTitle } from '../library/tmdb.ts';
 
 /**
  * TMDB, the films' and shows' catalogue (card c989; doc/MOVIES-TV.md,
@@ -22,24 +23,8 @@ export class NoTmdbKey extends Error {
 	}
 }
 
-/** A film or a show as TMDB knows it, in tsundoku's terms. */
-export type TmdbTitle = {
-	id: number;
-	media: 'movie' | 'tv';
-	title: string;
-	/** The title in its own language, when it differs: a match's alternative. */
-	originalTitle: string;
-	year: number | null;
-	overview: string;
-	/** A full image URL, or null when TMDB has no poster. */
-	poster: string | null;
-	/** A film's runtime in minutes; null for a show. */
-	runtime: number | null;
-	/** A show's season count; null for a film. */
-	seasons: number | null;
-	/** A film's collection, when it belongs to one: the sequels and prequels. */
-	collection: { id: number; name: string } | null;
-};
+// The shape is the pure half's: the review draws it (library/tmdb.ts).
+export type { TmdbTitle };
 
 type Fetch = typeof fetch;
 let fetcher: Fetch = (...a) => fetch(...a);

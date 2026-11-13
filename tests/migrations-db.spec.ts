@@ -825,11 +825,48 @@ describe('rung 79: films and shows are kinds', () => {
 		climb(conn, 79);
 		for (const kind of ['movie', 'show']) expect(() => add(kind), kind).not.toThrow();
 	});
+});
+
+describe('rung 80: TMDB links have their own tables', () => {
+	it('adds the link, the search and the candidates, gone with their series', () => {
+		const conn = new Database(':memory:');
+		conn.pragma('foreign_keys = ON');
+		climb(conn, 79);
+		conn.prepare(`INSERT INTO roots (id, name, path) VALUES (1, 'Aniyomi', '/nowhere')`).run();
+		conn
+			.prepare(
+				`INSERT INTO series (id, root_id, title, kind, added_at) VALUES (1, 1, 'Film', 'movie', 1)`
+			)
+			.run();
+		climb(conn, 80);
+		conn
+			.prepare(
+				`INSERT INTO series_tmdb_links (series_id, tmdb_id, media, via, linked_at) VALUES (1, 9, 'movie', 'exact', 1)`
+			)
+			.run();
+		conn.prepare(`INSERT INTO tmdb_link_searches (series_id, query) VALUES (1, 'Film')`).run();
+		conn
+			.prepare(
+				`INSERT INTO tmdb_link_candidates (series_id, tmdb_id, rank, data) VALUES (1, 9, 0, '{}')`
+			)
+			.run();
+		// AniList's tables are not where a film's link goes.
+		expect(() =>
+			conn
+				.prepare(
+					`INSERT INTO series_tmdb_links (series_id, tmdb_id, media, via, linked_at) VALUES (1, 9, 'movie', 'mihon', 1)`
+				)
+				.run()
+		).toThrow();
+		conn.prepare(`DELETE FROM series WHERE id = 1`).run();
+		for (const t of ['series_tmdb_links', 'tmdb_link_searches', 'tmdb_link_candidates'])
+			expect(conn.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get(), t).toEqual({ n: 0 });
+	});
 
 	// The top rung's own block says it is the top; the next rung moves this line.
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(79);
+		expect(conn.pragma('user_version', { simple: true })).toBe(80);
 	});
 });
