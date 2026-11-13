@@ -2051,6 +2051,29 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		data TEXT NOT NULL,
 		PRIMARY KEY (series_id, tmdb_id)
 	) WITHOUT ROWID;
+	`,
+
+	// v81: what surrounds a TMDB entry (card c990; doc/LINKS.md, "What
+	// surrounds it"): a show's seasons and next episode, a film's collection,
+	// cached per TMDB entry rather than per series, since every season of a
+	// show links the same entry. Filled by TMDB's timer and after a LINK, never
+	// while a screen waits; a screen draws what is here or nothing.
+	// `tmdb_offers_declined` is the owner's NOT THIS on an offer (SEASON 4 IS OUT,
+	// a collection's GROUP →), which no later refresh asks again.
+	`
+	CREATE TABLE tmdb_surroundings (
+		media TEXT NOT NULL CHECK (media IN ('tv', 'collection')),
+		tmdb_id INTEGER NOT NULL,
+		data TEXT NOT NULL,
+		fetched_at INTEGER NOT NULL,
+		PRIMARY KEY (media, tmdb_id)
+	) WITHOUT ROWID;
+	CREATE TABLE tmdb_offers_declined (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		offer TEXT NOT NULL,
+		at INTEGER NOT NULL,
+		PRIMARY KEY (series_id, offer)
+	) WITHOUT ROWID;
 	`
 ];
 

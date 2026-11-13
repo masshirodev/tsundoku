@@ -34,6 +34,32 @@ export type TmdbTitle = {
 	collection: { id: number; name: string } | null;
 };
 
+// ---- what surrounds an entry (card c990) ---------------------------------------------------
+
+/** One of a show's seasons as TMDB lists it. Season 0 (specials) is never one of them. */
+export type TmdbSeason = {
+	season: number;
+	episodes: number;
+	/** `YYYY-MM-DD`, or null when TMDB has no date. */
+	airDate: string | null;
+	name: string;
+};
+
+/** A show's seasons, and what airs next while it is in production. */
+export type TmdbShowFacts = {
+	id: number;
+	seasons: TmdbSeason[];
+	inProduction: boolean;
+	next: { season: number; episode: number; airDate: string | null } | null;
+};
+
+/** A film's collection, its parts in release order (undated last), as TMDB lists them. */
+export type TmdbCollection = {
+	id: number;
+	name: string;
+	parts: { id: number; title: string; year: number | null; date: string | null }[];
+};
+
 /**
  * What to search TMDB for, from the title a source gave. A release site's
  * title carries more than the film: `Lupin [Hindi-English] 1080p WEB-DL x264`,

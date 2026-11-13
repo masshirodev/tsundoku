@@ -5,7 +5,9 @@ import { seriesAccess } from '$lib/server/catalogue';
 import { catalogueConfigured } from '$lib/server/catalogues';
 import { NoTmdbKey } from '$lib/server/tmdb';
 import { refreshCovers } from '$lib/server/covers';
+import { refreshEntry } from '$lib/server/tmdb-surround';
 import {
+	tmdbFacts,
 	tmdbLinkFromReview,
 	tmdbNoneFromReview,
 	tmdbPastedCandidate,
@@ -90,6 +92,15 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			if (!Number.isSafeInteger(id) || id <= 0) error(400, 'which entry');
 			const title = await tmdbLinkFromReview(seriesId, id, b.pasted ? 'pasted' : 'review');
 			recover(true);
+			// Its seasons or collection now, not at the next tick (c990): by id, never a title.
+			const t = tmdbFacts(seriesId);
+			const what =
+				t?.media === 'tv'
+					? { media: 'tv' as const, id: t.id }
+					: t?.collection
+						? { media: 'collection' as const, id: t.collection.id }
+						: null;
+			if (what) void refreshEntry(what).catch(() => undefined);
 			return json({ ok: true, title, siblings: [], items: [] });
 		}
 	} catch (e) {

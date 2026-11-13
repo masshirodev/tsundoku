@@ -1,5 +1,5 @@
 import { tmdbKey } from './catalogues.ts';
-import type { TmdbTitle } from '../library/tmdb.ts';
+import type { TmdbCollection, TmdbSeason, TmdbShowFacts, TmdbTitle } from '../library/tmdb.ts';
 
 /**
  * TMDB, the films' and shows' catalogue (card c989; doc/MOVIES-TV.md,
@@ -124,4 +124,66 @@ export async function tmdbById(kind: 'movie' | 'show', id: number): Promise<Tmdb
 	const media = tmdbMedia(kind);
 	const data = (await get(`/${media}/${id}`)) as Row | null;
 	return data ? toTitle(data, media) : null;
+}
+
+// ---- what surrounds an entry (card c990) ---------------------------------------------------
+
+export type { TmdbCollection, TmdbSeason, TmdbShowFacts };
+
+const dateOf = (d: unknown): string | null =>
+	typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+
+/** A show's seasons and next episode: `/tv/{id}`, the same call `tmdbById` makes, read for more. */
+export async function tmdbShowFacts(id: number): Promise<TmdbShowFacts | null> {
+	const data = (await get(`/tv/${id}`)) as {
+		id: number;
+		in_production?: boolean;
+		seasons?: { season_number: number; episode_count?: number; air_date?: string; name?: string }[];
+		next_episode_to_air?: {
+			season_number: number;
+			episode_number: number;
+			air_date?: string;
+		} | null;
+	} | null;
+	if (!data) return null;
+	return {
+		id: data.id,
+		seasons: (data.seasons ?? [])
+			.filter((s) => Number.isInteger(s.season_number) && s.season_number > 0)
+			.map((s) => ({
+				season: s.season_number,
+				episodes: Number.isInteger(s.episode_count) ? s.episode_count! : 0,
+				airDate: dateOf(s.air_date),
+				name: (s.name ?? '').trim()
+			}))
+			.sort((a, b) => a.season - b.season),
+		inProduction: !!data.in_production,
+		next: data.next_episode_to_air
+			? {
+					season: data.next_episode_to_air.season_number,
+					episode: data.next_episode_to_air.episode_number,
+					airDate: dateOf(data.next_episode_to_air.air_date)
+				}
+			: null
+	};
+}
+
+/** A collection's parts, in release order: TMDB's own list is in no promised order. */
+export async function tmdbCollection(id: number): Promise<TmdbCollection | null> {
+	const data = (await get(`/collection/${id}`)) as {
+		id: number;
+		name?: string;
+		parts?: { id: number; title?: string; release_date?: string }[];
+	} | null;
+	if (!data) return null;
+	const parts = (data.parts ?? []).map((p) => ({
+		id: p.id,
+		title: (p.title ?? '').trim(),
+		year: yearOf(p.release_date),
+		date: dateOf(p.release_date)
+	}));
+	parts.sort((a, b) =>
+		a.date && b.date ? a.date.localeCompare(b.date) : a.date ? -1 : b.date ? 1 : a.id - b.id
+	);
+	return { id: data.id, name: (data.name ?? '').trim(), parts };
 }

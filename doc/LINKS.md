@@ -141,6 +141,49 @@ does not hold, so a film never gets an AniList line; `tmdbLinkState` is its.
   `Shows/` on disk (c991); the overview, poster and collection are stored on
   the link for the film's screen (c992) and its collection (c990) to read.
 
+### What surrounds it
+
+"What comes after this" is the kind's catalogue's question (card c990): AniList's
+relation cache for an anime (c358, `relations.ts`, unchanged and keyless), and
+TMDB for a film or a show:
+
+- **A show:** its seasons (season 0, the specials, is never one), whether it
+  is in production, and its next episode, from `/tv/{id}`.
+- **A film:** its collection's parts, from `/collection/{id}`, put in **release
+  order** (TMDB promises none; undated parts last).
+
+They are cached **per TMDB entry**, not per series (`tmdb_surroundings`, rung
+81), since every season of a show links the one entry; filled **by id only**,
+never a title, by TMDB's timer (stale ones: a show still airing after a day,
+anything else after two weeks) and at once after the review's LINK. A screen
+reads the cache or draws nothing, and never waits on TMDB.
+
+`src/lib/library/surroundings.ts` turns the cache and the library into the
+handoff's words (`doc/handoffs/movies-shows/Collection.dc.html`,
+`Show-Desk.dc.html`), pinned board by board in `tests/surroundings.spec.ts`:
+
+- **Which season a series is** comes from its source title (`titleSeason`:
+  `Season 3`, `S2`, `2nd Season`; never an episode code). A title naming none
+  is season 1. The show's other seasons are the other library series linked to
+  the same TMDB entry, by their titles' seasons.
+- **A show:** the heads (`SEASON 2 · 8 EP` with `IN LIBRARY →`, `… · THIS
+SERIES`, `… · TMDB · FROM 3 NOV`), the SEASONS row (`3 of 4 in the library`,
+  `TMDB LISTS 4 · S4 NOT IN THE LIBRARY`, FIND THE REST →), and the band
+  `SEASON 4 IS OUT · NOT IN YOUR LIBRARY` for the first **aired** season past
+  every one here. NOT THIS is kept in `tmdb_offers_declined` and never asked
+  again.
+- **A film:** every part with this one inverted, `IN LIBRARY →` or `FIND`;
+  past six parts the rest fold round this one, keeping the part before it and
+  two after, each fold saying how many it hides are here. The foot counts, and
+  offers `GROUP →` only with two or more parts here and **none in a Work**. In a
+  Work the block is one line (`ALL 3 IN THE WORK`, or `2 IN THE WORK` and one
+  fact a line for what the Work lacks): the Work row is the NEXT, never this.
+- **Hidden:** the library is read as the viewer may see it, so with reveal off
+  a hidden film is simply not in the library and the block never names it.
+
+`surroundingsOf(seriesId, reveal)` is what the film's and the show's screens
+(c992) draw.
+
 ## What the owner decided (2026-09-24)
 
 1. **Titles of series that aren't hidden may be sent to AniList** to search.

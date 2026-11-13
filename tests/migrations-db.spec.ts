@@ -862,11 +862,44 @@ describe('rung 80: TMDB links have their own tables', () => {
 		for (const t of ['series_tmdb_links', 'tmdb_link_searches', 'tmdb_link_candidates'])
 			expect(conn.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get(), t).toEqual({ n: 0 });
 	});
+});
+
+describe('rung 81: what surrounds a TMDB entry', () => {
+	it('caches per TMDB entry, and a declined offer goes with its series', () => {
+		const conn = new Database(':memory:');
+		conn.pragma('foreign_keys = ON');
+		climb(conn, 80);
+		conn.prepare(`INSERT INTO roots (id, name, path) VALUES (1, 'Aniyomi', '/nowhere')`).run();
+		conn
+			.prepare(
+				`INSERT INTO series (id, root_id, title, kind, added_at) VALUES (1, 1, 'Show', 'show', 1)`
+			)
+			.run();
+		climb(conn, 81);
+		conn
+			.prepare(
+				`INSERT INTO tmdb_surroundings (media, tmdb_id, data, fetched_at) VALUES ('tv', 5, '{}', 1)`
+			)
+			.run();
+		expect(() =>
+			conn
+				.prepare(
+					`INSERT INTO tmdb_surroundings (media, tmdb_id, data, fetched_at) VALUES ('movie', 5, '{}', 1)`
+				)
+				.run()
+		).toThrow(/CHECK/);
+		conn
+			.prepare(`INSERT INTO tmdb_offers_declined (series_id, offer, at) VALUES (1, 'season:4', 1)`)
+			.run();
+		conn.prepare(`DELETE FROM series WHERE id = 1`).run();
+		expect(conn.prepare(`SELECT COUNT(*) AS n FROM tmdb_offers_declined`).get()).toEqual({ n: 0 });
+		expect(conn.prepare(`SELECT COUNT(*) AS n FROM tmdb_surroundings`).get()).toEqual({ n: 1 });
+	});
 
 	// The top rung's own block says it is the top; the next rung moves this line.
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(80);
+		expect(conn.pragma('user_version', { simple: true })).toBe(81);
 	});
 });
