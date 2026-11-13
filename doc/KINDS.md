@@ -531,7 +531,15 @@ In the registry, that is two entries, and two facts change shape first:
 A movie is a series with one entry. Screens ask the registry for its unit
 (none), so it shows no episode list and no NEXT — except the collection row.
 A show's seasons ride on the season facts and Works (`doc/WORKS.md`) the way
-anime's do. The rung that adds both to the CHECK is c987, after K5 (c305).
+anime's do.
+
+**Landed 2026-11-12 (c987):** both entries are in `KIND_FACTS`, `MOVE_MAP`
+maps them to `anime` (video), `SOURCE_KIND_CHOICES.aniyomi` offers them, and
+rung 79 widened `series.kind`'s CHECK. `unit` is optional on `KindFacts` and a
+film has none; `kindUnit` answers empty words and `sheetMeta` draws no count.
+`anilistTypeOf` refuses them, and the link pass and search skip them; TMDB's
+catalogue is c989's. Screens still draw a film as a series with one entry
+until c992.
 
 ## The slices
 

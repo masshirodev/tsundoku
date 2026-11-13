@@ -16,7 +16,7 @@
  */
 
 /** `anime` is a series of episodes (rung 47; doc/ANIME.md). */
-export type Kind = 'manga' | 'manhwa' | 'doujin' | 'novel' | 'anime';
+export type Kind = 'manga' | 'manhwa' | 'doujin' | 'novel' | 'anime' | 'movie' | 'show';
 
 /** Is it pages, text or video? The reader or the player, and how progress is said. */
 export type Medium = 'pages' | 'text' | 'video';
@@ -27,8 +27,12 @@ export type SourceFamily = 'mihon' | 'lnreader' | 'aniyomi';
 export type KindFacts = {
 	kind: Kind;
 	medium: Medium;
-	/** What one entry is called: CH, VOL, EP; and READ or WATCHED. */
-	unit: { short: string; long: string; done: string };
+	/**
+	 * What one entry is called: CH, VOL, EP; and READ or WATCHED. **Absent for
+	 * a film**, which has one entry and no list: screens draw no count at all
+	 * (`kindUnit` answers empty words, and `sheetMeta` skips the count).
+	 */
+	unit?: { short: string; long: string; done: string };
 	/** Where its metadata and its link come from. */
 	catalogue:
 		{ provider: 'anilist'; type: 'MANGA' | 'ANIME' } | { provider: 'tmdb'; type: 'movie' | 'tv' };
@@ -42,8 +46,6 @@ export type KindFacts = {
 	 * `epub:`, or none) is not listed: those are not families yet.
 	 */
 	sources: readonly SourceFamily[];
-	/** Where its files live: tsundoku's library root, or Jellyfin's folders. */
-	storage: 'library' | 'jellyfin';
 	/** The default the reader or player starts from (`defaultDirection`, series.ts). */
 	layout?: 'paged' | 'vertical' | 'rtl' | 'ltr';
 	/** Whether MOVE between sources is offered. */
@@ -87,7 +89,6 @@ export const KIND_FACTS = {
 		catalogue: { provider: 'anilist', type: 'MANGA' },
 		matches: ['manga', 'manhwa', 'doujin'],
 		sources: ['mihon'],
-		storage: 'library',
 		layout: 'rtl',
 		movable: true,
 		grouping: null
@@ -105,7 +106,6 @@ export const KIND_FACTS = {
 		catalogue: { provider: 'anilist', type: 'MANGA' },
 		matches: ['manga', 'manhwa', 'doujin'],
 		sources: ['mihon'],
-		storage: 'library',
 		layout: 'vertical',
 		movable: true,
 		grouping: null
@@ -140,7 +140,6 @@ export const KIND_FACTS = {
 		catalogue: { provider: 'anilist', type: 'MANGA' },
 		matches: ['manga', 'manhwa', 'doujin'],
 		sources: ['mihon'],
-		storage: 'library',
 		layout: 'rtl',
 		movable: false,
 		grouping: 'books'
@@ -166,7 +165,6 @@ export const KIND_FACTS = {
 		catalogue: { provider: 'anilist', type: 'MANGA' },
 		matches: ['novel'],
 		sources: ['lnreader'],
-		storage: 'library',
 		layout: 'paged',
 		movable: false,
 		grouping: 'volumes'
@@ -188,8 +186,32 @@ export const KIND_FACTS = {
 		catalogue: { provider: 'anilist', type: 'ANIME' },
 		matches: ['anime'],
 		sources: ['aniyomi'],
-		storage: 'library',
 		layout: 'rtl',
+		movable: true,
+		grouping: null
+	},
+	// A film is a series with one entry (doc/KINDS.md, "Movies and TV shows";
+	// card c987): video, no unit, no list, TMDB's `movie`, and an Aniyomi
+	// source's key. It matches only a film: a film is not the twin of the book
+	// it adapts (that is OTHER FORMS). Movable between sources, read as video.
+	movie: {
+		kind: 'movie',
+		medium: 'video',
+		catalogue: { provider: 'tmdb', type: 'movie' },
+		matches: ['movie'],
+		sources: ['aniyomi'],
+		movable: true,
+		grouping: null
+	},
+	// A show is the anime-shaped series with its seasons as the source gave
+	// them: EP, TMDB's `tv`, an Aniyomi source. It matches only a show.
+	show: {
+		kind: 'show',
+		medium: 'video',
+		unit: { short: 'EP', long: 'EPISODE', done: 'WATCHED' },
+		catalogue: { provider: 'tmdb', type: 'tv' },
+		matches: ['show'],
+		sources: ['aniyomi'],
 		movable: true,
 		grouping: null
 	}
@@ -197,6 +219,19 @@ export const KIND_FACTS = {
 
 /** One kind's facts. */
 export const kindFacts = <K extends Kind>(kind: K): (typeof KIND_FACTS)[K] => KIND_FACTS[kind];
+
+/**
+ * The words for one entry, or none for a film (card c987): `unit` is absent
+ * there, and a screen that concatenates a count asks this rather than each
+ * site deciding what absent means. `done` stays WATCHED, which a film's one
+ * entry is.
+ */
+export const kindUnit = (kind: Kind): { short: string; long: string; done: string } =>
+	(kindFacts(kind) as KindFacts).unit ?? { short: '', long: '', done: 'WATCHED' };
+
+/** The default reading layout, or undefined for a kind with no reader (a film, a show). */
+export const kindLayout = (kind: Kind): KindFacts['layout'] =>
+	(kindFacts(kind) as KindFacts).layout;
 
 /**
  * Every kind, in the registry's order: the library's, the FILTER's and KIND's.
@@ -224,7 +259,9 @@ export const MOVABLE_KINDS = KINDS.filter((k): k is MovableKind => KIND_FACTS[k]
 export const MOVE_MAP = {
 	manga: 'manga',
 	manhwa: 'manga',
-	anime: 'anime'
+	anime: 'anime',
+	movie: 'anime',
+	show: 'anime'
 } as const satisfies Record<MovableKind, 'manga' | 'anime'>;
 
 /** MOVE's own kind, narrower than `Kind` and narrower than the movable kinds. */
@@ -315,7 +352,7 @@ export const SOURCE_FAMILIES = Object.keys(SOURCE_KINDS) as readonly SourceFamil
 export const SOURCE_KIND_CHOICES = {
 	mihon: ['manga', 'manhwa', 'doujin'],
 	lnreader: ['novel'],
-	aniyomi: ['anime']
+	aniyomi: ['anime', 'movie', 'show']
 } as const satisfies Record<SourceFamily, readonly Kind[]>;
 
 /** The kinds one source family can serve, its default first. */

@@ -7,6 +7,8 @@ import {
 	kindFacts,
 	KEY_PREFIX,
 	KINDS,
+	anilistTypeOf,
+	kindLayout,
 	kindsGrouped,
 	isMovable,
 	MOVE_MAP,
@@ -85,28 +87,34 @@ describe('the registry', () => {
 		// A hand-written list, not `KINDS` or `Object.keys(KIND_FACTS)`: those
 		// *are* the registry's own keys, so comparing them proves nothing. This
 		// goes red if a key is renamed or an entry dropped (round 2, c301).
-		const literals: Kind[] = ['manga', 'manhwa', 'doujin', 'novel', 'anime'];
+		const literals: Kind[] = ['manga', 'manhwa', 'doujin', 'novel', 'anime', 'movie', 'show'];
 		expect(Object.keys(KIND_FACTS)).toHaveLength(literals.length);
 		for (const kind of literals) expect(KIND_FACTS[kind].kind).toBe(kind);
 		expect(KINDS).toEqual(literals);
 	});
 
-	it('gives every kind a medium, a unit, a catalogue and a storage', () => {
+	it('gives every kind a medium and a catalogue, and a unit unless it has one entry', () => {
 		const media: Medium[] = ['pages', 'text', 'video'];
 		for (const kind of KINDS) {
 			const facts: KindFacts = kindFacts(kind);
 			expect(media).toContain(facts.medium);
-			expect(facts.unit.short).not.toBe('');
-			expect(facts.unit.long).not.toBe('');
-			expect(['READ', 'WATCHED']).toContain(facts.unit.done);
-			// Every kind is catalogued by AniList today; TMDB is the movies card's.
-			expect(facts.catalogue.provider).toBe('anilist');
-			expect(['library', 'jellyfin']).toContain(facts.storage);
+			// A film is one entry: no unit, and `kindUnit` answers none (c987).
+			if (kind === 'movie') expect(facts.unit).toBeUndefined();
+			else {
+				expect(facts.unit!.short).not.toBe('');
+				expect(facts.unit!.long).not.toBe('');
+				expect(['READ', 'WATCHED']).toContain(facts.unit!.done);
+			}
+			expect(['anilist', 'tmdb']).toContain(facts.catalogue.provider);
 			if (facts.layout) expect(['paged', 'vertical', 'rtl', 'ltr']).toContain(facts.layout);
 		}
 		// Text and video are the two that are not pages: the readers and the player.
 		expect(KINDS.filter((k) => kindFacts(k).medium === 'text')).toEqual(['novel']);
-		expect(KINDS.filter((k) => kindFacts(k).medium === 'video')).toEqual(['anime']);
+		expect(KINDS.filter((k) => kindFacts(k).medium === 'video')).toEqual([
+			'anime',
+			'movie',
+			'show'
+		]);
 	});
 
 	it('lets a kind match itself, and only kinds the registry names', () => {
@@ -121,7 +129,8 @@ describe('the registry', () => {
 		// `defaultDirection` (library/series.ts:89-93) still decides; the fact
 		// copies it until K2 makes series.ts read the registry. This goes red if
 		// either one changes without the other.
-		for (const kind of KINDS) expect(kindFacts(kind).layout).toBe(defaultDirection(kind));
+		for (const kind of KINDS)
+			if (kindFacts(kind).medium !== 'video') expect(kindLayout(kind)).toBe(defaultDirection(kind));
 	});
 
 	it('keeps KINDS readonly, because FILTER_KINDS shares the object', () => {
@@ -140,13 +149,13 @@ describe('the registry', () => {
 		// the library counts by it (`kindCounts`, src/lib/server/library.ts). The
 		// literal list is what can go red; `FILTER_KINDS` being `KINDS` is a
 		// tautology.
-		expect(FILTER_KINDS).toEqual(['manga', 'manhwa', 'doujin', 'novel', 'anime']);
+		expect(FILTER_KINDS).toEqual(['manga', 'manhwa', 'doujin', 'novel', 'anime', 'movie', 'show']);
 	});
 });
 
 describe('MOVABLE', () => {
-	it('is the kinds MOVE is offered for, which is three, not the map kind', () => {
-		const movable: MovableKind[] = ['manga', 'manhwa', 'anime'];
+	it('is the kinds MOVE is offered for, which is five, not the map kind', () => {
+		const movable: MovableKind[] = ['manga', 'manhwa', 'anime', 'movie', 'show'];
 		expect(MOVABLE_KINDS).toEqual(movable);
 		expect(KINDS.filter((k) => KIND_FACTS[k].movable)).toEqual(movable);
 		// Not movable, although both can carry a family's key (a gallery's
@@ -177,14 +186,19 @@ describe('MOVABLE', () => {
  */
 describe('MOVE asks the registry', () => {
 	// `movableKind` at fb2bd3a7 (src/lib/server/move.ts:56-57).
-	const oldMovable = (k: Kind) => k === 'manga' || k === 'manhwa' || k === 'anime';
+	const oldMovable = (k: Kind) =>
+		k === 'manga' || k === 'manhwa' || k === 'anime' || k === 'movie' || k === 'show';
 	// The map kind at fb2bd3a7 (src/lib/server/move.ts:268, :556, :720, :923, :1079).
-	const oldMoveKind = (k: Kind): MoveKind => (k === 'anime' ? 'anime' : 'manga');
+	const oldMoveKind = (k: Kind): MoveKind => {
+		// c987: the two video kinds move as an anime does (they did not exist at fb2bd3a7).
+		if (k === 'movie' || k === 'show') return 'anime';
+		return k === 'anime' ? 'anime' : 'manga';
+	};
 
 	it('offers MOVE to exactly the kinds it offered it to', () => {
 		for (const k of KINDS) expect(isMovable(k), k).toBe(oldMovable(k));
 		// Every kind is asked: the registry's five, none skipped.
-		expect(KINDS).toHaveLength(5);
+		expect(KINDS).toHaveLength(7);
 	});
 
 	it('reads the map kind from the medium, as every kind read it', () => {
@@ -251,7 +265,9 @@ describe('the source families', () => {
 			manhwa: null,
 			doujin: null,
 			novel: 'lnreader',
-			anime: 'aniyomi'
+			anime: 'aniyomi',
+			movie: null,
+			show: null
 		};
 		expect(familyOfKind).toBe(sourceFamilyOf);
 		for (const kind of KINDS) expect(sourceFamilyOf(kind), kind).toBe(expected[kind]);
@@ -528,7 +544,7 @@ describe('what GROUP binds, and which covers a kind has', () => {
 					]);
 			}
 		// Every kind alone, both ways of one book or more, and every pair.
-		expect(selections).toHaveLength(1 + 5 * 2 * 6);
+		expect(selections).toHaveLength(1 + 7 * 2 * 8);
 		for (const items of selections)
 			expect(groupAnswers(items), JSON.stringify(items)).toEqual(oldAnswers(items));
 	});
@@ -537,21 +553,28 @@ describe('what GROUP binds, and which covers a kind has', () => {
 		for (const k of KINDS) {
 			// covers.ts:87 and :121 at fb2bd3a7.
 			expect(kindFacts(k).medium === 'text', k).toBe(k === 'novel');
-			expect(kindFacts(k).medium !== 'pages', k).toBe(k === 'novel' || k === 'anime');
+			expect(kindFacts(k).medium !== 'pages', k).toBe(
+				k === 'novel' || kindFacts(k).medium === 'video'
+			);
 		}
 	});
 });
 
 describe('the AniList catalogue', () => {
 	it('asks MANGA for every comic and novel, ANIME for an anime', () => {
-		expect(KINDS.filter((k) => anilistType(k) === 'ANIME')).toEqual(['anime']);
-		expect(KINDS.filter((k) => anilistType(k) === 'MANGA')).toEqual([
+		expect(KINDS.filter((k) => anilistTypeOf(k) === 'ANIME')).toEqual(['anime']);
+		expect(KINDS.filter((k) => anilistTypeOf(k) === 'MANGA')).toEqual([
 			'manga',
 			'manhwa',
 			'doujin',
 			'novel'
 		]);
-		for (const kind of KINDS) expect(kindFacts(kind).catalogue.type).toBe(anilistType(kind));
+		for (const kind of KINDS) {
+			const type = anilistTypeOf(kind);
+			if (type) expect(kindFacts(kind).catalogue.type).toBe(type);
+			// A film or a show is TMDB's; the loud question refuses it.
+			else expect(() => anilistType(kind), kind).toThrow();
+		}
 	});
 
 	it('builds the entry path its kind lives under', () => {
@@ -606,18 +629,23 @@ describe('what may match what (doc/LINKS.md, "A novel never matches a comic")', 
 		for (const [series, candidate] of no) expect(sameKind(series, candidate)).toBe(false);
 	});
 
-	it('answers all 25 ordered pairs as the pre-K1 sameKind did', () => {
+	it('answers all 49 ordered pairs as the pre-K1 sameKind did', () => {
 		// The lists above are the readable half; this is the exhaustive one.
 		// The oracle is `sameKind` as it shipped at a698f974, before it read
 		// `matches` (`git show a698f974:src/lib/library/catalogue.ts`,
 		// :168-175), transcribed here rather than derived from KIND_FACTS: an
 		// anime only with an anime, and otherwise novel-or-not must agree.
 		const before = (series: Kind, candidate: Kind): boolean => {
-			if (series === 'anime' || candidate === 'anime') return series === candidate;
+			// c987: a film and a show are each their own work, as an anime is.
+			if (
+				['anime', 'movie', 'show'].includes(series) ||
+				['anime', 'movie', 'show'].includes(candidate)
+			)
+				return series === candidate;
 			return (series !== 'novel') === (candidate !== 'novel');
 		};
 		const pairs = KINDS.flatMap((s) => KINDS.map((c) => [s, c] as const));
-		expect(pairs).toHaveLength(25);
+		expect(pairs).toHaveLength(49);
 		for (const [series, candidate] of pairs)
 			expect(sameKind(series, candidate), `${series} against ${candidate}`).toBe(
 				before(series, candidate)

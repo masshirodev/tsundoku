@@ -16,7 +16,7 @@
 	import { defaultWorkName } from '$lib/library/works';
 	import { defaultShowName } from '$lib/library/season-name';
 	import { count, unitLabel } from '$lib/library/labels';
-	import { kindFacts } from '$lib/library/kinds';
+	import { kindUnit } from '$lib/library/kinds';
 	import type { ShowFacts } from '$lib/library/selection';
 	import type { Kind } from '$lib/library/types';
 	import { addedMonth } from '$lib/library/series';
@@ -165,7 +165,7 @@
 	 */
 	function showLine(b: Book): { text: string; ink?: boolean }[] | null {
 		if (!b.show || !b.kind || b.entryCount === undefined) return null;
-		const unit = kindFacts(b.kind).unit;
+		const unit = kindUnit(b.kind);
 		const parts = [
 			b.show.source ? { text: b.show.source.toUpperCase() } : null,
 			{ text: `${count(b.entryCount)} ${unitLabel(b.kind)}.` },

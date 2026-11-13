@@ -1,4 +1,4 @@
-import { KINDS, kindFacts, type Kind } from './kinds.ts';
+import { KINDS, kindUnit, type Kind } from './kinds.ts';
 import { formatNumber } from './series.ts';
 
 /**
@@ -78,7 +78,7 @@ export type Highlight = {
 /** The series kind the snapshot kept, as the registry knows it; a novel's words if it doesn't. */
 const knownKind = (k: string): Kind =>
 	(KINDS as readonly string[]).includes(k) ? (k as Kind) : 'novel';
-export const unitOf = (h: Pick<Highlight, 'seriesKind'>) => kindFacts(knownKind(h.seriesKind)).unit;
+export const unitOf = (h: Pick<Highlight, 'seriesKind'>) => kindUnit(knownKind(h.seriesKind));
 
 const KIND_WORD: Record<HighlightKind, string> = { quote: 'QUOTE', page: 'PAGE', clip: 'CLIP' };
 const KIND_PLURAL: Record<HighlightKind, string> = {

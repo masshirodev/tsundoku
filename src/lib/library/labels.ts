@@ -1,4 +1,4 @@
-import { kindFacts } from './kinds.ts';
+import { kindFacts, kindUnit } from './kinds.ts';
 import type { ContinueItem, Kind, SeriesCard } from './types.ts';
 
 /**
@@ -42,12 +42,15 @@ export function continueSub(item: ContinueItem, offline?: { cached: boolean }): 
 }
 
 /** Novels are counted in volumes, anime in episodes, everything with pages in chapters. */
-export const unitLabel = (kind: Kind) => kindFacts(kind).unit.short;
+export const unitLabel = (kind: Kind) => kindUnit(kind).short;
 
 /** "MANGA · 58 CH · 41 READ · +3 NEW"; an anime's are WATCHED. */
 export function sheetMeta(item: SeriesCard): string {
-	const unit = kindFacts(item.kind).unit;
-	const parts = [kindLabel(item.kind), `${item.entryCount} ${unit.short}`];
+	const unit = kindUnit(item.kind);
+	// A film has no unit and no list: its one entry is watched, and no count
+	// would be true (card c987).
+	const parts = [kindLabel(item.kind)];
+	if (unit.short) parts.push(`${item.entryCount} ${unit.short}`);
 	parts.push(`${item.readCount} ${unit.done}`);
 	if (item.newCount > 0) parts.push(`+${item.newCount} NEW`);
 	return parts.join(' · ');

@@ -1,5 +1,5 @@
 import { clock } from './anime.ts';
-import { kindFacts, type MoveKind } from './kinds.ts';
+import { kindFacts, kindUnit, type MoveKind } from './kinds.ts';
 import { formatNumber } from './series.ts';
 
 /**
@@ -618,7 +618,7 @@ export type MoveSummaryContext = {
 export function moveSummary(plan: MovePlan, ctx: MoveSummaryContext): MoveSummaryRow[] {
 	const video = movesVideo(ctx.kind);
 	// EPISODE or CHAPTER: the map kind's own unit, spelled out.
-	const noun = kindFacts(ctx.kind).unit.long;
+	const noun = kindUnit(ctx.kind).long;
 	const nouns = `${noun}S`;
 
 	const downloaded = ctx.yours.filter((e) => e.available);
@@ -738,9 +738,7 @@ export function movedDetail(plan: MovePlan, from: string, kind: MoveKind): strin
 	const parts: string[] = [];
 	const added = plan.added.length + plan.readAdded.length;
 	if (added)
-		parts.push(
-			`${added} ${kindFacts(kind).unit.long}${added === 1 ? '' : 'S'} ADDED, NOT DOWNLOADED`
-		);
+		parts.push(`${added} ${kindUnit(kind).long}${added === 1 ? '' : 'S'} ADDED, NOT DOWNLOADED`);
 	if (plan.kept.length) parts.push(`${plan.kept.length} KEPT FROM ${from.toUpperCase()}`);
 	return parts.join(' · ') || 'NOTHING ADDED OR KEPT';
 }

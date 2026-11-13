@@ -425,7 +425,9 @@ describe('isAnime asks the kind registry (c240, wave 17)', async () => {
 			manhwa: false,
 			doujin: false,
 			novel: false,
-			anime: true
+			anime: true,
+			movie: false,
+			show: false
 		});
 		expect(isAnime(null)).toBe(false);
 		expect(isAnime(undefined)).toBe(false);

@@ -544,7 +544,11 @@ export function nextPartWords(kind: Kind): NextPartWords {
 	return {
 		online: (source) => `${plays} FROM ${source.toUpperCase()}`,
 		streamed: STREAMED[medium],
-		downloadFirst: `DOWNLOAD FIRST 10 ${PLURAL_UNIT[unitLabel(kind)]}`
+		// A film has no unit and no list: there are no "first ten" to download
+		// (c987; the film Work's own words are c992's).
+		downloadFirst: unitLabel(kind)
+			? `DOWNLOAD FIRST 10 ${PLURAL_UNIT[unitLabel(kind)]}`
+			: 'DOWNLOAD IT'
 	};
 }
 

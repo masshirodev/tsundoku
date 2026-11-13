@@ -1,4 +1,4 @@
-import { kindFacts, moveKindOf, type Kind, type MoveKind } from '$lib/library/kinds';
+import { kindUnit, moveKindOf, type Kind, type MoveKind } from '$lib/library/kinds';
 import { movesVideo } from '$lib/library/move';
 
 /*
@@ -12,7 +12,7 @@ import { movesVideo } from '$lib/library/move';
 export const searchedSources = (kind: Kind): MoveKind => moveKindOf(kind);
 
 /** What the MOVED band counts: EPISODE on video, CHAPTER on everything else (a novel's too). */
-export const movedUnit = (kind: Kind): string => kindFacts(moveKindOf(kind)).unit.long;
+export const movedUnit = (kind: Kind): string => kindUnit(moveKindOf(kind)).long;
 
 /** The comparison head's kind: ANIME for a video move, else the series' own kind. */
 export const comparedKind = (move: MoveKind, kind: Kind): string =>

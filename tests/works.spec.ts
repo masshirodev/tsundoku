@@ -390,13 +390,19 @@ describe('the next part, at the end of one', () => {
 			manhwa: ['READS ONLINE FROM FAKE SOURCE', 'STREAMED PAGES', 'DOWNLOAD FIRST 10 CHAPTERS'],
 			doujin: ['READS ONLINE FROM FAKE SOURCE', 'STREAMED PAGES', 'DOWNLOAD FIRST 10 CHAPTERS'],
 			novel: ['READS ONLINE FROM FAKE SOURCE', 'STREAMED TEXT', 'DOWNLOAD FIRST 10 VOLUMES'],
-			anime: ['STREAMS FROM FAKE SOURCE', 'STREAMED VIDEO', 'DOWNLOAD FIRST 10 EPISODES']
+			anime: ['STREAMS FROM FAKE SOURCE', 'STREAMED VIDEO', 'DOWNLOAD FIRST 10 EPISODES'],
+			movie: ['STREAMS FROM FAKE SOURCE', 'STREAMED VIDEO', 'DOWNLOAD IT'],
+			show: ['STREAMS FROM FAKE SOURCE', 'STREAMED VIDEO', 'DOWNLOAD FIRST 10 EPISODES']
 		});
 		// Every word agrees with the part's own line under its title (workPartMeta).
-		for (const k of KINDS)
+		for (const k of KINDS) {
+			// A film's Work row is c992's: it has no unit, so there is no "first
+			// ten" line to agree with (c987).
+			if (k === 'movie') continue;
 			expect(workPartMeta({ kind: k, entries: 10, downloaded: 0 }, 'rtl')).toContain(
 				nextPartWords(k).downloadFirst.replace('DOWNLOAD FIRST ', '')
 			);
+		}
 	});
 });
 

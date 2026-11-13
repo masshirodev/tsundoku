@@ -14,7 +14,9 @@ export const KIND_TAB = {
 	manhwa: 'MANHWA',
 	doujin: 'DOUJINS',
 	novel: 'NOVELS',
-	anime: 'ANIME'
+	anime: 'ANIME',
+	movie: 'MOVIES',
+	show: 'SHOWS'
 } satisfies Record<Kind, string>;
 
 /** The kinds at least one source serves, in the registry's order (the band's cells after ALL). */

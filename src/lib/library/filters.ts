@@ -63,7 +63,9 @@ const KIND_LABEL: Record<FilterKind, string> = {
 	manhwa: 'MANHWA',
 	doujin: 'DOUJINS',
 	novel: 'NOVELS',
-	anime: 'ANIME'
+	anime: 'ANIME',
+	movie: 'MOVIES',
+	show: 'SHOWS'
 };
 const PROGRESSES: readonly Progress[] = ['unread', 'read'];
 

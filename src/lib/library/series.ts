@@ -1,6 +1,6 @@
 import type { Episode } from './anime.ts';
 import type { Kind, Rating, SeriesCard } from './types.ts';
-import { kindFacts } from './kinds.ts';
+import { kindFacts, kindLayout } from './kinds.ts';
 
 /**
  * The series screen's rules, as pure functions. Everything the screen derives
@@ -88,7 +88,7 @@ export type SeriesPage = SeriesCard & {
 
 /** What a kind reads as until the owner says otherwise. */
 export function defaultDirection(kind: Kind): Direction {
-	return kindFacts(kind).layout ?? 'rtl';
+	return kindLayout(kind) ?? 'rtl';
 }
 
 /**

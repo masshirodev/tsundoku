@@ -383,22 +383,30 @@ describe('the words MOVE prints for a kind (K4, c304)', () => {
 	 * the old comparison printed for every kind there is, not the two that
 	 * move: a novel's own unit is VOLUME, and the band said CHAPTER.
 	 */
-	it('says what the old comparisons said, for all five kinds', async () => {
+	it('says what the old comparisons said, for every kind', async () => {
 		const { KINDS, moveKindOf } = await import('$lib/library/kinds');
 		const { comparedKind, movedUnit, searchedSources } =
 			await import('../src/routes/series/[id]/move-words');
-		expect([...KINDS].sort()).toEqual(['anime', 'doujin', 'manga', 'manhwa', 'novel']);
+		expect([...KINDS].sort()).toEqual([
+			'anime',
+			'doujin',
+			'manga',
+			'manhwa',
+			'movie',
+			'novel',
+			'show'
+		]);
 		for (const kind of KINDS) {
-			expect(searchedSources(kind), kind).toBe(kind === 'anime' ? 'anime' : 'manga');
-			expect(movedUnit(kind), kind).toBe(kind === 'anime' ? 'EPISODE' : 'CHAPTER');
+			// c987: a film and a show are video too, so MOVE reads them as an anime.
+			const video = kind === 'anime' || kind === 'movie' || kind === 'show';
+			expect(searchedSources(kind), kind).toBe(video ? 'anime' : 'manga');
+			expect(movedUnit(kind), kind).toBe(video ? 'EPISODE' : 'CHAPTER');
 			for (const move of ['manga', 'anime'] as const)
 				expect(comparedKind(move, kind), `${move} ${kind}`).toBe(
 					move === 'anime' ? 'ANIME' : kind.toUpperCase()
 				);
 			// What the comparison is handed on the route: the series' own map kind.
-			expect(comparedKind(moveKindOf(kind), kind), kind).toBe(
-				kind === 'anime' ? 'ANIME' : kind.toUpperCase()
-			);
+			expect(comparedKind(moveKindOf(kind), kind), kind).toBe(video ? 'ANIME' : kind.toUpperCase());
 		}
 	});
 });

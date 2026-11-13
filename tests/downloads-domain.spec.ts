@@ -543,10 +543,42 @@ describe('SEARCH THE SOURCES’ KIND band (c699)', () => {
 	// code reads: every library kind against each source family alone, and
 	// against all of them (c736).
 	const ASKS: Record<SourceFamily | 'every', Record<(typeof KINDS)[number], string | null>> = {
-		mihon: { manga: 'manga', manhwa: 'manga', doujin: 'manga', novel: null, anime: null },
-		lnreader: { manga: null, manhwa: null, doujin: null, novel: 'novel', anime: null },
-		aniyomi: { manga: null, manhwa: null, doujin: null, novel: null, anime: 'anime' },
-		every: { manga: 'manga', manhwa: 'manga', doujin: 'manga', novel: 'novel', anime: 'anime' }
+		mihon: {
+			manga: 'manga',
+			manhwa: 'manga',
+			doujin: 'manga',
+			novel: null,
+			anime: null,
+			movie: null,
+			show: null
+		},
+		lnreader: {
+			manga: null,
+			manhwa: null,
+			doujin: null,
+			novel: 'novel',
+			anime: null,
+			movie: null,
+			show: null
+		},
+		aniyomi: {
+			manga: null,
+			manhwa: null,
+			doujin: null,
+			novel: null,
+			anime: 'anime',
+			movie: 'anime',
+			show: 'anime'
+		},
+		every: {
+			manga: 'manga',
+			manhwa: 'manga',
+			doujin: 'manga',
+			novel: 'novel',
+			anime: 'anime',
+			movie: 'anime',
+			show: 'anime'
+		}
 	};
 
 	it('a library kind asks the source kind serving its medium, for every kind and family (c736)', () => {

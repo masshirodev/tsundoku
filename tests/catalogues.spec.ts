@@ -35,8 +35,17 @@ afterEach(() => {
 });
 
 describe('the catalogue a kind is linked to', () => {
-	it('is AniList for every kind there is today', () => {
-		for (const kind of KINDS) expect(catalogueOf(kind), kind).toBe('anilist');
+	it('is AniList for comics and anime, TMDB for a film and a show', () => {
+		const expected = {
+			manga: 'anilist',
+			manhwa: 'anilist',
+			doujin: 'anilist',
+			novel: 'anilist',
+			anime: 'anilist',
+			movie: 'tmdb',
+			show: 'tmdb'
+		} as const;
+		for (const kind of KINDS) expect(catalogueOf(kind), kind).toBe(expected[kind]);
 	});
 
 	it('names the provider and its word for the kind', () => {

@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 	import { anilistUrl, malUrl, viaLabel, type SeasonRow } from '$lib/library/catalogue';
-	import { kindFacts } from '$lib/library/kinds';
+	import { kindUnit } from '$lib/library/kinds';
 	import type { Kind } from '$lib/library/types';
 	import { ago, clock, SERVICE_NAME, STATUSES, statusLabel } from '$lib/library/tracking';
 	import { ranobeLines } from '$lib/library/ranobe';
@@ -175,7 +175,7 @@
 	);
 	const status = $derived(listState(facts)?.status ?? null);
 	/** "EP." on an anime's season, "CH." on a comic: the registry's unit. */
-	const unit = $derived(`${kindFacts(anime ? kind : (link?.linked?.kind ?? kind)).unit.short}.`);
+	const unit = $derived(`${kindUnit(anime ? kind : (link?.linked?.kind ?? kind)).short}.`);
 	const rows = $derived(
 		facts
 			.filter((f) => f.linked)

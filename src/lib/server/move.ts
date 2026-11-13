@@ -44,7 +44,7 @@ import {
 	type MoveSummaryRow
 } from '../library/move.ts';
 import type { Kind } from '../library/types.ts';
-import { isMovable, kindFacts, moveKindOf, type MovableKind } from '../library/kinds.ts';
+import { isMovable, kindFacts, kindUnit, moveKindOf, type MovableKind } from '../library/kinds.ts';
 import { moveHighlights, repointAdded, type MoveHighlights } from './highlights.ts';
 
 /**
@@ -307,7 +307,7 @@ export function moveState(seriesId: number, now = Date.now()): MoveState {
 	const resolved = db
 		.prepare(`SELECT resolved_at FROM engine_series WHERE series_id = ?`)
 		.get(seriesId) as { resolved_at: number | null } | undefined;
-	const noun = kindFacts(kind).unit.long;
+	const noun = kindUnit(kind).long;
 	const meta = [
 		resolved?.resolved_at ? `LAST ASKED ${ago(resolved.resolved_at, now)}` : '',
 		`${entries.n} ${noun}${entries.n === 1 ? '' : 'S'} LISTED`
@@ -1195,7 +1195,7 @@ export function applyMoveBack(
 			const keptStayed = plan.kept.length - gone.length;
 			const detail = [
 				readd.length
-					? `${readd.length} ${kindFacts(kind).unit.long}${readd.length === 1 ? '' : 'S'} BACK FROM THE OLD SOURCE`
+					? `${readd.length} ${kindUnit(kind).long}${readd.length === 1 ? '' : 'S'} BACK FROM THE OLD SOURCE`
 					: '',
 				keptStayed ? `${keptStayed} KEPT FROM ${leftName.toUpperCase()}` : ''
 			]

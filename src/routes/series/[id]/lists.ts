@@ -10,7 +10,7 @@
  * component only draws. No database, no network, no Svelte.
  */
 
-import { kindFacts } from '$lib/library/kinds';
+import { kindFacts, kindUnit } from '$lib/library/kinds';
 import { anilistUrl, isAnime, malUrl, viaLabel, type SeasonRow } from '$lib/library/catalogue';
 import { partsLabel, seasonPlan } from '$lib/library/anime';
 import {
@@ -198,11 +198,11 @@ export function foldTag(list: number[]): string {
 }
 
 /** The unit a line counts in, from the registry: "CH.", "EP.". */
-const unitOf = (kind: Kind) => `${kindFacts(kind).unit.short}.`;
+const unitOf = (kind: Kind) => `${kindUnit(kind).short}.`;
 const isVideo = (kind: Kind) => kindFacts(kind).medium === 'video';
 /** "ADDED ON THE NEXT CHAPTER READ", "… EPISODE WATCHED". */
 const addedOnNext = (kind: Kind) =>
-	`ADDED ON THE NEXT ${kindFacts(kind).unit.long} ${kindFacts(kind).unit.done}`;
+	`ADDED ON THE NEXT ${kindUnit(kind).long} ${kindUnit(kind).done}`;
 
 type ListState = NonNullable<TrackFacts['state']>;
 

@@ -78,7 +78,7 @@ describe('series.kind', () => {
 		expect(() =>
 			conn
 				.prepare(
-					`INSERT INTO series (root_id, title, kind, added_at) VALUES (1, 'Film', 'movie', 1)`
+					`INSERT INTO series (root_id, title, kind, added_at) VALUES (1, 'Film', 'film', 1)`
 				)
 				.run()
 		).toThrow(/CHECK/);
@@ -109,7 +109,7 @@ describe('engine_extensions.kind', () => {
 		const conn = fresh();
 		const values = kindCheck(conn, 'engine_extensions');
 		expect(sorted(values)).toEqual(sorted([...new Set(Object.values(MOVE_MAP))]));
-		expect(sorted(MOVABLE_KINDS)).toEqual(['anime', 'manga', 'manhwa']);
+		expect(sorted(MOVABLE_KINDS)).toEqual(['anime', 'manga', 'manhwa', 'movie', 'show']);
 	});
 });
 
@@ -119,12 +119,16 @@ describe('movable', () => {
 		// `moveEligible`, `moveComparison` and `applyMove` ask, and since K4
 		// (c304) it reads `movable`. So this pins its answers to the ones it
 		// gave as a list of names, for every kind, rather than to the fact.
+		// c987 added the two video kinds the movies work brings; they move
+		// between sources as an anime does (MOVE_MAP maps both to 'anime').
 		const before: Record<string, boolean> = {
 			manga: true,
 			manhwa: true,
 			doujin: false,
 			novel: false,
-			anime: true
+			anime: true,
+			movie: true,
+			show: true
 		};
 		for (const k of KINDS) expect(movableKind(k), k).toBe(before[k]);
 		expect(KINDS.filter((k) => movableKind(k))).toEqual([...MOVABLE_KINDS]);

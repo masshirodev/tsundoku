@@ -1545,7 +1545,9 @@
 		manhwa: m.nav_shelf_manhwa,
 		doujin: m.nav_shelf_doujin,
 		novel: m.nav_shelf_novel,
-		anime: m.nav_shelf_anime
+		anime: m.nav_shelf_anime,
+		movie: m.nav_shelf_movie,
+		show: m.nav_shelf_show
 	} satisfies Record<FilterKind, () => string>;
 	const kindWord = (k: FilterKind | null) => upper(k ? KIND_WORD[k]() : m.nav_shelf_all());
 	/**

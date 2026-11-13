@@ -47,7 +47,15 @@ const SAMPLE_ABOUT =
 	'lines and opens on MORE.';
 
 // An episode has no pages; its size is a 24-minute 1080p episode's (doc/ANIME.md).
-const PAGES: Record<Kind, number> = { manga: 24, manhwa: 54, doujin: 30, novel: 100, anime: 0 };
+const PAGES: Record<Kind, number> = {
+	manga: 24,
+	manhwa: 54,
+	doujin: 30,
+	novel: 100,
+	anime: 0,
+	movie: 0,
+	show: 0
+};
 /**
  * Where a novel's in-progress entry was left: a block, which is what a novel's
  * `last_position` counts (a page is the image readers'; c653). Every chapter of
@@ -60,7 +68,9 @@ const BYTES: Record<Kind, number> = {
 	manhwa: 16_000_000,
 	doujin: 84_000_000,
 	novel: 0,
-	anime: 410_000_000
+	anime: 410_000_000,
+	movie: 1_190_000_000,
+	show: 410_000_000
 };
 
 export const SAMPLE_ROWS: Row[] = [

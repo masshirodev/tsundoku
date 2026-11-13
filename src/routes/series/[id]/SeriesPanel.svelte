@@ -26,7 +26,7 @@
 	import { num } from '$lib/i18n/format';
 	import { suggestionLabel, type Suggestion } from '$lib/library/books';
 	import { readTime } from '$lib/library/history';
-	import { kindFacts } from '$lib/library/kinds';
+	import { kindFacts, kindUnit } from '$lib/library/kinds';
 	import { coverSrc, tagHref, readHref, seriesHref, withParam } from '$lib/library/links';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { invalidateAll } from '$app/navigation';
@@ -467,7 +467,7 @@
 	);
 	/** Work under way inside: a chapter downloading, else OCR running (1C, D). */
 	const detailsRunning = $derived.by((): DetailsRunning | null => {
-		const unit = kindFacts(series.kind).unit.short;
+		const unit = kindUnit(series.kind).short;
 		for (const e of series.entries) {
 			const st = dlStates?.get(e.id);
 			if (st?.kind === 'downloading')
@@ -758,7 +758,7 @@
 			<!-- The time read, as a fact beside the read progress (c443): the reading
 			     log's, so it is only what was recorded, and nothing when none was. -->
 			{#if !outline && readMs > 0}
-				<div class="count readtime">{kindFacts(series.kind).unit.done} {readTime(readMs)}</div>
+				<div class="count readtime">{kindUnit(series.kind).done} {readTime(readMs)}</div>
 			{/if}
 		</div>
 	</div>

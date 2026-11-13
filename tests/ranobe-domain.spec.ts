@@ -589,7 +589,9 @@ describe('searchKinds asks the kind registry (wave 17)', async () => {
 			manhwa: 'manga,manhwa,manhua',
 			doujin: 'manga,manhwa,manhua',
 			novel: 'light_novel,web_novel',
-			anime: 'anime,donghua'
+			anime: 'anime,donghua',
+			movie: 'anime,donghua',
+			show: 'anime,donghua'
 		});
 	});
 });

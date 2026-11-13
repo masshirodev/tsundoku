@@ -1995,7 +1995,12 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// APK's own dex (`apkUsesWebView`). NULL until known: an extension
 	// installed before this rung is read from its stored APK on the first
 	// BROWSE or EXTENSIONS visit (`fillWebViewFlags`).
-	`ALTER TABLE engine_extensions ADD COLUMN webview INTEGER;`
+	`ALTER TABLE engine_extensions ADD COLUMN webview INTEGER;`,
+
+	// v79: films and live-action shows are kinds (doc/KINDS.md, "Movies and TV
+	// shows"; cards c987, c989). Same reason and same way as rung 47: only the
+	// CHECK widens, and nothing stored changes.
+	(conn) => widenKindsForFilms(conn)
 ];
 
 /**
@@ -2035,6 +2040,40 @@ function widenKinds(conn: Database.Database): void {
 	}
 	const ok = conn.pragma('integrity_check', { simple: true });
 	if (ok !== 'ok') throw new Error(`rung 47: integrity check after widening series.kind: ${ok}`);
+}
+
+/** Rung 79's CHECK: the five kinds rung 47 left, and the two films and shows add. */
+const KINDS_BEFORE_FILMS = `CHECK (kind IN ('manga', 'manhwa', 'doujin', 'novel', 'anime'))`;
+const KINDS_WITH_FILMS = `CHECK (kind IN ('manga', 'manhwa', 'doujin', 'novel', 'anime', 'movie', 'show'))`;
+
+/**
+ * Rung 79: `movie` and `show` among series.kind's allowed values. Same reason
+ * and same way as rung 47 — the schema's text is widened rather than the
+ * table rebuilt — with its own constants, since a rung is never edited once
+ * it has shipped.
+ */
+function widenKindsForFilms(conn: Database.Database): void {
+	const sql = (
+		conn
+			.prepare(`SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'series'`)
+			.get() as { sql: string }
+	).sql;
+	if (!sql.includes(KINDS_BEFORE_FILMS))
+		throw new Error('rung 79: series.kind is not the CHECK it expects');
+	const version = conn.pragma('schema_version', { simple: true }) as number;
+	conn.unsafeMode(true);
+	try {
+		conn.pragma('writable_schema = ON');
+		conn
+			.prepare(`UPDATE sqlite_schema SET sql = ? WHERE type = 'table' AND name = 'series'`)
+			.run(sql.replace(KINDS_BEFORE_FILMS, KINDS_WITH_FILMS));
+		conn.pragma(`schema_version = ${version + 1}`);
+		conn.pragma('writable_schema = OFF');
+	} finally {
+		conn.unsafeMode(false);
+	}
+	const ok = conn.pragma('integrity_check', { simple: true });
+	if (ok !== 'ok') throw new Error(`rung 79: integrity check after widening series.kind: ${ok}`);
 }
 
 /**

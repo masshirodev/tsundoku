@@ -809,11 +809,27 @@ describe('rung 78: whether an extension uses a WebView', () => {
 		climb(conn, 78);
 		expect(conn.prepare(`SELECT webview FROM engine_extensions`).get()).toEqual({ webview: null });
 	});
+});
+
+describe('rung 79: films and shows are kinds', () => {
+	it('widens series.kind, and takes both', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 78);
+		conn.prepare(`INSERT INTO roots (id, name, path) VALUES (1, 'Mihon', '/nowhere')`).run();
+		const add = (kind: string) =>
+			conn
+				.prepare(`INSERT INTO series (root_id, title, kind, added_at) VALUES (1, ?, ?, 1)`)
+				.run(kind, kind);
+		expect(() => add('movie')).toThrow(/CHECK/);
+		expect(() => add('show')).toThrow(/CHECK/);
+		climb(conn, 79);
+		for (const kind of ['movie', 'show']) expect(() => add(kind), kind).not.toThrow();
+	});
 
 	// The top rung's own block says it is the top; the next rung moves this line.
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(78);
+		expect(conn.pragma('user_version', { simple: true })).toBe(79);
 	});
 });

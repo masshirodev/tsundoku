@@ -1042,7 +1042,9 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
  * tracker is the other door, and it can link a doujin (`resolveLinks`).
  */
 // A browsing record (doc/BROWSING.md) is never in the LINK queue: it isn't the library's.
-const LINKABLE_KINDS = KINDS.filter((k) => kindFacts(k).grouping !== 'books');
+const LINKABLE_KINDS = KINDS.filter(
+	(k) => kindFacts(k).grouping !== 'books' && kindFacts(k).catalogue.provider === 'anilist'
+);
 const LINKABLE = `s.kind IN (${LINKABLE_KINDS.map((k) => `'${k}'`).join(', ')}) AND s.source != 'hentoid' AND ${IN_LIBRARY_SQL}`;
 
 /**
