@@ -1,4 +1,5 @@
 import { runtimeWords, type TmdbCollection, type TmdbShowFacts } from './tmdb.ts';
+import type { AroundHead, SeasonsAround } from './seasons-around.ts';
 
 /**
  * What surrounds a film or a show (card c990; doc/LINKS.md, "What surrounds
@@ -154,6 +155,31 @@ export function showView(o: {
 						.join(' · ')
 				}
 			: null
+	};
+}
+
+/**
+ * A show's other seasons as the episode list's heads (Show-Desk: `SEASON 1 ·
+ * 10 EP` with IN LIBRARY →, `SEASON 4 · 8 EP · TMDB · FROM 3 NOV`), in the
+ * shape the anime's seasons around it already draw (`SeasonsAround`), so the
+ * list needs no second markup. The heads before this series, then the next,
+ * then the rest. A season not in the library has no cell on its head: FIND is
+ * the band's and the SEASONS row's (the board). Null when it is the only one.
+ */
+export function showAround(v: ShowView): SeasonsAround | null {
+	const head = (h: SeasonHead): AroundHead => {
+		const [label, ...facts] = h.head.split(' · ');
+		return { key: h.season, label, facts, title: h.title, seriesId: h.seriesId, query: '' };
+	};
+	const before = v.heads.filter((h) => h.season < v.season).map(head);
+	const later = v.heads.filter((h) => h.season > v.season).map(head);
+	if (!before.length && !later.length) return null;
+	return {
+		before,
+		next: later[0] ?? null,
+		after: later.slice(1),
+		extras: [],
+		extrasLine: ''
 	};
 }
 

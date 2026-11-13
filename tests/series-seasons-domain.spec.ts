@@ -396,8 +396,8 @@ describe('an aired entry with no year (c358, round 3)', () => {
 		return {
 			w,
 			before: around.before.map((h) => `${h.label}=${h.title}`),
-			next: around.next.title || 'FIND',
-			facts: around.next.facts,
+			next: around.next!.title || 'FIND',
+			facts: around.next!.facts,
 			extras: around.extrasLine
 		};
 	};

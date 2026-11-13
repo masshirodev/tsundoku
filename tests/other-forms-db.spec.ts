@@ -550,7 +550,7 @@ describe('a middle season AniList answers nothing for (c700, round 2)', () => {
 		await pass();
 		const around = rel.seasonsAroundOf(without, false);
 		expect(around?.before.map((h) => h.key)).toEqual([g.before]);
-		expect(around?.next.key).toBe(g.next);
+		expect(around?.next!.key).toBe(g.next);
 
 		fresh();
 		const show = anime('Gap Show', g.first, g.middle, g.last);
@@ -638,7 +638,7 @@ describe('a middle season AniList answers nothing for (c700, round 2)', () => {
 		expect(await pass()).toMatchObject({ refreshed: 1, failed: 0 });
 		expect(asked).toContain(g.middle);
 		expect(JSON.parse(stored(show)!.graph!).unanswered).toEqual([g.middle]);
-		expect(rel.seasonsAroundOf(show, false)?.next.key).toBe(g.next);
+		expect(rel.seasonsAroundOf(show, false)?.next!.key).toBe(g.next);
 	});
 
 	it('keeps every answer when two middle seasons are dead', async () => {

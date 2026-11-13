@@ -29,6 +29,7 @@
 	import { kindFacts, kindUnit } from '$lib/library/kinds';
 	import { coverSrc, tagHref, readHref, seriesHref, withParam } from '$lib/library/links';
 	import Band from '$lib/components/chrome/Band.svelte';
+	import { tagSearchHref } from '$lib/library/tag-search';
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { postAction, saves, type FailedSave } from '$lib/saves.svelte';
@@ -399,6 +400,21 @@
 			cells: r.cell ? [{ label: r.cell, which, acc: false, dim: !offline.online }] : []
 		};
 	});
+	/** The offer NOT THIS just declined, for its band's UNDO. */
+	let declined = $state<string | null>(null);
+	/** A show's seasons from TMDB (c990, c992): the SEASONS row and SEASON N IS OUT. */
+	const showView = $derived(film?.surround?.kind === 'show' ? film.surround.view : null);
+	/** FIND for a show's missing season: the screen's own source searched for the show's name. */
+	const showFind = $derived(
+		showView && tagSource && film?.facts?.title
+			? tagSearchHref(
+					resolve('/browse/[source]', { source: tagSource.id }),
+					[],
+					{ namespace: 'title', value: film.facts.title },
+					resolve('/series/[id]', { id: String(series.id) })
+				)
+			: null
+	);
 	/** The DOWNLOAD row as drawn: a film's one file, or the series'. */
 	const dlRow = $derived(filmDl ?? seriesDl);
 	/** The KIND row (c992): the kind, its folder and how many files it holds. */
@@ -900,6 +916,52 @@
 	</a>
 	<!-- eslint-enable svelte/no-navigation-without-resolve -->
 
+	{#if !outline && declined}
+		<Band
+			title="NOT THIS · WON’T ASK AGAIN"
+			detail={declined.replace('season:', 'SEASON ')}
+			ondismiss={() => (declined = null)}
+		>
+			{#snippet action()}
+				<form
+					method="POST"
+					action="?/undoDecline"
+					use:enhance={() =>
+						async ({ update }) => {
+							declined = null;
+							await update();
+						}}
+				>
+					<input type="hidden" name="offer" value={declined} />
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
+	{:else if !outline && showView?.band}
+		<!-- SEASON 4 IS OUT (Show-Desk; c990): MIGHT CONTINUE's band, under CONTINUE, on a
+		     show's screen only. NOT THIS is kept, and no refresh asks it again. -->
+		{@const offer = `season:${showView.band.season}`}
+		<Band title={showView.band.title} detail={showView.band.meta}>
+			{#snippet action()}
+				{#if showFind}
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- tagSearchHref resolves -->
+					<a href={showFind}>FIND</a>
+				{/if}
+				<form
+					method="POST"
+					action="?/declineOffer"
+					use:enhance={() =>
+						async ({ update }) => {
+							declined = offer;
+							await update();
+						}}
+				>
+					<input type="hidden" name="offer" value={offer} />
+					<button type="submit">NOT THIS</button>
+				</form>
+			{/snippet}
+		</Band>
+	{/if}
 	{#if !outline && takenOut}
 		<Band
 			title={takenOut.facts.ended
@@ -1253,6 +1315,20 @@
 						offline={linkOff}
 						onclose={() => (trackingOpen = false)}
 					/>
+				{/if}
+				{#if showView}
+					<!-- SEASONS (Show-Desk; c990): under LISTS on a show TMDB knows. No key, no row. -->
+					<div class="row link-row seasons-row">
+						<div class="label">SEASONS</div>
+						<div class="lk">
+							<div class="lk-a">{showView.row.title}</div>
+							<div class="lk-b">{showView.row.meta}</div>
+						</div>
+						{#if showView.row.findRest && showFind}
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- tagSearchHref resolves -->
+							<a class="edit" href={showFind}>FIND THE REST →</a>
+						{/if}
+					</div>
 				{/if}
 				{#if highlights}
 					<!-- HIGHLIGHTS where nothing folds (Series S2): after LISTS, in the

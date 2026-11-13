@@ -335,7 +335,7 @@ describe('the pass fills the cache, and the screen reads it without asking (c358
 		await rel.refreshRelations(ask, { now: NOW });
 		const around = rel.seasonsAroundOf(s23, false)!;
 		expect(around.before.map((h) => [h.key, h.label])).toEqual([[101, 'SEASON 1']]);
-		expect(around.next.key).toBe(104);
+		expect(around.next!.key).toBe(104);
 		// Seasons 3 and 4 held, only 4 linked: season 3 is the series' own.
 		const s34 = series('Lantern Keeper 3 + 4', 'anime', [3, 4]);
 		link(s34, 4, 104);
@@ -480,7 +480,7 @@ describe('what makes the cache stale (c358)', () => {
 		expect(rel.relationsStale(s4, later - 1)).toBe(false);
 		expect(rel.relationsStale(s4, later)).toBe(true);
 		await rel.refreshRelations(ask, { now: later });
-		expect(rel.seasonsAroundOf(s4, false)!.next.facts).toEqual(['AIRING', '13 EP']);
+		expect(rel.seasonsAroundOf(s4, false)!.next!.facts).toEqual(['AIRING', '13 EP']);
 	});
 
 	it('links moved while AniList answered: the graph is not stored for links it can’t answer for', async () => {

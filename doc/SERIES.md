@@ -719,6 +719,22 @@ says elsewhere is said once (`src/lib/library/film.ts`, pinned by
 
 `tests/film-screen.e2e.ts` walks it on every device with a seeded linked film.
 
+### A show's screen (c992)
+
+A show is the anime's screen, with c990's TMDB view drawn in three places
+(the Show-Desk board):
+
+- **The heads**: the show's other seasons in the episode list, before and after
+  this series' own, in the shape the anime's seasons around it already draw
+  (`showAround`, `SeasonsAround`): `SEASON 1 · 10 EP` with IN LIBRARY →, `SEASON
+4 · 8 EP · TMDB · FROM 3 NOV`. `next` is null for a show on its last season,
+  and `after` carries the seasons past the next, which AniList's walk never has.
+- **SEASONS** under LISTS: `3 of 4 in the library`, `TMDB LISTS 4 · S4 NOT IN
+THE LIBRARY`, and FIND THE REST → (the source's search for the show's name,
+  until c995's sheet). No key, no row.
+- **SEASON 4 IS OUT** under CONTINUE, for the first aired season past every one
+  here: FIND and NOT THIS, which is kept (`tmdb_offers_declined`) and has UNDO.
+
 ### Where the film's screen departs from the handoff
 
 - **The genre is the series' own** (its source's first genre tag): TMDB's

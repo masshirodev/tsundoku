@@ -299,7 +299,10 @@ export type AroundHead = {
 
 export type SeasonsAround = {
 	before: AroundHead[];
-	next: AroundHead;
+	/** Null only for a show on its last season (c992): AniList's walk always has a NEXT SEASON. */
+	next: AroundHead | null;
+	/** A show's seasons past the next one (c992), drawn under it; AniList's walk has none. */
+	after?: AroundHead[];
 	extras: AroundHead[];
 	/** The folded line: `+ 3 EXTRAS · 2 OVA · 1 MOVIE`; '' for none. */
 	extrasLine: string;

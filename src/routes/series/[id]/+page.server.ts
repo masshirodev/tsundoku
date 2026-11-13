@@ -91,6 +91,7 @@ import {
 	undoKindSwitch
 } from '$lib/server/kind-switch';
 import { tmdbSearchNow } from '$lib/server/tmdb-links';
+import { declineOffer, undoDecline } from '$lib/server/tmdb-surround';
 import { tmdbQuery } from '$lib/library/tmdb';
 import { baseToEdition } from '$lib/library/editions';
 import { refreshSeries } from '$lib/server/refresh';
@@ -509,6 +510,19 @@ export const actions: Actions = {
 		}
 		if (!s.hidden) void tmdbSearchNow(s.id, tmdbQuery(s.title).query).catch(() => undefined);
 		return { kindSwitched: done };
+	},
+	/** NOT THIS on SEASON 4 IS OUT (c990, c992): no refresh offers it again. */
+	declineOffer: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const offer = String((await request.formData()).get('offer') ?? '');
+		if (!/^season:\d+$/.test(offer)) return fail(400, { message: 'which offer' });
+		declineOffer(s.id, offer);
+		return { declined: offer };
+	},
+	undoDecline: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const offer = String((await request.formData()).get('offer') ?? '');
+		return { undeclined: undoDecline(s.id, offer) };
 	},
 	undoKindSwitch: async ({ params, cookies }) => {
 		const s = target(params, cookies);

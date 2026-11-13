@@ -24,6 +24,8 @@ let tmdb: Server | null = null;
 let BASE = '';
 let filmId = 0;
 let wakeId = 0;
+let firstSeason = 0;
+let secondSeason = 0;
 
 const freePort = (): Promise<number> =>
 	new Promise((ok) => {
@@ -82,6 +84,43 @@ test.beforeAll(async () => {
 				{ id: 11, title: 'The Long Ferry', year: 2024, date: '2024-03-01' },
 				{ id: 12, title: 'The Long Ferry: Wake', year: 2025, date: '2025-04-01' },
 				{ id: 13, title: 'The Long Ferry: Ash', year: 2026, date: '2026-06-01' }
+			]
+		}),
+		Date.now()
+	);
+	// A show: seasons 1 and 2 in the library, TMDB's season 3 aired and nobody's.
+	const show = (title: string) => {
+		const id = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, in_library, source, origin_key)
+					VALUES (?, ?, 'show', 1, 1, 'aniyomi', ?)`
+				)
+				.run(root, title, `aniyomi:9:/show/${title}`).lastInsertRowid
+		);
+		for (let n = 1; n <= 2; n++)
+			db.prepare(
+				`INSERT INTO entries (series_id, position, label, added_at, episode_number) VALUES (?, ?, ?, 1, ?)`
+			).run(id, n, `Ep. ${n}`, n);
+		db.prepare(
+			`INSERT INTO series_tmdb_links (series_id, tmdb_id, media, via, title, year, linked_at)
+			VALUES (?, 77, 'tv', 'review', 'Harbour Lights', 2022, 1)`
+		).run(id);
+		return id;
+	};
+	firstSeason = show('Harbour Lights');
+	secondSeason = show('Harbour Lights Season 2');
+	db.prepare(
+		`INSERT INTO tmdb_surroundings (media, tmdb_id, data, fetched_at) VALUES ('tv', 77, ?, ?)`
+	).run(
+		JSON.stringify({
+			id: 77,
+			inProduction: true,
+			next: null,
+			seasons: [
+				{ season: 1, episodes: 10, airDate: '2022-01-01', name: 'Season 1' },
+				{ season: 2, episodes: 8, airDate: '2023-01-01', name: 'Season 2' },
+				{ season: 3, episodes: 8, airDate: '2024-11-03', name: 'Season 3' }
 			]
 		}),
 		Date.now()
@@ -187,4 +226,31 @@ test('KIND: CHANGE, the sheet says what a pick does, and the band says it was do
 		.getByRole('button', { name: 'UNDO' })
 		.click();
 	await expect(page.locator('.kind-row').first()).toContainText('Movie');
+});
+
+test('a show: TMDB’s seasons as heads, SEASONS under LISTS, and SEASON 3 IS OUT with NOT THIS (c992)', async ({
+	page
+}) => {
+	await page.goto(`${BASE}/series/${secondSeason}`);
+	const list = page.getByRole('region', { name: 'Episodes' });
+	const s1 = list.locator('.season.around', { hasText: 'SEASON 1' });
+	await expect(s1).toContainText('10 EP');
+	await expect(s1.getByRole('link', { name: /in the library/ })).toHaveAttribute(
+		'href',
+		new RegExp(`/series/${firstSeason}`)
+	);
+	await expect(list.locator('.season.around', { hasText: 'SEASON 3' })).toContainText('TMDB');
+	const details = page.locator('.details-line').first();
+	if (await details.isVisible()) await details.click();
+	const row = page.locator('.seasons-row').first();
+	await expect(row).toContainText('2 of 3 in the library');
+	await expect(row).toContainText('TMDB LISTS 3 · S3 NOT IN THE LIBRARY');
+	const band = page.locator('.band', { hasText: 'SEASON 3 IS OUT' });
+	await expect(band).toContainText('NO SERIES HOLDS IT');
+	await band.getByRole('button', { name: 'NOT THIS' }).click();
+	const kept = page.locator('.band', { hasText: 'WON’T ASK AGAIN' });
+	await expect(kept).toBeVisible();
+	await expect(page.locator('.band', { hasText: 'SEASON 3 IS OUT' })).toHaveCount(0);
+	await kept.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page.locator('.band', { hasText: 'SEASON 3 IS OUT' })).toBeVisible();
 });

@@ -4,6 +4,7 @@
 	import EpisodeList from './EpisodeList.svelte';
 	import FilmStage from './FilmStage.svelte';
 	import KindSheet from './KindSheet.svelte';
+	import { showAround } from '$lib/library/surroundings';
 	import { movedUnit } from './move-words';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import DeleteSheet from './DeleteSheet.svelte';
@@ -1018,7 +1019,9 @@
 					onselect={() => (selecting = true)}
 					onlong={markThrough}
 					downloads={dlStates}
-					around={data.around}
+					around={data.film?.surround?.kind === 'show'
+						? showAround(data.film.surround.view)
+						: data.around}
 					tagSource={data.tagSource}
 					otherForms={data.otherForms?.rows ?? null}
 					ongroup={(b) => (groupingForm = b)}

@@ -268,7 +268,8 @@
 			{/if}
 		{/each}
 		{#if around}
-			{@render aroundHead(around.next)}
+			{#if around.next}{@render aroundHead(around.next)}{/if}
+			{#each around.after ?? [] as h (h.key)}{@render aroundHead(h)}{/each}
 			{#if around.extras.length}
 				<li class="season around extras">
 					<button
