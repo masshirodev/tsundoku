@@ -6,6 +6,7 @@ import { setSetting } from '$lib/server/settings';
 import { VISIBLE_SQL } from '$lib/server/visibility';
 import { refreshCovers } from '$lib/server/covers';
 import { linkCount, linkQueueCount } from '$lib/server/catalogue';
+import { tmdbQueueCount } from '$lib/server/tmdb-links';
 import { accounts, retry, signOut } from '$lib/server/tracking';
 import { ranobeAccount, ranobeQueueCount, retryRanobe } from '$lib/server/ranobe-review';
 import { SERVICES, type Service } from '$lib/library/tracking';
@@ -163,7 +164,7 @@ export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest
 		// CATALOGUES (Catalogue Links 1u, 1v; doc/TRACKING.md).
 		catalogues: {
 			linked: linkCount(),
-			toReview: linkQueueCount(reveal) + ranobeQueueCount(),
+			toReview: linkQueueCount(reveal) + ranobeQueueCount() + tmdbQueueCount(reveal),
 			accounts: accounts(),
 			// Ranobe's row (Ranobe 3a–3c; doc/RANOBE.md): no sign-in, a token in .env.
 			ranobe: ranobeAccount()

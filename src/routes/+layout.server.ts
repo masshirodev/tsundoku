@@ -12,6 +12,7 @@ import { startNow } from '$lib/server/start';
 import { chosenLocale, LANG_COOKIE, type LangChoice } from '$lib/i18n/locale';
 import { m } from '$lib/paraglide/messages';
 import { linkQueueCount } from '$lib/server/catalogue';
+import { tmdbQueueCount } from '$lib/server/tmdb-links';
 import { ranobeQueueCount } from '$lib/server/ranobe-review';
 import { isTsundokuApp } from '$lib/settings/catalog';
 import { scanWaitsLine } from '$lib/server/import';
@@ -79,7 +80,7 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends, request
 	// way into /links, so putting the library's band away never hides it.
 	// The library's own sum, so the row and the band never disagree; about a
 	// millisecond on the seed, both catalogues and either reveal (wave 21).
-	const toLink = linkQueueCount(reveal) + ranobeQueueCount();
+	const toLink = linkQueueCount(reveal) + ranobeQueueCount() + tmdbQueueCount(reveal);
 	// HIGHLIGHTS (c701; doc/HIGHLIGHTS.md): the sidebar's and MORE's row after
 	// HISTORY, with the count, absent at zero. A hidden series' are not
 	// counted without reveal, deleted series' included (the stored flag).

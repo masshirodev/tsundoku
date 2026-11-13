@@ -24,6 +24,13 @@ export default function setup() {
 	// script a spec runs; no spec has a reason to inherit them.
 	for (const name of Object.keys(process.env))
 		if (name.startsWith('GIT_')) delete process.env[name];
+	// Nor does a spec reach TMDB with the owner's key (card c989). The shell
+	// exports TMDB_API_KEY and TMDB_API_RC_TOKEN from the dotfiles' .env, and the
+	// client reads them at call time, so a spec whose data held a film would
+	// send its titles to the real TMDB. A spec that wants a key sets its own,
+	// and its fetch is a stub.
+	for (const name of ['TMDB_API_KEY', 'TMDB_API_RC_TOKEN', 'TMDB_API_URL'])
+		delete process.env[name];
 
 	const base = mkdtempSync(join(tmpdir(), 'tsundoku-specs-'));
 	for (const [name, dir] of [

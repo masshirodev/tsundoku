@@ -40,6 +40,7 @@
 	import TagSheet from './TagSheet.svelte';
 	import { libraryTagKey, tagRouteHref } from '$lib/library/tag-search';
 	import type { LinkState } from '$lib/server/catalogue';
+	import type { TmdbLinkState } from '$lib/server/tmdb-links';
 	import type { SeasonRow } from '$lib/library/catalogue';
 	import { offline } from '$lib/offline.svelte';
 	import TrackingSheet from './TrackingSheet.svelte';
@@ -106,6 +107,7 @@
 		keptBoth = null,
 		editions = null,
 		link = null,
+		tmdb = null,
 		tracking = null,
 		ranobe = null,
 		seasons = null,
@@ -174,6 +176,8 @@
 		editions?: BookEditions | null;
 		/** Its catalogue link (doc/LINKS.md): the LINK and COVER rows. Null for a doujin. */
 		link?: LinkState | null;
+		/** A film's or a show's TMDB link (c989): LISTS' TMDB line. Null for any other kind. */
+		tmdb?: TmdbLinkState | null;
 		/** What the catalogues' lists say of it, and what was sent (doc/TRACKING.md). */
 		tracking?: Tracking | null;
 		/**
@@ -378,6 +382,7 @@
 					seriesId: series.id,
 					kind: series.kind,
 					link,
+					tmdb,
 					tracking,
 					ranobe,
 					seasons,

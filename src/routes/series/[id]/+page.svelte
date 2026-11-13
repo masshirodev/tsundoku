@@ -917,6 +917,7 @@
 					words={data.words}
 					editions={data.editions}
 					link={data.link}
+					tmdb={data.tmdb}
 					tracking={data.tracking}
 					ranobe={data.ranobe}
 					seasons={data.seasons}

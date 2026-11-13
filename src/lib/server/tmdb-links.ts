@@ -4,8 +4,17 @@ import { catalogueConfigured } from './catalogues.ts';
 import { catalogueClient } from './catalogue-clients.ts';
 import { KINDS, kindFacts, type Kind } from '../library/kinds.ts';
 import { titlesOfRow } from './catalogue.ts';
-import { tmdbQuery, tmdbRows, tmdbSure, tmdbWhy, type TmdbTitle } from '../library/tmdb.ts';
-import type { Row } from '../library/catalogue.ts';
+import {
+	tmdbMatchTitles,
+	tmdbQuery,
+	tmdbRows,
+	tmdbSure,
+	tmdbTitles,
+	tmdbWhy,
+	type TmdbTitle
+} from '../library/tmdb.ts';
+import { tmdbMedia } from './tmdb.ts';
+import { normaliseTitle, type Row } from '../library/catalogue.ts';
 
 /**
  * TMDB links, a film's and a show's (card c989; doc/LINKS.md, "TMDB links").
@@ -369,15 +378,21 @@ export type TmdbLinkState = {
 	queued: boolean;
 	/** Hidden series are never searched: FIND is a pasted link only. */
 	hidden: boolean;
+	/** Where the title and cover come from without TMDB: the source's own name (`MOVIES MOD`). */
+	source: string;
 };
 
 /** The LINK state of a film or a show, or null for any other kind. */
 export function tmdbLinkState(seriesId: number): TmdbLinkState | null {
 	const r = getDb()
 		.prepare(
-			`SELECT s.kind, ${HIDDEN_SQL} AS hidden FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ?`
+			`SELECT s.kind, s.source, ${HIDDEN_SQL} AS hidden,
+				(SELECT t.value FROM series_tags st JOIN tags t ON t.id = st.tag_id
+					WHERE st.series_id = s.id AND t.namespace = 'source' LIMIT 1) AS site
+			FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ?`
 		)
-		.get(seriesId) as { kind: Kind; hidden: number } | undefined;
+		.get(seriesId) as
+		{ kind: Kind; source: string; site: string | null; hidden: number } | undefined;
 	if (!r || !isTmdbKind(r.kind)) return null;
 	const l = linkOf(seriesId);
 	const s = searchOf(seriesId);
@@ -400,7 +415,8 @@ export function tmdbLinkState(seriesId: number): TmdbLinkState | null {
 		candidates: l ? 0 : candidatesOf(seriesId).length,
 		searched: !!s?.searched_at,
 		queued: !!s && s.searched_at === null && s.decision === null,
-		hidden: !!r.hidden
+		hidden: !!r.hidden,
+		source: (r.site || r.source).toUpperCase()
 	};
 }
 
@@ -427,51 +443,249 @@ export function tmdbQueueSearch(seriesId: number, query: string): void {
 	})();
 }
 
-export type TmdbReviewCandidate = TmdbTitle & { why: string; rows: Row[]; ids: string };
-
-export type TmdbReviewItem = {
-	seriesId: number;
-	kind: TmdbKind;
+/**
+ * A TMDB candidate as the review draws it, in the shape Ranobe's already has
+ * (`key`, `href`, `coverUrl`, its rows and why-line), so the page draws either
+ * the same way. `exact` is `tmdbSure`'s title rule for the EXACT TITLE chip.
+ */
+export type TmdbReviewCandidate = {
+	key: string;
+	tmdbId: number;
+	media: 'movie' | 'tv';
 	title: string;
-	titles: string[];
+	alts: string[];
+	why: string;
+	rows: Row[];
+	ids: string;
+	coverUrl: string | null;
+	coverNote: null;
+	href: string;
+	exact: boolean;
+};
+
+/**
+ * One film's or show's review item (`service: 'tmdb'`), in the shape the
+ * page reads of every item, with THIS SERIES' rows and the searched line
+ * drawn here, as Ranobe's are, since the page's own are AniList's.
+ */
+export type TmdbReviewItem = {
+	service: 'tmdb';
+	seriesId: number;
+	title: string;
+	alts: string[];
+	kind: TmdbKind;
+	hue: number;
+	sourceKind: string;
+	chapters: number;
+	hasCover: boolean;
+	coverAt: number | null;
 	query: string;
+	found: number;
+	searched: boolean;
+	searchedAt: number | null;
+	queued: boolean;
+	cutShort: boolean;
 	year: number | null;
 	hidden: boolean;
+	rows: { label: string; value: string }[];
+	searchedLine: string;
 	candidates: TmdbReviewCandidate[];
 };
 
-const reviewCandidate = (
-	series: { titles: string[]; year: number | null },
-	c: TmdbTitle
-): TmdbReviewCandidate => ({
-	...c,
-	why: tmdbWhy(series, c),
-	rows: tmdbRows(series, c),
-	ids: `TMDB ${c.id}`
-});
+export const tmdbHref = (media: 'movie' | 'tv', id: number) =>
+	`https://www.themoviedb.org/${media}/${id}`;
+
+function reviewCandidate(series: { titles: string[]; year: number | null }, c: TmdbTitle) {
+	const ours = new Set(tmdbMatchTitles(series.titles).map(normaliseTitle).filter(Boolean));
+	return {
+		key: `tmdb:${c.id}`,
+		tmdbId: c.id,
+		media: c.media,
+		title: c.title,
+		alts: tmdbTitles(c).slice(1),
+		why: tmdbWhy(series, c),
+		rows: tmdbRows(series, c),
+		ids: `TMDB ${c.id}`,
+		coverUrl: c.poster,
+		coverNote: null,
+		href: tmdbHref(c.media, c.id),
+		exact: tmdbTitles(c).some((t) => ours.has(normaliseTitle(t)))
+	} satisfies TmdbReviewCandidate;
+}
+
+type ItemRow = {
+	id: number;
+	kind: Kind;
+	title: string;
+	alt_titles: string | null;
+	hue: number;
+	source: string;
+	cover_key: string;
+	cover_at: number | null;
+	chapters: number;
+	site: string | null;
+	hidden: number;
+};
+
+/** "THE LONG FERRY · 2024", the review's word for what was asked. */
+const asked = (query: string, year: number | null) =>
+	year ? `“${query}” · ${year}` : `“${query}”`;
 
 /** One film's or show's review item: its titles and what the last search found. */
 export function tmdbReviewItem(seriesId: number): TmdbReviewItem | null {
 	const r = getDb()
 		.prepare(
-			`SELECT s.id, s.kind, s.title, ${HIDDEN_SQL} AS hidden FROM series s JOIN roots r ON r.id = s.root_id
-			WHERE s.id = ?`
+			`SELECT s.id, s.kind, s.title, s.alt_titles, s.hue, s.source, s.cover_key, s.cover_at,
+				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS chapters,
+				(SELECT t.value FROM series_tags st JOIN tags t ON t.id = st.tag_id
+					WHERE st.series_id = s.id AND t.namespace = 'source' LIMIT 1) AS site,
+				${HIDDEN_SQL} AS hidden
+			FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ?`
 		)
-		.get(seriesId) as { id: number; kind: Kind; title: string; hidden: number } | undefined;
+		.get(seriesId) as ItemRow | undefined;
 	if (!r || !isTmdbKind(r.kind)) return null;
 	const s = searchOf(seriesId);
-	const { titles } = titlesOfSeries(seriesId);
-	const year = s?.year ?? tmdbQuery(r.title).year;
+	const titles = titlesOfRow(r);
+	const own = tmdbQuery(r.title);
+	const year = s?.year ?? own.year;
+	const query = s?.query ?? own.query;
+	const candidates = candidatesOf(seriesId).map((c) => reviewCandidate({ titles, year }, c));
+	const searched = !!s?.searched_at;
+	const queued = !!s && s.searched_at === null && s.decision === null;
+	const film = r.kind === 'movie';
+	const site = (r.site ?? '').toUpperCase();
 	return {
+		service: 'tmdb',
 		seriesId: r.id,
-		kind: r.kind,
 		title: r.title,
-		titles,
-		query: s?.query ?? tmdbQuery(r.title).query,
+		alts: titles.slice(1),
+		kind: r.kind,
+		hue: r.hue,
+		sourceKind: site || r.source.toUpperCase(),
+		chapters: r.chapters,
+		hasCover: r.cover_key !== '',
+		coverAt: r.cover_at,
+		query,
+		found: s?.found ?? 0,
+		searched,
+		searchedAt: s?.searched_at ?? null,
+		queued,
+		cutShort: false,
 		year,
 		hidden: !!r.hidden,
-		candidates: candidatesOf(seriesId).map((c) => reviewCandidate({ titles, year }, c))
+		rows: [
+			{
+				label: 'SOURCE',
+				value: [...new Set([site, r.source.toUpperCase()].filter(Boolean))].join(' · ')
+			},
+			film
+				? { label: 'FILE', value: r.chapters === 1 ? 'ONE FILM' : `${r.chapters} ENTRIES` }
+				: { label: 'EPISODES', value: String(r.chapters) },
+			{ label: 'YEAR', value: year ? `${year} · FROM ITS TITLE` : 'NOT IN ITS TITLE' }
+		],
+		searchedLine: r.hidden
+			? 'HIDDEN SERIES ARE NEVER SEARCHED · ONLY A PASTED LINK, WHICH SENDS NOTHING BUT ITS ID'
+			: queued
+				? `A SEARCH FOR ${asked(query, null)} WAITS FOR THE NEXT PASS`
+				: !searched
+					? 'NOT SEARCHED YET · SEARCH AGAIN ASKS TMDB NOW'
+					: `SEARCHED TMDB FOR ${asked(query, year)} · ${s?.found ?? 0} FOUND${candidates.length ? ' · TAP ONE TO LINK' : ''}`,
+		candidates
 	};
+}
+
+/** A pasted TMDB link, read as one candidate. Only its id leaves; a film's link on a show is refused. */
+export async function tmdbPastedCandidate(
+	seriesId: number,
+	ref: { media: 'movie' | 'tv'; id: number }
+): Promise<TmdbReviewCandidate | null> {
+	const item = tmdbReviewItem(seriesId);
+	if (!item) return null;
+	if (tmdbMedia(item.kind) !== ref.media) throw new Error('wrong kind');
+	const t = await catalogueClient('tmdb').byId(item.kind, ref.id);
+	return t ? reviewCandidate({ titles: [item.title, ...item.alts], year: item.year }, t) : null;
+}
+
+// ---- UNDO, as the review posts it ---------------------------------------------------------
+
+/**
+ * What the review's last decision on a series replaced, so `{ undo }` alone
+ * takes it back, as Ranobe's endpoint does. One process serves the review, and
+ * a restart forgets it: then UNDO answers false and the band says nothing
+ * was undone, which is the truth.
+ */
+const lastBefore = new Map<number, TmdbBefore>();
+type SearchSnapshot = {
+	row: SearchRow | null;
+	candidates: { tmdb_id: number; rank: number; data: string }[];
+};
+const lastSearch = new Map<number, SearchSnapshot>();
+
+/** LINK from the review or a paste: the entry's title, for the band. */
+export async function tmdbLinkFromReview(
+	seriesId: number,
+	tmdbId: number,
+	via: 'review' | 'pasted'
+): Promise<string> {
+	lastBefore.set(seriesId, await tmdbLink(seriesId, tmdbId, via));
+	return linkOf(seriesId)?.title ?? '';
+}
+
+export function tmdbNoneFromReview(seriesId: number): void {
+	lastBefore.set(seriesId, tmdbNone(seriesId));
+}
+
+export function tmdbUnlinkFromReview(seriesId: number): void {
+	lastBefore.set(seriesId, tmdbUnlink(seriesId));
+}
+
+export function tmdbUndoLast(seriesId: number): boolean {
+	const b = lastBefore.get(seriesId);
+	if (!b) return false;
+	tmdbUndo(seriesId, b);
+	lastBefore.delete(seriesId);
+	return true;
+}
+
+/** SEARCH AGAIN from the review: what it replaced is kept for its UNDO. */
+export async function tmdbSearchAgain(seriesId: number, query: string): Promise<number> {
+	const db = getDb();
+	lastSearch.set(seriesId, {
+		row: searchOf(seriesId),
+		candidates: db
+			.prepare(`SELECT tmdb_id, rank, data FROM tmdb_link_candidates WHERE series_id = ?`)
+			.all(seriesId) as SearchSnapshot['candidates']
+	});
+	return tmdbSearchNow(seriesId, query);
+}
+
+export function tmdbUndoSearch(seriesId: number): boolean {
+	const was = lastSearch.get(seriesId);
+	if (!was) return false;
+	const db = getDb();
+	db.transaction(() => {
+		db.prepare(`DELETE FROM tmdb_link_searches WHERE series_id = ?`).run(seriesId);
+		db.prepare(`DELETE FROM tmdb_link_candidates WHERE series_id = ?`).run(seriesId);
+		if (was.row)
+			db.prepare(
+				`INSERT INTO tmdb_link_searches (series_id, query, year, searched_at, found, decision, decided_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?)`
+			).run(
+				seriesId,
+				was.row.query,
+				was.row.year,
+				was.row.searched_at,
+				was.row.found,
+				was.row.decision,
+				was.row.decided_at
+			);
+		const put = db.prepare(
+			`INSERT INTO tmdb_link_candidates (series_id, tmdb_id, rank, data) VALUES (?, ?, ?, ?)`
+		);
+		for (const c of was.candidates) put.run(seriesId, c.tmdb_id, c.rank, c.data);
+	})();
+	lastSearch.delete(seriesId);
+	return true;
 }
 
 const QUEUE_SQL = (reveal: boolean) => `SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id

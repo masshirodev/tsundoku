@@ -17,6 +17,7 @@ import {
 	UndoUnlinkRefused,
 	unlink
 } from '$lib/server/catalogue';
+import { tmdbLinkState } from '$lib/server/tmdb-links';
 import { seriesSeasons } from '$lib/server/season-links';
 import { unlinkSeries } from '$lib/server/ranobe';
 import { ranobeSeries, retryRanobe } from '$lib/server/ranobe-review';
@@ -298,6 +299,8 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		words: kindFacts(series.kind).medium === 'pages' ? wordsOf(series.id, reveal) : null,
 		// Its MyAnimeList / AniList entry (doc/LINKS.md): the LINK and COVER rows.
 		link: linkState(series.id),
+		// A film's or a show's TMDB link (c989): LISTS' TMDB line, SET UP → with no key.
+		tmdb: tmdbLinkState(series.id),
 		// An anime's seasons (c240): a link each, and the row folds round the one
 		// being watched. Null for anything else, which draws today's rows.
 		seasons: isAnime(series.kind) ? (seriesSeasons(series.id)?.seasons ?? null) : null,

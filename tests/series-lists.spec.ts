@@ -14,6 +14,7 @@ import {
 	type Line,
 	type ListsInput
 } from '../src/routes/series/[id]/lists';
+import type { TmdbLinkState } from '$lib/server/tmdb-links';
 import {
 	DETAILS_KEY,
 	detailsLine,
@@ -1178,5 +1179,102 @@ describe('a NEVER TRACKED source (c522)', () => {
 		);
 		expect(l.states).toEqual([why]);
 		expect(labels(l.cells)).toEqual(['FIND', 'PASTE A LINK']);
+	});
+});
+
+// ---- a film's and a show's TMDB line (c989; the keys handoff, Board 2) ------------------------
+
+function tmdb(o: Partial<TmdbLinkState> = {}): TmdbLinkState {
+	return {
+		configured: true,
+		linked: null,
+		decision: null,
+		candidates: 0,
+		searched: false,
+		queued: false,
+		hidden: false,
+		source: 'MOVIES MOD',
+		...o
+	};
+}
+
+describe('the TMDB line', () => {
+	it('says “Not looked up” with no key, and SET UP → in ink, not the accent', () => {
+		const [l] = lines(input({ kind: 'movie', tmdb: tmdb({ configured: false }) }));
+		expect(l).toMatchObject({
+			tag: 'TMDB',
+			title: 'Not looked up',
+			muted: true,
+			meta: 'NO TMDB KEY · TITLE AND COVER FROM MOVIES MOD'
+		});
+		expect(l.cells).toEqual([
+			{
+				key: 'setup',
+				label: 'SET UP →',
+				accent: false,
+				dim: false,
+				href: '/settings?section=catalogues#tmdb'
+			}
+		]);
+	});
+
+	it('is the one line a film has: never an AniList line beside it', () => {
+		expect(
+			lines(input({ kind: 'movie', tmdb: tmdb({ configured: false }) })).map((l) => l.tag)
+		).toEqual(['TMDB']);
+	});
+
+	it('draws a linked film and a linked show the board’s way, with CHANGE', () => {
+		const film = lines(
+			input({
+				kind: 'movie',
+				tmdb: tmdb({
+					linked: {
+						tmdbId: 9,
+						media: 'movie',
+						title: 'Yoru no Kanata',
+						year: 2019,
+						via: 'exact',
+						runtime: 112,
+						seasons: null,
+						collection: null
+					}
+				})
+			})
+		)[0];
+		expect(film).toMatchObject({
+			title: 'Yoru no Kanata',
+			muted: false,
+			meta: 'FILM · 2019 · 1 H 52'
+		});
+		expect(labels(film.cells)).toEqual(['CHANGE']);
+		const show = lines(
+			input({
+				kind: 'show',
+				tmdb: tmdb({
+					linked: {
+						tmdbId: 10,
+						media: 'tv',
+						title: 'Kamen no Shita',
+						year: 2024,
+						via: 'review',
+						runtime: null,
+						seasons: 3,
+						collection: null
+					}
+				})
+			})
+		)[0];
+		expect(show.meta).toBe('SHOW · 2024 · 3 SEASONS ON TMDB');
+	});
+
+	it('not linked, says what the search did and offers FIND, or PASTE alone when hidden', () => {
+		const found = lines(input({ kind: 'movie', tmdb: tmdb({ searched: true, candidates: 2 }) }))[0];
+		expect(found.meta).toBe('2 FOUND ON TMDB · NOT FOR CERTAIN');
+		expect(labels(found.cells)).toEqual(['FIND', 'PASTE A LINK']);
+		expect(found.cells[0].href).toBe('/links?series=7');
+		const hidden = lines(input({ kind: 'movie', tmdb: tmdb({ hidden: true }) }))[0];
+		expect(hidden.meta).toBe('HIDDEN SERIES ARE NEVER SEARCHED');
+		expect(labels(hidden.cells)).toEqual(['PASTE A LINK']);
 	});
 });

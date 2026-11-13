@@ -106,6 +106,14 @@ does not hold, so a film never gets an AniList line; `tmdbLinkState` is its.
   AniList outage never stops it, and a TMDB failure is `tmdbError`, never
   AniList's `unreachable`. AniList's own failure still reaches the caller,
   after TMDB ran. A hidden series is never searched; a settled one never again.
+- **Its own timer** (`tmdb-fill.ts`, started in `hooks.server.ts`'s `init`
+  beside the relation cache's): twenty films or shows every ten minutes, the
+  first a minute after startup. Without it the pass would run only after an
+  import and from `yarn run links`, and a film comes from BROWSE's ADD, so a
+  friend who never imports would never be backfilled. Twenty is at most sixty
+  requests (a search, the same without a year, the sure match's details) against
+  TMDB's fifty a second. Under a stand-in TMDB (`TMDB_API_URL`) it runs only
+  when `TSUNDOKU_TMDB_FILL_MS` asks.
 - **No key is a state.** With no key the pass searches nothing and **marks
   nothing**, so the first pass after a key is added finds the library
   unsearched: that pass **is the backfill**. It offers matches and links only
@@ -113,6 +121,25 @@ does not hold, so a film never gets an AniList line; `tmdbLinkState` is its.
 - **The owner's doors** — LINK from the review, a pasted TMDB link, NONE OF
   THESE, UNLINK, SEARCH AGAIN — each answer what they replaced (`TmdbBefore`),
   which UNDO puts back. A search the owner runs never links by itself.
+- **The review** is `/links`' third service, `tmdb`, posting to
+  `/api/links/tmdb` in Ranobe's body shape. Its item arrives with THIS SERIES'
+  rows (SOURCE, FILE or EPISODES, YEAR) and the searched line drawn by the
+  workstation, as Ranobe's does, so the page's own AniList rows stay AniList's.
+  A candidate is FORMAT, YEAR (strong when the source named it) and RUNTIME or
+  SEASONS; EXACT TITLE is `tmdbSure`'s title rule. UNDO is remembered by the
+  workstation per series, as Ranobe's is; a restart forgets it, and UNDO then
+  says nothing was undone. The queue holds films and shows last, and only with
+  a key; every TO LINK count adds `tmdbQueueCount`.
+- **The LISTS line** (`tmdbLine`, `series/[id]/lists.ts`; the keys handoff,
+  Board 2) is a film's and a show's only line. With no key: `TMDB` · _Not looked
+  up_ · `NO TMDB KEY · TITLE AND COVER FROM <SOURCE>` · `SET UP →` in ink, not
+  the accent, to SETTINGS' CATALOGUES (HELP's keys topic, c994, is where it
+  points once that exists). Linked: the entry, `FILM · 2019 · 1 H 52` or `SHOW ·
+2024 · 3 SEASONS ON TMDB`, and CHANGE. Not linked: the AniList line's search
+  words with `ON TMDB`, FIND and PASTE A LINK.
+- **Not yet:** the NFO's `<uniqueid type="tmdb">` waits on `Movies/` and
+  `Shows/` on disk (c991); the overview, poster and collection are stored on
+  the link for the film's screen (c992) and its collection (c990) to read.
 
 ## What the owner decided (2026-09-24)
 

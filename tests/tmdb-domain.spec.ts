@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	parseTmdbUrl,
 	runtimeWords,
 	tmdbQuery,
 	tmdbRows,
@@ -128,5 +129,25 @@ describe('the review’s words', () => {
 		expect(tmdbWhy({ titles: ['Abc'], year: null }, t({ id: 10, title: 'Xyz' }))).toBe(
 			'ANOTHER ENGLISH TITLE'
 		);
+	});
+});
+
+describe('parseTmdbUrl', () => {
+	it('reads a film’s or a show’s link for its kind and id alone', () => {
+		expect(parseTmdbUrl('https://www.themoviedb.org/movie/603-the-matrix')).toEqual({
+			media: 'movie',
+			id: 603
+		});
+		expect(parseTmdbUrl('themoviedb.org/tv/1399?language=en')).toEqual({ media: 'tv', id: 1399 });
+	});
+
+	it('refuses anything else', () => {
+		for (const t of [
+			'',
+			'https://anilist.co/anime/1',
+			'themoviedb.org/person/5',
+			'themoviedb.org/movie/0'
+		])
+			expect(parseTmdbUrl(t), t).toBeNull();
 	});
 });

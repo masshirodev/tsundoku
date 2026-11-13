@@ -3,6 +3,7 @@ import { building } from '$app/environment';
 import { getDb } from '$lib/server/db';
 import { closeDeadJobs } from '$lib/server/import/write';
 import { startRelationsFill } from '$lib/server/relations-fill';
+import { startTmdbFill } from '$lib/server/tmdb-fill';
 import { sequence } from '@sveltejs/kit/hooks';
 import { defineCustomServerStrategy } from '$lib/paraglide/runtime';
 import { paraglideMiddleware } from '$lib/paraglide/server';
@@ -140,11 +141,15 @@ export const handle = sequence(language, guard);
  * the app starts belongs to a process that is gone (doc/IMPORT-MIHON.md).
  *
  * The relation cache fills from here (doc/LINKS.md, "How the cache fills"), on
- * every install, a friend's included. Never while building: SvelteKit runs
+ * every install, a friend's included, and so do TMDB's links (`tmdb-fill.ts`). Never while building: SvelteKit runs
  * this hook for a prerender, where there is nothing to fill for.
  */
 export const init: ServerInit = () => {
 	const closed = closeDeadJobs(getDb());
 	if (closed > 0) console.log(`[import] closed ${closed} import left unfinished by the last run`);
-	if (!building) startRelationsFill();
+	if (!building) {
+		startRelationsFill();
+		// Films and shows (c989): no key, no request; the first tick after one is the backfill.
+		startTmdbFill();
+	}
 };

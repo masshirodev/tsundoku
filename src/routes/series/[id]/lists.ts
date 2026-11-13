@@ -25,6 +25,8 @@ import {
 import { ranobeLines } from '$lib/library/ranobe';
 import type { Kind } from '$lib/library/types';
 import type { LinkState } from '$lib/server/catalogue';
+import type { TmdbLinkState } from '$lib/server/tmdb-links';
+import { runtimeWords } from '$lib/library/tmdb';
 import type { SeasonTrack, Tracking } from '$lib/server/tracking';
 import type { RanobeSeries } from '$lib/server/ranobe-review';
 
@@ -40,7 +42,7 @@ export type SheetAt = { list: 'anilist'; season: number | null } | { list: 'rano
  * IN →, FIND or CHANGE, PASTE A LINK, EDIT (`CELL_ORDER`).
  */
 export type Cell = {
-	key: 'retry' | 'signin' | 'find' | 'change' | 'paste' | 'edit' | 'open';
+	key: 'retry' | 'signin' | 'find' | 'change' | 'paste' | 'edit' | 'open' | 'setup';
 	label: string;
 	accent: boolean;
 	/** Offline: drawn at 35%, not a control. OPEN ↗ is the one cell that never dims. */
@@ -96,6 +98,8 @@ export type ListsInput = {
 	seriesId: number;
 	kind: Kind;
 	link: LinkState | null;
+	/** A film's or a show's TMDB link (c989); null or absent for any other kind. */
+	tmdb?: TmdbLinkState | null;
 	tracking: Tracking | null;
 	ranobe: RanobeSeries | null;
 	/** An anime's seasons; null for anything else. */
@@ -111,7 +115,16 @@ export type ListsInput = {
 	settingsHref: string;
 };
 
-const CELL_ORDER: Cell['key'][] = ['retry', 'signin', 'find', 'change', 'paste', 'open', 'edit'];
+const CELL_ORDER: Cell['key'][] = [
+	'setup',
+	'retry',
+	'signin',
+	'find',
+	'change',
+	'paste',
+	'open',
+	'edit'
+];
 const sortCells = (cells: Cell[]) =>
 	cells.sort((a, b) => CELL_ORDER.indexOf(a.key) - CELL_ORDER.indexOf(b.key));
 
@@ -833,7 +846,76 @@ function foldWord(i: ListsInput, list: number[]): { word: string; ink: boolean }
  * Ranobe on a novel, the seasons on an anime), then the other list. Null when
  * there is nothing to list: a doujin is never linked.
  */
+/**
+ * A film's or a show's TMDB line (c989; the keys handoff, Board 2:
+ * doc/handoffs/keys-accounts/Keys-Rows.dc.html). With no key it is the one
+ * place that says why the film is only its title and cover: a muted "Not
+ * looked up", the source it comes from, and SET UP → in ink, not the accent
+ * (the accent marks what is the owner's or active, and this is neither yet).
+ * With a key it is an ordinary link line: the entry, `FILM · 2019 · 1 H 52` or
+ * `SHOW · 2024 · 3 SEASONS ON TMDB`, and CHANGE; not linked, the AniList line's
+ * search words and FIND.
+ */
+export function tmdbLine(i: ListsInput, t: TmdbLinkState): Line {
+	const film = i.kind === 'movie';
+	const findHref = `${i.linksHref}?series=${i.seriesId}`;
+	const base = { key: 'tmdb', tag: 'TMDB', on: false, small: false, under: false, states: [] };
+	if (!t.configured)
+		return {
+			...base,
+			title: 'Not looked up',
+			muted: true,
+			meta: `NO TMDB KEY · TITLE AND COVER FROM ${t.source}`,
+			cells: [
+				{
+					key: 'setup',
+					label: 'SET UP →',
+					accent: false,
+					// A link to read, not a workstation call: it works offline too.
+					dim: false,
+					href: `${i.settingsHref}?section=catalogues#tmdb`
+				}
+			]
+		};
+	const l = t.linked;
+	if (!l)
+		return {
+			...base,
+			title: 'Not linked',
+			muted: true,
+			meta: searchWords(t, 'TMDB'),
+			cells: sortCells(
+				findCells({
+					href: findHref,
+					hidden: t.hidden,
+					settled: !!t.decision,
+					offline: i.offline,
+					one: false
+				})
+			)
+		};
+	return {
+		...base,
+		title: l.title || `TMDB ${l.tmdbId}`,
+		muted: false,
+		meta: [
+			film ? 'FILM' : 'SHOW',
+			l.year ? String(l.year) : '',
+			film ? runtimeWords(l.runtime) : l.seasons ? `${l.seasons} SEASONS ON TMDB` : ''
+		]
+			.filter(Boolean)
+			.join(' · '),
+		cells: [{ key: 'change', label: 'CHANGE', accent: false, dim: i.offline, href: findHref }]
+	};
+}
+
 export function listsRow(i: ListsInput): Lists | null {
+	// A film or a show has no AniList line: its catalogue is TMDB's (c989).
+	if (i.tmdb)
+		return {
+			note: i.offline ? OFFLINE_NOTE : '',
+			items: [{ type: 'line', line: tmdbLine(i, i.tmdb) }]
+		};
 	if (!i.link && !(i.ranobe?.configured && i.ranobe)) return null;
 	const onRanobe = !!i.ranobe?.configured;
 	const hidden = !!i.tracking?.hidden || !!i.link?.hidden;

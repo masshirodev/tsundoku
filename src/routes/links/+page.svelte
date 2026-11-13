@@ -12,11 +12,13 @@
 		parsePasted
 	} from '$lib/library/catalogue';
 	import { langName, parseRanobeUrl } from '$lib/library/ranobe';
+	import { parseTmdbUrl } from '$lib/library/tmdb';
 	import { seasonTag } from '$lib/library/anime';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { offline } from '$lib/offline.svelte';
 	import type { QueuedFrom, ReviewCandidate } from '$lib/server/catalogue';
 	import type { RanobeReviewCandidate, Sibling } from '$lib/server/ranobe-review';
+	import type { TmdbReviewCandidate } from '$lib/server/tmdb-links';
 	import type { RefusedPick, RelationOffer, SeasonUndoFacts } from '$lib/server/season-links';
 
 	/**
@@ -27,7 +29,9 @@
 	 * makes it. Each decision is carried out at once; UNDO takes the last one
 	 * back.
 	 *
-	 * An item is AniList's or Ranobe's. A novel unsure on both comes up twice,
+	 * An item is AniList's, Ranobe's or TMDB's (a film or a show, c989). The
+	 * two that are not AniList's arrive with THIS SERIES' rows and the searched
+	 * line already drawn (`rows`, `searchedLine`). A novel unsure on both comes up twice,
 	 * Ranobe first. Ranobe's LINK may offer the same work to the series with
 	 * the same title before a volume number (1b).
 	 *
@@ -62,8 +66,14 @@
 		return [...new Set(offers.filter((o) => o.ticked).map((o) => o.season))];
 	}
 	type Service = Item['service'];
-	type Cand = ReviewCandidate | RanobeReviewCandidate;
-	const SERVICE_NAME: Record<Service, string> = { anilist: 'ANILIST', ranobe: 'RANOBE' };
+	type Cand = ReviewCandidate | RanobeReviewCandidate | TmdbReviewCandidate;
+	const SERVICE_NAME: Record<Service, string> = {
+		anilist: 'ANILIST',
+		ranobe: 'RANOBE',
+		tmdb: 'TMDB'
+	};
+	/** An AniList candidate: the only kind with seasons, parts and MAL. */
+	const isAni = (c: Cand): c is ReviewCandidate => 'anilistId' in c;
 
 	/** An item's place in the queue: a novel can be in it once per catalogue. */
 	// An anime's item is one season's (c352), so its season is part of its place.
@@ -71,7 +81,7 @@
 		`${i.service}:${i.seriesId}${i.season !== undefined ? `:${i.season}` : ''}`;
 	/** "SEASON 2 · ", for a band about a decision on one season of an anime; '' otherwise. */
 	const seasonWord = (on: { no: number } | null) => (on ? `SEASON ${on.no} · ` : '');
-	const keyOf = (c: Cand) => ('work' in c ? c.work : String(c.anilistId));
+	const keyOf = (c: Cand) => ('key' in c ? c.key : String(c.anilistId));
 	const hrefOf = (c: Cand) =>
 		'href' in c
 			? c.href
@@ -180,6 +190,7 @@
 		item && season ? `${resolve('/links')}?series=${item.seriesId}&season=${season.no}&part=2` : ''
 	);
 	const ranobe = $derived(item?.service === 'ranobe');
+	const tmdb = $derived(item?.service === 'tmdb');
 	const name = $derived(item ? SERVICE_NAME[item.service] : '');
 	let chosen = $state<string | null>(null);
 	let searching = $state(false);
@@ -237,7 +248,8 @@
 	// ---- the workstation -------------------------------------------------------------------
 	const API: Record<Service, string> = {
 		anilist: resolve('/api/links'),
-		ranobe: resolve('/api/links/ranobe')
+		ranobe: resolve('/api/links/ranobe'),
+		tmdb: resolve('/api/links/tmdb')
 	};
 	async function post(service: Service, body: object): Promise<Response | null> {
 		try {
@@ -395,11 +407,11 @@
 		if (!item || !selected) return;
 		const c = selected;
 		const it = item;
-		if (!('work' in c) && second && season) {
+		if (isAni(c) && second && season) {
 			await linkSecond(c, it.seriesId, season.no);
 			return;
 		}
-		if (!('work' in c) && season && staysForTheRest) {
+		if (isAni(c) && season && staysForTheRest) {
 			// A season linked: the page turns to the rest of the show (c240), so it
 			// stays rather than going back to the series. A one-season show has no
 			// rest, and takes the plain LINK below, back to its screen (c423).
@@ -447,7 +459,16 @@
 			};
 			return;
 		}
-		if (!('work' in c)) {
+		if ('tmdbId' in c) {
+			decide(
+				{ link: c.tmdbId, pasted: !!pasted },
+				`LINKED · ${c.title.toUpperCase()}`,
+				`${c.ids} · ITS YEAR AND ${it.kind === 'movie' ? 'RUNTIME' : 'SEASONS'} COME FROM TMDB`,
+				'link'
+			);
+			return;
+		}
+		if (isAni(c)) {
 			decide(
 				{ link: c.anilistId, pasted: !!pasted },
 				// The queue's item names its season, and so does the band (c240).
@@ -759,15 +780,24 @@
 		if (!item) return;
 		const it = item;
 		const r1 = it.service === 'ranobe';
-		const ok = r1 ? parseRanobeUrl(text) !== null : parsePasted(text, it.kind) !== null;
+		const t1 = it.service === 'tmdb';
+		const ok = r1
+			? parseRanobeUrl(text) !== null
+			: t1
+				? parseTmdbUrl(text) !== null
+				: parsePasted(text, it.kind) !== null;
 		if (!ok) {
 			pasted = null;
 			pasteNote = text.trim()
 				? r1
 					? 'NOT A RANOBE WORK LINK'
-					: isAnime(it.kind)
-						? 'NOT AN ANILIST OR MAL ANIME LINK'
-						: 'NOT AN ANILIST OR MAL MANGA LINK'
+					: t1
+						? it.kind === 'movie'
+							? 'NOT A TMDB FILM LINK'
+							: 'NOT A TMDB SHOW LINK'
+						: isAnime(it.kind)
+							? 'NOT AN ANILIST OR MAL ANIME LINK'
+							: 'NOT AN ANILIST OR MAL MANGA LINK'
 				: null;
 			return;
 		}
@@ -792,9 +822,15 @@
 			pasted = null;
 			pasteNote = r1
 				? 'NO SUCH WORK ON RANOBE'
-				: parsePasted(text, it.kind)?.service === 'mal'
-					? 'ANILIST HAS NO ENTRY FOR THAT MAL ID'
-					: 'NO SUCH ANILIST ENTRY';
+				: t1
+					? r.status === 422
+						? it.kind === 'movie'
+							? 'THAT LINK IS A SHOW · THIS IS A FILM'
+							: 'THAT LINK IS A FILM · THIS IS A SHOW'
+						: 'NO SUCH ENTRY ON TMDB'
+					: parsePasted(text, it.kind)?.service === 'mal'
+						? 'ANILIST HAS NO ENTRY FOR THAT MAL ID'
+						: 'NO SUCH ANILIST ENTRY';
 			return;
 		}
 		const { candidate, held } = (await r.json()) as { candidate: Cand; held?: string | null };
@@ -803,10 +839,12 @@
 		nonet = null;
 		pastedHeld = held ?? null;
 		pasteNote =
-			'work' in candidate
-				? `READ AS RANOBE ${candidate.work.toUpperCase()} · ITS ${langName('en')} EDITION IS TAKEN, OR SUGGESTED, IN THE NEXT PASS`
-				: (pastedHeld ??
-					`READ AS ANILIST ${candidate.anilistId} · ONLY THE ID WAS SENT, NEVER THE TITLE`);
+			'tmdbId' in candidate
+				? `READ AS TMDB ${candidate.tmdbId} · ONLY THE ID WAS SENT, NEVER THE TITLE`
+				: 'work' in candidate
+					? `READ AS RANOBE ${candidate.work.toUpperCase()} · ITS ${langName('en')} EDITION IS TAKEN, OR SUGGESTED, IN THE NEXT PASS`
+					: (pastedHeld ??
+						`READ AS ANILIST ${candidate.anilistId} · ONLY THE ID WAS SENT, NEVER THE TITLE`);
 	}
 	function cancelPaste() {
 		pasting = false;
@@ -1009,7 +1047,7 @@
 			? ''
 			: noSearch
 				? 'HIDDEN SERIES ARE NEVER SEARCHED · ONLY A PASTED LINK, WHICH SENDS NOTHING BUT ITS ID'
-				: item.service === 'ranobe'
+				: 'searchedLine' in item
 					? item.searchedLine
 					: single?.queued
 						? `A SEARCH FOR “${item.query}” WAITS FOR THE NEXT COVER PASS`
@@ -1025,7 +1063,7 @@
 	/** THIS SERIES' rows: Ranobe's four (1a), or AniList's. */
 	const seriesRows = $derived.by((): { label: string; value: string }[] => {
 		if (!item) return [];
-		if (item.service === 'ranobe') return item.rows;
+		if ('rows' in item) return item.rows;
 		return [
 			// An Aniyomi source is the series' own; a manga's second name is the
 			// site its files came from. One name when they are the same (c298).
@@ -1039,9 +1077,9 @@
 	});
 	const candCount = $derived(
 		pasted
-			? 'work' in pasted
-				? `RANOBE ${pasted.work.toUpperCase()}`
-				: `ANILIST ${pasted.anilistId}`
+			? isAni(pasted)
+				? `ANILIST ${pasted.anilistId}`
+				: pasted.ids
 			: cands.length
 				? ranobe
 					? `${cands.length} FOUND · A WORK, NOT AN EDITION`
@@ -1305,9 +1343,11 @@
 								{@const on = chosen === key}
 								{@const note = 'coverNote' in c ? c.coverNote : null}
 								{@const exactTitle =
-									!('work' in c) && item
-										? isExact(matchTitles([item.title, ...item.alts], item.query), c)
-										: false}
+									'tmdbId' in c
+										? c.exact
+										: isAni(c) && item
+											? isExact(matchTitles([item.title, ...item.alts], item.query), c)
+											: false}
 								<div
 									class="cand"
 									class:on
@@ -1400,7 +1440,7 @@
 						{/if}
 					{:else}
 						<div class="nothing">
-							<p>AniList found nothing under this title.</p>
+							<p>{tmdb ? 'TMDB' : 'AniList'} found nothing under this title.</p>
 							<div class="hint">{hint}</div>
 						</div>
 					{/if}
@@ -1422,7 +1462,7 @@
 								type="text"
 								bind:this={searchField}
 								bind:value={query}
-								aria-label={ranobe ? 'Title to search on Ranobe' : 'Title to search on AniList'}
+								aria-label={`Title to search on ${ranobe ? 'Ranobe' : tmdb ? 'TMDB' : 'AniList'}`}
 								autocomplete="off"
 								autofocus
 							/>
@@ -1433,14 +1473,16 @@
 						<div class="fnote">
 							{ranobe
 								? 'RANOBE IS ASKED NOW, WITH THIS TITLE ONLY, NOVELS ONLY. NOTHING IS LINKED: WHAT IT FINDS COMES BACK HERE TO CHOOSE FROM.'
-								: 'ANILIST IS ASKED NOW, WITH THIS TITLE ONLY, IN THIS SERIES’ OWN KIND. NOTHING IS LINKED: WHAT IT FINDS COMES BACK HERE TO CHOOSE FROM.'}
+								: tmdb
+									? `TMDB IS ASKED NOW, WITH THIS TITLE ONLY, ${item?.kind === 'movie' ? 'FILMS' : 'SHOWS'} ONLY. A YEAR IN BRACKETS NARROWS IT. NOTHING IS LINKED: WHAT IT FINDS COMES BACK HERE TO CHOOSE FROM.`
+									: 'ANILIST IS ASKED NOW, WITH THIS TITLE ONLY, IN THIS SERIES’ OWN KIND. NOTHING IS LINKED: WHAT IT FINDS COMES BACK HERE TO CHOOSE FROM.'}
 						</div>
 					{/if}
 
 					{#if pasting}
 						<div class="ch">
 							<div>02 — PASTE A LINK</div>
-							<div>{ranobe ? 'RANOBE' : 'ANILIST OR MAL'}</div>
+							<div>{ranobe ? 'RANOBE' : tmdb ? 'TMDB' : 'ANILIST OR MAL'}</div>
 						</div>
 						<div class="field">
 							<!-- svelte-ignore a11y_autofocus -->
@@ -1451,10 +1493,12 @@
 								oninput={(e) => readPaste(e.currentTarget.value)}
 								placeholder={ranobe
 									? 'ranobe.ink/w…'
-									: item && isAnime(item.kind)
-										? 'anilist.co/anime/… or myanimelist.net/anime/…'
-										: 'anilist.co/manga/… or myanimelist.net/manga/…'}
-								aria-label={ranobe ? 'Ranobe link' : 'AniList or MAL link'}
+									: tmdb
+										? `themoviedb.org/${item?.kind === 'movie' ? 'movie' : 'tv'}/…`
+										: item && isAnime(item.kind)
+											? 'anilist.co/anime/… or myanimelist.net/anime/…'
+											: 'anilist.co/manga/… or myanimelist.net/manga/…'}
+								aria-label={ranobe ? 'Ranobe link' : tmdb ? 'TMDB link' : 'AniList or MAL link'}
 								autocomplete="off"
 								autofocus
 								disabled={off}

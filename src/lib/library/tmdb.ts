@@ -167,3 +167,19 @@ export function tmdbRows(series: { year: number | null }, c: TmdbTitle): Row[] {
 
 /** "TMDB 12345": the ids line a linked film or show shows. */
 export const tmdbIdsLine = (id: number | null): string => (id ? `TMDB ${id}` : '');
+
+/**
+ * A pasted TMDB link, read for its kind and id and nothing else:
+ * `themoviedb.org/movie/603-the-matrix`, `www.themoviedb.org/tv/1399`, with or
+ * without the scheme. Anything else is null; whether its kind is the series'
+ * is the workstation's check, which says so rather than reading another work.
+ */
+export function parseTmdbUrl(text: string): { media: 'movie' | 'tv'; id: number } | null {
+	const m = /^(?:https?:\/\/)?(?:www\.)?themoviedb\.org\/(movie|tv)\/(\d+)(?:[-/?#].*)?$/i.exec(
+		text.trim()
+	);
+	if (!m) return null;
+	const id = Number(m[2]);
+	if (!Number.isSafeInteger(id) || id <= 0) return null;
+	return { media: m[1].toLowerCase() as 'movie' | 'tv', id };
+}

@@ -67,6 +67,15 @@ before any spec process is forked, so every spec, and every script a spec
 runs, sees a plain environment; `git-env.spec.ts` pins it. A spec still says
 `cwd` for each git call, as it always did.
 
+**No spec reaches TMDB with the owner's key** (c989). The shell exports
+`TMDB_API_KEY` and `TMDB_API_RC_TOKEN` from the dotfiles' `.env`, and the client
+reads them at call time. `tests/vitest.global-setup.ts` deletes them before any
+spec is forked, and `playwright.config.ts` deletes them before any server starts,
+so every suite starts with **no key**, the state a friend's install is in. A
+spec that wants TMDB sets its own key and stubs the fetch (`setTmdbFetch`); an
+e2e flow that wants it starts its own preview with `TMDB_API_URL` pointed at a
+fake (`tests/tmdb-link-flow.e2e.ts`).
+
 **Importer specs never read real data.** The samples on `/mnt/hdd2` are the
 owner's, copyrighted and partly explicit. `tests/helpers/` holds a protobuf
 encoder and a zip writer, and `mihon-fixture.ts` uses them to synthesise a

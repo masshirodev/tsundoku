@@ -683,6 +683,16 @@ every cell inline. The TV: tag 56, line 56, title 16, meta hidden (one OK
 away, in EDIT), cells 15; ↑ ↓ move a line at a time and ← → between a line's
 cells, with the house's inset focus mark.
 
+### A film's and a show's line (c989)
+
+A film or a show has **one line, TMDB's**, and never an AniList line:
+`linkState` answers null for a kind AniList does not hold, and `tmdbLine`
+draws the `TmdbLinkState` the load hands the panel. Its words are the keys
+handoff's Board 2 (`doc/handoffs/keys-accounts/Keys-Rows.dc.html`): with no
+key, _Not looked up_ and `SET UP →` in ink; linked, the entry and `FILM · 2019 ·
+1 H 52` with CHANGE. The trackers' `LIST · Kept in HISTORY` line beside it is
+c993's. `doc/LINKS.md`, "TMDB links", has the whole of it.
+
 ### Where LISTS departs from the handoff
 
 - **EDIT stays on a line that is signed out.** 1B says AniList signed out has

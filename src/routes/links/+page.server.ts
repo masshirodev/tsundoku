@@ -13,6 +13,8 @@ import {
 } from '$lib/server/season-links';
 import { account } from '$lib/server/tracking';
 import { seasonNamed } from '$lib/library/catalogue';
+import { catalogueConfigured } from '$lib/server/catalogues';
+import { tmdbLinkState, tmdbQueue, tmdbReviewItem } from '$lib/server/tmdb-links';
 
 /**
  * The link review (Link Review, Ranobe Review; doc/LINKS.md, doc/RANOBE.md):
@@ -27,6 +29,9 @@ import { seasonNamed } from '$lib/library/catalogue';
  * rest of the show from the entry's own prequels and sequels. `&part=2` with
  * it is that season's second part by hand (c350): the same search, its own
  * candidates, and `FROM EP. n`.
+ *
+ * A film or a show is TMDB's (c989; doc/LINKS.md, "TMDB links"): its item is
+ * `service: 'tmdb'`, drawn from lines the workstation prepares, as Ranobe's is.
  */
 export const load: PageServerLoad = async ({ cookies, url }) => {
 	const reveal = isRevealed(cookies);
@@ -51,6 +56,25 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 				relations: null,
 				paste: url.searchParams.has('paste'),
 				canSuggest: suggestConfigured()
+			};
+		}
+		// A film or a show is TMDB's (c989): one item, the whole series, no seasons.
+		const film = tmdbReviewItem(id);
+		if (film) {
+			if (!catalogueConfigured('tmdb')) error(404, 'TMDB needs a key');
+			const state = tmdbLinkState(id);
+			return {
+				items: [film],
+				single: {
+					hidden: access.hidden,
+					linked: state?.linked?.title ?? null,
+					wrongKind: false,
+					queued: film.queued
+				},
+				season: null,
+				relations: null,
+				paste: url.searchParams.has('paste'),
+				canSuggest: false
 			};
 		}
 		// An anime's season: its own title, its own candidates, and the entry its
@@ -106,7 +130,9 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 	return {
 		items: [
 			...ranobeQueue(),
-			...linkQueue(reveal).map((i) => ({ ...i, service: 'anilist' as const }))
+			...linkQueue(reveal).map((i) => ({ ...i, service: 'anilist' as const })),
+			// Films and shows last: TMDB's, and none without a key (c989).
+			...tmdbQueue(reveal)
 		],
 		single: null,
 		season: null,

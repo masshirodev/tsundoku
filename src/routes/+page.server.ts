@@ -3,6 +3,7 @@ import { kindFacts, type Kind } from '$lib/library/kinds';
 import type { Actions, PageServerLoad } from './$types';
 import { applyPending, offerFold, reviewQueue } from '$lib/server/dupes';
 import { linkQueueCount } from '$lib/server/catalogue';
+import { tmdbQueueCount } from '$lib/server/tmdb-links';
 import { ranobeQueueCount } from '$lib/server/ranobe-review';
 import { getDb } from '$lib/server/db';
 import {
@@ -134,11 +135,11 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// Catalogue links AniList found, not for certain (doc/LINKS.md).
 	// One review for both catalogues (doc/RANOBE.md, "The review").
 	const ranobe = ranobeQueueCount();
-	const toLink = linkQueueCount(reveal) + ranobe;
+	const toLink = linkQueueCount(reveal) + ranobe + tmdbQueueCount(reveal);
 	// The same queue without hidden series, whatever reveal is (c430): what the
 	// band's ✕ measures growth by, so turning reveal off and on again is never
 	// news. Never the other way round: with reveal off, nothing counts hidden.
-	const toLinkPublic = reveal ? linkQueueCount(false) + ranobe : toLink;
+	const toLinkPublic = reveal ? linkQueueCount(false) + ranobe + tmdbQueueCount(false) : toLink;
 	// RANDOM's shuffle: one per choice of RANDOM, kept in the URL.
 	const seed = parseSeed(url.searchParams.get('seed'));
 	const pageSize = pageSizeOf(cookies.get('tsundoku_grid_page'));

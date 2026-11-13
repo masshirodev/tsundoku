@@ -117,7 +117,7 @@ describe('the pass', () => {
 		expect(s.linked).toBeNull();
 		expect(s.candidates).toBe(2);
 		const item = links.tmdbQueue(false).find((x) => x.seriesId === id)!;
-		expect(item.candidates.map((c) => c.id)).toEqual([31, 32]);
+		expect(item.candidates.map((c) => c.tmdbId)).toEqual([31, 32]);
 		expect(item.candidates[0].rows.map((r) => r.label)).toEqual(['FORMAT', 'YEAR', 'RUNTIME']);
 	});
 
@@ -239,5 +239,63 @@ describe('AniList’s line', () => {
 		const id = add('Only TMDB');
 		expect(linkState(id)).toBeNull();
 		expect(links.tmdbLinkState(id)).not.toBeNull();
+	});
+});
+
+describe('the review', () => {
+	it('draws a film’s item in the page’s shape, its rows and searched line its own', async () => {
+		const id = add('Tide Line (2021) 1080p');
+		searches['Tide Line'] = [film(121, 'Tide Line', 2021), film(122, 'Tide Lines', 2021)];
+		await links.tmdbPass({ now: NOW });
+		const item = links.tmdbReviewItem(id)!;
+		expect(item).toMatchObject({ service: 'tmdb', query: 'Tide Line', year: 2021, found: 2 });
+		expect(item.rows.map((r) => r.label)).toEqual(['SOURCE', 'FILE', 'YEAR']);
+		expect(item.searchedLine).toBe(
+			'SEARCHED TMDB FOR “Tide Line” · 2021 · 2 FOUND · TAP ONE TO LINK'
+		);
+		expect(item.candidates.map((c) => [c.key, c.exact, c.href])).toEqual([
+			['tmdb:121', true, 'https://www.themoviedb.org/movie/121'],
+			['tmdb:122', false, 'https://www.themoviedb.org/movie/122']
+		]);
+	});
+
+	it('remembers what a decision replaced, so UNDO alone takes it back', async () => {
+		const id = add('Ember Coast');
+		searches['Ember Coast'] = [film(131, 'Ember Coast', 1999), film(132, 'Ember Coast', 2019)];
+		details[132] = film(132, 'Ember Coast', 2019);
+		await links.tmdbPass({ now: NOW });
+		expect(await links.tmdbLinkFromReview(id, 132, 'review')).toBe('Ember Coast');
+		expect(links.tmdbUndoLast(id)).toBe(true);
+		expect(links.tmdbLinkState(id)!.linked).toBeNull();
+		expect(links.tmdbUndoLast(id)).toBe(false);
+		searches['Ember'] = [];
+		await links.tmdbSearchAgain(id, 'Ember');
+		expect(links.tmdbLinkState(id)!.candidates).toBe(0);
+		expect(links.tmdbUndoSearch(id)).toBe(true);
+		expect(links.tmdbLinkState(id)!.candidates).toBe(2);
+	});
+
+	it('reads a pasted link by id, and refuses a show’s link on a film', async () => {
+		const id = add('Paste Me');
+		details[141] = film(141, 'Paste Me', 2010);
+		expect((await links.tmdbPastedCandidate(id, { media: 'movie', id: 141 }))?.key).toBe(
+			'tmdb:141'
+		);
+		await expect(links.tmdbPastedCandidate(id, { media: 'tv', id: 141 })).rejects.toThrow(
+			/wrong kind/
+		);
+	});
+
+	it('counts and lists the waiting ones only with a key', async () => {
+		const id = add('Count Me');
+		searches['Count Me'] = [film(151, 'Count Mee', 2001)];
+		await links.tmdbPass({ now: NOW });
+		expect(links.tmdbQueue(false).some((x) => x.seriesId === id)).toBe(true);
+		const n = links.tmdbQueueCount(false);
+		delete process.env.TMDB_API_KEY;
+		expect(links.tmdbQueueCount(false)).toBe(0);
+		expect(links.tmdbQueue(false)).toEqual([]);
+		process.env.TMDB_API_KEY = 'k';
+		expect(links.tmdbQueueCount(false)).toBe(n);
 	});
 });

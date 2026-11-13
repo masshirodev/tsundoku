@@ -10,6 +10,16 @@ import { FRIEND_PORT } from './tests/friend-world';
 import { HOST_ARGS } from './tests/helpers/host-args';
 import { EN_PACK_PATH } from './tests/helpers/en-pack-path';
 
+// No e2e reaches TMDB with the owner's key (card c989). The shell exports
+// TMDB_API_KEY and TMDB_API_RC_TOKEN from the dotfiles' .env; this file runs in
+// the runner before any server starts, and every server, the shared one and the
+// flows' own (`...process.env`), inherits from here. No key is the state every
+// spec starts from: a film is its source's title and cover, and SET UP → is its
+// LISTS line. A flow that wants TMDB starts its own server with a fake one.
+delete process.env.TMDB_API_KEY;
+delete process.env.TMDB_API_RC_TOKEN;
+delete process.env.TMDB_API_URL;
+
 const previewPort = Number.parseInt(process.env.PLAYWRIGHT_PORT ?? '4183', 10);
 
 // The preview is a production build, so it refuses to serve without a token.
