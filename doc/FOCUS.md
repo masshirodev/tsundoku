@@ -116,7 +116,9 @@ a scroller at its very end can read up to a pixel short of it. The page at
 its own end scrolls nowhere, and that is no error. **A page a screen has
 locked** (`overflow: hidden` or `clip` on the root, or on `body`, which CSS hands the
 viewport when the root is `visible`) scrolls nothing either (c618, c647): the image
-reader sets `hidden` while its lookup panel or page menu is open, and Chromium's
+reader sets `hidden` while its lookup panel or page menu is open, and so does
+every open `Sheet.svelte`, both through `lockPage()` (`src/lib/scroll-lock.ts`,
+counted, so a cover closing never unlocks the page under one still open), and Chromium's
 own arrow stops there, where the layer's fallback used to move it (`overflow:
 hidden`, and a clipped viewport too, is still a scroller a script can move). What it reaches is every vertical scroller on a screen a TV opens
 (`rg -l "overflow(-y)?:\s*(auto|scroll)" src/routes src/lib/components`, 16
@@ -205,7 +207,10 @@ A **scope** owns the keys while it is open. `Sheet.svelte` is a scope
 (`use:focusScope`): arrows and Tab stay inside it, its first row takes focus
 when it opens, and focus goes back to whatever opened it when it closes. The
 screen under the scrim takes no keys — a press that would act there moves focus
-into the sheet instead.
+into the sheet instead. Nor does it scroll: the sheet locks the page while it is
+open (`lockPage()`, `src/lib/scroll-lock.ts`), so a drag on the scrim or a sheet
+scrolled to its end no longer moves the library behind MORE, and the sheet's
+own scroll is `overscroll-behavior: contain`.
 
 A scope is a stack, so a sheet opened from a sheet restores to the lower one.
 

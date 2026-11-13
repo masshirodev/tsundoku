@@ -2,6 +2,7 @@
 	import { END_PAGE_CONTROLS, endSheetOpen, holdWheelForEndSheet } from '$lib/reader/library-row';
 	import { kindFacts } from '$lib/library/kinds';
 	import { leave } from '$lib/motion';
+	import { lockPage } from '$lib/scroll-lock';
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
 	import { backLink } from '$lib/back';
@@ -1344,11 +1345,7 @@
 		// The panel has the keyboard now, and locks the page: a held key stops
 		// at once, rather than easing on under the lock (c668).
 		endHold(true);
-		const html = document.documentElement;
-		html.style.overflow = 'hidden';
-		return () => {
-			html.style.overflow = '';
-		};
+		return lockPage();
 	});
 
 	/** NOT TEXT: the block goes for good; the band offers UNDO until the next tap. */
@@ -1508,11 +1505,7 @@
 		// The menu has the keyboard, and locks the page: a held key stops at
 		// once, rather than easing on under the lock (c668).
 		endHold(true);
-		const html = document.documentElement;
-		html.style.overflow = 'hidden';
-		return () => {
-			html.style.overflow = '';
-		};
+		return lockPage();
 	});
 
 	// The READING sheet covers the strip and takes the keyboard's keys, and a

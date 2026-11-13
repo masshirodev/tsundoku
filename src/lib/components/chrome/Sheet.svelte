@@ -3,6 +3,7 @@
 	import type { Snippet } from 'svelte';
 	import { m } from '$lib/paraglide/messages';
 	import { focusScope } from '$lib/focus';
+	import { lockPage } from '$lib/scroll-lock';
 
 	/**
 	 * A bottom sheet over a scrim. No shadow and no blur: elevation is the scrim
@@ -23,6 +24,12 @@
 	function keydown(e: KeyboardEvent) {
 		if (open && e.key === 'Escape') onclose();
 	}
+
+	// The page under the scrim holds still while the sheet is open: a drag on
+	// the scrim used to scroll the library behind MORE (src/lib/scroll-lock.ts).
+	$effect(() => {
+		if (open) return lockPage();
+	});
 
 	/**
 	 * Keeps a focused row out from under the pinned head (c716). Heads differ
@@ -97,6 +104,8 @@
 		bottom: 0;
 		max-height: 92dvh;
 		overflow-y: auto;
+		/* Its own scroll ends at its edge rather than passing to the page. */
+		overscroll-behavior: contain;
 		background: var(--surface-page);
 		border-top: var(--rule-strong);
 		display: flex;
