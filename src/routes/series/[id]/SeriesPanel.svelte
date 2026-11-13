@@ -403,7 +403,7 @@
 	/** The offer NOT THIS just declined, for its band's UNDO. */
 	let declined = $state<string | null>(null);
 	/** A show's seasons from TMDB (c990, c992): the SEASONS row and SEASON N IS OUT. */
-	const showView = $derived(film?.surround?.kind === 'show' ? film.surround.view : null);
+	const showView = $derived(film?.surround?.kind === 'seasons' ? film.surround.view : null);
 	/** FIND for a show's missing season: the screen's own source searched for the show's name. */
 	const showFind = $derived(
 		showView && tagSource && film?.facts?.title

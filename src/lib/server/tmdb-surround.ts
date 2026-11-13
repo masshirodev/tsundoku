@@ -99,7 +99,7 @@ export async function refreshSurroundings(
 // ---- what the screens read ----------------------------------------------------------------
 
 export type Surroundings =
-	{ kind: 'show'; view: ShowView } | { kind: 'collection'; view: CollectionView } | null;
+	{ kind: 'seasons'; view: ShowView } | { kind: 'collection'; view: CollectionView } | null;
 
 type LinkRow = {
 	kind: string;
@@ -146,7 +146,7 @@ export function surroundingsOf(seriesId: number, reveal: boolean, now = Date.now
 			declined: declinedOf(seriesId),
 			now
 		});
-		return view ? { kind: 'show', view } : null;
+		return view ? { kind: 'seasons', view } : null;
 	}
 	if (l.collection_id === null) return null;
 	const c = cached<TmdbCollection>('collection', l.collection_id);

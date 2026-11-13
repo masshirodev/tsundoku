@@ -37,7 +37,14 @@ c988, `doc/KINDS.md`), and two modules are the one answer to the two halves:
   — `catalogueConfigured`, `catalogueFor(kind)`, `catalogueMissing(kind)`.
   AniList is public and always answers. TMDB needs the install's own key,
   `TMDB_API_RC_TOKEN` (the v4 read token) or `TMDB_API_KEY`, read at call
-  time, so a key added in SETTINGS counts without a restart. A friend's
+  time, so a key added in SETTINGS counts without a restart. **The key typed
+  in SETTINGS › CATALOGUES** (c993; the keys handoff's Keys-Key) is kept as a
+  setting in the database, as the trackers' tokens are, never in `.env` (the
+  user's own file, only appended to, and on the workstation an Infisical copy a
+  pull replaces whole). It is checked with TMDB before it is kept, shown only by
+  its last four characters, and **the environment's key wins**, so the owner's
+  is never overridden or removed from a screen. A v4 token is sent as a bearer
+  by its shape wherever it came from. A friend's
   install with no key is a **state, not an error**: a door says `SET UP →`,
   the film still works, and no request is made (`doc/MOVIES-TV.md`, "Decided",
   and `doc/handoffs/keys-accounts/`).

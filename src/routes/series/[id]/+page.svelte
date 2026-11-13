@@ -1019,7 +1019,7 @@
 					onselect={() => (selecting = true)}
 					onlong={markThrough}
 					downloads={dlStates}
-					around={data.film?.surround?.kind === 'show'
+					around={data.film?.surround?.kind === 'seasons'
 						? showAround(data.film.surround.view)
 						: data.around}
 					tagSource={data.tagSource}

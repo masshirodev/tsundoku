@@ -31,6 +31,11 @@ export default function setup() {
 	// and its fetch is a stub.
 	for (const name of ['TMDB_API_KEY', 'TMDB_API_RC_TOKEN', 'TMDB_API_URL'])
 		delete process.env[name];
+	// No spec opens a database file it did not name. getDb() falls back to
+	// data/tsundoku.sqlite, the dev checkout's own library, and since c993 even
+	// asking for the TMDB key reads a setting from it. A spec that wants a
+	// database still sets its own DATABASE_PATH before importing db.ts.
+	process.env.DATABASE_PATH ??= ':memory:';
 
 	const base = mkdtempSync(join(tmpdir(), 'tsundoku-specs-'));
 	for (const [name, dir] of [

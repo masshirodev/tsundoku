@@ -806,8 +806,10 @@ export const SECTIONS: SectionDef[] = [
 		id: 'catalogues',
 		n: '06',
 		title: 'CATALOGUES',
-		words: ['catalogues', 'anilist', 'mal', 'ranobe', 'tracking'],
+		words: ['catalogues', 'anilist', 'mal', 'ranobe', 'tracking', 'tmdb', 'key', 'films', 'shows'],
 		rows: [
+			// TMDB first (c993; Keys-Rows 2E): films and shows, a key and no sign-in.
+			{ id: 'tmdb', label: 'TMDB', where: 'all', control: { type: 'account', id: 'tmdb' } },
 			{
 				id: 'anilist',
 				label: 'ANILIST',

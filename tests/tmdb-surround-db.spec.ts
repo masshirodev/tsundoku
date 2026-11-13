@@ -148,7 +148,7 @@ describe('what a series sees', () => {
 				.get(s1) as { series_id: number }
 		).series_id;
 		const v = sur.surroundingsOf(s2, false, NOW);
-		if (v?.kind !== 'show') throw new Error('show');
+		if (v?.kind !== 'seasons') throw new Error('show');
 		expect(v.view.heads.map((h) => [h.season, h.state])).toEqual([
 			[1, 'library'],
 			[2, 'this'],
@@ -157,7 +157,7 @@ describe('what a series sees', () => {
 		expect(v.view.band?.season).toBe(3);
 		sur.declineOffer(s2, 'season:3', NOW);
 		const after = sur.surroundingsOf(s2, false, NOW);
-		expect(after?.kind === 'show' && after.view.band).toBeNull();
+		expect(after?.kind === 'seasons' && after.view.band).toBeNull();
 		expect(sur.undoDecline(s2, 'season:3')).toBe(true);
 	});
 

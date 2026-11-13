@@ -1,4 +1,5 @@
-import { tmdbKey } from './catalogues.ts';
+import { isBearerKey, tmdbKey } from './catalogues.ts';
+import { setSetting } from './settings.ts';
 import { catalogueType } from '../library/catalogues.ts';
 import type { TmdbCollection, TmdbSeason, TmdbShowFacts, TmdbTitle } from '../library/tmdb.ts';
 
@@ -37,23 +38,47 @@ export function setTmdbFetch(f: Fetch | null): void {
 	fetcher = f ?? ((...a) => fetch(...a));
 }
 
+/**
+ * How a key goes: the environment's v4 read token always as a bearer, as it
+ * always went; any other key by its shape (a v4 token is a JWT), so a v4 token
+ * pasted in SETTINGS works as well as a v3 key (c993).
+ */
+const sendsAsBearer = (key: string): boolean =>
+	(process.env.TMDB_API_RC_TOKEN ?? '').trim() === key || isBearerKey(key);
+
+async function ask(key: string, path: string, params: Record<string, string> = {}) {
+	const url = new URL(`${API()}${path}`);
+	for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+	const bearer = sendsAsBearer(key);
+	if (bearer) url.searchParams.delete('api_key');
+	else url.searchParams.set('api_key', key);
+	return fetcher(url, {
+		headers: { accept: 'application/json', ...(bearer ? { authorization: `Bearer ${key}` } : {}) }
+	});
+}
+
 async function get(path: string, params: Record<string, string> = {}): Promise<unknown> {
 	const key = tmdbKey();
 	if (!key) throw new NoTmdbKey();
-	const url = new URL(`${API()}${path}`);
-	for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-	// The v4 read token travels as a bearer; the v3 key is the query's own.
-	if (process.env.TMDB_API_RC_TOKEN?.trim()) url.searchParams.delete('api_key');
-	else url.searchParams.set('api_key', key);
-	const res = await fetcher(url, {
-		headers: {
-			accept: 'application/json',
-			...(process.env.TMDB_API_RC_TOKEN?.trim() ? { authorization: `Bearer ${key}` } : {})
-		}
-	});
+	const res = await ask(key, path, params);
 	if (res.status === 404) return null;
+	// The key stopped working (Keys-Key 3G): said once on SETTINGS' row, with the time.
+	if (res.status === 401) setSetting('tmdb_key_refused_at', String(Date.now()));
 	if (!res.ok) throw new Error(`TMDB answered ${res.status}`);
 	return res.json();
+}
+
+/**
+ * Whether TMDB takes a key, before it is kept (Keys-Key 3B): one request for
+ * TMDB's own configuration. `refused` for a key TMDB turned down; a network
+ * failure or a 5xx throws, so the screen can say it is offline rather than
+ * call a good key wrong.
+ */
+export async function checkTmdbKey(key: string): Promise<'ok' | 'refused'> {
+	const res = await ask(key.trim(), '/configuration');
+	if (res.status === 401 || res.status === 403) return 'refused';
+	if (!res.ok) throw new Error(`TMDB answered ${res.status}`);
+	return 'ok';
 }
 
 const yearOf = (date: unknown): number | null => {

@@ -34,7 +34,15 @@ const DEFAULTS = {
 	anime_download_subs: 'all',
 	// GET STARTED's skipped steps (doc/ONBOARDING.md; card c208): a JSON list,
 	// kept on the computer so the PC and a paired phone show the same list.
-	start_skipped: '[]'
+	start_skipped: '[]',
+	// A TMDB key typed in SETTINGS › CATALOGUES (c993; doc/LINKS.md, "Which
+	// catalogue"): the install's own, '' for none. The environment's
+	// (TMDB_API_RC_TOKEN, TMDB_API_KEY) wins when it has one, so the
+	// workstation's Infisical key is never overridden from a screen. Beside it,
+	// when it last passed TMDB's check and when TMDB last refused it.
+	tmdb_key: '',
+	tmdb_key_checked_at: '',
+	tmdb_key_refused_at: ''
 } as const;
 export type SettingKey = keyof typeof DEFAULTS;
 

@@ -5,6 +5,7 @@ import {
 	type CatalogueProvider
 } from '../library/catalogues.ts';
 import type { Kind } from '../library/kinds.ts';
+import { getSetting } from './settings.ts';
 
 /**
  * Which catalogues this install can ask (card c988; `doc/LINKS.md`, "Which
@@ -23,10 +24,21 @@ import type { Kind } from '../library/kinds.ts';
  * without a restart, and a test can set one.
  */
 
-/** The install's TMDB key, the v4 read token first. Empty when it has none. */
+/** The environment's TMDB key, the v4 read token first; '' for none. */
+export const envTmdbKey = (): string =>
+	(process.env.TMDB_API_RC_TOKEN ?? '').trim() || (process.env.TMDB_API_KEY ?? '').trim();
+
+/**
+ * The install's TMDB key: the environment's, else the one typed in SETTINGS
+ * (c993). Empty when it has none. Read at every call, so a key saved or
+ * removed takes effect without a restart.
+ */
 export function tmdbKey(): string {
-	return (process.env.TMDB_API_RC_TOKEN ?? '').trim() || (process.env.TMDB_API_KEY ?? '').trim();
+	return envTmdbKey() || getSetting('tmdb_key').trim();
 }
+
+/** A v4 read token is a JWT (three dot-separated parts) and goes as a bearer; a v3 key goes in the URL. */
+export const isBearerKey = (key: string): boolean => key.split('.').length === 3;
 
 /** Whether a provider can answer on this install. AniList always can. */
 export const catalogueConfigured = (provider: CatalogueProvider): boolean =>

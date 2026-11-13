@@ -1,4 +1,5 @@
 import { fail } from '@sveltejs/kit';
+import { removeTmdbKey, saveTmdbKey, tmdbKeyRow, waitingForAKey } from '$lib/server/tmdb-key';
 import type { Actions, PageServerLoad } from './$types';
 import { getDb } from '$lib/server/db';
 import { isRevealed } from '$lib/server/prefs';
@@ -167,7 +168,9 @@ export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest
 			toReview: linkQueueCount(reveal) + ranobeQueueCount() + tmdbQueueCount(reveal),
 			accounts: accounts(),
 			// Ranobe's row (Ranobe 3a–3c; doc/RANOBE.md): no sign-in, a token in .env.
-			ranobe: ranobeAccount()
+			ranobe: ranobeAccount(),
+			// TMDB's row (c993; Keys-Key): a key typed here, or the environment's.
+			tmdb: tmdbKeyRow()
 		},
 		// How a sign-in went, coming back from the catalogue.
 		signin: url.searchParams.has('signin')
@@ -217,6 +220,27 @@ function posted(form: FormData): { ok: true; v: Json | undefined } | { ok: false
 }
 
 export const actions: Actions = {
+	/**
+	 * SAVE on TMDB's row (Keys-Key 3B, 3C, 3D, 3E): checked with TMDB first,
+	 * kept only if TMDB takes it. Offline is its own answer, so a good key is
+	 * never called wrong; the band counts what the next pass will look up.
+	 */
+	tmdbKey: async ({ request }) => {
+		const key = String((await request.formData()).get('key') ?? '');
+		let outcome: Awaited<ReturnType<typeof saveTmdbKey>>;
+		try {
+			outcome = await saveTmdbKey(key);
+		} catch {
+			return fail(503, { tmdbKey: 'offline' as const });
+		}
+		if (outcome !== 'ok') return fail(422, { tmdbKey: outcome });
+		return { tmdbKey: 'saved' as const, waiting: waitingForAKey() };
+	},
+	/** REMOVE KEY (Keys-Key 3F): the key alone; links and overviews stay. */
+	tmdbKeyRemove: async () => {
+		removeTmdbKey();
+		return { tmdbKey: 'removed' as const };
+	},
 	/** SIGN OUT a phone paired over Wi-Fi: at once, no confirm; a new code brings it back (doc/WIFI.md). */
 	signOutDevice: async ({ request, locals }) => {
 		if (locals.via === 'lan') return fail(403, { message: 'set on the computer only' });

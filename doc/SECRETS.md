@@ -21,6 +21,12 @@ on 2026-09-24.
 
 ## What's in it
 
+**One secret is not in `.env`: a TMDB key typed in SETTINGS** (c993). It is
+the install's own, kept in the database's `settings` table beside the
+trackers' OAuth tokens, and shown only by its last four characters. The
+environment's `TMDB_API_RC_TOKEN` or `TMDB_API_KEY` always wins over it, so
+the workstation's Infisical key is what the live install uses.
+
 **Every key `.env` has, the non-secret ones too:**
 
 | Key                                | What for                                                                                                                               |

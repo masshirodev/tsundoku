@@ -344,6 +344,17 @@
 	const wide = new MediaQuery('(min-width: 1024px)', false);
 	const desktop = new MediaQuery('(min-width: 1024px) and (pointer: fine)', false);
 	const off = $derived(!offline.online);
+	/** TMDB's row (c993): its field open, what is typed, SHOW, the check under way, REMOVE asked. */
+	let keyOpen = $state(false);
+	let keyValue = $state('');
+	let keyShown = $state(false);
+	let keyChecking = $state(false);
+	let keyRemoving = $state(false);
+	/** The saved band's ✕: gone until the next save. */
+	let keyBandGone = $state(false);
+	$effect(() => {
+		if (form?.tmdbKey === 'saved') keyBandGone = false;
+	});
 
 	// ---- this device, and the one shown (2C) -------------------------------------------------
 	let myId = $state('');
@@ -709,6 +720,18 @@
 			ondismiss={() => clearBandUrl(['signin', 'service'])}
 		/>{/if}
 
+	{#if form?.tmdbKey === 'saved' && !keyBandGone}
+		<!-- Keys-Key 3E: what the new key will look up; matches are only ever offered. -->
+		{@const w = form.waiting}
+		<Band
+			title="TMDB KEY SAVED"
+			detail="{w.films} FILM{w.films === 1 ? '' : 'S'} AND {w.shows} SHOW{w.shows === 1
+				? ''
+				: 'S'} ARE LOOKED UP IN THE NEXT PASS · MATCHES WAIT IN THE LINK REVIEW"
+			ondismiss={() => (keyBandGone = true)}
+		/>
+	{/if}
+
 	{#if other}
 		<div class="topband">
 			<div class="tb-text">
@@ -1037,6 +1060,153 @@
 					>
 				</div>{/if}
 		</div>
+	{:else if row.id === 'tmdb'}
+		{@const k = data.catalogues.tmdb}
+		{@const hm = (t: number) =>
+			new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+		<!-- TMDB (c993; Keys-Key 3A–3H): a key typed here, checked with TMDB before it is kept
+		     and never shown again. The environment's key wins and has no cells. A TV reads it. -->
+		<div class="row acct tmdb" id="tmdb" class:dim={off && !keyOpen}>
+			<div class="label">TMDB</div>
+			<div class="ctl">
+				<div class="acct-body">
+					<div class="who">
+						<div class="name" class:muted={!k.source && !keyRemoving}>
+							{keyRemoving
+								? 'Remove the key?'
+								: k.source === 'env'
+									? `Key set · ends in ${k.endsIn}`
+									: k.source
+										? `Key saved · ends in ${k.endsIn}`
+										: 'No key'}
+						</div>
+						<div class="meta" class:alert={!!k.refusedAt && !keyRemoving}>
+							{#if keyRemoving}
+								LINKS ALREADY MADE STAY · NOTHING NEW IS LOOKED UP · OVERVIEWS STAY AS THEY ARE
+							{:else if keyChecking}
+								CHECKING THE KEY WITH TMDB
+							{:else if k.refusedAt}
+								TMDB REFUSED THE KEY AT {hm(k.refusedAt)} · NOTHING LOOKED UP SINCE
+							{:else if k.source === 'env'}
+								FILMS AND SHOWS · SET IN THE ENVIRONMENT
+							{:else if k.source}
+								FILMS AND SHOWS{k.checkedAt ? ` · CHECKED ${hm(k.checkedAt)}` : ''}
+							{:else}
+								<span class="not-tv"
+									>FILMS AND SHOWS · A FREE KEY ADDS OVERVIEWS, RUNTIMES AND SEASONS</span
+								><span class="tv-only"
+									>ADD ONE FROM A PHONE OR COMPUTER · SETTINGS › CATALOGUES</span
+								>
+							{/if}
+						</div>
+					</div>
+					{#if keyRemoving}
+						<button type="button" class="cell not-tv" onclick={() => (keyRemoving = false)}
+							>KEEP</button
+						>
+						<form
+							method="POST"
+							action="?/tmdbKeyRemove"
+							class="cell-form not-tv"
+							use:enhance={() =>
+								async ({ update }) => {
+									keyRemoving = false;
+									await update();
+								}}
+						>
+							<button type="submit" class="cell">REMOVE KEY</button>
+						</form>
+					{:else if k.source === 'saved'}
+						<button
+							type="button"
+							class="cell not-tv"
+							class:acc={keyOpen || !!k.refusedAt}
+							aria-expanded={keyOpen}
+							onclick={() => (keyOpen = !keyOpen)}>REPLACE</button
+						>
+						<button
+							type="button"
+							class="cell not-tv"
+							onclick={() => ((keyRemoving = true), (keyOpen = false))}>REMOVE</button
+						>
+					{:else if !k.source}
+						<button
+							type="button"
+							class="cell not-tv"
+							class:acc={keyOpen}
+							aria-expanded={keyOpen}
+							onclick={() => (keyOpen = !keyOpen)}>ADD KEY</button
+						>
+					{/if}
+				</div>
+			</div>
+			{#if !phone.current}<div class="scope"><span class="sa quiet">ALL DEVICES</span></div>{/if}
+		</div>
+		{#if keyOpen}
+			<form
+				method="POST"
+				action="?/tmdbKey"
+				class="pw-form not-tv"
+				use:enhance={() => {
+					keyChecking = true;
+					return async ({ result, update }) => {
+						keyChecking = false;
+						await update({ reset: false });
+						if (result.type === 'success') {
+							keyOpen = false;
+							keyValue = '';
+						}
+					};
+				}}
+			>
+				<label class="pw-l" for="tmdb-key">YOUR TMDB KEY</label>
+				<span class="key-field" class:wrong={form?.tmdbKey === 'refused'}>
+					<input
+						id="tmdb-key"
+						name="key"
+						type={keyShown ? 'text' : 'password'}
+						autocomplete="off"
+						spellcheck="false"
+						bind:value={keyValue}
+						readonly={keyChecking}
+						onblur={() => (keyShown = false)}
+					/>
+					<button
+						type="button"
+						class="key-show"
+						onmousedown={(e) => e.preventDefault()}
+						onclick={() => (keyShown = !keyShown)}>SHOW</button
+					>
+				</span>
+				<p class="pw-p" class:alert={!!form?.tmdbKey && form.tmdbKey !== 'saved'}>
+					{#if off}
+						OFFLINE · A KEY IS CHECKED BEFORE IT'S KEPT, SO SAVE WAITS FOR THE CONNECTION
+					{:else if form?.tmdbKey === 'refused'}
+						TMDB DIDN'T TAKE THAT KEY · NOTHING SAVED<br />CHECK IT'S THE WHOLE KEY, WITH NOTHING
+						BEFORE OR AFTER IT
+					{:else if form?.tmdbKey === 'offline'}
+						TMDB DIDN'T ANSWER · NOTHING SAVED · TRY AGAIN WHEN IT'S BACK
+					{:else}
+						Either of the two keys TMDB gives you works. tsundoku checks it with TMDB before keeping
+						it, and never shows it again.
+					{/if}
+				</p>
+				<div class="key-acts">
+					<button
+						type="submit"
+						class="pw-go"
+						class:waiting={keyChecking}
+						disabled={off || keyChecking || !keyValue.trim()}
+						>{keyChecking ? 'CHECKING WITH TMDB' : 'SAVE'}</button
+					>
+					<button
+						type="button"
+						class="pw-go plain"
+						onclick={() => ((keyOpen = false), (keyValue = ''))}>CANCEL</button
+					>
+				</div>
+			</form>
+		{/if}
 	{:else if row.id === 'ranobe'}
 		<div class="row acct ranobe" class:dim={off}>
 			<div class="label">RANOBE</div>
@@ -2931,5 +3101,49 @@
 		color: var(--on-accent);
 		font: 500 13px var(--font-mono);
 		letter-spacing: 0.04em;
+	}
+	/* TMDB's key (Keys-Key): the password form's shape, with SHOW in the field and SAVE beside CANCEL. */
+	.key-field {
+		display: flex;
+		align-items: stretch;
+		border: var(--hairline);
+	}
+	/* A wrong key: a full ink border, never red (Index draws an error in ink; magenta is reveal's). */
+	.key-field.wrong {
+		border-color: var(--text-1);
+	}
+	.key-field input {
+		border: 0;
+	}
+	.key-show {
+		padding: 0 14px;
+		border: 0;
+		border-left: var(--hairline);
+		background: none;
+		color: var(--text-1);
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.04em;
+		cursor: pointer;
+	}
+	.key-acts {
+		display: flex;
+		gap: 10px;
+	}
+	.pw-go.plain {
+		background: none;
+		color: var(--text-1);
+		border: var(--hairline);
+	}
+	/* CHECKING WITH TMDB: the dashed line is Index's sign for waiting (Keys-Key 3B). */
+	.pw-go.waiting {
+		background: none;
+		color: var(--text-2);
+		border: 1px dashed var(--line-2);
+	}
+	.pw-go:disabled:not(.waiting) {
+		opacity: 0.4;
+	}
+	.pw-p.alert {
+		color: var(--text-1);
 	}
 </style>
