@@ -600,7 +600,8 @@ describe('Mihon’s MAL tracker', () => {
 			resolved_at: NOW
 		});
 		expect(cat.linkCover(id)).toEqual({
-			anilistId: 85143,
+			provider: 'anilist',
+			id: 85143,
 			url: 'https://s4.anilist.co/cover/85143.jpg'
 		});
 		expect(cat.linkState(id)?.linked).toMatchObject({

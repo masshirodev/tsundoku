@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { coverLines } from '$lib/library/catalogue';
 import {
 	parseTmdbUrl,
 	runtimeWords,
@@ -149,5 +150,30 @@ describe('parseTmdbUrl', () => {
 			'themoviedb.org/movie/0'
 		])
 			expect(parseTmdbUrl(t), t).toBeNull();
+	});
+});
+
+describe('the COVER row', () => {
+	it('names TMDB for a poster a film’s link brought', () => {
+		expect(
+			coverLines({
+				key: 'link:tmdb:161',
+				url: false,
+				urlFailed: false,
+				downloaded: 1,
+				kind: 'movie',
+				linkCover: true
+			}).a
+		).toBe('FROM THE TMDB LINK');
+		expect(
+			coverLines({
+				key: 'link:anilist:85143',
+				url: false,
+				urlFailed: false,
+				downloaded: 1,
+				kind: 'manga',
+				linkCover: true
+			}).a
+		).toBe('FROM THE ANILIST LINK');
 	});
 });

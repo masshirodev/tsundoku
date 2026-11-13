@@ -241,7 +241,11 @@ describe('rung 68: a link from before rung 62 becomes its season’s row (c383)'
 			(mirrors as { series_id: number }[]).filter((m) => m.series_id === COMIC)
 		);
 		// The cover and the show's ids come from the season row now: the same entry.
-		expect(cat.linkCover(SEASONED)).toEqual({ anilistId: 101, url: 'https://img/101.jpg' });
+		expect(cat.linkCover(SEASONED)).toEqual({
+			provider: 'anilist',
+			id: 101,
+			url: 'https://img/101.jpg'
+		});
 		expect(seasons.showEntry(SEASONED, () => true)).toEqual({ anilistId: 101, malId: 901 });
 		expect(seasons.showEntry(TWO_ON, () => true)).toEqual({ anilistId: 105, malId: 905 });
 	});

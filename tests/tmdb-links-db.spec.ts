@@ -6,7 +6,8 @@ process.env.DATABASE_PATH = ':memory:';
 const { getDb } = await import('$lib/server/db');
 const { setTmdbFetch } = await import('$lib/server/tmdb');
 const links = await import('$lib/server/tmdb-links');
-const { linkState, refreshLinks, setAnilistFetch } = await import('$lib/server/catalogue');
+const { linkCover, linkState, refreshLinks, setAnilistFetch } =
+	await import('$lib/server/catalogue');
 
 /**
  * TMDB links (card c989; doc/LINKS.md, "TMDB links"): the AniList link's rules
@@ -38,6 +39,7 @@ type Hit = {
 	runtime?: number;
 	number_of_seasons?: number;
 	belongs_to_collection?: { id: number; name: string } | null;
+	poster_path?: string;
 };
 
 /** What the fake TMDB holds: searches by query, details by id. */
@@ -297,5 +299,26 @@ describe('the review', () => {
 		expect(links.tmdbQueue(false)).toEqual([]);
 		process.env.TMDB_API_KEY = 'k';
 		expect(links.tmdbQueueCount(false)).toBe(n);
+	});
+});
+
+describe('the poster as a cover', () => {
+	it('is a linked film’s link cover, named for TMDB, and none without a poster', async () => {
+		const id = add('Poster Film');
+		searches['Poster Film'] = [film(161, 'Poster Film', 2012)];
+		details[161] = { ...film(161, 'Poster Film', 2012), poster_path: '/p.jpg' } as Hit;
+		expect(linkCover(id)).toBeNull();
+		await links.tmdbPass({ now: NOW });
+		expect(linkCover(id)).toEqual({
+			provider: 'tmdb',
+			id: 161,
+			url: 'https://image.tmdb.org/t/p/w500/p.jpg'
+		});
+		const bare = add('Bare Film');
+		searches['Bare Film'] = [film(171, 'Bare Film', 2013)];
+		details[171] = film(171, 'Bare Film', 2013);
+		await links.tmdbPass({ now: NOW });
+		expect(links.tmdbLinkState(bare)!.linked?.tmdbId).toBe(171);
+		expect(linkCover(bare)).toBeNull();
 	});
 });

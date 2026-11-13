@@ -4,6 +4,7 @@ import { isRevealed } from '$lib/server/prefs';
 import { seriesAccess } from '$lib/server/catalogue';
 import { catalogueConfigured } from '$lib/server/catalogues';
 import { NoTmdbKey } from '$lib/server/tmdb';
+import { refreshCovers } from '$lib/server/covers';
 import {
 	tmdbLinkFromReview,
 	tmdbNoneFromReview,
@@ -46,12 +47,21 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	const access = seriesAccess(seriesId, isRevealed(cookies));
 	if (!access) error(404, 'not found');
 	if (!tmdbReviewItem(seriesId)) error(404, 'not a film or a show');
+	// As AniList's LINK does: a film with no cover of its own takes the poster now.
+	// `remote`: LINK may fetch the poster; UNDO only falls back to what is already here.
+	const recover = (remote: boolean) =>
+		void refreshCovers({ ids: [seriesId], remote }).catch(() => undefined);
 
 	try {
 		if (b.undo === 'search') {
 			return json({ ok: tmdbUndoSearch(seriesId) });
 		}
-		if (b.undo) return json({ ok: tmdbUndoLast(seriesId) });
+		if (b.undo) {
+			const ok = tmdbUndoLast(seriesId);
+			// The poster a link brought, or took away, is the cover's question again.
+			if (ok) recover(false);
+			return json({ ok });
+		}
 		if (b.unlink) {
 			tmdbUnlinkFromReview(seriesId);
 			return json({ ok: true });
@@ -79,6 +89,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			const id = Number(b.link);
 			if (!Number.isSafeInteger(id) || id <= 0) error(400, 'which entry');
 			const title = await tmdbLinkFromReview(seriesId, id, b.pasted ? 'pasted' : 'review');
+			recover(true);
 			return json({ ok: true, title, siblings: [], items: [] });
 		}
 	} catch (e) {

@@ -542,6 +542,7 @@ export function coverLines(f: CoverFacts): { a: string; b: string } {
 		.join(' · ');
 	const before = f.linkCover ? 'COMES BEFORE THE LINK’S' : '';
 	const k = f.key;
+	if (k.startsWith('link:tmdb:')) return { a: 'FROM THE TMDB LINK', b: why };
 	if (k.startsWith('link:')) return { a: 'FROM THE ANILIST LINK', b: why };
 	if (k.startsWith('chosen:')) return { a: 'CHOSEN BY HAND', b: before };
 	if (k.startsWith('book:')) return { a: 'ITS FIRST BOOK’S', b: before };

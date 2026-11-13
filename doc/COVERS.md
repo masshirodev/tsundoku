@@ -38,7 +38,10 @@ fails to load leaves the stripes.
    linked to its catalogue entry (from Mihon's MAL tracker, an exact title,
    or the review) wears the entry's cover. It comes after the site's, and a
    site that refused stands aside for it. `link:anilist:<id>`, fetched only
-   in a remote pass, as the site's is.
+   in a remote pass, as the site's is. A film's or a show's is its **TMDB
+   poster** (c989), `link:tmdb:<id>`, in the same place: after the source's
+   own cover, so it fills in only where the source gave none, and the COVER
+   row says `FROM THE TMDB LINK`. LINK in the review asks for it at once.
 5. **The first page of the first downloaded entry,** cut from the top to the
    tile's 2:2.9 shape. This is last because a Mihon chapter's first page is so
    often a scanlator's credits or recruitment banner, and a webtoon page is a

@@ -1094,9 +1094,9 @@ describe('an anime’s links without a mirror of its first season (c467)', () =>
 	it('the cover is the open season’s, else the first season’s, as the mirror gave', () => {
 		const id = openOnTwo('Cover Chain');
 		seasons.linkSeason(id, 1, 1, covered(611), 'review', NOW);
-		expect(cat.linkCover(id)).toEqual({ anilistId: 611, url: 'https://img/611.jpg' });
+		expect(cat.linkCover(id)).toEqual({ provider: 'anilist', id: 611, url: 'https://img/611.jpg' });
 		seasons.linkSeason(id, 2, 1, covered(612), 'review', NOW);
-		expect(cat.linkCover(id)).toEqual({ anilistId: 612, url: 'https://img/612.jpg' });
+		expect(cat.linkCover(id)).toEqual({ provider: 'anilist', id: 612, url: 'https://img/612.jpg' });
 	});
 
 	it('offers no cover from a later season when the open one and the first have none', () => {
@@ -1144,7 +1144,7 @@ describe('an anime’s links without a mirror of its first season (c467)', () =>
 	it('a link from before rung 62 is still read while it is the only one, and goes at a LINK', () => {
 		const id = show({ title: 'Fallback', seasons: [[1, 2]] });
 		legacy(id, 631);
-		expect(cat.linkCover(id)).toEqual({ anilistId: 631, url: 'https://img/old.jpg' });
+		expect(cat.linkCover(id)).toEqual({ provider: 'anilist', id: 631, url: 'https://img/old.jpg' });
 		expect(cat.linkedNames(id)).toEqual(['Old Title']);
 		seasons.linkSeason(id, 1, 1, animeEntry(632), 'review', NOW);
 		expect(seriesRow(id)).toBeUndefined();

@@ -338,12 +338,12 @@ function remoteSource(s: SeriesRow): Source | null {
 	};
 }
 
-/** The linked AniList entry's cover (doc/LINKS.md). */
+/** The linked entry's cover: AniList's, or a film's or a show's TMDB poster (doc/LINKS.md). */
 function linkSource(s: SeriesRow): Source | null {
 	const l = linkCover(s.id);
 	if (!l) return null;
 	return {
-		key: `link:anilist:${l.anilistId}`,
+		key: `link:${l.provider}:${l.id}`,
 		read: async () => {
 			const res = await fetch(l.url, {
 				headers: { accept: 'image/avif,image/webp,image/*,*/*;q=0.8' },

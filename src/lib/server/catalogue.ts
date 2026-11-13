@@ -1968,20 +1968,35 @@ function seasonLinkState(
  * its first season's (a cover is the series', and season 1's art is a cover of
  * it), else a link from before rung 62.
  */
-export function linkCover(seriesId: number): { anilistId: number; url: string } | null {
-	if (isAnime(kindOf(seriesId))) {
+export function linkCover(
+	seriesId: number
+): { provider: 'anilist' | 'tmdb'; id: number; url: string } | null {
+	const kind = kindOf(seriesId);
+	// A film's or a show's is its TMDB poster (c989): after the source's own
+	// cover in the chain, so it fills in only where the source gave none.
+	if (kind && kindFacts(kind).catalogue.provider === 'tmdb') {
+		const t = getDb()
+			.prepare(
+				`SELECT tmdb_id, poster_url FROM series_tmdb_links WHERE series_id = ? AND poster_url != ''`
+			)
+			.get(seriesId) as { tmdb_id: number; poster_url: string } | undefined;
+		return t ? { provider: 'tmdb', id: t.tmdb_id, url: t.poster_url } : null;
+	}
+	if (isAnime(kind)) {
 		const l =
 			seasonLink(seriesId, openSeasonOf(seriesId)) ??
 			firstSeasonLink(seriesId) ??
 			legacyLink(seriesId);
-		return l?.anilistId && l.coverUrl ? { anilistId: l.anilistId, url: l.coverUrl } : null;
+		return l?.anilistId && l.coverUrl
+			? { provider: 'anilist', id: l.anilistId, url: l.coverUrl }
+			: null;
 	}
 	const r = getDb()
 		.prepare(
 			`SELECT anilist_id, cover_url FROM series_links WHERE series_id = ? AND anilist_id IS NOT NULL AND cover_url != ''`
 		)
 		.get(seriesId) as { anilist_id: number; cover_url: string } | undefined;
-	return r ? { anilistId: r.anilist_id, url: r.cover_url } : null;
+	return r ? { provider: 'anilist', id: r.anilist_id, url: r.cover_url } : null;
 }
 
 /**
