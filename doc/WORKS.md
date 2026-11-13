@@ -109,7 +109,10 @@ selection bars prepend it to `groupAnswers`, which stays the books' rule).
 
 - `INTO`: `NEW SERIES` / `ADD TO A SHOW · 0`. **Adding a season to an existing
   show has no door yet** (S3's SEASONS · EDIT), so the cell is drawn disabled,
-  as the board draws it, and `?/group` takes only a new show.
+  as the board draws it, and `?/group` takes only a new show. Its design is
+  delivered (c961, 2026-11-12): [`handoffs/add-to-a-show/`](handoffs/add-to-a-show/),
+  which draws what N counts, the pick, the appended sheet and the append's
+  UNDO. Unbuilt.
 - `NAME`: **the shortest title, with its trailing season marker taken off** —
   _Season 2_, _2nd Season_, _S2_, _Part 2_, _II_, and a numeral after a
   Season or Part word (_Season III_, _Part II_), with a Part after a Season
