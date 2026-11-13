@@ -88,7 +88,12 @@ function toTitle(r: Row, media: 'movie' | 'tv'): TmdbTitle {
 		poster: posterOf(r.poster_path),
 		runtime: media === 'movie' && Number.isInteger(r.runtime) ? r.runtime! : null,
 		seasons: media === 'tv' && Number.isInteger(r.number_of_seasons) ? r.number_of_seasons! : null,
-		collection: media === 'movie' ? (r.belongs_to_collection ?? null) : null
+		// Only what the type declares: TMDB's object carries its own images too,
+		// and a stored candidate should hold no more than tsundoku reads.
+		collection:
+			media === 'movie' && r.belongs_to_collection
+				? { id: r.belongs_to_collection.id, name: r.belongs_to_collection.name }
+				: null
 	};
 }
 

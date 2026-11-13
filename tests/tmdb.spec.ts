@@ -132,7 +132,7 @@ describe('one entry', () => {
 			title: 'The Long Ferry',
 			release_date: '2024-11-02',
 			runtime: 118,
-			belongs_to_collection: { id: 9, name: 'The Long Ferry Collection' }
+			belongs_to_collection: { id: 9, name: 'The Long Ferry Collection', poster_path: '/c.jpg' }
 		});
 		const film = await tmdbById('movie', 603);
 		expect(seen[0].url.pathname).toBe('/3/movie/603');
