@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { chromaprintSkip } from './helpers/chromaprint';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
@@ -14,6 +15,8 @@ const work = mkdtempSync(join(tmpdir(), 'tsundoku-fingerprint-'));
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 
 const FFMPEG = process.env.FFMPEG ?? 'ffmpeg';
+// A box with no chromaprint at all skips the cases that fingerprint (c915).
+const noPrint = chromaprintSkip('anime-fingerprint-db', FFMPEG) !== null;
 const noise = (name: string, seconds: number, seed: number) => {
 	const file = join(work, name);
 	execFileSync(
@@ -119,89 +122,101 @@ beforeAll(() => {
 }, 60_000);
 
 describe('fingerprinting downloaded episodes', () => {
-	it('finds the opening and ending two episodes share', async () => {
-		const show = series(work);
-		const a = episode(show, 'ep-a.mka');
-		const b = episode(show, 'ep-b.mka');
-		const result = await fingerprintSeason(show, a, { pauseMs: 0 });
-		expect(result).toEqual({ episodes: 2, found: 2 });
-		for (const id of [a, b]) {
-			const chosen = marks.chosenMarks(id);
-			expect(chosen.introFrom).toBe('fingerprint');
-			expect(chosen.endingFrom).toBe('fingerprint');
-			// The shared 20 s opening is at the start, the ending at 320 s.
-			expect(chosen.intro!.start).toBeLessThan(3);
-			expect(chosen.intro!.end - chosen.intro!.start).toBeGreaterThan(15);
-			expect(chosen.ending!.start).toBeGreaterThan(315);
-			expect(chosen.ending!.start).toBeLessThan(325);
-			expect(chosen.ending!.end - chosen.ending!.start).toBeGreaterThan(15);
-			expect(db.prepare(`SELECT ending_at FROM entries WHERE id = ?`).get(id)).toEqual({
-				ending_at: chosen.ending!.start
-			});
-		}
-		// Asked again, nothing is read: the answer is kept.
-		expect(await fingerprintSeason(show, a, { pauseMs: 0 })).toEqual({ episodes: 0, found: 0 });
-	}, 30_000);
+	it.skipIf(noPrint)(
+		'finds the opening and ending two episodes share',
+		async () => {
+			const show = series(work);
+			const a = episode(show, 'ep-a.mka');
+			const b = episode(show, 'ep-b.mka');
+			const result = await fingerprintSeason(show, a, { pauseMs: 0 });
+			expect(result).toEqual({ episodes: 2, found: 2 });
+			for (const id of [a, b]) {
+				const chosen = marks.chosenMarks(id);
+				expect(chosen.introFrom).toBe('fingerprint');
+				expect(chosen.endingFrom).toBe('fingerprint');
+				// The shared 20 s opening is at the start, the ending at 320 s.
+				expect(chosen.intro!.start).toBeLessThan(3);
+				expect(chosen.intro!.end - chosen.intro!.start).toBeGreaterThan(15);
+				expect(chosen.ending!.start).toBeGreaterThan(315);
+				expect(chosen.ending!.start).toBeLessThan(325);
+				expect(chosen.ending!.end - chosen.ending!.start).toBeGreaterThan(15);
+				expect(db.prepare(`SELECT ending_at FROM entries WHERE id = ?`).get(id)).toEqual({
+					ending_at: chosen.ending!.start
+				});
+			}
+			// Asked again, nothing is read: the answer is kept.
+			expect(await fingerprintSeason(show, a, { pauseMs: 0 })).toEqual({ episodes: 0, found: 0 });
+		},
+		30_000
+	);
 
-	it('finds the whole opening behind cold opens of different lengths, through two encodes (c384)', async () => {
-		// Ranma ½ (2024), 2026-11-03: its opening at 30.75 s in one episode and
-		// 83.1 s in another, and found as a 31-48 s piece of a 90 s song. Here a
-		// 90 s opening after a 25 s and an 80 s cold open, the second episode
-		// encoded at a third of the bitrate, as a 360p stream's audio is.
-		const song = noise('song.mka', 90, 77);
-		const coldC = noise('cold-c.mka', 25, 301);
-		const coldD = noise('cold-d.mka', 80, 302);
-		const midC = noise('mid-c.mka', 600, 303);
-		const midD = noise('mid-d.mka', 545, 304);
-		concat('ep-c-cold.mka', [coldC, song, midC, ed]);
-		concat('ep-d-cold.mka', [coldD, song, midD, ed], '12k');
-		const show = series(work);
-		const c = episode(show, 'ep-c-cold.mka', { duration: 735 });
-		const d = episode(show, 'ep-d-cold.mka', { duration: 735 });
-		expect(await fingerprintSeason(show, c, { pauseMs: 0 })).toEqual({ episodes: 2, found: 2 });
-		const want = { [c]: 25, [d]: 80 };
-		for (const id of [c, d]) {
-			const intro = marks.chosenMarks(id).intro!;
-			// Where the song starts, to a second, and all of it.
-			expect(Math.abs(intro.start - want[id])).toBeLessThan(1);
-			expect(intro.end - intro.start).toBeGreaterThan(88);
-			expect(intro.end - intro.start).toBeLessThan(92);
-		}
-	}, 120_000);
+	it.skipIf(noPrint)(
+		'finds the whole opening behind cold opens of different lengths, through two encodes (c384)',
+		async () => {
+			// Ranma ½ (2024), 2026-11-03: its opening at 30.75 s in one episode and
+			// 83.1 s in another, and found as a 31-48 s piece of a 90 s song. Here a
+			// 90 s opening after a 25 s and an 80 s cold open, the second episode
+			// encoded at a third of the bitrate, as a 360p stream's audio is.
+			const song = noise('song.mka', 90, 77);
+			const coldC = noise('cold-c.mka', 25, 301);
+			const coldD = noise('cold-d.mka', 80, 302);
+			const midC = noise('mid-c.mka', 600, 303);
+			const midD = noise('mid-d.mka', 545, 304);
+			concat('ep-c-cold.mka', [coldC, song, midC, ed]);
+			concat('ep-d-cold.mka', [coldD, song, midD, ed], '12k');
+			const show = series(work);
+			const c = episode(show, 'ep-c-cold.mka', { duration: 735 });
+			const d = episode(show, 'ep-d-cold.mka', { duration: 735 });
+			expect(await fingerprintSeason(show, c, { pauseMs: 0 })).toEqual({ episodes: 2, found: 2 });
+			const want = { [c]: 25, [d]: 80 };
+			for (const id of [c, d]) {
+				const intro = marks.chosenMarks(id).intro!;
+				// Where the song starts, to a second, and all of it.
+				expect(Math.abs(intro.start - want[id])).toBeLessThan(1);
+				expect(intro.end - intro.start).toBeGreaterThan(88);
+				expect(intro.end - intro.start).toBeLessThan(92);
+			}
+		},
+		120_000
+	);
 
-	it('keeps the opening most of an episode’s pairs agree on, not one pair’s longer run (c384)', async () => {
-		// Round 2 (review finding 2): the pairing in fingerprintSeason, not
-		// agreedSpan alone. A, B and D share a 20 s opening; C shares a longer
-		// 40 s stretch with A only, 30 s after A's opening (spans that touch
-		// would count as agreeing, and the longer win the tie), a run
-		// valid for that pair. A's pairs give it the opening twice (B, D) and
-		// the stretch once (C). Four episodes, not three: with one span per
-		// partner, three give A two spans that agree with nothing, and the
-		// longer wins under either rule.
-		const stretch = noise('stretch.mka', 40, 501);
-		const cold = noise('cold-e.mka', 10, 502);
-		const mid = (seed: number, seconds: number) => noise(`mid-${seed}.mka`, seconds, seed);
-		concat('ep-agree-a.mka', [op, mid(515, 30), stretch, mid(511, 270), ed]);
-		concat('ep-agree-b.mka', [op, mid(512, 340), ed]);
-		concat('ep-agree-c.mka', [cold, stretch, mid(513, 310), ed]);
-		concat('ep-agree-d.mka', [op, mid(514, 340), ed]);
-		const show = series(work);
-		const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((x) =>
-			episode(show, `ep-agree-${x}.mka`, { duration: 380 })
-		);
-		expect(await fingerprintSeason(show, a, { pauseMs: 0 })).toEqual({ episodes: 4, found: 4 });
-		// A keeps the opening, where B and D agree, and not the longer stretch C found.
-		for (const id of [a, b, d]) {
-			const intro = marks.chosenMarks(id).intro!;
-			expect(intro.start).toBeLessThan(1);
-			expect(intro.end - intro.start).toBeGreaterThan(18);
-			expect(intro.end - intro.start).toBeLessThan(22);
-		}
-		// C has only the stretch, which is what its one pair found.
-		const onC = marks.chosenMarks(c).intro!;
-		expect(Math.abs(onC.start - 10)).toBeLessThan(1);
-		expect(onC.end - onC.start).toBeGreaterThan(38);
-	}, 120_000);
+	it.skipIf(noPrint)(
+		'keeps the opening most of an episode’s pairs agree on, not one pair’s longer run (c384)',
+		async () => {
+			// Round 2 (review finding 2): the pairing in fingerprintSeason, not
+			// agreedSpan alone. A, B and D share a 20 s opening; C shares a longer
+			// 40 s stretch with A only, 30 s after A's opening (spans that touch
+			// would count as agreeing, and the longer win the tie), a run
+			// valid for that pair. A's pairs give it the opening twice (B, D) and
+			// the stretch once (C). Four episodes, not three: with one span per
+			// partner, three give A two spans that agree with nothing, and the
+			// longer wins under either rule.
+			const stretch = noise('stretch.mka', 40, 501);
+			const cold = noise('cold-e.mka', 10, 502);
+			const mid = (seed: number, seconds: number) => noise(`mid-${seed}.mka`, seconds, seed);
+			concat('ep-agree-a.mka', [op, mid(515, 30), stretch, mid(511, 270), ed]);
+			concat('ep-agree-b.mka', [op, mid(512, 340), ed]);
+			concat('ep-agree-c.mka', [cold, stretch, mid(513, 310), ed]);
+			concat('ep-agree-d.mka', [op, mid(514, 340), ed]);
+			const show = series(work);
+			const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((x) =>
+				episode(show, `ep-agree-${x}.mka`, { duration: 380 })
+			);
+			expect(await fingerprintSeason(show, a, { pauseMs: 0 })).toEqual({ episodes: 4, found: 4 });
+			// A keeps the opening, where B and D agree, and not the longer stretch C found.
+			for (const id of [a, b, d]) {
+				const intro = marks.chosenMarks(id).intro!;
+				expect(intro.start).toBeLessThan(1);
+				expect(intro.end - intro.start).toBeGreaterThan(18);
+				expect(intro.end - intro.start).toBeLessThan(22);
+			}
+			// C has only the stretch, which is what its one pair found.
+			const onC = marks.chosenMarks(c).intro!;
+			expect(Math.abs(onC.start - 10)).toBeLessThan(1);
+			expect(onC.end - onC.start).toBeGreaterThan(38);
+		},
+		120_000
+	);
 
 	it('leaves the source’s own timestamps ahead of it', async () => {
 		const show = series(work);
@@ -232,7 +247,7 @@ describe('fingerprinting downloaded episodes', () => {
 		expect(marks.chosenMarks(a).intro).toBeNull();
 	});
 
-	it('leaves one episode alone: a pair is the least it can compare', async () => {
+	it.skipIf(noPrint)('leaves one episode alone: a pair is the least it can compare', async () => {
 		const show = series(work);
 		const a = episode(show, 'ep-a.mka');
 		expect(await fingerprintSeason(show, a, { pauseMs: 0 })).toEqual({ episodes: 1, found: 0 });
@@ -240,42 +255,50 @@ describe('fingerprinting downloaded episodes', () => {
 		expect(marks.markTriedAt(a, 'fingerprint')).toBeNull();
 	});
 
-	it('remembers a pair that shared nothing, but not forever', async () => {
-		const show = series(work);
-		const a = episode(show, 'ep-a.mka');
-		const b = episode(show, 'ep-b.mka');
-		// Different audio throughout: nothing to match.
-		concat('ep-c.mka', [noise('x.mka', 20, 500), noise('y.mka', 300, 501)]);
-		db.prepare(`UPDATE entries SET file = ? WHERE id = ?`).run('ep-c.mka', b);
-		const now = 1_800_000_000_000;
-		const result = await fingerprintSeason(show, a, { pauseMs: 0, now });
-		expect(result.found).toBe(0);
-		for (const id of [a, b]) {
-			expect(marks.chosenMarks(id).intro).toBeNull();
-			expect(marks.markTriedAt(id, 'fingerprint')).toBe(now);
-			expect(marks.needsLookup(id, 'fingerprint', FINGERPRINT_RETRY_MS, now + 1000)).toBe(false);
-			expect(
-				marks.needsLookup(id, 'fingerprint', FINGERPRINT_RETRY_MS, now + FINGERPRINT_RETRY_MS)
-			).toBe(true);
-		}
-	}, 30_000);
+	it.skipIf(noPrint)(
+		'remembers a pair that shared nothing, but not forever',
+		async () => {
+			const show = series(work);
+			const a = episode(show, 'ep-a.mka');
+			const b = episode(show, 'ep-b.mka');
+			// Different audio throughout: nothing to match.
+			concat('ep-c.mka', [noise('x.mka', 20, 500), noise('y.mka', 300, 501)]);
+			db.prepare(`UPDATE entries SET file = ? WHERE id = ?`).run('ep-c.mka', b);
+			const now = 1_800_000_000_000;
+			const result = await fingerprintSeason(show, a, { pauseMs: 0, now });
+			expect(result.found).toBe(0);
+			for (const id of [a, b]) {
+				expect(marks.chosenMarks(id).intro).toBeNull();
+				expect(marks.markTriedAt(id, 'fingerprint')).toBe(now);
+				expect(marks.needsLookup(id, 'fingerprint', FINGERPRINT_RETRY_MS, now + 1000)).toBe(false);
+				expect(
+					marks.needsLookup(id, 'fingerprint', FINGERPRINT_RETRY_MS, now + FINGERPRINT_RETRY_MS)
+				).toBe(true);
+			}
+		},
+		30_000
+	);
 
-	it('fingerprints a file through the same reader the queue uses', async () => {
-		const prints = await fingerprintFile(epAFile, 340);
-		expect(prints.intro?.points.length).toBeGreaterThan(0);
-		expect(prints.ending?.points.length).toBeGreaterThan(0);
-		expect(prints.intro!.seconds).toBe(85);
-		expect(prints.intro!.start).toBe(0);
-		expect(prints.ending!.seconds).toBe(240);
-		expect(prints.ending!.start).toBe(100);
-	}, 30_000);
+	it.skipIf(noPrint)(
+		'fingerprints a file through the same reader the queue uses',
+		async () => {
+			const prints = await fingerprintFile(epAFile, 340);
+			expect(prints.intro?.points.length).toBeGreaterThan(0);
+			expect(prints.ending?.points.length).toBeGreaterThan(0);
+			expect(prints.intro!.seconds).toBe(85);
+			expect(prints.intro!.start).toBe(0);
+			expect(prints.ending!.seconds).toBe(240);
+			expect(prints.ending!.start).toBe(100);
+		},
+		30_000
+	);
 
 	// On a build whose ffmpeg has no muxer (this workstation's), FPCALC names
 	// the fpcalc that runs; it is `fpcalc` on PATH when nothing names one.
 	const hasMuxer = execFileSync(FFMPEG, ['-hide_banner', '-muxers'], { encoding: 'utf8' }).includes(
 		'chromaprint'
 	);
-	it.skipIf(hasMuxer)(
+	it.skipIf(hasMuxer || noPrint)(
 		'runs the fpcalc FPCALC names, before anything on PATH',
 		async () => {
 			const marker = join(work, 'fpcalc-was-run');
@@ -298,12 +321,16 @@ describe('fingerprinting downloaded episodes', () => {
 		30_000
 	);
 
-	it('runs in the background, one job at a time, and says when it is idle', async () => {
-		const show = series(work);
-		const a = episode(show, 'ep-a.mka');
-		episode(show, 'ep-b.mka');
-		wantSkipMarks(a);
-		await skipMarksIdle();
-		expect(marks.chosenMarks(a).introFrom).toBe('fingerprint');
-	}, 30_000);
+	it.skipIf(noPrint)(
+		'runs in the background, one job at a time, and says when it is idle',
+		async () => {
+			const show = series(work);
+			const a = episode(show, 'ep-a.mka');
+			episode(show, 'ep-b.mka');
+			wantSkipMarks(a);
+			await skipMarksIdle();
+			expect(marks.chosenMarks(a).introFrom).toBe('fingerprint');
+		},
+		30_000
+	);
 });

@@ -76,6 +76,18 @@ spec that wants TMDB sets its own key and stubs the fetch (`setTmdbFetch`); an
 e2e flow that wants it starts its own preview with `TMDB_API_URL` pointed at a
 fake (`tests/tmdb-link-flow.e2e.ts`).
 
+**The fingerprint specs skip on a box with no chromaprint** (c915).
+`anime-fingerprint-db.spec.ts` and `anime-stream-fingerprint-db.spec.ts` run the
+real ffmpeg and chromaprint, through ffmpeg's muxer or `fpcalc` (`FPCALC`, else
+PATH). Where neither exists, as on the WSL `work` box, the 13 cases that
+fingerprint used to fail every run and hid any real break among them. Now
+`tests/helpers/chromaprint.ts` asks once per file, and those cases skip with
+the reason printed (`skipping the cases that fingerprint: …`). The other four
+still run. A skip there hides nothing that ships, because
+`ops/release/smoke/fingerprint.sh` proves the bundle's ffmpeg fingerprints. To
+run them on such a box, install chromaprint's `fpcalc` or set `FPCALC`. To see
+the skip on a box that has one, run with `FPCALC=/nonexistent`.
+
 **Importer specs never read real data.** The samples on `/mnt/hdd2` are the
 owner's, copyrighted and partly explicit. `tests/helpers/` holds a protobuf
 encoder and a zip writer, and `mihon-fixture.ts` uses them to synthesise a

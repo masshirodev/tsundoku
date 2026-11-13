@@ -5,6 +5,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { chromaprintSkip } from './helpers/chromaprint';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
@@ -18,6 +19,8 @@ const work = mkdtempSync(join(tmpdir(), 'tsundoku-stream-fingerprint-'));
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 
 const FFMPEG = process.env.FFMPEG ?? 'ffmpeg';
+// A box with no chromaprint at all skips the cases that fingerprint (c915).
+const noPrint = chromaprintSkip('anime-stream-fingerprint-db', FFMPEG) !== null;
 const noise = (name: string, seconds: number, seed: number) => {
 	const file = join(work, name);
 	execFileSync(
@@ -268,27 +271,31 @@ const episode = (seriesId: number, name?: string) =>
 	);
 
 describe('fingerprinting streams', () => {
-	it('takes the lowest quality at most 480p, a separate audio track, and falls past a failing server', async () => {
-		const show = series();
-		const a = episode(show);
-		const b = episode(show);
-		seen = [];
-		const result = await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 });
-		expect(result).toEqual({ episodes: 2, found: 2 });
-		for (const id of [a, b]) {
-			const chosen = marks.chosenMarks(id);
-			expect(chosen.introFrom).toBe('fingerprint');
-			expect(chosen.endingFrom).toBe('fingerprint');
-			expect(chosen.ending!.start).toBeGreaterThan(315);
-			expect(chosen.ending!.start).toBeLessThan(325);
-		}
-		// The 1080p audio is never fetched: the 360p one is.
-		expect(seen.some((u) => u.includes('/high/'))).toBe(false);
-		// The first 360p server failed, and the next one answered.
-		expect(seen.some((u) => u.includes('/missing/'))).toBe(true);
-		expect(seen.some((u) => u.includes('/ep-a/low/index.m3u8'))).toBe(true);
-		expect(seen.some((u) => u.includes('/ep-b/low/index.m3u8'))).toBe(true);
-	}, 180_000);
+	it.skipIf(noPrint)(
+		'takes the lowest quality at most 480p, a separate audio track, and falls past a failing server',
+		async () => {
+			const show = series();
+			const a = episode(show);
+			const b = episode(show);
+			seen = [];
+			const result = await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 });
+			expect(result).toEqual({ episodes: 2, found: 2 });
+			for (const id of [a, b]) {
+				const chosen = marks.chosenMarks(id);
+				expect(chosen.introFrom).toBe('fingerprint');
+				expect(chosen.endingFrom).toBe('fingerprint');
+				expect(chosen.ending!.start).toBeGreaterThan(315);
+				expect(chosen.ending!.start).toBeLessThan(325);
+			}
+			// The 1080p audio is never fetched: the 360p one is.
+			expect(seen.some((u) => u.includes('/high/'))).toBe(false);
+			// The first 360p server failed, and the next one answered.
+			expect(seen.some((u) => u.includes('/missing/'))).toBe(true);
+			expect(seen.some((u) => u.includes('/ep-a/low/index.m3u8'))).toBe(true);
+			expect(seen.some((u) => u.includes('/ep-b/low/index.m3u8'))).toBe(true);
+		},
+		180_000
+	);
 
 	it('reads no stream while a download of the same source is running', async () => {
 		const show = series();
@@ -319,67 +326,83 @@ describe('fingerprinting streams', () => {
 		expect(streamTargets([10, 11], 99)).toEqual([]);
 	});
 
-	it('reads KickAssAnime’s own shape: one VidStreaming server, three heights, and the 360p audio (live, 2026-11-02)', async () => {
-		// The engine's live answer was one server ("VidStreaming") whose qualities
-		// read "1080p (1920x1080) - 3.52 Mbps", "720p (1280x720) - 1.31 Mbps" and
-		// "360p (640x360) - 506 kbps", each with a separate audio rendition per
-		// language. Only the 360p audio is fetched.
-		const show = series();
-		const a = episode(show, 'k1');
-		episode(show, 'k2');
-		seen = [];
-		expect(await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 })).toEqual({
-			episodes: 2,
-			found: 2
-		});
-		expect(seen.some((u) => u.includes('/hls/k1/index.m3u8'))).toBe(true);
-		expect(seen.some((u) => u.includes('/hls/k2/index.m3u8'))).toBe(true);
-		expect(seen.some((u) => u.includes('/hls/k1/high/'))).toBe(false);
-		expect(marks.chosenMarks(a).introFrom).toBe('fingerprint');
-	}, 180_000);
+	it.skipIf(noPrint)(
+		'reads KickAssAnime’s own shape: one VidStreaming server, three heights, and the 360p audio (live, 2026-11-02)',
+		async () => {
+			// The engine's live answer was one server ("VidStreaming") whose qualities
+			// read "1080p (1920x1080) - 3.52 Mbps", "720p (1280x720) - 1.31 Mbps" and
+			// "360p (640x360) - 506 kbps", each with a separate audio rendition per
+			// language. Only the 360p audio is fetched.
+			const show = series();
+			const a = episode(show, 'k1');
+			episode(show, 'k2');
+			seen = [];
+			expect(await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 })).toEqual({
+				episodes: 2,
+				found: 2
+			});
+			expect(seen.some((u) => u.includes('/hls/k1/index.m3u8'))).toBe(true);
+			expect(seen.some((u) => u.includes('/hls/k2/index.m3u8'))).toBe(true);
+			expect(seen.some((u) => u.includes('/hls/k1/high/'))).toBe(false);
+			expect(marks.chosenMarks(a).introFrom).toBe('fingerprint');
+		},
+		180_000
+	);
 
-	it('reads a later server’s 360p before an earlier server’s 1080p or unknown height (c338)', async () => {
-		// The ranking across servers (`qualitiesToRead`): a quality at or below
-		// 480p first, then one that names no height, then one above, whatever
-		// order the source lists its servers in.
-		const show = series();
-		const a = episode(show, 'x1');
-		episode(show, 'x2');
-		seen = [];
-		const result = await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 });
-		// The first audio asked for, per episode, is the 360p one. Checked
-		// before the result: a read that fails falls through to the next
-		// server, so this holds however the read itself went.
-		const audioAsked = (kind: string) =>
-			seen.filter((u) => u.startsWith(`/video/hls/${kind}/`) && u.endsWith('.m3u8'));
-		expect(audioAsked('x1')[0]).toBe('/video/hls/x1/index.m3u8');
-		expect(audioAsked('x2')[0]).toBe('/video/hls/x2/index.m3u8');
-		// The pair still finds its opening, and the 360p read was enough: the
-		// other two servers were never asked.
-		expect(result).toEqual({ episodes: 2, found: 2 });
-		expect(marks.chosenMarks(a).introFrom).toBe('fingerprint');
-		expect(seen.some((u) => /\/(high|unknown)\//.test(u))).toBe(false);
-	}, 180_000);
+	it.skipIf(noPrint)(
+		'reads a later server’s 360p before an earlier server’s 1080p or unknown height (c338)',
+		async () => {
+			// The ranking across servers (`qualitiesToRead`): a quality at or below
+			// 480p first, then one that names no height, then one above, whatever
+			// order the source lists its servers in.
+			const show = series();
+			const a = episode(show, 'x1');
+			episode(show, 'x2');
+			seen = [];
+			const result = await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 });
+			// The first audio asked for, per episode, is the 360p one. Checked
+			// before the result: a read that fails falls through to the next
+			// server, so this holds however the read itself went.
+			const audioAsked = (kind: string) =>
+				seen.filter((u) => u.startsWith(`/video/hls/${kind}/`) && u.endsWith('.m3u8'));
+			expect(audioAsked('x1')[0]).toBe('/video/hls/x1/index.m3u8');
+			expect(audioAsked('x2')[0]).toBe('/video/hls/x2/index.m3u8');
+			// The pair still finds its opening, and the 360p read was enough: the
+			// other two servers were never asked.
+			expect(result).toEqual({ episodes: 2, found: 2 });
+			expect(marks.chosenMarks(a).introFrom).toBe('fingerprint');
+			expect(seen.some((u) => /\/(high|unknown)\//.test(u))).toBe(false);
+		},
+		180_000
+	);
 
-	it('takes the lowest quality when the source names no height at all', async () => {
-		const show = series();
-		const a = episode(show, 'n1');
-		episode(show, 'n2');
-		expect(await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 })).toEqual({
-			episodes: 2,
-			found: 2
-		});
-		expect(marks.chosenMarks(a).endingFrom).toBe('fingerprint');
-	}, 180_000);
+	it.skipIf(noPrint)(
+		'takes the lowest quality when the source names no height at all',
+		async () => {
+			const show = series();
+			const a = episode(show, 'n1');
+			episode(show, 'n2');
+			expect(await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 })).toEqual({
+				episodes: 2,
+				found: 2
+			});
+			expect(marks.chosenMarks(a).endingFrom).toBe('fingerprint');
+		},
+		180_000
+	);
 
-	it('takes the lowest quality there is when none is at most 480p', async () => {
-		const show = series();
-		const a = episode(show, 'h1');
-		episode(show, 'h2');
-		expect(await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 })).toEqual({
-			episodes: 2,
-			found: 2
-		});
-		expect(marks.chosenMarks(a).introFrom).toBe('fingerprint');
-	}, 180_000);
+	it.skipIf(noPrint)(
+		'takes the lowest quality there is when none is at most 480p',
+		async () => {
+			const show = series();
+			const a = episode(show, 'h1');
+			episode(show, 'h2');
+			expect(await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 })).toEqual({
+				episodes: 2,
+				found: 2
+			});
+			expect(marks.chosenMarks(a).introFrom).toBe('fingerprint');
+		},
+		180_000
+	);
 });
