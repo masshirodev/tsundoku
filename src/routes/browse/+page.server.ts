@@ -14,6 +14,9 @@ import { downloadsBackend } from '$lib/server/engine/run';
 import { browseList, noteSolvedChecks } from '$lib/server/engine/browse';
 import { fillWebViewFlags } from '$lib/server/engine/extensions';
 import { mark } from '$lib/server/engine/webview';
+import { kindOfSource } from '../downloads/search/kinds.server';
+import { kindAsked, kindsServed } from '../downloads/search/source-kinds';
+import type { Kind } from '$lib/library/kinds';
 
 /**
  * BROWSE (Index-Browse, sources; doc/BROWSE.md; card c142): every installed
@@ -28,10 +31,38 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 	// Extensions installed before tsundoku asked whether they use a WebView, read once (rung 78).
 	await fillWebViewFlags();
 	const added = await addedBand(url.searchParams, null, reveal);
-	const list = browseList(reveal);
+	const all = browseList(reveal);
+	// The KIND band (doc/BROWSE.md, "The KIND band"): each source's own kind,
+	// the one SEARCH THE SOURCES asks (the owner's choice, else its family's),
+	// so a Mihon source marked MANHWA is under MANHWA and an Aniyomi one marked
+	// SHOWS under SHOWS. The cells count sources, as reveal lets them be seen.
+	const sources = [...all.manga, ...all.anime, ...all.novels];
+	const kindOf = new Map(sources.map((r) => [r.id, kindOfSource(r.id)]));
+	const served = kindsServed(sources.map((r) => ({ kind: kindOf.get(r.id) ?? null })));
+	const kind = kindAsked(url.searchParams.get('kind'), served);
+	const counts: Partial<Record<Kind, number>> = {};
+	for (const k of kindOf.values()) if (k) counts[k] = (counts[k] ?? 0) + 1;
+	const ofKind = <R extends { id: string }>(rows: R[]) =>
+		kind === null ? rows : rows.filter((r) => kindOf.get(r.id) === kind);
+	const list = {
+		...all,
+		recent: ofKind(all.recent),
+		manga: ofKind(all.manga),
+		anime: ofKind(all.anime),
+		novels: ofKind(all.novels)
+	};
 	const rows = [...list.recent, ...list.manga, ...list.anime];
 	return {
 		list,
+		// One kind or none to tell apart draws no band, as SEARCH THE SOURCES'.
+		kindBand:
+			served.length > 1
+				? {
+						kind,
+						all: sources.length,
+						cells: served.map((k) => ({ kind: k, n: counts[k] ?? 0 }))
+					}
+				: null,
 		// NEEDS A WEBVIEW, in words where this install can't give one
 		// (doc/BROWSE.md, "Extensions that need a WebView"). The engine is asked
 		// only when a listed source needs one.

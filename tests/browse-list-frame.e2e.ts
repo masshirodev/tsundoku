@@ -24,10 +24,13 @@ const SEL = {
 	region2: 'header.bar .title',
 	region3: 'header.bar .hint',
 	region4: 'header.bar .ext',
-	region5: '.screen > :nth-child(2)',
-	region6: '.screen > :nth-child(3) > :nth-child(1) .main',
-	region10: '.screen > :nth-child(4)',
-	region11: '.screen > :nth-child(5) > :nth-child(1) .main'
+	// Hand edit (2026-11-13): the KIND band now sits between the bar and the
+	// list, so the generated positions (`.screen > :nth-child(2)` and on) are
+	// the list's first label, its rows, the next label and its rows, named.
+	region5: '.screen > .label.first',
+	region6: '.screen > .label.first + .rows > :nth-child(1) .main',
+	region10: '.screen > .label.first + .rows + .label',
+	region11: '.screen > .label.first + .rows + .label + .rows > :nth-child(1) .main'
 };
 
 test('screen: frame matches the handoff', async ({ page }) => {

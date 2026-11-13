@@ -33,6 +33,21 @@ down. The sections are the source families (Mihon's, Aniyomi's, LNReader's),
 each the kind its family names a row by (`SOURCE_KINDS` in
 `src/lib/library/kinds.ts`; card c303), not a list of kind names.
 
+**The KIND band** (2026-11-13, the owner's ask). Under the bar, the
+library's band over the sources: **KIND · ALL n · MANGA n · ANIME n · …**,
+`?kind=<kind>` in the URL, sticky under the bar as the library's is. A cell
+counts sources, as reveal lets them be seen. A source's kind is its own, the
+one SEARCH THE SOURCES asks (`kindOfSource`: the kind the owner set on its
+settings page, c986, else its family's), so a Mihon source marked MANHWA is
+under MANHWA and an Aniyomi one marked SHOWS under SHOWS, while the sections
+stay the families. A kind narrows RECENT and every section to the sources
+serving it; ALL is the list as it was. A word that names no kind a source
+here serves is ALL (`kindAsked`, shared with SEARCH THE SOURCES' band, c699),
+never a band with nothing under it. With one kind or none to tell apart the
+band isn't drawn. The phone drops the KIND label for room, as the library
+does. It is neither pinned with a shelf's name nor carries FILTER: BROWSE has
+neither. `tests/browse-anime.e2e.ts` holds it.
+
 **Which sources.** Those in the owner's languages (the `browse_languages`
 setting, `en,ja` by default; its SETTINGS row comes with c144), an
 extension's `all`/`multi` sources, and any other the library reads from (a

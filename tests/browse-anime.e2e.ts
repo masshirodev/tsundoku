@@ -105,6 +105,39 @@ test('an anime source is browsed, previewed with its EPISODES, and added by seas
 	await expect(page.locator('a.cta')).toContainText('S1 · EP. 1 · STREAMS');
 });
 
+test('the KIND band narrows BROWSE to one kind of source, and ALL brings every one back', async ({
+	page
+}) => {
+	await page.goto('/browse');
+	const band = page.getByRole('navigation', { name: 'Kinds' });
+	await expect(band.locator('.kc.on')).toContainText('ALL');
+	const anime = band.locator('.kc', { hasText: 'ANIME' });
+	await expect(anime).toBeVisible();
+	await expect(band.locator('.kc', { hasText: 'MANGA' })).toBeVisible();
+	const section = (word: string) => page.locator('.screen > .label', { hasText: `— ${word}` });
+	await expect(section('MANGA')).toBeVisible();
+
+	await anime.click();
+	await expect(page).toHaveURL(/\/browse\?kind=anime$/);
+	await expect(anime).toHaveClass(/\bon\b/);
+	await expect(anime).toHaveAttribute('aria-current', 'true');
+	await expect(section('ANIME')).toBeVisible();
+	await expect(section('MANGA')).toHaveCount(0);
+	await expect(
+		page.getByRole('link', { name: new RegExp(ANIME_SOURCE.name) }).first()
+	).toBeVisible();
+
+	await band.locator('.kc', { hasText: 'ALL' }).click();
+	await expect(page).toHaveURL(/\/browse$/);
+	await expect(section('MANGA')).toBeVisible();
+	await expect(section('ANIME')).toBeVisible();
+
+	// A word that is no kind any source serves is ALL, never a band with nothing under it.
+	await page.goto('/browse?kind=nonsense');
+	await expect(band.locator('.kc.on')).toContainText('ALL');
+	await expect(section('MANGA')).toBeVisible();
+});
+
 test('an episode plays from the preview without ADD, and the series stays off the shelves (c161)', async ({
 	page
 }) => {

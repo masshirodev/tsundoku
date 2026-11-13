@@ -22,6 +22,8 @@
 	import TickSheet from './TickSheet.svelte';
 	import { browseSelection } from '$lib/library/browse-selection.svelte';
 	import { tickedHere } from '$lib/library/browse-select';
+	import { KIND_TAB } from '../downloads/search/source-kinds';
+	import type { Kind } from '$lib/library/kinds';
 
 	/**
 	 * BROWSE (Index-Browse: sources, revealOff, revealOn; Browse Calls, "Browse
@@ -79,6 +81,13 @@
 			})
 	);
 	const total = $derived(list.manga.length + list.anime.length + list.novels.length);
+	/**
+	 * The KIND band (doc/BROWSE.md, "The KIND band"): the library's band, over
+	 * the sources. ALL is every source, as before; a kind narrows RECENT and the
+	 * sections to the sources serving it. The server counts and narrows.
+	 */
+	const band = $derived(data.kindBand);
+	const kindHref = (k: Kind | null) => resolve('/browse') + (k ? `?kind=${k}` : '');
 	const pad = (n: number) => String(n).padStart(2, '0');
 	const extensionsHref = resolve('/browse/extensions');
 
@@ -148,6 +157,71 @@
 	<!-- Without script nothing can fold RECENT back, so it offers nothing. -->
 	<noscript
 		><style>
+			/* The KIND band: the library's (src/routes/+page.svelte, .kinds), not pinned
+	   and with no FILTER at its end. Colours are tokens. */
+			.kinds {
+				position: sticky;
+				top: var(--header-h);
+				z-index: 7;
+				display: flex;
+				flex-shrink: 0;
+				height: 40px;
+				border-bottom: var(--hairline);
+				background: var(--surface-page);
+			}
+			.klabel {
+				display: flex;
+				align-items: center;
+				flex-shrink: 0;
+				padding: 0 14px 0 var(--pad);
+				border-right: var(--hairline);
+				font: 500 12px/1 var(--font-mono);
+				letter-spacing: 0.06em;
+				color: var(--text-2);
+				white-space: nowrap;
+			}
+			.kscroll {
+				display: flex;
+				flex: 1;
+				min-width: 0;
+				overflow-x: auto;
+				scrollbar-width: none;
+			}
+			.kscroll::-webkit-scrollbar {
+				display: none;
+			}
+			.kc {
+				display: flex;
+				align-items: center;
+				gap: 6px;
+				flex-shrink: 0;
+				padding: 0 10px;
+				border-right: var(--hairline);
+				color: var(--text-1);
+				font: 500 13px/1 var(--font-mono);
+				letter-spacing: 0.02em;
+				white-space: nowrap;
+				text-decoration: none;
+			}
+			.kc .n {
+				opacity: 0.6;
+			}
+			.kc.on,
+			.kc.on:hover,
+			.kc:active {
+				background: var(--surface-inverse);
+				color: var(--text-inverse);
+			}
+			@media (max-width: 599px) {
+				.klabel {
+					display: none;
+				}
+			}
+			@media (min-width: 600px) {
+				.kc {
+					padding: 0 14px;
+				}
+			}
 			[data-recent-toggle] {
 				display: none;
 			}
@@ -176,6 +250,31 @@
 				</a>
 			{/snippet}
 		</TopBar>
+	{/if}
+	{#if band}
+		<nav class="kinds" aria-label="Kinds">
+			<div class="klabel">KIND</div>
+			<div class="kscroll">
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- kindHref resolves -->
+				<a
+					class="kc"
+					class:on={band.kind === null}
+					href={kindHref(null)}
+					aria-current={band.kind === null ? 'true' : undefined}
+					><span>ALL</span><span class="n">{count(band.all)}</span></a
+				>
+				{#each band.cells as c (c.kind)}
+					<a
+						class="kc"
+						class:on={band.kind === c.kind}
+						href={kindHref(c.kind)}
+						aria-current={band.kind === c.kind ? 'true' : undefined}
+						><span>{KIND_TAB[c.kind]}</span><span class="n">{count(c.n)}</span></a
+					>
+				{/each}
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
+			</div>
+		</nav>
 	{/if}
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
