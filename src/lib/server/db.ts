@@ -2074,7 +2074,12 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		at INTEGER NOT NULL,
 		PRIMARY KEY (series_id, offer)
 	) WITHOUT ROWID;
-	`
+	`,
+
+	// v82: a film's backdrop (card c992): the 16:9 still the film's stage shows
+	// above its collection, kept on the link as the poster is. '' until a link
+	// is made or remade after this rung; the stage draws no picture then.
+	`ALTER TABLE series_tmdb_links ADD COLUMN backdrop_url TEXT NOT NULL DEFAULT '';`
 ];
 
 /**

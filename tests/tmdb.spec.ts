@@ -106,6 +106,7 @@ describe('a search', () => {
 			year: 2024,
 			overview: 'A crossing.',
 			poster: 'https://image.tmdb.org/t/p/w500/ferry.jpg',
+			backdrop: null,
 			runtime: null,
 			seasons: null,
 			collection: null

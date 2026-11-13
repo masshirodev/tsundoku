@@ -66,6 +66,7 @@ type LinkRow = {
 	collection_id: number | null;
 	collection_name: string;
 	linked_at: number;
+	backdrop_url: string;
 };
 
 type SearchRow = {
@@ -95,6 +96,7 @@ export const titleOfLink = (l: LinkRow): TmdbTitle => ({
 	year: l.year,
 	overview: l.overview,
 	poster: l.poster_url || null,
+	backdrop: l.backdrop_url || null,
 	runtime: l.runtime,
 	seasons: l.seasons,
 	collection: l.collection_id !== null ? { id: l.collection_id, name: l.collection_name } : null
@@ -140,14 +142,14 @@ function writeLink(seriesId: number, t: TmdbTitle, via: TmdbVia, now: number): v
 	const db = getDb();
 	db.prepare(
 		`INSERT INTO series_tmdb_links (series_id, tmdb_id, media, via, title, original_title, year,
-			overview, poster_url, runtime, seasons, collection_id, collection_name, linked_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			overview, poster_url, runtime, seasons, collection_id, collection_name, linked_at, backdrop_url)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (series_id) DO UPDATE SET tmdb_id = excluded.tmdb_id, media = excluded.media,
 			via = excluded.via, title = excluded.title, original_title = excluded.original_title,
 			year = excluded.year, overview = excluded.overview, poster_url = excluded.poster_url,
 			runtime = excluded.runtime, seasons = excluded.seasons,
 			collection_id = excluded.collection_id, collection_name = excluded.collection_name,
-			linked_at = excluded.linked_at`
+			linked_at = excluded.linked_at, backdrop_url = excluded.backdrop_url`
 	).run(
 		seriesId,
 		t.id,
@@ -162,7 +164,8 @@ function writeLink(seriesId: number, t: TmdbTitle, via: TmdbVia, now: number): v
 		t.seasons,
 		t.collection?.id ?? null,
 		t.collection?.name ?? '',
-		now
+		now,
+		t.backdrop ?? ''
 	);
 	db.prepare(
 		`UPDATE tmdb_link_searches SET decision = NULL, decided_at = NULL WHERE series_id = ?`
@@ -211,8 +214,8 @@ export function tmdbUndo(seriesId: number, before: TmdbBefore): void {
 			db.prepare(`DELETE FROM series_tmdb_links WHERE series_id = ?`).run(seriesId);
 			db.prepare(
 				`INSERT INTO series_tmdb_links (series_id, tmdb_id, media, via, title, original_title, year,
-					overview, poster_url, runtime, seasons, collection_id, collection_name, linked_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					overview, poster_url, runtime, seasons, collection_id, collection_name, linked_at, backdrop_url)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			).run(
 				seriesId,
 				l.tmdb_id,
@@ -227,7 +230,8 @@ export function tmdbUndo(seriesId: number, before: TmdbBefore): void {
 				l.seasons,
 				l.collection_id,
 				l.collection_name,
-				l.linked_at
+				l.linked_at,
+				l.backdrop_url
 			);
 		} else db.prepare(`DELETE FROM series_tmdb_links WHERE series_id = ?`).run(seriesId);
 		decide(seriesId, before.decision, before.decision ? Date.now() : null);

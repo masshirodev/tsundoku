@@ -26,6 +26,8 @@ export type TmdbTitle = {
 	overview: string;
 	/** A full image URL, or null when TMDB has no poster. */
 	poster: string | null;
+	/** The wide still a film's stage shows (c992), a full URL; null when TMDB has none. */
+	backdrop?: string | null;
 	/** A film's runtime in minutes; null for a show, and for a search result (only details carry it). */
 	runtime: number | null;
 	/** A show's season count; null for a film, and for a search result. */

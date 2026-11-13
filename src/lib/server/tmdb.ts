@@ -15,6 +15,8 @@ import type { TmdbCollection, TmdbSeason, TmdbShowFacts, TmdbTitle } from '../li
 
 const API = () => process.env.TMDB_API_URL ?? 'https://api.themoviedb.org/3';
 const IMAGE = 'https://image.tmdb.org/t/p/w500';
+/** A backdrop fills the stage's width, so it is asked for wider than a poster. */
+const BACKDROP = 'https://image.tmdb.org/t/p/w1280';
 
 /** The catalogue has no key here: the caller says SET UP, it does not fail. */
 export class NoTmdbKey extends Error {
@@ -72,6 +74,7 @@ type Row = {
 	first_air_date?: string;
 	overview?: string;
 	poster_path?: string | null;
+	backdrop_path?: string | null;
 	runtime?: number | null;
 	number_of_seasons?: number;
 	belongs_to_collection?: { id: number; name: string } | null;
@@ -87,6 +90,10 @@ function toTitle(r: Row, media: 'movie' | 'tv'): TmdbTitle {
 		year: yearOf(r.release_date ?? r.first_air_date),
 		overview: (r.overview ?? '').trim(),
 		poster: posterOf(r.poster_path),
+		backdrop:
+			typeof r.backdrop_path === 'string' && r.backdrop_path
+				? `${BACKDROP}${r.backdrop_path}`
+				: null,
 		runtime: media === 'movie' && Number.isInteger(r.runtime) ? r.runtime! : null,
 		seasons: media === 'tv' && Number.isInteger(r.number_of_seasons) ? r.number_of_seasons! : null,
 		// Only what the type declares: TMDB's object carries its own images too,

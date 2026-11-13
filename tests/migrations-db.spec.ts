@@ -900,6 +900,6 @@ describe('rung 81: what surrounds a TMDB entry', () => {
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(81);
+		expect(conn.pragma('user_version', { simple: true })).toBe(82);
 	});
 });
