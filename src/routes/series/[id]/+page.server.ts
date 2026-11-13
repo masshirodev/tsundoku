@@ -18,6 +18,7 @@ import {
 	unlink
 } from '$lib/server/catalogue';
 import { tmdbLinkState } from '$lib/server/tmdb-links';
+import { filmPage } from './film.server';
 import { seriesSeasons } from '$lib/server/season-links';
 import { unlinkSeries } from '$lib/server/ranobe';
 import { ranobeSeries, retryRanobe } from '$lib/server/ranobe-review';
@@ -74,13 +75,23 @@ import {
 } from '$lib/server/books';
 import { bookEditions, setBookLanguage } from '$lib/server/editions';
 import {
+	dequeue,
 	isDownloadsError,
 	previewIdOf,
 	queueSeries,
+	retry as retryDownloads,
 	seriesDownloads,
 	setFollowed,
 	undoAdd as undoSourceAdd
 } from '$lib/server/downloads';
+import {
+	kindSwitchTargets,
+	planKindSwitch,
+	switchKind,
+	undoKindSwitch
+} from '$lib/server/kind-switch';
+import { tmdbSearchNow } from '$lib/server/tmdb-links';
+import { tmdbQuery } from '$lib/library/tmdb';
 import { baseToEdition } from '$lib/library/editions';
 import { refreshSeries } from '$lib/server/refresh';
 import {
@@ -307,6 +318,15 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		link: linkState(series.id),
 		// A film's or a show's TMDB link (c989): LISTS' TMDB line, SET UP → with no key.
 		tmdb: tmdbLinkState(series.id),
+		// A film's or a show's screen (c992): its TMDB facts, its collection or
+		// seasons from c990's cache, its genre and its KIND row's folder.
+		film: filmPage(series.id, series.kind, reveal),
+		// The kind switch's sheet (c991's move, c992's sheet): every kind it may
+		// become, each with where its files would go, what changes and what stays,
+		// or why it can't. Read from the database alone: nothing moves until asked.
+		kindPlans: kindSwitchTargets(series.kind)
+			.map((k) => planKindSwitch(series.id, k))
+			.filter((p) => p !== null),
 		// An anime's seasons (c240): a link each, and the row folds round the one
 		// being watched. Null for anything else, which draws today's rows.
 		seasons: isAnime(series.kind) ? (seriesSeasons(series.id)?.seasons ?? null) : null,
@@ -471,6 +491,54 @@ const entryIds = (form: FormData) =>
 		.filter((n) => Number.isInteger(n) && n > 0);
 
 export const actions: Actions = {
+	/**
+	 * MAKE IT A SHOW (Kind 4.2): the files move, then the kind. TMDB is asked
+	 * again as the new kind with an owner's search, which never links by itself
+	 * ("and asks you before it links"); with no key, nothing is asked.
+	 */
+	switchKind: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const to = String((await request.formData()).get('kind') ?? '');
+		if (!kindSwitchTargets(s.kind).includes(to as Kind))
+			return fail(400, { message: 'not a kind it can be' });
+		let done: Awaited<ReturnType<typeof switchKind>>;
+		try {
+			done = await switchKind(s.id, to as Kind);
+		} catch (e) {
+			return fail(409, { message: (e as Error).message });
+		}
+		if (!s.hidden) void tmdbSearchNow(s.id, tmdbQuery(s.title).query).catch(() => undefined);
+		return { kindSwitched: done };
+	},
+	undoKindSwitch: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		return { kindUndone: await undoKindSwitch(s.id) };
+	},
+	/** A film's one file out of the queue (c992): only this series' own entries. */
+	cancelDownload: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const own = new Set(s.entries.map((e) => e.id));
+		const ids = entryIds(await request.formData()).filter((id) => own.has(id));
+		try {
+			await dequeue(ids);
+		} catch (e) {
+			if (isDownloadsError(e)) return fail(503, { message: (e as Error).message });
+			throw e;
+		}
+		return { ok: true };
+	},
+	retryDownload: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const own = new Set(s.entries.map((e) => e.id));
+		const ids = entryIds(await request.formData()).filter((id) => own.has(id));
+		try {
+			await retryDownloads(ids);
+		} catch (e) {
+			if (isDownloadsError(e)) return fail(503, { message: (e as Error).message });
+			throw e;
+		}
+		return { ok: true };
+	},
 	/** LANGUAGE on a folded book: which edition it opens in; empty is the SETTINGS default. */
 	language: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);

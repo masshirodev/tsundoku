@@ -399,13 +399,15 @@ describe('a film (c991)', () => {
 		expect(plan.refused).toBeNull();
 		expect(plan.folder).toEqual({
 			from: 'Movies/Lupin (2021)',
-			to: 'Shows/Lupin [Hindi-English] 1080p'
+			to: 'Shows/Lupin (2021)'
 		});
-		expect(plan.changes).toEqual(['THE FILM BECOMES EPISODE 1']);
-		const shows = join(library, 'Shows', 'Lupin [Hindi-English] 1080p');
-		const ep = join(shows, 'Season 01', 'Lupin [Hindi-English] 1080p S01E01.mkv');
+		expect(plan.changes).toEqual(['THE FILM BECOMES EPISODE 1 OF A LIST']);
+		expect(plan.busy).toBeNull();
+		const shows = join(library, 'Shows', 'Lupin (2021)');
+		const ep = join(shows, 'Season 01', 'Lupin (2021) S01E01.mkv');
 		expect(await ks.switchKind(film, 'show', library, db)).toEqual({
-			done: 'NOW A SHOW · 1 FILE MOVED TO SHOWS/',
+			done: 'NOW A SHOW · 1 FILE MOVED',
+			where: 'TO SHOWS/LUPIN (2021)/SEASON 01/',
 			moved: 1
 		});
 		expect(existsSync(ep)).toBe(true);
@@ -420,7 +422,7 @@ describe('a film (c991)', () => {
 		});
 		expect(entry(play)).toMatchObject({
 			available: 1,
-			file: 'Season 01/Lupin [Hindi-English] 1080p S01E01.mkv'
+			file: 'Season 01/Lupin (2021) S01E01.mkv'
 		});
 		// The scan reads the moved folder as the show it now is, and changes nothing.
 		const before = snapshot(film);
@@ -453,9 +455,7 @@ describe('a film (c991)', () => {
 			db.prepare(
 				`INSERT INTO entries (series_id, position, label, added_at, source_url) VALUES (?, ?, ?, 0, ?)`
 			).run(many, n, `Ep. ${n}`, `/eight/${n}`);
-		expect(ks.planKindSwitch(many, 'movie', library, db)?.refused).toBe(
-			'MOVIE · A MOVIE IS ONE ENTRY, THIS HAS 8'
-		);
+		expect(ks.planKindSwitch(many, 'movie', library, db)?.refused).toBe('ONE ENTRY · THIS HAS 8');
 		await expect(ks.switchKind(many, 'movie', library, db)).rejects.toThrow(/ONE ENTRY/);
 		expect(ks.kindSwitchTargets('show')).toEqual(['movie']);
 		expect(ks.kindSwitchTargets('anime')).toEqual([]);

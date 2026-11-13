@@ -41,6 +41,15 @@
 	import { libraryTagKey, tagRouteHref } from '$lib/library/tag-search';
 	import type { LinkState } from '$lib/server/catalogue';
 	import type { TmdbLinkState } from '$lib/server/tmdb-links';
+	import type { FilmPage } from './film.server';
+	import type { DownloadRow } from '$lib/library/downloads';
+	import {
+		filmAction,
+		filmCountLine,
+		filmDownloadRow,
+		kindRow,
+		type FilmFile
+	} from '$lib/library/film';
 	import type { SeasonRow } from '$lib/library/catalogue';
 	import { offline } from '$lib/offline.svelte';
 	import TrackingSheet from './TrackingSheet.svelte';
@@ -108,6 +117,8 @@
 		editions = null,
 		link = null,
 		tmdb = null,
+		film = null,
+		onkind,
 		tracking = null,
 		ranobe = null,
 		seasons = null,
@@ -178,6 +189,10 @@
 		link?: LinkState | null;
 		/** A film's or a show's TMDB link (c989): LISTS' TMDB line. Null for any other kind. */
 		tmdb?: TmdbLinkState | null;
+		/** A film's or a show's screen (c992): its TMDB facts, the KIND row's folder. Null for any other kind. */
+		film?: FilmPage | null;
+		/** KIND's CHANGE: the kind switch's sheet (c991's move, c992's sheet). */
+		onkind?: () => void;
 		/** What the catalogues' lists say of it, and what was sent (doc/TRACKING.md). */
 		tracking?: Tracking | null;
 		/**
@@ -242,6 +257,10 @@
 
 	/** An anime series: episodes for chapters, here and in DOWNLOAD (doc/ANIME.md). */
 	const anime = $derived(kindFacts(series.kind).medium === 'video');
+	/** A film's one cell (c992), else an anime's or a show's, else a book's. */
+	const filmed = $derived(
+		film?.film ? filmAction(series.entries, film.facts?.runtime ?? null, Date.now()) : null
+	);
 
 	/** SHOW on a fold opens every season's line, and closes when the screen is left. */
 	let seasonsOpen = $state(false);
@@ -307,7 +326,9 @@
 			: null
 	);
 	/** This part is done, so CONTINUE goes quiet and the run's next is the accent (Work-Row B3). */
-	const quiet = $derived(!outline && !!work && partDone(work.state));
+	const quiet = $derived(
+		!outline && ((!!work && partDone(work.state)) || (filmed?.quiet ?? false))
+	);
 	/**
 	 * The WORK row's second line, in two pieces so its title stays in ink:
 	 * `PART 2 OF 3 · NEXT · ` + the neighbouring part, or `... · YOU'RE IN ` +
@@ -325,7 +346,7 @@
 			? new Map(Object.entries(downloads.states).map(([k, v]) => [Number(k), v as DownloadState]))
 			: null
 	);
-	const dlRow = $derived(
+	const seriesDl = $derived(
 		dlStates
 			? downloadRow(
 					series.entries,
@@ -350,6 +371,46 @@
 				: null
 	);
 	const dlFile = $derived(dlStates ? fileQueueMeta(downloadCounts(series.entries, dlStates)) : []);
+	/**
+	 * A film's DOWNLOAD row (Film-States 1.6): one file, so where that file is
+	 * and one cell; no NEXT 10, ALL, REFRESH or FOLLOW. The quality is said once
+	 * the file is here, as its size is.
+	 */
+	const filmDl = $derived.by((): DownloadRow | null => {
+		if (!film?.film || !dlStates) return null;
+		const e = series.entries[0];
+		if (!e) return null;
+		const st = dlStates.get(e.id);
+		const f: FilmFile =
+			!st || st.kind === 'none'
+				? { state: 'none', bytes: null, height: null }
+				: st.kind === 'have' || st.kind === 'importing'
+					? { state: 'here', bytes: e.bytes, height: null }
+					: st.kind === 'queued'
+						? { state: 'queued', ahead: null, bytes: null }
+						: st.kind === 'downloading'
+							? { state: 'downloading', done: st.fraction, bytes: null, leftS: null }
+							: { state: 'failed', why: 'The last try failed' };
+		const r = filmDownloadRow(f);
+		const which = f.state === 'none' ? 'next' : f.state === 'failed' ? 'retry' : 'cancel';
+		return {
+			a: r.title,
+			b: r.meta,
+			cells: r.cell ? [{ label: r.cell, which, acc: false, dim: !offline.online }] : []
+		};
+	});
+	/** The DOWNLOAD row as drawn: a film's one file, or the series'. */
+	const dlRow = $derived(filmDl ?? seriesDl);
+	/** The KIND row (c992): the kind, its folder and how many files it holds. */
+	const kindLine = $derived(
+		film
+			? kindRow({
+					kind: film.film ? 'movie' : 'show',
+					folder: film.folder,
+					files: series.entries.filter((e) => e.available).length
+				})
+			: null
+	);
 	/**
 	 * REFRESH asks the source while the request runs, so after its answer the
 	 * screen reads again: the chapters it just added are in the list it drew.
@@ -635,7 +696,9 @@
 	const favUnsaved = $derived(saves.unsaved(`fav:${series.id}`));
 
 	// An anime series' CONTINUE is its episode and the time left (doc/ANIME.md).
-	const action = $derived(anime ? animeContinue(series.entries) : continueAction(series));
+	const action = $derived(
+		filmed ?? (anime ? animeContinue(series.entries) : continueAction(series))
+	);
 	const direction = $derived(effectiveDirection(series, series.kindDirection));
 	const tags = $derived(tagGroups(series.tags));
 	/**
@@ -759,7 +822,18 @@
 			{:else}
 				{#each series.altTitles as alt (alt)}<div class="alt">{alt}</div>{/each}
 			{/if}
-			{#if anime && !outline}<div class="count">{seriesCountLine(series.entries)}</div>{/if}
+			{#if film?.film && !outline}
+				<!-- A film's line: TMDB's year and runtime, or the source's words with no link (c992). -->
+				<div class="count">
+					{filmCountLine({
+						tmdb: film.facts,
+						source: series.tags.find((t) => t.namespace === 'source')?.value ?? series.source,
+						files: series.entries.filter((e) => e.available).length || series.entries.length,
+						genre: film.genre,
+						watched: !!filmed?.quiet
+					})}
+				</div>
+			{:else if anime && !outline}<div class="count">{seriesCountLine(series.entries)}</div>{/if}
 			<!-- The time read, as a fact beside the read progress (c443): the reading
 			     log's, so it is only what was recorded, and nothing when none was. -->
 			{#if !outline && readMs > 0}
@@ -789,7 +863,19 @@
 		data-focus-id="series-continue"
 		data-focus-start="true"
 	>
-		<span>{quiet ? '↺ READ AGAIN' : `▶ ${outline ? 'CONTINUE' : ctaLabel}`}</span>
+		<span
+			>{quiet
+				? `↺ ${filmed ? 'WATCH AGAIN' : 'READ AGAIN'}`
+				: `▶ ${outline ? 'CONTINUE' : ctaLabel}`}</span
+		>
+		{#if filmed?.progress != null && !quiet}
+			<!-- The film's only progress line (Film-States 1.2): 3px of on-accent at the cell's foot. -->
+			<i
+				class="cta-line"
+				aria-hidden="true"
+				style:width="{Math.round(filmed.progress * 1000) / 10}%"
+			></i>
+		{/if}
 		{#if outline}
 			<i class="cta-out" aria-hidden="true"></i>
 		{:else}
@@ -961,6 +1047,17 @@
 									>{c.label}</button
 								>
 							</form>
+						{:else if c.which === 'cancel' || c.which === 'retry'}
+							<!-- A film's one file (c992): out of the queue, or tried again. -->
+							<form
+								method="POST"
+								action={c.which === 'cancel' ? '?/cancelDownload' : '?/retryDownload'}
+								use:enhance
+								class="lc-form"
+							>
+								<input type="hidden" name="entry" value={series.entries[0]?.id} />
+								<button type="submit" class="lc" class:acc={c.acc}>{c.label}</button>
+							</form>
 						{:else if c.which === 'all'}
 							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() keeps the current, resolved path -->
 							<a class="lc" href={withParam(page.url, 'download', 'all')} data-sveltekit-noscroll
@@ -1034,6 +1131,21 @@
 				{/if}
 			{/if}
 
+			<!-- KIND (c992; Film-Desk, Kind): in DIRECTION's slot, which a video has no use for.
+			     CHANGE opens the switch's sheet, which moves the file (c991). -->
+			{#if !outline && kindLine && onkind}
+				<div class="row link-row kind-row">
+					<div class="label">KIND</div>
+					<div class="lk">
+						<div class="lk-a">{kindLine.title}</div>
+						<div class="lk-b">{kindLine.meta}</div>
+					</div>
+					<!-- One cell at the row's end on every device, as SHELVES' EDIT. -->
+					<button type="button" class="edit" disabled={!offline.online} onclick={onkind}
+						>CHANGE</button
+					>
+				</div>
+			{/if}
 			<!-- A video has no reading direction: an anime series has no such row (Index Anime Series). -->
 			{#if !outline && !anime}
 				<form method="POST" action="?/direction" use:enhance class="row">
@@ -1876,6 +1988,16 @@
 	}
 	.cta.nofile {
 		opacity: 0.4;
+	}
+	.cta {
+		position: relative;
+	}
+	.cta-line {
+		position: absolute;
+		left: 0;
+		bottom: 0;
+		height: 3px;
+		background: var(--on-accent);
 	}
 	.cta-meta .short {
 		display: none;

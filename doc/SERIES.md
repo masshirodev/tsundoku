@@ -693,6 +693,43 @@ key, _Not looked up_ and `SET UP →` in ink; linked, the entry and `FILM · 201
 1 H 52` with CHANGE. The trackers' `LIST · Kept in HISTORY` line beside it is
 c993's. `doc/LINKS.md`, "TMDB links", has the whole of it.
 
+## A film's screen (c992)
+
+The handoff is `doc/handoffs/movies-shows/` (Film-Desk, Film-States, Film-Phone,
+Collection, Kind). A film is a series of one entry with no list, so what a list
+says elsewhere is said once (`src/lib/library/film.ts`, pinned by
+`tests/film.spec.ts`):
+
+- **One primary cell**: `▶ PLAY · 1 H 58`, `▶ CONTINUE · 42 MIN LEFT` with its
+  3px on-accent line at the foot, `↺ WATCH AGAIN · WATCHED 3 NOV`, quiet. The
+  length is the file's once measured, TMDB's runtime until then, else none.
+- **The count line**: `2024 · 1 H 58 · DRAMA`, `· WATCHED` once it is; with no
+  TMDB link `FILM · <SOURCE> · 1 FILE` (the owner's closed-up version).
+- **DOWNLOAD** is one file's: not here, queued, downloading, failed, here, with
+  one cell (DOWNLOAD, CANCEL, TRY AGAIN; `?/cancelDownload`, `?/retryDownload`,
+  scoped to the series' own entries). No NEXT 10, ALL, REFRESH or FOLLOW.
+- **KIND** takes DIRECTION's slot (a video has none) and lives inside DETAILS on
+  a phone. CHANGE opens `KindSheet.svelte` on c991's `planKindSwitch`, loaded
+  with the page (nothing moves until asked); the band after it says what moved
+  and where, with UNDO.
+- **The stage** (`FilmStage.svelte`) takes the list's column: the backdrop at
+  16:9 on the series' stripes until it loads, `01 — THE COLLECTION` (c990's
+  view, with its fold and GROUP →, which opens the GROUP sheet with the parts
+  here in TMDB's order), and `02 — ABOUT`. With no link the stage is empty.
+
+`tests/film-screen.e2e.ts` walks it on every device with a seeded linked film.
+
+### Where the film's screen departs from the handoff
+
+- **The genre is the series' own** (its source's first genre tag): TMDB's
+  genres are not fetched, so ABOUT's foot lists the source's, and a film with
+  none says none.
+- **No `DIRECTED BY`**: credits are a call per film that nothing else needs yet.
+- **No queue position** (`2 AHEAD OF IT`): the screen does not know a file's
+  place in the queue, so QUEUED says only its size; a failure says `THE LAST
+TRY FAILED`, since the page does not carry the queue's error.
+- **The backdrop** is drawn only for a link made after rung 82, which keeps it.
+
 ### Where LISTS departs from the handoff
 
 - **EDIT stays on a line that is signed out.** 1B says AniList signed out has

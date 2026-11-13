@@ -31,12 +31,20 @@ export type KindMove = { from: string; to: string };
 export type KindSwitchPlan = {
 	from: Kind;
 	to: Kind;
-	/** Why it cannot, said in place on the row (`MOVIE · A MOVIE IS ONE ENTRY, THIS HAS 8`); null when it can. */
+	/** Why it cannot, said on the kind it refuses (`ONE ENTRY · THIS HAS 8`); null when it can. */
 	refused: string | null;
+	/**
+	 * The file is still on its way (Kind 4.4): the pick is allowed, the move is
+	 * not, and nothing queues it for later. `DOWNLOADING · 35%`, `QUEUED`; null
+	 * when nothing is under way.
+	 */
+	busy: string | null;
 	/** Every file and its NFO, absolute, from and to. Empty when nothing is downloaded yet. */
 	moves: KindMove[];
-	/** The folder before and after, relative to the library: the sheet's two paths. */
+	/** The folder before and after, relative to the library. */
 	folder: { from: string | null; to: string };
+	/** Each file the sheet's FROM and TO rows show, relative to the library: its folder and its name. */
+	files: { from: { dir: string; name: string }; to: { dir: string; name: string } }[];
 	/** What else changes, in the sheet's words. */
 	changes: string[];
 	/** What stays. */
@@ -81,14 +89,28 @@ export function planKindSwitch(
 		available: number;
 	}[];
 	const toFilm = catalogueType(to) === 'movie';
-	const refused =
-		toFilm && entries.length > 1
-			? `${KIND_WORD[to]} · A MOVIE IS ONE ENTRY, THIS HAS ${entries.length}`
-			: null;
+	const refused = toFilm && entries.length > 1 ? `ONE ENTRY · THIS HAS ${entries.length}` : null;
+	const queued = db
+		.prepare(
+			`SELECT q.state, q.pages, q.done_pages FROM download_queue q JOIN entries e ON e.id = q.entry_id
+			WHERE e.series_id = ? ORDER BY q.state = 'downloading' DESC LIMIT 1`
+		)
+		.get(seriesId) as { state: string; pages: number; done_pages: number } | undefined;
+	const busy = queued
+		? queued.state === 'downloading'
+			? `DOWNLOADING · ${queued.pages ? Math.round((queued.done_pages / queued.pages) * 100) : 0}%`
+			: 'QUEUED'
+		: null;
 	const known = db.prepare(`SELECT folder FROM anime_series WHERE series_id = ?`).get(seriesId) as
 		{ folder: string } | undefined;
 	const st = storageOf(to);
-	const name = folderNameOf(db, { id: s.id, kind: to, title: s.title });
+	// A film that becomes a show keeps its folder's name (Kind 4.2: `Shows/The
+	// Long Ferry (2024)/`): the source's own title is often a release's. A show
+	// that becomes a film takes the film's rule, TMDB's title and year.
+	const name =
+		!toFilm && known
+			? posix.basename(known.folder)
+			: folderNameOf(db, { id: s.id, kind: to, title: s.title });
 	const target = refused
 		? posix.join(s.hidden ? st.hidden : st.folder, name)
 		: freeFolder(db, s.hidden ? st.hidden : st.folder, name);
@@ -115,21 +137,32 @@ export function planKindSwitch(
 	const collection = !!db
 		.prepare(`SELECT 1 FROM series_tmdb_links WHERE series_id = ? AND collection_id IS NOT NULL`)
 		.get(seriesId);
+	// Kind 4.2's words. TMDB "asks you before it links": the switch's search is
+	// the owner's kind, which never links by itself (the action that calls it).
 	const changes = toFilm
-		? ['THE EPISODE BECOMES THE FILM', ...(tmdb ? ['TMDB IS ASKED AGAIN, AS A FILM'] : [])]
+		? ['THE EPISODE BECOMES THE FILM', ...(tmdb ? ['TMDB IS ASKED AGAIN, AS A MOVIE'] : [])]
 		: [
-				'THE FILM BECOMES EPISODE 1',
-				...(collection ? ['THE COLLECTION GOES'] : []),
-				...(tmdb ? ['TMDB IS ASKED AGAIN, AS A SHOW'] : [])
+				'THE FILM BECOMES EPISODE 1 OF A LIST',
+				...(collection ? ['ITS COLLECTION GOES'] : []),
+				...(tmdb ? ['TMDB IS ASKED AGAIN, AS A SHOW, AND ASKS YOU BEFORE IT LINKS'] : [])
 			];
+	const rel = (abs: string) => ({
+		dir: `${posix.relative(library, dirname(abs))}/`,
+		name: posix.basename(abs)
+	});
+	const files = moves
+		.filter((m) => /\.mkv$/i.test(m.to))
+		.map((m) => ({ from: rel(m.from), to: rel(m.to) }));
 	return {
 		from: s.kind,
 		to,
 		refused,
+		busy,
+		files,
 		moves,
 		folder: { from: known?.folder ?? null, to: target },
 		changes,
-		stays: ['PROGRESS', 'RATING', 'SHELVES', 'THE WORK']
+		stays: ['PROGRESS', 'RATING AND FAV', 'SHELVES AND TAGS', 'THE WORK IT IS IN', 'THE SOURCE']
 	};
 }
 
@@ -198,10 +231,12 @@ export async function switchKind(
 	to: Kind,
 	library = libraryRoot(),
 	db: Database.Database = getDb()
-): Promise<{ done: string; moved: number }> {
+): Promise<{ done: string; where: string; moved: number }> {
 	const plan = planKindSwitch(seriesId, to, library, db);
 	if (!plan) throw new Error('not a kind this series can switch to');
 	if (plan.refused) throw new Error(plan.refused);
+	if (plan.busy)
+		throw new Error(`the file is ${plan.busy.toLowerCase()}: it moves once it is here`);
 	const s = row(db, seriesId)!;
 	const all = <T>(sql: string) => db.prepare(sql).all(seriesId) as T[];
 	const one = <T>(sql: string) => (db.prepare(sql).get(seriesId) as T | undefined) ?? null;
@@ -257,9 +292,12 @@ export async function switchKind(
 	tidy(plan.folder.from, library, st.layout === 'film' ? 'seasons' : 'film');
 	await rewriteVideoNfos(seriesId, library, db).catch(() => 0);
 	lastSwitch.set(seriesId, undo);
-	const files = undo.moves.filter((m) => /\.mkv$/i.test(m.to)).length;
+	const mkvs = undo.moves.filter((m) => /\.mkv$/i.test(m.to));
+	const files = mkvs.length;
+	// The band (Kind 4.5): `NOW A SHOW · 1 FILE MOVED`, and under it where to.
 	return {
-		done: `NOW A ${KIND_WORD[to]}${files ? ` · ${files} FILE${files === 1 ? '' : 'S'} MOVED TO ${st.folder.toUpperCase()}/` : ''}`,
+		done: `NOW A ${KIND_WORD[to]}${files ? ` · ${files} FILE${files === 1 ? '' : 'S'} MOVED` : ''}`,
+		where: `TO ${(files ? posix.relative(library, dirname(mkvs[0].to)) : plan.folder.to).toUpperCase()}/`,
 		moved: files
 	};
 }

@@ -186,7 +186,7 @@ export type CollectionRow = {
 export type CollectionItem =
 	| { type: 'row'; row: CollectionRow }
 	/** `↑ PARTS 1 – 4 · 3 IN LIBRARY · 1 NOT` with SHOW. */
-	| { type: 'fold'; above: boolean; words: string; parts: number[] };
+	| { type: 'fold'; above: boolean; words: string; parts: number[]; rows: CollectionRow[] };
 
 export type CollectionView =
 	| {
@@ -343,7 +343,9 @@ export function collectionView(o: {
 			type: 'fold',
 			above,
 			words: `${above ? '↑' : '↓'} ${span} · ${[here ? `${here} IN LIBRARY` : '', not ? `${not} NOT` : ''].filter(Boolean).join(' · ')}`,
-			parts: list.map((p) => p.id)
+			parts: list.map((p) => p.id),
+			// SHOW draws these in the fold's place.
+			rows: list.map((p, k) => rowOf(p, from + k))
 		};
 	};
 	const items: CollectionItem[] = [];

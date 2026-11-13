@@ -2,6 +2,8 @@
 	import { animeConfirm, animeContinue } from '$lib/library/anime';
 	import { resolve } from '$app/paths';
 	import EpisodeList from './EpisodeList.svelte';
+	import FilmStage from './FilmStage.svelte';
+	import KindSheet from './KindSheet.svelte';
 	import { movedUnit } from './move-words';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import DeleteSheet from './DeleteSheet.svelte';
@@ -183,6 +185,11 @@
 	let reviewingWork = $state(false);
 	/** GROUP AS A WORK on an IN LIBRARY row (c700): the other series, while its sheet is open. */
 	let groupingForm = $state<GroupBook | null>(null);
+	/** A film collection's GROUP → (c992): the GROUP sheet with the parts in the library. */
+	let groupingParts = $state(false);
+	/** KIND's CHANGE (c992): the switch's sheet, and the band its move answers with. */
+	let kindOpen = $state(false);
+	let kindSwitched = $state<{ done: string; where: string } | null>(null);
 	type MadeWork = { work: { name: string }; members: unknown[] };
 	/**
 	 * That sheet's answer, which the sheet hands over (see its `ondone`). It
@@ -717,6 +724,28 @@
 			{#if shelfRefused}<span class="refused">NOT SHELVED: {shelfRefused.toUpperCase()}</span>{/if}
 		</div>
 	{/if}
+	{#if kindSwitched}
+		<!-- The kind switch, done (Kind 4.5): what moved and where, and UNDO, which moves it back. -->
+		<Band
+			title={kindSwitched.done}
+			detail={kindSwitched.where}
+			ondismiss={() => (kindSwitched = null)}
+		>
+			{#snippet action()}
+				<form
+					method="POST"
+					action="?/undoKindSwitch"
+					use:enhance={() =>
+						async ({ update }) => {
+							kindSwitched = null;
+							await update();
+						}}
+				>
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
+	{/if}
 	{#if data.moved && !refusal}
 		<!-- MOVE (doc/MOVE.md; Migrate-Moved): the same series, its new source, UNDO. -->
 		<Band
@@ -918,6 +947,8 @@
 					editions={data.editions}
 					link={data.link}
 					tmdb={data.tmdb}
+					film={data.film}
+					onkind={data.kindPlans.length ? () => (kindOpen = true) : undefined}
 					tracking={data.tracking}
 					ranobe={data.ranobe}
 					seasons={data.seasons}
@@ -966,6 +997,17 @@
 				/>
 			{:else if doujin}
 				<PageGrid {series} cover={data.cover} editions={data.editions} />
+			{:else if data.film?.film}
+				<!-- A film has no list: its column is the stage (c992). -->
+				<FilmStage
+					seriesId={series.id}
+					hue={series.hue}
+					facts={data.film.facts}
+					collection={data.film.surround?.kind === 'collection' ? data.film.surround.view : null}
+					genres={series.tags.filter((t) => t.namespace === 'genre').map((t) => t.value)}
+					tagSource={data.tagSource}
+					ongroup={() => (groupingParts = true)}
+				/>
 			{:else if kindFacts(series.kind).medium === 'video'}
 				<EpisodeList
 					{series}
@@ -1180,6 +1222,41 @@
 				made = { facts: answer.made as MadeWork, series: data.series.id, form, refused: '' };
 		}}
 		onclose={() => (groupingForm = null)}
+	/>
+{/if}
+
+{#if data.kindPlans.length}
+	<KindSheet
+		open={kindOpen}
+		title={data.series.title}
+		source={data.series.tags.find((t) => t.namespace === 'source')?.value ?? data.series.source}
+		kind={data.series.kind}
+		plans={data.kindPlans}
+		onclose={() => (kindOpen = false)}
+		ondone={async (result) => {
+			if (result.type !== 'success') return;
+			kindOpen = false;
+			const done = result.data?.kindSwitched as { done: string; where: string } | undefined;
+			if (done) kindSwitched = done;
+			await invalidateAll();
+		}}
+	/>
+{/if}
+
+{#if data.film?.groupBooks.length}
+	<!-- A film collection's GROUP → (c990, c992): the parts in the library ticked
+	     in TMDB's order, the owner free to reorder; a Work, never a chain. -->
+	<GroupSheet
+		open={groupingParts}
+		books={data.film.groupBooks}
+		existing={[]}
+		answers={['work']}
+		ondone={(answer) => {
+			groupingParts = false;
+			if (answer?.made)
+				made = { facts: answer.made as MadeWork, series: data.series.id, form, refused: '' };
+		}}
+		onclose={() => (groupingParts = false)}
 	/>
 {/if}
 

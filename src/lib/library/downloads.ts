@@ -438,7 +438,8 @@ export const count = (n: number) => n.toLocaleString('en-US');
 /** One cell of the row: what it does, and how it's drawn. */
 export type DownloadCell = {
 	label: string;
-	which: 'next' | 'all' | 'follow' | 'unfollow' | 'refresh';
+	/** `cancel` and `retry` are a film's one file's (c992): its row has no NEXT or ALL. */
+	which: 'next' | 'all' | 'follow' | 'unfollow' | 'refresh' | 'cancel' | 'retry';
 	acc: boolean;
 	dim: boolean;
 };

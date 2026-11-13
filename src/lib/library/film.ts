@@ -97,7 +97,8 @@ export function filmCountLine(o: {
 /** What the DOWNLOAD row knows of the one file. */
 export type FilmFile =
 	| { state: 'none'; bytes: number | null; height: number | null }
-	| { state: 'queued'; ahead: number; bytes: number | null }
+	/** `ahead`: the files before it in the queue, when the caller knows; null says nothing of it. */
+	| { state: 'queued'; ahead: number | null; bytes: number | null }
 	| { state: 'downloading'; done: number; bytes: number | null; leftS: number | null }
 	| { state: 'failed'; why: string }
 	| { state: 'here'; bytes: number; height: number | null };
@@ -124,7 +125,7 @@ export function filmDownloadRow(f: FilmFile): { title: string; meta: string; cel
 		case 'queued':
 			return {
 				title: 'Queued',
-				meta: [`${f.ahead} AHEAD OF IT`, size(f.bytes)].filter(Boolean).join(' · '),
+				meta: [f.ahead ? `${f.ahead} AHEAD OF IT` : '', size(f.bytes)].filter(Boolean).join(' · '),
 				cell: 'CANCEL'
 			};
 		case 'downloading': {
