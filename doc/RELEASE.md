@@ -433,8 +433,8 @@ data.
 The workstation runs only the Linux bundle, so a release that only goes onto
 it (no publish) needs only the Linux half, the container's run. The whole run
 took about twelve minutes when the owner asked on 2026-11-07, most of it Zen's
-zip, installer, updater, Wi-Fi and Tailscale stages (the Linux half alone has
-not been timed on a real release here: this wave ran none). `publish` still requires the
+zip, installer, updater, Wi-Fi and Tailscale stages (the Linux half alone took 19 seconds on 2026.11.13, with the
+container image already pulled). `publish` still requires the
 whole `.smoked`, because friends get Windows too, and refuses a Linux-only
 version in those words: `<v> was smoke-tested on Linux only: run the whole
 smoke test before publishing`. Publishing a version first installed that way
