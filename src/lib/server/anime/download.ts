@@ -135,7 +135,7 @@ export function seriesFolder(db: Database.Database, s: SeriesRow): string {
 }
 
 /** The first of `<top>/<name>`, `<name> (2)`, … no series and no season holds. */
-function freeFolder(db: Database.Database, top: string, name: string): string {
+export function freeFolder(db: Database.Database, top: string, name: string): string {
 	let folder = posix.join(top, name);
 	for (let n = 2; folderTaken(folder, db); n++) folder = posix.join(top, `${name} (${n})`);
 	return folder;
@@ -694,10 +694,13 @@ export function rememberQuality(
 
 /**
  * Write a downloaded video series' NFOs again, in place, after what they say
- * changed without a download: a TMDB link, an UNLINK or its UNDO (c991; the
- * NFO carries `<uniqueid type="tmdb">`). A film's NFO beside each of its files,
- * a show's tvshow.nfo; nothing for a series with no folder yet, whose first
- * download writes them. Never a file that is not already there.
+ * changed without a download (c991): a TMDB link, an UNLINK or its UNDO (the
+ * NFO carries `<uniqueid type="tmdb">`), and the kind switch, which moves a
+ * film's file into a show's place or back. Every file's own NFO beside it, in
+ * the kind's shape (a `<movie>`, or an episode's), and a show's tvshow.nfo, so
+ * the importer reads the folder as the series' kind. Nothing for a series with
+ * no folder yet, whose first download writes them, and nothing into a folder
+ * that is not on disk.
  */
 export async function rewriteVideoNfos(
 	seriesId: number,
@@ -715,15 +718,12 @@ export async function rewriteVideoNfos(
 	if (!known) return 0;
 	const place = episodePlace(db, s, null);
 	const dir = join(library, place.folder);
-	if (storageOf(s.kind).layout !== 'film') {
-		if (!existsSync(join(dir, 'tvshow.nfo'))) return 0;
-		await writeSeriesFiles(db, s, dir, place);
-		return 1;
-	}
+	if (!existsSync(dir)) return 0;
+	const film = storageOf(s.kind).layout === 'film';
 	const files = db
 		.prepare(
-			`SELECT e.source_url, e.position, e.duration_s, e.file, s.path FROM entries e
-			JOIN series s ON s.id = e.series_id
+			`SELECT e.source_url, e.position, e.duration_s, e.file, e.title, e.season, e.episode_number,
+				e.episode_note, s.path FROM entries e JOIN series s ON s.id = e.series_id
 			WHERE e.series_id = ? AND e.available = 1 AND e.file != ''`
 		)
 		.all(seriesId) as {
@@ -731,21 +731,37 @@ export async function rewriteVideoNfos(
 		position: number;
 		duration_s: number | null;
 		file: string;
+		title: string;
+		season: number | null;
+		episode_number: number | null;
+		episode_note: string;
 		path: string;
 	}[];
 	let n = 0;
 	for (const f of files) {
-		const nfo = join(f.path, f.file).replace(/\.mkv$/i, '.nfo');
-		if (!existsSync(nfo)) continue;
+		const mkv = join(f.path, f.file);
+		if (!existsSync(mkv)) continue;
 		writeFileSync(
-			nfo,
-			filmNfo(db, s, place, {
-				sourceUrl: f.source_url,
-				position: f.position,
-				durationS: f.duration_s
-			})
+			mkv.replace(/\.mkv$/i, '.nfo'),
+			film
+				? filmNfo(db, s, place, {
+						sourceUrl: f.source_url,
+						position: f.position,
+						durationS: f.duration_s
+					})
+				: episodeNfo({
+						sourceUrl: f.source_url,
+						title: f.title,
+						season: f.season,
+						number: f.episode_number ?? f.position,
+						position: f.position,
+						durationS: f.duration_s,
+						note: (f.episode_note || '') as '' | 'filler' | 'recap'
+					})
 		);
 		n += 1;
 	}
-	return n;
+	// tvshow.nfo and the poster: a show's both, a film's poster alone.
+	await writeSeriesFiles(db, s, dir, place);
+	return n + (film ? 0 : 1);
 }

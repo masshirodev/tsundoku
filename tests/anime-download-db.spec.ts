@@ -392,6 +392,74 @@ describe('a film (c991)', () => {
 		expect(nfo()).not.toContain('type="tmdb"');
 		expect(await anime.rewriteVideoNfos(shown, join(work, 'nowhere'))).toBe(0);
 	});
+
+	it('switched to a show, moves its file into a show’s place, and UNDO puts it back', async () => {
+		const ks = await import('$lib/server/kind-switch');
+		const plan = ks.planKindSwitch(film, 'show', library, db)!;
+		expect(plan.refused).toBeNull();
+		expect(plan.folder).toEqual({
+			from: 'Movies/Lupin (2021)',
+			to: 'Shows/Lupin [Hindi-English] 1080p'
+		});
+		expect(plan.changes).toEqual(['THE FILM BECOMES EPISODE 1']);
+		const shows = join(library, 'Shows', 'Lupin [Hindi-English] 1080p');
+		const ep = join(shows, 'Season 01', 'Lupin [Hindi-English] 1080p S01E01.mkv');
+		expect(await ks.switchKind(film, 'show', library, db)).toEqual({
+			done: 'NOW A SHOW · 1 FILE MOVED TO SHOWS/',
+			moved: 1
+		});
+		expect(existsSync(ep)).toBe(true);
+		expect(existsSync(dir)).toBe(false);
+		expect(readFileSync(ep.replace(/\.mkv$/, '.nfo'), 'utf8')).toContain('<episodedetails>');
+		expect(readFileSync(join(shows, 'tvshow.nfo'), 'utf8')).toContain(
+			'<tsundokukind>show</tsundokukind>'
+		);
+		expect(db.prepare(`SELECT kind, path FROM series WHERE id = ?`).get(film)).toEqual({
+			kind: 'show',
+			path: shows
+		});
+		expect(entry(play)).toMatchObject({
+			available: 1,
+			file: 'Season 01/Lupin [Hindi-English] 1080p S01E01.mkv'
+		});
+		// The scan reads the moved folder as the show it now is, and changes nothing.
+		const before = snapshot(film);
+		await runImport(library, { now: deps.now() + 4 });
+		expect(snapshot(film)).toEqual(before);
+
+		expect(await ks.undoKindSwitch(film, library, db)).toBe(true);
+		expect(existsSync(file)).toBe(true);
+		expect(existsSync(shows)).toBe(false);
+		expect(nfo()).toContain('<movie>');
+		expect(db.prepare(`SELECT kind, path FROM series WHERE id = ?`).get(film)).toEqual({
+			kind: 'movie',
+			path: dir
+		});
+		expect(entry(play).file).toBe('Lupin (2021).mkv');
+		expect(await ks.undoKindSwitch(film, library, db)).toBe(false);
+	});
+
+	it('refuses a show of several episodes as a film, saying why, and offers no anime', async () => {
+		const ks = await import('$lib/server/kind-switch');
+		const many = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, origin_key, hidden, source)
+					VALUES (?, 'Eight Nights', 'show', 0, 'aniyomi:7000:/show/eight', 0, 'AnimePahe')`
+				)
+				.run(filmRoot).lastInsertRowid
+		);
+		for (let n = 1; n <= 8; n++)
+			db.prepare(
+				`INSERT INTO entries (series_id, position, label, added_at, source_url) VALUES (?, ?, ?, 0, ?)`
+			).run(many, n, `Ep. ${n}`, `/eight/${n}`);
+		expect(ks.planKindSwitch(many, 'movie', library, db)?.refused).toBe(
+			'MOVIE · A MOVIE IS ONE ENTRY, THIS HAS 8'
+		);
+		await expect(ks.switchKind(many, 'movie', library, db)).rejects.toThrow(/ONE ENTRY/);
+		expect(ks.kindSwitchTargets('show')).toEqual(['movie']);
+		expect(ks.kindSwitchTargets('anime')).toEqual([]);
+	});
 });
 
 /** A series and its entries as rows, for a scan to leave alone. */

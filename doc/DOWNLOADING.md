@@ -406,6 +406,17 @@ $LIBRARY_ROOT/Anime (hidden)/…  Shows (hidden)/…  Movies (hidden)/…   the 
   rooted at its folder, so a file just written attaches under the root that
   holds it (c170), and BROWSE's ADD roots a series by the kind it will have.
   An existing install's `Anime` root keeps its name and its identity.
+- **The kind switch moves the files** (`src/lib/server/kind-switch.ts`; the
+  sheet is c992's, `Kind.dc.html`): a film to a show and back, the two kinds
+  TMDB holds (anime to a show crosses catalogues: c979). `planKindSwitch` says
+  every path before anything moves, and refuses in place (`MOVIE · A MOVIE IS
+ONE ENTRY, THIS HAS 8`). `switchKind` moves the files, the NFOs and the
+  poster first, and moves them back should one refuse; then the kind, the
+  root, the folder and the entries' files in one transaction; then writes the
+  new kind's NFOs. The TMDB link, search and declined offers go, since TMDB is
+  asked again as the other kind; progress, rating, shelves and the Work stay.
+  UNDO is remembered per series by the workstation, and a restart forgets it
+  (switching back still works).
 - **One root on purpose:** `delete.ts`'s `isUnder(library)` guard, backups, the
   hidden folders and RESCAN all assume it. A second root would quietly skip
   deletes and leak hidden series.
