@@ -180,7 +180,7 @@ test('a film: one cell, no list, the collection and ABOUT on the stage (c992)', 
 	const stage = page.getByRole('region', { name: 'The film' });
 	await expect(stage).toContainText('01 — THE LONG FERRY COLLECTION');
 	await expect(stage).toContainText('PART 1 OF 3');
-	const rows = stage.locator('.row');
+	const rows = stage.locator('.row:visible');
 	await expect(rows.nth(0)).toContainText('THIS FILM · 2024');
 	await expect(rows.nth(1)).toContainText('IN LIBRARY →');
 	await expect(rows.nth(2)).toContainText('NOT IN THE LIBRARY');

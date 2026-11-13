@@ -77,12 +77,30 @@
 
 {#snippet row(r: CollectionRow, first: boolean)}
 	{@const href = hrefOf(r)}
+	{#if href}
+		<!-- A TV draws the facts only (Film-TV 1.7): no cells and no stops on the stage.
+		     Both copies are drawn and CSS keeps one, so the focus layer never finds the other. -->
+		<div class="row tv-only" class:first>
+			<span class="tag">{r.tag}</span>
+			<span class="bo">
+				<span class="tt" class:mu={r.cell?.label === 'FIND'}>{r.title}</span>
+				<span class="lm"
+					>{r.cell?.label === 'FIND'
+						? 'NOT IN THE LIBRARY'
+						: r.cell?.label === 'IN LIBRARY →'
+							? 'IN LIBRARY'
+							: r.meta}</span
+				>
+			</span>
+		</div>
+	{/if}
 	<!-- eslint-disable svelte/no-navigation-without-resolve -- seriesHref and tagSearchHref resolve -->
 	<svelte:element
 		this={href ? 'a' : 'div'}
 		{href}
 		class="row"
 		class:first
+		class:not-tv={!!href}
 		data-press={href ? 'fill' : undefined}
 	>
 		<span class="tag" class:on={r.on}>{r.tag}</span>
@@ -118,8 +136,10 @@
 					{:else}
 						<div class="row fold" class:first={i === 0}>
 							<span class="bo"><span class="lm">{item.words}</span></span>
-							<button type="button" class="cell" onclick={() => (openFor = open ? null : seriesId)}
-								>{open ? 'HIDE' : 'SHOW'}</button
+							<button
+								type="button"
+								class="cell not-tv"
+								onclick={() => (openFor = open ? null : seriesId)}>{open ? 'HIDE' : 'SHOW'}</button
 							>
 						</div>
 					{/if}
@@ -133,7 +153,7 @@
 				<div class="row foot">
 					<span class="bo">{collection.foot.words}</span>
 					{#if collection.foot.group}
-						<button type="button" class="cell" onclick={ongroup}>GROUP →</button>
+						<button type="button" class="cell not-tv" onclick={ongroup}>GROUP →</button>
 					{/if}
 				</div>
 			</div>
@@ -158,7 +178,7 @@
 	{/if}
 
 	{#if facts?.overview}
-		<div class="block about">
+		<div class="block about not-tv">
 			<div class="lab"><span>02 — ABOUT</span><span>TMDB</span></div>
 			<p>{facts.overview}</p>
 			{#if genres.length}<div class="genres">{genres.join(' · ').toUpperCase()}</div>{/if}
@@ -167,6 +187,19 @@
 </section>
 
 <style>
+	.stage .tv-only {
+		display: none;
+	}
+	/* A TV (doc/TV.md): the stage is facts, and PLAY is the screen's one stop (Film-TV 1.7). */
+	/* Scoped under .stage so it outranks .row's and .cell's own display, declared below. */
+	@media (pointer: none) and (min-width: 900px) {
+		.stage .tv-only {
+			display: flex;
+		}
+		.stage .not-tv {
+			display: none;
+		}
+	}
 	.stage {
 		display: flex;
 		flex-direction: column;

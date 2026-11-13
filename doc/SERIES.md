@@ -745,6 +745,12 @@ THE LIBRARY`, and FIND THE REST → (the source's search for the show's name,
   place in the queue, so QUEUED says only its size; a failure says `THE LAST
 TRY FAILED`, since the page does not carry the queue's error.
 - **The backdrop** is drawn only for a link made after rung 82, which keeps it.
+- **On a TV** the stage is facts only (Film-TV 1.7): each linked row is drawn
+  twice and CSS keeps the plain copy, so the focus layer never finds a cell, and
+  ABOUT is not drawn. The TV's no-key `FROM THE SOURCE ONLY` block is not built:
+  the owner's closed-up version (2026-11-12) holds on every device. The TV
+  panel's own DOWNLOAD wording (`FILE · PLAYS FROM THE SOURCE`) is not changed:
+  the film's row reads as it does elsewhere. `tests/tv-film-screen.e2e.ts`.
 
 ### Where LISTS departs from the handoff
 
