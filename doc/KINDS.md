@@ -375,6 +375,16 @@ one of `KINDS`' own names, either way round:
 s.kind === 'anime'      kind !== 'novel'      'manga' === row.kind
 ```
 
+Since c991 it counts `movie` and `show` among the names, and **SQL** as well:
+`s.kind = 'anime'`, `kind != 'novel'`, `kind IN ('movie', …)`. The registry is
+not a column, so SQL that filters by kind spells the kinds; `videoKindsSql`
+(kinds.ts) is the one place a video filter does, and a spelling anywhere else is
+counted. The scan found six that read `s.kind = 'anime'` where they meant any
+video, which is how a film could not stream or play its file; they ask
+`videoKindsSql` now. The SQL that is right as it stands (AniSkip's MAL lookup,
+the doujin and novel passes, the migrations) is on the allow-list with its
+reason.
+
 Since wave 20 (card c420) it also counts the same comparison spelled through
 a family's kind, either way round, dotted or bracketed:
 

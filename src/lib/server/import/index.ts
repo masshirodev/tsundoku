@@ -16,7 +16,7 @@ import { isUnder } from '../paths.ts';
 import { hentoidBytes, hentoidRoot, planHentoidFolder } from './hentoid.ts';
 import { epubBytes, epubRoot, planEpubFile, planEpubFolder } from './epub.ts';
 import { animeBytes, animeSeriesDirs, planAnimeFolders, planAnimeSeries } from './anime.ts';
-import { ANIME_FOLDER } from '../../library/anime-files.ts';
+import { VIDEO_STORAGE } from '../../library/kinds.ts';
 import { closeDeadJobs, ensureRoot, ensureNamedRoot, finishJob, writeSeries } from './write.ts';
 import { droppedLine, type Dropped } from './fold.ts';
 import type { KeptDrop } from './log.ts';
@@ -43,7 +43,7 @@ export function libraryRoot(): string {
 }
 
 export type Source = {
-	name: 'Mihon' | 'Hentoid' | 'Library' | 'Anime';
+	name: 'Mihon' | 'Hentoid' | 'Library' | (typeof VIDEO_STORAGE)[number]['folder'];
 	/** What the band and the log call the job, when not the source's name: MIHON BACKUP (c438). */
 	label?: string;
 	/** The job opened for it: IMPORT A BACKUP ties its row to the job (c438). */
@@ -259,23 +259,31 @@ function sourcesAt(library: string, device: string | null): Source[] {
 			}),
 			planOne: async (file, now) => [await planEpubFile(file, library, () => {}, now)]
 		});
-	// Episodes tsundoku downloaded, in Jellyfin's layout (doc/ANIME.md, "Downloading"):
-	// the library folder's own, since only the workstation downloads them.
-	if (device === null && animeSeriesDirs(library).length > 0)
-		out.push({
-			name: 'Anime',
-			device,
-			root: join(library, ANIME_FOLDER),
-			hidden: false,
-			// An episode file deleted from the folder is NOT DOWNLOADED again; it still streams.
-			markMissing: true,
-			bytes: async () => animeBytes(library),
-			plan: async (progress, now) => ({
-				series: planAnimeFolders(library, progress, now),
-				skipped: 0
-			}),
-			planOne: async (file, now) => planAnimeSeries(library, file, now)
-		});
+	// Episodes and films tsundoku downloaded, in Jellyfin's layout (doc/ANIME.md,
+	// "Downloading"; doc/DOWNLOADING.md, "Where files go"): the library folder's
+	// own, since only the workstation downloads them. One source a video kind,
+	// each rooted at its own folder (c991: `Anime/`, `Shows/`, `Movies/`), so a
+	// file just written attaches under the root that holds it, and a file gone
+	// from one is marked missing by that one alone. Named by the folder, as the
+	// Anime root always was, so an install's existing root keeps its identity.
+	if (device === null)
+		for (const v of VIDEO_STORAGE) {
+			if (animeSeriesDirs(library, v.kind).length === 0) continue;
+			out.push({
+				name: v.folder,
+				device,
+				root: join(library, v.folder),
+				hidden: false,
+				// An episode file deleted from the folder is NOT DOWNLOADED again; it still streams.
+				markMissing: true,
+				bytes: async () => animeBytes(library, v.kind),
+				plan: async (progress, now) => ({
+					series: planAnimeFolders(library, progress, now, v.kind),
+					skipped: 0
+				}),
+				planOne: async (file, now) => planAnimeSeries(library, file, now, v.kind)
+			});
+		}
 	return out;
 }
 

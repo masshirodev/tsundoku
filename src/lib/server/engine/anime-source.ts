@@ -1,4 +1,6 @@
 import { join } from '../fspath.ts';
+import { storageOf } from '../../library/kinds.ts';
+import { sourceKindOfKey } from './source-kind.ts';
 import { getDb } from '../db.ts';
 import { ensureNamedRoot, writeSeries } from '../import/write.ts';
 import { libraryRoot } from '../import/index.ts';
@@ -30,9 +32,6 @@ import {
  * the preview, ADD and the key differ: an anime series is
  * `aniyomi:<source>:<url>`, its entries episodes, in the Anime root.
  */
-
-/** Where anime lives (doc/ANIME.md): `$LIBRARY_ROOT/Anime`, the folder a Jellyfin library can read (c157). */
-export const animeRoot = () => join(libraryRoot(), 'Anime');
 
 /** An anime's cover: the engine's /image/ proxy when it gave one, else the site's, fetched by the server. */
 function coverOf(url: string | null | undefined): string {
@@ -193,7 +192,11 @@ async function writeAnime(
 	// another spelling of it mustn't make a second series.
 	plan.originKey = key;
 	plan.coverUrl = await coverAddress(a.details.thumbnail_url);
-	const rootId = ensureNamedRoot(db, 'Anime', animeRoot(), false);
+	// The root of the kind it will have (c991): the source's own kind first, as
+	// writeSeries decides it (c986), so a film is the Movies root's and its file,
+	// under Movies/, is scanned by the root that holds the series.
+	const st = storageOf(sourceKindOfKey(key, db) ?? plan.kind);
+	const rootId = ensureNamedRoot(db, st.folder, join(libraryRoot(), st.folder), false);
 	writeSeries(plan, { rootId, jobId: null, now, browsing });
 	const row = db.prepare(`SELECT id FROM series WHERE origin_key = ?`).get(key) as
 		{ id: number } | undefined;

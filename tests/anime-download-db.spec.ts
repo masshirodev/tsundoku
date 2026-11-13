@@ -330,6 +330,70 @@ describe('downloading an episode', () => {
 	});
 });
 
+describe('a film (c991)', () => {
+	const filmRoot = ensureNamedRoot(db, 'Movies', join(library, 'Movies'), false);
+	const film = Number(
+		db
+			.prepare(
+				`INSERT INTO series (root_id, title, kind, added_at, origin_key, hidden, source, description)
+				VALUES (?, 'Lupin [Hindi-English] 1080p', 'movie', 0, 'aniyomi:7000:/film/lupin', 0, 'AnimePahe', '')`
+			)
+			.run(filmRoot).lastInsertRowid
+	);
+	const play = Number(
+		db
+			.prepare(
+				`INSERT INTO entries (series_id, position, label, title, added_at, source_url, available)
+				VALUES (?, 1, 'Lupin', '', 0, '/film/lupin/play', 0)`
+			)
+			.run(film).lastInsertRowid
+	);
+	// Linked to TMDB before it downloads: its folder is TMDB's title and year.
+	db.prepare(
+		`INSERT INTO series_tmdb_links (series_id, tmdb_id, media, via, title, year, linked_at)
+		VALUES (?, 96677, 'movie', 'review', 'Lupin', 2021, 0)`
+	).run(film);
+	const dir = join(library, 'Movies', 'Lupin (2021)');
+	const file = join(dir, 'Lupin (2021).mkv');
+	const nfo = () => readFileSync(join(dir, 'Lupin (2021).nfo'), 'utf8');
+
+	it('downloads flat into Movies/<Title (Year)>, beside its <movie> NFO and no tvshow.nfo', async () => {
+		db.prepare(`DELETE FROM download_queue`).run();
+		await downloads.enqueue(film, [play]);
+		// The cases above leave the fake engine as they found it; the waits are
+		// stubbed so a slow answer fails here rather than timing out.
+		empty = 0;
+		const d = { ...deps, wait: async () => {} };
+		const got = await anime.runAnimeOnce(d);
+		const why = db.prepare(`SELECT state, error FROM download_queue WHERE entry_id = ?`).get(play);
+		expect([got, why]).toEqual([1, undefined]);
+		expect(existsSync(file)).toBe(true);
+		expect(existsSync(join(dir, 'tvshow.nfo'))).toBe(false);
+		expect(nfo()).toContain('<movie>');
+		expect(nfo()).toContain('<uniqueid type="tmdb">96677</uniqueid>');
+		expect(nfo()).toContain('<tsundokuepisode>/film/lupin/play</tsundokuepisode>');
+	});
+
+	it('attaches by the Movies root, and the scan after it changes nothing', async () => {
+		expect(await attachWritten(library, [file], deps.now())).toEqual([]);
+		expect(entry(play)).toMatchObject({ available: 1, file: 'Lupin (2021).mkv' });
+		expect(db.prepare(`SELECT kind, path FROM series WHERE id = ?`).get(film)).toEqual({
+			kind: 'movie',
+			path: dir
+		});
+		const before = snapshot(film);
+		await runImport(library, { now: deps.now() + 3 });
+		expect(snapshot(film)).toEqual(before);
+	});
+
+	it('writes its NFO again when the TMDB link goes, and never a file that is not there', async () => {
+		db.prepare(`DELETE FROM series_tmdb_links WHERE series_id = ?`).run(film);
+		expect(await anime.rewriteVideoNfos(film, library)).toBe(1);
+		expect(nfo()).not.toContain('type="tmdb"');
+		expect(await anime.rewriteVideoNfos(shown, join(work, 'nowhere'))).toBe(0);
+	});
+});
+
 /** A series and its entries as rows, for a scan to leave alone. */
 function snapshot(id: number) {
 	return {

@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { videoKindsSql } from '../../library/kinds.ts';
 import { createHash } from 'node:crypto';
 import { statSync } from 'node:fs';
 import { join } from '../fspath.ts';
@@ -270,7 +271,7 @@ export function episodeRow(entryId: number, reveal: boolean): EpisodeRow | null 
 				`SELECT e.id, e.source_url, e.label, e.title, e.origin_source,
 					${entryOriginSql('e', 's')} AS origin_key FROM entries e
 				JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
-				WHERE e.id = ? AND s.kind = 'anime' AND (? OR ${VISIBLE_SQL})`
+				WHERE e.id = ? AND ${videoKindsSql('s')} AND (? OR ${VISIBLE_SQL})`
 			)
 			.get(entryId, reveal ? 1 : 0) as EpisodeRow | undefined) ?? null
 	);
@@ -281,7 +282,7 @@ export function episodeFile(entryId: number): string | null {
 	const r = getDb()
 		.prepare(
 			`SELECT s.path, e.file FROM entries e JOIN series s ON s.id = e.series_id
-			WHERE e.id = ? AND e.available = 1 AND e.file != '' AND s.kind = 'anime'`
+			WHERE e.id = ? AND e.available = 1 AND e.file != '' AND ${videoKindsSql('s')}`
 		)
 		.get(entryId) as { path: string; file: string } | undefined;
 	if (!r || !r.path) return null;

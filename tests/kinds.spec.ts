@@ -736,6 +736,49 @@ describe('the unit and READ/WATCHED words (labels.ts)', () => {
  */
 const ALLOWED: { file: string; reason: string }[] = [
 	{
+		file: 'src/lib/server/db.ts',
+		reason:
+			'The migrations are history: each rung says what the schema was when it ran, and a rung is never edited.'
+	},
+	{
+		file: 'src/lib/server/anime/marks.ts',
+		reason:
+			"SQL: AniSkip is looked up by a MAL id, which only an anime's link carries; a film or a show has nothing to ask it with."
+	},
+	{
+		file: 'src/lib/server/anime/choices.ts',
+		reason:
+			'SQL: the browser keys before c171 were only ever written for an anime, so only an anime can have one to adopt.'
+	},
+	{
+		file: 'src/lib/server/dupes.ts',
+		reason:
+			'SQL: likely twin books are found among doujin books by cover hash (doc/DUPLICATE-BOOKS.md, "Finding"). A new kind of single book must change the line.'
+	},
+	{
+		file: 'src/lib/server/duplicates.ts',
+		reason:
+			"SQL: books aren't chapters (doc/DUPLICATES.md): a series of doujin books is never collapsed, nor a novel, whose entries are places in one EPUB. A new kind like either must change the line."
+	},
+	{
+		file: 'src/lib/server/epub.ts',
+		reason: "SQL: an EPUB is a novel's file. A new text kind must change the line."
+	},
+	{
+		file: 'src/lib/server/novels/online.ts',
+		reason: "SQL: a chapter read online is a novel's (LNReader's), by construction."
+	},
+	{
+		file: 'src/lib/server/people.ts',
+		reason:
+			"SQL: a person's page lists a doujin of one book as a book, and only a doujin of several as a series. A new kind of single book must change the line."
+	},
+	{
+		file: 'src/lib/server/settings-page.ts',
+		reason:
+			"SQL: MODE's and LAYOUT's N SERIES DIFFER is about reading direction, which only the kinds read in pages or text have (c552). A new kind read that way must change the line."
+	},
+	{
 		file: 'src/lib/library/catalogue.ts',
 		reason:
 			"AniList's own words: a format and a country become a kind, and the cover-only crossing is between a novel and its comic."
@@ -769,11 +812,15 @@ const ALLOWED: { file: string; reason: string }[] = [
 	}
 ];
 /** One of `KINDS`' own names, as a bare alternation. */
-const NAME = String.raw`(?:manga|manhwa|doujin|novel|anime)`;
+const NAME = String.raw`(?:manga|manhwa|doujin|novel|anime|movie|show)`;
 /** A kind written down: a name in quotes, or a family's kind (`SOURCE_KINDS.x`, `SOURCE_KINDS[f]`). */
 const FIXED = String.raw`(?:['"]${NAME}['"]|SOURCE_KINDS(?:\.\w+|\[[^\]]*\]))`;
 const COMPARED = new RegExp(
-	String.raw`\bkind\s*[!=]==?\s*(?:['"]${NAME}['"]|SOURCE_KINDS\b)|${FIXED}\s*[!=]==?\s*[A-Za-z_$][\w$.]*kind\b`
+	String.raw`\bkind\s*[!=]==?\s*(?:['"]${NAME}['"]|SOURCE_KINDS\b)|${FIXED}\s*[!=]==?\s*[A-Za-z_$][\w$.]*kind\b` +
+		// SQL (c991): `s.kind = 'anime'`, `kind != 'novel'`, `kind IN ('movie', …)`.
+		// The registry is not a column, so SQL spells the kinds; `videoKindsSql`
+		// (kinds.ts) is where it does, and any other spelling is counted here.
+		String.raw`|\bkind\s*(?:=|!=|<>)\s*'${NAME}'|\bkind\s+(?:NOT\s+)?IN\s*\(\s*'${NAME}'`
 );
 
 describe('what the ratchet sees (card c420)', () => {
@@ -787,7 +834,10 @@ describe('what the ratchet sees (card c420)', () => {
 		`l.kind !== SOURCE_KINDS.mihon`,
 		`r.kind === SOURCE_KINDS[family]`,
 		`SOURCE_KINDS[f] === r.kind`,
-		`SOURCE_KINDS.aniyomi !== x.kind`
+		`SOURCE_KINDS.aniyomi !== x.kind`,
+		`kind === 'movie'`,
+		"WHERE e.id = ? AND s.kind = 'anime'",
+		"AND kind IN ('movie', 'show')"
 	];
 	const notCounted = [
 		`familyOfKind(l.kind) === 'mihon'`,

@@ -1,7 +1,7 @@
 import { byIds, searchMany } from './catalogue.ts';
 import { tmdbById, tmdbSearch } from './tmdb.ts';
 import type { Candidate } from '../library/catalogue.ts';
-import type { CatalogueProvider } from '../library/catalogues.ts';
+import { catalogueOf, type CatalogueProvider } from '../library/catalogues.ts';
 import type { Kind } from '../library/kinds.ts';
 import type { TmdbTitle } from '../library/tmdb.ts';
 
@@ -50,8 +50,8 @@ const anilist: CatalogueClient<Candidate> = {
 };
 
 const asTmdbKind = (kind: Kind): 'movie' | 'show' => {
-	if (kind !== 'movie' && kind !== 'show') throw new Error(`TMDB does not hold a ${kind}`);
-	return kind;
+	if (catalogueOf(kind) !== 'tmdb') throw new Error(`TMDB does not hold a ${kind}`);
+	return kind as 'movie' | 'show';
 };
 
 const tmdb: CatalogueClient<TmdbTitle> = {

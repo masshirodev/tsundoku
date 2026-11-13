@@ -59,6 +59,17 @@ export type KindFacts = {
 	 * not take it (Works groups across kinds: doc/WORKS.md).
 	 */
 	grouping: 'books' | 'volumes' | null;
+	/**
+	 * Where a video kind's downloads go under the one library root (card c991;
+	 * doc/DOWNLOADING.md, "Where files go"): its folder, the folder a hidden
+	 * series goes to instead (never one a Jellyfin library would read: Jellyfin
+	 * has no reveal), and the layout inside, `seasons` (`<Series>/Season 01/…
+	 * S01E07 …mkv`, tvshow.nfo) or `film` (`<Title (Year)>/<Title (Year)>.mkv`,
+	 * its `<movie>` NFO beside it). Absent for a kind tsundoku never downloads
+	 * as video. One root on purpose: the delete guard, backups, the hidden
+	 * folders and RESCAN all assume it.
+	 */
+	storage?: { folder: string; hidden: string; layout: 'seasons' | 'film' };
 };
 
 /**
@@ -188,7 +199,8 @@ export const KIND_FACTS = {
 		sources: ['aniyomi'],
 		layout: 'rtl',
 		movable: true,
-		grouping: null
+		grouping: null,
+		storage: { folder: 'Anime', hidden: 'Anime (hidden)', layout: 'seasons' }
 	},
 	// A film is a series with one entry (doc/KINDS.md, "Movies and TV shows";
 	// card c987): video, no unit, no list, TMDB's `movie`, and an Aniyomi
@@ -201,7 +213,8 @@ export const KIND_FACTS = {
 		matches: ['movie'],
 		sources: ['aniyomi'],
 		movable: true,
-		grouping: null
+		grouping: null,
+		storage: { folder: 'Movies', hidden: 'Movies (hidden)', layout: 'film' }
 	},
 	// A show is the anime-shaped series with its seasons as the source gave
 	// them: EP, TMDB's `tv`, an Aniyomi source. It matches only a show.
@@ -213,7 +226,8 @@ export const KIND_FACTS = {
 		matches: ['show'],
 		sources: ['aniyomi'],
 		movable: true,
-		grouping: null
+		grouping: null,
+		storage: { folder: 'Shows', hidden: 'Shows (hidden)', layout: 'seasons' }
 	}
 } as const satisfies Readonly<Record<Kind, KindFacts>>;
 
@@ -400,4 +414,40 @@ export function anilistType(kind: Kind): 'MANGA' | 'ANIME' {
 export function anilistTypeOf(kind: Kind): 'MANGA' | 'ANIME' | null {
 	const c = kindFacts(kind).catalogue;
 	return c.provider === 'anilist' ? c.type : null;
+}
+
+/**
+ * Where a kind's downloads go (card c991): asked of the registry, so a video
+ * kind added later says its own folder. A kind with none is never downloaded
+ * as video, and asking is a mistake the caller made.
+ */
+export function storageOf(kind: Kind): NonNullable<KindFacts['storage']> {
+	const st = (kindFacts(kind) as KindFacts).storage;
+	if (!st) throw new Error(`a ${kind} is not downloaded as video`);
+	return st;
+}
+
+/** Every video kind's folders, for the importer's scan: each kind once. */
+export const VIDEO_STORAGE = KINDS.flatMap((k) => {
+	const st = (kindFacts(k) as KindFacts).storage;
+	return st ? [{ kind: k, ...st }] : [];
+});
+
+/**
+ * The video kinds as SQL (card c991): `s.kind IN ('anime', 'movie', 'show')`,
+ * asked of the registry's `medium`, so a series' player, its files and its
+ * pictures are a film's and a show's as much as an anime's. `episodic` is the
+ * ones with a unit, a list of episodes: what an intro fingerprint is read
+ * across, which a film has nothing to compare with.
+ *
+ * The registry is not a column, so SQL that filters by kind spells the kinds;
+ * this is the one place they are spelled, and the kind ratchet counts any
+ * other (tests/kinds.spec.ts).
+ */
+export function videoKindsSql(alias: string, o: { episodic?: boolean } = {}): string {
+	const kinds = KINDS.filter((k) => {
+		const f = kindFacts(k) as KindFacts;
+		return f.medium === 'video' && (!o.episodic || f.unit !== undefined);
+	});
+	return `${alias ? `${alias}.` : ''}kind IN (${kinds.map((k) => `'${k}'`).join(', ')})`;
 }

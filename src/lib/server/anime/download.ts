@@ -23,16 +23,19 @@ import { EngineError } from '../engine/client.ts';
 import { failed, isPaused, nextUp, queueRows, recover } from '../engine/queue.ts';
 import { parseAnimeKey, type DownloadState } from '../../library/downloads.ts';
 import {
-	ANIME_FOLDER,
 	episodeNfo,
 	episodePath,
-	HIDDEN_ANIME_FOLDER,
+	filmFile,
 	keptTracks,
+	movieNfo,
 	muxArgs,
 	progressSeconds,
 	seriesFolderName,
 	tvshowNfo
 } from '../../library/anime-files.ts';
+import { kindFacts, storageOf } from '../../library/kinds.ts';
+import { tmdbQuery } from '../../library/tmdb.ts';
+import { tmdbFacts } from '../tmdb-links.ts';
 import type { SeriesDownloads } from '../download-types.ts';
 import { episodeStreams, probe, type StreamServer } from './streams.ts';
 
@@ -76,6 +79,8 @@ export class AnimeDownloadError extends Error {
 
 type SeriesRow = {
 	id: number;
+	/** Read from the series when a caller's row leaves it out. */
+	kind?: Kind;
 	title: string;
 	hidden: number;
 	description: string;
@@ -84,16 +89,46 @@ type SeriesRow = {
 	origin_key: string | null;
 };
 
+const kindOfRow = (db: Database.Database, s: Pick<SeriesRow, 'id' | 'kind'>): Kind =>
+	s.kind ??
+	(db.prepare(`SELECT kind FROM series WHERE id = ?`).get(s.id) as { kind: Kind } | undefined)
+		?.kind ??
+	'anime';
+
+/** The kind's own top folder (card c991): `Anime/`, `Shows/`, `Movies/`, or its hidden twin. */
+const topFolder = (db: Database.Database, s: SeriesRow) => {
+	const st = storageOf(kindOfRow(db, s));
+	return s.hidden ? st.hidden : st.folder;
+};
+
+/**
+ * A film's folder name, Jellyfin's `<Title (Year)>`: TMDB's title and year
+ * when the film is linked, else the source's title with its release words
+ * taken off (`Lupin [Hindi-English] 1080p` → `Lupin`) and the year it names.
+ * A show's and an anime's is the series' own title, as it always was.
+ */
+export function folderNameOf(
+	db: Database.Database,
+	s: Pick<SeriesRow, 'id' | 'kind' | 'title'>
+): string {
+	if (storageOf(kindOfRow(db, s)).layout !== 'film') return seriesFolderName(s.title);
+	const t = tmdbFacts(s.id);
+	if (t?.title) return seriesFolderName(t.title, t.year);
+	const q = tmdbQuery(s.title);
+	return seriesFolderName(q.query, q.year);
+}
+
 /**
  * The series' folder under the library folder, fixed at its first download
- * (rung 48): `Anime/<Series>`, or `Anime (hidden)/<Series>` for a hidden one.
+ * (rung 48): `Anime/<Series>`, `Shows/<Series>`, `Movies/<Title (Year)>`, or the
+ * kind's hidden folder for a hidden one (c991).
  */
 export function seriesFolder(db: Database.Database, s: SeriesRow): string {
 	const known = db.prepare(`SELECT folder FROM anime_series WHERE series_id = ?`).get(s.id) as
 		{ folder: string } | undefined;
 	if (known) return known.folder;
-	const top = s.hidden ? HIDDEN_ANIME_FOLDER : ANIME_FOLDER;
-	const name = seriesFolderName(s.title);
+	const top = topFolder(db, s);
+	const name = folderNameOf(db, s);
 	const folder = freeFolder(db, top, name);
 	db.prepare(`INSERT INTO anime_series (series_id, folder) VALUES (?, ?)`).run(s.id, folder);
 	return folder;
@@ -171,11 +206,7 @@ export function episodePlace(
 	if (!fact.originKey || fact.originKey === s.origin_key) return inSeriesFolder();
 	const sibling = facts.find((f) => f.originKey === fact.originKey && f.folder)?.folder;
 	if (sibling) return seasonsOwn(fact, sibling);
-	const folder = freeFolder(
-		db,
-		s.hidden ? HIDDEN_ANIME_FOLDER : ANIME_FOLDER,
-		seriesFolderName(fact.sourceTitle || s.title)
-	);
+	const folder = freeFolder(db, topFolder(db, s), seriesFolderName(fact.sourceTitle || s.title));
 	db.prepare(`UPDATE series_season_facts SET folder = ? WHERE series_id = ? AND season = ?`).run(
 		folder,
 		s.id,
@@ -259,28 +290,60 @@ async function fileFacts(path: string): Promise<{ seconds: number | null; video:
 	};
 }
 
-/** tvshow.nfo and poster.jpg, beside the seasons; the poster from the library's own cover. */
+const genresOf = (db: Database.Database, seriesId: number): string[] =>
+	(
+		db
+			.prepare(
+				`SELECT t.value FROM series_tags st JOIN tags t ON t.id = st.tag_id WHERE st.series_id = ? AND t.namespace = 'genre' ORDER BY t.value`
+			)
+			.all(seriesId) as { value: string }[]
+	).map((r) => r.value);
+
+/**
+ * A film's NFO (c991): Jellyfin's `<movie>`, with its TMDB id when linked
+ * (c989), and the series' key, the entry's address and its position, so a
+ * rescan folds the file back onto both without a tvshow.nfo above it.
+ */
+function filmNfo(
+	db: Database.Database,
+	s: SeriesRow,
+	place: EpisodePlace,
+	e: { sourceUrl: string; position: number; durationS: number | null }
+): string {
+	const t = tmdbFacts(s.id);
+	return movieNfo({
+		key: place.key,
+		sourceUrl: e.sourceUrl,
+		title: t?.title || place.title,
+		plot: s.description || t?.overview || '',
+		genres: genresOf(db, s.id),
+		source: s.source,
+		position: e.position,
+		year: t?.year ?? tmdbQuery(s.title).year,
+		durationS: e.durationS,
+		tmdb: t?.id ?? null
+	});
+}
+
+/**
+ * tvshow.nfo and poster.jpg, beside the seasons; the poster from the library's
+ * own cover. A film has no tvshow.nfo (its `<movie>` NFO is beside its file),
+ * only the poster.
+ */
 async function writeSeriesFiles(
 	db: Database.Database,
 	s: SeriesRow,
 	dir: string,
 	place: EpisodePlace
 ): Promise<void> {
-	const genres = (
-		db
-			.prepare(
-				`SELECT t.value FROM series_tags st JOIN tags t ON t.id = st.tag_id WHERE st.series_id = ? AND t.namespace = 'genre' ORDER BY t.value`
-			)
-			.all(s.id) as { value: string }[]
-	).map((r) => r.value);
+	const genres = genresOf(db, s.id);
 	// Jellyfin's metadata plugins look a show up by these ids, so only a link
 	// to the show's own kind of entry gives them (c395, `ownEntry`): a manga's
 	// AniList or MAL id would fetch another work's metadata, or another show's.
 	// They are the show's: season 1's link, else the earliest season linked,
 	// read from the season rows (c381), so a show with only season 2 linked
 	// has them too. The first-season mirror, `series_links`, is not read.
-	const kind = (db.prepare(`SELECT kind FROM series WHERE id = ?`).get(s.id) as { kind: Kind })
-		.kind;
+	const kind = kindOfRow(db, s);
 	// A season's own folder is its own show to Jellyfin, so the ids are that
 	// season's, and the key is the one its episodes come from: the importer
 	// folds this folder back onto the series by that key (import/write.ts).
@@ -292,19 +355,23 @@ async function writeSeriesFiles(
 				);
 	const link =
 		place.season === null ? showEntry(s.id, (format) => ownEntry(kind, format), db) : seasonEntry;
-	writeFileSync(
-		join(dir, 'tvshow.nfo'),
-		tvshowNfo({
-			key: place.key,
-			title: place.title,
-			plot: s.description,
-			status: s.status,
-			genres,
-			source: s.source,
-			anilist: link?.anilistId ?? null,
-			mal: link?.malId ?? null
-		})
-	);
+	if (storageOf(kind).layout !== 'film')
+		writeFileSync(
+			join(dir, 'tvshow.nfo'),
+			tvshowNfo({
+				key: place.key,
+				title: place.title,
+				plot: s.description,
+				status: s.status,
+				genres,
+				source: s.source,
+				anilist: link?.anilistId ?? null,
+				mal: link?.malId ?? null,
+				// A show's TMDB entry (c989), the whole show's, as every season links it.
+				tmdb: kindFacts(kind).catalogue.provider === 'tmdb' ? (tmdbFacts(s.id)?.id ?? null) : null,
+				kind
+			})
+		);
 	const poster = join(dir, 'poster.jpg');
 	const cover = join(coverDir(), `${s.id}.webp`);
 	if (!existsSync(poster) && existsSync(cover)) {
@@ -343,7 +410,7 @@ export async function downloadEpisode(entryId: number, d: AnimeDeps): Promise<st
 	const s = e
 		? (d.db
 				.prepare(
-					`SELECT id, title, hidden, description, status, source, origin_key FROM series WHERE id = ?`
+					`SELECT id, kind, title, hidden, description, status, source, origin_key FROM series WHERE id = ?`
 				)
 				.get(e.series_id) as SeriesRow | undefined)
 		: undefined;
@@ -374,12 +441,16 @@ export async function downloadEpisode(entryId: number, d: AnimeDeps): Promise<st
 	const folder = place.folder;
 	const dir = join(d.library, folder);
 	const number = e.episode_number ?? e.position;
-	const rel = episodePath({
-		series: posix.basename(folder),
-		season: e.season,
-		number,
-		title: e.title
-	});
+	// A film is one file named as its folder (c991); everything else, a season's.
+	const film = storageOf(kindOfRow(d.db, s)).layout === 'film';
+	const rel = film
+		? filmFile(posix.basename(folder), e.position)
+		: episodePath({
+				series: posix.basename(folder),
+				season: e.season,
+				number,
+				title: e.title
+			});
 	const path = join(dir, rel);
 	mkdirSync(dirname(path), { recursive: true });
 
@@ -431,15 +502,21 @@ export async function downloadEpisode(entryId: number, d: AnimeDeps): Promise<st
 			renameSync(partial, path);
 			writeFileSync(
 				path.replace(/\.mkv$/, '.nfo'),
-				episodeNfo({
-					sourceUrl: e.source_url,
-					title: e.title,
-					season: e.season,
-					number,
-					position: e.position,
-					durationS: facts.seconds ?? length,
-					note: (e.episode_note || '') as '' | 'filler' | 'recap'
-				})
+				film
+					? filmNfo(d.db, s, place, {
+							sourceUrl: e.source_url,
+							position: e.position,
+							durationS: facts.seconds ?? length
+						})
+					: episodeNfo({
+							sourceUrl: e.source_url,
+							title: e.title,
+							season: e.season,
+							number,
+							position: e.position,
+							durationS: facts.seconds ?? length,
+							note: (e.episode_note || '') as '' | 'filler' | 'recap'
+						})
 			);
 			got = pick;
 			break;
@@ -613,4 +690,62 @@ export function rememberQuality(
 		ON CONFLICT (entry_id) DO UPDATE SET quality = excluded.quality`
 	);
 	db.transaction(() => entryIds.forEach((id) => put.run(id, height)))();
+}
+
+/**
+ * Write a downloaded video series' NFOs again, in place, after what they say
+ * changed without a download: a TMDB link, an UNLINK or its UNDO (c991; the
+ * NFO carries `<uniqueid type="tmdb">`). A film's NFO beside each of its files,
+ * a show's tvshow.nfo; nothing for a series with no folder yet, whose first
+ * download writes them. Never a file that is not already there.
+ */
+export async function rewriteVideoNfos(
+	seriesId: number,
+	library: string,
+	db: Database.Database = getDb()
+): Promise<number> {
+	const s = db
+		.prepare(
+			`SELECT id, kind, title, hidden, description, status, source, origin_key FROM series WHERE id = ?`
+		)
+		.get(seriesId) as SeriesRow | undefined;
+	if (!s?.kind || !(kindFacts(s.kind) as { storage?: unknown }).storage) return 0;
+	const known = db.prepare(`SELECT folder FROM anime_series WHERE series_id = ?`).get(seriesId) as
+		{ folder: string } | undefined;
+	if (!known) return 0;
+	const place = episodePlace(db, s, null);
+	const dir = join(library, place.folder);
+	if (storageOf(s.kind).layout !== 'film') {
+		if (!existsSync(join(dir, 'tvshow.nfo'))) return 0;
+		await writeSeriesFiles(db, s, dir, place);
+		return 1;
+	}
+	const files = db
+		.prepare(
+			`SELECT e.source_url, e.position, e.duration_s, e.file, s.path FROM entries e
+			JOIN series s ON s.id = e.series_id
+			WHERE e.series_id = ? AND e.available = 1 AND e.file != ''`
+		)
+		.all(seriesId) as {
+		source_url: string;
+		position: number;
+		duration_s: number | null;
+		file: string;
+		path: string;
+	}[];
+	let n = 0;
+	for (const f of files) {
+		const nfo = join(f.path, f.file).replace(/\.mkv$/i, '.nfo');
+		if (!existsSync(nfo)) continue;
+		writeFileSync(
+			nfo,
+			filmNfo(db, s, place, {
+				sourceUrl: f.source_url,
+				position: f.position,
+				durationS: f.duration_s
+			})
+		);
+		n += 1;
+	}
+	return n;
 }

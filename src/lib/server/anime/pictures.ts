@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { videoKindsSql } from '../../library/kinds.ts';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { join } from '../fspath.ts';
 import type Database from 'better-sqlite3';
@@ -49,7 +50,7 @@ const rowOf = (db: Database.Database, entryId: number) =>
 	db
 		.prepare(
 			`SELECT e.id, e.thumb_url, e.thumb_at, e.duration_s FROM entries e
-			JOIN series s ON s.id = e.series_id WHERE e.id = ? AND s.kind = 'anime'`
+			JOIN series s ON s.id = e.series_id WHERE e.id = ? AND ${videoKindsSql('s')}`
 		)
 		.get(entryId) as Row | undefined;
 

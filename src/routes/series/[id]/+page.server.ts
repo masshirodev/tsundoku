@@ -50,7 +50,7 @@ import { seriesReadingTime } from '$lib/server/reading-time';
 import { setScanlator } from '$lib/server/duplicates';
 import { parseRating } from '$lib/library/rating';
 import { isBookSeries, isVolumeSeries, parseDirection, parseTag } from '$lib/library/series';
-import { kindFacts } from '$lib/library/kinds';
+import { kindFacts, storageOf, type Kind } from '$lib/library/kinds';
 import {
 	GroupingError,
 	dismissSuggestion,
@@ -93,7 +93,7 @@ import {
 import { m } from '$lib/paraglide/messages';
 import { getSetting } from '$lib/server/settings';
 import { libraryRoot } from '$lib/server/import';
-import { ANIME_FOLDER, HIDDEN_ANIME_FOLDER, seriesFolderName } from '$lib/library/anime-files';
+import { folderNameOf } from '$lib/server/anime/download';
 import { join } from '$lib/server/fspath';
 import { originLabel, sourceOrigin } from '$lib/library/origin';
 import { keepOrigin } from '$lib/library/tag-search';
@@ -153,14 +153,20 @@ function madeOf(form: FormData): number {
 	return Number.isSafeInteger(made) && made > 0 ? made : -1;
 }
 
-/** Where an anime's episodes go: its folder once it has one, else where its first will. */
-function animeFolderOf(seriesId: number, title: string, hidden: boolean): string {
+/**
+ * Where a video series' files go: its folder once it has one, else where its
+ * first will, by the download's own rule (`folderNameOf`, c991): `Anime/` or
+ * `Shows/<Series>`, `Movies/<Title (Year)>`, or the kind's hidden folder.
+ */
+function animeFolderOf(seriesId: number, kind: Kind, title: string, hidden: boolean): string {
 	const known = getDb()
 		.prepare(`SELECT folder FROM anime_series WHERE series_id = ?`)
 		.get(seriesId) as { folder: string } | undefined;
+	const st = storageOf(kind);
 	return join(
 		libraryRoot(),
-		known?.folder ?? join(hidden ? HIDDEN_ANIME_FOLDER : ANIME_FOLDER, seriesFolderName(title))
+		known?.folder ??
+			join(hidden ? st.hidden : st.folder, folderNameOf(getDb(), { id: seriesId, kind, title }))
 	);
 }
 
@@ -322,7 +328,7 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 			kindFacts(series.kind).medium === 'video'
 				? {
 						quality: Number(getSetting('anime_download_quality')) || 1080,
-						folder: animeFolderOf(series.id, series.title, series.hidden)
+						folder: animeFolderOf(series.id, series.kind, series.title, series.hidden)
 					}
 				: null,
 		// ALL N's confirmation is a URL, so it opens without script too.

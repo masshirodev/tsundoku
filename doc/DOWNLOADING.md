@@ -373,6 +373,43 @@ library's own backup (its `Mihon/autobackup`) and, as with every device,
 Downloads land on `/mnt/hdd2`, beside the rest of the library, under
 `$LIBRARY_ROOT/devices/tsundoku/Mihon/`. Nothing is deleted by downloading.
 
+## Where files go
+
+Video is downloaded under the **one library root**, a folder a kind
+(card c991; `storage` in `src/lib/library/kinds.ts`, the registry's), Jellyfin-
+shaped because it costs nothing, not because anything depends on Jellyfin:
+
+```
+$LIBRARY_ROOT/Anime/<Series>/tvshow.nfo, poster.jpg
+$LIBRARY_ROOT/Anime/<Series>/Season 01/<Series> S01E07 <Title>.mkv, and its .nfo
+$LIBRARY_ROOT/Shows/<Series>/…                              the same, for a show
+$LIBRARY_ROOT/Movies/<Title (Year)>/<Title (Year)>.mkv, <Title (Year)>.nfo, poster.jpg
+$LIBRARY_ROOT/Anime (hidden)/…  Shows (hidden)/…  Movies (hidden)/…   the reveal rule
+```
+
+- **A film's folder** is TMDB's title and year when the film is linked, else the
+  source's title with its release words taken off (`tmdbQuery`) and the year it
+  names: `Lupin [Hindi-English] 1080p` becomes `Movies/Lupin/`. Its NFO is
+  Jellyfin's `<movie>`, and carries what a show's two files carry between them:
+  the series' key, the entry's address at the source and its position
+  (`movieNfo`), so a rescan folds the file back onto both.
+- **A show** is laid out as an anime is, its folder the series' own title; one
+  source season is one series, so it is its own folder, and a merged show's
+  seasons keep theirs (`series_season_facts.folder`).
+- **The NFOs say the kind** (`<tsundokukind>`), so a rescan or a new install
+  over the folder brings a film back as a film; a file without it (every one
+  before c991) is an anime's. A series already in the database keeps the kind
+  it has. A linked film or show carries `<uniqueid type="tmdb">`, and a TMDB
+  link, an UNLINK or an UNDO writes its NFOs again in place
+  (`rewriteVideoNfos`); a download does too.
+- **The importer has a source a video kind** (`Anime`, `Shows`, `Movies`), each
+  rooted at its folder, so a file just written attaches under the root that
+  holds it (c170), and BROWSE's ADD roots a series by the kind it will have.
+  An existing install's `Anime` root keeps its name and its identity.
+- **One root on purpose:** `delete.ts`'s `isUnder(library)` guard, backups, the
+  hidden folders and RESCAN all assume it. A second root would quietly skip
+  deletes and leak hidden series.
+
 ## Suwayomi, retired
 
 From 2026-10-03 (c75) Suwayomi-Server ran Mihon's extensions on the JVM in a

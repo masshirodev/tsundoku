@@ -1,4 +1,5 @@
 import { error, json } from '@sveltejs/kit';
+import { videoKindsSql } from '$lib/library/kinds';
 import type { RequestHandler } from './$types';
 import { getDb } from '$lib/server/db';
 import { isIncognito, isRevealed } from '$lib/server/prefs';
@@ -16,7 +17,7 @@ export const POST: RequestHandler = async ({ params, request, cookies }) => {
 	const s = getDb()
 		.prepare(
 			`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id
-			WHERE s.id = ? AND s.kind = 'anime' AND (? OR ${VISIBLE_SQL})`
+			WHERE s.id = ? AND ${videoKindsSql('s')} AND (? OR ${VISIBLE_SQL})`
 		)
 		.get(id, reveal ? 1 : 0);
 	if (!s) error(404, 'not found');

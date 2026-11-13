@@ -1,9 +1,12 @@
 import { getDb } from './db.ts';
+import { rewriteVideoNfos } from './anime/download.ts';
+import { libraryRoot } from './import/index.ts';
 import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL, visibleWhere } from './visibility.ts';
 import { catalogueConfigured } from './catalogues.ts';
 import { catalogueClient } from './catalogue-clients.ts';
 import { KINDS, kindFacts, type Kind } from '../library/kinds.ts';
 import { titlesOfRow } from './catalogue.ts';
+import { catalogueType } from '../library/catalogues.ts';
 import {
 	tmdbMatchTitles,
 	tmdbQuery,
@@ -184,7 +187,19 @@ export async function tmdbLink(
 	if (!t) throw new Error('no such TMDB entry');
 	const before = beforeOf(seriesId);
 	getDb().transaction(() => writeLink(seriesId, t, via, now))();
+	nfosAgain(seriesId);
 	return before;
+}
+
+/**
+ * A downloaded film's or show's NFOs say its TMDB id (c991), so a link, an
+ * UNLINK or an UNDO writes them again. After the database, never instead of
+ * it, and a disk that refuses is the next download's to mend: the link stands.
+ */
+function nfosAgain(seriesId: number): void {
+	void rewriteVideoNfos(seriesId, libraryRoot()).catch((e: unknown) =>
+		console.warn(`tsundoku: rewriting a film's NFO: ${(e as Error).message}`)
+	);
 }
 
 /** UNDO a link, an UNLINK or a NONE OF THESE: what stood before comes back. */
@@ -217,6 +232,7 @@ export function tmdbUndo(seriesId: number, before: TmdbBefore): void {
 		} else db.prepare(`DELETE FROM series_tmdb_links WHERE series_id = ?`).run(seriesId);
 		decide(seriesId, before.decision, before.decision ? Date.now() : null);
 	})();
+	nfosAgain(seriesId);
 }
 
 function decide(seriesId: number, decision: SearchRow['decision'], at: number | null): void {
@@ -244,6 +260,7 @@ export function tmdbUnlink(seriesId: number, now = Date.now()): TmdbBefore {
 		getDb().prepare(`DELETE FROM series_tmdb_links WHERE series_id = ?`).run(seriesId);
 		decide(seriesId, 'unlinked', now);
 	})();
+	nfosAgain(seriesId);
 	return before;
 }
 
@@ -328,6 +345,7 @@ export async function tmdbPass(
 			saveSearch(r.id, query, year, found, now);
 			if (linked) writeLink(r.id, linked, 'exact', now);
 		})();
+		if (linked) nfosAgain(r.id);
 		out.searched += 1;
 		if (linked) out.linked += 1;
 		else if (found.length) out.offered += 1;
@@ -552,7 +570,7 @@ export function tmdbReviewItem(seriesId: number): TmdbReviewItem | null {
 	const candidates = candidatesOf(seriesId).map((c) => reviewCandidate({ titles, year }, c));
 	const searched = !!s?.searched_at;
 	const queued = !!s && s.searched_at === null && s.decision === null;
-	const film = r.kind === 'movie';
+	const film = catalogueType(r.kind) === 'movie';
 	const site = (r.site ?? '').toUpperCase();
 	return {
 		service: 'tmdb',

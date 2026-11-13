@@ -1,4 +1,5 @@
 import { tmdbKey } from './catalogues.ts';
+import { catalogueType } from '../library/catalogues.ts';
 import type { TmdbCollection, TmdbSeason, TmdbShowFacts, TmdbTitle } from '../library/tmdb.ts';
 
 /**
@@ -99,7 +100,7 @@ function toTitle(r: Row, media: 'movie' | 'tv'): TmdbTitle {
 
 /** The kind a series kind is on TMDB. */
 export const tmdbMedia = (kind: 'movie' | 'show'): 'movie' | 'tv' =>
-	kind === 'show' ? 'tv' : 'movie';
+	catalogueType(kind) as 'movie' | 'tv';
 
 /**
  * Search by title, ten at most, best match first. The caller cleans the

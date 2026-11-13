@@ -27,6 +27,7 @@ import type { Kind } from '$lib/library/types';
 import type { LinkState } from '$lib/server/catalogue';
 import type { TmdbLinkState } from '$lib/server/tmdb-links';
 import { runtimeWords } from '$lib/library/tmdb';
+import { catalogueType } from '$lib/library/catalogues';
 import type { SeasonTrack, Tracking } from '$lib/server/tracking';
 import type { RanobeSeries } from '$lib/server/ranobe-review';
 
@@ -857,7 +858,7 @@ function foldWord(i: ListsInput, list: number[]): { word: string; ink: boolean }
  * search words and FIND.
  */
 export function tmdbLine(i: ListsInput, t: TmdbLinkState): Line {
-	const film = i.kind === 'movie';
+	const film = catalogueType(i.kind) === 'movie';
 	const findHref = `${i.linksHref}?series=${i.seriesId}`;
 	const base = { key: 'tmdb', tag: 'TMDB', on: false, small: false, under: false, states: [] };
 	if (!t.configured)

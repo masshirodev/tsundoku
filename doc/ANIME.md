@@ -952,6 +952,9 @@ pure parts in `src/lib/library/anime-files.ts`).
   $LIBRARY_ROOT/Anime/<Series>/Season 01/<Series> S01E07 <Title>.mkv, and its .nfo
   ```
 
+  A show's and a film's go under `Shows/` and `Movies/` the same way (c991;
+  [`DOWNLOADING.md`](DOWNLOADING.md), "Where files go").
+
   `Season NN` zero-padded; a source without seasons is season 1 with its own
   (absolute) numbers. The year Jellyfin likes after the name is left out:
   Aniyomi gives none, and a guess would be worse. A **hidden series goes under

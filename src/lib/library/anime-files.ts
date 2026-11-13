@@ -10,12 +10,22 @@
  * folder a Jellyfin library would read: Jellyfin has no reveal. The NFOs
  * carry tsundoku's own keys (`<uniqueid type="tsundoku">`), which is how the
  * importer folds the files back onto their series and episodes.
+ *
+ * A show is laid out the same way under `Shows/`, and a film flat under
+ * `Movies/` (card c991; `storage` in kinds.ts):
+ *
+ *   Movies/<Title (Year)>/<Title (Year)>.mkv, <Title (Year)>.nfo, poster.jpg
+ *
+ * The NFOs say the series' kind (`<tsundokukind>`), so a rescan brings a film
+ * back as a film; a file written before they did reads as an anime.
  */
 
 import { LANGS, langCode } from './streams.ts';
+import { KIND_FACTS, type Kind } from './kinds.ts';
 
-export const ANIME_FOLDER = 'Anime';
-export const HIDDEN_ANIME_FOLDER = 'Anime (hidden)';
+// The registry's (`storage`, card c991): a film's are Movies/, a show's Shows/.
+export const ANIME_FOLDER = KIND_FACTS.anime.storage.folder;
+export const HIDDEN_ANIME_FOLDER = KIND_FACTS.anime.storage.hidden;
 
 /** A name every filesystem keeps, as Mihon names folders: no reserved characters, no trailing dots. */
 export function fileSafe(name: string): string {
@@ -73,6 +83,10 @@ export function tvshowNfo(s: {
 	year?: number | null;
 	anilist?: number | null;
 	mal?: number | null;
+	/** A show's TMDB entry (c989): Jellyfin looks a show up by it. */
+	tmdb?: number | null;
+	/** The series' kind; a file without it (every one before c991) is an anime's. */
+	kind?: Kind;
 }): string {
 	const lines = [
 		'<?xml version="1.0" encoding="utf-8" standalone="yes"?>',
@@ -85,8 +99,10 @@ export function tvshowNfo(s: {
 		`  <uniqueid type="tsundoku" default="true">${xml(s.key)}</uniqueid>`,
 		s.anilist ? `  <uniqueid type="anilist">${s.anilist}</uniqueid>` : '',
 		s.mal ? `  <uniqueid type="mal">${s.mal}</uniqueid>` : '',
+		s.tmdb ? `  <uniqueid type="tmdb">${s.tmdb}</uniqueid>` : '',
 		// Jellyfin passes by what it doesn't know; the importer reads it.
 		`  <tsundokusource>${xml(s.source)}</tsundokusource>`,
+		s.kind ? `  <tsundokukind>${s.kind}</tsundokukind>` : '',
 		'</tvshow>',
 		''
 	];
@@ -151,6 +167,7 @@ export function readTvshowNfo(text: string): {
 	status: string;
 	genres: string[];
 	source: string;
+	kind: 'anime' | 'show';
 } | null {
 	const key = tag(text, 'uniqueid', 'type="tsundoku"');
 	if (!key || !/^aniyomi:\d+:.+/.test(key)) return null;
@@ -160,7 +177,10 @@ export function readTvshowNfo(text: string): {
 		plot: tag(text, 'plot') ?? '',
 		status: tag(text, 'status') ?? '',
 		genres: [...text.matchAll(/<genre>([\s\S]*?)<\/genre>/gi)].map((m) => unxml(m[1].trim())),
-		source: tag(text, 'tsundokusource') ?? ''
+		source: tag(text, 'tsundokusource') ?? '',
+		// Only a show's file says so: an anime's never needed to, and a file
+		// written before c991 is an anime's.
+		kind: tag(text, 'tsundokukind') === 'show' ? 'show' : 'anime'
 	};
 }
 
@@ -186,6 +206,82 @@ export function readEpisodeNfo(text: string): {
 		position: num(tag(text, 'tsundokuposition')),
 		durationS: num(tag(text, 'tsundokuseconds')),
 		note: note === 'filler' || note === 'recap' ? note : ''
+	};
+}
+
+// ---- a film (card c991) ---------------------------------------------------------------------
+
+/**
+ * A film's file under its folder: `<Title (Year)>.mkv`, the folder's own name,
+ * as Jellyfin's movie layout has it. A film is one entry; a release a source
+ * splits in two keeps Jellyfin's multi-part suffix (`… - part2.mkv`).
+ */
+export function filmFile(folderName: string, position = 1): string {
+	return `${fileSafe(position > 1 ? `${folderName} - part${Math.floor(position)}` : folderName)}.mkv`;
+}
+
+/**
+ * A film's NFO, beside its file: Jellyfin's `<movie>`, and everything the
+ * importer needs to fold the file back onto its series **and** its entry,
+ * since a film has no tvshow.nfo above it: the series' key, the entry's
+ * address at the source and its position.
+ */
+export function movieNfo(m: {
+	key: string;
+	sourceUrl: string;
+	title: string;
+	plot: string;
+	genres: string[];
+	source: string;
+	position: number;
+	year?: number | null;
+	durationS?: number | null;
+	tmdb?: number | null;
+}): string {
+	const lines = [
+		'<?xml version="1.0" encoding="utf-8" standalone="yes"?>',
+		'<movie>',
+		`  <title>${xml(m.title)}</title>`,
+		m.plot ? `  <plot>${xml(m.plot)}</plot>` : '',
+		m.year ? `  <year>${m.year}</year>` : '',
+		m.durationS ? `  <runtime>${Math.round(m.durationS / 60)}</runtime>` : '',
+		...m.genres.map((g) => `  <genre>${xml(g)}</genre>`),
+		`  <uniqueid type="tsundoku" default="true">${xml(m.key)}</uniqueid>`,
+		m.tmdb ? `  <uniqueid type="tmdb">${m.tmdb}</uniqueid>` : '',
+		`  <tsundokusource>${xml(m.source)}</tsundokusource>`,
+		`  <tsundokuepisode>${xml(m.sourceUrl)}</tsundokuepisode>`,
+		`  <tsundokuposition>${m.position}</tsundokuposition>`,
+		m.durationS ? `  <tsundokuseconds>${Math.round(m.durationS)}</tsundokuseconds>` : '',
+		'</movie>',
+		''
+	];
+	return lines.filter((l) => l !== '').join('\n') + '\n';
+}
+
+/** A film NFO tsundoku wrote: its series key and its one entry; null for one it didn't. */
+export function readMovieNfo(text: string): {
+	key: string;
+	sourceUrl: string;
+	title: string;
+	plot: string;
+	genres: string[];
+	source: string;
+	position: number;
+	durationS: number | null;
+} | null {
+	if (!/<movie\b/i.test(text)) return null;
+	const key = tag(text, 'uniqueid', 'type="tsundoku"');
+	const url = tag(text, 'tsundokuepisode');
+	if (!key || !/^aniyomi:\d+:.+/.test(key) || !url) return null;
+	return {
+		key,
+		sourceUrl: url,
+		title: tag(text, 'title') ?? '',
+		plot: tag(text, 'plot') ?? '',
+		genres: [...text.matchAll(/<genre>([\s\S]*?)<\/genre>/gi)].map((m) => unxml(m[1].trim())),
+		source: tag(text, 'tsundokusource') ?? '',
+		position: num(tag(text, 'tsundokuposition')) ?? 1,
+		durationS: num(tag(text, 'tsundokuseconds'))
 	};
 }
 

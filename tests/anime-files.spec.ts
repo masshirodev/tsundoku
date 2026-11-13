@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+	filmFile,
 	keptTracks,
+	movieNfo,
+	readMovieNfo,
 	episodeNfo,
 	episodePath,
 	fileSafe,
@@ -60,7 +63,8 @@ describe('the NFOs', () => {
 			plot: 'Plot.',
 			status: 'ongoing',
 			genres: ['Fantasy', 'Slice of Life'],
-			source: 'AnimePahe'
+			source: 'AnimePahe',
+			kind: 'anime'
 		});
 		// One tsundoku didn't write is no series of its own.
 		expect(readTvshowNfo('<tvshow><title>Mine</title></tvshow>')).toBeNull();
@@ -158,5 +162,78 @@ describe('what a download keeps (c160)', () => {
 	it('keeps subtitles in the kept audio’s languages, AS AUDIO', () => {
 		const r = keptTracks(audio, subs, { kept: ['EN'], subs: 'audio' });
 		expect(r.subtitles.map((s) => s.lang)).toEqual(['en', 'ja']);
+	});
+});
+
+// ---- films and shows on disk (card c991) --------------------------------------------------------
+
+describe('a film’s file and NFO', () => {
+	it('is named as its folder, with Jellyfin’s part suffix past the first', () => {
+		expect(filmFile('The Long Ferry (2024)')).toBe('The Long Ferry (2024).mkv');
+		expect(filmFile('The Long Ferry (2024)', 2)).toBe('The Long Ferry (2024) - part2.mkv');
+	});
+
+	it('round-trips the series key, the entry and the TMDB id', () => {
+		const text = movieNfo({
+			key: 'aniyomi:9:/film/ferry',
+			sourceUrl: 'aniyomi:9:/film/ferry/play',
+			title: 'The Long Ferry',
+			plot: 'A crossing.',
+			genres: ['Drama'],
+			source: 'Movies Mod',
+			position: 1,
+			year: 2024,
+			durationS: 7080,
+			tmdb: 11
+		});
+		expect(text).toContain('<movie>');
+		expect(text).toContain('<uniqueid type="tmdb">11</uniqueid>');
+		expect(text).toContain('<runtime>118</runtime>');
+		expect(readMovieNfo(text)).toEqual({
+			key: 'aniyomi:9:/film/ferry',
+			sourceUrl: 'aniyomi:9:/film/ferry/play',
+			title: 'The Long Ferry',
+			plot: 'A crossing.',
+			genres: ['Drama'],
+			source: 'Movies Mod',
+			position: 1,
+			durationS: 7080
+		});
+	});
+
+	it('refuses an NFO it did not write, and a show’s', () => {
+		expect(readMovieNfo('<movie><title>x</title></movie>')).toBeNull();
+		expect(
+			readMovieNfo(
+				tvshowNfo({ key: 'aniyomi:1:/s', title: 'S', plot: '', status: '', genres: [], source: '' })
+			)
+		).toBeNull();
+	});
+});
+
+describe('a show’s tvshow.nfo', () => {
+	it('says its kind and its TMDB entry, and a file without a kind is an anime’s', () => {
+		const show = tvshowNfo({
+			key: 'aniyomi:3:/show',
+			title: 'Harbour Lights',
+			plot: '',
+			status: '',
+			genres: [],
+			source: 'KissKH',
+			tmdb: 77,
+			kind: 'show'
+		});
+		expect(show).toContain('<uniqueid type="tmdb">77</uniqueid>');
+		expect(readTvshowNfo(show)?.kind).toBe('show');
+		const old = tvshowNfo({
+			key: 'aniyomi:3:/a',
+			title: 'A',
+			plot: '',
+			status: '',
+			genres: [],
+			source: ''
+		});
+		expect(old).not.toContain('tsundokukind');
+		expect(readTvshowNfo(old)?.kind).toBe('anime');
 	});
 });

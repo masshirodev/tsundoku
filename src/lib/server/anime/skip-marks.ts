@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { videoKindsSql } from '../../library/kinds.ts';
 import { getDb } from '../db.ts';
 import { HIDDEN_SQL } from '../visibility.ts';
 import { chosenMarks, needsLookup, saveAttempt, saveMark } from './marks.ts';
@@ -58,7 +59,7 @@ function seasonOf(
 	const series = db
 		.prepare(
 			`SELECT ${HIDDEN_SQL} AS hidden FROM series s JOIN roots r ON r.id = s.root_id
-			WHERE s.id = ? AND s.kind = 'anime'`
+			WHERE s.id = ? AND ${videoKindsSql('s', { episodic: true })}`
 		)
 		.get(seriesId) as { hidden: number } | undefined;
 	if (!series) return null;

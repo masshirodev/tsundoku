@@ -13,6 +13,7 @@
 	} from '$lib/library/catalogue';
 	import { langName, parseRanobeUrl } from '$lib/library/ranobe';
 	import { parseTmdbUrl } from '$lib/library/tmdb';
+	import { catalogueType } from '$lib/library/catalogues';
 	import { seasonTag } from '$lib/library/anime';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { offline } from '$lib/offline.svelte';
@@ -463,7 +464,7 @@
 			decide(
 				{ link: c.tmdbId, pasted: !!pasted },
 				`LINKED · ${c.title.toUpperCase()}`,
-				`${c.ids} · ITS YEAR AND ${it.kind === 'movie' ? 'RUNTIME' : 'SEASONS'} COME FROM TMDB`,
+				`${c.ids} · ITS YEAR AND ${catalogueType(it.kind) === 'movie' ? 'RUNTIME' : 'SEASONS'} COME FROM TMDB`,
 				'link'
 			);
 			return;
@@ -792,7 +793,7 @@
 				? r1
 					? 'NOT A RANOBE WORK LINK'
 					: t1
-						? it.kind === 'movie'
+						? catalogueType(it.kind) === 'movie'
 							? 'NOT A TMDB FILM LINK'
 							: 'NOT A TMDB SHOW LINK'
 						: isAnime(it.kind)
@@ -824,7 +825,7 @@
 				? 'NO SUCH WORK ON RANOBE'
 				: t1
 					? r.status === 422
-						? it.kind === 'movie'
+						? catalogueType(it.kind) === 'movie'
 							? 'THAT LINK IS A SHOW · THIS IS A FILM'
 							: 'THAT LINK IS A FILM · THIS IS A SHOW'
 						: 'NO SUCH ENTRY ON TMDB'
@@ -1474,7 +1475,7 @@
 							{ranobe
 								? 'RANOBE IS ASKED NOW, WITH THIS TITLE ONLY, NOVELS ONLY. NOTHING IS LINKED: WHAT IT FINDS COMES BACK HERE TO CHOOSE FROM.'
 								: tmdb
-									? `TMDB IS ASKED NOW, WITH THIS TITLE ONLY, ${item?.kind === 'movie' ? 'FILMS' : 'SHOWS'} ONLY. A YEAR IN BRACKETS NARROWS IT. NOTHING IS LINKED: WHAT IT FINDS COMES BACK HERE TO CHOOSE FROM.`
+									? `TMDB IS ASKED NOW, WITH THIS TITLE ONLY, ${!!item && catalogueType(item.kind) === 'movie' ? 'FILMS' : 'SHOWS'} ONLY. A YEAR IN BRACKETS NARROWS IT. NOTHING IS LINKED: WHAT IT FINDS COMES BACK HERE TO CHOOSE FROM.`
 									: 'ANILIST IS ASKED NOW, WITH THIS TITLE ONLY, IN THIS SERIES’ OWN KIND. NOTHING IS LINKED: WHAT IT FINDS COMES BACK HERE TO CHOOSE FROM.'}
 						</div>
 					{/if}
@@ -1494,7 +1495,7 @@
 								placeholder={ranobe
 									? 'ranobe.ink/w…'
 									: tmdb
-										? `themoviedb.org/${item?.kind === 'movie' ? 'movie' : 'tv'}/…`
+										? `themoviedb.org/${!!item && catalogueType(item.kind) === 'movie' ? 'movie' : 'tv'}/…`
 										: item && isAnime(item.kind)
 											? 'anilist.co/anime/… or myanimelist.net/anime/…'
 											: 'anilist.co/manga/… or myanimelist.net/manga/…'}
