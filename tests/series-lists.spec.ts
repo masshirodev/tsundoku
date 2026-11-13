@@ -1218,10 +1218,10 @@ describe('the TMDB line', () => {
 		]);
 	});
 
-	it('is the one line a film has: never an AniList line beside it', () => {
+	it('never draws an AniList line for a film: TMDB’s, then the LIST line (c993)', () => {
 		expect(
 			lines(input({ kind: 'movie', tmdb: tmdb({ configured: false }) })).map((l) => l.tag)
-		).toEqual(['TMDB']);
+		).toEqual(['TMDB', 'LIST']);
 	});
 
 	it('draws a linked film and a linked show the board’s way, with CHANGE', () => {
@@ -1276,5 +1276,21 @@ describe('the TMDB line', () => {
 		const hidden = lines(input({ kind: 'movie', tmdb: tmdb({ hidden: true }) }))[0];
 		expect(hidden.meta).toBe('HIDDEN SERIES ARE NEVER SEARCHED');
 		expect(labels(hidden.cells)).toEqual(['PASTE A LINK']);
+	});
+});
+
+describe('the LIST line (c993)', () => {
+	it('keeps a film’s watch in HISTORY while no tracker takes it, with SET UP →', () => {
+		const ls = lines(
+			input({ kind: 'movie', tmdb: tmdb({ configured: false }), watch: 'WATCHED 12 NOV' })
+		);
+		expect(ls.map((l) => l.tag)).toEqual(['TMDB', 'LIST']);
+		expect(ls[1]).toMatchObject({
+			title: 'Kept in HISTORY',
+			muted: true,
+			meta: 'NO TRACKER SIGNED IN · WATCHED 12 NOV'
+		});
+		expect(labels(ls[1].cells)).toEqual(['SET UP →']);
+		expect(ls[1].cells[0].accent).toBe(false);
 	});
 });

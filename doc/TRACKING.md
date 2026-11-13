@@ -282,6 +282,21 @@ Cards: c993 ("Trackers: any service, any kind, and a local answer with none")
 and c994 (the setup brief and HELP's topic); the whole effort is
 [`MOVIES-TV.md`](MOVIES-TV.md), "Decided".
 
+### What is built (c993, 2026-11-13)
+
+- **The contract** (`TRACKERS` in `src/lib/library/tracking.ts`): each service
+  declares the kinds it `takes`, how it `connect`s (an app of the install's own,
+  then a sign-in) and whether tsundoku speaks to it yet. `trackersFor(kind)` is
+  the one question: AniList and MAL take comics and anime, **MAL never a film or
+  a show**, Trakt films, shows and anime (declared, `built: false` until its
+  slice lands).
+- **LISTS' LIST line** on a film and a show (Keys-Rows 2A, 2C): `Kept in
+HISTORY`, muted, `NO TRACKER SIGNED IN · WATCHED 12 NOV` (or `EP. 6 OF 16`),
+  with SET UP → in ink to SETTINGS' CATALOGUES, beside TMDB's line.
+- **TMDB's key row** on SETTINGS (`doc/LINKS.md`, "Which catalogue").
+- **Not yet:** Trakt's app fields, sign-in and sends (the card says what the
+  owner must register first).
+
 ### The handoff (2026-11-12)
 
 Mirrored at [`handoffs/keys-accounts/`](handoffs/keys-accounts/)

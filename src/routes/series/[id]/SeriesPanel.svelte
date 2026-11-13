@@ -400,6 +400,15 @@
 			cells: r.cell ? [{ label: r.cell, which, acc: false, dim: !offline.online }] : []
 		};
 	});
+	/**
+	 * A film's or a show's watch in the local log's words, for LISTS' LIST line
+	 * (c993): `WATCHED 3 NOV`, `EP. 6 OF 16`, `NOT WATCHED`.
+	 */
+	const watchWords = $derived.by(() => {
+		if (filmed) return filmed.quiet ? filmed.meta : 'NOT WATCHED';
+		const seen = series.entries.filter((e) => e.readAt !== null).length;
+		return seen ? `EP. ${seen} OF ${series.entries.length}` : 'NOT WATCHED';
+	});
 	/** The offer NOT THIS just declined, for its band's UNDO. */
 	let declined = $state<string | null>(null);
 	/** A show's seasons from TMDB (c990, c992): the SEASONS row and SEASON N IS OUT. */
@@ -460,6 +469,7 @@
 					kind: series.kind,
 					link,
 					tmdb,
+					watch: tmdb ? watchWords : undefined,
 					tracking,
 					ranobe,
 					seasons,

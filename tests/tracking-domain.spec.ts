@@ -252,3 +252,14 @@ describe('the TRACKING row’s clock', () => {
 		expect(ago(now - 3 * 24 * 3600_000, now)).toBe('3 D AGO');
 	});
 });
+
+describe('the trackers’ contract (c993)', () => {
+	it('offers MAL for comics and anime, never a film or a show', async () => {
+		const { trackersFor, TRACKERS } = await import('$lib/library/tracking');
+		expect(trackersFor('movie')).toEqual(['trakt']);
+		expect(trackersFor('show')).toEqual(['trakt']);
+		expect(trackersFor('anime')).toEqual(['anilist', 'mal', 'trakt']);
+		expect(trackersFor('manhwa')).toEqual(['anilist', 'mal']);
+		expect(TRACKERS.mal.takesWords).toBe('COMICS AND ANIME · NEVER FILMS OR SHOWS');
+	});
+});

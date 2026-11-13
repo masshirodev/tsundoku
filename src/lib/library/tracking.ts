@@ -204,3 +204,60 @@ export type SeasonTrackFacts = {
 	/** An episode watched past the entry's count, with no part 2 to take it. */
 	waits: { episode: number; of: number; service: Service } | null;
 };
+
+// ---- the trackers, as a contract (card c993) -------------------------------------------------
+
+/**
+ * Every watch-log service tsundoku knows, and what each declares (the keys
+ * handoff; doc/TRACKING.md, "The trackers"): the kinds it takes, so SETTINGS
+ * and a series' LISTS offer it only where it applies, and how it connects.
+ * Every one is an app of the install's own and then a sign-in: writing to a
+ * list needs a registered app, and a friend's install has none of the
+ * owner's (`THE APP ISN'T REGISTERED`).
+ *
+ * MAL has no live-action entry, so it takes no film and no show, and is never
+ * offered for one. TMDB is a catalogue and a rating store, not a watch log:
+ * the catalogue contract's (catalogue-clients.ts), not this one.
+ *
+ * `built` says whether tsundoku speaks to it yet: Trakt is declared so the
+ * screens can say where films and shows will go, and is built in c993's next
+ * slice.
+ */
+export type Tracker = 'anilist' | 'mal' | 'trakt';
+
+export type TrackerFacts = {
+	name: string;
+	takes: readonly Kind[];
+	connect: 'app-then-sign-in';
+	built: boolean;
+	/** What SETTINGS says it takes, once, on its row (Keys-Rows 2E). */
+	takesWords: string;
+};
+
+export const TRACKERS: Record<Tracker, TrackerFacts> = {
+	anilist: {
+		name: 'ANILIST',
+		takes: ['manga', 'manhwa', 'anime'],
+		connect: 'app-then-sign-in',
+		built: true,
+		takesWords: 'COMICS AND ANIME'
+	},
+	mal: {
+		name: 'MAL',
+		takes: ['manga', 'manhwa', 'anime'],
+		connect: 'app-then-sign-in',
+		built: true,
+		takesWords: 'COMICS AND ANIME · NEVER FILMS OR SHOWS'
+	},
+	trakt: {
+		name: 'TRAKT',
+		takes: ['movie', 'show', 'anime'],
+		connect: 'app-then-sign-in',
+		built: false,
+		takesWords: 'FILMS, SHOWS AND ANIME'
+	}
+};
+
+/** The trackers that take a kind, in the order SETTINGS lists them. */
+export const trackersFor = (kind: Kind): Tracker[] =>
+	(Object.keys(TRACKERS) as Tracker[]).filter((t) => TRACKERS[t].takes.includes(kind));

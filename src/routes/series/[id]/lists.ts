@@ -101,6 +101,12 @@ export type ListsInput = {
 	link: LinkState | null;
 	/** A film's or a show's TMDB link (c989); null or absent for any other kind. */
 	tmdb?: TmdbLinkState | null;
+	/**
+	 * A film's or a show's watch in the local log's words (c993): `WATCHED 12
+	 * NOV`, `EP. 6 OF 16`, `NOT WATCHED`. The LIST line says it while no tracker
+	 * that takes the kind is signed in.
+	 */
+	watch?: string;
 	tracking: Tracking | null;
 	ranobe: RanobeSeries | null;
 	/** An anime's seasons; null for anything else. */
@@ -910,12 +916,46 @@ export function tmdbLine(i: ListsInput, t: TmdbLinkState): Line {
 	};
 }
 
+/**
+ * The LIST line of a film or a show with no tracker signed in (Keys-Rows 2A,
+ * 2C): muted `Kept in HISTORY`, the local log's words, and SET UP → in ink to
+ * SETTINGS' CATALOGUES. MAL never takes a film or a show (`TRACKERS`), and no
+ * tracker that does is built yet, so this is every film's and show's line
+ * until Trakt is (c993).
+ */
+export function historyLine(i: ListsInput): Line {
+	return {
+		key: 'list',
+		tag: 'LIST',
+		on: false,
+		small: false,
+		under: false,
+		states: [],
+		title: 'Kept in HISTORY',
+		muted: true,
+		meta: ['NO TRACKER SIGNED IN', i.watch ?? ''].filter(Boolean).join(' · '),
+		cells: [
+			{
+				key: 'setup',
+				label: 'SET UP →',
+				accent: false,
+				dim: false,
+				href: `${i.settingsHref}?section=catalogues`
+			}
+		]
+	};
+}
+
 export function listsRow(i: ListsInput): Lists | null {
-	// A film or a show has no AniList line: its catalogue is TMDB's (c989).
+	// A film or a show has no AniList line: its catalogue is TMDB's (c989), and
+	// its list is a tracker that takes it, or the local log (c993).
 	if (i.tmdb)
 		return {
 			note: i.offline ? OFFLINE_NOTE : '',
-			items: [{ type: 'line', line: tmdbLine(i, i.tmdb) }]
+			items: [
+				{ type: 'line', line: tmdbLine(i, i.tmdb) },
+				{ type: 'line', line: historyLine(i) }
+			]
 		};
 	if (!i.link && !(i.ranobe?.configured && i.ranobe)) return null;
 	const onRanobe = !!i.ranobe?.configured;
