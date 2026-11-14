@@ -1,0 +1,7 @@
+Movies and shows: a source can now bring a film or a TV show, not only anime. Films go to Movies/ and shows to Shows/ in your library, laid out as Jellyfin reads them, and both play like an episode. A film's screen has one PLAY, its backdrop and the rest of its collection; a show's lists its other seasons and says when the next one is out. KIND moves a series between film and show, files included, with UNDO.
+TMDB: for posters, years, seasons and collections, add a free TMDB key in SETTINGS > CATALOGUES. It is checked before it is kept. Without one, films and shows still work, with the source's title and cover.
+BROWSE: a band over the sources picks a kind (ALL, MANGA, ANIME, MOVIES...), and the sources, RECENT and every section show only that kind.
+Looking up a word: in a book, press and hold to select it, then LOOK UP in the bar over it. Manga pages still take a tap.
+Privacy: switching away still blanks the page at once, but coming back no longer ends reveal or incognito or sends you to the library. HIDE AGAIN and END still end them.
+Sheets: the page behind an open sheet (MORE, a series' options, GROUP, TAGS) no longer scrolls under your finger.
+Phone app: FULL in the player turns the picture to landscape, and BACK turns it upright again. The readers no longer offer FULL SCREEN in the app, since the app already fills the screen.
