@@ -154,12 +154,19 @@ its SETTINGS, search inside it.
   reads "ANIME · ANIMEPAHE · ONGOING" as the handoff draws it; every episode
   NOT DOWNLOADED, known by its URL.
 - **Seasons.** A season comes from the episode's own name where the engine
-  flattens a source's seasons into one entry ("Season 2 - Episode 3"); where
+  flattens a source's seasons into one entry ("Season 2 - Episode 3", or with
+  no dash when the episode follows the season straight away, "Season 4 Ep 8",
+  as Movies Mod's packs name them; c998); where
   the source makes each season its own entry, as KickAssAnime and AnimePahe
   do, the entry's title or its slug says it ("… 3rd Season",
   `-season-3`), and that season is stamped on every episode that names none
-  (`seasonOfTitle`, `anime-plan.ts`; rung 55, card c219). A source that says
-  it neither way stays flat. Episodes are oldest first within a season,
+  (`seasonOfTitle`, `anime-plan.ts`; rung 55, card c219). **A pack of seasons
+  is no one season**: an entry titled "Lupin (Season 1-4)" (or "Seasons 1 to
+  3", "S1-S4", a `-season-1-4` slug) stamps none, since read as its first it
+  put all four seasons' episodes in season 1 and the list came out
+  interleaved by number. Its episodes' own names give their seasons, and a
+  pack whose episodes name none stays flat. A source that says it neither
+  way stays flat. Episodes are oldest first within a season,
   seasons in order; a number the source didn't give is read from the name,
   else placed by where the source listed it. The title is what's left after
   "Episode 3". The stamp is what the season heads, the fold, CONTINUE

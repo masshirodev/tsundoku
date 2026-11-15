@@ -17,6 +17,22 @@ describe('an episode’s name', () => {
 		expect(seasonOf('Part 2 - Episode 1')).toEqual({ season: null, rest: 'Part 2 - Episode 1' });
 	});
 
+	// A pack of seasons in one entry (c998): Movies Mod's Lupin names them so.
+	it('gives its season with no separator, when the episode follows the season', () => {
+		expect(seasonOf('Season 4  Ep 8')).toEqual({ season: 4, rest: 'Ep 8' });
+		expect(seasonOf('Season 2 Episode 3 - The Heist')).toEqual({
+			season: 2,
+			rest: 'Episode 3 - The Heist'
+		});
+		expect(seasonOf('S3 Ep. 1')).toEqual({ season: 3, rest: 'Ep. 1' });
+		expect(seasonOf('Lupin Season 1 Ep 2')).toEqual({ season: 1, rest: 'Ep 2' });
+		// No episode after it: not a season and an episode.
+		expect(seasonOf('Season 2 Recap')).toEqual({ season: null, rest: 'Season 2 Recap' });
+		expect(seasonOf('Seasons Ep 3')).toEqual({ season: null, rest: 'Seasons Ep 3' });
+		const { rest } = seasonOf('Season 4  Ep 8');
+		expect([numberOf(rest), titleOf(rest)]).toEqual([8, '']);
+	});
+
 	it('gives its number and its own title', () => {
 		expect(numberOf('Episode 12')).toBe(12);
 		expect(numberOf('Ep. 12.5 - Special')).toBe(12.5);
@@ -45,11 +61,27 @@ describe('a series’ own season', () => {
 		expect(seasonOfTitle('A Show 1st Season')).toBe(1);
 	});
 
+	// A pack is no one season (c998): read as its first, it stamped season 1 on
+	// every episode of four seasons. None is stamped, so the episodes' own
+	// names give their seasons, and a pack whose episodes name none stays flat.
+	it('is nothing for a pack of seasons', () => {
+		expect(
+			seasonOfTitle(
+				'Lupin (Season 1-4) Multi Audio {Hindi-English-French} WeB-DL 480p [170MB] || 720p [290MB] || 1080p [1GB]'
+			)
+		).toBeNull();
+		expect(seasonOfTitle('A Show Seasons 1 to 3')).toBeNull();
+		expect(seasonOfTitle('A Show S1-S4')).toBeNull();
+		expect(seasonOfTitle('A Show Season 2 - 2nd Cour')).toBe(2);
+		expect(seasonOfTitle('A Show (Season 3-1)')).toBe(3);
+	});
+
 	it('is read from the slug when the title does not say it', () => {
 		expect(seasonOfTitle('A Show', '/ascendance-of-a-bookworm-season-3-d2a9')).toBe(3);
 		expect(seasonOfTitle('A Show', '/a-show-season-2')).toBe(2);
 		expect(seasonOfTitle('A Show', '/a-show-3rd-season-9c1f')).toBe(3);
 		expect(seasonOfTitle('A Show', '/a-show-f8e7')).toBeNull();
+		expect(seasonOfTitle('A Show', '/a-show-season-1-4-hindi')).toBeNull();
 		expect(seasonOfTitle('A Show Season 2', '/a-show-season-3')).toBe(2);
 	});
 
@@ -126,6 +158,50 @@ describe('an anime’s plan', () => {
 			{ namespace: 'genre', value: 'drama' },
 			{ namespace: 'source', value: 'KickAssAnime' }
 		]);
+	});
+
+	// The owner's Lupin (c998, series 7378): four seasons of eight in one entry,
+	// listed newest first, each episode numbered within its season.
+	it('reads a pack of seasons into its seasons, oldest first', () => {
+		const listed = [];
+		for (let season = 4; season >= 1; season--)
+			for (let n = 8; n >= 1; n--)
+				listed.push({
+					url: `/s${season}e${n}`,
+					name: `Season ${season}  Ep ${n}`,
+					episode_number: n
+				});
+		const p = planAnime(
+			{ ...d, title: 'Lupin (Season 1-4) Multi Audio {Hindi-English-French} WeB-DL 480p [170MB]' },
+			listed,
+			5
+		);
+		const order = p.entries.map((e) => `S${e.episode?.season}E${e.episode?.number}`);
+		expect(order.slice(0, 9)).toEqual([
+			'S1E1',
+			'S1E2',
+			'S1E3',
+			'S1E4',
+			'S1E5',
+			'S1E6',
+			'S1E7',
+			'S1E8',
+			'S2E1'
+		]);
+		expect(order.slice(-8)).toEqual([
+			'S4E1',
+			'S4E2',
+			'S4E3',
+			'S4E4',
+			'S4E5',
+			'S4E6',
+			'S4E7',
+			'S4E8'
+		]);
+		expect(p.entries.find((e) => e.sourceUrl === '/s4e8')).toMatchObject({
+			label: 'Ep. 8',
+			title: ''
+		});
 	});
 });
 

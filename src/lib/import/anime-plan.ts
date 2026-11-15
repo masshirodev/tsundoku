@@ -40,8 +40,18 @@ export type AnimeDetails = {
 	thumbnailUrl?: string;
 };
 
-/** "Season 2 - Episode 3", "S2 - Ep 3", "Part 2 Season 3 - …": its season, and the rest of the name. */
+/**
+ * "Season 2 - Episode 3", "S2 - Ep 3", "Part 2 Season 3 - …": its season, and
+ * the rest of the name. Also with no separator, when the episode follows the
+ * season straight away ("Season 4  Ep 8", "S2 Episode 3"): a source that packs
+ * its seasons into one entry names them so, and read without the season its
+ * list came out interleaved by number (c998).
+ */
 export function seasonOf(name: string): { season: number | null; rest: string } {
+	const bare = /^(?:.*?\s)?(?:season\s*(\d{1,3})|s(\d{1,3}))\s+((?:episode|ep)\b\.?\s*\d.*)$/i.exec(
+		name.trim()
+	);
+	if (bare) return { season: Number(bare[1] ?? bare[2]), rest: bare[3].trim() };
 	const m = /^(.*?)\s+[-–:]\s+(.+)$/.exec(name.trim());
 	if (m) {
 		const s = /\bseason\s*(\d{1,3})\b|^s(\d{1,3})$/i.exec(m[1].trim());
@@ -59,6 +69,10 @@ export function seasonOf(name: string): { season: number | null; rest: string } 
  */
 export function seasonOfTitle(title: string, url = ''): number | null {
 	const t = title.trim();
+	// "Lupin (Season 1-4)": a pack of seasons is no one season. Read as its
+	// first, it stamped season 1 on all four seasons' episodes (c998); with
+	// none, episodes that name their season still say it, and the rest stay flat.
+	if (seasonRange(t, url)) return null;
 	const after = /\bseason\s*(\d{1,3})\b/i.exec(t);
 	if (after) return Number(after[1]);
 	// "3rd Season": the ordinal comes before the word, as Honzuki's does.
@@ -68,6 +82,19 @@ export function seasonOfTitle(title: string, url = ''): number | null {
 	if (slug) return Number(slug[1]);
 	const ordinalSlug = /-(\d{1,2})(?:st|nd|rd|th)-season(?:-|$)/i.exec(url);
 	return ordinalSlug ? Number(ordinalSlug[1]) : null;
+}
+
+/**
+ * Whether the entry is a pack of seasons ("Season 1-4", "Seasons 1 to 3",
+ * "S1-S4", a `-season-1-4` slug): two season numbers, the second the later.
+ */
+function seasonRange(title: string, url: string): boolean {
+	const range = (a: string, b: string) => Number(b) > Number(a);
+	const t =
+		/\b(?:seasons?\s*|s)(\d{1,3})\s*(?:-|–|to|&|and)\s*(?:s(?:eason)?\s*)?(\d{1,3})\b/i.exec(title);
+	if (t && range(t[1], t[2])) return true;
+	const slug = /-seasons?-(\d{1,3})-(?:to-)?(\d{1,3})(?:-|$)/i.exec(url);
+	return !!slug && range(slug[1], slug[2]);
 }
 
 /** "Episode 12", "Ep. 12.5", "EP12": the number a name gives, or null. */
