@@ -20,6 +20,7 @@
 		screenStep,
 		wheelPixels
 	} from '$lib/reader/smooth-scroll';
+	import { guessStep } from '$lib/reader/strip-guess';
 	import type { PageData } from './$types';
 	import { unitLabel } from '$lib/library/labels';
 	import type { Kind } from '$lib/library/types';
@@ -647,13 +648,48 @@
 	// regroups under the reader as images arrive.
 	const learned = new SvelteMap<string, Page>();
 	let lastShape = $state<Page | null>(null);
-	const shaped = (entry: number, i: number, p: Page) =>
-		shapeOf(p, learned.get(`${entry}:${i}`), lastShape);
+	// A page that has not loaded and whose own size was never learned wears
+	// another page's shape, or the manga default: that is a guess, and the
+	// strip treats it as one (c913). `shapeOf` is the rule for the shape;
+	// `guess` is its other half, passed down rather than read back off the box.
+	const shaped = (entry: number, i: number, p: Page): Page & { guess?: boolean } => {
+		const own = learned.get(`${entry}:${i}`);
+		const shape = shapeOf(p, own, lastShape);
+		return !(p.w > 0 && p.h > 0) && !own ? { ...shape, guess: true } : shape;
+	};
 	function learnShape(entry: number, i: number, w: number, h: number) {
 		const key = `${entry}:${i}`;
 		const had = learned.get(key);
 		if (had?.w !== w || had?.h !== h) learned.set(key, { w, h });
 		if (lastShape?.w !== w || lastShape?.h !== h) lastShape = { w, h };
+	}
+	/**
+	 * When each guessing page first held a key step (c913, `GUESS_WAIT_MS`):
+	 * the wait is that page's own, from the moment the reader stood at it.
+	 */
+	const heldSince = new WeakMap<Element, number>();
+	/**
+	 * How far a forward key step may go over the strip's pages still loading
+	 * at a guessed size ($lib/reader/strip-guess): the first one it would carry
+	 * the middle of the screen past stops it at the top of the screen.
+	 */
+	function stripStep(from: number, step: number): number {
+		const strip = document.querySelector<HTMLElement>('[data-role="strip"]');
+		if (!strip) return step;
+		const els = [...strip.querySelectorAll<HTMLElement>('.page[data-guessing]')];
+		const now = performance.now();
+		const pages = els.map((el) => {
+			const r = el.getBoundingClientRect();
+			const since = heldSince.get(el);
+			return {
+				top: scrollY + r.top,
+				bottom: scrollY + r.bottom,
+				waited: since === undefined ? 0 : now - since
+			};
+		});
+		const { by, stop } = guessStep(pages, from, step, innerHeight);
+		if (stop !== null && !heldSince.has(els[stop])) heldSince.set(els[stop], now);
+		return by;
 	}
 	/** This screen is half of a split wide page. */
 	const splitHere = $derived(group.length === 1 && treatment(group[0]) === 'split');
@@ -2269,7 +2305,22 @@
 			const up = arrow === -1 || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey);
 			if (down || up) {
 				e.preventDefault();
-				moveKey(e, screenStep(innerHeight) * (down ? 1 : -1), GLIDE_SCREEN);
+				const step = screenStep(innerHeight);
+				if (up) return moveKey(e, -step, GLIDE_SCREEN);
+				// A page still loading at a guessed size is not stepped over
+				// (c913): the step stops with it at the top of the screen. ↑
+				// goes back over pages already read, so it is free. A held
+				// key's repeats come here too: a stop ends the hold where the
+				// strip is, then glides the rest of the way to that page's top.
+				const by = stripStep(reducedMotion() ? scrollY : smooth.aim, step);
+				if (by === step) return moveKey(e, step, GLIDE_SCREEN);
+				if (e.repeat || by === 0) {
+					endHold(true);
+					const rest = stripStep(scrollY, step);
+					if (rest > 0 && rest < step) move(rest, GLIDE_SCREEN);
+					return;
+				}
+				moveKey(e, by, GLIDE_SCREEN);
 			}
 			return;
 		}

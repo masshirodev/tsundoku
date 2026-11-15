@@ -22,6 +22,7 @@
 		chapter = '',
 		online = false,
 		rule = null,
+		guess = false,
 		onshape
 	}: {
 		src: string;
@@ -62,9 +63,19 @@
 		 */
 		rule?: 'left' | 'right' | null;
 		/**
-		 * The image arrived at this size. Asked of a page read online, whose
-		 * box was a guess: a source never says how big its pages are
-		 * (shapeOf in $lib/reader/reader).
+		 * On the strip, the box's shape is a guess at the page's size (c913):
+		 * it wears another page's shape, or the manga default. Until the image
+		 * arrives the box is at least a screen tall and marked
+		 * `data-guessing`, which stops a key step ($lib/reader/strip-guess).
+		 * A page that failed keeps the height but is not marked: it is not a
+		 * guess to wait for. Paged screens never pass it.
+		 */
+		guess?: boolean;
+		/**
+		 * The image arrived at this size. Asked of a page whose box was a
+		 * guess: one read from its source, which never says how big its pages
+		 * are, or one the manifest could not measure (shapeOf in
+		 * $lib/reader/reader).
 		 */
 		onshape?: (w: number, h: number) => void;
 	} = $props();
@@ -99,9 +110,11 @@
 	class:half={!!half}
 	class:rotate
 	style:aspect-ratio={ratio}
+	style:min-height={guess ? '100dvh' : undefined}
 	style:--share={share}
 	style:--wh={w > 0 && h > 0 ? w / h : 1}
 	data-page={number}
+	data-guessing={guess && status === 'loading' ? '' : undefined}
 >
 	<img
 		class:right={half === 'right'}
@@ -117,9 +130,18 @@
 		draggable="false"
 		class:hidden={status !== 'loaded'}
 		onload={(e) => {
-			status = 'loaded';
 			const img = e.currentTarget as HTMLImageElement;
-			if (online && img.naturalWidth > 0 && img.naturalHeight > 0)
+			// A page the reader unmounted before its image came (a switch of
+			// mode) still fires its load: its shape is no longer this reader's
+			// to learn, and learning it moved a box with no strip keeping the
+			// place (c913).
+			if (!img.isConnected) return;
+			status = 'loaded';
+			// Learned wherever the box had no size of its own: read online, or a
+			// stored page the manifest could not measure (an AVIF or JXL, a JPEG
+			// whose frame header is past the head it reads), which otherwise
+			// stayed a guess for good (c913).
+			if ((online || guess || !(w > 0 && h > 0)) && img.naturalWidth > 0 && img.naturalHeight > 0)
 				onshape?.(img.naturalWidth, img.naturalHeight);
 		}}
 		onerror={() => (status = 'failed')}

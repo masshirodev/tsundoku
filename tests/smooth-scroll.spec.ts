@@ -602,3 +602,17 @@ describe('keeping the place across a clamp (c691)', () => {
 		expect(f.at()).toBe(1000);
 	});
 });
+
+describe('where the strip is going (c913)', () => {
+	it('is the glide’s aim while it moves, and where the strip is at rest', () => {
+		const f = fake();
+		const s = new SmoothScroll(f.host);
+		expect(s.aim).toBe(0);
+		s.glide(500, 200);
+		expect(s.aim).toBe(500);
+		f.run();
+		expect(s.aim).toBe(500);
+		f.scrollTo(800);
+		expect(s.aim).toBe(800);
+	});
+});

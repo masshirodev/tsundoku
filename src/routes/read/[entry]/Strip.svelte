@@ -50,7 +50,7 @@
 		outline?: { entry: number; index: number } | null;
 		src: (c: StripChapter, i: number) => string;
 		/** A page's shape for its box, where the manifest had none (a chapter read online). */
-		shape?: (c: StripChapter, i: number, p: Page) => Page;
+		shape?: (c: StripChapter, i: number, p: Page) => Page & { guess?: boolean };
 		/** A page read online arrived at this size. */
 		onshape?: (c: StripChapter, i: number, w: number, h: number) => void;
 		/** A page crossed the middle of the screen: which chapter, which page. */
@@ -266,6 +266,7 @@
 							number={i + 1}
 							w={s.w}
 							h={s.h}
+							guess={!!s.guess}
 							fit="strip"
 							lazy
 							online={c.version.startsWith('online-')}

@@ -136,6 +136,13 @@ export class SmoothScroll {
 	 */
 	private held: Ramp | null = null;
 	constructor(private host: Host) {}
+	/**
+	 * Where the strip is going: the glide's target while it moves, else where
+	 * it is. A key step is measured from here, as `glide` adds to it (c913).
+	 */
+	get aim(): number {
+		return this.moving ? this.target : this.host.y;
+	}
 
 	get moving(): boolean {
 		return this.id !== 0;

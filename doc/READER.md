@@ -556,7 +556,43 @@ of scrolling to it.
   already put right, and the two corrections fought (2026-10-29). The rule
   for the guess is `shapeOf` in `src/lib/reader/reader.ts`;
   `tests/browse-online.e2e.ts` ("tall pages") reads a 600 × 3000 page, paged
-  and on the strip.
+  and on the strip. A page the reader unmounted before its image came (a
+  switch to VERTICAL while the first page still loaded) no longer teaches its
+  shape: that moved a box with no strip keeping the place (c913).
+- **A page still guessing its size is never shorter than the screen, and a key
+  step stops at it** (c913; `$lib/reader/strip-guess`, `PageImage`'s `guess`,
+  `ImageReader`'s `stripStep`). A page whose size the reader does not know is
+  drawn at another page's shape until its image arrives. On a narrow strip
+  (SIDES on a tablet, a TV at 520 px) that box was well under a screen tall,
+  so one ↓ crossed a whole page a slow source had not sent, `reshaped` then
+  kept the wrong page under the middle, and at a chapter's end a step reached
+  the end page or the next chapter. The size is unknown for a page read online
+  (sources never say) and for a stored page the manifest could not measure (an
+  AVIF or JXL, or a JPEG whose frame header is past the head the reader
+  takes). So on the strip, while it is a guess:
+  - its box is at least `100dvh` tall, and marked `data-guessing` while it
+    loads;
+  - a forward key step (↓, PageDown, Space) that would carry the _middle of the
+    screen_ past the bottom of such a page goes only as far as putting that
+    page's top at the top of the screen, and no further while it loads. Every
+    guessing page in the step's path is asked, not only the first. A page whose
+    bottom is already above the middle (read past with a wheel or a thumb)
+    holds nothing;
+  - ↑ is free, the wheel and touch scroll as before, and a held key and
+    reduced motion take the same stop (a held key's hold ends, then glides to
+    the page's top).
+
+  A page that _failed_ keeps its screen-tall box but is not a stop (a TV has no
+  wheel to go round it, and RETRY is a press away). A page that never answers
+  stops holding after `GUESS_WAIT_MS` (10 s), counted from the first step it
+  held, not from the chapter's mount: the parked attempt of wave 42 counted
+  from the mount, so every page reached after the first 10 s, the chapter's end
+  included, was no stop at all. A page that has loaded is never a guess: it
+  learns its own shape, even where the manifest had none. Tested in
+  `tests/strip-guess.spec.ts` (the rule) and `tests/browse-strip-guess.e2e.ts`
+  (slow, sizeless online pages held by `page.route`, at a narrow strip and at
+  full width).
+
 - **Opening** puts the page the reader resumes at at the top of the screen.
   That happens after SvelteKit's own scroll on arrival (`afterNavigate`),
   which used to put it back at the top of the document. So the strip used to
