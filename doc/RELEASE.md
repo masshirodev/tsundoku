@@ -342,6 +342,25 @@ starts by path is found the same way, as long as its path is written whole.
   the bundle in, `ops/release/smoke/windows.ps1`, `zen.sh down`, so Zen is
   left as it was.
 
+**On a busy workstation, give the run its own CPU weight.** Zen shares the
+CPU with whatever else runs here, and the Windows half has checks with fixed
+limits (the novels plugin host's 20 s answer, the updater's restart). On
+2026.11.15 two whole runs failed only those checks on the installed copy, with
+the box at load 37-49 from a Kumiko wave, while the zip passed every check
+both times; the third, run as
+
+```sh
+systemd-run --user --scope --quiet -p CPUWeight=1000 ops/release/smoke.sh <version>
+```
+
+passed whole at the same load. VirtualBox's VBoxSVC and the VM start on demand
+inside the caller's cgroup, so the scope's weight is theirs too; nothing else
+is paused or slowed by hand, its scopes keep the default weight of 100 and only
+yield while the smoke run needs the CPU. A timed check that fails on the
+installed copy while the zip passed, with the load high, is this; read the
+load before taking it for a regression, and before spending another run's
+Tailscale certificate.
+
 Each unzips the bundle, puts the importer specs' synthesised libraries in the
 data folder where a scan reads them since c191 ([`IMPORT-MIHON.md`](IMPORT-MIHON.md),
 "Where it reads from"): the Mihon one (`tests/helpers/mihon-fixture.ts`) as
