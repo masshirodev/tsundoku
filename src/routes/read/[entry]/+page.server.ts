@@ -21,7 +21,7 @@ import { readsOnline } from '$lib/server/pages/online';
 import { novelReadsOnline, onlineChapters, ONLINE_VERSION } from '$lib/server/novels/online';
 import { EngineError } from '$lib/server/engine/client';
 import { previewIdOf } from '$lib/server/downloads';
-import { noVideoLine, staleSource } from '$lib/server/move';
+import { moveOpens, noVideoLine, staleSource } from '$lib/server/move';
 import { workEndOf } from '$lib/server/works';
 import { pageHighlights } from '$lib/server/highlights/pages';
 import { quoteHighlights } from '$lib/server/highlights/quotes';
@@ -131,6 +131,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			player: playerStart(series.id),
 			// Not just this episode (doc/MOVE.md): the same NO SERVER on others.
 			failures: isIncognito(cookies) ? null : await noVideoLine(series.id),
+			// NO SERVER's ANOTHER SOURCE →, only where MOVE opens: never on a
+			// browsing record, whose cell is + ADD instead (c999).
+			canMove: moveOpens(series.id),
 			// The Work's next part, where the last episode ends (doc/WORKS.md, W6).
 			work: workEndOf(series.id, reveal)
 		};

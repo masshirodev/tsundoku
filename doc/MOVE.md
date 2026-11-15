@@ -236,6 +236,19 @@ SINCE 1 NOV`. Not on SOURCES NOT ANSWERING: there the engine is down.
 - **The manga END page**: an ongoing series whose source has added nothing for
   eight weeks adds `ASURA SCANS HAS ADDED NOTHING SINCE 6 SEP` and a cell
   ANOTHER SOURCE →. No band: a quiet source isn't a broken one.
+
+**Every ANOTHER SOURCE → asks first whether MOVE opens** (c999). MOVE's door
+(`movable()`, `src/routes/series/[id]/move/access.server.ts`) answers 404 for a
+browsing record, a kind MOVE isn't offered for, and an origin key that doesn't
+parse, and on 2026-11-12 the player's NO SERVER on a preview linked there
+anyway. `moveOpens(id)` (`src/lib/server/move.ts`) is that same question
+without the page's counts. The read load hands it to the player as `canMove`,
+and `staleSource` answers nothing where it is false, so the END page's line
+never appears there either. A preview's NO SERVER offers + ADD instead, the
+preview's own way in, after which MOVE exists. `tests/move-db.spec.ts` ("where
+MOVE opens") pins the rule, and `tests/browse-player-no-server.e2e.ts` walks both
+NO SERVERs through the fake engine's `/__novideo`.
+
 - **The move page**: candidates on the left (440px, as the series panel), the
   comparison beside them. Below 1024px it is one pane: picking a candidate swaps
   the list for the comparison, and the MOVE bar is pinned to the bottom. `02 —

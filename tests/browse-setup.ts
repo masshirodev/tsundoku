@@ -28,11 +28,15 @@ import {
  * the generated frame spec and the flow can both use it.
  *
  * Specs steer the fake over HTTP: POST /__reset, POST /__down (it stops
- * answering), GET /__calls (what it was asked, filters included).
+ * answering), POST /__novideo (every episode's video list comes back empty,
+ * the player's NO SERVER; c999), GET /__calls (what it was asked, filters
+ * included).
  */
 
 let calls: EngineCall[] = [];
 let down = false;
+/** /__novideo: the source answers, with no video for any episode (c999). */
+let noVideo = false;
 /** /__check: the next search takes this long, while example.org's "check" is solved (c143). */
 let checkMs = 0;
 const challenges: { solving: Record<string, number>; solved: Record<string, number> } = {
@@ -182,6 +186,7 @@ function answer(b: EngineCall): unknown {
 		// An episode's videos: server 1 is broken, server 2 the fixture clip
 		// (tests/fixtures/video), through the engine's own /video/ proxy.
 		case 'getVideoList':
+			if (noVideo) return [];
 			return [
 				{ quality: 'Broken - 360p', videoUrl: 'http://127.0.0.1:1/video/broken.webm' },
 				{
@@ -390,6 +395,7 @@ function startEngine(): Promise<Server> {
 		if (req.url === '/__reset') {
 			calls = [];
 			down = false;
+			noVideo = false;
 			checkMs = 0;
 			// c636: what /__bump moved, put back, so a case repeated in this
 			// world meets the repository's 1.6.2 again (browse-extensions'
@@ -399,6 +405,10 @@ function startEngine(): Promise<Server> {
 		}
 		if (req.url === '/__down') {
 			down = true;
+			return json(200, {});
+		}
+		if (req.url === '/__novideo') {
+			noVideo = true;
 			return json(200, {});
 		}
 		if (req.url === '/__calls') return json(200, calls);

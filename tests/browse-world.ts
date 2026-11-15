@@ -80,6 +80,8 @@ export type EngineCall = {
 const ENGINE = `http://127.0.0.1:${ENGINE_PORT}`;
 export const resetEngine = () => fetch(`${ENGINE}/__reset`, { method: 'POST' });
 export const engineDown = () => fetch(`${ENGINE}/__down`, { method: 'POST' });
+/** Every episode's video list comes back empty until the next reset: the player's NO SERVER (c999). */
+export const noVideo = () => fetch(`${ENGINE}/__novideo`, { method: 'POST' });
 /** The next search waits [ms] while the engine "passes" example.org's browser check. */
 export const behindACheck = (ms = 3000) => fetch(`${ENGINE}/__check?ms=${ms}`, { method: 'POST' });
 export const bumpWebtoons = () => fetch(`${ENGINE}/__bump`, { method: 'POST' });

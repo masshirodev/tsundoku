@@ -125,6 +125,8 @@
 			incognito: boolean;
 			/** A browsing record (doc/BROWSING.md): its preview, where + ADD posts. */
 			record?: { preview: string | null } | null;
+			/** Whether MOVE opens for the series (`moveOpens`): NO SERVER's ANOTHER SOURCE (c999). */
+			canMove?: boolean;
 			/** What it starts in (card c171): the series', SETTINGS', the last choice. */
 			player: { series: TrackChoice; defaults: TrackChoice; last: TrackChoice };
 			/** The Work's next part, where the last episode ends (doc/WORKS.md, W6). */
@@ -1877,6 +1879,29 @@
 		</div>
 	{/if}
 
+	<!-- + ADD for a browsing record: the playing bars' cell, and NO SERVER's way out (c999). -->
+	{#snippet addCell(cls: string)}
+		{#if data.record?.preview}
+			<!-- A browsing record has no rating or FAV to trade; + ADD takes the cell
+			     (Online Calls, "The reader, for a record"), and adds without leaving. -->
+			<form
+				method="POST"
+				action="{resolve('/downloads/source/[id]', { id: data.record.preview })}?/add"
+				use:enhance={() => {
+					adding = true;
+					return async ({ result }) => {
+						adding = false;
+						if (result.type === 'redirect') added = true;
+					};
+				}}
+			>
+				<button type="submit" class={cls} disabled={adding || added}
+					>{added ? 'IN LIBRARY ✓' : adding ? 'ADDING…' : '+ ADD'}</button
+				>
+			</form>
+		{/if}
+	{/snippet}
+
 	{#if phase === 'playing'}
 		{#if resumedAt !== null}
 			<div class="resume" role="status">
@@ -2200,28 +2225,6 @@
 		{#if workCardShown}
 			{@render workCard()}
 		{/if}
-
-		{#snippet addCell(cls: string)}
-			{#if data.record?.preview}
-				<!-- A browsing record has no rating or FAV to trade; + ADD takes the cell
-				     (Online Calls, "The reader, for a record"), and adds without leaving. -->
-				<form
-					method="POST"
-					action="{resolve('/downloads/source/[id]', { id: data.record.preview })}?/add"
-					use:enhance={() => {
-						adding = true;
-						return async ({ result }) => {
-							adding = false;
-							if (result.type === 'redirect') added = true;
-						};
-					}}
-				>
-					<button type="submit" class={cls} disabled={adding || added}
-						>{added ? 'IN LIBRARY ✓' : adding ? 'ADDING…' : '+ ADD'}</button
-					>
-				</form>
-			{/if}
-		{/snippet}
 
 		<!-- Portrait (Anime Calls, "Devices"): the controls always shown beneath, what's next below. -->
 		<section class="portrait" aria-label="Controls">
@@ -2596,8 +2599,14 @@
 				<a class="icell br" href={seriesHref} use:backLink>← SERIES</a>
 				<div class="icell flex"></div>
 				{#if phase === 'noServer'}
-					<!-- The way out when a source sends no video (doc/MOVE.md). -->
-					<a class="icell bl" href={moveHref}>ANOTHER SOURCE →</a>
+					<!-- The way out when a source sends no video (doc/MOVE.md), only where
+					     MOVE opens. A browsing record's MOVE never does, so its way out is
+					     + ADD, after which MOVE exists (c999). -->
+					{#if data.canMove}
+						<a class="icell bl" href={moveHref}>ANOTHER SOURCE →</a>
+					{:else}
+						{@render addCell('icell bl')}
+					{/if}
 					<button
 						type="button"
 						class="icell acc"
@@ -3771,6 +3780,10 @@
 	}
 	.icell.bl {
 		border-left: var(--hairline);
+	}
+	/* NO SERVER's + ADD on a browsing record (c999): the form is the cell's box. */
+	.icells form {
+		display: flex;
 	}
 
 	/* ---- portrait: the picture on top, the controls always shown beneath ---- */

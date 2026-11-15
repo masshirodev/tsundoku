@@ -383,7 +383,8 @@ export function staleSource(
 ): { source: string; since: number } | null {
 	const s = seriesRow(seriesId);
 	if (!s || s.status.toLowerCase() !== 'ongoing') return null;
-	if (!s.origin_key || (!parseKey(s.origin_key) && !parseAnimeKey(s.origin_key))) return null;
+	// Its line ends in ANOTHER SOURCE →, so only where MOVE opens (c999).
+	if (!moveOpens(seriesId)) return null;
 	const latest = (
 		getDb()
 			.prepare(
@@ -404,6 +405,17 @@ export function dismissMoveBand(seriesId: number, now = Date.now()): void {
 export function moveEligible(seriesId: number): SeriesRow | null {
 	const s = seriesRow(seriesId);
 	return s && s.in_library === 1 && movableKind(s.kind) ? s : null;
+}
+
+/**
+ * Whether MOVE's page would load for the series: `moveState(id).eligible`, the
+ * question its door asks (`movable()`, src/routes/series/[id]/move/access.server.ts),
+ * without the counts the page draws. A cell linking to MOVE asks this first; the
+ * player's ANOTHER SOURCE on a browsing record linked to a 404 (c999).
+ */
+export function moveOpens(seriesId: number): boolean {
+	const s = moveEligible(seriesId);
+	return !!s && !!(parseAnimeKey(s.origin_key) ?? parseKey(s.origin_key));
 }
 
 // ---- candidates ------------------------------------------------------------------

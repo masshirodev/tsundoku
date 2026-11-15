@@ -744,3 +744,54 @@ describe('compares take turns per source, and a newer pick drops a waiting one (
 		expect(e.asked).toEqual(['A', 'C']);
 	});
 });
+
+// A cell linking to MOVE asks whether MOVE opens first (c999): the player's
+// ANOTHER SOURCE on a browsing record linked to MOVE's 404.
+describe('where MOVE opens', () => {
+	let records = 0;
+	const record = () =>
+		Number(
+			getDb()
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, source, status, added_at, indexed_at, origin_key, in_library)
+					VALUES (?, 'Movenberg Preview', 'anime', 'AnimePahe', 'ongoing', ?, ?, ?, 0)`
+				)
+				.run(root, NOW, NOW, `aniyomi:300:/show/preview-${++records}`).lastInsertRowid
+		);
+
+	it('answers what MOVE’s own door answers, without its counts', () => {
+		const preview = record();
+		for (const id of [anime, preview])
+			expect(move.moveOpens(id)).toBe(move.moveState(id, NOW).eligible);
+		expect(move.moveOpens(anime)).toBe(true);
+	});
+
+	it('never opens on a browsing record, a missing series, or a key that does not parse', () => {
+		expect(move.moveOpens(record())).toBe(false);
+		expect(move.moveOpens(999_999)).toBe(false);
+		const local = Number(
+			getDb()
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, source, status, added_at, indexed_at, origin_key)
+					VALUES (?, 'Movenberg Local', 'anime', '', 'ongoing', ?, ?, 'local:folder')`
+				)
+				.run(root, NOW, NOW).lastInsertRowid
+		);
+		expect(move.moveOpens(local)).toBe(false);
+	});
+
+	it('gives a quiet browsing record no END page line, whose way out would be MOVE', () => {
+		const preview = record();
+		const old = NOW - 90 * 86_400_000;
+		getDb()
+			.prepare(
+				`INSERT INTO entries (series_id, position, label, added_at, season, episode_number, available)
+				VALUES (?, 1, 'Ep. 1', ?, 1, 1, 0)`
+			)
+			.run(preview, old);
+		expect(move.staleSource(preview, NOW)).toBeNull();
+		// The same quiet source in the library has the line.
+		getDb().prepare(`UPDATE series SET in_library = 1 WHERE id = ?`).run(preview);
+		expect(move.staleSource(preview, NOW)?.source).toBeTruthy();
+	});
+});
