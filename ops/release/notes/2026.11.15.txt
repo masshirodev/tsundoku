@@ -1,0 +1,6 @@
+Extensions: INSTALL and UPDATE no longer fail with "ANSWERED 404" when a repository has replaced an extension with a newer version since you last looked. tsundoku reads the repository's list again and installs the version it has now.
+Extensions: when an install or update is refused, the reason is also kept in the log, so SETTINGS > LIBRARY > REPORT carries it after the message is gone.
+The vertical strip: a page still loading is drawn a screen tall, and the down key, PAGE DOWN and SPACE stop at its top instead of skipping past it into the next page or the next chapter. Scrolling with a mouse or a finger is unchanged.
+Episodes named like "Season 4  Ep 8", and packs titled "Season 1-4", are now sorted by their own season.
+A series you are only previewing no longer offers ANOTHER SOURCE when it has no server to play: it offers + ADD instead.
+FILTER, SORT, NEW SHELF, the update window and the reader's sheets now hold the page still behind them, and their own long lists scroll inside them.
