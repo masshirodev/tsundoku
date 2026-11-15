@@ -41,3 +41,31 @@ export function lockPage(): () => void {
 export function pageLocks(): number {
 	return holders;
 }
+
+/**
+ * Holds the page still while `el` is drawn, and lets go while it isn't: for a
+ * cover a media query can hide while it stays open. The desktop's top-bar
+ * FILTER is hidden with its cell below 1024px, open or not, and a plain lock
+ * left the page locked under nothing (c1033). A ResizeObserver hears the box
+ * go to nothing and come back; the release lets go of the lock if it holds it.
+ */
+export function lockPageWhileShown(el: Element): () => void {
+	if (typeof ResizeObserver === 'undefined') return lockPage();
+	let release: (() => void) | null = null;
+	const sync = () => {
+		const shown = el.getClientRects().length > 0;
+		if (shown && !release) release = lockPage();
+		else if (!shown && release) {
+			release();
+			release = null;
+		}
+	};
+	const watcher = new ResizeObserver(sync);
+	watcher.observe(el);
+	sync();
+	return () => {
+		watcher.disconnect();
+		release?.();
+		release = null;
+	};
+}

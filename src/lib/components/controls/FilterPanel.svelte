@@ -11,6 +11,7 @@
 		type Filters
 	} from '$lib/library/filters';
 	import { onMount } from 'svelte';
+	import { lockPageWhileShown } from '$lib/scroll-lock';
 
 	/**
 	 * FILTER (Library Filters turn 3, card c68; doc/FILTERS.md): a cell that
@@ -116,6 +117,14 @@
 	// comes into view rather than opening off the bottom of the screen.
 	$effect(() => {
 		if (open && panel) panel.scrollIntoView({ block: 'nearest' });
+	});
+	// The page under the scrim holds still while the panel is open, as it does
+	// under a sheet (c1033): a drag on the scrim scrolled the library behind
+	// it. The panel scrolls itself instead, so its last rows stay reachable on
+	// a short screen. Only while it is drawn: the top bar's is hidden with its
+	// cell below 1024px, open or not.
+	$effect(() => {
+		if (open && panel) return lockPageWhileShown(panel);
 	});
 
 	const n = $derived(activeCount(filters, countKind));
@@ -340,9 +349,18 @@
 		margin-top: 1px;
 		display: flex;
 		flex-direction: column;
+		/* The page is locked while it is open (c1033), so the panel scrolls
+		   itself, as BROWSE's filter does, and its scroll ends at its edge. */
+		max-height: 70dvh;
+		overflow-y: auto;
+		overscroll-behavior: contain;
 		background: var(--surface-page);
 		border-top: 1px solid var(--text-1);
 		border-bottom: var(--hairline);
+	}
+	/* Rows keep their height and the panel scrolls, rather than squeezing them. */
+	.panel > * {
+		flex-shrink: 0;
 	}
 	.wide .panel {
 		left: auto;

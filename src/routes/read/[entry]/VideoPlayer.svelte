@@ -3422,9 +3422,12 @@
 		border-left: var(--hairline);
 		font: 500 18px var(--font-mono);
 	}
+	/* The player is a fixed box over a page that doesn't scroll, so its sheets
+	   take no page lock; their scroll just ends at their edge (c1033). */
 	.srows {
 		flex: 1;
 		overflow-y: auto;
+		overscroll-behavior: contain;
 	}
 	/* KEYS' rows (c715): the settings sheet's shape, the head outside the
 	   scroller. A row's mark is drawn inside it (`data-focus-mark="in"`), so
@@ -3433,6 +3436,7 @@
 		flex: 1;
 		min-height: 0;
 		overflow-y: auto;
+		overscroll-behavior: contain;
 	}
 	.srow2 {
 		display: flex;

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { leave } from '$lib/motion';
+	import { lockPage } from '$lib/scroll-lock';
 	import { COLOURS, type Colour } from '$lib/library/highlights';
 
 	/**
@@ -86,6 +87,10 @@
 	const focused = (el: HTMLTextAreaElement) => {
 		if (focusNote) el.focus();
 	};
+
+	// Drawn only while open: the page under its scrim holds still for as long
+	// as it is, as under a Sheet (src/lib/scroll-lock.ts, c1033).
+	$effect(() => lockPage());
 </script>
 
 <button
@@ -157,6 +162,8 @@
 		flex-direction: column;
 		max-height: 90dvh;
 		overflow-y: auto;
+		/* Its own scroll ends at its edge rather than passing to the page. */
+		overscroll-behavior: contain;
 		border-top: var(--rule-strong);
 		background: var(--surface-page);
 		color: var(--text-1);

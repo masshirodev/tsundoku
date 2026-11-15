@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { leave } from '$lib/motion';
+	import { lockPage } from '$lib/scroll-lock';
 	import { goto } from '$app/navigation';
 
 	/**
@@ -17,6 +18,10 @@
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- the caller's href resolves
 		if (e.key === 'Escape') void goto(closeHref, { noScroll: true, replaceState: true });
 	}
+
+	// Drawn only while open: the page under its scrim holds still for as long
+	// as it is, as under a Sheet (src/lib/scroll-lock.ts, c1033).
+	$effect(() => lockPage());
 </script>
 
 <svelte:window onkeydown={keydown} />

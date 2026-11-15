@@ -1,6 +1,7 @@
 <script lang="ts" generics="V extends string">
 	import { focusScope } from '$lib/focus';
 	import { leave } from '$lib/motion';
+	import { lockPage } from '$lib/scroll-lock';
 
 	/**
 	 * One choice out of a few, the house's way (c432; doc/LIBRARY.md, "Sort and
@@ -36,6 +37,11 @@
 	} = $props();
 
 	let open = $state(false);
+	// The page under the scrim holds still while the list is open, as under a
+	// sheet (c1033); a list taller than its room scrolls itself.
+	$effect(() => {
+		if (open) return lockPage();
+	});
 	let root = $state<HTMLElement | null>(null);
 	const current = $derived(choices.find((c) => c.value === value) ?? choices[0]);
 
@@ -156,6 +162,9 @@
 		display: flex;
 		flex-direction: column;
 		min-width: calc(100% + 2px);
+		max-height: 70dvh;
+		overflow-y: auto;
+		overscroll-behavior: contain;
 		box-sizing: border-box;
 		background: var(--surface-page);
 		border: 1px solid var(--line-2);

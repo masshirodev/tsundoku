@@ -117,8 +117,9 @@ its own end scrolls nowhere, and that is no error. **A page a screen has
 locked** (`overflow: hidden` or `clip` on the root, or on `body`, which CSS hands the
 viewport when the root is `visible`) scrolls nothing either (c618, c647): the image
 reader sets `hidden` while its lookup panel or page menu is open, and so does
-every open `Sheet.svelte`, both through `lockPage()` (`src/lib/scroll-lock.ts`,
-counted, so a cover closing never unlocks the page under one still open), and Chromium's
+every open `Sheet.svelte` and every overlay that draws its own scrim (c1033), all
+through `lockPage()` (`src/lib/scroll-lock.ts`, counted, so a cover closing never
+unlocks the page under one still open), and Chromium's
 own arrow stops there, where the layer's fallback used to move it (`overflow:
 hidden`, and a clipped viewport too, is still a scroller a script can move). What it reaches is every vertical scroller on a screen a TV opens
 (`rg -l "overflow(-y)?:\s*(auto|scroll)" src/routes src/lib/components`, 16
@@ -211,6 +212,30 @@ into the sheet instead. Nor does it scroll: the sheet locks the page while it is
 open (`lockPage()`, `src/lib/scroll-lock.ts`), so a drag on the scrim or a sheet
 scrolled to its end no longer moves the library behind MORE, and the sheet's
 own scroll is `overscroll-behavior: contain`.
+
+The overlays that draw their own scrim rather than use `Sheet.svelte` take the
+same lock (c1033): FILTER and BROWSE's filter, the SORT menu, NEW SHELF, the
+update modal, the highlights page's EXPORT and its open highlight off the
+desktop (where it fills the screen), and the image reader's READING and
+highlight sheets and the text reader's quote sheet. Each scroller among them
+contains its own overscroll. Three rules come with it:
+
+- **A dropdown scrolls itself.** FILTER's panel and the SORT list hang under
+  their cell, and used to reach their last rows by scrolling the page; locked,
+  the page can't, so each is capped at `70dvh` and scrolls inside, as BROWSE's
+  filter already did. Opening one low on a page still brings it into view,
+  since a locked page is a scroller a script can move.
+- **A cover a media query can hide holds the page only while it is drawn.**
+  The desktop's top-bar FILTER is hidden with its cell below 1024px, open or
+  not, and a plain lock left the page locked under nothing. The filter panels
+  take `lockPageWhileShown(el)`, which lets go while the box is gone and takes
+  the lock again when it comes back.
+- **The text reader's CONTENTS and the player's sheets take no lock.** Each of
+  those screens scrolls its own element (the text reader's `.page`, the
+  player's rows) over a document that doesn't move, so locking the root would
+  change nothing; they only contain their overscroll. The quote sheet takes the
+  lock all the same, as every sheet drawn only while open does, though in the
+  text reader it holds a page that was still already.
 
 A scope is a stack, so a sheet opened from a sheet restores to the lower one.
 

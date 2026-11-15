@@ -27,6 +27,8 @@
 		wayBackLabel,
 		type Highlight
 	} from '$lib/library/highlights';
+	import { desktop } from '$lib/device.svelte';
+	import { lockPage } from '$lib/scroll-lock';
 	import type { PageProps } from './$types';
 
 	/**
@@ -97,6 +99,12 @@
 
 	// EXPORT (Out X1): the Markdown of what shows, from the same pure function the file uses.
 	let exporting = $state(false);
+	// The list holds still under what covers it (c1033): EXPORT anywhere, and
+	// the open highlight off the desktop, where it fills the screen (P4)
+	// rather than standing beside the list.
+	$effect(() => {
+		if (exporting || (open && !desktop.current)) return lockPage();
+	});
 	let colours = $state<'leave' | 'tag'>('leave');
 	let copied = $state<number | null>(null);
 	const markdown = $derived(
@@ -887,6 +895,7 @@
 	.scroll {
 		flex: 1;
 		overflow-y: auto;
+		overscroll-behavior: contain;
 	}
 	.tr {
 		padding: 24px 28px;
@@ -1075,6 +1084,7 @@
 		margin: 0;
 		padding: 20px 24px;
 		overflow: auto;
+		overscroll-behavior: contain;
 		white-space: pre-wrap;
 		font: 400 13px/1.55 var(--font-mono);
 		color: var(--text-prose);

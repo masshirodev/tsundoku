@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { leave } from '$lib/motion';
+	import { lockPage } from '$lib/scroll-lock';
 	import { focusScope } from '$lib/focus';
 	import {
 		clock,
@@ -77,6 +78,10 @@
 	function keydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') dismiss();
 	}
+
+	// Drawn only while open: the page under its scrim holds still for as long
+	// as it is, as under a Sheet (src/lib/scroll-lock.ts, c1033).
+	$effect(() => lockPage());
 </script>
 
 <svelte:window onkeydown={keydown} />
@@ -213,6 +218,8 @@
 		width: min(600px, calc(100vw - 32px));
 		max-height: calc(100dvh - 32px);
 		overflow-y: auto;
+		/* Its own scroll ends at its edge rather than passing to the page. */
+		overscroll-behavior: contain;
 		display: flex;
 		flex-direction: column;
 		background: var(--surface-page);

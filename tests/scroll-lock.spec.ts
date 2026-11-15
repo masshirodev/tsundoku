@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { lockPage, pageLocks } from '$lib/scroll-lock';
+import { lockPage, lockPageWhileShown, pageLocks } from '$lib/scroll-lock';
 
 // The page held still under a cover (src/lib/scroll-lock.ts): covers stack, so
 // the page is unlocked only when the last one lets go, and gets back what it had.
@@ -54,6 +54,77 @@ describe('lockPage', () => {
 		delete (globalThis as { document?: unknown }).document;
 		const release = lockPage();
 		expect(pageLocks()).toBe(0);
+		release();
+	});
+});
+
+// A cover a media query can hide while it stays open (FILTER in the desktop's
+// top bar below 1024px, c1033): locked only while it is drawn.
+describe('lockPageWhileShown', () => {
+	let watchers: { cb: () => void; on: boolean }[];
+	beforeEach(() => {
+		watchers = [];
+		(globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
+			private w: { cb: () => void; on: boolean };
+			constructor(cb: () => void) {
+				this.w = { cb, on: false };
+				watchers.push(this.w);
+			}
+			observe() {
+				this.w.on = true;
+			}
+			disconnect() {
+				this.w.on = false;
+			}
+		};
+	});
+	afterEach(() => {
+		delete (globalThis as { ResizeObserver?: unknown }).ResizeObserver;
+	});
+	const box = (drawn: { now: boolean }) =>
+		({ getClientRects: () => ({ length: drawn.now ? 1 : 0 }) }) as unknown as Element;
+	const resized = () => watchers.filter((w) => w.on).forEach((w) => w.cb());
+
+	it('locks while drawn, lets go while hidden, and locks again when drawn again', () => {
+		const drawn = { now: true };
+		const release = lockPageWhileShown(box(drawn));
+		expect(style.overflow).toBe('hidden');
+		drawn.now = false;
+		resized();
+		expect(style.overflow).toBe('');
+		expect(pageLocks()).toBe(0);
+		drawn.now = true;
+		resized();
+		expect(style.overflow).toBe('hidden');
+		release();
+		expect(style.overflow).toBe('');
+		expect(watchers.every((w) => !w.on)).toBe(true);
+	});
+
+	it('takes no lock for a cover opened hidden, and its release is harmless', () => {
+		const release = lockPageWhileShown(box({ now: false }));
+		expect(pageLocks()).toBe(0);
+		release();
+		release();
+		expect(pageLocks()).toBe(0);
+	});
+
+	it('stacks with a plain lock: the page stays locked under the one still drawn', () => {
+		const drawn = { now: true };
+		const sheet = lockPage();
+		const filter = lockPageWhileShown(box(drawn));
+		drawn.now = false;
+		resized();
+		expect(style.overflow).toBe('hidden');
+		sheet();
+		expect(style.overflow).toBe('');
+		filter();
+	});
+
+	it('falls back to a plain lock where there is no ResizeObserver', () => {
+		delete (globalThis as { ResizeObserver?: unknown }).ResizeObserver;
+		const release = lockPageWhileShown(box({ now: false }));
+		expect(style.overflow).toBe('hidden');
 		release();
 	});
 });

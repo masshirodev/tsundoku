@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { lockPageWhileShown } from '$lib/scroll-lock';
 	import {
 		NO_EXT_FILTERS,
 		activeExtFilters,
@@ -52,6 +53,12 @@
 	function close() {
 		if (details) details.open = false;
 	}
+	// The page under the scrim holds still while the panel is open and drawn,
+	// as FILTER's does (c1033); the panel scrolls itself.
+	let panel = $state<HTMLElement | null>(null);
+	$effect(() => {
+		if (open && panel) return lockPageWhileShown(panel);
+	});
 	const n = $derived(activeExtFilters(filters));
 	const asked = $derived(filters.langs ?? mine);
 	// The languages there are, SETTINGS' first (they're the likely ones).
@@ -126,7 +133,7 @@
 		<span aria-hidden="true">{open ? '▴' : '▾'}</span>
 	</summary>
 	<button type="button" class="scrim" aria-label="Close filters" onclick={close}></button>
-	<div class="panel" role="group" aria-label="Filters">
+	<div class="panel" role="group" aria-label="Filters" bind:this={panel}>
 		<div class="head"><span>FILTER {title}</span><span class="count">{count}</span></div>
 		{#each rows as row (row.key)}
 			<div class="row">
@@ -213,6 +220,7 @@
 		flex-direction: column;
 		max-height: 70dvh;
 		overflow-y: auto;
+		overscroll-behavior: contain;
 		background: var(--surface-page);
 		border-top: 1px solid var(--text-1);
 		border-bottom: var(--hairline);

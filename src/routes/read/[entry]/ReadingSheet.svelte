@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { leave } from '$lib/motion';
+	import { lockPage } from '$lib/scroll-lock';
 	import HelpSheet from '$lib/components/help/HelpSheet.svelte';
 	import { resolve } from '$app/paths';
 	import { modeName, type Fit, type Mode, type Wide } from '$lib/reader/reader';
@@ -128,6 +129,10 @@
 		const r = dimTrack.getBoundingClientRect();
 		ondim(Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * 80) / 100);
 	}
+
+	// Drawn only while open: the page under its scrim holds still for as long
+	// as it is, as under a Sheet (src/lib/scroll-lock.ts, c1033).
+	$effect(() => lockPage());
 </script>
 
 <button
@@ -481,6 +486,8 @@
 		color: var(--text-1);
 		max-height: 90dvh;
 		overflow-y: auto;
+		/* Its own scroll ends at its edge rather than passing to the page. */
+		overscroll-behavior: contain;
 		/* A focused row stops under the sticky head, not beneath it (c679). */
 		scroll-padding-top: 56px;
 	}

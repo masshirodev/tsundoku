@@ -3668,6 +3668,9 @@
 		bottom: 0;
 		z-index: 30;
 		overflow-y: auto;
+		/* The reader scrolls its own page, not the document, so CONTENTS takes
+		   no page lock; its scroll just ends at its edge (c1033). */
+		overscroll-behavior: contain;
 		background: var(--surface-page);
 		border-top: 1px solid var(--text-1);
 	}
