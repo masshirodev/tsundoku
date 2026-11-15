@@ -7,12 +7,17 @@ import { lockPage, lockPageWhileShown, pageLocks } from '$lib/scroll-lock';
 type Style = { overflow: string; scrollbarGutter: string };
 let style: Style;
 
+// A desktop page with a classic 15px scrollbar, unless a case takes it away.
+let root: { style: Style; clientWidth: number };
 beforeEach(() => {
 	style = { overflow: '', scrollbarGutter: '' };
-	(globalThis as { document?: unknown }).document = { documentElement: { style } };
+	root = { style, clientWidth: 1425 };
+	(globalThis as { document?: unknown }).document = { documentElement: root };
+	(globalThis as { window?: unknown }).window = { innerWidth: 1440 };
 });
 afterEach(() => {
 	delete (globalThis as { document?: unknown }).document;
+	delete (globalThis as { window?: unknown }).window;
 	expect(pageLocks()).toBe(0);
 });
 
@@ -20,6 +25,16 @@ describe('lockPage', () => {
 	it('locks the page and keeps the scrollbar gutter, and puts both back', () => {
 		const release = lockPage();
 		expect(style).toEqual({ overflow: 'hidden', scrollbarGutter: 'stable' });
+		release();
+		expect(style).toEqual({ overflow: '', scrollbarGutter: '' });
+	});
+
+	// A page with no scrollbar taking space (short, an overlay bar, a TV) gets
+	// no gutter: one added there moved the page and its sheets 10px (c1033).
+	it('keeps no gutter where no scrollbar took space', () => {
+		root.clientWidth = 1440;
+		const release = lockPage();
+		expect(style).toEqual({ overflow: 'hidden', scrollbarGutter: '' });
 		release();
 		expect(style).toEqual({ overflow: '', scrollbarGutter: '' });
 	});

@@ -218,7 +218,7 @@ same lock (c1033): FILTER and BROWSE's filter, the SORT menu, NEW SHELF, the
 update modal, the highlights page's EXPORT and its open highlight off the
 desktop (where it fills the screen), and the image reader's READING and
 highlight sheets and the text reader's quote sheet. Each scroller among them
-contains its own overscroll. Three rules come with it:
+contains its own overscroll. Four rules come with it:
 
 - **A dropdown scrolls itself.** FILTER's panel and the SORT list hang under
   their cell, and used to reach their last rows by scrolling the page; locked,
@@ -230,6 +230,13 @@ contains its own overscroll. Three rules come with it:
   not, and a plain lock left the page locked under nothing. The filter panels
   take `lockPageWhileShown(el)`, which lets go while the box is gone and takes
   the lock again when it comes back.
+- **The lock keeps a scrollbar's gutter only where a scrollbar took space.**
+  `scrollbar-gutter: stable` holds a desktop scrollbar's room while the page is
+  locked, so nothing shifts sideways. On a page with no scrollbar taking space
+  (a short page, an overlay scrollbar, a TV) it added room that wasn't there,
+  and the page and its sheets moved 10px left under every cover: the TV's
+  sheets ended at 950 of 960 from c1032 on, and the desktop's FILTER at 1430
+  of 1440. `lockPage()` now asks `innerWidth > clientWidth` first.
 - **The text reader's CONTENTS and the player's sheets take no lock.** Each of
   those screens scrolls its own element (the text reader's `.page`, the
   player's rows) over a document that doesn't move, so locking the root would

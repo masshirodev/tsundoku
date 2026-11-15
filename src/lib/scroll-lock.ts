@@ -11,7 +11,10 @@
  * `overflow: hidden` on the root is also what the focus layer reads as a
  * locked page (src/lib/focus/layer.ts, `stepScroll`, c618), so the arrow keys
  * stop scrolling it too. `scrollbar-gutter: stable` keeps the space of a
- * desktop scrollbar while it is hidden, so the page doesn't shift sideways.
+ * desktop scrollbar while it is hidden, so the page doesn't shift sideways --
+ * only where a scrollbar was taking space. On a page with none (a short one,
+ * an overlay scrollbar, a TV) it added a gutter that wasn't there, and the
+ * page and its sheets moved 10px left under the cover (c1033).
  */
 let holders = 0;
 let before: { overflow: string; gutter: string } | null = null;
@@ -21,8 +24,9 @@ export function lockPage(): () => void {
 	const html = document.documentElement;
 	if (holders++ === 0) {
 		before = { overflow: html.style.overflow, gutter: html.style.scrollbarGutter };
+		const bar = typeof window !== 'undefined' && window.innerWidth > html.clientWidth;
 		html.style.overflow = 'hidden';
-		html.style.scrollbarGutter = 'stable';
+		if (bar) html.style.scrollbarGutter = 'stable';
 	}
 	let released = false;
 	return () => {
