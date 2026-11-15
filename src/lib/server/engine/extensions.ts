@@ -347,9 +347,23 @@ export async function install(
 	loader: Loader = engineLoader,
 	db: Database.Database = getDb()
 ): Promise<void> {
-	const listing = findListing(pkg, db);
+	let listing = findListing(pkg, db);
 	if (!listing) throw new RepoError(`No repository lists ${pkg}`);
-	const res = await fetcher(listing.apkUrl);
+	let res = await fetcher(listing.apkUrl);
+	// The index this install read can be days old, and a repository deletes an
+	// APK when it publishes the next version: MoviesMod 16.4 answered 404 on a
+	// friend's computer once the repository had 16.5 (2026-11-15). Read that
+	// repository's index again, once, and ask for the APK it lists now.
+	if (res.status === 404 || res.status === 410) {
+		const gone = listing.apkUrl;
+		await refreshRepo(listing.repoId, now, fetcher, db);
+		const fresh = findListing(pkg, db);
+		if (!fresh) throw new RepoError(`No repository lists ${pkg} any more`);
+		if (fresh.apkUrl !== gone) {
+			listing = fresh;
+			res = await fetcher(listing.apkUrl);
+		}
+	}
 	if (!res.ok) throw new RepoError(`${listing.apkUrl} answered ${res.status}`);
 	const apk = await res.bytes();
 	if (!signedBy(Buffer.from(apk), listing.fingerprint)) {

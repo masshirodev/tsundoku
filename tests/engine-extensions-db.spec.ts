@@ -198,6 +198,38 @@ describe('installing', () => {
 		expect(existsSync(join(store, `${handleOf(forged)}.apk`))).toBe(false);
 	});
 
+	// MoviesMod on a friend's computer, 2026-11-15: the index read days before
+	// named 16.4, and the repository had replaced it with 16.5 and deleted it.
+	it('reads the index again when the APK it named is gone, and installs the one it names now', async () => {
+		await ext.addRepo(BASE, 1000, fetcher);
+		delete files[`${BASE}webtoons.apk`];
+		files[`${BASE}index.json`] = index(listing(3, 'webtoons-new.apk'));
+		files[`${BASE}webtoons-new.apk`] = webtoons;
+
+		await ext.install(PKG, 2000, fetcher, loader);
+		expect(ext.installed()).toHaveLength(1);
+		expect(loads).toHaveLength(1);
+		expect(ext.listRepos()[0]).toMatchObject({ checkedAt: 2000, failedAt: null });
+	});
+
+	it('still says which URL answered 404 when the fresh index names the same APK', async () => {
+		await ext.addRepo(BASE, 1000, fetcher);
+		delete files[`${BASE}webtoons.apk`];
+		await expect(ext.install(PKG, 2000, fetcher, loader)).rejects.toThrow(
+			`${BASE}webtoons.apk answered 404`
+		);
+		expect(ext.installed()).toEqual([]);
+	});
+
+	it('says so when the fresh index no longer lists the package at all', async () => {
+		await ext.addRepo(BASE, 1000, fetcher);
+		delete files[`${BASE}webtoons.apk`];
+		files[`${BASE}index.json`] = index();
+		await expect(ext.install(PKG, 2000, fetcher, loader)).rejects.toThrow(
+			`No repository lists ${PKG} any more`
+		);
+	});
+
 	it('keeps one that fails to load, says why, and gives it to no call', async () => {
 		await ext.addRepo(BASE, 1000, fetcher);
 		await ext.install(PKG, 2000, fetcher, async () => {

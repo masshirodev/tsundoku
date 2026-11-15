@@ -42,6 +42,12 @@ by stream: `console.log` is INFO, `console.error` is ERROR.
   a negative kept), and `WARN` (on stderr, so the log calls it ERROR) for a
   step that failed, naming the episode and the server. One line answers "why
   no skip on this episode".
+- **Extensions** (c983): `tsundoku: extensions: WARN <package> refused: …` for
+  every refused install, update (one line each in UPDATE ALL) and repository
+  add, with the URL and what it answered, or for an APK not signed by its
+  repository's key, the keys it was signed with beside the expected one. The
+  band on EXTENSIONS is gone once dismissed; this is what a friend's REPORT
+  shows instead ([`BROWSE.md`](BROWSE.md), "Extensions and repositories").
 - **Fingerprinting without chromaprint** (c299): on a build whose ffmpeg has
   no chromaprint muxer and no `fpcalc` to fall back to, said once per run,
   naming the chromaprint package and `FPCALC`, so a friend's install can tell

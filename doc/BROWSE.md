@@ -963,6 +963,19 @@ the key it was signed with beside the repository's. There's no install
 anyway: a tap that runs code signed by an unknown key is what the check is
 there to stop.
 
+**An APK the repository has replaced is asked for again from its index.** The
+listings are read when a repository is added and when REFRESH asks, so they can
+be days old, and a repository deletes an APK when it publishes the next
+version: on a friend's computer, MoviesMod's INSTALL answered
+`…/aniyomi-en.moviesmod-v16.4.apk ANSWERED 404` once the repository had moved
+to 16.5 (2026-11-15). So an APK that answers 404 or 410 has its repository's
+index read again, once, and the APK it lists now is installed (`install` in
+`src/lib/server/engine/extensions.ts`). When the fresh index names the same
+file, the band still says which URL answered what; when it no longer lists the
+package, it says that. Every refused install, update or repository is also
+written to tsundoku.log at WARN, so a REPORT carries the cause after the band
+is gone ([`LOGS.md`](LOGS.md), c983).
+
 **REPOSITORIES** adds one by its address, over https; plain http only from
 this computer itself (`127.x.x.x`, `localhost`, `[::1]`; `isLoopbackHost`), for
 a repository the owner serves to their own install, since 2026-11-12. Nothing

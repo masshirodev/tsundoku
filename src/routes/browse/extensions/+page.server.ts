@@ -102,7 +102,23 @@ const forgetPackage = (pkg: string) =>
 		.forEach((s) => forgetSource(s.id));
 
 /** A refusal the page draws as a band, not an error page. */
-function refusal(e: unknown, pkg = '') {
+/**
+ * A refused install, update or repository, in tsundoku.log at WARN (c983;
+ * doc/LOGS.md): the band is gone once dismissed, and a friend's SETTINGS ›
+ * REPORT is the only way the cause reaches the owner. The message carries the
+ * URL that answered; an untrusted APK adds its signers beside the expected key.
+ */
+function warnRefused(subject: string, e: unknown) {
+	console.error(
+		`tsundoku: extensions: WARN ${subject} refused: ${(e as Error)?.message || 'failed'}` +
+			(e instanceof UntrustedError
+				? ` (signed by ${e.signers.join(', ') || 'no key'}, expected ${e.expected || 'none'})`
+				: '')
+	);
+}
+
+function refusal(e: unknown, pkg = '', subject = pkg) {
+	warnRefused(subject, e);
 	if (e instanceof UntrustedError)
 		return fail(409, {
 			pkg,
@@ -462,14 +478,16 @@ export const actions: Actions = {
 			try {
 				await install(e.pkg);
 				forgetPackage(e.pkg);
-			} catch {
+			} catch (err) {
+				warnRefused(e.pkg, err);
 				failed.push(e.name);
 			}
 		}
 		for (const p of pluginsShown(pluginView(isRevealed(cookies)), isRevealed(cookies)).updates) {
 			try {
 				await installPlugin(p.id);
-			} catch {
+			} catch (err) {
+				warnRefused(p.id, err);
 				failed.push(p.name);
 			}
 		}
@@ -779,7 +797,7 @@ export const actions: Actions = {
 			if (isNovelRepoAddress(address)) await addNovelRepo(address);
 			else await addRepo(address);
 		} catch (e) {
-			return refusal(e);
+			return refusal(e, '', `repository ${address}`);
 		}
 		redirect(303, '/browse/extensions?tab=repos');
 	},
