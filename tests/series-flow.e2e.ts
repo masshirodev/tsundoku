@@ -279,8 +279,10 @@ test('tags are added from a suggestion and removed with ✕', async ({ page }) =
 	await sheet.getByRole('button', { name: /genre\s+isekai/ }).click();
 	await expect(sheet.getByRole('button', { name: 'Remove genre:isekai' })).toBeVisible();
 	await sheet.getByRole('button', { name: 'DONE' }).click();
+	// By role: TAGS is drawn twice, one copy for each order of the rows, the
+	// other hidden by the layout (SeriesPanel's tagsGroup, c837).
 	await expect(
-		page.getByRole('region', { name: 'About this series' }).getByText('isekai')
+		page.getByRole('region', { name: 'About this series' }).getByRole('link', { name: 'isekai' })
 	).toBeVisible();
 
 	await page.getByRole('button', { name: 'EDIT' }).nth(1).click();

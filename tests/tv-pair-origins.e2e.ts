@@ -312,9 +312,13 @@ async function libraryOn(at: Server) {
 	return page;
 }
 
-/** The library's MORE › SETTINGS, by click. */
+/**
+ * The library's way to SETTINGS, by click: the sidebar's foot on this 1280 px
+ * desktop, where MORE is not drawn (8cea4919), and MORE › SETTINGS where it is.
+ */
 async function moreSettings(page: Page) {
-	await page.getByRole('button', { name: 'MORE', exact: true }).click();
+	const more = page.getByRole('button', { name: 'MORE', exact: true });
+	if (await more.isVisible()) await more.click();
 	await page.locator('a[href="/settings"]').filter({ visible: true }).first().click();
 	await page.waitForURL((u) => u.pathname === '/settings');
 	await hydrated(page);
@@ -651,17 +655,15 @@ test('a burned code stays burned through a reload of SETTINGS’ data, and a rea
 	}
 
 	// A real visit, by the app's own doors from another screen (SETTINGS'
-	// ← LIBRARY, then the library's MORE › SETTINGS; this browser has no fine
-	// pointer, so no sidebar): a client-side navigation, whose load is a data
-	// request just like the reloads above.
+	// ← LIBRARY, then the library's own way back, `moreSettings`): a
+	// client-side navigation, whose load is a data request just like the
+	// reloads above.
 	await toLibrary(page);
 	expect(await codeOn(A), 'another screen makes no code').toMatchObject({
 		code: old,
 		state: 'burned'
 	});
-	await page.getByRole('button', { name: 'MORE', exact: true }).click();
-	await page.locator('a[href="/settings"]').filter({ visible: true }).first().click();
-	await page.waitForURL((u) => u.pathname === '/settings');
+	await moreSettings(page);
 	await rowLive(page, A, old);
 
 	// The browser's back button into SETTINGS is a visit too.

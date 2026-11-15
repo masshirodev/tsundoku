@@ -36,16 +36,19 @@ test('SETTINGS lists both catalogues, not signed in, and why they can’t be yet
 	await expect(page.getByRole('heading', { name: '06 — CATALOGUES' })).toBeVisible();
 	// Only CATALOGUES' rows: SETTINGS > 05's IMPORT A BACKUP is drawn as an account row too (c438).
 	const rows = page.getByRole('region', { name: '06 — CATALOGUES' }).locator('.acct');
-	// Ranobe's row is there without a token too, saying so (Ranobe 3b; doc/RANOBE.md).
-	await expect(rows.locator('.label')).toHaveText(['ANILIST', 'MAL', 'RANOBE']);
+	// TMDB's key row comes first (c993; its own cases are in tmdb-key-flow.e2e.ts),
+	// and Ranobe's row is there without a token too, saying so (Ranobe 3b;
+	// doc/RANOBE.md).
+	await expect(rows.locator('.label')).toHaveText(['TMDB', 'ANILIST', 'MAL', 'RANOBE']);
 	await expect(rows.locator('.name')).toHaveText([
+		'No key',
 		'Not signed in',
 		'Not signed in',
 		'Not configured'
 	]);
-	await expect(rows.nth(2).locator('.meta')).toHaveText('NO TOKEN · RANOBE_TOKEN IN .ENV');
+	await expect(rows.nth(3).locator('.meta')).toHaveText('NO TOKEN · RANOBE_TOKEN IN .ENV');
 	// The e2e server has no app keys: no SIGN IN to offer.
-	await expect(rows.first().locator('.meta')).toHaveText(
+	await expect(rows.nth(1).locator('.meta')).toHaveText(
 		'THE APP ISN’T REGISTERED · SEE DOC/SECRETS.MD'
 	);
 	await expect(page.getByRole('link', { name: 'SIGN IN →' })).toHaveCount(0);

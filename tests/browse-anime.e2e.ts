@@ -324,12 +324,15 @@ test.describe('the player, tablet landscape (c156)', () => {
 		const pp = player.locator('.cluster .pp');
 		await expect(pp).toBeVisible({ timeout: 20_000 });
 		// The tap zone can hold the middle before the controls are shown; the
-		// player's own key starts it without a tap.
-		if ((await pp.getAttribute('aria-label')) === 'Play') await page.keyboard.press('Space');
-		await page.waitForFunction(() => {
-			const v = document.querySelector('video');
-			return !!v && v.currentTime > 0;
-		});
+		// player's own key starts it without a tap. Again until it plays: one
+		// press could land before the player took keys, and the clip then sat
+		// at 0:00 for the whole case (2026-11-15).
+		await expect(async () => {
+			if ((await pp.getAttribute('aria-label')) === 'Play') await page.keyboard.press('Space');
+			expect(
+				await page.evaluate(() => (document.querySelector('video')?.currentTime ?? 0) > 0)
+			).toBe(true);
+		}).toPass({ timeout: 20_000 });
 		// 6.2 s is inside the ending, so the seek itself may already report the
 		// episode finished (c239) before SKIP is pressed: whichever sends it,
 		// the series is read once the server has it, not after a fixed second.
@@ -499,7 +502,18 @@ test('episodes download into their folder through the episode lane, and play fro
 	await expect(player.locator('.subs .line')).toHaveText('There is a town past this ridge.', {
 		timeout: 20_000
 	});
-	await player.getByRole('button', { name: /EN · / }).click();
+	// This case runs in the browse project's portrait tablet, whose settings
+	// are the Controls section's `EN` beside ▶ (c1000): the picture's own bar
+	// cell, `EN SUBS · 180P · 1×`, lies under that section, and the `EN · …`
+	// this case asked for no longer exists. It waited out the test while the
+	// 8 s clip played to its end. Paused first with the player's own key, so
+	// a slow run can't reach that end either.
+	await page.keyboard.press('Space');
+	await page.waitForFunction(() => document.querySelector('video')?.paused === true);
+	await page
+		.getByRole('region', { name: 'Controls' })
+		.getByRole('button', { name: 'EN', exact: true })
+		.click();
 	await expect(
 		page.getByRole('dialog', { name: 'Playback settings' }).locator('.li.on')
 	).toContainText('DOWNLOADED');

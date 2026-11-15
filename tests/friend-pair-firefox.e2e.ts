@@ -160,7 +160,11 @@ async function openPairLink(
 		await tab.goto(`${r.origin}${code}`);
 		await expect(tab).toHaveURL(/\/welcome$/);
 		await expect(tab.locator('main.welcome h1')).toBeVisible();
-		await tab.waitForLoadState('networkidle');
+		// `load`, not `networkidle`: with HTTPS-First on, Firefox's own https try
+		// at the plain-http port is a TLS hello the relay passes on untouched,
+		// and the listener waits on it for good, so the network never goes idle
+		// (the 90 s timeout of 2026-11-15). The 4 s after it are the measurement.
+		await tab.waitForLoadState('load');
 		await tab.waitForTimeout(4000);
 		const secure = await tab.evaluate(() => ({
 			secureContext: window.isSecureContext,
@@ -431,6 +435,9 @@ const LAUNCHES: { launch: Launch; options?: BrowserContextOptions; title: string
 
 for (const { title, launch, options } of LAUNCHES)
 	test(title, async ({ playwright, request }) => {
+		// A browser of its own launched, networkidle, then the measured 4 s:
+		// 18 s alone, and past the default 30 s under a full run's load.
+		test.setTimeout(90_000);
 		const browser = await playwright[launch.browser].launch(
 			launch.prefs ? { firefoxUserPrefs: launch.prefs } : {}
 		);
