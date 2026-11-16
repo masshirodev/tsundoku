@@ -6,6 +6,7 @@ import {
 	engineWebViewEnv,
 	opener,
 	plan,
+	SOLVER_NSS,
 	solverAt,
 	solverSetAside,
 	switchPath
@@ -206,6 +207,20 @@ describe('updates (doc/UPDATES.md)', () => {
 		// Already set aside, or never there: nothing to do.
 		expect(solverSetAside('/h/flaresolverr', 'linux', () => false)).toEqual([]);
 		expect(solverSetAside('C:/h/flaresolverr', 'win32', () => true)).toEqual([]);
+	});
+
+	it('sets FlareSolverr’s half of NSS aside with its readline, so Chrome’s NSS is the system’s whole (c492)', () => {
+		const dir = '/h/flaresolverr/_internal';
+		const bundled = ['libreadline.so.8', ...SOLVER_NSS].map((n) => `${dir}/${n}`);
+		expect(solverSetAside('/h/flaresolverr', 'linux', (f) => bundled.includes(f))).toEqual(
+			bundled.map((from) => ({ from, to: `${from}.bundled-off` }))
+		);
+		// The readline set aside on an earlier start, NSS not yet: only NSS moves.
+		const nss = bundled.slice(1);
+		expect(solverSetAside('/h/flaresolverr', 'linux', (f) => nss.includes(f))).toEqual(
+			nss.map((from) => ({ from, to: `${from}.bundled-off` }))
+		);
+		expect(SOLVER_NSS).toEqual(expect.arrayContaining(['libnss3.so', 'libnssutil3.so']));
 	});
 });
 

@@ -262,7 +262,14 @@ The launcher is `launcher/launch.ts`, run with the bundle's Node. It:
    Chrome's version, and a bash built on readline 8.3 (Arch's) then dies on
    `rl_print_keybinding`, so FlareSolverr exits on every start. Found on the
    workstation, 2026-11-01; Debian stable's older bash, where the smoke test
-   runs, never showed it;
+   runs, never showed it. It sets aside the bundled half of NSS the same way
+   (`libnss3`, `libnssutil3`, `libsmime3`, `libnspr4`, `libplc4`, `libplds4`;
+   `SOLVER_NSS`): the build has no `libsoftokn3`, so NSS loads the system's,
+   and Arch's 3.129 one needs `NSSUTIL_3.108`, which the bundled nssutil
+   lacks. NSS then fails to start, and Chrome aborts on the first certificate
+   it checks (`FATAL: nss_error=-5925`, a SIGABRT core per solve), so every
+   HTTPS solve answered "the browser has closed the connection". Found
+   2026-11-16 (c492); a solve of example.com reproduces it in one request;
 5. starts the app (`TSUNDOKU_SERVE=local`,
    `TSUNDOKU_SNAPSHOT=off`, the database in the data folder, the engine's
    and ffmpeg's addresses), and opens the browser once it answers

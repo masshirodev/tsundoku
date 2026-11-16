@@ -165,6 +165,15 @@ export function solverAt(
  * found on the workstation 2026-11-01, c228). That readline only serves
  * Python's interactive prompt, which a server never shows, so without it the
  * shell uses the system's own. Renamed, never deleted.
+ *
+ * The same folder carries half of NSS, Chrome's certificate library
+ * (`SOLVER_NSS`), from the Ubuntu it was built on, but not its `libsoftokn3`,
+ * which NSS always loads from the system. On a system whose NSS is newer the
+ * two halves disagree: Arch's 3.129 softokn wants `NSSUTIL_3.108` from the
+ * bundled nssutil, NSS fails to start, and Chrome aborts on the first
+ * certificate it checks (`FATAL: nss_error=-5925`), so every solve over HTTPS
+ * fails as "the browser has closed the connection" (c492, 2026-11-16). With
+ * the bundled half set aside, NSS is the system's, whole and in one version.
  */
 export function solverSetAside(
 	solverDir: string,
@@ -172,9 +181,21 @@ export function solverSetAside(
 	exists: (file: string) => boolean
 ): { from: string; to: string }[] {
 	if (platform !== 'linux') return [];
-	const from = path.posix.join(solverDir, '_internal', 'libreadline.so.8');
-	return exists(from) ? [{ from, to: `${from}.bundled-off` }] : [];
+	return ['libreadline.so.8', ...SOLVER_NSS]
+		.map((name) => path.posix.join(solverDir, '_internal', name))
+		.filter((from) => exists(from))
+		.map((from) => ({ from, to: `${from}.bundled-off` }));
 }
+
+/** NSS and NSPR as FlareSolverr's Linux build bundles them (3.4.6). */
+export const SOLVER_NSS = [
+	'libnss3.so',
+	'libnssutil3.so',
+	'libsmime3.so',
+	'libnspr4.so',
+	'libplc4.so',
+	'libplds4.so'
+];
 
 // ---- the WebView switch (doc/EXTENSION-ENGINE.md, "WebView support") ---------------------
 

@@ -350,7 +350,7 @@ if (p.solver && solverDir) {
 	for (const { from, to } of solverSetAside(solverDir, process.platform, existsSync)) {
 		try {
 			renameSync(from, to);
-			console.log(`  FlareSolverr: set its own ${basename(from)} aside (the system's is newer).`);
+			console.log(`  FlareSolverr: set its own ${basename(from)} aside (the system's is used).`);
 		} catch (e) {
 			console.log(`  FlareSolverr: couldn't set ${from} aside: ${(e as Error).message}`);
 		}
