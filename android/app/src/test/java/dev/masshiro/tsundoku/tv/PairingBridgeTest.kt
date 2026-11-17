@@ -137,7 +137,7 @@ class PairingBridgeTest {
 	fun `forgetServer from an unknown page forgets nothing and answers no list`() {
 		// Not the list, which would let any page read the user's servers, and
 		// not "[]", which MoreSheet reads as "the last one is gone" and sends
-		// the TV to the welcome screen.
+		// the TV to the first screen.
 		val w = world("https://example.com/")
 		assertEquals("", w.bridge.forgetServer(home))
 		assertEquals(2, w.servers.all().size)
@@ -216,7 +216,7 @@ class PairingBridgeTest {
 	@Test
 	fun `open and welcome stay open, for the page FORGET has just made unknown`() {
 		// FORGET of the server in use, from its own library: the list drops
-		// it, and the page then opens the next one, or the welcome screen for the last.
+		// it, and the page then opens the next one, or the first screen for the last.
 		val w = world("$home/")
 		w.bridge.forgetServer(home)
 		w.host.calls.clear()

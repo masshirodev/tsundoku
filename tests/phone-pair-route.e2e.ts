@@ -43,7 +43,7 @@ const box = async (page: import('@playwright/test').Page, selector: string) => {
 	return { ...b, bottom: b.y + b.height, right: b.x + b.width };
 };
 
-test.describe('the code page on a phone, 360 x 780', () => {
+test.describe('the code screen on a phone, 360 x 780', () => {
 	test('the column: the short step, six thumb cells, PAIR → at the bottom', async ({ browser }) => {
 		const ctx = await app(browser, PHONE_UA, { width: 360, height: 780 });
 		const page = await ctx.newPage();
@@ -109,7 +109,7 @@ test.describe('the code page on a phone, 360 x 780', () => {
 	});
 });
 
-test.describe('the code page on a tablet, 1280 x 800', () => {
+test.describe('the code screen on a tablet, 1280 x 800', () => {
 	test("the TV's arrangement: 68 x 84 cells, the buttons side by side", async ({ browser }) => {
 		const ctx = await app(browser, TABLET_UA, { width: 1280, height: 800 });
 		const page = await ctx.newPage();

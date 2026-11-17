@@ -156,7 +156,7 @@ class PairingBridge(
 	/**
 	 * Raise the keyboard for the field the page has just focused:
 	 * the WebView does not, for focus given by a script on arrival (the address
-	 * screen, the code page).
+	 * screen, the code screen).
 	 * Nothing on a TV (Form.raisesKeyboard). Unguarded: it shows a keyboard and
 	 * writes nothing.
 	 */

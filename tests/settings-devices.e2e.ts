@@ -176,7 +176,7 @@ const rowAsks = (page: Page) =>
 
 /**
  * A TV with nothing but the computer's address types six digits on /pair/tv:
- * the form the code page posts, with the same-origin header its own page sends. Not a
+ * the form the code screen posts, with the same-origin header its own page sends. Not a
  * page of this browser: closing one hands the window's focus back to
  * SETTINGS, which is itself an event the row answers, and would refresh it
  * before the case under test could.

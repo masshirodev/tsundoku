@@ -50,7 +50,7 @@ import java.util.concurrent.TimeUnit
  * above the keyboard (Insets.kt).
  *
  * The app's own screens (the first screen, the address screen, the
- * not-answering screen) are in `assets/pair/`; the code page and the paired
+ * not-answering screen) are in `assets/pair/`; the code screen and the paired
  * page are the computer's `/pair/tv`, so the code is posted same-origin and
  * the paired cookie is the one `/pair/<code>` sets for a phone.
  */
@@ -543,7 +543,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			/**
 			 * A server's own page has loaded. Its library makes it the
 			 * one in use, which is what launch opens next; its paired page says
-			 * its name, and after an add, the app's own added page takes over
+			 * its name, and after an add, the app's own added screen takes over
 			 * from it.
 			 */
 			override fun onPageFinished(view: WebView, url: String) {
@@ -554,7 +554,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 					view.evaluateJavascript(Insets.cssScript(told), null)
 				}
 				val uri = Uri.parse(url)
-				// The code page on a phone: once the page has hydrated, its
+				// The code screen on a phone: once the page has hydrated, its
 				// field takes focus and the keyboard comes up. An older server
 				// never focuses it on a phone, and its 1 px field can't be
 				// tapped, so without this no digit could be typed there at all.
@@ -579,7 +579,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	/**
 	 * The paired page is on screen when its first line says PAIRED WITH. Its
 	 * name is the server's own; and when the TV already had another server and
-	 * this one has never been opened, this was an add, so the added page
+	 * this one has never been opened, this was an add, so the added screen
 	 * replaces it.
 	 */
 	private fun pairedPage(known: Servers.Server, value: String?) {
@@ -698,7 +698,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		webView.loadUrl(origin)
 	}
 
-	/** The bridge's open (SERVERS, the not-answering screen's others, the added page's OPEN →): that server's library. */
+	/** The bridge's open (SERVERS, the not-answering screen's others, the added screen's OPEN →): that server's library. */
 	override fun openServer(origin: String) {
 		attempts.begin()
 		open(origin)
@@ -855,7 +855,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			"(function(){try{var t=function(e){return e?getComputedStyle(e).backgroundColor:''};var c=t(document.body);var x=document.createElement('canvas');x.width=x.height=1;var g=x.getContext('2d');var read=function(v){g.clearRect(0,0,1,1);g.fillStyle='rgba(0,0,0,0)';g.fillStyle=v;g.fillRect(0,0,1,1);return g.getImageData(0,0,1,1).data};var d=read(c);if(d[3]<255){d=read(t(document.documentElement))}return d[3]<255?'':'rgb('+d[0]+', '+d[1]+', '+d[2]+')'}catch(e){return ''}})()"
 
 		/**
-		 * The code page's field focused, then the bridge asked for the keyboard,
+		 * The code screen's field focused, then the bridge asked for the keyboard,
 		 * once the page has hydrated (SvelteKit's announcer is there, or 3 s have gone):
 		 * a digit typed before hydration is lost when Svelte takes the field.
 		 * Nothing on the paired page, which has no field.

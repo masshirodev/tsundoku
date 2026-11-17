@@ -70,7 +70,7 @@ class ServersTest {
 		now = 2_000
 		assertTrue(servers.add(zen))
 		assertEquals(setOf(home, zen), servers.all().map { it.origin }.toSet())
-		// An add left at the code page: the library the TV was in still opens on launch.
+		// An add left at the code screen: the library the TV was in still opens on launch.
 		assertEquals(home, servers.lastUsed()?.origin)
 		assertEquals(home, kv.m["address"])
 		// The same origin again is the same server, whatever its spelling.

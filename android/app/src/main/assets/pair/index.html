@@ -24,8 +24,9 @@
 			})();
 		</script>
 		<!--
-			The TV app's own screens: #welcome, #address and #lost. The code
-			screen and the paired screen are the computer's `/pair/tv`, because
+			The TV app's own screens: the first screen (#welcome), the address
+			screen (#address) and the not-answering screen (#lost). The code
+			screen and the paired page are the computer's `/pair/tv`, because
 			the code is posted there and the paired cookie is set there; these
 			three are before the TV can reach anything.
 
@@ -47,10 +48,10 @@
 			(PairingBridge.kt). Everything else is this page.
 
 			The TV's list of servers (doc/ANDROID.md "Servers") reaches four of
-			these screens: #address as ADD A SERVER (#add), ADDED after an add
-			(#added=), RENAME (#rename=) and #lost with the other servers
-			offered. SERVERS itself, its options and FORGET are
-			drawn by the web app's MORE, over the library they switch.
+			these screens: the address screen as ADD A SERVER (#add), the added screen
+			(#added=), RENAME (#rename=) and the not-answering screen with the
+			other servers offered (#lost). SERVERS itself, its options and
+			FORGET are drawn by the web app's MORE, over the library they switch.
 		-->
 		<style>
 			:root {
@@ -1088,7 +1089,7 @@
 				</div>
 			</section>
 
-			<!-- After an add: the app's own paired screen, in place of the computer's. -->
+			<!-- After an add: the app's own paired page, in place of the computer's. -->
 			<section class="screen" id="added" hidden>
 				<div class="safe added-head">
 					<div class="lab acc" id="added-lab"></div>

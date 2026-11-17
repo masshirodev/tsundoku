@@ -100,7 +100,7 @@ test('a TV code burned on /pair/tv stays BURNED on the open panel until NEW CODE
 	const { code, state } = await onComputer();
 	expect(state).toBe('live');
 
-	// A TV on the Wi-Fi, not this browser: the form the code page posts, five wrong codes.
+	// A TV on the Wi-Fi, not this browser: the form the code screen posts, five wrong codes.
 	const { phone } = await wifi(request);
 	const tv = await playwright.request.newContext({ baseURL: phone! });
 	try {

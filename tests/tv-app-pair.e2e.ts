@@ -297,7 +297,7 @@ test('a refused address shows the band on the address screen and leaves it usabl
 	await expect(page.locator('#next')).toBeFocused();
 
 	// The band ends above the label, and every box ends inside the 540 frame:
-	// this is the code page's with-band rhythm, not sizes invented here.
+	// this is the code screen's with-band rhythm, not sizes invented here.
 	const bandBox = await band.boundingBox();
 	const labelBox = await page.locator('#address .address-label').boundingBox();
 	const fieldBox = await page.locator('#address-form').boundingBox();
@@ -733,7 +733,7 @@ const three: StubServer[] = [
 	{ origin: STUDIO, name: 'STUDIO-PC', tvName: 'Studio', opened: 1 }
 ];
 
-test('not answering, with other servers: the others are offered, each probed, OK opening one', async ({
+test('the not-answering screen with the other servers offered: the others are offered, each probed, OK opening one', async ({
 	page
 }) => {
 	// Studio answers first and Masshiro's later, the reverse of the list's
@@ -796,7 +796,7 @@ test('not answering, with other servers: the others are offered, each probed, OK
 	expect((await box('#retry')).y + 56 - main.y).toBeLessThanOrEqual(540);
 });
 
-test('not answering, with other servers: the 5 s retries keep the mark on another server and its answer', async ({
+test('the not-answering screen with the other servers offered: the 5 s retries keep the mark on another server and its answer', async ({
 	page
 }) => {
 	// HOME never answers, so the 5 s retry fails again and again. A failure
@@ -980,7 +980,7 @@ test('after an add, the app says who is still here, OPEN focused', async ({ page
 	expect(await page.evaluate(() => window.__servers!.opened)).toEqual([ZEN]);
 });
 
-test('RENAME from the added page keeps the name on the TV and comes back to it', async ({
+test('RENAME from the added screen keeps the name on the TV and comes back to it', async ({
 	page
 }) => {
 	await stubServers(page, [three[0], { origin: ZEN, name: 'ZEN', tvName: '', opened: 0 }]);

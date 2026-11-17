@@ -274,7 +274,7 @@ async function openPairing(page: Page, at: Server) {
 	await hydrated(page);
 }
 
-/** Six digits typed: the sixth submits the form itself, as on the code page. */
+/** Six digits typed: the sixth submits the form itself, as on the code screen. */
 const typeCode = (page: Page, code: string) => page.locator('input[name="code"]').fill(code);
 
 async function pair(page: Page, at: Server) {
@@ -443,7 +443,7 @@ test('a used code is kept while the computer shows ✓ USED, then made new for a
 	await expect(second.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
 });
 
-test('a code that runs out while the code page is up says the new one is on the computer', async () => {
+test('a code that runs out while the code screen is up says the new one is on the computer', async () => {
 	const made = await newCode(A);
 	const { page } = await tv();
 	await openPairing(page, A);
@@ -464,7 +464,7 @@ test('a burned code stays burned, even after its 10 minutes, until the computer 
 	const made = await newCode(A);
 	const { page } = await tv();
 	await openPairing(page, A);
-	// Each wrong try reloads the code page, so the next is typed once it has hydrated.
+	// Each wrong try reloads the code screen, so the next is typed once it has hydrated.
 	for (let left = 4; left >= 0; left -= 1) {
 		await typeCode(page, wrong(made.code!));
 		await page.waitForURL(left > 0 ? new RegExp(`r=wrong&left=${left}$`) : /r=burned$/);
@@ -584,7 +584,7 @@ test('the DEVICES row draws the code the TV made in place of an expired one, on 
 // ---- A burned code: only a real visit renews --------------------------------
 
 /**
- * Five wrong tries from a TV, as the code page posts them, at the computer's address: a
+ * Five wrong tries from a TV, as the code screen posts them, at the computer's address: a
  * request of its own, not a page, so no window's focus moves.
  */
 async function burnOn(at: Server) {

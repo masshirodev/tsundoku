@@ -6,8 +6,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * "Does the computer answer?" (9D). The manifest's name is tsundoku's, so it
- * is the cheap GET that only tsundoku answers.
+ * "Does the computer answer?" (the not-answering screen). The manifest's
+ * name is tsundoku's, so it is the cheap GET that only tsundoku answers.
  */
 class ProbeTest {
 	@Test

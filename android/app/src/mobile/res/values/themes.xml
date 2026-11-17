@@ -6,7 +6,7 @@
 		WebView draws, and in the camera band until the page says its own
 		colour. The light one is values-notnight's. A dark or light theme is
 		also what the WebView's prefers-color-scheme follows, so before pairing
-		the app's own screens take the phone's setting (the design's 9C · LIGHT).
+		the app's own screens take the phone's setting.
 	-->
 	<style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
 		<item name="android:windowBackground">@color/page</item>

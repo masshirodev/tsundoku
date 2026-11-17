@@ -2,7 +2,7 @@ import { expect, hydrated, test } from './helpers/hydrated';
 
 /**
  * A TV pairing itself with six digits typed on a remote (doc/TV.md,
- * "Pairing"): the code page and the paired page. This is the computer's own route,
+ * "Pairing"): the code screen and the paired page. This is the computer's own route,
  * reached by the app once it has found the computer, so the spec is the TV:
  * 960x540, no pointer, and every press a key.
  *
@@ -49,7 +49,7 @@ const BANDS = [
 ] as const;
 
 test('a band pushes the column down instead of drawing over it', async ({ page }) => {
-	// The design's code page: the section label at 108, the six cards at 148.
+	// The design's code screen: the section label at 108, the six cards at 148.
 	await page.goto('/pair/tv');
 	await expect(page.locator('.band')).toHaveCount(0);
 	expect((await page.locator('.sl').boundingBox())!.y).toBe(108);
@@ -122,7 +122,7 @@ test('five wrong tries burn the code, and a new one is made on the computer', as
 	await expect(page.getByText('NO TRIES LEFT')).toBeVisible();
 	await expect(page.getByText('MAKE A NEW CODE ON THE COMPUTER')).toBeVisible();
 
-	// The right code is no longer worth anything, and the page stays the code page.
+	// The right code is no longer worth anything, and the page stays the code screen.
 	await typeCode(page, fresh.code!);
 	await expect(page.getByText('NO TRIES LEFT')).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'The library is on this TV' })).toHaveCount(0);

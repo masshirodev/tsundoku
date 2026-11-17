@@ -245,7 +245,7 @@ test('the token install on the same origin draws the digits, and the TV they pai
 		await owner.dispose();
 	}
 
-	// The TV types them on /pair/tv, as the code page posts them, on the tailnet host.
+	// The TV types them on /pair/tv, as the code screen posts them, on the tailnet host.
 	const tv = await tailnet(token, null);
 	let cookie: string;
 	try {

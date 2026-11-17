@@ -204,7 +204,7 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 
 	/**
 	 * A server answered: keep it. Adds rather than replaces, and never marks
-	 * it in use: an add that is left at the code page must not take launch
+	 * it in use: an add that is left at the code screen must not take launch
 	 * away from the library the TV was in.
 	 * Returns true when it was new.
 	 */
