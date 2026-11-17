@@ -97,7 +97,7 @@
 		display: flex;
 		align-items: center;
 	}
-	/* Under the TV's 28px safe top (c238); the bar's rules still run edge to
+	/* Under the TV's 28px safe top; the bar's rules still run edge to
 	   edge, because the margin is on the bar and not on the page. */
 	@media (pointer: none) and (min-width: 900px) {
 		.bar {

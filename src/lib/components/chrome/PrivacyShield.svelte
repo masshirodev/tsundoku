@@ -8,7 +8,7 @@
 	 * That is best effort -- Android may take its snapshot first, and a PWA
 	 * can't block screenshots -- so nothing on screen claims otherwise.
 	 *
-	 * The cover is all it does now (the owner, 2026-11-12): reveal and
+	 * The cover is all it does: reveal and
 	 * incognito survive a trip to another tab or app, and coming back lands
 	 * where it left. END and HIDE AGAIN are how each one ends, and both are
 	 * session cookies besides, so closing the browser does too. doc/PRIVACY.md

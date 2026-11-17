@@ -1,5 +1,5 @@
 /*
- * The text reader's own reading fonts beyond Plex (c442; doc/TEXT-READER.md,
+ * The text reader's own reading fonts beyond Plex (doc/TEXT-READER.md,
  * "FONT"). Not imported by index.css: src/lib/reader/text.ts's
  * `loadReadingFonts` imports this sheet once such a font is chosen or READING
  * is open, so the page declares the faces only then. The files themselves are

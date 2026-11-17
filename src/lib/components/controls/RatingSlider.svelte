@@ -5,11 +5,11 @@
 	import { halfOn, minLabel, readout, valueAt, type SliderMode } from '$lib/library/rating';
 
 	/**
-	 * The blocky slider (Ratings out of 10.dc.html, RatingSlider.dc.html; card
-	 * c67): five blocks, each split in two. Press anywhere on the row and drag:
-	 * it snaps to halves, a readout above the finger says where it is, and it
-	 * commits when the finger lifts. A tap is a drag that didn't move. 0 is its
-	 * own cell at the left, and dragging off the left end clears too.
+	 * The blocky slider: five blocks, each split in two. Press anywhere on the
+	 * row and drag: it snaps to halves, a readout above the finger says where
+	 * it is, and it commits when the finger lifts. A tap is a drag that didn't
+	 * move. 0 is its own cell at the left, and dragging off the left end clears
+	 * too.
 	 *
 	 * How it commits, whichever the caller gives:
 	 * - `onchange`: a callback (the series row, which saves behind the value);
@@ -17,15 +17,15 @@
 	 *   works in a plain form without script, and a drag submits the half it
 	 *   ended on (the library sheet, the bulk bar);
 	 * - `href` (mode 'min'): each half is a link with the threshold in its URL,
-	 *   as shelves are links (the RATED shelf, turn 2).
+	 *   as shelves are links (the RATED shelf).
 	 *
-	 * The chosen half is `aria-pressed` (a link: `aria-current`), as the old
-	 * picker's cell was: the fill alone is only visual. An unsaved choice
+	 * The chosen half is `aria-pressed` (a link: `aria-current`): the fill
+	 * alone is only visual. An unsaved choice
 	 * stays chosen; NOT SAVED is what says it didn't take.
 	 *
 	 * Mode 'min' is a threshold: filled from the value up, no 0 cell, the
 	 * number written in the five steps ("4+"), and a count cell at the end.
-	 * Sizes are the mock's per device: the `phone*` ones apply under 600px, by
+	 * Sizes are per device: the `phone*` ones apply under 600px, by
 	 * media query, so the first paint is right.
 	 */
 	let {
@@ -83,7 +83,7 @@
 			width?: number;
 			phoneWidth?: number;
 		} | null;
-		/** The threshold's count cell, where FAV would be (turn 2). */
+		/** The threshold's count cell, where FAV would be. */
 		count?: { text: string; sub: string; width?: number; phoneWidth?: number } | null;
 		disabled?: boolean;
 	} = $props();
@@ -151,7 +151,7 @@
 	}
 
 	/**
-	 * The TV's rating (c238; TV-Series, state 4C): ← → move the value by half a
+	 * The TV's rating: ← → move the value by half a
 	 * bar and save as it changes, rather than walking the ten half-cells; OK or
 	 * BACK leaves. The focus layer keeps these two keys for whatever sits
 	 * inside `[data-focus-adjust]` (doc/FOCUS.md), so ↑ ↓ still leave the row.
@@ -320,7 +320,7 @@
 </div>
 
 <style>
-	/* RatingSlider.dc.html, transcribed: the mock's literals; colours are tokens. */
+	/* Sizes are literals; colours are tokens. */
 	.rs {
 		position: relative;
 		display: flex;
@@ -328,7 +328,7 @@
 		height: var(--rs-h);
 		/* A control of fixed height never shrinks, wherever it is mounted: a
 		   flex column that scrolls (the READING sheet, capped at 90dvh) would
-		   otherwise squeeze it to its content, about 38px (c728, after c428). */
+		   otherwise squeeze it to its content, about 38px. */
 		flex-shrink: 0;
 		color: var(--text-1);
 		user-select: none;
@@ -418,7 +418,7 @@
 		outline-offset: -2px;
 	}
 	/*
-	 * Hovering previews the value a click would set (c494): a rating is a
+	 * Hovering previews the value a click would set: a rating is a
 	 * level, so every half from the start to the pointer, not the one cell
 	 * under it (each half opts out of the app's own hover tint for this). A
 	 * half it would add is a light fill, never the real one; a filled half it
@@ -601,7 +601,7 @@
 			padding: 0 10px;
 		}
 	}
-	/* ---- the TV (c238; TV-Series, state 4C) ------------------------------- */
+	/* ---- the TV ------------------------------------------------------------ */
 	@media (pointer: none) and (min-width: 900px) {
 		/* A narrower label and FAV leave the blocks room to be seen from the
 		   couch; the instance's inline sizes are the tablet's, so !important. */

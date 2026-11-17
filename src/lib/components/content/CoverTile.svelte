@@ -49,8 +49,8 @@
 		rating?: Rating;
 		favourite?: boolean;
 		/**
-		 * The FAV (or the rating) drawn is the owner's tap that is not stored
-		 * yet, so it is drawn dashed (c659; doc/WAITING.md, "Writes that fail").
+		 * The FAV (or the rating) drawn is a tap that is not stored yet, so it
+		 * is drawn dashed (doc/WAITING.md, "Writes that fail").
 		 * Default false: every other user of the tile draws a stored value.
 		 */
 		favUnsaved?: boolean;
@@ -72,7 +72,7 @@
 		focusId?: string;
 		/** The screen's first arrow lands here (doc/FOCUS.md). */
 		startFocus?: boolean;
-		/** The TV focus line's second line: kind, progress, +N, FAV (c238). */
+		/** The TV focus line's second line: kind, progress, +N, FAV. */
 		meta?: string;
 	} = $props();
 
@@ -193,7 +193,7 @@
 				{#if hidden}<Badge tone="reveal" corner="top-left">HIDDEN</Badge>{/if}
 				{#if !(editable && onfavourite)}
 					{#if favUnsaved}
-						<!-- The plain drawing of a tap not stored (c738). A failed UNFAV draws
+						<!-- The plain drawing of a tap not stored. A failed UNFAV draws
 						     no badge at all, so the corner has to carry the mark by itself. -->
 						<span class="fav-plain unsaved">
 							{#if favourite}
@@ -254,7 +254,7 @@
 		{/if}
 
 		{#if picking}
-			<!-- The blocky slider, compact at the tile's foot: the handoff doesn't draw this one (doc/SERIES.md, "Rating"). -->
+			<!-- The blocky slider, compact at the tile's foot (doc/SERIES.md, "Rating"). -->
 			<div class="picker">
 				<RatingSlider
 					value={rating}
@@ -322,7 +322,7 @@
 	}
 	/* The bars are 4px; the button reaches into the gap above and the padding
 	   below so a finger finds it, and across the tile's padding so its hover
-	   runs the tile's full width (c487), without moving anything. */
+	   runs the tile's full width, without moving anything. */
 	.rating {
 		display: block;
 		padding: 8px 10px;
@@ -370,8 +370,8 @@
 	.dimmed {
 		opacity: 0.35;
 	}
-	/* Not stored yet (Loading States 1o; c659): dashed, the same class and
-	   accent token the series screen's controls use (doc/WAITING.md). */
+	/* Not stored yet: dashed, the same class and accent token the series
+	   screen's controls use (doc/WAITING.md). */
 	.rating.unsaved,
 	.fav.unsaved,
 	.rating-plain.unsaved,
@@ -391,10 +391,10 @@
 		line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
-		/* Two lines at any text size (c591): 32 px at the tile's 13 px, as the
-		   boards draw it, and in em so a larger text size (the phone app's
-		   textZoom, a browser's minimum font size) grows the box with the
-		   type instead of cutting the second line through the middle. */
+		/* Two lines at any text size: 32 px at the tile's 13 px, and in em so
+		   a larger text size (the phone app's textZoom, a browser's minimum
+		   font size) grows the box with the type instead of cutting the second
+		   line through the middle. */
 		height: calc(32em / 13);
 	}
 	.check {
@@ -423,10 +423,10 @@
 		height: 14px;
 	}
 	/*
-	 * The TV (c238; TV-Library): the cover is the tile. At 144px a caption is
+	 * The TV: the cover is the tile. At 144px a caption is
 	 * a dozen unreadable characters, and the focus line under the tabs names
-	 * the cover in full. FAV and the rating are the tile's options (a held OK,
-	 * c235), not two more stops a 6-wide grid has to walk, so their buttons
+	 * the cover in full. FAV and the rating are the tile's options (a held
+	 * OK), not two more stops a 6-wide grid has to walk, so their buttons
 	 * and the bars leave the cell.
 	 */
 	@media (pointer: none) and (min-width: 900px) {

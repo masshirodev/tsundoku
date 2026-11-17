@@ -4,7 +4,7 @@
 	import { lockPage } from '$lib/scroll-lock';
 
 	/**
-	 * One choice out of a few, the house's way (c432; doc/LIBRARY.md, "Sort and
+	 * One choice out of a few, the house's way (doc/LIBRARY.md, "Sort and
 	 * direction"): a cell naming the choice, with ▾, that opens a list of blocky
 	 * cells as FILTER's rows draw them, the chosen one inverted. It replaced the
 	 * library's native SORT `<select>`, whose open list was the system's.
@@ -38,7 +38,7 @@
 
 	let open = $state(false);
 	// The page under the scrim holds still while the list is open, as under a
-	// sheet (c1033); a list taller than its room scrolls itself.
+	// sheet; a list taller than its room scrolls itself.
 	$effect(() => {
 		if (open) return lockPage();
 	});
@@ -153,7 +153,7 @@
 	/* FILTER's panel, as a column: the full-ink rule on top, hairlines between.
 	   7, under a top bar (8): a caller that draws something at 7 or above
 	   between the cell and the list's foot steps it down while the list is
-	   open, as the library does its KIND band (c590). */
+	   open, as the library does its KIND band. */
 	.menu > .list {
 		position: absolute;
 		top: 100%;

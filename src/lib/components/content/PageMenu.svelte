@@ -4,7 +4,7 @@
 	import { focusScope } from '$lib/focus';
 
 	/**
-	 * The page menu (Page Menu, card c26; doc/COVERS.md, "Chosen"): what a
+	 * The page menu (doc/COVERS.md, "Chosen"): what a
 	 * long-pressed page can become. The pressed page keeps its light, ringed in
 	 * the accent with its number in the corner; everything else goes under the
 	 * scrim. One row per thing the page can become, each saying where that
@@ -397,7 +397,7 @@
 			color: var(--text-inverse);
 		}
 	}
-	/* The grid's sheet is the phone's shape at any width (1i). */
+	/* The grid's sheet is the phone's shape at any width. */
 	.sheet.grid .row {
 		height: auto;
 		min-height: 64px;
@@ -430,7 +430,7 @@
 	}
 
 	/*
-	 * The TV (c235; TV-Reader 7F): the menu is the 420px panel from the right,
+	 * The TV: the menu is the 420px panel from the right,
 	 * as every sheet is there, and the page it means is framed in ink rather
 	 * than in the accent -- the accent means "yours", the frame is where the
 	 * remote is.

@@ -16,13 +16,13 @@
 	 * `unavailable` is offline-and-not-cached: dimmed, and the resume cell
 	 * becomes a dash.
 	 *
-	 * The band is a real link to the entry's page and ▶ its sibling (c841), so
+	 * The band is a real link to the entry's page and ▶ its sibling, so
 	 * there is no button inside a link. `href` is null where the band has
 	 * nowhere honest to go: the page decides that (SELECT, an offline row whose
 	 * screen this device never kept; doc/LIBRARY.md, "The CONTINUE row").
 	 *
-	 * A held press anywhere on the row, the band and ▶ alike, is `onlongpress`
-	 * (c860): a held OK, a long press and a right click, and the press that fired
+	 * A held press anywhere on the row, the band and ▶ alike, is `onlongpress`:
+	 * a held OK, a long press and a right click, and the press that fired
 	 * it neither follows the band nor resumes.
 	 */
 	let {
@@ -111,9 +111,9 @@
 	}
 </script>
 
-<!-- The row hovers as one, ▶'s cell and the row's padding included (owner,
-     2026-11-10): the band's own tint stopped 16px short of ▶ (doc/MOTION.md,
-     "hover can belong to a group"). Only a row that opens something is tinted. -->
+<!-- The row hovers as one, ▶'s cell and the row's padding included: the band's
+     own tint alone stops 16px short of ▶ (doc/MOTION.md, "hover can belong to a
+     group"). Only a row that opens something is tinted. -->
 <div
 	class="row"
 	class:unavailable
@@ -137,7 +137,7 @@
 		<div class="text">
 			<div class="title">{title}</div>
 			{#if work}
-				<!-- The part's own label, and the Work it belongs to (Work-Library B1). -->
+				<!-- The part's own label, and the Work it belongs to. -->
 				<div class="meta">
 					{#if work.upNext}<span class="nx">UP NEXT</span><span class="ink"
 							>{work.partTitle} · {meta}</span
@@ -165,7 +165,7 @@
 		data-focus-start={startFocus ? '' : undefined}
 		onclick={() => onresume?.()}
 		>{#if unavailable}—{:else}
-			<!-- Drawn, because a text ▶ is placed by the font's metrics (c840). The
+			<!-- Drawn, because a text ▶ is placed by the font's metrics. The
 			     triangle's centroid, not its box, is the viewBox's middle: (4+4+13)/3 = 7. -->
 			<svg class="tri" viewBox="0 0 14 14" aria-hidden="true"><path d="M4 1 13 7 4 13Z" /></svg>
 		{/if}</button
@@ -309,10 +309,9 @@
 		fill: currentColor;
 	}
 	/*
-	 * The TV's CONTINUE card (c238; TV-Library 3A; TV Calls, "CONTINUE"): 288x120,
-	 * three across, with a 72px cover, the title on two lines, where you are and
-	 * the progress bar. Two stops since c841: the band opens the entry and ▶ is
-	 * a ruled cell at the card's end, so the ring is drawn inside each.
+	 * The TV's CONTINUE card: 288x120, three across, with a 72px cover, the title
+	 * on two lines, where you are and the progress bar. Two stops: the band opens
+	 * the entry and ▶ is a ruled cell at the card's end, so the ring is drawn inside each.
 	 */
 	@media (pointer: none) and (min-width: 900px) {
 		.row {

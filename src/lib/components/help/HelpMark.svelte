@@ -1,8 +1,8 @@
 <!--
-	The "?" (doc/HELP.md; the HELP handoff, "THE ? LIVES IN THE LABEL"): a 20 px
-	square after a row's or a section's label. The label cell around it is the
-	button; this is only its mark, so it's hidden from assistive tech, which
-	reads the button's own name ("Help: Wi-Fi").
+	The "?" (doc/HELP.md): a 20 px square after a row's or a section's label.
+	The label cell around it is the button; this is only its mark, so it's
+	hidden from assistive tech, which reads the button's own name ("Help:
+	Wi-Fi").
 -->
 <span class="mark" aria-hidden="true">?</span>
 

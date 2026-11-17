@@ -7,11 +7,10 @@
 @import './fonts-mono.css';
 /*
  * IBM Plex Sans (400, 500, 600), Serif (400, 400 italic, 500: body text in the
- * text reader, Index Text Reader's default FONT), and Sans JP and Sans KR
- * (400, 500) for titles, from the series and reader handoffs. Declared in
- * fonts-plex.css, generated from @fontsource's CSS with woff2 only, rather than
- * imported from it, whose woff fallbacks the service worker would precache on
- * every device (c537).
+ * text reader, its default FONT), and Sans JP and Sans KR (400, 500) for
+ * titles. Declared in fonts-plex.css, generated from @fontsource's CSS with
+ * woff2 only, rather than imported from it, whose woff fallbacks the service
+ * worker would precache on every device.
  * Each CJK weight is split into ~120 unicode-range chunks, so a page downloads
  * only the chunks holding characters it actually shows -- a raw's title costs
  * a few kilobytes, not the 39 MB the full family weighs. 400 and 500 only: the

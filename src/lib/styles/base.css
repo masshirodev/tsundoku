@@ -18,10 +18,10 @@ a:hover {
 	box-sizing: border-box;
 }
 /*
- * Scrollbars: thin, in the system's own lines, on a clear track (owner,
- * 2026-10-31: the browser's grey bar beside the sidebar's shelves). The
- * standard properties: Firefox, and Chromium since 121. Touch screens draw
- * their own overlay bars and ignore them.
+ * Scrollbars: thin, in the system's own lines, on a clear track, not the
+ * browser's grey bar beside the sidebar's shelves. The standard properties:
+ * Firefox, and Chromium since 121. Touch screens draw their own overlay bars
+ * and ignore them.
  */
 * {
 	scrollbar-width: thin;
@@ -35,11 +35,11 @@ img {
 /*
  * Anything that appears over the page fades in, the same way everywhere: the
  * readers' controls, sheets, menus and their scrims (doc/design/README.md,
- * "Departures"; card c185). Asked for on 2026-10-29 with the double tap,
- * whose single tap now waits ~250 ms: controls that then snapped in felt
- * clunky. Opacity only, on the design's own ease-out. They fade out again
- * with `out:leave` (src/lib/motion.ts; doc/MOTION.md, card c396). Kept under
- * reduced motion, which asks for less movement, and a fade doesn't move.
+ * "Departures"). A single tap waits ~250 ms for a possible double tap, and
+ * controls that then snap in feel clunky. Opacity only, on the design's own
+ * ease-out. They fade out again with `out:leave` (src/lib/motion.ts;
+ * doc/MOTION.md). Kept under reduced motion, which asks for less movement,
+ * and a fade doesn't move.
  * Sheets rise instead (.rise, motion.css).
  */
 .appear {

@@ -1,10 +1,10 @@
 /*
- * IBM Plex Sans, Serif, Sans JP and Sans KR (c537): every face @fontsource's
- * CSS declares for the weights index.css used to import, with its woff fallback
- * dropped. Each package sheet names a .woff beside every .woff2, Vite puts both
- * in the build, and src/service-worker.ts precaches every file in the build, so
- * every installed device downloaded woff files no woff2-capable browser draws.
- * fonts-reading.css did the same for OpenDyslexic (c442, round 2).
+ * IBM Plex Sans, Serif, Sans JP and Sans KR: every face @fontsource's CSS
+ * declares for the weights the app uses, with its woff fallback dropped. Each
+ * package sheet names a .woff beside every .woff2, Vite puts both in the build,
+ * and src/service-worker.ts precaches every file in the build, so every
+ * installed device would download woff files no woff2-capable browser draws.
+ * fonts-reading.css does the same for OpenDyslexic.
  *
  * Generated, not written by hand, from these @fontsource sheets:
  *   @fontsource/ibm-plex-sans 5.3.0: 400.css, 500.css, 600.css

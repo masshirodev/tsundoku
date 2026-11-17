@@ -7,9 +7,8 @@
 	import type { Entry, Token } from '$lib/languages/types';
 
 	/**
-	 * The lookup panel (Index Japanese 1b / 1c / 2a; then
-	 * handoffs/lookup-panel/, Panel.dc.html, c202 / c195), shared by the image
-	 * reader (a text block) and the text reader (a paragraph).
+	 * The lookup panel, shared by the image reader (a text block) and the text
+	 * reader (a paragraph).
 	 *
 	 * The text is split into words on this device by the series' **pack**, set
 	 * horizontally with whatever ruby that language has (none, in English), so
@@ -56,7 +55,7 @@
 		/** A folded book: "EN P. 13 →", the same page in its other language. */
 		other?: { label: string; go: () => void } | null;
 		/**
-		 * The text reader's foot (c702; Novel J2): HIGHLIGHT and NOTE keep the word
+		 * The text reader's foot: HIGHLIGHT and NOTE keep the word
 		 * selected, SELECT MORE turns it into a selection. The offsets are in the
 		 * paragraph's text, `text`. Absent everywhere else: the image reader has
 		 * no words to mark.
@@ -309,7 +308,7 @@
 </section>
 
 <style>
-	/* Index Japanese 1b: the reader's dark controls, the mock's hand-set measures. */
+	/* The reader's dark controls, with hand-set measures. */
 	.panel {
 		position: fixed;
 		z-index: 35;
@@ -536,7 +535,7 @@
 		font: 400 16px/1.5 var(--font-sans);
 		color: var(--text-2);
 	}
-	/* Novel J2: the foot's row of three, over LOGGED. */
+	/* The foot's row of three, over LOGGED. */
 	.keep {
 		display: flex;
 		flex-shrink: 0;

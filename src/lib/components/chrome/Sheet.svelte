@@ -25,14 +25,14 @@
 		if (open && e.key === 'Escape') onclose();
 	}
 
-	// The page under the scrim holds still while the sheet is open: a drag on
-	// the scrim used to scroll the library behind MORE (src/lib/scroll-lock.ts).
+	// The page under the scrim holds still while the sheet is open, or a drag
+	// on the scrim scrolls the library behind MORE (src/lib/scroll-lock.ts).
 	$effect(() => {
 		if (open) return lockPage();
 	});
 
 	/**
-	 * Keeps a focused row out from under the pinned head (c716). Heads differ
+	 * Keeps a focused row out from under the pinned head. Heads differ
 	 * per caller and some wrap with their title, so the room is measured; a
 	 * caller's head can also come and go with its view (MORE's SERVERS).
 	 */
@@ -114,8 +114,8 @@
 		padding-bottom: env(safe-area-inset-bottom);
 	}
 	/*
-	 * The sheet scrolls as a whole, so a head with the way out in it is pinned
-	 * (c716; ReadingSheet's c679). `sheet-head` marks those: a cover head with
+	 * The sheet scrolls as a whole, so a head with the way out in it is pinned,
+	 * as ReadingSheet's is. `sheet-head` marks those: a cover head with
 	 * no control (SeriesSheet, BookSheet) would only spend the screen. A head
 	 * inside the caller's form still sticks: the form is as tall as the content.
 	 */
@@ -128,11 +128,10 @@
 		background: var(--surface-page);
 	}
 	/*
-	 * Every sheet on a TV is a panel from the right (c238; TV Calls, "SHEETS
-	 * ARE PANELS"): 420px wide, the strong rule on its left edge, the screen it
-	 * opened over still in view at the left. The page's own rows keep their
-	 * 48px right padding, which is what makes the panel's content 372px wide,
-	 * as TV-Series and TV-Reader draw it.
+	 * Every sheet on a TV is a panel from the right: 420px wide, the strong
+	 * rule on its left edge, the screen it opened over still in view at the
+	 * left. The page's own rows keep their
+	 * 48px right padding, which is what makes the panel's content 372px wide.
 	 */
 	@media (pointer: none) and (min-width: 900px) {
 		.sheet {

@@ -21,7 +21,7 @@
 	--rule-strong: 1px solid var(--text-1);
 	--select-ring: 0 0 0 3px var(--accent);
 	/*
-	 * The one focus mark (doc/FOCUS.md; TV-Focus, "The mark"): a 4px frame of
+	 * The one focus mark (doc/FOCUS.md): a 4px frame of
 	 * text ink held off the thing by 3px of page. Outside a thing that stands
 	 * alone; inside a cell of a ruled block, so it never crosses a hairline.
 	 * Both read `--surface-page` and `--text-1`, so both palettes have it.
@@ -34,11 +34,11 @@
 	--rating-h: 4px;
 	--motion-fast: 120ms;
 	/* What appears over the page (the reader's controls, sheets, menus) fades in
-	   this long: not slow, not abrupt (owner, 2026-10-29; base.css, .appear). */
+	   this long: not slow, not abrupt (base.css, .appear). */
 	--motion-appear: 160ms;
 	--ease: cubic-bezier(0.2, 0, 0, 1);
 	/*
-	 * Motion (doc/MOTION.md, card c396). Use these, and do not invent a fifth
+	 * Motion (doc/MOTION.md). Use these, and do not invent a fifth
 	 * duration or another curve: a value they can't express is a question for
 	 * that document. --ease above stays the design's own, for fades.
 	 */

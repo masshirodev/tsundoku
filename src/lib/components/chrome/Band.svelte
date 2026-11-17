@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 
 	/**
-	 * A ✕ for a band that lives in the URL (c493): the parameters go by a
+	 * A ✕ for a band that lives in the URL: the parameters go by a
 	 * replacing navigation, so a reload does not bring it back, Back does not
 	 * step through it, and the page keeps its place and focus.
 	 */
@@ -15,7 +15,7 @@
 	}
 
 	/**
-	 * When a band last went away (c493): bands stack, so the band below moves
+	 * When a band last went away: bands stack, so the band below moves
 	 * up to where it was, and the second press of a double tap must not reach
 	 * it. Measured from the band going, not the press, because a URL band goes
 	 * only when its navigation lands, however long that takes.
@@ -29,8 +29,8 @@
 	import { m } from '$lib/paraglide/messages';
 
 	/**
-	 * A panel band with a plain action cell on the right: the books and
-	 * addendum handoffs' confirmation strip ("SERIES CREATED · 6 BOOKS / UNDO",
+	 * A panel band with a plain action cell on the right: a confirmation
+	 * strip ("SERIES CREATED · 6 BOOKS / UNDO",
 	 * "NOT A SERIES · WON'T ASK AGAIN / UNDO", "INCOGNITO · NOTHING SAVED /
 	 * END"). One line is 48px; with a `detail` line it is 60px. Unlike Banner's
 	 * `action` kind, the cell is not accent -- it undoes, it doesn't advance.
@@ -47,7 +47,7 @@
 		/** The right-hand cell: a form button or a link, supplied by the caller. */
 		action?: Snippet;
 		/**
-		 * Turns on the ✕ cell after `action` (c493; doc/BANDS.md): what clearing
+		 * Turns on the ✕ cell after `action` (doc/BANDS.md): what clearing
 		 * this band does. A band that says what is true now does not pass it.
 		 */
 		ondismiss?: () => void;
@@ -63,7 +63,7 @@
 	}
 
 	// Only a ✕ starts the wait: a band replaced by a new answer has not just
-	// been pressed, and the next ✕ is the owner's own.
+	// been pressed, and the next ✕ is the user's own.
 	onDestroy(() => {
 		if (pressed) lastGone = performance.now();
 	});

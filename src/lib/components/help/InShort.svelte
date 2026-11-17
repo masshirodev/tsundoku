@@ -1,9 +1,9 @@
 <script lang="ts">
 	/**
-	 * A topic's IN SHORT (doc/HELP.md; the HELP handoff): three numbered,
+	 * A topic's IN SHORT (doc/HELP.md): three numbered,
 	 * ruled lines on the panel. The page and a "?"'s sheet show the same block.
-	 * A topic GET STARTED walks through ends on a pointer to its steps, in bold
-	 * (FirstRead board 4C): a line of its own, never a fourth line of IN SHORT.
+	 * A topic GET STARTED walks through ends on a pointer to its steps, in bold:
+	 * a line of its own, never a fourth line of IN SHORT.
 	 */
 	import { m } from '$lib/paraglide/messages';
 	import type { HelpPointer } from '$lib/help/topics';

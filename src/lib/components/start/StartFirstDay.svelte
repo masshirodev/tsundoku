@@ -5,7 +5,7 @@
 	import { num } from '$lib/i18n/format';
 
 	/**
-	 * The first day (doc/ONBOARDING.md; the Getting Started handoff, board 3):
+	 * The first day (doc/ONBOARDING.md):
 	 * an empty library whose checklist is done or skipped. Nothing is added yet,
 	 * but everything is one search away: the sources' search, the sources
 	 * themselves, and the library folder for files.
@@ -89,7 +89,7 @@
 </section>
 
 <style>
-	/* ob.css .ob and the rows (board 3), transcribed; colours are tokens. */
+	/* .ob and its rows; colours are tokens. */
 	.ob {
 		display: flex;
 		flex-direction: column;

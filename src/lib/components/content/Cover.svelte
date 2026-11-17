@@ -25,7 +25,7 @@
 		ring?: boolean;
 		dashed?: boolean;
 		label?: string;
-		/** With no image, the title set on the stripes -- the TV's one titled cover (c238). */
+		/** With no image, the title set on the stripes -- the TV's one titled cover. */
 		stripeTitle?: string;
 		children?: Snippet;
 	} = $props();
@@ -56,8 +56,8 @@
 
 <style>
 	/* The width is said outright, not left to a stretching parent: the Xiaomi
-	   Pad 5's browser gave a stretched cover no height from its ratio, and every
-	   tile in the library lost its cover (2026-10-15). */
+	   Pad 5's browser gives a stretched cover no height from its ratio, and every
+	   tile in the library loses its cover. */
 	.cover {
 		position: relative;
 		width: 100%;
@@ -88,7 +88,7 @@
 		color: var(--text-2);
 	}
 	/*
-	 * The TV's coverless tile names itself (TV-Library, state 3F): at 144px a
+	 * The TV's coverless tile names itself: at 144px a
 	 * tile's own caption is gone, so the stripes carry the name. Off a TV it
 	 * stays hidden -- the tile's caption is what names it there.
 	 */

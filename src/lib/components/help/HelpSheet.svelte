@@ -7,7 +7,7 @@
 	import { m } from '$lib/paraglide/messages';
 
 	/**
-	 * What a "?" opens (doc/HELP.md; the HELP handoff, Ask board): the topic's
+	 * What a "?" opens (doc/HELP.md): the topic's
 	 * IN SHORT in a sheet, then WHOLE TOPIC → and where it lands. The friend
 	 * stays on the screen they asked from. `content` alone draws it inside a
 	 * sheet that's already open (the reader's READING), with `back` before the
@@ -60,7 +60,7 @@
 {/if}
 
 <style>
-	/* The Ask board's sheet, transcribed: 56 px head, 64 px WHOLE TOPIC. */
+	/* 56 px head, 64 px WHOLE TOPIC. */
 	.head {
 		display: flex;
 		align-items: stretch;

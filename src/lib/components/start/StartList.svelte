@@ -19,8 +19,7 @@
 	import { num, upper } from '$lib/i18n/format';
 
 	/**
-	 * GET STARTED's seven steps in two parts (doc/ONBOARDING.md; the Getting
-	 * Started handoff, boards 1 and 1-Steps, and FIRST READ's, boards 1): on
+	 * GET STARTED's seven steps in two parts (doc/ONBOARDING.md): on
 	 * the empty library and on /start, the same list. SET UP's four, in any
 	 * order, then FIRST READ's three, in order. A step that's still to do
 	 * opens below its row; the first one to do opens by itself, FIRST READ's
@@ -37,7 +36,7 @@
 		view: StartView;
 		libraryRoot: string;
 		extras?: FirstReadExtras | null;
-		/** The last import that came in, so 03's done row can name it (c511, Import-Doors B). */
+		/** The last import that came in, so 03's done row can name it. */
 		imported?: StartImport | null;
 	} = $props();
 
@@ -150,7 +149,7 @@
 	{#if s.state === 'done'}
 		<div class="st-acts">
 			{#if s.id === 'library' && importLine && imported}
-				<!-- Import-Doors B: the quiet link opens the import's own entry in the log. -->
+				<!-- The quiet link opens the import's own entry in the log. -->
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a fixed app path and its query -->
 				<a class="quiet" href={`${resolve('/import/log')}?open=backup:${imported.id}`}
 					>{m.start_done_link_import()}</a
@@ -246,10 +245,9 @@
 			<span class="tick-note">{m.start_ticks_ext()}</span>
 		</div>
 	{:else if id === 'library'}
-		<!-- Import-Doors A (c438): the three backups first, IMPORT A BACKUP on the
-		     one that is read today; Aniyomi and LNReader stay NOT YET until their
-		     importers land (the owner's call, 2026-11-03). The folder and START
-		     SCAN drop below them, as the way for files. -->
+		<!-- The three backups first, IMPORT A BACKUP on the one that is read
+		     today; Aniyomi and LNReader stay NOT YET until their importers land.
+		     The folder and START SCAN drop below them, as the way for files. -->
 		<p>
 			{m.start_library_body_a()} <b>{m.start_library_downloads()}</b>{m.start_library_body_b()}
 		</p>
@@ -451,11 +449,10 @@
 {/snippet}
 
 <style>
-	/* The handoffs' ob.css and fr.css (.part, .step*, .sum, .st-*, .field,
-	   .box, .holds, .rows, .mini, .dlrow, .seek, .ways, .folder), transcribed;
-	   colours are tokens. Every block inside the page's padding is closed on
-	   all four sides (doc/design/README.md, "Close every block"), where the
-	   handoffs drew rules above and below only. */
+	/* The design's literals; colours are tokens. Every block inside the
+	   page's padding is closed on all four sides (doc/design/README.md,
+	   "Close every block"), where the design drew rules above and below
+	   only. */
 	.part {
 		display: flex;
 		justify-content: space-between;
@@ -898,7 +895,7 @@
 		flex-direction: column;
 		gap: 6px;
 	}
-	/* Import-Doors A's rows: the backup, what it holds, and its door. */
+	/* The backups' rows: the backup, what it holds, and its button. */
 	.backups {
 		display: flex;
 		flex-direction: column;
@@ -978,7 +975,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	/* The phone (Start-Phone and FirstRead-Phone boards): narrower boxes, the body under the title. */
+	/* The phone: narrower boxes, the body under the title. */
 	@media (max-width: 599px) {
 		.long {
 			display: none;

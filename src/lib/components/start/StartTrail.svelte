@@ -17,8 +17,7 @@
 	import { upper } from '$lib/i18n/format';
 
 	/**
-	 * The way back to GET STARTED (doc/ONBOARDING.md, "The way back"; the
-	 * Getting Started handoff's board 2 and FIRST READ's boards 2): one band
+	 * The way back to GET STARTED (doc/ONBOARDING.md, "The way back"): one band
 	 * under the screen's top bar while a step's trip lasts. ← GET STARTED, the
 	 * step and what ticks it, ✕; once it ticks, ✓ and BACK TO GET STARTED → in
 	 * accent. A FIRST READ trip's band moves on as each of its steps ticks,

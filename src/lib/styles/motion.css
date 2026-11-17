@@ -1,5 +1,5 @@
 /*
- * Motion (doc/MOTION.md, card c396): the press, the hover, how sheets and
+ * Motion (doc/MOTION.md): the press, the hover, how sheets and
  * dialogs arrive, and how one screen gives way to the next. The tokens are in
  * spacing.css; the leaves are Svelte transitions in src/lib/motion.ts, which
  * mirror these entrances.
@@ -28,15 +28,15 @@
  * the focus mark and reveal's frame. A colour change, so it doesn't move.
  *
  * The tint *replaces* the element's background-image, so anything that draws
- * a picture there is left out (c486). Inline, by `[style*='background']`, not
+ * a picture there is left out. Inline, by `[style*='background']`, not
  * `background-image`: the series cover sets its picture with the `background:`
- * shorthand, and hovering it made the cover vanish. A placeholder's stripes
+ * shorthand, and hovering it would make the cover vanish. A placeholder's stripes
  * are a picture too. A picture set from a stylesheet can't be seen by any
  * attribute selector, so such an element says so with `data-picture`.
  *
- * Some things hover as one (c487): a library tile is three buttons (the cover
- * and title, the rating, FAV), and tinting each on its own grayed a patchwork
- * of its rectangle. The tile carries `data-hover="group"` and is tinted
+ * Some things hover as one: a library tile is three buttons (the cover and
+ * title, the rating, FAV), and tinting each on its own grays a patchwork of
+ * its rectangle. The tile carries `data-hover="group"` and is tinted
  * whole; a part whose hover is the group's carries `data-hover="off"`. A
  * part with a response of its own (the rating, FAV) keeps it, on top.
  */
@@ -137,12 +137,12 @@
  * and the screen only fades over it. Not on a TV (pointer: none), where the
  * remote moves a key at a time and the ten-foot layout answers at once.
  *
- * `backwards`, never `both` or `forwards` (c426): a finished animation that
+ * `backwards`, never `both` or `forwards`: a finished animation that
  * keeps filling its last frame still sets `translate` on the screen, and an
  * element with a translate is the containing block of every `position: fixed`
- * inside it. FILTER's scrim then began a sidebar's width past the sidebar and
- * was only as tall as the screen's content, and a sheet's scrim missed the
- * screen's left edge. Ended, the screen must hold nothing.
+ * inside it. FILTER's scrim would then begin a sidebar's width past the
+ * sidebar and be only as tall as the screen's content, and a sheet's scrim
+ * would miss the screen's left edge. Ended, the screen must hold nothing.
  */
 @media (pointer: fine), (pointer: coarse) {
 	[data-arrived] > .route-view > *,

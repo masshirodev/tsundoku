@@ -14,7 +14,7 @@
 	import { lockPageWhileShown } from '$lib/scroll-lock';
 
 	/**
-	 * FILTER (Library Filters turn 3, card c68; doc/FILTERS.md): a cell that
+	 * FILTER (doc/FILTERS.md): a cell that
 	 * opens a panel of every filter, one row each, that narrows whichever
 	 * shelf is showing. RATING is one line: ANY, UNRATED, AT LEAST and the
 	 * blocks, where dragging the blocks picks AT LEAST by itself.
@@ -27,7 +27,7 @@
 	 *   person's page).
 	 *
 	 * The caller places it: at the end of the library's KIND band on phone,
-	 * tablet and TV (`band`, c436), in the top bar beside SELECT on the desktop
+	 * tablet and TV (`band`), in the top bar beside SELECT on the desktop
 	 * (`wide`, 640px from the right), and beside a person's page's tabs.
 	 */
 	let {
@@ -73,16 +73,16 @@
 		reading?: boolean;
 		/** The kinds on the shelf: KIND is offered where there are two to tell apart. */
 		kinds?: readonly FilterKind[];
-		/** At the KIND band's end (c436): the band's 40px row and 13px type. */
+		/** At the KIND band's end: the band's 40px row and 13px type. */
 		band?: boolean;
-		/** FILTER's KIND row: off on the library, where the KIND band is that choice (c436). */
+		/** FILTER's KIND row: off on the library, where the KIND band is that choice. */
 		kindRow?: boolean;
-		/** FORM (SERIES · ONE-OFF, c436): the library's; a person's page has none. */
+		/** FORM (SERIES · ONE-OFF): the library's; a person's page has none. */
 		formRow?: boolean;
-		/** Whether the badge counts a kind: not where the band shows it (c436). */
+		/** Whether the badge counts a kind: not where the band shows it. */
 		countKind?: boolean;
 		/**
-		 * A choice is being made here (c557): a row's cell, CLEAR ALL, the date,
+		 * A choice is being made here: a row's cell, CLEAR ALL, the date,
 		 * or the rating blocks, with the click when there is one. Called before
 		 * the navigation it starts, so the caller can say where the page should
 		 * land once it has drawn (the library's pinned band); it navigates
@@ -94,10 +94,10 @@
 	} = $props();
 
 	/**
-	 * The <details> is the truth and `open` only follows it (c105). Before
-	 * hydration a tap opens it natively; `bind:open` then wrote its `false`
+	 * The <details> is the truth and `open` only follows it. Before
+	 * hydration a tap opens it natively; `bind:open` would then write its `false`
 	 * back on mount and shut the panel under the finger, so on a slow tablet
-	 * a fast first tap came to nothing. Read once on mount, kept by `toggle`,
+	 * a fast first tap would come to nothing. Read once on mount, kept by `toggle`,
 	 * and closed through the element.
 	 */
 	const tvScreen = new MediaQuery(TV, false);
@@ -119,7 +119,7 @@
 		if (open && panel) panel.scrollIntoView({ block: 'nearest' });
 	});
 	// The page under the scrim holds still while the panel is open, as it does
-	// under a sheet (c1033): a drag on the scrim scrolled the library behind
+	// under a sheet: a drag on the scrim would scroll the library behind
 	// it. The panel scrolls itself instead, so its last rows stay reachable on
 	// a short screen. Only while it is drawn: the top bar's is hidden with its
 	// cell below 1024px, open or not.
@@ -197,7 +197,7 @@
 					{#if row.key === 'rating'}
 						<!-- The blocks are RatingSlider's own links and drag, which call
 						     nothing back: a press on them, or a key that moves them, is a
-						     choice being made (c557). Only what RatingSlider acts on: the
+						     choice being made. Only what RatingSlider acts on: the
 						     press goes with its button (a right-click drags nothing), Enter
 						     follows the focused block's link, and ← → move it on a TV only;
 						     Home, End and Space move nothing anywhere. -->
@@ -267,7 +267,7 @@
 </details>
 
 <style>
-	/* Library Filters.dc.html, turn 3, transcribed: the mock's literals; colours are tokens. */
+	/* The design's literals; colours are tokens. */
 	.filter {
 		display: flex;
 		flex-shrink: 0;
@@ -293,17 +293,17 @@
 		display: none;
 	}
 	/* A <details> doesn't stretch its summary, so the top bar's cell takes the
-	   bar's height itself (3j). */
+	   bar's height itself. */
 	.wide .cell {
 		padding: 0 20px;
 		height: calc(var(--header-h) - 1px);
 	}
-	/* The desktop's scrim leaves the sidebar and the top bar lit (3j). */
+	/* The desktop's scrim leaves the sidebar and the top bar lit. */
 	.wide .scrim {
 		top: var(--header-h);
 		left: var(--sidebar-w);
 	}
-	/* At the KIND band's end (Kinds Calls 05, "FILTER CELL"): the band's own
+	/* At the KIND band's end: the band's own
 	   type, 13px, and its padding, 0 14px; the TV's 17px and 0 18px. */
 	.band .cell {
 		gap: 6px;
@@ -349,7 +349,7 @@
 		margin-top: 1px;
 		display: flex;
 		flex-direction: column;
-		/* The page is locked while it is open (c1033), so the panel scrolls
+		/* The page is locked while it is open, so the panel scrolls
 		   itself, as BROWSE's filter does, and its scroll ends at its edge. */
 		max-height: 70dvh;
 		overflow-y: auto;
@@ -503,7 +503,7 @@
 		font: 500 14px var(--font-mono);
 		cursor: pointer;
 	}
-	/* The phone (3d): each label above its choices, so RATING still gets a
+	/* The phone: each label above its choices, so RATING still gets a
 	   whole line for ANY, AT LEAST and the blocks. */
 	@media (max-width: 599px) {
 		.row {

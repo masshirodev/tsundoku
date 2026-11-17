@@ -31,14 +31,14 @@
 	}
 }
 /*
- * The TV (c238; doc/TV.md, "The design"; TV Calls.dc.html's `sizes`). Last,
+ * The TV (doc/TV.md, "The design"). Last,
  * after the desktop block, because a 1280-wide TV matches the 1024px width
  * rules above and must take this instead. `pointer: none` is true only where
  * there is no pointer: phones and tablets say coarse, a computer says fine.
  * The width keeps a small pointerless browser out; a TV with an air mouse
  * reports a pointer and keeps the layout it can point at.
  *
- * Sizes are the handoff's, in its 960x540 frame: 48px safe margin left and
+ * Sizes are in a 960x540 frame: 48px safe margin left and
  * right, 56px header, six 144px columns, CONTINUE three across, every
  * focusable thing at least 56 tall, and a 15px floor on the type.
  */

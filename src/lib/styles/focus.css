@@ -1,7 +1,6 @@
 /*
- * The focus mark (card c234; doc/FOCUS.md; the design's TV-Focus board, "The
- * mark"). One treatment everywhere: a 4px frame of text ink held 3px off the
- * thing by the page's own colour.
+ * The focus mark (doc/FOCUS.md). One treatment everywhere: a 4px frame
+ * of text ink held 3px off the thing by the page's own colour.
  *
  * Outside a thing that stands alone -- a cover, a button, a chip, a field.
  * Inside a cell of a ruled block -- a list row, a tab, a bar cell -- so the

@@ -42,7 +42,7 @@
 				href={(k) => (k === 'all' ? resolve('/') : `${resolve('/')}?shelf=${k}`)}
 			/>
 		</div>
-		<!-- The KIND band's row (c436), in outline: its counts are the next
+		<!-- The KIND band's row, in outline: its counts are the next
 		     screen's to say, so only the row's place is drawn. -->
 		<div class="kinds" aria-hidden="true"><i></i><i></i><i></i></div>
 		<GridOutline />
@@ -136,7 +136,7 @@
 	.tabs {
 		padding: 0 var(--pad) 12px;
 	}
-	/* The library's KIND band (c436), as an empty 40px row of grey cells. */
+	/* The library's KIND band, as an empty 40px row of grey cells. */
 	.kinds {
 		display: flex;
 		align-items: center;

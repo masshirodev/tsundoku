@@ -11,7 +11,7 @@
 	} from '$lib/library/works';
 
 	/**
-	 * A Work in the library grid (Work-Library, B1; doc/WORKS.md, "The one
+	 * A Work in the library grid (doc/WORKS.md, "The one
 	 * rule"): browsing shows the run as one tile. Its cover is the part CONTINUE
 	 * opens -- the part on the shelf being browsed -- and two hairline frames
 	 * stand behind it to say "more than one". The foot draws one segment per
@@ -145,7 +145,7 @@
 		min-width: 0;
 	}
 	/*
-	 * Two hairline frames stand behind the cover (Work-Library): a Work is more
+	 * Two hairline frames stand behind the cover: a Work is more
 	 * than the part its face shows. They are the cover's own box-shadow so the
 	 * tile's height stays the cover's, and the ink hairline is what a themed
 	 * library still reads.
@@ -240,7 +240,7 @@
 		border-color: var(--accent);
 		background: var(--accent);
 	}
-	/* The phone's foot says the place in fewer words (Work-Phone). */
+	/* The phone's foot says the place in fewer words. */
 	@media (max-width: 599px) {
 		.long {
 			display: none;
@@ -249,7 +249,7 @@
 			display: inline;
 		}
 	}
-	/* A TV's caption is gone, like any other tile's (c238). */
+	/* A TV's caption is gone, like any other tile's. */
 	@media (pointer: none) and (min-width: 900px) {
 		.open {
 			gap: 0;

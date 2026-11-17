@@ -1,5 +1,5 @@
 /*
- * Index theme, from the Claude Design system (doc/design/). Dark (Graphite /
+ * Index theme, from the design system (doc/design/). Dark (Graphite /
  * lime) is the default; light (Paper / ink) via [data-theme="light"].
  * Transcribed verbatim -- change the design system first, then this.
  */
@@ -37,7 +37,7 @@
 	--accent: var(--lime-400);
 	--on-accent: var(--graphite-950);
 	--accent-highlight: oklch(0.86 0.17 125 / 0.3);
-	/* A selected list row: the series handoff's multi-select tint. */
+	/* A selected list row: the series screen's multi-select tint. */
 	--accent-select: oklch(0.86 0.17 125 / 0.12);
 	/* Long prose (a series' ABOUT): softer than --text-1, firmer than --text-2. */
 	--text-prose: #b4b6b8;
