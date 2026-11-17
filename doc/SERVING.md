@@ -6,7 +6,7 @@ opens is the build:
 
 ```sh
 yarn run build
-yarn run serve     # https://workstation.example.ts.net:8443
+yarn run serve     # https://<machine>.<tailnet>.ts.net:8443
 ```
 
 ## From boot, and again when it stops

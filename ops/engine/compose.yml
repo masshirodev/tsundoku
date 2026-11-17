@@ -23,7 +23,7 @@ services:
     ports:
       - 127.0.0.1:4591:8080
     environment:
-      TZ: America/Cuiaba
+      TZ: ${TZ:-UTC}
       ENGINE_TOKEN: ${ENGINE_TOKEN:?}
       # Loaded APKs, under their handle, so a restart isn't a 409 per source.
       ENGINE_APK_DIR: /data/apks
@@ -49,5 +49,5 @@ services:
     ports:
       - 127.0.0.1:8193:8191
     environment:
-      TZ: America/Cuiaba
+      TZ: ${TZ:-UTC}
       LOG_LEVEL: info

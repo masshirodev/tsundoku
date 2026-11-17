@@ -192,8 +192,8 @@ latest.json, and rsyncs `site/build/` to the VPS:
 
 ```sh
 rsync -rlz --delete-delay --delay-updates --checksum \
-  -e 'ssh -p 8443 -i ~/.ssh/site -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts' \
-  site/build/ masshiro@vps.example:public/
+  -e "ssh -p $SITE_SSH_PORT -i ~/.ssh/site -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts" \
+  site/build/ "$SITE_DEPLOY_TARGET:public/"
 ```
 
 - **`SITE_DEPLOY_KEY`**: a key used for nothing else, locked on the VPS by
@@ -201,10 +201,11 @@ rsync -rlz --delete-delay --delay-updates --checksum \
   writing that one folder: no shell, no reading, nothing else.
 - **The destination is named**, `public/` (what Caddy serves), never a bare
   `host:`. Through rrsync they'd be the same folder, but without the lock a bare
-  `host:` is the home directory, and an `rsync --delete` aimed at one deleted
-  most of the VPS home on 2026-11-03 (Masshiro card c60).
-- **`SITE_KNOWN_HOSTS`**: the VPS's host key line for `[vps.example]:8443`,
-  pinned; it is never learned on first contact. SSH on the VPS listens on 8443.
+  `host:` is the home directory, and an `rsync --delete` aimed there empties it.
+- **`SITE_KNOWN_HOSTS`**: the server's host key line (`[host]:port ssh-ed25519 …`),
+  pinned; it is never learned on first contact.
+- **`SITE_DEPLOY_TARGET`** (`user@host`) and **`SITE_SSH_PORT`**: where it
+  deploys, kept as secrets so the public repository doesn't name the server.
 - `--delay-updates` and `--delete-delay` swap the new files in at the end and
   remove the old after, so a visitor mid-deploy gets one version or the other.
   Old hashed assets go with the next deploy, which is safe because the new

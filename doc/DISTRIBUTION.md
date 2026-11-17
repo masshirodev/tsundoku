@@ -52,7 +52,7 @@ Measured 2026-10-29, the things a fresh machine trips over:
   The same link is why `yarn add` in a wave worktree damages the lock: see
   [Adding a dependency](#adding-a-dependency-and-in-a-wave-worktree).
 - **The engine** is an image built locally from the private `tsundoku-engine`
-  repo, and its compose file mounts `/mnt/hdd2` and pins `TZ=America/Cuiaba`.
+  repo, and its compose file mounts `/mnt/hdd2` and takes `TZ` from the environment (UTC by default).
 - **External binaries**: `ffmpeg`/`ffprobe` for anime, FlareSolverr beside the
   engine, a Java runtime under the engine. An episode's opening and ending are
   found with chromaprint (`doc/ANIME.md`, "Openings and endings"), and a

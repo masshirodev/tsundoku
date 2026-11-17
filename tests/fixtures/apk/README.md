@@ -1,7 +1,9 @@
 # Real extension APKs
 
 Two of Keiyoushi's extensions, as its repository published them, from
-<https://github.com/keiyoushi/extensions-source> (Apache-2.0):
+<https://github.com/keiyoushi/extensions-source>, redistributed unmodified
+under the Apache License 2.0, whose text is in
+[`LICENSE-APACHE-2.0.txt`](LICENSE-APACHE-2.0.txt):
 
 | File                                | Extension    | sha256                                                             |
 | ----------------------------------- | ------------ | ------------------------------------------------------------------ |

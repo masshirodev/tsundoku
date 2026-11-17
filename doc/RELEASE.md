@@ -437,7 +437,7 @@ issues at most five a week for one exact name. With the one fixed name,
 2026.10.30.9's smoke failed twice on the probe's connect timeout: Tailscale's
 log on Zen said `429 rateLimited: too many certificates (5) already issued for
 this exact set of identifiers`. A name per run spends the tailnet's other
-budget instead: 50 certificates a week for `example.ts.net` as a whole
+budget instead: 50 certificates a week for the tailnet's domain as a whole
 (`ts.net` is a public suffix, so each tailnet counts as its own domain),
 shared with the owner's own machines. A day of many releases fits; a loop of
 smoke runs would not. Each run's node is ephemeral and leaves the admin

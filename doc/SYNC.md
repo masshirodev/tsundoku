@@ -191,7 +191,7 @@ On the tablet:
    battery settings, set it to **Unrestricted**, or Android stops it in the
    background.
 2. **Add the workstation** as a device with its ID. Under the device's
-   addresses, add `tcp://workstation.example.ts.net:22000` beside `dynamic`,
+   addresses, add `tcp://<machine>.<tailnet>.ts.net:22000` beside `dynamic`,
    so it connects over Tailscale away from home as well.
 3. **Add three folders**, each shared with the workstation, with these
    **labels**, which is how the setup places them: `Mihon`, `Hentoid`,

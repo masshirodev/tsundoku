@@ -10,7 +10,7 @@ this page is the PWA.
 
 ## Once, on the tablet
 
-1. Open **https://workstation.example.ts.net:8443** in Chrome. Tailscale has
+1. Open **https://<machine>.<tailnet>.ts.net:8443** in Chrome. Tailscale has
    to be on, and the workstation serving (`yarn run serve`, see
    [`SERVING.md`](SERVING.md)).
 2. Sign in with `TSUNDOKU_TOKEN` from the workstation's `.env`. The session

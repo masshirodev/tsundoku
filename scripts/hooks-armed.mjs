@@ -14,13 +14,11 @@ import { fileURLToPath } from 'node:url';
  * run nothing and say nothing: every commit and every push succeeds, silently,
  * with no check having run.
  *
- * Waves 18-20 of this repo's parallel-agent batches ran fifteen agent-slots in Kumiko that
- * way. Each of them reported that the hooks had passed. None of them had a hook
- * installed, and there was no way to tell from inside the worktree -- which is
- * the whole reason this file exists as a check rather than as a line in a
- * setup procedure. The remedy was "the coordinator remembers to run
- * `npx husky`", and fifteen slots is a large enough sample to say that a
- * procedure nobody can verify is not a control.
+ * Agents working in parallel worktrees ran that way for a while, each
+ * reporting that the hooks had passed while none had a hook installed, and
+ * nothing inside the worktree could tell. A procedure ("remember to run
+ * `npx husky`") is not a control when nobody can verify it, so this is a
+ * check instead.
  *
  * ### Where this has to run, and why it cannot run in a hook
  *
@@ -47,11 +45,12 @@ import { fileURLToPath } from 'node:url';
  *
  * ### When it stays quiet
  *
- * Outside a git work tree there are no hooks to arm and nothing to say. That is
- * the image build (`git archive` and the Dockerfile's `COPY`, neither of which
- * carries `.git`), and a deploy tarball. Both are checked for explicitly rather
- * than inferred from an error, because "git failed for some reason" and "this
- * is not a repository" want different answers.
+ * Outside a git work tree there are no hooks to arm and nothing to say: a
+ * deploy tarball or `git archive` output carries no `.git`. That is checked
+ * explicitly rather than inferred from an error, because "git failed for some
+ * reason" and "this is not a repository" want different answers. On CI (`CI`
+ * set) it stays quiet too: no one commits from a runner, so there is nothing
+ * for hooks to guard.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -187,7 +186,7 @@ export function auditHooks(options = {}) {
 if (import.meta.url === `file://${resolve(process.argv[1] ?? '')}`) {
 	// No colour, like every other script under scripts/: the hooks add their own
 	// and a script that adds a second layer prints escapes into a CI log.
-	if (process.env.SKIP_ALL || process.env.SKIP_HOOKS) {
+	if (process.env.SKIP_ALL || process.env.SKIP_HOOKS || process.env.CI) {
 		console.log('[skip] hook arming check');
 		process.exit(0);
 	}

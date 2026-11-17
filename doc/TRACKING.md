@@ -41,7 +41,7 @@ On SETTINGS, **06 — CATALOGUES**. Each catalogue's app is registered by the
 owner. Its keys (`ANILIST_CLIENT_ID`/`_SECRET`, `MAL_CLIENT_ID`/`_SECRET`)
 are in Infisical and pulled into `.env` ([`SECRETS.md`](SECRETS.md)). Each
 app's redirect is registered as exactly
-`https://workstation.example.ts.net:8443/settings/catalogues/<anilist|mal>`.
+`https://<machine>.<tailnet>.ts.net:8443/settings/catalogues/<anilist|mal>`.
 
 | Catalogue | Grant                                              | Token                                            |
 | --------- | -------------------------------------------------- | ------------------------------------------------ |

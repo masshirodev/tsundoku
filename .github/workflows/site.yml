@@ -1,20 +1,17 @@
-# Builds tsundoku's website and puts it on the VPS (doc/WEBSITE.md, "Deploy").
+# Builds tsundoku's website and puts it on the server (doc/WEBSITE.md, "Deploy").
 #
 # Runs on a push to main that touches what the page is made of, and on
 # dispatch: ops/release/publish.ts dispatches it after a release, so the
 # download block shows the new version within minutes. The build reads the
 # live latest.json and stops if its signature doesn't verify.
 #
-# The deploy key is locked on the VPS (authorized_keys, `restrict` and
-# `command="rrsync ..."`) to writing the one folder Caddy serves at
-# tsundoku.masshiro.pro (rooted at ~/sites/tsundoku, write-only): it can't
-# open a shell, read, or reach anything else. The destination is still named
-# (public/, which Caddy serves), never a bare `host:`: without the lock that is
-# the home directory, and an rsync --delete aimed at one deleted most of the
-# VPS home on 2026-11-03 (Masshiro c60). SSH
-# on the VPS listens on 8443, and the host key is pinned (SITE_KNOWN_HOSTS
-# holds the `[vps.example]:8443 ssh-ed25519 ...` line), never learned on
-# first contact.
+# The deploy key is locked on the server (authorized_keys, `restrict` and
+# `command="rrsync ..."`) to writing the one folder the site is served from:
+# it can't open a shell, read, or reach anything else. The destination names
+# that folder (public/), never a bare `host:`, which without the lock would be
+# the home directory. The host key is pinned (SITE_KNOWN_HOSTS), never learned
+# on first contact. Where it deploys (SITE_DEPLOY_TARGET, `user@host`) and the
+# SSH port (SITE_SSH_PORT) are secrets too, so forks and readers never see them.
 name: site
 
 on:
@@ -66,12 +63,14 @@ jobs:
         env:
           SITE_DEPLOY_KEY: ${{ secrets.SITE_DEPLOY_KEY }}
           SITE_KNOWN_HOSTS: ${{ secrets.SITE_KNOWN_HOSTS }}
+          SITE_DEPLOY_TARGET: ${{ secrets.SITE_DEPLOY_TARGET }}
+          SITE_SSH_PORT: ${{ secrets.SITE_SSH_PORT }}
         run: |
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SITE_DEPLOY_KEY" > ~/.ssh/site
           chmod 600 ~/.ssh/site
           printf '%s\n' "$SITE_KNOWN_HOSTS" > ~/.ssh/known_hosts
           rsync -rlz --delete-delay --delay-updates --checksum \
-            -e 'ssh -p 8443 -i ~/.ssh/site -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts' \
-            site/build/ masshiro@vps.example:public/
+            -e "ssh -p $SITE_SSH_PORT -i ~/.ssh/site -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts" \
+            site/build/ "$SITE_DEPLOY_TARGET:public/"
           rm -f ~/.ssh/site

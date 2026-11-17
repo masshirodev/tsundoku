@@ -1091,7 +1091,7 @@ ANIME`, and its CHANGE, the line's accent, is the door.
 - **Tracking** shipped ([`TRACKING.md`](TRACKING.md)); on the series screen
   its lines are LISTS' since c424. What this list still says of it (the
   owner's app registrations, the redirect on
-  `https://workstation.example.ts.net:8443`) is TRACKING.md's to keep.
+  `https://<machine>.<tailnet>.ts.net:8443`) is TRACKING.md's to keep.
 - **A second part that starts anywhere but after part 1's count** (c350).
   It needs a start column on `series_season_links` (a rung, and `partsOf`
   and `targets()` reading it); until then `FROM EP. n` is part 1's count +
