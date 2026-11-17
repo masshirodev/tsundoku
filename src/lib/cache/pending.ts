@@ -31,6 +31,19 @@ export function queuePending(body: string): void {
 	write([...read(), body]);
 }
 
+/**
+ * Whether an answer means this event will never be taken, so it is dropped
+ * rather than left to block the rest behind it: a 4xx about the event itself
+ * (an entry since removed, a series hidden again, a body the server can't
+ * read). Everything else keeps the queue for the next try: a 5xx or no answer
+ * is the workstation not ready yet, which is the very case the queue exists
+ * for, and a 401, 403, 408 or 429 says something about this browser or this
+ * moment, not about the event.
+ */
+export function refusedForGood(status: number): boolean {
+	return status >= 400 && status < 500 && ![401, 403, 408, 429].includes(status);
+}
+
 let flushing = false;
 
 /** Send what was kept, oldest first; stop at the first that doesn't go through. */
@@ -50,9 +63,7 @@ export async function flushPending(): Promise<void> {
 			} catch {
 				return;
 			}
-			// A 4xx (an entry since removed, a series hidden again) will never
-			// succeed: drop it rather than block the rest behind it.
-			if (!res.ok && res.status < 400) return;
+			if (!res.ok && !refusedForGood(res.status)) return;
 			items = items.slice(1);
 			write(items);
 		}
