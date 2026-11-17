@@ -6,7 +6,7 @@ import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { zip } from '../zip-write.ts';
 import { listZip, readMember } from '../zip.ts';
-import { publicFetch } from '../net-guard.ts';
+import { publicFetch, readCapped } from '../net-guard.ts';
 import { imageType } from '../engine/protocol.ts';
 import { TSUNDOKU_DEVICE } from '../engine/device.ts';
 import { failed, isPaused, nextUp, queueRows, recover } from '../engine/queue.ts';
@@ -168,9 +168,8 @@ export const fetchImage: ImageFetch = async (url, referer) => {
 			},
 			signal: AbortSignal.timeout(20_000)
 		});
-		if (!res.ok || Number(res.headers.get('content-length') ?? 0) > MAX_IMAGE_BYTES) return null;
-		const bytes = Buffer.from(await res.arrayBuffer());
-		return bytes.length > MAX_IMAGE_BYTES ? null : bytes;
+		if (!res.ok) return null;
+		return await readCapped(res, MAX_IMAGE_BYTES);
 	} catch {
 		return null;
 	}

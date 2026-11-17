@@ -15,7 +15,7 @@ import { getSetting } from './settings.ts';
 import { openingEdition } from '../library/editions.ts';
 import { linkCover } from './catalogue.ts';
 import { engineAuth } from './engine/auth.ts';
-import { publicFetch } from './net-guard.ts';
+import { publicFetch, readCapped } from './net-guard.ts';
 import { dataPaths } from './data-dirs.ts';
 import { kindFacts, type Kind } from '../library/kinds.ts';
 
@@ -308,6 +308,9 @@ export async function refreshSeriesCover(seriesId: number): Promise<CoverResult>
 	return s ? refreshCover(s, false) : 'none';
 }
 
+/** A cover is a picture: a body past this is something else, and is not read to the end. */
+const MAX_COVER_BYTES = 20 * 1024 * 1024;
+
 function remoteSource(s: SeriesRow): Source | null {
 	if (!/^https?:\/\//.test(s.cover_url)) return null;
 	const url = s.cover_url.replace(/#.*$/, '');
@@ -333,7 +336,7 @@ function remoteSource(s: SeriesRow): Source | null {
 				signal: AbortSignal.timeout(15_000)
 			});
 			if (!res.ok) return null;
-			return Buffer.from(await res.arrayBuffer());
+			return readCapped(res, MAX_COVER_BYTES);
 		}
 	};
 }
@@ -349,7 +352,7 @@ function linkSource(s: SeriesRow): Source | null {
 				headers: { accept: 'image/avif,image/webp,image/*,*/*;q=0.8' },
 				signal: AbortSignal.timeout(15_000)
 			});
-			return res.ok ? Buffer.from(await res.arrayBuffer()) : null;
+			return res.ok ? readCapped(res, MAX_COVER_BYTES) : null;
 		}
 	};
 }

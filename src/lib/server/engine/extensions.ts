@@ -17,6 +17,7 @@ import {
 } from './repo-index.ts';
 import { dataPaths } from '../data-dirs.ts';
 import { apkUsesWebView } from './apk-webview.ts';
+import { readCapped, readCappedText } from '../net-guard.ts';
 
 /**
  * Repositories, installed extensions and their sources' preferences
@@ -59,13 +60,20 @@ export type Fetcher = (url: string) => Promise<{
 	json(): Promise<unknown>;
 	bytes(): Promise<Uint8Array>;
 }>;
+/**
+ * What a repository may send: an index is text, an APK is an app of a few
+ * megabytes. Past these it is not what it says, and is not read to the end.
+ */
+const MAX_INDEX_BYTES = 32 * 1024 * 1024;
+const MAX_APK_BYTES = 128 * 1024 * 1024;
+
 const netFetch: Fetcher = async (url) => {
 	const res = await fetch(url, { signal: AbortSignal.timeout(60_000) });
 	return {
 		ok: res.ok,
 		status: res.status,
-		json: () => res.json(),
-		bytes: async () => new Uint8Array(await res.arrayBuffer())
+		json: async () => JSON.parse(await readCappedText(res, MAX_INDEX_BYTES)) as unknown,
+		bytes: async () => new Uint8Array(await readCapped(res, MAX_APK_BYTES))
 	};
 };
 

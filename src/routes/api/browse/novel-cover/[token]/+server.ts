@@ -1,7 +1,7 @@
 import { error, isHttpError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { coverAddress } from '$lib/server/novels/source';
-import { publicFetch } from '$lib/server/net-guard';
+import { publicFetch, readCapped } from '$lib/server/net-guard';
 import { imageType } from '$lib/server/engine/protocol';
 import { thumbnail } from '$lib/server/covers';
 
@@ -32,14 +32,13 @@ export const GET: RequestHandler = async ({ params }) => {
 			},
 			signal: AbortSignal.timeout(20_000)
 		});
-		if (!res.ok || Number(res.headers.get('content-length') ?? 0) > MAX_BYTES)
-			error(404, 'no cover');
-		bytes = Buffer.from(await res.arrayBuffer());
+		if (!res.ok) error(404, 'no cover');
+		bytes = await readCapped(res, MAX_BYTES);
 	} catch (e) {
 		if (isHttpError(e)) throw e;
 		error(404, 'no cover');
 	}
-	if (bytes.length > MAX_BYTES || !imageType(new Uint8Array(bytes))) error(404, 'no cover');
+	if (!imageType(new Uint8Array(bytes))) error(404, 'no cover');
 	let webp: Buffer;
 	try {
 		webp = await thumbnail(bytes);

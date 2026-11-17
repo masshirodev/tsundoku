@@ -6,7 +6,7 @@ import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { coverDir, loadSharp } from '../covers.ts';
 import { engineMedia, engineMediaPath } from '../engine/client.ts';
-import { publicFetch } from '../net-guard.ts';
+import { publicFetch, readCapped } from '../net-guard.ts';
 import { frameAt, isBlankFrame, PICTURE_H, PICTURE_W } from '../../library/episode-pictures.ts';
 import { loopback } from './loopback.ts';
 import { episodeFile, episodeStreams, probe, videoOnly } from './streams.ts';
@@ -75,8 +75,8 @@ async function sourcePicture(url: string): Promise<Buffer | null> {
 		: await publicFetch(url, { signal: AbortSignal.timeout(30_000) });
 	if (!res.ok) return null;
 	if (!/^image\//i.test(res.headers.get('content-type') ?? 'image/')) return null;
-	const body = Buffer.from(await res.arrayBuffer());
-	return body.length && body.length <= MAX_PICTURE ? body : null;
+	const body = await readCapped(res, MAX_PICTURE).catch(() => null);
+	return body && body.length ? body : null;
 }
 
 /**

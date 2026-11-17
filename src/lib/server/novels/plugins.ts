@@ -14,6 +14,7 @@ import {
 import { NovelHost, type HostOptions } from './host.ts';
 import { fetchPage, solveChallenge } from './solver.ts';
 import { dataPaths } from '../data-dirs.ts';
+import { readCappedText } from '../net-guard.ts';
 import { NO_EXT_FILTERS, searchMatches, type ExtFilters } from '../../library/ext-filters.ts';
 
 /**
@@ -55,7 +56,13 @@ export type Fetcher = (url: string) => Promise<{
 	status: number;
 	text(): Promise<string>;
 }>;
-const netFetch: Fetcher = (url) => fetch(url, { signal: AbortSignal.timeout(60_000) });
+/** An index or a plugin is text of a few hundred kilobytes: past this it is something else. */
+const MAX_TEXT_BYTES = 32 * 1024 * 1024;
+
+const netFetch: Fetcher = async (url) => {
+	const res = await fetch(url, { signal: AbortSignal.timeout(60_000) });
+	return { ok: res.ok, status: res.status, text: () => readCappedText(res, MAX_TEXT_BYTES) };
+};
 
 async function getIndex(url: string, fetcher: Fetcher): Promise<NovelListing[]> {
 	const res = await fetcher(url);

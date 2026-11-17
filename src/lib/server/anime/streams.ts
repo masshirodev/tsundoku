@@ -5,7 +5,7 @@ import { statSync } from 'node:fs';
 import { join } from '../fspath.ts';
 import { getDb } from '../db.ts';
 import { VISIBLE_SQL } from '../visibility.ts';
-import { publicFetchAt } from '../net-guard.ts';
+import { publicFetchAt, readCappedText } from '../net-guard.ts';
 import { engineMedia, engineMediaPath, EngineError } from '../engine/client.ts';
 import { callSource } from '../engine/backend.ts';
 import { USER_AGENT } from '../engine/protocol.ts';
@@ -143,7 +143,13 @@ export async function serveMedia(token: string, range: string | null): Promise<R
 	const looksLikePlaylist =
 		/mpegurl/i.test(type) || /\.m3u8(\?|$)/i.test(new URL(url).pathname + new URL(url).search);
 	if (looksLikePlaylist && (!length || length <= MAX_PLAYLIST)) {
-		const text = await res.text();
+		// Counted, not trusted: a playlist sent in chunks has no length to check.
+		let text: string;
+		try {
+			text = await readCappedText(res, MAX_PLAYLIST);
+		} catch (e) {
+			throw new StreamError(`the playlist could not be read (${(e as Error).message})`, 502);
+		}
 		if (isPlaylist(text))
 			return new Response(
 				rewritePlaylist(text, url, (abs) =>
@@ -184,7 +190,7 @@ async function serveMaster(m: NonNullable<Target['master']>): Promise<Response> 
 	let head = '';
 	try {
 		const { res } = await fetchTarget(video, null);
-		head = res.ok ? await res.text() : '';
+		head = res.ok ? await readCappedText(res, MAX_PLAYLIST) : '';
 	} catch {
 		// The video's own request says what's wrong, when the player makes it.
 	}
@@ -548,7 +554,9 @@ export async function probe(
 	if (t.master) return probe(mediaRoute(t.master.video));
 	const text = async (target: Target) => {
 		const { res, url } = await fetchTarget(target, null);
-		return { text: res.ok ? await res.text() : '', url };
+		// A file that is not a playlist (an MP4) is not read to its end to find that out.
+		const text = res.ok ? await readCappedText(res, MAX_PLAYLIST).catch(() => '') : '';
+		return { text, url };
 	};
 	const top = await text(t);
 	if (!isPlaylist(top.text)) return { seconds: null, bandwidth: null };

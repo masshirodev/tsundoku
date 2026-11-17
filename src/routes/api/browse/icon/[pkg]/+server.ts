@@ -7,6 +7,7 @@ import { isRevealed } from '$lib/server/prefs';
 import { findListing, iconsDir } from '$lib/server/engine/extensions';
 import { browseSources } from '$lib/server/engine/browse';
 import { USER_AGENT } from '$lib/server/engine/protocol';
+import { publicFetch, readCapped } from '$lib/server/net-guard';
 import { findNovelListing, installedPlugins } from '$lib/server/novels/plugins';
 
 /**
@@ -20,6 +21,8 @@ import { findNovelListing, installedPlugins } from '$lib/server/novels/plugins';
  */
 
 const SIZE = 80;
+/** An icon is a small picture: past this it is something else. */
+const MAX_BYTES = 2 * 1024 * 1024;
 
 /**
  * An icon the viewer's lists could show: an installed extension with a
@@ -46,14 +49,16 @@ async function fetchIcon(pkg: string): Promise<Buffer | null> {
 		: findListing(pkg, getDb())?.iconUrl;
 	if (!iconUrl) return null;
 	try {
-		const res = await fetch(iconUrl, {
+		// The address is the repository's to name, so it stays on the internet,
+		// as any address a source names does (net-guard.ts).
+		const res = await publicFetch(iconUrl, {
 			headers: { 'user-agent': USER_AGENT },
 			signal: AbortSignal.timeout(10_000)
 		});
 		if (!res.ok) return null;
 		process.env.VIPS_WARNING ??= '0';
 		const sharp = (await import('sharp')).default;
-		return await sharp(Buffer.from(await res.arrayBuffer()), { failOn: 'none' })
+		return await sharp(await readCapped(res, MAX_BYTES), { failOn: 'none' })
 			.resize(SIZE, SIZE, { fit: 'cover' })
 			.webp({ quality: 80 })
 			.toBuffer();
