@@ -1,5 +1,5 @@
 /**
- * The scan behind doc/NOVELS.md's NovelFull note (c663): does any novel page
+ * The scan behind doc/NOVELS.md's NovelFull note: does any novel page
  * expose a chapter count? NovelFull 2.3.4 POSTs its archive only when `y` is
  * truthy, and `y` is set by `id="indexListPage"`'s `data-total-chapters` or by
  * a `window.chapterPagination` script. This fetches listing pages through the
@@ -9,15 +9,14 @@
  * Run it from the repository root, against the DEVELOPMENT solver:
  *
  *   NOVEL_SOLVER_URL=http://127.0.0.1:8193/v1 \
- *     node --experimental-strip-types doc/probes/novel-marks.ts \
+ *     node --experimental-strip-types scripts/probes/novel-marks.ts \
  *       'https://novelfull.com/latest-release-novel?page=1' \
  *       'https://novelfull.com/completed-novel?page=1' \
  *       'https://novelfull.com/hot-novel?page=1' \
  *       'https://novelfull.com/most-popular?page=2'
  *
- * `NOVELS=60` is how many collected links it walks (the default). It is the
- * same shape as the one-off scan run in wave 30, which printed `marks: none`
- * for all sixty. The site prefix is the first listing's origin. Nothing here is
+ * `NOVELS=60` is how many collected links it walks (the default). A run over
+ * these four listings printed `marks: none` for all sixty. The site prefix is the first listing's origin. Nothing here is
  * imported by the app or the suite.
  */
 process.env.DATABASE_PATH ??= ':memory:';

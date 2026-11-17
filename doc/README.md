@@ -90,4 +90,4 @@ One document per feature, screen or piece of the system. Start with
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): the map of the system and where each part is documented.
 - [`design/README.md`](design/README.md): the Index design system: tokens, terms and components.
 - [`TESTING.md`](TESTING.md): the two test runners and what to run before a commit.
-- [`probes/`](probes/): scripts that drive the real novel plugins against live sources and print what they measure.
+- [`../scripts/probes/`](../scripts/probes/): scripts that drive the real novel plugins against live sources and print what they measure.

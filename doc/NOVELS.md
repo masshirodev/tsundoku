@@ -423,11 +423,11 @@ POPULAR, a preview and a first chapter through the real host:
   "Unexpected token '<'": the site and the plugin have drifted apart. No solve
   is attempted.
 
-Two probes reproduce this from the commit. `doc/probes/novel-live.ts` drives
+Two probes reproduce this from the commit. `scripts/probes/novel-live.ts` drives
 POPULAR, a preview and a first chapter through the real host for each plugin,
 and prints every solve it performed beside its timing, every page page mode
 fetched, and the address a chapter's own request ended at.
-`doc/probes/novel-archive.ts` walks the first N novels of a plugin and prints
+`scripts/probes/novel-archive.ts` walks the first N novels of a plugin and prints
 which archive branch each took. The store holds one file per plugin, named by
 its id: each is the `url` LNReader's `.dist/plugins.min.json` publishes for
 it, so a run names the plugin version it measured. Run them against a
@@ -435,7 +435,7 @@ development solver, never a live one:
 
 ```sh
 NOVEL_SOLVER_URL=http://127.0.0.1:8193/v1 \
-  node --experimental-strip-types doc/probes/novel-live.ts \
+  node --experimental-strip-types scripts/probes/novel-live.ts \
     temp/plugins royalroad wuxiaworld novelfull scribblehub novelbin
 ```
 

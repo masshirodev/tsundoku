@@ -1,23 +1,22 @@
 /**
- * The live half of c152, reproducible from the commit (doc/NOVELS.md, "Measured
- * live again on 2026-11-02"). It drives the REAL plugin files through the REAL
+ * Reproduces doc/NOVELS.md's "Measured live" numbers from the commit. It drives the REAL plugin files through the REAL
  * plugin host and the app's REAL solve, and prints the numbers that section
  * quotes: POPULAR, a preview's chapter count, a chapter's size, and every solve
  * the app performed with how long it took.
  *
- * Nothing here is a fixture: the store is the owner's LNReader plugins, one
+ * Nothing here is a fixture: the store is a folder of LNReader plugins, one
  * `.js` per plugin named by its id. FlareSolverr 3.4.6 answers on
  * `NOVEL_SOLVER_URL` (the development solver, doc/EXTENSION-ENGINE.md):
  *
  *   NOVEL_SOLVER_URL=http://127.0.0.1:8193/v1 \
- *     node --experimental-strip-types doc/probes/novel-live.ts \
+ *     node --experimental-strip-types scripts/probes/novel-live.ts \
  *       temp/plugins royalroad wuxiaworld novelfull scribblehub novelbin
  *
  * Run it from the repository root. The numbers do drift: a site may change its
- * check, or a plugin may outgrow its site (Novel Bin's API answered the site's
- * SPA shell on 2026-11-02). The measurement wins, and the doc is corrected.
- * Since c335 it also prints every page fetched through the solver's browser,
- * and since c631 the address a chapter's own request ended at.
+ * check, or a plugin may outgrow its site (Novel Bin's API once answered with
+ * the site's SPA shell). The measurement wins, and the doc is corrected.
+ * It also prints every page fetched through the solver's browser, and the
+ * address a chapter's own request ended at.
  */
 process.env.DATABASE_PATH ??= ':memory:';
 process.env.NOVEL_SOLVER_URL ??= 'http://127.0.0.1:8193/v1';

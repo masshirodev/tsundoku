@@ -1,5 +1,5 @@
 /**
- * c663's live half: which branch of a plugin's chapter archive page mode
+ * Which branch of a plugin's chapter archive page mode
  * carries, and whether a POST that needs `X-Requested-With` survives it
  * (doc/NOVELS.md, "A check bound to the browser", "Measured live").
  *
@@ -17,13 +17,13 @@
  * Run it from the repository root, against the DEVELOPMENT solver:
  *
  *   NOVEL_SOLVER_URL=http://127.0.0.1:8193/v1 \
- *     node --experimental-strip-types doc/probes/novel-archive.ts \
+ *     node --experimental-strip-types scripts/probes/novel-archive.ts \
  *       temp/plugins novelfull 12
  *
  * A fourth argument asks for chapters: `… temp/plugins FWN.com 4 3` prints the
  * archive branch of four novels and the first chapter of three.
  *
- * The store is the owner's LNReader plugins, one `.js` per plugin named by its
+ * The store is a folder of LNReader plugins, one `.js` per plugin named by its
  * id. Nothing here is imported by the app or the suite.
  */
 process.env.DATABASE_PATH ??= ':memory:';
