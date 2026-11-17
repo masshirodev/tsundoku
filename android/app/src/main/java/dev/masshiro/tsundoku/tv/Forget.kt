@@ -11,7 +11,7 @@ package dev.masshiro.tsundoku.tv
  * the computer sets its cookies on (`/`, `PAIRED_COOKIE_OPTIONS`), with
  * `Secure` on an https origin so the write is accepted there. Pure, so
  * `ForgetTest` pins the lines; that CookieManager takes them is a device claim
- * (doc/TV-APP.md, "What is not verified").
+ * (doc/ANDROID.md, "Device checks").
  *
  * The jar scopes cookies by host, not port or scheme, so what `getCookie`
  * hands back for one server also holds every other server's on the same

@@ -6,7 +6,7 @@ import { thumbnail } from '$lib/server/covers';
 
 /**
  * A search result's or a preview's cover, through the engine's /image/ proxy
- * (doc/DOWNLOADER.md): the browser can reach neither the engine nor its
+ * (doc/DOWNLOADS.md): the browser can reach neither the engine nor its
  * token, so tsundoku passes it on, as /api/downloads/thumb does for
  * Suwayomi's once did. Only covers the viewer was shown link here; while reveal is on
  * hooks.server.ts sends every response no-store, these included.

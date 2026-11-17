@@ -1,6 +1,6 @@
 /**
  * The engine's headless WebView, in tsundoku's words (doc/EXTENSION-ENGINE.md,
- * "WebView support"; tsundoku-engine's doc/FORK.md, "Headless WebView"). The
+ * "Cloudflare and WebView extensions"; tsundoku-engine's doc/FORK.md, "Headless WebView"). The
  * engine runs extensions that use `android.webkit.WebView` in a Chromium
  * nobody sees, downloaded the first time one needs it, when the launcher starts
  * it with `ENGINE_WEBVIEW=on`. Off by default: it runs sites' scripts in

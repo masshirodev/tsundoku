@@ -30,7 +30,7 @@ export type Manifest = {
 	/** Changes when the files do, so a page URL can be cached as immutable. */
 	version: string;
 	pages: Page[];
-	/** Read from its source, not a file (doc/BROWSING.md, "Manga online"): nothing of it is kept. */
+	/** Read from its source, not a file (doc/READING-ONLINE.md, "Manga online"): nothing of it is kept. */
 	online?: true;
 };
 

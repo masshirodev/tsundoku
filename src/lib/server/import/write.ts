@@ -112,7 +112,7 @@ export function writeSeries(
 		 */
 		deviceRoot?: string;
 		/**
-		 * Write a series that doesn't exist yet as a browsing record (doc/BROWSING.md):
+		 * Write a series that doesn't exist yet as a browsing record (doc/READING-ONLINE.md):
 		 * opened from a source without ADD, on no shelf. One that exists keeps
 		 * whatever it is, so opening never takes a series out of the library.
 		 */

@@ -17,7 +17,7 @@ import {
 import { readSwitch, writeSwitch } from '$lib/server/engine/webview-switch';
 
 // The engine's WebView from the app's side (src/lib/server/engine/webview.ts;
-// doc/EXTENSION-ENGINE.md, "WebView support"), against a fake engine that
+// doc/EXTENSION-ENGINE.md, "Cloudflare and WebView extensions"), against a fake engine that
 // answers /capabilities, /webview and a WebView extension's failed call as
 // tsundoku-engine b22055e does.
 

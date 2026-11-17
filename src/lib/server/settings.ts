@@ -4,7 +4,7 @@ import { getDb } from './db.ts';
  * The library's own preferences (the SETTINGS screen; rung 24's `settings`),
  * as opposed to a device's (the READING sheet, in each browser): the language
  * a folded book opens in (doc/EDITIONS.md), when the download queue was paused
- * from tsundoku (doc/DOWNLOADING.md; '' while it isn't), and the languages
+ * from tsundoku (doc/DOWNLOADS.md; '' while it isn't), and the languages
  * BROWSE lists sources in (doc/BROWSE.md).
  */
 const DEFAULTS = {

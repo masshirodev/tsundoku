@@ -47,7 +47,7 @@ The registry gives each kind one catalogue (`kindFacts(kind).catalogue`,
   overridden or removed from a screen. A v4 token is sent as a bearer by its
   shape wherever it came from. An install with no key is a **state, not an
   error**: an entry point says `SET UP →`, the film still works, and no
-  request is made (`doc/MOVIES-TV.md`).
+  request is made (`doc/FILMS-SHOWS.md`).
 
 Two entry points are narrowed with it, so a kind another catalogue holds is
 never asked of AniList:
@@ -108,7 +108,7 @@ does not hold, so a film never gets an AniList line; `tmdbLinkState` is its.
   film's runtime and collection and a show's season count, which a search
   result does not carry. A show links **as the whole show**: TMDB's seasons are
   inside its one entry, and the source's seasons stay the source's
-  (`doc/MOVIES-TV.md`).
+  (`doc/FILMS-SHOWS.md`).
 - **The pass** runs in `refreshLinks` after AniList's, **in its own `try`**: an
   AniList outage never stops it, and a TMDB failure is `tmdbError`, never
   AniList's `unreachable`. AniList's own failure still reaches the caller,

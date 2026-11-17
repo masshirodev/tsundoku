@@ -758,7 +758,7 @@ const ALLOWED: { file: string; reason: string }[] = [
 	{
 		file: 'src/lib/server/duplicates.ts',
 		reason:
-			"SQL: books aren't chapters (doc/DUPLICATES.md): a series of doujin books is never collapsed, nor a novel, whose entries are places in one EPUB. A new kind like either must change the line."
+			"SQL: books aren't chapters (doc/DUPLICATE-CHAPTERS.md): a series of doujin books is never collapsed, nor a novel, whose entries are places in one EPUB. A new kind like either must change the line."
 	},
 	{
 		file: 'src/lib/server/epub.ts',

@@ -9,7 +9,7 @@ import {
 	isLoopbackHost
 } from '$lib/server/engine/repo-index';
 
-// Shaped as Keiyoushi's and Yuzono's were on 2026-10-28 (doc/DOWNLOADER.md).
+// Shaped as Keiyoushi's and Yuzono's were on 2026-10-28 (doc/DOWNLOADS.md).
 const FP = '9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2';
 
 describe('a pasted repository address', () => {

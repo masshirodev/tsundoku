@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-	The TV app's own (c236; doc/TV-APP.md): a leanback entry so it sits on the
+	The TV app's own (c236; doc/ANDROID.md): a leanback entry so it sits on the
 	TV's home row, the wordmark banner (drawn from banner/tv-banner.svg), and
 	landscape, which is all a TV is. Merged over src/main's.
 -->

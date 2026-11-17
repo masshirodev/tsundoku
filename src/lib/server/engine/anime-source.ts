@@ -146,7 +146,7 @@ export function animeKey(id: string): string | null {
 
 /**
  * ADD TO LIBRARY for an anime: a series at once, every episode NOT DOWNLOADED,
- * through the one writer. A browsing record of it (doc/BROWSING.md) becomes
+ * through the one writer. A browsing record of it (doc/READING-ONLINE.md) becomes
  * the library's series, its progress and history kept: it was the same series
  * all along.
  */
@@ -164,7 +164,7 @@ export async function addAnime(id: string, now = Date.now()): Promise<number> {
 }
 
 /**
- * Opening an anime from its preview without ADD (doc/BROWSING.md; card c161):
+ * Opening an anime from its preview without ADD (doc/READING-ONLINE.md; card c161):
  * the series it is, the library's when it's in it, else a browsing record,
  * written on the first open, so the player, its progress and HISTORY work on
  * it as on any series. On no shelf until ADD.

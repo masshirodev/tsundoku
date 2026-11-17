@@ -394,7 +394,7 @@ export async function addNovel(id: string, now = Date.now(), browsing = false): 
 	const key = novelKeyOf(ref.plugin, ref.path);
 	const existing = db.prepare(`SELECT id, in_library FROM series WHERE origin_key = ?`).get(key) as
 		{ id: number; in_library: number } | undefined;
-	// A browsing record (doc/BROWSING.md): kept longer when opened again, the library's on ADD.
+	// A browsing record (doc/READING-ONLINE.md): kept longer when opened again, the library's on ADD.
 	if (existing) return keepOrPromote(existing, browsing, now, db);
 	const p = loaded(ref.sourceId);
 	if (!p) throw new NovelAddError('its plugin isn’t installed');

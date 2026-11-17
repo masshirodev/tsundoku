@@ -192,6 +192,9 @@ colour.
   runs edge to edge of its container (a bar under the header, a list flush
   against the sidebar's rule, a band across the main column), where the
   container's edges close it. Code that breaks this is a bug.
+- **Words read as a catalogue card**: uppercase mono for chrome, sentence
+  case for titles, a middle dot between facts, bare numbers for counts
+  (`src/lib/library/labels.ts`).
 - **Grids pad their last row** with empty cells in the page colour, wherever
   they are (the library, a person's page and its SERIES strip). A real
   library rarely fills its last row, and the `--line-1` ground would

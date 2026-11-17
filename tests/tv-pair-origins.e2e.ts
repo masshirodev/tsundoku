@@ -20,7 +20,7 @@ import { E2E_TOKEN } from '../playwright.config';
 
 /**
  * The TV's side of pairing on servers of this file's own (doc/WIFI.md,
- * doc/TV-APP.md, doc/SIGN-IN.md), where the shared preview cannot go:
+ * doc/ANDROID.md, doc/SIGN-IN.md), where the shared preview cannot go:
  *
  * - **c246**: `/pair/tv` opened with an expired code, the server's clock
  *   moved past the code's 10 minutes, makes a new one; a burned one stays.

@@ -51,8 +51,8 @@ download it and installs find it ([`UPDATES.md`](UPDATES.md)).
 
 ## The Android apps
 
-The TV app ([`TV-APP.md`](TV-APP.md)) and the phone and tablet app
-([`PHONE-APP.md`](PHONE-APP.md)) are two flavors of one Gradle build
+The TV app ([`ANDROID.md`](ANDROID.md)) and the phone and tablet app
+([`ANDROID.md`](ANDROID.md)) are two flavors of one Gradle build
 under `android/`, and **`yarn run release` builds neither**: nothing a
 bundle carries changes because of them. The APKs are made beside the
 bundles, with the release's own version:
@@ -74,12 +74,12 @@ ops/release/android-apk.sh 0.0.0-trial --ref HEAD --out temp/apk # a trial
   version. `--ref <commit>` builds a **trial**, which needs its own `--out`,
   so it can't land in a release's folder under the names `release:publish`
   ships. To try uncommitted work on a device, run Gradle directly
-  ([`PHONE-APP.md`](PHONE-APP.md)). `tests/release-apk.spec.ts` runs the script
+  ([`ANDROID.md`](ANDROID.md)). `tests/release-apk.spec.ts` runs the script
   against a pretend gradlew in a throwaway repository.
 - **Signed** when `TSUNDOKU_TV_KEYSTORE`, `TSUNDOKU_TV_KEYSTORE_PASSWORD`,
   `TSUNDOKU_TV_KEY_ALIAS` and `TSUNDOKU_TV_KEY_PASSWORD` are set and the
   keystore exists; the keystore is the publisher's and never in the
-  repository (the steps to make one are in [`TV-APP.md`](TV-APP.md)). **One
+  repository (the steps to make one are in [`ANDROID.md`](ANDROID.md)). **One
   key signs both apps** (the two APKs carry the same certificate), and the
   variables keep the `TSUNDOKU_TV_` names from when the TV app was the only
   one.

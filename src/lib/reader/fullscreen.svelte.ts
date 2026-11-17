@@ -9,7 +9,7 @@ import { isTsundokuApp } from '$lib/settings/catalog';
  * control isn't offered.
  *
  * Nor in an installed app, which is full screen already — and not in
- * tsundoku's own Android app either (doc/PHONE-APP.md): its window is the
+ * tsundoku's own Android app either (doc/ANDROID.md): its window is the
  * screen, and a fullscreen element there turns the phone to landscape for a
  * picture (MainActivity, turnForVideo), which is the last thing reading wants.
  */

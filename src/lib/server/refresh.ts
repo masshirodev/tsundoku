@@ -12,7 +12,7 @@ import type { RefreshBatch } from '../library/types.ts';
 /**
  * REFRESH (card c220): ask a series' source, once, what it lists now, and make
  * entries of anything new. It downloads nothing, whatever FOLLOW is doing —
- * FOLLOW stays the only thing that queues, on its own turn (doc/DOWNLOADING.md,
+ * FOLLOW stays the only thing that queues, on its own turn (doc/DOWNLOADS.md,
  * "FOLLOW"). The three kinds answer the same question through their own checks,
  * which record when they were asked, so FOLLOW's next turn doesn't repeat it.
  *

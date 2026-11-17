@@ -9,7 +9,7 @@
 	 * `+ SHELF` from the bulk bar: every collection as a chip; tapping one puts
 	 * the whole selection on it. The mock draws the button but not what it
 	 * opens, so this is the sheet's own SHELVES row reused rather than a new
-	 * surface -- see doc/LIBRARY.md, "Departures".
+	 * surface -- see doc/LIBRARY.md, "+ SHELF and + ADD".
 	 */
 	let {
 		open,

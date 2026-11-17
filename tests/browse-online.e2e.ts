@@ -2,7 +2,7 @@ import { expect, test } from './fixtures';
 import { engineDown, resetEngine, SOURCES } from './browse-world';
 
 /**
- * A manga read online (doc/BROWSING.md, "Manga online"; card c166; Online
+ * A manga read online (doc/READING-ONLINE.md, "Manga online"; card c166; Online
  * Calls 1A, 1B and board 2): from a source's preview without ADD, its pages
  * straight from the fake engine's /image/ proxy and never kept; then, added,
  * its chapters read online from the series screen, ↓ downloading apart.

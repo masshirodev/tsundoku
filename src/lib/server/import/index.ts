@@ -203,7 +203,7 @@ function sourcesAt(library: string, device: string | null): Source[] {
 			plan: (progress, now) => planMihonBackup(mihon, now)
 		});
 	// tsundoku's own downloads, in Mihon's layout, read back the way they were
-	// written (doc/DOWNLOADER.md): the one folder source left.
+	// written (doc/DOWNLOADS.md): the one folder source left.
 	if (mihon && device === 'tsundoku')
 		out.push({
 			name: 'Mihon',
@@ -260,7 +260,7 @@ function sourcesAt(library: string, device: string | null): Source[] {
 			planOne: async (file, now) => [await planEpubFile(file, library, () => {}, now)]
 		});
 	// Episodes and films tsundoku downloaded, in Jellyfin's layout (doc/ANIME.md,
-	// "Downloading"; doc/DOWNLOADING.md, "Where files go"): the library folder's
+	// "Downloading"; doc/DOWNLOADS.md, "Where files go"): the library folder's
 	// own, since only the workstation downloads them. One source a video kind,
 	// each rooted at its own folder (c991: `Anime/`, `Shows/`, `Movies/`), so a
 	// file just written attaches under the root that holds it, and a file gone
@@ -434,7 +434,7 @@ function rootOf(db: Database.Database, source: Source): number {
 
 /**
  * What tsundoku's own downloaders just wrote, attached at once (card c170;
- * doc/DOWNLOADER.md, "Attaching"): each file's series planned by the source
+ * doc/DOWNLOADS.md, "Attaching"): each file's series planned by the source
  * that holds it, exactly as a scan plans it, and written by the same writer
  * with the same root and the same marking of what's gone. A later scan reads
  * the same files and changes nothing; it stays the cross-check, and the way

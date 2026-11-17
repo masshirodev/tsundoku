@@ -5,7 +5,7 @@ OK pressed or held, MENU, BACK and the media keys; a WebView that keeps BACK
 to itself has `window.tsundokuBack()` to call; and on a TV that is the app's
 own back key. The app is a Kotlin WebView under `android/`, with a launcher
 banner, the remote's keys passed through, the screen kept awake, and a
-six-digit code a remote can type ([`TV-APP.md`](TV-APP.md)).
+six-digit code a remote can type ([`ANDROID.md`](ANDROID.md)).
 [`FOCUS.md`](FOCUS.md) is the D-pad layer; "The layout" below is the layout it
 runs in.
 
@@ -56,7 +56,7 @@ no install, no wake lock, no fingerprint for `/reveal`. And pairing opens
 through a phone's camera, which a TV hasn't got. So a TV comes in by **WI-FI
 plus a code typed with a remote**: the app keeps the screen awake, the
 computer shows six digits beside the phone's QR, and the TV types them
-([`TV-APP.md`](TV-APP.md), [`WIFI.md`](WIFI.md)).
+([`ANDROID.md`](ANDROID.md), [`WIFI.md`](WIFI.md)).
 
 A token install is the other way in: served on the tailnet with
 `TSUNDOKU_TOKEN`, over https through `tailscale serve`. There is no WI-FI row
@@ -69,7 +69,7 @@ that host by TYPE THE WHOLE ADDRESS on the address screen,
 (`adb shell am start … --es url …`, or a `tsundoku://connect?url=` link),
 which skips the welcome screen and, for a server already in the list, the
 address screen; a new address stops on the address screen until CONNECT is
-pressed ([`TV-APP.md`](TV-APP.md), "Handing the TV an address").
+pressed ([`ANDROID.md`](ANDROID.md), "Handing the app an address").
 
 ## The design
 
@@ -401,7 +401,7 @@ their ruled cells.
 
 ## The app
 
-[`TV-APP.md`](TV-APP.md) is the app's own document; this is what it adds to
+[`ANDROID.md`](ANDROID.md) is the app's own document; this is what it adds to
 the TV.
 
 - **The app** (`android/`, Kotlin): a leanback launcher entry and a 320×180
@@ -474,7 +474,7 @@ the TV.
 - **Servers**: the TV keeps every server it has paired with, each with its
   own cookie, and switches from MORE › SERVERS; adding one is the address
   screen as ADD A SERVER, and a launcher shortcut per server opens it.
-  [`TV-APP.md`](TV-APP.md), "Servers", has the screens, the store and what is
+  [`ANDROID.md`](ANDROID.md), "Servers", has the screens, the store and what is
   not verified.
 
 ## Tests
@@ -532,6 +532,6 @@ the TV.
 - **Japanese lookup on a subtitle line** has no way in from a remote.
 - **Real hardware.** What has and has not been checked on a television (HLS
   in a low-end box's WebView, the 960 px pin on other panels, a remote with
-  no number keys, a signed build) is in [`TV-APP.md`](TV-APP.md).
+  no number keys, a signed build) is in [`ANDROID.md`](ANDROID.md).
 - **A `.local` name** that survives a new router address does not exist
   ([`WIFI.md`](WIFI.md), "Limits").

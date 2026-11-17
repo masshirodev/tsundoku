@@ -4,7 +4,7 @@
 
 	/**
 	 * What an import brought that belongs to hidden series, with reveal off
-	 * (c633; doc/IMPORT.md, "The log"). The import takes everything whatever the
+	 * (c633; doc/IMPORT-BACKUP.md, "The log"). The import takes everything whatever the
 	 * mode, so its report says so, but hidden means hidden here too: how many,
 	 * closed until asked, and never a title or a Work's name. The fold is the
 	 * series screen's move page's (`.fold`), so it needs nothing new of a reader.

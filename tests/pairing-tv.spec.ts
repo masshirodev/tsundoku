@@ -201,7 +201,7 @@ describe('a TV code (doc/TV.md)', () => {
 	});
 });
 
-describe("the TV app's user agent (doc/TV-APP.md)", () => {
+describe("the TV app's user agent (doc/ANDROID.md)", () => {
 	const tv =
 		'Mozilla/5.0 (Linux; Android 9; BRAVIA 4K GB) AppleWebKit/537.36 Chrome/94.0 Safari/537.36 TsundokuTV/1.0.0';
 	const tablet =

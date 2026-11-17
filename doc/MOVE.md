@@ -267,7 +267,7 @@ count, which would cost a details call per candidate; the counts appear once
 a candidate is picked.
 
 **The order** is `src/lib/library/source-answers.ts` (`arrangeAnswers`), which
-DOWNLOADS' search shares ([`DOWNLOADING.md`](DOWNLOADING.md)). With twenty
+DOWNLOADS' search shares ([`DOWNLOADS.md`](DOWNLOADS.md)). With twenty
 sources installed, most answer with nothing or not at all, so the matches come
 first and the rest is folded:
 

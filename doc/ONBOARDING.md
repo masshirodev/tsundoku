@@ -56,7 +56,7 @@ Portuguese ([`I18N.md`](I18N.md)).
 - **03 and 06 tell a series apart by how it came.** One ADD made has the
   source's key (`origin_key`) and no scan (`scan_job_id` is NULL); anything a
   scan or a backup brought in has the scan's id, or no key at all. A backup
-  chosen on IMPORT A BACKUP runs as a scan job too ([`IMPORT.md`](IMPORT.md)),
+  chosen on IMPORT A BACKUP runs as a scan job too ([`IMPORT-BACKUP.md`](IMPORT-BACKUP.md)),
   so its series carry its job's id and tick 03. So 06 never ticks 03, and an
   imported Mihon library never ticks 06.
 - **03's done row names the import that ticked it** on `/start` and on the library's empty list: `Done · Mihon backup · 382
@@ -84,7 +84,7 @@ series`, and only a backup that came first names itself. The count is the
   for files. Its tick line says an import or a scan.
 - **05 counts browsing records**, written on the first chapter or episode
   opened from a source, never by the preview alone; forgotten ones still
-  count (the row stays, [`BROWSING.md`](BROWSING.md)).
+  count (the row stays, [`READING-ONLINE.md`](READING-ONLINE.md)).
 - **Done wins.** A later FIRST READ step ticks the ones before it: ADD AND
   DOWNLOAD on a preview ticks 05, 06 and 07 at once, and the earlier ones say
   `Done · with 06` (or 07). A step done after a skip is done.

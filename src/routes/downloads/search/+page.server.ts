@@ -9,7 +9,7 @@ import { kindOfSource } from './kinds.server';
 import { kindAsked, kindsServed, sourcesOfKind } from './source-kinds';
 
 /**
- * Searching the sources (Download States 1e, state 6; doc/DOWNLOADING.md).
+ * Searching the sources (Download States 1e, state 6; doc/DOWNLOADS.md).
  * Each source is asked at once and answers on its own time: its results are
  * a promise of their own, streamed into the page as it settles, so results
  * fill in source by source. `?source=` narrows to one, and lists all it found.

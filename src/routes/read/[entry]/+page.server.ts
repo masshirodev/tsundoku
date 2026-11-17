@@ -85,7 +85,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 				}
 			: baseEntry;
 	if (!entry) {
-		// A copy of a chapter another copy represents (doc/DUPLICATES.md): an
+		// A copy of a chapter another copy represents (doc/DUPLICATE-CHAPTERS.md): an
 		// old link, or a cached screen, opens the chapter it stands for.
 		const rep = getDb()
 			.prepare(
@@ -121,7 +121,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			text: false as const,
 			video: true as const,
 			series: { id: series.id, title: series.title, hidden: series.hidden },
-			// A browsing record (doc/BROWSING.md): its preview, where + ADD posts.
+			// A browsing record (doc/READING-ONLINE.md): its preview, where + ADD posts.
 			record: row.in_library === 0 ? { preview: previewIdOf(row.origin_key) } : null,
 			source: key ? { id: key.sourceId, name: series.source } : null,
 			episodes,
@@ -145,7 +145,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		// from its own file (doc/BOOKS.md).
 		const filed = await epubVersions(series.id, reveal);
 		// A chapter with no file reads online when its plugin is installed
-		// (doc/BROWSING.md, "Novels online"): a book of one chapter, `online:<id>`,
+		// (doc/READING-ONLINE.md, "Novels online"): a book of one chapter, `online:<id>`,
 		// its document where a download would put it.
 		const online = novelReadsOnline(series.id) ? onlineChapters(series.id) : new Map();
 		const versions: Record<string, string | null> = { ...filed };
@@ -163,7 +163,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			: series;
 		const here = reading.entries[index] ?? entry;
 		const version = versions[here.file] ?? null;
-		// A browsing record (doc/BROWSING.md): its preview, where the end page's
+		// A browsing record (doc/READING-ONLINE.md): its preview, where the end page's
 		// + ADD posts (c655). The image branch below computes the same row.
 		const libraryRow = getDb()
 			.prepare(`SELECT in_library, origin_key FROM series WHERE id = ?`)
@@ -193,7 +193,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			bytes: version && /^\d+-/.test(version) ? Number(version.split('-')[0]) : 0,
 			versions,
 			incognito: isIncognito(cookies),
-			// A browsing record (doc/BROWSING.md): its preview, where the end page's
+			// A browsing record (doc/READING-ONLINE.md): its preview, where the end page's
 			// + ADD posts (c655).
 			record: recordPreview,
 			// What the end page's DELETE asks with (c655).
@@ -217,7 +217,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 					// What the boundary pages call it: its own title, or "Chapter 42".
 					title: e.title || spelledOut(books ? `Book ${i + 1}` : e.label),
 					pageCount: e.pageCount,
-					// A chapter read online opens too (doc/BROWSING.md); the boundary says ONLINE.
+					// A chapter read online opens too (doc/READING-ONLINE.md); the boundary says ONLINE.
 					online: !e.available && readsOnline(e.id),
 					available: e.available || readsOnline(e.id),
 					/** Its text read by OCR already: the end page says so (doc/JAPANESE.md). */
@@ -309,7 +309,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 				favourite: entry.favourite
 			},
 			manifest: m,
-			// A browsing record (doc/BROWSING.md): its preview, where the top bar's + ADD posts.
+			// A browsing record (doc/READING-ONLINE.md): its preview, where the top bar's + ADD posts.
 			record: recordPreview,
 			// What the end page's DELETE asks with (c655).
 			deleteAsk: deleteAsk(series, reveal),
@@ -341,7 +341,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		};
 	};
 
-	// Read online (doc/BROWSING.md, "Manga online"; card c166): the source may take
+	// Read online (doc/READING-ONLINE.md, "Manga online"; card c166): the source may take
 	// a while (a browser check is 20-45 s), so the page comes at once and the
 	// chapter streams in; a failure is the reader's waiting page, not an error.
 	if (readsOnline(entryId)) {

@@ -55,7 +55,7 @@ export const load: PageServerLoad = ({ cookies, url }) => {
 		}
 		d.rows.push({
 			...r,
-			// A browsing record's preview, where + ADD posts (doc/BROWSING.md).
+			// A browsing record's preview, where + ADD posts (doc/READING-ONLINE.md).
 			preview: r.inLibrary === false ? previewIdOf(r.originKey ?? null) : null,
 			originKey: undefined,
 			meta: historyMeta(r),

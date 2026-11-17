@@ -1,7 +1,7 @@
 import type { DownloadState, QueueItem, ResultMatch } from '../library/downloads.ts';
 
 /**
- * What the download screens are handed (doc/DOWNLOADING.md): the shapes the
+ * What the download screens are handed (doc/DOWNLOADS.md): the shapes the
  * engine's backend answers in (engine/backend.ts, through server/downloads.ts).
  * They began as Suwayomi's and outlived it (card c129).
  */

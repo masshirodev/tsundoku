@@ -3,7 +3,7 @@ import { mihonFolderName } from '../../import/mihon-plan.ts';
 import { splitMemo } from './protocol.ts';
 
 /**
- * tsundoku as a Mihon device (doc/DOWNLOADER.md, "The one decision"): where
+ * tsundoku as a Mihon device (doc/DOWNLOADS.md, "tsundoku is a device"): where
  * its files go, what they're named, and which of a source's chapters each
  * entry is. Pure; the worker does the writing.
  */
@@ -101,7 +101,7 @@ export function numbersUnderNames(
  * 1. the URL, memo split off: every source the spike checked but Toonily;
  * 2. the chapter number, recognized from the name (1.6 sources give -1),
  *    with the same scanlator: Toonily, whose extension moved every URL
- *    (doc/DOWNLOADER.md, "Keys"), and whose 126 series are keyed by the old;
+ *    (doc/DOWNLOADS.md, "Keys"), and whose 126 series are keyed by the old;
  * 3. the chapter number alone, when only one chapter has it.
  *
  * An entry matched to nothing is left out: the source no longer lists it.

@@ -407,7 +407,7 @@
 		}
 	}
 
-	// ---- downloading (doc/DOWNLOADING.md) ----------------------------------------------------
+	// ---- downloading (doc/DOWNLOADS.md) ----------------------------------------------------
 	const dlStates = $derived(
 		data.downloads.kind === 'ok'
 			? new Map(

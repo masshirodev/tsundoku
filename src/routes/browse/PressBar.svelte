@@ -14,7 +14,7 @@
 	 * cells and the line says what a tap does. `here` is the list on screen
 	 * (`listKey`), null on BROWSE.
 	 *
-	 * ALL's question is cut 1's (doc/BROWSE.md, "What it does not do yet"): it
+	 * ALL's question is cut 1's (doc/BROWSE.md, "Limits"): it
 	 * says what ALL does in plain lines and how many series, not the totals and
 	 * the size a counting sheet would, since nothing of a catalog's series is
 	 * known before each is asked.

@@ -5,7 +5,7 @@ plugins {
 
 /**
  * Release signing is a keystore that outlives this machine, so it is never in
- * the repository: the four names below are the contract, and doc/TV-APP.md has
+ * the repository: the four names below are the contract, and doc/ANDROID.md has
  * the steps to make one. Without them there is no release signing, and
  * ops/release/tv-apk.sh builds a debug-signed APK called `-debug` instead.
  */
@@ -42,7 +42,7 @@ android {
 
 	defaultConfig {
 		// Old TV boxes: nothing here needs more (OnBackPressedDispatcher is in
-		// androidx.activity and works down to 21). See doc/TV-APP.md.
+		// androidx.activity and works down to 21). See doc/ANDROID.md.
 		minSdk = 23
 		targetSdk = 36
 		versionCode = versionCodeOf(tvVersion)
@@ -57,7 +57,7 @@ android {
 	}
 
 	/*
-	 * Two apps from one project (c521; doc/PHONE-APP.md): the TV's, and the
+	 * Two apps from one project (c521; doc/ANDROID.md): the TV's, and the
 	 * phone and tablet one. Every line of pairing is shared (src/main); what
 	 * differs is decided by Form.kt from FORM, and the little that is
 	 * manifest or theme lives in src/tv and src/mobile. The Kotlin package
@@ -128,7 +128,7 @@ dependencies {
 	implementation("net.i2p.crypto:eddsa:0.3.0")
 	// WebViewAssetLoader (c549): the app's own page is served at an https
 	// origin a message listener's origin rule can name, not from file://.
-	// 1.14.0 is what this machine's Gradle cache holds (doc/TV-APP.md).
+	// 1.14.0 is what this machine's Gradle cache holds (doc/ANDROID.md).
 	implementation("androidx.webkit:webkit:1.14.0")
 	testImplementation("junit:junit:4.13.2")
 	// org.json for real in the JVM tests: android.jar's stubs return nothing.

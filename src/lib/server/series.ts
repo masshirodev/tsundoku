@@ -239,10 +239,10 @@ export function markEntries(
 				`INSERT INTO reading_events (at, series_id, entry_id, kind) VALUES (?, ?, ?, ?)`
 			);
 			// The copies a chapter's representative stands for follow it, or the
-			// next reconcile would carry an old "read" back (doc/DUPLICATES.md).
+			// next reconcile would carry an old "read" back (doc/DUPLICATE-CHAPTERS.md).
 			// A copy keeps no place of its own past MARK UNREAD either: the next
 			// reconcile carries the latest copy's place to the representative
-			// (`mergedState`, doc/DUPLICATES.md).
+			// (`mergedState`, doc/DUPLICATE-CHAPTERS.md).
 			const copies = db.prepare(
 				`UPDATE entries SET read_at = ?, unread_at = ?${place} WHERE series_id = ? AND shadowed = 1
 				AND position = (SELECT position FROM entries WHERE id = ?)`

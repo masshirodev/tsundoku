@@ -5,7 +5,7 @@ import { configured } from '$lib/server/downloads';
 import { listen } from '$lib/server/downloads-watch';
 
 /**
- * The queue's changes as server-sent events (doc/DOWNLOADING.md, "Live"):
+ * The queue's changes as server-sent events (doc/DOWNLOADS.md, "Live"):
  * the chapter downloading and a version. Hidden means hidden here too: what
  * a viewer is sent is computed from what reveal lets them see.
  */

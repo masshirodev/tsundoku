@@ -3,7 +3,7 @@ import { clock, dayKey, dayName } from './history.ts';
 import { formatNumber } from './series.ts';
 
 /**
- * A browsing record on its source's preview, the pure part (doc/BROWSING.md;
+ * A browsing record on its source's preview, the pure part (doc/READING-ONLINE.md;
  * cards c161, c165; Online Calls 1B and 1D): the RECORD row's words, the
  * bar's ▶ CONTINUE, and what each row says it is.
  */

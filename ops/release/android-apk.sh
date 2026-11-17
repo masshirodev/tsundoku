@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Build tsundoku's Android apps (c236, c521; doc/TV-APP.md, doc/PHONE-APP.md,
+# Build tsundoku's Android apps (c236, c521; doc/ANDROID.md,
 # doc/RELEASE.md): the TV's, the phone and tablet one, or both. They are two
 # flavors of one Gradle project (android), so one build makes either.
 #

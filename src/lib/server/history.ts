@@ -13,7 +13,7 @@ import type { Kind } from '../library/types.ts';
  * times are shown in.
  *
  * Hidden means hidden: while reveal is off a hidden series has no rows.
- * A browsing record (doc/BROWSING.md) has rows like any series, said NOT IN
+ * A browsing record (doc/READING-ONLINE.md) has rows like any series, said NOT IN
  * LIBRARY; its link opens its source's preview, where ADD is.
  * Incognito reading was never written (see /api/reading), so there is nothing
  * of it to hide.

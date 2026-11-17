@@ -6,7 +6,7 @@ import type { WebViewView } from '$lib/server/engine/webview';
  * seconds while a screen has something to say about it: EXTENSIONS after a
  * WebView extension was installed, a WebView source's page while it waits or
  * after a call failed for want of the browser, and SETTINGS' WEBVIEW row
- * while it changes (doc/EXTENSION-ENGINE.md, "WebView support"). Like
+ * while it changes (doc/EXTENSION-ENGINE.md, "Cloudflare and WebView extensions"). Like
  * `SiteCheck`, it says nothing until the engine answers, and a failed ask
  * leaves the last answer standing.
  */

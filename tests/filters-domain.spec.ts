@@ -323,7 +323,7 @@ describe('the panel', () => {
 	});
 });
 
-describe('FOLLOWED (doc/DOWNLOADING.md)', () => {
+describe('FOLLOWED (doc/DOWNLOADS.md)', () => {
 	it('is a filter in the URL, in words, and on the device', () => {
 		const f = parseFilters(new URLSearchParams('followed=1'), false);
 		expect(f.followed).toBe(true);

@@ -3,7 +3,7 @@ import { seriesForKey } from './library-sources.ts';
 import { queueView, type QueueItem } from '../library/downloads.ts';
 
 /**
- * Watching the queue (doc/DOWNLOADING.md, "Live"): one look at the engine's
+ * Watching the queue (doc/DOWNLOADS.md, "Live"): one look at the engine's
  * queue (in the database) for the whole app, every three seconds while a
  * screen is listening, every thirty when none is, telling listening screens
  * what moved over server-sent events: the chapter downloading and how far it

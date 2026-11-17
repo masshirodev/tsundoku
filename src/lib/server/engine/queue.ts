@@ -6,7 +6,7 @@ import { SOURCE_KINDS, type SourceKind } from '../../library/kinds.ts';
 import { entryOriginSql } from '../season-facts.ts';
 
 /**
- * tsundoku's download queue (doc/DOWNLOADER.md; card c137): chapters, as
+ * tsundoku's download queue (doc/DOWNLOADS.md; card c137): chapters, as
  * entries, waiting for the worker. Keyed by tsundoku's own rows; what a
  * source calls them is the worker's business (engine_series,
  * engine_chapters). A novel's chapters wait in the same queue (doc/NOVELS.md,

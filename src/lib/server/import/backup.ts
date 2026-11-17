@@ -33,7 +33,7 @@ import {
 import { ProtobufError } from '../../import/protobuf.ts';
 
 /**
- * IMPORT A BACKUP's server half (c438, doc/IMPORT.md): a file arrives in
+ * IMPORT A BACKUP's server half (c438, doc/IMPORT-BACKUP.md): a file arrives in
  * chunks into the data folder's import area, is read before anything is
  * written, previewed, and on IMPORT runs as a scan job of one step through
  * the same writer a scan uses. The IMPORT LOG reads `imports` beside
@@ -52,7 +52,7 @@ export const MAX_BACKUP_BYTES = 100 * 1024 * 1024;
  * One request's piece of a file. adapter-node refuses a body over
  * BODY_SIZE_LIMIT, 512 KB unless set, with a bare 413; chunks well below it
  * work under any server the app runs on, the release's included, and give
- * the pick screen its progress and CANCEL (doc/IMPORT.md, "The upload").
+ * the pick screen its progress and CANCEL (doc/IMPORT-BACKUP.md, "The upload").
  */
 export const CHUNK_BYTES = 256 * 1024;
 
@@ -175,7 +175,7 @@ export type Reading =
  * sources, 104-106 preferences and repositories), and decodeBackup reads only
  * 1, 2 and 101, so without this an Aniyomi file would read as Mihon with its
  * anime silently dropped. Not measured against a real Aniyomi backup: the
- * owner has none yet (doc/IMPORT.md, "Which app").
+ * owner has none yet (doc/IMPORT-BACKUP.md, "Which app").
  */
 const ANIYOMI_FIELDS = [3, 4, 102, 103];
 

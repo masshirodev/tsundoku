@@ -5,7 +5,7 @@ import { hideIfAddedHidden } from './engine/source-flags.ts';
 import { KEEP_DAYS } from '../library/keep.ts';
 
 /**
- * Browsing records, past their first open (doc/BROWSING.md; cards c161, c165):
+ * Browsing records, past their first open (doc/READING-ONLINE.md; cards c161, c165):
  * what one still holds, forgetting it, and pruning the ones nobody came back
  * to. A record is a series with `in_library = 0`; opening it again, ADD, and
  * the library's own reads live where they always did.
@@ -135,7 +135,7 @@ export function recordView(originKey: string, db = getDb()): RecordView | null {
 }
 
 /**
- * ADD, or another open, of a series that's already here (doc/BROWSING.md):
+ * ADD, or another open, of a series that's already here (doc/READING-ONLINE.md):
  * a record opened again is kept another KEEP_DAYS; ADD makes a record the
  * library's, the same series with its place, its added and arrived times
  * now. A library series is left as it is. Returns its id.

@@ -4,7 +4,7 @@ import type { LiveMessage } from '$lib/server/downloads-watch';
 import type { DownloadState } from '$lib/library/downloads';
 
 /**
- * Live, but quiet (Download States, "Live, but quiet"; doc/DOWNLOADING.md):
+ * Live, but quiet (Download States, "Live, but quiet"; doc/DOWNLOADS.md):
  * only the chapter being downloaded moves, its row's bar and the queue's
  * band. Anything else that changes makes the screen read its data again,
  * and a row turns QUEUED → IMPORTING → plain without animation. Without

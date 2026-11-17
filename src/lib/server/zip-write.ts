@@ -5,7 +5,7 @@ import { crc32, deflateRawSync } from 'node:zlib';
  * an optional archive comment (which pushes the end record away from the end
  * of the file, as real archivers sometimes do). The specs build test archives
  * with it, the seed builds its sample EPUBs (pages/sample-epub.ts), and the
- * downloader writes its CBZs (doc/DOWNLOADER.md).
+ * downloader writes its CBZs (doc/DOWNLOADS.md).
  *
  * Each member carries its CRC-32: tsundoku's reader doesn't check it, but a
  * CBZ in the library has to be a zip that every other tool accepts too.

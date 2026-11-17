@@ -2,7 +2,7 @@ import type { Settled } from './settled.ts';
 
 /**
  * A list of sources asked one query, arranged as their answers arrive (card
- * c490; doc/MOVE.md, "The candidates"; doc/BROWSING.md, the search page):
+ * c490; doc/MOVE.md, "The candidates"; doc/READING-ONLINE.md, the search page):
  * the sources with matches first, the ones still asking after them, and at
  * the end the ones that found nothing and the ones that did not answer, each
  * folded. MOVE's candidates and DOWNLOADS' search share it so both read alike.

@@ -31,7 +31,7 @@ package dev.masshiro.tsundoku.tv
  * one would send launch to it.
  *
  * Pure, so FailedLoadTest pins it; which orders WebView takes on a TV is a
- * device claim (doc/TV-APP.md, "What is not verified").
+ * device claim (doc/ANDROID.md, "Device checks").
  */
 class FailedLoad {
 	private var failed: String? = null

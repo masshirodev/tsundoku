@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-	The phone and tablet app's own (c521; doc/PHONE-APP.md). Any orientation,
+	The phone and tablet app's own (c521; doc/ANDROID.md). Any orientation,
 	and adjustResize so a keyboard shrinks the window on Android 14 and older;
 	from 15 the app is edge to edge and the activity pads by the keyboard
 	itself (Insets.kt), since adjustResize then stops doing it. Merged over

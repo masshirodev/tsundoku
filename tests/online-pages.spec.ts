@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isOnlineVersion, onlineHeld, onlinePages, ONLINE_HELD } from '$lib/reader/online-pages';
 
 /**
- * The image reader's copy of a chapter read online (c1038; doc/BROWSING.md,
+ * The image reader's copy of a chapter read online (c1038; doc/READING-ONLINE.md,
  * "Manga online"): each page near the one being read fetched once, held in
  * memory, let go oldest first and all at once when the reader is left.
  */

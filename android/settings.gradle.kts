@@ -1,5 +1,5 @@
 // The one project: the app. Versions are AGP 8.13 / Gradle 8.14, the pair
-// this machine already builds Kumiko's Capacitor app with (doc/TV-APP.md).
+// this machine already builds Kumiko's Capacitor app with (doc/ANDROID.md).
 pluginManagement {
 	repositories {
 		google()

@@ -29,7 +29,7 @@ import { normaliseTitle, type Row } from '../library/catalogue.ts';
  * **No key is a state.** Every door asks `catalogueConfigured('tmdb')` first:
  * with no key the pass searches nothing and marks nothing, so a key added
  * later finds the whole library unsearched and the next pass is the backfill
- * (doc/MOVIES-TV.md, "Decided": "a key added later backfills … and never
+ * (doc/FILMS-SHOWS.md, "How it is shaped, and why": "a key added later backfills … and never
  * invents one").
  *
  * A show links **once, as the whole show**: TMDB's seasons are inside its one

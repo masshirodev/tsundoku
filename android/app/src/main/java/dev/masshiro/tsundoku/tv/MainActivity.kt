@@ -41,8 +41,8 @@ import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 
 /**
- * tsundoku on an Android TV (c236; doc/TV-APP.md), and since c521 on a phone
- * or tablet too (doc/PHONE-APP.md): one activity for both, the differences in
+ * tsundoku on an Android TV (c236; doc/ANDROID.md), and since c521 on a phone
+ * or tablet too (doc/ANDROID.md): one activity for both, the differences in
  * [Form]. A WebView that holds the same web app a phone or a computer opens,
  * and the things the page cannot do over plain http: a launcher presence, the
  * remote's keys (a TV's), the screen kept awake, and a way to be paired with
@@ -251,7 +251,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		super.onPause()
 		window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 		// The paired cookie is written by the server; this is what makes it
-		// survive the app being killed (doc/TV-APP.md).
+		// survive the app being killed (doc/ANDROID.md).
 		CookieManager.getInstance().flush()
 	}
 
@@ -492,7 +492,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			/**
 			 * API 23 and below call only this overload; the [WebResourceRequest]
 			 * one above was added in API 24 and `minSdk` is 23 ("old TV boxes",
-			 * `doc/TV-APP.md`). Without this override the navigation guard would
+			 * `doc/ANDROID.md`). Without this override the navigation guard would
 			 * simply not run on an Android 6 television.
 			 *
 			 * `androidx.webkit.WebViewClientCompat` is not the shortcut it
@@ -757,7 +757,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	/**
 	 * The address this launch was handed, from the extra the documented
 	 * command sends or from a `tsundoku://connect?url=` link. The extra wins
-	 * when both are there: it is what doc/TV-APP.md tells the owner to type,
+	 * when both are there: it is what doc/ANDROID.md tells the owner to type,
 	 * and a launcher's link is the second way in.
 	 */
 	private fun givenAddress(intent: Intent?): String? {

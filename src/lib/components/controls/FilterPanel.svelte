@@ -67,7 +67,7 @@
 		wide?: boolean;
 		/** Off where cards don't know it (a person's page). */
 		downloaded?: boolean;
-		/** Something visible is followed: FOLLOWED is offered (doc/DOWNLOADING.md). */
+		/** Something visible is followed: FOLLOWED is offered (doc/DOWNLOADS.md). */
 		following?: boolean;
 		/** Off where cards don't know their progress (a person's page, which has its own UNREAD tab). */
 		reading?: boolean;

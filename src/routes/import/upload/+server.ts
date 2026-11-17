@@ -11,7 +11,7 @@ import {
 import { fromTv, TV_REFUSAL } from '$lib/server/import/tv';
 
 /**
- * IMPORT A BACKUP's upload (c438, doc/IMPORT.md, "The upload"): a file in
+ * IMPORT A BACKUP's upload (c438, doc/IMPORT-BACKUP.md, "The upload"): a file in
  * pieces of at most CHUNK_BYTES, each a plain POST of raw bytes with what the
  * file is in the query. Pieces keep every request under adapter-node's
  * BODY_SIZE_LIMIT, so the release needs no setting for a backup of any size

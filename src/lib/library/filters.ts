@@ -17,7 +17,7 @@ import { DEFAULT_MIN, minLabel, RATING_MAX } from './rating.ts';
  *   ?lang=ja      a language, as its two-letter code
  *   ?added=2026-08-01   added on or after that day
  *   ?dl=1|0       a chapter on disk, or none
- *   ?followed=1   followed: new chapters download on their own (doc/DOWNLOADING.md)
+ *   ?followed=1   followed: new chapters download on their own (doc/DOWNLOADS.md)
  *   ?progress=unread|read   never opened (not a page), or every chapter read
  *   ?hidden=1     hidden only; exists only while reveal is on
  *

@@ -3,7 +3,7 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * The TV app's servers on the web side (c261; doc/TV-APP.md, "Servers";
+ * The TV app's servers on the web side (c261; doc/ANDROID.md, "Servers";
  * doc/handoffs/tv-servers/): MORE's SERVERS row (S6), SERVERS (S2), a
  * server's options (S3) and FORGET (S4), drawn by MoreSheet over the library,
  * and the layout telling the app the server's name.
@@ -677,7 +677,7 @@ test('S1: one server draws no cell, as today', async ({ page }) => {
 });
 
 /*
- * c645: the bridge as c549's message transport will answer it (doc/TV-APP.md,
+ * c645: the bridge as c549's message transport will answer it (doc/ANDROID.md,
  * "What it does not do yet", item 2). `servers()` returns a Promise, and each
  * call parks its resolver on `window.__tvLater`, so a case decides when — and
  * in which order — the answers land. The real transport may answer late, out

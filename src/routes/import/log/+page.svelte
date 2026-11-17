@@ -108,7 +108,7 @@
 </script>
 
 <!--
-	The Works a job's folds took a series out of (c570; doc/IMPORT.md, "The
+	The Works a job's folds took a series out of (c570; doc/IMPORT-BACKUP.md, "The
 	log"), drawn as REFUSED is: one line each, the Work a link while it still
 	exists (the server checks its id with its created_at).
 -->

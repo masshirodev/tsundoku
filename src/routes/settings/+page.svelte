@@ -1785,7 +1785,7 @@
 		<div class="pair-main" class:one={!(w.tv && ready)}>
 			{#if w.tv && ready}
 				<!-- The digits typed in tsundoku's own app, on a TV, a phone or a
-				     tablet (c236, c521; doc/TV.md, doc/PHONE-APP.md). -->
+				     tablet (c236, c521; doc/TV.md, doc/ANDROID.md). -->
 				<div class="pair-tv">
 					<div class="pk ink">FOR THE APP · SIX DIGITS</div>
 					{#if w.tv.state === 'live'}

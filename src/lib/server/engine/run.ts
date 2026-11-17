@@ -9,13 +9,13 @@ import { pendingAnimeImports, startAnimeWorker } from '../anime/download.ts';
 
 /**
  * Whether downloading is on here: tsundoku's engine, when ENGINE_URL and
- * ENGINE_TOKEN are set (doc/DOWNLOADER.md). Until c129 (2026-10-28) this
+ * ENGINE_TOKEN are set (doc/DOWNLOADS.md). Until c129 (2026-10-28) this
  * chose between Suwayomi and the engine by DOWNLOADS_BACKEND.
  */
 export const downloadsBackend = (): 'engine' | 'none' => (engineConfigured() ? 'engine' : 'none');
 
 /**
- * What a downloader just wrote, attached at once (card c170; doc/DOWNLOADER.md,
+ * What a downloader just wrote, attached at once (card c170; doc/DOWNLOADS.md,
  * "Attaching"): the entry opens when the file lands, with no IMPORTING between.
  * A scan follows only for what didn't attach, or when one is already under
  * way: it was planned before these files existed, and writing its plan would

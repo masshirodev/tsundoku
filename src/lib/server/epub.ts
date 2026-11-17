@@ -92,7 +92,7 @@ export async function readEpubFile(
 	reveal: boolean,
 	file?: string
 ): Promise<EpubBody | null> {
-	// A chapter read online (doc/BROWSING.md, "Novels online"): a book of one
+	// A chapter read online (doc/READING-ONLINE.md, "Novels online"): a book of one
 	// chapter, made in memory from its plugin.
 	const online = file ? ONLINE_FILE.exec(file) : null;
 	if (online) {

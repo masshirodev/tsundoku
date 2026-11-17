@@ -661,7 +661,7 @@ DID NOT OPEN names what happened:
   NOT DOWNLOADED", [`NOVELS.md`](NOVELS.md), "Reading it").
 
 A chapter with no file reads online when the novel's plugin is installed
-([`BROWSING.md`](BROWSING.md), "Novels online"); without one, a novel
+([`READING-ONLINE.md`](READING-ONLINE.md), "Novels online"); without one, a novel
 downloaded so far stops at its first chapter with no file: no NEXT
 on the last page, and END · LAST AVAILABLE past it, "2 OF 3" and which
 chapter isn't downloaded. The contents list doesn't jump to one.
@@ -688,4 +688,4 @@ downloading, and that is the offline DID NOT OPEN.
 - **The budget ignores books' weight after the first marker,** and letting go
   of an entry's marker doesn't delete the EPUB from the device cache.
 - **Pasted web-novel chapters** are not read here ([`ARCHITECTURE.md`](ARCHITECTURE.md),
-  "Web novels").
+  "Limits").

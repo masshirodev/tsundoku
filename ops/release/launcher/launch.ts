@@ -264,7 +264,7 @@ function helper(make: () => Proc, delay = 2000, started?: (c: ChildProcess) => v
 
 /**
  * The engine, with the WebView switch as it stands at each start
- * (doc/EXTENSION-ENGINE.md, "WebView support"), and the switch watched: when
+ * (doc/EXTENSION-ENGINE.md, "Cloudflare and WebView extensions"), and the switch watched: when
  * SETTINGS turns it on or off, the engine is stopped (its process group, so a
  * private Xvfb and any Chromium go with it) and started again with the new
  * value. The app sees the change on `/capabilities` a few seconds later.

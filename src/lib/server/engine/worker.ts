@@ -27,7 +27,7 @@ import { failed, isPaused, nextUp, recover } from './queue.ts';
 import { bookOrigin, entryOriginSql } from '../season-facts.ts';
 
 /**
- * The downloader (doc/DOWNLOADER.md; card c137): takes chapters off the
+ * The downloader (doc/DOWNLOADS.md; card c137): takes chapters off the
  * queue, has the engine fetch their pages through each source's own client,
  * writes them as Mihon would into `devices/tsundoku/Mihon/`, with a backup
  * that names them by tsundoku's own keys, and has the importer read that as
@@ -252,7 +252,7 @@ async function pooled<T, R>(
  * A chapter at its source, right now: the entry, its source and extension, and
  * the page list the engine hands out for it (asked fresh: page tokens die with
  * an engine restart). What a download zips and what reading online shows
- * (doc/BROWSING.md, "Manga online"; card c166).
+ * (doc/READING-ONLINE.md, "Manga online"; card c166).
  */
 export async function chapterAtSource(entryId: number, d: Pick<Deps, 'db' | 'now'>) {
 	const e = d.db
@@ -380,7 +380,7 @@ export async function downloadChapter(entryId: number, d: Deps): Promise<string>
 /**
  * The device's backup: every series tsundoku has downloaded for, under its
  * own key and with its entries' own URLs, so the importer folds the files
- * into the series and entries they are (doc/DOWNLOADER.md, "Keys"). No read
+ * into the series and entries they are (doc/DOWNLOADS.md, "Keys"). No read
  * state: tsundoku is the source of truth for that, and the importer only
  * moves it forward.
  */

@@ -1051,7 +1051,7 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
  * novels and anime holds, never a doujin, never Hentoid's. An import's Mihon
  * tracker is the other door, and it can link a doujin (`resolveLinks`).
  */
-// A browsing record (doc/BROWSING.md) is never in the LINK queue: it isn't the library's.
+// A browsing record (doc/READING-ONLINE.md) is never in the LINK queue: it isn't the library's.
 const LINKABLE_KINDS = KINDS.filter(
 	(k) => kindFacts(k).grouping !== 'books' && kindFacts(k).catalogue.provider === 'anilist'
 );

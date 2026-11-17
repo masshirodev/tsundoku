@@ -8,7 +8,7 @@
 
 	/**
 	 * A chapter read online, before its pages arrive or when its source won't
-	 * send them (doc/BROWSING.md, "Manga online"; Online Board 3a·2): the
+	 * send them (doc/READING-ONLINE.md, "Manga online"; Online Board 3a·2): the
 	 * player's interstitial page (Player Waiting), with the chapter where the
 	 * episode was, so every reader waits in the same words. Asking; a source
 	 * passing its browser check, on the 20–45 s scale; a source that asked to

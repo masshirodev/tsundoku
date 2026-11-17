@@ -56,11 +56,11 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends, request
 			kind: 'smart',
 			count: people.length
 		});
-	// The download queue's counts, for the QUEUE cell and DOWNLOADS (doc/DOWNLOADING.md).
+	// The download queue's counts, for the QUEUE cell and DOWNLOADS (doc/DOWNLOADS.md).
 	const queue = await queueSummary(reveal);
 	// Feeds the screens' live updates of the queue.
 	ensureWatcher();
-	// tsundoku's own downloader and FOLLOW's step (doc/DOWNLOADER.md).
+	// tsundoku's own downloader and FOLLOW's step (doc/DOWNLOADS.md).
 	ensureEngineWorker();
 	// BROWSE's way in, and its EXTENSIONS count (doc/BROWSE.md): on the engine only.
 	const browse = downloadsBackend() === 'engine' ? { updates: browseList(reveal).updates } : null;

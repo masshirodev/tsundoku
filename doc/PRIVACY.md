@@ -130,4 +130,4 @@ be expected to know to turn hidden mode on first. The screen that says what it
 brought keeps the rule even so: with reveal off, what belongs to hidden series
 is a **count in a section closed by default** (`3 IN HIDDEN SERIES`), never a
 title or a Work's name, and those appear only with reveal on.
-[`IMPORT.md`](IMPORT.md), "The log", has the rule and where it is enforced.
+[`IMPORT-BACKUP.md`](IMPORT-BACKUP.md), "The log", has the rule and where it is enforced.

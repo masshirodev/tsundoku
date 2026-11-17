@@ -1,7 +1,7 @@
 # Syncing the tablet
 
 Downloading is Mihon's and Hentoid's on the tablet, and tsundoku's own on the
-workstation ([`DOWNLOADING.md`](DOWNLOADING.md)). What the tablet downloads
+workstation ([`DOWNLOADS.md`](DOWNLOADS.md)). What the tablet downloads
 reaches the workstation through [Syncthing](https://syncthing.net), and a timer
 imports what the importer reads:
 
@@ -115,7 +115,7 @@ their rows and files stay in the library, untouched. A backup is read from the
 library's own `Mihon/autobackup`, wherever it came from.
 
 tsundoku's downloads are written here into their folder directly
-([`DOWNLOADER.md`](DOWNLOADER.md)).
+([`DOWNLOADS.md`](DOWNLOADS.md)).
 
 Why not one shared folder: the same chapter downloaded on both devices would
 be two versions of one path, and Syncthing would keep a conflict copy. So the

@@ -4,7 +4,7 @@ import type { Browser, BrowserContext } from '@playwright/test';
 import { expect, hydrated, test } from './helpers/hydrated';
 
 /**
- * The computer's `/pair/tv` as the phone app sees it (c521; doc/PHONE-APP.md,
+ * The computer's `/pair/tv` as the phone app sees it (c521; doc/ANDROID.md,
  * PhoneApp-Phone.dc.html and PhoneApp-Tablet.dc.html 9C and 9E). The app's
  * user agent says TsundokuApp, and the page says the phone or the tablet where
  * it said the TV, reflowed at 600 px. The TV's page is tests/tv-pair.e2e.ts's.

@@ -204,7 +204,7 @@ export type WorkNextEntry = {
 	label: string;
 	/** A file on the workstation. */
 	available: boolean;
-	/** No file, but a source an installed extension serves (doc/BROWSING.md). */
+	/** No file, but a source an installed extension serves (doc/READING-ONLINE.md). */
 	online: boolean;
 };
 

@@ -52,7 +52,7 @@ export type SeriesCard = {
 	addedAt: number;
 	/** A chapter on disk, so readable without the internet: what ?dl= asks. */
 	downloaded?: boolean;
-	/** FOLLOW is on (doc/DOWNLOADING.md): what FOLLOWED filters on the device. */
+	/** FOLLOW is on (doc/DOWNLOADS.md): what FOLLOWED filters on the device. */
 	followed?: boolean;
 	/** An entry has been opened: what READING's UNREAD tells apart on the device. */
 	opened?: boolean;

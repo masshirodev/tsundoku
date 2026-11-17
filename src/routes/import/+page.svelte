@@ -8,7 +8,7 @@
 	/**
 	 * IMPORT A BACKUP, the pick screen (c438; Import-Pick, Import-File-States
 	 * A-C, Import-Phone-Pick). The file goes to the computer in pieces
-	 * (doc/IMPORT.md, "The upload"); the last piece answers what it is, and a
+	 * (doc/IMPORT-BACKUP.md, "The upload"); the last piece answers what it is, and a
 	 * backup it reads opens its preview. Nothing is written to the library
 	 * here: a file that is not a backup is refused with what it was taken for.
 	 */

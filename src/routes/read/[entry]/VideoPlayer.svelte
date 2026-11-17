@@ -123,7 +123,7 @@
 			episodes: Episode[];
 			index: number;
 			incognito: boolean;
-			/** A browsing record (doc/BROWSING.md): its preview, where + ADD posts. */
+			/** A browsing record (doc/READING-ONLINE.md): its preview, where + ADD posts. */
 			record?: { preview: string | null } | null;
 			/** Whether MOVE opens for the series (`moveOpens`): NO SERVER's ANOTHER SOURCE (c999). */
 			canMove?: boolean;

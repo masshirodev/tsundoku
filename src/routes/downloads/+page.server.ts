@@ -17,7 +17,7 @@ import {
 import { queueView, type QueueView } from '$lib/library/downloads';
 
 /**
- * The download queue (Index Downloads 8–9, 12; doc/DOWNLOADING.md): what's
+ * The download queue (Index Downloads 8–9, 12; doc/DOWNLOADS.md): what's
  * downloading, failures first, then series in the queue's order. Hidden means
  * hidden, here as everywhere: queueView() leaves out what reveal would hide,
  * and every action below acts only on what the viewer can see.

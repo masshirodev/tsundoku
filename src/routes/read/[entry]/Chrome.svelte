@@ -68,7 +68,7 @@
 		onfav: () => void;
 		onsheet: () => void;
 		/**
-		 * A browsing record (doc/BROWSING.md): no rating or FAV for a series not in the
+		 * A browsing record (doc/READING-ONLINE.md): no rating or FAV for a series not in the
 		 * library, so + ADD takes their cell (Online Calls, "The reader, for a record").
 		 */
 		addHref?: string | null;
@@ -336,7 +336,7 @@
 	}
 	/*
 	 * In the phone app the reader's pages run under the camera (c521;
-	 * doc/PHONE-APP.md, "Drawn under the camera"), and the app says how tall
+	 * doc/ANDROID.md, "Drawn under the camera"), and the app says how tall
 	 * the band is. The top bar stays where it is, below the band, and its
 	 * background reaches up through it, so no page shows above the bar. The
 	 * bottom bar hugs the display's edge, as the owner asked. Anywhere else

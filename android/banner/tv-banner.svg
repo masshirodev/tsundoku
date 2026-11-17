@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
   <!--
-    The Android TV launcher banner (c236; doc/TV-APP.md): the wordmark on the
+    The Android TV launcher banner (c236; doc/ANDROID.md): the wordmark on the
     page colour, as the app's bar draws it. Generated once from the two fonts
     the design system uses, as paths, so rendering it needs no fonts:
     IBM Plex Mono Medium (TSUNDOKU) and IBM Plex Sans JP Medium (積ん読),

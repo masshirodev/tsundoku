@@ -1189,7 +1189,7 @@ export function search(query: string, reveal: boolean, limit = 30): SearchResult
 
 export function seriesDetail(id: number, reveal: boolean): SeriesDetail | null {
 	const db = getDb();
-	// Asked by id, a browsing record (doc/BROWSING.md) is found: its player and
+	// Asked by id, a browsing record (doc/READING-ONLINE.md) is found: its player and
 	// reader run on it. Only hiddenness applies.
 	const row = db.prepare(cardQuery(`s.id = ? AND ${reveal ? '1' : VISIBLE}`, 's.id')).get(id) as
 		CardRow | undefined;

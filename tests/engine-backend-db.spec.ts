@@ -18,7 +18,7 @@ const { ensureRoot, writeSeries } = await import('$lib/server/import/write');
 const downloads = await import('$lib/server/downloads');
 const { parseSourceMangaId } = await import('$lib/server/engine/backend');
 
-// The screens' backend on the engine (doc/DOWNLOADER.md, card c138): the same
+// The screens' backend on the engine (doc/DOWNLOADS.md, card c138): the same
 // functions the screens call of Suwayomi's, through server/downloads.ts.
 
 const SOURCE = '2131019126180322627';

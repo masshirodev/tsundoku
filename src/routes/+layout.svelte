@@ -59,7 +59,7 @@
 	// listener, arrow keys moving by geometry, sheets as scopes.
 	onMount(() => installFocusLayer());
 
-	// The TV app keeps a list of servers (c261; doc/TV-APP.md, "Servers"): a
+	// The TV app keeps a list of servers (c261; doc/ANDROID.md, "Servers"): a
 	// server tells it its own name, the one /pair/tv says, so a TV paired
 	// before the list existed is named too. Only the app's user agent is sent
 	// a name, and only an app whose bridge can take it is told.

@@ -2,7 +2,7 @@ package dev.masshiro.tsundoku.tv
 
 /**
  * What the app does with an address handed to it from outside (c260, c683;
- * doc/TV-APP.md, "An address from outside is asked about"): whichever of the
+ * doc/ANDROID.md, "An address from outside is asked about"): whichever of the
  * pair page's doors it goes through.
  *
  * The activity is exported and its `tsundoku://connect` filter is BROWSABLE,

@@ -17,7 +17,7 @@
 	 *
 	 * The measurements are the mock's own (24px padding, 28px between blocks,
 	 * 56px rows, a 76px tag cell), not a ladder: the theme declares no length
-	 * tokens (doc/MOVIES-TV.md, "The handoff").
+	 * tokens (doc/FILMS-SHOWS.md, "The screens").
 	 */
 	let {
 		seriesId,

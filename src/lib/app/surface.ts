@@ -1,6 +1,6 @@
 /**
  * The page's background, said to tsundoku's own Android app so the camera band
- * and the strip above the keyboard take it (c521; doc/PHONE-APP.md, "The
+ * and the strip above the keyboard take it (c521; doc/ANDROID.md, "The
  * camera band and the keyboard"; the app's Insets.kt).
  *
  * The app reads the colour itself when a page finishes loading, but a theme
@@ -56,7 +56,7 @@ export function followSurface(): () => void {
 }
 
 /**
- * Draw this page under the camera while it is open (c521; doc/PHONE-APP.md,
+ * Draw this page under the camera while it is open (c521; doc/ANDROID.md,
  * "Drawn under the camera"): the phone app drops its cutout and gesture
  * padding, and the page keeps its own bars out of the band from
  * `--app-inset-*`. Returns the undo, which pads the page again. A browser, or

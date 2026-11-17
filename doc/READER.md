@@ -175,7 +175,7 @@ A turned-to page is already there, not a box saying "P. 15".
   draws at once. That also means the neighbour sliding in beside a swipe is
   usually already drawn. A chapter read online is `no-store`, which the
   browser won't keep, so the reader holds those pages' bytes itself
-  ([`BROWSING.md`](BROWSING.md), "Manga online").
+  ([`READING-ONLINE.md`](READING-ONLINE.md), "Manga online").
 - **A page whose image is already there draws in the first frame.** A turn
   mounts a new element for the page turned to, and the image's load event
   comes a task after the element, which would draw the loading box for a frame
@@ -551,7 +551,7 @@ shown within half a second of scrolling to it.
   already moved; and pages crossing the middle while it settles aren't read,
   or the reader would follow the jump into another page or chapter.
 - **Nor when a page arrives another size.** A page read online has no size
-  until its image arrives ([`BROWSING.md`](BROWSING.md), "Manga online"), so
+  until its image arrives ([`READING-ONLINE.md`](READING-ONLINE.md), "Manga online"), so
   its box is a guess that can grow or shrink above the page being read. When
   one arrives, the strip notes the page under the middle, lets the box (and
   any still guessing) take the new shape, and puts that page back, as
@@ -745,7 +745,7 @@ loses the frame. Offered only where the browser can
 Safari, which allows it for video only), not in an installed app, which is
 full screen already, and not in tsundoku's own Android app either: its window
 is the screen, and a fullscreen element there turns the phone to landscape for
-a picture ([`PHONE-APP.md`](PHONE-APP.md)), which reading does not want.
+a picture ([`ANDROID.md`](ANDROID.md)), which reading does not want.
 Decided after hydration: the server can't know (`fullscreenOffered`, counted
 by `tests/fullscreen.spec.ts`).
 

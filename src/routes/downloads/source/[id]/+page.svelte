@@ -335,7 +335,7 @@
 									: ' · ALL ONLINE'}</span
 						>
 					</div>
-					<!-- Every row opens without ADD (doc/BROWSING.md; c161, c166): one form, a
+					<!-- Every row opens without ADD (doc/READING-ONLINE.md; c161, c166): one form, a
 						     button per row, so it works without script. -->
 					<form method="POST" action="?/open">
 						<ol>

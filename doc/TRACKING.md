@@ -270,7 +270,7 @@ to it yet (`built`). `trackersFor(kind)` is the one question.
   `NO TRACKER SIGNED IN · WATCHED 12 NOV` (or `EP. 6 OF 16`), with SET UP → in
   ink to SETTINGS' CATALOGUES, beside TMDB's line, which without a key reads
   `Not looked up` · `NO TMDB KEY · TITLE AND COVER FROM <SOURCE>` with its own
-  SET UP → ([`MOVIES-TV.md`](MOVIES-TV.md)). Muted and in ink: the next thing
+  SET UP → ([`FILMS-SHOWS.md`](FILMS-SHOWS.md)). Muted and in ink: the next thing
   to do, not a fault.
 - **One account and one key per service.** Swapping is SIGN OUT, then SIGN IN
   →; there is no second account, which would suggest a shared install.

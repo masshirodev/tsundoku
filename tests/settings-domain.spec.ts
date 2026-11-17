@@ -136,7 +136,7 @@ describe('the catalogue (card c171)', () => {
 		expect(deviceKind({ width: 800, coarse: true })).toBe('tablet');
 		expect(deviceKind({ width: 1440, coarse: false })).toBe('desktop');
 		// A wide page with no pointer is still a desktop: an unplugged mouse reads
-		// the same. What makes a TV is the app's own user agent (doc/TV-APP.md).
+		// the same. What makes a TV is the app's own user agent (doc/ANDROID.md).
 		expect(deviceKind({ width: 960, coarse: false })).toBe('desktop');
 		expect(
 			deviceKind({

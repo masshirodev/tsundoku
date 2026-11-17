@@ -9,7 +9,7 @@ import {
 } from './kinds.ts';
 
 /**
- * Downloading, the rules (doc/DOWNLOADING.md, "From tsundoku"). Pure:
+ * Downloading, the rules (doc/DOWNLOADS.md, "From tsundoku"). Pure:
  * `src/lib/server/engine/backend.ts` asks the engine's queue and hands the
  * answers here; the screens read what comes back.
  *
@@ -167,8 +167,8 @@ export function chapterStates(
  * own word (READ, the page) alone.
  *
  * The mock's FAILED · NOT FOUND isn't there: the queue says a chapter
- * failed and how often it tried, never why (doc/DOWNLOADING.md, "Where it
- * departs from the handoff").
+ * failed and how often it tried, never why (doc/DOWNLOADS.md, "The series
+ * screen").
  */
 export function downloadStatus(s: DownloadState | undefined, short = false): string | null {
 	switch (s?.kind) {

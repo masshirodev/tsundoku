@@ -208,7 +208,7 @@
 		 * rows exactly as it did.
 		 */
 		seasons?: SeasonRow[] | null;
-		/** Downloading (doc/DOWNLOADING.md): the DOWNLOAD row and the FILE line's queue. */
+		/** Downloading (doc/DOWNLOADS.md): the DOWNLOAD row and the FILE line's queue. */
 		downloads?: SeriesDownloads | null;
 		/** MOVE's SOURCE row (doc/MOVE.md): where the series comes from and the way out. */
 		move?: MoveState | null;
@@ -216,7 +216,7 @@
 		tagSource?: { id: string; name: string } | null;
 		/** A source that lists episodes but sends no video: the NO VIDEO band under CONTINUE. */
 		noVideo?: { title: string; detail: string } | null;
-		/** A chapter with no file reads online (doc/BROWSING.md): START opens it, as an episode streams. */
+		/** A chapter with no file reads online (doc/READING-ONLINE.md): START opens it, as an episode streams. */
 		readOnline?: boolean;
 		/** Where this series sits in its Work (W5; doc/WORKS.md): the WORK row and its sheet. */
 		work?: SeriesWorkRow | null;
@@ -449,7 +449,7 @@
 		};
 	// No extension for its source (Bato.to, Hitomi): said once, on the FILE line
 	// (state 4). It cannot say the tablet downloads it: after c191 a device's
-	// Mihon downloads are not imported (doc/DOWNLOADING.md, "Not done yet").
+	// Mihon downloads are not imported (doc/DOWNLOADS.md, "Limits").
 	const elsewhere = $derived(
 		downloads?.kind === 'elsewhere'
 			? ` · ${downloads.source.toUpperCase()} · NO EXTENSION HERE`
@@ -1269,7 +1269,7 @@
 				{/if}
 
 				{#if series.duplicates > 0 && series.scanlators.length > 1}
-					<!-- One chapter, several scanlators (doc/DUPLICATES.md): whose copy the list shows. -->
+					<!-- One chapter, several scanlators (doc/DUPLICATE-CHAPTERS.md): whose copy the list shows. -->
 					<form method="POST" action="?/scanlator" use:enhance class="row top">
 						<div class="label">SCANLATOR</div>
 						<div class="picks">

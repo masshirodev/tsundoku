@@ -69,7 +69,7 @@ const found = (q: string) => search(q, false).titles.map((t) => ({ id: t.id, why
 const titled = (title: string) =>
 	one<{ n: number }>(`SELECT COUNT(*) AS n FROM series WHERE title = ?`, title).n;
 
-/** A stand-in engine (doc/DOWNLOADER.md) whose source still calls the series by its own name. */
+/** A stand-in engine (doc/DOWNLOADS.md) whose source still calls the series by its own name. */
 let engine: Server;
 /** What the stand-in was asked, by method: REFRESH must really have asked it. */
 const asked: string[] = [];

@@ -548,7 +548,7 @@ describe('two pairs an adoption cannot match up', () => {
 
 		// A record on the same root: the series opened from the source's preview
 		// without ADD, which every shelf, count and search leaves out
-		// (doc/BROWSING.md).
+		// (doc/READING-ONLINE.md).
 		record = Number(
 			db()
 				.prepare(
@@ -768,7 +768,7 @@ describe('a record under the URL key this device’s own backup names', () => {
 			.prepare(`UPDATE entries SET read_at = ?, last_opened_at = ?, last_position = 5 WHERE id = ?`)
 			.run(at + 1_000, at + 2_000, entry);
 
-		// A record under the URL key: the preview opened without ADD (doc/BROWSING.md).
+		// A record under the URL key: the preview opened without ADD (doc/READING-ONLINE.md).
 		record = Number(
 			db()
 				.prepare(
@@ -1051,13 +1051,13 @@ describe('a backup adopts a folder nothing scans any more', () => {
 });
 
 /**
- * A mirror's series after c191 (doc/IMPORT-MIHON.md, "What a mirror left
- * behind"): its row, its path and its files stay, and nothing reads the folder
- * any more. Then tsundoku downloads a chapter of it into its own device: the
- * two files are one series, so its path widens to the folder both are under
- * and every entry's file is rewritten against it (write.ts, `widenTo`). Get
- * that rewrite wrong and every file of the series stops resolving -- reader,
- * covers and DELETE all join the two -- with no test failing.
+ * A mirror's series after c191 (doc/IMPORT-MIHON.md, "Where it reads from"):
+ * its row, its path and its files stay, and nothing reads the folder any more.
+ * Then tsundoku downloads a chapter of it into its own device: the two files
+ * are one series, so its path widens to the folder both are under and every
+ * entry's file is rewritten against it (write.ts, `widenTo`). Get that rewrite
+ * wrong and every file of the series stops resolving -- reader, covers and
+ * DELETE all join the two -- with no test failing.
  */
 describe('a download that widens a series a mirror left', () => {
 	const at = 1_800_004_000_000;

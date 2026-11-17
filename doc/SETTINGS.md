@@ -146,7 +146,7 @@ read. A book's own LANGUAGE row overrides this, and the row counts how many
 books do. Changing it refreshes the folded books' covers. The header counts
 the folded books. Counts follow reveal.
 
-**IMPORT A BACKUP** ([`IMPORT.md`](IMPORT.md)) is the way in for a later
+**IMPORT A BACKUP** ([`IMPORT-BACKUP.md`](IMPORT-BACKUP.md)) is the way in for a later
 import: _Mihon, Aniyomi or LNReader_, when the last one came in
 (`LAST: MIHON BACKUP · 2 NOV · 382 SERIES`, or `NO IMPORT YET`), CHOOSE A
 FILE → to `/import`, and IMPORT LOG → in the scope cell. Its meta line says a
@@ -212,7 +212,7 @@ line). Nothing is managed from here.
 **WEBVIEW**, after EXTENSIONS (WI-FI's row again: its OFF | ON, meta lines
 and two-cell strip): the engine's headless browser
 for the few extensions that need one ([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md),
-"WebView support"; [`BROWSE.md`](BROWSE.md), "Extensions that need a
+"Cloudflare and WebView extensions"; [`BROWSE.md`](BROWSE.md), "Extensions that need a
 WebView"). **Off by default, on every install**: it runs those extensions'
 sites' scripts in Chromium 111 without a sandbox, so it stays off until turned
 on. The row says so in its second meta line.
@@ -294,7 +294,7 @@ itself.
 - **A device is one of four kinds**: phone, tablet, desktop or TV
   (`DeviceKind`, `settings/catalog.ts`; `devices.kind`, migration 59). The screen
   says the first three; only the TV app's own user agent says TV
-  ([`TV-APP.md`](TV-APP.md)), and `/api/devices/sync` reads it from the
+  ([`ANDROID.md`](ANDROID.md)), and `/api/devices/sync` reads it from the
   request header rather than trusting the page's guess. So a TV's row is kept
   as `tv`, says TV in the section, and counts as another device on `/start`.
 - The theme is a cookie the server reads. The record mirrors it as

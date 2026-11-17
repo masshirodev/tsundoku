@@ -33,7 +33,7 @@
 		title: string;
 		pageCount: number;
 		available: boolean;
-		/** Read from its source (doc/BROWSING.md): its pages aren't counted until asked for. */
+		/** Read from its source (doc/READING-ONLINE.md): its pages aren't counted until asked for. */
 		online?: boolean;
 	};
 	let {
@@ -113,7 +113,7 @@
 		/**
 		 * In the library, so the end offers DELETE (the series screen's own,
 		 * confirmed first: doc/DELETING.md). False for a browsing record
-		 * (doc/BROWSING.md), whose end offers + ADD through `addHref`. Required,
+		 * (doc/READING-ONLINE.md), whose end offers + ADD through `addHref`. Required,
 		 * with no default: a reader that forgets it must fail `yarn run check`
 		 * rather than quietly offer the wrong cell (c655, round 2).
 		 */

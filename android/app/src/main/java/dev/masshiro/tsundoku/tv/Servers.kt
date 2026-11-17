@@ -1,7 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * The servers this TV has paired with (c261; doc/TV-APP.md, "Servers";
+ * The servers this TV has paired with (c261; doc/ANDROID.md, "Servers";
  * doc/handoffs/tv-servers/, "05 — what this asks of the app").
  *
  * One entry per origin: the origin, the name the server gives itself (its
@@ -163,7 +163,7 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 	 * the update opens exactly as it did and is never asked to pair again
 	 * (its cookie is the WebView's, and nothing here touches it). The jar
 	 * scopes cookies by host, not origin: two servers on one host share the
-	 * one paired cookie (doc/TV-APP.md, "What it does not do yet").
+	 * one paired cookie (doc/ANDROID.md, "Limits").
 	 */
 	@Synchronized
 	fun all(): List<Server> {

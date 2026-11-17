@@ -980,7 +980,7 @@ export function scopeLabel(row: RowDef, device: string): string {
 }
 
 /**
- * The TV app (doc/TV-APP.md) appends `TsundokuTV/<version>` to its WebView's
+ * The TV app (doc/ANDROID.md) appends `TsundokuTV/<version>` to its WebView's
  * user agent: the one sure sign a browser is a TV, since a page alone can't
  * tell a TV from a pointerless desktop.
  */
@@ -988,7 +988,7 @@ export const isTvApp = (ua: string) => /TsundokuTV\//i.test(ua);
 
 /**
  * tsundoku's own Android app, on a TV (`TsundokuTV/<version>`) or on a phone or
- * tablet (`TsundokuApp/<version>`, c521; doc/PHONE-APP.md). Being the app is a
+ * tablet (`TsundokuApp/<version>`, c521; doc/ANDROID.md). Being the app is a
  * flag beside the device's kind, never a kind of its own: a phone in the app
  * is still a phone, as its screen says.
  */
@@ -1026,7 +1026,7 @@ export const deviceWord = (kind: DeviceKind, label: string) =>
 /**
  * The kind of device a browser is: what its row in DEVICES is called. The
  * screen says phone, tablet or desktop; only the app's own user agent says TV
- * (doc/TV-APP.md). A wide page with no pointer is not enough — an unplugged
+ * (doc/ANDROID.md). A wide page with no pointer is not enough — an unplugged
  * mouse reads the same — so `ua` is what makes a TV.
  */
 export function deviceKind(o: { width: number; coarse: boolean; ua?: string }): DeviceKind {
@@ -1037,7 +1037,7 @@ export function deviceKind(o: { width: number; coarse: boolean; ua?: string }): 
 
 /**
  * "Android tablet · Chrome", from the browser's own words. `tv` is the TV
- * app's own user agent (doc/TV-APP.md), so a paired or synced TV reads as a TV
+ * app's own user agent (doc/ANDROID.md), so a paired or synced TV reads as a TV
  * in DEVICES. The app, on any screen, says the app and its version where a
  * browser's name would be: "Android phone · app 2026.11.05" (c521; the design's
  * DEVICES, PhoneApp-Calls.dc.html), since inside the app the browser is the

@@ -14,7 +14,7 @@ import {
 
 /**
  * The engine's WebView, from the app's side (doc/EXTENSION-ENGINE.md,
- * "WebView support"; doc/SETTINGS.md, "07 — BROWSE"): whether this install's
+ * "Cloudflare and WebView extensions"; doc/SETTINGS.md, "07 — BROWSE"): whether this install's
  * engine runs WebView extensions, how its Chromium is, SETTINGS' switch, and
  * the folder Chromium lives in.
  *

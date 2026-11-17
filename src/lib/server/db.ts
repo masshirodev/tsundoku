@@ -293,7 +293,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	-- book can come out while the rest of the root stays hidden.
 	ALTER TABLE series ADD COLUMN public INTEGER NOT NULL DEFAULT 0;
 	`,
-	// Rung 10: one chapter, several scanlators (doc/DUPLICATES.md). A shadowed
+	// Rung 10: one chapter, several scanlators (doc/DUPLICATE-CHAPTERS.md). A shadowed
 	// entry is a copy of a chapter another entry represents; everything that
 	// lists or counts chapters skips it. series.scanlator is the owner's
 	// preference, NULL meaning automatic.
@@ -759,7 +759,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		WHERE e.series_id = series.id AND e.read_at IS NULL)
 	WHERE arrived_at IS NOT NULL;
 	`,
-	// Rung 37: FOLLOW (doc/DOWNLOADING.md). When the owner followed a series:
+	// Rung 37: FOLLOW (doc/DOWNLOADS.md). When the owner followed a series:
 	// chapters Suwayomi fetches after it are queued on their own. NULL is not
 	// followed. Suwayomi can only auto-download a whole category or the whole
 	// library, so the list is tsundoku's.
@@ -781,7 +781,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		checked_at INTEGER NOT NULL
 	) WITHOUT ROWID;
 	`,
-	// Rung 39: extensions on tsundoku's own engine (doc/DOWNLOADER.md,
+	// Rung 39: extensions on tsundoku's own engine (doc/DOWNLOADS.md,
 	// "Extensions"; card c136). Repositories the owner adds (none ships), the
 	// index each had when last read, installed extensions with the previous
 	// version kept a week for BACK TO, their sources, and each source's
@@ -840,7 +840,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		PRIMARY KEY (source_id, key)
 	) WITHOUT ROWID;
 	`,
-	// Rung 40: tsundoku's own download queue (doc/DOWNLOADER.md; card c137).
+	// Rung 40: tsundoku's own download queue (doc/DOWNLOADS.md; card c137).
 	// Keyed by tsundoku's entries, never by a source's ids. engine_series and
 	// engine_chapters hold what the extension calls a series and a chapter
 	// now (Toonily's moved to a new URL scheme): the engine is called with
@@ -1017,7 +1017,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		checked_at INTEGER NOT NULL
 	);
 	`,
-	// v50: the browsing record (doc/BROWSING.md; card c161). A series opened from
+	// v50: the browsing record (doc/READING-ONLINE.md; card c161). A series opened from
 	// a source's preview without ADD is a series all the same, so the readers and
 	// the player work on it unchanged, but `in_library = 0` keeps it off every
 	// shelf, count and scan; HISTORY shows it, and ADD sets it to 1, its progress
@@ -1028,7 +1028,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	CREATE INDEX series_browsing ON series(browsed_at) WHERE in_library = 0;
 	`,
 	// v51: a browsing record forgotten (FORGET, or 30 days after its last open;
-	// doc/BROWSING.md, "Pruning"). The row stays, because its reading happened and
+	// doc/READING-ONLINE.md, "Pruning"). The row stays, because its reading happened and
 	// HISTORY keeps it, dimmed; its place and marks go. Opening it again clears this.
 	`
 	ALTER TABLE series ADD COLUMN pruned_at INTEGER;
@@ -1174,7 +1174,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		SELECT id, former_url, 0 FROM entries
 		WHERE former_url != '' AND former_url != source_url;
 	`,
-	// v59: a TV is its own kind in DEVICES (doc/TV.md, doc/TV-APP.md; card
+	// v59: a TV is its own kind in DEVICES (doc/TV.md, doc/ANDROID.md; card
 	// c244). The app's user agent has named it a TV since c236, but its row's
 	// kind still said desktop because devices.kind's CHECK had no fourth value.
 	// SQLite cannot alter a CHECK in place; widening one that allows more
@@ -1454,7 +1454,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	WHERE id IN (SELECT id FROM c443_steps);
 	DROP TABLE c443_steps;
 	`,
-	// v66: IMPORT A BACKUP and its log (c438, doc/IMPORT.md). One row per file
+	// v66: IMPORT A BACKUP and its log (c438, doc/IMPORT-BACKUP.md). One row per file
 	// chosen on /import: what it was, where it came from, what became of it.
 	// A scan stays a `scan_jobs` row alone; an import runs as a scan job too
 	// (`job_id`), so the library's band and "one at a time" are the scan's.
@@ -1639,7 +1639,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	ALTER TABLE series_links ADD COLUMN year INTEGER;
 	`,
 	// v71: the Works a scan's or an import's folds took a series out of (card
-	// c570; doc/IMPORT.md, "The log"), as JSON (`Dropped[]`, import/fold.ts),
+	// c570; doc/IMPORT-BACKUP.md, "The log"), as JSON (`Dropped[]`, import/fold.ts),
 	// so the IMPORT LOG can say DROPPED FROM <WORK>. Until now only the
 	// summary and the server's log had them. '[]' is right for every job
 	// already stored: nothing recorded them, and what a fold dropped then
@@ -1813,7 +1813,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 			WHERE e.series_id = NEW.id AND COALESCE(e.episode_number, e.position) = highlights.number
 				AND e.season IS highlights.season);
 	END;
-	-- A browsing record made the library's by ADD (doc/BROWSING.md) is a re-add too.
+	-- A browsing record made the library's by ADD (doc/READING-ONLINE.md) is a re-add too.
 	CREATE TRIGGER highlights_series_added AFTER UPDATE OF in_library ON series
 		WHEN NEW.in_library = 1 AND OLD.in_library = 0 AND NEW.origin_key IS NOT NULL
 	BEGIN
@@ -1990,16 +1990,16 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	END;
 	`,
 	// v78: whether an extension's code uses a WebView (doc/EXTENSION-ENGINE.md,
-	// "WebView support"; doc/BROWSE.md, "Extensions that need a WebView"): 1 or
+	// "Cloudflare and WebView extensions"; doc/BROWSE.md, "Extensions that need a WebView"): 1 or
 	// 0, from the engine's `extensionInfo.usesWebView` at install, or from the
 	// APK's own dex (`apkUsesWebView`). NULL until known: an extension
 	// installed before this rung is read from its stored APK on the first
 	// BROWSE or EXTENSIONS visit (`fillWebViewFlags`).
 	`ALTER TABLE engine_extensions ADD COLUMN webview INTEGER;`,
 
-	// v79: films and live-action shows are kinds (doc/KINDS.md, "Movies and TV
-	// shows"; cards c987, c989). Same reason and same way as rung 47: only the
-	// CHECK widens, and nothing stored changes.
+	// v79: films and live-action shows are kinds (doc/FILMS-SHOWS.md; cards
+	// c987, c989). Same reason and same way as rung 47: only the CHECK widens,
+	// and nothing stored changes.
 	(conn) => widenKindsForFilms(conn),
 
 	// v80: TMDB links, a film's and a show's (card c989; doc/LINKS.md, "TMDB
@@ -2009,7 +2009,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// `link_searches` with no kind filter, so a film's row there would be
 	// judged by a comic's rules. A show links once, the whole show: TMDB's
 	// seasons are inside its one entry, and the source's seasons stay the
-	// source's (doc/MOVIES-TV.md, "Decided").
+	// source's (doc/FILMS-SHOWS.md, "How it is shaped, and why").
 	//
 	// `series_tmdb_links` keeps what the screen draws without asking again
 	// (the overview, the poster, a film's runtime and collection, a show's

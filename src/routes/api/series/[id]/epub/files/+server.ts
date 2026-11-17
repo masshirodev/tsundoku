@@ -31,7 +31,7 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
 		{ files: book.files },
 		{
 			headers: {
-				// A chapter read online is never kept (doc/BROWSING.md, "Novels online").
+				// A chapter read online is never kept (doc/READING-ONLINE.md, "Novels online").
 				'cache-control': ONLINE_FILE.test(url.searchParams.get('f') ?? '')
 					? 'private, no-store'
 					: v

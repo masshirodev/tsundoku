@@ -68,7 +68,7 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 	// Hidden means hidden: a mostly-hidden source's series isn't previewed with reveal off.
 	const sourceId = sourceOfMangaId(id);
 	if (!sourceId || !browseSource(sourceId, isRevealed(cookies))) error(404, 'not found');
-	// A browsing record of it (doc/BROWSING.md): what was watched, where it
+	// A browsing record of it (doc/READING-ONLINE.md): what was watched, where it
 	// stopped, and when it goes. Rows are matched by their address at the source.
 	const record = recordView(key);
 	const manga = sourceManga(id).then((m) =>
@@ -94,7 +94,7 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 
 export const actions: Actions = {
 	/**
-	 * An episode, played without ADD (doc/BROWSING.md; card c161): the series
+	 * An episode, played without ADD (doc/READING-ONLINE.md; card c161): the series
 	 * becomes a browsing record on the first open, on no shelf, its progress and
 	 * HISTORY kept for ADD later.
 	 */

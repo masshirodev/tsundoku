@@ -3,7 +3,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from './fspath.ts';
 
 /**
- * A friend's first start (doc/DISTRIBUTION.md, "A local serve mode"). The
+ * A friend's first start (doc/DISTRIBUTION.md, "The local serve mode"). The
  * workstation makes its token by hand and keeps it in Infisical; a friend's
  * install has neither, and an app that exits with "TSUNDOKU_TOKEN is not set"
  * is an app that was never opened. So serve.ts makes one, once, and keeps it

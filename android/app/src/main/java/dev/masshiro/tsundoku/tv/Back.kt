@@ -4,7 +4,7 @@ import java.net.URI
 
 /**
  * Where BACK goes once the page has said it has nothing left to take
- * (`window.tsundokuBack()` false; doc/TV-APP.md, "BACK").
+ * (`window.tsundokuBack()` false; doc/ANDROID.md, "BACK").
  *
  * Plain `goBack()` was the first answer, and on the first real TV (2026-11-02)
  * it never let the app close: the history still held the sign-in page, which

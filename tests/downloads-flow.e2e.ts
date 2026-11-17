@@ -9,7 +9,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { revealOn } from './helpers/reveal';
 
 /**
- * Downloading (Index Series Download, Index Downloads; doc/DOWNLOADING.md),
+ * Downloading (Index Series Download, Index Downloads; doc/DOWNLOADS.md),
  * end to end, against a fake extension engine this spec serves. Turning
  * downloads on for the shared server would draw a DOWNLOAD row under the
  * specs that pin the series screen, so this spec runs its own preview of the
@@ -305,7 +305,7 @@ test('the DOWNLOAD row and every chapter state (state 1)', async ({ page }) => {
 	await expect(row(page, 12).locator('.status .long')).toHaveText('QUEUED');
 	await expect(row(page, 14).locator('.status .long')).toHaveText('FAILED · 3 TRIES');
 	// A source serves it, so a chapter with no file reads online, and ↓ downloads
-	// it apart (the owner's answer to question 1, doc/BROWSING.md; Online Board 2A).
+	// it apart (the owner's answer to question 1, doc/READING-ONLINE.md; Online Board 2A).
 	await expect(row(page, 16).locator('.status .long')).toHaveText('ONLINE');
 	await expect(row(page, 16).locator('.dl-cell')).toHaveText('↓');
 	await expect(row(page, 14).locator('.dl-cell')).toHaveText('RETRY');
@@ -562,7 +562,7 @@ test('a preview adds to the library, lands on the series, and UNDO takes it back
 	await expect(page.locator('.band')).toContainText('ADDED TO THE LIBRARY');
 	await expect(page.locator('.band')).toContainText('12 CHAPTERS · NONE DOWNLOADED');
 	await expect(page.locator('.dl-row .lcs.inline .lc').first()).toHaveText('FIRST 10');
-	// START reads chapter 1 online (doc/BROWSING.md): it needn't wait for a file.
+	// START reads chapter 1 online (doc/READING-ONLINE.md): it needn't wait for a file.
 	await expect(page.locator('a.cta')).toHaveAttribute('aria-disabled', 'false');
 	await page.getByRole('button', { name: 'UNDO' }).click();
 	await expect(page).toHaveURL(/\/downloads\/source\//);

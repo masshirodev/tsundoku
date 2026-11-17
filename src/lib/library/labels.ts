@@ -4,7 +4,7 @@ import type { ContinueItem, Kind, SeriesCard } from './types.ts';
 /**
  * Copy for the library screen. The voice is a catalogue card: uppercase mono
  * for chrome, sentence case for titles, a middle dot between facts, and bare
- * numbers for counts. See doc/design/README.md, "Content fundamentals".
+ * numbers for counts. See doc/design/README.md, "House rules".
  */
 
 export const kindLabel = (kind: Kind) => kind.toUpperCase();

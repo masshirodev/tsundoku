@@ -1,5 +1,5 @@
 /**
- * One chapter, several copies (doc/DUPLICATES.md). Mihon keeps a chapter once
+ * One chapter, several copies (doc/DUPLICATE-CHAPTERS.md). Mihon keeps a chapter once
  * per scanlator, so a series can carry "Ch. 64" twice. Both copies stay in the
  * database, since either may be the one with a file on disk. One of them
  * represents the chapter, and the others are shadowed: the series screen, the

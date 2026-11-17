@@ -11,7 +11,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { backup } from './helpers/mihon-fixture';
 
 /**
- * IMPORT A BACKUP end to end (c438; doc/IMPORT.md), and START SCAN on a
+ * IMPORT A BACKUP end to end (c438; doc/IMPORT-BACKUP.md), and START SCAN on a
  * `Mihon/` with no backup in it (c268, c292). An import writes series, so
  * this seeds and serves a database of its own on a free port (the
  * works-flow arrangement), with a library folder whose `Mihon/` is empty and

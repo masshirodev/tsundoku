@@ -777,7 +777,7 @@ export function workFeetFor(seriesIds: number[]): Map<number, WorkFootFacts> {
 /**
  * The library a Work's + ADD A SERIES picker offers: everything the viewer can
  * see that is not already in it, with the Work it would move out of. A
- * browsing record is not offered (doc/BROWSING.md), and neither is anything a
+ * browsing record is not offered (doc/READING-ONLINE.md), and neither is anything a
  * diverged Work would refuse (W1's `workVisibility`).
  */
 export function addableSeries(
@@ -921,7 +921,7 @@ export function createWork(opts: {
 			// hidden series never becomes visible by joining a Work.
 			if (found.some((r) => r.hidden !== found[0].hidden))
 				throw new WorkError("hidden and visible series can't share a Work");
-			// A browsing record is on no shelf (doc/BROWSING.md), so it is not part
+			// A browsing record is on no shelf (doc/READING-ONLINE.md), so it is not part
 			// of the library a Work shows.
 			if (found.some((r) => !r.inLibrary))
 				throw new WorkError('a browsing record cannot join a Work');

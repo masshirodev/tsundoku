@@ -163,7 +163,7 @@ function fileOfSeason(db: Database.Database, seriesId: number, season: number): 
 }
 
 /**
- * Where a season's episodes go (c282; doc/DOWNLOADING.md). A season with a
+ * Where a season's episodes go (c282; doc/DOWNLOADS.md). A season with a
  * folder keeps it. **A season with files stays where they are**, whatever its
  * row says of its source: a MOVE re-keys the row and moves no file, so the
  * next episode lands beside the last (`series_season_facts_folder` is unique,

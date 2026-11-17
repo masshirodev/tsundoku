@@ -812,7 +812,7 @@
 		});
 	});
 
-	// ---- the server in use (c261, S1; doc/TV-APP.md, "Servers") -------------
+	// ---- the server in use (c261, S1; doc/ANDROID.md, "Servers") -------------
 	/*
 	 * Inside the TV app with two or more servers, the bar says whose library this
 	 * is: ON LIVING ROOM beside the wordmark, OK opening SERVERS. The list is the

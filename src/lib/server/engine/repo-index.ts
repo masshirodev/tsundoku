@@ -1,5 +1,5 @@
 /**
- * Extension repositories' indexes, read into one shape (doc/DOWNLOADER.md,
+ * Extension repositories' indexes, read into one shape (doc/DOWNLOADS.md,
  * "Extensions"). Pure: what was fetched goes in, listings come out.
  *
  * A repository is a folder: `repo.json` (its name and signing key, required,

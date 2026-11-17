@@ -18,7 +18,7 @@
 	import { live, watchQueue } from '$lib/downloads-live.svelte';
 
 	/**
-	 * The download queue (Index Downloads 8, 9, 12; doc/DOWNLOADING.md).
+	 * The download queue (Index Downloads 8, 9, 12; doc/DOWNLOADS.md).
 	 * Failures first, with RETRY and ✕; then series in the queue's order, each
 	 * opening (by URL, so without script too) on ↑ TO THE TOP, CANCEL N and its
 	 * next chapters. What finished is the NEW shelf's, linked from the band.

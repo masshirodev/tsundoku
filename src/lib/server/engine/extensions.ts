@@ -21,7 +21,7 @@ import { readCapped, readCappedText } from '../net-guard.ts';
 
 /**
  * Repositories, installed extensions and their sources' preferences
- * (doc/DOWNLOADER.md, "Extensions"; card c136). The engine keeps none of it:
+ * (doc/DOWNLOADS.md, "Extensions"; card c136). The engine keeps none of it:
  * it runs whatever APK it's handed, so what's installed, which version, which
  * source is in which extension, and every preference live here, and the APKs
  * themselves in the store under TSUNDOKU_HOME.

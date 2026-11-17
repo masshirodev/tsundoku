@@ -13,7 +13,7 @@ import {
 
 /**
  * What the library holds of each source, for finding, adding and queueing
- * series (doc/DOWNLOADING.md, "Finding a series"): library queries the
+ * series (doc/DOWNLOADS.md, "Finding a series"): library queries the
  * engine's backend (engine/backend.ts) asks, kept apart from it since none
  * of it is the engine's.
  */
@@ -173,7 +173,7 @@ export function mihonRoot(): number | null {
 
 /**
  * The tsundoku series a queued manga is, by key; null when it hasn't been
- * imported. Only the library's: a browsing record (doc/BROWSING.md) isn't one.
+ * imported. Only the library's: a browsing record (doc/READING-ONLINE.md) isn't one.
  */
 export function seriesForKey(key: string): QueueSeries | null {
 	const row = getDb()

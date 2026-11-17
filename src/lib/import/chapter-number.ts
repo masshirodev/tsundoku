@@ -3,7 +3,7 @@
  * ChapterRecognition (mihonapp/mihon, domain/.../chapter/service/
  * ChapterRecognition.kt, Apache-2.0), kept rule for rule so that a chapter
  * gets the number Mihon would give it. The 1.6 extensions leave numbering to
- * the host and return -1 for every chapter but Webtoons' (doc/DOWNLOADER.md).
+ * the host and return -1 for every chapter but Webtoons' (doc/DOWNLOADS.md).
  *
  * Each name is read on its own first: the volume or season is taken out, a
  * part becomes the letter of a sub-chapter, and the chapter number is the one

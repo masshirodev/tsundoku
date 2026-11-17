@@ -75,7 +75,7 @@ export type SeriesPage = SeriesCard & {
 	collections: number[];
 	entries: SeriesEntry[];
 	/**
-	 * One chapter, several scanlators (doc/DUPLICATES.md): how many copies the
+	 * One chapter, several scanlators (doc/DUPLICATE-CHAPTERS.md): how many copies the
 	 * list leaves out, who translated the series' chapters, and the owner's
 	 * pick among them (null: automatic).
 	 */

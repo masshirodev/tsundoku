@@ -3,7 +3,7 @@
 Light and web novels, found, downloaded and read inside tsundoku on
 [LNReader](https://github.com/LNReader/lnreader)'s plugins
 ([lnreader-plugins](https://github.com/LNReader/lnreader-plugins), MIT), as
-manga runs on Mihon's extensions ([`DOWNLOADER.md`](DOWNLOADER.md)): a
+manga runs on Mihon's extensions ([`DOWNLOADS.md`](DOWNLOADS.md)): a
 sandboxed host for the plugins, their repositories in EXTENSIONS, browsing and
 adding a novel, downloading its chapters into an EPUB the importer reads,
 FOLLOW, and a way past a site's bot check.
@@ -499,7 +499,7 @@ base64url>`, as a Mihon source's manga is `<source>~<url>`
   URL. A search inside the source is `searchNovels`, which takes no filters:
   the box says "/ search Royal Road", not "with its filters".
 - **SEARCH THE SOURCES** asks the plugins the library reads from or BROWSE
-  lists, as it asks extensions ([`DOWNLOADING.md`](DOWNLOADING.md)). IN
+  lists, as it asks extensions ([`DOWNLOADS.md`](DOWNLOADS.md)). IN
   LIBRARY and SAME TITLE match by `lnreader:<plugin>:<path>` and by title,
   across manga and novels; hidden series and mostly-hidden plugins follow the
   same rules as manga's.
@@ -547,12 +547,12 @@ into **one EPUB per novel in tsundoku's device folder**, which the EPUB
 importer reads as it reads any book ([`IMPORT-EPUB.md`](IMPORT-EPUB.md)) and
 the text reader reads as any book ([`TEXT-READER.md`](TEXT-READER.md)). **The
 importer stays the one place a file becomes an entry**, as it is for
-downloaded manga ([`DOWNLOADER.md`](DOWNLOADER.md), "The one decision"): text
+downloaded manga ([`DOWNLOADS.md`](DOWNLOADS.md), "tsundoku is a device"): text
 entries in a table of their own would be a second writer and a second reader
 path.
 
 - **The series screen** draws a novel's DOWNLOAD row and chapter states as a
-  manga's ([`DOWNLOADING.md`](DOWNLOADING.md)): FIRST/NEXT 10, ALL, a tap on
+  manga's ([`DOWNLOADS.md`](DOWNLOADS.md)): FIRST/NEXT 10, ALL, a tap on
   a row, QUEUED, DOWNLOADING, IMPORTING, FAILED · N TRIES, and the FILE line's
   counts, and FOLLOW ("FOLLOW", below). A novel whose plugin was removed
   draws no row.
@@ -614,7 +614,7 @@ rename in tsundoku moves nothing. A second novel of the same title gets
   again ([`TEXT-READER.md`](TEXT-READER.md)). A 591-chapter web novel is 2–5
   MB; the batches keep a long ALL to one write per ten chapters.
 - **A batch attaches as the book is written**
-  ([`DOWNLOADER.md`](DOWNLOADER.md), "Attaching"). Until then, or when a scan
+  ([`DOWNLOADS.md`](DOWNLOADS.md), "Attaching"). Until then, or when a scan
   has to step in, the chapters are IMPORTING (`novel_chapters`, migration 45),
   and the import is the app's own: twenty seconds after the last arrival, and
   at startup for anything a restart left.
@@ -622,7 +622,7 @@ rename in tsundoku moves nothing. A second novel of the same title gets
 ### Reading it
 
 **A chapter with no file reads online** when the novel's plugin is installed
-([`BROWSING.md`](BROWSING.md), "Novels online"): what follows is how reading
+([`READING-ONLINE.md`](READING-ONLINE.md), "Novels online"): what follows is how reading
 behaves where it can't (no plugin, or a book read offline).
 
 The text reader reads the book as any other. A novel downloaded so far has
@@ -643,7 +643,7 @@ third).
 
 ## FOLLOW
 
-As for a manga ([`DOWNLOADING.md`](DOWNLOADING.md)): FOLLOW on a novel's
+As for a manga ([`DOWNLOADS.md`](DOWNLOADS.md)): FOLLOW on a novel's
 DOWNLOAD row, FOLLOWING ✓ to stop (`src/lib/server/novels/follow.ts`).
 
 - **Its plugin is asked** at once when it's turned on, then every six hours by
@@ -657,7 +657,7 @@ DOWNLOAD row, FOLLOWING ✓ to stop (`src/lib/server/novels/follow.ts`).
 **REFRESH** is the look beside FOLLOW: `checkNovel` with `queue: false`
 through `refreshSeries` (`src/lib/server/refresh.ts`), so a new chapter
 becomes an entry and nothing downloads. A novel doesn't need to be followed to
-be asked ([`DOWNLOADING.md`](DOWNLOADING.md), "REFRESH").
+be asked ([`DOWNLOADS.md`](DOWNLOADS.md), "REFRESH").
 
 - **A chapter it lists that no entry is becomes one**, with ADD's own plan
   (`planNovel`) through the one writer, so it's numbered as ADD would have

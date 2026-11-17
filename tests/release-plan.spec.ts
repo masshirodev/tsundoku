@@ -224,7 +224,7 @@ describe('updates (doc/UPDATES.md)', () => {
 	});
 });
 
-describe('the WebView switch (doc/EXTENSION-ENGINE.md, "WebView support"; card c978)', () => {
+describe('the WebView switch (doc/EXTENSION-ENGINE.md, "Cloudflare and WebView extensions"; card c978)', () => {
 	it('starts the engine with ENGINE_WEBVIEW=on only when the switch is on', () => {
 		const on = plan({ ...base, root: '/t', home: '/h', env: {}, platform: 'linux', webview: true });
 		expect(on.engine.env.ENGINE_WEBVIEW).toBe('on');

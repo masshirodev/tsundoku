@@ -19,7 +19,7 @@
 {:else if data.text}
 	<TextReader {data} />
 {:else if 'online' in data && data.online}
-	<!-- A chapter read online (doc/BROWSING.md): the page comes at once, the chapter streams in. -->
+	<!-- A chapter read online (doc/READING-ONLINE.md): the page comes at once, the chapter streams in. -->
 	{#await data.waiting}
 		<OnlineWait {...data.wait} />
 	{:then r}

@@ -6,7 +6,7 @@
 /** 1.6 sources hang a memo off a URL; the engine writes it as `<url>|mangayomi-memo|<base64url JSON>`. */
 const MEMO = '|mangayomi-memo|';
 
-/** The Mihon URL a key is made of, and the memo to send back with it (doc/DOWNLOADER.md, "Keys"). */
+/** The Mihon URL a key is made of, and the memo to send back with it (doc/DOWNLOADS.md, "Keys"). */
 export function splitMemo(url: string): { url: string; memo: string | null } {
 	const at = url.indexOf(MEMO);
 	return at < 0
@@ -72,7 +72,7 @@ export type EngineFailure =
 	/**
 	 * A WebView extension whose browser wasn't there: still downloading or
 	 * starting, failed, or turned off on this install (doc/EXTENSION-ENGINE.md,
-	 * "WebView support"). The message says which, in place of the extension's
+	 * "Cloudflare and WebView extensions"). The message says which, in place of the extension's
 	 * own "timed out".
 	 */
 	| 'webview'

@@ -2,7 +2,7 @@ import { kindFacts, type Kind } from './kinds.ts';
 
 /**
  * Which catalogue a kind is looked up in, and what a link to it is (card
- * c988; doc/KINDS.md, "Movies and TV shows", and `doc/LINKS.md`, "Which
+ * c988; doc/FILMS-SHOWS.md, and `doc/LINKS.md`, "Which
  * catalogue"). The registry already says it per kind (`catalogue`); this is
  * the one answer the doors ask, so a film's link is never read as AniList's.
  *

@@ -151,7 +151,7 @@ export function decodeBackup(raw: Uint8Array): MihonBackup {
  * one series at a time: a series whose bytes don't decode is refused by its
  * title (or as untitled when even that is unreadable) and the rest still
  * come in. `fields` are the top-level field numbers present, which is what
- * tells an Aniyomi backup from a Mihon one (doc/IMPORT.md, "Which app").
+ * tells an Aniyomi backup from a Mihon one (doc/IMPORT-BACKUP.md, "Which app").
  * Throws ProtobufError when the file's top level is not a message at all.
  */
 export function readBackupLenient(raw: Uint8Array): {
@@ -266,7 +266,7 @@ function encodeManga(m: MihonManga): Msg {
 
 /**
  * A `.tachibk` (before gzip) holding [backup]: the decoder's mirror, so what
- * tsundoku writes for its own downloads (doc/DOWNLOADER.md) is read back by
+ * tsundoku writes for its own downloads (doc/DOWNLOADS.md) is read back by
  * the same importer as a phone's, or tsundoku's own downloads.
  */
 export function encodeBackup(backup: MihonBackup): Uint8Array {

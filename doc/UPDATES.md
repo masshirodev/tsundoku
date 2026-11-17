@@ -162,7 +162,7 @@ dated build and a scratch-signed manifest.
 
 The phone and tablet app and the TV app are sideloaded, so nothing else
 updates them; they update themselves from the same host and the same signed
-`latest.json` ([`PHONE-APP.md`](PHONE-APP.md), [`TV-APP.md`](TV-APP.md)).
+`latest.json` ([`ANDROID.md`](ANDROID.md)).
 
 - **Published with every release.** `ops/release/android-apk.sh <version>`
   builds both beside the bundles, release-signed; `release:publish` refuses a

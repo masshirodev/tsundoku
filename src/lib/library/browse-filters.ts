@@ -40,7 +40,7 @@ const TEXT_MAX = 200;
 /**
  * What a group can hold that can be set. The engine reads a text inside a
  * group from the child's name, which is also how it finds the child, so such a
- * text can never be changed: it isn't drawn (doc/BROWSE.md, "Not done yet").
+ * text can never be changed: it isn't drawn (doc/BROWSE.md, "Limits").
  */
 const settable = (f: FilterField) =>
 	f.type === 'checkbox' || f.type === 'tristate' || f.type === 'select';

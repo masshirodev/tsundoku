@@ -3,9 +3,9 @@ import type { Page } from '@playwright/test';
 
 /**
  * The web app at 130% text (c591): the phone and tablet app follows Android's
- * font size up to 130% through the WebView's `textZoom` (doc/PHONE-APP.md on
- * the `phone-app` branch), which scales every computed font size and nothing
- * else. A browser has no text zoom, so the closest it gets is the card's
+ * font size up to 130% through the WebView's `textZoom` (doc/ANDROID.md),
+ * which scales every computed font size and nothing else. A browser has no
+ * text zoom, so the closest it gets is the card's
  * method: on a 360 × 780 phone, every element's computed `font-size` is
  * multiplied by 1.3 in place (`zoomText`), all read first and then written,
  * so nothing is scaled twice. Line heights that are unitless or in `em`

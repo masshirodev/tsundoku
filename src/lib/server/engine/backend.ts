@@ -50,7 +50,7 @@ import type {
 } from '../download-types.ts';
 
 /**
- * The download screens' backend on tsundoku's own engine (doc/DOWNLOADER.md,
+ * The download screens' backend on tsundoku's own engine (doc/DOWNLOADS.md,
  * card c138): every function the screens call, answering in the types they
  * were drawn for (download-types.ts, Suwayomi's until c129), so the screens are the
  * same whichever backend runs (server/downloads.ts picks). A chapter's id is
@@ -649,7 +649,7 @@ function rememberAtSource(seriesId: number, m: SourceManga, now: number) {
  * ADD TO LIBRARY: into tsundoku's library at once, every chapter NOT
  * DOWNLOADED, by the Mihon importer's own plan and writer. A browsing record
  * of it becomes the library's, its place kept. With `browsing`, a chapter
- * opened from the preview without ADD (doc/BROWSING.md): a record, or the
+ * opened from the preview without ADD (doc/READING-ONLINE.md): a record, or the
  * library's series when it has one.
  */
 export async function addToLibrary(
@@ -666,7 +666,7 @@ export async function addToLibrary(
 	const key = keyOf(m.sourceId, splitMemo(m.url).url);
 	const existing = seriesHolding(key, db());
 	if (existing) return keepOrPromote(existing, browsing, now, db());
-	// A library with no Mihon folder yet (a friend's new install, doc/BROWSING.md):
+	// A library with no Mihon folder yet (a friend's new install, doc/READING-ONLINE.md):
 	// the root a scan of `Mihon/` would make, made now, so the first ADD or
 	// online read works. It used to refuse, and READ ONLINE did nothing.
 	const rootId =

@@ -78,7 +78,7 @@ const DEVICE_IGNORE = [
 // it lands).
 const DESKTOP_ONLY = ['**/import-frame.e2e.ts', '**/highlights-frame.e2e.ts'];
 const TABLET_LANDSCAPE_ONLY = ['**/series-lists-frame.e2e.ts', '**/highlights-manga-frame.e2e.ts'];
-// The phone app's specs (c521; doc/PHONE-APP.md) set their own viewports, a
+// The phone app's specs (c521; doc/ANDROID.md) set their own viewports, a
 // phone's and a tablet's, so they run once, in the phone project.
 const PHONE_ONLY = [
 	'**/phone-app-pair.e2e.ts',

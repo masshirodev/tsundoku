@@ -32,7 +32,7 @@ const { decodeBackup } = await import('$lib/import/mihon-backup');
 const { listZip, readMember } = await import('$lib/server/zip');
 const { parseComicInfo } = await import('$lib/import/comicinfo');
 
-// A Toonily-shaped source (doc/DOWNLOADER.md, "Keys"): the library keys the
+// A Toonily-shaped source (doc/DOWNLOADS.md, "Keys"): the library keys the
 // series and its chapters by the old URLs, the extension answers with new ones.
 const SOURCE = '5190569675461947007';
 const OLD_SERIES = '/webtoon/a-series/';

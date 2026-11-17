@@ -19,7 +19,7 @@
 	import type { Kind } from '$lib/library/types';
 
 	/**
-	 * One chosen file (c438; doc/IMPORT.md): what it holds before anything is
+	 * One chosen file (c438; doc/IMPORT-BACKUP.md): what it holds before anything is
 	 * written (Import-Preview, Import-Preview-States, Import-File-States F),
 	 * IMPORT, its progress (Import-Progress) and its result (Import-Result),
 	 * with the phone's boards as the narrow layout. The page follows the row;
@@ -40,7 +40,7 @@
 		data.view === 'preview' ? seeAll(data.preview.rows, { query, kind: tab, shown }) : null
 	);
 
-	/** INSTALL from the preview: what EXTENSIONS' own INSTALL posts (doc/IMPORT.md, "Missing sources"). */
+	/** INSTALL from the preview: what EXTENSIONS' own INSTALL posts (doc/IMPORT-BACKUP.md, "Installing a missing source"). */
 	let installing = $state<Record<string, 'installing' | 'untrusted' | 'failed'>>({});
 	async function install(sources: MissingSource[]) {
 		for (const s of sources) {

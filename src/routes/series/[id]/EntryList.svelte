@@ -70,7 +70,7 @@
 		 * rail below 60 entries, where they'd only get in the way.
 		 */
 		onclose?: () => void;
-		/** Each chapter's place in downloading (doc/DOWNLOADING.md); null where downloading has no say. */
+		/** Each chapter's place in downloading (doc/DOWNLOADS.md); null where downloading has no say. */
 		downloads?: Map<number, DownloadState> | null;
 		/**
 		 * Whether a tap on a row with no file queues it (or retries it, if it
@@ -78,7 +78,7 @@
 		 */
 		canDownload?: boolean;
 		/**
-		 * A source serves the series (doc/BROWSING.md, "Manga online"; Online Board 2):
+		 * A source serves the series (doc/READING-ONLINE.md, "Manga online"; Online Board 2):
 		 * a tap on a chapter with no file reads it online, and downloading moves to
 		 * a ↓ cell of its own at the end of the row.
 		 */

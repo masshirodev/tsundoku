@@ -242,7 +242,7 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 	// series that does not exist, so the URL cannot be used to probe.
 	const series = seriesPage(seriesId(params.id), reveal);
 	if (!series) error(404, 'not found');
-	// A browsing record (doc/BROWSING.md) has no series screen of its own: it is
+	// A browsing record (doc/READING-ONLINE.md) has no series screen of its own: it is
 	// its source's preview, with + ADD, until it is added.
 	const browsing = getDb()
 		.prepare(`SELECT origin_key FROM series WHERE id = ? AND in_library = 0`)
@@ -342,7 +342,7 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		tracking: trackingOf(series.id),
 		// A novel's Ranobe link and line (doc/RANOBE.md). Null for a comic.
 		ranobe: ranobeSeries(series.id),
-		// Downloading (doc/DOWNLOADING.md): the DOWNLOAD row and each chapter's state.
+		// Downloading (doc/DOWNLOADS.md): the DOWNLOAD row and each chapter's state.
 		downloads: await seriesDownloads(series.id, series.entries),
 		// An anime's ALL asks its QUALITY (doc/ANIME.md, "Downloading"): SETTINGS' height, and where it goes.
 		anime:
@@ -1270,7 +1270,7 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * DOWNLOAD (doc/DOWNLOADING.md): NEXT 10, ALL N, the bulk bar's selection,
+	 * DOWNLOAD (doc/DOWNLOADS.md): NEXT 10, ALL N, the bulk bar's selection,
 	 * a tap on one row, or the end page's DOWNLOAD FIRST 10 (`which=first`:
 	 * the first ten unread, whatever is under way, c534). Each chapter is decided again here, from what
 	 * the queue says now: one with no file is queued, a failed one retried, and
@@ -1299,7 +1299,7 @@ export const actions: Actions = {
 		return { downloaded: result };
 	},
 
-	/** FOLLOW and FOLLOWING ✓: new chapters download as the source lists them (doc/DOWNLOADING.md). */
+	/** FOLLOW and FOLLOWING ✓: new chapters download as the source lists them (doc/DOWNLOADS.md). */
 	follow: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const on = (await request.formData()).get('on') === '1';

@@ -3,7 +3,7 @@ import { dirname } from '../fspath.ts';
 
 /**
  * SETTINGS' WEBVIEW switch, one per install (doc/SETTINGS.md, "07 — BROWSE";
- * doc/EXTENSION-ENGINE.md, "WebView support"). Off by default: the engine's
+ * doc/EXTENSION-ENGINE.md, "Cloudflare and WebView extensions"). Off by default: the engine's
  * WebView runs sites' scripts in Chromium 111 without a sandbox, so the owner
  * decided (2026-11-12, card c978) that it is on only where an install turns
  * it on, the owner's own workstation, and off on friends'.

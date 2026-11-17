@@ -85,7 +85,7 @@ const xmlEscape = (s: string) =>
 		.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
 
 /**
- * ComicInfo.xml for a chapter tsundoku downloads (doc/DOWNLOADER.md), in
+ * ComicInfo.xml for a chapter tsundoku downloads (doc/DOWNLOADS.md), in
  * Mihon's elements, so `parseComicInfo` (and any other reader) reads it as one
  * of Mihon's. Empty fields are left out, and `Web` carries the chapter's URL,
  * which is what matches the file to its chapter in the backup.

@@ -7,7 +7,7 @@ import { chapterAtSource } from '../engine/worker.ts';
 import { entryOriginSql } from '../season-facts.ts';
 
 /**
- * A chapter read online (doc/BROWSING.md, "Manga online"; card c166): a
+ * A chapter read online (doc/READING-ONLINE.md, "Manga online"; card c166): a
  * chapter with no file, from a series a source serves, read straight from
  * the source through the engine. Nothing is written: the page list is kept
  * in memory a few minutes, and each page passes through on its way to the

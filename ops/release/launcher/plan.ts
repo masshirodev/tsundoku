@@ -116,7 +116,7 @@ export function plan(o: {
 			ENGINE_HOST: '127.0.0.1',
 			ENGINE_APK_DIR: p.join(o.home, 'engine', 'apks'),
 			// Headless Chromium for WebView extensions, only when SETTINGS has it on
-			// (doc/EXTENSION-ENGINE.md, "WebView support"). Its folder is named so the
+			// (doc/EXTENSION-ENGINE.md, "Cloudflare and WebView extensions"). Its folder is named so the
 			// app and the engine agree on it.
 			...engineWebViewEnv(o.webview === true),
 			ENGINE_WEBVIEW_DIR: chromiumPath(o.home, o.platform)
@@ -197,7 +197,7 @@ export const SOLVER_NSS = [
 	'libplds4.so'
 ];
 
-// ---- the WebView switch (doc/EXTENSION-ENGINE.md, "WebView support") ---------------------
+// ---- the WebView switch (doc/EXTENSION-ENGINE.md, "Cloudflare and WebView extensions") ----
 
 /**
  * Where SETTINGS' WEBVIEW switch is kept, under the data folder, as WI-FI

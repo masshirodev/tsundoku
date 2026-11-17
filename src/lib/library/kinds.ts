@@ -61,7 +61,7 @@ export type KindFacts = {
 	grouping: 'books' | 'volumes' | null;
 	/**
 	 * Where a video kind's downloads go under the one library root (card c991;
-	 * doc/DOWNLOADING.md, "Where files go"): its folder, the folder a hidden
+	 * doc/DOWNLOADS.md, "Where files go"): its folder, the folder a hidden
 	 * series goes to instead (never one a Jellyfin library would read: Jellyfin
 	 * has no reveal), and the layout inside, `seasons` (`<Series>/Season 01/…
 	 * S01E07 …mkv`, tvshow.nfo) or `film` (`<Title (Year)>/<Title (Year)>.mkv`,
@@ -202,7 +202,7 @@ export const KIND_FACTS = {
 		grouping: null,
 		storage: { folder: 'Anime', hidden: 'Anime (hidden)', layout: 'seasons' }
 	},
-	// A film is a series with one entry (doc/KINDS.md, "Movies and TV shows";
+	// A film is a series with one entry (doc/FILMS-SHOWS.md;
 	// card c987): video, no unit, no list, TMDB's `movie`, and an Aniyomi
 	// source's key. It matches only a film: a film is not the twin of the book
 	// it adapts (that is OTHER FORMS). Movable between sources, read as video.

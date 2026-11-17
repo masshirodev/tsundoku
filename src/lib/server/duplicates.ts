@@ -9,7 +9,7 @@ import {
 
 /**
  * Settle which copy of each duplicated chapter represents it, for the given
- * series or for all of them (doc/DUPLICATES.md). Runs after every import and
+ * series or for all of them (doc/DUPLICATE-CHAPTERS.md). Runs after every import and
  * whenever a series' preferred scanlator changes. It only ever sets
  * `shadowed` and carries read state forward onto the representative, so it
  * can run as often as you like.

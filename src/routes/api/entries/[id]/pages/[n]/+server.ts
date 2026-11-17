@@ -28,7 +28,7 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
 			'content-type': page.type,
 			'content-length': String(page.size),
 			// A page read online is never kept, by the browser or the device (the
-			// owner's answer to question 4, doc/BROWSING.md): only downloads are.
+			// owner's answer to question 4, doc/READING-ONLINE.md): only downloads are.
 			'cache-control': isOnlineVersion(url.searchParams.get('v'))
 				? 'private, no-store'
 				: url.searchParams.has('v')

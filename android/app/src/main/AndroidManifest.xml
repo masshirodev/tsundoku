@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
 	What the TV app and the phone and tablet app share (c236, c521;
-	doc/TV-APP.md, doc/PHONE-APP.md). Each flavor's own manifest adds what is
+	doc/ANDROID.md). Each flavor's own manifest adds what is
 	its alone: the TV's leanback entry, banner and landscape lock (src/tv),
 	the phone's keyboard mode (src/mobile). The launcher icon is the app's own
 	(積 typeset on graphite, doc/INSTALL.md).

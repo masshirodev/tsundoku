@@ -208,7 +208,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		dupes,
 		toLink,
 		toLinkPublic,
-		// FOLLOWED is a filter while something the viewer can see is followed (doc/DOWNLOADING.md).
+		// FOLLOWED is a filter while something the viewer can see is followed (doc/DOWNLOADS.md).
 		following: anyFollowed(reveal),
 		libraryRoot: libraryRoot(),
 		// IMPORT LOG under MORE says when the last backup came in (c438).
@@ -473,7 +473,7 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * REFRESH over the selection (card c221; doc/DOWNLOADING.md, "REFRESH"):
+	 * REFRESH over the selection (card c221; doc/DOWNLOADS.md, "REFRESH"):
 	 * each series whose source can be asked is asked once, through the same
 	 * `refreshSeries` the series screen uses, and nothing is downloaded. The
 	 * batch bounds itself and leaves out what reveal hides, so the band can

@@ -13,7 +13,7 @@ import org.junit.Test
  * which is an **origin** (`scheme://host[:port]`) and never a URL with a path or
  * a fragment (round 2 of wave 27: every input here is origin-shaped, because the
  * rule judges the origin and not the URL a page was loaded from). Nothing calls
- * the rule yet (doc/TV-APP.md, "What it does not do yet"), so these cases are
+ * the rule yet (doc/ANDROID.md, "Limits"), so these cases are
  * the whole of it for now.
  */
 class MessageGuardTest {

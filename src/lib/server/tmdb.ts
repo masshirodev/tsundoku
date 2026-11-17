@@ -4,8 +4,8 @@ import { catalogueType } from '../library/catalogues.ts';
 import type { TmdbCollection, TmdbSeason, TmdbShowFacts, TmdbTitle } from '../library/tmdb.ts';
 
 /**
- * TMDB, the films' and shows' catalogue (card c989; doc/MOVIES-TV.md,
- * "Decided"; doc/LINKS.md, "Which catalogue"). This is the client only: the
+ * TMDB, the films' and shows' catalogue (card c989; doc/FILMS-SHOWS.md,
+ * "How it is shaped, and why"; doc/LINKS.md, "Which catalogue"). This is the client only: the
  * link row, the review and the backfill pass are the rest of c989's card.
  *
  * **The key is the install's own** (`TMDB_API_RC_TOKEN`, the v4 read token,

@@ -19,7 +19,7 @@ export async function requestScan(): Promise<{ started: boolean; looked?: string
 }
 
 /**
- * FOLLOW's step (doc/DOWNLOADING.md): ask the app to queue what's new in
+ * FOLLOW's step (doc/DOWNLOADS.md): ask the app to queue what's new in
  * every followed series. The app does it, not the timer, for the same reason
  * it imports: one process talks to the library.
  */

@@ -55,7 +55,7 @@
 		return upper(`${d.getDate()} ${month}`);
 	};
 
-	// ---- SERVERS (c261; doc/TV-APP.md, "Servers"; doc/handoffs/tv-servers/) ----
+	// ---- SERVERS (c261; doc/ANDROID.md, "Servers"; doc/handoffs/tv-servers/) ----
 	/*
 	 * The TV app's list of servers, read from its bridge (PairingBridge.kt):
 	 * MORE's last row (S6), SERVERS (S2), a server's options (S3) and FORGET

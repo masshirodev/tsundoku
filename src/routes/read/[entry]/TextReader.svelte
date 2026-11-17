@@ -253,7 +253,7 @@
 				e instanceof BookFailure
 					? e
 					: file.startsWith('online:')
-						? // Read from its source, which didn't send it (doc/BROWSING.md, "Novels online").
+						? // Read from its source, which didn't send it (doc/READING-ONLINE.md, "Novels online").
 							new BookFailure('online', 'THE SOURCE DID NOT SEND THE CHAPTER')
 						: new BookFailure('broken', 'THE PACKAGE WOULD NOT PARSE');
 			return false;

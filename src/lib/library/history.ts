@@ -30,7 +30,7 @@ export type HistoryDay = {
 	entryCount: number;
 	/** The series' status as imported: 'completed', 'ongoing' or ''. */
 	status: string;
-	/** False for a browsing record (doc/BROWSING.md): opened from a source, never added. */
+	/** False for a browsing record (doc/READING-ONLINE.md): opened from a source, never added. */
 	inLibrary?: boolean;
 	/** A record forgotten (FORGET) or pruned (not opened for 30 days); its place is gone. */
 	pruned?: 'forgotten' | 'unopened' | null;

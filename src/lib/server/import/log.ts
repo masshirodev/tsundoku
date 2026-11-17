@@ -12,7 +12,7 @@ import {
 } from './backup.ts';
 
 /**
- * The IMPORT LOG (c438, doc/IMPORT.md, "The log"): every import of a backup
+ * The IMPORT LOG (c438, doc/IMPORT-BACKUP.md, "The log"): every import of a backup
  * and every scan, newest first, a running or waiting one too. Counts are read
  * through `series` and its root, so a series deleted since stops counting.
  *

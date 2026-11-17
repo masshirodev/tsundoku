@@ -1,5 +1,5 @@
 /**
- * Which of the TV app's servers is in use (c261's S1 and S2; doc/TV-APP.md,
+ * Which of the TV app's servers is in use (c261's S1 and S2; doc/ANDROID.md,
  * "Servers"): the one this page is served from, whatever the bridge says.
  *
  * The bridge's own `inUse` is the server with the newest `opened`

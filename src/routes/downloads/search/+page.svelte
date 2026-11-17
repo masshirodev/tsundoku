@@ -217,7 +217,7 @@
 		<div>{count(counts.found)} FOUND</div>
 	</div>
 
-	<!-- The order MOVE's candidates share (card c490; doc/BROWSING.md, the search
+	<!-- The order MOVE's candidates share (card c490; doc/READING-ONLINE.md, the search
 	     page): the sources with results first, in the order they answered;
 	     the ones still asking as one line; then, folded at the end, the ones
 	     that found nothing and the ones that did not answer. -->

@@ -2,7 +2,7 @@ package dev.masshiro.tsundoku.tv
 
 /**
  * Which app this build is: the TV's, or the phone and tablet one (c521;
- * doc/PHONE-APP.md). One Gradle project builds both, as two product flavors
+ * doc/ANDROID.md). One Gradle project builds both, as two product flavors
  * sharing every line of pairing (`tv`, `mobile`); what differs between them is
  * decided here, from `BuildConfig.FORM`, so each difference is one tested
  * function rather than a branch buried in the activity.

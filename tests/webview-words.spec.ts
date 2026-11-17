@@ -15,7 +15,7 @@ import {
 } from '$lib/webview';
 
 // The engine's WebView in tsundoku's words (src/lib/webview.ts;
-// doc/EXTENSION-ENGINE.md, "WebView support").
+// doc/EXTENSION-ENGINE.md, "Cloudflare and WebView extensions").
 
 const status = (over: Partial<WebViewStatus> = {}): WebViewStatus => ({
 	state: 'idle',

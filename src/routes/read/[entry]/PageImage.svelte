@@ -60,7 +60,7 @@
 		 * States 1n): arriving from the previous chapter, that's what's loading.
 		 */
 		chapter?: string;
-		/** Read from its source (doc/BROWSING.md, "Manga online"): waiting is dashed, as Index dashes what isn't stored. */
+		/** Read from its source (doc/READING-ONLINE.md, "Manga online"): waiting is dashed, as Index dashes what isn't stored. */
 		online?: boolean;
 		/**
 		 * A kept page (Highlights H3, c703; Manga M3): a 4px yellow rule in the

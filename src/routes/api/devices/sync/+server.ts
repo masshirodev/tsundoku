@@ -19,7 +19,7 @@ export const POST: RequestHandler = async ({ request, cookies, locals, url }) =>
 		register?: unknown;
 	} | null;
 	const ua = request.headers.get('user-agent') ?? '';
-	// The app's user agent is the one sure sign of a TV (doc/TV-APP.md): a page
+	// The app's user agent is the one sure sign of a TV (doc/ANDROID.md): a page
 	// can only say its screen, so the workstation decides the kind from the
 	// header rather than trusting a page's guess.
 	const kind = (isTvApp(ua) ? 'tv' : body?.kind) as DeviceKind;

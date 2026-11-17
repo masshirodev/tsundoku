@@ -14,7 +14,7 @@ import { comicInfoXml, parseComicInfo } from '$lib/import/comicinfo';
 import { zip } from '$lib/server/zip-write';
 import { listZip, readMember } from '$lib/server/zip';
 
-// What tsundoku writes as a device of its own (doc/DOWNLOADER.md) has to read
+// What tsundoku writes as a device of its own (doc/DOWNLOADS.md) has to read
 // back through the importer's readers exactly as a phone's or Suwayomi's does.
 
 const chapter = (c: Partial<MihonChapter>): MihonChapter => ({

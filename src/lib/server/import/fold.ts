@@ -32,7 +32,7 @@ export function adoptFormer(
 	const former = seriesBy(db, s.formerKey);
 	if (!former) return;
 	const current = seriesBy(db, s.originKey);
-	// A browsing record is never the survivor (doc/BROWSING.md): this device has
+	// A browsing record is never the survivor (doc/READING-ONLINE.md): this device has
 	// the folder's series *and* a record under the URL key, which is what an
 	// open from a source's preview without ADD makes. Folding the folder into
 	// the record would take a downloaded, rated, read series out of the library
@@ -315,7 +315,7 @@ function bestOf(
 	let best: { row: KeyedRow; matches: Map<number, PlannedEntry> } | null = null;
 	for (const row of candidates) {
 		if (row.origin_key === s.originKey) continue;
-		// A browsing record is never a series to adopt (doc/BROWSING.md): it is a
+		// A browsing record is never a series to adopt (doc/READING-ONLINE.md): it is a
 		// series opened from a source's preview without ADD, which every shelf,
 		// count, search and link leaves out and which pruneRecords forgets 30 days
 		// after it was last opened. A library series folded into one would leave

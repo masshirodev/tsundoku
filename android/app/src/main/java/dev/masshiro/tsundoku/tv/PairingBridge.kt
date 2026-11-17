@@ -11,7 +11,7 @@ import java.util.concurrent.Executors
  * What the app's own pages cannot do themselves (c236; doc/TV.md, "Pairing"):
  * the TV's own address (for the prefix, and 9D's third reason), a probe of a
  * candidate address, and the servers this TV has paired with (c261;
- * doc/TV-APP.md, "Servers").
+ * doc/ANDROID.md, "Servers").
  *
  * The same object is on every page the WebView loads, the computer's library
  * included: that is how MORE › SERVERS, drawn by the web app, reads the list

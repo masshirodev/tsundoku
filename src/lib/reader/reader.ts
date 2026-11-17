@@ -202,7 +202,7 @@ export function metaLine(o: {
 	page: string;
 	incognito: boolean;
 	single: boolean;
-	/** Read from its source (doc/BROWSING.md): "CH. 396 OF 612 · ONLINE · P. 14 OF 54". */
+	/** Read from its source (doc/READING-ONLINE.md): "CH. 396 OF 612 · ONLINE · P. 14 OF 54". */
 	online?: boolean;
 	/** A browsing record: the line ends NOT IN LIBRARY. */
 	record?: boolean;

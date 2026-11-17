@@ -162,12 +162,12 @@ HELP's 04 says the same ([`HELP.md`](HELP.md)).
 ## A TV's code, typed with a remote
 
 A television has no camera, so beside the phone's link there is a second code
-([`TV-APP.md`](TV-APP.md)): `TvPairing` in `src/lib/server/pairing.ts`, one at
+([`ANDROID.md`](ANDROID.md)): `TvPairing` in `src/lib/server/pairing.ts`, one at
 a time.
 
 - **Six digits**, made with `crypto.randomInt`, shown on the computer in two
   threes under FOR THE APP · SIX DIGITS (the phone app pairs with them too,
-  [`PHONE-APP.md`](PHONE-APP.md)), with their own countdown. Opening
+  [`ANDROID.md`](ANDROID.md)), with their own countdown. Opening
   SETTINGS makes one when there is none; NEW CODE replaces it and the phone's
   together.
 - **Where they show**: in the WI-FI panel's pairing block on a friend's

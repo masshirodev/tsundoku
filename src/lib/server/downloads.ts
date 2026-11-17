@@ -26,7 +26,7 @@ import { followOrigin } from './season-facts.ts';
 import { whileAdding } from './engine/adding.ts';
 
 /**
- * What the download screens ask (doc/DOWNLOADING.md, doc/DOWNLOADER.md):
+ * What the download screens ask (doc/DOWNLOADS.md):
  * tsundoku's own engine, through engine/backend.ts. This face is what the
  * routes import, so a screen never reaches into the engine directly. It chose
  * between Suwayomi and the engine until Suwayomi was retired (card c129,
@@ -63,7 +63,7 @@ function seriesFamily(seriesId: number): SourceFamily | null {
 type ByDownloader<T> = Record<SourceFamily, () => T> & { none: () => T };
 
 /**
- * Which downloader takes a series (doc/DOWNLOADING.md; card c303): its key's
+ * Which downloader takes a series (doc/DOWNLOADS.md; card c303): its key's
  * family, never its kind's name. An LNReader key is the novel downloader's
  * (novels/downloader.ts), an Aniyomi key the episode downloader's
  * (anime/download.ts), a Mihon key the engine's. **No family** (Hentoid's
@@ -109,7 +109,7 @@ export const enqueue = async (
 	entryIds: number[],
 	height: number | null = null
 ) => {
-	// A browsing record (doc/BROWSING.md) downloads nothing: ADD comes first.
+	// A browsing record (doc/READING-ONLINE.md) downloads nothing: ADD comes first.
 	if (!inLibrary(seriesId)) return { queued: 0, missing: entryIds.length };
 	// A quality of its own is the episode downloader's alone.
 	if (height !== null && seriesFamily(seriesId) === 'aniyomi')
@@ -238,7 +238,7 @@ export const undoAdd = async (seriesId: number) => engine.undoAdd(seriesId);
 /** A chapter's or episode's address as its entry keeps it: without the engine's memo. */
 export const entryKey = (url: string) => splitMemo(url).url;
 
-/** A series' preview at its source, by its key: where a browsing record lives (doc/BROWSING.md). */
+/** A series' preview at its source, by its key: where a browsing record lives (doc/READING-ONLINE.md). */
 export function previewIdOf(originKey: string | null): string | null {
 	const novel = parseNovelKey(originKey);
 	if (novel) return novels.novelMangaId(`ln:${novel.plugin}`, novel.path);
@@ -246,7 +246,7 @@ export function previewIdOf(originKey: string | null): string | null {
 	return at ? engine.sourceMangaId(at.sourceId, at.url) : null;
 }
 
-/** Whether a series is the library's, not a browsing record (doc/BROWSING.md). */
+/** Whether a series is the library's, not a browsing record (doc/READING-ONLINE.md). */
 function inLibrary(seriesId: number): boolean {
 	const r = getDb().prepare(`SELECT in_library FROM series WHERE id = ?`).get(seriesId) as
 		{ in_library: number } | undefined;
@@ -254,7 +254,7 @@ function inLibrary(seriesId: number): boolean {
 }
 
 /**
- * Opens one of a preview's episodes or chapters without ADD (doc/BROWSING.md;
+ * Opens one of a preview's episodes or chapters without ADD (doc/READING-ONLINE.md;
  * cards c161, c166): the entry to play or read online, in a browsing record
  * unless the series is the library's. Novels are null until they read online.
  */

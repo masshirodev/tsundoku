@@ -2,7 +2,7 @@ import { SvelteMap } from 'svelte/reactivity';
 
 /**
  * The pages of a chapter read online, held in memory near the page being read
- * (c1038; doc/BROWSING.md, "Manga online").
+ * (c1038; doc/READING-ONLINE.md, "Manga online").
  *
  * An online page is answered `private, no-store`, so the browser keeps nothing
  * it can hand a new `<img>`: a turn mounts a fresh element for the page turned
