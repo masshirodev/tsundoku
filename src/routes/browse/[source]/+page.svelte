@@ -194,13 +194,13 @@
 	 * drawn at the time is the list as it was then, and a result of it may have
 	 * become a hidden library series since (ADD with ADDED HIDDEN, HIDE, another
 	 * screen): drawing it again, title and cover, until this visit's answer
-	 * arrives would break "hidden means hidden" (doc/BROWSE.md, "A result that
-	 * is a hidden series isn't sent"). So a restore draws an outline of the kept
-	 * list's size — no title and no cover — holds the place on it, and this
-	 * visit's own answer, which the server cleared for it, draws in its place.
-	 * The covers come from the browser's cache either way, so redrawing them
-	 * asks the source for nothing (measured: 0 requests, doc/BROWSE.md). A list
-	 * drawn under reveal or incognito is kept by neither record.
+	 * arrives would break "hidden means hidden" (doc/BROWSE.md, "A source's
+	 * page"). So a restore draws an outline of the kept list's size — no title
+	 * and no cover — holds the place on it, and this visit's own answer, which
+	 * the server cleared for it, draws in its place. The covers come from the
+	 * browser's cache either way, so redrawing them asks the source for nothing
+	 * (measured: 0 requests, doc/BROWSE.md). A list drawn under reveal or
+	 * incognito is kept by neither record.
 	 */
 	type Kept = { key: string; count: number; more: boolean; y: number };
 	/** One departure toward a preview, for its ←: where it was. */

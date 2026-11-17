@@ -15,8 +15,8 @@ import { recordNoVideo } from '$lib/server/move';
  * reveal off, as it is everywhere.
  *
  * A source that answers with no video is recorded against the episode
- * (doc/MOVE.md, "The NO VIDEO band"), which is what the series' band and the
- * player's "not just this episode" line are counted from. The engine being
+ * (doc/ANIME.md, "NO SERVER is remembered"), which is what the series' band and
+ * the player's "not just this episode" line are counted from. The engine being
  * down is not the source's failure, and incognito leaves nothing behind.
  */
 export const GET: RequestHandler = async ({ params, cookies, url }) => {

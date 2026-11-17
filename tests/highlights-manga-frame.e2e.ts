@@ -38,7 +38,7 @@ import { startPreview } from './highlights-preview';
  * (temp/design/manga-map.json, written by the generator's `--init`, whose
  * own regions are the board's presentation sections): the kept page's sheet
  * and the spread's chooser. The cell is not here: it is the reader's own cell, as
- * its neighbours draw it (doc/HIGHLIGHTS.md, "Where it departs").
+ * its neighbours draw it (doc/HIGHLIGHTS.md).
  *
  * The chooser is drawn on the tablet's landscape board (spreads are
  * landscape only), so the file runs in `tablet-landscape` and skips itself in

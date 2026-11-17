@@ -285,8 +285,9 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// Where this series sits in its Work (doc/WORKS.md): one row under
 		// CONTINUE, its neighbours, and what the run offers at the end of this part.
 		work: seriesWorkRow(series.id, reveal),
-		// MIGHT CONTINUE <WORK> · AS PART N (doc/WORKS.md, "The offer"): the
-		// one Work this title continues, for a series in none. It only offers.
+		// MIGHT CONTINUE <WORK> · AS PART N (doc/WORKS.md, "MIGHT CONTINUE
+		// <WORK>"): the one Work this title continues, for a series in none. It
+		// only offers.
 		workOffer: workOfferFor(series.id, reveal),
 		editing: url.searchParams.get('edit') === 'tags',
 		// A book of a series of books opened on its own: its pages. A doujin with

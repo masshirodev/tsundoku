@@ -677,7 +677,7 @@ test('one server draws no cell, as today', async ({ page }) => {
 
 /*
  * The bridge as the message transport will answer it (doc/ANDROID.md,
- * "What it does not do yet", item 2). `servers()` returns a Promise, and each
+ * "Limits", item 2). `servers()` returns a Promise, and each
  * call parks its resolver on `window.__tvLater`, so a case decides when — and
  * in which order — the answers land. The real transport may answer late, out
  * of order, or never; so may this.

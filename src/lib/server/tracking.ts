@@ -589,7 +589,7 @@ export async function readLists(now = Date.now()): Promise<void> {
 /**
  * Whether AniList and MAL take this kind's progress at all: an anime (by
  * season) and a comic do; a novel's chapters still go to Ranobe alone
- * (doc/TRACKING.md, "Not yet"), and a doujin is never linked. The LISTS row
+ * (doc/TRACKING.md, "Limits"), and a doujin is never linked. The LISTS row
  * reads it to put the line that tracks first.
  */
 export function catalogueTracks(kind: Kind): boolean {

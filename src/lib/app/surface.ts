@@ -1,6 +1,6 @@
 /**
  * The page's background, said to tsundoku's own Android app so the camera band
- * and the strip above the keyboard take it (doc/ANDROID.md, "The
+ * and the strip above the keyboard take it (doc/ANDROID.md, "On a phone: the
  * camera band and the keyboard"; the app's Insets.kt).
  *
  * The app reads the colour itself when a page finishes loading, but a theme

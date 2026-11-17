@@ -449,7 +449,7 @@
 		};
 	// No extension for its source (Bato.to, Hitomi): said once, on the FILE line.
 	// It cannot say the tablet downloads it: a device's
-	// Mihon downloads are not imported (doc/DOWNLOADS.md, "Not done yet").
+	// Mihon downloads are not imported (doc/DOWNLOADS.md, "Limits").
 	const elsewhere = $derived(
 		downloads?.kind === 'elsewhere'
 			? ` · ${downloads.source.toUpperCase()} · NO EXTENSION HERE`

@@ -14,9 +14,9 @@ const { setSourceKind, sourceKind, sourceKindOfKey } =
 const { kindOfSource } = await import('../src/routes/downloads/search/kinds.server');
 
 /**
- * The kind a source serves (doc/KINDS.md, "The kind a source cannot
- * name"): where it is kept, that a new series takes it, and that one already
- * in the library keeps its own.
+ * The kind a source serves (doc/KINDS.md, "The kind a source serves"): where it
+ * is kept, that a new series takes it, and that one already in the library
+ * keeps its own.
  */
 
 const db = getDb();

@@ -28,7 +28,7 @@ import { readCapped, readCappedText } from '../net-guard.ts';
  *
  * An APK is installed only when it is signed, validly, by the key its
  * repository publishes (apk-signature.ts). tsundoku ships no repository: the
- * reader adds them (doc/ARCHITECTURE.md, "Downloading").
+ * reader adds them (doc/ARCHITECTURE.md, "Finding and downloading").
  */
 
 /** The previous version is kept this long after an update, for BACK TO. */

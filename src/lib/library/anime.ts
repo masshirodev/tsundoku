@@ -152,7 +152,7 @@ export const seasonTag = (season: number) => (season > 0 ? `S${season}` : 'ALL')
 
 /**
  * One season of an anime series, as the LINK and TRACKING rows count it
- * (doc/TRACKING.md, "A link per season"). `season` is the
+ * (doc/TRACKING.md, "An anime is one row a season"). `season` is the
  * source's own number -- 0 for a flat list, which is one season to tsundoku
  * -- and `aired` is what a catalogue counts: whole numbered episodes, a
  * recap left out (S3's 14.5 is never sent).

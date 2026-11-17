@@ -1228,8 +1228,8 @@ export function setRating(ids: number[], rating: Rating): number {
 	const changed = getDb()
 		.prepare(`UPDATE series SET rating = ? WHERE id IN (${inList(ids)})`)
 		.run(rating, ...ids).changes;
-	// The rating is the score AniList and MAL get (doc/TRACKING.md, "One
-	// number"): sent behind the answer, never waited on.
+	// The rating is the score AniList and MAL get (doc/TRACKING.md, "The rating
+	// is the score"): sent behind the answer, never waited on.
 	void import('./tracking.ts')
 		.then((t) => t.afterRating(ids, rating))
 		.catch((e: unknown) => console.error('tsundoku: sending a rating as a score failed:', e));

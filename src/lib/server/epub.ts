@@ -123,7 +123,7 @@ export async function readEpubFile(
 	}
 }
 
-// ---- file by file (doc/TEXT-READER.md, "A chapter at a time") ------------------------------
+// ---- file by file (doc/TEXT-READER.md, "A chapter's text") ----
 
 export type BookFileInfo = { name: string; size: number };
 

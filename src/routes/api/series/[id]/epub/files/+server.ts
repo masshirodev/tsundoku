@@ -6,7 +6,7 @@ import { BrokenBook, epubFiles } from '$lib/server/epub';
 
 /**
  * The files in a novel's EPUB, with their sizes unpacked (doc/TEXT-READER.md,
- * "A chapter at a time"): what the reader opens a book with, instead of
+ * "Opening"): what the reader opens a book with, instead of
  * downloading it. `f` names one volume of a novel grouped from several.
  * Versioned (`v`), so immutable; a version that has moved on is a 409, and
  * the reader opens the book again.

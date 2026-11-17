@@ -53,7 +53,7 @@ const token = () => process.env.RANOBE_TOKEN ?? '';
 export const configured = () => token() !== '';
 
 /**
- * The app account's token (Ranobe's ACCOUNTS.md, "An app's account"), for
+ * The app account's token (Ranobe's app accounts), for
  * suggestions only. Its edits always wait for a person, where the reader's
  * own token -- a moderator's -- would have them applied as sent. The
  * reader's stays for the library.
@@ -61,7 +61,7 @@ export const configured = () => token() !== '';
 const suggestToken = () => process.env.RANOBE_SUGGEST_TOKEN ?? '';
 export const suggestConfigured = () => configured() && suggestToken() !== '';
 
-/** Ranobe answered, and said no. `code` is from its closed list (API-V1.md, "Errors"). */
+/** Ranobe answered, and said no. `code` is from its closed list (Ranobe's API). */
 export class Refused extends Error {
 	// Plain fields, not parameter properties: scripts run this file with
 	// Node's type stripping, which can't compile those.
@@ -200,7 +200,7 @@ export async function matchByLookup(now = Date.now()): Promise<number> {
 	}[];
 	const asked = rows.filter((r) => !coverOnly(r.kind, r.format ?? ''));
 	// MAL keeps anime ids apart from manga's, and Ranobe files them that way
-	// (`mal_anime:`; API-V1.md, "External ids"). AniList's one sequence serves
+	// (`mal_anime:`; Ranobe's API). AniList's one sequence serves
 	// both lists.
 	const keysOf = (r: (typeof asked)[number]) => [
 		...(r.anilist_id ? [`anilist:${r.anilist_id}`] : []),
@@ -595,7 +595,7 @@ function settle(work: string, lang: string, b: BundleAnswer | null, now: number)
 
 /**
  * Suggest the edition a work lacks, in one language, as a one-item bundle
- * (API-V1.md, "Bundles"). Its table of contents is volumes 1 to the highest
+ * (Ranobe's API). Its table of contents is volumes 1 to the highest
  * this library holds; a licensed ebook is the likeliest, and a person reviews
  * it on Ranobe either way.
  */

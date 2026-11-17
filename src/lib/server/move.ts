@@ -59,8 +59,7 @@ import { moveHighlights, repointAdded, type MoveHighlights } from './highlights.
  *
  * MOVE is for series whose chapters or episodes come from a Mihon or Aniyomi
  * source. A local import has none; a novel's chapters are one EPUB from one
- * plugin, so a novel isn't moved between plugins (doc/MOVE.md, "What it does
- * not do yet").
+ * plugin, so a novel isn't moved between plugins (doc/MOVE.md, "Limits").
  */
 
 /**
@@ -189,7 +188,7 @@ export type FailureRow = {
 };
 
 /**
- * A NO SERVER answer for an episode (doc/MOVE.md, "The NO VIDEO band"). It
+ * A NO SERVER answer for an episode (doc/ANIME.md, "NO SERVER is remembered"). It
  * is kept against the episode so the series screen can say how many failed
  * and the player can say it isn't just this one. Incognito never calls this.
  */

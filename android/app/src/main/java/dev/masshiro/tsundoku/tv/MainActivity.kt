@@ -411,7 +411,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		s.databaseEnabled = true
 		if (form.pinsWidth) {
 			// The page is pinned to the design's 960 CSS px whatever the panel
-			// reports (Scale.kt, doc/TV.md "Claims to check").
+			// reports (Scale.kt, doc/TV.md "The app").
 			s.useWideViewPort = false
 			s.loadWithOverviewMode = false
 			// In physical pixels: setInitialScale is (Scale.kt says why).

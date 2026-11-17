@@ -267,7 +267,7 @@
 	beforeNavigate((nav) => {
 		if (nav.willUnload || !nav.to) return;
 		// Which thing on this screen has focus, so a back returns to it
-		// (doc/FOCUS.md, "Where focus comes back"). The screen is still the
+		// (doc/FOCUS.md, "Going back"). The screen is still the
 		// one being left, whatever the URL now says.
 		saveFocus(nav.from?.url ?? null);
 		const seq = ++navSeq;

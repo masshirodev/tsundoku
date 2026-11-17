@@ -3,8 +3,8 @@ import { sourceKindChoices, type Kind, type SourceFamily } from '../../library/k
 import { keyFamily, sourceOfKey } from '../../library/downloads.ts';
 
 /**
- * The kind a source serves (doc/KINDS.md, "The kind a source
- * cannot name"), kept per source in the `settings` table as
+ * The kind a source serves (doc/KINDS.md, "The kind a source serves"), kept per
+ * source in the `settings` table as
  * `source.kind:<id>` = a kind's name. **No row is AUTO**: the plan's own
  * inference (a gallery's doujin, a "Manhwa" genre, a webtoon-only source),
  * which is what a friend never has to think about. A row is the user's

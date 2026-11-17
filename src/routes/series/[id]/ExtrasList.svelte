@@ -9,7 +9,7 @@
 	 * on a doujin (only the EPUB plans set it, for novels), so one comes from a
 	 * hand-made row or the duplicates review. It is drawn here, under the books
 	 * or the pages, so it stays reachable without being numbered as a book or
-	 * counted in `N BOOKS` (doc/BOOKS.md, "A book with something beside it").
+	 * counted in `N BOOKS` (doc/BOOKS.md, "The model").
 	 *
 	 * Each row opens the extra's pages (`?book=<id>`, the way a book of a series
 	 * opens), and is a link, so a TV's focus finds it with nothing extra.

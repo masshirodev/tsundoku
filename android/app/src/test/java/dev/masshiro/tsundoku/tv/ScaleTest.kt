@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The WebView's scale (doc/TV.md, "Claims to check"). `setInitialScale`
+ * The WebView's scale (doc/TV.md, "The app"). `setInitialScale`
  * is in physical pixels (Scale.kt says why), so the percent depends on the
  * panel's pixels alone, never on its density.
  */

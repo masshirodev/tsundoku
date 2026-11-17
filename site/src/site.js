@@ -1,4 +1,4 @@
-// The page's only script (doc/WEBSITE.md, "Script"). Two jobs, both
+// The page's only script (doc/WEBSITE.md, "The visitor's system"). Two jobs, both
 // optional: the page as built is complete with JavaScript off.
 //
 // 1. Theme. The system's preference decides, in CSS. The header's cell

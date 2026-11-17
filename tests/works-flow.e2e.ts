@@ -2037,7 +2037,7 @@ test('a Work cannot be made of a hidden series and a visible one', async ({ page
 	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
 });
 
-// ---- the offer (doc/WORKS.md, "The offer" and "The flow") ----------------------
+// ---- the offer (doc/WORKS.md, "MIGHT CONTINUE <WORK>" and "The flow") ----
 
 /** A library tile by its exact title, on a page where `.grid .tile` holds it. */
 async function openSeries(page: Page, title: string): Promise<number> {

@@ -20,7 +20,7 @@ import {
 process.env.DATABASE_PATH = ':memory:';
 
 /**
- * The TV's typed code (doc/TV.md, "Claims to check"): six digits, one
+ * The TV's typed code (doc/TV.md, "Pairing"): six digits, one
  * TV, once, ten minutes, and five wrong tries burn it. The clock and the
  * digits are given, as `Pairing`'s are, so every answer the route can give is
  * pinned without a server.

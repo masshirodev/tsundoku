@@ -12,12 +12,12 @@ import { freePort } from './helpers/tag-world';
 import { revealOn } from './helpers/reveal';
 
 /**
- * BROWSE's catalog coming back (doc/BROWSE.md, "It scrolls on, and the
- * URL keeps the place" and "Back returns to where the tag was"): a way back
- * from a preview lands at the same scroll on the same tile, with the pages
- * already loaded drawn at once, no page asked of the source again and no
- * cover already shown fetched again; a reload and a forward visit start at
- * the top, and nothing of a revealed list comes back.
+ * BROWSE's catalog coming back (doc/BROWSE.md, "It scrolls on" and "Back
+ * returns to where the tag was"): a way back from a preview lands at the same
+ * scroll on the same tile, with the pages already loaded drawn at once, no page
+ * asked of the source again and no cover already shown fetched again; a reload
+ * and a forward visit start at the top, and nothing of a revealed list comes
+ * back.
  *
  * The list a way back draws is this visit's own answer, never the one kept:
  * a series hidden since the list was left (HIDE on its screen, another tab,

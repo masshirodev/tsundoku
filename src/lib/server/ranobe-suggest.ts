@@ -15,11 +15,11 @@ import { bracketed, cleanTitle, normaliseTitle } from '../library/catalogue.ts';
 import { epubLang, suggestedPeople, volumeOf, workBundle } from '../library/ranobe.ts';
 
 /**
- * Suggesting a novel Ranobe lacks, from its EPUB (API-V1.md,
- * "For Tsundoku", step 12; doc/RANOBE.md, "Suggesting a novel"). Only on the
- * user's tap in the review, only through the app account, whose suggestions
- * wait for approval on Ranobe: the files' metadata is rough, and is corrected
- * there before approving. Never for a hidden series or Hentoid.
+ * Suggesting a novel Ranobe lacks, from its EPUB (Ranobe's API; doc/RANOBE.md,
+ * "Suggesting a novel"). Only on the user's tap in the review, only through the
+ * app account, whose suggestions wait for approval on Ranobe: the files'
+ * metadata is rough, and is corrected there before approving. Never for a
+ * hidden series or Hentoid.
  */
 
 type BundleAnswer = {

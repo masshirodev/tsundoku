@@ -1028,8 +1028,9 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	CREATE INDEX series_browsing ON series(browsed_at) WHERE in_library = 0;
 	`,
 	// v51: a browsing record forgotten (FORGET, or 30 days after its last open;
-	// doc/READING-ONLINE.md, "Pruning"). The row stays, because its reading happened and
-	// HISTORY keeps it, dimmed; its place and marks go. Opening it again clears this.
+	// doc/READING-ONLINE.md, "Forgetting and pruning"). The row stays, because
+	// its reading happened and HISTORY keeps it, dimmed; its place and marks
+	// go. Opening it again clears this.
 	`
 	ALTER TABLE series ADD COLUMN pruned_at INTEGER;
 	`,
@@ -1991,9 +1992,9 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// BROWSE or EXTENSIONS visit (`fillWebViewFlags`).
 	`ALTER TABLE engine_extensions ADD COLUMN webview INTEGER;`,
 
-	// v79: films and live-action shows are kinds (doc/KINDS.md, "Movies and TV
-	// shows"). Same reason and same way as migration 47: only the
-	// CHECK widens, and nothing stored changes.
+	// v79: films and live-action shows are kinds (doc/FILMS-SHOWS.md). Same
+	// reason and same way as migration 47: only the CHECK widens, and nothing
+	// stored changes.
 	(conn) => widenKindsForFilms(conn),
 
 	// v80: TMDB links, a film's and a show's (doc/LINKS.md, "TMDB

@@ -1,7 +1,7 @@
 import { resolve } from '$app/paths';
 
 /**
- * Lookups made offline (doc/JAPANESE.md, "Offline"): kept on this device and
+ * Lookups made offline (doc/JAPANESE.md, "The panel"): kept on this device and
  * sent to the workstation's log when it's reachable again, with the time they
  * were made. Incognito never queues: nothing is logged at all.
  */

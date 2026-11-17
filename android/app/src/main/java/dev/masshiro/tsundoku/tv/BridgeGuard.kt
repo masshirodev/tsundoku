@@ -147,7 +147,7 @@ object BridgeGuard {
 	 * every guard that asks [isAssetHost] let it through to the network.
 	 * Whether a real WebView hands `shouldInterceptRequest` such a URL
 	 * unescaped is read from the standard, not run on a TV (`doc/ANDROID.md`,
-	 * "What is not verified").
+	 * "Device checks").
 	 *
 	 * This reads only the authority, and never throws: tabs and newlines are
 	 * dropped and the ends trimmed (as a browser does before parsing); the

@@ -2,8 +2,8 @@ import type { Page } from '@playwright/test';
 import { expect, readerReady, test } from './fixtures';
 
 /**
- * The readers' tap surfaces never tint under a mouse (doc/READER.md and
- * doc/TEXT-READER.md, "Tap zones"; doc/MOTION.md, "Hovering"). The player's
+ * The readers' tap surfaces never tint under a mouse (doc/READER.md,
+ * "Tap zones, shown as a chapter opens"; doc/MOTION.md, "Hovering"). The player's
  * tap zone was a `<button>` and tinted (tests/browse-player-hover.e2e.ts); the
  * image reader's stage and the text reader's page catch taps on a plain
  * element, which the hover rule never matches. This file holds that: hovering

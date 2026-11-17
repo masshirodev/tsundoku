@@ -203,7 +203,7 @@ export const farApart = (a: Copy, b: Copy) =>
 	Math.abs(a.pages - b.pages) > Math.max(2, Math.max(a.pages, b.pages) * 0.1);
 
 /**
- * Which copy to keep (doc/DUPLICATE-BOOKS.md, "How the pick is made"): the
+ * Which copy to keep (doc/DUPLICATE-BOOKS.md, "The pick"): the
  * first rule that tells them apart decides. Sharper pages win over a page or
  * two more (a credits page one site added); far more pages win over
  * sharper.

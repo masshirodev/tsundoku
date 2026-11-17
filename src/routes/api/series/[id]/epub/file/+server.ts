@@ -21,10 +21,10 @@ const TYPES: Record<string, string> = {
 };
 
 /**
- * One file of a novel's EPUB, unpacked (doc/TEXT-READER.md, "A chapter at a
- * time"): `p` is its name in the book. Versioned (`v`), so immutable; the
- * reader keeps the chapters around the one being read on the tablet. Hidden
- * means hidden: a 404 while reveal is off.
+ * One file of a novel's EPUB, unpacked (doc/TEXT-READER.md, "Opening"): `p` is
+ * its name in the book. Versioned (`v`), so immutable; the reader keeps the
+ * chapters around the one being read on the tablet. Hidden means hidden: a 404
+ * while reveal is off.
  */
 export const GET: RequestHandler = async ({ params, cookies, url }) => {
 	const name = url.searchParams.get('p');

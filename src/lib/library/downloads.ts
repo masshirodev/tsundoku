@@ -9,7 +9,7 @@ import {
 } from './kinds.ts';
 
 /**
- * Downloading, the rules (doc/DOWNLOADS.md, "From tsundoku"). Pure:
+ * Downloading, the rules (doc/DOWNLOADS.md, "The series screen"). Pure:
  * `src/lib/server/engine/backend.ts` asks the engine's queue and hands the
  * answers here; the screens read what comes back.
  *

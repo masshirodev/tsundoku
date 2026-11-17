@@ -159,7 +159,7 @@ export const PAIRED_COOKIE_OPTIONS = {
 };
 
 /**
- * The TV's code (doc/TV.md, "Claims to check"): six digits, typed with a
+ * The TV's code (doc/TV.md, "Pairing"): six digits, typed with a
  * remote, because a TV has no camera. Six digits is a million guesses, so this
  * one has limits the phone's link never needed: five wrong tries burn it, and
  * a new one is made on the computer.

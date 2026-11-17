@@ -5,7 +5,7 @@ import { SUB_SIZES, type SubSize } from '../../library/player.ts';
 
 /**
  * What the player starts an anime in (doc/ANIME.md, "The player";
- * doc/SETTINGS.md, "Watching"). The server keeps a series' audio and
+ * doc/SETTINGS.md, "03 — Watching"). The server keeps a series' audio and
  * subtitles, and the last choice on any anime, not each browser, so SETTINGS
  * can set a default every anime starts in and list the series that differ
  * from it.

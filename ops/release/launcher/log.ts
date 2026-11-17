@@ -1,5 +1,5 @@
 /**
- * The bundle's logs (doc/RELEASE.md, "Logs"): `logs/tsundoku.log`,
+ * The bundle's logs (doc/LOGS.md, "The logs"): `logs/tsundoku.log`,
  * `engine.log`, `flaresolverr.log` in the data folder. Every line stamped
  * with when and how loud, and each file rotated before it grows past 5 MB,
  * four old ones kept (`tsundoku.log.1` the newest), so a friend's disk never

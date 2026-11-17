@@ -110,7 +110,7 @@ export function comicChapterOf(label: string): string | null {
  * Whether the work lists a number among its units. A finished work lists
  * `1..count` and its extras, and Ranobe refuses anything else, never folding
  * 12.5 into 12; a running one takes any number from 1 to 10,000, whole or
- * not (Ranobe's API-V1.md, "On a running work").
+ * not (Ranobe's API).
  */
 export function workLists(units: WorkUnits, number: string): boolean {
 	const n = unitNumber(number);
@@ -654,7 +654,7 @@ export function suggestedPeople(creators: { name: string; role: string }[]): Sug
 }
 
 /**
- * The bundle a series suggests (API-V1.md, "Bundles"): its authors as
+ * The bundle a series suggests (Ranobe's API): its authors as
  * people, then the work crediting them. Only what the file says, and two
  * guesses corrected on Ranobe before approving: the kind (a series
  * that is one volume is a light novel, one of chapters a web novel), and the

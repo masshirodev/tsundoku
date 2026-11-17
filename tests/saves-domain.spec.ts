@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { saves, type FailedSave } from '../src/lib/saves.svelte';
 
-// The store behind the bands (doc/WAITING.md, "Writes that failed"): a list
+// The store behind the bands (doc/WAITING.md, "Writes that fail"): a list
 // keyed by save, whose callers on the series screen and in the
 // reader only ever pass one failure at a time.
 

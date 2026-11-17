@@ -108,7 +108,7 @@ export type WifiView = {
  * (`tvCodeNow`) makes one, and the TV's own page makes one only when
  * there is none, or the only one has merely expired or was used over these
  * 2 minutes ago, never over a burned one (`TvPairing.renewForTv`).
- * doc/WIFI.md, "Which doors make a code", is the list.
+ * doc/WIFI.md, "Which actions make a code", is the list.
  */
 const CODES: ('none' | 'live' | 'used' | 'expired' | 'burned')[] = ['none', 'expired', 'burned'];
 
