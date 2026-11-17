@@ -13,7 +13,7 @@ import {
 } from '$lib/server/library';
 
 /**
- * The ADDED band (cards c435, c505; doc/BROWSE.md, "Added hidden"): what a
+ * The ADDED band (doc/BROWSE.md, "Added hidden"): what a
  * preview's ADD outside reveal says when the source's ADDED HIDDEN switch hid
  * the series it added, since the series page it would land on is not found.
  * The band is its URL (`ADDED_PARAMS`), so it survives a reload, and it is
@@ -25,8 +25,8 @@ import {
  *   mostly hidden (`mostlyHidden`, more than half its series hidden), which
  *   is what the first ADD from a source with ADDED HIDDEN on and nothing else
  *   here does. There the band names no source outside reveal, as CONCEAL's
- *   does (c523): hidden means not named. Inside reveal it is here, so the band
- *   names it and drops the REVEAL tail (c605).
+ *   does: hidden means not named. Inside reveal it is here, so the band
+ *   names it and drops the REVEAL tail.
  *
  * UNDO is the same on both, and asks only the band's own facts (the series'
  * id and key, through `addedHere`, and the preview it was added from), never
@@ -39,7 +39,7 @@ export const ADDED_PARAMS = ['added', 'series', 'preview', 'queued', 'catalog'] 
 export type Added = { seriesId: number; hidByThisAdd: boolean };
 
 /**
- * Where ADD lands (c435, c505). Normally the new series. With reveal off a
+ * Where ADD lands. Normally the new series. With reveal off a
  * series this ADD hid is not found, so it lands on the source's page (the
  * BROWSE page the preview came from, its place kept), or on BROWSE when the
  * ADD left the source mostly hidden, with the band's parameters. A series
@@ -72,7 +72,7 @@ export function addedLanding(
 		kept.set('preview', mangaId);
 		if (params.queued) kept.set('queued', params.queued);
 		// The catalog the entry was found in, for the band's UNDO to hand back to
-		// the preview (wave 46): recorded here, where the ADD still knows it, and
+		// the preview: recorded here, where the ADD still knows it, and
 		// only when there was one — a shared link's preview has no catalog behind
 		// it, and an invented `from=` would make ← point at a place the entry was
 		// never found. The page itself is a source's, so the preview answers it.
@@ -113,7 +113,7 @@ export type AddedBand = {
 	touched: boolean;
 	/** Whether the source is not found outside reveal now (BROWSE's band says so). */
 	sourceHidden: boolean;
-	/** The source's name, as this viewer may see it: null outside reveal when it is not found (c605). */
+	/** The source's name, as this viewer may see it: null outside reveal when it is not found. */
 	sourceName: string | null;
 };
 
@@ -131,7 +131,7 @@ export async function addedBand(
 	if (!s) return null;
 	const queued = /^(\d+|down)$/.test(p.get('queued') ?? '') ? p.get('queued') : null;
 	// Outside reveal the band is a hidden source's, and hidden means not named;
-	// inside it the source is here, so the band says which one it is (c605).
+	// inside it the source is here, so the band says which one it is.
 	const outside = browseSource(s.source, false);
 	const shown = reveal ? browseSource(s.source, true) : outside;
 	return {
@@ -147,10 +147,10 @@ export async function addedBand(
 }
 
 /**
- * The shelves (collection ids) a drawn band's series is on now, for its chips
- * (card c724): the SHELVES row's own read (`seriesDetail`), whatever reveal
+ * The shelves (collection ids) a drawn band's series is on now, for its
+ * chips: the SHELVES row's own read (`seriesDetail`), whatever reveal
  * says, since the band was drawn for this viewer already. Beside the band, not
- * in it, so the band's own facts stay what they were (c505's specs pin them).
+ * in it, so the band's own facts stay what they were (their specs pin them).
  */
 export const bandShelves = (band: AddedBand | null): number[] =>
 	band ? (seriesDetail(band.seriesId, true)?.collections ?? []) : [];
@@ -159,7 +159,7 @@ export const bandShelves = (band: AddedBand | null): number[] =>
 export const SHELVE_GONE = 'the series is not in the library now';
 
 /**
- * PUT ON A SHELF from the ADDED band (card c724; doc/BROWSE.md, "Shelves in
+ * PUT ON A SHELF from the ADDED band (doc/BROWSE.md, "Shelves in
  * the ADD band"): one chip's tap, on (`on=1`) or off (`on=0`), through the
  * SHELVES sheet's own write (`setInCollection`). It asks the band's own facts
  * (`bandSeries`: the series' id and key, from that preview), as UNDO does, so
@@ -231,11 +231,11 @@ export async function newShelfAdded(
  * back on the preview's URL, and the first that is real wins:
  *
  * - `catalog`, the BROWSE page the ADD was made from, as `addedLanding`
- *   recorded it (wave 46): the preview's ← says BROWSE and one swipe back is
+ *   recorded it: the preview's ← says BROWSE and one swipe back is
  *   that list at its place. Its own query rides along, so a tag origin the
  *   source's page carried is still there.
  * - `origin`, the tag origin the source's page was opened with, already
- *   through `backOrigin` (c690). A preview's ← takes only a source's page or
+ *   through `backOrigin`. A preview's ← takes only a source's page or
  *   the search (`sourceOrigin`), never that origin itself, so it goes where
  *   the tile's did before the ADD: to the source's page, whose own ← is the
  *   tag's screen.
@@ -267,10 +267,10 @@ export const UNDO_REFUSED = 'something of it is downloaded or read now';
 
 /**
  * Where a refused UNDO lands when the page that drew the band can no longer
- * answer for it (c605): BROWSE, which draws any band, with the band's own
+ * answer for it: BROWSE, which draws any band, with the band's own
  * parameters and the refusal's **code**, which BROWSE's load turns back into
  * the words (`refusedWords`). UNDO has one refusal: `undoAdd` is a local
- * DELETE, which never asks the engine (c690).
+ * DELETE, which never asks the engine.
  */
 export function refusedLanding(form: FormData, queued: string | null): string {
 	const p = new URLSearchParams({
@@ -290,8 +290,8 @@ export function refusedWords(code: string | null): string | null {
 
 /**
  * The refusal a `refused=` code still stands for, or null once it no longer
- * does (c664). A reload used to keep "NO UNDO" and draw no UNDO after the
- * cause had gone, although UNDO would have succeeded. So the load asks again:
+ * does. Kept on a reload, "NO UNDO" would stay after its cause had gone,
+ * although UNDO would succeed. So the load asks again:
  * a 409 is "something of it is downloaded or read now", which the band's own
  * `touched` is (the same query `undoAdd` refuses on). With no band drawn there
  * is no place for the words, and the code is the URL's alone.

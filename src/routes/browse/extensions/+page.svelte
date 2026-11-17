@@ -24,11 +24,10 @@
 	import { NEEDS } from '$lib/webview';
 
 	/**
-	 * EXTENSIONS (Index-Extensions; Browse Calls, "Extension states in words,
-	 * no new colour", "Updates ask, and can be taken back", "Removing says
-	 * what stays", "No repository ships"). INSTALLED sorts what needs a hand
+	 * EXTENSIONS: states in words, no new colour; updates ask and can be taken
+	 * back; removing says what stays; no repository ships. INSTALLED sorts what needs a hand
 	 * first, then UPDATES with UPDATE ALL, then the rest; AVAILABLE is every
-	 * repository's listings, in the owner's languages unless ALL; REPOSITORIES
+	 * repository's listings, in the user's languages unless ALL; REPOSITORIES
 	 * adds one by its address, after saying what it holds.
 	 */
 	/** REPOSITORIES' "?" sheet (doc/HELP.md). */
@@ -36,7 +35,7 @@
 	let { data, form } = $props();
 
 	/**
-	 * The bar's leading `/` runs a command, as the library's does (c697): the
+	 * The bar's leading `/` runs a command, as the library's does: the
 	 * list keeps filtering for anything else. A refusal is the bar's to show,
 	 * and the list stays as it was.
 	 */
@@ -74,7 +73,7 @@
 					: `${count(series)} SERIES HERE, ${count(hidden)} HIDDEN`;
 
 	/**
-	 * The sources BROWSE lists of an installed extension (the owner's
+	 * The sources BROWSE lists of an installed extension (the user's
 	 * languages, and any the library reads from): MangaDex is "2 OF 61
 	 * SOURCES SHOWN", and its languages EN, JA, not sixty-one.
 	 */
@@ -93,7 +92,7 @@
 	/** The form result for this package, if the last action was about it. */
 	const about = (pkg: string) => (form && 'pkg' in form && form.pkg === pkg ? form : null);
 	/**
-	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * The answer the band's ✕ cleared: only that answer, so the next
 	 * action's new `form` draws its own band.
 	 */
 	let droppedAnswer = $state.raw<typeof form>(null);
@@ -147,7 +146,7 @@
 	};
 	let checking = $state(false);
 
-	// ---- SELECT (card c696; doc/handoffs/extensions-select) ---------------------
+	// ---- SELECT ---------------------
 	/**
 	 * The four switches of a source's 01 — IN TSUNDOKU, in their order, named as
 	 * that page names them. SELECT changes every source of a ticked extension,
@@ -299,7 +298,7 @@
 		const state = known === 0 ? 'off' : on === known ? 'on' : off === known ? 'off' : 'mixed';
 		return { state: state as 'on' | 'off' | 'mixed', total, on, off, part, known };
 	}
-	/** The cell's second line: what the next press does, always (`Main` 03's slip fixed). */
+	/** The cell's second line: what the next press does, always. */
 	function cellNote(c: ReturnType<typeof cellFor>, flag: SwitchKey): string {
 		if (c.known === 0) return 'SOURCES NOT KNOWN';
 		const extra = c.total > c.known ? ` · ${c.total - c.known} NOT KNOWN` : '';
@@ -365,7 +364,7 @@
 
 <div class="screen" class:selecting>
 	{#if selecting}
-		<!-- SELECT's bar (Ext-Bulk Main; tablet and phone boards): ✕, the count, SELECT ALL. -->
+		<!-- SELECT's bar: ✕, the count, SELECT ALL. -->
 		<TopBar inverse sticky label="Selection">
 			{#snippet left()}
 				<a
@@ -400,7 +399,7 @@
 				<span class="cell title"
 					><span class="name">EXTENSIONS</span><span class="sub">BROWSE</span></span
 				>
-				<!-- SELECT: INSTALLED's, a cell between the title and CHECK NOW (c696). Not on a TV. -->
+				<!-- SELECT: INSTALLED's, a cell between the title and CHECK NOW. Not on a TV. -->
 				{#if data.tab === 'installed'}
 					<a
 						class="cell sel"
@@ -552,7 +551,7 @@
 						? 'miss'
 						: null
 				: null}
-			<!-- The settings' ← comes back to this list, this tab and filter (card c727). -->
+			<!-- The settings' ← comes back to this list, this tab and filter. -->
 			{@const settings = r.shown[0]
 				? keepOrigin(
 						resolve('/browse/[source]/settings', { source: r.shown[0].id }),
@@ -721,7 +720,7 @@
 									: ''}</span
 						>
 						{#if selectMode}
-							<!-- UPDATE ALL gives way to TICK n (Main 01): the quick way to a section. -->
+							<!-- UPDATE ALL gives way to TICK n: the quick way to a section. -->
 							<a
 								class="btn"
 								href={sectionHref(pkgs)}
@@ -1228,7 +1227,7 @@
 {/if}
 
 <style>
-	/* Index-Extensions, transcribed: the mock's literals; colours are tokens. */
+	/* Transcribed from the design: its literals; colours are tokens. */
 	.screen {
 		display: flex;
 		flex-direction: column;
@@ -1596,8 +1595,8 @@
 		}
 	}
 
-	/* ---- SELECT (card c696; doc/handoffs/extensions-select) ------------------ */
-	/* The present tab stays; the other two dim and stop (Main 01). */
+	/* ---- SELECT ------------------ */
+	/* The present tab stays; the other two dim and stop. */
 	.tab.off {
 		opacity: 0.4;
 	}
@@ -1787,7 +1786,7 @@
 			padding-bottom: calc(192px + env(safe-area-inset-bottom));
 		}
 	}
-	/* A TV draws no SELECT (Main 01), as the library draws none. */
+	/* A TV draws no SELECT, as the library draws none. */
 	@media (pointer: none) and (min-width: 900px) {
 		.cell.sel {
 			display: none;

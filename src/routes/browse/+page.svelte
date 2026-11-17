@@ -26,9 +26,8 @@
 	import type { Kind } from '$lib/library/kinds';
 
 	/**
-	 * BROWSE (Index-Browse: sources, revealOff, revealOn; Browse Calls, "Browse
-	 * is a place; extensions is its back room" and "One list, the kinds as
-	 * sections"). RECENT (the last four browsed, any kind), then MANGA, ANIME
+	 * BROWSE: a place, with extensions as its back room, and one list with the
+	 * kinds as sections. RECENT (the last four browsed, any kind), then MANGA, ANIME
 	 * and NOVELS, each source a row that opens its page. The bar carries
 	 * EXTENSIONS, counting updates, as QUEUE counts chapters.
 	 *
@@ -92,7 +91,7 @@
 	const extensionsHref = resolve('/browse/extensions');
 
 	/**
-	 * RECENT folds away (card c726; doc/BROWSE.md, "RECENT folds"). Open by
+	 * RECENT folds away (doc/BROWSE.md, "RECENT folds"). Open by
 	 * default, remembered for the device (`RECENT_KEY`). The server draws it
 	 * open; a device that folded it is folded before the first paint by the
 	 * head's `PREPAINT` (it marks `<html>`, and the stylesheet folds from the
@@ -129,9 +128,9 @@
 		}
 	}
 	/**
-	 * SELECT made on a source's page lasts here (card c868; BROWSE-Phone): the
-	 * bar stays inverse, each source row says how many of its series are
-	 * ticked, and the bulk bar presses the lot. A source opens still selecting.
+	 * SELECT made on a source's page lasts here: the bar stays inverse, each
+	 * source row says how many of its series are ticked, and the bulk bar
+	 * presses the lot. A source opens still selecting.
 	 */
 	const sel = browseSelection;
 	const selecting = $derived(sel.selecting);
@@ -151,7 +150,7 @@
 
 <svelte:head>
 	<title>browse · tsundoku</title>
-	<!-- RECENT's fold, before the body paints (card c726; browse-recent.ts, PREPAINT). -->
+	<!-- RECENT's fold, before the body paints (browse-recent.ts, PREPAINT). -->
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -- a constant of our own, no input in it -->
 	{@html PREPAINT_TAG}
 	<!-- Without script nothing can fold RECENT back, so it offers nothing. -->
@@ -278,16 +277,16 @@
 	{/if}
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
-	<!-- A press's band (c868): while it runs and its one result, on every browse screen. -->
+	<!-- A press's band: while it runs and its one result, on every browse screen. -->
 	<PressBand reveal={data.reveal} />
-	<!-- CONCEAL ITS SERIES outside reveal (card c523): its source is mostly
+	<!-- CONCEAL ITS SERIES outside reveal: its source is mostly
 	     hidden now, so the band is here, and names no source. -->
 	{#if data.concealed}
 		<ConcealBand band={data.concealed} name={null} undo="?/undoConceal" />
 	{/if}
-	<!-- ADD outside reveal that left its source mostly hidden (card c505): the
+	<!-- ADD outside reveal that left its source mostly hidden: the
 	     source's page is not found, so the band is here. Outside reveal it
-	     names no source; inside reveal it is here and does (c605). -->
+	     names no source; inside reveal it is here and does. -->
 	{#if data.added}
 		<AddedBand
 			band={data.added}
@@ -303,7 +302,7 @@
 	{/if}
 
 	{#if total === 0}
-		<!-- The first run (Index-Browse, first; Browse Calls, "No repository ships"). -->
+		<!-- The first run: no repository ships. -->
 		<div class="empty">
 			<div class="lab">00 — NO SOURCES YET</div>
 			<div class="h">Nothing to browse yet.</div>
@@ -341,7 +340,7 @@
 		</p>
 	{:else}
 		{#if list.recent.length}
-			<!-- RECENT's label is its fold (card c726): one stop on a TV, OK toggles it.
+			<!-- RECENT's label is its fold: one stop on a TV, OK toggles it.
 			     Its name is RECENT's own words, never HIDE or SHOW, which other
 			     buttons in the browse world are named (reveal's HIDE AGAIN). -->
 			<button
@@ -390,11 +389,11 @@
 {/if}
 
 <style>
-	/* Selecting (c868): the bulk bar is pinned under the list, so the list ends above it. */
+	/* Selecting: the bulk bar is pinned under the list, so the list ends above it. */
 	.screen.selecting {
 		padding-bottom: 120px;
 	}
-	/* Index-Browse, sources, transcribed: the mock's literals; colours are tokens. */
+	/* Transcribed from the design: its literals; colours are tokens. */
 	.screen {
 		display: flex;
 		flex-direction: column;
@@ -404,7 +403,7 @@
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
-		/* TopBar centres what it holds; the mock's cells stretch, their text at the left. */
+		/* TopBar centres what it holds; the design's cells stretch, their text at the left. */
 		align-items: stretch;
 		gap: 4px;
 		height: 100%;
@@ -458,7 +457,7 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	/* RECENT's fold (card c726): the label is a button that looks like the label. */
+	/* RECENT's fold: the label is a button that looks like the label. */
 	.fold {
 		width: 100%;
 		margin: 0;

@@ -5,7 +5,7 @@
 	import type { ConcealBand } from './conceal.server';
 
 	/**
-	 * CONCEAL ITS SERIES' band (card c523; doc/BROWSE.md, "Conceal its
+	 * CONCEAL ITS SERIES' band (doc/BROWSE.md, "Conceal its
 	 * series"): what the press hid and is still hidden, from the source and,
 	 * for its Works, from others, and UNDO. On the source's settings page it
 	 * names the source; on BROWSE, where it lands outside reveal once the

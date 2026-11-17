@@ -7,12 +7,12 @@
 	import { browseSelection } from '$lib/library/browse-selection.svelte';
 
 	/**
-	 * SHOW in a catalog (card c868; Show-Tablet): the whole selection grouped
-	 * by source, each group in the order it was ticked. A row's box unticks it
-	 * and a second tap puts it back; rows stay until the sheet closes, as the
-	 * library's SHOW (`SelectionSheet`) keeps them. A row says where it was
-	 * ticked, and a group counts what the list on screen does not draw. `here`
-	 * is the list on screen (`listKey`), null on BROWSE.
+	 * SHOW in a catalog: the whole selection grouped by source, each group in
+	 * the order it was ticked. A row's box unticks it and a second tap puts it
+	 * back; rows stay until the sheet closes, as the library's SHOW
+	 * (`SelectionSheet`) keeps them. A row says where it was ticked, and a
+	 * group counts what the list on screen does not draw. `here` is the list on
+	 * screen (`listKey`), null on BROWSE.
 	 */
 	let {
 		open,
@@ -91,7 +91,7 @@
 </Sheet>
 
 <style>
-	/* Show-Tablet, transcribed: the mock's literals; colours are tokens. */
+	/* Transcribed from the design: its literals; colours are tokens. */
 	.sheet-head {
 		position: sticky;
 		top: 0;

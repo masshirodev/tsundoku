@@ -9,8 +9,8 @@
 	} from '$lib/library/ext-filters';
 
 	/**
-	 * AVAILABLE's FILTER (doc/BROWSE.md, "Filters"; the owner, 2026-10-31): the
-	 * library's FILTER cell and panel (Library Filters 3; FilterPanel.svelte),
+	 * AVAILABLE's FILTER (doc/BROWSE.md, "Filters"): the
+	 * library's FILTER cell and panel (FilterPanel.svelte),
 	 * with EXTENSIONS' rows. LANGUAGE takes several at once and starts from
 	 * SETTINGS' languages; MINE goes back to them. Every choice is a link, so
 	 * the list works without script.
@@ -40,7 +40,7 @@
 
 	/**
 	 * The <details> is the truth and `open` only follows it, as in
-	 * FilterPanel.svelte (c105, c473). Before hydration a tap opens it
+	 * FilterPanel.svelte. Before hydration a tap opens it
 	 * natively; `bind:open` then wrote its `false` back at hydration and shut
 	 * the panel under the finger. Read once on mount, kept by `toggle`, and
 	 * closed through the element.
@@ -54,7 +54,7 @@
 		if (details) details.open = false;
 	}
 	// The page under the scrim holds still while the panel is open and drawn,
-	// as FILTER's does (c1033); the panel scrolls itself.
+	// as FILTER's does; the panel scrolls itself.
 	let panel = $state<HTMLElement | null>(null);
 	$effect(() => {
 		if (open && panel) return lockPageWhileShown(panel);

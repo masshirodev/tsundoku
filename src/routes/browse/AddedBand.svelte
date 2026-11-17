@@ -21,13 +21,13 @@
 	import type { AddedBand } from './added.server';
 
 	/**
-	 * The ADDED band (cards c435, c505; doc/BROWSE.md, "Added hidden"): a
+	 * The ADDED band (doc/BROWSE.md, "Added hidden"): a
 	 * preview's ADD outside reveal on a source that adds its series hidden.
 	 * What the series page's band would have said: the chapters, what ADD AND
 	 * DOWNLOAD queued, and UNDO while nothing of it is downloaded or read. On
 	 * the source's page it names the source; on BROWSE, where it lands once the
 	 * ADD left the source mostly hidden, it does not outside reveal (hidden
-	 * means not named, as CONCEAL's band), and inside reveal it does (c605).
+	 * means not named, as CONCEAL's band), and inside reveal it does.
 	 */
 	let {
 		band,
@@ -53,10 +53,10 @@
 		/**
 		 * The tag origin the page was opened with (`backOrigin`'s answer), kept
 		 * through the post: without script the answer is a load of the action's
-		 * URL, and ← would go to the default cell without it (c664).
+		 * URL, and ← would go to the default cell without it.
 		 */
 		from?: string | null;
-		/** The layout's shelves (`data.shelves`): the band offers the collections among them (card c724). */
+		/** The layout's shelves (`data.shelves`): the band offers the collections among them. */
 		shelves?: Shelf[];
 		/** The shelves (collection ids) the band's series is on now (`bandShelves`). */
 		onShelves?: number[];
@@ -67,8 +67,8 @@
 	} = $props();
 
 	/**
-	 * PUT ON A SHELF (card c724; doc/BROWSE.md, "Shelves in the ADD band"): the
-	 * owner's shelves as chips under the band, one tap each, several allowed,
+	 * PUT ON A SHELF (doc/BROWSE.md, "Shelves in the ADD band"): the
+	 * user's shelves as chips under the band, one tap each, several allowed,
 	 * a second tap takes it off again; the last chosen on this device first
 	 * (`SHELF_KEY`). Past `BAND_SHELVES` the rest are in the SHELVES sheet,
 	 * `ShelfPicker` as it is; + NEW SHELF is `NewShelfSheet` as it is, open
@@ -97,7 +97,7 @@
 	};
 	/**
 	 * The catalog the ADD was made from, as `addedLanding` recorded it on the
-	 * band's URL (wave 46): UNDO hands it back to the preview, so its ← names
+	 * band's URL: UNDO hands it back to the preview, so its ← names
 	 * BROWSE rather than SOURCES. Read from the URL here, not from the page's
 	 * load, since the band is drawn in two routes and the value is the band's
 	 * own. A band from a shared link's preview has none, and UNDO keeps none.
@@ -147,7 +147,7 @@
 	/**
 	 * UNDO without script posts to `?/undoAdd`, which is the band's own URL with
 	 * its parameters replaced: the page would load with no band, and the 409
-	 * refusal, drawn only inside one, would have nowhere to be read (c605). So
+	 * refusal, drawn only inside one, would have nowhere to be read. So
 	 * the action carries them, and the answer is this band again, refusing.
 	 */
 	const submit = $derived(
@@ -169,7 +169,7 @@
 >
 	{#snippet action()}
 		{#if !refused}
-			<!-- UNDO replaces the landing page's entry rather than pushing over it (wave 46, as the series' own UNDO does): one swipe back is the catalog. -->
+			<!-- UNDO replaces the landing page's entry rather than pushing over it (as the series' own UNDO does): one swipe back is the catalog. -->
 			<form method="POST" action={submit} use:enhance={replacing}>
 				<input type="hidden" name="series" value={band.seriesId} />
 				<input type="hidden" name="preview" value={band.preview} />
@@ -180,7 +180,7 @@
 	{/snippet}
 </Band>
 {#if shelve}
-	<!-- PUT ON A SHELF (card c724): the band's second line, chips one tap each.
+	<!-- PUT ON A SHELF: the band's second line, chips one tap each.
 	     Its names are the shelves' own and + NEW SHELF; nothing here is named
 	     UNDO, HIDE, SHOW, MORE or ALL. -->
 	<div class="shelves" role="group" aria-label="Put on a shelf">
@@ -210,7 +210,7 @@
 {/if}
 
 <style>
-	/* The band's second line (card c724): the Band's panel and hairline, chips as ShelfPicker's. */
+	/* The band's second line: the Band's panel and hairline, chips as ShelfPicker's. */
 	.shelves {
 		flex-shrink: 0;
 		display: flex;

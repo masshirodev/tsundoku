@@ -5,12 +5,12 @@
 	import { longpress } from '$lib/actions/longpress';
 
 	/**
-	 * One of a source's results on its BROWSE page (Index-Browse, popular;
-	 * Browse Calls, "A tile says what's already yours"). IN LIBRARY sits in
-	 * FAV's corner, top right, since accent means yours, and a tap opens the
-	 * series; SAME TITLE · FROM … is the meta line in ink 500, to head off a
-	 * twin; otherwise the line is the source's status and author. HIDDEN, top
-	 * left, only ever shows inside reveal: with it off such a result isn't sent.
+	 * One of a source's results on its BROWSE page; a tile says what's already
+	 * yours. IN LIBRARY sits in FAV's corner, top right, since accent means
+	 * yours, and a tap opens the series; SAME TITLE · FROM … is the meta line
+	 * in ink 500, to head off a twin; otherwise the line is the source's status
+	 * and author. HIDDEN, top left, only ever shows inside reveal: with it off
+	 * such a result isn't sent.
 	 */
 	let {
 		hit,
@@ -27,7 +27,7 @@
 		href: string;
 		hue: number;
 		/**
-		 * SELECT (card c868; doc/BROWSE.md, "SELECT in a catalog"): a tap ticks and
+		 * SELECT (doc/BROWSE.md, "SELECT in a catalog"): a tap ticks and
 		 * opens nothing, a long press opens the preview. A tile the press could
 		 * not add (IN LIBRARY, ADDING) is dimmed, has no box, and takes no tap.
 		 */
@@ -63,7 +63,7 @@
 
 {#if selecting && tickable}
 	<!-- While selecting a tap ticks (opens nothing) and a long press opens the
-	     preview in this tab, still selecting (the Main board, "Tap while selecting"). -->
+	     preview in this tab, still selecting. -->
 	<button
 		type="button"
 		class="tile pick"
@@ -81,7 +81,7 @@
 {:else}
 	<!-- A preview asks the source (details and episodes, one call at a time per
      extension), so it loads on tap, not hover: twenty hovered tiles queued
-     forty calls ahead of the one opened (reported 2026-10-29). -->
+     forty calls ahead of the one opened. -->
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the page builds href from resolve() -->
 	<a class="tile" {href} data-sveltekit-preload-data="tap" data-focus-id={`result-${hit.mangaId}`}>
 		{@render face(false)}
@@ -89,7 +89,7 @@
 {/if}
 
 <style>
-	/* Index-Browse, popular, transcribed: the mock's literals; colours are tokens. */
+	/* Transcribed from the design: its literals; colours are tokens. */
 	.tile {
 		display: flex;
 		flex-direction: column;
@@ -106,7 +106,7 @@
 	}
 	/*
 	 * The mark is around the cover, as on a library tile (CoverTile; doc/FOCUS.md,
-	 * "The mark"), and not on the tile (c864): this rule's three hairlines outweigh
+	 * "The mark"), and not on the tile: this rule's three hairlines outweigh
 	 * the global `:focus-visible` ring, so a focused tile drew none at all, and an
 	 * outer ring on the tile would be painted under its neighbours' backgrounds in
 	 * a grid whose gap is 1 px. The cover's ring ends 7 px out, inside the padding.
@@ -123,7 +123,7 @@
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}
-	/* SELECT (c868; Tiles board): a tile is a button while selecting. */
+	/* SELECT: a tile is a button while selecting. */
 	.pick {
 		border: 0;
 		border-radius: 0;

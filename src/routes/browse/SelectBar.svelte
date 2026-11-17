@@ -4,8 +4,7 @@
 	import { browseSelection } from '$lib/library/browse-selection.svelte';
 
 	/**
-	 * The bar while selecting in a catalog (card c868; Select-Phone,
-	 * Select-Tablet, Show-Tablet): inverse, ✕ · N SELECTED · SHOW, and the way to
+	 * The bar while selecting in a catalog: inverse, ✕ · N SELECTED · SHOW, and the way to
 	 * the source's own search, `/ SEARCH MANGADEX TO TICK` (`/` alone on a
 	 * phone). No SELECT ALL: a catalog has no end, and every tick is a request
 	 * at the press. With two sources the count says so (`· 2 SOURCES`) on a
@@ -30,7 +29,7 @@
 
 <TopBar inverse sticky label="Selection">
 	{#snippet middle()}
-		<!-- Every cell in the middle, each with its own left rule, as the mock builds the bar. -->
+		<!-- Every cell in the middle, each with its own left rule, as the design builds the bar. -->
 		<button
 			type="button"
 			class="cell-btn x"
@@ -60,7 +59,7 @@
 </TopBar>
 
 <style>
-	/* Select-Tablet's bar, transcribed: the mock's literals; colours are tokens. */
+	/* Transcribed from the design: its literals; colours are tokens. */
 	.cell-btn {
 		display: flex;
 		align-items: center;
@@ -112,7 +111,7 @@
 		flex: 1;
 		border-left: 1px solid var(--text-2);
 	}
-	/* The phone (Select-Phone): the count takes the room, `/` alone, no sources. */
+	/* The phone: the count takes the room, `/` alone, no sources. */
 	@media (max-width: 599px) {
 		.count {
 			flex: 1;

@@ -3,14 +3,13 @@
 	import { count } from '$lib/library/downloads';
 
 	/**
-	 * SELECT's band, under EXTENSIONS' tabs (card c696; Results board): one per
-	 * press, what it set and how many, the rows it could not change marked on
-	 * their own lines, and one UNDO. A later press replaces it.
+	 * SELECT's band, under EXTENSIONS' tabs: one per press, what it set and how
+	 * many, the rows it could not change marked on their own lines, and one
+	 * UNDO. A later press replaces it.
 	 *
 	 * UNDO posts the facts it was given, so a mixed selection comes back mixed
-	 * (`?/undoFlags`, doc/BANDS.md's c469 shape: whole, or not at all). REMOVE
-	 * has none, because its sheet asked first; UPDATE's is BACK TO for every row
-	 * it updated.
+	 * (`?/undoFlags`: whole, or not at all). REMOVE has none, because its sheet
+	 * asked first; UPDATE's is BACK TO for every row it updated.
 	 */
 	let {
 		base,

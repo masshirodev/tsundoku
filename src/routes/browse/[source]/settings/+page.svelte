@@ -14,13 +14,12 @@
 	import ConcealBand from '../../ConcealBand.svelte';
 
 	/**
-	 * A source's settings (Index-Browse, settings; Browse Calls, "Settings, per
-	 * type"). A switch and a check box sit on the row's right; a list of up to
-	 * four is cells, a longer one its value and CHANGE ▾; a multi-select is ✓
-	 * cells; text is a field with SAVE. Each row is its own form, so every
-	 * change works without script; with it, a multi-select saves as it's
-	 * ticked. Saved by tsundoku and sent with every call: the source's page
-	 * asks again on return.
+	 * A source's settings, drawn per type. A switch and a check box sit on the
+	 * row's right; a list of up to four is cells, a longer one its value and
+	 * CHANGE ▾; a multi-select is ✓ cells; text is a field with SAVE. Each row
+	 * is its own form, so every change works without script; with it, a
+	 * multi-select saves as it's ticked. Saved by tsundoku and sent with every
+	 * call: the source's page asks again on return.
 	 */
 	let { data, form } = $props();
 	let js = $state(false);
@@ -29,9 +28,9 @@
 	const s = $derived(data.source);
 	const title = $derived(`${s.name.toUpperCase()} · ${s.lang.toUpperCase()}`);
 	/**
-	 * Where ← goes (card c727). Opened from EXTENSIONS' SETTINGS cell, back to
+	 * Where ← goes. Opened from EXTENSIONS' SETTINGS cell, back to
 	 * that list, its tab and filters as they were; otherwise to the source's
-	 * page, with the tag origin it was opened with kept both ways (card c453).
+	 * page, with the tag origin it was opened with kept both ways.
 	 * A back link either way: when that screen is a few history entries back
 	 * (here, and any CHANGE ▾ or band opened since), ← goes back to it, so
 	 * its scroll comes back too; a bookmark, a reload or a new tab without
@@ -71,7 +70,7 @@
 		}
 	] as const;
 	/**
-	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * The answer the band's ✕ cleared: only that answer, so the next
 	 * action's new `form` draws its own band.
 	 */
 	let droppedAnswer = $state.raw<typeof form>(null);
@@ -83,7 +82,7 @@
 			: ''
 	);
 	/**
-	 * CONCEAL ITS SERIES (card c523): one press, not a switch. More than one
+	 * CONCEAL ITS SERIES: one press, not a switch. More than one
 	 * series asks first, in a sheet; without script the sheet is a URL
 	 * (`?ask=conceal`), as CHANGE ▾ is.
 	 */
@@ -143,7 +142,7 @@
 		<ConcealBand band={data.concealed} name={s.name} undo={act('undoConceal')} />
 	{/if}
 
-	<!-- tsundoku's own switches for this source (card c435), every family's,
+	<!-- tsundoku's own switches for this source, every family's,
 	     above the extension's: the same rows, in a form of their own each. -->
 	<div class="label">
 		<span>01 — IN TSUNDOKU</span>
@@ -167,7 +166,7 @@
 			</div>
 		</form>
 	{/each}
-	<!-- The kind this source serves (card c986): the default for every series
+	<!-- The kind this source serves: the default for every series
 	     added from it, never a rewrite of the ones already here. A family with
 	     one kind (LNReader's, Aniyomi's today) has nothing to choose and draws
 	     no row. -->
@@ -213,7 +212,7 @@
 			</div>
 		</form>
 	{/if}
-	<!-- CONCEAL ITS SERIES (card c523): an action beside the switches, which
+	<!-- CONCEAL ITS SERIES: an action beside the switches, which
 	     stores nothing; its own words, so no locator for HIDDEN SOURCE or a
 	     HIDE button finds it. -->
 	<div class="own-act">
@@ -364,7 +363,7 @@
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
 
 <style>
-	/* Index-Browse, settings, transcribed: the mock's literals; colours are tokens. */
+	/* Transcribed from the design: its literals; colours are tokens. */
 	.screen {
 		display: flex;
 		flex-direction: column;

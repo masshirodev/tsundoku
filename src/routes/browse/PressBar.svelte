@@ -7,12 +7,12 @@
 	import type { Which } from '$lib/library/browse-press';
 
 	/**
-	 * The bulk bar while selecting in a catalog (card c868; the Bars board):
-	 * a line saying what the press will do, then ADD TO LIBRARY, ADD + FIRST 10
-	 * EACH (accent, the common case) and ADD + ALL, the preview's ADD and its
-	 * two DOWNLOAD cells, for many. ALL asks first. Nothing ticked dims the
-	 * cells and the line says what a tap does. `here` is the list on screen
-	 * (`listKey`), null on BROWSE.
+	 * The bulk bar while selecting in a catalog: a line saying what the press
+	 * will do, then ADD TO LIBRARY, ADD + FIRST 10 EACH (accent, the common
+	 * case) and ADD + ALL, the preview's ADD and its two DOWNLOAD cells, for
+	 * many. ALL asks first. Nothing ticked dims the cells and the line says
+	 * what a tap does. `here` is the list on screen (`listKey`), null on
+	 * BROWSE.
 	 *
 	 * ALL's question is cut 1's (doc/BROWSE.md, "Limits"): it
 	 * says what ALL does in plain lines and how many series, not the totals and
@@ -99,7 +99,7 @@
 </Sheet>
 
 <style>
-	/* The Bars board, transcribed: the mock's literals; colours are tokens. */
+	/* Transcribed from the design: its literals; colours are tokens. */
 	.bulk {
 		position: fixed;
 		left: var(--sheet-left, 0);

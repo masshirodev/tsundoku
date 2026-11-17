@@ -1,6 +1,6 @@
 <script lang="ts">
 	/**
-	 * The kept place's height, and nothing else (card c930, round 2). Drawing the
+	 * The kept place's height, and nothing else. Drawing the
 	 * kept answer before this visit's own answer arrives would draw results the
 	 * server has not cleared for this visit: a series hidden since the list was
 	 * left (ADD with ADDED HIDDEN, HIDE, another screen) would show its title and
@@ -36,7 +36,7 @@
 <style>
 	/* The page's own grid and `ResultTile`'s cell, copied rather than shared, so the
 	   outline's height is the drawn list's and no component another screen uses
-	   is changed (c930, round 2). */
+	   is changed. */
 	.grid {
 		display: grid;
 		grid-template-columns: repeat(var(--grid-cols), minmax(0, 1fr));

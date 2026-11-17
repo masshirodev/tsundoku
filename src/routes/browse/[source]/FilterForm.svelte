@@ -11,11 +11,10 @@
 	} from '$lib/library/browse-filters';
 
 	/**
-	 * A source's own filters (Index-Browse, filters; Browse Calls, "One drawing
-	 * for seven filter types" and "Filters wait for APPLY"). The library's panel
-	 * rows: a label column, then cells. It's a GET form, since every change
-	 * would ask the site again: choices change in place and APPLY sends them,
-	 * landing on the FILTERED tab.
+	 * A source's own filters: one drawing for seven filter types, and nothing
+	 * asked before APPLY. The library's panel rows: a label column, then cells.
+	 * It's a GET form, since every change would ask the site again: choices
+	 * change in place and APPLY sends them, landing on the FILTERED tab.
 	 *
 	 * Selects, sorts and check boxes are radio and check inputs drawn as cells,
 	 * so they work without script. A tri-state is three radio cells (· + −)
@@ -36,7 +35,7 @@
 		schema: FilterField[];
 		applied: FilterField[];
 		q: string;
-		/** Parameters APPLY carries through unchanged: the page's `from` (card c453). */
+		/** Parameters APPLY carries through unchanged: the page's `from`. */
 		keep?: [string, string][];
 		resetHref: string;
 		cancelHref: string;
@@ -282,7 +281,7 @@
 </form>
 
 <style>
-	/* Index-Browse, filters, transcribed: the mock's literals; colours are tokens. */
+	/* Transcribed from the design: its literals; colours are tokens. */
 	.panel {
 		display: flex;
 		flex-direction: column;

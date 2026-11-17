@@ -12,19 +12,19 @@ import {
 } from '$lib/server/engine/source-flags';
 
 /**
- * EXTENSIONS' SELECT (card c696): a press on the bulk bar sets one of
+ * EXTENSIONS' SELECT: a press on the bulk bar sets one of
  * tsundoku's switches on every source of every ticked extension, and the band
  * under the tabs says what changed with one UNDO for the whole press.
  *
- * The owner's decision (2026-11-08) is the rule this file keeps: **a row is a
- * package and a switch is a source id**, so a press changes every source of
- * the extension, including a language BROWSE does not list. The list is built
- * from the engine's own `engine_sources` rows (`browseSources(true)`, all
- * languages and hidden ones), never from the rows the screen happens to draw.
- * An LNReader plugin is the other store (`plugins.ts`): its package is
- * `ln:<id>`, and that one id is every source it has.
+ * The rule this file keeps: **a row is a package and a switch is a source id**,
+ * so a press changes every source of the extension, including a language BROWSE
+ * does not list. The list is built from the engine's own `engine_sources` rows
+ * (`browseSources(true)`, all languages and hidden ones), never from the rows
+ * the screen happens to draw. An LNReader plugin is the other store
+ * (`plugins.ts`): its package is `ln:<id>`, and that one id is every source it
+ * has.
  *
- * The band is its URL, as CONCEAL's is (c523): a reload says the same, and
+ * The band is its URL, as CONCEAL's is: a reload says the same, and
  * UNDO posts the facts it was given. The facts are each source's value before
  * the press, so a mixed selection comes back mixed and a source already on
  * stays on.
@@ -80,7 +80,7 @@ export const FACTS_MAX = 2000;
  * fact), and Node answers a request head past 16 KB with 431 after the press
  * has taken effect; 12 KB leaves 4 KB for the request line and the browser's
  * headers, cookie included. The band's query alone is not the cost: `pkg` is
- * bounded only by how many extensions the owner ticks.
+ * bounded only by how many extensions the user ticks.
  */
 export const LOCATION_BUDGET = 12_000;
 
@@ -204,8 +204,8 @@ export function pressFlag(
  * Whether UNDO may run whole: every source the press changed still has the
  * value it set. A source changed since, on its own settings page, is named by
  * its package; an UNDO that took back half a press would be a lie, so it
- * refuses whole (`doc/BANDS.md`'s c469 shape). Outside reveal a source that is
- * hidden now is not named: hidden means hidden, so the band says "A SOURCE".
+ * refuses whole. Outside reveal a source that is hidden now is not named:
+ * hidden means hidden, so the band says "A SOURCE".
  */
 export function undoRefusal(
 	flag: SourceFlag,
@@ -235,7 +235,7 @@ export function undoFlagPress(flag: SourceFlag, facts: readonly FlagFact[], db =
 	);
 }
 
-/** One band at a time, and the parameters each kind carries (c696; doc/BANDS.md). */
+/** One band at a time, and the parameters each kind carries (doc/BANDS.md). */
 export const SELECT_BAND_PARAMS = [
 	'band',
 	'flag',

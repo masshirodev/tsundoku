@@ -1,7 +1,7 @@
 /**
- * The words of MODE's and LAYOUT's N SERIES DIFFER → list (2A;
- * doc/SETTINGS.md): what the series reads by, its kind, and where it was
- * chosen. A novel kept R→L (c552) says so beside its own layout, or alone
+ * The words of MODE's and LAYOUT's N SERIES DIFFER → list
+ * (doc/SETTINGS.md): what the series reads by, its kind, and where it was
+ * chosen. A novel kept R→L says so beside its own layout, or alone
  * when its layout is the default's.
  */
 

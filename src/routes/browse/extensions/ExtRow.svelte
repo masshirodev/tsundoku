@@ -3,17 +3,16 @@
 	import { coverPlaceholder } from '$lib/library/cover';
 
 	/**
-	 * One row of EXTENSIONS (Index-Extensions): icon, name (18+ inside reveal),
+	 * One row of EXTENSIONS: icon, name (18+ inside reveal),
 	 * a line that may lead with a state in a word, then KIND · LANGUAGE,
-	 * VERSION and two action cells. A state that needs a hand is c94's failed
-	 * row: a 3px ink rule on the left, no new colour. `icon` is null for a
+	 * VERSION and two action cells. A state that needs a hand is the house's
+	 * failed row: a 3px ink rule on the left, no new colour. `icon` is null for a
 	 * repository, drawn as an empty outlined box.
 	 *
-	 * In SELECT (card c696; Main board 01) the row is a tick instead: a 64px
-	 * cell at its head, and the actions' column shows the extension's switches
-	 * read-only, so a MIXED cell can be checked row by row. The row is a
-	 * `<label>`, so a tap anywhere ticks it and the checkbox is the form's own
-	 * field even without script.
+	 * In SELECT the row is a tick instead: a 64px cell at its head, and the
+	 * actions' column shows the extension's switches read-only, so a MIXED cell
+	 * can be checked row by row. The row is a `<label>`, so a tap anywhere
+	 * ticks it and the checkbox is the form's own field even without script.
 	 */
 	let {
 		name,
@@ -52,7 +51,7 @@
 		rule?: boolean;
 		adult?: boolean;
 		hidden?: boolean;
-		/** SELECT (c696): the tick cell, and the switches' column. */
+		/** SELECT: the tick cell, and the switches' column. */
 		selecting?: boolean;
 		selected?: boolean;
 		/** "HIDDEN · NEVER TRACKED", read-only in SELECT. */
@@ -112,7 +111,7 @@
 {/if}
 
 <style>
-	/* Index-Extensions, transcribed: the mock's literals; colours are tokens. */
+	/* Transcribed from the design: its literals; colours are tokens. */
 	.row {
 		display: flex;
 		align-items: stretch;

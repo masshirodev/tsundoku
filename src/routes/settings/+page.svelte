@@ -64,10 +64,10 @@
 	import type { WebViewView } from '$lib/server/engine/webview';
 
 	/**
-	 * SETTINGS, one page (doc/SETTINGS.md; card c171, Settings.dc.html): every
-	 * setting once, in eight sections, each row ending in where it's kept. A
-	 * value off its default carries accent's rule and RESET; RESET SECTION
-	 * applies at once and says what moved, with UNDO. No modal anywhere.
+	 * SETTINGS, one page (doc/SETTINGS.md): every setting once, in eight
+	 * sections, each row ending in where it's kept. A value off its default
+	 * carries accent's rule and RESET; RESET SECTION applies at once and says
+	 * what moved, with UNDO. No modal anywhere.
 	 */
 	let { data, form } = $props();
 	/**
@@ -100,19 +100,19 @@
 		};
 	};
 	/**
-	 * WI-FI (doc/WIFI.md; Wifi.dc.html): the server's view, overridden by ON,
+	 * WI-FI (doc/WIFI.md): the server's view, overridden by ON,
 	 * OFF and NEW CODE, and polled while the panel is open, so the code counts
 	 * down by the minute and turns USED when a phone scans it.
 	 */
 	type Wifi = NonNullable<typeof data.wifi>;
 	let wf = $derived<Wifi | null>(data.wifi);
 	let wifiBusy = $state(false);
-	/** The firewall's disclosure under the pairing panel (c721), closed until asked. */
+	/** The firewall's disclosure under the pairing panel, closed until asked. */
 	let fwOpen = $state(false);
 	async function wifiPost(action: 'on' | 'off' | 'code') {
 		wifiBusy = true;
 		// The first time on Windows, STARTING… stays long enough to read: that's
-		// when the firewall dialog appears, maybe behind the browser (2A).
+		// when the firewall dialog appears, maybe behind the browser.
 		const hold =
 			action === 'on' && wf?.firstTime && /Windows/.test(navigator.userAgent)
 				? new Promise((ok) => setTimeout(ok, 4000))
@@ -137,7 +137,7 @@
 		const usedBefore = wf.code?.state === 'used';
 		const t = setInterval(async () => {
 			// A late answer to an earlier ask: NEW CODE, ON or OFF answered while
-			// this poll was out, and theirs is the newer view (c461's class).
+			// this poll was out, and theirs is the newer view.
 			const asked = wf;
 			try {
 				const r = await fetch('/api/wifi', { cache: 'no-store' });
@@ -154,8 +154,8 @@
 		return () => clearInterval(t);
 	});
 	/**
-	 * The TV's six digits where there is no WI-FI panel to carry them (c245):
-	 * the owner's tailnet install. Their countdown is the page's own, ticked
+	 * The TV's six digits where there is no WI-FI panel to carry them:
+	 * a tailnet install. Their countdown is the page's own, ticked
 	 * from the moment the server says they stop working -- the install has no
 	 * `/api/wifi` to poll, and `/api/pair/tv` answers at the computer only.
 	 * What the code itself is comes from `GET /settings/tv` (`refreshTv`).
@@ -174,27 +174,27 @@
 	/**
 	 * A TV that pairs with the code, or burns it, while SETTINGS stays open
 	 * changes nothing on this page by itself, and a spent code left showing as
-	 * live invites a second TV to type it (c265). So the row asks the server
+	 * live invites a second TV to type it. So the row asks the server
 	 * what the code is now: every 5 s while it shows anything but a burned code
 	 * and the page is in view, and once whenever the window regains focus or the page
-	 * becomes visible again. The owner usually keeps SETTINGS in front while
+	 * becomes visible again. The user usually keeps SETTINGS in front while
 	 * typing on the TV, so focus alone would miss the common case.
 	 *
 	 * The answer is drawn as it is. Only a code that has just become USED
 	 * reloads the page's data, so the TV that paired joins the list below (the
 	 * WI-FI panel's `usedBefore`). A burned or expired code stays on the row,
 	 * and a reload of the page's data leaves it so: only a real visit renews
-	 * (c531, `settingsVisit`). A new code comes from NEW CODE, from opening
-	 * SETTINGS again, or from the TV's own /pair/tv (c246, `renewForTv`), in
+	 * (`settingsVisit`). A new code comes from NEW CODE, from opening
+	 * SETTINGS again, or from the TV's own /pair/tv (`renewForTv`), in
 	 * place of none, a merely expired one, or one used over 2 minutes ago,
 	 * which the 5 s poll then draws. The row is asked about with no code at
-	 * all too (`data.tvHere`, round 2): after a restart the server has none
+	 * all too (`data.tvHere`): after a restart the server has none
 	 * until a visit or a TV makes one.
 	 *
 	 * An answer is about the code the row showed when it asked. If NEW CODE (or
 	 * any reload of the page's data) replaced `tv` while it was out, the answer
 	 * is the old code's, burned or used, and drawing it would put the old code
-	 * back over the new live one (c461). `tv` is a `$derived` that the reload
+	 * back over the new live one. `tv` is a `$derived` that the reload
 	 * recomputes to a new object and this assigns, so identity is the test:
 	 * nothing else writes it.
 	 */
@@ -217,11 +217,11 @@
 	// would tear the interval down and rebuild it, losing one tick in three.
 	// Every state but burned is asked about, and so is no code at all: an
 	// unpaired TV opening /pair/tv makes a new code in place of none, a merely
-	// expired one, or one used over 2 minutes ago (c246, `renewForTv`), and
+	// expired one, or one used over 2 minutes ago (`renewForTv`), and
 	// says THE NEW ONE IS ON THE COMPUTER, so the row must draw it without
-	// waiting for a focus the owner, typing on the TV, never gives (round 2:
-	// a second TV paired with SETTINGS left on ✓ USED). A burned code is not
-	// asked about: only the computer replaces it, and its own doors (NEW CODE,
+	// waiting for a focus the user, typing on the TV, never gives (else a
+	// second TV paired with SETTINGS left on ✓ USED). A burned code is not
+	// asked about: only the computer replaces it, and its own actions (NEW CODE,
 	// a real visit) redraw the row.
 	const tvPolls = $derived(data.tvHere && tv?.state !== 'burned');
 	$effect(() => {
@@ -244,15 +244,15 @@
 	}
 	/**
 	 * Arriving here from another screen is a real visit, which renews a spent
-	 * code (c531): opened as a document, the load itself renews; arrived at by
+	 * code: opened as a document, the load itself renews; arrived at by
 	 * a client-side navigation, the load was a data request like any reload of
 	 * this page's data, which must not renew, so the page says so itself with
 	 * `?/renew` and then reloads to draw the result (`act`). Not on a change of
 	 * this page's own URL (`?section=`), not where neither row is drawn, and
-	 * not over Wi-Fi, where `?/renew` renews nothing (c460). Whether the TV's
+	 * not over Wi-Fi, where `?/renew` renews nothing. Whether the TV's
 	 * row is here is the server's `tvHere`, never `data.tv`: after a restart
 	 * there is no code, so `data.tv` is null on exactly the visit that must
-	 * make one (round 2).
+	 * make one.
 	 */
 	afterNavigate((nav) => {
 		if (nav.type === 'enter' || nav.from?.route.id === nav.to?.route.id) return;
@@ -269,14 +269,14 @@
 			return 'TURNING ON · TSUNDOKU STARTS LISTENING ON THE WI-FI, WHICH TAKES A FEW SECONDS';
 		return "ON · ANYONE ON THIS WI-FI REACHES THE SIGN-IN PAGE · SWITCH IT OFF ON A CAFÉ'S OR A DORM'S · THIS COMPUTER KEEPS USING LOCALHOST";
 	};
-	/** A paired phone's line in DEVICES (Wifi.dc.html's device rows). */
+	/** A paired phone's line in DEVICES. */
 	const pairedMeta = (p: { address: string; pairedAt: number }, mine: boolean, n: number) => {
 		const w = wf;
 		if (w?.changed && p.address.startsWith(`${w.changed.from}:`))
 			return `PAIRED AT ${w.changed.from} · SCAN AGAIN`;
 		if (w && !w.on) return "OVER WI-FI · CAN'T REACH IT WHILE WI-FI IS OFF · STAYS SIGNED IN";
 		if (w && !w.listening) return "OVER WI-FI · CAN'T REACH IT UNTIL THERE'S AN ADDRESS";
-		// No WI-FI panel means it paired on the tailnet (c245): the row says so.
+		// No WI-FI panel means it paired on the tailnet: the row says so.
 		const door = w ? 'OVER WI-FI' : 'OVER TAILSCALE';
 		if (Date.now() - p.pairedAt < 60_000) return `${door} · JUST PAIRED · ${changedWord(n)}`;
 		return `${door} · PAIRED ${when(p.pairedAt)}${mine ? ' · OPEN NOW' : ''}`;
@@ -344,7 +344,7 @@
 	const wide = new MediaQuery('(min-width: 1024px)', false);
 	const desktop = new MediaQuery('(min-width: 1024px) and (pointer: fine)', false);
 	const off = $derived(!offline.online);
-	/** TMDB's row (c993): its field open, what is typed, SHOW, the check under way, REMOVE asked. */
+	/** TMDB's row: its field open, what is typed, SHOW, the check under way, REMOVE asked. */
 	let keyOpen = $state(false);
 	let keyValue = $state('');
 	let keyShown = $state(false);
@@ -356,7 +356,7 @@
 		if (form?.tmdbKey === 'saved') keyBandGone = false;
 	});
 
-	// ---- this device, and the one shown (2C) -------------------------------------------------
+	// ---- this device, and the one shown -------------------------------------------------
 	let myId = $state('');
 	let myKind = $state<DeviceKind>('tablet');
 	/** This browser's storage, by key: what its rows read. */
@@ -467,7 +467,7 @@
 		void setValues(u);
 	}
 
-	// ---- lists behind N SERIES DIFFER → (2A) ---------------------------------------------------
+	// ---- lists behind N SERIES DIFFER → ---------------------------------------------------
 	let open = $state<string | null>(null);
 	type Item = { href: string; t: string; v: string; ids: number[] };
 	function itemsOf(row: RowDef): { what: string; items: Item[] } | null {
@@ -579,7 +579,7 @@
 	const stepSize = (d: 1 | -1) =>
 		set('text.size', Math.min(SIZE_MAX, Math.max(SIZE_MIN, size + d)));
 
-	// ---- AUDIO KEPT (c160) ------------------------------------------------------------------------
+	// ---- AUDIO KEPT ------------------------------------------------------------------------
 	const KEPT_CHIPS = ['EN', 'ES', 'PT', 'FR', 'DE', 'IT', 'AR'];
 	const kept = $derived(
 		keptOf((values['dl.audio'] as string | undefined) ?? '') ?? [...KEPT_CHIPS]
@@ -614,7 +614,7 @@
 	const sections = $derived(SECTIONS.filter((s) => s.id !== 'browse' || data.browse));
 	const titleOf = (s: SectionDef) => (phone.current && s.short ? s.short : s.title);
 
-	// ---- CATALOGUES (Catalogue Links 1u, 1v; doc/TRACKING.md) -----------------------------------
+	// ---- CATALOGUES (doc/TRACKING.md) -----------------------------------
 	const count = (n: number) => n.toLocaleString('en-US');
 	const DAY = 24 * 3600_000;
 	function accountMeta(a: AccountView): { text: string; alert: boolean } {
@@ -691,7 +691,7 @@
 </script>
 
 <svelte:head><title>Settings · tsundoku</title></svelte:head>
-<!-- The DEVICES row's TV code, asked again when the owner comes back (c265). -->
+<!-- The DEVICES row's TV code, asked again when the user comes back. -->
 <svelte:window onfocus={tvBack} />
 <svelte:document onvisibilitychange={tvBack} />
 
@@ -721,7 +721,7 @@
 		/>{/if}
 
 	{#if form?.tmdbKey === 'saved' && !keyBandGone}
-		<!-- Keys-Key 3E: what the new key will look up; matches are only ever offered. -->
+		<!-- What the new key will look up; matches are only ever offered. -->
 		{@const w = form.waiting}
 		<Band
 			title="TMDB KEY SAVED"
@@ -1036,7 +1036,7 @@
 					.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 					.toUpperCase()} · ${count(last.series)} SERIES`
 			: 'NO IMPORT YET'}
-		<!-- Import-Doors C; on a TV, D: no button, and nothing to focus. -->
+		<!-- On a TV: no button, and nothing to focus. -->
 		<div class="row acct import" class:dim={off}>
 			<div class="label">IMPORT A BACKUP</div>
 			<div class="ctl">
@@ -1064,7 +1064,7 @@
 		{@const k = data.catalogues.tmdb}
 		{@const hm = (t: number) =>
 			new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-		<!-- TMDB (c993; Keys-Key 3A–3H): a key typed here, checked with TMDB before it is kept
+		<!-- TMDB: a key typed here, checked with TMDB before it is kept
 		     and never shown again. The environment's key wins and has no cells. A TV reads it. -->
 		<div class="row acct tmdb" id="tmdb" class:dim={off && !keyOpen}>
 			<div class="label">TMDB</div>
@@ -1214,7 +1214,7 @@
 				<div class="acct-body">
 					<div class="who">
 						{#if rb.configured}
-							<!-- Ranobe has no endpoint naming a token's account: the mock's "Token for masshiro" can't be known (doc/RANOBE.md). -->
+							<!-- Ranobe has no endpoint naming a token's account, so the account's name can't be shown (doc/RANOBE.md). -->
 							<div class="name">Token in .env</div>
 							<div class="meta" class:alert={rbSend.alert}>{rbSend.text}</div>
 							<div class="meta">
@@ -1307,7 +1307,7 @@
 {/snippet}
 
 {#snippet extensionsRow(e: { installed: number; updates: number })}
-	<!-- EXTENSIONS (c725; doc/SETTINGS.md, "07 — BROWSE"): a second door to
+	<!-- EXTENSIONS (doc/SETTINGS.md, "07 — BROWSE"): a second way to
 	     BROWSE › EXTENSIONS, where Mihon's and Aniyomi's readers look first.
 	     Nothing is managed here; the meta says where it lives. The whole body
 	     is the link, so a TV's ↓ from LANGUAGES lands on it (the focus layer
@@ -1336,10 +1336,10 @@
 {/snippet}
 
 {#snippet webviewRow(v: WebViewView)}
-	<!-- WEBVIEW (doc/SETTINGS.md, "07 — BROWSE"; not drawn in a handoff: WI-FI's
-	     row again, its OFF | ON, meta and strip). The engine's headless browser
-	     for the extensions that need one; off unless this install turns it on
-	     (card c978). The launcher restarts the engine to take a change. -->
+	<!-- WEBVIEW (doc/SETTINGS.md, "07 — BROWSE"; WI-FI's row again, its
+	     OFF | ON, meta and strip). The engine's headless browser for the
+	     extensions that need one; off unless this install turns it on. The
+	     launcher restarts the engine to take a change. -->
 	{@const on = v.on ?? v.support === 'on'}
 	{@const lan = data.viaLan}
 	{@const removable = v.managed && !v.on && !v.restarting && v.chromium.bytes !== null}
@@ -1462,7 +1462,7 @@
 {/snippet}
 
 {#snippet thisApp(a: AppUpdate)}
-	<!-- tsundoku's Android app, which updates itself (c614; doc/UPDATES.md, "The Android apps"). -->
+	<!-- tsundoku's Android app, which updates itself (doc/UPDATES.md, "The Android apps"). -->
 	{@const offer = a.phase === 'available' || a.phase === 'ready'}
 	{@const retry = a.phase === 'error' && appUpdater.offer !== null}
 	{@const busy = ['checking', 'downloading', 'permission', 'installing'].includes(a.phase)}
@@ -1583,7 +1583,7 @@
 {/snippet}
 
 {#snippet report()}
-	<!-- SAVE A REPORT (doc/LOGS.md; c193): a file to send when something breaks, never sent by itself. -->
+	<!-- SAVE A REPORT (doc/LOGS.md): a file to send when something breaks, never sent by itself. -->
 	<div class="row device">
 		<button
 			type="button"
@@ -1612,7 +1612,7 @@
 {/snippet}
 
 {#snippet wifiRow(w: Wifi)}
-	<!-- Reading on a phone over Wi-Fi (doc/WIFI.md; Wifi.dc.html, Wifi-Phone.dc.html 3E). -->
+	<!-- Reading on a phone over Wi-Fi (doc/WIFI.md). -->
 	{#if data.viaLan}
 		<div class="row wifi">
 			<button
@@ -1689,13 +1689,12 @@
 {/snippet}
 
 {#snippet tvRow(t: Tv | null)}
-	<!-- The app's six digits where there is no WI-FI panel to carry them (c245;
-	     doc/WIFI.md): the owner's tailnet install. The block is the pairing
-	     panel's own, without the browser's QR; since c521 it is the app's, on a
-	     TV, a phone or a tablet, and it writes out the whole address the app
-	     types, since a tailnet install has no last-number shortcut
-	     (PhoneApp-Computer.dc.html). With no code at all (a restart, until a
-	     visit or the app makes one) the row is still drawn, with NEW CODE. -->
+	<!-- The app's six digits where there is no WI-FI panel to carry them
+	     (doc/WIFI.md): a tailnet install. The block is the pairing panel's
+	     own, without the browser's QR; it is the app's, on a TV, a phone or a
+	     tablet, and it writes out the whole address the app types, since a
+	     tailnet install has no last-number shortcut. With no code at all (a
+	     restart, until a visit or the app makes one) the row is still drawn, with NEW CODE. -->
 	{@const live = !!t && tvLive(t)}
 	{@const mins = t ? tvMinutes(t) : 0}
 	<div class="row wifi">
@@ -1710,7 +1709,7 @@
 				{:else if !t}
 					<div class="tvcode dim">—</div>
 				{:else}
-					<!-- Used, burned (the refresh reads the code as it is, c265), or
+					<!-- Used, burned (the refresh reads the code as it is), or
 					     past its time by the server or by this page's own clock. -->
 					<div class="tvcode dim">
 						{t.state === 'used' ? '✓ USED' : t.state === 'burned' ? 'BURNED' : 'EXPIRED'}
@@ -1735,7 +1734,7 @@
 				{:else if t?.state === 'burned'}
 					<div class="tvline">NO TRIES LEFT · MAKE A NEW CODE</div>
 				{:else if !t}
-					<!-- No code at all, which is not an expired one (c580): the server's
+					<!-- No code at all, which is not an expired one: the server's
 					     memory after a restart, until a visit, NEW CODE or a TV makes one. -->
 					<div class="tvline">NO CODE YET · MAKE A NEW CODE</div>
 				{:else}
@@ -1757,10 +1756,9 @@
 {/snippet}
 
 {#snippet pairingPanel(w: Wifi, starting: boolean)}
-	<!-- A friend's install with WI-FI on (c188; doc/WIFI.md), rearranged around
-	     one address for c521 (PhoneApp-Computer.dc.html): THIS COMPUTER'S
-	     ADDRESS across the top, since both ways in start from it, then the two
-	     ways side by side: FOR THE APP (the six digits, first and larger) and
+	<!-- A friend's install with WI-FI on (doc/WIFI.md), arranged around one
+	     address: THIS COMPUTER'S ADDRESS across the top, since both ways in
+	     start from it, then the two ways side by side: FOR THE APP (the six digits, first and larger) and
 	     FOR A BROWSER (the QR, for a phone without the app). -->
 	{@const c = w.code}
 	{@const noAddr = !starting && w.reach === 'none'}
@@ -1785,7 +1783,7 @@
 		<div class="pair-main" class:one={!(w.tv && ready)}>
 			{#if w.tv && ready}
 				<!-- The digits typed in tsundoku's own app, on a TV, a phone or a
-				     tablet (c236, c521; doc/TV.md, doc/ANDROID.md). -->
+				     tablet (doc/TV.md, doc/ANDROID.md). -->
 				<div class="pair-tv">
 					<div class="pk ink">FOR THE APP · SIX DIGITS</div>
 					{#if w.tv.state === 'live'}
@@ -1793,8 +1791,8 @@
 							<span>{w.tv.code.slice(0, 3)}</span><span>{w.tv.code.slice(3)}</span>
 						</div>
 					{:else}
-						<!-- The poll reads the code as it is (c460): a burned one stays
-						     BURNED until NEW CODES, as on the DEVICES row (c265). -->
+						<!-- The poll reads the code as it is: a burned one stays
+						     BURNED until NEW CODES, as on the DEVICES row. -->
 						<div class="tvcode dim">
 							{w.tv.state === 'used' ? '✓ USED' : w.tv.state === 'burned' ? 'BURNED' : 'EXPIRED'}
 						</div>
@@ -1917,7 +1915,7 @@
 {/snippet}
 
 {#snippet firewallHelp(f: NonNullable<Wifi['firewall']>, quiet: boolean)}
-	<!-- A firewall on the computer (c721; doc/WIFI.md, "A firewall on the
+	<!-- A firewall on the computer (doc/WIFI.md, "A firewall on the
 	     computer"): the server's platform and what its probe found, the port
 	     and the home network read from the running app. A line the probe can
 	     name is said with its command; otherwise the general line, with the
@@ -2025,7 +2023,7 @@
 
 <style>
 	/*
-	 * The handoff's measurements, transcribed (Settings.dc.html): hand-set, not
+	 * The design's measurements, transcribed: hand-set, not
 	 * a spacing scale, as everywhere in tsundoku. tests/settings-frame.e2e.ts
 	 * pins them so a tidy-up can't round them away.
 	 */
@@ -2154,7 +2152,7 @@
 		display: flex;
 	}
 	/* The index is sticky and only as tall as its entries, so the rule between it
-	   and the rows is the content's: it runs the page's length (2026-10-29). */
+	   and the rows is the content's: it runs the page's length. */
 	.index {
 		width: 260px;
 		flex-shrink: 0;
@@ -2325,7 +2323,7 @@
 	}
 	/* A label with a "?" (doc/HELP.md): the whole cell is the button, its mark after the word. */
 	button.label.ask {
-		/* Where the word fills a narrow cell, the mark wraps under it (Help Calls, B). */
+		/* Where the word fills a narrow cell, the mark wraps under it. */
 		flex-wrap: wrap;
 		align-content: center;
 		gap: 6px 8px;
@@ -2441,7 +2439,7 @@
 	.zh .flag {
 		color: var(--text-1);
 	}
-	/* Ruled from its label, as a row's controls are from what's said under them (asked 2026-10-29). */
+	/* Ruled from its label, as a row's controls are from what's said under them. */
 	.zb {
 		display: flex;
 		align-items: center;
@@ -2474,14 +2472,14 @@
 		font: 400 13px/1.45 var(--font-mono);
 		color: var(--text-2);
 	}
-	/* A rule between the controls and what's said under them (asked 2026-10-29),
+	/* A rule between the controls and what's said under them,
 	   laid over the one a zoom cell or a chip already draws, so it's never doubled. */
 	.ctl > .meta {
 		border-top: var(--hairline);
 		margin-top: -1px;
 	}
 	/* With nothing under them, the controls fill the row: its 64px, not their 52px
-	   and a gap (WIDE PAGES, reported 2026-10-29). */
+	   and a gap (WIDE PAGES). */
 	.ctl > .seg:last-child,
 	.ctl > .info:last-child {
 		flex: 1;
@@ -2592,7 +2590,7 @@
 	.row.acct.ranobe {
 		min-height: 84px;
 	}
-	/* EXTENSIONS (c725): the whole body is the door; its spans keep the row's blocks. */
+	/* EXTENSIONS: the whole body is the link; its spans keep the row's blocks. */
 	.ext-go {
 		color: inherit;
 		text-decoration: none;
@@ -2602,7 +2600,7 @@
 	.ext-go .meta {
 		display: block;
 	}
-	/* IMPORT A BACKUP (c438): the row's body above its meta line, as Import-Doors C draws it. */
+	/* IMPORT A BACKUP: the row's body above its meta line, as designed. */
 	.row.acct.import .ctl {
 		display: flex;
 		flex-direction: column;
@@ -2617,7 +2615,7 @@
 	.tv-only {
 		display: none;
 	}
-	/* The TV never imports (Import-Doors D): the row says so, with no button and nothing to focus. */
+	/* The TV never imports: the row says so, with no button and nothing to focus. */
 	@media (pointer: none) and (min-width: 900px) {
 		.not-tv {
 			display: none;
@@ -2678,7 +2676,7 @@
 	.cell.dim {
 		opacity: 0.4;
 	}
-	/* ---- WI-FI (Wifi.dc.html): the handoff's measurements, transcribed ---- */
+	/* ---- WI-FI: the design's measurements, transcribed ---- */
 	.label.top {
 		align-items: flex-start;
 		padding-top: 20px;
@@ -2796,9 +2794,9 @@
 		color: var(--text-2);
 	}
 	/*
-	 * The two ways in, side by side (c521; PhoneApp-Computer.dc.html): the
-	 * app's digits, then the browser's QR. One column when there are no digits
-	 * to show (starting, no address, a panel with no TV code yet).
+	 * The two ways in, side by side: the app's digits, then the browser's
+	 * QR. One column when there are no digits to show (starting, no address, a
+	 * panel with no TV code yet).
 	 */
 	.pair-main {
 		display: grid;
@@ -2896,7 +2894,7 @@
 		font: 400 13px/1.45 var(--font-mono);
 		color: var(--text-2);
 	}
-	/* The app's six digits (c236, c521): first and larger than the QR. */
+	/* The app's six digits: first and larger than the QR. */
 	.pair-tv {
 		display: flex;
 		flex-direction: column;
@@ -2980,7 +2978,7 @@
 		font: 400 12px/1.45 var(--font-mono);
 		color: var(--text-2);
 	}
-	/* The firewall's line (c721), in the help line's own idiom; loud when no
+	/* The firewall's line, in the help line's own idiom; loud when no
 	   phone has reached this computer, as WI-FI's meta is for a public address. */
 	.pair-fw {
 		display: flex;
@@ -3102,13 +3100,13 @@
 		font: 500 13px var(--font-mono);
 		letter-spacing: 0.04em;
 	}
-	/* TMDB's key (Keys-Key): the password form's shape, with SHOW in the field and SAVE beside CANCEL. */
+	/* TMDB's key: the password form's shape, with SHOW in the field and SAVE beside CANCEL. */
 	.key-field {
 		display: flex;
 		align-items: stretch;
 		border: var(--hairline);
 	}
-	/* A wrong key: a full ink border, never red (Index draws an error in ink; magenta is reveal's). */
+	/* A wrong key: a full ink border, never red (an error is drawn in ink; magenta is reveal's). */
 	.key-field.wrong {
 		border-color: var(--text-1);
 	}
@@ -3134,7 +3132,7 @@
 		color: var(--text-1);
 		border: var(--hairline);
 	}
-	/* CHECKING WITH TMDB: the dashed line is Index's sign for waiting (Keys-Key 3B). */
+	/* CHECKING WITH TMDB: the dashed line is the house sign for waiting. */
 	.pw-go.waiting {
 		background: none;
 		color: var(--text-2);

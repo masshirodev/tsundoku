@@ -4,7 +4,7 @@
 	 * history entry's snapshot on a popstate **and** while a fresh document boots
 	 * (a reload: the entry's snapshot is in sessionStorage, client.js's
 	 * `restore_snapshot`). A reload keeps today's behaviour — the URL's pages, and
-	 * the browser's own scroll — so the boot's restore is refused (c930).
+	 * the browser's own scroll — so the boot's restore is refused.
 	 */
 	let navigated = false;
 </script>
@@ -44,9 +44,8 @@
 	import type { SearchHit } from '$lib/server/download-types';
 
 	/**
-	 * A source's page in BROWSE (Index-Browse: popular, filters, phoneGrid;
-	 * Browse Calls, "A source page is a shelf" and "It scrolls on, and the URL
-	 * keeps the place"). POPULAR and LATEST are tabs, FILTERED joins them once
+	 * A source's page in BROWSE: a shelf that scrolls on, with the URL keeping
+	 * the place. POPULAR and LATEST are tabs, FILTERED joins them once
 	 * filters are applied, and FILTER sits at their right end. The grid is the
 	 * library's. The next page is asked for as the end comes near and added;
 	 * MORE ↓ is the same as a link (?pages=N), which is the no-script way on and
@@ -55,7 +54,7 @@
 	let { data, form } = $props();
 
 	/**
-	 * The bar's leading `/` runs a command, as the library's does (c697); the
+	 * The bar's leading `/` runs a command, as the library's does; the
 	 * source's own search keeps everything else. A refusal is said above the
 	 * grid and the list stays as it was.
 	 */
@@ -72,7 +71,7 @@
 	type Shown = { key: string; ok: true; value: Answer } | { key: string; ok: false; error: string };
 
 	/**
-	 * A tile's focus comes back with a plain way back from a preview (c864), and
+	 * A tile's focus comes back with a plain way back from a preview, and
 	 * only then. The preview's ← is a plain link, not a back link: a tag search
 	 * and a source's list share the path `/browse/<id>`, so matching by path
 	 * would take the tag search the reader came through and the two ←s would
@@ -84,7 +83,7 @@
 	 * since. A visit left by touch or mouse saved none, so a phone's way back
 	 * draws no focus. It waits for the streamed grid, as the layout does.
 	 *
-	 * The same arrival gets its place back too (c930), from the one record a
+	 * The same arrival gets its place back too, from the one record a
 	 * departure toward a preview leaves; see `leftFor` below. Every other forward
 	 * visit and a reload keep today's behaviour: the top.
 	 */
@@ -97,7 +96,7 @@
 	});
 
 	const base = $derived(resolve('/browse/[source]', { source: data.source.id }));
-	/** The ADDED band's parameters (c505): said once, and never part of which list this is. */
+	/** The ADDED band's parameters: said once, and never part of which list this is. */
 	const ADDED_BAND = ['added', 'series', 'preview', 'queued'];
 	/** The current URL with some parameters changed; null removes one. */
 	function link(over: Record<string, string | null>): string {
@@ -114,7 +113,7 @@
 	}
 	/**
 	 * Every way to another list of this source keeps `from`, the preview or
-	 * series a tag opened it from, so ← still returns there (card c453). The
+	 * series a tag opened it from, so ← still returns there. The
 	 * value kept is the one `backOrigin` accepted, never the raw parameter.
 	 */
 	const fromPair = $derived<[string, string][]>(data.back ? [['from', data.back]] : []);
@@ -122,7 +121,7 @@
 	/**
 	 * Which list this is, whatever page it's on: what decides appending vs
 	 * starting over, and what a kept place is kept for. Reveal and incognito are
-	 * part of it (c930): a revealed list may not be drawn to a non-revealed
+	 * part of it: a revealed list may not be drawn to a non-revealed
 	 * visit, and an incognito one leaves nothing (doc/PRIVACY.md).
 	 */
 	const listKey = (u: URL) => {
@@ -141,7 +140,7 @@
 	);
 	/**
 	 * The kept list's height and its MORE row, drawn as an outline until this
-	 * visit's answer is here (c930; see "the place, kept" below). Null when
+	 * visit's answer is here (see "the place, kept" below). Null when
 	 * nothing is kept or the answer has arrived.
 	 */
 	let held = $state<{ count: number; more: boolean } | null>(null);
@@ -149,7 +148,7 @@
 	 * How many answers the load has drawn on this screen. A kept place draws its
 	 * outline at once, and a load that has already answered for this list wins
 	 * over it: the answer the server sent for this visit is never covered by
-	 * anything kept (c930).
+	 * anything kept.
 	 */
 	let answered = 0;
 	let asking = $state(false);
@@ -180,13 +179,13 @@
 	// ---- the place, kept ----------------------------------------------------------
 	/*
 	 * Back to the catalog comes back to the pages loaded and the place in them
-	 * (c930; doc/BROWSE.md, doc/NAVIGATION.md). Two records, because the two ways
+	 * (doc/BROWSE.md, doc/NAVIGATION.md). Two records, because the two ways
 	 * back differ:
 	 *
 	 * - a **popstate** (the browser's back, Android's edge swipe, a TV's BACK)
 	 *   restores the history entry's own snapshot, kept by SvelteKit for this
 	 *   route's instance: `{ key, count, more, y }`, below;
-	 * - the preview's **plain ←** (c864) is a forward visit, so it has no entry of
+	 * - the preview's **plain ←** is a forward visit, so it has no entry of
 	 *   its own to restore. The one departure toward a preview leaves the same
 	 *   record in sessionStorage (`takeLeft`), and only that arrival reads it.
 	 *
@@ -221,10 +220,10 @@
 	 * One record, one departure: the next departure toward a preview replaces it,
 	 * and a read takes it, so a stale one is never applied twice. A preview
 	 * reached another way (a forward or a back through history) leaves none: its
-	 * ← then opens the list at the top, as it did before c930.
+	 * ← then opens the list at the top.
 	 */
 	beforeNavigate((n) => {
-		// SELECT lasts through the browse world, and ends anywhere else (c868).
+		// SELECT lasts through the browse world, and ends anywhere else.
 		sel.follow(n.to?.route.id);
 		leftAt = scrollY;
 		if (n.type !== 'link' || n.to?.route.id !== '/downloads/source/[id]') return;
@@ -329,7 +328,7 @@
 		}
 	};
 
-	// Waiting for the first answer: is the engine passing the site's browser check? (c143)
+	// Waiting for the first answer: is the engine passing the site's browser check?
 	const check = new SiteCheck();
 	$effect(() => {
 		if (shown) return;
@@ -356,7 +355,7 @@
 	const results = $derived(value?.results ?? null);
 	const name = $derived(data.source.name);
 	// An LNReader plugin (doc/NOVELS.md): its search takes no filters, and its
-	// settings page has only tsundoku's own switches (c435). The family is asked, not the kind (card c420).
+	// settings page has only tsundoku's own switches. The family is asked, not the kind.
 	const novel = $derived(data.source.family === 'lnreader');
 	const tabTitle = $derived(
 		data.q
@@ -396,7 +395,7 @@
 		return () => watcher.unobserve(el);
 	});
 
-	/** Where this page is, so the preview and the series it opens can come back to it (c262). */
+	/** Where this page is, so the preview and the series it opens can come back to it. */
 	const here = $derived(encodeURIComponent(page.url.pathname + page.url.search));
 	const tileHref = (h: { mangaId: string; match: { kind: string; seriesId?: number } }) =>
 		h.match.kind === 'in-library' && h.match.seriesId
@@ -404,7 +403,7 @@
 			: `${resolve('/downloads/source/[id]', { id: h.mangaId })}?from=${here}`;
 	const hue = (id: string) => [...id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 0);
 
-	// ---- SELECT (card c868; doc/BROWSE.md, "SELECT in a catalog") ---------------
+	// ---- SELECT (doc/BROWSE.md, "SELECT in a catalog") ---------------
 	/*
 	 * Held in this tab's memory (`browseSelection`), never the URL: it outlives
 	 * POPULAR, LATEST, FILTER, a search, a tag's arrival, MORE, other sources and
@@ -415,7 +414,7 @@
 	const sel = browseSelection;
 	const selecting = $derived(sel.selecting);
 	let showing = $state(false);
-	// A selection never outlives the reveal it was made in (the Rules board).
+	// A selection never outlives the reveal it was made in.
 	$effect(() => sel.checkReveal(data.reveal));
 	/** Where a tick is made, in SHOW's words: the tab, a search, or a tag's arrival. */
 	const where = $derived(
@@ -472,10 +471,10 @@
 <div class="screen" class:selecting>
 	{#if !selecting || data.find || data.q}
 		<TopBar sticky={!selecting} label="{name} in BROWSE">
-			<!-- Every cell in the middle, each with its own left rule, as the mock builds the bar. -->
+			<!-- Every cell in the middle, each with its own left rule, as the design builds the bar. -->
 			{#snippet middle()}
 				{#if data.back}
-					<!-- From a tag on a preview or a series (c313): back to it, whose own ← is unchanged. -->
+					<!-- From a tag on a preview or a series: back to it, whose own ← is unchanged. -->
 					<a class="cell back" href={data.back} aria-label={backOriginLabel(data.back)}>←</a>
 				{:else}
 					<a class="cell back" href={resolve('/browse')} aria-label="Back to BROWSE">←</a>
@@ -507,14 +506,14 @@
 				</form>
 				<a class="cell slash" href={link({ find: '1' })} aria-label="Search {name}">/</a>
 				{#if !selecting}
-					<!-- SELECT (c868): before SETTINGS, after / on a phone. It needs script,
+					<!-- SELECT: before SETTINGS, after / on a phone. It needs script,
 				     so it is drawn once the page runs; a TV has no SELECT. -->
 					{#if js}
 						<button type="button" class="cell select" onclick={() => sel.start(data.reveal)}
 							>SELECT</button
 						>
 					{/if}
-					<!-- Every family's, since tsundoku's own switches are every source's (c435). -->
+					<!-- Every family's, since tsundoku's own switches are every source's. -->
 					<a class="cell settings" href={withFrom(`${base}/settings`)} aria-label="SETTINGS"
 						><span class="long">SETTINGS</span><span class="short">SET.</span></a
 					>
@@ -531,13 +530,13 @@
 	{/if}
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
-	<!-- A press's band (c868): while it runs and its one result, on every browse screen. -->
+	<!-- A press's band: while it runs and its one result, on every browse screen. -->
 	<PressBand reveal={data.reveal} />
 	{#if commandNote}<Band title={commandNote} ondismiss={() => (commandNote = '')} />{/if}
 	{#if data.addedHidden}
-		<!-- What the series page's band would have said (c505): what ADD AND
+		<!-- What the series page's band would have said: what ADD AND
 		     DOWNLOAD queued, and UNDO while nothing of it is downloaded or read.
-		     Inside reveal there is nothing to point at, so the tail goes (c605). -->
+		     Inside reveal there is nothing to point at, so the tail goes. -->
 		<AddedBand
 			band={data.addedHidden}
 			{name}
@@ -555,7 +554,7 @@
 	<nav class="tabs" aria-label="Lists">
 		<div class="tab-list">
 			{#if selecting}
-				<!-- The source's name moves here while the bar holds the selection (c868). -->
+				<!-- The source's name moves here while the bar holds the selection. -->
 				<span class="tab where"
 					>IN {name.toUpperCase()}<span class="long"
 						>{` · ${data.source.kind.toUpperCase()} · ${data.source.lang.toUpperCase()}`}</span
@@ -609,8 +608,7 @@
 				detail="THE LIBRARY AND CACHED CHAPTERS STILL OPEN"
 			/>
 		{:else if shown.error === 'rate-limited'}
-			<!-- No TRY AGAIN to hammer it with: asking again is what the source objects to
-			     (Online Calls, "Waiting is Player Waiting's"). -->
+			<!-- No TRY AGAIN to hammer it with: asking again is what the source objects to. -->
 			<Band
 				title="{name.toUpperCase()} ASKED TO SLOW DOWN"
 				detail="IT LIMITS HOW OFTEN IT'S ASKED · OPEN IT AGAIN IN A MINUTE"
@@ -622,7 +620,7 @@
 			/>
 		{:else}
 			<!-- A check the site refused is remembered for ten minutes (doc/NOVELS.md),
-			     so TRY AGAIN forgets it first (`again`, c294) and says it will. -->
+			     so TRY AGAIN forgets it first (`again`) and says it will. -->
 			{@const refusedCheck = isRefusedCheck(shown.error)}
 			<Band
 				title="{name.toUpperCase()} DID NOT ANSWER"
@@ -631,7 +629,7 @@
 			>
 				<!-- A real load, not the client's: a plain TRY AGAIN is this page's own URL, which
 				     SvelteKit would not ask for again, and a hovering pointer must not forget a
-				     refused check's memos by preloading `again=1` (c688, c604). -->
+				     refused check's memos by preloading `again=1`. -->
 				{#snippet action()}<a
 						class="again"
 						data-sveltekit-reload
@@ -671,7 +669,7 @@
 
 		{#if !results}
 			{#if held}
-				<!-- The kept list's size, no title and no cover (c930): the place a
+				<!-- The kept list's size, no title and no cover: the place a
 				     way back holds while this visit's answer is on its way. -->
 				<KeptOutline count={held.count} more={held.more} />
 			{:else}
@@ -701,7 +699,7 @@
 						>{asking ? `ASKING FOR PAGE ${data.pages + 1}` : `PAGE ${data.pages + 1}`}</span
 					>
 					<!-- One page at a time: a click while one is asked for would only queue
-					     more calls at the source (reported 2026-10-29). -->
+					     more calls at the source. -->
 					<a
 						class="go"
 						href={link({ pages: String(data.pages + 1) })}
@@ -723,7 +721,7 @@
 
 {#snippet webviewBand(f: { state: 'starting' | 'failed' | 'off'; line: string })}
 	{#if f.state === 'off'}
-		<!-- Said in words, not as an error: this install has it off (card c978). -->
+		<!-- Said in words, not as an error: this install has it off. -->
 		<Band title={f.line} detail="SETTINGS › BROWSE › WEBVIEW" />
 	{:else if f.state === 'starting' && browserState !== 'ready' && browserState !== 'failed'}
 		<!-- No TRY AGAIN while the browser comes: asking now would only wait again. -->
@@ -749,7 +747,7 @@
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
 
 <style>
-	/* Index-Browse, popular / filters / phoneGrid, transcribed: the mock's literals; colours are tokens. */
+	/* Transcribed from the design: its literals; colours are tokens. */
 	.screen {
 		display: flex;
 		flex-direction: column;
@@ -760,7 +758,7 @@
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
-		/* TopBar centres what it holds; the mock's cells stretch, their text at the left. */
+		/* TopBar centres what it holds; the design's cells stretch, their text at the left. */
 		align-items: stretch;
 		gap: 4px;
 		height: 100%;
@@ -827,7 +825,7 @@
 		display: none;
 		font: 500 16px/1 var(--font-mono);
 	}
-	/* SELECT (c868): a cell like SETTINGS, a button. */
+	/* SELECT: a cell like SETTINGS, a button. */
 	button.cell {
 		border: 0;
 		border-radius: 0;
@@ -844,8 +842,8 @@
 	.screen.selecting {
 		padding-bottom: 120px;
 	}
-	/* The source's name at the head of the tabs while selecting (Select-Tablet's
-	   `.tab.where`): drawn as the mock draws a tab, its own weight and ink. */
+	/* The source's name at the head of the tabs while selecting: drawn as the
+	   design draws a tab, its own weight and ink. */
 	.tab.where {
 		display: flex;
 		align-items: center;
@@ -973,7 +971,7 @@
 		font: 500 14px var(--font-mono);
 	}
 
-	/* The TV has no SELECT (c868): every tap there is a remote's OK. */
+	/* The TV has no SELECT: every tap there is a remote's OK. */
 	@media (pointer: none) and (min-width: 900px) {
 		.select {
 			display: none;
@@ -982,7 +980,7 @@
 
 	/* The phone: no room for the field, so / opens it in the title's place. */
 	@media (max-width: 599px) {
-		/* SETTINGS says SET. beside SELECT (the Tiles board's phone bar). */
+		/* SETTINGS says SET. beside SELECT on a phone's bar. */
 		.settings .long,
 		.where .long {
 			display: none;

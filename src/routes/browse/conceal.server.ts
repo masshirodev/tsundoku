@@ -3,10 +3,10 @@ import { WorkError, setHiddenWhole, undoHideWhole, worksTouched } from '$lib/ser
 import { concealable, hiddenOf, ofSource, seriesMarks } from '$lib/server/engine/source-flags';
 
 /**
- * CONCEAL ITS SERIES (card c523; doc/BROWSE.md, "Conceal its series"): the
+ * CONCEAL ITS SERIES (doc/BROWSE.md, "Conceal its series"): the
  * one-time action on a source's settings page that hides every series from
  * the source the library shows, through `setHiddenWhole`, which keeps a Work
- * whole (c389), with a band that says what changed and UNDO. It is an action,
+ * whole, with a band that says what changed and UNDO. It is an action,
  * not a switch: nothing is stored in `settings`, and a series added from the
  * source afterwards is not hidden by it (ADDED HIDDEN is that switch).
  *

@@ -4,11 +4,11 @@
 	import type { BrowseRow } from '$lib/server/engine/browse';
 
 	/**
-	 * A source in BROWSE's list and the empty search's offer (Index-Browse,
-	 * sources and phoneEntry): its icon, its name, one line, and → to its
-	 * page. A source the engine refused is c94's failed row (a 3px ink rule,
-	 * the reason in a word) and leads to EXTENSIONS. HIDDEN sits on the icon of
-	 * a mostly-hidden source, which is only ever listed inside reveal.
+	 * A source in BROWSE's list and the empty search's offer: its icon, its
+	 * name, one line, and → to its page. A source the engine refused is the
+	 * house's failed row (a 3px ink rule, the reason in a word) and leads to
+	 * EXTENSIONS. HIDDEN sits on the icon of a mostly-hidden source, which is
+	 * only ever listed inside reveal.
 	 */
 	let {
 		r,
@@ -17,7 +17,7 @@
 	}: {
 		r: BrowseRow;
 		meta: string;
-		/** While selecting (c868): how many of its series are ticked, `9 TICKED`, in ink. */
+		/** While selecting: how many of its series are ticked, `9 TICKED`, in ink. */
 		ticked?: string;
 	} = $props();
 	const hue = $derived([...r.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 0));

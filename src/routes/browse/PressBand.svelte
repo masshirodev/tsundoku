@@ -16,8 +16,7 @@
 	import type { Shelf } from '$lib/library/types';
 
 	/**
-	 * A press's one band (card c868; Main board 6 and 7, the Results board),
-	 * under the bar of every browse screen while this tab has a run. While it
+	 * A press's one band, under the bar of every browse screen while this tab has a run. While it
 	 * runs: ADDING 14 SERIES, an ink progress line and the lanes. Then one
 	 * result, `ADDED 14 SERIES · 140 CHAPTERS QUEUED` or `ADDED 11 OF 14 · …`,
 	 * with RETRY n for what failed, one UNDO for the press, and ✕. PUT ON A
@@ -25,7 +24,7 @@
 	 * every series it adds after, as well as those already added.
 	 *
 	 * Hidden means hidden: outside reveal it counts only what can be seen, and
-	 * a run of hidden sources alone draws no band at all (the Rules board).
+	 * a run of hidden sources alone draws no band at all.
 	 */
 	let { reveal }: { reveal: boolean } = $props();
 
@@ -142,7 +141,7 @@
 {/if}
 
 <style>
-	/* The Results board, transcribed: the mock's literals; colours are tokens. */
+	/* Transcribed from the design: its literals; colours are tokens. */
 	.band {
 		flex-shrink: 0;
 		display: flex;
