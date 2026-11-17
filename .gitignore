@@ -27,3 +27,6 @@ doc/design/*.zip
 # go-winres writes the tray's Windows resources here during a release (doc/TRAY.md).
 /ops/release/tray/*.syso
 /site/build/
+
+# Machine-specific agent notes (AGENTS.md says to read it).
+AGENTS.local.md
