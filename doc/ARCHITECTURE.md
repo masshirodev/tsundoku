@@ -1,198 +1,281 @@
 # Architecture
 
+tsundoku is a self-hosted library for manga, novels, books, anime, films and
+shows. One computer in a household runs it and keeps the files; every other
+device (a phone, a tablet, a TV, another computer) reads from it in a browser
+or in tsundoku's Android app, over the home network or a private network such
+as a tailnet. This document is the map: each part, what it does, and the
+document that describes it.
+
 ## Shape
 
 ```
-tablet / phone (PWA) ──tailnet──> tsundoku  (workstation: SvelteKit + SQLite)
-                                     │  files on /mnt/hdd2/tsundoku/library
-                                     ├── scan / import workers
-                                     ├── mokuro OCR worker (RTX 3050)
-                                     └──> Kumiko API: flashcards, hours, metrics
+phone / tablet / TV / browser
+  │   PWA, or the Android app's WebView
+  │   (localhost, home Wi-Fi, or a private network)
+  ▼
+tsundoku server ─── SvelteKit + SQLite, one process
+  ├── the library on disk (TSUNDOKU_HOME/library)
+  ├── importers and scans
+  ├── download workers ──> extension engine (engine.jar, JVM)
+  │                          └── FlareSolverr, for Cloudflare
+  ├── LNReader plugin host (a sandboxed child process)
+  ├── catalogues: AniList, MyAnimeList, TMDB; Ranobe
+  └── Kumiko (optional): approved words become flashcards
 ```
 
-**It runs on the workstation, not the VPS, and is not a Kumiko module.** The
-library is ~166 GB (measured 2026-09-23) of images. Serving it from the VPS means uploading it there
-and streaming every page back through a CPU-throttled box; serving it from here
-means it never leaves the house. Kumiko is reached over its API the way yomu
-already does, so tsundoku stays a separate process with its own database.
+On a released install, a launcher starts the app, the engine and FlareSolverr
+together and stops all three together; on Windows and Linux a tray icon holds
+the launcher with no window ([`TRAY.md`](TRAY.md)).
 
-**Exposure follows kirisute exactly**, and for the same reasons (see
-`~/projects/kirisute/README.md`, "Exposure"): bind to the tailnet address only,
-refuse wildcards unless named, derive `ORIGIN` from the bound address, and
-authenticate with a cookie — an `<img>` cannot send a bearer header any more than
-a `<video>` can.
+**It is a separate process with its own database**, run on the computer that
+holds the files. A library is mostly images and video, often hundreds of
+gigabytes: serving it from where it is stored means it never has to be
+uploaded anywhere, and every page is read from a local disk.
 
-**The reader is a PWA**, installed to the home screen so it runs fullscreen
-without browser chrome. A service worker caches the next chapters of whatever is
-open, so a reading session survives the Wi-Fi dropping.
+## The server
 
-## Data model
+A SvelteKit app on the Node adapter (`src/`), with one SQLite database through
+`better-sqlite3` (`src/lib/server/db.ts`). Server code lives in
+`src/lib/server/`, pure rules shared with the browser in `src/lib/library/`
+and its siblings, and screens in `src/routes/`.
 
-Two reader engines over one library.
+- **Schema migrations** are an ordered list in `db.ts`, climbed on first use,
+  with a snapshot of the database taken before each one
+  ([`BACKUPS.md`](BACKUPS.md)). Only the served app migrates the live
+  database; scripts and timers run with `TSUNDOKU_MIGRATE=off` and refuse a
+  database at another version ([`SERVING.md`](SERVING.md), "Who migrates").
+- **Hidden means hidden**: hidden roots and series are filtered in SQL
+  (`src/lib/server/visibility.ts`, `src/lib/server/library.ts`), never in the
+  page, until reveal is on ([`PRIVACY.md`](PRIVACY.md)).
+- **Signing in** is one shared secret, a token or a password, and a session
+  cookie, because an `<img>` or a `<video>` cannot send a bearer header
+  ([`SIGN-IN.md`](SIGN-IN.md)).
+- **Words on screen** come from Paraglide message files (`messages/`,
+  [`I18N.md`](I18N.md)).
 
-- **Series** — the unit a person thinks in. Title, alternative titles, cover,
-  description, reading direction default, `kind` (`manga`, `manhwa`, `doujin`,
-  `novel`), and the owner's fields below.
-- **Entry** — a readable unit inside a series: a chapter, a volume, a one-shot.
-  Carries its number, title, file location, page count, and `format`
-  (`images` or `text`). A doujin is a series with exactly one entry.
-- **Page** — only for `images`: order, path inside the archive or folder,
-  dimensions (for layout before the image loads), optional mokuro OCR blocks.
-- **Progress** — per entry: last page or text position, finished flag, dates.
+## The library on disk
 
-The owner's organisation, which is the reason this app exists:
+Everything tsundoku keeps that is not code derives from one folder,
+`TSUNDOKU_HOME` (`src/lib/server/data-dirs.ts`): the library, covers, trash,
+the engine's store, OCR scratch, language packs and, by default, database
+snapshots. Each folder's own variable (`LIBRARY_ROOT`, `COVER_DIR`, ...) wins
+over the derived default. Unset, `TSUNDOKU_HOME` is the platform's app-data
+folder ([`DISTRIBUTION.md`](DISTRIBUTION.md), "One data directory").
 
-- **Rating: 0–10**, integer, on the series. **0 is unrated** and 1–10 is the
-  judgement, five steps with halves; there is no separate "rated nothing".
-  0 as unrated was decided by the owner on 2026-09-22, the same convention
-  Hentoid uses; out of 10 came with c67 (2026-09-25), and rung 29 doubled the
-  old 0–5 ([`RATINGS.md`](RATINGS.md)). (An earlier draft kept `NULL` for
-  unrated apart from a deliberate 0; migration rung 2 retired it.)
-- **Favourite**: a boolean on the series. Deliberately separate from rating —
-  a favourite is "keep this at hand", not "this is a 5".
-- **Collections**: owner-made, ordered, a series can sit in many. These replace
-  Mihon categories.
-- **Tags**: free-form, with a `namespace` (`genre`, `artist`, `circle`,
-  `source`, `language`, or none). Every imported category or attribute is kept
-  as a tag. The one exception, settled with the owner: Mihon categories that
-  are really a rating scale also set the rating, a shelf, and hiding
-  ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)).
-- **Hidden**: a library root or a series can be hidden. Hidden items are not
-  listed, counted, searched or suggested until a reveal toggle is on. The Hentoid
-  import lands in a hidden root by default.
+Under the library root:
 
-## Kumiko and yomu
+```
+Mihon/autobackup/                  a Mihon backup, read for series and reading
+devices/tsundoku/Mihon/            manga tsundoku downloaded, as CBZ + ComicInfo
+devices/tsundoku/Library/Novels/   novels tsundoku downloaded, as EPUB
+devices/<device>/...               copies synced from other devices
+H/.Hentoid/  (or Hentoid/)         Hentoid books
+Library/     (or Books/)           EPUBs
+Anime/  Shows/  Movies/            video, Jellyfin-shaped, with NFOs
+Anime (hidden)/  Shows (hidden)/  Movies (hidden)/
+```
 
-- **Lookup** reuses yomu's in-browser tokenizer and dictionary, extracted into a
-  shared package rather than copied. On a page, the tappable unit is a mokuro
-  text block; in a novel, it is the word under the tap.
-- **Mining follows yomu's rule**: lookups produce _candidates_, and candidates
-  become Kumiko Flashcards only by batch approval at the end of a session.
-  Auto-mining floods the deck.
-- **Reading time** is reported to Kumiko hours/metrics per session.
+Every entry names its file relative to its series' path, and every path the
+server stores is written with `/`, Windows included
+([`DISTRIBUTION.md`](DISTRIBUTION.md), "Windows paths"). Deleting moves files
+to the trash ([`DELETING.md`](DELETING.md)).
 
-shiori is a Python TUI and is not embedded. What carries over is its knowledge:
-furigana generation and CJK line breaking. The browser sets vertical text
-natively (`writing-mode: vertical-rl`, `<ruby>`), which is the part shiori had
-to fight for.
+### The data model
 
-## Downloading
+- **Series**: the unit a person thinks in. Title, alternative titles, cover,
+  description, reading direction, and a `kind`.
+- **Entry**: a readable or watchable unit of a series: a chapter, a volume, a
+  book, an episode, a film. A doujin is a series with one entry until books
+  are grouped into it ([`BOOKS.md`](BOOKS.md)).
+- **Progress and the reading log**: per entry, the last page, text position
+  or playback time, and an append-only log of every open, turn, finish and
+  close ([`READING-LOG.md`](READING-LOG.md), [`HISTORY.md`](HISTORY.md)).
+- **Rating**: an integer 0 to 10 on the series, where **0 means unrated** and
+  1 to 10 is five steps with halves; never `NULL`
+  ([`RATINGS.md`](RATINGS.md)). The same convention Hentoid uses.
+- **FAV**: a boolean on the series, separate from the rating on purpose: a
+  favourite is "keep this at hand", not "this is a 10".
+- **Shelves**: made by hand, ordered, and a series can sit on many. Mihon's
+  categories become shelves ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)).
+- **Tags**: free-form, with a namespace (`genre`, `artist`, `circle`,
+  `source`, `language`, or none). Every imported category or attribute is
+  kept as a tag, and an artist, circle, author or tag has a page of its own
+  ([`BOOKS.md`](BOOKS.md)).
+- **Hidden**: a library root or a series can be hidden. A Hentoid import lands
+  in a hidden root by default.
+- **Works and editions**: a Work groups series across kinds so finishing one
+  leads into the next ([`WORKS.md`](WORKS.md)); editions fold one book's
+  languages together ([`EDITIONS.md`](EDITIONS.md)).
+
+## Kinds
+
+A series is one of seven kinds: `manga`, `manhwa`, `doujin`, `novel`,
+`anime`, `movie` and `show`. What each kind is (its medium, the word for an
+entry, its catalogue, which kinds it may match, its sources, its default
+layout, whether it can move, how it groups, and where its downloads go) is
+stated once, in `src/lib/library/kinds.ts`. The rest of the code asks
+`kindFacts(kind)`, never `kind === 'anime'`, so a new kind gets the right
+behaviour wherever the question is already asked
+([`KINDS.md`](KINDS.md)). Films and shows are described in
+[`FILMS-SHOWS.md`](FILMS-SHOWS.md), anime in [`ANIME.md`](ANIME.md), novels in
+[`NOVELS.md`](NOVELS.md).
+
+The medium picks the screen that opens an entry: the image reader
+([`READER.md`](READER.md)), the text reader
+([`TEXT-READER.md`](TEXT-READER.md)) or the video player
+([`ANIME.md`](ANIME.md)). They share `/read/<entry>`, so every ▶ opens an
+entry without knowing which it is.
+
+## Finding and downloading
 
 **tsundoku runs other people's extensions and never writes its own.** Per-site
-scrapers are the treadmill that makes Mihon what it is, and that treadmill
-stays theirs: Mihon's (Keiyoushi), Aniyomi's and LNReader's extension
-communities keep up with the sites, and tsundoku keeps up with three plugin
-APIs. A site with no extension in any repo the user has added is not
-downloaded here; it isn't an invitation to write a scraper.
+scrapers are a treadmill that the extension communities already keep up with:
+Mihon's (Keiyoushi) for manga, Aniyomi's for anime and video, LNReader's for
+novels. tsundoku keeps up with three plugin APIs instead of hundreds of sites.
+A site with no extension in any repository the user has added is not
+downloaded. tsundoku ships no repository URLs, as Mihon and Aniyomi ship none:
+the user adds them.
 
-Decided with the owner on 2026-10-28, replacing the rule that tsundoku has no
-downloader at all ("Web novels", below). The reason was the app count: manga
-were downloaded here through Suwayomi, but finding a series still meant
-opening Suwayomi, novels meant LNReader, doujinshi Hentoid or Mihon, and anime
-Aniyomi. The goal is one app to find, download and read everything in, which
-can be handed to other people without asking them to run Suwayomi too.
+| Kind                     | Extensions       | Where they run                       |
+| ------------------------ | ---------------- | ------------------------------------ |
+| Manga, manhwa, doujinshi | Mihon            | the extension engine                 |
+| Anime, films, shows      | Aniyomi          | the extension engine                 |
+| Light and web novels     | LNReader plugins | tsundoku's own sandboxed plugin host |
 
-| Kind                     | Extensions        | Where they run                                                  |
-| ------------------------ | ----------------- | --------------------------------------------------------------- |
-| Manga, manhwa, doujinshi | Mihon (Keiyoushi) | a headless JVM engine beside tsundoku                           |
-| Anime                    | Aniyomi           | the same engine                                                 |
-| Light and web novels     | LNReader plugins  | inside tsundoku, in a sandboxed host ([`NOVELS.md`](NOVELS.md)) |
-| Films and live-action TV | Aniyomi           | the same engine (decided 2026-11-12)                            |
+**The extension engine** ([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md)) is
+the host side of Mihon and Aniyomi extensions. An extension is an Android APK
+built against stubs: at runtime it calls into its host for the HTTP client
+(OkHttp, carrying the extension's own interceptors for rate limits, headers
+and image descrambling), Cloudflare challenges, preferences and the parts of
+Android it touches. Node cannot load an APK, so the engine is a JVM process,
+`engine.jar`: tsundoku-engine, a pinned fork of M-Extension-Server (MPL-2.0)
+that tsundoku talks to over HTTP. Cloudflare challenges go to a FlareSolverr
+process beside it; extensions that need a WebView run in a headless Chromium
+the engine downloads on first use, only where SETTINGS' WEBVIEW switch is on.
+The engine keeps nothing: repositories, APKs, preferences and state are
+tsundoku's.
 
-What each kind _is_ (its medium, unit, catalogue, sources, storage, and
-whether it moves) lives in one registry, `src/lib/library/kinds.ts`, and
-films and TV shows are its next entries, decided: [`KINDS.md`](KINDS.md) and
-[`MOVIES-TV.md`](MOVIES-TV.md).
+**The LNReader plugin host** (`src/lib/server/novels/`) runs novel plugins,
+code downloaded from the internet, never in the app: in a child process under
+Node's permission model, with an empty environment and a vm context per plugin
+whose `require` gives only shims of the `@libs/*` modules the plugins are
+written against ([`NOVELS.md`](NOVELS.md), "The plugin host").
 
-**Extensions aren't self-contained, and they don't download.** A Mihon or
-Aniyomi extension is an Android APK built against `extensions-lib`, which is
-only stubs: at runtime it calls into its host for the HTTP client (OkHttp,
-carrying the extension's own interceptors: rate limits, headers, image
-descrambling), Cloudflare challenges (a WebView), preferences, and the bits of
-Android it touches. It answers "what's popular, what are this series'
-chapters, what are this chapter's pages (or this episode's streams)". The
-queue, retries, fetching each image and writing the CBZ are the host's job.
-So:
+**tsundoku is the downloader** ([`DOWNLOADS.md`](DOWNLOADS.md)): one queue
+for manga, novels and episodes, retries, CBZ and ComicInfo, EPUBs, ffmpeg for
+HLS, and FOLLOW's check for new chapters. Two rules hold throughout:
 
-- **The engine** is the host side: a JVM process with an Android shim and a
-  headless Chromium. Node can't load an APK, so there is always a JVM; what
-  there needn't be is a second app with its own library, login and backups,
-  which is what Suwayomi is. **It's a pinned fork of M-Extension-Server**
-  (Mangayomi's engine: Suwayomi's `AndroidCompat` plus current Mihon and
-  Aniyomi source APIs behind a small RPC), chosen by the spike on 2026-10-28
-  (c113, "Spike: run Mihon and Aniyomi extensions headless
-  (M-Extension-Server)"). It ran all nine of the library's sources and two
-  anime sources; the fork carries two fixes it needed and drops its GPLv3
-  YouTube part (c131, "Fork M-Extension-Server as tsundoku's engine, with a
-  solver beside it"). Its bundled Chromium never started, so **Cloudflare is a
-  FlareSolverr container beside it**; since the engine's `engine-webview`
-  branch (2026-11-11), `ENGINE_WEBVIEW=on` runs WebView extensions in a
-  headless, never-visible Chromium the engine downloads the first time one
-  needs it (`EXTENSION-ENGINE.md`, "Cloudflare and WebView"); tsundoku's
-  launcher sets it only where SETTINGS' WEBVIEW switch is on, which is off
-  on every install until turned on (card c978: the owner's workstation
-  only). The engine keeps nothing: repos, APKs, preferences and
-  state are tsundoku's. The contract, and everything the spike measured, is
-  [`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md).
 - **Images and streams are fetched through the source's client**, never by
-  tsundoku fetching the URL itself, or the interceptors are skipped and a
-  page comes back blocked or scrambled.
-- **tsundoku is the downloader**: the queue, retries, CBZ and ComicInfo,
-  ffmpeg for HLS, the update check FOLLOW needs, installing and updating
-  extensions.
-- **Keys don't move.** A series stays `mihon:<source id>:<url>`: the source id
-  belongs to the extension, not to the app that ran it, so what the tablets
-  and Suwayomi downloaded is the same series as what tsundoku downloads
-  (checked for all nine sources). The URL can still move under an extension
-  update: Toonily's did, and its 126 series here are keyed by the old scheme,
-  so a source's new URL for a known series becomes an alias of its key,
-  never a second series.
-- **tsundoku ships no repo URLs**, as Mihon and Aniyomi ship none. The user
-  adds repos.
-- **The cost we own** is the hosts' API: Keiyoushi is moving to a new base
-  class (`KeiSource`), and every host has to follow such changes. One
-  interface now and then, not hundreds of sites, but not nothing.
+  tsundoku fetching the URL itself, or the interceptors are skipped and a page
+  comes back blocked or scrambled.
+- **Keys don't move.** A series is keyed `mihon:<source id>:<url>` (and
+  `aniyomi:`, `lnreader:` alike). The source id belongs to the extension, not
+  the app that ran it, so a series a Mihon backup names and the same series
+  downloaded here are one series. When an extension update changes a series'
+  URL, the new URL becomes an alias of the key, never a second series.
 
-Since 2026-10-28 tsundoku downloads on the engine itself
-([`DOWNLOADER.md`](DOWNLOADER.md)), and BROWSE finds series on it
-([`BROWSE.md`](BROWSE.md)); Suwayomi was retired the same day (c129,
-[`DOWNLOADING.md`](DOWNLOADING.md), "Suwayomi, retired"). The plan is on the board under the
-**Extensions** label: c124 (gallery sources as one-off books), c113 (the
-spike, done), c131 (the engine fork), c125 (tsundoku's own downloader, manga
-first), c130 (cover hashes, so Mihon's books are checked for duplicates), c126 (browse,
-extensions and repos screens, from a design brief), c127 (novels from
-LNReader plugins), c128 (anime, in a video player of tsundoku's own, the owner's call on 2026-10-28, not handed to Jellyfin) and
-c129 (retiring Suwayomi).
+Downloading is off unless `ENGINE_URL` and `ENGINE_TOKEN` are set; a release's
+launcher sets them. Finding series and managing extensions and repositories
+is BROWSE ([`BROWSE.md`](BROWSE.md)); reading or watching a series before
+adding it is [`READING-ONLINE.md`](READING-ONLINE.md); moving a series to
+another source is MOVE ([`MOVE.md`](MOVE.md)).
 
-## Web novels
+## Importing
 
-Superseded on 2026-10-28 by "Downloading", above: novels come from LNReader's
-plugins. What still holds: EPUBs (including the WebToEpub-style ones already
-on the phone) import directly, and a pasted URL whose readable text becomes a
-`text` entry remains the path for a page no plugin covers.
+What other apps already hold comes in through importers, which all write
+through one writer (`src/lib/server/import/write.ts`), so an import and a scan
+make the same series. [`IMPORT.md`](IMPORT.md) indexes them: Mihon backups,
+Hentoid, EPUB, tsundoku's own video folders, and a backup uploaded in the
+browser. The formats each reads are in [`IMPORT-FORMATS.md`](IMPORT-FORMATS.md).
+Duplicates found across sources are handled in
+[`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md) and
+[`DUPLICATE-CHAPTERS.md`](DUPLICATE-CHAPTERS.md).
 
-The rule this section used to state, kept for the record: "Per-site scrapers
-are the extension treadmill that makes Mihon what it is, and this project
-will not grow one." Manga followed it through Suwayomi-Server, which runs
-Mihon's extensions on the workstation and writes Mihon's layout, imported as
-one more device ([`DOWNLOADING.md`](DOWNLOADING.md)).
+Files downloaded on other devices can reach the library through Syncthing; a
+timer asks the running app to scan once a sync has settled, so there is only
+ever one importer, the app ([`SYNC.md`](SYNC.md)).
 
-## Phases
+## Catalogues and trackers
 
-1. **Library and image reader.** Scan, the Mihon and Hentoid importers, the
-   library screen, the series screen, the paged (RTL/LTR) and vertical-scroll
-   reader, progress, rating, favourites, collections, tags, hidden roots.
-   This alone replaces the tablet.
-2. **Japanese layer.** mokuro worker, the shared lookup package, mining into
-   Kumiko Flashcards, reading time into Kumiko.
-3. **Text reader.** EPUB and web-novel import, horizontal and vertical setting,
-   furigana. EPUB import and the reader landed on 2026-09-23
-   ([`TEXT-READER.md`](TEXT-READER.md), [`IMPORT-EPUB.md`](IMPORT-EPUB.md));
-   furigana generation and pasted web novels are still to come.
-4. **Extras.** Offline caching beyond the next chapters, stats, and possibly a
-   Komga-compatible API so stock Mihon can read the library as a fallback.
-5. **One downloader.** Finding and downloading manga, novels and anime from
-   inside tsundoku on Mihon, Aniyomi and LNReader extensions, then retiring
-   Suwayomi ("Downloading", above). Started 2026-10-28 with the engine spike;
-   manga downloading and BROWSE on the engine, and Suwayomi retired, the same
-   day. Novels (c127) and anime (c128) are next.
+- **Links**: a series is linked to its entry in AniList (manga, novels,
+  anime) or TMDB (films and shows) for metadata and covers
+  ([`LINKS.md`](LINKS.md), [`COVERS.md`](COVERS.md)).
+- **Tracking**: reading is sent to AniList and MyAnimeList lists when the
+  person signs in with their own client ids ([`TRACKING.md`](TRACKING.md)).
+- **Ranobe**, a separate reading catalogue, is kept in step with what is read
+  and watched here when it is set up ([`RANOBE.md`](RANOBE.md)).
+
+Each is off while its settings are unset, and nothing fails when it is.
+
+## Reading Japanese
+
+Raw manga pages are read into text by mokuro, an OCR program run by a timer
+(`scripts/ocr.ts`). Lookup splits text into words on the device and finds
+them in a dictionary; it lives in **kotoba**, a separate library tsundoku
+depends on by path, and is one language pack of a language-agnostic lookup
+([`JAPANESE.md`](JAPANESE.md), [`LANGUAGES.md`](LANGUAGES.md)). Looked-up words
+become candidates, and only candidates approved at the end of a session
+become flashcards in **Kumiko**, a separate self-hosted app reached over its
+API (`KUMIKO_URL`, `KUMIKO_TOKEN`, `KUMIKO_DECK`). Mining every lookup
+automatically would flood the deck. Both OCR and Kumiko are optional.
+
+## The devices
+
+- **The PWA**: installed to the home screen it runs fullscreen. A service
+  worker keeps the next chapters of what is open, so reading survives the
+  network dropping ([`INSTALL.md`](INSTALL.md), [`OFFLINE.md`](OFFLINE.md)).
+  Installing, offline chapters, the wake lock and the fingerprint gate need a
+  secure context: localhost or HTTPS.
+- **The Android app** (`android/`): one Gradle project built twice, as a TV
+  app and as a phone and tablet app. Each is one activity holding a WebView,
+  paired with a six-digit code instead of a typed password, with zoom off and
+  its own updates ([`ANDROID.md`](ANDROID.md)).
+- **The layout** is chosen by CSS media queries, not script, so the first
+  paint is right: phone, tablet, desktop (a fine pointer), and the ten-foot TV
+  layout (no pointer) driven by a D-pad through a focus layer
+  ([`TV.md`](TV.md), [`FOCUS.md`](FOCUS.md), [`TOUCH.md`](TOUCH.md)).
+- **The look** is the Index design system ([`design/README.md`](design/README.md)),
+  and motion follows [`MOTION.md`](MOTION.md).
+
+## Serving
+
+`yarn run serve` (`scripts/serve.ts`) runs the build in one of three modes
+([`SERVING.md`](SERVING.md)):
+
+- **`local`**, a release's default: `127.0.0.1` only, origin
+  `http://localhost:42143`, which browsers count as a secure context.
+- **`https`**: the app on `127.0.0.1`, published on a private network through
+  `tailscale serve` on HTTPS, never to the internet.
+- **`http`**: a plain bind to a named address; a wildcard bind is refused
+  unless asked for by name.
+
+In every mode `ORIGIN` is derived from the bound address, so every POST passes
+SvelteKit's origin check. A phone on the same home Wi-Fi can be let in by
+SETTINGS' WI-FI row, over plain http with what that costs
+([`WIFI.md`](WIFI.md)).
+
+## Releases
+
+A release is a native bundle per platform (`win-x64`, `linux-x64`, and a
+Windows installer around it) carrying everything the app needs: Node, the
+built app, a JRE, `engine.jar` and ffmpeg, with FlareSolverr as an optional
+archive beside it that the launcher starts once it is unpacked. Nobody installs
+Docker or runs those by hand ([`DISTRIBUTION.md`](DISTRIBUTION.md)). A served
+install runs a released bundle, not a checkout, so a change reaches it only
+in a release. How one is built, smoke-tested and published, and the two
+Android APKs beside it, is [`RELEASE.md`](RELEASE.md); how an install learns
+of a newer one and updates is [`UPDATES.md`](UPDATES.md). Versions are dates,
+`YYYY.MM.DD[.N]`, tagged `release/<version>`. The project's website is
+[`WEBSITE.md`](WEBSITE.md).
+
+tsundoku is PolyForm Noncommercial 1.0.0; the engine keeps upstream's MPL-2.0
+([`DISTRIBUTION.md`](DISTRIBUTION.md), "Licences").
+
+## Limits
+
+- There is no Komga-compatible API: other reader apps cannot read the
+  library.
+- A web page no LNReader plugin covers cannot be added by pasting its address.
+- There is no macOS bundle and no Docker image of tsundoku itself
+  ([`DISTRIBUTION.md`](DISTRIBUTION.md), "Limits").
