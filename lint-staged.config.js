@@ -18,7 +18,6 @@
  * time. Non-deterministic, last writer wins, and it could leave a file that
  * passed the hook and then failed `yarn run lint` on formatting alone. Commands
  * within a single key run in order, which is the property this depends on.
- * Found by wave 23's D, which lost a commit to it.
  */
 
 const CODE = '*.{js,cjs,mjs,ts,svelte}';

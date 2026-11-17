@@ -37,7 +37,7 @@ export default defineConfig({
 		// better-sqlite3 is a native addon.
 		pool: 'forks',
 		isolate: true,
-		// The workstation is not throttled; the VPS never runs this suite.
+		// Six forks: the suite is CPU-bound, and more only queue on a 12-thread box.
 		maxWorkers: 6,
 		server: { deps: { external: [/better-sqlite3/] } },
 		setupFiles: ['./tests/vitest.setup.ts'],

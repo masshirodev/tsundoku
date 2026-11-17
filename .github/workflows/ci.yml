@@ -18,7 +18,9 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Only a pull request cancels its older run: on main, a push (whose jobs skip
+  # while the repository is private) must not cancel a dispatched run.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   app:

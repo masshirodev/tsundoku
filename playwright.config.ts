@@ -10,8 +10,8 @@ import { FRIEND_PORT } from './tests/friend-world';
 import { HOST_ARGS } from './tests/helpers/host-args';
 import { EN_PACK_PATH } from './tests/helpers/en-pack-path';
 
-// No e2e reaches TMDB with the owner's key (card c989). The shell exports
-// TMDB_API_KEY and TMDB_API_RC_TOKEN from the dotfiles' .env; this file runs in
+// No e2e reaches TMDB with a real key. A developer's shell may export
+// TMDB_API_KEY and TMDB_API_RC_TOKEN; this file runs in
 // the runner before any server starts, and every server, the shared one and the
 // flows' own (`...process.env`), inherits from here. No key is the state every
 // spec starts from: a film is its source's title and cover, and SET UP → is its
@@ -70,15 +70,13 @@ const DEVICE_IGNORE = [
 ];
 
 // Frames drawn at one device's viewport run in that project alone, and every
-// other one ignores them (c510), rather than each listing and skipping itself
+// other one ignores them, rather than each listing and skipping itself
 // everywhere else: IMPORT A BACKUP's pick board and the highlights page's P1
-// are the desktop's (beside the sidebar; c732), and the series screen's LISTS
-// board and the manga highlights' frame are tablet-landscape's (the second is
-// a glob for `manga`'s file, carried from wave 33, which matches nothing until
-// it lands).
+// are the desktop's (beside the sidebar), and the series screen's LISTS
+// board and the manga highlights' frame are tablet-landscape's.
 const DESKTOP_ONLY = ['**/import-frame.e2e.ts', '**/highlights-frame.e2e.ts'];
 const TABLET_LANDSCAPE_ONLY = ['**/series-lists-frame.e2e.ts', '**/highlights-manga-frame.e2e.ts'];
-// The phone app's specs (c521; doc/ANDROID.md) set their own viewports, a
+// The phone app's specs (doc/ANDROID.md) set their own viewports, a
 // phone's and a tablet's, so they run once, in the phone project.
 const PHONE_ONLY = [
 	'**/phone-app-pair.e2e.ts',
@@ -95,7 +93,7 @@ export default defineConfig({
 	testIgnore: ['**/build/**'],
 	fullyParallel: true,
 	// Half the logical cores, whatever else the box is doing (doc/TESTING.md,
-	// "Load"). Measured in wave 19 with the box loaded: three workers instead of
+	// "Load"). Measured on a loaded box: three workers instead of
 	// six took 17.7 minutes instead of 14.7 and failed no fewer tests. A test
 	// that fails under load waits on time instead of the page's own state, and
 	// fewer workers only hides that. `--workers` still overrides it.
@@ -113,14 +111,14 @@ export default defineConfig({
 	// The run's directory first, so its teardown -- removing it -- runs last.
 	globalSetup: [
 		'./tests/helpers/run-dir.ts',
-		// The English pack the preview is told about below (c198): five words, not 300 MB.
+		// The English pack the preview is told about below: five words, not 300 MB.
 		'./tests/en-pack-setup.ts',
 		'./tests/browse-setup.ts',
 		'./tests/friend-setup.ts'
 	],
 	// The second names the tests that did not run and the reds that kept them
-	// out (tests/helpers/not-run-reporter.ts, c439): a bare "12 did not run" was
-	// read as a green `duplicates` and `gate` in wave 19's gate.
+	// out (tests/helpers/not-run-reporter.ts): a bare "12 did not run" was
+	// once read as a green run.
 	reporter: [[process.env.CI ? 'github' : 'list'], ['./tests/helpers/not-run-reporter.ts']],
 	use: {
 		baseURL: `http://localhost:${previewPort}`,
@@ -151,9 +149,9 @@ export default defineConfig({
 		: {
 				// kuromoji's dictionary is `yarn prepare`'s copy, untracked, so a
 				// worktree that never ran it builds an app whose lookup has no
-				// words (c249): copied here, before the build takes static/.
+				// words: copied here, before the build takes static/.
 				// `scripts/build-lock.mjs` runs them one invocation at a time, and
-				// never builds under another invocation's running preview (c625):
+				// never builds under another invocation's running preview:
 				// both write or read one `.svelte-kit/output` (doc/TESTING.md, "Ports").
 				command:
 					`node scripts/build-lock.mjs --port ${previewPort} --prepare ` +
@@ -166,7 +164,7 @@ export default defineConfig({
 					DATABASE_PATH: databasePath,
 					TSUNDOKU_TOKEN: E2E_TOKEN,
 					// The instance's public origin, as scripts/serve.ts sets it for a
-					// tailnet install (c245): a TV's paired cookie is a door only on
+					// tailnet install: a TV's paired cookie is a door only on
 					// this host, never localhost, so a spec can name it with a Host
 					// header. `vite preview` never reads it for a URL; the hook does.
 					ORIGIN: `http://tsundoku.test:${previewPort}`,
@@ -215,8 +213,8 @@ export default defineConfig({
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		},
 		// Flow specs write to the shared seeded database, so they run once, above.
-		// The generated frame spec pins the tablet-portrait frame the handoff was
-		// extracted at; the other devices are covered by library-layout.e2e.ts.
+		// The generated frame spec pins the tablet-portrait frame the design was
+		// drawn at; the other devices are covered by library-layout.e2e.ts.
 		{
 			name: 'tablet-landscape',
 			testIgnore: [...DEVICE_IGNORE, ...DESKTOP_ONLY, ...PHONE_ONLY],
@@ -233,7 +231,7 @@ export default defineConfig({
 			use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }
 		},
 		{
-			// A TV (c238, doc/TV.md): 960x540 CSS px, no pointer and no hover. A
+			// A TV (doc/TV.md): 960x540 CSS px, no pointer and no hover. A
 			// context cannot set the pointer type, so Chromium is told through
 			// Blink's media-feature settings at launch. `availablePointerTypes`
 			// and `availableHoverTypes` are the pair that makes
@@ -255,7 +253,7 @@ export default defineConfig({
 			}
 		},
 		{
-			// Works' frames (c276, c277): each seeds a database of its own and
+			// Works' frames: each seeds a database of its own and
 			// serves the build on its own port, so they need not queue behind
 			// anything. The viewport is the board's own 1280, where the Work
 			// screen draws its 440 panel beside the run.
@@ -272,7 +270,7 @@ export default defineConfig({
 			use: { ...devices['Galaxy Tab S4 landscape'], viewport: { width: 1280, height: 800 } }
 		},
 		{
-			// The Works flow (c276, c277): every case groups series into a Work,
+			// The Works flow: every case groups series into a Work,
 			// and a Work takes its parts' own grid tiles away while it exists.
 			// It seeds a database of its own and serves the build on one of its
 			// own ports, like `works-frame`, so no other spec's grid lookups can

@@ -1,9 +1,8 @@
 #!/usr/bin/env sh
 
 # Whole-tree checks, plus the unit specs this push reaches. The whole unit suite
-# left this hook on 2026-11-06: about six minutes under the box's usual load, and
-# a load flake in anime-*-db refused a push that only changed docs. Kantoku's gate
-# still runs it whole on every wave. See doc/TESTING.md.
+# is too slow for a hook (about six minutes under load), and a load flake in it
+# would refuse a push that only changed docs; CI runs it whole. See doc/TESTING.md.
 #
 # Skip flags (set to any non-empty value):
 #   SKIP_HOOKS SKIP_TYPECHECK SKIP_LINT SKIP_TESTS SKIP_ALL

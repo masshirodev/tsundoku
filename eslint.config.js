@@ -8,14 +8,14 @@ import ts from 'typescript-eslint';
 
 const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
 
-/** node:path writes \ on Windows (c183): server code imports fspath.ts instead. */
+/** node:path writes \ on Windows: server code imports fspath.ts instead. */
 const fsPaths = [
 	{
 		name: 'node:path',
 		message:
 			'Import path functions from src/lib/server/fspath.ts: it writes / on Windows too (doc/DISTRIBUTION.md, "Windows paths").'
 	},
-	{ name: 'path', message: 'Use src/lib/server/fspath.ts (c183).' }
+	{ name: 'path', message: 'Use src/lib/server/fspath.ts.' }
 ];
 
 /**
@@ -23,19 +23,19 @@ const fsPaths = [
  * src/lib/library and src/lib/import under Node's type stripping, which knows
  * no `$lib` and resolves no extensionless specifier (doc/I18N.md, "Imports";
  * tests/strip-types-db.spec.ts). Any module there can join a script's closure
- * through one new import (c389 pulled in works.ts, c471), so the whole tree
+ * through one new import (one once pulled in works.ts), so the whole tree
  * imports relatively, with the extension.
  */
 const closure = [
 	{
 		group: ['$lib', '$lib/**'],
 		message:
-			'Import relatively with the extension (../library/kinds.ts): the scripts run this under Node type stripping, which knows no $lib (doc/I18N.md, c471).'
+			'Import relatively with the extension (../library/kinds.ts): the scripts run this under Node type stripping, which knows no $lib (doc/I18N.md).'
 	},
 	{
 		regex: String.raw`^\.{1,2}(/(?!.*\.(ts|js|json|cjs|mjs)$).*)?$`,
 		message:
-			'Give a relative import its extension (./db.ts): Node type stripping resolves none (doc/I18N.md, c471).'
+			'Give a relative import its extension (./db.ts): Node type stripping resolves none (doc/I18N.md).'
 	}
 ];
 
@@ -60,7 +60,7 @@ export default defineConfig(
 		rules: { '@typescript-eslint/no-require-imports': 'off' }
 	},
 	{
-		// Server paths are written with / on every platform (c183): node:path writes
+		// Server paths are written with / on every platform: node:path writes
 		// backslashes on Windows, and the library's comparisons then fail quietly.
 		files: ['src/routes/**/*.ts', 'src/hooks.server.ts', 'scripts/**/*.ts'],
 		rules: { 'no-restricted-imports': ['error', { paths: fsPaths }] }

@@ -14,4 +14,4 @@ yarn.lock
 !/project.inlang/settings.json
 # The Android apps' Gradle output (android/.gitignore), never source.
 /android/**/build/
-# The website handoff, mirrored verbatim like the design project (doc/WEBSITE.md).
+# The website design, mirrored verbatim (doc/WEBSITE.md).
