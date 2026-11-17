@@ -17,7 +17,11 @@ import { visibleWhere } from '../visibility.ts';
 import { join } from '../fspath.ts';
 import { importArea } from '../data-dirs.ts';
 import { libraryRoot, runQueued, type Source } from './index.ts';
-import { readBackupLenient, type MihonBackup } from '../../import/mihon-backup.ts';
+import {
+	MAX_UNPACKED_BACKUP_BYTES,
+	readBackupLenient,
+	type MihonBackup
+} from '../../import/mihon-backup.ts';
 import { planMihon } from '../../import/mihon-plan.ts';
 import {
 	BACKUP_LABEL,
@@ -183,13 +187,8 @@ export function madeAtOf(name: string): number | null {
 	return Number.isFinite(t) ? t : null;
 }
 
-/**
- * The most a file may inflate to. The upload is foreign input: a gzip of
- * zeros under MAX_BACKUP_BYTES would otherwise inflate to many gigabytes in
- * the server's memory, on every preview. A real backup's protobuf packs
- * about five to one; ten times the upload limit leaves room for any library.
- */
-export const MAX_RAW_BYTES = 10 * MAX_BACKUP_BYTES;
+/** The most a file may inflate to: ten times the upload limit (mihon-backup.ts says why). */
+export const MAX_RAW_BYTES = MAX_UNPACKED_BACKUP_BYTES;
 
 export function readBackupFile(bytes: Uint8Array, name: string, maxRaw = MAX_RAW_BYTES): Reading {
 	const upper = name.toUpperCase();

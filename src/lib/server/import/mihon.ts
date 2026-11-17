@@ -4,7 +4,11 @@ import { basename, dirname, join } from '../fspath.ts';
 import { gunzipSync } from 'node:zlib';
 import { pageMembers, readMember, withZip } from '../zip.ts';
 import { parseComicInfo, type ComicInfo } from '../../import/comicinfo.ts';
-import { decodeBackup, type MihonBackup } from '../../import/mihon-backup.ts';
+import {
+	decodeBackup,
+	MAX_UNPACKED_BACKUP_BYTES,
+	type MihonBackup
+} from '../../import/mihon-backup.ts';
 import {
 	planMihon,
 	type DownloadedChapter,
@@ -76,8 +80,13 @@ export function hasBackup(root: string): boolean {
 	}
 }
 
-export async function readBackup(path: string): Promise<MihonBackup> {
-	return decodeBackup(gunzipSync(await readFile(path)));
+export async function readBackup(
+	path: string,
+	maxRaw = MAX_UNPACKED_BACKUP_BYTES
+): Promise<MihonBackup> {
+	// Inflated to a limit, as an uploaded backup is (import/backup.ts): the
+	// file on the library disk is no more trustworthy than one uploaded.
+	return decodeBackup(gunzipSync(await readFile(path), { maxOutputLength: maxRaw }));
 }
 
 async function readChapter(path: string, file: string): Promise<DownloadedChapter> {

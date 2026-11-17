@@ -9,6 +9,13 @@ import { inflateRawSync } from 'node:zlib';
  *
  * ZIP64 is not handled: a chapter archive is nowhere near 4 GB, and one that
  * claims to be is reported as unreadable rather than guessed at.
+ *
+ * The central directory is the archive's word, not a fact: an archive comes
+ * from a download, an upload or a site, and its sizes can be anything. A
+ * member is read only when its compressed bytes lie inside the file, and
+ * only up to MAX_MEMBER_BYTES, and it inflates to at most the size the
+ * directory gives it, so a few kilobytes that inflate to gigabytes stop at
+ * what they claimed to be.
  */
 
 export type ZipMember = {
@@ -21,6 +28,9 @@ export type ZipMember = {
 };
 
 export class ZipError extends Error {}
+
+/** The largest member read: a page, a chapter's text, a book's picture are all far below it. */
+export const MAX_MEMBER_BYTES = 256 * 1024 * 1024;
 
 const EOCD = 0x06054b50;
 const CENTRAL = 0x02014b50;
@@ -77,15 +87,40 @@ export async function listZip(fh: FileHandle, fileSize: number): Promise<ZipMemb
 	return members;
 }
 
-export async function readMember(fh: FileHandle, member: ZipMember): Promise<Buffer> {
+export async function readMember(
+	fh: FileHandle,
+	member: ZipMember,
+	max = MAX_MEMBER_BYTES
+): Promise<Buffer> {
+	if (member.size > max || member.compressedSize > max)
+		throw new ZipError(`${member.name} is larger than the ${max} bytes a member may be`);
+	if (member.method !== 0 && member.method !== 8)
+		throw new ZipError(`unsupported compression method ${member.method} for ${member.name}`);
 	const header = await readAt(fh, member.offset, 30);
 	if (header.length < 30 || header.readUInt32LE(0) !== LOCAL)
 		throw new ZipError(`bad local header for ${member.name}`);
 	const start = member.offset + 30 + header.readUInt16LE(26) + header.readUInt16LE(28);
+	// Checked before anything is allocated for it: a size past the end of the
+	// file is a lie, and would be a buffer of that size first.
+	const { size: fileSize } = await fh.stat();
+	if (start + member.compressedSize > fileSize)
+		throw new ZipError(`${member.name} runs past the end of the file`);
 	const data = await readAt(fh, start, member.compressedSize);
-	if (member.method === 0) return data;
-	if (member.method === 8) return inflateRawSync(data);
-	throw new ZipError(`unsupported compression method ${member.method} for ${member.name}`);
+	if (data.length < member.compressedSize)
+		throw new ZipError(`${member.name} runs past the end of the file`);
+	if (member.method === 0) {
+		if (data.length !== member.size)
+			throw new ZipError(`${member.name} is stored at a size its directory doesn't give`);
+		return data;
+	}
+	try {
+		// zlib needs a limit of at least one byte; an empty member inflates to none.
+		return inflateRawSync(data, { maxOutputLength: Math.max(1, member.size) });
+	} catch (e) {
+		if ((e as { code?: string }).code === 'ERR_BUFFER_TOO_LARGE')
+			throw new ZipError(`${member.name} inflates past the ${member.size} bytes it claims`);
+		throw new ZipError(`${member.name} doesn't inflate (${(e as Error).message})`);
+	}
 }
 
 export async function withZip<T>(

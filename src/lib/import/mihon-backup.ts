@@ -8,6 +8,14 @@ import { Message, encode, type Msg } from './protobuf.ts';
  * were read from 2026-09-24, for catalogue links (doc/LINKS.md).
  */
 
+/**
+ * The most a backup may inflate to. A backup is foreign input, from an upload
+ * or the library disk: a gzip of zeros would otherwise inflate to many
+ * gigabytes in the server's memory. A real backup's protobuf packs about five
+ * to one; this is ten times the largest upload taken (import/backup.ts).
+ */
+export const MAX_UNPACKED_BACKUP_BYTES = 1000 * 1024 * 1024;
+
 export type MihonChapter = {
 	url: string;
 	name: string;
