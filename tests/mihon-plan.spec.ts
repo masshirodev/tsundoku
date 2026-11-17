@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { readMessage, Message } from '$lib/import/protobuf';
-import { decodeBackup } from '$lib/import/mihon-backup';
+import {
+	decodeBackup,
+	type MihonBackup,
+	type MihonChapter,
+	type MihonManga
+} from '$lib/import/mihon-backup';
 import { parseComicInfo } from '$lib/import/comicinfo';
 import {
 	categoryEffect,
@@ -18,7 +23,6 @@ import {
 	type DownloadedChapter,
 	type DownloadedSeries
 } from '$lib/import/mihon-plan';
-import type { MihonBackup, MihonChapter, MihonManga } from '$lib/import/mihon-backup';
 import { encode } from './helpers/protobuf-writer';
 import { ASURA, WEEB, backup, comicInfo } from './helpers/mihon-fixture';
 
@@ -111,7 +115,7 @@ describe('ComicInfo', () => {
 });
 
 describe('the rules', () => {
-	it('reads the owner’s categories as ratings, shelves and hiding', () => {
+	it('reads the user’s categories as ratings, shelves and hiding', () => {
 		expect(categoryEffect('Amazing')).toEqual({ rating: 10, shelf: null, adult: false });
 		expect(categoryEffect('Good+')).toEqual({ rating: 8, shelf: null, adult: true });
 		expect(categoryEffect('Okay')).toMatchObject({ rating: 6 });
@@ -148,7 +152,7 @@ describe('the rules', () => {
 		expect(directionOf(0, 'manga')).toBeNull();
 	});
 
-	// c508: the same strings, and the same answers, as tests/tag-search.spec.ts'
+	// The same strings, and the same answers, as tests/tag-search.spec.ts'
 	// preview (`splitPeople`) and tests/{mihon,anime}-plan.spec.ts' importers.
 	const PEOPLE: [string, string[]][] = [
 		['Aoi Hanamura, Ren Kisaragi', ['Aoi Hanamura', 'Ren Kisaragi']],

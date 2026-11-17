@@ -31,9 +31,7 @@ import {
 	ruleSide,
 	spreadChoices,
 	type CellState,
-	type KeptPage
-} from '$lib/library/highlights';
-import {
+	type KeptPage,
 	byDay,
 	byEntry,
 	clipLength,
@@ -68,8 +66,7 @@ import {
 
 /**
  * Highlights' pure rules (doc/HIGHLIGHTS.md): what each screen says,
- * in which order, and what leaves as Markdown. The words are the handoff's
- * (doc/handoffs/highlights/: Main, Page, Series, Out).
+ * in which order, and what leaves as Markdown.
  */
 
 const NOW = new Date(2026, 10, 7, 21, 14).getTime();
@@ -473,8 +470,8 @@ const kp = (id: number, page: number, pageEnd: number | null = null): KeptPage =
 	bytes: 1.4 * 1024 * 1024
 });
 
-describe('the reader’s HIGHLIGHT cell (Manga M1, M3, M4, M7)', () => {
-	it('ranks its states as the handoff does: every combination of the four facts', () => {
+describe('the reader’s HIGHLIGHT cell', () => {
+	it('ranks its states as the design does: every combination of the four facts', () => {
 		const states: string[] = [];
 		for (const incognito of [false, true])
 			for (const keeping of [false, true])
@@ -542,7 +539,7 @@ describe('the reader’s HIGHLIGHT cell (Manga M1, M3, M4, M7)', () => {
 	});
 });
 
-describe('a spread’s choice (Manga M2)', () => {
+describe('a spread’s choice', () => {
 	it('R→L: the right page first, then the left, then BOTH as one', () => {
 		expect(spreadChoices([13, 14], true, [])).toEqual([
 			{ label: 'P. 14', where: 'RIGHT', page: 13, pageEnd: null, keptId: null },
@@ -561,7 +558,7 @@ describe('a spread’s choice (Manga M2)', () => {
 	});
 });
 
-describe('the gutter rule and the page sheet (Manga M3, M6)', () => {
+describe('the gutter rule and the page sheet', () => {
 	it('sits on the outer side, away from the spine: every side in both directions', () => {
 		expect(
 			(['left', 'right', 'center'] as const).flatMap((side) =>
@@ -917,7 +914,7 @@ describe('mergeNotes: a reader’s words are never dropped', () => {
 				const label = JSON.stringify([row, asked]);
 				// Idempotent: what the queue's resend relies on.
 				expect(mergeNotes(once, asked), label).toBe(once);
-				// The reader's words are in it, as written (trimmed by the door).
+				// The reader's words are in it, as written (trimmed).
 				expect(once.includes(asked.trim()), label).toBe(true);
 				// The row's are too, unless the reader's only continued them.
 				if (!asked.trim().startsWith(row.trim()))
@@ -977,7 +974,7 @@ describe('the sheet and the page end', () => {
 describe('barPlace', () => {
 	const view = { w: 390, h: 780 };
 	const barW = 320;
-	it('above the first line, clearing the handle (Novel N1)', () => {
+	it('above the first line, clearing the handle', () => {
 		const p = barPlace({ left: 24, right: 90, top: 96, bottom: 126 }, view, barW, false);
 		expect(p).toEqual({ left: 24, top: 96 - BAR_H - 14 });
 	});
@@ -995,7 +992,7 @@ describe('barPlace', () => {
 				expect(p.top + BAR_H).toBeLessThanOrEqual(view.h - 16);
 			}
 	});
-	it('vertical: across the top, over the first column selected (Novel J3)', () => {
+	it('vertical: across the top, over the first column selected', () => {
 		const p = barPlace({ left: 300, right: 330, top: 200, bottom: 400 }, view, barW, true);
 		expect(p.top).toBe(24);
 		expect(p.left).toBe(16);

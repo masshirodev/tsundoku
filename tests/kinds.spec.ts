@@ -83,7 +83,7 @@ const card = (kind: SeriesCard['kind'], over: Partial<SeriesCard> = {}): SeriesC
 });
 
 describe('the registry', () => {
-	it('has exactly five entries, and each literal kind reaches its own facts', () => {
+	it('has exactly seven entries, and each literal kind reaches its own facts', () => {
 		// A hand-written list, not `KINDS` or `Object.keys(KIND_FACTS)`: those
 		// *are* the registry's own keys, so comparing them proves nothing. This
 		// goes red if a key is renamed or an entry dropped.
@@ -126,8 +126,7 @@ describe('the registry', () => {
 	});
 
 	it('states the layout the reader starts from, as defaultDirection decides it', () => {
-		// `defaultDirection` (library/series.ts:89-93) still decides; the fact
-		// copies it until K2 makes series.ts read the registry. This goes red if
+		// `defaultDirection` (library/series.ts) decides. This goes red if
 		// either one changes without the other.
 		for (const kind of KINDS)
 			if (kindFacts(kind).medium !== 'video') expect(kindLayout(kind)).toBe(defaultDirection(kind));
@@ -179,7 +178,7 @@ describe('MOVABLE', () => {
 });
 
 /**
- * K4: MOVE asks the registry. Each replacement is asserted for
+ * MOVE asks the registry. Each replacement is asserted for
  * every member of `KINDS` against the answer the code gave at `fb2bd3a7`,
  * written out here as the old expressions, not derived from the registry,
  * so a wrong fact goes red rather than agreeing with itself.
@@ -190,7 +189,7 @@ describe('MOVE asks the registry', () => {
 		k === 'manga' || k === 'manhwa' || k === 'anime' || k === 'movie' || k === 'show';
 	// The map kind at fb2bd3a7 (src/lib/server/move.ts:268, :556, :720, :923, :1079).
 	const oldMoveKind = (k: Kind): MoveKind => {
-		// c987: the two video kinds move as an anime does (they did not exist at fb2bd3a7).
+		// The two video kinds move as an anime does (they did not exist at fb2bd3a7).
 		if (k === 'movie' || k === 'show') return 'anime';
 		return k === 'anime' ? 'anime' : 'manga';
 	};
@@ -256,8 +255,8 @@ describe('the source families', () => {
 	});
 
 	it('decode a stored kind back to its family, for every kind and no other word', () => {
-		// card c420: `familyOfKind` replaces each `kind === SOURCE_KINDS.x`; c508
-		// moved it into the registry as `sourceFamilyOf`, and repo-index.ts's
+		// `familyOfKind` replaces each `kind === SOURCE_KINDS.x`; the registry
+		// holds it as `sourceFamilyOf`, and repo-index.ts's
 		// `familyOfKind` is the same function, re-exported.
 		// The oracle is written out, not derived from SOURCE_KINDS.
 		const expected: Record<Kind, SourceFamily | null> = {
@@ -279,9 +278,8 @@ describe('the source families', () => {
 	});
 
 	it('include Mihon for a doujin, because a gallery source keeps its mihon: key', () => {
-		// Round 2's medium: `sources: []` was copied from a comment
-		// ("a doujin is Hentoid's"). The importer disproves it: a gallery
-		// source's series is a doujin and its key is `mihon:<source>:<url>`
+		// Not `sources: []` ("a doujin is Hentoid's"). The importer disproves
+		// it: a gallery source's series is a doujin and its key is `mihon:<source>:<url>`
 		// (src/lib/import/mihon-plan.ts:106,128,388; doc/IMPORT-MIHON.md).
 		expect(isGallerySource('NHentai')).toBe(true);
 		const kind = kindOf([], 0, 'NHentai');
@@ -373,7 +371,7 @@ describe('the source families', () => {
 });
 
 /**
- * K3: a key's family is `keyFamily`, built on `KEY_PREFIX`. The
+ * A key's family is `keyFamily`, built on `KEY_PREFIX`. The
  * old answers are written out here as the regular expressions
  * library/downloads.ts had at fb2bd3a7, not derived from the new code, and
  * every key prefix a writer stores is asked, plus the edges.
@@ -416,7 +414,7 @@ describe('a key\u2019s family', () => {
 			source: 'KAA'
 		})
 	)?.key;
-	/** Every prefix a writer stores (the audit table in doc/handoff-notes/kinds.md), and the edges. */
+	/** Every prefix a writer stores, and the edges. */
 	const KEYS: (string | null)[] = [
 		...mihonKeys,
 		planNovel({ name: 'N', path: '/novel/k3', chapters: [] }, { plugin: 'rr', name: 'RR' }, 1)
@@ -509,7 +507,7 @@ describe('a key\u2019s family', () => {
 });
 
 /**
- * K3: books.ts and covers.ts ask `grouping` and `medium` where
+ * books.ts and covers.ts ask `grouping` and `medium` where
  * they named a doujin, a novel or an anime. Every kind, against the old
  * expressions written out.
  */
@@ -629,14 +627,14 @@ describe('what may match what (doc/LINKS.md, "A novel never matches a comic")', 
 		for (const [series, candidate] of no) expect(sameKind(series, candidate)).toBe(false);
 	});
 
-	it('answers all 49 ordered pairs as the pre-K1 sameKind did', () => {
+	it('answers all 49 ordered pairs as the old sameKind did', () => {
 		// The lists above are the readable half; this is the exhaustive one.
 		// The oracle is `sameKind` as it shipped at a698f974, before it read
 		// `matches` (`git show a698f974:src/lib/library/catalogue.ts`,
 		// :168-175), transcribed here rather than derived from KIND_FACTS: an
 		// anime only with an anime, and otherwise novel-or-not must agree.
 		const before = (series: Kind, candidate: Kind): boolean => {
-			// c987: a film and a show are each their own work, as an anime is.
+			// A film and a show are each their own work, as an anime is.
 			if (
 				['anime', 'movie', 'show'].includes(series) ||
 				['anime', 'movie', 'show'].includes(candidate)
@@ -706,9 +704,9 @@ describe('the unit and READ/WATCHED words (labels.ts)', () => {
 });
 
 /**
- * The registry's guard (doc/KINDS.md, "No new kind checks"; cards c301 and
- * c305): outside the registry and a short allow-list, no `kind` is compared
- * against a kind's name.
+ * The registry's guard (doc/KINDS.md, "No new kind checks"): outside the
+ * registry and a short allow-list, no `kind` is compared against a kind's
+ * name.
  *
  * What it counts: one line in any `src/**\/*.ts` or `src/**\/*.svelte` where a
  * `kind` (a series', a source's, a candidate's) is compared against one of
@@ -716,7 +714,7 @@ describe('the unit and READ/WATCHED words (labels.ts)', () => {
  *
  *   s.kind === 'anime'      kind !== 'novel'      'manga' === row.kind
  *
- * and, since card c420, the same comparison spelled through the families'
+ * and the same comparison spelled through the families'
  * kinds, either way round and dotted or bracketed:
  *
  *   s.kind === SOURCE_KINDS.lnreader      SOURCE_KINDS[f] === r.kind
@@ -738,7 +736,7 @@ const ALLOWED: { file: string; reason: string }[] = [
 	{
 		file: 'src/lib/server/db.ts',
 		reason:
-			'The migrations are history: each rung says what the schema was when it ran, and a rung is never edited.'
+			'The migrations are history: each migration says what the schema was when it ran, and a migration is never edited.'
 	},
 	{
 		file: 'src/lib/server/anime/marks.ts',
@@ -748,7 +746,7 @@ const ALLOWED: { file: string; reason: string }[] = [
 	{
 		file: 'src/lib/server/anime/choices.ts',
 		reason:
-			'SQL: the browser keys before c171 were only ever written for an anime, so only an anime can have one to adopt.'
+			'SQL: the older browser keys were only ever written for an anime, so only an anime can have one to adopt.'
 	},
 	{
 		file: 'src/lib/server/dupes.ts',

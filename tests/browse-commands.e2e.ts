@@ -3,8 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { CDPSession, Page } from '@playwright/test';
-import { chromium, devices } from '@playwright/test';
+import { chromium, devices, type CDPSession, type Page } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 import { startPreview } from './highlights-preview';
@@ -149,7 +148,7 @@ test('a command that got no answer lets the next press run', async ({ page }) =>
 });
 
 /**
- * A television cannot turn reveal on (owner, 2026-11-01; doc/TV.md). The
+ * A television cannot turn reveal on (doc/TV.md). The
  * TV's pointer is set at Chromium's launch, not by a context or a media
  * emulation (playwright.config.ts's `tv` project says why), and the browse
  * project's Galaxy Tab has a coarse one, so a TV case launches its own
@@ -448,7 +447,7 @@ test.describe('a gated box', () => {
 		await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
 		expect(asked).toEqual(['reveal']);
 
-		// Away and back through history: nothing reruns behind the owner's back.
+		// Away and back through history: nothing reruns behind the user's back.
 		await page.goBack();
 		await expect(
 			page.getByRole('searchbox', { name: 'Search the available extensions' })

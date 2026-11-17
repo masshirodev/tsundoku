@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { hitBlock, outlined, rings, shownBlocks } from '$lib/japanese/blocks';
-import { ocrLines, type OcrPlace } from '$lib/japanese/ocr';
+import { ocrLines, type OcrPlace, type TextBlock } from '$lib/japanese/ocr';
 import { parseSearch } from '$lib/library/search';
-import type { TextBlock } from '$lib/japanese/ocr';
 
 const block = (box: [number, number, number, number]): TextBlock => ({
 	box,
