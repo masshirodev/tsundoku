@@ -58,12 +58,8 @@ describe('contentV2.json', () => {
 
 describe('folder and chapter names', () => {
 	it('takes the title out of a folder name, empty artist or not', () => {
-		expect(titleFromFolder('Hentai2Read/someone - Paper Lanterns - [1003]')).toBe(
-			'Paper Lanterns'
-		);
-		expect(titleFromFolder('nhentai2/ - Morning Tide - [1002]')).toBe(
-			'Morning Tide'
-		);
+		expect(titleFromFolder('Hentai2Read/someone - Paper Lanterns - [1003]')).toBe('Paper Lanterns');
+		expect(titleFromFolder('nhentai2/ - Morning Tide - [1002]')).toBe('Morning Tide');
 		expect(titleFromFolder('x/Nobody - Truncated Title Wi[1005]')).toBe('Truncated Title Wi');
 	});
 

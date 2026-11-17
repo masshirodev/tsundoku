@@ -217,9 +217,8 @@ LIBRARY FIRST · IT ASKS`), with FIRST 10 and ALL N. A download lives in the
   can't count differently), and lands on the series with the ADDED band
   saying `12 CHAPTERS · 10 DOWNLOADING` (`?queued=`). The add stands if the
   queue doesn't answer; the band then says `NOT QUEUED · DOWNLOADING ISN’T
-ANSWERING` and the DOWNLOAD row says why. The owner asked for it after a friend
-  (a friend) didn't know ADD was the way to download, its button being small
-  (2026-10-30). No ALL's QUALITY here for an anime: SETTINGS' default.
+ANSWERING` and the DOWNLOAD row says why. It exists because a first-time
+  reader didn't know ADD was the way to download: its button is small. No ALL's QUALITY here for an anime: SETTINGS' default.
 - **ADD TO LIBRARY** writes the series into tsundoku's library at once, every
   chapter NOT DOWNLOADED, through the Mihon importer's own plan (`planMihon`)
   and writer (`writeSeries`), keyed as the tablet's backup would key it. It

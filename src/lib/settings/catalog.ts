@@ -79,9 +79,9 @@ export const VALUES = {
 	'reader.crop': { where: 'device', key: 'tsundoku.reader.crop', def: false, label: onOff },
 	'reader.wide': { where: 'device', key: 'tsundoku.reader.wide', def: 'fit' },
 	'reader.sides': { where: 'device', key: 'tsundoku.reader.sides', def: 0 },
-	// The strip runs on into the next chapter, or stops at the end (c206; a friend, 2026-10-30).
+	// The strip runs on into the next chapter, or stops at the end.
 	'reader.chapters': { where: 'device', key: 'tsundoku.reader.chapters', def: 'run' },
-	// A button back to the chapter's top, off unless asked for (c207; a friend, 2026-10-30).
+	// A button back to the chapter's top, off unless asked for.
 	'reader.top': { where: 'device', key: 'tsundoku.reader.top', def: false, label: onOff },
 	// The tap zones over the page as a paged chapter opens (doc/READER.md, "Touch").
 	'reader.zones': { where: 'device', key: 'tsundoku.reader.zones', def: true, label: onOff },

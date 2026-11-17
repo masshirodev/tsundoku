@@ -627,7 +627,7 @@ and in `tests/reader-strip-keys.e2e.ts` ("a chapter arriving above while
 READING is open keeps the page being read", c568), which holds the chapter
 above until the sheet is open.
 
-## Two choices for the strip (a friend's, 2026-10-30)
+## Two choices for the strip
 
 Device settings in SETTINGS › 01 — READING · IMAGES, vertical only:
 

@@ -280,7 +280,7 @@
 		{/each}
 		{#if stopNext && chapters.length}
 			{@const ended = chapters[chapters.length - 1]}
-			<!-- Stopped at the end (c206; a friend, 2026-10-30): the next chapter waits for a tap. -->
+			<!-- Stopped at the end: the next chapter waits for a tap. -->
 			<section
 				class="band stop"
 				aria-label="Chapter end"

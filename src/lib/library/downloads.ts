@@ -492,8 +492,7 @@ export const EPISODES: RowNoun = {
  * DOWNLOAD on a preview, a series not in the library (card c205): the same
  * row a library series has, counted from what the source lists less what a
  * browsing record has read. Every cell asks first, since a download lives in
- * the library: a friend hadn't known ADD was the way to download, and its button
- * was small (the owner, 2026-10-30).
+ * the library, and ADD alone was too small a button to find it by.
  */
 export function previewDownload(unread: number, anime = false, online = true) {
 	const noun = anime ? EPISODES : CHAPTERS;

@@ -166,11 +166,11 @@
 	let sides = $state(0);
 	/**
 	 * Vertical: stop at the chapter's end, the next one a button away, rather
-	 * than run on into it (c206; a friend, 2026-10-30). Read at once, before the
+	 * than run on into it. Read at once, before the
 	 * strip is first filled, which the effect below does on mount.
 	 */
 	const stopAtEnd = browser && readLocal<string>(`${KEY}chapters`, 'run') === 'stop';
-	/** Vertical: a ↑ back to the chapter's first page, off unless asked for (c207; a friend). */
+	/** Vertical: a ↑ back to the chapter's first page, off unless asked for. */
 	const toTopOn = browser && readLocal<boolean>(`${KEY}top`, false) === true;
 	/** Temporary: the flick-measuring overlay, with ?fling on the address (FlingMeter.svelte). */
 	const flingMeter = browser && appPage.url.searchParams.has('fling');

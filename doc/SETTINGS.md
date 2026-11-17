@@ -63,7 +63,7 @@ only what the row offers and stores the default as a reset).
   device, though only a mouse has a cursor, so the READING sheets leave their row
   out where there is none and this one says WITH A MOUSE.
 
-Two rows of a friend's (2026-10-30) close 01's strip settings: **CHAPTERS** (RUN ON
+Two rows close 01's strip settings: **CHAPTERS** (RUN ON
 | STOP AT THE END) and **TO THE TOP** (OFF | ON), both this device's, both
 vertical only ([`READER.md`](READER.md), "Two choices for the strip"). After them, **TAP ZONES** (OFF | ON, on): the
 paged reader's zones drawn as a chapter opens, by finger ([`READER.md`](READER.md),
