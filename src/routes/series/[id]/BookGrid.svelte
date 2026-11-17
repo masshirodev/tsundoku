@@ -17,8 +17,8 @@
 	import ExtrasList from './ExtrasList.svelte';
 
 	/**
-	 * A series of books: BOOKS replaces CHAPTERS as a cover grid in the owner's
-	 * order (Index Books, state 1). Tap opens the book's pages; long-press opens
+	 * A series of books: BOOKS replaces CHAPTERS as a cover grid in the user's
+	 * order. Tap opens the book's pages; long-press opens
 	 * its sheet. In `reordering` the tiles show only their date added, and a
 	 * cover is dragged -- or moved with the arrow keys when focused -- to set the
 	 * reading order, held in `order` until DONE saves it.
@@ -41,7 +41,7 @@
 	} = $props();
 
 	const current = $derived(currentEntry(series.entries));
-	/** The books alone: a hand-made extra is drawn apart, and is never numbered (c650). */
+	/** The books alone: a hand-made extra is drawn apart, and is never numbered. */
 	const books = $derived(booksOf(series.entries));
 	const extras = $derived(extrasOf(series.entries));
 	const byId = $derived(new Map(books.map((e) => [e.id, e])));
@@ -153,7 +153,7 @@
 		{#each { length: fillers }, i (i)}<li class="filler" aria-hidden="true"></li>{/each}
 	</ol>
 
-	<!-- The extras, drawn apart: not a book, not numbered, not reordered (c650). -->
+	<!-- The extras, drawn apart: not a book, not numbered, not reordered. -->
 	{#if !reordering}<ExtrasList entries={extras} />{/if}
 
 	{#if reordering}

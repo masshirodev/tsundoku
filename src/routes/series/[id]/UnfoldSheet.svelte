@@ -4,7 +4,7 @@
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 
 	/**
-	 * UNFOLD INTO 2 BOOKS (Editions 1d; doc/EDITIONS.md): a folded book back
+	 * UNFOLD INTO 2 BOOKS (doc/EDITIONS.md): a folded book back
 	 * into one book per language. Nothing is deleted, so it asks in the
 	 * ConfirmSheet's shape but with the book's editions, one line each, saying
 	 * where each will be and what it takes.

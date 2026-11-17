@@ -11,10 +11,10 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 
 	/**
-	 * A book's sheet inside a series of books (Index Books, state 3): the
-	 * library's sheet scoped to the book. Its own rating and FAV, and a SERIES
-	 * row with MOVE TO… and TAKE OUT. TAKE OUT makes it a single again, keeping
-	 * its rating, FAV, tags and page; the series screen then offers UNDO.
+	 * A book's sheet inside a series of books: the library's sheet scoped to
+	 * the book. Its own rating and FAV, and a SERIES row with MOVE TO… and TAKE
+	 * OUT. TAKE OUT makes it a single again, keeping its rating, FAV, tags and
+	 * page; the series screen then offers UNDO.
 	 */
 	let {
 		series,
@@ -37,7 +37,7 @@
 	} = $props();
 
 	let moving = $state(false);
-	/** The books alone: an extra beside them is not numbered as one (c650). */
+	/** The books alone: an extra beside them is not numbered as one. */
 	const books = $derived(booksOf(series.entries));
 	const index = $derived(book ? books.findIndex((e) => e.id === book.id) : -1);
 	const page = $derived(book ? entryProgress(book)?.page : undefined);

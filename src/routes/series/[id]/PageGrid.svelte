@@ -40,7 +40,7 @@
 	}: {
 		series: SeriesPage;
 		book?: SeriesEntry | null;
-		/** The series' chosen cover and what automatic gives: the page menu's rows (c26). */
+		/** The series' chosen cover and what automatic gives: the page menu's rows. */
 		cover: {
 			chosen: { entry: number; page: number } | null;
 			automatic: Automatic;
@@ -48,7 +48,7 @@
 		};
 		/** A folded book (doc/EDITIONS.md): the grid is the opening edition's pages. */
 		editions?: BookEditions | null;
-		/** A book with no file (c885): READ ONLINE and DOWNLOAD, its own. */
+		/** A book with no file: READ ONLINE and DOWNLOAD, its own. */
 		downloads?: Map<number, DownloadState> | null;
 		readOnline?: boolean;
 	} = $props();
@@ -59,7 +59,7 @@
 	/**
 	 * A one-book doujin shows its book; a book of a series is passed in. A
 	 * hand-made extra beside the book is not the book, even when its row sorts
-	 * first (c650): the books are what the screen draws. A folded book shows the
+	 * first: the books are what the screen draws. A folded book shows the
 	 * edition it opens in, at the book's place in it.
 	 */
 	const book = $derived.by(() => {
@@ -79,8 +79,8 @@
 	const pages = $derived(book?.pageCount ?? 0);
 	const current = $derived(book && book.readAt === null ? (entryProgress(book)?.page ?? 0) : 0);
 	/**
-	 * A book with no file offers READ ONLINE and DOWNLOAD, its own (c885,
-	 * doc/BOOKS.md). A folded book keeps the screen it had: its pages are the
+	 * A book with no file offers READ ONLINE and DOWNLOAD, its own
+	 * (doc/BOOKS.md). A folded book keeps the screen it had: its pages are the
 	 * opening edition's, and a tap already opens the edition it means.
 	 */
 	const offered = $derived(!opening && book && !book.available ? book : null);
@@ -103,7 +103,7 @@
 						: String(pages)
 	);
 
-	// ---- the page menu (Page Menu 1i): long-press a cell ----------------------------------
+	// ---- the page menu: long-press a cell ----------------------------------
 	let menu = $state<{ page: number; rect: DOMRect } | null>(null);
 	type CoverBody = {
 		entryId: number;
@@ -163,7 +163,7 @@
 			});
 	}
 	/**
-	 * A hand-made extra beside the book (c650): its pages are not this book's,
+	 * A hand-made extra beside the book: its pages are not this book's,
 	 * so it is listed apart under the grid, where it stays reachable. No
 	 * importer writes `matter` on a doujin (doc/BOOKS.md).
 	 */
@@ -304,7 +304,7 @@
 		letter-spacing: var(--tracking-label);
 		white-space: nowrap;
 	}
-	/* The book's own offer (c885): the house cells, equal halves at every width. */
+	/* The book's own offer: the house cells, equal halves at every width. */
 	.book-offer {
 		display: grid;
 		grid-auto-flow: column;
@@ -364,7 +364,7 @@
 		color: var(--text-1);
 		font: 500 12px var(--font-mono);
 	}
-	/* The page chosen as the book's cover (Page Menu 1i). */
+	/* The page chosen as the book's cover. */
 	.is-cover {
 		position: absolute;
 		left: 0;

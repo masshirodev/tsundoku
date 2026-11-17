@@ -3,10 +3,9 @@
 	import type { Cell, Lists, SheetAt } from './lists';
 
 	/**
-	 * LISTS (card c424; doc/handoffs/series-lists/, doc/SERIES.md): one row, a
-	 * line per list. Each line is the entry it is linked to, what the list says
-	 * of it, what was sent, and its cells. `lists.ts` decides every word and
-	 * cell; this only draws them.
+	 * LISTS (doc/SERIES.md): one row, a line per list. Each line is the entry
+	 * it is linked to, what the list says of it, what was sent, and its cells.
+	 * `lists.ts` decides every word and cell; this only draws them.
 	 *
 	 * The label is a 36px strip above the lines on the phone, the 440px panel
 	 * and the TV, so each line has the full width; on the tablet in portrait
@@ -110,19 +109,18 @@
 </div>
 
 <style>
-	/* LISTS, transcribed with design-tools from 1B (the 440 panel), 1C and 1D
-	   (phone 390, TV, tablet portrait): the mock's own literals, colours from
-	   tokens. None of it is on a spacing ladder (the theme has none) and it
+	/* LISTS, transcribed from the design (the 440 panel; phone 390, TV, tablet
+	   portrait): its own literals, colours from tokens. None of it is on a spacing ladder (the theme has none) and it
 	   isn't meant to be: tests/series-lists-frame.e2e.ts pins it. */
 	.lists-row {
-		/* The 440 panel (1B) and desktop. */
+		/* The 440 panel and desktop. */
 		--tw: 64px;
 		--lh: 56px;
 		--ts: 14px;
 		--ms: 12px;
 		--cs: 13px;
 		--fs: 12px;
-		/* A muted title on an anime's line, a size down (1C's .t.mu.sm). */
+		/* A muted title on an anime's line, a size down (`.t.mu.sm`). */
 		--tms: 13px;
 		--strip-pad: 16px;
 		--bo-pad: 10px 12px;
@@ -172,7 +170,7 @@
 	.lw:last-child {
 		border-bottom: 0;
 	}
-	/* Ranobe's one line under an anime's seasons (1C, 10). */
+	/* Ranobe's one line under an anime's seasons. */
 	.lw.under {
 		border-top: 1px solid var(--line-1);
 	}
@@ -341,9 +339,9 @@
 		border-left: 1px solid var(--line-1);
 		color: var(--text-1);
 	}
-	/* Phone portrait (1D, 390): line 52, title 13, as the season lines were. The
-	   tag is 1A's 60, not 1D's 56: 1D only ever puts S3 or RNB in it, and
-	   ANILIST, 1A's phone tag, does not fit 56. */
+	/* Phone portrait (390): line 52, title 13, as the season lines were. The
+	   tag is 60, not the narrow layouts' 56: those only ever put S3 or RNB in
+	   it, and ANILIST, the phone's tag, does not fit 56. */
 	@media (max-width: 599px) {
 		.lists-row {
 			--tw: 60px;
@@ -353,7 +351,7 @@
 			--drop-h: 52px;
 		}
 	}
-	/* The tablet in portrait (1D): room for the label column, LISTS at the left
+	/* The tablet in portrait: room for the label column, LISTS at the left
 	   like the other rows, and every cell at its line's end, even two. The
 	   strip only stays to say why, when there is something to say. */
 	@media (min-width: 600px) and (max-width: 1023px) and (not ((pointer: none) and (min-width: 900px))) {
@@ -385,7 +383,7 @@
 			display: none;
 		}
 	}
-	/* The TV's 352px column (1D): text 15, lines 56, and a line drops its meta,
+	/* The TV's 352px column: text 15, lines 56, and a line drops its meta,
 	   which is one OK away in EDIT. */
 	@media (pointer: none) and (min-width: 900px) {
 		.lists-row {

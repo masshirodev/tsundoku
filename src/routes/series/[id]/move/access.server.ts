@@ -14,8 +14,8 @@ import type { Settled } from '$lib/library/settled';
 import type { SearchHit } from '$lib/server/download-types';
 
 /**
- * The doors of the move page (doc/MOVE.md): the page, its comparison and its
- * one-source ask (card c491) all answer the same 404 for a series that is
+ * The entry points of the move page (doc/MOVE.md): the page, its comparison and its
+ * one-source ask all answer the same 404 for a series that is
  * hidden with reveal off, or isn't one MOVE is offered for.
  */
 export function movable(
@@ -45,7 +45,7 @@ export const offsetOf = (raw: string | null | undefined): number | null =>
  * The comparison for one candidate as a Settled, never rejecting on a source
  * that wouldn't say: the page draws that as its own state, with TRY AGAIN.
  *
- * `signal` is the request's (c539): a pick the owner has already left. The
+ * `signal` is the request's: a pick the user has already left. The
  * engine answers one call per extension at a time (`inLane`,
  * engine/client.ts), and neither it nor `moveComparison` takes a signal, so a
  * call that has started runs to its end and its answer is dropped. What can
@@ -56,9 +56,9 @@ export const offsetOf = (raw: string | null | undefined): number | null =>
  *
  * And a waiting ask whose turn comes after a newer pick of the same series
  * from the same source was queued is dropped too, whatever its socket says
- * (c567, doc/MOVE.md, "Picks take turns"): the server hears of a dropped
+ * (doc/MOVE.md, "Picks take turns"): the server hears of a dropped
  * request's abort only when its socket closes, up to 279 ms after the page
- * gave it up (wave 24's measure), and a turn could come in that gap.
+ * gave it up (measured), and a turn could come in that gap.
  */
 export async function compared(
 	id: number,

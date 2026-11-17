@@ -4,12 +4,12 @@
 	import type { GroupOther, OtherFormRow } from './other-forms.server';
 
 	/**
-	 * OTHER FORMS (c700; doc/SERIES.md, "OTHER FORMS"): the same work's manga,
-	 * novel or anime, from the relation cache. A quiet line, c358's extras idiom,
+	 * OTHER FORMS (doc/SERIES.md, "OTHER FORMS"): the same work's manga,
+	 * novel or anime, from the relation cache. A quiet line, the extras line's idiom,
 	 * that unfolds to one row each. It is `<li>`s, for the list it sits in.
 	 *
 	 * It never groups and never offers a Work on its own: GROUP AS A WORK is here
-	 * only because the owner opened the line, and nothing changes until the
+	 * only because the user opened the line, and nothing changes until the
 	 * flow's own sheet is answered.
 	 */
 	let {

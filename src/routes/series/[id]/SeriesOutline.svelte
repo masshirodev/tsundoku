@@ -8,7 +8,7 @@
 	import SeriesPanel from './SeriesPanel.svelte';
 
 	/**
-	 * The series screen on its way (Loading States 1g, 1h): its own frame, with
+	 * The series screen on its way: its own frame, with
 	 * the real panel showing what the tapped tile knew -- cover, title, kind,
 	 * rating, FAV and counts, and rating and FAV already work -- and the rest,
 	 * the list included, in outline under the progress line. Content lands in
@@ -177,7 +177,7 @@
 			flex: 1;
 		}
 	}
-	/* ---- the TV (c238; TV-Series, state 4E) ------------------------------- */
+	/* ---- the TV ------------------------------- */
 	@media (pointer: none) and (min-width: 900px) {
 		.bar {
 			margin-top: var(--safe-y);

@@ -3,7 +3,7 @@ import { movesVideo } from '$lib/library/move';
 
 /*
  * The words MOVE's screens print for a series' kind (doc/MOVE.md), asked of
- * the registry rather than spelled from a kind's name (Kinds K4, c304). Each
+ * the registry rather than spelled from a kind's name. Each
  * says what the comparison it replaced said, for every kind:
  * tests/move-domain.spec.ts asserts all five.
  */

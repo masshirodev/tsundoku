@@ -92,7 +92,7 @@
 	/**
 	 * The series' metadata: a header that scrolls away in portrait, a 440px
 	 * panel with its own scroll in landscape (the CSS decides which). Order is
-	 * the handoff's: identity, then rating and FAV, then CONTINUE -- all within
+	 * the design's: identity, then rating and FAV, then CONTINUE -- all within
 	 * thumb reach -- then direction, shelves, tags, about, and the file row with
 	 * HIDE at the very end, away from CONTINUE.
 	 */
@@ -139,7 +139,7 @@
 		/** FIRST READ's next step is this row: a 2px accent ring while its trip lasts (doc/ONBOARDING.md). */
 		ringDownload?: boolean;
 		/**
-		 * HIGHLIGHTS (c701; Series S1–S2): `14 · 3 NOTES`, `6 PAGES · 1 NOTE`.
+		 * HIGHLIGHTS: `14 · 3 NOTES`, `6 PAGES · 1 NOTE`.
 		 * Null while the series has none, and then the row is not drawn.
 		 */
 		highlights?: { line: string } | null;
@@ -157,7 +157,7 @@
 		onreview?: () => void;
 		/** MIGHT CONTINUE <WORK> · AS PART N (W7): only for a series in no Work. */
 		workOffer?: WorkOffer | null;
-		/** A merged show (c283): UNGROUP is its undo. Never an ordinary anime with seasons. */
+		/** A merged show: UNGROUP is its undo. Never an ordinary anime with seasons. */
 		merged?: boolean;
 		/** Set just after NOT THIS, so its band can offer UNDO. */
 		workOfferDismissed?: string | null;
@@ -166,19 +166,19 @@
 		/** The CONTINUE bar, observed by the page to know when it scrolled away. */
 		cta?: HTMLElement | null;
 		/**
-		 * Waiting (Loading States 1g, 1h): only what the tapped tile knew is
-		 * real -- cover, title, kind, rating, FAV, counts. The rest is drawn in
-		 * outline, and CONTINUE doesn't open until its chapter is known.
+		 * Waiting: only what the tapped tile knew is real -- cover, title,
+		 * kind, rating, FAV, counts. The rest is drawn in outline, and CONTINUE
+		 * doesn't open until its chapter is known.
 		 */
 		outline?: boolean;
-		/** OCR's progress on the workstation (Index Japanese 4a); null for novels. */
+		/** OCR's progress on the workstation; null for novels. */
 		ocr?: OcrPlace | null;
 		/** Words looked up in it: waiting for review, and sent to Kumiko. */
 		words?: { toReview: number; sent: number } | null;
 		/** A likely twin of a book here (doc/DUPLICATE-BOOKS.md): the SAME BOOK AS band. */
 		twin?: { key: string; title: string; conf: string; pages: string } | null;
 		/**
-		 * KEEP BOTH's answer (c671): the decisions waiting from before that it
+		 * KEEP BOTH's answer: the decisions waiting from before that it
 		 * could not carry out first. Read from the page's `form`, so the note
 		 * outlives the reload that takes the twin band away, and goes with the
 		 * next action, a navigation or a reload.
@@ -188,11 +188,11 @@
 		editions?: BookEditions | null;
 		/** Its catalogue link (doc/LINKS.md): the LINK and COVER rows. Null for a doujin. */
 		link?: LinkState | null;
-		/** A film's or a show's TMDB link (c989): LISTS' TMDB line. Null for any other kind. */
+		/** A film's or a show's TMDB link: LISTS' TMDB line. Null for any other kind. */
 		tmdb?: TmdbLinkState | null;
-		/** A film's or a show's screen (c992): its TMDB facts, the KIND row's folder. Null for any other kind. */
+		/** A film's or a show's screen: its TMDB facts, the KIND row's folder. Null for any other kind. */
 		film?: FilmPage | null;
-		/** KIND's CHANGE: the kind switch's sheet (c991's move, c992's sheet). */
+		/** KIND's CHANGE: the kind switch's sheet. */
 		onkind?: () => void;
 		/** What the catalogues' lists say of it, and what was sent (doc/TRACKING.md). */
 		tracking?: Tracking | null;
@@ -203,7 +203,7 @@
 		 */
 		ranobe?: RanobeSeries | null;
 		/**
-		 * An anime's seasons (c240): a link and a line each, folded round the one
+		 * An anime's seasons: a link and a line each, folded round the one
 		 * being watched. Null for a series that isn't an anime, which draws the
 		 * rows exactly as it did.
 		 */
@@ -212,7 +212,7 @@
 		downloads?: SeriesDownloads | null;
 		/** MOVE's SOURCE row (doc/MOVE.md): where the series comes from and the way out. */
 		move?: MoveState | null;
-		/** The source TAGS search besides the library (c313); null for none, and a tag opens the library. */
+		/** The source TAGS search besides the library; null for none, and a tag opens the library. */
 		tagSource?: { id: string; name: string } | null;
 		/** A source that lists episodes but sends no video: the NO VIDEO band under CONTINUE. */
 		noVideo?: { title: string; detail: string } | null;
@@ -220,11 +220,11 @@
 		readOnline?: boolean;
 		/** Where this series sits in its Work (W5; doc/WORKS.md): the WORK row and its sheet. */
 		work?: SeriesWorkRow | null;
-		/** Time read, ms, from the reading log (card c443): READ 12 H 40, or WATCHED. */
+		/** Time read, ms, from the reading log: READ 12 H 40, or WATCHED. */
 		readMs?: number;
 		/** TAKE OUT from the WORK row: the facts UNDO reads, and the Work it left. */
 		takenOut?: { facts: TakeOutFacts; from: string } | null;
-		/** Clears the answer the four bands below draw (c493). */
+		/** Clears the answer the four bands below draw. */
 		dropAnswer?: () => void;
 		/** HIDE ALL n or TAKE OUT, THEN HIDE, where the screen is still here (W4). */
 		hideFacts?: {
@@ -236,7 +236,7 @@
 	} = $props();
 
 	/**
-	 * KEEP BOTH's note (c671), in the words the duplicates review uses: what
+	 * KEEP BOTH's note, in the words the duplicates review uses: what
 	 * could not be carried out, and where each one is now. Nothing when every
 	 * earlier decision was carried out, as KEEP BOTH answered before.
 	 */
@@ -258,7 +258,7 @@
 
 	/** An anime series: episodes for chapters, here and in DOWNLOAD (doc/ANIME.md). */
 	const anime = $derived(kindFacts(series.kind).medium === 'video');
-	/** A film's one cell (c992), else an anime's or a show's, else a book's. */
+	/** A film's one cell, else an anime's or a show's, else a book's. */
 	const filmed = $derived(
 		film?.film ? filmAction(series.entries, film.facts?.runtime ?? null, Date.now()) : null
 	);
@@ -266,22 +266,22 @@
 	/** SHOW on a fold opens every season's line, and closes when the screen is left. */
 	let seasonsOpen = $state(false);
 
-	// ---- DOWNLOAD (Index Series Download) ------------------------------------------------
+	// ---- DOWNLOAD ------------------------------------------------
 	/** DOWNLOAD's "?" sheet (doc/HELP.md). */
 	let helpOpen = $state(false);
 	// ---- the WORK row (W5) ---------------------------------------------------------------
 	/** The WORK row's own sheet: OPEN, MOVE ↑ ↓, TAKE OUT. */
 	let workSheet = $state(false);
-	/** HIDE on a part asks first (W4; Work-States 4). */
+	/** HIDE on a part asks first (W4). */
 	let hiding = $state(false);
-	/** The moment this Work was made, as the Work controls post it back (c640). */
+	/** The moment this Work was made, as the Work controls post it back. */
 	const workMade = $derived(work?.createdAt ?? null);
 	/**
 	 * Whether an answer refused because this screen's Work has moved on since
-	 * it was drawn -- ended, or its id given to another (c583's `StaleWorkError`).
+	 * it was drawn -- ended, or its id given to another (`StaleWorkError`).
 	 * SvelteKit's `update()` applies the action's `form` on a failure; it
 	 * re-reads the page only on a success, so a route that keeps drawing the
-	 * Work it read must invalidate here (c640).
+	 * Work it read must invalidate here.
 	 */
 	function staleWork(result: ActionResult): boolean {
 		return (
@@ -293,7 +293,7 @@
 	 * `use:enhance` for the WORK row sheet's MOVE and TAKE OUT: other answers
 	 * behave as before; a stale refusal closes the sheet and reads the page
 	 * again, so the band says LOOK AGAIN over the Work the series is in now and
-	 * the next press posts that Work's moment (c640).
+	 * the next press posts that Work's moment.
 	 */
 	const workAfter =
 		(close: boolean): SubmitFunction =>
@@ -307,7 +307,7 @@
 		};
 	/**
 	 * `replacing` for the two UNHIDE forms, plus a read of the page on a stale
-	 * refusal (c640): the Work the screen drew is gone or its id names another,
+	 * refusal: the Work the screen drew is gone or its id names another,
 	 * so the band must be drawn over the Work there is now.
 	 */
 	const replacingStale: SubmitFunction =
@@ -373,7 +373,7 @@
 	);
 	const dlFile = $derived(dlStates ? fileQueueMeta(downloadCounts(series.entries, dlStates)) : []);
 	/**
-	 * A film's DOWNLOAD row (Film-States 1.6): one file, so where that file is
+	 * A film's DOWNLOAD row: one file, so where that file is
 	 * and one cell; no NEXT 10, ALL, REFRESH or FOLLOW. The quality is said once
 	 * the file is here, as its size is.
 	 */
@@ -401,8 +401,8 @@
 		};
 	});
 	/**
-	 * A film's or a show's watch in the local log's words, for LISTS' LIST line
-	 * (c993): `WATCHED 3 NOV`, `EP. 6 OF 16`, `NOT WATCHED`.
+	 * A film's or a show's watch in the local log's words, for LISTS' LIST line:
+	 * `WATCHED 3 NOV`, `EP. 6 OF 16`, `NOT WATCHED`.
 	 */
 	const watchWords = $derived.by(() => {
 		if (filmed) return filmed.quiet ? filmed.meta : 'NOT WATCHED';
@@ -411,7 +411,7 @@
 	});
 	/** The offer NOT THIS just declined, for its band's UNDO. */
 	let declined = $state<string | null>(null);
-	/** A show's seasons from TMDB (c990, c992): the SEASONS row and SEASON N IS OUT. */
+	/** A show's seasons from TMDB: the SEASONS row and SEASON N IS OUT. */
 	const showView = $derived(film?.surround?.kind === 'seasons' ? film.surround.view : null);
 	/** FIND for a show's missing season: the screen's own source searched for the show's name. */
 	const showFind = $derived(
@@ -426,7 +426,7 @@
 	);
 	/** The DOWNLOAD row as drawn: a film's one file, or the series'. */
 	const dlRow = $derived(filmDl ?? seriesDl);
-	/** The KIND row (c992): the kind, its folder and how many files it holds. */
+	/** The KIND row: the kind, its folder and how many files it holds. */
 	const kindLine = $derived(
 		film
 			? kindRow({
@@ -447,16 +447,16 @@
 			await update();
 			if (result.type === 'success') await invalidateAll();
 		};
-	// No extension for its source (Bato.to, Hitomi): said once, on the FILE line
-	// (state 4). It cannot say the tablet downloads it: after c191 a device's
-	// Mihon downloads are not imported (doc/DOWNLOADS.md, "Limits").
+	// No extension for its source (Bato.to, Hitomi): said once, on the FILE line.
+	// It cannot say the tablet downloads it: a device's
+	// Mihon downloads are not imported (doc/DOWNLOADS.md, "Not done yet").
 	const elsewhere = $derived(
 		downloads?.kind === 'elsewhere'
 			? ` · ${downloads.source.toUpperCase()} · NO EXTENSION HERE`
 			: ''
 	);
 
-	// ---- LISTS (c424): LINK and TRACKING as one row, a line per list ------------------------
+	// ---- LISTS: LINK and TRACKING as one row, a line per list ------------------------
 	const linkOff = $derived(!offline.online);
 	/** EDIT's sheet, and the line it was opened from. */
 	let trackingOpen = $state(false);
@@ -473,7 +473,7 @@
 					tracking,
 					ranobe,
 					seasons,
-					// NEVER TRACKED is the source's switch (c522): the row says why, and
+					// NEVER TRACKED is the source's switch: the row says why, and
 					// offers no send, instead of a line per list that would never move.
 					neverTracked: !!tracking?.neverTracked,
 					expanded: seasonsOpen,
@@ -484,7 +484,7 @@
 				})
 	);
 
-	// ---- a folded book (Editions 1b, 1c) ---------------------------------------------------
+	// ---- a folded book ---------------------------------------------------
 	/** The edition it opens in: its title leads, READ opens it, its pages are the grid. */
 	const opening = $derived(
 		editions ? (editions.editions.find((e) => e.entryId === editions.opens) ?? null) : null
@@ -518,10 +518,10 @@
 
 	// Rating and FAV show their new value at once and save behind it. A save
 	// that fails keeps the value, drawn dashed, with RETRY and PUT BACK in the
-	// layout's band (Loading States 1o).
-	// ---- DETAILS (c425): the fold on a phone and a TV ----------------------------------------
+	// layout's band.
+	// ---- DETAILS: the fold on a phone and a TV ----------------------------------------
 	// Closed by default and remembered for the device, not the series
-	// (`DETAILS_KEY`): wanting the settings showing is the owner's habit. The
+	// (`DETAILS_KEY`): wanting the settings showing is the user's habit. The
 	// server draws it closed, so the first paint is never a flash of it open; a
 	// device that remembers it open opens it once the page runs. Without
 	// script the <noscript> rule below shows every row, as it always did.
@@ -542,7 +542,7 @@
 			// Storage unavailable: the fold still holds for this visit.
 		}
 	}
-	/** The names of the rows inside, in their order (1C's second line). */
+	/** The names of the rows inside, in their order (the folded line's second line). */
 	const detailsNames = $derived(
 		[
 			dlRow && 'DOWNLOAD',
@@ -557,7 +557,7 @@
 			editions && opening ? 'FOLDED' : 'FILE'
 		].filter((n): n is string => !!n)
 	);
-	/** Work under way inside: a chapter downloading, else OCR running (1C, D). */
+	/** Work under way inside: a chapter downloading, else OCR running. */
 	const detailsRunning = $derived.by((): DetailsRunning | null => {
 		const unit = kindUnit(series.kind).short;
 		for (const e of series.entries) {
@@ -585,7 +585,7 @@
 		})
 	);
 
-	// RENAME's field (c526), opened in place by its cell, as the Work screen's
+	// RENAME's field, opened in place by its cell, as the Work screen's
 	// is. A rename that lands closes it; a refusal leaves it open with its word.
 	let renaming = $state(false);
 	const renamed: SubmitFunction = () => {
@@ -614,7 +614,7 @@
 	const favourite = $derived(favNow ?? series.favourite);
 	/**
 	 * FAV and the rating save one at a time per series, the last tap winning
-	 * (c566; `serial-saves.ts`, doc/SERIES.md, "FAV and the rating"). The local
+	 * (`serial-saves.ts`, doc/SERIES.md, "FAV and the rating"). The local
 	 * value stands while any save of its field is pending or unsaved, so an
 	 * earlier answer's reload, or one from elsewhere, never puts the stored
 	 * value back over a newer tap. The queue is the app's, not this panel's, so
@@ -631,7 +631,7 @@
 			if (!holds(`fav:${id}`)) favNow = null;
 		});
 	});
-	/** The field's local value is still the owner's word, not the stored one. */
+	/** The field's local value is still the user's word, not the stored one. */
 	const holds = (key: string) => turns.pending(key) || saves.unsaved(key);
 	/**
 	 * Save one tap in its turn. A superseded save does nothing more; the newest
@@ -728,14 +728,14 @@
 	const direction = $derived(effectiveDirection(series, series.kindDirection));
 	const tags = $derived(tagGroups(series.tags));
 	/**
-	 * Which series has `+ N MORE` open (c837). The id, not a flag: this component
+	 * Which series has `+ N MORE` open. The id, not a flag: this component
 	 * outlives a move from one series to another, and the next one's tags start
 	 * folded. Both copies of TAGS read it, so a resize across the fold keeps it.
 	 */
 	let tagsOpenOn = $state<number | null>(null);
 	const tagsOpen = $derived(tagsOpenOn === series.id);
 
-	// ---- a tag searched for (c313; doc/SERIES.md, the TAGS row) ------------------------------
+	// ---- a tag searched for (doc/SERIES.md, the TAGS row) ------------------------------
 	// Every value is a link to the library; with a source BROWSE can open, a tap
 	// asks where to look instead (TagSheet), and without script the link stands.
 	// IN <SOURCE> names the tag, not the answer: `tag-search` waits for the
@@ -745,7 +745,7 @@
 	 * Each group's tags as stored, in `tagGroups`' own order: a bare tag is
 	 * grouped under `tag` but has no namespace, so a bare `Mecha` and a
 	 * `tag:Mecha` are two values of one group, and each link is built from its
-	 * own tag, never looked up by value (c451): both used to find the first
+	 * own tag, never looked up by value, which would find the first for both
 	 * and link to `?tag=Mecha`.
 	 */
 	const groupTags = $derived(
@@ -789,9 +789,9 @@
 				? readHref(action.entry.id)
 				: undefined
 	);
-	// The chapter it would open has no file yet (Download States 1e, after adding):
+	// The chapter it would open has no file yet (after adding):
 	// START is dimmed until it has one, as a row with no file doesn't open. An
-	// episode streams, so it plays either way (Anime States, "Two kinds of have").
+	// episode streams, so it plays either way ("Two kinds of have").
 	const noFile = $derived(
 		!anime && !readOnline && !outline && !opening && !!action.entry && !action.entry.available
 	);
@@ -849,7 +849,7 @@
 				{#each series.altTitles as alt (alt)}<div class="alt">{alt}</div>{/each}
 			{/if}
 			{#if film?.film && !outline}
-				<!-- A film's line: TMDB's year and runtime, or the source's words with no link (c992). -->
+				<!-- A film's line: TMDB's year and runtime, or the source's words with no link. -->
 				<div class="count">
 					{filmCountLine({
 						tmdb: film.facts,
@@ -860,7 +860,7 @@
 					})}
 				</div>
 			{:else if anime && !outline}<div class="count">{seriesCountLine(series.entries)}</div>{/if}
-			<!-- The time read, as a fact beside the read progress (c443): the reading
+			<!-- The time read, as a fact beside the read progress: the reading
 			     log's, so it is only what was recorded, and nothing when none was. -->
 			{#if !outline && readMs > 0}
 				<div class="count readtime">{kindUnit(series.kind).done} {readTime(readMs)}</div>
@@ -868,7 +868,7 @@
 		</div>
 	</div>
 
-	<!-- RATING (Ratings out of 10 1a, 1b): the blocky slider, FAV at its end. -->
+	<!-- RATING: the blocky slider, FAV at its end. -->
 	<RatingSlider
 		value={rating}
 		unsaved={ratingUnsaved}
@@ -895,7 +895,7 @@
 				: `▶ ${outline ? 'CONTINUE' : ctaLabel}`}</span
 		>
 		{#if filmed?.progress != null && !quiet}
-			<!-- The film's only progress line (Film-States 1.2): 3px of on-accent at the cell's foot. -->
+			<!-- The film's only progress line: 3px of on-accent at the cell's foot. -->
 			<i
 				class="cta-line"
 				aria-hidden="true"
@@ -948,7 +948,7 @@
 			{/snippet}
 		</Band>
 	{:else if !outline && showView?.band}
-		<!-- SEASON 4 IS OUT (Show-Desk; c990): MIGHT CONTINUE's band, under CONTINUE, on a
+		<!-- SEASON 4 IS OUT: MIGHT CONTINUE's band, under CONTINUE, on a
 		     show's screen only. NOT THIS is kept, and no refresh asks it again. -->
 		{@const offer = `season:${showView.band.season}`}
 		<Band title={showView.band.title} detail={showView.band.meta}>
@@ -990,7 +990,7 @@
 			{/snippet}
 		</Band>
 	{:else if !outline && hideFacts}
-		<!-- TAKE OUT's words say what happened (c469): a part that was hidden
+		<!-- TAKE OUT's words say what happened: a part that was hidden
 		     already is only taken out, and its UNDO only puts it back. -->
 		<Band
 			title={hiddenBand?.title ??
@@ -1074,12 +1074,12 @@
 		{/if}
 	{/if}
 
-	<!-- DETAILS (c425, c556; doc/SERIES.md, "DETAILS"; doc/handoffs/series-phone/):
+	<!-- DETAILS (doc/SERIES.md, "DETAILS"):
 	     on a phone and a TV the rows a visit rarely touches fold behind one line.
 	     The screen's order is the markup's where nothing folds, and the fold's
 	     where it applies, so Tab and a screen reader read what is drawn. The four
-	     groups the two orders place differently (the bands, SHELVES, ABOUT and,
-	     since c837, TAGS) are drawn twice, one copy for each order
+	     groups the two orders place differently (the bands, SHELVES, ABOUT and
+	     TAGS) are drawn twice, one copy for each order
 	     (`fold-only`, `screen-only`), and CSS shows one: no script, so the
 	     first paint is right, and `display: none` takes the other out of Tab, the
 	     focus layer and the screen reader. Neither copy holds an id, a `bind:this`
@@ -1092,7 +1092,7 @@
 			<div class="o o6 fold-only">{@render aboutGroup()}</div>
 		{/if}
 		{#if highlights}
-			<!-- HIGHLIGHTS on the phone and the TV (Series S1): after ABOUT, above the
+			<!-- HIGHLIGHTS on the phone and the TV: after ABOUT, above the
 			     DETAILS fold. The tablet's and the desktop's is after LISTS (below). -->
 			{@render highlightsRow('hl-fold')}
 		{/if}
@@ -1102,7 +1102,7 @@
 	<div class="details" class:open={detailsShown} id="series-details" data-details>
 		<div class="o o1">
 			{#if !outline && dlRow}
-				<!-- DOWNLOAD (Index Series Download): under CONTINUE, as LINK's shape. NEXT never asks; ALL opens its confirmation by URL. -->
+				<!-- DOWNLOAD: under CONTINUE, as LINK's shape. NEXT never asks; ALL opens its confirmation by URL. -->
 				{#snippet dlCells()}
 					{#each dlRow?.cells ?? [] as c (c.which)}
 						{#if c.dim}
@@ -1113,14 +1113,14 @@
 								<button type="submit" class="lc" class:acc={c.acc}>{c.label}</button>
 							</form>
 						{:else if c.which === 'refresh'}
-							<!-- REFRESH asks the source once and downloads nothing (c220): the band says what arrived. -->
+							<!-- REFRESH asks the source once and downloads nothing: the band says what arrived. -->
 							<form method="POST" action="?/refresh" use:enhance={refreshAfter} class="lc-form">
 								<button type="submit" class="lc" class:acc={c.acc} disabled={c.dim}
 									>{c.label}</button
 								>
 							</form>
 						{:else if c.which === 'cancel' || c.which === 'retry'}
-							<!-- A film's one file (c992): out of the queue, or tried again. -->
+							<!-- A film's one file: out of the queue, or tried again. -->
 							<form
 								method="POST"
 								action={c.which === 'cancel' ? '?/cancelDownload' : '?/retryDownload'}
@@ -1166,7 +1166,7 @@
 			{/if}
 		</div>
 		{#if !outline}
-			<!-- ABOUT and TAGS under REFRESH and FOLLOW where nothing folds (c837). -->
+			<!-- ABOUT and TAGS under REFRESH and FOLLOW where nothing folds. -->
 			{#if series.description}
 				<div class="o o6 screen-only">{@render aboutGroup()}</div>
 			{/if}
@@ -1175,7 +1175,7 @@
 		<div class="o o2 screen-only">{@render bandsGroup()}</div>
 		<div class="o o3">
 			{#if !outline && editions && opening}
-				<!-- LANGUAGE (Editions 1b): which edition it opens in. The default language clears the book's own choice. -->
+				<!-- LANGUAGE: which edition it opens in. The default language clears the book's own choice. -->
 				<form method="POST" action="?/language" use:enhance class="row">
 					<div class="label">LANGUAGE</div>
 					<div class="seg">
@@ -1203,8 +1203,8 @@
 				{/if}
 			{/if}
 
-			<!-- KIND (c992; Film-Desk, Kind): in DIRECTION's slot, which a video has no use for.
-			     CHANGE opens the switch's sheet, which moves the file (c991). -->
+			<!-- KIND: in DIRECTION's slot, which a video has no use for.
+			     CHANGE opens the switch's sheet, which moves the file. -->
 			{#if !outline && kindLine && onkind}
 				<div class="row link-row kind-row">
 					<div class="label">KIND</div>
@@ -1218,7 +1218,7 @@
 					>
 				</div>
 			{/if}
-			<!-- A video has no reading direction: an anime series has no such row (Index Anime Series). -->
+			<!-- A video has no reading direction: an anime series has no such row. -->
 			{#if !outline && !anime}
 				<form method="POST" action="?/direction" use:enhance class="row">
 					<div class="label">{directionRowLabel(series.kind)}</div>
@@ -1300,7 +1300,7 @@
 		{#if !outline}
 			<div class="o o4 screen-only">{@render shelvesGroup()}</div>
 			<div class="o o5">
-				<!-- LISTS (c424; doc/SERIES.md): LINK and TRACKING as one row, a line per
+				<!-- LISTS (doc/SERIES.md): LINK and TRACKING as one row, a line per
 			     list, each with its entry, its list's word and its cells. EDIT opens the
 			     sheet on that line's entry and season. COVER stays its own row. -->
 				{#if lists}
@@ -1327,7 +1327,7 @@
 					/>
 				{/if}
 				{#if showView}
-					<!-- SEASONS (Show-Desk; c990): under LISTS on a show TMDB knows. No key, no row. -->
+					<!-- SEASONS: under LISTS on a show TMDB knows. No key, no row. -->
 					<div class="row link-row seasons-row">
 						<div class="label">SEASONS</div>
 						<div class="lk">
@@ -1382,11 +1382,11 @@
 					<div class="lcs stack">{@render sourceCells()}</div>
 				{/if}
 			</div>
-			<!-- TAGS inside DETAILS, where 1A/1C keep it on a phone and a TV (c837). -->
+			<!-- TAGS inside DETAILS, where it stays on a phone and a TV. -->
 			<div class="o o8 fold-only">{@render tagsGroup()}</div>
 			<div class="o o7">
 				{#if editions && opening}
-					<!-- EDITIONS (Editions 1b): each language's copy, what only it has, and where it is. -->
+					<!-- EDITIONS: each language's copy, what only it has, and where it is. -->
 					<div class="row top">
 						<div class="label">EDITIONS</div>
 						<div class="eds">
@@ -1413,7 +1413,7 @@
 								</div>{/if}
 						</div>
 					</div>
-					<!-- Its cells follow LISTS' rule (c526): two or more drop under the line in
+					<!-- Its cells follow LISTS' rule: two or more drop under the line in
 				     equal columns where the panel is narrow, so the text keeps its width. -->
 					<div class="row file-row many">
 						<div class="label">FOLDED</div>
@@ -1427,7 +1427,7 @@
 							>
 							<button type="button" class="edit" onclick={() => (unfolding = true)}>UNFOLD</button>
 							{#if work && !series.hidden}
-								<!-- A Work is hidden or shown whole (W4; Work-States 4): on a part, HIDE asks. -->
+								<!-- A Work is hidden or shown whole (W4): on a part, HIDE asks. -->
 								<button type="button" class="edit" onclick={() => (hiding = true)}>HIDE</button>
 							{:else if work && series.hidden}
 								<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
@@ -1450,7 +1450,7 @@
 					</div>
 					{#if renaming}{@render renameField()}{/if}
 				{:else}
-					<!-- FILE (c526): the text keeps the row's width; its cells drop under it in
+					<!-- FILE: the text keeps the row's width; its cells drop under it in
 				     equal columns where the panel is narrow (LISTS' rule, doc/SERIES.md). -->
 					<div class="row file-row many">
 						<div class="label">FILE</div>
@@ -1472,13 +1472,13 @@
 							>
 							{#if merged || isBookSeries(series) || isVolumeSeries(series)}
 								<!-- Every book (or volume) back out on its own; the series goes.
-								     A merged show's seasons go back under their own ids (c283). -->
+								     A merged show's seasons go back under their own ids. -->
 								<form method="POST" action="?/ungroup" use:enhance={replacing} class="hide-form">
 									<button type="submit" class="edit">UNGROUP</button>
 								</form>
 							{/if}
 							{#if work && !series.hidden}
-								<!-- A Work is hidden or shown whole (W4; Work-States 4): on a part, HIDE asks. -->
+								<!-- A Work is hidden or shown whole (W4): on a part, HIDE asks. -->
 								<button type="button" class="edit" onclick={() => (hiding = true)}>HIDE</button>
 							{:else if work && series.hidden}
 								<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
@@ -1534,7 +1534,7 @@
 			</div>
 		{/each}
 	{:else if suggestion}
-		<!-- Index Books, state 7: under CONTINUE, on this book's screen only. -->
+		<!-- MIGHT BE ONE SERIES: under CONTINUE, on this book's screen only. -->
 		<section class="sugg" aria-label="Might be one series">
 			<div class="sugg-head">
 				<span>{m.offer_might_be_one_series()}</span>
@@ -1581,7 +1581,7 @@
 	{/if}
 
 	{#if !outline && workOffer}
-		<!-- Work-States 1 (W7; Works Calls, question 6): under CONTINUE, on the
+		<!-- MIGHT CONTINUE (W7): under CONTINUE, on the
 		     newcomer's own screen only. It offers; nothing joins without
 		     REVIEW's sheet and its tap, and NOT THIS never asks again. -->
 		<section class="sugg offer" aria-label="Might continue {workOffer.name}">
@@ -1614,7 +1614,7 @@
 	{/if}
 
 	{#if !outline && keptBothNote}
-		<!-- c671: this KEEP BOTH is recorded; an earlier decision it carried out
+		<!-- This KEEP BOTH is recorded; an earlier decision it carried out
 		     first was not. Refused ones are back at the review, undecided;
 		     failed ones (a bug or the disk) still wait. -->
 		<div class="kept-both">
@@ -1666,8 +1666,8 @@
 				<div class="tag-line">
 					<span class="ns">{g.namespace}</span>
 					<span class="vals">
-						<!-- Every value opens the library's person or tag page (Index Books), or,
-						     with a source, asks where to look (c313). -->
+						<!-- Every value opens the library's person or tag page, or,
+						     with a source, asks where to look. -->
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- tagHref() resolves -->
 						{#each g.tags as t, i (i)}<span class="val"
 								><a
@@ -1729,7 +1729,7 @@
 {/snippet}
 
 {#snippet detailsLineCell()}
-	<!-- The folded line (1C): DETAILS | what needs the owner, or the quiet state,
+	<!-- The folded line: DETAILS | what needs the user, or the quiet state,
 	     over the names inside | SHOW ↓. A mark is told, never acted on: it does
 	     not open the fold. Its name says DETAILS and the state, never SHOW or
 	     HIDE, so no other control's locator finds it. While FIRST READ points at
@@ -1777,7 +1777,7 @@
 </svelte:head>
 
 {#snippet renameField()}
-	<!-- The name in place (c526): DONE writes it, CANCEL leaves it. -->
+	<!-- The name in place: DONE writes it, CANCEL leaves it. -->
 	<form method="POST" action="?/rename" use:enhance={renamed} class="rename" data-row="rename">
 		<input
 			type="text"
@@ -1847,7 +1847,7 @@
 			<div class="lk">
 				<div class="lk-a">Earlier or later in the run</div>
 			</div>
-			<!-- The Work this sheet was drawn on, not whatever holds its id now (c640). -->
+			<!-- The Work this sheet was drawn on, not whatever holds its id now. -->
 			<input type="hidden" name="made" value={work.createdAt} />
 			<button type="submit" name="dir" value="up" class="lc" disabled={!work.prev}>↑</button>
 			<button type="submit" name="dir" value="down" class="lc" disabled={!work.next}>↓</button>
@@ -1876,8 +1876,8 @@
 		actionAll="?/hideWork"
 		actionPart="?/hidePart"
 		ondone={async () => {
-			// The sheet's `update` no longer re-reads on success (c660): the
-			// screen still must, since HIDE ALL n changes the Work it draws.
+			// The sheet's `update` does not re-read on success: the
+			// screen must, since HIDE ALL n changes the Work it draws.
 			hiding = false;
 			await invalidateAll();
 		}}
@@ -1890,7 +1890,7 @@
 {/if}
 
 <style>
-	/* Waiting: what isn't known yet, as flat grey bars (Loading States 1g). */
+	/* Waiting: what isn't known yet, as flat grey bars. */
 	.out-lines {
 		display: flex;
 		flex-direction: column;
@@ -2006,7 +2006,7 @@
 	.names .alt + .alt {
 		margin-top: -6px;
 	}
-	/* "24 EPISODES · 2 SEASONS · 18 WATCHED" (Index Anime Series). */
+	/* "24 EPISODES · 2 SEASONS · 18 WATCHED". */
 	.count {
 		font: 400 13px var(--font-mono);
 		color: var(--text-2);
@@ -2016,7 +2016,7 @@
 		display: flex;
 		align-items: center;
 		width: var(--label-w);
-		/* Never narrower than its word (c591): at a larger text size (130% on
+		/* Never narrower than its word: at a larger text size (130% on
 		   the phone app) SHELVES ran past the rule into its chips. A one-word
 		   label cannot wrap, so the column widens on that row instead. */
 		min-width: min-content;
@@ -2410,7 +2410,7 @@
 	.ns {
 		flex-shrink: 0;
 		/* A namespace can be any length (parseTag), so a long one wraps rather than
-		   painting over its values (c837). The box borrows 8px of the 12px gutter and
+		   painting over its values. The box borrows 8px of the 12px gutter and
 		   gives them back in the margin, so `.vals` stays where `.tags-more` aligns to
 		   it: inside the phone's bare 56px, `language`, one the design draws, broke. */
 		width: calc(var(--ns-w) + 8px);
@@ -2424,7 +2424,7 @@
 		flex: 1;
 		min-width: 0;
 		font: 400 15px/1.35 var(--font-sans);
-		/* Every value is read whole (c837): lines wrap, and one longer than the
+		/* Every value is read whole: lines wrap, and one longer than the
 		   row breaks inside itself rather than pushing the row wider. */
 		overflow-wrap: anywhere;
 	}
@@ -2506,7 +2506,7 @@
 	.dim {
 		color: var(--text-2);
 	}
-	/* The offer's head stacks its reason under the line (Work-States 1). */
+	/* The offer's head stacks its reason under the line. */
 	.offer-head {
 		flex-direction: column;
 		justify-content: flex-start;
@@ -2576,7 +2576,7 @@
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}
-	/* FILE and FOLDED (c526): the label, the text, then the cells. The line
+	/* FILE and FOLDED: the label, the text, then the cells. The line
 	   wraps, so where the cells drop (below) they take a line of their own. */
 	.file-row {
 		min-height: 64px;
@@ -2589,7 +2589,7 @@
 		display: flex;
 	}
 	/* Narrow (the phone, the 440px landscape panel and the TV's 352px column),
-	   as LISTS' rule has it (doc/handoffs/series-lists/): two or more cells drop
+	   as LISTS' rule has it: two or more cells drop
 	   under the line in equal columns, so `13 EPUB · 6.8 MB` keeps the row's
 	   width instead of a word a line. One cell stays at the line's end. The
 	   tablet in portrait has the width, and keeps them inline. */
@@ -2634,7 +2634,7 @@
 		background: var(--accent);
 		color: var(--on-accent);
 	}
-	/* SOURCE and DOWNLOAD keep LINK's old row shape (Series Link): the mock's literals. */
+	/* SOURCE and DOWNLOAD keep LINK's old row shape: the design's literals. */
 	.link-row {
 		min-height: 68px;
 	}
@@ -2695,9 +2695,9 @@
 		cursor: default;
 	}
 	/* Narrow (the phone, the 440px landscape panel and the TV's 352px column):
-	   the cells drop below, in equal columns (1t). The TV is 960 wide, so it met
+	   the cells drop below, in equal columns. The TV is 960 wide, so it met
 	   neither width, and its column got the tablet's full-width inline row:
-	   cells past the edge and over ▶ CONTINUE (2026-11-02, the first real TV). */
+	   cells past the edge and over ▶ CONTINUE on a real TV. */
 	@media (max-width: 599px), (min-width: 1024px), (pointer: none) and (min-width: 900px) {
 		.link-row {
 			border-bottom: 0;
@@ -2838,7 +2838,7 @@
 	.ring {
 		box-shadow: inset 0 0 0 2px var(--accent);
 	}
-	/* ---- HIGHLIGHTS (c701; doc/handoffs/highlights/Series.dc.html) --------
+	/* ---- HIGHLIGHTS --------
 	   One row, the series screen's label-then-value form, and a → cell. It is
 	   in the markup twice: after ABOUT for the phone and the TV (S1, above the
 	   DETAILS fold) and after LISTS where nothing folds (S2); each media query
@@ -2875,11 +2875,11 @@
 			display: none;
 		}
 	}
-	/* ---- DETAILS (c425, c556; doc/handoffs/series-phone/) -------------------
+	/* ---- DETAILS -------------------
 	   Where nothing folds the wrappers are no boxes, and the screen's order is
 	   the markup's: DOWNLOAD, ABOUT, TAGS, the bands, LANGUAGE to SCANLATOR,
 	   SHELVES, LISTS to SOURCE, EDITIONS and FILE. Folded, the bands, SHELVES and
-	   ABOUT stand above the line and TAGS stays inside it, after SOURCE (c837).
+	   ABOUT stand above the line and TAGS stays inside it, after SOURCE.
 	   Those four are drawn once in each order, and each copy is hidden by the
 	   other's query. */
 	.o,
@@ -2901,7 +2901,7 @@
 			display: none;
 		}
 	}
-	/* The phone and the TV (1A, 1D): SHELVES, ABOUT, then one 64px line. */
+	/* The phone and the TV: SHELVES, ABOUT, then one 64px line. */
 	@media (max-width: 599px), (pointer: none) and (min-width: 900px) {
 		.details {
 			display: none;
@@ -2944,7 +2944,7 @@
 			letter-spacing: 0.02em;
 			color: var(--text-2);
 		}
-		/* Something needs the owner: SOURCE's idiom for trouble, ink and 500. */
+		/* Something needs the user: SOURCE's idiom for trouble, ink and 500. */
 		.details-line.ink .dt-state {
 			font-weight: 500;
 			color: var(--text-1);
@@ -2986,7 +2986,7 @@
 			height: 3px;
 			background: var(--accent);
 		}
-		/* ABOUT clamps to three lines where it sits above the fold (1A), and
+		/* ABOUT clamps to three lines where it sits above the fold, and
 		   MORE ↓ is as wide as its word. */
 		.about {
 			align-items: flex-start;
@@ -2996,7 +2996,7 @@
 			line-clamp: 3;
 		}
 	}
-	/* ---- the TV (c238; TV-Series) ----------------------------------------- */
+	/* ---- the TV ----------------------------------------- */
 	@media (pointer: none) and (min-width: 900px) {
 		.panel {
 			/* The column already sits inside the 48px safe margin: its rows pad
@@ -3010,7 +3010,7 @@
 			--ns-w: 72px;
 		}
 		/* Identity at the top of the 352px column: a 96px cover, the title,
-		   the meta and the rating (TV-Series, 100..258). */
+		   the meta and the rating (100..258). */
 		.identity {
 			gap: 16px;
 			padding: 16px 0;
@@ -3045,9 +3045,9 @@
 		.picks button {
 			font-size: 15px;
 		}
-		/* DETAILS on the TV (1D, B and C): one stop, its text a size up, the
+		/* DETAILS on the TV: one stop, its text a size up, the
 		   names cut to four and a count, and OK named on the cell. ABOUT is
-		   the board's two lines. */
+		   the design's two lines. */
 		.dt {
 			gap: 4px;
 			padding: 10px 14px;

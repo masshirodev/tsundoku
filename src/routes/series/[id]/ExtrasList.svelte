@@ -4,7 +4,7 @@
 	import { formatNumber, type SeriesEntry } from '$lib/library/series';
 
 	/**
-	 * A doujin's hand-made extras, listed apart from its books (c650). An entry
+	 * A doujin's hand-made extras, listed apart from its books. An entry
 	 * carrying front or back matter is not a book: no importer writes `matter`
 	 * on a doujin (only the EPUB plans set it, for novels), so one comes from a
 	 * hand-made row or the duplicates review. It is drawn here, under the books

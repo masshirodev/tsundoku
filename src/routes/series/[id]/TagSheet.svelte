@@ -2,13 +2,12 @@
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 
 	/**
-	 * A tag tapped on the series screen (card c313; doc/SERIES.md, the TAGS
-	 * row): where to look for it. Two rows, the owner's choice (2026-11-02):
-	 * the library's person or tag page, and the series' own source finding it
-	 * (its genre's filter included, or a search for the value, decided by the
-	 * server once the source's filters have answered). Built on the
-	 * shared Sheet, with UnfoldSheet's head and its rows' cells, so it is a
-	 * scope on a TV: the first row takes focus, and BACK closes it.
+	 * A tag tapped on the series screen (doc/SERIES.md, the TAGS row): where to
+	 * look for it. Two rows: the library's person or tag page, and the series'
+	 * own source finding it (its genre's filter included, or a search for the
+	 * value, decided by the server once the source's filters have answered).
+	 * Built on the shared Sheet, with UnfoldSheet's head and its rows' cells,
+	 * so it is a scope on a TV: the first row takes focus, and BACK closes it.
 	 */
 	let {
 		open,
@@ -29,7 +28,7 @@
 	} = $props();
 
 	/**
-	 * IN <SOURCE> chosen, while the browser waits on `tag-search` (c452): up to
+	 * IN <SOURCE> chosen, while the browser waits on `tag-search`: up to
 	 * TAG_SCHEMA_WAIT_MS on a cold source, with nothing else on screen saying
 	 * so (a TV's WebView has no loading bar). The row says it is busy until the
 	 * page goes; BACK restores this page from the bfcache, where nothing else
@@ -145,7 +144,7 @@
 		border-left: var(--hairline);
 		font: 500 16px var(--font-mono);
 	}
-	/* The row chosen, while its source's filters are asked (c452). */
+	/* The row chosen, while its source's filters are asked. */
 	.row.finding .t {
 		display: flex;
 		flex-direction: column;

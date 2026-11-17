@@ -22,7 +22,7 @@
 	 * candidate swaps the candidates for the comparison (CSS decides, not
 	 * script). Nothing changes until MOVE, and MOVE downloads nothing.
 	 *
-	 * The list and the comparison are apart (cards c490, c491): the sources
+	 * The list and the comparison are apart: the sources
 	 * answer into the list (matches first, the empty and the failed folded at
 	 * the end), and picking a candidate asks `./compare` for that one alone,
 	 * since the load reads `to` untracked and never runs again for a pick.
@@ -58,7 +58,7 @@
 	 * the order the matches are drawn in, so a late answer joins below.
 	 */
 	const answers = new SvelteMap<string, Settled<SearchHit[]>>();
-	// Without script the answers arrive as values (c146): set at once, on the server too.
+	// Without script the answers arrive as values: set at once, on the server too.
 	for (const g of untrack(() => data.groups)) if (isSettled(g.hits)) answers.set(g.id, g.hits);
 	/** Bumped by every fresh load, so an answer for an earlier search is dropped. */
 	let generation = 0;
@@ -115,7 +115,7 @@
 	const counts = $derived(answerCounts(answers));
 	/**
 	 * Whether each fold is open, kept here: a fold whose sources are all being
-	 * asked again leaves the list, and comes back as the owner left it.
+	 * asked again leaves the list, and comes back as the user left it.
 	 */
 	const foldOpen = $state({ nothing: false, failed: false });
 	/** The sources this search asked, as the list names them. */
@@ -129,12 +129,12 @@
 	const urlTo = $derived(
 		page.url.searchParams.get('to') ?? (page.url.searchParams.has('paste') ? data.to : null)
 	);
-	// The tap is kept with the offset it will land with (c539): a candidate's
+	// The tap is kept with the offset it will land with: a candidate's
 	// href carries none, so a tap made while the URL had one asked twice, with
 	// the old offset and then with none once the navigation landed.
 	let tapped = $state<{ to: string; offset: number | null } | null>(null);
 	const urlOffset = $derived(offsetOf(page.url.searchParams.get('offset')));
-	// Cleared when either half of the URL's pick moves (c539, round 2): a tap
+	// Cleared when either half of the URL's pick moves: a tap
 	// on the candidate already picked lands on the same `to`, so a tap cleared
 	// on `to` alone stayed, and pinned the offset SET then changed in the URL.
 	$effect(() => {
@@ -203,7 +203,7 @@
 			return;
 		}
 		const mine = ++compareSeq;
-		// A later pick aborts this ask (c539): the page stops waiting on it, and
+		// A later pick aborts this ask: the page stops waiting on it, and
 		// the endpoint never asks the engine for it if it was still waiting.
 		const asking = new AbortController();
 		// The load's streamed comparison can reject (an unexpected throw in
@@ -244,7 +244,7 @@
 	const pickedSource = $derived(
 		selected ? (data.all.find((s) => s.id === sourceOf(selected)) ?? null) : null
 	);
-	// The wait, in the player's words: asking, or the site's check (OnlineWait).
+	// The wait, in the player's words: asking, or the site's check.
 	const wait = new SiteCheck();
 	$effect(() => {
 		const pending = view?.state === 'pending' ? view.to : null;
@@ -372,7 +372,7 @@
 					>
 					<span>{counts.found} FOUND</span>
 				</div>
-				<!-- The order is the list's own (card c490; doc/MOVE.md, "The candidates"):
+				<!-- The order is the list's own (doc/MOVE.md, "The candidates"):
 			     the sources with matches first, in the order they answered, so a late
 			     one joins below and never moves the row under the pointer; then the
 			     ones still asking, as one line; then, folded at the end, the ones that
@@ -612,7 +612,7 @@
 							</div>
 						{/each}
 						{#if c.highlights && c.highlights.follow + c.highlights.lose > 0}
-							<!-- HIGHLIGHTS (c701; Out X5): from the same map the move applies.
+							<!-- HIGHLIGHTS: from the same map the move applies.
 							     Those that don't simply follow are named under the line. -->
 							<div class="what" data-move-highlights>
 								<div class="lb">HIGHLIGHTS</div>
@@ -739,7 +739,7 @@
 					</form>
 				{/if}
 			{:else if view}
-				<!-- The pick's own wait, or its failure; MOVE is off for both (card c491). -->
+				<!-- The pick's own wait, or its failure; MOVE is off for both. -->
 				{#if view.state === 'pending'}
 					<div class="empty wait" role="status" aria-busy="true">
 						<div class="k">
@@ -792,7 +792,7 @@
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
 
 <style>
-	/* The frame is the handoff's (mv.css): a 440px candidates column beside the
+	/* The frame is the design's: a 440px candidates column beside the
 	   comparison, and one pane below 1024px, where the comparison is its own
 	   screen. Colours are tokens; the literals are the design's. */
 	.bar-title {
@@ -838,7 +838,7 @@
 	}
 	/* The page under the top bar. Beside the comparison (1024px and up) it is
 	   exactly the viewport's height, so the candidates' list and the
-	   comparison scroll on their own and the page never does (card c490): the
+	   comparison scroll on their own and the page never does: the
 	   app's frame is only min-height 100dvh, which let .mv grow with the list
 	   and the whole page scroll the comparison away. One pane keeps the
 	   page's own scroll and its pinned MOVE bar. */

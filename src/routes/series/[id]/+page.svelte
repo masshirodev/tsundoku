@@ -85,9 +85,9 @@
 	);
 	const ring = $derived(trail.ring(data.start, page.url.pathname));
 	// A refusal from MIGHT CONTINUE's sheet (`workMessage`) lands here only when
-	// the sheet closed on it: the offer it was drawn with has gone (c584).
+	// the sheet closed on it: the offer it was drawn with has gone.
 	/**
-	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * The answer the band's ✕ cleared: only that answer, so the next
 	 * action's new `form` draws its own band.
 	 */
 	let droppedAnswer = $state.raw<typeof form>(null);
@@ -123,7 +123,7 @@
 	let reviewing = $state(false);
 
 	function startOrder() {
-		// The books alone (c650): reorderBooks appends an entry it was not given,
+		// The books alone: reorderBooks appends an entry it was not given,
 		// so an extra keeps its place behind the ordered books.
 		order = booksOf(series.entries).map((e) => e.id);
 		reordering = true;
@@ -149,10 +149,10 @@
 	/** "SERIES CREATED · 6 BOOKS", from the grouping sheet's redirect. */
 	const created = $derived(Number(page.url.searchParams.get('created')) || 0);
 	/**
-	 * A merged show's band (c283): the redirect's own flag, whose UNDO is
+	 * A merged show's band: the redirect's own flag, whose UNDO is
 	 * UNGROUP. Only while the journal is there: after an undo the band's URL
 	 * can be stale, and a stale band must not offer a press that could reach
-	 * the books' take-out (round 2).
+	 * the books' take-out.
 	 */
 	const mergedShow = $derived(
 		!!data.merged && page.url.searchParams.get('merge') === '1' && created > 0
@@ -184,11 +184,11 @@
 	);
 	/** REVIEW → on MIGHT CONTINUE <WORK>: the sheet, in ADD TO A WORK. */
 	let reviewingWork = $state(false);
-	/** GROUP AS A WORK on an IN LIBRARY row (c700): the other series, while its sheet is open. */
+	/** GROUP AS A WORK on an IN LIBRARY row: the other series, while its sheet is open. */
 	let groupingForm = $state<GroupBook | null>(null);
-	/** A film collection's GROUP → (c992): the GROUP sheet with the parts in the library. */
+	/** A film collection's GROUP →: the GROUP sheet with the parts in the library. */
 	let groupingParts = $state(false);
-	/** KIND's CHANGE (c992): the switch's sheet, and the band its move answers with. */
+	/** KIND's CHANGE: the switch's sheet, and the band its move answers with. */
 	let kindOpen = $state(false);
 	let kindSwitched = $state<{ done: string; where: string } | null>(null);
 	type MadeWork = { work: { name: string }; members: unknown[] };
@@ -225,16 +225,16 @@
 	const markedThrough = $derived(latest && 'markedThrough' in latest ? latest.markedThrough : null);
 	/** UNDO's answer: what it put back, and what had moved on since the press and was left. */
 	const undoneThrough = $derived(latest && 'undoneThrough' in latest ? latest.undoneThrough : null);
-	// UNLINK's band (c520): what went, every column of it, so UNDO puts it back.
+	// UNLINK's band: what went, every column of it, so UNDO puts it back.
 	const unlinked = $derived(
 		latest && 'unlinked' in latest ? (latest.unlinked as UnlinkFacts) : null
 	);
-	// RENAME's band (c526): the facts the action returned, so UNDO puts back exactly them.
+	// RENAME's band: the facts the action returned, so UNDO puts back exactly them.
 	const renamed = $derived(
 		latest && 'renamed' in latest ? (latest.renamed as SeriesRenameFacts) : null
 	);
 	/**
-	 * REFRESH's answer (card c220): what the source lists that no entry was.
+	 * REFRESH's answer: what the source lists that no entry was.
 	 * REFRESH never downloads, so the band says so and leaves NEXT or ALL to
 	 * keep them — FOLLOW's own turn won't pick them up either, since they are
 	 * no longer new to the source.
@@ -257,7 +257,7 @@
 					data.moved.kept
 						? `${data.moved.kept} KEPT FROM ${(data.move.former?.name ?? 'THE OLD SOURCE').toUpperCase()}`
 						: '',
-					// MOVE BACK took chapters away (c701): their highlights keep their copies.
+					// MOVE BACK took chapters away: their highlights keep their copies.
 					data.moved.lost ? lostLine(data.moved.lost) : ''
 				]
 					.filter(Boolean)
@@ -393,7 +393,7 @@
 	const toDrop = $derived([...selected].filter((id) => cachedEntries.has(id)));
 	let caching = $state(false);
 	/**
-	 * A phone over Wi-Fi (doc/WIFI.md, 3D): plain http on a home address, where
+	 * A phone over Wi-Fi (doc/WIFI.md): plain http on a home address, where
 	 * the browser keeps no offline storage, so ↓ CACHE can't work. Dimmed, with
 	 * the one line after sign-in that says why. Known after hydration only.
 	 */
@@ -421,7 +421,7 @@
 		canDownload ? [...selected].filter((id) => rowAction(dlStates!.get(id)) !== null) : []
 	);
 	const allIds = $derived(dlStates ? allToDownload(series.entries, dlStates) : []);
-	// An anime's ALL chooses its QUALITY, with each height's ABOUT size (Index Anime Series, confirm).
+	// An anime's ALL chooses its QUALITY, with each height's ABOUT size.
 	let allQuality = $state(0);
 	let sizes = $state<{
 		sizes: { height: number; bytes: number | null }[];
@@ -475,8 +475,8 @@
 	let editing = $state(data.editing);
 
 	/**
-	 * PUT ON A SHELF under ADDED TO THE LIBRARY (card c724; doc/SERIES.md,
-	 * "Shelves in the ADDED band"): the owner's shelves as chips, one tap each,
+	 * PUT ON A SHELF under ADDED TO THE LIBRARY (doc/SERIES.md,
+	 * "Shelves in the ADDED band"): the user's shelves as chips, one tap each,
 	 * several allowed, a second tap takes it off; the last one chosen on this
 	 * device first (`SHELF_KEY`, read once, so the chips keep their places
 	 * while the band is up). The rules are `add-shelf.ts`', the band /browse
@@ -676,8 +676,8 @@
 
 	<!-- An action refused (a move, a take-out, a delete): it says why, never silently. -->
 	{#if data.addedFrom && !refusal && !readBand}
-		<!-- After adding (Download States 1e): every chapter NOT DOWNLOADED, FIRST 10 offered below. -->
-		<!-- ADD AND DOWNLOAD on the preview (card c205): what it queued, or that the queue didn't answer. -->
+		<!-- After adding: every chapter NOT DOWNLOADED, FIRST 10 offered below. -->
+		<!-- ADD AND DOWNLOAD on the preview: what it queued, or that the queue didn't answer. -->
 		<Band
 			title="ADDED TO THE LIBRARY"
 			detail={addedDetail(series.entries.length, data.addedQueued, !!data.anime)}
@@ -691,7 +691,7 @@
 				</form>
 			{/snippet}
 		</Band>
-		<!-- PUT ON A SHELF (card c724): the band's second line, chips one tap each.
+		<!-- PUT ON A SHELF: the band's second line, chips one tap each.
 		     Its names are the shelves' own, N OTHER SHELVES and + NEW SHELF; nothing
 		     here is named UNDO, HIDE, SHOW, MORE or ALL. -->
 		<div class="added-shelves" role="group" aria-label="Put on a shelf">
@@ -726,7 +726,7 @@
 		</div>
 	{/if}
 	{#if kindSwitched}
-		<!-- The kind switch, done (Kind 4.5): what moved and where, and UNDO, which moves it back. -->
+		<!-- The kind switch, done: what moved and where, and UNDO, which moves it back. -->
 		<Band
 			title={kindSwitched.done}
 			detail={kindSwitched.where}
@@ -772,7 +772,7 @@
 	{/if}
 
 	{#if refreshed}
-		<!-- REFRESH's answer (c220): it downloads nothing, so the band names the way to keep them. -->
+		<!-- REFRESH's answer: it downloads nothing, so the band names the way to keep them. -->
 		<Band
 			title={refreshed.added === 0
 				? m.series_refresh_none()
@@ -794,7 +794,7 @@
 		>
 			{#snippet action()}
 				{#if markedThrough.ids.length > 0}
-					<!-- Its own door: ?/mark read=0 is MARK UNREAD, which clears the place (c666). -->
+					<!-- Its own action: ?/mark read=0 is MARK UNREAD, which clears the place. -->
 					<form method="POST" action="?/undoMarkThrough" use:enhance>
 						<input type="hidden" name="facts" value={JSON.stringify(markedThrough.facts)} />
 						<button type="submit">UNDO</button>
@@ -803,7 +803,7 @@
 			{/snippet}
 		</Band>
 	{:else if undoneThrough && undoneThrough.kept > 0}
-		<!-- A chapter read or marked since the press stays as it is (c666). -->
+		<!-- A chapter read or marked since the press stays as it is. -->
 		<Band
 			title="PUT BACK {undoneThrough.undone} CHAPTER{undoneThrough.undone === 1 ? '' : 'S'}"
 			detail="{undoneThrough.kept} READ OR MARKED SINCE · LEFT AS {undoneThrough.kept === 1
@@ -812,7 +812,7 @@
 			ondismiss={dropAnswer}
 		/>
 	{:else if madeWork}
-		<!-- OTHER FORMS' GROUP AS A WORK (c700): the library's own band and UNDO. -->
+		<!-- OTHER FORMS' GROUP AS A WORK: the library's own band and UNDO. -->
 		<Band
 			title={m.offer_work_made({ name: madeWork.facts.work.name.toUpperCase() })}
 			detail={madeWork.refused || `${madeWork.facts.members.length} SERIES · EACH KEEPS ITS OWN`}
@@ -842,7 +842,7 @@
 			{/snippet}
 		</Band>
 	{:else if unlinked}
-		<!-- UNLINK in EDIT's ENTRY (c520; the handoff's 1E: "the band with UNDO"). -->
+		<!-- UNLINK in EDIT's ENTRY: the band with UNDO. -->
 		<Band
 			title="UNLINKED · {(unlinked.title || 'THE ENTRY').toUpperCase()}"
 			detail="{unlinked.season !== null ? `S${unlinked.season} · ` : ''}NO PASS LINKS IT AGAIN"
@@ -856,7 +856,7 @@
 			{/snippet}
 		</Band>
 	{:else if renamed}
-		<!-- RENAME (c526): the Work screen's idiom, the new name and the old, with UNDO. -->
+		<!-- RENAME: the Work screen's idiom, the new name and the old, with UNDO. -->
 		<Band
 			title="RENAMED · {renamed.name.toUpperCase()}"
 			detail={renamed.name === renamed.title
@@ -888,7 +888,7 @@
 			{/snippet}
 		</Band>
 	{:else if mergedShow}
-		<!-- GROUP AS ONE SHOW (c283): one tile, one CONTINUE, and UNDO is UNGROUP. -->
+		<!-- GROUP AS ONE SHOW: one tile, one CONTINUE, and UNDO is UNGROUP. -->
 		<Band
 			title="MERGED · {created} SEASONS INTO ONE SERIES"
 			detail="ONE TILE, ONE CONTINUE · UNDO PUTS THEM BACK"
@@ -999,7 +999,7 @@
 			{:else if doujin}
 				<PageGrid {series} cover={data.cover} editions={data.editions} />
 			{:else if data.film?.film}
-				<!-- A film has no list: its column is the stage (c992). -->
+				<!-- A film has no list: its column is the stage. -->
 				<FilmStage
 					seriesId={series.id}
 					hue={series.hue}
@@ -1059,7 +1059,7 @@
 		>
 			{#each [...selected] as id (id)}<input type="hidden" name="entry" value={id} />{/each}
 			{#if dlStates}
-				<!-- DOWNLOAD first, counted like the others (Index Series Download, select). -->
+				<!-- DOWNLOAD first, counted like the others. -->
 				<button type="submit" formaction="?/download" disabled={toDownload.length === 0}>
 					<span>DOWNLOAD</span><span class="n">{toDownload.length}</span>
 				</button>
@@ -1212,7 +1212,7 @@
 {/if}
 
 {#if data.otherForms}
-	<!-- OTHER FORMS' GROUP AS A WORK (c700): both series picked, this one first;
+	<!-- OTHER FORMS' GROUP AS A WORK: both series picked, this one first;
 	     ORDER, the name and UNDO are the flow's own. -->
 	<GroupSheet
 		open={groupingForm !== null}
@@ -1247,8 +1247,8 @@
 {/if}
 
 {#if data.film?.groupBooks.length}
-	<!-- A film collection's GROUP → (c990, c992): the parts in the library ticked
-	     in TMDB's order, the owner free to reorder; a Work, never a chain. -->
+	<!-- A film collection's GROUP →: the parts in the library ticked
+	     in TMDB's order, free to reorder; a Work, never a chain. -->
 	<GroupSheet
 		open={groupingParts}
 		books={data.film.groupBooks}
@@ -1295,7 +1295,7 @@
 />
 
 <style>
-	/* PUT ON A SHELF (card c724): the band's second line, as /browse's AddedBand
+	/* PUT ON A SHELF: the band's second line, as /browse's AddedBand
 	   draws it: the Band's panel and hairline, chips as ShelfPicker's. */
 	.added-shelves {
 		flex-shrink: 0;
@@ -1603,7 +1603,7 @@
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}
-	/* Over Wi-Fi (doc/WIFI.md, 3D): the reason under the row, the cache cells at 0.35. */
+	/* Over Wi-Fi (doc/WIFI.md): the reason under the row, the cache cells at 0.35. */
 	.bulk.noted {
 		flex-wrap: wrap;
 		height: auto;
@@ -1630,7 +1630,7 @@
 		.bulk button {
 			font-size: 12px;
 		}
-		/* Five actions don't fit 360: two rows of cells, as the library's (Index Series Download, select). */
+		/* Five actions don't fit 360: two rows of cells, as the library's. */
 		.bulk.wrap {
 			display: grid;
 			grid-template-columns: repeat(3, 1fr);
@@ -1642,7 +1642,7 @@
 		}
 	}
 
-	/* ---- the TV (c238; TV-Series) ----------------------------------------- */
+	/* ---- the TV ----------------------------------------- */
 	@media (pointer: none) and (min-width: 900px) {
 		.bar {
 			margin-top: var(--safe-y);

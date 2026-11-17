@@ -7,17 +7,15 @@
 	import type { TmdbTitle } from '$lib/library/tmdb';
 
 	/**
-	 * A film's stage (card c992; the handoff's Film-Desk, Collection and
-	 * Film-States boards, doc/handoffs/movies-shows/): where a wide device's
-	 * list column would be, a film has nothing to list. The backdrop at 16:9,
-	 * flat, with nothing laid over it, on the series' stripes until it loads;
-	 * then `01 — THE COLLECTION` (c990's view, the offer and never the lead);
-	 * then `02 — ABOUT`. With no TMDB link the stage is empty: the film closes
-	 * up (the owner's call, 2026-11-12), and LISTS says why.
+	 * A film's stage: where a wide device's list column would be, a film has
+	 * nothing to list. The backdrop at 16:9, flat, with nothing laid over it,
+	 * on the series' stripes until it loads; then `01 — THE COLLECTION` (the
+	 * offer, never the lead); then `02 — ABOUT`. With no TMDB link the stage is
+	 * empty: the film closes up, and LISTS says why.
 	 *
-	 * The measurements are the mock's own (24px padding, 28px between blocks,
+	 * The measurements are the design's own (24px padding, 28px between blocks,
 	 * 56px rows, a 76px tag cell), not a ladder: the theme declares no length
-	 * tokens (doc/FILMS-SHOWS.md, "The screens").
+	 * tokens.
 	 */
 	let {
 		seriesId,
@@ -44,7 +42,7 @@
 	const open = $derived(openFor === seriesId);
 	let loaded = $state(false);
 
-	/** FIND: the screen's own source searched for the part's title (c313's mechanism, as the anime heads do). */
+	/** FIND: the screen's own source searched for the part's title (the tag search's mechanism, as the anime heads do). */
 	function findHref(title: string): string | null {
 		if (!tagSource) return null;
 		return tagSearchHref(
@@ -78,7 +76,7 @@
 {#snippet row(r: CollectionRow, first: boolean)}
 	{@const href = hrefOf(r)}
 	{#if href}
-		<!-- A TV draws the facts only (Film-TV 1.7): no cells and no stops on the stage.
+		<!-- A TV draws the facts only: no cells and no stops on the stage.
 		     Both copies are drawn and CSS keeps one, so the focus layer never finds the other. -->
 		<div class="row tv-only" class:first>
 			<span class="tag">{r.tag}</span>
@@ -190,7 +188,7 @@
 	.stage .tv-only {
 		display: none;
 	}
-	/* A TV (doc/TV.md): the stage is facts, and PLAY is the screen's one stop (Film-TV 1.7). */
+	/* A TV (doc/TV.md): the stage is facts, and PLAY is the screen's one stop. */
 	/* Scoped under .stage so it outranks .row's and .cell's own display, declared below. */
 	@media (pointer: none) and (min-width: 900px) {
 		.stage .tv-only {

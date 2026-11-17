@@ -1,20 +1,20 @@
 /**
- * The facts an UNDO band posts back, read before anything is written (c585;
- * doc/SERIES.md, "UNDO's facts").
+ * The facts an UNDO band posts back, read before anything is written
+ * (doc/SERIES.md, "UNDO's facts").
  *
  * A band carries what its action did as JSON in a hidden field, and the UNDO
- * posts it back. Whatever arrives is a claim: a stale page, a hand-made form
- * or a truncated field can send anything. So each reader here parses inside
- * its own guard, checks the shape field by field (a missing number would
- * reach SQLite as `undefined` and be a 500, not a refusal), and checks the
- * facts are this screen's own series: the series screen undoes what was done
- * to the series it shows, never one the facts name elsewhere. Two readers are
- * the Work screen's instead (`takeOutFactsList`, `workAddFacts`, c641): its
- * route names a Work, so the facts are checked for their shape and the
- * writer refuses a library that moved on. Any failure is `null`, which the
- * action answers as 400 NOTHING TO UNDO with nothing written. Facts that are well formed and this series' own, but describe a
- * library that has moved on (a Work ended or made since), are the writers'
- * to refuse (`putBack`, `locate`, c308), as before.
+ * posts it back. Whatever arrives is a claim: a stale page, a hand-made form or
+ * a truncated field can send anything. So each reader here parses inside its
+ * own guard, checks the shape field by field (a missing number would reach
+ * SQLite as `undefined` and be a 500, not a refusal), and checks the facts are
+ * this screen's own series: the series screen undoes what was done to the
+ * series it shows, never one the facts name elsewhere. Two readers are the Work
+ * screen's instead (`takeOutFactsList`, `workAddFacts`): its route names a
+ * Work, so the facts are checked for their shape and the writer refuses a
+ * library that moved on. Any failure is `null`, which the action answers as 400
+ * NOTHING TO UNDO with nothing written. Facts that are well formed and this
+ * series' own, but describe a library that has moved on (a Work ended or made
+ * since), are the writers' to refuse (`putBack`, `locate`).
  */
 import type { AddFacts, EndedWork, TakeOutFacts, WorkRecord } from '$lib/server/works';
 import type { MarkedThrough, SeriesRenameFacts } from '$lib/server/series';
@@ -164,7 +164,7 @@ export function hideFacts(
 const isPlace = (v: unknown) => v === null || (Number.isSafeInteger(v) && (v as number) >= 0);
 
 /**
- * MARK READ THROUGH's facts, when they are this series' own (c666): the
+ * MARK READ THROUGH's facts, when they are this series' own: the
  * press's stamp and, for each chapter it read, its place at the press. An
  * empty list is no UNDO: the band only offers one when something changed.
  * `undoMarkReadThrough` refuses a chapter that has moved on since.

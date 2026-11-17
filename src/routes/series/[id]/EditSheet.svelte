@@ -7,7 +7,7 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 
 	/**
-	 * SHELVES & TAGS: one sheet for both. Shelves are toggles in the owner's
+	 * SHELVES & TAGS: one sheet for both. Shelves are toggles in the user's
 	 * order. Tags are typed as `namespace:value`, and suggestions come from
 	 * existing tags so imports do not multiply spellings.
 	 */
@@ -25,7 +25,7 @@
 		shelves: Shelf[];
 		tagMessage?: string;
 		/**
-		 * Opened by the ADDED band's + NEW SHELF (card c724): the new shelf's
+		 * Opened by the ADDED band's + NEW SHELF: the new shelf's
 		 * name field is open at once, as the sheet's own + NEW SHELF opens it.
 		 */
 		naming?: boolean;
@@ -46,7 +46,8 @@
 	);
 
 	let naming = $state(false);
-	// Each opening starts as its door asks: the band's + NEW SHELF with the name field open.
+	// Each opening starts as the way it was opened asks: the band's + NEW SHELF
+	// with the name field open.
 	$effect(() => {
 		if (open) naming = startNaming;
 	});

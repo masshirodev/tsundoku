@@ -8,7 +8,7 @@
 
 	/**
 	 * DELETE's confirmation on the series screen (doc/DELETING.md), with the
-	 * row highlights add (c701; Out X4): `14 HIGHLIGHTS ARE KEPT`, and DELETE
+	 * row highlights add: `14 HIGHLIGHTS ARE KEPT`, and DELETE
 	 * THEM TOO as a switch under it, off. A copy of the shared ConfirmSheet
 	 * (src/lib/components/chrome/), which other screens use as it is: the row
 	 * sits after the lines and before the actions, where the shared sheet has
@@ -138,7 +138,7 @@
 		line-height: 1.5;
 		color: var(--text-2);
 	}
-	/* Out X4's box: a hairline box 16px in, two ruled rows (hl.css .box > .r). */
+	/* The highlights box: a hairline box 16px in, two ruled rows (hl.css .box > .r). */
 	.kept {
 		display: flex;
 		flex-direction: column;

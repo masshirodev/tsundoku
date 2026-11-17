@@ -7,8 +7,8 @@ import type { TmdbTitle } from '$lib/library/tmdb';
 import type { GroupBook } from './other-forms.server';
 
 /**
- * What a film's or a show's screen reads beyond any series' (card c992): the
- * TMDB facts its link keeps, what surrounds it (c990's cache, never a request),
+ * What a film's or a show's screen reads beyond any series': the
+ * TMDB facts its link keeps, what surrounds it (the collection cache, never a request),
  * the series' first genre for the count line, the folder its KIND row names,
  * and, for a collection's GROUP →, the parts in the library as the GROUP sheet
  * takes them, in TMDB's order. Null for any other kind.

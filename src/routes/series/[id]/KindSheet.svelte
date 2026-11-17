@@ -6,15 +6,14 @@
 	import type { Kind } from '$lib/library/kinds';
 
 	/**
-	 * The kind switch's sheet (card c992; the handoff's Kind.dc.html, 4.2 to
-	 * 4.4). Only the kinds the source serves; picking one says, before anything
-	 * happens, where each file goes, what changes and what stays, and the button
-	 * names the move. A refusal sits on the kind it refuses, with its reason,
-	 * not in an error after the tap; a file still downloading allows the pick
-	 * and not the move, and nothing queues it for later. The move is c991's
-	 * (`switchKind`, src/lib/server/kind-switch.ts).
+	 * The kind switch's sheet. Only the kinds the source serves; picking one
+	 * says, before anything happens, where each file goes, what changes and
+	 * what stays, and the button names the move. A refusal sits on the kind it
+	 * refuses, with its reason, not in an error after the tap; a file still
+	 * downloading allows the pick and not the move, and nothing queues it for
+	 * later. The move itself is `switchKind` (src/lib/server/kind-switch.ts).
 	 *
-	 * The measurements are the board's own (a 438px sheet, two 194px kinds,
+	 * The measurements are the design's own (a 438px sheet, two 194px kinds,
 	 * 48px path rows with a 72px label), not a ladder.
 	 */
 	let {
@@ -211,7 +210,7 @@
 	}
 	.kinds {
 		display: grid;
-		/* The kinds' own width, 194px each (Kind 4.2), never the sheet's. */
+		/* The kinds' own width, 194px each, never the sheet's. */
 		width: max-content;
 		margin: 0 24px;
 		border: 1px solid var(--line-1);

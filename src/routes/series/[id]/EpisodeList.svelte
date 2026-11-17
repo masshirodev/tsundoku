@@ -30,12 +30,12 @@
 	import type { GroupOther, OtherFormRow } from './other-forms.server';
 
 	/**
-	 * An anime series' episodes (Index Anime Series, Anime States 1a; doc/ANIME.md):
-	 * EntryList's list with episodes for chapters. A row is an episode with its
-	 * 16:9 picture, its length and FILLER or RECAP, and the time left on the one
-	 * part-watched; seasons are groups, and one watched through folds. A tap
-	 * plays any episode, downloaded or not, since it streams; downloading is the
-	 * DOWNLOAD row's and SELECT's. Rows are 72px, which is what the handoff draws.
+	 * An anime series' episodes (doc/ANIME.md): EntryList's list with episodes
+	 * for chapters. A row is an episode with its 16:9 picture, its length and
+	 * FILLER or RECAP, and the time left on the one part-watched; seasons are
+	 * groups, and one watched through folds. A tap plays any episode, downloaded
+	 * or not, since it streams; downloading is the DOWNLOAD row's and SELECT's.
+	 * Rows are 72px, as designed.
 	 */
 	let {
 		series,
@@ -62,15 +62,15 @@
 		onlong?: (entry: SeriesEntry) => void;
 		downloads?: Map<number, DownloadState> | null;
 		/**
-		 * The seasons around it (c358; doc/SERIES.md, "The seasons around it"),
+		 * The seasons around it (doc/SERIES.md, "The seasons around it"),
 		 * from the relation cache: dim heads above the list for every season
 		 * before, NEXT SEASON below it, and the extras folded under one line.
 		 * Null draws the list as it was.
 		 */
 		around?: SeasonsAround | null;
-		/** The source FIND searches (c313's `/browse/<source>?q=`); null offers no FIND. */
+		/** The source FIND searches (`/browse/<source>?q=`); null offers no FIND. */
 		tagSource?: { id: string; name: string } | null;
-		/** The same work's other forms (c700): a folded line under the season heads. */
+		/** The same work's other forms: a folded line under the season heads. */
 		otherForms?: OtherFormRow[] | null;
 		ongroup?: GroupOther;
 	} = $props();
@@ -80,8 +80,8 @@
 	const extrasOpen = $derived(extrasOpenFor === series.id);
 
 	/**
-	 * FIND: this series' own source searched for a season's title (c313's
-	 * mechanism, `tagSearchHref` called as it is; no schema, so it is `q=`),
+	 * FIND: this series' own source searched for a season's title (the tag
+	 * search's mechanism, `tagSearchHref` called as it is; no schema, so it is `q=`),
 	 * with ← back to this screen.
 	 */
 	const openLabel = (h: AroundHead) => `${h.label}, in the library: ${h.title}`;
@@ -135,9 +135,9 @@
 		setTimeout(() => (flash = null), 1200);
 	}
 
-	/** DOWNLOADING · 38%: an episode takes minutes, so its share means something (Anime States 1b). */
+	/** DOWNLOADING · 38%: an episode takes minutes, so its share means something. */
 	function status(e: SeriesEntry, isCurrent: boolean, dl: DownloadState | undefined): string {
-		// Offline (Anime States, offline): only what the device keeps plays.
+		// Offline: only what the device keeps plays.
 		if (!offline.online && !cached.has(e.id)) return e.readAt !== null ? 'WATCHED' : 'NOT CACHED';
 		if (dl?.kind === 'downloading') return `DOWNLOADING · ${Math.round(dl.fraction * 100)}%`;
 		return (dl && dl.kind !== 'none' && downloadStatus(dl)) || episodeStatus(e, isCurrent);
@@ -196,7 +196,7 @@
 		{#each rows as row (row.type === 'episode' ? row.entry.id : `${row.type}-${row.season}`)}
 			{#if row.type === 'fold'}
 				<li class="fold">
-					<!-- The stripes are a stylesheet picture: the hover tint must not replace them (c488, doc/MOTION.md). -->
+					<!-- The stripes are a stylesheet picture: the hover tint must not replace them (doc/MOTION.md). -->
 					<button type="button" data-picture onclick={() => (expanded = true)}>
 						<span>↑ {seasonLabel(row.season, row.from, row.to)}</span>
 						<span>{row.count} WATCHED · SHOW</span>
@@ -377,7 +377,7 @@
 		font: inherit;
 		cursor: pointer;
 	}
-	/* The literals are the handoff's (Index Anime Series): 72px rows, a 96×54 picture. */
+	/* The literals are the design's: 72px rows, a 96×54 picture. */
 	.entry-btn {
 		height: 72px;
 	}
@@ -415,7 +415,7 @@
 	.season .d {
 		color: var(--text-2);
 	}
-	/* The seasons around it (c358): the season head's own row, dimmer, never
+	/* The seasons around it: the season head's own row, dimmer, never
 	   louder than a head of the series' own. */
 	.season.around {
 		justify-content: flex-start;
@@ -625,7 +625,7 @@
 			width: 52px;
 		}
 	}
-	/* ---- the TV (c238; TV-Series) ----------------------------------------- */
+	/* ---- the TV ----------------------------------------- */
 	@media (pointer: none) and (min-width: 900px) {
 		.list {
 			border: var(--hairline);
@@ -637,7 +637,7 @@
 		.tool {
 			font: var(--type-label);
 		}
-		/* The handoff's rows are 56 at TV size, not the tablet's 72. */
+		/* The design's rows are 56 at TV size, not the tablet's 72. */
 		.entry-btn {
 			height: 56px;
 		}

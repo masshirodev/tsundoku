@@ -1,16 +1,15 @@
 import type { Lists } from './lists';
 
 /**
- * DETAILS, the fold on a phone and a TV (c425; doc/SERIES.md, "DETAILS";
- * `doc/handoffs/series-phone/`, 1C; the handoff folds the tablet in portrait
- * too, which is not built, and SERIES.md says why): the rows a
+ * DETAILS, the fold on a phone and a TV (doc/SERIES.md, "DETAILS", which
+ * says why the tablet in portrait does not fold): the rows a
  * visit rarely touches fold behind one 64px line, and the line says enough
  * that a problem isn't hidden. Everything here is read from facts the panel
  * already has (each mark's source is named on its function); nothing asks the
  * server again.
  */
 
-/** Something that needs the owner, inside the fold: inked on the folded line. */
+/** Something that needs the user, inside the fold: inked on the folded line. */
 export type DetailsMark = {
 	/** Who it is about, for the count's list: `MAL`, `S2`, `MANGADEX`. */
 	tag: string;
@@ -24,7 +23,7 @@ export type DetailsRunning = { word: string; fraction: number };
 export type DetailsLine = {
 	/** The line over the names; '' draws the names alone. */
 	state: string;
-	/** In ink and 500: something needs the owner. */
+	/** In ink and 500: something needs the user. */
 	ink: boolean;
 	/** The names of what is inside, in their order. */
 	names: string[];
@@ -38,7 +37,7 @@ export const DETAILS_KEY = 'tsundoku:series-details';
 /** The stored word, read back: anything but '1' is the default, closed. */
 export const detailsOpen = (stored: string | null | undefined): boolean => stored === '1';
 
-/** How many names the TV's 352px column spells out before `· N MORE` (1D, B). */
+/** How many names the TV's 352px column spells out before `· N MORE`. */
 export const TV_NAMES = 4;
 
 /** The names line: all of them, or the first `max` and how many more. */
@@ -95,9 +94,8 @@ export function sourceMark(
 /**
  * What was sent, in LISTS' own words: the line's state says where the list is
  * (`READING · CH. 214 · 9`) and its right half that it was sent (`SENT 12 MIN
- * AGO`, `ANILIST AND MAL · SENT …`), so the folded line says `SENT CH. 214`.
- * The handoff's `SENT CH. 186` is that, read off a mock. A list that sent
- * nothing, or whose send failed, has no such word.
+ * AGO`, `ANILIST AND MAL · SENT …`), so the folded line says `SENT CH. 214`. A
+ * list that sent nothing, or whose send failed, has no such word.
  */
 export function sentWord(lists: Lists | null): string {
 	for (const item of lists?.items ?? []) {
@@ -112,10 +110,10 @@ export function sentWord(lists: Lists | null): string {
 }
 
 /**
- * The folded line (1C): quiet in text-2 when nothing needs the owner, the one
+ * The folded line: quiet in text-2 when nothing needs the user, the one
  * mark's words in ink when one does, and `2 TO LOOK AT · MAL · MANGADEX` when
  * several do. Running work keeps whichever line it is and fills the bar. It
- * never opens the fold: the mark tells, the owner decides.
+ * never opens the fold: the mark tells, the user decides.
  */
 export function detailsLine(o: {
 	names: string[];

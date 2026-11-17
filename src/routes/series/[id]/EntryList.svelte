@@ -52,7 +52,7 @@
 		ongroup
 	}: {
 		series: SeriesPage;
-		/** The same work's other forms (c700): a folded line under the list. */
+		/** The same work's other forms: a folded line under the list. */
 		otherForms?: OtherFormRow[] | null;
 		ongroup?: GroupOther;
 		selecting: boolean;
@@ -65,9 +65,9 @@
 		/** A long press on a row: mark it and everything before it read. */
 		onlong?: (entry: SeriesEntry) => void;
 		/**
-		 * The text reader's CONTENTS sheet (Index Text Reader, contents): the
-		 * same list, headed CONTENTS with a ✕ instead of SELECT, and no # or
-		 * rail below 60 entries, where they'd only get in the way.
+		 * The text reader's CONTENTS sheet: the same list, headed CONTENTS with
+		 * a ✕ instead of SELECT, and no # or rail below 60 entries, where
+		 * they'd only get in the way.
 		 */
 		onclose?: () => void;
 		/** Each chapter's place in downloading (doc/DOWNLOADS.md); null where downloading has no say. */
@@ -78,7 +78,7 @@
 		 */
 		canDownload?: boolean;
 		/**
-		 * A source serves the series (doc/READING-ONLINE.md, "Manga online"; Online Board 2):
+		 * A source serves the series (doc/READING-ONLINE.md, "Manga online"):
 		 * a tap on a chapter with no file reads it online, and downloading moves to
 		 * a ↓ cell of its own at the end of the row.
 		 */
@@ -197,7 +197,7 @@
 	}
 
 	const thumb = $derived(dragging ?? current);
-	/** The volume ticks (c835): a ruler, so it needs the track's own height. */
+	/** The volume ticks: a ruler, so it needs the track's own height. */
 	let railHeight = $state(0);
 	$effect(() => {
 		const el = track;
@@ -210,13 +210,13 @@
 	const volumeRail = $derived(volumeTicks(series.entries, railHeight));
 	const thumbVolume = $derived(thumb ? volumeOf(series.entries, thumb) : null);
 	const draggingVolume = $derived(dragging ? volumeOf(series.entries, dragging) : null);
-	/** The rows that sit under a volume's head (c835, 1D): arriving on one shows it. */
+	/** The rows that sit under a volume's head: arriving on one shows it. */
 	const underHead = $derived(rowsUnderHead(rows));
 	/** The list's own sticky bar, which an arriving head must be shown under. */
 	let headBar = $state<HTMLElement>();
 
 	/**
-	 * Arriving on the row under a volume's head shows that head (c835, 1D). The
+	 * Arriving on the row under a volume's head shows that head. The
 	 * focus layer's reveal puts the row just below the list's sticky bar, which
 	 * leaves the head above it, wholly hidden -- `scrollIntoView` honours a
 	 * scroll margin only when the row is off the viewport, and a row under a bar
@@ -254,7 +254,7 @@
 	}
 </script>
 
-<!-- The row that is the button (Download States, "The row is the button"): a form post, so it works without script. -->
+<!-- The row that is the button ("The row is the button"): a form post, so it works without script. -->
 {#if canDownload}<form
 		id="dl-rows"
 		method="POST"
@@ -311,13 +311,13 @@
 					<!-- A book's front and back matter, listed apart (doc/TEXT-READER.md). -->
 					<li class="section"><span>{row.label}</span><span>{row.detail}</span></li>
 				{:else if row.type === 'volume'}
-					<!-- A volume's head (c835): its cover, its number and state, its title
+					<!-- A volume's head: its cover, its number and state, its title
 					     and its chapters. Not a button and not a focus stop: the rows under
 					     it are what a D-pad walks. -->
 					<li class="volume {row.state}" aria-label="{row.label} {row.title}">
 						<span class="vcover" style:background={coverPlaceholder(series.hue)}>
 							<!-- A coverless volume draws the series' stripes with its number on
-							     them (c835, 1A/1C); an image, when the EPUB has one, covers it. -->
+							     them; an image, when the EPUB has one, covers it. -->
 							<span class="vnum"><span>{row.number}</span></span>
 							{#if !offline.online && volumeCached(row.entries, cached)}
 								<span class="vd" aria-label="Cached on this device">↓</span>
@@ -352,7 +352,7 @@
 					</li>
 				{:else if row.type === 'fold'}
 					<li class="fold" class:under-head={underHead.has('fold')}>
-						<!-- The stripes are a stylesheet picture: the hover tint must not replace them (c488, doc/MOTION.md). -->
+						<!-- The stripes are a stylesheet picture: the hover tint must not replace them (doc/MOTION.md). -->
 						<button type="button" data-picture onclick={() => (expanded = true)}>
 							<span>↑ {formatNumber(row.from)} – {formatNumber(row.to)}</span>
 							<span class="long">{row.count} READ · SHOW</span>
@@ -365,10 +365,10 @@
 					{@const dl = withLive(downloads?.get(e.id))}
 					{@const act = !selecting && canDownload && !e.available ? rowAction(dl) : null}
 					{@const online = readOnline && !e.available}
-					<!-- Offline, a chapter read online can't open: ○ ONLINE ONLY (Online Board 2B). -->
+					<!-- Offline, a chapter read online can't open: ○ ONLINE ONLY. -->
 					{@const opens = selecting || e.available || (online && offline.online)}
 					<!-- Read online, the row reads and the ↓ cell downloads; otherwise a tap on a
-					     row with no file queues it, as it always has (Download States 1a). -->
+					     row with no file queues it, as it always has. -->
 					{@const rowQueues = !readOnline && !!act}
 					<li
 						id="entry-{e.id}"
@@ -444,7 +444,7 @@
 								>{/if}
 						</button>
 						{#if readOnline}
-							<!-- The ↓ cell: downloading's own target (Online Board 2A); empty on a row
+							<!-- The ↓ cell: downloading's own target; empty on a row
 							     with a file, so the column stays straight. -->
 							{#if act}
 								<button
@@ -489,7 +489,7 @@
 				>
 					<div class="read-mark" style:height="{Math.max(0, fractionOf(readUpTo)) * 100}%"></div>
 					{#if volumeRail.length > 1}
-						<!-- One tick per volume (c835, 1C): a hairline at its first entry,
+						<!-- One tick per volume: a hairline at its first entry,
 						     its label in ink while the thumb is inside it. -->
 						{#each volumeRail as t (t.label)}
 							<div
@@ -685,7 +685,7 @@
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
-	/* A volume's head (c835, grouped volumes 1A–1C): its cover at 2:2.9, its
+	/* A volume's head: its cover at 2:2.9, its
 	   number and state, its title verbatim, then its chapters. One fixed height,
 	   so the list stays a column of known sizes; the read volume's title drops
 	   to text-2 as a read row's does, and its 3px bar is the chapters read. */
@@ -813,7 +813,7 @@
 		}
 	}
 	/* A volume's head is not a focus stop: arriving on the row under it shows
-	   the head from the list itself (`showHeadUnder`, c835, 1D), so no scroll
+	   the head from the list itself (`showHeadUnder`), so no scroll
 	   margin is set here -- nothing would honour one. */
 	/* Front and back matter: reachable, but not read as chapters. */
 	.entry.matter .entry-btn {
@@ -938,7 +938,7 @@
 	.entry.progress .status {
 		color: var(--accent);
 	}
-	/* A chapter kept from the source the series left (doc/MOVE.md; the handoff's
+	/* A chapter kept from the source the series left (doc/MOVE.md; the design's
 	   22px `.src` cell), its own box in the status column. */
 	.src {
 		display: inline-flex;
@@ -953,7 +953,7 @@
 		letter-spacing: 0.06em;
 		text-overflow: ellipsis;
 	}
-	/* Downloading (Index Series Download, rows): under way in ink, and FAILED the only
+	/* Downloading: under way in ink, and FAILED the only
 	   row in full ink at 500 with a 3px ink rule -- the # jump's flash, in ink. */
 	.entry.dl-queued .status,
 	.entry.dl-downloading .status,
@@ -966,7 +966,7 @@
 	.bar.ink > span {
 		background: var(--text-1);
 	}
-	/* The ↓ cell (Online Board 2): 72px, 56px on the phone, over the 44px minimum. */
+	/* The ↓ cell: 72px, 56px on the phone, over the 44px minimum. */
 	.entry:has(.dl-cell) {
 		display: flex;
 	}
@@ -1052,7 +1052,7 @@
 		color: var(--text-2);
 		pointer-events: none;
 	}
-	/* A volume's tick (c835, 1C): the hairline everywhere, the label at the
+	/* A volume's tick: the hairline everywhere, the label at the
 	   right; a label that would crowd its neighbour is dropped, the line stays. */
 	.tick.vol {
 		transform: none;
@@ -1123,7 +1123,7 @@
 	.b-title {
 		font: 400 14px var(--font-sans);
 	}
-	/* ---- the TV (c238; TV-Series) ----------------------------------------- */
+	/* ---- the TV ----------------------------------------- */
 	@media (pointer: none) and (min-width: 900px) {
 		.list {
 			--row-h: 56px;
@@ -1148,7 +1148,7 @@
 		.rail {
 			top: 36px;
 		}
-		/* A volume's head on a TV (Head-TV): 96px, a 48px cover, 20px title. */
+		/* A volume's head on a TV: 96px, a 48px cover, 20px title. */
 		.volume {
 			height: 96px;
 			gap: 16px;

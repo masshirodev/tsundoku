@@ -12,7 +12,7 @@ export type GroupBook = {
 };
 
 /**
- * What an IN LIBRARY row offers about a Work (c700; doc/SERIES.md, "OTHER
+ * What an IN LIBRARY row offers about a Work (doc/SERIES.md, "OTHER
  * FORMS"): `same`, already one Work, at that part; `group`, neither in one, so
  * GROUP AS A WORK. Null when one of them is in a Work and the two are not
  * together: the flow's add, on this screen, takes only MIGHT CONTINUE's offer

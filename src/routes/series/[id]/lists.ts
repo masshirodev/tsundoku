@@ -1,9 +1,8 @@
 /**
- * The series screen's LISTS row, the pure part (card c424; the handoff in
- * doc/handoffs/series-lists/, doc/SERIES.md "LISTS"). LINK said which entry a
- * series is, TRACKING what the owner's lists say of it; both listed AniList,
- * MAL and Ranobe, so the row is one now, with a line per list: the entry, the
- * list's word for it, what was sent, and its cells.
+ * The series screen's LISTS row, the pure part (doc/SERIES.md "LISTS"): which
+ * entry a series is and what the user's lists say of it, AniList, MAL and
+ * Ranobe, in one row with a line per list: the entry, the list's word for it,
+ * what was sent, and its cells.
  *
  * Everything here is derived from what the server already hands the panel
  * (`LinkState`, `Tracking`, `RanobeSeries`, an anime's `SeasonRow`s), so the
@@ -31,7 +30,7 @@ import { catalogueType } from '$lib/library/catalogues';
 import type { SeasonTrack, Tracking } from '$lib/server/tracking';
 import type { RanobeSeries } from '$lib/server/ranobe-review';
 
-// The signed-in-first rule lives with the library's tracking (c518): the
+// The signed-in-first rule lives with the library's tracking: the
 // server's word for a season's other part asks it too.
 export { listState, mainList };
 
@@ -39,7 +38,7 @@ export { listState, mainList };
 export type SheetAt = { list: 'anilist'; season: number | null } | { list: 'ranobe' };
 
 /**
- * One cell at a line's end. Its order is the handoff's rule: TRY AGAIN, SIGN
+ * One cell at a line's end. Its order is fixed: TRY AGAIN, SIGN
  * IN →, FIND or CHANGE, PASTE A LINK, EDIT (`CELL_ORDER`).
  */
 export type Cell = {
@@ -75,12 +74,12 @@ export type Line = {
 	title: string;
 	/** Not linked: the title in grey. */
 	muted: boolean;
-	/** …and a size down, on an anime's lines (1C's `t mu sm`; 1B keeps the size). */
+	/** …and a size down, on an anime's lines (`t mu sm`; the 440 panel keeps the size). */
 	small: boolean;
 	meta: string;
 	states: StateLine[];
 	cells: Cell[];
-	/** Ranobe's line under an anime's seasons: a rule above it (1C). */
+	/** Ranobe's line under an anime's seasons: a rule above it. */
 	under: boolean;
 };
 
@@ -99,10 +98,10 @@ export type ListsInput = {
 	seriesId: number;
 	kind: Kind;
 	link: LinkState | null;
-	/** A film's or a show's TMDB link (c989); null or absent for any other kind. */
+	/** A film's or a show's TMDB link; null or absent for any other kind. */
 	tmdb?: TmdbLinkState | null;
 	/**
-	 * A film's or a show's watch in the local log's words (c993): `WATCHED 12
+	 * A film's or a show's watch in the local log's words: `WATCHED 12
 	 * NOV`, `EP. 6 OF 16`, `NOT WATCHED`. The LIST line says it while no tracker
 	 * that takes the kind is signed in.
 	 */
@@ -111,7 +110,7 @@ export type ListsInput = {
 	ranobe: RanobeSeries | null;
 	/** An anime's seasons; null for anything else. */
 	seasons: SeasonRow[] | null;
-	/** Its source is NEVER TRACKED (c522): every line says why, and no line offers a send. */
+	/** Its source is NEVER TRACKED: every line says why, and no line offers a send. */
 	neverTracked: boolean;
 	/** SHOW on a fold: every season drawn. */
 	expanded: boolean;
@@ -136,7 +135,7 @@ const sortCells = (cells: Cell[]) =>
 	cells.sort((a, b) => CELL_ORDER.indexOf(a.key) - CELL_ORDER.indexOf(b.key));
 
 /**
- * Why a NEVER TRACKED series' line sends nothing (c522): the switch is its
+ * Why a NEVER TRACKED series' line sends nothing: the switch is its
  * source's, set on that source's settings page, so it is said on every line
  * that has a catalogue behind it instead of a send that would not happen.
  * One spelling, so the panel's row and its spec cannot drift apart.
@@ -149,7 +148,7 @@ const neverTrackedLine = (): StateLine => ({
 	alert: false
 });
 
-/** The strip's words offline (1B, 8): the one place the row says why every cell dims. */
+/** The strip's words offline: the one place the row says why every cell dims. */
 export const OFFLINE_NOTE = '○ OFFLINE · CHANGES NEED THE WORKSTATION';
 
 /** "MANGA", "ONE SHOT", "TV SHORT": a stored AniList format, as a line says it. */
@@ -157,9 +156,9 @@ export const formatWords = (format: string | null | undefined) =>
 	format ? format.replace(/_/g, ' ') : '';
 
 /**
- * A comic's word by where it comes from (c520; the handoff's 1B, `MANHWA ·
- * 2020`). AniList files every comic under one format, MANGA, and keeps the
- * country apart (`countryOfOrigin`, rung 70). A map from the country, not a
+ * A comic's word by where it comes from (`MANHWA · 2020`). AniList files
+ * every comic under one format, MANGA, and keeps the country apart
+ * (`countryOfOrigin`, migration 70). A map from the country, not a
  * kind's name: the series' own kind is the library's word, this is the entry's.
  */
 const COMIC_BY_COUNTRY: Record<string, string> = {
@@ -172,7 +171,7 @@ const COMIC_BY_COUNTRY: Record<string, string> = {
 /**
  * An entry's format as a line says it, a comic's by its country: a link not
  * asked yet (no country) or from a country the map doesn't name says its
- * format, as before rung 70. Every other format is its own word.
+ * format. Every other format is its own word.
  */
 export const entryWords = (
 	format: string | null | undefined,
@@ -185,7 +184,7 @@ export const entryWords = (
 /**
  * The tag in front of a season's line. A flat list is never here (it draws as
  * one ANILIST line); season 0 beside numbered seasons is the episodes the
- * source gave none, and is named so, never S0 (c423).
+ * source gave none, and is named so, never S0.
  */
 export const seasonCellTag = (season: number) => (season > 0 ? `S${season}` : 'OTHER');
 
@@ -193,7 +192,7 @@ export const seasonCellTag = (season: number) => (season > 0 ? `S${season}` : 'O
  * What the sheet calls the season it is on: SEASON 3 on a show with several,
  * THE OTHER EPISODES for the unnumbered ones beside them, and nothing at all
  * on a flat list or a show of one season, whose one season is 0 or 1 inside
- * and never named (c423).
+ * and never named.
  */
 export function seasonWords(
 	season: number | null,
@@ -270,7 +269,7 @@ export function entryStates(
 		full: boolean;
 		/** `PART 2 · `: the part being watched, when the season has two. */
 		lead?: string;
-		/** The other part's word, on the right (1C, a season in two parts). */
+		/** The other part's word, on the right (a season in two parts). */
 		other?: string;
 		/** An episode past every part's count (`SeasonTrack.waits`). */
 		waits?: { episode: number; of: number; service: TrackFacts['service'] } | null;
@@ -388,7 +387,7 @@ function trackCells(
 ): Cell[] {
 	const linked = facts.filter((f) => f.linked);
 	const failed = linked.filter((f) => f.waiting?.failedAt);
-	// A sign-in that expired is not tried again: SIGN IN → takes TRY AGAIN's place (1B, 4).
+	// A sign-in that expired is not tried again: SIGN IN → takes TRY AGAIN's place.
 	const isExpired = (f: TrackFacts) => /SIGN-IN EXPIRED/.test(f.waiting?.error ?? '');
 	const expired = failed.some(isExpired);
 	const out: Cell[] = [];
@@ -415,7 +414,7 @@ function trackCells(
 	return out;
 }
 
-/** The entry's own catalogue page, by its stored format: `/anime/` or `/manga/` (c298). */
+/** The entry's own catalogue page, by its stored format: `/anime/` or `/manga/`. */
 function entryHref(
 	l: { anilistId: number | null; malId: number | null; kind?: Kind | null },
 	kind: Kind
@@ -424,7 +423,7 @@ function entryHref(
 	return l.anilistId ? anilistUrl(l.anilistId, k) : l.malId ? malUrl(l.malId, k) : null;
 }
 
-/** EDIT, or offline the one cell that still works, OPEN ↗ (1B, 8). */
+/** EDIT, or offline the one cell that still works, OPEN ↗. */
 function editCell(at: SheetAt, offline: boolean, openHref: string | null): Cell | null {
 	if (!offline) return { key: 'edit', label: 'EDIT', accent: false, dim: false, edit: at };
 	return openHref
@@ -432,7 +431,7 @@ function editCell(at: SheetAt, offline: boolean, openHref: string | null): Cell 
 		: null;
 }
 
-/** What the last search did, for a line not linked (1B, 1): never who ran it (c337). */
+/** What the last search did, for a line not linked: never who ran it. */
 function searchWords(
 	s: {
 		hidden: boolean;
@@ -458,7 +457,7 @@ function findCells(o: {
 	hidden: boolean;
 	settled: boolean;
 	offline: boolean;
-	/** A season's line keeps one cell: PASTE A LINK is on the review it opens (1C). */
+	/** A season's line keeps one cell: PASTE A LINK is on the review it opens. */
 	one: boolean;
 }): Cell[] {
 	if (o.hidden)
@@ -474,7 +473,7 @@ function findCells(o: {
 	const find: Cell = {
 		key: 'find',
 		label: 'FIND',
-		// A settled line's FIND is plain: the owner already said no (1C).
+		// A settled line's FIND is plain: the user already said no.
 		accent: !o.settled,
 		dim: o.offline,
 		href: o.href
@@ -493,7 +492,7 @@ function findCells(o: {
 			];
 }
 
-/** CHANGE on a line linked to the wrong kind: its accent, asking this kind's own catalogue (1B, 6). */
+/** CHANGE on a line linked to the wrong kind: its accent, asking this kind's own catalogue. */
 const changeCell = (href: string, offline: boolean): Cell => ({
 	key: 'change',
 	label: 'CHANGE',
@@ -502,7 +501,7 @@ const changeCell = (href: string, offline: boolean): Cell => ({
 	href
 });
 
-/** A comic's or a novel's AniList line, or a one-season anime's (a flat list is one: 1C, 12). */
+/** A comic's or a novel's AniList line, or a one-season anime's (a flat list is one). */
 function anilistLine(i: ListsInput, season: SeasonTrack | null, oneSeason: SeasonRow | null): Line {
 	const link = i.link!;
 	const l = link.linked;
@@ -525,7 +524,7 @@ function anilistLine(i: ListsInput, season: SeasonTrack | null, oneSeason: Seaso
 				: link
 		);
 		// Nothing is linked, so there is no send to take away; the row still says
-		// why it would never send (c522). FIND stays: a search is an ask, not a
+		// why it would never send. FIND stays: a search is an ask, not a
 		// send, and a link is still what gives it its cover and details.
 		if (i.neverTracked) states.push(neverTrackedLine());
 		cells.push(
@@ -548,7 +547,7 @@ function anilistLine(i: ListsInput, season: SeasonTrack | null, oneSeason: Seaso
 				: '',
 			entryWords(l.format, l.country),
 			sl?.episodes ? `${sl.episodes} EP.` : '',
-			// A season's own year, else the comic's (rung 70); never `null`.
+			// A season's own year, else the comic's; never `null`.
 			(sl?.year ?? l.year) ? String(sl?.year ?? l.year) : '',
 			l.malId ? `MAL ${l.malId}` : l.anilistId ? `ANILIST ${l.anilistId}` : '',
 			l.resolving ? 'ANILIST ASKED IN THE NEXT COVER PASS' : ''
@@ -616,7 +615,7 @@ function anilistLine(i: ListsInput, season: SeasonTrack | null, oneSeason: Seaso
 			);
 		}
 		// EDIT opens the sheet that sets STATUS and SCORE, which is a send: a
-		// NEVER TRACKED series (c522) keeps only OPEN ↗, the cell offline gives.
+		// NEVER TRACKED series keeps only OPEN ↗, the cell offline gives.
 		const edit =
 			i.neverTracked && !i.offline
 				? null
@@ -641,7 +640,7 @@ function anilistLine(i: ListsInput, season: SeasonTrack | null, oneSeason: Seaso
 	};
 }
 
-/** "PART 1 COMPLETED", the other part's own word when the season has two (1C). */
+/** "PART 1 COMPLETED", the other part's own word when the season has two. */
 function otherPart(sv: SeasonTrack): string | undefined {
 	const o = sv.other;
 	if (!o) return undefined;
@@ -654,7 +653,7 @@ function otherPart(sv: SeasonTrack): string | undefined {
 		.join(' ');
 }
 
-/** One season's line on an anime with several (1C, 11). */
+/** One season's line on an anime with several. */
 function seasonLineOf(i: ListsInput, sv: SeasonRow, open: boolean): Line {
 	const t = i.tracking?.seasons?.find((s) => s.season === sv.season) ?? null;
 	const hidden = !!i.tracking?.hidden || !!i.link?.hidden;
@@ -671,7 +670,7 @@ function seasonLineOf(i: ListsInput, sv: SeasonRow, open: boolean): Line {
 			searched: sv.searched,
 			decision: sv.decision
 		});
-		// Unlinked, so no send to take away; the line still says why it never would (c522).
+		// Unlinked, so no send to take away; the line still says why it never would.
 		if (i.neverTracked) states.push(neverTrackedLine());
 		cells.push(
 			...findCells({
@@ -760,7 +759,7 @@ function seasonLineOf(i: ListsInput, sv: SeasonRow, open: boolean): Line {
 	};
 }
 
-/** Ranobe's line: a comic's or a novel's work, or one work across an anime's seasons (1B, 9, 10). */
+/** Ranobe's line: a comic's or a novel's work, or one work across an anime's seasons. */
 function ranobeLine(i: ListsInput, under: boolean): Line {
 	const r = i.ranobe!;
 	const anime = !!i.seasons;
@@ -781,7 +780,7 @@ function ranobeLine(i: ListsInput, under: boolean): Line {
 					.filter(Boolean)
 					.join(' · ')
 			: r.link.meta;
-		// NEVER TRACKED (c522): the reason, instead of what was sent and the cells
+		// NEVER TRACKED: the reason, instead of what was sent and the cells
 		// that send it. FIND and PASTE a link stay: a search is an ask, not a send.
 		if (i.neverTracked) states.push(neverTrackedLine());
 		else {
@@ -830,7 +829,7 @@ function ranobeLine(i: ListsInput, under: boolean): Line {
 	};
 }
 
-/** What a fold says of the seasons in it: what wants the owner first, in ink. */
+/** What a fold says of the seasons in it: what wants the user first, in ink. */
 function foldWord(i: ListsInput, list: number[]): { word: string; ink: boolean } {
 	const rows = list
 		.map((n) => i.seasons?.find((s) => s.season === n))
@@ -854,11 +853,10 @@ function foldWord(i: ListsInput, list: number[]): { word: string; ink: boolean }
  * there is nothing to list: a doujin is never linked.
  */
 /**
- * A film's or a show's TMDB line (c989; the keys handoff, Board 2:
- * doc/handoffs/keys-accounts/Keys-Rows.dc.html). With no key it is the one
+ * A film's or a show's TMDB line. With no key it is the one
  * place that says why the film is only its title and cover: a muted "Not
  * looked up", the source it comes from, and SET UP → in ink, not the accent
- * (the accent marks what is the owner's or active, and this is neither yet).
+ * (the accent marks what is the user's or active, and this is neither yet).
  * With a key it is an ordinary link line: the entry, `FILM · 2019 · 1 H 52` or
  * `SHOW · 2024 · 3 SEASONS ON TMDB`, and CHANGE; not linked, the AniList line's
  * search words and FIND.
@@ -917,11 +915,11 @@ export function tmdbLine(i: ListsInput, t: TmdbLinkState): Line {
 }
 
 /**
- * The LIST line of a film or a show with no tracker signed in (Keys-Rows 2A,
- * 2C): muted `Kept in HISTORY`, the local log's words, and SET UP → in ink to
+ * The LIST line of a film or a show with no tracker signed in: muted `Kept
+ * in HISTORY`, the local log's words, and SET UP → in ink to
  * SETTINGS' CATALOGUES. MAL never takes a film or a show (`TRACKERS`), and no
  * tracker that does is built yet, so this is every film's and show's line
- * until Trakt is (c993).
+ * until Trakt is.
  */
 export function historyLine(i: ListsInput): Line {
 	return {
@@ -947,8 +945,8 @@ export function historyLine(i: ListsInput): Line {
 }
 
 export function listsRow(i: ListsInput): Lists | null {
-	// A film or a show has no AniList line: its catalogue is TMDB's (c989), and
-	// its list is a tracker that takes it, or the local log (c993).
+	// A film or a show has no AniList line: its catalogue is TMDB's, and
+	// its list is a tracker that takes it, or the local log.
 	if (i.tmdb)
 		return {
 			note: i.offline ? OFFLINE_NOTE : '',

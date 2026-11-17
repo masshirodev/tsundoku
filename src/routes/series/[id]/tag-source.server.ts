@@ -6,7 +6,7 @@ import { sourceOfKey } from '$lib/library/downloads';
 import { followOrigin } from '$lib/server/season-facts';
 
 /**
- * The source a series' tags search (card c313; doc/SERIES.md, the TAGS row):
+ * The source a series' tags search (doc/SERIES.md, the TAGS row):
  * its origin key's source, when BROWSE can open that source's page. Decided by
  * what can be asked, never by kind (doc/KINDS.md):
  *
@@ -21,9 +21,9 @@ import { followOrigin } from '$lib/server/season-facts';
  * - and BROWSE is there at all (the engine is configured; its pages 404
  *   otherwise).
  *
- * Null is "no sheet": a tag goes to the library, as it always did. Nothing
+ * Null is "no sheet": a tag goes to the library. Nothing
  * here asks the source: its filters are asked by `tag-search/+server.ts`,
- * when the owner follows IN <SOURCE>, never by the screen's load.
+ * when the user follows IN <SOURCE>, never by the screen's load.
  */
 export function tagSourceOf(
 	seriesId: number,
@@ -36,7 +36,7 @@ export function tagSourceOf(
 			WHERE s.id = ? AND (? OR ${VISIBLE_SQL})`
 		)
 		.get(seriesId, reveal ? 1 : 0);
-	// A merged show's tags come from its last season's source (c283): the key
+	// A merged show's tags come from its last season's source: the key
 	// the series itself holds names the first season, which may have no tag
 	// page. `followOrigin` is the same rule FOLLOW uses.
 	const id = sourceOfKey(row ? followOrigin(seriesId).key : null);

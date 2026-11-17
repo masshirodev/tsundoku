@@ -19,22 +19,21 @@
 	} from './lists';
 
 	/**
-	 * EDIT's sheet (Series Link 1m, redrawn by the LISTS handoff's 1E; card
-	 * c424; doc/TRACKING.md). It is the entry's home now: ENTRY holds OPEN ↗,
+	 * EDIT's sheet (doc/TRACKING.md). It is the entry's home: ENTRY holds OPEN ↗,
 	 * CHANGE and UNLINK, which left the row; STATUS, set once for both
 	 * catalogues, sends at once; PROGRESS is each catalogue's, from the reading
 	 * or watching here. DONE only closes. No SCORE: the RATING row is the score.
 	 *
-	 * An anime edits one season at a time (c240): a tab per season, opening on
+	 * An anime edits one season at a time: a tab per season, opening on
 	 * the line EDIT was pressed on, and a change goes to that season's entries
 	 * only. A flat list, or a show of one season, has no tabs and names no
-	 * season anywhere (c423): its one "season" is 0 inside, never on screen.
+	 * season anywhere: its one "season" is 0 inside, never on screen.
 	 *
 	 * On Ranobe's line it is the same sheet without STATUS to set: Ranobe works
 	 * the status out from the reads, and the RATING row and FAV are what it gets.
 	 *
 	 * OPEN ↗ needs the entry's own kind: a linked anime's entries are AniList's
-	 * and MAL's `/anime/` ones, and `/manga/23` is another work (c298).
+	 * and MAL's `/anime/` ones, and `/manga/23` is another work.
 	 */
 	let {
 		open,
@@ -84,7 +83,7 @@
 		seasonNo === null ? null : (tracking?.seasons?.find((s) => s.season === seasonNo) ?? null)
 	);
 	const facts = $derived(st ? st.facts : (tracking?.facts ?? []));
-	/** What this sheet calls the season, or nothing on a flat list (c423). */
+	/** What this sheet calls the season, or nothing on a flat list. */
 	const words = $derived(seasonWords(seasonNo, tabbed));
 
 	// ---- ENTRY -----------------------------------------------------------------
@@ -355,7 +354,7 @@
 					{:else}
 						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
 						<a class="c" href={findHref}>CHANGE</a>
-						<!-- The sheet closes on UNLINK, so the band's UNDO is in sight (c520). -->
+						<!-- The sheet closes on UNLINK, so the band's UNDO is in sight. -->
 						<form
 							method="POST"
 							action="?/unlink"
@@ -399,7 +398,7 @@
 				<form method="POST" action="?/tracking" use:enhance class="sts">
 					{#if anime && seasonNo !== null}
 						<!-- One season's entry, named even when it is the only one: a part's
-						     send must not reach its sibling (c240). -->
+						     send must not reach its sibling. -->
 						<input type="hidden" name="season" value={seasonNo} />
 						<input type="hidden" name="part" value={st?.part ?? 1} />
 					{/if}
@@ -486,7 +485,7 @@
 </Sheet>
 
 <style>
-	/* 1E (doc/handoffs/series-lists/Sheet.dc.html), transcribed: the mock's literals,
+	/* Transcribed from the design: its literals,
 	   colours from tokens. The spacing is hand-set and on no ladder: leave it. */
 	.head {
 		flex-shrink: 0;

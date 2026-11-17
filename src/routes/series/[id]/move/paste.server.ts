@@ -23,7 +23,7 @@ export function pastedSourceId(url: string, kind: MoveKind): string | null {
 		)
 		.all() as { id: string; base_url: string }[];
 	const hit = rows.find((r) => {
-		// The source's medium, never its family's name (c304).
+		// The source's medium, never its family's name.
 		if (sourceMedium(r.id) !== kindFacts(kind).medium) return false;
 		try {
 			const base = new URL(r.base_url).hostname.replace(/^www\./, '').toLowerCase();
