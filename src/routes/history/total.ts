@@ -10,11 +10,11 @@ export type Totals = {
 };
 
 /**
- * The total at the top of HISTORY's first page (card c443): everything the
+ * The total at the top of HISTORY's first page: everything the
  * viewer may see, and each kind's, with SINCE where it starts, so a total is
  * never read as all the reading there ever was.
  *
- * Every SINCE is a first **timed** day (c483, the owner's (b)): the total's is
+ * Every SINCE is a first **timed** day: the total's is
  * the first day anything carried time, and each kind's is that kind's own, so
  * an episode or a novel logged before its time was ever measured does not date
  * hours that only start later. A kind whose first timed day is the total's

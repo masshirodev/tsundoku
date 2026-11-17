@@ -4,7 +4,7 @@
 
 	let { data } = $props();
 
-	/** The handoff's list (Wifi-Phone.dc.html, 3A): what plain http over Wi-Fi can't do. */
+	/** What plain http over Wi-Fi can't do. */
 	const MISSING = [
 		m.welcome_missing_app,
 		m.welcome_missing_offline,
@@ -16,10 +16,9 @@
 <svelte:head><title>{m.welcome_title()} · tsundoku</title></svelte:head>
 
 <!--
-	A phone, just paired over Wi-Fi (doc/WIFI.md, 3A; Wifi-Phone.dc.html,
-	"welcome"). A screen, not a flash: it's the one time the phone is told what
-	Wi-Fi leaves out, and how to come back. Measurements transcribed from the
-	handoff; tests/wifi.e2e.ts pins them.
+	A phone, just paired over Wi-Fi (doc/WIFI.md). A screen, not a flash: it's
+	the one time the phone is told what Wi-Fi leaves out, and how to come back.
+	Measurements transcribed from the design; tests/wifi.e2e.ts pins them.
 -->
 <main class="welcome">
 	<header class="bar">

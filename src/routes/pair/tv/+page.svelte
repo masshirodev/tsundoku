@@ -6,9 +6,9 @@
 	let { data } = $props();
 
 	/*
-	 * The TV's page, or the phone app's 9C and 9E on a phone or a tablet (c521;
-	 * PhoneApp-*.dc.html). The TV's words and frame are exactly what they were;
-	 * the phone and tablet say themselves where the TV did and reflow at 600 px.
+	 * The TV's page, or the phone app's code and paired screens on a phone or a
+	 * tablet. The TV's words and frame are the TV's own; the phone and tablet
+	 * say themselves where the TV does and reflow at 600 px.
 	 */
 	const device = $derived(data.device ?? 'tv');
 	const mobile = $derived(device !== 'tv');
@@ -18,7 +18,7 @@
 
 	let entry: HTMLInputElement | undefined = $state();
 	// On a touchscreen the six cells take focus at once, so the number keyboard
-	// opens with the screen (9C); a TV's focus layer starts there by itself.
+	// opens with the screen; a TV's focus layer starts there by itself.
 	onMount(() => {
 		if (!mobile || data.step !== 'code') return;
 		entry?.focus();
@@ -36,7 +36,7 @@
 
 	let form: HTMLFormElement | undefined = $state();
 
-	/** PAIR → presses itself when the sixth arrives (TV-Pair.dc.html, 9C). */
+	/** PAIR → presses itself when the sixth arrives. */
 	function oninput(e: Event & { currentTarget: HTMLInputElement }) {
 		const v = e.currentTarget.value.replace(/\D/g, '').slice(0, 6);
 		e.currentTarget.value = v;
@@ -52,15 +52,15 @@
 		if (d.step !== 'code') return null;
 		if (d.result === 'wrong') {
 			const left = `${d.left} ${d.left === 1 ? 'TRY' : 'TRIES'} LEFT`;
-			// A phone's band has room for the rule under the count (9C · NOT THAT CODE).
+			// A phone's band has room for the rule under the count.
 			return { h: 'NOT THAT CODE', m: mobile ? `${left} · FIVE WRONG TRIES BURN IT` : left };
 		}
 		if (d.result === 'short') return { h: 'SIX DIGITS', m: 'TYPE ALL SIX' };
 		// Burned is for good, whatever the last try said (the load's `shown`).
 		if (d.state === 'burned' || d.result === 'burned')
 			return { h: 'NO TRIES LEFT', m: 'MAKE A NEW CODE ON THE COMPUTER' };
-		// The typed code had run out, or been used, and the load made a new one
-		// (c246): it is on the computer's screen already, nothing to walk for.
+		// The typed code had run out, or been used, and the load made a new
+		// one: it is on the computer's screen already, nothing to walk for.
 		if ((d.result === 'expired' || d.result === 'used') && d.state === 'live')
 			return {
 				h: d.result === 'expired' ? 'THAT CODE EXPIRED' : 'THAT CODE IS USED',
@@ -81,20 +81,19 @@
 <svelte:head><title>PAIR THIS {upper} · tsundoku</title></svelte:head>
 
 <!--
-	Pairing a TV with six digits typed on a remote (c236; TV-Pair.dc.html 9C,
-	9E). The measurements are the handoff's: a 960x540 frame, the bar 28 from
-	the top, the label at 108, six 72x88 cells at 148, two threes with a 12px
-	gap, the meta line at 252 and the buttons at 304. On a TV it is laid out at
-	the TV's size rather than a responsive stack.
+	Pairing a TV with six digits typed on a remote. The measurements are the
+	design's: a 960x540 frame, the bar 28 from the top, the label at 108, six
+	72x88 cells at 148, two threes with a 12px gap, the meta line at 252 and the
+	buttons at 304. On a TV it is laid out at the TV's size rather than a
+	responsive stack.
 
-	The phone app opens it too (c521; PhoneApp-Phone.dc.html and
-	PhoneApp-Tablet.dc.html): `.mobile` reflows it into the phone's column
+	The phone app opens it too: `.mobile` reflows it into the phone's column
 	under 600 px, PAIR → pinned at the bottom on the keyboard's top edge, and
 	into the tablet's flow above it.
 -->
 {#if data.step === 'paired'}
-	<!-- The TV app reads the server's name from data-paired-name (c545;
-	     MainActivity's PAIRED_JS), so the label's words can change freely. -->
+	<!-- The TV app reads the server's name from data-paired-name
+	     (MainActivity's PAIRED_JS), so the label's words can change freely. -->
 	<main class="pair paired" class:mobile data-paired-name={data.name}>
 		<div class="bar">
 			<Wordmark size={20} />
@@ -143,7 +142,7 @@
 		<form class="safe digits" method="POST" bind:this={form}>
 			<!-- The keys land here: a remote's number keys and ←, as the design says.
 			     On a phone the field lies over the six cells, so a tap on any of
-			     them is a tap on the field and Android raises its keyboard (c521). -->
+			     them is a tap on the field and Android raises its keyboard. -->
 			<div class="code">
 				<input
 					class="entry"
@@ -172,7 +171,7 @@
 			</div>
 			<div class="actions">
 				<!-- A TV presses PAIR → with a short code and is told so; on a phone it
-				     stays dim until the sixth digit, which presses it (9C). -->
+				     stays dim until the sixth digit, which presses it. -->
 				<button class="btn pri" type="submit" disabled={!live || (mobile && typed.length < 6)}
 					>PAIR →</button
 				>
@@ -249,9 +248,9 @@
 	/*
 	 * A band draws over the column instead of in it, so with one the section
 	 * label and the digits move down by the band's own height: the label at
-	 * 164 is the rhythm 9D keeps below its band (TV-Pair.dc.html), and the
-	 * cards at 204 still clear the frame's bottom (2026-11-02, c246: the band
-	 * used to cover "02 — …" and the ✓ ANSWERED line).
+	 * 164 is the rhythm the nothing-answers screen keeps below its band, and the
+	 * cards at 204 still clear the frame's bottom (otherwise the band covers
+	 * "02 — …" and the ✓ ANSWERED line).
 	 */
 	.pair.with-band .sl {
 		top: 164px;
@@ -355,7 +354,7 @@
 	.btn:disabled {
 		opacity: 0.4;
 	}
-	/* 9E */
+	/* Paired */
 	.head {
 		top: 112px;
 		display: flex;
@@ -379,8 +378,8 @@
 		align-items: center;
 	}
 
-	/* ---- c521 · the phone app's 9C and 9E ------------------------------------
-	   PhoneApp-Phone.dc.html and PhoneApp-Tablet.dc.html, their literal values.
+	/* ---- the phone app's code and paired screens ------------------------------
+	   The design's literal values.
 	   The camera band and the gesture strip are the app's padding, so the page
 	   starts at the header. Every height is a min-height: Android's font size
 	   scales the text through the WebView (Form.kt), up to 130%. */
@@ -542,7 +541,7 @@
 			order: 1;
 			margin-top: auto;
 		}
-		/* 9E */
+		/* Paired */
 		.pair.mobile .head {
 			gap: 10px;
 			max-width: none;
@@ -629,7 +628,7 @@
 		.pair.mobile .btn {
 			padding: 8px 24px;
 		}
-		/* 9E */
+		/* Paired */
 		.pair.mobile .head {
 			max-width: 700px;
 			padding: var(--pad-top) 24px 0;

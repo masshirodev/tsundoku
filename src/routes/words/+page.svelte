@@ -6,11 +6,10 @@
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 
 	/**
-	 * Words (Index Japanese 3a, review…reviewReveal): every word looked up
-	 * while reading Japanese waits here, newest first, until it's approved or
-	 * rejected. Unmarked words stay for next time. SEND records the rejected
-	 * and sends the approved to Kumiko, yomu's deck, tagged tsundoku
-	 * (doc/JAPANESE.md, "Mining").
+	 * Words: every word looked up while reading Japanese waits here, newest
+	 * first, until it's approved or rejected. Unmarked words stay for next
+	 * time. SEND records the rejected and sends the approved to a Kumiko
+	 * flashcard deck, tagged tsundoku (doc/JAPANESE.md, "Mining").
 	 */
 	let { data, form } = $props();
 
@@ -109,7 +108,7 @@
 		<section class="empty">
 			<p>
 				Words looked up while reading raw Japanese wait here until you approve them. Approved words
-				go to your yomu deck in Kumiko.
+				go to your deck in Kumiko.
 			</p>
 			<div class="note">{data.sent} SENT SO FAR · NOTHING WAITING</div>
 		</section>

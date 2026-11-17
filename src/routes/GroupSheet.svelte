@@ -24,11 +24,10 @@
 	import { m } from '$lib/paraglide/messages';
 
 	/**
-	 * Grouping by hand (Index Books, state 6; Works Calls, "Making and breaking
-	 * a Work"): what the selection becomes first, then NEW / ADD TO, a NAME, an
+	 * Grouping by hand: what the selection becomes first, then NEW / ADD TO, a NAME, an
 	 * ORDER, and the rows.
 	 *
-	 * The AS row is W4's (c278, Work-Group B5). It shows only the answers the
+	 * The AS row is W4's (doc/WORKS.md). It shows only the answers the
 	 * selection allows -- one series of books, one series of volumes, and a Work
 	 * always -- and the answer names the noun for the rest of the sheet. A Work
 	 * keeps every series apart, so its rows are numbered with ↑ ↓ and its name
@@ -40,8 +39,8 @@
 	 * the books left unticked are recorded as not belonging (the whole set is
 	 * stored as dismissed, so the suggestion doesn't return).
 	 *
-	 * Opened from MIGHT CONTINUE <WORK>'s REVIEW → with `offer` set (W7; Works
-	 * Calls, question 6): ADD TO A WORK into that Work, its run numbered above
+	 * Opened from MIGHT CONTINUE <WORK>'s REVIEW → with `offer` set (W7):
+	 * ADD TO A WORK into that Work, its run numbered above
 	 * and the newcomer last and ticked. Nothing joins until ADD 1 TO THE WORK
 	 * is tapped; NOT THIS stores the offer as dismissed instead.
 	 */
@@ -59,7 +58,7 @@
 		kind?: Kind;
 		entryCount?: number;
 		/**
-		 * A show's own line's facts (c283; `season-facts.ts`): the season's
+		 * A show's own line's facts (`season-facts.ts`): the season's
 		 * source, its AniList year and how many episodes have a file. Null where
 		 * the page read none, and the row keeps `meta`.
 		 */
@@ -92,14 +91,14 @@
 		 * Works a selection can move into: ADD TO A WORK · N (W4). `createdAt`
 		 * is posted back with the id, so a Work that ended and whose id a newer
 		 * one took since the sheet was drawn refuses rather than take the
-		 * selection (c583).
+		 * selection.
 		 */
 		existingWorks?: { id: number; name: string; createdAt: number; series: number }[];
 		/** What the selection allows, from `groupAnswers()` (doc/BOOKS.md, "The AS row"). */
 		answers?: GroupAnswer[];
 		suggested?: boolean;
 		/**
-		 * Post ADD TO A WORK to the library by its full path (c838): a sheet
+		 * Post ADD TO A WORK to the library by its full path: a sheet
 		 * drawn on `/search` has no `?/addToWork` of its own, where the series
 		 * screen's relative one is its own action.
 		 */
@@ -116,12 +115,12 @@
 		 * After a Work is made or added to: the sheet closes and the selection
 		 * ends. On a series screen it is handed the action's answer: `?/work` is
 		 * the library's action, and SvelteKit applies a form only to the page it
-		 * belongs to, so that screen's `form` never sees it (c700).
+		 * belongs to, so that screen's `form` never sees it.
 		 */
 		ondone?: (answer?: Record<string, unknown>) => void;
 		/**
-		 * A refusal the sheet cannot answer (a Work gone, or remade under its id:
-		 * c583, c584), handed over before it closes. Only a page the answer does
+		 * A refusal the sheet cannot answer (a Work gone, or remade under its
+		 * id), handed over before it closes. Only a page the answer does
 		 * not belong to needs it: on the library and the series screen `form`
 		 * carries it, and `invalidateAll()` re-reads the lists.
 		 */
@@ -135,7 +134,7 @@
 	let rows = $state<Book[]>([]);
 	let ticked = $state<number[]>([]);
 	let name = $state('');
-	/** What a show's default name lost: `SEASON 2`, for the NAME label (c283). */
+	/** What a show's default name lost: `SEASON 2`, for the NAME label. */
 	let showWithout = $state<string | null>(null);
 	let into = $state<number | null>(null);
 	/** Why the last try didn't group, from the server; shown until the next. */
@@ -157,11 +156,10 @@
 			: sharedStart(books.map((b) => b.title));
 
 	/**
-	 * A show row's second line (`Seasons-Group.dc.html`, A1): the season's
-	 * source, its episodes, the year, WATCHED in ink and how many are on disk.
-	 * A fact the server did not answer drops out with its dot -- a source a
-	 * series has none of, a year with no AniList entry -- and a row with no
-	 * facts at all keeps the library's line.
+	 * A show row's second line: the season's source, its episodes, the year,
+	 * WATCHED in ink and how many are on disk. A fact the server did not answer
+	 * drops out with its dot -- a source a series has none of, a year with no
+	 * AniList entry -- and a row with no facts at all keeps the library's line.
 	 */
 	function showLine(b: Book): { text: string; ink?: boolean }[] | null {
 		if (!b.show || !b.kind || b.entryCount === undefined) return null;
@@ -176,7 +174,7 @@
 		return parts.filter((p) => p !== null);
 	}
 
-	/** A show's name is the shortest title without its trailing season marker (c283). */
+	/** A show's name is the shortest title without its trailing season marker. */
 	function defaultFor(a: GroupAnswer): { name: string; without: string | null } {
 		if (a === 'show') return defaultShowName(books.map((b) => b.title));
 		return { name: defaultName(a), without: null };
@@ -306,7 +304,7 @@
 </script>
 
 <Sheet {open} {onclose} label="Group into a series">
-	<!-- A refusal says why, in the sheet, which stays open (it used to be dropped). -->
+	<!-- A refusal says why, in the sheet, which stays open. -->
 	<form
 		method="POST"
 		action={work ? '/?/work' : '/?/group'}
@@ -319,7 +317,7 @@
 				if (result.type === 'failure') {
 					const data = result.data as Record<string, unknown> | undefined;
 					// The Work the sheet was drawn with is gone, or another Work holds
-					// its id now (c583, c584): nothing in the sheet can be answered
+					// its id now: nothing in the sheet can be answered
 					// any more, so it closes, the page says why, and the page is read
 					// again -- MIGHT CONTINUE then offers what is true now, or nothing,
 					// and ADD TO A WORK lists the Works there are. Every other refusal
@@ -347,7 +345,7 @@
 				if (page.route.id === '/series/[id]') {
 					await settleReplacing({ result, update });
 					// An offer's add keeps the series: its screen stays, with its band.
-					// So does a Work made from OTHER FORMS (c700), which says so with `ondone`.
+					// So does a Work made from OTHER FORMS, which says so with `ondone`.
 					if (offer) onclose();
 					else if (ondone) ondone(result.type === 'success' ? result.data : undefined);
 				} else {
@@ -365,7 +363,7 @@
 		</div>
 
 		{#if !suggested && !offer}
-			<!-- AS: only what the selection allows, and a Work always (Works Calls, Q7). -->
+			<!-- AS: only what the selection allows, and a Work always. -->
 			<div class="sl as"><span>AS</span><span>WHAT THEY BECOME</span></div>
 			<div class="seg tall answers" role="radiogroup" aria-label="Group as">
 				{#each answers as a (a)}
@@ -596,7 +594,7 @@
 				/>{/each}
 		{/if}
 		{#if work}
-			<!-- The sheet's own door: it may move a series between Works, which no
+			<!-- The sheet's own mark: it may move a series between Works, which no
 			     other caller of ?/work may (see the action). -->
 			<input type="hidden" name="sheet" value="1" />
 			<input type="hidden" name="answer" value={answer} />
@@ -692,7 +690,7 @@
 		font: 500 14px var(--font-mono);
 		letter-spacing: 0.04em;
 	}
-	/* The label / control pair, as both Boards draw it (Work-Group B5). */
+	/* The label / control pair, as the design draws it. */
 	.sl {
 		display: flex;
 		justify-content: space-between;
@@ -705,7 +703,7 @@
 	.order-label {
 		padding-top: 22px;
 	}
-	/* The first label under the head sits 2px tighter (Work-Group B5). */
+	/* The first label under the head sits 2px tighter. */
 	.sl.as {
 		padding-top: 18px;
 	}
@@ -760,8 +758,8 @@
 		font: 500 17px var(--font-sans);
 		outline: none;
 	}
-	/* The show answer is the board's cell: a 14px inset and 16px type (c283).
-	   The books' and the Work's sheets keep the 16/17 they have always had. */
+	/* The show answer is the design's cell: a 14px inset and 16px type.
+	   The books' and the Work's sheets keep 16/17. */
 	.name.show {
 		padding: 0 14px;
 		font: 500 16px var(--font-sans);
@@ -801,7 +799,7 @@
 		margin: 0;
 		padding: 0;
 	}
-	/* A Work's rows are the board's .grows: one frame around every row. */
+	/* A Work's rows are the design's .grows: one frame around every row. */
 	.rows.grows {
 		display: flex;
 		flex-direction: column;
@@ -914,7 +912,7 @@
 		text-overflow: ellipsis;
 		max-width: 100%;
 	}
-	/* WATCHED is ink, the board's own emphasis (A1). */
+	/* WATCHED is ink, the design's own emphasis. */
 	.rows.grows .t .b .ink {
 		color: var(--text-1);
 	}

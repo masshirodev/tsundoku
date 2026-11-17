@@ -9,14 +9,14 @@
 	import type { AddableSeries } from '$lib/library/works';
 
 	/**
-	 * + ADD A SERIES (Work-Screen): the library a Work can take, with the Work
+	 * + ADD A SERIES: the library a Work can take, with the Work
 	 * a series would move out of. A series belongs to one Work at most, so
 	 * adding one that is already elsewhere moves it (doc/WORKS.md, W1's
 	 * `addSeries`).
 	 *
 	 * The library is read here, a page at a time, when the sheet opens: the
 	 * Work screen's load never carries it, so a large library costs the screen
-	 * nothing until the reader asks for the picker (round 2's finding).
+	 * nothing until the reader asks for the picker.
 	 */
 	let {
 		open,
@@ -26,7 +26,7 @@
 	}: {
 		open: boolean;
 		workId: number;
-		/** The Work's moment of making, posted so a reused id refuses (c583). */
+		/** The Work's moment of making, posted so a reused id refuses. */
 		made: number;
 		onclose: () => void;
 	} = $props();

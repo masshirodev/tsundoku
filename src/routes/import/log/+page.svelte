@@ -9,16 +9,16 @@
 	import HiddenFold from '../HiddenFold.svelte';
 
 	/**
-	 * The IMPORT LOG (c438; Import-Log, Import-Doors E): every import of a
-	 * backup and every scan, newest first, one running or waiting at the top
-	 * with its bar. Counts follow reveal (the server counts through `series`),
-	 * and what reveal leaves out is counted apart, in `HiddenFold` (c633).
-	 * An entry opens in place; a running one asks again every second.
+	 * The IMPORT LOG: every import of a backup and every scan, newest first,
+	 * one running or waiting at the top with its bar. Counts follow reveal (the
+	 * server counts through `series`), and what reveal leaves out is counted
+	 * apart, in `HiddenFold`. An entry opens in place; a running one asks again
+	 * every second.
 	 */
 	let { data } = $props();
 	// `?open=backup:<id>` (or `scan:<id>`) opens that entry on arrival: GET
-	// STARTED's 03, done by an import, links its entry here (c511,
-	// Import-Doors B). `?job=<scan job id>` opens the entry of that job, a
+	// STARTED's 03, done by an import, links its entry here.
+	// `?job=<scan job id>` opens the entry of that job, a
 	// scan's or a backup's, which is all the library's band knows of it.
 	const job = Number(page.url.searchParams.get('job'));
 	// Read once, on arrival: later polls must not reopen what was closed.
@@ -53,7 +53,7 @@
 		phone: 'FROM A PHONE'
 	};
 
-	/** How many Works its folds took a series out of, when any (c570). */
+	/** How many Works its folds took a series out of, when any. */
 	const droppedWords = (e: LogEntry) =>
 		e.dropped.length
 			? ` · ${n(e.dropped.length)} ${e.dropped.length === 1 ? 'WORK' : 'WORKS'} DROPPED`
@@ -108,7 +108,7 @@
 </script>
 
 <!--
-	The Works a job's folds took a series out of (c570; doc/IMPORT-BACKUP.md, "The
+	The Works a job's folds took a series out of (doc/IMPORT-BACKUP.md, "The
 	log"), drawn as REFUSED is: one line each, the Work a link while it still
 	exists (the server checks its id with its created_at).
 -->

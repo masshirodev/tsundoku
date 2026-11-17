@@ -32,8 +32,7 @@
 	import type { PageProps } from './$types';
 
 	/**
-	 * HIGHLIGHTS (doc/HIGHLIGHTS.md; card c701; the handoff's Page board, P1–P8,
-	 * and Series S3–S5 for `?series=`). A list on the left, by day; the open
+	 * HIGHLIGHTS (doc/HIGHLIGHTS.md). A list on the left, by day; the open
 	 * item on the right, from 1024px with a fine pointer (where the sidebar
 	 * is); below that one column, and the open item takes the whole screen.
 	 * Every filter, the search and the open item live in the URL.
@@ -97,9 +96,9 @@
 	const latest = $derived(form === droppedAnswer ? null : form);
 	const deleted = $derived(latest && 'deleted' in latest ? Number(latest.deleted) : null);
 
-	// EXPORT (Out X1): the Markdown of what shows, from the same pure function the file uses.
+	// EXPORT: the Markdown of what shows, from the same pure function the file uses.
 	let exporting = $state(false);
-	// The list holds still under what covers it (c1033): EXPORT anywhere, and
+	// The list holds still under what covers it: EXPORT anywhere, and
 	// the open highlight off the desktop, where it fills the screen (P4)
 	// rather than standing beside the list.
 	$effect(() => {
@@ -388,7 +387,7 @@
 							</a>
 						{:else}
 							<div class="clip">
-								<!-- The player's picture, in place (Main Q4). Its subtitle renderer
+								<!-- The player's picture, in place. Its subtitle renderer
 								     comes with the clips themselves (H4): doc/HIGHLIGHTS.md. -->
 								<!-- svelte-ignore a11y_media_has_caption -->
 								<video
@@ -526,11 +525,11 @@
 
 <style>
 	/*
-	 * Measurements are the handoff's (Page P1, P4; hl.css), transcribed by
-	 * design-tools' extract and pinned by tests/highlights-frame.e2e.ts:
-	 * hand-set, not the spacing ladder, so a tidy-up must not round them.
-	 * The three marker colours are the handoff's new ones (Main 02), kept on
-	 * this page until the tokens have them (doc/HIGHLIGHTS.md, Gaps).
+	 * Measurements are the design's, transcribed and pinned by
+	 * tests/highlights-frame.e2e.ts: hand-set, not the spacing ladder, so a
+	 * tidy-up must not round them. The three marker colours are the design's
+	 * new ones, kept on this page until the tokens have them
+	 * (doc/HIGHLIGHTS.md, Gaps).
 	 */
 	.hl-page {
 		--mk-y: oklch(0.5 0.09 95);
@@ -913,7 +912,7 @@
 		font-size: 16px;
 		color: var(--text-2);
 	}
-	/* The marker (Main 02): a flat band over the lower two-thirds of the line, ink to full. */
+	/* The marker: a flat band over the lower two-thirds of the line, ink to full. */
 	.mk {
 		color: var(--mk-ink);
 		box-shadow: inset 0 -0.66em 0 var(--mk-y);

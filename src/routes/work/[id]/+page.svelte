@@ -50,7 +50,7 @@
 
 	// ---- bands ------------------------------------------------------------
 	/**
-	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * The answer the band's ✕ cleared: only that answer, so the next
 	 * action's new `form` draws its own band.
 	 */
 	let droppedAnswer = $state.raw<typeof form>(null);
@@ -877,10 +877,10 @@
 		.fav {
 			width: 72px;
 		}
-		/* The phone pass (W7, Work-Phone B2): the bar as the series screen's
+		/* The phone pass (W7): the bar as the series screen's
 		   phone header draws it -- the name in mono capitals at 13px over an
 		   11px line that drops the order (ORDER's row says it) -- and the
-		   run's head and + ADD A SERIES at the board's phone measures. */
+		   run's head and + ADD A SERIES at the design's phone measures. */
 		.bar-title {
 			padding: 0 14px;
 		}

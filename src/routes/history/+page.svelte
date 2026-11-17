@@ -12,16 +12,15 @@
 	import type { HistoryRow } from '$lib/library/history';
 
 	/**
-	 * History (Index Addendum, states history…historyPhone): CONTINUE going
-	 * further back. One row per series per day; a tap opens the series, a long
-	 * press offers REMOVE, which removes the row and nothing else.
-	 * doc/HISTORY.md has the rules.
+	 * History: CONTINUE going further back. One row per series per day; a tap
+	 * opens the series, a long press offers REMOVE, which removes the row and
+	 * nothing else. doc/HISTORY.md has the rules.
 	 */
 	let { data, form } = $props();
 
 	/** The row whose long press is showing REMOVE, as `seriesId@day`. */
 	let pressed = $state<string | null>(null);
-	/** A record just added from here: the band says so, with OPEN → (Online Board 4B). */
+	/** A record just added from here: the band says so, with OPEN →. */
 	let added = $state<{ seriesId: number; title: string } | null>(null);
 	const addHref = (preview: string) => `${resolve('/downloads/source/[id]', { id: preview })}?/add`;
 	const findHref = (title: string) =>
@@ -38,7 +37,7 @@
 	const keyOf = (r: HistoryRow) => `${r.seriesId}@${r.day}`;
 
 	/**
-	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * The answer the band's ✕ cleared: only that answer, so the next
 	 * action's new `form` draws its own band.
 	 */
 	let droppedAnswer = $state.raw<typeof form>(null);
@@ -55,7 +54,7 @@
 	}
 
 	// A long press puts a row's REMOVE up in the row itself: BACK takes it back
-	// down before it leaves the screen (c235, doc/TV.md).
+	// down before it leaves the screen (doc/TV.md).
 	$effect(() =>
 		registerBack(() => {
 			if (!pressed) return false;
@@ -117,7 +116,7 @@
 		<div class="empty-after" aria-hidden="true"></div>
 	{:else}
 		{#if data.total}
-			<!-- Time read (card c443): the reading log's, for everything shown here. -->
+			<!-- Time read: the reading log's, for everything shown here. -->
 			<section class="total" aria-label="Time read">
 				<div class="total-line">
 					<span>READ {data.total.time}</span><span>{data.total.since}</span>
@@ -176,7 +175,7 @@
 									>{/if}
 							</a>
 							{#if !isPressed && record && r.preview}
-								<!-- + ADD on the row, so adding needn't go through the preview (4A). -->
+								<!-- + ADD on the row, so adding needn't go through the preview. -->
 								<form
 									method="POST"
 									action={addHref(r.preview)}
@@ -186,12 +185,12 @@
 									<button type="submit" class="act cell">+ ADD</button>
 								</form>
 							{:else if !isPressed && r.pruned}
-								<!-- Its place went with it: FIND searches the sources for a fresh one (4C). -->
+								<!-- Its place went with it: FIND searches the sources for a fresh one. -->
 								<a class="act cell wide" href={findHref(r.title)}>FIND →</a>
 							{/if}
 							<!-- eslint-enable svelte/no-navigation-without-resolve -->
 							{#if isPressed && record && r.preview}
-								<!-- The phone has no room for the cell: + ADD leads the long press (4E). -->
+								<!-- The phone has no room for the cell: + ADD leads the long press. -->
 								<form
 									method="POST"
 									action={addHref(r.preview)}
@@ -375,7 +374,7 @@
 		font: 500 14px var(--font-mono);
 		color: var(--text-2);
 	}
-	/* The time read that day, under the time of its last event (c443). */
+	/* The time read that day, under the time of its last event. */
 	.spent {
 		font: 400 13px var(--font-mono);
 		color: var(--text-2);
@@ -405,7 +404,7 @@
 	.act-form {
 		display: flex;
 	}
-	/* A record (Online Board 4): the cover dashed, as Index dashes what isn't
+	/* A record: the cover dashed, as Index dashes what isn't
 	   stored; a forgotten one dims to 0.4 and keeps only FIND. */
 	.record .cov {
 		outline: 1px dashed var(--line-2);

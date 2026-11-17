@@ -1,9 +1,8 @@
 <script lang="ts">
 	/**
-	 * IMPORT A BACKUP's screens (c438; doc/handoffs/import-backup, `im.css`):
-	 * the pick screen, a file's preview, progress and result, and the IMPORT
-	 * LOG share one set of parts. They are the handoff's classes, transcribed
-	 * on the app's tokens (every colour is one: reconcile-tokens found 8 of 8)
+	 * IMPORT A BACKUP's screens: the pick screen, a file's preview, progress
+	 * and result, and the IMPORT LOG share one set of parts. They are the
+	 * design's classes, transcribed on the app's tokens (every colour is one)
 	 * and its hand-set lengths kept as literals, since the theme declares no
 	 * spacing ladder. Scoped under `.imp` so nothing leaks to other screens.
 	 */
@@ -345,7 +344,7 @@
 		color: var(--on-accent);
 		border-left: 0;
 	}
-	/* The phone (Import-Phone-*: 390 wide), as the handoff's `.phone` block draws it. */
+	/* The phone (390 wide), as the design's `.phone` block draws it. */
 	@media (max-width: 599px) {
 		.imp :global(.cellx) {
 			padding: 0 16px;

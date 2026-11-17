@@ -1,8 +1,8 @@
 import { KINDS, kindFacts, type Kind } from '$lib/library/kinds';
 
 /**
- * SEARCH THE SOURCES' KIND band (c699; doc/DOWNLOADS.md, "Finding a series, and
- * adding it"): which kinds the installed sources serve, and which sources a
+ * SEARCH THE SOURCES' KIND band (doc/DOWNLOADS.md, "Searching the
+ * sources"): which kinds the installed sources serve, and which sources a
  * kind asks. A source's kind is its family's, from the registry
  * (`kinds.server.ts` beside this file), never a kind's name here.
  */
@@ -27,7 +27,7 @@ export function kindsServed(sources: readonly { kind: Kind | null }[]): Kind[] {
 
 /**
  * The source kind a `?kind=` asks, of those a source serves. A kind no source
- * family stores (a library filtered to MANHWA or DOUJINS, c736) asks the kind
+ * family stores (a library filtered to MANHWA or DOUJINS) asks the kind
  * that serves its medium: the registry says a manhwa is pages, and pages are
  * what the Mihon sources' kind serves. A word that is no kind, or a kind whose
  * medium no installed source serves, is ALL, today's search, rather than a

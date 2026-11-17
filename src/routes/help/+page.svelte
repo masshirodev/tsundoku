@@ -6,9 +6,9 @@
 	import { m } from '$lib/paraglide/messages';
 
 	/**
-	 * HELP (doc/HELP.md; card c208; the HELP handoff, board 1B): seven topics,
-	 * each row naming its parts, so there's nothing to search. 01 counts the
-	 * checklist; a topic that can't apply here says NOT HERE, and still opens.
+	 * HELP (doc/HELP.md): seven topics, each row naming its parts, so there's
+	 * nothing to search. 01 counts the checklist; a topic that can't apply here
+	 * says NOT HERE, and still opens.
 	 */
 	let { data } = $props();
 	const all = $derived(topics());
@@ -65,7 +65,7 @@
 </div>
 
 <style>
-	/* The HELP handoff's phone list (1B), at every width inside a column. */
+	/* The design's phone list, at every width inside a column. */
 	.back {
 		display: flex;
 		align-items: center;

@@ -21,9 +21,8 @@
 	import { pageOrigin, withInUse } from './servers-in-use';
 
 	/**
-	 * MORE (Reach, tabletMore and phoneMore; doc/SETTINGS.md, "Getting there";
-	 * card c171): the desktop sidebar's foot as a sheet, so the tablet's and
-	 * phone's bar grows by one cell, not four.
+	 * MORE (doc/SETTINGS.md, "Getting there"): the desktop sidebar's foot as a
+	 * sheet, so the tablet's and phone's bar grows by one cell, not four.
 	 */
 	let {
 		open,
@@ -36,14 +35,14 @@
 		open: boolean;
 		/**
 		 * What the sheet opens on: MORE's rows, or SERVERS straight away (the
-		 * library bar's server cell, S1; OK there opens S2). Read when it opens.
+		 * library bar's server cell, where OK opens SERVERS). Read when it opens.
 		 */
 		initial?: 'more' | 'servers';
 		onclose: () => void;
 		queued: number | null;
 		/** GET STARTED's count, while it isn't finished: its row comes first (doc/ONBOARDING.md). */
 		start?: { done: number; total: number } | null;
-		/** When the last backup came in (c438): IMPORT LOG's row says LAST 2 NOV. */
+		/** When the last backup came in: IMPORT LOG's row says LAST 2 NOV. */
 		lastImport?: number | null;
 	} = $props();
 
@@ -51,15 +50,15 @@
 	const day = (at: number) => {
 		const d = new Date(at);
 		const month = d.toLocaleDateString(getLocale(), { month: 'short' }).replace(/\.$/, '');
-		// Day first, as the handoff writes it, whatever order the language prefers.
+		// Day first, as the design writes it, whatever order the language prefers.
 		return upper(`${d.getDate()} ${month}`);
 	};
 
-	// ---- SERVERS (c261; doc/ANDROID.md, "Servers"; doc/handoffs/tv-servers/) ----
+	// ---- SERVERS (doc/ANDROID.md, "Servers") ----
 	/*
 	 * The TV app's list of servers, read from its bridge (PairingBridge.kt):
-	 * MORE's last row (S6), SERVERS (S2), a server's options (S3) and FORGET
-	 * (S4), all inside this one sheet, which on a TV is the 420 px panel the
+	 * MORE's last row, SERVERS, a server's options and FORGET, all inside
+	 * this one sheet, which on a TV is the 420 px panel the
 	 * design draws them in. A page without the bridge (a phone, a computer, a
 	 * browser on the TV) never draws any of it, and nothing is drawn until the
 	 * bridge has answered, so the first paint cannot flash a row.
@@ -100,7 +99,7 @@
 	 * rows nobody asked for (TV-Servers' calls, "BACK").
 	 */
 	let direct = $state(false);
-	/** FORGET is not pressable for its first 0.6 s, so a held OK can't fall through (S4). */
+	/** FORGET is not pressable for its first 0.6 s, so a held OK can't fall through. */
 	let armed = $state(false);
 
 	/** The bridge's answer as a list, or null for anything that is not one (a refusal is ""). */
@@ -130,15 +129,15 @@
 		servers = read();
 	});
 
-	/** SERIES TO LINK's count, from the layout (c475): its row shows while there are any. */
+	/** SERIES TO LINK's count, from the layout: its row shows while there are any. */
 	const toLink = $derived(Number(page.data.toLink ?? 0));
-	/** HIGHLIGHTS' count, from the layout (c701): its row shows while there are any. */
+	/** HIGHLIGHTS' count, from the layout: its row shows while there are any. */
 	const highlights = $derived(Number(page.data.highlights ?? 0));
 
 	// `read` has already set `inUse` on the page's own server (withInUse).
 	const inUse = $derived(servers?.find((s) => s.inUse) ?? null);
 	/**
-	 * Where S2's mark lands: the first one not in use, the one most likely
+	 * Where SERVERS' mark lands: the first one not in use, the one most likely
 	 * come for; with only one server, + ADD A SERVER. Said in the markup too
 	 * (`data-focus-start`), because a sheet opened on SERVERS starts its scope
 	 * a frame after it opens (focusScope), after `land` has run.
@@ -180,7 +179,7 @@
 		for (const s of servers) b.probe(s.origin);
 	}
 
-	/** S2: the first one not in use has the mark; with one server, + ADD A SERVER. */
+	/** SERVERS: the first one not in use has the mark; with one server, + ADD A SERVER. */
 	function openServers() {
 		servers = read();
 		// No bridge (or an APK with no list): there is no SERVERS to open.
@@ -221,11 +220,11 @@
 		if (!armed || !s || !b || typeof b.forgetServer !== 'function') return;
 		// Disarmed before the call: a second press of the same FORGET (a double
 		// tap, a second OK) before the next server's page commits would come
-		// from a page this one has just made unknown (c549).
+		// from a page this one has just made unknown.
 		armed = false;
 		const answer = listOf(b.forgetServer(s.origin));
 		if (!answer) {
-			// Refused (the bridge answers "", c549): nothing was forgotten, so
+			// Refused (the bridge answers ""): nothing was forgotten, so
 			// nothing changes, and FORGET can be pressed again.
 			armed = true;
 			return;
@@ -233,13 +232,13 @@
 		const left = withInUse(answer, pageOrigin());
 		servers = left;
 		if (left.length === 0) {
-			// The last one: 9A, as a TV that never paired.
+			// The last one: the welcome screen, as a TV that never paired.
 			b.welcome?.();
 			return;
 		}
 		if (s.inUse) {
 			// The one in use: the next that answers, else the next by when it
-			// was last opened, whose 9D then offers the rest (S9).
+			// was last opened, whose nothing-answers screen then offers the rest.
 			const next = left.find((x) => answers[x.origin] === 'ok') ?? left[0];
 			b.open?.(next.origin);
 			return;
@@ -283,7 +282,7 @@
 		}
 		untrack(() => {
 			// Read on every opening: the app can rename or forget one between two
-			// (RENAME is its own screen, S5), and the row's line names the one in use.
+			// (RENAME is its own screen), and the row's line names the one in use.
 			servers = read();
 			if (initial === 'servers' && view === 'more') direct = openServers();
 		});
@@ -300,8 +299,8 @@
 	const hostOf = (origin: string) => origin.replace(/^https?:\/\//i, '');
 
 	/**
-	 * RESCAN (c561; doc/LIBRARY.md, "RESCAN asks first"): the desktop sidebar's
-	 * form is the one door, and this row only presses it. MORE closes first,
+	 * RESCAN (doc/LIBRARY.md, "RESCAN asks first"): the desktop sidebar's
+	 * form is the one way in, and this row only presses it. MORE closes first,
 	 * so the question is the only sheet open (two sheets would both take one
 	 * Escape) and focus is back on the bar's MORE cell when the question opens:
 	 * that cell is where CANCEL then returns it. The form is in the layout on
@@ -345,7 +344,7 @@
 			>
 		{/if}
 		{#if toLink > 0}
-			<!-- The links review's door (c475), as in the desktop's sidebar. -->
+			<!-- The links review, as in the desktop's sidebar. -->
 			<a class="row" data-focus-mark="in" href={resolve('/links')}
 				><span>{m.name_to_link()} →</span><span class="n">{num(toLink)}</span></a
 			>
@@ -354,7 +353,7 @@
 			><span>{m.name_history()} →</span><span class="n"></span></a
 		>
 		{#if highlights > 0}
-			<!-- HIGHLIGHTS after HISTORY (c701; Main Q2): as in the sidebar, absent at zero. -->
+			<!-- HIGHLIGHTS after HISTORY: as in the sidebar, absent at zero. -->
 			<a class="row" data-focus-mark="in" href={resolve('/highlights')}
 				><span>{m.name_highlights()} →</span><span class="n">{num(highlights)}</span></a
 			>
@@ -369,25 +368,25 @@
 				>{changed ? m.more_changed({ count: changed, n: num(changed) }) : ''}</span
 			></a
 		>
-		<!-- HELP after SETTINGS, counting its topics (doc/HELP.md; the HELP handoff, 1D). -->
+		<!-- HELP after SETTINGS, counting its topics (doc/HELP.md). -->
 		<a class="row" data-focus-mark="in" href={resolve('/help')}
 			><span>{m.name_help()} →</span><span class="n"
 				>{m.more_topics({ count: topics().length, n: num(topics().length) })}</span
 			></a
 		>
-		<!-- RESCAN (c561): the sidebar's own form, asked through the same question, beside
+		<!-- RESCAN: the sidebar's own form, asked through the same question, beside
 		     IMPORT LOG as in the sidebar. No arrow: it asks, it does not go anywhere. -->
 		<button type="button" class="row" data-focus-mark="in" data-more-rescan onclick={rescan}
 			><span>{m.nav_rescan()}</span><span class="n"></span></button
 		>
-		<!-- IMPORT LOG (c438; Import-Doors E, right): live, with when the last import came in. -->
+		<!-- IMPORT LOG: live, with when the last import came in. -->
 		<a class="row" data-focus-mark="in" href={resolve('/import/log')}
 			><span>{m.name_import_log()} →</span><span class="n"
 				>{lastImport ? m.more_import_last({ date: day(lastImport) }) : ''}</span
 			></a
 		>
 		{#if servers}
-			<!-- S6: the TV app's last row, the only door to a second server. -->
+			<!-- The TV app's last row, the only way to a second server. -->
 			<button type="button" class="row" data-focus-mark="in" data-more-servers onclick={openServers}
 				><span>{m.tv_servers_title()} →</span><span class="n">{serversLine}</span></button
 			>
@@ -396,7 +395,7 @@
 	{:else}
 		<div class="pane">
 			{#if view === 'servers' && servers}
-				<!-- S2 -->
+				<!-- SERVERS -->
 				<div class="p-head"><b>{m.tv_servers_title()}</b><span>{num(servers.length)}</span></div>
 				{#each servers as s (s.origin)}
 					{@const a = answers[s.origin] ?? 'checking'}
@@ -448,7 +447,7 @@
 				</div>
 			{:else if view === 'options' && chosen}
 				{@const a = answers[chosen.origin] ?? 'checking'}
-				<!-- S3 -->
+				<!-- A server's options -->
 				<div class="p-head"><b>{upper(chosen.shown)}</b><span>{m.tv_servers_options()}</span></div>
 				<div class="p-row">
 					<div class="k">{m.tv_servers_address()}</div>
@@ -498,7 +497,7 @@
 					<span><span class="key">BACK</span>{m.tv_servers_hint_list()}</span>
 				</div>
 			{:else if view === 'forget' && chosen}
-				<!-- S4 -->
+				<!-- FORGET -->
 				<div class="p-head">
 					<b>{m.tv_servers_forget_title({ name: upper(chosen.shown) })}</b><span></span>
 				</div>
@@ -594,7 +593,7 @@
 	}
 
 	/*
-	 * SERVERS, its options and FORGET (c261): TV-Servers.dc.html's panel at its
+	 * SERVERS, its options and FORGET: the design's panel at its
 	 * own measurements (tv.css's .p-head, .p-row, .p-act, .srv and .hints),
 	 * transcribed rather than rounded: the colours are the tokens, the lengths
 	 * are hand-set and pinned by tests/tv-servers.e2e.ts.

@@ -7,10 +7,10 @@
 	import { m } from '$lib/paraglide/messages';
 
 	/**
-	 * A HELP topic (doc/HELP.md; the HELP handoff, boards 1A, 1C, 1E): its
-	 * number, title and parts, IN SHORT, then each part, numbered as SETTINGS'
-	 * sections are, with a link to its screen. It ends with ← and → between
-	 * topics and STILL STUCK. On a wide screen the topics' index sits beside it.
+	 * A HELP topic (doc/HELP.md): its number, title and parts, IN SHORT, then
+	 * each part, numbered as SETTINGS' sections are, with a link to its screen.
+	 * It ends with ← and → between topics and STILL STUCK. On a wide screen the
+	 * topics' index sits beside it.
 	 */
 	let { data } = $props();
 	const all = $derived(topics());
@@ -133,7 +133,7 @@
 </div>
 
 <style>
-	/* The HELP handoff's topic (1A, 1C), transcribed; colours are tokens. */
+	/* The design's topic page, transcribed; colours are tokens. */
 	.back {
 		display: flex;
 		align-items: center;
@@ -362,7 +362,7 @@
 		text-decoration: none;
 		white-space: nowrap;
 	}
-	/* Narrower than the index and a topic side by side: the topic alone (1C). */
+	/* Narrower than the index and a topic side by side: the topic alone. */
 	@media (max-width: 1023px) {
 		.index {
 			display: none;

@@ -5,7 +5,7 @@
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 
 	/**
-	 * HIDE on a part of a Work (W4; Work-States 4, doc/WORKS.md, "The one
+	 * HIDE on a part of a Work (W4; doc/WORKS.md, "The one
 	 * rule"): a Work is hidden or shown whole, so hiding one of its series
 	 * asks. HIDE ALL n hides the Work whole; TAKE OUT takes this series out
 	 * first, and hides it on its own, so the rest stay a Work.
@@ -43,11 +43,11 @@
 		 * The Work's moment of making, when this sheet was drawn on one Work
 		 * (the series screen): HIDE ALL n posts it as `made`, so a sheet drawn
 		 * while the series was in another Work cannot hide whatever Work holds
-		 * its id now (c640). Null on the library's, where a selection can hold
+		 * its id now. Null on the library's, where a selection can hold
 		 * parts of several Works and `?/hideAll` writes by id.
 		 */
 		workMade?: number | null;
-		/** The action's own answer, for a page SvelteKit does not apply it to (`/search`, c838). */
+		/** The action's own answer, for a page SvelteKit does not apply it to (`/search`). */
 		onanswer?: (data: Record<string, unknown>) => void;
 		ondone?: () => void;
 		onclose: () => void;
@@ -56,12 +56,12 @@
 	const after: SubmitFunction =
 		() =>
 		async ({ result, update }) => {
-			// One re-read per answer (c660): a success hands the re-read to the
+			// One re-read per answer: a success hands the re-read to the
 			// screen that opened the sheet (`ondone`), so `update` must not do
 			// one too. A failure writes nothing, so only the stale branch below
 			// re-reads -- and it does, because the Work this sheet was drawn on
-			// has moved on (c640). That includes a Work that ended in another
-			// tab, now that `?/hideWork` answers `stale` for it too (c661).
+			// has moved on. That includes a Work that ended in another
+			// tab, now that `?/hideWork` answers `stale` for it too.
 			await update({ invalidateAll: false });
 			if (result.type === 'failure') {
 				const data = result.data as Record<string, unknown> | undefined;

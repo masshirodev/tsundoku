@@ -40,7 +40,7 @@
 	let { data, children } = $props();
 
 	// Highlights kept offline go at the next connection, on any screen and with
-	// no further press (c842; doc/OFFLINE.md): on opening the app, and each time
+	// no further press (doc/OFFLINE.md): on opening the app, and each time
 	// the connection comes back. While anything waits, the call keeps itself going.
 	$effect(() => {
 		if (offline.online) void flushHighlights();
@@ -59,7 +59,7 @@
 	// listener, arrow keys moving by geometry, sheets as scopes.
 	onMount(() => installFocusLayer());
 
-	// The TV app keeps a list of servers (c261; doc/ANDROID.md, "Servers"): a
+	// The TV app keeps a list of servers (doc/ANDROID.md, "Servers"): a
 	// server tells it its own name, the one /pair/tv says, so a TV paired
 	// before the list existed is named too. Only the app's user agent is sent
 	// a name, and only an app whose bridge can take it is told.
@@ -72,14 +72,14 @@
 	});
 
 	// The phone app's camera band takes the page's colour, dark or light, and
-	// follows a theme switched in place (c521; src/lib/app/surface.ts).
+	// follows a theme switched in place (src/lib/app/surface.ts).
 	onMount(() => followSurface());
 	onMount(() => appUpdater.connect());
 
 	// The scan action's refusal is drawn by the empty library only, so the
 	// sidebar's RESCAN says it in its own place rather than nowhere. A scan
 	// that waits behind a backup's import is not a refusal: its WAITING line
-	// is the server's state (`data.scanWaits`, c512): set only while a scan
+	// is the server's state (`data.scanWaits`): set only while a scan
 	// someone asked for is queued behind a backup's import (not for the
 	// import alone), and gone once the scan starts, where the action's answer
 	// stayed until the next press, on every page.
@@ -92,7 +92,7 @@
 	async function closeBand(e: MouseEvent) {
 		const held = e.currentTarget === document.activeElement;
 		// A key's press hands the mark back (a remote's OK, a keyboard's Enter);
-		// a tap must not (c639). `detail` is the click count: 0 for a key's
+		// a tap must not. `detail` is the click count: 0 for a key's
 		// press (and a screen reader's activation), 1 or more for a pointer's.
 		// On Chrome for Android and the phone app's WebView a tap also focuses
 		// the ✕, so on a tap the hand-back would put the mark back in whatever
@@ -113,7 +113,7 @@
 		return () => clearInterval(timer);
 	});
 
-	// ---- RESCAN asks first (c525; doc/LIBRARY.md, "RESCAN") ---------------------------
+	// ---- RESCAN asks first (doc/LIBRARY.md, "RESCAN") ---------------------------
 	// A stray tap on the sidebar started a scan. Now the house's own question
 	// comes first, CANCEL the default; the form is the same, so without script
 	// it still posts and scans. A scan already running is joined at once, as
@@ -366,8 +366,8 @@
 {#if page.route.id?.startsWith('/read')}
 	<!--
 		The reader is the page and nothing else (doc/READER.md): no sidebar, no
-		banners, and no reveal frame either -- the owner's call, 2026-09-24: it
-		crowds the page. Leaving the app still blanks it.
+		banners, and no reveal frame either: it crowds the page. Leaving the app
+		still blanks it.
 	-->
 	{@render children()}
 	<PrivacyShield />
@@ -385,8 +385,8 @@
 				>
 				<div class="side-label">{m.name_shelves()}</div>
 				<!-- The shelves scroll in their own space, so the foot stays put and
-				     nothing between them is squeezed (owner, 2026-10-31: eleven shelves
-				     pressed + NEW SHELF to its text's height). -->
+				     nothing between them is squeezed (eleven shelves would press
+				     + NEW SHELF to its text's height). -->
 				<div class="shelf-scroll">
 					<ShelfTabs
 						vertical
@@ -440,8 +440,8 @@
 						>
 					{/if}
 					{#if data.toLink > 0}
-						<!-- The links review's own door (c475): the library's band can be put
-						     away (c430), and nothing else opened /links. TO LINK, the review's
+						<!-- The links review's own way in: the library's band can be put
+						     away, and nothing else opens /links. TO LINK, the review's
 						     short name, not SERIES TO LINK: links-flow finds the band by those
 						     words, first in the page (doc/LIBRARY.md, "The links band"). -->
 						<a
@@ -458,8 +458,7 @@
 					>
 					{#if data.highlights > 0}
 						<!-- HIGHLIGHTS after HISTORY with its count, absent while there are
-						     none (c701; the highlights handoff, Main Q2). /highlights reaches
-						     it then, and the series screen's row. -->
+						     none. /highlights reaches it then, and the series screen's row. -->
 						<a
 							class="with-n"
 							href={resolve('/highlights')}
@@ -468,7 +467,7 @@
 						>
 					{/if}
 					{#if data.browse}
-						<!-- BROWSE under HISTORY, counting extension updates (Index-Browse, sidebar). -->
+						<!-- BROWSE under HISTORY, counting extension updates. -->
 						<a
 							class="with-n"
 							href={resolve('/browse')}
@@ -479,7 +478,7 @@
 						>
 					{/if}
 					{#if data.queue}
-						<!-- DOWNLOADS under HISTORY with its count, always there (Index Downloads, sidebar). -->
+						<!-- DOWNLOADS under HISTORY with its count, always there. -->
 						<a
 							class="with-n"
 							href={resolve('/downloads')}
@@ -497,7 +496,7 @@
 						action="/?/scan"
 						data-rescan
 						use:enhance={({ cancel }) => {
-							// Asks first, unless one is running already (c525).
+							// Asks first, unless one is running already.
 							if (!scanRunning) {
 								cancel();
 								rescanAsking = true;
@@ -513,7 +512,7 @@
 						<button type="submit">{m.nav_rescan()}</button>
 						{#if rescanShown}<div class="rescan-note" role="status">{rescanShown}</div>{/if}
 					</form>
-					<!-- IMPORT LOG (c438; Import-Doors E): live, counting a running
+					<!-- IMPORT LOG: live, counting a running
 					     import or scan in accent. -->
 					<a
 						class="with-n run"
@@ -530,7 +529,7 @@
 						aria-current={page.url.pathname === '/settings' ? 'page' : undefined}
 						>{m.name_settings()}</a
 					>
-					<!-- HELP, last, under SETTINGS (doc/HELP.md; the HELP handoff, 1A). -->
+					<!-- HELP, last, under SETTINGS (doc/HELP.md). -->
 					<a
 						href={resolve('/help')}
 						aria-current={page.url.pathname.startsWith('/help') ? 'page' : undefined}
@@ -563,7 +562,7 @@
 				</Band>
 			{/if}
 			{#if rescanShown}
-				<!-- RESCAN's answer where there is no sidebar (c561): MORE's RESCAN
+				<!-- RESCAN's answer where there is no sidebar: MORE's RESCAN
 				     closes MORE before it asks, so its note has no row to sit under.
 				     Band's shape, but the line wraps: a refusal names the folders it
 				     looked in, which a phone's width would cut. The desktop draws it
@@ -595,7 +594,7 @@
 		</div>
 
 		<SaveBand />
-		<!-- RESCAN's question (c525): the house's ConfirmSheet, posting the same action. -->
+		<!-- RESCAN's question: the house's ConfirmSheet, posting the same action. -->
 		<ConfirmSheet
 			open={rescanAsking}
 			title={m.nav_rescan_title()}

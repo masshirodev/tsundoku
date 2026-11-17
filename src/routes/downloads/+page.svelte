@@ -18,15 +18,15 @@
 	import { live, watchQueue } from '$lib/downloads-live.svelte';
 
 	/**
-	 * The download queue (Index Downloads 8, 9, 12; doc/DOWNLOADS.md).
-	 * Failures first, with RETRY and ✕; then series in the queue's order, each
-	 * opening (by URL, so without script too) on ↑ TO THE TOP, CANCEL N and its
-	 * next chapters. What finished is the NEW shelf's, linked from the band.
+	 * The download queue (doc/DOWNLOADS.md). Failures first, with RETRY and
+	 * ✕; then series in the queue's order, each opening (by URL, so without
+	 * script too) on ↑ TO THE TOP, CANCEL N and its next chapters. What
+	 * finished is the NEW shelf's, linked from the band.
 	 */
 	let { data, form } = $props();
 	const v = $derived(data.view);
 	/**
-	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * The answer the band's ✕ cleared: only that answer, so the next
 	 * action's new `form` draws its own band.
 	 */
 	let droppedAnswer = $state.raw<typeof form>(null);
@@ -69,7 +69,7 @@
 		{/snippet}
 		{#snippet right()}
 			{#if v && (v.queued > 0 || paused)}
-				<!-- RESUME is the cell in accent while paused (Index Downloads 9). -->
+				<!-- RESUME is the cell in accent while paused. -->
 				<form method="POST" action={paused ? '?/resume' : '?/pause'} use:enhance class="cell-form">
 					<button type="submit" class="cell" class:acc={paused} disabled={!offline.online}
 						>{paused ? 'RESUME' : 'PAUSE'}</button
@@ -100,7 +100,7 @@
 		{@const d = v.downloading}
 		{@const p = progress ?? { fraction: d.progress, page: 0, pages: 0 }}
 		{@const pages = p.pages > 0 ? ` · ${p.page} / ${p.pages}` : ''}
-		<!-- The phone's band keeps the chapter and the counts, and drops the rest (Index Downloads, phone). -->
+		<!-- The phone's band keeps the chapter and the counts, and drops the rest. -->
 		<div class="long">
 			<Banner
 				kind="progress"
@@ -132,7 +132,7 @@
 	{/if}
 	{#if v && v.downloadingEpisode && !paused && !data.down}
 		{@const d = v.downloadingEpisode}
-		<!-- The episode lane (Index Anime Library, queue): minutes an episode, so its share. -->
+		<!-- The episode lane: minutes an episode, so its share. -->
 		<Banner
 			kind="progress"
 			title="DOWNLOADING · {d.title.toUpperCase()} · EP. {formatNumber(d.number)}"
@@ -289,7 +289,7 @@
 	{/snippet}
 
 	{#if v && v.queued === 0 && v.failures.length === 0}
-		<!-- Index Downloads, empty. A queue of hidden series alone draws this too, with reveal off (12). -->
+		<!-- Empty. A queue of hidden series alone draws this too, with reveal off. -->
 		<section class="empty">
 			<div class="empty-label">00 — NOTHING QUEUED</div>
 			<h2>Nothing is downloading.</h2>
@@ -350,7 +350,7 @@
 		padding: 0 18px;
 		font: 500 16px var(--font-mono);
 	}
-	/* The phone keeps a queued series' count and drops the rest (Index Downloads 9). */
+	/* The phone keeps a queued series' count and drops the rest. */
 	.short {
 		display: none;
 	}

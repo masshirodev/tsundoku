@@ -6,8 +6,7 @@
 	import { refusalLines, sizeWords } from '$lib/import/backup-preview';
 
 	/**
-	 * IMPORT A BACKUP, the pick screen (c438; Import-Pick, Import-File-States
-	 * A-C, Import-Phone-Pick). The file goes to the computer in pieces
+	 * IMPORT A BACKUP, the pick screen. The file goes to the computer in pieces
 	 * (doc/IMPORT-BACKUP.md, "The upload"); the last piece answers what it is, and a
 	 * backup it reads opens its preview. Nothing is written to the library
 	 * here: a file that is not a backup is refused with what it was taken for.
@@ -59,7 +58,7 @@
 					headers: { 'content-type': 'application/octet-stream' },
 					body: piece
 				});
-				// 403 is a refusal with its sentence (the TV's, c511); any other failure is not.
+				// 403 is a refusal with its sentence (the TV's); any other failure is not.
 				if (!res.ok && res.status !== 403) throw new Error(String(res.status));
 				a = await res.json();
 			} catch {
@@ -121,11 +120,11 @@
 		</div>
 	{/snippet}
 </TopBar>
-<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md, c511). -->
+<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md). -->
 <StartTrail start={data.start} />
 
 {#if data.tv}
-	<!-- The TV never imports (c511): the server refuses, and says so here. -->
+	<!-- The TV never imports: the server refuses, and says so here. -->
 	<section class="pg" aria-label="Not on a TV">
 		<div class="drop" role="alert">
 			<div class="r ruled">
@@ -314,7 +313,7 @@
 	.later .tx {
 		opacity: 0.55;
 	}
-	/* Two ruled cells (Import-Pick, extracted): 1px gap on the hairline colour. */
+	/* Two ruled cells: 1px gap on the hairline colour. */
 	.two {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));

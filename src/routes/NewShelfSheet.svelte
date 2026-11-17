@@ -20,7 +20,7 @@
 	}
 
 	// Drawn only while open: the page under its scrim holds still for as long
-	// as it is, as under a Sheet (src/lib/scroll-lock.ts, c1033).
+	// as it is, as under a Sheet (src/lib/scroll-lock.ts).
 	$effect(() => lockPage());
 </script>
 
@@ -133,7 +133,7 @@
 		opacity: 0.4;
 		cursor: default;
 	}
-	/* The desktop makes a shelf in the sidebar, in place (3j). */
+	/* The desktop makes a shelf in the sidebar, in place. */
 	@media (min-width: 1024px) and (pointer: fine) {
 		.new-shelf {
 			display: none;

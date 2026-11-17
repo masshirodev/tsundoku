@@ -15,14 +15,14 @@
 	import { m } from '$lib/paraglide/messages';
 
 	/**
-	 * A new version, told on entry (doc/UPDATES.md, "Told on entry"; the Getting
-	 * Started handoff, board 4; card c208): on a friend's computer, over the
-	 * library, once a day at most per version. UPDATE runs here, in the modal:
-	 * downloading (HIDE puts it away, the library's band keeps count),
-	 * installing, the tab waiting while tsundoku is away, and a failure that
-	 * changed nothing. On Linux and the zip it's DOWNLOAD and three steps.
+	 * A new version, told on entry (doc/UPDATES.md, "Told on entry"): on a
+	 * friend's computer, over the library, once a day at most per version.
+	 * UPDATE runs here, in the modal: downloading (HIDE puts it away, the
+	 * library's band keeps count), installing, the tab waiting while tsundoku
+	 * is away, and a failure that changed nothing. On Linux and the zip it's
+	 * DOWNLOAD and three steps.
 	 *
-	 * `app` is the same modal for tsundoku's Android app (c614; doc/UPDATES.md,
+	 * `app` is the same modal for tsundoku's Android app (doc/UPDATES.md,
 	 * "The Android apps"), whose bridge runs the update instead of the server.
 	 */
 	let {
@@ -80,7 +80,7 @@
 	}
 
 	// Drawn only while open: the page under its scrim holds still for as long
-	// as it is, as under a Sheet (src/lib/scroll-lock.ts, c1033).
+	// as it is, as under a Sheet (src/lib/scroll-lock.ts).
 	$effect(() => lockPage());
 </script>
 
@@ -198,7 +198,7 @@
 </div>
 
 <style>
-	/* The Getting Started handoff's board 4 (ob.css .modal, .m-*), transcribed;
+	/* The design's modal, transcribed;
 	   colours are tokens. Centred, as a modal isn't anchored to anything. */
 	.scrim {
 		position: fixed;

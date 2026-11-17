@@ -7,9 +7,9 @@
 	import type { WorkPartRow } from '$lib/server/works';
 
 	/**
-	 * THE RUN (Work-Screen; Work-States 3 and 6): a 128px row per part in the
-	 * owner's order, the number cell inverted on the part CONTINUE opens. A tap
-	 * opens the series with `?from=work:<id>` (W5 reads it), ▶ continues it.
+	 * THE RUN: a 128px row per part in the user's order, the number cell
+	 * inverted on the part CONTINUE opens. A tap opens the series with
+	 * `?from=work:<id>` (W5 reads it), ▶ continues it.
 	 *
 	 * Reordering is the books grid's idiom (`BookGrid`): drag a row, or focus
 	 * one and use the arrow keys, and DONE saves the order. SELECT turns a tap
@@ -64,7 +64,7 @@
 		});
 	}
 
-	/** "ALL DOWNLOADED", "12 OF 98 DOWNLOADED", or the online note the handoff draws. */
+	/** "ALL DOWNLOADED", "12 OF 98 DOWNLOADED", or the online note. */
 	function downloads(p: WorkPartRow): { text: string; online: boolean } {
 		if (p.downloaded >= p.entries && p.entries > 0)
 			return { text: 'ALL DOWNLOADED', online: false };
@@ -156,7 +156,7 @@
 					<span class="tx">
 						<span class="a">{p.title}</span>
 						<span class="b">
-							<!-- The phone drops the status column into this line (Work-Phone). -->
+							<!-- The phone drops the status column into this line. -->
 							<span class="wide"
 								>{kindLabel(p.kind)}{p.source ? ` · ${p.source.toUpperCase()}` : ''}{p.status
 									? ` · ${p.status.toUpperCase()}`
@@ -362,7 +362,7 @@
 		border-color: var(--accent);
 		background: var(--accent);
 	}
-	/* The phone: rows are 104px, the status column folds into the meta line (Work-Phone). */
+	/* The phone: rows are 104px, the status column folds into the meta line. */
 	@media (max-width: 599px) {
 		.part {
 			min-height: 104px;

@@ -33,7 +33,7 @@
 		 * HIDE's answer when it took a Work whole (its band's facts), for a page
 		 * that is not the library: the library's own `form` carries the answer
 		 * there, but SvelteKit applies an action's result only on the action's
-		 * own page, so the search page would never see it (c391).
+		 * own page, so the search page would never see it.
 		 */
 		onhid?: (answer: WholeAnswer) => void;
 	} = $props();

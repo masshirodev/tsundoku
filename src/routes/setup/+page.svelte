@@ -6,7 +6,7 @@
 	import { m } from '$lib/paraglide/messages';
 
 	let { data, form } = $props();
-	/** NO PASSWORD asks first (the owner, 2026-10-30). */
+	/** NO PASSWORD asks first. */
 	let asking = $state(false);
 </script>
 

@@ -19,11 +19,10 @@
 	import type { Kind } from '$lib/library/types';
 
 	/**
-	 * One chosen file (c438; doc/IMPORT-BACKUP.md): what it holds before anything is
-	 * written (Import-Preview, Import-Preview-States, Import-File-States F),
-	 * IMPORT, its progress (Import-Progress) and its result (Import-Result),
-	 * with the phone's boards as the narrow layout. The page follows the row;
-	 * while it runs it asks again every second.
+	 * One chosen file (doc/IMPORT-BACKUP.md): what it holds before anything is
+	 * written, IMPORT, its progress and its result, with a narrow layout for
+	 * the phone. The page follows the row; while it runs it asks again every
+	 * second.
 	 */
 	let { data, form } = $props();
 
@@ -103,7 +102,7 @@
 <svelte:head><title>Import a backup · tsundoku</title></svelte:head>
 
 {#if data.view === 'tv'}
-	<!-- The TV never imports (c511): the server refuses, and says so here. -->
+	<!-- The TV never imports: the server refuses, and says so here. -->
 	<TopBar label="Import a backup">
 		{#snippet left()}
 			<a class="cellx back" href={resolve('/')}><span>←</span><span class="word">LIBRARY</span></a>
@@ -149,7 +148,7 @@
 			<a class="cellx wide" href={resolve('/import')}>CHOOSE ANOTHER</a>
 		{/snippet}
 	</TopBar>
-	<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md, c511). -->
+	<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
 
 	<section class="pg" aria-label="What the backup holds">
@@ -459,7 +458,7 @@
 			</div>
 		{/snippet}
 	</TopBar>
-	<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md, c511). -->
+	<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
 	<section class="pg" aria-label="Not a backup">
 		<div class="drop" role="alert">
@@ -490,7 +489,7 @@
 			</div>
 		{/snippet}
 	</TopBar>
-	<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md, c511). -->
+	<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
 	<section class="pg" aria-label="Importing">
 		<div class="lab first">
@@ -557,7 +556,7 @@
 			</div>
 		{/snippet}
 	</TopBar>
-	<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md, c511). -->
+	<!-- The way back to GET STARTED, while 03's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
 	<section class="pg" aria-label="The result">
 		<div class="lab first">
@@ -724,7 +723,7 @@
 	.spaced {
 		margin-top: 24px;
 	}
-	/* Extracted from Import-Preview: the heading sits on 01's label, the
+	/* Extracted from the design: the heading sits on 01's label, the
 	   ALREADY row hangs under the numbers with no rule of its own on top, and
 	   02's prose keeps 16px from its rows. */
 	.h1.flush {

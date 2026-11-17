@@ -20,7 +20,7 @@
 	import ShelfPicker from '../ShelfPicker.svelte';
 
 	/**
-	 * The selection's bulk bar and the sheets its cells open (c838): the one bar
+	 * The selection's bulk bar and the sheets its cells open: the one bar
 	 * the library and `/search` both draw, so the search has no copy of it. Every
 	 * form posts the library's action by its absolute path (`/?/bulk`), since a
 	 * relative `?/bulk` on `/search` would post to `/search`'s own actions, which
@@ -91,7 +91,7 @@
 		readCount?: number;
 		show?: import('$lib/library/selection').ShowFacts | null;
 		inWork: string | null;
-		/** ONE SHOW's own checks (round 2): a mixed hidden set, or two Works, withdraws it. */
+		/** ONE SHOW's own checks: a mixed hidden set, or two Works, withdraws it. */
 		hidden: boolean;
 		work: number | string | null;
 	};
@@ -120,7 +120,7 @@
 			work: r.work
 		}));
 		const base = groupAnswers(items);
-		// ONE SHOW is the default for a selection of a show's seasons (c283),
+		// ONE SHOW is the default for a selection of a show's seasons,
 		// and only such a selection offers it.
 		return isSeasonSet(items) ? (['show', ...base] as typeof base) : base;
 	});
@@ -152,7 +152,7 @@
 	/**
 	 * FOLD AS LANGUAGES (doc/EDITIONS.md): two or three single books, each in
 	 * a language of its own, none folded already, and each with nothing beside
-	 * it (`alone`, c651: `?/fold` refuses the rest, and an action that can only
+	 * it (`alone`: `?/fold` refuses the rest, and an action that can only
 	 * be refused is not offered). Their codes, or null.
 	 */
 	const foldCodes = $derived.by(() => {
@@ -189,7 +189,7 @@
 		void [...selected];
 		deleteFailed = false;
 	});
-	/** What the selection holds, read as DELETE opens (Out X4; c731). */
+	/** What the selection holds, read as DELETE opens. */
 	let held = $state.raw({ n: 0, series: 0 });
 	/** DELETE THEM TOO: off every time the sheet opens, never carried over. */
 	let deleteHeldToo = $state(false);
@@ -204,7 +204,7 @@
 	/**
 	 * Open a bulk action's sheet once the selection is whole. A tap made while
 	 * the reads are out is dropped by ✕, or by a later tap, which is the one
-	 * the owner meant.
+	 * the user meant.
 	 */
 	async function openWhenFilled(open: () => void): Promise<void> {
 		const tap = ++lastTap;
@@ -335,7 +335,7 @@
 						></button
 					>
 				{:else}
-					<!-- Index Books: GROUP, and W4's AS sheet asks what they become. -->
+					<!-- GROUP, and W4's AS sheet asks what they become. -->
 					<button
 						type="button"
 						class="group"
@@ -343,7 +343,7 @@
 						onclick={() => void openWhenFilled(() => (grouping = true))}>GROUP</button
 					>
 				{/if}
-				<!-- REFRESH (c221): asks each selected series' source once, and downloads nothing. -->
+				<!-- REFRESH: asks each selected series' source once, and downloads nothing. -->
 				<button type="submit" formaction="/?/refresh" disabled={selected.size === 0}
 					>{m.library_refresh()}</button
 				>
@@ -379,7 +379,7 @@
 		</BulkBar>
 	</form>
 	{#if batch}
-		<!-- REFRESH's answer (c221): pinned over the bar that asked, so it is read where it was pressed. -->
+		<!-- REFRESH's answer: pinned over the bar that asked, so it is read where it was pressed. -->
 		<div class="refresh-band">
 			<Band title={batchTitle} detail={batchDetail} ondismiss={ondismissBatch}>
 				{#snippet action()}
@@ -435,7 +435,7 @@
 {/if}
 
 <!-- A copy of the shared ConfirmSheet, with the row highlights add between the
-     lines and the actions, where that sheet has no place for it (Out X4; c731). -->
+     lines and the actions, where that sheet has no place for it. -->
 <Sheet open={deleting} onclose={() => (deleting = false)} label="DELETE {selected.size} SERIES?">
 	<div class="del-head">
 		<span class="del-title">DELETE {selected.size} SERIES?</span>
@@ -537,7 +537,7 @@
 		color: var(--accent);
 	}
 
-	/* REFRESH's answer (c221), pinned over the bulk bar it came from. A band is
+	/* REFRESH's answer, pinned over the bulk bar it came from. A band is
 	   an answer, not a wall: the grid under it stays tappable, and only the band
 	   itself takes a press (its UNDO, its ASK N MORE). */
 	.refresh-band {
@@ -552,7 +552,7 @@
 		pointer-events: auto;
 	}
 	/* The bulk DELETE's sheet: ConfirmSheet's head, body and actions, unchanged,
-	   and the series screen's X4 box (c731). */
+	   and the series screen's highlights box. */
 	.del-head {
 		display: flex;
 		align-items: stretch;

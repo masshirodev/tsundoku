@@ -7,14 +7,13 @@
 	import { goneCount, pickedInOrder, type Picked, type UnseenFacts } from '$lib/library/selection';
 
 	/**
-	 * SHOW (c698; doc/LIBRARY.md, "A selection outlives the shelf"): the
-	 * selection, wherever it was ticked, in the order it was ticked. A row's
-	 * tick takes it out and puts it back; the rows stay until the sheet closes,
-	 * so a slip is undone where it was made. GROUP's own sheet draws its rows
-	 * the same way. The library and the search draw this one sheet (Rules:
-	 * "SHOW · the same sheet over the search"); `ids` is what it listed when it
-	 * opened, `selected` what is ticked now. `unseen` is SELECT ALL's ids read
-	 * by id (c737): being asked for, or gone since and taken out.
+	 * SHOW (doc/LIBRARY.md, "A selection outlives the shelf"): the selection,
+	 * wherever it was ticked, in the order it was ticked. A row's tick takes it
+	 * out and puts it back; the rows stay until the sheet closes, so a slip is
+	 * undone where it was made. GROUP's own sheet draws its rows the same way.
+	 * The library and the search draw this one sheet; `ids` is what it listed
+	 * when it opened, `selected` what is ticked now. `unseen` is SELECT ALL's
+	 * ids read by id: being asked for, or gone since and taken out.
 	 */
 	let {
 		open,
@@ -69,7 +68,7 @@
 		{/each}
 	</ul>
 	{#if asking > 0}
-		<!-- SELECT ALL takes the pages not loaded by id alone (c737): read now. -->
+		<!-- SELECT ALL takes the pages not loaded by id alone: read now. -->
 		<div class="show-unseen" role="status">{m.library_show_asking({ n: count(asking) })}</div>
 	{/if}
 	{#if waiting.length - asking > 0}

@@ -25,11 +25,11 @@
 	} from '$lib/library/filters';
 
 	/**
-	 * A person or tag page (Index Books, states 4, 5 and 8): the library at
-	 * `/?tag=…`, where this header replaces CONTINUE. Tiles, SELECT and the bulk
-	 * bar stay the library's own. GROUP here is the usual way an author's Work is
-	 * made (W4); a Work with a series on the page gets one row above the grid,
-	 * which says the run exists without pulling its other series in.
+	 * A person or tag page: the library at `/?tag=…`, where this header replaces
+	 * CONTINUE. Tiles, SELECT and the bulk bar stay the library's own. GROUP here
+	 * is the usual way an author's Work is made (W4); a Work with a series on the
+	 * page gets one row above the grid, which says the run exists without pulling
+	 * its other series in.
 	 *
 	 * People (artist, circle, author) get FAV, a circle its ARTISTS, and a
 	 * SERIES strip; a plain tag gets the same page with less.
@@ -108,8 +108,8 @@
 	const nextSort: Record<Sort, Sort> = { added: 'title', title: 'rating', rating: 'added' };
 
 	function meta(i: TagItem): { text: string; accent: boolean; progress?: number } {
-		// Finding shows the series; its foot says where in the run it sits
-		// (Work-States 7), and a book keeps its own place in its series.
+		// Finding shows the series; its foot says where in the run it sits, and
+		// a book keeps its own place in its series.
 		const work = i.entryId === null ? workFeet[String(i.seriesId)] : undefined;
 		if (work) return { text: `PART ${work.part} · ${work.name.toUpperCase()}`, accent: false };
 		if (i.entryId !== null && i.seriesTitle) {
@@ -175,7 +175,7 @@
 	</div>
 
 	{#if works.length > 0}
-		<!-- The run exists, and is one tap away (Works Calls, question 7): the Work's
+		<!-- The run exists, and is one tap away: the Work's
 		     other series stay off the page, which is about this person. -->
 		<div class="works">
 			{#each works as w (w.id)}
@@ -406,7 +406,7 @@
 		background: var(--accent);
 		color: var(--on-accent);
 	}
-	/* A Work with a series here (W4; Work-States 7): one row, above the grid. */
+	/* A Work with a series here (W4): one row, above the grid. */
 	.works {
 		display: flex;
 		flex-direction: column;

@@ -7,15 +7,15 @@
 	import { m } from '$lib/paraglide/messages';
 
 	/**
-	 * GET STARTED, a page of its own (doc/ONBOARDING.md; the handoff's
-	 * Start-Phone board): the empty library's list, reachable from HELP's first
-	 * topic and the sidebar on any install, finished or not. Arriving here ends
-	 * a trip (the way back has done its job).
+	 * GET STARTED, a page of its own (doc/ONBOARDING.md): the empty library's
+	 * list, reachable from HELP's first topic and the sidebar on any install,
+	 * finished or not. Arriving here ends a trip (the way back has done its
+	 * job).
 	 */
 	let { data } = $props();
 	$effect(() => trail.end());
 	// A step ticked elsewhere (a phone pairing, a download) shows here without a
-	// reload, until the list is finished (c722; doc/ONBOARDING.md).
+	// reload, until the list is finished (doc/ONBOARDING.md).
 	const open = $derived(!!data.start && !data.start.finished);
 	$effect(() => {
 		if (open) return pollStart();

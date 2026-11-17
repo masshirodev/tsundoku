@@ -18,11 +18,11 @@
 	import { browseSelection } from '$lib/library/browse-selection.svelte';
 
 	/**
-	 * A search result's preview (Download States 1e, state 7): the series
-	 * screen's layout with what the source gave -- no rating, shelves or FILE
-	 * -- and + ADD TO LIBRARY beside reading. Its DOWNLOAD row is the library
-	 * series' own, but each cell asks first, in our sheet, since downloading
-	 * adds the series (card c205); adding lands on the new series.
+	 * A search result's preview: the series screen's layout with what the
+	 * source gave -- no rating, shelves or FILE -- and + ADD TO LIBRARY beside
+	 * reading. Its DOWNLOAD row is the library series' own, but each cell asks
+	 * first, in our sheet, since downloading adds the series; adding lands on
+	 * the new series.
 	 */
 	let { data, form } = $props();
 	/** FIRST READ's next control, ringed while its trip lasts (doc/ONBOARDING.md, "The way back"). */
@@ -30,15 +30,15 @@
 	let adding = $state(false);
 	/** Which DOWNLOAD cell is asking: its sheet is open while this is set. */
 	let asking = $state<'next' | 'all' | null>(null);
-	/** Where it was found (src/lib/library/origin.ts); + ADD hands it to the series (c262). */
+	/** Where it was found (src/lib/library/origin.ts); + ADD hands it to the series. */
 	const back = $derived(data.origin);
 	/**
-	 * Author, artist and each genre search the source (c313; doc/BROWSE.md,
+	 * Author, artist and each genre search the source (doc/BROWSE.md,
 	 * "Arriving from a tag"). Each link names the tag, and `tag-search` waits for
 	 * the source's filters before it says where to go, so the link is right from
 	 * the first paint and never a search for a genre the filters name. The
 	 * source page's back cell returns here, and this page's own ← opens the
-	 * screen it names (its URL keeps its `from`), a plain link (c864): a back
+	 * screen it names (its URL keeps its `from`), a plain link: a back
 	 * link here would match the tag search it came through by path, and loop.
 	 */
 	const searchTag = (namespace: string, value: string) =>
@@ -48,15 +48,15 @@
 			page.url.pathname + page.url.search
 		);
 	/**
-	 * The tag link tapped, while the browser waits on `tag-search` (c452): up
+	 * The tag link tapped, while the browser waits on `tag-search`: up
 	 * to TAG_SCHEMA_WAIT_MS on a cold source, and a TV's WebView draws no
 	 * loading bar, so the link says it is busy and a line says why. A page
 	 * restored by BACK (the bfcache, where nothing else runs) clears it.
 	 */
 	let tagWaiting = $state<string | null>(null);
 	/**
-	 * A preview opened by a long press while selecting in a catalog (card
-	 * c868) is part of the browse world: its ← goes back still selecting, and
+	 * A preview opened by a long press while selecting in a catalog is part
+	 * of the browse world: its ← goes back still selecting, and
 	 * so does a tag tapped here. A tag link is a document load
 	 * (`data-sveltekit-reload`, since `tag-search` is a server route), which
 	 * would end a selection held in this tab's memory, so while selecting the
@@ -80,11 +80,11 @@
 			location.href = a.href;
 		}
 	}
-	/** The author and artist lines, one link a person (c456; `previewPeople`). */
+	/** The author and artist lines, one link a person (`previewPeople`). */
 	const people = (m: { author?: string | null; artist?: string | null }) =>
 		previewPeople(m.author, m.artist);
 	/**
-	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * The answer the band's ✕ cleared: only that answer, so the next
 	 * action's new `form` draws its own band.
 	 */
 	let droppedAnswer = $state.raw<typeof form>(null);
@@ -133,7 +133,7 @@
 		{#if !m}
 			<div class="asking">THE SOURCE NO LONGER HAS IT</div>
 		{:else}
-			<!-- Episodes, or chapters: the preview's medium (card c303). Only an Aniyomi preview names its kind. -->
+			<!-- Episodes, or chapters: the preview's medium. Only an Aniyomi preview names its kind. -->
 			{@const anime = !!m.kind && kindFacts(m.kind).medium === 'video'}
 			{@const cell = continueCell(data.record?.next ?? null, anime)}
 			{@const meta = [m.source.toUpperCase(), STATUS[m.status], data.record ? 'NOT IN LIBRARY' : '']
@@ -158,9 +158,8 @@
 						</div>
 					</div>
 
-					<!-- Reading first, adding beside it (Online Calls, "Read first, add beside
-						     it"): ▶ continues a record, or starts the first episode or chapter. Novels
-						     read online come with card c167. -->
+					<!-- Reading first, adding beside it: ▶ continues a record, or starts the
+						     first episode or chapter. -->
 					<div class="cta-bar">
 						<form method="POST" action="?/open" class="cta-go">
 							<button
@@ -199,7 +198,7 @@
 						</form>
 					</div>
 
-					<!-- DOWNLOAD (card c205): the library series' row, every cell asking first. -->
+					<!-- DOWNLOAD: the library series' row, every cell asking first. -->
 					{#snippet dlCells()}
 						{#each dl.cells as c (c.which)}
 							<button
@@ -234,7 +233,7 @@
 						onclose={() => (asking = null)}
 						ondone={(result) =>
 							// The same: ADD AND DOWNLOAD ends the preview. A failure is drawn
-							// in its band, as `update()` would (c932).
+							// in its band, as `update()` would.
 							settleReplacing({ result, update: () => applyAction(result) })}
 					/>
 
@@ -272,11 +271,11 @@
 
 					<div class="row top">
 						<div class="label">TAGS</div>
-						<!-- `onclickcapture` reroutes the links inside while selecting (c868); they stay the controls. -->
+						<!-- `onclickcapture` reroutes the links inside while selecting; they stay the controls. -->
 						<div class="tags" data-sveltekit-reload onclickcapture={tagWhileSelecting}>
 							<!-- eslint-disable svelte/no-navigation-without-resolve -- searchTag() builds on resolve() -->
 							<!-- tag-search is a server route, not a page: the browser follows its 303. -->
-							<!-- One link a person (c456): "A, B" is two, each searched on its own. -->
+							<!-- One link a person: "A, B" is two, each searched on its own. -->
 							{#each people(m) as line (line.ns)}<div class="tag-line">
 									<span class="ns">{line.ns}</span><span
 										>{#each line.names as name, i (name)}{#if i > 0}<span class="sep">
@@ -335,7 +334,7 @@
 									: ' · ALL ONLINE'}</span
 						>
 					</div>
-					<!-- Every row opens without ADD (doc/READING-ONLINE.md; c161, c166): one form, a
+					<!-- Every row opens without ADD (doc/READING-ONLINE.md): one form, a
 						     button per row, so it works without script. -->
 					<form method="POST" action="?/open">
 						<ol>
@@ -415,7 +414,7 @@
 	}
 	/* Landscape: the 440px panel beside the list, as the series screen. Both
 	   columns run the row's height, so the rule between them reaches the list's
-	   last episode, not the panel's last row (2026-10-29). */
+	   last episode, not the panel's last row. */
 	@media (min-width: 1024px) {
 		.body {
 			flex-direction: row;
@@ -560,7 +559,7 @@
 		font: 400 13px/1.35 var(--font-mono);
 		color: var(--text-2);
 	}
-	/* DOWNLOAD (card c205), as the series panel's: cells inline, dropping below
+	/* DOWNLOAD, as the series panel's: cells inline, dropping below
 	   in equal columns on the phone and in the 440px landscape panel. */
 	.dl-row {
 		min-height: 68px;
@@ -610,7 +609,7 @@
 			border-right: var(--hairline);
 		}
 	}
-	/* Online Calls 1B: the RECORD row, 68px like SOURCE's, FORGET its cell. */
+	/* The RECORD row, 68px like SOURCE's, FORGET its cell. */
 	.record {
 		min-height: 68px;
 	}
@@ -723,7 +722,7 @@
 			width: 56px;
 		}
 	}
-	/* A value that searches the source (c313): the series screen's person link. */
+	/* A value that searches the source: the series screen's person link. */
 	.tv {
 		color: inherit;
 		text-decoration: underline;
@@ -760,7 +759,7 @@
 		color: var(--text-2);
 	}
 	/* The list's form (one per page, so rows open without script) is a block: the
-	   flex every other form here is shrank the rows to their longest title (2026-10-29). */
+	   flex every other form here is would shrink the rows to their longest title. */
 	.list > form {
 		display: block;
 	}
@@ -830,7 +829,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	/* A tag link waiting on its source (c452): underlined in ink and said below. */
+	/* A tag link waiting on its source: underlined in ink and said below. */
 	.tv.pending {
 		color: var(--text-1);
 		text-decoration: underline;

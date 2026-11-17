@@ -9,11 +9,11 @@
 	import type { Rating } from '$lib/library/types';
 
 	/**
-	 * Duplicate books (Pair Review; doc/DUPLICATE-BOOKS.md): one pair at a
+	 * Duplicate books (doc/DUPLICATE-BOOKS.md): one pair at a
 	 * time. tsundoku's pick comes selected, with its reason; a tap on the other
 	 * side selects that one instead. The copies sit side by side where there's
 	 * room for both (landscape) and one above the other where there isn't: the
-	 * sides wrap, as the mock's do, rather than switching at a breakpoint.
+	 * sides wrap, as the design's do, rather than switching at a breakpoint.
 	 *
 	 * A decision waits on the workstation until the next one, so UNDO only has
 	 * to forget it; leaving the review carries the last one out.
@@ -40,7 +40,7 @@
 		open?: number;
 	};
 	let undo = $state<Undo | null>(null);
-	/** The side the owner tapped, against or with the pick; null follows the pick. */
+	/** The side the user tapped, against or with the pick; null follows the pick. */
 	let chosen = $state<'a' | 'b' | null>(null);
 
 	// svelte-ignore state_referenced_locally
@@ -49,7 +49,7 @@
 	const total = data.pairs.length;
 	const pair = $derived<Pair | null>(queue.length ? (byKey.get(queue[0]) ?? null) : null);
 	const fold = $derived(pair?.kind === 'fold');
-	/** A fold where one side is folded already (Pair Review 3b), or a part of a bigger book (3c). */
+	/** A fold where one side is folded already, or a part of a bigger book. */
 	const third = $derived(fold && !!pair?.folded);
 	const part = $derived(fold && !!pair?.part && !pair?.folded);
 	/** A part: which is the story, which the collection, and where the one sits in the other. */
@@ -127,11 +127,11 @@
 
 	// ---- deciding -----------------------------------------------------------------------------
 	type Refusal = { pair: string; decision: string; reason: string };
-	/** A decision a bug or the disk stopped, answered by `applyPending` (c648). */
+	/** A decision a bug or the disk stopped, answered by `applyPending`. */
 	type Stuck = { pair: string; decision: string; error: string };
 	/**
 	 * A decision the library's state could not carry, as the workstation
-	 * answers it (c648): the pair is back in the review undecided, and the band
+	 * answers it: the pair is back in the review undecided, and the band
 	 * says so. The words are the fold's -- "something sits beside it" -- and a
 	 * KEEP or GROUP has its own, since neither refuses for that reason.
 	 */
@@ -164,7 +164,7 @@
 	}
 
 	/**
-	 * A decision the library refused is dropped there (c648), so the pair is
+	 * A decision the library refused is dropped there, so the pair is
 	 * undecided again: put it back at the end of this visit's queue and count it
 	 * as not done. One decided on an earlier visit is not among this visit's
 	 * pairs; the next load brings that one back. UNDO is for the pair on the
@@ -236,7 +236,7 @@
 			failed = 'THE WORKSTATION DID NOT ANSWER · NOTHING CHANGED';
 			return;
 		}
-		// `{undone: false}` with a 200 (c670): a load carried the decision out
+		// `{undone: false}` with a 200: a load carried the decision out
 		// after this screen asked for it. There is nothing to take back, and
 		// putting the pair back in this visit's queue would only 409 when it is
 		// decided -- it is already folded, grouped or in the trash.
@@ -370,14 +370,14 @@
 	async function openFolded(seriesId: number) {
 		// The pair this band's OPEN → belongs to. A refusal or failure of another
 		// pair -- a KEEP stuck on its trash move, retried on every apply -- does
-		// not mean this fold wasn't carried out (c670).
+		// not mean this fold wasn't carried out.
 		const own = undo?.pair ?? null;
 		busy = true;
 		const answer = await post({ apply: true });
 		busy = false;
 		// A fold this state refuses is not carried out, so there is no folded
 		// book to open: the band says which and why, and the pair comes back to
-		// the review (c648) instead of a screen that would look unchanged. One
+		// the review instead of a screen that would look unchanged. One
 		// that failed outright is still waiting -- there is no folded book for it
 		// either, and its own band says so.
 		refused = answer?.refused ?? [];
@@ -600,8 +600,8 @@
 
 <style>
 	/*
-	 * Pair Review, transcribed: the mock's spacing is hand-set, not a ladder
-	 * (reconcile-tokens: no length tokens in the theme), so the literals are
+	 * Transcribed from the design: its spacing is hand-set, not a ladder
+	 * (the theme has no length tokens), so the literals are
 	 * the decisions. Colours are tokens.
 	 */
 	.review {

@@ -51,8 +51,8 @@
 
 	let { data } = $props();
 
-	// The TV cannot turn reveal on: no fingerprint, no screen lock (owner,
-	// 2026-11-01). `/reveal` says so instead of asking for a ceremony.
+	// The TV cannot turn reveal on: no fingerprint, no screen lock.
+	// `/reveal` says so instead of asking for a ceremony.
 	const tvScreen = new MediaQuery(TV, false);
 
 	// Seeded once from the URL; after that the field owns the text and the URL
@@ -87,7 +87,7 @@
 
 	const query = $derived(parseSearch(data.q).type === 'query' ? data.q.trim() : '');
 
-	// ---- SELECT on the search (c698; doc/LIBRARY.md, "What ends SELECT") ----
+	// ---- SELECT on the search (doc/LIBRARY.md, "What ends SELECT") ----
 	/*
 	 * The library's selection, carried here by the selecting bar's `/` (or its
 	 * key), or one started here by SELECT. A hit ticks instead of opening its
@@ -103,7 +103,7 @@
 	);
 	let reviewing = $state(false);
 	let shownIds = $state<number[]>([]);
-	/** SELECT ALL's ids carried here unseen, read by id when SHOW opens (c737). */
+	/** SELECT ALL's ids carried here unseen, read by id when SHOW opens. */
 	const unseen = new UnseenFacts();
 	/**
 	 * Whether the entry behind this one in the tab's history is the library:
@@ -184,7 +184,7 @@
 		return out;
 	});
 	// As on the library: note what is drawn of the selection and forget what
-	// left it, and build nothing while nothing is ticked (c740).
+	// left it, and build nothing while nothing is ticked.
 	$effect(() => {
 		const ids = new Set(selected);
 		const drawn = drawnToNote(selecting, ids, () => drawnPicked);
@@ -195,7 +195,7 @@
 			for (const id of drop) facts.delete(id);
 		});
 	});
-	/** SELECT on the bar: only once a search has hits (Bars-Phone, B). */
+	/** SELECT on the bar: only once a search has hits. */
 	const hasHits = $derived(
 		!!data.result && !!query && data.result.titles.length + data.result.works.length > 0
 	);
@@ -208,8 +208,8 @@
 	}
 
 	/**
-	 * The kind the library was filtered to when its search cell was tapped
-	 * (c699): kept on this page's address as the typing replaces it, and
+	 * The kind the library was filtered to when its search cell was
+	 * tapped: kept on this page's address as the typing replaces it, and
 	 * handed on to SEARCH THE SOURCES, which asks only that kind's sources.
 	 */
 	const kind = $derived(page.url.searchParams.get('kind'));
@@ -219,7 +219,7 @@
 	}
 
 	/**
-	 * HIDE ALL n from a hit's series sheet (c391): the library's band, here. The
+	 * HIDE ALL n from a hit's series sheet: the library's band, here. The
 	 * sheet posts the library's `?/hide`, whose answer SvelteKit applies only on
 	 * the library, so the sheet hands it over (`onhid`) and this page draws it
 	 * with the library's own words (`wholeBand`) and UNDO. It belongs to the
@@ -248,7 +248,7 @@
 	/**
 	 * UNDO posts the library's own UNDO, whose answer is not this page's either:
 	 * a success takes the band down and re-reads the hits; a refusal (the
-	 * library has moved on since, c308) stays on the band and says why.
+	 * library has moved on since) stays on the band and says why.
 	 */
 	const undoHid: SubmitFunction =
 		() =>
@@ -261,13 +261,13 @@
 			hid = null;
 			await invalidateAll();
 		};
-	// ---- the bar's actions, on a page they do not belong to (c838; doc/LIBRARY.md) ----
+	// ---- the bar's actions, on a page they do not belong to (doc/LIBRARY.md) ----
 	let bar = $state<SelectionBar | null>(null);
-	/** A refusal, shown where it was pressed; the selection stays (Rules, "Keeps it"). */
+	/** A refusal, shown where it was pressed; the selection stays. */
 	let barRefused = $state('');
 	// A derived, or every re-read's new `data` would count as the query changing.
 	const searched = $derived(data.q);
-	/** It answers what was pressed: a new tick or a new query is the owner moving on (c469). */
+	/** It answers what was pressed: a new tick or a new query is the user moving on. */
 	$effect(() => {
 		void searched;
 		void [...selected];
@@ -298,9 +298,9 @@
 	});
 	/**
 	 * The bar's forms post the library's actions, whose answer SvelteKit
-	 * applies only on the library (`GroupSheet`'s `ondone`, c700), so it is
-	 * read here. A refusal keeps SELECT and says why; a HIDE or UNHIDE ends it
-	 * (Rules, "As today"); FAV and a rating leave it on, as on the library.
+	 * applies only on the library (`GroupSheet`'s `ondone`), so it is
+	 * read here. A refusal keeps SELECT and says why; a HIDE or UNHIDE ends it,
+	 * as it does on the library; FAV and a rating leave it on, as on the library.
 	 */
 	const bulkAnswer: SubmitFunction = ({ submitter }) => {
 		const doing = submitter instanceof HTMLButtonElement ? submitter.value : '';
@@ -332,13 +332,13 @@
 	/** Which hits are hidden: what a selection noted is only what it noted when ticked. */
 	const hiddenOf = (id: number) => facts.get(id)?.hidden;
 
-	/** A page command as it's typed: offered as a result, opened by Enter or a tap (Reach, command). */
+	/** A page command as it's typed: offered as a result, opened by Enter or a tap. */
 	const pageCmd = $derived.by(() => {
 		const p = parseSearch(q);
 		return p.type === 'page' ? p : null;
 	});
 
-	// ---- the fingerprint gate (Index Addendum, states fpPrompt/fpFail/fpCancel) -----
+	// ---- the fingerprint gate -----
 	// /reveal behind an enrolled device, /lock to enrol this one, /unlock to
 	// take the gate away (doc/PRIVACY.md). The prompt is Android's own; what
 	// sits behind it is this COMMAND row, and nothing hidden.
@@ -361,9 +361,9 @@
 
 	/**
 	 * `/lock`, `/unlock` and a gated `/reveal` typed into another top search
-	 * bar (c697, c711) arrive here with this screen's `go` intent, which travels
+	 * bar arrive here with this screen's `go` intent, which travels
 	 * in history state so a typed or shared `?go=1` link cannot carry it. A `go`
-	 * in the URL is only taken off it, and nothing is submitted (round 2, c710),
+	 * in the URL is only taken off it, and nothing is submitted,
 	 * so no link raises the device prompt with no keystroke, and
 	 * `/search?q=%2Freveal&go=1` cannot start the ceremony. Only those three
 	 * commands ask this screen's device prompt.
@@ -420,7 +420,7 @@
 		// A second ceremony cancels the first's prompt, and that refusal then
 		// lands as NOT UNLOCKED on a device that accepted.
 		if (gate?.status === 'waiting') return;
-		// A TV has no fingerprint and no screen lock (owner, 2026-11-01): say
+		// A TV has no fingerprint and no screen lock: say
 		// so rather than raise a prompt it cannot answer.
 		if (input.command === 'reveal' && tvScreen.current) {
 			gate = {
@@ -529,7 +529,7 @@
 				}}>CLEAR</button
 			>
 			{#if selecting}
-				<!-- Tablet and desktop: the selection beside the field (Bars-Tablet). -->
+				<!-- Tablet and desktop: the selection beside the field. -->
 				<div class="sel in-bar">{@render selection()}</div>
 			{:else if hasHits}
 				<!-- After CLEAR, as on the library's bar; only once a search has hits. -->
@@ -550,7 +550,7 @@
 {/snippet}
 
 {#if selecting}
-	<!-- A phone: a 48px strip under the field (Bars-Phone, "BOTH LAND HERE"). -->
+	<!-- A phone: a 48px strip under the field. -->
 	<div class="sel strip">{@render selection()}</div>
 {/if}
 
@@ -653,7 +653,7 @@
 		</div>
 	{/if}
 	<div class="hits">
-		<!-- A Work whose own name matched comes first, as the run (Work-States 5). -->
+		<!-- A Work whose own name matched comes first, as the run. -->
 		{#each r.works as w (w.id)}
 			{#if selecting}
 				{@const ids = w.parts.map((p) => p.seriesId)}
@@ -724,7 +724,7 @@
 	</div>
 	{#if data.sources && !selecting}
 		<!-- Not while selecting: nothing outside the library can be ticked. -->
-		<!-- No second field (Download States 1e): the same query, carried to the sources. -->
+		<!-- No second field: the same query, carried to the sources. -->
 		<div class="label">
 			<div>SOURCES</div>
 			<div>NOT IN THE LIBRARY YET</div>
@@ -746,7 +746,7 @@
 		</a>
 	{/if}
 {:else if !query && data.browse && data.browse.total > 0 && !selecting}
-	<!-- BROWSE first in the empty search (Index-Browse, phoneEntry). -->
+	<!-- BROWSE first in the empty search. -->
 	<div class="label first">
 		<div>BROWSE A SOURCE</div>
 		<div>RECENT</div>
@@ -1046,8 +1046,8 @@
 		font: var(--type-meta);
 		color: var(--text-2);
 	}
-	/* ---- SELECT on the search (c698; sel.css in doc/handoffs/select-search/) --
-	   The handoff's literals, transcribed: its spacing is hand-set, not a scale. */
+	/* ---- SELECT on the search --
+	   The design's literals, transcribed: its spacing is hand-set, not a scale. */
 	.select-cell {
 		border: 0;
 		border-left: var(--hairline);
@@ -1203,11 +1203,10 @@
 	.hit:active .why .ink {
 		color: inherit;
 	}
-	/* ---- the TV (c238; TV-Search) ----------------------------------------- */
+	/* ---- the TV ----------------------------------------- */
 	@media (pointer: none) and (min-width: 900px) {
-		/* Search sits in the top half, above Android's keyboard (TV Calls,
-		   "SEARCH IN THE TOP HALF"). The field is the top bar; below it the
-		   first results are three cards across, 114px tall. */
+		/* Search sits in the top half, above Android's keyboard. The field is the
+		   top bar; below it the first results are three cards across, 114px tall. */
 		.label {
 			padding: 9px var(--pad);
 			font: var(--type-label);
@@ -1254,7 +1253,7 @@
 		.cell {
 			font: var(--type-control);
 		}
-		/* A TV has no SELECT (Rules, "AS TODAY"; TV Calls, "03 — SIDEBAR"). */
+		/* A TV has no SELECT, as the library has none. */
 		.select-cell {
 			display: none;
 		}

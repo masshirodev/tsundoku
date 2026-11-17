@@ -18,14 +18,14 @@
 	import type { Kind } from '$lib/library/kinds';
 
 	/**
-	 * Searching the sources (Download States 1e, state 6). Results fill in
-	 * source by source under their names; a source still asking shows two
-	 * dashed rows, Index's "not here yet"; one that didn't answer says so with
-	 * TRY AGAIN. A result already in the library says IN LIBRARY and opens
-	 * it; the same title from another source says so, to head off a twin.
-	 * Tabs narrow to one source. Without script the server waits for every
-	 * source and sends their answers as values (c146): streamed data needs
-	 * script, and without it the page drew its waiting rows for good.
+	 * Searching the sources. Results fill in source by source under their
+	 * names; a source still asking shows two dashed rows, Index's "not here
+	 * yet"; one that didn't answer says so with TRY AGAIN. A result already in
+	 * the library says IN LIBRARY and opens it; the same title from another
+	 * source says so, to head off a twin. Tabs narrow to one source. Without
+	 * script the server waits for every source and sends their answers as
+	 * values: streamed data needs script, and without it the page drew its
+	 * waiting rows for good.
 	 */
 	let { data } = $props();
 
@@ -33,7 +33,7 @@
 	let q = $state(data.q);
 	const base = resolve('/downloads/search');
 	/**
-	 * A search's own address: the query, then the kind (c699) and the source
+	 * A search's own address: the query, then the kind and the source
 	 * when there is one. A source tab keeps the kind it was picked under, so
 	 * ALL beside it is that kind's ALL.
 	 */
@@ -43,10 +43,10 @@
 	/**
 	 * What each source answered, keyed by source, in the order the answers
 	 * arrived: the matches are drawn in that order, so a late one joins below
-	 * (card c490, the order MOVE's candidates share: `source-answers.ts`).
+	 * (the order MOVE's candidates share: `source-answers.ts`).
 	 */
 	const answers = new SvelteMap<string, Settled<SearchHit[]>>();
-	// Without script the answers arrive as values (c146): set at once, on the server too.
+	// Without script the answers arrive as values: set at once, on the server too.
 	for (const g of untrack(() => data.groups)) if (isSettled(g.hits)) answers.set(g.id, g.hits);
 	/** Bumped by every fresh load, so an answer for an earlier search is dropped. */
 	let generation = 0;
@@ -84,8 +84,8 @@
 		e.preventDefault();
 		askAgain(ids);
 	};
-	// A source still asking: is its site's check being passed? (c143) The engine
-	// says for an extension, the app itself for a novel (c152); asked only with
+	// A source still asking: is its site's check being passed? The engine
+	// says for an extension, the app itself for a novel; asked only with
 	// the engine set up, which BROWSE needs anyway.
 	const checks = new SvelteMap<string, SiteCheck>();
 	$effect(() => {
@@ -108,7 +108,7 @@
 	const counts = $derived(answerCounts(answers));
 	/**
 	 * Whether each fold is open, kept here: a fold whose sources are all being
-	 * asked again leaves the list, and comes back as the owner left it.
+	 * asked again leaves the list, and comes back as the user left it.
 	 */
 	const foldOpen = $state({ nothing: false, failed: false });
 	/** The sources this search asked, as the list names them. */
@@ -138,7 +138,7 @@
 	const SHOWN = 3;
 
 	/**
-	 * The bar's leading `/` runs a command, as the library's does (c697): the
+	 * The bar's leading `/` runs a command, as the library's does: the
 	 * sources are searched for anything else. A refusal is said above the
 	 * results, and the search that was here stays.
 	 */
@@ -186,7 +186,7 @@
 	</div>
 {:else if data.q && data.all}
 	{#if data.kinds.length > 1}
-		<!-- The KIND band (c699), the sources' tabs' idiom above them: ALL is every
+		<!-- The KIND band, the sources' tabs' idiom above them: ALL is every
 		     source, as before; a kind asks only its own sources. One row on a TV. -->
 		<nav class="tabs kinds" aria-label="Kinds">
 			<a class="tab" class:on={!data.kind} href={href(undefined, null)}
@@ -217,7 +217,7 @@
 		<div>{count(counts.found)} FOUND</div>
 	</div>
 
-	<!-- The order MOVE's candidates share (card c490; doc/READING-ONLINE.md, the search
+	<!-- The order MOVE's candidates share (doc/READING-ONLINE.md, the search
 	     page): the sources with results first, in the order they answered;
 	     the ones still asking as one line; then, folded at the end, the ones
 	     that found nothing and the ones that did not answer. -->
@@ -229,8 +229,8 @@
 		{#each data.only ? m.hits : m.hits.slice(0, SHOWN) as h (h.mangaId)}
 			<!-- A preview asks the source: loaded on tap, not hover (see ResultTile).
 			     An in-library hit is the series, not its preview, and keeps the
-			     search it was found by as its origin, so its ← says SOURCES (c262,
-			     c152): the same rule BROWSE's tile follows. -->
+			     search it was found by as its origin, so its ← says SOURCES: the
+			     same rule BROWSE's tile follows. -->
 			<a
 				class="hit"
 				data-sveltekit-preload-data="tap"
@@ -295,7 +295,7 @@
 			<div class="failed all">
 				<span>NOTHING FROM THESE · ASKED ALONE, NOT THE REST</span>
 				<!-- The href is the way without script. With it, a hover must not
-				     preload it: that load asks every source again (c538). -->
+				     preload it: that load asks every source again. -->
 				<a
 					href={href()}
 					data-sveltekit-preload-data="off"

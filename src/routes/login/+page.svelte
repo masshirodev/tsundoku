@@ -11,11 +11,11 @@
 <svelte:head><title>{m.login_title()} · tsundoku</title></svelte:head>
 
 <!--
-	Not drawn in the handoff. Built from the empty state's parts -- numbered
+	Not in the design. Built from the empty state's parts -- numbered
 	label, hairline field, primary button -- so it belongs to the same system.
 -->
 {#if data.pair}
-	<!-- A code that no longer works (doc/WIFI.md, 3B, 3C; Wifi-Phone.dc.html): what happened, and what to do on the computer. -->
+	<!-- A code that no longer works (doc/WIFI.md): what happened, and what to do on the computer. -->
 	<div class="band" role="status">
 		<div class="ba">
 			{data.pair === 'used' ? m.login_pair_used() : m.login_pair_expired()}
