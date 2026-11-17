@@ -1,22 +1,20 @@
 # Updates
 
-How a friend's install learns of a new version and installs it (card c182),
-and where releases are published (card c180). Never automatic: tsundoku looks
-and says so; the friend presses UPDATE.
+How an install learns of a new version and installs it, and where releases
+are published. Never automatic: tsundoku looks and says so; the user presses
+UPDATE.
 
 ## Where releases live: dl.tsundoku.masshiro.pro
 
-Hansei's arrangement (its `doc/DESKTOP-RELEASE.md`): a folder on the VPS,
-`~/tsundoku-releases`, served read-only by Caddy (`~/projects/caddy` on the VPS,
-in `masshirodev/homelab`; mounted at `/srv/tsundoku-releases`, `file_server
-browse`). Not GitHub: the repositories are private, and a private repo's release
-assets answer 404 to anyone without a token. Its own subdomain because the
-address is compiled into every install (`UPDATES` in
-`ops/release/launcher/plan.ts`), so it has to outlive any other change to
-masshiro.pro.
+A folder on a server, served read-only by a plain file server (Caddy's
+`file_server browse`), at its own subdomain because the address is compiled
+into every install (`UPDATES` in `ops/release/launcher/plan.ts`), so it has to
+outlive any other change to the site. Not GitHub releases: the host only has
+to serve files, and an install trusts none of them without the release key
+(below).
 
 ```
-~/tsundoku-releases/
+tsundoku-releases/
   latest.json             the signed announcement every install checks
   latest -> 2026.10.30.4/ moved by publish
   2026.10.30.4/           written once, never rewritten
@@ -24,12 +22,12 @@ masshiro.pro.
     tsundoku-win-x64.zip
     tsundoku-linux-x64.tar.xz
     flaresolverr-3.4.6-win-x64.zip, flaresolverr-3.4.6-linux-x64.tar.gz
-    tsundoku-app.apk  tsundoku-tv.apk   since c614: 2026.11.05.1 and older have neither
+    tsundoku-app.apk  tsundoku-tv.apk   2026.11.05.1 and older have neither
     SHA256SUMS  README.txt
 ```
 
 `latest.json` and `latest/` are sent `no-cache`; a version folder
-`immutable`. **A friend's lasting download link** is
+`immutable`. **The lasting download link** is
 `https://dl.tsundoku.masshiro.pro/latest/tsundoku-win-x64.exe`.
 
 ## The release key
@@ -37,25 +35,24 @@ masshiro.pro.
 `latest.json` is `{ "manifest": "<JSON as a string>", "signature": "<base64>" }`:
 an ed25519 signature over exactly the manifest's bytes, so nothing has to agree
 on how JSON is spelled. The manifest names the version, its date, the notes a
-friend reads, and each file's name, size and SHA-256
+user reads, and each file's name, size and SHA-256
 (`src/lib/server/update-manifest.ts`).
 
-- The private key is `~/.config/tsundoku/release-signing.pem` on the
-  workstation (mode 600), made 2026-10-30, and nowhere else but its backup
-  (below). Its public half, raw, is `RELEASE_KEY` in `update-manifest.ts`, in
-  every build.
+- The private key is `~/.config/tsundoku/release-signing.pem` on the machine
+  that publishes (mode 600; `TSUNDOKU_SIGNING_KEY` points elsewhere), and
+  nowhere else but its backup. Its public half, raw, is `RELEASE_KEY` in
+  `update-manifest.ts`, in every build.
 - An install refuses a `latest.json` whose signature isn't that key's, and an
   installer whose size or SHA-256 isn't the manifest's. The host only serves
-  files; it is never trusted to choose them. Someone who took over the VPS
+  files; it is never trusted to choose them. Someone who took over the host
   could withhold an update, never push one.
-- **Losing the key** means no install can verify a new release: every friend
-  would install the next one by hand, from a build carrying a new key.
-  **Back it up to Infisical** (project tsundoku, prod, in a folder
-  `release`, secret `RELEASE_SIGNING_KEY`, the file as one line:
-  `base64 -w0 ~/.config/tsundoku/release-signing.pem`). A folder, because
-  `yarn run secrets:pull` copies the project's top level into the app's
-  `.env`, where a signing key has no business. The machine identity here is
-  Viewer-only, so that was the owner's step: done 2026-10-30.
+- **Losing the key** means no install can verify a new release: every user
+  would install the next one by hand, from a build carrying a new key. So it
+  is backed up off the machine, as one line (`base64 -w0
+~/.config/tsundoku/release-signing.pem`), in the secrets store but in a
+  folder of its own (`release`, secret `RELEASE_SIGNING_KEY`), because
+  `yarn run secrets:pull` copies the store's top level into the app's `.env`,
+  where a signing key has no business ([`SECRETS.md`](SECRETS.md)).
 - Not code signing: SmartScreen still warns on a first install. An update
   from inside tsundoku doesn't see that warning, since the installer was
   downloaded by tsundoku, not a browser (no mark of the web).
@@ -68,7 +65,7 @@ git push origin release/2026.10.30.4
 yarn run release 2026.10.30.4
 ops/release/android-apk.sh 2026.10.30.4     # both apps, from the tag, with the keystore
 ops/release/smoke.sh 2026.10.30.4           # writes out/<v>/.smoked when every platform passed
-$EDITOR ops/release/notes/2026.10.30.4.txt  # what a friend reads: a few plain lines
+$EDITOR ops/release/notes/2026.10.30.4.txt  # what a user reads: a few plain lines
 yarn run release:publish 2026.10.30.4       # --dry-run signs and checks, uploads nothing
 ```
 
@@ -77,21 +74,23 @@ whole (its `.smoked` mark), one rebuilt since it did, one without notes, one
 without both release-signed APKs, and one already on the host. It
 hard-links the files under their published names, signs `latest.json` and
 opens it with the builds' public key (a mismatched key would publish a release
-nobody can install), rsyncs the folder to `vps:tsundoku-releases/.<v>.part`,
-renames it into place, points `latest` at it, and only then writes
-`latest.json`. Last, it fetches `latest.json` and every file back over https,
-as a friend's install will.
+nobody can install), rsyncs the folder to
+`<TSUNDOKU_RELEASE_HOST>:<TSUNDOKU_RELEASE_DIR>/.<v>.part` over SSH (defaults
+`vps` and `tsundoku-releases`), renames it into place, points `latest` at it,
+and only then writes `latest.json`. Last, it fetches `latest.json` and every
+file back over https (`TSUNDOKU_RELEASE_URL`, the release host by default), as
+an install will.
 
-## On a friend's install
+## On an install
 
 On only where the launcher sets `TSUNDOKU_UPDATES` (the release host) and the
-build's version is a release's (`YYYY.MM.DD[.N]`): the workstation is
-neither. `TSUNDOKU_UPDATES=off` in the data folder's `.env` stops it looking.
+build's version is a release's (`YYYY.MM.DD[.N]`): a development build is not.
+`TSUNDOKU_UPDATES=off` in the data folder's `.env` stops it looking.
 
 - **Looking** (`src/lib/server/updates.ts`): at most once a day, on any page
   load, without waiting for the answer; SETTINGS looks if the last check is
-  over an hour old, and CHECK looks now. One GET of `latest.json`: Caddy's log
-  sees the address, nothing else is sent. **The last answer is kept** (c818):
+  over an hour old, and CHECK looks now. One GET of `latest.json`: the host's
+  log sees the address, nothing else is sent. **The last answer is kept**:
   `<data>/update-latest.json` holds the signed text as the host sent it and
   when it came, written whole (a temp file, then a rename), and beside
   `updates/` rather than in it, since the sweep below empties that folder. A
@@ -100,13 +99,13 @@ neither. `TSUNDOKU_UPDATES=off` in the data folder's `.env` stops it looking.
   kept and says nothing to the page. The daily and hourly limits therefore
   outlive a start. Only an answer is written: a failed look keeps the last good
   one on offer and shows its error for as long as this start lasts, and the
-  next start, knowing only the last answer, may look again (a friend who
+  next start, knowing only the last answer, may look again (someone who
   started offline is not made to wait a day). A version kept that isn't newer
   than the one running, as after an update, is never offered.
 - **Saying so**: a modal on the library (below, "Told on entry"), and one
-  band, TSUNDOKU <v> IS OUT, until the friend opens SETTINGS (`tsundoku.update.seen` in the browser). SETTINGS >
-  08 — DEVICES > UPDATES shows the version running, when it last looked, and
-  what's new.
+  band, TSUNDOKU <v> IS OUT, until SETTINGS is opened (`tsundoku.update.seen`
+  in the browser). SETTINGS > 08 — DEVICES > UPDATES shows the version
+  running, when it last looked, and what's new.
 - **UPDATE** (Windows, installed by the installer: the launcher passes
   `TSUNDOKU_INSTALLED=1` when `uninstall.exe` is beside it): the server
   downloads the installer into `<data>/updates/<v>/`, checks its size and
@@ -117,65 +116,53 @@ neither. `TSUNDOKU_UPDATES=off` in the data folder's `.env` stops it looking.
   Installers already run are deleted at the next check.
 - **DOWNLOAD** everywhere else (Linux; Windows from the zip): the version's
   archive, and the steps (unpack beside, start the new one, delete the old).
-  In place on Linux can come later.
 
 ## Told on entry
 
-A new version is also a **modal on the library** (card c208; the Getting
-Started handoff, board 4: `doc/design/handoff/Start-Update*.dc.html`),
-`src/routes/UpdateModal.svelte`. Its words and rules are
-`src/lib/updates.ts`; the run it starts is `src/lib/update-run.svelte.ts`,
-the same loop SETTINGS' UPDATE runs now, so the two can't differ.
+A new version is also a **modal on the library**,
+`src/routes/UpdateModal.svelte`. Its words and rules are `src/lib/updates.ts`;
+the run it starts is `src/lib/update-run.svelte.ts`, the same loop SETTINGS'
+UPDATE runs, so the two can't differ.
 
-- **Where**: the library, on the computer itself (`locals.via` is `local`),
-  where updating works (the layout's `updateOffer`). Never the workstation,
-  never a phone over Wi-Fi: the computer updates, not the phone. A phone over
-  Tailscale does see it; UPDATE there still updates the computer.
+- **Where**: only the library, where the band was: someone opening a
+  bookmarked chapter isn't stopped mid-read. Only where updating works (the
+  layout's `updateOffer`), and never over the home Wi-Fi (`locals.via` is
+  `lan`): the computer updates, not the phone. A phone over Tailscale does see
+  it; UPDATE there still updates the computer.
 - **When**: on the first library page of any start after a look has found
-  the version, because a start knows what the last look found (above, c818).
+  the version, because a start knows what the last look found (above).
   The look itself doesn't wait for its answer, so the first page after a
   look finds something new can't say so: the next open, or the next load in
   the same run, does. **That includes the very first start**: with nothing
-  kept, its first page shows nothing. **LATER** (and Escape, and the scrim) snoozes it
-  for a day, for that version, in that browser
-  (`tsundoku.update.later`); a newer version asks at once.
+  kept, its first page shows nothing. **LATER** (and Escape, and the scrim)
+  snoozes it for a day, not the whole version, for that version, in that
+  browser (`tsundoku.update.later`); the note under it says ASKED AGAIN
+  TOMORROW, SETTINGS can still update at any time, and a newer version asks
+  at once.
 - **What it says**: the version, `RELEASED 2 NOV · 182 MB · SIGNED BY
 TSUNDOKU'S RELEASE KEY`, the notes a line each, UPDATE → / LATER. On Linux
-  and the zip, DOWNLOAD ↓ and the three steps.
+  and the zip, DOWNLOAD ↓ and the three steps, with the same note under its
+  buttons as the install variant.
 - **UPDATE, in the modal**: Downloading (a 4 px bar and the count; HIDE puts
   it away and the library's band counts, `UPDATING · 41%`, with SHOW),
   Installing, Opening again (the tab waits, with a clock), then the reload. A
   failure says nothing was changed, with TRY AGAIN. After the reload the
   library says `UPDATED TO <v>` once (`tsundoku.update.done`), with ✕.
-- **The band** `TSUNDOKU <v> IS OUT` stays as it was, until SETTINGS is
+- **The band** `TSUNDOKU <v> IS OUT` stays as it is, until SETTINGS is
   opened.
-
-**Where it departs from the handoff**
-
-- **LATER is a day, not the whole version.** The handoff drew "quiet until
-  the next version"; the owner, 2026-10-30: "later can mean a day... they
-  can still update through the settings tho, just snooze the modal a day".
-  The note under it says ASKED AGAIN TOMORROW.
-- **The DOWNLOAD variant keeps the note** under its buttons, as the install
-  one does; board 4E had none.
-- **Only on the library.** "On entry" is the library, where the band was;
-  a friend opening a bookmarked chapter isn't stopped mid-read.
 
 **Not tested end to end**: the modal needs a release-dated build and a
 manifest signed with the release key, which no test holds and none should.
 `tests/updates-client.spec.ts` covers when it asks, every line it says and
 the UPDATE loop (old server, nobody, the new one; a failure; a refusal);
-the Windows smoke covers the server's side. It was checked by eye on
-2026-10-30 against a dated build and a scratch-signed manifest, on the
-desktop and the phone.
+the Windows smoke test covers the server's side. Checking it by eye needs a
+dated build and a scratch-signed manifest.
 
 ## The Android apps
 
 The phone and tablet app and the TV app are sideloaded, so nothing else
 updates them; they update themselves from the same host and the same signed
-`latest.json` (card c614, "The Android apps update themselves: a signed APK
-from the release host, offered in UPDATES and the library's modal";
-[`PHONE-APP.md`](PHONE-APP.md), [`TV-APP.md`](TV-APP.md)).
+`latest.json` ([`PHONE-APP.md`](PHONE-APP.md), [`TV-APP.md`](TV-APP.md)).
 
 - **Published with every release.** `ops/release/android-apk.sh <version>`
   builds both beside the bundles, release-signed; `release:publish` refuses a
@@ -183,11 +170,10 @@ from the release host, offered in UPDATES and the library's modal";
   update an installed app, whose certificate is the keystore's). They go up
   as `tsundoku-app.apk` and `tsundoku-tv.apk`, in the manifest under
   `files.android.app` and `files.android.tv`, size and SHA-256 signed with
-  the rest. **A friend's lasting link** for a first install is
-  `https://dl.tsundoku.masshiro.pro/latest/tsundoku-app.apk`. It answers 404
-  until the first release with APKs is published, because `latest` is whichever
-  version was published last. That was 2026.11.05.1 when this was written
-  (2026-11-06), older than c614, and `tsundoku-tv.apk` is the same.
+  the rest. **The lasting link** for a first install is
+  `https://dl.tsundoku.masshiro.pro/latest/tsundoku-app.apk` (and
+  `tsundoku-tv.apk`); it answers 404 whenever the version published last
+  carries no APKs, because `latest` is whichever that is.
 - **Looking** (`Updater.kt`): on launch at most once a day, never for a
   build whose version is no release (a local `1.0.0`), and when asked. One
   GET of `latest.json`, with a user agent of `tsundoku-app/<version>`.
@@ -200,7 +186,7 @@ from the release host, offered in UPDATES and the library's modal";
   (`2026.11.05-dev2` is offered `2026.11.05.1` and later). Android's
   `versionCode` is the date version as YYYYMMDDNN (`Versions.code`, and the
   same rule in `app/build.gradle.kts`), so every release is newer to the
-  installer than the one before; before c614 it was always 1.
+  installer than the one before.
 - **Installing** is Android's PackageInstaller. Android 8 and later ask once
   to allow installs from tsundoku (the app opens that switch and installs when
   you come back), and Android shows its own "Update this app?" the first
@@ -210,19 +196,19 @@ from the release host, offered in UPDATES and the library's modal";
 - **Saying so** is the web app's: the bridge gives the page `appUpdate()`
   (the version running, the phase, the release on offer), `appCheck()`, and
   the guarded `appDownload()` and `appInstall()`, and posts every change as
-  `window.tsundokuAppUpdate(state)`. The owner chose (2026-11-05) to reuse
-  what the computer has rather than draw anything new: a THIS APP row under
-  SETTINGS' UPDATES, and the library's modal for the app, the same
-  `UpdateModal.svelte` given `app`. `src/lib/app/update.svelte.ts` is the
-  page's one copy of the state, connected by the layout, so a browser (no
-  bridge) and an app older than c614 (no `appUpdate`) draw nothing. The app's
-  LATER is its own (`tsundoku.app-update.later`), a day, for that version, and
-  the computer's offer goes first if both are out. A failed **check** ends in
-  the same `error` phase as a failed update and keeps the release it last
-  read, so the modal says UPDATE FAILED only after UPDATE was pressed here.
-  A cancelled Android prompt comes back as an offer. The modal is a focus
-  scope, since this is the one way it reaches a TV: a remote lands on UPDATE,
-  and BACK is LATER.
+  `window.tsundokuAppUpdate(state)`. It reuses what the computer has rather
+  than drawing anything new: a THIS APP row under SETTINGS' UPDATES, and the
+  library's modal for the app, the same `UpdateModal.svelte` given `app`.
+  `src/lib/app/update.svelte.ts` is the page's one copy of the state,
+  connected by the layout, so a browser (no bridge) and an app too old to
+  update itself (no `appUpdate`) draw nothing. The app's LATER is its own
+  (`tsundoku.app-update.later`), a day, for that version, and the computer's
+  offer goes first if both are out. A failed **check** ends in the same
+  `error` phase as a failed update and keeps the release it last read, so the
+  modal says UPDATE FAILED only after UPDATE was pressed here. A cancelled
+  Android prompt comes back as an offer. The modal is a focus scope, since
+  this is the one way it reaches a TV: a remote lands on UPDATE, and BACK is
+  LATER.
 
 ## Tests
 
@@ -231,9 +217,13 @@ version order), `tests/release-plan.spec.ts` (what the launcher passes),
 `tests/updates-client.spec.ts` (the modal's rules and words, and the UPDATE
 loop), `tests/updates-restart.spec.ts` (what a start knows: the layout's first
 load, a file that doesn't open, a failed look, the limits, the sweep, the
-atomic write; c818). On
-Windows, `ops/release/smoke/windows-update.ps1` runs in every release's smoke
-test: Zen plays the release host on loopback (`serve-dir.mjs`), offering a
-pretend 9999.01.01 whose installer is the one under test, signed with the real
-key (`fake-update.ts`); tsundoku finds it, UPDATE downloads, checks and runs
-it, and tsundoku must come back by itself on the same data.
+atomic write). On Windows, `ops/release/smoke/windows-update.ps1` runs in every
+release's smoke test: the test VM plays the release host on loopback
+(`serve-dir.mjs`), offering a pretend 9999.01.01 whose installer is the one
+under test, signed with the real key (`fake-update.ts`); tsundoku finds it,
+UPDATE downloads, checks and runs it, and tsundoku must come back by itself on
+the same data.
+
+## Limits
+
+- **Updating in place on Linux**: there, UPDATE is a download and steps.
