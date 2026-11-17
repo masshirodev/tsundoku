@@ -3,23 +3,16 @@
 Light and web novels, found, downloaded and read inside tsundoku on
 [LNReader](https://github.com/LNReader/lnreader)'s plugins
 ([lnreader-plugins](https://github.com/LNReader/lnreader-plugins), MIT), as
-manga runs on Mihon's extensions ([`DOWNLOADER.md`](DOWNLOADER.md)). Card c127
-("Novels from LNReader plugins, inside tsundoku"), split in five:
+manga runs on Mihon's extensions ([`DOWNLOADER.md`](DOWNLOADER.md)): a
+sandboxed host for the plugins, their repositories in EXTENSIONS, browsing and
+adding a novel, downloading its chapters into an EPUB the importer reads,
+FOLLOW, and a way past a site's bot check.
 
-| Part                                                 | Card | State                                                                                        |
-| ---------------------------------------------------- | ---- | -------------------------------------------------------------------------------------------- |
-| A sandboxed host for the plugins                     | c147 | Done                                                                                         |
-| Repositories and plugins in EXTENSIONS               | c148 | Done                                                                                         |
-| Browsing, searching and adding a novel               | c149 | Done                                                                                         |
-| Downloading chapters into an EPUB the importer reads | c150 | Done                                                                                         |
-| FOLLOW, live checks, the rest of this file           | c151 | Done                                                                                         |
-| Past a site's bot check, through FlareSolverr        | c152 | Done for one of three: Royal Road; NovelFull and Scribble Hub refused a cookie (c335, below) |
-| A check bound to the browser: pages through it       | c335 | Done: measured live 2026-11-06, NovelFull and Scribble Hub both read through it (below)      |
-
-The owner's repository (2026-10-28):
-`https://raw.githubusercontent.com/LNReader/lnreader-plugins/plugins/v3.0.0/.dist/plugins.min.json`,
-328 plugins that day, 187 English. It's added on the repositories screen like
-any other; tsundoku ships none ([`BROWSE.md`](BROWSE.md)).
+LNReader's own repository is
+`https://raw.githubusercontent.com/LNReader/lnreader-plugins/plugins/v3.0.0/.dist/plugins.min.json`
+(328 plugins, 187 English, when it was first added). It's added on the
+repositories screen like any other; tsundoku ships none
+([`BROWSE.md`](BROWSE.md)).
 
 ## What a plugin is
 
@@ -35,7 +28,7 @@ A CommonJS file whose `exports.default` is an object (or a class) with:
 
 and `id`, `name`, `site`, `version`, `filters` (five types: `Text`, `Picker`,
 `Checkbox`, `Switch`, `XCheckbox`). What plugins require, counted over 167 of
-the 328 on 2026-10-28: `@libs/fetch` (all of them), `cheerio` (133),
+LNReader's 328: `@libs/fetch` (all of them), `cheerio` (133),
 `@libs/novelStatus` (120), `@libs/defaultCover` (103), `@libs/filterInputs`
 (94), `dayjs` (20), `@libs/storage` (17), `htmlparser2` (7),
 `@libs/isAbsoluteUrl` (3), `@libs/aes` (2). The libraries are pinned to the
@@ -50,8 +43,9 @@ never runs in the app (`src/lib/server/novels/`):
 - **A child process of its own** (`plugin-host.cjs`, started by `host.ts` on
   the first call and again after it dies), **under Node's permission model**:
   it may read only itself, the address guard (`src/lib/server/net-guard.ts`),
-  the project's `node_modules` and the plugin store, and may not write, spawn processes, start workers or load addons. Its
-  **environment is empty**, so nothing in `.env` is there to read.
+  the project's `node_modules` and the plugin store, and may not write, spawn
+  processes, start workers or load addons. Its **environment is empty**, so
+  nothing in `.env` is there to read.
 - **A vm context per plugin**, whose `require` gives only LNReader's shims
   (`@libs/*`, written from their documented behaviour) and the libraries
   above. `require('fs')` is refused. Its globals are made inside the context
@@ -59,11 +53,10 @@ never runs in the app (`src/lib/server/novels/`):
   async `fetch`), and the host's function constructors are replaced by ones
   that refuse, so the well-known way out, a host object's `.constructor`
   chain up to the host's `Function`, ends in an error ("What it doesn't
-  stop", below, for what that is worth). A plugin's own code has **5 s** to load
-  (`vm.runInContext`'s timeout); the libraries it names are read from disk
-  before that starts, since a cold install's first read of cheerio outlasted
-  it on Windows (2026.11.01's smoke test, the installed copy under
-  Program Files).
+  stop", below, for what that is worth). A plugin's own code has **5 s** to
+  load (`vm.runInContext`'s timeout); the libraries it names are read from disk
+  before that starts, since a cold install's first read of cheerio can outlast
+  it on Windows (an installed copy under Program Files).
 - **A fetch that stays on the internet**: every request, and every hop of a
   redirect (followed by hand, since an automatic one would skip the check),
   is refused unless every address its host resolves to is a global one:
@@ -77,30 +70,29 @@ never runs in the app (`src/lib/server/novels/`):
   a public address to the check and a private one to the connection. The
   process's global fetch uses the same pool. Tests open a loopback port
   through the parent's own message; nothing else can.
-- **A site's browser check is the app's to solve** (c152). The host can't
-  reach a solver, since a solver is one of the local addresses it refuses, so
-  a 403 or 503 carrying Cloudflare's markers makes it ask the **parent** over
-  IPC, naming only the URL. The app checks the address is on the internet and
-  asks FlareSolverr (`novels/solver.ts`); what comes back is that host's
-  clearance cookies and user agent, never the solver's address and never
-  another host's cookie. The host keeps a **jar per host**, applies it to that
-  host only, and retries **once**; a jar with any secure cookie in it goes over
-  https only. A host whose retry is still a check is in **page mode** for ten
-  minutes (c335): that request and every later one to it is a page the app
-  fetches through the solver's browser, with no request of the host's own and
-  no solve ("A check bound to the browser", below). A plain 403 with no marker
-  stays the site's own answer ("answered 403"), as does one whose check it
-  couldn't pass.
+- **A site's browser check is the app's to solve.** The host can't reach a
+  solver, since a solver is one of the local addresses it refuses, so a 403 or
+  503 carrying Cloudflare's markers makes it ask the **parent** over IPC,
+  naming only the URL. The app checks the address is on the internet and asks
+  FlareSolverr (`novels/solver.ts`); what comes back is that host's clearance
+  cookies and user agent, never the solver's address and never another host's
+  cookie. The host keeps a **jar per host**, applies it to that host only, and
+  retries **once**; a jar with any secure cookie in it goes over https only. A
+  host whose retry is still a check is in **page mode** for ten minutes: that
+  request and every later one to it is a page the app fetches through the
+  solver's browser, with no request of the host's own and no solve ("A check
+  bound to the browser", below). A plain 403 with no marker stays the site's
+  own answer ("answered 403"), as does one whose check it couldn't pass.
 - **Calls over IPC with a timeout**: two minutes for every call a plugin
   makes — a list, a search, a preview, a chapter — since its first request may
   meet a site's check the app solves (20–45 s) before the host retries with
   the clearance; the host's own default is a minute, which only `info` uses. A
-  plugin stuck in a loop gets the host restarted, and its
-  failure is the caller's error, not a crash. A host replaced while the one it
-  replaces is still exiting answers its own calls: the dying process's exit
-  can't fail its successor's. Each request the host makes has 30 s, redirects
-  included, and the retry after a clearance a fresh 30 s: a redirect chain
-  can't outlive the two minutes a novel call is allowed.
+  plugin stuck in a loop gets the host restarted, and its failure is the
+  caller's error, not a crash. A host replaced while the one it replaces is
+  still exiting answers its own calls: the dying process's exit can't fail its
+  successor's. Each request the host makes has 30 s, redirects included, and
+  the retry after a clearance a fresh 30 s: a redirect chain can't outlive the
+  two minutes a novel call is allowed.
 
 **What it doesn't stop.** A vm context is not a security boundary, and the
 host doesn't pretend otherwise. The constructor chain is shut and the stack
@@ -132,7 +124,7 @@ exist on Linux, differently on each distribution, and not at all on the
 Windows machines a release also runs on, so the app does not do it. On a
 workstation where plugins from an untrusted repository are installed, not
 running FlareSolverr (or running it in a container with no route to the host's
-network) is what keeps that door shut.
+network) is what keeps that way in shut.
 
 **And a solve is the app's, not the plugin's.** A plugin can ask for any host
 on the internet, so it can make the app solve a check for any public site it
@@ -140,43 +132,33 @@ names; that is the feature. What it can't do is name a private or loopback
 address (refused before the solver hears of it), read the solver's address
 (the host's environment is empty and the answer carries only cookies), or
 receive a cookie for a host other than the one it asked about. Page mode
-(c335) hands a plugin more than a cookie, the page itself, so the app checks
-the address the solver's browser **ended on** as well as the one asked, and a
+hands a plugin more than a cookie, the page itself, so the app checks the
+address the solver's browser **ended on** as well as the one asked, and a
 page whose last hop is a local address is not read back. What neither half
 can stop is the solver's own browser: it runs the page's scripts on the
 workstation, and a page a plugin names could have them reach a local address
 from inside that browser and send what they find to the internet themselves.
-That was true from c152's first solve, since a solve is the same visit; c335
-does not widen it, and a solver in a container with no route to the host's
-network is what would close it.
+A solve is the same visit, so page mode does not widen this; a solver in a
+container with no route to the host's network is what would close it.
 
 `tests/novel-host.spec.ts`: a plugin answers each method through the host
 (filters' starting values included), and a hostile one fails to require `fs`,
 fails to get out of the vm context, and can't fetch a loopback address
 directly or by redirect, after which the host still answers.
-`tests/novel-sandbox.spec.ts` tries the well-known escapes one by one, and runs
-code under the host's own flags to show what the process refuses. And a site that answers with a check: the app is
-asked by URL only, the retry carries that host's cookies and user agent, the
-jar is kept per host and to no other, a retry that is still a check is
-reported and the host put in page mode, a secure clearance is not sent over
-http, and a plain 403 stays the site's own answer — Cloudflare's headers or
-not. Page mode's own cases are listed with it below.
-
-**Measured live on 2026-10-28**, four of the owner's repository's plugins
-through the host: NovelBin (10 popular, a novel's 148 chapters, a chapter's
-8 KB of HTML) and Wuxiaworld (50, 357 chapters, 8 KB) all the way through.
-Royal Road stops at its site's bot check ("Open a novel from Royal Road in
-WebView"), and ScribbleHub's popular list comes back empty, most likely the
-same. Getting past those needs a solver in the host's path, which the host's
-own fetch can't reach (it refuses local addresses on purpose); c152 gives the
-host a way to one, below.
+`tests/novel-sandbox.spec.ts` tries the well-known escapes one by one, and
+runs code under the host's own flags to show what the process refuses. And a
+site that answers with a check: the app is asked by URL only, the retry
+carries that host's cookies and user agent, the jar is kept per host and to no
+other, a retry that is still a check is reported and the host put in page
+mode, a secure clearance is not sent over http, and a plain 403 stays the
+site's own answer — Cloudflare's headers or not. Page mode's own cases are
+listed with it below.
 
 ## Past a site's bot check
 
-Some novel sites answer a non-browser request with a Cloudflare check, and
-three of the five best-known English plugins stop there. The engine already
-passes one for a Mihon extension through FlareSolverr; since c152 a novel
-plugin's does too, through the app, without giving the host a way to a local
+Some novel sites answer a non-browser request with a Cloudflare check. The
+engine passes one for a Mihon extension through FlareSolverr; a novel
+plugin's goes through the app, without giving the host a way to a local
 address.
 
 - **Detection first.** A response is a check only when it is a 403 or a 503
@@ -185,8 +167,8 @@ address.
   `server: cloudflare` are not markers — Cloudflare sends both on every
   response it proxies, so a members-only 403 and a maintenance 503 carry them
   too. Anything else is the site's own answer, so "Could not reach site (403:
-  Forbidden)" still happens for a site that means it — and the three failures
-  were not one shape, so a plain 403 is never sent to a solver.
+  Forbidden)" still happens for a site that means it, and a plain 403 is never
+  sent to a solver.
 - **The host asks the parent**, since a solver is a local address it refuses:
   `{ op: 'challenge', id, url }` over IPC, the URL and nothing else. The
   parent checks the address is on the internet (`checkPublic` in
@@ -207,28 +189,28 @@ address.
   (`novels/solver.ts`) — since a first solve takes 20–45 s.
 - **A refusal is remembered for ten minutes, where it is seen.** The host
   remembers the one that matters for a site whose check it cannot pass even
-  with a clearance (NovelFull and Scribble Hub, measured below): when the retry
-  is still a check, that host is in page mode for ten minutes (c335, next
+  with a clearance (NovelFull and Scribble Hub, "Measured live" below): when
+  the retry is still a check, that host is in page mode for ten minutes (next
   section), so each later page or chapter is **one page through the solver**,
   with no request of the host's own (it would be a challenge), no solve and no
-  retry. That is what keeps a 148-chapter download from performing 148 solves. The app keeps its own memo for the other failure: a solve that
-  answered `ok` but left no usable clearance — a page the solver's browser was
-  refused (a `solution.status` of 400 or more) or an answer with no cookies and
-  no user agent — is not asked again for ten minutes. A solve that **failed** is
-  not remembered: FlareSolverr reports its own `status: 'error'` as an HTTP 500
-  (measured 2026-11-02), a 200 that is not an `ok` answer at all (Byparr's
-  error, a proxy's HTML page) is the solver's trouble too, and the app's 60 s
-  budget can abort before an answer arrives at all, so the next call asks
-  again. That is deliberate — a solver's
-  failure says nothing about the host, and a solver started after the app would
-  otherwise be ignored for ten minutes. TRY AGAIN on the source page is the
-  lever, where the band shows a check that could not be passed: it says "TRY
-  AGAIN SOLVES THE CHECK AFRESH", and the link carries `again`, on which the page forgets
-  both memos for the plugin's site (`forgetSiteCheck` in `novels/source.ts`:
-  the app's own, and the host's through its `forget` op) and redirects to its
-  own URL without it. The next call pays one solve and one retry, and is
-  remembered again if the site still refuses. A download has no such lever: a
-  fresh one inside the ten minutes still answers at once (card c294).
+  retry. That is what keeps a 148-chapter download from performing 148 solves.
+  The app keeps its own memo for the other failure: a solve that answered `ok`
+  but left no usable clearance — a page the solver's browser was refused (a
+  `solution.status` of 400 or more) or an answer with no cookies and no user
+  agent — is not asked again for ten minutes. A solve that **failed** is not
+  remembered: FlareSolverr reports its own `status: 'error'` as an HTTP 500, a
+  200 that is not an `ok` answer at all (Byparr's error, a proxy's HTML page)
+  is the solver's trouble too, and the app's 60 s budget can abort before an
+  answer arrives at all, so the next call asks again. That is deliberate — a
+  solver's failure says nothing about the host, and a solver started after the
+  app would otherwise be ignored for ten minutes. TRY AGAIN on the source page
+  is the lever, where the band shows a check that could not be passed: it says
+  "TRY AGAIN SOLVES THE CHECK AFRESH", and the link carries `again`, on which
+  the page forgets both memos for the plugin's site (`forgetSiteCheck` in
+  `novels/source.ts`: the app's own, and the host's through its `forget` op)
+  and redirects to its own URL without it. The next call pays one solve and
+  one retry, and is remembered again if the site still refuses. A download has
+  no such lever: a fresh one inside the ten minutes still answers at once.
 - **BROWSE names it.** The app writes the host into `site_checks` when a solve
   succeeds, and `checkingSince` answers for a novel by its plugin's site
   (`novel_plugins.site`), so the live band on the source page and in SEARCH
@@ -238,97 +220,30 @@ address.
   `ENGINE_SOLVER_URL` ([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md), "The
   solver, and a novel's check").
 
-**Measured live on 2026-11-02**, the real dialogue against FlareSolverr 3.4.6
-on `127.0.0.1:8193` and the real host:
-
-- **Royal Road works.** The solver's cookies and user agent, applied to
-  `www.royalroad.com`, gave the host 165 KB of the site's homepage where the
-  host's own request had been challenged.
-- **NovelFull and Scribble Hub still refuse Node.** The solver fetches both —
-  Scribble Hub issues a `cf_clearance`, NovelFull only its own `nt_csrf` —
-  but a plain Node request sending the same cookie and the same user agent
-  still gets the challenge from both: their check is bound to the browser that
-  solved it, not to the cookie. The host now says so distinctly ("answered 403
-  (its check could not be passed)") rather than reporting a bare 403, and
-  remembers that refusal for ten minutes (above), so a download pays the solve
-  once and then makes one request per chapter. Fetching the page itself through
-  the solver is the only way past those, and c152 ruled it out; c335 does it
-  ("A check bound to the browser", below), measured live on 2026-11-06.
-
-**Measured live again on 2026-11-02 (evening)**, the same dialogue with **the
-real plugin files** from the owner's repository (2.3.4 Royal Road, 3.0.0 Novel
-Bin, 0.5.1 Wuxia World, 2.3.3 NovelFull, 1.0.2 Scribble Hub) through the real
-host and FlareSolverr 3.4.6 on `127.0.0.1:8193`, each plugin's own POPULAR,
-preview and first chapter:
-
-- **Royal Road works, its own plugin and all.** POPULAR took 19.7 s, 18.5 s of
-  it the solve, and gave 20 novels; _Mother of Learning_ came back with 109
-  chapters and its first chapter as 54,606 bytes of HTML. The solve is for the
-  deep URL the plugin asks (`/fictions/search?...`), not only the home page.
-  One earlier attempt timed out inside FlareSolverr (50 s) and returned
-  nothing, so a first visit can fail and a retry succeed; the host reports that
-  as a check it could not pass, not as a plain 403.
-- **Wuxia World works, as it did** (50 popular, 357 chapters, 8,351 bytes),
-  and never needed a solve.
-- **NovelFull and Scribble Hub still refuse a Node request.** NovelFull's solve
-  answered in 1.9 s with only the site's own `nt_csrf`; Scribble Hub's in 4.9 s
-  with a `cf_clearance`. Neither cookie makes a Node fetch pass: both are still
-  a challenge when retried, so the check is bound to the browser that solved
-  it, not to the cookie. NovelFull's plugin reports it as its own "Could not
-  reach site (403: Forbidden)"; Scribble Hub's list comes back empty and the
-  host says "answered 403 (its check could not be passed)". Fetching the page
-  through the solver is the only way past those, and c152 ruled it out; c335
-  does it, below.
-- **Novel Bin is no longer a bot-check question.** Its API answers the site's
-  own SPA shell — `200 text/html`, 24,153 bytes, for
-  `api/cdn/lists/web_popular.json` — where the plugin expects JSON, so the
-  plugin throws "Unexpected token '<'". That is the site and the plugin
-  drifting apart, not a check: no solve is attempted and the host's own
-  detection never fires. It worked on 2026-10-28, above.
-
-This run is reproducible from the commit. `doc/probes/novel-live.ts` drives
-POPULAR, a preview and a first chapter through the real host for each plugin,
-and prints every solve it performed beside its timing, every page page mode
-fetched, and the address a chapter's own request ended at. The store holds one
-file per plugin, named by its id (`temp/plugins` here): each is the `url` the
-owner's repository's `.dist/plugins.min.json` publishes for it, so a run names
-the plugin version it measured. Wuxia World re-ran unchanged on 2026-11-02
-(`50 in 0.9 s`, 357 chapters, 8,351 bytes), and a row that no longer matches is
-a measurement that has moved.
-
-```sh
-NOVEL_SOLVER_URL=http://127.0.0.1:8193/v1 \
-  node --experimental-strip-types doc/probes/novel-live.ts \
-    temp/plugins royalroad wuxiaworld novelfull scribblehub novelbin
-```
-
-So c152 was met for **one of its three sites** (Royal Road) on 2026-11-02,
-and for two of the five plugins measured that day, Wuxia World being the one
-that never needed it. The other two are c335's, which met them on 2026-11-06
-(next).
-
 `tests/novel-solver.spec.ts` is the app's half: a loopback or private address
 refused before the solver hears of it, only the asked host's cookies and its
 user agent in the answer, a secure cookie making the clearance https-only, one
 solve per host at a time, the live line while it runs, `site_checks` on
 success, a page the solver's own browser was refused treated as no clearance,
-a solve that answered without a usable clearance remembered and not asked again,
-a solver's own failure (an HTTP 500, a 200 that is not an `ok` answer, or one it
-could not reach) asked again next call, and which address the app uses. `tests/novel-host.spec.ts`'s check block is the host's half — a
+a solve that answered without a usable clearance remembered and not asked
+again, a solver's own failure (an HTTP 500, a 200 that is not an `ok` answer,
+or one it could not reach) asked again next call, and which address the app
+uses. `tests/novel-host.spec.ts`'s check block is the host's half — a
 clearance the site refused remembered so the next call is one request, and
-forgotten when TRY AGAIN asks, a secure clearance kept off http — and `tests/engine-browse-db.spec.ts` pins the join
-BROWSE's live line needs: a novel's `checkingSince` answers while the app's own
-solve runs, with the engine not answering at all, and is null once it settles.
-`tests/novel-plugins-db.spec.ts` pins the wiring: the host the app builds solves
-with `solveChallenge`.
+forgotten when TRY AGAIN asks, a secure clearance kept off http — and
+`tests/engine-browse-db.spec.ts` pins the join BROWSE's live line needs: a
+novel's `checkingSince` answers while the app's own solve runs, with the
+engine not answering at all, and is null once it settles.
+`tests/novel-plugins-db.spec.ts` pins the wiring: the host the app builds
+solves with `solveChallenge`.
 
 ## A check bound to the browser: pages through the solver
 
-NovelFull and Scribble Hub hand a solve a clearance and then refuse it to any
-client but the browser that solved it (measured twice on 2026-11-02, above).
-For such a host the only way past is the page itself, fetched by the solver's
-browser, so since c335 the host asks the app for **a URL's page** instead of a
-cookie jar (`src/lib/server/novels/plugin-host.cjs`, `fetchPage` in
+Some sites (NovelFull and Scribble Hub among them) hand a solve a clearance
+and then refuse it to any client but the browser that solved it. For such a
+host the only way past is the page itself, fetched by the solver's browser, so
+the host asks the app for **a URL's page** instead of a cookie jar
+(`src/lib/server/novels/plugin-host.cjs`, `fetchPage` in
 `novels/solver.ts`).
 
 - **When a host is in page mode.** It enters at one moment only: a request
@@ -341,11 +256,11 @@ cookie jar (`src/lib/server/novels/plugin-host.cjs`, `fetchPage` in
   included) goes as a page, with no request of the host's own, no solve and no
   retry. It leaves when the ten minutes are up, after which the next request
   is the host's own again and pays a solve and a retry (and re-enters if the
-  site still refuses); when TRY AGAIN forgets the site (`forget`, c294); or
-  when the host process restarts. A page that is still a check, or doesn't
-  come, leaves the mode as it is: the ten minutes are what keep a download from
-  paying a solve and a retry per chapter. The window is the refused memo's
-  ("Past a site's bot check"); one memo, read two ways.
+  site still refuses); when TRY AGAIN forgets the site (`forget`); or when the
+  host process restarts. A page that is still a check, or doesn't come, leaves
+  the mode as it is: the ten minutes are what keep a download from paying a
+  solve and a retry per chapter. The window is the refused memo's ("Past a
+  site's bot check"); one memo, read two ways.
 - **The protocol.** The host sends `{ op: 'page', id, url, method, postData? }`
   and the app answers `{ op: 'page-result', id, ok: true, value: { url,
 status, contentType, body } }` or `{ op: 'page-result', id, ok: false,
@@ -379,14 +294,8 @@ error, fixed? }`, a sentence, marked `fixed` when no new solve can change it
     with a sentence, as is any method but GET and POST (a HEAD goes as a GET).
     Scribble Hub's chapter list is a `FormData` of strings
     (`plugins/english/scribblehub.ts`, `wi_getreleases_pagination`), so it
-    goes as a url-encoded form. The plugin's headers are dropped (next): a
-    POST that _needs_ one is still unmeasured live. NovelFull 2.3.4 sets
-    `X-Requested-With` on its chapter archive only in its `y` branch, the one
-    taken when the novel page exposes a chapter count, and novelfull.com
-    took its other branch — a plain GET with no header — on every novel
-    tried (2026-11-06). Free Web Novel 2.3.10, which is the same template,
-    did take the POST branch, and its list came back whole without the header
-    ("Measured live", below).
+    goes as a url-encoded form. The plugin's headers are dropped (next), so a
+    POST whose server _needs_ one of them cannot be carried ("Limits").
   - A picture or a file is not a page: `fetchFile` (and so `fetchProto`'s
     binary body) is refused with a sentence before anything is asked, and a
     `fetchApi` that turns out to be Chromium's image page is refused by the
@@ -402,19 +311,18 @@ error, fixed? }`, a sentence, marked `fixed` when no new solve can change it
   address this app could not look up — a DNS failure, not the site's answer —
   lands there too (`the address could not be checked (getaddrinfo EAI_AGAIN
 …)`, marked `unsent`): the browser was never asked, and asking again asks the
-  lookup again rather than paying a solve for a hiccup (c630). The same
-  lookup of the address the browser **ended on**, after it already answered,
-  is neither: the browser was asked, so not `unsent`, and a retry may succeed,
-  so not `fixed`. It is marked `unchecked` and has a sentence of its own,
-  `"<host>'s page was fetched and not used: <why>"` (c688), which claims no
-  check, since none failed: the lookup was this app's. TRY AGAIN asks the page
-  again, forgets no memo and pays no solve, and the address is never called
-  permanently off the internet (c662). The tap reaches the server as a full
-  document load (`data-sveltekit-reload` on the band's link, whichever sentence
-  drew it): a TRY AGAIN with no `again=1` is the page's own URL, which SvelteKit
-  would not load again on a client navigation, and a hover preloads none of them
-  (`tests/browse-try-again.e2e.ts`).
-  What no new solve can change is
+  lookup again rather than paying a solve for a hiccup. The same lookup of the
+  address the browser **ended on**, after it already answered, is neither: the
+  browser was asked, so not `unsent`, and a retry may succeed, so not `fixed`.
+  It is marked `unchecked` and has a sentence of its own, `"<host>'s page was
+fetched and not used: <why>"`, which claims no check, since none failed: the
+  lookup was this app's. TRY AGAIN asks the page again, forgets no memo and
+  pays no solve, and the address is never called permanently off the
+  internet. The tap reaches the server as a full document load
+  (`data-sveltekit-reload` on the band's link, whichever sentence drew it): a
+  TRY AGAIN with no `again=1` is the page's own URL, which SvelteKit would not
+  load again on a client navigation, and a hover preloads none of them
+  (`tests/browse-try-again.e2e.ts`). What no new solve can change is
   `"<host>'s page can't come through the solver, and no solve changes that:
 <why>"`: an address `checkPublic` refuses (`refused: …`), one the browser was
   redirected to off the internet (`the solver's browser ended at …, which is
@@ -424,177 +332,120 @@ picture, not a page`), or a request that isn't an address at all. The app
   solve ends the same way. Neither of those sentences claims a check, and the
   source page's TRY AGAIN for either does not forget the memo (no `again=1`),
   so it pays no new solve: the host stays in page mode and the next call is
-  one page again (c630). Everything else is
-  `"<host>'s page did not come through the solver (its check could not be
-passed): <why>"`, which the source page bands with TRY AGAIN and says that it
-  solves the check afresh — its `again=1` forgets both memos: the solver's own
-  failure (`the solver answered 500 (…)`), a timeout (`the solver did not
-answer in 60 s`), an unreachable solver, or the browser dying under load
-  (c492, "invalid session id … browser has closed the connection", about every
-  25 s): that one is **asked once more**, inside the same 60 s, since it is the
-  solver's browser and not the site, and reported as `the solver's browser
-closed twice (…)` if it dies again. Nothing is retried beyond that; the
-  download queue's tries and backoff are the next attempt.
+  one page again. Everything else is `"<host>'s page did not come through the
+solver (its check could not be passed): <why>"`, which the source page bands
+  with TRY AGAIN and says that it solves the check afresh — its `again=1`
+  forgets both memos: the solver's own failure (`the solver answered 500
+(…)`), a timeout (`the solver did not answer in 60 s`), an unreachable
+  solver, or the browser dying under load ("invalid session id … browser has
+  closed the connection", about every 25 s): that one is **asked once more**,
+  inside the same 60 s, since it is the solver's browser and not the site, and
+  reported as `the solver's browser closed twice (…)` if it dies again.
+  Nothing is retried beyond that; the download queue's tries and backoff are
+  the next attempt.
 - **One page per host at a time, in the app.** A plugin firing ten requests
   must not start ten browsers: they wait their turn, and the same request
   asked twice while the first is underway is answered once. Two hosts run
-  together. The cost is the solver's: a page takes seconds (NovelFull's solve
-  alone was 1.9 s, Scribble Hub's 4.9 s), so a list or a chapter is slower
-  than a Node fetch, and a plugin that asks many pages in one call (a long
-  `parseNovel`) can reach the two minutes a call is allowed.
+  together. The cost is the solver's: a page takes seconds, so a list or a
+  chapter is slower than a Node fetch, and a plugin that asks many pages in
+  one call (a long `parseNovel`) can reach the two minutes a call is allowed.
 - **BROWSE.** A page the browser fetched with a status under 400 writes the
   host into `site_checks`, as a solve does, so BROWSE's past-tense line holds.
   A page is not a first visit's wait, so it doesn't light the live line
   (`solvingSince`).
 
-**Measured live on 2026-11-06**, the development solver (FlareSolverr 3.4.6 on
-`127.0.0.1:8193`, never the live one) and the files the owner's repository
-publishes at v3.0.0 — NovelFull 2.3.4, Scribble Hub 1.0.2, Royal Road 2.3.4,
-one file per plugin named by its id — each asked POPULAR, a preview and a first
-chapter through the real host (`doc/probes/novel-live.ts`, one solve per
-plugin). Free Web Novel 2.3.10, the same template, was measured on the same
-solver for c663, with `doc/probes/novel-archive.ts` printing which archive
-branch each of its novels took:
+`tests/novel-solver.spec.ts`, "a page through the solver's browser", is the
+app's half against a stubbed FlareSolverr that answers as 3.4.6 does: the page
+after a redirect and the URL it ended on, JSON and text in Chromium's `<pre>`,
+a form POST and a refused PUT, a picture's image page, a site's own 403, the
+solver's 500, a browser that dies once and twice, a timeout, an unreachable
+solver, a local address refused before the solver hears of it and again when
+a name moves inside, a redirect ending on a local address not read back, a
+lookup of the address the browser ended on failing, and one page per host at
+a time with the same request answered once and two hosts at once.
+`tests/novel-host.spec.ts`, "a check bound to the browser that solved it: page
+mode", is the host's half, with a site that refuses the host's clearance and
+passes only the stub browser's cookie: entering on the refused retry and
+answering that call, staying out for every other check, no request of its own
+and no solve after, two calls entering once, JSON and a form, the bodies
+refused unasked, each failure's sentence with the mode kept, a refusal no new
+solve can change worded without a failed check, a chapter's own page address
+after a redirect and one that ended where it asked, a page that is still a
+check, the host's own rule holding for a page and its last address, the ten
+minutes, leaving by TRY AGAIN, by a restart and by time (not extended by use),
+and a host with no page to ask answering with a sentence.
+`tests/novel-plugins-db.spec.ts` pins the wiring: the app's host fetches pages
+with `fetchPage`.
 
-| Plugin         | POPULAR                     | Preview                 | First chapter                                     |
-| -------------- | --------------------------- | ----------------------- | ------------------------------------------------- |
-| NovelFull      | 20 in 6.8 s (solve 2.2 s)   | 3,956 chapters in 5.8 s | 18,839 bytes in 3.7 s, at the chapter's own page  |
-| Scribble Hub   | 25 in 8.7 s (solve 4.1 s)   | 1 chapter in 17.6 s     | 18,157 bytes in 13.8 s, at the chapter's own page |
-| Royal Road     | 20 in 14.8 s (solve 13.3 s) | 109 chapters in 0.8 s   | 54,606 bytes in 0.9 s, at the chapter's own page  |
-| Free Web Novel | 20 in 8.4 s (solve 4.3 s)   | 3,237 chapters in 7.5 s | no answer in 60 s (three novels); cause unknown   |
+### Measured live
 
-- **Both hosts page mode was built for are past their check.** Every page came
-  back 200, and the run paid one solve per plugin and no second: NovelFull
-  asked the browser for four pages, Scribble Hub four, Royal Road none.
-- **NovelFull's preview lists chapters, and the run did not exercise its
-  `X-Requested-With` branch.** The plugin asks that archive
-  (`/ajax-chapter-option?novelId=237`) as a plain `GET` on novelfull.com,
-  without the header, and the browser's `GET` answered `200`, 668,537 bytes,
-  for 3,956 chapters. Its other branch, taken when the novel page exposes a
-  chapter count, POSTs the same archive with the `X-Requested-With` header:
-  page mode had nothing to drop here. Free Web Novel's branch was measured
-  instead (below), and the header it sets is not needed there; a POST that
-  _needs_ the header is still unmeasured live.
-- **Scribble Hub's chapter list carried its `FormData`.** The url-encoded form
-  page mode sends reached `/wp-admin/admin-ajax.php` as a `POST` and answered
-  `200`, 372 bytes, for the one chapter the novel its POPULAR lists first has.
-- **Royal Road never entered page mode**: its clearance passes as a Node fetch,
-  so it printed no page at all, exactly as the design says, and its numbers are
-  the 2026-11-02 run's (109 chapters, 54,606 bytes).
+Sites change their checks and plugins drift from their sites, so these are
+measurements, not guarantees. They were taken against FlareSolverr 3.4.6 with
+the plugin files LNReader's repository publishes at v3.0.0, each asked
+POPULAR, a preview and a first chapter through the real host:
+
+| Plugin         | Version | How it gets through                    | POPULAR                     | Preview                 | First chapter                |
+| -------------- | ------- | -------------------------------------- | --------------------------- | ----------------------- | ---------------------------- |
+| Wuxia World    | 0.5.1   | no check                               | 50 in 0.9 s                 | 357 chapters            | 8,351 bytes                  |
+| Royal Road     | 2.3.4   | the solve's clearance; never a page    | 20 in 14.8 s (solve 13.3 s) | 109 chapters in 0.8 s   | 54,606 bytes in 0.9 s        |
+| NovelFull      | 2.3.4   | page mode                              | 20 in 6.8 s (solve 2.2 s)   | 3,956 chapters in 5.8 s | 18,839 bytes in 3.7 s        |
+| Scribble Hub   | 1.0.2   | page mode                              | 25 in 8.7 s (solve 4.1 s)   | 1 chapter in 17.6 s     | 18,157 bytes in 13.8 s       |
+| Free Web Novel | 2.3.10  | page mode                              | 20 in 8.4 s (solve 4.3 s)   | 3,237 chapters in 7.5 s | no answer in 60 s ("Limits") |
+| Novel Bin      | 3.0.0   | none: its API answers the site's shell | fails                       | —                       | —                            |
+
+- **Page mode costs one solve per plugin.** NovelFull asked the browser for
+  four pages, Scribble Hub four, Royal Road none: its clearance passes as a
+  Node fetch. Royal Road's solve is for the deep URL the plugin asks
+  (`/fictions/search?...`), not only the home page; a first solve can time out
+  inside FlareSolverr and a retry succeed, which the host reports as a check it
+  could not pass, not a plain 403.
+- **NovelFull and Scribble Hub refuse a Node request with the solver's
+  cookie.** NovelFull's solve answers with only the site's own `nt_csrf`,
+  Scribble Hub's with a `cf_clearance`; neither makes a Node fetch pass, so the
+  check is bound to the browser that solved it, and both read through page
+  mode.
+- **Scribble Hub's chapter list carries its `FormData`**: page mode's
+  url-encoded form reaches `/wp-admin/admin-ajax.php` as a `POST` and answers
+  `200`.
+- **The archive's two branches.** NovelFull's and Free Web Novel's
+  `readnovelfull` template asks its chapter archive as a plain `GET` when the
+  novel page exposes no chapter count, and POSTs it with
+  `X-Requested-With: XMLHttpRequest` when it does (`y` truthy). novelfull.com
+  took the GET branch on every novel tried; freewebnovel.com takes the POST
+  branch (`api/chapterlist.php`), page mode sends it without the header, and
+  the list comes back whole, so that host does not need it.
 - **Every chapter's request ended where the plugin asked it to**, so the page
-  a chapter's pictures resolve against (c631) is the one the downloader
-  computed before it: none of these three hosts redirected a chapter.
-- **Free Web Novel took the POST branch, and did not need the header it sets
-  (c663).** `FWN.com` 2.3.10 uses the same `readnovelfull` template as
-  NovelFull; its novel page carries `id="indexListPage" …
-data-total-chapters="3237"`, so the plugin's `y` is truthy and it POSTs its
-  archive (`api/chapterlist.php`) rather than GETting it. Page mode sent what
-  a `PageRequest` can carry — the method and a url-encoded `postData`, no
-  headers at all — and the archive answered `200`, 272,477 bytes, for 3,237
-  chapters in 7.5 s. Its `X-Requested-With: XMLHttpRequest` was therefore
-  dropped and the list came back whole, so this host does not need it. A host
-  that does is still unmeasured, and page mode has no field to send one
-  (`PageRequest` is `{ url, method?, postData? }`): that is a shape it cannot
-  carry, not a check it claims to have passed. `doc/probes/novel-archive.ts`
-  walks the first N novels and prints the branch each took. Its own line, and
-  the solver's receipt of the same request (a different run, so `cid` differs;
-  the plugin picks it):
+  a chapter's pictures resolve against is the one the downloader computed: none
+  of these hosts redirected a chapter.
+- **Novel Bin is not a bot-check question.** Its API
+  (`api/cdn/lists/web_popular.json`) answers the site's own SPA shell,
+  `200 text/html`, where the plugin expects JSON, so the plugin throws
+  "Unexpected token '<'": the site and the plugin have drifted apart. No solve
+  is attempted.
 
-  ```text
-  #1 Shadow Slave | POST https://freewebnovel.com/api/chapterlist.php body="aid=1991&acode=shadow-slave&cid=436" (fields=url+method+postData) -> 200 272477 bytes at https://freewebnovel.com/api/chapterlist.php in 2.8s
-  Incoming request => POST /v1 body: {'cmd': 'request.post', 'url': 'https://freewebnovel.com/api/chapterlist.php', 'maxTimeout': 50000, 'postData': 'aid=1991&acode=shadow-slave&cid=1090'}
-  ```
+Two probes reproduce this from the commit. `doc/probes/novel-live.ts` drives
+POPULAR, a preview and a first chapter through the real host for each plugin,
+and prints every solve it performed beside its timing, every page page mode
+fetched, and the address a chapter's own request ended at.
+`doc/probes/novel-archive.ts` walks the first N novels of a plugin and prints
+which archive branch each took. The store holds one file per plugin, named by
+its id: each is the `url` LNReader's `.dist/plugins.min.json` publishes for
+it, so a run names the plugin version it measured. Run them against a
+development solver, never a live one:
 
-  Its chapter page is a different matter: page mode did not get one through
-  on 2026-11-06, and why is not known. Three novels were asked (Shadow Slave
-  once more, Invincible and Emperor's Domination), each on its first chapter,
-  and each printed the same line:
-
-  ```text
-  #1 Shadow Slave | GET https://freewebnovel.com/novel/shadow-slave/chapter-1 (fields=url+method) -> the solver did not answer in 60 s in 60.1s
-  #2 Invincible | GET https://freewebnovel.com/novel/invincible-novel/chapter-1 (fields=url+method) -> the solver did not answer in 60 s in 60.1s
-  #3 Emperor's Domination | GET https://freewebnovel.com/novel/emperors-domination/chapter-1 (fields=url+method) -> the solver did not answer in 60 s in 60.1s
-  ```
-
-  The solver's own lines for the first. FlareSolverr logs `Challenge detected`
-  or `Challenge not detected!` once `driver.get` returns, so its log says
-  whether its browser got past navigation to a title at all. Neither line
-  appears for these requests: the run's solver log held no such line (it was
-  written to the gitignored `temp/`, so it is not in the tree to grep), and
-  `Navigating to...` is followed straight by the timeout:
-
-  ```text
-  2026-11-06 18:40:26 INFO     ReqId 139855970195136 Incoming request => POST /v1 body: {'cmd': 'request.get', 'url': 'https://freewebnovel.com/novel/shadow-slave/chapter-1', 'maxTimeout': 50000}
-  2026-11-06 18:40:26 DEBUG    ReqId 139855736596160 Navigating to... https://freewebnovel.com/novel/shadow-slave/chapter-1
-  2026-11-06 18:41:28 ERROR    ReqId 139855970195136 Error: Error solving the challenge. Timeout after 50.0 seconds.
-  ```
-
-  A separate driver, started with `docker exec` in that container, given a 20 s
-  page-load timeout and read straight after load with no wait — not the failing
-  run, whose `get` did not return — saw the same chapter as:
-
-  ```text
-  load: returned
-  current_url: https://freewebnovel.com/novel/shadow-slave/chapter-1
-  title: Just a moment...
-  readyState: complete
-  html length: 44660
-  ```
-
-  That snapshot cannot tell a page that passes from one that fails. Its control
-  was `https://freewebnovel.com/novel/shadow-slave`, the novel page page mode
-  answers `200` in 4.1 s with `Challenge not detected!` and 79,631 bytes, and it
-  saw the same there:
-
-  ```text
-  {"url": "https://freewebnovel.com/novel/shadow-slave", "load": "returned", "landed": "https://freewebnovel.com/novel/shadow-slave", "title": "Just a moment...", "readyState": "complete", "html": 44608, "marker": "no challenge marker"}
-  ```
-
-  The two other chapter pages that driver asked, and that control, each
-  reported `"marker": "no challenge marker"`, so the marker does not separate
-  them either.
-
-  Asked directly with `maxTimeout` 120000, the same address answered
-  `'message': 'Error: Error solving the challenge. Timeout after 120.0 seconds.'`,
-  and with `disableMedia` at 60000, `'Timeout after 60.0 seconds.'`. A plain
-  `curl` with a Chrome user agent answered `200`, 69,509 bytes in 0.7 s, titled
-  `Shadow Slave - Chapter 1: Nightmare Begins`. The host's own fetch of a chapter
-  was not tried. The article is served to a plain request. The solver's browser
-  does not return from navigation within 50 s on a chapter, and does on the
-  novel page. Why is unknown: a check, or a load that never finishes, would both
-  fit what was measured.
+```sh
+NOVEL_SOLVER_URL=http://127.0.0.1:8193/v1 \
+  node --experimental-strip-types doc/probes/novel-live.ts \
+    temp/plugins royalroad wuxiaworld novelfull scribblehub novelbin
+```
 
 A row that no longer matches is a measurement that has moved, not a bug: run
 the probe again before trusting it.
 
-`tests/novel-solver.spec.ts`, "a page through the solver's browser (c335)",
-is the app's half against a stubbed FlareSolverr that answers as 3.4.6 does:
-the page after a redirect and the URL it ended on, JSON and text in
-Chromium's `<pre>`, a form POST and a refused PUT, a picture's image page, a
-site's own 403, the solver's 500, a browser that dies once and twice, a
-timeout, an unreachable solver, a local address refused before the solver
-hears of it and again when a name moves inside, a redirect ending on a local
-address not read back, a lookup of the address the browser ended on failing
-(c662), and one page per host at a time with the same request
-answered once and two hosts at once. `tests/novel-host.spec.ts`, "a check
-bound to the browser that solved it: page mode (c335)", is the host's half,
-with a site that refuses the host's clearance and passes only the stub
-browser's cookie: entering on the refused retry and answering that call,
-staying out for every other check, no request of its own and no solve after,
-two calls entering once, JSON and a form, the bodies refused unasked, each
-failure's sentence with the mode kept, a refusal no new solve can change
-worded without a failed check (c630), a chapter's own page address after a
-redirect and one that ended where it asked (c631), a page that is still a
-check, the host's own rule holding for a page and its last address, the ten
-minutes, leaving by TRY AGAIN, by a restart and by time (not extended by use),
-and a host with no page to ask answering with a sentence.
-`tests/novel-plugins-db.spec.ts`
-pins the wiring: the app's host fetches pages with `fetchPage`.
-
 ## Repositories and plugins
 
 On EXTENSIONS ([`BROWSE.md`](BROWSE.md), "Extensions and repositories"), beside
-Mihon's, in their own tables (rung 44: `novel_repos`, `novel_listings`,
+Mihon's, in their own tables (migration 44: `novel_repos`, `novel_listings`,
 `novel_plugins`; `src/lib/server/novels/plugins.ts`,
 `src/lib/library/lnreader-index.ts`):
 
@@ -604,9 +455,9 @@ Mihon's, in their own tables (rung 44: `novel_repos`, `novel_listings`,
   ruled when it stops answering, removed through the sheet when plugins came
   from it. Its name is the GitHub owner it's served from, or its host: an
   LNReader index names nothing.
-- **AVAILABLE** has a NOVELS tab: every repository's plugins, in the owner's
+- **AVAILABLE** has a NOVELS tab: every repository's plugins, in BROWSE's
   languages unless ALL (LNReader names languages in their own words; the index
-  reader maps all seventeen in the owner's repository to codes), searched by
+  reader maps all seventeen in LNReader's repository to codes), searched by
   name.
 - **INSTALLED** lists plugins in the same three sections as extensions: NEEDS
   A HAND (failed to load in the host, with TRY AGAIN; or OBSOLETE), UPDATES,
@@ -632,7 +483,7 @@ plugin installed and loaded in the real host, removed).
 A plugin is a source like any other in BROWSE ([`BROWSE.md`](BROWSE.md)),
 under **NOVELS**, as `ln:<plugin>`; a novel in it is `ln:<plugin>~<its path,
 base64url>`, as a Mihon source's manga is `<source>~<url>`
-(`src/lib/server/novels/source.ts`; card c149).
+(`src/lib/server/novels/source.ts`).
 
 - **Its page** has POPULAR (`popularNovels`), LATEST (the same with
   `showLatestNovels`: every plugin is asked, one without a latest list answers
@@ -640,17 +491,18 @@ base64url>`, as a Mihon source's manga is `<source>~<url>`
   with anything on it means there may be more, so the list ends at the first
   empty one. Its SETTINGS cell opens a page with only tsundoku's own
   switches for the source ([`BROWSE.md`](BROWSE.md), "A source's own
-  switches"; card c435): a plugin keeps no preferences here.
+  switches"): a plugin keeps no preferences here.
 - **Its filters** are drawn by the same panel as an extension's
   (`src/lib/library/lnreader-filters.ts`): Picker a select, Switch a checkbox,
   Checkbox a group of checkboxes, XCheckbox a group of tri-states, Text a
   text field. The way back goes by position, so option values survive the
   URL. A search inside the source is `searchNovels`, which takes no filters:
   the box says "/ search Royal Road", not "with its filters".
-- **SEARCH THE SOURCES** asks the plugins the library reads from or BROWSE lists, as it asks
-  extensions ([`DOWNLOADING.md`](DOWNLOADING.md)). IN LIBRARY and SAME TITLE
-  match by `lnreader:<plugin>:<path>` and by title, across manga and novels;
-  hidden series and mostly-hidden plugins follow the same rules as manga's.
+- **SEARCH THE SOURCES** asks the plugins the library reads from or BROWSE
+  lists, as it asks extensions ([`DOWNLOADING.md`](DOWNLOADING.md)). IN
+  LIBRARY and SAME TITLE match by `lnreader:<plugin>:<path>` and by title,
+  across manga and novels; hidden series and mostly-hidden plugins follow the
+  same rules as manga's.
 - **Covers** are fetched by the server and sent as the library's 400px WebP
   (`/api/browse/novel-cover/<token>`): the browser never asks a novel site. A
   token stands for an address a plugin gave, kept in memory (one from before a
@@ -667,9 +519,9 @@ base64url>`, as a Mihon source's manga is `<source>~<url>`
   (`src/lib/import/novel-plan.ts`): keyed `lnreader:<plugin>:<path>`, source
   `lnreader`, its genres, author and source as tags, every chapter an entry
   NOT DOWNLOADED known by its path at the source. It goes into the `Library`
-  root, the one the EPUB importer shares across devices, so the EPUB c150
-  writes under `devices/tsundoku/Library/` lands in the same series. UNDO
-  works as for manga. Its DOWNLOAD row is the next section's.
+  root, the one the EPUB importer shares across devices, so the EPUB the
+  downloader writes under `devices/tsundoku/Library/` lands in the same
+  series. UNDO works as for manga. Its DOWNLOAD row is the next section's.
 - **When a call comes back empty**, the host says why: LNReader's `fetchText`
   answers `''` on any failure, as LNReader's runtime does, so a plugin whose
   site refused it would list nothing. The host notes the first request it
@@ -678,15 +530,6 @@ base64url>`, as a Mihon source's manga is `<source>~<url>`
   could not be passed)" when it was a bot check, or "…'s page did not come
   through the solver (its check could not be passed): …" in page mode); an
   answer with anything in it is kept. The source page bands it with TRY AGAIN.
-
-**Measured live on 2026-10-28**, the owner's repository through the real
-host and this module (in-memory database, scratch store): Novel Bin (two
-filters, 10 popular, 24 latest, 50 found, a filtered list, a 148-chapter
-preview, added with 148 entries in 0.4 s) and Wuxia World (no filters, 50
-popular, 357 chapters, added) all the way through. NovelFull, Royal Road and
-Scribble Hub stopped at their bot checks then; Royal Road's is now passed by
-the app's solve, and the other two still refuse a Node request even with a
-real solver's clearance ("Past a site's bot check", 2026-11-02).
 
 `tests/lnreader-filters.spec.ts` (the five types both ways and through the
 URL), `tests/novel-source-db.spec.ts` (BROWSE's NOVELS rows, pages until an
@@ -699,15 +542,14 @@ SETTINGS, and its loopback site refused on the page).
 
 ## Downloading
 
-A novel downloads as manga does, through the same screens and the same queue
-(card c150, 2026-10-29), into **one EPUB per novel in tsundoku's device
-folder**, which the EPUB importer reads as it reads any book
-([`IMPORT-EPUB.md`](IMPORT-EPUB.md)) and the text reader reads as any book
-([`TEXT-READER.md`](TEXT-READER.md)). **The importer stays the one place a
-file becomes an entry**, as it is for downloaded manga
-([`DOWNLOADER.md`](DOWNLOADER.md), "The one decision"); text entries in a new
-rung, the card's first idea, would have been a second writer and a second
-reader path.
+A novel downloads as manga does, through the same screens and the same queue,
+into **one EPUB per novel in tsundoku's device folder**, which the EPUB
+importer reads as it reads any book ([`IMPORT-EPUB.md`](IMPORT-EPUB.md)) and
+the text reader reads as any book ([`TEXT-READER.md`](TEXT-READER.md)). **The
+importer stays the one place a file becomes an entry**, as it is for
+downloaded manga ([`DOWNLOADER.md`](DOWNLOADER.md), "The one decision"): text
+entries in a table of their own would be a second writer and a second reader
+path.
 
 - **The series screen** draws a novel's DOWNLOAD row and chapter states as a
   manga's ([`DOWNLOADING.md`](DOWNLOADING.md)): FIRST/NEXT 10, ALL, a tap on
@@ -723,16 +565,15 @@ reader path.
   novel is behind the engine being set up anyway.
 - **A chapter** is the plugin's `parseChapter(path)`, through the host, with
   the address its own request ended at: a page that redirected moves the base
-  its pictures are relative to, in either fetch mode (c631). Its HTML is
-  rebuilt from an allowlist into XHTML
-  (`src/lib/server/novels/chapter-html.ts`): the reader's own list on the way
-  in, so nothing of the site's page (a script, a style, an ad's frame, a link)
-  is kept, and the file is well formed for any reader. Its pictures are
-  fetched by the server, internet only, every redirect too
-  (`net-guard.ts`), up to 40 of 10 MB each, and kept in the book; one that
-  doesn't come, or isn't JPEG, PNG, GIF or WebP, is left out, never left
-  pointing at the site. A chapter with no words in it (a site's empty shell)
-  is a failed try, as is a plugin's error.
+  its pictures are relative to, in either fetch mode. Its HTML is rebuilt from
+  an allowlist into XHTML (`src/lib/server/novels/chapter-html.ts`): the
+  reader's own list on the way in, so nothing of the site's page (a script, a
+  style, an ad's frame, a link) is kept, and the file is well formed for any
+  reader. Its pictures are fetched by the server, internet only, every
+  redirect too (`net-guard.ts`), up to 40 of 10 MB each, and kept in the book;
+  one that doesn't come, or isn't JPEG, PNG, GIF or WebP, is left out, never
+  left pointing at the site. A chapter with no words in it (a site's empty
+  shell) is a failed try, as is a plugin's error.
 - **Batches.** A plugin's chapters come one at a time with a second between
   them; up to ten of one series are fetched, then the book is written once,
   and they leave the queue. Two plugins download at once. Each chapter counts
@@ -743,9 +584,10 @@ reader path.
 ### The book
 
 `$LIBRARY_ROOT/devices/tsundoku/Library/Novels/<Source>/<Title>.epub`, its
-place fixed at the first download (`novel_series`, rung 45) as a manga's folder
-is (`engine_series.title`): the book is rewritten in place, and a rename in
-tsundoku moves nothing. A second novel of the same title gets `<Title> (2)`.
+place fixed at the first download (`novel_series`, migration 45) as a manga's
+folder is (`engine_series.title`): the book is rewritten in place, and a
+rename in tsundoku moves nothing. A second novel of the same title gets
+`<Title> (2)`.
 
 - **It holds the chapters downloaded so far**, in reading order, an EPUB 3 with
   a navigation document and an NCX (`src/lib/import/novel-book.ts`). A
@@ -761,28 +603,27 @@ tsundoku moves nothing. A second novel of the same title gets `<Title> (2)`.
   download folder. A chapter the manifest names and the book doesn't hold
   stays NOT DOWNLOADED. Should the database ever lose the series, the book
   alone brings it back, every chapter included.
-- **Not stub documents.** The plan was a stub per chapter not downloaded, in
-  the book's contents. It doesn't hold: an entry's text runs up to the next
-  entry of its file (`entryDocs`), so a stub between two downloaded chapters
-  would have read as the end of the first, and an EPUB's contents may only
-  point into its reading order. The manifest says the same without either.
+- **Not stub documents.** A stub per chapter not downloaded, in the book's
+  contents, doesn't hold: an entry's text runs up to the next entry of its
+  file (`entryDocs`), so a stub between two downloaded chapters would read as
+  the end of the first, and an EPUB's contents may only point into its reading
+  order. The manifest says the same without either.
 - **Rewritten whole**, from what it held plus the new chapters, written beside
   its place and renamed, so the reader never meets half a book. Its version
   (size and time) changes with each, so a tablet that kept the book fetches it
   again ([`TEXT-READER.md`](TEXT-READER.md)). A 591-chapter web novel is 2–5
   MB; the batches keep a long ALL to one write per ten chapters.
-- **A batch attaches as the book is written** (c170,
-  [`DOWNLOADER.md`](DOWNLOADER.md), "Attaching"). Until then, or when a scan
-  has to step in, the chapters are IMPORTING (`novel_chapters`, rung 45), and
-  the import is the app's own: twenty seconds after the last arrival, and at
-  startup for anything a restart left.
+- **A batch attaches as the book is written**
+  ([`DOWNLOADER.md`](DOWNLOADER.md), "Attaching"). Until then, or when a scan
+  has to step in, the chapters are IMPORTING (`novel_chapters`, migration 45),
+  and the import is the app's own: twenty seconds after the last arrival, and
+  at startup for anything a restart left.
 
 ### Reading it
 
-**Since 2026-10-29 a chapter with no file reads online** when the novel's
-plugin is installed ([`BROWSING.md`](BROWSING.md), "Novels online"): what
-follows is how reading behaves where it can't (no plugin, or a book read
-offline).
+**A chapter with no file reads online** when the novel's plugin is installed
+([`BROWSING.md`](BROWSING.md), "Novels online"): what follows is how reading
+behaves where it can't (no plugin, or a book read offline).
 
 The text reader reads the book as any other. A novel downloaded so far has
 chapters with no file, so **reading stops at the first one**: the next chapter
@@ -795,34 +636,33 @@ chapter allowlist and its pictures), `tests/novel-download-db.spec.ts` (the
 queue shared and kept apart, a batch into the book, IMPORTING, the import onto
 the series without a second one, a rewrite keeping what it held, a rename,
 failures, PAUSE, recovery, and a chapter's pictures resolved against the page
-it came from rather than the plugin's site, c631) and
-`tests/browse-novels.e2e.ts` (a plugin through the real host,
-`tests/fixtures/lnreader/shelf.js`: added from BROWSE, two of three chapters
-downloaded and imported, read up to the third).
+it came from rather than the plugin's site) and `tests/browse-novels.e2e.ts`
+(a plugin through the real host, `tests/fixtures/lnreader/shelf.js`: added
+from BROWSE, two of three chapters downloaded and imported, read up to the
+third).
 
 ## FOLLOW
 
 As for a manga ([`DOWNLOADING.md`](DOWNLOADING.md)): FOLLOW on a novel's
-DOWNLOAD row, FOLLOWING ✓ to stop (`src/lib/server/novels/follow.ts`; card
-c151).
+DOWNLOAD row, FOLLOWING ✓ to stop (`src/lib/server/novels/follow.ts`).
 
 - **Its plugin is asked** at once when it's turned on, then every six hours by
   FOLLOW's ten-minute step, beside the engine's followed manga and whatever
   the engine is doing (`followNew` in `server/downloads.ts`). The ask is
   `parseNovel` with every page of a paged plugin's, never the preview's kept
   answer: what's new is the question. When it was last asked is
-  `novel_checks` (rung 46), the row's CHECKED … AGO. A plugin that fails isn't
-  recorded as asked, so the next step asks again.
+  `novel_checks` (migration 46), the row's CHECKED … AGO. A plugin that fails
+  isn't recorded as asked, so the next step asks again.
 
-**REFRESH** (card c220) is the look beside FOLLOW: `checkNovel` with
-`queue: false` through `refreshSeries` (`src/lib/server/refresh.ts`), so a new
-chapter becomes an entry and nothing downloads. A novel doesn't need to be
-followed to be asked ([`DOWNLOADING.md`](DOWNLOADING.md), "REFRESH").
+**REFRESH** is the look beside FOLLOW: `checkNovel` with `queue: false`
+through `refreshSeries` (`src/lib/server/refresh.ts`), so a new chapter
+becomes an entry and nothing downloads. A novel doesn't need to be followed to
+be asked ([`DOWNLOADING.md`](DOWNLOADING.md), "REFRESH").
 
 - **A chapter it lists that no entry is becomes one**, with ADD's own plan
   (`planNovel`) through the one writer, so it's numbered as ADD would have
-  numbered it; nothing the owner set on the series moves, a deleted chapter
-  stays deleted (its tombstone), and the series' cover is left alone.
+  numbered it; nothing set on the series moves, a deleted chapter stays
+  deleted (its tombstone), and the series' cover is left alone.
 - **It's queued** unless read, fifty a series a run at most, oldest first, so
   the next ones to read come first (`followQueue`, as for manga).
 - **Places.** A chapter's place is its number, or for an unnumbered one its
@@ -833,14 +673,12 @@ followed to be asked ([`DOWNLOADING.md`](DOWNLOADING.md), "REFRESH").
   book's manifest is written again with the new places
   ([`IMPORT-EPUB.md`](IMPORT-EPUB.md), "tsundoku's own novels").
 
-**Measured live on 2026-10-29**, through the real host, in a scratch library:
-Wuxia World's _I Shall Seal the Heavens_ (1,619 chapters) and Novel Bin's
-_The Natives of This World Are Fierce_ (375), each with its newest two
-chapters taken out of the library so the plugin listed two new ones: FOLLOW
-found them again in 0.75 s and 0.25 s, queued both, and the worker downloaded
-them. Wuxia World marks some chapters 🔒, which the site keeps for paying
-readers: what a plugin answers for one may be the site's teaser, and nothing
-in tsundoku can tell.
+Measured live through the real host on a 1,619-chapter and a 375-chapter
+novel, each with its newest two chapters taken out of the library: FOLLOW
+found them again in under a second, queued both, and the worker downloaded
+them. Some sites (Wuxia World among them) keep chapters for paying readers:
+what a plugin answers for one may be the site's teaser, and nothing in
+tsundoku can tell.
 
 `tests/novel-download-db.spec.ts` ("following a novel": asked at once and every
 six hours, new chapters made entries and queued oldest first and never twice,
@@ -848,9 +686,18 @@ a moved interlude written into the book and kept by a rescan, a failing plugin
 asked again, an unfollowed novel left alone) and the FOLLOW cell in
 `tests/browse-novels.e2e.ts`.
 
-## Not done yet
+## Limits
 
-The book carries no cover of its own (tsundoku's tiles have theirs). Without
-the engine set up there's no BROWSE, so no novels either, though nothing in
-the novel worker needs it. A plugin's own settings (`pluginSettings`, a few
-have them) aren't offered.
+- The book carries no cover of its own (tsundoku's tiles have theirs).
+- Without the engine set up there's no BROWSE, so no novels either, though
+  nothing in the novel worker needs it.
+- A plugin's own settings (`pluginSettings`, a few have them) aren't offered.
+- Page mode sends no request headers (`PageRequest` is
+  `{ url, method?, postData? }`), so a site whose POST needs one, such as
+  `X-Requested-With`, cannot be read through it.
+- Free Web Novel's chapter pages don't come through page mode: the solver's
+  browser does not return from navigating to a chapter within its timeout,
+  though it does for the novel page and a plain request gets the chapter. Why
+  is not known.
+- Covers and a chapter's pictures are fetched by the server, not through the
+  solver, so a site that checks those too leaves them out.

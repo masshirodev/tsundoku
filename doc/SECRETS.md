@@ -1,64 +1,65 @@
 # Secrets
 
-tsundoku's live `.env` is a **copy**. The master copy lives in **Infisical** on the
-VPS (`https://infisical.example.com`, project `tsundoku`, environment
-`prod`). `yarn run secrets:pull` writes it into the **data folder**,
-`$TSUNDOKU_HOME/.env` (`/mnt/hdd2/tsundoku/.env`): since c228 the workstation
-runs the released bundle, whose launcher reads that file, and the checkout's
-own `.env` is development's, which the pull never touches.
+tsundoku's configuration is environment variables. `.env.example` lists them.
+The app reads them from `.env`: a checkout's own `.env` in development, and the
+data folder's, `$TSUNDOKU_HOME/.env`, when it runs a released bundle, whose
+launcher reads that file ([`SERVING.md`](SERVING.md)). Variables already set in
+the shell win over the file.
 
-`DATABASE_PATH` must be **absolute** in Infisical
-(`/mnt/hdd2/tsundoku/library.sqlite`). The bundle runs from its own folder, so
-the checkout-relative `data/library.sqlite` it held until 2026-11-01 would open
-a new, empty library there; the pull refuses a relative one.
-
-**The app never reads Infisical itself.** It reads `.env`, as it always has.
-It starts at boot and restarts on its own (`ops/systemd/tsundoku.service`,
-[`SERVING.md`](SERVING.md)), and it must keep doing both when the VPS can't
-be reached: the ISP sometimes blackholes its address range. So the pull is
-done by hand, when something changes, never at boot. Decided with the owner
-on 2026-09-24.
+The author's deployment keeps the master copy in an
+[Infisical](https://infisical.com) instance and writes the data folder's `.env`
+from it with `yarn run secrets:pull` ("Pulling from Infisical", below). Nothing
+else needs Infisical: any way of writing `.env` works.
 
 ## What's in it
 
-**One secret is not in `.env`: a TMDB key typed in SETTINGS** (c993). It is
-the install's own, kept in the database's `settings` table beside the
-trackers' OAuth tokens, and shown only by its last four characters. The
-environment's `TMDB_API_RC_TOKEN` or `TMDB_API_KEY` always wins over it, so
-the workstation's Infisical key is what the live install uses.
+**One secret is not in `.env`: a TMDB key typed in SETTINGS.** It is the
+install's own, kept in the database's `settings` table beside the trackers'
+OAuth tokens, and shown only by its last four characters. The environment's
+`TMDB_API_RC_TOKEN` or `TMDB_API_KEY` always wins over it.
 
-**Every key `.env` has, the non-secret ones too:**
+**The keys, the non-secret ones too:**
 
-| Key                                | What for                                                                                                                               |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `TSUNDOKU_TOKEN`                   | Signing in to the app ([`INSTALL.md`](INSTALL.md))                                                                                     |
-| `DATABASE_PATH`, `LIBRARY_ROOT`    | Which library `serve` opens ([`SERVING.md`](SERVING.md))                                                                               |
-| `TSUNDOKU_HOME`, `BACKUP_DIR`      | The data folders, `/mnt/hdd2/tsundoku` and `/mnt/backup/tsundoku`; not secrets ([`DISTRIBUTION.md`](DISTRIBUTION.md))                  |
-| `KUMIKO_TOKEN`, `KUMIKO_DECK`      | Mined words to Kumiko ([`JAPANESE.md`](JAPANESE.md))                                                                                   |
-| `ANILIST_CLIENT_*`, `MAL_CLIENT_*` | Tracking sign-ins ([`TRACKING.md`](TRACKING.md))                                                                                       |
-| `RANOBE_TOKEN`                     | Novels to Ranobe ([`RANOBE.md`](RANOBE.md))                                                                                            |
-| `RANOBE_SUGGEST_TOKEN`             | Suggestions to Ranobe, as its app account (RANOBE.md)                                                                                  |
-| `ENGINE_URL`                       | The extension engine ([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md)); not a secret, `http://127.0.0.1:4590`                             |
-| `ENGINE_TOKEN`                     | The engine's bearer token: the compose file requires it, tsundoku sends it                                                             |
-| `NOVEL_SOLVER_URL`                 | Where the app reaches the solver for a novel plugin's site check ([`NOVELS.md`](NOVELS.md)); `http://127.0.0.1:8193/v1` in development |
+| Key                                 | What for                                                                                                                               |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `TSUNDOKU_TOKEN`                    | Signing in to the app ([`INSTALL.md`](INSTALL.md))                                                                                     |
+| `DATABASE_PATH`, `LIBRARY_ROOT`     | Which library `serve` opens ([`SERVING.md`](SERVING.md))                                                                               |
+| `TSUNDOKU_HOME`, `BACKUP_DIR`       | The data folders; not secrets ([`DISTRIBUTION.md`](DISTRIBUTION.md))                                                                   |
+| `KUMIKO_TOKEN`, `KUMIKO_DECK`       | Mined words to Kumiko ([`JAPANESE.md`](JAPANESE.md))                                                                                   |
+| `ANILIST_CLIENT_*`, `MAL_CLIENT_*`  | Tracking sign-ins ([`TRACKING.md`](TRACKING.md))                                                                                       |
+| `TMDB_API_RC_TOKEN`, `TMDB_API_KEY` | The TMDB catalogue for films and shows; either one                                                                                     |
+| `RANOBE_TOKEN`                      | Novels to Ranobe ([`RANOBE.md`](RANOBE.md))                                                                                            |
+| `RANOBE_SUGGEST_TOKEN`              | Suggestions to Ranobe, as its app account (RANOBE.md)                                                                                  |
+| `ENGINE_URL`                        | The extension engine ([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md)); not a secret, `http://127.0.0.1:4590`                             |
+| `ENGINE_TOKEN`                      | The engine's bearer token: the compose file requires it, tsundoku sends it                                                             |
+| `NOVEL_SOLVER_URL`                  | Where the app reaches the solver for a novel plugin's site check ([`NOVELS.md`](NOVELS.md)); `http://127.0.0.1:8193/v1` in development |
 
-`SUWAYOMI_URL`, `SUWAYOMI_USERNAME`, `SUWAYOMI_PASSWORD` and `DOWNLOADS_BACKEND` are no longer read: Suwayomi was retired and the engine is the only backend (c129, [`DOWNLOADING.md`](DOWNLOADING.md), "Suwayomi, retired"). They can be deleted from Infisical; a pull that still carries them does no harm.
+The serving settings (`HOST`, `PORT`, `TSUNDOKU_SERVE`, `TSUNDOKU_HTTPS_PORT`,
+`TSUNDOKU_BIND_ANY`) and the data folders' overrides are in `.env.example`
+with their defaults.
 
-A pull writes Infisical's list and nothing else, so a key that exists only
-in `.env` is dropped. The script names each one it drops.
+`DATABASE_PATH` must be **absolute** for a released bundle. The bundle runs
+from its own folder, so a relative path would open a new, empty library there.
 
-## Once
+## Pulling from Infisical
 
-1. In Infisical, create the project **tsundoku**. Use its **Production**
-   environment (slug `prod`).
-2. Import the current `.env`: _Secrets → Add → upload a .env file_.
-3. Under _Access Control → Machine Identities_, create
-   **tsundoku-workstation** with **Universal Auth**. Add it to the project as
-   a **Viewer**: it only ever reads. Create a client secret for it.
-4. Write the identity beside the app, as the VPS's services have theirs:
+`yarn run secrets:pull` (`scripts/secrets-pull.sh`) writes `$TSUNDOKU_HOME/.env`
+from one Infisical project and environment. It never touches a checkout's own
+`.env`. The app never reads Infisical itself: it reads `.env`, so it starts at
+boot and restarts on its own even when the Infisical server cannot be reached.
+The pull is run by hand when something changes, never at boot.
+
+### Once
+
+1. In Infisical, create a project for tsundoku and pick its environment (for
+   example **Production**, slug `prod`).
+2. Import an existing `.env`: _Secrets → Add → upload a .env file_.
+3. Under _Access Control → Machine Identities_, create an identity with
+   **Universal Auth**. Add it to the project as a **Viewer**: it only ever
+   reads. Create a client secret for it.
+4. Write the identity into the checkout the pull runs from:
 
    ```sh
-   cd ~/projects/tsundoku
    install -m 600 /dev/null .infisical-identity
    $EDITOR .infisical-identity
    ```
@@ -71,15 +72,12 @@ in `.env` is dropped. The script names each one it drops.
    INFISICAL_API_URL=https://infisical.example.com
    ```
 
-   It's untracked (`.gitignore`), and so is `.env.bak`.
+   It is untracked (`.gitignore`), and so is `.env.bak`.
 
-5. `yarn run secrets:pull --dry-run`, then `yarn run secrets:pull`. The
-   first time, it should list no changes but what you added. Done on
-   2026-09-25: the import brought the five `.env` keys across, and the owner
-   added the serving settings (`HOST`, `PORT`, `TSUNDOKU_SERVE`,
-   `TSUNDOKU_HTTPS_PORT`, `TSUNDOKU_BIND_ANY`), all at their defaults.
+5. `yarn run secrets:pull --dry-run`, then `yarn run secrets:pull`. The first
+   time, it should list no changes but what you added.
 
-## A change
+### A change
 
 Change the value in Infisical, then:
 
@@ -89,15 +87,14 @@ yarn run secrets:pull && systemctl --user restart tsundoku
 ```
 
 The pull prints what changed by name (`+` added, `-` dropped, `~` changed)
-and never a value. It keeps the previous `.env` as `.env.bak`. It refuses
-an empty list (a new project, or the wrong environment) and leaves `.env`
-as it was.
+and never a value. It keeps the previous `.env` as `.env.bak`. It refuses an
+empty list (a new project, or the wrong environment) and a relative
+`DATABASE_PATH`, and leaves `.env` as it was.
 
-## How it works
+A pull writes Infisical's list and nothing else, so a key that exists only in
+`.env` is dropped. The script names each one it drops.
 
-`scripts/secrets-pull.sh` is the VPS's
-`infisical/compose-with-secrets.sh`, pointed at a file instead of
-`docker compose`:
+### How it works
 
 - a universal-auth login with the identity;
 - `GET /api/v3/secrets/raw` for the project and environment;
@@ -105,6 +102,5 @@ as it was.
 
 It needs only `curl` and `jq`, not Infisical's CLI.
 
-Each value is written JSON-quoted (`KEY="value"`), which Node's
-`loadEnvFile` reads. A value with a `"` or a `\` in it would need care. None
-has one today.
+Each value is written JSON-quoted (`KEY="value"`), which Node's `loadEnvFile`
+reads. A value with a `"` or a `\` in it would need care.
