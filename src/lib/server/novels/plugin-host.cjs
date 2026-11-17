@@ -3,10 +3,11 @@
  * The host LNReader plugins run in (doc/NOVELS.md, "The plugin host"; card
  * c147). A child process of the app, started by host.ts under Node's
  * permission model with an empty environment: it may read only itself, the
- * project's node_modules and the plugin store, and may not write, spawn,
- * start workers or load addons. Plugin code is evaluated in a vm context
- * whose require hands out only the shims below and the libraries plugins are
- * written against, and whose fetch refuses loopback and private addresses.
+ * address guard, the project's node_modules and the plugin store, and may not
+ * write, spawn, start workers or load addons. Plugin code is evaluated in a vm
+ * context whose require hands out only the shims below and the libraries
+ * plugins are written against, and whose fetch refuses anything but the
+ * internet, checked again on the addresses each connection actually uses.
  *
  * Plain CommonJS, not TypeScript, and never bundled: it's started as a file.
  *
@@ -33,6 +34,12 @@ const fs = require('node:fs');
 const dns = require('node:dns/promises');
 const net = require('node:net');
 const { AsyncLocalStorage } = require('node:async_hooks');
+// The app's own address guard, the same file the server imports: one rule for
+// what is on the internet. Node strips its types as it loads it.
+const guard = require('../net-guard.ts');
+// And for every fetch in this process, not only the shims': code that got out
+// of the vm context and called the process's own fetch still meets the guard.
+require('undici').setGlobalDispatcher(guard.publicDispatcher());
 
 // The browser User-Agent the engine sends (engine/protocol.ts): sites answer it.
 const USER_AGENT =
@@ -77,35 +84,6 @@ function noteAt(asked, at) {
 
 // ---- a fetch that stays on the internet ---------------------------------------------------
 
-/** Loopback, private, link-local, unique-local and unspecified addresses: never a plugin's site. */
-function isPrivate(ip) {
-	if (net.isIPv4(ip)) {
-		const [a, b] = ip.split('.').map(Number);
-		return (
-			a === 0 ||
-			a === 10 ||
-			a === 127 ||
-			(a === 100 && b >= 64 && b <= 127) ||
-			(a === 169 && b === 254) ||
-			(a === 172 && b >= 16 && b <= 31) ||
-			(a === 192 && b === 168) ||
-			a >= 224
-		);
-	}
-	const v = ip.toLowerCase();
-	if (v.startsWith('::ffff:')) return isPrivate(v.slice(7));
-	return (
-		v === '::' ||
-		v === '::1' ||
-		v.startsWith('fc') ||
-		v.startsWith('fd') ||
-		v.startsWith('fe8') ||
-		v.startsWith('fe9') ||
-		v.startsWith('fea') ||
-		v.startsWith('feb')
-	);
-}
-
 async function checkUrl(url) {
 	const u = new URL(url);
 	if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error(`refused: ${u.protocol}`);
@@ -115,8 +93,34 @@ async function checkUrl(url) {
 	const addrs = net.isIP(host)
 		? [host]
 		: (await dns.lookup(host, { all: true })).map((a) => a.address);
-	if (addrs.length === 0 || addrs.some(isPrivate))
+	if (addrs.length === 0 || !addrs.every(guard.isPublicIp))
 		throw new Error(`refused: ${u.hostname} is not on the internet`);
+}
+
+/**
+ * The connection pool for [url]: the guard's, whose sockets connect only to
+ * public addresses, so a name can't pass checkUrl and then connect somewhere
+ * else. A loopback port the parent opened for a test is the one exception.
+ */
+let openPool = null;
+function poolFor(url) {
+	const u = new URL(url);
+	const port = u.port || (u.protocol === 'https:' ? '443' : '80');
+	if (!allowed.has(`${u.hostname}:${port}`)) return guard.publicDispatcher();
+	openPool ??= new (require('undici').Agent)();
+	return openPool;
+}
+
+/** Why a fetch to [url] failed, in the call's words: the guard's refusal says so. */
+function failedFetch(url, e) {
+	const host = new URL(url).hostname;
+	if (e && e.cause instanceof guard.NotPublicError) {
+		const why = `refused: ${host} is not on the internet`;
+		note(why);
+		return new Error(why);
+	}
+	note(`${host} did not answer (${(e.cause && e.cause.code) || e.message})`);
+	return e;
 }
 
 /** fetch, with every hop of a redirect checked: an automatic one would skip the check. */
@@ -142,7 +146,7 @@ async function guardedFetch(input, init = {}) {
 	// novel call. The retry after a clearance gets its own, since a solve takes
 	// 20-45 s first. A caller's own signal is never reset.
 	let deadline = init.signal || AbortSignal.timeout(30_000);
-	const attempt = () => ({ ...opts, signal: deadline });
+	const attempt = (at) => ({ ...opts, signal: deadline, dispatcher: poolFor(at) });
 	for (let hop = 0; hop < 6; hop++) {
 		try {
 			await checkUrl(url);
@@ -155,10 +159,9 @@ async function guardedFetch(input, init = {}) {
 		if (inPageMode(hostOf(url))) return pageFetch(asked, url, opts, init[WANTS_FILE] === true);
 		let res;
 		try {
-			res = await fetch(url, withJar(attempt(), url));
+			res = await fetch(url, withJar(attempt(url), url));
 		} catch (e) {
-			note(`${new URL(url).hostname} did not answer (${(e.cause && e.cause.code) || e.message})`);
-			throw e;
+			throw failedFetch(url, e);
 		}
 		let challenge = await isChallenge(res);
 		let refusedNow = false;
@@ -168,12 +171,9 @@ async function guardedFetch(input, init = {}) {
 			if (clearance) {
 				deadline = init.signal || AbortSignal.timeout(30_000);
 				try {
-					res = await fetch(url, withJar(attempt(), url));
+					res = await fetch(url, withJar(attempt(url), url));
 				} catch (e) {
-					note(
-						`${new URL(url).hostname} did not answer (${(e.cause && e.cause.code) || e.message})`
-					);
-					throw e;
+					throw failedFetch(url, e);
 				}
 				challenge = await isChallenge(res);
 				// The site refused the clearance it was just given. Remember that

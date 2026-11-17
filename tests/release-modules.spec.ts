@@ -18,6 +18,8 @@ describe('the server modules a bundle carries (doc/RELEASE.md)', () => {
 	it('include what the server forks by path, and the packages it requires', () => {
 		// 2026.10.31.3 left the plugin host out: every novel source said THE PLUGIN HOST STOPPED.
 		expect(serverModules(root)).toContain('novels/plugin-host.cjs');
+		// And what it requires by path: without the address guard it can't start.
+		expect(serverModules(root)).toContain('net-guard.ts');
 		expect(spawnedPackages(root)).toEqual(
 			expect.arrayContaining(['@noble/ciphers', 'cheerio', 'dayjs', 'htmlparser2', 'protobufjs'])
 		);

@@ -8,8 +8,9 @@ import type { PageAnswer, PageRequest } from './solver.ts';
  * after it dies, running plugin-host.cjs under Node's permission model:
  *
  * - an empty environment, so no secret in .env is there to read;
- * - read access to the host file, the project's node_modules and the plugin
- *   store only, and no writes, child processes, workers or addons;
+ * - read access to the host file, the address guard, the project's
+ *   node_modules and the plugin store only, and no writes, child processes,
+ *   workers or addons;
  * - plugin code in a vm context whose require gives only LNReader's shims
  *   and the libraries plugins are written against, and whose fetch refuses
  *   loopback and private addresses, every redirect included.
@@ -62,6 +63,23 @@ type Pending = {
 
 const root = () => process.env.TSUNDOKU_ROOT ?? process.cwd();
 export const hostFile = () => join(root(), 'src/lib/server/novels/plugin-host.cjs');
+/** The address guard the host requires: the server's own (net-guard.ts), one rule for both. */
+export const guardFile = () => join(root(), 'src/lib/server/net-guard.ts');
+
+/**
+ * Node's flags for the host: the permission model, reading only the host, the
+ * guard, node_modules and the plugin store. Exported so a spec can hold a
+ * process with exactly these flags to what it promises.
+ */
+export function hostExecArgv(store: string): string[] {
+	return [
+		'--permission',
+		`--allow-fs-read=${hostFile()}`,
+		`--allow-fs-read=${guardFile()}`,
+		`--allow-fs-read=${join(root(), 'node_modules')}`,
+		`--allow-fs-read=${resolve(store)}`
+	];
+}
 
 export class NovelHost {
 	#child: ChildProcess | null = null;
@@ -76,12 +94,7 @@ export class NovelHost {
 	#start(): ChildProcess {
 		if (this.#child) return this.#child;
 		const child = fork(hostFile(), [], {
-			execArgv: [
-				'--permission',
-				`--allow-fs-read=${hostFile()}`,
-				`--allow-fs-read=${join(root(), 'node_modules')}`,
-				`--allow-fs-read=${resolve(this.#opts.store)}`
-			],
+			execArgv: hostExecArgv(this.#opts.store),
 			// Nothing of the app's environment, .env's secrets included.
 			env: {},
 			stdio: ['ignore', 'ignore', 'pipe', 'ipc'],

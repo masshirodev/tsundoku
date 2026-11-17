@@ -248,6 +248,8 @@ exports.default = {
 			execArgv: [
 				'--permission',
 				`--allow-fs-read=${hostFile}`,
+				// The address guard it requires, as host.ts allows it.
+				`--allow-fs-read=${join(bundle, 'app', 'src', 'lib', 'server', 'net-guard.ts')}`,
 				`--allow-fs-read=${join(bundle, 'app', 'node_modules')}`,
 				`--allow-fs-read=${store}`
 			],

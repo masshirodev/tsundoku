@@ -4,7 +4,8 @@ import { dirname, join, resolve } from 'node:path';
 export /**
  * src/lib/server's modules that the bundle's two scripts reach: serve.ts
  * (from scripts/) and the launcher (whose `../app/src/lib/server/` is this
- * source's `src/lib/server/` once bundled), following relative imports. Names
+ * source's `src/lib/server/` once bundled), following relative imports and
+ * the forked files' relative requires. Names
  * relative to src/lib/server.
  */
 function serverModules(root: string): string[] {
@@ -14,12 +15,15 @@ function serverModules(root: string): string[] {
 		if (seen.has(file)) return;
 		seen.add(file);
 		const text = readFileSync(file, 'utf8');
+		// Imports, and a CommonJS file's relative requires: the plugin host
+		// requires the address guard (net-guard.ts) by path.
 		for (const m of text.matchAll(
-			/^\s*(?:import|export)\b[^'"]*?\bfrom\s+['"](\.{1,2}\/[^'"]+)['"]/gm
+			/^\s*(?:import|export)\b[^'"]*?\bfrom\s+['"](\.{1,2}\/[^'"]+)['"]|\brequire\(\s*['"](\.{1,2}\/[^'"]+)['"]\s*\)/gm
 		)) {
-			const target = m[1].startsWith('../app/src/lib/server/')
-				? join(lib, m[1].slice('../app/src/lib/server/'.length))
-				: resolve(dirname(file), m[1]);
+			const spec = m[1] ?? m[2];
+			const target = spec.startsWith('../app/src/lib/server/')
+				? join(lib, spec.slice('../app/src/lib/server/'.length))
+				: resolve(dirname(file), spec);
 			if (target.startsWith(lib) && existsSync(target)) walk(target);
 		}
 	};
