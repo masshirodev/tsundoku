@@ -2,14 +2,14 @@
 	import { leave } from '$lib/motion';
 
 	/**
-	 * What a selection in the text reader puts on the page (Highlights H2, c702;
-	 * Novel N1 to N3, N8, D1): the two square handles, the bar over it, and at a
-	 * paged page's end HOLD TO TURN →. The words themselves are tinted in place
-	 * (`src/lib/reader/text-marks.ts`); this draws what stands over them.
+	 * What a selection in the text reader puts on the page: the two square
+	 * handles, the bar over it, and at a paged page's end HOLD TO TURN →. The
+	 * words themselves are tinted in place (`src/lib/reader/text-marks.ts`);
+	 * this draws what stands over them.
 	 *
 	 * The bar is left out, never dimmed, where a cell has no answer: LOOK UP
 	 * without a language pack, HIGHLIGHT and NOTE in incognito, where a first
-	 * cell says why (Main 02, INCOGNITO MAKES NONE).
+	 * cell says why (INCOGNITO MAKES NONE).
 	 */
 	type Point = { x: number; y: number; h: number };
 	let {
@@ -41,7 +41,7 @@
 		incognito: boolean;
 		canKeep: boolean;
 		lookUp: boolean;
-		/** A mouse is the pointer here: the keys are shown on their cells (Novel D1). */
+		/** A mouse is the pointer here: the keys are shown on their cells. */
 		fine: boolean;
 		copied: boolean;
 		onwidth: (w: number) => void;
@@ -127,7 +127,7 @@
 	.layer.dragging .hd {
 		pointer-events: none;
 	}
-	/* Novel N2's handles, transcribed: a 2px bar the line's height and a 14px square. */
+	/* The handles: a 2px bar the line's height and a 14px square. */
 	.hd::before,
 	.hd::after {
 		content: '';
@@ -163,7 +163,7 @@
 	.hd.end::after {
 		top: calc(var(--h) - 4px);
 	}
-	/* Vertical: the bar is across the column, the square at its end (Novel J3). */
+	/* Vertical: the bar is across the column, the square at its end. */
 	.vertical .hd::before {
 		width: var(--h);
 		height: 2px;
@@ -225,7 +225,7 @@
 		font: 500 11px/1 var(--font-mono);
 		opacity: 0.55;
 	}
-	/* Novel N3: the bottom strip, the cue at its end. */
+	/* HOLD TO TURN: the bottom strip, the cue at its end. */
 	.hold {
 		position: absolute;
 		left: 0;

@@ -6,16 +6,16 @@
 	/**
 	 * The image reader's copy of the shared page menu
 	 * (`$lib/components/content/PageMenu.svelte`), with one row more: HIGHLIGHT
-	 * THIS PAGE, first, since it is the one used on any page (Highlights H3,
-	 * c703; Manga M5). A copy because the shared one is the PAGES grid's too
-	 * and its rows are covers' (`MenuRow`'s targets); everything below the
-	 * highlight's row is the shared menu's, unchanged.
+	 * THIS PAGE, first, since it is the one used on any page. A copy because
+	 * the shared one is the PAGES grid's too and its rows are covers'
+	 * (`MenuRow`'s targets); everything below the highlight's row is the shared
+	 * menu's, unchanged.
 	 *
-	 * The page menu (Page Menu, card c26; doc/COVERS.md, "Chosen"): what a
-	 * long-pressed page can become. The pressed page keeps its light, ringed in
-	 * the accent with its number in the corner; everything else goes under the
-	 * scrim. One row per thing the page can become, each saying where that
-	 * cover comes from now. Closes by ✕, a tap on the scrim, or Esc.
+	 * The page menu (doc/COVERS.md, "Chosen"): what a long-pressed page can
+	 * become. The pressed page keeps its light, ringed in the accent with its
+	 * number in the corner; everything else goes under the scrim. One row per
+	 * thing the page can become, each saying where that cover comes from now.
+	 * Closes by ✕, a tap on the scrim, or Esc.
 	 *
 	 * In the reader it's the reader's dark chrome, with a preview of the page
 	 * as a tile would crop it. On the PAGES grid it follows the app's theme,
@@ -472,7 +472,7 @@
 	}
 
 	/*
-	 * The TV (c235; TV-Reader 7F): the menu is the 420px panel from the right,
+	 * The TV: the menu is the 420px panel from the right,
 	 * as every sheet is there, and the page it means is framed in ink rather
 	 * than in the accent -- the accent means "yours", the frame is where the
 	 * remote is.

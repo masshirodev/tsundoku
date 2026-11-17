@@ -4,13 +4,13 @@
 	import { COLOURS, type Colour } from '$lib/library/highlights';
 
 	/**
-	 * The open highlight (Highlights H2, c702; Novel N5, N7, D2): the words, the
-	 * three colours, NOTE, COPY and DELETE, as a bottom sheet on a phone and a
-	 * 420 px panel on the far side from the words elsewhere (where the lookup
-	 * goes). DELETE is at once, with the reader's band and its UNDO.
+	 * The open highlight: the words, the three colours, NOTE, COPY and DELETE,
+	 * as a bottom sheet on a phone and a 420 px panel on the far side from the
+	 * words elsewhere (where the lookup goes). DELETE is at once, with the
+	 * reader's band and its UNDO.
 	 *
-	 * The note saves as it's typed (Novel N5). A note that did not save says so
-	 * here and keeps the words, as a page's does (Manga M6).
+	 * The note saves as it's typed. A note that did not save says so
+	 * here and keeps the words, as a page's does.
 	 */
 	let {
 		head,
@@ -89,7 +89,7 @@
 	};
 
 	// Drawn only while open: the page under its scrim holds still for as long
-	// as it is, as under a Sheet (src/lib/scroll-lock.ts, c1033).
+	// as it is, as under a Sheet (src/lib/scroll-lock.ts).
 	$effect(() => lockPage());
 </script>
 
@@ -151,7 +151,7 @@
 		border: 0;
 		background: var(--scrim, rgba(0, 0, 0, 0.6));
 	}
-	/* Novel N5, transcribed: the phone's sheet. Colours are the reader's own tokens. */
+	/* The phone's sheet. Colours are the reader's own tokens. */
 	.sheet {
 		position: fixed;
 		left: 0;
@@ -295,7 +295,7 @@
 	.act.del {
 		border-left: var(--hairline);
 	}
-	/* Novel D2, tablet and up: a 420px panel on the far side from the words. */
+	/* Tablet and up: a 420px panel on the far side from the words. */
 	@media (min-width: 600px) {
 		.sheet {
 			left: auto;

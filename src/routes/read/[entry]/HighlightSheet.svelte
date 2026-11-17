@@ -6,10 +6,10 @@
 	import { pageSheetHead, pageSheetLine, type KeptPage } from '$lib/library/highlights';
 
 	/**
-	 * A kept page's sheet (Highlights H3, c703; Manga M6), opened from
-	 * ✓ HIGHLIGHTED or the page menu's ✓ HIGHLIGHTED · OPEN: its copy, NOTE,
-	 * when it was made and what it keeps on the workstation, SAVE IMAGE (the
-	 * copy at the page's own size) and DELETE, at once, with the band's UNDO.
+	 * A kept page's sheet, opened from ✓ HIGHLIGHTED or the page menu's ✓
+	 * HIGHLIGHTED · OPEN: its copy, NOTE, when it was made and what it keeps on
+	 * the workstation, SAVE IMAGE (the copy at the page's own size) and DELETE,
+	 * at once, with the band's UNDO.
 	 *
 	 * The note is saved when it changes and the field is left, or the sheet
 	 * closes; a note that did not save says so in the sheet and keeps the words.
@@ -53,7 +53,7 @@
 	}
 
 	// Drawn only while open: the page under its scrim holds still for as long
-	// as it is, as under a Sheet (src/lib/scroll-lock.ts, c1033).
+	// as it is, as under a Sheet (src/lib/scroll-lock.ts).
 	$effect(() => lockPage());
 </script>
 
@@ -127,7 +127,7 @@
 		border: 0;
 		background: var(--scrim);
 	}
-	/* Manga M6, transcribed: the phone's 390 sheet, its literals; colours are tokens. */
+	/* The phone's 390 sheet, its literals as designed; colours are tokens. */
 	.sheet {
 		position: fixed;
 		left: 0;

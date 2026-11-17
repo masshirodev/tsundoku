@@ -1,7 +1,7 @@
 import type Hls from 'hls.js';
 
 /**
- * A stream's seek preview (doc/ANIME.md, "The player"; card c385). A
+ * A stream's seek preview (doc/ANIME.md, "The player"). A
  * downloaded episode has a sprite sheet the workstation cut from its file; a
  * stream has none, since making one would mean reading the whole episode. So
  * the player keeps a second, hidden picture on the stream's **lowest**
@@ -77,14 +77,14 @@ export class StreamPreview {
 	/**
 	 * How many times loading was stopped (a frame drawn, a stop given up, the
 	 * pointer gone). A stop whose source opened after one of those is over:
-	 * it must not start a load nothing would stop (c450).
+	 * it must not start a load nothing would stop.
 	 */
 	private stopped = 0;
 	/**
 	 * The playlist is in. Before it, nothing loads but the playlist itself
 	 * (`autoStartLoad: false`), and hls.js's `stopLoad()` would destroy that
 	 * request in flight: MANIFEST_PARSED would never come and every later stop
-	 * would wait on it for good (c450).
+	 * would wait on it for good.
 	 */
 	private parsed = false;
 
@@ -128,7 +128,7 @@ export class StreamPreview {
 		} else {
 			// A plain file: `preload = 'none'` would hold even the seek's own
 			// read, so the file is let read its header, and a seek then reads the
-			// bytes at the time asked (c450).
+			// bytes at the time asked.
 			this.video.preload = 'metadata';
 			this.video.src = this.quality.src;
 			this.parsed = true;

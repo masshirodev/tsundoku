@@ -1,8 +1,8 @@
 /**
  * Picture-in-picture with tsundoku's own subtitles (doc/ANIME.md, "The
- * player"; card c388). tsundoku draws subtitles over the picture itself, and
- * a video's own picture-in-picture moves only the <video>, so the drawn
- * subtitles stayed on the page. Two paths:
+ * player"). tsundoku draws subtitles over the picture itself, and a video's
+ * own picture-in-picture moves only the <video>, so the drawn subtitles
+ * would stay on the page. Two paths:
  *
  * - **Document Picture-in-Picture** (`documentPictureInPicture.requestWindow`,
  *   Chrome and Edge on a desktop, and Firefox 155): the player's picture layer -- the <video>,
@@ -20,8 +20,7 @@
  *   the picture (`enterpictureinpicture` to `leavepictureinpicture`) the
  *   cues are drawn plainly, in case a PiP window takes the page's cue style.
  *   Whether a browser's own PiP window draws the track is **not checked**
- *   here (doc/ANIME.md, "The player"; doc/handoff-notes/anime.md, wave 18,
- *   Gaps): Playwright opens one but cannot look into it. Only the page's
+ *   here (doc/ANIME.md, "The player"): Playwright opens one but cannot look into it. Only the page's
  *   side is tested, in Chromium and Firefox.
  */
 

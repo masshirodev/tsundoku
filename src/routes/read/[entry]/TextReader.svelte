@@ -137,7 +137,7 @@
 	import WideView from './WideView.svelte';
 
 	/**
-	 * The text reader (Index Text Reader; doc/TEXT-READER.md). The text is the
+	 * The text reader (doc/TEXT-READER.md). The text is the
 	 * interface: nothing is on screen but the page and a 2px progress line
 	 * until a tap in a margin, or for now anywhere in the text, asks for the
 	 * controls. The first chapter opens file by file while the whole book
@@ -167,7 +167,7 @@
 	// svelte-ignore state_referenced_locally
 	let seriesLayout = $state<Layout>(data.layout);
 	/**
-	 * Which way PAGED turns a horizontal book (c440): this session's, until
+	 * Which way PAGED turns a horizontal book: this session's, until
 	 * REMEMBER makes it the series', as LAYOUT is and as the image reader's MODE is.
 	 */
 	// svelte-ignore state_referenced_locally
@@ -177,12 +177,12 @@
 	let sw = $state(800);
 	let sh = $state(1280);
 	onMount(() => {
-		// A FONT this build doesn't know (a newer build's) reads as the default (c442).
+		// A FONT this build doesn't know (a newer build's) reads as the default.
 		settings = textSettings(stored<Partial<TextSettings>>('settings', {}));
 		// DIM is shared with the image reader: it's about the room, not the book.
 		dim = stored('tsundoku.reader.dim', 0);
 		speed = stored('speed', { chars: 0, ms: 0 });
-		// The cursor's idle hide is off unless asked for (c678), and shared with
+		// The cursor's idle hide is off unless asked for, and shared with
 		// the image reader and the player.
 		cursorOn = stored<boolean>(CURSOR_KEY, false);
 		const size = () => {
@@ -202,7 +202,7 @@
 		store('tsundoku.reader.dim', d);
 	}
 	/**
-	 * WIDTH (c437): the series' own, kept in this browser beside the device's
+	 * WIDTH: the series' own, kept in this browser beside the device's
 	 * default, which is the width last chosen here, so a new series opens at it
 	 * and a series once set keeps its own. Read in the browser, as the rest of
 	 * the device's settings are (the server's first paint is 100%, the column
@@ -271,14 +271,14 @@
 	});
 
 	const vertical = $derived(book?.vertical ?? false);
-	// SCROLL is one column whatever COLUMNS says: WIDTH's share is of that one (c437).
+	// SCROLL is one column whatever COLUMNS says: WIDTH's share is of that one.
 	const f = $derived(
 		frame(sw, sh, layout === 'paged' ? settings : { ...settings, columns: false }, vertical, width)
 	);
 	const mode = $derived(textMode(layout, vertical, direction));
 	/**
 	 * The page reads right to left: vertical Japanese always, a horizontal book
-	 * in PAGED when its DIRECTION is R→L (c440). The controls mirror for both
+	 * in PAGED when its DIRECTION is R→L. The controls mirror for both
 	 * (TextChrome's `rtl`), and the band's arrow points the way on.
 	 */
 	const rtl = $derived(vertical || mode === 'rtl');
@@ -324,7 +324,7 @@
 	let readerMoved = false;
 	/**
 	 * SCROLL: how far below the top of the page `pos`'s character stood when
-	 * the place was read (c516). A relayout puts it back there. Read as the
+	 * the place was read. A relayout puts it back there. Read as the
 	 * line crossing the top margin, the character stood up to a line above that
 	 * margin, and putting it on the margin moved the reader a line on every
 	 * relayout after a scroll. Null: the margin, as a place opened from the URL
@@ -332,15 +332,15 @@
 	 */
 	let posY: number | null = null;
 	/**
-	 * PAGED: the reader is on a chapter's last page and it is the band alone
-	 * (c516). That page has no character, so `pos` stands for the one before it,
+	 * PAGED: the reader is on a chapter's last page and it is the band
+	 * alone. That page has no character, so `pos` stands for the one before it,
 	 * which is on the page before; a relayout keeps the reader on the band's
 	 * page instead of taking it a page back.
 	 */
 	let onBand = false;
 	/**
 	 * PAGED: the reader is on a chapter's first page and it is the start band
-	 * alone (c705), as it is when the chapter opens on a full-page
+	 * alone, as it is when the chapter opens on a full-page
 	 * illustration, which the band leaves no room for. That page has no
 	 * character either, and `pos` (the chapter's first) is on the page after,
 	 * so a relayout keeps the reader on the band's page, as `onBand` does at
@@ -350,7 +350,7 @@
 	let page = $state(0);
 	/**
 	 * Counts the reader's own moves (`go`, `openChapter`), so a slide can tell
-	 * whether something newer moved it while it slid (c515). A relayout is not
+	 * whether something newer moved it while it slid. A relayout is not
 	 * a move and doesn't count.
 	 */
 	let moves = 0;
@@ -362,7 +362,7 @@
 	let flowEl = $state<HTMLElement | null>(null);
 	let blocksEl = $state<HTMLElement | null>(null);
 	let nextEl = $state<HTMLElement | null>(null);
-	/** SCROLL: what a crossing keeps of the chapter before (c744); never the chapter. */
+	/** SCROLL: what a crossing keeps of the chapter before; never the chapter. */
 	let keptEl = $state<HTMLElement | null>(null);
 
 	const short = (e: (typeof entries)[number] | null | undefined) =>
@@ -442,9 +442,9 @@
 		if (!pageEl) return null;
 		const box = pageEl.getBoundingClientRect();
 		if (layout === 'scroll') {
-			// The first line of text on screen (c516). Before c516 it was the
-			// first thing hit, which on an illustration is the figure's start,
-			// often a screen higher: a reload or relayout went back up to it.
+			// The first line of text on screen, not the first thing hit, which
+			// on an illustration is the figure's start, often a screen higher: a
+			// reload or relayout would go back up to it.
 			// A screen with no text on it at all keeps the figure.
 			let figure: TextPosition | null = null;
 			for (let y = box.top + f.y; y < box.bottom; y += 12) {
@@ -458,8 +458,8 @@
 			return figure;
 		}
 		// The caret snaps to the nearest text where a point has none, so on a
-		// page that is the band alone it named a character pages back (found
-		// with c441): only a character on this page counts.
+		// page that is the band alone it names a character pages back: only a
+		// character on this page counts.
 		const here = (p: TextPosition | null) => {
 			const r = p && flowEl ? rectOf(flowEl, p) : null;
 			if (!r) return false;
@@ -476,7 +476,7 @@
 			return null;
 		}
 		const colW = f.cols > 1 ? (f.w - f.gap) / 2 : f.w;
-		// The page's first column: the left one, or in R->L the right one (c440).
+		// The page's first column: the left one, or in R->L the right one.
 		const first = flowRtl ? box.right - colW : box.left;
 		for (let y = box.top + 4; y < box.bottom; y += 12)
 			for (const x of [first + 4, first + colW / 2]) {
@@ -551,7 +551,7 @@
 
 	/**
 	 * `y`: in SCROLL, how far below the top the character's line stood when its
-	 * place was kept in the URL (c554, `?at=b.o.y`). Null opens it on the top
+	 * place was kept in the URL (`?at=b.o.y`). Null opens it on the top
 	 * margin, as a place from the server or an older link does.
 	 */
 	async function openChapter(
@@ -585,7 +585,7 @@
 		}
 		// A saved place the chapter no longer has (its text changed, or the place
 		// is from another book's numbering): the top, rather than a block nothing
-		// answers (c622). Here because only the chapter knows how long it is;
+		// answers. Here because only the chapter knows how long it is;
 		// parseAt reads a URL and has no chapter to ask.
 		if (typeof at === 'object' && !ch.blocks[at.block]) at = 'start';
 		index = i;
@@ -600,7 +600,7 @@
 		// the book's text, rebuilt by text-dom.ts, which Svelte never renders.
 		// eslint-disable-next-line svelte/no-dom-manipulating
 		blocksEl?.replaceChildren(...ch.blocks);
-		// Every door but a crossing empties it: only a crossing has an end above it.
+		// Every way in but a crossing empties it: only a crossing has an end above it.
 		// eslint-disable-next-line svelte/no-dom-manipulating -- as blocksEl, above
 		keptEl?.replaceChildren(...kept);
 		if (vertical && blocksEl) tateChuYoko(blocksEl);
@@ -620,7 +620,7 @@
 				? Math.max(-line, Math.min(sh - line, y))
 				: null;
 		onBand = false;
-		// The chapter's first character is its start, the band before it (c705):
+		// The chapter's first character is its start, the band before it:
 		// 'start' and that place open alike, and the band's own page comes as
 		// that place, its URL keeping that character. SCROLL's `?at=0.0.<y>`
 		// keeps its line's height instead.
@@ -630,7 +630,7 @@
 		pos = at === 'start' || at === 'end' ? { block: 0, offset: 0 } : at;
 		await relayout();
 		if ((at === 'start' || (first && y === null)) && layout === 'scroll' && pageEl && flowEl) {
-			// SCROLL opens at the top, the band above the first line (c705), and
+			// SCROLL opens at the top, the band above the first line, and
 			// the first line is kept at the height it stands at under the band:
 			// on the margin, a relayout (a face arriving) scrolled the band away.
 			pageEl.scrollTop = 0;
@@ -642,14 +642,14 @@
 			page = pages - 1;
 			// Read once the flow has moved there: read before, it was the
 			// chapter's first character, and the next relayout (a font arriving)
-			// took the reader back from the last page (found with c441).
+			// took the reader back from the last page.
 			await tick();
 			// A last page that is the band alone has no character to read: the
 			// chapter's last one stands for it, so a relayout keeps the reader at
-			// the end rather than taking it back to the start (c441).
+			// the end rather than taking it back to the start.
 			const last = ch.blocks.length - 1;
 			const here = positionOnPage();
-			// And the reader is on the band's page, which that character is not (c516).
+			// And the reader is on the band's page, which that character is not.
 			onBand = !here && layout === 'paged';
 			pos =
 				here ??
@@ -670,7 +670,7 @@
 	/** Scroll: the next chapter is already below this one, so reading carries on. */
 	async function loadNext() {
 		// The next volume is another download: it opens when reading reaches it,
-		// its start being the room drawn below the band (c347), which crosses the
+		// its start being the room drawn below the band, which crosses the
 		// middle of the screen as a chapter's start does (`onscroll`).
 		if (!book || !nextReadable || layout !== 'scroll' || nextReadable.file !== bookFile) return;
 		try {
@@ -697,8 +697,8 @@
 		untrack(() => {
 			const at = appPage.url.searchParams.get('at');
 			const p = appPage.url.searchParams.get('p');
-			// A place in the URL wins, `?at=0.0` included; no `?at=` (every door into
-			// a chapter links without one) is the server's saved place below (c622).
+			// A place in the URL wins, `?at=0.0` included; no `?at=` (every link into
+			// a chapter goes without one) is the server's saved place below.
 			const place = parseAt(at);
 			const start: 'start' | 'end' | TextPosition =
 				p === 'last'
@@ -712,7 +712,7 @@
 		});
 	});
 
-	// A lazy face is declared once it is chosen (c442); its file then arrives on
+	// A lazy face is declared once it is chosen; its file then arrives on
 	// first use, and `loadingdone` below lays the pages out again for it.
 	$effect(() => {
 		if (fontOf(settings.font).lazy) void loadReadingFonts();
@@ -736,7 +736,7 @@
 		// So does a face: `ready` above has usually settled before the book's
 		// text asks for its font, and the pages counted before the font
 		// arrived left the last one (the band's, when the text fills the page
-		// before it) out of reach of a turn (found with c441).
+		// before it) out of reach of a turn.
 		document.fonts?.addEventListener('loadingdone', loaded);
 		return () => {
 			removeEventListener('load', loaded, true);
@@ -761,7 +761,7 @@
 
 	async function go(to: number) {
 		moves++;
-		// A slide in flight is the old place's: the page shown is this one (c515).
+		// A slide in flight is the old place's: the page shown is this one.
 		sliding = false;
 		drag = 0;
 		atEnd = false;
@@ -772,9 +772,9 @@
 		if (blocksEl) labelWide(blocksEl);
 		const here = positionOnPage();
 		// The band's page alone has no character: `pos` stays the one before,
-		// and a relayout keeps the reader here (c516).
+		// and a relayout keeps the reader here.
 		onBand = !here && layout === 'paged' && page === pages - 1;
-		// And the start band's page alone, at the other end (c705), which stands
+		// And the start band's page alone, at the other end, which stands
 		// for the chapter's first character, as it does when the chapter opens
 		// there: a scrub onto it from pages on would otherwise keep, and save,
 		// the place it came from.
@@ -808,7 +808,7 @@
 		if (prevReadable) void openChapter(index - 1, 'end');
 	}
 
-	// ---- the slide (c441; doc/TEXT-READER.md, "Turning") ------------------------------------
+	// ---- the slide (doc/TEXT-READER.md, "Turning") ------------------------------------
 	// A paged turn slides and a drag follows the finger, as a manga's page does
 	// (doc/READER.md, "Turning pages"), on the image reader's numbers
 	// (src/lib/reader/reader.ts). The chapter is one CSS-columns flow, so the
@@ -820,7 +820,7 @@
 	 * text's next page lies to the right (x, +1). Vertical Japanese's lies below
 	 * (y, +1), so its turn translates up while the finger, as everywhere in an
 	 * R->L book, pulls it in by dragging right (`forwardBy`). A horizontal R->L
-	 * book (c440) is x with -1: its columns run right to left, so the next page
+	 * book is x with -1: its columns run right to left, so the next page
 	 * lies to the left. This pair is the only place that knows.
 	 */
 	const pageAxis = $derived<'X' | 'Y'>(vertical ? 'Y' : 'X');
@@ -856,7 +856,7 @@
 	 */
 	async function turn(dir: 'next' | 'prev') {
 		if (layout === 'scroll' || !chapter) return;
-		// A swipe, a key or the wheel turns and clears; HOLD TO TURN carries it on (Main 02).
+		// A swipe, a key or the wheel turns and clears; HOLD TO TURN carries it on.
 		if (!carrying) clearSelection();
 		if (turning) {
 			queuedTurn = dir;
@@ -870,7 +870,7 @@
 		if (pageThat(dir)) {
 			// Anything else that moves the reader while it slides (the scrubber,
 			// CONTENTS, a chapter opening) is the newer ask, and the turn gives way
-			// to it (c515): turning from where that left off went one past it. The
+			// to it: turning from where that left off went one past it. The
 			// move counter says so, not `pos`: a scrub onto the band's page alone
 			// leaves `pos` as it was. A relayout moves `page` without counting as
 			// a move, so the page after the character being read is still the one
@@ -946,8 +946,8 @@
 
 	/**
 	 * Scroll: the end of the last chapter is the end of the series, as it is at
-	 * the last page in the paged layouts -- the one door to EndPage, and so to
-	 * the Work's next part (Work-End). A last chapter too short to scroll never
+	 * the last page in the paged layouts -- the one way to EndPage, and so to
+	 * the Work's next part. A last chapter too short to scroll never
 	 * fires `onscroll`, so a wheel or a key at its bottom reaches it too (see
 	 * `wheel` and `keydown`).
 	 */
@@ -961,9 +961,9 @@
 	/**
 	 * SCROLL: the scrollTop at which the chapter's last line reaches the bottom
 	 * of the screen, the 1 of `scrollFraction` and the scrubber's 99. The
-	 * blocks' bottom, not their height: the start band (c705) and the flow's
+	 * blocks' bottom, not their height: the start band and the flow's
 	 * padding sit above `.blocks`, so their height alone reached 1 (and
-	 * finished the chapter) one band early (c742). `offsetTop` is measured
+	 * finished the chapter) one band early. `offsetTop` is measured
 	 * from `.page`, the blocks' offsetParent (it is the one positioned box
 	 * between them; `.flow` is static and untransformed in SCROLL), and does
 	 * not move as the page scrolls.
@@ -979,7 +979,7 @@
 	/**
 	 * SCROLL: a screen of this chapter's end and its END band, as copies, to
 	 * stand above the next chapter after a crossing, so the line being read stays
-	 * where it was (c744). The whole chapter, its start band too, if it is shorter
+	 * where it was. The whole chapter, its start band too, if it is shorter
 	 * than that. Copies with no `data-b` or `id`: only the current chapter
 	 * answers positions, and `.kept` is inert, so a press or a lookup goes
 	 * through it.
@@ -1042,7 +1042,7 @@
 					pageEl.scrollTop += top.getBoundingClientRect().top - y;
 					ownTop = pageEl.scrollTop;
 					// The first line stays where it was when it crossed: the band above
-					// it is the one that was already on screen (c705).
+					// it is the one that was already on screen.
 					const r = flowEl ? rectOf(flowEl, pos) : null;
 					posY = r ? r.top - pageEl.getBoundingClientRect().top : null;
 				}
@@ -1055,7 +1055,7 @@
 			pos = positionOnPage() ?? pos;
 			onBand = false;
 			onLead = false;
-			// Where its character stands now, so a relayout leaves it there (c516).
+			// Where its character stands now, so a relayout leaves it there.
 			const r = flowEl && pageEl ? rectOf(flowEl, pos) : null;
 			posY = r && pageEl ? r.top - pageEl.getBoundingClientRect().top : null;
 			readerMoved = false;
@@ -1076,7 +1076,7 @@
 		// later. The hide that ends incognito is a beacon (doc/PRIVACY.md, step
 		// 2) and this page outlives it until the app comes back, so a settle or
 		// the close on the way out would otherwise be written as ordinary
-		// reading with no cookie to stop it (c680).
+		// reading with no cookie to stop it.
 		if (data.incognito) return;
 		if (!entry || !chapter) return;
 		const now = Date.now();
@@ -1130,22 +1130,22 @@
 		if (!chapter || id === undefined) return;
 		clearTimeout(settle);
 		settle = setTimeout(() => {
-			// On the way out the window's entry may be the next screen's (c565).
+			// On the way out the window's entry may be the next screen's.
 			if (leavingReader()) return;
 			void send('page');
 			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a one-off copy, never read reactively
 			const url = new URL(appPage.url);
 			url.pathname = resolve('/read/[entry]', { entry: String(id) });
 			url.search = '';
-			// SCROLL keeps the line's height too (c554), so a reload lands on it.
+			// SCROLL keeps the line's height too, so a reload lands on it.
 			url.searchParams.set('at', formatAt(p, layout === 'scroll' ? posY : null));
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- the path is resolve()d above
 			replaceState(url, {});
 			// The chapter may be another than the page was opened at: the guard
-			// above must take this path as the reader's own (c565, round 2).
+			// above must take this path as the reader's own.
 			readerMovedTo(url.pathname);
 			// And history must name it too, or a popstate back into this entry
-			// opens the chapter the reader was opened at (c623).
+			// opens the chapter the reader was opened at.
 			keepHistoryUrl();
 		}, 800);
 		return () => clearTimeout(settle);
@@ -1155,7 +1155,7 @@
 	beforeNavigate(({ to }) => {
 		if (to?.route.id === '/read/[entry]') return;
 		// The close carries the place; a settle still to come would write the
-		// reader's URL onto the screen being opened (c565).
+		// reader's URL onto the screen being opened.
 		clearTimeout(settle);
 		void send('close');
 	});
@@ -1212,7 +1212,7 @@
 		seriesLayout = layout;
 		void action('direction', { direction: layout });
 	}
-	/** REMEMBER on DIRECTION (c440): the series' from now on, on every device. */
+	/** REMEMBER on DIRECTION: the series' from now on, on every device. */
 	function rememberDirection() {
 		seriesDirection = direction;
 		const body = new FormData();
@@ -1265,13 +1265,13 @@
 		return () => removeEventListener('online', online);
 	});
 
-	// ---- highlights (doc/TEXT-READER.md, "Highlights"; c702) ----------------------------------
+	// ---- highlights (doc/TEXT-READER.md, "Highlights") ----------------------------------
 	/** What the bar may keep. A browsing record is on no shelf, and incognito makes none. */
 	const canKeep = $derived(!data.incognito && !data.record);
 	/** Long press and drag select, except on a TV, on the end page and with something over the page. */
 	const selectable = $derived(!tvScreen.current && !atEnd && !!chapter && !failure);
 	const QUOTES_URL = resolve('/api/highlights/quotes');
-	/** A quote on screen; `waiting` is its queue key while it waits on the device (Novel N7). */
+	/** A quote on screen; `waiting` is its queue key while it waits on the device. */
 	type Shown = KeptQuote & { waiting?: string };
 	let quotes = $state<Shown[]>([]);
 	/** Rows this chapter has since lost, so a list asked for before that can't bring them back. */
@@ -1328,11 +1328,11 @@
 		if (load !== marksLoad) return;
 		// A saved row a press has taken in since this list was asked for: the answer
 		// still names it, and drawing it here would stand a second marker over the
-		// words the press already covers (c702's round 9). `settleQuote` puts it back
+		// words the press already covers. `settleQuote` puts it back
 		// if the press doesn't take, so nothing needs this copy.
 		const joining = new Set([...joinedBy.values()].flat().map((j) => j.id));
 		// Likewise a waiting quote a press took in: it stays on the device until the
-		// press is kept (round 4), and the press is what is drawn over its words.
+		// press is kept, and the press is what is drawn over its words.
 		const covering = new Set([...joinedWaiting.keys()].flatMap((id) => waitingKeysOf(id)));
 		const fresh = anchored(list, id).filter((q) => !goneHere.has(q.id) && !joining.has(q.id));
 		// Made while this list was out: `quotes` was emptied as the chapter opened, so all of it is this chapter's.
@@ -1348,8 +1348,8 @@
 		drawMarks();
 		// A list taken early can predate a quote this browser sent since (another page
 		// of the app, or this one from another chapter): its row is not in the list
-		// and the device no longer holds it, so it was drawn nowhere (c702's R13,
-		// R20). Asked again now that the device has been read, what is new is drawn.
+		// and the device no longer holds it, so it was drawn nowhere. Asked
+		// again now that the device has been read, what is new is drawn.
 		if (early && offline.online) void redrawNewer(id, load);
 	}
 
@@ -1364,14 +1364,14 @@
 		const fresh = newer.filter((q) => !have.has(q.id) && !goneHere.has(q.id) && !joining.has(q.id));
 		if (fresh.length === 0) return;
 		const added = anchored(fresh, id);
-		// A waiting quote over exactly a row's words is that row: the door answers
+		// A waiting quote over exactly a row's words is that row: the endpoint answers
 		// its POST with it (the `same` branch), so the row is what is drawn.
 		const spans = new Set(added.map(spanOf));
 		quotes = [...quotes.filter((q) => !(q.waiting && spans.has(spanOf(q)))), ...added];
 		drawMarks();
 	}
 
-	/** Every quote against the words as they are now (Main 05); what changed is told, not asked. */
+	/** Every quote against the words as they are now; what changed is told, not asked. */
 	function anchored(list: KeptQuote[], id: number): KeptQuote[] {
 		if (!flat) return list;
 		const changes: AnchorChange[] = [];
@@ -1501,7 +1501,7 @@
 		return !!p && !!flowEl && onRect(rectOf(flowEl, p), x, y);
 	}
 
-	/** A long press selects the word (Novel N1). */
+	/** A long press selects the word. */
 	function selectWordAt(x: number, y: number) {
 		const p = positionAt(x, y);
 		const w = p && words[p.block];
@@ -1536,10 +1536,10 @@
 		if (s.block !== s.endBlock || s.offset !== s.endOffset) setSelection(s);
 	}
 
-	// HOLD TO TURN (Main 02, A SELECTION CROSSES THE PAGE'S END; Novel N3). Paged, a
-	// handle or a mouse held at the page's end shows the cue and after 0.6 s the page
-	// turns under it and the selection carries on; never into the next chapter, where
-	// positions stop. SCROLL just scrolls as the handle nears the bottom.
+	// HOLD TO TURN. Paged, a handle or a mouse held at the page's end shows the cue
+	// and after 0.6 s the page turns under it and the selection carries on; never
+	// into the next chapter, where positions stop. SCROLL just scrolls as the handle
+	// nears the bottom.
 	let holdCue = $state(false);
 	let holdTimer: ReturnType<typeof setTimeout> | undefined;
 	let carrying = false;
@@ -1702,8 +1702,8 @@
 	}
 
 	/**
-	 * Keep a span, and answer the highlight it became. Every door comes here
-	 * (the bar, H and N, the lookup panel's foot), and this is where a selection
+	 * Keep a span, and answer the highlight it became. Every way to keep comes
+	 * here (the bar, H and N, the lookup panel's foot), and this is where a selection
 	 * overlapping a highlight joins it: the span sent covers them all, and the
 	 * workstation folds what it covers (the oldest's note kept).
 	 */
@@ -1718,7 +1718,7 @@
 		const place = toFull(parts.span);
 		const oldest = joined[0];
 		// What joined was waiting too stays on the device until this press is kept
-		// somewhere (round 4): the queue's own write (`queueCovering`) or the
+		// somewhere: the queue's own write (`queueCovering`) or the
 		// workstation's answer (`sendQuote`) supersedes it, and a press that is kept
 		// nowhere leaves it waiting as it was, note and all.
 		const temp: KeptQuote = {
@@ -1757,15 +1757,15 @@
 	/**
 	 * Nothing a hidden series' reader must not leave behind goes on the device:
 	 * the item holds the words. Those presses are told the reader needs the
-	 * workstation, as a page's are (c842).
+	 * workstation, as a page's are.
 	 */
 	const mayWait = () => !series.hidden && !data.reveal;
 
 	/**
 	 * What a press at [key] carries for the item that will stand for it: the
 	 * quotes it covers, and what the reader changed of an item whose own span was
-	 * pressed again. Both doors build the same thing — `waitOnDevice` queues it,
-	 * and the DELETE-inside-the-POST door hands it to UNDO — so a re-press keeps
+	 * pressed again. Both paths build the same thing — `waitOnDevice` queues it,
+	 * and the DELETE-inside-the-POST path hands it to UNDO — so a re-press keeps
 	 * its inner covers and its `revised` whichever end the press meets. The
 	 * own-span item is read from the take-back the device just made when there is
 	 * one: its `remembered` entry is gone by then.
@@ -1830,12 +1830,12 @@
 		}
 		// Deleted while the device was writing it down: the item goes, but what it
 		// covered stays in `joinedWaiting`, the one copy left. `deleteQuote`'s
-		// in-flight door reads it there and deletes it, so its UNDO is DELETE's
+		// in-flight path reads it there and deletes it, so its UNDO is DELETE's
 		// inverse here too, covers and all.
 		if (deletedInFlight.has(id)) {
 			const taken = await takeBackHighlight(key);
 			// The take-back cleared `remembered` for the item's own key: keep it
-			// for the door's UNDO, which builds the same carry `waitOnDevice` did.
+			// for that path's UNDO, which builds the same carry `waitOnDevice` did.
 			if (taken) takenInFlight.set(id, taken);
 			return;
 		}
@@ -1868,7 +1868,7 @@
 	}
 
 	/**
-	 * What a waiting quote was, for the press that covers it (c702's round 3).
+	 * What a waiting quote was, for the press that covers it.
 	 * The drawn quote is the body: the device's copy was taken back with the
 	 * press, and a note or colour typed then is on the drawn quote. What the
 	 * queue last knew of it adds the fields only the item has — what the reader
@@ -1902,8 +1902,8 @@
 		joinedWaiting.delete(id);
 		const waiting = joined.filter((j) => j.waiting);
 		if (waiting.length === 0) return;
-		// Deleted in flight: what it took in goes with it. Since round 4 those
-		// quotes are still on the device (nothing superseded them), so they are
+		// Deleted in flight: what it took in goes with it. Those quotes
+		// are still on the device (nothing superseded them), so they are
 		// taken back here, as DELETE takes back a waiting quote.
 		if (deletedInFlight.has(id)) {
 			for (const j of waiting) void takeBackHighlight(j.waiting!);
@@ -1912,13 +1912,13 @@
 		void waitingHighlights().then((items) => {
 			const held = new Set(items.map((i) => i.key));
 			for (const j of waiting) {
-				// Never taken off the device (round 4): it waits as it was; draw it.
+				// Never taken off the device: it waits as it was; draw it.
 				if (held.has(j.waiting!)) {
 					putBack(j, of);
 					continue;
 				}
 				// Gone meanwhile (the queue sent it while the press was out): put it
-				// back as it was, and the door answers the repeat with its row.
+				// back as it was, and the endpoint answers the repeat with its row.
 				const cover = coverOf(j, of);
 				void queueHighlight(cover).then((queued) => {
 					if (queued) putBack({ ...j, waiting: cover.key }, of);
@@ -1955,7 +1955,7 @@
 			settleQuote(id, deletedInFlight.has(id) ? null : j.highlight, j.folded, body.entry);
 			return { row: j.highlight, unreachable: false };
 		} catch {
-			// The device says it's online and the workstation didn't answer (c842).
+			// The device says it's online and the workstation didn't answer.
 			await waitOnDevice(id, body);
 			return { row: null, unreachable: true };
 		}
@@ -2002,7 +2002,7 @@
 		});
 	});
 
-	// ---- the open highlight's sheet (Novel N5, D2) --------------------------------------------
+	// ---- the open highlight's sheet --------------------------------------------
 	let openId = $state<number | null>(null);
 	let openNoteFocus = $state(false);
 	let sheetSide = $state<'left' | 'right'>('right');
@@ -2087,7 +2087,7 @@
 		quoteCopied = await copyText(q.quote);
 	}
 
-	// HIGHLIGHT DELETED · UNDO (Novel N6): the app's band, at once, and six seconds to take it back.
+	// HIGHLIGHT DELETED · UNDO: the app's band, at once, and six seconds to take it back.
 	type Band = { text: string; label?: string; act?: () => void };
 	let hlBand = $state<Band | null>(null);
 	let hlBandTimer: ReturnType<typeof setTimeout> | undefined;
@@ -2149,7 +2149,7 @@
 		quotes = quotes.filter((x) => x.id !== q.id);
 		goneHere.add(q.id);
 		drawMarks();
-		// Deleted before it was sent: nothing was asked of the workstation (Novel N7).
+		// Deleted before it was sent: nothing was asked of the workstation.
 		if (q.waiting) {
 			// The take-back hands back what the item was: the UNDO puts all of it back.
 			const taken = await takeBackHighlight(q.waiting);
@@ -2173,7 +2173,7 @@
 				const key = quoteKey(of, q.block, q.offset, q.endBlock, q.endOffset);
 				const carried = carryFor(q.id, key, of);
 				// What it took in is DELETE's too: still on the device unless the
-				// device's write already superseded it (round 4).
+				// device's write already superseded it.
 				for (const k of waitingKeysOf(q.id)) void takeBackHighlight(k);
 				joinedWaiting.delete(q.id);
 				offerRequeue(q, of, {
@@ -2218,7 +2218,7 @@
 		putBack({ ...q, id, waiting: undefined }, of);
 	}
 
-	/** The lookup panel's foot (Novel J2, J3): HIGHLIGHT and NOTE the looked-up word, SELECT MORE. */
+	/** The lookup panel's foot: HIGHLIGHT and NOTE the looked-up word, SELECT MORE. */
 	function footAction(
 		what: 'highlight' | 'note' | 'more',
 		block: number,
@@ -2269,7 +2269,7 @@
 	}
 
 	let down: { x: number; y: number; text: boolean } | null = null;
-	/** The press's own pointer: a second finger cancels it (c515, src/lib/reader/pointer.ts). */
+	/** The press's own pointer: a second finger cancels it (src/lib/reader/pointer.ts). */
 	const finger = new OnePointer();
 	function pointerdown(e: PointerEvent) {
 		const which = finger.down(e);
@@ -2295,7 +2295,7 @@
 		}
 	}
 	/**
-	 * The page follows a sideways drag in the paged layouts (c441), all the way
+	 * The page follows a sideways drag in the paged layouts, all the way
 	 * where there's a page that way in the chapter and a quarter as much where
 	 * there isn't. Not in scroll, not with the lookup open, not on the end
 	 * page, and not with reduced motion.
@@ -2309,7 +2309,7 @@
 			return;
 		}
 		if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) clearTimeout(press);
-		// A mouse's drag on the words selects, and never turns a page (Novel D1).
+		// A mouse's drag on the words selects, and never turns a page.
 		if (
 			down?.text &&
 			e.pointerType === 'mouse' &&
@@ -2369,7 +2369,7 @@
 		}
 		if (!down) return;
 		// A control on the end page, or DELETE's confirmation over it, is its own:
-		// a press near the edge must not read as ‹ back (c655).
+		// a press near the edge must not read as ‹ back.
 		if (atEnd && (e.target as Element | null)?.closest?.(END_PAGE_CONTROLS)) {
 			down = null;
 			return;
@@ -2392,14 +2392,14 @@
 		}
 		if (dragged) return void settleBack();
 		if (Math.hypot(dx, dy) > 10) return;
-		// With a selection up a tap anywhere else only clears it (Main 02).
+		// With a selection up a tap anywhere else only clears it.
 		if (selection) return clearSelection();
 		if (atEnd) {
 			if (tapAction(e.clientX, window.innerWidth, mode, TEXT_EDGE) === 'prev') prev();
 			return;
 		}
 		const target = e.target as HTMLElement;
-		// A tap on a highlight opens it (Main 02), a note's cell included.
+		// A tap on a highlight opens it, a note's cell included.
 		const marked = target.closest<HTMLElement>('[data-h]');
 		if (marked && !chrome) {
 			const id = Number(marked.dataset.h);
@@ -2436,11 +2436,11 @@
 	/** The controls came up because the mouse reached an edge: they go when it leaves. */
 	let byHover = false;
 	/**
-	 * CURSOR (c678): with the option on, the cursor goes after three
+	 * CURSOR: with the option on, the cursor goes after three
 	 * seconds without the mouse moving, and a move or a press brings it back at
 	 * once. Keys and the wheel do not. It never hides while the bars, the
 	 * sheet, CONTENTS, the lookup, a full-screen image, a wide block or the end
-	 * page is open: the owner is about to click something.
+	 * page is open: the reader is about to click something.
 	 */
 	const pointerFine = new MediaQuery('(pointer: fine)', false);
 	let cursorOn = $state(false);
@@ -2496,8 +2496,8 @@
 	]);
 
 	/**
-	 * OK brings the chrome up (c235), and on a TV puts the pad on its scrubber
-	 * (c241): the next ↓ reaches CONTENTS and READING.
+	 * OK brings the chrome up, and on a TV puts the pad on its scrubber:
+	 * the next ↓ reaches CONTENTS and READING.
 	 */
 	async function showChrome() {
 		chrome = true;
@@ -2576,10 +2576,10 @@
 			if (chrome) chrome = false;
 			else showChrome();
 		}
-		// On a TV with the chrome up the pad owns the arrows and the turn keys
-		// (c241): an arrow moves among the chrome's cells, BACK hides it.
+		// On a TV with the chrome up the pad owns the arrows and the turn keys:
+		// an arrow moves among the chrome's cells, BACK hides it.
 		// An arrow that found no cell is not the browser's either: on a strip
-		// its own scroll moved the chapter 40px under the chrome (c253). Space
+		// its own scroll moved the chapter 40px under the chrome. Space
 		// is left alone: on a focused cell it presses it.
 		if (tvScreen.current && chrome && TURNS.has(e.key)) {
 			if (e.key !== ' ') e.preventDefault();
@@ -2614,7 +2614,7 @@
 		}
 	}
 
-	// BACK (c235): what is open first, then the chrome, then the series. The
+	// BACK: what is open first, then the chrome, then the series. The
 	// layer hands it here because this screen reads its own keys.
 	$effect(() =>
 		registerBack(() => {
@@ -2722,7 +2722,7 @@
 	// ---- what the controls say --------------------------------------------------------------------
 	const seriesHref = $derived(resolve('/series/[id]', { id: String(series.id) }));
 	const workHref = $derived(data.work ? resolve('/work/[id]', { id: String(data.work.id) }) : '');
-	/** A browsing record's ADD, where its rating is asked (c655): the same door BROWSE uses. */
+	/** A browsing record's ADD, where its rating is asked: the same link BROWSE uses. */
 	const recordAddHref = $derived(
 		data.record ? `${resolve('/downloads/source/[id]', { id: data.record })}?/add` : null
 	);
@@ -2763,7 +2763,7 @@
 		aboutMinutes(Math.round((e.bytes || 0) * 0.6), speed);
 	const nextAbout = $derived(nextReadable ? aboutOf(nextReadable) : '');
 	/**
-	 * The band at a chapter's start (c705): the table-of-contents title, only
+	 * The band at a chapter's start: the table-of-contents title, only
 	 * when the chapter doesn't open by printing it (src/lib/reader/start-band.ts).
 	 * Matter is already named by the band (COVER), so it never repeats.
 	 */
@@ -2852,12 +2852,12 @@
 			style:--turn-ease={TURN_EASE}
 		>
 			{#if layout === 'scroll'}
-				<!-- What a crossing kept of the chapter before (c744), filled by
+				<!-- What a crossing kept of the chapter before, filled by
 				     keepForCrossing and only ever by it: copies, unnumbered and inert. -->
 				<div class="kept" bind:this={keptEl} inert aria-hidden="true"></div>
 			{/if}
 			{#if chapter && entry}
-				<!-- The chapter's start (c705), END's twin: not a block, so `data-b` and
+				<!-- The chapter's start, END's twin: not a block, so `data-b` and
 				     every saved place are what they were. -->
 				{@render startBand(entry, startTitle)}
 			{/if}
@@ -2894,7 +2894,7 @@
 					<div class="go">↓ KEEP SCROLLING</div>
 				</div>
 				{#if nextReadable.file !== bookFile}
-					<!-- The next volume is another download (c347): a screen of room where
+					<!-- The next volume is another download: a screen of room where
 					     its first chapter will be, so its start crosses the middle of the
 					     screen as any next chapter's does, and the crossing opens it, with
 					     OPENING over it while it downloads, as a turn does in PAGED. -->
@@ -3021,7 +3021,7 @@
 			aria-label="Close contents"
 			onclick={() => (contents = false)}
 		></button>
-		<!-- A focus scope (c250): on a TV with the chrome up the pad goes in, on the
+		<!-- A focus scope: on a TV with the chrome up the pad goes in, on the
 		     row being read, and BACK gives it to CONTENTS again. Off a TV the reader
 		     is opted out and the scope is the no-op it is for READING. -->
 		<div
@@ -3203,7 +3203,7 @@
 		--pl1: var(--graphite-700);
 		--pl2: var(--graphite-600);
 		--ill: 0.85;
-		/* The marker's three colours and its ink, and a selection's tint: Main 02's own. */
+		/* The marker's three colours and its ink, and a selection's tint. */
 		--mk-y: oklch(0.5 0.09 95);
 		--mk-o: oklch(0.44 0.1 52);
 		--mk-b: oklch(0.38 0.08 250);
@@ -3219,7 +3219,7 @@
 		-webkit-user-select: none;
 		-webkit-touch-callout: none;
 	}
-	/* CURSOR on, and the mouse still for three seconds (c678): the class is
+	/* CURSOR on, and the mouse still for three seconds: the class is
 	   the whole change, so nothing reflows. Every descendant is covered because
 	   a cell or a button sets its own pointer cursor. */
 	.text-reader.cursor-idle,
@@ -3260,12 +3260,12 @@
 		overflow-wrap: break-word;
 	}
 	/*
-	 * Paged, the flow moves by its transform alone (c441): following a drag,
-	 * or sliding a turn, and the columns are never laid out again for it. It
-	 * is a layer of its own only while it moves: kept as one, a long
-	 * chapter's flow (56 pages, 45,000px wide) made the slides' frames worse,
-	 * not better (measured, doc/handoff-notes/reader.md, wave 20). Horizontal
-	 * pans are the reader's, so a drag reaches it rather than the browser.
+	 * Paged, the flow moves by its transform alone: following a drag, or
+	 * sliding a turn, and the columns are never laid out again for it. It is a
+	 * layer of its own only while it moves: kept as one, a long chapter's flow
+	 * (56 pages, 45,000px wide) made the slides' frames worse, not better
+	 * (measured). Horizontal pans are the reader's, so a drag reaches it rather
+	 * than the browser.
 	 */
 	.text-reader:not(.scroll) {
 		touch-action: pan-y pinch-zoom;
@@ -3325,7 +3325,7 @@
 		will-change: transform;
 	}
 	/*
-	 * R->L (c440): the columns run right to left, so the next page lies to the
+	 * R->L: the columns run right to left, so the next page lies to the
 	 * left and slides in from there. Only the column order: the text inside
 	 * runs as it always did.
 	 */
@@ -3535,7 +3535,7 @@
 		color: var(--accent);
 	}
 	/*
-	 * A chapter's start (c705): END's type, rule and colours, closing above the
+	 * A chapter's start: END's type, rule and colours, closing above the
 	 * text instead of opening below it. Logical sides, so vertical Japanese's
 	 * rule is on the left, between the band and the first column of text.
 	 */
@@ -3669,7 +3669,7 @@
 		z-index: 30;
 		overflow-y: auto;
 		/* The reader scrolls its own page, not the document, so CONTENTS takes
-		   no page lock; its scroll just ends at its edge (c1033). */
+		   no page lock; its scroll just ends at its edge. */
 		overscroll-behavior: contain;
 		background: var(--surface-page);
 		border-top: 1px solid var(--text-1);
@@ -3677,7 +3677,7 @@
 	.contents.short {
 		top: 120px;
 	}
-	/* Novel N6: the app's band along the foot, while UNDO can still take it back. */
+	/* The app's band along the foot, while UNDO can still take it back. */
 	.hl-band {
 		position: absolute;
 		left: 0;

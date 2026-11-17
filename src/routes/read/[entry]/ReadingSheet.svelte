@@ -12,15 +12,15 @@
 	import { TV } from '$lib/device.svelte';
 
 	/**
-	 * READING (Index Reader, state 1b with the sheet): mode, fit, spreads, crop
+	 * READING: mode, fit, spreads, crop
 	 * borders, wide pages, sides, dim
 	 * and the rating, over a scrim. A row that doesn't apply is dimmed with the
 	 * reason, not removed, so the sheet doesn't jump when MODE changes (the
 	 * addendum's rule). Mode is this session's until REMEMBER makes it the
 	 * series'; fit, spreads, crop, wide pages, sides and dim belong to the device.
 	 *
-	 * On a TV it is a focus scope and a 420px panel from the right (c241;
-	 * TV-Reader 7E): the pad lands on the mode in use, ← → step between a row's
+	 * On a TV it is a focus scope and a 420px panel from the right:
+	 * the pad lands on the mode in use, ← → step between a row's
 	 * values and ↑ ↓ move between rows, and the pages stay in view at the left.
 	 */
 	let {
@@ -68,7 +68,7 @@
 		landscape: boolean;
 		/** 0 to 0.8. */
 		dim: number;
-		/** CURSOR (c678): the device's, shared with the text reader. */
+		/** CURSOR: the device's, shared with the text reader. */
 		cursor: boolean;
 		/** The session's zoom and the kept one for this mode on this screen (doc/READER.md, "Zoom"). */
 		zoom?: number;
@@ -119,7 +119,7 @@
 	/** READING's "?": its rows give way to 02 — READING's In short (doc/HELP.md). */
 	let asking = $state(false);
 	const tvScreen = new MediaQuery(TV, false);
-	/** Only a mouse draws a cursor: a phone, a tablet and a TV leave the row out (c678). */
+	/** Only a mouse draws a cursor: a phone, a tablet and a TV leave the row out. */
 	const pointerFine = new MediaQuery('(pointer: fine)', false);
 
 	let dimTrack = $state<HTMLElement | null>(null);
@@ -131,7 +131,7 @@
 	}
 
 	// Drawn only while open: the page under its scrim holds still for as long
-	// as it is, as under a Sheet (src/lib/scroll-lock.ts, c1033).
+	// as it is, as under a Sheet (src/lib/scroll-lock.ts).
 	$effect(() => lockPage());
 </script>
 
@@ -150,7 +150,7 @@
 	use:focusScope
 >
 	{#if asking}
-		<!-- READING's "?" (doc/HELP.md; the HELP handoff, 2F): the same sheet changes,
+		<!-- READING's "?" (doc/HELP.md): the same sheet changes,
 		     rather than a second one stacking on it; ← READING brings the rows back. -->
 		<HelpSheet
 			content
@@ -309,7 +309,7 @@
 			</div>
 		</div>
 
-		<!-- Zoom (card c169): − and + step, RESET goes to the kept zoom and then 100%,
+		<!-- Zoom: − and + step, RESET goes to the kept zoom and then 100%,
 	     KEEP makes this one where every series of this mode starts on this screen. -->
 		<div class="row">
 			<div class="label">ZOOM</div>
@@ -375,7 +375,7 @@
 		{/if}
 
 		{#if pointerFine.current}
-			<!-- CURSOR (c678): the cursor goes after three seconds still, and
+			<!-- CURSOR: the cursor goes after three seconds still, and
 			     a move or a press brings it back. Only where there is a mouse. -->
 			<div class="row">
 				<div class="label">CURSOR</div>
@@ -430,7 +430,7 @@
 
 		<!-- Ratings out of 10: the blocky slider, as on the series screen. -->
 		<RatingSlider value={rating} borderTop={false} fontSize={15} onchange={onrate} />
-		<!-- ALL SETTINGS →: the page, at this sheet's section (Reach, readerSheet; card c171). -->
+		<!-- ALL SETTINGS →: the page, at this sheet's section (readerSheet). -->
 		<a class="all-settings" href="{resolve('/settings')}?section=images"
 			><span>ALL SETTINGS →</span><span class="n">DEFAULTS, AND WHAT EACH ROW KEEPS</span></a
 		>
@@ -488,13 +488,13 @@
 		overflow-y: auto;
 		/* Its own scroll ends at its edge rather than passing to the page. */
 		overscroll-behavior: contain;
-		/* A focused row stops under the sticky head, not beneath it (c679). */
+		/* A focused row stops under the sticky head, not beneath it. */
 		scroll-padding-top: 56px;
 	}
 	/* The sheet is a column capped at 90dvh that scrolls: nothing in it may
 	   shrink to fit, or every row is squeezed to its min-height and a segmented
-	   row's 48px cells become 20px strips (c428). The head stays at the top as
-	   the rows scroll under it, so ✕ is always reachable (c679): it needs the
+	   row's 48px cells become 20px strips. The head stays at the top as
+	   the rows scroll under it, so ✕ is always reachable: it needs the
 	   sheet's own ground, or a row would show through it. */
 	.head {
 		position: sticky;
@@ -689,7 +689,7 @@
 		height: 24px;
 		flex-shrink: 0;
 	}
-	/* On a TV, READING is a panel from the right (c241; TV-Reader 7E): the pages
+	/* On a TV, READING is a panel from the right: the pages
 	   stay in view at the left and change as a row does, and the panel is the
 	   same 420px the other sheets are (Sheet.svelte), with the same 48px right
 	   side -- that padding is what makes its content 372px wide. */

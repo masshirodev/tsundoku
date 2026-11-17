@@ -184,27 +184,27 @@
 	const tvScreen = new MediaQuery(TV, false);
 	onMount(() => {
 		fit = stored<Fit>('fit', 'screen');
-		// A TV is a 16:9 surface seen from the couch: a spread by default, as
-		// TV-Reader draws it (the device's stored choice still wins).
+		// A TV is a 16:9 surface seen from the couch: a spread by default
+		// (the device's stored choice still wins).
 		spreadsOn = stored('spreads', tvScreen.current);
 		dim = stored('dim', 0);
 		sides = stored('sides', 0);
 		wide = stored('wide', 'fit');
 		crop = stored('crop', false);
 		blocksShown = stored<BlocksShown>('blocks', 'controls');
-		// The cursor's idle hide is off unless asked for (c678): a reader needs a
+		// The cursor's idle hide is off unless asked for: a reader needs a
 		// mouse, and a reader who has not asked keeps the one it always had.
 		cursorOn = stored<boolean>('cursor', false);
 	});
 
 	// The phone app draws the pages under the camera while the reader is open,
-	// and pads again when it closes (c521; the top bar keeps out of the band
-	// itself, Chrome.svelte).
+	// and pads again when it closes (the top bar keeps out of the band itself,
+	// Chrome.svelte).
 	onMount(() => drawUnderCamera());
 
 	const landscape = new MediaQuery('(orientation: landscape)', false);
 
-	// ---- zoom (doc/READER.md, "Zoom"; card c169) -----------------------------------
+	// ---- zoom (doc/READER.md, "Zoom") -----------------------------------
 	// The session's zoom starts from the kept one: per mode (manga paged, manhwa the
 	// strip) and per screen class on this device, so a phone never overwrites the PC.
 	const narrow = new MediaQuery('(max-width: 599px)', false);
@@ -256,7 +256,7 @@
 	/** The strip, for keeping a zoom's point in place on it. */
 	let stripView = $state<{ anchorAt: (x: number, y: number) => void } | null>(null);
 	/**
-	 * Zoom keeping the point at (x, y) where it is (card c185): a double tap's
+	 * Zoom keeping the point at (x, y) where it is: a double tap's
 	 * point, a pinch's middle, the pointer under Ctrl + wheel. Before, every
 	 * zoom grew the page from its top left, so what was under the fingers slid
 	 * away. Paged: the page's box is measured either side of the zoom and the
@@ -293,7 +293,7 @@
 		screen.scrollBy(dx, dy);
 	}
 
-	// ---- a tap in the middle: the controls, or with a second, zoom (card c185) -------
+	// ---- a tap in the middle: the controls, or with a second, zoom -------
 	// A single tap in the middle waits DOUBLE_TAP_MS for a second before it shows
 	// or hides the controls, which then fade in (base.css, .appear). A double tap
 	// zooms around its point: under 100% to 100%, at 100% to 200%, over to 100%.
@@ -327,7 +327,7 @@
 
 	/**
 	 * The strip's own smooth scrolling on a PC (doc/READER.md, "Scrolling on a
-	 * PC"; c192): a mouse wheel's notch and ↑ / ↓ ease the window instead of
+	 * PC"): a mouse wheel's notch and ↑ / ↓ ease the window instead of
 	 * jumping it. Not with reduced motion asked for: the wheel stays native and
 	 * a key moves at once.
 	 */
@@ -345,12 +345,12 @@
 	});
 	const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 	/**
-	 * The scroll key whose repeats are the held scroll, if one is down (c668).
+	 * The scroll key whose repeats are the held scroll, if one is down.
 	 * Not reactive: no markup depends on it.
 	 */
 	let heldKey: string | null = null;
 	/**
-	 * The step a held key scrolls at, fixed at the press (c668). A repeat
+	 * The step a held key scrolls at, fixed at the press. A repeat
 	 * re-reads its own modifiers, so releasing Ctrl mid-hold would jump a nudge
 	 * to a screen's speed, and Shift mid-Space would turn it round; the key's
 	 * own press is what the reader meant.
@@ -358,7 +358,7 @@
 	let heldMove: { by: number; ms: number } | null = null;
 
 	/**
-	 * A scroll key's move (c668). A first press glides one step. While it is
+	 * A scroll key's move. A first press glides one step. While it is
 	 * held, its repeats must not add steps to the aim — that ran the target far
 	 * ahead of the strip, which then kept travelling after the key came up — so
 	 * the strip scrolls at a steady speed instead. The release eases to a stop.
@@ -374,8 +374,8 @@
 			if (heldKey === e.key && heldMove) smooth.hold(heldMove.by, heldMove.ms);
 			return;
 		}
-		// A fresh press is its own glide: `glide` drops a hold's steady speed
-		// (c668), and starts from where the strip is going so a second press
+		// A fresh press is its own glide: `glide` drops a hold's steady speed,
+		// and starts from where the strip is going so a second press
 		// adds its step to the first's, as a double ↓ always has.
 		heldKey = e.key;
 		heldMove = { by: d, ms };
@@ -383,16 +383,15 @@
 	}
 
 	/**
-	 * A held key ends. Every door that can take its keyup away calls this. The
-	 * key's own release and the window losing focus ease it out; the lookup
-	 * panel or the page menu (each locking the page), the READING sheet, a mode
-	 * change, a jump to another chapter and the page being hidden pass `instant`,
-	 * for a strip covered, locked or no longer the one on screen. Hidden, the
-	 * browser has stopped drawing, so an ease would wait for the return and then
-	 * land on its target in one frame, a jump of up to a screen's 185 px (c691).
-	 * A second key
+	 * A held key ends. Every path that can take its keyup away calls this. The
+	 * key's own release and the window losing focus ease it out; the lookup panel
+	 * or the page menu (each locking the page), the READING sheet, a mode change,
+	 * a jump to another chapter and the page being hidden pass `instant`, for a
+	 * strip covered, locked or no longer the one on screen. Hidden, the browser
+	 * has stopped drawing, so an ease would wait for the return and then land on
+	 * its target in one frame, a jump of up to a screen's 185 px. A second key
 	 * pressed does not come here: its own glide takes over from the hold. A
-	 * crossing does not end it at all (doc/READER.md, c694).
+	 * crossing does not end it at all (doc/READER.md).
 	 */
 	function endHold(instant = false) {
 		heldKey = null;
@@ -651,7 +650,7 @@
 	let lastShape = $state<Page | null>(null);
 	// A page that has not loaded and whose own size was never learned wears
 	// another page's shape, or the manga default: that is a guess, and the
-	// strip treats it as one (c913). `shapeOf` is the rule for the shape;
+	// strip treats it as one. `shapeOf` is the rule for the shape;
 	// `guess` is its other half, passed down rather than read back off the box.
 	const shaped = (entry: number, i: number, p: Page): Page & { guess?: boolean } => {
 		const own = learned.get(`${entry}:${i}`);
@@ -665,7 +664,7 @@
 		if (lastShape?.w !== w || lastShape?.h !== h) lastShape = { w, h };
 	}
 	/**
-	 * When each guessing page first held a key step (c913, `GUESS_WAIT_MS`):
+	 * When each guessing page first held a key step (`GUESS_WAIT_MS`):
 	 * the wait is that page's own, from the moment the reader stood at it.
 	 */
 	const heldSince = new WeakMap<Element, number>();
@@ -697,7 +696,7 @@
 
 	function go(to: number) {
 		if (pages.length === 0) return;
-		// A slide in flight is the old place's: the page shown is this one (c515).
+		// A slide in flight is the old place's: the page shown is this one.
 		animating = false;
 		slideTo = null;
 		drag = 0;
@@ -750,11 +749,11 @@
 	// they're turned to, so a turn shows a finished page, not a box saying
 	// "P. 15" (doc/READER.md, "Preloading"). The browser's cache keeps the bytes;
 	// the images are held here so they stay decoded. Vertical has every page of
-	// its strip in the page already.
-	// Not state: nothing draws from it, it only keeps the images alive.
-	// A chapter read online is held by $lib/reader/online-pages instead (c1038):
-	// its pages are no-store, so an Image here kept nothing the next element
-	// could use, and each one was a second request to the source.
+	// its strip in the page already. Not state: nothing draws from it, it only
+	// keeps the images alive. A chapter read online is held by
+	// $lib/reader/online-pages instead: its pages are no-store, so an Image here
+	// kept nothing the next element could use, and each one was a second request
+	// to the source.
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	const preloaded = new Map<string, HTMLImageElement>();
 	onMount(() => onlineHeld.hold());
@@ -809,7 +808,7 @@
 	// the way with the neighbouring screen sliding in beside it. The track
 	// holds the screen being read and, while one is showing, that neighbour.
 	// How long, how it eases, when a press becomes a drag and how much an edge
-	// gives are the text reader's too (src/lib/reader/reader.ts, c441).
+	// gives are the text reader's too (src/lib/reader/reader.ts).
 	type Screen = { key: string; pos: -1 | 0 | 1; pages: number[]; split: boolean; half: 0 | 1 };
 	const reduceMotion = new MediaQuery('(prefers-reduced-motion: reduce)', false);
 	/** How far the track is dragged, in px; or while sliding, where it's going. */
@@ -819,7 +818,7 @@
 	/**
 	 * A turn is in flight, from its first frame to its tail. Not `animating`:
 	 * `go()` clears that mid-slide, and a second turn started then had its slide
-	 * cleared by the first one's tail (c515).
+	 * cleared by the first one's tail.
 	 */
 	let turning = false;
 	/** The side a neighbour is shown on, while dragging or sliding. */
@@ -871,14 +870,14 @@
 	/** A turn asked for mid-slide: taken as soon as this one lands, so quick taps all count. */
 	let queued: 'next' | 'prev' | null = null;
 	/**
-	 * The tap zones (doc/READER.md, "Tap zones"; the owner, 2026-10-30, after
+	 * The tap zones (doc/READER.md, "Tap zones"; after
 	 * Mihon): as a paged chapter opens by finger, the edges that turn and the
 	 * middle that brings the controls are drawn over the page, labelled the way
 	 * this direction reads. About two seconds, or until the first tap, swipe or
 	 * key; the very first time on a device, until then. Never under a mouse,
 	 * whose clicks don't go by zones (mouseAction). TAP ZONES: OFF in SETTINGS
-	 * turns it off. It replaced a one-time "swipe or tap the edges" line: a
-	 * friend tapped the edges and took the reader for a PC's (2026-10-30).
+	 * turns it off. A one-time "swipe or tap the edges" line is not enough: a
+	 * new reader tapped the edges and took the reader for a PC's.
 	 */
 	const SEEN_ZONES = 'tsundoku.hint.turn';
 	const ZONES_MS = 2000;
@@ -886,8 +885,8 @@
 	/** The first time on a device: up until the first tap, not for ZONES_MS. */
 	let zonesUntilTap = $state(false);
 	// On opening the reader, not on moving to another chapter of it: a chapter
-	// change is a navigation from /read to /read, which rebuilds this reader
-	// (the owner, 2026-10-31: "it shows me the tap controls when i change chapter").
+	// change is a navigation from /read to /read, which rebuilds this reader,
+	// and the zones would show again on every chapter.
 	afterNavigate(({ from }) => {
 		if (from?.route.id?.startsWith('/read')) return;
 		if (!matchMedia('(pointer: coarse)').matches) return;
@@ -921,10 +920,10 @@
 		}
 		// The place this turn starts from: anything else that moves the reader
 		// meanwhile (the scrubber, another chapter opening, WIDE PAGES changing) is the
-		// newer ask, and the turn gives way to it (c515). Turning from where that
+		// newer ask, and the turn gives way to it. Turning from where that
 		// left off went one past it.
 		const from = { entry: data.entry.id, at, half, atEnd };
-		// Leaving the reader is newer too (c565): a turn landing after BACK began
+		// Leaving the reader is newer too: a turn landing after BACK began
 		// would go on into the next chapter, or the one before, in its place.
 		const still = () =>
 			data.entry.id === from.entry &&
@@ -969,7 +968,7 @@
 		animating = false;
 		peek = null;
 		// An arrow or a tap asked for while the page went back is taken now, as
-		// after a turn (c553; the text reader's settleBack does the same). Dropped,
+		// after a turn (the text reader's settleBack does the same). Dropped,
 		// it was a key that did nothing.
 		const then = queued;
 		queued = null;
@@ -1024,7 +1023,7 @@
 		// (doc/PRIVACY.md, step 2) and this page keeps running until the app
 		// comes back, so a settle, a finish or the close on the way out would
 		// otherwise reach the server with no cookie and be written as ordinary
-		// reading (c680).
+		// reading.
 		if (data.incognito) return;
 		if (!data.manifest) return;
 		const now = Date.now();
@@ -1077,7 +1076,7 @@
 		if (data.entry.id !== shown || atEnd) return;
 		clearTimeout(settle);
 		settle = setTimeout(() => {
-			// On the way out the window's entry may be the next screen's (c565).
+			// On the way out the window's entry may be the next screen's.
 			if (leavingReader()) return;
 			void send('page', page);
 			// Keep the URL on the page, so a reload resumes here.
@@ -1086,7 +1085,7 @@
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- the current URL, with ?p
 			replaceState(url, {});
 			// History has to name the page too: a popstate back into this entry
-			// otherwise opens the page the last real navigation named (c623).
+			// otherwise opens the page the last real navigation named.
 			keepHistoryUrl();
 			if (page >= pages.length - 1 && mode !== 'vertical') markFinished();
 		}, 800);
@@ -1097,7 +1096,7 @@
 		// Moving between chapters is not leaving: the next one sends its own open.
 		if (to?.route.id === '/read/[entry]') return;
 		// The close carries the page; a settle still to come would write the
-		// reader's URL onto the screen being opened (c565).
+		// reader's URL onto the screen being opened.
 		clearTimeout(settle);
 		void send('close', group[0]);
 	});
@@ -1143,17 +1142,17 @@
 	 *
 	 * Measured in the document, not on the screen. Only `await tick()` lies
 	 * between the two reads, so no frame (and no glide) runs there, and the
-	 * correction's scroll is the same number measured either way. What c668
-	 * changed is the second number: Chromium clamps the window when the strip
+	 * correction's scroll is the same number measured either way. The second
+	 * number is the subtle one: Chromium clamps the window when the strip
 	 * drops a chapter above and the document becomes shorter than the scroll
 	 * position, and that clamp is not the content's move. So the correction
 	 * goes to where the content's move alone puts the place, and the ease is
 	 * told that move apart from the scroll (`moved`), or its timeline ends
-	 * short by the clamp (wave 30's review: told the scroll instead, the double
-	 * ↓ crossing case landed 124 px off) (c694).
+	 * short by the clamp (told the scroll instead, a double ↓ crossing a
+	 * chapter landed 124 px off).
 	 */
 	async function keepPlace(change: () => void) {
-		// Through whatever covers the middle (c568): READING's sheet, the
+		// Through whatever covers the middle: READING's sheet, the
 		// controls or the lookup over it are not the place; the strip under them is.
 		const anchor = stripSlotAtMiddle();
 		const y0 = scrollY;
@@ -1211,7 +1210,7 @@
 			// A crossing is this strip's own move: the band stays, the pages
 			// around it stay, and the key can read on through it, so nothing
 			// ends there. A real jump does: the strip the key was moving is not
-			// the one on screen any more (c668).
+			// the one on screen any more.
 			if (!onStrip) {
 				// Opened here, or jumped to a chapter not on the strip: start over at it.
 				endHold(true);
@@ -1245,7 +1244,7 @@
 			?.scrollIntoView({ block: 'start' });
 	}
 	afterNavigate(() => {
-		// Only for the entry this navigation arrived at (c568): a placeAt left by
+		// Only for the entry this navigation arrived at: a placeAt left by
 		// the strip's opening on a mode switch (no navigation, so nothing cleared
 		// it) is not where a later crossing goes. Replayed, it scrolled the strip
 		// back a whole chapter to the page the switch opened at.
@@ -1256,8 +1255,8 @@
 	/**
 	 * The scrubber on the strip: page [p] goes where the strip reads the page
 	 * being read, under the middle of the screen (Strip's `onpage`). A page as
-	 * tall as the screen starts at its top, as it always has; a shorter one
-	 * (zoomed out, c719: at 20% a page is a fifth of the screen) is centred on
+	 * tall as the screen starts at its top; a shorter one
+	 * (zoomed out, at 20% a page is a fifth of the screen) is centred on
 	 * the middle, or its top went to the top of the screen and the middle fell
 	 * a page or a chapter past it.
 	 */
@@ -1278,7 +1277,7 @@
 		}
 		if (crossing !== null) return;
 		// A strip still gliding as BACK begins: a crossing now would replace the
-		// navigation away with one back into the reader (c565).
+		// navigation away with one back into the reader.
 		if (leavingReader()) return;
 		// Onward past the band: the chapter just left is read.
 		if (chapter === data.next?.id) markFinished();
@@ -1400,7 +1399,7 @@
 	$effect(() => {
 		if (mode !== 'vertical' || !lookup) return;
 		// The panel has the keyboard now, and locks the page: a held key stops
-		// at once, rather than easing on under the lock (c668).
+		// at once, rather than easing on under the lock.
 		endHold(true);
 		return lockPage();
 	});
@@ -1459,7 +1458,7 @@
 			: null
 	);
 
-	// ---- the page menu: a long-pressed page as a cover (Page Menu, c26) ----------------------
+	// ---- the page menu: a long-pressed page as a cover ----------------------
 	// doc/COVERS.md, "Chosen". Held 450ms without moving: a finger, or the left
 	// button on desktop. The release that follows turns nothing.
 	const HOLD_MS = 450;
@@ -1476,7 +1475,8 @@
 		meta: string;
 	};
 	let menu = $state<Menu | null>(null);
-	// The covers as they stand, updated as the owner chooses (the tile follows on the workstation).
+	// The covers as they stand, updated as the reader chooses (the tile follows
+	// on the workstation).
 	// svelte-ignore state_referenced_locally
 	let seriesCover = $state(data.series.cover);
 	// svelte-ignore state_referenced_locally
@@ -1560,7 +1560,7 @@
 	$effect(() => {
 		if (mode !== 'vertical' || !menu) return;
 		// The menu has the keyboard, and locks the page: a held key stops at
-		// once, rather than easing on under the lock (c668).
+		// once, rather than easing on under the lock.
 		endHold(true);
 		return lockPage();
 	});
@@ -1568,7 +1568,7 @@
 	// The READING sheet covers the strip and takes the keyboard's keys, and a
 	// mode change takes the strip itself away: neither is the strip the key was
 	// moving, so a hold stops there rather than scrolling under the sheet or on
-	// into a paged reader (c668).
+	// into a paged reader.
 	$effect(() => {
 		if (mode === 'vertical' && !sheet) return;
 		untrack(() => endHold(true));
@@ -1650,7 +1650,7 @@
 				putBack: () => undefined
 			});
 	}
-	// ---- a page kept (Highlights H3, card c703; doc/HIGHLIGHTS.md, "Pages") ----------
+	// ---- a page kept (doc/HIGHLIGHTS.md, "Pages") ----------
 	// HIGHLIGHT keeps the page on screen (paged), or the one under the middle
 	// (the strip, keepPlace's `at`). The workstation makes the copy and the row
 	// together, and the cell says ✓ HIGHLIGHTED only once its answer arrives:
@@ -1663,7 +1663,7 @@
 	const keptHere = $derived(keptOf(data.entry.id));
 	/** The asks on their way, by `keepKey`. */
 	let keeping = $state<string[]>([]);
-	/** Pages kept offline, waiting on the device for the next connection (c842), by `keepKey`. */
+	/** Pages kept offline, waiting on the device for the next connection, by `keepKey`. */
 	let waitingKeys = $state<string[]>([]);
 	let choices = $state<SpreadChoice[] | null>(null);
 	let hlOpen = $state<{ entry: number; kept: KeptPage; entryName: string } | null>(null);
@@ -1711,7 +1711,7 @@
 			: null
 	);
 	const ticks = $derived(pageTicks(keptHere));
-	/** Pages with a gutter rule (Manga M3): every page a kept highlight covers. */
+	/** Pages with a gutter rule: every page a kept highlight covers. */
 	const ruled = $derived(new Set(ticks));
 
 	function setKept(entry: number, list: KeptPage[]) {
@@ -1862,7 +1862,7 @@
 		waitingKeys = (await waitingHighlights()).filter((i) => !isQuoteKey(i.key)).map((i) => i.key);
 	}
 	async function tellWhatWasRefused() {
-		// A page's only: a quote refused is the text reader's to tell (c702).
+		// A page's only: a quote refused is the text reader's to tell.
 		const refused = (await refusedHighlights()).filter((i) => !isQuoteKey(i.key));
 		if (refused.length) tellRefused(refused);
 	}
@@ -1922,7 +1922,7 @@
 			o.entry,
 			keptOf(o.entry).filter((x) => x.id !== o.kept.id)
 		);
-		// HIGHLIGHT DELETED · UNDO, as a quote's (Manga M6): the row waits on the workstation.
+		// HIGHLIGHT DELETED · UNDO, as a quote's: the row waits on the workstation.
 		showHlBand(
 			{
 				title: 'HIGHLIGHT DELETED',
@@ -1985,7 +1985,7 @@
 	// ---- touch -----------------------------------------------------------------------------
 	let down: { x: number; y: number } | null = null;
 	let dragging = false;
-	/** The press's own pointer: a second finger cancels it (c515, src/lib/reader/pointer.ts). */
+	/** The press's own pointer: a second finger cancels it (src/lib/reader/pointer.ts). */
 	const finger = new OnePointer();
 	function pointerdown(e: PointerEvent) {
 		// The first touch has learned the zones; it still does what it does.
@@ -2005,7 +2005,7 @@
 		if (!finger.owns(e)) return;
 		if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) cancelPress();
 		// A zoomed page pans under a drag rather than turning (edges and keys still turn).
-		// Not while a turn is under way either (c553), slide or not: a scrub that
+		// Not while a turn is under way either, slide or not: a scrub that
 		// cut a slide short leaves the turn's tail to come, which zeroes the
 		// offset, and a drag begun meanwhile snapped back to nothing. The text
 		// reader refuses a drag while turning for the same reason.
@@ -2036,7 +2036,7 @@
 		if (mode !== 'vertical' || menu || pressed) e.preventDefault();
 	}
 
-	// ---- the remote's way in (c235; TV-Reader 7F): OK held, or MENU -----------------
+	// ---- the remote's way in: OK held, or MENU -----------------
 	// The reader keeps every arrow -- ← → turn pages, ↑ ↓ scroll -- so the focus
 	// layer is opted out here. The page menu is the one dialog it forces back in
 	// (PageMenu's own scope), and OK is the page's own key: a short press shows
@@ -2121,8 +2121,7 @@
 	}
 
 	/**
-	 * OK brings the chrome up (c235), and on a TV puts the pad on its scrubber
-	 * (c241; TV-Reader 7D: "OK shows it, focus on the page scrubber"), so the
+	 * OK brings the chrome up, and on a TV puts the pad on its scrubber, so the
 	 * next ↓ reaches the chapters and READING rather than doing nothing.
 	 */
 	async function showChrome() {
@@ -2132,7 +2131,7 @@
 		root?.querySelector<HTMLElement>('footer [data-focus-start]')?.focus();
 	}
 
-	// BACK (c235): what is open first, then the chrome, then the series. The
+	// BACK: what is open first, then the chrome, then the series. The
 	// layer hands it here because this screen reads its own keys.
 	$effect(() =>
 		registerBack(() => {
@@ -2213,11 +2212,11 @@
 	/** The controls came up because the pointer reached an edge: they go when it leaves. */
 	let byHover = false;
 	/**
-	 * CURSOR (c678): with the option on, the cursor goes after three
+	 * CURSOR: with the option on, the cursor goes after three
 	 * seconds without the mouse moving, and a move or a press brings it back at
 	 * once. Keys and the wheel do not, so reading by arrows stays clean. It
 	 * never hides while the bars, the sheet, the page menu, the lookup or the
-	 * end page is open: the owner is about to click something.
+	 * end page is open: the reader is about to click something.
 	 */
 	const pointerFine = new MediaQuery('(pointer: fine)', false);
 	let cursorOn = $state(false);
@@ -2272,7 +2271,7 @@
 			if (e.key === 'Escape') sheet = false;
 			return;
 		}
-		// H keeps the page on screen, as the cell does (Manga M1).
+		// H keeps the page on screen, as the cell does.
 		if ((e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.metaKey && !e.altKey && !atEnd) {
 			e.preventDefault();
 			return pressHighlight();
@@ -2288,17 +2287,17 @@
 		if (e.key === '-') return setZoom(stepZoom(zoom, -1));
 		if (e.key === '0') return setZoom(resetZoom(zoom, kept));
 		// On a TV with the chrome up the pad owns the arrows and the page-turn
-		// keys (c241): an arrow moves among the chrome's cells, and BACK hides
+		// keys: an arrow moves among the chrome's cells, and BACK hides
 		// it before any of them is the reader's again.
 		// An arrow that found no cell is not the browser's either: on a strip
-		// its own scroll moved the chapter 40px under the chrome (c253). Space
+		// its own scroll moved the chapter 40px under the chrome. Space
 		// is left alone: on a focused cell it presses it.
 		if (tvScreen.current && chrome && TURNS.has(e.key)) {
 			if (e.key !== ' ') e.preventDefault();
 			return;
 		}
 		if (mode === 'vertical') {
-			// A screen at a time, not the browser's few lines (the owner, 2026-10-30), at any zoom:
+			// A screen at a time, not the browser's few lines, at any zoom:
 			// the strip scrolls the window, so a screen is the window's height.
 			const arrow = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
 			// Ctrl + ↑ / ↓ nudges, to read a panel the screen cut without the mouse.
@@ -2306,7 +2305,7 @@
 				e.preventDefault();
 				return moveKey(e, NUDGE * arrow, GLIDE_NUDGE);
 			}
-			// ← / → nudge too, with one hand and no modifier (c527): reading on is
+			// ← / → nudge too, with one hand and no modifier: reading on is
 			// to the right, as in a paged L→R reader. Ctrl + ← / → add nothing.
 			// Zoomed wider than the screen they pan the strip sideways instead,
 			// the one way a keyboard has to reach its sides; the browser did that
@@ -2328,8 +2327,8 @@
 				e.preventDefault();
 				const step = screenStep(innerHeight);
 				if (up) return moveKey(e, -step, GLIDE_SCREEN);
-				// A page still loading at a guessed size is not stepped over
-				// (c913): the step stops with it at the top of the screen. ↑
+				// A page still loading at a guessed size is not stepped over:
+				// the step stops with it at the top of the screen. ↑
 				// goes back over pages already read, so it is free. A held
 				// key's repeats come here too: a stop ends the hold where the
 				// strip is, then glides the rest of the way to that page's top.
@@ -2393,8 +2392,8 @@
 		};
 		const visible = () => {
 			// A page going away can take the keyup with it: the strip must not
-			// keep scrolling behind another window (c668), nor jump on the way
-			// back (c691, `endHold`).
+			// keep scrolling behind another window, nor jump on the way
+			// back (`endHold`).
 			if (document.visibilityState !== 'visible') return endHold(true);
 			clock.resume(Date.now());
 			void wake();
@@ -2413,7 +2412,7 @@
 	// ---- what the chrome says -----------------------------------------------------------
 	const seriesHref = $derived(resolve('/series/[id]', { id: String(data.series.id) }));
 	const workHref = $derived(data.work ? resolve('/work/[id]', { id: String(data.work.id) }) : '');
-	/** A browsing record's ADD, where its rating is asked (c655): the top bar's own door. */
+	/** A browsing record's ADD, where its rating is asked: the top bar's own link. */
 	const recordAddHref = $derived(
 		data.record ? `${resolve('/downloads/source/[id]', { id: data.record })}?/add` : null
 	);
@@ -2454,7 +2453,7 @@
 />
 
 <!-- The opt-out is lifted on a TV while the page menu or a highlight's sheet is
-     open (c703): both are drawn inside the reader, and the focus layer counts
+     open: both are drawn inside the reader, and the focus layer counts
      nothing under data-focus-off as a stop, so MENU's rows were never the pad's. -->
 <div
 	class="reader"
@@ -2478,7 +2477,7 @@
 				class="lane-lift"
 				style:transform={lift ? `translateY(${-lift}px)` : undefined}
 				onpointerdown={(e) => {
-					// A pinch's second finger is no long press (c515).
+					// A pinch's second finger is no long press.
 					const which = finger.down(e);
 					if (which === 'cancel') return dropPress();
 					if (which === 'ignore') return;
@@ -2528,7 +2527,7 @@
 			</div>
 		{/key}
 		{#if !data.next?.available}
-			<!-- Out of the pad's reach while a TV's chrome is up and it is off screen (c253). -->
+			<!-- Out of the pad's reach while a TV's chrome is up and it is off screen. -->
 			<div use:skipOffscreen={tvScreen.current && chrome}>
 				<EndPage
 					variant={endVariant}
@@ -2798,7 +2797,7 @@
 	<!-- Temporary: measuring a phone's flicks, with ?fling on the address (FlingMeter). -->
 	{#if flingMeter && mode === 'vertical'}<FlingMeter />{/if}
 	{#if toTopOn && mode === 'vertical' && at > 0 && !chrome && !sheet && !menu && !lookup}
-		<!-- TO THE TOP (c207): the Index idiom's square cell, not a floating circle. -->
+		<!-- TO THE TOP: the Index idiom's square cell, not a floating circle. -->
 		<button
 			type="button"
 			class="to-top appear"
@@ -2954,7 +2953,7 @@
 		-webkit-user-select: none;
 		-webkit-touch-callout: none;
 	}
-	/* CURSOR on, and the mouse still for three seconds (c678): the class is
+	/* CURSOR on, and the mouse still for three seconds: the class is
 	   the whole change, so nothing reflows. Every descendant is covered because
 	   a cell or a page menu row sets its own pointer cursor. Never while a bar,
 	   a sheet, a menu or the end page is open -- `idle` cannot be set then. */
@@ -3011,7 +3010,7 @@
 		overflow-x: auto;
 		justify-content: safe center;
 	}
-	/* Zoomed out (c719, down to 20%): the page box shrinks inside its screen,
+	/* Zoomed out (down to 20%): the page box shrinks inside its screen,
 	   centred on the reader's ground. Fit screen and fit height centre it
 	   already; fit width starts a page at the top, which a page shorter than
 	   the screen would leave hanging there. Still the top once it is taller. */
@@ -3043,8 +3042,8 @@
 			transition: none;
 		}
 	}
-	/* Page Menu 1c: the band after a cover is chosen, where SaveBand sits. */
-	/* The highlight's band (c703) is the cover's, under a class of its own. */
+	/* The band after a cover is chosen, where SaveBand sits. */
+	/* The highlight's band is the cover's, under a class of its own. */
 	.cover-band,
 	.hl-band {
 		position: fixed;
@@ -3273,7 +3272,7 @@
 		color: var(--text-2);
 	}
 
-	/* TO THE TOP (c207): bottom right, over the pages and the dimming, just above
+	/* TO THE TOP: bottom right, over the pages and the dimming, just above
 	   the 56 px edge where a pointer brings the controls up (HOVER_EDGE), so
 	   reaching it with the mouse doesn't summon them over it. Away while they're
 	   up: they cover the corner, and have their own way between chapters. */

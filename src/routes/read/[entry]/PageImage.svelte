@@ -29,7 +29,7 @@
 	}: {
 		/**
 		 * The image. `null` while the reader is still fetching a page read online
-		 * into memory ($lib/reader/online-pages, c1038): the box waits, and the
+		 * into memory ($lib/reader/online-pages): the box waits, and the
 		 * element asks for nothing, so the source is asked once.
 		 */
 		src: string | null;
@@ -63,14 +63,14 @@
 		/** Read from its source (doc/READING-ONLINE.md, "Manga online"): waiting is dashed, as Index dashes what isn't stored. */
 		online?: boolean;
 		/**
-		 * A kept page (Highlights H3, c703; Manga M3): a 4px yellow rule in the
-		 * gutter at the page's outer side, 6px off the art. Nothing is drawn on
-		 * the art itself; a page with no gutter (full bleed) shows nothing, as
-		 * the screen clips what falls past its edge.
+		 * A kept page: a 4px yellow rule in the gutter at the page's outer
+		 * side, 6px off the art. Nothing is drawn on the art itself; a page
+		 * with no gutter (full bleed) shows nothing, as the screen clips what
+		 * falls past its edge.
 		 */
 		rule?: 'left' | 'right' | null;
 		/**
-		 * On the strip, the box's shape is a guess at the page's size (c913):
+		 * On the strip, the box's shape is a guess at the page's size:
 		 * it wears another page's shape, or the manga default. Until the image
 		 * arrives the box is at least a screen tall and marked
 		 * `data-guessing`, which stops a key step ($lib/reader/strip-guess).
@@ -102,19 +102,19 @@
 	/**
 	 * The image arrived. Also asked at mount: a page turned back to is a new
 	 * element whose image is often already complete, and its load event comes a
-	 * task later, after a frame of the loading box had been drawn (c1038).
+	 * task later, after a frame of the loading box had been drawn.
 	 */
 	function arrived(img: HTMLImageElement) {
 		// A page the reader unmounted before its image came (a switch of
 		// mode) still fires its load: its shape is no longer this reader's
 		// to learn, and learning it moved a box with no strip keeping the
-		// place (c913).
+		// place.
 		if (!img.isConnected || shown === 'loaded') return;
 		shown = 'loaded';
 		// Learned wherever the box had no size of its own: read online, or a
 		// stored page the manifest could not measure (an AVIF or JXL, a JPEG
 		// whose frame header is past the head it reads), which otherwise
-		// stayed a guess for good (c913).
+		// stayed a guess for good.
 		if ((online || guess || !(w > 0 && h > 0)) && img.naturalWidth > 0 && img.naturalHeight > 0)
 			onshape?.(img.naturalWidth, img.naturalHeight);
 	}
@@ -206,8 +206,8 @@
 	{:else if status === 'failed'}
 		<div class="failed" role="alert">
 			<!-- From the page's top, and kept in sight while it scrolls past: a manhwa
-			     slice is thousands of pixels tall, and centred in it the message was a
-			     scroll through black away (the owner, 2026-10-30). -->
+			     slice is thousands of pixels tall, and centred in it the message is a
+			     scroll through black away. -->
 			<div class="inner">
 				<div class="msg">
 					<div class="t">{name} DID NOT LOAD</div>
@@ -309,8 +309,8 @@
 		left: 0;
 		transform: translateY(-50%);
 	}
-	/* Manga M3: 4px, 6px off the drawn art's outer edge, the page's full height.
-	   The marker's yellow in the dark theme (Main 02), as /highlights keeps it. */
+	/* 4px, 6px off the drawn art's outer edge, the page's full height.
+	   The marker's yellow in the dark theme, as /highlights keeps it. */
 	.kept-rule {
 		position: absolute;
 		top: 0;
@@ -400,7 +400,7 @@
 		background: var(--surface-page);
 	}
 	/* Sticky at about the screen's middle: a page that fits the screen shows it
-	   centred as before, a tall one from its first pixel on. */
+	   centred, a tall one from its first pixel on. */
 	.inner {
 		position: sticky;
 		top: calc(50dvh - 72px);

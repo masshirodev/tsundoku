@@ -43,9 +43,9 @@
 		/** The reader's zoom (doc/READER.md, "Zoom"): the strip's width, times it; past 100% it scrolls sideways. */
 		zoom?: number;
 		/**
-		 * The page HIGHLIGHT would keep (Highlights H3, c703; Manga M4): the one
-		 * under the middle, outlined in ink while the controls are up, so a page
-		 * half off the screen is never a guess.
+		 * The page HIGHLIGHT would keep: the one under the middle, outlined in
+		 * ink while the controls are up, so a page half off the screen is never
+		 * a guess.
 		 */
 		outline?: { entry: number; index: number } | null;
 		src: (c: StripChapter, i: number) => string;
@@ -62,13 +62,13 @@
 		/** A page's OCR'd text blocks to outline (doc/JAPANESE.md). */
 		rings?: (chapter: number, i: number) => Ring[];
 		/**
-		 * The strip stops at the chapter's end (CHAPTERS: STOP AT THE END; c206):
+		 * The strip stops at the chapter's end (CHAPTERS: STOP AT THE END):
 		 * the chapter after and before, offered as buttons instead of run on into.
 		 */
 		stopNext?: { id: number; name: string; title: string; pageCount: number } | null;
 		stopPrev?: { id: number; name: string; title: string } | null;
 		/** A stop band's button: open that chapter. */
-		/** A TV's chrome is up: the stops are arrow stops only while on screen (c253). */
+		/** A TV's chrome is up: the stops are arrow stops only while on screen. */
 		padGuard?: boolean;
 		ongo?: (id: number) => void;
 	} = $props();
@@ -129,8 +129,8 @@
 	}
 
 	/**
-	 * A zoom is about to change the strip's width (a double tap, a pinch: card
-	 * c185): keep the point at (x, y) where it is, rather than the middle of the
+	 * A zoom is about to change the strip's width (a double tap, a pinch):
+	 * keep the point at (x, y) where it is, rather than the middle of the
 	 * screen, which is what the width change would otherwise keep. Called just
 	 * before the zoom; `restore` does the rest when the width changes.
 	 */
@@ -225,7 +225,7 @@
 		style:--strip-zoom={zoom}
 	>
 		{#if stopPrev}
-			<!-- Stopped at the chapter's ends (c206): the one before, by choice. -->
+			<!-- Stopped at the chapter's ends: the one before, by choice. -->
 			<section class="band stop top" aria-label="Previous chapter" use:skipOffscreen={padGuard}>
 				<button
 					type="button"
@@ -312,7 +312,7 @@
 		width: 100%;
 	}
 	/* Zoomed past the screen: the strip scrolls sideways inside its lane, and
-	   still down the page as before. */
+	   still down the page. */
 	.lane.wider {
 		overflow-x: auto;
 	}
@@ -339,7 +339,7 @@
 	.slot :global(.page) {
 		flex: 1;
 	}
-	/* Manga M4: 3px of ink inside the page's edge, over the art only while the
+	/* 3px of ink inside the page's edge, over the art only while the
 	   controls are up (the outline is the chrome's, not the page's). */
 	.slot.outlined {
 		position: relative;
@@ -356,7 +356,7 @@
 		height: 1px;
 	}
 	/* A band is words, not art: it keeps a reader's width when the strip is
-	   zoomed narrower than that (c719: at 20% a phone's strip is 82px, which
+	   zoomed narrower than that (at 20% a phone's strip is 82px, which
 	   left its 40px sides nothing), centred over the strip it interrupts. */
 	.band {
 		display: flex;
@@ -402,7 +402,7 @@
 		font: 500 14px var(--font-mono);
 		color: var(--accent);
 	}
-	/* A stop band's button (c206): the band's GO line, made a thing to press. */
+	/* A stop band's button: the band's GO line, made a thing to press. */
 	.go-btn {
 		align-self: flex-start;
 		display: flex;
@@ -423,7 +423,7 @@
 		padding-top: 24px;
 		padding-bottom: 24px;
 	}
-	/* The TV's strip is 520 wide, centred, at any zoom (TV-Reader, state 7C). */
+	/* The TV's strip is 520 wide, centred, at any zoom. */
 	@media (pointer: none) and (min-width: 900px) {
 		.strip {
 			width: calc(var(--tv-strip-w) * var(--strip-zoom, 1));

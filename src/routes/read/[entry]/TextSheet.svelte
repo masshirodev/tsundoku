@@ -33,7 +33,7 @@
 	 * reason, not removed, so the sheet never jumps.
 	 *
 	 * On a TV it is a focus scope and a panel from the right, as the image
-	 * reader's READING is (c241): the pad lands on the layout in use, and ↑ ↓
+	 * reader's READING is: the pad lands on the layout in use, and ↑ ↓
 	 * walk the rows.
 	 */
 	let {
@@ -69,13 +69,13 @@
 		lineHeight: number;
 		landscape: boolean;
 		vertical: boolean;
-		/** Which way PAGED turns, this session's and the series' (c440). */
+		/** Which way PAGED turns, this session's and the series'. */
 		direction: TextDirection;
 		seriesDirection: TextDirection;
-		/** WIDTH (c437): this series' own, else the device's last choice. */
+		/** WIDTH: this series' own, else the device's last choice. */
 		width: TextWidth;
 		dim: number;
-		/** CURSOR (c678): the device's, shared with the image reader. */
+		/** CURSOR: the device's, shared with the image reader. */
 		cursor: boolean;
 		rating: number;
 		onlayout: (l: Layout) => void;
@@ -99,7 +99,7 @@
 		['paper', 'PAPER']
 	];
 	const FONTS: [TextFont, string][] = TEXT_FONTS.map((f) => [f.id, f.name]);
-	// Each name is drawn in its own font (c442), so the row declares the lazy
+	// Each name is drawn in its own font, so the row declares the lazy
 	// faces while it is open: a face's file is fetched only for what is drawn.
 	$effect(() => void loadReadingFonts());
 	const MARGINS: [Margins, string][] = [
@@ -114,7 +114,7 @@
 	];
 	const columnsApply = $derived(landscape && layout === 'paged' && !vertical);
 	/**
-	 * DIRECTION turns a horizontal book's pages (c440): not in SCROLL, which
+	 * DIRECTION turns a horizontal book's pages: not in SCROLL, which
 	 * never turns, nor in vertical Japanese, which always reads R→L. Dimmed
 	 * with the reason there, as the image sheet's PAGED ONLY rows are.
 	 */
@@ -122,7 +122,7 @@
 	/** What the row shows: vertical Japanese is R→L whatever the series says. */
 	const directionShown = $derived<TextDirection>(vertical ? 'rtl' : direction);
 	const tvScreen = new MediaQuery(TV, false);
-	/** Only a mouse draws a cursor: a phone, a tablet and a TV leave the row out (c678). */
+	/** Only a mouse draws a cursor: a phone, a tablet and a TV leave the row out. */
 	const pointerFine = new MediaQuery('(pointer: fine)', false);
 
 	let dimTrack = $state<HTMLElement | null>(null);
@@ -301,7 +301,7 @@
 		onsettings({ margins: margins as Margins })
 	)}
 
-	<!-- WIDTH (c437): how much of the screen the text takes, or a centred page of
+	<!-- WIDTH: how much of the screen the text takes, or a centred page of
 	     A4's proportion. The SIDES row's look, for text: on a PC the full column
 	     was a line too long. The series keeps it, and it is where the next new
 	     series opens on this device. -->
@@ -371,7 +371,7 @@
 	</div>
 
 	{#if pointerFine.current}
-		<!-- CURSOR (c678): the cursor goes after three seconds still, and a
+		<!-- CURSOR: the cursor goes after three seconds still, and a
 		     move or a press brings it back. Only where there is a mouse. -->
 		<div class="row">
 			<div class="label">CURSOR</div>
@@ -426,7 +426,7 @@
 
 	<!-- Ratings out of 10: the blocky slider, as on the series screen. -->
 	<RatingSlider value={rating} borderTop={false} fontSize={15} onchange={onrate} />
-	<!-- ALL SETTINGS →: the page, at this sheet's section (Reach, readerSheet; card c171). -->
+	<!-- ALL SETTINGS →: the page, at this sheet's section (readerSheet). -->
 	<a class="all-settings" href="{resolve('/settings')}?section=novels"
 		><span>ALL SETTINGS →</span><span class="n">DEFAULTS, AND WHAT EACH ROW KEEPS</span></a
 	>
@@ -475,11 +475,11 @@
 		color: var(--text-1);
 		max-height: calc(100dvh - 64px);
 		overflow-y: auto;
-		/* A focused row stops under the sticky head, not beneath it (c679). */
+		/* A focused row stops under the sticky head, not beneath it. */
 		scroll-padding-top: 56px;
 	}
 	/* The head stays at the top as the rows scroll under it, so ✕ is always
-	   reachable (c679): it needs the sheet's own ground, or a row would show
+	   reachable: it needs the sheet's own ground, or a row would show
 	   through it. */
 	.head {
 		position: sticky;
@@ -671,7 +671,7 @@
 		height: 24px;
 		flex-shrink: 0;
 	}
-	/* On a TV, READING is a panel from the right (c241), the same 420px with the
+	/* On a TV, READING is a panel from the right, the same 420px with the
 	   same 48px right side the other sheets are (Sheet.svelte) -- the padding
 	   is what makes its content 372px wide: the page stays in view at the left
 	   as type changes. */

@@ -10,13 +10,13 @@
 	import type { CellState, SpreadChoice } from '$lib/library/highlights';
 
 	/**
-	 * The controls (Index Reader, state 1b): a 64px bar on top -- back, where
+	 * The controls: a 64px bar on top -- back, where
 	 * you are, the rating and FAV -- and a scrubber and chapter cells below.
 	 * Shown by a tap in the middle, gone by the next. Both follow the reading
 	 * direction: in R->L the scrubber fills from the right and the next
 	 * chapter is on the left.
 	 *
-	 * On a TV the chrome is a focus row once it is up (c241; TV-Reader 7D):
+	 * On a TV the chrome is a focus row once it is up:
 	 * OK brings it with focus on the scrubber, ↓ reaches the cells, and the
 	 * scrubber keeps ← → so it still scrubs rather than walking the pad.
 	 */
@@ -84,15 +84,14 @@
 		languages?: { code: string; on: boolean; entryId: number }[];
 		onlanguage?: (entryId: number) => void;
 		/**
-		 * HIGHLIGHT (Highlights H3, c703; Manga M1, M3, M4, M7): its words and
-		 * its state; none where the reader offers no highlight (a browsing
-		 * record, which is not in the library).
+		 * HIGHLIGHT: its words and its state; none where the reader offers no
+		 * highlight (a browsing record, which is not in the library).
 		 */
 		highlight?: { label: string; state: CellState; waiting?: boolean } | null;
 		/** The scrubber's yellow ticks, one at each kept page (0-based). */
 		ticks?: number[];
 		onhighlight?: () => void;
-		/** A spread's HIGHLIGHT asks which (Manga M2): open while set. */
+		/** A spread's HIGHLIGHT asks which: open while set. */
 		choices?: SpreadChoice[] | null;
 		onchoice?: (c: SpreadChoice) => void;
 		onchoicesclose?: () => void;
@@ -242,7 +241,7 @@
 		{:else}
 			<span class="cell empty"></span>
 		{/if}
-		<!-- The summary, and what tapping it does: it read as a status line (the owner, 2026-10-30). -->
+		<!-- The summary, and what tapping it does: alone it reads as a status line. -->
 		<button type="button" class="cell grow opens" data-focus-mark="in" onclick={onsheet}
 			><span class="sum">{settings}</span><span class="opens-k">SETTINGS ↑</span></button
 		>
@@ -250,9 +249,9 @@
 				>SHIFT PAIRING</button
 			>{/if}
 		{#if highlight}
-			<!-- HIGHLIGHT joins the row before FULL SCREEN (Manga M1). Kept, it reads
+			<!-- HIGHLIGHT joins the row before FULL SCREEN. Kept, it reads
 			     ✓ HIGHLIGHTED, inverted, and opens the page's sheet: a page kept for
-			     good is never unmarked by a stray tap (M3). -->
+			     good is never unmarked by a stray tap. -->
 			<button
 				type="button"
 				class="cell hl {highlight.state}"
@@ -287,7 +286,7 @@
 		{/if}
 	</div>
 	{#if choices}
-		<!-- A spread asks which (Manga M2): the pages in reading order, then BOTH. -->
+		<!-- A spread asks which: the pages in reading order, then BOTH. -->
 		<div
 			class="choices"
 			role="dialog"
@@ -335,11 +334,11 @@
 		color: var(--text-1);
 	}
 	/*
-	 * In the phone app the reader's pages run under the camera (c521;
-	 * doc/ANDROID.md, "Drawn under the camera"), and the app says how tall
+	 * In the phone app the reader's pages run under the camera
+	 * (doc/ANDROID.md, "Drawn under the camera"), and the app says how tall
 	 * the band is. The top bar stays where it is, below the band, and its
 	 * background reaches up through it, so no page shows above the bar. The
-	 * bottom bar hugs the display's edge, as the owner asked. Anywhere else
+	 * bottom bar hugs the display's edge. Anywhere else
 	 * the variable is unset and both are as they were.
 	 */
 	.top {
@@ -509,7 +508,7 @@
 		margin-left: -2px;
 		background: var(--text-1);
 	}
-	/* Manga M3: a yellow tick at each kept page, 4 × 8 above the line. */
+	/* A yellow tick at each kept page, 4 × 8 above the line. */
 	.tick {
 		position: absolute;
 		top: -16px;
@@ -519,7 +518,7 @@
 		background: oklch(0.5 0.09 95);
 		pointer-events: none;
 	}
-	/* The cell's states (Manga M3, M7): kept is inverted; offline and incognito
+	/* The cell's states: kept is inverted; offline and incognito
 	   drop to 0.4; a page being kept is dashed until it is. */
 	.cell.hl.kept {
 		background: var(--surface-inverse);
@@ -539,7 +538,7 @@
 	.cell.hl[aria-disabled='true'] {
 		cursor: default;
 	}
-	/* Manga M2: 260px, ruled in ink, over the row. */
+	/* 260px, ruled in ink, over the row. */
 	.choices {
 		position: absolute;
 		bottom: 64px;
@@ -582,7 +581,7 @@
 		align-items: stretch;
 		height: 64px;
 		border-top: var(--hairline);
-		/* A phone's bar is narrower than its cells (c616): the row scrolls
+		/* A phone's bar is narrower than its cells: the row scrolls
 		   rather than hiding a cell past the edge, and no cell shrinks to a
 		   sliver. The bar's height is the reading area's, so no second row. */
 		overflow-x: auto;

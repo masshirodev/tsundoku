@@ -22,7 +22,7 @@
 	 * is a full page of its own, so crossing it is noticed; a tap or swipe
 	 * forward carries on. At the end of what is available it is where the
 	 * series is rated -- the block stays once the rating is set, showing what
-	 * was chosen, so rating it does not empty the page the reader is on (c655).
+	 * was chosen, so rating it does not empty the page the reader is on.
 	 *
 	 * A series in a Work offers the next part here (doc/WORKS.md, W6): the
 	 * block is a tap, never a swipe, because a chapter boundary swipes on while
@@ -115,11 +115,11 @@
 		 * confirmed first: doc/DELETING.md). False for a browsing record
 		 * (doc/READING-ONLINE.md), whose end offers + ADD through `addHref`. Required,
 		 * with no default: a reader that forgets it must fail `yarn run check`
-		 * rather than quietly offer the wrong cell (c655, round 2).
+		 * rather than quietly offer the wrong cell.
 		 */
 		inLibrary: boolean;
 		/**
-		 * The series is hidden, read here under `/reveal` (c673): the row keeps
+		 * The series is hidden, read here under `/reveal`: the row keeps
 		 * UNHIDE (`?/hide on=0`) beside DELETE. Its own state, never this page's
 		 * answer.
 		 */
@@ -128,7 +128,7 @@
 		addHref?: string | null;
 		/**
 		 * What DELETE's confirmation says of this series: the series screen's
-		 * entries line, and how many highlights it would leave orphaned (c701).
+		 * entries line, and how many highlights it would leave orphaned.
 		 * Required: a reader that forgets it fails `yarn run check` rather than
 		 * asking with a blank sheet.
 		 */
@@ -170,7 +170,7 @@
 	const onlineOnly = $derived(!!first && !first.available && first.online && offline.online);
 	const unreadable = $derived(!!first && !first.available && !first.online);
 	const nextVerb = $derived(work?.next ? kindVerb(work.next.kind) : 'READ');
-	/** The words beside the verb that follow the next part's kind too (c343). */
+	/** The words beside the verb that follow the next part's kind too. */
 	const nextWords = $derived(work?.next ? nextPartWords(work.next.kind) : null);
 	/** Where START goes: the next part's first chapter, or its screen when there is none. */
 	const startHref = $derived(
@@ -208,7 +208,7 @@
 					? `${nextVerb} ONLINE →`
 					: 'START →'
 	);
-	/** The unopenable row's name, which says why it cannot open (c345). */
+	/** The unopenable row's name, which says why it cannot open. */
 	const meanwhileLabel = $derived(
 		work?.next
 			? `NEXT IN ${work.name.toUpperCase()}, ${offlineState ? 'NOT CACHED' : 'NOT DOWNLOADED'}`
@@ -238,17 +238,17 @@
 	);
 	/**
 	 * DOWNLOAD FIRST 10's answer: nothing asked yet, asking, queued, already
-	 * queued (everything it would ask for is under way, c534), or refused (c344).
+	 * queued (everything it would ask for is under way), or refused.
 	 */
 	let queue = $state<'idle' | 'asking' | 'queued' | 'already' | 'failed'>('idle');
 	/** Done: a queue that took, or one already there; neither is pressed again. */
 	const queueDone = $derived(queue === 'queued' || queue === 'already');
-	// ---- the library row (c655) -------------------------------------------------
+	// ---- the library row -------------------------------------------------
 	// A record's ADD takes it in; a library series' DELETE is the series
-	// screen's own door and its confirmation, and then the library: there is no
+	// screen's own action and its confirmation, and then the library: there is no
 	// series left to stay on. ADD's band belongs to the screen that asked for it.
 	// A refused form says so in the row rather than leaving a button that
-	// looked like it did nothing (c673).
+	// looked like it did nothing.
 	let adding = $state(false);
 	let added = $state(false);
 	let showing = $state(false);
@@ -256,7 +256,7 @@
 	let deleting = $state(false);
 	const COULD_NOT_SAVE = 'COULD NOT SAVE';
 	const SERIES_CHANGED = 'THE SERIES CHANGED · RELOAD';
-	/** A refused row action's line, never the action's own words (c673, c714; `rowRefusal`). */
+	/** A refused row action's line, never the action's own words (`rowRefusal`). */
 	let rowError = $state<string | null>(null);
 	const cells = $derived(
 		libraryCells({
@@ -302,7 +302,7 @@
 	 * sentence and in ← SERIES and NOT QUEUED · TRY THE SERIES, so a bare SERIES
 	 * substring locator would also find this line.
 	 *
-	 * `?/hide`'s `failure` is the one that gets its own sentence (c714): that
+	 * `?/hide`'s `failure` is the one that gets its own sentence: that
 	 * action has a single `fail`, the series having been taken into a Work since
 	 * this page was drawn. Its `data` holds nothing but the sentence
 	 * (`{ message }`, no code and no `stale`), and the words are the server's to
@@ -333,10 +333,10 @@
 	 * DOWNLOAD FIRST 10 of the next part, through its own series screen's
 	 * action. An action called this way answers 200 even when it fails: the
 	 * outcome is the body's `type`, so `r.ok` alone said QUEUED ✓ over an
-	 * engine that was down (c344). A success that queued nothing because
+	 * engine that was down. A success that queued nothing because
 	 * everything it would ask for is already under way (a second press, or a
 	 * press after a reload while the first chapter downloads) says ALREADY
-	 * QUEUED, from the action's `already` (c534). A success that queued nothing
+	 * QUEUED, from the action's `already`. A success that queued nothing
 	 * and found nothing under way (no chapter the source lists is left to
 	 * fetch) is no queue: it and any failure say NOT QUEUED and leave the cell
 	 * pressable, so a retry is a second press, and the series screen says why.
@@ -347,7 +347,7 @@
 		queue = 'asking';
 		const body = new FormData();
 		// The part's first ten, the same ten on every press: `next` would skip
-		// the ones under way and queue ten more after a reload (c534).
+		// the ones under way and queue ten more after a reload.
 		body.set('which', 'first');
 		const r = await fetch(`${resolve('/series/[id]', { id: String(p.seriesId) })}?/download`, {
 			method: 'POST',
@@ -477,7 +477,7 @@
 				<!-- Caught up on an ongoing part (Work-EndStates 1): a row, not a block.
 				     A next part that cannot open says so rather than offering a cell
 				     that lands on the reader's IS NOT DOWNLOADED page. It is a group
-				     named for why (c345), so a screen reader hears it as one thing,
+				     named for why, so a screen reader hears it as one thing,
 				     and its one stop is the block's own DOWNLOAD FIRST 10: offline
 				     there is nothing to queue, so offline it has none. -->
 				{#if offlineState || unreadable}
@@ -1012,7 +1012,7 @@
 		flex-direction: column;
 		border-top: var(--hairline);
 	}
-	/* The library row (c655): ADD for a record, DELETE for a series, UNHIDE beside it for a hidden one. */
+	/* The library row: ADD for a record, DELETE for a series, UNHIDE beside it for a hidden one. */
 	.lib {
 		display: flex;
 		border: var(--hairline);
@@ -1036,7 +1036,7 @@
 	.lib form + .del {
 		border-left: var(--hairline);
 	}
-	/* A refused row action's own words (c673): under the row, never in place of
+	/* A refused row action's own words: under the row, never in place of
 	   it, so the cell that was pressed is still there for a second try. */
 	.lib-err {
 		display: flex;
@@ -1169,11 +1169,11 @@
 			padding: 14px 16px;
 			gap: 8px;
 		}
-		/* The block's row on a phone (c535): beside a 64px cover the column is
+		/* The block's row on a phone: beside a 64px cover the column is
 		   about 270px, and its one-line cells (START, DOWNLOAD FIRST 10 EPISODES
 		   or NOT QUEUED · TRY THE SERIES, WORK →) are over twice that. So the
 		   row leaves the column and spans the block under the cover, as
-		   Work-Phone draws the phone's START under it, and wraps: START on a
+		   the design draws the phone's START under it, and wraps: START on a
 		   line of its own (its note under it where the line is short), the
 		   other cells sharing the next. Every cell stays a 64px stop. */
 		.nextw {
@@ -1210,7 +1210,7 @@
 		.nextw .go > .acc + * {
 			border-left: 0;
 		}
-		/* MEANWHILE, the row's one word, whole: 72px cut it by 12 (c535). */
+		/* MEANWHILE, the row's one word, whole: 72px cut it by 12. */
 		.wrow .wl {
 			width: 84px;
 			padding-left: 12px;

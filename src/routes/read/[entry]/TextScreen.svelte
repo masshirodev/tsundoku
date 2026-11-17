@@ -118,7 +118,7 @@
 		</div>
 		<nav class="foot">
 			<!-- eslint-disable svelte/no-navigation-without-resolve -- both hrefs are resolved by the caller -->
-			<!-- Ruled cells: on a TV the pad reaches them at the end (c251; the reader
+			<!-- Ruled cells: on a TV the pad reaches them at the end (the reader
 			     lifts its opt-out there, doc/FOCUS.md), so the mark is drawn inside. -->
 			<a href={props.seriesHref} data-focus-mark="in">← SERIES</a>
 			<div class="gap">

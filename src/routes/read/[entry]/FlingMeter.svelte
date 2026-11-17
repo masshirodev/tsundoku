@@ -2,14 +2,14 @@
 	import { onMount } from 'svelte';
 
 	/**
-	 * A temporary measuring overlay for the vertical strip on a phone (the
-	 * owner, 2026-10-30: a diagonal swipe on the Fold, in Hermit, "goes way
-	 * faster than i think it should"). Shown only with `?fling` on the
-	 * reader's address. Per flick it says the swipe's angle from vertical, the
-	 * finger's travel and release speed down the page, how far the page then
-	 * glided by itself, and whether a glide was still running when the finger
-	 * came down (Chromium adds a new fling to one in flight: "BOOST").
-	 * Reads only; it never touches the scroll. To come out once measured.
+	 * A temporary measuring overlay for the vertical strip on a phone, where a
+	 * diagonal swipe on a Fold seemed to go much faster than it should. Shown
+	 * only with `?fling` on the reader's address. Per flick it says the swipe's
+	 * angle from vertical, the finger's travel and release speed down the page,
+	 * how far the page then glided by itself, and whether a glide was still
+	 * running when the finger came down (Chromium adds a new fling to one in
+	 * flight: "BOOST"). Reads only; it never touches the scroll. To come out
+	 * once measured.
 	 */
 	type Flick = {
 		id: number;

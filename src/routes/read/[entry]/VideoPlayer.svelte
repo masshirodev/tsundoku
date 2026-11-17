@@ -71,8 +71,7 @@
 	import { isFocusable } from '$lib/focus/dom';
 
 	/**
-	 * The player (doc/ANIME.md, "The player"; card c156): Index Player, Player
-	 * States, Player Waiting. The reader's rule carries over -- the picture is
+	 * The player (doc/ANIME.md, "The player"). The reader's rule carries over -- the picture is
 	 * the interface -- with the reader's chrome for a video: a 64px top bar, a
 	 * scrubber over cells, and the one addition, −10 / pause / +10 in the
 	 * middle. Streams come through tsundoku (/api/anime/episode/<id>/videos);
@@ -89,13 +88,13 @@
 		note: string;
 		durationS: number | null;
 		endingAt: number | null;
-		/** Its picture's address, '' while it has none (c225). */
+		/** Its picture's address, '' while it has none. */
 		thumb: string;
 		available: boolean;
 		readAt: number | null;
 		lastPosition: number | null;
 	};
-	/** [lang] the code a cell shows and a choice keeps; [name] in full (c386). */
+	/** [lang] the code a cell shows and a choice keeps; [name] in full. */
 	type Track = { lang: string; name?: string; src: string };
 	type Quality = {
 		label: string;
@@ -104,7 +103,7 @@
 		src: string;
 		audio: Track[];
 		subtitles: Track[];
-		/** A downloaded file's seek preview, once the workstation has made it (c385). */
+		/** A downloaded file's seek preview, once the workstation has made it. */
 		sprite?: Sprite | null;
 	};
 	type Server = { n: number; name: string; qualities: Quality[] };
@@ -125,9 +124,9 @@
 			incognito: boolean;
 			/** A browsing record (doc/READING-ONLINE.md): its preview, where + ADD posts. */
 			record?: { preview: string | null } | null;
-			/** Whether MOVE opens for the series (`moveOpens`): NO SERVER's ANOTHER SOURCE (c999). */
+			/** Whether MOVE opens for the series (`moveOpens`): NO SERVER's ANOTHER SOURCE. */
 			canMove?: boolean;
-			/** What it starts in (card c171): the series', SETTINGS', the last choice. */
+			/** What it starts in: the series', SETTINGS', the last choice. */
 			player: { series: TrackChoice; defaults: TrackChoice; last: TrackChoice };
 			/** The Work's next part, where the last episode ends (doc/WORKS.md, W6). */
 			work?: WorkEnd | null;
@@ -229,7 +228,7 @@
 	const quality = $derived(server?.qualities[qualityIndex] ?? null);
 	const order = $derived(streams?.servers.map((s) => s.n) ?? []);
 
-	// ---- settings: audio and subtitles per series, kept on the workstation (card c171) ---------
+	// ---- settings: audio and subtitles per series, kept on the workstation ---------
 	// The series' choice, else SETTINGS' default, else the last on any anime;
 	// quality and dim per device, speed per episode.
 	/** A choice made here counts for this series and, as the last one, for every other. */
@@ -258,7 +257,7 @@
 	let cues = $state<Cue[]>([]);
 	const line = $derived(cueAt(cues, time));
 
-	/** Where the pointer was, and where the controls last left it (c217). */
+	/** Where the pointer was, and where the controls last left it. */
 	let lastPointer: { x: number; y: number } | null = null;
 	let moveAnchor: { x: number; y: number } | null = null;
 	/**
@@ -298,11 +297,11 @@
 	let count = $state(NEXT_COUNT_S);
 	let mouse = $state(false);
 	/**
-	 * CURSOR (c678, c713): the player has no timer of its own. It has its own
+	 * CURSOR: the player has no timer of its own. It has its own
 	 * key, on by default (`$lib/reader/cursor`), and the cursor goes exactly when
 	 * the controls go during playback (`chrome` false, HIDE_MOUSE_MS after the
 	 * last move) and comes back whenever they do: a move, a key, a pause.
-	 * The KEYS dialog holds both up (round 2): `?` is a key that brings the
+	 * The KEYS dialog holds both up: `?` is a key that brings the
 	 * bar, then opens the dialog, and the option must not hide the cursor over
 	 * it or its ✕.
 	 */
@@ -319,7 +318,7 @@
 			hideTimer = setTimeout(() => (chrome = false), mouse ? HIDE_MOUSE_MS : HIDE_TOUCH_MS);
 	}
 
-	// BACK (c235): the panel, then the bar, then the series -- which is the
+	// BACK: the panel, then the bar, then the series -- which is the
 	// screen's own Escape below, so the last step is not this function's.
 	$effect(() =>
 		registerBack(() => {
@@ -327,7 +326,7 @@
 				keysOpen = false;
 				return true;
 			}
-			// MORE's list climbs before the sheet closes (c386).
+			// MORE's list climbs before the sheet closes.
 			if (sheet && moreOf) {
 				void closeMore();
 				return true;
@@ -337,8 +336,8 @@
 				return true;
 			}
 			if (chrome && phase === 'playing') {
-				// On a TV only: elsewhere BACK was never the bar's (c235 keeps the
-				// phone, tablet and desktop player as it was, Esc leaving it).
+				// On a TV only: elsewhere BACK is not the bar's (the phone, tablet
+				// and desktop player leave on Esc).
 				if (!tv.current) return false;
 				chrome = false;
 				clearTimeout(hideTimer);
@@ -352,7 +351,7 @@
 	 * The panel's rows are redrawn when the playing server changes under it (a
 	 * stream that fails over), and the row focus was on goes with them. A TV has
 	 * nowhere else to be, so the panel takes focus back rather than dropping the
-	 * mark to nothing (TV-Board-Player 6E).
+	 * mark to nothing.
 	 */
 	$effect(() => {
 		if (!sheet) return;
@@ -389,7 +388,7 @@
 		duration ? offerNextAt(duration, streams?.ending?.start ?? null) : Infinity
 	);
 	const offering = $derived(phase === 'playing' && !!next && !stay && time >= offerAt);
-	/** SKIP on screen: alone for its first seconds, then with the bar (c156). */
+	/** SKIP on screen: alone for its first seconds, then with the bar. */
 	const skipShown = $derived(!!skip && (chrome || skipAlone));
 	const endcardShown = $derived(offering && !!next);
 	/**
@@ -402,15 +401,15 @@
 		!!workNext && !next && !workClosed && phase === 'playing' && time >= offerAt
 	);
 	/**
-	 * The overlay a TV's pad starts on (c296), PLAY NOW over SKIP: both cannot
+	 * The overlay a TV's pad starts on, PLAY NOW over SKIP: both cannot
 	 * be up today (`inEnding` stands down when there is a next), but an ending
-	 * skip and PLAY NOW do the same thing and the card is the button the owner
+	 * skip and PLAY NOW do the same thing and the card is the button the viewer
 	 * reaches for, so the card stays first if they ever can be.
 	 */
 	const overlay = $derived<'next' | 'skip' | 'work' | null>(
 		endcardShown ? 'next' : workCardShown ? 'work' : skipShown ? 'skip' : null
 	);
-	/** The bar's ↑, when an overlay is up: back to the button it was left from (c296). */
+	/** The bar's ↑, when an overlay is up: back to the button it was left from. */
 	const focusUp = $derived(
 		!tv.current || !overlay
 			? undefined
@@ -435,7 +434,7 @@
 		})
 	);
 
-	// ---- who a TV's keys are for (c296) ------------------------------------------------------------
+	// ---- who a TV's keys are for ------------------------------------------------------------
 	/** Whether the last thing focused was one of the overlay's buttons. */
 	let overlayHadFocus = false;
 	/** The offer that last took the pad, whether or not the chrome drew it. */
@@ -456,11 +455,11 @@
 	}
 
 	/**
-	 * The offer as it *exists*, not as the chrome draws it (c296, round 2): a
+	 * The offer as it *exists*, not as the chrome draws it: a
 	 * SKIP inside its 8 s alone window shows without the bar, and one whose
 	 * window has closed shows only with it, so keying the auto-focus on what is
-	 * on screen moved the mark every time the bar was revealed -- off the ▶❚❚
-	 * the owner had just asked for. The offer takes the pad when it starts; a
+	 * on screen would move the mark every time the bar was revealed -- off the
+	 * ▶❚❚ the viewer had just asked for. The offer takes the pad when it starts; a
 	 * bar that reveals an offer already running leaves focus where it is.
 	 */
 	const offer = $derived<'next' | 'skip' | 'work' | null>(
@@ -468,7 +467,7 @@
 	);
 
 	/**
-	 * PLAY NOW, and SKIP, take focus the moment they are offered on a TV (c296):
+	 * PLAY NOW, and SKIP, take focus the moment they are offered on a TV:
 	 * OK then does the thing the card offers, in one press. Only a TV, never a
 	 * pointer, never over an open sheet. An owner already on the button keeps
 	 * it, and PLAY NOW wins over SKIP when both could be up (see `overlay`).
@@ -491,7 +490,7 @@
 
 	/**
 	 * The chrome's own 4 s (HIDE_TOUCH_MS) must not strand the pad on a cell it
-	 * has just hidden (c296, round 2): with the card or SKIP up, `.top` and
+	 * has just hidden: with the card or SKIP up, `.top` and
 	 * `.bottom` are `data-focus-skip`, so a cell focused there is no stop any
 	 * more -- every arrow runs the layer's "nothing focused" path (STAY) and OK
 	 * clicks the track, which has nothing to do. While an offer is up the offer
@@ -513,7 +512,7 @@
 	 * When the card or SKIP goes away (STAY, a skip, the mark passed, the
 	 * alone window closing), focus lands somewhere real: the seek bar when it
 	 * is shown, else nothing -- and the picture keeps the keys. Never on the
-	 * node that was removed (c296).
+	 * node that was removed.
 	 */
 	$effect(() => {
 		if (!tv.current || overlay !== null || !overlayHadFocus) return;
@@ -569,7 +568,7 @@
 	const playable = (e: Episode | null) => !!e && (offline.online || cached.has(e.id));
 
 	/**
-	 * `?t=` (c734; doc/HIGHLIGHTS.md, "The way back"): the second this open is
+	 * `?t=` (doc/HIGHLIGHTS.md, "The way back"): the second this open is
 	 * heading for, over the saved place, once. Read here and not on every start:
 	 * a retry after a failure hasn't used it yet and still should, and a stream
 	 * that fell over and reloaded has, and carries its own second.
@@ -620,7 +619,7 @@
 		keepNext();
 		await tick();
 		// The ending the resolve just found is the one watching counts from, even
-		// before the page's own data has it (c239).
+		// before the page's own data has it.
 		const open =
 			at === undefined
 				? openAt({
@@ -635,7 +634,7 @@
 		if (open?.resumed && linked === null) showResumed(open.at);
 	}
 
-	/** The quality this device starts on (Anime Calls 01): its own choice, else the best, 720 on a phone. */
+	/** The quality this device starts on: its own choice, else the best, 720 on a phone. */
 	function startIndex(s: Server): number {
 		const want = load<number | null>('tsundoku:anime:quality', null);
 		const phone = matchMedia('(max-width: 599px), (max-height: 499px)').matches;
@@ -777,7 +776,7 @@
 	}
 
 	// The stall clock: a buffer that doesn't fill for 15 s moves to the next
-	// server. The rule of when it runs is stallClock's (c867); this is its timer.
+	// server. The rule of when it runs is stallClock's; this is its timer.
 	let stallTimer: ReturnType<typeof setInterval> | undefined;
 	let stallState: StallClock = NO_STALL;
 	/** HAVE_FUTURE_DATA: enough at the position to play on from it. */
@@ -814,7 +813,7 @@
 	let finished = ep.readAt !== null;
 	let lastSent = 0;
 	/**
-	 * What played, for the log's `duration_ms` (card c443; doc/READING-LOG.md).
+	 * What played, for the log's `duration_ms` (doc/READING-LOG.md).
 	 * Only time actually playing counts: paused, buffering, a seek and a hidden
 	 * page are not watching (WatchClock). A picture in a floating window is.
 	 */
@@ -856,14 +855,14 @@
 	/**
 	 * The file's own length, as soon as it is known: the episode's stored one
 	 * is a catalogue's figure, and before the first timeupdate a seek on the
-	 * scrubber went by it (c387: a paused 8 s clip, tapped at its middle, went
+	 * scrubber went by it (a paused 8 s clip, tapped at its middle, went
 	 * to 720 s of a stored 24 minutes, clamped to the end).
 	 */
 	function onDuration() {
 		if (video && Number.isFinite(video.duration) && video.duration > 0) duration = video.duration;
 		else return;
 		// The file's own length is the first that can refuse a `?t=` no catalogue
-		// could (c734): past it, this open is the plain one it would have been.
+		// could: past it, this open is the plain one it would have been.
 		if (pastEnd && heldAt !== null && heldAt >= video.duration) {
 			const open = pastEnd;
 			heldAt = null;
@@ -921,13 +920,13 @@
 			void send('finish');
 		}
 		phase = 'ended';
-		// It never plays by itself into an episode that can't play (Anime Calls 01, default 4).
+		// It never plays by itself into an episode that can't play.
 		if (next && !stay && playable(next)) runCount();
 	}
 
 	/**
-	 * While an episode plays, the device keeps the next one if it's downloaded
-	 * (Anime Calls 01, default 5). Nothing of a hidden series, nothing while
+	 * While an episode plays, the device keeps the next one if it's downloaded.
+	 * Nothing of a hidden series, nothing while
 	 * reveal is on, nothing incognito: those leave nothing behind.
 	 */
 	function keepNext() {
@@ -953,7 +952,7 @@
 			if (count <= 0) {
 				clearInterval(countTimer);
 				// Not if the player is on its way out: the next episode would
-				// replace the navigation away with one back in (c565).
+				// replace the navigation away with one back in.
 				if (!leavingReader()) playNext();
 			}
 		}, 1000);
@@ -984,7 +983,7 @@
 		video.currentTime = Math.max(0, Math.min(duration || Infinity, video.currentTime + by));
 		time = video.currentTime;
 	}
-	/** The seek the bar and the media keys show: the flash names the move (c296). */
+	/** The seek the bar and the media keys show: the flash names the move. */
 	function seekWithFlash(by: number) {
 		seek(by);
 		seekFlash = { by, to: time };
@@ -994,7 +993,7 @@
 	}
 	/** ←/→: the track is a slider and flashes; the picture's own seek stays quiet. */
 	function seekArrow(by: number) {
-		// Either track: the bar's, or portrait's under the picture (c387).
+		// Either track: the bar's, or portrait's under the picture.
 		if (document.activeElement instanceof HTMLElement && document.activeElement.matches('.track'))
 			seekWithFlash(by);
 		else seek(by);
@@ -1004,7 +1003,7 @@
 		const skippingEnding = !inIntro && !!streams?.ending;
 		const r = inIntro ? streams?.intro : streams?.ending;
 		if (r) video.currentTime = r.end;
-		// SKIP ENDING is the owner's other way of finishing an episode (c239):
+		// SKIP ENDING is the viewer's other way of finishing an episode:
 		// the episode counts as watched the moment it is pressed, not only when
 		// the seek's next timeupdate happens to land.
 		if (skippingEnding && !finished) {
@@ -1022,9 +1021,9 @@
 	let hoverAt = $state<number | null>(null);
 	/**
 	 * The line's box, not the element's: on a TV the track carries a
-	 * transparent left border so ↑ from ▶❚❚ can reach it (c296), and the line
-	 * starts after it. Nothing points at a TV, so no click lands in that border
-	 * (c315); everywhere else `clientLeft` is 0.
+	 * transparent left border so ↑ from ▶❚❚ can reach it, and the line
+	 * starts after it. Nothing points at a TV, so no click lands in that
+	 * border; everywhere else `clientLeft` is 0.
 	 */
 	function scrubBox(el: HTMLElement): { left: number; width: number } {
 		const box = el.getBoundingClientRect();
@@ -1032,7 +1031,7 @@
 	}
 	/**
 	 * Where on the timeline a pointer is, 0 to 1, measured on the track it is
-	 * over. There are two tracks, the bar's and portrait's (c387), and only one
+	 * over. There are two tracks, the bar's and portrait's, and only one
 	 * is drawn at a time: the hidden one's box is 0 wide, so the event's own
 	 * track is the one to measure, never a ref to either.
 	 */
@@ -1069,7 +1068,7 @@
 		if (e.buttons & 1) scrubTo(e);
 	}
 
-	// ---- the seek preview (c385; doc/ANIME.md, "The player") ------------------------------------
+	// ---- the seek preview (doc/ANIME.md, "The player") ------------------------------------
 	// A downloaded episode shows its sprite's tile in the tip, once the
 	// workstation has cut it; until then, and for a downloaded episode always,
 	// the time alone. A stream shows a frame of its own lowest quality, read by
@@ -1082,10 +1081,10 @@
 	/**
 	 * On a TV there is no pointer: ← → (and ⏩ ⏪) move the time, and while the
 	 * move's flash is up the bar's tip shows the sprite's tile for where it
-	 * landed, above the time, kept inside the track as the pointer's is
-	 * (c457). A downloaded episode's sprite only: a stream's hidden second
-	 * picture is a pointer's (it fetches a segment a stop), so a stream's bar
-	 * shows the time alone, as before.
+	 * landed, above the time, kept inside the track as the pointer's is.
+	 * A downloaded episode's sprite only: a stream's hidden second picture is a
+	 * pointer's (it fetches a segment a stop), so a stream's bar shows the time
+	 * alone.
 	 */
 	const tvTipAt = $derived(
 		tv.current && sprite && seekFlash && hoverAt === null ? seekFlash.to : null
@@ -1099,7 +1098,7 @@
 		if (!q) return;
 		clearTimeout(previewTimer);
 		previewTimer = setTimeout(async () => {
-			// Taken before anything is awaited (c574): the first stop may wait on
+			// Taken before anything is awaited: the first stop may wait on
 			// hls.js's chunk, and a leave, a later stop or the player going away
 			// meanwhile must find this stop already counted, so it is over.
 			const ask = ++previewAsk;
@@ -1117,7 +1116,7 @@
 			streamPic = pic ? { src: pic, at } : null;
 		}, PREVIEW_DEBOUNCE_MS);
 	}
-	// ---- picture-in-picture (c388; doc/ANIME.md, "The player"; pip.ts) ------------------------
+	// ---- picture-in-picture (doc/ANIME.md, "The player", pip.ts) ------------------------
 	let stage = $state<HTMLElement | null>(null);
 	let pipWin: Window | null = null;
 	/** The picture layer is in a Document Picture-in-Picture window. */
@@ -1186,14 +1185,14 @@
 	}
 	let pipInputOff: (() => void) | null = null;
 	/**
-	 * The floating window's own input (round 2 of c388). The tapzone's
-	 * pointer handlers are Svelte's delegated ones, whose one listener is on
-	 * the page's root, and the keys are the page's window: neither hears the
-	 * floating window's document. So the window gets native listeners of its
-	 * own, removed when the picture comes back: a click on the picture plays
-	 * or pauses as it does on the page, and the player's keys work with the
-	 * window focused, except Escape, which brings the picture back rather
-	 * than leaving the page behind it.
+	 * The floating window's own input. The tapzone's pointer handlers are
+	 * Svelte's delegated ones, whose one listener is on the page's root, and
+	 * the keys are the page's window: neither hears the floating window's
+	 * document. So the window gets native listeners of its own, removed when
+	 * the picture comes back: a click on the picture plays or pauses as it does
+	 * on the page, and the player's keys work with the window focused, except
+	 * Escape, which brings the picture back rather than leaving the page behind
+	 * it.
 	 */
 	function pipInput(w: Window): () => void {
 		// Not `instanceof w.Element`: a node moved in keeps the page's prototypes.
@@ -1231,7 +1230,7 @@
 		pipWin = null;
 		inDocPip = false;
 	}
-	/** Every door out of PiP: PIP again, NEXT, leaving the page. Never a dead window. */
+	/** Every way out of PiP: PIP again, NEXT, leaving the page. Never a dead window. */
 	function closePip() {
 		const w = pipWin;
 		putBack();
@@ -1246,7 +1245,7 @@
 		preview?.leave();
 		streamPic = null;
 	}
-	// Leaving the page is leaving the bar, from the moment it starts (c574).
+	// Leaving the page is leaving the bar, from the moment it starts.
 	// The player stays mounted until the next page's data has loaded: SvelteKit
 	// swaps the page only after its load, so a stop whose hls.js chunk came in
 	// that window would open a preview behind the way out (the player's sheets
@@ -1256,10 +1255,9 @@
 	});
 
 	// Taps on the picture: on a touch screen one shows or hides the controls,
-	// and two on a side third seek 10 s, each further tap 10 more (Anime Calls,
-	// "The picture is the interface"). On a mouse a click plays or pauses, and
-	// the controls come back by moving the pointer past a threshold (c217,
-	// c218): neither a jitter nor a drag is a click.
+	// and two on a side third seek 10 s, each further tap 10 more. On a mouse a
+	// click plays or pauses, and the controls come back by moving the pointer
+	// past a threshold: neither a jitter nor a drag is a click.
 	let taps: {
 		side: -1 | 0 | 1;
 		n: number;
@@ -1312,7 +1310,7 @@
 	}
 
 	/**
-	 * A held ⏩ / ⏪ moves at most one step this often (c865). The TV app turns
+	 * A held ⏩ / ⏪ moves at most one step this often. The TV app turns
 	 * every Android `ACTION_DOWN` into a DOM keydown, repeats included, and its
 	 * synthetic event claims `repeat: false` (Keys.kt's `dispatchScript`), so
 	 * `e.repeat` alone cannot tell a hold from presses; the pace can. It is
@@ -1320,13 +1318,13 @@
 	 *
 	 * The pace ends with the key: the app sends the one `ACTION_UP` as a keyup
 	 * (Keys.kt), so a press after the button is released is a press again, not
-	 * a repeat inside the hold. A door that never sends a keyup still leaves it
+	 * a repeat inside the hold. A remote that never sends a keyup still leaves it
 	 * at most this old.
 	 */
 	const MEDIA_STEP_MS = 500;
 	let lastJump: { of: 'forward' | 'back' | null; at: number } = { of: null, at: 0 };
 
-	/** ⏩ or ⏪ let go: the hold is over, so the next press moves (c865). */
+	/** ⏩ or ⏪ let go: the hold is over, so the next press moves. */
 	function mediaKeyUp(e: KeyboardEvent) {
 		const of = e.key === 'MediaFastForward' ? 'forward' : e.key === 'MediaRewind' ? 'back' : null;
 		if (of && lastJump.of === of) lastJump = { of: null, at: 0 };
@@ -1350,7 +1348,7 @@
 		if (media) {
 			e.preventDefault();
 			if (media === 'toggle') toggle();
-			// ⏩ ⏪ are the long jump (c865): a movie is not clicked through 10 s
+			// ⏩ ⏪ are the long jump: a movie is not clicked through 10 s
 			// at a time, and ← → keep the fine step on every device. A browser's
 			// own repeats are dropped by `e.repeat`; a remote's arrive as fresh
 			// keydowns, which the pace above limits instead. So a held ⏩ moves a
@@ -1367,23 +1365,23 @@
 		}
 
 		if (keysOpen || sheet) {
-			// BACK closes MORE's list before the sheet (c386), and gives MORE its focus back.
+			// BACK closes MORE's list before the sheet, and gives MORE its focus back.
 			if (e.key === 'Escape' && moreOf) closeMore();
 			else if (e.key === 'Escape') keysOpen = sheet = false;
 			return;
 		}
 		const k = e.key;
 		// ← → between STAY and PLAY NOW belong to the focus layer while the
-		// card has focus; the picture's seek must not also fire (c296).
+		// card has focus; the picture's seek must not also fire.
 		if (
 			(k === 'ArrowLeft' || k === 'ArrowRight') &&
 			document.activeElement instanceof Element &&
 			document.activeElement.closest('.endcard')
 		)
 			return;
-		// On a TV the picture is the interface (TV-Board-Player 6A). With the
+		// On a TV the picture is the interface. With the
 		// bar hidden a key brings it: OK, ↑ or ↓ on ▶❚❚; ← → seek and then
-		// keep seeking on the bar itself (c296). While a card or SKIP is up the
+		// keep seeking on the bar itself. While a card or SKIP is up the
 		// focus layer owns their arrows and OK, so this branch only takes ↓
 		// into the bar (their buttons have no stop below them).
 		if (
@@ -1396,7 +1394,7 @@
 				k === 'ArrowRight')
 		) {
 			e.preventDefault();
-			// The Work card (`.upn`) is an offer too (c517): measured on a Work's
+			// The Work card (`.upn`) is an offer too: measured on a Work's
 			// last episode, ↓ and ↑ from it brought the bar on ▶❚❚ instead.
 			const onOverlay =
 				document.activeElement instanceof HTMLElement &&
@@ -1407,16 +1405,17 @@
 				seekWithFlash(k === 'ArrowLeft' ? -10 : 10);
 				scrub?.focus({ preventScroll: true });
 			} else if ((k === 'ArrowDown' || k === 'ArrowUp') && onOverlay) {
-				// ↓ out of the card (PLAY NOW's or the Work's, or SKIP) is into the bar; the owner is on the
-				// controls now, so the bar comes with it (c296). ↑ has nothing
-				// above it, so the offer keeps the pad rather than opening the bar
-				// underneath it and taking the focus back off the button.
+				// ↓ out of the card (PLAY NOW's or the Work's, or SKIP) is into
+				// the bar; the viewer is on the controls now, so the bar comes
+				// with it. ↑ has nothing above it, so the offer keeps the pad
+				// rather than opening the bar underneath it and taking the focus
+				// back off the button.
 				if (k === 'ArrowDown') {
 					showChrome();
 					scrub?.focus({ preventScroll: true });
 				}
 			} else {
-				// 6A/6B: the key brings the bar and puts focus on ▶❚❚, so the next
+				// The key brings the bar and puts focus on ▶❚❚, so the next
 				// press is the one that acts.
 				showChrome();
 				barStart()?.focus();
@@ -1444,7 +1443,7 @@
 
 	const VOLUME_KEY = 'tsundoku:anime:volume';
 	/**
-	 * The one door every volume change goes through (c385): the slider, the
+	 * The one function every volume change goes through: the slider, the
 	 * wheel and ↑ ↓. The level is this device's and the next episode starts at
 	 * it; mute is never written, so a muted episode can't leave the next one
 	 * silent. Setting a level above 0 unmutes, as a slider moved while muted
@@ -1456,7 +1455,7 @@
 		save(VOLUME_KEY, volume);
 		if (muted && volume > 0) setMuted(false);
 	}
-	/** The VOL cell's slider (c385): a pointer's, so it has no key handler; ↑ ↓ are the keys. */
+	/** The VOL cell's slider: a pointer's, so it has no key handler; ↑ ↓ are the keys. */
 	let volOpen = $state(false);
 	function volAt(e: PointerEvent) {
 		const el = e.currentTarget as HTMLElement;
@@ -1502,7 +1501,7 @@
 		void loadSubtitles();
 	}
 	/**
-	 * The AUDIO and SUBTITLES rows (c386; doc/ANIME.md, "The settings sheet"):
+	 * The AUDIO and SUBTITLES rows (doc/ANIME.md, "The settings sheet"):
 	 * a wrapping grid of codes, and past LANG_ROW_MAX languages only those that
 	 * matter, the rest one per line behind MORE · N. [moreOf] is the row whose
 	 * list is open.
@@ -1573,7 +1572,7 @@
 	}
 
 	let root = $state<HTMLElement | null>(null);
-	/** The bar's own start: ▶❚❚ (TV-Focus, "PLAYER"). */
+	/** The bar's own start: ▶❚❚. */
 	const barStart = () => root?.querySelector<HTMLElement>('.cells [data-focus-start]') ?? null;
 	async function full() {
 		try {
@@ -1607,7 +1606,7 @@
 			removeEventListener('pagehide', close);
 			// NEXT and leaving the page destroy the player: the picture comes back
 			// first, and the floating window goes with it rather than staying
-			// empty (c388). Here and not in onDestroy, which runs on the server too.
+			// empty. Here and not in onDestroy, which runs on the server too.
 			closePip();
 			if (document.pictureInPictureElement === video)
 				void document.exitPictureInPicture().catch(() => undefined);
@@ -1616,7 +1615,7 @@
 	onDestroy(() => {
 		if (opened) void send('close');
 		detach();
-		// A stop still waiting on hls.js's chunk must not open a preview on a gone player (c574).
+		// A stop still waiting on hls.js's chunk must not open a preview on a gone player.
 		previewAsk++;
 		preview?.destroy();
 		for (const t of [waitTimer, checkTimer, stallTimer, countTimer]) clearInterval(t);
@@ -1633,8 +1632,8 @@
 		if (!quality || chosenHere) return;
 		const audio = quality.audio.map((a) => a.lang);
 		const subs = quality.subtitles.map((t) => t.lang);
-		// A choice kept before c386 named PT for what is PT-BR now, or HUN
-		// for HU: each is read as the offered track it meant (matchLang).
+		// An older kept choice may name PT for PT-BR, or HUN for HU: each is
+		// read as the offered track it meant (matchLang).
 		const fit = (c: TrackChoice): TrackChoice => ({
 			...c,
 			audio: c.audio === undefined ? undefined : (matchLang(c.audio, audio) ?? c.audio),
@@ -1673,7 +1672,7 @@
 
 <svelte:window onkeydown={keydown} onkeyup={mediaKeyUp} />
 
-<!-- A language row of the sheet (c386): equal cells of codes, as many to a line
+<!-- A language row of the sheet: equal cells of codes, as many to a line
      as fit, the name in full as each one's title; MORE · N opens the rest as a
      list, one language a line, in the same sheet. -->
 {#snippet langGrid(
@@ -1736,7 +1735,7 @@
 	{/if}
 {/snippet}
 
-<!-- The scrubber's tip (c387, c385): the time under the pointer, and above it
+<!-- The scrubber's tip: the time under the pointer, and above it
      the frame there when there is one, kept inside the track. -->
 {#snippet tip(at: number)}
 	{@const tile = sprite ? spriteTile(sprite, at) : null}
@@ -1812,7 +1811,7 @@
 		     page and in a Document Picture-in-Picture window alike. The <track> is the same
 		     WebVTT for the browser's own picture-in-picture only, which moves the <video>
 		     alone: always showing, its cues drawn invisibly on the page except while the
-		     browser says that is open (c388, pip.ts). -->
+		     browser says that is open (pip.ts). -->
 		<video
 			bind:this={video}
 			bind:paused
@@ -1846,7 +1845,7 @@
 				{/key}
 			{/if}
 		</video>
-		<!-- A surface that draws nothing: hovering or clicking the picture never tints it (c485). -->
+		<!-- A surface that draws nothing: hovering or clicking the picture never tints it. -->
 		<button
 			type="button"
 			class="tapzone"
@@ -1872,14 +1871,14 @@
 	</div>
 
 	{#if inDocPip}
-		<!-- The picture is in its own window: the page says so where it was (c388). -->
+		<!-- The picture is in its own window: the page says so where it was. -->
 		<div class="pipnote" role="status">
 			<div>IN PICTURE-IN-PICTURE</div>
 			<div class="mut">PIP · ON BRINGS IT BACK</div>
 		</div>
 	{/if}
 
-	<!-- + ADD for a browsing record: the playing bars' cell, and NO SERVER's way out (c999). -->
+	<!-- + ADD for a browsing record: the playing bars' cell, and NO SERVER's way out. -->
 	{#snippet addCell(cls: string)}
 		{#if data.record?.preview}
 			<!-- A browsing record has no rating or FAV to trade; + ADD takes the cell
@@ -1998,8 +1997,7 @@
 		{/if}
 
 		<!-- The middle cluster: −1m, −10, pause, +10, +1m, under the thumb. It steps
-		     aside while a waiting box holds the middle (Player Waiting 3a draws the
-		     box alone): the two overlapped (reported 2026-10-29). -->
+		     aside while a waiting box holds the middle: the two would overlap. -->
 		<div
 			class="cluster"
 			class:aside={(stalled !== null && stallSeconds >= 2) || !!serverNotice || !!qualityNotice}
@@ -2064,10 +2062,10 @@
 					onpointerleave={leaveScrub}
 					onclick={(e) => {
 						// OK on the pad clicks the focused thing (the layer's OK press), and
-						// the bar is an arrow stop since c296. A pointer's click on the bar is
+						// the bar is an arrow stop. A pointer's click on the bar is
 						// a seek, so only a detail-less click -- one an element made -- is the
 						// pad's, and it toggles the picture, the nearest verb the bar's own
-						// row acts out (c296, the review's round-1 low 5).
+						// row acts out.
 						if (e.detail === 0) toggle();
 					}}
 				>
@@ -2093,7 +2091,7 @@
 					onclick={toggle}
 					>{#if paused}▶{:else}<i></i><i></i>{/if}</button
 				>
-				<!-- A minute either side (c865): the desktop's bar has no 10 s cells
+				<!-- A minute either side: the desktop's bar has no 10 s cells
 				     (← → do that on a keyboard), so these stand on their own. -->
 				<button
 					type="button"
@@ -2107,9 +2105,9 @@
 					aria-label="On a minute"
 					onclick={() => (seek(60), showChrome())}>+1m</button
 				>
-				<!-- A TV's bar, its cells on one row (TV-Board-Player 6B). They are
+				<!-- A TV's bar, its cells on one row. They are
 				     hidden elsewhere: there, the cluster in the middle is the thumb's.
-				     −1m / +1m sit outside the 10 s pair (c865), where a remote's ⏪ / ⏩
+				     −1m / +1m sit outside the 10 s pair, where a remote's ⏪ / ⏩
 				     are the same jump. -->
 				<button
 					type="button"
@@ -2138,7 +2136,7 @@
 				<button type="button" class="cell" disabled={!prev} onclick={playPrev}
 					>{prev ? `← ${epShort(prev)}` : '←'}</button
 				>
-				<!-- VOL (c385): the label mutes, as before; hovering or clicking it opens
+				<!-- VOL: the label mutes; hovering or clicking it opens
 				     the slider above it, and the wheel over either steps 5 %. -->
 				<div
 					class="vol desk"
@@ -2234,7 +2232,7 @@
 				{@render addCell('padd')}
 				<button type="button" onclick={full}>FULL</button>
 			</div>
-			<!-- The scrubber under the picture (c387): the bar's own handlers and
+			<!-- The scrubber under the picture: the bar's own handlers and
 			     slider role, measured on this track. It sits outside the scrolling
 			     body, so a drag's tip can rise over the picture rather than be
 			     clipped, and what is next scrolls under it. -->
@@ -2271,7 +2269,7 @@
 					>
 					<button type="button" aria-label="On 10 seconds" onclick={() => seek(10)}>+10</button>
 					<button type="button" aria-label="On a minute" onclick={() => seek(60)}>+1m</button>
-					<!-- Six 60 px cells at 360 px (c865): the handoff's 'EN · 720P'
+					<!-- Six 60 px cells at 360 px: 'EN · 720P'
 					     wraps there, so the phone's cell shows the code alone; the
 					     sheet's own rows carry the language and the quality. -->
 					<button type="button" class="small" onclick={() => (sheet = true)}
@@ -2425,7 +2423,7 @@
 				AUDIO AND SUBTITLES CARRY TO EVERY EPISODE OF THE SERIES · SPEED TO THIS ONE · QUALITY TO
 				THIS DEVICE
 			</div>
-			<!-- ALL SETTINGS →: the page, at WATCHING (Reach, readerSheet; card c171). -->
+			<!-- ALL SETTINGS →: the page, at WATCHING (readerSheet). -->
 			<a class="all-settings" href="{resolve('/settings')}?section=watching"
 				><span>ALL SETTINGS →</span><span class="n">DEFAULTS, AND WHAT EACH ROW KEEPS</span></a
 			>
@@ -2442,7 +2440,7 @@
 		></button>
 		<!-- The rows scroll under a head that stays, as the settings sheet's do:
 		     eleven 56px rows and the head are 672px, past a TV's 540px panel and a
-		     short window's (c715). Each row is a stop, so the pad walks to the
+		     short window's. Each row is a stop, so the pad walks to the
 		     last and the layer scrolls it into view; the scope keeps the pad in
 		     the sheet while it is open. -->
 		<div
@@ -2601,7 +2599,7 @@
 				{#if phase === 'noServer'}
 					<!-- The way out when a source sends no video (doc/MOVE.md), only where
 					     MOVE opens. A browsing record's MOVE never does, so its way out is
-					     + ADD, after which MOVE exists (c999). -->
+					     + ADD, after which MOVE exists. -->
 					{#if data.canMove}
 						<a class="icell bl" href={moveHref}>ANOTHER SOURCE →</a>
 					{:else}
@@ -2652,8 +2650,7 @@
 		text-align: right;
 	}
 	/*
-	 * The literals are the handoff's (Index Player, Player States, Player
-	 * Waiting): a 64px top bar, a 56px scrubber over 64px cells, a 96px
+	 * The literals are the design's: a 64px top bar, a 56px scrubber over 64px cells, a 96px
 	 * cluster, a 520px sheet. Tokens for colour; the picture's ground is true
 	 * black, as the reader's is.
 	 */
@@ -2674,7 +2671,7 @@
 		--bar-h: 26px;
 		--sub-base: 30px;
 	}
-	/* CURSOR on, playing, and the controls gone (c678): the cursor goes
+	/* CURSOR on, playing, and the controls gone: the cursor goes
 	   with them, on the class the chrome's own state already gives, and comes
 	   back whenever the controls do. Every descendant is covered because a
 	   cell sets its own pointer cursor. */
@@ -2722,7 +2719,7 @@
 	   invisible on the page, where tsundoku draws its own line. !important
 	   because Chromium writes a user's OS caption style (Accessibility >
 	   Captions) as inline style on the cue box, and inline style beats a normal
-	   author rule; an author !important beats it (c449). */
+	   author rule; an author !important beats it. */
 	video.cueless::cue {
 		color: transparent !important;
 		background: transparent !important;
@@ -2996,10 +2993,10 @@
 	/* ---- the chrome: shown on a tap, gone after a few seconds ---- */
 	/* The bars fade both ways here, on the app's own timing (base.css, .appear):
 	   they're kept in the page and hidden by class, so they can fade out too.
-	   The cluster does not fade (c217): it sits in the middle of the picture, and
+	   The cluster does not fade: it sits in the middle of the picture, and
 	   a box fading over the video read as a patch coming and going. It is all
 	   there from its first frame and gone on the next; its ground is translucent
-	   throughout (c429, below), which is a different thing from a fade. */
+	   throughout (below), which is a different thing from a fade. */
 	.top,
 	.bottom {
 		transition: opacity var(--motion-appear) var(--ease);
@@ -3020,10 +3017,10 @@
 		transform: translate(-50%, -50%);
 		display: flex;
 		/*
-		 * Translucent, so the frame shows through while the controls are up (the
-		 * owner, 2026-11-03, c429), and the glyphs at full strength. 70% of the
-		 * page's ground keeps the labels at AA over a white frame (5.9:1) as
-		 * well as a black one; browse-player-cluster measures both.
+		 * Translucent, so the frame shows through while the controls are up,
+		 * and the glyphs at full strength. 70% of the page's ground keeps the
+		 * labels at AA over a white frame (5.9:1) as well as a black one;
+		 * browse-player-cluster measures both.
 		 */
 		background: color-mix(in oklab, var(--surface-page) 70%, transparent);
 		border: var(--hairline);
@@ -3141,7 +3138,7 @@
 		border-right: 0;
 	}
 	/*
-	 * VOL (c385): the cell keeps its place in the row; the slider rises above
+	 * VOL: the cell keeps its place in the row; the slider rises above
 	 * it, a column of the bar's own surface with the hairline, its track the
 	 * scrubber's turned upright. It is open while the pointer is over either,
 	 * so the gap-free stack is what keeps it open on the way up.
@@ -3208,7 +3205,7 @@
 	.desk {
 		display: none;
 	}
-	/* The TV's own two cells: `−10` and `+10`, beside ▶❚❚ (TV-Board-Player 6B). */
+	/* The TV's own two cells: `−10` and `+10`, beside ▶❚❚. */
 	.cell.tv {
 		display: none;
 	}
@@ -3258,7 +3255,7 @@
 			var(--surface-panel) 0 8px,
 			var(--line-1) 8px 16px
 		);
-		/* The episode's picture, where it has one (c225), replaces the stripes. */
+		/* The episode's picture, where it has one, replaces the stripes. */
 		background-size: cover;
 		background-position: center;
 	}
@@ -3432,13 +3429,13 @@
 		font: 500 18px var(--font-mono);
 	}
 	/* The player is a fixed box over a page that doesn't scroll, so its sheets
-	   take no page lock; their scroll just ends at their edge (c1033). */
+	   take no page lock; their scroll just ends at their edge. */
 	.srows {
 		flex: 1;
 		overflow-y: auto;
 		overscroll-behavior: contain;
 	}
-	/* KEYS' rows (c715): the settings sheet's shape, the head outside the
+	/* KEYS' rows: the settings sheet's shape, the head outside the
 	   scroller. A row's mark is drawn inside it (`data-focus-mark="in"`), so
 	   the scroller's edge never clips it and no scroll padding is needed. */
 	.krows {
@@ -3489,7 +3486,7 @@
 		color: var(--surface-page);
 	}
 	/*
-	 * AUDIO and SUBTITLES (c386): equal cells as many to a line as fit (six in
+	 * AUDIO and SUBTITLES: equal cells as many to a line as fit (six in
 	 * the 520px sheet, four on a TV's 420px panel), wrapping, each a tap high.
 	 * A segmented row squeezed thirty languages into one line. The lines are
 	 * the cells' own right and bottom borders inside the grid's top and left,
@@ -3781,7 +3778,7 @@
 	.icell.bl {
 		border-left: var(--hairline);
 	}
-	/* NO SERVER's + ADD on a browsing record (c999): the form is the cell's box. */
+	/* NO SERVER's + ADD on a browsing record: the form is the cell's box. */
 	.icells form {
 		display: flex;
 	}
@@ -3892,7 +3889,7 @@
 		top: -8px;
 		height: 20px;
 	}
-	/* The whole 44px row is the finger's target, not the 4px line (c387). */
+	/* The whole 44px row is the finger's target, not the 4px line. */
 	.pscrub .track::before {
 		inset: -20px 0;
 	}
@@ -4040,7 +4037,7 @@
 		left: 0;
 		top: 0;
 		height: 4px;
-		/* Seen over video: line-2 on line-1 wasn't (reported 2026-10-29). */
+		/* Seen over video: line-2 on line-1 isn't. */
 		background: var(--text-2);
 	}
 	.track .seen {
@@ -4078,7 +4075,7 @@
 		font: 500 13px var(--font-mono);
 		pointer-events: none;
 		/* Half the tip with a frame (160 + its hairlines + padding): how far from
-		   the track's ends its middle may come, so the frame stays inside (c385). */
+		   the track's ends its middle may come, so the frame stays inside. */
 		--tip-half: 87px;
 	}
 	.track .tip.pic {
@@ -4096,9 +4093,9 @@
 		background-repeat: no-repeat;
 	}
 	/*
-	 * The settings panel on a TV (c235): the 420px panel every sheet is there
-	 * (c238), with the picture playing at the left, its scrim stopping where
-	 * the panel starts (TV-Player 6E).
+	 * The settings panel on a TV: the 420px panel every sheet is
+	 * there, with the picture playing at the left, its scrim stopping where
+	 * the panel starts.
 	 */
 	@media (pointer: none) and (min-width: 900px) {
 		.scrim {
@@ -4110,16 +4107,16 @@
 		}
 	}
 	/*
-	 * The player on a TV (c235; TV-Player): the safe margin applies to both
+	 * The player on a TV: the safe margin applies to both
 	 * bars, the scrubber is 60px over 56px cells, and the six cells are one
 	 * closed row. The middle cluster is the thumb's -- on a TV, the picture is
-	 * the interface until a key (6A), and then the bar is everything (6B).
+	 * the interface until a key, and then the bar is everything.
 	 *
 	 * The margin is inside the bars, not around them: each bar reaches its edge
 	 * of the screen and keeps what it holds 28px from the top or bottom and 48px
-	 * from the sides (TV-Player: 28 0 0 / 0 0 28 padding, 48 either side). Set
-	 * around them, the picture showed above the top bar and under the cells
-	 * (2026-11-02, the first real TV).
+	 * from the sides (28 0 0 / 0 0 28 padding, 48 either side). Set around
+	 * them, the picture shows above the top bar and under the cells on a real
+	 * TV.
 	 */
 	@media (pointer: none) and (min-width: 900px) {
 		.player {
@@ -4155,13 +4152,13 @@
 		 * The bar's cells start at the screen's edge while the line starts after
 		 * the time, so ▶❚❚ (49–125) did not overlap the line (126–826): ↑ from it
 		 * took the far-away top bar's ←, which does overlap, because an
-		 * overlapping candidate wins over a nearer one out of line (c296). The
+		 * overlapping candidate wins over a nearer one out of line. The
 		 * transparent border reaches the element's own box under that first
 		 * cell without moving the line: the fill is clipped to the padding box
 		 * and its children are positioned from there, so the bar looks the same
 		 * and ↑ from any cell in the row lands on it.
 		 *
-		 * Only here, where nothing points (c315): set on every bar, the border
+		 * Only here, where nothing points: set on every bar, the border
 		 * was a 20px strip between the time and the line that a click or a tap
 		 * turned into a seek to 0:00, where before it was inert.
 		 */

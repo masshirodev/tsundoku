@@ -13,11 +13,11 @@
 	 * block with the chapter and its page, a scrubber across the chapter, and
 	 * four cells: previous chapter, CONTENTS, READING, next. A book read right
 	 * to left mirrors the bottom -- vertical Japanese, and a horizontal book
-	 * whose DIRECTION is R→L in PAGED (c440): the scrubber fills from the right
+	 * whose DIRECTION is R→L in PAGED: the scrubber fills from the right
 	 * and the next chapter is on the left.
 	 *
-	 * On a TV it is a focus row once it is up, as the image reader's chrome is
-	 * (c241): OK brings it with focus on the scrubber, ↓ reaches CONTENTS and
+	 * On a TV it is a focus row once it is up, as the image reader's chrome
+	 * is: OK brings it with focus on the scrubber, ↓ reaches CONTENTS and
 	 * READING, and the scrubber keeps ← → so it still scrubs.
 	 */
 	let {
@@ -386,7 +386,7 @@
 		align-items: stretch;
 		height: 64px;
 		border-top: var(--hairline);
-		/* A phone's bar is narrower than its cells (c616): the row scrolls
+		/* A phone's bar is narrower than its cells: the row scrolls
 		   rather than hiding a cell past the edge, and no cell shrinks to a
 		   sliver. The bar's height is the reading area's, so no second row. */
 		overflow-x: auto;
@@ -432,7 +432,7 @@
 			min-width: 160px;
 		}
 	}
-	/* The reading sheet's cell: the summary gives way, SETTINGS ↑ stays (the owner, 2026-10-30). */
+	/* The reading sheet's cell: the summary gives way, SETTINGS ↑ stays. */
 	.cell.grow {
 		justify-content: space-between;
 		gap: 12px;

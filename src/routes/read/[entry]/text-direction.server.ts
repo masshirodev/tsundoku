@@ -4,11 +4,11 @@ import type { Kind } from '$lib/library/types';
 import type { TextDirection } from '$lib/reader/text';
 
 /**
- * A novel's reading direction, kept per series (card c440; doc/TEXT-READER.md,
- * "Direction"): `series.text_direction`, rung 69. NULL is 'never chosen', which
- * reads as the default, L→R; remembering either way stores that way (c617), so
- * a fold can tell a chosen L→R from a series nobody ever set. A row stored NULL
- * before c617 stays ambiguous: nothing recorded which it was.
+ * A novel's reading direction, kept per series (doc/TEXT-READER.md,
+ * "Direction"): `series.text_direction`, migration 69. NULL is 'never chosen', which
+ * reads as the default, L→R; remembering either way stores that way, so
+ * a fold can tell a chosen L→R from a series nobody ever set. A NULL stored by
+ * an older build may be a remembered L→R: nothing recorded which it was.
  * Its own column: `series.direction` already holds a novel's layout.
  */
 
