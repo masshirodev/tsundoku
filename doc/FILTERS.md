@@ -1,12 +1,9 @@
 # Filters
 
-Card c68 ("More library filters: unfavourited, unrated, hidden, languages; add
-a shelf from the sidebar"). The handoff is `doc/handoffs/done/Filters.zip`,
-mirrored as
-`design/handoff/Library Filters.dc.html`,
-of which **turn 3** is what's built (turns 1 and 2, an ONLY row and a panel
-beside an AT LEAST band, were superseded by it). The brief is
-`briefs/done/LIBRARY-FILTERS.md`.
+The library's FILTER panel narrows whatever shelf is showing: by rating,
+favourite, form, language, date added, download, follow, reading and (in
+reveal) hidden. This doc covers the panel, the rules behind each row, and
+making a new shelf.
 
 ## Shelves are where, filters are which
 
@@ -14,36 +11,25 @@ A shelf picks a part of the library: ALL, NEW, a collection. A filter
 narrows **whichever shelf is showing**, and filters combine with each other
 and with the shelf: unrated manhwa, not-favourited novels rated 3+, Japanese
 one-offs. The kind is a filter too, chosen on the library's KIND band rather
-than in the panel (c436; [`LIBRARY.md`](LIBRARY.md), "The KIND band").
+than in the panel ([`LIBRARY.md`](LIBRARY.md), "The KIND band").
 
-So turn 3 took three shelves off the tabs and made them filters:
+Some `?shelf=` keys name what is now a filter, and redirect (308) to ALL with
+that filter, keeping every other parameter (`legacyShelf`,
+`src/lib/library/filters.ts`):
 
-| Was the shelf       | Is now                       |
-| ------------------- | ---------------------------- |
-| FAVOURITES          | FAV → FAV (`?fav=1`)         |
-| RATED 4+ (and 3.5+) | RATING → AT LEAST (`?min=8`) |
-| DOWNLOADED          | DOWNLOADED → YES (`?dl=1`)   |
-
-An old link lands on the same books: `?shelf=favourites`, `rated4` and
-`downloaded` redirect (308) to ALL with the filter that replaced them
-(`legacyShelf`, `src/lib/library/filters.ts`).
-
-And c436 took the rest of the shelves that were about what a thing is:
-
-| Was the shelf                       | Is now                                  |
-| ----------------------------------- | --------------------------------------- |
-| SERIES, ONE-OFF                     | FORM → SERIES, ONE-OFF (`?form=series`) |
-| MANGA, MANHWA, NOVELS, ANIME (`k:`) | the KIND band's cell (`?kind=manga`)    |
-
-`?shelf=series`, `oneoff` and `k:<kind>` (any kind the registry names)
-redirect (308) the same way, keeping every other parameter.
+| `?shelf=`                                | Lands on                                |
+| ---------------------------------------- | --------------------------------------- |
+| `favourites`                             | FAV → FAV (`?fav=1`)                    |
+| `rated4` (and 3.5+)                      | RATING → AT LEAST (`?min=8`)            |
+| `downloaded`                             | DOWNLOADED → YES (`?dl=1`)              |
+| `series`, `oneoff`                       | FORM → SERIES, ONE-OFF (`?form=series`) |
+| `k:<kind>` (any kind the registry names) | the KIND band's cell (`?kind=manga`)    |
 
 FORM splits the library by shape, which a kind band cannot say:
 
-- **ONE-OFF**: single books -- a series of a kind GROUP binds into a series
-  of books, holding one book or none. Since c558 (the owner, 2026-11-05: an
-  extra doesn't make a series) one rule says what a book is, and every reader
-  counts with it:
+- **ONE-OFF**: single books. A series of a kind GROUP binds into a series of
+  books, holding one book or none. An extra does not make a series. One rule
+  says what a book is, and every reader counts with it:
   - **the kinds** are the registry's `grouping === 'books'`
     (`kindsGrouped('books')`, `src/lib/library/kinds.ts`; today the doujin
     alone), never a kind's name;
@@ -54,8 +40,8 @@ FORM splits the library by shape, which a kind band cannot say:
 
   The readers, all on `isBookSql`, `entryCount` or the same two conditions:
   - the server's `ONE_OFF_SQL` (`src/lib/server/books.ts`, which
-    `src/lib/server/library.ts` imports: FORM's count, its grid, and the old
-    `oneoff` and `series` shelves);
+    `src/lib/server/library.ts` imports: FORM's count, its grid, and the
+    `oneoff` and `series` shelf keys);
   - the device's `isOneOff` (`src/lib/library/filters.ts`, over the card's
     `entryCount`, when CACHED filters the offline library; a person's page
     draws no FORM row);
@@ -83,34 +69,34 @@ FORM splits the library by shape, which a kind band cannot say:
   MOVE TO and ADD TO EXISTING do not offer it as a series, the series screen
   draws it as one book, a person's page counts it as one, and no suggestion
   names it (`tests/library-db.spec.ts`, "ONE-OFF counts one book the same way
-  everywhere (c558)"). Before c558 the server counted the extra as a book
-  (SERIES) and the device did not (ONE-OFF), the binder counted a shadowed
-  duplicate, and MOVE TO offered the book as a series of `2 BOOKS`.
+  everywhere").
 
-  **GROUP still refuses to bind such a book** (`"…" holds an extra or a
-duplicate beside its book, which grouping can't carry`): it moves the book
+  **GROUP refuses to bind such a book** (`"…" holds an extra or a duplicate
+beside its book, which grouping can't carry`): it would move the book
   alone, and the emptied singleton's delete would take the extra with it. So
-  every place that offers a book to GROUP asks what GROUP binds -- one book
-  **and** nothing beside it, which is `entryIdsOf(…).length === 1`: the
-  series screen's suggestion (`singletonCandidates`) and a person's page's
-  `groupable`. Binding a book's extras along with it would be its own card.
+  every place that offers a book to GROUP asks what GROUP binds: one book
+  **and** nothing beside it, which is `entryIdsOf(…).length === 1`. Those are
+  the series screen's suggestion (`singletonCandidates`) and a person's
+  page's `groupable`. GROUP does not bind a book's extras along with it.
 
-  **FOLD AS LANGUAGES is a different rule** (c558's round 3): the bulk bar
-  offers it over cards with `entryCount === 1` (`src/routes/+page.svelte`,
-  `foldCodes`), but it ends in the duplicates review's `foldEditions`, which
-  folds one `edition_of IS NULL` entry (`entryIdsOf`, `src/lib/server/books.ts`)
-  and leaves a folded edition beside the book out of the count. So `?/fold`
+  **FOLD AS LANGUAGES is a different rule**: the bulk bar offers it over
+  cards with `entryCount === 1` (`src/routes/+page.svelte`, `foldCodes`), but
+  it ends in the duplicates review's `foldEditions`, which folds one
+  `edition_of IS NULL` entry (`entryIdsOf`, `src/lib/server/books.ts`) and
+  leaves a folded edition beside the book out of the count. So `?/fold`
   (`src/routes/+page.server.ts`) accepts only a book that `isBookSql` counts
   once **and** `edition_of IS NULL` counts once: a folded edition beside the
   book still passes, an extra or a set-aside duplicate is refused with `A BOOK
-WITH AN EXTRA OR A DUPLICATE BESIDE IT CAN'T FOLD` rather than sent to a review
-  that would swallow it (`applyPending` in `src/lib/server/dupes.ts` drops a
-  refused decision and answers it with the pair and its reason; the pair comes
-  back to the review undecided, c648).
+WITH AN EXTRA OR A DUPLICATE BESIDE IT CAN'T FOLD` rather than sent to a
+  review that would swallow it (`applyPending` in `src/lib/server/dupes.ts`
+  drops a refused decision and answers it with the pair and its reason; the
+  pair comes back to the review undecided).
 
 - **SERIES**: everything else. A Mihon series with one chapter so far is
-  still a series, except from a gallery source, whose galleries are books
-  ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Gallery sources").
+  still a series, which is why ONE-OFF means a single book and not "anything
+  with one entry": read that way, every Mihon series with one chapter so far
+  would be a one-off. The exception is a gallery source, whose galleries are
+  books ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Gallery sources").
 
 ## The FILTER panel
 
@@ -121,12 +107,12 @@ many are on as a green badge, opens a panel with one row per filter:
 | ---------- | ------------------------------------------------------------------------------------- | ------------------------------------ |
 | RATING     | ANY · UNRATED · AT LEAST, then the blocks                                             | `?min=1..10`, `?rated=0`             |
 | FAV        | ANY · FAV · NOT FAV                                                                   | `?fav=1`, `?fav=0`                   |
-| FORM       | ANY · SERIES · ONE-OFF, on the library (c436)                                         | `?form=series`, `?form=oneoff`       |
+| FORM       | ANY · SERIES · ONE-OFF, on the library                                                | `?form=series`, `?form=oneoff`       |
 | KIND       | ANY, then each kind on the shelf, on a person's page only (the library's is its band) | `?kind=manga`                        |
 | LANGUAGE   | ANY, then each language on the shelf (EN, JA)                                         | `?lang=ja`                           |
 | DATE ADDED | ANY · SINCE and a date                                                                | `?added=2026-08-01`                  |
 | DOWNLOADED | ANY · YES · NO                                                                        | `?dl=1`, `?dl=0`                     |
-| FOLLOWED   | ANY · ONLY, while something visible is followed ([`DOWNLOADING.md`](DOWNLOADING.md))  | `?followed=1`                        |
+| FOLLOWED   | ANY · ONLY, while something visible is followed ([`DOWNLOADS.md`](DOWNLOADS.md))      | `?followed=1`                        |
 | READING    | ANY · UNREAD · READ                                                                   | `?progress=unread`, `?progress=read` |
 | ● HIDDEN   | ANY · ONLY                                                                            | `?hidden=1`                          |
 
@@ -136,36 +122,41 @@ many are on as a green badge, opens a panel with one row per filter:
 - **A choice applies at once**, and the panel stays open until DONE, a tap
   outside it, or FILTER again. ✕ CLEAR ALL drops every filter and keeps the
   shelf, the sort and the shuffle, and on the library the kind, which is the
-  band's (c436).
-- **Made while the KIND band is pinned, a choice lands at the grid's start**
-  (c557), as a kind chosen there does: the band under the top bar, unpinned,
-  the new results' first row under it. The choices keep the scroll
-  (`noscroll`), so mid-grid the new results opened partway down their list
-  until then. FilterPanel's `onchoose` says a choice is being made (a row's
-  cell, CLEAR ALL, the date, a main-button press on the rating blocks, Enter
-  on one, or ← → on a TV, where they move); the library notes the page it was made on and lands once the next screen has
-  drawn, only when that page is the one left, by a link or a goto, and the
-  filters really changed. So a choice already on, a choice made at the top
-  with the band where it lies, and BACK move nothing. The desktop's FILTER,
-  in the pinned top bar, lands the same way when the band is pinned under
-  it. The rating blocks' own links scroll to the top first, and land from
-  there. The note lives only as long as the press or key that made it: any
-  later press or key drops it before its own handlers run, and a kind cell
-  replaces it, so a press on the blocks that chooses nothing (a right-click,
-  ← off a TV, a cancelled drag) cannot land a later kind chosen at the top
-  (c557's round 2). A person's page and BROWSE's filter pass no `onchoose`.
-  `tests/library-top-scroll.e2e.ts`, on all four devices.
+  band's.
+- **Made while the KIND band is pinned, a choice lands at the grid's start**,
+  as a kind chosen there does: the band under the top bar, unpinned, the new
+  results' first row under it. The choices keep the scroll (`noscroll`), so
+  without this, mid-grid, the new results would open partway down their
+  list. FilterPanel's `onchoose` says a choice is being made (a row's cell,
+  CLEAR ALL, the date, a main-button press on the rating blocks, Enter on
+  one, or ← → on a TV, where they move); the library notes the page it was
+  made on and lands once the next screen has drawn, only when that page is
+  the one left, by a link or a goto, and the filters really changed. So a
+  choice already on, a choice made at the top with the band where it lies,
+  and BACK move nothing. The desktop's FILTER, in the pinned top bar, lands
+  the same way when the band is pinned under it. The rating blocks' own
+  links scroll to the top first, and land from there. The note lives only as
+  long as the press or key that made it: any later press or key drops it
+  before its own handlers run, and a kind cell replaces it, so a press on
+  the blocks that chooses nothing (a right-click, ← off a TV, a cancelled
+  drag) cannot land a later kind chosen at the top. A person's page and
+  BROWSE's filter pass no `onchoose`. `tests/library-top-scroll.e2e.ts`, on
+  all four devices.
 - **Where it sits:** pinned at the right end of the KIND band on the phone,
-  tablet and TV (c436; until then, of the tabs), the band's cells scrolling
-  under it, in the band's 13px with 14px a side; in the top bar beside SELECT
-  on the desktop, where the panel is 640 wide from the bar's right edge. Full
-  width under the band otherwise, and on the phone each label sits above its
-  choices so RATING keeps a whole line for the blocks.
+  tablet and TV, the band's cells scrolling under it, in the band's 13px
+  with 14px a side; in the top bar beside SELECT on the desktop, where the
+  panel is 640 wide from the bar's right edge. Full width under the band
+  otherwise, and on the phone each label sits above its choices so RATING
+  keeps a whole line for the blocks.
+- **The scrim** leaves the sidebar and the top bar lit on the desktop; on the
+  phone and tablet it dims everything but the tab bar.
+- **The active tab scrolls into view** on a row of tabs that scrolls.
 - **At a glance:** the active tab counts what's showing, `44 OF 188`, and the
   section label names the shelf, the kind first, then the filters:
   `02 — ALL · MANHWA · RATED 4+ · NOT FAV`. FILTER's badge counts what the
-  panel holds, so on the library not the kind (`activeCount(f, false)`). The desktop's count moves into the
-  section label, since its sidebar keeps plain totals.
+  panel holds, so on the library not the kind (`activeCount(f, false)`). The
+  desktop's count moves into the section label, since its sidebar keeps
+  plain totals.
 - **Counts:** only the shelf being shown is counted, once with its filters
   (the grid's total) and once without (`shelfTotal`, only while a filter is
   on). The choices carry no numbers.
@@ -180,63 +171,62 @@ many are on as a green badge, opens a panel with one row per filter:
   that filter changed (`withFilters`); the panel is a `<details>`; DATE ADDED
   is a GET form whose SET button only shows without script. Other shelves'
   tabs carry the filters along (`shelfHref`).
-- **A tap before the page hydrates keeps the panel open** (c105). The
-  `<details>` is the truth and the component only follows it: it reads
-  `open` from the element on mount, keeps it by `toggle`, and closes through
-  the element (DONE, the scrim). It used `bind:open` until 2026-11-03, which
-  wrote its own `false` onto the element at hydration and shut a panel the
-  finger had just opened, so on a slow tablet a fast first tap came to
-  nothing. `tests/library-top-bar.e2e.ts` taps FILTER with the app's scripts
-  held back and checks it is still open once they run.
+- **A tap before the page hydrates keeps the panel open.** The `<details>`
+  is the truth and the component only follows it: it reads `open` from the
+  element on mount, keeps it by `toggle`, and closes through the element
+  (DONE, the scrim). It does not use `bind:open`, which writes its own
+  `false` onto the element at hydration and shuts a panel the finger has
+  just opened, so on a slow tablet a fast first tap would come to nothing.
+  `tests/library-top-bar.e2e.ts` taps FILTER with the app's scripts held
+  back and checks it is still open once they run.
 - **In the desktop's top bar FILTER draws the rule on its right**, against
-  SELECT, and not its own left one: the cell before it draws that (c431;
-  [`LIBRARY.md`](LIBRARY.md), "The top bar"). On the KIND band and a person's
-  page FILTER still draws its left rule, the divider from the cells before
-  it. Its cell is marked inside on a TV, as the cells beside it are.
+  SELECT, and not its own left one: the cell before it draws that
+  ([`LIBRARY.md`](LIBRARY.md), "The top bar"). On the KIND band and a
+  person's page FILTER draws its left rule, the divider from the cells
+  before it. Its cell is marked inside on a TV, as the cells beside it are.
 - **Hidden means hidden** ([`PRIVACY.md`](PRIVACY.md)). The HIDDEN row exists
   only while reveal is on: `parseFilters` drops `?hidden=1` otherwise, and the
   SQL checks again. It's the panel's one magenta row, and ending reveal drops
   it with everything hidden.
-- **KIND is one kind inside any shelf** (asked for on 2026-10-29: the
-  manga in TO READ). On the library it is the KIND band since c436, which
-  writes the same `?kind=`; the panel's KIND row is a person's page's alone,
-  offered only where the page holds two kinds or more. A kind the shelf
-  doesn't hold no longer drops from the URL: the band keeps it at 0, so it
-  is still chosen on the next shelf. On CACHED and a person's page it filters
-  on the device.
+- **KIND is one kind inside any shelf**: the manga in TO READ. On the
+  library it is the KIND band, which writes `?kind=`; the panel's KIND row
+  is a person's page's alone, offered only where the page holds two kinds or
+  more. A kind the shelf doesn't hold stays in the URL: the band keeps it at
+  0, so it is still chosen on the next shelf. On CACHED and a person's page
+  it filters on the device.
 - **LANGUAGE offers only what the shelf holds**, as it stands without filters
-  but with the KIND band's kind (as the kind shelves narrowed it), visible
-  only (`languagesOn`). With nothing to offer there's no row at all.
-  The real library's languages are almost all on Hentoid books, behind
-  reveal: with reveal off today the row doesn't exist. `translated`,
-  `rewrite`, `speechless` and `text cleaned` describe a book, not a language,
-  and are never offered. A folded book matches each of its languages
-  ([`EDITIONS.md`](EDITIONS.md)). Switching to a shelf without the chosen
-  language drops it (a 307) rather than showing an empty grid.
-- **DATE ADDED** compares with the start of that day on the workstation.
-- **READING** is where the reading stands, asked for on 2026-10-14 mainly to
-  sort through hidden series, which never show in CONTINUE's short list.
-  UNREAD is never opened (not a page) and nothing read. READ is begun and
-  every chapter read; a finished series that gains a chapter isn't READ
-  until that one is. It combines with HIDDEN like any other filter:
-  `?hidden=1&progress=unread` is the hidden series you've never opened. The
-  rule is written twice and tested to agree: `PROGRESS_SQL` in
-  `src/lib/server/library.ts` and `progressOf` in
-  `src/lib/library/filters.ts`, which CACHED uses on the device. Not drawn
-  by a handoff: it's one more row of the panel's existing shape.
-- **Begun and not finished is an order, not a filter.** READING had an IN
-  PROGRESS choice for a day; the owner wanted the series with a page or two
-  opened kept in view and placeable at the top or the bottom, which is the
-  PROGRESS sort ([`LIBRARY.md`](LIBRARY.md), "Sort and direction"). An old
-  `?progress=reading` is simply no filter.
+  but with the KIND band's kind, visible only (`languagesOn`). Taking the
+  shelf without its filters means choosing one language doesn't make the
+  others vanish from the row. With nothing to offer there's no row at all;
+  a library whose languages are all on hidden books has no row with reveal
+  off. `translated`, `rewrite`, `speechless` and `text cleaned` describe a
+  book, not a language, and are never offered. A folded book matches each of
+  its languages ([`EDITIONS.md`](EDITIONS.md)). Switching to a shelf without
+  the chosen language drops it (a 307) rather than showing an empty grid.
+- **DATE ADDED** compares with the start of that day on the server.
+- **READING** is where the reading stands, useful mainly to sort through
+  hidden series, which never show in CONTINUE's short list. UNREAD is never
+  opened (not a page) and nothing read. READ is begun and every chapter
+  read; a finished series that gains a chapter isn't READ until that one is.
+  It combines with HIDDEN like any other filter: `?hidden=1&progress=unread`
+  is the hidden series you've never opened. The rule is written twice and
+  tested to agree: `PROGRESS_SQL` in `src/lib/server/library.ts` and
+  `progressOf` in `src/lib/library/filters.ts`, which CACHED uses on the
+  device.
+- **Begun and not finished is an order, not a filter.** The series with a
+  page or two opened are kept in view and placed at the top or the bottom by
+  the PROGRESS sort ([`LIBRARY.md`](LIBRARY.md), "Sort and direction"), so
+  READING has no IN PROGRESS choice. `?progress=reading` is simply no
+  filter.
 - **UNRATED wins** over a threshold if a hand-made URL has both.
 - **CACHED, offline,** filters on the device, with the same rules
   (`matches`): every filter is answerable there.
 - **A person's page** has the same panel, filtering on the device (it holds
-  every item already). Its tabs lost FAV and RATED 4+ as the library's shelves
-  did, leaving ALL, UNREAD and BY SERIES. Its items carry their languages and
-  whether they're on disk for it. It has no READING row (`reading={false}`):
-  its UNREAD tab already does that.
+  every item already) and keeping nothing in its URL, as its own tabs never
+  are. Its tabs are ALL, UNREAD and BY SERIES; favourites and ratings are
+  filters there too. Its items carry their languages and whether they're on
+  disk for it. It has no READING row (`reading={false}`): its UNREAD tab
+  already does that.
 
 ## A new shelf
 
@@ -253,33 +243,15 @@ many are on as a green badge, opens a panel with one row per filter:
 
 ## Speed
 
-Every card now says whether it has a chapter on disk (`downloaded`, for
-filtering CACHED on the device). Rung 30 widened the covering index
-`entries_card` with `available`: without it the whole revealed library's card
-stats took 34 ms instead of 16; with it, 23.
+Every card says whether it has a chapter on disk (`downloaded`, for
+filtering CACHED on the device). Migration 30 widened the covering index
+`entries_card` with `available`: without it the whole revealed library's
+card stats took 34 ms instead of 16; with it, 23.
 
-## Where it departs from the handoff
+## Limits
 
-1. **ONE-OFF is a single book, not "anything with one entry".** The mock
-   defines SERIES as every group of more than one book. Taken literally, eight
-   visible Mihon series that happen to have one chapter so far would have been
-   one-offs. A Mihon series is a series (a gallery source's galleries
-   excepted: they're books, c124).
-2. **Turn 3 only.** Turns 1 (an ONLY row under the tabs) and 2 (a panel beside
-   the AT LEAST band) are superseded; c67's AT LEAST band is gone.
-3. **LANGUAGE on the library is the shelf's languages without filters**, so
-   choosing one doesn't make the others vanish from the row.
-4. **The scrim leaves the sidebar and the top bar lit on the desktop**, as 3j
-   draws them; on the phone and tablet it dims everything but the tab bar.
-5. **The active tab scrolls into view** on a row that scrolls, as the mocks
-   draw it starting at the active shelf.
-6. **The person page filters on the device** and keeps nothing in its URL.
-   The library's filters are links; a person's page holds every item already,
-   and its own tabs never were in the URL either.
-
-## What it does not do yet
-
-- Renaming, reordering or deleting a shelf.
-- Saving a combination of filters as a shelf of its own.
+- A shelf cannot be renamed, reordered or deleted.
+- A combination of filters cannot be saved as a shelf of its own.
 - A person's page doesn't remember its filters across visits.
-- Search doesn't take filters.
+- Search doesn't take the library's filters; only the kind is carried, to
+  pick which sources SEARCH THE SOURCES asks.

@@ -1,28 +1,29 @@
-# Installing on the tablet
+# Installing the web app
 
-tsundoku is a PWA: installed to the home screen, it opens **fullscreen**, with
-no browser bar and no status bar. The page is the interface there too.
+tsundoku is a PWA: installed to a tablet's or phone's home screen, it opens
+**fullscreen**, with no browser bar and no status bar. The page is the
+interface there too.
 
-There is also tsundoku's own Android app, `tsundoku-app-<version>.apk`
-(c521): the same library, paired with six digits instead of signed in, with
-zoom off. [`PHONE-APP.md`](PHONE-APP.md) is that one;
-this page is the PWA.
+There is also tsundoku's own Android app, `tsundoku-app-<version>.apk`: the
+same library, paired with six digits instead of signed in, with zoom off.
+[`ANDROID.md`](ANDROID.md) is that one; this page is the PWA.
 
-## Once, on the tablet
+## Once, on each device
 
 1. Open **https://<machine>.<tailnet>.ts.net:8443** in Chrome. Tailscale has
-   to be on, and the workstation serving (`yarn run serve`, see
-   [`SERVING.md`](SERVING.md)).
-2. Sign in with `TSUNDOKU_TOKEN` from the workstation's `.env`. The session
-   cookie lasts, so this is once per device.
+   to be on, and the computer that serves the library running
+   ([`SERVING.md`](SERVING.md)).
+2. Sign in ([`SIGN-IN.md`](SIGN-IN.md)): the password chosen for the install,
+   if one was, or `TSUNDOKU_TOKEN` where one is set. The session cookie lasts, so this is
+   once per device.
 3. Chrome's menu → **Install app** (or the install prompt, if it offers one).
 4. In the installed app, type **`/lock`** in search to put `/reveal` behind this
-   tablet's fingerprint ([`PRIVACY.md`](PRIVACY.md)).
+   device's fingerprint ([`PRIVACY.md`](PRIVACY.md)).
 5. Set up **Syncthing**, so what the library imports reaches it by itself:
    Hentoid's books, the EPUB library, and Mihon's `autobackup` (the series,
    their chapters and their reading). A Mihon download beside that backup is
    synced and kept but imported by nothing, so don't delete one from the
-   tablet expecting it in the library ([`SYNC.md`](SYNC.md)).
+   device expecting it in the library ([`SYNC.md`](SYNC.md)).
 
 The home-screen shortcuts (long-press the icon) open **History** and **Search**.
 
@@ -32,7 +33,7 @@ The home-screen shortcuts (long-press the icon) open **History** and **Search**.
   `standalone`), `start_url` and `scope` `/`, graphite theme and background, the
   icons and the two shortcuts.
 - The service worker ([`OFFLINE.md`](OFFLINE.md)), which also makes the
-  installed app open without the workstation.
+  installed app open when the server can't be reached.
 - HTTPS, which Chrome requires for both.
 
 The manifest and icons are static files, served before authentication, so the

@@ -1,8 +1,7 @@
 # Covers
 
 Every series gets one cover thumbnail: 400px wide WebP, made once and kept on
-the library disk (`COVER_DIR`, default `TSUNDOKU_HOME/covers`, on the workstation
-`/mnt/hdd2/tsundoku/covers`,
+the library disk (`COVER_DIR`, default `TSUNDOKU_HOME/covers`,
 `<series id>.webp`). The tiles, CONTINUE, the long-press sheet, the series
 panel, search, history and person pages all show it. A series with none keeps
 the striped placeholder, which also stays under every image, so a cover that
@@ -12,54 +11,56 @@ fails to load leaves the stripes.
 
 `src/lib/server/covers.ts` takes the first source that has one:
 
-0. **A page the owner chose** (see "Chosen", below), cut from its top as any
-   page is: `chosen:<entry>:<page>`.
-1. **A series of books wears its first book's cover** (card c57): the page
-   chosen for that book, else Hentoid's thumbnail, else its first page, which
-   is what the book's own tile shows in BOOKS: `book:<entry>:…`. It follows
-   the order: reordering, taking a book out, moving one or grouping remake
-   the cover (off the request), and a book taken out, a new series, gets its
-   own at once. That includes the duplicates review's GROUP, FOLD and KEEP
-   ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md), "Deciding"; card c63).
+0. **A page chosen as the cover** (see "Chosen", below), cut from its top as
+   any page is: `chosen:<entry>:<page>`.
+1. **A series of books wears its first book's cover**: the page chosen for
+   that book, else Hentoid's thumbnail, else its first page, which is what the
+   book's own tile shows in BOOKS: `book:<entry>:…`. It follows the order:
+   reordering, taking a book out, moving one or grouping remake the cover (off
+   the request), and a book taken out, a new series, gets its own at once.
+   That includes the duplicates review's GROUP, FOLD and KEEP
+   ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md), "Deciding"). Before this, a
+   book folded with its editions wears its opening edition's cover, that
+   edition's thumbnail or first page (`edition:`, [`EDITIONS.md`](EDITIONS.md)).
 2. **A cover the files carry:** Hentoid's thumbnail, an EPUB's cover image.
    Real covers.
 3. **The source site's cover URL,** which Mihon's backup has for every series
-   (`series.cover_url`, rung 14). An Aniyomi series' comes from the engine, not
-   from Mihon, and its COVER row says FROM THE SOURCE'S COVER (`coverLines`).
-   The URL is fetched with a browser's user agent and
-   the site's own origin as the referrer, three at a time, and only by the
-   cover pass, never while a screen waits. The owner approved fetching them on
-   2026-09-23. An address is fetched only when it's on the internet, every
-   redirect included (`src/lib/server/net-guard.ts`): a novel's comes from its
-   LNReader plugin ([`NOVELS.md`](NOVELS.md)), and none may aim the server at
-   the workstation's own network. The engine's own covers, which are local by
-   design, are the one exception. A cover is read to 20 MB, counted as it
-   arrives, so a body sent in chunks can't run past it.
+   (`series.cover_url`, migration 14). An Aniyomi series' comes from the
+   engine, not from Mihon, and its COVER row says FROM THE SOURCE'S COVER
+   (`coverLines`). The URL is fetched with a browser's user agent and the
+   site's own origin as the referrer, three at a time, and only by the cover
+   pass, never while a screen waits. An address is fetched only when it's on
+   the internet, every redirect included (`src/lib/server/net-guard.ts`): a
+   novel's comes from its LNReader plugin ([`NOVELS.md`](NOVELS.md)), and none
+   may aim the server at the workstation's own network. The engine's own
+   covers, which are local by design, are the one exception. A cover is read
+   to 20 MB, counted as it arrives, so a body sent in chunks can't run past it.
 4. **The linked AniList entry's cover** ([`LINKS.md`](LINKS.md)): a series
    linked to its catalogue entry (from Mihon's MAL tracker, an exact title,
    or the review) wears the entry's cover. It comes after the site's, and a
    site that refused stands aside for it. `link:anilist:<id>`, fetched only
    in a remote pass, as the site's is. A film's or a show's is its **TMDB
-   poster** (c989), `link:tmdb:<id>`, in the same place: after the source's
-   own cover, so it fills in only where the source gave none, and the COVER
-   row says `FROM THE TMDB LINK`. LINK in the review asks for it at once.
+   poster**, `link:tmdb:<id>`, in the same place: after the source's own
+   cover, so it fills in only where the source gave none, and the COVER row
+   says `FROM THE TMDB LINK`. LINK in the review asks for it at once.
 5. **The first page of the first downloaded entry,** cut from the top to the
    tile's 2:2.9 shape. This is last because a Mihon chapter's first page is so
    often a scanlator's credits or recruitment banner, and a webtoon page is a
    tall strip that would shrink to a sliver.
 
 Which of these a series can have is asked of its kind's facts
-(`src/lib/library/kinds.ts`, [`KINDS.md`](KINDS.md); card c303), never its
-name: an EPUB's cover is read for a **text** kind, a first page only for a
-**pages** kind (an episode has no pages, a novel's are text), and a series of
-books' first-book cover and an edition's cover for a kind GROUP binds as
-**books** (`grouping`, a doujin's).
+(`src/lib/library/kinds.ts`, [`KINDS.md`](KINDS.md)), never its name: an
+EPUB's cover is read for a **text** kind, a first page only for a **pages**
+kind (an episode has no pages, a novel's are text), and a series of books'
+first-book cover and an edition's cover for a kind GROUP binds as **books**
+(`grouping`, a doujin's).
 
-`series.cover_key` names what the thumbnail was made from (`file:`, `epub:`,
-`url:`, `page:`). A changed source makes a new thumbnail, and an unchanged one
-costs nothing. `cover_at` is when it was made, and the version in its URL
-(`/api/series/<id>/cover?v=<cover_at>`, `private`, `immutable`). Hidden means
-hidden: a hidden series' cover is a 404 while reveal is off.
+`series.cover_key` names what the thumbnail was made from (`chosen:`, `book:`,
+`edition:`, `file:`, `epub:`, `url:`, `link:`, `page:`). A changed source makes
+a new thumbnail, and an unchanged one costs nothing. `cover_at` is when it was
+made, and the version in its URL (`/api/series/<id>/cover?v=<cover_at>`,
+`private`, `immutable`). Hidden means hidden: a hidden series' cover is a 404
+while reveal is off.
 
 A fetch that fails (a 403, a timeout, a site that's gone) is remembered in
 `cover_failed_at` and not tried again for a week. The first page stands in
@@ -76,18 +77,17 @@ meanwhile, if there is one.
   (`{ covers: true }`), so tests don't write to the library disk or reach the
   internet.
 
-On the real library (2026-09-23), the files alone gave 6,511 covers in about
-4 minutes, 229 MB in all (about 35 KB each).
+On a real library, the files alone gave 6,511 covers in about 4 minutes,
+229 MB in all (about 35 KB each).
 
 ## sharp and the system libvips
 
-Thumbnails are made with `sharp`. The workstation has Arch's libvips, and when
-`sharp` finds a system libvips it builds against it rather than using its own
-prebuilt binary. That's why `node-addon-api` and `node-gyp` are dev
-dependencies: `yarn install` compiles it in about 20 seconds. After a pacman
-update to libvips, run `yarn install --force` if thumbnails stop working.
-libvips' warning about the optional openslide module is silenced
-(`VIPS_WARNING=0`).
+Thumbnails are made with `sharp`. When `sharp` finds a system libvips (Arch
+has one) it builds against it rather than using its own prebuilt binary.
+That's why `node-addon-api` and `node-gyp` are dev dependencies: `yarn
+install` compiles it in about 20 seconds. After a system update to libvips,
+run `yarn install --force` if thumbnails stop working. libvips' warning about
+the optional openslide module is silenced (`VIPS_WARNING=0`).
 
 ## Books
 
@@ -95,7 +95,7 @@ A book inside a series of books has a cover of its own
 (`readBookCover`, `GET /api/entries/<id>/cover?v=<version>`). It's made from
 the first of these that works:
 
-1. the page the owner chose as its cover (`entries.cover_page`);
+1. the page chosen as its cover (`entries.cover_page`);
 2. the cover file its folder carries (Hentoid's thumbnail, `cover_file`);
 3. its first page, cropped from the top like a series' page cover.
 
@@ -109,6 +109,9 @@ disk has none. A hidden series' books are a 404 while reveal is off.
 It's drawn on the series screen's BOOKS grid and on person pages. The
 suggestion band (MIGHT BE ONE SERIES), the group sheet's rows and a person
 page's strip of series use the series' own cover.
+
+A volume of a novel has its EPUB's cover, kept by its file
+([`BOOKS.md`](BOOKS.md), "A volume's cover").
 
 ## Page thumbnails
 
@@ -125,8 +128,8 @@ books) shows each page as a thumbnail (`readPageThumb`,
   count, so it's kept as immutable and changes with the file;
 - a hidden book's pages are a 404 while reveal is off, as the pages are.
 
-A page is about 1MB, so the full pages would have been 30MB for a 30-page
-grid; the thumbnails are a few KB each.
+A page is about 1MB, so the full pages would be 30MB for a 30-page grid; the
+thumbnails are a few KB each.
 
 ## Episode pictures
 
@@ -135,15 +138,9 @@ An anime episode's 16:9 picture is kept beside the covers, as
 one, else a frame of the episode. [`ANIME.md`](ANIME.md), "Episode pictures",
 has where it comes from and when.
 
-## What it doesn't do yet
-
-- **Uploading an image, or cropping.** A cover the files lack comes from a
-  catalogue link now ([`LINKS.md`](LINKS.md)).
-
 ## Chosen
 
-A long press on a page picks it as a cover (Page Menu, card c26; the
-handoff's `Page Menu.dc.html`). The first page is often wrong: an
+A long press on a page picks it as a cover. The first page is often wrong: an
 advertisement, a scanlator's credits, a table of contents.
 
 **Where:** in the image reader, a long press (450ms without moving, a
@@ -158,9 +155,9 @@ the accent with its number in the corner, the rest under a scrim that takes
 every tap; ✕, the scrim or Esc close it. On a TV it is the 420px panel from the
 right that every sheet is, framed in ink rather than the accent, and it is
 opened by **OK held or MENU** for the page in the middle of the screen, with
-the pad walking its rows ([`TV.md`](TV.md), c235). A preview shows the page as
-a tile would crop it (in the reader). One row per thing the page can become,
-each saying where that cover comes from now (`menuRows`,
+the pad walking its rows ([`TV.md`](TV.md)). A preview shows the page as a tile
+would crop it (in the reader). One row per thing the page can become, each
+saying where that cover comes from now (`menuRows`,
 `src/lib/library/cover-menu.ts`):
 
 | Reading                   | Rows                                                            |
@@ -170,43 +167,39 @@ each saying where that cover comes from now (`menuRows`,
 | A manga or manhwa chapter | **SERIES**: a chapter has no tile.                              |
 
 A row whose cover is already this page says **✓ THIS PAGE**, names what
-automatic would give, and offers **BACK TO AUTOMATIC**. Offline the menu
-still opens, its rows dimmed, with **○ OFFLINE · COVERS NEED THE
-WORKSTATION** (in the image reader, whose menu also keeps a page as a
-highlight, **○ OFFLINE · HIGHLIGHTS AND COVERS NEED THE WORKSTATION**;
-[`HIGHLIGHTS.md`](HIGHLIGHTS.md), "Pages (H3)"): nothing is queued.
+automatic would give, and offers **BACK TO AUTOMATIC**. A chosen series cover
+names its chapter when it's another chapter's page ("NOW CH. 3 · P. 14 ·
+CHOSEN"). The meta line of a manga carries the chapter and its place
+("MANHWA · CH. 88 · 88 OF 120"), because a chapter's number is not always its
+place. Offline the menu still opens, its rows dimmed, with **○ OFFLINE ·
+COVERS NEED THE WORKSTATION** (in the image reader, whose menu also keeps a
+page as a highlight, **○ OFFLINE · HIGHLIGHTS AND COVERS NEED THE
+WORKSTATION**; [`HIGHLIGHTS.md`](HIGHLIGHTS.md)): nothing is queued.
 
 **What it stores:** `POST /api/covers` sets a book's `entries.cover_page` and
-a series' `cover_entry` and `cover_page` (rung 23), answers with what was
+a series' `cover_entry` and `cover_page` (migration 23), answers with what was
 there, and remakes the series' thumbnail before answering. A single sets
 both. **UNDO** is the same call with the answer: the reader's band (**BOOK
 COVER · P. 14 / SUMMER AFTERNOON · WAS P. 1, AUTOMATIC**) stays 6 seconds,
 until the next turn or scroll, or until the controls open. A save that
-fails goes to the app's own RETRY / PUT BACK band.
+fails goes to the app's own RETRY / PUT BACK band. On the series screen the
+band is the screen's own Band, under the PAGES head, not pinned to the foot
+as the reader's is: the series screen scrolls, and its bands sit at the top of
+what they're about.
 
-### Where it departs from the handoff
+## Limits
 
-- **The grid's band is the screen's Band**, under the PAGES head, not pinned
-  to the foot as the reader's is: the series screen scrolls, and its bands
-  sit at the top of what they're about.
-- **A chosen series cover names its chapter** when it's another one's page
-  ("NOW CH. 3 · P. 14 · CHOSEN"); the mock only drew a chosen page of the
-  same book.
-- **The meta line of a manga** carries the chapter and its place ("MANHWA ·
-  CH. 88 · 88 OF 120"); the mock's "CH. 88 OF 120" assumes the chapter's
-  number is its place.
-
-### Not yet
-
+- **No uploading an image, and no cropping.** A cover the files lack comes
+  from a catalogue link ([`LINKS.md`](LINKS.md)).
 - **No page menu in the text reader**: a novel's cover is its EPUB's.
 
 ## On older browsers
 
 `Cover` sets its width outright (`width: 100%`) instead of leaving it to the
 flex column it sits in, and falls back to a padding of the ratio's height where
-`aspect-ratio` isn't supported. On 2026-10-15 the Xiaomi Pad 5's browser gave
-a cover stretched by its parent no height from the ratio: every tile in the
-library lost its cover and its badges sat on the title, while desktop
+`aspect-ratio` isn't supported. The Xiaomi Pad 5's browser gives a cover
+stretched by its parent no height from the ratio: without this every tile in
+the library lost its cover and its badges sat on the title, while desktop
 Chromium, and the Pixel and tablet emulations, drew them all. A cover that
 shows on the desktop and is missing on one device is a layout question before
 it's an image one: look at the tile's height first.

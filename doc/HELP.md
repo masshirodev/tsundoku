@@ -1,10 +1,7 @@
 # HELP: a page, and a "?" where the question comes up
 
-Seven short topics, and a "?" on the rows friends ask about (card c208). The
-brief was `briefs/HELP.md`; the design is the HELP
-handoff, `doc/design/handoff/Help*.dc.html` and `Ask.dc.html` (its decisions
-in `Help Calls.dc.html`). Kumiko's help gave the idea; tsundoku's look is its
-own. GET STARTED, topic 01, is [`ONBOARDING.md`](ONBOARDING.md).
+Seven short topics, and a "?" on the rows friends ask about. GET STARTED,
+topic 01, is [`ONBOARDING.md`](ONBOARDING.md).
 
 ## The topics are data
 
@@ -13,79 +10,42 @@ names its parts, an **IN SHORT** of three lines at most, and its parts (an
 anchor, a numbered label with a link to its screen, paragraphs, and a ruled
 table where a part explains a screen's words). Not Markdown files: tsundoku
 has no Markdown renderer, the topics have a shape, and a "?"'s sheet shows the
-same IN SHORT as the page, so the two can't drift.
+same IN SHORT as the page, so the two can't drift. The words are messages
+(`help_*` in `messages/`, [`I18N.md`](I18N.md)), in every language the app
+has.
 
-| #   | Topic                   | Slug          | Parts                                                                                                                                           |
-| --- | ----------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| 01  | Getting started         | `start`       | opens `/start`, the checklist itself                                                                                                            |
-| 02  | Reading                 | `reading`     | turning pages, the strip, full screen and zoom                                                                                                  |
-| 03  | Finding and downloading | `downloading` | extensions and repositories (both doors: BROWSE and SETTINGS › 07, c725), online, add/download/follow, the queue; points at GET STARTED's 05–07 |
-| 04  | Your phone              | `phone`       | Wi-Fi with a code (and a firewall that keeps the phone out, c721), Tailscale (`#tailscale`, the README's four steps)                            |
-| 05  | Updates                 | `updates`     | where it shows, unzipped                                                                                                                        |
-| 06  | Backups and importing   | `backups`     | the library folder                                                                                                                              |
-| 07  | When something breaks   | `report`      | SAVE A REPORT                                                                                                                                   |
-
-**The handoff (2026-11-12): topic 08.** Mirrored at
-`handoffs/keys-accounts/` (`Main.dc.html`, seven
-boards, `Status: finished`). The design's answers, in its own words:
-
-- **One topic, `08 — Keys and accounts`**, opening with a table that puts the
-  services side by side, then a part each: `01 What each one gives`,
-  `02 TMDB`, `03 Trakt`, `04 AniList and MAL` (`05` Simkl, if it earns a
-  place). A sign-in does not get a page of its own — its steps fit in five
-  rows. HELP's index grows to **eight** rows, and
-  `tests/help-domain.spec.ts` counts eight.
-- **Steps are a new shape**: a ruled, numbered block — a number cell, the
-  step in sans, and above it in mono where the step happens (`THEMOVIEDB.ORG`,
-  `TRAKT.TV`, `TSUNDOKU`). A step that ends in tsundoku carries a `SETTINGS →`
-  cell in the accent. In the data a part gains
-  `steps: { where, text, link? }[]` beside its paragraphs and tables, and
-  `HelpPart.short`: three lines for `SET UP`'s sheet. `04`'s Tailscale part
-  should switch its numbered table to steps too.
-- **`SET UP →` opens the service's part, not the topic's top**, in the same
-  sheet a "?" uses: the part's own three lines, then `STEPS →` and
-  `SETTINGS →`, so the friend stays on the film and the field is one tap
-  away.
-- **Phone**: the number cell is 44px, the step wraps, cells drop under the
-  text at full width and 48px. **TV**: steps are read, not typed — SETTINGS
-  says `TYPED ON A PHONE OR COMPUTER`; nobody types a key with a remote.
-- **The words in HELP, the field in SETTINGS › 06 — CATALOGUES.** HELP never
-  takes a secret, and SETTINGS explains no more than a meta line: each row's
-  label has a `?` that opens that service's part. The only doors are a row's
-  `SET UP →`, SETTINGS' rows and HELP's eighth row — no first run, band,
-  badge, checklist step or count.
-- **The handoff found the brief's map stale**: CATALOGUES is section `06`,
-  not the brief's `02` (SETTINGS has been one page since `doc/SETTINGS.md`'s
-  numbering). The brief stays as it was sent; [`../TRACKING.md`](../TRACKING.md)
-  and this page carry the truth.
-
-The tests it asks for: eight topics, every `SET UP →` opening a part that
-exists, `08` naming no key, address or account, and SETTINGS opening
-`?section=catalogues` at each service's row.
+| #   | Topic                   | Slug          | Parts                                                                                                                                       |
+| --- | ----------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | Getting started         | `start`       | opens `/start`, the checklist itself                                                                                                        |
+| 02  | Reading                 | `reading`     | turning pages, the strip, full screen and zoom                                                                                              |
+| 03  | Finding and downloading | `downloading` | extensions and repositories (both ways in: BROWSE and SETTINGS › 07), online, add/download/follow, the queue; points at GET STARTED's 05–07 |
+| 04  | Your phone              | `phone`       | Wi-Fi with a code (and a firewall that keeps the phone out), Tailscale (`#tailscale`, the README's four steps)                              |
+| 05  | Updates                 | `updates`     | where it shows, unzipped                                                                                                                    |
+| 06  | Backups and importing   | `backups`     | the library folder                                                                                                                          |
+| 07  | When something breaks   | `report`      | SAVE A REPORT                                                                                                                               |
 
 **Words to keep true.** They describe the app: when a screen's word changes,
-its topic's line changes with it. `tests/help-domain.spec.ts` checks the
-shape (seven, three lines at most, unique anchors), that SETTINGS can open
-every `?section=` a topic links to, that no address is named, and that
-nothing mentions series kept private or the way to show them: the owner's
-rule holds in help too.
-
-Backups' THE LIBRARY FOLDER line said RESCAN was in the sidebar "(MORE on a
-phone)" from the day it was written (c210): MORE never had a RESCAN. Since
-c525 it says RESCAN in the sidebar reads the folder again after it asks, and
-since c561 that MORE's RESCAN does too, and `/scan` in search
+its topic's line changes with it. Backups' THE LIBRARY FOLDER, for one, says
+that START SCAN on the empty library, or RESCAN in the sidebar or in MORE
+after it asks, reads the folder again, and that `/scan` in search does too
 (`help_backups_folder_para`; [`LIBRARY.md`](LIBRARY.md), "RESCAN asks
-first"). Its short line, "RESCAN reads the folder again; new series appear
-as they are found", is still true, and stays.
+first"). `tests/help-domain.spec.ts` checks the shape (seven, three lines at
+most, unique anchors), that SETTINGS can open every `?section=` a topic links
+to, that no address is named, and that nothing mentions series kept private
+or the way to show them: help keeps that secret as the rest of the app does.
 
 ## Where it lives
 
 - **`/help`**: the seven topics as rows, each naming its parts, so there's no
-  search (Help Calls, Q3); STILL STUCK under them. 01 counts the checklist;
-  a topic that can't apply here says NOT HERE.
+  search; STILL STUCK under them. 01 counts the checklist, done and skipped
+  together (`3 OF 7`), as the sidebar's GET STARTED row does; a topic that
+  can't apply here says NOT HERE. On a wide screen it is the list, in a
+  column, not an index beside an empty article.
 - **`/help/<topic>`**: number, title, parts line, IN SHORT, the parts, ← and
-  → between topics, STILL STUCK (07 ends on the report itself). From 1024 px
-  the topics' index sits on its left, the current one inverted.
+  → between topics, STILL STUCK. From 1024 px the topics' index sits on its
+  left, the current one inverted. 07 ends on SAVE → into SETTINGS rather than
+  a SAVE on the page: the report is SETTINGS' row, and one place to save it is
+  enough.
 - **A topic that can't apply here** still opens, with a dashed band under its
   title: UPDATES with no updater (the workstation), YOUR PHONE on a phone
   already in over Wi-Fi.
@@ -98,7 +58,7 @@ as they are found", is still true, and stays.
 A 20 px square after a label (`src/lib/components/help/HelpMark.svelte`). The
 whole label cell is the button, so the target is the cell, not the square;
 pressed or open, the cell inverts. Where the word fills a narrow cell the mark
-wraps under it. Six, to start:
+wraps under it. It sits on six rows:
 
 | Where                                | Opens                              |
 | ------------------------------------ | ---------------------------------- |
@@ -115,29 +75,17 @@ A CODE`). In the reader the READING sheet's rows give way to it instead of a
 second sheet stacking, and ← READING brings them back; WHOLE TOPIC says it
 leaves the chapter.
 
-**A pointer under IN SHORT** (FIRST READ handoff, board 4C; card c209): 03
-ends on `GET STARTED walks through it once: steps 05 to 07.`, in bold, with
-`05 — 07 →` to `/start#first-read`. It's the topic's `pointer`, drawn on a
-line of its own by `InShort.svelte`, so IN SHORT stays three lines.
+**A pointer under IN SHORT**: 03 ends on `GET STARTED walks through it once:
+steps 05 to 07.`, in bold, with `05 — 07 →` to `/start#first-read`. It's the
+topic's `pointer`, drawn on a line of its own by `InShort.svelte`, so IN SHORT
+stays three lines.
 
-## Where it departs from the handoff
+## Limits
 
-- **The index row for 01 counts done and skipped** (`3 OF 7`), as the
-  sidebar's GET STARTED row does; the first handoff drew `4 OF 6` when the
-  list had four steps, and FIRST READ's board 4C draws `3 OF 7`.
-- **`/help` on a wide screen is the list, in a column**, not the index beside
-  an empty article; a topic has the index beside it.
-- **07's end** is SAVE → into SETTINGS rather than a SAVE beside it on the
-  page: the report is SETTINGS' row, and one place to save it is enough.
-- **The words are drafts** written from the handoff's and checked against the
-  app; the handoff said as much ("written with the code").
-
-## What it doesn't do yet
-
-- No search in HELP; revisit when the topics outgrow a screen.
-- The preview of a series not in the library has no "?" on its DOWNLOAD row
-  (c205 added that row after the design).
-- English only.
+- No search in HELP: the seven topics fit on one screen.
+- The preview of a series not in the library has no "?" on its DOWNLOAD row.
+- No topic on keys and accounts (TMDB, Trakt, AniList, MAL): SETTINGS › 06 —
+  CATALOGUES' rows carry no "?" ([`TRACKING.md`](TRACKING.md)).
 
 ## Tests
 
@@ -146,4 +94,4 @@ NOT HERE, ← and →, `/help` in search); `tests/help-flow.e2e.ts` (the list, a
 topic, NOT HERE's dashed band, 01 and an unknown topic, REPORT's "?" and
 WHOLE TOPIC, the sidebar's and MORE's ways in); the reader's "?" in
 `reader-flow.e2e.ts`, DOWNLOAD's in `downloads-flow.e2e.ts`;
-`tests/help-frame.e2e.ts`, generated from `Help.dc.html`'s topic state.
+`tests/help-frame.e2e.ts`, the frame of a topic page.

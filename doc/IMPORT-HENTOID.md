@@ -4,7 +4,10 @@ Reads a copy of the device's `H/.Hentoid/` folder in place and writes every
 book into a **hidden root**: nothing from it shows until `/reveal`. The format
 is in [`IMPORT-FORMATS.md`](IMPORT-FORMATS.md). The runner, START SCAN,
 `/scan` and `yarn run import` are shared with the Mihon importer
-([`IMPORT-MIHON.md`](IMPORT-MIHON.md)). One scan job runs both, one step each.
+([`IMPORT-MIHON.md`](IMPORT-MIHON.md)): one scan job runs every importer, one
+step each ([`IMPORT.md`](IMPORT.md)). The folder is found at `H/.Hentoid/`,
+`.Hentoid/` or `Hentoid/` in the library folder, and in another device's
+synced copy under `devices/<name>/Hentoid/`.
 
 ```
 $LIBRARY_ROOT/H/.Hentoid/<site folder>/<book folder>/
@@ -54,8 +57,8 @@ by their own tags.
 ## Rescanning
 
 The same writer as Mihon, so the same rules apply: new books are added, and
-read state only moves forward. The owner's edits (title, rating, FAV, hidden,
-shelves, tags) are never overwritten. Two things are Hentoid's own:
+read state only moves forward. What is edited here (title, rating, FAV,
+hidden, shelves, tags) is never overwritten. Two things are Hentoid's own:
 
 - **A grouped book is found where it now lives.** Grouping deletes a book's
   own singleton series, and with it the origin key. So before creating a
@@ -63,7 +66,7 @@ shelves, tags) are never overwritten. Two things are Hentoid's own:
   source URL, and updates them in place. Without that, every rescan would
   bring back every grouped book as a duplicate.
 - **A deleted book folder** leaves its entry, marked not downloaded.
-- **A folder with no pages isn't a book** (card c64). A download that failed
+- **A folder with no pages isn't a book.** A download that failed
   leaves its `contentV2.json` (status `ERROR`) and the thumbnail. Hentoid's
   " (1)" copy of a folder can hold only the thumbnail. `thumb.*` is Hentoid's
   cover and never a page, JSON or not, so neither makes a series. What an
@@ -72,8 +75,8 @@ shelves, tags) are never overwritten. Two things are Hentoid's own:
   left with no entries, unrated, not a favourite, on no shelf, not linked (a
   series link, or a season's link or decision) and in no Work
   (`prunePageless`). That's no delete and buries nothing, so a download
-  finished later imports as it would have. On the real library (2026-09-24)
-  that was 8 empty series and 6 one-page "books" of a thumbnail, from 37
+  finished later imports as it would have. On a real library that was 8 empty
+  series and 6 one-page "books" of a thumbnail, from 37
   failed downloads and 53 " (1)" folders.
 
 ## Hidden means hidden
@@ -93,19 +96,22 @@ four chapters) splits 17 + 18 + 6 + 5.
 | Part                                | File                                                                                                    |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | contentV2.json and every rule, pure | `src/lib/import/hentoid-plan.ts`                                                                        |
-| the plan types both importers share | `src/lib/import/plan.ts`                                                                                |
+| the plan types every importer uses  | `src/lib/import/plan.ts`                                                                                |
 | walking the folder                  | `src/lib/server/import/hentoid.ts`                                                                      |
 | the one writer                      | `src/lib/server/import/write.ts`                                                                        |
-| the job, both sources               | `src/lib/server/import/index.ts`                                                                        |
+| the job, every source               | `src/lib/server/import/index.ts`                                                                        |
 | tests                               | `tests/hentoid-plan.spec.ts`, `tests/import-db.spec.ts`, fixtures in `tests/helpers/hentoid-fixture.ts` |
 
-## Known gaps
+## Duplicates
 
-- **Covers aren't served yet.** `cover_file` is captured, and the library tiles
-  will use it once there's an image route (with the reader).
+The same book from two sites (nhentai and Hentai2Read, say) imports as two
+books. `cover_phash` is what finds them: duplicate-book detection compares the
+covers and offers each pair to settle by hand
+([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).
+
+## Limits
+
 - **Hentoid's archive books** (`.zip` or `.cbz` in an external library) aren't
   read. Only folders of images are, which is all the samples hold.
-- **`groups`** has never been seen filled in. If the tablet's library uses
-  them, check the shape against a real contentV2.json.
-- **Duplicates across sites** (the same book from nhentai and Hentai2Read) are
-  kept apart. `cover_phash` is stored for "Duplicate book detection".
+- **`groups`** has never been seen filled in, so it is read loosely. A library
+  that uses them should be checked against a real contentV2.json.

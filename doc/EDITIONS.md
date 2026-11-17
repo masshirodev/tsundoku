@@ -2,15 +2,12 @@
 
 The same doujin downloaded in two or three languages is **one book**, not
 duplicates. The book gets one tile, one rating, one place, and a language
-switch. Card c60. It was designed in `Editions.dc.html`, `Book Editions.dc.html`
-and the updated `Pair Review.dc.html` in `design/handoff/`,
-the handoff for `briefs/done/BOOK-EDITIONS.md`. The owner
-decided on 2026-09-24 that English opens first by default, with a choice in
-SETTINGS, and that there is no side-by-side view.
+switch. English opens first by default, with a choice in SETTINGS. There is
+no side-by-side view.
 
 ## The model
 
-Rung 24 (`src/lib/server/db.ts`).
+Migration 24 (`src/lib/server/db.ts`).
 
 - **The book** is a single-book doujin series. Its own entry is the **base**.
 - **An edition** is another entry that has moved into that series, with:
@@ -65,6 +62,7 @@ same place. An edition's own `page_count` is never overwritten.
 - **Library tile**: the opening edition's title and cover (`editionSource`
   in `covers.ts`, refreshed on a fold, a LANGUAGE change and a SETTINGS
   change). A corner badge gives the codes, the opening one first: `EN · JA`.
+  The tiles have no meta line, so the languages are a badge.
 - **Book screen** (`SeriesPanel.svelte`):
   - meta `DOUJIN · 2 LANGUAGES`, the opening title, and the others' titles
     with their codes;
@@ -73,10 +71,15 @@ same place. An edition's own `page_count` is never overwritten.
     book's own choice. When the book has one, a note reads `THIS BOOK OPENS
 IN … · OTHERS IN …`, with RESET;
   - EDITIONS: one row per edition. Each gives its site, pages, the size when
-    the sizes differ, which pages are only in it (or EVERY PAGE MATCHED), and
-    its path;
-  - FOLDED: the fold's date, with UNFOLD and HIDE. It stands in place of the
-    FILE row.
+    the sizes differ, which pages are only in it (`P. 29 · ONLY IN EN`, or
+    EVERY PAGE MATCHED), and its path. Such a page is named by its number
+    alone: calling it a translator's note or credits would need knowing what
+    the page is;
+  - FOLDED: FROM THE DUPLICATES REVIEW, after the fold's date when the fold
+    went through the review, with RENAME, UNFOLD and HIDE. It stands in place
+    of the FILE row and names no other source.
+  - **No DELETE on a folded book**: unfold first. Deleting would take every
+    language's files at once.
   - The PAGES grid shows the opening edition's pages, at the book's place,
     with `29 · EN ONLY` on a page only it has.
 - **UNFOLD** (`UnfoldSheet.svelte`, `unfoldEditions`): each edition becomes
@@ -93,6 +96,10 @@ IN … · OTHERS IN …`, with RESET;
     `EN P. 29 ISN'T IN JA` / `OPENED JA P. 28, THE NEAREST MATCHED PAGE`.
   - The lookup panel has a cell `EN P. 13 →` for the same page in the other
     language.
+  - The page menu (long-press a page) isn't offered on another edition's
+    pages: a cover is chosen from the book's own entry.
+- **Offline**: caching keeps the base entry, not an edition read by
+  switching.
 - **SETTINGS** (`/settings`, [`SETTINGS.md`](SETTINGS.md)): OPENS IN.
 - **Duplicates review** ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)):
   - FOLD INTO ONE BOOK is carried out.
@@ -111,20 +118,6 @@ MATCH · NOT ONE BOOK`. Such an asked-for pair is stored with `bits = -1`, so
 
 A folded book that has a Japanese edition is read by OCR in that edition only
 (`OCR_ENTRY`, `src/lib/server/japanese/ocr.ts`). The English base isn't queued.
-
-## Where it departs from the handoff
-
-- **Notes on pages only one edition has** say `P. 29 · ONLY IN EN`. The
-  mock's "TRANSLATOR'S NOTE" and "CREDITS" would need knowing what a page is.
-- **The tile's languages are a corner badge.** The app's tiles have no meta
-  line, where the mock puts "EN · JA · P. 13".
-- **The FOLDED row names no source** beyond FROM THE DUPLICATES REVIEW, and
-  a date only when the fold went through the review.
-- **No DELETE on a folded book**: unfold first. Deleting would take every
-  language's files at once.
-- **The page menu (long-press a page) isn't offered on another edition's
-  pages**: a cover is chosen from the book's own entry.
-- **Offline caching keeps the base entry**, not an edition read by switching.
 
 ## Tests
 

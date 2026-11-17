@@ -2,9 +2,7 @@
 
 A band is the strip under a screen's bar that says one thing and offers one
 act. `src/lib/components/chrome/Band.svelte` draws most of them; a few are
-`Banner.svelte`'s. This is the account of which of them carry a ✕ (c493), and
-why: the owner's words, 2026-11-04, were "we need more dismiss buttons across
-the app".
+`Banner.svelte`'s. This is the account of which of them carry a ✕, and why.
 
 ## The rule
 
@@ -13,18 +11,17 @@ the app".
 - **A band that says what is true now does not.** SCANNING while it runs,
   offline, a source not answering, incognito: hiding one of those would hide
   the truth, and the band goes by itself when the thing stops being true.
-- **A band that is both, or that I could not place, gets no ✕**, and is named
-  below.
+- **A band that is both gets no ✕ of its own**, and is named below.
 
 The ✕ only clears the band. **It is not UNDO: the thing stays done, and UNDO
-goes with the band**, which is accepted: a band's UNDO was only ever offered
-for as long as the band was there.
+goes with the band**: a band's UNDO is only offered for as long as the band
+is there.
 
 A screen turns the cell on by passing `ondismiss` to `Band`. The cell comes
 after the band's action, 48 px wide, inside the band's own height, so its hit
 area stops at the hairline and cannot overlap the band below. Its accessible
 name is `band_dismiss` ("Dismiss this band"), chosen to contain no control's
-word (doc/I18N.md). On a TV it is a focus stop after UNDO.
+word ([`I18N.md`](I18N.md)). On a TV it is a focus stop after UNDO.
 
 ### Where a dismissed band stays gone
 
@@ -55,10 +52,9 @@ that a new answer replaced has not just been pressed.
 | `?created=N&order=…&added=1,2`, after a GROUP | Entry ids (or volumes) | The created band, and its `undoAdd` |
 
 `addedFrom` is null when `moved=1` or a `created` parameter is present, so
-ADDED TO THE LIBRARY draws only after an ADD. **The ADDED band the owner's
-screenshot showed above MOVED (c493) was a false band**: a move's count passes
-as a source id, and its UNDO posted `?/undoSourceAdd` for a series that was
-moved, not added. That is why only MOVED remains there now.
+ADDED TO THE LIBRARY draws only after an ADD. Read without that rule, a move's
+count passes as a source id: an ADDED band would draw above MOVED, and its
+UNDO would post `?/undoSourceAdd` for a series that was moved, not added.
 
 Because the created band reads `added` to tell a new series from books added
 to an existing one (`?/ungroup` against `?/undoAdd`), no other ✕ may remove
@@ -79,6 +75,7 @@ to an existing one (`?/ungroup` against `?/undoAdd`), no other ✕ may remove
 | Library                             | `IMPORT FINISHED` (a `Banner`)                                             | The workstation                                                |
 | Series (`series/[id]/+page.svelte`) | `ADDED TO THE LIBRARY` after an ADD, and its shelf chips with it (one URL) | URL (`added`, `queued`)                                        |
 | Series                              | `MOVED TO …`                                                               | URL (`moved`, `added`, `kept`, `lost`)                         |
+| Series                              | The kind switch done, with UNDO                                            | The page                                                       |
 | Series                              | `SERIES CREATED`, `N … ADDED`                                              | URL (`created`, `added`, `order`, `unit`)                      |
 | Series                              | A refusal, `NOTHING CHANGED`                                               | Form answer                                                    |
 | Series                              | `N NOT AT THE SOURCE`                                                      | Form answer                                                    |
@@ -97,6 +94,11 @@ to an existing one (`?/ungroup` against `?/undoAdd`), no other ✕ may remove
 | A source's settings                 | A refusal                                                                  | Form answer                                                    |
 | BROWSE, a source's page             | `ADDED TO THE LIBRARY, AND HIDDEN` (`AddedBand`)                           | URL (`added`, `series`, `preview`, `queued`, `new`, `refused`) |
 | BROWSE, a source's settings         | `N SERIES HIDDEN NOW` (`ConcealBand`)                                      | URL (`of`, `concealed`)                                        |
+| Highlights                          | `HIGHLIGHT DELETED`, a refusal                                             | Form answer                                                    |
+| Highlights                          | `COPIED · N`                                                               | The page                                                       |
+| Search                              | `HIDDEN`/`SHOWN` a Work whole, with UNDO                                   | The page                                                       |
+| SETTINGS                            | The AniList/Ranobe sign-in band                                            | URL (`signin`, `service`)                                      |
+| SETTINGS                            | `TMDB KEY SAVED`                                                           | Form answer                                                    |
 
 **`IMPORT FINISHED` and the default shelf.** With no `?shelf=` in the URL the
 library's default is the NEW shelf only while the import is current
@@ -114,32 +116,21 @@ case). A library opened with `?shelf=` stays on it.
 | A source's page, its settings | `NOT ANSWERING`, `DID NOT ANSWER`, `ASKED TO SLOW DOWN`, `FAILED TO LOAD` | A source not answering is true now |
 | A source's page               | `PASSING THE SITE'S BROWSER CHECK`, `STILL ASKING`                        | A wait in progress                 |
 
-### Decisions I made alone
-
-The card says to ask about anything unclear; nobody will answer, so these get
-no ✕ and the reasons are here to be overturned.
+### Both: no ✕ of the band's own
 
 - **FIRST READ's variant of ADDED (`StartTrail`, on the series screen just after
   ADD, with its UNDO).** It says which step comes next as well as what was
-  done, the trail owns when it goes, and `StartTrail` is not `chrome`'s this
-  wave.
+  done, and the trail owns when it goes: its only ✕ is the trail's, which ends
+  the GET STARTED trip ([`ONBOARDING.md`](ONBOARDING.md)) and the band with
+  it.
 - **`KEPT BOTH · 1 EARLIER DECISION COULDN'T BE CARRIED OUT`
   (`SeriesPanel`).** It reports the past and points at something still true:
   SEE DUPLICATES → leads to a decision that is still waiting.
-- **`SERIES TO LINK` and its ✕ (c430), the update bands, and every other
-  `Banner`.** `Banner.svelte` is not `chrome`'s this wave, so they keep what
-  they have. `IMPORT FINISHED` is a `Banner` too, and got its ✕ in its action
-  cell beside TIDY NEW, rather than moving onto `Band`'s, which would lose
-  TIDY NEW's accent cell and SEE LOG's link in the detail line.
 
-`IMPORT FINISHED` and `SERIES TO LINK` keep their own ✕, on `Banner` (c493's
-follow-up: a `Banner` dismiss cell, Suggestions in the wave 37 notes).
+### Banners
 
-### Also dismissed (wave 38)
-
-| Screen     | Band                                | Where it lives | What ✕ does                                |
-| ---------- | ----------------------------------- | -------------- | ------------------------------------------ |
-| Highlights | `HIGHLIGHT DELETED`, a refusal      | A form answer  | Drops that answer until the next one comes |
-| Highlights | `COPIED · N`                        | The page       | Clears it                                  |
-| Search     | `HIDDEN`/`SHOWN` a Work whole, UNDO | The page       | Clears it; UNDO goes with it               |
-| SETTINGS   | The AniList/Ranobe sign-in band     | The URL        | `clearBandUrl(['signin', 'service'])`      |
+`Banner.svelte` has no dismiss cell, so the update bands carry no ✕. Two
+`Banner`s carry one of their own in their action cell:
+`SERIES TO LINK` ([`LINKS.md`](LINKS.md)), and `IMPORT FINISHED`, whose ✕ sits
+beside TIDY NEW. Moving `IMPORT FINISHED` onto `Band` would lose TIDY NEW's
+accent cell and SEE LOG's link in the detail line.
