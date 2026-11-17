@@ -24,12 +24,12 @@ test('a latest.json signed by the key opens, with lasting latest/ links', () => 
 	assert.equal(r.installer.sha256, 'a'.repeat(64));
 	assert.equal(r.zip.size, 300000000);
 	assert.equal(r.archive.name, 'tsundoku-linux-x64.tar.xz');
-	// Before c614 there is no files.android at all, and that is not a refusal.
+	// Before the Android apps there is no files.android at all, and that is not a refusal.
 	assert.equal(r.android, null);
 	assert.deepEqual(appsOf(r), { app: false, tv: false });
 });
 
-test('a c614 manifest carries both apps, with the signed names, sizes and hashes', () => {
+test('a manifest with the Android apps carries both apps, with the signed names, sizes and hashes', () => {
 	const k = testKey();
 	const r = readRelease(k.signed(ANDROID_MANIFEST), k.raw);
 	assert.deepEqual(r.android?.app, {

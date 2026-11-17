@@ -31,7 +31,7 @@ export const MANIFEST: Manifest = {
 };
 
 /**
- * A manifest shaped like a c614 release: the same desktop files, plus the two
+ * A manifest shaped like a release with the Android apps: the same desktop files, plus the two
  * APKs under `files.android` and the names, sizes and hashes publish.ts gives
  * them. The real saved fixture stays the no-android case (most releases).
  */

@@ -1,9 +1,8 @@
 /**
  * The built website in a real browser. The frame and its measurements are
- * pinned on purpose: the spacing is the handoff's, hand-set and on no scale,
+ * pinned on purpose: the spacing is the design's, hand-set and on no scale,
  * and these assertions are what keeps a later tidy-up from quietly redrawing
- * the page (~/.config/myconf/HANDOFF.md, "Verify what eyes cannot"). Values
- * are from doc/handoffs/website/Site.dc.html and Download.dc.html.
+ * the page.
  */
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
@@ -91,9 +90,9 @@ const CAPTURES: Captures = {
 };
 
 /**
- * The page a c614-shaped manifest makes, with the real order.js and site.js
+ * The page a manifest with the Android apps makes, with the real order.js and site.js
  * inlined. The checked-in fixture is release-signed and has no apps, so this
- * is the one door that can exercise site.js's app rows: page.test.ts proves
+ * is the one way to exercise site.js's app rows: page.test.ts proves
  * the rows exist, order.test.ts proves the rule, and this proves the script
  * reads the rows from the page and reorders them.
  */
@@ -317,7 +316,7 @@ test.describe('the frame, desktop', () => {
 		expect(await css(page, 'h1', 'font-size')).toBe('48px');
 	});
 
-	test('the grids keep the handoff’s tracks', async ({ page }) => {
+	test('the grids keep the design’s tracks', async ({ page }) => {
 		await page.goto('/');
 		const hero = await tracks(page, '.hero');
 		expect(hero[0] / hero[1]).toBeCloseTo(5 / 7, 2);

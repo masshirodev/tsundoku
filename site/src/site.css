@@ -1,13 +1,12 @@
 /*
- * tsundoku's website. Every measurement is the handoff's, transcribed from
- * doc/handoffs/website/Site.dc.html and Download.dc.html (desktop as drawn;
- * the phone values below 600px are its `device: phone` ones). The colours are
+ * tsundoku's website. Every measurement is the design's, transcribed
+ * (desktop as drawn; the phone values below 600px are its phone ones). The colours are
  * the app's own tokens, copied from src/lib/styles/colors.css by the build
  * and written above this file, so the site and the app can't drift apart.
  *
- * Square, ruled, closed (the handoff's call 07): no radius, no shadow, no
- * gradient. Hairlines are 1px var(--line-1). Spacing is hand-set and is not a
- * scale: site/test/site.e2e.ts pins it, so a tidy-up can't redraw the page.
+ * Square, ruled, closed: no radius, no shadow, no gradient. Hairlines are 1px
+ * var(--line-1). Spacing is hand-set and is not a scale: site/test/site.e2e.ts
+ * pins it, so a tidy-up can't redraw the page.
  */
 
 :root {
@@ -1060,7 +1059,7 @@ h1 {
 	.hero .btn-hero {
 		flex: 1 1 100%;
 	}
-	/* The handoff draws the phone's FIG. 1 without the sidebar, at 4:3. The
+	/* The design draws the phone's FIG. 1 without the sidebar, at 4:3. The
 	   capture is the desktop library; 1190 of its 1440 is everything right of
 	   the ~247px sidebar, so cropping from the right edge shows exactly that. */
 	.fig-hero .frame {

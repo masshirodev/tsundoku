@@ -16,10 +16,10 @@ const db = new Database(path);
 const { changes } = db
 	.prepare(`UPDATE series SET description = '' WHERE description LIKE 'Development sample.%'`)
 	.run();
-// The seed keeps one doujin in the visible library (Hoshi no Umi no
-// Tabibito). The site names no doujinshi at all (the brief, and the
-// handoff's call 09), so it goes into the hidden root with the others: hidden
-// the way the app hides anything, which reveal-off then keeps out of view.
+// The seed keeps one doujin in the visible library (Hoshi no Umi no Tabibito).
+// The site names no doujinshi at all, so it goes into the hidden root with the
+// others: hidden the way the app hides anything, which reveal-off then keeps
+// out of view.
 const hidden = db.prepare(`SELECT id FROM roots WHERE hidden = 1 ORDER BY id LIMIT 1`).get() as
 	{ id: number } | undefined;
 if (!hidden) throw new Error('the seed has no hidden root to move the visible doujin into');

@@ -42,7 +42,7 @@ const TABLET: BrowserContextOptions = {
 	...devices['Galaxy Tab S4'],
 	viewport: { width: 800, height: 1280 }
 };
-// Pixel 7 as the e2e phone project, at the 412×915 the handoff frames draw
+// Pixel 7 as the e2e phone project, at the 412×915 the design's frames draw
 // (Playwright's Pixel 7 viewport is 412×839, its screen 412×915).
 const PHONE: BrowserContextOptions = {
 	...devices['Pixel 7'],

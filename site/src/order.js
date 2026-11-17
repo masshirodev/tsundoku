@@ -52,7 +52,7 @@ export function detectOS(nav) {
  *
  * `apps` says which Android rows the release carries, because a row that does
  * not exist cannot lead and cannot be tagged. A release without them (every
- * one before c614) orders and accents exactly as it did.
+ * one before the apps) orders and accents as the desktop rows alone do.
  *
  * An `ios` visitor is a phone in everything but the apps: it gets the band
  * and the same line about a computer, but never an app row first, tagged or

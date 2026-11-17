@@ -13,7 +13,7 @@ export const DL = 'https://dl.tsundoku.masshiro.pro';
 
 export type Download = { name: string; size: number; sha256: string; href: string };
 
-/** The Android apps c614 publishes; both are optional, one release at a time. */
+/** The Android apps a release publishes; both are optional, one release at a time. */
 export type AndroidApps = { app?: Download; tv?: Download };
 
 export type Release = {
@@ -27,7 +27,7 @@ export type Release = {
 	archive: Download;
 	/**
 	 * The phone and tablet app and the TV's, when the manifest carries them.
-	 * Null for every release before c614, which is most of them: the page must
+	 * Null for every release before the apps shipped, which is most of them: the page must
 	 * still build, with no app row (doc/WEBSITE.md).
 	 */
 	android: AndroidApps | null;
@@ -61,8 +61,8 @@ export function readRelease(text: string, key?: string): Release {
 		throw new Error(
 			'latest.json: a Windows installer, a Windows zip and a Linux archive are all required'
 		);
-	// The Android apps arrived in c614. Every release before it has no
-	// files.android at all, so their absence is not a refusal: the page is
+	// Releases from before the Android apps have no files.android at
+	// all, so their absence is not a refusal: the page is
 	// built as it was, with no app row. A malformed entry was already refused
 	// by openManifest, so what is left here is signed.
 	const apps = m.files.android;

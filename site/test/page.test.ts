@@ -146,7 +146,7 @@ test('figures: both palettes where captured, one for the reader, sized', () => {
 	assert.match(html, /<img class="cap" src="captures\/d-dark\.webp"[^>]*loading="lazy"/);
 });
 
-test('the help line is the owner’s, escaped, in both places', () => {
+test('the help line is the configured one, escaped, in both places', () => {
 	const html = render('Ask <me> on Discord');
 	assert.equal(html.match(/Ask &lt;me&gt; on Discord/g)?.length, 2);
 });

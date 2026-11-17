@@ -1,7 +1,6 @@
-// The page itself: doc/handoffs/website/Site.dc.html and Download.dc.html,
-// as one static HTML document. Structure and copy follow the handoff; where
-// they don't, doc/WEBSITE.md ("Where it departs from the handoff") says why.
-// Every value that comes from outside this file goes through esc().
+// The page itself, as one static HTML document. Where it departs from the
+// design, doc/WEBSITE.md says why. Every value that comes from outside this
+// file goes through esc().
 
 import { plan } from '../src/order.js';
 import { appsOf, chromeDate, DL, esc, megabytes, type Release } from './data.ts';
@@ -22,14 +21,14 @@ export type PageInput = {
 	release: Release;
 	solver: { windows: { name: string; size: number }; linux: { name: string; size: number } };
 	captures: Captures;
-	/** The footer's and IF SOMETHING GOES WRONG's help line (doc/WEBSITE.md, "Left to the owner"). */
+	/** The footer's and IF SOMETHING GOES WRONG's help line (doc/WEBSITE.md). */
 	help: string;
 	/** Fingerprints for the CSS and script names, so a deploy is never half-cached. */
 	assets: { css: string; js: string; favicon: string; touchIcon: string };
 	fonts: string;
 };
 
-/** Where the owner's help line goes until there is one: README.txt's own answer. */
+/** The help line until one is set: README.txt's own answer. */
 export const DEFAULT_HELP = 'Ask whoever gave you tsundoku.';
 
 const img = (c: Capture, alt: string, cls: string, eager: boolean) =>
@@ -82,8 +81,8 @@ const btn = (href: string, label: string, size: number, main: boolean, os: strin
 	`<a class="btn${main ? ' btn-main' : ''}" data-main="${main ? os : ''}" href="${esc(href)}" download>${label}<span class="btn-size">${esc(megabytes(size))}</span></a>`;
 
 /**
- * The two Android rows (c667), only for a release whose manifest carries them
- * (c614 and later). They use the desktop rows' own name/body/note markup, so
+ * The two Android rows, only for a release whose manifest carries
+ * them. They use the desktop rows' own name/body/note markup, so
  * 04 keeps its shape. Size and SHA-256 are the manifest's, never typed: the
  * hash is what a friend checks a sideloaded APK against.
  */
