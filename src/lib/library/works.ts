@@ -16,7 +16,7 @@ import type { Direction } from './series.ts';
 import { ago } from './tracking.ts';
 import type { ContinueItem, Kind, Rating, SeriesCard } from './types.ts';
 
-/** How a Work's parts are ordered: the owner's hand, when each was added, or its title. */
+/** How a Work's parts are ordered: the user's hand, when each was added, or its title. */
 export type WorkOrder = 'hand' | 'added' | 'title';
 
 /**
@@ -32,9 +32,9 @@ export type WorkPart = {
 	favourite: boolean;
 	/** The cover thumbnail's version, or null when there's none yet (doc/COVERS.md). */
 	cover: number | null;
-	/** 1-based place in the owner's order. */
+	/** 1-based place in the user's order. */
 	position: number;
-	/** When the series entered the library, for the 'added' order and W2's sort. */
+	/** When the series entered the library, for the 'added' order and sort. */
 	addedAt: number;
 	/** Chapters or episodes counted, and how many are read. */
 	entries: number;
@@ -51,7 +51,7 @@ export type WorkPart = {
 export const isFinished = (p: WorkPart) => p.entries > 0 && p.read >= p.entries;
 
 /**
- * What a part is at, in the handoff's words (Work-States, Work-Screen).
+ * What a part is at.
  * Caught up and read through are both "all of it read"; the difference is
  * whether the source may still add to it.
  */
@@ -62,17 +62,17 @@ export function partState(p: WorkPart): PartState {
 	return p.lastOpenedAt === null && p.read === 0 ? 'not-started' : 'in-progress';
 }
 
-/** Parts in the owner's order. Ties fall back to the id, so the answer is never the array's accident. */
+/** Parts in the user's order. Ties fall back to the id, so the answer is never the array's accident. */
 export const inOrder = <T extends WorkPart>(parts: T[]): T[] =>
 	[...parts].sort((a, b) => a.position - b.position || a.seriesId - b.seriesId);
 
 /**
- * The part CONTINUE opens (Works Calls, question 4): the part the owner was in,
+ * The part CONTINUE opens: the part the user was in,
  * and when that one is finished, the next unfinished part after it in the
  * owner's order. So a run behaves as an order and a manga beside its anime
- * follows the owner. Nothing unfinished means the run is read, and null.
+ * follows the user. Nothing unfinished means the run is read, and null.
  *
- * "The part the owner was in" is the most recently opened one, finished or
+ * "The part the user was in" is the most recently opened one, finished or
  * not: a finished part that is still the anchor is exactly how a run crosses
  * from one part to the next. If a later part was finished and nothing after
  * it is unfinished, the run is not called read while an earlier part still
@@ -100,14 +100,14 @@ export function facePart(parts: WorkPart[]): WorkPart | null {
 }
 
 /**
- * The part after this one in the owner's order, or null when this one is last
+ * The part after this one in the user's order, or null when this one is last
  * (or is not a part of the Work at all). "Next" is positional, never the next
  * unfinished one: finishing part 2 of 3 leads to part 3 even when part 3 was
  * started out of order, because the run is an order and the end page is where
- * it crosses (Works Calls, "The end of a series").
+ * it crosses.
  *
- * The end page and the player read this, and W5's series screen will: one rule,
- * one place, so the three cannot drift apart.
+ * The end page and the player read this: one rule, one place, so they cannot
+ * drift apart.
  */
 export function nextPart<T extends WorkPart>(parts: T[], seriesId: number): T | null {
 	const ordered = inOrder(parts);
@@ -128,23 +128,23 @@ export function partPlace(
 /**
  * Whether this part is done -- read through, or caught up on a source still
  * going. CONTINUE goes quiet on it (`↺ READ AGAIN`) wherever it is in a Work,
- * so the run's next part is the one accent on the series screen (Work-Row B3;
- * doc/SERIES.md, "The WORK row"). A series in no Work keeps CONTINUE's accent.
+ * so the run's next part is the one accent on the series screen
+ * (doc/SERIES.md, "The WORK row"). A series in no Work keeps CONTINUE's accent.
  */
 export const partDone = (state: PartState): boolean =>
 	state === 'read-through' || state === 'caught-up';
 
 /**
- * The WORK row's second line, as the three Work-Row boards draw it:
+ * The WORK row's second line, in three forms:
  *
  * - `PART 2 OF 3 · NEXT · ETERNAL FORCE` while the run is here;
  * - `PART 1 OF 3 · YOU'RE IN NEW WAVES` when the run is already in another
- *   part, so the row says where the owner actually is;
+ *   part, so the row says where the user actually is;
  * - and `accent`, when this part is done and the next one has *not been
- *   started*: then the row leads into it (Work-Row's second slice) and the
- *   series screen's one accent is the run's.
+ *   started*: then the row leads into it and the series screen's one accent
+ *   is the run's.
  *
- * A next part the owner is already in is not offered as an accent ("you're in
+ * A next part the user is already in is not offered as an accent ("you're in
  * it"), and a part that is not done never takes the accent. Null when the
  * series is not a part. The "NEXT" word and the ink are the markup's; this
  * decides which title, if any, the line names.
@@ -158,8 +158,8 @@ export function workRowLine(parts: WorkPart[], seriesId: number): WorkRowLine | 
 	const next = nextPart(parts, seriesId);
 	const here = continuePart(parts);
 	const done = partDone(partState(current));
-	// The accent leads into a part that has not begun: once the owner is in it,
-	// the row says where they are instead (Work-Row's third slice).
+	// The accent leads into a part that has not begun: once the user is in it,
+	// the row says where they are instead.
 	const leads =
 		done &&
 		!!next &&
@@ -174,11 +174,11 @@ export function workRowLine(parts: WorkPart[], seriesId: number): WorkRowLine | 
 }
 
 /**
- * What the end of a part offers (doc/WORKS.md, W6):
+ * What the end of a part offers (doc/WORKS.md):
  *
  * - `next`: the part after this one, as the block.
  * - `meanwhile`: this part is caught up on an ongoing source, so the next part
- *   is a quiet row instead -- the owner may rather wait for chapters.
+ *   is a quiet row instead -- the user may rather wait for chapters.
  * - `read`: every part is finished and this one is not merely caught up, so the
  *   end says the run is read rather than offering anything.
  * - null: nothing to say (no Work, or the last part of a run with an earlier
@@ -209,7 +209,7 @@ export type WorkNextEntry = {
 };
 
 /**
- * The next part, as the end page and the player draw it (Work-End). It carries
+ * The next part, as the end page and the player draw it. It carries
  * the part's own kind and direction, because a Work may hold mixed kinds and
  * the block speaks for the part it offers: an anime next part says WATCH and
  * EPISODES, not READ and CHAPTERS.
@@ -231,8 +231,8 @@ export type WorkNextPart = {
 };
 
 /**
- * The end of a part in a Work, for the end page and the player (doc/WORKS.md,
- * W6). `mode` is the pure rule's answer (`workEndMode`); `next` is the part
+ * The end of a part in a Work, for the end page and the player
+ * (doc/WORKS.md). `mode` is the pure rule's answer (`workEndMode`); `next` is the part
  * after this one when there is one, and `held` is the run's own line once it
  * is read. A series in no Work gets null, and the page stays as it was.
  */
@@ -249,10 +249,10 @@ export type WorkEnd = {
 };
 
 /**
- * The tile foot's segments: done grey, current ink, to come dark (Work-Library).
+ * The tile foot's segments: done grey, current ink, to come dark.
  * A part that is not the current one and is unfinished is "to come" whatever
  * its place, because the foot says where the run is, not how much of each part
- * the owner has read.
+ * the user has read.
  */
 export type FootSegment = 'done' | 'now' | 'to-come';
 
@@ -298,9 +298,9 @@ export function workFoot(parts: WorkPart[]): WorkFoot {
  * acts on, so the page and the write decide on the same set.
  *
  * On such a partial read `shown` is the visible parts' average, not the
- * Work's (c309): the Work's own number would move when a hidden part is
+ * Work's: the Work's own number would move when a hidden part is
  * rated, which tells a reveal-off page what the hidden part is rated. Hidden
- * means hidden, so the number is of the parts given, and W3 says so beside it
+ * means hidden, so the number is of the parts given, and the page says so beside it
  * (`THIS PAGE SEES ONLY SOME OF THE PARTS`).
  */
 export type WorkRating = {
@@ -327,7 +327,7 @@ export function workRating(parts: WorkPart[], total: number): WorkRating {
  * goes to a tracker either way; only ratings do. `total` is the Work's member
  * count, as for `workRating`: a partial view is never settable.
  *
- * `count` and `of` are both over the parts given (c309), so the control's
+ * `count` and `of` are both over the parts given, so the control's
  * `1 OF 2` is one fraction of one set: on a reveal-off read of a Work with a
  * hidden part, `of` is the visible parts, and favouriting the hidden one
  * changes neither number (a count that rose would say so).
@@ -393,14 +393,14 @@ export function workVerb(parts: WorkPart[]): 'READ' | 'WATCH' | null {
 export type RunStatus = { ink: string; sub: string };
 
 /**
- * THE RUN's status column (Work-Screen; Work-States 3 and 6): `READ ✓ ·
+ * THE RUN's status column: `READ ✓ ·
  * FINISHED 12 MAR`, `CH. 15 OF 205 · OPENED 2 H AGO`, `NOT STARTED · +4 NEW`.
  * The unit and the finished mark follow the part's kind, so an anime part --
  * the designed manga-plus-anime Work -- says `EP. 5 OF 12` and `WATCH ✓`, not
  * `CH.` and `READ ✓` beside its own `ANIME · EP.` meta line.
  *
  * A never-opened part's `newCount` is read against the Work's last open, not
- * its own (there is none): chapters that arrived since the owner last read any
+ * its own (there is none): chapters that arrived since the user last read any
  * part of the run are what `+N NEW` means there. A series tile keeps the
  * library's rule that a never-opened series has only unread (doc/LIBRARY.md,
  * "New chapters").
@@ -445,7 +445,7 @@ const monthOf = (opts: { month?: (ms: number) => string }) =>
 		new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toUpperCase());
 
 /**
- * The Work screen's count line (Work-Screen): "3 SERIES · 375 CHAPTERS · 86
+ * The Work screen's count line: "3 SERIES · 375 CHAPTERS · 86
  * READ", and "2 SERIES · 227 CHAPTERS · ALL READ" once the run is read. The
  * chapter count is the parts' own counted entries, front and back matter left
  * out, as every count in the library is (doc/LIBRARY.md).
@@ -459,7 +459,7 @@ export function workCounts(parts: WorkPart[]): WorkCounts {
 }
 
 /**
- * What the run held, for the end page's last part (Work-EndStates 4): "2
+ * What the run held, for the end page's last part: "2
  * SERIES · 227 CHAPTERS · MONSTER 10, PLUTO UNRATED". The ratings come last
  * because they are the part of the line that can be long, and an unrated part
  * says so rather than showing a 0 (doc/RATINGS.md).
@@ -475,7 +475,7 @@ export function workHeld(parts: WorkPart[]): string {
 }
 
 /**
- * How a part reads, in one word (Work-End's block): SCROLLS for a strip, and
+ * How a part reads, in one word: SCROLLS for a strip, and
  * the direction's own name for the paged modes. A novel's layout is PAGED or
  * SCROLLS, never a manga's R→L.
  */
@@ -487,7 +487,7 @@ export function directionWord(direction: Direction): string {
 }
 
 /**
- * The next part's own line under its title (Work-End, Work-EndStates 2):
+ * The next part's own line under its title:
  * "MANHWA · 205 CHAPTERS · ALL DOWNLOADED · SCROLLS". The unit word follows the
  * part's kind -- an anime next part says EPISODES -- because a Work may hold
  * mixed kinds and the block speaks for the part it offers, not for this one.
@@ -514,7 +514,7 @@ export function workPartMeta(
 	return `${kindLabel(p.kind)} · ${count(p.entries)} ${unit} · ${downloaded} · ${directionWord(direction)}`;
 }
 
-/** The words beside the end page's next part that depend on what it is (c343). */
+/** The words beside the end page's next part that depend on what it is. */
 export type NextPartWords = {
 	/** After `○ NOT DOWNLOADED · `: how it plays from its source. */
 	online: (source: string) => string;
@@ -526,10 +526,10 @@ export type NextPartWords = {
 
 /**
  * The end page's next part speaks in its own kind's words, as its verb and
- * unit already do (c343): an anime next part STREAMS and offers its first ten
+ * unit already do: an anime next part STREAMS and offers its first ten
  * EPISODES, never STREAMED PAGES. Asked of the registry's medium and unit, not
- * of a kind's name (doc/KINDS.md). A manga's words are the design's own
- * (Work-EndStates 2), with the unit added to DOWNLOAD FIRST 10 so every kind
+ * of a kind's name (doc/KINDS.md). A manga's words are the design's own,
+ * with the unit added to DOWNLOAD FIRST 10 so every kind
  * says what ten of.
  */
 const STREAMED: Record<ReturnType<typeof kindFacts>['medium'], string> = {
@@ -544,8 +544,7 @@ export function nextPartWords(kind: Kind): NextPartWords {
 	return {
 		online: (source) => `${plays} FROM ${source.toUpperCase()}`,
 		streamed: STREAMED[medium],
-		// A film has no unit and no list: there are no "first ten" to download
-		// (c987; the film Work's own words are c992's).
+		// A film has no unit and no list: there are no "first ten" to download.
 		downloadFirst: unitLabel(kind)
 			? `DOWNLOAD FIRST 10 ${PLURAL_UNIT[unitLabel(kind)]}`
 			: 'DOWNLOAD IT'
@@ -637,10 +636,10 @@ export function workFootShort(foot: WorkFoot, parts: WorkPart[]): string {
 }
 
 /**
- * Whether every selected series is hidden: what the bulk bar's UNHIDE is for
- * (W4). A series the page cannot see -- a Work's part the shelf draws as one
+ * Whether every selected series is hidden: what the bulk bar's UNHIDE is for.
+ * A series the page cannot see -- a Work's part the shelf draws as one
  * card, a page not loaded yet -- says nothing either way, and reading it as
- * hidden made UNHIDE the offer for plainly visible series. So at least one
+ * hidden would make UNHIDE the offer for plainly visible series. So at least one
  * series must be known, and none known may be visible.
  */
 export function allHiddenAmong(
@@ -658,7 +657,7 @@ export function allHiddenAmong(
 }
 
 /**
- * The words for "a Work, whole" in a HIDE or UNHIDE band (W4), from the count:
+ * The words for "a Work, whole" in a HIDE or UNHIDE band, from the count:
  * one Work is `THE WORK, WHOLE`, more are `2 WORKS, WHOLE`. A series screen
  * only ever hides its own Work; the library's bulk bar and SELECT ALL can
  * touch several, and the band must not call two of them one.
@@ -670,7 +669,7 @@ export const wholeLine = (works: number): string =>
  * The library's answer to a HIDE or UNHIDE that changed a Work (`?/hide`,
  * `?/hideAll`, `?/hideParts`, `?/showAll`, `?/bulk`): the facts its UNDO posts
  * back, and the counts `wholeBand` words the band from. Every id is one the
- * press changed (c390), so UNDO puts back exactly that.
+ * press changed, so UNDO puts back exactly that.
  */
 export type HideFacts = {
 	hidden: number[];
@@ -705,7 +704,7 @@ export function wholeBand(
 	};
 }
 
-// ---- MIGHT CONTINUE <WORK> (W7; Works Calls, question 6) ----------------------
+// ---- MIGHT CONTINUE <WORK> ---------------------------------------------------
 
 /**
  * The fewest letters a stem may have before it offers anything: the books'
@@ -736,7 +735,7 @@ export type OfferWork = {
 	id: number;
 	name: string;
 	createdAt: number;
-	/** Its parts' titles, in the owner's order. */
+	/** Its parts' titles, in the user's order. */
 	parts: string[];
 };
 
@@ -770,10 +769,10 @@ export function offerMatch(title: string, works: OfferWork[]): OfferMatch | null
 }
 
 /**
- * The offer's second line (Work-States 1): why it offers, then what the Work
+ * The offer's second line: why it offers, then what the Work
  * holds. `ITS TITLE STARTS WITH THE WORK'S NAME · THE WORK HOLDS 2 SERIES`, or
  * `… WITH PART 1'S TITLE · …` when a part's title is the stem. Its words are
- * messages since wave 30 (c587), imported relatively like every library
+ * messages, imported relatively like every library
  * module's (`doc/I18N.md`), so the function keeps its shape and its callers
  * (`src/lib/server/works.ts` is nobody's).
  */

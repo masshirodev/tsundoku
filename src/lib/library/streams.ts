@@ -1,5 +1,5 @@
 /**
- * An episode's streams, the pure part (doc/ANIME.md, "Streams"; card c155):
+ * An episode's streams, the pure part (doc/ANIME.md, "Streams"):
  * what the engine's getVideoList answers, as the player's servers and
  * qualities; an HLS playlist rewritten so every address in it is one of
  * tsundoku's own; and subtitles as WebVTT. No network, no database.
@@ -86,7 +86,7 @@ export function serversOf(videos: EngineVideo[]): Server[] {
 }
 
 /**
- * The quality a device starts on (Anime Calls 01, default 3): the best
+ * The quality a device starts on: the best
  * offered, or the best at most [cap] lines (720 on the phone). A server with
  * nothing that low offers its lowest.
  */
@@ -223,7 +223,7 @@ export function variantsOf(text: string): { bandwidth: number; height: number | 
 const vttTime = (t: string) => t.replace(',', '.');
 
 /**
- * Subtitles as WebVTT, which the player reads (Anime Calls, "Subtitles"):
+ * Subtitles as WebVTT, which the player reads:
  * WebVTT as it is, SubRip's commas turned to dots, and SubStation's Dialogue
  * lines as plain cues (its styling dropped: the player draws its own).
  */
@@ -257,8 +257,8 @@ export function toVtt(text: string): string {
 }
 
 /**
- * The languages a track can be named in (doc/ANIME.md, "The settings sheet";
- * c386): the code the sheet shows, the English name its `title` says, then
+ * The languages a track can be named in (doc/ANIME.md, "The settings sheet"):
+ * the code the sheet shows, the English name its `title` says, then
  * every other way a source writes it -- ISO 639-2's three letters (both the
  * B and T forms), the language's own name. A source's label is matched
  * against all of them, so "Hungarian", "hun", "hu" and "Magyar" are all HU.
@@ -442,7 +442,7 @@ function parseLang(label: string): { base: string; variant: string | null } | nu
 }
 
 /**
- * A track's language as the sheet shows it (c386): its short code, `JA`,
+ * A track's language as the sheet shows it: its short code, `JA`,
  * `PT-BR`, `ES-419`, `ZH-HANT`, `NB`, whatever the source wrote ("English",
  * "eng", "en-US", "Chinese (Traditional)", "Norwegian (nob)", "Magyar"). A
  * name nobody knows is cut to a code of its own, so no cell ever holds a
@@ -468,7 +468,7 @@ export function langCode(lang: string): string {
 	const alias = BY_ALIAS.get(cut);
 	if (!alias) return cut.toUpperCase();
 	if (isPlausibly(ascii[0], alias)) return alias.toUpperCase();
-	// An impostor (c417): Chichewa cuts to CHI, Chinese's alias, and would
+	// An impostor: Chichewa cuts to CHI, Chinese's alias, and would
 	// take ZH from the Chinese track beside it. It takes the first letter
 	// and two later ones that no language holds instead (CHC), and only a
 	// name with none such left is UND.
@@ -502,7 +502,7 @@ const COUNTRY: Record<string, string> = {
 
 /**
  * Whether a name nobody knows, cut to a language's alias, plausibly is that
- * language (c417): its first word and the English name are a prefix of one
+ * language: its first word and the English name are a prefix of one
  * another (Indonesia, Indonesian), or it is the language's country.
  */
 function isPlausibly(first: string, code: string): boolean {
@@ -514,7 +514,7 @@ function isPlausibly(first: string, code: string): boolean {
 
 /**
  * A track's language in full, for the cell's `title` and `aria-label` and
- * MORE's list (c386): "Portuguese (Brazil)", "Norwegian Bokmål". A label
+ * MORE's list: "Portuguese (Brazil)", "Norwegian Bokmål". A label
  * nobody knows is given back as the source wrote it, trimmed, and a blank
  * one is "Unknown".
  */
@@ -542,12 +542,12 @@ export function trackCodes(names: string[]): string[] {
 }
 
 /**
- * Which offered track a remembered choice means (c386). A choice is a code,
+ * Which offered track a remembered choice means. A choice is a code,
  * kept by the workstation, and a code offered as it is is that track: ES-2
  * is the second Spanish, never the first, and IND is a track whose source
- * named it so. Only a choice no track carries is read again: the codes grew
- * regions in c386 (PT-BR, ES-419) and lost ISO 639-2's three letters (`HUN`
- * is HU), so one kept before then is read through langCode and, failing the
+ * named it so. Only a choice no track carries is read again: an older one may
+ * lack its region (PT for PT-BR, ES for ES-419) or be ISO 639-2's three
+ * letters (`HUN` for HU), so it is read through langCode and, failing the
  * exact code, takes the same language: PT finds PT-BR, PT-BR finds PT.
  * Undefined when nothing offered is that language.
  */
@@ -560,15 +560,15 @@ export function matchLang(choice: string, offered: string[]): string | undefined
 }
 
 /**
- * How many languages a sheet row shows as cells before it collapses
- * (c386). Twelve is two lines of the 520px sheet's six cells: past that the
+ * How many languages a sheet row shows as cells before it collapses.
+ * Twelve is two lines of the 520px sheet's six cells: past that the
  * row would be taller than the rest of the sheet together, and on a TV's
  * 420px panel (four to a line) three lines already.
  */
 export const LANG_ROW_MAX = 12;
 
 /**
- * A language row's cells (c386): every language when there are LANG_ROW_MAX
+ * A language row's cells: every language when there are LANG_ROW_MAX
  * or fewer; else only those that matter -- the ones in [keep] (what is on,
  * what the series or SETTINGS chose, the device's language, English) -- in
  * the source's order, and how many MORE · N holds besides.
@@ -590,8 +590,8 @@ export function langRow(
 
 /**
  * One audio track per language the source names (doc/ANIME.md, "Streams"):
- * KickAssAnime lists every language twice, two playlists apiece (live,
- * 2026-10-29: 16 tracks for 8 languages), which doubled the menu and the
+ * KickAssAnime lists every language twice, two playlists apiece (16 tracks
+ * for 8 languages), which doubled the menu and the
  * download. The first the source lists is kept; names that differ
  * ("Spanish", "Spanish (Latin America)") are different tracks.
  */
@@ -608,8 +608,7 @@ export function onePerLanguage<T extends { lang?: string | null }>(tracks: T[]):
 /**
  * A quality as the player names it: `1080P` when its height is known, else
  * the source's words up to its details. A source's own label can run to
- * "2160p (3840x2160) - 7.42 Mbps" (KickAssAnime), which overran the sheet
- * (reported 2026-10-29).
+ * "2160p (3840x2160) - 7.42 Mbps" (KickAssAnime), which overruns the sheet.
  */
 export function qualityName(q: { label: string; height: number | null }): string {
 	if (q.height) return `${q.height}P`;

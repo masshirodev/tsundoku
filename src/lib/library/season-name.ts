@@ -1,7 +1,7 @@
 /**
- * A title's trailing season marker, as a name rule (card c283, S2;
- * doc/WORKS.md, "Per-season sources"). Rung 55 inlined the same shapes in SQL
- * to stamp `entries.season` (`src/lib/server/db.ts`, v55): a rung must say the
+ * A title's trailing season marker, as a name rule (doc/WORKS.md, "Per-season
+ * sources"). Migration 55 inlines the same shapes in SQL to stamp
+ * `entries.season` (`src/lib/server/db.ts`, v55): a migration must say the
  * same thing in ten years, whatever this module has learned by then, so the
  * frozen SQL stays untouched and this is the rule the grouping sheet reads.
  *
@@ -56,7 +56,7 @@ export function seasonMark(title: string): SeasonMark | null {
 	const t = title.trim();
 	if (t === '') return null;
 	// A part after a season belongs to the same marker: "Title Season 3 Part 2"
-	// is the whole suffix, and the show's name is "Title" (round 2).
+	// is the whole suffix, and the show's name is "Title".
 	let m = trailing(/(?:^|\s)season\s*(\d{1,3})\s+part\s*(\d{1,2}|[IVX]{2,5})$/i, t);
 	if (m) return { season: Number(m[1]), marker: t.slice(m.index).trim() };
 	m = trailing(/(?:^|\s)season\s+([IVX]{2,5})\s+part\s*(\d{1,2}|[IVX]{2,5})$/i, t);

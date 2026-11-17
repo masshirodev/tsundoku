@@ -3,12 +3,11 @@ import { runtimeWords, type TmdbTitle } from './tmdb.ts';
 import { dayWords } from './surroundings.ts';
 
 /**
- * A film's screen, the pure part (card c992; the handoff's Film-Desk and
- * Film-States boards in doc/handoffs/movies-shows/). A film is a series of one
- * entry with no list, so everything a list says elsewhere is said here, once:
- * the one primary cell, the count line, the DOWNLOAD row of one file and the
- * KIND row. Never on a film: an episode list, a NEXT row of its own, FOLLOW,
- * REFRESH, NEXT 10 or an episode count (Film-States, "NEVER ON A FILM").
+ * A film's screen, the pure part. A film is a series of one entry with no
+ * list, so everything a list says elsewhere is said here, once: the one
+ * primary cell, the count line, the DOWNLOAD row of one file and the KIND row.
+ * Never on a film: an episode list, a NEXT row of its own, FOLLOW, REFRESH,
+ * NEXT 10 or an episode count.
  */
 
 type Entry = Pick<SeriesEntry, 'id' | 'readAt' | 'lastPosition' | 'lastOpenedAt' | 'available'> & {
@@ -32,9 +31,8 @@ export type FilmAction = {
 };
 
 /**
- * The one primary cell (Film-States 1.1 to 1.3). The length is the file's when
- * it was measured, else TMDB's runtime, else nothing: a cell never says a
- * length nobody knows.
+ * The one primary cell. The length is the file's when it was measured, else
+ * TMDB's runtime, else nothing: a cell never says a length nobody knows.
  */
 export function filmAction(entries: Entry[], runtimeMin: number | null, now: number): FilmAction {
 	const e = entries[0] ?? null;
@@ -68,8 +66,8 @@ export function filmAction(entries: Entry[], runtimeMin: number | null, now: num
 
 /**
  * The line under the title: `2024 · 1 H 58 · DRAMA`, with `· WATCHED` once it
- * is. With no TMDB link it closes up (the owner's call, 2026-11-12, the keys
- * handoff's version): `FILM · <SOURCE> · 1 FILE`, nothing dimmed or unknown.
+ * is. With no TMDB link it closes up: `FILM · <SOURCE> · 1 FILE`, nothing
+ * dimmed or unknown.
  * The genre is the series' own first one (its source's tags); TMDB's genres
  * are not fetched, so a linked film with none says none.
  */
@@ -110,7 +108,7 @@ const size = (b: number | null) => {
 };
 
 /**
- * The DOWNLOAD row of a film (Film-States 1.6): one file, so the row says
+ * The DOWNLOAD row of a film: one file, so the row says
  * where that file is and nothing else, with one cell. PLAY still streams in
  * every state but `here`.
  */
@@ -149,7 +147,7 @@ export function filmDownloadRow(f: FilmFile): { title: string; meta: string; cel
 	}
 }
 
-/** The KIND row (Film-Desk, Kind): `Movie`, `MOVIES/ · 1 FILE`, CHANGE. */
+/** The KIND row: `Movie`, `MOVIES/ · 1 FILE`, CHANGE. */
 export function kindRow(o: { kind: 'movie' | 'show'; folder: string; files: number }): {
 	title: string;
 	meta: string;

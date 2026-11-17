@@ -19,7 +19,7 @@ export type Copy = {
 };
 
 /**
- * The scanlator a series prefers when the owner hasn't picked one: whoever
+ * The scanlator a series prefers when none is picked: whoever
  * has the most chapters on disk, else the most chapters at all. Ties go
  * alphabetically, so the choice doesn't flip between scans.
  */

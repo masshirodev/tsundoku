@@ -37,7 +37,7 @@ const FROM: Record<Service, Record<string, Status>> = {
 		reading: 'reading',
 		plan_to_read: 'planning',
 		// MAL's anime list says the same two in its own words; no manga row is
-		// ever either, so one map still holds both lists (c298).
+		// ever either, so one map still holds both lists.
 		watching: 'reading',
 		plan_to_watch: 'planning',
 		on_hold: 'on_hold',
@@ -69,7 +69,7 @@ export const statusFrom = (service: Service, remote: string | null | undefined):
  * Tsundoku's status in one catalogue's words. MAL keeps two lists with two
  * sets of words -- `reading`/`plan_to_read` for a manga, `watching`/
  * `plan_to_watch` for an anime -- so the entry's own kind decides the two
- * that differ (c240). Without a kind it is the manga's words, which is what
+ * that differ. Without a kind it is the manga's words, which is what
  * every caller but an anime's send means.
  */
 export const statusTo = (service: Service, status: Status, kind?: Kind): string => {
@@ -96,13 +96,13 @@ export function chapterReached(read: { position: number }[]): number {
  * nobody's list, or only planned, starts READING; any other status is the
  * owner's and stays.
  *
- * `complete` is the anime's own rule (c240): the part's last counted episode
+ * `complete` is the anime's own rule: the part's last counted episode
  * is watched, so the entry itself is done. It is queued as COMPLETED unless
  * the catalogue already says so -- which is what keeps it from being sent
  * again on every pass. When the progress has already gone (the list was
  * ahead of us), only the status is sent, so nothing is ever lowered. ON HOLD
- * and DROPPED are the owner's even then: the progress goes, the status stays
- * (Track Calls, question 2: "never overwritten").
+ * and DROPPED are the user's even then: the progress goes, the status stays
+ * (never overwritten).
  */
 export function progressToSend(o: {
 	reached: number;
@@ -139,7 +139,7 @@ export function ago(at: number, now: number): string {
 	return `${Math.floor(h / 24)} D AGO`;
 }
 
-/** "09:14", local to the owner's device. */
+/** "09:14", local to the user's device. */
 export const clock = (at: number) =>
 	new Date(at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
@@ -147,7 +147,7 @@ export const clock = (at: number) =>
 export type TrackFacts = {
 	service: Service;
 	signedIn: boolean;
-	/** On the owner's list there: what it says. */
+	/** On the user's list there: what it says. */
 	state: { status: Status | null; progress: number; score: number | null } | null;
 	/** Waiting to be sent, and why it didn't go. */
 	waiting: { progress: number | null; failedAt: number | null; error: string | null } | null;
@@ -158,14 +158,14 @@ export type TrackFacts = {
 
 /**
  * Tsundoku's status in the row's words. An anime is watched rather than read
- * (c240, the design's "WATCHING"): the underlying status is the same one.
+ * (WATCHING): the underlying status is the same one.
  */
 export const statusLabel = (status: Status, live = false): string =>
 	live && status === 'reading' ? 'WATCHING' : STATUS_LABEL[status];
 
 /**
  * The list an entry's line speaks for: the first linked list that is signed
- * in, AniList before MAL, and AniList when neither is (c518). A MAL-only
+ * in, AniList before MAL, and AniList when neither is. A MAL-only
  * owner with AniList linked but signed out sees MAL's word; the signed-out
  * list is then the quiet line that differs. The series screen's line, a
  * fold's word, the sheet's STATUS and the server's word for a season's other
@@ -184,7 +184,7 @@ export function listState<F extends TrackFacts>(facts: F[]): F['state'] {
 	return main?.state ?? facts.find((f) => f.linked && f !== main && f.state)?.state ?? null;
 }
 
-// ---- a season's facts (c240; doc/TRACKING.md, "The screens") --------------------------------
+// ---- a season's facts (doc/TRACKING.md, "The screens") --------------------------------------
 
 /** One catalogue's facts for a season's part, with the entry's own episode count. */
 export type SeasonFact = TrackFacts & { part: number; of: number | null };
@@ -205,11 +205,11 @@ export type SeasonTrackFacts = {
 	waits: { episode: number; of: number; service: Service } | null;
 };
 
-// ---- the trackers, as a contract (card c993) -------------------------------------------------
+// ---- the trackers, as a contract ---------------------------------------------------------------
 
 /**
- * Every watch-log service tsundoku knows, and what each declares (the keys
- * handoff; doc/TRACKING.md, "The trackers"): the kinds it takes, so SETTINGS
+ * Every watch-log service tsundoku knows, and what each declares
+ * (doc/TRACKING.md, "The trackers"): the kinds it takes, so SETTINGS
  * and a series' LISTS offer it only where it applies, and how it connects.
  * Every one is an app of the install's own and then a sign-in: writing to a
  * list needs a registered app, and a friend's install has none of the
@@ -220,8 +220,7 @@ export type SeasonTrackFacts = {
  * the catalogue contract's (catalogue-clients.ts), not this one.
  *
  * `built` says whether tsundoku speaks to it yet: Trakt is declared so the
- * screens can say where films and shows will go, and is built in c993's next
- * slice.
+ * screens can say where films and shows will go, and is not built yet.
  */
 export type Tracker = 'anilist' | 'mal' | 'trakt';
 
@@ -230,7 +229,7 @@ export type TrackerFacts = {
 	takes: readonly Kind[];
 	connect: 'app-then-sign-in';
 	built: boolean;
-	/** What SETTINGS says it takes, once, on its row (Keys-Rows 2E). */
+	/** What SETTINGS says it takes, once, on its row. */
 	takesWords: string;
 };
 

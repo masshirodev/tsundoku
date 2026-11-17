@@ -2,16 +2,15 @@ import { runtimeWords, type TmdbCollection, type TmdbShowFacts } from './tmdb.ts
 import type { AroundHead, SeasonsAround } from './seasons-around.ts';
 
 /**
- * What surrounds a film or a show (card c990; doc/LINKS.md, "What surrounds
- * it"; the handoff's `Collection.dc.html` and `Show-Desk.dc.html` in
- * doc/handoffs/movies-shows/). Pure: the server hands it TMDB's cached facts
- * and what the library holds, and it says every row's words and cell. Nothing
- * here groups, adds or switches a source: a collection or a next season is an
- * offer (`GROUP →`, `FIND`, `NOT THIS`), never an automatic chain.
+ * What surrounds a film or a show (doc/LINKS.md, "What surrounds it"). Pure:
+ * the server hands it TMDB's cached facts and what the library holds, and it
+ * says every row's words and cell. Nothing here groups, adds or switches a
+ * source: a collection or a next season is an offer (`GROUP →`, `FIND`,
+ * `NOT THIS`), never an automatic chain.
  *
- * The anime half of the same question is the relation cache's (c358,
- * `relations.ts`), unchanged: AniList needs no key, so anime keeps NEXT with
- * no setup at all.
+ * The anime half of the same question is the relation cache's
+ * (`relations.ts`): AniList needs no key, so anime keeps NEXT with no setup
+ * at all.
  */
 
 // ---- a show: which season a series is -----------------------------------------------------
@@ -19,8 +18,8 @@ import type { AroundHead, SeasonsAround } from './seasons-around.ts';
 /**
  * The season a source's title names: `Harbour Lights Season 3`, `… S2`,
  * `… 2nd Season`. A title that names none is null, which the show's heads read
- * as season 1, the season a show's first source entry almost always is (the
- * board's `SEASON 1 · Harbour Lights`). An episode code (`S02E05`) is not a
+ * as season 1, the season a show's first source entry almost always is
+ * (`SEASON 1 · Harbour Lights`). An episode code (`S02E05`) is not a
  * season title and is never read as one.
  */
 export function titleSeason(title: string): number | null {
@@ -65,7 +64,7 @@ export type ShowView = {
 	heads: SeasonHead[];
 	/** The SEASONS row: `3 of 4 in the library`, `TMDB LISTS 4 · S4 NOT IN THE LIBRARY`, and FIND THE REST →. */
 	row: { title: string; meta: string; findRest: boolean };
-	/** SEASON 4 IS OUT: the first aired season past every one here, unless the owner said NOT THIS. */
+	/** SEASON 4 IS OUT: the first aired season past every one here, unless NOT THIS dismissed it. */
 	band: { season: number; title: string; meta: string } | null;
 };
 
@@ -159,12 +158,12 @@ export function showView(o: {
 }
 
 /**
- * A show's other seasons as the episode list's heads (Show-Desk: `SEASON 1 ·
+ * A show's other seasons as the episode list's heads (`SEASON 1 ·
  * 10 EP` with IN LIBRARY →, `SEASON 4 · 8 EP · TMDB · FROM 3 NOV`), in the
  * shape the anime's seasons around it already draw (`SeasonsAround`), so the
  * list needs no second markup. The heads before this series, then the next,
  * then the rest. A season not in the library has no cell on its head: FIND is
- * the band's and the SEASONS row's (the board). Null when it is the only one.
+ * the band's and the SEASONS row's. Null when it is the only one.
  */
 export function showAround(v: ShowView): SeasonsAround | null {
 	const head = (h: SeasonHead): AroundHead => {
@@ -196,7 +195,7 @@ export type HeldFilm = {
 
 export type CollectionRow = {
 	key: number;
-	/** `PART 2`, or `TMDB 2` once the film is in a Work (ORDER is the owner's there, not TMDB's). */
+	/** `PART 2`, or `TMDB 2` once the film is in a Work (ORDER is the Work's there, not TMDB's). */
 	tag: string;
 	/** This film's tag is inverted. */
 	on: boolean;
@@ -251,13 +250,13 @@ export function partName(title: string, collection: string): string {
 const FOLD_AT = 6;
 
 /**
- * A film's collection (Collection.dc.html). Every part in release order, this
- * film's tag inverted, so a prequel is simply the row above. Past six parts
- * the rest fold round this one, keeping the part before it and the two after
- * (board 2.3: of eight, at six, `↑ PARTS 1 – 4` then 5 to 8), and each fold
- * says how many it hides are in the library, so a gap is never out of sight.
+ * A film's collection. Every part in release order, this film's tag
+ * inverted, so a prequel is simply the row above. Past six parts the rest fold
+ * round this one, keeping the part before it and the two after (of eight, at
+ * six, `↑ PARTS 1 – 4` then 5 to 8), and each fold says how many it hides are
+ * in the library, so a gap is never out of sight.
  *
- * In a Work (board 2.4, 2.5) the Work row is the NEXT: the block folds to one
+ * In a Work the Work row is the NEXT: the block folds to one
  * line, and says only what the Work does not, one fact a line.
  *
  * `held` is what the library holds **as the viewer may see it**: a hidden film
@@ -386,7 +385,7 @@ export function collectionView(o: {
 	}
 	const here = parts.filter((p) => p.id === o.thisId || o.held.has(p.id)).length;
 	// GROUP → only with two or more parts here and none of them in a Work: a
-	// part already in one is the owner's grouping, and the offer would undo it.
+	// part already in one is grouped by hand, and the offer would undo it.
 	const anyInWork = parts.some((p) => (o.held.get(p.id)?.workId ?? null) !== null);
 	const group = here >= 2 && !anyInWork;
 	return {

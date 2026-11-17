@@ -1,8 +1,8 @@
 /**
- * An LNReader plugin repository's index (`plugins.min.json`, doc/NOVELS.md;
- * card c148), read into one shape. Pure: what was fetched goes in, listings
- * come out. Unlike a Mihon repository there's no `repo.json` and no signing
- * key: an index is an array of plugins, each a JavaScript file by URL.
+ * An LNReader plugin repository's index (`plugins.min.json`, doc/NOVELS.md),
+ * read into one shape. Pure: what was fetched goes in, listings come out.
+ * Unlike a Mihon repository there's no `repo.json` and no signing key: an
+ * index is an array of plugins, each a JavaScript file by URL.
  */
 
 export type NovelListing = {
@@ -20,9 +20,9 @@ export type NovelListing = {
 export class NovelRepoError extends Error {}
 
 /**
- * The languages LNReader names in their own words, as codes the owner's
- * languages (SETTINGS) are kept in. Every name in the owner's repository on
- * 2026-10-28; one it doesn't know keeps its name, lowercased.
+ * The languages LNReader names in their own words, as codes the reader's
+ * languages (SETTINGS) are kept in: every name the LNReader plugin
+ * repository uses. One it doesn't know keeps its name, lowercased.
  */
 const LANGS: Record<string, string> = {
 	english: 'en',

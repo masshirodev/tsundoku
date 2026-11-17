@@ -16,7 +16,7 @@ import {
  * A tsundoku series is a source's manga by its key, `mihon:<source>:<url>`,
  * and a chapter is a source's chapter by its URL: the same ids the tablet's
  * backup uses, which is why downloads import as one more device. (The shapes
- * began as Suwayomi's, retired in c129.)
+ * come from Suwayomi, which this replaces.)
  */
 
 /** A chapter as its source lists it. */
@@ -95,7 +95,7 @@ const PARSES: Record<SourceFamily, (key: string | null) => unknown> = {
 };
 
 /**
- * The source family a key is (card c303; `KEY_PREFIX`, kinds.ts): the one
+ * The source family a key is (`KEY_PREFIX`, kinds.ts): the one
  * family whose parser reads it. Null is a real answer, not a miss: Hentoid's
  * `hentoid:` and `hentoid-dir:` keys, a folder's `mihon-dir:`, an EPUB's
  * `epub:`, a malformed family key and no key at all are no family's, so
@@ -166,9 +166,8 @@ export function chapterStates(
  * The row's status column for a chapter with no file. Null leaves the row's
  * own word (READ, the page) alone.
  *
- * The mock's FAILED · NOT FOUND isn't there: the queue says a chapter
- * failed and how often it tried, never why (doc/DOWNLOADS.md, "The series
- * screen").
+ * There is no FAILED · NOT FOUND: the queue says a chapter failed and how
+ * often it tried, never why (doc/DOWNLOADS.md, "The series screen").
  */
 export function downloadStatus(s: DownloadState | undefined, short = false): string | null {
 	switch (s?.kind) {
@@ -438,7 +437,7 @@ export const count = (n: number) => n.toLocaleString('en-US');
 /** One cell of the row: what it does, and how it's drawn. */
 export type DownloadCell = {
 	label: string;
-	/** `cancel` and `retry` are a film's one file's (c992): its row has no NEXT or ALL. */
+	/** `cancel` and `retry` are a film's one file's: its row has no NEXT or ALL. */
 	which: 'next' | 'all' | 'follow' | 'unfollow' | 'refresh' | 'cancel' | 'retry';
 	acc: boolean;
 	dim: boolean;
@@ -470,9 +469,9 @@ const CHAPTERS: RowNoun = {
 	arriving: 'NEW CHAPTERS'
 };
 /**
- * The ADDED TO THE LIBRARY band's line (Download States 1e): how many there
- * are, and what's on its way. `queued` is what ADD AND DOWNLOAD queued (card
- * c205), `down` when the queue didn't answer, null after a plain ADD.
+ * The ADDED TO THE LIBRARY band's line: how many there are, and what's on its
+ * way. `queued` is what ADD AND DOWNLOAD queued, `down` when the queue didn't
+ * answer, null after a plain ADD.
  */
 export function addedDetail(n: number, queued: string | null, anime = false): string {
 	const all = `${count(n)} ${anime ? (n === 1 ? 'EPISODE' : 'EPISODES') : n === 1 ? 'CHAPTER' : 'CHAPTERS'}`;
@@ -489,7 +488,7 @@ export const EPISODES: RowNoun = {
 };
 
 /**
- * DOWNLOAD on a preview, a series not in the library (card c205): the same
+ * DOWNLOAD on a preview, a series not in the library: the same
  * row a library series has, counted from what the source lists less what a
  * browsing record has read. Every cell asks first, since a download lives in
  * the library, and ADD alone was too small a button to find it by.
@@ -510,7 +509,7 @@ export function previewDownload(unread: number, anime = false, online = true) {
 	};
 }
 
-/** ADD AND DOWNLOAD's question (card c205): ours, never the browser's confirm(). */
+/** ADD AND DOWNLOAD's question: ours, never the browser's confirm(). */
 export function previewConfirm(
 	title: string,
 	unread: number,
@@ -534,10 +533,9 @@ export function previewConfirm(
 }
 
 /**
- * The DOWNLOAD row under CONTINUE (Index Series Download, states top, down,
- * offline, follow, added). NEXT 10 is the accent cell and never asks; ALL N
+ * The DOWNLOAD row under CONTINUE. NEXT 10 is the accent cell and never asks; ALL N
  * opens its confirmation; REFRESH asks the series' source once for new
- * chapters and downloads nothing (card c220), and FOLLOW ends the row as FAV
+ * chapters and downloads nothing, and FOLLOW ends the row as FAV
  * ends RATING's, turning accent the same way (FOLLOWING ✓). When nothing of
  * the series is on disk yet, NEXT is FIRST. Not answering and offline keep
  * the row and its cells, dimmed, so the screen doesn't jump, and say why in
@@ -551,7 +549,7 @@ export function downloadRow(
 	follow: FollowFacts | null = null,
 	ago: (at: number) => string = clock,
 	noun: RowNoun = CHAPTERS,
-	/** The series has a source to ask now (REFRESH, card c220), and is in the library. */
+	/** The series has a source to ask now (REFRESH), and is in the library. */
 	refreshable = false
 ): DownloadRow {
 	const chapters = (n: number) => `${count(n)} ${n === 1 ? noun.one : noun.many} not downloaded`;
@@ -564,7 +562,7 @@ export function downloadRow(
 				]
 			: [];
 	// A series with a source can be asked now, whatever FOLLOW is doing; a
-	// folder-scanned one has nothing to ask (card c220).
+	// folder-scanned one has nothing to ask.
 	const refreshCell = (dim: boolean): DownloadCell[] =>
 		refreshable ? [{ label: m.series_refresh(), which: 'refresh', acc: false, dim }] : [];
 	if (facts.kind === 'down' || !online) {
@@ -617,7 +615,7 @@ export function downloadRow(
 	};
 }
 
-// ---- searching the sources (Download States 1e) -----------------------------------------
+// ---- searching the sources ----------------------------------------------------------------
 
 /** How much of the library comes from a source, and how much of that is hidden. */
 export type SourceUse = { series: number; hidden: number };
@@ -625,10 +623,10 @@ export type SourceUse = { series: number; hidden: number };
 /**
  * Which sources a search asks: those with an extension installed that the
  * library already reads from (MangaDex's English source, not its 40 other
- * languages), and those BROWSE lists (`listed`: the owner's languages, and an
+ * languages), and those BROWSE lists (`listed`: the user's languages, and an
  * extension installed with none in them). Without the second, a new library
- * reads from nothing and a search asked no one: "0 OF 0 SOURCES ANSWERED" on
- * a friend's install with a source just added (2026-10-30). A source whose
+ * reads from nothing and a search asks no one: "0 OF 0 SOURCES ANSWERED" on
+ * an install with a source just added. A source whose
  * series are mostly hidden here (Toonily: 110 of 124) is asked only while
  * reveal is on, and with reveal off it isn't counted either: its results would
  * put adult covers on a screen that promised none.
@@ -683,7 +681,7 @@ export type ResultMatch =
 	| { kind: 'same-title'; source: string }
 	| { kind: 'new' };
 
-// ---- FOLLOW (Download States 1d) ----------------------------------------------------------
+// ---- FOLLOW ---------------------------------------------------------------------------------
 
 /**
  * The chapters FOLLOW queues: listed by the source after the series was

@@ -5,24 +5,24 @@ import { isFinished, type LibraryCard, type WorkPart } from './works.ts';
 import type { Kind } from './types.ts';
 
 /**
- * What the library's SELECT keeps about a series it ticked (c698;
- * doc/LIBRARY.md, "A selection outlives the shelf").
+ * What the library's SELECT keeps about a series it ticked (doc/LIBRARY.md,
+ * "A selection outlives the shelf").
  *
  * The selection outlives a shelf, a kind, a filter or a tag changing, so it
  * holds series the grid no longer draws. Every bulk action that reads facts
  * off a selected series (GROUP's rows and its BY HAND order, HIDE's question
  * about a Work, FOLD's languages, UNHIDE's "all hidden", DELETE's titles,
- * SHOW's list) used to read them off the cards on screen, so a series ticked
- * on one shelf and then out of sight was silently left out of GROUP. These
- * are those facts, noted while the series was on screen and refreshed each
+ * SHOW's list) reads them here, not off the cards on screen, where a series
+ * ticked on one shelf and then out of sight would be silently left out of
+ * GROUP. These are those facts, noted while the series was on screen and refreshed each
  * time it is drawn again. The server stays the judge of every action: a fact
  * gone stale since it was noted only words a sheet, never decides a write.
  */
 /**
- * The show facts one GROUP row's second line draws beyond the card
- * (`Seasons-Group.dc.html`, A1; c283): the season's source, its AniList year
- * and how many episodes are on disk. Server-read (`season-facts.ts`,
- * `showRowFacts`), because no card carries them.
+ * The show facts one GROUP row's second line draws beyond the card: the
+ * season's source, its AniList year and how many episodes are on disk.
+ * Server-read (`season-facts.ts`, `showRowFacts`), because no card carries
+ * them.
  */
 export type ShowFacts = { source: string | null; year: number | null; here: number };
 
@@ -42,7 +42,7 @@ export type Picked = {
 	show?: ShowFacts | null;
 	/**
 	 * The Work it is a part of, as its tile or card said: HIDE asks first about
-	 * a Work (W4), past the first page as well as on it (c686).
+	 * a Work, past the first page as well as on it.
 	 */
 	work: { id: number; name: string } | null;
 	/** The Work GROUP's row names ("IN <WORK> · MOVES HERE"): a Work tile's own name too. */
@@ -105,10 +105,10 @@ export function workOf(
 }
 
 /**
- * The drawn series to note facts from (c740): none while SELECT is off or
- * nothing is ticked, without calling `drawn` at all. Building a Picked record
- * for every loaded series and Work part (`sheetMeta` included) on each load
- * was an O(n) pass the page paid on every reload with nothing selected. What
+ * The drawn series to note facts from: none while SELECT is off or nothing is
+ * ticked, without calling `drawn` at all. Building a Picked record for every
+ * loaded series and Work part (`sheetMeta` included) on each load is an O(n)
+ * pass the page would pay on every reload with nothing selected. What
  * the skipped pass would have dropped is still dropped: `refreshFacts` with no
  * drawn series forgets every fact not selected or held, which is how SHOW's
  * held rows keep theirs while the last tick is undone in the sheet.
@@ -234,7 +234,7 @@ export function pickedOfPart(
 }
 
 /**
- * How a Work's row stands in a selection (the search's Work hit, c698): every
+ * How a Work's row stands in a selection (the search's Work hit): every
  * part ticked, some, or none. A tap on a row not wholly ticked ticks the rest,
  * as a Work tile's does; a tap on a wholly ticked one unticks every part.
  */
@@ -258,8 +258,8 @@ export function workTap(
 }
 
 /**
- * A selection on its way between the library and the search (c698;
- * doc/LIBRARY.md, "What ends SELECT"): the ids in the order they were ticked,
+ * A selection on its way between the library and the search (doc/LIBRARY.md,
+ * "What ends SELECT"): the ids in the order they were ticked,
  * their facts, and the address it is going to.
  */
 export type Carried = {
@@ -300,7 +300,7 @@ export function takeCarried(here: string): Carried | null {
 export const landing = (u: URL): string => `${u.pathname}${u.search}`;
 
 /**
- * The facts of `want` among cards the library answered by id (c737; POST
+ * The facts of `want` among cards the library answered by id (POST
  * `/api/library`, the grid's own card shape): a series in no Work as itself,
  * a Work tile's wanted parts as parts. A wanted id the answer does not hold
  * (deleted since, or hidden with reveal off) is simply absent.
@@ -328,7 +328,7 @@ export function pickedOfCards(
 export const FACTS_MAX = 10_000;
 
 /**
- * What a by-id read answered (c737): the facts of the wanted ids it found, and
+ * What a by-id read answered: the facts of the wanted ids it found, and
  * the ids the library itself says are gone (deleted since, or hidden under the
  * request's reveal). An id in neither was not answered (past a cap, or a
  * chunk that failed) and is not gone.
@@ -336,17 +336,17 @@ export const FACTS_MAX = 10_000;
 export type FactsAnswer = { picked: Picked[]; missing: number[] };
 
 /**
- * How long a show-facts read waits before it is given up (c283; round 2 of wave
- * 48). The page's asks are one chain (`+page.svelte`, `noteShowFacts`), and a
- * sheet waits on that chain before it takes its rows, so a request that never
- * answers must end in `null` rather than leave every later ask queued behind it
- * for the life of the page. The same bound DELETE's held read takes
+ * How long a show-facts read waits before it is given up. The page's asks are
+ * one chain (`+page.svelte`, `noteShowFacts`), and a sheet waits on that
+ * chain before it takes its rows, so a request that never answers must end in
+ * `null` rather than leave every later ask queued behind it for the life of
+ * the page. The same bound DELETE's held read takes
  * (`HELD_READ_MS`, `search/SelectionBar.svelte`).
  */
 export const SHOW_FACTS_WAIT_MS = 3000;
 
 /**
- * A show's row facts (c283's meta line) for a by-id read: a second ask, because
+ * A show's row facts (GROUP's meta line) for a by-id read: a second ask, because
  * the card the library answers carries no source, year or file count. A read
  * that fails leaves the rows without the line rather than failing the cards.
  * The library page's later pages ask it too (`+page.svelte`), since the load's
@@ -372,7 +372,7 @@ export async function readShowFacts(
 }
 
 /**
- * The facts of `ids` from the library by id (c737), in chunks of `FACTS_MAX`
+ * The facts of `ids` from the library by id, in chunks of `FACTS_MAX`
  * since the server reads no more than that at once. Null when nothing could be
  * asked; a chunk that fails after one that answered keeps what came back.
  */
@@ -401,7 +401,7 @@ export async function readFacts(ids: readonly number[]): Promise<FactsAnswer | n
 }
 
 /**
- * How many of SHOW's ids the read took out and are still out (c737): named
+ * How many of SHOW's ids the read took out and are still out: named
  * missing, and neither ticked again since nor drawn with facts. A series
  * taken out and then ticked by hand from a tile or a hit is listed, so it is
  * not also counted as TAKEN OUT.
@@ -418,13 +418,13 @@ export function goneCount(
 }
 
 /**
- * Filling in the facts of selected series the page never drew (c737): SELECT
+ * Filling in the facts of selected series the page never drew: SELECT
  * ALL's pages not loaded, so SHOW lists them and GROUP counts them. One read
  * for every selected id without facts that is not already being asked or
  * already answered as gone. An id the library names as missing (deleted
  * since, or hidden with reveal off: hidden means hidden) is taken out of the
  * selection and counted in `gone`, so no bulk action posts a series the
- * owner can no longer see; an id it merely did not answer stays selected and
+ * reader cannot see; an id it merely did not answer stays selected and
  * unlisted, as an offline read leaves it. A read that answers after `reset`
  * (✕, a bulk action's success) is dropped. Reactive sets, so SHOW redraws as
  * it lands.

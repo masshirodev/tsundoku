@@ -1,11 +1,10 @@
 /**
- * PUT ON A SHELF, in the band ADD leaves (card c724; doc/BROWSE.md, "Shelves
- * in the ADD band"): the owner's shelves as chips, one tap each, several
+ * PUT ON A SHELF, in the band ADD leaves (doc/BROWSE.md, "Shelves
+ * in the ADD band"): the library's shelves as chips, one tap each, several
  * allowed, the last one chosen on this device first. Pure: the band's
  * markup and its action (`src/routes/browse/AddedBand.svelte`, `shelve` on
- * the source page and BROWSE) are built on these, and so is the series
- * screen's band once its owner takes the patch (doc/handoff-notes/browse.md,
- * wave 33, Gaps). No storage of its own beyond one localStorage key: the
+ * the source page and BROWSE) are built on these. No storage of its own
+ * beyond one localStorage key: the
  * shelves are the library's collections, written by `setInCollection`, the
  * SHELVES sheet's own write.
  */

@@ -2,18 +2,18 @@ import { KINDS, kindFacts } from './kinds.ts';
 import { DEFAULT_MIN, minLabel, RATING_MAX } from './rating.ts';
 
 /**
- * The library's FILTER panel (Library Filters turn 3, card c68;
- * doc/FILTERS.md). Shelves are *where*, filters are *which*: every one
- * narrows whichever shelf is showing, and they combine. They live in the URL,
- * so each choice is a link and works without script:
+ * The library's FILTER panel (doc/FILTERS.md). Shelves are *where*, filters
+ * are *which*: every one narrows whichever shelf is showing, and they
+ * combine. They live in the URL, so each choice is a link and works without
+ * script:
  *
  *   ?min=8        rated 4+ (out of 10, written in five steps)
  *   ?rated=0      unrated
  *   ?fav=1|0      favourited, not favourited
  *   ?kind=manga   one kind of the registry's (KINDS): on the library the KIND
- *                 band writes it, on a person's page FILTER's KIND row (c436)
+ *                 band writes it, on a person's page FILTER's KIND row
  *   ?form=series|oneoff   FORM: a series (anything but a single book), or a
- *                 single book; the SERIES and ONE-OFF shelves until c436
+ *                 single book; replaces the SERIES and ONE-OFF shelves
  *   ?lang=ja      a language, as its two-letter code
  *   ?added=2026-08-01   added on or after that day
  *   ?dl=1|0       a chapter on disk, or none
@@ -32,7 +32,7 @@ export type Filters = {
 	fav: 0 | 1 | null;
 	/** One kind, inside whatever shelf or collection shows (TO READ's manga). */
 	kind: FilterKind | null;
-	/** FORM (c436): a series, or a single book (a one-off); what SERIES and ONE-OFF were as shelves. */
+	/** FORM: a series, or a single book (a one-off); replaces the SERIES and ONE-OFF shelves. */
 	form: Form | null;
 	/** A two-letter code, lower case: `ja`. */
 	lang: string | null;
@@ -52,7 +52,7 @@ const FORMS: readonly Form[] = ['series', 'oneoff'];
 const FORM_LABEL: Record<Form, string> = { series: 'SERIES', oneoff: 'ONE-OFF' };
 /**
  * The kinds the FILTER panel offers, in the panel's order -- the registry's
- * order (doc/KINDS.md; card c301), which is also the order `kindsAmong` and
+ * order (doc/KINDS.md), which is also the order `kindsAmong` and
  * the library's counts use.
  */
 export const FILTER_KINDS = KINDS;
@@ -137,7 +137,7 @@ export function parseFilters(params: URLSearchParams, reveal: boolean): Filters 
 
 /**
  * How many are on: the number in the FILTER cell, and what makes a tab say
- * "44 OF 188". `countKind` false is the library's FILTER badge (c436): the
+ * "44 OF 188". `countKind` false is the library's FILTER badge: the
  * KIND band says the kind itself, so the badge counts only what FILTER holds.
  */
 export function activeCount(f: Filters, countKind = true): number {
@@ -218,7 +218,7 @@ export function dayStart(day: string): number {
 /**
  * The shelves that became filters, as the filters that replace them, so an
  * old link or bookmark still lands on the same books: FAVOURITES, RATED and
- * DOWNLOADED (turn 3), and since c436 SERIES and ONE-OFF (FORM) and each
+ * DOWNLOADED, SERIES and ONE-OFF (FORM), and each
  * kind's shelf, `k:<kind>` (the KIND band's `?kind=`). A kind is any the
  * registry names (KINDS), never a list of four; `k:doujin`, never a shelf,
  * lands on doujins too. Every other parameter is kept, a filter the link
@@ -242,8 +242,8 @@ export function legacyShelf(shelf: string, params: URLSearchParams): URLSearchPa
 }
 
 /**
- * One cell of the library's KIND band (c436; doc/LIBRARY.md, "The KIND
- * band"): ALL (`kind` null) or one kind, with what it counts on this shelf.
+ * One cell of the library's KIND band (doc/LIBRARY.md, "The KIND band"): ALL
+ * (`kind` null) or one kind, with what it counts on this shelf.
  */
 export type KindCell = { kind: FilterKind | null; n: number; on: boolean; zero: boolean };
 
@@ -312,7 +312,7 @@ export function progressOf(item: {
  * `grouping`), holding one book or none. Undefined where the card can't say.
  * The card's `entryCount` counts books as the server does (`isBookSql`): no
  * shadowed entry, no extra, so a book with an extra beside it is ONE-OFF on
- * both (c558; doc/FILTERS.md, FORM).
+ * both (doc/FILTERS.md, FORM).
  */
 export function isOneOff(item: { kind?: string; entryCount?: number }): boolean | undefined {
 	const kind = FILTER_KINDS.find((k) => k === item.kind);
@@ -376,9 +376,9 @@ export function filterRows(
 	/** The kinds on the shelf: KIND is offered only where it can tell two apart. */
 	kinds: readonly FilterKind[] = [],
 	/**
-	 * Which rows a screen has (c436): the library draws KIND as its band, so
-	 * its panel has no KIND row and has FORM; a person's page keeps KIND and
-	 * has no FORM, as before.
+	 * Which rows a screen has: the library draws KIND as its band, so its
+	 * panel has no KIND row and has FORM; a person's page keeps KIND and has
+	 * no FORM.
 	 */
 	rowsOn: { kind?: boolean; form?: boolean } = {}
 ): Row[] {

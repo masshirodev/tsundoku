@@ -65,9 +65,9 @@ export type SeriesPage = SeriesCard & {
 	source: string;
 	status: string;
 	description: string;
-	/** Where the series' kind starts, as SETTINGS has it (card c171). */
+	/** Where the series' kind starts, as SETTINGS has it. */
 	kindDirection?: Direction;
-	/** Null until the owner picks one; see `effectiveDirection`. */
+	/** Null until one is picked; see `effectiveDirection`. */
 	direction: Direction | null;
 	path: string;
 	tags: SeriesTag[];
@@ -76,7 +76,7 @@ export type SeriesPage = SeriesCard & {
 	entries: SeriesEntry[];
 	/**
 	 * One chapter, several scanlators (doc/DUPLICATE-CHAPTERS.md): how many copies the
-	 * list leaves out, who translated the series' chapters, and the owner's
+	 * list leaves out, who translated the series' chapters, and the
 	 * pick among them (null: automatic).
 	 */
 	duplicates: number;
@@ -86,14 +86,14 @@ export type SeriesPage = SeriesCard & {
 
 // ---- direction -----------------------------------------------------------
 
-/** What a kind reads as until the owner says otherwise. */
+/** What a kind reads as until it is set otherwise. */
 export function defaultDirection(kind: Kind): Direction {
 	return kindLayout(kind) ?? 'rtl';
 }
 
 /**
  * Where a series reads: its own direction, else its kind's default, which
- * SETTINGS can change (doc/SETTINGS.md; card c171). [kindDefault] is that
+ * SETTINGS can change (doc/SETTINGS.md). [kindDefault] is that
  * setting, passed in by whoever read it.
  */
 export function effectiveDirection(
@@ -209,7 +209,7 @@ export const isBookSeries = (s: Pick<SeriesPage, 'kind' | 'entries'>) =>
 	kindFacts(s.kind).grouping === 'books' && s.entries.filter((e) => e.matter === '').length > 1;
 
 /**
- * A doujin's books: its entries that are not front or back matter (c650). The
+ * A doujin's books: its entries that are not front or back matter. The
  * rest are hand-made extras, which are drawn apart and never counted or
  * numbered as a book (`extrasOf`). No importer writes `matter` on a doujin --
  * only the EPUB plans set it, for novels -- so a doujin's extras come from a
@@ -237,7 +237,7 @@ export function bookMeta(
 	return { text: `${e.pageCount} P`, state: 'unread' };
 }
 
-/** "6 · 3 READ" for a series of books: its books, never an extra beside them (c650). */
+/** "6 · 3 READ" for a series of books: its books, never an extra beside them. */
 export function booksCount(entries: SeriesEntry[]): string {
 	const books = booksOf(entries);
 	return `${books.length} · ${books.filter((e) => e.readAt !== null).length} READ`;
@@ -259,7 +259,7 @@ export function continueAction(series: Pick<SeriesPage, 'kind' | 'entries'>): {
 	const { kind, entries } = series;
 	const cur = currentEntry(entries);
 	if (isBookSeries(series)) {
-		// The books alone: an extra beside them is not a book, and is not numbered (c650).
+		// The books alone: an extra beside them is not a book, and is not numbered.
 		const books = booksOf(entries);
 		if (!cur)
 			return {
@@ -279,7 +279,7 @@ export function continueAction(series: Pick<SeriesPage, 'kind' | 'entries'>): {
 		};
 	}
 	if (kindFacts(kind).grouping === 'books') {
-		// The book alone: an extra beside it is never what READ opens (c650),
+		// The book alone: an extra beside it is never what READ opens,
 		// even when its row sorts before the book's.
 		const book = booksOf(entries)[0] ?? null;
 		const pages = book?.pageCount ?? 0;
@@ -330,7 +330,7 @@ export type Row =
 export type VolumeState = 'read' | 'reading' | 'unread';
 
 /**
- * A volume's head in a grouped novel's contents (c835): its cover, its number,
+ * A volume's head in a grouped novel's contents: its cover, its number,
  * its title and its chapters. Not a `section` with more words: the list draws
  * a cover and a progress bar here, and the rail asks each volume where it
  * starts. The volume's front and back matter is not a chapter (`chaptersOf`),
@@ -342,11 +342,11 @@ export type VolumeHead = {
 	key: string;
 	/** Its place in the series, 1-based, the order the rail ticks are labelled in. */
 	number: number;
-	/** The volume's first entry on disk: the cover is its EPUB's (c835). */
+	/** The volume's first entry on disk: the cover is its EPUB's. */
 	entry: number;
 	/** Whether the volume's file is on disk (its cover is asked for only then). */
 	available: boolean;
-	/** The volume's entries, matter included: what its ↓ mark asks about (c835). */
+	/** The volume's entries, matter included: what its ↓ mark asks about. */
 	entries: number[];
 	/** `VOL. n`, the words the reader and the band find. */
 	label: string;
@@ -387,7 +387,7 @@ export function volumeHead(vol: SeriesEntry[], n: number, current: SeriesEntry |
 	};
 }
 
-/** A volume's ↓ (c835): every one of its entries is cached on this device. */
+/** A volume's ↓: every one of its entries is cached on this device. */
 export function volumeCached(entries: number[], cached: Set<number>): boolean {
 	return entries.length > 0 && entries.every((id) => cached.has(id));
 }
@@ -522,7 +522,7 @@ export function rangeBetween(entries: SeriesEntry[], a: number, b: number): numb
 	return entries.slice(lo, hi + 1).map((e) => e.id);
 }
 
-/** What each bulk action would change: the handoff shows the count under each. */
+/** What each bulk action would change: the count shown under each. */
 export function bulkCounts(entries: SeriesEntry[], selected: Set<number>) {
 	let unread = 0;
 	let read = 0;
@@ -577,7 +577,7 @@ export function volumeOf(entries: SeriesEntry[], entry: SeriesEntry): number | n
 }
 
 /**
- * The rows that sit directly under a volume's head (c835, 1D): the first row
+ * The rows that sit directly under a volume's head: the first row
  * after each `type: 'volume'` row that can take focus. A volume's list opens
  * with its head, so what follows is its first chapter, a front-matter entry
  * under its `FRONT MATTER` section, or a fold; descending, the list is flipped
@@ -602,7 +602,7 @@ export function rowsUnderHead(rows: Row[]): Set<string> {
 }
 
 /**
- * The rail's volume ticks (c835, 1C): one per volume, where its first entry
+ * The rail's volume ticks: one per volume, where its first entry
  * is, labelled `V1`…`Vn`. A tick's label drops when it would sit closer than
  * [gap] px to the last one drawn; the hairline stays, so a crowded rail still
  * shows every volume. [height] is the track's own height in px, which is why
@@ -632,7 +632,7 @@ export function volumeTicks(
 
 /** "MANHWA · MIHON · ONGOING" */
 export function seriesMeta(s: Pick<SeriesPage, 'kind' | 'source' | 'status' | 'entries'>): string {
-	// A doujin's books, never the hand-made extras beside them (c650).
+	// A doujin's books, never the hand-made extras beside them.
 	const books = booksOf(s.entries).length;
 	if (isBookSeries(s)) return `DOUJIN SERIES · ${books} BOOKS`;
 	const kind = kindFacts(s.kind).medium === 'text' ? 'WEB NOVEL' : s.kind.toUpperCase();
@@ -647,7 +647,7 @@ export function seriesMeta(s: Pick<SeriesPage, 'kind' | 'source' | 'status' | 'e
  * Tags grouped by namespace, values joined with " · ", in a stable order that
  * puts the namespaces a reader looks for first. `limit` namespaces are `groups`;
  * the others are `rest`, in the same order, and `more` counts their values, so
- * the row can say how many a `+ N MORE` opens (c837).
+ * the row can say how many a `+ N MORE` opens.
  */
 const NAMESPACE_ORDER = ['genre', 'circle', 'artist', 'language', 'source'];
 

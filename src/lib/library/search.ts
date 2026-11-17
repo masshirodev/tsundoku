@@ -34,7 +34,7 @@ export function parseSearch(raw: string): SearchInput {
 	if (text === '') return { type: 'empty' };
 	const command = COMMANDS[text.toLowerCase()];
 	if (command) return { type: 'command', command };
-	// SETTINGS, and a section by its name (doc/SETTINGS.md, "Getting there"; card c171).
+	// SETTINGS, and a section by its name (doc/SETTINGS.md, "Getting there").
 	const settings = /^\/settings(?:\s+(\S.*))?$/i.exec(text);
 	if (settings) {
 		const word = (settings[1] ?? '').trim().toLowerCase();
@@ -55,8 +55,8 @@ export function parseSearch(raw: string): SearchInput {
 			href: topic ? (topic.slug === 'start' ? '/start' : `/help/${topic.slug}`) : '/help'
 		};
 	}
-	// HIGHLIGHTS (c701; doc/HIGHLIGHTS.md): `/highlights`, and `/highlights lamp`
-	// lands there with the word in its search (the handoff's Page P5).
+	// HIGHLIGHTS (doc/HIGHLIGHTS.md): `/highlights`, and `/highlights lamp`
+	// lands there with the word in its search.
 	const highlights = /^\/highlights(?:\s+(\S.*))?$/i.exec(text);
 	if (highlights) {
 		const words = (highlights[1] ?? '').trim();
@@ -70,7 +70,7 @@ export function parseSearch(raw: string): SearchInput {
 }
 
 /**
- * What a top search bar's text means (card c697). Every bar draws a leading
+ * What a top search bar's text means. Every bar draws a leading
  * `/` as its prompt, so only `filter` is the bar's own list: a command runs on
  * the screen the bar is on, a page opens, and a `/`-led string naming neither
  * is `unknown` and is said plainly rather than filtered for. A query that

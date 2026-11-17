@@ -1,12 +1,10 @@
 /**
- * GET STARTED (doc/ONBOARDING.md; cards c208, c209; the handoffs
- * `doc/design/handoff/Start-*.dc.html` and `FirstRead-*.dc.html`): seven
- * steps in two parts, each ticked by what is really there rather than by a
- * press. SET UP is four, in any order; FIRST READ is three, in order, and
- * waits on an extension. Pure: the server gathers the facts
- * (server/start.ts), and this says what each step shows. The words are the
- * reader's language (doc/I18N.md), asked for when a view is made, never at
- * import.
+ * GET STARTED (doc/ONBOARDING.md): seven steps in two parts, each ticked by
+ * what is really there rather than by a press. SET UP is four, in any order;
+ * FIRST READ is three, in order, and waits on an extension. Pure: the server
+ * gathers the facts (server/start.ts), and this says what each step shows. The
+ * words are the reader's language (doc/I18N.md), asked for when a view is
+ * made, never at import.
  */
 
 import { m } from '../paraglide/messages.js';
@@ -59,9 +57,9 @@ export type Step = {
 	title: string;
 	optional: boolean;
 	state: StepState;
-	/** The meta line under the title, as the handoff words it (shown uppercase). */
+	/** The meta line under the title (shown uppercase). */
 	meta: string;
-	/** The phone's shorter meta line, where the handoff draws one. */
+	/** The phone's shorter meta line, where it has one. */
 	short: string;
 	/** Skipped because this step was (02 with 01; 05 to 07 with 01 or 02): no UNDO of its own. */
 	with: StepId | null;
@@ -78,7 +76,7 @@ export type Part = {
 	finished: boolean;
 	/**
 	 * Finished, and folded to one row. A part gone wholly with another step's
-	 * skip stays open, its rows saying why (FirstRead board 1, B).
+	 * skip stays open, its rows saying why.
 	 */
 	folds: boolean;
 	/** The part's head, right side: "2 OF 4 DONE · ANY ORDER", "AFTER 02", "3 SKIPPED WITH 02". */
@@ -227,11 +225,11 @@ function metaOf(
 }
 
 /**
- * The import that ticked 03, as GET STARTED's done row names it (c511; the
- * import handoff's Import-Doors B, `DONE · MIHON BACKUP · 382 SERIES` with
- * IMPORT LOG →): the last import that came in, counted as the viewer may see
- * it. Null when no import has brought a series the viewer can see, so a step
- * ticked by a scan alone keeps the scan's line.
+ * The import that ticked 03, as GET STARTED's done row names it
+ * (`DONE · MIHON BACKUP · 382 SERIES` with IMPORT LOG →): the last import
+ * that came in, counted as the viewer may see it. Null when no import has
+ * brought a series the viewer can see, so a step ticked by a scan alone keeps
+ * the scan's line.
  */
 export type StartImport = { id: number; app: string; series: number };
 
@@ -324,7 +322,7 @@ export function countLine(v: StartView, phone = false): string {
 	return v.skipped ? m.start_count_skipped(c) : m.start_count(c);
 }
 
-/** SET UP finished first, FIRST READ still open: the list's head turns to it (FirstRead board 3). */
+/** SET UP finished first, FIRST READ still open: the list's head turns to it. */
 export function readLeads(v: StartView): boolean {
 	const [setup, read] = v.parts;
 	return setup.finished && !read.finished;
@@ -335,12 +333,12 @@ export function readLeads(v: StartView): boolean {
 export type FirstReadSource = {
 	id: string;
 	label: string;
-	/** The source family's kind: `SOURCE_KINDS` in the registry (doc/KINDS.md; card c301). */
+	/** The source family's kind: `SOURCE_KINDS` in the registry (doc/KINDS.md). */
 	kind: SourceKind;
 	lang: string;
 };
 
-/** What FIRST READ's open steps show beside their words (FirstRead board 1, C and D). */
+/** What FIRST READ's open steps show beside their words. */
 export type FirstReadExtras = {
 	/** 05: the sources to search, or browse one. */
 	sources: FirstReadSource[];
@@ -386,7 +384,7 @@ export type TrailDef = {
 };
 
 /**
- * The way back (Start board 2, FirstRead boards 2): where each step sends
+ * The way back: where each step sends
  * the friend, and what the band on that screen says. Only the steps whose
  * work is on another screen.
  */
@@ -401,12 +399,11 @@ export const TRAIL: Partial<Record<StepId, TrailDef>> = {
 		href: '/browse/extensions?tab=available',
 		doing: m.start_ticks_ext
 	},
-	// 03's IMPORT A BACKUP → (c511; the import handoff's Import-Doors A): the
-	// pick screen and the file's own page (`/import/<id>`: its preview, its
-	// progress, its result, where the step ticks). Uploading posts to
-	// `/import/upload` and lands on `/import/<id>`, so the trip lasts across
-	// it. IMPORT LOG is not the trip's screen and draws no band, but a look
-	// at it from the result does not end the trip.
+	// 03's IMPORT A BACKUP →: the pick screen and the file's own page
+	// (`/import/<id>`: its preview, its progress, its result, where the step
+	// ticks). Uploading posts to `/import/upload` and lands on `/import/<id>`,
+	// so the trip lasts across it. IMPORT LOG is not the trip's screen and
+	// draws no band, but a look at it from the result does not end the trip.
 	library: {
 		paths: ['/import'],
 		not: ['/import/log'],
@@ -456,7 +453,7 @@ export function trailLasts(id: StepId, path: string): boolean {
 	return trailHere(id, path) || under(path, TRAIL[id]?.through);
 }
 
-/** What the band says once the step it was opened for ticks (Start board 2, done). */
+/** What the band says once the step it was opened for ticks. */
 export function trailDone(v: StartView, id: StepId): { a: string; b: string } {
 	const s = v.steps.find((x) => x.id === id)!;
 	const word = {
@@ -492,7 +489,7 @@ export type ReadTrail = {
 };
 
 /**
- * FIRST READ's band (FirstRead boards 2): one band for the whole part,
+ * FIRST READ's band: one band for the whole part,
  * moving on as each step ticks. `before` is which of its steps were done
  * when the trip began, so a tick on this trip is told apart from one done
  * long ago. `prefix` is what the screen adds ahead of the next step (the

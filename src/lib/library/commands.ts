@@ -4,9 +4,9 @@ import { TV } from '../device.svelte.ts';
 import { parseBar, type BarInput } from './search.ts';
 
 /**
- * A command typed into any top search bar (card c697). The library's `/search`
+ * A command typed into any top search bar. The library's `/search`
  * bar is the source of truth: this runs the same parse (`parseBar`) and the
- * same server door (`/api/command`, which calls `runCommand`), so `/reveal`,
+ * same server endpoint (`/api/command`, which calls `runCommand`), so `/reveal`,
  * `/incognito` and the rest mean the same thing everywhere. The screen the bar
  * is on stays where it is -- the loads are re-read and the reveal or incognito
  * band appears -- unless the command itself opens somewhere (`/settings`,
@@ -53,7 +53,7 @@ export async function runSearchCommand(raw: string): Promise<CommandOutcome> {
 		};
 	}
 	// A TV has no fingerprint and no screen lock, so it cannot turn reveal on
-	// (owner, 2026-11-01; doc/TV.md). The server cannot tell a TV apart, so the
+	// (doc/TV.md). The server cannot tell a TV apart, so the
 	// refusal is here, in the same words `/search` uses.
 	if (
 		input.type === 'command' &&

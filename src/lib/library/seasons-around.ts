@@ -1,12 +1,12 @@
 /**
- * The seasons around an anime series (card c358; doc/SERIES.md, "The seasons
+ * The seasons around an anime series (doc/SERIES.md, "The seasons
  * around it"; doc/LINKS.md, "The relation cache"): every TV season before the
  * ones the series holds, the one after, and the extras met on the way, read
  * from AniList's relation graph as the cache keeps it. Pure: no database, no
  * network. `src/lib/server/relations.ts` fetches the graph and stores it;
  * this walks it, says which entries it still needs, and draws the heads.
  *
- * What counts (the owner, 2026-11-03):
+ * What counts:
  *
  * - **the seasons** are the chain of PREQUEL edges back and SEQUEL edges
  *   forward, through entries whose format is TV, TV_SHORT or ONA. A MOVIE, an
@@ -46,7 +46,7 @@ export type RelNode = {
 	format: string | null;
 	status: string | null;
 	episodes: number | null;
-	/** A comic's or a novel's counts (c700); absent from a graph cached before them. */
+	/** A comic's or a novel's counts; absent from a graph cached before them. */
 	chapters?: number | null;
 	volumes?: number | null;
 	year: number | null;
@@ -81,7 +81,7 @@ export type WalkFrom = {
 	heldAfter: number;
 	/**
 	 * The other seasons it has linked, between `first` and `last`: asked with
-	 * their edges too, since OTHER FORMS reads one hop from each (c700). Best
+	 * their edges too, since OTHER FORMS reads one hop from each. Best
 	 * effort: one AniList can't answer doesn't fail the walk (`fetchGraph`).
 	 */
 	others?: number[];
@@ -126,9 +126,9 @@ export const when = (n: Pick<RelNode, 'status' | 'year'>): number | null =>
  * for one with no such neighbour, or whose edges the graph doesn't hold yet.
  * Without the bound, an undated aired entry closing a loop (a FINISHED last
  * season or OVA naming season 1 its SEQUEL) had no rank, its edges were all
- * taken, and the walk back from season 1 went round the chain (c358, round
- * 3's review). A lower bound, not a date: compared as one, it only ever cuts
- * an edge into the past of something the entry follows.
+ * taken, and the walk back from season 1 went round the chain. A lower bound,
+ * not a date: compared as one, it only ever cuts an edge into the past of
+ * something the entry follows.
  */
 export function startsBy(graph: RelGraph): (n: RelNode) => number | null {
 	const known = new Map<number, number | null>();
@@ -299,9 +299,9 @@ export type AroundHead = {
 
 export type SeasonsAround = {
 	before: AroundHead[];
-	/** Null only for a show on its last season (c992): AniList's walk always has a NEXT SEASON. */
+	/** Null only for a show on its last season: AniList's walk always has a NEXT SEASON. */
 	next: AroundHead | null;
-	/** A show's seasons past the next one (c992), drawn under it; AniList's walk has none. */
+	/** A show's seasons past the next one, drawn under it; AniList's walk has none. */
 	after?: AroundHead[];
 	extras: AroundHead[];
 	/** The folded line: `+ 3 EXTRAS · 2 OVA · 1 MOVIE`; '' for none. */
@@ -316,7 +316,7 @@ export const relTitle = (n: Pick<RelNode, 'title'>): string =>
 const formatWord = (format: string | null) => (format ?? '').replace(/_/g, ' ');
 
 /**
- * What makes another entry the same work in another form (c700; doc/SERIES.md,
+ * What makes another entry the same work in another form (doc/SERIES.md,
  * "OTHER FORMS"), most direct first. AniList writes the relation from the
  * entry it is asked about, so an anime's own manga answers ADAPTATION as often
  * as SOURCE (Ranma 1/2 (2024), recorded in tests/other-forms-db.spec.ts).

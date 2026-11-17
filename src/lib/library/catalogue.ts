@@ -56,7 +56,7 @@ const BRACKETS = /\s*[([{【][^)\]}】]*[)\]}】]/g;
 
 /**
  * A title as AniList would know it: without what the files and sources add.
- * Measured on the owner's library (2026-09-24), the searches that found
+ * Measured on a real library, the searches that found
  * nothing were mostly these:
  *
  * - brackets: "One Piece (Official Colored)", "Hero Killer (Beolkkul)";
@@ -138,8 +138,8 @@ export function isExact(seriesTitles: string[], c: Pick<Candidate, 'title' | 'al
 
 /**
  * The titles a sure match may equal: each as written, cleaned (`cleanTitle`),
- * and what its brackets hold, plus the title the owner typed (`query`), which
- * is the owner's choice of title and counts as one of the series' too. Shared
+ * and what its brackets hold, plus the title the user typed (`query`), which
+ * is the user's choice of title and counts as one of the series' too. Shared
  * by the automatic pass and the review's EXACT TITLE chip, so both call the
  * same title exact.
  */
@@ -152,7 +152,7 @@ export const matchTitles = (titles: string[], query?: string | null): string[] =
 /**
  * Whether a kind is listed by AniList and MAL as anime, a season at a time:
  * the registry's own answer (`anilistType`, kinds.ts), which is what decides
- * that its link, search and send are a season's (c240) and which pair of
+ * that its link, search and send are a season's and which pair of
  * catalogues a MAL id can be in (`family`). Asked of the registry rather than
  * spelled against a kind's name, so a new kind that airs needs no change here;
  * a kind outside AniList's catalogue (`anilistType` refuses one) is not anime.
@@ -164,7 +164,7 @@ export const isAnime = (kind: Kind | null | undefined): boolean =>
  * The season a form field or a URL parameter names, or none. Absent or empty
  * is no season -- "every season" to UNLINK, "the open season" to the review --
  * and never season 0, which is a real one (a flat list): `Number(null)` and
- * `Number('')` are both 0, so neither may read the field (c240).
+ * `Number('')` are both 0, so neither may read the field.
  */
 export function seasonNamed(raw: unknown): number | undefined {
 	if (raw === null || raw === undefined || String(raw) === '') return undefined;
@@ -187,8 +187,8 @@ export function candidateKind(c: Pick<Candidate, 'format' | 'country'>): Kind | 
  * Whether a candidate of [candidate] can be a series of [series]'s own entry
  * (doc/LINKS.md, "A novel never matches a comic"): manga and manhwa are one
  * kind to AniList, a novel is another work under the same title, and an anime
- * is another work again. The list is the registry's `matches` (doc/KINDS.md;
- * card c301), so a kind added there says who it may link to. Anything of an
+ * is another work again. The list is the registry's `matches` (doc/KINDS.md),
+ * so a kind added there says who it may link to. Anything of an
  * unknown format fits nothing.
  */
 export function sameKind(series: Kind, candidate: Kind | null): boolean {
@@ -239,16 +239,16 @@ export function sureMatch(
 
 /**
  * A link across kinds: a novel linked to its comic's entry, or a comic to its
- * novel's (the owner's call, 2026-09-24: AniList lacks many web novels, and
+ * novel's (AniList lacks many web novels, and
  * the comic's entry still has the cover and the details). Such a link is for
  * those only: a novel's chapter 300 isn't the manhwa's, so tracking never
- * sends progress through it, and it's never made without the owner.
+ * sends progress through it, and it's never made without the user.
  */
 export function coverOnly(seriesKind: Kind, format: string): boolean {
 	const k = candidateKind({ format, country: '' });
 	if (k === null || !format) return false;
 	// The crossing is a novel's to its comic's entry, and the other way round:
-	// an anime's entry is another work, never a cover for one (c298).
+	// an anime's entry is another work, never a cover for one.
 	if (seriesKind === 'anime' || k === 'anime') return false;
 	return (seriesKind === 'novel') !== (k === 'novel');
 }
@@ -268,7 +268,7 @@ export function parsePasted(text: string, kind: Kind = 'manga'): Pasted | null {
 			t
 		);
 	if (!m) return null;
-	// A kind another catalogue holds has no AniList page to read (c988).
+	// A kind another catalogue holds has no AniList page to read.
 	const type = anilistTypeOf(kind);
 	if (type === null) return null;
 	const asAnime = type === 'ANIME';
@@ -281,7 +281,7 @@ export function parsePasted(text: string, kind: Kind = 'manga'): Pasted | null {
 /**
  * An entry's own page, on the path its kind lives under: AniList's `ANIME`
  * path for an anime and `MANGA` for everything else (the registry's
- * `catalogue.type`; doc/KINDS.md, card c301). MAL uses the same two words.
+ * `catalogue.type`; doc/KINDS.md). MAL uses the same two words.
  */
 export const anilistUrl = (id: number, kind: Kind = 'manga') =>
 	`https://anilist.co/${anilistType(kind).toLowerCase()}/${id}`;
@@ -291,7 +291,7 @@ export const malUrl = (id: number, kind: Kind = 'manga') =>
 /**
  * A link whose entry is the other kind: a manga's entry on an anime, or an
  * anime's on a manga (doc/LINKS.md). Such a link is flagged, never removed:
- * the owner may have meant it, and UNDO still takes it back. A novel across
+ * the user may have meant it, and UNDO still takes it back. A novel across
  * to its comic is the deliberate cover-only link, not this.
  */
 export function wrongKind(series: Kind, format: string): boolean {
@@ -302,11 +302,10 @@ export function wrongKind(series: Kind, format: string): boolean {
 
 /**
  * A catalogue's score as a rating here, for an unrated series when a link is
- * made (the owner's decision, Catalogue Links 1w). Both are out of 10 since
- * c67, so a whole score is the rating as it is, 9 -> 9. Another scale is read
- * as out of 10 and rounded to the nearest half-step: AniList's 100 is asked
- * for as POINT_10, so that's for a scale nobody sends yet. Any score at all is
- * at least 1, since 0 is unrated.
+ * made. Both are out of 10, so a whole score is the rating as it is, 9 -> 9.
+ * Another scale is read as out of 10 and rounded to the nearest half-step:
+ * AniList's 100 is asked for as POINT_10, so that's for a scale nobody sends
+ * yet. Any score at all is at least 1, since 0 is unrated.
  */
 export function scoreToRating(score: number, outOf = 10): number {
 	if (!(score > 0) || !(outOf > 0)) return 0;
@@ -442,7 +441,7 @@ export function candidateRows(
 }
 
 /**
- * One season of an anime as the series screen's rows draw it (c240): its
+ * One season of an anime as the series screen's rows draw it: its
  * link, its parts and what the last search found. Plain data, so the server's
  * `seriesSeasons` can hand it to the component as it is.
  */
@@ -470,14 +469,13 @@ export type SeasonRow = {
 	queued: boolean;
 	/**
 	 * What settled it, when something did: NONE OF THESE (`none`) or UNLINK
-	 * (`unlinked`). No pass asks again either way, but the line says which
-	 * (c240).
+	 * (`unlinked`). No pass asks again either way, but the line says which.
 	 */
 	decision: SeasonDecision | null;
 	searchTitle: string;
 };
 
-/** A season settled without a link: the owner's NONE OF THESE, or an UNLINK. */
+/** A season settled without a link: the user's NONE OF THESE, or an UNLINK. */
 export type SeasonDecision = 'none' | 'unlinked';
 
 /** "ANILIST 132215 · MAL 128830", or with no MAL entry just the first. */

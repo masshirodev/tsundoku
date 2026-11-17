@@ -1,6 +1,6 @@
 /**
- * Where a source's preview was opened from, kept through + ADD (card c262;
- * doc/NAVIGATION.md, "From a source"). The preview knows it came from a
+ * Where a source's preview was opened from, kept through + ADD
+ * (doc/NAVIGATION.md, "From a source"). The preview knows it came from a
  * source's BROWSE page or from the search, and the series it adds into says
  * ← BROWSE or ← SOURCES back to it instead of ← LIBRARY.
  *

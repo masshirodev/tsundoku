@@ -1,6 +1,6 @@
 /**
  * Duplicate books (doc/DUPLICATE-BOOKS.md): the same book downloaded twice,
- * found by its cover, and settled by the owner one pair at a time. Pure: the
+ * found by its cover, and settled by hand one pair at a time. Pure: the
  * workstation (src/lib/server/dupes.ts) feeds these the hashes and the rows.
  *
  * Hashes are 64-bit perceptual hashes as 16 hex digits: Hentoid's for covers,
@@ -11,7 +11,7 @@
 export const COVER_BITS = 8;
 /**
  * Pages are matched a little more loosely: scans of one page differ more than
- * covers. Measured on the owner's pairs (2026-09-24): the same page lands at
+ * covers. Measured on real pairs: the same page lands at
  * 0–12 bits, a different one at 23 and up, and almost nothing between.
  */
 export const PAGE_BITS = 12;
@@ -66,7 +66,7 @@ export type BookHash = { entryId: number; seriesId: number; hash: string };
 /**
  * Pairs of books whose covers are alike, closest first. Two books of one
  * series are never a pair (grouped already, or one book's two volumes), nor
- * is a pair the owner settled.
+ * is a pair already settled.
  */
 export function candidatePairs(
 	books: BookHash[],
@@ -173,7 +173,7 @@ export function confidence(a: Copy, b: Copy): Confidence {
 
 export type Pick = {
 	keep: 'a' | 'b';
-	/** Which rule decided: 1 far more pages, 2 sharper, 3 a few more pages, 4 the owner's, 5 older. */
+	/** Which rule decided: 1 far more pages, 2 sharper, 3 a few more pages, 4 what you chose, 5 older. */
 	rule: 1 | 2 | 3 | 4 | 5;
 	ruleName: string;
 	/** Why, in the review's words: "MORE PAGES · B IS MISSING P 12–13". */
@@ -188,7 +188,7 @@ export const RULES = [
 	'OLDER'
 ] as const;
 
-/** How much the owner has done with a copy: read, rated, FAV, shelved, in a series. */
+/** How much the reader has done with a copy: read, rated, FAV, shelved, in a series. */
 const tended = (c: Copy) =>
 	(c.read !== null ? 1 : 0) +
 	(c.rating > 0 ? 1 : 0) +
@@ -205,8 +205,8 @@ export const farApart = (a: Copy, b: Copy) =>
 /**
  * Which copy to keep (doc/DUPLICATE-BOOKS.md, "How the pick is made"): the
  * first rule that tells them apart decides. Sharper pages win over a page or
- * two more (a credits page one site added); far more pages win over sharper
- * (the owner, 2026-09-24).
+ * two more (a credits page one site added); far more pages win over
+ * sharper.
  */
 export function pick(a: Copy, b: Copy, rows: PageRow[]): Pick {
 	const onlyA = rows.filter((r) => r.a !== null && r.b === null).map((r) => r.a!);
@@ -245,7 +245,7 @@ export function pick(a: Copy, b: Copy, rows: PageRow[]): Pick {
 	}
 	// 3. A few more pages, when the pages are as sharp.
 	if (onlyA.length !== onlyB.length) return morePages(3);
-	// 4. What the owner already chose.
+	// 4. What the reader already chose.
 	if (tended(a) !== tended(b)) {
 		const keep = tended(a) > tended(b) ? 'a' : 'b';
 		return decide(keep, 4, `YOU READ, RATED OR SHELVED ${keep === 'a' ? 'A' : 'B'}`);

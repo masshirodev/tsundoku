@@ -13,8 +13,8 @@ import {
 } from './browse-press.ts';
 
 /**
- * SELECT in a source's catalog, held in this tab's memory (card c868;
- * doc/BROWSE.md, "Where a selection lives").
+ * SELECT in a source's catalog, held in this tab's memory (doc/BROWSE.md,
+ * "Where a selection lives").
  *
  * The library's idiom (`carrySelection` / `takeCarried`, selection.ts) keeps
  * a selection in this tab's memory and nowhere else: not the URL (a link or a
@@ -85,7 +85,7 @@ export class PressRun {
 		this.#onEnd = onEnd;
 	}
 
-	/** Every series of the press this run added, as the server's doors read them. */
+	/** Every series of the press this run added, as the server's endpoints read them. */
 	#addedSeries() {
 		return this.items.flatMap((i) =>
 			i.answer?.status === 'added' ? [{ series: i.answer.seriesId, preview: i.tick.id }] : []

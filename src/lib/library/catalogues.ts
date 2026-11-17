@@ -1,10 +1,10 @@
 import { kindFacts, type Kind } from './kinds.ts';
 
 /**
- * Which catalogue a kind is looked up in, and what a link to it is (card
- * c988; doc/FILMS-SHOWS.md, and `doc/LINKS.md`, "Which
+ * Which catalogue a kind is looked up in, and what a link to it is
+ * (doc/FILMS-SHOWS.md, and `doc/LINKS.md`, "Which
  * catalogue"). The registry already says it per kind (`catalogue`); this is
- * the one answer the doors ask, so a film's link is never read as AniList's.
+ * the one answer every caller asks, so a film's link is never read as AniList's.
  *
  * **Pure.** Whether a catalogue can answer **here** (a TMDB key, a friend's
  * missing one) is `server/catalogues.ts`'s question: it reads the install's
@@ -32,7 +32,7 @@ export const catalogueHolds = (p: CatalogueProvider, kind: Kind): boolean =>
 
 /**
  * The entry's own page, for the OPEN ↗ cell: AniList's path for a comic or an
- * anime, TMDB's `movie`/`tv` path for a film or a show. The safe door — a
+ * anime, TMDB's `movie`/`tv` path for a film or a show. The safe one — a
  * kind is never asked of the wrong provider, so this cannot throw the way
  * `anilistUrl` (library/catalogue.ts) does for a kind AniList does not hold.
  */

@@ -2,18 +2,17 @@ import type { Kind } from './types.ts';
 import { kindFacts } from './kinds.ts';
 
 /**
- * Ranobe, the pure part (doc/RANOBE.md): what is sent there, how a file's
- * entries become Ranobe's units, and when a unit counts as read. No database,
- * no network.
+ * Ranobe, the reading tracker tsundoku sends progress to, the pure part
+ * (doc/RANOBE.md): what is sent there, how a file's entries become Ranobe's
+ * units, and when a unit counts as read. No database, no network.
  */
 
 /**
- * The kinds Ranobe tracks. Novels since card c66; manga and manhwa since card
- * c98 (2026-10-14), once Ranobe's works counted their own chapters (its card
- * c226); anime since card c240 (2026-11-03), as one work for the whole show,
- * its episodes counted straight through the seasons (Ranobe c134,
- * doc/RANOBE.md, "Anime"). Doujinshi never, whichever importer made them:
- * Hentoid's books, or a Mihon gallery source's series.
+ * The kinds Ranobe tracks. Novels; manga and manhwa, as Ranobe's works count
+ * their own chapters; anime as one work for the whole show, its episodes
+ * counted straight through the seasons (doc/RANOBE.md, "Anime"). Doujinshi
+ * never, whichever importer made them: Hentoid's books, or a Mihon gallery
+ * source's series.
  */
 // Its own order (novel first, then the comics, then anime): the search's kind
 // options read it, so it is stated, not derived and sorted.
@@ -28,7 +27,7 @@ export const byWork = (kind: Kind) => kind !== 'novel';
 
 /** Ranobe's kinds a tsundoku series of this kind may be, for `/search?kind=`. */
 export const searchKinds = (kind: Kind) =>
-	// What is watched, not read: Ranobe files it under its own video kinds (c240).
+	// What is watched, not read: Ranobe files it under its own video kinds.
 	kindFacts(kind).medium === 'video'
 		? 'anime,donghua'
 		: byWork(kind)
@@ -144,7 +143,7 @@ export function mapWorkUnits(
 /**
  * Each episode's unit, as Ranobe counts an anime: the work's own episodes,
  * numbered straight through the seasons -- season 1's EP. 24 is 24, season
- * 2's EP. 1 is 25 (Ranobe c134, "A series is one entry"). A series here can
+ * 2's EP. 1 is 25. A series here can
  * hold several seasons while Ranobe holds one work, so the number is the
  * episode's place in the list, not the one the source printed. A recap and a
  * half number are not episodes a catalogue numbers, and map to nothing.
@@ -188,7 +187,7 @@ export type MappedEntry = {
 	/** 'front' or 'back' is the book's matter, never a unit's reading. */
 	matter: string;
 	readAt: number | null;
-	/** An anime's recap: listed, never a catalogue's episode (c240). */
+	/** An anime's recap: listed, never a catalogue's episode. */
 	recap?: boolean;
 };
 
@@ -305,7 +304,7 @@ export const iso = (at: number) => new Date(at).toISOString();
 /** Tsundoku's rating out of 10 as Ranobe's: 0, unrated, is null. */
 export const ratingOut = (rating: number): number | null => (rating > 0 ? rating : null);
 
-// ---- the review (Ranobe Review; doc/RANOBE.md, "The review") --------------------------------
+// ---- the review (doc/RANOBE.md, "The review") ------------------------------------------------
 
 /** A work Ranobe's search answered, as kept for the review. */
 export type RanobeCandidate = {
@@ -395,19 +394,19 @@ export function ranobeRows(c: RanobeCandidate): RanobeRow[] {
 export const coverNote = (c: Pick<RanobeCandidate, 'cover'>) =>
 	!c.cover ? 'NO COVER' : c.cover.sensitive ? 'SENSITIVE · NOT SHOWN' : null;
 
-// ---- the TRACKING line (Ranobe Series 2a–2k) -------------------------------------------------
+// ---- the TRACKING line ----------------------------------------------------------------------
 
 export type RanobeFacts = {
 	configured: boolean;
 	hidden: boolean;
 	linked: boolean;
-	/** Suggested to Ranobe from its EPUB, waiting for the owner there (card c72). */
+	/** Suggested to Ranobe from its EPUB, waiting for approval there. */
 	suggested: boolean;
 	/** The edition the series reads; null while it waits on one. A comic has none. */
 	edition: boolean;
-	/** A comic, read as the work's own chapters (card c98). */
+	/** A comic, read as the work's own chapters. */
 	comic: boolean;
-	/** An anime, read as the work's own episodes, one work across the seasons (c240). */
+	/** An anime, read as the work's own episodes, one work across the seasons. */
 	anime?: boolean;
 	/** The work counts its units on Ranobe, so a comic's reads can go. */
 	counted: boolean;
@@ -456,7 +455,7 @@ export function remoteLine(r: NonNullable<RanobeFacts['remote']>): string {
 }
 
 /**
- * The TRACKING row's lines for a novel (2a–2k): the first is what Ranobe
+ * The TRACKING row's lines for a novel: the first is what Ranobe
  * says, with what tsundoku did on the right; a second, quiet one only when
  * there's more to say. Null: no Ranobe line at all (no token).
  */
@@ -583,7 +582,7 @@ export function halfRead(
 	return null;
 }
 
-// ---- suggesting a work (card c72; doc/RANOBE.md, "Suggesting a novel") ----------------------
+// ---- suggesting a work (doc/RANOBE.md, "Suggesting a novel") ---------------------------------
 
 /** The language a name's script says: Hangul is Korean, kana Japanese, Han alone Chinese. */
 export function scriptLang(s: string): string | null {
@@ -657,7 +656,7 @@ export function suggestedPeople(creators: { name: string; role: string }[]): Sug
 /**
  * The bundle a series suggests (API-V1.md, "Bundles"): its authors as
  * people, then the work crediting them. Only what the file says, and two
- * guesses the owner corrects on Ranobe before approving: the kind (a series
+ * guesses corrected on Ranobe before approving: the kind (a series
  * that is one volume is a light novel, one of chapters a web novel), and the
  * original language (the author's script; `und`, undetermined, when it
  * doesn't say).
@@ -692,7 +691,7 @@ export function workBundle(o: {
 	// Ranobe requires a title in the work's original language, and the only
 	// title the file has is its own, the translation's. So the work goes in
 	// under that language, and the guess at the real original -- the author's
-	// script -- goes in the reason, where the owner reads it before approving.
+	// script -- goes in the reason, read there before approving.
 	const lang = o.lang ?? 'en';
 	const guessed = o.people.map((p) => p.lang).find((l) => l !== null) ?? null;
 	const kind = o.volume !== null ? 'light_novel' : 'web_novel';

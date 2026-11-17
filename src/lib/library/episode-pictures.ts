@@ -1,6 +1,6 @@
 /**
  * An episode's picture, where the source gives none (doc/ANIME.md, "Episode
- * pictures"; card c225): a frame of the episode, made on the workstation. The
+ * pictures"): a frame of the episode, made on the workstation. The
  * decisions here are pure; src/lib/server/anime/pictures.ts takes the frames.
  */
 

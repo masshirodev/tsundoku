@@ -3,14 +3,14 @@ import { kindFacts, kindUnit, type MoveKind } from './kinds.ts';
 import { formatNumber } from './series.ts';
 
 /**
- * MOVE, the rules (doc/MOVE.md; card c139): moving a series from one source
- * to another without losing anything that is the owner's. Everything the
+ * MOVE, the rules (doc/MOVE.md): moving a series from one source
+ * to another without losing anything that is the user's. Everything the
  * screen derives -- the by-number map, how runs fold, which odd rows are
  * kept or added, the counts "WHAT THE MOVE DOES" shows -- is decided here and
  * tested in tests/move-domain.spec.ts. Nothing here touches the database or
  * a source.
  *
- * The owner's decisions (2026-11-01) are the frame:
+ * The rules:
  *
  * - downloaded files stay, as the chapters or episodes they are;
  * - a chapter the new source lacks, or numbers differently, stays too, from
@@ -19,7 +19,7 @@ import { formatNumber } from './series.ts';
  *   partner on the new source, which leaves the queue.
  *
  * Matching is by number and nothing else. Everything that is not 1:1 is a
- * row of its own, so the owner sees where a source numbers things oddly
+ * row of its own, so the user sees where a source numbers things oddly
  * before anything changes.
  */
 
@@ -63,8 +63,8 @@ export type MoveCandidateEntry = {
 
 /**
  * A series that can be moved, as MOVE's map reads it: `MOVE_MAP` in the
- * registry, derived there from `movable` and the map's shape (doc/KINDS.md;
- * cards c301, c304), and `moveKindOf` reads it from a kind's medium. Today
+ * registry, derived there from `movable` and the map's shape (doc/KINDS.md),
+ * and `moveKindOf` reads it from a kind's medium. Today
  * `manga` (pages) and `anime` (video); a manhwa is movable and maps as a
  * manga, and a doujin does not move, even a gallery's with a `mihon:` key.
  */
@@ -72,8 +72,8 @@ export type { MoveKind };
 
 /**
  * Whether a move maps video (episodes, seasons, an offset, a position in
- * time) rather than pages: the medium of MOVE's map kind (doc/KINDS.md; card
- * c304). Every per-medium rule below asks this, never the kind's name.
+ * time) rather than pages: the medium of MOVE's map kind (doc/KINDS.md).
+ * Every per-medium rule below asks this, never the kind's name.
  */
 export const movesVideo = (kind: MoveKind): boolean => kindFacts(kind).medium === 'video';
 
@@ -156,7 +156,7 @@ export type MapOptions = {
 
 export type MoveRowVariant = 'match' | 'kept' | 'added' | 'split' | 'untaken';
 
-/** One row of BY NUMBER, already said in the owner's terms. */
+/** One row of BY NUMBER, already said in the user's terms. */
 export type MoveRow = {
 	variant: MoveRowVariant;
 	/** "1 – 9", "10", "Afterword", or "—". */

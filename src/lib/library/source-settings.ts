@@ -1,6 +1,6 @@
 /**
  * A source's settings as its SETTINGS screen draws them (doc/BROWSE.md, "A
- * source's settings"; card c145). The engine describes each as
+ * source's settings"). The engine describes each as
  * `{ key, <type>: { title, summary, value | valueIndex | values, entries?,
  * entryValues? } }` (doc/EXTENSION-ENGINE.md, "Preferences"); this reads that
  * into one shape per type, and a submitted form back into the value

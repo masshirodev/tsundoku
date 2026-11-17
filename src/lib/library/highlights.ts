@@ -2,7 +2,7 @@ import { KINDS, kindUnit, type Kind } from './kinds.ts';
 import { formatNumber } from './series.ts';
 
 /**
- * Highlights (doc/HIGHLIGHTS.md; card c701, H1 of c444): the rules the
+ * Highlights (doc/HIGHLIGHTS.md): the rules the
  * highlights page, the series screen's row, DELETE's and MOVE's lines and the
  * exports derive, pure, so they are tested without a database or a page.
  *
@@ -18,14 +18,15 @@ import { formatNumber } from './series.ts';
 export const HIGHLIGHT_KINDS = ['quote', 'page', 'clip'] as const;
 export type HighlightKind = (typeof HIGHLIGHT_KINDS)[number];
 
-/** Three colours and no meanings (Main 02); quotes only. YELLOW is the default. */
+/** Three colours and no meanings; quotes only. YELLOW is the default. */
 export const COLOURS = ['yellow', 'orange', 'blue'] as const;
 export type Colour = (typeof COLOURS)[number];
 
 /**
- * The pointer's state (Main 05). `orphan_series`: the series is no longer in
- * the library; `orphan_entry`: the series is, the chapter or episode isn't;
- * `detached`: a quote its chapter's text no longer holds (H2 re-finds them).
+ * The pointer's state. `orphan_series`: the series is no longer in the
+ * library; `orphan_entry`: the series is, the chapter or episode isn't;
+ * `detached`: a quote its chapter's text no longer holds (the text reader
+ * re-finds them).
  */
 export type PointerState = 'ok' | 'orphan_series' | 'orphan_entry' | 'detached';
 
@@ -98,7 +99,7 @@ export function clock(seconds: number): string {
 	return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${r}` : `${m}:${r}`;
 }
 
-/** A clip's points as the handoff writes them: 12:04–13:36, the minutes padded. */
+/** A clip's points as the screens write them: 12:04–13:36, the minutes padded. */
 const point = (seconds: number) => {
 	const c = clock(seconds);
 	return c.length === 4 ? `0${c}` : c;
@@ -160,7 +161,7 @@ export function dayHeading(at: number, now: number): string {
 	return dayKey(new Date(at)) === dayKey(new Date(now)) ? 'TODAY' : dayWord(at, now);
 }
 
-/** The orphan's and the detached one's tag (Main 02, ORPHANS AND DETACHED ARE SAID). */
+/** The orphan's and the detached one's tag. */
 export function stateTag(h: Highlight, short = false): string | null {
 	if (h.state === 'orphan_series')
 		return short ? 'NO LONGER IN THE LIBRARY' : 'FROM A SERIES NO LONGER IN THE LIBRARY';
@@ -178,10 +179,10 @@ export const hasWayBack = (h: Pick<Highlight, 'state' | 'entryId'>) =>
 	(h.state === 'ok' || h.state === 'detached') && h.entryId !== null;
 
 /**
- * → back to the place (Main 01, THE WAY BACK): a quote opens its chapter on
+ * → back to the place: a quote opens its chapter on
  * the page holding its first character (the text reader's own `?at=block.offset`),
  * a page its chapter on that page (`?p=`, 1-based), a clip its episode at its
- * in point (`?t=`, seconds, c734). A detached quote opens at the paragraph where
+ * in point (`?t=`, seconds). A detached quote opens at the paragraph where
  * it was, drawing nothing. Null when the place is gone.
  */
 export function wayBackHref(h: Highlight): string | null {
@@ -196,7 +197,7 @@ export function wayBackHref(h: Highlight): string | null {
 }
 
 /**
- * The player's `?t=` (c734): the second an episode opens at, or null for
+ * The player's `?t=`: the second an episode opens at, or null for
  * anything that isn't one, so a bad link opens at the saved place as a plain one
  * does. Plain decimal seconds only: `Number()` alone would take '', '1e9', '0x10'
  * and 'Infinity'. A second at or past a length that is known is no place in the
@@ -238,7 +239,7 @@ export type HighlightFilter = {
 
 export const NO_FILTER: HighlightFilter = { kind: null, series: null, lost: false, q: '' };
 
-/** Where a search found it: the quote, the note, or the series' name (Page P5). */
+/** Where a search found it: the quote, the note, or the series' name. */
 export type Found = 'quote' | 'note' | 'series';
 
 export function foundIn(h: Highlight, q: string): Found | null {
@@ -288,7 +289,7 @@ export function seriesOf(list: Highlight[]): { id: number; title: string; n: num
 
 // ---- the two orders -------------------------------------------------------------------
 
-/** Every highlight newest first, grouped by the day it was made (Page P1). */
+/** Every highlight newest first, grouped by the day it was made. */
 export function byDay(list: Highlight[], now: number): { day: string; items: Highlight[] }[] {
 	const sorted = [...list].sort((a, b) => b.madeAt - a.madeAt || b.id - a.id);
 	const out: { day: string; items: Highlight[] }[] = [];
@@ -330,7 +331,7 @@ export type EntryGroup = {
 	items: Highlight[];
 };
 
-/** Reading order, grouped by chapter or by season and episode (Series S3–S5). */
+/** Reading order, grouped by chapter or by season and episode. */
 export function byEntry(list: Highlight[]): EntryGroup[] {
 	const out: EntryGroup[] = [];
 	for (const h of inReadingOrder(list)) {
@@ -357,7 +358,7 @@ export function byEntry(list: Highlight[]): EntryGroup[] {
 // ---- the lines other screens say ------------------------------------------------------
 
 /**
- * The series screen's row (Series S1, S2): HIGHLIGHTS, then `14 · 3 NOTES`, a
+ * The series screen's row: HIGHLIGHTS, then `14 · 3 NOTES`, a
  * manga's `6 PAGES · 1 NOTE`, an anime's `4 CLIPS`. One kind per series, so a
  * book's quotes need no word; a series holding more than one kind says the
  * bare total.
@@ -377,10 +378,10 @@ export function seriesLine(list: Pick<Highlight, 'kind' | 'note'>[]): string {
 
 const highlightsWord = (n: number) => (n === 1 ? 'HIGHLIGHT' : 'HIGHLIGHTS');
 
-/** DELETE's row (Out X4): 14 HIGHLIGHTS ARE KEPT. */
+/** DELETE's row: 14 HIGHLIGHTS ARE KEPT. */
 export const keptLine = (n: number) => `${n} ${highlightsWord(n)} ${n === 1 ? 'IS' : 'ARE'} KEPT`;
 
-/** A bulk delete's (Out X4): 31 HIGHLIGHTS IN 4 SERIES ARE KEPT. */
+/** A bulk delete's: 31 HIGHLIGHTS IN 4 SERIES ARE KEPT. */
 export const keptAcrossLine = (n: number, series: number) =>
 	series <= 1 ? keptLine(n) : `${n} ${highlightsWord(n)} IN ${series} SERIES ARE KEPT`;
 
@@ -388,7 +389,7 @@ export const keptAcrossLine = (n: number, series: number) =>
 export const deleteWithLine = (n: number) => `DELETE WITH ${n} ${highlightsWord(n)}`;
 
 /**
- * MOVE's summary (Out X5): 6 FOLLOW · 1 LOSES ITS WAY BACK. `follow` are the
+ * MOVE's summary: 6 FOLLOW · 1 LOSES ITS WAY BACK. `follow` are the
  * highlights whose entry stays (matched, or kept from the old source);
  * `lose` those whose entry the move takes away.
  */
@@ -426,7 +427,7 @@ export function slug(text: string): string {
 
 const two = (n: number) => String(n).padStart(2, '0');
 
-/** SAVE IMAGE's and SAVE CLIP's names (Out X2, X3): kaze-no-tou-no-shoujo-ch42-p14.jpg. */
+/** SAVE IMAGE's and SAVE CLIP's names: kaze-no-tou-no-shoujo-ch42-p14.jpg. */
 export function copyName(h: Highlight, ext: string): string {
 	const unit = unitOf(h).short.toLowerCase();
 	const num = h.number !== null ? formatNumber(h.number).replace('.', '_') : '';
@@ -483,7 +484,7 @@ function seriesMarkdown(list: Highlight[], opts: MarkdownOptions, level: number)
 }
 
 /**
- * A book's highlights as Markdown (Out X1): quotes as block quotes, notes as
+ * A book's highlights as Markdown: quotes as block quotes, notes as
  * plain paragraphs under them, one heading per chapter in reading order. A
  * page or a clip is a line saying where it is: the file is its own export.
  */
@@ -509,7 +510,7 @@ export function toMarkdown(list: Highlight[], title: string, opts: MarkdownOptio
 	return [...head, ...body].join('\n').trimEnd() + '\n';
 }
 
-// ---- a page kept from the image reader (H3, card c703) --------------------------------
+// ---- a page kept from the image reader -------------------------------------------------
 
 /** A page kept, as the reader holds it (`pageHighlights` on the workstation). */
 export type KeptPage = {
@@ -523,7 +524,7 @@ export type KeptPage = {
 	bytes: number;
 };
 
-/** What the reader's HIGHLIGHT cell can be (Manga M1, M3, M7). */
+/** What the reader's HIGHLIGHT cell can be. */
 export type CellState = 'idle' | 'kept' | 'keeping' | 'offline' | 'incognito';
 
 /** The key one ask is known by while it is being made: the same page twice is one ask. */
@@ -540,7 +541,7 @@ export function keptOn(kept: KeptPage[], group: number[]): KeptPage[] {
 }
 
 /**
- * The scrubber's ticks (Manga M3): every page a highlight covers, once each,
+ * The scrubber's ticks: every page a highlight covers, once each,
  * in order, so a spread kept as BOTH ticks both of its pages.
  */
 export function pageTicks(kept: KeptPage[]): number[] {
@@ -548,7 +549,7 @@ export function pageTicks(kept: KeptPage[]): number[] {
 }
 
 /**
- * The cell's state, in the order the handoff ranks them (Manga M7): incognito
+ * The cell's state, highest rank first: incognito
  * makes none and says why; offline cannot reach the workstation that makes the
  * copy; a page being kept is dashed until it is; a kept page reads
  * ✓ HIGHLIGHTED; otherwise HIGHLIGHT.
@@ -568,7 +569,7 @@ export function cellState(o: {
 }
 
 /**
- * The cell's words. The strip names its page (Manga M4: HIGHLIGHT P. 23), so
+ * The cell's words. The strip names its page (HIGHLIGHT P. 23), so
  * a page half off the screen is never a guess; paged, the page is the one on
  * the screen.
  */
@@ -592,7 +593,7 @@ export type SpreadChoice = {
 };
 
 /**
- * A spread's HIGHLIGHT asks which (Manga M2): the two pages in reading order
+ * A spread's HIGHLIGHT asks which: the two pages in reading order
  * (R→L: the right one first), then BOTH, kept as one image. `group` is the
  * spread's pages in reading order.
  */
@@ -620,7 +621,7 @@ export function spreadChoices(group: number[], rtl: boolean, kept: KeptPage[]): 
 }
 
 /**
- * Which side of a page its gutter rule sits on (Manga M3): the outer side,
+ * Which side of a page its gutter rule sits on: the outer side,
  * away from the spine. Alone, the right in R→L and the left in L→R; in a
  * spread, the side the page is drawn on.
  */
@@ -629,7 +630,7 @@ export function ruleSide(side: 'left' | 'right' | 'center', rtl: boolean): 'left
 	return rtl ? 'right' : 'left';
 }
 
-/** The page sheet's head (Manga M6): HIGHLIGHT · CH. 42 · P. 14, or P. 14–15 for BOTH. */
+/** The page sheet's head: HIGHLIGHT · CH. 42 · P. 14, or P. 14–15 for BOTH. */
 export function pageSheetHead(entryName: string, k: Pick<KeptPage, 'page' | 'pageEnd'>): string {
 	const p =
 		k.pageEnd === null
@@ -638,13 +639,13 @@ export function pageSheetHead(entryName: string, k: Pick<KeptPage, 'page' | 'pag
 	return ['HIGHLIGHT', entryName.toUpperCase(), p].filter(Boolean).join(' · ');
 }
 
-/** The page sheet's line (Manga M6): MADE 4 NOV · A COPY ON THE WORKSTATION · 1 MB. */
+/** The page sheet's line: MADE 4 NOV · A COPY ON THE WORKSTATION · 1 MB. */
 export const pageSheetLine = (k: Pick<KeptPage, 'madeAt' | 'bytes'>, now: number) =>
 	`MADE ${dayWord(k.madeAt, now)} · A COPY ON THE WORKSTATION · ${sizeWord(k.bytes)}`;
 
-// ---- a passage kept from the text reader (H2, card c702) ------------------------------
+// ---- a passage kept from the text reader -----------------------------------------------
 
-/** How much of the chapter a quote keeps either side, for re-finding it (Main 05). */
+/** How much of the chapter a quote keeps either side, for re-finding it. */
 export const QUOTE_CONTEXT = 32;
 
 /** A run of a chapter's text: where it starts and where it ends (exclusive), block and offset. */
@@ -777,7 +778,7 @@ export type QuoteParts = {
 };
 
 /**
- * The copy of a span (Main 05): the quote, QUOTE_CONTEXT characters either
+ * The copy of a span: the quote, QUOTE_CONTEXT characters either
  * side for re-finding it, its paragraph and the one before. Null when the span
  * holds no words. Pure white space at either end isn't part of a quote.
  */
@@ -809,10 +810,10 @@ export type Anchored = { state: 'ok'; span: TextSpan; moved: boolean } | { state
 type Findable = TextSpan & Pick<KeptQuote, 'quote' | 'before' | 'after'>;
 
 /**
- * Where a kept quote is in the chapter as it stands now (Main 05, RE-FINDING A
- * QUOTE). Still at its place, words and both sides: nothing to do, and that is
- * asked first, since the same words with the same sides twice in a chapter are
- * only a problem once the place is lost. Otherwise the whole of it (its 32
+ * Where a kept quote is in the chapter as it stands now. Still at its place,
+ * words and both sides: nothing to do, and that is asked first, since the same
+ * words with the same sides twice in a chapter are only a problem once the
+ * place is lost. Otherwise the whole of it (its 32
  * characters either side, the quote) is searched for: one match re-anchors it,
  * none or two makes it DETACHED. Never fuzzy: every comparison is a character's.
  */
@@ -861,9 +862,9 @@ export function ordered(a: { block: number; offset: number }, b: typeof a): Text
 }
 
 /**
- * A selection overlapping a highlight joins it (Main 02, THE BAR SITS OVER THE
- * SELECTION; c702): the one span covering them all, and the highlights it takes
- * in, the oldest first, so the older note is kept. A DETACHED quote is on no
+ * A selection overlapping a highlight joins it: the one span covering them
+ * all, and the highlights it takes in, the oldest first, so the older note is
+ * kept. A DETACHED quote is on no
  * words, so nothing overlaps it.
  */
 export function joinSpans<T extends TextSpan & { state?: string; madeAt: number; id: number }>(
@@ -893,13 +894,13 @@ export function joinSpans<T extends TextSpan & { state?: string; madeAt: number;
 	return { span, joined };
 }
 
-/** How long a note may be, here and at the door. */
+/** How long a note may be, here and at the server. */
 export const NOTE_LIMIT = 4000;
 const NOTE_BETWEEN = '\n\n';
 
 /**
- * What a highlight's note is when a body arrives for a row that may have one
- * (c702): the queue's note written against a highlight it didn't know of, a
+ * What a highlight's note is when a body arrives for a row that may have one:
+ * the queue's note written against a highlight it didn't know of, a
  * join's, a revive's. A reader's words are never dropped. Two different notes
  * are both kept, the row's first, a blank line between. A body that only
  * continues the row's note replaces it (typing went on), and a note the row
@@ -951,7 +952,7 @@ function wordsOf(text: string, language: string | undefined): Word[] {
 }
 
 /**
- * The word a long press selects (Novel N1): the one under `at`, or, on a space
+ * The word a long press selects: the one under `at`, or, on a space
  * or a mark, the nearest after it and then before it in that block. Null in a
  * block with no word.
  */
@@ -964,19 +965,19 @@ export function wordAround(text: string, at: number, locale?: string): Word | nu
 	return words.find((w) => w.start > pos) ?? words.at(-1) ?? null;
 }
 
-/** The sheet's and the panel's head (Novel N5): HIGHLIGHT · CH. 3 · ¶ 4. */
+/** The sheet's and the panel's head: HIGHLIGHT · CH. 3 · ¶ 4. */
 export const quoteSheetHead = (entryName: string, q: Pick<TextSpan, 'block'>) =>
 	['HIGHLIGHT', entryName.toUpperCase(), `¶ ${q.block + 1}`].filter(Boolean).join(' · ');
 
-/** The sheet's line (Novel D2): MADE 2 NOV · KEPT ON THE WORKSTATION. */
+/** The sheet's line: MADE 2 NOV · KEPT ON THE WORKSTATION. */
 export const quoteSheetLine = (madeAt: number, now: number) =>
 	`MADE ${dayWord(madeAt, now)} · KEPT ON THE WORKSTATION`;
 
-/** How long the end handle waits at the page's end before the page turns (Main 02). */
+/** How long the end handle waits at the page's end before the page turns. */
 export const HOLD_TURN_MS = 600;
-/** The strip at the page's foot the end handle waits in (Novel N3). */
+/** The strip at the page's foot the end handle waits in. */
 export const HOLD_STRIP = 64;
-/** A pointer this near the window's edge has reached it (Novel D1). */
+/** A pointer this near the window's edge has reached it. */
 const EDGE = 24;
 
 /**
@@ -994,15 +995,15 @@ export function atPageEnd(
 	return o.rtl ? p.x <= EDGE : p.x >= view.w - EDGE;
 }
 
-/** How high the bar is, its gap over the first line, and the screen edge it keeps off (Novel N1). */
+/** How high the bar is, its gap over the first line, and the screen edge it keeps off. */
 export const BAR_H = 48;
 const BAR_GAP = 14;
 const BAR_EDGE = 16;
-/** The bar's top across a vertical book's top (Novel J3). */
+/** The bar's top across a vertical book's top. */
 const BAR_TOP_VERTICAL = 24;
 
 /**
- * Where the bar goes (Main 02, THE BAR SITS OVER THE SELECTION): above the
+ * Where the bar goes: above the
  * first line selected, or below it where that would leave the screen; a
  * vertical book's across the top, over the first column selected. Pure, so a
  * bar is never off the screen for a selection at its edge.

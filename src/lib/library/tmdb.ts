@@ -8,7 +8,7 @@ import {
 } from './catalogue.ts';
 
 /**
- * TMDB, the pure half (card c989; doc/LINKS.md, "TMDB links"): what a film or
+ * TMDB, the pure half (doc/LINKS.md, "TMDB links"): what a film or
  * a show is as TMDB answers it, the query a source's title becomes, what makes
  * a match sure, and the words the review draws beside a candidate. No
  * database, no network: `server/tmdb.ts` is the client, `server/tmdb-links.ts`
@@ -26,7 +26,7 @@ export type TmdbTitle = {
 	overview: string;
 	/** A full image URL, or null when TMDB has no poster. */
 	poster: string | null;
-	/** The wide still a film's stage shows (c992), a full URL; null when TMDB has none. */
+	/** The wide still a film's stage shows, a full URL; null when TMDB has none. */
 	backdrop?: string | null;
 	/** A film's runtime in minutes; null for a show, and for a search result (only details carry it). */
 	runtime: number | null;
@@ -36,7 +36,7 @@ export type TmdbTitle = {
 	collection: { id: number; name: string } | null;
 };
 
-// ---- what surrounds an entry (card c990) ---------------------------------------------------
+// ---- what surrounds an entry --------------------------------------------------------------
 
 /** One of a show's seasons as TMDB lists it. Season 0 (specials) is never one of them. */
 export type TmdbSeason = {

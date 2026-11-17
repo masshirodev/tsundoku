@@ -2,11 +2,11 @@ import type { Range } from './streams.ts';
 
 /**
  * Fingerprints of episodes, the pure part (doc/ANIME.md, "Openings and
- * endings"; card c239). Two episodes of a season share their opening and
- * their ending, so a run of chromaprint points both have, wherever each
- * episode has it, is one of them (the rule for a run: c384, at
- * longestSharedRun). The fingerprinting itself is the server's; this
- * only compares points, which is what the specs can do without a video.
+ * endings"). Two episodes of a season share their opening and their ending,
+ * so a run of chromaprint points both have, wherever each episode has it, is
+ * one of them (the rule for a run: longestSharedRun). The fingerprinting
+ * itself is the server's; this only compares points, which is what the specs
+ * can do without a video.
  *
  * Chromaprint turns a second of audio into about eight 32-bit points (the
  * exact rate depends on the tool, so a print carries its length). Two points
@@ -31,10 +31,10 @@ export const ENDING_MAX_S = 180;
 
 /**
  * How far apart the same opening or ending may sit in two episodes, in
- * seconds. An opening's is the whole intro window (c384): where it starts
- * depends on each episode's cold open, and Ranma ½ (2024) put it at 30.75 s
- * in one episode and 83.1 s in another, 52 s apart, past the 30 s this was.
- * A pair that could not align returned whatever shorter run it met by chance.
+ * seconds. An opening's is the whole intro window: where it starts depends on
+ * each episode's cold open, and Ranma ½ (2024) puts it at 30.75 s in one
+ * episode and 83.1 s in another, 52 s apart, past a 30 s limit. A pair that
+ * cannot align returns whatever shorter run it meets by chance.
  * The full cross-match of two 6-minute windows is about 8 million point
  * comparisons, tens of milliseconds.
  */
@@ -42,27 +42,27 @@ export const INTRO_SHIFT_S = INTRO_CAP_S;
 export const ENDING_SHIFT_S = 180;
 
 /**
- * The longest stretch of unmatched points a run carries on through (c384),
- * counted in its length. Two encodes of the same song differ by more than
+ * The longest stretch of unmatched points a run carries on through, counted
+ * in its length. Two encodes of the same song differ by more than
  * BIT_TOLERANCE at scattered points, a stream's 360p audio especially, and a
- * run that ended at the first one broke a 90 s opening into 30-50 s pieces.
+ * run that ends at the first one breaks a 90 s opening into 30-50 s pieces.
  * Jellyfin's Intro Skipper, the method this follows, joins matches up to 3.5 s
  * apart (its MaximumTimeSkip) into one region; so does this.
  */
 export const MAX_GAP_S = 3.5;
 
 /**
- * What a gap is bridged between, and how much of a run must match (c384).
- * Bridging alone chains chance: two unrelated stretches of pink noise (the db
- * spec's own) match at 8-11 % of points within BIT_TOLERANCE, so some point
- * matches in nearly every 3.5 s and every pair chained into one false run.
- * So a run is built only from streaks of at least MIN_STREAK consecutive
- * matching points (half a second), and kept only when MIN_DENSITY of its
- * points are in them. Measured 2026-11-03 on that noise (the spec's opening
- * and ending against unrelated noise, every shift): chance streaks still
- * reach 3 s, and the chains they make are 12-20 s at a density of 0.30-0.43,
- * while the shared 20 s opening and ending come out at 0.97-1.00. A 90 s
- * opening with a bad point every 3 s is 0.96.
+ * What a gap is bridged between, and how much of a run must match. Bridging
+ * alone chains chance: two unrelated stretches of pink noise (the db spec's
+ * own) match at 8-11 % of points within BIT_TOLERANCE, so some point matches
+ * in nearly every 3.5 s and every pair would chain into one false run. So a
+ * run is built only from streaks of at least MIN_STREAK consecutive matching
+ * points (half a second), and kept only when MIN_DENSITY of its points are in
+ * them. Measured on that noise (the spec's opening and ending against
+ * unrelated noise, every shift): chance streaks still reach 3 s, and the
+ * chains they make are 12-20 s at a density of 0.30-0.43, while the shared
+ * 20 s opening and ending come out at 0.97-1.00. A 90 s opening with a bad
+ * point every 3 s is 0.96.
  */
 export const MIN_STREAK = 4;
 export const MIN_DENSITY = 0.7;
@@ -239,10 +239,10 @@ export const sharedEnding = (a: Fingerprint, b: Fingerprint): SharedRun | null =
 	});
 
 /**
- * The span an episode keeps of the ones its pairs found (c384): the one most
- * of the others overlap, and the longest of those. Each pair of a season
- * gives the episode a span; until c384 the longest won, so one pair's chance
- * run decided the episode however the rest disagreed. Agreement is what one
+ * The span an episode keeps of the ones its pairs found: the one most of the
+ * others overlap, and the longest of those. Each pair of a season gives the
+ * episode a span; taking the longest would let one pair's chance run decide
+ * the episode however the rest disagree. Agreement is what one
  * pair cannot fake: the same opening found against two other episodes lands
  * on the same seconds.
  */

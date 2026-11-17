@@ -1,5 +1,5 @@
 /**
- * One book in several languages (Editions, card c60; doc/EDITIONS.md). Pure:
+ * One book in several languages (doc/EDITIONS.md). Pure:
  * the workstation (src/lib/server/books.ts, `foldEditions`) stores the pages
  * lined up, and the book screen and the reader draw from these.
  *
@@ -77,7 +77,7 @@ export function between(
 
 /**
  * Which edition a folded book opens in: the book's own choice (its LANGUAGE
- * row), else the owner's preferred language (SETTINGS, English by default),
+ * row), else the preferred language (SETTINGS, English by default),
  * else the one last read, else the base.
  */
 export function openingEdition(

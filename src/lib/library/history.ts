@@ -5,7 +5,7 @@ import { kindFacts } from './kinds.ts';
 import type { Kind } from './types.ts';
 
 /**
- * History (Index Addendum): one row per series per day, newest first, built
+ * History: one row per series per day, newest first, built
  * from the append-only reading log (doc/READING-LOG.md, doc/HISTORY.md).
  *
  * A manhwa binge is twenty chapters in one sitting, so a row gives the range
@@ -24,7 +24,7 @@ export type HistoryDay = {
 	day: string;
 	/** The last event that day, epoch ms. */
 	lastAt: number;
-	/** Time read that day, ms (reading-time.ts; card c443). 0 for none recorded. */
+	/** Time read that day, ms (reading-time.ts). 0 for none recorded. */
 	timeMs?: number;
 	/** Entries in the series; 1 for a single book. */
 	entryCount: number;
@@ -159,7 +159,7 @@ export function clock(at: number): string {
 }
 
 /**
- * Reading time (card c443), in the house's terms: "12 H 40" from an hour,
+ * Reading time, in the house's terms: "12 H 40" from an hour,
  * "40 MIN" under it, "< 1 MIN" for a glance and "0 MIN" for none. Minutes are
  * whole and rounded down, so a total never claims a minute that wasn't read.
  */

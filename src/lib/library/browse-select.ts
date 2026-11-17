@@ -3,8 +3,7 @@ import { SOURCE_KINDS, kindFacts, type SourceFamily } from './kinds.ts';
 import { INCLUDE, type FilterField } from './browse-filters.ts';
 
 /**
- * SELECT in a source's catalog (card c868; doc/BROWSE.md, "SELECT in a
- * catalog"; designed in doc/handoffs/browse-select/). Pure: what can be
+ * SELECT in a source's catalog (doc/BROWSE.md, "SELECT in a catalog"). Pure: what can be
  * ticked, what a tick keeps, and every line the bar, the bulk bar, SHOW and the
  * press's band say. The store that holds a selection in this tab's memory is
  * `browse-selection.svelte.ts`; the server's half of a press is
@@ -16,7 +15,7 @@ export type TickSource = {
 	id: string;
 	name: string;
 	family: SourceFamily;
-	/** Its ADDED HIDDEN switch (c435): a series added from it arrives hidden. */
+	/** Its ADDED HIDDEN switch: a series added from it arrives hidden. */
 	addsHidden: boolean;
 	/** Only listed inside reveal (`BrowseSource.mostlyHidden`): nothing of it is drawn outside. */
 	hidden: boolean;
@@ -53,7 +52,7 @@ export type TickableHit = {
 };
 
 /**
- * Only what the press could add (the Main board's "What can be ticked"): a
+ * Only what the press could add: a
  * result IN LIBRARY (with HIDDEN too, inside reveal) is not, and one being
  * ADDING by an earlier press or a preview's ADD is not either. SAME TITLE is:
  * it is another source's copy, and the bulk bar counts it.
@@ -74,7 +73,7 @@ export function whereLabel(mode: 'popular' | 'latest' | 'filtered', q: string, t
 }
 
 /**
- * The tag a filtered list is, when it is one (a tag's arrival, c313: one
+ * The tag a filtered list is, when it is one (a tag's arrival: one
  * tri-state included or one checkbox ticked, nothing else moved from the
  * source's own choices): its name, for SHOW's `TICKED IN GENRE: ACTION`.
  * Null for any other filtered list, which SHOW calls FILTERED.
@@ -132,7 +131,7 @@ const unitOf = (family: SourceFamily) =>
 const kindWord = (family: SourceFamily) => SOURCE_KINDS[family].toUpperCase();
 
 /**
- * The bulk bar's line (Bars board): what the press will do, counted from the
+ * The bulk bar's line: what the press will do, counted from the
  * ticks' facts. `lead` is in ink; `rest` follows it, joined by ` · `; `right`
  * sits at the line's other end. Two forms, since device layout is CSS: the
  * wide (tablet and desktop) and the phone's, which says less.
@@ -213,7 +212,7 @@ export function firstTenLine(ticks: readonly Tick[]): string {
 /** ADD TO LIBRARY's second line: `9 SERIES · NOTHING DOWNLOADS`. */
 export const addOnlyLine = (n: number) => `${count(n)} SERIES · NOTHING DOWNLOADS`;
 
-/** One source's rows in SHOW (Show-Tablet): in the order ticked, and how many the list on screen doesn't draw. */
+/** One source's rows in SHOW: in the order ticked, and how many the list on screen doesn't draw. */
 export type ShowGroup = { source: TickSource; ticks: Tick[]; away: number };
 
 /**
@@ -253,11 +252,10 @@ export function tickedHere(ticks: readonly Tick[], sourceId: string): string {
 }
 
 /**
- * Whether a navigation stays in the browse world, where a selection lasts
- * (the Main board's "What ends it"): BROWSE, a source's page (its search,
- * FILTER and a tag's arrival are the same route), and a preview, which a long
- * press opens. A source's SETTINGS, the library, a series, the queue and
- * everything else end it.
+ * Whether a navigation stays in the browse world, where a selection lasts:
+ * BROWSE, a source's page (its search, FILTER and a tag's arrival are the same
+ * route), and a preview, which a long press opens. A source's SETTINGS, the
+ * library, a series, the queue and everything else end it.
  */
 export const BROWSE_WORLD: ReadonlySet<string> = new Set([
 	'/browse',

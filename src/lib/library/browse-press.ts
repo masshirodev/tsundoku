@@ -3,12 +3,12 @@ import { SOURCE_KINDS, kindFacts } from './kinds.ts';
 import { sourcesOf, type Tick, type TickSource } from './browse-select.ts';
 
 /**
- * The press (card c868; doc/BROWSE.md, "The press"): a selection added to the
+ * The press (doc/BROWSE.md, "The press"): a selection added to the
  * library in one run, each source in its own lane. Pure: the lanes, the
  * runner (its one call per series injected, so the spec drives it without a
  * server), and every line the band says while it runs, when it ends, and
  * after UNDO. The store (`browse-selection.svelte.ts`) holds a run and calls
- * these; the server's one door per series is `POST /api/browse/press`.
+ * these; the server's one endpoint per series is `POST /api/browse/press`.
  */
 
 /** How much of each series the press downloads: nothing, FIRST 10 (the preview's NEXT 10), or ALL. */
@@ -22,7 +22,7 @@ export type PressAnswer =
 	| {
 			status: 'added';
 			seriesId: number;
-			/** This ADD hid it: its source adds hidden (c505, `addWatchingHidden`). */
+			/** This ADD hid it: its source adds hidden (`addWatchingHidden`). */
 			hidden: boolean;
 			/** Its source is mostly hidden outside reveal now (the add itself can make it so). */
 			sourceHidden: boolean;
@@ -46,7 +46,7 @@ export const FAIL_WORDS: Record<FailReason, string> = {
 };
 
 /**
- * Asked once more at the end of its lane (the Main board, "While it runs"):
+ * Asked once more at the end of its lane:
  * a refusal or no answer may be a moment's. A series deleted here once, whose
  * chapters are another series', or that its source no longer has would answer
  * the same again, so it is not asked twice.
@@ -68,7 +68,7 @@ export function lanesOf(ticks: readonly Tick[]): Tick[][] {
  * Runs a press: every lane at once, one series at a time within a lane (a
  * slow site doesn't hold a quick one up, and no site is asked twice at once
  * by the press), then each lane's retriable failures once more at its end.
- * `ask` is the server's door for one series; one that throws (offline, the
+ * `ask` is the server's call for one series; one that throws (offline, the
  * request refused) is a failure that did not answer. `report` hears every
  * answer as it lands, `final` false for one that will be asked again.
  */
@@ -101,7 +101,7 @@ export async function runLanes(
 /**
  * The items this viewer may see: outside reveal, nothing of a hidden source
  * (a press made inside reveal goes on after it ends, and its band then counts
- * only what can be seen: Rules board). An empty answer draws no band.
+ * only what can be seen). An empty answer draws no band.
  */
 export const visibleItems = (items: readonly PressItem[], reveal: boolean) =>
 	reveal ? [...items] : items.filter((i) => !i.tick.source.hidden);
@@ -143,7 +143,7 @@ function queuedWords(items: readonly PressItem[]): string {
 	return parts.join(' · ');
 }
 
-/** The run's result, in the band's words (Results board). */
+/** The run's result, in the band's words. */
 export type ResultLines = {
 	title: string;
 	detail: string;
@@ -161,10 +161,10 @@ export type ResultLines = {
  *   KAGURABACHI DID NOT ANSWER`), what was skipped as stale (`2 SKIPPED · 1 WAS IN
  *   THE LIBRARY BY THEN · 1 WAS ALREADY BEING ADDED`), or, all added, each
  *   source's count and the shelves chosen (`MANGADEX 9 · ASURA SCANS 5 · ON LATER`);
- * - series this press added hidden (ADDED HIDDEN, c505): `· 3 OF THEM HIDDEN`,
- *   and c505's words for many. Outside reveal the tail points at reveal, and a
- *   source the press left mostly hidden is not named; inside reveal the source
- *   is named and there is no tail (c605).
+ * - series this press added hidden (ADDED HIDDEN): `· 3 OF THEM HIDDEN`,
+ *   and ADDED HIDDEN's words for many. Outside reveal the tail points at
+ *   reveal, and a source the press left mostly hidden is not named; inside
+ *   reveal the source is named and there is no tail.
  *
  * Null when nothing of the press can be seen (a run of hidden sources only, outside reveal).
  */

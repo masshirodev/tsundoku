@@ -1,6 +1,6 @@
 /**
  * A title from a series' address at its source, for a source that answers
- * with none (Mangahere's details, 2026-10-29): the last part of the path, its
+ * with none (Mangahere's details): the last part of the path, its
  * dashes and underscores spaces, each word capitalised.
  * "/manga/love_junkies/" is "Love Junkies".
  */

@@ -2,7 +2,7 @@ import type { Range } from './streams.ts';
 
 /**
  * An episode's opening and ending, the pure part (doc/ANIME.md, "Openings and
- * endings"; card c239). Three finders answer for an episode, and the first
+ * endings"). Three finders answer for an episode, and the first
  * that has a mark wins: the source's own timestamps, then AniSkip, then a
  * fingerprint of the episodes themselves. A finder may know one and not the
  * other, so each part is chosen on its own.

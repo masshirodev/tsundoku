@@ -1,5 +1,5 @@
 /**
- * The page menu's rows (Page Menu, card c26; doc/COVERS.md, "Chosen"). Pure:
+ * The page menu's rows (doc/COVERS.md, "Chosen"). Pure:
  * the reader and the PAGES grid draw from these, and say where each cover
  * comes from now, so the choice is an informed one.
  */

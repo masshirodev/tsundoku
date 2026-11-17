@@ -3,9 +3,8 @@ import { clock, dayKey, dayName } from './history.ts';
 import { formatNumber } from './series.ts';
 
 /**
- * A browsing record on its source's preview, the pure part (doc/READING-ONLINE.md;
- * cards c161, c165; Online Calls 1B and 1D): the RECORD row's words, the
- * bar's ▶ CONTINUE, and what each row says it is.
+ * A browsing record on its source's preview, the pure part (doc/READING-ONLINE.md):
+ * the RECORD row's words, the bar's ▶ CONTINUE, and what each row says it is.
  */
 
 export { KEEP_DAYS } from './keep.ts';
@@ -72,9 +71,9 @@ export function keptLine(
 }
 
 /**
- * The bar's first cell: what it opens, and the line beside it (Online Calls
- * 1A, 1B, 1D). A record continues where it stopped ("▶ EP. 3 · 14:32 LEFT",
- * "▶ CONTINUE · CH. 4 · P. 12"); without one, the first episode or chapter.
+ * The bar's first cell: what it opens, and the line beside it. A record
+ * continues where it stopped ("▶ EP. 3 · 14:32 LEFT", "▶ CONTINUE · CH. 4 ·
+ * P. 12"); without one, the first episode or chapter.
  */
 export function continueCell(
 	next: { label: string; position: number | null; durationS: number | null } | null,

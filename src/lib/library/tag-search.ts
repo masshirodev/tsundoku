@@ -3,8 +3,8 @@ import { isPersonNamespace } from './books.ts';
 import { people } from '../import/mihon-plan.ts';
 
 /**
- * A tag, searched for in a source (doc/BROWSE.md, "Arriving from a tag"; card
- * c313). The owner taps an author, an artist, a genre or a tag on a series or
+ * A tag, searched for in a source (doc/BROWSE.md, "Arriving from a tag"). A
+ * reader taps an author, an artist, a genre or a tag on a series or
  * a source's preview, and lands on that source's page finding it.
  *
  * A source's page takes everything from its URL: `q` searches the source,
@@ -13,7 +13,7 @@ import { people } from '../import/mihon-plan.ts';
  * other choice at the source's default. A person (an author, an artist, a
  * circle) is the source's own text filter named for them, filled in, where
  * the source has one (mangahere's Author and Artist, Weeb Central's "Author
- * (Case-sensitive)"; card c456), because most sources' plain search reads
+ * (Case-sensitive)"), because most sources' plain search reads
  * titles only. Anything else is a search for the value.
  *
  * "No schema" is an empty one or a fetch that failed, never a kind: an
@@ -66,7 +66,7 @@ function choose(schema: FilterField[], path: number[]): FilterField[] {
 }
 
 /**
- * The text filter a person's namespace names, or null (card c456): the first
+ * The text filter a person's namespace names, or null: the first
  * top-level text field whose name, with a trailing note in brackets aside, is
  * the namespace, folded as `matchFilter` folds ("Author (Case-sensitive)" is
  * an author's, "AUTHOR" too). A text inside a group is never drawn or sent
@@ -106,12 +106,12 @@ export function tagSearchParams(schema: FilterField[], tag: TagQuery): [string, 
 export const personKey = (name: string) => fold(name);
 
 /**
- * A source's author or artist string as the people in it (card c456): "A, B"
+ * A source's author or artist string as the people in it: "A, B"
  * is two links, each searched on its own. The split is the importers' own
  * (`people`, import/mihon-plan.ts: commas, `/`, `;` and ` & `, no `_` or
  * "unknown", and a part that is only a generational suffix -- "Jr.", "Sr.",
  * "II", "III", "IV" -- kept with the name before it, so "Tanaka, Jr." is one
- * person; c508 moved that rule into `people`, which every importer calls), so
+ * person; `people` is what every importer calls), so
  * a preview's names are the tags its series carries once added, and the
  * person pages they open. On top of it, a name met twice is kept once (case
  * and spacing aside). A name written surname-first ("Oda, Eiichiro") cannot
@@ -172,7 +172,7 @@ function inApp(raw: string | null | undefined): URL | null {
 }
 
 /**
- * The address a source page's back cell may return to, or '' (card c313):
+ * The address a source page's back cell may return to, or '':
  * the screen a tag was tapped on, with its own query, so that screen's own
  * back still goes where it went before. That is a source's preview
  * (`/downloads/source/<id>`) or a series (`/series/<id>`). Anything else (an
@@ -188,7 +188,7 @@ export function backOrigin(raw: string | null | undefined): string {
 	return u.pathname + u.search;
 }
 
-/** EXTENSIONS' own path: the one list a source's SETTINGS is opened from besides the source (card c727). */
+/** EXTENSIONS' own path: the one list a source's SETTINGS is opened from besides the source. */
 const EXTENSIONS = '/browse/extensions';
 
 /**
@@ -199,8 +199,8 @@ const EXTENSIONS = '/browse/extensions';
 const SHEETS = ['remove', 'removeRepo', 'removeNovelRepo', 'add'];
 
 /**
- * EXTENSIONS' address, as its SETTINGS cell sends it to a source's settings
- * (card c727): the path and its tab and filters, without a sheet.
+ * EXTENSIONS' address, as its SETTINGS cell sends it to a source's settings:
+ * the path and its tab and filters, without a sheet.
  */
 export function extensionsFrom(url: URL): string {
 	const p = new URLSearchParams(url.searchParams);
@@ -210,7 +210,7 @@ export function extensionsFrom(url: URL): string {
 }
 
 /**
- * Where a source's SETTINGS may return to, or '' (cards c453, c727): what
+ * Where a source's SETTINGS may return to, or '': what
  * `backOrigin` accepts (the source page's tag origin, kept through SETTINGS),
  * or EXTENSIONS with its tab and filters when SETTINGS was opened from its
  * list. EXTENSIONS is accepted only here, not by `backOrigin`: no other
@@ -233,8 +233,8 @@ export const fromExtensions = (origin: string): boolean =>
 /**
  * `href` with `from=<origin>` added, for every way off a source page that
  * lands on the same source (its tabs, its search, FILTER's APPLY and RESET,
- * SETTINGS and back): each keeps the tag's origin, so ← still returns to it
- * (card c453). An empty origin (none, or one `backOrigin` refused) adds
+ * SETTINGS and back): each keeps the tag's origin, so ← still returns to it.
+ * An empty origin (none, or one `backOrigin` refused) adds
  * nothing. `href` must not carry `from` already.
  */
 export function keepOrigin(href: string, origin: string): string {
@@ -260,7 +260,7 @@ export const libraryTagKey = (tag: TagQuery) =>
  * How long a tag's link waits for the source's filters before it settles for a
  * search (`settleWithin`; the `tag-search` routes). The filters are a source
  * call that can take a site's browser check (`SLOW_MS`, engine/browse.ts), and
- * the owner is waiting on a tap: past this, a search for the value is the
+ * the reader is waiting on a tap: past this, a search for the value is the
  * better answer than nothing. A late answer is still kept (`keep`), so the
  * next tap on that source finds its filter.
  */
@@ -276,7 +276,7 @@ export function settleWithin<T>(p: Promise<T>, ms: number, fallback: T): Promise
 }
 
 /**
- * A `tag-search` route's address for a tag (card c313, round 2): the server
+ * A `tag-search` route's address for a tag: the server
  * waits for the source's filters there and answers 303 to `tagSearchHref`, so
  * the link is right from the first paint and never guesses before the schema
  * has settled. `base` is the route's resolved path; `from` is the screen the
@@ -302,7 +302,7 @@ export function readTagRoute(url: URL): { tag: TagQuery; from: string } | null {
 export const distinct = (values: readonly string[]): string[] => [...new Set(values)];
 
 /**
- * A preview's author and artist lines (card c456): each string split into its
+ * A preview's author and artist lines: each string split into its
  * people (`splitPeople`), the artist line only for names that are not authors
  * already (an author who draws is one link, not two), and no line with nobody
  * in it.

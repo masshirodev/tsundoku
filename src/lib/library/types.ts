@@ -8,7 +8,7 @@ import type { Kind } from './kinds.ts';
 
 /**
  * `Kind` and `KINDS` live in the registry, which is keyed by the kind itself
- * (doc/KINDS.md; card c301). Re-exported here because this is where most of
+ * (doc/KINDS.md). Re-exported here because this is where most of
  * the tree imports them from: a kind's facts are `kinds.ts`'s, its shape is
  * this file's.
  */
@@ -16,8 +16,8 @@ export type { Kind };
 export { KINDS } from './kinds.ts';
 
 /**
- * 0-10, where 0 is unrated and 1-10 is the owner's judgement: five steps with
- * halves (rung 29, card c67). A series is rated or it is not; there is no
+ * 0-10, where 0 is unrated and 1-10 is the reader's judgement: five steps
+ * with halves (migration 29). A series is rated or it is not; there is no
  * "rated nothing".
  */
 export type Rating = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
@@ -35,7 +35,7 @@ export type SeriesCard = {
 	/** Entries total, and how many are finished. */
 	entryCount: number;
 	/**
-	 * One book and nothing beside it (c651): exactly one listed entry, and it
+	 * One book and nothing beside it: exactly one listed entry, and it
 	 * is the series' only entry that is not a folded edition. An extra or a
 	 * set-aside duplicate beside the book makes this false, and FOLD refuses
 	 * it (`?/fold`), so the bulk bar does not offer it. Optional: only the
@@ -79,7 +79,7 @@ export type ContinueItem = SeriesCard & {
 };
 
 /**
- * What one REFRESH of a selection did (card c221): the library's band reads
+ * What one REFRESH of a selection did: the library's band reads
  * this. `asked` counts the series whose source was asked, failures included;
  * a series with no source is `skipped`, never asked and never refused.
  */

@@ -1,7 +1,7 @@
 /**
- * Anime on disk, the pure part (doc/ANIME.md, "Downloading"; card c157):
- * where an episode goes, in Jellyfin's TV layout as the owner amended
- * default 2, what its NFOs say, and the ffmpeg arguments that mux it.
+ * Anime on disk, the pure part (doc/ANIME.md, "Downloading"): where an
+ * episode goes, in Jellyfin's TV layout, what its NFOs say, and the ffmpeg
+ * arguments that mux it.
  *
  *   Anime/<Series>/tvshow.nfo, poster.jpg
  *   Anime/<Series>/Season 01/<Series> S01E07 <Title>.mkv, and its .nfo
@@ -12,7 +12,7 @@
  * importer folds the files back onto their series and episodes.
  *
  * A show is laid out the same way under `Shows/`, and a film flat under
- * `Movies/` (card c991; `storage` in kinds.ts):
+ * `Movies/` (`storage` in kinds.ts):
  *
  *   Movies/<Title (Year)>/<Title (Year)>.mkv, <Title (Year)>.nfo, poster.jpg
  *
@@ -23,7 +23,7 @@
 import { LANGS, langCode } from './streams.ts';
 import { KIND_FACTS, type Kind } from './kinds.ts';
 
-// The registry's (`storage`, card c991): a film's are Movies/, a show's Shows/.
+// The registry's (`storage`): a film's are Movies/, a show's Shows/.
 export const ANIME_FOLDER = KIND_FACTS.anime.storage.folder;
 export const HIDDEN_ANIME_FOLDER = KIND_FACTS.anime.storage.hidden;
 
@@ -83,9 +83,9 @@ export function tvshowNfo(s: {
 	year?: number | null;
 	anilist?: number | null;
 	mal?: number | null;
-	/** A show's TMDB entry (c989): Jellyfin looks a show up by it. */
+	/** A show's TMDB entry: Jellyfin looks a show up by it. */
 	tmdb?: number | null;
-	/** The series' kind; a file without it (every one before c991) is an anime's. */
+	/** The series' kind; a file without it is an older one, an anime's. */
 	kind?: Kind;
 }): string {
 	const lines = [
@@ -178,8 +178,8 @@ export function readTvshowNfo(text: string): {
 		status: tag(text, 'status') ?? '',
 		genres: [...text.matchAll(/<genre>([\s\S]*?)<\/genre>/gi)].map((m) => unxml(m[1].trim())),
 		source: tag(text, 'tsundokusource') ?? '',
-		// Only a show's file says so: an anime's never needed to, and a file
-		// written before c991 is an anime's.
+		// Only a show's file says so: an anime's never needed to, and an older
+		// file without the tag is an anime's.
 		kind: tag(text, 'tsundokukind') === 'show' ? 'show' : 'anime'
 	};
 }
@@ -209,7 +209,7 @@ export function readEpisodeNfo(text: string): {
 	};
 }
 
-// ---- a film (card c991) ---------------------------------------------------------------------
+// ---- a film ---------------------------------------------------------------------------------
 
 /**
  * A film's file under its folder: `<Title (Year)>.mkv`, the folder's own name,
@@ -297,7 +297,7 @@ const ISO3 = new Map(
 
 /**
  * ISO 639-2, as Matroska and Jellyfin name a track's language, from the
- * player's one table (streams.ts' LANGS; c419), so a Hungarian or Bokmål
+ * player's one table (streams.ts' LANGS), so a Hungarian or Bokmål
  * track is tagged hun or nob, not und. A variant is its language (PT-BR is
  * por: ISO 639-2 has no regions), and the B form comes first where a
  * language has two (fre, ger, chi), as Matroska asks.
@@ -308,11 +308,11 @@ export function iso3(lang: string): string {
 }
 
 /**
- * The ffmpeg arguments that mux an episode into one MKV (Anime Calls 01,
- * default 2): the video, each separate audio and subtitle track as its own
- * input, every stream copied (subtitles to SubRip, which every player reads),
- * each tagged with its language. Inputs are tsundoku's own loopback proxy,
- * so ffmpeg never fetches anything itself; `header` is the proxy's secret.
+ * The ffmpeg arguments that mux an episode into one MKV: the video, each
+ * separate audio and subtitle track as its own input, every stream copied
+ * (subtitles to SubRip, which every player reads), each tagged with its
+ * language. Inputs are tsundoku's own loopback proxy, so ffmpeg never fetches
+ * anything itself; `header` is the proxy's secret.
  */
 export function muxArgs(o: {
 	video: string;
@@ -368,12 +368,12 @@ export function progressSeconds(block: string): number | null {
 }
 
 /**
- * The tracks a download keeps (doc/ANIME.md, "Downloading"; card c160, on
- * SETTINGS since c171): the original, which is the source's first audio
- * track, and the languages chosen beside it; every track when none are
- * chosen. Subtitles are all kept unless SUBTITLES KEPT is AS AUDIO: then
- * those in a kept audio's language. A KickAssAnime episode carries eight
- * dubs, so a 360P one went from 310 MB to about 130 MB keeping two.
+ * The tracks a download keeps (doc/ANIME.md, "Downloading"; set in SETTINGS):
+ * the original, which is the source's first audio track, and the languages
+ * chosen beside it; every track when none are chosen. Subtitles are all kept
+ * unless SUBTITLES KEPT is AS AUDIO: then those in a kept audio's language. A
+ * KickAssAnime episode carries eight dubs, so a 360P one went from 310 MB to
+ * about 130 MB keeping two.
  */
 export function keptTracks<A extends { lang: string }, S extends { lang: string }>(
 	audio: A[],

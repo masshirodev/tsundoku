@@ -2,11 +2,10 @@ import { clock, isWatchedAt } from './anime.ts';
 import { formatNumber } from './series.ts';
 
 /**
- * The player's decisions, the pure part (doc/ANIME.md, "The player"; card
- * c156; Anime Calls 02 and Player Waiting): where an episode opens, when the
- * next one offers itself, which server comes next, what a subtitle says now,
- * and the words the chrome reads. The component (VideoPlayer.svelte) only
- * wires these to a <video>.
+ * The player's decisions, the pure part (doc/ANIME.md, "The player"): where
+ * an episode opens, when the next one offers itself, which server comes
+ * next, what a subtitle says now, and the words the chrome reads. The
+ * component (VideoPlayer.svelte) only wires these to a <video>.
  */
 
 export type Cue = { start: number; end: number; text: string };
@@ -16,7 +15,7 @@ const seconds = (t: string): number => {
 	return parts.reduce((a, p) => a * 60 + p, 0);
 };
 
-/** WebVTT's cues, their markup dropped: tsundoku draws subtitles itself (Anime Calls, "Subtitles"). */
+/** WebVTT's cues, their markup dropped: tsundoku draws subtitles itself. */
 export function parseVtt(text: string): Cue[] {
 	const out: Cue[] = [];
 	const blocks = text.replace(/\r\n?/g, '\n').split(/\n{2,}/);
@@ -47,9 +46,9 @@ export function cueAt(cues: Cue[], t: number): string | null {
 }
 
 /**
- * Where an episode opens (Anime Calls, "Resume"): where it stopped, unless
- * it counts as watched (past its ending's start, or its last 3 %), which
- * opens from 0:00. `resumed` says whether to say RESUMED AT.
+ * Where an episode opens: where it stopped, unless it counts as watched (past
+ * its ending's start, or its last 3 %), which opens from 0:00. `resumed` says
+ * whether to say RESUMED AT.
  */
 export function openAt(e: {
 	lastPosition: number | null;
@@ -64,8 +63,8 @@ export function openAt(e: {
 }
 
 /**
- * When the next episode offers itself (Anime Calls 01, default 4): from the
- * ending's start, or 30 s before the end without timestamps.
+ * When the next episode offers itself: from the ending's start, or 30 s
+ * before the end without timestamps.
  */
 export const offerNextAt = (durationS: number, endingAt: number | null) =>
 	endingAt !== null && endingAt > 0 && endingAt < durationS
@@ -78,7 +77,7 @@ export const NEXT_COUNT_S = 5;
 export const STALL_S = 15;
 
 /**
- * The stall clock (c867; doc/ANIME.md, "What counts as a stall"). It counts
+ * The stall clock (doc/ANIME.md, "What counts as a stall"). It counts
  * only while the player is trying to play from a settled position, so a seek
  * is never a stall: every seek restarts it, a step of a held key included,
  * and a seek's landing restarts it again if there is nothing to play there.
@@ -168,15 +167,14 @@ export function stallStep(
 
 /**
  * A double-tap on a side third seeks 10 s, and each further tap within the
- * burst adds 10 (Anime Calls, "The picture is the interface"): [taps] is the
- * count in the burst, from 2.
+ * burst adds 10: [taps] is the count in the burst, from 2.
  */
 export const seekFor = (taps: number) => Math.max(1, taps - 1) * 10;
 
 /**
- * How far the pointer must move before the controls come back (card c217):
- * a mouse resting on a desk jitters a pixel or two, and the chrome used to
- * flash in on every one of them. A move of this much from where the pointer
+ * How far the pointer must move before the controls come back: a mouse
+ * resting on a desk jitters a pixel or two, and the chrome must not flash in
+ * on every one of them. A move of this much from where the pointer
  * was, or from where the controls last left it, is a person moving the mouse.
  */
 export const CHROME_MOVE_PX = 12;
@@ -191,7 +189,7 @@ export function movedEnough(
 }
 
 /**
- * How far a press may wander and still be a click (card c218): a drag across
+ * How far a press may wander and still be a click: a drag across
  * the picture, or a finger that slid as it lifted, is neither a tap on the
  * controls nor a play/pause.
  */
@@ -204,10 +202,9 @@ export const isTap = (
 ): boolean => !from || Math.hypot(to.x - from.x, to.y - from.y) <= px;
 
 /**
- * What a click on the picture does (card c218): on a mouse it plays or pauses,
- * as every video player's does, and the controls are reached by moving the
- * pointer (c217); on a touch screen a tap shows or hides the controls, as
- * Anime Calls draws it.
+ * What a click on the picture does: on a mouse it plays or pauses, as every
+ * video player's does, and the controls are reached by moving the pointer; on
+ * a touch screen a tap shows or hides the controls.
  */
 export const pictureClick = (pointer: 'mouse' | 'touch'): 'toggle' | 'chrome' =>
 	pointer === 'mouse' ? 'toggle' : 'chrome';
@@ -226,7 +223,7 @@ export function placeLabel(e: Ep, ofSeason: number, seasons: boolean): string {
 
 /**
  * The bottom bar's middle cell: what's playing, which opens the sheet
- * ("JA · EN SUBS · 1080P · 1×", Anime Calls, "Settings").
+ * ("JA · EN SUBS · 1080P · 1×").
  */
 export function playingLabel(o: {
 	audio: string | null;
@@ -250,7 +247,7 @@ export const SPEEDS = [0.75, 1, 1.25, 1.5, 2] as const;
 export const SUB_SIZES = ['S', 'M', 'L'] as const;
 export type SubSize = (typeof SUB_SIZES)[number];
 
-/** Per device, as Player States draws it: the tablet's 30px, the phone's 20px, the desktop's 26/34. */
+/** Per device: the tablet's 30px, the phone's 20px, the desktop's 26/34. */
 export function subtitlePx(size: SubSize, base: number): number {
 	return Math.round(base * (size === 'S' ? 0.8 : size === 'L' ? 1.25 : 1));
 }
@@ -265,8 +262,8 @@ export function challengeScale(elapsedS: number): { at: number; from: number; to
 }
 
 /**
- * The track to start an episode with, of those the source offers (asked for
- * on 2026-10-29: settings remembered across anime). The first choice that
+ * The track to start an episode with, of those the source offers, settings
+ * remembered across anime. The first choice that
  * applies wins: this series' own, then the last one made on any anime, then
  * the device's language. `null` is a choice too (subtitles OFF); `undefined`
  * is none made. Undefined back means none applied: the caller takes the
@@ -288,11 +285,11 @@ export function preferredLang(
 export type TrackChoice = { audio?: string; subs?: string | null; subsize?: SubSize };
 
 /**
- * The tracks an anime starts on (doc/ANIME.md, "The player"; card c171):
- * the series' own choice, else SETTINGS' default, else the last made on
- * any anime (FOLLOW THE PLAYER). Then audio takes the source's first track,
- * which is its original (the owner's answer to question 3), and subtitles
- * the device's language, else the first offered. Null subtitles are off.
+ * The tracks an anime starts on (doc/ANIME.md, "The player"): the series' own
+ * choice, else SETTINGS' default, else the last made on any anime (FOLLOW THE
+ * PLAYER). Then audio takes the source's first track, which is its original,
+ * and subtitles the device's language, else the first offered. Null subtitles
+ * are off.
  */
 export function startTracks(o: {
 	audio: string[];
@@ -322,20 +319,20 @@ export const deviceLang = (tag: string | undefined) =>
 /**
  * How far the buffer reaches from [t]: the end of the buffered range [t] is
  * in, else [t] itself. Not the last range's end: after a seek back that's
- * somewhere else in the episode, and the bar drew a buffer the playhead
- * didn't have (reported 2026-10-29).
+ * somewhere else in the episode, and the bar would draw a buffer the playhead
+ * doesn't have.
  */
 export function bufferedTo(ranges: [number, number][], t: number): number {
 	const r = ranges.find(([start, end]) => start <= t + 0.5 && t <= end);
 	return r ? r[1] : t;
 }
 
-/** The VOL slider's and the wheel's step, and ↑ ↓'s (c385). */
+/** The VOL slider's and the wheel's step, and ↑ ↓'s. */
 export const WHEEL_STEP = 0.05;
 export const KEY_STEP = 0.1;
 
 /**
- * A volume as the player keeps it (c385): 0 to 1, in whole percent, and the
+ * A volume as the player keeps it: 0 to 1, in whole percent, and the
  * full volume for anything that is not a number (a value another build or a
  * hand edit left in the device's storage). Whole percent because the cell
  * prints it so, and ten ↑ presses must land on 100 %, not 0.9999999.
@@ -352,7 +349,7 @@ export function verticalFraction(clientY: number, box: { top: number; height: nu
 	return Math.max(0, Math.min(1, 1 - (clientY - box.top) / box.height));
 }
 
-/** A downloaded episode's seek preview (c385): one frame this often, at this size, this many to a row. */
+/** A downloaded episode's seek preview: one frame this often, at this size, this many to a row. */
 export const SPRITE_EVERY_S = 10;
 export const SPRITE_W = 160;
 export const SPRITE_H = 90;

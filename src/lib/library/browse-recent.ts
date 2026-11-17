@@ -1,5 +1,5 @@
 /**
- * BROWSE's RECENT folds away (card c726; doc/BROWSE.md, "RECENT folds"): its
+ * BROWSE's RECENT folds away (doc/BROWSE.md, "RECENT folds"): its
  * label row is a toggle, `HIDE ↑` / `SHOW ↓`, open by default and remembered
  * per device in one localStorage key. The series screen's DETAILS fold
  * (`src/routes/series/[id]/details.ts`) is the idiom; it is closed by default,

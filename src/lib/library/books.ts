@@ -25,7 +25,7 @@ export function titleWords(title: string): string[] {
 
 /**
  * The words every title starts with, in the first title's own spelling and
- * case: the handoff's default series name ("Kaori Mama"). Falls back to the
+ * case: the default series name ("Kaori Mama"). Falls back to the
  * first title when they share nothing. A trailing joining word ("on", "no",
  * "the") is dropped, since "Kaori Mama on" is not a name.
  */
@@ -91,7 +91,7 @@ const parseSet = (key: string) => new Set(key.split(',').map(Number));
 
 /**
  * Suggested series: singletons sharing a stem, two or more to a set, minus
- * any set that sits entirely inside one the owner dismissed. A later import
+ * any set that sits entirely inside one already dismissed. A later import
  * can still raise a new suggestion, but only one that includes itself.
  */
 export function suggestionSets(candidates: Candidate[], dismissed: string[]): Candidate[][] {
@@ -121,7 +121,7 @@ export function suggestionLabel(set: Candidate[]): string {
 export type OrderMode = 'date' | 'title' | 'hand';
 
 /**
- * What GROUP can make of a selection (Works Calls, question 7; Work-Group B5):
+ * What GROUP can make of a selection:
  * one series of books, one series of volumes, one show of a season's series,
  * or a Work. Only the answers the selection allows are offered, and a Work is
  * always one of them.
@@ -136,10 +136,10 @@ export type AnswerItem = { kind: Kind; entryCount: number };
 
 export function groupAnswers(items: AnswerItem[]): GroupAnswer[] {
 	const out: GroupAnswer[] = [];
-	// What GROUP binds a kind into is the registry's `grouping` (doc/KINDS.md;
-	// card c375): one series of books is single books of a kind grouped into
-	// books, one series of volumes is series of a kind grouped into volumes.
-	// Both refuse a mixed selection, as grouping itself does.
+	// What GROUP binds a kind into is the registry's `grouping` (doc/KINDS.md):
+	// one series of books is single books of a kind grouped into books, one
+	// series of volumes is series of a kind grouped into volumes. Both refuse a
+	// mixed selection, as grouping itself does.
 	const binds = (i: AnswerItem) => kindFacts(i.kind).grouping;
 	if (items.length > 0 && items.every((i) => binds(i) === 'books' && i.entryCount === 1))
 		out.push('books');
@@ -157,13 +157,13 @@ export type SeasonItem = AnswerItem & {
 };
 
 /**
- * Whether a selection can become one show (c283): two or more series, every
+ * Whether a selection can become one show: two or more series, every
  * one of them video, all hidden or all visible (`alike` refuses a mixed set),
  * and in at most one Work (a show is one series, so it can join only one). The
  * sheet's pages prepend `show` themselves -- the library's and `/search`'s,
  * from the facts they already hold -- so this stays a question about the
  * selection, not a fourth thing `groupAnswers` must learn about kinds it
- * cannot bind (round 2).
+ * cannot bind.
  */
 export function isSeasonSet(items: SeasonItem[]): boolean {
 	if (items.length < 2) return false;

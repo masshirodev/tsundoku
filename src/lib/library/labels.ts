@@ -48,7 +48,7 @@ export const unitLabel = (kind: Kind) => kindUnit(kind).short;
 export function sheetMeta(item: SeriesCard): string {
 	const unit = kindUnit(item.kind);
 	// A film has no unit and no list: its one entry is watched, and no count
-	// would be true (card c987).
+	// would be true.
 	const parts = [kindLabel(item.kind)];
 	if (unit.short) parts.push(`${item.entryCount} ${unit.short}`);
 	parts.push(`${item.readCount} ${unit.done}`);

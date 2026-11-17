@@ -1,10 +1,10 @@
 import type { Rating } from './types.ts';
 
 /**
- * Ratings out of 10 (card c67; doc/SERIES.md, "Rating"): five steps with
- * halves, as Ranobe rates, and 0 is unrated. Rung 29 doubled the old 0-5
- * exactly. The pure part of the blocky slider (Ratings out of 10.dc.html)
- * lives here: where a finger is, what the blocks fill, what the readout says.
+ * Ratings out of 10 (doc/SERIES.md, "Rating"): five steps with halves, as
+ * Ranobe rates, and 0 is unrated. Migration 29 doubled the old 0-5 exactly.
+ * The pure part of the blocky slider lives here: where a finger is, what the
+ * blocks fill, what the readout says.
  */
 
 export const RATING_MAX = 10;

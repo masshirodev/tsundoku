@@ -1,9 +1,8 @@
 /**
- * EXTENSIONS › AVAILABLE's filters (doc/BROWSE.md, "Filters"; the owner,
- * 2026-10-31): LANGUAGE as a choice of several, INSTALLED, REPOSITORY, 18+
- * and IN LIBRARY, in the URL so the list works without script. LANGUAGE
- * starts from the languages in SETTINGS and only filters the visit; ALL, the
- * old one-button widening, is gone.
+ * EXTENSIONS › AVAILABLE's filters (doc/BROWSE.md, "Filters"): LANGUAGE as a
+ * choice of several, INSTALLED, REPOSITORY, 18+ and IN LIBRARY, in the URL so
+ * the list works without script. LANGUAGE starts from the languages in
+ * SETTINGS and only filters the visit.
  *
  * 18+ is a filter for everyone, never a gate: Keiyoushi flags mainstream
  * sites that carry some adult titles (Weeb Central), and hiding them made

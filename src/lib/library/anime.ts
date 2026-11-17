@@ -1,14 +1,13 @@
 import { currentEntry, formatBytes, formatNumber, type SeriesEntry } from './series.ts';
 
 /**
- * Anime, the pure part (doc/ANIME.md; card c153): an anime series is
- * episodes, and an episode is a chapter with a duration and a position in
- * seconds instead of pages (Anime States, "Episodes for chapters"). The
- * series screen, the library's CONTINUE and the history read their words
- * from here; nothing here touches the database.
+ * Anime, the pure part (doc/ANIME.md): an anime series is episodes, and an
+ * episode is a chapter with a duration and a position in seconds instead of
+ * pages. The series screen, the library's CONTINUE and the history read
+ * their words from here; nothing here touches the database.
  */
 
-/** What an episode has that a chapter doesn't (rung 47). */
+/** What an episode has that a chapter doesn't (migration 47). */
 export type Episode = {
 	/** Seconds; null until a source or a file says. */
 	durationS: number | null;
@@ -62,7 +61,7 @@ export function secondsLeft(e: E): number | null {
 }
 
 /**
- * Whether a position counts as watched (Anime Calls, "Resume"): past the
+ * Whether a position counts as watched: past the
  * ending's start where the source gave one, otherwise in the last 3 %.
  */
 export function isWatchedAt(position: number, durationS: number, endingAt: number | null): boolean {
@@ -72,7 +71,7 @@ export function isWatchedAt(position: number, durationS: number, endingAt: numbe
 }
 
 /**
- * An episode row's right-hand word (Anime States, 1a): WATCHED, "14:32
+ * An episode row's right-hand word: WATCHED, "14:32
  * LEFT" for the one part-watched, its size when it's on the workstation,
  * NOT DOWNLOADED otherwise -- a fact, not a warning, since it streams.
  */
@@ -104,7 +103,7 @@ export type EpisodeRow<T extends E = SeriesEntry> =
 	| { type: 'episode'; entry: T; current: boolean };
 
 /**
- * The episode list (Anime States, 1a): grouped by season where the source
+ * The episode list: grouped by season where the source
  * has seasons, each group headed "SEASON 2 · EP. 1 – 12". A season watched
  * through folds into one row ("↑ SEASON 1 · EP. 1 – 12", "12 WATCHED ·
  * SHOW") unless [expanded], as read chapters fold; the season being watched
@@ -153,7 +152,7 @@ export const seasonTag = (season: number) => (season > 0 ? `S${season}` : 'ALL')
 
 /**
  * One season of an anime series, as the LINK and TRACKING rows count it
- * (doc/TRACKING.md, "A link per season"; card c240). `season` is the
+ * (doc/TRACKING.md, "A link per season"). `season` is the
  * source's own number -- 0 for a flat list, which is one season to tsundoku
  * -- and `aired` is what a catalogue counts: whole numbered episodes, a
  * recap left out (S3's 14.5 is never sent).
@@ -222,7 +221,7 @@ export const episodeInSeason = (e: E) => episodeNumber(e);
 /**
  * The furthest episode watched in one season, or within one part of it, as a
  * catalogue counts it: whole numbers only, recaps and half numbers passed
- * over (c240). 0 when nothing countable is read in the range.
+ * over. 0 when nothing countable is read in the range.
  */
 export function watchedReached<E2 extends E>(
 	entries: E2[],
@@ -245,7 +244,7 @@ export type PartSpan = { part: number; from: number; to: number };
 /**
  * Where each linked part starts and ends in the season's own numbering: part
  * 2 begins after part 1's episode count, so the season's EP. 13 is part 2's
- * EP. 1 (the design's SAO S4, 12 + 11). A season with one part is 1..`of`.
+ * EP. 1 (SAO S4: 12 + 11). A season with one part is 1..`of`.
  */
 export function partsOf(
 	parts: { part: number; episodes: number | null }[],
@@ -257,7 +256,7 @@ export function partsOf(
 		const count = p.episodes && p.episodes > 0 ? p.episodes : Math.max(0, of - next + 1);
 		if (count <= 0) continue;
 		// A later part with no earlier part beside it (part 1 unlinked) has no
-		// start anyone recorded (c592): part 1's count is what places it, and
+		// start anyone recorded: part 1's count is what places it, and
 		// once that row is gone the number is nowhere. Its own count cannot
 		// place it either -- `of` is what the list holds, which may be part of
 		// a season still airing, so counting back from it would begin inside
@@ -304,11 +303,10 @@ export type SeasonRowPlan =
 	| { type: 'toggle'; seasons: number[]; expanded: boolean };
 
 /**
- * How the LINK and TRACKING rows stack their seasons (Track Calls, "The
- * shape"): three seasons or fewer have a line each; more fold round the one
- * being watched, above and below, as the episode list does. SHOW opens both
- * at once, and a fold that would hold one season is drawn as that season's
- * line instead.
+ * How the LINK and TRACKING rows stack their seasons: three seasons or fewer
+ * have a line each; more fold round the one being watched, above and below,
+ * as the episode list does. SHOW opens both at once, and a fold that would
+ * hold one season is drawn as that season's line instead.
  */
 export function seasonPlan(seasons: number[], current: number, expanded: boolean): SeasonRowPlan[] {
 	if (seasons.length <= 3) return seasons.map((season) => ({ type: 'line', season }));
