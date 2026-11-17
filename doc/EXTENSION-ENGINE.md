@@ -4,7 +4,7 @@ tsundoku runs Mihon (manga) and Aniyomi (anime and video) extensions through an
 engine it talks to over HTTP: **tsundoku-engine, a pinned fork of
 [kodjodevf/M-Extension-Server](https://github.com/kodjodevf/M-Extension-Server)**
 (MPL-2.0), kept in its own repository beside this one and shipped in a release
-as `engine/engine.jar` ([`ARCHITECTURE.md`](ARCHITECTURE.md), "Downloading").
+as `engine/engine.jar` ([`ARCHITECTURE.md`](ARCHITECTURE.md), "Finding and downloading").
 The engine answers "what are the pages, and give me their bytes"; everything
 else (repositories, the queue, the library) is tsundoku's
 ([`DOWNLOADS.md`](DOWNLOADS.md)).

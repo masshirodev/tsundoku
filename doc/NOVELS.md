@@ -218,7 +218,7 @@ address.
   there for a novel as for an extension ([`BROWSE.md`](BROWSE.md), "A site's
   check"). The app's solver address is `NOVEL_SOLVER_URL`, deliberately not
   `ENGINE_SOLVER_URL` ([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md), "The
-  solver, and a novel's check").
+  solver").
 
 `tests/novel-solver.spec.ts` is the app's half: a loopback or private address
 refused before the solver hears of it, only the asked host's cookies and its

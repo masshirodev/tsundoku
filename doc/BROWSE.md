@@ -1057,7 +1057,7 @@ what ADD already infers: a gallery's book, a webtoon-only source, a "Manhwa"
 genre. A chosen kind is kept as `source.kind:<id>` = the kind's name, and every
 **new** series from that source starts as it, at the importers' one writer; a
 series already in the library keeps its own, and the series screen has its own
-switch ([`KINDS.md`](KINDS.md), "The kind a source cannot name"). SEARCH THE
+switch ([`KINDS.md`](KINDS.md), "The kind a source serves"). SEARCH THE
 SOURCES reads the same answer (`kindOfSource`,
 `src/routes/downloads/search/kinds.server.ts`), so a Mihon source marked
 MANHWA is a MANHWA cell there. REMOVE keeps it, like the switches.
@@ -1480,7 +1480,7 @@ are found by those words and a locator matches by substring.
   text child from the child's name, which is also how it finds the child, so
   it is dropped from the schema. None of the nine sources the engine was
   measured against has one ([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md),
-  "Mihon manga: the nine sources").
+  "Mihon manga").
 - **Two filters with the same name** can only be told apart by their order;
   the engine matches by name, so the second can't be set.
 - Long select rows wrap without a rule between their lines.
