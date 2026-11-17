@@ -12,13 +12,20 @@ import type { PageAnswer, PageRequest } from './solver.ts';
  *   node_modules and the plugin store only, and no writes, child processes,
  *   workers or addons;
  * - plugin code in a vm context whose require gives only LNReader's shims
- *   and the libraries plugins are written against, and whose fetch refuses
- *   loopback and private addresses, every redirect included.
+ *   and the libraries plugins are written against, and whose fetch reaches
+ *   only global addresses, every redirect included, checked again on the
+ *   address each connection uses (net-guard.ts). The process's own fetch
+ *   goes through the same check.
  *
- * Node 24 can't withhold the network, which the plugins need: code that
- * escaped the vm context could still open a raw socket to the workstation.
- * Everything there that matters asks for a token or a session, and the host
- * has neither.
+ * The vm context is not a security boundary: plugin-host.cjs shuts the
+ * well-known ways out of it and says what is left. Code that does get out
+ * has the process, and Node 24 can't withhold the network, which the plugins
+ * need: it could open a raw socket past the guard, to the workstation or the
+ * tailnet. Most of what listens there asks for a token or a session, which
+ * the host has neither of, but not all of it: FlareSolverr, when it runs,
+ * answers anyone on loopback (doc/NOVELS.md, "What the plugin host can't
+ * stop"). Closing that needs OS-level isolation of the network, which the
+ * app does not have on every platform it runs on.
  *
  * A site's browser check (card c152) is the one thing the host can't do
  * itself, since a solver is a local address it refuses. It asks the parent

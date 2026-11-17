@@ -9,6 +9,13 @@
  * plugins are written against, and whose fetch refuses anything but the
  * internet, checked again on the addresses each connection actually uses.
  *
+ * A vm context is not a security boundary, and nothing here claims it is.
+ * What it does is keep honest plugins apart and make the well-known escapes
+ * fail (the "sandbox" section below says which, and what is left). The
+ * boundary that holds is the process: the permission model, the empty
+ * environment, and this process's network going through the same address
+ * check. What it cannot withhold is the network itself, which plugins need.
+ *
  * Plain CommonJS, not TypeScript, and never bundled: it's started as a file.
  *
  * Messages (IPC): { id, op: 'info' | 'call' | 'chapter', file, method?, args?, path? } in;
@@ -622,6 +629,133 @@ function makeRequire() {
 	};
 }
 
+// ---- the sandbox ---------------------------------------------------------------------------
+// A vm context is a separate set of JavaScript built-ins, not a separate
+// process: every object this process hands a plugin is a door back into it.
+// The classic one is a host function's constructor, which is this realm's
+// Function, which compiles code outside the context: `setTimeout.constructor(
+// 'return process')()` was the whole host process, its fetch and its IPC
+// channel included. Two things shut the well-known doors:
+//
+// - The context's globals are made inside it (SANDBOX below): timers answer
+//   numbers rather than this process's Timeout objects, console, module and
+//   require are the context's own objects and functions, and fetch is an
+//   async function of the context, so even its promise is the context's.
+// - This realm's function constructors are replaced, for good, by functions
+//   that refuse (`shutConstructors`). Whatever host object a plugin still
+//   holds (a Response, a cheerio selection, an error a library threw), the
+//   chain from it to Function now ends in a refusal. Stack traces, the other
+//   classic way out, can't be customised in either realm.
+//
+// What is left is not small. Host objects still reach plugins, cheerio's and
+// the web classes' (URL, Headers, Buffer…) among them, and through them this
+// realm's prototypes, which a plugin can change for every plugin in the
+// process. Nothing here would stop an escape that is not yet well known.
+// That is why the process is the boundary that counts (host.ts): no
+// environment, no files but its own, no writes or children, and a network
+// that reaches only the internet, through the same guard as the app's.
+
+/** Made in the context, from the host functions it is handed once; returns the context's globals. */
+const SANDBOX = `(function (host) {
+	'use strict';
+	const timers = new Map();
+	let next = 1;
+	const arm = (repeat) => function (fn, ms, ...args) {
+		if (typeof fn !== 'function') throw new TypeError('the callback must be a function');
+		const id = next++;
+		const run = () => {
+			if (!repeat) timers.delete(id);
+			fn(...args);
+		};
+		timers.set(id, host.arm(repeat, run, ms));
+		return id;
+	};
+	const disarm = (repeat) => function (id) {
+		const t = timers.get(id);
+		if (t === undefined) return;
+		timers.delete(id);
+		host.disarm(repeat, t);
+	};
+	const quiet = () => {};
+	Object.defineProperty(Error, 'prepareStackTrace', { value: undefined, writable: false, configurable: false });
+	const module = { exports: {} };
+	return {
+		module,
+		exports: module.exports,
+		require: (name) => host.require(String(name)),
+		fetch: async (input, init) => host.fetch(input, init),
+		console: { log: quiet, warn: quiet, error: quiet, info: quiet, debug: quiet },
+		setTimeout: arm(false),
+		setInterval: arm(true),
+		clearTimeout: disarm(false),
+		clearInterval: disarm(true)
+	};
+})`;
+
+/** The web classes LNReader's runtime has and a vm context lacks: this realm's, see above. */
+const LENT_CLASSES = {
+	URL,
+	URLSearchParams,
+	TextDecoder,
+	TextEncoder,
+	Headers,
+	FormData,
+	AbortController,
+	AbortSignal,
+	atob,
+	btoa,
+	Buffer
+};
+
+/**
+ * Replaces the constructor of every kind of function in this realm with one
+ * that refuses, before any plugin runs. Named as the original, since a library
+ * telling an async function from a plain one by `fn.constructor.name` must
+ * keep working; nothing in this process compiles code through it. Not
+ * writable or configurable: a plugin can't put the real one back.
+ */
+function shutConstructors() {
+	const kinds = [
+		Function.prototype,
+		Object.getPrototypeOf(async function () {}),
+		Object.getPrototypeOf(function* () {}),
+		Object.getPrototypeOf(async function* () {})
+	];
+	for (const proto of kinds) {
+		const name = proto.constructor.name;
+		const refuse = {
+			[name]: function () {
+				throw new Error("A plugin can't compile code outside its sandbox");
+			}
+		}[name];
+		Object.defineProperty(proto, 'constructor', {
+			value: refuse,
+			writable: false,
+			configurable: false,
+			enumerable: false
+		});
+	}
+	Object.defineProperty(Error, 'prepareStackTrace', {
+		value: undefined,
+		writable: false,
+		configurable: false
+	});
+}
+
+/** A fresh context for one plugin: its own globals, made inside it. */
+function sandbox() {
+	const context = vm.createContext({});
+	const make = vm.runInContext(SANDBOX, context, { filename: 'tsundoku:sandbox' });
+	const globals = make({
+		arm: (repeat, fn, ms) => (repeat ? setInterval : setTimeout)(fn, ms),
+		disarm: (repeat, t) => (repeat ? clearInterval : clearTimeout)(t),
+		require: makeRequire(),
+		fetch: guardedFetch
+	});
+	Object.assign(context, globals, LENT_CLASSES);
+	return context;
+}
+
 // ---- plugins ------------------------------------------------------------------------------
 
 const plugins = new Map();
@@ -630,29 +764,7 @@ function load(file) {
 	const known = plugins.get(file);
 	if (known) return known;
 	const code = fs.readFileSync(file, 'utf8');
-	const module = { exports: {} };
-	const context = vm.createContext({
-		module,
-		exports: module.exports,
-		require: makeRequire(),
-		fetch: guardedFetch,
-		console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
-		setTimeout,
-		clearTimeout,
-		setInterval,
-		clearInterval,
-		URL,
-		URLSearchParams,
-		TextDecoder,
-		TextEncoder,
-		Headers,
-		FormData,
-		AbortController,
-		AbortSignal,
-		atob,
-		btoa,
-		Buffer
-	});
+	const context = sandbox();
 	// The libraries it names, read from disk before its code runs: a first
 	// require counts against the 5 s its own code is given, and on a cold
 	// Windows install (Defender scanning Program Files) cheerio alone outlasted
@@ -661,7 +773,8 @@ function load(file) {
 	for (const m of code.matchAll(/\brequire\(\s*['"]([^'"]+)['"]\s*\)/g))
 		if (Object.hasOwn(lent, m[1])) lent[m[1]]();
 	vm.runInContext(code, context, { filename: file, timeout: 5_000 });
-	const exported = module.exports.default || module.exports;
+	const exports = context.module.exports;
+	const exported = exports.default || exports;
 	const plugin = typeof exported === 'function' ? new exported() : exported;
 	plugins.set(file, plugin);
 	return plugin;
@@ -786,3 +899,6 @@ process.on('message', (m) => {
 });
 // A plugin's stray rejection must not take every other call down with it.
 process.on('unhandledRejection', () => {});
+// Last, once everything this file defines exists: from here on no function in
+// this realm can be used to compile code (the sandbox section).
+shutConstructors();

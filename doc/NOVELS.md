@@ -49,21 +49,34 @@ never runs in the app (`src/lib/server/novels/`):
 
 - **A child process of its own** (`plugin-host.cjs`, started by `host.ts` on
   the first call and again after it dies), **under Node's permission model**:
-  it may read only itself, the project's `node_modules` and the plugin store,
-  and may not write, spawn processes, start workers or load addons. Its
+  it may read only itself, the address guard (`src/lib/server/net-guard.ts`),
+  the project's `node_modules` and the plugin store, and may not write, spawn processes, start workers or load addons. Its
   **environment is empty**, so nothing in `.env` is there to read.
 - **A vm context per plugin**, whose `require` gives only LNReader's shims
   (`@libs/*`, written from their documented behaviour) and the libraries
-  above. `require('fs')` is refused. A plugin's own code has **5 s** to load
+  above. `require('fs')` is refused. Its globals are made inside the context
+  (timers that answer numbers, its own `console`, `module`, `require` and an
+  async `fetch`), and the host's function constructors are replaced by ones
+  that refuse, so the well-known way out, a host object's `.constructor`
+  chain up to the host's `Function`, ends in an error ("What it doesn't
+  stop", below, for what that is worth). A plugin's own code has **5 s** to load
   (`vm.runInContext`'s timeout); the libraries it names are read from disk
   before that starts, since a cold install's first read of cheerio outlasted
   it on Windows (2026.11.01's smoke test, the installed copy under
   Program Files).
 - **A fetch that stays on the internet**: every request, and every hop of a
   redirect (followed by hand, since an automatic one would skip the check),
-  is refused when its host resolves to a loopback, private, link-local or
-  unique-local address. Tests open a loopback port through the parent's own
-  message; nothing else can.
+  is refused unless every address its host resolves to is a global one:
+  loopback, private, link-local, carrier-grade NAT (where a tailnet lives),
+  unique-local, multicast, documentation and reserved space are all refused,
+  and an IPv6 address carrying an IPv4 one (`::ffff:127.0.0.1`, NAT64, 6to4)
+  is judged by the IPv4 address inside. The rule is the app's own
+  (`net-guard.ts`), which the host requires rather than copies. The check
+  runs twice: on the URL first, and again in the connection pool's lookup,
+  on the addresses the socket actually connects to, so a name can't answer
+  a public address to the check and a private one to the connection. The
+  process's global fetch uses the same pool. Tests open a loopback port
+  through the parent's own message; nothing else can.
 - **A site's browser check is the app's to solve** (c152). The host can't
   reach a solver, since a solver is one of the local addresses it refuses, so
   a 403 or 503 carrying Cloudflare's markers makes it ask the **parent** over
@@ -89,13 +102,37 @@ never runs in the app (`src/lib/server/novels/`):
   included, and the retry after a clearance a fresh 30 s: a redirect chain
   can't outlive the two minutes a novel call is allowed.
 
-**What it doesn't stop.** Node 24 has no `--allow-net`, and the plugins need
-the network. Code that escapes the vm context (a host object's constructor
-reaches the host's `Function`; `tests/novel-host.spec.ts` does exactly that)
-finds an empty environment and no file or process access, but could still open
-a raw socket to a port on the workstation. Everything there that matters asks
-for a token or a session, which the host doesn't have. Running the host in a
-container with its own network would close that; it isn't done.
+**What it doesn't stop.** A vm context is not a security boundary, and the
+host doesn't pretend otherwise. The constructor chain is shut and the stack
+trace hook is locked in both realms (`tests/novel-sandbox.spec.ts` tries
+eighteen ways), but host objects still reach plugins (a `Response`, a cheerio
+selection, the web classes) and, through them, the host realm's prototypes,
+which a plugin can change for every other plugin in the process. An escape
+nobody has published yet would still work. What such code then finds is the
+process: an empty environment, no file outside the host's own, no writes and
+no child processes (the same spec runs code under exactly the host's flags).
+What it would also find is the network. Node 24 has no `--allow-net`, and the
+plugins need the network, so code out of the context could open a raw socket
+past the guard to a port on the workstation or the tailnet.
+
+### What the plugin host can't stop
+
+That raw socket is the gap. Most of what listens on the workstation asks for
+a token or a session, which the host has neither of: the app, the engine
+(`ENGINE_TOKEN`, sent only to the engine's own address). **FlareSolverr does
+not.** It is upstream software with no authentication, listening on loopback,
+and anything that reaches it can have its browser fetch any address, the
+tailnet included. A token in front of it would not help: the port behind the
+token would still be open to the same loopback.
+
+Closing it takes isolation of the host's network at the operating system:
+a network namespace (`bwrap --unshare-net` with a filtered proxy,
+`systemd-run -p IPAddressDeny=`), or a container with its own network. Those
+exist on Linux, differently on each distribution, and not at all on the
+Windows machines a release also runs on, so the app does not do it. On a
+workstation where plugins from an untrusted repository are installed, not
+running FlareSolverr (or running it in a container with no route to the host's
+network) is what keeps that door shut.
 
 **And a solve is the app's, not the plugin's.** A plugin can ask for any host
 on the internet, so it can make the app solve a check for any public site it
@@ -115,9 +152,10 @@ network is what would close it.
 
 `tests/novel-host.spec.ts`: a plugin answers each method through the host
 (filters' starting values included), and a hostile one fails to require `fs`,
-finds no environment, can't read a file or start a process even out of the vm
-context, and can't fetch a loopback address directly or by redirect, after
-which the host still answers. And a site that answers with a check: the app is
+fails to get out of the vm context, and can't fetch a loopback address
+directly or by redirect, after which the host still answers.
+`tests/novel-sandbox.spec.ts` tries the well-known escapes one by one, and runs
+code under the host's own flags to show what the process refuses. And a site that answers with a check: the app is
 asked by URL only, the retry carries that host's cookies and user agent, the
 jar is kept per host and to no other, a retry that is still a check is
 reported and the host put in page mode, a secure clearance is not sent over

@@ -95,6 +95,24 @@ let missing = '';
 let checked = '';
 let cleared = '';
 let bound = '';
+let leaver = '';
+
+/**
+ * A plugin that asks for the workstation, directly and through a redirect:
+ * evil.js's own requests sit behind its escape, which the sandbox now shuts.
+ */
+const LEAVER = `
+var fetch = require('@libs/fetch');
+exports.default = {
+	id: 'leaver',
+	name: 'Leaver',
+	site: 'https://example.org/',
+	version: '1.0.0',
+	parseChapter: async function (what) {
+		return (await fetch.fetchApi(what === 'loopback' ? globalThis.LOOPBACK : globalThis.REDIRECT)).status;
+	}
+};
+`;
 
 /**
  * A plugin for a site whose check is bound to the browser that solved it
@@ -295,6 +313,12 @@ beforeAll(async () => {
 	writeFileSync(
 		bound,
 		`globalThis.SITE = ${JSON.stringify(`http://127.0.0.1:${checkPort}/`)};\n${BOUND}`
+	);
+	leaver = join(store, 'leaver.js');
+	writeFileSync(
+		leaver,
+		`globalThis.LOOPBACK = ${JSON.stringify(`http://127.0.0.1:${otherPort}/`)};\n` +
+			`globalThis.REDIRECT = ${JSON.stringify(`http://127.0.0.1:${port}/away`)};\n${LEAVER}`
 	);
 	host = new NovelHost(hostOpts());
 });
@@ -948,20 +972,20 @@ describe('a plugin trying to leave its box', () => {
 		await expect(refused('require-fs')).rejects.toThrow(/can't require fs/);
 	});
 
-	it('finds no environment, even out of the vm context', async () => {
-		expect(await refused('env')).toBe('{}');
-	});
-
-	it('can’t read a file or start a process, even out of the vm context', async () => {
-		await expect(refused('read')).rejects.toThrow(
-			/Access to this API has been restricted|ERR_ACCESS_DENIED/
-		);
-		await expect(refused('spawn')).rejects.toThrow(/restricted|ERR_ACCESS_DENIED/);
+	it('can’t get out of the vm context through a host function’s constructor', async () => {
+		// What the process would still refuse it, had it got out, is
+		// tests/novel-sandbox.spec.ts's, which runs code under the host's flags.
+		for (const what of ['env', 'read', 'spawn'])
+			await expect(refused(what)).rejects.toThrow(/can't compile code outside its sandbox/);
 	});
 
 	it('can’t fetch a loopback address, directly or by redirect', async () => {
-		await expect(refused('loopback')).rejects.toThrow(/not on the internet/);
-		await expect(refused('redirect')).rejects.toThrow(/not on the internet/);
+		await expect(host.call(leaver, 'parseChapter', ['loopback'])).rejects.toThrow(
+			/not on the internet/
+		);
+		await expect(host.call(leaver, 'parseChapter', ['redirect'])).rejects.toThrow(
+			/not on the internet/
+		);
 	});
 
 	it('is an error the app catches, not a crash', async () => {
