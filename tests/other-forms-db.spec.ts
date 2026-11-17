@@ -1,6 +1,7 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import type { Candidate } from '$lib/library/catalogue';
 
 /**
@@ -17,9 +18,8 @@ import type { Candidate } from '$lib/library/catalogue';
  * answered, and are what the rule must refuse.
  */
 process.env.DATABASE_PATH = ':memory:';
-process.env.TRASH_DIR = mkdtempSync(
-	join(process.env.TMPDIR ?? join(process.cwd(), 'temp'), 'tsundoku-forms-trash-')
-);
+process.env.TRASH_DIR = mkdtempSync(join(tmpdir(), 'tsundoku-forms-trash-'));
+afterAll(() => rmSync(process.env.TRASH_DIR!, { recursive: true, force: true }));
 
 const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');

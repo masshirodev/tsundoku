@@ -2,6 +2,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Candidate } from '$lib/library/catalogue';
@@ -15,9 +16,7 @@ import type { Candidate } from '$lib/library/catalogue';
  * tests/other-forms-db.spec.ts: one id it can't answer is HTTP 404 and **every**
  * alias of the request null, the good ones too.
  */
-const work = mkdtempSync(
-	join(process.env.TMPDIR ?? join(process.cwd(), 'temp'), 'tsundoku-fill-db-')
-);
+const work = mkdtempSync(join(tmpdir(), 'tsundoku-fill-db-'));
 process.env.DATABASE_PATH = join(work, 'fill.db');
 process.env.TRASH_DIR = join(work, 'trash');
 delete process.env.TSUNDOKU_ANILIST;

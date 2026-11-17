@@ -1,6 +1,7 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Candidate } from '$lib/library/catalogue';
 
 /**
@@ -13,9 +14,8 @@ import type { Candidate } from '$lib/library/catalogue';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
-process.env.TRASH_DIR = mkdtempSync(
-	join(process.env.TMPDIR ?? join(process.cwd(), 'temp'), 'tsundoku-relations-trash-')
-);
+process.env.TRASH_DIR = mkdtempSync(join(tmpdir(), 'tsundoku-relations-trash-'));
+afterAll(() => rmSync(process.env.TRASH_DIR!, { recursive: true, force: true }));
 delete process.env.TSUNDOKU_ANILIST;
 
 const { getDb } = await import('$lib/server/db');
