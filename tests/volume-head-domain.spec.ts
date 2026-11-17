@@ -16,8 +16,8 @@ import {
  * A volume's head: its number, its state, its chapters and how far
  * through them it is. The rules are checked over their whole finite domain --
  * every chapter count of 0 to 3, every number of them read, the current entry
- * inside and outside -- rather than on the handful the handoff happens to draw,
- * so a shape one over cannot regress unseen (wave 35's lesson).
+ * inside and outside -- rather than on the handful the design happens to draw,
+ * so a shape one over cannot regress unseen.
  */
 
 function entry(n: number, opts: Partial<SeriesEntry> = {}): SeriesEntry {

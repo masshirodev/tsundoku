@@ -1,11 +1,11 @@
 import { expect, test } from './fixtures';
 
 /**
- * A TV is its own kind in DEVICES (c244; doc/SETTINGS.md, "How a device is
- * kept"): `/api/devices/sync` accepts it, where it used to answer 400 and the
- * page never went quiet (tv-screens' reveal spec timed out on it).
+ * A TV is its own kind in DEVICES (doc/SETTINGS.md, "How a device is
+ * kept"): `/api/devices/sync` accepts it rather than answering 400, which kept
+ * the page from going quiet (tv-screens' reveal spec timed out on it).
  *
- * The only write is one device row under a fixed id of this card's own, so no
+ * The only write is one device row under a fixed id of this file's own, so no
  * other spec's row is touched; a device row has no delete of its own (a browser
  * that clears its storage is a new one), and the suite seeds a fresh database
  * each run.
@@ -32,7 +32,7 @@ test('a TV’s check-in is accepted, and DEVICES calls it a TV', async ({ page }
 	expect(res.status()).toBe(200);
 	await page.reload();
 	// The app says itself where a browser's name was, and its label cell says
-	// TV · APP (PhoneApp-Calls.dc.html, DEVICES).
+	// TV · APP.
 	const row = page.locator('.row.device', { hasText: 'Android TV · app 1.0.0' });
 	await expect(row).toBeVisible();
 	await expect(row.locator('.label')).toHaveText('TV · APP');

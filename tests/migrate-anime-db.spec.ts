@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-// Rung 47 (doc/ANIME.md): `anime` among series.kind's values,
+// Migration 47 (doc/ANIME.md): `anime` among series.kind's values,
 // written into the schema's text, since rebuilding the table would cascade
 // its drop through the whole library. On a file, as the live database is.
 const work = mkdtempSync(join(tmpdir(), 'tsundoku-rung47-'));
@@ -36,7 +36,7 @@ function at46() {
 	return { conn, path, root, series };
 }
 
-describe('rung 47', () => {
+describe('migration 47', () => {
 	it('allows anime, still refuses what isn’t a kind, and keeps every row', () => {
 		const { conn, path, root } = at46();
 		expect(() =>

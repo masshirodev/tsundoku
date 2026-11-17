@@ -140,8 +140,8 @@ test('a single book with look-alikes is offered as one series, and NOT A SERIES 
 	await page.goto(CIRCLE);
 	await page.waitForLoadState('networkidle');
 	await page.locator('.grid li', { hasText: 'Holiday Duty' }).getByRole('button').click();
-	// The bands are drawn twice, one copy per order, and CSS shows one (c556,
-	// doc/SERIES.md, "Two markups"): the band is the copy that can be seen.
+	// The bands are drawn twice, one copy per order, and CSS shows one
+	// (doc/SERIES.md, "Two markups"): the band is the copy that can be seen.
 	const offer = page.getByText('MIGHT BE ONE SERIES').filter({ visible: true });
 	await expect(offer).toBeVisible();
 
@@ -256,9 +256,9 @@ test('grouping from a single book’s own screen, then back: where it was opened
 });
 
 /**
- * c650: an entry carrying front matter is an *extra*, not a book. No importer
+ * An entry carrying front matter is an *extra*, not a book. No importer
  * writes `matter` on a doujin (only the EPUB plans set it, for novels), so the
- * seed stands in for a **hand-made row** -- the other door the card names, the
+ * seed stands in for a **hand-made row** -- the other way in, the
  * duplicates review, folds a copy rather than writing matter. The rows are
  * inserted into this run's own database (the one `yarn run seed` wrote) and
  * removed again in a finally, so nothing a later case reads changes.

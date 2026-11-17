@@ -4,14 +4,13 @@ import type { Browser, BrowserContext } from '@playwright/test';
 import { expect, hydrated, test } from './helpers/hydrated';
 
 /**
- * The computer's `/pair/tv` as the phone app sees it (c521; doc/ANDROID.md,
- * PhoneApp-Phone.dc.html and PhoneApp-Tablet.dc.html 9C and 9E). The app's
- * user agent says TsundokuApp, and the page says the phone or the tablet where
+ * The computer's `/pair/tv` as the phone app sees it (doc/PHONE-APP.md). The
+ * app's user agent says TsundokuApp, and the page says the phone or the tablet where
  * it said the TV, reflowed at 600 px. The TV's page is tests/tv-pair.e2e.ts's.
  *
  * No test here spends the six digits: they live in the server's memory, one at
- * a time, and the TV's specs pair with them. 9E is reached with a paired row of
- * this file's own, removed afterwards; the TV's specs already add real ones to
+ * a time, and the TV's specs pair with them. The paired page is reached with
+ * a paired row of this file's own, removed afterwards; the TV's specs already add real ones to
  * this server whenever they pair.
  */
 const PORT = process.env.PLAYWRIGHT_PORT ?? '4183';
@@ -44,7 +43,7 @@ const box = async (page: import('@playwright/test').Page, selector: string) => {
 	return { ...b, bottom: b.y + b.height, right: b.x + b.width };
 };
 
-test.describe('9C on a phone, 360 x 780', () => {
+test.describe('the code page on a phone, 360 x 780', () => {
 	test('the column: the short step, six thumb cells, PAIR → at the bottom', async ({ browser }) => {
 		const ctx = await app(browser, PHONE_UA, { width: 360, height: 780 });
 		const page = await ctx.newPage();
@@ -104,13 +103,13 @@ test.describe('9C on a phone, 360 x 780', () => {
 		expect(band.x).toBe(0);
 		expect(band.width).toBe(360);
 		expect(band.y).toBe(56);
-		// The label sits under the band, never inside it (c246's rule, kept).
+		// The label sits under the band, never inside it.
 		expect((await box(page, '.sl')).y).toBeGreaterThanOrEqual(band.bottom);
 		await ctx.close();
 	});
 });
 
-test.describe('9C on a tablet, 1280 x 800', () => {
+test.describe('the code page on a tablet, 1280 x 800', () => {
 	test("the TV's arrangement: 68 x 84 cells, the buttons side by side", async ({ browser }) => {
 		const ctx = await app(browser, TABLET_UA, { width: 1280, height: 800 });
 		const page = await ctx.newPage();
@@ -134,7 +133,7 @@ test.describe('9C on a tablet, 1280 x 800', () => {
 	});
 });
 
-test.describe('9E', () => {
+test.describe('the paired page', () => {
 	const token = randomBytes(32).toString('base64url');
 	const hash = createHash('sha256').update(token).digest('hex');
 	const db = () => new Database(process.env.PLAYWRIGHT_DATABASE_PATH!);

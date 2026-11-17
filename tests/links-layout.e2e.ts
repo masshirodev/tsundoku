@@ -1,11 +1,11 @@
 import { expect, test } from './fixtures';
 
 /**
- * The link review's frame per device, from Link Review.dc.html (doc/LINKS.md).
+ * The link review's frame per device, from its design (doc/LINKS.md).
  * The mock's spacing is hand-set, not a ladder, so these are its literals,
  * asserted so a later tidy-up onto round numbers shows up as a failure rather
  * than a quietly redrawn screen. Tablet landscape has the room the desktop
- * drawing (1j) had, so it takes that layout: the series beside its candidates.
+ * drawing had, so it takes that layout: the series beside its candidates.
  * Read-only.
  */
 type Frame = {

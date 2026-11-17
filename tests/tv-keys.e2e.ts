@@ -118,8 +118,7 @@ test('↑ through the grid keeps each row in sight, out from under the pinned ba
 	expect(await focusedInSight(page)).toBe(true);
 	for (let i = 0; i < 3; i++) {
 		await page.keyboard.press('ArrowUp');
-		// Before 2026-11-02 the row went under the pinned tabs (the KIND band
-		// pins in their place since c436) and stayed there.
+		// The row never goes under the pinned KIND band and stays there.
 		expect(await focusedInSight(page)).toBe(true);
 	}
 });
@@ -128,7 +127,7 @@ test('BACK climbs only to what is out of sight: scrolled, to the top; at the top
 	page
 }) => {
 	// The KIND band, CONTINUE still in full view: nothing to climb to. (The
-	// first row of covers was that stop until c436: the band's 56px above the
+	// first row of covers is not that stop: the band's 56px above the
 	// grid scroll it far enough to put CONTINUE under the pinned bar.)
 	await toBand(page);
 	expect(await page.evaluate(() => window.tsundokuBack!())).toBe(false);
@@ -217,7 +216,7 @@ test('▶❚❚ on a focused CONTINUE card resumes it, without the series screen
 	await page.waitForURL(/\/read\/\d+/);
 });
 
-// ---- c578: ↑ ↓ chain past a scroller at its end -------------------------------
+// ---- ↑ ↓ chain past a scroller at its end -------------------------------------
 
 type Scrolls = { page: number; outer: number; inner: number; clip: number };
 

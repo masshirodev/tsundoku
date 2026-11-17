@@ -43,8 +43,7 @@ test('ON shows a code, the address in text, and what typing it does', async ({ p
 		.click();
 	await expect(page.getByRole('img', { name: 'Pairing code' })).toBeVisible();
 	await expect(page.getByText("FOR A BROWSER · THE PHONE'S CAMERA")).toBeVisible();
-	// The handoff's measurements (Wifi.dc.html, "on", and since c521
-	// PhoneApp-Computer.dc.html), pinned so a tidy-up can't redraw them: the
+	// The design's measurements, pinned so a tidy-up can't redraw them: the
 	// address line over both ways in, the app's digits and the browser's QR
 	// side by side, the QR's inverse cell, the switch's height.
 	const box = async (sel: string) => (await page.locator(sel).first().boundingBox())!;
@@ -81,8 +80,8 @@ test('ON shows a code, the address in text, and what typing it does', async ({ p
 
 /**
  * A TV's six digits burned by five wrong tries while the panel is open.
- * The panel polls `/api/wifi` every 5 s, and that poll once replaced a burned
- * code, so anyone on the Wi-Fi got five more guesses every 5 s. The poll now
+ * The panel polls `/api/wifi` every 5 s, and a poll that replaced a burned
+ * code would give anyone on the Wi-Fi five more guesses every 5 s. The poll
  * reads the code as it is: BURNED, and the same code on the server two polls
  * later, until NEW CODE.
  */
@@ -101,7 +100,7 @@ test('a TV code burned on /pair/tv stays BURNED on the open panel until NEW CODE
 	const { code, state } = await onComputer();
 	expect(state).toBe('live');
 
-	// A TV on the Wi-Fi, not this browser: the form 9C posts, five wrong codes.
+	// A TV on the Wi-Fi, not this browser: the form the code page posts, five wrong codes.
 	const { phone } = await wifi(request);
 	const tv = await playwright.request.newContext({ baseURL: phone! });
 	try {
@@ -155,14 +154,14 @@ test('the phone scans it, is signed in, and the computer lists it with SIGN OUT'
 	await expect(phone).toHaveURL(/\/welcome$/);
 	await expect(phone.getByRole('heading', { name: 'This phone is signed in' })).toBeVisible();
 	await expect(phone.getByText('Offline chapters')).toBeVisible();
-	// The handoff's measurements (Wifi-Phone.dc.html, 3A), pinned so a tidy-up can't redraw them.
+	// The design's measurements, pinned so a tidy-up can't redraw them.
 	const box = async (sel: string) => (await phone.locator(sel).first().boundingBox())!;
 	expect((await box('.welcome .bar')).height).toBe(60);
 	expect((await box('.welcome .go')).height).toBe(56);
 	await phone.getByRole('link', { name: 'OPEN THE LIBRARY →' }).click();
 	await expect(phone.getByText('01 — CONTINUE')).toBeVisible();
 
-	// SETTINGS on the phone (3E): WI-FI shown, never switched from here.
+	// SETTINGS on the phone: WI-FI shown, never switched from here.
 	// At the Wi-Fi address it was paired at: the base URL is the computer's localhost.
 	await phone.goto(`${new URL(code!.url).origin}/settings#s-devices`);
 	await expect(phone.getByText('SET ON THE COMPUTER ONLY')).toBeVisible();
@@ -197,9 +196,8 @@ test('the phone scans it, is signed in, and the computer lists it with SIGN OUT'
  * (`settings/+page.server.ts`). Were it to renew, anyone with a paired phone
  * could reopen SETTINGS to swap a TV code five wrong tries burned for a fresh
  * one, and buy five more. A case of its own, with no computer page open:
- * the panel's poll reruns the computer's load when a phone pairs, and that
- * load renewed until c531 (doc/WIFI.md), which would have replaced the burn
- * under the test.
+ * the panel's poll reruns the computer's load when a phone pairs, and a load
+ * that renewed (doc/WIFI.md) would replace the burn under the test.
  */
 test('a paired phone opening SETTINGS over Wi-Fi leaves a burned TV code burned', async ({
 	browser,
@@ -277,7 +275,7 @@ test('OFF stops listening on the Wi-Fi; the computer goes on', async ({
 	await hydrated(page);
 	// OFF's answer is the page's own state: the panel goes when /api/wifi has
 	// answered, after the Wi-Fi listeners have closed, which on a loaded box
-	// took longer than expect's 5 s (wave 23's loaded whole run).
+	// took longer than expect's 5 s.
 	const answered = page.waitForResponse(
 		(r) => r.url().endsWith('/api/wifi') && r.request().method() === 'POST'
 	);
@@ -292,8 +290,8 @@ test('OFF stops listening on the Wi-Fi; the computer goes on', async ({
 	// holds the socket of its first call above, idle since then, and Node's
 	// server ends an idle keep-alive socket after 5 s: on a loaded box the steps
 	// between took about that long, and the GET went out on the socket as the
-	// server closed it (`read ECONNRESET`, wave 22's loaded whole run, passing
-	// alone; c439). The computer's listener is a server apart from the Wi-Fi's
+	// server closed it (`read ECONNRESET` in a loaded whole run, passing
+	// alone). The computer's listener is a server apart from the Wi-Fi's
 	// (src/lib/server/lan-listen.ts), which OFF alone closes.
 	const fresh = await playwright.request.newContext();
 	try {

@@ -4,15 +4,16 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 /**
- * The APK's own first screens (9A, 9B; android/app/src/main/assets/pair),
+ * The APK's own first screens (the first screen and the address screen;
+ * android/app/src/main/assets/pair),
  * opened from the file the app ships, with no bridge: a remote, 960x540.
  *
  * This is **not** the app's loader. On a TV the page is served by
- * `WebViewAssetLoader` at `https://appassets.androidplatform.net/pair/index.html`
- *; here it is opened from the asset file itself, because a browser has
+ * `WebViewAssetLoader` at `https://appassets.androidplatform.net/pair/index.html`;
+ * here it is opened from the asset file itself, because a browser has
  * no loader and the page's scripts do not read `location.protocol`. What the
  * loader changes — `BridgeGuard`, `Back.kt` and the WebView client — is pinned
- * by the JVM tests and the owner's check on a TV (`doc/ANDROID.md`).
+ * by the JVM tests and a check on a real TV (`doc/TV-APP.md`).
  */
 const page9 = pathToFileURL(
 	join(process.cwd(), 'android/app/src/main/assets/pair/index.html')
@@ -39,8 +40,8 @@ declare global {
 /**
  * The APK's bridge (PairingBridge.kt) stood up before the page's script runs,
  * so the states only the real app reaches are reachable here too: a probe in
- * flight while a second launch arrives is exactly what c260's round 2 is
- * about, and a file:// page has no bridge to hold one.
+ * flight while a second launch arrives is one of them, and a file:// page has
+ * no bridge to hold one.
  *
  * `probe` answers with the origin `Address.originOf` keeps (a path, a query and
  * userinfo dropped), never with the string it was handed, because that is what
@@ -101,8 +102,8 @@ async function stubBridge(page: Page, options: { hold?: boolean; answer?: boolea
  * here can still be cut off by an ellipsis on the TV. The asset asks for
  * `ui-monospace, 'Roboto Mono', monospace`, and a TV's WebView ends on Roboto
  * Mono or Android's own monospace, Droid Sans Mono: both advance every glyph
- * they have by 1229/2048 em (0.6001), read from the fonts' `hmtx` tables
- *. A glyph neither has (○, ✓, →) falls back to another font, so it is
+ * they have by 1229/2048 em (0.6001), read from the fonts' `hmtx` tables. A
+ * glyph neither has (○, ✓, →) falls back to another font, so it is
  * counted at a whole em, the wide case.
  */
 async function tvMonoWidth(page: Page, selector: string): Promise<number> {
@@ -120,7 +121,7 @@ async function tvMonoWidth(page: Page, selector: string): Promise<number> {
  * a TV's 1229/2048 em ([tvMonoWidth] says where that comes from), by way of
  * `letter-spacing` over this box's own monospace, whatever its width is.
  *
- * Counting characters is what let c863 through: `ceil(glyphs × 0.6 / width)`
+ * Counting characters is not enough: `ceil(glyphs × 0.6 / width)`
  * says 131 characters take two lines of 96, and a TV draws three, because a
  * line can only break where a break is allowed and an address has almost no
  * such place. Only the browser's own line breaking knows that.
@@ -137,7 +138,7 @@ async function layOutAsTv(page: Page, selector: string): Promise<void> {
 	});
 }
 
-/** How [selector] sits over 9B's two buttons, once it is laid out as a TV does. */
+/** How [selector] sits over the address screen's two buttons, once it is laid out as a TV does. */
 async function overTheButtons(page: Page, selector: string) {
 	await layOutAsTv(page, selector);
 	return page.evaluate((hint) => {
@@ -153,7 +154,9 @@ async function overTheButtons(page: Page, selector: string) {
 	}, selector);
 }
 
-test('START opens 9B on NEXT, so no number pad covers the buttons', async ({ page }) => {
+test('START opens the address screen on NEXT, so no number pad covers the buttons', async ({
+	page
+}) => {
 	await page.goto(page9);
 	await page.keyboard.press('Enter'); // START →
 
@@ -175,8 +178,8 @@ test("a remote's number keys type into the field without the pad", async ({ page
 	await page.goto(page9);
 	await page.keyboard.press('Enter'); // START →, the mark on NEXT
 
-	// The number keys used to need the field's focus, which is the same thing
-	// that opens the pad. They now land in the field wherever the mark is.
+	// The number keys must not need the field's focus, which is the same thing
+	// that opens the pad: they land in the field wherever the mark is.
 	await page.keyboard.press('2');
 	await page.keyboard.press('3');
 	await expect(page.locator('#last')).toHaveValue('23');
@@ -199,7 +202,7 @@ test('TYPE THE WHOLE ADDRESS keeps a field to type it in, reachable from the but
 	await page.locator('#whole-toggle').focus();
 	await page.keyboard.press('Enter');
 	// The prefix and the port go; the field stays and takes the whole address
-	// (2026-11-02: it was hidden with them, so Tailscale had nothing to type in).
+	// (hidden with them, a Tailscale address had nowhere to be typed).
 	await expect(page.locator('#prefix')).toBeHidden();
 	await expect(page.locator('#port')).toBeHidden();
 	await expect(field).toBeVisible();
@@ -214,21 +217,22 @@ test('TYPE THE WHOLE ADDRESS keeps a field to type it in, reachable from the but
 	await expect(field).toBeFocused();
 });
 
-test("9A and 9D keep a friend's WI-FI remedy beside a tailnet install's truth", async ({
+test("the first screen and the not-answering screen keep a friend's WI-FI remedy beside a tailnet install's truth", async ({
 	page
 }) => {
 	await page.goto(page9);
 
-	// 9A step 01. A friend's install starts with WI-FI OFF and the six digits
-	// only render inside its panel, so the step must still name the switch; a
-	// tailnet install has no switch at all, so it must not send anyone to one.
+	// The first screen's step 01. A friend's install starts with WI-FI OFF and
+	// the six digits only render inside its panel, so the step must still name
+	// the switch; a tailnet install has no switch at all, so it must not send
+	// anyone to one.
 	const step = page.locator('#welcome .steps > div').first();
 	await expect(step.locator('.lab')).toHaveText('01 — ON THE COMPUTER');
 	await expect(step).toContainText('SETTINGS › 08 — DEVICES');
 	await expect(step).toContainText('WI-FI ON');
 	await expect(step).toContainText('Tailscale');
 
-	// 9D reason 2, on the screen a TV reaches when nothing answers: the same
+	// The not-answering screen's reason 2, where a TV lands when nothing answers: the same
 	// two installs fail in different ways, and WI-FI OFF is still one of them.
 	const reason = page.locator('#lost .reasons .reason').nth(1);
 	await expect(reason.locator('.n')).toHaveText('2');
@@ -237,13 +241,13 @@ test("9A and 9D keep a friend's WI-FI remedy beside a tailnet install's truth", 
 	await expect(reason).toContainText('address changed');
 });
 
-test("9A's steps end above START, whatever step 01 says", async ({ page }) => {
+test("the first screen's steps end above START, whatever step 01 says", async ({ page }) => {
 	await page.goto(page9);
 	await page.evaluate(() => document.fonts.ready);
 
-	// The handoff puts the steps grid at 262 and the action row at 400. A step
+	// The design puts the steps grid at 262 and the action row at 400. A step
 	// that wraps to one line more than the grid has room for pushes its bottom
-	// border behind START (the round-2 9A copy did: 413.75 against 400), so
+	// border behind START (one copy did: 413.75 against 400), so
 	// the grid must end at or above the row, not merely the text inside it.
 	const steps = await page.locator('#welcome .steps').boundingBox();
 	const actions = await page.locator('#welcome .welcome-actions').boundingBox();
@@ -257,7 +261,9 @@ test("9A's steps end above START, whatever step 01 says", async ({ page }) => {
 	expect(actions!.y + actions!.height).toBeLessThanOrEqual(540);
 });
 
-test('a given address in the list is checked without 9A or 9B', async ({ page }) => {
+test('a given address in the list is checked without the first screen or the address screen', async ({
+	page
+}) => {
 	await stubServers(page, three, { [ZEN]: { ok: false, hold: true } });
 	await page.goto(`${page9}#connect=${encodeURIComponent(ZEN)}`);
 
@@ -269,15 +275,17 @@ test('a given address in the list is checked without 9A or 9B', async ({ page })
 	await expect(page.locator('#connect')).toBeVisible();
 	await expect(page.locator('#connect-line')).toContainText('zen.tailnet.ts.net:8443');
 	// The step still says which half of pairing this is, so the page has not
-	// fallen back to 9A while the probe is unanswered.
+	// fallen back to the first screen while the probe is unanswered.
 	await expect(page.locator('#step')).toHaveText('PAIR THIS TV · 1 OF 2');
 	await expect(page.locator('#start')).toBeHidden();
 });
 
-test('a refused address shows the band on 9B and leaves it usable', async ({ page }) => {
+test('a refused address shows the band on the address screen and leaves it usable', async ({
+	page
+}) => {
 	await page.goto(`${page9}#bad=${encodeURIComponent('ftp://zen.local')}`);
 
-	// The activity refused it, so 9B is where the TV lands: the field empty,
+	// The activity refused it, so the TV lands on the address screen: the field empty,
 	// the band saying nothing was saved, the mark on NEXT.
 	await expect(page.locator('#address-form')).toBeVisible();
 	await expect(page.locator('#start')).toBeHidden();
@@ -289,7 +297,7 @@ test('a refused address shows the band on 9B and leaves it usable', async ({ pag
 	await expect(page.locator('#next')).toBeFocused();
 
 	// The band ends above the label, and every box ends inside the 540 frame:
-	// this is 9C's with-band rhythm, not sizes invented here.
+	// this is the code page's with-band rhythm, not sizes invented here.
 	const bandBox = await band.boundingBox();
 	const labelBox = await page.locator('#address .address-label').boundingBox();
 	const fieldBox = await page.locator('#address-form').boundingBox();
@@ -307,7 +315,7 @@ test('a refused address shows the band on 9B and leaves it usable', async ({ pag
 
 	// The hint names every rule the activity refused by, and no other
 	// (Address.intentOrigin: the scheme, a host, no userinfo, a port of 1 to
-	// 65535; c307). Neither half of the band may be cut off by an ellipsis: not
+	// 65535). Neither half of the band may be cut off by an ellipsis: not
 	// in this browser, and not at a TV's wider monospace, where a hint that
 	// fits here can push the first line's NOTHING WAS SAVED out of sight.
 	const hint = band.locator('.meta');
@@ -335,14 +343,16 @@ test('a refused address shows the band on 9B and leaves it usable', async ({ pag
 	await expect(page.locator('#checking')).toContainText('THE APP BRIDGE IS MISSING');
 });
 
-test('a refused address stops the 9D retry, so the refusal stays', async ({ page }) => {
+test("a refused address stops the not-answering screen's retry, so the refusal stays", async ({
+	page
+}) => {
 	// A friend whose LAN probe failed is the case doc/TV-APP.md sends here: the
 	// TV is already retrying something nobody answers. It is a server in the
 	// list, because that is who the app's own #lost= is for.
 	const lan = 'http://192.168.1.99:42143';
 	await stubServers(page, [{ origin: lan, name: '', tvName: '', opened: 1 }]);
 	await page.goto(`${page9}#lost=${encodeURIComponent(lan)}`);
-	// 9D itself has no height of its own (its blocks are positioned), so its
+	// The not-answering screen has no height of its own (its blocks are positioned), so its
 	// buttons are what a person can see — and what a stolen screen takes away.
 	await expect(page.locator('#retry')).toBeVisible();
 	await expect(page.locator('#lost-title')).toContainText('NOTHING ANSWERS');
@@ -355,9 +365,9 @@ test('a refused address stops the 9D retry, so the refusal stays', async ({ page
 	await expect(page.locator('#retry')).toBeHidden();
 	const probesWhenRefused = await page.evaluate(() => window.__servers!.probes.length);
 
-	// One retry tick is 5 s. 9B is a second door into this screen, and the
+	// One retry tick is 5 s. The refusal is a second way onto the address screen, and the
 	// timer outlives it unless refused() stops it: the tick would probe the
-	// old origin, fail, and replace the refusal with 9D for it.
+	// old origin, fail, and replace the refusal with the not-answering screen for it.
 	await page.waitForTimeout(5600);
 	await expect(page.locator('#refused')).toBeVisible();
 	await expect(page.locator('#address-form')).toBeVisible();
@@ -367,7 +377,7 @@ test('a refused address stops the 9D retry, so the refusal stays', async ({ page
 		probesWhenRefused
 	);
 	expect(afterRefusal).toEqual([]);
-	// 9B starts clean on this door too (d0d217d): nothing is left disabled.
+	// The address screen starts clean this way too: nothing is left disabled.
 	await expect(page.locator('#next')).toBeEnabled();
 	await expect(page.locator('#checking')).toHaveText('');
 });
@@ -378,7 +388,7 @@ test('a probe a link superseded neither stores nor navigates', async ({ page }) 
 	// Nothing real lives at the typed address; if the superseded answer still
 	// wins, its /pair/tv is a request this test must see, not dial.
 	await page.route('http://192.168.1.23:42143/**', (route) => route.abort());
-	await page.keyboard.press('Enter'); // START → 9B, the mark on NEXT
+	await page.keyboard.press('Enter'); // START → the address screen, the mark on NEXT
 	await page.keyboard.press('2');
 	await page.keyboard.press('3');
 	await page.keyboard.press('Enter'); // NEXT: probes the typed address, held
@@ -398,7 +408,7 @@ test('a probe a link superseded neither stores nor navigates', async ({ page }) 
 	expect(await page.evaluate(() => window.__bridge!.probes)).toEqual([typed]);
 
 	// The superseded probe answers. It is true for its own origin, but not for
-	// what is on the screen now: storing it would add an address the owner
+	// what is on the screen now: storing it would add an address the user
 	// walked away from, and leaving for its /pair/tv would drop the question.
 	// Both happen before the navigation, so the record is read from this side.
 	await page.evaluate((at) => window.tsundokuProbe?.(at, true), typed);
@@ -407,8 +417,8 @@ test('a probe a link superseded neither stores nor navigates', async ({ page }) 
 	expect(page.url().startsWith(page9)).toBe(true);
 	await expect(page.locator('#already')).toBeVisible();
 
-	// The refusal door into 9B resets what the held probe left behind: NEXT
-	// enabled and no CHECKING line, which d0d217d fixed and this pins.
+	// The refusal's way onto the address screen resets what the held probe left
+	// behind: NEXT enabled and no CHECKING line.
 	await page.evaluate(() => {
 		location.hash = '#bad=' + encodeURIComponent('zen.local:42143');
 	});
@@ -427,15 +437,15 @@ test('a typed whole address with a path pairs at its origin', async ({ page }) =
 		return route.abort();
 	});
 	await page.goto(page9);
-	await page.keyboard.press('Enter'); // START → 9B, the mark on NEXT
+	await page.keyboard.press('Enter'); // START → the address screen, the mark on NEXT
 	await page.locator('#whole-toggle').focus();
 	await page.keyboard.press('Enter'); // TYPE THE WHOLE ADDRESS
 	await page.locator('#last').fill('https://zen.tailnet.ts.net:8443/library');
 	await page.locator('#next').click();
 
-	// The field keeps the path; the bridge answers the origin. The page used to
-	// compare the two raw strings and drop the answer, leaving 9B on CHECKING
-	// with NEXT disabled. It now compares origins, so the success lands.
+	// The field keeps the path; the bridge answers the origin. Comparing the two
+	// raw strings would drop the answer, leaving the address screen on CHECKING
+	// with NEXT disabled; comparing origins lets the success land.
 	await expect.poll(() => bridge.remembered.length).toBeGreaterThan(0);
 	expect(bridge.remembered).toContain('https://zen.tailnet.ts.net:8443');
 	expect(bridge.remembered).not.toContain('https://zen.tailnet.ts.net:8443/library');
@@ -446,14 +456,15 @@ test('a typed whole address with a path pairs at its origin', async ({ page }) =
 test('a whole address typed with its scheme in capitals is probed with one scheme', async ({
 	page
 }) => {
-	// A TV keyboard that capitalises the first letter types Http://. 9B used to
-	// test the scheme with a case-sensitive startsWith and put its own http://
-	// in front, so the bridge was asked about http://HTTP://…, a host named
-	// HTTP, and 9B said NOTHING ANSWERS about a server that was there.
+	// A TV keyboard that capitalises the first letter types Http://. A
+	// case-sensitive startsWith on the scheme would put a second http:// in
+	// front, so the bridge would be asked about http://HTTP://…, a host named
+	// HTTP, and the address screen would say NOTHING ANSWERS about a server that
+	// is there.
 	await stubBridge(page, { hold: true });
 	for (const typed of ['HTTP://Zen.local:42143', 'Http://zen.local:42143']) {
 		await page.goto(page9);
-		await page.keyboard.press('Enter'); // START → 9B
+		await page.keyboard.press('Enter'); // START → the address screen
 		await page.locator('#whole-toggle').focus();
 		await page.keyboard.press('Enter'); // TYPE THE WHOLE ADDRESS
 		await page.locator('#last').fill(typed);
@@ -468,15 +479,15 @@ test('a whole address typed with its scheme in capitals is probed with one schem
 test('CHECKING and the lost line strip a scheme typed in capitals, as a lower-case one', async ({
 	page
 }) => {
-	// 9B's origin() keeps what was typed, capitals included (it tests the scheme
-	// without case since c548). The status line used to strip `http://` with a
-	// case-sensitive replace, so a keyboard that capitalised the first letter
-	// read `CHECKING HTTP://Zen.local:42143…` where a lower-case address read
-	// its host; 9D had the same strip on its title.
+	// The address screen's origin() keeps what was typed, capitals included (it
+	// tests the scheme without case). Stripping `http://` from the status line
+	// with a case-sensitive replace would read `CHECKING HTTP://Zen.local:42143…`
+	// where a lower-case address reads its host; the not-answering screen's
+	// title strips it the same way.
 	const typed = 'HTTP://Zen.local:42143';
 	await stubBridge(page, { hold: true });
 	await page.goto(page9);
-	await page.keyboard.press('Enter'); // START → 9B
+	await page.keyboard.press('Enter'); // START → the address screen
 	await page.locator('#whole-toggle').focus();
 	await page.keyboard.press('Enter'); // TYPE THE WHOLE ADDRESS
 	await page.locator('#last').fill(typed);
@@ -488,8 +499,9 @@ test('CHECKING and the lost line strip a scheme typed in capitals, as a lower-ca
 	await expect(page.locator('#checking')).toHaveText('CHECKING Zen.local:42143…');
 
 	// The answer is the unreachable one, the way a real bridge answers a probe
-	// that found no tsundoku. A failure for the attempt in hand enters 9D, whose
-	// title names the same host, lower-case scheme stripped all the same.
+	// that found no tsundoku. A failure for the attempt in hand enters the
+	// not-answering screen, whose title names the same host, lower-case scheme
+	// stripped all the same.
 	await page.evaluate((at) => window.tsundokuProbe?.(at, false), typed);
 	await expect(page.locator('#lost-title')).toHaveText('○ NOTHING ANSWERS AT Zen.local:42143');
 	await expect(page.locator('#lost-title')).not.toContainText('HTTP://');
@@ -498,15 +510,15 @@ test('CHECKING and the lost line strip a scheme typed in capitals, as a lower-ca
 test('a typed whole address with a query fails at its origin', async ({ page }) => {
 	await stubBridge(page);
 	await page.goto(page9);
-	await page.keyboard.press('Enter'); // START → 9B
+	await page.keyboard.press('Enter'); // START → the address screen
 	await page.locator('#whole-toggle').focus();
 	await page.keyboard.press('Enter'); // TYPE THE WHOLE ADDRESS
 	await page.locator('#last').fill('http://192.168.1.23:42143/?q=1');
 	await page.locator('#next').click();
 
 	// A failure is the same identity question as a success: the query is not
-	// part of the origin, so 9D must name the address that was probed, and the
-	// answer must not be dropped with NEXT left disabled.
+	// part of the origin, so the not-answering screen must name the address that
+	// was probed, and the answer must not be dropped with NEXT left disabled.
 	await expect(page.locator('#retry')).toBeVisible();
 	await expect(page.locator('#lost-title')).toContainText('192.168.1.23:42143');
 	await expect(page.locator('#lost-title')).not.toContainText('q=1');
@@ -516,14 +528,15 @@ test('a typed whole address with a query fails at its origin', async ({ page }) 
 test('a refused address is not replaced by a probe already in flight', async ({ page }) => {
 	const bridge = await stubBridge(page, { hold: true });
 	await page.goto(page9);
-	await page.keyboard.press('Enter'); // START → 9B, the mark on NEXT
+	await page.keyboard.press('Enter'); // START → the address screen, the mark on NEXT
 	await page.keyboard.press('2');
 	await page.keyboard.press('3');
 	await page.keyboard.press('Enter'); // NEXT: the typed probe is held
 	const typed = 'http://192.168.1.23:42143';
 	await expect.poll(() => page.evaluate(() => window.__bridge!.pending)).toBe(typed);
 
-	// A second launch is refused. The band says nothing was saved; 9B is back.
+	// A second launch is refused. The band says nothing was saved; the address
+	// screen is back.
 	await page.evaluate(() => {
 		location.hash = '#bad=' + encodeURIComponent('zen.local:42143');
 	});
@@ -532,7 +545,7 @@ test('a refused address is not replaced by a probe already in flight', async ({ 
 
 	// The probe sent before the refusal now fails. It is an answer for the
 	// attempt the refusal replaced, so its failure must not erase the band and
-	// take the screen to 9D for an address nobody handed in.
+	// take the screen to the not-answering screen for an address nobody handed in.
 	await page.evaluate((at) => window.tsundokuProbe?.(at, false), typed);
 	await page.waitForTimeout(300);
 	await expect(page.locator('#refused')).toBeVisible();
@@ -542,14 +555,16 @@ test('a refused address is not replaced by a probe already in flight', async ({ 
 	expect(bridge.remembered).toEqual([]);
 });
 
-test('a new attempt after a refusal clears the band and can fail to 9D', async ({ page }) => {
+test('a new attempt after a refusal clears the band and can fail to the not-answering screen', async ({
+	page
+}) => {
 	await stubBridge(page);
 	await page.goto(`${page9}#bad=${encodeURIComponent('zen.local:42143')}`);
 	await expect(page.locator('#refused')).toBeVisible();
 
-	// The band describes the refused launch, not the attempt the owner makes
+	// The band describes the refused launch, not the attempt the user makes
 	// next. If it outlived a new probe, the guard above would drop that probe's
-	// failure and leave 9B with NEXT disabled and no way forward.
+	// failure and leave the address screen with NEXT disabled and no way forward.
 	await page.locator('#whole-toggle').click();
 	await page.locator('#last').fill('https://zen.tailnet.ts.net:8443/library');
 	await page.locator('#next').click();
@@ -559,16 +574,19 @@ test('a new attempt after a refusal clears the band and can fail to 9D', async (
 	await expect(page.locator('#lost-title')).not.toContainText('library');
 });
 
-test('a given address after a refusal that does not answer reaches 9D', async ({ page }) => {
+test('a given address after a refusal that does not answer reaches the not-answering screen', async ({
+	page
+}) => {
 	await stubServers(page, three, { [ZEN]: { ok: false } });
 	await page.goto(`${page9}#bad=${encodeURIComponent('ftp://zen.local')}`);
 	await expect(page.locator('#refused')).toBeVisible();
 
-	// The third door into the refusal state. `connect()` hides 9B, and hiding
-	// the screen never hid the band's flag: the guard read the leftover flag as
-	// "a refusal is the current state" and dropped this failure, leaving a bare
-	// CHECKING line over a hidden screen with nothing a remote could press
-	//. A given address owns the band the same way a typed one does.
+	// The third way into the refusal state. `connect()` hides the address
+	// screen, and hiding the screen does not hide the band's flag: a guard that
+	// read the leftover flag as "a refusal is the current state" would drop this
+	// failure, leaving a bare CHECKING line over a hidden screen with nothing a
+	// remote could press. A given address owns the band the same way a typed one
+	// does.
 	await page.evaluate(() => {
 		location.hash = '#connect=' + encodeURIComponent('https://zen.tailnet.ts.net:8443');
 	});
@@ -594,8 +612,8 @@ test('a link after a refusal still pairs at its origin once CONNECT is pressed',
 
 	// Only a *failure* for a superseded attempt is dropped: an address that
 	// answers is the current one and still pairs (Decision 9). Pinned here so
-	// a later tightening of the guard cannot quietly stop a link from pairing
-	//; what c683 adds is the press in the middle.
+	// a later tightening of the guard cannot quietly stop a link from pairing;
+	// the CONNECT press in the middle is the only addition.
 	await page.evaluate(() => {
 		location.hash = '#ask=' + encodeURIComponent('https://zen.tailnet.ts.net:8443');
 	});
@@ -606,7 +624,7 @@ test('a link after a refusal still pairs at its origin once CONNECT is pressed',
 	expect(bridge.remembered).toContain('https://zen.tailnet.ts.net:8443');
 });
 
-// ---- c261: the TV's servers on the app's own screens (S5, S7, S8, S9) --------
+// ---- the TV's servers on the app's own screens ----------------------------
 
 type StubServer = { origin: string; name: string; tvName: string; opened: number };
 type ServersBridge = {
@@ -630,14 +648,14 @@ const ZEN = 'https://zen.tailnet.ts.net:8443';
 const STUDIO = 'http://192.168.1.61:42143';
 
 /**
- * PairingBridge.kt with its c261 list, as Servers.kt answers it: the one in
+ * PairingBridge.kt with its server list, as Servers.kt answers it: the one in
  * use first, `shown` the TV's name, else the server's, else the host. `answers`
  * says which origins a probe finds (anything else does not answer), each
  * after its own delay, so answers can land out of order as on a TV. `hold`
  * keeps an answer until the test gives it (`answerHeld`): a case that asserts
  * the state before an answer (CHECKING) must not race a timer for it, which a
- * loaded box loses (wave 32: S9 read ANSWERS where CHECKING was due, 1 run in
- * 5 at a load of 36-64).
+ * loaded box loses (the not-answering screen read ANSWERS where CHECKING was
+ * due, 1 run in 5 at a load of 36-64).
  */
 async function stubServers(
 	page: Page,
@@ -715,7 +733,7 @@ const three: StubServer[] = [
 	{ origin: STUDIO, name: 'STUDIO-PC', tvName: 'Studio', opened: 1 }
 ];
 
-test('S9: 9D for the one in use offers the others, each probed, OK opening one', async ({
+test('not answering, with other servers: the others are offered, each probed, OK opening one', async ({
 	page
 }) => {
 	// Studio answers first and Masshiro's later, the reverse of the list's
@@ -742,7 +760,8 @@ test('S9: 9D for the one in use offers the others, each probed, OK opening one',
 	await expect(rows.nth(0).locator('.st')).toHaveText('ANSWERS');
 	await expect(rows.nth(0).locator('.g')).toHaveText('●');
 	await expect(rows.nth(1).locator('.g')).toHaveText('○');
-	// An answer for another row is not the attempt's: 9D stays, for HOME.
+	// An answer for another row is not the attempt's: the not-answering screen
+	// stays, for HOME.
 	await expect(page.locator('#retry')).toBeVisible();
 	expect(await page.evaluate(() => window.__servers!.opened)).toEqual([]);
 
@@ -756,7 +775,7 @@ test('S9: 9D for the one in use offers the others, each probed, OK opening one',
 	await page.keyboard.press('Enter');
 	expect(await page.evaluate(() => window.__servers!.opened)).toEqual([ZEN]);
 
-	// The frame's measurements (TV-Servers.dc.html, lost): the reasons at
+	// The design's measurements: the reasons at
 	// 48 for 500, the others at 580 for 332, rows 72 high, buttons at 416.
 	const box = async (sel: string) => (await page.locator(sel).first().boundingBox())!;
 	const main = await box('main');
@@ -777,11 +796,13 @@ test('S9: 9D for the one in use offers the others, each probed, OK opening one',
 	expect((await box('#retry')).y + 56 - main.y).toBeLessThanOrEqual(540);
 });
 
-test("S9: 9D's 5 s retries keep the mark on another server and its answer", async ({ page }) => {
+test('not answering, with other servers: the 5 s retries keep the mark on another server and its answer', async ({
+	page
+}) => {
 	// HOME never answers, so the 5 s retry fails again and again. A failure
-	// for the attempt already on 9D is a count, not a new 9D: rebuilding it
-	// took the mark back to TRY AGAIN, put every row back to CHECKING and
-	// probed every other server again, on every tick.
+	// for the attempt already on the not-answering screen is a count, not a new
+	// screen: rebuilding it would take the mark back to TRY AGAIN, put every row
+	// back to CHECKING and probe every other server again, on every tick.
 	// Paused, so only runFor moves time: a slow assertion must not add a tick.
 	// install() starts a running clock (Playwright's reference: install before
 	// navigating and let `Date.now` progress while the page loads, then pause).
@@ -808,7 +829,7 @@ test("S9: 9D's 5 s retries keep the mark on another server and its answer", asyn
 	// A marker on the node itself: a rebuilt row is another element.
 	await rows.nth(0).evaluate((el) => (el.dataset.kept = 'yes'));
 
-	// 5.2 s: the first tick's probe failed at 5.05 s. A rebuilt 9D would show
+	// 5.2 s: the first tick's probe failed at 5.05 s. A rebuilt screen would show
 	// the others CHECKING until their own probes answer again (ZEN's at 5.35).
 	await page.clock.runFor(4200);
 	await expect(page.locator('#lost-meta')).toContainText('TRIED 1 TIME ');
@@ -823,9 +844,9 @@ test("S9: 9D's 5 s retries keep the mark on another server and its answer", asyn
 	await expect.soft(rows.nth(0).locator('.st')).toHaveText('ANSWERS');
 	await expect.soft(rows.nth(1).locator('.st')).toHaveText('NO ANSWER');
 	await expect.soft(rows).toHaveCount(2);
-	// Soft, so a run against a 9D that rebuilds itself names every one it breaks.
+	// Soft, so a run against a screen that rebuilds itself names every one it breaks.
 	const probes = await page.evaluate(() => window.__servers!.probes);
-	// Each other server once, on entering 9D; HOME on each of the two ticks.
+	// Each other server once, on entering the screen; HOME on each of the two ticks.
 	expect.soft(probes.filter((p) => p === ZEN)).toHaveLength(1);
 	expect.soft(probes.filter((p) => p === STUDIO)).toHaveLength(1);
 	expect.soft(probes.filter((p) => p === HOME)).toHaveLength(2);
@@ -835,7 +856,7 @@ test("S9: 9D's 5 s retries keep the mark on another server and its answer", asyn
 	expect(await page.evaluate(() => window.__servers!.opened)).toEqual([ZEN]);
 });
 
-test('9D with one server is 9D as before c261: no others, the reasons full width', async ({
+test('the not-answering screen with one server lists no others, the reasons full width', async ({
 	page
 }) => {
 	await stubServers(page, [three[0]]);
@@ -849,7 +870,7 @@ test('9D with one server is 9D as before c261: no others, the reasons full width
 	expect((await page.locator('#retry').boundingBox())!.y - main.y).toBe(392);
 });
 
-test('S7: ADD A SERVER is 9B naming who is here, and BACK returns to the library', async ({
+test('ADD A SERVER is the address screen naming who is here, and BACK returns to the library', async ({
 	page
 }) => {
 	await stubServers(page, three);
@@ -871,21 +892,25 @@ test('S7: ADD A SERVER is 9B naming who is here, and BACK returns to the library
 	expect(await page.evaluate(() => window.__servers!.remembered)).toEqual([]);
 });
 
-test('S7: an address already in the list opens it instead of pairing', async ({ page }) => {
+test('ADD A SERVER: an address already in the list opens it instead of pairing', async ({
+	page
+}) => {
 	await stubServers(page, three);
 	await page.goto(`${page9}#add`);
 	await page.keyboard.press('6');
 	await page.keyboard.press('1');
 	await page.keyboard.press('Enter'); // NEXT →
 	await expect(page.locator('#already')).toHaveText('ALREADY IN SERVERS AS STUDIO · OPENING');
-	// The band moves the column down, as every band on 9B does.
+	// The band moves the column down, as every band on the address screen does.
 	await expect(page.locator('#address')).toHaveClass(/with-band/);
 	await expect.poll(() => page.evaluate(() => window.__servers!.opened)).toEqual([STUDIO]);
 	expect(await page.evaluate(() => window.__servers!.probes)).toEqual([]);
 	expect(await page.evaluate(() => window.__servers!.remembered)).toEqual([]);
 });
 
-test('S7: a new address that answers is added and goes to its pairing', async ({ page }) => {
+test('ADD A SERVER: a new address that answers is added and goes to its pairing', async ({
+	page
+}) => {
 	const fresh = 'http://192.168.1.77:42143';
 	await stubServers(page, three, { [fresh]: { ok: true } });
 	await page.goto(`${page9}#add`);
@@ -903,7 +928,9 @@ test('a given address already in the list opens its library once it answers', as
 	expect(await page.evaluate(() => window.__servers!.remembered)).toEqual([]);
 });
 
-test("9D's server back opens its library, not its pairing again", async ({ page }) => {
+test("the not-answering screen's server back opens its library, not its pairing again", async ({
+	page
+}) => {
 	await stubServers(page, three, { [HOME]: { ok: true } });
 	await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
 	await page.locator('#retry').click();
@@ -932,7 +959,7 @@ test('CHANGE THE ADDRESS on a server in the list gives that entry its new addres
 	expect(moves).toEqual([[HOME, moved]]);
 });
 
-test('S8: after an add, the app says who is still here, OPEN focused', async ({ page }) => {
+test('after an add, the app says who is still here, OPEN focused', async ({ page }) => {
 	await stubServers(page, [three[0], { origin: ZEN, name: 'ZEN', tvName: '', opened: 0 }]);
 	await page.goto(`${page9}#added=${encodeURIComponent(ZEN)}`);
 	await expect(page.locator('#step')).toHaveText('ADDED · 2 SERVERS');
@@ -953,7 +980,9 @@ test('S8: after an add, the app says who is still here, OPEN focused', async ({ 
 	expect(await page.evaluate(() => window.__servers!.opened)).toEqual([ZEN]);
 });
 
-test('S5: RENAME from S8 keeps the name on the TV and comes back to S8', async ({ page }) => {
+test('RENAME from the added page keeps the name on the TV and comes back to it', async ({
+	page
+}) => {
 	await stubServers(page, [three[0], { origin: ZEN, name: 'ZEN', tvName: '', opened: 0 }]);
 	await page.goto(`${page9}#added=${encodeURIComponent(ZEN)}`);
 	await page.keyboard.press('ArrowRight');
@@ -980,7 +1009,7 @@ test('S5: RENAME from S8 keeps the name on the TV and comes back to S8', async (
 	expect(await page.evaluate(() => window.__servers!.list[1].tvName)).toBe("Masshiro's");
 });
 
-test('S5: RENAME from the library goes back to the library, saved or not', async ({ page }) => {
+test('RENAME from the library goes back to the library, saved or not', async ({ page }) => {
 	await stubServers(page, three);
 	await page.goto(`${page9}#rename=${encodeURIComponent(ZEN)}`);
 	await expect(page.locator('#rename-field')).toHaveValue("Masshiro's");
@@ -995,9 +1024,10 @@ test('S5: RENAME from the library goes back to the library, saved or not', async
 	expect(await page.evaluate(() => window.__servers!.list[2].tvName)).toBe('');
 });
 
-test('a page with no list behaves as before c261: no others, no ADD mode', async ({ page }) => {
+test('a page with no list offers no others and no ADD mode', async ({ page }) => {
 	// An older bridge has no servers(): stubBridge is that bridge. With no list
-	// a #lost= asks, so 9D is reached by the door such a page still has:
+	// a #lost= asks, so the not-answering screen is reached the one way such a
+	// page still has:
 	// an address typed here that does not answer.
 	await stubBridge(page);
 	await page.goto(page9);
@@ -1009,9 +1039,9 @@ test('a page with no list behaves as before c261: no others, no ADD mode', async
 	await expect(page.locator('#lost-title')).toHaveText('○ NOTHING ANSWERS AT 192.168.1.23:42143');
 });
 
-// ---- c685: a door the page acted on is not taken again by a history step ----
+// ---- a fragment the page acted on is not taken again by a history step ----
 
-/** A server nobody else in this file pairs, for c685's replays. */
+/** A server nobody else in this file pairs, for the replays below. */
 const GONE = 'http://192.168.1.88:42143';
 /** The launch's token, as `MainActivity.loadAsset` writes it into the URL. */
 const TOKEN = '6a1f0c9e-2b7d-4a55-9d1e-3f8c0b2a7e64';
@@ -1155,7 +1185,8 @@ test('a history step into an old #connect= entry checks nothing again', async ({
 	// which carries the app's own token.
 	await stepBack(page);
 	await page.waitForURL(`${page9}?t=${TOKEN}`);
-	// The entry is the pair page with no door in it: 9A, and nothing checked.
+	// The entry is the pair page with no fragment in it: the first screen, and
+	// nothing checked.
 	await expect(page.locator('#start')).toBeVisible();
 	await expect(page.locator('#connect')).toBeHidden();
 	expect(across.probes).toEqual([HOME]);
@@ -1171,9 +1202,9 @@ test('a history step into an old #lost= entry does not bring a forgotten server 
 		...three,
 		{ origin: GONE, name: '', tvName: '', opened: 0 }
 	]);
-	// 9D for a server that does not answer, then nobody waits on it: the owner
-	// forgets it, and another server opens (an app load, which leaves a history
-	// entry of its own).
+	// The not-answering screen for a server that does not answer, then nobody
+	// waits on it: the user forgets it, and another server opens (an app load,
+	// which leaves a history entry of its own).
 	across.answers.set(GONE, false);
 	await page.goto(`${page9}?t=${TOKEN}#lost=${encodeURIComponent(GONE)}`);
 	await expect(page.locator('#lost-title')).toContainText('192.168.1.88:42143');
@@ -1183,8 +1214,9 @@ test('a history step into an old #lost= entry does not bring a forgotten server 
 	await page.goto(`${HOME}/`);
 
 	// It answers now, and it has been forgotten. The entry lost its fragment, so
-	// a step back into it is 9A: neither 9D nor the question a replayed #lost=
-	// would now put up for an address the list no longer holds.
+	// a step back into it is the first screen: neither the not-answering screen
+	// nor the question a replayed #lost= would now put up for an address the
+	// list no longer holds.
 	across.answers.set(GONE, true);
 	await stepBack(page);
 	await page.waitForURL(`${page9}?t=${TOKEN}`);
@@ -1213,7 +1245,7 @@ test('a second launch with the same address is taken again once the first has cl
 	expect(await page.evaluate(() => location.search)).toBe(`?t=${TOKEN}`);
 });
 
-// ---- c683: an address that arrived by a link waits for the owner ------------
+// ---- an address that arrived by a link waits for the user -------------------
 
 /** Everything the page has asked the bridge, read at once. */
 const asked = (page: Page) =>
@@ -1238,7 +1270,7 @@ test('a link shows its address and stores nothing until CONNECT, then once', asy
 	const navigations = await holdPairing(page);
 	await page.goto(`${page9}?t=${TOKEN}#ask=${encodeURIComponent(LINKED)}`);
 
-	// 9B, the field filled, saying where the address came from.
+	// The address screen, the field filled, saying where the address came from.
 	await expect(page.locator('#next')).toBeVisible();
 	await expect(page.locator('#last')).toHaveValue(LINKED);
 	await expect(page.locator('#already-line')).toContainText('CAME FROM A LINK');
@@ -1271,7 +1303,8 @@ test('the stray OK a link was opened with does not answer the question', async (
 
 	await page.keyboard.press('Enter');
 
-	// The way out: 9B as START leaves it, with nothing of the link in it.
+	// The way out: the address screen as START leaves it, with nothing of the
+	// link in it.
 	await expect(page.locator('#already')).toBeHidden();
 	await expect(page.locator('#last')).toHaveValue('');
 	await expect(page.locator('#next')).toHaveText('NEXT →');
@@ -1301,7 +1334,7 @@ test('an #ask= that is not http(s) is refused, and nothing is asked', async ({ p
 	expect(await asked(page)).toEqual({ probes: [], remembered: [] });
 });
 
-test('a link leaves its entry without the fragment, and a history step shows 9A', async ({
+test('a link leaves its entry without the fragment, and a history step shows the first screen', async ({
 	page
 }) => {
 	const across = await stubAcross(page, three);
@@ -1310,7 +1343,7 @@ test('a link leaves its entry without the fragment, and a history step shows 9A'
 	expect(await page.evaluate(() => location.hash)).toBe('');
 	expect(page.url()).toBe(`${page9}?t=${TOKEN}`);
 
-	// The owner went elsewhere without answering. Any page the WebView shows
+	// The user went elsewhere without answering. Any page the WebView shows
 	// can step back here, and the entry must not put the question up again.
 	await page.goto(`${HOME}/`);
 	await stepBack(page);
@@ -1328,7 +1361,7 @@ test('a second link with the same address asks again; one with another replaces 
 	await page.goto(`${page9}?t=${TOKEN}#ask=${encodeURIComponent(GONE)}`);
 	await expect(page.locator('#last')).toHaveValue(GONE);
 
-	// The owner cleared the field; the same link again is a fragment change,
+	// The user cleared the field; the same link again is a fragment change,
 	// because the first left the entry without one, so the question returns.
 	await page.locator('#last').fill('');
 	await page.evaluate((at) => {
@@ -1398,7 +1431,7 @@ test('CONNECT is not swallowed by a late answer for the same address', async ({ 
 	await page.evaluate((at) => window.tsundokuProbe?.(at, true), LINKED);
 	expect(bridge.remembered).toEqual([]);
 
-	// Inside that window, the owner answers. Dropping this answer too would
+	// Inside that window, the user answers. Dropping this answer too would
 	// leave CHECKING up and CONNECT disabled for good.
 	await page.locator('#next').click();
 	await expect.poll(() => page.evaluate(() => window.__bridge!.probes.length)).toBe(2);
@@ -1431,7 +1464,7 @@ test('CONNECT pressed twice asks once and stores once', async ({ page }) => {
 	await expect.poll(() => bridge.remembered).toEqual([LINKED]);
 });
 
-test('CONNECT to an address that does not answer reaches 9D and stores nothing yet', async ({
+test('CONNECT to an address that does not answer reaches the not-answering screen and stores nothing yet', async ({
 	page
 }) => {
 	const bridge = await stubBridge(page, { hold: true });
@@ -1445,15 +1478,18 @@ test('CONNECT to an address that does not answer reaches 9D and stores nothing y
 	await expect(page.locator('#lost-title')).toContainText('library.example.com:8443');
 	expect(bridge.remembered).toEqual([]);
 
-	// 9D's own TRY AGAIN, past the page's 2 s window: the owner pressed
-	// CONNECT for this address, so its answering now is what was asked for.
+	// The not-answering screen's own TRY AGAIN, past the page's 2 s window: the
+	// user pressed CONNECT for this address, so its answering now is what was
+	// asked for.
 	await page.waitForTimeout(2100);
 	await page.locator('#retry').click();
 	await page.evaluate((at) => window.tsundokuProbe?.(at, true), LINKED);
 	await expect.poll(() => bridge.remembered).toEqual([LINKED]);
 });
 
-test('a refusal over the question leaves 9B as it was, not half a question', async ({ page }) => {
+test('a refusal over the question leaves the address screen as it was, not half a question', async ({
+	page
+}) => {
 	await stubBridge(page, { answer: true });
 	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
 	await expect(page.locator('#already')).toBeVisible();
@@ -1510,10 +1546,10 @@ const pressBack = (page: Page) =>
  * on until that navigation commits, and a slow library leaves the probe's whole
  * 6 s for an answer to land in. So `open()` here records and stays, as the real
  * document does, and the probe is held until BACK has been pressed. With no
- * server BACK is the app's (`false`): since c859 that first press only toasts
+ * server BACK is the app's (`false`): that first press only toasts
  * and this page stays up, and the answer must be dropped all the same, because
  * the screen said BACK leaves without saving. The cases after this loop go on
- * from there, to what the owner can still do on the page that stayed.
+ * from there, to what the user can still do on the page that stayed.
  */
 for (const { where, list, backed, opened } of [
 	{ where: 'with a server in use', list: three, backed: true, opened: [HOME] },
@@ -1544,13 +1580,13 @@ for (const { where, list, backed, opened } of [
 			expect(across.probes).toEqual([LINKED]);
 		});
 
-// ---- c859: the BACK that used to end the app now leaves the page standing -----
+// ---- a BACK that does not end the app leaves the page standing --------------
 
 type Counted = { __answers: number; tsundokuProbe: (at: string, ok: boolean) => void };
 
 /**
  * The question with CONNECT pressed and its probe held, and no server to go
- * back to: a fresh TV or phone that opened a link. [typed] is the owner's
+ * back to: a fresh TV or phone that opened a link. [typed] is the user's
  * correction of the field, which keeps a path and capitals where the bridge's
  * answer never does (`PairingBridge.probe` hands back `Address.originOf`).
  */
@@ -1653,7 +1689,7 @@ test('BACK while CONNECT is checking, no server: a late answer landing after the
 	expect(navigations).toEqual([`${LINKED}/pair/tv`]);
 });
 
-test('BACK while CONNECT is checking, no server: a late failure landing after the second CONNECT reaches 9D, whose retry still pairs', async ({
+test('BACK while CONNECT is checking, no server: a late failure landing after the second CONNECT reaches the not-answering screen, whose retry still pairs', async ({
 	page
 }) => {
 	const { across, navigations } = await checkingWithNoServer(page);
@@ -1666,7 +1702,8 @@ test('BACK while CONNECT is checking, no server: a late failure landing after th
 	expect(across.remembered).toEqual([]);
 
 	// The second CONNECT's own answer, inside the 2 s window: the page has
-	// already said what it knows, and 9D's retry is what asks again.
+	// already said what it knows, and the not-answering screen's retry is what
+	// asks again.
 	across.release(true);
 	await expect.poll(() => answersLanded(page)).toBe(2);
 	await settleAnswer(page);
@@ -1699,7 +1736,7 @@ test('BACK again on the question it put back answers false and changes nothing',
 });
 
 for (const typed of [`${LINKED}/shelf`, 'HTTPS://Library.Example.com:8443'])
-	test(`a late answer does not swallow the next CONNECT when the owner corrected the field to ${typed}`, async ({
+	test(`a late answer does not swallow the next CONNECT when the user corrected the field to ${typed}`, async ({
 		page
 	}) => {
 		const { across, navigations } = await checkingWithNoServer(page, typed);
@@ -1733,7 +1770,7 @@ test('with the remote throughout, the mark goes back to CONNECT and OK presses i
 	expect(navigations).toEqual([]);
 });
 
-test('BACK while checking leaves a mark the owner already moved off CONNECT', async ({ page }) => {
+test('BACK while checking leaves a mark the user already moved off CONNECT', async ({ page }) => {
 	const { across, navigations } = await checkingWithNoServer(page);
 	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#last')).toBeFocused();
@@ -1756,7 +1793,7 @@ test('BACK on a question nobody pressed CONNECT on leaves the mark where it was'
 	expect(across.probes).toEqual([]);
 });
 
-// ---- c683, round 2: #lost= is a fragment too -------------------------------
+// ---- #lost= is a fragment too ----------------------------------------------
 
 test('a #lost= for an origin not in the list asks: no probe and no remember until CONNECT, then one of each', async ({
 	page
@@ -1772,7 +1809,8 @@ test('a #lost= for an origin not in the list asks: no probe and no remember unti
 	await expect(page.locator('#retry')).toBeHidden();
 	expect(page.url()).toBe(`${page9}?t=${TOKEN}`);
 
-	// One 9D retry tick is 5 s, and that tick is what used to store it.
+	// One retry tick of the not-answering screen is 5 s, and that tick is what
+	// would store it.
 	await page.waitForTimeout(5600);
 	expect(across.probes).toEqual([]);
 	expect(across.remembered).toEqual([]);
@@ -1784,7 +1822,7 @@ test('a #lost= for an origin not in the list asks: no probe and no remember unti
 	await expect.poll(() => navigations).toEqual([`${LINKED}/pair/tv`]);
 });
 
-test('a #lost= for a server in the list still reaches 9D, retries, and opens it', async ({
+test('a #lost= for a server in the list still reaches the not-answering screen, retries, and opens it', async ({
 	page
 }) => {
 	const across = await stubAcross(page, three);
@@ -1818,7 +1856,7 @@ test('a #lost= that is not http(s) is refused, and nothing is asked', async ({ p
 	expect(across.probes).toEqual([]);
 });
 
-test('a server remembered just before its /pair/tv failed is in the list: 9D, stored once', async ({
+test('a server remembered just before its /pair/tv failed is in the list: the not-answering screen, stored once', async ({
 	page
 }) => {
 	const across = await stubAcross(page, three);
@@ -1841,7 +1879,9 @@ test('a server remembered just before its /pair/tv failed is in the list: 9D, st
 	expect(across.remembered).toEqual([LINKED]);
 });
 
-test('a #lost= that asks stops the retry of the 9D it replaces', async ({ page }) => {
+test('a #lost= that asks stops the retry of the not-answering screen it replaces', async ({
+	page
+}) => {
 	const across = await stubAcross(page, three);
 	across.answers.set(HOME, false);
 	await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
@@ -1856,7 +1896,7 @@ test('a #lost= that asks stops the retry of the 9D it replaces', async ({ page }
 	await expect(page.locator('#retry')).toBeHidden();
 });
 
-// ---- c683, round 3: the 80-character limit holds in the page ----------------
+// ---- the 80-character limit holds in the page ------------------------------
 
 /** An origin of exactly `length` characters. */
 const originOfLength = (length: number) => {
@@ -1886,7 +1926,8 @@ test('a #lost= over 80 characters for an origin not in the list is refused, a re
 	await refusedAndNothingAsked();
 	expect(page.url()).toBe(`${page9}?t=${TOKEN}`);
 
-	// One 9D retry tick is 5 s, which is what would have probed it.
+	// One retry tick of the not-answering screen is 5 s, which is what would
+	// have probed it.
 	await page.waitForTimeout(5600);
 	await refusedAndNothingAsked();
 });
@@ -1902,7 +1943,7 @@ test('a #lost= of exactly 80 characters for an origin not in the list asks', asy
 	expect(across.remembered).toEqual([]);
 });
 
-test('a #lost= over 80 characters for a server in the list still reaches 9D and retries', async ({
+test('a #lost= over 80 characters for a server in the list still reaches the not-answering screen and retries', async ({
 	page
 }) => {
 	const across = await stubAcross(page, [
@@ -1945,8 +1986,9 @@ const setHash = (page: Page, door: string, at: string) =>
 		{ door, at }
 	);
 
-// Every door to the question, and #long=, the activity's own for Given.door's
-// refusal: each says the real reason, stores nothing, and BACK stays the app's.
+// Every fragment that asks the question, and #long=, the activity's own for
+// Given.door's refusal: each says the real reason, stores nothing, and BACK
+// stays the app's.
 for (const door of ['ask', 'connect', 'lost', 'long'])
 	test(`a #${door}= over 80 characters says why it was refused, and asks nothing`, async ({
 		page
@@ -2005,8 +2047,8 @@ test('the reason fits beside NOTHING WAS SAVED at a TV’s width, uncut', async 
 	expect(first + room.gap + why).toBeLessThanOrEqual(room.inner);
 });
 
-// The same address twice: the door is settled, so the second is a hashchange and
-// is refused again, once the owner's own attempt has taken the first band away.
+// The same address twice: the fragment is settled, so the second is a hashchange
+// and is refused again, once the user's own attempt has taken the first band away.
 for (const door of ['ask', 'connect', 'lost', 'long'])
 	test(`a #${door}= over 80 characters handed in twice is refused twice`, async ({ page }) => {
 		const across = await stubAcross(page, three);
@@ -2027,7 +2069,9 @@ for (const door of ['ask', 'connect', 'lost', 'long'])
 	});
 
 for (const door of ['lost', 'long'])
-	test(`a #${door}= over 80 characters stops the retry of the 9D it replaces`, async ({ page }) => {
+	test(`a #${door}= over 80 characters stops the retry of the not-answering screen it replaces`, async ({
+		page
+	}) => {
 		const across = await stubAcross(page, three);
 		across.answers.set(HOME, false);
 		await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
@@ -2041,8 +2085,8 @@ for (const door of ['lost', 'long'])
 		await expect(page.locator('#refused')).toBeVisible();
 	});
 
-// A refusal does not take back a CONNECT the owner already pressed: only a late
-// failure is dropped, and a success still pairs (doc/ANDROID.md).
+// A refusal does not take back a CONNECT the user already pressed: only a late
+// failure is dropped, and a success still pairs (doc/TV-APP.md, Decision 9).
 for (const ok of [true, false])
 	test(`a link over 80 characters while CONNECT is checking: a late ${ok ? 'answer pairs what was pressed' : 'failure leaves the refusal'}`, async ({
 		page
@@ -2095,7 +2139,7 @@ test('a #connect= over 80 characters for a server in the list opens it, with no 
 	await expect(page.locator('#already')).toBeHidden();
 });
 
-test('a typed whole address stops at the field’s 80 and is not a door to the question', async ({
+test('a typed whole address stops at the field’s 80 and does not ask the question', async ({
 	page
 }) => {
 	const across = await stubAcross(page, three);
@@ -2113,7 +2157,8 @@ test('the question fits a TV: the band whole, an 80-character address over the b
 	page
 }) => {
 	await stubBridge(page, { answer: true });
-	// The longest an address gets here (Given.MAX_ASKED, 9B's own maxLength).
+	// The longest an address gets here (Given.MAX_ASKED, the address screen's
+	// own maxLength).
 	const longest = 'https://' + 'a'.repeat(40) + '.' + 'b'.repeat(19) + '.example.net';
 	expect(longest.length).toBe(80);
 	await page.goto(`${page9}#ask=${encodeURIComponent(longest)}`);
@@ -2132,7 +2177,8 @@ test('the question fits a TV: the band whole, an 80-character address over the b
 	expect(sits.overNext).toBeGreaterThan(0);
 	expect(sits.overToggle).toBeGreaterThan(0);
 
-	// And the column sits under the band, as with every band on 9B.
+	// And the column sits under the band, as with every band on the address
+	// screen.
 	const band = await page.locator('#already').evaluate((el) => el.getBoundingClientRect().bottom);
 	const label = await page
 		.locator('.address-label')
@@ -2140,9 +2186,9 @@ test('the question fits a TV: the band whole, an 80-character address over the b
 	expect(label).toBeGreaterThanOrEqual(band);
 });
 
-// ---- c863: the hint under the longest address -------------------------------
+// ---- the hint under the longest address -------------------------------------
 
-/** 9B's ordinary hint, the whole-address one: what "the usual gap" is measured on. */
+/** The address screen's ordinary hint, the whole-address one: what "the usual gap" is measured on. */
 async function usualGap(page: Page): Promise<number> {
 	await page.goto(page9);
 	await page.keyboard.press('Enter'); // START →
@@ -2156,7 +2202,7 @@ async function usualGap(page: Page): Promise<number> {
 
 /**
  * The addresses the limit allows, by how the line can break in them: the wrap
- * is what c863 is about, so each shape is here, and the 79 beside the 80.
+ * is what breaks, so each shape is here, and the 79 beside the 80.
  */
 const NO_BREAK = 'https://' + 'a'.repeat(60) + '.example.net';
 const HYPHENS = 'https://' + 'ab-'.repeat(19) + 'cde.example.net';

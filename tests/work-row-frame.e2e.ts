@@ -9,9 +9,9 @@ import { expect, readerReady, test } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
- * The series screen's WORK row (W5, Work-Row.dc.html, all three slices).
+ * The series screen's WORK row.
  *
- * The frame assertions below are design-tools/gen-conformance output pinned
+ * The frame assertions below are the conformance generator's output pinned
  * from the board; the preamble that seeds a database, serves the build on its
  * own port and opens each of the board's three states is hand-written, and
  * regenerating drops it (doc/WORKS.md, "The frames").
@@ -51,12 +51,12 @@ const workIds = { mid: 0, read: 0 };
 test.use({ baseURL: base });
 
 test.beforeAll(async () => {
-	// The hook waits up to 60 s for its own preview to answer, after seeding a database and writing two Works into it:
-	// past the default 30 s on a loaded box, where the hook ran out in wave
-	// 24's first gate, as `work-end-frame`'s did in wave 20's.
-	// Measured in wave 25 at a load of about 30 (the works-frame project, 3
-	// copies): 3.3-4.4 s. So 60 s for the preview plus 30 s for the seed. In a hook, test.setTimeout sets the
-	// hook's own budget (Playwright's test.d.ts, "Changing timeout for a
+	// The hook waits up to 60 s for its own preview to answer, after seeding a
+	// database and writing two Works into it: past the default 30 s on a loaded
+	// box, where the hook has run out, as `work-end-frame`'s has. Measured at a
+	// load of about 30 (the works-frame project, 3 copies): 3.3-4.4 s. So 60 s
+	// for the preview plus 30 s for the seed. In a hook, test.setTimeout sets
+	// the hook's own budget (Playwright's test.d.ts, "Changing timeout for a
 	// beforeAll").
 	test.setTimeout(90_000);
 	rmSync(dbPath, { force: true });
@@ -160,7 +160,7 @@ const SEL = {
 	takeOutRow: '.sheet form.prow >> nth=1'
 };
 
-test("The series screen's WORK row: cta matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: cta matches the design", async ({ page }) => {
 	await openMid(page);
 	await expect(page.locator(SEL.cta)).toBeVisible();
 
@@ -191,7 +191,7 @@ test("The series screen's WORK row: cta matches the handoff", async ({ page }) =
 	expect(ctaStyle.letterSpacing).toBe('0.6px');
 });
 
-test("The series screen's WORK row: workRow matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: workRow matches the design", async ({ page }) => {
 	await openMid(page);
 	await expect(page.locator(SEL.workRow)).toBeVisible();
 
@@ -210,7 +210,7 @@ test("The series screen's WORK row: workRow matches the handoff", async ({ page 
 	expect(workRowStyle.minHeight).toBe('64px');
 });
 
-test("The series screen's WORK row: workLabel matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: workLabel matches the design", async ({ page }) => {
 	await openMid(page);
 	await expect(page.locator(SEL.workLabel)).toBeVisible();
 
@@ -235,7 +235,7 @@ test("The series screen's WORK row: workLabel matches the handoff", async ({ pag
 	expect(workLabelStyle.letterSpacing).toBe('0.72px');
 });
 
-test("The series screen's WORK row: workLk matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: workLk matches the design", async ({ page }) => {
 	await openMid(page);
 	await expect(page.locator(SEL.workLk)).toBeVisible();
 
@@ -264,7 +264,7 @@ test("The series screen's WORK row: workLk matches the handoff", async ({ page }
 	expect(workLkStyle.paddingLeft).toBe('14px');
 });
 
-test("The series screen's WORK row: workTitle matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: workTitle matches the design", async ({ page }) => {
 	await openMid(page);
 	await expect(page.locator(SEL.workTitle)).toBeVisible();
 
@@ -283,7 +283,7 @@ test("The series screen's WORK row: workTitle matches the handoff", async ({ pag
 	expect(workTitleStyle.lineHeight).toBe('19.5px');
 });
 
-test("The series screen's WORK row: workMeta matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: workMeta matches the design", async ({ page }) => {
 	await openMid(page);
 	await expect(page.locator(SEL.workMeta)).toBeVisible();
 
@@ -300,7 +300,7 @@ test("The series screen's WORK row: workMeta matches the handoff", async ({ page
 	expect(workMetaStyle.lineHeight).toBe('17.55px');
 });
 
-test("The series screen's WORK row: workPrev matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: workPrev matches the design", async ({ page }) => {
 	await openMid(page);
 	await expect(page.locator(SEL.workPrev)).toBeVisible();
 
@@ -323,7 +323,7 @@ test("The series screen's WORK row: workPrev matches the handoff", async ({ page
 	expect(workPrevStyle.fontWeight).toBe('500');
 });
 
-test("The series screen's WORK row: quietCta matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: quietCta matches the design", async ({ page }) => {
 	await openRead(page);
 	await expect(page.locator(SEL.quietCta)).toBeVisible();
 
@@ -356,7 +356,7 @@ test("The series screen's WORK row: quietCta matches the handoff", async ({ page
 	expect(quietCtaStyle.letterSpacing).toBe('0.6px');
 });
 
-test("The series screen's WORK row: accentRow matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: accentRow matches the design", async ({ page }) => {
 	await openRead(page);
 	await expect(page.locator(SEL.accentRow)).toBeVisible();
 
@@ -375,7 +375,7 @@ test("The series screen's WORK row: accentRow matches the handoff", async ({ pag
 	expect(accentRowStyle.minHeight).toBe('64px');
 });
 
-test("The series screen's WORK row: accentLabel matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: accentLabel matches the design", async ({ page }) => {
 	await openRead(page);
 	await expect(page.locator(SEL.accentLabel)).toBeVisible();
 
@@ -400,7 +400,7 @@ test("The series screen's WORK row: accentLabel matches the handoff", async ({ p
 	expect(accentLabelStyle.letterSpacing).toBe('0.72px');
 });
 
-test("The series screen's WORK row: accentCell matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: accentCell matches the design", async ({ page }) => {
 	await openRead(page);
 	await expect(page.locator(SEL.accentCell)).toBeVisible();
 
@@ -429,7 +429,7 @@ test("The series screen's WORK row: accentCell matches the handoff", async ({ pa
 	expect(accentCellStyle.letterSpacing).toBe('0.52px');
 });
 
-test("The series screen's WORK row: sheetHead matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: sheetHead matches the design", async ({ page }) => {
 	await openSheet(page);
 	await expect(page.locator(SEL.sheetHead)).toBeVisible();
 
@@ -448,7 +448,7 @@ test("The series screen's WORK row: sheetHead matches the handoff", async ({ pag
 	expect(sheetHeadStyle.borderBottomWidth).toBe('1px');
 });
 
-test("The series screen's WORK row: openRow matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: openRow matches the design", async ({ page }) => {
 	await openSheet(page);
 	await expect(page.locator(SEL.openRow)).toBeVisible();
 
@@ -467,7 +467,7 @@ test("The series screen's WORK row: openRow matches the handoff", async ({ page 
 	expect(openRowStyle.minHeight).toBe('64px');
 });
 
-test("The series screen's WORK row: openLabel matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: openLabel matches the design", async ({ page }) => {
 	await openSheet(page);
 	await expect(page.locator(SEL.openLabel)).toBeVisible();
 
@@ -492,7 +492,7 @@ test("The series screen's WORK row: openLabel matches the handoff", async ({ pag
 	expect(openLabelStyle.letterSpacing).toBe('0.72px');
 });
 
-test("The series screen's WORK row: openCell matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: openCell matches the design", async ({ page }) => {
 	await openSheet(page);
 	await expect(page.locator(SEL.openCell)).toBeVisible();
 
@@ -521,7 +521,7 @@ test("The series screen's WORK row: openCell matches the handoff", async ({ page
 	expect(openCellStyle.letterSpacing).toBe('0.52px');
 });
 
-test("The series screen's WORK row: moveRow matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: moveRow matches the design", async ({ page }) => {
 	await openSheet(page);
 	await expect(page.locator(SEL.moveRow)).toBeVisible();
 
@@ -540,7 +540,7 @@ test("The series screen's WORK row: moveRow matches the handoff", async ({ page 
 	expect(moveRowStyle.minHeight).toBe('64px');
 });
 
-test("The series screen's WORK row: takeOutRow matches the handoff", async ({ page }) => {
+test("The series screen's WORK row: takeOutRow matches the design", async ({ page }) => {
 	await openSheet(page);
 	await expect(page.locator(SEL.takeOutRow)).toBeVisible();
 
@@ -672,8 +672,8 @@ test('the sheet: MOVE reorders the run, and TAKE OUT leaves it with a band and U
 test('on a phone the row keeps the board’s height and its ← → cells drop to 44px', async ({
 	page
 }) => {
-	// Work-Row's note: "ON A PHONE THE ROW IS THE SAME 52PX ROW, AND THE ← → CELLS
-	// DROP INTO IT AT 44PX." The 52px is `.prow .pn`'s width in the handoff's
+	// The design's note: "ON A PHONE THE ROW IS THE SAME 52PX ROW, AND THE ← → CELLS
+	// DROP INTO IT AT 44PX." The 52px is `.prow .pn`'s width in the design's
 	// `wk.css`, and `.prow` itself is `min-height: 64px` there, at every width
 	// (the row measured 64px at 390x844 too). So a phone narrows the cells and
 	// leaves the row's height alone.

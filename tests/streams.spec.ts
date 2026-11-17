@@ -156,7 +156,7 @@ describe('subtitles', () => {
 			'Dialogue: 0,0:00:02.50,0:00:04.00,Default,,0,0,0,,{\\i1}Wait,{\\i0}\\Nplease'
 		].join('\n');
 		expect(toVtt(ass)).toBe('WEBVTT\n\n00:00:02.500 --> 00:00:04.000\nWait,\nplease\n');
-		// pt-BR is PT-BR since c386; Klingon, a name nobody knows, is cut to a code.
+		// pt-BR is PT-BR; Klingon, a name nobody knows, is cut to a code.
 		expect([langCode('English'), langCode('jpn'), langCode('pt-BR'), langCode('Klingon')]).toEqual([
 			'EN',
 			'JA',
@@ -180,7 +180,7 @@ describe('subtitles', () => {
 	});
 });
 
-describe('quality names (2026-10-29)', () => {
+describe('quality names', () => {
 	it('say the height, never a source’s long label, and a server in a few words', () => {
 		const long = { label: '2160p (3840x2160) - 7.42 Mbps', height: 2160 };
 		expect(qualityName(long)).toBe('2160P');
@@ -243,8 +243,8 @@ describe('a track’s language: one short code, the name in full beside it', () 
 		).toEqual(['CHC', 'ZH', 'SID', 'SI', 'TAA', 'TA', 'MAA', 'ML']);
 	});
 
-	it('gives every label in the owner’s screenshot a code, never a whole word', () => {
-		// VidStreaming (KickAssAnime), 2026-11-03: the AUDIO row's labels.
+	it('gives every label a real server lists a code, never a whole word', () => {
+		// VidStreaming (KickAssAnime): the AUDIO row's labels.
 		const audio = ['Japanese', 'English', 'German', 'Spanish', 'French', 'Hindi'];
 		const long = ['Hungarian', 'Italian', 'Portuguese', 'Thai'];
 		expect([...audio, ...long].map(langCode)).toEqual([
@@ -259,7 +259,7 @@ describe('a track’s language: one short code, the name in full beside it', () 
 			'PT',
 			'TH'
 		]);
-		// And the SUBTITLES row's, the two the owner named among them.
+		// And the SUBTITLES row's, the two with a qualifier among them.
 		expect(langCode('Chinese (Traditional)')).toBe('ZH-HANT');
 		expect(langCode('Norwegian (nob)')).toBe('NB');
 		expect(langName('Chinese (Traditional)')).toBe('Chinese (Traditional)');
@@ -312,7 +312,7 @@ describe('a track’s language: one short code, the name in full beside it', () 
 		expect(langCode('tlh')).toBe('TLH');
 		expect(langCode('Signs & Songs')).toBe('SIG');
 		// A cut that is itself an alias is that alias's language, so the code
-		// is one langCode gives back unchanged (round 2: Indonesia was IND).
+		// is one langCode gives back unchanged (Indonesia is ID, not IND).
 		expect(['Indonesia', 'China', 'Vietnam'].map(langCode)).toEqual(['ID', 'ZH', 'VI']);
 		expect(langCode('Ñoño')).toBe('NON');
 		// No code the sheet shows is longer than a cell holds.
@@ -340,10 +340,10 @@ describe('a track’s language: one short code, the name in full beside it', () 
 	});
 
 	it('gives every code it makes back as itself, and a choice of it picks that track', () => {
-		// Round 2 (review finding 1): matchLang read a kept code through
-		// langCode first, which turned ES-2 into ES (the other track) and IND
-		// into ID (no track). The whole table, every variant a label carries,
-		// and a list with duplicates and unknowns, not a sample.
+		// matchLang must not read a kept code through langCode first, which would
+		// turn ES-2 into ES (the other track) and IND into ID (no track). The whole
+		// table, every variant a label carries, and a list with duplicates and
+		// unknowns, not a sample.
 		const labels = LANGS.flatMap(([code, name, ...aliases]) => [
 			code,
 			name,
@@ -403,7 +403,7 @@ describe('a track’s language: one short code, the name in full beside it', () 
 		).toEqual(['ES', 'ES-2', 'ES-419', 'KLI', 'KLI-2']);
 	});
 
-	it('reads a choice kept before c386 as the track it meant', () => {
+	it('reads a choice kept in an older form as the track it meant', () => {
 		// Codes a choice could be stored as before: two letters, ISO 639-2's
 		// three (a source's "hun", ffprobe's "ita"), and PT for a Brazilian
 		// track, which was PT then. A whole word never was: the workstation

@@ -183,7 +183,7 @@ test('READING: every segmented choice is the full-height cell SIDES is', async (
 });
 
 /**
- * c515, in the image reader: a turn whose slide is overtaken by the scrubber
+ * In the image reader: a turn whose slide is overtaken by the scrubber
  * gives way to it, rather than turning from where the scrub left off; and a
  * second finger ends a drag instead of re-basing it. Same rule and the same
  * cases as the text reader's (`text-reader-turn.e2e.ts`), since the two
@@ -265,7 +265,7 @@ test('a turn asked for right after a mid-slide scrub waits for the first, and sl
 	//
 	// Whether the second ← lands inside the first's 220 ms slide is the
 	// driver's doing, not the app's: on a loaded box two presses arrive further
-	// apart than that (wave 32: 232-349 ms on desktop, 4 runs in 5 at a load of
+	// apart than that (232-349 ms on desktop, 4 runs in 5 at a load of
 	// 35-39), and the state this case guards was never reached. So a try that
 	// missed goes back to where the case began (page 1 by the scrub, then ← to
 	// `one`, at rest: a missed try can end a page past it) and is made again,

@@ -7,7 +7,7 @@ import { expect, test } from './fixtures';
  * `(pointer: none)` and not a narrow desktop dressed as one, and that the TV
  * block in src/lib/styles/layout.css is the one applied.
  *
- * The numbers are the handoff's, in its 960x540 frame: 48px safe sides, 28px
+ * The numbers are the design's, in its 960x540 frame: 48px safe sides, 28px
  * top, a 56px header, six 144px columns, CONTINUE three across, and the TV
  * type scale. Every other device's frame is pinned by library-layout,
  * series-layout and their generated specs; these run beside them.
@@ -85,7 +85,7 @@ test('the library frame: 6 columns, a 56px header, 3 CONTINUE cards, no SELECT',
 	const widths = tracks.map(parseFloat);
 	for (const w of widths) expect(Math.abs(w - widths[0])).toBeLessThan(0.5);
 	// The safe margin's 864px, its 1px border either side and the 1px rules
-	// between cells: 144px of pitch, as TV Calls' "COVERS PER ROW" says.
+	// between cells: 144px of pitch.
 	expect(Math.round((await page.locator('.grid').boundingBox())!.width)).toBe(864);
 	expect(widths[0]).toBeCloseTo((864 - 2 - 5) / 6, 1);
 
@@ -103,6 +103,6 @@ test('the library frame: 6 columns, a 56px header, 3 CONTINUE cards, no SELECT',
 		.evaluateAll((rows) => rows.filter((r) => r.checkVisibility()).length);
 	expect(shown).toBe(3);
 
-	// No SELECT on a TV: bulk tidying is not a couch job (TV Calls, "03 — SIDEBAR").
+	// No SELECT on a TV: bulk tidying is not a couch job.
 	await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toHaveCount(0);
 });

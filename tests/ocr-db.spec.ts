@@ -17,9 +17,9 @@ afterAll(() => rmSync(work, { recursive: true, force: true }));
  *
  * It is CommonJS, so it is named `.cjs`: a file with no extension takes
  * its module type from the nearest package.json, and when TMPDIR is inside the
- * worktree (the waves keep it at `temp/`) that is the repo's `"type": "module"`,
- * where `require` is undefined. The fake then crashed on every batch, and three
- * cases failed as if the OCR run were wrong.
+ * worktree (at `temp/`, say) that is the repo's `"type": "module"`,
+ * where `require` is undefined. The fake would then crash on every batch, and
+ * three cases fail as if the OCR run were wrong.
  */
 const fake = join(work, 'mokuro.cjs');
 writeFileSync(
@@ -102,7 +102,7 @@ describe('OCR on the workstation', () => {
 		expect(ocr.ocrStatus(chainsaw).done).toBe(2);
 		expect(ocr.ocrQueue(500).some((j) => j.entryId === first.entryId)).toBe(false);
 		// A real batch through the fake mokuro: about 4 s alone, so the default
-		// 5 s failed it whenever the workstation was busy (2026-09-27, load 59),
+		// 5 s failed it whenever the machine was busy (at a load of 59),
 		// and the tests after it, which read what it stored, failed with it.
 	}, 30_000);
 

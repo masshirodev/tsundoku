@@ -17,7 +17,7 @@ import {
 } from '$lib/library/fingerprint';
 
 // Comparing two episodes' fingerprints (doc/ANIME.md, "Openings and
-// endings"; card c239). Synthetic points stand in for chromaprint's, so the
+// endings"). Synthetic points stand in for chromaprint's, so the
 // matcher can be asked about runs, bit errors and bounds without a video.
 
 const print = (values: number[]): Fingerprint => ({
@@ -112,7 +112,7 @@ describe('the run two episodes share', () => {
 		const a = print([...unique(1, 20 * POINT_HZ), ...shared, ...unique(2, 70 * POINT_HZ)]);
 		const b = print([...unique(3, 90 * POINT_HZ), ...shared, ...unique(4, 20 * POINT_HZ)]);
 		// 70 s apart: inside an ending's 180 s, and an opening's whole window
-		// since c384 (it was 30 s, which is how a cold open lost the opening).
+		// (a 30 s one let a cold open lose the opening).
 		expect(ENDING_SHIFT_S).toBeGreaterThan(70);
 		expect(INTRO_SHIFT_S).toBeGreaterThanOrEqual(regions(1440)!.intro.seconds);
 		expect(sharedEnding(a, b)?.seconds).toBeCloseTo(90, 5);
@@ -128,7 +128,7 @@ describe('the run two episodes share', () => {
 	});
 });
 
-// The owner's Ranma ½ (2024), 2026-11-03: every opening the fingerprint
+// A real Ranma ½ (2024): every opening the fingerprint
 // found was a third to a half of the song, and where it starts moved by 52 s
 // between episodes with their cold opens.
 describe('a whole opening, not a fragment of it', () => {

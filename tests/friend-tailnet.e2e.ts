@@ -18,9 +18,9 @@ import { E2E_TOKEN } from '../playwright.config';
  * preview`'s.
  *
  * - `friend`: a friend's install (`TSUNDOKU_LOGIN=password`, a password set).
- *   SETTINGS draws no six digits and no door makes them, and a TV's paired
+ *   SETTINGS draws no six digits and no action makes them, and a TV's paired
  *   cookie signs nothing in: its guard reads one only over Wi-Fi.
- * - `token`: the owner's shape, the same mode and origin with the token. The
+ * - `token`: the main install's shape, the same mode and origin with the token. The
  *   digits are drawn, typed on `/pair/tv`, and the cookie that sets signs a
  *   request in on the tailnet host, never at 127.0.0.1. It is here so the
  *   friend's refusals are the friend's, not the origin's or the test's.
@@ -82,7 +82,7 @@ async function serve(at: Install, env: NodeJS.ProcessEnv, prepare = () => {}) {
 		PORT: String(at.port),
 		ORIGIN: `http://${at.host}`,
 		TSUNDOKU_SNAPSHOT: 'off',
-		// Never the owner's tokens from the project's .env (scripts/serve.ts).
+		// Never the developer's tokens from the project's .env (scripts/serve.ts).
 		TSUNDOKU_PROJECT_ENV: 'off',
 		TSUNDOKU_UPDATES: 'off',
 		DATABASE_PATH: at.db,
@@ -182,7 +182,7 @@ async function signsIn(at: Install, cookie: string, host = at.host) {
 	}
 }
 
-test('a friend’s install on its tailnet origin draws no TV digits, and no door makes them', async () => {
+test('a friend’s install on its tailnet origin draws no TV digits, and no action makes them', async () => {
 	const owner = await tailnet(friend, `tsundoku_session=${sessionFor(login)}`);
 	try {
 		const { html, digits } = await settingsDigits(owner);
@@ -199,7 +199,7 @@ test('a friend’s install on its tailnet origin draws no TV digits, and no door
 });
 
 test('a TV’s paired cookie signs nothing in on a friend’s tailnet origin', async () => {
-	// The pairing no door here can make (the digits are never drawn, and
+	// The pairing nothing here can make (the digits are never drawn, and
 	// /api/pair/tv answers only at the computer, which a served instance's
 	// ORIGIN never names), written as /pair/tv would write it: what the guard
 	// alone must refuse.
@@ -245,7 +245,7 @@ test('the token install on the same origin draws the digits, and the TV they pai
 		await owner.dispose();
 	}
 
-	// The TV types them on /pair/tv, as 9C posts them, on the tailnet host.
+	// The TV types them on /pair/tv, as the code page posts them, on the tailnet host.
 	const tv = await tailnet(token, null);
 	let cookie: string;
 	try {

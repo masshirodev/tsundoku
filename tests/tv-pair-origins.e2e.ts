@@ -22,35 +22,37 @@ import { E2E_TOKEN } from '../playwright.config';
  * The TV's side of pairing on servers of this file's own (doc/WIFI.md,
  * doc/ANDROID.md, doc/SIGN-IN.md), where the shared preview cannot go:
  *
- * - **c246**: `/pair/tv` opened with an expired code, the server's clock
- *   moved past the code's 10 minutes, makes a new one; a burned one stays.
+ * - `/pair/tv` opened with an expired code, the server's clock moved past
+ *   the code's 10 minutes, makes a new one; a burned one stays.
  *   And the computer's half: SETTINGS' DEVICES row, open in a browser of its
  *   own, keeps asking about an expired code, so it draws the one the TV made
  *   on its own 5 s tick, with no focus change.
- * - **c531**: a burned code stays burned through a reload of SETTINGS' data
- *   (an unrelated setting changed), and a real visit (the app's link, the
+ * - A burned code stays burned through a reload of SETTINGS' data (an
+ *   unrelated setting changed), and a real visit (the app's link, the
  *   back button, the browser's reload) makes a new one. With no code at all
  *   (a restart), the library's MORE › SETTINGS makes one, and the row with
  *   `?/renew` refused still draws NO CODE YET and NEW CODE: each of
  *   those two cases on a server of its own, just started.
- * - **c581**: a burned code past its 10 minutes stays BURNED on the DEVICES
- *   row, with no 5 s poll, as `/pair/tv` says.
- * - **c545**: 9E carries the server's name in `data-paired-name`, and the TV
- *   app's own `PAIRED_JS`, read out of MainActivity.kt, reads it there.
- * - **c530**: two tsundoku on one host, two ports, paired in one cookie jar as
- *   the TV's WebView keeps it: each stays paired after the other pairs and
- *   after FORGET on the other, and a jar holding only the name used before
- *   c530 stays paired and is moved to the new one.
+ * - A burned code past its 10 minutes stays BURNED on the DEVICES row, with
+ *   no 5 s poll, as `/pair/tv` says.
+ * - The paired page carries the server's name in `data-paired-name`, and
+ *   the TV app's own `PAIRED_JS`, read out of MainActivity.kt, reads it there.
+ * - Two tsundoku on one host, two ports, paired in one cookie jar as the
+ *   TV's WebView keeps it: each stays paired after the other pairs and
+ *   after FORGET on the other, and a jar holding only the old shared name
+ *   stays paired and is moved to the new one.
  *
  * Two `vite preview` of its own, A and B, each with a seeded database and a
- * port from the OS, plus one more for each no-code case (`ownServer`): the six digits live in a server's memory, one code at a time, and
+ * port from the OS, plus one more for each no-code case (`ownServer`): the
+ * six digits live in a server's memory, one code at a time, and
  * `tv-pair.e2e.ts` spends the shared server's. Each server's `Date.now` is
  * moved by a file this spec writes (`--import`, below), since a code's 10
  * minutes cannot be waited out. Both answer at 127.0.0.1, and each has an
  * `ORIGIN` on `tsundoku.test:<port>`, the shape `scripts/serve.ts` gives a
- * tailnet install: a loopback origin is no door for a TV's cookie at all
+ * tailnet install: a loopback origin is no place for a TV's cookie at all
  * (`tailnetHost`). The browser resolves that name to 127.0.0.1, so the TV's
- * jar holds both servers' cookies under one host, which is the bug c530 is.
+ * jar holds both servers' cookies under one host, which is the case the
+ * per-port cookie names are for.
  *
  * In the `tv` project only (a `tv-*.e2e.ts`): the pages are the TV's, and one
  * project stands the two servers up once. Serial, for the one code each.
@@ -227,7 +229,7 @@ const ownServers: Server[] = [];
 
 /**
  * A server of the case's own, just started, so it holds no TV code at all:
- * the state a restart leaves the owner's tailnet install in. A or B
+ * the state a restart leaves a tailnet install in. A or B
  * would reach it only if no case before had made a code on them, which held
  * only while these cases ran first, in a serial file.
  */
@@ -272,7 +274,7 @@ async function openPairing(page: Page, at: Server) {
 	await hydrated(page);
 }
 
-/** Six digits typed: the sixth submits the form itself, as on 9C. */
+/** Six digits typed: the sixth submits the form itself, as on the code page. */
 const typeCode = (page: Page, code: string) => page.locator('input[name="code"]').fill(code);
 
 async function pair(page: Page, at: Server) {
@@ -290,7 +292,7 @@ async function signedIn(page: Page, at: Server) {
 
 const paired = (port: number) => `tsundoku_paired_${port}`;
 
-// ---- c531 round 2: a client-side visit with no code at all ---------------------
+// ---- A burned code: a client-side visit with no code at all -----------------
 
 /**
  * The library in the computer's browser, opened as a document: SETTINGS is
@@ -384,7 +386,7 @@ test('with no code and `?/renew` unanswered, the DEVICES row is still drawn, and
 	expect(await shownDigits(page)).toBe(made.code);
 });
 
-// ---- c246 ---------------------------------------------------------------------
+// ---- An expired code --------------------------------------------------------
 
 test('an expired code is made new when the TV opens /pair/tv, and it pairs', async () => {
 	const made = await newCode(A);
@@ -441,7 +443,7 @@ test('a used code is kept while the computer shows ✓ USED, then made new for a
 	await expect(second.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
 });
 
-test('a code that runs out while 9C is up says the new one is on the computer', async () => {
+test('a code that runs out while the code page is up says the new one is on the computer', async () => {
 	const made = await newCode(A);
 	const { page } = await tv();
 	await openPairing(page, A);
@@ -462,7 +464,7 @@ test('a burned code stays burned, even after its 10 minutes, until the computer 
 	const made = await newCode(A);
 	const { page } = await tv();
 	await openPairing(page, A);
-	// Each wrong try reloads 9C, so the next is typed once it has hydrated.
+	// Each wrong try reloads the code page, so the next is typed once it has hydrated.
 	for (let left = 4; left >= 0; left -= 1) {
 		await typeCode(page, wrong(made.code!));
 		await page.waitForURL(left > 0 ? new RegExp(`r=wrong&left=${left}$`) : /r=burned$/);
@@ -489,13 +491,13 @@ test('a burned code stays burned, even after its 10 minutes, until the computer 
 	await expect(page.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
 });
 
-// ---- c246, the computer's half ----------------------------------------------
+// ---- An expired code, the computer's half -----------------------------------
 
 /**
- * The owner's SETTINGS on a server, in the computer's browser, signed in with
+ * SETTINGS on a server, in the computer's browser, signed in with
  * the suite's token: the DEVICES row with the TV's six digits. At
- * 127.0.0.1, as the owner's own browser on the computer would be; the row
- * itself is drawn wherever the server's ORIGIN makes a TV's cookie a door.
+ * 127.0.0.1, as the user's own browser on the computer would be; the row
+ * itself is drawn wherever the server's ORIGIN lets a TV's cookie in.
  */
 async function settingsOn(at: Server) {
 	const context = await desk.newContext({
@@ -523,7 +525,7 @@ async function shownDigits(page: Page) {
 /**
  * Counts every focus and visibility event the page sees from here on: the
  * row also refreshes on those, and this file's cases are about what
- * its own tick does while the owner never leaves the window.
+ * its own tick does while the user never leaves the window.
  */
 async function countReturns(page: Page) {
 	await page.evaluate(() => {
@@ -565,7 +567,7 @@ test('the DEVICES row draws the code the TV made in place of an expired one, on 
 	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('✓ USED', { timeout: 15_000 });
 	expect(await returns()).toBe(0);
 
-	// Round 2: SETTINGS left on ✓ USED, and a second TV past the 2 minutes it
+	// Then: SETTINGS left on ✓ USED, and a second TV past the 2 minutes it
 	// stays up. /pair/tv replaces the used code and says THE NEW ONE IS ON THE
 	// COMPUTER, so the row must draw it on its own tick too.
 	await clockAt(A, 10 * 60_000 + 5_000 + 2 * 60_000 + 5_000);
@@ -579,10 +581,10 @@ test('the DEVICES row draws the code the TV made in place of an expired one, on 
 	expect(await returns(), 'no focus or visibility change helped').toBe(0);
 });
 
-// ---- c531: only a real visit renews ------------------------------------------
+// ---- A burned code: only a real visit renews --------------------------------
 
 /**
- * Five wrong tries from a TV, as 9C posts them, at the computer's address: a
+ * Five wrong tries from a TV, as the code page posts them, at the computer's address: a
  * request of its own, not a page, so no window's focus moves.
  */
 async function burnOn(at: Server) {
@@ -654,7 +656,7 @@ test('a burned code stays burned through a reload of SETTINGS’ data, and a rea
 		await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('BURNED');
 	}
 
-	// A real visit, by the app's own doors from another screen (SETTINGS'
+	// A real visit, by the app's own links from another screen (SETTINGS'
 	// ← LIBRARY, then the library's own way back, `moreSettings`): a
 	// client-side navigation, whose load is a data request just like the
 	// reloads above.
@@ -689,13 +691,13 @@ test('a burned code stays burned through a reload of SETTINGS’ data, and a rea
 	await mode.getByRole('button', { name: 'R→L' }).click();
 });
 
-// ---- c581: burned is burned on both screens ----------------------------------
+// ---- Burned is burned on both screens ---------------------------------------
 
 /**
  * The DEVICES row and `/pair/tv` once a burned code's 10 minutes have run
- * out. `TvPairing.state` asked the clock first, so the row's refresh
- * turned BURNED into EXPIRED and its 5 s poll, which a burned code never
- * needs, started again, while the TV's page still said NO TRIES LEFT.
+ * out. Were `TvPairing.state` to ask the clock first, the row's refresh
+ * would turn BURNED into EXPIRED and its 5 s poll, which a burned code never
+ * needs, would start again, while the TV's page still said NO TRIES LEFT.
  */
 test('a burned code past its 10 minutes stays BURNED on the DEVICES row, with no 5 s poll, as /pair/tv says', async () => {
 	await newCode(A);
@@ -707,7 +709,7 @@ test('a burned code past its 10 minutes stays BURNED on the DEVICES row, with no
 	for (const later of [10 * 60_000 + 5_000, 60 * 60_000]) {
 		await clockAt(A, later);
 		expect(await codeOn(A), `${later} ms on`).toMatchObject({ code: burned, state: 'burned' });
-		// The owner comes back to the window: the row asks, and still says BURNED.
+		// The user comes back to the window: the row asks, and still says BURNED.
 		await rowBurned(page);
 		await expect(page.getByText('EXPIRED · MAKE A NEW CODE')).toHaveCount(0);
 
@@ -732,9 +734,9 @@ test('a burned code past its 10 minutes stays BURNED on the DEVICES row, with no
 	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('BURNED');
 });
 
-// ---- c545 ---------------------------------------------------------------------
+// ---- The server's name on the paired page -----------------------------------
 
-/** MainActivity.kt's PAIRED_JS, the very literal the app runs on 9E. */
+/** MainActivity.kt's PAIRED_JS, the very literal the app runs on the paired page. */
 const PAIRED_JS = (() => {
 	const kt = readFileSync(
 		join(process.cwd(), 'android/app/src/main/java/dev/masshiro/tsundoku/tv/MainActivity.kt'),
@@ -745,10 +747,10 @@ const PAIRED_JS = (() => {
 	return m[1];
 })();
 
-test('9E says the server’s name in data-paired-name, which the app’s PAIRED_JS reads', async () => {
+test('the paired page says the server’s name in data-paired-name, which the app’s PAIRED_JS reads', async () => {
 	const name = (hostname() || 'computer').toUpperCase();
 	const { page } = await tv();
-	// Not 9E yet: the script says nothing.
+	// Not the paired page yet: the script says nothing.
 	await openPairing(page, A);
 	expect(await page.evaluate(PAIRED_JS)).toBe('');
 
@@ -757,11 +759,11 @@ test('9E says the server’s name in data-paired-name, which the app’s PAIRED_
 	const said = (await page.evaluate(PAIRED_JS)) as string;
 	const [attribute, line] = [said.slice(0, said.indexOf('\n')), said.slice(said.indexOf('\n') + 1)];
 	expect(attribute).toBe(name);
-	// The first line stays, for an app older than c545 that parses it.
+	// The first line stays, for an older app that parses it.
 	expect(line).toContain(`PAIRED WITH ${name} · tsundoku.test:${A.port}`);
 });
 
-// ---- c530 ---------------------------------------------------------------------
+// ---- Two servers on one host ------------------------------------------------
 
 test('two servers on one host keep their own pairing, after the other pairs and after FORGET on the other', async () => {
 	const { context, page } = await tv();
@@ -793,10 +795,10 @@ test('two servers on one host keep their own pairing, after the other pairs and 
 	expect(await signedIn(page, B)).toBe(true);
 });
 
-test('a TV paired before c530, with only the old name, stays paired and is moved to the new one', async () => {
+test('a TV paired with only the old shared name stays paired and is moved to the new one', async () => {
 	// A pairing made the way it is now, then put back under the old shared
-	// name in a TV of its own: a jar exactly as a TV paired before this
-	// release keeps it. A new context, not the one that paired: 9E's page on A
+	// name in a TV of its own: a jar exactly as an older release
+	// left it. A new context, not the one that paired: the paired page on A
 	// keeps asking A for a moment, and A rightly moves the old name the first
 	// time it sees it, before B could be asked (a red under load).
 	const pairing = await tv();

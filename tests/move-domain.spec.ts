@@ -13,7 +13,7 @@ import {
 
 /**
  * MOVE's rules (doc/MOVE.md): the by-number map, every odd case
- * the handoff draws, and the counts "WHAT THE MOVE DOES" promises. Pure, so
+ * the design draws, and the counts "WHAT THE MOVE DOES" promises. Pure, so
  * every case is a list in and rows out.
  */
 
@@ -378,12 +378,12 @@ describe('titles and numbers', () => {
 
 describe('the words MOVE prints for a kind', () => {
 	/**
-	 * The route's three words used to be spelled from the kind's name. Each
-	 * now asks the registry (series/[id]/move-words.ts), and must print what
-	 * the old comparison printed for every kind there is, not the two that
-	 * move: a novel's own unit is VOLUME, and the band said CHAPTER.
+	 * The route's three words ask the registry (series/[id]/move-words.ts),
+	 * and must print what a comparison on the kind's name prints, for every
+	 * kind there is, not only the two that move: a novel's own unit is
+	 * VOLUME, and the band says CHAPTER.
 	 */
-	it('says what the old comparisons said, for every kind', async () => {
+	it('says what a comparison on the kind’s name says, for every kind', async () => {
 		const { KINDS, moveKindOf } = await import('$lib/library/kinds');
 		const { comparedKind, movedUnit, searchedSources } =
 			await import('../src/routes/series/[id]/move-words');
@@ -397,7 +397,7 @@ describe('the words MOVE prints for a kind', () => {
 			'show'
 		]);
 		for (const kind of KINDS) {
-			// c987: a film and a show are video too, so MOVE reads them as an anime.
+			// A film and a show are video too, so MOVE reads them as an anime.
 			const video = kind === 'anime' || kind === 'movie' || kind === 'show';
 			expect(searchedSources(kind), kind).toBe(video ? 'anime' : 'manga');
 			expect(movedUnit(kind), kind).toBe(video ? 'EPISODE' : 'CHAPTER');

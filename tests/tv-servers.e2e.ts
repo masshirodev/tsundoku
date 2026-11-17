@@ -3,10 +3,9 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * The TV app's servers on the web side (c261; doc/ANDROID.md, "Servers";
- * doc/handoffs/tv-servers/): MORE's SERVERS row (S6), SERVERS (S2), a
- * server's options (S3) and FORGET (S4), drawn by MoreSheet over the library,
- * and the layout telling the app the server's name.
+ * The TV app's servers on the web side (doc/TV-APP.md, "Servers"): MORE's
+ * SERVERS row, SERVERS, a server's options and FORGET, drawn by MoreSheet
+ * over the library, and the layout telling the app the server's name.
  *
  * Runs in the `tv` project, 960x540 with no pointer, because these are drawn
  * only where the APK's bridge (`window.TsundokuTV`) exists, and that is only
@@ -14,9 +13,9 @@ import { expect, test } from './fixtures';
  * answers. Nothing here writes to the shared database: the list lives in the
  * stub, and opening a server only records the call.
  *
- * The measurements are TV-Servers.dc.html's, extracted with the design tools
- * (extract-spec) rather than read by eye; they are asserted so a later
- * tidy-up cannot round the hand-set values onto a ladder.
+ * The measurements are the design's, extracted with the design tools rather
+ * than read by eye; they are asserted so a later tidy-up cannot round the
+ * hand-set values onto a ladder.
  */
 
 type Stub = { origin: string; name: string; tvName: string; opened: number };
@@ -33,11 +32,11 @@ type Calls = {
 declare global {
 	interface Window {
 		__tv?: Calls;
-		/** The app's RENAME, done behind the page's back (S5 is the APK's own screen). */
+		/** The app's RENAME, done behind the page's back (RENAME is the APK's own screen). */
 		__tvRename?: (origin: string, tvName: string) => void;
-		/** c645: each held `servers()` answer's resolver, in the order the page asked. */
+		/** Each held `servers()` answer's resolver, in the order the page asked. */
 		__tvLater?: Array<(answer: string) => void>;
-		/** c717: how many of the next `servers()` questions to hold. */
+		/** How many of the next `servers()` questions to hold. */
 		__tvHold?: number;
 	}
 }
@@ -147,7 +146,7 @@ test('a page without the bridge draws no SERVERS row', async ({ page }) => {
 	await expect(sheet.getByText('SERVERS')).toHaveCount(0);
 });
 
-test('S6: with one server, MORE ends on SERVERS · ADD ANOTHER, and it opens on + ADD', async ({
+test('with one server, MORE ends on SERVERS · ADD ANOTHER, and it opens on + ADD', async ({
 	page
 }) => {
 	await bridge(page, [{ origin: HOME, name: 'ZEN-HOME', tvName: '', opened: Date.now() }]);
@@ -179,7 +178,7 @@ test('S6: with one server, MORE ends on SERVERS · ADD ANOTHER, and it opens on 
 	await expect(sheet).toBeHidden();
 });
 
-test('S2: the one in use first, focus on the first not in use, each probed as it opens', async ({
+test('SERVERS: the one in use first, focus on the first not in use, each probed as it opens', async ({
 	page
 }) => {
 	const now = Date.now();
@@ -227,7 +226,7 @@ test('S2: the one in use first, focus on the first not in use, each probed as it
 	await expect(rows.nth(0).locator('.st')).toHaveText('IN USE');
 	await expect(rows.nth(1).locator('.meta')).toHaveText('zen.tailnet.ts.net:8443');
 
-	// The frame: TV-Servers.dc.html's list, as extracted. The panel rises in
+	// The frame: the design's list, as extracted. The panel rises in
 	// from the right over --motion-panel (240 ms, `.rise` in motion.css), and
 	// read before its transition ends its left edge is a fraction of a pixel
 	// in: 960.4 at 216 ms of it (measured), so it is read at rest.
@@ -276,7 +275,7 @@ test('S2: the one in use first, focus on the first not in use, each probed as it
 	expect((await calls(page)).opened).toEqual([ZEN]);
 });
 
-test("S3 and S4: MENU opens a server's options, FORGET is a confirmation the remote can't hit by accident", async ({
+test("MENU opens a server's options, FORGET is a confirmation the remote can't hit by accident", async ({
 	page
 }) => {
 	const now = Date.now();
@@ -333,7 +332,7 @@ test("S3 and S4: MENU opens a server's options, FORGET is a confirmation the rem
 		/OPENED\s*NEVER/,
 		/NOW\s*○ NO ANSWER/
 	]);
-	// RENAME is the app's own screen (S5).
+	// RENAME is the app's own screen.
 	await sheet.locator('[data-act="rename"]').focus();
 	await page.keyboard.press('Enter');
 	expect((await calls(page)).renamed).toEqual([STUDIO]);
@@ -370,7 +369,7 @@ test("S3 and S4: MENU opens a server's options, FORGET is a confirmation the rem
 	expect((await calls(page)).opened).toEqual([]);
 });
 
-test('forgetting the one in use opens the next that answers; the last returns to 9A', async ({
+test('forgetting the one in use opens the next that answers; the last returns to the first screen', async ({
 	page
 }) => {
 	const now = Date.now();
@@ -401,7 +400,7 @@ test('forgetting the one in use opens the next that answers; the last returns to
 	expect(c.opened).toEqual([ZEN]);
 });
 
-test('a refused FORGET changes nothing: no 9A, nothing opened, the list as it was', async ({
+test('a refused FORGET changes nothing: no first screen, nothing opened, the list as it was', async ({
 	page
 }) => {
 	const now = Date.now();
@@ -430,7 +429,7 @@ test('a refused FORGET changes nothing: no 9A, nothing opened, the list as it wa
 	await page.waitForTimeout(200);
 	const c = await calls(page);
 	expect(c.forgot).toEqual([STUDIO]);
-	// Until round 2 of c549 the "" (then "[]") read as "the last one is gone": 9A.
+	// A "" or "[]" answer is not "the last one is gone": no first screen.
 	expect(c.welcome).toBe(0);
 	expect(c.opened).toEqual([]);
 	// Still FORGET's panel, and FORGET can be pressed again.
@@ -443,7 +442,7 @@ test('a refused FORGET changes nothing: no 9A, nothing opened, the list as it wa
 	await expect(rows.nth(1)).toBeFocused();
 });
 
-test('FORGET of the one in use pressed twice opens the next once and never 9A', async ({
+test('FORGET of the one in use pressed twice opens the next once and never the first screen', async ({
 	page
 }) => {
 	const now = Date.now();
@@ -481,7 +480,7 @@ test('FORGET of the one in use pressed twice opens the next once and never 9A', 
 	expect(c.welcome).toBe(0);
 });
 
-test('forgetting the only server returns the TV to 9A', async ({ page }) => {
+test('forgetting the only server returns the TV to the first screen', async ({ page }) => {
 	await bridge(page, [{ origin: HOME, name: '', tvName: '', opened: Date.now() }]);
 	const sheet = await openMore(page);
 	await sheet.locator('[data-more-servers]').focus();
@@ -544,7 +543,7 @@ test('RESCAN in MORE: the remote reaches it, the question opens on CANCEL, and O
 	await expect(ask.getByRole('button', { name: 'CANCEL' })).toBeFocused();
 	await page.keyboard.press('Enter');
 	await expect(ask).toBeHidden();
-	// Back on the bar's MORE, the door it came through.
+	// Back on the bar's MORE, the button it came through.
 	await expect(page.locator('[data-focus-id="library-more"]')).toBeFocused();
 	await page.waitForTimeout(300);
 	expect(posted).toEqual([]);
@@ -608,11 +607,11 @@ test('TO LINK is a stop the remote reaches in MORE', async ({ page }) => {
 	await page.waitForURL(/\/links$/);
 });
 
-// ---- S1: the server in use, in the library's bar ---------------
+// ---- The server in use, in the library's bar ---------------
 
 const cell = (page: Page) => page.locator('[data-focus-id="library-server"]');
 
-test('S1: no cell without the bridge, with an older app, with an answer that is not a list, or with one server', async ({
+test('no cell without the bridge, with an older app, with an answer that is not a list, or with one server', async ({
 	page
 }) => {
 	// No bridge: a browser, a phone, a computer.
@@ -620,7 +619,7 @@ test('S1: no cell without the bridge, with an older app, with an answer that is 
 	await expect(page.locator('[data-focus-id="library-more"]')).toBeVisible();
 	await expect(cell(page)).toHaveCount(0);
 
-	// An APK from before c261: a bridge with no `servers`.
+	// An older APK: a bridge with no `servers`.
 	await page.addInitScript(() => {
 		(window as unknown as { TsundokuTV: object }).TsundokuTV = { forget: () => undefined };
 	});
@@ -654,7 +653,7 @@ for (const [what, answer] of [
 		'[{"origin":"http://a","shown":"A","inUse":false},{"origin":"http://b","shown":"B","inUse":false}]'
 	]
 ] as const) {
-	test(`S1: an answer that is ${what} draws no cell`, async ({ page }) => {
+	test(`an answer that is ${what} draws no cell`, async ({ page }) => {
 		await page.addInitScript((answer) => {
 			(window as unknown as { TsundokuTV: object }).TsundokuTV = { servers: () => answer };
 		}, answer);
@@ -665,7 +664,7 @@ for (const [what, answer] of [
 	});
 }
 
-test('S1: one server draws no cell, as today', async ({ page }) => {
+test('one server draws no cell, as today', async ({ page }) => {
 	await bridge(page, [
 		{ origin: HOME, name: 'ZEN-HOME', tvName: 'Living room', opened: Date.now() }
 	]);
@@ -677,7 +676,7 @@ test('S1: one server draws no cell, as today', async ({ page }) => {
 });
 
 /*
- * c645: the bridge as c549's message transport will answer it (doc/ANDROID.md,
+ * The bridge as the message transport will answer it (doc/TV-APP.md,
  * "What it does not do yet", item 2). `servers()` returns a Promise, and each
  * call parks its resolver on `window.__tvLater`, so a case decides when — and
  * in which order — the answers land. The real transport may answer late, out
@@ -729,7 +728,7 @@ async function settled(page: Page) {
 	await page.waitForTimeout(100);
 }
 
-test('S1: a bridge that answers late draws the cell when its answer lands, not before', async ({
+test('a bridge that answers late draws the cell when its answer lands, not before', async ({
 	page
 }) => {
 	await laterBridge(page);
@@ -741,9 +740,7 @@ test('S1: a bridge that answers late draws the cell when its answer lands, not b
 	await expect(cell(page)).toHaveText(/^ON\s*LIVING ROOM$/);
 });
 
-test('S1: an answer to an older question that lands after a newer one is dropped', async ({
-	page
-}) => {
+test('an answer to an older question that lands after a newer one is dropped', async ({ page }) => {
 	await laterBridge(page);
 	await page.goto('/');
 	await settled(page);
@@ -757,7 +754,7 @@ test('S1: an answer to an older question that lands after a newer one is dropped
 	await expect(cell(page)).toHaveText(/^ON\s*LIVING ROOM$/);
 });
 
-test('S1: an answer that lands after the library is left draws nothing on the next visit', async ({
+test('an answer that lands after the library is left draws nothing on the next visit', async ({
 	page
 }) => {
 	// The `!mounted` half of refreshTvServers is defensive: Svelte 5 throws
@@ -801,7 +798,7 @@ for (const [what, answer] of [
 	['throws', 'throw'],
 	['answers what is not JSON', 'nope']
 ] as const) {
-	test(`S1: a bridge that ${what} draws no cell`, async ({ page }) => {
+	test(`a bridge that ${what} draws no cell`, async ({ page }) => {
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
 		await page.addInitScript((answer) => {
@@ -828,7 +825,7 @@ for (const [what, answer] of [
 	['an empty list', '[]'],
 	['an empty string', '']
 ] as const) {
-	test(`S1: a refused read that answers late with ${what} draws no cell`, async ({ page }) => {
+	test(`a refused read that answers late with ${what} draws no cell`, async ({ page }) => {
 		await laterBridge(page);
 		await page.goto('/');
 		await settled(page);
@@ -839,7 +836,7 @@ for (const [what, answer] of [
 	});
 }
 
-test('S1: a bridge that never answers leaves the cell as without one, and the page is not stuck', async ({
+test('a bridge that never answers leaves the cell as without one, and the page is not stuck', async ({
 	page
 }) => {
 	await laterBridge(page);
@@ -857,7 +854,7 @@ test('S1: a bridge that never answers leaves the cell as without one, and the pa
 	await expect(page.getByRole('dialog', { name: 'More' })).toBeVisible();
 });
 
-test("S1: two servers put the one in use beside the wordmark, the TV's own name first", async ({
+test("two servers put the one in use beside the wordmark, the TV's own name first", async ({
 	page
 }) => {
 	const now = Date.now();
@@ -869,7 +866,7 @@ test("S1: two servers put the one in use beside the wordmark, the TV's own name 
 	await expect(cell(page)).toHaveText(/^ON\s*LIVING ROOM$/);
 	await expect(page.getByRole('button', { name: 'ON LIVING ROOM', exact: true })).toBeVisible();
 
-	// The frame: TV-Servers.dc.html's `bar`. After the wordmark, before the search.
+	// The frame: the design's `bar`. After the wordmark, before the search.
 	const brand = (await page.locator('header .brand').boundingBox())!;
 	const box = (await cell(page).boundingBox())!;
 	const search = (await page.locator('header .search-hint').boundingBox())!;
@@ -890,7 +887,7 @@ test("S1: two servers put the one in use beside the wordmark, the TV's own name 
 	await expect(cell(page)).toHaveCSS('column-gap', '10px');
 });
 
-test("S1: the server's own name when the TV has none, and a long one clipped at 180 px", async ({
+test("the server's own name when the TV has none, and a long one clipped at 180 px", async ({
 	page
 }) => {
 	const now = Date.now();
@@ -913,7 +910,7 @@ test("S1: the server's own name when the TV has none, and a long one clipped at 
 	expect(await name.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
 });
 
-test('S1: ↑ from the library reaches the cell; OK opens SERVERS; BACK closes it onto the cell', async ({
+test('↑ from the library reaches the cell; OK opens SERVERS; BACK closes it onto the cell', async ({
 	page
 }) => {
 	const now = Date.now();
@@ -938,11 +935,11 @@ test('S1: ↑ from the library reaches the cell; OK opens SERVERS; BACK closes i
 
 	await page.keyboard.press('Enter');
 	const sheet = page.getByRole('dialog', { name: 'More' });
-	// SERVERS at once, not MORE's rows: S1 → S2.
+	// SERVERS at once, not MORE's rows.
 	await expect(sheet.locator('.p-head')).toHaveText(/SERVERS\s*2/);
 	await expect(sheet.locator('[data-more-servers]')).toHaveCount(0);
 	const rows = sheet.locator('[data-server]');
-	// S2's arrival: the first one not in use.
+	// SERVERS' arrival: the first one not in use.
 	await expect(rows.nth(1)).toBeFocused();
 	await expect(rows.nth(1).locator('.st')).toHaveText('ANSWERS');
 	expect((await calls(page)).probes.sort()).toEqual([HOME, ZEN].sort());
@@ -977,7 +974,7 @@ test('S1: ↑ from the library reaches the cell; OK opens SERVERS; BACK closes i
 	await expect(page.locator('[data-focus-id="library-more"]')).toBeFocused();
 });
 
-test('S1: MORE opened again while SERVERS is still leaving gives focus back to MORE, not the cell', async ({
+test('MORE opened again while SERVERS is still leaving gives focus back to MORE, not the cell', async ({
 	page
 }) => {
 	const now = Date.now();
@@ -1022,7 +1019,7 @@ test('S1: MORE opened again while SERVERS is still leaving gives focus back to M
 	await expect(cell(page)).not.toBeFocused();
 });
 
-test('S1: OK on the other server opens it; on the one in use, closes onto the cell', async ({
+test('OK on the other server opens it; on the one in use, closes onto the cell', async ({
 	page
 }) => {
 	const now = Date.now();
@@ -1049,7 +1046,7 @@ test('S1: OK on the other server opens it; on the one in use, closes onto the ce
 	expect((await calls(page)).opened).toEqual([ZEN]);
 });
 
-test('S1: forgetting the other of two from the cell takes the cell away, and focus goes to MORE', async ({
+test('forgetting the other of two from the cell takes the cell away, and focus goes to MORE', async ({
 	page
 }) => {
 	const now = Date.now();
@@ -1082,7 +1079,7 @@ test('S1: forgetting the other of two from the cell takes the cell away, and foc
 	await expect(page.locator('[data-focus-id="library-more"]')).toBeFocused();
 });
 
-test('S1: a rename made in the app shows when MORE closes and on the next load, not before', async ({
+test('a rename made in the app shows when MORE closes and on the next load, not before', async ({
 	page
 }) => {
 	const now = Date.now();
@@ -1113,7 +1110,7 @@ test('S1: a rename made in the app shows when MORE closes and on the next load, 
 // (MainActivity's onPageFinished), so the library that mounts right after a
 // switch reads a list whose newest, the bridge's `inUse`, is the server just
 // left. These stubs say so: the page's own server is the older one.
-test('S1: the first library after a switch names the server it is on, not the one just left', async ({
+test('the first library after a switch names the server it is on, not the one just left', async ({
 	page,
 	baseURL
 }) => {
@@ -1127,7 +1124,7 @@ test('S1: the first library after a switch names the server it is on, not the on
 	await expect(cell(page)).toHaveText(/^ON\s*DEN$/);
 	expect((await calls(page)).named).toEqual([]);
 
-	// OK on the cell: S2 says this one is in use, and the mark is on the other.
+	// OK on the cell: SERVERS says this one is in use, and the mark is on the other.
 	await cell(page).focus();
 	await page.keyboard.press('Enter');
 	const sheet = page.getByRole('dialog', { name: 'More' });
@@ -1152,7 +1149,7 @@ test('S1: the first library after a switch names the server it is on, not the on
 	await expect(sheet.locator('[data-more-servers]')).toHaveText(/2 · DEN IN USE/);
 });
 
-test('S1: right after a switch, FORGET knows which one the TV is on', async ({ page, baseURL }) => {
+test('right after a switch, FORGET knows which one the TV is on', async ({ page, baseURL }) => {
 	const here = new URL(baseURL!).origin;
 	const now = Date.now();
 	await bridge(page, [
@@ -1183,7 +1180,7 @@ test('S1: right after a switch, FORGET knows which one the TV is on', async ({ p
 	await expect(row(here).locator('.st')).toHaveText('IN USE');
 	expect((await calls(page)).opened).toEqual([]);
 
-	// The one it is on: the TV moves to the one left (S4's rule for the one in use).
+	// The one it is on: the TV moves to the one left (FORGET's rule for the one in use).
 	await forget(here);
 	expect((await calls(page)).forgot).toEqual([STUDIO, here]);
 	await expect.poll(async () => (await calls(page)).opened).toEqual([ZEN]);
@@ -1195,10 +1192,7 @@ test.describe('the TV app, on a server it has not named yet', () => {
 			'Mozilla/5.0 (Linux; Android 11; BRAVIA 4K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 TsundokuTV/2026.11.04'
 	});
 
-	test("S1: the first library shows the server's own name, not its host", async ({
-		page,
-		baseURL
-	}) => {
+	test("the first library shows the server's own name, not its host", async ({ page, baseURL }) => {
 		const here = new URL(baseURL!).origin;
 		const now = Date.now();
 		// Paired by address and never loaded: no name yet, so `shown` is the host.
@@ -1215,7 +1209,7 @@ test.describe('the TV app, on a server it has not named yet', () => {
 });
 
 /*
- * c717: closing MORE reads the list again, and its focus hand-back waits for
+ * Closing MORE reads the list again, and its focus hand-back waits for
  * that answer. Today's bridge answers at once, so only a held answer reaches
  * this: the next `__tvHold` questions park on `__tvLater`, and everything else
  * (MoreSheet's own synchronous read included) answers from the stub.
@@ -1277,7 +1271,7 @@ async function closeHeldAndReopen(page: Page) {
 	return again;
 }
 
-test('S1: a late answer to MORE closing leaves focus in the SERVERS sheet reopened before it', async ({
+test('a late answer to MORE closing leaves focus in the SERVERS sheet reopened before it', async ({
 	page
 }) => {
 	await holdingBridge(page);
@@ -1293,9 +1287,7 @@ test('S1: a late answer to MORE closing leaves focus in the SERVERS sheet reopen
 	await expect(sheet).toBeVisible();
 });
 
-test('S1: a late answer finds the reopened sheet open even with focus nowhere', async ({
-	page
-}) => {
+test('a late answer finds the reopened sheet open even with focus nowhere', async ({ page }) => {
 	await holdingBridge(page);
 	const sheet = await closeHeldAndReopen(page);
 	// The frame before the scope's first focus, and any later fall to the body.
@@ -1307,7 +1299,7 @@ test('S1: a late answer finds the reopened sheet open even with focus nowhere', 
 	await expect(sheet).toBeVisible();
 });
 
-test('S1: the cell gone under the reopened sheet still hands focus to MORE when it closes', async ({
+test('the cell gone under the reopened sheet still hands focus to MORE when it closes', async ({
 	page
 }) => {
 	await holdingBridge(page);
@@ -1325,9 +1317,7 @@ test('S1: the cell gone under the reopened sheet still hands focus to MORE when 
 	await expect(onMore(page)).toBeFocused();
 });
 
-test('S1: a late answer to MORE closing does not take focus from another sheet', async ({
-	page
-}) => {
+test('a late answer to MORE closing does not take focus from another sheet', async ({ page }) => {
 	await holdingBridge(page);
 	await page.goto('/');
 	await expect(cell(page)).toBeVisible();
@@ -1350,7 +1340,7 @@ test('S1: a late answer to MORE closing does not take focus from another sheet',
 	await expect(onMore(page)).not.toBeFocused();
 });
 
-test('S1: an older close answering after a newer one hands nothing back', async ({ page }) => {
+test('an older close answering after a newer one hands nothing back', async ({ page }) => {
 	await holdingBridge(page);
 	const sheet = await closeHeldAndReopen(page);
 	await holdNext(page);
@@ -1455,7 +1445,7 @@ test('a TV reaches the band’s ✕ after UNDO, and clearing it leaves the scree
 test.describe('a TV that speaks Portuguese', () => {
 	test.use({ locale: 'pt-BR' });
 
-	test('S1 in Portuguese: EM, and the name as the TV has it', async ({ page }) => {
+	test('the server in use in Portuguese: EM, and the name as the TV has it', async ({ page }) => {
 		const now = Date.now();
 		await bridge(page, [
 			{ origin: HOME, name: 'ZEN-HOME', tvName: 'Sala', opened: now },

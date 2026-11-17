@@ -180,7 +180,7 @@ for (const [pkg, name, id] of [
 }
 
 // The open source's extension also has a French and a Japanese source: BROWSE
-// lists the owner's languages (EN, JA by default) and leaves French out.
+// lists the user's languages (EN, JA by default) and leaves French out.
 db.prepare(
 	`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES ('101', 'en.open', 'Open Source', 'fr', ''), ('102', 'en.open', 'Open Source', 'ja', '')`
 ).run();
@@ -197,7 +197,7 @@ beforeEach(() => {
 });
 
 describe('BROWSE’s list', () => {
-	it('lists the owner’s languages, names a language only where an extension has several', () => {
+	it('lists the user’s languages, names a language only where an extension has several', () => {
 		const list = browse.browseList(false);
 		expect(list.manga.map((r) => r.label)).toEqual(['Open Source · EN', 'Open Source · JA']);
 		expect(list.extensions).toBe(1);
@@ -413,8 +413,8 @@ describe('what a source can do', () => {
 	});
 });
 
-describe('an extension with nothing in the owner’s languages', () => {
-	it('shows all its sources, since it was installed on purpose (a pt-BR site, 2026-10-30)', () => {
+describe('an extension with nothing in the user’s languages', () => {
+	it('shows all its sources, since it was installed on purpose (a pt-BR site)', () => {
 		db.prepare(
 			`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at)
 			VALUES ('pt.livre', 'Manga Livre Blog', 'manga', 1, '1.0', '1.4', ?, 0, 0)`

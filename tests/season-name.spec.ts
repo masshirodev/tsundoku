@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaultShowName, seasonMark, stripSeason } from '$lib/library/season-name';
 
 /**
- * The name rule (S2, doc/WORKS.md, "Per-season sources"). Rung
+ * The name rule (doc/WORKS.md, "Per-season sources"). Migration
  * 55's frozen SQL stamps `entries.season` from the same shapes, so every
  * marker it knows is here, and the near misses say what is a name and what
  * only looks like one.
@@ -45,7 +45,7 @@ describe('seasonMark', () => {
 		'A Show I',
 		'A Show Part 2 Again',
 		// Only a bare II is a season marker; a longer numeral is a title's own
-		// ("Final Fantasy VII"), measured in round 2.
+		// ("Final Fantasy VII").
 		'Made in Abyss III',
 		'A Show XIV',
 		'Final Fantasy VII',

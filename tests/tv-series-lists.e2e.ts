@@ -9,7 +9,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * LISTS on a TV, walked line by line with the remote (c519; doc/SERIES.md
+ * LISTS on a TV, walked line by line with the remote (doc/SERIES.md
  * "LISTS", doc/FOCUS.md). ↓ is one stop a line: ANILIST, then RNB on a comic;
  * on an anime of four seasons the open season's line, then the fold of the
  * other three (one stop, however many it holds), then RNB. ← → move between

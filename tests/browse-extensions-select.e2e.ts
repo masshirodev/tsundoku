@@ -6,7 +6,7 @@ import { bumpWebtoons, REPO, resetEngine } from './browse-world';
 import { RUN_DIR } from './helpers/run-dir';
 
 /**
- * EXTENSIONS' SELECT (card c696; doc/BROWSE.md, "Extensions and
+ * EXTENSIONS' SELECT (doc/BROWSE.md, "Extensions and
  * repositories"): INSTALLED's ticks, the bulk bar and its one press. It runs in
  * the browse project (its name), against tests/browse-setup.ts's fake engine:
  * the rows are the few sources the world seeds, and the presses write
@@ -23,12 +23,12 @@ const FLAGS = ['hidden', 'addedHidden', 'offHistory', 'neverTracked'] as const;
 let repoAdded = false;
 
 /**
- * A selection bigger than the URL that used to carry it (round 2's second
- * review): 320 installed single-source extensions with package names of a real
- * length, so one `pkg=` per ticked row passes Node's 16 KB request head. The
- * rows are seeded into the browse world's own database — the project runs one
- * worker, and the case removes them — because a browser can only tick rows the
- * list draws. `bigSeeded` is emptied in afterEach even when a case fails.
+ * A selection bigger than a URL could carry: 320 installed single-source
+ * extensions with package names of a real length, so one `pkg=` per ticked row
+ * passes Node's 16 KB request head. The rows are seeded into the browse world's
+ * own database — the project runs one worker, and the case removes them —
+ * because a browser can only tick rows the list draws. `bigSeeded` is emptied
+ * in afterEach even when a case fails.
  */
 const BIG = 320;
 const BIG_REPO = 9_000;
@@ -427,9 +427,8 @@ test('a SELECT straight after UPDATE starts with nothing ticked, no UNDO in betw
 	await page.locator('.bulk .swc', { hasText: 'UPDATE 1' }).click();
 	await expect(page.locator('.band')).toContainText('UPDATED · 1 EXTENSION');
 	// The bulk form is `use:enhance`: the redirect is a client goto on this
-	// component and the tick set survives it. Press SELECT at once — this is the
-	// state wave 42's e2e ended before, because it pressed the band's native UNDO
-	// first and that full load emptied the set.
+	// component and the tick set survives it. Press SELECT at once: pressing the
+	// band's native UNDO first would do a full load and empty the set.
 	await expect(page.locator('.bulk')).toHaveCount(0);
 	await startSelect(page);
 	await expect(row(page, 'Webtoons.com').getByRole('checkbox')).not.toBeChecked();
@@ -486,7 +485,7 @@ test('a band from its URL keeps every row of every list, and UPDATE’s UNDO pos
 	page
 }) => {
 	// The action writes `done=a&done=b`; the load must read both, and the form
-	// must post one `pkg` per updated row (round 2: it used to keep the first).
+	// must post one `pkg` per updated row, not only the first.
 	await page.goto(
 		'/browse/extensions?band=update&done=e2e.open&done=ln:shelf&miss=e2e.hidden&of=3&no=0'
 	);
@@ -506,8 +505,8 @@ test('320 real-length ticked rows reach the refusal band, not the error page', a
 	await expect(page.locator('.cell.count')).toHaveText(`${drawn} SELECTED`);
 
 	// Each press's own request carries its ticks in the body, never in the URL:
-	// before the fix the formaction held one `pkg=` per row (~18 KB here) and
-	// the browser met a 431 error page before any guard could refuse.
+	// a formaction holding one `pkg=` per row (~18 KB here) would meet a 431
+	// error page before any guard could refuse.
 	const band = page.locator('.band');
 	await cell(page, 'NEVER TRACKED').click();
 	await expect(band.locator('.title')).toHaveText('TOO MANY SOURCES TO CHANGE AT ONCE');

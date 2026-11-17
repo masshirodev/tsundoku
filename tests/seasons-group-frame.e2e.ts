@@ -9,16 +9,16 @@ import { expect, test } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
- * GROUP AS ONE SHOW's sheet, measured (c283, S2; doc/WORKS.md, "Per-season
- * sources"). The measurements below are `Seasons-Group.dc.html`'s (A1) and
- * the design system's `wk.css`: the AS row's two answers, NAME without its
+ * GROUP AS ONE SHOW's sheet, measured (doc/WORKS.md, "Per-season
+ * sources"). The measurements below are the design's and the design system's
+ * `wk.css`: the AS row's two answers, NAME without its
  * season marker, SEASONS' order, the numbered rows (52px number cell, 34px
  * cover), the explanation and the merge foot. They are hand-pinned from
  * `design-tools/extract-spec.mjs`'s summary and `wk.css` rather than run
- * through `gen-conformance`, which would write `@playwright/test` back into
+ * through the generator, which would write `@playwright/test` back into
  * the frame (doc/TESTING.md, "Regenerating the frame spec").
  *
- * It runs once, in `tablet-landscape`, the board's 1280x800; the other device
+ * It runs once, in `tablet-landscape`, the design's 1280x800; the other device
  * projects skip it. It seeds a database of its own and serves the build on a
  * free port, like the Works frames, because it selects anime the seed has none
  * of and must not leave a selection behind for anyone else.
@@ -46,11 +46,11 @@ test.use({ baseURL: base });
 
 // eslint-disable-next-line no-empty-pattern -- Playwright needs the object pattern
 test.beforeAll(async ({}, testInfo) => {
-	// The board is the tablet-landscape's 1280x800 (Seasons-Group.dc.html's own
-	// preview props); the other device projects ignore this file.
+	// The design is drawn at tablet-landscape's 1280x800; the other device
+	// projects ignore this file.
 	test.skip(
 		testInfo.project.name !== 'tablet-landscape',
-		'the group sheet frame is the handoff’s 1280x800'
+		'the group sheet frame is the design’s 1280x800'
 	);
 	test.setTimeout(120_000);
 	wipe();
@@ -117,7 +117,7 @@ function seedAnime() {
 			id,
 			`Anime/Frieren ${i + 1}`
 		);
-		// The board's own year, from the catalogue entry `season-links.ts` writes.
+		// The design's own year, from the catalogue entry `season-links.ts` writes.
 		db.prepare(
 			`INSERT INTO series_season_links (series_id, season, part, via, linked_at, year, episodes)
 			VALUES (?, 1, 1, 'list', ?, ?, 2)`
@@ -133,7 +133,7 @@ function seedAnime() {
 				`Ep. ${n}`,
 				`${title} ${n}`,
 				now,
-				// One episode on disk (HERE) and one watched (WATCHED): the board's line.
+				// One episode on disk (HERE) and one watched (WATCHED): the design's line.
 				n === 1 ? 1 : 0,
 				i + 1,
 				n,
@@ -196,7 +196,7 @@ test('The ONE SHOW sheet: AS label, answers, NAME, SEASONS', async ({ page }) =>
 		font: ['13px', '500']
 	});
 
-	// Two answers, equal cells, the board's tall 64px.
+	// Two answers, equal cells, the design's tall 64px.
 	const answers = sheet.locator('.seg.answers');
 	const tracks = (
 		(await answers.evaluate((node) => getComputedStyle(node).gridTemplateColumns)) as string
@@ -239,7 +239,7 @@ test('The ONE SHOW sheet: numbered rows and the merge foot', async ({ page }) =>
 	await expect(rows.nth(0).locator('.num')).toHaveText('S1');
 	await expect(rows.nth(1).locator('.num')).toHaveText('S2');
 
-	// The board's meta line (A1, line 76): the source's name, EP., the year,
+	// The design's meta line: the source's name, EP., the year,
 	// WATCHED in ink and how many episodes are on disk.
 	const line = rows.first().locator('.t .b');
 	await expect(line).toHaveText('KICKASSANIME · 2 EP. · 2023 · 1 WATCHED · 1 HERE');

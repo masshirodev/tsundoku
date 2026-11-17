@@ -9,8 +9,8 @@ import { expect, test } from './fixtures';
 import { freePort } from './helpers/tag-world';
 
 /**
- * The series screen's two columns as two sections, with the remote (card c861;
- * doc/FOCUS.md, "Sections"), at 960×540 with no pointer: ↑ ↓ stay in the column
+ * The series screen's two columns as two sections, with the remote
+ * (doc/FOCUS.md, "Sections"), at 960×540 with no pointer: ↑ ↓ stay in the column
  * they started in, scroll it to its real end and then stop, only ← → cross, and
  * crossing back lands on the row left. On a seeded database of its own, with
  * a 60-chapter series no other spec opens, so a long list and a long column
@@ -239,7 +239,7 @@ async function padToEdit(page: Page) {
 
 /**
  * Prose taller than the column under the last stop, as a long ABOUT or a row of
- * labels is on the owner's series. Nothing here can land on it, so only a
+ * labels is on a real series. Nothing here can land on it, so only a
  * scroll can show it.
  */
 const addProse = (page: Page) =>
@@ -771,7 +771,7 @@ test('in SELECT ↓ alone reaches the bulk bar, past the last row, and ↑ comes
 
 test('when SELECT ends the columns are two sections again', async ({ page }) => {
 	await selectOneRow(page);
-	// ✕ is SELECT's way out: nothing on this screen's BACK ends it (the notes, "Premises").
+	// ✕ is SELECT's way out: nothing on this screen's BACK ends it.
 	await page.getByRole('button', { name: 'Stop selecting' }).focus();
 	await page.keyboard.press('Enter');
 	await expect(page.locator('.series.selecting')).toHaveCount(0);

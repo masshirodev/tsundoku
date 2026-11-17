@@ -1,13 +1,13 @@
 /**
- * SELECT carried into the search and back (c698; doc/LIBRARY.md, "What ends
- * SELECT"; the handoff doc/handoffs/select-search/, Rules.dc.html): both ways
+ * SELECT carried into the search and back (doc/LIBRARY.md, "What ends
+ * SELECT"): both ways
  * in, a hit that ticks, a Work's row that ticks its parts, CLEAR and SHOW over
- * the search, chips with →, and every door that keeps or ends the selection
+ * the search, chips with →, and every action that keeps or ends the selection
  * (←, Android's back and the browser's forward, ✕, a bulk action's success, a
  * reload, a new tab, leaving for another screen, the commands). A flow file,
  * so it runs once, in tablet-portrait, and the phone's strip has a describe
  * at the phone's viewport. Its own preview of the build on a port from the
- * OS, on the seed plus the owner's case (three Haibara titles, two of them
+ * OS, on the seed plus a real library's case (three Haibara titles, two of them
  * novels) and a Work of two parts the seed lacks: GROUP here really groups,
  * which the shared seed must not see.
  */
@@ -144,7 +144,7 @@ async function typeQuery(page: Page, text: string) {
 	await page.waitForURL(new RegExp(`q=${encodeURIComponent(text)}`));
 }
 
-test("the owner's case: search Haibara, SELECT, tick the novels, ←, and GROUP lists them all", async ({
+test("a real library's case: search Haibara, SELECT, tick the novels, ←, and GROUP lists them all", async ({
 	page
 }) => {
 	await page.goto(`${base}/?sort=title`);

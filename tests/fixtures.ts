@@ -15,12 +15,12 @@ import { hydrated } from './helpers/hydration';
  * nothing, a form that posts without JavaScript, an arrow key the focus
  * layer never sees.
  *
- * Network quiet alone was this fixture's wait until wave 21: 500 ms
+ * Network quiet alone is not enough: 500 ms
  * without a request is a guess at hydration, and on a loaded box the last
  * module arrives and then waits longer than that for the CPU. SvelteKit's
  * route announcer is the page's own mark (doc/TESTING.md, "E2E specs":
- * "Network quiet is a guess at hydration"). `tests/helpers/hydrated.ts`, which added the same wait
- * for the specs that imported it, is now this `test` under another name.
+ * "Network quiet is a guess at hydration"). `tests/helpers/hydrated.ts` is
+ * this `test` under another name.
  *
  * A spec that means to act before hydration, as a quick thumb does
  * (`browse-tags`, `filters-layout`, `library-top-bar`'s FILTER case), imports

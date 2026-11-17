@@ -3,7 +3,7 @@ import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-// (chmodSync, mkdirSync and writeFileSync are the c670 block's: real book files
+// (chmodSync, mkdirSync and writeFileSync are for "OPEN → past a stuck decision": real book files
 // whose trash move a KEEP can fail on.)
 import { join } from 'node:path';
 import { type Page } from '@playwright/test';
@@ -303,11 +303,11 @@ test.describe('a fold the state refuses', () => {
 			page.locator('.band.refused').getByText(/THE BOOK HAS A JAPANESE EDITION ALREADY/)
 		).toBeVisible();
 		// The pair is back in this visit's queue too, not only on the next load:
-		// the counter and the pair shown are the fold's again (c648's round 2).
+		// the counter and the pair shown are the fold's again.
 		await expect(page.locator('.counter')).toHaveText('02 OF 02');
 		await expect(page.locator('.conf')).toHaveText('SAME BOOK · A THIRD LANGUAGE');
 		// Dropped, so the next load draws it again, undecided, and does not
-		// carry it out behind the owner's back.
+		// carry it out behind the user's back.
 		const db = new Database(dbPath, { readonly: true });
 		try {
 			expect(
@@ -336,7 +336,7 @@ test.describe('a fold the state refuses', () => {
 		).toBeVisible();
 		await expect(page).toHaveURL(/\/duplicates$/);
 		// The decision the band's UNDO named is gone, so the band is too: there
-		// is nothing left for UNDO to forget (c648's round 2).
+		// is nothing left for UNDO to forget.
 		await expect(page.getByRole('button', { name: 'UNDO', exact: true })).toHaveCount(0);
 		// And the pair it was for is back in this visit's queue.
 		await expect(page.locator('.counter')).toHaveText('01 OF 01');

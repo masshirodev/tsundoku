@@ -27,14 +27,13 @@ const TITLE = 'Movenberg Heir';
  *   starts the app's download worker (`+layout.server.ts` →
  *   `ensureEngineWorker()`; its first tick 1 s later, then every 3 s), and the
  *   fake engine serves ch. 2's pages, so it downloads the seeded queue.
- *   Measured in wave 34 (the world's rows logged at each step, alone): ch. 2
- *   `queued` at the case's start, `downloading` 1.1 s later after the first
- *   `goto`, downloaded and out of the queue at board 3 (2.3 s), which then read
- *   "1 queued, ch. 2.5": red on a fresh world whenever the worker wins, the
- *   case's one unexplained red of wave 32. So the rows are held off it by the
- *   queue's own backoff field, `next_at` ("not before this", which the worker's
- *   `nextUp()` respects), a day ahead: still queued for the board, never
- *   picked during the case.
+ *   Measured (the world's rows logged at each step, alone): ch. 2 `queued` at
+ *   the case's start, `downloading` 1.1 s later after the first `goto`,
+ *   downloaded and out of the queue by what the move does (2.3 s), which then
+ *   read "1 queued, ch. 2.5": red on a fresh world whenever the worker wins.
+ *   So the rows are held off it by the queue's own backoff field, `next_at`
+ *   ("not before this", which the worker's `nextUp()` respects), a day ahead:
+ *   still queued for that screen, never picked during the case.
  * - **The case itself.** MOVE takes ch. 2.5 out of the queue ("has no
  *   partner"), and MOVE BACK does not put it back, by design (doc/MOVE.md,
  *   "The queue"), so a second pass in one world (`--repeat-each`, a retry)
@@ -43,7 +42,7 @@ const TITLE = 'Movenberg Heir';
  * Done at the start, not the end, so a copy that failed mid-way is repaired
  * for the next as well (a series left moved is not: its key is the move's,
  * and the next copy's red names it). Through the world's database, because
- * the app has no door for any of it: its one way into the queue, `enqueue()`
+ * the app has no route for any of it: its one way into the queue, `enqueue()`
  * (src/lib/server/engine/queue.ts), takes only a chapter with no file, and
  * 2.5 is downloaded (the world's `Afterword.cbz`). A download in flight is
  * waited out first, so the worker cannot land ch. 2 after the reset. The
@@ -111,14 +110,14 @@ test('a series moves to another entry, keeps what it lacks and adds what it has,
 	await asSeeded();
 	await openSeries(page);
 
-	// Board 1: a SOURCE row under LINK and COVER, with MOVE →.
+	// A SOURCE row under LINK and COVER, with MOVE →.
 	const panel = page.getByRole('region', { name: 'About this series' });
 	await expect(panel.getByText('SOURCE', { exact: true })).toBeVisible();
 	await expect(panel.getByText('Open Source', { exact: true })).toBeVisible();
 	await panel.getByRole('link', { name: 'MOVE →' }).click();
 	await expect(page).toHaveURL(/\/series\/\d+\/move/);
 
-	// Board 2: the candidate as the source answers. The current entry is named,
+	// The candidate as the source answers. The current entry is named,
 	// not offered.
 	const current = page.locator('.cand.now', { hasText: 'THIS SERIES NOW' });
 	await expect(current).toBeVisible();
@@ -128,7 +127,7 @@ test('a series moves to another entry, keeps what it lacks and adds what it has,
 	await candidate.click();
 	await expect(page).toHaveURL(/to=/);
 
-	// Board 3: what the move does, in the series' own terms.
+	// What the move does, in the series' own terms.
 	await expect(
 		page.getByText(/2 match by number · 1 kept from Open Source · 1 added/)
 	).toBeVisible();
@@ -151,7 +150,7 @@ test('a series moves to another entry, keeps what it lacks and adds what it has,
 	).toBeVisible();
 	await expect(panel.getByText('WAS OPEN SOURCE · UNTIL')).toBeVisible();
 	await expect(panel.getByRole('button', { name: 'MOVE BACK' })).toBeVisible();
-	// The kept chapter says whose it is (board 4, frame 3).
+	// The kept chapter says whose it is.
 	await expect(page.locator('.entry .src', { hasText: 'OPEN SOURCE' })).toBeVisible();
 	// The chapter only the new entry has is listed; MOVE downloaded none of it.
 	await expect(page.locator('.entry', { has: page.locator('.num:text-is("3")') })).toBeVisible();
@@ -167,13 +166,13 @@ test('a series moves to another entry, keeps what it lacks and adds what it has,
 });
 
 /**
- * The move page's frame (doc/MOVE.md; HANDOFF.md, "Verify what eyes cannot"):
+ * The move page's frame (doc/MOVE.md):
  * the candidates' 440px column beside the comparison at 1280, one column below
  * 1024 where the comparison is its own screen, and the hand-set heights the
  * mock draws. Asserted so a later tidy-up can't round them onto a ladder that
  * was never there.
  */
-test('its frame is two panes at 1280 and one below 1024, at the handoff’s measurements', async ({
+test('its frame is two panes at 1280 and one below 1024, at the design’s measurements', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -211,9 +210,9 @@ test('its frame is two panes at 1280 and one below 1024, at the handoff’s meas
 });
 
 /*
- * c488, the episode list's half: only the browse server's seed has an anime
- * with a season watched through (Tsukiakari no Ryokōsha's season 1), so the
- * episode fold's hover is checked here, in the one browse file this slot owns.
+ * Only the browse server's seed has an anime with a season watched through
+ * (Tsukiakari no Ryokōsha's season 1), so the episode fold's hover is checked
+ * here.
  * A hover needs a fine pointer; the browse project is a touch tablet, so this
  * describe is a desktop. series-layout.e2e.ts checks the chapter fold.
  */
@@ -237,9 +236,9 @@ test.describe('the episode fold under a fine pointer', () => {
 });
 
 /*
- * c604: TRY AGAIN and TRY ALL AGAIN are links to the page's own URL, so under
+ * TRY AGAIN and TRY ALL AGAIN are links to the page's own URL, so under
  * app.html's hover preload a desktop pointer asks the source again just by
- * hovering them (DOWNLOADS' c538, fixed there). This measures it: the fake
+ * hovering them (DOWNLOADS had the same fault). This measures it: the fake
  * engine records every source it was asked, and the engine is brought back up
  * after the page drew its DID NOT ANSWER fold, so a hover's preload would be
  * recorded rather than dropped.

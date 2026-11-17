@@ -2,7 +2,7 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * SETTINGS, one page (doc/SETTINGS.md, Settings.dc.html). The
+ * SETTINGS, one page (doc/SETTINGS.md). The
  * e2e server is shared by parallel workers, so this sets only what no other
  * spec reads: WATCHING's defaults, DOWNLOADING, and this browser's own
  * values (each context has its own storage). MODE's per-kind defaults would
@@ -13,7 +13,7 @@ const row = (page: Page, label: string) =>
 	page.locator('.row', { has: page.locator('.label', { hasText: new RegExp(`^${label}$`) }) });
 const section = (page: Page, name: string) => page.getByRole('region', { name: new RegExp(name) });
 
-test('every section in the handoff’s order, each row saying where it’s kept', async ({ page }) => {
+test('every section in the design’s order, each row saying where it’s kept', async ({ page }) => {
 	await page.goto('/settings');
 	await expect(page.locator('section .sec-head h2')).toHaveText([
 		'01 — READING · MANGA AND MANHWA',
@@ -119,7 +119,7 @@ test('AUDIO KEPT: the original always, a choice of the rest, and back to all', a
 	await expect(kept.locator('.meta')).toHaveText(
 		'A DOWNLOAD KEEPS THE ORIGINAL AND THESE · NEW DOWNLOADS ONLY'
 	);
-	// The last one off is the original alone, not every track again (reported 2026-10-29).
+	// The last one off is the original alone, not every track again.
 	await kept.getByRole('button', { name: '✓ EN' }).click();
 	await expect(kept.getByRole('button', { name: 'EN', exact: true })).toHaveAttribute(
 		'aria-pressed',
@@ -151,7 +151,7 @@ test('DEVICES lists this one once it has checked in, kept on the workstation', a
 	await expect(devices.locator('.row.device .scope').first()).toHaveText('KEPT ON THE WORKSTATION');
 });
 
-test('05 — LIBRARY: IMPORT A BACKUP, for a later import (Import-Doors C)', async ({ page }) => {
+test('05 — LIBRARY: IMPORT A BACKUP, for a later import', async ({ page }) => {
 	await page.goto('/settings');
 	const r = row(page, 'IMPORT A BACKUP');
 	// The shared seed has never imported a backup.
@@ -168,7 +168,7 @@ test('/settings?section=watching lands on its section', async ({ page }) => {
 	await expect(section(page, '03 — WATCHING')).toBeInViewport();
 });
 
-test.describe('landscape (1B)', () => {
+test.describe('landscape', () => {
 	test.use({ viewport: { width: 1280, height: 800 } });
 	test('a 260px index of the sections, counting what changed', async ({ page }) => {
 		await page.goto('/settings');
@@ -179,7 +179,7 @@ test.describe('landscape (1B)', () => {
 	});
 });
 
-test.describe('the phone (3A)', () => {
+test.describe('the phone', () => {
 	test.use({ viewport: { width: 360, height: 780 } });
 	test('the scope drops under the control, segments shorten, RESET SECTION is RESET', async ({
 		page
@@ -192,7 +192,7 @@ test.describe('the phone (3A)', () => {
 	});
 });
 
-test('another device’s settings, shown and changed from here (2C)', async ({ page }) => {
+test('another device’s settings, shown and changed from here', async ({ page }) => {
 	const desk = '7c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f';
 	await page.goto('/settings');
 	const res = await page.request.post('/api/devices/sync', {
@@ -235,7 +235,7 @@ test('another device’s settings, shown and changed from here (2C)', async ({ p
 	);
 });
 
-test('offline: what the workstation keeps dims and says so; this device’s rows still change (2D)', async ({
+test('offline: what the workstation keeps dims and says so; this device’s rows still change', async ({
 	page,
 	context
 }) => {
@@ -292,7 +292,7 @@ test('MORE in the library’s bar: the sidebar’s foot as a sheet', async ({ pa
 		// The sidebar's RESCAN, asked through the same question: no
 		// arrow, since it asks rather than goes.
 		/^RESCAN$/,
-		// Live since c438: a link to the log, dated once a backup has come in.
+		// A link to the log, dated once a backup has come in.
 		/IMPORT LOG →/
 	]);
 	await expect(sheet.getByRole('link', { name: /IMPORT LOG →/ })).toHaveAttribute(
@@ -303,13 +303,13 @@ test('MORE in the library’s bar: the sidebar’s foot as a sheet', async ({ pa
 	await expect(page).toHaveURL(/\/settings$/);
 });
 
-test.describe('MORE on the phone (Reach, phoneMore)', () => {
+test.describe('MORE on the phone', () => {
 	test.use({ viewport: { width: 360, height: 780 } });
 	test('fits beside / and SELECT at 360px, with nothing scrolling sideways', async ({ page }) => {
 		await page.goto('/');
 		await expect(page.getByRole('button', { name: 'MORE' })).toBeVisible();
 		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
-		// The handoff's phone bar: the brand, /, SELECT and MORE; the word goes, the name stays.
+		// The phone bar: the brand, /, SELECT and MORE; the word goes, the name stays.
 		await expect(page.locator('.search-hint .word')).toBeHidden();
 		await expect(page.getByRole('link', { name: 'Search' })).toBeVisible();
 		const hint = await page

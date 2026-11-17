@@ -8,8 +8,8 @@ import { hydrated } from './helpers/hydration';
 /**
  * Hovering the picture never tints it, and clicking it never flashes it
  * (doc/ANIME.md, "The player", doc/MOTION.md, "Hovering"). The tap zone
- * over the picture is a `<button>`, so the hover rule in motion.css tinted it
- * until it said `data-press="off"`; the visible controls (the cluster, the
+ * over the picture is a `<button>`, so the hover rule in motion.css would tint
+ * it without `data-press="off"`; the visible controls (the cluster, the
  * scrubber, the bar's cells) keep their tint, and one of them is asserted
  * here so the fix cannot be "no tint anywhere". It runs in the `browse`
  * project because that is where the fixture's clip is served
@@ -26,7 +26,7 @@ test.use({
 	serviceWorkers: 'block'
 });
 
-/** Type `/incognito` in search, the app's own door (doc/PRIVACY.md). */
+/** Type `/incognito` in search, the app's own way in (doc/PRIVACY.md). */
 async function incognito(page: Page) {
 	await page.goto('/search');
 	await page.getByRole('searchbox').fill('/incognito');
@@ -52,7 +52,7 @@ async function openEpisode(page: Page) {
 		undefined,
 		{ timeout: 20_000 }
 	);
-	// Playing until it is under way, as browse-player-cluster's c429 case does:
+	// Playing until it is under way, as a browse-player-cluster case does:
 	// the fake's first server stops as the clip starts and its notice sets the
 	// cluster aside; playback on the second clears it. Then held still, which
 	// keeps the chrome (and the cluster) up.
@@ -111,14 +111,14 @@ test('hovering the picture leaves it untinted, and a visible control still tints
 	// A guard only, which passes with or without data-press="off": press.ts
 	// (SURFACE_SHARE) already refuses a press on anything larger than 25 % of
 	// the viewport, and the tap zone is the whole picture. The hover assertion
-	// above is the one that falsifies c485's fix.
+	// above is the one that fails without the fix.
 	await page.mouse.down();
 	expect(await page.locator('.tapzone').getAttribute('data-pressed')).toBeNull();
 	await page.mouse.up();
 });
 
 /**
- * c713: the player's own key. SETTINGS says what the player does on a device
+ * The player's own key. SETTINGS says what the player does on a device
  * that never touched it, an OFF already stored on the readers' key is carried
  * once, and after that the two are apart: RESET does not bring the old OFF
  * back, and the readers' key no longer moves the player. Through SETTINGS' own
@@ -202,7 +202,7 @@ test.describe('the player’s CURSOR has its own key', () => {
 });
 
 /**
- * c678: the player's cursor follows its controls. The player's CURSOR defaults
+ * The player's cursor follows its controls. The player's CURSOR defaults
  * to on (a key of its own), so no row is touched here; the
  * player has no timer of its own, and the cursor goes exactly when the controls
  * go during playback (`HIDE_MOUSE_MS` after the last move) and comes back with
@@ -261,7 +261,7 @@ test('the cursor goes with the controls during playback and comes back with them
 });
 
 /**
- * c680: the player's half of "a reader opened incognito sends nothing". Every
+ * The player's half of "a reader opened incognito sends nothing". Every
  * writer goes through `send`, which returns on `data.incognito` taken at open,
  * so END pressed from another tab cannot turn its `open`, a `page` or the
  * close on the way out into saved reading. The browse world is where an anime

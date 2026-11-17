@@ -6,7 +6,7 @@ process.env.ANILIST_CLIENT_ID = '42';
 process.env.ANILIST_CLIENT_SECRET = 'al-secret';
 process.env.MAL_CLIENT_ID = 'mal-id';
 process.env.MAL_CLIENT_SECRET = 'mal-secret';
-// Ranobe's own fakes below: the two doors c522's round 2 guards.
+// Ranobe's own fakes below: the two calls NEVER TRACKED must hold back.
 process.env.RANOBE_TOKEN = 'rb_test';
 process.env.RANOBE_URL = 'https://ranobe.test/api/v1';
 
@@ -136,7 +136,7 @@ async function signIn(service: 'anilist' | 'mal') {
 }
 
 describe('signing in', () => {
-	it('sends the owner to the catalogue with the registered address and a state', () => {
+	it('sends the user to the catalogue with the registered address and a state', () => {
 		const al = new URL(tr.signInStart('anilist', ORIGIN).url);
 		expect(al.origin + al.pathname).toBe('https://anilist.co/api/v2/oauth/authorize');
 		expect(al.searchParams.get('redirect_uri')).toBe(`${ORIGIN}/settings/catalogues/anilist`);
@@ -330,7 +330,7 @@ describe('reading the lists', () => {
 				progress: 5,
 				score: 9
 			});
-			// The rows read, not the map's size: the collision used to hide one.
+			// The rows read, not the map's size: a collision would hide one.
 			expect(read.entries).toBe(2);
 		} finally {
 			db.prepare(`DELETE FROM series WHERE id IN (?, ?)`).run(manga, anime);
@@ -341,7 +341,7 @@ describe('reading the lists', () => {
 		const root = (
 			db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number }
 		).id;
-		// A manga the owner linked to the anime's MAL entry: the id is on MAL's
+		// A manga the user linked to the anime's MAL entry: the id is on MAL's
 		// anime list, so that is the row the sheet must show (never the manga's).
 		const comic = Number(
 			db
@@ -404,7 +404,7 @@ describe('reading the lists', () => {
 				`INSERT INTO series_links (series_id, mal_id, via, linked_at, resolved_at, format)
 				VALUES (?, 52093, 'review', ?, ?, 'TV')`
 			).run(show, NOW, NOW);
-			// MAL's anime list has its own words: `watching` is the one the owner is
+			// MAL's anime list has its own words: `watching` is the one the user is
 			// in almost every time, and the manga list never uses it.
 			malAnime = [
 				{
@@ -512,7 +512,7 @@ describe('sending', () => {
 			expect(waiting(tog, 'anilist')).toMatchObject({ progress: 593 });
 			setSourceFlag('100', 'neverTracked', true);
 			sent = [];
-			// The drain asks the door again, and drops the row rather than keep it.
+			// The drain checks the flag again, and drops the row rather than keep it.
 			expect(await tr.sendPending({ seriesId: tog, now: NOW })).toEqual({
 				sent: 0,
 				failed: 0
@@ -595,7 +595,7 @@ describe('a season’s other part speaks for the list signed in', () => {
 			// One season of 23 at the source, 12 + 11 on the catalogues.
 			expect(seasonLinks.linkSeason(show, 1, 1, part(301, 701, 12), 'review', NOW)).toBe(true);
 			expect(seasonLinks.linkSeason(show, 1, 2, part(302, 702, 11), 'review', NOW)).toBe(true);
-			// Both lists read through their own doors: AniList says part 2 is
+			// Both lists read through their own APIs: AniList says part 2 is
 			// planned, MAL that it is watched to EP. 4.
 			alAnime = [
 				{ mediaId: 301, status: 'CURRENT', progress: 3, score: 0, media: animeMedia(301, 'P1') },
@@ -648,7 +648,7 @@ describe('a season’s other part speaks for the list signed in', () => {
 	});
 });
 
-// ---- Ranobe, faked: NEVER TRACKED's two doors ------------------------------
+// ---- Ranobe, faked: NEVER TRACKED's two calls ------------------------------
 
 type RanobeCall = { method: string; path: string; body: unknown };
 let ranobeCalls: RanobeCall[] = [];

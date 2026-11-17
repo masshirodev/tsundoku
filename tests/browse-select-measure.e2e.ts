@@ -2,14 +2,12 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * The hand-set measurements of SELECT in a catalog (card c868;
- * doc/handoffs/browse-select/, Select-Tablet, Bars, Tiles, Show-Tablet) that
- * the generated frame spec (tests/browse-select-frame.e2e.ts) does not
- * propose: the bulk bar's line and cells, the tile's box and ring, the bar's
- * cells and SHOW's rows. They are the mock's literals and do not round to a
+ * The hand-set measurements of SELECT in a catalog that the generated frame
+ * spec (tests/browse-select-frame.e2e.ts) does not propose: the bulk bar's
+ * line and cells, the tile's box and ring, the bar's cells and SHOW's rows. They are the mock's literals and do not round to a
  * spacing ladder, so a later pass that tidies them onto one would quietly
  * redraw the screen; this is what stops it. In the browse project, on its
- * fake engine's Open Source, at the board's own 1280x800; nothing is added.
+ * fake engine's Open Source, at the design's own 1280x800; nothing is added.
  */
 
 test.use({ viewport: { width: 1280, height: 800 } });
@@ -83,7 +81,7 @@ test('a tile: the box, the ring, and IN LIBRARY at 0.4 (Tiles)', async ({ page }
 	const off = '.grid .tile.off';
 	expect(await style(page, off, ['opacity'])).toEqual({ opacity: '0.4' });
 	await expect(page.locator(`${off} .check`)).toHaveCount(0);
-	// The grid's tracks are equal (the library's grid: six on the board, as
+	// The grid's tracks are equal (the library's grid: six in the design, as
 	// many as `--grid-cols` gives this width in the app).
 	const tracks = (await style(page, '.grid', ['grid-template-columns']))['grid-template-columns']
 		.split(' ')

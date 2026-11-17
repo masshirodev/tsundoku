@@ -45,14 +45,14 @@ const middle = async (page: Page) => {
 };
 /**
  * Turn one page, and return once the reader has turned it and the page has
- * landed: the flow's transform (set to where the slide lands as it starts,
- * c441) or the chapter's heading has moved, both of which the click changes
+ * landed: the flow's transform (set to where the slide lands as it starts)
+ * or the chapter's heading has moved, both of which the click changes
  * at once, and the flow has stopped sliding, so what is measured next is not
  * moving. A click the reader hadn't handled
  * yet was read as "no turn" under a loaded suite, and the next click turned
  * twice, past the page the test was looking for. The URL is no
  * witness: the reader rewrites `?at=` 800 ms after the *previous* turn, so it
- * can move with no click at all (measured in round 2: `?at=0.0` became
+ * can move with no click at all (measured: `?at=0.0` became
  * `?at=3.0` 900 ms after a turn, nothing clicked).
  */
 const forward = async (page: Page) => {
@@ -96,7 +96,7 @@ test('left at once, the text reader never writes its ?at= onto the series it wen
 }) => {
 	await openBook(page);
 	// The series slower to answer than the reader's 800 ms settle (see the
-	// image reader's case in reader-flow): the timer used to fire while BACK's
+	// image reader's case in reader-flow): the timer could fire while BACK's
 	// load was out and write /read/<id>?at= onto the series' entry.
 	await page.route('**/series/*/__data.json*', async (route) => {
 		await new Promise((r) => setTimeout(r, 1500));
@@ -501,9 +501,9 @@ test('in SCROLL, a face arriving mid-scroll leaves the reader where they scrolle
 	await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
 	const top = () => page.locator('.page').evaluate((n) => n.scrollTop);
 	// The reader's place is read 250 ms after a scroll stops; a relayout before
-	// then (here `loadingdone`, which a late face fires) once took the
-	// reader back to the place they had scrolled away from (work-end-frame's
-	// SCROLL end page never opened). Halfway down: far from where it opened.
+	// then (here `loadingdone`, which a late face fires) must not take the
+	// reader back to the place they had scrolled away from. Halfway down: far
+	// from where it opened.
 	const at = await page.locator('.page').evaluate((n) => {
 		n.scrollTop = Math.round((n.scrollHeight - n.clientHeight) / 2);
 		n.dispatchEvent(new Event('scroll'));
@@ -538,7 +538,7 @@ test('in SCROLL, a relayout after the reader settles leaves the line where it st
 		const settled = await top();
 		await page.evaluate(() => window.dispatchEvent(new Event('load')));
 		await page.waitForTimeout(400);
-		// Until c516 the line was put on the top margin: up to a line back.
+		// Not snapped to the top margin, which would be up to a line back.
 		expect(Math.abs((await top()) - settled)).toBeLessThanOrEqual(1);
 		// The saved place (in the URL 800 ms after it is read) is a character on
 		// the screen, not the start of its paragraph a screen higher.
@@ -736,7 +736,7 @@ test.describe('a novel of two volumes, read in SCROLL', () => {
 		// margin would have been right by luck): the second line of a paragraph
 		// mid-chapter with text above it, not an illustration. With the plate
 		// between the margin and the first line, a WIDTH change in the session
-		// itself kept the line 194 px off 1 run in 3 (reader notes).
+		// itself kept the line 194 px off 1 run in 3.
 		await page.locator('.page').evaluate((n) => {
 			// The first such paragraph of three lines or more: one further down can
 			// bring the next chapter's start past the middle, which opens it at its top.
@@ -792,7 +792,7 @@ test.describe('a novel of two volumes, read in SCROLL', () => {
 		await reloaded();
 		await expect.poll(async () => Math.abs((await top()) - still)).toBeLessThanOrEqual(1);
 
-		// A link from before c554, `?at=b.o`: its character on the top margin, as it did.
+		// An older link, `?at=b.o`: its character on the top margin.
 		const [b, o] = place.split('.');
 		const url = new URL(page.url());
 		url.searchParams.set('at', `${b}.${o}`);
@@ -828,9 +828,9 @@ test.describe('a novel of two volumes, read in SCROLL', () => {
 	 * Read on through the chapters: the text reader moves
 	 * between chapters in place and writes `/read/<next id>` with
 	 * `replaceState`, which leaves SvelteKit's `page.url` at the entry it was
-	 * opened at. A guard that compared the two read every settle after the
-	 * first one in the second chapter as leaving, so `?at=` froze there and no
-	 * more progress was sent. Each chapter here is checked by its own entry: the
+	 * opened at. A guard that compared the two would read every settle after
+	 * the first one in the second chapter as leaving, so `?at=` would freeze
+	 * there and no more progress be sent. Each chapter here is checked by its own entry: the
 	 * window names it, `?at=` moves, a `page` event carries it, and a reload
 	 * opens it, not the first chapter crossed into.
 	 */
@@ -845,7 +845,7 @@ test.describe('a novel of two volumes, read in SCROLL', () => {
 		});
 		return sent;
 	}
-	/** Open Honzuki in this block's own library, by the series screen's own door. */
+	/** Open Honzuki in this block's own library, by the series screen's own link. */
 	async function openOwnBook(page: Page) {
 		await page.goto(`${base}/?sort=title`);
 		await page.locator('.grid .tile', { hasText: TITLE }).click();
@@ -905,7 +905,7 @@ test.describe('a novel of two volumes, read in SCROLL', () => {
 	const continueLink = (page: Page) =>
 		page.getByRole('link', { name: /READ AGAIN|CONTINUE|START/ }).first();
 
-	// After c554's case, which REMEMBERed SCROLL for this book: PAGED is set for
+	// After the reload case above, which REMEMBERed SCROLL for this book: PAGED is set for
 	// the session, and the reload opens in SCROLL, which reads the same entry.
 	test('in PAGED, read on into a third chapter: the URL and progress follow every chapter, and a reload opens the last', async ({
 		page
@@ -945,7 +945,7 @@ test.describe('a novel of two volumes, read in SCROLL', () => {
 
 	// An invalidation gives `page.url` a new object for the entry the reader was
 	// opened at, which isn't a navigation: the place must go on following the
-	// chapters (wave 25's r2). The app does it for real, here by a newer theme.
+	// chapters. The app does it for real, here by a newer theme.
 	test('an invalidation partway through leaves the URL and progress following the chapters', async ({
 		page
 	}) => {
@@ -977,7 +977,8 @@ test.describe('a novel of two volumes, read in SCROLL', () => {
 		expect(new URL(page.url()).pathname).toBe(`/read/${second}`);
 	});
 
-	// After c554's case, which REMEMBERed SCROLL for this book, so a reload opens in SCROLL.
+	// After the reload case above, which REMEMBERed SCROLL for this book, so a
+	// reload opens in SCROLL.
 	test('in SCROLL, read on into a third chapter: the URL and progress follow every chapter, and a reload opens the last', async ({
 		page
 	}) => {
@@ -1004,9 +1005,9 @@ test.describe('a novel of two volumes, read in SCROLL', () => {
 		await expect(heading).toHaveText(`Vol. ${n + 2}`);
 	});
 
-	// c623: a chapter moving in place is written with `replaceState`, whose
-	// history entry keeps the URL of the last real navigation: a popstate into
-	// it (BACK from the series, then forward) loaded the chapter the reader was
+	// A chapter moving in place is written with `replaceState`, whose history
+	// entry keeps the URL of the last real navigation: a popstate into it
+	// (BACK from the series, then forward) can load the chapter the reader was
 	// opened at, not the one it read on to.
 	test('history into the reader entry after an in-place chapter move opens the chapter read on to, at its place', async ({
 		page
@@ -1026,7 +1027,7 @@ test.describe('a novel of two volumes, read in SCROLL', () => {
 		await readInto(page, sent, heading, `Vol. ${n + 1}`, step, placeOf(page));
 		await readInto(page, sent, heading, `Vol. ${n + 2}`, step, placeOf(page));
 		// A place further into the third chapter, so the entry's URL is not its
-		// top either. Larger type and half the page, as in c622: one paged turn
+		// top either. Larger type and half the page: one paged turn
 		// in a seed chapter's single page would reach its end and mark it read.
 		await middle(page);
 		await page.getByRole('button', { name: /^(PAGED|SCROLL) · / }).click();
@@ -1060,8 +1061,8 @@ test.describe('a novel of two volumes, read in SCROLL', () => {
 		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
 		// The screen, not the address bar: a popstate that loads another chapter
 		// leaves `location` naming the entry's own URL while the data loaded is
-		// the stored one, so on the old code the window said the third chapter
-		// and the page drew the first.
+		// the stored one, so the window can say the third chapter while the
+		// page draws the first.
 		await expect(page.locator('.blocks:not(.next) h1').first()).toHaveText(`Vol. ${n + 2}`);
 		await expect
 			.poll(() => new URL(page.url()).pathname, { timeout: 10_000 })
@@ -1069,10 +1070,9 @@ test.describe('a novel of two volumes, read in SCROLL', () => {
 		await expect.poll(() => atOf(page), { timeout: 10_000 }).toBe(place);
 	});
 
-	// c655: a rated series lost its rating block on the end page, leaving only
-	// the name in the middle (the block was drawn only while `rating === 0`).
-	// The text reader's last volume ends on the shared EndPage, so this is that
-	// page, reached by the reader's own doors.
+	// A rated series keeps its rating block on the end page, not only the name
+	// in the middle. The text reader's last volume ends on the shared EndPage,
+	// so this is that page, reached through the reader itself.
 	test("a novel's end page keeps its rating block and offers the library row", async ({ page }) => {
 		test.setTimeout(120_000);
 		await openOwnBook(page);
@@ -1081,8 +1081,8 @@ test.describe('a novel of two volumes, read in SCROLL', () => {
 			.getByRole('link', { name: 'Back to the series' })
 			.getAttribute('href');
 		const seriesId = Number(seriesHref!.match(/\/series\/(\d+)/)![1]);
-		// PAGED, so the last page has a scrubber and one turn past it is the
-		// end page's door (in SCROLL that is a scroll, not a click).
+		// PAGED, so the last page has a scrubber and one turn past it opens the
+		// end page (in SCROLL that is a scroll, not a click).
 		await page.getByRole('button', { name: /^(PAGED|SCROLL) · / }).click();
 		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
 		await sheet.getByRole('radio', { name: 'PAGED' }).click();
@@ -1093,9 +1093,9 @@ test.describe('a novel of two volumes, read in SCROLL', () => {
 		await page.locator('.contents .entry-btn').last().click();
 		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
 		// A chapter opened from CONTENTS puts the controls away, and they fade
-		// out: the scrubber measured then was gone by the click, which landed on
-		// the page as a turn, one page on and short of the end (red 3 of 3 in
-		// wave 31, and on its base). So: the controls up again, on purpose.
+		// out: a scrubber measured then is gone by the click, which lands on
+		// the page as a turn, one page on and short of the end. So: the
+		// controls up again, on purpose.
 		await expect(page.locator('.bottom')).toHaveCount(0);
 		await middle(page);
 		const track = page.locator('[role="slider"][aria-label="Page in chapter"]');
@@ -1108,15 +1108,14 @@ test.describe('a novel of two volumes, read in SCROLL', () => {
 		await expect(page.locator('.bottom .left')).toHaveText(/^P\. (\d+) OF \1\b/);
 		await page.keyboard.press('Escape');
 		await expect(page.locator('.bottom')).toHaveCount(0);
-		// One turn past the last page is the end page's door (a turn that stays
+		// One turn past the last page opens the end page (a turn that stays
 		// on the same heading, which is why `forward` is not the helper here).
 		const v = page.viewportSize()!;
 		await page.mouse.click(v.width - 8, v.height / 2);
 		const end = page.locator('[data-end-page]');
 		await expect(end.getByText('END · LAST AVAILABLE')).toBeVisible();
 		await expect(end.locator('.big')).toHaveText(TITLE);
-		// Honzuki is rated 10 and a favourite in the seed: the block shows both,
-		// where before the fix a rated series drew neither.
+		// Honzuki is rated 10 and a favourite in the seed: the block shows both.
 		await expect(end.getByRole('button', { name: 'Rate 10 of 10' })).toBeVisible();
 		await expect(end.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
 		// Re-rating stays on the page: the block, the title and the foot remain.
@@ -1428,7 +1427,7 @@ test.describe("the band at a chapter's start", () => {
 		await expect(band).not.toBeInViewport();
 	});
 
-	// The rule's side and the colours are what c705 only had by construction.
+	// The rule's side and the colours, by computed value, not by construction.
 	// Written from doc/TEXT-READER.md before reading the computed values: the
 	// band's rule closes it towards the text, and it is END's twin in PAPER and
 	// under DIM, whose overlay lies over the whole reader and leaves colours be.
@@ -1625,7 +1624,7 @@ test.describe("the band at a chapter's start", () => {
 		).toBeLessThanOrEqual(1);
 	});
 	/**
-	 * c744: a crossing keeps a screen of the old chapter's end above the new
+	 * A crossing keeps a screen of the old chapter's end above the new
 	 * chapter, so nothing on screen moves. Measured across the threshold the
 	 * reader's own `onscroll` uses, so the crossing is reached by a scroll, and
 	 * then the kept part's own states: not numbered, not hit, not progress,
@@ -1645,7 +1644,7 @@ test.describe("the band at a chapter's start", () => {
 
 		const crossing = await crossOnce(page);
 		expect(crossing.heading).toBe('Interlude');
-		// The case reached: the old code clamps this to the margin.
+		// The case reached: a clamp to the margin would show here.
 		expect(crossing.firstBefore).toBeGreaterThan(200);
 		expect(Math.abs(crossing.firstAfter - (crossing.firstBefore - 10))).toBeLessThanOrEqual(3);
 		expect(Math.abs(crossing.bandAfter - (crossing.bandBefore - 10))).toBeLessThanOrEqual(3);
@@ -1739,9 +1738,9 @@ test.describe("the band at a chapter's start", () => {
 	});
 
 	/**
-	 * c742: in SCROLL the start band and the flow's padding sit above
-	 * `.blocks`, so a fraction over the blocks' height alone reached 1, and
-	 * finished the chapter, one band height before its last line. One band
+	 * In SCROLL the start band and the flow's padding sit above `.blocks`, so
+	 * a fraction over the blocks' height alone would reach 1, and finish the
+	 * chapter, one band height before its last line. One band
 	 * short of the end is not finished; at the end it is. `/api/reading` is
 	 * answered here, so nothing is written: the case reads what the reader
 	 * sends. The settle's own 'page' send (after the 250 ms scroll check)
@@ -1777,12 +1776,12 @@ test.describe("the band at a chapter's start", () => {
 			};
 		});
 		console.log(`c742 measured: ${JSON.stringify(m)}`);
-		// The premise: `.page` is what offsetTop counts from, and the band is above the blocks.
+		// The setup: `.page` is what offsetTop counts from, and the band is above the blocks.
 		expect(m.parentIsPage).toBe(true);
 		expect(m.offsetTop).toBeGreaterThanOrEqual(m.band);
 		const end = m.offsetTop + m.blocks - m.client;
 		// One band short of the last line, and still past where the blocks'
-		// height alone (the fraction before c742) already read 1.
+		// height alone would read 1.
 		const short = end - Math.round(m.band);
 		expect(short).toBeGreaterThan(m.blocks - m.client);
 

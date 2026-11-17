@@ -13,9 +13,9 @@ import { revealOn } from './helpers/reveal';
 
 /**
  * Two one-offs added from a source and grouped keep READ ONLINE and DOWNLOAD,
- * and UNDO and UNGROUP give each its link back (card c885; doc/BOOKS.md,
+ * and UNDO and UNGROUP give each its link back (doc/BOOKS.md,
  * "Where a book's origin lives"). On a book's own page those two are its own
- * offer, and a failed download offers RETRY (c885's last piece). READ ONLINE is
+ * offer, and a failed download offers RETRY. READ ONLINE is
  * the book's own answer, not the group's: a book whose source lost its
  * extension, or which holds no key at all, is offered neither cell while its
  * twin is offered both. It's in the browse project (its name)
@@ -23,7 +23,7 @@ import { revealOn } from './helpers/reveal';
  * here (the browse world's sources aren't galleries, and a one-off from one is
  * a manga, which GROUP won't bind), and every case groups, downloads and
  * ungroups. The one-offs come through the app's own ADD and GROUP, never a
- * seeded row; the two lost states are the world's own rows, which no door
+ * seeded row; the two lost states are the world's own rows, which no screen
  * writes.
  */
 
@@ -38,7 +38,7 @@ let dbPath: string;
 let base: string;
 let preview: ChildProcess | undefined;
 let engine: Server;
-/** Sources whose page list the fake refuses, so a download can fail (c885's RETRY). */
+/** Sources whose page list the fake refuses, so a download can fail (for RETRY). */
 const failing = new Set<string>();
 
 function freePort(): Promise<number> {
@@ -74,7 +74,7 @@ function startEngine(port: number, image: Buffer): Promise<Server> {
 				[...failing].some((f) => (b.chapterData?.url ?? '').includes(f))
 			)
 				// A site that refuses: the worker counts the try and fails the chapter
-				// after MAX_TRIES, which is what c885's RETRY waits for.
+				// after MAX_TRIES, which is what RETRY waits for.
 				return res.writeHead(500, { 'content-type': 'application/json' }).end('{"code":500}');
 			switch (b.method) {
 				case 'getDetailsManga':
@@ -172,7 +172,7 @@ async function reveal(page: Page) {
 	await revealOn(page.context(), base);
 }
 
-/** ADD from the preview: a one-off, as the owner's were. */
+/** ADD from the preview: a one-off. */
 async function addFromSource(page: Page, n: string, source = SOURCE) {
 	await page.goto(url(`/downloads/source/${previewOf(`/g/${n}`, source.id)}`));
 	await page.getByRole('button', { name: /^\+ ADD/ }).click();
@@ -364,11 +364,11 @@ for (const [label, viewport] of [
 	});
 
 /**
- * A book's own page (c885's last piece): `?book=<id>` is where a tap on one
+ * A book's own page: `?book=<id>` is where a tap on one
  * book lands, and a book with no file offers READ ONLINE and DOWNLOAD there,
  * each for that book alone. A queued book keeps READ ONLINE and drops DOWNLOAD;
  * one whose download failed offers RETRY, as its row does on the list
- * (`EntryList`), and that press queues it again. All through the app's doors.
+ * (`EntryList`), and that press queues it again. All through the app's own UI.
  */
 test.describe('on a book’s own page', () => {
 	let offerSeries: number;
@@ -551,11 +551,11 @@ test.describe('on a book’s own page', () => {
 
 /**
  * A group stays `ok` with a book whose own source has no extension, and with a
- * book that holds no key at all (grouped before rung 76). READ ONLINE is the
+ * book that holds no key at all (grouped before migration 76). READ ONLINE is the
  * book's own answer (`readsOnline`), never the group's, and DOWNLOAD is the
  * book's own row of `seriesDownloads`: neither cell on those books, both on a
  * twin that can be read. The two groups come through the app's own ADD and
- * GROUP; the lost states are the world's own rows, because no door makes them.
+ * GROUP; the lost states are the world's own rows, because no screen makes them.
  */
 test.describe('READ ONLINE and DOWNLOAD are the book’s own answers', () => {
 	let missingSeries: number;
@@ -599,7 +599,7 @@ test.describe('READ ONLINE and DOWNLOAD are the book’s own answers', () => {
 			keylessSeries = await makeMixedGroup(page, { n: '701' }, { n: '702' }, 'A Keyless Book');
 			keylessTwin = entryId(keylessSeries, 'Gallery 701');
 			keylessBook = entryId(keylessSeries, 'Gallery 702');
-			// A book grouped before rung 76 holds no key: no door writes that state now.
+			// A book grouped before migration 76 holds no key: nothing in the app writes that state.
 			dbRun(`DELETE FROM entry_origins WHERE entry_id = ?`, keylessBook);
 		} finally {
 			await page.close();

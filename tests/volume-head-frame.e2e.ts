@@ -8,22 +8,20 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * A volume's head, measured in a real browser (c835;
- * doc/handoffs/grouped-volumes/Head-Devices.dc.html and Head-Phone.dc.html). Its three widths, its
- * cover, its three lines of facts, the 3px bar on the volume being read and a
- * read volume's title in text-2. The numbers are the handoff's hand-set ones
+ * A volume's head, measured in a real browser. Its three widths, its cover,
+ * its three lines of facts, the 3px bar on the volume being read and a read
+ * volume's title in text-2. The numbers are the design's hand-set ones
  * (52/104 and 40/82) and do not round to a spacing ladder, so this stops a
  * later tidy-up from redrawing the row.
  *
- * A board, not a screen: the generator pins a screen's frame, so this was
- * written by hand from the boards' declared values (extract-spec's
- * `Head-Phone` summary: the head's grid is `346px 44px` at 412; the rest are
- * gv.css's `.vh` block). It seeds and serves its own database and port
- * because it groups two novels and marks chapters read; nothing of the shared
- * seed is written. It runs once, in tablet-portrait, and the TV's own
+ * A design board, not a screen: the generator pins a screen's frame, so this
+ * was written by hand from the design's declared values (the head's grid is
+ * `346px 44px` at 412; the rest are gv.css's `.vh` block). It seeds and
+ * serves its own database and port because it groups two novels and marks
+ * chapters read; nothing of the shared seed is written. It runs once, in tablet-portrait, and the TV's own
  * measurements are tests/tv-volume-head.e2e.ts's. Its last case is the
- * pointer's half of 1D: a tap focuses the row under a head and must move
- * nothing.
+ * pointer's half of focusing a row: a tap focuses the row under a head and
+ * must move nothing.
  */
 
 let work: string;
@@ -176,7 +174,7 @@ test.describe('the volume head', () => {
 			// A read volume's title drops to text-2, as its facts are.
 			expect(style.readTitle, `${name}: a read title is text-2`).toBe(style.metaColor);
 			// No cover (the seed's novels have no files): the series' stripes with
-			// the volume's number in a page-coloured cell (1A/1C).
+			// the volume's number in a page-coloured cell.
 			expect(style.vnumText, `${name}: the volume's number on the stripes`).toBe('1');
 			expect(style.vnumSize, `${name}: the number's size`).toBe(name === 'phone' ? '13px' : '15px');
 			expect(style.vnumWidth, `${name}: the number's cell`).toBe(name === 'phone' ? 22 : 26);
@@ -202,7 +200,7 @@ test.describe('the volume head', () => {
 		}
 	});
 
-	test('the rail ticks are the volumes, the thumb’s in ink (1C)', async ({ page }) => {
+	test('the rail ticks are the volumes, the thumb’s in ink', async ({ page }) => {
 		await page.goto(url(`/series/${groupedSeries}`));
 		await page.setViewportSize({ width: 800, height: 1280 });
 		const ticks = page.locator('.rail .tick.vol');
@@ -213,16 +211,14 @@ test.describe('the volume head', () => {
 		const hairline = await ticks.first().evaluate((n) => getComputedStyle(n).borderTopWidth);
 		expect(hairline).toBe('1px');
 		// A series with one volume keeps today's list: no volume ticks, and the
-		// numbers' ticks stay (the brief's own case).
+		// numbers' ticks stay.
 		const one = seriesId('Mushoku Tensei');
 		await page.goto(url(`/series/${one}`));
 		await expect(page.locator('.rail .tick.vol')).toHaveCount(0);
 		expect(await page.locator('.rail .tick').count()).toBeGreaterThan(0);
 	});
 
-	test('a pointer’s tap on the row under a head focuses it and moves nothing (1D)', async ({
-		page
-	}) => {
+	test('a pointer’s tap on the row under a head focuses it and moves nothing', async ({ page }) => {
 		await page.goto(url(`/series/${groupedSeries}`));
 		await page.setViewportSize({ width: 800, height: 1280 });
 		// V1's head: the first case left V1 read and V2 the volume being read, so

@@ -2,8 +2,8 @@ import { expect, readerReady, test } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /**
- * The page holds still under an open sheet (src/lib/scroll-lock.ts): the
- * owner could scroll the library behind MORE on a phone (2026-11-13). Every
+ * The page holds still under an open sheet (src/lib/scroll-lock.ts): nothing
+ * scrolls the library behind MORE on a phone. Every
  * sheet is the one Sheet component, so MORE stands for all of them. The
  * overlays that draw their own scrim take the same lock: FILTER stands
  * for the panels, READING over the strip for the readers' sheets. Read-only:
@@ -28,7 +28,7 @@ test('the library does not scroll under MORE, and scrolls again once it closes',
 	await expect(sheet).toBeVisible();
 	const before = await pageTop(page);
 
-	// Over the scrim, above the sheet: where the owner's finger was.
+	// Over the scrim, above the sheet: where a finger would be.
 	await page.mouse.move(width / 2, 40);
 	await page.mouse.wheel(0, 600);
 	// The lock itself, since a wheel alone can't speak for a touch drag on the phone.

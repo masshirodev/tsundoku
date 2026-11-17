@@ -4,10 +4,8 @@ import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Finding a pair makes every page's thumbnail with sharp, about five seconds
-// of real work for the sample books. Until 2026-10-29 this spec ran in half a
-// second only because it found them made already, in the live covers folder
-// (its default), where it had written them; a run now starts from an empty
-// one (tests/vitest.global-setup.ts) and does the work.
+// of real work for the sample books: a run starts from an empty covers folder
+// (tests/vitest.global-setup.ts), not the live one, so it does the work.
 vi.setConfig({ testTimeout: 30_000 });
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
@@ -76,13 +74,13 @@ describe('deciding', () => {
 		await dupes.findDuplicates();
 	});
 
-	// c671: KEEP BOTH on the series screen carries out the decisions waiting
-	// from before first, as every decision does, and used to drop what
-	// `decide` answered of them. A 409 would be false -- this KEEP BOTH is
+	// KEEP BOTH on the series screen carries out the decisions waiting from
+	// before first, as every decision does, and must not drop what `decide`
+	// answered of them. A 409 would be false -- this KEEP BOTH is
 	// recorded -- so the answer is a success that names the refusal.
 	it('the series screen’s KEEP BOTH is recorded and says an earlier decision was refused', async () => {
 		// Two series of several entries each: a FOLD of one entry of each is
-		// refused (only a single book folds), as the review's own c648 case.
+		// refused (only a single book folds).
 		const many = db
 			.prepare(
 				`SELECT series_id AS id, MIN(id) AS entry FROM entries

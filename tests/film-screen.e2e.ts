@@ -8,11 +8,10 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * A film's screen, end to end (card c992; the handoff's Film-Desk and Kind
- * boards, doc/handoffs/movies-shows/): the count line and the one cell, the
- * stage in the list's place (the collection from c990's cache, ABOUT), and
- * KIND's CHANGE through the sheet to the band. Its own preview and database,
- * as tmdb-link-flow's, with a linked film and its collection seeded; TMDB is a
+ * A film's screen, end to end: the count line and the one cell, the stage in
+ * the list's place (the collection from the cache, ABOUT), and KIND's CHANGE
+ * through the sheet to the band. Its own preview and database, as
+ * tmdb-link-flow's, with a linked film and its collection seeded; TMDB is a
  * fake that answers nothing, since the screen never asks it.
  */
 test.describe.configure({ mode: 'serial' });
@@ -196,7 +195,7 @@ test('KIND: CHANGE, the sheet says what a pick does, and the band says it was do
 	page
 }) => {
 	await page.goto(`${BASE}/series/${filmId}`);
-	// On a phone KIND lives inside DETAILS, closed until it is opened (Kind 4.1).
+	// On a phone KIND lives inside DETAILS, closed until it is opened.
 	const details = page.locator('.details-line').first();
 	if (await details.isVisible()) await details.click();
 	const kind = page.locator('.kind-row').first();

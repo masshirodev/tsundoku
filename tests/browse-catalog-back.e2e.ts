@@ -12,18 +12,17 @@ import { freePort } from './helpers/tag-world';
 import { revealOn } from './helpers/reveal';
 
 /**
- * BROWSE's catalog coming back (c930; doc/BROWSE.md, "It scrolls on, and the
+ * BROWSE's catalog coming back (doc/BROWSE.md, "It scrolls on, and the
  * URL keeps the place" and "Back returns to where the tag was"): a way back
  * from a preview lands at the same scroll on the same tile, with the pages
  * already loaded drawn at once, no page asked of the source again and no
- * cover already shown fetched again; a reload and a forward visit keep
- * today's behaviour (the top), and nothing of a revealed list comes back.
+ * cover already shown fetched again; a reload and a forward visit start at
+ * the top, and nothing of a revealed list comes back.
  *
  * The list a way back draws is this visit's own answer, never the one kept:
  * a series hidden since the list was left (HIDE on its screen, another tab,
  * an ADDED HIDDEN add) must not be drawn, title or cover, while the answer is
- * on its way — an outline of the kept list's size holds the place instead
- * (round 2's high finding).
+ * on its way — an outline of the kept list's size holds the place instead.
  *
  * It runs in the `browse` project against its own seeded database and a fake
  * engine on ports the OS gives, because it counts what the source is asked
@@ -569,7 +568,7 @@ test('a source that answers slowly: the place is held while this visit’s answe
 	await page.goBack();
 	await page.waitForURL(/\/browse\//);
 	// While the answer is out, the place is an outline of the kept list's size:
-	// not one tile of the kept list is drawn (round 2's high finding).
+	// not one tile of the kept list is drawn.
 	await expect
 		.poll(() => page.evaluate(() => Math.round(scrollY)), { timeout: 10_000 })
 		.toBeGreaterThanOrEqual(before.y - 2);
@@ -736,9 +735,8 @@ test('the next page adds its tiles and leaves the drawn ones alone', async ({ pa
 	const covers = watchCovers(page);
 	covers.clear();
 	// MORE ↓ is the same `?pages=N+1` load as the one scrolling on asks for, and
-	// the door a short list keeps: the observer speaks only on a change, and the
-	// row below the grid is already in view at this width (a stall of its own,
-	// measured in the notes and suggested there, not this card's).
+	// the way on a short list keeps: the observer speaks only on a change, and
+	// the row below the grid is already in view at this width.
 	await page.locator('.more .go').click();
 	await expect.poll(() => gridCount(page), { timeout: 30_000 }).toBe(drawnBy(startsAt + 1, PER, 0));
 

@@ -9,19 +9,18 @@ import type { MihonManga } from '$lib/import/mihon-backup';
 /**
  * The registry against the database (doc/KINDS.md): the CHECK that
  * guards `series.kind` is the last line of defence, so a kind added to the
- * registry without a rung has to fail here rather than in production.
+ * registry without a migration has to fail here rather than in production.
  *
- * A **fresh database at the top rung**, not the source text: rung 47 rewrote
- * `series`'s CHECK in place by string replacement (`OLD_KINDS`/`NEW_KINDS`
- * and `widenKinds`, db.ts:1268-1293), so the schema SQL in `sqlite_master` is the only thing that says
- * what SQLite accepts today. `src/lib/server/db.ts` is not this card's to
- * edit, and no rung is.
+ * A **fresh database at the latest migration**, not the source text: migration
+ * 47 rewrote `series`'s CHECK in place by string replacement
+ * (`OLD_KINDS`/`NEW_KINDS` and `widenKinds`, db.ts:1268-1293), so the schema
+ * SQL in `sqlite_master` is the only thing that says what SQLite accepts.
  *
  * Like every spec that opens a database it can flake under the whole parallel
  * unit run and passes alone; it is one of the migration specs by nature.
  */
 
-// The one case below that goes through the app's own doors needs `getDb()`'s
+// The one case below that goes through the app's own code paths needs `getDb()`'s
 // database: getDb reads this once, on first use, and nothing above calls it.
 // The other cases climb connections of their own and never touch it.
 process.env.DATABASE_PATH = ':memory:';
@@ -33,7 +32,7 @@ const move = await import('$lib/server/move');
 
 const fresh = () => {
 	const conn = new Database(':memory:');
-	// From rung 0 to MIGRATIONS.length, the way a new install is created.
+	// From migration 0 to MIGRATIONS.length, the way a new install is created.
 	climb(conn);
 	return conn;
 };
@@ -58,13 +57,13 @@ describe('series.kind', () => {
 	it('accepts exactly the registry\u2019s kinds', () => {
 		const conn = fresh();
 		const values = kindCheck(conn, 'series');
-		// The CHECK's list is rung 47's order, not the registry's: compare sets.
+		// The CHECK's list is migration 47's order, not the registry's: compare sets.
 		expect(sorted(values)).toEqual(sorted(KINDS));
 		expect(new Set(values).size).toBe(values.length);
 	});
 
 	it('takes every kind the registry names, and refuses one it does not', () => {
-		// The schema's text is only half of it: the rung changed the schema's SQL
+		// The schema's text is only half of it: the migration changed the schema's SQL
 		// in place, so the CHECK has to be exercised on a live connection.
 		const conn = fresh();
 		conn.prepare(`INSERT INTO roots (id, name, path) VALUES (1, 'Mihon', '/nowhere')`).run();
@@ -87,7 +86,7 @@ describe('series.kind', () => {
 
 describe('engine_extensions.kind', () => {
 	/**
-	 * The card called this "the move table", and there is none: MOVE has no
+	 * There is no "move table": MOVE has no
 	 * table of its own (`src/lib/server/db.ts` has no `move` table, and MOVE
 	 * runs through a source's extension). This is the only CHECK in the schema
 	 * listing exactly `('manga', 'anime')`, and what it lists is the two APK
@@ -114,13 +113,12 @@ describe('engine_extensions.kind', () => {
 });
 
 describe('movable', () => {
-	it('is the kinds movableKind offers MOVE to, as it offered them at fb2bd3a7', () => {
+	it('is the kinds movableKind offers MOVE to', () => {
 		// `movableKind` (src/lib/server/move.ts) is what `moveState`,
-		// `moveEligible`, `moveComparison` and `applyMove` ask, and since K4
-		// it reads `movable`. So this pins its answers to the ones it
-		// gave as a list of names, for every kind, rather than to the fact.
-		// c987 added the two video kinds the movies work brings; they move
-		// between sources as an anime does (MOVE_MAP maps both to 'anime').
+		// `moveEligible`, `moveComparison` and `applyMove` ask, and it reads
+		// `movable`. So this pins its answers to the ones it gave as a list of
+		// names, for every kind, rather than to the fact. The two video kinds
+		// move between sources as an anime does (MOVE_MAP maps both to 'anime').
 		const before: Record<string, boolean> = {
 			manga: true,
 			manhwa: true,
@@ -135,13 +133,12 @@ describe('movable', () => {
 	});
 
 	/**
-	 * Wave 16's open question, decided in wave 17: a doujin with a
-	 * `mihon:` key does not move. A gallery source's series is a doujin and
+	 * A doujin with a `mihon:` key does not move. A gallery source's series is a doujin and
 	 * keeps its Mihon key (`planMihon`, mihon-plan.ts), yet `movable` is false
 	 * for every doujin, so MOVE is not offered. Reached through the importer's
-	 * own doors from a fresh seed, then asked through MOVE's.
+	 * own entry points from a fresh seed, then asked through MOVE's.
 	 */
-	it('refuses a gallery doujin with a mihon: key at every MOVE door', async () => {
+	it('refuses a gallery doujin with a mihon: key at every MOVE entry point', async () => {
 		const db = getDb();
 		const NOW = Date.UTC(2026, 10, 3, 1);
 		const NH = '7309872737163460316';
@@ -193,9 +190,8 @@ describe('movable', () => {
 
 describe('a doujin\u2019s catalogue', () => {
 	/**
-	 * Round 2 of wave 16: the audit said a doujin's catalogue was asked
-	 * by no door, having looked only at the owner-facing ones (LINKABLE,
-	 * linkState). The importer is a door too: `planMihon` keeps Mihon's MAL
+	 * A doujin's catalogue is asked not only by the user-facing paths
+	 * (LINKABLE, linkState). The importer asks it too: `planMihon` keeps Mihon's MAL
 	 * tracker for a gallery source's doujin (`malLink`, mihon-plan.ts:414),
 	 * `writeSeries` links it (write.ts:448, `linkFromTracker`, no kind check),
 	 * and `resolveLinks` reads the MAL id in the series' own kind's catalogue

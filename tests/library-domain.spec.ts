@@ -44,7 +44,7 @@ const card = (over: Partial<SeriesCard> = {}): SeriesCard => ({
 });
 
 describe('rating', () => {
-	// 0 is unrated (the owner's scale): it draws no track at all, so it never
+	// 0 is unrated: it draws no track at all, so it never
 	// looks like a series someone rated low.
 	it('draws unrated (0) with no track and a rated series with its track', () => {
 		expect(ratingBars(0)).toEqual(['none', 'none', 'none', 'none', 'none']);

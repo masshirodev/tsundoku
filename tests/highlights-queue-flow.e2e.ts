@@ -291,7 +291,7 @@ test('a hidden series or reveal keeps nothing on the device, where a public page
 		expect(await queued(page)).toEqual([]);
 		await context.setOffline(false);
 
-		// The other door to the queue: online, and the POST comes back with nothing.
+		// The other way to the queue: online, and the POST comes back with nothing.
 		await expect(cell(page)).toHaveText('HIGHLIGHT');
 		await page.route(PAGES, (r) => r.abort('connectionrefused'));
 		await cell(page).click();

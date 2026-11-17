@@ -10,7 +10,7 @@ import { expect, test } from './fixtures';
 /**
  * The text reader on a TV: its chrome -- OK brings it up as a focus row,
  * the pad reaches READING, and LAYOUT changes by keys alone -- and its end page,
- * which takes the pad as the image reader's does (c280: a novel's last volume
+ * which takes the pad as the image reader's does (a novel's last volume
  * is EndPage, so its cells are the Work's block, the rating and the foot).
  * Read-only: it reads in incognito, so no progress is written, and the LAYOUT
  * it changes is session state that only REMEMBER stores (TextReader.svelte),
@@ -274,13 +274,13 @@ test('the end of the book takes the pad: its cells are reachable, as the image r
 		await page.waitForTimeout(20);
 	}
 	await expect(end).toBeVisible({ timeout: 15_000 });
-	// The end page lifts the reader's opt-out, as the image reader's has since
-	// c235: before it, every arrow was the reader's.
+	// The end page lifts the reader's opt-out, as the image reader's does:
+	// otherwise every arrow would be the reader's.
 	expect(await reader.evaluate((n) => n.hasAttribute('data-focus-off'))).toBe(false);
 	// The first arrow lands on one of the end page's own cells. Which one
 	// depends on how many of the loop's → presses were still queued when the
-	// end page arrived (each moves the pad once the opt-out lifts; wave 32:
-	// FAV's switch, named "OFF"), so the pad's place is asserted, not a name.
+	// end page arrived (each moves the pad once the opt-out lifts; one run
+	// landed on FAV's switch, named "OFF"), so the pad's place is asserted, not a name.
 	await page.keyboard.press('ArrowDown');
 	await expect
 		.poll(() => page.evaluate(() => !!document.activeElement?.closest('[data-end-page]')))
@@ -389,7 +389,7 @@ test.describe('the end of what is downloaded', () => {
 		}
 		await expect(end).toBeVisible();
 		await expect(page.getByText('CH. 2 IS NOT DOWNLOADED')).toBeVisible();
-		// The reader lifts its opt-out at the end (c241/W6), on this branch too.
+		// The reader lifts its opt-out at the end, on this branch too.
 		expect(
 			await page.locator('.text-reader').evaluate((n) => n.hasAttribute('data-focus-off'))
 		).toBe(false);

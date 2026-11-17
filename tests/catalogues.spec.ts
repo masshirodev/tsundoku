@@ -17,9 +17,7 @@ import {
 
 /**
  * Which catalogue a kind is linked to, and whether this install can ask it
- * (doc/LINKS.md, "Which catalogue"). The TMDB kinds themselves are
- * c987's, so today every kind is AniList's; the provider half is what this
- * holds now.
+ * (doc/LINKS.md, "Which catalogue").
  */
 
 const saved = {

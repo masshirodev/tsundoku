@@ -7,16 +7,16 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * The links review's own door (doc/NAVIGATION.md, doc/LIBRARY.md): a
+ * The links review's own entry (doc/NAVIGATION.md, doc/LIBRARY.md): a
  * TO LINK row in the desktop's sidebar and in MORE while anything waits, so
  * the library's SERIES TO LINK band can be put away without hiding the
  * review. The band goes, and the review is still one press away; with nothing
  * left to link, the row goes too.
  *
  * Its own preview and seeded database, one per project that runs it, because
- * emptying the queue (NONE OF THESE, the review's own door) is a write the
+ * emptying the queue (NONE OF THESE, on the review itself) is a write the
  * shared server's links-flow counts. Desktop reaches it from the sidebar, the
- * phone from MORE, as the card asks; the tablets' MORE is the same sheet as
+ * phone from MORE; the tablets' MORE is the same sheet as
  * the phone's, so they skip rather than stand up two more servers. The port is
  * the OS's to give.
  */
@@ -42,7 +42,7 @@ const freePort = () =>
 test.beforeAll(async () => {
 	// This hook seeds a database and spawns a preview, then polls up to 60 s
 	// for it: all inside the default 30 s hook budget, where `work-end-frame`'s
-	// same shape ran past 30 s in wave 20's gate. Measured at 2 s here,
+	// same shape ran past 30 s on a loaded box. Measured at 2 s here,
 	// desktop at a load average of 20; it returns at once on the two tablets,
 	// which skip this file. The house budget is 120 s so a loaded gate fails a
 	// case, never the hook. In a hook, `test.setTimeout` sets the hook's

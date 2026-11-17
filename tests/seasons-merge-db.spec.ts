@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Merging seasons into one show, and putting them back (card c283, S2;
- * doc/WORKS.md, "Per-season sources"). Three seasons -- one watched, one
+ * Merging seasons into one show, and putting them back (doc/WORKS.md,
+ * "Per-season sources"). Three seasons -- one watched, one
  * partly, one streaming -- across the tables that name a series: their
  * episodes, log rows, progress, sources, folders, links, tracking, tags,
  * shelves, queue and Work. A merge is checked by what moved, and its UNDO by
@@ -269,8 +269,8 @@ function seed() {
 	db.prepare(
 		`INSERT INTO work_series (work_id, series_id, position) VALUES (5, 101, 1), (5, 102, 2), (5, 103, 3)`
 	).run();
-	// A link per season: seasons 1 and 2 their own rows, season 3 only the
-	// legacy one an anime linked before c240 has.
+	// A link per season: seasons 1 and 2 their own rows, season 3 only a
+	// legacy `series_links` row.
 	insert(
 		`INSERT INTO series_season_links (series_id, season, part, anilist_id, via, title, linked_at)
 		VALUES (101, 0, 1, 9001, 'exact', 'Frieren', ?)`,
@@ -356,7 +356,7 @@ describe('merging three seasons', () => {
 		expect(db.prepare(`SELECT COUNT(*) AS n FROM season_merges`).get()).toEqual({ n: 1 });
 	});
 
-	it('keeps each season’s source, folder and title in S1’s per-season rows', () => {
+	it('keeps each season’s source, folder and title in the first season’s per-season rows', () => {
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 		const rows = facts.seasonFacts(101, db);
 		expect(rows.map((r) => [r.season, r.originKey, r.folder, r.sourceTitle])).toEqual([
@@ -380,7 +380,7 @@ describe('merging three seasons', () => {
 		expect(db.prepare(`SELECT COUNT(*) AS n FROM series_links`).get()).toEqual({ n: 0 });
 	});
 
-	it('takes the highest rating, FAV if any, every tag and shelf, and S1’s cover', () => {
+	it('takes the highest rating, FAV if any, every tag and shelf, and the first season’s cover', () => {
 		db.prepare(`UPDATE series SET cover_key = 'cover-101' WHERE id = 101`).run();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 		const s = db
@@ -1678,9 +1678,9 @@ describe('a journal row whose entry is gone', () => {
 				)
 				.get() as { id: number }
 		).id;
-		// No anime door deletes an episode today (?/deleteBook's sheet is the
-		// books'); the review measured this state with the same DELETE, and the
-		// foreign key nulls the live log row's reference.
+		// No anime action deletes an episode (?/deleteBook's sheet is the
+		// books'), so a direct DELETE makes this state, and the foreign key
+		// nulls the live log row's reference.
 		db.prepare(`DELETE FROM entries WHERE id = ?`).run(partly);
 		expect(() => books.ungroupSeasons(101, NOW)).not.toThrow();
 		expect(
@@ -1744,7 +1744,7 @@ describe('a flat list and an episode added while merged', () => {
 
 /**
  * Every Work, its moment and each member's place: what the undo reads and
- * writes (round 3's owner-action table). A `LEFT JOIN` so a Work with no
+ * writes (the user-action table). A `LEFT JOIN` so a Work with no
  * members shows as one row, which is a state the undo must never leave.
  */
 function workTable() {
@@ -1762,7 +1762,7 @@ const membersOfWork = (workId: number) =>
 		.prepare(`SELECT series_id, position FROM work_series WHERE work_id = ? ORDER BY position`)
 		.all(workId);
 
-/** A series' own row, the columns an owner action writes. */
+/** A series' own row, the columns a user action writes. */
 function seriesRowOf(id: number) {
 	return db
 		.prepare(
@@ -1776,9 +1776,9 @@ const titlesOf = () =>
 	db.prepare(`SELECT id, title FROM series WHERE id IN (101, 102, 103) ORDER BY id`).all();
 
 /**
- * Two Works with an outside member each, as the round-2 and round-3 reviews
- * measured: Work 1 "Older" of two films, Work 2 "Run" of the first two seasons
- * and a third series that is not part of the merge.
+ * Two Works with an outside member each: Work 1 "Older" of two films, Work 2
+ * "Run" of the first two seasons and a third series that is not part of the
+ * merge.
  */
 function twoWorks() {
 	const folk: [number, string, string][] = [
@@ -1796,12 +1796,12 @@ function twoWorks() {
 }
 
 describe('a Work renamed while merged', () => {
-	it('puts the absorbed season back into the Work the owner renamed', () => {
+	it('puts the absorbed season back into the Work the user renamed', () => {
 		const { run, made } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102], now: NOW });
 		works.rename(run, 'Run, renamed', made);
 		books.ungroupSeasons(101, NOW);
-		// The name the owner gave it while merged is theirs; the membership the
+		// The name the user gave it while merged is theirs; the membership the
 		// journal holds is the merge's.
 		expect(db.prepare(`SELECT name FROM works WHERE id = ?`).get(run)).toEqual({
 			name: 'Run, renamed'
@@ -1849,8 +1849,8 @@ describe('a season taken out after its Work was reissued', () => {
 	});
 });
 
-describe('the owner-action table', () => {
-	it('puts a Work’s order back when the owner reordered it while merged', () => {
+describe('the user-action table', () => {
+	it('puts a Work’s order back when the user reordered it while merged', () => {
 		const { run } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102], now: NOW });
 		expect(membersOfWork(run)).toEqual([
@@ -1866,15 +1866,15 @@ describe('the owner-action table', () => {
 		]);
 	});
 
-	it('leaves the show in the Work the owner added it to while merged', () => {
+	it('leaves the show in the Work the user added it to while merged', () => {
 		const { older, run } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102], now: NOW });
 		works.addSeries(older, 101);
 		// The add ended Work 2, and the outside member went with it.
 		expect(db.prepare(`SELECT 1 FROM works WHERE id = ?`).get(run)).toBeUndefined();
 		books.ungroupSeasons(101, NOW);
-		// The owner's add is theirs; the journal's Work comes back with the
-		// members the owner left it.
+		// The user's add is theirs; the journal's Work comes back with the
+		// members the user left it.
 		expect(membersOfWork(run)).toEqual([
 			{ series_id: 102, position: 2 },
 			{ series_id: 11, position: 3 }
@@ -1886,7 +1886,7 @@ describe('the owner-action table', () => {
 		]);
 	});
 
-	it('puts the show back in its Work when the owner took it out while merged', () => {
+	it('puts the show back in its Work when the user took it out while merged', () => {
 		const { run } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102], now: NOW });
 		works.takeOut(run, 101);
@@ -1899,7 +1899,7 @@ describe('the owner-action table', () => {
 		]);
 	});
 
-	it('puts the show back whole-hidden when the owner took it out and hid it', () => {
+	it('puts the show back whole-hidden when the user took it out and hid it', () => {
 		const { run } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102], now: NOW });
 		works.takeOutAndHide([101]);
@@ -1910,11 +1910,11 @@ describe('the owner-action table', () => {
 			{ series_id: 11, position: 3 }
 		]);
 		// A Work is hidden whole: the outside member cannot be left visible
-		// among the seasons the owner hid.
+		// among the seasons the user hid.
 		for (const id of [101, 102, 11]) expect(seriesRowOf(id)).toMatchObject({ hidden: 1 });
 	});
 
-	it('puts a Work’s rating back when the owner rated it while merged', () => {
+	it('puts a Work’s rating back when the user rated it while merged', () => {
 		const { run } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102], now: NOW });
 		// The Work's parts must agree before it can be rated whole.
@@ -1925,7 +1925,7 @@ describe('the owner-action table', () => {
 		expect(seriesRowOf(102)).toMatchObject({ rating: 9 });
 	});
 
-	it('puts a Work’s FAV back when the owner set it while merged', () => {
+	it('puts a Work’s FAV back when the user set it while merged', () => {
 		const { run } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102], now: NOW });
 		library.setFavourite([11], true);
@@ -2069,9 +2069,9 @@ describe('the owner-action table', () => {
 });
 
 /**
- * A Work the owner makes while the show is merged is not the merge's: the undo
+ * A Work the user makes while the show is merged is not the merge's: the undo
  * puts the journal's membership back only where the series is in no Work or
- * still in the Work the journal names. Taking a series out of a Work the owner
+ * still in the Work the journal names. Taking a series out of a Work the user
  * made since would delete or break it.
  */
 describe('a Work made while merged', () => {
@@ -2080,7 +2080,7 @@ describe('a Work made while merged', () => {
 		{ work_id: 1, name: 'Older', made: at(5), series_id: 10, position: 2 }
 	];
 
-	it('does not take the show’s outside member out of the Work the owner made of it', () => {
+	it('does not take the show’s outside member out of the Work the user made of it', () => {
 		const { run } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102], now: NOW });
 		const shorts = works.createWork({ seriesIds: [11, 20], name: 'Shorts', now: at(7) });
@@ -2096,7 +2096,7 @@ describe('a Work made while merged', () => {
 		void run;
 	});
 
-	it('leaves a Work of three the owner made around the show’s outsider whole', () => {
+	it('leaves a Work of three the user made around the show’s outsider whole', () => {
 		twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102], now: NOW });
 		works.createWork({ seriesIds: [11, 20, 21], name: 'Shorts', now: at(7) });
@@ -2111,12 +2111,12 @@ describe('a Work made while merged', () => {
 		]);
 	});
 
-	it('leaves a Work the owner made around the show itself alone', () => {
+	it('leaves a Work the user made around the show itself alone', () => {
 		twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 		works.createWork({ seriesIds: [101, 20], name: 'X', now: at(7) });
 		books.ungroupSeasons(101, NOW);
-		// The show goes back where the journal had it; the Work the owner made
+		// The show goes back where the journal had it; the Work the user made
 		// around the show keeps the series it holds.
 		expect(workTable()).toEqual([
 			...olderRows,
@@ -2130,8 +2130,8 @@ describe('a Work made while merged', () => {
 
 /**
  * The first-season take-out hands the show to the next season; a Work action
- * made while merged must not stop it (round 4's red: an ended Work took the
- * reinserted membership with it and the whole undo rolled back).
+ * made while merged must not stop it (an ended Work would take the
+ * reinserted membership with it and roll the whole undo back).
  */
 describe('the first-season take-out after a Work action', () => {
 	const olderRows = [
@@ -2139,15 +2139,15 @@ describe('the first-season take-out after a Work action', () => {
 		{ work_id: 1, name: 'Older', made: at(5), series_id: 10, position: 2 }
 	];
 
-	it('takes the first out after the owner made a Work around the show', () => {
+	it('takes the first out after the user made a Work around the show', () => {
 		twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 		works.createWork({ seriesIds: [101, 20], name: 'X', now: at(7) });
 		expect(() => books.takeOutSeason(101, 1, NOW)).not.toThrow();
-		// The owner's Work follows the show, as its shelves do: X holds the season
+		// The user's Work follows the show, as its shelves do: X holds the season
 		// that now is the show, at the place the first season had, and 101 is in no
 		// Work. Run cannot stay with one member (11), so it ends here for good:
-		// the journal's next undo can only bring 11 back (102 is in X, the owner's
+		// the journal's next undo can only bring 11 back (102 is in X, the user's
 		// Work), so the reservation holds an id nothing will use again.
 		expect(workTable()).toEqual([
 			...olderRows,
@@ -2159,7 +2159,7 @@ describe('the first-season take-out after a Work action', () => {
 
 		// Measured: the show's UNGROUP leaves Run gone and 11 in no Work. The
 		// placeholder goes with the journal, and nothing was ever going to rebuild
-		// it (the low this pins).
+		// it.
 		books.ungroupSeasons(102, at(8));
 		expect(workTable()).toEqual([
 			...olderRows,
@@ -2169,7 +2169,7 @@ describe('the first-season take-out after a Work action', () => {
 		expect(db.prepare(`SELECT 1 FROM work_series WHERE series_id = 11`).get()).toBeUndefined();
 	});
 
-	it('takes the first out after the owner added the show to another Work', () => {
+	it('takes the first out after the user added the show to another Work', () => {
 		const { older } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 		works.addSeries(older, 101, at(5));
@@ -2189,9 +2189,9 @@ describe('the first-season take-out after a Work action', () => {
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 		works.createWork({ seriesIds: [101, 20], name: 'X', now: at(7) });
 		// The season that would hold the show after the take-out is a placeholder
-		// while merged: out of the library and hidden, so neither kind of door
-		// will put it in a Work the owner made. The follow's own guard (a Work
-		// other than the journal's) is therefore not reachable through a door;
+		// while merged: out of the library and hidden, so neither createWork nor
+		// addSeries will put it in a Work the user made. The follow's own guard
+		// (a Work other than the journal's) is therefore not reachable that way;
 		// this is the measurement, and the guard stays as a cheap refusal.
 		expect(() => works.createWork({ seriesIds: [102, 21], name: 'Y', now: at(8) })).toThrow(
 			/hidden and visible|browsing record/
@@ -2200,7 +2200,7 @@ describe('the first-season take-out after a Work action', () => {
 		expect(db.prepare(`SELECT 1 FROM work_series WHERE series_id = 102`).get()).toBeUndefined();
 	});
 
-	it('takes the first out after the owner took the show out of its Work', () => {
+	it('takes the first out after the user took the show out of its Work', () => {
 		const { run } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 		works.takeOut(run, 101);
@@ -2213,7 +2213,7 @@ describe('the first-season take-out after a Work action', () => {
 		]);
 	});
 
-	it('takes the first out after the owner reordered the Work', () => {
+	it('takes the first out after the user reordered the Work', () => {
 		const { run } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 		works.reorder(run, [11, 101]);
@@ -2226,7 +2226,7 @@ describe('the first-season take-out after a Work action', () => {
 		]);
 	});
 
-	it('takes the first out after the owner renamed the Work', () => {
+	it('takes the first out after the user renamed the Work', () => {
 		const { run, made } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 		works.rename(run, 'Run, renamed', made);
@@ -2242,10 +2242,10 @@ describe('the first-season take-out after a Work action', () => {
 
 /**
  * A season taken out of the journal is no longer the merge's; the show's later
- * UNGROUP must not reach it, nor a Work the owner made of it.
+ * UNGROUP must not reach it, nor a Work the user made of it.
  */
 describe('a taken-out season and the journal', () => {
-	it('does not pull it back out of the Work the owner made of it', () => {
+	it('does not pull it back out of the Work the user made of it', () => {
 		twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 		expect(books.takeOutSeason(101, 2, NOW)).toBe(102);
@@ -2262,13 +2262,13 @@ describe('a taken-out season and the journal', () => {
 		]);
 	});
 
-	it('does not carry a hide to a season the owner grouped out of the show', () => {
+	it('does not carry a hide to a season the user grouped out of the show', () => {
 		const { run } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 		books.takeOutSeason(101, 2, NOW);
 		works.createWork({ seriesIds: [102, 21], name: 'Y', now: at(7) });
-		// The owner hides the show's Work while merged; a Work is hidden whole,
-		// but the season the owner grouped out of the show is not the show's.
+		// The user hides the show's Work while merged; a Work is hidden whole,
+		// but the season the user grouped out of the show is not the show's.
 		works.hideWork(run, true);
 		books.ungroupSeasons(101, NOW);
 		expect(membersOfWork(3)).toEqual([
@@ -2281,7 +2281,7 @@ describe('a taken-out season and the journal', () => {
 		expect(seriesRowOf(11)).toMatchObject({ hidden: 1 });
 	});
 
-	it('does not put a taken-out season back into the Work the owner removed it from', () => {
+	it('does not put a taken-out season back into the Work the user removed it from', () => {
 		const { run } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 		books.takeOutSeason(101, 2, NOW);
@@ -2315,7 +2315,7 @@ describe('a Work’s member deleted while merged', () => {
 
 	it('leaves the Work ended when its only other member is gone', async () => {
 		const { run } = twoWorks();
-		// The owner took the season out of its Work before the merge, so Run is
+		// The user took the season out of its Work before the merge, so Run is
 		// the show and one outside member: [101@1, 11@3].
 		db.prepare(`DELETE FROM work_series WHERE work_id = ? AND series_id = 102`).run(run);
 		books.mergeSeasons({ seriesIds: [101, 102], now: NOW });
@@ -2360,10 +2360,10 @@ describe('a Work’s member deleted while merged', () => {
 		expect(db.prepare(`SELECT 1 FROM series WHERE id = 11`).get()).toBeUndefined();
 	});
 
-	// These two are **pins, not proofs** (round 2's low 7): a two-season merge
+	// These two are **pins, not proofs**: a two-season merge
 	// takes the `restoreAll` path, which ends a Work of one with the global
 	// `endWorksOfOne`, so they pass with or without `planWorkMembers`' count.
-	// They still pin the state a later wave must not break.
+	// They still pin the state a later change must not break.
 	it('pins the Work ended through the later take-out', async () => {
 		const { run } = twoWorks();
 		db.prepare(`DELETE FROM work_series WHERE work_id = ? AND series_id = 102`).run(run);
@@ -2421,7 +2421,7 @@ describe('a Work’s member deleted while merged', () => {
 	it('a rescan deletes neither a season nor a Work’s outsider', () => {
 		const { run } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102], now: NOW });
-		// A re-import is a door, and `prunePageless` is the one that deletes a row
+		// A re-import's `prunePageless` is the one place that deletes a row
 		// without being asked: the absorbed season is a placeholder (rated 1,
 		// favourite 1, out of the library) and the outsider is in a Work, so both
 		// guards hold and neither is touched.
@@ -2438,7 +2438,7 @@ describe('a Work’s member deleted while merged', () => {
 
 	it('leaves the Work whole when a book outsider is grouped into another series', () => {
 		const { run } = twoWorks();
-		// A book outsider (GROUP's own door binds books) and the series it would
+		// A book outsider (GROUP itself binds books) and the series it would
 		// join, both under the same root.
 		for (const [id, title, key] of [
 			[30, 'A Book', 'mihon:1:/book'],
@@ -2499,7 +2499,7 @@ describe('a placeholder in a journal’s Work', () => {
 			)
 			.all();
 
-	/** The red's setup: Run = [101, 11], the first show absorbs 102, then a second absorbs 11. */
+	/** The setup: Run = [101, 11], the first show absorbs 102, then a second absorbs 11. */
 	function secondShowTakesTheOutsider() {
 		const { run } = twoWorks();
 		db.prepare(`DELETE FROM work_series WHERE work_id = ? AND series_id = 102`).run(run);
@@ -2642,7 +2642,7 @@ describe('a placeholder in a journal’s Work', () => {
 });
 
 /**
- * The show line's read (round 2's low 8): the library and the search ask for
+ * The show line's read: the library and the search ask for
  * every tile they draw, so `showRowFacts` narrows to the kinds whose seasons
  * can merge before its per-tile queries. A manga is never a season.
  */

@@ -7,11 +7,11 @@ import type { Candidate } from '$lib/library/catalogue';
  * OTHER FORMS (doc/SERIES.md, "OTHER FORMS"): the same work's manga,
  * novel or anime, from the relation cache the link pass fills.
  *
- * The answer below is AniList's own, recorded on 2026-11-08 by posting
+ * The answer below is AniList's own, recorded by posting
  * relations.ts' query for `Media(id: 178533, type: ANIME)` to
- * https://graphql.anilist.co, the card's example (Ranma 1/2 (2024) and manga
+ * https://graphql.anilist.co, for Ranma 1/2 (2024) and manga
  * 30023). Trimmed of nothing but the `SEQUEL`'s and the second `ALTERNATIVE`'s
- * titles. Two edits, for the card's own case: `SOURCE` where AniList says
+ * titles. Two edits, for the case under test: `SOURCE` where AniList says
  * `ADAPTATION` for the manga, and one `ADAPTATION` added for a novel, which
  * Ranma has none of. The `ALTERNATIVE` anime and the `MUSIC` are left as
  * answered, and are what the rule must refuse.
@@ -121,7 +121,7 @@ const held = (id: number, type: string) => {
 	return m?.type === type ? m : null;
 };
 /**
- * Answers as AniList does, measured on 2026-11-08 by posting two aliases to
+ * Answers as AniList does, measured by posting two aliases to
  * https://graphql.anilist.co, a good id with one AniList doesn't have (and
  * again with a manga's id under `type: ANIME`): HTTP 404,
  * `{"errors":[{"message":"Not Found.","status":404,…}],"data":{"m0":null,"m1":null}}`.
@@ -667,7 +667,7 @@ describe('a middle season AniList answers nothing for', () => {
 		expect(JSON.parse(stored(show)!.graph!).unanswered).toEqual([g.middle]);
 	});
 
-	it('walks through the real door: AniList’s own 404 reaches the pass as an answer', async () => {
+	it('walks through the real endpoint: AniList’s own 404 reaches the pass as an answer', async () => {
 		const g = gap();
 		fresh();
 		const show = anime('Gap Wired', g.first, g.middle, g.last);

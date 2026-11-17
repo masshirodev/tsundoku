@@ -10,8 +10,8 @@ import { expect, test } from './fixtures';
 import { freePort } from './helpers/tag-world';
 
 /**
- * The focus mark on BROWSE's catalog tiles with the remote (card c864;
- * doc/BROWSE.md, doc/FOCUS.md, "The mark"), at 960×540 with no pointer. The
+ * The focus mark on BROWSE's catalog tiles with the remote (doc/BROWSE.md,
+ * doc/FOCUS.md, "The mark"), at 960×540 with no pointer. The
  * mark is read off the page: the focused tile's cover carries the ring, and
  * every side and corner of that ring is on the focused tile, with no
  * neighbour or bar drawn over it. It also walks the ways back a tag opens:

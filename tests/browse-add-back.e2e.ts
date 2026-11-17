@@ -3,12 +3,12 @@ import { ANIME_SOURCE, engineCalls, resetEngine, SOURCES } from './browse-world'
 
 /**
  * + ADD TO LIBRARY and ADD AND DOWNLOAD from a preview replace the preview's
- * history entry instead of pushing one (c932, stage 1; doc/BROWSE.md,
- * doc/NAVIGATION.md): one swipe back from the new series lands on the catalog
- * the entry was found in, at the place it was left, not on the preview
- * a second time. It counts history steps, and the source's own calls on the
- * way back. Runs in the `browse` project against its fake engine; the TV's
- * BACK is in `tests/tv-browse-focus.e2e.ts`, the project with a remote.
+ * history entry instead of pushing one (doc/BROWSE.md, doc/NAVIGATION.md): one
+ * swipe back from the new series lands on the catalog the entry was found in,
+ * at the place it was left, not on the preview a second time. It counts history
+ * steps, and the source's own calls on the way back. Runs in the `browse`
+ * project against its fake engine; the TV's BACK is in
+ * `tests/tv-browse-focus.e2e.ts`, the project with a remote.
  */
 
 const OPEN = `/browse/${SOURCES.open.id}`;
@@ -124,7 +124,7 @@ async function openVisible(page: import('@playwright/test').Page, n = 0) {
 async function expectBackAt(
 	page: import('@playwright/test').Page,
 	before: { y: number; top: string | null },
-	/** The tiles the list has now: one fewer when the add hid a result of it (the c435 landing). */
+	/** The tiles the list has now: one fewer when the add hid a result of it (the hidden landing). */
 	count = 26
 ) {
 	await expect.poll(() => new URL(page.url()).pathname).toBe(OPEN);
@@ -246,7 +246,7 @@ test('UNDO in incognito: the same one swipe, and the visit keeps nothing', async
 	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/series\/\d+$/);
 	await undoOntoThePreview(page);
 	// One swipe back is the catalog, not the 404 of the series UNDO deleted. The
-	// place is the browser's own restore, not a kept list: c930's snapshot
+	// place is the browser's own restore, not a kept list: the catalog's snapshot
 	// refuses incognito, so nothing of this visit outlives it.
 	await page.goBack();
 	await expect.poll(() => new URL(page.url()).pathname).toBe(OPEN);
@@ -285,10 +285,11 @@ test('ADD AND DOWNLOAD: the same one swipe, with what it queued on the band', as
 	await expectBackAt(page, before);
 	expect(await pageCalls(), 'no page already drawn is asked again').toEqual([]);
 
-	// The library back as it was, usually: the queued chapters download at once,
-	// and once one has the band rightly offers no UNDO (c505's rule), so the
-	// series stays for a repeat that opens another tile. When it is offered, it
-	// is the same action as + ADD's, and it replaces the series' entry too.
+	// The library back as it was, usually: the queued chapters download at
+	// once, and once one has the band rightly offers no UNDO (a downloaded
+	// chapter ends it), so the series stays for a repeat that opens another
+	// tile. When it is offered, it is the same action as + ADD's, and it
+	// replaces the series' entry too.
 	await page.goForward();
 	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/series\/\d+$/);
 	const undo = page
@@ -303,9 +304,9 @@ test('ADD AND DOWNLOAD: the same one swipe, with what it queued on the band', as
 test('an ADD that hid the series lands on the source’s page, and one swipe back still reaches the list', async ({
 	page
 }) => {
-	// ADDED HIDDEN on this source, with reveal off: the new series isn't found,
-	// so the band is drawn on the source's page instead of the series (c435,
-	// c505), and the add still replaces the preview's entry.
+	// ADDED HIDDEN on this source, with reveal off: the new series isn't
+	// found, so the band is drawn on the source's page instead of the series,
+	// and the add still replaces the preview's entry.
 	const before = await openListAt(page);
 	const on = await page.request.post(`${OPEN}/settings?/flag`, {
 		form: { flag: 'addedHidden', value: 'true' },
@@ -348,7 +349,7 @@ test('an ADD that hid the series lands on the source’s page, and one swipe bac
 	// band's UNDO is the same one the series' band has: it replaces the
 	// landing's entry rather than pushing over it, and it hands the preview the
 	// catalog it was found in, so ← says BROWSE rather than SOURCES and one swipe
-	// back is the list at its place (c932's UNDO line, the hidden band).
+	// back is the list at its place.
 	await page.goForward();
 	await expect.poll(() => new URL(page.url()).searchParams.get('added')).toBe('hidden');
 	await undoOntoThePreview(page);
@@ -371,7 +372,7 @@ test('an ADD that hid the series lands on the source’s page, and one swipe bac
 });
 
 /**
- * A shared link to a preview (c932's UNDO line): `/downloads/source/<id>`
+ * A shared link to a preview: `/downloads/source/<id>`
  * opened in a fresh page, with no catalog behind it. ADD replaces the preview's
  * entry and UNDO replaces the series', so neither grows history; UNDO lands on
  * the preview with no `from=` invented -- its ← says SOURCES, which is true,
@@ -486,8 +487,7 @@ test('a shared link’s ADD that hid the series: the band’s UNDO invents no ca
  * UNDO after an ADD from a search keeps the search's query: the
  * preview reads its search origin from `q` alone (`downloads/source/[id]`'s
  * load), so `?from=/downloads/search?q=…` alone leaves ← on the bare search
- * page. The series' UNDO is the slot's own side of it: the preview gets the `q`
- * back as well as its `from=`.
+ * page. The series' UNDO gives the preview the `q` back as well as its `from=`.
  */
 test('UNDO after an ADD from a search: the preview’s ← keeps the query, and one swipe back is the search', async ({
 	page

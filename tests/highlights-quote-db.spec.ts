@@ -18,7 +18,7 @@ const { keepQuote, quoteHighlights, QuoteError, setAnchors, validQuote } =
 	await import('$lib/server/highlights/quotes');
 
 /**
- * Highlights H2, the store's half (doc/HIGHLIGHTS.md, "Quotes"):
+ * Highlights, the store's half (doc/HIGHLIGHTS.md, "Quotes"):
  * what the reader's HIGHLIGHT reaches. The body is the shape `TextReader`
  * posts; the rules that read the book are in `highlights-domain.spec.ts`.
  */
@@ -381,7 +381,7 @@ describe('keepQuote', () => {
 		const { entry } = novel();
 		// The window the queue can be in: the join's DELETE landed, and only then
 		// did the waiting quote's POST reach the workstation. The body is inside a
-		// row that is no longer live, so there is nothing to answer it with.
+		// deleted row, so there is nothing to answer it with.
 		const join = keepQuote(body(entry, span(0, 20), { quote: 'the union' }), false, {
 			db,
 			now: at(0)

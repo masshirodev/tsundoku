@@ -6,7 +6,7 @@ import { zip } from './zip-writer.ts';
 
 /**
  * A synthetic Mihon folder shaped like the real one (doc/IMPORT-FORMATS.md):
- * two sources, the owner's rating categories with their "+" twins, a series
+ * two sources, the user's rating categories with their "+" twins, a series
  * with downloads matched by URL (Weeb Central) and tracked on MAL, one matched only by number
  * (Asura adds a slug hash to its URLs), a hidden "+" series, a browsed-only
  * series, and a download the backup doesn't know.

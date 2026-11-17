@@ -12,7 +12,7 @@ import {
 	type FilterField
 } from '$lib/library/browse-filters';
 
-// The schemas five real sources answered on 2026-10-28 (fixtures/filters).
+// The schemas five real sources answered (fixtures/filters).
 const dir = new URL('./fixtures/filters/', import.meta.url);
 const real = readdirSync(dir).map((f) => ({
 	name: f,

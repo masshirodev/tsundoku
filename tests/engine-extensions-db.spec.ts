@@ -198,7 +198,7 @@ describe('installing', () => {
 		expect(existsSync(join(store, `${handleOf(forged)}.apk`))).toBe(false);
 	});
 
-	// MoviesMod on a friend's computer, 2026-11-15: the index read days before
+	// Seen with MoviesMod: the index read days before
 	// named 16.4, and the repository had replaced it with 16.5 and deleted it.
 	it('reads the index again when the APK it named is gone, and installs the one it names now', async () => {
 		await ext.addRepo(BASE, 1000, fetcher);
@@ -240,7 +240,7 @@ describe('installing', () => {
 	});
 });
 
-describe('whether it uses a WebView (rung 78; doc/BROWSE.md, "Extensions that need a WebView")', () => {
+describe('whether it uses a WebView (migration 78; doc/BROWSE.md, "Extensions that need a WebView")', () => {
 	it('takes the engine’s word at install', async () => {
 		await ext.addRepo(BASE, 1000, fetcher);
 		await ext.install(PKG, 2000, fetcher, async (apk) => {

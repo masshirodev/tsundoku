@@ -20,7 +20,7 @@ import { HOST_ARGS } from './helpers/host-args';
  * file's own (doc/WIFI.md, "Where they show").
  *
  * - `door`: an `ORIGIN` on a tailnet-like host, as `scripts/serve.ts` sets it,
- *   so a TV's paired cookie is a door and the row draws the six digits.
+ *   so a TV's paired cookie gets in and the row draws the six digits.
  * - `bare`: no `ORIGIN` at all, the shape of `yarn run dev`, `vite preview` and
  *   serve.ts's local mode, where the hook refuses every TV's cookie.
  *
@@ -134,7 +134,7 @@ test.afterEach(async () => {
 	for (const context of opened.splice(0)) await context.close().catch(() => {});
 });
 
-/** The owner's SETTINGS on one install, signed in with the suite's token. */
+/** SETTINGS on one install, signed in with the suite's token. */
 async function settings(browser: Browser, info: TestInfo, at: Install) {
 	const context = await browser.newContext({
 		storageState: info.project.use.storageState as string,
@@ -176,7 +176,7 @@ const rowAsks = (page: Page) =>
 
 /**
  * A TV with nothing but the computer's address types six digits on /pair/tv:
- * the form 9C posts, with the same-origin header its own page sends. Not a
+ * the form the code page posts, with the same-origin header its own page sends. Not a
  * page of this browser: closing one hands the window's focus back to
  * SETTINGS, which is itself an event the row answers, and would refresh it
  * before the case under test could.
@@ -225,7 +225,7 @@ async function openFrozen(page: Page) {
 	await expect(page.getByText('FOR THE APP · SIX DIGITS')).toBeVisible();
 }
 
-test('with no ORIGIN, DEVICES draws no six digits and no door makes them', async ({
+test('with no ORIGIN, DEVICES draws no six digits and no route makes them', async ({
 	browser
 }, info) => {
 	const { page } = await settings(browser, info, bare);
@@ -236,7 +236,7 @@ test('with no ORIGIN, DEVICES draws no six digits and no door makes them', async
 	await expect(page.getByLabel('Pairing code for the app')).toHaveCount(0);
 
 	// NEW CODE's action and the row's refresh are refused as the load is: the
-	// same door (tvBlockHere), asked from the page as its own button would.
+	// same check (tvBlockHere), asked from the page as its own button would.
 	const answers = await page.evaluate(async () => {
 		const action = await fetch('/settings?/tvCode', {
 			method: 'POST',
@@ -251,8 +251,8 @@ test('with no ORIGIN, DEVICES draws no six digits and no door makes them', async
 	// So the computer holds no TV code at all: nothing above made one.
 	expect(await tvCode(page)).toMatchObject({ code: null, state: 'none' });
 
-	// The same three doors with a tailnet ORIGIN do draw and make one, so the
-	// refusals above are the door's, not the test's.
+	// The same three routes with a tailnet ORIGIN do draw and make one, so the
+	// refusals above are the check's, not the test's.
 	const other = await settings(browser, info, door);
 	await other.page.goto('/settings#s-devices');
 	await expect(other.page.getByText('FOR THE APP · SIX DIGITS')).toBeVisible();
@@ -271,10 +271,10 @@ test('a code a TV uses while SETTINGS is open turns USED when the window regains
 
 	await typeOnTv(door, [code!]);
 	await expect.poll(async () => (await tvCode(page)).state).toBe('used');
-	// Nothing has told the page yet: this is the defect the card names.
+	// Nothing has told the page yet: this is the defect under test.
 	expect(await shownDigits(page)).toBe(code);
 
-	// The owner comes back to the window. No NEW CODE press.
+	// The user comes back to the window. No NEW CODE press.
 	const asked = rowAsks(page);
 	await page.evaluate(() => window.dispatchEvent(new Event('focus')));
 	await asked;
@@ -316,7 +316,7 @@ test('a code a TV burns while SETTINGS is open shows BURNED, and stays burned un
 	await showsBurned(page);
 	expect(await tvCode(page)).toMatchObject({ code, state: 'burned' });
 
-	// Time passes and the owner comes back again. Neither may make a code:
+	// Time passes and the user comes back again. Neither may make a code:
 	// a refresh that replaced a burned one would hand a guesser five more
 	// tries every time the open page asked.
 	await page.clock.runFor(15_000);
@@ -378,7 +378,7 @@ test('a code a TV uses while SETTINGS stays in front turns USED within a tick', 
 	await expect.poll(async () => (await tvCode(page)).state).toBe('used');
 	expect(await shownDigits(page)).toBe(code);
 
-	// No focus, no visibility change: the owner never left the window while
+	// No focus, no visibility change: the user never left the window while
 	// typing on the TV. The row's own 5 s tick is what notices.
 	const asked = rowAsks(page);
 	await page.clock.runFor(5_000);
@@ -469,7 +469,7 @@ test('a refresh answered after NEW CODE leaves the new code live', async ({ brow
 
 /**
  * SETTINGS' EXTENSIONS row (doc/SETTINGS.md, "07 — BROWSE"): a second
- * door to BROWSE › EXTENSIONS, where Mihon's and Aniyomi's readers look
+ * link to BROWSE › EXTENSIONS, where Mihon's and Aniyomi's readers look
  * first. Its counts are the db spec's (tests/settings-extensions-db.spec.ts);
  * here, that the row is drawn in 07 with the seed's counts and its meta, and
  * that a tap lands on EXTENSIONS.

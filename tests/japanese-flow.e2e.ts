@@ -3,7 +3,7 @@ import { expect, readerReady, test } from './helpers/hydrated';
 
 /**
  * The Japanese layer end to end (doc/JAPANESE.md), on the seed's OCR text:
- * Drawing's chapters up to the one in progress carry the handoff's three
+ * Drawing's chapters up to the one in progress carry the design's three
  * bubbles on every page. Serial, tablet-portrait only. The reader runs
  * incognito, so Drawing's progress -- offline-flow's -- is never written;
  * the words screen gets its lookup from the API instead. NOT TEXT is undone.

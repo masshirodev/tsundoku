@@ -5,7 +5,7 @@ import { expect, readerReady, test } from './helpers/hydrated';
 /**
  * Incognito and leaving the app end to end (doc/PRIVACY.md). Serial,
  * tablet-portrait only. This file owns Yofukashi no Uta, the one
- * series it sends reading events for. Its c680 cases read Mushoku Tensei in
+ * series it sends reading events for. Its text-reader cases read Mushoku Tensei in
  * the text reader, in incognito too: nothing is written there (history-flow's
  * rows are a different field), and no text case writes its progress.
  */
@@ -82,9 +82,8 @@ test('reading while incognito is never written', async ({ page }) => {
 	// had the incognito page 5 been written, today's row would read P. 6.
 	// No other file reads this series on the shared database: library-flow's
 	// ← case, which opens the last series by title (this one), reads it in
-	// incognito since c499, so today's row is this file's one chapter, "P. 6
-	// OF …", not a day across several, "CH. 1 → 199 · P. 6"
-	// (src/lib/library/history.ts), which the c439 tolerance used to accept.
+	// incognito, so today's row is this file's one chapter, "P. 6 OF …", not a
+	// day across several, "CH. 1 → 199 · P. 6" (src/lib/library/history.ts).
 	// The negative check below still matches P. 6 in either shape, so a written
 	// incognito page is caught even on a day that does span chapters.
 	const today = page.locator('.rows').first().locator('.row', { hasText: TITLE });
@@ -169,14 +168,14 @@ test('without reveal or incognito, coming back stays where it was', async ({ pag
 	await expect(page).toHaveURL(/\/history$/);
 });
 
-// ---- c680: a reader opened incognito sends nothing after the mode ends it ----------------
+// ---- a reader opened incognito sends nothing after the mode ends it ----------------
 //
 // END pressed elsewhere -- another tab, while the reader stays open -- ends the
 // cookie, and the reader's own `data.incognito` stays true: `/api/reading`
 // reads the cookie at the moment of each post, so anything the reader sends
 // after it would be saved as ordinary reading. What each case pins is a writer
-// the reader still has after that. (Before 2026-11-12 the shield's hide ended
-// incognito; it no longer does, doc/PRIVACY.md.)
+// the reader still has after that. The shield's hide does not end incognito
+// (doc/PRIVACY.md).
 
 /** END in the incognito band, pressed from another tab, as a person with two tabs would. */
 async function endIncognito(page: Page) {
@@ -249,7 +248,7 @@ test('text reader: closing on the way back writes nothing incognito', async ({ p
 	expect(readingIn(id)).toEqual(before);
 });
 
-// ---- c673: the end page's library row knows a hidden series, and says why a press failed ----
+// ---- the end page's library row knows a hidden series, and says why a press failed ----
 
 /** The series' own screen, at its last chapter, then the reader's series end page. */
 async function openSeriesEnd(page: Page, title: string) {
@@ -259,7 +258,7 @@ async function openSeriesEnd(page: Page, title: string) {
 	await readerReady(page);
 	const entry = Number(page.url().match(/\/read\/(\d+)/)![1]);
 	// `?p=last` plus one turn forward (left: the seed's manga read R→L) is the
-	// paged end page's door, as c655's case does it.
+	// way onto the paged end page.
 	await page.goto(`/read/${entry}?p=last`);
 	await readerReady(page);
 	await page.waitForLoadState('networkidle');
@@ -306,8 +305,8 @@ test('a hidden series read under /reveal offers UNHIDE, not HIDE again', async (
 
 test('a refused library row says why, in the row', async ({ page }) => {
 	const { end } = await openSeriesEnd(page, 'Isekai Ojisan');
-	// A failure from any form but UNHIDE's is not the stale Work (c714's case,
-	// below), even carrying that refusal's own words, which hold HIDE and HIDE
+	// A failure from any form but UNHIDE's is not the stale Work (the UNHIDE
+	// case below), even carrying that refusal's own words, which hold HIDE and HIDE
 	// ALL: the row says its own sentence and never the action's.
 	const refusal = 'A WORK IS HIDDEN WHOLE · HIDE ALL OR TAKE OUT';
 	await page.route(/\/series\/\d+\?\/delete$/, (route) =>
@@ -412,9 +411,9 @@ function removeOwnSeries(ids: number[]): unknown {
 }
 
 /**
- * COULD NOT SAVE's and the end page's words (doc/handoff-notes/reader.md, wave
- * 31 round 2, and c655's). Not SERIES, which the page draws in ← SERIES and
- * which c714's sentence holds: no row control is named that (`rowRefusal`).
+ * COULD NOT SAVE's and the end page's words. Not SERIES, which the page draws
+ * in ← SERIES and which the stale Work's sentence holds: no row control is
+ * named that (`rowRefusal`).
  */
 const ROW_WORDS = [
 	'MORE',

@@ -81,7 +81,7 @@ test('the VOL slider sets the volume, the wheel steps it, and NEXT starts at it'
 }) => {
 	test.setTimeout(120_000);
 	await openEpisode(page, 'A Letter from Hollin');
-	// Nothing kept yet: the full volume, as before c385.
+	// Nothing kept yet: the full volume.
 	expect(await videoVolume(page)).toEqual({ volume: 1, muted: false });
 	const vol = page.locator('.cells .vol');
 	// Closed until the pointer comes to it.
@@ -125,7 +125,7 @@ test('the VOL slider sets the volume, the wheel steps it, and NEXT starts at it'
 	await expect(page.locator('.cells .vol .cell')).toHaveText(`VOL ${Math.round(kept * 100)}%`);
 });
 
-test('↑ ↓ go through the same door: kept, and read once on the next open', async ({ page }) => {
+test('↑ ↓ go through the same path: kept, and read once on the next open', async ({ page }) => {
 	test.setTimeout(90_000);
 	await openEpisode(page, 'A Letter from Hollin');
 	await page.locator('.player').focus();

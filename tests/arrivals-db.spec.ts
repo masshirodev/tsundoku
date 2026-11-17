@@ -11,9 +11,9 @@ const { runImport } = await import('$lib/server/import');
 const { writeMihonFolder } = await import('./helpers/mihon-fixture');
 
 /**
- * When a chapter arrived is the import's time, not the source's date (rung
- * 34; doc/LIBRARY.md, "The NEW shelf"): Mihon dates a chapter by when its
- * source listed it, often years before it was downloaded.
+ * When a chapter arrived is the import's time, not the source's date
+ * (migration 34; doc/LIBRARY.md, "The NEW shelf"): Mihon dates a chapter by
+ * when its source listed it, often years before it was downloaded.
  */
 const library = mkdtempSync(join(tmpdir(), 'tsundoku-arrivals-'));
 writeMihonFolder(join(library, 'devices', 'tsundoku'));

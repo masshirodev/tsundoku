@@ -12,7 +12,7 @@ import { expect, test } from './fixtures';
  * only up to KEPT bytes and every range past that is left hanging, so the
  * element runs dry and a seek past the bytes never lands. The list of servers
  * is the app's own answer with the broken first server dropped and the clip
- * offered at 1080 and 720, so the step a stall ends in is the one the owner saw:
+ * offered at 1080 and 720, so the step a stall ends in is the one seen in use:
  * a quality down, and `1080P COULDN'T KEEP UP`.
  */
 

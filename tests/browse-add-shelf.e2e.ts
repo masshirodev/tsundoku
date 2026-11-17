@@ -4,15 +4,14 @@ import { previewId, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-w
 import { revealOn } from './helpers/reveal';
 
 /**
- * PUT ON A SHELF in the band ADD leaves (card c724; doc/BROWSE.md, "Shelves in
- * the ADD band"), on the band this slot owns: ADDED TO THE LIBRARY, AND
- * HIDDEN, drawn on the source's page when the source adds its series hidden
- * and reveal is off. A preview's ADD lands there; a chip puts the series on a
- * shelf, + NEW SHELF makes one with it on, the library's shelf shows it
- * (inside reveal, since it is hidden), a second tap takes it off, UNDO takes
- * the series and its shelves back, and a chip tapped after UNDO shelves
- * nothing. The series screen's own band (an ADD that is not hidden) is
- * another slot's file this wave (doc/handoff-notes/browse.md).
+ * PUT ON A SHELF in the band ADD leaves (doc/BROWSE.md, "Shelves in the ADD
+ * band"), on ADDED TO THE LIBRARY, AND HIDDEN, drawn on the source's page when
+ * the source adds its series hidden and reveal is off. A preview's ADD lands
+ * there; a chip puts the series on a shelf, + NEW SHELF makes one with it on,
+ * the library's shelf shows it (inside reveal, since it is hidden), a second
+ * tap takes it off, UNDO takes the series and its shelves back, and a chip
+ * tapped after UNDO shelves nothing. The series screen's own band (an ADD that
+ * is not hidden) is not covered here.
  * In the `browse` project, on its own world (tests/helpers/tag-world.ts:
  * its own database, engine and preview), since it turns ADDED HIDDEN on,
  * makes shelves and adds series.

@@ -1,8 +1,7 @@
 import type { ChildProcess } from 'node:child_process';
 
 /**
- * Starts a preview and waits for it, and only it, to answer on `base` (c701,
- * round 2).
+ * Starts a preview and waits for it, and only it, to answer on `base`.
  *
  * Both highlights e2e files serve the build on a port the OS gave them, and
  * `vite preview --strictPort` exits when that port is taken after all. A poll

@@ -19,9 +19,8 @@ const sameOrigin = () => new URL(test.info().project.use.baseURL!).origin;
 
 /**
  * One complete flow with real data, end to end: rate, favourite, shelve and
- * hide from the long-press sheet, then reveal and unhide. This is the walk
- * doc/design's HANDOFF asks for early, because it is what surfaces an
- * invariant a mock never had to satisfy.
+ * hide from the long-press sheet, then reveal and unhide. It comes early,
+ * because it is what surfaces an invariant a mock never had to satisfy.
  *
  * Each test restores what it changed, so the order they run in does not
  * matter and the seeded library stays the one the other specs expect.
@@ -160,9 +159,9 @@ test('the rating bars open the slider on the tile, and a half saves', async ({ p
 test.describe('two quick taps on a tile', () => {
 	// The tile's saves queue on the series screen's own keys (`fav:<id>`,
 	// `rating:<id>`), so a tile tap and a series-screen tap on one series wait
-	// for each other (doc/SERIES.md, "FAV and the rating"; c566's queue).
-	// `__data.json` is answered by the service worker past `page.route`
-	//, so the second case holds the reload by it.
+	// for each other (doc/SERIES.md, "FAV and the rating").
+	// `__data.json` is answered by the service worker past `page.route`, so
+	// the second case holds the reload by it.
 	test.use({ serviceWorkers: 'block' });
 
 	/**
@@ -546,7 +545,7 @@ test.describe('two quick taps on a tile', () => {
 		// Hold the first save's reload of the pages, and the page the grid asks
 		// for once the second save's data has landed: both are still out when
 		// the second refill's bump comes. A bump that does not release
-		// `loadingMore` leaves every page after it refused (r3).
+		// `loadingMore` leaves every page after it refused.
 		let release!: () => void;
 		const held = new Promise<void>((r) => (release = r));
 		let refillHeld = false;
@@ -626,7 +625,7 @@ test.describe('two quick taps on a tile', () => {
 		await fav.click();
 		await expect(fav).toHaveAttribute('aria-pressed', 'false');
 		await expect(page.getByText('UNFAV NOT SAVED')).toBeVisible();
-		// One, not the effect's refill and a forced one behind it (r3).
+		// One, not the effect's refill and a forced one behind it.
 		expect(refills).toEqual([loaded - 6]);
 		await page.unroute(isFav);
 		await page.unroute(pages);
@@ -915,7 +914,7 @@ test.describe('a tile save that fails draws its value unsaved', () => {
 		await expect(fav).toHaveClass(/unsaved/);
 		await expect(page.getByText('FAV NOT SAVED')).toBeVisible();
 
-		// The series and back, as the owner does; the nudge retries on the way and
+		// The series and back, as a user does; the nudge retries on the way and
 		// loses too.
 		await tile.locator('.open').click();
 		await page.waitForURL(/\/series\//);
@@ -967,9 +966,9 @@ test.describe('a tile save that fails draws its value unsaved', () => {
 	test('a RETRY that lands while another tile has failed leaves that tile’s band up', async ({
 		page
 	}) => {
-		// Wave 30's round-2 medium 1, in its own route order: A's tap lost, A's
-		// RETRY held, B's tap lost, A's RETRY let through. A retry clears only its
-		// own failure now, so B keeps its band.
+		// In this route order: A's tap lost, A's RETRY held, B's tap lost, A's
+		// RETRY let through. A retry clears only its own failure, so B keeps its
+		// band.
 		await page.goto('/?sort=title');
 		const tiles = page
 			.locator('.grid .tile')
@@ -1039,10 +1038,10 @@ test.describe('a tile save that fails draws its value unsaved', () => {
 	test('a tile drawn again while its RETRY is out stays dashed, and is still dashed when it fails', async ({
 		page
 	}) => {
-		// Wave 30's round-2 medium 2, in its own route order: A's tap lost, A's
-		// RETRY held, tile C's tap landing (its re-read hands the grid new
-		// cards), A's RETRY lost. The mark used to drop at C's redraw and never
-		// come back, leaving FAV NOT SAVED over a tile drawn as stored.
+		// In this route order: A's tap lost, A's RETRY held, tile C's tap landing
+		// (its re-read hands the grid new cards), A's RETRY lost. A mark dropped
+		// at C's redraw would never come back, leaving FAV NOT SAVED over a tile
+		// drawn as stored.
 		await page.goto('/?sort=title');
 		const tiles = page
 			.locator('.grid .tile')
@@ -1062,8 +1061,8 @@ test.describe('a tile save that fails draws its value unsaved', () => {
 		const retry = await held;
 
 		// C lands, and its re-read draws the grid again. Wait for that re-read
-		// itself: the redraw it brings is the one that used to drop A's mark,
-		// and it must land before A's RETRY is lost, as in the review's order.
+		// itself: the redraw it brings is the one that could drop A's mark, and
+		// it must land before A's RETRY is lost.
 		const landed = favAnswer(page);
 		const reread = page.waitForResponse(
 			(r) => new URL(r.url()).pathname === '/__data.json' && r.ok()
@@ -1111,8 +1110,8 @@ test.describe('a tile save that fails draws its value unsaved', () => {
 	});
 
 	test('a series screen failure carried here keeps its band beside a tile’s', async ({ page }) => {
-		// Wave 30's round-2 low: a failure raised on the series screen was
-		// dropped as a tile's took the band. The store keeps both now.
+		// A failure raised on the series screen is not dropped as a tile's takes
+		// the band: the store keeps both.
 		await page.goto('/?sort=title');
 		const tile = page.locator('.grid .tile', { hasText: TITLE });
 		const isSeriesFav = (u: URL) =>
@@ -1255,8 +1254,8 @@ test.describe('a tile save that fails draws its value unsaved', () => {
 	test('failures raised on the library survive a trip to a series screen, each with its way back', async ({
 		page
 	}) => {
-		// `displaced` used to die with the page: only the failure the band held
-		// came back. Both are the store's now.
+		// `displaced` is the store's, not the page's, so more than the failure
+		// the band held comes back.
 		await page.goto('/?sort=title');
 		const tiles = page
 			.locator('.grid .tile')
@@ -2118,8 +2117,8 @@ test('the app’s own ← buttons come back to the shelf, the order, the pages a
 	await page.waitForURL(/\/read\//);
 	await page.waitForLoadState('networkidle');
 	// Left at once, before the reader keeps its page in the URL (800 ms): the
-	// timer that used to write /read/<id>?p=1 onto the series' entry on the
-	// way back is the app's to stop (reader-flow's c565 case pins it).
+	// timer that would write /read/<id>?p=1 onto the series' entry on the
+	// way back is the app's to stop (a reader-flow case pins it).
 	const vp = page.viewportSize()!;
 	await page.touchscreen.tap(vp.width / 2, 30);
 	await page.getByRole('link', { name: 'Back to the series' }).click();
@@ -2196,8 +2195,8 @@ test('SORT is a menu, and the toggle beside it turns the order round', async ({ 
 });
 
 /**
- * The empty library's GET STARTED asks for itself again (c722;
- * doc/ONBOARDING.md, "What ticks a step without a reload"), as `/start`'s
+ * The empty library's GET STARTED asks for itself again
+ * (doc/ONBOARDING.md, "What ticks a step without a reload"), as `/start`'s
  * does: a phone pairing ticks 04 on the open list with no reload. And the
  * poll's lifetime: it runs exactly while the list is drawn, so it stops when
  * the library fills or the page is left, and never starts on a library with

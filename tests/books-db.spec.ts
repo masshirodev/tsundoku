@@ -253,7 +253,7 @@ describe('a hand-made extra beside a doujin', () => {
 		const single = idOf(BOOK_ROWS[4].title)!;
 		const extra = addExtra(single, 'Before The Book', -1);
 		const s = series.seriesPage(single, true)!;
-		// The premise: the extra's row sorts first (`ORDER BY position, id`).
+		// The setup: the extra's row sorts first (`ORDER BY position, id`).
 		expect(s.entries[0].id).toBe(extra);
 		expect(s.entries[1].matter).toBe('');
 		expect(isBookSeries(s)).toBe(false);
@@ -287,7 +287,7 @@ describe('a hand-made extra beside a doujin', () => {
 		const doujin = idOf(BOOK_ROWS[4].title)!;
 		const extra = addExtra(doujin, 'An Extra', -1);
 		// A novel's front matter is its own (the EPUB plans write it); it is not
-		// a doujin's extra, and `?book=` was ignored for a novel before c650.
+		// a doujin's extra, so `?book=` is ignored for a novel.
 		const novel = idOf('Mushoku Tensei')!;
 		const front = Number(
 			getDb()

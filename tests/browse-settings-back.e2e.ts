@@ -3,7 +3,7 @@ import { expect, test } from './fixtures';
 import { resetEngine, SOURCES } from './browse-world';
 
 /**
- * A source's SETTINGS knows where it was opened from (card c727; doc/NAVIGATION.md,
+ * A source's SETTINGS knows where it was opened from (doc/NAVIGATION.md,
  * "From a source"). Opened from EXTENSIONS' SETTINGS cell, its ← says Back to
  * EXTENSIONS and goes back there, through history when the list is a few entries
  * back (so the list comes back as it was left), else by the address it was given

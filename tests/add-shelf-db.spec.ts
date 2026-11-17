@@ -16,9 +16,9 @@ const { addedBand, addedLanding, bandShelves, newShelfAdded, shelveAdded, SHELVE
 	await import('../src/routes/browse/added.server');
 
 /**
- * PUT ON A SHELF on the ADDED band (card c724; doc/BROWSE.md, "Shelves in the
+ * PUT ON A SHELF on the ADDED band (doc/BROWSE.md, "Shelves in the
  * ADD band"): a chip's write and + NEW SHELF's, against an in-memory library
- * reached through the app's own doors (an ADD outside reveal from a source
+ * reached through the app's own actions (an ADD outside reveal from a source
  * with ADDED HIDDEN on, as the preview's action runs it), and what UNDO does
  * to the shelves after.
  */

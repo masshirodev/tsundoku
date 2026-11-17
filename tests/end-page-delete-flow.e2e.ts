@@ -12,7 +12,7 @@ import { revealOn } from './helpers/reveal';
 
 /**
  * DELETE on the reader's end page (doc/DELETING.md): the series screen's
- * own door and confirmation, then the library, from the paged end page, the
+ * own button and confirmation, then the library, from the paged end page, the
  * strip's and the novel's. Runs in tablet-portrait on a seeded database and an
  * OS port of its own, the `works-flow` arrangement, because it really deletes
  * series, which no spec on the shared seed can afford.
@@ -90,7 +90,7 @@ const endPage = (page: Page) => page.locator('[data-end-page]');
 const askOf = (page: Page, title: string) =>
 	page.getByRole('dialog', { name: `DELETE ${title.toUpperCase()}?` });
 
-/** The paged end page's door: the last page, then one turn forward (the seed's manga read R→L). */
+/** The way to the paged end page: the last page, then one turn forward (the seed's manga read R→L). */
 async function pagedEnd(page: Page, entry: number) {
 	await page.goto(`/read/${entry}?p=last`);
 	await expect(page.locator('.reader')).toHaveCSS('background-color', 'rgb(0, 0, 0)');

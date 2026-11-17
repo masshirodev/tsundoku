@@ -4,10 +4,10 @@ import { DETAILS_FOLDS } from './helpers/details-folds';
 import { previewId, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-world';
 
 /**
- * PUT ON A SHELF under the series screen's ADDED TO THE LIBRARY (card c724;
- * doc/SERIES.md, "Shelves in the ADDED band"): the common path, a preview's
+ * PUT ON A SHELF under the series screen's ADDED TO THE LIBRARY
+ * (doc/SERIES.md, "Shelves in the ADDED band"): the common path, a preview's
  * + ADD TO LIBRARY from a source that does not add hidden, lands on the
- * series screen, and its band offers the owner's shelves as chips. A chip
+ * series screen, and its band offers the user's shelves as chips. A chip
  * puts the series on a shelf and the library's shelf shows it; the band
  * survives the page's own re-read and a reload; a second tap takes it off;
  * + NEW SHELF opens the SHELVES sheet at its name field; ↓ from UNDO reaches
@@ -125,7 +125,7 @@ test('ADDED TO THE LIBRARY offers the shelves: a chip, the library shows it, a r
 			.inputValue()
 	);
 	expect(await onShelf(page, tonight)).toBe(true);
-	// EDIT's own door opens the sheet as it always did: the name field closed.
+	// EDIT's own button opens the sheet as it always does: the name field closed.
 	await page.reload();
 	await expect(band(page)).toBeVisible();
 
@@ -209,7 +209,7 @@ test('a chip leaves the screen’s other answers up: REFRESH’s band outlives a
 	await add(page);
 	// REFRESH answers in `form`, drawn as its own band below ADDED TO THE LIBRARY.
 	// On a phone the DOWNLOAD row is behind DETAILS: opened by its line, as
-	// the owner does, when the app's own media query folds it (tests/helpers/details-folds.ts).
+	// a user does, when the app's own media query folds it (tests/helpers/details-folds.ts).
 	if (await page.evaluate((query) => matchMedia(query).matches, DETAILS_FOLDS)) {
 		const line = page.locator('[data-row="details"]');
 		await expect(line).toBeVisible();

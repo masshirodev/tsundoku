@@ -5,8 +5,7 @@
  * behind DETAILS' line.
  *
  * One copy, so a spec that has to know whether DETAILS is folded reads the
- * app's rule and not a stale transcription of it (c601; the two copies this
- * replaced were `series-layout.e2e.ts`'s and `series-rename-flow.e2e.ts`'s).
+ * app's rule and not a stale transcription of it.
  * Read it with `matchMedia` before the panel draws, never with a one-shot
  * `isVisible()`: a line that has not drawn yet reads as "no fold" on a loaded
  * phone or TV.

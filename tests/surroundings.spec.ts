@@ -11,9 +11,8 @@ import {
 import type { TmdbCollection, TmdbShowFacts } from '$lib/library/tmdb';
 
 /**
- * What surrounds a film or a show, against the handoff's boards
- * (doc/handoffs/movies-shows/Collection.dc.html, Show-Desk.dc.html): each case
- * is a board, in the board's words.
+ * What surrounds a film or a show: each case is one of the design's states,
+ * in its words.
  */
 
 const NOW = Date.UTC(2026, 10, 12);
@@ -42,7 +41,7 @@ const rows = (items: CollectionItem[]) =>
 	);
 
 describe('a film’s collection', () => {
-	it('2.1: part 1 of 3, in no Work: every part, this one inverted, GROUP → at the foot', () => {
+	it('part 1 of 3, in no Work: every part, this one inverted, GROUP → at the foot', () => {
 		const v = collectionView({
 			collection: ferry,
 			thisId: 11,
@@ -61,7 +60,7 @@ describe('a film’s collection', () => {
 		expect(v.foot).toEqual({ words: '2 OF 3 IN THE LIBRARY · NOT A WORK', group: true });
 	});
 
-	it('2.2: the prequel is the row above, and one part here offers nothing', () => {
+	it('the prequel is the row above, and one part here offers nothing', () => {
 		const v = collectionView({
 			collection: ferry,
 			thisId: 12,
@@ -74,7 +73,7 @@ describe('a film’s collection', () => {
 		expect(v.foot).toEqual({ words: '1 OF 3 IN THE LIBRARY', group: false });
 	});
 
-	it('2.3: past six, it folds round this one, saying what each fold hides', () => {
+	it('past six, it folds round this one, saying what each fold hides', () => {
 		const harbour: TmdbCollection = {
 			id: 2,
 			name: 'The Harbour Cases Collection',
@@ -103,7 +102,7 @@ describe('a film’s collection', () => {
 		expect(v.foot.words).toBe('6 OF 8 IN THE LIBRARY · NOT A WORK');
 	});
 
-	it('2.4: all of it in the Work folds to one line, and unfolded says IN THE WORK', () => {
+	it('all of it in the Work folds to one line, and unfolded says IN THE WORK', () => {
 		const v = collectionView({
 			collection: ferry,
 			thisId: 12,
@@ -120,7 +119,7 @@ describe('a film’s collection', () => {
 		]);
 	});
 
-	it('2.5: a part outside the Work is one fact, with its own cell', () => {
+	it('a part outside the Work is one fact, with its own cell', () => {
 		const v = collectionView({
 			collection: ferry,
 			thisId: 12,
@@ -175,7 +174,7 @@ describe('a show’s seasons', () => {
 		expect(titleSeason('Show S02E05')).toBeNull();
 	});
 
-	it('Show-Desk: the heads, the SEASONS row and SEASON 4 IS OUT', () => {
+	it('the heads, the SEASONS row and SEASON 4 IS OUT', () => {
 		const v = showView({
 			facts: harbourLights,
 			showName: 'Harbour Lights',
@@ -207,7 +206,7 @@ describe('a show’s seasons', () => {
 		});
 	});
 
-	it('never offers a season not yet aired, nor one the owner said NOT THIS to', () => {
+	it('never offers a season not yet aired, nor one the user said NOT THIS to', () => {
 		const base = {
 			showName: 'Harbour Lights',
 			seriesId: 3,

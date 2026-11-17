@@ -2,7 +2,7 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * tsundoku's Android app updating itself (c614; doc/UPDATES.md, "The Android
+ * tsundoku's Android app updating itself (doc/UPDATES.md, "The Android
  * apps"), against a stand-in for the app's bridge: the page only says what the
  * bridge tells it, and the real one is covered by the app's JVM tests.
  */

@@ -5,16 +5,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 process.env.DATABASE_PATH = ':memory:';
 
 /**
- * Rung 67: AniSkip answers asked before c349 under another
- * season's entry are forgotten, and asked again on the next play.
+ * Migration 67: AniSkip answers asked under another season's entry are
+ * forgotten, and asked again on the next play.
  *
  * Each library is made the way the app made it. The links are written by the
- * app's own door (`linkSeason`) on the app's database and copied into a
- * database stopped at v66, with the `series_links` mirror that `syncSeriesLink`
- * wrote then (it and the mirror are gone since c467). The answers are written by the app's own `saveMark`/`saveAttempt`
- * under the key the old lookup used: the mirror's MAL id and the season's own
- * episode number (`lookupRow` joined `series_links` until e587f8d). Then the
- * rung climbs, and the next play asks through today's `lookupAniSkip`.
+ * app's own `linkSeason` on the app's database and copied into a database
+ * stopped at v66, with the `series_links` mirror that `syncSeriesLink` wrote
+ * then (both are gone from the app). The answers are written by the app's own
+ * `saveMark`/`saveAttempt` under the key the old lookup used: the mirror's MAL
+ * id and the season's own episode number (the old `lookupRow` joined
+ * `series_links`). Then the migrations climb, and the next play asks through
+ * today's `lookupAniSkip`.
  */
 const calls: string[] = [];
 vi.stubGlobal('fetch', async (input: string | URL | Request) => {
@@ -79,9 +80,9 @@ type Link = {
 
 /**
  * The row's columns that the v66 table has. The app's database stands at the
- * top rung, so a later rung's column (rung 70's `series_links.country` and
- * `year`) is in its rows and not in a v66 library; the rung climbs past them
- * and adds them itself.
+ * latest migration, so a later migration's column (migration 70's
+ * `series_links.country` and `year`) is in its rows and not in a v66 library;
+ * the climb passes them and adds them itself.
  */
 const columnsAt66 = (old: Database.Database, table: string, row: Record<string, unknown>) => {
 	const has = new Set(
@@ -97,7 +98,7 @@ let nextEntry = 1000;
  * One anime in both databases under the same ids: its episodes, its links
  * made by `linkSeason` on the app's database, those season rows copied into
  * `old`, which stands at v66, and the mirror as v66's app kept it beside them
- * (no door writes one since rung 74, but this rung is about that row).
+ * (nothing writes one after migration 74, but migration 67 is about that row).
  */
 function show(old: Database.Database, eps: Omit<Ep, 'id'>[], links: Link[]) {
 	const id = ++nextSeries;
@@ -198,9 +199,9 @@ function agreesWithTheRule(conn: Database.Database): void {
 		).toBe(marks.chosenMarks(id, conn).ending?.start ?? null);
 }
 
-describe('rung 67: AniSkip answers asked under another season’s entry', () => {
+describe('migration 67: AniSkip answers asked under another season’s entry', () => {
 	it('the mirror the old lookup read is the lowest season linked, part 1', () => {
-		// The premise every case below stands on: with season 0 and season 1
+		// What every case below stands on: with season 0 and season 1
 		// both linked, the mirror is season 0's, so a season-1 episode was asked
 		// under season 0's entry, not its own.
 		const old = at66();
@@ -359,8 +360,9 @@ describe('rung 67: AniSkip answers asked under another season’s entry', () => 
 	it('keeps every answer asked under the episode’s own entry', () => {
 		const old = at66();
 		// A flat list linked as season 0; a season-1 show; seasons 1 and 2 (whose
-		// season-2 answer only c349 could ask); a season in one part of unknown
-		// length; and a link from before rung 62, with no season rows.
+		// season-2 answer only the per-season lookup could ask); a season in one
+		// part of unknown length; and a link from before migration 62, with no
+		// season rows.
 		const flat = show(
 			old,
 			[

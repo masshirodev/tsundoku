@@ -444,7 +444,7 @@ describe('smooth scrolling on a PC', () => {
 
 	it('never glides the wrong way first, when a frame is stamped before the key', () => {
 		// A frame's timestamp is when the frame began, and under load that can be
-		// before the key's performance.now(): wave 24 measured the strip moving
+		// before the key's performance.now(): the strip was measured moving
 		// -33 px on a nudge, then +85 on the reverse, so a nudge read as lost.
 		let now = 1000;
 		let y = 500;
@@ -482,7 +482,7 @@ describe('smooth scrolling on a PC', () => {
 	it('never holds the wrong way first, when a frame is stamped before the key', () => {
 		// The held path's delta is a rAF timestamp minus start()'s now(), which
 		// under load can be negative: 12 ms before the key moved a downward hold
-		// -41.7 px (the review's reproduction), and in Chromium a held ↑ went
+		// -41.7 px, and in Chromium a held ↑ went
 		// down on its first frame in 6 of 8 tries, by up to 94 px.
 		let now = 1000;
 		let y = 500;

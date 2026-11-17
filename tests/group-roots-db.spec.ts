@@ -16,8 +16,8 @@ const { writeHentoidFolder, book, content } = await import('./helpers/hentoid-fi
  * both hidden (doc/SYNC.md, "Other devices"), and a visible book beside them.
  * The first two group; a visible book and a hidden one don't.
  *
- * Until c191 this paired a Mihon local book with a Hentoid one; the local
- * source is no longer imported, so the pair is two devices' Hentoid copies --
+ * The Mihon local source is not imported, so the pair is two devices' Hentoid
+ * copies --
  * the cross-folder case the grouping actually has to survive.
  */
 const library = mkdtempSync(join(tmpdir(), 'tsundoku-roots-'));
@@ -73,7 +73,7 @@ describe('grouping across sources', () => {
 	});
 
 	it('refuses a hidden book and a visible one, saying why', () => {
-		// Nothing visible is imported from this fixture any more, so a
+		// Nothing visible is imported from this fixture, so a
 		// visible root stands in for the library's own.
 		db.prepare(`INSERT OR IGNORE INTO roots (name, path, hidden) VALUES ('Library', ?, 0)`).run(
 			join(library, 'Library')

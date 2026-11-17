@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-// Rung 58 (doc/MOVE.md): every key a series has left, not only the
-// one rung 57 kept, and every address an entry has left. On a file, as the live
-// database is, and never editing a rung below it.
+// Migration 58 (doc/MOVE.md): every key a series has left, not only the
+// one migration 57 kept, and every address an entry has left. On a file, as the
+// live database is, and never editing a migration below it.
 const work = mkdtempSync(join(tmpdir(), 'tsundoku-rung58-'));
 process.env.DATABASE_PATH = ':memory:';
 afterAll(() => rmSync(work, { recursive: true, force: true }));
@@ -41,8 +41,8 @@ function at57() {
 	return { conn, path, root, series, entry };
 }
 
-describe('rung 58', () => {
-	it('copies the former key and the former URL rung 57 kept', () => {
+describe('migration 58', () => {
+	it('copies the former key and the former URL migration 57 kept', () => {
 		const { conn, series, entry } = at57();
 		climb(conn, 58);
 		expect(conn.pragma('user_version', { simple: true })).toBe(58);
@@ -63,7 +63,7 @@ describe('rung 58', () => {
 
 	it('leaves a key or URL that is also the current one out of the table', () => {
 		const { conn, series, entry } = at57();
-		// Rung 57 could hold this; the table says a current key is not a former one.
+		// Migration 57 could hold this; the table says a current key is not a former one.
 		conn.prepare(`UPDATE series SET former_key = origin_key WHERE id = ?`).run(series);
 		conn.prepare(`UPDATE entries SET former_url = source_url WHERE id = ?`).run(entry);
 		climb(conn, 58);

@@ -10,7 +10,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { hydrated } from './helpers/hydration';
 
 /**
- * MOVE's list and its pick (cards c490 and c491; doc/MOVE.md, "The
+ * MOVE's list and its pick (doc/MOVE.md, "The
  * candidates" and "Picking a candidate"), against a world of its own: a fake
  * engine with seven sources that answer as real ones do (two MANGADEX, one
  * per language; two that find nothing; two that fail, one of them only
@@ -19,10 +19,10 @@ import { hydrated } from './helpers/hydration';
  * each on a port the OS hands out. Nothing here touches the browse world, so
  * it runs in the browse project beside its specs, once.
  *
- * c490: the matches first, the empty and the failed folded at the end, each
+ * The list: the matches first, the empty and the failed folded at the end, each
  * source named with its language, only the list scrolling beside the
  * comparison, a late answer never moving the hit under the pointer, and TRY
- * ALL AGAIN asking only the failed sources. c491: a pick asks no source
+ * ALL AGAIN asking only the failed sources. The pick: it asks no source
  * again, marks its row and draws the wait at once, a later pick wins over an
  * earlier one's late answer, and a failed comparison says so with MOVE off.
  */
@@ -387,7 +387,7 @@ test('a source that answers late joins below, and the hit under the pointer stay
 	// LATE SCANS fails first, then answers late when asked again. (A late
 	// answer on the first paint can't be watched here: the e2e's server is
 	// `vite preview`, which gzips every response whole, so a streamed page
-	// arrives at once. TRY AGAIN's answer is the list's same door.)
+	// arrives at once. TRY AGAIN's answer comes the same way as the list's.)
 	state.failNext.add(LATE);
 	await open(page);
 	await settledList(page);
@@ -540,10 +540,9 @@ test('three quick picks on one slow source: one details call each at most, and a
 	state.calls = [];
 	// All three are MANGADEX (EN): one call at a time into its extension.
 	// A is held open until both later picks are in, B is slow, and C is quick,
-	// so a C asked behind both would land last. A was a fixed 2.5 s until wave
-	// 23: under load the two clicks below took longer than that, A's call had
-	// ended, B was no longer waiting but running, and the engine heard of it
-	// (red in wave 22's gate, passing alone).
+	// so a C asked behind both would land last. A is not a fixed delay: under
+	// load the two clicks below can take longer than one, A's call ends, B is
+	// running rather than waiting, and the engine hears of it.
 	let releaseA!: () => void;
 	state.held.set(CAND.a.url, new Promise<void>((r) => (releaseA = r)));
 	state.slow.set(CAND.b.url, 2500);
@@ -577,7 +576,7 @@ test('three quick picks on one slow source: one details call each at most, and a
 	const asked = (c: { url: string }) => compares.filter(to(c));
 	await page.locator('a.cand', { hasText: CAND.a.title }).click();
 	await expect.poll(() => detailsFor(CAND.a.url)).toBe(1);
-	// The owner changes their mind twice, quickly, while A is being read: both
+	// The user changes their mind twice, quickly, while A is being read: both
 	// picks reach the page's endpoint, and the page has dropped B's ask (C's
 	// pick aborts it), before A's call ends. The endpoint drops B on either
 	// sign: its abort (`request.signal`), or C, a newer pick of the series
@@ -588,12 +587,11 @@ test('three quick picks on one slow source: one details call each at most, and a
 	await expect.poll(() => asked(CAND.c).length).toBe(1);
 	expect(asked(CAND.b)).toHaveLength(1);
 	await expect.poll(() => dropped.filter(to(CAND.b)).length).toBe(1);
-	// The page's `request` event is the page asking, not the request on the
-	// wire: measured in wave 25, C reached the server up to 11 ms after A was
-	// let go on a loaded box, and a turn could reach B before either sign
-	//. Chromium's network stack says when it sent a request's own
-	// headers (`requestWillBeSentExtraInfo`), the nearest outward mark of C
-	// leaving for the server.
+	// The page's `request` event is the page asking, not the request on the wire:
+	// on a loaded box C reached the server up to 11 ms after A was let go, and a
+	// turn could reach B before either sign. Chromium's network stack says when it
+	// sent a request's own headers (`requestWillBeSentExtraInfo`), the nearest
+	// outward mark of C leaving for the server.
 	await expect.poll(() => onWire.has(compares.find(to(CAND.c)) ?? '')).toBe(true);
 	releaseA();
 	// C waits for the call already running (A's), not for B's as well: the
@@ -618,10 +616,10 @@ test('three quick picks on one slow source: one details call each at most, and a
 });
 
 /**
- * The same three picks at wave 23's timing, the state the 1-in-10 red lived
- * in: A is let go as soon as C's ask is sent, before anything says
+ * The same three picks at the old timing, where a 1-in-10 red lived: A is
+ * let go as soon as C's ask is sent, before anything says
  * B's was dropped. The server hears of B's abort only once its socket closes
- * (wave 24 measured it 4-279 ms after the page gave B up), so a turn can
+ * (measured at 4-279 ms after the page gave B up), so a turn can
  * come to B before then; B must still never ask, because C was queued
  * behind it (`inTurn`, doc/MOVE.md "Picks take turns").
  *
@@ -630,7 +628,7 @@ test('three quick picks on one slow source: one details call each at most, and a
  * queued C when B's turn came (C reached it up to 11 ms after A was let go),
  * so it never reached the gap. "a waiting pick whose abort never arrives…" below
  * is the case that falsifies the rule (red on the base, 3 of 3). Kept so the
- * old timing stays green, as c567's Done-when asks; if it ever goes red,
+ * old timing stays green; if it ever goes red,
  * read the server's order of C's queueing against B's turn before calling
  * it a regression.
  */

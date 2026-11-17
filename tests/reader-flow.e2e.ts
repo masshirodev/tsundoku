@@ -5,8 +5,8 @@ import { doubleTap } from './helpers/touch';
 /**
  * The preview's own origin, which a form action's POST must carry or
  * SvelteKit refuses it as cross-site: the project's `baseURL`, which follows
- * PLAYWRIGHT_PORT. It was a fixed 'http://localhost:4183', so on any other
- * port the POST was refused and the case failed.
+ * PLAYWRIGHT_PORT. A fixed 'http://localhost:4183' would be refused on any
+ * other port.
  */
 const sameOrigin = () => new URL(test.info().project.use.baseURL!).origin;
 
@@ -197,7 +197,7 @@ test('left at once, the reader never writes its URL onto the series it went back
 	await readerReady(page);
 	// The series is slow to answer on the way back, as on a loaded box: longer
 	// than the 800 ms the reader waits before it keeps its page in the URL. The
-	// reader stays mounted while it loads, and its timer used to fire then and
+	// reader stays mounted while it loads, and its timer must not fire then and
 	// write /read/<id>?p=1 onto the series' entry, the one BACK had already
 	// moved the window to (2 in 5 at a load of 45, library-flow).
 	await page.route(`**/series/${id}/__data.json*`, async (route) => {
@@ -226,7 +226,7 @@ test('history into an image reader entry opens the page it settled on, in incogn
 		.context()
 		.addCookies([{ name: 'tsundoku_incognito', value: '1', url: 'http://localhost' }]);
 	await seriesId(page, 'Hikaru ga Shinda Natsu');
-	// Into the reader by the app's own door, so the series is a history entry
+	// Into the reader by the app's own link, so the series is a history entry
 	// to go back to (the link's BACK is a history step, not a fresh copy).
 	await page
 		.getByRole('link', { name: /▶ CONTINUE/ })
@@ -346,8 +346,8 @@ test('vertical: nothing moves when chapters arrive above, or when the reader cro
 		});
 	// Polled, not read once: the previous chapter arrives above in its own
 	// time, and read in the moment before the reader has kept its place, the
-	// top of the screen held no page slot at all (`null`, wave 23's fifth
-	// loaded run, passing alone; c439). What is asserted is where it rests.
+	// top of the screen can hold no page slot at all (`null`, under load; it
+	// passes alone). What is asserted is where it rests.
 	await expect.poll(readTop).toMatchObject({ entry: first });
 	const atTop = await readTop();
 	expect(atTop).toMatchObject({ entry: first });
@@ -513,7 +513,7 @@ test('a paged chapter opens with its tap zones: until the first tap the first ti
 	await readerReady(page);
 	await expect(zones).toBeVisible();
 	await expect(zones).toHaveCount(0, { timeout: 4000 });
-	// Another chapter isn't another opening: no zones (the owner, 2026-10-31).
+	// Another chapter isn't another opening: no zones.
 	const before = page.url();
 	await tap(page, 0.5);
 	await page.getByRole('button', { name: /CH\./ }).first().click();
@@ -567,7 +567,7 @@ test('READING’s ? turns the sheet into 02 — READING’s In short, and ← RE
 	await page.getByRole('button', { name: /SETTINGS ↑/ }).click();
 	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
 	await sheet.getByRole('button', { name: 'Help: reading' }).click();
-	// The same sheet changes; no second one stacks on it (Help Calls, 2F).
+	// The same sheet changes; no second one stacks on it.
 	await expect(page.getByRole('dialog')).toHaveCount(1);
 	await expect(sheet).toContainText('HELP · 02 — READING');
 	await expect(sheet.getByRole('region', { name: 'In short' }).locator('p')).toHaveCount(3);
@@ -708,7 +708,7 @@ test('vertical, on a PC: a wheel notch eases, ↓ and ↑ move a screen', async 
 	const delta = await page.evaluate(() => (window as unknown as { delta: number }).delta);
 	// Within two pixels: the browser snaps a fractional scroll (44.44 here) to its
 	// own grid, and under load the ease can stop a grid step short (69660 for
-	// 69661.44, 2026-10-31: a frame where scrollY lagged reads as "something else
+	// 69661.44: a frame where scrollY lagged reads as "something else
 	// scrolled", which stops it by design). Invisible; not a jump, which is what
 	// this guards. Waited for rather than timed: frames come slowly when loaded.
 	const kept = () => page.evaluate(() => (window as unknown as { kept: number }).kept);
@@ -1065,9 +1065,7 @@ test('a pinch zooms around the fingers, not the page’s top left', async ({ pag
 	await page.keyboard.press('0');
 });
 
-test('a double page keeps its own zoom, and leaves the single pages’ alone (the owner, 2026-11-11)', async ({
-	page
-}) => {
+test('a double page keeps its own zoom, and leaves the single pages’ alone', async ({ page }) => {
 	await seriesId(page, 'Hikaru ga Shinda Natsu');
 	const href = await page
 		.getByRole('link', { name: /▶ CONTINUE/ })

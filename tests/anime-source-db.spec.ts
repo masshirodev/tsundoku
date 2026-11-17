@@ -130,7 +130,7 @@ describe('an anime source in BROWSE', () => {
 	});
 });
 
-describe('SAME TITLE (2026-10-29)', () => {
+describe('SAME TITLE', () => {
 	it('is never a manga of the same name: an adaptation isn’t a copy from elsewhere', async () => {
 		const { ensureNamedRoot } = await import('$lib/server/import/write');
 		const root = ensureNamedRoot(db, 'Mihon', join(work, 'mihon'), false);

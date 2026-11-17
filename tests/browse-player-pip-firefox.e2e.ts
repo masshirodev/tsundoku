@@ -2,7 +2,7 @@ import { test, expect } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /**
- * Firefox's picture-in-picture (c388, round 2; doc/ANIME.md "The player",
+ * Firefox's picture-in-picture (doc/ANIME.md "The player",
  * pip.ts). Firefox 155 has both the Picture-in-Picture web API and Document
  * Picture-in-Picture (in a secure context, which 127.0.0.1 is), so the PIP
  * cell opens the same floating window as in Chrome. Firefox's own PiP
@@ -11,8 +11,8 @@ import type { Page } from '@playwright/test';
  * page), drawn invisibly on the page so tsundoku's line stays the only one.
  *
  * What this cannot check is what Firefox's own video PiP window draws:
- * Playwright opens one, but nothing here can look into it. That is the owner's, in
- * doc/handoff-notes/anime.md, wave 18, Gaps. Its own file because
+ * Playwright opens one, but nothing here can look into it, so that is checked
+ * by hand. Its own file because
  * `browserName` is a worker's option, which a describe in the Chromium spec
  * cannot change. On the browse server's "Tsukiakari no Ryokōsha"
  * (tests/browse-setup.ts), whose WebM clip has English subtitles from 0.5 s.
@@ -162,7 +162,7 @@ test('the native track shows all the time, drawn invisibly on the page, for Fire
 	expect((await track(page)).src).toMatch(/^\/api\/anime\//);
 	expect(await pageCuesInvisible(page), 'no native cue box on the page').toBe(true);
 	// The video's own PiP, as Firefox's toggle on the picture opens it (here by
-	// the API, the one door a page can press): Firefox says so, and the track
+	// the API, the one way a page can open it): Firefox says so, and the track
 	// keeps showing there, its cues drawn plainly.
 	await page.evaluate(() => document.querySelector('video')!.requestPictureInPicture());
 	await expect.poll(async () => (await track(page)).inPip).toBe(true);

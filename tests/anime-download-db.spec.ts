@@ -240,7 +240,7 @@ describe('downloading an episode', () => {
 	});
 
 	it('names its catalogue entry to Jellyfin only when the link is an anime’s', async () => {
-		// A link to the manga (a wrong-kind link from before c298): its ids are
+		// A link to the manga (a wrong-kind link an older version could make): its ids are
 		// another work's, so tvshow.nfo carries only tsundoku's own key.
 		db.prepare(`DELETE FROM download_queue`).run();
 		db.prepare(

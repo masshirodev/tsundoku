@@ -5,7 +5,7 @@ import { GENRE, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-world
 /**
  * A tag on the series screen with the remote (doc/FOCUS.md): at
  * 960×540 with no pointer, the D-pad reaches a tag value (through DETAILS,
- * which folds TAGS on a TV since c425), OK opens its sheet
+ * which folds TAGS on a TV), OK opens its sheet
  * with the first row focused, and BACK closes it and gives focus back to the
  * tag. On its own world (tests/helpers/tag-world.ts), so it opens no series
  * the shared database's specs touch, and writes nothing.
@@ -177,7 +177,7 @@ test('the pad reaches a tag, OK opens its sheet on the first row, BACK closes it
 });
 
 /**
- * c837: every tag is a stop, wrapped lines and all, and `+ N MORE ↓` is one
+ * Every tag is a stop, wrapped lines and all, and `+ N MORE ↓` is one
  * too. Tags go in through the EDIT sheet on this file's own world.
  */
 test('the pad reaches every tag past a wrapped line and through + N MORE ↓, and OK opens one', async ({

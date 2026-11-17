@@ -67,7 +67,7 @@ describe('takeSnapshot', () => {
 });
 
 describe('snapshotBeforeMigration', () => {
-	it('names the copy for the rung about to be climbed, where retention never prunes it', () => {
+	it('names the copy for the migration about to run, where retention never prunes it', () => {
 		const kept = snapshotBeforeMigration(getDb(), dbPath, 9, new Date(2026, 8, 23, 12));
 		expect(kept).toBe(join(dir, 'library-pre-v10-20260923-120000.sqlite'));
 		expect(existsSync(kept)).toBe(true);

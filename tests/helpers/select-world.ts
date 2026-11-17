@@ -8,10 +8,10 @@ import { E2E_TOKEN } from '../../playwright.config';
 import { freePort } from './tag-world';
 
 /**
- * A world for SELECT in a catalog (card c868; doc/BROWSE.md, "SELECT in a
- * catalog"), for tests/browse-select*.e2e.ts: two manga sources on a fake
- * engine, a seeded database of its own with a series already IN LIBRARY from
- * the first and a twin of another of its results from the second, a shelf to
+ * A world for SELECT in a catalog (doc/BROWSE.md, "SELECT in a catalog"),
+ * for tests/browse-select*.e2e.ts: two manga sources on a fake engine, a
+ * seeded database of its own with a series already IN LIBRARY from the
+ * first and a twin of another of its results from the second, a shelf to
  * put a press on, and a preview of the same build on a port of its own. A
  * press adds series and queues chapters, so nothing here touches the shared
  * server or the browse world, and each spec file starts its own.

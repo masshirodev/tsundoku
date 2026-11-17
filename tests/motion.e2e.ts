@@ -108,8 +108,8 @@ test('a sheet opened again before it was gone takes taps again', async ({ page }
 	// taken the first frame the close has left the address, not 40 ms after
 	// the tap: under load the close's navigation had not happened yet by then,
 	// so back left the library altogether. It reports whether the
-	// sheet was still drawn, leaving, when back went, which is this case's
-	// premise: had it gone already, this would be an ordinary second open.
+	// sheet was still drawn, leaving, when back went, which this case
+	// depends on: had it gone already, this would be an ordinary second open.
 	const leaving = await page.evaluate(async () => {
 		const close = document.querySelector<HTMLAnchorElement>('.new-shelf .x')!;
 		close.click();
@@ -148,12 +148,12 @@ test('a deeper screen slides in, and history slides it back out', async ({ page 
 	// The URL changes at once; the screen moves once its data is here. Under a
 	// loaded run either screen can take long enough that its outline showed and
 	// slid in first, and then the screen only fades over it.
-	// The back move lands once the library's data is in: measured in wave 25
-	//, 40 copies at a load of 40-44, 0.2-4.1 s after the popstate
+	// The back move lands once the library's data is in: measured over 40
+	// copies at a load of 40-44, 0.2-4.1 s after the popstate
 	// (median 0.8 s), every one `back`, and the attribute always cleared at
 	// the popstate first, so the observer sees each move. The poll's default
-	// 5 s ran out at loads of 53-76 in wave 24 with only the forward move
-	// recorded; 15 s is the measured worst with room for a gate's load.
+	// 5 s ran out at loads of 53-76 with only the forward move
+	// recorded; 15 s is the measured worst with room for a loaded run.
 	await expect
 		.poll(() => page.evaluate(() => (window as unknown as { moves: string[] }).moves), {
 			timeout: 15_000
@@ -403,7 +403,7 @@ const boxOf = (l: import('@playwright/test').Locator) =>
 		return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
 	});
 
-/** Library → a series → back: the library arrives by a navigation, as the owner's did. */
+/** Library → a series → back: the library arrives by a navigation, as a user's does. */
 async function arriveAtLibrary(page: import('@playwright/test').Page) {
 	await page.goto('/?sort=title');
 	await page.locator('.grid .tile').first().click();

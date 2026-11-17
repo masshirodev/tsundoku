@@ -5,13 +5,13 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
 /**
- * Rung 68: an anime linked before rung 62 has only a
+ * Migration 68: an anime linked before migration 62 has only a
  * `series_links` row, which the season rule read as the whole series settled,
- * so its season 2 never reached the pass or the review. The rung moves the
+ * so its season 2 never reached the pass or the review. The migration moves the
  * link onto the season it stood for. The library is a file stopped at v67,
- * filled as the pre-rung-62 app left it, and the app's own `getDb()` opens it,
+ * filled as the pre-62 app left it, and the app's own `getDb()` opens it,
  * so the climb is the one a release's first start makes; every assertion
- * after it asks the app's own doors (the pass's `searchable`, the review's
+ * after it asks the app's own functions (the pass's `searchable`, the review's
  * queue, the series screen's `seriesSeasons`, AniSkip's `episodeEntry`), not
  * the tables.
  */
@@ -24,7 +24,7 @@ afterAll(() => rmSync(work, { recursive: true, force: true }));
 const { climb } = await import('$lib/server/db');
 
 // The library at v67, before the app opens it.
-const SEASONED = 1; // seasons 1 and 2, linked as one before rung 62
+const SEASONED = 1; // seasons 1 and 2, linked as one before migration 62
 const SPECIALS = 2; // a special at season 0, then seasons 1 and 2
 const FLAT = 3; // a flat list, no seasons at all
 const DECIDED = 4; // seasons 1 and 2, season 1 also settled NONE OF THESE since
@@ -61,7 +61,7 @@ seed.exec(`
 		(61, 6, 1, 'S1E1', 0, '/6/1', 1, 1, 1440),
 		(62, 6, 2, 'S2E1', 0, '/6/2', 2, 1, 1440),
 		(71, 7, 1, 'Ch 1', 0, '/7/1', NULL, NULL, NULL);
-	-- The links as the pre-rung-62 app wrote them: one row a series.
+	-- The links as the app before migration 62 wrote them: one row a series.
 	INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, cover_url, linked_at, resolved_at, filled_rating, score, format) VALUES
 		(1, 101, 901, 'review', 'Seasoned', 'https://img/101.jpg', 10, 11, 8, 85, 'TV'),
 		(2, 102, 902, 'exact', 'Specials', '', 20, 21, NULL, NULL, 'TV'),
@@ -73,7 +73,7 @@ seed.exec(`
 	INSERT INTO series_season_links (series_id, season, part, anilist_id, mal_id, via, title, linked_at, format)
 		VALUES (6, 1, 1, 106, 906, 'review', 'Split', 60, 'TV');
 	INSERT INTO season_link_decisions (series_id, season, part, decision, at) VALUES (4, 1, 1, 'none', 45);
-	-- What the owner's list said of the series, filed at series level then.
+	-- What the user's list said of the series, filed at series level then.
 	INSERT INTO tracker_state (series_id, service, status, score, progress, read_at) VALUES
 		(1, 'anilist', 'CURRENT', 85, 2, 12);
 	INSERT INTO tracker_sends (series_id, service, progress, status, score, wanted_at) VALUES
@@ -103,8 +103,8 @@ const searchable = () =>
 		.map((r) => [r.id, r.season ?? null])
 		.sort((a, b) => (a[0]! - b[0]! || a[1]! - b[1]!) as number);
 
-describe('rung 68: a link from before rung 62 becomes its season’s row', () => {
-	it('is the rung the app climbs to on opening a v67 library', () => {
+describe('migration 68: a link from before migration 62 becomes its season’s row', () => {
+	it('is the migration the app climbs to on opening a v67 library', () => {
 		expect(db.pragma('user_version', { simple: true })).toBeGreaterThanOrEqual(68);
 	});
 
@@ -128,7 +128,7 @@ describe('rung 68: a link from before rung 62 becomes its season’s row', () =>
 				year: null
 			}
 		]);
-		// Season 1 keeps the owner's entry on the series screen; season 2 is not linked.
+		// Season 1 keeps the user's entry on the series screen; season 2 is not linked.
 		const view = seasons.seriesSeasons(SEASONED)!;
 		expect(view.seasons.map((s) => [s.season, s.link?.anilistId ?? null])).toEqual([
 			[1, 101],
@@ -151,7 +151,7 @@ describe('rung 68: a link from before rung 62 becomes its season’s row', () =>
 	});
 
 	it('brings the later seasons to the pass, and no settled season', () => {
-		// Before the rung, none of these anime was searchable: their one link
+		// Before the migration, none of these anime was searchable: their one link
 		// settled each series. Now each open season is a row of its own.
 		expect(searchable()).toEqual(
 			[
@@ -228,10 +228,10 @@ describe('rung 68: a link from before rung 62 becomes its season’s row', () =>
 		).toEqual({ n: 0 });
 	});
 
-	it('ends, past rung 74, with only the comic’s row, and its readers read the same answer', () => {
-		// Rung 68 left each row as it was; rung 74 took those with a season
+	it('ends, past migration 74, with only the comic’s row, and its readers read the same answer', () => {
+		// Migration 68 left each row as it was; migration 74 took those with a season
 		// row beside them, which is every anime here. The columns it had at v67:
-		// a later rung's own (rung 70's country and year) are that rung's to add.
+		// a later migration's own (70's country and year) are that migration's to add.
 		const atV67 = Object.keys(mirrors[0] as Record<string, unknown>);
 		const now = db.prepare(`SELECT * FROM series_links ORDER BY series_id`).all() as Record<
 			string,

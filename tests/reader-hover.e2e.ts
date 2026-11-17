@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { expect, readerReady, test } from './fixtures';
 
 /**
- * The readers' tap surfaces never tint under a mouse (c485; doc/READER.md and
+ * The readers' tap surfaces never tint under a mouse (doc/READER.md and
  * doc/TEXT-READER.md, "Tap zones"; doc/MOTION.md, "Hovering"). The player's
  * tap zone was a `<button>` and tinted (tests/browse-player-hover.e2e.ts); the
  * image reader's stage and the text reader's page catch taps on a plain
@@ -16,11 +16,10 @@ import { expect, readerReady, test } from './fixtures';
  * Frieren, as tests/reader-layout.e2e.ts; Mushoku Tensei, as
  * tests/text-reader-turn.e2e.ts).
  *
- * It also holds c679's sheets: READING scrolled to its bottom keeps its ✕ on
+ * It also holds the sheets: READING scrolled to its bottom keeps its ✕ on
  * screen, in both readers, on every device project. Those two cases open a
  * 600px-tall window first, because the sheets are only long enough to scroll
- * on a short one (the owner's own phone); the measurement on a phone, tablet,
- * desktop and TV is in doc/handoff-notes/reader.md, wave 31.
+ * on a short one, as on a real phone.
  */
 
 test.beforeEach(async ({ page }) => {
@@ -127,9 +126,9 @@ test('the text reader: hovering the page tints nothing, its controls still tint'
 });
 
 /**
- * c679: the head that closes the sheet stays at the sheet's top while its rows
+ * The head that closes the sheet stays at the sheet's top while its rows
  * scroll under it. A 600px window makes every row list longer than its 90dvh
- * (the image reader's) or `100dvh - 64px` (the text reader's), as the owner's
+ * (the image reader's) or `100dvh - 64px` (the text reader's), as a real
  * phone had it; the head is asserted at the sheet's own top after the scroll,
  * not merely visible somewhere.
  */
@@ -204,7 +203,7 @@ test.describe('the sheets keep their ✕ while their rows scroll', () => {
 });
 
 /**
- * c678: CURSOR in the READING sheet, off on both readers. With it on, the
+ * CURSOR in the READING sheet, off on both readers. With it on, the
  * cursor goes after three seconds without the mouse moving, and a move or a
  * press brings it back at once; a key and the wheel do not, so reading by
  * arrows stays clean. It never hides while a bar, a sheet, the page menu or

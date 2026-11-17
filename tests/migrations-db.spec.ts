@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { climb } from '$lib/server/db';
 
 /**
- * Rungs that move data, run against a database stopped at the rung before,
+ * Migrations that move data, run against a database stopped at the one before,
  * filled the way it was then.
  */
-describe('rung 29: ratings out of 10', () => {
+describe('migration 29: ratings out of 10', () => {
 	const old = () => {
 		const conn = new Database(':memory:');
 		climb(conn, 28);
@@ -47,7 +47,7 @@ describe('rung 29: ratings out of 10', () => {
 	});
 });
 
-describe('rung 34: arrivals', () => {
+describe('migration 34: arrivals', () => {
 	it('dates a series an import made by that import, and leaves chapters unknown', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 33);
@@ -65,7 +65,7 @@ describe('rung 34: arrivals', () => {
 		]);
 		expect(conn.prepare(`SELECT arrived_at FROM entries`).get()).toEqual({ arrived_at: null });
 
-		// Rung 35 takes that guess back: it put the first import's whole library on NEW.
+		// Migration 35 takes that guess back: it put the first import's whole library on NEW.
 		climb(conn);
 		expect(
 			conn.prepare(`SELECT COUNT(*) AS n FROM series WHERE arrived_at IS NOT NULL`).get()
@@ -73,7 +73,7 @@ describe('rung 34: arrivals', () => {
 	});
 });
 
-describe('rung 36: an arrival already read is not new', () => {
+describe('migration 36: an arrival already read is not new', () => {
 	it('dates a series by its newest unread arrival, or not at all', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 35);
@@ -93,8 +93,8 @@ describe('rung 36: an arrival already read is not new', () => {
 	});
 });
 
-describe('rung 60: an episode’s marks', () => {
-	it('keeps the source endings rung 47 already stored', () => {
+describe('migration 60: an episode’s marks', () => {
+	it('keeps the source endings migration 47 already stored', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 59);
 		conn.exec(`
@@ -124,7 +124,7 @@ describe('rung 60: an episode’s marks', () => {
 	});
 });
 
-describe('rung 55: a season the series named, not its episodes', () => {
+describe('migration 55: a season the series named, not its episodes', () => {
 	it('stamps the episodes of an anime kept as its own season, and leaves the rest alone', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 54);
@@ -156,7 +156,7 @@ describe('rung 55: a season the series named, not its episodes', () => {
 	});
 });
 
-describe('rung 61: Works', () => {
+describe('migration 61: Works', () => {
 	it('adds the three tables and moves no row of the library', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 60);
@@ -196,7 +196,7 @@ describe('rung 61: Works', () => {
 		expect(columns('work_dismissals')).toEqual(['series_ids', 'dismissed_at']);
 		expect(sqlOf('works')).toContain("order_mode IN ('hand', 'added', 'title')");
 		// `series_id UNIQUE` is what makes a series belong to at most one Work,
-		// and the cascade from series is the card's rule.
+		// and the cascade from series is deliberate.
 		expect(sqlOf('work_series')).toContain('series_id INTEGER NOT NULL UNIQUE');
 		expect(sqlOf('work_series')).toContain('REFERENCES series(id) ON DELETE CASCADE');
 		expect(
@@ -205,7 +205,7 @@ describe('rung 61: Works', () => {
 				.get()
 		).toBeTruthy();
 
-		// Nothing the rung did not name moved.
+		// Nothing the migration did not name moved.
 		expect(snapshot()).toEqual(before);
 	});
 
@@ -235,7 +235,7 @@ describe('rung 61: Works', () => {
 		conn
 			.prepare(`INSERT INTO work_dismissals (series_ids, dismissed_at) VALUES ('work:1:2', 100)`)
 			.run();
-		// Deleting a series takes its membership with it, and the rung's trigger
+		// Deleting a series takes its membership with it, and the migration's trigger
 		// ends the Work the delete leaves with one series: the cascade then takes
 		// that last membership too. The row is gone because of the trigger, not
 		// the FK, and `work_series` holding only the other Work is what proves both ran.
@@ -248,7 +248,7 @@ describe('rung 61: Works', () => {
 	});
 });
 
-describe('rung 66: IMPORT A BACKUP and its log', () => {
+describe('migration 66: IMPORT A BACKUP and its log', () => {
 	it('adds the two tables to a v65 library and moves no row of it', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 65);
@@ -293,9 +293,9 @@ describe('rung 66: IMPORT A BACKUP and its log', () => {
 	});
 });
 
-// Rung 67 has its own file, tests/aniskip-rung67-db.spec.ts, and rung
-// 68 its own through the app's doors, tests/legacy-anime-rung68-db.spec.ts.
-describe('rung 68: a link from before rung 62 becomes its season’s row', () => {
+// Migration 67 has its own file, tests/aniskip-rung67-db.spec.ts, and
+// migration 68 its own through the app's UI, tests/legacy-anime-rung68-db.spec.ts.
+describe('migration 68: a link from before migration 62 becomes its season’s row', () => {
 	it('moves an anime’s one link onto its first season and leaves a manga’s alone', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 67);
@@ -333,7 +333,7 @@ describe('rung 68: a link from before rung 62 becomes its season’s row', () =>
 	});
 });
 
-describe('rung 69: a novel’s reading direction, its own column', () => {
+describe('migration 69: a novel’s reading direction, its own column', () => {
 	it('adds text_direction as NULL for every series and keeps every direction stored', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 68);
@@ -367,7 +367,7 @@ describe('rung 69: a novel’s reading direction, its own column', () => {
 	});
 });
 
-describe('rung 70: a comic’s link keeps its country and start year', () => {
+describe('migration 70: a comic’s link keeps its country and start year', () => {
 	it('adds both as NULL to every link and moves nothing stored', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 69);
@@ -394,7 +394,7 @@ describe('rung 70: a comic’s link keeps its country and start year', () => {
 	});
 });
 
-describe('rung 71: a job keeps the Works its folds dropped', () => {
+describe('migration 71: a job keeps the Works its folds dropped', () => {
 	it('gives every job already stored an empty list, and moves nothing else', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 70);
@@ -412,7 +412,7 @@ describe('rung 71: a job keeps the Works its folds dropped', () => {
 		expect(after).toEqual(
 			(before as Record<string, unknown>[]).map((r) => ({ ...r, dropped: '[]' }))
 		);
-		// A job opened after the rung, which names no list, starts with none too.
+		// A job opened after the migration, which names no list, starts with none too.
 		conn.exec(`INSERT INTO scan_jobs (started_at) VALUES (60)`);
 		expect(conn.prepare(`SELECT dropped FROM scan_jobs WHERE started_at = 60`).get()).toEqual({
 			dropped: '[]'
@@ -423,7 +423,7 @@ describe('rung 71: a job keeps the Works its folds dropped', () => {
 	});
 });
 
-describe('rung 72: highlights, a copy and a pointer', () => {
+describe('migration 72: highlights, a copy and a pointer', () => {
 	it('adds the table to a v71 library, moves no row of it, and nothing cascades into it', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 71);
@@ -511,7 +511,7 @@ describe('rung 72: highlights, a copy and a pointer', () => {
 	});
 });
 
-describe('rung 73: an anime’s relation graph, cached', () => {
+describe('migration 73: an anime’s relation graph, cached', () => {
 	it('adds the table to a v72 library empty, moves no row of it, and goes with its series', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 72);
@@ -572,7 +572,7 @@ describe('rung 73: an anime’s relation graph, cached', () => {
 	});
 });
 
-describe('rung 74: an anime keeps no mirror of its first season', () => {
+describe('migration 74: an anime keeps no mirror of its first season', () => {
 	const link = (conn: Database.Database, id: number, anilist: number) =>
 		conn
 			.prepare(
@@ -605,7 +605,7 @@ describe('rung 74: an anime keeps no mirror of its first season', () => {
 		link(conn, 1, 101);
 		season(conn, 1, 1, 101);
 		season(conn, 1, 2, 102);
-		// Rung 68 left this row as it was even with its one link at season 2.
+		// Migration 68 left this row as it was even with its one link at season 2.
 		link(conn, 2, 201);
 		season(conn, 2, 2, 201);
 		link(conn, 3, 301);
@@ -630,8 +630,8 @@ describe('rung 74: an anime keeps no mirror of its first season', () => {
 	});
 
 	it('leaves a comic with a season row alone, whatever a bad row says', () => {
-		// No door writes a comic's season row; the rung still asks the kind, so
-		// a row out of place cannot cost a comic its link.
+		// Nothing in the app writes a comic's season row; the migration still asks
+		// the kind, so a row out of place cannot cost a comic its link.
 		const conn = new Database(':memory:');
 		climb(conn, 73);
 		conn.exec(`
@@ -645,7 +645,7 @@ describe('rung 74: an anime keeps no mirror of its first season', () => {
 	});
 });
 
-describe('rung 75: a series’ sources, a season at a time', () => {
+describe('migration 75: a series’ sources, a season at a time', () => {
 	const stopped = () => {
 		const conn = new Database(':memory:');
 		climb(conn, 74);
@@ -712,7 +712,7 @@ describe('rung 75: a series’ sources, a season at a time', () => {
 	});
 });
 
-describe('rung 77: what a merged show was', () => {
+describe('migration 77: what a merged show was', () => {
 	const stopped = () => {
 		const conn = new Database(':memory:');
 		climb(conn, 76);
@@ -796,7 +796,7 @@ describe('rung 77: what a merged show was', () => {
 	});
 });
 
-describe('rung 78: whether an extension uses a WebView', () => {
+describe('migration 78: whether an extension uses a WebView', () => {
 	it('adds the flag, unknown for what was installed before', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 77);
@@ -811,7 +811,7 @@ describe('rung 78: whether an extension uses a WebView', () => {
 	});
 });
 
-describe('rung 79: films and shows are kinds', () => {
+describe('migration 79: films and shows are kinds', () => {
 	it('widens series.kind, and takes both', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 78);
@@ -827,7 +827,7 @@ describe('rung 79: films and shows are kinds', () => {
 	});
 });
 
-describe('rung 80: TMDB links have their own tables', () => {
+describe('migration 80: TMDB links have their own tables', () => {
 	it('adds the link, the search and the candidates, gone with their series', () => {
 		const conn = new Database(':memory:');
 		conn.pragma('foreign_keys = ON');
@@ -864,7 +864,7 @@ describe('rung 80: TMDB links have their own tables', () => {
 	});
 });
 
-describe('rung 81: what surrounds a TMDB entry', () => {
+describe('migration 81: what surrounds a TMDB entry', () => {
 	it('caches per TMDB entry, and a declined offer goes with its series', () => {
 		const conn = new Database(':memory:');
 		conn.pragma('foreign_keys = ON');
@@ -896,7 +896,7 @@ describe('rung 81: what surrounds a TMDB entry', () => {
 		expect(conn.prepare(`SELECT COUNT(*) AS n FROM tmdb_surroundings`).get()).toEqual({ n: 1 });
 	});
 
-	// The top rung's own block says it is the top; the next rung moves this line.
+	// The top migration's own block says it is the top; the next one moves this line.
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);

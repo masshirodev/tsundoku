@@ -233,7 +233,7 @@ describe('kinds and the verb', () => {
 	});
 
 	it('says WATCH when CONTINUE opens an anime, READ for anything else, and nothing once read', () => {
-		// A manga beside its anime: the part the owner was in sets the verb.
+		// A manga beside its anime: the part the user was in sets the verb.
 		const manga = part({ seriesId: 1, position: 1, kind: 'manga', read: 10, lastOpenedAt: 900 });
 		const anime = part({ seriesId: 2, position: 2, kind: 'anime' });
 		expect(workVerb([manga, anime])).toBe('READ');
@@ -297,7 +297,7 @@ describe('the next part, at the end of one', () => {
 		part({ seriesId: 3, position: 3 })
 	];
 
-	it('is the part after this one in the owner’s order, mid-run', () => {
+	it('is the part after this one in the user’s order, mid-run', () => {
 		expect(nextPart(three(), 2)!.seriesId).toBe(3);
 		expect(partPlace(three(), 2)).toEqual({ part: 2, of: 3 });
 	});
@@ -316,7 +316,7 @@ describe('the next part, at the end of one', () => {
 	});
 
 	it('follows inOrder when two parts tie on position, never the array’s accident', () => {
-		// Positions are the owner's, and a tie is broken by the id (inOrder), so
+		// Positions are the user's, and a tie is broken by the id (inOrder), so
 		// "the next part" is the same answer whichever order the rows arrive in.
 		const tied = [part({ seriesId: 9, position: 2 }), part({ seriesId: 4, position: 2 })];
 		expect(inOrder(tied).map((p) => p.seriesId)).toEqual([4, 9]);
@@ -396,7 +396,7 @@ describe('the next part, at the end of one', () => {
 		});
 		// Every word agrees with the part's own line under its title (workPartMeta).
 		for (const k of KINDS) {
-			// A film's Work row is c992's: it has no unit, so there is no "first
+			// A film's Work row has no unit, so there is no "first
 			// ten" line to agree with.
 			if (k === 'movie') continue;
 			expect(workPartMeta({ kind: k, entries: 10, downloaded: 0 }, 'rtl')).toContain(
@@ -406,7 +406,7 @@ describe('the next part, at the end of one', () => {
 	});
 });
 
-describe('the series screen’s WORK row (W5)', () => {
+describe('the series screen’s WORK row', () => {
 	/** Three parts in order: 1 read through, 2 in progress, 3 not started. */
 	const run = () => {
 		const parts = [
@@ -436,14 +436,14 @@ describe('the series screen’s WORK row (W5)', () => {
 			youAreIn: null,
 			accent: false
 		});
-		// Part 1 is read through and the owner is already in part 2: the row says
+		// Part 1 is read through and the user is already in part 2: the row says
 		// where the run is, rather than offering an accent into a part begun.
 		expect(workRowLine(parts, 1)).toEqual({
 			nextTitle: 'New Waves',
 			youAreIn: 'New Waves',
 			accent: false
 		});
-		// A part the owner has not started names nothing about where they are.
+		// A part the user has not started names nothing about where they are.
 		expect(workRowLine(parts, 3)).toEqual({
 			nextTitle: null,
 			youAreIn: null,
@@ -478,7 +478,7 @@ describe('the series screen’s WORK row (W5)', () => {
 	});
 });
 
-describe('what GROUP can make (W4)', () => {
+describe('what GROUP can make', () => {
 	it('offers books for doujin singletons, volumes for novels, and a Work always', () => {
 		expect(groupAnswers([{ kind: 'doujin', entryCount: 1 }])).toEqual(['books', 'work']);
 		expect(
@@ -502,7 +502,7 @@ describe('what GROUP can make (W4)', () => {
 	});
 });
 
-describe('UNHIDE is offered only when every selected series is hidden (W4 round 2)', () => {
+describe('UNHIDE is offered only when every selected series is hidden', () => {
 	it('is true when every selected series is hidden', () => {
 		expect(allHiddenAmong([1, 2, 3], () => true)).toBe(true);
 	});
@@ -513,8 +513,8 @@ describe('UNHIDE is offered only when every selected series is hidden (W4 round 
 
 	it('is false for a selection the page cannot see at all', () => {
 		// A Work's part drawn as one card, or a page not loaded: `every` over an
-		// empty list used to answer true, so a person's page offered UNHIDE for
-		// plainly visible series.
+		// empty list answers true, which would offer UNHIDE for plainly visible
+		// series.
 		expect(allHiddenAmong([1, 2], () => undefined)).toBe(false);
 		expect(allHiddenAmong([], () => true)).toBe(false);
 	});
@@ -547,7 +547,7 @@ describe('the HIDE and UNHIDE bands are worded from the count', () => {
 	});
 });
 
-describe('MIGHT CONTINUE’s stem rule, over its whole domain (W7)', () => {
+describe('MIGHT CONTINUE’s stem rule, over its whole domain', () => {
 	// Every title against every stem: the table is the rule, so a pair the
 	// code decides differently fails by name. A hand-picked pair or two would
 	// prove only the pairs picked.

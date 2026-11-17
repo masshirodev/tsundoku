@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 /**
  * A book's own origin (doc/BOOKS.md, "Where a book's origin lives").
  * Its one-offs are made by the app's own ADD from a fake engine's gallery
- * source, not hand-seeded with the key they should have (wave 37's lesson), and
+ * source, not hand-seeded with the key they should have, and
  * its downloads go through the real worker, backup and importer.
  */
 
@@ -127,7 +127,7 @@ const reset = () => {
 beforeEach(reset);
 
 let urlCounter = 0;
-/** A one-off through the app's own ADD: what the owner's two books actually were. */
+/** A one-off through the app's own ADD, the way a real one is made. */
 async function addOneOff(source = NH, url = `/g/${++urlCounter}`) {
 	const id = await engine.addToLibrary(engine.sourceMangaId(source.id, url), deps.now());
 	return { id, key: keyOf(source.id, url), url };
@@ -165,7 +165,7 @@ const tagLanguage = (id: number, language: string) => {
 	).run(id, language);
 };
 
-/** Two undownloaded one-offs, grouped: the card's state. */
+/** Two undownloaded one-offs, grouped. */
 async function pair(a = NH, b = NH) {
 	const one = await addOneOff(a);
 	const two = await addOneOff(b);
@@ -932,7 +932,7 @@ describe('every other reader of a key', () => {
 	});
 });
 
-describe('rung 76', () => {
+describe('migration 76', () => {
 	it('adds the table and repairs nothing it cannot read', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 75);

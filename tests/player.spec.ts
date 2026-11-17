@@ -148,7 +148,7 @@ describe('servers', () => {
 	});
 });
 
-describe('settings across anime (2026-10-29)', () => {
+describe('settings across anime', () => {
 	it('start from this series’ choice, then the last made anywhere, then the device’s language', () => {
 		const offered = ['ZH', 'EN', 'ID'];
 		expect(preferredLang(offered, ['ID', 'EN', 'EN'])).toBe('ID');
@@ -285,10 +285,9 @@ describe('the sprite sheet', () => {
 });
 
 /**
- * A stream's frame beside the time under the pointer (c385, round 2 of the
- * review): shown only near the time it was drawn for, half a percent of the
- * episode and at least a second, so the tip never labels one time's picture
- * with another.
+ * A stream's frame beside the time under the pointer: shown only near the time
+ * it was drawn for, half a percent of the episode and at least a second, so the
+ * tip never labels one time's picture with another.
  */
 describe('nearFrame', () => {
 	it('is near within a second on a short clip, and never with no frame', () => {

@@ -291,7 +291,7 @@ describe('UNDO of MARK READ THROUGH puts the place back', () => {
 });
 
 describe('direction', () => {
-	it('stores the owner’s choice and clears back to the default', () => {
+	it('stores the user’s choice and clears back to the default', () => {
 		const id = idOf('Sousou no Frieren');
 		series.setDirection(id, 'ltr');
 		expect(series.seriesPage(id, false)!.direction).toBe('ltr');
@@ -418,13 +418,13 @@ describe('the reading log', () => {
 
 describe('the source a series’ tags search', () => {
 	/**
-	 * `tagSourceOf` (series/[id]/tag-source.server.ts) decides each door by
+	 * `tagSourceOf` (series/[id]/tag-source.server.ts) decides each answer by
 	 * what can be asked -- does the key name a source, does BROWSE list it with
 	 * this reveal, did it load, is the engine there -- never by kind. Every
 	 * family's key, and each way to have no source, with the series really
 	 * keyed so.
 	 */
-	it('names the source for each family BROWSE can open, and none for every other door', async () => {
+	it('names the source for each family BROWSE can open, and none for every other key', async () => {
 		const { tagSourceOf } = await import('../src/routes/series/[id]/tag-source.server');
 		const { forgetSourceUse } = await import('$lib/server/library-sources');
 		const db = getDb();
@@ -472,7 +472,7 @@ describe('the source a series’ tags search', () => {
 			epub: add('T Epub', 'novel', 'epub:/books/a.epub'),
 			// Two of its three series hidden: the source is mostly hidden.
 			hidden: add('T Hidden', 'manga', 'mihon:7400:/h1', 1),
-			// Hidden itself, on a source that is not: the series is the door
+			// Hidden itself, on a source that is not: the series is the way in
 			// (its `tag-search` route asks this and nothing else for access).
 			hiddenSeries: add('T Hidden Series', 'manga', 'mihon:7100:/z', 1)
 		};

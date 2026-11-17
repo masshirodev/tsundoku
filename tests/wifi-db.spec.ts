@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The WI-FI panel's server side (`src/lib/server/wifi.ts`; doc/WIFI.md), on a
- * friend's install as serve.ts runs one in local mode: which doors may make a
- * pairing code, and which only read it.
+ * friend's install as serve.ts runs one in local mode: which routes and
+ * actions may make a pairing code, and which only read it.
  *
- * Five wrong tries on `/pair/tv` burn the TV's code, and only the owner makes
- * another: NEW CODE (`fresh`), ON (`fresh`) or opening SETTINGS on the
- * computer (`renew`). Before c460 the panel's 5 s poll and the door check
- * (`tvBlockHere`) both replaced a burned code, so anyone on the Wi-Fi got five
- * more guesses every 5 s while the panel was open.
+ * Five wrong tries on `/pair/tv` burn the TV's code, and only someone at the
+ * computer makes another: NEW CODE (`fresh`), ON (`fresh`) or opening SETTINGS
+ * (`renew`). Neither the panel's 5 s poll nor the per-request check
+ * (`tvBlockHere`) may replace a burned code, or anyone on the Wi-Fi would get
+ * five more guesses every 5 s while the panel is open.
  */
 
 // A friend's local install, read through `$env/dynamic/private` as the app reads it.
@@ -62,7 +62,7 @@ function burnTv(now: number) {
 	return c.code;
 }
 
-/** Bring the TV's code to each state it can be in, as the app's own doors do. */
+/** Bring the TV's code to each state it can be in, as the app itself does. */
 const TV_STATES = {
 	live: () => tvPairing.current()!.code,
 	used: (now: number) => {
@@ -81,7 +81,7 @@ beforeEach(() => {
 	tvPairing.fresh(T0);
 });
 
-describe('the door check (tvBlockHere)', () => {
+describe('the per-request check (tvBlockHere)', () => {
 	it('leaves a burned code burned, and the same code', () => {
 		const code = burnTv(T0 + 1000);
 		// Asked by the load, NEW CODE's action and the DEVICES row's refresh, on
@@ -144,7 +144,7 @@ describe('the panel’s poll (GET /api/wifi, wifiView() with nothing asked)', ()
 	});
 });
 
-describe('the doors that may make a code', () => {
+describe('the actions that may make a code', () => {
 	it('opening SETTINGS (renew) replaces a spent code and keeps a live or just-used one', () => {
 		for (const state of Object.keys(TV_STATES) as (keyof typeof TV_STATES)[]) {
 			tvPairing.fresh(T0);
@@ -212,7 +212,7 @@ describe('the doors that may make a code', () => {
 });
 
 /**
- * c531, the owner's call of 2026-11-04: a spent code renews only on a real
+ * A spent code renews only on a real
  * visit to SETTINGS. The load runs for that visit and for every reload of the
  * page's data alike (`invalidateAll()`, an enhanced form, the layout's RESCAN
  * or theme); only the first may replace a code five wrong tries burned.
@@ -306,18 +306,18 @@ describe('a real visit to SETTINGS, and a reload of its data', () => {
 });
 
 /**
- * c581: a burned code is burned for good, on both screens. `TvPairing.state`
- * asked the clock first, so once a burned code's 10 minutes ran out the
- * DEVICES row's refresh (`tvCodeNow`, `GET /settings/tv`) and the WI-FI
- * panel said EXPIRED, and the row's 5 s poll (`tvPolls`: every state but
- * burned) started again, while `/pair/tv` said NO TRIES LEFT by a rule of its
- * own (`shown`). Every door reads `state` now; this asks each one, either side
- * of the 10 minutes and long after them.
+ * A burned code is burned for good, on both screens. Were `TvPairing.state`
+ * to ask the clock first, a burned code's 10 minutes running out would make
+ * the DEVICES row's refresh (`tvCodeNow`, `GET /settings/tv`) and the WI-FI
+ * panel say EXPIRED and start the row's 5 s poll (`tvPolls`: every state but
+ * burned) again, while `/pair/tv` said NO TRIES LEFT by a rule of its own
+ * (`shown`). Every reader goes through `state`; this asks each one, either
+ * side of the 10 minutes and long after them.
  */
 describe('a burned code past its 10 minutes', () => {
 	const AT = [T0 + CODE_MS - 1, T0 + CODE_MS, T0 + CODE_MS + 1, T0 + CODE_MS * 6];
 
-	it('reads burned from the computer’s doors, and none of them makes a new one', async () => {
+	it('reads burned from the computer’s routes, and none of them makes a new one', async () => {
 		const code = burnTv(T0 + 1000);
 		for (const now of AT) {
 			const at = `${now - T0} ms after it was made`;
@@ -340,7 +340,7 @@ describe('a burned code past its 10 minutes', () => {
 		} finally {
 			vi.useRealTimers();
 		}
-		// A real visit is still the owner's door that replaces it.
+		// A real visit to SETTINGS is still what replaces it.
 		expect(wifiView({ renew: true, now: AT.at(-1)! })!.tv).toMatchObject({ state: 'live' });
 	});
 

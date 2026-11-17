@@ -7,11 +7,11 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import type { Candidate } from '$lib/library/catalogue';
 
 /**
- * The relation cache's own timer (card c839; doc/LINKS.md, "How the cache
- * fills"). The database is a file, not `:memory:`: the last two describes
- * reach it from a second process, as `yarn run links` and the served app do.
+ * The relation cache's own timer (doc/LINKS.md, "How the cache fills"). The
+ * database is a file, not `:memory:`: the last two describes reach it from a
+ * second process, as `yarn run links` and the served app do.
  *
- * The stand-in answers as AniList does, measured on 2026-11-08 and quoted in
+ * The stand-in answers as AniList does, as measured and quoted in
  * tests/other-forms-db.spec.ts: one id it can't answer is HTTP 404 and **every**
  * alias of the request null, the good ones too.
  */
@@ -958,7 +958,7 @@ describe('two passes at once', () => {
 	});
 });
 
-describe('the doors: a second process and the running app', () => {
+describe('the callers: a second process and the running app', () => {
 	let anilist: Server;
 	let port = 0;
 	let child: ChildProcess | null = null;

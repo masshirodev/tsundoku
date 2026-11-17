@@ -138,7 +138,7 @@ test('a reload ends SELECT; a trip to /search and back keeps it, and ✕ ends it
 	// The selection lives in the tab (src/lib/library/selection.ts,
 	// `carrySelection`): a reload makes the library again from nothing
 	// (doc/LIBRARY.md, "What ends SELECT"), and the search takes it and gives
-	// it back. Every other door is tests/select-search-flow.e2e.ts'.
+	// it back. Every other way in is tests/select-search-flow.e2e.ts'.
 	await startSelecting(page);
 	await tiles(page).first().click();
 	await expect(count(page)).toHaveText('1 SELECTED');
@@ -328,9 +328,9 @@ test.describe('SELECT ALL past one page', () => {
 
 	/*
 	 * SELECT ALL's own id read held (`GET /api/library?…&ids=1`), the first of
-	 * its two requests (wave 34's review): every case below taps while that
-	 * GET is out, where wave 34's round-2 case held the POST behind it and so
-	 * tapped after the window. The held route is answered by the case.
+	 * its two requests: every case below taps while that GET is out, where
+	 * holding the POST behind it would tap after the window. The held route is
+	 * answered by the case.
 	 */
 	const isIdRead = (url: URL) =>
 		url.pathname === '/api/library' && url.searchParams.get('ids') === '1';
@@ -403,7 +403,7 @@ test.describe('SELECT ALL past one page', () => {
 		page
 	}) => {
 		// A Work that sorts first, so its tile is on the loaded page and HIDE is
-		// the button that asks first (W4); past the loaded pages HIDE is a plain
+		// the button that asks first; past the loaded pages HIDE is a plain
 		// submit (measured: this file's Work titled to sort last drew no tile here).
 		const db = new Database(dbPath);
 		const work = (() => {

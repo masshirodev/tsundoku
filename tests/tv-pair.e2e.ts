@@ -1,8 +1,8 @@
 import { expect, hydrated, test } from './helpers/hydrated';
 
 /**
- * A TV pairing itself with six digits typed on a remote (c236; doc/TV.md,
- * "Pairing"; TV-Pair.dc.html 9C and 9E). This is the computer's own route,
+ * A TV pairing itself with six digits typed on a remote (doc/TV.md,
+ * "Pairing"): the code page and the paired page. This is the computer's own route,
  * reached by the app once it has found the computer, so the spec is the TV:
  * 960x540, no pointer, and every press a key.
  *
@@ -16,7 +16,7 @@ const PORT = process.env.PLAYWRIGHT_PORT ?? '4183';
 const PAIRED = `tsundoku_paired_${PORT}`;
 /**
  * The host the e2e server's `ORIGIN` names (playwright.config.ts), as a
- * tailnet install's own public origin would: the door a paired TV's cookie
+ * tailnet install's own public origin would: the origin a paired TV's cookie
  * opens.
  */
 const TAILNET = `tsundoku.test:${PORT}`;
@@ -49,7 +49,7 @@ const BANDS = [
 ] as const;
 
 test('a band pushes the column down instead of drawing over it', async ({ page }) => {
-	// The design's 9C: the section label at 108, the six cards at 148.
+	// The design's code page: the section label at 108, the six cards at 148.
 	await page.goto('/pair/tv');
 	await expect(page.locator('.band')).toHaveCount(0);
 	expect((await page.locator('.sl').boundingBox())!.y).toBe(108);
@@ -61,14 +61,14 @@ test('a band pushes the column down instead of drawing over it', async ({ page }
 		await expect(band).toContainText(head);
 		await expect(band).toContainText(meta);
 
-		// 2026-11-02: the band was drawn over "02 — …" and its ✓ ANSWERED
-		// line. It now ends above both that label and the cards.
+		// The band ends above both "02 — …" (and its ✓ ANSWERED line) and
+		// the cards, never drawn over them.
 		const b = (await band.boundingBox())!;
 		const label = (await page.locator('.sl').boundingBox())!;
 		const cell = (await page.locator('.cell').first().boundingBox())!;
 		expect(b.y + b.height).toBeLessThanOrEqual(label.y);
 		expect(b.y + b.height).toBeLessThanOrEqual(cell.y);
-		// Still inside the frame the handoff draws, not pushed off the bottom.
+		// Still inside the frame the design draws, not pushed off the bottom.
 		const actions = (await page.locator('.actions').boundingBox())!;
 		expect(actions.y + actions.height).toBeLessThanOrEqual(540 - 28);
 	}
@@ -78,7 +78,7 @@ test('a wrong code spends a try, and the right one pairs the TV', async ({ page,
 	await page.goto('/pair/tv');
 	await expect(page.getByText('02 — THE SIX DIGITS ON THE COMPUTER')).toBeVisible();
 
-	// The handoff's measurements (TV-Pair.dc.html, 9C): two threes of 72x88
+	// The design's measurements: two threes of 72x88
 	// cells with a 12px gap, 56px buttons, the bar 28 from the top.
 	const box = async (sel: string) => (await page.locator(sel).first().boundingBox())!;
 	expect(await box('.cell')).toMatchObject({ width: 72, height: 88 });
@@ -106,7 +106,7 @@ test('five wrong tries burn the code, and a new one is made on the computer', as
 	page,
 	request
 }) => {
-	// A TV that paired in the test above opens 9E; this one has nothing yet.
+	// A TV that paired in the test above opens the paired page; this one has nothing yet.
 	await page.context().clearCookies({ name: PAIRED });
 	const fresh = (await (
 		await request.post('/api/pair/tv', { data: { action: 'code' } })
@@ -122,14 +122,14 @@ test('five wrong tries burn the code, and a new one is made on the computer', as
 	await expect(page.getByText('NO TRIES LEFT')).toBeVisible();
 	await expect(page.getByText('MAKE A NEW CODE ON THE COMPUTER')).toBeVisible();
 
-	// The right code is no longer worth anything, and the page stays 9C.
+	// The right code is no longer worth anything, and the page stays the code page.
 	await typeCode(page, fresh.code!);
 	await expect(page.getByText('NO TRIES LEFT')).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'The library is on this TV' })).toHaveCount(0);
 });
 
 /**
- * The owner's own instance (doc/WIFI.md, doc/SIGN-IN.md): token mode,
+ * A tailnet instance (doc/WIFI.md, doc/SIGN-IN.md): token mode,
  * no WI-FI panel, so SETTINGS › 08 — DEVICES is where the six digits are seen.
  * The block is the pairing panel's own, without the phone's QR.
  */
@@ -147,7 +147,7 @@ test('with no WI-FI panel, DEVICES shows the TV’s six digits', async ({ page, 
 	const shown = (await threes.allTextContents()).join('');
 	expect(shown).toMatch(/^\d{6}$/);
 	await expect(panel).toContainText(/GOOD FOR \d+ MIN · ONE DEVICE, ONCE/);
-	// This row shows no address and a tailnet TV types the whole one (9B), so
+	// This row shows no address and a tailnet TV types the whole one (the address screen), so
 	// the panel's "last number" shortcut is not what this block says.
 	await expect(panel.locator('.pnote')).toHaveText(
 		'TYPE THE WHOLE ADDRESS IN THE APP ON A TV, PHONE OR TABLET, THEN THESE SIX'
@@ -191,7 +191,7 @@ test('a paired cookie signs in on the tailnet host, and not at localhost', async
 	await hydrated(tvPage);
 	await typeCode(tvPage, fresh.code!);
 	await expect(tvPage.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
-	// 9E names the DEVICES row by what both installs have, not by WI-FI: on the
+	// The paired page names the DEVICES row by what both installs have, not by WI-FI: on the
 	// tailnet that row says OVER TAILSCALE.
 	await expect(tvPage.getByText('TV · WITH SIGN OUT')).toBeVisible();
 	const paired = (await tv.cookies()).find((c) => c.name === PAIRED);

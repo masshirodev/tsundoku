@@ -5,13 +5,13 @@ import { sampleEpub } from '../src/lib/server/pages/sample-epub';
 import { Zip } from '../src/lib/epub/unzip';
 
 /**
- * WIDTH in the text reader's READING sheet (c437; doc/TEXT-READER.md,
+ * WIDTH in the text reader's READING sheet (doc/TEXT-READER.md,
  * "WIDTH"): each step draws the column the frame says, centred, in PAGED and
  * SCROLL, in landscape's two columns, R→L and vertical Japanese; the place
  * being read survives the relayout; the series keeps its width across a
  * reload; and another series opens at the device's last choice. Plain
- * `*.e2e.ts`, so it runs on all four device projects: the owner asked for it
- * to read on a PC, and the column, its floor and its columns differ on each
+ * `*.e2e.ts`, so it runs on all four device projects: it is meant to read on
+ * a PC too, and the column, its floor and its columns differ on each
  * screen. Read-only: incognito, so no progress is written, and WIDTH lives in
  * the context's own browser storage. It reads Mushoku Tensei and Honzuki no
  * Gekokujou, neither of which any flow file groups away; the vertical case
@@ -202,7 +202,7 @@ test('each WIDTH draws its column, centred, and the place being read stays on th
 		expect(got.paragraph, `${width}: a paragraph's measure`).toBeLessThanOrEqual(Math.ceil(col));
 		// Past the obvious size: the chapter runs past one page at every width.
 		expect(got.pages, `${width}: pages`).toBeGreaterThan(1);
-		// The relayout kept the character being read on the page (c516's rule).
+		// The relayout kept the character being read on the page.
 		await expect.poll(() => placeShown(page), { message: `${width}: the place` }).toBe('shown');
 	}
 	// Never wider than 100%; and not a test of nothing: wherever 100% is wider

@@ -52,7 +52,7 @@ function backupFile(name: string, extra: number[] = [], pad = 0): string {
 
 test.beforeAll(async () => {
 	rmSync(scratch, { recursive: true, force: true });
-	// c268: the library's Mihon folder exists, with no backup in it.
+	// The library's Mihon folder exists, with no backup in it.
 	mkdirSync(join(library, 'Mihon', 'autobackup'), { recursive: true });
 	mkdirSync(files, { recursive: true });
 	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
@@ -197,8 +197,8 @@ test('a second backup of the same library says so, and merges', async ({ page })
 	await page.waitForURL(/\/import\/\d+$/);
 	await expect(page.getByText(/THE SAME MIHON LIBRARY CAME IN ON \d+ [A-Z]{3}/)).toBeVisible();
 	await expect(page.getByText('THIS ONE ADDS AND UPDATES · NOTHING IS REMOVED')).toBeVisible();
-	// Import-Preview's measurements, extracted from the board (temp/design by
-	// design-tools/extract-spec): hand-set, so pinned rather than tidied.
+	// The preview's measurements, from the design: hand-set, so pinned rather
+	// than tidied.
 	const css = (sel: string, props: string[]) =>
 		page
 			.locator(sel)
@@ -249,7 +249,7 @@ test('a second backup of the same library says so, and merges', async ({ page })
 	await expect(nums.locator('.v').nth(1)).toHaveText('3');
 });
 
-test('the doors: SETTINGS › 05 and MORE name the last import, the log opens from both', async ({
+test('the links: SETTINGS › 05 and MORE name the last import, the log opens from both', async ({
 	page
 }) => {
 	await page.goto('/settings');

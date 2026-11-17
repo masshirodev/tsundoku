@@ -5,7 +5,7 @@ import { revealOn } from './helpers/reveal';
 
 /**
  * EXTENSIONS (Index-Extensions; doc/BROWSE.md, "Extensions and
- * repositories"; card c144), end to end, against tests/browse-setup.ts's
+ * repositories"), end to end, against tests/browse-setup.ts's
  * fake engine and its repositories over https. The APKs are real and really
  * signed (tests/fixtures/apk), so a signature that doesn't hold is caught as
  * it would be. One test, in order: each step stands on the last.
@@ -34,7 +34,7 @@ test.beforeEach(async ({ page, baseURL }) => {
 	await resetEngine();
 	// A copy that failed before its own REMOVE still has Webtoons.com installed,
 	// and the copy after it would find 1.6.3 already here instead of installing
-	// 1.6.2 (c607 (b), c636). REMOVE is idempotent and keeps a source's switches,
+	// 1.6.2. REMOVE is idempotent and keeps a source's switches,
 	// which this case never turns on.
 	const origin = new URL(baseURL!).origin;
 	const reset = await page.request.post(`${origin}/browse/extensions?/remove`, {
@@ -45,11 +45,12 @@ test.beforeEach(async ({ page, baseURL }) => {
 		maxRedirects: 0
 	});
 	// A refused reset would leave the leftover in place and the case would fail
-	// later at INSTALL, which is the confusing symptom c607 fixed.
+	// later at INSTALL, a confusing symptom.
 	expect.soft(reset.status(), 'leftover Webtoons removed').toBe(303);
 	// The stronger half: whatever the answer, it is not installed now. Asked of
 	// the server's own markup, not through a page: a hydrated page here would
-	// set tsundoku_js=1 before c473's case, which asserts it is not set.
+	// set tsundoku_js=1 before the FILTER-before-hydration case, which asserts it
+	// is not set.
 	const installed = await page.request.get(`${origin}/browse/extensions`);
 	expect.soft(installed.ok(), `installed list answers: ${installed.status()}`).toBe(true);
 	expect.soft(await installed.text(), 'Webtoons.com absent').not.toContain('Webtoons.com');
@@ -67,21 +68,21 @@ test.beforeEach(async ({ page, baseURL }) => {
 /** Set by an LNReader case once it is about to INSTALL; the afterEach puts back what it left. */
 let lnPluginInstalled = false;
 
-// The settings page's own switches, NEVER TRACKED among them since c522.
+// The settings page's own switches, NEVER TRACKED among them.
 const SWITCHES = ['hidden', 'addedHidden', 'offHistory', 'neverTracked'] as const;
 
 // Teardown has its own budget, so this runs and reaches the server even when
-// the case timed out (c507; a finally in the body does not: its requests throw
+// the case timed out (a finally in the body does not: its requests throw
 // "Test timeout exceeded" before they are sent). A failed put-back is soft,
 // so the body's own error stays the one reported.
 //
-// REMOVE keeps a source's switches (c569, the owner's (b)), so a switch left
+// REMOVE keeps a source's switches, so a switch left
 // on outlives the plugin and the next INSTALL comes back with it: every
 // switch goes off **before** REMOVE, read back from the server, and a switch
 // can only be reached while the plugin is installed. And it waits first for
 // the page's own writes to be answered (`writes`): a HIDDEN SOURCE or an
 // INSTALL still on the server when the case timed out would otherwise land
-// after the put-back (c569's test side).
+// after the put-back.
 test.afterEach(async ({ page }, testInfo) => {
 	if (!lnPluginInstalled) return;
 	lnPluginInstalled = false;
@@ -118,8 +119,8 @@ test.afterEach(async ({ page }, testInfo) => {
 	// Past the longest hold the world allows (`test-hold.server.ts`'s
 	// HOLD_MAX_MS, from the one value, not a second 5.2 s): a write that
 	// outlived the put-back lands inside this wait, and the switches read back
-	// on. The c636 case's evidence is here, in the teardown that holds it, not
-	// in the case that runs next (review 2). Only where a hold was sent: no
+	// on. The still-being-written case's evidence is here, in the teardown that
+	// holds it, not in the case that runs next. Only where a hold was sent: no
 	// other case can leave one in flight, and the wait was 5.2 s of nothing in
 	// all of them.
 	let late = -1;
@@ -155,8 +156,8 @@ test('a repository is added, an extension installed, updated, taken back and rem
 	await page.getByRole('button', { name: 'ADD Fake Repo' }).click();
 	await expect(row('Fake Repo')).toContainText('2 EXTENSIONS');
 
-	// Available: the 18+ one is listed for everyone, marked (doc/BROWSE.md, "Filters";
-	// the owner, 2026-10-31: Keiyoushi flags Weeb Central, which a friend couldn't find).
+	// Available: the 18+ one is listed for everyone, marked (doc/BROWSE.md, "Filters":
+	// Keiyoushi flags Weeb Central, which would otherwise go unfound).
 	await page.goto('/browse/extensions?tab=available');
 	await expect(row('Webtoons.com')).toBeVisible();
 	await expect(row('Adult Place')).toContainText('18+');
@@ -211,7 +212,7 @@ test('a repository is added, an extension installed, updated, taken back and rem
 
 // A page of the context's own, not the fixture's: that one's goto waits for
 // hydration, which is exactly what this case must beat (library-top-bar's
-// FILTER case, c105).
+// FILTER case).
 test('AVAILABLE’s FILTER tapped before the page hydrates stays open', async ({ context }) => {
 	const page = await context.newPage();
 	// Hold the app's scripts back, so the server's markup is all there is.
@@ -305,7 +306,7 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	// of BROWSE's sources went red behind it, one red becoming several.
 	// So the afterEach below puts both back whatever happened, timeouts
 	// included: a finally in the body shares the test's budget, and after a
-	// timeout its requests throw before they are sent (review).
+	// timeout its requests throw before they are sent.
 	lnPluginInstalled = true;
 	const origin = new URL(test.info().project.use.baseURL!).origin;
 	const reveal = () => revealOn(page.context(), origin);
@@ -423,7 +424,7 @@ test('a switch still being written when the case ends is put back after it', asy
 	// afterEach's job to wait for it (`writes`), not this case's.
 });
 
-test('REMOVE keeps a source’s switches: a reinstalled plugin comes back with them (c569, the owner’s (b))', async ({
+test('REMOVE keeps a source’s switches: a reinstalled plugin comes back with them', async ({
 	page
 }) => {
 	const row = (name: string) => page.locator('.rows .row', { hasText: name });
@@ -461,7 +462,7 @@ test('REMOVE keeps a source’s switches: a reinstalled plugin comes back with t
 	await sheet.getByRole('button', { name: 'REMOVE GOOD NOVELS' }).click();
 	await expect(row('Good Novels')).toHaveCount(0);
 
-	// Installed again: the owner's switches are as they were left.
+	// Installed again: the switches are as they were left.
 	await install();
 	await page.goto('/browse/ln:goodnovels/settings');
 	await expect(own('Added hidden')).toHaveAttribute('aria-checked', 'true');

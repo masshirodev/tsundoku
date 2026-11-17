@@ -4,10 +4,10 @@ import { climb } from '$lib/server/db';
 import { chosenMarks } from '$lib/server/anime/marks';
 
 /**
- * The anime rungs that move stored marks, run against a database stopped at
- * the rung before and filled the way it was then. Each case also asks the
- * app's own rule (`chosenMarks`, which `syncEndingAt` writes) what every
- * entry's `ending_at` should be after the climb: the rung's SQL is a frozen
+ * The anime migrations that move stored marks, run against a database stopped
+ * at the migration before and filled the way it was then. Each case also asks
+ * the app's own rule (`chosenMarks`, which `syncEndingAt` writes) what every
+ * entry's `ending_at` should be after the climb: the migration's SQL is a frozen
  * copy of that rule, and this is where the copy is checked against it.
  */
 
@@ -65,7 +65,7 @@ function agreesWithTheRule(conn: Database.Database): void {
 		).toBe(chosenMarks(id, conn).ending?.start ?? null);
 }
 
-describe('rung 63: fingerprints found before c384 are forgotten', () => {
+describe('migration 63: fingerprints of the old matcher, fragments of an opening, are forgotten', () => {
 	const old = () => {
 		const conn = new Database(':memory:');
 		climb(conn, 62);
@@ -140,8 +140,8 @@ describe('rung 63: fingerprints found before c384 are forgotten', () => {
 	});
 
 	it('leaves an entry with no fingerprint alone, even one whose ending_at the rule would change', () => {
-		// The rung touches only what it forgets: an ending_at the rule would
-		// write otherwise is another rung's business, not this one's.
+		// The migration touches only what it forgets: an ending_at the rule would
+		// write otherwise is another migration's business, not this one's.
 		const conn = old();
 		conn.prepare(`UPDATE entries SET ending_at = 1 WHERE id = 4`).run();
 		climb(conn, 63);
@@ -149,7 +149,7 @@ describe('rung 63: fingerprints found before c384 are forgotten', () => {
 	});
 });
 
-describe('rung 64: AniSkip answers asked under a link that is not an anime’s are forgotten', () => {
+describe('migration 64: AniSkip answers asked under a link that is not an anime’s are forgotten', () => {
 	const old = () => {
 		const conn = new Database(':memory:');
 		climb(conn, 63);

@@ -32,12 +32,12 @@ import {
 } from '$lib/library/tag-search';
 
 /**
- * A tag searched for in its source (card c313; doc/BROWSE.md, "Arriving from
- * a tag"): the URL a source's page reads back as that genre's filter
- * included, or as a search for the value.
+ * A tag searched for in its source (doc/BROWSE.md, "Arriving from a tag"): the
+ * URL a source's page reads back as that genre's filter included, or as a
+ * search for the value.
  */
 
-// The schemas five real sources answered on 2026-10-28 (fixtures/filters).
+// The schemas five real sources answered (fixtures/filters).
 const dir = new URL('./fixtures/filters/', import.meta.url);
 const real = Object.fromEntries(
 	readdirSync(dir).map((f) => [
@@ -319,7 +319,7 @@ describe('a preview’s people', () => {
 		expect(splitPeople('Jr., Sato')).toEqual(['Jr.', 'Sato']);
 	});
 
-	// c508: the same strings, and the same answers, as tests/tag-search.spec.ts'
+	// The same strings, and the same answers, as tests/tag-search.spec.ts'
 	// preview (`splitPeople`) and tests/{mihon,anime}-plan.spec.ts' importers.
 	const PEOPLE: [string, string[]][] = [
 		['Aoi Hanamura, Ren Kisaragi', ['Aoi Hanamura', 'Ren Kisaragi']],
@@ -604,7 +604,7 @@ describe('the library’s key for a tag', () => {
 	});
 });
 
-describe('a tag-search route’s address (round 2: the link names the tag, the server finds it)', () => {
+describe('a tag-search route’s address (the link names the tag, the server finds it)', () => {
 	const base = '/series/7/tag-search';
 
 	it('names the tag and where it was tapped, and reads back the same', () => {

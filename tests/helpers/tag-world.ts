@@ -8,13 +8,13 @@ import { join } from 'node:path';
 import { E2E_TOKEN } from '../../playwright.config';
 
 /**
- * A world for tags that search their source (card c313; doc/BROWSE.md,
+ * A world for tags that search their source (doc/BROWSE.md,
  * "Arriving from a tag"), shared by tests/browse-tags.e2e.ts and
  * tests/tv-tags.e2e.ts: a fake engine whose manga has an author, an artist and
- * genres (the browse world's fake answers its details with none, and that file
- * is not this card's), a seeded database of its own, and a preview of the same
- * build, each on a port the OS hands out. Nothing here touches the shared
- * server or the browse world, so the files can run beside them.
+ * genres (the browse world's fake answers its details with none), a seeded
+ * database of its own, and a preview of the same build, each on a port the OS
+ * hands out. Nothing here touches the shared server or the browse world, so
+ * the files can run beside them.
  *
  * The fake answers as a real source does, wrong answers included: its genre
  * filter names some of the manga's genres and not others ("Gourmet" is on the
@@ -180,7 +180,7 @@ function seed(dbPath: string): TagWorld['ids'] {
 		tag(tagged, 'artist', 'Ren Kisaragi');
 		// A bare tag: grouped under `tag`, stored with no namespace.
 		tag(tagged, '', 'slice of life');
-		// The doors with no sheet: no origin at all, a source not installed, one
+		// The series with no sheet: no origin at all, a source not installed, one
 		// whose extension failed, a Hentoid gallery (no family's key).
 		const unsourced = series('Keyless Wanderer', 'manga', 'mihon', null);
 		const missing = series('Gone Source Saga', 'manga', 'mihon', 'mihon:999:/manga/gone');
@@ -193,8 +193,8 @@ function seed(dbPath: string): TagWorld['ids'] {
 		const twice = series('Twice Tagged Mecha', 'manga', 'mihon', `mihon:${SOURCE.id}:/manga/twice`);
 		tag(twice, '', 'Mecha');
 		tag(twice, 'tag', 'Mecha');
-		// No tag but its genre: c451's case gives it a bare `Mecha` and a
-		// `tag:Mecha` through the EDIT sheet, the owner's own door.
+		// No tag but its genre: it gets a bare `Mecha` and a
+		// `tag:Mecha` through the EDIT sheet, as a user adds them.
 		const edited = series(
 			'Edited Mecha Tale',
 			'manga',

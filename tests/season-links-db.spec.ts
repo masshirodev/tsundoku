@@ -6,7 +6,7 @@ process.env.DATABASE_PATH = ':memory:';
 
 /**
  * The relations page's walk and LINK N SEASONS (doc/LINKS.md, "The series
- * screen"; c351, c418), against a stand-in AniList that answers the way
+ * screen"), against a stand-in AniList that answers the way
  * AniList does: every edge an entry has, of every kind, both directions, a
  * chain that branches (a TV season and a movie both SEQUEL of one entry) and
  * one that loops back (an entry listing the show's first season as its
@@ -149,7 +149,7 @@ add(node(412, 'Parts Show Part 2', 'TV', 12, 2014), [['PREQUEL', 411]]);
 add(node(501, 'Hand Show Season 2', 'TV', 12, 2020));
 add(node(502, 'Hand Show Final Chapter', 'TV', 11, 2021));
 // An entry whose own count is close to the season's listed 23, so the check a
-// part's candidates are made against shows in the EPISODES row (c592's round 2).
+// part's candidates are made against shows in the EPISODES row.
 add(node(503, 'Hand Show Final Chapter II', 'TV', 21, 2022));
 /** What a title search answers (any title): the walk's fake answers no search. */
 let SEARCH: number[] = [];
@@ -527,9 +527,9 @@ describe('a split season chained part 1 → part 2, AniList’s usual shape', ()
 		]);
 	});
 
-	// Round 2: the other part follows the edge that reached it. A PREQUEL part
-	// is the earlier half, a SEQUEL part the later; offered at the slot the link
-	// leaves free when that slot is the wrong one, it is never ticked, so LINK
+	// The other part follows the edge that reached it. A PREQUEL part is the
+	// earlier half, a SEQUEL part the later; offered at the place the link
+	// leaves free when that place is the wrong one, it is never ticked, so LINK
 	// never writes the season's halves in reverse.
 	const ticks = (id: number, offers: ReturnType<typeof shape>) => {
 		seasons.linkPicks(
@@ -579,7 +579,7 @@ describe('a split season chained part 1 → part 2, AniList’s usual shape', ()
 		expect(ticks(id, offers)).toEqual([[2, 2, 402]]);
 	});
 
-	// c541: both halves stored, reversed (by the round-1 walker or by hand).
+	// Both halves stored, reversed (by an older walker or by hand).
 	// The other part is "already its link", but in the wrong half, and the
 	// closing pass keeps the disagreeing why instead of drawing it settled.
 	const whyOf = async (id: number, entry: number) =>
@@ -603,7 +603,7 @@ describe('a split season chained part 1 → part 2, AniList’s usual shape', ()
 		]);
 	});
 
-	it('halves stored the right way round still read ALREADY ITS LINK (c541’s mirror)', async () => {
+	it('halves stored the right way round still read ALREADY ITS LINK', async () => {
 		const id = show([12, 23, 12]);
 		link(id, 2, 402);
 		link(id, 2, 403, 2);
@@ -880,7 +880,7 @@ describe('an entry another season holds', () => {
 	});
 });
 
-describe('a split season is linked whole or not at all (c466, the owner’s (b))', () => {
+describe('a split season is linked whole or not at all', () => {
 	/**
 	 * Chain Show from season 1: the relations offer season 2 as a pair (402 +
 	 * 403 = 23) and season 3 (404), all ticked. What the page would post is
@@ -942,7 +942,7 @@ describe('a split season is linked whole or not at all (c466, the owner’s (b))
 		expect(seasons.linkPicks(id, 'anime', picks.slice(0, 2), NOW).linked).toEqual([]);
 		seasons.unlinkSeason(id, 4, 1, NOW);
 		// The held offer was never kept as a candidate, so the page walks again
-		// (its own door: the relations), and ticks the pair once more.
+		// (through the relations), and ticks the pair once more.
 		const again = (await seasons.seasonRelations(id, 1))!
 			.filter((o) => o.ticked && o.season === 2)
 			.map((o) => ({ season: o.season, part: o.part, anilistId: o.anilistId }));
@@ -1113,7 +1113,7 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n', () => 
 	});
 
 	it('links part 2 by hand from EP. 13; part 1’s last episode completes it, the season’s EP. 13 is part 2’s EP. 1', async () => {
-		// The design's SAO S4 in small: season 2 is 23 episodes here, its AniList
+		// SAO's split season in small: season 2 is 23 episodes here, its AniList
 		// entry 12, and no relation says where the other 11 are.
 		const id = show([12, 23]);
 		link(id, 2, 501);
@@ -1234,7 +1234,7 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n', () => 
 
 	it('a season whose only row is part 2 searches and pastes against part 2’s own item', async () => {
 		// A library may already hold the state: a CHANGE of part 1 followed
-		// by the band's UNDO left it, before UNDO refused that. Part 2's row alone.
+		// by the band's UNDO left it in older versions. Part 2's row alone.
 		const id = show([12, 23]);
 		link(id, 2, 502, 2);
 		expect(linked(id)).toEqual([[2, 2, 502]]);
@@ -1256,8 +1256,8 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n', () => 
 		expect(item.found).toBe(3);
 		expect(item.candidates.map((c) => c.anilistId)).toEqual([501, 502, 503]);
 		// Checked against the season's own listed count (23), not part 2's
-		// guessed 11: part 1's count is what would place part 2, and it is gone
-		// (c592's round 2). 501 and 502 are far from 23; 503 is close, and its
+		// guessed 11: part 1's count is what would place part 2, and it is gone.
+		// 501 and 502 are far from 23; 503 is close, and its
 		// row is the one that says what the check was against.
 		expect(item.candidates.map((c) => c.rows?.find((r) => r.label === 'EPISODES')?.value)).toEqual([
 			'12',
@@ -1307,7 +1307,7 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n', () => 
 		// 18 of a 23-episode season listed: part 2 is still airing, which is
 		// exactly when it gets linked alone. Counting back from the list's 18 by
 		// part 2's 11 would begin at EP. 8, inside part 1, and send EP. 8-12 as
-		// part 2's progress -- the fault the card is about (c592's round 2).
+		// part 2's progress.
 		const id = show([12, 18]);
 		link(id, 2, 502, 2);
 		expect(seasons.seriesSeasons(id)!.seasons[1].parts).toMatchObject([
@@ -1323,10 +1323,10 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n', () => 
 	it('an orphaned part 2 numbers no episode at all, so AniSkip is asked nothing', () => {
 		// The state a library may hold: part 2's row, no part 1 beside it, and
 		// `partsOf` gives it the empty span. AniSkip is keyed by what
-		// `episodeEntry` answers, and before c642 a season with one part skipped
-		// `partOf` and numbered every episode from EP. 1 within it: the season's
-		// EP. 3 asked part 2's entry for its EP. 3, an episode of the part that
-		// may be nowhere near the season's own. The span now answers null.
+		// `episodeEntry` answers; a season with one part that skipped `partOf`
+		// would number every episode from EP. 1 within it, so the season's EP. 3
+		// would ask part 2's entry for its EP. 3, an episode of the part that
+		// may be nowhere near the season's own. The span answers null.
 		const id = show([12, 23]);
 		link(id, 2, 502, 2);
 		expect(seasons.seriesSeasons(id)!.seasons[1].parts).toMatchObject([
@@ -1385,7 +1385,7 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n', () => 
 		expect([after.searched, after.candidates]).toEqual([true, 2]);
 	});
 
-	it('UNLINK on part 2 takes part 2 alone, settles nothing, and the door opens again', async () => {
+	it('UNLINK on part 2 takes part 2 alone, settles nothing, and + A SECOND PART is offered again', async () => {
 		const id = show([12, 23]);
 		link(id, 2, 501);
 		await api({ series: id, search: 'Hand Show Season 2', season: 2, part: 2 });
@@ -1508,7 +1508,7 @@ describe('LINK N SEASONS’ UNDO', () => {
 		expect([r.status, r.body.linked]).toEqual([200, 1]);
 		expect(linked(id)).toEqual([[2, 1, 502]]);
 		// 501 is free now, and a season outside the post's facts takes it: the
-		// state every link door refuses is one no door here can see.
+		// state every link route refuses is one no route here can see.
 		link(id, 3, 501);
 		// UNDO would put 501 back on season 2, with season 3 still holding it.
 		const undone = await undo(id, r.body.facts);

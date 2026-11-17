@@ -9,16 +9,15 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * A volume's head on a TV (c835; doc/handoffs/grouped-volumes/Head-TV.dc.html,
- * 1D): it is not a focus stop, and arriving on the row under it shows it. The
- * row under a head is the first row that can take focus after it, whatever it
- * is -- a volume's first chapter, a front-matter entry under its FRONT MATTER
- * section, a fold, or, descending, its last chapter -- so each is walked
- * upward here, and the head is read at its top and bottom edges with
- * `elementFromPoint` (a box can be right and still be behind a bar). Its own
- * preview and seeded database, because it groups two novels and writes their
- * entries' read state; nothing of the shared seed is written, and no other TV
- * spec touches these two.
+ * A volume's head on a TV: it is not a focus stop, and arriving on the row
+ * under it shows it. The row under a head is the first row that can take focus
+ * after it, whatever it is -- a volume's first chapter, a front-matter entry
+ * under its FRONT MATTER section, a fold, or, descending, its last chapter --
+ * so each is walked upward here, and the head is read at its top and bottom
+ * edges with `elementFromPoint` (a box can be right and still be behind a bar).
+ * Its own preview and seeded database, because it groups two novels and writes
+ * their entries' read state; nothing of the shared seed is written, and no
+ * other TV spec touches these two.
  */
 
 let work: string;
@@ -51,7 +50,7 @@ function query<T>(sql: string, ...args: unknown[]): T[] {
 	}
 }
 
-/** The world's own rows, written the way a real import's shapes are (1D). */
+/** The world's own rows, written the way a real import's shapes are. */
 function run(sql: string, ...args: unknown[]): void {
 	const db = new Database(dbPath);
 	try {

@@ -248,7 +248,7 @@ beforeAll(async () => {
 			return res.writeHead(200, { 'content-type': 'text/html' }).end(`<p>${u.pathname}</p>`);
 		}
 		// A chapter this host itself follows a redirect for: the shape is a real
-		// host's, measured on 2026-11-06 — wuxiaworld.com's apex answers
+		// host's — wuxiaworld.com's apex answers
 		// `301 location: https://www.wuxiaworld.com/novel/martial-god-asura/chapter-1`
 		// for the same path on www. One keeps the path on another host,
 		// as that does; the other also moves the path, so the address and a
@@ -368,10 +368,9 @@ describe('a plugin, through the host', () => {
 			html: '<p>moved, no check</p>',
 			url: `http://127.0.0.1:${checkPort}/moved/deep/chapter-1`
 		});
-		// A request that ended where it asked is that address (which is what the
-		// downloader computed itself before c631), and a plugin that asked the
-		// site for something else answers null, so the caller falls back as it
-		// always did.
+		// A request that ended where it asked is that address, and a plugin
+		// that asked the site for something else answers null, so the caller
+		// falls back to the address it computes itself.
 		expect(await host.chapter(bound, '/moved/deep/chapter-1')).toEqual({
 			html: '<p>moved, no check</p>',
 			url: `http://127.0.0.1:${checkPort}/moved/deep/chapter-1`
@@ -492,7 +491,7 @@ describe('a site’s browser check', () => {
 		// A hopeless host, as NovelFull and Scribble Hub measured: the solve
 		// works and the site refuses the clearance anyway. The retry taught the
 		// host that; a second chapter must not pay the solve and retry again.
-		// Since c335 it goes as a page through the solver instead.
+		// It goes as a page through the solver instead.
 		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
 			/answered 403 \(its check could not be passed\)/
 		);
@@ -587,7 +586,7 @@ describe('a site’s browser check', () => {
 
 describe('a check bound to the browser that solved it: page mode', () => {
 	// NovelFull and Scribble Hub refuse the clearance they just issued to any
-	// client but the solver's own browser (doc/NOVELS.md, measured 2026-11-02).
+	// client but the solver's own browser (doc/NOVELS.md, measured).
 	// The `/bound/` paths here are that site: the host's retry with the
 	// clearance is still a check, and only the browser stub's cookie passes.
 	const SITE = () => `http://127.0.0.1:${checkPort}/`;
@@ -754,7 +753,7 @@ describe('a check bound to the browser that solved it: page mode', () => {
 		await expect(call).rejects.toThrow(
 			/127\.0\.0\.1's page can't come through the solver, and no solve changes that: /
 		);
-		// Wave 26's lesson: this phrase is what the browse page's TRY AGAIN
+		// This phrase is what the browse page's TRY AGAIN
 		// reads to forget both memos. A picture is not a check that failed.
 		await expect(call).rejects.not.toThrow(/its check could not be passed/);
 		// Still in page mode, and nothing solved: the next chapter is one page.

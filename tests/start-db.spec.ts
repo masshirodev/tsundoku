@@ -125,12 +125,12 @@ describe('the facts', () => {
 });
 
 /**
- * 03's done row names the door that ticked the step (c634; c511 put the row
- * there): the import's line only when the series that first ticked 03 came
- * from an import's job, else the scan's own count. Nothing records the tick,
+ * 03's done row names what ticked the step: the import's line only when the
+ * series that first ticked 03 came from an import's job, else the scan's own
+ * count. Nothing records the tick,
  * so it is read from the lowest id among the series 03 counts -- the first
  * row still there that made the count non-zero -- and that row's job.
- * Each case builds a database of its own, climbed to the code's top rung.
+ * Each case builds a database of its own, migrated to the code's latest version.
  */
 describe('the import that ticked 03', () => {
 	const fresh = () => {
@@ -247,7 +247,7 @@ describe('the import that ticked 03', () => {
 		row(conn, root, { job: impJob, of: imp });
 		expect(tickingImport(false, conn)).toEqual({ id: imp, app: 'mihon', series: 1 });
 
-		// A series written before jobs (no key, no job) ticks 03 and has no door.
+		// A series written before jobs (no key, no job) ticks 03 and names no import.
 		const other = fresh();
 		const otherRoot = rootOf(other);
 		row(other, otherRoot, {});

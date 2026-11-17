@@ -1,16 +1,16 @@
 import { expect, readerReady, test } from './fixtures';
 
 /**
- * The vertical strip's ← and → (doc/READER.md, "Scrolling on a PC"):
- * they nudge like Ctrl + ↑ / ↓, follow the mode rather than the kind, keep
- * panning sideways while the strip is zoomed wider than the screen, and a
- * paged reader still turns on them. Also a held ↓: its repeats scroll
- * steadily rather than stacking steps, from rest up to its full speed,
- * and every door that can take the keyup away ends it. Runs on every device because the keys are the same on each and
- * the strip's width is not. Read-only: it reads in incognito, so nothing is
- * written to the shared database, and it reads the series reader-layout reads
- * (Sousou no Frieren), switched to the strip from READING, whose mode is
- * session state that only REMEMBER stores.
+ * The vertical strip's ← and → (doc/READER.md, "Scrolling on a PC"): they nudge
+ * like Ctrl + ↑ / ↓, follow the mode rather than the kind, keep panning
+ * sideways while the strip is zoomed wider than the screen, and a paged reader
+ * still turns on them. Also a held ↓: its repeats scroll steadily rather than
+ * stacking steps, from rest up to its full speed, and every event that can take
+ * the keyup away ends it. Runs on every device because the keys are the same on
+ * each and the strip's width is not. Read-only: it reads in incognito, so
+ * nothing is written to the shared database, and it reads the series
+ * reader-layout reads (Sousou no Frieren), switched to the strip from READING,
+ * whose mode is session state that only REMEMBER stores.
  */
 
 // 60 s, measured: each case opens the reader cold and switches
@@ -43,8 +43,8 @@ async function open(page: import('@playwright/test').Page) {
  * one under the middle then): how far that slot's top has gone up the screen.
  * `kept` counts only the app's own place-keeping, and under load the browser's
  * scroll anchoring moved `scrollY` by thousands of pixels as images above came
- * in, with no event (4864 px on tablet-portrait, 10504 on the phone, wave 23's
- * loaded whole run; c439). A nudge moves the slot by its 100 px whatever
+ * in, with no event (4864 px on tablet-portrait, 10504 on the phone, in a
+ * loaded whole run). A nudge moves the slot by its 100 px whatever
  * arrives above it. If that slot leaves the strip, `place()` throws rather
  * than switch measures mid-case.
  */
@@ -76,15 +76,15 @@ async function toStrip(page: import('@playwright/test').Page) {
 	// The mouse off the window's edge before the controls go, as a reader's
 	// would be: the reader shows them for a mouse within HOVER_EDGE of an edge
 	// (ImageReader's `hover`), and the clicks above left it on the bottom bar,
-	// where any pointermove brings them back after Escape (forced in wave 24;
-	// Chromium also sends one when the page moves under a still cursor).
+	// where any pointermove brings them back after Escape (and Chromium sends
+	// one when the page moves under a still cursor).
 	const vp = page.viewportSize()!;
 	await page.mouse.move(vp.width / 2, vp.height / 2);
 	// Escape toggles the controls, so it is pressed only while they show: a
 	// navigation the strip makes as it settles can hide them first, and a
-	// blind press then brought them back (traced in wave 24: they went with
-	// a crossing to the next chapter and back, no key pressed, and the
-	// Escape after it showed them again).
+	// blind press would bring them back (they can go with a crossing to the
+	// next chapter and back, no key pressed, and the Escape after it shows
+	// them again).
 	const banner = page.getByRole('banner', { name: 'Reader' });
 	await expect(async () => {
 		if (await banner.count()) await page.keyboard.press('Escape');
@@ -94,7 +94,7 @@ async function toStrip(page: import('@playwright/test').Page) {
 	// place is kept): wait until it has held still for a second. A chapter can
 	// still arrive later under load, and the strip then scrolls with it by
 	// thousands of pixels (`keepPlaceBy`); `place()` takes those away, as
-	// reader-flow's c192 case does.
+	// a reader-flow case does.
 	await page.evaluate(() => {
 		const w = window as unknown as { kept: number };
 		w.kept = 0;
@@ -134,12 +134,11 @@ const middle = (page: import('@playwright/test').Page) =>
 		return `${s?.getAttribute('data-entry')}/${s?.getAttribute('data-index')}`;
 	});
 
-// c568 (wave 24's trace): VERTICAL picked in READING's sheet opens the
-// strip at the reader's page, and the chapter above arriving while the sheet
-// still covers the middle used to find the sheet there, keep nothing, and
-// leave the strip a chapter up under a URL naming the chapter below. The
-// chapter above is held until the sheet is open, so the state is reached
-// every time rather than under load only.
+// VERTICAL picked in READING's sheet opens the strip at the reader's page, and
+// the chapter above arriving while the sheet still covers the middle must not
+// find the sheet there, keep nothing, and leave the strip a chapter up under a
+// URL naming the chapter below. The chapter above is held until the sheet is
+// open, so the state is reached every time rather than under load only.
 test.describe('the strip under READING', () => {
 	test.use({ serviceWorkers: 'block' });
 	test('a chapter arriving above while READING is open keeps the page being read', async ({
@@ -308,7 +307,7 @@ async function still(read: () => Promise<number>, timeout = 20_000): Promise<num
 /**
  * The strip from the series' first seeded chapter. The continue link opens the
  * series at the last place read, near its end, where a held ↓ has nowhere to
- * go; the owner's own case is mid-series, so the hold cases start at chapter
+ * go; a reader's real case is mid-series, so the hold cases start at chapter
  * 139's first page and hold down through it.
  */
 async function openForHold(page: import('@playwright/test').Page) {
@@ -453,7 +452,7 @@ test.describe('a held arrow', () => {
 		await page.keyboard.down('ArrowDown');
 		await repeats(page, 'ArrowDown', 15);
 		await page.evaluate(() => window.dispatchEvent(new Event('blur')));
-		// Read after the door has been handled.
+		// Read after the blur has been handled.
 		const atBlur = await y();
 		const stopped = await still(y);
 		expect(stopped - atBlur).toBeLessThan(step);
@@ -560,7 +559,7 @@ test.describe('a held arrow', () => {
 		// glide's 220 ms: the repeat and the hiding are one `evaluate`, so the
 		// moment is the page's own clock and not a poll, which is met by the
 		// press's glide and stays true after the ramp has ended. Read in the same
-		// turn as the door, or an ease's first frames go unseen.
+		// turn as the hiding, or an ease's first frames go unseen.
 		const { atHidden, after } = await page.evaluate(async () => {
 			window.dispatchEvent(
 				new KeyboardEvent('keydown', {
@@ -624,7 +623,7 @@ test.describe('a held arrow', () => {
 		const far = entryOf();
 		expect(far, 'two chapters to walk between').not.toBe(near);
 		// A client navigation between them, so the reader stays mounted and
-		// going back is a jump, not a load. The app's own chapter doors replace
+		// going back is a jump, not a load. The app's own chapter links replace
 		// history and ← SERIES pops it, so a second reader in the stack is made
 		// by a link, as a link to a chapter from anywhere in the app would be.
 		await page.evaluate((href) => {
@@ -662,11 +661,11 @@ test.describe('a held arrow', () => {
 // The strip's band between two chapters is 320 px of chapter boundary, and
 // reading on across it is the strip's own move: `stripPage` navigates with
 // `replaceState` and `noScroll`, so `data.entry.id` changes and the strip
-// stays. Round 1 ended a hold on any change of the entry, so every glide, wheel
-// ease and held key died at every band (measured on that head: one ↓ from 15 px
-// above the crossing moved 717, 83 and 58 px of its 765; a double ↓ 786, 704
-// and 984 of 1530; two notches 196, 109 and 109 of 240; a held ↓ stayed put
-// through 80 further repeats). Only a real jump ends a hold now.
+// stays. Ending a hold on any change of the entry would kill every glide, wheel
+// ease and held key at every band (measured: one ↓ from 15 px above the
+// crossing moved 717, 83 and 58 px of its 765; a double ↓ 786, 704 and 984 of
+// 1530; two notches 196, 109 and 109 of 240; a held ↓ stayed put through 80
+// further repeats). Only a real jump ends a hold.
 //
 // The ruler is the next chapter's first page slot, never `scrollY`: a crossing
 // adds and drops chapters around it and reshapes the strip.

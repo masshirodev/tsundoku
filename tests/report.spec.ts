@@ -16,7 +16,7 @@ describe('a report’s scrubbing: hidden means hidden, in a file that leaves the
 			[
 				'signed in with tok-AbCdEf123456',
 				'cookie: tsundoku_session=abc123def; tsundoku_paired=zzz',
-				// Named for its origin since c530 (pairing.ts, pairedCookie).
+				// Named for its origin (pairing.ts, pairedCookie).
 				'cookie: tsundoku_paired_42143=yyy; tsundoku_paired_s443=xxx',
 				'GET /pair/PoJ8cBL1qtir9cPx 303',
 				'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9xyz'

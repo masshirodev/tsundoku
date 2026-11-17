@@ -2,7 +2,7 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * SORT is the house's own menu, not a native <select> (c432; doc/LIBRARY.md,
+ * SORT is the house's own menu, not a native <select> (doc/LIBRARY.md,
  * "Sort and direction"). Runs on every device project. Sorting only changes
  * the URL, so nothing here writes to the shared database.
  */

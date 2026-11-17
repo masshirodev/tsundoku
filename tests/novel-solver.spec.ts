@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 // The app's half of a site's browser check (doc/NOVELS.md, "Past a site's bot
-// check"; card c152): the host names a URL, the app checks it is on the
+// check"): the host names a URL, the app checks it is on the
 // internet, asks a solver, and answers with that host's clearance only.
 process.env.DATABASE_PATH = ':memory:';
 
@@ -235,9 +235,9 @@ describe('the app’s solve for a site’s check', () => {
 	});
 
 	it('does not remember a solver’s own failure, which FlareSolverr sends as an HTTP 500', async () => {
-		// Measured 2026-11-02: FlareSolverr 3.4.6 answers a solve it could not
-		// produce as `{"status":"error",...}` **with HTTP 500** (the capture is
-		// temp/fs-rrs.json, a 60.59 s round trip). `ask` throws on `!res.ok`, so
+		// Measured: FlareSolverr 3.4.6 answers a solve it could not
+		// produce as `{"status":"error",...}` **with HTTP 500** (after a 60.59 s
+		// round trip). `ask` throws on `!res.ok`, so
 		// no memo is written: a solver's trouble says nothing about the host, and
 		// the next call asks again rather than being ignored for ten minutes.
 		reply = () => ({

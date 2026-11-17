@@ -6,8 +6,7 @@ import { dependants, refused, RUNS } from '../../scripts/e2e-dependants.ts';
 /**
  * `yarn run test:e2e:dependants`: both runs get the caller's arguments,
  * and the step is red when either project is. The runner is faked here; the
- * real step's green and both reds were run against Playwright in wave 25
- * (doc/handoff-notes/e2e.md).
+ * real step's green and both reds were run against Playwright.
  */
 function fake(codes: number[]) {
 	const calls: string[][] = [];

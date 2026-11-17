@@ -93,7 +93,7 @@ const IDS = {
 const step = (page: import('@playwright/test').Page, n: keyof typeof IDS) =>
 	page.locator(`.step[data-step="${IDS[n]}"]`);
 
-test('an empty library is the checklist in two parts: 01 open, 02 and FIRST READ waiting (board 1)', async ({
+test('an empty library is the checklist in two parts: 01 open, 02 and FIRST READ waiting', async ({
 	page
 }) => {
 	await page.goto('/');
@@ -127,7 +127,7 @@ test('an empty library is the checklist in two parts: 01 open, 02 and FIRST READ
 	await expect(page.getByRole('link', { name: /^https?:/ })).toHaveCount(0);
 });
 
-test('ASK hands the address to EXTENSIONS, with the way back (board 2)', async ({ page }) => {
+test('ASK hands the address to EXTENSIONS, with the way back', async ({ page }) => {
 	await page.goto('/');
 	await page.getByLabel('REPOSITORY ADDRESS').fill('https://example.invalid/index.min.json');
 	await page.getByRole('button', { name: 'ASK' }).click();
@@ -192,7 +192,7 @@ test('03 offers IMPORT A BACKUP for Mihon, NOT YET for the other two, and the fo
 	await page.goto('/');
 	await step(page, '03').getByRole('button', { name: 'OPEN ↓' }).click();
 	const body = step(page, '03').locator('.st-body');
-	// One live door: Aniyomi and LNReader stay NOT YET until their importers land.
+	// One live importer: Aniyomi and LNReader stay NOT YET until their importers land.
 	await expect(body.getByRole('link', { name: 'IMPORT A BACKUP →' })).toHaveCount(1);
 	await expect(body).toContainText('ANIME · NOT YET');
 	await expect(body).toContainText('NOVELS · NOT YET');
@@ -273,7 +273,7 @@ test('03’s IMPORT A BACKUP → starts a trip: the band on the import pages, �
 	}
 });
 
-test('the library band’s LOG → and SEE LOG open the job’s own entry in IMPORT LOG (c511 part 3)', async ({
+test('the library band’s LOG → and SEE LOG open the job’s own entry in IMPORT LOG', async ({
 	page
 }) => {
 	const now = Date.now();
@@ -338,7 +338,7 @@ test('the sidebar keeps the way back, and MORE does on a tablet', async ({ page 
 	await expect(row).toHaveText(/GET STARTED\s*6 \/ 7/);
 });
 
-test('every step done or skipped: the first day, and the list stays on /start, folded (board 3)', async ({
+test('every step done or skipped: the first day, and the list stays on /start, folded', async ({
 	page
 }) => {
 	await page.goto('/');

@@ -3,7 +3,7 @@ import { expect, test } from './fixtures';
 import { SOURCE, startTagWorld, type TagWorld } from './helpers/tag-world';
 
 /**
- * BROWSE's RECENT fold with the remote (card c726; doc/BROWSE.md, "RECENT
+ * BROWSE's RECENT fold with the remote (doc/BROWSE.md, "RECENT
  * folds"; doc/FOCUS.md): at 960×540 with no pointer, the D-pad reaches
  * RECENT's label as one stop, OK folds it, a folded RECENT's rows are no
  * stops, and OK opens it again. On the tag world's own database and engine

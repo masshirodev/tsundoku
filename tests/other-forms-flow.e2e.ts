@@ -17,9 +17,9 @@ import { expect, test } from './fixtures';
  * port the OS hands out. ENGINE_URL names a port nothing answers: the sources
  * SEARCH lists are rows, and only the asking would reach it.
  *
- * The cache's rows are written by hand: the link pass fills them, on no door a
- * browser has, and tests/other-forms-db.spec.ts walks that pass over AniList's
- * recorded answer. The graph here is that answer's shape.
+ * The cache's rows are written by hand: the link pass fills them, through
+ * nothing a browser can reach, and tests/other-forms-db.spec.ts walks that
+ * pass over AniList's recorded answer. The graph here is that answer's shape.
  */
 test.describe.configure({ mode: 'serial' });
 
@@ -180,7 +180,7 @@ test.afterAll(() => {
 
 const line = (page: Page) => page.getByRole('button', { name: /OTHER FORMS?\b/ });
 
-/** Unfold it as the owner does, once the page runs. */
+/** Unfold it as a user does, once the page runs. */
 async function unfold(page: Page, url: string) {
 	await page.goto(url);
 	await expect(async () => {

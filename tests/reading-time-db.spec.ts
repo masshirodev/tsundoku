@@ -14,7 +14,8 @@ const time = await import('$lib/server/reading-time');
 /**
  * The reading-time summary (doc/READING-LOG.md, "Who reads it"):
  * by series, kind, day and series-day, hidden left out while reveal is off,
- * a 1970 row ignored, and rung 65's estimate of the anime watched before.
+ * a 1970 row ignored, and migration 65's estimate of the anime watched before
+ * episodes were timed.
  *
  * The summary is checked against an oracle that reads the raw log in plain
  * script, with the hidden rule spelled out here rather than borrowed from
@@ -170,7 +171,7 @@ describe('the summary', () => {
 	});
 });
 
-describe('hidden means hidden, at every door to the number', () => {
+describe('hidden means hidden, everywhere the number is read', () => {
 	it('the series screen: a hidden series’ time is 0 while reveal is off', () => {
 		expect(time.seriesReadingTime(hiddenId, false)).toBe(0);
 		expect(time.seriesReadingTime(hiddenId, true)).toBeGreaterThanOrEqual(45 * minute);
@@ -202,8 +203,8 @@ describe('hidden means hidden, at every door to the number', () => {
 	});
 });
 
-describe('SINCE is each kind’s own first timed day (c483, the owner’s (b))', () => {
-	// Untimed reading, as an anime episode before c443's rung or a novel's
+describe('SINCE is each kind’s own first timed day', () => {
+	// Untimed reading, as an anime episode from before episodes were timed or a novel's
 	// untimed rows are logged: an open with no time on it.
 	const untimed = (seriesId: number, d: Date) => {
 		const entryId = series.seriesPage(seriesId, true)!.entries[0].id;
@@ -282,7 +283,7 @@ describe('SINCE is each kind’s own first timed day (c483, the owner’s (b))',
 	});
 });
 
-describe('rung 65: anime watched before c443 gets the time its positions vouch for', () => {
+describe('migration 65: anime watched before episodes were timed gets the time its positions vouch for', () => {
 	const old = () => {
 		const conn = new Database(':memory:');
 		climb(conn, 64);

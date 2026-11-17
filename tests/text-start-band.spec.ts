@@ -10,9 +10,9 @@ import {
 } from '$lib/reader/start-band';
 
 /**
- * The band at a chapter's start (c705; doc/TEXT-READER.md, "A chapter's
+ * The band at a chapter's start (doc/TEXT-READER.md, "A chapter's
  * start"): the table-of-contents title is drawn only where the book does not
- * already print it. Every prefix the card names is here, with a heading that
+ * already print it. Every prefix the rule knows is here, with a heading that
  * differs, no heading, a first short line, and the fold run on its own output.
  */
 
@@ -58,7 +58,7 @@ describe('leadLine', () => {
 });
 
 describe('foldTitle', () => {
-	// Every prefix the card names, and their neighbours, each folding to the
+	// Every prefix the rule knows, and their neighbours, each folding to the
 	// same rest: "the commission".
 	const SAME = [
 		'The Commission',
@@ -222,8 +222,8 @@ describe('bandTitle', () => {
 });
 
 /**
- * c741: five shapes the rule still printed a title for. Each has its case, and
- * a case for a real title that differs, so the rule did not simply widen.
+ * Five shapes a looser rule would print a title for. Each has its case, and
+ * a case for a real title that differs, so the rule does not simply widen.
  */
 const quote = (text: string): LeadBlock => ({ tag: 'blockquote', text });
 
@@ -466,7 +466,7 @@ describe('a bare leading number in the table of contents', () => {
 			it(`"${toc}" is said by "${line}"`, () => {
 				expect(bandTitle(toc, line)).toBe(false);
 			});
-		it('the number still comes off for the card’s case', () => {
+		it('the number still comes off for a numbered title', () => {
 			expect(bandTitle('1. The Article', 'The Article')).toBe(false);
 			expect(bandTitle('1) The Article', 'Chapter 1: The Article')).toBe(false);
 		});
@@ -525,7 +525,7 @@ describe('kanji numerals against Arabic ones', () => {
 		return n ? s + DIGIT[n - 1] : s;
 	};
 
-	it('the card’s case: 第一章 is 第1章', () => {
+	it('a kanji numeral: 第一章 is 第1章', () => {
 		expect(bandTitle('第1章', '第一章')).toBe(false);
 		expect(bandTitle('第一章', '第1章')).toBe(false);
 	});
@@ -682,7 +682,7 @@ describe('kanji numerals against Arabic ones', () => {
 	});
 });
 
-describe('the fold holds on its own output, over c741’s shapes', () => {
+describe('the fold holds on its own output, over those five shapes', () => {
 	const ALL = [
 		'Chapter One',
 		'chapter twenty-one: x',

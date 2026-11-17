@@ -184,7 +184,7 @@ describe('the available list (doc/BROWSE.md, "Filters")', () => {
 	const f = (o: Partial<ExtFilters>): ExtFilters => ({ ...NO_EXT_FILTERS, ...o });
 	const names = (v: { rows: { name: string }[] }) => v.rows.map((r) => r.name);
 
-	it('opens in the owner’s languages, says how many are in others, and LANGUAGE changes the visit', () => {
+	it('opens in the user’s languages, says how many are in others, and LANGUAGE changes the visit', () => {
 		setSetting('browse_languages', 'en,ja');
 		const v = manage.availableView({ kind: 'manga', reveal: false });
 		expect(names(v)).toEqual([

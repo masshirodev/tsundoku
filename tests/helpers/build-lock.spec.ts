@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
  * `scripts/build-lock.mjs`, run as the webServer runs it, in a git
  * checkout of its own with stand-in commands: the build appends to `builds`
  * and makes `.svelte-kit/output`, and the server is a `sleep`. Each case is a
- * door into the output folder: two builds at once, a build under a running
+ * way into the output folder: two builds at once, a build under a running
  * preview (the same tree, or a changed one), a holder or a user that died, a
  * port that already answers, a build that fails, a wait that runs out, a
  * runner that dies without stopping it, and two or three waiters on one dead
@@ -26,8 +26,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
  *
  * Each wrapper is started as Playwright starts its webServer, the leader of a
  * process group of its own, and stopped as Playwright stops it, by SIGKILLing
- * that group: killing the wrapper alone orphaned its `sleep` (round 1's review
- * counted 9 per run).
+ * that group: killing the wrapper alone orphans its `sleep`.
  */
 const SCRIPT = resolve('scripts/build-lock.mjs');
 
@@ -214,7 +213,7 @@ describe('build-lock', { timeout: 15_000 }, () => {
 		const a = lock('a', { build: 'sleep 1', env: { BUILD_LOCK_PAUSE: pause } });
 		const b = lock('b', { build: 'sleep 1', env: { BUILD_LOCK_PAUSE: pause } });
 		// Both have read the dead holder's bytes and found them stale, and
-		// neither has acted on it: wave 32's review's interleaving.
+		// neither has acted on it yet.
 		await until(() => paused(pause, 'stale', a) && paused(pause, 'stale', b));
 		go(pause, 'stale');
 		go(pause, 'ticket');
@@ -365,7 +364,7 @@ describe('build-lock', { timeout: 15_000 }, () => {
 		const sleep = Number(readFileSync(join(dir, 'sleep.pid'), 'utf8'));
 		expect(existsSync(join(dir, `.svelte-kit/.build-users/${wrapper}`))).toBe(true);
 
-		// Only the runner: nothing tells the wrapper, as nothing did in wave 31.
+		// Only the runner: nothing tells the wrapper.
 		process.kill(runner.pid!, 'SIGKILL');
 		await until(() => gone(wrapper) && gone(serve) && gone(sleep), 4_000);
 		expect(err).toContain(`the runner that started this (pid ${runner.pid}) is gone; stopping`);

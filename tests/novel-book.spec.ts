@@ -17,7 +17,7 @@ import { readEpub } from '$lib/server/import/epub';
 import { zip } from '$lib/server/zip-write';
 
 // A novel's EPUB as tsundoku's device writes it (doc/NOVELS.md,
-// "Downloading"; card c150): the chapters it holds, and a manifest of every
+// "Downloading"): the chapters it holds, and a manifest of every
 // chapter the series has, which the importer folds onto the series.
 const work = mkdtempSync(join(tmpdir(), 'tsundoku-novel-book-'));
 afterAll(() => rmSync(work, { recursive: true, force: true }));

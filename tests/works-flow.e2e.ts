@@ -12,17 +12,17 @@ import { revealOn as revealContext } from './helpers/reveal';
 /**
  * The Works flow end to end (doc/WORKS.md): browsing shows
  * the run as one tile and one CONTINUE row, finding shows the parts, /work/N
- * is the run's own screen, and W4's AS sheet is how a Work is made.
+ * is the run's own screen, and the AS sheet is how a Work is made.
  *
  * Every case here groups series into a Work, and a Work takes its parts' own
  * tiles off the grid while it exists: a spec that finds a series by its grid
  * tile, running beside this file on the shared database, would time out
- * (round 2's finding -- tests/reader-flow.e2e.ts's `seriesId()` is the
- * arrangement that fails). So this runs on the seed's own arrangement, as the
- * works frames do (tests/works-library-frame.e2e.ts): a seeded database of its
- * own and a preview of the same build on its own port, which no other spec
- * sees. No title has to be kept from anyone, and a case that fails halfway
- * leaves the suite's database as it was.
+ * (tests/reader-flow.e2e.ts's `seriesId()` is the arrangement that fails). So
+ * this runs on the seed's own arrangement, as the works frames do
+ * (tests/works-library-frame.e2e.ts): a seeded database of its own and a
+ * preview of the same build on its own port, which no other spec sees. No title
+ * has to be kept from anyone, and a case that fails halfway leaves the suite's
+ * database as it was.
  *
  * A case that changes a series still puts the value back: this file is also
  * the proof that a Work's grouping, name, rating and FAV end where they
@@ -60,7 +60,7 @@ test.beforeAll(async () => {
 	// This hook seeds the file's own database and waits up to 60 s for its own
 	// preview (below), which is past the default 30 s on a loaded box; in a
 	// hook, test.setTimeout sets the hook's own budget (Playwright's test.d.ts,
-	// "Changing timeout for a beforeAll"). Measured here on 2026-11-05 at a
+	// "Changing timeout for a beforeAll"). Measured here at a
 	// 1-minute load average of about 10: the hook took 2.1 s (seed, spawn and
 	// the first answer), the way work-end-frame's hook was measured.
 	test.setTimeout(120_000);
@@ -125,7 +125,7 @@ async function select(page: Page, titles: string[]) {
 }
 
 /**
- * Makes a Work of these titles through W4's AS sheet, and leaves the library
+ * Makes a Work of these titles through the AS sheet, and leaves the library
  * showing its band. The name is typed: titles that share no words have none.
  */
 async function makeWork(page: Page, titles: string[], name: string) {
@@ -151,14 +151,13 @@ async function openWork(page: Page, name: string): Promise<number> {
 /**
  * Ends the Work on its own screen, so the seed is what the other cases expect.
  *
- * UNGROUP redirects to the library's `UNGROUPED · <NAME>` band. Until wave 20
- * this then asserted that no Work tile was left at all, which was
- * wrong both ways: read on the Work screen, before the redirect landed, it
- * passed with nothing ended (the screen has no grid); read on the library
- * while a second Work was still up (three cases end two in a row), it was
- * red, as in wave 19's loaded r2-tv1 (`a selection that touches two Works is
- * refused`, one `.grid .tile.work` found). It waits for the band, then asks
- * after this Work's tile alone.
+ * UNGROUP redirects to the library's `UNGROUPED · <NAME>` band. Asserting
+ * that no Work tile is left at all would be wrong both ways: read on the Work
+ * screen, before the redirect landed, it passes with nothing ended (the
+ * screen has no grid); read on the library while a second Work is still up
+ * (three cases end two in a row), it is red (`a selection that touches two
+ * Works is refused`, one `.grid .tile.work` found). It waits for the band,
+ * then asks after this Work's tile alone.
  */
 async function endWork(page: Page) {
 	await expect(page).toHaveURL(/\/work\/\d+/);
@@ -222,7 +221,7 @@ test('a Work is one tile, one CONTINUE row, and a screen of its own', async ({ p
 	await expect(tile.locator('.ft')).toContainText('PART 1 OF 2');
 	// Online, a tile's ↓ is the device's cache, never the server's on-disk
 	// count: both parts are downloaded on disk, but this browser has cached
-	// none of them, so the Work wears no ↓ badge (round 2's finding).
+	// none of them, so the Work wears no ↓ badge.
 	await expect(tile.locator('.badge.inverse')).toHaveCount(0);
 	// The parts are not tiles of their own.
 	await expect(page.locator('.grid .tile', { hasText: 'Kusuriya' })).toHaveCount(0);
@@ -309,8 +308,8 @@ test('ORDER reorders the run, TAKE OUT of the second-to-last ends the Work, and 
 test('the TAKE OUT and ADD A SERIES bands name the series they moved', async ({ page }) => {
 	// Three parts, so taking one out leaves a Work of two: the Work survives and
 	// its own screen has to say which series left. The bands are built after
-	// `update()` has re-read the lists the series used to be found in, so their
-	// names come from the action's facts (round 2's finding).
+	// `update()` has re-read the lists the series was found in, so their
+	// names come from the action's facts.
 	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren', 'Isekai Ojisan'], 'Mushoku Run');
 	await openWork(page, 'Mushoku Run');
 	await expect(page.locator('.run .part')).toHaveCount(3);
@@ -339,8 +338,8 @@ test('the TAKE OUT and ADD A SERIES bands name the series they moved', async ({ 
 });
 
 test('the ADD A SERIES picker asks once the typing pauses, not once a letter', async ({ page }) => {
-	// A read per keystroke was seven `LIKE` scans over the library for one word
-	// (round 2's finding); the sheet now asks 180ms behind the typing, the
+	// A read per keystroke would be seven `LIKE` scans over the library for one
+	// word; the sheet asks 180ms behind the typing, the
 	// library's own beat (doc/LIBRARY.md, "Search").
 	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren'], 'Mushoku Run');
 	await openWork(page, 'Mushoku Run');
@@ -403,9 +402,9 @@ test('a Work’s RATING and FAV are the parts’, set together while they agree,
 	await expect(page.getByRole('button', { name: 'Rate 5 of 10' })).toBeDisabled();
 
 	// Put the part back, so the parts agree at 5 again, then write the seed's 8
-	// through the Work's own row: one set writes every part. The case used to
-	// end here with both series at 5 while claiming it had put the library
-	// back (round 2's finding).
+	// through the Work's own row: one set writes every part. Without it the case
+	// would end with both series at 5 while claiming it had put the library
+	// back.
 	await page.goto('/search?q=Hikaru');
 	await page.locator('.hit', { hasText: 'Hikaru ga Shinda Natsu' }).click();
 	await page
@@ -568,7 +567,7 @@ test('SELECT ALL takes a Work’s every part, so a bulk HIDE asks and hides the 
 	await expect(tile.locator('.open')).toHaveAttribute('aria-pressed', 'true');
 	// SELECT ALL selected the Work's every part -- the tile is checked only
 	// when all of them are. HIDE acts on the selection, and a part of a Work
-	// asks first (W4).
+	// asks first.
 	await page.getByRole('button', { name: 'Stop selecting' }).click();
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	await expect(tile.locator('.open')).toHaveAttribute('aria-pressed', 'false');
@@ -608,7 +607,7 @@ test('SELECT ALL takes a Work’s every part, so a bulk HIDE asks and hides the 
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	const revealed = page.locator('.grid .tile.work');
 	await revealed.locator('.open').click();
-	// UNHIDE on a part of a Work shows the Work whole (W4).
+	// UNHIDE on a part of a Work shows the Work whole.
 	await page.getByRole('button', { name: 'UNHIDE' }).click();
 	await expect(revealed.locator('.open')).toHaveAttribute('aria-pressed', 'true');
 	await page.getByRole('button', { name: 'Stop selecting' }).click();
@@ -642,7 +641,7 @@ const isRefill = (u: URL) =>
 /**
  * Every refill asked for from now on, in order, and a way to wait until the
  * grid has stopped asking for list pages -- so a count is the whole answer,
- * not the first request of it (the c615 helper's rule).
+ * not the first request of it.
  */
 function watchList(page: Page) {
 	const seen: string[] = [];
@@ -723,7 +722,7 @@ test('a HIDE and an UNDO past the first page read the loaded pages once each too
 }) => {
 	// The Work's name sorts last, so its tile lives in `more`: a HIDE past page
 	// one changes nothing on page one, and only the loaded pages' own re-read
-	// can take the tile out and bring it back. The bulk HIDE is the door a deep
+	// can take the tile out and bring it back. The bulk HIDE is the way in a deep
 	// tile has (its parts are not among the page's first-page feet).
 	await makeWork(
 		page,
@@ -754,7 +753,7 @@ test('a HIDE and an UNDO past the first page read the loaded pages once each too
 	await tile.locator('.open').click();
 	await page.getByRole('button', { name: 'HIDE', exact: true }).click();
 
-	// A Work is hidden whole, so a deep tile's HIDE asks as well (W4). Asking
+	// A Work is hidden whole, so a deep tile's HIDE asks as well. Asking
 	// writes nothing and reads nothing: the one read below is the answer's.
 	const hide = page.getByRole('dialog', { name: 'Hide' });
 	await expect(hide.locator('.h-title .t')).toHaveText('HIDE 2 SERIES?');
@@ -836,7 +835,7 @@ test('a URL band’s UNDO is a redirect, and the loaded pages are read once', as
 	await endWork(page);
 });
 
-// ---- W4: GROUP AS A WORK, the person page, HIDE on a part ------------
+// ---- GROUP AS A WORK, the person page, HIDE on a part ------------
 
 test('GROUP AS A WORK from the library: the AS row, the name, the band and UNDO', async ({
 	page
@@ -983,7 +982,7 @@ test('HIDE on a part asks: the Work whole, or take it out and hide it', async ({
 	await revealOn(page);
 	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Isekai');
 	await openWork(page, 'Isekai');
-	// The part's own screen, opened from the run: ← names the Work (W5). Part 2
+	// The part's own screen, opened from the run: ← names the Work. Part 2
 	// is the one in progress, so the row is the plain WORK row, not the accent.
 	await page.locator('.run .part .rowlink').nth(1).click();
 	await page.waitForURL(/\/series\/\d+\?from=work/);
@@ -1004,7 +1003,7 @@ test('HIDE on a part asks: the Work whole, or take it out and hide it', async ({
 	await page.keyboard.press('Escape');
 	await expect(sheet).toHaveCount(0);
 
-	// The plain HIDE action is not a second door: posted for a part, it refuses
+	// The plain HIDE action is not a second way in: posted for a part, it refuses
 	// rather than leaving the Work hidden in one series.
 	const here = new URL(page.url());
 	here.search = '';
@@ -1059,7 +1058,7 @@ test('a Work control refused for a Work that moved on re-reads the screen, and t
 	page,
 	context
 }) => {
-	// The screen is drawn while the series is in Work A. In the owner's other
+	// The screen is drawn while the series is in Work A. In the user's other
 	// tab A ends, and the same two series make Work B, which takes A's id under
 	// a new moment: the drawn screen's `made` now names no Work.
 	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Moved Run');
@@ -1112,7 +1111,7 @@ test('a stale HIDE ALL n and UNHIDE close the sheet and re-read the screen too',
 	page,
 	context
 }) => {
-	// The same defect at the other two doors: the HIDE sheet's HIDE ALL n
+	// The same defect at the other two controls: the HIDE sheet's HIDE ALL n
 	// (HideSheet's `after`) and the screen's UNHIDE (`replacingStale`). Each is
 	// drawn on one Work, refused once that Work has moved on, and the screen
 	// must be read again before the next press can post the new moment.
@@ -1175,11 +1174,11 @@ test('a Work ended in another tab re-reads on MOVE and HIDE ALL n, and its row g
 	page,
 	context
 }) => {
-	// The screen is drawn while the series is in a Work. In the owner's other
-	// tab the Work ends, so the series is in no Work: the refusal before the
-	// `made` check used to come back without `stale`, and no handler
-	// re-read the page -- the sheet stayed open and the WORK row and UNHIDE
-	// stayed drawn over a Work that no longer exists.
+	// The screen is drawn while the series is in a Work. In the user's other
+	// tab the Work ends, so the series is in no Work: a refusal before the
+	// `made` check that came back without `stale` would have no handler
+	// re-read the page -- the sheet would stay open and the WORK row and
+	// UNHIDE stay drawn over a Work that no longer exists.
 	const pair = ['Isekai Ojisan', 'Isekai Yakkyoku'];
 	const other = await context.newPage();
 	await makeWork(page, pair, 'Ended Run');
@@ -1205,7 +1204,7 @@ test('a Work ended in another tab re-reads on MOVE and HIDE ALL n, and its row g
 	await expect(page.locator('.prow.work-row')).toHaveCount(0);
 	await expect(page.locator('form[action="?/showWork"]')).toHaveCount(0);
 
-	// HIDE ALL n, the sheet's own door: a fresh screen drawn on a new Work,
+	// HIDE ALL n, the sheet's own button: a fresh screen drawn on a new Work,
 	// which the other tab ends before the press.
 	await makeWorkExact(other, pair, 'Ended Again');
 	await page.goto(seriesUrl);
@@ -1231,8 +1230,8 @@ test('a selection that touches two Works is refused: SELECT ALL cannot collapse 
 	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Isekai');
 	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren'], 'Mushoku Run');
 
-	// SELECT ALL touches both Works, so the sheet's own door refuses: one Work
-	// swallowing another is the collapse the stopgap refused.
+	// SELECT ALL touches both Works, so the sheet's own action refuses: one
+	// Work swallowing another is a collapse the app refuses.
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	await page.getByRole('button', { name: 'SELECT ALL' }).click();
 	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
@@ -1254,14 +1253,15 @@ test('a selection that touches two Works is refused: SELECT ALL cannot collapse 
 	}
 });
 
-// ---- W4 round 2: ADD TO EXISTING's target, TAKE OUT's band, UNHIDE ----------
+// ---- ADD TO EXISTING's target, TAKE OUT's band, UNHIDE ----------
 
 test('ADD TO EXISTING on volumes starts on the series of volumes, not on a Work', async ({
 	page
 }) => {
-	// A Work exists, which is the library's normal state after W4. With the old
-	// target the sheet would start on the Work's id -- a small integer, like a
-	// series' -- so no volume was checked and ADD posted nothing at all.
+	// A Work exists, which is the library's normal state. A target taken from
+	// the id alone would start the sheet on the Work's id -- a small integer,
+	// like a series' -- so no volume would be checked and ADD would post
+	// nothing at all.
 	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Isekai');
 
 	// A series of volumes to add to: two of the seed's four novels.
@@ -1303,12 +1303,12 @@ test('ADD TO EXISTING on volumes starts on the series of volumes, not on a Work'
 });
 
 test('ADD TO EXISTING on books starts on the series of books, not on a Work', async ({ page }) => {
-	// A Work first: the same small-integer collision, now for books, where the
-	// old target could even pre-check an unrelated doujin series.
+	// A Work first: the same small-integer collision, for books, where it
+	// could even pre-check an unrelated doujin series.
 	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Isekai');
 
 	// A series of books to add to: the seed's doujin are all singletons, so it
-	// is made the way the owner would.
+	// is made the way a user would.
 	await page.goto('/?shelf=k:doujin&sort=title');
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	for (const t of ['Hoshi no Umi no Tabibito', 'Natsu no Owari ni Kimi to'])
@@ -1488,7 +1488,7 @@ test('UNDO after UNHIDE hides the Work whole again', async ({ page }) => {
 	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
 });
 
-// ---- Wave 16: the one rule at every door that writes `hidden` --------------
+// ---- the one rule at every action that writes `hidden` --------------
 
 /** The ids of a Work's parts, in its order, read from its own screen's run. */
 async function partIds(page: Page, workUrl: string): Promise<number[]> {
@@ -1513,7 +1513,7 @@ async function hiddenOf(page: Page, ids: number[]): Promise<boolean[]> {
 test('the search sheet’s HIDE on a part hides its Work whole, and UNHIDE shows it whole', async ({
 	page
 }) => {
-	// The door wave 14's review reproduced: the search page opens the library's
+	// The search page opens the library's
 	// series sheet on any hit, a Work's part included, and its HIDE posts the
 	// library's plain ?/hide. Reached here through the app from the seed.
 	await revealOn(page);
@@ -1581,9 +1581,9 @@ test('the search sheet’s HIDE on a part hides its Work whole, and UNHIDE shows
 test('HIDE ALL n on a half-hidden Work settles it hidden, and offers no UNDO that would show a hidden part', async ({
 	page
 }) => {
-	// A Work one of whose parts is hidden on its own: no door the app offers
-	// makes this any more, but an import's fold did until c389, so a library
-	// can hold one. It is written here as the fold left it, in the database.
+	// A Work one of whose parts is hidden on its own: nothing the app offers
+	// makes this, but an import's fold once could, so a library can hold one.
+	// It is written here as the fold left it, in the database.
 	await revealOn(page);
 	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Mixed Run');
 	const workId = await openWork(page, 'Mixed Run');
@@ -1605,8 +1605,7 @@ test('HIDE ALL n on a half-hidden Work settles it hidden, and offers no UNDO tha
 	await expect(sheet).toHaveCount(0);
 	await expect.poll(() => hiddenOf(page, [shownPart, hiddenPart])).toEqual([true, true]);
 	// No band (reveal's own, HIDDEN SHOWN, aside): its UNDO could only leave
-	// the Work half-hidden again, or show the part the owner had hidden --
-	// before c390 it showed both.
+	// the Work half-hidden again, or show the part the user had hidden.
 	await expect(page.locator('.band', { hasText: 'THE WORK, WHOLE' })).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
 
@@ -1625,8 +1624,8 @@ test('UNDO of a TAKE OUT refuses once the series has joined another Work, and le
 	page,
 	context
 }) => {
-	// The interleaving W4 made reachable: the Work screen's band and its UNDO
-	// stay up while, in another tab, the owner groups the series it took out.
+	// The Work screen's band and its UNDO stay up while, in another tab, the
+	// user groups the series it took out.
 	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren', 'Isekai Ojisan'], 'Undo Run');
 	const runId = await openWork(page, 'Undo Run');
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
@@ -1639,8 +1638,8 @@ test('UNDO of a TAKE OUT refuses once the series has joined another Work, and le
 	await makeWork(other, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Other Run');
 	const otherId = await openWork(other, 'Other Run');
 
-	// Before c308, this UNDO's INSERT OR REPLACE took Isekai Ojisan out of
-	// Other Run without ending it: a Work of one, for good.
+	// An INSERT OR REPLACE here would take Isekai Ojisan out of Other Run
+	// without ending it: a Work of one, for good.
 	await takenOut.getByRole('button', { name: 'UNDO' }).click();
 	const refused = page.locator('.band', { hasText: 'ISEKAI OJISAN IS IN OTHER RUN NOW' });
 	await expect(refused).toBeVisible();
@@ -1655,7 +1654,7 @@ test('UNDO of a TAKE OUT refuses once the series has joined another Work, and le
 	await endWork(page);
 });
 
-test('every library door that hides by id takes a part’s Work whole, both ways', async ({
+test('every library action that hides by id takes a part’s Work whole, both ways', async ({
 	page
 }) => {
 	// The class, not the site: `?/hide` (the series sheet's) and `?/bulk`'s
@@ -1742,9 +1741,9 @@ test('a bulk HIDE over two Works says 2 WORKS, WHOLE and keeps the loose series 
 });
 
 /**
- * c469 (wave 19's Gap 2): a refusal from a band's UNDO came back as the
- * library's `workMessage`, which the page drew only inside the bulk bar, so
- * with SELECT off nothing said why the band just stayed. Reached through the
+ * A refusal from a band's UNDO comes back as the library's `workMessage`;
+ * drawn only inside the bulk bar, with SELECT off nothing would say why the
+ * band just stayed. Reached through the
  * app: GROUP AS A WORK's band is up in one tab while the other takes a part
  * out on the Work's screen, which ends the Work; the band's UNDO then refuses.
  */
@@ -1773,9 +1772,9 @@ test('a refused UNDO on the library says why with no selection open', async ({ p
 	// The take-out ended the Work, so nothing is left to put back.
 	await expect(workTile(page, 'Refused Run')).toHaveCount(0);
 
-	// The owner moves on (c469's round 2): SELECT does not carry the refusal
-	// into the bar, and ✕ does not bring the band back. `form` still holds the
-	// answer all along, which is what both used to draw from.
+	// The user moves on: SELECT does not carry the refusal into the bar, and
+	// ✕ does not bring the band back, though `form` still holds the answer
+	// all along.
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
 	await expect(refusal).toHaveCount(0);
@@ -1787,14 +1786,14 @@ test('a refused UNDO on the library says why with no selection open', async ({ p
 });
 
 /**
- * c469's round 3: the bands stay drawn while a selection is open, so their
- * UNDO can be pressed then too, and its refusal has to be said there as well.
- * The refusal band used to be gated on `!selecting`, so a refusal pressed
- * under SELECT showed nowhere and UNDO looked as if it had worked. Reached
+ * The bands stay drawn while a selection is open, so their UNDO can be
+ * pressed then too, and its refusal has to be said there as well. A refusal
+ * band gated on `!selecting` would show nowhere under SELECT, and UNDO would
+ * look as if it had worked. Reached
  * through the app as the case above: GROUP's band is up in one tab while the
  * other takes a part out and ends the Work, but here SELECT is pressed before
  * the band's UNDO. The refusal is the band (not the bar's line), and the next
- * form sent -- a bulk HIDE here -- retires it. ✕ then moves the owner on
+ * form sent -- a bulk HIDE here -- retires it. ✕ then moves the user on
  * without bringing it back; a ✕ pressed with the refusal still drawn is the
  * case below.
  */
@@ -1833,8 +1832,8 @@ test('a band’s UNDO refused while a selection is open says so, and the form se
 	await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
 	await expect(workTile(page, 'Refused Run Too')).toHaveCount(0);
 
-	// Any other form sent says the owner has moved on (the r2 low: every form
-	// on the page retires a refusal, even one whose enhance answers nothing).
+	// Any other form sent says the user has moved on (every form on the page
+	// retires a refusal, even one whose enhance answers nothing).
 	// HIDE over one ticked series is the cheapest real press: it answers
 	// `{ok: true}`, so it draws no band of its own.
 	await tileByTitle(page, 'Dungeon Meshi').locator('.open').click();
@@ -1846,7 +1845,7 @@ test('a band’s UNDO refused while a selection is open says so, and the form se
 	db.prepare(`UPDATE series SET hidden = 0, public = 0 WHERE title = 'Dungeon Meshi'`).run();
 	db.close();
 
-	// ✕ moves the owner on: neither place repeats it, then or on the next SELECT.
+	// ✕ moves the user on: neither place repeats it, then or on the next SELECT.
 	await page.getByRole('button', { name: 'Stop selecting' }).click();
 	await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toBeVisible();
 	await expect(refusal).toHaveCount(0);
@@ -1858,12 +1857,12 @@ test('a band’s UNDO refused while a selection is open says so, and the form se
 });
 
 /**
- * c649 (works review r1, low 1): the case above says "✕ retires it", but by the
- * time ✕ was pressed the HIDE step had already retired the refusal, so no copy
- * had ever seen ✕ meet one. This is that state, reached the same way: a band's
- * UNDO is refused while a selection is open, and ✕ is pressed with the refusal
- * drawn under it. If ✕ stopped setting `passed`, the band would still be drawn
- * right after the press, which is what the first assertion below would catch.
+ * The case above says "✕ retires it", but by the time ✕ is pressed the HIDE
+ * step has already retired the refusal, so no case there sees ✕ meet one. This
+ * is that state, reached the same way: a band's UNDO is refused while a
+ * selection is open, and ✕ is pressed with the refusal drawn under it. If ✕
+ * stopped setting `passed`, the band would still be drawn right after the
+ * press, which is what the first assertion below would catch.
  */
 test('✕ retires a refusal that is visible under a selection, and the next SELECT does not bring it back', async ({
 	page,
@@ -1892,7 +1891,7 @@ test('✕ retires a refusal that is visible under a selection, and the next SELE
 	const refusal = page.locator('.band', {
 		hasText: 'REFUSED RUN THREE HAS CHANGED SINCE IT WAS MADE'
 	});
-	// The state the card names, asserted right before the press.
+	// The state under test, asserted right before the press.
 	await expect(refusal).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Stop selecting' })).toBeVisible();
 
@@ -1913,12 +1912,12 @@ test('✕ retires a refusal that is visible under a selection, and the next SELE
 });
 
 /**
- * c469's round 2: a refusal answered over the bulk bar stays in the bar's
+ * A refusal answered over the bulk bar stays in the bar's
  * `.fold-refused` line and goes with the selection. Reached through the app:
  * GROUP's ADD TO A WORK is open on a Work that the other tab ends, so the add
- * refuses as stale, the sheet closes and the selection stays. Before
- * the fix, ✕ turned the line into a library band, `NOTHING CHANGED`, over a
- * library where nothing had been asked.
+ * refuses as stale, the sheet closes and the selection stays. ✕ must
+ * not turn the line into a library band, `NOTHING CHANGED`, over a library
+ * where nothing had been asked.
  */
 test('a refusal over the bulk bar goes with ✕, and is not drawn as a library band', async ({
 	page,
@@ -1959,12 +1958,12 @@ test('a refusal over the bulk bar goes with ✕, and is not drawn as a library b
 });
 
 /**
- * c469 (wave 19's Gaps 3 and 7, decision 12): HIDE ALL over a selection whose
+ * HIDE ALL over a selection whose
  * Work is hidden whole already and a loose series beside it. The press hides
  * only the loose one, and that one is what its UNDO may show: the band says
  * so, never TAKEN OUT OF THE WORK (nothing was), never THE WORK, WHOLE (it
  * hid none of it), and its UNDO shows the loose series and leaves the Work
- * hidden. Before c469 the press answered no band at all.
+ * hidden.
  */
 test('HIDE ALL beside a Work hidden already says only what it hid, and its UNDO shows only that', async ({
 	page
@@ -2038,7 +2037,7 @@ test('a Work cannot be made of a hidden series and a visible one', async ({ page
 	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
 });
 
-// ---- W7 (doc/WORKS.md, "The offer" and "The flow") ----------------------
+// ---- the offer (doc/WORKS.md, "The offer" and "The flow") ----------------------
 
 /** A library tile by its exact title, on a page where `.grid .tile` holds it. */
 async function openSeries(page: Page, title: string): Promise<number> {
@@ -2126,8 +2125,8 @@ test('MIGHT CONTINUE <WORK>: REVIEW opens ADD TO A WORK with it last and ticked,
 
 	// NOT THIS: its band's UNDO brings the offer straight back.
 	await offer.getByRole('button', { name: 'NOT THIS' }).click();
-	// The bands are drawn twice, one copy per order, and CSS shows one (c556,
-	// doc/SERIES.md, "Two markups"): the band is the copy that can be seen.
+	// The bands are drawn twice, one copy per order, and CSS shows one
+	// (doc/SERIES.md, "Two markups"): the band is the copy that can be seen.
 	const dismissed = page
 		.locator('.band', { hasText: "NOT THIS · WON'T ASK AGAIN" })
 		.filter({ visible: true });
@@ -2159,12 +2158,12 @@ test('MIGHT CONTINUE <WORK>: REVIEW opens ADD TO A WORK with it last and ticked,
 });
 
 /**
- * c584: the offer the sheet was drawn with goes stale while it is open, made
- * so through the app's own doors in a second page (the owner's other tab).
- * The add refuses (`THAT WORK HAS CHANGED · LOOK AGAIN`, c583's shape), and
- * the sheet must not stay open on the dead offer: it closes, the screen says
- * why, and MIGHT CONTINUE shows what is true now -- the newer Work's offer
- * when one was made under the same id, or nothing once there is no Work.
+ * The offer the sheet was drawn with goes stale while it is open, made so
+ * through the app's own screens in a second page (the user's other tab). The
+ * add refuses (`THAT WORK HAS CHANGED · LOOK AGAIN`), and the sheet must not
+ * stay open on the dead offer: it closes, the screen says why, and MIGHT
+ * CONTINUE shows what is true now -- the newer Work's offer when one was made
+ * under the same id, or nothing once there is no Work.
  */
 test('a refused stale offer closes its sheet, and MIGHT CONTINUE shows the offer there is now, or none', async ({
 	page
@@ -2238,9 +2237,9 @@ async function tagSeries(page: Page, title: string, tag: string, on: boolean) {
 test('one Work end to end: a person’s page groups three, part 1 read to its end opens part 2, the run moves on, and a TAKE OUT’s UNDO and UNGROUP end where it began', async ({
 	page
 }) => {
-	// The board's way a Work is made (Work-States 7): an author's page. The
-	// seed's artist has one series, so two more take the artist's tag first,
-	// by the series screen's own EDIT, and give it back at the end.
+	// The design's way a Work is made: an author's page. The seed's artist has
+	// one series, so two more take the artist's tag first, by the series
+	// screen's own EDIT, and give it back at the end.
 	const artist = 'artist:Aoi Hanamura';
 	const [first, second, third] = [
 		'Hikaru ga Shinda Natsu',

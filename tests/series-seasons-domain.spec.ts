@@ -12,7 +12,7 @@ import {
 } from '$lib/library/seasons-around';
 
 /**
- * The seasons around an anime (c358; doc/SERIES.md, "The seasons around
+ * The seasons around an anime (doc/SERIES.md, "The seasons around
  * it"): the walk over a cached relation graph, the heads drawn from it, and
  * FIND's title stem. Pure, so the graph is built here; the walk's fetching
  * and the cache are tests/series-seasons-db.spec.ts'.
@@ -41,7 +41,7 @@ const graphOf = (...nodes: RelNode[]): RelGraph => ({
 });
 
 /**
- * The card's chain ('What counts'): it loops (the announced fifth season names
+ * The chain under test: it loops (the announced fifth season names
  * the first as its SEQUEL, and the first names it as its PREQUEL), it branches
  * (season 4 has a SPECIAL beside its ONA prequel), a MOVIE stands on the main
  * chain between seasons 2 and 3, OVAs and an ONA hang off it as side stories,
@@ -276,7 +276,7 @@ describe('the walk', () => {
 });
 
 /**
- * The loop walked from every season (review round 1): AniList leaves the
+ * The loop walked from every season: AniList leaves the
  * announced fifth season undated, so only its status says it starts after the
  * first, and season 1's PREQUEL into it is the loop's closing edge, never a
  * season before season 1.
@@ -370,19 +370,18 @@ describe('the loop through an undated announced sequel', () => {
 		expect(when({ status: 'RELEASING', year: 2025 })).toBe(2025);
 		expect(when({ status: 'NOT_YET_RELEASED', year: 2027 })).toBe(Infinity);
 		expect(when({ status: 'NOT_YET_RELEASED', year: null })).toBe(Infinity);
-		// Round 3: an aired entry AniList leaves undated has no rank, never Infinity.
+		// An aired entry AniList leaves undated has no rank, never Infinity.
 		for (const status of ['FINISHED', 'RELEASING', 'CANCELLED', 'HIATUS', null])
 			expect(when({ status, year: null }), String(status)).toBeNull();
 	});
 });
 
 /**
- * Round 3 (r2's medium): an aired entry AniList leaves undated (mostly
+ * An aired entry AniList leaves undated (mostly
  * specials, OVAs and ONAs, sometimes a season) is on the chain as AniList
  * gives it, never cut as a loop's closer; and the edges next to that rule:
  * each status with no year, an announced entry with a year, two undated in a
- * row, an undated aired entry on a loop. The expected heads were written in
- * doc/handoff-notes/series.md before these ran.
+ * row, an undated aired entry on a loop.
  */
 describe('an aired entry with no year', () => {
 	const tv = (id: number, year: number | null, edges: Edge[], o: Partial<RelNode> = {}) =>
@@ -402,7 +401,7 @@ describe('an aired entry with no year', () => {
 		};
 	};
 
-	// r2's A: S1 (2019) -SEQUEL-> MOVIE (FINISHED, undated) -SEQUEL-> S2 (2021).
+	// S1 (2019) -SEQUEL-> MOVIE (FINISHED, undated) -SEQUEL-> S2 (2021).
 	const MOVIE_BETWEEN = graphOf(
 		tv(601, 2019, [['SEQUEL', 650]]),
 		node(
@@ -450,7 +449,7 @@ describe('an aired entry with no year', () => {
 		expect(held(g, 801)).toMatchObject({ before: [], next: 'S2' });
 		expect(held(g, 801).facts[0]).toBe(fact);
 	});
-	// Round 2's low: between two dated seasons, the shape ranking it as announced cut.
+	// Between two dated seasons: the shape that ranking it as announced would cut.
 	it.each([
 		['RELEASING', 'AIRING'],
 		['CANCELLED', 'CANCELLED'],
@@ -525,7 +524,7 @@ describe('an aired entry with no year', () => {
 		});
 	});
 
-	// Round 2's medium: the loop's closer is an aired entry AniList leaves undated.
+	// The loop's closer is an aired entry AniList leaves undated.
 	const closedBy = (closer: RelNode) =>
 		graphOf(
 			tv(1101, 2019, [

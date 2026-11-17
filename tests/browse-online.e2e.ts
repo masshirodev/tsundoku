@@ -2,8 +2,8 @@ import { expect, test } from './fixtures';
 import { engineDown, resetEngine, SOURCES } from './browse-world';
 
 /**
- * A manga read online (doc/READING-ONLINE.md, "Manga online"; card c166; Online
- * Calls 1A, 1B and board 2): from a source's preview without ADD, its pages
+ * A manga read online (doc/BROWSING.md, "Manga online"): from a source's
+ * preview without ADD, its pages
  * straight from the fake engine's /image/ proxy and never kept; then, added,
  * its chapters read online from the series screen, ↓ downloading apart.
  */
@@ -101,10 +101,10 @@ test('a chapter opens online from the preview, a record keeps the place, the ser
 });
 
 /**
- * Tall pages (2026-10-29): a source never says how big its pages are, and the
- * reader drew each one online in a manga page's box, so a manhwa's tall slice
- * came out a narrow column with black either side, whatever the zoom. The
- * box now takes the image's own shape once it arrives. The fake's second page
+ * Tall pages: a source never says how big its pages are, and in a manga
+ * page's box a manhwa's tall slice comes out a narrow column with black either
+ * side, whatever the zoom. The box takes the image's own shape once it
+ * arrives. The fake's second page
  * is 600 × 3000.
  */
 test('a page read online takes its own shape once it arrives, paged and vertical', async ({
@@ -166,11 +166,11 @@ test('a page read online takes its own shape once it arrives, paged and vertical
 });
 
 /**
- * Turning back (the owner, 2026-11-16): a page read online is
- * `no-store`, and a turn mounts a new element for the page turned to, so the
- * browser asked the workstation, and the workstation the source, for a page
- * that had just been on screen; a bad connection made the loading box stay.
- * The reader now holds the pages near the one being read in memory
+ * Turning back: a page read online is `no-store`, and a turn mounts a new
+ * element for the page turned to, so the browser would ask the workstation,
+ * and the workstation the source, for a page that had just been on screen; on
+ * a bad connection the loading box stays. The reader holds the pages near the
+ * one being read in memory
  * ($lib/reader/online-pages): forward and back again asks for each page once,
  * and a page drawn before is never drawn as its loading box again.
  */

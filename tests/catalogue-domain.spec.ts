@@ -127,7 +127,7 @@ describe('a sure match', () => {
 		// The raw title names 2024; the chip must read it as the pass does.
 		expect(isExact(['Ranma ½ (2024)'], anime)).toBe(false);
 		expect(isExact(matchTitles(['Ranma ½ (2024)']), anime)).toBe(true);
-		// The title the owner types is one of the series' too, as it is for the
+		// The title the user types is one of the series' too, as it is for the
 		// pass: opening "Sousou no Frieren" and searching "Frieren" is exact.
 		const frieren = cand({ anilistId: 41, title: 'Frieren', alts: [], format: 'TV' });
 		expect(isExact(matchTitles(['Sousou no Frieren']), frieren)).toBe(false);
@@ -235,7 +235,7 @@ describe('a pasted link', () => {
 });
 
 describe('an entry’s own page', () => {
-	it('is on the path of the series’ kind, at every door', () => {
+	it('is on the path of the series’ kind, on every site', () => {
 		expect(anilistUrl(30024, 'anime')).toBe('https://anilist.co/anime/30024');
 		expect(malUrl(23, 'anime')).toBe('https://myanimelist.net/anime/23');
 		// The default stays the manga path, which is what a comic and a novel read.

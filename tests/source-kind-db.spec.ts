@@ -14,7 +14,7 @@ const { setSourceKind, sourceKind, sourceKindOfKey } =
 const { kindOfSource } = await import('../src/routes/downloads/search/kinds.server');
 
 /**
- * The kind a source serves (card c986; doc/KINDS.md, "The kind a source cannot
+ * The kind a source serves (doc/KINDS.md, "The kind a source cannot
  * name"): where it is kept, that a new series takes it, and that one already
  * in the library keeps its own.
  */
@@ -145,7 +145,7 @@ describe('a new series takes its source’s kind', () => {
 		expect(s.kind).toBe('manhwa');
 	});
 
-	it('even a gallery’s doujin, when the owner says manga', () => {
+	it('even a gallery’s doujin, when the user says manga', () => {
 		setSourceKind(MANGA, 'mihon', 'manga');
 		const s = write(keyOf(MANGA, '/manga/gallery'), 'A Gallery', 'doujin');
 		expect(s.kind).toBe('manga');

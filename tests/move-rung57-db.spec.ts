@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-// Rung 57 (doc/MOVE.md): the old origin key and when it was left,
+// Migration 57 (doc/MOVE.md): the old origin key and when it was left,
 // each entry's own source, and the NO SERVER failures a move's band reads. On
-// a file, as the live database is, and never editing a rung below it.
+// a file, as the live database is, and never editing a migration below it.
 const work = mkdtempSync(join(tmpdir(), 'tsundoku-rung57-'));
 process.env.DATABASE_PATH = ':memory:';
 afterAll(() => rmSync(work, { recursive: true, force: true }));
@@ -39,7 +39,7 @@ function at56() {
 	return { conn, path, series, entry };
 }
 
-describe('rung 57', () => {
+describe('migration 57', () => {
 	it('adds the columns with defaults and keeps every row', () => {
 		const { conn, series, entry } = at56();
 		climb(conn, 57);

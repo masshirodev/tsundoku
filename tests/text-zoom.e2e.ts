@@ -5,15 +5,15 @@ import type { Page } from '@playwright/test';
  * The web app at 130% text: the phone and tablet app follows Android's
  * font size up to 130% through the WebView's `textZoom` (doc/PHONE-APP.md on
  * the `phone-app` branch), which scales every computed font size and nothing
- * else. A browser has no text zoom, so the closest it gets is the card's
- * method: on a 360 × 780 phone, every element's computed `font-size` is
+ * else. A browser has no text zoom, so the closest it gets is this: on a
+ * 360 × 780 phone, every element's computed `font-size` is
  * multiplied by 1.3 in place (`zoomText`), all read first and then written,
  * so nothing is scaled twice. Line heights that are unitless or in `em`
  * follow, as they do under `textZoom`; ones fixed in px stay, as they do
  * there. Read only, on the seed: Drawing's long title and the series screen.
- * It runs on the `phone` project alone, the device the card measured; the
- * check on a real phone, at Android's largest font step under 130%, is the
- * owner's (doc/SERIES.md, "At a larger text size").
+ * It runs on the `phone` project alone, the device measured; the check on a
+ * real phone, at Android's largest font step under 130%, is done by hand
+ * (doc/SERIES.md, "At a larger text size").
  */
 test.use({ viewport: { width: 360, height: 780 } });
 test.beforeEach(() => {
@@ -62,7 +62,7 @@ test('at 130% text a tile title still has room for both lines: the second is nev
 	await zoomText(page, 1.3);
 	const boxes = await titleBoxes(page);
 	const drawing = boxes.find((b) => b.text.startsWith('Drawing: Saikyou'))!;
-	// The case the card saw: a title of more than two lines, clamped to two.
+	// The case seen on a phone: a title of more than two lines, clamped to two.
 	expect(drawing.scroll).toBeGreaterThan(2 * drawing.line);
 	for (const b of boxes) {
 		// Two line boxes, less at most the second's half-leading (the box is
@@ -83,8 +83,8 @@ test('at 130% text every series row’s label fits its column, SHELVES included'
 		await page.waitForURL(/\/series\/\d+/, { timeout: 2_000 });
 	}).toPass({ timeout: 20_000 });
 	const panel = page.getByRole('region', { name: 'About this series' });
-	// SHELVES is drawn twice, one copy per order, and CSS shows one (c556,
-	// doc/SERIES.md, "Two markups"): the row to read is the copy that can be seen.
+	// SHELVES is drawn twice, one copy per order, and CSS shows one
+	// (doc/SERIES.md, "Two markups"): the row to read is the copy that can be seen.
 	await expect(
 		panel.locator('.label', { hasText: 'SHELVES' }).filter({ visible: true })
 	).toBeVisible();
@@ -114,12 +114,12 @@ test('at 130% text every series row’s label fits its column, SHELVES included'
 /**
  * The reader's bottom bar at 360 px: every cell of it reachable and
  * fully on screen, and a tap at each cell's centre landing on that cell, at
- * 100% and at 130% text, on both readers. The card measured FULL SCREEN off
+ * 100% and at 130% text, on both readers. Measured on a phone: FULL SCREEN off
  * the right edge on the text reader at 100%, and CH. 28 → off it on the image
- * reader at 130%, with SETTINGS a sliver between two cells: the row was wider
- * than the phone and clipped its last cells with no way to reach them. The
- * cells keep their size and order and the row scrolls (the card's own first
- * fix), so each is brought into view before it is checked. The bar keeps its
+ * reader at 130%, with SETTINGS a sliver between two cells: a row wider than
+ * the phone clips its last cells with no way to reach them. The cells keep
+ * their size and order and the row scrolls, so each is brought into view
+ * before it is checked. The bar keeps its
  * 64 px, and so the reading area under it.
  */
 const BAR = 'footer.bottom .cells';
@@ -146,7 +146,7 @@ async function expectBarReachable(page: Page, where: string) {
 		where
 	).toBe(true);
 	// And the label it ends in is whole: the summary gives way on a phone,
-	// never SETTINGS ↑ itself (the card's "sliver").
+	// never SETTINGS ↑ itself (the "sliver" above).
 	const label = await page.locator(`${BAR_CELLS} .opens-k`).evaluate((el) => {
 		const k = el.getBoundingClientRect();
 		const c = el.closest('.cell')!.getBoundingClientRect();

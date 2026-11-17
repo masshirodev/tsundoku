@@ -9,11 +9,11 @@ import { expect, test } from './fixtures';
 import { hydrated } from './helpers/hydration';
 
 /**
- * SETTINGS' N SERIES DIFFER on LAYOUT, in a browser (c637; doc/SETTINGS.md,
+ * SETTINGS' N SERIES DIFFER on LAYOUT, in a browser (doc/SETTINGS.md,
  * "02"): the novel kept R→L by the reader's own REMEMBER, its line on the
  * list, ✕, and the count gone. The logic is in `settings-db.spec.ts` and the
- * words in `settings-domain.spec.ts`; this is the page's glue, which only
- * svelte-check saw before.
+ * words in `settings-domain.spec.ts`; this is the page's glue, which
+ * svelte-check alone cannot prove.
  *
  * Its own seeded database and an OS port (the `settings-devices` arrangement),
  * because it changes a series' layout and the shared seed is read by every

@@ -14,7 +14,7 @@ import { SOURCES } from './browse-world';
  * quality, fetched one segment per stop and only while the pointer is on the
  * bar.
  *
- * The browse world's fake engine (tests/browse-setup.ts, not this slot's)
+ * The browse world's fake engine (tests/browse-setup.ts)
  * serves the fixture clip as a plain WebM, with no HLS and no downloaded
  * file. So, as the language spec does, the episode's answer is widened in the
  * browser: a DOWNLOADED server whose file is the clip's own loopback address,
@@ -383,7 +383,7 @@ test.describe('a stream', () => {
 
 		// Two stops 300 ms apart, the first still waiting on its segment when the
 		// second begins: the second still gets its frame. The first's give-up
-		// (its second running out) used to stop the second's segment loading.
+		// (its second running out) must not stop the second's segment loading.
 		p = await lineAt(page, 0.8 / 8);
 		await page.mouse.move(p.x, p.y);
 		await page.waitForTimeout(300);
@@ -899,11 +899,11 @@ test.describe('a stream whose lowest quality is a plain file', () => {
 });
 
 /**
- * c655's record half: the end page's library row for a browsing
+ * The end page's library row for a browsing
  * record, in the paged reader. The shared seed has no record (fixtures make
- * none), so this needs the browse world; the reader slot owns no other file
- * that runs in that project — its flow files run in tablet-portrait against
- * the shared seed — so the case lives here, beside the player's.
+ * none), so this needs the browse world; the reader's flow files run in
+ * tablet-portrait against the shared seed, so the case lives here, beside
+ * the player's.
  *
  * The bug it pins: ImageReader draws EndPage twice, and only the strip's
  * instance passed `inLibrary`/`addHref`. The paged one kept EndPage's default
@@ -936,7 +936,7 @@ test.describe('the reader end page for a browsing record', () => {
 			);
 			const entry = page.url().match(/\/read\/(\d+)/)![1];
 			// Paged: `?p=last` plus one turn forward (left, this source reads R→L)
-			// is the paged end page's door — the instance that was missing the props.
+			// opens the paged end page — the instance that was missing the props.
 			await page.goto(`/read/${entry}?p=last`);
 			await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
 				timeout: 20_000

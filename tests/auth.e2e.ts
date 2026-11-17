@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { expect, test } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
-// Start signed out: this spec is about the door, not the room.
+// Start signed out: this spec is about the sign-in, not what is behind it.
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test('everything but the login form is behind the token', async ({ page, request }) => {

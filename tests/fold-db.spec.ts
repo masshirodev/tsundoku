@@ -76,7 +76,7 @@ beforeAll(async () => {
 	expect(orphan).toBeTruthy();
 	expect(twin).toBeTruthy();
 
-	// What the owner did with the folder's series while it was the only one.
+	// What the user did with the folder's series while it was the only one.
 	db.prepare(`UPDATE entries SET read_at = 1_800_000_010_000 WHERE series_id = ?`).run(orphan);
 	const [first] = all<{ id: number }>(
 		`SELECT id FROM entries WHERE series_id = ? ORDER BY position`,
@@ -175,12 +175,12 @@ describe('a download a backup now knows', () => {
 });
 
 /**
- * The same-device door (`adoptFormer`, the both-exist branch): a folder's
- * series the owner renamed, the second series the old importer made under the
+ * The same-device case (`adoptFormer`, the both-exist branch): a folder's
+ * series the user renamed, the second series the old importer made under the
  * URL key on the same files, and a newer backup that names both. The folder's
  * series is folded into the URL's -- and the fold keeps only one side's title,
- * kind and direction, so the owner's must be carried across (doc/IMPORT-MIHON.md,
- * "Both exist").
+ * kind and direction, so the user's must be carried across
+ * (doc/IMPORT-MIHON.md, "Both exist").
  */
 describe('a renamed folder series this device’s backup names', () => {
 	const at = 1_800_000_300_000;
@@ -209,7 +209,7 @@ describe('a renamed folder series this device’s backup names', () => {
 		renamed = byKey(RENAMED_DIR)!;
 		expect(renamed).toBeTruthy();
 
-		// What the owner did with it while it was the only one.
+		// What the user did with it while it was the only one.
 		db.prepare(
 			`UPDATE series SET title = 'My Own Name', kind = 'manhwa', direction = 'rtl' WHERE id = ?`
 		).run(renamed);
@@ -258,7 +258,7 @@ describe('a renamed folder series this device’s backup names', () => {
 		).toBe(1);
 	});
 
-	it('carries the owner’s name, kind and direction onto the survivor', () => {
+	it('carries the user’s name, kind and direction onto the survivor', () => {
 		expect(
 			one<{ title: string; kind: string; direction: string | null }>(
 				`SELECT title, kind, direction FROM series WHERE id = ?`,

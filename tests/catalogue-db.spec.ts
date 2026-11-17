@@ -185,7 +185,7 @@ describe('what the pass searches', () => {
 		expect(cat.searchable(10_000).some((r) => r.id === tog)).toBe(false);
 	});
 
-	it('puts a SEARCH AGAIN first, with the owner’s title', () => {
+	it('puts a SEARCH AGAIN first, with the user’s title', () => {
 		const frieren = idOf('Sousou no Frieren');
 		cat.queueSearch(frieren, 'Frieren: Beyond Journey’s End');
 		const [first] = cat.searchable(3);
@@ -322,7 +322,7 @@ describe('an anime', () => {
 		}
 	});
 
-	it('a search the owner runs offers even one equal result, and links nothing until LINK', async () => {
+	it('a search the user runs offers even one equal result, and links nothing until LINK', async () => {
 		const id = animeSeries('Ranma ½ (2024)');
 		try {
 			searches['Ranma ½'] = [anime({ id: 30024, idMal: 23, english: 'Ranma ½' })];
@@ -337,7 +337,7 @@ describe('an anime', () => {
 				'EPISODES',
 				'STATUS'
 			]);
-			// LINK is the owner's press; UNDO of it puts the series back as it was.
+			// LINK is the user's press; UNDO of it puts the series back as it was.
 			cat.link(id, cat.offered(id, 30024)!, 'review', NOW);
 			expect(linkRow(id)).toMatchObject({ anilist_id: 30024, via: 'review' });
 			expect(cat.undoLink(id)).toBe(true);
@@ -350,7 +350,7 @@ describe('an anime', () => {
 	it('flags a link to the other kind as wrong, and never unlinks it by itself', () => {
 		const id = animeSeries('Ranma ½ (2024)');
 		try {
-			// The link c298 found live: the manga 30023 on the anime series.
+			// A link found live: the manga 30023 on the anime series.
 			cat.link(
 				id,
 				{
@@ -557,7 +557,7 @@ describe('Mihon’s MAL tracker', () => {
 		expect(linkRow(id)).toMatchObject({ filled_rating: null });
 	});
 
-	it('never brings back a link the owner unlinked, nor replaces one they chose', () => {
+	it('never brings back a link the user unlinked, nor replaces one they chose', () => {
 		const id = tracked('Tower of God');
 		cat.unlink(id, NOW);
 		cat.linkFromTracker(db, id, { id: 122663, score: 9 }, NOW);
@@ -809,7 +809,7 @@ describe('UNDO on UNLINK’s band', () => {
 		expect(row(id)).toBeUndefined();
 	});
 
-	it('a band drawn before rung 74 still undoes, and its mirror is not put back', () => {
+	it('a band drawn before migration 74 still undoes, and its mirror is not put back', () => {
 		const id = animeSeries('Undo Pending Band');
 		try {
 			expect(
@@ -977,7 +977,7 @@ describe('UNDO on UNLINK’s band', () => {
 	});
 });
 
-describe('a comic’s link keeps its country and start year (rung 70)', () => {
+describe('a comic’s link keeps its country and start year (migration 70)', () => {
 	const cols = (id: number) =>
 		db.prepare(`SELECT country, year FROM series_links WHERE series_id = ?`).get(id);
 
@@ -1001,10 +1001,10 @@ describe('a comic’s link keeps its country and start year (rung 70)', () => {
 		expect(cols(id)).toEqual({ country: 'CN', year: 2019 });
 	});
 
-	it('is asked on the next pass for a link made before the rung, once, and never for an anime’s season link', async () => {
+	it('is asked on the next pass for a link made before the migration, once, and never for an anime’s season link', async () => {
 		const id = idOf('Tower of God');
 		const lost = idOf('Lookism');
-		// Two links as rung 70 found them: resolved, their format known, no country.
+		// Two links as migration 70 found them: resolved, their format known, no country.
 		const before = db.prepare(
 			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, linked_at, resolved_at, format)
 			VALUES (?, ?, NULL, 'review', ?, ?, ?, 'MANGA')`

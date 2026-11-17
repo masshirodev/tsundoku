@@ -5,8 +5,8 @@ import { withLanguages } from '../src/lib/server/move';
 import type { Settled } from '../src/lib/library/settled';
 
 /**
- * The order MOVE's candidates and DOWNLOADS' search share (card c490;
- * doc/MOVE.md, "The candidates"): matches first in the order they answered,
+ * The order MOVE's candidates and DOWNLOADS' search share (doc/MOVE.md,
+ * "The candidates"): matches first in the order they answered,
  * then the sources still asking, then the empty and the failed, folded.
  */
 

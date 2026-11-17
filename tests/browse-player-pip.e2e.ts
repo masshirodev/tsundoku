@@ -203,7 +203,7 @@ test.describe('Document Picture-in-Picture (Chromium)', () => {
 	test('PIP again, and NEXT, close the window: none is left empty', async ({ page }) => {
 		test.setTimeout(90_000);
 		await openEpisode(page);
-		// The player drawn by the server too (a reload, a link): its PiP doors
+		// The player drawn by the server too (a reload, a link): its PiP controls
 		// are the browser's alone, and the server's render must not reach them.
 		const reload = await page.reload();
 		expect(reload?.status()).toBe(200);

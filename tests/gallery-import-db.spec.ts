@@ -9,7 +9,7 @@ const { ensureRoot, writeSeries } = await import('$lib/server/import/write');
 const { planMihon } = await import('$lib/import/mihon-plan');
 const { listSeries } = await import('$lib/server/library');
 
-// c124: a gallery from a Mihon source is a ONE-OFF, not a one-chapter series.
+// A gallery from a Mihon source is a ONE-OFF, not a one-chapter series.
 const manga = (source: string, title: string, chapter: string): MihonManga => ({
 	source,
 	url: `/${title}/`,

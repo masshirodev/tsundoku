@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { askedLine, destinationOf, fillOf, nextChangeIn, phaseAt } from '$lib/waiting';
 
 describe('phaseAt', () => {
-	it('follows the handoff’s scale: pressed, line at 150 ms, outline at 1 s, stalled at 10 s', () => {
+	it('follows the design’s scale: pressed, line at 150 ms, outline at 1 s, stalled at 10 s', () => {
 		expect(phaseAt(null)).toBe('idle');
 		expect(phaseAt(0)).toBe('pressed');
 		expect(phaseAt(149)).toBe('pressed');

@@ -1,13 +1,11 @@
 import { expect, test } from './fixtures';
 
 /**
- * The series screen on a TV (TV-Series). It opens Boku no Kokoro no
- * Yabai Yatsu, which no flow file writes: the flow files run beside the `tv`
- * project on the shared preview's one database (doc/TESTING.md, "The readers
- * beside the flows"). It used to open Tower of God, whose reader series-flow
- * opens from the cover (series-flow hides Ame no Hi no Toshokan, not Tower of
- * God, as this comment once said). The RATING test moves the rating one
- * half-bar down and back, so the series ends where it started (8).
+ * The series screen on a TV. It opens Boku no Kokoro no Yabai Yatsu, which no
+ * flow file writes: the flow files run beside the `tv` project on the shared
+ * preview's one database (doc/TESTING.md, "The readers beside the flows"). The
+ * RATING test moves the rating one half-bar down and back, so the series ends
+ * where it started (8).
  */
 
 const TITLE = 'Boku no Kokoro no Yabai Yatsu';
@@ -20,7 +18,7 @@ async function open(page: import('@playwright/test').Page) {
 }
 
 /**
- * DETAILS (series-phone 1D): on a TV the settings-like rows fold behind
+ * DETAILS: on a TV the settings-like rows fold behind
  * one stop, and OK opens them in place. A remote reaches it, so does this.
  */
 async function openDetails(page: import('@playwright/test').Page) {
@@ -71,8 +69,8 @@ test('every row of the panel fits its 352px column, and nothing sits over ▶ CO
 	page
 }) => {
 	await open(page);
-	// On the first real TV (2026-11-02) the rows took the tablet's full-width
-	// layout: cells ran past the column and over CONTINUE, labels were cut.
+	// On a real TV the rows must not take the tablet's full-width layout,
+	// where cells run past the column and over CONTINUE and labels are cut.
 	// Folded, and then with DETAILS open, every row it holds.
 	const report = () =>
 		page.evaluate(() => {
@@ -107,7 +105,7 @@ test('LISTS on the TV: a strip, 56px lines with no meta, and ← → between a l
 }) => {
 	await open(page);
 	await openDetails(page);
-	// The handoff's 1D: the label is a 36px strip, the tag 56, the line 56, the
+	// The design: the label is a 36px strip, the tag 56, the line 56, the
 	// title 16 and the cells 15; a line drops its meta (one OK away, in EDIT).
 	const row = page.locator('[data-row="lists"]');
 	const line = row.locator('[data-line="anilist"]');

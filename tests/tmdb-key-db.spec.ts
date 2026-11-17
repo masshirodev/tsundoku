@@ -8,10 +8,9 @@ const key = await import('$lib/server/tmdb-key');
 const { catalogueConfigured } = await import('$lib/server/catalogues');
 
 /**
- * The TMDB key typed in SETTINGS (card c993; the keys handoff's Keys-Key
- * board): checked before it is kept, never shown again but for four
- * characters, and never above the environment's. TMDB is a stub that takes
- * one key.
+ * The TMDB key typed in SETTINGS: checked before it is kept, never shown
+ * again but for four characters, and never above the environment's. TMDB is
+ * a stub that takes one key.
  */
 
 getDb();

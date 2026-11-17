@@ -154,7 +154,7 @@ describe('the pinned files (ops/release/versions.json)', () => {
 				expect(pin.sha256, `${name} ${platform}`).toMatch(/^[0-9a-f]{64}$/);
 			}
 		}
-		// c297's premise was false: a bundle fingerprints through its own
+		// A bundle fingerprints through its own
 		// ffmpeg's chromaprint muxer, so no fpcalc is pinned or shipped.
 		expect(pins.fpcalc).toBeUndefined();
 	});

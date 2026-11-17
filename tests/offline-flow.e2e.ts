@@ -22,8 +22,8 @@ async function seriesUrl(page: Page) {
 async function controlled(page: Page) {
 	// The service worker has to be in charge before anything is cached. It
 	// precaches the whole build first (about 1,400 files), from the preview
-	// every other test's context is also precaching from. Measured on
-	// 2026-11-03 (doc/handoff-notes/e2e.md): 10-16 s with six fresh contexts
+	// every other test's context is also precaching from. Measured: 10-16 s
+	// with six fresh contexts
 	// and nothing else at a load average of 25, and past 30 s in two of three
 	// whole loaded runs. The step is slow, not stuck, so it gets 90 s.
 	await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, null, {

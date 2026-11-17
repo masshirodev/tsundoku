@@ -10,7 +10,7 @@ import { expect, test } from './fixtures';
 import { revealOn } from './helpers/reveal';
 
 /**
- * Acting on a selection from `/search` (c838; doc/LIBRARY.md, "SELECT across
+ * Acting on a selection from `/search` (doc/LIBRARY.md, "SELECT across
  * the search"): the library's bar, its sheets and its actions, all posted to
  * `/`, and what each answer does here. Its own preview and seeded database,
  * because every case here writes: it is a flow, once, on the tablet.
@@ -464,7 +464,7 @@ test('GROUP into a series: the library’s redirect, and SELECT ends by leaving'
 	await expect(page.locator('.bulk')).toHaveCount(0);
 });
 
-test('the refusal over the bar lasts until the owner moves on: a tick, the query, ✕; ← leaves it behind', async ({
+test('the refusal over the bar lasts until the user moves on: a tick, the query, ✕; ← leaves it behind', async ({
 	page
 }) => {
 	const id = makeWork('Refusal Work', ['Hikaru ga Shinda Natsu', 'Boku no Kokoro no Yabai Yatsu']);

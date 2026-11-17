@@ -3,8 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-// Rung 59 (doc/SETTINGS.md, "How a device is kept"): `tv` among
-// devices.kind's values, written into the schema's text for the reason rung 47
+// Migration 59 (doc/SETTINGS.md, "How a device is kept"): `tv` among
+// devices.kind's values, written into the schema's text for the reason migration 47
 // gives. On a file, as the live database is.
 process.env.DATABASE_PATH = ':memory:';
 mkdirSync(join(process.cwd(), 'temp'), { recursive: true });
@@ -36,7 +36,7 @@ const insert = (conn: Database.Database, id: string, kind: string) =>
 		.prepare(`INSERT INTO devices (id, kind, label, seen_at, settings) VALUES (?, ?, 'x', 1, '{}')`)
 		.run(id, kind);
 
-describe('rung 59', () => {
+describe('migration 59', () => {
 	it('allows tv, still refuses what isn’t a kind, and keeps every row', () => {
 		const { conn, path } = at58();
 		expect(() => insert(conn, TV, 'tv')).toThrow(/CHECK constraint failed/);

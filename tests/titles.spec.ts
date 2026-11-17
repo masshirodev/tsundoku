@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { titleFromPath } from '$lib/library/titles';
 
-// A source that answers its details with no title (Mangahere; "Love Junkies", 2026-10-29).
+// A source that answers its details with no title (Mangahere; "Love Junkies").
 describe('a title from an address', () => {
 	it('takes the last part of the path, in words', () => {
 		expect(titleFromPath('/manga/love_junkies/')).toBe('Love Junkies');

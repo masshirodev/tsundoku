@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { inUseOf, withInUse, type HasOrigin } from '../src/routes/servers-in-use';
 
 /**
- * The page's own server wins over the bridge's flag (c261's S1 and S2).
+ * The page's own server wins over the bridge's flag.
  *
  * The bridge's `inUse` is the server with the newest OPENED, written only once
  * a page has finished loading, so the first library after a switch reads a

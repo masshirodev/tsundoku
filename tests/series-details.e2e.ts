@@ -3,19 +3,18 @@ import { expect, test } from './fixtures';
 import { previewId, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-world';
 
 /**
- * DETAILS, the fold above the list (c425; doc/SERIES.md "DETAILS";
- * doc/handoffs/series-phone/). On a phone the settings-like rows fold behind
- * one 64px line, closed by default and remembered for the device; SHELVES
- * and ABOUT stay above it, and ABOUT clamps to three lines. Everywhere else
- * these projects run (the tablet in both orientations, the desktop) nothing
- * folds, and ABOUT and TAGS stand under REFRESH and FOLLOW. A plain
- * `*.e2e.ts`, so it runs on the four device projects; the TV's stop is
- * tv-series-details.e2e.ts'.
+ * DETAILS, the fold above the list (doc/SERIES.md "DETAILS"). On a phone the
+ * settings-like rows fold behind one 64px line, closed by default and
+ * remembered for the device; SHELVES and ABOUT stay above it, and ABOUT clamps
+ * to three lines. Everywhere else these projects run (the tablet in both
+ * orientations, the desktop) nothing folds, and ABOUT and TAGS stand under
+ * REFRESH and FOLLOW. A plain `*.e2e.ts`, so it runs on the four device
+ * projects; the TV's stop is tv-series-details.e2e.ts'.
  *
  * It only reads the shared seed: Tower of God (series-layout's, unlinked, so
  * its line carries LISTS' NOT LINKED mark in ink) and Hoshi no Umi no
  * Tabibito, a doujin with no lists at all (the quiet line). Opening DETAILS
- * writes the browser's localStorage, which is the test's own context. c837's
+ * writes the browser's localStorage, which is the test's own context. The tag
  * cases write tags, through the EDIT sheet, so they run on a world of their own
  * (tests/helpers/tag-world.ts).
  */
@@ -49,7 +48,7 @@ const top = (page: Page, label: string) =>
 		: page.locator('.panel .label:visible', { hasText: new RegExp(`^${label}`) }).first()
 	).evaluate((n) => n.getBoundingClientRect().top + window.scrollY);
 
-/** Open it as the owner does, once the page runs (the server draws it closed). */
+/** Open it as the user does, once the page runs (the server draws it closed). */
 async function toggle(page: Page, to: boolean) {
 	await expect(async () => {
 		if ((await line(page).getAttribute('aria-expanded')) !== String(to)) await line(page).click();
@@ -70,12 +69,12 @@ test.describe('on a phone', () => {
 		const d = line(page);
 		await expect(d).toBeVisible();
 		await expect(d).toHaveAttribute('aria-expanded', 'false');
-		// 64px at the least (1C); a long mark wraps and the line grows, never cuts.
+		// 64px at the least; a long mark wraps and the line grows, never cuts.
 		await expect(d).toHaveCSS('min-height', '64px');
 		expect((await d.boundingBox())!.height).toBeGreaterThanOrEqual(64);
 		await expect(page.locator('[data-details]')).toBeHidden();
 		await expect(page.locator('.file-row')).toBeHidden();
-		// The order above the list (1A, B): SHELVES, ABOUT, DETAILS, then 01 — CHAPTERS.
+		// The order above the list: SHELVES, ABOUT, DETAILS, then 01 — CHAPTERS.
 		const shelves = await top(page, 'SHELVES');
 		const about = await top(page, 'ABOUT');
 		const at = (await d.boundingBox())!.y + (await page.evaluate(() => window.scrollY));
@@ -112,7 +111,7 @@ test.describe('on a phone', () => {
 		);
 	});
 
-	test('quiet, when nothing needs the owner: text-2, 400', async ({ page }) => {
+	test('quiet, when nothing needs the user: text-2, 400', async ({ page }) => {
 		await openSeries(page, 'Hoshi no Umi no Tabibito');
 		const state = line(page).locator('.dt-state');
 		// A doujin has no lists: its quiet word is its reading direction.
@@ -138,7 +137,7 @@ test.describe('on a phone', () => {
 		const d = line(page);
 		await expect(page.locator('.file-row')).toBeVisible();
 		await expect(d.locator('.dt-go')).toHaveText('HIDE ↑', { useInnerText: true });
-		// Open, the state line goes: the rows say it themselves (1C, G).
+		// Open, the state line goes: the rows say it themselves.
 		await expect(d.locator('.dt-state')).toHaveCount(0);
 		await expect(d).toHaveAttribute('aria-label', 'DETAILS');
 		const ink = await page.evaluate(
@@ -165,7 +164,7 @@ test.describe('on a phone', () => {
 		await expect(page.locator('.file-row')).toBeHidden();
 	});
 
-	test('TAGS stays inside DETAILS (1A, 1C), under SOURCE’s place, drawn once', async ({ page }) => {
+	test('TAGS stays inside DETAILS, under SOURCE’s place, drawn once', async ({ page }) => {
 		await openSeries(page, 'Tower of God');
 		await expect(page.locator('.panel .tags:visible')).toHaveCount(0);
 		await toggle(page, true);
@@ -281,10 +280,10 @@ test.describe('where nothing folds', () => {
 });
 
 /**
- * c837: each TAGS line used to cut off with an ellipsis, and `+ N MORE` was
+ * No TAGS line cuts off with an ellipsis, and `+ N MORE` is a control, not
  * plain text. Every tag is read whole and opened, from the row where it stands
  * on this device: under FOLLOW where nothing folds, inside DETAILS on a phone.
- * Tags go in through the EDIT sheet, the owner's own door, on a world of its
+ * Tags go in through the EDIT sheet, as the user adds them, on a world of its
  * own, in order: one series grows past the cap as the cases run.
  */
 test.describe('every tag can be read and opened', () => {
@@ -496,7 +495,7 @@ test.describe('every tag can be read and opened', () => {
 			)
 		);
 		expect(shape.contributors.lines).toBeGreaterThan(1);
-		// The namespace the design draws on a phone's row (1A) stays one word.
+		// The namespace the design draws on a phone's row stays one word.
 		expect(shape.language.lines).toBe(1);
 		// However long the namespace, the values keep one left edge.
 		expect(new Set(Object.values(shape).map((l) => l.vals)).size).toBe(1);
@@ -515,10 +514,10 @@ test.describe('every tag can be read and opened', () => {
 	});
 
 	/**
-	 * The card's "under REFRESH and FOLLOW". The shared seed has no series with a
+	 * "Under REFRESH and FOLLOW". The shared seed has no series with a
 	 * DOWNLOAD row, and a source's series only has a description if the source
 	 * gave one when it was added (REFRESH writes none), so this adds one the way
-	 * the owner does, from the source's preview.
+	 * the user does, from the source's preview.
 	 */
 	test('DOWNLOAD, with REFRESH and FOLLOW, stands above ABOUT and TAGS', async ({ page }) => {
 		await visit(page, world.ids.tagged);

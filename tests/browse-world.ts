@@ -27,7 +27,7 @@ function freePort(): string {
  * fake repositories over https with a throwaway certificate.
  *
  * Each is picked **once**, by the OS, when nothing assigns it: a fixed default
- * had two runs in one worktree fight over the engine's 4195 (c625: the second
+ * had two runs in one checkout fight over the engine's 4195 (the second
  * `playwright test` died at browse-setup.ts's `listen` with `EADDRINUSE`) and,
  * before that, over the repositories' 4196. The runner loads this module
  * first (playwright.config.ts imports it, for BROWSE_PORT's baseURL), pins the
@@ -37,9 +37,9 @@ function freePort(): string {
  * (tests/browse-player-watching.e2e.ts), and a port chosen per process would
  * differ between the server and the specs that call it.
  *
- * A `PLAYWRIGHT_*_PORT` the gate or a slot assigns still wins, so a gate's
- * slot runs where it is given; two runs sharing one assigned value collide,
- * which is why one worktree runs one Playwright invocation at a time
+ * A `PLAYWRIGHT_*_PORT` set in the environment still wins, so a run given
+ * its ports keeps them; two runs sharing one assigned value collide,
+ * which is why one checkout runs one Playwright invocation at a time
  * (doc/TESTING.md, "Ports").
  */
 export const BROWSE_PORT = Number((process.env.PLAYWRIGHT_BROWSE_PORT ||= freePort()));

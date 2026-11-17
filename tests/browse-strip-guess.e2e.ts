@@ -20,7 +20,7 @@ import sharp from 'sharp';
  * chapter with no file lives), at the tablet portrait with SIDES (a strip
  * narrower than the screen) and the phone (full width). The fake source's
  * pages are 600 × 900; this file serves its own, so each case knows the very
- * height that is a guess. Built on the parked attempt of Kantoku wave 42.
+ * height that is a guess.
  */
 
 const BROWSE = `http://localhost:${BROWSE_PORT}`;
@@ -127,7 +127,7 @@ async function openStrip(page: Page, sides = 0): Promise<number> {
 	await page.locator('.cta-go .cta').click();
 	await readerReady(page);
 	const id = Number(new URL(page.url()).pathname.split('/').pop()!);
-	// VERTICAL from the controls, the reader's own door (not a stored mode).
+	// VERTICAL from the controls, the reader's own way (not a stored mode).
 	await page.keyboard.press('Escape');
 	await page.getByRole('button', { name: /R→L ·/ }).click();
 	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
@@ -215,7 +215,7 @@ test.describe('a strip narrower than the screen (SIDES on a tablet)', () => {
 		const one = await topOf(page, id, 1);
 		const two = await topOf(page, id, 2);
 		// The page after the loaded one is still guessing, and a screen tall:
-		// the rule the card is about.
+		// the rule this file is about.
 		expect(await heightOf(page, id, 2)).toBeGreaterThanOrEqual(1280);
 		await scrollTo(page, one);
 		await page.keyboard.press('ArrowDown');
@@ -379,8 +379,8 @@ test.describe('a strip at full width (a phone)', () => {
 		await hungPage(page, 2);
 		const id = await openStrip(page);
 		await expect(slotOf(page, id, 1).locator('img')).toBeVisible({ timeout: 20_000 });
-		// Read slowly: past the limit since the chapter was built, which is
-		// where the parked attempt's clock started and had already let go.
+		// Read slowly: past the limit since the chapter was built, so a clock
+		// started at the mount would already have let go.
 		await page.waitForTimeout(11_000);
 		const two = await topOf(page, id, 2);
 		await scrollTo(page, two + 200);
@@ -462,7 +462,7 @@ test.describe('a stored page the manifest could not measure', () => {
 		await page.getByRole('link', { name: /▶/ }).first().click();
 		await readerReady(page);
 		const id = Number(new URL(page.url()).pathname.split('/').pop()!);
-		// VERTICAL from READING's sheet, the reader's own door.
+		// VERTICAL from READING's sheet, the reader's own way.
 		await page.keyboard.press('Escape');
 		await page.getByRole('button', { name: /R→L ·/ }).click();
 		const sheet = page.getByRole('dialog', { name: 'Reading settings' });

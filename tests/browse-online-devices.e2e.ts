@@ -3,13 +3,12 @@ import { expect, test } from './fixtures';
 import { SOURCES } from './browse-world';
 
 /**
- * Reading online on the other devices (card c168; Online Calls 1C, 1D and
- * board 5): the preview and the series rows at phone width and in the
- * landscape panel, and the RECORD row's own measurements. The fresh
- * preview's frame is pinned by the generated browse-preview-frame.e2e.ts;
+ * Reading online on the other devices: the preview and the series rows at phone
+ * width and in the landscape panel, and the RECORD row's own measurements. The
+ * fresh preview's frame is pinned by the generated browse-preview-frame.e2e.ts;
  * these are the hand-written additions it can't reach (a record, other
- * viewports). The numbers are the handoff's literals, pinned so a tidy-up
- * can't round them away.
+ * viewports). The numbers are the design's literals, pinned so a tidy-up can't
+ * round them away.
  */
 
 const preview = (n: number) =>
@@ -20,7 +19,7 @@ const css = (page: Page, sel: string, prop: string) =>
 		.first()
 		.evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
 
-test.describe('the phone (Online Calls 1C)', () => {
+test.describe('the phone', () => {
 	test.use({ viewport: { width: 360, height: 780 } });
 
 	test('the bar keeps both cells, + ADD short; 56px cells and 52px rows', async ({ page }) => {
@@ -34,13 +33,13 @@ test.describe('the phone (Online Calls 1C)', () => {
 	});
 });
 
-test.describe('tablet landscape (board 5A)', () => {
+test.describe('tablet landscape', () => {
 	test.use({ viewport: { width: 1280, height: 800 } });
 
 	test('the 440px panel beside the list, + ADD shortened', async ({ page }) => {
 		await page.goto(preview(8));
 		expect(await css(page, '.panel', 'width')).toBe('440px');
-		// Each row fills the list's column, not just its title (reported 2026-10-29).
+		// Each row fills the list's column, not just its title.
 		const [list, row] = await Promise.all([
 			page.locator('.list').evaluate((el) => el.getBoundingClientRect().width),
 			page
@@ -60,7 +59,7 @@ test.describe('tablet landscape (board 5A)', () => {
 	});
 });
 
-test('a record’s RECORD row is 68px with FORGET its cell, and the series rows’ ↓ is 72px (1B, 2A)', async ({
+test('a record’s RECORD row is 68px with FORGET its cell, and the series rows’ ↓ is 72px', async ({
 	page
 }) => {
 	test.setTimeout(60_000);

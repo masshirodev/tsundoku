@@ -377,7 +377,7 @@ describe('publishing reads the mark (ops/release/publish.ts)', () => {
 		expect(r.stderr).toContain('smoke.sh again');
 	});
 
-	it('refuses a version smoke-tested on Linux only, in the card’s words', () => {
+	it('refuses a version smoke-tested on Linux only, and says so', () => {
 		linuxOnly();
 		const r = publish();
 		expect(r.status).toBe(1);

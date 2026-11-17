@@ -9,9 +9,9 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './helpers/hydrated';
 
 /**
- * The player on a TV (TV-Player, TV-Board-Player): the picture until a
- * key, then all eight cells on one row with the scrubber above (the minute pair
- * is c865), the settings as a 420px panel, and the media keys a remote sends.
+ * The player on a TV: the picture until a key, then all eight cells on one
+ * row with the scrubber above, the settings as a 420px panel, and the media
+ * keys a remote sends.
  *
  * The seeded library has no anime -- the sample shelf is all books -- so this
  * runs against the browse world's own server, the one `tests/browse-anime.e2e.ts`
@@ -81,10 +81,10 @@ async function openLastEpisode(page: import('@playwright/test').Page): Promise<v
  * Playing, on the working stream, with the bar up. A browser that won't start
  * a video by itself is started by the bar, as a remote would.
  *
- * Waits on the picture's own state, never on time. Until wave 20 this
- * gave autoplay 5 s and then pressed ▶❚❚ regardless: under load autoplay
- * started in the same breath as the press, which paused it, and the case
- * began on a paused picture (its "Pause" read "Play"). So ▶❚❚ is pressed only
+ * Waits on the picture's own state, never on time. Giving autoplay 5 s and
+ * then pressing ▶❚❚ regardless fails under load: autoplay starts in the same
+ * breath as the press, which pauses it, and the case begins on a paused
+ * picture (its "Pause" reads "Play"). So ▶❚❚ is pressed only
  * while its label still says Play, and again until the picture plays. And the
  * fake's first server always fails over (the clip is 8 s; see streamReady), so
  * this also waits for the working stream, whose attach would otherwise land
@@ -220,7 +220,7 @@ test('eight cells on one row, and the first arrow lands on ▶❚❚', async ({ 
 	await openEpisode(page);
 	await play(page);
 
-	// 6B: the bar's own cells, in the design's order, on one row. The minute
+	// The bar's own cells, in the design's order, on one row. The minute
 	// pair sits outside the 10 s pair. (The volume, ? KEYS and the
 	// desktop's minute cells are not drawn here.)
 	await expect(bar(page)).toHaveCount(8);
@@ -233,10 +233,10 @@ test('eight cells on one row, and the first arrow lands on ▶❚❚', async ({ 
 	// The one cell that names the stream and opens the settings.
 	await expect(bar(page).nth(6)).toContainText('SUBS');
 	await expect(bar(page).nth(7)).toContainText('EP. 12 →');
-	// The first five are 76px, as TV-Focus draws the same bar.
+	// The first five are 76px, as the design draws the same bar.
 	for (const i of [0, 1, 2, 3, 4]) expect((await bar(page).nth(i).boundingBox())!.width).toBe(76);
 	// 56px under a 60px scrubber, inside the 28px safe bottom and the 48px
-	// sides. The bars themselves reach the screen's edges (TV-Player: the
+	// sides. The bars themselves reach the screen's edges (the
 	// margin is their padding), so no picture shows above or under them.
 	const cells = (await page.locator('.cells').boundingBox())!;
 	expect(cells.height).toBe(56);
@@ -246,7 +246,7 @@ test('eight cells on one row, and the first arrow lands on ▶❚❚', async ({ 
 	const bottom = (await page.locator('.bottom').boundingBox())!;
 	expect(Math.round(bottom.y + bottom.height)).toBe(540);
 	expect(Math.round((await page.locator('.top').boundingBox())!.y)).toBe(0);
-	// 6A: no middle cluster on a TV -- the bar is the interface.
+	// No middle cluster on a TV -- the bar is the interface.
 	await expect(page.locator('.cluster')).toBeHidden();
 
 	// Nothing focused yet; an arrow puts it on ▶❚❚, the bar's own start.
@@ -302,9 +302,9 @@ test('the settings cell opens the 420px panel, ← → changes a row, BACK gives
 });
 
 /**
- * c715: KEYS' ten 56px rows and its head are 616px, past the 540px panel, and
- * the sheet is `overflow: hidden`: the last rows were cut off with no way to
- * reach them. The rows scroll now, under the head, and each is a stop: the
+ * KEYS' ten 56px rows and its head are 616px, past the 540px panel, and
+ * the sheet is `overflow: hidden`, so the last rows would be cut off with no
+ * way to reach them. The rows scroll, under the head, and each is a stop: the
  * pad walks to the last, which is then wholly inside the panel and below the
  * head. A TV opens KEYS with `?` (its ? KEYS cell is the desktop's).
  */
@@ -388,8 +388,8 @@ test('the DIM range keeps ← → and lets ↑ leave it on a TV', async ({ page 
 	await page.keyboard.press('ArrowLeft');
 	await expect.poll(at).toBe('0');
 
-	// ↑ leaves it. Before c259 a native range kept all four arrows, so the pad
-	// was trapped in DIM (↑ stepped the value and nothing got out).
+	// ↑ leaves it. A native range keeps all four arrows, so the pad would be
+	// trapped in DIM (↑ stepping the value and nothing getting out).
 	await page.keyboard.press('ArrowUp');
 	await expect(dim).not.toBeFocused();
 	await expect
@@ -471,7 +471,7 @@ test.describe('the minute step', () => {
 		});
 		await page.waitForTimeout(100);
 		expect(await at()).toBeCloseTo(160, 1);
-		// And the pace is no lock: a door that sends no keyup still lets go once
+		// And the pace is no lock: a remote that sends no keyup still lets go once
 		// the interval has passed.
 		await page.waitForTimeout(600);
 		await mediaKey(page, 'MediaFastForward');
@@ -543,7 +543,7 @@ test('the picture until a key, SKIP INTRO taking OK, and BACK hiding then leavin
 	await openEpisode(page);
 	await play(page);
 	const player = page.locator('.player');
-	// 6A/6B: the bar hides after a few seconds of playing, and a key brings it
+	// The bar hides after a few seconds of playing, and a key brings it
 	// back with focus on ▶❚❚; BACK hides it at once.
 	await expect(player).not.toHaveClass(/chrome/, { timeout: 10_000 });
 	await page.keyboard.press('ArrowDown');
@@ -552,7 +552,7 @@ test('the picture until a key, SKIP INTRO taking OK, and BACK hiding then leavin
 	await page.keyboard.press('Escape');
 	await expect(player).not.toHaveClass(/chrome/);
 
-	// 6D: SKIP INTRO shows alone and takes OK, so skipping is one press.
+	// SKIP INTRO shows alone and takes OK, so skipping is one press.
 	await page.locator('video').evaluate((v: HTMLVideoElement) => (v.currentTime = 1.2));
 	await expect(page.getByRole('button', { name: 'SKIP INTRO →' })).toBeVisible();
 	await page.keyboard.press('Enter');
@@ -585,8 +585,8 @@ test('the player’s ← goes back to the series, so the next BACK does not reop
 	await page.locator('.top a.back').focus();
 	await page.keyboard.press('Enter');
 	await page.waitForURL(/\/series\/\d+/);
-	// Back in history, not a new series screen on top of the player
-	// (2026-11-02, the first real TV): one more step back is the library.
+	// Back in history, not a new series screen on top of the player (seen on
+	// a real TV): one more step back is the library.
 	await page.goBack();
 	await expect(page).not.toHaveURL(/\/read\//);
 	expect(page.url().startsWith(series)).toBe(true);
@@ -613,8 +613,8 @@ test('the seek bar keeps ← →, and ↑ from every cell of the row lands on it
 	});
 	await expect(page.locator('.player')).toHaveClass(/chrome/);
 
-	// ↑ from ▶❚❚: before c296 this took the far top bar's ←, which overlaps
-	// the cell while the line started one pixel past it.
+	// ↑ from ▶❚❚: not the far top bar's ←, which overlaps the cell when the
+	// line starts one pixel past it.
 	await page.locator('.cells .pause').focus();
 	await page.keyboard.press('ArrowUp');
 	await expect(track).toBeFocused();
@@ -638,7 +638,7 @@ test('the seek bar keeps ← →, and ↑ from every cell of the row lands on it
 	await expect(track).toBeFocused();
 
 	// OK on the bar is the pad's click on it, and it toggles the picture rather
-	// than doing nothing at all (the review's round-1 low 5).
+	// than doing nothing at all.
 	await page.keyboard.press('Enter');
 	await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(false);
 	await page.keyboard.press('Enter');
@@ -646,13 +646,12 @@ test('the seek bar keeps ← →, and ↑ from every cell of the row lands on it
 });
 
 /**
- * Part 2: with the bar hidden and nothing offered, ← → seek and the bar comes
+ * With the bar hidden and nothing offered, ← → seek and the bar comes
  * with the keys on it. This is the state the opt-out exists for: no SKIP, no
  * card, so the root carries `data-focus-off`, the focus layer never sees the
- * arrow, and the player's own handler seeks (doc/handoff-notes/tv-player.md,
- * part 2). The pause is at 0.4 s because the browse world's episodes open at
- * 1-3 s (tests/browse-setup.ts), and inside the opening SKIP INTRO is offered,
- * which lifts the opt-out.
+ * arrow, and the player's own handler seeks. The pause is at 0.4 s because
+ * the browse world's episodes open at 1-3 s (tests/browse-setup.ts), and
+ * inside the opening SKIP INTRO is offered, which lifts the opt-out.
  */
 test('← → with the bar hidden and nothing offered seek and put focus on the seek bar', async ({
 	page
@@ -702,10 +701,9 @@ test('← → with the bar hidden and nothing offered seek and put focus on the 
 
 /**
  * The same keys inside the opening, where SKIP INTRO is offered: the bar is
- * hidden but the root's opt-out is lifted so the pad can reach SKIP (part 5),
+ * hidden but the root's opt-out is lifted so the pad can reach SKIP,
  * and ← → come through the focus layer, which has no stop beside SKIP and
- * lets the key fall through to the player. Until c316 this was the only part-2
- * case, under the title of the one above.
+ * lets the key fall through to the player.
  */
 test('with SKIP INTRO offered and the bar hidden, ← → still seek and put focus on the seek bar', async ({
 	page
@@ -741,7 +739,7 @@ test('with SKIP INTRO offered and the bar hidden, ← → still seek and put foc
 });
 
 /**
- * The next-episode card (part 4): PLAY NOW is focused the moment it
+ * The next-episode card: PLAY NOW is focused the moment it
  * appears, ← → walk it, ↓ reaches the bar, ↑ comes back and OK plays EP. 12.
  */
 test('the next-episode card takes PLAY NOW, and the bar’s ↑ comes back to it', async ({ page }) => {
@@ -780,7 +778,7 @@ test('the next-episode card takes PLAY NOW, and the bar’s ↑ comes back to it
 });
 
 /**
- * SKIP on a TV (part 5): it takes focus when it appears, ↓ puts the pad
+ * SKIP on a TV: it takes focus when it appears, ↓ puts the pad
  * on the bar, ↑ returns to it, and the opening passing takes it away without
  * losing focus.
  */
@@ -801,7 +799,7 @@ test('SKIP takes focus, gives the bar focus, and gives it back', async ({ page }
 	await expect(skip).toBeVisible();
 	await expect(skip).toBeFocused();
 
-	// The bar goes, so SKIP is alone as 6D draws it; it keeps the focus.
+	// The bar goes, so SKIP is alone, as the design draws it; it keeps the focus.
 	await page.keyboard.press('Escape');
 	await expect(page.locator('.player')).not.toHaveClass(/chrome/);
 	await expect(skip).toBeFocused();
@@ -820,7 +818,7 @@ test('SKIP takes focus, gives the bar focus, and gives it back', async ({ page }
 	await expect(track).toBeFocused();
 });
 
-/** OK on the focused SKIP skips the opening in one press (part 5). */
+/** OK on the focused SKIP skips the opening in one press. */
 test('OK on the focused SKIP skips the opening', async ({ page }) => {
 	await openEpisode(page);
 	await play(page);
@@ -839,10 +837,10 @@ test('OK on the focused SKIP skips the opening', async ({ page }) => {
 });
 
 /**
- * The chrome's own 4 s must not strand the pad on the bar it has just hidden
- *: with the card up, `.bottom` is `data-focus-skip`, so a cell
- * focused there stops being a stop at all -- every arrow ran the layer's
- * "nothing focused" path (STAY), and OK clicked the dead track. The offer keeps
+ * The chrome's own 4 s must not strand the pad on the bar it has just hidden:
+ * with the card up, `.bottom` is `data-focus-skip`, so a cell
+ * focused there stops being a stop at all -- every arrow would run the layer's
+ * "nothing focused" path (STAY), and OK would click the dead track. The offer keeps
  * the pad while it is up. Playing, not paused: the card only stays while the
  * clip does, and hiding the bar by hand would leave the timer out of it.
  */
@@ -890,11 +888,11 @@ test('the chrome’s auto-hide hands the pad back to the card', async ({ page })
 });
 
 /**
- * Revealing the bar must not take the mark off ▶❚❚ and put it on SKIP (c296,
- * round 2). A SKIP inside its 8 s alone window is offered while the chrome is
- * hidden, and the bar coming up renders it again: a reveal, not a new offer, so
- * ▶❚❚ keeps the focus the owner asked for. ↑ still reaches SKIP, which is part
- * 5's return path, one press later because ↑ from a cell stops on the bar.
+ * Revealing the bar must not take the mark off ▶❚❚ and put it on SKIP. A
+ * SKIP inside its 8 s alone window is offered while the chrome is hidden, and
+ * the bar coming up renders it again: a reveal, not a new offer, so ▶❚❚ keeps
+ * the focus the user asked for. ↑ still reaches SKIP, its return path, one
+ * press later because ↑ from a cell stops on the bar.
  */
 test('revealing the bar keeps ▶❚❚, and ↑ still reaches an offered SKIP', async ({ page }) => {
 	await openEpisode(page);
@@ -907,7 +905,7 @@ test('revealing the bar keeps ▶❚❚, and ↑ still reaches an offered SKIP',
 	// Inside the opening with the bar down: SKIP shows alone and takes the pad.
 	// Paused, so the opening cannot run out while the alone window does (a
 	// loaded worker stretched the wait past the clip's 3 s), and the bar stays
-	// up until BACK hides it rather than hiding by itself first, which turned
+	// up until BACK hides it rather than hiding by itself first, which would turn
 	// BACK into leaving the player.
 	await video.evaluate((v: HTMLVideoElement) => {
 		v.pause();
@@ -938,7 +936,7 @@ test('revealing the bar keeps ▶❚❚, and ↑ still reaches an offered SKIP',
 });
 
 /**
- * Many languages on the 420px panel (c386, doc/ANIME.md "The settings
+ * Many languages on the 420px panel (doc/ANIME.md "The settings
  * sheet"): the episode's answer is widened in the browser to 11 audio and 30
  * subtitle languages, labelled as the workstation labels them, as
  * tests/browse-player-languages.e2e.ts does at the 520px sheet. Incognito
@@ -1240,7 +1238,7 @@ test.describe('the Work card on a TV', () => {
 		).toEqual({ chrome: false, onCard: true });
 
 		// → and ← walk the card's own row (▶ READ, WORK, ✕) and seek nothing.
-		// Measured so at the base too (c517 named ↓ and ↑ only): kept as a guard.
+		// Already so: kept as a guard.
 		const t0 = await video.evaluate((v: HTMLVideoElement) => v.currentTime);
 		await page.keyboard.press('ArrowRight');
 		await expect(card.getByRole('link', { name: 'WORK' })).toBeFocused();
@@ -1484,17 +1482,17 @@ test.describe('the seek preview on a TV', () => {
 		// Until the → flash has gone: a preview is asked for 150 ms after a
 		// stop (PREVIEW_DEBOUNCE_MS), well inside the flash's 900 ms, so by
 		// then a started one has asked for its quality, for ← and → alike.
-		// Until c575 this counted the document's <video>s, which a preview's
-		// hidden picture is never one of, so it read 1 either way.
+		// Not the document's <video>s, which a preview's hidden picture is
+		// never one of, so they read 1 either way.
 		await expect(page.locator('.flash')).toHaveCount(0);
 		expect(low, 'a stream on a TV started a seek preview').toEqual([]);
 	});
 });
 
 /**
- * c867 on a TV: a held → is the reader moving, not a stall. Tests/browse-player-stall.e2e.ts
+ * On a TV, a held → is the reader moving, not a stall. tests/browse-player-stall.e2e.ts
  * is the whole account and the other devices; this is the same stream made to
- * buffer, on the remote's own door (the bar's slider keeps the key once it has it).
+ * buffer, through the remote's own key (the bar's slider keeps the key once it has it).
  */
 test('a held → leaves the full 15 s after the release on a TV', async ({ page }) => {
 	test.setTimeout(120_000);

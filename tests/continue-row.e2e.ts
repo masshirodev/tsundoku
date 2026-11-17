@@ -100,8 +100,8 @@ test.describe('▶ in its cell', () => {
 });
 
 /**
- * The row hovers as one (owner, 2026-11-10): the band's own tint stopped short
- * of ▶, so half the row lit and the rest didn't. The row is tinted whole, ▶
+ * The row hovers as one: a tint on the band alone stops short of ▶, so half
+ * the row would light and the rest not. The row is tinted whole, ▶
  * keeps its own tint on top, and nothing moves (doc/MOTION.md).
  */
 test('a CONTINUE row hovers as one, all the way past ▶', async ({ page, isMobile }) => {
@@ -419,7 +419,7 @@ test.describe('a held press on the row', () => {
 	 * iOS sends no `contextmenu` for a held link (`src/lib/styles/base.css`,
 	 * doc/TOUCH.md), so `longpress` has nothing to cancel there and the CSS is
 	 * what keeps the selection off. The callout's half of the rule cannot be
-	 * seen in Chromium: it is on the owner's list in the handoff notes.
+	 * seen in Chromium: it is checked by hand on an iPhone.
 	 */
 	test('nothing on the row can be selected by a held finger', async ({ page }) => {
 		await page.goto('/');
@@ -484,7 +484,7 @@ test.describe('a held press on the row', () => {
 		await page.goto('/');
 		await expect(row(page).locator('a.band')).toHaveCount(1);
 		// Another series than the row's: a failed read leaves the sheet's id set,
-		// so a hold on the same one asks nothing (the note in doc/handoff-notes).
+		// so a hold on the same one asks nothing.
 		const rowTitle = (await row(page).locator('.title').textContent())!.trim();
 		const tile = page
 			.locator('.grid .tile')

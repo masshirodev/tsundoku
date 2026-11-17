@@ -58,7 +58,7 @@ describe('progress', () => {
 		expect(progressToSend({ reached: 0, remote: null, waiting: null })).toBeNull();
 	});
 
-	it('starts a series READING when it isn’t on the list, or only planned; any other status is the owner’s', () => {
+	it('starts a series READING when it isn’t on the list, or only planned; any other status is the user’s', () => {
 		expect(progressToSend({ reached: 3, remote: null, waiting: null })?.status).toBe('reading');
 		expect(
 			progressToSend({ reached: 3, remote: { progress: 0, status: 'planning' }, waiting: null })
@@ -99,7 +99,7 @@ describe('progress', () => {
 			progress: 11,
 			status: 'reading'
 		});
-		// ON HOLD and DROPPED are the owner's, the last episode too: the progress
+		// ON HOLD and DROPPED are the user's, the last episode too: the progress
 		// goes, the status stays -- and with the progress already there, nothing.
 		for (const status of ['on_hold', 'dropped'] as const) {
 			expect(

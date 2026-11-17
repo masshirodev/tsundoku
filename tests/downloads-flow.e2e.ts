@@ -19,7 +19,7 @@ import { revealOn } from './helpers/reveal';
  * The queue starts paused and the fake has no pages to give, so nothing is
  * ever written or imported: what's tested is every screen over tsundoku's
  * queue, read back from the database itself. The download is the worker's
- * spec's (engine-worker-db.spec.ts). Until c129 this drove a fake Suwayomi.
+ * spec's (engine-worker-db.spec.ts).
  */
 
 const PORT = Number(process.env.PLAYWRIGHT_DOWNLOADS_PORT ?? 4192);
@@ -240,8 +240,8 @@ test.use({ baseURL: BASE });
 test.beforeAll(async () => {
 	// This hook seeds a database and spawns a preview, then polls up to 60 s
 	// for it: all inside the default 30 s hook budget, where `work-end-frame`'s
-	// same shape ran past 30 s in wave 20's gate. Measured at 3 s here,
-	// at a load average of 20 with the other slots at work; the house budget is
+	// same shape ran past 30 s on a loaded machine. Measured at 3 s here,
+	// at a load average of 20 with other runs at work; the house budget is
 	// 120 s so a loaded gate fails a case, never the hook. In a hook,
 	// `test.setTimeout` sets the hook's own budget (Playwright's test.d.ts).
 	test.setTimeout(120_000);
@@ -305,7 +305,7 @@ test('the DOWNLOAD row and every chapter state (state 1)', async ({ page }) => {
 	await expect(row(page, 12).locator('.status .long')).toHaveText('QUEUED');
 	await expect(row(page, 14).locator('.status .long')).toHaveText('FAILED · 3 TRIES');
 	// A source serves it, so a chapter with no file reads online, and ↓ downloads
-	// it apart (the owner's answer to question 1, doc/READING-ONLINE.md; Online Board 2A).
+	// it apart (doc/BROWSING.md).
 	await expect(row(page, 16).locator('.status .long')).toHaveText('ONLINE');
 	await expect(row(page, 16).locator('.dl-cell')).toHaveText('↓');
 	await expect(row(page, 14).locator('.dl-cell')).toHaveText('RETRY');
@@ -454,7 +454,7 @@ test('searching the sources works without script: the server waits for every sou
 	await ctx.close();
 });
 
-test('library search carries the query to the sources, leaving out a mostly hidden one (1e)', async ({
+test('library search carries the query to the sources, leaving out a mostly hidden one', async ({
 	page
 }) => {
 	await page.goto('/search?q=linden');
@@ -526,7 +526,7 @@ test('TRY ALL AGAIN and TRY AGAIN ask only the source that did not answer, and a
 		await reveal(false);
 	}
 
-	// `ask` is a door only to a source the page asks: Toonily, whose every
+	// `ask` answers only for a source the page asks: Toonily, whose every
 	// series here is hidden, is not found outside reveal, and is asked inside it.
 	const ask = (source: string) =>
 		page.request.get(`/downloads/search/ask?${new URLSearchParams({ q: 'linden', source })}`);
@@ -545,12 +545,12 @@ test('TRY ALL AGAIN and TRY AGAIN ask only the source that did not answer, and a
 	}
 });
 
-test('a preview adds to the library, lands on the series, and UNDO takes it back (1e)', async ({
+test('a preview adds to the library, lands on the series, and UNDO takes it back', async ({
 	page
 }) => {
 	await page.goto(`/downloads/source/${SIDE}?q=linden`);
 	const add = page.getByRole('button', { name: /ADD TO LIBRARY/ });
-	// Reading first, adding beside it (Online Calls 1A): the count is the list's.
+	// Reading first, adding beside it: the count is the list's.
 	await expect(page.locator('.list .head')).toContainText('12 · ALL ONLINE');
 	await expect(page.locator('.ch')).toHaveCount(12);
 	await add.click();
@@ -623,7 +623,7 @@ test('DOWNLOAD’s ? opens 03’s In short, landing at ADD, DOWNLOAD, FOLLOW (do
 	await expect(sheet).toBeHidden();
 });
 
-test('FOLLOW turns accent, offers FOLLOWED, and comes off again (1d)', async ({ page }) => {
+test('FOLLOW turns accent, offers FOLLOWED, and comes off again', async ({ page }) => {
 	await page.goto(`/series/${ids.linden}`);
 	await page.locator('.dl-row .lcs.inline').getByRole('button', { name: 'FOLLOW' }).click();
 	const following = page

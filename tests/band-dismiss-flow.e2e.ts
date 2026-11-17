@@ -224,7 +224,7 @@ test('clearing the URL keeps the place and, when focus is elsewhere, the focus',
 	await expect(groupedBand(page)).toBeVisible();
 	await page.evaluate(() => window.scrollTo(0, 200));
 	expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
-	// What stays still is what the owner sees; the browser's scroll anchoring
+	// What stays still is what the user sees; the browser's scroll anchoring
 	// is what keeps it there when a band above goes, so scrollY itself moves.
 	const list = page.locator('.list-col').first();
 	const before = (await list.boundingBox())!.y;
@@ -531,7 +531,7 @@ test('/search: ✕ takes HIDDEN, a reload keeps it gone, and the Work stays hidd
 	await group.getByRole('button', { name: /CREATE WORK/ }).click();
 	await expect(page.locator('.band', { hasText: 'BANDHIDE RUN IS A WORK' })).toBeVisible();
 
-	// HIDE on a hit's sheet, the door that hands /search its band.
+	// HIDE on a hit's sheet, the one that hands /search its band.
 	await page.goto(`${BASE}/search?q=Omniscient`);
 	// A part of a Work: a series hit, so its sheet is the one that hands the band over.
 	await page.locator('.hit:not(.work)', { hasText: "Omniscient Reader's Viewpoint" }).click();

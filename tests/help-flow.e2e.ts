@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures';
 
 /**
- * HELP (doc/HELP.md, the HELP handoff): the list, a topic, a topic
+ * HELP (doc/HELP.md): the list, a topic, a topic
  * that can't apply here, the ways in, and a "?" in SETTINGS opening its
  * sheet. The reader's "?" is reader-flow.e2e.ts's; a series' DOWNLOAD "?" is
  * downloads-flow.e2e.ts's (the only server with downloading on).
@@ -23,9 +23,7 @@ test('HELP lists seven topics, each naming its parts', async ({ page }) => {
 	).toBeVisible();
 });
 
-test('a topic: IN SHORT, its parts with their screens, ← and →, STILL STUCK (1A)', async ({
-	page
-}) => {
+test('a topic: IN SHORT, its parts with their screens, ← and →, STILL STUCK', async ({ page }) => {
 	await page.goto('/help/downloading');
 	await expect(
 		page.getByRole('heading', { level: 2, name: 'Finding and downloading' })
@@ -46,7 +44,7 @@ test('a topic: IN SHORT, its parts with their screens, ← and →, STILL STUCK 
 	await expect(page.getByRole('link', { name: '07 — WHEN IT BREAKS →' })).toBeVisible();
 });
 
-test('a topic that can’t apply here says so in a dashed band (1E)', async ({ page }) => {
+test('a topic that can’t apply here says so in a dashed band', async ({ page }) => {
 	await page.goto('/help/updates');
 	const band = page.getByRole('note');
 	await expect(band).toContainText('NOT ON THIS INSTALL · IT HAS NO UPDATER');

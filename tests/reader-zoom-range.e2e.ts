@@ -3,7 +3,7 @@ import { expect, readerReady, test } from './fixtures';
 import { doubleTap } from './helpers/touch';
 
 /**
- * The image reader's zoom range, 20% to 500% (card c719; doc/READER.md,
+ * The image reader's zoom range, 20% to 500% (doc/READER.md,
  * "Zoom"): the READING sheet's ZOOM row walks the whole step list to each end
  * and stops there, a kept 20% survives a reload, and the geometry below 50%
  * holds on every device: a paged page shrunk and centred (fit screen, fit

@@ -46,8 +46,8 @@ describe('the default sort', () => {
 });
 
 /**
- * RECENTLY READ counts a series never opened as read when it was added (c524,
- * doc/LIBRARY.md, "Sort and direction"), reached through the doors that add
+ * RECENTLY READ counts a series never opened as read when it was added
+ * (doc/LIBRARY.md, "Sort and direction"), reached through the paths that add
  * one: a scan of the downloads, then a read through the reader's own call.
  */
 describe('RECENTLY READ and a series just added', () => {

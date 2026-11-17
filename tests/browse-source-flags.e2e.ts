@@ -11,7 +11,7 @@ import {
 import { revealOn } from './helpers/reveal';
 
 /**
- * A source's own switches (card c435; doc/BROWSE.md, "A source's own
+ * A source's own switches (doc/BROWSE.md, "A source's own
  * switches"): HIDDEN SOURCE, ADDED HIDDEN and OFF HISTORY, set on the source's
  * settings page and followed to the screens each one changes. It runs in the
  * browse project (its name), but in a world of its own (tests/helpers/
@@ -133,14 +133,14 @@ test('the kind it serves is set on the source, and AUTO clears it', async ({ pag
 	await expect(kind().getByRole('radio', { name: 'AUTO' })).toHaveAttribute('aria-checked', 'true');
 });
 
-test('HIDDEN SOURCE: the source is gone outside reveal, at every door, and back inside it', async ({
+test('HIDDEN SOURCE: the source is gone outside reveal, on every screen, and back inside it', async ({
 	page,
 	context
 }) => {
 	await page.goto(url('/browse'));
 	await expect(page.locator('a.row', { hasText: SOURCE.name }).first()).toBeVisible();
 
-	// With reveal off the switch lands on BROWSE, since the page it is on is no longer found.
+	// With reveal off the switch lands on BROWSE, since the page it is on is not found.
 	await flip(page, 'Hidden source', true);
 	await expect(page).toHaveURL(url('/browse'));
 	await expect(page.locator('a.row', { hasText: SOURCE.name })).toHaveCount(0);
@@ -348,7 +348,7 @@ test('ADDED HIDDEN: the first ADD from a source with nothing else here leaves it
 			// Hidden means not named: the source is on no line of the page.
 			await expect(page.locator('body')).not.toContainText(COLD.name);
 			await expect(page.locator('body')).not.toContainText(COLD.name.toUpperCase());
-			// Its own page is what round 1 landed on, and it is not found.
+			// Its own page is not found.
 			expect((await page.goto(url(`/browse/${COLD.id}`)))?.status()).toBe(404);
 			// The band is its URL: a load of it is a page, with the band and UNDO.
 			expect((await page.goto(bandUrl))?.status()).toBe(200);
@@ -421,8 +421,8 @@ async function flipAddedHidden(page: Page, id: string, on: boolean) {
 }
 
 /**
- * The two doors a person without script walks. Nothing the doors
- * themselves need is a handler: the refused UNDO, CONCEAL's question and its
+ * The two paths a person without script takes. Nothing those
+ * paths need is a handler: the refused UNDO, CONCEAL's question and its
  * band are each a form or a link, so the browser posts them and the server
  * answers with the page, which is what a phone with its scripts off gets.
  */
@@ -450,7 +450,7 @@ test.describe('without script', () => {
 			async () => {
 				// The preview's ADD is a promise in its data, so a browser without
 				// script never draws its button; the ADD is the state this case needs,
-				// not the door it walks, so it is made with script. COLD has nothing
+				// not the path it takes, so it is made with script. COLD has nothing
 				// else here, so it lands on BROWSE, with the band.
 				setup = await browser.newContext({
 					javaScriptEnabled: true,
@@ -481,7 +481,7 @@ test.describe('without script', () => {
 				await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
 
 				// Inside reveal the source is here: the band names it, and points at
-				// nothing hidden from this viewer (c605's third part).
+				// nothing hidden from this viewer.
 				await reveal(context, true);
 				await page.goto(bandUrl);
 				await expect(band).toContainText(`${COLD.name.toUpperCase()} ADDS ITS SERIES HIDDEN`);
@@ -587,7 +587,7 @@ test.describe('without script', () => {
 				await page.goto(first.href);
 				await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
 
-				// Four more ADDs from the same source, through the app's own door,
+				// Four more ADDs from the same source, through the preview's ADD,
 				// make it five hidden of nine: mostly hidden, so its own page is not
 				// found outside reveal any more (the page above was drawn before).
 				for (const manga of ['/manga/two', '/manga/three', '/manga/four', '/manga/five'])
@@ -611,7 +611,7 @@ test.describe('without script', () => {
 				// The tap, on the page drawn before the source went hidden: the
 				// source page's action is refused, and that page cannot draw the
 				// answer (its load 404s), so the refusal lands on BROWSE's band --
-				// where a bare post used to land on a "not found" page.
+				// not on a "not found" page.
 				const [answer] = await Promise.all([
 					page.waitForResponse((r) => r.url().includes(`/browse/${SOURCE.id}?/undoAdd`)),
 					band.getByRole('button', { name: 'UNDO' }).click()
@@ -699,7 +699,7 @@ test.describe('without script', () => {
 					storageState: await context.storageState()
 				});
 				const sp = await setup.newPage();
-				// The app's own door: the source page opened on a tag's origin, and a
+				// The app's own path: the source page opened on a tag's origin, and a
 				// result's tile tapped from it, so the preview is opened with that
 				// origin and its ADD answers with the source page again, `from` kept.
 				// One ADD of five leaves the source found, so the band is drawn here
@@ -1017,8 +1017,8 @@ test('CONCEAL ITS SERIES hides what the source shows, a Work whole, says so, and
 			// Put back what the case made: the hidden series shown, the Work ended.
 			await reveal(context, true);
 			await post('/?/hide', { id: String(gallery), on: '0' });
-			// c583: every Work door wants the Work's own moment (`made`), or the
-			// writer refuses as stale; read it off the screen the way the owner's
+			// Every Work action wants the Work's own moment (`made`), or the
+			// writer refuses as stale; read it off the screen the way the
 			// form carries it, and assert the cleanup landed.
 			if (workId) {
 				const made = await page

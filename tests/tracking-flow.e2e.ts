@@ -37,8 +37,7 @@ test('SETTINGS lists both catalogues, not signed in, and why they can’t be yet
 	// Only CATALOGUES' rows: SETTINGS > 05's IMPORT A BACKUP is drawn as an account row too.
 	const rows = page.getByRole('region', { name: '06 — CATALOGUES' }).locator('.acct');
 	// TMDB's key row comes first (its own cases are in tmdb-key-flow.e2e.ts),
-	// and Ranobe's row is there without a token too, saying so (Ranobe 3b;
-	// doc/RANOBE.md).
+	// and Ranobe's row is there without a token too, saying so (doc/RANOBE.md).
 	await expect(rows.locator('.label')).toHaveText(['TMDB', 'ANILIST', 'MAL', 'RANOBE']);
 	await expect(rows.locator('.name')).toHaveText([
 		'No key',

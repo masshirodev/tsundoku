@@ -345,7 +345,7 @@ describe('an episode’s streams', () => {
 	});
 
 	it('name every track by a short code of its own, the language in full beside it', async () => {
-		// The owner's screenshot (VidStreaming, KickAssAnime, 2026-11-03): most
+		// As seen on VidStreaming, KickAssAnime: most
 		// labels were codes, Hungarian and Italian whole words, and dozens of
 		// subtitles printed over each other.
 		const sub = (lang: string, i: number) => ({ url: `${ENGINE_SELF}/subs/${i}.vtt`, lang });

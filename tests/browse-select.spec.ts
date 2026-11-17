@@ -30,9 +30,9 @@ import {
 import type { FilterField } from '$lib/library/browse-filters';
 
 /**
- * SELECT in a source's catalog (card c868; doc/BROWSE.md, "SELECT in a
- * catalog"): the domain layer, pure, before any of it is drawn. The lines are
- * the boards' own words (doc/handoffs/browse-select/: Bars, Results, Show-Tablet).
+ * SELECT in a source's catalog (doc/BROWSE.md, "SELECT in a catalog"): the
+ * domain layer, pure, before any of it is drawn. The lines are the design's
+ * own words.
  */
 
 const MD: TickSource = {
@@ -162,7 +162,7 @@ describe('the bar and the bulk bar', () => {
 		expect(barCount([tick(MD), tick(AS)])).toEqual({ count: '2 SELECTED', sources: '· 2 SOURCES' });
 	});
 
-	it('says what the press will do, one source, all new (Bars A)', () => {
+	it('says what the press will do, one source, all new', () => {
 		const ticks = Array.from({ length: 9 }, () => tick(MD));
 		expect(pressLine(ticks, 'popular')).toEqual({
 			lead: '9 TO ADD',
@@ -175,7 +175,7 @@ describe('the bar and the bulk bar', () => {
 		expect(firstTenLine(ticks)).toBe('UP TO 90 CHAPTERS');
 	});
 
-	it('says sources, a twin and a source that adds hidden (Bars B)', () => {
+	it('says sources, a twin and a source that adds hidden', () => {
 		const ticks = [
 			...Array.from({ length: 11 }, () => tick(MD)),
 			tick(MD, { twin: true }),
@@ -194,7 +194,7 @@ describe('the bar and the bulk bar', () => {
 		expect(pressLine([tick(WC)], null).wide).toEqual(['WEEB CENTRAL ADDS IT HIDDEN']);
 	});
 
-	it('counts kinds apart, chapters and episodes too (Bars C)', () => {
+	it('counts kinds apart, chapters and episodes too', () => {
 		const ticks = [tick(MD), tick(MD), tick(MD), tick(NB), tick(KA), tick(KA)];
 		expect(pressLine(ticks, null).wide[0]).toBe('3 MANGA · 1 NOVEL · 2 ANIME');
 		expect(firstTenLine(ticks)).toBe('UP TO 40 CHAPTERS · 20 EPISODES');
@@ -320,7 +320,7 @@ describe('the press', () => {
 		expect(lanesLine(items)).toBe('MANGADEX 1 OF 2 · ASURA SCANS 0 OF 1');
 	});
 
-	it('ends in one result, all added (Results A)', () => {
+	it('ends in one result, all added', () => {
 		const items: PressItem[] = [
 			...Array.from({ length: 9 }, (_, i) => ({ tick: tick(MD), answer: added(i + 1) })),
 			...Array.from({ length: 5 }, (_, i) => ({ tick: tick(AS), answer: added(i + 20) }))
@@ -335,7 +335,7 @@ describe('the press', () => {
 		);
 	});
 
-	it('says what failed in a word each, and what was stale (Results B, C)', () => {
+	it('says what failed in a word each, and what was stale', () => {
 		const kagura = tick(MD, { title: 'Kagurabachi' });
 		const items: PressItem[] = [
 			{ tick: tick(MD), answer: added(1) },
@@ -353,7 +353,7 @@ describe('the press', () => {
 		expect(r.failed).toHaveLength(3);
 	});
 
-	it("says c505's words for many, outside reveal and in (Results D)", () => {
+	it('says how many were added hidden, outside reveal and in', () => {
 		const items: PressItem[] = [
 			{ tick: tick(MD), answer: added(1) },
 			{ tick: tick(WC), answer: added(2, { hidden: true }) },
@@ -399,7 +399,7 @@ describe('the press', () => {
 		);
 	});
 
-	it('says what UNDO leaves, before and after (Results E)', () => {
+	it('says what UNDO leaves, before and after', () => {
 		const list = Array.from({ length: 14 }, (_, i) => ({ seriesId: i + 1 }));
 		expect(undoBefore(list, [])).toEqual({ cell: 'UNDO', detail: '', out: 14 });
 		expect(undoBefore(list, [1, 2])).toEqual({

@@ -8,16 +8,15 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * A film's screen on a TV (the handoff's Film-TV board): the
- * stage is facts only, with no cells and no stops, so PLAY is the one place
- * the remote lands on the stage's side. The setup is film-screen.e2e.ts's.
+ * A film's screen on a TV: the stage is facts only, with no cells and no stops,
+ * so PLAY is the one place the remote lands on the stage's side. The setup is
+ * film-screen.e2e.ts's.
  *
- * (From film-screen.e2e.ts:) A film's screen, end to end (card c992; the handoff's Film-Desk and Kind
- * boards, doc/handoffs/movies-shows/): the count line and the one cell, the
- * stage in the list's place (the collection from c990's cache, ABOUT), and
- * KIND's CHANGE through the sheet to the band. Its own preview and database,
- * as tmdb-link-flow's, with a linked film and its collection seeded; TMDB is a
- * fake that answers nothing, since the screen never asks it.
+ * (From film-screen.e2e.ts:) A film's screen, end to end: the count line and
+ * the one cell, the stage in the list's place (the collection from the cache,
+ * ABOUT), and KIND's CHANGE through the sheet to the band. Its own preview and
+ * database, as tmdb-link-flow's, with a linked film and its collection seeded;
+ * TMDB is a fake that answers nothing, since the screen never asks it.
  */
 test.describe.configure({ mode: 'serial' });
 

@@ -169,8 +169,8 @@ for (const width of [390, 360]) {
 			test.setTimeout(60_000);
 			await longEpisode(page);
 			await openEpisode(page);
-			// Anime is watched with subtitles on, and the handoff draws the
-			// stream cell as 'EN · 720P' (Index Player.dc.html:288): the row has
+			// Anime is watched with subtitles on, and the design draws the
+			// stream cell as 'EN · 720P': the row has
 			// to fit that state, not the bare quality it reads with subs off.
 			// The stream cell opens the playback sheet; EN is the fixture's one
 			// track, picked there as a person picks it.

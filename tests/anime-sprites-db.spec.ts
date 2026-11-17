@@ -13,11 +13,11 @@ const shows = join(work, 'shows');
 process.env.COVER_DIR = covers;
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 
-// A downloaded episode's seek preview (doc/ANIME.md, "The player"; card
-// c385): the real ffmpeg cuts one frame every 10 s from the file into one
-// sheet, beside the episode's picture, and a sheet of a file that changed is
-// never served. The episodes are synthesised here: ffmpeg's test picture with
-// its hue turning, so the tiles of different moments can be told apart.
+// A downloaded episode's seek preview (doc/ANIME.md, "The player"): the real
+// ffmpeg cuts one frame every 10 s from the file into one sheet, beside the
+// episode's picture, and a sheet of a file that changed is never served. The
+// episodes are synthesised here: ffmpeg's test picture with its hue turning, so
+// the tiles of different moments can be told apart.
 function encode(path: string, seconds: number, colour?: string): void {
 	execFileSync('ffmpeg', [
 		'-loglevel',

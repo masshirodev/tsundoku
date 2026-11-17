@@ -166,7 +166,7 @@ describe('with it', () => {
 		process.env.RANOBE_SUGGEST_TOKEN = 'rb_app';
 	});
 
-	it('suggests the work and its author through the app account, never the owner’s token', async () => {
+	it('suggests the work and its author through the app account, never the user’s own token', async () => {
 		const r = await sg.suggestWork(B5, NOW);
 		expect(r).toEqual({ outcome: 'suggested', bundle: 7 });
 		// Searched once more first, with the volume taken off.
@@ -202,7 +202,7 @@ describe('with it', () => {
 		expect(sss[0].snapshot).toMatchObject({ originalLang: 'en', kind: 'web_novel' });
 		expect(orv[0].snapshot).toMatchObject({ name: '싱숑', latin: 'Sing-shong', lang: 'ko' });
 		// A title in the original language is required, and the file's is English:
-		// the Korean guess is in the reason, for the owner to fix before approving.
+		// the Korean guess is in the reason, for the reviewer to fix before approving.
 		expect(orv[1].snapshot).toMatchObject({ originalLang: 'en' });
 		const reason = (posted()[1].body as { reason: string }).reason;
 		expect(reason).toContain('probably ko');

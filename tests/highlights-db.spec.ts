@@ -21,10 +21,10 @@ const { buildMoveMap } = await import('$lib/library/move');
 const { foldSeries } = await import('$lib/server/import/fold');
 
 /**
- * Highlights' life (doc/HIGHLIGHTS.md): rung 72's record and its
- * triggers, reached through the app's own doors. Every highlight here is
- * seeded straight into the table, because H1 has no way to make one; every
- * change to a pointer comes from a door the app has (delete.ts, the
+ * Highlights' life (doc/HIGHLIGHTS.md): migration 72's record and its
+ * triggers, reached through the app's own code paths. Every highlight here is
+ * seeded straight into the table; every change to a pointer comes from a
+ * path the app has (delete.ts, the
  * importer's writeSeries, browse's ADD, MOVE and MOVE BACK, a fold).
  */
 
@@ -99,7 +99,7 @@ function entry(seriesId: number, n: number, o: { file?: string; url?: string } =
 	);
 }
 
-/** A highlight as H2-H4 will make one: the pointer, the snapshot, hidden copied from the series. */
+/** A highlight as the app makes one: the pointer, the snapshot, hidden copied from the series. */
 function highlight(
 	seriesId: number,
 	entryId: number,
@@ -213,7 +213,7 @@ describe('nothing cascades into a highlight', () => {
 	});
 });
 
-describe('every door that deletes (delete.ts, MOVE BACK, a fold)', () => {
+describe('every path that deletes (delete.ts, MOVE BACK, a fold)', () => {
 	it('DELETE keeps them by default, ORPHAN; DELETE THEM TOO removes rows and copies', async () => {
 		mkdirSync(join(work, 'highlights', 'pages'), { recursive: true });
 		const copy = join(work, 'highlights', 'pages', 'keep.webp');
@@ -364,7 +364,7 @@ describe('a series re-added from the same source re-resolves by its keys', () =>
 		const s = series('Readded', { key });
 		const keep = highlight(s, entry(s, 5));
 		const lost = highlight(s, entry(s, 9));
-		// A door that deletes without a tombstone (browse's UNDO of an ADD).
+		// A path that deletes without a tombstone (browse's UNDO of an ADD).
 		db.prepare(`DELETE FROM series WHERE id = ?`).run(s);
 		expect(pointer(keep).state).toBe('orphan_series');
 		writeSeries(
@@ -550,7 +550,7 @@ describe('MOVE and MOVE BACK re-point by number', () => {
 	});
 });
 
-describe('the owner’s own changes', () => {
+describe('the user’s own changes', () => {
 	it('a note and a quote’s colour change; a page has no colour; DELETE waits for UNDO, then goes', () => {
 		const s = series('Notes');
 		const e = entry(s, 1);

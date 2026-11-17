@@ -3,8 +3,7 @@ import { expect, test } from './helpers/hydrated';
 import { revealOn } from './helpers/reveal';
 
 /**
- * The FILTER panel and + NEW (Library Filters turn 3, card c68;
- * doc/FILTERS.md), end to end on the seeded library.
+ * The FILTER panel and + NEW (doc/FILTERS.md), end to end on the seeded library.
  */
 
 const filterCell = (page: Page) =>
@@ -15,8 +14,8 @@ const rowOf = (page: Page, label: string) =>
 	panel(page).locator('.row', { has: page.locator('.label', { hasText: label }) });
 
 /**
- * Open the panel. It's a <details> and the element is the truth (c105,
- * FilterPanel.svelte), so one click opens it whether or not the page has
+ * Open the panel. It's a <details> and the element is the truth
+ * (FilterPanel.svelte), so one click opens it whether or not the page has
  * hydrated yet: no wait, and no second click.
  */
 async function openFilters(page: Page) {
@@ -49,8 +48,8 @@ test('a filter narrows the shelf: the URL, the label, the tab’s count and the 
 	// a total read before the filter: ALL counts the shared database, and the
 	// flows beside this one hide, delete and group series meanwhile
 	// (library-flow, series-flow, delete-flow, volumes-flow), so the total read
-	// at the first load was another library's by the filtered one. Red in both
-	// of wave 22's gates, passing alone.
+	// at the first load was another library's by the filtered one. Red under
+	// load, passing alone.
 	// M is only bounded from below: the render states no total of ALL's to
 	// compare it with, and a total read on another load is another library's.
 	const shown = await page.locator('.grid .tile').count();
@@ -104,7 +103,7 @@ test('the retired shelves’ old links land on the same books, as filters', asyn
 	await expect(page).not.toHaveURL(/rated4/);
 	await page.goto('/?shelf=downloaded');
 	await expect(page).toHaveURL(/dl=1/);
-	// And c436's: SERIES and ONE-OFF are FORM, each kind's shelf the band's ?kind=.
+	// And the KIND band's: SERIES and ONE-OFF are FORM, each kind's shelf the band's ?kind=.
 	await page.goto('/?shelf=series&sort=title');
 	await expect(page).toHaveURL(/shelf=all.*form=series/);
 	await expect(page.getByText('02 — ALL · SERIES')).toBeVisible();
@@ -184,7 +183,7 @@ test('the KIND band narrows any shelf to one kind, and FILTER has FORM instead o
 	await expect(band.getByRole('link', { name: /^MANHWA/ }).locator('.n')).toHaveText(
 		String(manhwa)
 	);
-	// FILTER no longer has KIND here: the band is that choice. It has FORM.
+	// FILTER has no KIND here: the band is that choice. It has FORM.
 	await openFilters(page);
 	await expect(rowOf(page, 'KIND')).toHaveCount(0);
 	await rowOf(page, 'FORM').getByRole('link', { name: 'SERIES' }).click();

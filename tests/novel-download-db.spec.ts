@@ -37,7 +37,7 @@ const fakeHost = {
 				url: 'https://good.example/other/place/c-9.html'
 			};
 		// A redirect that keeps the path and changes the host, which is how
-		// wuxiaworld.com's apex answers for www (measured on 2026-11-06).
+		// wuxiaworld.com's apex answers for www (measured).
 		if (path === '/c/hostmoved')
 			return {
 				html: '<p>Text of /c/hostmoved.</p><img src="/i/plate.png">',
@@ -291,7 +291,7 @@ describe('downloading a novel', () => {
 		expect(positions()).toEqual(was);
 		const d = await states();
 		expect(d.states[entry('/c/broken').id].kind).toBe('queued');
-		// The owner's rename stands: the book's title doesn't overwrite it.
+		// The user's rename stands: the book's title doesn't overwrite it.
 		expect(
 			(db.prepare(`SELECT title FROM series WHERE id = ?`).get(seriesId) as { title: string }).title
 		).toBe('Renamed');
@@ -434,8 +434,8 @@ describe('a chapter’s pictures resolve against the page it came from', () => {
 	it('falls back to the plugin’s site when the plugin asked it for something else', async () => {
 		await one('Chapter 10', '/c/self');
 		// `url` is null — the plugin read its chapter elsewhere — so the
-		// downloader resolves against the chapter's path on the plugin's site,
-		// exactly the line it used before c631. A chapter that ended where it
+		// downloader resolves against the chapter's path on the plugin's site.
+		// A chapter that ended where it
 		// asked lands on the same base: the picture of `/c/1` in the book above
 		// is `https://good.example/i/plate.png` either way.
 		expect(imagesAsked).toEqual(['https://good.example/i/plate.png']);

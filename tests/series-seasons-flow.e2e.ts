@@ -11,7 +11,7 @@ import { expect, test } from './fixtures';
 import { revealOn } from './helpers/reveal';
 
 /**
- * The series screen's seasons around an anime (c358; doc/SERIES.md, "The
+ * The series screen's seasons around an anime (doc/SERIES.md, "The
  * seasons around it"), end to end: the link pass run by its own script
  * (`scripts/links.ts`) against a stand-in AniList fills the relation cache,
  * and the screen draws the seasons before, NEXT SEASON and the folded extras
@@ -49,7 +49,7 @@ function freePort(): Promise<number> {
 // ---- the stand-in AniList -------------------------------------------------------------------
 
 /**
- * The card's chain (its 'What counts'), each entry with its edges both ways
+ * A chain of seasons, each entry with its edges both ways
  * as AniList answers `relations { edges { relationType node } }`: a loop
  * (S5 names S1 its SEQUEL), a branch (S4's SPECIAL prequel beside its ONA
  * one), a MOVIE on the main chain, OVAs and an ONA as side stories, an ONA
@@ -281,7 +281,7 @@ function seed(): Ids {
 const ids = seed();
 
 /**
- * The pass, by its own door: `yarn run links` with no search, against the
+ * The pass, by its own script: `yarn run links` with no search, against the
  * stand-in. Asynchronous: the stand-in answers from this process, which a
  * synchronous child would hold until AniList's own 20 s timeout.
  */

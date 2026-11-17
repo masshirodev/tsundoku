@@ -7,7 +7,7 @@ vi.mock('$lib/server/covers', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/server/covers')>()),
 	refreshCovers: refresh
 }));
-// c648's round 2: a KEEP's delete failing on I/O is not a refusal, and the
+// A KEEP's delete failing on I/O is not a refusal, and the
 // library's load must survive whatever `applyPending` does. Both replace one
 // export and keep the rest real.
 vi.mock('$lib/server/delete', async (importOriginal) => {
@@ -155,13 +155,12 @@ describe('a chapter from two scanlators', () => {
 	});
 });
 
-// c648 (works' review r1 low; works' Gap 1, wave 27's c558): a decision the
-// state refuses is answered and dropped, not left waiting. Left waiting it was
-// invisible -- `reviewQueue` and the scan's `settled` leave out every decided
-// pair, applied or not -- it could not be undone once the review's session
-// ended, and every library load tried it again and queued a cover refresh,
-// because `touched` was filled before the try. A library that holds no such
-// pair any more gets it back at the review, undecided.
+// A decision the state refuses is answered and dropped, not left waiting. Left
+// waiting it was invisible -- `reviewQueue` and the scan's `settled` leave out
+// every decided pair, applied or not -- it could not be undone once the
+// review's session ended, and every library load tried it again and queued a
+// cover refresh, because `touched` was filled before the try. A library that
+// holds no such pair any more gets it back at the review, undecided.
 describe('a decision the review cannot carry out', () => {
 	const idOf = (title: string) =>
 		(db.prepare(`SELECT id FROM series WHERE title = ?`).get(title) as { id: number }).id;
@@ -270,7 +269,7 @@ describe('a decision the review cannot carry out', () => {
 		// touches no series.
 		expect(refresh).not.toHaveBeenCalled();
 		expect(seriesOf(ea)).not.toBe(seriesOf(eb));
-		// The extra gone, the next load does not fold it behind the owner's
+		// The extra gone, the next load does not fold it behind the user's
 		// back: the decision is gone with the refusal.
 		db.prepare(`DELETE FROM entries WHERE id = ?`).run(extra);
 		expect(await applyPending()).toEqual({ applied: 0, refused: [], failed: [] });
@@ -352,7 +351,7 @@ describe('a decision the review cannot carry out', () => {
 		// Not a refusal: a plain I/O failure moving a KEEP's loser to the trash
 		// (EACCES here). The row is neither dropped nor marked applied, the
 		// answer says which pair failed, the GROUP waiting behind it is still
-		// carried out, and its cover is queued (c648's round 2).
+		// carried out, and its cover is queued.
 		write(
 			plan([entry(1, '', { sourceUrl: '/io/keep', pageCount: 3 })], {
 				originKey: 'hentoid:io-keep',
@@ -440,7 +439,7 @@ describe('a decision the review cannot carry out', () => {
 
 	it('the library’s own load survives applyPending failing outright', async () => {
 		// The belt to the per-decision braces above: even if applyPending
-		// itself throws, the library's home load answers (c648's round 2).
+		// itself throws, the library's home load answers.
 		const dupes = await import('$lib/server/dupes');
 		const { load } = await import('../src/routes/+page.server');
 		vi.mocked(dupes.applyPending).mockRejectedValueOnce(new Error('EACCES'));

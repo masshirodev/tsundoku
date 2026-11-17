@@ -31,9 +31,9 @@ chmodSync(process.env.FFPROBE, 0o755);
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 
 /**
- * A series that holds a source and a folder per season (c282; doc/WORKS.md,
+ * A series that holds a source and a folder per season (doc/WORKS.md,
  * "Per-season sources"). Each reader of the origin is run with a two-season
- * series and with a series without rows: the promise of the card is the
+ * series and with a series without rows: what matters most is the
  * second, that a series with no rows reads exactly as it did.
  */
 const source = vi.hoisted(() => ({
@@ -180,7 +180,7 @@ describe('the resolver', () => {
 		expect(facts.followOrigin(id, db)).toEqual({ key: 'aniyomi:1:/s1', season: null });
 	});
 
-	it('reads an entry with no season as season 0, the flat list’s row, as c240 does', () => {
+	it('reads an entry with no season as season 0, the flat list’s row', () => {
 		const id = show('Flat', 'aniyomi:1:/series');
 		const flat = episode(id, null, 1);
 		const one = episode(id, 1, 1);
@@ -365,7 +365,7 @@ describe('FOLLOW and REFRESH ask the last season', () => {
 		const id = show('Plain', 'aniyomi:7:/plain');
 		listing('/plain', [1, 2]);
 		await checkAnime(id, 1000, db, { queue: false });
-		// The plan's own positions and no stamp: the base's answer (see the notes' differential).
+		// The plan's own positions and no stamp: the base's answer.
 		expect(rows(id).map((r) => [r.url, r.season, r.position])).toEqual([
 			['/plain/ep-1', null, 1],
 			['/plain/ep-2', null, 2]
@@ -396,7 +396,7 @@ describe('each season keeps its own folder', () => {
 			key: 'aniyomi:7:/plain',
 			season: null
 		});
-		// Fixed at the first ask (rung 48), whichever door asks.
+		// Fixed at the first ask (migration 48), whichever caller asks.
 		expect(db.prepare(`SELECT folder FROM anime_series WHERE series_id = ?`).get(plain)).toEqual({
 			folder: 'Anime/Plain'
 		});
@@ -638,7 +638,7 @@ describe('the anime importer folds a season’s folder onto its series', () => {
 			db.prepare(`SELECT id FROM series WHERE origin_key = 'aniyomi:7:/s1'`).get() as { id: number }
 		).id;
 		expect(db.prepare(`SELECT path FROM series WHERE id = ?`).get(id)).toEqual({ path: dirA });
-		// As they stood on the first scan: two series, until a later slice merges them.
+		// As they stood on the first scan: two series, before anything merges them.
 		db.prepare(`DELETE FROM series WHERE origin_key = 'aniyomi:7:/s2'`).run();
 		facts.putSeasonFact(
 			{ seriesId: id, season: 2, originKey: 'aniyomi:7:/s2', folder: 'Anime/Merged II' },
@@ -677,7 +677,7 @@ describe('the anime importer folds a season’s folder onto its series', () => {
 		expect(entriesOf(id).map((e) => e.available)).toEqual([1, 1]);
 	});
 
-	it('planAnimeSeries, the downloader’s own door, finds the same series', () => {
+	it('planAnimeSeries, the downloader’s own way in, finds the same series', () => {
 		const a = show('Merged', 'aniyomi:7:/s1');
 		db.prepare(`UPDATE series SET path = ? WHERE id = ?`).run(join(library, 'Anime', 'Merged'), a);
 		facts.putSeasonFact(
@@ -696,7 +696,7 @@ describe('the anime importer folds a season’s folder onto its series', () => {
 		const LATE = 'aniyomi:7:/late';
 		const FIRST = `${KEY}/ep-1-1`;
 		const SECOND = `${LATE}/ep-2-1`;
-		// A series the owner added from a source: no folder yet, and two episodes waiting.
+		// A series added from a source: no folder yet, and two episodes waiting.
 		function waiting(): number {
 			const a = show('Merged', KEY);
 			for (const [url, season] of [
@@ -745,7 +745,7 @@ describe('the anime importer folds a season’s folder onto its series', () => {
 
 		it('the season’s folder first, by a full scan, and every scan after it finds the same', () => {
 			const a = waiting();
-			// The order the review named: `Late` sorts before `Merged`.
+			// The order that matters: `Late` sorts before `Merged`.
 			const order = planAnimeFolders(library, () => {}, NOW).map((p) => p.path);
 			expect(order).toEqual([join(library, 'Anime', 'Late'), join(library, 'Anime', 'Merged')]);
 			scan();
@@ -1097,7 +1097,7 @@ describe('MOVE, by the season each entry is from', () => {
 			expect(series).toMatchObject({ origin_key: T, former_key: K });
 			expect(entries(a)).toEqual(before);
 			expect(facts.heldByOther(K, b, db)).toBeNull();
-			// And neither door offers what the action refuses.
+			// And neither the screen nor the comparison offers what the action refuses.
 			expect(await offered(a)).toEqual({ screen: false, comparison: false });
 		});
 
@@ -1151,7 +1151,7 @@ describe('MOVE, by the season each entry is from', () => {
 				.get(id) as Parameters<typeof seriesFolder>[1];
 		beforeEach(() => rmSync(join(library, 'Anime'), { recursive: true, force: true }));
 		afterAll(() => rmSync(join(library, 'Anime'), { recursive: true, force: true }));
-		// Downloaded and attached, through the doors a download goes through.
+		// Downloaded and attached, through the paths a download goes through.
 		async function downloaded(ep: number): Promise<string> {
 			const path = await downloadEpisode(ep, deps);
 			for (const plan of planAnimeSeries(library, path, NOW))
@@ -1375,8 +1375,8 @@ describe('fingerprinting leaves alone the source a download is using', () => {
 });
 
 describe('AniSkip asks the season’s own MAL entry, with the number within the season', () => {
-	// c349 built this: the rows here only prove a season's source sits beside
-	// its link without changing the question (premise in the notes).
+	// The rows here only prove a season's source sits beside its link without
+	// changing the question.
 	const link = (series: number, season: number, mal: number) =>
 		db
 			.prepare(

@@ -5,7 +5,7 @@ import { expect, test } from './helpers/hydrated';
  * generated tests/library-frame.e2e.ts (which pins the tablet-portrait
  * measurements and is overwritten when regenerated).
  *
- * The numbers come from Index Library.dc.html's parameters: columns
+ * The numbers come from the design's parameters: columns
  * 3 / 6 / 9 / 8, header 60 / 72 / 72 / 64, page padding 16 / 24, continue rows
  * 2 / 4, continue columns 1 / 1 / 2 / 2, and a 248px sidebar on desktop only.
  * They are hand-set, not a ladder; a tidy-up that rounds them would redraw the
@@ -28,7 +28,7 @@ const FRAMES: Record<string, Frame> = {
 	'tablet-landscape': { cols: 9, header: 72, pad: 24, cont: 4, contCols: 2, sidebar: false },
 	phone: { cols: 3, header: 60, pad: 16, cont: 2, contCols: 1, sidebar: false },
 	desktop: { cols: 8, header: 64, pad: 24, cont: 4, contCols: 2, sidebar: true },
-	// TV Calls.dc.html: 6 x 144px columns, a 56px header, CONTINUE 3 across.
+	// 6 x 144px columns, a 56px header, CONTINUE 3 across.
 	tv: { cols: 6, header: 56, pad: 48, cont: 3, contCols: 3, sidebar: false, rowPad: 8 }
 };
 
@@ -106,11 +106,11 @@ test('unrated (0) draws no track at all; a rated series draws its whole track', 
 			.evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor));
 	// Series no other spec rates, hides or groups: they run beside this one on
 	// the same database (doc/TESTING.md, "The readers beside the flows").
-	// Villainess Level 99 was read here until c252, and volumes-flow groups it
-	// away mid-run; Boku no Kokoro after it, until tv-series' RATING case was
-	// seen moving it a half-bar down and back, and a half bar is a gradient
-	// whose colour reads as none. privacy-flow only logs Yofukashi's reading
-	// and links-flow undoes its link; Mushoku Tensei's history is history-flow's.
+	// Not Villainess Level 99, which volumes-flow groups away mid-run, nor Boku
+	// no Kokoro, which tv-series' RATING case moves a half-bar down and back,
+	// and a half bar is a gradient whose colour reads as none. privacy-flow
+	// only logs Yofukashi's reading and links-flow undoes its link; Mushoku
+	// Tensei's history is history-flow's.
 	const unrated = await bars('Yofukashi no Uta');
 	const rated = await bars('Mushoku Tensei');
 	expect(unrated).toHaveLength(5);
@@ -153,8 +153,7 @@ test('the first paint is already the right layout, before any script runs', asyn
 	await context.close();
 });
 
-// The desktop's bar used to scroll away with the grid; c433 kept it on top
-// there too, on purpose.
+// The desktop's bar stays on top too, on purpose.
 test('the bar with the name, search and SELECT stays on top as the grid scrolls, on every device', async ({
 	page
 }) => {
@@ -177,7 +176,7 @@ test('RESCAN in the sidebar starts a scan once asked, and says so when there is 
 	const sidebar = page.locator('aside.sidebar');
 	// playwright.config.ts points LIBRARY_ROOT at an empty folder, so this
 	// refuses rather than importing into the shared seeded database. It asks
-	// first since c525 (tests/rescan-confirm.e2e.ts has the question's cases).
+	// first (tests/rescan-confirm.e2e.ts has the question's cases).
 	await sidebar.getByRole('button', { name: 'RESCAN' }).click();
 	await page
 		.getByRole('dialog', { name: 'RESCAN THE LIBRARY FOLDER?' })
@@ -190,7 +189,7 @@ test('on a short desktop the shelves scroll in their own space: nothing squeezed
 	page
 }, info) => {
 	test.skip(info.project.name !== 'desktop', 'the sidebar is the desktop’s');
-	// Too short for every shelf and the foot (owner, 2026-10-31: + NEW SHELF was squeezed).
+	// Too short for every shelf and the foot (+ NEW SHELF was squeezed).
 	await page.setViewportSize({ width: 1440, height: 640 });
 	await page.goto('/');
 	const scroll = page.locator('.sidebar .shelf-scroll');

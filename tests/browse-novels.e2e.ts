@@ -3,7 +3,7 @@ import { resetEngine } from './browse-world';
 
 /**
  * A novel from an LNReader plugin, end to end (doc/NOVELS.md,
- * "Downloading"; card c150): added from BROWSE, two of its three chapters
+ * "Downloading"): added from BROWSE, two of its three chapters
  * downloaded through the real plugin host into its EPUB, imported onto the
  * series ADD made, read in the text reader up to the chapter that isn't
  * downloaded, and followed. The plugin is tests/fixtures/lnreader/shelf.js, installed by
@@ -34,7 +34,7 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read on
 	await expect(dl.locator('.lcs.inline .lc')).toHaveText(['FIRST 3', 'REFRESH', 'FOLLOW']);
 
 	// Two chapters, ↓ each: queued in the one queue, downloaded by the novel worker.
-	// The row itself reads online (the owner's answer to question 1, doc/READING-ONLINE.md).
+	// The row itself reads online (doc/BROWSING.md).
 	const row = (title: string) => page.locator('[id^="entry-"]', { hasText: title });
 	for (const t of ['Dust', 'Light']) {
 		await row(t).locator('.dl-cell').click();

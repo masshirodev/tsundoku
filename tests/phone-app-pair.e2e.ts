@@ -9,12 +9,11 @@ import { pathToFileURL } from 'node:url';
  * for the phone app's bridge, whose `form()` says "mobile". The TV's own frame
  * on the same file is tests/tv-app-pair.e2e.ts's, and stays exactly as it was.
  *
- * The measurements are the handoff's literals (PhoneApp-Phone.dc.html,
- * PhoneApp-Tablet.dc.html). They are asserted rather than eyeballed so that a
- * later pass tidying hand-set values onto a spacing ladder redraws nothing
- * silently. The camera band and the gesture strip the design draws inside its
- * frame are the app's padding (Insets.kt, InsetsTest.kt), so the page itself
- * starts at the header here.
+ * The measurements are the design's literals. They are asserted rather than
+ * eyeballed so that a later pass tidying hand-set values onto a spacing ladder
+ * redraws nothing silently. The camera band and the gesture strip the design
+ * draws inside its frame are the app's padding (Insets.kt, InsetsTest.kt), so
+ * the page itself starts at the header here.
  *
  * Every test sets its own viewport, so the file says the same thing in
  * whichever device project runs it. Chromium emulates the screen at the
@@ -47,7 +46,8 @@ async function phoneBridge(page: Page, o: { network?: string; own?: string } = {
 				prefix: () => (own ? own.split('.').slice(0, 3).join('.') + '.' : ''),
 				defaultPort: () => 42143,
 				remembered: () => '',
-				// 9D's #lost= is for a server in the list; any other is asked about.
+				// The not-answering screen's #lost= is for a server in the list; any
+				// other is asked about.
 				servers: () =>
 					JSON.stringify([
 						{
@@ -85,7 +85,7 @@ const css = (page: Page, selector: string, prop: string) =>
 test.describe('on a phone, 360 x 780', () => {
 	test.use({ viewport: { width: 360, height: 780 } });
 
-	test('9A is the phone column: the device word, the short header, START at the bottom', async ({
+	test('the first screen is the phone column: the device word, the short header, START at the bottom', async ({
 		page
 	}) => {
 		await phoneBridge(page);
@@ -121,7 +121,7 @@ test.describe('on a phone, 360 x 780', () => {
 		expect(meta.bottom).toBeLessThanOrEqual(start.top);
 	});
 
-	test('9B: the field takes focus, http:// is dropped, NEXT is pinned to the bottom', async ({
+	test('the address screen: the field takes focus, http:// is dropped, NEXT is pinned to the bottom', async ({
 		page
 	}) => {
 		await phoneBridge(page);
@@ -129,7 +129,7 @@ test.describe('on a phone, 360 x 780', () => {
 		await page.locator('#start').click();
 		await expect(page.locator('#step')).toHaveText('PAIR · 1 OF 2');
 		// A phone's keyboard pushes the page up instead of covering it, so the
-		// field takes focus at once (the TV never does: c247).
+		// field takes focus at once (the TV never does).
 		await expect(page.locator('#last')).toBeFocused();
 		await expect(page.locator('#prefix')).toHaveText('192.168.1.');
 		await expect(page.locator('#tv-meta')).toHaveText(
@@ -153,7 +153,9 @@ test.describe('on a phone, 360 x 780', () => {
 		expect(riding.bottom).toBe(430 - 12);
 	});
 
-	test('9B: the whole address keeps the field and reads USE THE LAST NUMBER', async ({ page }) => {
+	test('the address screen: the whole address keeps the field and reads USE THE LAST NUMBER', async ({
+		page
+	}) => {
 		await phoneBridge(page);
 		await page.goto(page9);
 		await page.locator('#start').click();
@@ -164,7 +166,7 @@ test.describe('on a phone, 360 x 780', () => {
 		await expect(page.locator('#last')).toBeFocused();
 	});
 
-	test('9D: the band wraps, the reasons are one box, TRY AGAIN is the bottom button', async ({
+	test('the not-answering screen: the band wraps, the reasons are one box, TRY AGAIN is the bottom button', async ({
 		page
 	}) => {
 		await phoneBridge(page);
@@ -182,7 +184,9 @@ test.describe('on a phone, 360 x 780', () => {
 		expect(change.bottom).toBeLessThanOrEqual(retry.top);
 	});
 
-	test('9D on mobile data: reason 3 says so and names both ways out', async ({ page }) => {
+	test('the not-answering screen on mobile data: reason 3 says so and names both ways out', async ({
+		page
+	}) => {
 		await phoneBridge(page, { network: 'data', own: '' });
 		await page.goto(page9 + '#lost=' + encodeURIComponent('http://192.168.1.23:42143'));
 		await expect(page.locator('#reason-3')).toHaveText(
@@ -221,7 +225,7 @@ test.describe('on a phone, 360 x 780', () => {
 test.describe('on a tablet, 1280 x 800', () => {
 	test.use({ viewport: { width: 1280, height: 800 } });
 
-	test("9A is the TV's arrangement in flow: three steps across, START beside its line", async ({
+	test("the first screen is the TV's arrangement in flow: three steps across, START beside its line", async ({
 		page
 	}) => {
 		await phoneBridge(page);
@@ -247,7 +251,9 @@ test.describe('on a tablet, 1280 x 800', () => {
 		expect((await box(page, '.welcome-head')).top).toBe(64 + 36);
 	});
 
-	test('9B keeps http:// and puts both buttons side by side under the field', async ({ page }) => {
+	test('the address screen keeps http:// and puts both buttons side by side under the field', async ({
+		page
+	}) => {
 		await phoneBridge(page);
 		await page.goto(page9);
 		await page.locator('#start').click();
@@ -272,7 +278,9 @@ test.describe('on a tablet, 1280 x 800', () => {
 		await expect(page.locator('#last')).toHaveValue('23');
 	});
 
-	test('9D: TRY AGAIN first, beside CHANGE THE ADDRESS, under the reasons', async ({ page }) => {
+	test('the not-answering screen: TRY AGAIN first, beside CHANGE THE ADDRESS, under the reasons', async ({
+		page
+	}) => {
 		await phoneBridge(page);
 		await page.goto(page9 + '#lost=' + encodeURIComponent('http://192.168.1.23:42143'));
 		const retry = await box(page, '#retry');

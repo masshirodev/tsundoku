@@ -1,13 +1,13 @@
 import { expect, test, type Locator } from '@playwright/test';
 
 /**
- * The FILTER panel's measurements, from Library Filters.dc.html turn 3
- * (doc/FILTERS.md). They're hand-set in the mock, not a spacing scale:
- * 132px labels, 52px rows, a 640px panel on the desktop. Asserted so a later
- * tidy-up can't round them onto something else and redraw the screen.
- * Runs on every device project; each checks its own arrangement. Since c436
- * the phone's and tablet's FILTER is the KIND band's last cell, in the band's
- * 13px with 14px a side (Kinds Calls 05, "FILTER CELL"), and its panel opens
+ * The FILTER panel's measurements (doc/FILTERS.md). They're hand-set in the
+ * mock, not a spacing scale: 132px labels, 52px rows, a 640px panel on the
+ * desktop. Asserted so a later tidy-up can't round them onto something else
+ * and redraw the screen.
+ * Runs on every device project; each checks its own arrangement. The
+ * phone's and tablet's FILTER is the KIND band's last cell, in the band's
+ * 13px with 14px a side, and its panel opens
  * the band's width under it; the desktop's stays in the top bar at 14px.
  */
 

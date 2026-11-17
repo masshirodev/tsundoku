@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { settingOf, valueFromForm, type Setting } from '$lib/library/source-settings';
 
 // Shapes as the engine answered preferencesManga for MangaDex, Asura and
-// Omega Scans on 2026-10-28 (doc/EXTENSION-ENGINE.md, "Preferences").
+// Omega Scans (doc/EXTENSION-ENGINE.md, "Preferences").
 const list = {
 	key: 'thumbnailQuality_en',
 	listPreference: {

@@ -13,10 +13,10 @@ import { sampleEpub } from '../src/lib/server/pages/sample-epub';
 import { revealOn } from './helpers/reveal';
 
 /**
- * Highlights H2 end to end (card c702; doc/HIGHLIGHTS.md, "Quotes"; Novel N1
- * to N8, D1, D2): the text reader's selection, its handles and bar, the
- * marker, the open highlight's sheet, a chapter that changed under a quote,
- * the keyboard, and the doors a rule has to hold at.
+ * Highlights end to end (doc/HIGHLIGHTS.md, "Quotes"): the text reader's
+ * selection, its handles and bar, the marker, the open highlight's sheet, a
+ * chapter that changed under a quote, the keyboard, and the paths a rule has
+ * to hold on.
  *
  * It keeps quotes, so it seeds the seed into a database of its own and serves
  * the same build on a port the OS gives it (the `highlights-flow`
@@ -101,7 +101,7 @@ const clearQuotes = () => {
 /**
  * A quote's row as a POST that reached the workstation once already made it: a
  * press whose answer was lost keeps its item on the device while the row is
- * here. The same span is what makes the door answer the repeat with this row
+ * here. The same span is what makes the endpoint answer the repeat with this row
  * (`src/lib/server/highlights/quotes.ts`, the `same` branch), never a second.
  */
 function seedQuote(entry: number, body: Record<string, unknown>, colour: string) {
@@ -187,13 +187,12 @@ async function word(page: Page, n: number) {
 }
 
 /**
- * A long press where a mouse can stand in for a finger (the rule reads time, not
- * the pointer). The release waits for the app's own answer — the bar over a
- * selection, or the lookup a Japanese book opens — rather than for a fixed hold:
- * the reader's timer is 450 ms, and a release a fixed 550 ms later is a tap on a
- * busy main thread, which clears the very selection it was meant to keep (R8 and
- * `R2 a joining press refused` failed that way). The cap only keeps a press that
- * is answered by nothing from hanging.
+ * A long press where a mouse can stand in for a finger (the rule reads time,
+ * not the pointer). The release waits for the app's own answer — the bar over a
+ * selection, or the lookup a Japanese book opens — rather than for a fixed
+ * hold: the reader's timer is 450 ms, and a release a fixed 550 ms later is a
+ * tap on a busy main thread, which clears the very selection it was meant to
+ * keep. The cap only keeps a press that is answered by nothing from hanging.
  */
 async function longPress(page: Page, x: number, y: number) {
 	await page.mouse.move(x, y);
@@ -243,7 +242,7 @@ test('a finger: a real touch long press selects, and a real touch tap clears', a
 	expect(quotesOf(id)).toHaveLength(0);
 });
 
-test('N1: a long press selects the word and brings up the bar over it', async ({ page }) => {
+test('a long press selects the word and brings up the bar over it', async ({ page }) => {
 	const id = chapterId();
 	await open(page, id);
 	const w = await word(page, 3);
@@ -268,7 +267,7 @@ const selected = (page: Page) =>
 		.allInnerTexts()
 		.then((t) => t.join(''));
 
-test('N2: the end handle extends the selection, and the start handle pulls it back', async ({
+test('the end handle extends the selection, and the start handle pulls it back', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -358,9 +357,7 @@ test('COPY copies the words and says so; a marker is drawn by HIGHLIGHT, and kep
 test.describe('a mouse', () => {
 	test.use({ hasTouch: false, isMobile: false });
 
-	test('D1: a drag selects, the keys are on the bar, H keeps and nothing turned', async ({
-		page
-	}) => {
+	test('a drag selects, the keys are on the bar, H keeps and nothing turned', async ({ page }) => {
 		const id = chapterId();
 		await open(page, id);
 		expect(await page.evaluate(() => matchMedia('(pointer: fine)').matches)).toBe(true);
@@ -389,7 +386,7 @@ test.describe('a mouse', () => {
 		expect(quotesOf(id)).toHaveLength(1);
 	});
 
-	test("D1: a drag off the words still turns; at the page's end it waits 0.6 s and carries on", async ({
+	test("a drag off the words still turns; at the page's end it waits 0.6 s and carries on", async ({
 		page
 	}) => {
 		const id = chapterId();
@@ -485,7 +482,7 @@ test('a chapter ends a selection: no cue at the last page, and no marker on a cr
  */
 const SETTLED = '.mk:not([data-h^="-"])';
 
-/** Press a word, keep it and wait for its row: the app's own door. */
+/** Press a word, keep it and wait for its row: the app's own way. */
 async function keepWord(page: Page, id: number, n: number) {
 	const w = await word(page, n);
 	await longPress(page, w.x, w.y);
@@ -729,7 +726,8 @@ test('incognito: no HIGHLIGHT or NOTE, one INCOGNITO cell, a highlight still ope
 	await page.locator('.mk').first().click();
 	await sheet(page).getByLabel('NOTE').fill('still mine');
 	await expect.poll(() => quotesOf(id)[0]?.note).toBe('still mine');
-	// The door itself refuses a new one in incognito; the page opened incognito sent no PUT.
+	// The endpoint itself refuses a new one in incognito; the page opened
+	// incognito sent no PUT.
 	const refused = await page.evaluate(
 		async (e) =>
 			(
@@ -802,7 +800,7 @@ test('SCROLL: a crossing keeps no marker on the copy, and no selection starts th
 	e.close();
 });
 
-// ---- offline: drawn at once, waiting on the device (c842's queue; Novel N7) ------------
+// ---- offline: drawn at once, waiting on the device -----------------------------------
 
 /** Every item waiting on the device. */
 const queued = (page: Page) =>
@@ -957,7 +955,7 @@ test('hidden means hidden on the device: a hidden series and reveal never queue'
 	await page.context().clearCookies({ name: 'tsundoku_reveal' });
 });
 
-// ---- Japanese: a long press still looks up (Novel J1 to J3) -------------------------------
+// ---- Japanese: a long press still looks up ---------------------------------------------
 
 async function serveBook(page: Page, epub: Buffer) {
 	const zip = new Zip(new Uint8Array(epub));
@@ -1040,7 +1038,7 @@ test.describe('a Japanese book', () => {
 		return panel;
 	}
 
-	test('J2: a long press is still the lookup, and its foot keeps the word', async ({ page }) => {
+	test('a long press is still the lookup, and its foot keeps the word', async ({ page }) => {
 		const id = await openJapanese(page);
 		const p = await textPoint(page);
 		const panel = await lookUpFrom(page, p);
@@ -1070,7 +1068,7 @@ test.describe('a Japanese book', () => {
 		expect(Number(inset[2])).toBe(0);
 	});
 
-	test('J3: SELECT MORE makes it a selection with the bar, LOOK UP and all', async ({ page }) => {
+	test('SELECT MORE makes it a selection with the bar, LOOK UP and all', async ({ page }) => {
 		const id = await openJapanese(page);
 		const p = await textPoint(page);
 		const panel = await lookUpFrom(page, p);
@@ -1105,8 +1103,8 @@ test.describe('a Japanese book', () => {
 });
 
 /**
- * Round 2: each case reaches its state through the app's own doors and
- * holds or fails the named request with `page.route`.
+ * Each case reaches its state through the app's own UI and holds or fails the
+ * named request with `page.route`.
  */
 const HIGHLIGHT_ROW = /\/api\/highlights\/\d+$/;
 const QUOTES_POST = '**/api/highlights/quotes';
@@ -1209,7 +1207,7 @@ for (const [how, fail] of [
 	['no answer', 'abort'],
 	['a 500', 500]
 ] as const) {
-	test(`R2 DELETE that did not happen (${how}): the marker stays, NOT DELETED, no UNDO`, async ({
+	test(`DELETE that did not happen (${how}): the marker stays, NOT DELETED, no UNDO`, async ({
 		page
 	}) => {
 		const id = chapterId();
@@ -1230,7 +1228,7 @@ for (const [how, fail] of [
 		expect(quotesOf(id)).toHaveLength(1);
 	});
 
-	test(`R2 a colour that did not take (${how}): the old one comes back, and it says so`, async ({
+	test(`a colour that did not take (${how}): the old one comes back, and it says so`, async ({
 		page
 	}) => {
 		const id = chapterId();
@@ -1251,9 +1249,7 @@ for (const [how, fail] of [
 		expect(quotesOf(id)[0].colour).toBe(was);
 	});
 
-	test(`R2 an UNDO that did not take (${how}): it says it was not brought back`, async ({
-		page
-	}) => {
+	test(`an UNDO that did not take (${how}): it says it was not brought back`, async ({ page }) => {
 		const id = chapterId();
 		await open(page, id);
 		await keepWord(page, id, 2);
@@ -1272,7 +1268,7 @@ for (const [how, fail] of [
 	});
 }
 
-test('R2 two colours at once, the last one refused: the one that took stands', async ({ page }) => {
+test('two colours at once, the last one refused: the one that took stands', async ({ page }) => {
 	const id = chapterId();
 	await open(page, id);
 	await keepWord(page, id, 2);
@@ -1304,7 +1300,7 @@ test('R2 two colours at once, the last one refused: the one that took stands', a
 	expect(patches).toBe(2);
 });
 
-test('R2 deleted while its POST is out, and the POST fails: nothing waits on the device', async ({
+test('deleted while its POST is out, and the POST fails: nothing waits on the device', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -1331,7 +1327,7 @@ test('R2 deleted while its POST is out, and the POST fails: nothing waits on the
 	await expect(page.locator('.mk')).toHaveText(w.word);
 });
 
-test('R2 a joining press refused: the highlights it took in are drawn again', async ({ page }) => {
+test('a joining press refused: the highlights it took in are drawn again', async ({ page }) => {
 	const id = chapterId();
 	await open(page, id);
 	const a = await word(page, 2);
@@ -1349,7 +1345,7 @@ test('R2 a joining press refused: the highlights it took in are drawn again', as
 	expect(quotesOf(id)).toHaveLength(2);
 });
 
-test('R2 deleted while its POST is out, and the POST lands: no live row, no marker', async ({
+test('deleted while its POST is out, and the POST lands: no live row, no marker', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -1377,7 +1373,7 @@ test('R2 deleted while its POST is out, and the POST lands: no live row, no mark
 	await expect(page.locator('.mk')).toHaveCount(0);
 });
 
-test('R2 deleted while the device is still writing it down: it does not stay there', async ({
+test('deleted while the device is still writing it down: it does not stay there', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -1423,7 +1419,7 @@ test('R2 deleted while the device is still writing it down: it does not stay the
 	expect(quotesOf(id)).toHaveLength(0);
 });
 
-test('R2 a note written offline on a highlight already saved: it is there after reconnecting', async ({
+test('a note written offline on a highlight already saved: it is there after reconnecting', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -1450,9 +1446,7 @@ test('R2 a note written offline on a highlight already saved: it is there after 
 	await expect(sheet(page).getByLabel('NOTE')).toHaveValue('written while it waited');
 });
 
-test('R2 UNDO after a crossing queues the deleted quote under its own chapter', async ({
-	page
-}) => {
+test('UNDO after a crossing queues the deleted quote under its own chapter', async ({ page }) => {
 	const first = chapterId(1);
 	const second = chapterId(2);
 	await page.route(QUOTES_POST, (r) =>
@@ -1486,7 +1480,7 @@ test('R2 UNDO after a crossing queues the deleted quote under its own chapter', 
 	await expect(page.locator('.mk')).toHaveCount(0);
 });
 
-test('R2 UNDO of a saved quote after a crossing brings the row back and draws nothing here', async ({
+test('UNDO of a saved quote after a crossing brings the row back and draws nothing here', async ({
 	page
 }) => {
 	const first = chapterId(1);
@@ -1505,7 +1499,7 @@ test('R2 UNDO of a saved quote after a crossing brings the row back and draws no
 	await expect(page.locator('.mk')).toHaveCount(0);
 });
 
-test('R2 a POST answered after a crossing draws nothing on the new chapter', async ({ page }) => {
+test('a POST answered after a crossing draws nothing on the new chapter', async ({ page }) => {
 	const first = chapterId(1);
 	const hold = await holdPost(page);
 	await openLast(page, first);
@@ -1527,7 +1521,7 @@ test('R2 a POST answered after a crossing draws nothing on the new chapter', asy
 	await expect(page.locator('.mk')).toHaveCount(0);
 });
 
-test("R2 a selection while a chapter's quotes are on their way sends only its own span", async ({
+test("a selection while a chapter's quotes are on their way sends only its own span", async ({
 	page
 }) => {
 	const first = chapterId(1);
@@ -1579,7 +1573,7 @@ test("R2 a selection while a chapter's quotes are on their way sends only its ow
 	await expect(page.locator('.mk')).toHaveText(w.word);
 });
 
-test('R2 a long press on a book whose dc:language is en_US selects a word', async ({ page }) => {
+test('a long press on a book whose dc:language is en_US selects a word', async ({ page }) => {
 	const epub = sampleEpub({
 		title: 'Honzuki no Gekokujou',
 		hue: 0,
@@ -1599,7 +1593,7 @@ test('R2 a long press on a book whose dc:language is en_US selects a word', asyn
 	expect(errors).toEqual([]);
 });
 
-test('R2 in a cut table the words kept are the words painted, on a cut and an uncut width', async ({
+test('in a cut table the words kept are the words painted, on a cut and an uncut width', async ({
 	page
 }) => {
 	const id = chapterId(2);
@@ -1634,7 +1628,7 @@ for (const [how, press] of [
 	['Escape', 'Escape'],
 	['the back key', 'back']
 ] as const) {
-	test(`R2 ${how} at once keeps the whole note`, async ({ page }) => {
+	test(`${how} at once keeps the whole note`, async ({ page }) => {
 		const id = chapterId();
 		await open(page, id);
 		await keepWord(page, id, 2);
@@ -1656,7 +1650,7 @@ for (const [how, press] of [
 	});
 }
 
-test('R2 joining at the bar keeps a newer note when the oldest has none', async ({ page }) => {
+test('joining at the bar keeps a newer note when the oldest has none', async ({ page }) => {
 	const id = chapterId();
 	await open(page, id);
 	const a = await word(page, 2);
@@ -1684,7 +1678,7 @@ test('R2 joining at the bar keeps a newer note when the oldest has none', async 
 	await expect(page.locator('.nm')).toHaveCount(1);
 });
 
-test('R2 a join while the queue’s POST is out: the joined row stays, with its note', async ({
+test('a join while the queue’s POST is out: the joined row stays, with its note', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -1763,7 +1757,7 @@ test('R2 a join while the queue’s POST is out: the joined row stays, with its 
 	expect(await page.locator(SETTLED).first().innerText()).toContain(a.word);
 });
 
-test('R2 offline, a press inside a waiting quote keeps it: one item, its note, a row after', async ({
+test('offline, a press inside a waiting quote keeps it: one item, its note, a row after', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -1806,7 +1800,7 @@ test('R2 offline, a press inside a waiting quote keeps it: one item, its note, a
 	await expect(page.locator('.nm')).toHaveCount(1);
 });
 
-test('R2 the join reaching the workstation first: the queue’s body is its row, not a second', async ({
+test('the join reaching the workstation first: the queue’s body is its row, not a second', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -1877,7 +1871,7 @@ test('R2 the join reaching the workstation first: the queue’s body is its row,
 });
 
 /**
- * Round 3: a join that ends with no row and no queue item puts back the
+ * A join that ends with no row and no queue item puts back the
  * waiting quotes it took in. `keepSpan` takes each one off the device before
  * the join has an answer, and only saved rows are restored by `settleQuote`, so
  * a refusal or a refused storage lost the waiting highlight and its note.
@@ -1990,7 +1984,7 @@ async function holdThenRefuse(page: Page) {
 	return { bodies, release };
 }
 
-test('R3 a join refused with a 401 keeps the waiting quote it took in, with its note', async ({
+test('a join refused with a 401 keeps the waiting quote it took in, with its note', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2005,7 +1999,7 @@ test('R3 a join refused with a 401 keeps the waiting quote it took in, with its 
 	held.answerJoin(401);
 	await expect(band(page, 'NOT KEPT')).toBeVisible();
 	// The quote the join took in waits again: drawn once, with its note, under
-	// its own key. Before the fix nothing was left: the join had removed it.
+	// its own key: the join must not have removed it.
 	await expect(page.locator('.mk')).toHaveCount(1);
 	await expect(page.locator('.mk')).toHaveText(w.word);
 	await expect(page.locator('.nm')).toHaveCount(1);
@@ -2029,7 +2023,7 @@ test('R3 a join refused with a 401 keeps the waiting quote it took in, with its 
 	await expect(page.locator('.nm')).toHaveCount(1);
 });
 
-test('R3 a join refused with a 400 puts the waiting quote back the same way', async ({ page }) => {
+test('a join refused with a 400 puts the waiting quote back the same way', async ({ page }) => {
 	const id = chapterId();
 	await open(page, id);
 	const w = await waitingQuote(page);
@@ -2057,7 +2051,7 @@ test('R3 a join refused with a 400 puts the waiting quote back the same way', as
 	await expect(page.locator('.nm')).toHaveCount(1);
 });
 
-test('R3 the exact re-press of the waiting quote, refused, keeps it and its note', async ({
+test('the exact re-press of the waiting quote, refused, keeps it and its note', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2086,7 +2080,7 @@ test('R3 the exact re-press of the waiting quote, refused, keeps it and its note
 	expect(held.deletes).toEqual([]);
 });
 
-test('R3 a join deleted while its POST is out, then refused: nothing is put back', async ({
+test('a join deleted while its POST is out, then refused: nothing is put back', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2108,7 +2102,7 @@ test('R3 a join deleted while its POST is out, then refused: nothing is put back
 	expect(await queued(page)).toHaveLength(0);
 	await expect(page.locator('.mk')).toHaveCount(0);
 	// The POST already out for that quote makes its row, and that row is set aside:
-	// since round 4 the quote was still on the device when the join was deleted,
+	// the quote was still on the device when the join was deleted,
 	// so DELETE took it back (not a supersede), and what its POST made goes too.
 	held.releaseQueue('continue');
 	await expect.poll(() => held.deletes.length, { timeout: 30_000 }).toBe(1);
@@ -2116,7 +2110,7 @@ test('R3 a join deleted while its POST is out, then refused: nothing is put back
 	await expect(page.locator('.mk')).toHaveCount(0);
 });
 
-test('R3 a chapter turned while the join’s POST is out: the quote waits under its own chapter', async ({
+test('a chapter turned while the join’s POST is out: the quote waits under its own chapter', async ({
 	page
 }) => {
 	const first = chapterId(1);
@@ -2134,7 +2128,7 @@ test('R3 a chapter turned while the join’s POST is out: the quote waits under 
 	await expect(band(page, 'NOT KEPT')).toBeVisible();
 	// Waiting on the device under the chapter it was pressed on, drawn nowhere here.
 	// The band is said before `restoreJoinedWaiting`'s write ends, and on another
-	// chapter no marker is drawn to wait on (the other R3 refusals wait on `.mk`,
+	// chapter no marker is drawn to wait on (the other refusals above wait on `.mk`,
 	// which `putBack` draws after the write): wait on the device itself.
 	await expect.poll(async () => (await queued(page)).length).toBe(1);
 	const kept = await queued(page);
@@ -2154,7 +2148,7 @@ test('R3 a chapter turned while the join’s POST is out: the quote waits under 
 	await expect(page.locator('.nm')).toHaveCount(1);
 });
 
-test('R3 a second join over the re-queued quote: one row, and the held body folds into it', async ({
+test('a second join over the re-queued quote: one row, and the held body folds into it', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2189,7 +2183,7 @@ test('R3 a second join over the re-queued quote: one row, and the held body fold
 	await expect(page.locator('.nm')).toHaveCount(1);
 });
 
-test('R3 a reload with the quote re-queued draws it waiting, and the next connection sends it', async ({
+test('a reload with the quote re-queued draws it waiting, and the next connection sends it', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2205,7 +2199,7 @@ test('R3 a reload with the quote re-queued draws it waiting, and the next connec
 	await expect(page.locator('.mk')).toHaveText(w.word);
 	expect(await queued(page)).toHaveLength(1);
 	// The page goes: the held POST gives up, and the item it was for stays on the
-	// device. A reload must draw it waiting again, and its own door sends it.
+	// device. A reload must draw it waiting again, and its own queue sends it.
 	held.releaseQueue('abort');
 	await page.unroute(QUOTES_POST);
 	const again = await holdPost(page);
@@ -2228,14 +2222,14 @@ test('R3 a reload with the quote re-queued draws it waiting, and the next connec
 });
 
 /**
- * Round 4: a join that waits on the device carries what it took in on
+ * A join that waits on the device carries what it took in on
  * its own queue item, so a refusal at the flush puts those waiting quotes back
  * with their notes — and it survives a reload, since the join can sit in the
  * queue for sessions. The refusal is reachable without a bug in the reader: a
  * join covers the union of the spans it took in, and the workstation caps the
  * quote at 20,000 characters (`src/lib/server/highlights/quotes.ts`).
  */
-test('R4 a join waiting on the device, refused at the flush, keeps the quote it covered', async ({
+test('a join waiting on the device, refused at the flush, keeps the quote it covered', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2259,7 +2253,7 @@ test('R4 a join waiting on the device, refused at the flush, keeps the quote it 
 	await expect(band(page, 'NOT KEPT')).toBeVisible({ timeout: 30_000 });
 	expect(posts()).toBeGreaterThanOrEqual(1);
 	// The quote the join covered is drawn waiting again, with its note, and the
-	// device still holds it: before the fix it existed nowhere.
+	// device still holds it.
 	await expect(page.locator('.mk')).toHaveCount(1);
 	await expect(page.locator('.mk')).toHaveText(w.word);
 	await expect(page.locator('.nm')).toHaveCount(1);
@@ -2280,7 +2274,7 @@ test('R4 a join waiting on the device, refused at the flush, keeps the quote it 
 	await expect(page.locator('.nm')).toHaveCount(1);
 });
 
-test('R4 a join waiting across a reload, refused after it, keeps the quote it covered', async ({
+test('a join waiting across a reload, refused after it, keeps the quote it covered', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2325,7 +2319,7 @@ test('R4 a join waiting across a reload, refused after it, keeps the quote it co
 	await expect(page.locator('.nm')).toHaveCount(1);
 });
 
-test('R4 a colour chosen while its POST was out comes back with the quote the join took in', async ({
+test('a colour chosen while its POST was out comes back with the quote the join took in', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2367,12 +2361,12 @@ test('R4 a colour chosen while its POST was out comes back with the quote the jo
 });
 
 /**
- * Round 5: UNDO restores what DELETE removed, all of it. A waiting join
+ * UNDO restores what DELETE removed, all of it. A waiting join
  * carries the quotes it took in (`covers`), and DELETE takes the whole item
  * back. UNDO must put that item back as it was, or a later refusal of the join
  * loses the covered quote and its note for good.
  */
-test('R5 UNDO of a deleted waiting join brings back the quote it covered', async ({ page }) => {
+test('UNDO of a deleted waiting join brings back the quote it covered', async ({ page }) => {
 	const id = chapterId();
 	await open(page, id);
 	const w = await waitingQuote(page);
@@ -2431,7 +2425,7 @@ test('R5 UNDO of a deleted waiting join brings back the quote it covered', async
 	await expect(page.locator('.nm')).toHaveCount(1);
 });
 
-test('R5 UNDO of a join deleted while its POST is out brings back the quote it covered', async ({
+test('UNDO of a join deleted while its POST is out brings back the quote it covered', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2484,15 +2478,15 @@ test('R5 UNDO of a join deleted while its POST is out brings back the quote it c
 });
 
 /**
- * Round 6: the exact re-press of a waiting quote. The press supersedes
+ * The exact re-press of a waiting quote. The press supersedes
  * the item and queues the same key again (`waitOnDevice`'s own-span branch:
  * `j.waiting === key`). What the reader changed while it waited — a colour
  * chosen in the sheet — lives on the taken-back item, not on the drawn quote
- * alone, and must ride the new item: the door answers the repeat with the row
+ * alone, and must ride the new item: the endpoint answers the repeat with the row
  * it already holds (`made: false`), and only the item's `revised` says a colour
  * PATCH is owed.
  */
-test('R6 the exact re-press of a waiting quote carries the colour the reader chose', async ({
+test('the exact re-press of a waiting quote carries the colour the reader chose', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2528,7 +2522,7 @@ test('R6 the exact re-press of a waiting quote carries the colour the reader cho
 	expect(again.body.colour).toBe('blue');
 	expect(again.revised).toContain('colour');
 
-	// Online, the door answers the repeat with the yellow row it holds; the
+	// Online, the endpoint answers the repeat with the yellow row it holds; the
 	// colour the reader chose is a PATCH after it.
 	await page.context().setOffline(false);
 	await expect.poll(() => quotesOf(id).length, { timeout: 30_000 }).toBe(1);
@@ -2542,14 +2536,14 @@ test('R6 the exact re-press of a waiting quote carries the colour the reader cho
 });
 
 /**
- * Round 7: a DELETE inside the press's own POST. `waitOnDevice` returns
- * at once for a DELETE that came first, so `deleteQuote`'s in-flight door is
+ * A DELETE inside the press's own POST. `waitOnDevice` returns
+ * at once for a DELETE that came first, so `deleteQuote`'s in-flight path is
  * the one that answers UNDO. On the exact re-press of a waiting quote W the
  * press is W itself, not something it covers: what W carried — the colour the
  * reader chose while it waited — must ride the UNDONE item, or the repeat's
  * answer is the yellow row and no PATCH follows.
  */
-test('R7 UNDO of a waiting quote deleted in flight keeps the colour chosen while it waited', async ({
+test('UNDO of a waiting quote deleted in flight keeps the colour chosen while it waited', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2594,7 +2588,7 @@ test('R7 UNDO of a waiting quote deleted in flight keeps the colour chosen while
 	const again = (await queued(page)).find((i) => !i.refused);
 	expect(again?.revised).toContain('colour');
 
-	// The first POST ends, the UNDOne item goes and the door answers with the
+	// The first POST ends, the UNDOne item goes and the endpoint answers with the
 	// yellow row it holds: only the carried revised says a colour PATCH is owed.
 	held.releaseQueue('abort');
 	held.answerJoin('continue');
@@ -2605,12 +2599,12 @@ test('R7 UNDO of a waiting quote deleted in flight keeps the colour chosen while
 });
 
 /**
- * Round 8: the same in-flight door, for a join W over a waiting quote X.
+ * The same in-flight path, for a join W over a waiting quote X.
  * The exact re-press of W makes W the item again, and W's own covers (X, note
  * included) must ride the UNDONE item, or a later refusal of W skips the cover
  * under its own key and X exists nowhere.
  */
-test('R8 UNDO of a join deleted in flight keeps the quote it covered', async ({ page }) => {
+test('UNDO of a join deleted in flight keeps the quote it covered', async ({ page }) => {
 	const id = chapterId();
 	await open(page, id);
 	const x = await waitingQuote(page);
@@ -2664,7 +2658,7 @@ test('R8 UNDO of a join deleted in flight keeps the quote it covered', async ({ 
 });
 
 /**
- * Round 9: the chapter's own re-read can land after a press took
+ * The chapter's own re-read can land after a press took
  * a saved row in. `onQueueChange`'s refused event calls `loadMarks`, whose GET
  * may still be out when the press removes that row from `quotes`; the answer it
  * carries names the row again, so `fresh` draws it beside the press that covers
@@ -2676,7 +2670,7 @@ test('R8 UNDO of a join deleted in flight keeps the quote it covered', async ({ 
 const QUOTES_GET = '**/api/highlights/quotes?entry=*';
 
 for (const how of ['lands', 'refused'] as const) {
-	test(`R9 a join over a saved row while the chapter's quotes are re-read draws it once (the press ${how})`, async ({
+	test(`a join over a saved row while the chapter's quotes are re-read draws it once (the press ${how})`, async ({
 		page
 	}) => {
 		const id = chapterId();
@@ -2751,13 +2745,12 @@ for (const how of ['lands', 'refused'] as const) {
 }
 
 /**
- * Round 11: DISMISS is not a door onto a cover. The refusal puts
+ * DISMISS does not reach a cover. The refusal puts
  * each waiting quote back before the join is stored refused (`sendAll`), so the
  * band's DISMISS only takes the refused item: the quote it covered stays drawn,
- * stays on the device with its note, and is sent at the next connection. The
- * notes' table had this row marked 'not a door' with no case.
+ * stays on the device with its note, and is sent at the next connection.
  */
-test('R11 DISMISS takes only the refused join: the quote it covered stays waiting', async ({
+test('DISMISS takes only the refused join: the quote it covered stays waiting', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2795,14 +2788,14 @@ test('R11 DISMISS takes only the refused join: the quote it covered stays waitin
 });
 
 /**
- * Round 12: the in-flight DELETE door's band with no UNDO. The
- * door consumes its carry when it builds the band (`carryFor` reads the stash,
- * or `carriedBy` on the early-return path R7 takes), so nothing waits on the
+ * The in-flight DELETE path's band with no UNDO. The
+ * path consumes its carry when it builds the band (`carryFor` reads the stash,
+ * or `carriedBy` on the early-return path), so nothing waits on the
  * reader's press: leaving the band alone for its six seconds must draw nothing,
  * queue nothing, and bring nothing back. The row the press's lost answer had
  * already made is still the one row, as it was before the press.
  */
-test('R12 a DELETE left un-undone in flight leaves nothing drawn and nothing waiting', async ({
+test('a DELETE left un-undone in flight leaves nothing drawn and nothing waiting', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2843,7 +2836,7 @@ test('R12 a DELETE left un-undone in flight leaves nothing drawn and nothing wai
 });
 
 /**
- * Round 13: the press that may not wait. In reveal a hidden
+ * The press that may not wait. In reveal a hidden
  * series is read but nothing is queued (`mayWait`), and a press that took a
  * waiting quote in would otherwise keep it off the device for good. Its end here
  * is `restoreJoinedWaiting`: the quote comes back under its own key with its
@@ -2852,7 +2845,7 @@ test('R12 a DELETE left un-undone in flight leaves nothing drawn and nothing wai
  * series hidden and reveal opened, with the queue's own POST held so the quote
  * is still waiting when the reveal page loads.
  */
-test('R13 a press in reveal puts back the waiting quote it took in, and keeps the join off the device', async ({
+test('a press in reveal puts back the waiting quote it took in, and keeps the join off the device', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2903,15 +2896,14 @@ test('R13 a press in reveal puts back the waiting quote it took in, and keeps th
 });
 
 /**
- * Round 14: the browser that will not keep the queue. A press
+ * The browser that will not keep the queue. A press
  * that cannot be put on the device says so (`NOT KEPT`), and the saved row it
- * took in is drawn again by `settleQuote`, not lost with the join. The notes'
- * table marked this row `none`, on the claim that a browser's refused storage
- * cannot be made here; it can: an init script takes `indexedDB` away before the
+ * took in is drawn again by `settleQuote`, not lost with the join. A browser's
+ * refused storage can be made here: an init script takes `indexedDB` away before the
  * reader mounts, which is the same `false` `queueHighlight` returns on a refused
  * `put`.
  */
-test('R14 a browser that will not keep the queue: the press says so, and the row it took in stays', async ({
+test('a browser that will not keep the queue: the press says so, and the row it took in stays', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -2942,7 +2934,7 @@ test('R14 a browser that will not keep the queue: the press says so, and the row
 });
 
 /**
- * Holds every open of the queue's database until `release`, as R2's "deleted
+ * Holds every open of the queue's database until `release`, as "deleted
  * while the device is still writing it down" does: the store opens a connection
  * per read and write (`pending-highlights.ts`, `tx`), so this holds the device's
  * real IndexedDB write, not a stand-in for it, and a DELETE can land inside it.
@@ -2980,17 +2972,17 @@ async function gateQueueDb(page: Page) {
 }
 
 /**
- * Round 15: the door R7 and R8 never reach. A DELETE that lands
+ * The path the two in-flight UNDO cases above never reach. A DELETE that lands
  * while the device is still writing the press down finds `waitOnDevice` past its
  * early return: the item is written, then taken back (`takeBackHighlight`), and
  * the take-back clears `remembered` for the item's own key. On the exact
  * re-press of a waiting join W, that key is W's, so the only copy of what W
  * carried (its colour, and the quote X it covered, note and all) is the item
  * the take-back returned, which `waitOnDevice` keeps in `takenInFlight` for the
- * in-flight door's UNDO. The notes called this window untimeable; R2's gate on
- * the queue's own database opens reaches it.
+ * in-flight path's UNDO. Holding the queue's own database opens
+ * (`gateQueueDb`) reaches this window.
  */
-test('R15 UNDO of a re-press deleted while the device writes it keeps its colour and its quote', async ({
+test('UNDO of a re-press deleted while the device writes it keeps its colour and its quote', async ({
 	page
 }) => {
 	const gate = await gateQueueDb(page);
@@ -3050,12 +3042,12 @@ test('R15 UNDO of a re-press deleted while the device writes it keeps its colour
 });
 
 /**
- * Round 16: the in-flight DELETE door's band across a chapter's
+ * The in-flight DELETE path's band across a chapter's
  * end. `carryFor` has consumed the carry when the band is drawn, and the band
  * outlives the turn, so UNDO on the next chapter must queue W under its own
  * chapter, with what it carried, and draw nothing on the chapter it is not of.
  */
-test('R16 UNDO of a re-press deleted in flight, after a crossing, keeps it under its own chapter', async ({
+test('UNDO of a re-press deleted in flight, after a crossing, keeps it under its own chapter', async ({
 	page
 }) => {
 	const first = chapterId(1);
@@ -3104,20 +3096,19 @@ test('R16 UNDO of a re-press deleted in flight, after a crossing, keeps it under
 });
 
 /**
- * Round 17 (fixed in round 4): a device whose storage stops
- * keeping new writes after a quote already waits there (a full quota: a delete
- * still goes through, a larger put is aborted, here by the browser's own
- * `abort()`). Every press that covers that quote used to take it off the device
- * first (`supersedeHighlight`) and then fail to write itself, and the quote's
- * way back was another `put`: the quote and its note existed nowhere. Since
- * round 4 a waiting quote leaves the device only once the press that covers it
- * is kept, so each door below leaves it waiting, drawn, with its note: a join
- * offline (`queueCovering` refused), the exact re-press of the quote itself
- * (one write over the item, refused), and a join online that the workstation
- * refuses (`restoreJoinedWaiting` draws it again without a write).
+ * A device whose storage stops keeping new writes after a quote already waits
+ * there (a full quota: a delete still goes through, a larger put is aborted,
+ * here by the browser's own `abort()`). A press that covers that quote must not
+ * take it off the device first (`supersedeHighlight`): if the press then fails
+ * to write itself, the quote's way back is another `put`, and the quote and its
+ * note exist nowhere. A waiting quote leaves the device only once the press
+ * that covers it is kept, so each press below leaves it waiting, drawn, with
+ * its note: a join offline (`queueCovering` refused), the exact re-press of the
+ * quote itself (one write over the item, refused), and a join online that the
+ * workstation refuses (`restoreJoinedWaiting` draws it again without a write).
  */
 for (const door of ['a join offline', 'the exact re-press', 'a join refused online'] as const) {
-	test(`R17 storage that stops keeping writes: ${door} does not lose the waiting quote`, async ({
+	test(`storage that stops keeping writes: ${door} does not lose the waiting quote`, async ({
 		page
 	}) => {
 		await page.addInitScript(() => {
@@ -3161,20 +3152,20 @@ for (const door of ['a join offline', 'the exact re-press', 'a join refused onli
 }
 
 /**
- * Round 19: the new state round 4 makes. A waiting quote now
- * stays on the device while the press that covers it is out, so two things can
- * reach it there that could not before.
+ * A waiting quote stays on the device while the press that covers it is out,
+ * so two things can reach it there.
  *
  * (a) The chapter is re-read meanwhile (a refusal of another quote does it):
- * `loadMarks` reads the device and would draw the covered quote again beside the
- * press over it. `covering` keeps it off, as `joining` does for a saved row (R9).
+ * `loadMarks` reads the device and would draw the covered quote again beside
+ * the press over it. `covering` keeps it off, as `joining` does for a saved row
+ * (the re-read cases above).
  *
  * (b) The queue sends the covered quote while the press is out, and the press is
- * then refused: the quote is no longer on the device, so `restoreJoinedWaiting`
- * puts it back as it was (the door answers the repeat with the row it made) and
+ * then refused: the quote is off the device, so `restoreJoinedWaiting`
+ * puts it back as it was (the endpoint answers the repeat with the row it made) and
  * it ends drawn once, as its one row, with its note.
  */
-test('R19 a re-read while a join over a waiting quote is out draws the quote once', async ({
+test('a re-read while a join over a waiting quote is out draws the quote once', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -3258,7 +3249,7 @@ test('R19 a re-read while a join over a waiting quote is out draws the quote onc
 	expect(quotesOf(id)).toHaveLength(1);
 });
 
-test('R19 the queue sends a covered quote while its join is out, and the join is refused: one row', async ({
+test('the queue sends a covered quote while its join is out, and the join is refused: one row', async ({
 	page
 }) => {
 	const id = chapterId();
@@ -3279,7 +3270,7 @@ test('R19 the queue sends a covered quote while its join is out, and the join is
 	held.answerJoin(400);
 	await expect(band(page, 'NOT KEPT')).toBeVisible({ timeout: 30_000 });
 	await expect.poll(async () => (await queued(page)).map((i) => i.key)).toContain(x.key);
-	// Its repeat goes through to the door, which answers with x's row.
+	// Its repeat goes through to the endpoint, which answers with x's row.
 	held.answerJoin('continue');
 	await page.context().setOffline(true);
 	await page.context().setOffline(false);
@@ -3292,17 +3283,18 @@ test('R19 the queue sends a covered quote while its join is out, and the join is
 });
 
 /**
- * Round 20 (R13's cause): a chapter's list of quotes taken before
+ * A chapter's list of quotes taken before
  * a waiting quote of that chapter is sent. The reader draws a chapter from its
  * list (the page's own load, or the next chapter's prefetch) and from the
  * device, read when the chapter opens. A quote sent in between is in neither:
- * the list predates its row, and the device no longer holds it, so it was drawn
- * nowhere until the next load. R13 met it through the page's load (its reveal
- * page sent the quote as the case reopened the chapter); this case reaches it
+ * the list predates its row, and the device has let it go, so it would be drawn
+ * nowhere until the next load. The reveal case above meets it through the
+ * page's load (its reveal page sends the quote as the case reopens the
+ * chapter); this case reaches it
  * through the prefetch, where the timing is the case's own: the quote is sent
  * from the chapter before, after its list was fetched, and the reader crosses.
  */
-test('R20 a quote sent after its chapter was prefetched is drawn when that chapter opens', async ({
+test('a quote sent after its chapter was prefetched is drawn when that chapter opens', async ({
 	page
 }) => {
 	const first = chapterId(1);

@@ -10,8 +10,8 @@ import { expect, test } from './fixtures';
 
 /**
  * The engine's WebView, as BROWSE and SETTINGS say it (doc/BROWSE.md,
- * "Extensions that need a WebView"; doc/SETTINGS.md, "07 — BROWSE"; card
- * c978): the quiet NEEDS A WEBVIEW mark on an extension and its sources, said
+ * "Extensions that need a WebView"; doc/SETTINGS.md, "07 — BROWSE"): the
+ * quiet NEEDS A WEBVIEW mark on an extension and its sources, said
  * in words where this install has the WebView off; SETTINGS' WEBVIEW row and
  * its switch, which a release's launcher reads (here, the file the spec reads
  * back); the first-use line while the browser downloads; a failed call that

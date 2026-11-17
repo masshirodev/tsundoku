@@ -30,7 +30,7 @@ test('a source’s POPULAR shelf says what’s already yours, and names no hidde
 	const twin = page.locator('.tile', { hasText: 'Toonily One' });
 	await expect(twin.locator('.m')).toHaveText('SAME TITLE IN LIBRARY');
 	await expect(page.locator('body')).not.toContainText('TOONILY');
-	// Anything else opens c94's preview, which returns here.
+	// Anything else opens the preview, which returns here.
 	const other = page.locator('.tile', { hasText: 'Open Source 1-2' });
 	await expect(other).toHaveAttribute('href', /^\/downloads\/source\/100~.+\?from=%2Fbrowse%2F100/);
 });
@@ -205,14 +205,13 @@ test('on the phone, / opens the search in the title’s place, and the grid is t
 });
 
 /**
- * c654 (the owner, 2026-11-06, on a phone): "the back button at the top of a
- * browsed entry goes back and opens the search bar". Measured on this base by
- * the owner's own steps — BROWSE, a source, a tile, the preview's ← — it does
- * not: with real taps the return is the source page's URL with no `find` or
- * `q`, its search form hidden, and focus on `body`. The two causes the card
- * named are both out of reach of those steps: the tile's `from` is the source
- * page's own URL (which has no `find` unless the search was already open,
- * `doc/handoff-notes/series.md`, wave 29), and a tap cannot be dispatched a
+ * Reported on a phone: "the back button at the top of a browsed entry goes
+ * back and opens the search bar". Measured by the reported steps — BROWSE, a
+ * source, a tile, the preview's ← — it does not: with real taps the return
+ * is the source page's URL with no `find` or `q`, its search form hidden, and
+ * focus on `body`. The two suspected causes are both out of reach of those
+ * steps: the tile's `from` is the source page's own URL (which has no `find`
+ * unless the search was already open), and a tap cannot be dispatched a
  * second time onto the page it navigates to (a click navigates on `click`,
  * and the link is inside the client-side router). So this case is a guard,
  * not a fix: it pins the expected return, and goes red if the return ever
@@ -232,7 +231,7 @@ test.describe('on a phone, the back from a browsed entry', () => {
 	}, testInfo) => {
 		test.skip(testInfo.project.name !== 'browse', 'the browse world runs in the `browse` project');
 		await page.goto(OPEN);
-		// A real tap, as the owner made: a click cannot reproduce a tap-through.
+		// A real tap, as reported: a click cannot reproduce a tap-through.
 		await page.locator('.tile', { hasText: 'Open Source 1-2' }).tap();
 		await page.waitForURL(/\/downloads\/source\//);
 		await page.locator('a.back').tap();
@@ -242,7 +241,7 @@ test.describe('on a phone, the back from a browsed entry', () => {
 		expect(u.pathname).toBe('/browse/100');
 		expect(u.searchParams.has('find')).toBe(false);
 		expect(u.searchParams.get('q')).toBeNull();
-		// Both halves of what the owner expected: the source page, its search shut.
+		// Both halves of what was expected: the source page, its search shut.
 		await expect(page.locator('header.bar .find')).toBeHidden();
 		await expect(page.locator('header.bar .title')).toBeVisible();
 		await expect(page.locator('header.bar .slash')).toBeVisible();
@@ -261,7 +260,7 @@ test('BROWSE lists the sources by kind, RECENT once one is visited, and no hidde
 	await expect(labels.nth(1)).toContainText('02 — MANGA');
 	// The newest visit first (an earlier test visited the broken one too).
 	await expect(page.locator('.rows').first().locator('.row').first()).toContainText('Open Source');
-	// The failed extension is c94's failed row, and leads to EXTENSIONS, not its page.
+	// The failed extension has a failed row, which leads to EXTENSIONS, not its page.
 	// (In RECENT too, from an earlier test: the MANGA section's is the one checked.)
 	const broken = page.locator('.rows').nth(1).locator('.row', { hasText: 'Broken Source' });
 	await expect(broken).toContainText('FAILED TO LOAD · PROTOBUF');

@@ -14,8 +14,8 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import type { Manifest } from '../src/lib/server/update-manifest.ts';
 
 /**
- * What a start of tsundoku knows about the last look for a new version (c818;
- * doc/UPDATES.md, "Looking"). A friend who starts it, reads and closes it never
+ * What a start of tsundoku knows about the last look for a new version
+ * (doc/UPDATES.md, "Looking"). A friend who starts it, reads and closes it never
  * had a second page load in the same run, and the run was all `updates.ts`
  * remembered.
  *

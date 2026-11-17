@@ -15,7 +15,7 @@ import {
 
 /**
  * Tapping an author, an artist, a genre or a tag searches for it in the
- * series' source (card c313; doc/BROWSE.md, "Arriving from a tag";
+ * series' source (doc/BROWSE.md, "Arriving from a tag";
  * doc/SERIES.md, the TAGS row). Its own world (tests/helpers/tag-world.ts):
  * a fake engine whose manga has an author and genres, its own database and
  * preview, so nothing the browse world's specs pin changes.
@@ -110,7 +110,7 @@ test('with the engine down, both screens paint, and a tag lands on a search for 
 });
 
 /**
- * Round 2 (review finding 1): a tag's link never guesses before the source's
+ * A tag's link never guesses before the source's
  * filters have settled. On a cold cache with the filters slow, a tap made the
  * moment the link is there, with nothing polled first, still lands on the
  * filter the genre names. Each screen asks a source no earlier case has (the
@@ -178,7 +178,7 @@ test('with the filters slow on a cold cache, the preview paints at once and a ge
 });
 
 /**
- * c452: a genre on the preview waits on `tag-search` for up to 20 s on a cold
+ * A genre on the preview waits on `tag-search` for up to 20 s on a cold
  * source, and a TV's WebView draws no loading bar. The link says it is busy
  * and a line says why; the landing is still FILTERED; BACK, from the bfcache
  * or not, shows the preview without the line.
@@ -249,7 +249,7 @@ test('a genre on the preview lands on FILTERED with its chip included, and ← c
 	expect(at(page).pathname + at(page).search).toBe(previewPath);
 	const own = page.locator('header.bar a.back');
 	await expect(own).toHaveText(/BROWSE/);
-	// Since c864 the href and the landing can differ, so press it: it goes back
+	// The href and the landing can differ, so press it: it goes back
 	// to the list it names, not to the tag search whose path it shares.
 	await own.click();
 	await expect(page.locator('.grid a.tile').first()).toBeVisible();
@@ -257,7 +257,7 @@ test('a genre on the preview lands on FILTERED with its chip included, and ← c
 });
 
 /**
- * Card c453: every way to another list of the same source keeps the tag's
+ * Every way to another list of the same source keeps the tag's
  * origin, so ← still lands on the preview after the reader has looked around.
  * Each step is a tap on what the screen offers (the tabs, the search field,
  * FILTER's APPLY and RESET, SETTINGS and its ←), and each is asserted by the
@@ -362,7 +362,7 @@ test('a genre the filters spell otherwise still matches; one they lack is a sear
 });
 
 /**
- * Round 2 (review finding 2): a source's genre string can name a genre twice
+ * A source's genre string can name a genre twice
  * ("Action, Comedy, Action"), and the engine keeps both. The preview renders,
  * and each distinct genre is one link.
  */
@@ -450,7 +450,7 @@ test('a doujin from a source’s gallery asks too: the key decides, never the ki
 });
 
 /**
- * Round 2 (review finding 2): a bare `Mecha` and a `tag:Mecha` both group
+ * A bare `Mecha` and a `tag:Mecha` both group
  * under `tag`, the same value twice in one group. The row renders, both.
  */
 test('a series with a bare tag and the same value under tag: still renders its TAGS row', async ({
@@ -470,10 +470,10 @@ test('a series with a bare tag and the same value under tag: still renders its T
 });
 
 /**
- * c451: a bare `Mecha` and a `tag:Mecha`, both typed on the EDIT sheet, are
- * two links in the `tag` group, each to its own library tag. They used to be
- * looked up by value, so both found the first and linked to `?tag=Mecha`, and
- * the library page of `tag:Mecha` could not be reached from the row.
+ * A bare `Mecha` and a `tag:Mecha`, both typed on the EDIT sheet, are
+ * two links in the `tag` group, each to its own library tag. Looked up by
+ * value, both would find the first and link to `?tag=Mecha`, and the library
+ * page of `tag:Mecha` could not be reached from the row.
  */
 test('a bare tag and its tag: twin, typed on EDIT, link each to its own library tag', async ({
 	page
@@ -533,7 +533,7 @@ for (const [door, key, title] of [
 	});
 
 /**
- * c452's `pageshow` clear, pinned. BACK above passes with the clear
+ * The busy line's `pageshow` clear, pinned. BACK above passes with the clear
  * removed: a BACK that is not from the bfcache draws the page again, so the
  * busy mark is gone either way. Here the page that set the mark is the one
  * shown again, as the bfcache gives it back: the navigation the tap starts is

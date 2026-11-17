@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './helpers/hydrated';
 
 /**
- * A novel's paged turn follows the finger and slides (c441; doc/TEXT-READER.md,
+ * A novel's paged turn follows the finger and slides (doc/TEXT-READER.md,
  * "Turning"), as a manga's does: a drag short of the swipe threshold moves the
  * page and gives it back, one past it turns, keys and taps slide too, a turn
  * asked for mid-slide is taken when it lands, a chapter's neighbour slides in
@@ -105,7 +105,7 @@ const bandOnly = (page: Page) =>
 /**
  * Where a drag starts: no strip, no illustration, and off the words where the
  * pointer is fine, because a mouse's drag on the words selects them and never
- * turns a page (Novel D1): in the page's own margin, the one it drags
+ * turns a page: in the page's own margin, the one it drags
  * away from, so a long drag stays on the window.
  */
 async function middleOf(page: Page, drags: 'left' | 'right' = 'left') {
@@ -223,7 +223,7 @@ test("across a chapter's end the next chapter's first page slides in, and back i
 	// And it stays on the chapter's last page when the chapter is laid out
 	// again, as an illustration arriving late lays it out (the reader listens
 	// for `load`), even where that page is the band alone and has no character
-	// to keep: until c516 the reader went back to the page before it.
+	// to keep: the reader must not go back to the page before it.
 	test
 		.info()
 		.annotations.push({ type: 'band-only last page', description: String(await bandOnly(page)) });
@@ -307,7 +307,7 @@ test('a scrub onto a band-only last page during a slide wins', async ({ page }) 
 	});
 	// ← turns towards page 1; the track's right end asks for the last page, the
 	// band alone, mid-slide. That page has no character, so `pos` doesn't change
-	// there: until the move counter, the turn then went one back from it.
+	// there: without the move counter, the turn would go one back from it.
 	await page.keyboard.press('ArrowLeft');
 	await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
 	const gap = await page.evaluate(() => {
@@ -345,8 +345,8 @@ test('a second finger cancels a drag: the page goes back rather than jerking to 
 		for (const d of [10, 20, 30]) await touch('touchMove', [{ x: x - d, y }]);
 		await expect.poll(async () => (await flow(page)).at).toBe(-step - 30);
 		// A second finger 150 px to the right, then the first moves on: the
-		// press is over, so the page goes back and the first finger no longer
-		// moves it, where it took the second finger's point as its start.
+		// press is over, so the page goes back and the first finger moves it no
+		// more, rather than taking the second finger's point as its start.
 		await touch('touchStart', [
 			{ x: x - 30, y },
 			{ x: x + 150, y }

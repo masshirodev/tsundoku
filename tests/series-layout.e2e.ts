@@ -9,8 +9,8 @@ import { DETAILS_FOLDS } from './helpers/details-folds';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
- * The series frame per device, from Index Series.dc.html: metadata is a header
- * above the list in portrait and a 440px panel beside it in landscape; rows
+ * The series frame per device, from the design: metadata is a header above
+ * the list in portrait and a 440px panel beside it in landscape; rows
  * are 60px (52px on a phone); the rail is 56px (44px on a phone).
  */
 type Frame = { side: boolean; row: number; rail: number; panel?: number; gap?: number };
@@ -76,7 +76,7 @@ test('ABOUT and TAGS stand above the other rows, where the fold is not in the wa
 			.first()
 			.evaluate((n) => n.getBoundingClientRect().top + window.scrollY);
 	if (await details.isVisible()) {
-		// The phone's and the TV's 1A and 1C hold: ABOUT above the line, TAGS inside it.
+		// On the phone and the TV: ABOUT above the line, TAGS inside it.
 		expect(['phone', 'tv']).toContain(info.project.name);
 		expect(await at('ABOUT')).toBeLessThan(
 			(await details.boundingBox())!.y + (await page.evaluate(() => window.scrollY))
@@ -93,7 +93,7 @@ test('ABOUT and TAGS stand above the other rows, where the fold is not in the wa
 	// The seed's series has no DOWNLOAD row: series-details.e2e.ts pins the rows under it.
 });
 
-// c488: the hover tint (motion.css) is a background-image, so it replaces a
+// The hover tint (motion.css) is a background-image, so it replaces a
 // picture drawn by the element's own stylesheet unless the element says
 // `data-picture`. The fold's stripes are that picture. A hover needs a fine
 // pointer, which only the desktop project has.
@@ -113,7 +113,7 @@ test('hovering the fold keeps its stripes', async ({ page }, info) => {
 });
 
 /**
- * DETAILS folds FILE on a phone and a TV: open it the way the owner
+ * DETAILS folds FILE on a phone and a TV: open it the way the user
  * does, by its line, and wait for the answer, which comes once the page runs.
  */
 async function openDetails(page: import('@playwright/test').Page) {
@@ -122,8 +122,8 @@ async function openDetails(page: import('@playwright/test').Page) {
 	// phone's width, or a TV), known before the panel draws; the query lives
 	// once, in tests/helpers/details-folds.ts, so it cannot drift from the
 	// app's. Read once with `isVisible()`, a line not drawn yet read as "no
-	// fold" on a loaded phone and TV, and LAYOUT stayed folded away (c439,
-	// wave 24: 2 of 20).
+	// fold" on a loaded phone and TV, and LAYOUT stayed folded away (2 runs
+	// of 20).
 	const folds = await page.evaluate((query) => matchMedia(query).matches, DETAILS_FOLDS);
 	if (!folds) return;
 	await expect(line).toBeVisible();
@@ -134,11 +134,11 @@ async function openDetails(page: import('@playwright/test').Page) {
 }
 
 /*
- * c526: FILE's row was its text at `flex: 1` beside three cells (UNGROUP,
- * HIDE, DELETE), so at the 440 panel `13 EPUB · 6.8 MB` read a word a line.
- * LISTS' rule (doc/handoffs/series-lists/): two or more cells drop under the
- * line in equal columns on the phone (390), the 440 panel and the TV's 352
- * column; the tablet in portrait has the width and keeps them inline.
+ * FILE's row is its text beside three cells (UNGROUP, HIDE, DELETE); at
+ * `flex: 1` beside them, the 440 panel would read `13 EPUB · 6.8 MB` a word
+ * a line. LISTS' rule: two or more cells drop under the line in equal columns
+ * on the phone (390), the 440 panel and the TV's 352 column; the tablet in
+ * portrait has the width and keeps them inline.
  */
 test('FILE keeps its text whole, and its cells drop under it where the panel is narrow', async ({
 	page
@@ -218,13 +218,12 @@ test('a novel shows its contents without numbers, and a typeset cover', async ({
 });
 
 /**
- * c422, rewritten for LISTS: on a one-season anime with Ranobe
- * configured, Ranobe's line sits under AniList's, the full width of the row,
- * never beside it. c422 fixed LINK and TRACKING crushing to one word a line at
- * the owner's ~460 px panel; LISTS replaced both rows, so the same widths now
- * check the 36 px label strip above the lines and the equal-column cells that
- * drop under a line with two (the handoff's 1B and 1D), and the tablet in
- * portrait keeping its label column and both cells inline.
+ * On a one-season anime with Ranobe configured, Ranobe's line sits under
+ * AniList's, the full width of the row, never beside it. The widths that
+ * crushed links to one word a line at a ~460 px panel check the 36 px label
+ * strip above the lines and the equal-column cells that drop under a line with
+ * two, and the tablet in portrait keeping its label column and both cells
+ * inline.
  *
  * Ranobe needs a token, and turning it on for the shared server would redraw
  * every novel's series screen under the specs that pin them, so this is the
@@ -261,7 +260,7 @@ test.describe('a one-season anime with Ranobe', () => {
 				db.prepare(`SELECT id FROM roots WHERE name = 'Library'`).get() as { id: number }
 			).id;
 			const now = Date.UTC(2026, 10, 3, 12, 0);
-			// The owner's screenshot: Ranma ½ (2024), one season, linked on AniList.
+			// A real case: Ranma ½ (2024), one season, linked on AniList.
 			seriesId = Number(
 				db
 					.prepare(
@@ -336,7 +335,7 @@ test.describe('a one-season anime with Ranobe', () => {
 			const whole = (await row.boundingBox())!;
 			const anilist = row.locator('[data-line="anilist"]');
 			const rnb = row.locator('[data-line="ranobe"]');
-			// A one-season anime is drawn as one entry: a service tag, no S tag (1C, 12).
+			// A one-season anime is drawn as one entry: a service tag, no S tag.
 			await expect(row.locator('.tag')).toHaveText(['ANILIST', 'RNB']);
 			const a = (await anilist.locator('.ln').boundingBox())!;
 			const r = (await rnb.locator('.ln').boundingBox())!;

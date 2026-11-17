@@ -62,7 +62,7 @@ function seed(): void {
 		for (let i = 1; i <= FILLERS; i++)
 			add.run(`Scroll Filler ${String(i).padStart(2, '0')}`, `filler:${i}`, like.id);
 		// Rated, so a rating chosen in FILTER leaves a list as tall as the
-		// fillers (c557's landing needs the room to put the band under the bar).
+		// fillers (landing a FILTER choice needs the room to put the band under the bar).
 		db.prepare(`UPDATE series SET rating = 8 WHERE origin_key LIKE 'filler:%'`).run();
 		// A shelf as tall as the fillers: picking it mid-grid from ALL
 		// would land partway down it if a shelf kept the scroll.
@@ -155,7 +155,7 @@ async function scrollScreens(page: Page, screens: number) {
 	await expect.poll(() => windowY(page)).toBeGreaterThan(0);
 }
 
-// ---- c433: the top bar stays, and BACK TO TOP -----------------------------------------
+// ---- the top bar stays, and BACK TO TOP -----------------------------------------------
 
 test('the top bar stays at the top while the grid scrolls, and BACK TO TOP takes the page back', async ({
 	page
@@ -253,7 +253,7 @@ test('no BACK TO TOP while SORT’s list or FILTER’s panel is open over the gr
 	await expect(toTop(page)).toBeVisible();
 
 	// FILTER's panel, whichever of the two this device draws (the desktop's
-	// is in the pinned bar, where the reviewer saw the cell lit over it).
+	// is in the pinned bar).
 	const filter = page.locator('details.filter:visible').first();
 	await filter.locator('summary').click();
 	await expect(filter).toHaveAttribute('open', '');
@@ -266,7 +266,7 @@ test('no BACK TO TOP while SORT’s list or FILTER’s panel is open over the gr
 	await expect(toTop(page)).toBeVisible();
 });
 
-// ---- c430: the SERIES TO LINK band put away -------------------------------------------
+// ---- the SERIES TO LINK band put away -------------------------------------------------
 
 const band = (page: Page) => page.locator('.band', { hasText: 'SERIES TO LINK' });
 const putAway = (page: Page) =>
@@ -345,7 +345,7 @@ test('reveal off and on is no news: the band stays away until a series really is
 	page
 }) => {
 	// Eight loads, each waited to hydration: past the default 30 s on the phone
-	// in a loaded run (the final run of wave 22, beside 40 other files).
+	// in a loaded run (beside 40 other files).
 	test.setTimeout(90_000);
 	// A hidden series in the queue: two to link with reveal off, three with it on.
 	setHidden('Scroll Filler 03', true);
@@ -361,8 +361,8 @@ test('reveal off and on is no news: the band stays away until a series really is
 		await page.evaluate(() => localStorage.removeItem('tsundoku.library.links-put-away'));
 		await reveal(true);
 		await expect(band(page)).toContainText('03 SERIES TO LINK');
-		// Put away with reveal on; off and on again: still away. Before c430's
-		// second half, reveal off lowered the count to two and on brought three back.
+		// Put away with reveal on; off and on again: still away, not back with
+		// the count lowered to two and then three.
 		await putAway(page).click();
 		await expect(band(page)).toHaveCount(0);
 		await reveal(false);
@@ -387,7 +387,7 @@ test('reveal off and on is no news: the band stays away until a series really is
 		await reveal(true);
 		await expect(band(page)).toContainText('04 SERIES TO LINK');
 
-		// Putting the band away hides the band only: the links review's own door
+		// Putting the band away hides the band only: the links review's own link
 		// still counts the queue, in the sidebar or under MORE.
 		await putAway(page).click();
 		await expect(band(page)).toHaveCount(0);
@@ -407,7 +407,7 @@ test('reveal off and on is no news: the band stays away until a series really is
 	}
 });
 
-// ---- c436: the KIND band, pinned under the top bar ------------------------------------
+// ---- the KIND band, pinned under the top bar ------------------------------------------
 
 const kinds = (page: Page) => page.getByRole('group', { name: 'Kind' });
 const isDesktop = (name: string) => name === 'desktop';
@@ -474,9 +474,9 @@ test('the KIND band sits under the tabs, over the grid, 40px, and pins under the
 });
 
 /**
- * Landed at the band's own place (c436's round 2): the grid's first
- * tile directly under the band, the band's top on the held bar's bottom
- * (±1px), and the band no longer pinned.
+ * Landed at the band's own place: the grid's first tile directly under the
+ * band, the band's top on the held bar's bottom (±1px), and the band not
+ * pinned.
  */
 async function landedAtBand(page: Page, what = 'landed') {
 	await expect
@@ -504,8 +504,8 @@ test('a kind chosen from the pinned band opens at its start: the band under the 
 	const firstTitle = (p: Page) => p.locator('.grid .tile .title').first().textContent();
 	/**
 	 * The grid's first tile directly under the band, the band directly under
-	 * the held bar, and no longer pinned: the band's own place (c557 tightened
-	 * it; a tile under a band still pinned mid-list also met the first half).
+	 * the held bar, and not pinned: the band's own place (a tile under a band
+	 * still pinned mid-list also meets the first half).
 	 */
 	async function landedUnderBand() {
 		await landedAtBand(page);
@@ -552,7 +552,7 @@ test('a kind chosen from the pinned band opens at its start: the band under the 
 	expect(await firstTitle(page)).toBe(wantAll);
 });
 
-// ---- c557: a FILTER choice from the pinned band lands at the grid's start ----------
+// ---- a FILTER choice from the pinned band lands at the grid's start ----------------
 
 test('a FILTER choice from the pinned band opens the new results at their start; one already on, or made at the top, moves nothing', async ({
 	page
@@ -707,8 +707,8 @@ test('a press on the rating blocks that chooses nothing leaves no note: a kind c
 	expect(await windowY(page)).toBe(0);
 
 	// A kind from the unpinned band: its cells keep the scroll, and no FILTER
-	// note left by the blocks may land it at the band (c436: unpinned,
-	// nothing moves).
+	// note left by the blocks may land it at the band (unpinned, nothing
+	// moves).
 	const cell = kinds(page).locator('.kscroll a:not([aria-current])').first();
 	const kind = new URL((await cell.getAttribute('href'))!, BASE).searchParams.get('kind')!;
 	const chosen = kinds(page).locator(`a[data-focus-id="kind-${kind}"]`);
@@ -719,7 +719,7 @@ test('a press on the rating blocks that chooses nothing leaves no note: a kind c
 	expect(await windowY(page)).toBe(0);
 });
 
-// ---- c590: an open menu over the KIND band ------------------------------------------
+// ---- an open menu over the KIND band ------------------------------------------------
 
 const sortCell = (page: Page) => page.getByRole('button', { name: /^Sort, / });
 const sortMenu = (page: Page) => page.getByRole('menu', { name: 'Sort' });
@@ -759,8 +759,8 @@ test('an open SORT list is over the KIND band, at the top and pinned, under the 
 	const zClosed = await kinds(page).evaluate((b) => getComputedStyle(b).zIndex);
 
 	// At the top: the list hangs from SORT over the tabs and the band, and
-	// every choice is what is drawn at its centre (the owner's screenshot:
-	// the band's strip cut the list under RECENTLY READ).
+	// every choice is what is drawn at its centre (the band's strip must not cut
+	// the list under RECENTLY READ).
 	await sortCell(page).click();
 	await expect(sortMenu(page)).toBeVisible();
 	const choices = sortMenu(page).getByRole('menuitemradio');
@@ -827,7 +827,7 @@ test('FILTER’s open panel is over the KIND band and the grid, at the top and p
 	}
 });
 
-// ---- c589: a shelf opens at its top -------------------------------------------------
+// ---- a shelf opens at its top -------------------------------------------------------
 
 test.describe('a shelf from the tabs or the sidebar', () => {
 	// The service worker answers `__data.json` itself once it controls the
@@ -936,7 +936,7 @@ test('the band scrolls sideways and never wraps, keeping the chosen kind in view
 	expect(await strip.evaluate((n) => n.scrollLeft)).toBeGreaterThan(0);
 });
 
-// ---- c474: BACK TO TOP after a resize past FILTER's own width -----------------------
+// ---- BACK TO TOP after a resize past FILTER's own width -----------------------------
 
 test('a FILTER left open where CSS has since hidden it does not hide BACK TO TOP', async ({
 	page
@@ -970,7 +970,7 @@ test('a FILTER left open where CSS has since hidden it does not hide BACK TO TOP
 	await expect(inBand).toBeHidden();
 	await scrollScreens(page, 1.5);
 	await expect(toTop(page)).toBeVisible();
-	// The FILTER drawn here, opened, still hides it, as c433 has it.
+	// The FILTER drawn here, opened, still hides it.
 	await desk.locator('summary').click();
 	await expect(desk).toHaveAttribute('open', '');
 	await expect(toTop(page)).toBeHidden();

@@ -34,7 +34,7 @@ describe('the filters in a URL', () => {
 	it('reads READING as unread or read, nothing else', () => {
 		expect(parseFilters(q('progress=unread'), false).progress).toBe('unread');
 		expect(parseFilters(q('progress=read'), false).progress).toBe('read');
-		// IN PROGRESS was a filter for a day; it's the PROGRESS sort now.
+		// An old IN PROGRESS link: that is the PROGRESS sort, not a filter.
 		expect(parseFilters(q('progress=reading'), false).progress).toBeNull();
 		expect(activeCount(f({ progress: 'read' }))).toBe(1);
 		expect(filterWords(f({ progress: 'read' }))).toEqual(['READ']);
@@ -98,7 +98,7 @@ describe('words', () => {
 	});
 });
 
-describe('the shelves turn 3 retired', () => {
+describe('the retired shelves that became filters', () => {
 	it('become the filters that replace them', () => {
 		expect(legacyShelf('favourites', q('shelf=favourites&sort=title'))?.toString()).toBe(
 			'shelf=all&sort=title&fav=1'
@@ -115,7 +115,7 @@ describe('the shelves turn 3 retired', () => {
 	});
 });
 
-describe('the shelves c436 retired: SERIES, ONE-OFF and each kind', () => {
+describe('the retired shelves: SERIES, ONE-OFF and each kind', () => {
 	it('SERIES and ONE-OFF become FORM, keeping the rest of the link', () => {
 		expect(legacyShelf('series', q('shelf=series&sort=title'))?.toString()).toBe(
 			'shelf=all&sort=title&form=series'

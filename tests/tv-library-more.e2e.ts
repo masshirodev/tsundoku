@@ -2,12 +2,12 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * The grid's next page on a TV (c858; doc/LIBRARY.md, "Pages", "The grid never
- * stalls with its end on screen"): the owner's own device, 960x540 with no
- * pointer, where one page of 120 tiles takes the main thread away for long
- * enough that a held ↓ reaches the end with no frame in between. Named `tv-`
- * so the `tv` project runs it; the plain `library-more` runs on the other
- * four. Read-only, on the shared database.
+ * The grid's next page on a TV (doc/LIBRARY.md, "Pages", "The grid never stalls
+ * with its end on screen"): a TV, 960x540 with no pointer, where one page of
+ * 120 tiles takes the main thread away for long enough that a held ↓ reaches
+ * the end with no frame in between. Named `tv-` so the `tv` project runs it;
+ * the plain `library-more` runs on the other four. Read-only, on the shared
+ * database.
  */
 
 const pageRequests = (page: Page) => {

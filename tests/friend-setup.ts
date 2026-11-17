@@ -24,8 +24,8 @@ export default async function setup() {
 	});
 	const origin = `http://localhost:${FRIEND_PORT}`;
 	// A server already there is an earlier run's, and testing it would test
-	// stale code and state: say so instead (it happened once, 2026-10-30).
-	// This catches only an assigned port (PLAYWRIGHT_FRIEND_PORT): since c656 a
+	// stale code and state: say so instead.
+	// This catches only an assigned port (PLAYWRIGHT_FRIEND_PORT): a
 	// run left to itself takes a new port from the OS, which no earlier server
 	// holds, so a killed run's server is found by the record below instead,
 	// which the next run's sweep reads (tests/helpers/run-servers.ts).
@@ -47,7 +47,7 @@ export default async function setup() {
 				TSUNDOKU_LOGIN: 'password',
 				TSUNDOKU_SERVE: 'local',
 				TSUNDOKU_SNAPSHOT: 'off',
-				// Never the owner's tokens from the project's .env (scripts/serve.ts).
+				// Never the developer's tokens from the project's .env (scripts/serve.ts).
 				TSUNDOKU_PROJECT_ENV: 'off',
 				PORT: String(FRIEND_PORT),
 				TSUNDOKU_TOKEN: '',
@@ -69,7 +69,7 @@ export default async function setup() {
 	for (let i = 0; i < 120 && !up; i++) {
 		try {
 			// tsundoku's own manifest, not just anything on the port (BROWSE's
-			// fake engine has its own, from the OS unless assigned, c625).
+			// fake engine has its own, from the OS unless assigned).
 			const r = await fetch(`${origin}/manifest.webmanifest`);
 			up = r.ok && ((await r.json()) as { short_name?: string }).short_name === 'tsundoku';
 			if (!up) throw new Error(`port ${FRIEND_PORT} answers, but not as tsundoku`);

@@ -25,10 +25,9 @@ test('a spread is the default on a TV, not one page', async ({ page }) => {
 	await open(page);
 	// From the cover, explicitly: ▶ CONTINUE opens CH. 140 where the seed left
 	// it, page 5, already a spread, and the screen after it is page 6 alone,
-	// beside a wide page (src/lib/server/pages/sample.ts). The case used to
-	// press on from there and count two pages, which only the outgoing spread,
-	// still sliding out, ever gave it: 2 runs in 3 red alone, and 10 in 10 at a
-	// load of 40.
+	// beside a wide page (src/lib/server/pages/sample.ts). Pressing on from
+	// there and counting two pages counts only the outgoing spread, still
+	// sliding out: 2 runs in 3 red alone, and 10 in 10 at a load of 40.
 	await page.goto(page.url().replace(/\?.*$/, '') + '?p=1');
 	await readerReady(page);
 	// The pages on the stage once a slide has landed: one screen, no neighbour.
@@ -90,7 +89,7 @@ test('the end page takes the pad: its cells are reachable, and its ANOTHER SOURC
 		false
 	);
 
-	// The first arrow lands on the rating's first tick (c655: the block stays
+	// The first arrow lands on the rating's first tick (the block stays
 	// once rated, so it is there on any series), and every cell is the pad's.
 	await page.keyboard.press('ArrowDown');
 	const text = await page.evaluate(
@@ -110,7 +109,7 @@ test('OK brings the chrome as a focus row, and READING opens, changes the mode, 
 	// The chrome is hidden, so the arrows are the reader's and the layer is out.
 	expect(await chromeUp()).toBe(false);
 
-	// OK shows it and puts the pad on the scrubber (TV-Reader 7D).
+	// OK shows it and puts the pad on the scrubber.
 	await page.keyboard.press('Enter');
 	const scrub = page.locator('footer[aria-label="Reader controls"] .track');
 	await expect(scrub).toBeVisible();

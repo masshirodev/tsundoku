@@ -27,7 +27,7 @@ function freePort(): string {
 
 /**
  * The friend world's own port, taken **once**, by the OS, when nothing assigns
- * it. A fixed 4197 had two runs in one worktree fight over it: a second
+ * it. A fixed 4197 had two runs in one checkout fight over it: a second
  * `playwright test` got through the browse world's setup and died here
  * (`port 4197 is taken, probably by an earlier run's friend server`).
  *
@@ -35,9 +35,9 @@ function freePort(): string {
  * `FRIEND_PORT`, for the friend project's baseURL), pins the value into its
  * environment, and the global setup that listens on it (tests/friend-setup.ts)
  * shares that process while every worker inherits the variable. A
- * `PLAYWRIGHT_FRIEND_PORT` the gate or a slot assigns still wins, so a slot
- * runs where it is given; two runs sharing one assigned value collide, which
- * is why one worktree runs one Playwright invocation at a time
+ * `PLAYWRIGHT_FRIEND_PORT` set in the environment still wins, so a run given
+ * its port keeps it; two runs sharing one assigned value collide, which
+ * is why one checkout runs one Playwright invocation at a time
  * (doc/TESTING.md, "Ports").
  */
 export const FRIEND_PORT = Number((process.env.PLAYWRIGHT_FRIEND_PORT ||= freePort()));

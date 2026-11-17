@@ -11,7 +11,7 @@ const db = getDb();
 seedSample(db);
 
 /**
- * What a device may no longer keep (doc/OFFLINE.md, "Hiding takes it off the
+ * What a device may not keep (doc/OFFLINE.md, "Hiding takes it off the
  * device"): a series hidden itself or by its root, and anything deleted.
  */
 const one = (sql: string) => db.prepare(sql).pluck().get() as number;

@@ -2,10 +2,9 @@ import { test, expect } from './helpers/hydrated';
 import { ANIME_SOURCE } from './browse-world';
 
 /**
- * An anime series in the library and on the series screen (doc/ANIME.md;
- * card c153), on the browse server's seeded "Tsukiakari no Ryokōsha"
- * (tests/browse-setup.ts), as Index Anime Series and Anime States 1a draw it.
- * The handoff's literals are pinned, so a tidy-up can't round them away.
+ * An anime series in the library and on the series screen (doc/ANIME.md), on
+ * the browse server's seeded "Tsukiakari no Ryokōsha" (tests/browse-setup.ts).
+ * The design's literals are pinned, so a tidy-up can't round them away.
  */
 
 test('the library has an ANIME shelf, and CONTINUE says the episode and the time left', async ({
@@ -51,7 +50,7 @@ test('an anime series: its count, CONTINUE, and episodes by season', async ({ pa
 	await expect(list.locator('.entry', { hasText: 'RECAP · 24 MIN' })).toHaveCount(1);
 	await expect(list.locator('.entry', { hasText: 'FILLER · 24 MIN' })).toHaveCount(1);
 
-	// The handoff's measurements: 72px rows, a 96×54 picture, a 64px number column.
+	// The design's measurements: 72px rows, a 96×54 picture, a 64px number column.
 	const btn = row('Salt Road').locator('.entry-btn');
 	await expect(btn).toHaveCSS('height', '72px');
 	await expect(row('Salt Road').locator('.thumb')).toHaveCSS('width', '96px');
@@ -84,7 +83,7 @@ test('an anime source is browsed, previewed with its EPISODES, and added by seas
 	await page.locator('.grid .tile', { hasText: 'Kōri no Shiro no Majo' }).click();
 	await expect(page).toHaveURL(/\/downloads\/source\//);
 	const add = page.getByRole('button', { name: /ADD TO LIBRARY/ });
-	// Watching first, adding beside it (Online Calls 1D): ▶ starts the first episode.
+	// Watching first, adding beside it: ▶ starts the first episode.
 	await expect(page.locator('.cta-go .cta')).toContainText('▶ EP. 1');
 	await expect(page.getByRole('region', { name: 'Episodes' }).locator('.head')).toContainText(
 		'4 · EVERY ONE STREAMS'
@@ -164,7 +163,7 @@ test('an episode plays from the preview without ADD, and the series stays off th
 	// ← SERIES is its preview, with + ADD still offered: it was never added.
 	await page.goto(preview);
 	await expect(page.getByRole('button', { name: /ADD TO LIBRARY/ })).toBeVisible();
-	// The record says what it is, and ▶ continues where it stopped (Online Calls 1D).
+	// The record says what it is, and ▶ continues where it stopped.
 	const record = page.locator('.row.record');
 	await expect(record).toContainText('Not in library · 0 of 4 watched');
 	await expect(record).toContainText('KEPT UNTIL');
@@ -236,7 +235,7 @@ test.describe('the player, tablet landscape', () => {
 			'Tsukiakari no Ryokōsha · A Letter from Hollin'
 		);
 		await expect(player.locator('.cells .grow')).toHaveText('EN SUBS · 360P · 1×');
-		// The handoff's frame: a 64px top bar, a 56px scrubber over 64px cells, a 96px cluster.
+		// The design's frame: a 64px top bar, a 56px scrubber over 64px cells, a 96px cluster.
 		await expect(player.locator('.top')).toHaveCSS('height', '64px');
 		await expect(player.locator('.scrubrow')).toHaveCSS('height', '56px');
 		await expect(player.locator('.cells')).toHaveCSS('height', '64px');
@@ -324,7 +323,7 @@ test.describe('the player, tablet landscape', () => {
 		// The tap zone can hold the middle before the controls are shown; the
 		// player's own key starts it without a tap. Again until it plays: one
 		// press could land before the player took keys, and the clip then sat
-		// at 0:00 for the whole case (2026-11-15).
+		// at 0:00 for the whole case.
 		await expect(async () => {
 			if ((await pp.getAttribute('aria-label')) === 'Play') await page.keyboard.press('Space');
 			expect(
@@ -355,7 +354,7 @@ test.describe('the player, tablet landscape', () => {
 	}) => {
 		test.setTimeout(90_000);
 		// The fixture clip is 8 s, and this test waits out the controls' fade
-		// (up to 6 s) while it plays: on a loaded box the clip used to end under
+		// (up to 6 s) while it plays: on a loaded box the clip could end under
 		// it and the end screen took the cluster away. Every play starts
 		// it 10x slower, as tv-player's do.
 		await page.addInitScript(() => {
@@ -502,10 +501,9 @@ test('episodes download into their folder through the episode lane, and play fro
 	});
 	// This case runs in the browse project's portrait tablet, whose settings
 	// are the Controls section's `EN` beside ▶: the picture's own bar
-	// cell, `EN SUBS · 180P · 1×`, lies under that section, and the `EN · …`
-	// this case asked for no longer exists. It waited out the test while the
-	// 8 s clip played to its end. Paused first with the player's own key, so
-	// a slow run can't reach that end either.
+	// cell, `EN SUBS · 180P · 1×`, lies under that section, and there is no
+	// `EN · …` to wait on. Paused first with the player's own key, so a slow
+	// run can't reach the 8 s clip's end.
 	await page.keyboard.press('Space');
 	await page.waitForFunction(() => document.querySelector('video')?.paused === true);
 	await page

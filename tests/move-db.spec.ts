@@ -200,7 +200,7 @@ const added = () =>
 	}[];
 
 describe('MOVE', () => {
-	it('re-keys the series, remembers where it came from, and changes nothing the owner owns', () => {
+	it('re-keys the series, remembers where it came from, and changes nothing the user set', () => {
 		const before = row(manga);
 		const result = move.applyMove(
 			manga,
@@ -408,7 +408,7 @@ describe('MOVE', () => {
 
 	it('is the same series the tablet’s backup still names, not a twin', () => {
 		// A backup names the source it was downloaded from; after a move that is
-		// `former_key` (rung 57). One series holds it, and no second appears.
+		// `former_key` (migration 57). One series holds it, and no second appears.
 		const count = () =>
 			(
 				getDb()
@@ -481,7 +481,7 @@ describe('NO SERVER', () => {
 describe('the sources MOVE asks', () => {
 	/**
 	 * `moveSources` keeps the sources whose medium is the map kind's
-	 * (`sourceMedium`, engine/backend.ts), where it used to keep
+	 * (`sourceMedium`, engine/backend.ts), which agrees with the old rule
 	 * `!id.startsWith('ln:') && isAnimeSource(id) === (kind === 'anime')`.
 	 * Asserted for every kind of source id there is (a Mihon extension's, an
 	 * Aniyomi one's, an LNReader plugin's, one with no row) against both map
@@ -560,7 +560,7 @@ describe('PASTE A LINK asks the medium too', () => {
 	/**
 	 * The move route's pasted address (`pastedSourceId`, series/[id]/move/
 	 * paste.server.ts) keeps the installed sources whose medium is the map
-	 * kind's, where it used to keep `isAnimeSource(id) === (kind === 'anime')`.
+	 * kind's, which agrees with the old rule `isAnimeSource(id) === (kind === 'anime')`.
 	 * One host served by a Mihon and an Aniyomi extension: each map kind must
 	 * land on its own medium's source, and a host nothing serves on nothing.
 	 */
@@ -759,7 +759,7 @@ describe('where MOVE opens', () => {
 				.run(root, NOW, NOW, `aniyomi:300:/show/preview-${++records}`).lastInsertRowid
 		);
 
-	it('answers what MOVE’s own door answers, without its counts', () => {
+	it('answers what MOVE’s own page answers, without its counts', () => {
 		const preview = record();
 		for (const id of [anime, preview])
 			expect(move.moveOpens(id)).toBe(move.moveState(id, NOW).eligible);

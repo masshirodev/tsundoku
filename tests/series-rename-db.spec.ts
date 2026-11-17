@@ -17,11 +17,11 @@ process.env.COVER_DIR = join(scratch, 'covers');
 /**
  * RENAME sticks (doc/SERIES.md, "RENAME"). `series.title` is written at
  * the series' INSERT and, by `rg`, at one more place: `carryEdit`
- * (src/lib/server/import/fold.ts), which carries an owner's name *onto* the
- * survivor of a fold. So a rename needs no column of its own if every door
+ * (src/lib/server/import/fold.ts), which carries a user's name *onto* the
+ * survivor of a fold. So a rename needs no column of its own if every path
  * that meets a series again finds it by its key, its files or its entries,
  * never by its title. This spec renames through the screen's own function and
- * then walks those doors on one real-shaped library: a Mihon device folder
+ * then walks those paths on one real-shaped library: a Mihon device folder
  * (its backup and its downloads) and two EPUB volumes grouped into a novel.
  */
 const { getDb } = await import('$lib/server/db');
@@ -86,7 +86,7 @@ beforeAll(async () => {
 			asked.push(b.method);
 			const json = (v: unknown) =>
 				res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(v));
-			// c555: Squad 100's source names its chapters after the title it
+			// Squad 100's source names its chapters after the title it
 			// gave the series, gives no numbers (as a 1.6 source gives -1) and
 			// has moved their URLs, so only the names can say which is which.
 			if (b.mangaData?.url?.includes('/series/SQ/')) {
@@ -175,7 +175,7 @@ describe('a rename', () => {
 	});
 });
 
-describe('the doors that meet a renamed series again', () => {
+describe('the paths that meet a renamed series again', () => {
 	it('a rescan of the same files, its backup included, keeps both names and makes no twin', async () => {
 		await runImport(library, { now: 1_800_000_100_000, covers: false });
 		expect(row(drawing).title).toBe('Drawing (my name)');
@@ -189,7 +189,7 @@ describe('the doors that meet a renamed series again', () => {
 		expect(files.map((f) => f.file)).toEqual(['Lantern Vol 1.epub', 'Lantern Vol 2.epub']);
 	});
 
-	it('a newer backup that still names the manga by its source’s title keeps the owner’s', async () => {
+	it('a newer backup that still names the manga by its source’s title keeps the user’s', async () => {
 		const drawingAgain: Msg = [
 			[1, WEEB],
 			[2, '/series/01J76/Drawing'],
@@ -236,9 +236,9 @@ describe('the doors that meet a renamed series again', () => {
 	});
 
 	/*
-	 * The one door that recognises a series by its name (`adoptNamed`,
-	 * fold.ts): a folder plan meets the series a backup names, by title. Since
-	 * c191 the only folders a scan plans are tsundoku's own downloads
+	 * The one path that recognises a series by its name (`adoptNamed`,
+	 * fold.ts): a folder plan meets the series a backup names, by title. The
+	 * only folders a scan plans are tsundoku's own downloads
 	 * (devices/tsundoku/Mihon), and the engine names a new download's folder
 	 * and its ComicInfo after the series' title *now* (engine/worker.ts), so
 	 * after a rename the next chapter lands in a folder under the new name.

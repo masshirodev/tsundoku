@@ -21,7 +21,7 @@ afterAll(() => rmSync(store, { recursive: true, force: true }));
 
 const REPO =
 	'https://raw.githubusercontent.com/LNReader/lnreader-plugins/plugins/v3.0.0/.dist/plugins.min.json';
-// Shaped as the owner's repository's entries were on 2026-10-28.
+// Shaped as the repository's real entries.
 const entry = (id: string, version: string, lang = 'English') => ({
 	id,
 	name: id === 'royalroad' ? 'Royal Road' : id,
@@ -177,7 +177,7 @@ describe('a plugin', () => {
 
 describe('the host the app builds', () => {
 	it('solves a site’s check with the app’s own solver', () => {
-		// The one line that puts the card into production. Every other spec builds
+		// The one line that puts the solver into production. Every other spec builds
 		// its own host with its own solve, so nothing would notice this going.
 		const opts = plugins.hostOptions();
 		expect(opts.solve).toBe(solver.solveChallenge);

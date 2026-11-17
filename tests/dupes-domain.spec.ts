@@ -131,7 +131,7 @@ describe('the pick', () => {
 		const p = pick(copy({}), copy({ pages: 23 }), rows);
 		expect(p).toMatchObject({ keep: 'a', rule: 3, why: 'MORE PAGES · B IS MISSING P 12–13' });
 	});
-	it('4: the one the owner read, rated or shelved', () => {
+	it('4: the one the user read, rated or shelved', () => {
 		const p = pick(copy({}), copy({ rating: 3, read: 'read' }), same(24));
 		expect(p).toMatchObject({ keep: 'b', rule: 4 });
 	});

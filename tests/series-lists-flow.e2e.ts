@@ -10,7 +10,7 @@ import { revealOn } from './helpers/reveal';
 
 /**
  * The series screen's LISTS row (doc/SERIES.md "LISTS"), state by state,
- * reached through the app's own doors: a link pasted on the review, a chapter
+ * reached through the app's own UI: a link pasted on the review, a chapter
  * marked read, a send to a catalogue that is down and then answers, TRY AGAIN,
  * EDIT's STATUS and UNLINK, HIDE with reveal on, the browser going offline,
  * and an anime's four seasons each linked on its own review. These link,
@@ -20,15 +20,14 @@ import { revealOn } from './helpers/reveal';
  * can reach the real one.
  *
  * Its last two cases are refused UNDOs on the series screen, each answered
- * as a band and reached with a second tab: c390's TAKE OUT, THEN HIDE (the
+ * as a band and reached with a second tab: TAKE OUT, THEN HIDE (the
  * Work ends and a new one takes its id between the HIDE and the UNDO), and
- * c468's TAKE OUT on the WORK row's sheet (the series joins another Work
+ * TAKE OUT on the WORK row's sheet (the series joins another Work
  * between the TAKE OUT and the UNDO).
  *
- * Two rows are written by hand, because no door here reaches them: the
- * AniList sign-in (OAuth leaves for anilist.co) and a season linked to a
- * manga's entry (a paste refuses the other kind). Both are under the notes'
- * Gaps (doc/handoff-notes/series.md).
+ * Two rows are written by hand, because nothing in the UI here reaches them:
+ * the AniList sign-in (OAuth leaves for anilist.co) and a season linked to a
+ * manga's entry (a paste refuses the other kind).
  */
 test.describe.configure({ mode: 'serial' });
 
@@ -120,7 +119,7 @@ function freePort(): Promise<number> {
 
 type Ids = { comic: number; novel: number; hidden: number; four: number; wrong: number };
 
-/** The sample library, then this file's series. Rows only; every link is made through a door. */
+/** The sample library, then this file's series. Rows only; every link is made through the UI. */
 function seed(): Ids {
 	rmSync(dbPath, { force: true });
 	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
@@ -209,7 +208,7 @@ const line = (page: import('@playwright/test').Page, key: string) =>
 const sheetOf = (page: import('@playwright/test').Page) =>
 	page.getByRole('dialog', { name: 'Tracking' });
 
-/** A pasted AniList link, LINKed on the review, the way the owner pastes one. */
+/** A pasted AniList link, LINKed on the review, the way the user pastes one. */
 async function paste(page: import('@playwright/test').Page, href: string, url: string) {
 	await page.goto(`${BASE}${href}`);
 	await page.getByRole('button', { name: 'PASTE A LINK' }).first().click();
@@ -272,9 +271,7 @@ test.afterAll(() => {
 	rmSync(work, { recursive: true, force: true });
 });
 
-test('a pasted link lands on AniList’s line, its list’s word beside it (1B, 1 → 2)', async ({
-	page
-}) => {
+test('a pasted link lands on AniList’s line, its list’s word beside it', async ({ page }) => {
 	await page.goto(`${BASE}/series/${ids.comic}`);
 	const a = line(page, 'anilist');
 	await expect(a.locator('.t')).toHaveText('Not linked');
@@ -290,7 +287,7 @@ test('a pasted link lands on AniList’s line, its list’s word beside it (1B, 
 	await expect(a.locator('.c:visible')).toHaveText(['EDIT']);
 });
 
-test('a send to a catalogue that is down says so on its line, and TRY AGAIN sends it (1B, 4)', async ({
+test('a send to a catalogue that is down says so on its line, and TRY AGAIN sends it', async ({
 	page
 }) => {
 	sends = [];
@@ -342,7 +339,7 @@ test('EDIT opens the sheet on the entry, and its STATUS sends at once', async ({
 	await expect(line(page, 'anilist').locator('.s .l').first()).toHaveText('COMPLETED · CH. 3');
 });
 
-test('offline: EDIT turns into OPEN ↗, every other cell dims, and the strip says why (1B, 8)', async ({
+test('offline: EDIT turns into OPEN ↗, every other cell dims, and the strip says why', async ({
 	page,
 	context
 }) => {
@@ -390,14 +387,14 @@ test('UNLINK in EDIT’s ENTRY: the sheet closes on a band with UNDO, and UNDO p
 	await line(page, 'anilist').getByRole('button', { name: 'EDIT' }).click();
 	const sheet = sheetOf(page);
 	await sheet.getByRole('button', { name: 'UNLINK' }).click();
-	// The sheet closes so the band is in sight (the handoff's 1E: "the band with UNDO").
+	// The sheet closes so the band is in sight.
 	await expect(sheet).toHaveCount(0);
 	const band = page.locator('.band', { hasText: 'UNLINKED · LISTS COMIC ENTRY' });
 	await expect(band).toContainText('NO PASS LINKS IT AGAIN');
 	const a = line(page, 'anilist');
 	await expect(a.locator('.t')).toHaveText('Not linked');
 	await expect(a.locator('.m')).toHaveText('UNLINKED · NO PASS ASKS AGAIN');
-	// You already said no: FIND is plain, not the accent (1C).
+	// You already said no: FIND is plain, not the accent.
 	await expect(a.getByRole('link', { name: 'FIND' })).not.toHaveClass(/acc/);
 	expect(linkOf(ids.comic)).toEqual({ link: null, decision: { decision: 'unlinked' } });
 
@@ -429,7 +426,7 @@ test('a refused UNDO of UNLINK: linked again in another tab, the newer link stay
 	const band = page.locator('.band', { hasText: 'UNLINKED · LISTS COMIC ENTRY' });
 	await expect(band).toBeVisible();
 
-	// Page B, a second tab: the owner pastes the link again.
+	// Page B, a second tab: the user pastes the link again.
 	const b = await context.newPage();
 	await paste(b, `/links?series=${ids.comic}`, 'https://anilist.co/manga/7701');
 	const newer = linkOf(ids.comic);
@@ -445,9 +442,7 @@ test('a refused UNDO of UNLINK: linked again in another tab, the newer link stay
 	expect(linkOf(ids.comic)).toEqual(newer);
 });
 
-test('a novel on its comic’s entry is linked for the cover, never tracked (1B, 5)', async ({
-	page
-}) => {
+test('a novel on its comic’s entry is linked for the cover, never tracked', async ({ page }) => {
 	await paste(page, `/links?series=${ids.novel}`, 'https://anilist.co/manga/7901');
 	const a = line(page, 'anilist');
 	await expect(a.locator('.m')).toHaveText('THE COMIC’S ENTRY · MANHWA · 2024 · ANILIST 7901');
@@ -458,7 +453,7 @@ test('a novel on its comic’s entry is linked for the cover, never tracked (1B,
 	await expect(sheet.locator('.note').first()).toHaveText('COVER AND DETAILS ONLY · NEVER TRACKED');
 });
 
-test('hidden, with reveal on: never searched, PASTE A LINK alone and the accent (1B, 7)', async ({
+test('hidden, with reveal on: never searched, PASTE A LINK alone and the accent', async ({
 	page,
 	context
 }) => {
@@ -475,7 +470,7 @@ test('hidden, with reveal on: never searched, PASTE A LINK alone and the accent 
 	await expect(page.getByRole('button', { name: 'HIDE', exact: true })).toBeVisible();
 });
 
-test('four seasons, each linked on its own review, fold round the one being watched (1C, 11)', async ({
+test('four seasons, each linked on its own review, fold round the one being watched', async ({
 	page
 }) => {
 	// Four reviews, each LINK walking the relations first.
@@ -548,7 +543,7 @@ test('UNLINK on one season and its UNDO: S3 comes back, and the seasons beside i
 	await expect.poll(() => seasonsOf()).toEqual(before);
 });
 
-test('a season on the wrong kind is flagged, never removed, and CHANGE is its accent (1B, 6)', async ({
+test('a season on the wrong kind is flagged, never removed, and CHANGE is its accent', async ({
 	page
 }) => {
 	await page.goto(`${BASE}/series/${ids.wrong}`);
@@ -565,7 +560,7 @@ test('a season on the wrong kind is flagged, never removed, and CHANGE is its ac
 	);
 });
 
-// ---- c390: the series screen's answer to a refused UNDO -------------------------------
+// ---- the series screen's answer to a refused UNDO -------------------------------------
 
 /** A series' id by its exact title, read from this file's own database. */
 function idOf(title: string): number {
@@ -604,7 +599,7 @@ const tileOf = (page: import('@playwright/test').Page, title: string) =>
 		})
 	});
 
-/** GROUP on the library, AS A WORK, the way the owner makes one; then its screen, and its id. */
+/** GROUP on the library, AS A WORK, the way the user makes one; then its screen, and its id. */
 async function makeWork(page: import('@playwright/test').Page, titles: string[], name: string) {
 	await page.goto(`${BASE}/`);
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();

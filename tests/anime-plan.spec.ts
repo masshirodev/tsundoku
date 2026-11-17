@@ -160,7 +160,7 @@ describe('an anime’s plan', () => {
 		]);
 	});
 
-	// The owner's Lupin (series 7378): four seasons of eight in one entry,
+	// A real Lupin entry (series 7378): four seasons of eight in one entry,
 	// listed newest first, each episode numbered within its season.
 	it('reads a pack of seasons into its seasons, oldest first', () => {
 		const listed = [];
@@ -208,7 +208,7 @@ describe('an anime’s plan', () => {
 // One split for people: Aniyomi's author and artist are tagged as
 // Mihon's are, and as the preview links them. It split on commas alone.
 describe('an anime’s people', () => {
-	// c508: the same strings, and the same answers, as tests/tag-search.spec.ts'
+	// The same strings, and the same answers, as tests/tag-search.spec.ts'
 	// preview (`splitPeople`) and tests/{mihon,anime}-plan.spec.ts' importers.
 	const PEOPLE: [string, string[]][] = [
 		['Aoi Hanamura, Ren Kisaragi', ['Aoi Hanamura', 'Ren Kisaragi']],

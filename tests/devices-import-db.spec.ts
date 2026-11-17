@@ -18,7 +18,7 @@ const { groupIntoSeries } = await import('$lib/server/books');
 const { ensureRoot } = await import('$lib/server/import/write');
 
 /**
- * One library after c191 (doc/IMPORT-MIHON.md, "Where it reads from"): the
+ * One library (doc/IMPORT-MIHON.md, "Where it reads from"): the
  * library's own `Mihon/` holds a friend's backup, tsundoku's downloads sit in
  * `devices/tsundoku/Mihon/`, and the phone's Hentoid copy is read while its
  * `Mihon/` copy is not (doc/SYNC.md, "Other devices").
@@ -90,7 +90,7 @@ beforeAll(async () => {
 	await runImport(library, { now: 1_800_000_000_000 });
 });
 
-describe('one library after c191', () => {
+describe('one library', () => {
 	it('reads the library’s backup and tsundoku’s downloads, not a device’s Mihon folder', () => {
 		expect(sourcesIn(library).map((s) => [s.name, s.device])).toEqual([
 			['Mihon', null],
@@ -193,7 +193,7 @@ const manga = (
  * A download neither backup listed when it was imported, while the other
  * device's backup knows the manga (doc/IMPORT-MIHON.md, "Before the backup
  * knows it"). The folder's series is the backup's series: it takes the URL
- * key, its chapters the backup's paths, and the owner's reading, rating,
+ * key, its chapters the backup's paths, and the user's reading, rating,
  * shelves, tags, links and history stay on the same series.
  *
  * One folder root: a download tsundoku wrote into `devices/tsundoku`, and the
@@ -267,7 +267,7 @@ describe('a folder the library’s backup names', () => {
 		slugged = byKey(SLUGGED_DIR)!;
 		expect(flowers && slugged).toBeTruthy();
 
-		// What the owner did with each folder's series while it was on its own.
+		// What the user did with each folder's series while it was on its own.
 		const entryOf = (series: number, label: string) =>
 			one<{ id: number }>(`SELECT id FROM entries WHERE series_id = ? AND label = ?`, series, label)
 				.id;
@@ -536,7 +536,7 @@ describe('two pairs an adoption cannot match up', () => {
 		bare = byKey(BARE_DIR)!;
 		expect(browsing && numbered && bare).toBeTruthy();
 
-		// What the owner did with the library's series while it was on its own.
+		// What the user did with the library's series while it was on its own.
 		const first = one<{ id: number }>(
 			`SELECT id FROM entries WHERE series_id = ? AND label = 'Ch. 1'`,
 			browsing
@@ -715,10 +715,10 @@ describe('two pairs an adoption cannot match up', () => {
 });
 
 /**
- * The same-device door: this root has the folder's download *and* the backup
+ * The same-device case: this root has the folder's download *and* the backup
  * that names it, and a browsing record already holds the URL key (the manga
- * was opened from a source's preview without ADD). The card's rule holds at
- * every door -- a record is never the survivor -- so the record's data moves
+ * was opened from a source's preview without ADD). The rule holds on
+ * every path -- a record is never the survivor -- so the record's data moves
  * into the library's series and its row goes.
  */
 describe('a record under the URL key this device’s own backup names', () => {
@@ -935,7 +935,7 @@ describe('two files of one chapter number', () => {
 });
 
 /**
- * The card's own case, and the friend's: the backup is all this library
+ * The plain case, and the friend's: the backup is all this library
  * reads. The folder-keyed series was imported before (an earlier version, or
  * another library) and no scan reaches it now, so the adoption has to come
  * from the backup's source and title, not from a scanned plan
@@ -1051,13 +1051,13 @@ describe('a backup adopts a folder nothing scans any more', () => {
 });
 
 /**
- * A mirror's series after c191 (doc/IMPORT-MIHON.md, "Where it reads from"):
- * its row, its path and its files stay, and nothing reads the folder any more.
- * Then tsundoku downloads a chapter of it into its own device: the two files
- * are one series, so its path widens to the folder both are under and every
- * entry's file is rewritten against it (write.ts, `widenTo`). Get that rewrite
- * wrong and every file of the series stops resolving -- reader, covers and
- * DELETE all join the two -- with no test failing.
+ * A mirror's series (doc/IMPORT-MIHON.md, "What a mirror left
+ * behind"): its row, its path and its files stay, and nothing reads the folder
+ * any more. Then tsundoku downloads a chapter of it into its own device: the
+ * two files are one series, so its path widens to the folder both are under
+ * and every entry's file is rewritten against it (write.ts, `widenTo`). Get
+ * that rewrite wrong and every file of the series stops resolving -- reader,
+ * covers and DELETE all join the two -- with no test failing.
  */
 describe('a download that widens a series a mirror left', () => {
 	const at = 1_800_004_000_000;
@@ -1152,7 +1152,7 @@ describe('a download that widens a series a mirror left', () => {
 
 /**
  * The series' own settings, where a fold has to choose: title, kind and
- * direction cannot be kept from both rows. A folder's series the owner renamed
+ * direction cannot be kept from both rows. A folder's series the user renamed
  * no longer answers to its folder's name -- which is why a backup's row was
  * made beside it -- so that name goes to the survivor, with the kind and
  * direction set alongside it. One still named as its folder carries no edit,
@@ -1211,7 +1211,7 @@ describe('a renamed folder series a backup adopts', () => {
 		entry(renamed, '/chapters/RN1', 0, '');
 		entry(plain, '/chapters/PL1', 0, '');
 
-		// What tsundoku downloaded, keyed by its folder. The owner renamed the
+		// What tsundoku downloaded, keyed by its folder. The user renamed the
 		// first and set its kind and direction; the other is as its import left it.
 		const folder = (name: string, title: string, kind: string, direction: string | null) => {
 			const dir = dirOf(name);
@@ -1252,7 +1252,7 @@ describe('a renamed folder series a backup adopts', () => {
 		await runImport(library, { now: at });
 	});
 
-	it('carries the name the owner gave it, with the kind and direction', () => {
+	it('carries the name the user gave it, with the kind and direction', () => {
 		expect(byKey(RENAMED_DIR)).toBeUndefined();
 		expect(byKey(RENAMED)).toBe(renamed);
 		expect(
@@ -1290,11 +1290,11 @@ describe('a renamed folder series a backup adopts', () => {
 });
 
 /**
- * c389: an import's fold is a writer of `hidden` too, so it keeps the one rule
+ * An import's fold is a writer of `hidden` too, so it keeps the one rule
  * (doc/WORKS.md): a Work is hidden or shown whole. Each pair here is a folder's
  * series and the series the library's backup names, which could not be matched
  * while they shared no chapter (the backup counts from 5, the folder from 1),
- * so both exist, and the owner grouped and hid them while they did. Then
+ * so both exist, and the user grouped and hid them while they did. Then
  * tsundoku downloads chapter 5, the folder's plan meets the backup's series by
  * it (`adoptNamed`), and the folder's series is folded into it.
  */
@@ -1373,7 +1373,7 @@ describe('a fold keeps a Work hidden or shown whole', () => {
 		}
 		for (const title of PARTNERS) partner[title] = byKey(DIR(title))!;
 
-		// What the owner did while both rows existed, through the app's own writes.
+		// What the user did while both rows existed, through the app's own writes.
 		const w = await works();
 		// Shape 1: `into` (the backup's) a part of a visible Work; `from` hidden.
 		const one1 = ids['Fold Into Part'];
@@ -1419,7 +1419,7 @@ describe('a fold keeps a Work hidden or shown whole', () => {
 	it('hides the Work `into` is a part of when `from` was hidden, rather than leave one part hidden', async () => {
 		const { named } = ids['Fold Into Part'];
 		expect((await works()).workOfSeries(named)?.id).toBe(made.into);
-		// Before c389: `hidden = MAX(...)` made the backup's series a hidden part
+		// `hidden = MAX(...)` would make the backup's series a hidden part
 		// of a visible Work -- ['hidden', 'visible'], the mixed state.
 		expect(await visibility(made.into)).toEqual(['hidden', 'hidden']);
 	});
@@ -1435,7 +1435,7 @@ describe('a fold keeps a Work hidden or shown whole', () => {
 		const { named } = ids['Fold Both Parts'];
 		const w = await works();
 		// A series is in one Work at most: `into` keeps its own, `from`'s row is
-		// dropped with it, and the Work left with one ends (rung 61's trigger).
+		// dropped with it, and the Work left with one ends (migration 61's trigger).
 		expect(w.workOfSeries(named)?.id).toBe(made.shownWork);
 		expect(w.workPage(made.hiddenWork, { reveal: true })).toBeNull();
 		expect(w.workOfSeries(partner['Fold Partner Three'])).toBeNull();
@@ -1445,7 +1445,7 @@ describe('a fold keeps a Work hidden or shown whole', () => {
 
 	it('names the Work the third shape dropped in the import’s summary, and only that one', async () => {
 		const { droppedLine } = await import('$lib/server/import/fold');
-		// Reached through the importer's own door: the scan that folded the
+		// Reached through the importer itself: the scan that folded the
 		// pairs. Shapes 1 and 2 kept every membership (one Work between them);
 		// shape 3 lost Hidden Work, which then ended with one series.
 		expect(folding?.dropped).toEqual([
@@ -1598,7 +1598,7 @@ describe('a fold keeps a Work hidden or shown whole', () => {
 		try {
 			// Visible survivor, visible Work: drawn and linked, reveal off.
 			expect(droppedOf(stored(false), false)).toEqual([{ line, workId: secret.id }]);
-			// HIDE ALL on that Work, through works' own door; the survivor stays shown.
+			// HIDE ALL on that Work, through works' own write; the survivor stays shown.
 			expect(w.hideWork(secret.id, true).changed).toBe(2);
 			expect(
 				one<{ hidden: number }>(`SELECT hidden FROM series WHERE id = ?`, free[2].id).hidden
@@ -1621,7 +1621,7 @@ describe('a fold keeps a Work hidden or shown whole', () => {
 		const kept = JSON.parse(
 			one<{ dropped: string }>(`SELECT dropped FROM scan_jobs WHERE id = ?`, folding!.jobId).dropped
 		) as { work: string; hiddenAtFold?: boolean }[];
-		// Reached through the importer's own door: the scan that folded the pairs.
+		// Reached through the importer itself: the scan that folded the pairs.
 		expect(kept).toEqual([expect.objectContaining({ work: 'Hidden Work', hiddenAtFold: true })]);
 	});
 
@@ -1662,10 +1662,10 @@ describe('a fold keeps a Work hidden or shown whole', () => {
 			expect(JSON.stringify(entries)).not.toMatch(SECRET);
 		});
 
-		it('keeps the ended Work’s line off the list when its survivor is unhidden alone (the card’s own state)', async () => {
+		it('keeps the ended Work’s line off the list when its survivor is unhidden alone', async () => {
 			const w = await works();
 			const survivor = ids['Fold Both Parts'].named;
-			// Before c633 this one door printed the Work's name again.
+			// Unhiding the survivor alone must not print the Work's name again.
 			expect(w.setHiddenWhole([survivor], false)).toBeTruthy();
 			try {
 				expect(one<{ h: number }>(`SELECT hidden AS h FROM series WHERE id = ?`, survivor).h).toBe(
@@ -1838,7 +1838,7 @@ describe('a fold keeps a Work hidden or shown whole', () => {
 				// Ended, nothing hidden when it folded: an open line, as it always was.
 				expect(shape(line({ hiddenAtFold: false }))).toHaveLength(1);
 				expect(await counted(line({ hiddenAtFold: false }))).toBeUndefined();
-				// From before c633, its survivor hidden now: off the list and counted.
+				// No record of its fold, its survivor hidden now: off the list and counted.
 				db().prepare(`UPDATE series SET hidden = 1 WHERE id = ?`).run(free[2].id);
 				try {
 					expect(shape(line({}))).toEqual([]);
@@ -1852,7 +1852,7 @@ describe('a fold keeps a Work hidden or shown whole', () => {
 				expect(await counted(lost)).toBeUndefined();
 				// The same with the record: it was hidden, so it is counted.
 				expect(await counted(line({ seriesAt: 1, hiddenAtFold: true }))).toBe(1);
-				// Ended, and from before c633: nothing recorded it, so as it was.
+				// Ended, with no record: nothing recorded it, so as it was.
 				expect(shape(line({}))).toHaveLength(1);
 				// Ended and hidden at its fold: off the list, whoever is shown today.
 				expect(shape(line({ hiddenAtFold: true }))).toEqual([]);
@@ -1868,7 +1868,7 @@ describe('a fold keeps a Work hidden or shown whole', () => {
 						})
 					)
 				).toHaveLength(1);
-				// A Work alive and hidden is off the list, as c570 r2 made it, and counted.
+				// A Work alive and hidden is off the list, and counted.
 				w.hideWork(live.id, true);
 				const hiddenWork = line({
 					ended: false,
@@ -1900,13 +1900,13 @@ describe('a fold keeps a Work hidden or shown whole', () => {
 });
 
 /**
- * A backup with no `sources` entry (c258; doc/IMPORT-MIHON.md, "A backup that
+ * A backup with no `sources` entry (doc/IMPORT-MIHON.md, "A backup that
  * names no source"): the URL series it makes carries no `source:` tag and no
- * download folder, so the source cannot be read from it. Built first, as the
- * card asks, then tsundoku's downloads of the same manga arrive. The second
- * signal is the chapter's own address (ComicInfo's `Web` ending with the
- * backup's chapter path) under the exact title, or the engine's own name for
- * the key's source; a title and chapter numbers alone stay apart.
+ * download folder, so the source cannot be read from it. Built first, then
+ * tsundoku's downloads of the same manga arrive. The second signal is the
+ * chapter's own address (ComicInfo's `Web` ending with the backup's chapter
+ * path) under the exact title, or the engine's own name for the key's source;
+ * a title and chapter numbers alone stay apart.
  */
 describe('a backup that names no source', () => {
 	const at = 1_800_004_000_000;
@@ -2039,8 +2039,8 @@ describe('a backup that names no source', () => {
 });
 
 /**
- * c571 through the library's backup (doc/BROWSE.md, "ADDED HIDDEN at the
- * importer"): tsundoku's download arrives first and is created as a
+ * ADDED HIDDEN through the library's backup (doc/BROWSE.md, "ADDED HIDDEN at
+ * the importer"): tsundoku's download arrives first and is created as a
  * `mihon-dir:` series, then the library's own backup names the manga and
  * `adoptFolder` re-keys that series rather than creating one. Its source is
  * installed with ADDED HIDDEN on, so the folder's series arrives hidden and

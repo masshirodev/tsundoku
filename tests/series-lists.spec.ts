@@ -33,8 +33,8 @@ import type { RanobeSeries } from '$lib/server/ranobe-review';
 
 /**
  * The LISTS row's words and cells (doc/SERIES.md "LISTS"), for
- * every state the brief names. The e2e files reach the states through the
- * app's doors; this pins the rules over their whole domain, which a screen
+ * every state the design names. The e2e files reach the states through the
+ * app's screens; this pins the rules over their whole domain, which a screen
  * can't enumerate.
  */
 
@@ -211,7 +211,7 @@ function seasonTrack(season: number, facts: TrackFacts[], o: Partial<SeasonTrack
 	} as SeasonTrack;
 }
 
-describe('a line not linked (1B, 1)', () => {
+describe('a line not linked', () => {
 	it('says what the last search did, and never credits a cover pass with it', () => {
 		const said = (l: Partial<LinkState>) =>
 			lines(input({ link: unlinked(l), tracking: tracking([]) }))[0].meta;
@@ -255,7 +255,7 @@ describe('a line not linked (1B, 1)', () => {
 		expect(settled.cells[0]).toMatchObject({ key: 'find', accent: false });
 	});
 
-	it('hidden: PASTE A LINK alone, as the accent (1B, 7)', () => {
+	it('hidden: PASTE A LINK alone, as the accent', () => {
 		const [l] = lines(
 			input({ link: unlinked({ hidden: true }), tracking: tracking([], { hidden: true }) })
 		);
@@ -271,11 +271,11 @@ describe('a line not linked (1B, 1)', () => {
 	});
 });
 
-describe('a comic’s AniList line (1B, 2–6)', () => {
+describe('a comic’s AniList line', () => {
 	const sent = NOW - 12 * MIN;
 	const reading = { status: 'reading' as const, progress: 214, score: 9 };
 
-	it('folds MAL in when it says the same, and names both as sent (2)', () => {
+	it('folds MAL in when it says the same, and names both as sent', () => {
 		const [l] = lines(
 			input({
 				link: linked(),
@@ -299,7 +299,7 @@ describe('a comic’s AniList line (1B, 2–6)', () => {
 		expect(l.cells[0].edit).toEqual({ list: 'anilist', season: null });
 	});
 
-	it('gives MAL a quiet line of its own when it differs, and SIGN IN joins the cells (3)', () => {
+	it('gives MAL a quiet line of its own when it differs, and SIGN IN joins the cells', () => {
 		const [l] = lines(
 			input({
 				link: linked(),
@@ -331,7 +331,7 @@ describe('a comic’s AniList line (1B, 2–6)', () => {
 		expect(labels(l.cells)).toEqual(['SIGN IN →', 'EDIT']);
 	});
 
-	it('a send that failed is in ink, with TRY AGAIN for that line (4)', () => {
+	it('a send that failed is in ink, with TRY AGAIN for that line', () => {
 		const failedAt = Date.UTC(2026, 10, 4, 9, 14);
 		const [l] = lines(
 			input({
@@ -368,7 +368,7 @@ describe('a comic’s AniList line (1B, 2–6)', () => {
 		expect(labels(l.cells)).toEqual(['SIGN IN →', 'EDIT']);
 	});
 
-	it('cover-only: linked, never tracked, the entry named (5)', () => {
+	it('cover-only: linked, never tracked, the entry named', () => {
 		const [l] = lines(
 			input({
 				kind: 'novel',
@@ -383,7 +383,7 @@ describe('a comic’s AniList line (1B, 2–6)', () => {
 		expect(labels(l.cells)).toEqual(['EDIT']);
 	});
 
-	it('the wrong kind: flagged in ink, CHANGE its accent, EDIT kept (6)', () => {
+	it('the wrong kind: flagged in ink, CHANGE its accent, EDIT kept', () => {
 		const [l] = lines(
 			input({
 				kind: 'anime',
@@ -403,7 +403,7 @@ describe('a comic’s AniList line (1B, 2–6)', () => {
 		expect(l.cells[0]).toMatchObject({ accent: true, href: '/links?series=7' });
 	});
 
-	it('hidden and linked by a paste: nothing sent, said once (7)', () => {
+	it('hidden and linked by a paste: nothing sent, said once', () => {
 		const [l] = lines(
 			input({
 				link: { ...linked({ via: 'pasted' }), hidden: true },
@@ -416,7 +416,7 @@ describe('a comic’s AniList line (1B, 2–6)', () => {
 	});
 });
 
-describe('offline (1B, 8)', () => {
+describe('offline', () => {
 	it('EDIT turns into OPEN ↗, everything else dims, and the strip says why', () => {
 		const row = listsRow(
 			input({
@@ -452,7 +452,7 @@ describe('offline (1B, 8)', () => {
 	});
 });
 
-describe('Ranobe’s line (1B, 9; 1C, 10)', () => {
+describe('Ranobe’s line', () => {
 	it('on a comic, under AniList’s; on a novel, first, with AniList’s for the cover', () => {
 		const comic = lines(
 			input({ link: linked(), tracking: tracking([fact('anilist')]), ranobe: ranobe() })
@@ -517,7 +517,7 @@ describe('Ranobe’s line (1B, 9; 1C, 10)', () => {
 	});
 });
 
-describe('an anime’s seasons (1C, 11, 12)', () => {
+describe('an anime’s seasons', () => {
 	const watching = { status: 'reading' as const, progress: 8, score: 8 };
 	const done = { status: 'completed' as const, progress: 12, score: 7 };
 
@@ -626,7 +626,7 @@ describe('an anime’s seasons (1C, 11, 12)', () => {
 		});
 	});
 
-	it('a flat list is one ANILIST line, and never says SEASON 0 or S0 (12)', () => {
+	it('a flat list is one ANILIST line, and never says SEASON 0 or S0', () => {
 		const flat = input({
 			kind: 'anime',
 			link: linked({
@@ -661,7 +661,7 @@ describe('an anime’s seasons (1C, 11, 12)', () => {
 		// FIND on the flat list's line names no season (the review's own rule).
 		const unl = { ...flat, link: unlinked(), seasons: [seasonRow(0, { link: null })] };
 		expect(lines(unl)[0].cells[0].href).toBe('/links?series=7');
-		// RNB on an anime keeps one cell (1C, 12).
+		// RNB on an anime keeps one cell.
 		expect(labels(r.cells)).toEqual(['FIND']);
 		expect(JSON.stringify([row, listsRow(unl)])).not.toMatch(/SEASON 0|\bS0\b/);
 	});
@@ -697,7 +697,7 @@ describe('an anime’s seasons (1C, 11, 12)', () => {
 				expect(JSON.stringify(seasonWords(n, t))).not.toMatch(/SEASON 0/);
 	});
 
-	it('Ranobe’s one line under the seasons, a rule above it (10)', () => {
+	it('Ranobe’s one line under the seasons, a rule above it', () => {
 		const i = show(4, 3, { ranobe: ranobe({}, { anime: true }) });
 		const r = lines(i).at(-1)!;
 		expect(r).toMatchObject({
@@ -708,7 +708,7 @@ describe('an anime’s seasons (1C, 11, 12)', () => {
 	});
 });
 
-describe('cells, in the handoff’s order', () => {
+describe('cells, in the design’s order', () => {
 	it('TRY AGAIN, SIGN IN →, FIND or CHANGE, PASTE A LINK, EDIT', () => {
 		const [l] = lines(
 			input({
@@ -856,7 +856,7 @@ describe('AniList signed out, MAL signed in: MAL’s word leads', () => {
 	});
 });
 
-describe('TRY AGAIN beside an expired sign-in (low)', () => {
+describe('TRY AGAIN beside an expired sign-in', () => {
 	it('offers both when one list’s sign-in expired and another’s send did not answer', () => {
 		const [l] = lines(
 			input({
@@ -878,11 +878,11 @@ describe('TRY AGAIN beside an expired sign-in (low)', () => {
 });
 
 /*
- * DETAILS' folded line (doc/SERIES.md "DETAILS", series-phone 1C): its
+ * DETAILS' folded line (doc/SERIES.md "DETAILS"): its
  * marks come from LISTS' own lines and SOURCE's trouble, so they are read off
  * `listsRow`'s real output here, not off hand-made lines.
  */
-describe('DETAILS: the marks LISTS carries (1C)', () => {
+describe('DETAILS: the marks LISTS carries', () => {
 	const reading = { status: 'reading' as const, progress: 214, score: 9 };
 	const failedAt = Date.UTC(2026, 10, 4, 9, 14);
 
@@ -997,7 +997,7 @@ describe('DETAILS: the marks LISTS carries (1C)', () => {
 	});
 });
 
-describe('DETAILS: the folded line (1C)', () => {
+describe('DETAILS: the folded line', () => {
 	const names = ['DOWNLOAD', 'DIRECTION', 'OCR', 'LISTS', 'COVER', 'SOURCE', 'TAGS', 'FILE'];
 
 	it('quiet: the quiet words in text-2, the names under them, no bar', () => {
@@ -1060,7 +1060,7 @@ describe('DETAILS: the folded line (1C)', () => {
 		expect(sourceMark(null)).toEqual([]);
 	});
 
-	it('the names: all of them, or the TV’s first four and how many more (1D)', () => {
+	it('the names: all of them, or the TV’s first four and how many more', () => {
 		expect(namesLine(names)).toBe(names.join(' · '));
 		expect(namesLine(names, TV_NAMES)).toBe('DOWNLOAD · DIRECTION · OCR · LISTS · 4 MORE');
 		expect(namesLine(names.slice(0, 4), TV_NAMES)).toBe('DOWNLOAD · DIRECTION · OCR · LISTS');
@@ -1081,7 +1081,7 @@ describe('DETAILS: the folded line (1C)', () => {
 	});
 });
 
-describe('a comic’s line says where its entry comes from, and its year (1B)', () => {
+describe('a comic’s line says where its entry comes from, and its year', () => {
 	it('names every country AniList gives a comic, and nothing else', () => {
 		// The whole domain: AniList's countryOfOrigin for MANGA is JP, KR, CN or TW.
 		expect(
@@ -1100,7 +1100,7 @@ describe('a comic’s line says where its entry comes from, and its year (1B)', 
 		expect(meta({ country: 'KR', year: 2020 })).toBe('MANHWA · 2020 · MAL 132214');
 		expect(meta({ country: 'CN', year: 2019 })).toBe('MANHUA · 2019 · MAL 132214');
 		expect(meta({ country: 'JP', year: null })).toBe('MANGA · MAL 132214');
-		// A link from before rung 70: neither column, and never `MANGA · null`.
+		// A link from before migration 70: neither column, and never `MANGA · null`.
 		expect(meta({ country: null, year: null })).toBe('MANGA · MAL 132214');
 		expect(meta({ country: '', year: null })).toBe('MANGA · MAL 132214');
 	});
@@ -1182,7 +1182,7 @@ describe('a NEVER TRACKED source', () => {
 	});
 });
 
-// ---- a film's and a show's TMDB line (the keys handoff, Board 2) ------------------------
+// ---- a film's and a show's TMDB line ------------------------
 
 function tmdb(o: Partial<TmdbLinkState> = {}): TmdbLinkState {
 	return {
@@ -1224,7 +1224,7 @@ describe('the TMDB line', () => {
 		).toEqual(['TMDB', 'LIST']);
 	});
 
-	it('draws a linked film and a linked show the board’s way, with CHANGE', () => {
+	it('draws a linked film and a linked show the design’s way, with CHANGE', () => {
 		const film = lines(
 			input({
 				kind: 'movie',

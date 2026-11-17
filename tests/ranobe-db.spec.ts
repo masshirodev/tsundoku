@@ -280,7 +280,7 @@ describe('the pass', () => {
 		]);
 	});
 
-	// Ane no Tomodachi (2026-10-29): a running manga Ranobe counts no chapters
+	// Ane no Tomodachi: a running manga Ranobe counts no chapters
 	// of, read for days and never sent, because no count meant no units.
 	it('sends every chapter read of a running work, with no count or past it', async () => {
 		estateUnits = { type: 'chapter', count: null, extra: [], open: true };
@@ -390,7 +390,7 @@ describe('after reading', () => {
 	});
 });
 
-describe('a link made by hand (2026-10-29)', () => {
+describe('a link made by hand', () => {
 	it('maps the series and sends what was read before it at once, not at the next pass', async () => {
 		// As "Ane no Tomodachi" was: read, then linked in the review after the last pass.
 		rb.unlinkSeries(ESTATE, NOW, false);
@@ -442,7 +442,7 @@ describe('rating and favourite', () => {
 		expect(library.get('w2')).toMatchObject({ favourite: true, rating: 9, rev: 41 });
 	});
 
-	// c95: the test above failed now and then with the FAV never sent. Its
+	// The test above failed now and then with the FAV never sent. Its
 	// want came in the millisecond of the rating's send, and `sent_at <
 	// wanted_at` read it as sent. One clock tick for the whole test, later than
 	// any send before it, makes that every time; a want made while the PUT is

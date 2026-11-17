@@ -6,7 +6,7 @@ import { expect, test } from './fixtures';
  * top bar"): SORT's menu walked by the remote alone. The `tv` project
  * has no pointer, so every press is a key. BACK from deep in the grid lands
  * at the top and stays there, sampled every frame for 2 s. OK on a
- * shelf tab keeps the mark on the tab row (c589; a remote meets the tabs at
+ * shelf tab keeps the mark on the tab row (a remote meets the tabs at
  * the top, so the case guards the mark, not the scroll). Sorting and shelves
  * only change the URL:
  * nothing here writes to the database the flow files share.
@@ -19,8 +19,8 @@ const focused = (page: Page) =>
 	});
 
 /**
- * From the screen's start to SORT's cell, the way a remote gets there. Since
- * c436 the tabs take the width and FILTER is the KIND band's last cell, at the
+ * From the screen's start to SORT's cell, the way a remote gets there. The
+ * tabs take the width and FILTER is the KIND band's last cell, at the
  * right edge under SORT: down to the band, along it to FILTER, then up.
  */
 async function toSort(page: Page) {
@@ -114,10 +114,10 @@ test('the remote reaches SORT, OK opens it on the choice in use, and the pad wal
 
 test('OK on another shelf tab keeps the mark on the tab row', async ({ page }) => {
 	// A remote meets the tabs at the screen's start (BACK from the grid climbs
-	// past the pinned band to the first CONTINUE card), so what a TV needs of
-	// c589 is that the shelf's links scrolling to the top keep the mark. The
-	// page is at 0 before OK as well as after, so the scrollY read below
-	// cannot fail on c589's own change (it passes with noscroll put back,
+	// past the pinned band to the first CONTINUE card), so what a TV needs is
+	// that the shelf's links scrolling to the top keep the mark. The page is at
+	// 0 before OK as well as after, so the scrollY read below cannot fail on
+	// the scroll change (it passes with noscroll put back,
 	// measured): this case guards keepfocus. The scroll is the device
 	// projects' (library-top-scroll.e2e.ts).
 	await page.goto('/?sort=title');
@@ -136,12 +136,12 @@ test('OK on another shelf tab keeps the mark on the tab row', async ({ page }) =
 });
 
 test('← from the first collection’s tab reaches ALL', async ({ page }) => {
-	// Filed while c589's case above was written, as a layer bug: ← from the
-	// first collection stayed on it while the second's reached the first. At
-	// aa6a7b22 it does not: measured, ALL's box is 49-144 and the first
-	// collection's starts at 144, so the layer's half-pixel slack already reads
-	// it as "left of it" (`isInDirection`, geometry.ts). This case keeps the
-	// walk the card names, so the state cannot come back silently.
+	// Suspected as a layer bug: ← from the first collection staying on it while
+	// the second's reached the first. It does not: measured, ALL's box is
+	// 49-144 and the first collection's starts at 144, so the layer's
+	// half-pixel slack already reads it as "left of it" (`isInDirection`,
+	// geometry.ts). This case keeps the walk, so the state cannot come back
+	// silently.
 	await page.goto('/?sort=title');
 	const onTab = () =>
 		page.evaluate(() => document.activeElement?.getAttribute('data-focus-id') ?? '');
@@ -177,12 +177,11 @@ test('← from the first collection’s tab reaches ALL', async ({ page }) => {
 });
 
 /**
- * c612: the outline is drawn instead of the grid (`{#if outlined}`), so a
+ * The outline is drawn instead of the grid (`{#if outlined}`), so a
  * tile that holds the mark when a filter starts is unmounted and the mark
  * falls to `<body>`. The library page notes the tile and gives it back, or the
- * KIND band's chosen cell when the filter takes the tile away (c612; the
- * patch was written in doc/handoff-notes/tv.md, wave 27, Gaps). Each step is
- * asserted, so a setup that never put the mark on a tile cannot pass.
+ * KIND band's chosen cell when the filter takes the tile away. Each step
+ * is asserted, so a setup that never put the mark on a tile cannot pass.
  */
 test.describe('a tile focused while the grid becomes an outline', () => {
 	test.use({ serviceWorkers: 'block' });
@@ -230,7 +229,7 @@ test.describe('a tile focused while the grid becomes an outline', () => {
 		// unmounted the grid yet.
 		expect(await mark(page)).toBe(tile);
 		// The outline is the library's own waiting state: LOADING beside SORT,
-		// and the real tiles gone (c560 kept SORT drawn; the grid is outline).
+		// and the real tiles gone (SORT stays drawn; the grid is outline).
 		await expect(page.getByText('LOADING', { exact: true })).toBeVisible({ timeout: 15_000 });
 		await expect(page.locator('.grid .tile .open')).toHaveCount(0);
 		// The red: nothing else is left to hold it.
@@ -297,9 +296,9 @@ test.describe('a sort that takes past 1 s', () => {
 		page
 	}) => {
 		// What loaded runs did to `:49` 4 times in 10, forced: the outline goes
-		// up at 1 s with the cell focused. Until c560 it put LOADING in SORT's
-		// place, the focused cell left the page and the mark was on the body
-		// until SORT came back (wave 24 gave it back afterwards).
+		// up at 1 s with the cell focused. LOADING in SORT's place would take the
+		// focused cell off the page and leave the mark on the body until SORT
+		// came back.
 		await page.goto('/?sort=title');
 		await toSort(page);
 		await slow(page, 'sort=rating', 2500);
@@ -343,9 +342,8 @@ test.describe('a sort that takes past 1 s', () => {
 
 /**
  * How far the focused cover's ring (7px outside it, `--focus-ring`) is clear
- * of every bar pinned over that column: the top bar, the shelf tabs (pinned
- * until c436), the KIND band (pinned in their place since) and the focus
- * line. Negative is covered.
+ * of every bar pinned over that column: the top bar, the KIND band and the
+ * focus line. Negative is covered.
  */
 const ringClear = (page: Page) =>
 	page.evaluate(() => {
@@ -397,10 +395,10 @@ test('the pinned bars never cover the first row’s focus ring, and BACK from de
 	await expect.poll(() => focused(page)).toMatch(/^Resume /);
 	// And it comes to rest there: every frame for 2 s, not one read. A
 	// single poll passed the first time it caught the top, so it could not see
-	// a page that went on moving (wave 21 measured 0, 0, 3, 0, 0, 3… here).
+	// a page that went on moving (0, 0, 3, 0, 0, 3… was measured here).
 	// Within a few pixels of the top, as before, since the flow files beside
 	// this one hide and restore series on the same grid (2px once, under a
-	// loaded run on wave 22's base); but the same few pixels all the way.
+	// loaded run); but the same few pixels all the way.
 	const frames = await stillFor(page, 2_000);
 	expect(frames.length, 'frames sampled in 2 s').toBeGreaterThan(20);
 	expect([...new Set(frames)], 'scrollY over 2 s after BACK').toHaveLength(1);
@@ -410,11 +408,11 @@ test('the pinned bars never cover the first row’s focus ring, and BACK from de
 
 /**
  * The loaded runs' red, made on purpose: ↓ on the last row has no stop
- * below it, and the page used to leave that key to the browser, whose own
- * scroll is animated. BACK pressed while it was still moving put the page at
- * the top (`climb()`'s instant `scrollTo(0)`), and then the animation's
- * remaining distance was applied from there: 33 px in one loaded run, 2 in
- * another. On a TV the layer now scrolls for that key itself, instantly.
+ * below it. Left to the browser, that key's scroll is animated: BACK pressed
+ * while it is still moving puts the page at the top (`climb()`'s instant
+ * `scrollTo(0)`), and then the animation's remaining distance is applied from
+ * there: 33 px in one loaded run, 2 in another. On a TV the layer scrolls for
+ * that key itself, instantly.
  */
 test('BACK pressed while ↓ past the last row still scrolls lands at the top and stays', async ({
 	page
@@ -488,7 +486,7 @@ test('the library keeps the TV’s own bottom safe margin, and the last row ends
 });
 
 /**
- * Two stops per CONTINUE card since c841: ▶ (the first stop, what BACK climbs
+ * Two stops per CONTINUE card: ▶ (the first stop, what BACK climbs
  * to) and the band, which opens the entry. A trip to the series and back
  * returns to the stop it left (doc/FOCUS.md, "Going back").
  */
@@ -553,8 +551,8 @@ test('each stop draws the ring inside the card, and ▶ is a visible cell', asyn
 /**
  * The bar's ON <NAME> cell at the TV's 960 px, in the TV's own type. The
  * APK's bridge, stood up as `tests/tv-servers.e2e.ts` does, with this page's
- * own origin as the server in use, as `inUseOf` finds it. ARCHLINUX is the
- * owner's computer, and 20 characters the longest case the card names.
+ * own origin as the server in use, as `inUseOf` finds it. ARCHLINUX is a
+ * real computer's name, and 20 characters the longest case.
  */
 test.describe('the bar names the server in use', () => {
 	const cell = (page: Page) => page.locator('[data-focus-id="library-server"]');
@@ -598,7 +596,7 @@ test.describe('the bar names the server in use', () => {
 					scroll: el.scrollWidth,
 					client: el.clientWidth,
 					face,
-					// The face really drawn, not only the one asked for (the card's Iosevka trap).
+					// The face really drawn, not only the one asked for.
 					loaded: [...document.fonts].some(
 						(f) => f.family.replace(/"/g, '') === face && f.status === 'loaded'
 					)

@@ -18,9 +18,9 @@ const { keepPage, KeepError, pageHighlights } = await import('$lib/server/highli
 const { deleteSeries } = await import('$lib/server/delete');
 
 /**
- * Highlights H3, the store's half (doc/HIGHLIGHTS.md, "Pages"): a
+ * Highlighted pages, the store's half (doc/HIGHLIGHTS.md, "Pages"): a
  * page kept from the image reader through `keepPage`, with the reader's own
- * door to a page's bytes (`readPage`, a downloaded chapter's folder here),
+ * way to a page's bytes (`readPage`, a downloaded chapter's folder here),
  * and stand-ins for a page read online that answer as the engine's proxy
  * does: a throw when the source sends nothing (`readOnlinePage` rethrows on
  * its second, fresh try), or an answer that arrives late.
@@ -217,10 +217,10 @@ describe('keeping a downloaded page', () => {
 });
 
 /**
- * Round 3 (reviews/manga-r2.json): a page deleted and kept again inside its
+ * A page deleted and kept again inside its
  * UNDO window is the same highlight brought back; after the window it is a
  * new one, whether or not anything purged in between. `/highlights` is the
- * only other door to the purge, and none of these cases list it. The window's
+ * only other route to the purge, and none of these cases list it. The window's
  * edge is `purgeDeleted`'s (`deleted_at < now - UNDO_MS` is gone), so a row
  * deleted exactly `UNDO_MS` ago is still inside it.
  */

@@ -75,7 +75,7 @@ describe('latest.json (doc/UPDATES.md)', () => {
 			ok: false,
 			reason: 'a file entry is malformed'
 		});
-		// A release from before c614 has no Android entry, and still opens.
+		// An older release has no Android entry, and still opens.
 		const old = { ...manifest, files: { 'win-x64': manifest.files['win-x64'] } };
 		expect(openManifest(signed(old), raw)).toMatchObject({ ok: true });
 	});

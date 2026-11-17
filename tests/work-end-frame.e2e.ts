@@ -10,11 +10,11 @@ import { expect, hydrated, test, readerReady } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
- * The end of a series in a Work (W6, doc/WORKS.md): the end page's next
- * part, its four states, the tap-not-swipe rule, and the player's last
- * episode. The frame assertions below are design-tools/gen-conformance output
- * pinned from `Work-End.dc.html`; the preamble that makes the Work and serves
- * it is hand-written, and regenerating drops it (doc/WORKS.md, "The frames").
+ * The end of a series in a Work (doc/WORKS.md, "The end of a series"): the
+ * end page's next part, its four states, the tap-not-swipe rule, and the
+ * player's last episode. The frame assertions below are
+ * the conformance generator's output pinned from the design; the preamble
+ * that makes the Work and serves it is hand-written, and regenerating drops it (doc/WORKS.md, "The frames").
  *
  * A Work takes its parts' grid tiles away while it exists, so this runs on the
  * works frames' arrangement (tests/works-library-frame.e2e.ts): a seeded
@@ -29,7 +29,7 @@ const PORT =
 		? pinnedPort
 		: // Nothing outside this file needs the number: it seeds its own database
 			// and serves it here. `PLAYWRIGHT_WORKS_PORT` pins the port when the
-			// gate assigns one; unset, the OS hands out a free one, so the repo's
+			// run assigns one; unset, the OS hands out a free one, so the repo's
 			// own `npx playwright test` runs the file and two concurrent runs do
 			// not collide.
 			await new Promise<number>((resolve, reject) => {
@@ -82,10 +82,10 @@ function seed() {
 }
 
 /**
- * The states the four boards draw, in SQL, because they are library facts the
+ * The four states the design draws, in SQL, because they are library facts the
  * seed has only one of each: an anime whose episodes are files, a part read
  * through, a part caught up on an ongoing source, and a next part with no file
- * that a source can serve (doc/WORKS.md, W6).
+ * that a source can serve (doc/WORKS.md).
  */
 function prepare() {
 	const db = new Database(dbPath);
@@ -208,10 +208,10 @@ const tile = (page: Page, title: string) =>
 	});
 
 /**
- * Picks these two titles in this order and groups them AS A WORK through W4's
- * sheet, then opens the Work. Its name is this file's own (every Work here is
- * renamed in SQL after it is made), because titles sharing no words have no
- * default.
+ * Picks these two titles in this order and groups them AS A WORK through the
+ * GROUP sheet, then opens the Work. Its name is this file's own (every Work
+ * here is renamed in SQL after it is made), because titles sharing no words
+ * have no default.
  */
 let madeWorks = 0;
 async function makeWork(page: Page, first: string, second: string): Promise<number> {
@@ -221,8 +221,8 @@ async function makeWork(page: Page, first: string, second: string): Promise<numb
 	await page.goto('/');
 	// A page of this file's own context: its `goto` is Playwright's, with
 	// none of the fixtures' hydration wait, and SELECT pressed before the
-	// page hydrated did nothing, so GROUP never came (c439: the hook ran out
-	// its 120 s in wave 25's loaded run).
+	// page hydrated did nothing, so GROUP never came (the hook ran out its
+	// 120 s in a loaded run).
 	await hydrated(page);
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	await tile(page, first).locator('.open').click();
@@ -251,10 +251,9 @@ async function openEnd(page: Page, seriesId = 22, at = base) {
 
 test.beforeAll(async ({ browser }, info) => {
 	// The hook builds nothing but waits up to 60 s for its own preview, then
-	// makes nine Works: past the default 30 s under a loaded box, where it was
-	// red in every run of wave 20's gate. In a hook, test.setTimeout sets
-	// the hook's own budget (Playwright's test.d.ts, "Changing timeout for a
-	// beforeAll").
+	// makes nine Works: past the default 30 s under a loaded box. In a hook,
+	// test.setTimeout sets the hook's own budget (Playwright's test.d.ts,
+	// "Changing timeout for a beforeAll").
 	test.setTimeout(120_000);
 	seed();
 	prepare();
@@ -339,7 +338,7 @@ const SEL = {
 	footCell: '.end .foot .fcell:first-child'
 };
 
-test('screen: nextw matches the handoff', async ({ page }) => {
+test('screen: nextw matches the design', async ({ page }) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.nextw)).toBeVisible();
 
@@ -360,7 +359,7 @@ test('screen: nextw matches the handoff', async ({ page }) => {
 	expect(nextwStyle.borderLeftWidth).toBe('1px');
 });
 
-test('screen: coverWell matches the handoff', async ({ page }) => {
+test('screen: coverWell matches the design', async ({ page }) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.coverWell)).toBeVisible();
 
@@ -383,7 +382,7 @@ test('screen: coverWell matches the handoff', async ({ page }) => {
 	expect(coverWellStyle.borderRightWidth).toBe('1px');
 });
 
-test('screen: info matches the handoff', async ({ page }) => {
+test('screen: info matches the design', async ({ page }) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.info)).toBeVisible();
 
@@ -412,7 +411,7 @@ test('screen: info matches the handoff', async ({ page }) => {
 	expect(infoStyle.paddingLeft).toBe('24px');
 });
 
-test('screen: kickerLine matches the handoff', async ({ page }) => {
+test('screen: kickerLine matches the design', async ({ page }) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.kickerLine)).toBeVisible();
 
@@ -431,7 +430,7 @@ test('screen: kickerLine matches the handoff', async ({ page }) => {
 	expect(kickerLineStyle.letterSpacing).toBe('0.72px');
 });
 
-test('screen: nextTitle matches the handoff', async ({ page }) => {
+test('screen: nextTitle matches the design', async ({ page }) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.nextTitle)).toBeVisible();
 
@@ -450,7 +449,7 @@ test('screen: nextTitle matches the handoff', async ({ page }) => {
 	expect(nextTitleStyle.lineHeight).toBe('38px');
 });
 
-test('screen: nextSub matches the handoff', async ({ page }) => {
+test('screen: nextSub matches the design', async ({ page }) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.nextSub)).toBeVisible();
 
@@ -465,7 +464,7 @@ test('screen: nextSub matches the handoff', async ({ page }) => {
 	expect(nextSubStyle.fontSize).toBe('15px');
 });
 
-test('screen: actions matches the handoff', async ({ page }) => {
+test('screen: actions matches the design', async ({ page }) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.actions)).toBeVisible();
 
@@ -482,7 +481,7 @@ test('screen: actions matches the handoff', async ({ page }) => {
 	expect(actionsStyle.borderTopWidth).toBe('1px');
 });
 
-test('screen: start matches the handoff', async ({ page }) => {
+test('screen: start matches the design', async ({ page }) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.start)).toBeVisible();
 
@@ -509,7 +508,7 @@ test('screen: start matches the handoff', async ({ page }) => {
 	expect(startStyle.letterSpacing).toBe('0.6px');
 });
 
-test('screen: workCell matches the handoff', async ({ page }) => {
+test('screen: workCell matches the design', async ({ page }) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.workCell)).toBeVisible();
 
@@ -536,7 +535,7 @@ test('screen: workCell matches the handoff', async ({ page }) => {
 	expect(workCellStyle.letterSpacing).toBe('0.6px');
 });
 
-test('screen: kicker matches the handoff', async ({ page }) => {
+test('screen: kicker matches the design', async ({ page }) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.kicker)).toBeVisible();
 
@@ -561,7 +560,7 @@ test('screen: kicker matches the handoff', async ({ page }) => {
 	expect(kickerStyle.letterSpacing).toBe('0.78px');
 });
 
-test('screen: title matches the handoff', async ({ page }) => {
+test('screen: title matches the design', async ({ page }) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.title)).toBeVisible();
 
@@ -580,7 +579,7 @@ test('screen: title matches the handoff', async ({ page }) => {
 	expect(titleStyle.lineHeight).toBe('50.6px');
 });
 
-test('screen: note matches the handoff', async ({ page }) => {
+test('screen: note matches the design', async ({ page }) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.note)).toBeVisible();
 
@@ -597,7 +596,7 @@ test('screen: note matches the handoff', async ({ page }) => {
 	expect(noteStyle.letterSpacing).toBe('0.48px');
 });
 
-test('screen: foot matches the handoff', async ({ page }) => {
+test('screen: foot matches the design', async ({ page }) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.foot)).toBeVisible();
 
@@ -612,7 +611,7 @@ test('screen: foot matches the handoff', async ({ page }) => {
 	expect(footStyle.borderTopWidth).toBe('1px');
 });
 
-test('screen: footCell matches the handoff', async ({ page }) => {
+test('screen: footCell matches the design', async ({ page }) => {
 	await openEnd(page);
 	await expect(page.locator(SEL.footCell)).toBeVisible();
 
@@ -763,7 +762,7 @@ test.describe('DOWNLOAD FIRST 10 pressed again', () => {
 	/**
 	 * A live stand-in engine, and a second preview of the build on this file's
 	 * database that talks to it. The file's own preview has its engine at
-	 * 127.0.0.1:9 on purpose (c344's refusals), and once anything has asked it
+	 * 127.0.0.1:9 on purpose (for the refusals), and once anything has asked it
 	 * that engine is down, so a press there answers DOWNLOADING IS NOT
 	 * ANSWERING. The stand-in answers like an engine with nothing to download
 	 * from: the queue is paused below, so nothing here asks it for pages.
@@ -997,7 +996,7 @@ test.describe('DOWNLOAD FIRST 10 pressed again', () => {
 test('an anime next part a source streams is WATCH ONLINE, in episodes, and offers its first 10', async ({
 	page
 }) => {
-	// Reached through the app's own doors: Hoshizora Lantern's episodes have
+	// Reached through the app's own links: Hoshizora Lantern's episodes have
 	// their addresses at Fake Source, which an installed extension serves (the
 	// stand-in `prepare` installs), so the player would stream EP. 1 and the
 	// end page says so (`streamsOnline`). The online words for every kind
@@ -1158,7 +1157,7 @@ test('a novel read in SCROLL reaches the end page, so the Work is offered there 
 	await expect(page.locator('.end .note')).toHaveCount(1);
 	await expect(page.getByRole('button', { name: 'Rate 1 of 10' })).toHaveCount(1);
 	// The end page is over the text: a wheel up returns to it, and a wheel down
-	// at the bottom ends it again -- the door a chapter too short to scroll has,
+	// at the bottom ends it again -- the way out a chapter too short to scroll has,
 	// since such a chapter never fires onscroll.
 	await page.mouse.move(640, 400);
 	await page.mouse.wheel(0, -400);
@@ -1268,13 +1267,13 @@ test('a novel’s last volume is the same end page, so it offers the Work too', 
 
 /**
  * The block on a phone. Its cells are one line each (`white-space:
- * nowrap`), and since c343 and c344 they can say DOWNLOAD FIRST 10 EPISODES and
+ * nowrap`), and they can say DOWNLOAD FIRST 10 EPISODES and
  * NOT QUEUED · TRY THE SERIES: on a phone the column beside the 64 px cover is
- * about 270 px, and the frames above measure only the board's 1280. This file
+ * about 270 px, and the frames above measure only the design's 1280. This file
  * runs in `works-frame` alone (playwright.config.ts), so the phone project's
  * own device (Pixel 7, 412 wide) is set here for these cases, on this file's
- * own seeded world: the online-only block, the anime block (WATCH ONLINE since
- * c536), each with its refused cell, and the meanwhile row's cell.
+ * own seeded world: the online-only block, the anime block (WATCH ONLINE),
+ * each with its refused cell, and the meanwhile row's cell.
  */
 test.describe('on a phone', () => {
 	// The device less `defaultBrowserType`, which a describe may not set (it is Chromium anyway).
@@ -1321,9 +1320,7 @@ test.describe('on a phone', () => {
 		await expect(page.locator(SEL.workCell)).toHaveText('WORK →');
 	});
 
-	test('the anime block, streaming since c536, and its refused cell fit the column', async ({
-		page
-	}) => {
+	test('the streaming anime block and its refused cell fit the column', async ({ page }) => {
 		await openEnd(page, 19);
 		const dl = page.locator('.end .nextw .go .dl');
 		await expect(dl).toHaveText('DOWNLOAD FIRST 10 EPISODES');

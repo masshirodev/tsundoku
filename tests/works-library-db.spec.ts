@@ -153,8 +153,8 @@ describe('browsing shows the run as one tile', () => {
 		// SELECT ALL over MANGA hands every series id the tiles hold, a Work's
 		// off-shelf manhwa part included (`tileIds`); bulk HIDE acts on series,
 		// so it hides the run part by part. This is the node half of the flow
-		// case that used to prove it by hiding the whole shelf (round 2's
-		// finding): a write there landed on every manga in the shared library.
+		// case: hiding the whole shelf there would write to every manga in the
+		// shared library.
 		const manga = idOf('Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru');
 		const manhwa = idOf("Omniscient Reader's Viewpoint");
 		const facts = make(
@@ -178,7 +178,7 @@ describe('browsing shows the run as one tile', () => {
 
 	it('marks a Work hidden when any part is, whatever part the tile wears', () => {
 		// Grouping refuses to mix hidden and visible, but a part can be hidden on
-		// its own afterwards (the series screen's HIDE, until W4 settles it). The
+		// its own afterwards (the series screen's HIDE). The
 		// Work is then still one tile, and HIDDEN is the Work's mark: the face is
 		// the part the tile opens, which here is the visible one, so a mark read
 		// off the face would say this run is not hidden.
@@ -269,8 +269,7 @@ describe('CONTINUE is one row per Work', () => {
 	});
 
 	it('says UP NEXT, pointing at the next part’s first chapter, when the run moves on', () => {
-		// Yofukashi is read through and Isekai Yakkyoku never started: the Work
-		// is exactly the handoff's Akasaka row.
+		// Yofukashi is read through and Isekai Yakkyoku never started.
 		make(['Yofukashi no Uta', 'Isekai Yakkyoku'], 'Two Runs');
 		const rows = cont().items.filter((i) => i.work?.name === 'Two Runs');
 		expect(rows).toHaveLength(1);

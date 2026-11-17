@@ -167,7 +167,7 @@ describe('nextInDirection', () => {
 });
 
 /**
- * c578: which scroller ↑ ↓ move when nothing is that way, on a TV. A scroller
+ * Which scroller ↑ ↓ move when nothing is that way, on a TV. A scroller
  * at its end in the key's direction is passed over for the next one out.
  */
 describe('canScroll', () => {

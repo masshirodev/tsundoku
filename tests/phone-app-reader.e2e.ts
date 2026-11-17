@@ -2,7 +2,7 @@ import { type Page } from '@playwright/test';
 import { expect, readerReady, test } from './helpers/hydrated';
 
 /**
- * The reader under the camera in the phone app (c521; doc/ANDROID.md,
+ * The reader under the camera in the phone app (doc/PHONE-APP.md,
  * "Drawn under the camera"). The app pads the page out of the camera band
  * everywhere else; the image reader asks for the band (`edge(true)`) while it
  * is open and gives it back on leaving, and keeps its top bar below the band

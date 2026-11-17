@@ -41,9 +41,9 @@ function freePort(): Promise<number> {
 test.beforeAll(async () => {
 	// This hook seeds a database and spawns a preview, then polls up to 60 s
 	// for it: all inside the default 30 s hook budget, where `work-end-frame`'s
-	// same shape ran past 30 s in wave 20's gate. Measured at 3 s here,
-	// desktop at a load average of 20 with the other slots at work; the house
-	// budget is 120 s so a loaded gate fails a case, never the hook. In
+	// same shape ran past 30 s under load. Measured at 3 s here, desktop at a
+	// load average of 20; the house budget is 120 s so a loaded run fails a
+	// case, never the hook. In
 	// a hook, `test.setTimeout` sets the hook's own budget (Playwright's
 	// test.d.ts).
 	test.setTimeout(120_000);
@@ -228,12 +228,11 @@ test('without script, RESCAN is the plain form it was: it posts, and the scan is
 });
 
 /*
- * MORE's RESCAN (the owner's yes, 2026-11-05): where there is no
- * sidebar (a phone, a tablet), MORE has a RESCAN row, and it presses the
- * sidebar's own form, so the question, CANCEL focused, joining a running scan
- * and the action's answer are the sidebar's. MORE closes first, so the
- * question is the only sheet open. Its answer has no row to sit under, so a
- * refusal is a band at the top of the screen.
+ * MORE's RESCAN: where there is no sidebar (a phone, a tablet), MORE has a
+ * RESCAN row, and it presses the sidebar's own form, so the question, CANCEL
+ * focused, joining a running scan and the action's answer are the sidebar's.
+ * MORE closes first, so the question is the only sheet open. Its answer has no
+ * row to sit under, so a refusal is a band at the top of the screen.
  */
 const noSidebar = (name: string) =>
 	test.skip(name === 'desktop', 'the desktop has the sidebar’s RESCAN, and MORE is not in its bar');

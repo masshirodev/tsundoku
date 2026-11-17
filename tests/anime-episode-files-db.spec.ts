@@ -10,8 +10,8 @@ process.env.COVER_DIR = join(work, 'covers');
 const dir = join(work, 'covers', 'episodes');
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 
-// The nightly sweep of covers/episodes/ (doc/ANIME.md, "Episode pictures";
-// card c454): an episode's picture and sprite go once its id is no longer an
+// The nightly sweep of covers/episodes/ (doc/ANIME.md, "Episode pictures"):
+// an episode's picture and sprite go once its id is no longer an
 // episode's, and stay under an id SQLite handed to a new episode.
 const { getDb } = await import('$lib/server/db');
 const { SWEEP_MIN_AGE_MS, sweepEpisodeFiles } = await import('$lib/server/anime/episode-files');

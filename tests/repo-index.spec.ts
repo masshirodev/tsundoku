@@ -9,7 +9,7 @@ import {
 	isLoopbackHost
 } from '$lib/server/engine/repo-index';
 
-// Shaped as Keiyoushi's and Yuzono's were on 2026-10-28 (doc/DOWNLOADS.md).
+// Shaped as Keiyoushi's and Yuzono's are (doc/DOWNLOADER.md).
 const FP = '9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2';
 
 describe('a pasted repository address', () => {
@@ -36,7 +36,7 @@ describe('a pasted repository address', () => {
 			expect(() => repoBase(a)).toThrow(/https/);
 	});
 
-	it('takes plain http from this computer itself, the owner’s personal repository', () => {
+	it('takes plain http from this computer itself, the user’s personal repository', () => {
 		expect(repoBase('http://127.0.0.1:47830/index.min.json')).toBe('http://127.0.0.1:47830/');
 		expect(repoBase('http://localhost:47830/repo.json')).toBe('http://localhost:47830/');
 		expect(repoBase('http://[::1]:47830/')).toBe('http://[::1]:47830/');

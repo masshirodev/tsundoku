@@ -7,8 +7,8 @@ import { join } from 'node:path';
 process.env.DATABASE_PATH = ':memory:';
 process.env.ENGINE_URL = 'http://127.0.0.1:1';
 process.env.ENGINE_TOKEN = 'extensions-select';
-// BACK TO keeps the previous APK under this store; keep it in the worktree's
-// scratch, never the owner's data folder.
+// BACK TO keeps the previous APK under this store; keep it in the checkout's
+// scratch, never the user's data folder.
 process.env.ENGINE_STORE = join(process.cwd(), 'temp', 'extensions-select-store');
 mkdirSync(process.env.ENGINE_STORE, { recursive: true });
 
@@ -44,7 +44,7 @@ const { revealValue } = await import('$lib/server/prefs');
 /**
  * EXTENSIONS' SELECT: setting one of tsundoku's switches on every
  * source of the ticked extensions, in one transaction, with the facts UNDO
- * needs. The press's rule is the owner's decision of 2026-11-08: a row is a
+ * needs. The press's rule: a row is a
  * package, the switch is per source id, so a press changes every source of the
  * extension, including a language BROWSE does not list.
  */
@@ -243,7 +243,7 @@ describe('SELECT’s press', () => {
 		const r = await act('flags', { pkg: 'en.multi', flag: 'offHistory', value: 'true' });
 		expect(r.status).toBe(303);
 		const u = new URL(r.location!, 'http://localhost');
-		// The fr source is not in the owner's languages (en, ja), so BROWSE never
+		// The fr source is not in the user's languages (en, ja), so BROWSE never
 		// draws it; the press follows the extension, not the list.
 		expect(flags.sourceFlags('500').offHistory).toBe(true);
 		expect(flags.sourceFlags('501').offHistory).toBe(true);
@@ -320,7 +320,7 @@ describe('SELECT’s press', () => {
 		const u = new URL(r.location!, 'http://localhost');
 		expect(flags.sourceFlags('500').hidden).toBe(true);
 		expect(flags.sourceFlags('501').hidden).toBe(true);
-		// Hidden means hidden: outside reveal the package is no longer drawn.
+		// Hidden means hidden: outside reveal the package is not drawn.
 		expect(u.searchParams.getAll('pkg')).toEqual([]);
 	});
 
@@ -414,7 +414,7 @@ const listAt = (pkg: string, versionCode: number) =>
 	);
 
 /**
- * Round 2: a band keeps every row of every list. `bandQuery` writes `done=a&
+ * A band keeps every row of every list. `bandQuery` writes `done=a&
  * done=b` (a repeated parameter), so a reader taking `.get()` kept the first
  * and dropped the rest: `UPDATED · 1 OF 3` on three, an UNDO that put one back.
  * Every case here takes at least two rows through the action and then the real
@@ -562,16 +562,15 @@ describe('a band keeps every row of its lists', () => {
 });
 
 /**
- * Round 2: hidden means hidden in the data too. `packageFlags` used to group
- * every installed package, hidden ones included, and count hidden sources on
- * every load; SvelteKit serialises that into the HTML and `__data.json`.
+ * Hidden means hidden in the data too. Whatever `packageFlags` groups and
+ * counts on a load, SvelteKit serialises into the HTML and `__data.json`.
  */
 describe('packageFlags names only what the viewer is drawn', () => {
 	it('sends no hidden package id and no hidden count outside reveal, and both inside it', async () => {
 		extension('x.secret', [{ id: '701', lang: 'en' }]);
 		plugin('secretplugin');
-		// A drawn package with one hidden source of two: total counts every source
-		// (the owner's rule), but outside reveal its hidden count is not sent.
+		// A drawn package with one hidden source of two: total counts every source,
+		// but outside reveal its hidden count is not sent.
 		extension('x.mixed', [
 			{ id: '702', lang: 'en' },
 			{ id: '703', lang: 'fr' }
@@ -602,7 +601,7 @@ describe('packageFlags names only what the viewer is drawn', () => {
 });
 
 /**
- * Round 2: the URL is bounded before the write. A fact costs about 26 bytes
+ * The URL is bounded before the write. A fact costs about 26 bytes
  * once encoded (`|` and `,`), so 600 sources are already past Node's 16 KB
  * request head; the redirect's GET would answer 431 after the press was done.
  */
@@ -646,7 +645,7 @@ describe('a press too large for its URL is refused before it writes', () => {
 });
 
 /**
- * Round 2: a bulk UPDATE where nothing took is not a success with a smaller
+ * A bulk UPDATE where nothing took is not a success with a smaller
  * count. UPDATE ALL answers `fail(502, '... did not update')`; so does this,
  * and a refused signature is not reported as a repository that did not answer.
  */
@@ -661,7 +660,7 @@ describe('a bulk UPDATE where nothing took is not UPDATED', () => {
 		}
 	};
 
-	it('keeps the board’s UPDATED · 1 OF 2 when one of two took', async () => {
+	it('keeps the band’s UPDATED · 1 OF 2 when one of two took', async () => {
 		prep();
 		installs.fail.add('x.upf');
 		const r = await act('updateSome', { pkg: ['x.upok', 'x.upf'] });
@@ -709,7 +708,7 @@ describe('a bulk UPDATE where nothing took is not UPDATED', () => {
 	});
 });
 
-/** Round 2's lows: the bulk doors are as guarded as the single one. */
+/** The bulk actions are as guarded as the single one. */
 describe('a hidden source outside reveal', () => {
 	it('cannot be changed by a hand-made bulk post, and UNDO names no source it may not see', async () => {
 		extension('x.hid', [{ id: '631', lang: 'en' }]);
@@ -751,12 +750,12 @@ describe('a hidden source outside reveal', () => {
 });
 
 /**
- * Round 2 of wave 42 measured the budget on the band's query alone, and wave
- * 43's review found the rest of the redirect outside it: `selectQuery` adds one
- * `pkg` per ticked package, and `?/updateSome` and `?/removeSome` had no check
- * at all. A press of many real-length package names was written, then the
- * redirect's GET answered 431 with no band and no UNDO. These cases use the
- * packages' own names at about 52 bytes each, as an extension's name is.
+ * The budget covers the whole redirect, not the band's query alone:
+ * `selectQuery` adds one `pkg` per ticked package, and `?/updateSome` and
+ * `?/removeSome` are checked too. Otherwise a press of many real-length package
+ * names is written, then the redirect's GET answers 431 with no band and no
+ * UNDO. These cases use the packages' own names at about 52 bytes each, as an
+ * extension's name is.
  */
 describe('the whole redirect is budgeted, for every press', () => {
 	const real = (i: number) =>
@@ -831,12 +830,12 @@ describe('the whole redirect is budgeted, for every press', () => {
 });
 
 /**
- * Round 2 of wave 42: `back()`/`backPlugin()` swap versions and keep
- * `previous_until`, so a row that has already gone back still looks
- * "backable"; the band carried package names and no version, so UNDO swapped
- * it forward again and reported it restored. The band now carries each updated
- * row's new version (`ver=…`, one per `done`, in order) and UNDO refuses whole
- * when any row's version is not the one the press installed.
+ * `back()`/`backPlugin()` swap versions and keep `previous_until`, so a row
+ * that has already gone back still looks "backable"; a band with package names
+ * and no version would let UNDO swap it forward again and report it restored.
+ * The band carries each updated row's new version (`ver=…`, one per `done`, in
+ * order) and UNDO refuses whole when any row's version is not the one the press
+ * installed.
  */
 describe('UPDATE’s UNDO checks the version the press installed', () => {
 	const until = Date.now() + 86_400_000;
@@ -912,10 +911,10 @@ describe('UPDATE’s UNDO checks the version the press installed', () => {
 });
 
 /**
- * Wave 43's lows, cheap ones. Outside reveal a HIDE press on a package with an
- * already-hidden source wrote that source's id and one bit into the band, which
- * the round-2 fix otherwise keeps from the client; the source is not changed by
- * the press, so it leaves the facts and UNDO does not touch it.
+ * Outside reveal a HIDE press on a package with an already-hidden source must
+ * not write that source's id and one bit into the band, which is otherwise kept
+ * from the client; the source is not changed by the press, so it leaves the
+ * facts and UNDO does not touch it.
  */
 describe('a HIDE press leaves already-hidden sources out of its facts', () => {
 	it('carries only the sources it changes outside reveal, and every one inside', async () => {
@@ -955,11 +954,10 @@ describe('a HIDE press leaves already-hidden sources out of its facts', () => {
 });
 
 /**
- * The item-2 fix added one `ver` parameter per updated row to the update band,
- * which the item-1 guard did not count. This is the same shape the review
- * named: a press just under the guard can still send a Location over the
- * budget. The versions here are what the mocked install leaves (1.0); the
- * bound must cost `done` and `ver` together.
+ * The update band carries one `ver` per updated row beside its `done`, so a
+ * press just under a bound that counted `done` alone could still send a
+ * Location over the budget. The versions here are what the mocked install
+ * leaves (1.0); the bound must cost `done` and `ver` together.
  */
 describe('UPDATE’s redirect counts the version it carries', () => {
 	const real = (i: number) =>
@@ -993,9 +991,8 @@ describe('UPDATE’s redirect counts the version it carries', () => {
 });
 
 /**
- * Round 2's second medium: without script a tick could never be pressed,
- * because `selected` lived only in the URL and the server therefore drew every
- * bar cell disabled. The server now draws them pressable (they are disabled
+ * Without script a tick must still be pressable: `selected` lives only in the
+ * URL, so the server draws every bar cell pressable (they are disabled
  * only after hydration), so an empty press can arrive and must be refused with
  * the band and write nothing; a refusal answers with the ticks it read, so the
  * fresh page a no-script press lands on comes back still selecting them.

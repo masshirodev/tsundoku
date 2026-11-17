@@ -3,8 +3,8 @@ import type { Locator, Page } from '@playwright/test';
 import { langName, trackCodes } from '../src/lib/library/streams';
 
 /**
- * The settings sheet's AUDIO and SUBTITLES rows with many languages (c386,
- * doc/ANIME.md "The settings sheet"): the owner's VidStreaming episode offered
+ * The settings sheet's AUDIO and SUBTITLES rows with many languages
+ * (doc/ANIME.md "The settings sheet"): a VidStreaming episode offered
  * a few dozen subtitles, which a segmented row printed over each other. On the
  * browse server's "Tsukiakari no Ryokōsha", whose source offers one English
  * track; the episode's answer is widened in the browser to 11 audio and 30

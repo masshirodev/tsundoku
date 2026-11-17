@@ -8,7 +8,7 @@ import { ANIME_SOURCE, noVideo, resetEngine } from './browse-world';
  * NO SERVER on a browsing record (doc/MOVE.md): an episode played from a
  * preview whose source sends no video offers + ADD, never ANOTHER SOURCE →,
  * which linked to MOVE, and MOVE never opens on a series that isn't in the
- * library (the owner's 404, 2026-11-12). The library series' case keeps the
+ * library (it would 404). The library series' case keeps the
  * cell. Runs in `browse`, whose fake engine sends no video while
  * `/__novideo` is set.
  *

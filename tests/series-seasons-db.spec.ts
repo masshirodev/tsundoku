@@ -4,11 +4,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Candidate } from '$lib/library/catalogue';
 
 /**
- * The relation cache (doc/LINKS.md, "The relation cache", rung 73):
+ * The relation cache (doc/LINKS.md, "The relation cache", migration 73):
  * filled by the link pass from a stand-in AniList, read by the series screen
  * without asking anything, and every event that makes it stale -- a relink,
  * UNLINK, a season linked, the series deleted or MOVEd, a refresh that fails,
- * a graph grown old -- run through the app's own doors where it has them.
+ * a graph grown old -- run through the app's own functions where it has them.
  */
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
@@ -34,7 +34,7 @@ seedSample(db, NOW);
 /**
  * What AniList answers, entry by entry, each with its edges both ways as the
  * real one gives them (`relations { edges { relationType node } }`). The
- * card's chain: a loop (S5 names S1 as its SEQUEL), a branch (S4's SPECIAL
+ * chain: a loop (S5 names S1 as its SEQUEL), a branch (S4's SPECIAL
  * prequel beside its ONA one), a MOVIE on the main chain, OVAs and an ONA as
  * side stories, an ONA season on the main chain, a NOT_YET_RELEASED sequel,
  * and the manga as an ADAPTATION. A second show with no sequel at all.
@@ -168,7 +168,7 @@ function answer(query: string, variables: Record<string, unknown>) {
 }
 const ask: Parameters<typeof rel.refreshRelations>[0] = async (q, v) => answer(q, v);
 
-/** AniList over fetch, for the pass's own door (`refreshLinks`). */
+/** AniList over fetch, for the pass's own entry point (`refreshLinks`). */
 const fakeFetch = (async (_url: string, init: RequestInit) => {
 	const { query, variables } = JSON.parse(String(init.body)) as {
 		query: string;
@@ -234,7 +234,7 @@ const candidate = (anilistId: number): Candidate => {
 		coverUrl: ''
 	};
 };
-/** LINK on a season, through the one door every link comes through. */
+/** LINK on a season, through the one function every link comes through. */
 const link = (id: number, season: number, anilistId: number) =>
 	expect(seasons.linkSeason(id, season, 1, candidate(anilistId), 'review', NOW)).toBe(true);
 const row = (id: number) =>

@@ -1,6 +1,6 @@
 // @ts-nocheck -- written as LNReader plugins are, against their runtime (@libs/*), not tsundoku's types.
-// A plugin whose site may answer with a browser check (tests/novel-host.spec.ts;
-// card c152). Its site is the spec's local server, written into its code.
+// A plugin whose site may answer with a browser check (tests/novel-host.spec.ts).
+// Its site is the spec's local server, written into its code.
 var fetch = require('@libs/fetch');
 function Checked() {
 	this.id = 'checked';

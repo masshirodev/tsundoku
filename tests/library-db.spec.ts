@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 // FOLD AS LANGUAGES ends in the duplicates review, which reads the books'
 // pages; the seed has none on disk. What the action asks it to fold is the
-// answer under test (c558's round 2), so the review's door only records it.
+// answer under test, so the mocked review only records it.
 const folded = vi.hoisted(() => [] as number[][]);
 vi.mock('$lib/server/dupes', async (original) => ({
 	...(await original<typeof import('$lib/server/dupes')>()),
@@ -92,11 +92,11 @@ describe('shelves', () => {
 		const shelves = lib.listShelves({ reveal: false, withNew: false });
 		const byKey = Object.fromEntries(shelves.map((s) => [s.key, s.count]));
 		expect(byKey.all).toBe(SAMPLE_ROWS.length);
-		// FAVOURITES, RATED and DOWNLOADED are filters since c68, not shelves.
+		// FAVOURITES, RATED and DOWNLOADED are filters, not shelves.
 		expect(byKey.favourites).toBeUndefined();
 		expect(byKey.rated4).toBeUndefined();
 		expect(byKey.downloaded).toBeUndefined();
-		// Shelves only since c436: SERIES and ONE-OFF are FILTER's FORM, and the
+		// Shelves only: SERIES and ONE-OFF are FILTER's FORM, and the
 		// kinds the library's KIND band. Every key left is ALL, NEW, a collection
 		// or a hidden root.
 		expect(shelves.every((s) => /^(all|new|c:\d+|r:\d+)$/.test(s.key))).toBe(true);
@@ -130,7 +130,7 @@ describe('continue reading', () => {
 		for (const item of items) expect(item.readCount).toBeLessThan(item.entryCount);
 	});
 
-	it('names a book in a series of books by its place in the owner order', () => {
+	it('names a book in a series of books by its place in the series’ order', () => {
 		const book = lib.continueReading(true, 50).items.find((i) => i.title === BOOK_SERIES_TITLE);
 		expect(book?.entryLabel).toMatch(/^Book \d+$/);
 	});
@@ -269,7 +269,7 @@ describe('the FILTER panel (doc/FILTERS.md)', () => {
 
 	it('KIND: one kind inside any shelf, offering only the kinds the shelf holds', () => {
 		const all = list(only({}), true);
-		// What the band offers: the kinds counted on the shelf (kindCounts, since c436).
+		// What the band offers: the kinds counted on the shelf (kindCounts).
 		const kindsOn = (shelf: string) =>
 			filtersMod.FILTER_KINDS.filter(
 				(k) => (lib.kindCounts({ reveal: true, shelf }).kinds[k] ?? 0) > 0
@@ -366,7 +366,7 @@ describe('pages of a shelf', () => {
 		expect(lib.listSeries({ reveal: true, sort: 'title' })).toEqual(
 			lib.listSeries({ reveal: true, sort: 'title', dir: 'asc' })
 		);
-		// Never opened is no longer a block at one end: the sample's unread
+		// Never opened is not a block at one end: the sample's unread
 		// series sit among the read, by when they were added.
 		const up = lib.listSeries({ reveal: true, sort: 'recent', dir: 'asc' });
 		const firstNever = up.findIndex((c) => !c.opened);
@@ -408,7 +408,7 @@ describe('pages of a shelf', () => {
 	});
 });
 
-describe('the kinds, a band on the library since c436', () => {
+describe('the kinds, a band on the library', () => {
 	it('still read an old kind shelf’s key as its kind, never as all: a page asked by a tab loaded before', () => {
 		const novels = lib.listSeries({ reveal: true, shelf: 'k:novel' });
 		expect(novels.length).toBeGreaterThan(0);
@@ -482,7 +482,7 @@ describe('scan state', () => {
 });
 
 describe('the NEW shelf', () => {
-	// What arrived (rung 34) in the last NEW_DAYS and hasn't been opened since:
+	// What arrived (migration 34) in the last NEW_DAYS and hasn't been opened since:
 	// not the import the band is about, so neither a later import nor TIDY NEW
 	// empties it.
 	const db = () => getDb();
@@ -577,13 +577,12 @@ describe('new chapters', () => {
 });
 
 /**
- * c558: FILTER's FORM had three rules for ONE-OFF -- the server's
- * (`ONE_OFF_SQL`) counted an extra as a book, the device's (`isOneOff`, over
- * the card's `entryCount`) did not, and the binder's (`isSingleton`) counted
- * a shadowed duplicate. The owner decided (2026-11-05) that an extra doesn't
- * make a series, so a doujin with one book and one extra is a ONE-OFF on the
- * shelf's count, its grid, the device's filter and the binder alike. A
- * shadowed entry (an edition, a duplicate set aside) is no book either.
+ * FILTER's FORM has one rule for ONE-OFF, and the server (`ONE_OFF_SQL`), the
+ * device (`isOneOff`, over the card's `entryCount`) and the binder
+ * (`isSingleton`) all apply it. An extra doesn't make a series, so a doujin
+ * with one book and one extra is a ONE-OFF on the shelf's count, its grid, the
+ * device's filter and the binder alike. A shadowed entry (an edition, a
+ * duplicate set aside) is no book either.
  */
 describe('ONE-OFF counts one book the same way everywhere', () => {
 	/** A visible doujin single from the seed, by the server's own rule. */
@@ -741,9 +740,9 @@ describe('ONE-OFF counts one book the same way everywhere', () => {
 		});
 	});
 
-	// c558's round 2: the rule's other readers in this slot's files.
+	// The rule's other readers.
 
-	// c558's round 3, Gap 2: a person's page counts a series by the same rule,
+	// A person's page counts a series by the same rule,
 	// and offers GROUP only where GROUP can take the book.
 	it('draws a person’s page by the same count, and offers GROUP only where GROUP can take it', async () => {
 		const { tagPage } = await import('$lib/server/people');
@@ -810,7 +809,7 @@ describe('ONE-OFF counts one book the same way everywhere', () => {
 		if (!one) throw new Error('the seed suggests no pair of books');
 		const before = suggestionFor(one.id, true)!.books.map((b) => b.seriesId);
 		expect(before.length).toBeGreaterThan(1);
-		// c558's round 3: a suggestion has to be something GROUP can bind, and
+		// A suggestion has to be something GROUP can bind, and
 		// GROUP refuses a book with anything beside it, so neither is offered.
 		for (const row of [
 			{ matter: 'back', shadowed: 0 },

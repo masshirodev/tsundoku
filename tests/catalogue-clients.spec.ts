@@ -4,9 +4,9 @@ import { setAnilistFetch } from '$lib/server/catalogue';
 import { setTmdbFetch } from '$lib/server/tmdb';
 
 /**
- * The one contract both catalogues answer (card c989; doc/LINKS.md, "The
- * contract"): search a kind by title, read one entry by id, and the entry
- * every screen can draw. No network: both fetches are stubs.
+ * The one contract both catalogues answer (doc/LINKS.md, "The contract"):
+ * search a kind by title, read one entry by id, and the entry every screen can
+ * draw. No network: both fetches are stubs.
  */
 
 afterEach(() => {

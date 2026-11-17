@@ -3,9 +3,9 @@ import { devices, type Page } from '@playwright/test';
 
 /**
  * The player's seek bar and middle cluster off a TV (doc/ANIME.md, "The
- * player"). c315: the strip between the elapsed time and the line is inert on
- * a desktop, a touch tablet and a phone's portrait scrubber, as it was before
- * c296's TV-only border reached every bar. c429: the −1m / −10 / pause / +10 / +1m cluster
+ * player"). The strip between the elapsed time and the line is inert on a
+ * desktop, a touch tablet and a phone's portrait scrubber: the 20px border
+ * stays on the TV's bar. The −1m / −10 / pause / +10 / +1m cluster
  * over the picture is translucent, and its labels keep AA contrast over a
  * white and a black frame, on a desktop and a touch tablet in landscape (in
  * portrait and on a TV there is no cluster over the picture). On the browse server's "Tsukiakari no Ryokōsha",
@@ -80,7 +80,7 @@ async function strip(page: Page, row: string) {
 /**
  * A press 16px left of the line leaves the picture where it was, and one on
  * the line still seeks: the bar responds, the strip does not. 16px is inside
- * c296's 20px border, so the border anywhere but a TV turns it into a seek to
+ * the TV's 20px border, so the border anywhere but a TV turns it into a seek to
  * 0:00, and it is past the reach of Chromium's touch adjustment, which moves a
  * tap within about 10px of the line onto it with or without the border
  * (measured here at 2, 5 and 9px; 12px and beyond stay where they land). In
@@ -205,7 +205,7 @@ test.describe('on a desktop', () => {
 	}) => {
 		test.setTimeout(60_000);
 		await openEpisode(page, false);
-		// Parked over the top bar's names: the controls stay up (the picture is
+		// Resting over the top bar's names: the controls stay up (the picture is
 		// paused) and no cell of the cluster is hovered.
 		const names = (await page.locator('.top .names').boundingBox())!;
 		await page.mouse.move(names.x + 10, names.y + names.height / 2);

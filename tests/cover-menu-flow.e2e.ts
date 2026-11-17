@@ -68,7 +68,7 @@ test('a long press on a manhwa page: the series row only, then the band', async 
 	// press below is on the page the first chose: the strip grows and shifts
 	// as its chapters' images arrive, and under load a second press at the
 	// same point of the screen landed on Ch. 213's P. 12 after the first had
-	// chosen Ch. 214's (beside six burners: c439).
+	// chosen Ch. 214's.
 	const slot = await slotAt(page, vp.width / 2, vp.height / 3);
 	await holdOn(page, slot);
 	await expect(menu(page)).toBeVisible();

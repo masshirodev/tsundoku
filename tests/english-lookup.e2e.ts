@@ -118,7 +118,7 @@ test('an English book opens the panel, and its entry names its dictionary', asyn
 	await panel.locator('.words').getByRole('button', { name: 'large', exact: true }).click();
 	await expect(panel.locator('.lemma')).toHaveText('large');
 	await expect(panel.locator('.sense').first()).toContainText('considerable');
-	// Every entry ends with its source and licence (the handoff's Main 104).
+	// Every entry ends with its source and licence.
 	await expect(panel.locator('.source')).toContainText('WIKTIONARY · CC BY-SA 4.0');
 
 	// An inflected form answers with its lemma, and the panel says which it met.
@@ -130,7 +130,7 @@ test('an English book opens the panel, and its entry names its dictionary', asyn
 test('a word the pack has not got says so, in words that name no dictionary', async ({ page }) => {
 	await openEnglish(page);
 	const panel = await lookUp(page);
-	// "How" is not in the five-word pack; the handoff's copy (Main 175) is the
+	// "How" is not in the five-word pack; the copy is the
 	// same sentence for every language, so it names no dictionary of its own.
 	await panel.locator('.words').getByRole('button', { name: 'How', exact: true }).click();
 	await expect(panel.locator('.ot')).toHaveText('NOT IN THE DICTIONARY');

@@ -9,7 +9,7 @@ import { makeLogin, writeLogin } from '../src/lib/server/login.ts';
 import { homeSubnet } from '../src/lib/server/lan.ts';
 
 /**
- * A firewall on the computer, under WI-FI ON (c721; doc/WIFI.md, "A firewall
+ * A firewall on the computer, under WI-FI ON (doc/WIFI.md, "A firewall
  * on the computer"): the line per platform, the commands with the running
  * app's port and the computer's own home network, and NO PHONE HAS REACHED
  * THIS COMPUTER YET appearing while a code waits and clearing when a phone's
@@ -282,9 +282,9 @@ const noPhoneYet = async (request: APIRequestContext, at: Install) =>
 	((await (await request.get(`${at.base}/api/wifi`)).json()) as { noPhoneYet: boolean }).noPhoneYet;
 
 /**
- * Round 2: a computer a phone has reached is settled. A reach before NEW
- * CODES proves the same firewall, so the new code's wait passes in silence
- * (the false alarm on every SETTINGS visit the review found). New listeners
+ * A computer a phone has reached is settled. A reach before NEW CODES proves
+ * the same firewall, so the new code's wait passes in silence, with no false
+ * alarm on every SETTINGS visit. New listeners
  * are what ask again: OFF and ON forget the reach, and with no phone paired
  * the code still up asks at once.
  */

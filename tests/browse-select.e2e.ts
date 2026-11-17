@@ -11,7 +11,7 @@ import {
 } from './helpers/select-world';
 
 /**
- * SELECT in a source's catalog (card c868; doc/BROWSE.md, "SELECT in a
+ * SELECT in a source's catalog (doc/BROWSE.md, "SELECT in a
  * catalog"), walked end to end on a tablet, a phone and a desktop: SELECT
  * starting and ending (✕, Escape, a reload, leaving the browse world), what
  * a tap ticks and what can't be ticked, the selection outliving LATEST, a

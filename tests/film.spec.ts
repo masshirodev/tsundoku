@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { filmAction, filmCountLine, filmDownloadRow, kindRow } from '$lib/library/film';
 
 /**
- * A film's screen, the pure part, against the handoff's boards
- * (doc/handoffs/movies-shows/Film-Desk.dc.html, Film-States.dc.html), in the
- * boards' words.
+ * A film's screen, the pure part, in the design's words.
  */
 
 const NOW = Date.UTC(2026, 10, 12);
@@ -19,7 +17,7 @@ const film = (o: Partial<Parameters<typeof filmAction>[0][number]> = {}) => ({
 });
 
 describe('the one primary cell', () => {
-	it('1.1: PLAY with the length, TMDB’s until the file is measured', () => {
+	it('PLAY with the length, TMDB’s until the file is measured', () => {
 		expect(filmAction([film()], 118, NOW)).toMatchObject({
 			label: 'PLAY',
 			meta: '1 H 58',
@@ -30,7 +28,7 @@ describe('the one primary cell', () => {
 		expect(filmAction([film()], null, NOW).meta).toBe('');
 	});
 
-	it('1.2: CONTINUE with what is left, and the 3px line’s share', () => {
+	it('CONTINUE with what is left, and the 3px line’s share', () => {
 		const a = filmAction(
 			[film({ lastPosition: 76 * 60, episode: { durationS: 118 * 60 } })],
 			118,
@@ -44,7 +42,7 @@ describe('the one primary cell', () => {
 		expect(a.progress).toBeCloseTo(76 / 118, 5);
 	});
 
-	it('1.3: watched, the cell goes quiet and says when', () => {
+	it('watched, the cell goes quiet and says when', () => {
 		expect(filmAction([film({ readAt: Date.UTC(2026, 10, 3, 20) })], 118, NOW)).toMatchObject({
 			label: 'WATCH AGAIN',
 			meta: 'WATCHED 3 NOV',
@@ -72,7 +70,7 @@ describe('the count line', () => {
 });
 
 describe('the DOWNLOAD row of one file', () => {
-	it('1.6: says where that file is, and nothing else', () => {
+	it('says where that file is, and nothing else', () => {
 		expect(filmDownloadRow({ state: 'none', bytes: 1.19e9, height: 1080 })).toEqual({
 			title: 'Not on this computer',
 			meta: '1 FILE · 1080P · 1.19 GB',

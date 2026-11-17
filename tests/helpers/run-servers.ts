@@ -3,19 +3,17 @@ import { join } from 'node:path';
 
 /**
  * The servers a run starts outside Playwright's own webServer, recorded in the
- * run's directory so the next run can stop them when this one was killed
- *. No side effects: `run-dir.ts` calls `sweepRuns` as the config loads,
+ * run's directory so the next run can stop them when this one was killed.
+ * No side effects: `run-dir.ts` calls `sweepRuns` as the config loads,
  * and `run-servers.spec.ts` calls it on a folder of its own.
  *
  * A runner killed outright (an agent's session ending, a `kill -9`) runs no
  * global teardown, so a server a global setup started is reparented and goes
- * on serving. The friend world's install did exactly that (measured in wave
- * 34: `scripts/serve.ts` reparented to pid 858, still listening on its OS port
- * 41843), and since c656 its port comes from the OS, so the next run takes a
- * new one and its "port is taken" check never meets the old server. The next
- * run's sweep then removed the dead run's directory, home included, under a
- * server that still held its database open (3 deleted files: on a default
- * `TMPDIR`, RAM).
+ * on serving, as the friend world's `scripts/serve.ts` did. Its port comes from
+ * the OS, so the next run takes a new one and its "port is taken" check never
+ * meets the old server; that run's sweep would then remove the dead run's
+ * directory, home included, under a server that still holds its database open
+ * (deleted files that, on a default `TMPDIR`, stay in RAM).
  *
  * So a setup records each server it starts, by pid and the process's start
  * time (`/proc/<pid>/stat`, field 22: a pid alone may name a newer process

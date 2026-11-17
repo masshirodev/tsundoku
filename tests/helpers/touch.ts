@@ -10,7 +10,7 @@ import type { Page } from '@playwright/test';
  * are two round trips each, every one waiting for the browser to answer, and
  * under a loaded suite the second tap landed past the window: the reader took
  * two single taps, and `reader-flow`'s "double tap on the strip" read 1600 px
- * where the zoom should have come back to 800 (r2-tv1). The events
+ * where the zoom should have come back to 800. The events
  * are the same CDP `Input.dispatchTouchEvent` calls Playwright's own tap
  * sends, only not awaited one by one; the browser handles them in order.
  * Chromium only, which every touch project is.

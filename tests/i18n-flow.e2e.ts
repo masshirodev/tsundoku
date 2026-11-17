@@ -38,8 +38,8 @@ test.describe('a browser that speaks Portuguese', () => {
 		// series with another (`doc/TESTING.md`), so this case seeds its own:
 		// three hidden doujin singles and a Work of two of them, in the hidden
 		// root. Another file runs with reveal off, where none of them is listed,
-		// and they are deleted again below. The seed stands in for the owner's
-		// own doors: GROUP over three singles makes the Work (only two parts, as
+		// and they are deleted again below. The seed stands in for what the user
+		// does in the app: GROUP over three singles makes the Work (only two parts, as
 		// the trigger requires), and the third is the newcomer the offer names.
 		await revealOn(context);
 		const db = new Database(process.env.PLAYWRIGHT_DATABASE_PATH!);
@@ -97,7 +97,7 @@ test.describe('a browser that speaks Portuguese', () => {
 			failed = e;
 		}
 		// The rows go whether the case passed or not, and the body's failure is
-		// the one reported when both fail (c649's class).
+		// the one reported when both fail.
 		try {
 			db.prepare(`DELETE FROM series WHERE id IN (?, ?, ?)`).run(first, second, newcomer);
 			db.prepare(`DELETE FROM works WHERE id = ?`).run(work);

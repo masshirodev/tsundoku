@@ -40,7 +40,7 @@ describe('pairedCookie: the name for an origin', () => {
 	it('is the shared table, row for row, for every kind of host', () => {
 		expect(TABLE.length).toBeGreaterThanOrEqual(15);
 		const hosts = TABLE.map(([o]) => new URL(o).hostname);
-		// The kinds the brief names: localhost, an IPv4, an IPv6 literal, a tailnet name.
+		// The kinds that matter: localhost, an IPv4, an IPv6 literal, a tailnet name.
 		expect(hosts).toContain('localhost');
 		expect(hosts).toContain('192.168.1.23');
 		expect(hosts).toContain('[::1]');
@@ -129,9 +129,9 @@ describe('readPaired: the guard’s read, and the move from the old name', () =>
 		expect(j.deleted).toEqual([]);
 	});
 
-	it('moves a device paired before c530 to the new name, once', () => {
+	it('moves a device paired under the old name to the new one, once', () => {
 		const token = addPaired({ label: 'Android TV · Chrome', address: A.host });
-		// A jar holding only the old name: a TV paired before this release.
+		// A jar holding only the old name: an older pairing.
 		const j = jar({ [PAIRED_COOKIE]: token });
 		expect(readPaired(j.api, A, here)).not.toBeNull();
 		expect(j.set).toEqual([[pairedCookie(A), token, PAIRED_COOKIE_OPTIONS]]);
@@ -157,10 +157,10 @@ describe('readPaired: the guard’s read, and the move from the old name', () =>
 		expect(j.deleted).toEqual([]);
 	});
 
-	it('never moves a token the door refused', () => {
+	it('never moves a token the check refused', () => {
 		const token = addPaired({ label: 'Android TV · Chrome', address: A.host });
 		const j = jar({ [PAIRED_COOKIE]: token });
-		// friendPaired off Wi-Fi, or no tailnet door: the check says null.
+		// friendPaired off Wi-Fi, or no tailnet listener: the check says null.
 		expect(readPaired(j.api, A, () => null)).toBeNull();
 		expect(j.set).toEqual([]);
 		expect(j.deleted).toEqual([]);

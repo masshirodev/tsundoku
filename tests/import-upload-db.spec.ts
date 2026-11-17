@@ -352,7 +352,7 @@ describe('a second backup of the same library', () => {
 	});
 
 	it('is called the same library, with what is new, here, newer and gone', () => {
-		// The owner reads on in the app: Drawing's chapter 3 read, and one more
+		// The user reads on in the app: Drawing's chapter 3 read, and one more
 		// series added; Bunk Beds deleted on the phone.
 		const raw = backup([4], [
 			[
@@ -378,10 +378,10 @@ describe('a second backup of the same library', () => {
 		expect(p.preview.alreadyHere).toBe(4);
 	});
 
-	it('merges: adds and updates, removes nothing, and leaves the owner’s edits alone', async () => {
+	it('merges: adds and updates, removes nothing, and leaves the user’s edits alone', async () => {
 		const drawing = series('Drawing: Saikyou Mangaka')!;
 		const bunk = series('Bunk Beds')!;
-		// Through the app's doors: rating, FAV, a shelf, hidden, direction.
+		// Through the app's own controls: rating, FAV, a shelf, hidden, direction.
 		setRating([drawing.id], 3);
 		setFavourite([drawing.id], true);
 		const shelf = Number(
@@ -391,8 +391,8 @@ describe('a second backup of the same library', () => {
 		setInCollection([drawing.id], shelf, true);
 		setDirection(drawing.id, 'ltr');
 		setHidden([bunk.id], true);
-		// The writer never touches the title or kind of a series it finds again
-		// (doc/IMPORT-BACKUP.md, "IMPORT"), so both are set by hand here.
+		// Nothing in the app edits a series' title or kind (doc/IMPORT.md, "Premises"):
+		// the writer must still leave both, so they stand in by hand.
 		db().prepare(`UPDATE series SET title = 'My Title', kind = 'manhwa' WHERE id = ?`).run(bunk.id);
 		const before = (db().prepare(`SELECT COUNT(*) n FROM series`).get() as { n: number }).n;
 
@@ -577,7 +577,7 @@ describe('an import whose process died', () => {
 		const r = upload(gz(backup([5])), 'app.mihon_2026-11-06_03-00.tachibk');
 		const id = r.state === 'read' ? r.id : -1;
 		expect(b.startBackupImport(id)).toEqual({ started: true });
-		// Read through every door that reconciles: still waiting, in the log too.
+		// Read through every path that reconciles: still waiting, in the log too.
 		expect(b.importRow(id)!.state).toBe('waiting');
 		expect(log.liveImport()!.id).toBe(id);
 		expect(log.importLog(true).find((e) => e.kind === 'backup' && e.id === id)).toMatchObject({
@@ -654,7 +654,7 @@ describe('a scan asked for during a backup’s import', () => {
 		const held = heldBackup();
 		// A backup's import runs and nobody has asked for a scan: no line. A
 		// scan asked for now would wait (`scanWaits`), but none is waiting, so
-		// the sidebar must not say one is (round 2's high).
+		// the sidebar must not say one is.
 		const { scanWaits } = await import('$lib/server/import');
 		expect(scanWaits()).toBe(true);
 		expect(await sidebar()).toBeNull();

@@ -198,7 +198,7 @@ const animeEntry = (id: number, o: { mal?: number | null; episodes?: number } = 
 });
 
 /**
- * The owner's SEARCH AGAIN on each season, through the door the review uses
+ * The user's SEARCH AGAIN on each season, through the call the review uses
  * (`searchNow`): what puts an anime's season in the review queue, without
  * hand-seeding a search the code would never write.
  */
@@ -207,9 +207,9 @@ async function searchEvery(id: number) {
 		await cat.searchNow(id, s.searchTitle, NOW, { season: s.season });
 }
 
-// ---- rung 62 -----------------------------------------------------------------------------
+// ---- migration 62 ------------------------------------------------------------------------
 
-describe('rung 62: a link per season', () => {
+describe('migration 62: a link per season', () => {
 	it('adds the season tables over a v61 database and moves no row', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 61);
@@ -311,7 +311,7 @@ describe('rung 62: a link per season', () => {
 			)
 			.run();
 		expect(conn.prepare(`SELECT COUNT(*) AS n FROM series_season_links`).get()).toEqual({ n: 2 });
-		// A part is 1 or 2, and never a third: the design's "never more than two".
+		// A part is 1 or 2, and never a third.
 		expect(() =>
 			conn
 				.prepare(
@@ -335,7 +335,7 @@ describe('rung 62: a link per season', () => {
 		expect(conn.prepare(`SELECT COUNT(*) AS n FROM series_season_links`).get()).toEqual({ n: 1 });
 	});
 
-	it('reads a link from before rung 62 as the series’ one season', () => {
+	it('reads a link from before migration 62 as the series’ one season', () => {
 		const id = show({ seasons: [[1, 2, 3]] });
 		db.prepare(
 			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, linked_at, resolved_at, format)
@@ -359,7 +359,7 @@ describe('rung 62: a link per season', () => {
 			[2, 1, 3, 3]
 		]);
 		expect(view.open).toBe(1);
-		// Watched in order, as the owner does: season 1 through, then season 2.
+		// Watched in order: season 1 through, then season 2.
 		for (const n of [1, 2]) markWatched(entryId(id, 1, n));
 		markWatched(entryId(id, 2, 2));
 		expect(seasons.seriesSeasons(id)!.open).toBe(2);
@@ -444,7 +444,7 @@ describe('sending a season', () => {
 
 	it('never sends a recap or a half number', async () => {
 		const id = show({ seasons: [[1, 2, 13, 14, 15, 16]] });
-		// The design's SAO S3: 14.5 Recollection is a recap, never sent.
+		// SAO season 3: 14.5 Recollection is a recap, never sent.
 		db.prepare(
 			`INSERT INTO entries (series_id, position, label, added_at, season, episode_number, episode_note, duration_s)
 			VALUES (?, 6, 'Recollection', ?, 1, 14.5, 'recap', 1420)`
@@ -474,7 +474,7 @@ describe('sending a season', () => {
 	});
 
 	it('sends part 2 as its own episode, and part 1 its own', async () => {
-		// The design's SAO S4: 23 episodes at the source, 12 + 11 on AniList.
+		// SAO season 4: 23 episodes at the source, 12 + 11 on AniList.
 		const id = show({ seasons: [Array.from({ length: 23 }, (_, i) => i + 1)] });
 		seasons.linkSeason(id, 1, 1, animeEntry(201, { mal: 601, episodes: 12 }), 'relations', NOW);
 		seasons.linkSeason(id, 1, 2, animeEntry(202, { mal: 602, episodes: 11 }), 'relations', NOW);
@@ -495,7 +495,7 @@ describe('sending a season', () => {
 	});
 
 	it('waits when an episode is past the entry’s count and there is no part 2', async () => {
-		// The design's "EP. 13 WAITS · ANILIST LISTS 12": a source with 13
+		// "EP. 13 WAITS · ANILIST LISTS 12": a source with 13
 		// episodes, a catalogue entry with 12, and no second part to take it.
 		const id = show({ seasons: [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]] });
 		seasons.linkSeason(id, 1, 1, animeEntry(101, { episodes: 12 }), 'review', NOW);
@@ -630,12 +630,12 @@ describe('sending a season', () => {
 		});
 	});
 
-	it('never sends COMPLETED over the owner’s ON HOLD or DROPPED, only the episode', async () => {
+	it('never sends COMPLETED over the user’s ON HOLD or DROPPED, only the episode', async () => {
 		const id = show({ seasons: [[1, 2, 3]] });
 		seasons.linkSeason(id, 1, 1, animeEntry(101, { mal: 501, episodes: 3 }), 'review', NOW);
 		await signIn('anilist');
 		await signIn('mal');
-		// The owner put it on hold on AniList and dropped it on MAL at EP. 1.
+		// The user put it on hold on AniList and dropped it on MAL at EP. 1.
 		const state = db.prepare(
 			`INSERT INTO season_tracker_state (series_id, season, part, service, status, progress, sent_at)
 			VALUES (?, 1, 1, ?, ?, 1, ?)`
@@ -724,9 +724,9 @@ describe('sending a season', () => {
 	});
 });
 
-// ---- the doors an anime's link comes through ----------------------------------------------
+// ---- the actions that write an anime's link -----------------------------------------------
 
-describe('every door writes the season’s row', () => {
+describe('every link action writes the season’s row', () => {
 	it('LINK, from the review or FIND, writes the season table and no series row', async () => {
 		const id = show({
 			seasons: [
@@ -891,7 +891,7 @@ describe('every door writes the season’s row', () => {
 		expect(state()).toEqual({ pass: false, queue: false, counted: 0, byTitle: false });
 	});
 
-	it('requeues an open season the pass searched, and never a settled one or the owner’s own title', async () => {
+	it('requeues an open season the pass searched, and never a settled one or the user’s own title', async () => {
 		const id = show({
 			title: 'Requeued Show',
 			seasons: [
@@ -915,7 +915,7 @@ describe('every door writes the season’s row', () => {
 		expect(cat.searchable(10_000).filter((r) => r.id === id)).toMatchObject([
 			{ season: 2, query: null }
 		]);
-		// A title the owner typed is theirs: never requeued.
+		// A title the user typed is theirs: never requeued.
 		await cat.searchNow(id, 'Something Else Entirely', NOW, { season: 2 });
 		cat.requeueSearched();
 		expect(rows()).toEqual([1, 2]);
@@ -926,12 +926,12 @@ describe('every door writes the season’s row', () => {
 		expect(rows()).toEqual([1, 2]);
 	});
 
-	it('keeps an anime with a series-level link and no season rows out, as before rung 62', async () => {
-		// No episodes, a link from before rung 62, and nothing in the season tables:
+	it('keeps an anime with a series-level link and no season rows out, as before migration 62', async () => {
+		// No episodes, a link from before migration 62, and nothing in the season tables:
 		// the legacy link still counts. With episodes too: still the series' one link.
 		for (const seasonsOf of [[], [[1, 2]]]) {
 			const id = show({ seasons: seasonsOf });
-			// The owner's search, on the season that wants a look (season 0 with no episodes).
+			// The user's search, on the season that wants a look (season 0 with no episodes).
 			await cat.searchNow(id, 'Show', NOW);
 			const state = () => ({
 				queue: cat.linkQueue(false).some((i) => i.seriesId === id),
@@ -942,7 +942,7 @@ describe('every door writes the season’s row', () => {
 				`INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, cover_url, linked_at) VALUES (?, 801, 901, 'review', 'Old', '', ?)`
 			).run(id, NOW);
 			expect(state()).toEqual({ queue: false, byTitle: false });
-			// And a NONE OF THESE from before rung 62 is a settled series too.
+			// And a NONE OF THESE from before migration 62 is a settled series too.
 			db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(id);
 			db.prepare(
 				`INSERT OR REPLACE INTO link_decisions (series_id, decision, at) VALUES (?, 'none', ?)`
@@ -962,11 +962,11 @@ describe('every door writes the season’s row', () => {
 		});
 		seasons.linkSeason(id, 1, 1, animeEntry(601), 'review', NOW);
 		// Season 2 is open, so the series is offered by its title; an entry that
-		// only shares that title names season 1, which is the owner's.
+		// only shares that title names season 1, which is the user's.
 		const sameTitle = { ...animeEntry(602), title: 'Listed Show', format: 'MOVIE' };
 		expect(tr.linkSeasonFromList(id, sameTitle, null, NOW)).toBe(false);
 		expect(seasons.seasonLinks(id).map((l) => [l.season, l.anilistId])).toEqual([[1, 601]]);
-		// NONE OF THESE on season 1 is the owner's too.
+		// NONE OF THESE on season 1 is the user's too.
 		cat.unlink(id, NOW, 1);
 		expect(tr.linkSeasonFromList(id, sameTitle, null, NOW)).toBe(false);
 		expect(seasons.seasonLinks(id)).toEqual([]);
@@ -1061,7 +1061,7 @@ describe('every door writes the season’s row', () => {
 	});
 });
 
-// ---- what was the mirror's --------------------------------------------------------
+// ---- series-level answers, read from the seasons ----------------------------------
 
 describe('an anime’s links without a mirror of its first season', () => {
 	const covered = (id: number, url = `https://img/${id}.jpg`) => ({
@@ -1091,7 +1091,7 @@ describe('an anime’s links without a mirror of its first season', () => {
 		return id;
 	};
 
-	it('the cover is the open season’s, else the first season’s, as the mirror gave', () => {
+	it('the cover is the open season’s, else the first season’s', () => {
 		const id = openOnTwo('Cover Chain');
 		seasons.linkSeason(id, 1, 1, covered(611), 'review', NOW);
 		expect(cat.linkCover(id)).toEqual({ provider: 'anilist', id: 611, url: 'https://img/611.jpg' });
@@ -1141,7 +1141,7 @@ describe('an anime’s links without a mirror of its first season', () => {
 		expect(cat.linkedNames(id)).toEqual(['Entry 622', 'Entry 621']);
 	});
 
-	it('a link from before rung 62 is still read while it is the only one, and goes at a LINK', () => {
+	it('a link from before migration 62 is still read while it is the only one, and goes at a LINK', () => {
 		const id = show({ title: 'Fallback', seasons: [[1, 2]] });
 		legacy(id, 631);
 		expect(cat.linkCover(id)).toEqual({ provider: 'anilist', id: 631, url: 'https://img/old.jpg' });
@@ -1151,7 +1151,7 @@ describe('an anime’s links without a mirror of its first season', () => {
 		expect(cat.linkedNames(id)).toEqual(['Entry 632']);
 	});
 
-	it('a later season’s LINK ends a link from before rung 62 too', () => {
+	it('a later season’s LINK ends a link from before migration 62 too', () => {
 		const id = show({
 			title: 'Fallback Later',
 			seasons: [
@@ -1164,7 +1164,7 @@ describe('an anime’s links without a mirror of its first season', () => {
 		expect(seriesRow(id)).toBeUndefined();
 	});
 
-	it('UNLINK ends a link from before rung 62, and it does not come back', () => {
+	it('UNLINK ends a link from before migration 62, and it does not come back', () => {
 		const id = show({ title: 'Fallback Unlink', seasons: [[1, 2]] });
 		legacy(id, 651);
 		cat.unlink(id, NOW);
@@ -1187,8 +1187,8 @@ describe('an anime’s links without a mirror of its first season', () => {
 
 // ---- the season that wants a look -----------------------------------
 
-describe('a door that names no season acts on the season that wants a look', () => {
-	/** Season 1 linked by the owner, scored and watched into; season 2 open. */
+describe('an action that names no season acts on the season that wants a look', () => {
+	/** Season 1 linked by the user, scored and watched into; season 2 open. */
 	function probe(title = 'Probe Show'): number {
 		const id = show({
 			title,
@@ -1248,7 +1248,7 @@ describe('a door that names no season acts on the season that wants a look', () 
 		expect(cat.searchable(10_000).some((r) => r.id === id)).toBe(false);
 	});
 
-	it('the pass searches season 2 and leaves the owner’s season 1 alone', async () => {
+	it('the pass searches season 2 and leaves the user’s season 1 alone', async () => {
 		const id = probe();
 		const rows = cat.searchable(10_000).filter((r) => r.id === id);
 		expect(rows).toHaveLength(1);
@@ -1261,7 +1261,7 @@ describe('a door that names no season acts on the season that wants a look', () 
 		const id = probe('Sure Show');
 		// AniList answers with season 2's own title: a sure match for season 2.
 		// (The series' plain title is season 1's, and is no sure match for a
-		// season past the first: wave 17, round 2, in the wave-17 cases below.)
+		// season past the first: the cases further down.)
 		const sure: typeof fetch = async (input, init) => {
 			const raw = init?.body ? String(init.body) : '';
 			if (String(input) === 'https://graphql.anilist.co' && raw.includes('search:'))
@@ -1285,12 +1285,12 @@ describe('a door that names no season acts on the season that wants a look', () 
 		expect(cat.searchable(10_000).some((x) => x.id === id)).toBe(false);
 	});
 
-	it('a sure match never replaces a season the owner linked while the search was out', async () => {
+	it('a sure match never replaces a season the user linked while the search was out', async () => {
 		const id = probe('Raced Show');
 		const sure: typeof fetch = async (input, init) => {
 			const raw = init?.body ? String(init.body) : '';
 			if (String(input) === 'https://graphql.anilist.co' && raw.includes('search:')) {
-				// The owner links season 2 on the series screen meanwhile.
+				// The user links season 2 on the series screen meanwhile.
 				seasons.linkSeason(id, 2, 1, animeEntry(8800), 'review', NOW);
 				return json({ data: { s0: { media: [animeMedia(9302, 'Raced Show')] } } });
 			}
@@ -1370,7 +1370,7 @@ describe('a door that names no season acts on the season that wants a look', () 
 
 	it('the queue’s LINK accepts only the season’s own candidates, never the series’', async () => {
 		const id = probe();
-		// What a search before rung 62 left behind (the owner's database has such
+		// What a search before migration 62 left behind (real databases have such
 		// rows): the series' pair, which belongs to no season.
 		db.prepare(
 			`INSERT INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Probe Show', ?, 1)`
@@ -1403,8 +1403,8 @@ describe('the pass and the queue ask each season’s own search, never the serie
 	/**
 	 * AniList answering each query with a list, in its order. One hit is
 	 * written as a pair; AniList's real answer for "Show Season 2" usually
-	 * lists "Show" (season 1's entry) after the season's own, and the round-2
-	 * cases give it exactly that.
+	 * lists "Show" (season 1's entry) after the season's own, and these cases
+	 * give it exactly that.
 	 */
 	function byQuery(answers: Record<string, Hit | Hit[]>): typeof fetch {
 		return async (input, init) => {
@@ -1448,7 +1448,7 @@ describe('the pass and the queue ask each season’s own search, never the serie
 
 	afterEach(() => cat.setAnilistFetch(fake));
 
-	it('the review’s repro: after season 1 is linked from the queue, season 2 is searched as its own and never offered season 1’s entry', async () => {
+	it('after season 1 is linked from the queue, season 2 is searched as its own and never offered season 1’s entry', async () => {
 		const id = show({
 			title: 'Fresh Show',
 			seasons: [
@@ -1466,7 +1466,7 @@ describe('the pass and the queue ask each season’s own search, never the serie
 				]
 			})
 		);
-		// The order of events the review reproduced: one pass reaches season 1 only.
+		// One pass reaches season 1 only.
 		expect(await pass(id, 1)).toEqual({ linked: 0, offered: 1 });
 		expect(seasons.seasonSearch(id, 1)?.query).toBe('Fresh Show');
 		expect(item(id, 1)).toMatchObject({ season: 1, part: 1, query: 'Fresh Show', found: 1 });
@@ -1589,7 +1589,7 @@ describe('the pass and the queue ask each season’s own search, never the serie
 		expect(seasons.seasonLinks(id).map((l) => [l.season, l.anilistId])).toEqual([[1, 7801]]);
 	});
 
-	it('the pass never links an entry another season holds, even on the owner’s own title', async () => {
+	it('the pass never links an entry another season holds, even on the user’s own title', async () => {
 		const id = show({
 			title: 'Typed Show',
 			seasons: [
@@ -1599,7 +1599,7 @@ describe('the pass and the queue ask each season’s own search, never the serie
 		});
 		cat.setAnilistFetch(byQuery({ 'Typed Show': [7701, 'Typed Show'] }));
 		expect(await pass(id, 1)).toEqual({ linked: 1, offered: 0 });
-		// The owner's SEARCH AGAIN on season 2, typed as season 1's title: the
+		// The user's SEARCH AGAIN on season 2, typed as season 1's title: the
 		// typed query counts as the season's own title, so 7701 is a sure match,
 		// and only the "taken by another season" rule keeps it off season 2.
 		cat.queueSearch(id, 'Typed Show', { season: 2 });
@@ -1608,7 +1608,7 @@ describe('the pass and the queue ask each season’s own search, never the serie
 		expect(seasons.seasonSearch(id, 2)).toMatchObject({ query: 'Typed Show', found: 0 });
 	});
 
-	it('no door links an entry another season or part holds: pasted, review, list and the relations', () => {
+	it('no path links an entry another season or part holds: pasted, review, list and the relations', () => {
 		const id = show({
 			title: 'Door Show',
 			seasons: [
@@ -1640,7 +1640,7 @@ describe('the pass and the queue ask each season’s own search, never the serie
 				}
 			]
 		});
-		// The owner's list: an entry whose title names season 2, but is season 1's.
+		// The user's list: an entry whose title names season 2, but is season 1's.
 		const listed = { ...animeEntry(7901), title: 'Door Show Season 2' };
 		expect(tr.linkSeasonFromList(id, listed, 80, NOW)).toBe(false);
 		expect(seasons.seasonLinks(id).map((l) => [l.season, l.part, l.anilistId])).toEqual([
@@ -1741,7 +1741,7 @@ describe('the pass and the queue ask each season’s own search, never the serie
 		const was = cat.queueSearch(id, 'Queued Show Typed', { season: 2 });
 		expect(was).toBeNull();
 		expect(seasons.seriesSeasons(id)!.seasons.map((s) => s.queued)).toEqual([false, true]);
-		// The waiting search goes first, under the owner's title, on season 2.
+		// The waiting search goes first, under the user's title, on season 2.
 		const rows = cat.searchable(10_000).filter((r) => r.id === id);
 		expect(rows).toMatchObject([
 			{ season: 2, query: 'Queued Show Typed' },
@@ -1759,7 +1759,7 @@ describe('the pass and the queue ask each season’s own search, never the serie
 
 // ---- the series-level state and sends are a comic's ----------------------------
 
-describe('an anime’s list state and sends are its seasons’, at every door', () => {
+describe('an anime’s list state and sends are its seasons’, on every path', () => {
 	afterEach(() => vi.stubGlobal('fetch', fake));
 
 	it('reading the list files season 1’s entry on the season, never as the series’', async () => {
@@ -1896,7 +1896,7 @@ describe('Ranobe on an anime', () => {
 				[1, 2]
 			]
 		});
-		// The work counts 5 episodes: the show runs straight through (Ranobe c134).
+		// The work counts 5 episodes: the show runs straight through.
 		rb.linkWork(id, 'w900', 'pasted', NOW);
 		// What the work counts, then the episodes mapped onto those units.
 		await rb.readWorkUnits(NOW, ['w900']);

@@ -9,19 +9,17 @@ import { E2E_TOKEN } from '../playwright.config';
 import { startPreview } from './highlights-preview';
 
 /**
- * The highlights page's frame (c701; doc/handoffs/highlights/Page.dc.html,
- * P1: the desktop at 1440 with the sidebar, the list by day, a quote open
- * with its paragraph, the disk line).
+ * The highlights page's frame (the desktop at 1440 with the sidebar, the list
+ * by day, a quote open with its paragraph, the disk line).
  *
- * The frame assertions below are design-tools/gen-conformance.mjs output
- * from the board, checked in deliberately: the numbers are hand-set in the
+ * The frame assertions below are the conformance generator's output
+ * from the design, checked in deliberately: the numbers are hand-set in the
  * mock and do not round to a spacing ladder, so a later pass that tidies
- * them would silently redraw the screen. Extracted at 1440x2400 from
- * doc/handoffs/highlights/Page.dc.html (map: the P1 frame's regions).
+ * them would silently redraw the screen. Extracted at 1440x2400.
  *
  * Hand edits after generation, which regenerating drops (doc/HIGHLIGHTS.md,
  * "The frame"): the generator writes `import { expect, test } from
- * '@playwright/test'` (gen-conformance.mjs:222), changed to `./fixtures`
+ * '@playwright/test'`, changed to `./fixtures`
  * as every new e2e file takes it; and this preamble, because the
  * shared seed has no highlights: it seeds a database of its own with one
  * highlight per kind and serves the build on a port the OS gives it
@@ -30,9 +28,10 @@ import { startPreview } from './highlights-preview';
  * run their project and this file's `desktop` start at the same time, so a
  * shared port is a race the loser loses against the other file's server and
  * database. The readiness poll fails as soon as its own preview exits, so a
- * lost port is a clear error, never a run against someone else's server. The board is the desktop's, so it runs in the desktop project and
- * skips itself in the others; its DEVICE_IGNORE line is a gap for e2e's
- * playwright.config.ts (doc/handoff-notes/highlights.md).
+ * lost port is a clear error, never a run against someone else's server. The
+ * design is the desktop's, so it runs in the desktop project and skips itself
+ * in the others; its DEVICE_IGNORE line is a gap for e2e's
+ * playwright.config.ts.
  */
 const PORT = await new Promise<number>((resolve, reject) => {
 	const probe = createServer();
@@ -46,7 +45,7 @@ const base = `http://localhost:${PORT}`;
 const scratch = join(tmpdir(), `tsundoku-e2e-highlights-frame-${process.pid}`);
 const dbPath = join(scratch, 'library.sqlite');
 let server: ChildProcess | null = null;
-/** The quote P1 draws open. */
+/** The quote the frame draws open. */
 let openId = 0;
 
 test.use({ baseURL: base, viewport: { width: 1440, height: 960 } });
@@ -164,7 +163,7 @@ test.afterAll(() => {
 	rmSync(scratch, { recursive: true, force: true });
 });
 
-/** P1: the list, and the quote open beside it. */
+/** The frame: the list, and the quote open beside it. */
 const p1 = () => `/highlights?open=${openId}`;
 
 const SEL = {
@@ -189,7 +188,7 @@ const SEL = {
 	disk: 'footer.disk'
 };
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: column matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: column matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -206,7 +205,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(columnStyle.flexDirection).toBe('column');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: bar matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: bar matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -225,7 +224,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(barStyle.borderBottomWidth).toBe('1px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: title matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: title matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -262,7 +261,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(titleStyle.lineHeight).toBe('13px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: search matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: search matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -299,7 +298,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(searchStyle.lineHeight).toBe('13px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: order matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: order matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -332,7 +331,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(orderStyle.lineHeight).toBe('13px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: chips matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: chips matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -365,7 +364,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(chipsStyle.borderBottomWidth).toBe('1px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: chip matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: chip matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -402,7 +401,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(chipStyle.lineHeight).toBe('12px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: body matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: body matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -419,7 +418,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(bodyStyle.minHeight).toBe('0px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: list matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: list matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -444,7 +443,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(listStyle.borderRightWidth).toBe('1px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: day matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: day matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -475,7 +474,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(dayStyle.lineHeight).toBe('14.4px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: box matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: box matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -500,7 +499,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(boxStyle.borderLeftWidth).toBe('1px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: row matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: row matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -529,7 +528,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(rowStyle.paddingLeft).toBe('16px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: open matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: open matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -546,7 +545,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(openStyle.flexDirection).toBe('column');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: openHead matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: openHead matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -565,7 +564,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(openHeadStyle.borderBottomWidth).toBe('1px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: paragraph matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: paragraph matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -594,7 +593,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(paragraphStyle.lineHeight).toBe('29.16px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: options matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: options matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -623,7 +622,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(optionsStyle.paddingLeft).toBe('28px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: swatch matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: swatch matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -656,7 +655,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(swatchStyle.lineHeight).toBe('14px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: openFoot matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: openFoot matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());
@@ -675,7 +674,7 @@ test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every 
 	expect(openFootStyle.borderTopWidth).toBe('1px');
 });
 
-test('C444 · /HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: disk matches the handoff', async ({
+test('/HIGHLIGHTS · DESKTOP 1440 WITH THE SIDEBAR, PHONE 390 — Every highlight, newest first: disk matches the design', async ({
 	page
 }) => {
 	await page.goto(p1());

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * This device's settings in its browser (settings/local.ts): each
  * change stamped, the record sent, what's newer taken back, and what the
- * player kept before c171 handed over once.
+ * player kept unstamped handed over once.
  */
 
 class Memory {
@@ -41,7 +41,7 @@ describe('a device’s own settings', () => {
 		expect(local.localStamped()).toEqual({ 'tsundoku.reader.crop': { v: null, at: 200 } });
 	});
 
-	it('sends a value kept before c171 at stamp 0, so anything set elsewhere wins', () => {
+	it('sends a value kept unstamped at stamp 0, so anything set elsewhere wins', () => {
 		storage.setItem('tsundoku.reader.sides', '20');
 		expect(local.localStamped()).toEqual({ 'tsundoku.reader.sides': { v: 20, at: 0 } });
 	});

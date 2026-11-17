@@ -9,7 +9,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * Where ▶ CONTINUE opens a chapter (c622, c652, c666; doc/TEXT-READER.md,
+ * Where ▶ CONTINUE opens a chapter (doc/TEXT-READER.md,
  * doc/SERIES.md): a chapter left midway resumes, in both readers. Runs in
  * tablet-portrait on a seeded database and an OS port of its own, the
  * `works-flow` arrangement, because every case here writes reading and marks
@@ -96,7 +96,7 @@ async function openSeries(page: Page, series: number) {
 	await expect(continueLink(page)).toBeVisible();
 }
 
-/** ▶ CONTINUE, by the app's own door, from a document that holds nothing of the reader's. */
+/** ▶ CONTINUE, by the app's own button, from a document that holds nothing of the reader's. */
 async function continueText(page: Page, series: number) {
 	await openSeries(page, series);
 	await continueLink(page).click();
@@ -248,7 +248,7 @@ const rowOf = (page: Page, n: number) =>
 	);
 const imageMeta = (page: Page) => page.locator('header[aria-label="Reader"] .meta');
 
-/** A finished chapter folds with the ones before it: # opens the fold, the app's own door. */
+/** A finished chapter folds with the ones before it: # opens the fold, as the app does. */
 async function showRow(page: Page, n: number) {
 	if ((await rowOf(page, n).count()) > 0) return;
 	await page.getByRole('button', { name: 'Go to chapter number' }).click();
@@ -257,7 +257,7 @@ async function showRow(page: Page, n: number) {
 	await expect(rowOf(page, n)).toBeVisible();
 }
 
-/** The bulk bar's MARK UNREAD on one chapter, the app's own door. */
+/** The bulk bar's MARK UNREAD on one chapter, as the app does it. */
 async function markUnread(page: Page, series: number, n: number) {
 	await page.goto(`/series/${series}`);
 	await showRow(page, n);
@@ -330,7 +330,7 @@ test.describe('MARK UNREAD starts a finished chapter from the top, in both reade
 		const { series, entry } = row('Hikaru ga Shinda Natsu', 30);
 		await finishImage(page, entry);
 		await expect.poll(() => row('Hikaru ga Shinda Natsu', 30).readAt).not.toBeNull();
-		// c666's own walk: MARK READ over a chapter already read changes nothing.
+		// The reported case: MARK READ over a chapter already read changes nothing.
 		const post = await page.request.post(`${base}/series/${series}?/mark`, {
 			headers: { origin: base, 'x-sveltekit-action': 'true' },
 			form: { read: '1', entry: String(entry) }
@@ -383,7 +383,7 @@ test.describe('UNDO of a long-press MARK READ THROUGH resumes the chapter', () =
 		page
 	}) => {
 		const { series, entry, place, offset } = row('Villainess Level 99', 2);
-		// Case 2 left it midway through the reader's own door.
+		// Case 2 left it midway, through the reader itself.
 		expect(place).toBeGreaterThan(0);
 		await markThrough(page, series, 2, 'VOL. 2');
 		await expect.poll(() => row('Villainess Level 99', 2).readAt).not.toBeNull();

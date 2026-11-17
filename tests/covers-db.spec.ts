@@ -123,7 +123,7 @@ describe('covers', () => {
 		expect(again.made).toBe(0);
 	});
 
-	// Seen live on 2026-10-28: ADD, then UNDO before the cover arrived, left
+	// Seen live: ADD, then UNDO before the cover arrived, left
 	// a cover under an id the next new series would be given.
 	it('write nothing for a series removed while its cover was fetched', async () => {
 		const gone = series({
@@ -256,7 +256,7 @@ describe('book covers', () => {
 		expect(made(e)).toHaveLength(1);
 	});
 
-	it('follow the page the owner chose, replacing the one made before', async () => {
+	it('follow the page the user chose, replacing the one made before', async () => {
 		const e = entryOf(downloaded);
 		const before = made(e);
 		db.prepare(`UPDATE entries SET cover_page = 0 WHERE id = ?`).run(e);
@@ -308,7 +308,7 @@ describe('page thumbnails', () => {
 	});
 });
 
-describe('covers the owner chose, and a series of books’ first book', () => {
+describe('covers the user chose, and a series of books’ first book', () => {
 	const key = (id: number) => row(id).cover_key;
 	const entryOf = (seriesId: number) =>
 		(db.prepare(`SELECT id FROM entries WHERE series_id = ?`).get(seriesId) as { id: number }).id;

@@ -180,7 +180,7 @@ describe('no key', () => {
 	});
 });
 
-describe('the owner’s decisions', () => {
+describe('the user’s decisions', () => {
 	it('LINK from the review, then UNDO puts back what stood', async () => {
 		const id = add('Twin Lakes');
 		searches['Twin Lakes'] = [film(81, 'Twin Lakes', 1990), film(82, 'Twin Lakes', 2011)];
@@ -220,7 +220,7 @@ describe('the owner’s decisions', () => {
 		expect(links.tmdbLinkState(id)!.linked?.tmdbId).toBe(101);
 	});
 
-	it('SEARCH AGAIN with the owner’s words stores what it found, and never links by itself', async () => {
+	it('SEARCH AGAIN with the user’s words stores what it found, and never links by itself', async () => {
 		const id = add('Untitled Rip 1080p');
 		searches['Untitled Rip'] = [];
 		await links.tmdbPass({ now: NOW });

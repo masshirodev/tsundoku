@@ -513,7 +513,7 @@ describe('the text reader’s fonts', () => {
 
 	it('lays the stored settings over the defaults, an old value kept and an unknown one not', () => {
 		expect(textSettings(null)).toEqual(DEFAULT_SETTINGS);
-		// Saved before c442: still read as saved.
+		// Saved by an older build: still read as saved.
 		expect(textSettings({ font: 'sans', size: 21 })).toMatchObject({ font: 'sans', size: 21 });
 		// From a newer build: the default font, and the rest kept.
 		expect(textSettings({ font: 'literata' as never, theme: 'paper' }).font).toBe('serif');
@@ -728,7 +728,7 @@ describe('a novel’s WIDTH', () => {
 });
 
 describe('the text reader’s place in the URL', () => {
-	it('reads ?at=b.o as every link before c554 wrote it, and b.o.y with SCROLL’s line height', () => {
+	it('reads ?at=b.o as older links wrote it, and b.o.y with SCROLL’s line height', () => {
 		expect(parseAt('12.340')).toEqual({ block: 12, offset: 340, y: null });
 		expect(parseAt('12.340.57')).toEqual({ block: 12, offset: 340, y: 57 });
 		// A line partly above the top of the screen stands at a negative height.
@@ -834,7 +834,7 @@ describe('libraryCells', () => {
 
 	it('a library series offers DELETE, never HIDE', () => {
 		expect(libraryCells(state({}))).toEqual({ cell: 'delete', unhide: null });
-		// A series with a record's door known is still a library series.
+		// A series with a record's ADD link known is still a library series.
 		expect(libraryCells(state({ hasAddHref: true }))).toEqual({ cell: 'delete', unhide: null });
 	});
 

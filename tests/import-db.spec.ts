@@ -20,10 +20,10 @@ const { closeDeadJobs } = await import('$lib/server/import/write');
 const { currentScan, dismissScan } = await import('$lib/server/library');
 
 /**
- * The importer after c191 (doc/IMPORT-MIHON.md, "Where it reads from"): the
- * library's own `Mihon/` is a place for a backup, and tsundoku's downloads sit
- * in `devices/tsundoku/Mihon/`, read back by the same importer. The fixture's
- * `local/` folder is no longer read at all.
+ * The importer (doc/IMPORT-MIHON.md, "Where it reads from"): the library's own
+ * `Mihon/` is a place for a backup, and tsundoku's downloads sit in
+ * `devices/tsundoku/Mihon/`, read back by the same importer. The fixture's
+ * `local/` folder is not read at all.
  */
 const library = mkdtempSync(join(tmpdir(), 'tsundoku-mihon-'));
 const root = writeMihonFolder(join(library, 'devices', 'tsundoku'));
@@ -147,7 +147,7 @@ describe('a rescan', () => {
 		expect(job.dismissed_at).not.toBeNull();
 	});
 
-	it('keeps a chapter the owner marked unread unread, though Mihon still says read (rung 28)', async () => {
+	it('keeps a chapter marked unread unread, though Mihon still says read', async () => {
 		const d = series('Drawing: Saikyou Mangaka');
 		const ch1 = db()
 			.prepare(`SELECT id FROM entries WHERE series_id = ? AND label = 'Ch. 1'`)
@@ -164,7 +164,7 @@ describe('a rescan', () => {
 		});
 	});
 
-	it('keeps what the owner changed, and marks a file that went away', async () => {
+	it('keeps what the user changed, and marks a file that went away', async () => {
 		const d = series('Drawing: Saikyou Mangaka');
 		db().prepare(`UPDATE series SET rating = 1, title = 'Drawing (mine)' WHERE id = ?`).run(d.id);
 		rmSync(
@@ -252,7 +252,7 @@ describe('the Hentoid import', () => {
 		expect(job.series_found).toBe(4);
 	});
 
-	it('finds a book the owner grouped, instead of making it again', async () => {
+	it('finds a book the user grouped, instead of making it again', async () => {
 		const a = bookSeries('Summer Days');
 		const b = bookSeries('Summer Days 2');
 		const { seriesId } = groupIntoSeries({ seriesIds: [a.id, b.id], name: 'Summer Days' });
@@ -289,7 +289,7 @@ describe('Mihon’s local manga', () => {
 });
 
 /**
- * c268, c292: a `Mihon/` folder is a place for a backup, and one with no
+ * A `Mihon/` folder is a place for a backup, and one with no
  * backup in it is no source. START SCAN on it refuses with where it looked,
  * instead of opening a job that finds nothing and leaves no band.
  */
@@ -402,13 +402,13 @@ describe('an import a dead process left open', () => {
 });
 
 /**
- * c382: the importer's one delete of a series, `prunePageless`, keeps an empty
- * series only while nobody has touched it. A link is a touch, and since rung 62
- * an anime's link is per season: with only a later season linked there is no
+ * The importer's one delete of a series, `prunePageless`, keeps an empty
+ * series only while nobody has touched it. A link is a touch, and an anime's
+ * link is per season (migration 62): with only a later season linked there is no
  * `series_links` mirror (`syncSeriesLink` mirrors season 1 alone), so the
  * keep-test has to ask the season rows too.
  */
-describe('an empty series the owner touched is never pruned', () => {
+describe('an empty series the user touched is never pruned', () => {
 	const seasons = () => import('$lib/server/season-links');
 	const works = () => import('$lib/server/works');
 	const cand = (anilistId: number) => ({
@@ -430,7 +430,7 @@ describe('an empty series the owner touched is never pruned', () => {
 	const byTitle = (title: string) =>
 		db().prepare(`SELECT id FROM series WHERE title = ?`).get(title) as { id: number } | undefined;
 
-	it('keeps an anime with only season 2 linked when every episode file has gone (the card’s case)', async () => {
+	it('keeps an anime with only season 2 linked when every episode file has gone', async () => {
 		const { tvshowNfo, episodeNfo } = await import('$lib/library/anime-files');
 		const show = join(library, 'Anime', 'Two Seasons');
 		const key = 'aniyomi:7001:/anime/two-seasons';
@@ -462,7 +462,7 @@ describe('an empty series the owner touched is never pruned', () => {
 		await runImport(library, { now: 1_800_001_000_000 });
 		const id = byTitle('Two Seasons')!.id;
 		expect((await seasons()).linkSeason(id, 2, 1, cand(2002), 'pasted')).toBe(true);
-		// The state the card names: a season row, and no series_links mirror.
+		// The state that matters: a season row, and no series_links mirror.
 		expect(db().prepare(`SELECT 1 FROM series_links WHERE series_id = ?`).get(id)).toBeUndefined();
 
 		for (const f of files) rmSync(f);
@@ -470,7 +470,7 @@ describe('an empty series the owner touched is never pruned', () => {
 		expect(byTitle('Two Seasons')?.id).toBe(id);
 		expect((await seasons()).seasonLinks(id).map((l) => l.season)).toEqual([2]);
 		// The anime source marks a gone file NOT DOWNLOADED; it never empties the
-		// series, so nothing here reaches the prune (the card's premise, measured).
+		// series, so nothing here reaches the prune.
 		expect(entries(id).map((e) => e.available)).toEqual([0, 0, 0]);
 	});
 
@@ -498,7 +498,7 @@ describe('an empty series the owner touched is never pruned', () => {
 		const s = await seasons();
 		expect(s.linkSeason(linked, 2, 1, cand(3003), 'pasted')).toBe(true);
 		s.noneOfSeason(decided, 1, 1, now);
-		// A Work is the owner's grouping, as a shelf is: grouped with a real book.
+		// A Work is the user's grouping, as a shelf is: grouped with a real book.
 		const book = byTitle('Summer Days')!.id;
 		const w = await works();
 		const work = w.createWork({ seriesIds: [grouped, book], name: 'Kept Run', now });
@@ -508,15 +508,15 @@ describe('an empty series the owner touched is never pruned', () => {
 		expect(byTitle('Season Linked')?.id).toBe(linked);
 		expect(byTitle('Season Decided')?.id).toBe(decided);
 		expect(byTitle('Grouped Empty')?.id).toBe(grouped);
-		// Before, the cascade took the link and the decision, and rung 61's
-		// trigger ended the Work the deleted series left with one.
+		// A pruned series would cascade away the link and the decision, and
+		// migration 61's trigger would end the Work it left with one.
 		expect(s.seasonLinks(linked)).toHaveLength(1);
 		expect(w.workOfSeries(book)?.id).toBe(work.work.id);
 		w.ungroup(work.work.id);
 	});
 });
 
-describe('a backup from a source with ADDED HIDDEN (c503, the owner’s (a))', () => {
+describe('a backup from a source with ADDED HIDDEN', () => {
 	// A library of its own, holding only a backup, with two sources of its own
 	// so the shared library's series are untouched: HIDING has the switch on,
 	// PLAIN has it off. Categories as the fixture's: 1 is "Good", 7 "Good+"
@@ -672,9 +672,9 @@ describe('a backup from a source with ADDED HIDDEN (c503, the owner’s (a))', (
 
 describe('a novel’s R→L survives a backup’s fold', () => {
 	// Folder series imported before a backup knew them, set to R→L by the
-	// owner (series.text_direction, rung 69), then folded into the URL's series
+	// user (series.text_direction), then folded into the URL's series
 	// once a backup names them (import/fold.ts): one renamed, so `carryEdit`
-	// carries the owner's edit, and one still named as its folder, so only the
+	// carries the user's edit, and one still named as its folder, so only the
 	// fold's own fill-in can keep it.
 	const at = 1_800_003_000_000;
 	const { ASURA, backup, cbz, comicInfo } = mihonFixture;
@@ -688,7 +688,7 @@ describe('a novel’s R→L survives a backup’s fold', () => {
 		one<{ text_direction: string | null }>(`SELECT text_direction FROM series WHERE id = ?`, id)
 			.text_direction;
 	// The third: renamed and chosen L→R ('ltr', as REMEMBER L→R stores it)
-	// while the old URL series had R→L, so carryEdit's owner's edit must win over
+	// while the old URL series had R→L, so carryEdit's user edit must win over
 	// the survivor's own. The fourth: renamed and never chosen (NULL) over the
 	// same R→L, so there is no choice to carry and the survivor keeps its own.
 	// The fifth: the survivor itself chose L→R and the folder, not renamed, has
@@ -734,7 +734,7 @@ describe('a novel’s R→L survives a backup’s fold', () => {
 		for (const name of folders) {
 			const id = byKey(dirKey(name));
 			expect(id, name).toBeTruthy();
-			// What the owner did while it was the only one: a novel, read R→L.
+			// What the user did while it was the only one: a novel, read R→L.
 			db()
 				.prepare(`UPDATE series SET kind = 'novel', text_direction = ? WHERE id = ?`)
 				.run(folderDirection(name), id);
@@ -795,7 +795,7 @@ describe('a novel’s R→L survives a backup’s fold', () => {
 		expect(textDirection(id)).toBe('rtl');
 	});
 
-	it('carries a renamed folder’s chosen L→R over the survivor’s R→L: the owner’s edit wins whole', () => {
+	it('carries a renamed folder’s chosen L→R over the survivor’s R→L: the user’s edit wins whole', () => {
 		expect(textDirection(urlSeries.get('Novel Turned')!)).toBe('ltr');
 	});
 
@@ -859,8 +859,8 @@ describe('a novel’s R→L survives a backup’s fold', () => {
 describe('ADDED HIDDEN reaches a Mihon download folder imported before its backup', () => {
 	// Each case a library of its own: tsundoku's downloads hold one folder, and
 	// tsundoku's own backup beside them (when it comes) names the same manga,
-	// as in c503's attach case: one Mihon root. (The library's backup in
-	// `Mihon/` and `adoptFolder` are devices-import-db.spec.ts's c571 case,
+	// as in the attach case above: one Mihon root. (The library's backup in
+	// `Mihon/` and `adoptFolder` are covered in devices-import-db.spec.ts,
 	// whose library has one Mihon root for both.) The sources
 	// are installed (engine_sources), as the switch's own screen needs them:
 	// HIDING has ADDED HIDDEN on, PLAIN off; TWIN is two installed sources of

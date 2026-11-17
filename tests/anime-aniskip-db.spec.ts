@@ -39,7 +39,7 @@ const root = Number(
 );
 let n = 0;
 // A link's `format` is the entry's own (AniList's MediaFormat); `null` is a
-// link that does not know it yet (rung 26's column, a Mihon tracker's link).
+// link that does not know it yet (migration 26's column, a Mihon tracker's link).
 const series = (opts: { hidden?: number; mal?: number | null; format?: string | null } = {}) => {
 	const id = Number(
 		db
@@ -174,7 +174,7 @@ describe('AniSkip', () => {
 		expect(calls).toEqual([]);
 	});
 
-	it('is not asked for a later season under a link from before rung 62: it is the first season’s entry', async () => {
+	it('is not asked for a later season under a link from before migration 62: it is the first season’s entry', async () => {
 		// No season rows: the series' one link stands for its first season (or
 		// its flat list), so a season-2 episode has no entry of its own.
 		const id = episode(series(), { season: 2 });
@@ -351,7 +351,7 @@ describe('AniSkip', () => {
 		expect(await lookupAniSkip(id)).toBe(false);
 		expect(marks.markTriedAt(id, 'aniskip')).not.toBeNull();
 
-		// The owner relinks the series to the right entry: the negative goes.
+		// The user relinks the series to the right entry: the negative goes.
 		cat.link(
 			show,
 			{
@@ -478,7 +478,7 @@ describe('AniSkip', () => {
 	});
 
 	it('a Mihon tracker that moves to another MAL entry clears the old one’s answers', async () => {
-		// The import's door: one call per tracked series, inside its transaction.
+		// The import's entry point: one call per tracked series, inside its transaction.
 		// A moved tracker must not keep the old entry's week-long negative, nor
 		// the ending the old entry gave.
 		const show = series({ mal: null });
@@ -565,7 +565,7 @@ describe('AniSkip', () => {
 		expect(changes() - before).toBe(0);
 	});
 
-	// c395: AniSkip's ids are MAL *anime* ids, and MAL numbers anime and manga
+	// AniSkip's ids are MAL *anime* ids, and MAL numbers anime and manga
 	// apart, so a manga's id names an unrelated anime. The fake answers any id
 	// with an opening, as the real service does for a real anime, so a lookup
 	// that should not happen leaves a wrong mark behind, not just a request.
@@ -587,7 +587,7 @@ describe('AniSkip', () => {
 	});
 
 	it('is never asked under a link to a manga’s entry, and remembers nothing', async () => {
-		// Through the app's own door: LINK takes the entry it is given, and a
+		// Through the app's own LINK: it takes the entry it is given, and a
 		// wrong-kind one is flagged on the series, not refused.
 		const show = series({ mal: null });
 		const id = episode(show);

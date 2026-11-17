@@ -16,7 +16,7 @@ import { makeLogin, writeLogin } from '../src/lib/server/login.ts';
 import { FRIEND_HOME, FRIEND_PORT } from './friend-world';
 
 /**
- * A pairing link opened by a real browser (c723; doc/WIFI.md, "Signing in
+ * A pairing link opened by a real browser (doc/WIFI.md, "Signing in
  * over Wi-Fi"): the friend's phone, Firefox for Android, saw the tab "opening
  * and closing". The pair route is not a no-op on a second GET (it redeems the
  * code once and sends a repeat to `/login?pair=used`), so every request the
@@ -38,8 +38,8 @@ import { FRIEND_HOME, FRIEND_PORT } from './friend-world';
  * (`pref("dom.security.https_first", false)` in its playwright.cfg), so the
  * cases name the prefs: as Playwright ships it, HTTPS-First on with
  * Firefox's own defaults for the rest, and HTTPS-First on with its two
- * exemptions turned off (local addresses, custom ports). Then the Chromium
- * phone the card's done line asks for (Pixel 7 emulation). In the friend
+ * exemptions turned off (local addresses, custom ports). Then a Chromium
+ * phone (Pixel 7 emulation). In the friend
  * project, whose one worker runs its files in order, so WI-FI is switched on
  * here and off again before friend-wifi.e2e.ts expects it off, and every
  * phone paired here is signed out again.
@@ -163,7 +163,7 @@ async function openPairLink(
 		// `load`, not `networkidle`: with HTTPS-First on, Firefox's own https try
 		// at the plain-http port is a TLS hello the relay passes on untouched,
 		// and the listener waits on it for good, so the network never goes idle
-		// (the 90 s timeout of 2026-11-15). The 4 s after it are the measurement.
+		// (a 90 s timeout). The 4 s after it are the measurement.
 		await tab.waitForLoadState('load');
 		await tab.waitForTimeout(4000);
 		const secure = await tab.evaluate(() => ({
@@ -264,7 +264,7 @@ test.afterAll(async ({ browser, request }) => {
  * A friend's install of this case's own, served as tests/friend-setup.ts
  * serves the shared one (scripts/serve.ts, local mode, no password), on a
  * port from the OS with its own database: 04 counts every phone that has
- * checked in, DEVICES has no door that forgets one, and the shared install
+ * checked in, DEVICES has no button that forgets one, and the shared install
  * has had phones by the time this runs again (`--repeat-each`, or another
  * file's). Stopped and removed after the case, by its own handle.
  */
@@ -331,8 +331,8 @@ async function ownInstall() {
 }
 
 /**
- * GET STARTED's 04 on the computer, open while a phone pairs (c722;
- * doc/ONBOARDING.md, "What ticks a step without a reload"). Pairing writes
+ * GET STARTED's 04 on the computer, open while a phone pairs
+ * (doc/ONBOARDING.md, "What ticks a step without a reload"). Pairing writes
  * the `paired_devices` row 04 counts (`/pair/<code>`, `addPaired`), so the
  * server has it at once; what kept the friend's 04 open was the list itself,
  * read by the layout's load, which nothing reran. The phone is paired through

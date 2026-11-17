@@ -10,7 +10,7 @@ import { DETAILS_FOLDS } from './helpers/details-folds';
 
 /**
  * RENAME on the series screen's FILE row (doc/SERIES.md, "RENAME"), on
- * the owner's own case: a novel grouped from thirteen EPUBs, whose FILE row
+ * a real case: a novel grouped from thirteen EPUBs, whose FILE row
  * read `13 EPUB · 6.8 MB` a word a line beside UNGROUP, HIDE and DELETE, and
  * whose name could not be changed. The row is measured at 390 and at the
  * 440 panel, then the series is renamed, reloaded, UNDOne, refused an empty
@@ -18,7 +18,7 @@ import { DETAILS_FOLDS } from './helpers/details-folds';
  * writes the database, so the file runs once (a `-flow`, tablet-portrait), on
  * a seeded database of its own, against its own preview on a port the OS
  * hands out. The grouped series is written as rows, the shape the GROUP
- * sheet leaves (books-flow walks that door); the scan, REFRESH and import
+ * sheet leaves (books-flow walks that sheet); the scan, REFRESH and import
  * keeping a renamed name are tests/series-rename-db.spec.ts'.
  */
 test.describe.configure({ mode: 'serial' });
@@ -75,7 +75,7 @@ function seed(): number {
 		for (let v = 1; v <= 13; v++)
 			for (let c = 1; c <= 2; c++) {
 				position += 1;
-				// Two chapters a volume, 6.8 MB in all, as the owner's screenshot read.
+				// Two chapters a volume, 6.8 MB in all, as the real case read.
 				put.run(
 					series,
 					position,
@@ -132,7 +132,7 @@ test.afterAll(() => {
 });
 
 /**
- * DETAILS folds FILE on a phone and a TV: open it the way the owner
+ * DETAILS folds FILE on a phone and a TV: open it the way the user
  * does, by its line, and wait for the answer, which comes once the page runs.
  */
 async function openDetails(page: Page) {
@@ -140,8 +140,8 @@ async function openDetails(page: Page) {
 	// Whether DETAILS folds rows here is SeriesPanel.svelte's media query (a
 	// phone's width, or a TV), known before the panel draws; the query lives
 	// once, in tests/helpers/details-folds.ts. Read once with `isVisible()`, a
-	// line not drawn yet reads as "no fold", and FILE stays folded away (c439:
-	// series-layout's copy, 2 of 20 on a loaded phone and TV in wave 24).
+	// line not drawn yet reads as "no fold", and FILE stays folded away
+	// (series-layout's copy: 2 runs of 20 on a loaded phone and TV).
 	const folds = await page.evaluate((query) => matchMedia(query).matches, DETAILS_FOLDS);
 	if (!folds) return;
 	await expect(line).toBeVisible();

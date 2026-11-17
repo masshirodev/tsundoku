@@ -952,10 +952,10 @@ describe('a quote waits like a page', () => {
 		});
 
 		it('what the reader changed while it waited comes back with it', async () => {
-			// W's own POST is out and the reader turns it blue (the low round 3
-			// named): the join that covers it is refused, and the item put back
-			// must still say the colour was changed, or a row already made keeps
-			// the colour nobody chose.
+			// W's own POST is out and the reader turns it blue: the join
+			// that covers it is refused, and the item put back must still
+			// say the colour was changed, or a row already made keeps the
+			// colour nobody chose.
 			await queueHighlight(covered, 1);
 			expect(await reviseHighlight(covered.key, { colour: 'blue' })).toBe(true);
 			await supersedeHighlight(covered.key);
@@ -983,9 +983,9 @@ describe('a quote waits like a page', () => {
 		});
 
 		it('a take-back hands back what the item covered, and UNDO puts it all back', async () => {
-			// Round 5: DELETE of a waiting join, then UNDO. The take-back used to
-			// return nothing, so the UNDO could only rebuild the page's body and a
-			// refusal of that join lost the quote and its note for good.
+			// DELETE of a waiting join, then UNDO. Were the take-back to return
+			// nothing, the UNDO could only rebuild the page's body, and a refusal
+			// of that join would lose the quote and its note for good.
 			const press = await waitingJoin();
 			const taken = await takeBackHighlight(press.key);
 			expect(taken?.key).toBe(press.key);
@@ -1030,7 +1030,7 @@ describe('a quote waits like a page', () => {
 
 		it('a fresh press does not inherit a stale revised from a join that was sent', async () => {
 			// W is turned blue while it waits, then a join J under another key
-			// covers it and is sent (round 2's low). `remembered` still holds W,
+			// covers it and is sent. `remembered` still holds W,
 			// because it outlives the item it was; a press of W's span afterwards
 			// is a new request, and no colour was changed of it.
 			await queueHighlight(covered, 1);
@@ -1104,7 +1104,7 @@ describe('a quote waits like a page', () => {
 		it('the exact re-press of a waiting quote carries the colour the reader chose', async () => {
 			// `waitOnDevice`'s own-span branch: the same key again is this press,
 			// and what the reader changed of it while it waited rides the new item.
-			// The door answers the repeat with the row it already holds, yellow:
+			// The endpoint answers the repeat with the row it already holds, yellow:
 			// only the carried `revised` sends the chosen colour after it.
 			await queueHighlight(covered, 1);
 			expect(await reviseHighlight(covered.key, { colour: 'blue' })).toBe(true);

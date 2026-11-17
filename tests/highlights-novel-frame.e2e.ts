@@ -10,10 +10,10 @@ import { E2E_TOKEN } from '../playwright.config';
 import { startPreview } from './highlights-preview';
 
 /**
- * The handoff's measurements for the text reader's highlights (card c702;
- * `doc/handoffs/highlights/Novel.dc.html`, `hl.css`): the bar's 48 px cells and
- * mono type, the 14 px handles, the phone's sheet with its 56 px head and foot
- * and 44 px swatches, the 420 px panel with its 60 px foot, and the band's
+ * The design's measurements for the text reader's highlights: the bar's 48 px
+ * cells and mono type, the 14 px handles, the phone's sheet with its 56 px
+ * head and foot and 44 px swatches, the 420 px panel with its 60 px foot, and
+ * the band's
  * minimum height. These are hand-set values, not a ladder (`reconcile-tokens`
  * says the theme has none), and this test is what stops a later pass rounding
  * them onto one. Written by hand from `extract-spec.mjs`'s output, not by the

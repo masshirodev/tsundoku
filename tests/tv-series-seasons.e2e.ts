@@ -11,8 +11,8 @@ import { expect, test } from './fixtures';
 import { previewId, startTagWorld, type TagWorld } from './helpers/tag-world';
 
 /**
- * The seasons around an anime on a TV (c358; doc/SERIES.md, "The seasons
- * around it"; doc/FOCUS.md): the heads are new rows on a screen the TV opens,
+ * The seasons around an anime on a TV (doc/SERIES.md, "The seasons
+ * around it"; doc/FOCUS.md): the heads are rows on a screen the TV opens,
  * so the remote must reach each one's FIND or IN LIBRARY →, and the folded
  * extras line, with ↑ and ↓, and OK opens the fold in place. It runs in the
  * `tv` project (960x540, no pointer). The shared seed has no anime, so, as
@@ -45,12 +45,12 @@ function freePort(): Promise<number> {
 // ---- the stand-in AniList -------------------------------------------------------------------
 
 /**
- * The card's chain (its 'What counts'), each entry with its edges both ways
- * as AniList answers `relations { edges { relationType node } }`: a loop
- * (S5 names S1 its SEQUEL), a branch (S4's SPECIAL prequel beside its ONA
- * one), a MOVIE on the main chain, OVAs and an ONA as side stories, an ONA
- * season on the main chain, a NOT_YET_RELEASED sequel and the manga as an
- * ADAPTATION; and a show AniList lists no sequel of.
+ * The chain, each entry with its edges both ways as AniList answers
+ * `relations { edges { relationType node } }`: a loop (season 5 names season
+ * 1 its SEQUEL), a branch (season 4's SPECIAL prequel beside its ONA one), a
+ * MOVIE on the main chain, OVAs and an ONA as side stories, an ONA season on
+ * the main chain, a NOT_YET_RELEASED sequel and the manga as an ADAPTATION; and
+ * a show AniList lists no sequel of.
  */
 type Entry = {
 	id: number;
@@ -255,7 +255,7 @@ function seed(): Ids {
 const ids = seed();
 
 /**
- * The pass, by its own door: `yarn run links` with no search, against the
+ * The pass, by its own command: `yarn run links` with no search, against the
  * stand-in. Asynchronous: the stand-in answers from this process, which a
  * synchronous child would hold until AniList's own 20 s timeout.
  */
@@ -411,8 +411,8 @@ test('the remote reaches every head’s cell above and below the episodes, and O
 });
 
 /**
- * PUT ON A SHELF under ADDED TO THE LIBRARY (card c724; doc/SERIES.md,
- * "Shelves in the ADDED band") is a new row of stops on the series screen,
+ * PUT ON A SHELF under ADDED TO THE LIBRARY (doc/SERIES.md,
+ * "Shelves in the ADDED band") is a row of stops on the series screen,
  * which a TV opens: the remote reaches every chip from UNDO, and OK puts the
  * series on a shelf. On the tag world (tests/helpers/tag-world.ts: its own
  * database, engine and preview), since it adds a series and makes shelves;

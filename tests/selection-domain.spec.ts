@@ -24,8 +24,8 @@ import {
 import type { LibraryCard, WorkPart } from '../src/lib/library/works';
 
 // The facts SELECT keeps about each series it ticked, so a selection that
-// outlives the shelf it was made on still knows what it holds (c698;
-// doc/LIBRARY.md, "A selection outlives the shelf").
+// outlives the shelf it was made on still knows what it holds
+// (doc/LIBRARY.md, "A selection outlives the shelf").
 
 const pick = (id: number, over: Partial<Picked> = {}): Picked => ({
 	id,

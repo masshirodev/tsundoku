@@ -19,7 +19,7 @@ import {
 import { homeSubnet, networkOf, privateBlock } from '../src/lib/server/lan';
 
 /**
- * A firewall on the computer (c721; doc/WIFI.md, "A firewall on the
+ * A firewall on the computer (doc/WIFI.md, "A firewall on the
  * computer"): what the unprivileged probe reads from each answer, that a
  * missing command, a refusal and a timeout are all "unknown", the lines to
  * copy with the port and the computer's own network, and when the panel
@@ -49,7 +49,7 @@ describe('ufw, read without root', () => {
 		expect(readUfw(ran('active\n'), '# comment\n  ENABLED = YES \n')).toBe('on');
 	});
 	it('is off when either says so (Arch ships ENABLED=yes with the unit not enabled)', () => {
-		// This box, 2026-11-07: ENABLED=yes in /etc/ufw/ufw.conf, `systemctl is-active ufw` inactive (exit 3).
+		// Seen on Arch: ENABLED=yes in /etc/ufw/ufw.conf, `systemctl is-active ufw` inactive (exit 3).
 		expect(readUfw(ran('inactive\n', 3), on)).toBe('off');
 		expect(readUfw(ran('failed\n', 3), on)).toBe('off');
 		// Ubuntu after `ufw disable`: the unit stays active.

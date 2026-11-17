@@ -114,7 +114,7 @@ beforeAll(async () => {
 	hlsAudio('k2', b, '32k');
 	hlsAudio('h1', a, '32k');
 	hlsAudio('h2', b, '32k');
-	// Three servers for c338: only the last has a 360p audio to read.
+	// Three servers: only the last has a 360p audio to read.
 	hlsAudio('x1', a, '32k');
 	hlsAudio('x2', b, '32k');
 	server = createServer((req, res) => {
@@ -148,7 +148,7 @@ beforeAll(async () => {
 				url: `${self}/video/hls/${dir}/index.m3u8`,
 				lang: 'Japanese'
 			});
-			// KickAssAnime's live answer (2026-11-02): one server, "VidStreaming",
+			// KickAssAnime's live answer: one server, "VidStreaming",
 			// three qualities, each with the source's own words and a height in
 			// them, and a separate audio rendition per language.
 			const kaaBody = (kind: string) =>
@@ -327,7 +327,7 @@ describe('fingerprinting streams', () => {
 	});
 
 	it.skipIf(noPrint)(
-		'reads KickAssAnime’s own shape: one VidStreaming server, three heights, and the 360p audio (live, 2026-11-02)',
+		'reads KickAssAnime’s own shape: one VidStreaming server, three heights, and the 360p audio (live)',
 		async () => {
 			// The engine's live answer was one server ("VidStreaming") whose qualities
 			// read "1080p (1920x1080) - 3.52 Mbps", "720p (1280x720) - 1.31 Mbps" and

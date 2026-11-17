@@ -76,8 +76,8 @@ test('lock, reveal with the fingerprint, refuse without it, and unlock', async (
 	await command(page, '/lock');
 	await expect(page.getByText('LOCKED · /reveal NOW ASKS THIS DEVICE')).toBeVisible();
 
-	// A plain POST of /reveal no longer reveals anything: the action answers as
-	// before, and sets no reveal cookie (runCommand, src/lib/server/prefs.ts).
+	// A plain POST of /reveal reveals nothing: the action still answers, and
+	// sets no reveal cookie (runCommand, src/lib/server/prefs.ts).
 	expect(await plainPost(page, '/reveal')).toEqual({
 		status: 200,
 		result: toLibrary,

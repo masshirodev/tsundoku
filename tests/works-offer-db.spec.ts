@@ -5,7 +5,7 @@ process.env.DATABASE_PATH = ':memory:';
 process.env.TSUNDOKU_ANILIST = 'off';
 
 /**
- * MIGHT CONTINUE <WORK> · AS PART N (W7, Works Calls, question 6): the
+ * MIGHT CONTINUE <WORK> · AS PART N: the
  * read that decides the offer, the series screen's four actions behind it,
  * and the NEVER list as absences. The stem rule's own finite domain is in
  * tests/works.spec.ts; this file is what the server makes of it.
@@ -25,7 +25,7 @@ beforeEach(() => {
 		DELETE FROM suggestion_dismissals; DELETE FROM person_favourites; DELETE FROM history_removed;
 		DELETE FROM tracker_accounts;`);
 	seedSample(db, Date.UTC(2026, 8, 22));
-	// The board's titles on six of the seed's visible manga, unrated, in no Work.
+	// The design's titles on six of the seed's visible manga, unrated, in no Work.
 	for (const [from, to] of TITLES)
 		db.prepare(`UPDATE series SET title = ? WHERE title = ?`).run(to, from);
 });
@@ -176,7 +176,7 @@ describe('the offer a series screen reads', () => {
 		expect(works.workOfferFor(force, true)).toBeNull();
 
 		// Ended, a newer Work given its id, then brought back under a new one:
-		// still the Work the owner said NOT THIS to.
+		// still the Work the user said NOT THIS to.
 		const out = works.takeOut(work.id, idOf('The Breaker'));
 		expect(out.ended).not.toBeNull();
 		const newer = works.createWork({
@@ -201,7 +201,7 @@ describe('the offer a series screen reads', () => {
 			now: NOW + 5
 		});
 		expect(again.work.id).toBe(work.id);
-		// Keyed by the id, as W1's helper was, the dismissal would hide this.
+		// Keyed by the id, the dismissal would hide this.
 		expect(works.workOfferFor(force, true)?.workId).toBe(again.work.id);
 	});
 

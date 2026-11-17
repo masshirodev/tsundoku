@@ -10,7 +10,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { revealOn } from './helpers/reveal';
 
 /**
- * GROUP AS ONE SHOW end to end (S2, doc/WORKS.md, "Per-season sources"):
+ * GROUP AS ONE SHOW end to end (doc/WORKS.md, "Per-season sources"):
  * the AS row's ONE SHOW default on an anime selection, the NAME without its
  * trailing "Season 2", SEASONS' numbering, MERGE, the band and its UNDO, and
  * that an ordinary anime with seasons never offers UNGROUP.
@@ -39,7 +39,7 @@ const wipe = () => {
 let server: ChildProcess | null = null;
 
 const SEASONS = ['Lantern Keeper', 'Lantern Keeper Season 2', 'Lantern Keeper Season 3'];
-/** The longest real line (c283's row): a three-digit episode count and every one on disk. */
+/** The longest real line: a three-digit episode count and every one on disk. */
 const LONG = ['Long Runner', 'Long Runner Season 2'];
 /** One series that already holds two seasons of its own: never a season set. */
 const ORDINARY = 'Two Seasons, One Series';
@@ -232,9 +232,8 @@ test('GROUP on an anime selection opens on ONE SHOW and merges the seasons', asy
 	await expect(rows.nth(2).locator('.num')).toHaveText('S3');
 	await expect(rows.nth(0).locator('.a')).toHaveText('Lantern Keeper');
 	await expect(rows.nth(1).locator('.a')).toHaveText('Lantern Keeper Season 2');
-	// The row's meta line (c283's Build list; Seasons-Group.dc.html A1, lines
-	// 76–77): the source, the episodes, the year, WATCHED in ink and what is on
-	// disk. Each fact is the one its own writer keeps (season-facts.ts).
+	// The row's meta line: the source, the episodes, the year, WATCHED in ink
+	// and what is on disk. Each fact is the one its own writer keeps (season-facts.ts).
 	await expect(rows.nth(0).locator('.b')).toHaveText(
 		'KICKASSANIME · 2 EP. · 2023 · 1 WATCHED · 1 HERE'
 	);
@@ -551,7 +550,7 @@ test('a season selected past the first page draws the same show line', async ({ 
 });
 
 /**
- * The longest real line, at the phone's 360 px (c283's row): a source name the
+ * The longest real line, at the phone's 360 px: a source name the
  * length of KICKASSANIME, a three-digit episode count, and every episode
  * watched and on disk. The board truncates (`.t .b`'s `nowrap` + ellipsis) and
  * so does the sheet: the check reads a Range's rects, which a wrap would show
@@ -849,8 +848,8 @@ async function factsHeld(page: Page) {
  * The order the guard *cannot* decide is a stale answer arriving after a fresh
  * one: `noteShowFacts` chains every ask on `showFactsOut`, so a later ask is
  * not even sent until the earlier answer is delivered (measured: the log is
- * `ask 1` while A is held, then `deliver 1`, then `ask 2`). And the count the
- * brief's case would compare, WATCHED, is the card's `readCount`, not a
+ * `ask 1` while A is held, then `deliver 1`, then `ask 2`). And the obvious
+ * count to compare, WATCHED, is the card's `readCount`, not a
  * `/series/facts` value: the facts carry SOURCE, YEAR and HERE. So a stale
  * answer can only be shown as a stale HERE.
  */
@@ -890,7 +889,7 @@ test('a show-facts answer asked for the old list is dropped after the filter cha
 
 /**
  * The page's `/series/facts` asks, where the **first** one is stalled on the
- * wire and every later one is not (the review's medium). `signal`'s
+ * wire and every later one is not. `signal`'s
  * abort rejects the held promise, the way a real stalled request bounded by its
  * own caller ends, so only a caller that bounds its read can settle the chain.
  * `bodies` keeps each ask's body, so a case can prove which series a later ask
@@ -929,10 +928,10 @@ async function factsFirstHangs(page: Page) {
 
 /**
  * A `/series/facts` ask that never answers must not wedge the chain of asks
- * behind it (the review's medium). The page's asks are one chain, so a
- * first ask that never settles used to queue every later one behind it for the
- * life of the page: a page loaded afterwards never got its show line, and every
- * sheet then waited out its 3 s on a chain that would not move.
+ * behind it. The page's asks are one chain, so a first ask that never
+ * settles would queue every later one behind it for the life of the page: a
+ * page loaded afterwards would never get its show line, and every sheet would
+ * wait out its 3 s on a chain that would not move.
  */
 test('a show-facts ask that never answers does not hold the one behind it', async ({ page }) => {
 	seedTaus();

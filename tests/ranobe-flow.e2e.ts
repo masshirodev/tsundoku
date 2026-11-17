@@ -7,8 +7,8 @@ import { test, expect } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
- * Ranobe on the link review, the series screen and SETTINGS (Ranobe.dc.html;
- * doc/RANOBE.md), end to end. Ranobe needs a token and candidates, and
+ * Ranobe on the link review, the series screen and SETTINGS
+ * (doc/RANOBE.md), end to end. Ranobe needs a token and candidates, and
  * turning that on for the shared server would redraw every novel's series
  * screen under the specs that pin it. So this spec runs its own preview of
  * the same build, on its own seeded database, with a dummy token and Ranobe
@@ -89,9 +89,9 @@ test.use({ baseURL: BASE });
 test.beforeAll(async () => {
 	// This hook seeds a database and spawns a preview, then polls up to 60 s
 	// for it: all inside the default 30 s hook budget, where `work-end-frame`'s
-	// same shape ran past 30 s in wave 20's gate. Measured at 2 s here,
-	// at a load average of 20 with the other slots at work; the house budget is
-	// 120 s so a loaded gate fails a case, never the hook. In a hook,
+	// same shape ran past 30 s under load. Measured at 2 s here, at a load
+	// average of 20; the house budget is 120 s so a loaded run fails a case,
+	// never the hook. In a hook,
 	// `test.setTimeout` sets the hook's own budget (Playwright's test.d.ts).
 	test.setTimeout(120_000);
 	seed();
@@ -125,7 +125,7 @@ test.afterAll(() => {
 
 const band = (page: import('@playwright/test').Page) => page.locator('.band .line').first();
 
-test('a novel leads the review with Ranobe’s candidates (1a)', async ({ page }) => {
+test('a novel leads the review with Ranobe’s candidates', async ({ page }) => {
 	await page.goto('/links');
 	await expect(page.locator('.title')).toHaveText('The Beginning After the End, Vol. 2');
 	await expect(page.locator('.ch').first()).toContainText('01 — ON RANOBE');
@@ -144,7 +144,7 @@ test('a novel leads the review with Ranobe’s candidates (1a)', async ({ page }
 	);
 });
 
-test('LINK offers the siblings, nothing preselected, and LINK N MORE takes them (1b)', async ({
+test('LINK offers the siblings, nothing preselected, and LINK N MORE takes them', async ({
 	page
 }) => {
 	await page.goto('/links');
@@ -155,7 +155,7 @@ test('LINK offers the siblings, nothing preselected, and LINK N MORE takes them 
 	await expect(page.locator('.sib')).toHaveCount(2);
 	await expect(page.locator('.sib[aria-pressed="true"]')).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'TAP THE ONES THAT ARE' })).toBeDisabled();
-	// The panel's measurements, as Ranobe Review.dc.html set them. Hand-set,
+	// The panel's measurements, as the design set them. Hand-set,
 	// not a spacing ladder, like the rest of the review: pinned so a tidy-up
 	// can't round them onto one and redraw the panel.
 	const sib = page.locator('.sib').first();
@@ -178,13 +178,13 @@ test('LINK offers the siblings, nothing preselected, and LINK N MORE takes them 
 	await expect(page.locator('.title')).toHaveText('The Beginning After the End, Vol. 3');
 });
 
-test('one left out leads with the work, chosen just now (1c)', async ({ page }) => {
+test('one left out leads with the work, chosen just now', async ({ page }) => {
 	await page.goto('/links');
 	await expect(page.locator('.title')).toHaveText('The Beginning After the End, Vol. 3');
 	await expect(page.locator('.cand .why').first()).toHaveText('CHOSEN FOR VOL. 2 JUST NOW');
 });
 
-test('nothing found: NOT ON RANOBE, and UNDO (1d)', async ({ page }) => {
+test('nothing found: NOT ON RANOBE, and UNDO', async ({ page }) => {
 	await page.goto('/links?series=' + ids.lotm + '&service=ranobe');
 	await expect(page.getByText('Ranobe doesn’t have this novel.')).toBeVisible();
 	await expect(page.locator('.suggest .sy')).toHaveText('NOT YET');
@@ -208,9 +208,7 @@ test('nothing found: NOT ON RANOBE, and UNDO (1d)', async ({ page }) => {
 	await expect(page.locator('.title')).toHaveText('Lord of the Mysteries: 1-1429');
 });
 
-test('a pasted link reads the id only, and says when Ranobe doesn’t answer (1e)', async ({
-	page
-}) => {
+test('a pasted link reads the id only, and says when Ranobe doesn’t answer', async ({ page }) => {
 	await page.goto(`/links?series=${ids.lotm}&service=ranobe&paste`);
 	const field = page.getByLabel('Ranobe link');
 	await field.fill('https://anilist.co/manga/2');
@@ -221,13 +219,11 @@ test('a pasted link reads the id only, and says when Ranobe doesn’t answer (1e
 	);
 });
 
-test('the series screen draws Ranobe’s line on LISTS, first on a novel (2a, 2h)', async ({
-	page
-}) => {
+test('the series screen draws Ranobe’s line on LISTS, first on a novel', async ({ page }) => {
 	await page.goto(`/series/${ids.v2}`);
 	const row = page.locator('[data-row="lists"]');
 	const rnb = row.locator('[data-line="ranobe"]');
-	// A novel is tracked on Ranobe, so Ranobe's line comes first (1B, 9).
+	// A novel is tracked on Ranobe, so Ranobe's line comes first.
 	await expect(row.locator('.tag').first()).toHaveText('RNB');
 	await expect(rnb.locator('.t')).toHaveText('The Beginning After the End');
 	await expect(rnb.locator('.m')).toContainText('RANOBE W388');
@@ -263,7 +259,7 @@ test('the series screen draws Ranobe’s line on LISTS, first on a novel (2a, 2h
 	);
 });
 
-test('SETTINGS has a RANOBE row with no sign-in (3a)', async ({ page }) => {
+test('SETTINGS has a RANOBE row with no sign-in', async ({ page }) => {
 	await page.goto('/settings');
 	const row = page.locator('.acct.ranobe');
 	await expect(row.locator('.label')).toHaveText('RANOBE');
@@ -273,6 +269,6 @@ test('SETTINGS has a RANOBE row with no sign-in (3a)', async ({ page }) => {
 	);
 	await expect(row.getByRole('link', { name: /TO CHOOSE/ })).toHaveAttribute('href', '/links');
 	await expect(row.getByRole('button')).toHaveCount(0);
-	// Three lines, so taller than a sign-in's row (3a: 84px against 68px).
+	// Three lines, so taller than a sign-in's row (84px against 68px).
 	await expect(row).toHaveCSS('min-height', '84px');
 });

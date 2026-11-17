@@ -45,7 +45,7 @@ describe('TYPEFACE', () => {
 });
 
 describe('the catalogue', () => {
-	it('has the eight sections in the handoff’s order, numbered', () => {
+	it('has the eight sections in the design’s order, numbered', () => {
 		expect(SECTIONS.map((s) => `${s.n} ${s.id}`)).toEqual([
 			'01 images',
 			'02 novels',
@@ -252,7 +252,7 @@ describe('the page’s lines', () => {
 	});
 });
 
-describe('MODE’s and LAYOUT’s N SERIES DIFFER → list (2A)', () => {
+describe('MODE’s and LAYOUT’s N SERIES DIFFER → list', () => {
 	it('says what the series reads by, a novel kept R→L included, beside or without its layout', () => {
 		// Every combination of the two things a series can differ by.
 		expect(modeLine({ kind: 'manga', direction: 'ltr', rtl: false })).toBe(

@@ -208,7 +208,7 @@ test('a slider keeps the arrows along its axis and lets the others leave, with n
 	expect(await from('role', 'ArrowDown')).toEqual({ on: 'below', seen: [] });
 
 	// A native range: ← → move its value (the browser's own step), ↑ ↓ leave
-	// with the value as it was. Before c259 it kept all four, a trap on a remote.
+	// with the value as it was. Keeping all four would trap a remote.
 	expect(await from('range', 'ArrowRight')).toEqual({ on: 'range', seen: ['range:ArrowRight'] });
 	await expect(page.locator('#range')).toHaveValue('6');
 	expect(await from('range', 'ArrowDown')).toEqual({ on: 'below', seen: [] });
@@ -296,11 +296,11 @@ test('library to series to reader, and back, by keyboard alone', async ({ page }
 });
 
 /**
- * c611: off a TV the reader keeps every arrow, except at its end page, where
+ * Off a TV the reader keeps every arrow, except at its end page, where
  * the opt-out is lifted everywhere so the page's cells are stops. There a
- * keyboard's ← → on the page scrubber now reach the slider's own handler
- * (it is a `role="slider"`, so c259's rule keeps them for it), where before
- * the layer moved the mark off it; ↑ ↓ leave as before.
+ * keyboard's ← → on the page scrubber reach the slider's own handler (it is
+ * a `role="slider"`, and a slider keeps them), and the layer does not move
+ * the mark off it; ↑ ↓ leave.
  *
  * The desktop project is the one with a fine pointer; the other three would
  * only repeat it at a smaller width. Incognito, so reading on to the end page
@@ -363,7 +363,7 @@ test.describe('the end page’s scrubber off a TV', () => {
 		const before = Number(await scrub.getAttribute('aria-valuenow'));
 		await page.keyboard.press(back);
 		// The key reached the slider: the page stepped, and the mark stayed on it
-		// (before c259 the layer moved the mark to the nearest stop instead).
+		// rather than moving to the nearest stop.
 		await expect
 			.poll(async () => Number(await scrub.getAttribute('aria-valuenow')))
 			.toBe(before - 1);

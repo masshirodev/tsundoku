@@ -129,7 +129,7 @@ describe('the arrows a slider keeps', () => {
 		expect(kept({ slider: true, orientation: 'horizontal' })).toEqual(['left', 'right']);
 	});
 
-	it('a native range does the same (it kept all four before c259, a trap on a remote)', () => {
+	it('a native range does the same (keeping all four is a trap on a remote)', () => {
 		expect(kept({ range: true })).toEqual(['left', 'right']);
 	});
 
@@ -138,7 +138,7 @@ describe('the arrows a slider keeps', () => {
 		expect(kept({ range: true, orientation: 'vertical' })).toEqual(['up', 'down']);
 	});
 
-	it('data-focus-adjust on a slider still says ← →, as before c259', () => {
+	it('data-focus-adjust on a slider still says ← →', () => {
 		expect(kept({ slider: true, adjust: '' })).toEqual(['left', 'right']);
 		// It wins over the axis: the attribute was always "← → are mine".
 		expect(kept({ slider: true, adjust: '', orientation: 'vertical' })).toEqual(['left', 'right']);

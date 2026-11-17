@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
  * Node's own type stripping, not through Vite. It refuses TypeScript that
  * needs compiling (parameter properties, enums), which Vitest compiles
  * happily, so only a real import under Node shows it: `node --check` passes
- * them. `ranobe.ts` shipped a parameter property once (2026-09-27).
+ * them. `ranobe.ts` shipped a parameter property once.
  */
 const MODULES = [
 	'src/lib/server/ranobe.ts',

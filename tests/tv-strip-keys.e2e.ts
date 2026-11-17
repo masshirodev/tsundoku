@@ -1,7 +1,7 @@
 import { expect, readerReady, test } from './fixtures';
 
 /**
- * The vertical strip's ← and → on a TV (c527; doc/READER.md, "On a TV and on
+ * The vertical strip's ← and → on a TV (doc/READER.md, "On a TV and on
  * a remote"): with the controls hidden a remote's → and ← nudge the strip as
  * a keyboard's do, since a remote has no Ctrl for Ctrl + ↓ / ↑; with them up
  * the arrows stay the focus layer's (`tv-reader.e2e.ts`). Runs in the
@@ -47,8 +47,8 @@ test('with the controls hidden, a remote’s → and ← nudge the strip; with t
 
 	// Controls up: → moves along the row, and the strip stays where it is.
 	// A chapter arriving above under load scrolls the strip with it to keep
-	// the place (`keepPlaceBy`); that is taken away, as reader-flow's c192
-	// case does.
+	// the place (`keepPlaceBy`); that is taken away, as a reader-flow case
+	// does.
 	await page.evaluate(() => {
 		const w = window as unknown as { kept: number };
 		w.kept = 0;

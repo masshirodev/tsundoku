@@ -8,8 +8,8 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * MOVE from a remote (doc/MOVE.md). The screens are c139's, which
- * predates the focus layer: this pins that a D-pad reaches them, and that BACK
+ * MOVE from a remote (doc/MOVE.md). The screens are not built on the focus
+ * layer: this pins that a D-pad reaches them, and that BACK
  * climbs the comparison before it leaves the page.
  *
  * It reads and never moves anything -- `tests/browse-move.e2e.ts` owns the move
@@ -80,8 +80,8 @@ test('a candidate opens the comparison, and BACK climbs before it leaves', async
 	await move.focus();
 	expect((await focused(page)).text).toContain('MOVE TO');
 
-	// BACK climbs to the top of the screen first (TV Calls, "BACK climbs before
-	// it leaves"), and does not leave the page.
+	// BACK climbs to the top of the screen first (doc/FOCUS.md), and does not
+	// leave the page.
 	const at = page.url();
 	await page.keyboard.press('Escape');
 	expect(page.url()).toBe(at);

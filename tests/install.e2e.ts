@@ -14,7 +14,7 @@ let wait: { asked: number; controlled?: number } | null = null;
 // (doc/TESTING.md, "Load"). It is written here, not in the case: a
 // case's own code stops at its first throw, and after a timeout nothing more
 // of it runs at all, where an `afterEach` runs on every outcome with a budget
-// of its own (c507's lesson). Until c563 a red run recorded nothing.
+// of its own.
 test.afterEach(() => {
 	if (!wait) return;
 	const { asked, controlled } = wait;
@@ -37,11 +37,11 @@ test('Chromium finds nothing stopping an install', async ({ page, browserName })
 	await page.goto('/');
 	// The worker precaches the whole build first (about 1,400 files), from the
 	// preview every other test's context is precaching from: 10-16 s with six
-	// contexts alone at a load average of 25, and past the old 30 s on one to
-	// four device projects in every loaded whole run of waves 19 and 20. Slow,
-	// not stuck, so it gets offline-flow's measured 90 s. Wave 22
-	//: 3.4-8.7 s alone, 5 runs per device project at a load of 20-25;
-	// the 90 s is for a whole run's contexts all precaching at once.
+	// contexts alone at a load average of 25, and past 30 s on one to four
+	// device projects in a loaded whole run. Slow, not stuck, so it gets
+	// offline-flow's measured 90 s. Alone it takes 3.4-8.7 s (5 runs per device
+	// project at a load of 20-25); the 90 s is for a whole run's contexts all
+	// precaching at once.
 	const timing: { asked: number; controlled?: number } = { asked: Date.now() };
 	wait = timing;
 	await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, null, {

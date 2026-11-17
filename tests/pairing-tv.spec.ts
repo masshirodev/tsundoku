@@ -76,9 +76,9 @@ describe('a TV code (doc/TV.md)', () => {
 	});
 
 	/**
-	 * /pair/tv's own door (c246; the owner's (b), 2026-11-04): a TV that is not
-	 * paired and has nothing it can type gets a code, except where only the
-	 * computer may make one. Every state a code can be in, as the doors reach it.
+	 * /pair/tv's own route: a TV that is not paired and has nothing it can type
+	 * gets a code, except where only the computer may make one. Every state a
+	 * code can be in, as the routes reach it.
 	 */
 	describe('renewForTv', () => {
 		const burn = (p: TvPairing, at: number) => {
@@ -147,7 +147,7 @@ describe('a TV code (doc/TV.md)', () => {
 			expect(p.redeem('999999', CODE_MS + 1, 'tv')).toBe('burned');
 			// And a burned chain stays burned however often the page is opened.
 			expect(p.renewForTv(CODE_MS * 3)).toBe(false);
-			// The owner's NEW CODE is what gives five again.
+			// NEW CODE on the computer is what gives five again.
 			p.fresh(CODE_MS * 3);
 			expect(p.triesLeft()).toBe(TV_TRIES);
 		});
@@ -219,7 +219,7 @@ describe("the TV app's user agent (doc/ANDROID.md)", () => {
 	});
 });
 
-describe("a TV's cookie on the owner's tailnet (doc/SIGN-IN.md)", () => {
+describe("a TV's cookie on the user's tailnet (doc/SIGN-IN.md)", () => {
 	it('opens only on the instance’s own public host', () => {
 		// https mode: tailscale serve's certificate name, and the port serve.ts
 		// puts in ORIGIN (443 has none).
@@ -239,13 +239,13 @@ describe("a TV's cookie on the owner's tailnet (doc/SIGN-IN.md)", () => {
 		expect(tailnetDoor('https://name.ts.net:8443', '[::1]:8443')).toBe(false);
 	});
 
-	it('fails closed: no origin, or another host, is no door at all', () => {
+	it('fails closed: no origin, or another host, opens nothing', () => {
 		expect(tailnetHost(undefined)).toBeNull();
 		expect(tailnetHost('')).toBeNull();
 		expect(tailnetHost('not a url')).toBeNull();
 		expect(tailnetDoor(undefined, 'name.ts.net:8443')).toBe(false);
 		expect(tailnetDoor('not a url', 'name.ts.net:8443')).toBe(false);
-		// The port is part of the door, and another name is another door.
+		// The port is part of the host, and another name is another host.
 		expect(tailnetDoor('https://name.ts.net:8443', 'name.ts.net')).toBe(false);
 		expect(tailnetDoor('https://name.ts.net:8443', 'other.ts.net:8443')).toBe(false);
 		expect(tailnetDoor('https://name.ts.net:8443', null)).toBe(false);
@@ -257,8 +257,8 @@ describe("where the TV's six digits are drawn (doc/WIFI.md)", () => {
 		tvBlockFor({ hasWifi: false, viaLan: false, paired: false, friend: false, door: true, ...o });
 
 	it('draws on the token install, and on no install whose cookie is refused', () => {
-		// The owner's own instance: no WI-FI panel, and the cookie those digits
-		// set is a door on its tailnet host.
+		// The token install: no WI-FI panel, and the cookie those digits set
+		// opens on its tailnet host.
 		expect(block()).toBe(true);
 		// A friend's local install has the WI-FI panel to carry them.
 		expect(block({ hasWifi: true })).toBe(false);
@@ -267,13 +267,13 @@ describe("where the TV's six digits are drawn (doc/WIFI.md)", () => {
 		expect(block({ paired: true })).toBe(false);
 		// A friend's install served over the tailnet has no panel -- but its
 		// guard reads a paired cookie only over Wi-Fi, so drawing the digits
-		// there would pair a TV and land it on /login (the bug c245 removes).
+		// there would pair a TV and land it on /login.
 		expect(block({ friend: true })).toBe(false);
 		expect(block({ friend: true, hasWifi: true })).toBe(false);
 	});
 
 	it('draws nowhere the hook refuses every TV cookie: no ORIGIN, or a loopback one', () => {
-		// The token install with no door: `yarn run dev`, `vite preview` and
+		// The token install with no tailnet host: `yarn run dev`, `vite preview` and
 		// serve.ts's local mode. A TV paired there would land on /login.
 		expect(block({ door: false })).toBe(false);
 		// And no other fact brings it back.
@@ -286,7 +286,7 @@ describe("where the TV's six digits are drawn (doc/WIFI.md)", () => {
 
 	it('has a door exactly where tailnetDoor can open for some host', () => {
 		// The same ORIGIN the hook reads, judged the same way: whatever fails
-		// tailnetHost fails here, and the block's door is that answer.
+		// tailnetHost fails here, and the block's `door` is that answer.
 		for (const origin of [
 			undefined,
 			'',

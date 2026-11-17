@@ -120,7 +120,7 @@ describe('zoom', () => {
 		expect(keptZoom('1.5')).toBeNull();
 	});
 
-	it('keeps a double page’s zoom apart, per screen class (the owner, 2026-11-11)', () => {
+	it('keeps a double page’s zoom apart, per screen class', () => {
 		expect(zoomKey('double', screenClass(1440))).toBe('zoom.double.wide');
 		expect(zoomKey('double', screenClass(390))).toBe('zoom.double.phone');
 	});

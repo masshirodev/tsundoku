@@ -22,10 +22,10 @@ const { sourceOfKey, keyOf, animeKeyOf, novelKeyOf } = await import('$lib/librar
 const { NO_EXT_FILTERS } = await import('$lib/library/ext-filters');
 
 /**
- * A source's own switches (card c435; doc/BROWSE.md, "A source's own
- * switches"): where they are kept, and every door each one closes. The
- * library is written through the importers' writer and read through the
- * reading log's own door (`recordReading`, what /api/reading calls), so each
+ * A source's own switches (doc/BROWSE.md, "A source's own switches"): where
+ * they are kept, and every path each one closes. The library is written
+ * through the importers' writer and read through the reading log's own entry
+ * point (`recordReading`, what /api/reading calls), so each
  * state is reached the way the app reaches it.
  */
 
@@ -100,7 +100,7 @@ db.prepare(
 	VALUES (?, 'Good Novels', 'https://good.example', 'en', '1.0.0', ?, 0, 0)`
 ).run(PLUGIN, 'h'.repeat(64));
 
-/** One read of a series' first entry, through the reading log's door, on a day of its own. */
+/** One read of a series' first entry, through the reading log's entry point, on a day of its own. */
 function read(seriesId: number, day: number) {
 	const e = db
 		.prepare(`SELECT id FROM entries WHERE series_id = ? ORDER BY position LIMIT 1`)
@@ -446,7 +446,7 @@ describe('OFF HISTORY', () => {
 
 describe('ADDED HIDDEN, and the ADD that hid it', () => {
 	// ADD on a series the library already knows answers without the engine
-	// (`addToLibrary`'s `keepOrPromote`), so each state is reached by the door
+	// (`addToLibrary`'s `keepOrPromote`), so each state is reached by the function
 	// the preview's ADD AND DOWNLOAD calls.
 	const at = (path: string) => ({ id: sourceMangaId(MANGA, path), key: keyOf(MANGA, path) });
 	const hiddenOf = (id: number) =>
@@ -569,7 +569,7 @@ describe('ADDED HIDDEN, and the ADD that hid it', () => {
 		}
 	});
 
-	// Round 2 of c505: the ADD itself can leave its source mostly hidden (more
+	// The ADD itself can leave its source mostly hidden (more
 	// than half its series hidden), and a mostly-hidden source's page is not
 	// found outside reveal, so a band landed there would be a 404.
 	describe('on a source with nothing else here, so the ADD leaves it mostly hidden', () => {
@@ -1021,7 +1021,7 @@ describe('BROWSE’s own band actions off the engine backend', () => {
 	// engine puts one there.
 	const route = () => import('../src/routes/browse/+page.server');
 	// A form post with nothing in it: what a stale band's UNDO sends when its
-	// series is gone. Its body is a form one, or `formData()` is not the door.
+	// series is gone. Its body is a form one, or `formData()` is not the path taken.
 	const post = () =>
 		new Request('http://x/browse?/undoAdd', {
 			method: 'POST',

@@ -9,8 +9,8 @@ const { writeSeries } = await import('$lib/server/import/write');
 type PlannedSeries = import('$lib/import/plan').PlannedSeries;
 
 /**
- * Every key a series has left (rung 58, doc/MOVE.md): a series moved
- * A → B → C forgot A, and the tablet's backup still names A. The same record
+ * Every key a series has left (migration 58, doc/MOVE.md): a series moved
+ * A → B → C still knows A, which the tablet's backup may name. The same record
  * goes for an entry's own addresses. The source answers are fabricated here;
  * nothing reaches a network.
  */

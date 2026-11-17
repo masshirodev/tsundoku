@@ -2,12 +2,12 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * The KIND band on a TV (c436; doc/LIBRARY.md, "The KIND band"; Kinds Calls 3,
- * "TV"): a 56px focus row of its own under the shelf tabs, where moving along
- * it moves focus only and OK chooses, and which pins at the safe top in the
- * tabs' place once the grid scrolls, `ALL ▴` first, back to the tabs. Runs in
- * the `tv` project, which has no pointer, so every press is a key. It only
- * changes the URL: nothing here writes to the database the flow files share.
+ * The KIND band on a TV (doc/LIBRARY.md, "The KIND band"): a 56px focus row
+ * of its own under the shelf tabs, where moving along it moves focus only and
+ * OK chooses, and which pins at the safe top in the tabs' place once the grid
+ * scrolls, `ALL ▴` first, back to the tabs. Runs in the `tv` project, which
+ * has no pointer, so every press is a key. It only changes the URL: nothing
+ * here writes to the database the flow files share.
  */
 
 const focused = (page: Page) =>
@@ -96,7 +96,7 @@ test('OK on a pinned cell opens that kind at its start, focus kept on the cell, 
 	// A pinned cell other than the chosen one, taken from the band.
 	const other = kinds(page).locator('.kscroll a:not([aria-current])').first();
 	const kind = new URL((await other.getAttribute('href'))!, 'http://x').searchParams.get('kind')!;
-	// Held by its id: once chosen it is no longer the first unchosen cell.
+	// Held by its id: once chosen it is not the first unchosen cell.
 	const cell = kinds(page).locator(`a[data-focus-id="kind-${kind}"]`);
 	await cell.focus();
 	await page.keyboard.press('Enter');

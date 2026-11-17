@@ -499,7 +499,7 @@ describe('hiding a Work', () => {
 	});
 });
 
-describe('refusals the card asked for', () => {
+describe('refusals', () => {
 	const MISSING = 999_999;
 
 	it('refuses every action on a Work that is not there', () => {
@@ -621,7 +621,7 @@ describe('a never-opened part reports new chapters', () => {
 	});
 });
 
-describe('a series deleted through the app’s own door', () => {
+describe('a series deleted through the app’s own delete', () => {
 	it('ends the Work the delete leaves with one, and leaves another Work alone', async () => {
 		const [a, b] = ['Chainsaw Man', 'Tensei Shitara Ken Deshita'].map(idOf) as number[];
 		const [c, d] = ['Mushoku Tensei', 'Villainess Level 99'].map(idOf) as number[];
@@ -629,7 +629,7 @@ describe('a series deleted through the app’s own door', () => {
 		const stays = works.createWork({ seriesIds: [c, d], name: 'Stays', now: NOW });
 
 		// The library's own delete, which knows nothing about Works: the rule has
-		// to be where the series row goes, not at the doors inside works.ts.
+		// to be where the series row goes, not at the writes inside works.ts.
 		const { deleteSeries } = await import('$lib/server/delete');
 		await deleteSeries([a], true);
 
@@ -678,7 +678,7 @@ describe('offers a later slice stores and undoes', () => {
 });
 
 describe('a Work’s parts as CONTINUE reads them', () => {
-	it('reads the part the owner was in, and crosses to the next when it is finished', () => {
+	it('reads the part the user was in, and crosses to the next when it is finished', () => {
 		const done = idOf('Dungeon Meshi')!; // read through, opened 20,000 minutes ago
 		const next = idOf('Isekai Yakkyoku')!; // never opened
 		const { work } = works.createWork({ seriesIds: [done, next], name: 'Run', now: NOW });
@@ -768,7 +768,7 @@ describe('what W4 and W5 read off a Work', () => {
 		expect(row.nextTitle).toBe(parts[2].title);
 		expect(row.youAreIn).toBeNull();
 
-		// Part 1 is read through and the owner is already in part 2: the row says
+		// Part 1 is read through and the user is already in part 2: the row says
 		// where the run is, and it is not the accent.
 		const firstRow = works.seriesWorkRow(first, true)!;
 		expect(firstRow.state).toBe('read-through');
@@ -923,12 +923,12 @@ describe('an UNDO never takes a series from the Work it joined since', () => {
 		const [a, b, c, d] = pick();
 		const first = works.createWork({ seriesIds: [a, b, c], name: 'First', now: NOW });
 		const out = works.takeOut(first.work.id, c);
-		// The owner adds it to a second Work while the band's UNDO is still up.
+		// The user adds it to a second Work while the band's UNDO is still up.
 		const second = works.createWork({ seriesIds: [c, d], name: 'Second', now: NOW });
 
 		expect(() => works.undoTakeOut(out)).toThrow(works.WorkError);
 		expect(() => works.undoTakeOut(out)).toThrow(/Mushoku Tensei is in Second now/i);
-		// Before c308, INSERT OR REPLACE moved c back and left Second with one.
+		// INSERT OR REPLACE would move c back and leave Second with one.
 		expect(membersNow(second.work.id)).toEqual([c, d]);
 		expect(membersNow(first.work.id)).toEqual([a, b]);
 	});
@@ -1209,7 +1209,7 @@ describe('an UNDO that brings an ended Work back under a new id carries the id t
 describe('a HIDE’s UNDO puts back only what the HIDE changed', () => {
 	const W = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita', 'Mushoku Tensei'];
 
-	it('leaves a Work hidden that was hidden before the press (the card’s TAKE OUT repro)', async () => {
+	it('leaves a Work hidden that was hidden before the press', async () => {
 		const [p, q, r] = W.map(idOf) as number[];
 		const x = idOf('Villainess Level 99')!;
 		const { work } = works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
@@ -1260,9 +1260,8 @@ describe('a HIDE’s UNDO puts back only what the HIDE changed', () => {
 		works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
 		works.setHiddenWhole([p], true);
 		// The Work was hidden whole already, so the press changes none of it;
-		// x is hidden by it, and its UNDO may show x. Until c469 this answered
-		// no band (wave 19's decision 12), since the library's fallback words
-		// said TAKEN OUT OF THE WORK; the band now says only what happened.
+		// x is hidden by it, and its UNDO may show x, so there is a band, and it
+		// says only what happened, not the library's fallback TAKEN OUT OF THE WORK.
 		expect(await post(library.actions.hideAll, ids([p, x]))).toEqual({
 			hideFacts: { hidden: [x], out: [], whole: [], works: 0 }
 		});
@@ -1275,12 +1274,11 @@ describe('a HIDE’s UNDO puts back only what the HIDE changed', () => {
 
 	/**
 	 * The series screen's HIDE ALL n (`?/hideWork`) on a Work whose press hides
-	 * nothing an UNDO may show (wave 19's Gap 6): a Work hidden in part
-	 * (the legacy state a fold made until c389, written here as it left it) is
-	 * settled hidden with no UNDO, and a Work hidden whole changes nothing.
-	 * Neither draws a band: before, reveal on answered `hideFacts` whose UNDO
-	 * refused as NOTHING TO UNDO, and reveal off redirected to
-	 * `/?band=hidden&n=0`.
+	 * nothing an UNDO may show: a Work hidden in part (the legacy state an
+	 * older fold could leave, written here as it left it) is settled hidden
+	 * with no UNDO, and a Work hidden whole changes nothing. Neither draws a
+	 * band: not `hideFacts` whose UNDO refuses as NOTHING TO UNDO with reveal
+	 * on, nor a redirect to `/?band=hidden&n=0` with reveal off.
 	 */
 	it('draws no band from the series screen’s HIDE ALL n when it changed nothing UNDO may show', async () => {
 		const [p, q, r] = W.map(idOf) as number[];
@@ -1305,7 +1303,7 @@ describe('a HIDE’s UNDO puts back only what the HIDE changed', () => {
 				throw e;
 			}
 		};
-		// Hidden in part: one part on its own, as a fold left it before c389.
+		// Hidden in part: one part on its own, as an older fold left it.
 		getDb().prepare(`UPDATE series SET hidden = 1, public = 0 WHERE id = ?`).run(q);
 		expect([p, q, r].map(hiddenOf)).toEqual([false, true, false]);
 		expect(await hideAll(p, true)).toEqual({ ok: true });
@@ -1376,10 +1374,10 @@ describe('a HIDE’s UNDO puts back only what the HIDE changed', () => {
 	it('gives no UNDO for a HIDE that settled a half-hidden Work: the Work stays hidden', async () => {
 		const [p, q] = W.map(idOf) as number[];
 		works.createWork({ seriesIds: [p, q], name: 'Two', now: NOW });
-		// The state an import's fold could leave before c389: one part hidden alone.
+		// The state an older import's fold could leave: one part hidden alone.
 		getDb().prepare(`UPDATE series SET hidden = 1, public = 0 WHERE id = ?`).run(q);
 		// HIDE ALL settles it hidden. An UNDO could only show P and leave the Work
-		// half-hidden again, or show Q too, which the owner had hidden: neither.
+		// half-hidden again, or show Q too, which the user had hidden: neither.
 		expect(await post(library.actions.hideAll, ids([p]))).toEqual({ ok: true });
 		expect([p, q].map(hiddenOf)).toEqual([true, true]);
 		expect(works.setHiddenWhole([p], true)).toEqual({ ids: [], whole: [], works: 0 });
@@ -1416,7 +1414,7 @@ describe('a HIDE’s UNDO puts back only what the HIDE changed', () => {
 	});
 });
 
-// ---- the series screen's own doors (c390's remainder) -------------------------------------
+// ---- the series screen's own actions -------------------------------------
 
 const seriesScreen = await import('../src/routes/series/[id]/+page.server');
 /** The series screen's actions, as it posts them with reveal on (a hidden series has no screen otherwise). */
@@ -1462,7 +1460,7 @@ describe('the series screen’s TAKE OUT, THEN HIDE and its UNDO, through its ow
 		expect([p, q, r].map(hiddenOf)).toEqual([false, false, false]);
 	});
 
-	it('a part of a Work hidden before the press: out, but its UNDO shows nothing (the card’s repro, here)', async () => {
+	it('a part of a Work hidden before the press: out, but its UNDO shows nothing', async () => {
 		const [p, q, r] = [P, Q, R].map(idOf) as number[];
 		const { work } = works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
 		works.setHiddenWhole([p], true);
@@ -1735,7 +1733,7 @@ describe('an episode that streams is online at the end page', () => {
 });
 
 /**
- * c583: a screen's form names its Work by the id in its URL, and `works.id` is
+ * A screen's form names its Work by the id in its URL, and `works.id` is
  * reused once the newest Work ends. Every form that writes into a Work posts
  * the moment it was made (`made`), and the write refuses a Work under that id
  * made at another moment. Each case below loads the old Work's form, ends that
@@ -1854,7 +1852,7 @@ describe('the Work screen refuses a Work its id now names', () => {
 		const answer = await post(workScreen.actions.undoRename, [['facts', JSON.stringify(facts)]], {
 			id: String(work.id)
 		});
-		// Before c583 this named the newer Work "Older".
+		// Without `made` this would name the newer Work "Older".
 		expect(answer.data).toEqual(STALE);
 		expect(snapshot()).toEqual(before);
 		// Facts that are not whole undo nothing, as a band.
@@ -1897,7 +1895,7 @@ describe('the Work screen refuses a Work its id now names', () => {
 	});
 
 	/**
-	 * The card's other half: a Work ended and another made under its id in
+	 * The other half: a Work ended and another made under its id in
 	 * the same millisecond. Through the app's own clock (`createWork` with no
 	 * `now`, `Date.now()` held still) the two are given different moments, so
 	 * the old form still refuses; with a spec's own fixed `now` for both, a
@@ -1924,7 +1922,7 @@ describe('the Work screen refuses a Work its id now names', () => {
 			);
 			expect(answer.data).toEqual(STALE);
 			expect(snapshot()).toEqual(before);
-			// An offer's key names the moment too, so the series screen's door
+			// An offer's key names the moment too, so the series screen's action
 			// and a NOT THIS tell the two apart the same way.
 			expect(works.workDismissalKey(newer.work, a)).not.toBe(works.workDismissalKey(old.work, a));
 		} finally {

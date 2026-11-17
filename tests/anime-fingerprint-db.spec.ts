@@ -8,8 +8,8 @@ import { chromaprintSkip } from './helpers/chromaprint';
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
 
-// Fingerprints of downloaded episodes (doc/ANIME.md, "Openings and endings";
-// card c239), with the real ffmpeg and chromaprint: two episodes that share a
+// Fingerprints of downloaded episodes (doc/ANIME.md, "Openings and endings"),
+// with the real ffmpeg and chromaprint: two episodes that share a
 // 20 s opening and a 20 s ending, and nothing in between.
 const work = mkdtempSync(join(tmpdir(), 'tsundoku-fingerprint-'));
 afterAll(() => rmSync(work, { recursive: true, force: true }));
@@ -153,7 +153,7 @@ describe('fingerprinting downloaded episodes', () => {
 	it.skipIf(noPrint)(
 		'finds the whole opening behind cold opens of different lengths, through two encodes',
 		async () => {
-			// Ranma ½ (2024), 2026-11-03: its opening at 30.75 s in one episode and
+			// Ranma ½ (2024): its opening at 30.75 s in one episode and
 			// 83.1 s in another, and found as a 31-48 s piece of a 90 s song. Here a
 			// 90 s opening after a 25 s and an 80 s cold open, the second episode
 			// encoded at a third of the bitrate, as a 360p stream's audio is.
@@ -183,14 +183,14 @@ describe('fingerprinting downloaded episodes', () => {
 	it.skipIf(noPrint)(
 		'keeps the opening most of an episode’s pairs agree on, not one pair’s longer run',
 		async () => {
-			// Round 2 (review finding 2): the pairing in fingerprintSeason, not
-			// agreedSpan alone. A, B and D share a 20 s opening; C shares a longer
-			// 40 s stretch with A only, 30 s after A's opening (spans that touch
-			// would count as agreeing, and the longer win the tie), a run
-			// valid for that pair. A's pairs give it the opening twice (B, D) and
-			// the stretch once (C). Four episodes, not three: with one span per
-			// partner, three give A two spans that agree with nothing, and the
-			// longer wins under either rule.
+			// The pairing in fingerprintSeason, not agreedSpan alone. A, B and
+			// D share a 20 s opening; C shares a longer 40 s stretch with A
+			// only, 30 s after A's opening (spans that touch would count as
+			// agreeing, and the longer win the tie), a run valid for that pair.
+			// A's pairs give it the opening twice (B, D) and the stretch once
+			// (C). Four episodes, not three: with one span per partner, three
+			// give A two spans that agree with nothing, and the longer wins
+			// under either rule.
 			const stretch = noise('stretch.mka', 40, 501);
 			const cold = noise('cold-e.mka', 10, 502);
 			const mid = (seed: number, seconds: number) => noise(`mid-${seed}.mka`, seconds, seed);

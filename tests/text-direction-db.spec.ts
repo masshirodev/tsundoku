@@ -10,7 +10,7 @@ const dir = await import('../src/routes/read/[entry]/text-direction.server');
 const { KINDS } = await import('$lib/library/kinds');
 
 /**
- * A novel's reading direction, stored (card c440; rung 69,
+ * A novel's reading direction, stored (migration 69,
  * `series.text_direction`): the series' own, else L→R, with L→R stored as
  * NULL, and only a book of text takes one.
  */
@@ -27,7 +27,7 @@ const stored = (id: number) =>
 	).text_direction;
 
 describe('a novel’s reading direction', () => {
-	it('is L→R until the owner says otherwise, with nothing stored', () => {
+	it('is L→R until the user says otherwise, with nothing stored', () => {
 		const id = idOf('Mushoku Tensei');
 		expect(stored(id)).toBeNull();
 		expect(dir.textDirectionOf(id)).toBe('ltr');

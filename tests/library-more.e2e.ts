@@ -10,7 +10,7 @@ import { expect, test } from './fixtures';
 import { startPreview } from './highlights-preview';
 
 /**
- * The grid's next page, reached by any door (c858; doc/LIBRARY.md, "Pages",
+ * The grid's next page, reached by any trigger (doc/LIBRARY.md, "Pages",
  * "The grid never stalls with its end on screen"). A plain `*.e2e.ts`, so the
  * four device projects each run it: where the end of the grid is depends on
  * the device, the bug on nothing else. Read-only, on the shared database.
@@ -46,12 +46,12 @@ async function tallTiles(page: Page) {
 }
 
 /**
- * The owner's symptom, reached as the card names it: a page lands and the
+ * The reported symptom: a page lands and the
  * viewport is at the new bottom within that same task, so the
  * IntersectionObserver takes no sample with the row out of range and has no
  * change to report. The scroll waits out a few microtasks because
  * `keepGoing` measures after `tick()`, in the same task: it must have
- * measured the row a page away, which is the state the card describes.
+ * measured the row a page away, which is the state the bug needs.
  */
 const bottomInSameTask = (page: Page) =>
 	page.evaluate(() => {
@@ -117,7 +117,7 @@ async function onGrid(page: Page, size: number) {
 	return offsets;
 }
 
-test.describe('each door, on its own', () => {
+test.describe('each trigger, on its own', () => {
 	test('settling looks afresh: the end comes near with no scroll event and no sample between', async ({
 		page
 	}) => {
@@ -179,7 +179,7 @@ test.describe('each door, on its own', () => {
 		await expect(page.locator('.grid .tile')).not.toHaveCount(9);
 	});
 
-	test('a re-read out holds the next page back, and its settle asks (the snapshot door)', async ({
+	test('a re-read out holds the next page back, and its settle asks (the snapshot trigger)', async ({
 		page
 	}) => {
 		// An observer that never speaks: a real change is still its to report

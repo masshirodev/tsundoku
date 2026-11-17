@@ -2,7 +2,7 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * Two failed saves on the series screen (c686; doc/WAITING.md, "Writes that
+ * Two failed saves on the series screen (doc/WAITING.md, "Writes that
  * failed"): each is its own control's real save, lost on the wire with
  * `page.route`, and each keeps its own band, PUT BACK and RETRY through a
  * navigation. Runs once, in tablet-portrait, because the second failure is a

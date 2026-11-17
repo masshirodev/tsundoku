@@ -74,7 +74,7 @@ describe('lockPage', () => {
 });
 
 // A cover a media query can hide while it stays open (FILTER in the desktop's
-// top bar below 1024px, c1033): locked only while it is drawn.
+// top bar below 1024px): locked only while it is drawn.
 describe('lockPageWhileShown', () => {
 	let watchers: { cb: () => void; on: boolean }[];
 	beforeEach(() => {

@@ -11,11 +11,10 @@ const { runImport } = await import('$lib/server/import');
 const { writeHentoidFolder, book, content } = await import('./helpers/hentoid-fixture');
 
 /**
- * Hentoid folders with no pages (card c64, "Eight Hentoid series have no
- * entries at all"). A download that failed leaves its contentV2.json and the
- * thumbnail; Hentoid's "(1)" copy of a folder can hold only the thumbnail.
- * Neither is a book, and what an earlier import made of them goes, unless
- * the owner touched it.
+ * Hentoid folders with no pages. A download that failed leaves its
+ * contentV2.json and the thumbnail; Hentoid's "(1)" copy of a folder can hold
+ * only the thumbnail. Neither is a book, and what an earlier import made of
+ * them goes, unless the user touched it.
  */
 const library = mkdtempSync(join(tmpdir(), 'tsundoku-pageless-'));
 const hentoid = writeHentoidFolder(library);
@@ -65,7 +64,7 @@ describe('a Hentoid folder with no pages', () => {
 				VALUES (?, 1, 'Book', ?, 'nhentai/mine - Failed Download - [542267] (1)', 1)`
 			)
 			.run(copy, now);
-		// One the owner rated stays, entries or not.
+		// One the user rated stays, entries or not.
 		const kept = add('Rated Anyway', 'hentoid:NHENTAI:/999/');
 		db().prepare(`UPDATE series SET rating = 3 WHERE id = ?`).run(kept);
 

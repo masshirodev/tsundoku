@@ -277,7 +277,7 @@ describe('the TRACKING line', () => {
 	const lines = (f: Partial<RanobeFacts>, more: Partial<typeof o> = {}) =>
 		ranobeLines({ ...base, ...f }, { ...o, ...more });
 
-	it('says what Ranobe says, and what was done (2a, 2c)', () => {
+	it('says what Ranobe says, and what was done', () => {
 		expect(lines({})?.lines[0]).toMatchObject({
 			l: 'RANOBE · READING · VOL. 5 OF 6 · 8',
 			r: 'SENT 12 MIN AGO'
@@ -294,7 +294,7 @@ describe('the TRACKING line', () => {
 		).toBe('RANOBE · READING · CH. 254 OF 1,432 · 9 · FAV');
 	});
 
-	it('adds a quiet line for half a volume (2b), never offline', () => {
+	it('adds a quiet line for half a volume, never offline', () => {
 		const r = lines({ half: { unit: 'e1:volume:6', read: 6, of: 9 } });
 		expect(r?.lines[1]).toMatchObject({
 			l: 'VOL. 6 · 6 OF 9 CHAPTERS READ HERE',
@@ -306,7 +306,7 @@ describe('the TRACKING line', () => {
 		).toHaveLength(1);
 	});
 
-	it('says why a send failed, with TRY AGAIN (2d–2f)', () => {
+	it('says why a send failed, with TRY AGAIN', () => {
 		const f = (error: string) => lines({ failed: { unit: 'e1:volume:5', error, at: NOW } });
 		expect(f('RANOBE DID NOT ANSWER')?.lines[0]).toMatchObject({
 			l: 'RANOBE · VOL. 5 NOT SENT',
@@ -447,7 +447,7 @@ describe('suggesting a novel', () => {
 			file: 'orv.epub'
 		});
 		expect(ko.items[1].snapshot).toMatchObject({ kind: 'web_novel', originalLang: 'en' });
-		// The Korean guess goes where the owner reads it before approving.
+		// The Korean guess goes where the user reads it before approving.
 		expect(ko.reason).toContain('probably ko');
 		// A second title in brackets goes along as an alias (Second Life Ranker's file).
 		const slr = workBundle({

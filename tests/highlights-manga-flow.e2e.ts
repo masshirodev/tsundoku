@@ -11,13 +11,13 @@ import { E2E_TOKEN } from '../playwright.config';
 import { startPreview } from './highlights-preview';
 
 /**
- * Highlights H3 end to end (card c703; doc/HIGHLIGHTS.md, "Pages"; Manga
- * M1–M7): the image reader's HIGHLIGHT cell, its states (KEEPING… until the
- * workstation answers, ✓ HIGHLIGHTED after, offline and incognito dimmed),
- * the scrubber's tick, the gutter rule, the page's sheet (NOTE, SAVE IMAGE,
- * DELETE with UNDO), H on a keyboard, the page menu's row, a spread's choice
- * and the strip's page; a late answer and a failure, through the reader's
- * own requests held or refused by the route.
+ * Highlights H3 end to end (doc/HIGHLIGHTS.md, "Pages"): the image reader's
+ * HIGHLIGHT cell, its states (KEEPING… until the workstation answers,
+ * ✓ HIGHLIGHTED after, offline and incognito dimmed), the scrubber's tick, the
+ * gutter rule, the page's sheet (NOTE, SAVE IMAGE, DELETE with UNDO), H on a
+ * keyboard, the page menu's row, a spread's choice and the strip's page; a late
+ * answer and a failure, through the reader's own requests held or refused by
+ * the route.
  *
  * It keeps pages, so it seeds the seed into a database of its own and serves
  * the same build on a port the OS gives it (the `highlights-flow`
@@ -122,7 +122,7 @@ const cell = (page: Page) => page.locator('footer[aria-label="Reader controls"] 
 const sheet = (page: Page) => page.getByRole('dialog', { name: 'Highlight' });
 const band = (page: Page) => page.locator('.hl-band');
 
-test('HIGHLIGHT joins the row before FULL SCREEN, keeps the page, and ticks the scrubber (M1, M3)', async ({
+test('HIGHLIGHT joins the row before FULL SCREEN, keeps the page, and ticks the scrubber', async ({
 	page
 }) => {
 	const entry = await readAt(page, 'Dungeon Meshi', 5);
@@ -158,7 +158,7 @@ test('HIGHLIGHT joins the row before FULL SCREEN, keeps the page, and ticks the 
 	expect([meta.width, meta.height]).toEqual([source.width, source.height]);
 });
 
-test('✓ HIGHLIGHTED opens the page’s sheet and never unmarks; NOTE, SAVE IMAGE, DELETE and UNDO (M6)', async ({
+test('✓ HIGHLIGHTED opens the page’s sheet and never unmarks; NOTE, SAVE IMAGE, DELETE and UNDO', async ({
 	page
 }) => {
 	const entry = await readAt(page, 'Dungeon Meshi', 5);
@@ -245,7 +245,7 @@ test('H on a keyboard keeps the page on screen, and a second H opens it rather t
 	expect(kept(entry)).toHaveLength(1);
 });
 
-test('a late answer: KEEPING… and nothing HIGHLIGHTED until it comes, and pressing again asks nothing more (M7)', async ({
+test('a late answer: KEEPING… and nothing HIGHLIGHTED until it comes, and pressing again asks nothing more', async ({
 	page
 }) => {
 	const entry = await readAt(page, 'Yofukashi no Uta', 7);
@@ -273,7 +273,7 @@ test('a late answer: KEEPING… and nothing HIGHLIGHTED until it comes, and pres
 	expect(asks).toBe(1);
 });
 
-test('a failure keeps nothing and says why; TRY AGAIN keeps one (M7)', async ({ page }) => {
+test('a failure keeps nothing and says why; TRY AGAIN keeps one', async ({ page }) => {
 	const entry = await readAt(page, 'Yofukashi no Uta', 9);
 	let refuse = true;
 	await page.route('**/api/highlights/pages', async (route) => {
@@ -291,7 +291,7 @@ test('a failure keeps nothing and says why; TRY AGAIN keeps one (M7)', async ({ 
 	expect(kept(entry).filter((r) => r.page === 8)).toHaveLength(1);
 });
 
-test('offline: ○ HIGHLIGHT at 0.4, and a press waits for the next connection, asking nothing yet (M7)', async ({
+test('offline: ○ HIGHLIGHT at 0.4, and a press waits for the next connection, asking nothing yet', async ({
 	page,
 	context
 }) => {
@@ -316,7 +316,7 @@ test('offline: ○ HIGHLIGHT at 0.4, and a press waits for the next connection, 
 	}
 });
 
-test('incognito: the cell reads INCOGNITO, dimmed, the menu’s row is off, and the workstation refuses one (M7)', async ({
+test('incognito: the cell reads INCOGNITO, dimmed, the menu’s row is off, and the workstation refuses one', async ({
 	page
 }) => {
 	await page.context().addCookies([{ name: 'tsundoku_incognito', value: '1', url: base }]);
@@ -340,7 +340,7 @@ test('incognito: the cell reads INCOGNITO, dimmed, the menu’s row is off, and 
 	await expect(menu).toContainText('INCOGNITO MAKES NONE');
 });
 
-test('the page menu: HIGHLIGHT THIS PAGE first, then ✓ HIGHLIGHTED · OPEN on the kept page (M5)', async ({
+test('the page menu: HIGHLIGHT THIS PAGE first, then ✓ HIGHLIGHTED · OPEN on the kept page', async ({
 	page
 }) => {
 	const entry = await readAt(page, 'Isekai Ojisan', 6);
@@ -374,7 +374,7 @@ test('the page menu: HIGHLIGHT THIS PAGE first, then ✓ HIGHLIGHTED · OPEN on 
 	expect(kept(entry)).toHaveLength(1);
 });
 
-test('the strip: the page under the middle is outlined while the controls are up, and is the one kept (M4)', async ({
+test('the strip: the page under the middle is outlined while the controls are up, and is the one kept', async ({
 	page
 }) => {
 	const entry = await readAt(page, 'Tower of God', 10);
@@ -398,7 +398,7 @@ test('the strip: the page under the middle is outlined while the controls are up
 test.describe('landscape', () => {
 	test.use({ viewport: { width: 1280, height: 800 } });
 
-	test('a spread asks which, in reading order, then BOTH as one; BOTH ticks both pages (M2)', async ({
+	test('a spread asks which, in reading order, then BOTH as one; BOTH ticks both pages', async ({
 		page
 	}) => {
 		await page.addInitScript(() => localStorage.setItem('tsundoku.reader.spreads', 'true'));
@@ -433,7 +433,7 @@ test.describe('landscape', () => {
 		expect(kept(entry)).toHaveLength(1);
 	});
 
-	test('a letterboxed kept page has a 4px yellow rule 6px off its outer side, off the art (M3)', async ({
+	test('a letterboxed kept page has a 4px yellow rule 6px off its outer side, off the art', async ({
 		page
 	}) => {
 		const entry = await readAt(page, 'Hikaru ga Shinda Natsu', 3);

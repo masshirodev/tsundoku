@@ -117,7 +117,7 @@ describe('searching', () => {
 			.map((r) => (r as { series_id: number }).series_id);
 		expect(asked).not.toContain(HIDDEN);
 		expect(asked).not.toContain(FROM_HENTOID);
-		// A search links nothing: the owner chooses.
+		// A search links nothing: the user chooses.
 		expect(
 			db.prepare(`SELECT COUNT(*) AS n FROM ranobe_links WHERE via != 'lookup'`).get()
 		).toEqual({ n: 0 });
@@ -207,7 +207,7 @@ describe('the other decisions', () => {
 		expect(r.title).toBe('Lord of the Mysteries');
 		// PASTE reads the work by its id first; then the link's own steps follow at
 		// once (afterLinking: the edition, the units, the reads so far), not at the
-		// next pass, which is what "Ane no Tomodachi" missed (2026-10-29).
+		// next pass, which is what "Ane no Tomodachi" missed.
 		expect(calls[0].path).toBe('/works/w2');
 		await vi.waitFor(() => expect(calls.length).toBeGreaterThan(1));
 		expect(db.prepare(`SELECT via FROM ranobe_links WHERE series_id = ?`).get(LOTM)).toEqual({

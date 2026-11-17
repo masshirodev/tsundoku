@@ -8,18 +8,18 @@ import { expect, test } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
- * The GROUP sheet, AS a Work (W4, doc/BOOKS.md, "The AS row").
+ * The GROUP sheet, AS a Work (doc/BOOKS.md, "The AS row").
  *
- * The frame assertions below are design-tools/gen-conformance output pinned
- * from `Work-Group.dc.html` (B5); the preamble that seeds a database, serves
- * the build on its own port and opens the sheet is hand-written, and
- * regenerating drops it (doc/WORKS.md, "The frames"). The one hand edit in the
- * generated part is the AS row's cell tracks: the board's sheet is 556px and
- * its tracks are that sheet's, so the cells are asserted equal rather than
- * 254px (the generator's own caveat about computed tracks).
+ * The frame assertions below are the conformance generator's output pinned
+ * from the design; the preamble that seeds a database, serves the build on its
+ * own port and opens the sheet is hand-written, and regenerating drops it
+ * (doc/WORKS.md, "The frames"). The one hand edit in the generated part is the
+ * AS row's cell tracks: the design's sheet is 556px and its tracks are that
+ * sheet's, so the cells are asserted equal rather than 254px (the generator's
+ * own caveat about computed tracks).
  *
  * Three doujin singles: the selection allows BOOKS as well as a Work, which is
- * the two answers the board draws. The Work's answer is chosen, and the sheet
+ * the two answers the design draws. The Work's answer is chosen, and the sheet
  * stays open.
  */
 const pinnedPort = Number(process.env.PLAYWRIGHT_WORKS_PORT);
@@ -28,7 +28,7 @@ const PORT =
 		? pinnedPort
 		: // Nothing outside this file needs the number: it seeds its own database
 			// and serves it here. `PLAYWRIGHT_WORKS_PORT` pins the port when the
-			// gate assigns one; unset, the OS hands out a free one, so the repo's
+			// run assigns one; unset, the OS hands out a free one, so the repo's
 			// own `npx playwright test` runs the file and two concurrent runs do
 			// not collide.
 			await new Promise<number>((resolve, reject) => {
@@ -50,12 +50,11 @@ test.use({ baseURL: base });
 
 test.beforeAll(async () => {
 	// The hook waits up to 60 s for its own preview to answer, after seeding a database:
-	// past the default 30 s on a loaded box, where the hook ran out in wave
-	// 24's first gate, as `work-end-frame`'s did in wave 20's.
-	// Measured in wave 25 at a load of about 30 (the works-frame project, 3
-	// copies): 3.6-5.1 s. So 60 s for the preview plus 30 s for the seed. In a hook, test.setTimeout sets the
-	// hook's own budget (Playwright's test.d.ts, "Changing timeout for a
-	// beforeAll").
+	// past the default 30 s on a loaded box, where the hook can run out, as
+	// `work-end-frame`'s did. Measured at a load of about 30 (the works-frame
+	// project, 3 copies): 3.6-5.1 s. So 60 s for the preview plus 30 s for the
+	// seed. In a hook, test.setTimeout sets the hook's own budget (Playwright's
+	// test.d.ts, "Changing timeout for a beforeAll").
 	test.setTimeout(90_000);
 	rmSync(dbPath, { force: true });
 	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
@@ -127,7 +126,7 @@ const SEL = {
 	sfoot: '.group .sfoot'
 };
 
-test('The GROUP sheet, AS a Work: asLabel matches the handoff', async ({ page }) => {
+test('The GROUP sheet, AS a Work: asLabel matches the design', async ({ page }) => {
 	await openGroup(page);
 	await expect(page.locator(SEL.asLabel)).toBeVisible();
 
@@ -160,7 +159,7 @@ test('The GROUP sheet, AS a Work: asLabel matches the handoff', async ({ page })
 	expect(asLabelStyle.letterSpacing).toBe('0.78px');
 });
 
-test('The GROUP sheet, AS a Work: answers matches the handoff', async ({ page }) => {
+test('The GROUP sheet, AS a Work: answers matches the design', async ({ page }) => {
 	await openGroup(page);
 	await expect(page.locator(SEL.answers)).toBeVisible();
 
@@ -171,7 +170,7 @@ test('The GROUP sheet, AS a Work: answers matches the handoff', async ({ page })
 			.evaluate((node) => getComputedStyle(node).gridTemplateColumns)) as string
 	).split(' ');
 	expect(answersTracks).toHaveLength(2);
-	// The board's own tracks are its side sheet's; ours is the full-width
+	// The design's own tracks are its side sheet's; ours is the full-width
 	// sheet, so the cells are asserted equal instead (the tool's own caveat).
 	expect(parseFloat(answersTracks[0])).toBeGreaterThan(0);
 	expect(parseFloat(answersTracks[1])).toBeGreaterThan(0);
@@ -194,7 +193,7 @@ test('The GROUP sheet, AS a Work: answers matches the handoff', async ({ page })
 	expect(answersStyle.borderLeftWidth).toBe('1px');
 });
 
-test('The GROUP sheet, AS a Work: intoLabel matches the handoff', async ({ page }) => {
+test('The GROUP sheet, AS a Work: intoLabel matches the design', async ({ page }) => {
 	await openGroup(page);
 	await expect(page.locator(SEL.intoLabel)).toBeVisible();
 
@@ -227,7 +226,7 @@ test('The GROUP sheet, AS a Work: intoLabel matches the handoff', async ({ page 
 	expect(intoLabelStyle.letterSpacing).toBe('0.78px');
 });
 
-test('The GROUP sheet, AS a Work: into matches the handoff', async ({ page }) => {
+test('The GROUP sheet, AS a Work: into matches the design', async ({ page }) => {
 	await openGroup(page);
 	await expect(page.locator(SEL.into)).toBeVisible();
 
@@ -238,7 +237,7 @@ test('The GROUP sheet, AS a Work: into matches the handoff', async ({ page }) =>
 			.evaluate((node) => getComputedStyle(node).gridTemplateColumns)) as string
 	).split(' ');
 	expect(intoTracks).toHaveLength(2);
-	// The board's own tracks are its side sheet's; ours is the full-width
+	// The design's own tracks are its side sheet's; ours is the full-width
 	// sheet, so the cells are asserted equal instead (the tool's own caveat).
 	expect(parseFloat(intoTracks[0])).toBeGreaterThan(0);
 	expect(parseFloat(intoTracks[1])).toBeGreaterThan(0);
@@ -261,7 +260,7 @@ test('The GROUP sheet, AS a Work: into matches the handoff', async ({ page }) =>
 	expect(intoStyle.borderLeftWidth).toBe('1px');
 });
 
-test('The GROUP sheet, AS a Work: nameLabel matches the handoff', async ({ page }) => {
+test('The GROUP sheet, AS a Work: nameLabel matches the design', async ({ page }) => {
 	await openGroup(page);
 	await expect(page.locator(SEL.nameLabel)).toBeVisible();
 
@@ -294,7 +293,7 @@ test('The GROUP sheet, AS a Work: nameLabel matches the handoff', async ({ page 
 	expect(nameLabelStyle.letterSpacing).toBe('0.78px');
 });
 
-test('The GROUP sheet, AS a Work: orderSeg matches the handoff', async ({ page }) => {
+test('The GROUP sheet, AS a Work: orderSeg matches the design', async ({ page }) => {
 	await openGroup(page);
 	await expect(page.locator(SEL.orderSeg)).toBeVisible();
 
@@ -305,7 +304,7 @@ test('The GROUP sheet, AS a Work: orderSeg matches the handoff', async ({ page }
 			.evaluate((node) => getComputedStyle(node).gridTemplateColumns)) as string
 	).split(' ');
 	expect(orderSegTracks).toHaveLength(3);
-	// The board's own tracks are its side sheet's; ours is the full-width
+	// The design's own tracks are its side sheet's; ours is the full-width
 	// sheet, so the cells are asserted equal instead (the tool's own caveat).
 	expect(parseFloat(orderSegTracks[0])).toBeGreaterThan(0);
 	expect(parseFloat(orderSegTracks[1])).toBeGreaterThan(0);
@@ -330,7 +329,7 @@ test('The GROUP sheet, AS a Work: orderSeg matches the handoff', async ({ page }
 	expect(orderSegStyle.borderLeftWidth).toBe('1px');
 });
 
-test('The GROUP sheet, AS a Work: grows matches the handoff', async ({ page }) => {
+test('The GROUP sheet, AS a Work: grows matches the design', async ({ page }) => {
 	await openGroup(page);
 	await expect(page.locator(SEL.grows)).toBeVisible();
 
@@ -353,7 +352,7 @@ test('The GROUP sheet, AS a Work: grows matches the handoff', async ({ page }) =
 	expect(growsStyle.borderLeftWidth).toBe('1px');
 });
 
-test('The GROUP sheet, AS a Work: gr matches the handoff', async ({ page }) => {
+test('The GROUP sheet, AS a Work: gr matches the design', async ({ page }) => {
 	await openGroup(page);
 	await expect(page.locator(SEL.gr)).toBeVisible();
 
@@ -370,7 +369,7 @@ test('The GROUP sheet, AS a Work: gr matches the handoff', async ({ page }) => {
 	expect(grStyle.minHeight).toBe('64px');
 });
 
-test('The GROUP sheet, AS a Work: num matches the handoff', async ({ page }) => {
+test('The GROUP sheet, AS a Work: num matches the design', async ({ page }) => {
 	await openGroup(page);
 	await expect(page.locator(SEL.num)).toBeVisible();
 
@@ -393,7 +392,7 @@ test('The GROUP sheet, AS a Work: num matches the handoff', async ({ page }) => 
 	expect(numStyle.fontWeight).toBe('500');
 });
 
-test('The GROUP sheet, AS a Work: keeps matches the handoff', async ({ page }) => {
+test('The GROUP sheet, AS a Work: keeps matches the design', async ({ page }) => {
 	await openGroup(page);
 	await expect(page.locator(SEL.keeps)).toBeVisible();
 
@@ -416,7 +415,7 @@ test('The GROUP sheet, AS a Work: keeps matches the handoff', async ({ page }) =
 	expect(keepsStyle.lineHeight).toBe('18px');
 });
 
-test('The GROUP sheet, AS a Work: sfoot matches the handoff', async ({ page }) => {
+test('The GROUP sheet, AS a Work: sfoot matches the design', async ({ page }) => {
 	await openGroup(page);
 	await expect(page.locator(SEL.sfoot)).toBeVisible();
 

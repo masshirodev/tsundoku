@@ -30,7 +30,7 @@ const alertLine = (page: import('@playwright/test').Page) =>
 	page.locator('.band[role="alert"] .line');
 const undoButton = (page: import('@playwright/test').Page) =>
 	page.getByRole('button', { name: 'UNDO' });
-/** Every POST to the review's door that `when` picks gets no answer, as off the network. */
+/** Every POST to the review's endpoint that `when` picks gets no answer, as off the network. */
 async function abortPosts(
 	page: import('@playwright/test').Page,
 	when: (body: Record<string, unknown>) => boolean
@@ -212,11 +212,11 @@ test('the series screen: LISTS and COVER rows, and FIND opens its own review', a
 	await page.goto('/');
 	await page.locator('.tile', { hasText: 'The Greatest Estate Developer' }).first().click();
 	await page.waitForURL(/\/series\/\d+/);
-	// LINK's facts are AniList's line on LISTS now: the entry, MAL's id with it.
+	// LINK's facts are AniList's line on LISTS: the entry, MAL's id with it.
 	const line = listLine(page, 'anilist');
 	await expect(line.locator('.t')).toHaveText('The Greatest Estate Developer');
 	await expect(line.locator('.m')).toHaveText('MAL 800001');
-	// OPEN ↗, CHANGE and UNLINK moved into EDIT's sheet, under ENTRY, with where the link came from.
+	// OPEN ↗, CHANGE and UNLINK are in EDIT's sheet, under ENTRY, with where the link came from.
 	await line.getByRole('button', { name: 'EDIT' }).click();
 	const sheet = page.getByRole('dialog', { name: 'Tracking' });
 	await expect(sheet.locator('.sl', { hasText: 'ENTRY' })).toContainText(
@@ -252,10 +252,10 @@ test('the series screen: LISTS and COVER rows, and FIND opens its own review', a
 	await page.goto(hua);
 });
 
-// ---- a catalogue that answers (c298's two e2e cases) -------------------------------------
+// ---- a catalogue that answers -------------------------------------------------------------
 //
-// The shared server runs with TSUNDOKU_ANILIST=off and seeds no anime, so the two cases the
-// card asks for -- an anime series' search listing only anime, and one equal title that waits
+// The shared server runs with TSUNDOKU_ANILIST=off and seeds no anime, so the two cases here
+// -- an anime series' search listing only anime, and one equal title that waits
 // for LINK -- run against their own preview, their own seeded database and a stand-in AniList
 // behind TSUNDOKU_ANILIST_URL. Nothing here can reach the real one.
 //
@@ -354,8 +354,8 @@ const ANIME_MEDIA: Media[] = [
 	}),
 	// A flat list's show: the source gave its 12 episodes no season, so
 	// tsundoku has one season, numbered 0. AniList has the show and two sequels,
-	// and its search for the show's title lists all three, as it did for Ranma ½
-	// (2024): the sequels are what the old page offered after a LINK.
+	// and its search for the show's title lists all three, as it does for Ranma ½
+	// (2024).
 	entry({
 		id: 9301,
 		idMal: 9401,
@@ -380,7 +380,7 @@ const ANIME_MEDIA: Media[] = [
 		season: 'FALL',
 		seasonYear: 2026
 	}),
-	// A show whose second season AniList splits in two (round 2 of c418): 12,
+	// A show whose second season AniList splits in two: 12,
 	// then 12 + 11 for the source's 23, then 12. The chain runs through all four.
 	entry({ id: 9501, idMal: 9511, title: 'Split Show', episodes: 12, seasonYear: 2020 }),
 	entry({ id: 9502, idMal: 9512, title: 'Split Show 2nd Season', episodes: 12, seasonYear: 2021 }),
@@ -432,17 +432,18 @@ const ANIME_MEDIA: Media[] = [
 		episodes: 12,
 		seasonYear: 2023
 	}),
-	// A show whose entry has no chain edge into the show's seasons (round 2 of
-	// c423): only the manga it adapts. And one whose relations AniList fails to
+	// A show whose entry has no chain edge into the show's seasons: only
+	// the manga it adapts. And one whose relations AniList fails to
 	// answer (the stand-in errors on it), as when it is out of reach.
 	entry({ id: 9601, idMal: 9611, title: 'Lone Show', episodes: 12, seasonYear: 2019 }),
 	entry({ id: 9602, idMal: 9612, title: 'Lone Show Again', episodes: 12, seasonYear: 2021 })
 ];
 /** The entries whose relations the stand-in answers with an error, as AniList's 500. */
 const RELATIONS_FAIL = new Set([9602]);
-// The chain the relations are walked along: S1 and S2 are each other's sequel.
-// Every edge AniList lists is answered, not only the chain's: the manga S1 was
-// adapted from, its side story, S2's spin-off (and the spin-off's way back).
+// The chain the relations are walked along: seasons 1 and 2 are each other's
+// sequel. Every edge AniList lists is answered, not only the chain's: the manga
+// season 1 was adapted from, its side story, season 2's spin-off (and the
+// spin-off's way back).
 const RELATIONS: Record<number, { id: number; type: string }[]> = {
 	9001: [
 		{ id: 9002, type: 'SEQUEL' },
@@ -462,8 +463,8 @@ const RELATIONS: Record<number, { id: number; type: string }[]> = {
 	],
 	9303: [{ id: 9302, type: 'PREQUEL' }],
 	// Both parts listed as season 1's sequel (as in season-links-db's Split
-	// Show). AniList more often chains part 2 off part 1: Chain Split Show, below
-	//. The walker pairs both shapes.
+	// Show). AniList more often chains part 2 off part 1: Chain Split Show, below.
+	// The walker pairs both shapes.
 	9501: [
 		{ id: 9502, type: 'SEQUEL' },
 		{ id: 9503, type: 'SEQUEL' },
@@ -499,7 +500,7 @@ const COMIC_MEDIA: Media[] = [
 	entry({ id: 30024, idMal: 24, title: 'Ranma ½', format: 'MANGA', chapters: 38 })
 ];
 
-/** What the app asked for: the type and formats of each search (the kind rule's door). */
+/** What the app asked for: the type and formats of each search, which the kind rule decides. */
 let asked: { type: string; formats: string[] }[] = [];
 
 function catalogue(query: string, variables: Record<string, unknown>) {
@@ -665,9 +666,9 @@ test.describe('a catalogue that answers', () => {
 	test.beforeAll(async () => {
 		// This hook seeds a database and spawns a stand-in catalogue and a
 		// preview, then polls up to 60 s for it: all inside the default 30 s hook
-		// budget, where `work-end-frame`'s same shape ran past 30 s in wave 20's
-		// gate. Measured at 2 s here, at a load average of 20 with the
-		// other slots at work; the house budget is 120 s so a loaded gate fails a
+		// budget, where `work-end-frame`'s same shape ran past 30 s under load.
+		// Measured at 2 s here, at a load average of 20 with other suites
+		// running; the house budget is 120 s so a loaded gate fails a
 		// case, never the hook. In a hook, `test.setTimeout` sets the
 		// hook's own budget (Playwright's test.d.ts).
 		test.setTimeout(120_000);
@@ -794,7 +795,7 @@ test.describe('a catalogue that answers', () => {
 		page
 	}) => {
 		// "Sousou no Frieren" is the series' own title; the chip has to see the
-		// title the owner typed too, or an exact candidate carries no mark.
+		// title the user typed too, or an exact candidate carries no mark.
 		await page.goto(`${BASE}/links?series=${ids.sousou}`);
 		await page.getByRole('button', { name: 'SEARCH AGAIN' }).click();
 		await page.getByLabel('Title to search on AniList').fill('Frieren');
@@ -857,7 +858,7 @@ test.describe('a catalogue that answers', () => {
 		await expect(offered.locator('.rwhy')).toContainText('COUNT AGREES');
 		// The side story and the spin-off are listed after the seasons, dimmed and
 		// never ticked, though the spin-off is TV and its count agrees with season
-		// 2's. The manga S1 was adapted from is not listed at all.
+		// 2's. The manga season 1 was adapted from is not listed at all.
 		const outside = page.locator('.rel.outside .relbtn');
 		await expect(outside.locator('.rtitle')).toHaveText([
 			'Sword Art Online: Extra Edition',
@@ -905,7 +906,7 @@ test.describe('a catalogue that answers', () => {
 			{ season: 2, anilist_id: 9002, mal_id: 7002 }
 		]);
 		// A link given by the relations says where it came from, as every other
-		// one does: in EDIT's ENTRY now, which the season's EDIT opens on it.
+		// one does: in EDIT's ENTRY, which the season's EDIT opens on it.
 		await listLine(page, 's1').getByRole('button', { name: 'EDIT' }).click();
 		const sheet = page.getByRole('dialog', { name: 'Tracking' });
 		await expect(sheet.locator('.tab.on .no')).toHaveText('S1');
@@ -918,7 +919,7 @@ test.describe('a catalogue that answers', () => {
 		await expect(listLine(page, 's1').locator('.s .l').first()).toHaveText(
 			'ANILIST AND MAL · NOT SIGNED IN'
 		);
-		// A pasted link is a door that offers a season an entry too:
+		// A pasted link offers a season an entry too:
 		// season 2's entry pasted on season 1 is read, said to be held, and its
 		// LINK stays dimmed.
 		await page.goto(`${BASE}/links?series=${ids.sao}&season=1`);
@@ -947,17 +948,17 @@ test.describe('a catalogue that answers', () => {
 			// One season: one ANILIST line, and its EDIT opens the sheet on it.
 			await listLine(page, 'anilist').getByRole('button', { name: 'EDIT' }).click();
 			const sheet = page.getByRole('dialog', { name: 'Tracking' });
-			// The status rule, as the send keeps it (round 1's low): the last episode
-			// completes a season, but never over the owner's ON HOLD or DROPPED.
+			// The status rule, as the send keeps it: the last episode completes a
+			// season, but never over the user's ON HOLD or DROPPED.
 			await expect(sheet.locator('.note').last()).toContainText(
 				'ITS LAST SENDS COMPLETED. ON HOLD AND DROPPED ARE YOURS AND STAY: ONLY THE EPISODE GOES.'
 			);
 			await sheet.locator('form.sts button', { hasText: 'COMPLETED' }).click();
 			// The action queues and sends before it answers: what waits or what was
-			// sent is this skill's to read, beside the server.
+			// sent is the spec's to read, beside the server.
 			await expect.poll(() => trackerRows(show).length).toBeGreaterThan(0);
 			const rows = trackerRows(show);
-			// Part 1 is what the sheet was on; part 2 keeps whatever its owner had.
+			// Part 1 is what the sheet was on; part 2 keeps whatever the user had.
 			expect(rows.filter((r) => r.part === 1).map((r) => r.status)).toEqual(['completed']);
 			expect(rows.filter((r) => r.part === 2)).toEqual([]);
 		} finally {
@@ -968,8 +969,8 @@ test.describe('a catalogue that answers', () => {
 	test('UNLINK on a one-season anime takes its link, every part of it', async ({ page }) => {
 		// The one-season row is the LINK row a series always drew, and its UNLINK
 		// form names no season: absent is every season, never season 0, which is
-		// a real one (a flat list). Wave 13's round 2 found it read as 0, and the
-		// link stayed while a season-0 decision was written.
+		// a real one (a flat list). Read as 0, the link would stay while a
+		// season-0 decision was written.
 		const show = seedTwoParts();
 		try {
 			expect(seasonRowsOf(show).links).toEqual([
@@ -977,7 +978,7 @@ test.describe('a catalogue that answers', () => {
 				{ season: 1, part: 2 }
 			]);
 			await page.goto(`${BASE}/series/${show}`);
-			// UNLINK lives in EDIT's ENTRY now; a one-season show's sheet has no tabs.
+			// UNLINK lives in EDIT's ENTRY; a one-season show's sheet has no tabs.
 			await listLine(page, 'anilist').getByRole('button', { name: 'EDIT' }).click();
 			const unlinkButton = page.locator('form[action="?/unlink"] button:visible');
 			await expect(page.locator('form[action="?/unlink"] input[name="season"]')).toHaveCount(0);
@@ -1011,7 +1012,7 @@ test.describe('a catalogue that answers', () => {
 		};
 		try {
 			const line = () => listLine(page, 's2').locator('.m');
-			// UNLINK is not NONE OF THESE: the owner never dismissed a search.
+			// UNLINK is not NONE OF THESE: the user never dismissed a search.
 			decide('unlinked');
 			await page.goto(`${BASE}/series/${ids.sao}`);
 			await expect(line()).toHaveText('UNLINKED · NO PASS ASKS AGAIN');
@@ -1049,13 +1050,13 @@ test.describe('a catalogue that answers', () => {
 	test('LINK on a flat-list anime names no season 0, writes season 0’s row and goes back to the series', async ({
 		page
 	}) => {
-		// The owner's Ranma ½ (2024): twelve episodes the source gave no season,
+		// Ranma ½ (2024): twelve episodes the source gave no season,
 		// relinked from the series screen's CHANGE, which opens the review with
 		// no `&season=`. Its one season is numbered 0, and is real.
 		const id = seedFlatList();
 		try {
 			await page.goto(`${BASE}/series/${id}`);
-			// One ANILIST line, never S0 or SEASON 0 (c423's series-screen half, c424's state 12).
+			// One ANILIST line, never S0 or SEASON 0.
 			await expect(page.locator('[data-row="lists"] .tag')).toHaveText(['ANILIST']);
 			await expect(page.locator('[data-row="lists"]')).not.toContainText(/SEASON 0|\bS0\b/);
 			await listLine(page, 'anilist').getByRole('link', { name: 'FIND' }).click();
@@ -1093,7 +1094,7 @@ test.describe('a catalogue that answers', () => {
 			await expect(line.locator('.t')).toHaveText('Flat List Show');
 			await expect(line.locator('.m')).toContainText('MAL 9401');
 			// The series screen names no season 0 either, on the row or in the sheet
-			// EDIT opens (c423's series-screen half).
+			// EDIT opens.
 			await expect(page.locator('[data-row="lists"] .tag')).toHaveText(['ANILIST']);
 			await line.getByRole('button', { name: 'EDIT' }).click();
 			const sheet = page.getByRole('dialog', { name: 'Tracking' });
@@ -1359,7 +1360,7 @@ test.describe('a catalogue that answers', () => {
 			await expect(page.locator('.band .line').first()).toHaveText(
 				'LINKED 2 SEASONS · UNDO REFUSED SHOW'
 			);
-			// A second door changes one part the band's post wrote.
+			// Something else changes one part the band's post wrote.
 			const db = new Database(dbPath);
 			try {
 				db.prepare(
@@ -1440,7 +1441,7 @@ test.describe('a catalogue that answers', () => {
 			await page.getByRole('button', { name: 'CANCEL' }).click();
 			await page.unroute('**/api/links');
 
-			// UNLINK, the other door the page keeps open under the band.
+			// UNLINK, the other action the page keeps open under the band.
 			await abortPosts(page, (body) => body.unlink === true);
 			await page.getByRole('button', { name: 'UNLINK' }).click();
 			await expect(alertLine(page)).toHaveText(NO_ANSWER);
@@ -1640,7 +1641,7 @@ test.describe('a catalogue that answers', () => {
 
 	test('LINK N SEASONS counts a pair as one and names the season it refused', async ({ page }) => {
 		// A walk, a second tab and a LINK: past 30 s on a box loaded past 70
-		// with four workers, at the base too (wave 24's notes), so three times it.
+		// with four workers, at the base too, so three times it.
 		test.slow();
 		// Four seasons: 12, 23 (AniList's 12 + 11), 12, and a fourth of 10 the
 		// chain does not reach. Season 1 linked offers the pair and season 3.
@@ -1665,7 +1666,7 @@ test.describe('a catalogue that answers', () => {
 			await expect(count).toHaveText('2 OF 2 TICKED');
 			await expect(go).toHaveText('LINK 2 SEASONS');
 			// Meanwhile, in a second tab, season 4 is given season 3's entry by a
-			// pasted link: the app's own door, not a row written here.
+			// pasted link: the app's own route, not a row written here.
 			const other = await page.context().newPage();
 			try {
 				await other.goto(`${BASE}/links?series=${id}&season=4`);
@@ -1711,7 +1712,7 @@ test.describe('a catalogue that answers', () => {
 		page
 	}) => {
 		// A walk, a second tab and a LINK: past 30 s on a box loaded past 70
-		// with four workers, at the base too (wave 24's notes), so three times it.
+		// with four workers, at the base too, so three times it.
 		test.slow();
 		// 12, 23 (AniList's 12 + 11), 12 and 11: season 1 linked offers the pair
 		// and season 3. Season 4's 11 episodes take part 2's entry meanwhile.
@@ -1766,7 +1767,7 @@ test.describe('a catalogue that answers', () => {
 
 	test('+ A SECOND PART links a season’s part 2 by hand, FROM EP. 13', async ({ page }) => {
 		// A walk, a second tab and a LINK: past 30 s on a box loaded past 70
-		// with four workers, at the base too (wave 24's notes), so three times it.
+		// with four workers, at the base too, so three times it.
 		test.slow();
 		const id = seedSeasons('Hand Split Show', [12, 23]);
 		try {
@@ -1884,7 +1885,7 @@ test.describe('a catalogue that answers', () => {
 	}) => {
 		const id = seedSeasons('Edit Not Now Show', [12, 23]);
 		try {
-			// Season 1 linked through the page's own door; NOT NOW after that
+			// Season 1 linked through the page itself; NOT NOW after that
 			// LINK goes back to the series, as before.
 			await page.goto(`${BASE}/links?series=${id}&season=1`);
 			await page.getByRole('button', { name: 'PASTE A LINK' }).first().click();
@@ -1902,7 +1903,7 @@ test.describe('a catalogue that answers', () => {
 			await page.getByRole('button', { name: 'NOT NOW' }).click();
 			// It follows no decision made here: the page stays, with the season's
 			// tools. Leaving would start at once, so a few seconds without it is
-			// the answer; checked before it, the old page would still read right.
+			// the answer; checked before it, a page about to leave would still read right.
 			await expect(page.waitForURL(/\/series\/\d+$/, { timeout: 4_000 })).rejects.toThrow();
 			await expect(page.getByRole('button', { name: 'PASTE A LINK' }).first()).toBeVisible();
 			await expect(page.getByRole('button', { name: 'UNLINK' })).toBeVisible();
@@ -1925,7 +1926,7 @@ test.describe('a catalogue that answers', () => {
 	}) => {
 		// What the pass leaves after searching both seasons: each season's own
 		// search and candidates, and nothing at series level. The
-		// owner links season 1 from the queue; season 2's item must then be its
+		// user links season 1 from the queue; season 2's item must then be its
 		// own search, never season 1's entry.
 		const id = seedQueuedSecondSeason();
 		/** SKIP until the show's item for this season is first, each SKIP waiting for the page to turn. */
@@ -1944,7 +1945,7 @@ test.describe('a catalogue that answers', () => {
 		};
 		const link = async (season: number, anilistId: number, band: string) => {
 			await page.locator('.cand').first().click();
-			// The button says which season the LINK writes (the low of wave 15's round 2).
+			// The button says which season the LINK writes.
 			await expect(page.locator('.actions button').last()).toHaveText(`LINK A TO SEASON ${season}`);
 			const posted = page.waitForRequest(
 				(r) => r.url().endsWith('/api/links') && r.method() === 'POST'
@@ -2009,8 +2010,7 @@ test.describe('a catalogue that answers', () => {
  * A two-season anime the pass searched in one go: each season's own search
  * and candidates, exactly what `searchSeries` writes (`saveSeasonSearch`)
  * while no season is linked, season 2's listing season 1's entry after its
- * own; and no series-level row, which the pass never writes for an anime
- *.
+ * own; and no series-level row, which the pass never writes for an anime.
  */
 let queuedSecond: number | null = null;
 function seedQueuedSecondSeason(): number {
@@ -2363,7 +2363,7 @@ function trackerRows(
 	}
 }
 
-/** Season 2's part 2 holding season 1's entry, or no longer: the race c418's band is for. */
+/** Season 2's part 2 holding season 1's entry, or no longer: the race the band is for. */
 function holdSeasonOneEntry(on: boolean): void {
 	const db = new Database(dbPath);
 	try {

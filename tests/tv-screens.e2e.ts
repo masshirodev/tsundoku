@@ -21,8 +21,7 @@ test('the first arrow starts on CONTINUE; the second row of shelves names the co
 	expect(start).toMatch(/^Resume /);
 
 	// ↓ to the shelf's tabs, ↓ to the KIND band, ↓ into the grid: the
-	// focus line appears under the pinned bar and names the focused cover
-	// (TV-Library, 3B).
+	// focus line appears under the pinned bar and names the focused cover.
 	await page.keyboard.press('ArrowDown');
 	await page.keyboard.press('ArrowDown');
 	await page.keyboard.press('ArrowDown');
@@ -92,8 +91,8 @@ test('/reveal says a TV cannot turn it on, instead of asking', async ({ page }) 
 });
 
 test("reveal's frame is drawn 20px in, for a TV that crops its edges", async ({ page }) => {
-	// Turned on where it can be (the computer) and carried here: the owner's
-	// call, 2026-11-01, is that a TV cannot turn reveal on itself. The cookie
+	// Turned on where it can be (the computer) and carried here: a TV cannot
+	// turn reveal on itself. The cookie
 	// is the server's whole memory of it, so the context can hold it.
 	await revealOn(page.context());
 	await page.goto('/');

@@ -365,7 +365,7 @@ describe('a source that adds hidden', () => {
 });
 
 describe('ADD on a library with no Mihon folder yet', () => {
-	it('makes the Mihon root, where a scan of Mihon/ would, instead of refusing (a friend, 2026-10-30)', async () => {
+	it('makes the Mihon root, where a scan of Mihon/ would, instead of refusing', async () => {
 		// Undone at the end: the rest of the file keeps its library.
 		db.exec('SAVEPOINT fresh');
 		try {
@@ -430,9 +430,9 @@ describe('FOLLOW', () => {
 describe('a Hentoid book, which is no source family', () => {
 	/**
 	 * Hentoid's keys are not a `SourceFamily` (doc/KINDS.md; `keyFamily` says
-	 * null), and that is a case every door handles, not an undefined that
+	 * null), and that is a case every entry point handles, not an undefined that
 	 * falls through. Planned by Hentoid's own importer, written by the
-	 * importers' writer, then asked through the download doors the screens
+	 * importers' writer, then asked through the download endpoints the screens
 	 * use: no downloader takes it, nothing queues, FOLLOW refuses it.
 	 */
 	it('has no downloader, queues nothing and cannot be followed, by either key', async () => {

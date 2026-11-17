@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { chooseMarks, saneRange, withinBounds, type MarkRow } from '$lib/library/marks';
 
-// The opening and ending a player uses (doc/ANIME.md, "Openings and endings";
-// card c239): the source's own timestamps beat AniSkip's, and both beat a
+// The opening and ending a player uses (doc/ANIME.md, "Openings and endings"):
+// the source's own timestamps beat AniSkip's, and both beat a
 // fingerprint's. Each part is chosen on its own, since a finder may know one.
 
 const row = (

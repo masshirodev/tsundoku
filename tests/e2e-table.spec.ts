@@ -24,7 +24,7 @@ import {
 /**
  * doc/TESTING.md's e2e table against Playwright's own list of files and
  * projects: a spec file without a row, a row for a file that is gone,
- * or a "Runs on" the config no longer says fails here, and
+ * or a "Runs on" the config does not say fails here, and
  * `yarn run e2e:table` writes the fix.
  */
 
@@ -131,9 +131,8 @@ describe('the e2e table', () => {
 	});
 
 	it('the doc’s skip expression names only tests that exist', { timeout: 120_000 }, () => {
-		// The doc is the one copy: this spec kept an older one of its own,
-		// which went on skipping tests wave 19 had already fixed.
-		// Vacuous while no red is filed (wave 21: none), since there is no
+		// The doc is the one copy, so no stale list here goes on skipping
+		// tests already fixed. Vacuous while no red is filed, since there is no
 		// expression to check; a form documentedSkip() cannot read throws above
 		// rather than reading as none. Each alternative is matched against a
 		// test's own title, not its file or describe (doc/TESTING.md, "Load").
@@ -222,7 +221,7 @@ describe('the e2e table', () => {
 		const written = writeFixtures(fixturesDoc(''), use);
 		const edited = written.replace('**3 of the 7', '**4 of the 7');
 		expect(fixtureProblems(edited, use).stale).toHaveLength(1);
-		// A sibling slot's new file off the fixtures: the generator would list it.
+		// Another branch's new file off the fixtures: the generator would list it.
 		const grown = { using: use.using, not: [...use.not, 'i'] };
 		expect(fixtureProblems(written, grown).stale).toHaveLength(1);
 		expect(fixtureProblems(writeFixtures(written, grown), grown).stale).toEqual([]);
@@ -243,8 +242,8 @@ describe('the e2e table', () => {
 	});
 
 	it('the doc’s count of hydrated.ts’s importers counts importers, not mentions', () => {
-		// c562 r2: `rg -l "helpers/hydrated'" tests/` also counted this spec's
-		// fixture strings and hydrated.ts's own comment (20 for 18 importers).
+		// `rg -l "helpers/hydrated'" tests/` would also count this spec's
+		// fixture strings and hydrated.ts's own comment.
 		const command = String.raw`rg -l "from '\./helpers/hydrated'" tests/*.e2e.ts | wc -l`;
 		expect(readFileSync('doc/TESTING.md', 'utf8').split('\n')).toContain(command);
 		expect(readFileSync('tests/helpers/hydrated.ts', 'utf8')).toContain(command);
@@ -261,8 +260,8 @@ describe('the e2e table', () => {
 	});
 
 	it('the fixtures’ count in the doc is what the generator writes from the files', () => {
-		// It was a hand-typed "77 of the 94", which the sibling slots'
-		// new files falsified before it could merge (e2e r2): now it is written.
+		// Written, not hand-typed: a typed count goes stale with another
+		// branch's new files before it can merge.
 		const { stale } = fixtureProblems(readFileSync('doc/TESTING.md', 'utf8'), fixtureUse());
 		expect(stale, 'run `yarn run e2e:table`').toEqual([]);
 	});
