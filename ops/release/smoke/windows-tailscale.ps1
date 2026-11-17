@@ -1,5 +1,5 @@
 # tsundoku on Tailscale, smoke-tested on Windows (doc/RELEASE.md, "Smoke
-# test"; card c186). Run over `ssh win-test` by ops/release/smoke.sh, with
+# test"). Run over `ssh win-test` by ops/release/smoke.sh, with
 # bundle.zip and probe-tailnet.mjs in the home folder. With -Key (an
 # ephemeral auth key), it installs tailscale.msi from the home folder and
 # joins the tailnet first, and logs out after; without, Zen must already be

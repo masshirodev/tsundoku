@@ -1,4 +1,4 @@
-; tsundoku's Windows installer (doc/RELEASE.md, "The installer"; card c179).
+; tsundoku's Windows installer (doc/RELEASE.md, "The installer").
 ; Built on Linux by ops/release/release.ts with NSIS's own makensis:
 ;
 ;   makensis -DVERSION=2026.10.29 -DVIVERSION=2026.10.29.0 \
@@ -67,7 +67,7 @@ VIAddVersionKey "LegalCopyright" "masshirodev, PolyForm Noncommercial 1.0.0"
 ; processes run from this folder; anything else is left alone. Through WMI,
 ; not Get-Process: the installer is 32-bit, so `powershell` here is the 32-bit
 ; one, and its Get-Process can't read a 64-bit process's path, so it matched
-; nothing (seen on Zen, 2026-10-29). Twice, a second apart, in case the
+; nothing (seen on the Windows test VM). Twice, a second apart, in case the
 ; launcher restarted a helper in between.
 !define STOP_RUNNING `powershell -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process | Where-Object { $$_.ExecutablePath -like '$INSTDIR\*' } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"`
 !macro StopRunning

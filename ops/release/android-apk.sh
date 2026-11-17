@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Build tsundoku's Android apps (c236, c521; doc/ANDROID.md,
+# Build tsundoku's Android apps (doc/ANDROID.md,
 # doc/RELEASE.md): the TV's, the phone and tablet one, or both. They are two
 # flavors of one Gradle project (android), so one build makes either.
 #
@@ -16,7 +16,7 @@
 # names publish.ts ships.
 #
 # A release-signed APK when the four keystore variables are set, a debug-signed
-# one called `-debug` when they are not: the real keystore is the owner's and
+# one called `-debug` when they are not: the real keystore is the publisher's and
 # never in the repository. One key signs both apps; the variables keep the
 # TSUNDOKU_TV_ names they had before there was a second app. The main release
 # script's bundles are untouched.
@@ -35,6 +35,7 @@ if [ -z "$VERSION" ]; then
 fi
 shift
 
+# RELEASE_DIR's default is this deployment's own release folder.
 BASE=${RELEASE_DIR:-/mnt/hdd2/tsundoku/release}
 OUT=""
 REF=""

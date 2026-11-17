@@ -1,12 +1,14 @@
 # Serve the library (doc/SERVING.md), from boot, and again whenever it stops.
 # A user unit; lingering (loginctl enable-linger) starts it without a login.
 #
-# The workstation runs the released Linux bundle, the same one friends run
-# (card c228, 2026-11-01), never its checkout: ~/.local/opt/tsundoku/current,
+# This machine's unit: its paths are this deployment's own (ops/README.md).
+#
+# The workstation runs the released Linux bundle, the same one friends run,
+# never its checkout: ~/.local/opt/tsundoku/current,
 # put there by ops/workstation/install-release.sh, which also restarts this.
 # Its launcher starts the engine (the bundle's engine.jar), FlareSolverr
 # (unpacked into the data folder) and the app, and reads the data folder's
-# .env, written from Infisical (doc/SECRETS.md).
+# .env, written by scripts/secrets-pull.sh (doc/SECRETS.md).
 #
 # Install with
 #   ln -s ~/projects/tsundoku-jobs/ops/systemd/tsundoku.service ~/.config/systemd/user/

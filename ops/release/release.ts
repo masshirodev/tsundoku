@@ -71,6 +71,7 @@ for (const p of platforms)
 const trial = flag('--ref') !== undefined;
 const ref = flag('--ref') ?? `release/${version}`;
 
+// RELEASE_DIR's default is this deployment's own release folder.
 const base = process.env.RELEASE_DIR ?? '/mnt/hdd2/tsundoku/release';
 const cache = join(base, 'cache');
 const work = join(base, 'work', version);
@@ -419,7 +420,7 @@ function serverImports(build: string): Set<string> {
 /**
  * Build the tray (ops/release/tray, doc/TRAY.md) for `platform` into the
  * bundle, from the tag's own copy, and return the Go modules linked into it.
- * Pure Go on both (no cgo), so the workstation cross-compiles Windows'.
+ * Pure Go on both (no cgo), so a Linux machine cross-compiles Windows'.
  * Windows' is a GUI program (`-H windowsgui`), which is the point: started,
  * it opens no console window. go-winres gives it the icon and a manifest;
  * it's a `tool` in the tray's go.mod, so its version is pinned there.

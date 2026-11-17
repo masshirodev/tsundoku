@@ -1,13 +1,14 @@
 #!/bin/sh
 # Drive Zen, the Windows 10 VirtualBox VM tsundoku is tested on
-# (doc/WINDOWS-VM.md). Zen is also the owner's VM for Windows-only apps, so a
+# (doc/WINDOWS-VM.md). Zen is also a VM in daily use for Windows-only apps, so a
 # test never leaves a trace: `up` snapshots it as it is, `down` puts that back.
 #
 #   ops/winvm/zen.sh up       # snapshot as-is, boot headless, wait for ssh win-test
 #   ops/winvm/zen.sh down     # power off, restore the snapshot `up` took, delete it
 #   ops/winvm/zen.sh status
 #
-# Workstation-only, like ops/systemd: it names this box's VM and SSH host.
+# This deployment's only, like ops/systemd (ops/README.md): it names this
+# box's VM and SSH host.
 set -eu
 
 vm=${ZEN_VM:-Zen}

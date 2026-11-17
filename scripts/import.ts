@@ -37,7 +37,7 @@ for (const s of summary.sources) {
 	console.log(`  series updated:  ${s.seriesUpdated}`);
 	console.log(`  entries added:   ${s.entriesAdded}`);
 	console.log(`  files attached:  ${s.filesAttached}`);
-	// The Works a fold took a series out of (c472, c570), as IMPORT LOG names them.
+	// The Works a fold took a series out of, as IMPORT LOG names them.
 	for (const d of s.dropped) console.log(`  ${droppedLine(d)}`);
 	if (s.skipped) console.log(`  browsed only:    ${s.skipped} (not imported)`);
 }

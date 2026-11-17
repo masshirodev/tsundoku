@@ -1,17 +1,17 @@
 #!/bin/sh
-# Write the live .env from Infisical (doc/SECRETS.md). Infisical, on the VPS,
-# is where tsundoku's secrets are kept; the .env in the data folder
-# ($TSUNDOKU_HOME/.env, /mnt/hdd2/tsundoku/.env) is a copy of them, made by
-# hand with this script whenever one changes. The workstation runs the
-# released bundle (c228), whose launcher reads that file; the checkout's own
+# Write the live .env from Infisical, a secrets manager (doc/SECRETS.md). This
+# deployment keeps tsundoku's secrets in one on its VPS; the .env in the data
+# folder ($TSUNDOKU_HOME/.env, here /mnt/hdd2/tsundoku/.env) is a copy of them,
+# made by hand with this script whenever one changes. The workstation runs the
+# released bundle, whose launcher reads that file; the checkout's own
 # .env is development's and this never touches it. The app only ever reads
 # .env, so it starts and restarts without the VPS (the ISP can blackhole it).
 #
 #   yarn run secrets:pull
 #   yarn run secrets:pull --dry-run   # what would change, by name; writes nothing
 #
-# Needs .infisical-identity beside it (untracked, mode 600), in the VPS's
-# shape (~/projects/infisical/compose-with-secrets.sh there):
+# Needs .infisical-identity beside it (untracked, mode 600), a universal-auth
+# machine identity:
 #   INFISICAL_CLIENT_ID, INFISICAL_CLIENT_SECRET, INFISICAL_PROJECT_ID,
 #   INFISICAL_ENVIRONMENT, INFISICAL_API_URL
 # Prints key names only, never a value.

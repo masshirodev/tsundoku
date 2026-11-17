@@ -1,9 +1,9 @@
 /**
- * What the English pack actually answers (c196, question 3).
+ * What the English pack actually answers.
  *
  *   yarn run pack:en:check
  *
- * The spike c196 asked for, made runnable so the number can be re-measured
+ * A measurement, made runnable so the number can be re-measured
  * after every rebuild rather than remembered. It asks the pack the way a
  * reader does — a word, a form of a word, a phrase — and reports what came
  * back and in what language.

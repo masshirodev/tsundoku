@@ -1,5 +1,5 @@
 // tsundoku on Tailscale, the part of the smoke test that runs on the target
-// with the bundle's Node (doc/RELEASE.md, "Smoke test"; card c186). The
+// with the bundle's Node (doc/RELEASE.md, "Smoke test"). The
 // launcher is running with TSUNDOKU_SERVE=https; this checks it opened the
 // tailnet address, and that the app signs in and saves there.
 //
@@ -38,7 +38,7 @@ check(
 
 // Through tailscale serve, with its certificate: what the phone does. The
 // first request can wait on Tailscale fetching that certificate, which once
-// outlasted fetch's 10 s connect timeout on Zen (2026-10-30); a minute, then.
+// outlasted fetch's 10 s connect timeout on the test VM; a minute, then.
 const started = Date.now();
 let r;
 while (!r) {

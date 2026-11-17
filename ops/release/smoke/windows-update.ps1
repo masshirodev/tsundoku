@@ -1,4 +1,4 @@
-# The updater, smoke-tested on Windows (doc/UPDATES.md; card c182). Run over
+# The updater, smoke-tested on Windows (doc/UPDATES.md). Run over
 # `ssh win-test` by ops/release/smoke.sh with installer.exe, latest.json (a
 # signed pretend 9999.01.01 whose installer is installer.exe, from
 # smoke/fake-update.ts), serve-dir.mjs and set-password.mjs in the home folder.

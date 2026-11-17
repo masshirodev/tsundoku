@@ -1,6 +1,6 @@
 /**
  * `yarn run test:e2e:dependants`: the two projects a whole run leaves out
- * behind any red, run on their own (doc/TESTING.md, "Load"; c439, c564).
+ * behind any red, run on their own (doc/TESTING.md, "Load").
  *
  *   node --experimental-strip-types scripts/e2e-dependants.ts [playwright args…]
  *
@@ -13,8 +13,8 @@
  * It is a script rather than a line in `package.json` because Yarn 1 appends
  * a script's arguments to the end of its command string. The line it replaced
  * ended `… && exit $s`, so `yarn run test:e2e:dependants --reporter=line`
- * became `exit $s --reporter=line`, which exits 1 with both projects green
- * (c564). Here every argument reaches both runs, and the exit code is the
+ * became `exit $s --reporter=line`, which exits 1 with both projects green.
+ * Here every argument reaches both runs, and the exit code is the
  * first red's: non-zero when either project is red, whichever it was.
  *
  * Except `--project`: the caller's would put a second project into each run,

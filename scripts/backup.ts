@@ -7,8 +7,8 @@
  * Safe while the server is running. The nightly timer in ops/systemd/ runs it.
  * After the snapshot it says what the highlights' mirror did, then sweeps
  * covers/episodes/ of the pictures and sprites of entries that are gone
- * (src/lib/server/anime/episode-files.ts, c454). A mirror that failed fails the
- * run, but only after the sweep (c730): the snapshot is already in place.
+ * (src/lib/server/anime/episode-files.ts). A mirror that failed fails the
+ * run, but only after the sweep: the snapshot is already in place.
  */
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'node:url';

@@ -1,19 +1,19 @@
 /**
  * Publish a built, smoke-tested release to dl.tsundoku.masshiro.pro
- * (doc/UPDATES.md; card c182), where friends download it and every installed
+ * (doc/UPDATES.md), where friends download it and every installed
  * copy looks for it.
  *
  *   yarn run release:publish 2026.11.02             # upload, then announce
  *   yarn run release:publish 2026.11.02 --dry-run   # sign and check, upload nothing
  *
  * It refuses a version `ops/release/smoke.sh` didn't pass whole (a Linux-only run,
- * enough to install on the workstation, isn't: c750), one rebuilt since it did
+ * enough to install on the workstation, isn't), one rebuilt since it did
  * (ops/release/smoked.ts), one without notes (ops/release/notes/<version>.txt, what a friend reads in SETTINGS), and
  * one already on the host: a version folder is written once. The files go up
  * under unversioned names into the version's folder, then `latest` points at
  * it, then latest.json is written: until that last step nothing announces a
  * half-uploaded release. latest.json is signed with the release key, which
- * never leaves this workstation (~/.config/tsundoku/release-signing.pem, or
+ * never leaves the publishing machine (~/.config/tsundoku/release-signing.pem, or
  * TSUNDOKU_SIGNING_KEY); every build checks it against the public half in
  * src/lib/server/update-manifest.ts.
  */
@@ -57,6 +57,7 @@ const fail = (m: string): never => {
 if (!version || !VERSION_RE.test(version))
 	fail('usage: publish.ts <version YYYY.MM.DD[.N]> [--dry-run]');
 
+// RELEASE_DIR's default is this deployment's own release folder.
 const out = join(process.env.RELEASE_DIR ?? '/mnt/hdd2/tsundoku/release', 'out', version!);
 if (!existsSync(out)) fail(`${out} doesn't exist: build it first (yarn run release ${version}).`);
 const unsmoked = smokedProblem(out, version!);
@@ -80,7 +81,7 @@ for (const p of ['win-x64.zip', 'linux-x64.tar.gz']) {
 	const n = `flaresolverr-${solver.flaresolverr.version}-${p}`;
 	NAMES.push([n, n]);
 }
-// The Android apps (c614): ops/release/android-apk.sh builds them beside the
+// The Android apps: ops/release/android-apk.sh builds them beside the
 // bundles. Release-signed only: a -debug APK can't update an installed app,
 // whose certificate is the release keystore's, so one is refused below.
 NAMES.push([`tsundoku-app-${version}.apk`, 'tsundoku-app.apk']);

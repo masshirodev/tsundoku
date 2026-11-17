@@ -1,5 +1,5 @@
-# Reading on a phone over home Wi-Fi, smoke-tested on Windows (doc/WIFI.md;
-# card c188). Run over `ssh win-test` by ops/release/smoke.sh, with bundle.zip
+# Reading on a phone over home Wi-Fi, smoke-tested on Windows (doc/WIFI.md).
+# Run over `ssh win-test` by ops/release/smoke.sh, with bundle.zip
 # and set-password.mjs in the home folder. tsundoku runs here; the workstation
 # plays the phone, across the real network, while this waits: this writes the
 # pairing link to wifi-code.txt, the workstation opens it and writes what it

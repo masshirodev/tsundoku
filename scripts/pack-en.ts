@@ -1,5 +1,5 @@
 /**
- * Build the English lookup pack (doc/LANGUAGES.md, c195; c198) from kaikki.org's
+ * Build the English lookup pack (doc/LANGUAGES.md) from kaikki.org's
  * English Wiktionary extract: a JSONL file, one entry per line, ~1M of them.
  *
  *   yarn run pack:en --in ~/packs/English.jsonl.gz --out ~/packs/en-wiktionary.db
@@ -90,7 +90,7 @@ db.exec(`
 		entry_id INTEGER NOT NULL,
 		ord INTEGER NOT NULL,
 		gloss TEXT NOT NULL,
-		/** The sense's Portuguese translation, when Wiktionary has one (c200). */
+		/** The sense's Portuguese translation, when Wiktionary has one. */
 		pt TEXT,
 		/** Wiktionary's own tags: "archaic", "figurative", "form-of". */
 		tags TEXT NOT NULL DEFAULT '',

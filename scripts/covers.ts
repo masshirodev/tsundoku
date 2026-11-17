@@ -2,7 +2,7 @@
  * Bring every series' cover up to date (doc/COVERS.md):
  *
  *   yarn run covers            # links, then from files, the source sites and the links
- *   yarn run covers --local    # from files only; nothing leaves the workstation
+ *   yarn run covers --local    # from files only; nothing leaves this computer
  *
  * The import runs the same thing after every scan.
  */

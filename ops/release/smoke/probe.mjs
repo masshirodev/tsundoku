@@ -143,7 +143,7 @@ for (const e of entries) {
 		`${type}, ${bytes} B`
 	);
 }
-// Paths, the way the library compares them (card c183): written with '/' on
+// Paths, the way the library compares them: written with '/' on
 // every platform, so "is this file in the library?" and "the folder two books
 // share" hold on Windows too. A delete moves files only from inside the
 // library, and grouping takes the folder the books share as the series' path.
@@ -209,7 +209,7 @@ check(
 	(await r.text()).includes(entries.find((e) => e.visible)?.title ?? '\0')
 );
 
-// The novels plugin host (card c227): a file the server forks by path, and
+// The novels plugin host: a file the server forks by path, and
 // the libraries it lends to plugins. 2026.10.31.3 shipped without them all,
 // and every novel source said THE PLUGIN HOST STOPPED. Started as host.ts
 // starts it, under the permission model with an empty environment, it loads a

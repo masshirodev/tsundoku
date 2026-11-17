@@ -5,7 +5,7 @@
  * - `out/<version>/.smoked`: a whole run passed, every platform. Publishing
  *   requires it (friends get Windows too), and installing takes it.
  * - `out/<version>/.smoked-linux-x64`: the Linux half passed, alone or as part
- *   of a whole run (c750). Installing on the workstation takes it, since the
+ *   of a whole run. Installing on the workstation takes it, since the
  *   workstation runs only the Linux bundle; publishing never does.
  *
  * A mark speaks for the bundles as they were when the test ran, so a rebuild has

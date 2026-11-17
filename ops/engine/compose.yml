@@ -1,13 +1,12 @@
 # The extension engine (a fork of M-Extension-Server, masshirodev/tsundoku-engine)
 # and FlareSolverr beside it for sites behind a Cloudflare challenge
-# (doc/EXTENSION-ENGINE.md), for DEVELOPMENT only: since c228 (2026-11-01) the
-# workstation's live tsundoku is the released bundle, whose launcher runs the
-# bundle's own engine on 4590. This one is on 4591, so both can run, and keeps
-# its APKs apart from the live ones. Start it by hand:
+# (doc/EXTENSION-ENGINE.md), for DEVELOPMENT only: a live tsundoku is the
+# released bundle, whose launcher runs the bundle's own engine on 4590. This
+# one is on 4591, so both can run, and keeps its APKs apart from the live ones. Start it by hand:
 #   ENGINE_TOKEN=... docker compose -f ops/engine/compose.yml up -d
 #
 # The engine's image is built from its repository, not pulled:
-#   docker build -t tsundoku-engine:local ~/projects/tsundoku-engine
+#   docker build -t tsundoku-engine:local <a checkout of masshirodev/tsundoku-engine>
 name: tsundoku-engine
 services:
   engine:
@@ -32,6 +31,7 @@ services:
       # (doc/EXTENSION-ENGINE.md, "Preferences").
       JAVA_TOOL_OPTIONS: -Djava.util.prefs.userRoot=/tmp/prefs
     volumes:
+      # ENGINE_DATA's default is this deployment's own folder.
       - ${ENGINE_DATA:-/mnt/hdd2/tsundoku/engine-dev}/apks:/data/apks
     depends_on:
       - flaresolverr
@@ -42,7 +42,7 @@ services:
     restart: 'no'
     # The engine reaches it on the compose network, as http://flaresolverr:8191/v1,
     # which tsundoku sends as each call's cf-proxy-url. The app itself now solves
-    # a novel plugin's check too (doc/NOVELS.md, card c152), and it runs on the
+    # a novel plugin's check too (doc/NOVELS.md), and it runs on the
     # host, not in this network: publish the solver to 127.0.0.1 only, on 8193,
     # never 8191, which the live release's own solver holds. A dev .env sets
     # NOVEL_SOLVER_URL=http://127.0.0.1:8193/v1 for it.

@@ -1,20 +1,21 @@
 # The nightly database snapshot (doc/BACKUPS.md). A user unit: install with
 #   ln -s ~/projects/tsundoku-jobs/ops/systemd/tsundoku-backup.{service,timer} ~/.config/systemd/user/
 #   systemctl --user daemon-reload && systemctl --user enable --now tsundoku-backup.timer
+# This machine's unit: its paths are this deployment's own (ops/README.md).
 [Unit]
 Description=tsundoku: snapshot the library database
 RequiresMountsFor=/mnt/backup
 
 [Service]
 Type=oneshot
-# The checkout at the installed release's tag (ops/workstation/install-release.sh,
-# card c228), never ~/projects/tsundoku, where work in progress lives.
+# The checkout at the installed release's tag (ops/workstation/install-release.sh),
+# never ~/projects/tsundoku, where work in progress lives.
 WorkingDirectory=%h/projects/tsundoku-jobs
 # The live settings: the data folder's .env, which the bundle's launcher
 # reads too (doc/SECRETS.md). The jobs checkout has no .env of its own.
 EnvironmentFile=/mnt/hdd2/tsundoku/.env
 # The workstation's data folders (doc/DISTRIBUTION.md, "One data directory").
-# The code's defaults are per-OS app-data folders now; .env says the same
+# The code's defaults are per-OS app-data folders; .env says the same
 # for scripts run by hand, and these keep the units right even without it.
 Environment=TSUNDOKU_HOME=/mnt/hdd2/tsundoku
 Environment=BACKUP_DIR=/mnt/backup/tsundoku

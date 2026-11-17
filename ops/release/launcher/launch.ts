@@ -227,13 +227,13 @@ const restarting = new Set<ChildProcess>();
 /**
  * A helper (the engine, FlareSolverr), its output to its log, started again
  * if it stops while tsundoku runs: the app's screens say what's missing
- * meanwhile, as they do on the workstation. `make` is asked for each start,
+ * meanwhile. `make` is asked for each start,
  * so the engine's reads the WebView switch as it stands then. `started` is
  * told each child.
  */
 function helper(make: () => Proc, delay = 2000, started?: (c: ChildProcess) => void) {
 	const proc = make();
-	// Stamped and rotated (log.ts, c193).
+	// Stamped and rotated (log.ts).
 	const log = new Log(join(home, 'logs', `${proc.name}.log`));
 	log.line('INFO', `--- starting ${proc.name}`);
 	const child = spawn(proc.cmd, proc.args, {
@@ -297,7 +297,7 @@ function watchWebView() {
 		restarting.add(old);
 		stop(old);
 		// The engine's JVM outlives SIGTERM while an extension's WebView call is
-		// in flight, until that call times out (measured 2026-11-12: 27 s, its
+		// in flight, until that call times out (measured: 27 s, its
 		// Xvfb and Chromium gone at once). The switch is asked for now, so after
 		// a grace the old engine is ended outright.
 		setTimeout(() => {
@@ -366,7 +366,7 @@ if (p.solver && solverDir) {
 // The app, its output to logs/tsundoku.log as the helpers' is. Not this
 // window: selecting text in a Windows console (QuickEdit) stops whatever
 // writes to it until Enter or Esc, so an app writing here froze mid-request
-// while a friend copied something (suspected on 2026.10.30, c189). What a
+// while a friend copied something (suspected). What a
 // friend needs from this window, the launcher says itself.
 const appLog = join(home, 'logs', 'tsundoku.log');
 const serverLog = new Log(appLog);
@@ -410,7 +410,7 @@ process.on('SIGINT', () => stopAll(0));
 process.on('SIGTERM', () => stopAll(0));
 // A closed window or terminal. On Linux the app and the engine are in process
 // groups of their own, so the hangup reaches only this launcher, and without
-// this they outlived it (c187).
+// this they outlived it.
 process.on('SIGHUP', () => stopAll(0));
 
 // Open the app once it answers, where it says it serves.

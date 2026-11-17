@@ -1,6 +1,6 @@
 /**
- * The shell's door to ops/release/smoked.ts, so smoke.sh and
- * install-release.sh share its rule instead of each holding a copy (c750):
+ * The shell's way into ops/release/smoked.ts, so smoke.sh and
+ * install-release.sh share its rule instead of each holding a copy:
  *
  *   node smoked-mark.ts record <out> <version> <linux> <win>   # smoke.sh, at its end
  *   node smoked-mark.ts install <out> <version>                # install-release.sh

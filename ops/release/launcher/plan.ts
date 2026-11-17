@@ -46,9 +46,9 @@ export function plan(o: {
 	installed?: boolean;
 	/**
 	 * SETTINGS' WEBVIEW switch as it stands (`readSwitch`, webview-switch.ts):
-	 * the engine runs WebView extensions only when it's on. Off by default
-	 * (card c978). Read again for every engine start, so it's the plan's
-	 * input, not the plan's to read.
+	 * the engine runs WebView extensions only when it's on. Off by default.
+	 * Read again for every engine start, so it's the plan's input, not the
+	 * plan's to read.
 	 */
 	webview?: boolean;
 }): Plan {
@@ -76,8 +76,8 @@ export function plan(o: {
 			TSUNDOKU_SERVE: o.env.TSUNDOKU_SERVE || 'local',
 			TSUNDOKU_SNAPSHOT: 'off',
 			// A password chosen on first open (doc/SIGN-IN.md), unless the data
-			// folder's .env names a TSUNDOKU_TOKEN: the workstation runs the same
-			// bundle and keeps its token (c228). A friend's install never has one.
+			// folder's .env names a TSUNDOKU_TOKEN: an install served on a tailnet runs
+			// the same bundle and keeps its token. A friend's install never has one.
 			...(o.env.TSUNDOKU_TOKEN ? {} : { TSUNDOKU_LOGIN: 'password' }),
 			// Where new versions are announced (doc/UPDATES.md); "off" in .env stops looking.
 			TSUNDOKU_UPDATES: o.env.TSUNDOKU_UPDATES || UPDATES,
@@ -162,7 +162,7 @@ export function solverAt(
  * readline it carries (8.2), a newer bash (Arch's 5.3, built on readline 8.3)
  * dies on "undefined symbol: rl_print_keybinding", Chrome's version isn't
  * found, and FlareSolverr exits, again and again (3.4.6 and 3.5.2 alike,
- * found on the workstation 2026-11-01, c228). That readline only serves
+ * on Arch). That readline only serves
  * Python's interactive prompt, which a server never shows, so without it the
  * shell uses the system's own. Renamed, never deleted.
  *
@@ -172,7 +172,7 @@ export function solverAt(
  * two halves disagree: Arch's 3.129 softokn wants `NSSUTIL_3.108` from the
  * bundled nssutil, NSS fails to start, and Chrome aborts on the first
  * certificate it checks (`FATAL: nss_error=-5925`), so every solve over HTTPS
- * fails as "the browser has closed the connection" (c492, 2026-11-16). With
+ * fails as "the browser has closed the connection". With
  * the bundled half set aside, NSS is the system's, whole and in one version.
  */
 export function solverSetAside(
@@ -222,10 +222,9 @@ export const chromiumPath = (home: string, platform: NodeJS.Platform) =>
 	);
 
 /**
- * What the engine is started with: on only when the switch is (the owner's
- * decision of 2026-11-12, card c978: the WebView runs sites' scripts in
- * Chromium 111 without a sandbox, so it is on for an install that turns it
- * on, and off on every other). Always said, `off` included: the launcher's
+ * What the engine is started with: on only when the switch is (the WebView
+ * runs sites' scripts in Chromium 111 without a sandbox, so it is on for an
+ * install that turns it on, and off on every other). Always said, `off` included: the launcher's
  * environment, the data folder's `.env` read into it, reaches the engine too,
  * and a stray `ENGINE_WEBVIEW=on` there must not turn on what the switch has
  * off.

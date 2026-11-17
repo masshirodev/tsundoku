@@ -10,8 +10,7 @@
  *   (TSUNDOKU_HTTPS_PORT). Nothing but the proxy can reach the app, and the
  *   reader gets the secure context WebAuthn, the wake lock and service
  *   workers need. The mapping is added if missing, never over someone else's.
- * - **http** (TSUNDOKU_SERVE=http) -- the old way: plain http on the tailnet
- *   address, as kirisute does.
+ * - **http** (TSUNDOKU_SERVE=http) -- plain http on the tailnet address.
  * - **local** (TSUNDOKU_SERVE=local) -- plain http on 127.0.0.1, opened as
  *   http://localhost on the same computer. A friend's install, with no
  *   Tailscale (doc/DISTRIBUTION.md); localhost is a secure context too.

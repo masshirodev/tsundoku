@@ -1,7 +1,7 @@
 /**
  * Render the app icons (doc/INSTALL.md): 積, the first character of 積ん読,
  * typeset in IBM Plex Sans JP 500, ink on graphite. The design has no logo and
- * says not to draw one (doc/design/handoff/readme.md), and every icon in the
+ * says not to draw one, and every icon in the
  * system is a set glyph -- so the app icon is one too.
  *
  *   node scripts/icons.mjs     # writes static/icons/*.png

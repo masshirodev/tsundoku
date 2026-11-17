@@ -1,5 +1,6 @@
 #!/bin/sh
-# Put a published release on the workstation (doc/SERVING.md; card c228).
+# Put a published release on the workstation (doc/SERVING.md).
+# This machine's script: its paths are this deployment's own (ops/README.md).
 # The workstation runs the same Linux bundle friends do, not its checkout:
 #
 #   ops/workstation/install-release.sh 2026.11.01.1
@@ -28,7 +29,7 @@ jobs=$(dirname "$repo")/tsundoku-jobs
 archive=tsundoku-$version-linux-x64.tar.xz
 
 # Smoke-tested whole (.smoked) or on Linux alone (.smoked-linux-x64): the
-# workstation runs only the Linux bundle (c750; publishing still needs the whole
+# workstation runs only the Linux bundle (publishing still needs the whole
 # run). The rule, a bundle newer than the mark included, is ops/release/smoked.ts's.
 node --disable-warning=ExperimentalWarning "$repo/ops/release/smoked-mark.ts" install "$out" "$version" || exit 1
 (cd "$out" && grep " $archive\$" SHA256SUMS | sha256sum -c --quiet -) || {

@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 /**
- * One build at a time per worktree, and never a build under a running preview
- * (c625).
+ * One build at a time per worktree, and never a build under a running preview.
  *
  * `playwright.config.ts`'s webServer builds the app into `.svelte-kit/output`
  * before it serves, and a second `playwright test` in the same worktree builds
- * into the same folder: wave 25 saw one run die with `ENOENT … .svelte-kit/
- * output/server/manifest-full.js` while the other's preview served pages that
- * never hydrated. The ports are safe since waves 28-30 (the worlds take them
- * from the OS when nothing assigns them); the build is not.
+ * into the same folder: one run died with `ENOENT … .svelte-kit/output/server/
+ * manifest-full.js` while the other's preview served pages that never
+ * hydrated. The ports are safe (the worlds take them from the OS when nothing
+ * assigns them); the build is not.
  *
  * Two things can collide, and this wraps the webServer command to keep both
  * apart:
@@ -27,8 +26,7 @@
  *   as it is now: same HEAD, same changes, same untracked files) or waits for
  *   the users to finish (when the tree has changed since, because serving a
  *   stale build would test code that is not there any more). The fingerprint
- *   is taken only to decide that: with nobody serving, an invocation builds,
- *   as every run did before this wrapper.
+ *   is taken only to decide that: with nobody serving, an invocation builds.
  *
  * Every invocation runs its own prepare step (its own seeded database and
  * folders), under the lock, so the dictionary copy never runs beside a build
@@ -46,13 +44,13 @@
  * It never outlives the runner that started it. Playwright stops it by
  * SIGKILLing its process group, so its commands stay in that group (never
  * `detached`) for the kill to reach them. A runner that is itself killed
- * outright (an agent's session ending, wave 31) never sends that kill, and the
- * wrapper used to be reparented and serve on for hours, registered as a live
- * user that every later run on a changed tree waited 150 s for. So it watches
+ * outright (an agent's session ending) never sends that kill, and the wrapper
+ * would be reparented and serve on for hours, registered as a live user that
+ * every later run on a changed tree waited 150 s for. So it watches
  * its parent: once the parent is gone it kills its command's whole tree,
  * removes its files and exits 1.
  *
- * Node built-ins only: `scripts/` may not add a dependency (the wave's rules).
+ * Node built-ins only: `scripts/` may not add a dependency.
  * Its cases are `tests/helpers/build-lock.spec.ts`; `doc/TESTING.md`
  * ("Ports") has the measured pair.
  */
@@ -197,11 +195,10 @@ const settling = (path) => Date.now() - mtime(path) < 1000;
  * The lock is ours, or it is not yet (try again later).
  *
  * A free lock is taken by creating it (`wx`). A stale one, whose holder is
- * gone, is the hard part (c729): until wave 34 every waiter that read the
- * dead holder's bytes renamed a file of its own onto the lock and read it
- * back, and two waiters that both read the dead bytes before either renamed
- * both read their own name back and both built. Removing it first and then
- * creating (round 1 of wave 32) lost the same way, and so does renaming the
+ * gone, is the hard part. Renaming a file of one's own onto the lock and
+ * reading it back loses: two waiters that both read the dead bytes before
+ * either renamed both read their own name back and both built. Removing it
+ * first and then creating loses the same way, and so does renaming the
  * dead lock aside and linking a new one: a waiter that read the dead bytes
  * late renames the winner's fresh lock aside instead.
  *

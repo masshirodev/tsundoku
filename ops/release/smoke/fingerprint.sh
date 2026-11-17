@@ -1,10 +1,10 @@
 #!/bin/sh
-# A bundle's own ffmpeg must fingerprint (doc/RELEASE.md, "Smoke test"; c299).
+# A bundle's own ffmpeg must fingerprint (doc/RELEASE.md, "Smoke test").
 # The app's first route to a fingerprint is ffmpeg's chromaprint muxer
 # (src/lib/server/anime/fingerprint.ts), and the pinned BtbN build has it, so
 # that is what is tested here: the binary is named from the bundle, never from
 # PATH, since a future pin that drops the muxer is the risk this guards and
-# this workstation's Arch ffmpeg cannot stand in for the bundle's.
+# a system ffmpeg cannot stand in for the bundle's.
 set -eu
 b=${1:?usage: fingerprint.sh <bundle> [work dir]}
 work=${2:-}

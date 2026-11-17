@@ -1,7 +1,6 @@
 /**
- * Fill an empty development database with the design handoff's sample
- * library, so the library screen has something to show before the importers
- * exist.
+ * Fill an empty development database with the design's sample library, so
+ * the library screen has something to show without an import.
  *
  *   yarn run seed
  *

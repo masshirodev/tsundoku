@@ -1,4 +1,4 @@
-# A bundle's own ffmpeg must fingerprint (doc/RELEASE.md, "Smoke test"; c299),
+# A bundle's own ffmpeg must fingerprint (doc/RELEASE.md, "Smoke test"),
 # run on Zen by ops/release/smoke.sh through windows.ps1. ffmpeg's chromaprint
 # muxer is the app's first route to a fingerprint and the pinned BtbN build
 # has it; PATH is never named, since a future pin that drops the muxer is the

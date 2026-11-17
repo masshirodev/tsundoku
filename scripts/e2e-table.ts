@@ -1,5 +1,5 @@
 /**
- * doc/TESTING.md's e2e table, kept by the config rather than by memory (c348).
+ * doc/TESTING.md's e2e table, kept by the config rather than by memory.
  *
  * The table between `<!-- e2e-table:start -->` and `<!-- e2e-table:end -->`
  * has one row per spec file, or per group of files that share a reason. Its
@@ -86,7 +86,7 @@ export function testTitles(): Set<string> {
 
 /**
  * The `PLAYWRIGHT_SKIP` expression doc/TESTING.md's "Load" tells a whole run
- * to export, from a `sh` block, or null when it gives none. The doc is its one copy (c478):
+ * to export, from a `sh` block, or null when it gives none. The doc is its one copy:
  * `tests/e2e-table.spec.ts` reads it from there rather than keeping its own.
  */
 export function documentedSkip(doc: string): string | null {
@@ -109,10 +109,10 @@ export function documentedSkip(doc: string): string | null {
 /**
  * The import that gives a spec the fixtures' `test` (doc/TESTING.md, "E2E
  * specs"), as one pattern that both this file and the doc's `rg -UP` loop use
- * verbatim (`tests/e2e-table.spec.ts` holds them equal; c562). It spans lines,
+ * verbatim (`tests/e2e-table.spec.ts` holds them equal). It spans lines,
  * because Prettier wraps an import past the print width over several, one
- * name a line, and until c562 a one-line pattern counted such a file as off
- * the fixtures. A `type`-only import of `test` (`import type { test }`, or
+ * name a line, and a one-line pattern would count such a file as off the
+ * fixtures. A `type`-only import of `test` (`import type { test }`, or
  * `{ type test }`) gives no `test` at run time, so it does not count. The
  * quote is `\x27` so the doc can single-quote the whole pattern for the
  * shell, where `!` would otherwise be history expansion.
@@ -167,8 +167,8 @@ function names(list: string[]): string {
  * The block between `<!-- e2e-fixtures:start -->` and `<!-- e2e-fixtures:end -->`
  * as the files make it: the count, and every file off the fixtures that the
  * deliberate list does not name. It is written, never typed, so a new e2e file
- * from any slot is counted by the merge's one step, `yarn run e2e:table`
- * (wave 21's park: a hand-typed "77 of the 94" that sibling slots falsified).
+ * from any branch is counted by one step, `yarn run e2e:table` (a hand-typed
+ * count goes stale as soon as two branches each add a file).
  */
 export function renderFixtures(
 	use: { using: string[]; not: string[] },

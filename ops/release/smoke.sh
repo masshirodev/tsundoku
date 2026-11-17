@@ -1,9 +1,10 @@
 #!/bin/sh
 # tsundoku's release smoke test (doc/RELEASE.md, "Smoke test"): each bundle
 # of a release, on a machine that has never seen tsundoku. Linux in a bare
-# Debian container (no Node, no Java, no ffmpeg); Windows on Zen, the test VM
-# (doc/WINDOWS-VM.md), rolled back afterwards. Both unzip the bundle, put a
-# synthesised Mihon library in the data folder, start it, and run probe.mjs.
+# Debian container (no Node, no Java, no ffmpeg); Windows on Zen, this
+# deployment's test VM (ops/winvm, doc/WINDOWS-VM.md), rolled back afterwards.
+# Both unzip the bundle, put a synthesised Mihon library in the data folder,
+# start it, and run probe.mjs.
 #
 #   ops/release/smoke.sh 2026.10.29             # both: publishing needs this
 #   ops/release/smoke.sh 2026.10.29 linux-x64   # one: enough to install on the workstation
@@ -20,6 +21,7 @@ case "$only" in
 esac
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)
+# RELEASE_DIR's default is this deployment's own release folder.
 base=${RELEASE_DIR:-/mnt/hdd2/tsundoku/release}
 out="$base/out/$version"
 work="$base/smoke/$version"
@@ -43,7 +45,7 @@ fi
 rm -rf "$work"
 mkdir -p "$work/library"
 
-# The fixtures the importer's specs use, where a scan reads them since c191
+# The fixtures the importer's specs use, where a scan reads them
 # (doc/IMPORT-MIHON.md, "Where it reads from"): the Mihon one as tsundoku's own
 # device, since the library's own Mihon/ is read for its backup alone, and
 # Hentoid's at the library root, whose books are what GROUP takes.
@@ -69,7 +71,7 @@ if [ -z "$only" ] || [ "$only" = linux-x64 ]; then
 		for i in $(seq 1 90); do grep -q "Open http" /tmp/launch.log && break; sleep 2; done
 		cat /tmp/launch.log; echo "--- probe"
 		/w/tsundoku/node/bin/node /s/probe.mjs /w/tsundoku || exit 1
-		# A closed terminal hangs up the launcher alone; it stops the rest (c187).
+		# A closed terminal hangs up the launcher alone; it stops the rest.
 		# By executable, since this script'"'"'s own command line names the bundle too.
 		echo "--- hang up"
 		kill -HUP $launcher; sleep 5
@@ -137,8 +139,8 @@ if [ -z "$only" ] || [ "$only" = win-x64 ]; then
 		scp -q "$here/smoke/probe-tailnet.mjs" "$here/smoke/set-password.mjs" "$here/smoke/windows-tailscale.ps1" win-test:
 		# A name of its own each run: Zen comes back from its snapshot as a new
 		# node, which asks Let's Encrypt for a new certificate, and one name gets
-		# five a week. The fixed `zen-tsundoku-smoke` ran out on 2026-10-30, the
-		# ninth release that day, and the probe timed out waiting for it.
+		# five a week. A fixed name ran out on a day of nine releases, and the probe
+		# timed out waiting for it.
 		node_name="zen-tsundoku-smoke-$(date -u +%m%d%H%M%S)"
 		ssh -o BatchMode=yes win-test \
 			"powershell -ExecutionPolicy Bypass -File \$HOME\\windows-tailscale.ps1 -Key $TSUNDOKU_SMOKE_TAILSCALE_KEY -Name $node_name" || win=failed
@@ -149,7 +151,7 @@ fi
 rm -rf "$work"
 # The marks (ops/release/smoked.ts): a whole run that passed writes .smoked,
 # which publishing needs; a Linux half that passed writes .smoked-linux-x64,
-# which is enough to install on the workstation (c750). A failed half takes away
+# which is enough to install on the workstation. A failed half takes away
 # every mark that speaks for its bundle; a half that passed alone takes none.
 node --disable-warning=ExperimentalWarning "$here/smoked-mark.ts" record "$out" "$version" "$linux" "$win"
 if [ "$linux" != failed ] && [ "$win" != failed ]; then
