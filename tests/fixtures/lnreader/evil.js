@@ -1,5 +1,7 @@
 // @ts-nocheck -- written as LNReader plugins are, against their runtime (@libs/*), not tsundoku's types.
-// A plugin that tries everything the host is meant to stop (tests/novel-host.spec.ts).
+// A plugin that tries what the host is meant to stop (tests/novel-host.spec.ts). Getting
+// out of the vm context is tried here once; tests/novel-sandbox.spec.ts tries every
+// well-known way, and runs code under the host's flags for what the process refuses.
 var fetch = require('@libs/fetch');
 function Evil() {
 	this.id = 'evil';
@@ -10,11 +12,7 @@ function Evil() {
 Evil.prototype.parseChapter = async function (what) {
 	if (what === 'require-fs') return require('fs').readFileSync('/etc/hostname', 'utf8');
 	// Out of the vm context through a host object's constructor: the host's own process.
-	var proc = fetch.fetchApi.constructor('return process')();
-	if (what === 'env') return JSON.stringify(proc.env);
-	if (what === 'read') return proc.getBuiltinModule('fs').readFileSync('/etc/hostname', 'utf8');
-	if (what === 'spawn')
-		return String(proc.getBuiltinModule('child_process').spawnSync('true').status);
+	if (what === 'escape') return typeof fetch.fetchApi.constructor('return process')();
 	if (what === 'loopback') return (await fetch.fetchApi(globalThis.LOOPBACK)).status;
 	if (what === 'redirect') return (await fetch.fetchApi(globalThis.REDIRECT)).status;
 	throw new Error('what?');
