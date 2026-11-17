@@ -5,9 +5,9 @@ import type { NovelManifest } from './novel-book.ts';
 import { novelKeyOf } from '../library/downloads.ts';
 
 /**
- * A novel from an LNReader plugin as a series to write (doc/NOVELS.md; card
- * c149): what parseNovel answered, every chapter NOT DOWNLOADED. Pure. The
- * chapters' file and locator come when c150 writes the novel's EPUB; until
+ * A novel from an LNReader plugin as a series to write (doc/NOVELS.md): what
+ * parseNovel answered, every chapter NOT DOWNLOADED. Pure. The chapters' file
+ * and locator come when the downloader writes the novel's EPUB; until
  * then an entry is known by its path at the source, as a Mihon chapter is by
  * its URL, so the importer finds it again when the file arrives.
  */
@@ -120,7 +120,7 @@ export function planNovel(
 }
 
 /**
- * A book tsundoku's device wrote (doc/NOVELS.md, "Downloading"; card c150),
+ * A book tsundoku's device wrote (doc/NOVELS.md, "Downloading"),
  * as the series it belongs to: keyed `lnreader:<plugin>:<path>`, each entry
  * by its path at the source, as ADD made them. A chapter in the book is its
  * document; one the manifest names but the book doesn't hold stays NOT

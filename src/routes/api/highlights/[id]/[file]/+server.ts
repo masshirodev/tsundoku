@@ -8,14 +8,14 @@ import { copyName } from '$lib/library/highlights';
 import { extname } from '$lib/server/fspath';
 
 /**
- * A highlight's copy (c701; doc/HIGHLIGHTS.md, "The copies"): `copy` is the
+ * A highlight's copy (doc/HIGHLIGHTS.md, "The copies"): `copy` is the
  * page's image or the clip's MKV, `still` a clip's first frame. `?save=1` is
- * SAVE IMAGE and SAVE CLIP (Out X2, X3): the same bytes, named by series,
+ * SAVE IMAGE and SAVE CLIP: the same bytes, named by series,
  * chapter and page. Only files inside the highlights folder are served, and
  * hidden means hidden: a hidden series' copy is the same 404 without reveal.
  * A copy's bytes never change, but who may see them does (a series hidden
  * later, reveal turned off), so it is sent `private, no-cache`: the browser
- * keeps it and asks again each time, and the 404 then holds (c732).
+ * keeps it and asks again each time, and the 404 then holds.
  */
 
 const TYPES: Record<string, string> = {

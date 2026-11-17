@@ -14,7 +14,7 @@ import { kindFacts, type Kind } from '../../library/kinds.ts';
 
 /**
  * An episode's opening and ending, kept (doc/ANIME.md, "Openings and
- * endings"; card c239). One row per episode and finder, whether it found
+ * endings"). One row per episode and finder, whether it found
  * anything or not: an answer is not asked for again, and a finder that found
  * nothing is remembered too (AniSkip is asked again after some days).
  *
@@ -144,8 +144,8 @@ export function saveAttempt(
 /**
  * Forgets every AniSkip answer a series' episodes have, found or not. A link
  * set, changed or removed asks a different MAL entry, and a negative kept
- * from the old one would keep AniSkip from being asked for a week (card
- * c299). Called inside every door that writes a link (catalogue.ts).
+ * from the old one would keep AniSkip from being asked for a week. Called
+ * inside everything that writes a link (catalogue.ts).
  *
  * `entries.ending_at` is where the app decides an episode counts as watched,
  * so it follows the marks that remain: an episode whose only ending was
@@ -211,11 +211,11 @@ export type EpisodeForLookup = {
 
 /**
  * Whether a link's ids name the series' own kind of work, so they can be
- * handed to a service that keys by them (card c395). MAL numbers anime and
+ * handed to a service that keys by them. MAL numbers anime and
  * manga apart, so a manga's MAL id given to AniSkip, which takes MAL *anime*
  * ids, names an unrelated anime, and that anime's opening and ending would be
  * stored as this one's. The answer is the kind registry's (`sameKind`, the same
- * one c298's LINKED TO THE WRONG KIND reads), and an unknown format is not the
+ * one LINKED TO THE WRONG KIND reads), and an unknown format is not the
  * series' own: `wrongKind` lets an unknown format pass, because it only flags
  * a contradiction, while this has to be sure.
  */
@@ -229,7 +229,7 @@ export const ownEntry = (kind: Kind, format: string | null): boolean =>
  * up, whatever reveal is doing.
  *
  * Not the MAL entry: that is the episode's own season's (`episodeEntry` in
- * season-links.ts, c349). This row once joined `series_links`, the first
+ * season-links.ts). This row once joined `series_links`, the first
  * season's mirror, which kept AniSkip from every season past the first.
  */
 export function lookupRow(

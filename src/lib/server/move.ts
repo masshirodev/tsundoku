@@ -48,11 +48,11 @@ import { isMovable, kindFacts, kindUnit, moveKindOf, type MovableKind } from '..
 import { moveHighlights, repointAdded, type MoveHighlights } from './highlights.ts';
 
 /**
- * MOVE (doc/MOVE.md; card c139): moving a series to another source, as one
+ * MOVE (doc/MOVE.md): moving a series to another source, as one
  * transaction, and the way back. The domain rules are in
  * `$lib/library/move.ts`; this is the database and the sources around them.
  *
- * The owner's decisions are the frame: downloaded files stay; a chapter the
+ * The rules that frame it: downloaded files stay; a chapter the
  * new source lacks stays, from the old one; FOLLOW and queued downloads move,
  * except a queued chapter with no partner, which leaves the queue. Nothing
  * downloads because of a move.
@@ -64,8 +64,8 @@ import { moveHighlights, repointAdded, type MoveHighlights } from './highlights.
  */
 
 /**
- * The kinds whose series can move: the registry's `movable` (doc/KINDS.md;
- * card c304), today a source's manga, manhwa, or anime. Not a doujin, even a
+ * The kinds whose series can move: the registry's `movable` (doc/KINDS.md),
+ * today a source's manga, manhwa, or anime. Not a doujin, even a
  * gallery's with a `mihon:` key, and not a novel.
  */
 export const movableKind = (kind: Kind): kind is MovableKind => isMovable(kind);
@@ -237,7 +237,7 @@ export function episodeFailures(seriesId: number, db: Database.Database = getDb(
 
 /** How long failures keep the band and the "not just this episode" line worth saying. */
 const FAILURE_DAYS = 1;
-/** A source that has added nothing for this long is worth mentioning (the design's eight weeks). */
+/** A source that has added nothing for this long is worth mentioning. */
 const STALE_DAYS = 56;
 
 /**
@@ -270,7 +270,7 @@ export type MoveState = {
 	former: { name: string; until: number } | null;
 	/** The source the way back goes to, when it is remembered. */
 	formerSourceId: string | null;
-	/** The NO VIDEO band, when the owner hasn't said NOT NOW since its last failure. */
+	/** The NO VIDEO band, when the user hasn't said NOT NOW since its last failure. */
 	band: { title: string; detail: string } | null;
 };
 
@@ -331,7 +331,7 @@ export function moveState(seriesId: number, now = Date.now()): MoveState {
 	const former = wayBack(s, now, db);
 
 	// Three episodes failed within a day, or every episode the series has where
-	// it has fewer (the brief's "or on every episode tried, if fewer").
+	// it has fewer.
 	const band =
 		video &&
 		recent.length > 0 &&
@@ -383,7 +383,7 @@ export function staleSource(
 ): { source: string; since: number } | null {
 	const s = seriesRow(seriesId);
 	if (!s || s.status.toLowerCase() !== 'ongoing') return null;
-	// Its line ends in ANOTHER SOURCE →, so only where MOVE opens (c999).
+	// Its line ends in ANOTHER SOURCE →, so only where MOVE opens.
 	if (!moveOpens(seriesId)) return null;
 	const latest = (
 		getDb()
@@ -409,9 +409,10 @@ export function moveEligible(seriesId: number): SeriesRow | null {
 
 /**
  * Whether MOVE's page would load for the series: `moveState(id).eligible`, the
- * question its door asks (`movable()`, src/routes/series/[id]/move/access.server.ts),
+ * question its page guard asks (`movable()`,
+ * src/routes/series/[id]/move/access.server.ts),
  * without the counts the page draws. A cell linking to MOVE asks this first; the
- * player's ANOTHER SOURCE on a browsing record linked to a 404 (c999).
+ * player's ANOTHER SOURCE on a browsing record linked to a 404.
  */
 export function moveOpens(seriesId: number): boolean {
 	const s = moveEligible(seriesId);
@@ -448,7 +449,7 @@ export async function moveSources(
 }
 
 /**
- * The sources a search asks, each with its language (card c490): one
+ * The sources a search asks, each with its language: one
  * extension installs a source per language under one name (MANGADEX twice,
  * one English and one Portuguese), so the list says which. An extension's
  * source carries `engine_sources.lang`, a novel plugin (`ln:<id>`) its
@@ -546,7 +547,7 @@ type EntryRow = {
 };
 
 /**
- * Which entries a MOVE is about (c282). A MOVE of the series is about what
+ * Which entries a MOVE is about. A MOVE of the series is about what
  * the series' own key supplies: a season with a source of its own stays with
  * it. A MOVE of one season is about that season alone.
  */
@@ -607,7 +608,7 @@ export type MoveComparison = {
 	/** A hit already in the library, so the row says so. */
 	match: ResultMatch | null;
 	/**
-	 * HIGHLIGHTS FOLLOW (c701; Out X5): from this same plan, which the move
+	 * HIGHLIGHTS FOLLOW: from this same plan, which the move
 	 * builds again from the same chapters when it applies. A MOVE deletes no
 	 * entry, so none loses its way back here; those on a kept chapter are named.
 	 */
@@ -641,7 +642,7 @@ function inSeason(chapters: MoveCandidateEntry[], season: number | null): MoveCa
 
 /**
  * The candidate beside the series, by number, before anything changes. The
- * offset is the URL's when given (the owner edited it), the guessed one
+ * offset is the URL's when given (the user edited it), the guessed one
  * otherwise: a flat anime list's YOUR EP. 1 IS THEIR EP. N.
  */
 export async function moveComparison(
@@ -650,7 +651,7 @@ export async function moveComparison(
 	reveal: boolean,
 	offsetParam: number | null,
 	now = Date.now(),
-	/** One season's MOVE (c282), or null for the series'. */
+	/** One season's MOVE, or null for the series'. */
 	scope: number | null = null
 ): Promise<MoveComparison | null> {
 	const s = seriesRow(seriesId);
@@ -741,14 +742,14 @@ export type ApplyResult = {
 	queuedMoved: number;
 	queuedDropped: number;
 	detail: string;
-	/** Highlights whose entry this move took away (c701): they keep their copy and note. */
+	/** Highlights whose entry this move took away: they keep their copy and note. */
 	highlightsLost: number;
 };
 
 /** Above any real position: additions waiting for their places. */
 const PENDING = 1e9;
 
-/** A series MOVE: the season rows that named the key it left now name where it went (c282). */
+/** A series MOVE: the season rows that named the key it left now name where it went. */
 function followSeasons(db: Database.Database, seriesId: number, from: string, to: string): void {
 	db.prepare(
 		`UPDATE series_season_facts SET origin_key = ? WHERE series_id = ? AND origin_key = ?`
@@ -765,7 +766,7 @@ function clearFailures(db: Database.Database, seriesId: number, scope: number | 
 }
 
 /**
- * The key a series has just left joins every other one it has left (rung 58),
+ * The key a series has just left joins every other one it has left (migration 58),
  * which is what the tablet's backup resolves through; the key it moved to is
  * its current one, so it is not also a former one. `series.former_key` keeps
  * the most recent, which is the one MOVE BACK offers.
@@ -791,7 +792,7 @@ function rememberKey(
 
 /**
  * An entry matched to a candidate takes the new source's address. The one it
- * had becomes `former_url` and joins every other address it has left (rung 58),
+ * had becomes `former_url` and joins every other address it has left (migration 58),
  * so a backup naming any of them finds this chapter rather than adding a second
  * copy; the address it now has is not also a former one.
  */
@@ -840,7 +841,7 @@ export function applyMove(
 			if (!s || s.in_library !== 1 || !movableKind(s.kind) || !oldKey)
 				throw new MoveError('That series cannot move');
 			// One series holds a source entry: moving onto another series' key, or
-			// a season of it (c282), would make two, and every import would then
+			// a season of it, would make two, and every import would then
 			// find one at random. A key of this series' own is not another's: two
 			// seasons of one show may share a source.
 			if (heldByOther(target.key, seriesId, db))
@@ -866,7 +867,7 @@ export function applyMove(
 
 			// Matched: the same chapter, now from the new source. Its file and its
 			// reading state stay; the address it had is kept for the backup's plan,
-			// and every address before it too (rung 58).
+			// and every address before it too (migration 58).
 			const setChapter = db.prepare(
 				`INSERT INTO engine_chapters (entry_id, engine_url, name) VALUES (?, ?, ?)
 				ON CONFLICT (entry_id) DO UPDATE SET engine_url = excluded.engine_url, name = excluded.name`
@@ -948,7 +949,7 @@ export function applyMove(
 			}
 			if (video) resequenceAnime(db, seriesId);
 			// A chapter deleted before the move, listed again here, takes back the
-			// highlights it lost, by the same numbers the map used (c701).
+			// highlights it lost, by the same numbers the map used.
 			repointAdded(db, seriesId, addedIds);
 
 			// Queued chapters move by number; one with no partner leaves the queue.
@@ -959,7 +960,7 @@ export function applyMove(
 			}
 
 			if (scope !== null) {
-				// One season (c282): `series.former_key` is the series' way back, and
+				// One season: `series.former_key` is the series' way back, and
 				// stays exactly what it was, so MOVE BACK never returns the show to a
 				// source only this season left. There is no way back for a season
 				// yet; the left key joins `series_former_keys`, unless the series or
@@ -1055,7 +1056,7 @@ export function applyMoveBack(
 			const target = moveBackTarget(seriesId);
 			if (!s || !target || !s.origin_key) throw new MoveError('There is no source to move back to');
 			// The key it left may have been taken up since, as another series' own
-			// or a season's (c282): the same one-holder rule as a MOVE to it.
+			// or a season's: the same one-holder rule as a MOVE to it.
 			if (heldByOther(target.key, seriesId, db))
 				throw new MoveError('That entry is already another series in the library');
 			const kind: MoveKind = moveKindOf(s.kind);
@@ -1121,8 +1122,8 @@ export function applyMoveBack(
 			).map((r) => r.id);
 			for (const id of untouched)
 				if (!keptIds.has(id)) keep.run(leftSource, target.sourceId, seriesId, id);
-			// Counted from this plan before the rows go; rung 72's trigger marks
-			// them ORPHAN (entry) as they do (c701).
+			// Counted from this plan before the rows go; migration 72's trigger marks
+			// them ORPHAN (entry) as they do.
 			const highlightsLost = moveHighlights(
 				seriesId,
 				plan,

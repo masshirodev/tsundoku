@@ -7,7 +7,7 @@ import type { Entry, Gloss, Sense } from '../../languages/types.ts';
 
 /**
  * English definitions, from the pack `scripts/pack-en.ts` builds out of
- * kaikki.org's English Wiktionary extract (doc/LANGUAGES.md, c198).
+ * kaikki.org's English Wiktionary extract (doc/LANGUAGES.md).
  *
  * Read-only and opened lazily, like JMdict in kotoba: a missing pack means
  * "no definitions", never a reader that will not open. The panel says so on
@@ -19,7 +19,7 @@ import type { Entry, Gloss, Sense } from '../../languages/types.ts';
  *   2. its first word through the pack's forms ("gave" → give, "mice" → mouse),
  *      with the rest of the span kept ("gave up" → "give up");
  *   3. shorter spans, so a tap on "give" with no entry of its own still lands
- *      on "give up" (c198: a multiword match and the single word under it).
+ *      on "give up" (a multiword match and the single word under it).
  *
  * No lemmatiser runs here: the forms table *is* the English inflection list,
  * taken from Wiktionary rather than guessed at.
@@ -190,7 +190,7 @@ export function define({ surface, after = '' }: EnQuery): Entry[] {
 		if (!rows.length) continue;
 		const found = rows.map(entryOf);
 		// The phrase answers the tap, and the word inside it is worth showing
-		// under it, because a reader may have tapped only part of it (c198).
+		// under it, because a reader may have tapped only part of it.
 		if (n > 1) {
 			for (const row of find(first)) {
 				if (!found.some((e) => e.headword === row.word && e.senses[0]?.pos[0] === row.pos))

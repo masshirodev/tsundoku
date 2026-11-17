@@ -2,13 +2,14 @@ import nodePath from 'node:path';
 
 /**
  * `node:path` for server code, writing every path with `/` (doc/DISTRIBUTION.md,
- * "Windows paths"; card c183).
+ * "Windows paths").
  *
  * The library's own path logic is POSIX: series paths and entry files are
  * stored with `/`, and paths.ts joins and compares with it ("is this file in
  * the library?"). On Linux that's what `node:path` writes. On Windows it
- * writes `\`, so an imported series was stored as `C:\Users\...` beside a data
- * folder of `C:/Users/...`, and every comparison between the two was false.
+ * writes `\`, so an imported series would be stored as `C:\Users\...` beside a
+ * data folder of `C:/Users/...`, and every comparison between the two would
+ * be false.
  * Node takes `C:/Users/...` everywhere it takes `C:\Users\...`, so here every
  * result is written with `/` on Windows, and nothing changes elsewhere: on
  * Linux a backslash is an ordinary character in a file name, never a separator.

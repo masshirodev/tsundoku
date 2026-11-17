@@ -7,7 +7,7 @@ import { num } from '$lib/i18n/format';
 import { m } from '$lib/paraglide/messages';
 
 /**
- * SET UP (doc/SIGN-IN.md; card c189): a friend's first open, choosing a
+ * SET UP (doc/SIGN-IN.md): a friend's first open, choosing a
  * password or none. Only before one is chosen, only on a friend's install,
  * and only while it answers this computer alone: whoever reaches it first
  * would otherwise claim it. serve.ts won't put an install with no login on
@@ -38,7 +38,7 @@ export const actions: Actions = {
 		setSession(cookies, sessionFor(login), url);
 		redirect(303, '/');
 	},
-	/** None, once the page has asked whether they're sure (the owner, 2026-10-30). */
+	/** None, once the page has asked whether they're sure. */
 	none: async ({ request }) => {
 		settable();
 		if ((await request.formData()).get('sure') !== 'yes')

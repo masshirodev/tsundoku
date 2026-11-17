@@ -7,12 +7,12 @@ import { chapterAtSource } from '../engine/worker.ts';
 import { entryOriginSql } from '../season-facts.ts';
 
 /**
- * A chapter read online (doc/READING-ONLINE.md, "Manga online"; card c166): a
+ * A chapter read online (doc/READING-ONLINE.md, "Manga online"): a
  * chapter with no file, from a series a source serves, read straight from
  * the source through the engine. Nothing is written: the page list is kept
  * in memory a few minutes, and each page passes through on its way to the
- * reader, which holds it only while it's near (the owner's answer to
- * question 4: the tablet keeps downloaded chapters, never online pages).
+ * reader, which holds it only while it's near (the tablet keeps downloaded
+ * chapters, never online pages).
  */
 
 /** How long a chapter's page list is trusted: a source's addresses go stale, and the engine forgets its tokens on restart. */
@@ -37,7 +37,7 @@ export function readsOnline(entryId: number, db = getDb()): boolean {
 }
 
 /**
- * Whether an episode streams (doc/ANIME.md, "Streams"; c536): no file, an
+ * Whether an episode streams (doc/ANIME.md, "Streams"): no file, an
  * Aniyomi series' episode with its own address at the source, from a source
  * an installed extension serves -- the episode's own source when it was kept
  * from one the series left (doc/MOVE.md). The player's `episodeStreams` asks

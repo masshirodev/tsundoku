@@ -18,7 +18,7 @@ import type { Kind } from '../library/types.ts';
 import { KINDS, kindFacts } from '../library/kinds.ts';
 
 /**
- * The SETTINGS page's library half (doc/SETTINGS.md; card c171): the values
+ * The SETTINGS page's library half (doc/SETTINGS.md): the values
  * kept on the workstation, how many series differ from each default, and
  * one checked way to set or reset any of them. A device's own values are
  * its browser's and devices.ts'.
@@ -90,7 +90,7 @@ export type OverrideCounts = {
 export function overrideCounts(reveal: boolean): OverrideCounts {
 	const db = getDb();
 	const mode: Partial<Record<Kind, number>> = {};
-	// Every kind with a direction: a video kind has none to override (card c305).
+	// Every kind with a direction: a video kind has none to override.
 	for (const kind of KINDS.filter((k) => kindFacts(k).medium !== 'video')) {
 		const def = kindDirection(kind);
 		mode[kind] = (
@@ -122,9 +122,9 @@ export function overrideCounts(reveal: boolean): OverrideCounts {
 
 /**
  * A book of text keeps its page direction in a column of its own
- * (`series.text_direction`, c440; doc/TEXT-READER.md, "Direction"): NULL is
- * L→R, the only default, since the owner chose no SETTINGS default for it
- * (c552). So a novel differs when it is kept R→L; a chosen 'ltr' (c617) reads
+ * (`series.text_direction`, doc/TEXT-READER.md, "Direction"): NULL is
+ * L→R, the only default, since SETTINGS has no default for it.
+ * So a novel differs when it is kept R→L; a chosen 'ltr' reads
  * as NULL does and is not counted. The registry says which kinds read text.
  */
 const TEXT_KINDS = KINDS.filter((k) => kindFacts(k).medium === 'text');
@@ -140,13 +140,13 @@ export type ModeOverride = {
 	kind: Kind;
 	/** Its own mode (a comic) or layout (a novel), where it differs from the kind's default. */
 	direction: string | null;
-	/** A novel kept R→L (c552): its page direction differs from L→R. */
+	/** A novel kept R→L: its page direction differs from L→R. */
 	rtl: boolean;
 };
 
 /**
  * MODE's and LAYOUT's N SERIES DIFFER → opened: each series reading against
- * its kind's default, a novel kept R→L among them (c552).
+ * its kind's default, a novel kept R→L among them.
  */
 export function modeOverrides(reveal: boolean): ModeOverride[] {
 	return (
@@ -177,12 +177,12 @@ export function modeOverrides(reveal: boolean): ModeOverride[] {
 
 /**
  * ✕ on a series that reads its own way: back to its kind's defaults, and only
- * what its line names (c637; doc/SETTINGS.md). A `direction` equal to the
+ * what its line names (doc/SETTINGS.md). A `direction` equal to the
  * kind's default is not on the line and stays: REMEMBER stored it as a choice,
  * so it must not start following a later change of default. A novel's page
- * direction goes whichever way it was chosen (c552, c617): a chosen 'ltr' reads
+ * direction goes whichever way it was chosen: a chosen 'ltr' reads
  * as NULL does, so the line has nothing to name, but left behind it would travel
- * through a later fold as a choice the owner had just cleared. A comic's
+ * through a later fold as a choice the user had just cleared. A comic's
  * `text_direction`, left from a time it was a novel, is not its to clear. A kind with no default (`kindDirection` undefined) is never listed.
  */
 export function clearModes(seriesIds: number[]): void {

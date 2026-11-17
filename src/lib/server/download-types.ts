@@ -3,7 +3,7 @@ import type { DownloadState, QueueItem, ResultMatch } from '../library/downloads
 /**
  * What the download screens are handed (doc/DOWNLOADS.md): the shapes the
  * engine's backend answers in (engine/backend.ts, through server/downloads.ts).
- * They began as Suwayomi's and outlived it (card c129).
+ * They began as Suwayomi's and outlived it.
  */
 
 /** The download queue, in the order it downloads. */
@@ -24,7 +24,7 @@ export type SeriesDownloads =
 			/** FOLLOW: whether it's on, and when the source was last asked for new chapters. */
 			follow: { on: boolean; checked: number | null };
 			/**
-			 * REFRESH (card c220): the series has a source to ask now, and is in
+			 * REFRESH: the series has a source to ask now, and is in
 			 * the library. False for a folder-scanned series, which has none.
 			 */
 			refreshable?: boolean;
@@ -48,8 +48,8 @@ export type SearchHit = {
 	meta: string;
 	match: ResultMatch;
 	/**
-	 * A preview's ADD or a SELECT press is adding it right now (card c868;
-	 * `isAdding`): a source's page draws it ADDING, not tickable. Set by
+	 * A preview's ADD or a SELECT press is adding it right now
+	 * (`isAdding`): a source's page draws it ADDING, not tickable. Set by
 	 * `shelf` as it answers; absent elsewhere.
 	 */
 	adding?: boolean;

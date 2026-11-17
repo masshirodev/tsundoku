@@ -32,26 +32,25 @@ import {
 import type { Kind } from '../library/types.ts';
 
 /**
- * An anime's catalogue links, one per season (doc/LINKS.md, doc/TRACKING.md;
- * card c240, the owner's decision A). AniList and MAL list each season as its
+ * An anime's catalogue links, one per season (doc/LINKS.md, doc/TRACKING.md).
+ * AniList and MAL list each season as its
  * own entry, and a tsundoku series holds several, so `series_links` -- one row
  * a series, which is right for a manga or a novel -- cannot say which entry a
  * season's episodes belong to. This module owns the row that can:
  * `series_season_links`, keyed by series, season and part.
  *
  * - **Season 0 is a flat list**, and one entry covering the whole run. A link
- *   made before rung 62 lived in `series_links` alone; rung 68 (c383) moved
+ *   made before migration 62 lived in `series_links` alone; migration 68 moved
  *   each onto its season's row -- the lowest numbered season, or season 0 for
  *   a flat list (doc/LINKS.md, "A link from before the seasons"). `legacyLink`
- *   still reads such a row wherever no season row exists, for a door that
- *   might write one; none does for an anime today. Rung 74 (c467) took away
+ *   still reads such a row wherever no season row exists, for a route that
+ *   might write one; none does for an anime. Migration 74 took away
  *   every anime's row that had a season row beside it, so a `series_links`
  *   row of an anime is only ever this fallback.
  * - **Two parts** are one season a catalogue split in two: part 2 begins
  *   after part 1's episode count (`episodes`, stored with the link).
  * - **The other seasons** come from the linked entry's own PREQUEL/SEQUEL
- *   relations, matched by order along the chain and checked by episode count
- *   (the design's "LINKING FOUR SEASONS WITHOUT FOUR SEARCHES").
+ *   relations, matched by order along the chain and checked by episode count.
  */
 
 export type SeasonVia = Via | 'relations';
@@ -126,13 +125,13 @@ export function seasonLinks(seriesId: number, db: Database.Database = getDb()): 
 }
 
 /**
- * The link a series had before rung 62, read as season 0's: `series_links`
+ * The link a series had before migration 62, read as season 0's: `series_links`
  * kept meaning what it always meant -- one entry for the series -- and an
  * anime nobody split has one season (or none given), which is exactly that.
  * The caller says which season it is attributed to (the first one in its
- * list), since only the list knows. Rung 68 (c383) gave every such anime its
+ * list), since only the list knows. Migration 68 gave every such anime its
  * season row, so for an anime this answers only beside no season row at all:
- * a `series_links` row no door writes for an anime today (the import's
+ * a `series_links` row nothing writes for an anime (the import's
  * `linkFromTracker` is Mihon's, whose series are comics).
  */
 export function legacyLink(seriesId: number, db: Database.Database = getDb()): SeasonLink | null {
@@ -173,10 +172,10 @@ export function legacyLink(seriesId: number, db: Database.Database = getDb()): S
 /**
  * The season (and part) of this series that already holds the entry, other
  * than the one named: no two seasons or parts of one show are ever the same
- * AniList or MAL entry (wave 17, round 2). AniList's search for "Show Season
+ * AniList or MAL entry. AniList's search for "Show Season
  * 2" lists "Show" too, so season 1's entry turns up among season 2's hits;
  * linking it there would send season 2's episode numbers to season 1's entry.
- * A link of the series' from before rung 62, with no season row beside it,
+ * A link of the series' from before migration 62, with no season row beside it,
  * is its first season's (as `seriesSeasons` reads it).
  */
 export function seasonHolding(
@@ -200,7 +199,7 @@ export function seasonHolding(
 	return other ? { season: other.season, part: other.part } : null;
 }
 
-/** A series' kind, its title, and whether it is hidden: what every season door asks first. */
+/** A series' kind, its title, and whether it is hidden: what every season action asks first. */
 export function seriesRow(seriesId: number, db: Database.Database = getDb()) {
 	return db
 		.prepare(
@@ -210,27 +209,27 @@ export function seriesRow(seriesId: number, db: Database.Database = getDb()) {
 		.get(seriesId) as { kind: Kind; title: string; hidden: number } | undefined;
 }
 
-/** The season an anime's doors write and read by default: the one CONTINUE is in, or the first. */
+/** The season an anime's actions write and read by default: the one CONTINUE is in, or the first. */
 export function openSeasonOf(seriesId: number): number {
 	const view = seriesSeasons(seriesId);
 	return view?.open ?? 0;
 }
 
 /**
- * The season of an anime that still wants a look: the one a door that names
+ * The season of an anime that still wants a look: the one an action that names
  * no season acts on (`link`, `noneOfThese`, `offered`, `searchNow`, SKIP and a
  * pass row with no season, `/links?series=N` with no `&season`). The pass and
- * the review queue name their own season, a row and an item a season (wave
- * 17, c352), so they do not ask this. That is the
- * open season when it has neither a link nor a decision, otherwise the first
- * season in list order with neither, otherwise none (c240, round 2).
+ * the review queue name their own season, a row and an item a season, so
+ * they do not ask this. That is the open season when it has neither a link
+ * nor a decision, otherwise the first season in list order with neither,
+ * otherwise none.
  *
  * This is the TypeScript twin of `NEEDS_LOOK` in `catalogue.ts`: a season is
  * `COALESCE(entries.season, 0)` over the series' unshadowed entries, and it is
  * settled by any `series_season_links` or `season_link_decisions` row at that
  * season, whatever the part. A series with no season rows at all keeps the
  * series-level gate there, so a link or decision of the series' own (one made
- * before rung 62) leaves nothing to look at here either. The two must agree:
+ * before migration 62) leaves nothing to look at here either. The two must agree:
  * a series `NEEDS_LOOK` lets in has a season here, and one it keeps out has
  * none.
  *
@@ -301,7 +300,7 @@ export type SeasonView = SeasonSpan & {
 	candidates: number;
 	searched: boolean;
 	queued: boolean;
-	/** NONE OF THESE (`none`) or UNLINK (`unlinked`) settled it: no pass asks again (c240). */
+	/** NONE OF THESE (`none`) or UNLINK (`unlinked`) settled it: no pass asks again. */
 	decision: SeasonDecision | null;
 	/** What FIND asks AniList for. */
 	searchTitle: string;
@@ -362,7 +361,7 @@ export function seriesSeasons(
 			});
 	}
 	// The season's own search is part 1's: a `+ A SECOND PART` visit writes
-	// part 2's row, which never stands for the season's (c350).
+	// part 2's row, which never stands for the season's.
 	const searched = db
 		.prepare(
 			`SELECT season, searched_at, found FROM season_link_searches WHERE series_id = ? AND part = 1`
@@ -394,10 +393,10 @@ export function seriesSeasons(
 			0,
 		seasons: spans.map((span) => {
 			const own = links.filter((l) => l.season === span.season);
-			// The series' own link before rung 62 is the first season's (or the
+			// The series' own link before migration 62 is the first season's (or the
 			// flat list's), never a later season's: it covers the whole run.
 			const first = spans[0]?.season ?? 0;
-			// A link from before rung 62 stands for the series, so it is read as a
+			// A link from before migration 62 stands for the series, so it is read as a
 			// season's only when no season has a row of its own.
 			const old =
 				!links.length && (span.season === 0 || span.season === first)
@@ -436,7 +435,7 @@ export function seriesSeasons(
 
 /**
  * The catalogue entry an anime's episode is in, and its number there: what
- * AniSkip is keyed by (c349). An episode is its season's, so it is read from
+ * AniSkip is keyed by. An episode is its season's, so it is read from
  * that season's own row (`series_season_links`) -- part 2 of a season split
  * in two from part 2's, numbered from 1 within it (the season's EP. 13 is
  * part 2's EP. 1) -- and never from another season's, so season 2's EP. 3 is
@@ -446,13 +445,13 @@ export function seriesSeasons(
  * One part is the whole season, however its episodes are numbered, and its
  * span is not consulted: a season the source lists longer than the entry is
  * still that entry's. The exception is a season whose only row is a later
- * part (an orphaned part 2, c592): its `partsOf` span is empty, because part
+ * part (an orphaned part 2): its `partsOf` span is empty, because part
  * 1's count is what would place it and that row is gone, so `partOf` answers
- * null for every episode and no skip times are asked for any of them (c642).
+ * null for every episode and no skip times are asked for any of them.
  * Reading "one part" as the whole season regardless would ask part 2's entry
  * for the season's EP. 3 as its EP. 3.
  *
- * Only a series with no season rows at all, linked before rung 62, reads
+ * Only a series with no season rows at all, linked before migration 62, reads
  * `series_links`: its one link is its first season's or its flat list's
  * (`legacyLink`), so an episode of season 0 or 1 is that entry's and a later
  * season's is nobody's. Null for no entry, or an episode its parts don't
@@ -477,9 +476,9 @@ export function episodeEntry(
 	const sv = seriesSeasons(seriesId, db)?.seasons.find((x) => x.season === s);
 	if (!sv) return null;
 	// One part is the whole season, however its episodes are numbered -- unless
-	// that one part is a later one (an orphaned part 2, c592): its span is
+	// that one part is a later one (an orphaned part 2): its span is
 	// empty and `partOf` answers null, where reading it as the whole season
-	// would number EP. 3 as part 2's (c642).
+	// would number EP. 3 as part 2's.
 	const at =
 		sv.parts.length > 1 || (sv.parts[0]?.part ?? 1) > 1
 			? partOf(sv.parts, number)
@@ -492,11 +491,11 @@ export function episodeEntry(
 
 /**
  * The show's own ids, for what names the whole show to another service
- * (Jellyfin's `tvshow.nfo`; c381): season 1's link, else the earliest season
- * linked, part 1 first, among links to an anime's own kind of entry (c395,
- * `ownEntry`'s rule, which the caller passes in). Read from the season rows,
+ * (Jellyfin's `tvshow.nfo`): season 1's link, else the earliest season
+ * linked, part 1 first, among links to an anime's own kind of entry
+ * (`ownEntry`'s rule, which the caller passes in). Read from the season rows,
  * so a show with only season 2 linked still has ids; `series_links` answers
- * only for a series linked before rung 62, with no season rows.
+ * only for a series linked before migration 62, with no season rows.
  */
 export function showEntry(
 	seriesId: number,
@@ -519,15 +518,15 @@ export function showEntry(
 // ---- writing -------------------------------------------------------------------------------
 
 /**
- * Link a season (or one of its parts) to an entry the owner chose. Replaces a
- * link it had; a link of the series' before rung 62 goes with it, since the
+ * Link a season (or one of its parts) to an entry the reader chose. Replaces a
+ * link it had; a link of the series' before migration 62 goes with it, since the
  * season's own row now says what that one said. AniSkip's answers go too, as
- * at every other link door.
+ * at every other way of linking.
  *
  * Refused (false, nothing written) when another season or part of the show
- * holds the entry (`seasonHolding`), whatever the door: the pass's sure
- * match, the owner's list, the relations, the queue's LINK and a pasted link
- * all come through here, so the rule holds at every one (wave 17, round 2).
+ * holds the entry (`seasonHolding`), whatever the route: the pass's sure
+ * match, the reader's list, the relations, the queue's LINK and a pasted link
+ * all come through here, so the rule holds at every one.
  */
 export function linkSeason(
 	seriesId: number,
@@ -574,9 +573,9 @@ export function linkSeason(
 }
 
 /**
- * A season has its own say now, so the link from before rung 62 is over: at a
- * LINK its row has replaced it, and at an UNLINK the owner asked for it to go.
- * This is the one write an anime's `series_links` row still gets (c467), and it
+ * A season has its own say, so the link from before migration 62 is over: at a
+ * LINK its row has replaced it, and at an UNLINK the reader asked for it to go.
+ * This is the one write an anime's `series_links` row gets, and it
  * is a delete: a comic's row is never touched, since a comic has no seasons to
  * link and never comes here.
  */
@@ -586,7 +585,7 @@ function dropLegacyLink(seriesId: number, db: Database.Database): void {
 
 /**
  * The season that stands for the show: its first, season 1 or a flat list,
- * part 1. A later season's entry is not the show's (c240), so with only a later
+ * part 1. A later season's entry is not the show's, so with only a later
  * one linked there is none. The cover chain's second answer (`linkCover`).
  */
 export function firstSeasonLink(
@@ -599,14 +598,13 @@ export function firstSeasonLink(
 }
 
 /**
- * A season's second part by hand (c350; the design's `+ A SECOND PART`,
- * `FROM EP. 13`): where it starts, or why there is none to link.
+ * A season's second part by hand (`+ A SECOND PART`, `FROM EP. 13`): where it starts, or why there is none to link.
  *
  * `series_season_links` keeps no start for a part: part 2 begins after part
  * 1's episode count (`partsOf`), and the send counts within it from there
  * (`targets()`, tracking.ts). So `FROM EP. n` is part 1's count + 1, filled
- * from part 1's entry as the design says, and a different `n` has nowhere to
- * live: the door refuses it (`secondPartRefusal`) rather than store a start
+ * from part 1's entry, and a different `n` has nowhere to
+ * live: the action refuses it (`secondPartRefusal`) rather than store a start
  * that every reader would ignore. A season can hold two parts at most
  * (`CHECK (part IN (1, 2))`).
  */
@@ -651,7 +649,7 @@ export function secondPart(
 
 /**
  * Why a second part asked to start at `from` is refused, or null: it must
- * start where part 1's count ends, the one start the schema can keep (c350).
+ * start where part 1's count ends, the one start the schema can keep.
  */
 export function secondPartRefusal(seriesId: number, season: number, from: number): string | null {
 	const p = secondPart(seriesId, season);
@@ -667,7 +665,7 @@ export type SeasonPick = { season: number; part: number; anilistId: number };
 /**
  * A pick that was not linked, and why: another season or part of the show
  * holds the entry (`heldBy`), or it is no longer among the season's offers
- * (`heldBy` null). The page names each one (c418).
+ * (`heldBy` null). The page names each one.
  */
 export type RefusedPick = {
 	season: number;
@@ -692,7 +690,7 @@ function storedCandidate(
 	return r ? (JSON.parse(r.data) as Candidate) : null;
 }
 
-/** Thrown inside a season's write to undo every part of it (c466). */
+/** Thrown inside a season's write to undo every part of it. */
 class PairRefused extends Error {}
 
 /** Every column of a season's link row past its key: what a LINK N SEASONS UNDO puts back. */
@@ -716,7 +714,7 @@ type DecisionFacts = { decision: 'none' | 'unlinked'; at: number };
 
 /**
  * What LINK N SEASONS wrote, season by season, and each part as it stood
- * before the post (c595): the band's UNDO carries it, so a wrong pick across
+ * before the post: the band's UNDO carries it, so a wrong pick across
  * several seasons is taken back whole and never from a fresh read. `after` is
  * the row the post wrote at a part (null where it wrote none); `before` and
  * `decision` are what stood there, restored by the UNDO. A season's facts
@@ -772,7 +770,7 @@ const sameRow = (a: RowFacts | null, b: RowFacts | null) =>
 const sameDecision = (a: DecisionFacts | null, b: DecisionFacts | null) =>
 	(!a && !b) || (!!a && !!b && a.decision === b.decision && a.at === b.at);
 
-/** A row as posted, read back as the columns it may carry and nothing else (c595). */
+/** A row as posted, read back as the columns it may carry and nothing else. */
 function rowFromFacts(raw: unknown): RowFacts | null {
 	if (!raw || typeof raw !== 'object') return null;
 	const o = raw as Record<string, unknown>;
@@ -841,7 +839,7 @@ function putRow(
 }
 
 /**
- * UNDO on LINK N SEASONS' band (c595): every season the post wrote, back as
+ * UNDO on LINK N SEASONS' band: every season the post wrote, back as
  * it stood, and only those. All or nothing -- one transaction, since a band
  * that said "UNDO" and took back half a post would be a lie -- and never over
  * a newer act: a part linked, unlinked (a decision) or decided again since
@@ -889,9 +887,9 @@ export function undoSeasonLinks(facts: SeasonUndoFacts): 'undone' {
 				}
 			// Restoring a row is a link too: after the post moved a season off an
 			// entry, a season outside its facts may have taken that entry, and the
-			// table has no unique index to stop two seasons holding one (c595's
-			// round 2). Ask at the door every link asks, and take the whole UNDO
-			// back rather than write the state no link door allows.
+			// table has no unique index to stop two seasons holding one. Ask the
+			// check every link asks, and take the whole UNDO back rather than
+			// write the state no link allows.
 			for (const s of facts.seasons)
 				for (const p of s.parts) {
 					if (!p.before) continue;
@@ -908,14 +906,14 @@ export function undoSeasonLinks(facts: SeasonUndoFacts): 'undone' {
 }
 
 /**
- * LINK N SEASONS (c418): each pick read back through `offeredSeason`, at its
+ * LINK N SEASONS: each pick read back through `offeredSeason`, at its
  * own part (a pair's part 2 is part 2's offer), then written by `linkSeason`.
  * What was linked and what was refused, so the page says the true count and
  * names the rest, rather than counting its own ticks. Seasons are taken in
  * the order their first pick comes, so two seasons' picks of one entry link
  * the first and refuse the second.
  *
- * **A season is written whole or not at all** (c466, the owner's (b)): its
+ * **A season is written whole or not at all**: its
  * picks -- a split season's two parts -- go in one transaction, and when any
  * part is refused (held by another season or part, or no longer offered) the
  * others are taken back with it, so a season never tracks half its
@@ -926,7 +924,7 @@ export function undoSeasonLinks(facts: SeasonUndoFacts): 'undone' {
  * `SEASON 2 NOT LINKED · SEASON 3 HOLDS ITS ENTRY`. The same pick twice is
  * one pick.
  *
- * `facts` is what the band's UNDO carries (c595): every season written
+ * `facts` is what the band's UNDO carries: every season written
  * whole, its parts as the post left them and as they stood before, for
  * `undoSeasonLinks`. Null when nothing was written.
  */
@@ -1030,11 +1028,11 @@ export function linkPicks(
 }
 
 /**
- * LINK N SEASONS' band counts seasons, not parts (c418, round 2): a pair
+ * LINK N SEASONS' band counts seasons, not parts: a pair
  * linked whole is one season, and a pair with a part refused is that one
  * season refused, its part named by the refusal's own line. `of` is every
  * season picked; `linked` the seasons every picked part of which was written.
- * Since c466 `linkPicks` never writes half a pair, so a season is in one
+ * `linkPicks` never writes half a pair, so a season is in one
  * list or the other; a season in both still counts as refused.
  */
 export function seasonsLinked(
@@ -1050,11 +1048,11 @@ export function seasonsLinked(
 export class SeasonUndoRefused extends Error {}
 
 /**
- * UNDO, just after a LINK: the row goes; a link of the series' before rung 62
- * is NOT brought back. A part 1 whose season also holds a part 2 is refused
- * (c592): taking it back alone would leave part 2 without the part 1 its
+ * UNDO, just after a LINK: the row goes; a link of the series' before migration 62
+ * is NOT brought back. A part 1 whose season also holds a part 2 is refused:
+ * taking it back alone would leave part 2 without the part 1 its
  * numbering starts after, and a season whose only row was part 1 and part 2
- * would then send part 1's episodes to part 2's entry. The owner unlinks part
+ * would then send part 1's episodes to part 2's entry. The reader unlinks part
  * 2 first (that writes no decision), or leaves the season whole.
  */
 export function undoSeasonLink(seriesId: number, season: number, part = 1): boolean {
@@ -1112,7 +1110,7 @@ export function seasonSettled(seriesId: number, season: number): boolean {
 
 /**
  * Which decision settled a season, the latest of its parts': the season's
- * line says UNLINKED for an UNLINK and NONE OF THESE only for that (c240).
+ * line says UNLINKED for an UNLINK and NONE OF THESE only for that.
  */
 export function seasonDecision(
 	seriesId: number,
@@ -1173,7 +1171,7 @@ export function offeredSeason(
 		.get(seriesId, season, part, anilistId) as { data: string } | undefined;
 	if (r) {
 		const c = JSON.parse(r.data) as Candidate;
-		// Another season's entry is no candidate of this one (wave 17, round 2).
+		// Another season's entry is no candidate of this one.
 		return seasonHolding(seriesId, season, part, c) ? null : c;
 	}
 	// A season already linked to it: CHANGE asks again from the row's own entry.
@@ -1235,7 +1233,7 @@ export function saveSeasonSearch(
 	return found.length;
 }
 
-// ---- the relations (the design's "LINKING FOUR SEASONS WITHOUT FOUR SEARCHES") --------------
+// ---- the relations ----------------------------------------------------------------------
 
 type RelNode = {
 	id: number;
@@ -1297,14 +1295,14 @@ export type RelationOffer = {
 	/** The season is already linked to another entry: "REPLACES …", and never ticked. */
 	replaces: string | null;
 	/**
-	 * Another season or part of the show already holds this entry (c418): the
+	 * Another season or part of the show already holds this entry: the
 	 * offer is shown, says which, and is never ticked, since `linkSeason`
 	 * would refuse it.
 	 */
 	heldBy: { season: number; part: number } | null;
 	/**
 	 * A movie, a special, a side story, a spin-off: outside the seasons'
-	 * numbering, dimmed, never ticked, never a season's candidate (c351).
+	 * numbering, dimmed, never ticked, never a season's candidate.
 	 */
 	outside: boolean;
 	candidate: Candidate;
@@ -1324,8 +1322,7 @@ const CHAIN: Record<string, 1 | -1> = { SEQUEL: 1, PREQUEL: -1 };
 
 /**
  * The edges collected beside the chain, and the word each is listed under
- * (c351; the design's `SPECIAL Sword Art Online: Extra Edition` and
- * `SPIN-OFF Gun Gale Online`). Never followed further: a spin-off's own
+ * (`SPECIAL Sword Art Online: Extra Edition`, `SPIN-OFF Gun Gale Online`). Never followed further: a spin-off's own
  * sequel is the spin-off's, not this show's.
  */
 const SIDE: Record<string, string> = {
@@ -1336,7 +1333,7 @@ const SIDE: Record<string, string> = {
 /**
  * The part of a season an entry's own title says it is: 2 for `… Part 2`,
  * `… 2nd Part`, `… Cour 2`, `… 2nd Cour` or `…第2クール`, and so on; null when
- * no title says (c464). AniList's usual shape for one season split in two is
+ * no title says. AniList's usual shape for one season split in two is
  * part 2 as part 1's SEQUEL, which a walk that counts every SEQUEL as the next
  * season places a season too far. Only a title that names a part of 2 or more
  * says so: `Season 2`, `2nd Season`, `II`, `Part 1`, a subtitle or a year say
@@ -1364,14 +1361,14 @@ export function partNumber(title: {
 	return null;
 }
 
-/** "SEASON 3 HOLDS THIS ENTRY": what a door offering a held entry says of it (c418). */
+/** "SEASON 3 HOLDS THIS ENTRY": what a page offering a held entry says of it. */
 export const holdsLine = (h: { season: number; part: number }): string =>
 	`${seasonWords(h)} HOLDS THIS ENTRY`;
 
-/** Side stories before spin-offs, as the design lists them; the chain's own first. */
+/** Side stories before spin-offs; the chain's own first. */
 const sideOrder = (how: string) => Object.values(SIDE).indexOf(how);
 
-/** "SEASON 3", "SEASON 3 PART 2"; season 0, a flat list's, is named by none (c423). */
+/** "SEASON 3", "SEASON 3 PART 2"; season 0, a flat list's, is named by none. */
 const seasonWords = (h: { season: number; part: number }): string =>
 	`${h.season > 0 ? `SEASON ${h.season}` : 'THE EPISODES WITH NO SEASON'}${h.part > 1 ? ` PART ${h.part}` : ''}`;
 
@@ -1381,13 +1378,13 @@ const seasonWords = (h: { season: number; part: number }): string =>
  * the one just linked, and ticked where its episode count agrees with the
  * season's -- or where two entries add up to it, one season in two parts.
  * A movie or a special standing on that chain, and a SIDE_STORY or SPIN_OFF
- * of any entry the walk asked about (c351), is listed outside the numbering:
+ * of any entry the walk asked about, is listed outside the numbering:
  * dimmed, never ticked, and never kept as a season's candidate. An entry
  * another season or part of the show already holds is listed unticked, with
- * the season that holds it (c418). Null when the linked entry is unknown or
+ * the season that holds it. Null when the linked entry is unknown or
  * AniList can't be reached.
  *
- * A season AniList splits in two is usually chained part 1 → part 2 (c464):
+ * A season AniList splits in two is usually chained part 1 → part 2:
  * a SEQUEL whose title says it is a part (`partNumber`) of an entry shorter
  * than the season here is placed beside that entry, as its season's other
  * part, not a season further out. The linked season's own other part is
@@ -1406,7 +1403,7 @@ const seasonWords = (h: { season: number; part: number }): string =>
 export async function seasonRelations(
 	seriesId: number,
 	season: number,
-	/** The owner's token, when there is one; the catalogue is public without it. */
+	/** The reader's token, when there is one; the catalogue is public without it. */
 	token: string | null = null
 ): Promise<RelationOffer[] | null> {
 	const view = seriesSeasons(seriesId);
@@ -1420,7 +1417,7 @@ export async function seasonRelations(
 	if (!start) return null;
 	// Level 0 is the entry just linked; a PREQUEL is -1, a SEQUEL +1. `part`
 	// marks an entry placed beside its neighbour as the other part of its
-	// season (c464), rather than a step from it.
+	// season, rather than a step from it.
 	const level = new Map<number, { node: RelNode; at: number; part: boolean; dir: 1 | -1 }>([
 		[start.id, { node: start, at: 0, part: false, dir: 1 }]
 	]);
@@ -1476,7 +1473,7 @@ export async function seasonRelations(
 		if (level.get(id)!.part) short.push(...placed);
 	}
 	// A part placed beside its neighbour took no step, so the season after it
-	// is one ring further: asked once more, for those parts alone (c464), and
+	// is one ring further: asked once more, for those parts alone, and
 	// for what a first-ring part reached, so a walk from a part reaches two
 	// seasons either way, as a walk from a whole season does.
 	const parts = outer.filter((id) => level.get(id)!.part || short.includes(id));
@@ -1486,14 +1483,14 @@ export async function seasonRelations(
 		if (answer) collect(answer, level.get(id)!.at, answer.relations?.edges ?? []);
 	}
 	// `dir` is the edge that reached a chain entry, which the linked season's
-	// other part is checked against (c464 round 2).
+	// other part is checked against.
 	type Placed = { node: RelNode; at: number; outside: boolean; how: string; dir?: 1 | -1 };
 	const bySeason = new Map<number, Placed[]>();
 	const put = (key: number, x: Placed) => bySeason.set(key, [...(bySeason.get(key) ?? []), x]);
 	for (const [id, v] of level) {
 		if (id === start.id) continue;
 		const kind = candidateKind({ format: v.node.format ?? '', country: '' });
-		// The linked season's own other part stands at step 0 (c464), and is
+		// The linked season's own other part stands at step 0, and is
 		// named by the edge that reached it.
 		const how = ABOVE[v.at] ?? (v.part && v.at === 0 ? ABOVE[v.dir] : undefined);
 		const outside =
@@ -1513,16 +1510,16 @@ export async function seasonRelations(
 		if (id !== start.id && !level.has(id))
 			put(-2, { node: v.node, at: 0, outside: true, how: v.how });
 	const offers: RelationOffer[] = [];
-	// The linked season's other part offered at the slot whose edge disagrees
-	// (c464 round 2): when that slot already holds it, the season's halves are
-	// stored reversed, and the closing pass says so rather than "settled" (c541).
+	// The linked season's other part offered at the slot whose edge disagrees:
+	// when that slot already holds it, the season's halves are
+	// stored reversed, and the closing pass says so rather than "settled".
 	const reversed = new Set<RelationOffer>();
 	// A season's own count is what a catalogue's entry is checked against.
 	const aired = (i: number) => view.seasons[i].aired;
 	for (const [key, list] of bySeason) {
 		if (key < 0) {
 			// Outside the numbering: listed, dimmed, never ticked. Movie and special
-			// first, as the design draws them, then the side stories and spin-offs.
+			// first, then the side stories and spin-offs.
 			list.sort(
 				(a, b) =>
 					Number(a.node.format !== 'MOVIE') - Number(b.node.format !== 'MOVIE') ||
@@ -1545,7 +1542,7 @@ export async function seasonRelations(
 		const have = aired(key);
 		const already = target.link;
 		if (key === at) {
-			// The linked season's other part (c464): the entry just linked is one
+			// The linked season's other part: the entry just linked is one
 			// half, and this the other, at the part the link does not hold.
 			const mine = own.parts.find((p) => p.link?.anilistId === linked.anilistId)?.part ?? 1;
 			const other = mine === 1 ? 2 : 1;
@@ -1628,18 +1625,18 @@ export async function seasonRelations(
 		// The season's own entry, offered back to it: nothing to replace or tick.
 		if (mine && mine.anilistId === o.anilistId) {
 			o.ticked = false;
-			// Already its link, but in the wrong half (c541): written by the
+			// Already its link, but in the wrong half: written by the
 			// round-1 walker or by hand, so each half's episodes go to the other
 			// entry. Drawn as settled, nobody would look again.
 			o.why = reversed.has(o) ? 'ALREADY ITS LINK · THE HALVES ARE REVERSED' : 'ALREADY ITS LINK';
 			continue;
 		}
 		// A season linked already says what its ticks would replace. On the
-		// linked season itself only its other part is offered (c464), and only
+		// linked season itself only its other part is offered, and only
 		// that part's own link would be replaced.
 		const replaced = o.season === season ? mine : target?.link;
 		if (replaced) o.replaces = replaced.title || 'LINKED';
-		// Held by another season or part (c418): `linkSeason` refuses it, so the
+		// Held by another season or part: `linkSeason` refuses it, so the
 		// offer says by which, and is never ticked.
 		const held = seasonHolding(seriesId, o.season, o.part, o.candidate);
 		if (held) {
@@ -1658,13 +1655,13 @@ export async function seasonRelations(
 			o.ticked = false;
 			o.why = `${o.why} · ITS OTHER PART IS HELD`;
 		}
-	// The seasons in order, then what is outside their numbering, as the design
-	// lists it: NOT OFFERED, at the end.
+	// The seasons in order, then what is outside their numbering: NOT OFFERED,
+	// at the end.
 	offers.sort(
 		(a, b) => Number(a.outside) - Number(b.outside) || a.season - b.season || a.part - b.part
 	);
 	// Kept as each season's candidates, so LINK 3 SEASONS reads them back by id
-	// through the same door a searched candidate comes through, rather than
+	// through the same check a searched candidate goes through, rather than
 	// trusting the page's own copy of the entry.
 	rememberOffers(seriesId, offers);
 	return offers;
@@ -1672,8 +1669,8 @@ export async function seasonRelations(
 
 /**
  * The offers as a season's candidates, without touching the search that found
- * it. Only a season's: nothing outside the numbering (c351), and nothing
- * another season holds (c418), which no door would link anyway.
+ * it. Only a season's: nothing outside the numbering, and nothing
+ * another season holds, which nothing would link anyway.
  */
 function rememberOffers(seriesId: number, offers: RelationOffer[]): void {
 	const db = getDb();
@@ -1798,7 +1795,7 @@ export async function resolveSeasonLinks(now = Date.now()): Promise<number> {
 	return n;
 }
 
-/** The entry's own kind, from its stored format: the door OPEN and the send use (c298). */
+/** The entry's own kind, from its stored format: what OPEN and the send use. */
 export const seasonKind = (l: SeasonLink): Kind | null =>
 	l.format ? candidateKind({ format: l.format, country: '' }) : null;
 
@@ -1807,7 +1804,7 @@ export const seasonUntracked = (seriesKind: Kind, l: SeasonLink): boolean =>
 	coverOnly(seriesKind, l.format ?? '') || wrongKind(seriesKind, l.format ?? '');
 
 /**
- * Which season an entry on the owner's list is, by the titles it carries: a
+ * Which season an entry on the reader's list is, by the titles it carries: a
  * season's own search title ("Sword Art Online Season 3") or the series' own
  * for season 1. The open season when nothing matches -- the list gave no
  * season, and the one being watched is the best guess there is.

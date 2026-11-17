@@ -12,21 +12,20 @@ import {
 } from './backup.ts';
 
 /**
- * The IMPORT LOG (c438, doc/IMPORT-BACKUP.md, "The log"): every import of a backup
+ * The IMPORT LOG (doc/IMPORT-BACKUP.md, "The log"): every import of a backup
  * and every scan, newest first, a running or waiting one too. Counts are read
  * through `series` and its root, so a series deleted since stops counting.
  *
- * An import takes everything, whatever the reveal mode (the owner's decision,
- * c633), and its report says so: with reveal off, what belongs to hidden
- * series is counted apart (`HiddenReport`, the section `HiddenFold.svelte`
- * draws) and named nowhere. Hidden means hidden on this screen too: the
- * entry's own counts and lines leave it out, and its titles and Work names
- * appear only with reveal on.
+ * An import takes everything, whatever the reveal mode, and its report says so:
+ * with reveal off, what belongs to hidden series is counted apart
+ * (`HiddenReport`, the section `HiddenFold.svelte` draws) and named nowhere.
+ * Hidden means hidden on this screen too: the entry's own counts and lines
+ * leave it out, and its titles and Work names appear only with reveal on.
  */
 
 /**
  * What a job brought that belongs to hidden series, with reveal off: how many
- * and nothing else (c633; the owner, 2026-11-08). Null when there is none, and
+ * and nothing else. Null when there is none, and
  * always with reveal on, where the entry's own counts and lines say it all.
  */
 export type HiddenReport = {
@@ -99,7 +98,7 @@ export function sourcesLacking(
 }
 
 /**
- * One Work a job's folds took a series out of (c570, rung 71): the line the
+ * One Work a job's folds took a series out of (migration 71): the line the
  * summary printed (`droppedLine`), and the Work's id while that Work still
  * exists and the viewer may see it, so the line can open it.
  */
@@ -107,10 +106,10 @@ export type DroppedEntry = { line: string; workId: number | null };
 
 /**
  * A drop as the job's row keeps it: fold.ts's record, and whether the survivor
- * was hidden the moment the fold finished (c633, written by `runQueued`). A
+ * was hidden the moment the fold finished (written by `runQueued`). A
  * fold hides the survivor when the part folded in was hidden, so this is the
  * one thing that remembers a Work was hidden once the Work has ended and its
- * parts are plain series. Absent on a job from before c633: nothing recorded it.
+ * parts are plain series. Absent on a job from before this was kept: nothing recorded it.
  */
 export type KeptDrop = Dropped & { hiddenAtFold?: boolean };
 
@@ -128,11 +127,10 @@ export type KeptDrop = Dropped & { hiddenAtFold?: boolean };
  * three or more parts can be HIDE ALL'd later while the survivor stays
  * shown. A Work that ended, or whose id another Work now holds, can't be
  * asked, so the fold's own record answers: a survivor hidden at the fold
- * keeps the line off the list however it is shown today (c633: unhiding the
+ * keeps the line off the list however it is shown today (unhiding the
  * survivor alone must not bring back the name of a Work whose other part is
  * still hidden). The link is to the Work by the same id and `created_at`, so
- * a Work that ended is never linked through the id a new Work took (c583's
- * class).
+ * a Work that ended is never linked through the id a new Work took.
  *
  * A line left out is counted when it can be said to belong to something
  * hidden. One whose survivor is gone, about a Work that is gone, with no
@@ -213,9 +211,9 @@ export type LogEntry =
 			seriesDone: number;
 			counts: ImportCounts;
 			outcome: ImportOutcome;
-			/** Works its folds took a series out of (c570). */
+			/** Works its folds took a series out of. */
 			dropped: DroppedEntry[];
-			/** What belongs to hidden series, with reveal off (c633). */
+			/** What belongs to hidden series, with reveal off. */
 			hidden: HiddenReport | null;
 	  }
 	| {
@@ -227,9 +225,9 @@ export type LogEntry =
 			progress: number;
 			series: number;
 			failedFiles: number;
-			/** Works its folds took a series out of (c570). */
+			/** Works its folds took a series out of. */
 			dropped: DroppedEntry[];
-			/** What belongs to hidden series, with reveal off (c633). */
+			/** What belongs to hidden series, with reveal off. */
 			hidden: HiddenReport | null;
 	  };
 
@@ -349,20 +347,19 @@ export function lastImport(reveal: boolean, db: Database.Database = getDb()) {
 }
 
 /**
- * The import that ticked GET STARTED's 03, as its done row names it (c634;
- * c511 put the row there). "The series that first ticked 03" is not recorded
- * anywhere: nothing keeps the moment a step ticks. It is derived from the
- * first series 03 still counts -- the lowest insertion id among the visible
- * series a scan or a backup brought in (`startFacts`'s own rule) -- and that
- * series' job. SQLite hands a new row the highest id plus one, so the first
- * row that made the count non-zero is the lowest id still there; a row
- * deleted since cannot be read either way. When the job is an import's, the
- * row names that import and its count; a scan's job, a series with no job at
- * all (written before jobs, or by hand), or no series at all answers null,
- * and the step keeps the scan's line. Only a finished import names it: one
- * still running, or one that failed partway, has a partial count and has not
- * ticked anything as done yet, so the step keeps the scan's line until it is
- * `done` (the same rule `lastImport` holds).
+ * The import that ticked GET STARTED's 03, as its done row names it. "The
+ * series that first ticked 03" is not recorded anywhere: nothing keeps the
+ * moment a step ticks. It is derived from the first series 03 still counts --
+ * the lowest insertion id among the visible series a scan or a backup brought
+ * in (`startFacts`'s own rule) -- and that series' job. SQLite hands a new row
+ * the highest id plus one, so the first row that made the count non-zero is the
+ * lowest id still there; a row deleted since cannot be read either way. When
+ * the job is an import's, the row names that import and its count; a scan's
+ * job, a series with no job at all (written before jobs, or by hand), or no
+ * series at all answers null, and the step keeps the scan's line. Only a
+ * finished import names it: one still running, or one that failed partway, has
+ * a partial count and has not ticked anything as done yet, so the step keeps
+ * the scan's line until it is `done` (the same rule `lastImport` holds).
  */
 export function tickingImport(
 	reveal: boolean,

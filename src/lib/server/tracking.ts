@@ -53,7 +53,7 @@ import {
 } from '../library/tracking.ts';
 
 /**
- * Tracking (doc/TRACKING.md): the owner's AniList and MAL lists, read, and
+ * Tracking (doc/TRACKING.md): the user's AniList and MAL lists, read, and
  * written forward from what's read here.
  *
  * - **Sign-ins** are OAuth, from SETTINGS: AniList's code grant (a token for
@@ -62,7 +62,7 @@ import {
  *   an entry on the AniList list to its series when the title is sure.
  * - **Sending** follows a chapter finished here (an episode watched, on an
  *   anime): the furthest one, only when it's further than the list has --
- *   within its own season and part (c240). Never for a hidden series, never
+ *   within its own season and part. Never for a hidden series, never
  *   through a cover-only or wrong-kind link, never while incognito (the
  *   reading isn't recorded).
  */
@@ -95,12 +95,12 @@ export const configured = (service: Service) =>
 
 // ---- signing in ---------------------------------------------------------------------------
 
-/** Where a catalogue sends the owner back: registered with each app, exactly. */
+/** Where a catalogue sends the user back: registered with each app, exactly. */
 export const redirectUri = (origin: string, service: Service) =>
 	`${origin}/settings/catalogues/${service}`;
 
 /**
- * The first half of a sign-in: where to send the owner, and what to keep in
+ * The first half of a sign-in: where to send the user, and what to keep in
  * a cookie until they're back (the state, and MAL's verifier).
  */
 export function signInStart(service: Service, origin: string): { url: string; keep: string } {
@@ -206,7 +206,7 @@ export async function signInFinish(
 				expires_at = excluded.expires_at, signed_in_at = excluded.signed_in_at`
 		)
 		.run(service, who.id, who.name, tokens.access, tokens.refresh, tokens.expiresAt, now);
-	// Read in the background: the owner is back on SETTINGS before a long list is.
+	// Read in the background: the user is back on SETTINGS before a long list is.
 	const listRead = readList(service).catch((e: unknown) =>
 		console.error(`tsundoku: reading the ${service} list failed:`, e)
 	);
@@ -219,7 +219,7 @@ export function signOut(service: Service): void {
 	db.transaction(() => {
 		db.prepare(`DELETE FROM tracker_accounts WHERE service = ?`).run(service);
 		db.prepare(`DELETE FROM tracker_sends WHERE service = ?`).run(service);
-		// An anime's sends wait a season at a time (c240): they go with the token too.
+		// An anime's sends wait a season at a time: they go with the token too.
 		db.prepare(`DELETE FROM season_tracker_sends WHERE service = ?`).run(service);
 	})();
 }
@@ -294,7 +294,7 @@ type ListEntry = { mediaId: number; status: Status | null; progress: number; sco
  * family. The family is the *linked entry's* when its format is known -- a
  * manga series linked to a MAL anime entry is on the anime list, and reading
  * the manga list's row for that id would show another work's status and
- * progress (c298's wrong-kind link). With no format yet, the series' own kind
+ * progress (a wrong-kind link). With no format yet, the series' own kind
  * is the best there is.
  */
 const stateKey = (service: Service, media: number, kind: Kind, format: string | null): string =>
@@ -316,8 +316,8 @@ function saveState(
 	const db = getDb();
 	const col = service === 'anilist' ? 'anilist_id' : 'mal_id';
 	// An anime's season rows carry what the list says, below. An anime linked
-	// before rung 62 has had its season row since rung 68 (c383), which also
-	// moved what this had filed for it to the season, and rung 74 (c467) took
+	// before migration 62 has had its season row since migration 68, which also
+	// moved what this had filed for it to the season, and migration 74 took
 	// away the `series_links` row of every anime with a season row; one with no
 	// season rows at all would still be filed here.
 	const links = db
@@ -328,7 +328,7 @@ function saveState(
 				AND NOT EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = l.series_id)`
 		)
 		.all() as { series_id: number; media: number; format: string | null; kind: Kind }[];
-	// An anime's links are per season (c240): the row that says what the list
+	// An anime's links are per season: the row that says what the list
 	// has of a season is `season_tracker_state`, keyed the season's own way.
 	const seasons = db
 		.prepare(
@@ -397,7 +397,7 @@ function saveState(
 }
 
 /**
- * Read the owner's list on one catalogue: what it says of each linked
+ * Read the user's list on one catalogue: what it says of each linked
  * series. Both of AniList's lists are read (manga and anime), and both of
  * MAL's, since a series is linked to whichever kind it is. AniList's lists
  * also link: an entry whose title is sure for exactly one unlinked series of
@@ -517,12 +517,12 @@ function linkFromEntries(
 		for (const t of titles)
 			for (const s of index.get(normaliseTitle(t)) ?? []) found.set(s.id, s.kind);
 		// Of the series' own kind only: a list entry across kinds is no sure link
-		// (a manga's title on an anime is another work; c298).
+		// (a manga's title on an anime is another work).
 		const entryKind = candidateKind(c);
 		const fits = [...found].filter(([, kind]) => sameKind(kind, entryKind));
 		if (fits.length !== 1) continue;
 		const [seriesId, kind] = fits[0];
-		// An anime's entry is one season of the show (c240): the season whose own
+		// An anime's entry is one season of the show: the season whose own
 		// title it names, or the one being watched.
 		if (isAnime(kind)) {
 			if (!linkSeasonFromList(seriesId, c, e.score || null, now)) continue;
@@ -539,7 +539,7 @@ function linkFromEntries(
 }
 
 /**
- * A link from the owner's AniList list to one season of an anime (c240): the
+ * A link from the user's AniList list to one season of an anime: the
  * season the entry's own title names, else the one being watched. The series'
  * rating is filled once, as any link from the list does (1w), and the score
  * is kept on the season's own row.
@@ -548,7 +548,7 @@ function linkFromEntries(
  * (false), as is an entry another season or part of the show holds: the series is offered while any one of its seasons is still open
  * (`linkableByTitle`), but an entry found by the series' own title names its
  * first season, and an entry that only shares that title (a movie, another
- * cut) must not replace the owner's link or undo their NONE OF THESE (c240).
+ * cut) must not replace the user's link or undo their NONE OF THESE.
  */
 export function linkSeasonFromList(
 	seriesId: number,
@@ -563,7 +563,7 @@ export function linkSeasonFromList(
 	const view = seriesSeasons(seriesId);
 	const part = view?.seasons.find((s) => s.season === season)?.parts[0]?.part ?? 1;
 	// An entry another season of the show holds is refused by `linkSeason`,
-	// and then nothing is filled either (wave 17, round 2).
+	// and then nothing is filled either.
 	return db.transaction(() => {
 		if (!linkSeason(seriesId, season, part, c, 'list', now)) return false;
 		const filled = fillRating(db, seriesId, score);
@@ -590,7 +590,7 @@ export async function readLists(now = Date.now()): Promise<void> {
  * Whether AniList and MAL take this kind's progress at all: an anime (by
  * season) and a comic do; a novel's chapters still go to Ranobe alone
  * (doc/TRACKING.md, "Not yet"), and a doujin is never linked. The LISTS row
- * reads it to put the line that tracks first (c424).
+ * reads it to put the line that tracks first.
  */
 export function catalogueTracks(kind: Kind): boolean {
 	if (isAnime(kind)) return true;
@@ -600,7 +600,7 @@ export function catalogueTracks(kind: Kind): boolean {
 
 /**
  * Where a series' progress may go: each catalogue signed in whose entry the
- * link names. A season of an anime is its own target (c240), with the episode
+ * link names. A season of an anime is its own target, with the episode
  * range its part covers; a comic is one target for the whole series.
  */
 type Target = {
@@ -610,12 +610,12 @@ type Target = {
 	/** The season this target is (0 for a comic, or a flat list). */
 	season: number;
 	part: number;
-	/** The entry's own kind: it decides the MAL endpoint and the field (c240). */
+	/** The entry's own kind: it decides the MAL endpoint and the field. */
 	kind: Kind;
 	/** The first and last episode of the season's part, in the season's numbering. */
 	from: number;
 	to: number;
-	/** The season's last linked part: past its count, an episode waits (c240). */
+	/** The season's last linked part: past its count, an episode waits. */
 	last: boolean;
 };
 
@@ -651,10 +651,9 @@ function watchedRows(seriesId: number) {
 
 /**
  * Where a series' progress may go: each catalogue signed in whose entry the
- * link names. None for a hidden series, a series whose source is NEVER TRACKED
- * (c522), a cover-only link, or a season whose own link names nothing. Both
- * kinds whose unit is an episode or a chapter send (c240 widened this from
- * comics alone): an anime sends the episode within its season, a comic its
+ * link names. None for a hidden series, a series whose source is NEVER
+ * TRACKED, a cover-only link, or a season whose own link names nothing. Both
+ * kinds whose unit is an episode or a chapter send: an anime sends the episode within its season, a comic its
  * chapter.
  *
  * This is the one gate every send is queued through (`queueProgress`,
@@ -680,7 +679,7 @@ function targets(seriesId: number): Target[] {
 			for (const p of sv.parts) {
 				const l = p.link;
 				if (!l) continue;
-				// The same refusals as a comic's (c298, c240): a wrong-kind entry and
+				// The same refusals as a comic's: a wrong-kind entry and
 				// a cover-only link send nothing, and the season is left out.
 				if (seasonUntracked(r.kind, l)) continue;
 				const kind = seasonKind(l) ?? r.kind;
@@ -707,7 +706,7 @@ function targets(seriesId: number): Target[] {
 		{ anilist_id: number | null; mal_id: number | null; format: string | null } | undefined;
 	if (!l) return [];
 	if (coverOnly(r.kind, l.format ?? '')) return [];
-	// A link whose entry is the other kind sends nothing (c298): an anime entry
+	// A link whose entry is the other kind sends nothing: an anime entry
 	// never takes a manga's chapters, nor the other way round. An entry whose
 	// format isn't known yet is not a contradiction.
 	const entryKind = l.format ? candidateKind({ format: l.format, country: '' }) : null;
@@ -784,7 +783,7 @@ function want(
 
 /**
  * What a target has to send: the highest chapter read here (a comic), or the
- * highest episode watched in the season -- within its part (c240). Both are
+ * highest episode watched in the season -- within its part. Both are
  * counted in the entry's own numbering, so part 2's EP. 3 is what a catalogue
  * hears about, not EP. 15.
  */
@@ -807,7 +806,7 @@ function reachedFor(t: Target, o: { chapters: number }): number {
  * A chapter (or an episode) of this series was finished here: the furthest
  * one read, to every catalogue that has less. Returns how many sends it
  * queued. An anime queues one per season, and a part's send never overwrites
- * its sibling's: they are separate rows (c240).
+ * its sibling's: they are separate rows.
  */
 export function queueProgress(seriesId: number, now = Date.now()): number {
 	const t = targets(seriesId);
@@ -823,8 +822,8 @@ export function queueProgress(seriesId: number, now = Date.now()): number {
 		const reached = reachedFor(target, { chapters });
 		if (reached <= 0) continue;
 		const remote = stateRow(target);
-		// The part's last counted episode watched finishes the entry (c240): the
-		// design's "its last sends COMPLETED", unless the owner has it ON HOLD or
+		// The part's last counted episode watched finishes the entry: the
+		// last one sends COMPLETED, unless the user has it ON HOLD or
 		// DROPPED (`progressToSend`). A season in two parts completes
 		// each part on its own count, which is what `reached` is already in.
 		const complete = isAnime(target.kind) && reached >= target.to - target.from + 1;
@@ -842,9 +841,9 @@ export function queueProgress(seriesId: number, now = Date.now()): number {
 }
 
 /**
- * The TRACKING sheet's edit (Series Link 1m): status and score, to both
+ * The TRACKING sheet's edit: status and score, to both
  * catalogues. An anime sets the season it was asked about (`season`, `part`);
- * the others keep their own (c240).
+ * the others keep their own.
  */
 export function editTracking(
 	seriesId: number,
@@ -878,14 +877,14 @@ async function sendOne(
 				mediaId: t.mediaId,
 				...(w.progress !== null ? { progress: w.progress } : {}),
 				...(w.status ? { status: statusTo('anilist', w.status, t.kind) } : {}),
-				// Out of 10 here; scoreRaw is AniList's 100, whatever format the owner shows.
+				// Out of 10 here; scoreRaw is AniList's 100, whatever format the user shows.
 				...(w.score !== null ? { scoreRaw: Math.round(w.score * 10) } : {})
 			}
 		);
 		return;
 	}
 	// MAL keeps two lists: an anime entry takes `num_watched_episodes` on
-	// `/anime/`, a manga's entry `num_chapters_read` on `/manga/` (c240).
+	// `/anime/`, a manga's entry `num_chapters_read` on `/manga/`.
 	const anime = isAnime(t.kind);
 	const form: Record<string, string> = {};
 	if (w.progress !== null)
@@ -940,7 +939,7 @@ function pruneSends(seriesId: number, live: Target[]): void {
 /**
  * Send what waits: each catalogue its own, one at a time. A send that fails
  * stays, with why, for TRY AGAIN or the next chapter read. A season's send is
- * its own row, so one season's failure never holds another's up (c240).
+ * its own row, so one season's failure never holds another's up.
  */
 export async function sendPending(
 	opts: { seriesId?: number; now?: number; season?: number } = {}
@@ -954,7 +953,7 @@ export async function sendPending(
 		const live = targets(seriesId);
 		pruneSends(seriesId, live);
 		for (const target of live) {
-			// TRY AGAIN on one season's line sends that season's alone (c424): its
+			// TRY AGAIN on one season's line sends that season's alone: its
 			// line is the one that failed, and another season's wait is its own.
 			if (opts.season !== undefined && target.season !== opts.season) continue;
 			const w = waitingRow(target);
@@ -1024,13 +1023,13 @@ export async function sendPending(
 }
 
 /**
- * A rating set here is the score both catalogues get (c67: one number, out
+ * A rating set here is the score both catalogues get (one number, out
  * of 10 on every side). 0, unrated, clears the score. Same rules as any send:
  * never a hidden series, never through a cover-only link.
  *
- * An anime sends it to the season being watched only (c240): a series has one
+ * An anime sends it to the season being watched only: a series has one
  * rating and four entries, and sending it to all of them would overwrite the
- * scores the owner gave earlier seasons.
+ * scores the user gave earlier seasons.
  */
 export async function afterRating(seriesIds: number[], rating: number): Promise<void> {
 	for (const id of seriesIds) {
@@ -1047,7 +1046,7 @@ export function ratingPart(seriesId: number): { season?: number; part?: number }
 	const sv = view.seasons.find((s) => s.season === view.open) ?? view.seasons[0];
 	if (!sv) return {};
 	// The open season's own highest watched episode decides the part: season 1
-	// finished at 24 says nothing about season 2's half (c240).
+	// finished at 24 says nothing about season 2's half.
 	const watched = watchedReached(watchedRows(seriesId), { season: sv.season });
 	const part = sv.parts.find((p) => watched >= p.from && watched <= p.to);
 	return { season: sv.season, part: part?.part ?? sv.parts[0]?.part ?? 1 };
@@ -1072,14 +1071,14 @@ export type Tracking = {
 	facts: TrackFacts[];
 	/** Hidden: nothing is sent (Series Link 1s). */
 	hidden: boolean;
-	/** Its source is NEVER TRACKED (c522): nothing is sent, at every door. */
+	/** Its source is NEVER TRACKED: nothing is sent, from anywhere. */
 	neverTracked: boolean;
 	/** Cover-only link: never tracked. */
 	coverOnly: boolean;
 	/** AniList and MAL take this kind's progress (`catalogueTracks`): false for a novel. */
 	catalogueTracks: boolean;
 	links: { service: Service; mediaId: number }[];
-	/** An anime: one entry per season (c240), the open one first in `openSeason`. */
+	/** An anime: one entry per season, the open one first in `openSeason`. */
 	seasons?: SeasonTrack[];
 	openSeason?: number;
 };
@@ -1109,7 +1108,7 @@ export type SeasonTrack = {
 
 /**
  * `series_links` keeps meaning what it meant for a comic (one entry for the
- * series). An anime answers per season (c240): the row's own `facts` are the
+ * series). An anime answers per season: the row's own `facts` are the
  * open season's, and `seasons` carries every one of them, which is what the
  * panel draws its lines from.
  */
@@ -1258,7 +1257,7 @@ function seasonsTracking(seriesId: number, hidden: boolean): SeasonTrack[] {
 		});
 		const otherPart = parts.find((p) => p.part !== at.part) ?? null;
 		const otherLink = otherPart?.link ?? null;
-		// The other part's word, by the line's own rule (c518): the first of its
+		// The other part's word, by the line's own rule: the first of its
 		// linked lists that is signed in. A signed-out list keeps what it last
 		// said (`signOut`), so AniList first would show a stale word beside MAL's.
 		const otherSt = otherPart
@@ -1329,7 +1328,7 @@ export function accounts(): AccountView[] {
 	const db = getDb();
 	return SERVICES.map((service) => {
 		const a = account(service);
-		// A series' sends and an anime's season sends (c240) are one account's
+		// A series' sends and an anime's season sends are one account's
 		// queue: TRY AGAIN retries both, so the count says both.
 		const SENDS = `(SELECT service, failed_at, error FROM tracker_sends
 			UNION ALL SELECT service, failed_at, error FROM season_tracker_sends)`;

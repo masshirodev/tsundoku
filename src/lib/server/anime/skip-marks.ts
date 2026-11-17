@@ -18,13 +18,12 @@ import type { Range } from '../../library/streams.ts';
 
 /**
  * Finding an opening and an ending in the episodes themselves (doc/ANIME.md,
- * "Openings and endings"; card c239). Two episodes of a season share both, so
+ * "Openings and endings"). Two episodes of a season share both, so
  * their fingerprints are compared: each pair's longest run of matching
  * points within sane lengths (gaps of a few seconds bridged, the opening
- * free to sit anywhere in its window; c384) is a span for both, and of an
+ * free to sit anywhere in its window) is a span for both, and of an
  * episode's spans the one most pairs agree on becomes the mark. A downloaded
- * file is read from disk;
- * a stream (card c239's third part) through the loopback proxy, at its
+ * file is read from disk; a stream through the loopback proxy, at its
  * lowest quality.
  *
  * It runs in the background, one season at a time and one episode at a time:
@@ -80,7 +79,7 @@ function seasonOf(
 
 type Found = { span: Range; seconds: number };
 
-/** Every span an episode's pairs found; agreedSpan picks the one it keeps (c384). */
+/** Every span an episode's pairs found; agreedSpan picks the one it keeps. */
 const keepFound = (found: Map<number, Found[]>, entryId: number, span: Range, seconds: number) => {
 	const had = found.get(entryId);
 	if (had) had.push({ span, seconds });
@@ -99,7 +98,7 @@ export function streamTargets(episodeIds: number[], playingEntryId: number): num
 
 /** A stream's own quality to fingerprint: the lowest at most 480p. A source that
  * offers nothing that low, or that names no height at all, gives its lowest
- * instead: reading audio costs the same at any video height (c299). */
+ * instead: reading audio costs the same at any video height. */
 function lowestQuality(server: {
 	qualities: {
 		src: string;
@@ -131,8 +130,8 @@ type Server = {
  * or below 480p beats one without, then an unknown height, then one above;
  * within a rank, the lowest happens first and the source's own server order
  * breaks ties. So a 1080p-only server first never pre-empts a later server's
- * 360p, and a source that names one height only still gives something to read
- * (c299).
+ * 360p, and a source that names one height only still gives something to
+ * read.
  */
 function qualitiesToRead(
 	servers: Server[]
@@ -153,7 +152,7 @@ function qualitiesToRead(
 		.map(({ server, q }) => ({ server, q }));
 }
 
-/** One line for the log, INFO or WARN, so "why no skip on this episode" is answerable (c299). */
+/** One line for the log, INFO or WARN, so "why no skip on this episode" is answerable. */
 const info = (line: string) => console.log(`tsundoku: skip-marks: ${line}`);
 const warn = (line: string) => console.error(`tsundoku: skip-marks: WARN ${line}`);
 
@@ -175,7 +174,7 @@ function sameSourceDownloading(entryId: number, db: Database.Database): boolean 
  * quality at or below 480p where there is one, else the lowest there is, a
  * separate audio rendition where the source offers one, through the loopback
  * proxy, seeking to the minutes it needs. Servers are tried in the ranked
- * order `qualitiesToRead` gives, and one that fails says so in the log (c299)
+ * order `qualitiesToRead` gives, and one that fails says so in the log
  * with the step and the server's name.
  */
 async function streamPrints(
@@ -320,7 +319,7 @@ export async function fingerprintSeason(
 	for (let i = 0; i < ids.length; i++)
 		for (let j = i + 1; j < ids.length; j++) {
 			// A pair is tens of milliseconds of comparing since the opening may sit
-			// anywhere in its window (c384), and a downloaded season is hundreds of
+			// anywhere in its window, and a downloaded season is hundreds of
 			// pairs: the app's requests go between them, not after them all.
 			await new Promise((ok) => setImmediate(ok));
 			const a = prints.get(ids[i])!;

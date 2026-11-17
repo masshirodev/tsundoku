@@ -39,12 +39,12 @@ export type Snapshot = {
 	entries: number;
 	pruned: string[];
 	/**
-	 * The highlights' copies mirrored beside it (c701): null when it was told not
+	 * The highlights' copies mirrored beside it: null when it was told not
 	 * to, or when the mirror failed (then `copiesError` says why).
 	 */
 	copies: Mirror | null;
 	/**
-	 * Why the mirror failed (c730), or null. The snapshot is in place and pruned
+	 * Why the mirror failed, or null. The snapshot is in place and pruned
 	 * either way: a copy's failure never costs the database its night, and the
 	 * caller decides what it costs the run (scripts/backup.ts exits 1 once its
 	 * sweep has run).
@@ -122,7 +122,7 @@ export function takeSnapshot(
 	for (const name of pruned) rmSync(join(dir, name), { force: true });
 	// After the snapshot, so a copy that fails to mirror never costs the
 	// database its night: the snapshot is on disk, and the error is returned,
-	// not thrown (c730), so the caller still runs what comes after it. Its
+	// not thrown, so the caller still runs what comes after it. Its
 	// partial counts are lost with it; the next night copies what this one didn't.
 	let copies: Mirror | null = null;
 	let copiesError: string | null = null;
@@ -141,7 +141,7 @@ export function takeSnapshot(
 	return { path, bytes: statSync(path).size, ...verify(path), pruned, copies, copiesError };
 }
 
-// ---- the highlights' copies (c701; doc/BACKUPS.md, "Highlights' copies") -------------------
+// ---- the highlights' copies (doc/BACKUPS.md, "Highlights' copies") -------------------
 
 /** The mirror's folder inside BACKUP_DIR. Retention never reads it: it is no snapshot's name. */
 export const HIGHLIGHTS_MIRROR = 'highlights';
@@ -282,8 +282,8 @@ export function mirrorHighlights(
 }
 
 /**
- * Before a migration climbs a rung: a copy of the database as it was, named
- * for the rung it was on. Retention never prunes these; migrations are rare
+ * Before a migration runs: a copy of the database as it was, named for the
+ * schema version it was on. Retention never prunes these; migrations are rare
  * and this is the one copy from before the schema moved.
  */
 export function snapshotBeforeMigration(

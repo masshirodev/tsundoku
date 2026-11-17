@@ -20,13 +20,13 @@ import { tmdbMedia } from './tmdb.ts';
 import { normaliseTitle, type Row } from '../library/catalogue.ts';
 
 /**
- * TMDB links, a film's and a show's (card c989; doc/LINKS.md, "TMDB links").
- * The AniList link's rules in TMDB's terms, kept in their own tables (rung
- * 80): the pass searches what was never searched and links only a sure match,
- * the review offers the rest, and the owner's NONE OF THESE and UNLINK are
+ * TMDB links, a film's and a show's (doc/LINKS.md, "TMDB links").
+ * The AniList link's rules in TMDB's terms, kept in their own tables
+ * (migration 80): the pass searches what was never searched and links only a sure match,
+ * the review offers the rest, and the user's NONE OF THESE and UNLINK are
  * never undone by a pass.
  *
- * **No key is a state.** Every door asks `catalogueConfigured('tmdb')` first:
+ * **No key is a state.** Every entry point asks `catalogueConfigured('tmdb')` first:
  * with no key the pass searches nothing and marks nothing, so a key added
  * later finds the whole library unsearched and the next pass is the backfill
  * (doc/FILMS-SHOWS.md, "How it is shaped, and why": "a key added later backfills … and never
@@ -173,7 +173,7 @@ function writeLink(seriesId: number, t: TmdbTitle, via: TmdbVia, now: number): v
 }
 
 /**
- * Link a film or a show to a TMDB entry: one the owner chose in the review,
+ * Link a film or a show to a TMDB entry: one the user chose in the review,
  * pasted, or the pass's sure match. The entry is read by id first, so the
  * link keeps a film's runtime and collection and a show's season count, which
  * a search result does not carry. Answers what it replaced, for UNDO.
@@ -195,7 +195,7 @@ export async function tmdbLink(
 }
 
 /**
- * A downloaded film's or show's NFOs say its TMDB id (c991), so a link, an
+ * A downloaded film's or show's NFOs say its TMDB id, so a link, an
  * UNLINK or an UNDO writes them again. After the database, never instead of
  * it, and a disk that refuses is the next download's to mend: the link stands.
  */
@@ -339,7 +339,7 @@ export async function tmdbPass(
 	}[];
 	for (const r of rows) {
 		const own = tmdbQuery(r.title);
-		// A SEARCH AGAIN the owner typed is asked as typed, with no year.
+		// A SEARCH AGAIN the user typed is asked as typed, with no year.
 		const query = r.queued ?? own.query;
 		const year = r.queued && r.queued !== own.query ? null : own.year;
 		const found = await find(r.kind, query, year);
@@ -360,8 +360,8 @@ export async function tmdbPass(
 
 /**
  * FIND and SEARCH AGAIN from the review or the series screen: TMDB asked at
- * once with the owner's words. A search the owner runs never links by
- * itself, even on one equal title (the AniList review's rule, 2026-11-02).
+ * once with the user's words. A search the user runs never links by
+ * itself, even on one equal title (the AniList review's rule).
  */
 export async function tmdbSearchNow(
 	seriesId: number,
@@ -449,8 +449,8 @@ export function tmdbFacts(seriesId: number): TmdbTitle | null {
 }
 
 /**
- * SEARCH AGAIN that waits for the pass, with the owner's words: the row's
- * search is cleared, its candidates go, and a decision stays (the owner asked
+ * SEARCH AGAIN that waits for the pass, with the user's words: the row's
+ * search is cleared, its candidates go, and a decision stays (the user asked
  * for a search, not to take back NONE OF THESE; FIND clears that).
  */
 export function tmdbQueueSearch(seriesId: number, query: string): void {
@@ -716,7 +716,7 @@ const QUEUE_SQL = (reveal: boolean) => `SELECT s.id FROM series s JOIN roots r O
 		AND NOT EXISTS (SELECT 1 FROM series_tmdb_links l WHERE l.series_id = s.id)`;
 
 /**
- * The films and shows that wait for the owner: searched, not linked, not
+ * The films and shows that wait for the user: searched, not linked, not
  * settled. A search that found nothing waits too, as AniList's does, since
  * FIND with other words is what it wants.
  */

@@ -9,14 +9,14 @@ import {
 import { hlsReaderArgs } from './hls-reader.ts';
 
 /**
- * Fingerprints of an episode (doc/ANIME.md, "Openings and endings"; card
- * c239). ffmpeg decodes the audio, chromaprint turns it into points; the
+ * Fingerprints of an episode (doc/ANIME.md, "Openings and endings"). ffmpeg
+ * decodes the audio, chromaprint turns it into points; the
  * comparison is the pure module's. Only the minutes a decision needs are
  * read: a seek before the input, and a length after it.
  *
  * The first route is ffmpeg's own chromaprint muxer (`-f chromaprint
  * -fp_format raw`), which every pinned release bundle's ffmpeg has. A build
- * without it -- this workstation's Arch ffmpeg -- falls back to `fpcalc`,
+ * without it -- Arch's ffmpeg, for one -- falls back to `fpcalc`,
  * chromaprint's own program, fed the same audio through the same ffmpeg.
  * Both produce the same points (doc/ANIME.md).
  */

@@ -4,7 +4,7 @@ import { isIncognito, isRevealed } from '$lib/server/prefs';
 import { keepPage, KeepError } from '$lib/server/highlights/pages';
 
 /**
- * HIGHLIGHT in the image reader (card c703; doc/HIGHLIGHTS.md, "Pages"):
+ * HIGHLIGHT in the image reader (doc/HIGHLIGHTS.md, "Pages"):
  * `{ entry, page, pageEnd?, rtl? }` keeps the page (or a spread as BOTH) and
  * answers the highlight once its copy is on the workstation, never before.
  * The same page again answers the one already kept (`made: false`), so a

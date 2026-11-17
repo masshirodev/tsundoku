@@ -12,7 +12,7 @@ import {
 import { tagSourceOf } from '../tag-source.server';
 
 /**
- * A series' TAGS sheet, IN <SOURCE> (card c313; doc/SERIES.md, the TAGS row):
+ * A series' TAGS sheet, IN <SOURCE> (doc/SERIES.md, the TAGS row):
  * the source's page finding the tag. The link names the tag, not the answer,
  * so it is the same from the first paint and works without script; this
  * waits for the source's filters (kept per source, `keep`) and only then

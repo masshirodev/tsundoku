@@ -61,16 +61,16 @@ export const load: PageServerLoad = ({ cookies, url }) => {
 			meta: historyMeta(r),
 			metaShort: historyMeta(r, true),
 			time: clock(r.lastAt),
-			// The day's time read (card c443): nothing when the log holds none.
+			// The day's time read: nothing when the log holds none.
 			spent: r.timeMs ? readTime(r.timeMs) : null
 		});
 	}
 	return { days, older, next: from + days.length, total: before ? null : total(reveal) };
 };
 
-/** The total at the top of the first page (c443, c483): `total.ts`. */
+/** The total at the top of the first page: `total.ts`. */
 function total(reveal: boolean) {
-	// Without the sources kept OFF HISTORY (card c435).
+	// Without the sources kept OFF HISTORY.
 	return historyTotal(historyTotals(reveal));
 }
 

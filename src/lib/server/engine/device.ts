@@ -55,8 +55,8 @@ export type SourceChapter = {
 
 /**
  * Every name a series goes by: its title, then its alternative titles
- * (`alt_titles`, a JSON list of strings; a rename keeps the old name there,
- * c526). Anything that is not such a list is no names.
+ * (`alt_titles`, a JSON list of strings; a rename keeps the old name
+ * there). Anything that is not such a list is no names.
  */
 export function namesOf(title: string, altTitles: string | null | undefined): string[] {
 	let alts: unknown;
@@ -70,11 +70,11 @@ export function namesOf(title: string, altTitles: string | null | undefined): st
 }
 
 /**
- * `chapterNumbers` over a series known by several names (c555). It takes the
+ * `chapterNumbers` over a series known by several names. It takes the
  * series' title out of each chapter's name before reading a number, so a
  * number in the title is not read as the chapter's. A source still names
  * its chapters by the title it gave the series ("Squad 100 2") after the
- * owner has renamed it, and with fewer than three chapters to compare
+ * user has renamed it, and with fewer than three chapters to compare
  * (one new chapter, as FOLLOW usually finds) the 100 was read: measured, so
  * every name is taken out, the longest first, so a name inside another
  * ("Mob" in "Mob Psycho 100") cannot break the longer one up.

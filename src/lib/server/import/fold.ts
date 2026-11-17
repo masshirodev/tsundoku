@@ -40,9 +40,9 @@ export function adoptFormer(
 	// the folder's series, which keeps the library row, its id and its key.
 	if (current && current.in_library !== 1) note(dropped, foldSeries(db, current.id, former.id));
 	// Both exist and the URL's is the library's: the folder's is folded into it,
-	// keeping whatever the owner did in either. No file is moved. A fold keeps
+	// keeping whatever the user did in either. No file is moved. A fold keeps
 	// only one side's title, kind and direction, so the folder's edit is carried
-	// first, as `adoptNamed` does at the other door (doc/IMPORT-MIHON.md, "Both
+	// first, as `adoptNamed` does on the other path (doc/IMPORT-MIHON.md, "Both
 	// exist"). `formerKey` is always a `mihon-dir:` key (`folderKey`,
 	// mihon-plan.ts); the guard is for a key that somehow is not.
 	else if (current) {
@@ -81,8 +81,8 @@ function folderParts(key: string): { sourceDir: string; dir: string } | null {
 }
 
 /**
- * The installed source a Mihon download folder's series is from (card c571;
- * doc/BROWSE.md, "ADDED HIDDEN at the importer"), by the engine's own name
+ * The installed source a Mihon download folder's series is from
+ * (doc/BROWSE.md, "ADDED HIDDEN at the importer"), by the engine's own name
  * for it, or null. A `mihon-dir:` key names no source id (`sourceIdSql`
  * answers NULL), only the folder Mihon filed it under, which Mihon names
  * `<name> (<LANG>)` (its `Source.toString()`). So the folder is a source's
@@ -135,7 +135,7 @@ export function adoptFolder(
 	if (!s.originKey.startsWith('mihon:')) return null;
 	// A folder's series is the same series by the importer's own rule: the same
 	// source and the same title (doc/IMPORT-MIHON.md, "Matching downloads").
-	// A backup that names no source (c258) gives the plan no folder: the
+	// A backup that names no source gives the plan no folder: the
 	// source is then confirmed by the second signal (`unnamedSourceIs`).
 	const candidates = rowsIn(db, rootId, 'mihon-dir:%').filter((row) => {
 		const parts = folderParts(row.origin_key);
@@ -170,7 +170,7 @@ export function adoptFolder(
  * The other order: a folder's plan meets the series a backup names, whether
  * this device's own (the folder was left behind by an import before the rule)
  * or another's. The folder's series is folded into the named one -- keeping
- * what the owner did in either -- and the folder key joins the named series'
+ * what the user did in either -- and the folder key joins the named series'
  * former keys, so the device that still plans it finds the same series.
  */
 export function adoptNamed(
@@ -196,7 +196,7 @@ export function adoptNamed(
 			// The folder is this source's, and the title's under either name.
 			(row.title === folder.title || folderTitleMatches(parts.dir, row.title)) &&
 			(!!sourceTag.get(row.id, folder.source) ||
-				// Untagged, from a backup that named no source (c258): a series
+				// Untagged, from a backup that named no source: a series
 				// tagged with another source is still not this folder's.
 				(!anySourceTag.get(row.id) &&
 					unnamedSourceIs(db, row.origin_key, parts.sourceDir, row.title === folder.title, () =>
@@ -220,8 +220,8 @@ export function adoptNamed(
 }
 
 /**
- * The second signal for a URL series whose backup named no source (card c258;
- * doc/IMPORT-MIHON.md, "A backup that names no source"): its key holds the
+ * The second signal for a URL series whose backup named no source
+ * (doc/IMPORT-MIHON.md, "A backup that names no source"): its key holds the
  * source's number, and nothing in the backup says that number's name, so the
  * `source:` tag and a plan's download folder are both missing.
  *
@@ -274,13 +274,13 @@ function addressMatches(db: Database.Database, seriesId: number, planned: Planne
 
 /**
  * The one thing a fold cannot keep from both sides: title, kind and direction,
- * a novel's page direction (`text_direction`, c551) with them, though that one
- * only when the folder's series chose one: NULL is 'never chosen' (c617), and
+ * a novel's page direction (`text_direction`) with them, though that one
+ * only when the folder's series chose one: NULL is 'never chosen', and
  * has nothing to carry over a survivor's R→L.
- * The folder's series wins them when the owner renamed it, which is the state
+ * The folder's series wins them when the user renamed it, which is the state
  * that made the backup's row a second one -- it no longer answers to its
  * folder's name, so `adoptFolder` could not have found it by name either, and
- * the survivor would otherwise be the import's name over the owner's. A
+ * the survivor would otherwise be the import's name over the user's. A
  * folder's series still named as its folder carries no edit, and the survivor
  * keeps its own (doc/IMPORT-MIHON.md, "Before the backup knows it").
  */
@@ -377,7 +377,7 @@ function matchFolderEntries(
 }
 
 /**
- * The key a series has just left joins every other one it has left (rung 58,
+ * The key a series has just left joins every other one it has left (migration 58,
  * doc/MOVE.md): the device whose backup still names the manga, or whose
  * download is still keyed by its folder, finds this series rather than making
  * a twin. The key it now has is not also a former one.
@@ -401,7 +401,7 @@ function rememberKey(
 	);
 }
 
-/** An entry that takes another address keeps the one it had (rung 58, doc/MOVE.md). */
+/** An entry that takes another address keeps the one it had (migration 58, doc/MOVE.md). */
 function rekeyEntry(db: Database.Database, entryId: number, url: string, now: number): void {
 	const was = (
 		db.prepare(`SELECT source_url FROM entries WHERE id = ?`).get(entryId) as {
@@ -474,14 +474,14 @@ function tablesWith(db: Database.Database, column: string): string[] {
 }
 
 /**
- * A Work a fold took a series out of (card c472): `from` was a part of it and
+ * A Work a fold took a series out of: `from` was a part of it and
  * `into` a part of another, and a series is in one Work at most, so `from`'s
  * membership went with its row. `series` is the survivor's title, as the
  * library shows it after the fold; `ended` says the Work was left with one
- * series and so ended (rung 61's trigger). Named in the import's summary as
- * DROPPED FROM <WORK> (`droppedLine`), since the owner's grouping cannot be
+ * series and so ended (migration 61's trigger). Named in the import's summary as
+ * DROPPED FROM <WORK> (`droppedLine`), since the user's grouping cannot be
  * put back by the import, and kept on the job's row (`scan_jobs.dropped`,
- * rung 71, card c570) for the IMPORT LOG.
+ * migration 71) for the IMPORT LOG.
  *
  * Ids are not identities here: `works.id` and `series.id` are reused once the
  * newest row ends (no AUTOINCREMENT), so each is kept with the row's own
@@ -513,7 +513,7 @@ export const droppedLine = (d: Dropped) =>
  * have (the same file, else the same URL, else the same label) is one: read
  * state moves forward as on a rescan, the newer place in it wins, a rating
  * or FAV fills in where `into` has none, and so does a novel's page direction
- * (`text_direction`, c551, c617: NULL is 'never chosen', which reads as L→R, and
+ * (`text_direction`: NULL is 'never chosen', which reads as L→R, and
  * a stored 'ltr' is a choice `into` keeps), and `into` takes the file if it had
  * none. A chapter only `from` has moves across. Everything else that hangs
  * off either -- reading log, shelves, tags, links, lookups -- joins `into`,
@@ -585,7 +585,7 @@ export function foldSeries(db: Database.Database, from: number, into: number): D
 			).run(fileIn(path, file), f.bytes, f.page_count, t.id);
 		}
 		// Read state moves forward, as on a rescan (write.ts); unread by the
-		// owner since stays unread.
+		// user since stays unread.
 		if (
 			f.read_at !== null &&
 			t.read_at === null &&
@@ -633,9 +633,9 @@ export function foldSeries(db: Database.Database, from: number, into: number): D
 	// A hidden series stays hidden, and a Work is hidden or shown whole
 	// (doc/WORKS.md, "The one rule"): so when either side was hidden, `into`
 	// is hidden through the rule's own write, taking any Work it is a part of
-	// with it (c389). Merging the flag by hand left a hidden part in a visible
+	// with it. Merging the flag by hand left a hidden part in a visible
 	// Work -- `into` a part and `from` hidden, or `from` a visible part whose
-	// Work `into` joined hidden -- the half-hidden Work no other door makes.
+	// Work `into` joined hidden -- the half-hidden Work no other path makes.
 	// Never the other way: a fold never shows anything.
 	if (fromHidden || hiddenNow(db, into)) setHiddenWhole([into], true);
 	if (!lost) return null;

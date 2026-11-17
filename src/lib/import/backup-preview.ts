@@ -4,14 +4,13 @@ import { categoryEffect, type MihonPlan } from './mihon-plan.ts';
 import type { PlannedSeries } from './plan.ts';
 
 /**
- * IMPORT A BACKUP's preview (c438, doc/IMPORT-BACKUP.md): what a backup holds,
+ * IMPORT A BACKUP's preview (doc/IMPORT-BACKUP.md): what a backup holds,
  * worked out before anything is written. Pure: the server gathers the facts
  * about the library (what is here, which shelves exist, which sources an
  * extension provides) and this says what the file would do with them.
  *
- * The preview counts the file, which is in the owner's hand, hidden series
- * included: nothing on it says a series would be hidden (Main.dc.html,
- * "WORDS AND RULES").
+ * The preview counts the file, which is in the user's hand, hidden series
+ * included: nothing on it says a series would be hidden.
  */
 
 /** Which app a file came from. Only Mihon's is read today; the others say NOT YET. */
@@ -115,11 +114,10 @@ export type LibraryFacts = {
 export const sourceIdOf = (key: string): string => key.split(':')[1] ?? '';
 
 /**
- * Which earlier import was the same library (c438's identity, decided alone
- * and written in doc/IMPORT-BACKUP.md, "The same library"): a backup carries no id
- * of its own, so a library is what it holds. The newest earlier import of the
- * same app that brought series, at least half of which are in this file, is
- * the same library. A friend's other phone, or someone else's backup, shares
+ * Which earlier import was the same library (doc/IMPORT-BACKUP.md, "The same
+ * library"): a backup carries no id of its own, so a library is what it
+ * holds. The newest earlier import of the same app that brought series, at
+ * least half of which are in this file, is the same library. A friend's other phone, or someone else's backup, shares
  * few series and is not; a library that grew shares all of the old one's.
  */
 export function sameLibraryAs(

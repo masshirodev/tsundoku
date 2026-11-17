@@ -69,26 +69,26 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends, request
 	checkIfStale();
 	const view = updateView();
 	const update = view?.available ? { version: view.available.version } : null;
-	// The update modal on entry (doc/UPDATES.md, "Told on entry"; card c208): the
+	// The update modal on entry (doc/UPDATES.md, "Told on entry"): the
 	// whole view, but only on the computer itself. A phone over Wi-Fi gets the
 	// band, never the modal: the computer updates, not the phone.
 	const updateOffer = view?.available && locals.via !== 'lan' ? view : null;
 	// GET STARTED (doc/ONBOARDING.md): the sidebar's row and the way back read it.
 	depends('tsundoku:start');
 	const start = startNow(reveal);
-	// SERIES TO LINK (c475; doc/LINKS.md's review): the sidebar's and MORE's
+	// SERIES TO LINK (doc/LINKS.md's review): the sidebar's and MORE's
 	// way into /links, so putting the library's band away never hides it.
 	// The library's own sum, so the row and the band never disagree; about a
-	// millisecond on the seed, both catalogues and either reveal (wave 21).
+	// millisecond on the seed, both catalogues and either reveal.
 	const toLink = linkQueueCount(reveal) + ranobeQueueCount() + tmdbQueueCount(reveal);
-	// HIGHLIGHTS (c701; doc/HIGHLIGHTS.md): the sidebar's and MORE's row after
+	// HIGHLIGHTS (doc/HIGHLIGHTS.md): the sidebar's and MORE's row after
 	// HISTORY, with the count, absent at zero. A hidden series' are not
 	// counted without reveal, deleted series' included (the stored flag).
 	const highlights = highlightCount(reveal);
-	// The app's name for this computer (c261): what /pair/tv calls it, said
+	// The app's name for this computer: what /pair/tv calls it, said
 	// to the app's bridge by the layout so a server paired before the list
-	// existed gets its name too. Only the app is told, on a TV or a phone
-	// (c521); it is the only reader.
+	// existed gets its name too. Only the app is told, on a TV or a phone:
+	// it is the only reader.
 	const computer = isTsundokuApp(request.headers.get('user-agent') ?? '')
 		? (hostname() || 'computer').toUpperCase()
 		: null;
@@ -107,10 +107,10 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends, request
 		start,
 		toLink,
 		highlights,
-		// RESCAN's question says roughly how long the last scan took (c525).
+		// RESCAN's question says roughly how long the last scan took.
 		lastScanMs: lastScanTook(),
 		computer,
-		// RESCAN's WAITING note (c512): drawn while a scan someone asked for is
+		// RESCAN's WAITING note: drawn while a scan someone asked for is
 		// queued behind a backup's import (`scanQueued`, the server's own queue),
 		// never for a backup's import alone, and gone once the scan starts
 		// instead of staying until the next press. The sidebar re-asks this

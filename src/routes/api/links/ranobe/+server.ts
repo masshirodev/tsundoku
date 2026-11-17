@@ -38,7 +38,7 @@ type Body = {
 	paste?: string;
 	unlink?: boolean;
 	retry?: boolean;
-	/** SUGGEST TO RANOBE (card c72): the EPUB's work and authors, as a bundle that waits for the owner. */
+	/** SUGGEST TO RANOBE: the EPUB's work and authors, as a bundle that waits for a person. */
 	suggest?: boolean;
 	undo?: 'link' | 'none' | 'search' | 'many' | 'suggest';
 };

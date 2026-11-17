@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 /**
  * A firewall on the computer, for the WI-FI panel (doc/WIFI.md, "A firewall
- * on the computer"; card c721). Windows asks once, with a dialog; Linux asks
+ * on the computer"). Windows asks once, with a dialog; Linux asks
  * nothing: with ufw, firewalld or an nftables rule on, the phone's request is
  * dropped in silence and the panel looks fine. So the panel names the port
  * and the home network, and gives the line to copy for the common ones.
@@ -12,8 +12,8 @@ import { readFile } from 'node:fs/promises';
  *   browser's user agent. The panel is drawn only on the computer itself
  *   (the WI-FI panel answers localhost alone), so the browser and the server
  *   are the same machine; the server is still the one that knows.
- * - **The probe runs without privileges, and never sudo.** Measured on the
- *   workstation (Arch, 2026-11-07): `ufw status` refuses without root
+ * - **The probe runs without privileges, and never sudo.** Measured on Arch:
+ *   `ufw status` refuses without root
  *   ("ERROR: You need to be root to run this script", exit 1), so ufw is
  *   read the way its own boot does: its unit active (`systemctl is-active
  *   ufw`) and `ENABLED=yes` in `/etc/ufw/ufw.conf`, which anyone may read.
@@ -178,12 +178,12 @@ export const quietMs = (env: NodeJS.ProcessEnv = process.env) => {
 };
 
 /**
- * NO PHONE HAS REACHED THIS COMPUTER YET (c721): a live code has been up for
+ * NO PHONE HAS REACHED THIS COMPUTER YET: a live code has been up for
  * `quiet` ms, and nothing yet shows that a phone can reach this computer.
  * "Reached" is any request at all from a home-network client by the Wi-Fi
  * listeners now open (the sign-in page, the pair link, a paired phone's
  * page): any of them proves the firewall lets a phone in. A paired phone
- * proves it too, so an owner whose phones are paired and closed is never
+ * proves it too, so a reader whose phones are paired and closed is never
  * asked. Neither depends on the code: a request before NEW CODES proves the
  * same firewall, so a new code alone doesn't start the wait again. What does
  * is new listeners (OFF and ON, a moved address, a restart: `reachedAt`

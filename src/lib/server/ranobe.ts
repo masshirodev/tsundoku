@@ -26,8 +26,8 @@ import {
 import type { Kind } from '../library/types.ts';
 
 /**
- * Ranobe (doc/RANOBE.md; card c66): the owner's own catalogue of novels, and
- * their library on it, kept moving from what's read here.
+ * Ranobe (doc/RANOBE.md, ranobe.ink): a catalogue of novels, and the
+ * reader's library on it, kept moving from what's read here.
  *
  * - **Matching** asks `POST /lookup` with the AniList and MAL ids a novel's
  *   link already has. Choosing among search results is the /links review's,
@@ -37,11 +37,10 @@ import type { Kind } from '../library/types.ts';
  *   until it is approved.
  * - **Units**: each entry keeps the unit it is, from the edition's table of
  *   contents, and a unit read here is sent as one read.
- * - **Comics** (card c98) read against the work's own chapters: no edition,
+ * - **Comics** read against the work's own chapters: no edition,
  *   no suggestion, and only a chapter the work counts is sent.
- * - **Anime** (c240) read against the work's own episodes, numbered straight
- *   through the seasons: one work for the whole show, its entry on season 1
- *   (Ranobe c134).
+ * - **Anime** read against the work's own episodes, numbered straight
+ *   through the seasons: one work for the whole show, its entry on season 1.
  * - **Never** for a hidden series or anything from Hentoid: not looked up,
  *   not suggested, not sent. Incognito reading records nothing, so nothing
  *   follows it here either.
@@ -55,9 +54,9 @@ export const configured = () => token() !== '';
 
 /**
  * The app account's token (Ranobe's ACCOUNTS.md, "An app's account"), for
- * suggestions only. Its edits always wait for a person, where the owner's
+ * suggestions only. Its edits always wait for a person, where the reader's
  * own token -- a moderator's -- would have them applied as sent. The
- * owner's stays for the library.
+ * reader's stays for the library.
  */
 const suggestToken = () => process.env.RANOBE_SUGGEST_TOKEN ?? '';
 export const suggestConfigured = () => configured() && suggestToken() !== '';
@@ -161,8 +160,8 @@ export function eligible(seriesId: number): boolean {
 /**
  * The AniList/MAL ids Ranobe knows a series by, as a table to join on
  * `series_id` (`anilist_id`, `mal_id`, `format`): its link, or -- for an anime
- * linked a season at a time (c240) -- its lowest linked season's own row,
- * part 1, and still an answer when only a later season is linked (wave 17):
+ * linked a season at a time -- its lowest linked season's own row,
+ * part 1, and still an answer when only a later season is linked:
  * Ranobe keeps one work for the whole show either way. An anime's
  * `series_links` row answers only with no season row beside it.
  */
@@ -292,7 +291,7 @@ export function linkWork(
 
 /**
  * UNLINK: the link goes and the entries lose their units. What was sent
- * stays on Ranobe. With `decide`, a pass never links it again (the owner
+ * stays on Ranobe. With `decide`, a pass never links it again (the reader
  * said no); UNDO of a LINK just made passes false.
  */
 export function unlinkSeries(seriesId: number, now = Date.now(), decide = true): void {
@@ -409,7 +408,7 @@ export async function searchOne(
 /**
  * Every eligible novel the ids didn't link, not settled and not searched
  * yet (or waiting on a SEARCH AGAIN), searched by its title with the volume
- * taken off. Nothing is linked from a search: the owner chooses on /links.
+ * taken off. Nothing is linked from a search: the reader chooses on /links.
  * Never a comic: AniList links nearly all of them, and the rest would fill the
  * review with titles the ids already had their chance at. FIND on a comic's
  * screen still searches it.
@@ -477,7 +476,7 @@ function saveRemote(e: EntryAnswer, now: number): void {
 		});
 }
 
-/** The owner's library on Ranobe, for the works linked here: the TRACKING line's words. */
+/** The reader's library on Ranobe, for the works linked here: the TRACKING line's words. */
 export async function readLibrary(now = Date.now()): Promise<number> {
 	const works = new Set(
 		(getDb().prepare(`SELECT DISTINCT work FROM ranobe_links`).all() as { work: string }[]).map(
@@ -520,7 +519,7 @@ function setEdition(work: string, lang: string, edition: string): void {
 
 /**
  * The edition each linked series reads. One in the series' language is
- * taken; with none, one is suggested (the owner chose this on 2026-09-27),
+ * taken; with none, one is suggested,
  * and a suggestion already made is asked after until it is decided.
  */
 export async function resolveEditions(now = Date.now()): Promise<{
@@ -529,7 +528,7 @@ export async function resolveEditions(now = Date.now()): Promise<{
 	waiting: number;
 }> {
 	const db = getDb();
-	// NEVER TRACKED (c522) stops the whole step for a work only its series link:
+	// NEVER TRACKED stops the whole step for a work only its series link:
 	// no `GET /works/{ref}` and, above all, no suggestion. A work another
 	// linked series still wants is looked up and may be suggested, but that
 	// series' volumes alone build the reason (`suggestEdition`).
@@ -597,7 +596,7 @@ function settle(work: string, lang: string, b: BundleAnswer | null, now: number)
 /**
  * Suggest the edition a work lacks, in one language, as a one-item bundle
  * (API-V1.md, "Bundles"). Its table of contents is volumes 1 to the highest
- * this library holds; a licensed ebook is the likeliest, and the owner reviews
+ * this library holds; a licensed ebook is the likeliest, and a person reviews
  * it on Ranobe either way.
  */
 async function suggestEdition(work: string, lang: string, now: number): Promise<BundleAnswer> {
@@ -619,7 +618,7 @@ async function suggestEdition(work: string, lang: string, now: number): Promise<
 	}));
 	const answer = await api<BundleAnswer>('/bundles', {
 		method: 'POST',
-		// Through the app account when there is one, so it waits for the owner.
+		// Through the app account when there is one, so it waits for a person.
 		...(suggestConfigured() ? { as: 'suggest' as const } : {}),
 		key: `tsundoku-edition-${work}-${lang}-${now}`,
 		body: {
@@ -795,7 +794,7 @@ export async function mapSeries(o: { seriesId?: number; now?: number } = {}): Pr
  * in any series of the work that Ranobe may hear of (two copies of a volume
  * count once). A unit only ever mapped from a series hidden since is left
  * alone: hiding a series takes nothing back. A series from a NEVER TRACKED
- * source (c522) never contributes a read here, even when another series maps
+ * source never contributes a read here, even when another series maps
  * the same unit: the switch is about the source, not the work.
  */
 export function refreshUnits(work?: string): void {
@@ -861,7 +860,7 @@ async function flushNow(o: { backfill?: boolean; now?: number }) {
 	const out = { read: 0, unread: 0, works: 0, failed: 0 };
 	// Only units some series Ranobe may hear of still maps: a series hidden
 	// since its read was queued sends nothing.
-	// NEVER TRACKED (c522) is asked here too, where the queue is drained: a unit
+	// NEVER TRACKED is asked here too, where the queue is drained: a unit
 	// queued before the switch went on waits, as a hidden series' does, and goes
 	// only if the switch is turned off again (the same rule as shown again).
 	const live = `EXISTS (SELECT 1 FROM entries e JOIN ranobe_links l ON l.series_id = e.series_id
@@ -931,7 +930,7 @@ async function flushNow(o: { backfill?: boolean; now?: number }) {
 		out.unread += 1;
 	}
 	// A work is wanted by the series that read it, so it goes only while one of
-	// them may still be sent: NEVER TRACKED (c522) and a hidden series both hold
+	// them may still be sent: NEVER TRACKED and a hidden series both hold
 	// a rating or FAV back, and it goes if one is shown or switched off again.
 	const works = db
 		.prepare(
@@ -1009,7 +1008,7 @@ function worksOf(seriesIds: number[]): string[] {
 /**
  * A rating or FAV to send. It clears sent_at rather than trusting
  * `sent_at < wanted_at`: both are milliseconds, and a FAV set in the same one
- * as the last send of the work was never sent (c95).
+ * as the last send of the work was never sent.
  */
 function wantWork(
 	works: string[],
@@ -1061,9 +1060,9 @@ export const unmapped = (seriesId: number) =>
  * A link just made by hand (the review, a pasted link, an approved
  * suggestion): the series' own steps of the pass, at once, so what was read
  * before the link goes now, and what's read after it has units to go to. The
- * lookup's links are made inside the pass, which does this for them. Found
- * live on 2026-10-29: "Ane no Tomodachi", linked in the review after the last
- * pass, had no units, so neither its earlier reads nor its later ones went.
+ * lookup's links are made inside the pass, which does this for them. Without
+ * it, a series linked in the review after the last pass has no units, so
+ * neither its earlier reads nor its later ones go.
  */
 export function afterLinking(seriesId: number, now = Date.now()): Promise<void> {
 	if (!configured() || !eligible(seriesId)) return Promise.resolve();

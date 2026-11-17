@@ -12,7 +12,7 @@ import {
 } from '$lib/library/tag-search';
 
 /**
- * A preview's author, artist or genre (card c313; doc/BROWSE.md, "Arriving
+ * A preview's author, artist or genre (doc/BROWSE.md, "Arriving
  * from a tag"): the preview's own source finding it. The preview's links name
  * the tag, so they are right from the first paint, with or without script;
  * this waits for the source's filters (kept per source, `keep`) and answers
@@ -36,7 +36,7 @@ export const GET: RequestHandler = async ({ params, url, cookies, request }) => 
 		asked.tag,
 		asked.from || null
 	);
-	// While SELECT is on (card c868) the preview asks for the address and goes
+	// While SELECT is on the preview asks for the address and goes
 	// there itself, inside the app: a document load would end the selection,
 	// which lives in the tab's memory, and a tag's arrival is part of the
 	// browse world it lasts through. The answer is the same address.

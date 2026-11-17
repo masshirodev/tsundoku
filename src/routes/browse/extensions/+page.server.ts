@@ -75,7 +75,7 @@ import {
 /**
  * EXTENSIONS, BROWSE's back room (Index-Extensions: installed, remove,
  * available, availableReveal, repos, notRepo; doc/BROWSE.md, "Extensions and
- * repositories"; card c144). Three tabs in the URL (`tab`), and every action
+ * repositories"). Three tabs in the URL (`tab`), and every action
  * a form post, so it all works without script. Nothing updates by itself:
  * UPDATE and UPDATE ALL ask, and BACK TO undoes an update for a week.
  */
@@ -88,7 +88,7 @@ function guard() {
 	if (downloadsBackend() !== 'engine') error(404, 'not found');
 }
 
-/** An extension's package, or an LNReader plugin as `ln:<id>` (doc/NOVELS.md, c148). */
+/** An extension's package, or an LNReader plugin as `ln:<id>` (doc/NOVELS.md). */
 const pkgOf = (form: FormData) => {
 	const pkg = String(form.get('pkg') ?? '');
 	if (!/^(ln:)?[A-Za-z0-9._-]{1,200}$/.test(pkg)) error(400, 'no such extension');
@@ -103,9 +103,9 @@ const forgetPackage = (pkg: string) =>
 
 /** A refusal the page draws as a band, not an error page. */
 /**
- * A refused install, update or repository, in tsundoku.log at WARN (c983;
- * doc/LOGS.md): the band is gone once dismissed, and a friend's SETTINGS ›
- * REPORT is the only way the cause reaches the owner. The message carries the
+ * A refused install, update or repository, in tsundoku.log at WARN
+ * (doc/LOGS.md): the band is gone once dismissed, and a friend's SETTINGS ›
+ * REPORT is the only way the cause reaches the user. The message carries the
  * URL that answered; an untrusted APK adds its signers beside the expected key.
  */
 function warnRefused(subject: string, e: unknown) {
@@ -132,7 +132,7 @@ function refusal(e: unknown, pkg = '', subject = pkg) {
 	return fail(502, { pkg, message: (e as Error).message || 'failed' });
 }
 
-/** The packages INSTALLED draws now, as the selection may hold them (c696). */
+/** The packages INSTALLED draws now, as the selection may hold them. */
 function drawnPackages(
 	installedNow: {
 		needsHand: { pkg: string }[];
@@ -167,7 +167,7 @@ function shownSelection(pkgs: readonly string[], reveal: boolean): string[] {
  * and outside reveal no hidden count is sent at all, so a hidden package and
  * the fact that a drawn one has hidden sources never reach a client outside
  * reveal. A drawn package's total still counts every source, hidden ones
- * included: the owner's every-source rule needs it.
+ * included: the every-source rule needs it.
  */
 function flagsByPackage(
 	drawn: Set<string>,
@@ -202,14 +202,14 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	const tab: Tab = asked === 'available' || asked === 'repos' ? asked : 'installed';
 	const repos = listRepos();
 	const novelRepos = listNovelRepos();
-	// Extensions installed before tsundoku asked whether they use a WebView, read once (rung 78).
+	// Extensions installed before tsundoku asked whether they use a WebView, read once (migration 78).
 	await fillWebViewFlags();
 	const installedNow = installedView(reveal);
 	// Hidden means hidden: a plugin with HIDDEN SOURCE on, or mostly hidden, is
-	// drawn and counted only inside reveal, as a package is (card c435).
+	// drawn and counted only inside reveal, as a package is.
 	const pluginsNow = pluginsShown(pluginView(reveal), reveal);
 	const drawn = drawnPackages(installedNow, pluginsNow);
-	// SELECT (card c696) is INSTALLED's only: its state is in the URL, and so is
+	// SELECT is INSTALLED's only: its state is in the URL, and so is
 	// the selection, so a no-script press lands with the rows it ticked still
 	// ticked. A package that left the list leaves the selection with it.
 	const select = url.searchParams.get('select') === '1';
@@ -229,7 +229,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		null
 	);
 
-	// AVAILABLE's tabs are one per source family (card c303): Mihon's APKs,
+	// AVAILABLE's tabs are one per source family: Mihon's APKs,
 	// Aniyomi's, LNReader's plugins. The URL's word for each is unchanged
 	// (none, `anime`, `novels`), and so is `kind`, which the page sends back.
 	const kindAsked = url.searchParams.get('kind');
@@ -263,7 +263,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 				preview = {
 					name: p.name,
 					base: p.base,
-					// An APK listing is counted by its family (`familyOfKind`; card c420).
+					// An APK listing is counted by its family (`familyOfKind`).
 					manga: p.listings.filter((l) => familyOfKind(l.kind) === 'mihon').length,
 					anime: p.listings.filter((l) => familyOfKind(l.kind) === 'aniyomi').length,
 					novels: 0
@@ -294,7 +294,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		reveal
 	});
 
-	// SELECT's band (card c696): one at a time, each its URL, so a reload says
+	// SELECT's band: one at a time, each its URL, so a reload says
 	// the same and UNDO posts the facts it was given.
 	const band = flagsBand(url.searchParams);
 	const updateBand =
@@ -446,8 +446,8 @@ export const actions: Actions = {
 	install: async ({ request }) => {
 		guard();
 		const pkg = pkgOf(await request.formData());
-		// The browse world's hold (tests/browse-setup.ts, c636): off in any build
-		// the owner runs, and only the post that asks for it waits.
+		// The browse world's hold (tests/browse-setup.ts): off in any build
+		// the user runs, and only the post that asks for it waits.
 		await holdPost('install', request);
 		try {
 			if (pluginOf(pkg)) await installPlugin(pluginOf(pkg)!);
@@ -520,7 +520,7 @@ export const actions: Actions = {
 		redirect(303, '/browse/extensions');
 	},
 	/**
-	 * SELECT's switches (card c696): one of tsundoku's own switches on every
+	 * SELECT's switches: one of tsundoku's own switches on every
 	 * source of every ticked extension, in one transaction, with the band and
 	 * its facts. A switch press does not end SELECT.
 	 */
@@ -533,8 +533,8 @@ export const actions: Actions = {
 		const value = String(form.get('value') ?? url.searchParams.get('value') ?? '');
 		if (!isSourceFlag(flag)) return fail(400, { message: 'No such switch' });
 		if (value !== 'true' && value !== 'false') return fail(400, { message: 'Not on or off' });
-		// The browse world's hold (tests/browse-setup.ts, c636): off in any build
-		// the owner runs, and only the post that asks for it waits.
+		// The browse world's hold (tests/browse-setup.ts): off in any build
+		// the user runs, and only the post that asks for it waits.
 		await holdPost('flag', request);
 		const reveal = isRevealed(cookies);
 		// Hidden means hidden: a stale tab or a hand-made post changes only the
@@ -607,7 +607,7 @@ export const actions: Actions = {
 		redirect(303, `${PAGE}?${selectQuery(tickedPackages(form))}`);
 	},
 	/**
-	 * SELECT's UPDATE (card c696): UPDATE ALL narrowed to the ticked rows, each
+	 * SELECT's UPDATE: UPDATE ALL narrowed to the ticked rows, each
 	 * one install as UPDATE does it, and SELECT ends however many took.
 	 */
 	updateSome: async ({ cookies, request }) => {
@@ -667,7 +667,7 @@ export const actions: Actions = {
 				else failed.push(pkg);
 			}
 		}
-		// A failed update is not a success with a smaller count (the brief): with
+		// A failed update is not a success with a smaller count: with
 		// nothing taken, answer as UPDATE ALL does, and keep SELECT and its ticks.
 		// A repository that did not answer and a signature that did not match are
 		// named apart: one suffix for all names reported the wrong one for each.
@@ -739,7 +739,7 @@ export const actions: Actions = {
 		redirect(303, `${PAGE}?${bandQuery('back', { done })}`);
 	},
 	/**
-	 * REMOVE for a selection (card c696). The sheet asked first, so there is no
+	 * REMOVE for a selection. The sheet asked first, so there is no
 	 * UNDO; an OBSOLETE row stays installed, because no repository lists it any
 	 * more and its settings could not be reached again.
 	 */

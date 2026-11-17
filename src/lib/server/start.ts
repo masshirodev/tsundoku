@@ -18,7 +18,7 @@ import {
 } from '../library/start.ts';
 
 /**
- * GET STARTED's facts (doc/ONBOARDING.md; cards c208, c209): what a step is ticked
+ * GET STARTED's facts (doc/ONBOARDING.md): what a step is ticked
  * by, read from what's really there. Counts only: the layout asks on every
  * page, so this stays a handful of COUNT(*)s.
  */
@@ -41,7 +41,7 @@ export function startFacts(reveal: boolean): StartFacts {
 			`SELECT (SELECT COUNT(*) FROM engine_extensions) + (SELECT COUNT(*) FROM novel_plugins) AS n`
 		),
 		series: series(`s.in_library = 1 AND NOT (${fromSource})`),
-		// Which door a device came in by isn't recorded, so a phone, tablet or TV
+		// Which way a device came in isn't recorded, so a phone, tablet or TV
 		// that has checked in at all stands for "a second device over Tailscale".
 		phones: n(
 			`SELECT (SELECT COUNT(*) FROM paired_devices)

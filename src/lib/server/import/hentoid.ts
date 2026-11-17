@@ -5,7 +5,7 @@ import { parseContent, planHentoidBook, type HentoidFolder } from '../../import/
 import type { PlannedSeries } from '../../import/plan.ts';
 
 /**
- * The Hentoid importer's disk side (doc/IMPORT-HENTOID.md): the owner's copy
+ * The Hentoid importer's disk side (doc/IMPORT-HENTOID.md): the user's copy
  * of `H/.Hentoid/`, read in place. Each `<site folder>/<book folder>/` with
  * images is a book; contentV2.json, when present, says everything else.
  */

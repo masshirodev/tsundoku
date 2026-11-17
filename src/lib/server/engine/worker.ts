@@ -27,7 +27,7 @@ import { failed, isPaused, nextUp, recover } from './queue.ts';
 import { bookOrigin, entryOriginSql } from '../season-facts.ts';
 
 /**
- * The downloader (doc/DOWNLOADS.md; card c137): takes chapters off the
+ * The downloader (doc/DOWNLOADS.md): takes chapters off the
  * queue, has the engine fetch their pages through each source's own client,
  * writes them as Mihon would into `devices/tsundoku/Mihon/`, with a backup
  * that names them by tsundoku's own keys, and has the importer read that as
@@ -73,13 +73,13 @@ type Manga = {
 	thumbnail_url?: string;
 };
 
-/** What one ask at a source is about: a series, or one book of a group (card c885). */
+/** What one ask at a source is about: a series, or one book of a group. */
 type Asked = {
 	sourceId: string;
 	/** The URL the source last knew it by. */
 	url: string;
 	title: string;
-	/** Every name it has gone by, for reading the source's chapter names (c555). */
+	/** Every name it has gone by, for reading the source's chapter names. */
 	names: string[];
 	/** Its chapters here, by what the source calls them. */
 	local: { id: number; url: string; position: number; scanlator: string }[];
@@ -152,7 +152,7 @@ export async function resolveSeries(
 			url: known?.engine_url ?? key.url,
 			title: s.title,
 			// By every name it has had: the source may still name chapters after the
-			// title it gave the series, which the owner has since renamed (c555).
+			// title it gave the series, which the reader has since renamed.
 			names: namesOf(s.title, s.alt_titles),
 			// A book in this series with a key of its own is that key's to ask.
 			local: d.db
@@ -180,7 +180,7 @@ export async function resolveSeries(
 
 /**
  * What the source calls one book of a group and its chapter now: `resolveSeries`
- * for a book that holds its own key (`entry_origins`, rung 76; card c885). Its
+ * for a book that holds its own key (`entry_origins`, migration 76). Its
  * engine columns are that book's `engine_series`: its URL, the title that names
  * its download folder (fixed at the first ask), and when it was asked.
  */
@@ -252,7 +252,7 @@ async function pooled<T, R>(
  * A chapter at its source, right now: the entry, its source and extension, and
  * the page list the engine hands out for it (asked fresh: page tokens die with
  * an engine restart). What a download zips and what reading online shows
- * (doc/READING-ONLINE.md, "Manga online"; card c166).
+ * (doc/READING-ONLINE.md, "Manga online").
  */
 export async function chapterAtSource(entryId: number, d: Pick<Deps, 'db' | 'now'>) {
 	const e = d.db
@@ -441,7 +441,7 @@ export function deviceBackup(db: Database.Database): MihonBackup {
 			trackers: []
 		});
 	}
-	// A grouped book is its own manga at its source (card c885): its folder and
+	// A grouped book is its own manga at its source: its folder and
 	// its file come back through its own key, whichever series holds it now.
 	const books = db
 		.prepare(

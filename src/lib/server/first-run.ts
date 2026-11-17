@@ -4,10 +4,10 @@ import { dirname } from './fspath.ts';
 
 /**
  * A friend's first start (doc/DISTRIBUTION.md, "The local serve mode"). The
- * workstation makes its token by hand and keeps it in Infisical; a friend's
- * install has neither, and an app that exits with "TSUNDOKU_TOKEN is not set"
- * is an app that was never opened. So serve.ts makes one, once, and keeps it
- * in the data folder's own .env, where it is read on every start after.
+ * developer's install makes its token by hand and keeps it in a secrets manager;
+ * a friend's install has neither, and an app that exits with "TSUNDOKU_TOKEN is
+ * not set" is an app that was never opened. So serve.ts makes one, once, and
+ * keeps it in the data folder's own .env, where it is read on every start after.
  */
 
 /** 18 random bytes, as the README's one-liner has always made them. */

@@ -26,8 +26,8 @@ import type { BrowseSource } from '../engine/browse.ts';
 import { installedPlugins, novelHost, type InstalledPlugin } from './plugins.ts';
 
 /**
- * A novel plugin as a source (doc/NOVELS.md, "Browsing and adding"; card
- * c149): what BROWSE lists, a page of its POPULAR or LATEST or filtered list,
+ * A novel plugin as a source (doc/NOVELS.md, "Browsing and adding"): what
+ * BROWSE lists, a page of its POPULAR or LATEST or filtered list,
  * a search in it, a novel's preview, and ADD TO LIBRARY. BROWSE knows a
  * plugin as `ln:<id>`, and a novel in it as `ln:<id>~<its path, base64url>`,
  * as a Mihon source's manga is `<source>~<url>` (engine/backend.ts).
@@ -56,15 +56,15 @@ export class NovelSourceError extends Error {}
 /**
  * A minute is enough for a list; two when the first request meets a site's
  * check, which the app solves (20-45 s, doc/EXTENSION-ENGINE.md) before the
- * host retries with the clearance (c152). A novel's chapters can take several
+ * host retries with the clearance. A novel's chapters can take several
  * pages on top.
  */
 const call = <T>(p: InstalledPlugin, method: string, args: unknown[], timeoutMs = 120_000) =>
 	novelHost().call<T>(p.file, method, args, timeoutMs);
 
 /**
- * TRY AGAIN on a site's check that could not be passed (doc/NOVELS.md; card
- * c294): both memos that would answer it at once for ten minutes — the host's
+ * TRY AGAIN on a site's check that could not be passed (doc/NOVELS.md):
+ * both memos that would answer it at once for ten minutes — the host's
  * refused clearance and the app's solve that left nothing usable — forget the
  * plugin's site, so the next call asks the solver afresh. A memo is what keeps
  * a download from paying a solve per chapter; this is the person asking.
@@ -90,7 +90,7 @@ export function novelSources(reveal: boolean): BrowseSource[] {
 	for (const p of installedPlugins()) {
 		const id = `ln:${p.id}`;
 		const u = use.get(id) ?? { series: 0, hidden: 0 };
-		// Its own HIDDEN SOURCE switch, or mostly hidden (card c435).
+		// Its own HIDDEN SOURCE switch, or mostly hidden.
 		const hiddenSource = switchedOff.has(id);
 		const hiddenMostly = hiddenSource || mostlyHidden(u);
 		if (hiddenMostly && !reveal) continue;
@@ -119,7 +119,7 @@ export function novelSearchSources(reveal: boolean): { id: string; name: string 
 	const rows = installedPlugins()
 		.filter((p) => !p.failed)
 		.map((p) => ({ id: `ln:${p.id}`, name: p.name }))
-		// A HIDDEN SOURCE is asked only inside reveal (card c435).
+		// A HIDDEN SOURCE is asked only inside reveal.
 		.filter((p) => !hiddenOn.has(p.id));
 	return sourcesToSearch(rows, sourceUse(), reveal, browsedIds(reveal));
 }
@@ -381,7 +381,7 @@ export async function novelManga(id: string): Promise<SourceManga | null> {
 export class NovelAddError extends Error {}
 
 /**
- * Where a novel's EPUB will be (c150): tsundoku's device folder's Library/,
+ * Where a novel's EPUB will be: tsundoku's device folder's Library/,
  * whose root the EPUB importer shares with every other device's books.
  */
 const novelRoot = () => join(libraryRoot(), 'devices', TSUNDOKU_DEVICE, 'Library');
@@ -415,7 +415,7 @@ export async function addNovel(id: string, now = Date.now(), browsing = false): 
 	}
 	if (!browsing) {
 		db.prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, row.id);
-		// ADD from a source that adds hidden (card c435): it starts hidden.
+		// ADD from a source that adds hidden: it starts hidden.
 		hideIfAddedHidden(row.id, db);
 		forgetSourceUse();
 	}

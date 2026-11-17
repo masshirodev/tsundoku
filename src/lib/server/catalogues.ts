@@ -8,7 +8,7 @@ import type { Kind } from '../library/kinds.ts';
 import { getSetting } from './settings.ts';
 
 /**
- * Which catalogues this install can ask (card c988; `doc/LINKS.md`, "Which
+ * Which catalogues this install can ask (`doc/LINKS.md`, "Which
  * catalogue"). The pure half (`library/catalogues.ts`) says which provider a
  * kind's metadata and link come from; this half says whether that provider
  * can answer **here**.
@@ -16,8 +16,8 @@ import { getSetting } from './settings.ts';
  * - **AniList** is public: it answers on every install, and needs no key.
  * - **TMDB** is the install's own key, the v4 read token when it is there
  *   and the v3 key otherwise (`TMDB_API_RC_TOKEN`, then `TMDB_API_KEY`, the
- *   data folder's `.env`). A friend's install has neither, and that is a
- *   state, not an error: a door says `SET UP →`, the film still works, and no
+ *   data folder's `.env`). An install may have neither, and that is a
+ *   state, not an error: a screen says `SET UP →`, the film still works, and no
  *   call is made.
  *
  * Read at call time, never at import: a key added in SETTINGS takes effect
@@ -29,9 +29,9 @@ export const envTmdbKey = (): string =>
 	(process.env.TMDB_API_RC_TOKEN ?? '').trim() || (process.env.TMDB_API_KEY ?? '').trim();
 
 /**
- * The install's TMDB key: the environment's, else the one typed in SETTINGS
- * (c993). Empty when it has none. Read at every call, so a key saved or
- * removed takes effect without a restart.
+ * The install's TMDB key: the environment's, else the one typed in SETTINGS.
+ * Empty when it has none. Read at every call, so a key saved or removed takes
+ * effect without a restart.
  */
 export function tmdbKey(): string {
 	return envTmdbKey() || getSetting('tmdb_key').trim();
@@ -48,7 +48,7 @@ export type CatalogueState = {
 	provider: CatalogueProvider;
 	name: string;
 	type: 'MANGA' | 'ANIME' | 'movie' | 'tv';
-	/** False when this install has no key for it: every door answers "not linked", never an error. */
+	/** False when this install has no key for it: every screen answers "not linked", never an error. */
 	configured: boolean;
 };
 

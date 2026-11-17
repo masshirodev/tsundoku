@@ -10,10 +10,10 @@ import { purgeDeleted, UNDO_MS } from '../highlights.ts';
 import type { KeptPage } from '../../library/highlights.ts';
 
 /**
- * Highlights H3: a page kept from the image reader (card c703; doc/HIGHLIGHTS.md,
+ * A highlight that is a page, kept from the image reader (doc/HIGHLIGHTS.md,
  * "Pages"). The copy is `highlights/pages/<id>.webp` at the page's own size,
  * made from the downloaded file or fetched once from the source for a page
- * read online: `readPage`, the reader's own door to a page's bytes, does
+ * read online: `readPage`, the reader's own way to a page's bytes, does
  * both. A spread kept as BOTH is one image, the two pages as they are drawn.
  *
  * The rules this keeps:
@@ -133,7 +133,7 @@ function existing(
  * the one highlight, not a second (that UNDO then finds nothing to put back).
  * A row deleted longer ago is never revived, purged or not: the band told the
  * reader it was gone, so keeping the page again is a new highlight, with no
- * old note and a `made_at` of now (c703, round 3). The window's edge is
+ * old note and a `made_at` of now. The window's edge is
  * `purgeDeleted`'s: a row deleted exactly `UNDO_MS` ago is still inside it.
  * The caller holds the transaction that checked there is no live one.
  */
@@ -276,7 +276,7 @@ export type KeepAsk = {
 	rtl?: boolean;
 };
 
-/** Where the bytes come from; the reader's own door unless a test hands in a stand-in. */
+/** Where the bytes come from; the reader's own path unless a test hands in a stand-in. */
 export type PageReader = (
 	entryId: number,
 	index: number,

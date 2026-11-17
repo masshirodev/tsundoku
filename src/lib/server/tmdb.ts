@@ -4,9 +4,9 @@ import { catalogueType } from '../library/catalogues.ts';
 import type { TmdbCollection, TmdbSeason, TmdbShowFacts, TmdbTitle } from '../library/tmdb.ts';
 
 /**
- * TMDB, the films' and shows' catalogue (card c989; doc/FILMS-SHOWS.md,
- * "How it is shaped, and why"; doc/LINKS.md, "Which catalogue"). This is the client only: the
- * link row, the review and the backfill pass are the rest of c989's card.
+ * TMDB, the films' and shows' catalogue (doc/FILMS-SHOWS.md, "How it is shaped, and why";
+ * doc/LINKS.md, "Which catalogue"). This is the client only: the link row, the
+ * review and the backfill pass live elsewhere.
  *
  * **The key is the install's own** (`TMDB_API_RC_TOKEN`, the v4 read token,
  * else `TMDB_API_KEY`, the v3 key). With none, every call refuses with
@@ -41,7 +41,7 @@ export function setTmdbFetch(f: Fetch | null): void {
 /**
  * How a key goes: the environment's v4 read token always as a bearer, as it
  * always went; any other key by its shape (a v4 token is a JWT), so a v4 token
- * pasted in SETTINGS works as well as a v3 key (c993).
+ * pasted in SETTINGS works as well as a v3 key.
  */
 const sendsAsBearer = (key: string): boolean =>
 	(process.env.TMDB_API_RC_TOKEN ?? '').trim() === key || isBearerKey(key);
@@ -137,7 +137,7 @@ export const tmdbMedia = (kind: 'movie' | 'show'): 'movie' | 'tv' =>
 /**
  * Search by title, ten at most, best match first. The caller cleans the
  * source's release-group tail before it gets here (`cleanTitle`,
- * library/catalogue.ts); a year narrows it when the source or the owner knows
+ * library/catalogue.ts); a year narrows it when the source or the user knows
  * one, which is how a remake stops matching the original.
  */
 export async function tmdbSearch(
@@ -159,7 +159,7 @@ export async function tmdbById(kind: 'movie' | 'show', id: number): Promise<Tmdb
 	return data ? toTitle(data, media) : null;
 }
 
-// ---- what surrounds an entry (card c990) ---------------------------------------------------
+// ---- what surrounds an entry ---------------------------------------------------
 
 export type { TmdbCollection, TmdbSeason, TmdbShowFacts };
 

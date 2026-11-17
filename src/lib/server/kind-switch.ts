@@ -10,15 +10,14 @@ import { storageOf, type Kind } from '../library/kinds.ts';
 import { episodePath, filmFile } from '../library/anime-files.ts';
 
 /**
- * The kind switch, a film to a show and back (card c991; the handoff's
- * `Kind.dc.html` in doc/handoffs/movies-shows/, drawn by c992's sheet). It
+ * The kind switch, a film to a show and back. It
  * **moves the files**, because the folder must match the kind afterwards:
  * `Movies/<Title (Year)>/<Title (Year)>.mkv` becomes `Shows/<Title>/Season
  * 01/<Title> S01E01 ….mkv`, each with its NFO, and back. MOVE's shape: the plan
  * says every path before anything moves, and UNDO puts every one back.
  *
  * Only between the two kinds TMDB holds. Anime to a show crosses catalogues
- * (an AniList link would have to go), which is c979's question, not this.
+ * (an AniList link would have to go), which is a separate question.
  *
  * What changes besides the files: the series' kind and its root, and its TMDB
  * link, search and declined offers, since TMDB is asked again as the other
@@ -137,8 +136,8 @@ export function planKindSwitch(
 	const collection = !!db
 		.prepare(`SELECT 1 FROM series_tmdb_links WHERE series_id = ? AND collection_id IS NOT NULL`)
 		.get(seriesId);
-	// Kind 4.2's words. TMDB "asks you before it links": the switch's search is
-	// the owner's kind, which never links by itself (the action that calls it).
+	// TMDB "asks you before it links": the switch's search is
+	// the user's kind, which never links by itself (the action that calls it).
 	const changes = toFilm
 		? ['THE EPISODE BECOMES THE FILM', ...(tmdb ? ['TMDB IS ASKED AGAIN, AS A MOVIE'] : [])]
 		: [

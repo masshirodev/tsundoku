@@ -15,12 +15,12 @@ import { sourceKindOfKey } from '../engine/source-kind.ts';
  * a planned series into the database, in one transaction, idempotently.
  *
  * - A series is found again by its origin key. Failing that, by its entries:
- *   a Hentoid book the owner grouped into a series of books lives on in
+ *   a Hentoid book the reader grouped into a series of books lives on in
  *   that series, and its own singleton row is gone -- so the book is updated
  *   where it now is, and no second copy is made.
  * - An entry is found by its source URL (or its file, when it has none).
  * - What the source owns is refreshed: files, sizes, pages, availability.
- *   Read state only moves forward. What the owner edits -- title, rating,
+ *   Read state only moves forward. What the reader edits -- title, rating,
  *   favourite, hidden, shelves, tags, kind, direction -- is set once, when
  *   the series is created, and never again.
  */
@@ -94,7 +94,7 @@ export type WriteResult = {
 	filesAttached: number;
 	/** Created visible and hidden by its source's ADDED HIDDEN (`opts.addedHidden`). */
 	addedHidden?: boolean;
-	/** Works a fold of this write took a series out of (c472; `Dropped`, fold.ts). */
+	/** Works a fold of this write took a series out of (`Dropped`, fold.ts). */
 	dropped?: Dropped[];
 };
 
@@ -119,19 +119,19 @@ export function writeSeries(
 		browsing?: boolean;
 		/**
 		 * Apply the source's ADDED HIDDEN to a series this write creates in the
-		 * library (card c503, the owner's (a); doc/BROWSE.md, "A source's own
-		 * switches"), in this same transaction: an importer can only add hiding.
+		 * library (doc/BROWSE.md, "A source's own switches"), in this same
+		 * transaction: an importer can only add hiding.
 		 * A series the plan already hides stays hidden, one it shows from a
 		 * source with the switch on arrives hidden, and one that already existed
 		 * is only updated, never newly hidden. The importers pass it
-		 * (import/index.ts); BROWSE's add doors call `hideIfAddedHidden`
+		 * (import/index.ts); BROWSE's add actions call `hideIfAddedHidden`
 		 * themselves, after their own reads.
 		 */
 		addedHidden?: boolean;
 	},
 	db: Database.Database = getDb()
 ): WriteResult {
-	// Deleted by the owner (doc/DELETING.md): passed by, and so are its deleted
+	// Deleted by the reader (doc/DELETING.md): passed by, and so are its deleted
 	// chapters or books, however many backups and devices still carry them.
 	const buried = db.prepare(`SELECT 1 FROM tombstones WHERE key = ?`);
 	const gone = (key: string) => key !== '' && !!buried.get(key);
@@ -145,12 +145,12 @@ export function writeSeries(
 		.transaction((): WriteResult => {
 			const dropped: Dropped[] = [];
 			adoptFormer(db, s, opts.now, dropped);
-			// Its own key, or a season's (c282): an anime's season folder and
+			// Its own key, or a season's: an anime's season folder and
 			// FOLLOW's plan both name a source entry the series holds a season of.
 			let seriesId: number | null = seriesHolding(s.originKey, db)?.id ?? null;
 			// Moved to another source (doc/MOVE.md): the backup still names the
 			// source it was downloaded from, and every key the series has left is
-			// in series_former_keys (rung 58), however many moves ago. The series
+			// in series_former_keys (migration 58), however many moves ago. The series
 			// is this one, not a twin; its key stays where it moved to. If two
 			// series somehow list one key, the most recent move away wins: a key
 			// has one series that left it last.
@@ -198,7 +198,7 @@ export function writeSeries(
 			}
 
 			// A book grouped as a volume of a novel (doc/BOOKS.md): the series is
-			// the owner's, holding other books too. This book's entries are found
+			// the reader's, holding other books too. This book's entries are found
 			// by its own prefix; its files are named from the series' folder; and
 			// its chapters keep the volume's place among the others.
 			const own = s.source === 'epub' ? `${s.originKey}!` : '';
@@ -238,7 +238,7 @@ export function writeSeries(
 					shared = brings.length ? widenTo(db, seriesId, brings) : path;
 				}
 			}
-			// An anime season's own folder (c282, doc/ANIME.md, "Downloading"): this
+			// An anime season's own folder (doc/ANIME.md, "Downloading"): this
 			// folder's episodes are named from the folder the series is named from.
 			// A series that has none yet takes the first folder to arrive, even a
 			// season's, so its own folder arriving later takes over and what was
@@ -279,8 +279,8 @@ export function writeSeries(
 				).run(path, path, s.status, s.description, s.coverUrl ?? '', s.coverUrl ?? '', seriesId);
 			} else if (seriesId === null) {
 				created = true;
-				// The kind the owner set on its source wins over the plan's own
-				// inference (card c986): explicit beats a gallery, a genre or a
+				// The kind the reader set on its source wins over the plan's own
+				// inference: explicit beats a gallery, a genre or a
 				// webtoon-only source. Set only when the series is made; a series
 				// already here keeps the kind it has.
 				const kind = sourceKindOfKey(s.originKey, db) ?? s.kind;
@@ -415,7 +415,7 @@ export function writeSeries(
 							e.locator ?? '',
 							e.matter ?? '',
 							volume?.name ?? '',
-							// Arrived now, whatever date the source gives it (rung 34).
+							// Arrived now, whatever date the source gives it (migration 34).
 							e.available ? opts.now : null
 						).lastInsertRowid
 					);
@@ -432,7 +432,7 @@ export function writeSeries(
 					entryId = had.id;
 					// What the source says of an episode can change (a title, a length); its watch state can't.
 					if (e.episode) setEpisode(db, entryId, e.episode, false);
-					// Rung 10 came after the first imports: a rescan fills it in.
+					// Migration 10 came after the first imports: a rescan fills it in.
 					if (e.scanlator)
 						db.prepare(`UPDATE entries SET scanlator = ? WHERE id = ?`).run(e.scanlator, entryId);
 					// A book's structure is the file's: a new edition moves its places.
@@ -456,8 +456,8 @@ export function writeSeries(
 						setPages(db, entryId, e);
 					}
 					// Read state only moves forward: never un-read what tsundoku read. And
-					// what the owner marked unread stays unread, unless the source read
-					// it again since (rung 28): Mihon keeps its old "read" forever.
+					// what the reader marked unread stays unread, unless the source read
+					// it again since (migration 28): Mihon keeps its old "read" forever.
 					if (
 						e.readAt !== null &&
 						had.read_at === null &&
@@ -517,7 +517,7 @@ export function writeSeries(
 						db.prepare(`UPDATE entries SET available = 0 WHERE id = ?`).run(r.id);
 			}
 			// A download folder's own series names no source by its key, so its
-			// source is read from the folder (c571): created before any backup
+			// source is read from the folder: created before any backup
 			// named it, it arrives hidden as the backup's series would have.
 			const addedHidden =
 				created &&
@@ -550,7 +550,7 @@ function nameFilesFrom(db: Database.Database, seriesId: number, from: string, to
 }
 
 /**
- * An episode's own columns (rung 47). A length or picture already known isn't
+ * An episode's own columns (migration 47). A length or picture already known isn't
  * blanked by a source that stopped saying it.
  */
 function setEpisode(
@@ -578,7 +578,7 @@ function setEpisode(
 }
 
 /**
- * ADDED HIDDEN for a Mihon download folder's new series (card c571): the
+ * ADDED HIDDEN for a Mihon download folder's new series: the
  * same write as `hideIfAddedHidden` (engine/source-flags.ts), which reads the
  * source from the series' key and so finds none in a `mihon-dir:` key, with
  * the source read from the folder instead (`folderSourceId`). A folder whose
@@ -629,7 +629,7 @@ function placeVolume(
 /**
  * Close a job: a run that brought no new series has nothing to tidy, so it
  * leaves no band. `dropped` is every Work its folds took a series out of
- * (c570, rung 71), which the IMPORT LOG names.
+ * (migration 71), which the IMPORT LOG names.
  */
 export function finishJob(
 	db: Database.Database,
@@ -648,7 +648,7 @@ export function finishJob(
  * Close every job a process left unfinished by dying (a crash, or a restart
  * for an update) mid-import. Left open, the library believes an import is
  * still running: the IMPORTING band never ends and the grid stays on NEWEST
- * with no SORT (2026-11-01, scan 750). Like finishJob, a job that brought no
+ * with no SORT. Like finishJob, a job that brought no
  * new series leaves no band. Returns how many it closed.
  */
 export function closeDeadJobs(db: Database.Database, now = Date.now()): number {

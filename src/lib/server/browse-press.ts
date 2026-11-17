@@ -20,11 +20,11 @@ import { seriesPage } from './series.ts';
 import type { FailReason, PressAnswer, UndoAnswer, Which } from '../library/browse-press.ts';
 
 /**
- * The server's half of a SELECT press (card c868; doc/BROWSE.md, "The
- * press"). The page drives the run in cut 1: it asks this door once per
+ * The server's half of a SELECT press (doc/BROWSE.md, "The
+ * press"). The page drives the run: it asks this function once per
  * series, a lane per source, and keeps the answers for the band, UNDO and the
- * shelves. Every door here is a preview's own, for many: ADD through
- * `addToLibrary` (the families' add doors, `keepOrPromote` and ADDED HIDDEN's
+ * shelves. Every path here is a preview's own, for many: ADD through
+ * `addToLibrary` (the families' add paths, `keepOrPromote` and ADDED HIDDEN's
  * `hideIfAddedHidden` within), FIRST 10 and ALL through `queueSeries` as
  * ADD AND DOWNLOAD queues them, UNDO through `undoAdd`, and a shelf through
  * `setInCollection`. So a press can't add, queue or undo differently from
@@ -63,7 +63,7 @@ function reasonOf(e: unknown): FailReason {
  * its previews are not. One exception: a source whose ADDED HIDDEN switch is
  * on (and not HIDDEN SOURCE) becomes mostly hidden *by the press itself*,
  * after its first series or two are added hidden, and the rest of its lane is
- * still the viewer's own to add (c505's rule for one ADD, for many).
+ * still the viewer's own to add (the rule for one ADD, for many).
  */
 function mayAddFrom(sourceId: string, reveal: boolean): boolean {
 	if (browseSource(sourceId, reveal)) return true;
@@ -77,7 +77,7 @@ function mayAddFrom(sourceId: string, reveal: boolean): boolean {
  *
  * - IN LIBRARY since it was ticked (another tab, a preview): skipped, said.
  * - ADDING now, by a preview's ADD or another press: skipped, said.
- * - added through the add door, watching whether this add hid it (c505), and
+ * - added through the add path, watching whether this add hid it, and
  *   for FIRST 10 or ALL queued as ADD AND DOWNLOAD queues ("next" is what the
  *   preview's FIRST 10 asks of a series with nothing downloaded).
  *
@@ -105,7 +105,7 @@ export async function pressOne(id: string, which: Which, reveal: boolean): Promi
 	}
 	let queued: number | 'down' | null = null;
 	if (which !== 'none') {
-		// The series this add hid is the viewer's to queue, reveal or not (c435, c505).
+		// The series this add hid is the viewer's to queue, reveal or not.
 		const s = seriesPage(added.seriesId, reveal || added.hidByThisAdd);
 		try {
 			const r = s
@@ -178,7 +178,7 @@ export async function undoPress(items: readonly PressSeries[]): Promise<UndoAnsw
 }
 
 /**
- * PUT ON A SHELF for a press (the ADD band's chips, for many; c724): one
+ * PUT ON A SHELF for a press (the ADD band's chips, for many): one
  * chip's tap, on or off, for every series of the press still its own. The
  * SHELVES sheet's own write.
  */

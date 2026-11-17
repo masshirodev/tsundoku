@@ -12,8 +12,8 @@ import { thumbnail } from '$lib/server/covers';
  * hooks.server.ts sends every response no-store, these included.
  *
  * Sent as the library's 400px WebP thumbnail: a source's cover can be the
- * original scan (MangaDex's default sends up to 2.8 MB each, measured
- * 2026-10-28), and BROWSE asks for twenty at a time on a tablet.
+ * original scan (MangaDex's default sends up to 2.8 MB each, measured), and
+ * BROWSE asks for twenty at a time on a tablet.
  */
 export const GET: RequestHandler = async ({ params }) => {
 	if (!engineConfigured() || !/^[A-Za-z0-9_-]{8,128}$/.test(params.token)) error(404, 'not found');

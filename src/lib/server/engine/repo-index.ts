@@ -15,7 +15,7 @@ export type Kind = 'manga' | 'anime';
 
 /**
  * The source family a stored kind names: the registry's `sourceFamilyOf`
- * (src/lib/library/kinds.ts; c420, moved there by c508), kept under its old
+ * (src/lib/library/kinds.ts), kept under its old
  * name here so `browse.ts` and `backend.ts` read it as before.
  */
 export { sourceFamilyOf as familyOfKind } from '../../library/kinds.ts';
@@ -28,7 +28,7 @@ export type Listing = {
 	versionName: string;
 	/** The extension API it's built for: "1.6" (Mihon), "14" or "16" (Aniyomi). */
 	lib: string;
-	/** Marked NSFW or MIXED: listed only with reveal on (c126, decided 2026-10-28). */
+	/** Marked NSFW or MIXED: listed only with reveal on. */
 	adult: boolean;
 	apkUrl: string;
 	jarUrl: string | null;
@@ -41,8 +41,8 @@ export type RepoMeta = { name: string; fingerprint: string; website: string };
 export class RepoError extends Error {}
 
 /**
- * A repository on this computer itself, which plain http may serve (the
- * owner's personal repository, 2026-11-12): nothing crosses a network, and
+ * A repository on this computer itself, which plain http may serve (a
+ * personal repository): nothing crosses a network, and
  * what an install trusts was never the transport anyway: an APK is kept only
  * when its signature matches the key the repository lists. Every other
  * address is still https.

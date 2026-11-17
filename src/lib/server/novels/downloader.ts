@@ -30,7 +30,7 @@ import { chapterImages, chapterXhtml, hasText } from './chapter-html.ts';
 import { installedPlugins, novelHost, type InstalledPlugin } from './plugins.ts';
 
 /**
- * The novel downloader (doc/NOVELS.md, "Downloading"; card c150): takes a
+ * The novel downloader (doc/NOVELS.md, "Downloading"): takes a
  * novel's chapters off the download queue, asks its plugin for each one
  * (`parseChapter`), and writes them into the novel's EPUB in tsundoku's
  * device folder, which the EPUB importer reads as it reads any book
@@ -108,7 +108,7 @@ export function pluginOf(id: string): InstalledPlugin | null {
 
 /**
  * Where a series' book is, under the library folder: fixed at its first
- * download (rung 45), `devices/tsundoku/Library/Novels/<Source>/<Title>.epub`,
+ * download (migration 45), `devices/tsundoku/Library/Novels/<Source>/<Title>.epub`,
  * and never another series' file.
  */
 export function bookFile(db: Database.Database, seriesId: number, source: string): string {
@@ -202,7 +202,7 @@ export async function fetchChapter(
 	let got: { html?: unknown; url?: unknown };
 	try {
 		// Two minutes: the first request to a host behind a check waits on the
-		// app's solve before the host can retry (card c152).
+		// app's solve before the host can retry.
 		got = await novelHost().chapter(p.file, e.path, 120_000);
 	} catch (err) {
 		throw new NovelDownloadError((err as Error).message, 'source');
@@ -213,7 +213,7 @@ export async function fetchChapter(
 	// A chapter's pictures are relative to the page it was read from. The host
 	// answers the address its chapter request ended at, so a chapter URL that
 	// redirects puts them where the site served them, in either fetch mode; the
-	// plugin's site is the fallback when it asked for something else (c631).
+	// plugin's site is the fallback when it asked for something else.
 	let base: string;
 	try {
 		base =

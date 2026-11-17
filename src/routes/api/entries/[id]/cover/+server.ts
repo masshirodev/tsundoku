@@ -5,7 +5,7 @@ import { readBookCover } from '$lib/server/covers';
 
 /**
  * A book's cover thumbnail, for its tile in a series of books (doc/COVERS.md,
- * "Books"). Asked for with `?v=`, which changes when the owner picks another
+ * "Books"). Asked for with `?v=`, which changes when the user picks another
  * page, so it's cached as immutable. Hidden means hidden: a 404 while reveal
  * is off.
  */

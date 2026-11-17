@@ -8,7 +8,7 @@ import { refreshSeriesCover } from '$lib/server/covers';
 type Chosen = { entry: number; page: number } | null;
 
 /**
- * The page menu's choices (card c26; doc/COVERS.md, "Chosen"). The body names
+ * The page menu's choices (doc/COVERS.md, "Chosen"). The body names
  * what to set, each part optional:
  *
  * - `book`: the pressed book's cover page (0-based), or null for automatic;
@@ -76,7 +76,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		}
 	})();
 	// The series' tile: its chosen page, or -- a book's cover changing -- its
-	// first book's (c57). Made now, from the workstation's files only.
+	// first book's. Made now, from this computer's files only.
 	await refreshSeriesCover(e.series_id);
 	const at = (
 		db.prepare(`SELECT cover_at FROM series WHERE id = ?`).get(e.series_id) as {

@@ -7,21 +7,21 @@ import { join } from './fspath.ts';
 import { COLOURS, isLost, type Colour, type Highlight } from '../library/highlights.ts';
 
 /**
- * Highlights' store (doc/HIGHLIGHTS.md; card c701, H1 of c444). The record is
- * rung 72's table, and its life (a delete marks ORPHAN, a re-add re-resolves,
- * a key follows its series, hidden follows the series while it exists) is the
- * rung's triggers, so every door that deletes or re-adds reaches it without
- * calling anything here. This is what the screens read and the few writes the
- * owner makes: the note, the colour, DELETE and its UNDO.
+ * Highlights' store (doc/HIGHLIGHTS.md). The record is migration 72's table, and
+ * its life (a delete marks ORPHAN, a re-add re-resolves, a key follows its
+ * series, hidden follows the series while it exists) is the migration's triggers,
+ * so every path that deletes or re-adds reaches it without calling anything here.
+ * This is what the screens read and the few writes the user makes: the note, the
+ * colour, DELETE and its UNDO.
  *
- * Hidden means hidden, by the stored flag (Main 02): it is copied from the
+ * Hidden means hidden, by the stored flag: it is copied from the
  * series when a highlight is made and kept after the series is gone, so a
  * deleted hidden series' highlights stay hidden. Every list, count, disk
  * line and export here filters on it in SQL, never in the page.
  *
- * H1 made no highlight. H3 (c703) keeps a page from the image reader
- * (`./highlights/pages.ts`); the text reader's HIGHLIGHT and the player's MARK
- * IN and KEEP come in H2 and H4.
+ * Nothing here makes a highlight: the image reader keeps a page
+ * (`./highlights/pages.ts`) and the text reader's HIGHLIGHT a quote
+ * (`./highlights/quotes.ts`); the player's MARK IN and KEEP are not built.
  */
 
 type Row = {
@@ -73,7 +73,7 @@ const COLUMNS = `h.id, h.kind, h.series_id, h.entry_id, h.number, h.season, h.bl
 /** The live series' name while it is there (a rename shows), the snapshot's once it's gone. */
 const FROM = `FROM highlights h LEFT JOIN series s ON s.id = h.series_id`;
 
-/** Not the owner's own deleted ones, and not a hidden series' unless revealed. */
+/** Not the user's own deleted ones, and not a hidden series' unless revealed. */
 const shown = (reveal: boolean) =>
 	reveal ? `h.deleted_at IS NULL` : `h.deleted_at IS NULL AND h.hidden = 0`;
 
@@ -162,7 +162,7 @@ export function getHighlight(
 	return r ? toHighlight(r) : null;
 }
 
-/** The sidebar's and MORE's count (Main Q2): absent at zero, a hidden series' not counted. */
+/** The sidebar's and MORE's count: absent at zero, a hidden series' not counted. */
 export function highlightCount(reveal: boolean, db: Database.Database = getDb()): number {
 	return (
 		db.prepare(`SELECT COUNT(*) AS n FROM highlights h WHERE ${shown(reveal)}`).get() as {
@@ -171,7 +171,7 @@ export function highlightCount(reveal: boolean, db: Database.Database = getDb())
 	).n;
 }
 
-/** The disk line (Page P1): what pages and clips keep on the workstation, of what shows. */
+/** The disk line: what pages and clips keep on the server, of what shows. */
 export function diskUse(
 	reveal: boolean,
 	db: Database.Database = getDb()
@@ -203,7 +203,7 @@ export function setNote(
 	db.prepare(`UPDATE highlights SET note = ? WHERE id = ?`).run(note.trim().slice(0, 4000), id);
 }
 
-/** A quote's colour; a page and a clip have none (Main Q1). */
+/** A quote's colour; a page and a clip have none. */
 export function setColour(
 	id: number,
 	colour: string,
@@ -258,7 +258,7 @@ export function copyFile(relative: string, area = highlightsArea()): string {
  * The rows, gone, in the caller's transaction (or its own); their copies'
  * files are returned for `unlinkCopies`, which the caller runs only once that
  * transaction has committed. Unlinking inside it would lose the copy of a row
- * a later statement's failure rolls back (DELETE's and a book's delete, c701).
+ * a later statement's failure rolls back (DELETE's and a book's delete).
  */
 export function removeHighlightRows(
 	ids: number[],
@@ -301,7 +301,7 @@ export function removeHighlights(ids: number[], db: Database.Database = getDb())
 
 /**
  * The deleted ones whose UNDO has passed. The pick and the delete are one
- * immediate transaction: a keep that revives a row (c703) clears its
+ * immediate transaction: a keep that revives a row clears its
  * `deleted_at`, and in another process it could otherwise land between the
  * two and have its live row and copy removed. The files go after the commit,
  * as `removeHighlightRows` asks.
@@ -322,7 +322,7 @@ export function purgeDeleted(now = Date.now(), db: Database.Database = getDb()):
 }
 
 /**
- * What DELETE's sheet says (Out X4): how many highlights the series hold, and
+ * What DELETE's sheet says: how many highlights the series hold, and
  * in how many series. Only what the viewer can see is counted, as only a
  * series they can see can be deleted.
  */
@@ -363,12 +363,12 @@ export function heldByEntry(
 export type MoveHighlights = {
 	follow: number;
 	lose: number;
-	/** The ones that don't simply follow, named under the summary (Out X5). */
+	/** The ones that don't simply follow, named under the summary. */
 	named: { id: number; place: string; why: string }[];
 };
 
 /**
- * MOVE's line (Out X5), from the same by-number map the move applies
+ * MOVE's line, from the same by-number map the move applies
  * (`buildMoveMap`, move.ts): a highlight on a matched entry follows it; one on
  * an entry the map keeps from the old source follows too (the entry stays,
  * with its file, so its way back still works) and is named; one on an entry
@@ -426,7 +426,7 @@ export function moveHighlights(
  * chapter's number and season. Called inside the move's own transaction with
  * the ids it inserted. A highlight on an entry the move keeps or matches
  * needs nothing: the entry is the same row, and its series' key follows by
- * rung 72's trigger.
+ * migration 72's trigger.
  */
 export function repointAdded(db: Database.Database, seriesId: number, added: number[]): number {
 	let n = 0;

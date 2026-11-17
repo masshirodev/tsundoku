@@ -18,8 +18,8 @@ import { readCappedText } from '../net-guard.ts';
 import { NO_EXT_FILTERS, searchMatches, type ExtFilters } from '../../library/ext-filters.ts';
 
 /**
- * LNReader repositories and the plugins installed from them (doc/NOVELS.md;
- * card c148), as extensions.ts is for Mihon's. There's no signature to
+ * LNReader repositories and the plugins installed from them (doc/NOVELS.md),
+ * as extensions.ts is for Mihon's. There's no signature to
  * check: the trust is the repository's address over https, and each plugin
  * file pinned by its SHA-256 once installed, so what runs is what was
  * fetched then, never a file that changed under it. A plugin must load in
@@ -36,8 +36,8 @@ let host: NovelHost | null = null;
 /**
  * The options the app's one host runs with: this store to read, and the app's
  * own solve for a site's check — never the host's, since it refuses local
- * addresses and a solver is one (novels/solver.ts; card c152), and its page
- * through the solver for a host whose check is bound to the browser (c335).
+ * addresses and a solver is one (novels/solver.ts), and its page
+ * through the solver for a host whose check is bound to the browser.
  * Exported so the wiring that puts the cards into production can be pinned by
  * a spec.
  */
@@ -376,7 +376,7 @@ export function installedPlugins(db: Database.Database = getDb()): InstalledPlug
 	});
 }
 
-// ---- EXTENSIONS' view of them (c148) ------------------------------------------------------
+// ---- EXTENSIONS' view of them ------------------------------------------------------
 
 export type PluginRow = InstalledPlugin & {
 	/** BACK TO this version, within its week; null when there's none. */
@@ -389,7 +389,7 @@ export type PluginRow = InstalledPlugin & {
 
 /**
  * INSTALLED's plugins, in its three sections: NEEDS A HAND, UPDATES, INSTALLED.
- * Each counts its series as reveal lets the viewer see them (c506), as
+ * Each counts its series as reveal lets the viewer see them, as
  * `installedView` counts a Mihon package's: outside reveal a hidden series is
  * not one of its "N SERIES HERE". Which plugins are drawn at all is
  * `pluginsShown`'s (engine/manage.ts).
@@ -424,7 +424,7 @@ export function pluginView(reveal: boolean, now = Date.now(), db: Database.Datab
 }
 
 /**
- * AVAILABLE's NOVELS tab: every repository's plugins in the owner's
+ * AVAILABLE's NOVELS tab: every repository's plugins in the user's
  * languages (or all of them with ALL), matching a search. LNReader's index
  * marks nothing adult, so nothing is held back for reveal here.
  */

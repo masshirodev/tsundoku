@@ -4,7 +4,7 @@ import { readPressSeries, undoPress } from '$lib/server/browse-press';
 import type { RequestHandler } from './$types';
 
 /**
- * UNDO for a whole SELECT press (card c868; `undoPress`): `{ items: [{ series,
+ * UNDO for a whole SELECT press (`undoPress`): `{ items: [{ series,
  * preview }] }`, every series the press added. Those with nothing downloaded
  * or read leave the library with their queued chapters; the answer counts
  * what went, what stayed and what was gone already.

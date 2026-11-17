@@ -4,13 +4,13 @@ import { join } from './fspath.ts';
 import { isPrivateV4, lanReach, type LanReach } from './lan.ts';
 
 /**
- * The listeners of a friend's install (doc/WIFI.md; card c188), run by
+ * The listeners of a friend's install (doc/WIFI.md), run by
  * scripts/serve.ts in local mode in place of adapter-node's own: one on
  * 127.0.0.1, always, and one on each home-network address while WI-FI is on.
  * SETTINGS switches them through `globalThis.__tsundokuLan` (src/lib/server/
  * wifi.ts), in the same process, so ON never restarts the app.
  *
- * Every request is told which door it came in by (`x-tsundoku-via`, which
+ * Every request is told which listener it came in by (`x-tsundoku-via`, which
  * the hook reads: local or lan) and that it's plain http
  * (`x-tsundoku-proto`, adapter-node's PROTOCOL_HEADER), both overwritten
  * whatever a client sent. The origin is then the Host it asked for, so a
@@ -29,14 +29,14 @@ export type LanStatus = {
 	reach: LanReach;
 	/** Where it listens now, ip:port. */
 	listening: string[];
-	/** The address the router took away, and the new one: the handoff's band (2C). */
+	/** The address the router took away, and the new one, for the band that says so. */
 	changed: { from: string; to: string } | null;
 	error: string | null;
 	/** Windows asks, once, the first time: STARTING… names the dialog until then. */
 	firstTime: boolean;
 	/**
 	 * When a request last came in by a Wi-Fi listener from a home-network
-	 * client, any request at all (c721): proof the computer's firewall lets a
+	 * client, any request at all: proof the computer's firewall lets a
 	 * phone in, whatever the request then gets. Null until one does by the
 	 * listeners open now: closing them (OFF, a moved address) forgets it, since
 	 * new listeners can meet a new rule. Optional for the fakes that stand in for this object.
@@ -171,7 +171,7 @@ export function startListeners(o: {
 	const setOn = async (on: boolean): Promise<LanStatus> => {
 		if (on) {
 			const r = reachNow();
-			// The handoff's 2D: only a public address, and ON can't be pressed.
+			// Only a public address, and ON can't be pressed.
 			if (r.kind === 'public') {
 				reach = r;
 				return status();

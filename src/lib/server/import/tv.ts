@@ -1,7 +1,7 @@
 import { isTvApp } from '../../settings/catalog.ts';
 
 /**
- * The TV never imports (c511; doc/IMPORT-BACKUP.md, "Where it is reached from"): SETTINGS' row has
+ * The TV never imports (doc/IMPORT-BACKUP.md, "Where it is reached from"): SETTINGS' row has
  * no button there, and the server refuses too, so a TV that reaches the pages
  * by an address typed or kept is told so and nothing is written. The TV is
  * told apart by its app's user agent (`TsundokuTV/<version>`, `isTvApp`),

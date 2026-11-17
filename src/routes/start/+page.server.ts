@@ -7,14 +7,14 @@ import { isRevealed } from '$lib/server/prefs';
 import { STEPS, type StepId } from '$lib/library/start';
 
 /**
- * GET STARTED as a page of its own (doc/ONBOARDING.md; card c208): the same
+ * GET STARTED as a page of its own (doc/ONBOARDING.md): the same
  * list the empty library shows, reachable from HELP's first topic and the
  * sidebar on any install, finished or not. Its SKIP and UNDO are the empty
  * library's too. The view itself comes with the layout.
  */
 export const load: PageServerLoad = ({ cookies }) => {
 	const reveal = isRevealed(cookies);
-	// 03's done row names the door that ticked it (c511, c634): the import
+	// 03's done row names what ticked it: the import
 	// whose job brought the first series 03 counts, else the scan's own line.
 	const imported = tickingImport(reveal);
 	return { libraryRoot: libraryRoot(), firstRead: firstReadExtras(reveal), imported };

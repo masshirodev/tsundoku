@@ -20,15 +20,15 @@ import { forgetRecord, recordView } from '$lib/server/browsing';
 import { browseSource } from '$lib/server/engine/browse';
 import { addWatchingHidden } from '$lib/server/engine/source-flags';
 import { searchOrigin, seriesWithOrigin, sourceOrigin } from '$lib/library/origin';
-// Where ADD lands and the band it leaves (c435, c505): BROWSE's, since the band is drawn there.
+// Where ADD lands and the band it leaves: BROWSE's, since the band is drawn there.
 import { addedLanding, type Added } from '../../../browse/added.server';
 
 /**
- * A search result's preview (Download States 1e, state 7): the series
+ * A search result's preview: the series
  * screen's layout with what the source gave, and + ADD TO LIBRARY in
  * CONTINUE's place. Downloading from here adds it first, after asking (ADD
- * AND DOWNLOAD, card c205). A result tsundoku already
- * has opens its series instead; a hidden one, with reveal off, is not found.
+ * AND DOWNLOAD). A result tsundoku
+ * already has opens its series instead; a hidden one, with reveal off, is not found.
  */
 function mangaId(raw: string): string {
 	if (!configured() || !isSourceMangaId(raw)) error(404, 'not found');
@@ -36,8 +36,8 @@ function mangaId(raw: string): string {
 }
 
 /**
- * ADD, and whether it was this ADD that hid the series (c505;
- * `addWatchingHidden`). With reveal on nothing is hidden from the viewer, so
+ * ADD, and whether it was this ADD that hid the series
+ * (`addWatchingHidden`). With reveal on nothing is hidden from the viewer, so
  * nothing is read.
  */
 async function add(id: string, reveal: boolean): Promise<Added> {
@@ -55,7 +55,7 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 	}
 	if (!key) error(404, 'not found');
 	// Back to where it was found: a source's BROWSE page, or the search. The
-	// series keeps it when it's added, or when it already was (card c262).
+	// series keeps it when it's added, or when it already was.
 	const q = url.searchParams.get('q') ?? '';
 	const from = sourceOrigin(url.searchParams.get('from'));
 	const browsed = from.startsWith('/browse/') ? from : '';
@@ -94,7 +94,7 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 
 export const actions: Actions = {
 	/**
-	 * An episode, played without ADD (doc/READING-ONLINE.md; card c161): the series
+	 * An episode, played without ADD (doc/READING-ONLINE.md): the series
 	 * becomes a browsing record on the first open, on no shelf, its progress and
 	 * HISTORY kept for ADD later.
 	 */
@@ -134,7 +134,7 @@ export const actions: Actions = {
 		redirect(303, addedLanding(added, id, origin, reveal, { added: id }));
 	},
 	/**
-	 * DOWNLOAD's FIRST 10 or ALL N, confirmed (card c205): a download lives in
+	 * DOWNLOAD's FIRST 10 or ALL N, confirmed: a download lives in
 	 * the library, so it's ADD, then the queue, then the new series. The add
 	 * stands if the queue doesn't answer: the series' own DOWNLOAD row says
 	 * so, and the band says how many were queued.
@@ -154,7 +154,7 @@ export const actions: Actions = {
 		}
 		const { seriesId } = added;
 		// The series this ADD hid is the viewer's to queue, even when reveal is
-		// off (card c435): queueing it shows nothing. Only that one (c505): a
+		// off: queueing it shows nothing. Only that one: a
 		// series already here and hidden for its own reasons is not found
 		// outside reveal, and is not queued.
 		const s = seriesPage(seriesId, reveal || added.hidByThisAdd);

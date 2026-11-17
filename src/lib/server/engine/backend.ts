@@ -50,9 +50,9 @@ import type {
 } from '../download-types.ts';
 
 /**
- * The download screens' backend on tsundoku's own engine (doc/DOWNLOADS.md,
- * card c138): every function the screens call, answering in the types they
- * were drawn for (download-types.ts, Suwayomi's until c129), so the screens are the
+ * The download screens' backend on tsundoku's own engine (doc/DOWNLOADS.md):
+ * every function the screens call, answering in the types they were drawn
+ * for (download-types.ts), so the screens are the
  * same whichever backend runs (server/downloads.ts picks). A chapter's id is
  * its entry's here, and a source's manga is named by source and URL.
  */
@@ -132,7 +132,7 @@ function resolveLater(seriesId: number, force = false) {
 
 const resolvingBooks = new Set<number>();
 
-/** Asks a book's own source (card c885), as `resolveLater` asks a series'. */
+/** Asks a book's own source, as `resolveLater` asks a series'. */
 function resolveBookLater(entryId: number) {
 	if (resolvingBooks.has(entryId)) return;
 	resolvingBooks.add(entryId);
@@ -173,7 +173,7 @@ export function seriesDownloads(
 		.prepare(`SELECT origin_key, followed_at FROM series WHERE id = ?`)
 		.get(seriesId) as { origin_key: string | null; followed_at: number | null } | undefined;
 	const own = parseKey(s?.origin_key ?? null);
-	// A book grouped from a source has a key of its own (card c885; doc/BOOKS.md,
+	// A book grouped from a source has a key of its own (doc/BOOKS.md,
 	// "Where a book's origin lives"), so a group answers per book: `none` when
 	// nothing here is from a source, `elsewhere` when no book's source has an
 	// extension, `down` when the engine isn't answering, and otherwise `ok`, a
@@ -328,7 +328,7 @@ export function searchSources(reveal: boolean): { id: string; name: string }[] {
 			WHERE e.failed = ''`
 		)
 		.all() as { id: string; name: string }[];
-	// A HIDDEN SOURCE is asked only inside reveal (card c435).
+	// A HIDDEN SOURCE is asked only inside reveal.
 	const hiddenOn = reveal ? new Set<string>() : sourcesWith('hidden');
 	return sourcesToSearch(
 		rows.filter((r) => !hiddenOn.has(r.id)),
@@ -362,7 +362,7 @@ const STATUS_NAME = [
 ];
 
 /**
- * The source family a source is (card c303): an LNReader plugin's
+ * The source family a source is: an LNReader plugin's
  * (`ln:<plugin>`, BROWSE's id for it) is `lnreader`, and an installed
  * extension's is the family whose kind its row names (`engine_extensions.kind`,
  * `manga` for a Mihon APK and `anime` for an Aniyomi one, decoded by
@@ -379,7 +379,7 @@ export function sourceFamily(sourceId: string): SourceFamily | null {
 }
 
 /**
- * The medium a source serves (doc/KINDS.md; card c304): the medium of its
+ * The medium a source serves (doc/KINDS.md): the medium of its
  * family's kind, so an LNReader plugin's is text, a Mihon extension's pages
  * and an Aniyomi one's video. Null for a source the engine has no row for,
  * which serves nothing it can say. MOVE asks it for the sources of a series'
@@ -553,8 +553,8 @@ export async function sourceManga(id: string): Promise<SourceManga | null> {
 	const now = Date.now();
 	return {
 		id,
-		// Some 1.6 sources answer their details with a blank title (Mangahere: "Love
-		// Junkies" was added with none, 2026-10-29): the title its hit showed, else
+		// Some 1.6 sources answer their details with a blank title (Mangahere's, for
+		// one): the title its hit showed, else
 		// the address's own words.
 		title: details.title?.trim() || hitTitles.get(id) || titleFromPath(splitMemo(url).url),
 		description: details.description ?? '',
@@ -658,7 +658,7 @@ export async function addToLibrary(
 	browsing = false
 ): Promise<number> {
 	const quick = mangaKey(id);
-	// Held by a series or by a book in a group (card c885): never added twice.
+	// Held by a series or by a book in a group: never added twice.
 	const known = quick ? seriesHolding(quick, db()) : null;
 	if (known) return keepOrPromote(known, browsing, now, db());
 	const m = await sourceManga(id);
@@ -668,7 +668,7 @@ export async function addToLibrary(
 	if (existing) return keepOrPromote(existing, browsing, now, db());
 	// A library with no Mihon folder yet (a friend's new install, doc/READING-ONLINE.md):
 	// the root a scan of `Mihon/` would make, made now, so the first ADD or
-	// online read works. It used to refuse, and READ ONLINE did nothing.
+	// online read works, rather than refusing.
 	const rootId =
 		mihonRoot() ?? ensureNamedRoot(db(), 'Mihon', join(dataPaths().library, 'Mihon'), false);
 	const plan = planMihon(
@@ -694,7 +694,7 @@ export async function addToLibrary(
 	}
 	if (!browsing) {
 		db().prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, row.id);
-		// ADD from a source that adds hidden (card c435): it starts hidden.
+		// ADD from a source that adds hidden: it starts hidden.
 		hideIfAddedHidden(row.id, db());
 	}
 	rememberAtSource(row.id, m, now);
@@ -746,8 +746,8 @@ export type Arrived = { id: number; url: string; fetchedAt: number; downloaded: 
 
 /**
  * The entries a source's new chapters became, through the importers' one
- * writer and the Mihon plan ADD uses, so everything the owner set on the
- * series stays. What FOLLOW queues, and what REFRESH (card c220) only counts:
+ * writer and the Mihon plan ADD uses, so everything the user set on the
+ * series stays. What FOLLOW queues, and what REFRESH only counts:
  * it downloads nothing. Null when the series isn't from a source with an
  * installed extension, or its source lists nothing new.
  */
@@ -765,7 +765,7 @@ export async function addNewChapters(
 	if (!s || !key || !extensionFor(key.sourceId)) return null;
 	const fresh: EngineChapter[] = await resolveSeries(seriesId, { db: d, now: () => now }, true);
 	if (fresh.length === 0) return null;
-	// Read under every name the series has had (c555): one new chapter named
+	// Read under every name the series has had: one new chapter named
 	// "Squad 100 4" by a series renamed from Squad 100 was chapter 100.
 	const numbers = numbersUnderNames(
 		namesOf(s.title, s.alt_titles),
@@ -809,7 +809,7 @@ export async function addNewChapters(
 		[],
 		now
 	).series[0];
-	// Only the new chapters: everything the owner set on the series stays, as the writer keeps it.
+	// Only the new chapters: everything the user set on the series stays, as the writer keeps it.
 	writeSeries(plan, { rootId: s.root_id, jobId: null, now, markMissing: false }, d);
 	const ids = new Map(
 		(

@@ -33,7 +33,7 @@ import {
 import { ProtobufError } from '../../import/protobuf.ts';
 
 /**
- * IMPORT A BACKUP's server half (c438, doc/IMPORT-BACKUP.md): a file arrives in
+ * IMPORT A BACKUP's server half (doc/IMPORT-BACKUP.md): a file arrives in
  * chunks into the data folder's import area, is read before anything is
  * written, previewed, and on IMPORT runs as a scan job of one step through
  * the same writer a scan uses. The IMPORT LOG reads `imports` beside
@@ -41,9 +41,8 @@ import { ProtobufError } from '../../import/protobuf.ts';
  */
 
 /**
- * The largest backup taken: 100 MB. The owner's own Mihon backup of 373
- * series is well under 1 MB gzipped (doc/IMPORT-MIHON.md's figures); the
- * board's is 2.4 MB. A file past it is refused with a sentence before a byte
+ * The largest backup taken: 100 MB. A real Mihon backup of 373 series is well
+ * under 1 MB gzipped (doc/IMPORT-MIHON.md's figures). A file past it is refused with a sentence before a byte
  * is kept.
  */
 export const MAX_BACKUP_BYTES = 100 * 1024 * 1024;
@@ -174,8 +173,8 @@ export type Reading =
  * Mihon (1, 2, 101). Mihon's schema has none of them (its 100 is broken
  * sources, 104-106 preferences and repositories), and decodeBackup reads only
  * 1, 2 and 101, so without this an Aniyomi file would read as Mihon with its
- * anime silently dropped. Not measured against a real Aniyomi backup: the
- * owner has none yet (doc/IMPORT-BACKUP.md, "Which app").
+ * anime silently dropped. Not measured against a real Aniyomi backup: none
+ * was at hand (doc/IMPORT-BACKUP.md, "Which app").
  */
 const ANIYOMI_FIELDS = [3, 4, 102, 103];
 
@@ -198,7 +197,7 @@ export function readBackupFile(bytes: Uint8Array, name: string, maxRaw = MAX_RAW
 		reason: `${upper} · ${why} · NOTHING CHANGED`
 	});
 	if (bytes.length === 0) return notOne('AN EMPTY FILE');
-	// A zip: what LNReader writes. Its importer isn't built (c190).
+	// A zip: what LNReader writes. Its importer isn't built.
 	if (bytes[0] === 0x50 && bytes[1] === 0x4b)
 		return notOne('A ZIP · LNREADER BACKUPS ARE NOT READ YET', 'lnreader');
 	if (bytes[0] !== 0x1f || bytes[1] !== 0x8b)
@@ -257,7 +256,7 @@ const safeName = (name: string) =>
 
 /**
  * A file past the limit, refused before a byte is kept: the sentence the pick
- * screen shows (c438: "a file past it is refused with a sentence, not a 413
+ * screen shows ("a file past it is refused with a sentence, not a 413
  * page").
  */
 export const tooLarge = (name: string, size: number) =>
@@ -394,7 +393,7 @@ function readStored(row: ImportRow): Reading {
  * The library's side of a preview: what is here, the shelves, the sources.
  * What is here, and what an earlier import brought, follow reveal: with it
  * off, a hidden series is neither ALREADY HERE nor GONE, so nothing on the
- * preview says one exists (round 2).
+ * preview says one exists.
  */
 export function libraryFacts(
 	app: BackupApp,
@@ -508,7 +507,7 @@ export function startBackupImport(
 	// Live from here until its promise settles; a row read meanwhile stays as written.
 	live.add(id);
 	// Everything up to the queue runs here, synchronously, and only the queue's
-	// then/catch below takes the row out of `live`: a throw in between (c512: a
+	// then/catch below takes the row out of `live`: a throw in between (a
 	// malformed `engine_listings` row read by `libraryFacts`) left the row
 	// `running` and live, so its page polled until a restart. Now it fails
 	// where it stands, with a reason the page draws.
@@ -524,7 +523,7 @@ export function startBackupImport(
 	}
 }
 
-/** Why an IMPORT that threw before its run failed (c512); the error itself is in the server's log. */
+/** Why an IMPORT that threw before its run failed; the error itself is in the server's log. */
 export const COULD_NOT_START = 'THE LIBRARY’S OWN RECORDS COULD NOT BE READ · SEE THE SERVER’S LOG';
 
 function queueBackupImport(

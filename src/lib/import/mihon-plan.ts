@@ -7,8 +7,7 @@ import type { Kind, Rating } from '../library/types.ts';
 /**
  * What a Mihon import will write, worked out without touching the database
  * or the disk: the backup and a listing of the downloads go in, series with
- * their entries come out. doc/IMPORT-MIHON.md explains every rule here; the
- * owner settled the category ones on 2026-09-23.
+ * their entries come out. doc/IMPORT-MIHON.md explains every rule here.
  */
 
 // ---- what the disk says ---------------------------------------------------------
@@ -39,9 +38,8 @@ export type { PlannedEntry, PlannedSeries, PlannedTag } from './plan.ts';
 // ---- categories ---------------------------------------------------------------
 
 /**
- * The owner's Mihon categories are a rating scale, each with a "+" twin for
- * adult series: Amazing, Good, Okay rate 10, 8, 6 (5, 4, 3 before c67
- * made ratings out of 10); Dropped, IDR and To Read
+ * Mihon categories are read as a rating scale, each with a "+" twin for
+ * adult series: Amazing, Good, Okay rate 10, 8, 6; Dropped, IDR and To Read
  * stay unrated and become shelves; any other category is a shelf too. A "+"
  * hides the series. The category itself is kept as a `mihon:` tag.
  */
@@ -77,8 +75,8 @@ const WEBTOON_SOURCES = new Set([
 
 /**
  * Sources where every "manga" is one gallery, a doujin or a photo set with a
- * single chapter: their series are books, as Hentoid's are (c124). Only
- * sources whose shape was checked, in the owner's backup or in Keiyoushi's
+ * single chapter: their series are books, as Hentoid's are. Only
+ * sources whose shape was checked, in a real backup or in Keiyoushi's
  * code (the GalleryAdults base and its nine sites); "hentai" in a name isn't
  * enough, and Luscious isn't one (an album there is hundreds of chapters).
  * doc/IMPORT-MIHON.md, "Gallery sources", says how to add one.
@@ -107,7 +105,7 @@ export const isGallerySource = (source = '') => GALLERY_SOURCES.has(source.trim(
 
 /**
  * What a series says about its own kind: a "Manhwa" or "Manga" genre, then a
- * webtoon reading mode (the owner switched it to scroll). Null when neither.
+ * webtoon reading mode (set to scroll). Null when neither.
  */
 export function signalledKind(genres: string[], viewer: number): Kind | null {
 	for (const g of genres) {
@@ -122,7 +120,7 @@ export function signalledKind(genres: string[], viewer: number): Kind | null {
  * when the series doesn't say, a webtoon-only source means manhwa, and
  * anything else is manga. A source's majority was tried and misled -- mixed
  * sources tag only their Korean titles, so the Japanese ones were outvoted.
- * No door writes an owner-picked kind: the only write to a kind already stored
+ * Nothing here overwrites a kind the reader picked: the only write to a kind already stored
  * is `carryEdit`'s (server/import/fold.ts), which carries a folder's row's own.
  */
 export function kindOf(genres: string[], viewer: number, source = ''): Kind {
@@ -159,8 +157,8 @@ const SUFFIX = /^(jr|sr|ii|iii|iv)\.?$/i;
  * "Kim Hyunsoo", "BK_Moon/ Lee hyunmin" -> people, one each: split on commas,
  * `/`, `;` and ` & `, with no `_` or "unknown". A part that is only a
  * generational suffix ("Jr.", "Sr.", "II", "III", "IV") stays with the name
- * before it, so "Tanaka, Jr." is one person, written back as `Tanaka, Jr.`
- * (c508). Every importer's author and artist split is this one (Mihon's,
+ * before it, so "Tanaka, Jr." is one person, written back as `Tanaka, Jr.`.
+ * Every importer's author and artist split is this one (Mihon's,
  * LNReader's, Aniyomi's) and so is the preview's (`splitPeople`,
  * library/tag-search.ts), so a name the preview links is a tag the added
  * series carries. It holds on its own output: the names joined with `, `
@@ -347,8 +345,8 @@ export function malLinkOf(m: MihonManga): { id: number; score: number } | undefi
 }
 
 /**
- * A category's effect when the owner left it out on IMPORT A BACKUP's preview
- * (c438): no shelf and no rating, but a "+" still hides. Unticking a chip is
+ * A category's effect when the reader left it out on IMPORT A BACKUP's
+ * preview: no shelf and no rating, but a "+" still hides. Unticking a chip is
  * a choice about shelves, never a way to show what the category hides.
  */
 function leftOutEffect(name: string): ReturnType<typeof categoryEffect> {
@@ -544,7 +542,7 @@ export function planMihon(
 	let skipped = 0;
 	for (const m of backup?.manga ?? []) {
 		// Local manga (source 0) are Mihon's local folder, which tsundoku no
-		// longer imports (c191): never a series from the backup.
+		// longer imports: never a series from the backup.
 		if (m.source === '0') continue;
 		const sourceName = backup!.sources.get(m.source);
 		const downloaded =

@@ -34,7 +34,7 @@ type Body = {
 };
 
 /**
- * The review's decisions for TMDB (card c989; doc/LINKS.md, "TMDB links"), as
+ * The review's decisions for TMDB (doc/LINKS.md, "TMDB links"), as
  * /api/links is AniList's and /api/links/ranobe Ranobe's, in Ranobe's body
  * shape so the page posts one way for both. Hidden means hidden: a hidden
  * series is a 404 while reveal is off, and never searched with it on, only
@@ -92,7 +92,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			if (!Number.isSafeInteger(id) || id <= 0) error(400, 'which entry');
 			const title = await tmdbLinkFromReview(seriesId, id, b.pasted ? 'pasted' : 'review');
 			recover(true);
-			// Its seasons or collection now, not at the next tick (c990): by id, never a title.
+			// Its seasons or collection now, not at the next tick: by id, never a title.
 			const t = tmdbFacts(seriesId);
 			const what =
 				t?.media === 'tv'

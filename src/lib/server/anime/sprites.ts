@@ -12,22 +12,21 @@ import {
 } from '../../library/player.ts';
 
 /**
- * A downloaded episode's seek preview (doc/ANIME.md, "The player"; card
- * c385): one sheet of frames, one every `SPRITE_EVERY_S` seconds at
- * `SPRITE_W` x `SPRITE_H`, `SPRITE_COLS` to a row, made by ffmpeg from the
- * file once, in the background, after the episode is first played. It sits
- * beside the episode's picture, as covers/episodes/<id>.sprite.jpg, with a
- * small sidecar (<id>.sprite.json) that names the file it was cut from: its
- * path, its size and its modification time.
+ * A downloaded episode's seek preview (doc/ANIME.md, "The player"): one sheet of
+ * frames, one every `SPRITE_EVERY_S` seconds at `SPRITE_W` x `SPRITE_H`,
+ * `SPRITE_COLS` to a row, made by ffmpeg from the file once, in the background,
+ * after the episode is first played. It sits beside the episode's picture, as
+ * covers/episodes/<id>.sprite.jpg, with a small sidecar (<id>.sprite.json) that
+ * names the file it was cut from: its path, its size and its modification time.
  *
  * **A sprite is only ever the file's it was made from.** A sprite of a file
  * that changed is a wrong preview: a re-download (another server, another
  * cut), a deleted download, a MOVE to another source, a scan that finds the
  * file gone, an entry id SQLite hands out again after a delete. Rather than
- * every one of those doors remembering to delete it, every reader asks
+ * every one of those paths remembering to delete it, every reader asks
  * `currentSprite`, which compares the sidecar with the file there is now and
  * deletes a sprite that no longer matches. Nothing is stored in the database,
- * so no rung is needed for it.
+ * so no migration is needed for it.
  *
  * Only a file is read: a stream's preview is the player's own (a hidden
  * second picture, fetched only while the pointer is on the scrubber), since a
@@ -76,7 +75,7 @@ export async function forgetSprite(entryId: number): Promise<void> {
 /**
  * The episode's sprite, if one exists for the file it has now; null
  * otherwise. A sprite left from another file, or from a file that is gone, is
- * deleted here: this is the one place a sprite is judged, so every door that
+ * deleted here: this is the one place a sprite is judged, so every path that
  * changes the file is covered by it.
  */
 export async function currentSprite(entryId: number): Promise<Sprite | null> {

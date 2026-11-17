@@ -13,14 +13,14 @@ import { kindAsked, kindsServed, sourcesOfKind } from './source-kinds';
  * Each source is asked at once and answers on its own time: its results are
  * a promise of their own, streamed into the page as it settles, so results
  * fill in source by source. `?source=` narrows to one, and lists all it found.
- * `?kind=` (c699) asks only the sources of that kind, so an anime search does
+ * `?kind=` asks only the sources of that kind, so an anime search does
  * not wait on every manga extension; the band above the sources' tabs offers
  * each kind a source serves, ALL (every source, today's search) first.
  */
 /**
  * Each source's answer as a Settled (never rejecting), streamed with script.
  * Without it a streamed promise never resolves (SvelteKit's streaming needs
- * script), so the page waits for every source instead (c146; BROWSE does
+ * script), so the page waits for every source instead (BROWSE does
  * the same, doc/BROWSE.md, "Waiting, and without script").
  */
 async function groups(
@@ -79,7 +79,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 					hasScript(cookies)
 				)
 			: [],
-		// Only the engine can say a site's browser check is being passed (c143).
+		// Only the engine can say a site's browser check is being passed.
 		engine: downloadsBackend() === 'engine'
 	};
 };

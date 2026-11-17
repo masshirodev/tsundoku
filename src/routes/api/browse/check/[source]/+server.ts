@@ -6,7 +6,7 @@ import { browseSource, checkingSince } from '$lib/server/engine/browse';
 
 /**
  * Whether this source's site's browser check is being passed right now
- * (doc/BROWSE.md, "A site's check"; cards c143 and c152): the engine says for
+ * (doc/BROWSE.md, "A site's check"): the engine says for
  * an extension, and the app itself for an LNReader plugin, whose solve it
  * does. Asked every second by a page waiting on the source, so it can say why
  * it's slow at once rather than after ten seconds. Hidden means hidden: a

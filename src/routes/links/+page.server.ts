@@ -24,13 +24,13 @@ import { tmdbLinkState, tmdbQueue, tmdbReviewItem } from '$lib/server/tmdb-links
  * whether or not the pass offered it (`&service=ranobe` for Ranobe's);
  * `&paste` opens on PASTE A LINK.
  *
- * `&season=` is one season of an anime (c240): the review asked in the
+ * `&season=` is one season of an anime: the review asked in the
  * anime catalogue with that season's own title, and, once it is linked, the
  * rest of the show from the entry's own prequels and sequels. `&part=2` with
- * it is that season's second part by hand (c350): the same search, its own
+ * it is that season's second part by hand: the same search, its own
  * candidates, and `FROM EP. n`.
  *
- * A film or a show is TMDB's (c989; doc/LINKS.md, "TMDB links"): its item is
+ * A film or a show is TMDB's (doc/LINKS.md, "TMDB links"): its item is
  * `service: 'tmdb'`, drawn from lines the workstation prepares, as Ranobe's is.
  */
 export const load: PageServerLoad = async ({ cookies, url }) => {
@@ -58,7 +58,7 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 				canSuggest: suggestConfigured()
 			};
 		}
-		// A film or a show is TMDB's (c989): one item, the whole series, no seasons.
+		// A film or a show is TMDB's: one item, the whole series, no seasons.
 		const film = tmdbReviewItem(id);
 		if (film) {
 			if (!catalogueConfigured('tmdb')) error(404, 'TMDB needs a key');
@@ -78,7 +78,7 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 			};
 		}
 		// An anime's season: its own title, its own candidates, and the entry its
-		// line names (c240). `seriesSeasons` answers only for a kind a catalogue
+		// line names. `seriesSeasons` answers only for a kind a catalogue
 		// lists a season at a time.
 		const view = seriesSeasons(id);
 		// Absent is the season that still wants a look -- the open one unless it
@@ -93,7 +93,7 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 				view.seasons[0] ??
 				null)
 			: null;
-		// `&part=2`: the season's second part by hand (c350, `+ A SECOND PART`),
+		// `&part=2`: the season's second part by hand (`+ A SECOND PART`),
 		// when it can have one; otherwise the season's own page, as without it.
 		const second =
 			url.searchParams.get('part') === '2' && at
@@ -105,17 +105,17 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 				: null;
 		// The season's own item: its search, its candidates checked against its
 		// own title and episode count (24 here, 24 there), never the whole show's
-		// and never the series-level search (c240, wave 17). A season whose only
-		// row is part 2 (c592) stands on part 2, and its item is part 2's.
+		// and never the series-level search. A season whose only
+		// row is part 2 stands on part 2, and its item is part 2's.
 		const item = second?.item ?? reviewItem(id, reveal, at?.season, at?.link?.part ?? 1);
 		if (!item) error(404, 'not found');
 		// The LINK row is the season's own, never the open season's or the
-		// series' mirror: a season with no row of its own is not linked (c240).
+		// series' mirror: a season with no row of its own is not linked.
 		const drawn = second?.drawn ?? seasonReview(id, at, view?.seasons.length ?? 0, access.hidden);
 		if (!drawn) error(404, 'not found');
 		const { single, season } = drawn;
 		// The other seasons, from the entry just linked: only when there is a
-		// season left to offer one to, and only for the owner's own AniList. A
+		// season left to offer one to, and only for the user's own AniList. A
 		// second part's page offers none: its LINK goes back to the series.
 		const relations = second ? null : await relationsFor(id, at, view);
 		return {
@@ -131,7 +131,7 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 		items: [
 			...ranobeQueue(),
 			...linkQueue(reveal).map((i) => ({ ...i, service: 'anilist' as const })),
-			// Films and shows last: TMDB's, and none without a key (c989).
+			// Films and shows last: TMDB's, and none without a key.
 			...tmdbQueue(reveal)
 		],
 		single: null,
@@ -157,7 +157,7 @@ async function relationsFor(
 	// Nothing to offer once every other season has a link of its own.
 	if (view.seasons.every((s) => s.season === at.season || s.link)) return null;
 	try {
-		// AniList's relations are public: no sign-in is needed to walk them (c240).
+		// AniList's relations are public: no sign-in is needed to walk them.
 		const offers = await seasonRelations(
 			seriesId,
 			at.season,

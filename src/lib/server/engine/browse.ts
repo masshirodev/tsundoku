@@ -25,7 +25,7 @@ import { solvingSince } from '../novels/solver.ts';
 import { isAdding } from './adding.ts';
 
 /**
- * Browsing a source (doc/BROWSE.md; card c141): its POPULAR and LATEST
+ * Browsing a source (doc/BROWSE.md): its POPULAR and LATEST
  * lists, its own filters, and a search inside it, on the engine. Pages are
  * asked for one at a time and kept for a while, so MORE, back and a reload
  * re-draw what was loaded without asking the site again; a source's answer to
@@ -42,7 +42,7 @@ export type BrowseSource = {
 	/** The kind its family names a row by (`SOURCE_KINDS`): Mihon's manga, Aniyomi's anime, LNReader's novel. */
 	kind: SourceKind;
 	/**
-	 * The extension family it is (card c420): what a screen asks instead of
+	 * The extension family it is: what a screen asks instead of
 	 * comparing `kind` with a family's kind (doc/KINDS.md, "No new kind checks").
 	 */
 	family: SourceFamily;
@@ -51,8 +51,8 @@ export type BrowseSource = {
 	hidden: number;
 	/**
 	 * Shown only while reveal is on: its HIDDEN SOURCE switch is on
-	 * (`hiddenSource`; card c435), or more than half of what's here from it
-	 * is hidden. Every door that hides a source reads this one field.
+	 * (`hiddenSource`), or more than half of what's here from it
+	 * is hidden. Everything that hides a source reads this one field.
 	 */
 	mostlyHidden: boolean;
 	/** Its own HIDDEN SOURCE switch (engine/source-flags.ts), whatever its series are. */
@@ -60,7 +60,7 @@ export type BrowseSource = {
 	/** The extension's own word when the engine refused it, else ''. */
 	failed: string;
 	/**
-	 * Its extension's code uses a WebView (rung 78; doc/BROWSE.md, "Extensions
+	 * Its extension's code uses a WebView (migration 78; doc/BROWSE.md, "Extensions
 	 * that need a WebView"): NEEDS A WEBVIEW. Never an LNReader plugin's.
 	 */
 	webview: boolean;
@@ -117,7 +117,7 @@ function engineSources(reveal: boolean): BrowseSource[] {
 	return out;
 }
 
-// ---- a site's browser check (c143) ----------------------------------------------------------
+// ---- a site's browser check ----------------------------------------------------------
 
 /** A source's site, for matching the hosts the engine solves checks for: "mangadex.org". */
 export function siteOf(baseUrl: string): string {
@@ -141,7 +141,7 @@ const baseUrlOf = (sourceId: string) =>
 /**
  * A source's site: an extension's base URL, or, for an LNReader plugin, the
  * site its file names (`novel_plugins.site`). A novel's checks are solved by
- * the app, but its site is matched the same way (card c152).
+ * the app, but its site is matched the same way.
  */
 function siteOfSource(sourceId: string): string {
 	if (isNovelSource(sourceId)) {
@@ -230,7 +230,7 @@ export type BrowseList = {
 
 const RECENT = 4;
 
-/** The owner's languages (SETTINGS): the sources BROWSE lists. */
+/** The user's languages (SETTINGS): the sources BROWSE lists. */
 export const browseLanguages = (): string[] =>
 	getSetting('browse_languages')
 		.split(',')
@@ -238,8 +238,8 @@ export const browseLanguages = (): string[] =>
 		.filter(Boolean);
 
 /**
- * BROWSE (Index-Browse, sources; Browse Calls, "One list, the kinds as
- * sections"): the sources in the owner's languages, and any other the
+ * BROWSE, one list with the kinds as sections: the sources in the user's
+ * languages, and any other the
  * library reads from (a series from MangaDex's French source keeps that one
  * listed). An extension's every language would be forty-odd rows of MangaDex.
  */
@@ -248,8 +248,8 @@ export function browseList(reveal: boolean): BrowseList {
 	const sources = browseSources(reveal);
 	const mine = (s: BrowseSource) =>
 		langs.has(s.lang.toLowerCase()) || ['all', 'multi'].includes(s.lang) || s.series > 0;
-	// An extension installed with nothing in the owner's languages was installed
-	// on purpose, so all its sources show (a pt-BR site, 2026-10-30); one that
+	// An extension installed with nothing in the user's languages was installed
+	// on purpose, so all its sources show (a pt-BR site, say); one that
 	// has some, as MangaDex has forty, shows only those.
 	const speaks = new Set(sources.filter(mine).map((s) => s.pkg));
 	const shown = sources.filter((s) => mine(s) || !speaks.has(s.pkg));
@@ -273,7 +273,7 @@ export function browseList(reveal: boolean): BrowseList {
 			}[]
 		).map((r) => [r.id, siteOf(r.base_url)])
 	);
-	// A plugin's site is the plugin's, not an engine source's (c152).
+	// A plugin's site is the plugin's, not an engine source's.
 	for (const p of plugins) bases.set(`ln:${p.id}`, siteOf(p.site));
 	const rows: BrowseRow[] = shown.map((s) => ({
 		...s,
@@ -288,8 +288,8 @@ export function browseList(reveal: boolean): BrowseList {
 			.filter((r) => r.browsedAt !== null)
 			.sort((a, b) => b.browsedAt! - a.browsedAt!)
 			.slice(0, RECENT),
-		// One list per source family, by the source's own family (cards c303,
-		// c420): Mihon's, Aniyomi's, LNReader's.
+		// One list per source family, by the source's own family: Mihon's,
+		// Aniyomi's, LNReader's.
 		manga: ofFamily('mihon'),
 		anime: ofFamily('aniyomi'),
 		novels: ofFamily('lnreader'),
@@ -464,7 +464,7 @@ export async function shelf(
 }
 
 /**
- * A result being added right now says so (card c868): asked as the list is
+ * A result being added right now says so: asked as the list is
  * answered, never kept, since the kept pages are the source's and an add
  * lasts a request.
  */

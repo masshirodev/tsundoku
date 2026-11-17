@@ -10,11 +10,10 @@ import {
 } from '$lib/server/highlights';
 
 /**
- * A highlight from the reader's sheet (cards c703 and c702, Manga M6, Novel
- * N5): PATCH `{ note }` sets the note and `{ colour }` a quote's colour, DELETE sets it aside at once for the band's UNDO
- * (the same `UNDO_MS` as /highlights), and POST `{ undo: true }` takes it
- * back. Hidden means hidden: a hidden series' highlight is the same 404
- * without reveal.
+ * A highlight from the reader's sheet: PATCH `{ note }` sets the note and `{
+ * colour }` a quote's colour, DELETE sets it aside at once for the band's UNDO
+ * (the same `UNDO_MS` as /highlights), and POST `{ undo: true }` takes it back.
+ * Hidden means hidden: a hidden series' highlight is the same 404 without reveal.
  */
 const idOf = (raw: string) => {
 	const id = Number(raw);

@@ -31,7 +31,7 @@ const isPublic = (path: string) => PUBLIC_PATHS.has(path) || path.startsWith('/p
  * SET UP until they've chosen.
  *
  * Binding to the tailnet address is done by scripts/serve.ts; this is the
- * second lock. Ported from kirisute, whose README explains both.
+ * second lock.
  */
 const guard: Handle = async ({ event, resolve }) => {
 	// A friend's install answers on localhost only (scripts/serve.ts, local mode).
@@ -59,7 +59,7 @@ const guard: Handle = async ({ event, resolve }) => {
 		// A friend's install (doc/SIGN-IN.md): SET UP until a password, or none, is chosen.
 		const login = currentLogin();
 		// A phone paired over Wi-Fi signs in with its own cookie (doc/WIFI.md),
-		// named for this origin (c530; readPaired moves one paired before it).
+		// named for this origin (readPaired moves one paired before it).
 		const paired = readPaired(event.cookies, event.url, (t) => friendPaired(lan, t));
 		event.locals.paired = paired;
 		authed = !!paired || friendAuthed(login, event.cookies.get(SESSION_COOKIE), lan);
@@ -76,13 +76,13 @@ const guard: Handle = async ({ event, resolve }) => {
 		if (!mode.configured && !mode.devBypass) {
 			error(503, 'TSUNDOKU_TOKEN is not configured');
 		}
-		// A TV that paired on the tailnet signs in with its own cookie (c245;
-		// doc/SIGN-IN.md). Only a request that names the instance's own public
-		// host gets that door: in https mode the app is on 127.0.0.1 behind
-		// tailscale serve, so every request -- tailnet ones included -- comes
-		// from loopback and the address cannot tell them apart. No origin
-		// known, no door: the cookie signs nothing in (tailnetDoor). The cookie
-		// is this origin's (c530), and readPaired moves one paired before it.
+		// A TV that paired on the tailnet signs in with its own cookie
+		// (doc/SIGN-IN.md). Only a request that names the instance's own public host
+		// gets that way in: in https mode the app is on 127.0.0.1 behind tailscale
+		// serve, so every request -- tailnet ones included -- comes from loopback and
+		// the address cannot tell them apart. No origin known, no way in: the cookie
+		// signs nothing in (tailnetDoor). The cookie is this origin's, and readPaired
+		// moves one paired before it.
 		const paired = tailnetDoor(process.env.ORIGIN, event.request.headers.get('host'))
 			? readPaired(event.cookies, event.url, (t) => pairedBy(t))
 			: null;
@@ -149,7 +149,7 @@ export const init: ServerInit = () => {
 	if (closed > 0) console.log(`[import] closed ${closed} import left unfinished by the last run`);
 	if (!building) {
 		startRelationsFill();
-		// Films and shows (c989): no key, no request; the first tick after one is the backfill.
+		// Films and shows: no key, no request; the first tick after one is the backfill.
 		startTmdbFill();
 	}
 };

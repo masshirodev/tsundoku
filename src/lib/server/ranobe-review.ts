@@ -43,7 +43,7 @@ import type { Kind } from '../library/types.ts';
  * Choosing a Ranobe work (Ranobe Review; doc/RANOBE.md, "The review"), and
  * what the series screen and SETTINGS show of Ranobe. The review is the link
  * review's, with Ranobe's candidates: a work is chosen, never an edition,
- * and several series may choose one (1b).
+ * and several series may choose one.
  */
 
 export type RanobeReviewCandidate = {
@@ -77,7 +77,7 @@ export type RanobeReviewItem = {
 	/** A SEARCH AGAIN waiting for the next pass (Ranobe was out of reach). */
 	queued: boolean;
 	cutShort: boolean;
-	/** THIS SERIES' rows (1a): SOURCE, ENTRIES, LANGUAGE, ANILIST. */
+	/** THIS SERIES' rows: SOURCE, ENTRIES, LANGUAGE, ANILIST. */
 	rows: { label: string; value: string }[];
 	/** The line under them: why Ranobe was searched, and what it found. */
 	searchedLine: string;
@@ -177,7 +177,7 @@ export function asReviewCandidate(
 		),
 		rows: ranobeRows(c),
 		ids: ranobeIds(c),
-		// A sensitive cover is never drawn (1a): its note stands in.
+		// A sensitive cover is never drawn: its note stands in.
 		coverUrl: c.cover && !c.cover.sensitive ? c.cover.url : null,
 		coverNote: coverNote(c),
 		href: ranobeUrl(c.work),
@@ -276,7 +276,7 @@ function volumeOfSeries(seriesId: number): string | null {
 
 /**
  * The other series waiting on Ranobe with this series' title before a
- * volume number (1b): The Beginning After the End's seven EPUBs. Nothing is
+ * volume number: a novel's volumes as separate EPUBs. Nothing is
  * decided for them here; the review lists them, nothing preselected.
  */
 export function siblingsOf(seriesId: number): Sibling[] {
@@ -329,7 +329,7 @@ const volumeFromTitle = (title: string, file: string | null) =>
 
 /**
  * LINK in the review: the series to the work. Each sibling still waiting
- * gets the work as its first candidate, marked as chosen for this one (1c),
+ * gets the work as its first candidate, marked as chosen for this one,
  * so any left out of LINK N MORE leads with it.
  */
 export async function linkFromReview(
@@ -375,7 +375,7 @@ export async function linkFromReview(
 
 export class NotACandidate extends Error {}
 
-/** LINK N MORE (1b): each named sibling to the same work. Only series still waiting are linked. */
+/** LINK N MORE: each named sibling to the same work. Only series still waiting are linked. */
 export function linkMany(seriesIds: number[], work: string, now = Date.now()): number[] {
 	const db = getDb();
 	const title =
@@ -541,12 +541,12 @@ export type RanobeSeries = {
 		/** "ENGLISH EDITION", "BY CHAPTER", "2 SERIES SHARE IT", the AniList id. */
 		meta: string;
 	} | null;
-	/** Not linked: the LINK row's meta line (2h, 2j). */
+	/** Not linked: the LINK row's meta line. */
 	unlinkedMeta: string;
 	facts: RanobeFacts;
 };
 
-/** The LINK and TRACKING rows for a novel (Ranobe Series 2a–2k). Null: not a kind Ranobe tracks. */
+/** The LINK and TRACKING rows for a novel. Null: not a kind Ranobe tracks. */
 export function ranobeSeries(seriesId: number): RanobeSeries | null {
 	const db = getDb();
 	const s = db
@@ -738,9 +738,9 @@ export async function retryRanobe(seriesId?: number): Promise<void> {
 
 export type RanobeAccount = {
 	configured: boolean;
-	/** The app account's token is there: novels can be suggested, and wait for the owner. */
+	/** The app account's token is there: novels can be suggested, and wait for approval. */
 	suggests: boolean;
-	/** Suggestions waiting for the owner on Ranobe. */
+	/** Suggestions waiting for approval on Ranobe. */
 	suggested: number;
 	failed: { count: number; at: number | null; error: string | null };
 	lastSent: number | null;
@@ -750,7 +750,7 @@ export type RanobeAccount = {
 	notOn: number;
 };
 
-/** SETTINGS' RANOBE row (3a–3c). The counts are the database's, never the mock's. */
+/** SETTINGS' RANOBE row. The counts are the database's, never the mock's. */
 export function ranobeAccount(): RanobeAccount {
 	const db = getDb();
 	const f = db
@@ -782,7 +782,7 @@ export function ranobeAccount(): RanobeAccount {
 		).at,
 		passAt: pass ? Number(pass.value) : null,
 		linked: count(`${ELIGIBLE_SQL} AND s.id IN (SELECT series_id FROM ranobe_links)`),
-		// Disjoint from notOn (3c): a choice waits only where Ranobe found something.
+		// Disjoint from notOn: a choice waits only where Ranobe found something.
 		toChoose: count(
 			`${WAITING_SQL} AND s.id IN (SELECT series_id FROM ranobe_searches WHERE searched_at IS NOT NULL AND found > 0)`
 		),

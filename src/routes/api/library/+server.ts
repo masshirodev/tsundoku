@@ -40,7 +40,7 @@ export const GET: RequestHandler = ({ url, cookies }) => {
 };
 
 /**
- * Which of `want` the library no longer shows (c737): deleted since, or hidden
+ * Which of `want` the library no longer shows: deleted since, or hidden
  * under this request's reveal, by the one rule every library read uses
  * (`libraryWhere`, as `listTiles`' own). Asked by id, so a series the card
  * list below leaves out for its size is never mistaken for one that is gone.
@@ -60,7 +60,7 @@ function missingOf(want: readonly number[], reveal: boolean): number[] {
 }
 
 /**
- * The facts of series a selection holds by id alone (c737; doc/LIBRARY.md,
+ * The facts of series a selection holds by id alone (doc/LIBRARY.md,
  * "A selection outlives the shelf"): SELECT ALL ticks a shelf's pages never
  * loaded, and SHOW and GROUP need their cards to list them. A POST, since
  * SELECT ALL can hold thousands of ids, past what a URL carries; at most

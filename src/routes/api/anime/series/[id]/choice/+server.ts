@@ -7,9 +7,9 @@ import { VISIBLE_SQL } from '$lib/server/visibility';
 import { WHATS, choose, cleanChoice, type What } from '$lib/server/anime/choices';
 
 /**
- * A choice made in the player's sheet (doc/ANIME.md, "The player"; card
- * c171): the series' audio, subtitles or their size, kept on the workstation
- * so SETTINGS can list the series that differ. Incognito keeps nothing.
+ * A choice made in the player's sheet (doc/ANIME.md, "The player"): the series'
+ * audio, subtitles or their size, kept on the server so SETTINGS can list the
+ * series that differ. Incognito keeps nothing.
  */
 export const POST: RequestHandler = async ({ params, request, cookies }) => {
 	const id = Number(params.id);

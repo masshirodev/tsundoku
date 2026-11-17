@@ -18,14 +18,14 @@ import type { Kind } from '../library/types.ts';
  * Incognito reading was never written (see /api/reading), so there is nothing
  * of it to hide.
  *
- * OFF HISTORY (card c435): a series from a source whose OFF HISTORY switch is
+ * OFF HISTORY: a series from a source whose OFF HISTORY switch is
  * on has no rows, inside reveal or not, and its time is not in HISTORY's
  * total. Its reading is still logged, so progress, CONTINUE, the series'
  * own time and tracking are what they were (doc/HISTORY.md).
  */
 
 const READING = `('open', 'page', 'finish', 'close')`;
-/** The event's day in the workstation's time, stored when it was written (rung 13). */
+/** The event's day in the workstation's time, stored when it was written (migration 13). */
 const DAY = `re.day`;
 
 function visible(reveal: boolean): string {
@@ -159,8 +159,8 @@ export function historyDays(
 }
 
 /**
- * HISTORY's total (card c443) without what OFF HISTORY keeps out of it (card
- * c435): `readingTotals`' shape, summed from the one summary
+ * HISTORY's total without what OFF HISTORY keeps out of it:
+ * `readingTotals`' shape, summed from the one summary
  * (`readingTime('series')`, reading-time.ts) over every series but those, so
  * the rule for what counts as reading stays in one place. With no source
  * switched off it is `readingTotals(reveal)` exactly.

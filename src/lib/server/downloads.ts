@@ -28,9 +28,8 @@ import { whileAdding } from './engine/adding.ts';
 /**
  * What the download screens ask (doc/DOWNLOADS.md):
  * tsundoku's own engine, through engine/backend.ts. This face is what the
- * routes import, so a screen never reaches into the engine directly. It chose
- * between Suwayomi and the engine until Suwayomi was retired (card c129,
- * 2026-10-28). A chapter id is tsundoku's entry id; a source manga's id is
+ * routes import, so a screen never reaches into the engine directly. A
+ * chapter id is tsundoku's entry id; a source manga's id is
  * the source and URL, opaque to the screens. A novel source (`ln:<plugin>`,
  * doc/NOVELS.md) answers the same questions through novels/source.ts.
  */
@@ -63,14 +62,13 @@ function seriesFamily(seriesId: number): SourceFamily | null {
 type ByDownloader<T> = Record<SourceFamily, () => T> & { none: () => T };
 
 /**
- * Which downloader takes a series (doc/DOWNLOADS.md; card c303): its key's
+ * Which downloader takes a series (doc/DOWNLOADS.md): its key's
  * family, never its kind's name. An LNReader key is the novel downloader's
  * (novels/downloader.ts), an Aniyomi key the episode downloader's
  * (anime/download.ts), a Mihon key the engine's. **No family** (Hentoid's
  * `hentoid:`/`hentoid-dir:`, a folder's `mihon-dir:`, an EPUB's, no key) is
  * a case of its own, answered by `none`: today every caller sends it to the
- * engine too, which says `none` for its row and refuses FOLLOW, as it did
- * before the family was asked.
+ * engine too, which says `none` for its row and refuses FOLLOW.
  */
 function byDownloader<T>(seriesId: number, ways: ByDownloader<T>): T {
 	const family = seriesFamily(seriesId);
@@ -90,7 +88,7 @@ export const seriesDownloads = async (
 		mihon: fromEngine,
 		none: fromEngine
 	});
-	// REFRESH (card c220): the row offers it wherever the series has a source to
+	// REFRESH: the row offers it wherever the series has a source to
 	// ask and is in the library. A folder-scanned series has nothing to ask, and
 	// a browsing record is not kept.
 	if (d.kind !== 'ok') return d;
@@ -121,7 +119,7 @@ export const enqueue = async (
  * end page's DOWNLOAD FIRST 10 (`first`): each chapter decided again from
  * what the queue says now, a file-less one queued and a failed one retried,
  * anything else left alone. The series screen's
- * DOWNLOAD and a preview's ADD AND DOWNLOAD (card c205) both come here, so
+ * DOWNLOAD and a preview's ADD AND DOWNLOAD both come here, so
  * the two can't count differently. Null when the series has nothing to
  * download from; a DownloadsError when the engine doesn't answer.
  */
@@ -149,7 +147,7 @@ export async function queueSeries(
 		.flatMap((st) => (st?.kind === 'failed' ? [st.chapterId] : []));
 	const result = fresh.length ? await enqueue(seriesId, fresh, quality) : { queued: 0, missing: 0 };
 	await retry(failed);
-	// What was asked for and is already under way (c534): a second press, or one
+	// What was asked for and is already under way: a second press, or one
 	// after a reload while the first chapter downloads, queues nothing new, and
 	// that is not a failure. NEXT and ALL ask for every unread chapter; FIRST
 	// and chosen ones for themselves. A downloaded chapter is not counted: it
@@ -163,7 +161,7 @@ export async function queueSeries(
 }
 
 /**
- * The end page's DOWNLOAD FIRST 10 (c534, round 2): the part's first [n]
+ * The end page's DOWNLOAD FIRST 10: the part's first [n]
  * unread chapters in reading order, whatever their download state. NEXT 10
  * skips what is under way, so a press after a reload, while the first ten
  * still download, would have queued the next ten as well: twenty for a press
@@ -222,7 +220,7 @@ export const mangaKey = async (id: string) =>
 			: engine.mangaKey(id);
 /**
  * ADD, whichever family the result is (the preview's, and each series of a
- * SELECT press: card c868). While it runs the result is marked as being added
+ * SELECT press). While it runs the result is marked as being added
  * (`whileAdding`), so a source's page draws it ADDING and a press skips it.
  */
 export const addToLibrary = (id: string): Promise<number> =>
@@ -254,8 +252,8 @@ function inLibrary(seriesId: number): boolean {
 }
 
 /**
- * Opens one of a preview's episodes or chapters without ADD (doc/READING-ONLINE.md;
- * cards c161, c166): the entry to play or read online, in a browsing record
+ * Opens one of a preview's episodes or chapters without ADD (doc/READING-ONLINE.md):
+ * the entry to play or read online, in a browsing record
  * unless the series is the library's. Novels are null until they read online.
  */
 export async function openFromSource(id: string, url: string): Promise<number | null> {

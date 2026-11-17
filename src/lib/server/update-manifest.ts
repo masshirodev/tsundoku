@@ -1,8 +1,8 @@
 import { createPublicKey, verify } from 'node:crypto';
 
 /**
- * What a release says about itself to installed copies (doc/UPDATES.md; card
- * c182): `latest.json` at dl.tsundoku.masshiro.pro, written by
+ * What a release says about itself to installed copies (doc/UPDATES.md):
+ * `latest.json` at dl.tsundoku.masshiro.pro, written by
  * ops/release/publish.ts. It is a manifest, as a string, and an ed25519
  * signature over exactly those bytes, so nothing has to agree on how JSON is
  * spelled. The private key never leaves the workstation; the public one is
@@ -29,7 +29,7 @@ export type Manifest = {
 		'win-x64'?: { installer?: ReleaseFile; zip?: ReleaseFile };
 		'linux-x64'?: { archive?: ReleaseFile };
 		/**
-		 * The Android apps (c614; doc/UPDATES.md, "The Android apps"): the phone
+		 * The Android apps (doc/UPDATES.md, "The Android apps"): the phone
 		 * and tablet app and the TV's, each checked by the app itself against
 		 * this same signature (the app's ReleaseCheck.kt).
 		 */

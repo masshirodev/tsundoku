@@ -19,8 +19,8 @@ import { isDownloadsError } from '$lib/server/downloads';
 
 /**
  * Each source's answer as a Settled (never rejecting), streamed with script;
- * without it the server waits for every source (as the download search does,
- * c146). A site behind a browser check takes 20–45 s on a first call.
+ * without it the server waits for every source (as the download search
+ * does). A site behind a browser check takes 20–45 s on a first call.
  */
 async function groups(
 	asked: { id: string; name: string; lang: string }[],
@@ -40,13 +40,13 @@ export const load: PageServerLoad = async ({ params, cookies, url, untrack }) =>
 
 	const qParam = url.searchParams.get('q');
 	// A hidden series is never searched by itself (LINK's rule): the field is
-	// filled and nothing is asked until the owner taps SEARCH.
+	// filled and nothing is asked until the user taps SEARCH.
 	const q = qParam !== null ? qParam.trim() : series.hidden ? '' : series.title;
 
 	// OTHER NAMES: the series' own alternative titles, and its catalogue's names.
 	const names = [...new Set([...series.altTitles, ...linkedNames(id)].filter(Boolean))];
 
-	// The search depends on `q`, the comparison on `to` (card c491). `to` and
+	// The search depends on `q`, the comparison on `to`. `to` and
 	// `offset` are read untracked, so picking a candidate (or setting the
 	// offset) is a navigation that never runs this load again, and so never
 	// asks every source again: the page asks `./compare` for the one pick. A
@@ -89,7 +89,7 @@ export const load: PageServerLoad = async ({ params, cookies, url, untrack }) =>
 		comparison: script || !comparison ? comparison : await comparison,
 		groups: q ? await groups(sources, q, reveal, script) : [],
 		all: sources.map((s) => ({ id: s.id, name: s.name, lang: s.lang })),
-		// Only the engine can say a site's browser check is being passed (c143).
+		// Only the engine can say a site's browser check is being passed.
 		engine: downloadsBackend() === 'engine'
 	};
 };

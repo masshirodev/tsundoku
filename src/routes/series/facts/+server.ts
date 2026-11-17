@@ -4,9 +4,9 @@ import { isRevealed } from '$lib/server/prefs';
 import { showRowFacts } from '$lib/server/season-facts';
 
 /**
- * The facts a GROUP AS ONE SHOW row draws beyond the card (c283's meta line):
+ * The facts a GROUP AS ONE SHOW row draws beyond the card (its meta line):
  * a season's source, its AniList year and how many episodes have a file. The
- * selection's by-id read asks this beside `/api/library` (c737), because no
+ * selection's by-id read asks this beside `/api/library`, because no
  * card carries them; only the ids the viewer can see are answered, so a
  * hidden series outside reveal is never read for.
  */

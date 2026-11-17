@@ -8,15 +8,14 @@ import { catalogueType } from '../library/catalogues.ts';
 import type { Kind } from '../library/kinds.ts';
 
 /**
- * The TMDB key typed in SETTINGS › CATALOGUES (card c993; the keys handoff's
- * Keys-Key board, doc/handoffs/keys-accounts/). Kept as a setting, in the
+ * The TMDB key typed in SETTINGS › CATALOGUES. Kept as a setting, in the
  * database, as the trackers' OAuth tokens are (`tracker_accounts`), and not in
  * the data folder's `.env`: that file is the user's own and only ever appended
  * to (`ensureSetting`, first-run.ts), and REPLACE and REMOVE would have to
- * rewrite it. On the workstation `.env` is also an Infisical copy a pull
- * replaces whole (doc/SECRETS.md), which would silently drop a key saved there.
+ * rewrite it. Where `.env` is pulled from a secrets manager, a pull replaces
+ * it whole (doc/SECRETS.md), which would silently drop a key saved there.
  *
- * **The environment's key wins**, so the owner's Infisical key is never
+ * **The environment's key wins**, so a key set there is never
  * overridden or removed from a screen: the row then says it is set there.
  * A saved key is never shown again, only its last four characters.
  */

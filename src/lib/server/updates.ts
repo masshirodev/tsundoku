@@ -26,7 +26,7 @@ import {
 } from './update-manifest.ts';
 
 /**
- * Updates for a friend's install (doc/UPDATES.md; card c182). Never automatic:
+ * Updates for a friend's install (doc/UPDATES.md). Never automatic:
  * tsundoku looks for a new release once a day and says so; the friend
  * presses UPDATE. On Windows, installed, that downloads the installer,
  * checks it against the signed manifest, and runs it silently: it stops
@@ -34,7 +34,7 @@ import {
  * (Linux, the zip) it's a download link and the steps.
  *
  * On only where the launcher says where releases are (TSUNDOKU_UPDATES) and
- * the build is a release's (a dated version): the workstation is neither.
+ * the build is a release's (a dated version): a development checkout is neither.
  * TSUNDOKU_UPDATES=off in the data folder's .env turns the check off.
  */
 
@@ -96,7 +96,7 @@ function clearInstalled() {
 }
 
 /**
- * The last answer the release host gave and when (c818): a start knows what
+ * The last answer the release host gave and when: a start knows what
  * the last look found, so its first page can say so, and the once-a-day limit
  * outlives it. In the data folder itself, because `clearInstalled` deletes
  * whatever in `updates/` isn't a newer version.

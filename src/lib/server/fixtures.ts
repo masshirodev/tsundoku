@@ -6,10 +6,9 @@ import type { Kind, Rating } from '../library/types.ts';
 import { kindFacts } from '../library/kinds.ts';
 
 /**
- * A development library, built from the sample rows the design handoff drew
- * with (doc/design/handoff/Index Library.dc.html). It exists because the
- * importers do not yet: nothing here is read from a real file, and `yarn run
- * seed` refuses to write into a database that already holds series.
+ * A development library, built from invented sample rows: nothing here is
+ * read from a real file, and `yarn run seed` refuses to write into a database
+ * that already holds series.
  *
  * Specs use it too, so the numbers they assert are the numbers a person sees
  * in `yarn run dev`.
@@ -58,7 +57,7 @@ const PAGES: Record<Kind, number> = {
 };
 /**
  * Where a novel's in-progress entry was left: a block, which is what a novel's
- * `last_position` counts (a page is the image readers'; c653). Every chapter of
+ * `last_position` counts (a page is the image readers'). Every chapter of
  * the generated EPUB holds 15 blocks (`pages/sample-epub.ts`), so 7 is inside
  * each and is no chapter's first.
  */
@@ -328,7 +327,7 @@ export const SAMPLE_ROWS: Row[] = [
 	}
 ];
 
-/** Doujinshi in the hidden root. Titles from the handoff's reveal state. */
+/** Doujinshi in the hidden root. */
 export const HIDDEN_ROWS: Row[] = [
 	{
 		title: 'Kōhai no Himitsu Nikki',
@@ -374,8 +373,7 @@ export const HIDDEN_ROWS: Row[] = [
  * A circle's books, for the books screens (doc/BOOKS.md), in the hidden
  * Hentoid root like every Hentoid import. The first four are grouped into the
  * series "Kaori Mama" after seeding; the last two stay singletons that share
- * its title stem, so a suggestion appears on either. Titles are the design
- * handoff's samples.
+ * its title stem, so a suggestion appears on either.
  */
 const BOOK_TAGS = ['circle:Hakka Kousha', 'artist:Aoi Rin', 'genre:comedy', 'language:japanese'];
 export const BOOK_ROWS: Row[] = [
@@ -600,7 +598,7 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 		);
 	}).immediate();
 
-	// Group the first four books, the way the owner would by hand.
+	// Group the first four books, the way a reader would by hand.
 	const idOf = (title: string) =>
 		(db.prepare(`SELECT id FROM series WHERE title = ?`).get(title) as { id: number }).id;
 	groupIntoSeries({
@@ -647,8 +645,7 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 	}).immediate();
 
 	// Japanese (doc/JAPANESE.md): Drawing is read with OCR, and its chapters up
-	// to the one in progress have text -- the handoff's own three bubbles on
-	// every page, clear of mid-height so a tap there still shows the controls.
+	// to the one in progress have text -- three bubbles on every page, clear of mid-height so a tap there still shows the controls.
 	const drawing = idOf(SAMPLE_ROWS[0].title);
 	const bubbles = JSON.stringify([
 		{

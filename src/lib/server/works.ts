@@ -1,13 +1,13 @@
 /**
  * Works: the transactions behind the pure rules in `$lib/library/works.ts`
- * (doc/WORKS.md; card c216, first slice c275).
+ * (doc/WORKS.md).
  *
- * A Work a level above series that merges nothing: a name, an order the owner
+ * A Work a level above series that merges nothing: a name, an order the user
  * sets, and at most one Work per series. `work_series.series_id` is UNIQUE, so
  * adding a series that is already in another Work moves it -- and a Work left
  * with fewer than two series ends, exactly as taking a part out does. Both
- * paths go through `endIfOne`, because a rule at one door is not a rule. The
- * other door is not in this file at all: rung 61's `series_deleted_ends_work`
+ * paths go through `endIfOne`, because a rule on one path is not a rule. The
+ * other path is not in this file at all: migration 61's `series_deleted_ends_work`
  * trigger ends the Work a deleted series is cascaded out of, so a delete that
  * never touches this module cannot leave a Work of one either.
  *
@@ -57,11 +57,11 @@ export class WorkError extends Error {}
 
 /**
  * A write that named a Work by its id and its moment of making, and found
- * another Work under that id, or none (c583). `works.id` is reused once the
+ * another Work under that id, or none. `works.id` is reused once the
  * newest Work ends, so a screen loaded before an UNGROUP would otherwise act on
  * whatever Work holds the id now. The routes answer it as `THAT WORK HAS
  * CHANGED · LOOK AGAIN`, with `stale: true` so a sheet can tell it apart from
- * a refusal it should keep open on (c584).
+ * a refusal it should keep open on.
  */
 export class StaleWorkError extends WorkError {
 	constructor() {
@@ -96,7 +96,7 @@ export type CreateFacts = {
 		seriesId: number;
 		workId: number;
 		createdAt: number;
-		/** That Work's name then, which a later UNDO finds it by (`locate`, c470). */
+		/** That Work's name then, which a later UNDO finds it by (`locate`). */
 		name?: string;
 		position: number;
 	}[];
@@ -110,7 +110,7 @@ export type AddFacts = {
 	 * say it is the same Work an UNDO finds there later. */
 	workCreatedAt: number;
 	/** That Work's name at the add: with `workCreatedAt`, how a later UNDO finds
-	 * it once an earlier UNDO brought it back under a new id (`locate`, c470).
+	 * it once an earlier UNDO brought it back under a new id (`locate`).
 	 * Optional only for facts a page rendered before it was carried. */
 	workName?: string;
 	seriesId: number;
@@ -139,7 +139,7 @@ export type TakeOutFacts = {
 
 export type ReorderFacts = { workId: number; before: SeriesPlace[] };
 
-/** A rename's UNDO: the old name, and the Work by its id and moment (c583). */
+/** A rename's UNDO: the old name, and the Work by its id and moment. */
 export type RenameFacts = { workId: number; createdAt: number; name: string };
 
 export type UngroupFacts = { work: WorkRecord; members: SeriesPlace[] };
@@ -198,7 +198,7 @@ function workRow(db: Database.Database, id: number): WorkRecord | undefined {
 }
 
 /**
- * The Work a screen's form names, or a refusal (c583). `made` is the moment
+ * The Work a screen's form names, or a refusal. `made` is the moment
  * the screen read it at (`works.created_at`); given, a Work under the id made
  * at another moment is another Work, and an ended one is no Work, and both
  * refuse as stale. Absent, it is the id alone, for the callers that read the
@@ -212,8 +212,8 @@ function mustBeWork(db: Database.Database, workId: number, made?: number): WorkR
 }
 
 /**
- * When the app makes a Work, a moment no Work made by this process has had
- * (c583). A Work is known by its id and its moment, and the id is reused once
+ * When the app makes a Work, a moment no Work made by this process has had.
+ * A Work is known by its id and its moment, and the id is reused once
  * the newest Work ends; were two Works made in one millisecond, a Work ended
  * and another made under its id in that millisecond would be the same Work to
  * every check that reads both (`mustBeWork`, `locate`, an offer's key). So the
@@ -251,7 +251,7 @@ function factsOf(db: Database.Database, id: number): FactsRow | undefined {
  * How a Work's parts agree on visibility: all hidden, all visible, or mixed
  * when one part has been hidden on its own. A Work is hidden or shown whole,
  * so every part is read rather than whichever row the planner returns first;
- * a mixed Work refuses every add until W4's HIDE settles it.
+ * a mixed Work refuses every add until HIDE settles it.
  */
 type WorkVisibility = 'hidden' | 'visible' | 'mixed';
 
@@ -271,8 +271,8 @@ function workVisibility(db: Database.Database, workId: number): WorkVisibility |
 
 /**
  * A membership written fresh: a plain INSERT, so `work_series.series_id`'s
- * UNIQUE raises rather than REPLACE quietly deleting another Work's row
- * (c308). Only the writes that have just cleared the series' old row use it
+ * UNIQUE raises rather than REPLACE quietly deleting another Work's row.
+ * Only the writes that have just cleared the series' old row use it
  * (`createWork`, `addSeries`); an UNDO puts a series back through `putBack`,
  * which first asks whether the place is still free.
  */
@@ -287,10 +287,9 @@ function titleOf(db: Database.Database, seriesId: number): string {
 }
 
 /**
- * The one place the app's own removers end a Work of one (Works Calls, question
- * 5). Every path here that removes a part calls this after its write, handing
+ * The one place the app's own removers end a Work of one. Every path here that removes a part calls this after its write, handing
  * the membership as it stood BEFORE the action so UNDO can put the Work back
- * whole. A series deleted from the table itself never reaches this: rung 61's
+ * whole. A series deleted from the table itself never reaches this: migration 61's
  * trigger ends that Work, and there is no part left for UNDO to restore.
  */
 function endIfOne(db: Database.Database, workId: number, before: SeriesPlace[]): EndedWork | null {
@@ -305,9 +304,9 @@ function endIfOne(db: Database.Database, workId: number, before: SeriesPlace[]):
  * UNDO puts a series back where an action took it from -- but an UNDO is
  * pressed later, and the library may have moved on: the series added to
  * another Work since, deleted, or the Work it goes back to ended. Each of
- * those refuses (c308). Overwriting would take the series out of the Work it
+ * those refuses. Overwriting would take the series out of the Work it
  * is in now without `endIfOne`, and leave that Work with one member for good,
- * the state question 5 forbids. The caller's transaction rolls the whole UNDO
+ * which must never exist. The caller's transaction rolls the whole UNDO
  * back, so a refusal never leaves it half done.
  */
 function putBack(
@@ -319,9 +318,9 @@ function putBack(
 ): number {
 	// The id alone is not the Work: `works.id` is reused once the newest Work
 	// ends, so a Work made since may hold it. That Work is not the one the
-	// series left, and putting the series into it would be the c308 class
-	// again, silently (round 2). `locate` finds the Work itself, wherever an
-	// UNDO has brought it back to (c470).
+	// series left, and putting the series into it would put it in the wrong
+	// Work, silently. `locate` finds the Work itself, wherever an
+	// UNDO has brought it back to.
 	const workId = locate(db, restored, ref);
 	if (workId === null) throw new WorkError('the Work this UNDO puts it back into has ended');
 	mustBeFree(db, workId, seriesId);
@@ -331,7 +330,7 @@ function putBack(
 
 /**
  * A Work as an UNDO's facts name it: its id at the time, when it was made,
- * and its name then (absent only in facts rendered before c470 carried it).
+ * and its name then (absent only in older facts, which did not carry it).
  */
 type WorkRef = { id: number; createdAt: number; name?: string };
 
@@ -339,7 +338,7 @@ type WorkRef = { id: number; createdAt: number; name?: string };
  * The ids the Works one UNDO has brought back came back under, keyed by the
  * id and moment their facts name them. `restore` may give an ended Work a new
  * id, and the other facts of the same UNDO still name the old one, so every
- * later write into a Work resolves its id here first (round 2). It lives for
+ * later write into a Work resolves its id here first. It lives for
  * one press; a later press finds the Work through `locate`'s own lookup.
  */
 type Restored = Map<string, number>;
@@ -347,7 +346,7 @@ type Restored = Map<string, number>;
 const refKey = (ref: WorkRef) => `${ref.id}@${ref.createdAt}`;
 
 /**
- * Where the Work a ref names is now, or null when it has ended (c470). An id
+ * Where the Work a ref names is now, or null when it has ended. An id
  * is not an identity across an UNDO: `restore` brings an ended Work back with
  * its own name, order and `created_at`, but under a new id when a newer Work
  * was given the old one. So, in order: the id this press's own `restore`
@@ -392,8 +391,8 @@ function mustBeFree(db: Database.Database, workId: number, seriesId: number): vo
  * plain INTEGER PRIMARY KEY, so the next Work made after the last one ended
  * reuses it), when it comes back under a new one rather than answer for that
  * Work. Returns the id it came back under, and records it in `restored` so
- * the rest of the same UNDO writes into this Work and not the newer one
- * (round 2). A second press of the same UNDO finds it already back and
+ * the rest of the same UNDO writes into this Work and not the newer one.
+ * A second press of the same UNDO finds it already back and
  * refuses.
  */
 function restore(
@@ -430,7 +429,7 @@ function restore(
  * The last check of an UNDO that is not about to show or hide anything: a
  * Work it wrote into must not be left hidden in part (doc/WORKS.md, "The one
  * rule"). A series taken out and then hidden on its own, put back into a
- * visible Work, would be exactly the diverged state no door may make.
+ * visible Work, would be exactly the diverged state no path may make.
  */
 function refuseMixed(db: Database.Database, workIds: Iterable<number>): void {
 	for (const id of new Set(workIds))
@@ -480,7 +479,7 @@ function memberCount(db: Database.Database, workId: number): number {
  * is what CONTINUE decides on; `entries` and `read` leave out front and back
  * matter, as the chapter counts do everywhere else. `newCount` and
  * `downloaded` come from the same grouped pass: the run asks every part's row
- * for them, and a correlated subquery per part is what W1 warned about. A
+ * for them, and a correlated subquery per part would be one query per part. A
  * never-opened part's new chapters are read from the Work's last open, since
  * it has no last open of its own and otherwise could never say `+N NEW`.
  */
@@ -491,7 +490,7 @@ export function workParts(workId: number, reveal: boolean): WorkPartRow[] {
 /**
  * The parts of several Works in one read, for a library page that draws Work
  * tiles: one grouped pass over every part on the page, never `workParts` once
- * per tile (doc/handoff-notes/works.md, the W1 gaps).
+ * per tile.
  */
 export function partsOfWorks(workIds: number[], reveal: boolean): WorkPartRow[] {
 	if (workIds.length === 0) return [];
@@ -515,7 +514,7 @@ function readParts(db: Database.Database, workIds: number[], where: string): Wor
 				WHERE e.series_id IN (SELECT seriesId FROM part) GROUP BY e.series_id
 			), work_opened AS MATERIALIZED (
 				-- A never-opened part has no last open of its own, so "new" is
-				-- measured from the last time the owner read any part of the Work.
+				-- measured from the last time the user read any part of the Work.
 				SELECT p.workId, MAX(e.last_opened_at) AS at FROM part p
 				JOIN entries e ON e.series_id = p.seriesId GROUP BY p.workId
 			), aggs AS MATERIALIZED (
@@ -605,9 +604,8 @@ export function workRecords(ids: number[]): WorkRecord[] {
 }
 
 /**
- * The Works a GROUP sheet can add to (W4; Works Calls, "Making and breaking a
- * Work"): each name, its moment of making (which the sheet posts back, so an
- * id reused since refuses: c583) and how many series it holds. One query, for the sheet's
+ * The Works a GROUP sheet can add to: each name, its moment of making (which the sheet posts back, so an
+ * id reused since refuses) and how many series it holds. One query, for the sheet's
  * ADD TO A WORK · N.
  */
 export type WorkChoice = { id: number; name: string; createdAt: number; series: number };
@@ -623,7 +621,7 @@ export function workChoices(): WorkChoice[] {
 }
 
 /**
- * Finding a person's page (Works Calls, question 7; Work-States 7): one row
+ * Finding a person's page: one row
  * per Work that has a series here -- "3 OF 3 HERE · UP NEXT: OSHI NO KO". It
  * says the run exists and is one tap away; it never pulls the Work's other
  * series onto the page. Two queries for the whole page: which Works these
@@ -675,7 +673,7 @@ export function worksOnTagPage(seriesIds: number[], reveal: boolean): TagWork[] 
 }
 
 /**
- * One series' Work as the series screen's WORK row draws it (W5; Work-Row B3):
+ * One series' Work as the series screen's WORK row draws it:
  * its place, its state, the neighbours its ← → cells open, and the next part
  * the read-through row offers. `mode` is the same rule the end page reads
  * (`workEndMode`), so the series screen and the end of a part cannot disagree.
@@ -687,7 +685,7 @@ export type SeriesWorkRow = {
 	name: string;
 	/** When this Work was made: what each of the screen's Work controls posts
 	 * back as `made`, so one drawn before the Work ended cannot act on the
-	 * Work its id names now (c640; `mustBeWork`, c583). */
+	 * Work its id names now (`mustBeWork`). */
 	createdAt: number;
 	part: number;
 	of: number;
@@ -718,7 +716,7 @@ export function seriesWorkRow(seriesId: number, reveal: boolean): SeriesWorkRow 
 	const mode = workEndMode(parts, seriesId);
 	const line = workRowLine(parts, seriesId);
 	// The row's accent is the pure row's own rule; `mode` stays for the end page,
-	// which offers the next part however far into it the owner is.
+	// which offers the next part however far into it the reader is.
 	const next = line?.accent ? nextPart(parts, seriesId) : null;
 	return {
 		id: work.id,
@@ -778,7 +776,7 @@ export function workFeetFor(seriesIds: number[]): Map<number, WorkFootFacts> {
  * The library a Work's + ADD A SERIES picker offers: everything the viewer can
  * see that is not already in it, with the Work it would move out of. A
  * browsing record is not offered (doc/READING-ONLINE.md), and neither is anything a
- * diverged Work would refuse (W1's `workVisibility`).
+ * diverged Work would refuse (`workVisibility`).
  */
 export function addableSeries(
 	workId: number,
@@ -883,7 +881,7 @@ function nextFacts(p: WorkPartRow): WorkNextPart {
 					number: first.number,
 					label: first.label,
 					available: first.available !== 0,
-					// A chapter reads online, an episode streams (c536): two questions,
+					// A chapter reads online, an episode streams: two questions,
 					// since the image reader's manifests ask `readsOnline` alone.
 					online: first.available === 0 && (readsOnline(first.id) || streamsOnline(first.id))
 				}
@@ -1075,7 +1073,7 @@ export function addSeries(workId: number, seriesId: number, made?: number): AddF
 /**
  * UNDO of an add: the series leaves, and the Work it came from is put back.
  * A series that has since moved on to a third Work stays there: putting it
- * back would take it from that one (c308), so the UNDO refuses instead.
+ * back would take it from that one, so the UNDO refuses instead.
  */
 export function undoAdd(facts: AddFacts): void {
 	undoAdds([facts]);
@@ -1090,8 +1088,8 @@ export function undoAdds(list: AddFacts[]): void {
 		for (const facts of [...list].reverse()) {
 			// Only out of the Work it was added to: one made since under the same
 			// id is another Work, and taking a series out of that one would skip
-			// its `endIfOne` and leave it a Work of one (round 2). The Work itself
-			// may be back under a new id since an earlier UNDO (c470).
+			// its `endIfOne` and leave it a Work of one. The Work itself
+			// may be back under a new id since an earlier UNDO.
 			const into = locate(db, restored, {
 				id: facts.workId,
 				createdAt: facts.workCreatedAt,
@@ -1118,9 +1116,9 @@ export function undoAdds(list: AddFacts[]): void {
 						: `${facts.title} is no longer in ${name}`
 				);
 			}
-			// A take-out since may have left only one other part (c470): the add's
-			// UNDO would then leave a Work of one, the state question 5 forbids.
-			// Ending the Work here would undo the owner's grouping as a side
+			// A take-out since may have left only one other part: the add's
+			// UNDO would then leave a Work of one, which must never exist.
+			// Ending the Work here would undo the user's grouping as a side
 			// effect with no band of its own, so the UNDO refuses, and TAKE OUT on
 			// the Work's screen, which ends it with its own UNDO, is the way.
 			if (memberCount(db, into) < 2)
@@ -1193,7 +1191,7 @@ function putTakeOutBack(db: Database.Database, restored: Restored, facts: TakeOu
 /**
  * UNDO of a take-out: the series goes back at its place, or the whole Work
  * comes back -- refusing, never overwriting, when the library has moved on
- * (`putBack`, c308). This is the put-back half alone, with no check of the
+ * (`putBack`). This is the put-back half alone, with no check of the
  * Work's visibility, because a HIDE's UNDO puts a hidden series back and then
  * shows it: a caller that will not show anything afterwards uses
  * `undoTakeOuts`, and the library's HIDE UNDO uses `undoHideWhole`.
@@ -1272,8 +1270,8 @@ export function rename(workId: number, name: string, made?: number): RenameFacts
 }
 
 /**
- * UNDO of a rename: the old name, onto the Work the rename named, and only it
- * (c583). A band pressed after that Work ended and a newer one took its id
+ * UNDO of a rename: the old name, onto the Work the rename named, and only it.
+ * A band pressed after that Work ended and a newer one took its id
  * would otherwise give the newer Work the old name.
  */
 export function undoRename(facts: RenameFacts): void {
@@ -1334,13 +1332,13 @@ export function setWorkFavourite(workId: number, favourite: boolean, made?: numb
 
 /**
  * HIDE or SHOW a whole Work: the same write as `setHiddenWhole`, from the
- * Work's id. `ids` is what the write changed (c390), which is what an UNDO of
+ * Work's id. `ids` is what the write changed, which is what an UNDO of
  * it may put back; a part already as asked is not one of them.
  *
- * `made` is the Work's moment of making, as the screen that posts read it
- * (c640): `works.id` is reused once the newest Work ends, so a screen drawn
+ * `made` is the Work's moment of making, as the screen that posts read it:
+ * `works.id` is reused once the newest Work ends, so a screen drawn
  * while the series was in another Work would otherwise hide or show whatever
- * Work holds the id now (`mustBeWork`, c583).
+ * Work holds the id now (`mustBeWork`).
  */
 export function hideWork(
 	workId: number,
@@ -1367,7 +1365,7 @@ export function worksTouched(seriesIds: number[]): number[] {
 
 /**
  * What `setHiddenWhole` did: the series whose visibility it changed, and
- * which of them were a Work's (c390). Only a change is reported, so an UNDO
+ * which of them were a Work's. Only a change is reported, so an UNDO
  * that reverses `ids` puts back exactly what the press did, and never shows
  * a series that was hidden before it.
  */
@@ -1399,14 +1397,14 @@ function hiddenNow(db: Database.Database, ids: number[]): Map<number, boolean> {
  * half-hidden in either direction. A series in no Work is written exactly as
  * `setHidden` writes it.
  *
- * Every door that hides or shows series by id goes through here (the library's
+ * Every path that hides or shows series by id goes through here (the library's
  * `?/hide`, `?/bulk`, `?/hideAll`, `?/showAll` and their UNDOs, the series
  * screen's TAKE OUT and its UNDO, an import's fold, `foldSeries`, and a
  * source's CONCEAL, `browse/conceal.server.ts`), so the rule has one home. `hideWork` is the same write for a caller that already
  * holds a Work's id.
  *
  * Visibility is read before and after, inside the transaction, so the facts
- * name only what changed (c390): a part of an already-hidden Work, hidden
+ * name only what changed: a part of an already-hidden Work, hidden
  * again by a selection that held it, is not something UNDO may show.
  */
 export function setHiddenWhole(seriesIds: number[], hidden: boolean): WholeFacts {
@@ -1423,7 +1421,7 @@ export function setHiddenWhole(seriesIds: number[], hidden: boolean): WholeFacts
 			// A HIDE that settles a Work some part of which was already hidden is
 			// not one UNDO can take back: it could only show the parts it hid,
 			// and leave the Work half-hidden again, or show the whole Work and a
-			// part the owner had hidden. So such a Work stays out of the facts,
+			// part the user had hidden. So such a Work stays out of the facts,
 			// and its UNDO leaves it hidden -- when in doubt, hidden. UNHIDE has
 			// no such case: its UNDO hides the Work whole, never too little.
 			const settled = new Set<number>();
@@ -1493,7 +1491,7 @@ export function undoHideWhole(facts: { hidden: number[]; out: TakeOutFacts[] }):
 	}).immediate();
 }
 
-// ---- offers (W7 stores and undoes one) ----------------------------------------
+// ---- offers ------------------------------------------------------------------
 
 /**
  * The key a dismissed Work offer is stored under: the Work's moment of making
@@ -1501,11 +1499,10 @@ export function undoHideWhole(facts: { hidden: number[]; out: TakeOutFacts[] }):
  * sorted-id keys at a glance; the table is separate anyway, so no reader of
  * `suggestion_dismissals` ever sees one.
  *
- * Not the Work's id (W1 wrote `work:<workId>:<seriesId>`, and nothing stored
- * one before W7): an id is not an identity across an UNDO. Once the newest
+ * Not the Work's id: an id is not an identity across an UNDO. Once the newest
  * Work ends the next one made is given its id, so a NOT THIS said to the old
  * Work would silence a different Work's offer; and an ended Work an UNDO
- * brings back under a new id is still the Work the owner said NOT THIS to.
+ * brings back under a new id is still the Work the user said NOT THIS to.
  * `created_at` is what `restore` keeps, so it is what the key names.
  */
 export const workDismissalKey = (work: { createdAt: number }, seriesId: number) =>
@@ -1526,7 +1523,7 @@ export type OfferSeries = {
 };
 
 /**
- * MIGHT CONTINUE <WORK> · AS PART N (W7; Works Calls, question 6): the one
+ * MIGHT CONTINUE <WORK> · AS PART N: the one
  * Work a series' title continues (`offerMatch`), for the series' own screen.
  * Nothing joins here: REVIEW opens the sheet, and only its tap adds.
  */
@@ -1551,7 +1548,7 @@ export type WorkOffer = {
  * browsing record, or a hidden series with reveal off; and none naming a Work
  * the series could not join -- one hidden differently from it, which with
  * reveal off is every Work with a hidden part, so a visible series' screen
- * never names a hidden Work -- or one the owner has said NOT THIS to. One read
+ * never names a hidden Work -- or one the user has said NOT THIS to. One read
  * of every Work's parts: a library holds few Works, and the stem rule has to
  * see every name and part title to find the longest.
  */

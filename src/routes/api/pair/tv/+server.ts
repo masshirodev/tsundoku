@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { minutesLeft, tvPairing } from '$lib/server/pairing';
 
 /**
- * The computer's own view of the TV's six digits (c236; doc/TV.md,
+ * The computer's own view of the TV's six digits (doc/TV.md,
  * "Pairing"). SETTINGS shows them beside the phone's QR through `wifiView`;
  * this is the same code without a Wi-Fi panel in the way, and the one place
  * a test can read it.

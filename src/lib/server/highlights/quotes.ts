@@ -15,36 +15,36 @@ import {
 } from '../../library/highlights.ts';
 
 /**
- * Highlights H2: a passage kept from the text reader (card c702;
- * doc/HIGHLIGHTS.md, "Quotes"). A quote's copy is its words, so there is no
+ * A highlight's passage kept from the text reader (doc/HIGHLIGHTS.md,
+ * "Quotes"). A quote's copy is its words, so there is no
  * file and nothing to fetch: the reader sends the words it read, and this
  * keeps them.
  *
  * The rules this keeps:
  *
- * - **One highlight per place, recognised by columns that exist** (no rung):
+ * - **One highlight per place, recognised by columns that exist** (no migration):
  *   `kind`, `entry_id`, `block`, `block_offset`, `end_block`, `end_offset`.
  *   Those four numbers and not the words, because the same words twice in a
  *   chapter are two highlights, and the words are not a place. A repeat
- *   (c842's queue resends after a tab dies between its POST and its removal;
+ *   (the reader's queue resends after a tab dies between its POST and its removal;
  *   a second device; a double press) answers the one already there, `made:
  *   false`, and writes nothing but a note it did not have.
  * - **A note in the body is never dropped** (`mergeNotes`): on all three paths
  *   that don't insert, a note written while the press waited on the device is
  *   kept. A true resend carries a note the row already holds, and writes nothing.
  * - **What a new ask covers folds into it** (a selection overlapping a highlight
- *   joins it, at every door: the reader sends the joined span, so the door
- *   that sees a contained row is this one). The oldest of them survives, with
+ *   joins it, wherever it is made: the reader sends the joined span, so the
+ *   code that sees a contained row is this one). The oldest of them survives, with
  *   the oldest note there is, its colour and its `made_at`; the rest are removed. A row only
  *   partly inside the span is left alone: no ask from a reader that knew of it
  *   makes that shape, and the words of a union can't be made here without the
  *   chapter's text.
  * - **DETACHED rows never fold**: their numbers are where the words used to be.
  * - **Inside its UNDO window, the same place is the same highlight brought
- *   back** (as a page is, c703): its note with it, on the words and in the
+ *   back** (as a page is): its note with it, on the words and in the
  *   colour just asked.
- * - **Hidden is copied from the series and kept** (Main 02).
- * - **Incognito makes none**: the door refuses before this runs.
+ * - **Hidden is copied from the series and kept**.
+ * - **Incognito makes none**: the route refuses before this runs.
  * - **A browsing record makes none** (a series opened from a source's preview
  *   without ADD), as it has no rating: nothing would keep it on a shelf.
  */

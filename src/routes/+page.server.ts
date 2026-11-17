@@ -76,9 +76,9 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// While a scan is running or just finished, the grid defaults to what it
 	// brought in: "02 — ARRIVING" / "02 — JUST IMPORTED".
 	const shelf = url.searchParams.get('shelf') ?? (scan ? 'new' : 'all');
-	// FAVOURITES, RATED and DOWNLOADED are filters now (doc/FILTERS.md), and
-	// SERIES, ONE-OFF and the kind shelves since c436 (FORM and the KIND
-	// band's ?kind=): an old link lands on the same books, permanently.
+	// FAVOURITES, RATED and DOWNLOADED are filters (doc/FILTERS.md), and
+	// SERIES, ONE-OFF and the kind shelves (FORM and the KIND band's
+	// ?kind=): an old link lands on the same books, permanently.
 	const legacy = legacyShelf(shelf, url.searchParams);
 	if (legacy) redirect(308, `/?${legacy}`);
 	const tag = url.searchParams.get('tag');
@@ -89,7 +89,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		shelf === 'people' || shelf === 'cached'
 			? []
 			: languagesOn({ reveal, shelf, tag, kind: tag ? null : filters.kind });
-	// The KIND band (c436; doc/LIBRARY.md, "The KIND band"): this shelf's
+	// The KIND band (doc/LIBRARY.md, "The KIND band"): this shelf's
 	// tiles by kind, every other filter applied. A kind the shelf doesn't hold
 	// is kept, unlike a language: the band draws it at 0 and the grid says so,
 	// so the kind chosen on TO READ is still chosen on DROPPED. A person's page
@@ -125,7 +125,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// waiting is carried out, then the pairs still to review are counted. A
 	// decision that cannot be carried out is answered and logged by
 	// `applyPending` itself; this is the belt to that braces -- the library's
-	// own load is never the place a review's fault becomes a 500 (c648).
+	// own load is never the place a review's fault becomes a 500.
 	try {
 		await applyPending();
 	} catch (e) {
@@ -136,16 +136,16 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// One review for both catalogues (doc/RANOBE.md, "The review").
 	const ranobe = ranobeQueueCount();
 	const toLink = linkQueueCount(reveal) + ranobe + tmdbQueueCount(reveal);
-	// The same queue without hidden series, whatever reveal is (c430): what the
+	// The same queue without hidden series, whatever reveal is: what the
 	// band's ✕ measures growth by, so turning reveal off and on again is never
 	// news. Never the other way round: with reveal off, nothing counts hidden.
 	const toLinkPublic = reveal ? linkQueueCount(false) + ranobe + tmdbQueueCount(false) : toLink;
 	// RANDOM's shuffle: one per choice of RANDOM, kept in the URL.
 	const seed = parseSeed(url.searchParams.get('seed'));
 	const pageSize = pageSizeOf(cookies.get('tsundoku_grid_page'));
-	// The last import, read once: IMPORT LOG under MORE says when it came in
-	// (c438). 03's done row names the import that ticked it, not the last one
-	// (c634), so that is its own read.
+	// The last import, read once: IMPORT LOG under MORE says when it came in.
+	// 03's done row names the import that ticked it, not the last one, so that
+	// is its own read.
 	const last = lastImport(reveal);
 	// 03's done row is drawn only by the empty library's start list (this page)
 	// and by GET STARTED; here that list shows only with no tiles at all, so
@@ -172,7 +172,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// A person's page is finding, so its series keep their own tiles -- each
 	// wearing the Work it is a part of (doc/WORKS.md, "The one rule"). A
 	// browsing Work tile carries its parts, so a selection made through it can
-	// name the Work it would move them out of (W4's MOVES HERE). One query for
+	// name the Work it would move them out of (MOVES HERE). One query for
 	// the page, never one per tile.
 	const tileIds = [
 		...(person ? person.items.map((i) => i.seriesId) : []),
@@ -191,7 +191,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 				: null,
 		person,
 		workFeet,
-		// A GROUP row's show line (c283; season-facts.ts): source, year and files
+		// A GROUP row's show line (season-facts.ts): source, year and files
 		// on disk, read for the tiles this page drew and no other.
 		groupFacts: showRowFacts(tileIds, reveal),
 		existing: seriesOfBooks(reveal),
@@ -200,10 +200,10 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		dir,
 		seed,
 		empty: total === 0 && !scan,
-		// The first day (doc/ONBOARDING.md; handoff board 3): an empty library whose
+		// The first day (doc/ONBOARDING.md): an empty library whose
 		// checklist is through lists the sources it can read from instead.
 		firstDay: total === 0 && !scan ? readSources(reveal) : [],
-		// FIRST READ's open steps (doc/ONBOARDING.md; card c209): while the list is the library.
+		// FIRST READ's open steps (doc/ONBOARDING.md): while the list is the library.
 		firstRead: total === 0 && !scan ? firstReadExtras(reveal) : null,
 		dupes,
 		toLink,
@@ -211,10 +211,10 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		// FOLLOWED is a filter while something the viewer can see is followed (doc/DOWNLOADS.md).
 		following: anyFollowed(reveal),
 		libraryRoot: libraryRoot(),
-		// IMPORT LOG under MORE says when the last backup came in (c438).
+		// IMPORT LOG under MORE says when the last backup came in.
 		lastImportAt: last?.at ?? null,
 		// 03's done row on the empty library names the import that ticked it, as
-		// /start's does (c511, c634). It can never draw here today -- 03 done
+		// /start's does. It can never draw here -- 03 done
 		// means a visible series, and this list only shows with no tiles at all
 		// (`data.empty`) -- so it is read only when that list can draw (`empty`
 		// alone: a scan turns the list off too). Both loads pass the same facts,
@@ -227,7 +227,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		// What GROUP can make of a selection (doc/BOOKS.md, "The AS row"): the
 		// Works a selection may move into, and the series' own Work names.
 		existingWorks: workChoices().filter((w) => !isReservedWork(w.id)),
-		// A person's page says the run exists without pulling it in (W4).
+		// A person's page says the run exists without pulling it in.
 		works: person
 			? worksOnTagPage(
 					person.items.map((i) => i.seriesId),
@@ -292,7 +292,7 @@ function ids(form: FormData): number[] {
  * The band facts for a HIDE or UNHIDE that changed a Work: what UNDO puts back,
  * and the counts the band is worded from (`wholeBand`), with the series in no
  * Work kept apart from the Works' own. Every count is of what the write
- * changed (c390): a press that changed no Work -- a selection whose Work was
+ * changed: a press that changed no Work -- a selection whose Work was
  * already hidden, say -- is the plain HIDE of series on their own, which has
  * no band, as `?/bulk`'s never had.
  */
@@ -304,13 +304,13 @@ function wholeAnswer(facts: WholeFacts, hidden: boolean) {
 }
 
 /**
- * An UNDO the library has moved past (c308): the refusal, worded by
+ * An UNDO the library has moved past: the refusal, worded by
  * `WorkError`, in the field the library page already draws a Work's
  * refusals from. Anything else is a real failure and is thrown.
  */
 function refused(e: unknown) {
-	// A Work named by an id another Work holds now (c583) also says `stale`,
-	// which the GROUP sheet reads to close and read the library again (c584).
+	// A Work named by an id another Work holds now also says `stale`,
+	// which the GROUP sheet reads to close and read the library again.
 	if (e instanceof StaleWorkError)
 		return fail(400, { workMessage: e.message.toUpperCase(), stale: true });
 	if (e instanceof WorkError) return fail(400, { workMessage: e.message.toUpperCase() });
@@ -337,7 +337,7 @@ export const actions: Actions = {
 	 * search page too, for any hit, a Work's part included. A Work is hidden or
 	 * shown whole (doc/WORKS.md, "The one rule"), so a part takes its Work with
 	 * it, both ways, and the library's band says so. A series in no Work is
-	 * hidden or shown on its own, as it always was, with no band.
+	 * hidden or shown on its own, with no band.
 	 */
 	hide: async ({ request }) => {
 		const form = await request.formData();
@@ -351,8 +351,8 @@ export const actions: Actions = {
 	 * Work half-hidden. This answer hides every part of every Work the
 	 * selection touches, and the selected series that are in none.
 	 *
-	 * It answers a band whenever the press hid anything an UNDO may show
-	 * (c469; wave 19's decision 12 and Gap 7): the selection's Work may be
+	 * It answers a band whenever the press hid anything an UNDO may show:
+	 * the selection's Work may be
 	 * one it only settled (hidden in part before, so no UNDO for it), with
 	 * loose series beside it that it did hide, and those deserve their UNDO
 	 * as much as a Work's parts do. The band's words are of what changed
@@ -385,7 +385,7 @@ export const actions: Actions = {
 	 * tiles, so selecting one hidden part of a hidden Work and pressing UNHIDE
 	 * must show the Work whole -- one part visible among hidden ones is the
 	 * diverged state this branch exists to remove, and a rule about a state is
-	 * not a rule until it is at every door to it. The selected series in no Work
+	 * not a rule until every way into it keeps it. The selected series in no Work
 	 * are shown with the rest.
 	 */
 	showAll: async ({ request }) => {
@@ -396,10 +396,10 @@ export const actions: Actions = {
 
 	/**
 	 * UNDO after either HIDE answer: every take-out put back, then what the
-	 * press hid shown again -- only what it changed (c390), so a series that
+	 * press hid shown again -- only what it changed, so a series that
 	 * was hidden before the press stays hidden. The library may have moved on
 	 * since (the series added to another Work, the Work ended): that refuses,
-	 * whole, and says why (c308).
+	 * whole, and says why.
 	 */
 	undoHide: async ({ request }) => {
 		const form = await request.formData();
@@ -463,7 +463,7 @@ export const actions: Actions = {
 			setFavourite(target, true);
 		} else if (form.get('do') === 'hide' || form.get('do') === 'unhide') {
 			// The bar sends a selection holding a Work's part to ?/hideAll's sheet
-			// or ?/showAll instead; this door keeps the rule anyway, so a posted
+			// or ?/showAll instead; this action keeps the rule anyway, so a posted
 			// part still takes its Work whole. UNHIDE comes out of a hidden root
 			// too: each becomes public (src/lib/server/visibility.ts).
 			const on = form.get('do') === 'hide';
@@ -473,7 +473,7 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * REFRESH over the selection (card c221; doc/DOWNLOADS.md, "REFRESH"):
+	 * REFRESH over the selection (doc/DOWNLOADS.md, "REFRESH"):
 	 * each series whose source can be asked is asked once, through the same
 	 * `refreshSeries` the series screen uses, and nothing is downloaded. The
 	 * batch bounds itself and leaves out what reveal hides, so the band can
@@ -490,7 +490,7 @@ export const actions: Actions = {
 	 * FOLD AS LANGUAGES (doc/EDITIONS.md): two or three single books, one per
 	 * language, go to the duplicates review as a pair to fold -- the review is
 	 * where editions are folded, whoever found them. A single book is one as
-	 * ONE-OFF counts it (`isBookSql`, c558) WITH nothing beside it: FOLD lands
+	 * ONE-OFF counts it (`isBookSql`) WITH nothing beside it: FOLD lands
 	 * in `foldEditions`, which folds one `edition_of IS NULL` entry (a folded
 	 * edition beside the book is left out and still passes), so a book with an
 	 * extra or a set-aside duplicate is refused here rather than sent to a
@@ -522,12 +522,11 @@ export const actions: Actions = {
 
 	/**
 	 * A WORK: gather the selection into a Work, in the order the sheet sent its
-	 * rows (doc/WORKS.md; Works Calls, "Making and breaking a Work"). This is
-	 * W4's AS sheet's create, replacing W2's stopgap cell.
+	 * rows (doc/WORKS.md). This is the AS sheet's create.
 	 *
-	 * The sheet is the only door that may move a series out of another Work
+	 * The sheet is the only caller that may move a series out of another Work
 	 * (`sheet=1`): its rows say `IN <WORK> · MOVES HERE`, so the move is the
-	 * owner's. Every other caller keeps W2's refusal, because a whole-shelf
+	 * reader's. Every other caller is refused, because a whole-shelf
 	 * SELECT ALL must not collapse every Work on it into one. The sheet too
 	 * refuses a selection that touches two or more Works, which is exactly that
 	 * collapse by another route.
@@ -567,7 +566,7 @@ export const actions: Actions = {
 		if (name === '') return fail(400, { workMessage: 'A WORK NEEDS A NAME' });
 		let made: CreateFacts;
 		try {
-			// The sheet's rows are already in the owner's order: BY HAND is what
+			// The sheet's rows are already in the reader's order: BY HAND is what
 			// it posts, whatever ORDER sorted them.
 			made = createWork({ seriesIds, name, order: 'hand' });
 		} catch (e) {
@@ -581,7 +580,7 @@ export const actions: Actions = {
 	 * ADD TO A WORK · N: the sheet's existing Work, each chosen series moving in
 	 * at the end of the run (a Work left with one ends, and UNDO puts it back).
 	 * The sheet posts the Work's id and its moment of making (`made`), and the
-	 * add refuses a Work under that id made at another moment, or none (c583):
+	 * add refuses a Work under that id made at another moment, or none:
 	 * `works.id` is reused once the newest Work ends, so a sheet drawn before an
 	 * UNGROUP elsewhere would otherwise move the selection into a newer Work.
 	 * A post with no moment cannot say which Work it means and refuses too.
@@ -615,7 +614,7 @@ export const actions: Actions = {
 	 * the order the sheet sent them. From a suggestion, the whole suggested set
 	 * is also stored as dismissed, so books left unticked don't bring it back.
 	 *
-	 * `answer=show` is the season sheet's own door (c283): the same selection,
+	 * `answer=show` is the season sheet's own answer: the same selection,
 	 * merged into one show, landing on the show's screen with the band whose
 	 * UNDO is UNGROUP.
 	 */
@@ -649,7 +648,7 @@ export const actions: Actions = {
 		const params = new URLSearchParams({ created: String(moved.length), order });
 		if (result.volumes) params.set('unit', 'volumes');
 		if (into !== undefined) params.set('added', moved.join(','));
-		// The new series' cover, from its first book or volume (c57): off the
+		// The new series' cover, from its first book or volume: off the
 		// request, never waited on.
 		void refreshCovers({ ids: [result.seriesId], remote: false });
 		redirect(303, `/series/${result.seriesId}?${params}`);
@@ -716,7 +715,7 @@ export const actions: Actions = {
 	/** DELETE in the bulk bar, after its confirmation (doc/DELETING.md). */
 	delete: async ({ request, cookies }) => {
 		const form = await request.formData();
-		// DELETE THEM TOO (Out X4), which only says so when the sheet showed a row.
+		// DELETE THEM TOO, which only says so when the sheet showed a row.
 		const r = await deleteSeries(ids(form), isRevealed(cookies), {
 			highlights: form.get('highlights') === '1'
 		});
@@ -724,7 +723,7 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * What the bulk DELETE's sheet says about the highlights (Out X4; c731): how
+	 * What the bulk DELETE's sheet says about the highlights: how
 	 * many the selection holds, and across how many series. Hidden ones count
 	 * only with reveal on, as `deleteSeries` will only reach those then.
 	 */

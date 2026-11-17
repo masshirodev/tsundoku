@@ -39,11 +39,11 @@ export function getDb(): Database.Database {
 
 /**
  * A timer run (OCR, sync, backup) never moves the schema: it runs
- * `scripts/*.ts` from the working tree, which may hold a rung not yet
- * shipped, and on 2026-09-25 the OCR timer climbed the live database to
- * rung 29 under the served app's older code (doc/SERVING.md, "Who migrates").
- * The served app migrates when it ships; until then a timer run whose ladder
- * differs from the database's refuses, and the next run after the deploy
+ * `scripts/*.ts` from the working tree, which may hold a migration not yet
+ * shipped, and once the OCR timer moved the live database to migration 29
+ * under the served app's older code (doc/SERVING.md, "Who migrates"). The
+ * served app migrates when it ships; until then a timer run whose migrations
+ * differ from the database's refuses, and the next run after the deploy
  * does the work.
  */
 function refuseDrift(conn: Database.Database): void {
@@ -62,10 +62,10 @@ export function closeDb(): void {
 }
 
 /**
- * Ordered, append-only. A rung is never edited once it has shipped; a change
- * is a new rung. `user_version` records how far a database has climbed. A
- * rung is SQL, or, where SQL alone can't say it, a function given the
- * connection, run in the same transaction (rung 47).
+ * Ordered, append-only. A migration is never edited once it has shipped; a change
+ * is a new migration. `user_version` records how far a database has run. A
+ * migration is SQL, or, where SQL alone can't say it, a function given the
+ * connection, run in the same transaction (migration 47).
  */
 const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	`
@@ -110,7 +110,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	CREATE INDEX entries_series ON entries(series_id, position);
 	CREATE INDEX entries_opened ON entries(last_opened_at);
 
-	-- Owner-made shelves. Smart shelves (all, favourites, rated 4+) are queries,
+	-- User-made shelves. Smart shelves (all, favourites, rated 4+) are queries,
 	-- not rows.
 	CREATE TABLE collections (
 		id INTEGER PRIMARY KEY,
@@ -150,15 +150,15 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	);
 	`,
 	`
-	-- 0 is unrated (the owner's scale, 2026-09-22), so there is no separate
-	-- NULL. The column keeps rung 1's nullable CHECK because SQLite cannot
-	-- tighten a constraint without rebuilding a table four others reference;
-	-- the code never writes NULL, and this clears the ones rung 1 allowed.
+	-- 0 is unrated, so there is no separate NULL. The column keeps migration 1's
+	-- nullable CHECK because SQLite cannot tighten a constraint without rebuilding
+	-- a table four others reference; the code never writes NULL, and this clears
+	-- the ones migration 1 allowed.
 	UPDATE series SET rating = 0 WHERE rating IS NULL;
 	`,
 	`
 	-- What the series screen shows. Alternative titles are a JSON array of
-	-- strings; direction is NULL until the owner picks one, and the reader
+	-- strings; direction is NULL until the user picks one, and the reader
 	-- falls back to the kind's default (see $lib/library/series.ts).
 	ALTER TABLE series ADD COLUMN alt_titles TEXT NOT NULL DEFAULT '[]';
 	ALTER TABLE series ADD COLUMN source TEXT NOT NULL DEFAULT '';
@@ -220,7 +220,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		PRIMARY KEY (entry_id, tag_id)
 	);
 
-	-- People the owner keeps close: "watch this circle". Only artist, circle
+	-- People the user keeps close: "watch this circle". Only artist, circle
 	-- and author tags can be favourited.
 	CREATE TABLE person_favourites (
 		namespace TEXT NOT NULL CHECK (namespace IN ('artist', 'circle', 'author')),
@@ -237,7 +237,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		dismissed_at INTEGER NOT NULL
 	);
 
-	-- History rows the owner removed. Only the row goes; progress stays.
+	-- History rows the user removed. Only the row goes; progress stays.
 	CREATE TABLE history_removed (
 		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
 		day TEXT NOT NULL,
@@ -271,7 +271,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	);
 
 	-- A cover image that isn't a page: Hentoid's thumb. Relative to the
-	-- entry's file. cover_page, when the owner sets one, wins.
+	-- entry's file. cover_page, when the user sets one, wins.
 	ALTER TABLE entries ADD COLUMN cover_file TEXT;
 	`,
 	`
@@ -293,16 +293,16 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	-- book can come out while the rest of the root stays hidden.
 	ALTER TABLE series ADD COLUMN public INTEGER NOT NULL DEFAULT 0;
 	`,
-	// Rung 10: one chapter, several scanlators (doc/DUPLICATE-CHAPTERS.md). A shadowed
+	// Migration 10: one chapter, several scanlators (doc/DUPLICATE-CHAPTERS.md). A shadowed
 	// entry is a copy of a chapter another entry represents; everything that
-	// lists or counts chapters skips it. series.scanlator is the owner's
+	// lists or counts chapters skips it. series.scanlator is the user's
 	// preference, NULL meaning automatic.
 	`
 	ALTER TABLE entries ADD COLUMN scanlator TEXT NOT NULL DEFAULT '';
 	ALTER TABLE entries ADD COLUMN shadowed INTEGER NOT NULL DEFAULT 0;
 	ALTER TABLE series ADD COLUMN scanlator TEXT;
 	`,
-	// Rung 11: a novel's entries are places in one EPUB (doc/TEXT-READER.md).
+	// Migration 11: a novel's entries are places in one EPUB (doc/TEXT-READER.md).
 	// locator is where the entry starts, 'doc.xhtml#anchor' inside the zip;
 	// matter marks front and back matter, which is listed apart and never
 	// counts as a chapter; last_offset is the character a text position is
@@ -312,12 +312,12 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	ALTER TABLE entries ADD COLUMN matter TEXT NOT NULL DEFAULT '';
 	ALTER TABLE entries ADD COLUMN last_offset INTEGER;
 	`,
-	// Rung 12: the library's cards count from this index alone, never the
-	// table (library.ts, cardQuery; card "Make the library fast").
+	// Migration 12: the library's cards count from this index alone, never the
+	// table (library.ts, cardQuery).
 	`
 	CREATE INDEX entries_card ON entries(series_id, shadowed, matter, read_at, added_at, last_opened_at);
 	`,
-	// Rung 13: an event's day, in the workstation's time, worked out once when
+	// Migration 13: an event's day, in the server's local time, worked out once when
 	// it's written instead of for every event on every history request (the
 	// imported 19,000 events took history to 330 ms). A trigger fills it, so
 	// no writer has to remember to. And the log by entry, for history's
@@ -332,7 +332,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	CREATE INDEX reading_events_by_day ON reading_events(day, series_id);
 	CREATE INDEX reading_events_entry ON reading_events(entry_id, at);
 	`,
-	// Rung 14: covers (doc/COVERS.md). cover_url is where the source site
+	// Migration 14: covers (doc/COVERS.md). cover_url is where the source site
 	// keeps it (Mihon's backup has one per series); cover_key names the file,
 	// page or URL the thumbnail was made from, so a changed source makes a new
 	// one; cover_at is when, and the version in the thumbnail's URL. NULL:
@@ -343,21 +343,21 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	ALTER TABLE series ADD COLUMN cover_at INTEGER;
 	ALTER TABLE series ADD COLUMN cover_failed_at INTEGER;
 	`,
-	// Rung 15: chapter numbers from Mihon's backup were stored at float32
+	// Migration 15: chapter numbers from Mihon's backup were stored at float32
 	// precision (2.0999999046325684 for 2.1). The decoder rounds them now;
 	// these are the ones already imported.
 	`
 	UPDATE entries SET position = round(position, 4) WHERE position != round(position, 4);
 	`,
-	// Rung 16: volumes (doc/BOOKS.md, "Volumes of a novel"). A novel grouped
+	// Migration 16: volumes (doc/BOOKS.md, "Volumes of a novel"). A novel grouped
 	// from several EPUBs keeps each entry's book title here, so CONTENTS can
 	// head each volume and UNGROUP can give each its name back. '' in a
 	// series of one book.
 	`
 	ALTER TABLE entries ADD COLUMN volume TEXT NOT NULL DEFAULT '';
 	`,
-	// Rung 17: page borders (doc/READER.md, "Crop borders"). Each page's
-	// plain margin, found once on the workstation, as fractions of its width
+	// Migration 17: page borders (doc/READER.md, "Crop borders"). Each page's
+	// plain margin, found once on the server, as fractions of its width
 	// and height. All zero: nothing worth cropping. A row per page looked at,
 	// so none is decoded twice.
 	`
@@ -371,7 +371,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		PRIMARY KEY (entry_id, page)
 	) WITHOUT ROWID;
 	`,
-	// Rung 18: deleted books (doc/DELETING.md). What the owner deleted, by the
+	// Migration 18: deleted books (doc/DELETING.md). What the user deleted, by the
 	// keys the importers find it by -- a series' origin key, a chapter's or
 	// book's source URL -- so a rescan or a sync never brings it back.
 	`
@@ -381,8 +381,8 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		deleted_at INTEGER NOT NULL
 	) WITHOUT ROWID;
 	`,
-	// Rung 19: OCR (doc/JAPANESE.md). A page's text blocks, as mokuro read them
-	// on the workstation, their boxes in fractions of the page. An entry notes
+	// Migration 19: OCR (doc/JAPANESE.md). A page's text blocks, as mokuro read them
+	// on the server, their boxes in fractions of the page. An entry notes
 	// when it was read whole (ocr_at) or last failed (ocr_failed_at). A series'
 	// ocr: NULL decides by language, 1 always, 0 never.
 	`
@@ -396,7 +396,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	ALTER TABLE entries ADD COLUMN ocr_failed_at INTEGER;
 	ALTER TABLE series ADD COLUMN ocr INTEGER;
 	`,
-	// Rung 20: mining (doc/JAPANESE.md). Every lookup, with the sentence and
+	// Migration 20: mining (doc/JAPANESE.md). Every lookup, with the sentence and
 	// the place it was met in; and what became of a word: 'pending' (approved,
 	// not in Kumiko yet), 'sent', or 'rejected'. A word decided once isn't
 	// offered again. (A block marked NOT TEXT is simply taken out of its
@@ -423,8 +423,8 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		note_id TEXT
 	) WITHOUT ROWID;
 	`,
-	// Rung 21: NOT TEXT keeps what it takes (doc/JAPANESE.md, "NOT TEXT").
-	// Rung 20 only took a block out of its page, so once the band's UNDO was
+	// Migration 21: NOT TEXT keeps what it takes (doc/JAPANESE.md, "NOT TEXT").
+	// Migration 20 only took a block out of its page, so once the band's UNDO was
 	// gone the block was too. Each one is kept here with where it was, for the
 	// series screen's RESTORE, and so reading a chapter again doesn't bring
 	// it back.
@@ -439,10 +439,10 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	);
 	CREATE INDEX not_text_entry ON not_text(entry_id, page);
 	`,
-	// Rung 22: duplicate books (doc/DUPLICATE-BOOKS.md). Each page's own
+	// Migration 22: duplicate books (doc/DUPLICATE-BOOKS.md). Each page's own
 	// perceptual hash (Hentoid hashes covers only), for the books in a
 	// candidate pair; the pairs found, with their pages lined up; and what the
-	// owner decided about each, by pair, so a settled pair never comes back.
+	// user decided about each, by pair, so a settled pair never comes back.
 	// A decision waits (applied_at NULL) until the next one, which is what
 	// makes UNDO possible for a KEEP that deletes.
 	`
@@ -468,15 +468,15 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		applied_at INTEGER
 	);
 	`,
-	// Rung 23: a series cover the owner chose (doc/COVERS.md, "Chosen"): a page
+	// Migration 23: a series cover the user chose (doc/COVERS.md, "Chosen"): a page
 	// of one of its entries, from the reader's page menu or the PAGES grid.
 	// Both NULL is automatic. A book's own choice was already
-	// entries.cover_page (rung 9).
+	// entries.cover_page (migration 9).
 	`
 	ALTER TABLE series ADD COLUMN cover_entry INTEGER REFERENCES entries(id) ON DELETE SET NULL;
 	ALTER TABLE series ADD COLUMN cover_page INTEGER;
 	`,
-	// Rung 24: one book in several languages (doc/EDITIONS.md). An edition is
+	// Migration 24: one book in several languages (doc/EDITIONS.md). An edition is
 	// an entry folded into another book's series: edition_of names the book's
 	// own entry (its base), it's shadowed so every list and count passes it by
 	// as it does a duplicate chapter, and edition_rows lines its pages up with
@@ -492,7 +492,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	ALTER TABLE series ADD COLUMN edition_read TEXT;
 	CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID;
 	`,
-	// Rung 25: catalogue links (doc/LINKS.md). A series' MyAnimeList / AniList
+	// Migration 25: catalogue links (doc/LINKS.md). A series' MyAnimeList / AniList
 	// entry, and where the link came from. anilist_id is NULL for a MAL link
 	// AniList hasn't been asked about yet (resolved_at NULL) or doesn't have.
 	// filled_rating is the rating the link's score gave an unrated series, kept
@@ -535,14 +535,14 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		at INTEGER NOT NULL
 	);
 	`,
-	// Rung 26: the linked entry's AniList format (MANGA, NOVEL, ONE_SHOT), so a
+	// Migration 26: the linked entry's AniList format (MANGA, NOVEL, ONE_SHOT), so a
 	// link across kinds -- a novel to its comic's entry -- is known for what
 	// it is: cover and details only, never tracked (doc/LINKS.md). NULL until
 	// AniList has been asked.
 	`
 	ALTER TABLE series_links ADD COLUMN format TEXT;
 	`,
-	// Rung 27: tracking (doc/TRACKING.md). The owner's sign-ins, one per
+	// Migration 27: tracking (doc/TRACKING.md). The user's sign-ins, one per
 	// catalogue; what each catalogue's list says of a linked series (status in
 	// tsundoku's words, score out of 10, chapter), with when it was read and
 	// when tsundoku last sent to it; and what waits to be sent -- one row per
@@ -580,7 +580,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		PRIMARY KEY (series_id, service)
 	) WITHOUT ROWID;
 	`,
-	// Rung 28: when the owner marked an entry unread (doc/SERIES.md, "Marked
+	// Migration 28: when the user marked an entry unread (doc/SERIES.md, "Marked
 	// unread stays unread"). The import moves read state only forward, from
 	// Mihon's and Hentoid's own records, so a MARK UNREAD came back read on
 	// the next import. Now a read from an import counts only when it's newer
@@ -602,12 +602,12 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	) WHERE shadowed = 1 AND unread_at IS NULL;
 	UPDATE entries SET read_at = NULL WHERE unread_at IS NOT NULL AND read_at < unread_at;
 	`,
-	// Rung 29: ratings out of 10 (card c67; doc/SERIES.md, "Rating"). Five
+	// Migration 29: ratings out of 10 (doc/SERIES.md, "Rating"). Five
 	// steps with halves, as Ranobe rates. Existing ratings convert exactly,
 	// x2: a 4 chosen out of five is an 8, never an 8-or-9, and 0 stays
 	// unrated. SQLite can't change a CHECK in place, and rebuilding series and
 	// entries would touch every table that references them, so the old column
-	// is renamed (rating5, kept and no longer read or written) and a new
+	// is renamed (rating5, kept and never read or written) and a new
 	// rating takes its name with a 0-10 CHECK: every query naming rating reads
 	// the new one. A link's filled_rating is compared with the rating by UNDO,
 	// so it doubles too.
@@ -621,13 +621,13 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	UPDATE series_links SET filled_rating = filled_rating * 2 WHERE filled_rating IS NOT NULL;
 	`,
 	`
-	-- Rung 30: the library's FILTER panel (doc/FILTERS.md) asks every card
+	-- Migration 30: the library's FILTER panel (doc/FILTERS.md) asks every card
 	-- whether it has a chapter on disk, so the card index covers that too:
 	-- without it, the whole revealed library's cards took twice as long.
 	DROP INDEX entries_card;
 	CREATE INDEX entries_card ON entries(series_id, shadowed, matter, read_at, added_at, last_opened_at, available);
 	`,
-	// Rung 31: Ranobe (card c66; doc/RANOBE.md). A novel links to a Ranobe
+	// Migration 31: Ranobe (doc/RANOBE.md). A novel links to a Ranobe
 	// work, and several series may share one: a volume per EPUB. The edition
 	// is NULL until one in the series' language exists, and volume is the
 	// series' own number when it is one volume. Each entry keeps its unit.
@@ -679,9 +679,9 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		PRIMARY KEY (work, lang)
 	) WITHOUT ROWID;
 	`,
-	// Rung 32: choosing a Ranobe work (c66 part 2; doc/RANOBE.md, "The
+	// Migration 32: choosing a Ranobe work (doc/RANOBE.md, "The
 	// review"). A novel the ids didn't find is searched on Ranobe by title and
-	// its candidates wait for the owner, as link_searches and link_candidates
+	// its candidates wait for the user, as link_searches and link_candidates
 	// do for AniList; a decision is NOT ON RANOBE, or an UNLINK a pass mustn't
 	// undo. ranobe_works gains what Ranobe itself says of the entry -- status,
 	// how far in the edition's units, rating, favourite -- read with the
@@ -714,7 +714,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	ALTER TABLE ranobe_works ADD COLUMN remote_favourite INTEGER;
 	ALTER TABLE ranobe_works ADD COLUMN state_at INTEGER;
 	`,
-	// Rung 33: a novel suggested to Ranobe from its EPUB (card c72; doc/RANOBE.md,
+	// Migration 33: a novel suggested to Ranobe from its EPUB (doc/RANOBE.md,
 	// "Suggesting a novel"). One per series: the bundle, how it stands, and the
 	// work it made once approved. A pending one keeps the series out of the
 	// review; an approved one links it.
@@ -728,7 +728,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		checked_at INTEGER
 	);
 	`,
-	// Rung 34: arrivals (doc/LIBRARY.md, "The NEW shelf"). When tsundoku first
+	// Migration 34: arrivals (doc/LIBRARY.md, "The NEW shelf"). When tsundoku first
 	// had a file for a chapter, which Mihon's dates don't say: a chapter's
 	// added_at is when the source listed it, years before it was downloaded.
 	// A series' arrived_at is its latest arrival, a new series or a chapter's
@@ -743,23 +743,23 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	DROP INDEX entries_card;
 	CREATE INDEX entries_card ON entries(series_id, shadowed, matter, read_at, added_at, last_opened_at, available, arrived_at);
 	`,
-	// Rung 35: rung 34's guess undone. Dating a series by the import that made
-	// it put the whole library on NEW: the first import (2026-09-23) made
-	// nearly all of it, inside the fortnight. An arrival is known from now on;
-	// before, it's unknown, or what a file's mtime says (doc/LIBRARY.md).
+	// Migration 35: migration 34's guess undone. Dating a series by the import that
+	// made it put the whole library on NEW: the first import made nearly all of it,
+	// inside the fortnight. An arrival is known from now on; before, it's unknown,
+	// or what a file's mtime says (doc/LIBRARY.md).
 	`
 	UPDATE series SET arrived_at = NULL;
 	`,
-	// Rung 36: an arrival already read isn't new. Suwayomi downloads again
-	// chapters the tablet had and the owner read; dated by their files, 1,025
-	// read chapters made their series new (2026-10-04). A series' arrival is
+	// Migration 36: an arrival already read isn't new. Suwayomi downloads again
+	// chapters the tablet had and the user read; dated by their files, 1,025
+	// read chapters made their series new. A series' arrival is
 	// its newest unread one.
 	`
 	UPDATE series SET arrived_at = (SELECT MAX(e.arrived_at) FROM entries e
 		WHERE e.series_id = series.id AND e.read_at IS NULL)
 	WHERE arrived_at IS NOT NULL;
 	`,
-	// Rung 37: FOLLOW (doc/DOWNLOADS.md). When the owner followed a series:
+	// Migration 37: FOLLOW (doc/DOWNLOADS.md). When the user followed a series:
 	// chapters Suwayomi fetches after it are queued on their own. NULL is not
 	// followed. Suwayomi can only auto-download a whole category or the whole
 	// library, so the list is tsundoku's.
@@ -767,7 +767,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	ALTER TABLE series ADD COLUMN followed_at INTEGER;
 	CREATE INDEX series_followed ON series(followed_at) WHERE followed_at IS NOT NULL;
 	`,
-	// Rung 38: comics on Ranobe (card c98; doc/RANOBE.md, "Comics"). A comic
+	// Migration 38: comics on Ranobe (doc/RANOBE.md, "Comics"). A comic
 	// reads against the work's own chapters, not an edition's, and a chapter
 	// the work doesn't list is refused, so each pass keeps what the work
 	// counts: its type, 1..count, and the extras outside the run. type NULL is
@@ -781,8 +781,8 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		checked_at INTEGER NOT NULL
 	) WITHOUT ROWID;
 	`,
-	// Rung 39: extensions on tsundoku's own engine (doc/DOWNLOADS.md,
-	// "Extensions"; card c136). Repositories the owner adds (none ships), the
+	// Migration 39: extensions on tsundoku's own engine (doc/DOWNLOADS.md,
+	// "Extensions"). Repositories the user adds (none ships), the
 	// index each had when last read, installed extensions with the previous
 	// version kept a week for BACK TO, their sources, and each source's
 	// preferences, which the engine doesn't keep: they're sent with every call.
@@ -840,7 +840,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		PRIMARY KEY (source_id, key)
 	) WITHOUT ROWID;
 	`,
-	// Rung 40: tsundoku's own download queue (doc/DOWNLOADS.md; card c137).
+	// Migration 40: tsundoku's own download queue (doc/DOWNLOADS.md).
 	// Keyed by tsundoku's entries, never by a source's ids. engine_series and
 	// engine_chapters hold what the extension calls a series and a chapter
 	// now (Toonily's moved to a new URL scheme): the engine is called with
@@ -877,14 +877,14 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	);
 	CREATE INDEX download_queue_order ON download_queue(state, position);
 	`,
-	// Rung 41: when the downloader wrote a chapter's CBZ (card c138). Between
+	// Migration 41: when the downloader wrote a chapter's CBZ. Between
 	// that and the import that attaches the file, the row says IMPORTING, as
 	// it does for a chapter Suwayomi has and tsundoku hasn't read in yet.
 	`
 	ALTER TABLE engine_chapters ADD COLUMN downloaded_at INTEGER;
 	`,
-	// Rung 42: BROWSE's RECENT, the last sources browsed (doc/BROWSE.md; card
-	// c142). One row a source, moved to now on each visit. Who may see a row
+	// Migration 42: BROWSE's RECENT, the last sources browsed (doc/BROWSE.md).
+	// One row a source, moved to now on each visit. Who may see a row
 	// is decided when it's read (a mostly-hidden source only in reveal).
 	`
 	CREATE TABLE browse_recent (
@@ -892,8 +892,8 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		browsed_at INTEGER NOT NULL
 	) WITHOUT ROWID;
 	`,
-	// Rung 43: sites seen behind a browser check (doc/BROWSE.md, "A site's
-	// check"; card c143), by host, so BROWSE can say a first visit waits for
+	// Migration 43: sites seen behind a browser check (doc/BROWSE.md, "A site's
+	// check"), by host, so BROWSE can say a first visit waits for
 	// it. Its own table: a source's rows are rewritten on every install.
 	`
 	CREATE TABLE site_checks (
@@ -901,8 +901,8 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		seen_at INTEGER NOT NULL
 	) WITHOUT ROWID;
 	`,
-	// Rung 44: LNReader's plugin repositories and the plugins installed from them
-	// (doc/NOVELS.md; card c148). Their own tables, not the engine's: a repository
+	// Migration 44: LNReader's plugin repositories and the plugins installed from them
+	// (doc/NOVELS.md). Their own tables, not the engine's: a repository
 	// is one plugins.min.json with no signing key, and a plugin is a JavaScript file
 	// pinned by its hash, run by tsundoku's plugin host rather than the engine.
 	`
@@ -938,8 +938,8 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		failed TEXT NOT NULL DEFAULT ''
 	) WITHOUT ROWID;
 	`,
-	// Rung 45: a novel's EPUB, as tsundoku's device writes it (doc/NOVELS.md,
-	// "Downloading"; card c150). novel_series.file is where the book is, under
+	// Migration 45: a novel's EPUB, as tsundoku's device writes it (doc/NOVELS.md,
+	// "Downloading"). novel_series.file is where the book is, under
 	// the library folder, fixed at its first download as engine_series.title
 	// fixes a manga's folder: the book is rewritten in place as chapters
 	// arrive, and a rename in tsundoku must not start a second one.
@@ -955,8 +955,8 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		downloaded_at INTEGER NOT NULL
 	);
 	`,
-	// Rung 46: when a followed novel's plugin was last asked for new chapters
-	// (doc/NOVELS.md, "FOLLOW"; card c151), as engine_series.resolved_at is a
+	// Migration 46: when a followed novel's plugin was last asked for new chapters
+	// (doc/NOVELS.md, "FOLLOW"), as engine_series.resolved_at is a
 	// manga's: FOLLOW's step asks each every six hours, and the DOWNLOAD row
 	// says CHECKED … AGO. Its own table: novel_series has a row only once
 	// something downloaded.
@@ -966,7 +966,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		checked_at INTEGER NOT NULL
 	);
 	`,
-	// Rung 47: anime (doc/ANIME.md; card c153). A series of kind `anime` is
+	// Migration 47: anime (doc/ANIME.md). A series of kind `anime` is
 	// episodes; an episode's last_position is seconds into it, not a page.
 	(conn) => {
 		widenKinds(conn);
@@ -990,7 +990,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		ALTER TABLE entries ADD COLUMN ending_at REAL;
 		`);
 	},
-	// Rung 48: anime downloads (doc/ANIME.md, "Downloading"; card c157).
+	// Migration 48: anime downloads (doc/ANIME.md, "Downloading").
 	// anime_series.folder is the series' folder under the library folder, in
 	// Jellyfin's TV layout, fixed at its first download as a novel's book is:
 	// files aren't renamed when a title is edited here. anime_episodes is what
@@ -1008,8 +1008,8 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		downloaded_at INTEGER
 	);
 	`,
-	// Rung 49: when a followed anime's source was last asked for new episodes
-	// (doc/ANIME.md, "FOLLOW"; card c158), as novel_checks is a novel's: FOLLOW's
+	// Migration 49: when a followed anime's source was last asked for new episodes
+	// (doc/ANIME.md, "FOLLOW"), as novel_checks is a novel's: FOLLOW's
 	// step asks each every six hours, and the DOWNLOAD row says CHECKED … AGO.
 	`
 	CREATE TABLE anime_checks (
@@ -1017,7 +1017,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		checked_at INTEGER NOT NULL
 	);
 	`,
-	// v50: the browsing record (doc/READING-ONLINE.md; card c161). A series opened from
+	// v50: the browsing record (doc/READING-ONLINE.md). A series opened from
 	// a source's preview without ADD is a series all the same, so the readers and
 	// the player work on it unchanged, but `in_library = 0` keeps it off every
 	// shelf, count and scan; HISTORY shows it, and ADD sets it to 1, its progress
@@ -1041,12 +1041,11 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	ALTER TABLE ranobe_work_units ADD COLUMN open_run INTEGER NOT NULL DEFAULT 0;
 	UPDATE ranobe_work_units SET type = NULL;
 	`,
-	// v53: one settings page (doc/SETTINGS.md; card c171). Each device's own
-	// settings, kept here as well as in its browser (the owner's answer to
-	// question 1): every storage key with its value and when it was set, so the
-	// newer side wins key by key. And what the player chose for a series
-	// (audio, subtitles, their size), moved here from each browser so the page
-	// can list them under N SERIES DIFFER (question 2).
+	// v53: one settings page (doc/SETTINGS.md). Each device's own settings, kept
+	// here as well as in its browser: every storage key with its value and when
+	// it was set, so the newer side wins key by key. And what the player chose
+	// for a series (audio, subtitles, their size), moved here from each browser
+	// so the page can list them under N SERIES DIFFER.
 	`
 	CREATE TABLE devices (
 		id TEXT PRIMARY KEY,
@@ -1061,7 +1060,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		chosen_at INTEGER NOT NULL
 	);
 	`,
-	// v54: phones paired over Wi-Fi (doc/WIFI.md; card c188). A token's hash,
+	// v54: phones paired over Wi-Fi (doc/WIFI.md). A token's hash,
 	// never the token; the Wi-Fi address it was paired at, which its cookie
 	// belongs to; and its DEVICES row, once its browser checks in, so SIGN OUT
 	// can end it.
@@ -1079,9 +1078,9 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// v55: an anime a source kept as its own season ("… 3rd Season", a
 	// `-season-3` slug) has that season stamped on its episodes, so the season
 	// heads, the season fold, CONTINUE, the Jellyfin folder and the NFOs all
-	// know it (c219; doc/ANIME.md, "Seasons"). Only episodes that name no
+	// know it (doc/ANIME.md, "Seasons"). Only episodes that name no
 	// season are stamped. The rule is inlined rather than imported from
-	// `seasonOfTitle`: a rung must say the same thing in ten years, whatever
+	// `seasonOfTitle`: a migration must say the same thing in ten years, whatever
 	// that function has learned by then.
 	(conn) => {
 		const inTitle = (text: string): number | null => {
@@ -1107,15 +1106,15 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 			if (season !== null) stamp.run(season, r.id);
 		}
 	},
-	// v56: an episode's picture, made on the workstation (doc/ANIME.md, "Episode
-	// pictures"; card c225): the source's own when it gives one (`thumb_url`),
+	// v56: an episode's picture, made on the server (doc/ANIME.md, "Episode
+	// pictures"): the source's own when it gives one (`thumb_url`),
 	// else a frame of the episode, kept as covers/episodes/<id>.webp. When it was
 	// made; NULL is none yet, so a file left by a deleted entry whose id came
 	// round again is never shown for the new one.
 	`
 	ALTER TABLE entries ADD COLUMN thumb_at INTEGER;
 	`,
-	// v57: MOVE (doc/MOVE.md; card c139). A series moved to another source
+	// v57: MOVE (doc/MOVE.md). A series moved to another source
 	// keeps the old origin key and when it left, for MOVE BACK's 30 days and so
 	// the tablet's backup, which still names it, resolves to this series rather
 	// than making a twin. Each entry keeps the source it came from, so a chapter
@@ -1143,14 +1142,14 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	);
 	CREATE INDEX episode_failures_series ON episode_failures(series_id, last_at);
 	`,
-	// v58: every key a series has left, not only the last (doc/MOVE.md; card
-	// c139). Rung 57 kept one, so a series moved A → B → C forgot A and a
-	// backup still naming A made a twin. This is what the writer resolves any
-	// former key through; series.former_key stays as the most recent, which is
-	// the one MOVE BACK offers. An entry has the same record of its own
-	// addresses: a chapter matched A → B → C kept only B's in former_url, so a
-	// backup naming A's copy would have added it again. Rung 57's values are
-	// copied in; a key or URL that is also the current one is not a former one.
+	// v58: every key a series has left, not only the last (doc/MOVE.md). Migration
+	// 57 kept one, so a series moved A → B → C forgot A and a backup still naming A
+	// made a twin. This is what the writer resolves any former key through;
+	// series.former_key stays as the most recent, which is the one MOVE BACK
+	// offers. An entry has the same record of its own addresses: a chapter matched
+	// A → B → C kept only B's in former_url, so a backup naming A's copy would have
+	// added it again. Migration 57's values are copied in; a key or URL that is
+	// also the current one is not a former one.
 	`
 	CREATE TABLE series_former_keys (
 		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
@@ -1174,20 +1173,20 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		SELECT id, former_url, 0 FROM entries
 		WHERE former_url != '' AND former_url != source_url;
 	`,
-	// v59: a TV is its own kind in DEVICES (doc/TV.md, doc/ANDROID.md; card
-	// c244). The app's user agent has named it a TV since c236, but its row's
-	// kind still said desktop because devices.kind's CHECK had no fourth value.
-	// SQLite cannot alter a CHECK in place; widening one that allows more
-	// changes nothing stored, so the schema's text is edited and the result
-	// checked before the rung commits (rung 47, and its reason).
+	// v59: a TV is its own kind in DEVICES (doc/TV.md, doc/ANDROID.md). The app's
+	// user agent names it a TV, but its row's kind said desktop because
+	// devices.kind's CHECK had no fourth value. SQLite cannot alter a CHECK in
+	// place; widening one that allows more changes nothing stored, so the schema's
+	// text is edited and the result checked before the migration commits (migration
+	// 47, and its reason).
 	(conn) => widenDeviceKinds(conn),
 	// v60: an episode's opening and ending, found for it (doc/ANIME.md,
-	// "Openings and endings"; card c239). One row per episode and finder --
+	// "Openings and endings"). One row per episode and finder --
 	// the source's own timestamps, AniSkip, a fingerprint -- found or not, so
 	// a negative answer is remembered and the episode is not asked again.
 	// Longer than a source's honest truth is not required; the bounds are the
 	// fingerprint's. `entries.ending_at` stays where watching counts from, and
-	// the best ending is written there. Rung 47's source endings are copied in
+	// the best ending is written there. Migration 47's source endings are copied in
 	// as the source's own (its +90 is what the downloaded-copy path used).
 	`
 	CREATE TABLE episode_marks (
@@ -1205,25 +1204,24 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		SELECT id, 'source', ending_at, ending_at + 90, 0 FROM entries
 		WHERE ending_at IS NOT NULL AND ending_at > 0;
 	`,
-	// v61: Works (doc/WORKS.md; card c216, first slice c275). A Work is a level
-	// above series that merges nothing: a name, an order the owner sets, and up
-	// to one Work per series. `series_id UNIQUE` is what makes the last part
-	// true, and the cascade means a deleted series cannot leave a Work naming
-	// it. Positions start at 1 and a gap is harmless: order is by position.
-	// A Work of one cannot exist, and the rule sits where a series disappears:
-	// this trigger runs after the cascade has taken the membership away, so any
-	// Work left with fewer than two members goes, memberships and all. The
-	// app's own removers (takeOut, a move in createWork or addSeries) never
-	// DELETE a series row, so they still end the Work themselves (`endIfOne`,
-	// src/lib/server/works.ts) with the facts UNDO needs. A DELETE that goes
-	// through `series` -- delete.ts, the books fold, an import -- needs no
-	// caller to remember: there is nothing to undo, because the part is gone.
+	// v61: Works (doc/WORKS.md). A Work is a level above series that merges
+	// nothing: a name, an order the user sets, and up to one Work per series.
+	// `series_id UNIQUE` is what makes the last part true, and the cascade means a
+	// deleted series cannot leave a Work naming it. Positions start at 1 and a gap
+	// is harmless: order is by position. A Work of one cannot exist, and the rule
+	// sits where a series disappears: this trigger runs after the cascade has taken
+	// the membership away, so any Work left with fewer than two members goes,
+	// memberships and all. The app's own removers (takeOut, a move in createWork or
+	// addSeries) never DELETE a series row, so they still end the Work themselves
+	// (`endIfOne`, src/lib/server/works.ts) with the facts UNDO needs. A DELETE
+	// that goes through `series` -- delete.ts, the books fold, an import -- needs
+	// no caller to remember: there is nothing to undo, because the part is gone.
 	//
 	// Work dismissals get a table of their own rather than reusing
 	// `suggestion_dismissals`: the books' reader takes every row of that table
 	// and parses its key as sorted ids, so a Work's key in there would be a
 	// shape that table's reader was never written for. One table per meaning
-	// costs nothing and W7 (MIGHT CONTINUE) gets store and undo for free.
+	// costs nothing and MIGHT CONTINUE gets store and undo for free.
 	`
 	CREATE TABLE works (
 		id INTEGER PRIMARY KEY,
@@ -1251,25 +1249,23 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		dismissed_at INTEGER NOT NULL
 	) WITHOUT ROWID;
 	`,
-	// v62: anime tracked a season at a time (doc/TRACKING.md, doc/LINKS.md;
-	// card c240, the owner's decision A on 2026-11-01). AniList and MAL list
-	// each season as its own entry, while a tsundoku series can hold several
-	// (c219), so an anime's link is per season -- and up to two parts, where a
-	// catalogue splits one season in two (`PART 1 · EP. 1 – 12`, `PART 2 · EP.
-	// 13 – 23`). `series_links` keeps meaning what it meant for manga and
+	// v62: anime tracked a season at a time (doc/TRACKING.md, doc/LINKS.md).
+	// AniList and MAL list each season as its own entry, while a tsundoku series
+	// can hold several, so an anime's link is per season -- and up to two parts,
+	// where a catalogue splits one season in two (`PART 1 · EP. 1 – 12`, `PART 2 ·
+	// EP. 13 – 23`). `series_links` keeps meaning what it meant for manga and
 	// novels, which are one entry across a series; an anime's own link in that
 	// table is read as season 0's -- the whole run, where the source gave no
-	// seasons at all -- so a link made before this rung still tracks the show
-	// as the one entry it was (doc/handoff-notes/tracking.md).
+	// seasons at all -- so a link made before this migration still tracks the show
+	// as the one entry it was.
 	//
-	// Nothing is migrated: no anime was linked when this shipped (the card's
-	// 0 links, measured at 5a8ce32a). A rung that found one would keep it as
-	// season 0's link by reading `series_links` as season 0, so no copy is
-	// needed either way. (That reading kept a legacy anime's later seasons out
-	// of the pass and the review: rung 68 moves the link onto its season after
-	// all, c383.)
+	// Nothing is migrated: no anime was linked when this shipped (0 links, measured
+	// at 5a8ce32a). A migration that found one would keep it as season 0's link by
+	// reading `series_links` as season 0, so no copy is needed either way. (That
+	// reading kept a legacy anime's later seasons out of the pass and the review:
+	// migration 68 moves the link onto its season after all.)
 	//
-	// `season` is `entries.season` (rung 47's stamp), 0 for a source that
+	// `season` is `entries.season` (migration 47's stamp), 0 for a source that
 	// gave none -- one flat list is one season to tsundoku. `episodes` is the
 	// entry's own count as the catalogue gave it, which is what puts part 2's
 	// first episode at part 1's count + 1: the link can say where the split
@@ -1284,8 +1280,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// `series_links` keeps a mirror of the first season linked, refreshed by
 	// `syncSeriesLink` and never read for an anime by tracking: the one reader
 	// that asks a series for one MAL entry is AniSkip, whose episode numbers
-	// are per entry, and which refuses a season past the first (c240,
-	// doc/handoff-notes/tracking.md, "Gaps").
+	// are per entry, and which refuses a season past the first.
 	//
 	// The state and the queue are keyed the same way: a season's progress is
 	// its own highest watched episode, counted within its part, and one
@@ -1364,17 +1359,17 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		PRIMARY KEY (series_id, season, part, service)
 	) WITHOUT ROWID;
 	`,
-	// v63: fingerprints found before c384 are fragments of an opening, a third
-	// to a half of the song, so SKIP INTRO landed in its middle (doc/ANIME.md,
-	// "Fingerprints of downloaded episodes"). The matcher that finds the whole
-	// opening shipped in wave 17, but an episode with any `fingerprint` row is
+	// v63: fingerprints found by the first matcher are fragments of an opening, a
+	// third to a half of the song, so SKIP INTRO landed in its middle
+	// (doc/ANIME.md, "Fingerprints of downloaded episodes"). The matcher that finds
+	// the whole opening replaced it, but an episode with any `fingerprint` row is
 	// not read again (a negative waits 14 days), so the old rows are forgotten
 	// here, negatives too, and the next play finds them under the new rule. A
 	// fragment is worse than no mark: no mark shows no SKIP INTRO at all.
 	//
 	// `entries.ending_at` follows the marks that remain. The ORDER BY and the
 	// validity test below are `MARK_ORDER` and `saneRange` (src/lib/library/
-	// marks.ts) as they stood when this rung was written, which is what
+	// marks.ts) as they stood when this migration was written, which is what
 	// `syncEndingAt` would choose. That is frozen history, run once on the data
 	// of its day: it is not a second copy of the rule to keep in step.
 	`
@@ -1394,8 +1389,8 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	`,
 	// v64: AniSkip numbers its answers by MAL **anime** id, and MAL numbers
 	// anime and manga apart, so an anime linked to a manga's entry asked about
-	// an unrelated anime (card c395; Ranma ½ (2024) was linked to the manga, MAL
-	// 23). From c395 on, AniSkip is asked only under a link whose format is an
+	// an unrelated anime (Ranma ½ (2024) was linked to the manga, MAL
+	// 23). Now AniSkip is asked only under a link whose format is an
 	// anime's (`lookupAniSkip`). What the old rule already stored goes: every
 	// `aniskip` row of an anime series whose `series_links` row is not an anime
 	// format -- a manga's, a novel's, an unknown (NULL or '') one, or no row at
@@ -1403,7 +1398,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	//
 	// The formats are spelled out because SQL cannot ask `sameKind`: they are
 	// `ANIME_FORMATS` (src/lib/library/catalogue.ts) on the day this was
-	// written, frozen like the rest of a rung, which runs once. `ending_at`
+	// written, frozen like the rest of a migration, which runs once. `ending_at`
 	// follows what remains, by the same frozen copy of `syncEndingAt` as v63.
 	`
 	CREATE TEMP TABLE c395_stale AS SELECT DISTINCT m.entry_id FROM episode_marks m
@@ -1425,18 +1420,18 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	WHERE id IN (SELECT entry_id FROM c395_stale);
 	DROP TABLE c395_stale;
 	`,
-	// v65: watching time for the anime watched before c443 (doc/READING-LOG.md,
-	// "Estimated rows"). The player sent no `durationMs` until c443, so every
-	// episode event carried 0. Its `page` is the position in seconds and it
-	// sent one every 15 s while playing, so where a step's position moved
-	// forward by what the clock did -- within 2 s -- the episode was playing
+	// v65: watching time for the anime watched before the player reported it
+	// (doc/READING-LOG.md, "Estimated rows"). The player first sent no
+	// `durationMs`, so every episode event carried 0. Its `page` is the position in
+	// seconds and it sent one every 15 s while playing, so where a step's position
+	// moved forward by what the clock did -- within 2 s -- the episode was playing
 	// for all of it, and that is the step's time. A pause or a stall moves the
-	// clock and not the position, a seek the position more than the clock, and
-	// both are left at 0: an estimate that only counts what it can vouch for.
-	// On the live library's copy (2026-11-03) 685 of 769 steps matched, 2.9 h.
+	// clock and not the position, a seek the position more than the clock, and both
+	// are left at 0: an estimate that only counts what it can vouch for. On a real
+	// library's copy 685 of 769 steps matched, 2.9 h.
 	//
 	// The kind is spelled out because SQL cannot ask the registry: it is the
-	// video medium's on the day this was written, frozen like the rest of a rung.
+	// video medium's on the day this was written, frozen like the rest of a migration.
 	`
 	CREATE TEMP TABLE c443_steps AS
 	SELECT id, (page - prev_page) * 1000 AS ms FROM (
@@ -1454,7 +1449,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	WHERE id IN (SELECT id FROM c443_steps);
 	DROP TABLE c443_steps;
 	`,
-	// v66: IMPORT A BACKUP and its log (c438, doc/IMPORT-BACKUP.md). One row per file
+	// v66: IMPORT A BACKUP and its log (doc/IMPORT-BACKUP.md). One row per file
 	// chosen on /import: what it was, where it came from, what became of it.
 	// A scan stays a `scan_jobs` row alone; an import runs as a scan job too
 	// (`job_id`), so the library's band and "one at a time" are the scan's.
@@ -1493,33 +1488,34 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	);
 	CREATE INDEX import_series_series ON import_series(series_id);
 	`,
-	// v67: AniSkip answers asked under another season's entry (card c463;
-	// doc/ANIME.md, "Openings and endings"). Until c349 an episode was asked
-	// under the series' `series_links` row -- the mirror `syncSeriesLink`
-	// keeps of the lowest season linked, part 1 (of the season linked last,
-	// before 45d2a8d) -- with the season's own episode number, and only for a
-	// season of 0 or 1 (a NULL season is 0; one past the first was never
-	// asked). From c349 on it is asked under its own season's row and part,
-	// numbered within the part (`episodeEntry`). A found answer is never
-	// asked again, so the old ones stay unless a rung forgets them.
+	// v67: AniSkip answers asked under another season's entry (doc/ANIME.md,
+	// "Openings and endings"). Before per-season lookups an episode was asked under
+	// the series' `series_links` row -- the mirror `syncSeriesLink` keeps of the
+	// lowest season linked, part 1 (of the season linked last, before 45d2a8d) --
+	// with the season's own episode number, and only for a season of 0 or 1 (a NULL
+	// season is 0; one past the first was never asked). Now it is asked under its
+	// own season's row and part, numbered within the part (`episodeEntry`). A found
+	// answer is never asked again, so the old ones stay unless a migration forgets
+	// them.
 	//
 	// The class: an `aniskip` row of an anime with season rows, on an episode
 	// of season 0 or 1, unless the mirror is that episode's own season's part
 	// 1 and the episode lies in part 1: the season has one part, or the number
 	// is within part 1's `episodes`. The mirror read here is the row the
-	// answer was asked under: every door that changes a link forgets the
+	// answer was asked under: every path that changes a link forgets the
 	// series' AniSkip rows, and a mirror whose MAL id moved otherwise (a
 	// resolve) no longer matches, so its answers are forgotten too. Beside a
 	// part 2, a part 1 of unknown length runs to the season's aired count,
 	// which SQL does not have here: that season's answers all go, and part
-	// 1's come back the same. The class takes a season-1 episode while season
-	// 0 is linked too (asked under season 0's id, whether or not season 1 is
-	// linked), part 2 of a split season (asked under part 1's id as EP. 13,
-	// not EP. 1), and a season-0 episode while only season 1 is (asked under
-	// season 1's id). A series with no season rows, linked before rung 62, is
-	// asked under that one link now as then, and a season past the first has
-	// only answers c349 asked: both stay. An answer c349 asked on an episode
-	// of the class goes too; it is asked again, once, and comes back the same.
+	// 1's come back the same. The class takes a season-1 episode while season 0
+	// is linked too (asked under season 0's id, whether or not season 1 is
+	// linked), part 2 of a split season (asked under part 1's id as EP. 13, not
+	// EP. 1), and a season-0 episode while only season 1 is (asked under season
+	// 1's id). A series with no season rows, linked before migration 62, is asked
+	// under that one link now as then, and a season past the first has only
+	// answers the per-season lookup asked: both stay. An answer it asked on an
+	// episode of the class goes too; it is asked again, once, and comes back the
+	// same.
 	//
 	// The found answers and the remembered misses both go, so the next play
 	// asks AniSkip at once rather than in a week. `ending_at` follows what
@@ -1552,25 +1548,25 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	WHERE id IN (SELECT entry_id FROM c463_stale);
 	DROP TABLE c463_stale;
 	`,
-	// v68: an anime linked before rung 62 gets its season row (card c383;
-	// doc/LINKS.md, "A link from before the seasons"). Such an anime has only
-	// a `series_links` row, which `NEEDS_LOOK` reads as the whole series
-	// settled, so its later seasons never reached the pass or the review. The
-	// link becomes the row of the season it stood for, decided by the series'
-	// own episodes: the lowest numbered season (1 and up) when the source
-	// numbers any, else season 0, the flat list that is the whole run. Part 1,
-	// with the link's ids, `via` (whose values `series_season_links` allows
-	// all of), title, cover, dates, score and `filled_rating`, so UNDO and
-	// tracking read what they read before; `episodes` and `year` were never
-	// stored and stay NULL, as a pasted link's do. From here the season rule
-	// decides the series: every other season is open until linked or settled.
+	// v68: an anime linked before migration 62 gets its season row (doc/LINKS.md,
+	// "A link from before the seasons"). Such an anime has only a `series_links`
+	// row, which `NEEDS_LOOK` reads as the whole series settled, so its later
+	// seasons never reached the pass or the review. The link becomes the row of the
+	// season it stood for, decided by the series' own episodes: the lowest numbered
+	// season (1 and up) when the source numbers any, else season 0, the flat list
+	// that is the whole run. Part 1, with the link's ids, `via` (whose values
+	// `series_season_links` allows all of), title, cover, dates, score and
+	// `filled_rating`, so UNDO and tracking read what they read before; `episodes`
+	// and `year` were never stored and stay NULL, as a pasted link's do. From here
+	// the season rule decides the series: every other season is open until linked
+	// or settled.
 	//
 	// `series_links` is not touched: it becomes the first season's mirror
 	// (`syncSeriesLink` writes the same ids, `via`, title, cover and dates),
 	// and its readers -- the importer's keep-test, OTHER NAMES on MOVE, the
-	// cover -- read what they did (c467 moves them). A season decision at the
+	// cover -- read what they did (v74 moves them). A season decision at the
 	// row's own place goes, as `linkSeason` takes it: the link was what every
-	// screen showed. What the owner's list said of the series (`tracker_state`)
+	// screen showed. What the user's list said of the series (`tracker_state`)
 	// and a send still waiting (`tracker_sends`) move to that season, where an
 	// anime's are read; a season's own row, written since, wins. An AniSkip
 	// answer of an episode outside that season was asked under the old link,
@@ -1616,7 +1612,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	DROP TABLE c383_stale;
 	DROP TABLE c383_moved;
 	`,
-	// v69: which way a novel's paged pages turn (card c440; doc/TEXT-READER.md,
+	// v69: which way a novel's paged pages turn (doc/TEXT-READER.md,
 	// "Direction"). Its own column, because `direction` already holds a
 	// novel's layout (PAGED or SCROLL) and a novel reads both ways in either.
 	// NULL is the default, L→R, which REMEMBER L→R writes back as NULL; only
@@ -1626,37 +1622,35 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	ALTER TABLE series ADD COLUMN text_direction TEXT
 		CHECK (text_direction IS NULL OR text_direction IN ('ltr', 'rtl'));
 	`,
-	// v70: where a comic's entry comes from and the year it began (card c520;
-	// doc/LINKS.md, doc/SERIES.md "LISTS"), so its LISTS line can say
-	// `MANHWA · 2020` as the handoff's 1B draws it. AniList's countryOfOrigin
-	// (JP, KR, CN, TW) and startDate's year, kept where a link is written.
-	// Both NULL on every link made before the rung: the next cover pass asks
-	// AniList for them (`resolveLinks`), and until then the line says what it
-	// said (MANGA). '' is asked and not known, so the pass doesn't ask again. A
-	// season's link already keeps its year (`series_season_links.year`).
+	// v70: where a comic's entry comes from and the year it began (doc/LINKS.md,
+	// doc/SERIES.md "LISTS"), so its LISTS line can say `MANHWA · 2020`. AniList's
+	// countryOfOrigin (JP, KR, CN, TW) and startDate's year, kept where a link is
+	// written. Both NULL on every link made before the migration: the next cover
+	// pass asks AniList for them (`resolveLinks`), and until then the line says
+	// what it said (MANGA). '' is asked and not known, so the pass doesn't ask
+	// again. A season's link already keeps its year (`series_season_links.year`).
 	`
 	ALTER TABLE series_links ADD COLUMN country TEXT;
 	ALTER TABLE series_links ADD COLUMN year INTEGER;
 	`,
-	// v71: the Works a scan's or an import's folds took a series out of (card
-	// c570; doc/IMPORT-BACKUP.md, "The log"), as JSON (`Dropped[]`, import/fold.ts),
-	// so the IMPORT LOG can say DROPPED FROM <WORK>. Until now only the
-	// summary and the server's log had them. '[]' is right for every job
-	// already stored: nothing recorded them, and what a fold dropped then
-	// cannot be read back from anything kept, so an old job lists none.
+	// v71: the Works a scan's or an import's folds took a series out of
+	// (doc/IMPORT-BACKUP.md, "The log"), as JSON (`Dropped[]`, import/fold.ts), so the
+	// IMPORT LOG can say DROPPED FROM <WORK>. Before it only the summary and the
+	// server's log had them. '[]' is right for every job already stored: nothing
+	// recorded them, and what a fold dropped then cannot be read back from anything
+	// kept, so an old job lists none.
 	`
 	ALTER TABLE scan_jobs ADD COLUMN dropped TEXT NOT NULL DEFAULT '[]';
 	`,
-	// v72: highlights (card c701, the first slice of c444; doc/HIGHLIGHTS.md;
-	// the handoff's Main 05). A highlight is a copy and a pointer, and the
-	// copy outlives the place it points at, so nothing here cascades from
-	// `series` or `entries`: a delete marks the pointer ORPHAN and keeps the
-	// row. The pointer keeps what outlives an id (wave 19): the series' origin
-	// key, and the entry's number and season, by which a series re-added from
-	// the same source finds its highlights again.
+	// v72: highlights (doc/HIGHLIGHTS.md). A highlight is a copy and a pointer, and
+	// the copy outlives the place it points at, so nothing here cascades from
+	// `series` or `entries`: a delete marks the pointer ORPHAN and keeps the row.
+	// The pointer keeps what outlives an id: the series' origin key, and the
+	// entry's number and season, by which a series re-added from the same source
+	// finds its highlights again.
 	//
-	// The life is kept by triggers rather than a call in each door, because a
-	// series or an entry goes through a dozen doors (delete.ts, the books'
+	// The life is kept by triggers rather than a call in each path, because a
+	// series or an entry goes through a dozen paths (delete.ts, the books'
 	// folds, an import's fold, MOVE BACK, UNDO of an ADD, a root's cascade)
 	// and a trigger is the one place every one of them reaches, foreign-key
 	// cascades included: SQLite fires a child table's DELETE triggers for an
@@ -1665,12 +1659,12 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// kind is the highlight's own (quote, page, clip), never a series' kind;
 	// series_kind is the snapshot's. state: 'ok', 'orphan_series' (the series
 	// is gone), 'orphan_entry' (the chapter or episode is gone), 'detached'
-	// (a quote its chapter's text no longer holds; H2 re-finds quotes).
+	// (a quote its chapter's text no longer holds).
 	// rejoin is 1 while a re-added series waits for its entries to come back
 	// by number; only those highlights re-attach, so an entry renumbered
 	// inside a series that never left (the books' resequence) is never taken
 	// for a lost one. hidden is copied from the series when made, follows it
-	// while it exists, and is kept after it's gone. deleted_at is the owner's
+	// while it exists, and is kept after it's gone. deleted_at is the user's
 	// own DELETE, kept a moment for UNDO.
 	`
 	CREATE TABLE highlights (
@@ -1844,7 +1838,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		WHERE series_id IN (SELECT id FROM series WHERE root_id = NEW.id);
 	END;
 	`,
-	// v73: an anime's AniList relation graph, cached (card c358; doc/LINKS.md,
+	// v73: an anime's AniList relation graph, cached (doc/LINKS.md,
 	// "The relation cache"). The series screen draws the seasons before an
 	// anime and the one after from it, and never asks AniList on a load: the
 	// link pass (`refreshLinks`) fills and refreshes it. One row a series, gone
@@ -1867,30 +1861,30 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		CHECK ((graph IS NULL) = (fetched_at IS NULL))
 	);
 	`,
-	// v74: an anime's `series_links` row beside a season row goes (card c467;
-	// doc/LINKS.md, "A season's link is its own row"). Since rung 62 that row
-	// was a mirror of the first season, kept by `syncSeriesLink` for readers
-	// that asked a series for one row; the last of them moved to the season
-	// rows with this rung, so nothing reads it. Taken only where a season row
-	// stands beside it, and every column it held is either that row's too or
-	// was only its own and read by nothing (`score`, `filled_rating`; rung 68
-	// copied a real link's to the season). An anime's row with no season row is
-	// the one link it has, read by `legacyLink`, and stays; so does every
-	// comic's and novel's. Naming the kind is what a frozen rung does: the
-	// registry may change, this rung's meaning must not.
+	// v74: an anime's `series_links` row beside a season row goes (doc/LINKS.md, "A
+	// season's link is its own row"). Since migration 62 that row was a mirror of
+	// the first season, kept by `syncSeriesLink` for readers that asked a series
+	// for one row; the last of them moved to the season rows with this migration,
+	// so nothing reads it. Taken only where a season row stands beside it, and
+	// every column it held is either that row's too or was only its own and read by
+	// nothing (`score`, `filled_rating`; migration 68 copied a real link's to the
+	// season). An anime's row with no season row is the one link it has, read by
+	// `legacyLink`, and stays; so does every comic's and novel's. Naming the kind
+	// is what a frozen migration does: the registry may change, this migration's
+	// meaning must not.
 	`
 	DELETE FROM series_links
 	WHERE series_id IN (SELECT id FROM series WHERE kind = 'anime')
 		AND EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = series_links.series_id);
 	`,
-	// v75: a series' sources, a season at a time (card c282, the first slice of
-	// c215; doc/WORKS.md, "Per-season sources"). Each season of a show merged
-	// from several source entries keeps that entry's key, its folder and what
-	// the source called it. **Beside `series_season_links` and not in it**: that
-	// table's key has a `part`, so a two-part season would hold one source on
-	// two rows, and its `via` is NOT NULL with a CHECK over how a link was made,
-	// so a season with a source and no AniList or MAL link cannot be a row
-	// there. This one has no link column, so it is never a second link table.
+	// v75: a series' sources, a season at a time (doc/WORKS.md, "Per-season
+	// sources"). Each season of a show merged from several source entries keeps
+	// that entry's key, its folder and what the source called it. **Beside
+	// `series_season_links` and not in it**: that table's key has a `part`, so a
+	// two-part season would hold one source on two rows, and its `via` is NOT NULL
+	// with a CHECK over how a link was made, so a season with a source and no
+	// AniList or MAL link cannot be a row there. This one has no link column, so it
+	// is never a second link table.
 	//
 	// Existing series get no rows. A series with none reads exactly as before,
 	// through `series.origin_key` and `anime_series.folder`
@@ -1910,7 +1904,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	CREATE INDEX series_season_facts_origin ON series_season_facts(origin_key) WHERE origin_key IS NOT NULL;
 	CREATE UNIQUE INDEX series_season_facts_folder ON series_season_facts(folder) WHERE folder IS NOT NULL;
 	`,
-	// v76: a book's own origin (card c885; doc/BOOKS.md, "Where a book's origin
+	// v76: a book's own origin (doc/BOOKS.md, "Where a book's origin
 	// lives"). `series.origin_key` names one series at a source, and a group of
 	// one-offs is several, so grouping moves a one-off's key here with what the
 	// engine called it, beside its entry, and taking it out moves them back.
@@ -1921,7 +1915,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// unique, since every chapter of a novel grouped as a volume holds its
 	// novel's key.
 	//
-	// **It repairs nothing.** A book grouped before this rung kept only its
+	// **It repairs nothing.** A book grouped before this migration kept only its
 	// chapter's address (`entries.source_url`) and `origin_source`, which only
 	// MOVE writes; the source id and the manga's address went with its series
 	// row, and neither `engine_chapters` nor any other table holds them. A key
@@ -1938,12 +1932,12 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	) WITHOUT ROWID;
 	CREATE INDEX entry_origins_key ON entry_origins(origin_key);
 	`,
-	// v77: what a merged show was (card c283, S2; doc/WORKS.md, "Per-season
+	// v77: what a merged show was (doc/WORKS.md, "Per-season
 	// sources"). The merge keeps S1's series row as the show and deletes every
 	// other season's, which cascades everything that references it; UNDO must
 	// put each one back **under its own id**, with its own rating, FAV, tags,
 	// shelves, links, folders and tracking state, because an id that changes
-	// breaks every outside reference (doc/handoff-notes/seasons.md, "Wave 42").
+	// breaks every outside reference.
 	// `series_season_facts` knows each season's source and folder, and
 	// `series_season_links` its links, but neither holds an original series
 	// id, a rating or a FAV. So the merge records the whole of every series it
@@ -1959,7 +1953,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	-- The merge deletes the absorbed seasons' series rows, and SQLite hands a
 	-- new row the largest id plus one, so the next series added would take an
 	-- absorbed id (measured: the second season's) and the undo would fail for
-	-- good (round 2). A row left in the table keeps the id from being handed
+	-- good. A row left in the table keeps the id from being handed
 	-- out; reserve_at marks it, season_reservations says which merge it
 	-- belongs to, and the trigger below takes it away when that merge is
 	-- undone or the show is deleted. A placeholder is no library row:
@@ -1981,7 +1975,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	END;
 
 	-- A Work of one ends, but a placeholder Work has no members and must wait
-	-- for its merge's undo (round 2). The reservation trigger removes it.
+	-- for its merge's undo. The reservation trigger removes it.
 	DROP TRIGGER series_deleted_ends_work;
 	CREATE TRIGGER series_deleted_ends_work AFTER DELETE ON series
 	BEGIN
@@ -1993,16 +1987,16 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// "Cloudflare and WebView extensions"; doc/BROWSE.md, "Extensions that need a WebView"): 1 or
 	// 0, from the engine's `extensionInfo.usesWebView` at install, or from the
 	// APK's own dex (`apkUsesWebView`). NULL until known: an extension
-	// installed before this rung is read from its stored APK on the first
+	// installed before this migration is read from its stored APK on the first
 	// BROWSE or EXTENSIONS visit (`fillWebViewFlags`).
 	`ALTER TABLE engine_extensions ADD COLUMN webview INTEGER;`,
 
-	// v79: films and live-action shows are kinds (doc/FILMS-SHOWS.md; cards
-	// c987, c989). Same reason and same way as rung 47: only the CHECK widens,
-	// and nothing stored changes.
+	// v79: films and live-action shows are kinds (doc/KINDS.md, "Movies and TV
+	// shows"). Same reason and same way as migration 47: only the
+	// CHECK widens, and nothing stored changes.
 	(conn) => widenKindsForFilms(conn),
 
-	// v80: TMDB links, a film's and a show's (card c989; doc/LINKS.md, "TMDB
+	// v80: TMDB links, a film's and a show's (doc/LINKS.md, "TMDB
 	// links"). Their own three tables, not columns on `series_links`: those
 	// are AniList's by construction (`anilist_id`, `mal_id`, the season rows,
 	// the trackers' joins), and `requeueSearched` and `NEEDS_LOOK` read
@@ -2014,7 +2008,7 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// `series_tmdb_links` keeps what the screen draws without asking again
 	// (the overview, the poster, a film's runtime and collection, a show's
 	// season count). `tmdb_link_searches` is the pass's record and the
-	// owner's decision in one row: a NULL `searched_at` is a search waiting
+	// user's decision in one row: a NULL `searched_at` is a search waiting
 	// for the pass, and `decision` is NONE OF THESE or an UNLINK, which no
 	// pass undoes. The candidates wait for the review, best first.
 	`
@@ -2053,12 +2047,12 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	) WITHOUT ROWID;
 	`,
 
-	// v81: what surrounds a TMDB entry (card c990; doc/LINKS.md, "What
+	// v81: what surrounds a TMDB entry (doc/LINKS.md, "What
 	// surrounds it"): a show's seasons and next episode, a film's collection,
 	// cached per TMDB entry rather than per series, since every season of a
 	// show links the same entry. Filled by TMDB's timer and after a LINK, never
 	// while a screen waits; a screen draws what is here or nothing.
-	// `tmdb_offers_declined` is the owner's NOT THIS on an offer (SEASON 4 IS OUT,
+	// `tmdb_offers_declined` is the user's NOT THIS on an offer (SEASON 4 IS OUT,
 	// a collection's GROUP →), which no later refresh asks again.
 	`
 	CREATE TABLE tmdb_surroundings (
@@ -2076,21 +2070,21 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	) WITHOUT ROWID;
 	`,
 
-	// v82: a film's backdrop (card c992): the 16:9 still the film's stage shows
+	// v82: a film's backdrop: the 16:9 still the film's stage shows
 	// above its collection, kept on the link as the poster is. '' until a link
-	// is made or remade after this rung; the stage draws no picture then.
+	// is made or remade after this migration; the stage draws no picture then.
 	`ALTER TABLE series_tmdb_links ADD COLUMN backdrop_url TEXT NOT NULL DEFAULT '';`
 ];
 
 /**
- * Rung 47's first half: `anime` among series.kind's allowed values. SQLite
+ * Migration 47's first half: `anime` among series.kind's allowed values. SQLite
  * can't change a CHECK in place, and the usual way round (a new table, the
  * rows copied, the old one dropped) would, with foreign keys on, cascade the
  * drop through every table that references a series: the whole library. A
  * CHECK that allows more changes nothing stored, which is the case SQLite's
  * documentation gives for editing the schema's text instead (lang_altertable,
  * "Making Other Kinds Of Table Schema Changes"): writable_schema, the schema
- * version moved on, and the result checked before the rung commits.
+ * version moved on, and the result checked before the migration commits.
  * better-sqlite3 opens connections defensive, which forbids that, so unsafe
  * mode is on for these few statements only.
  */
@@ -2121,14 +2115,14 @@ function widenKinds(conn: Database.Database): void {
 	if (ok !== 'ok') throw new Error(`rung 47: integrity check after widening series.kind: ${ok}`);
 }
 
-/** Rung 79's CHECK: the five kinds rung 47 left, and the two films and shows add. */
+/** Migration 79's CHECK: the five kinds migration 47 left, and the two films and shows add. */
 const KINDS_BEFORE_FILMS = `CHECK (kind IN ('manga', 'manhwa', 'doujin', 'novel', 'anime'))`;
 const KINDS_WITH_FILMS = `CHECK (kind IN ('manga', 'manhwa', 'doujin', 'novel', 'anime', 'movie', 'show'))`;
 
 /**
- * Rung 79: `movie` and `show` among series.kind's allowed values. Same reason
- * and same way as rung 47 — the schema's text is widened rather than the
- * table rebuilt — with its own constants, since a rung is never edited once
+ * Migration 79: `movie` and `show` among series.kind's allowed values. Same reason
+ * and same way as migration 47 — the schema's text is widened rather than the
+ * table rebuilt — with its own constants, since a migration is never edited once
  * it has shipped.
  */
 function widenKindsForFilms(conn: Database.Database): void {
@@ -2156,8 +2150,8 @@ function widenKindsForFilms(conn: Database.Database): void {
 }
 
 /**
- * Rung 59: `tv` among devices.kind's allowed values. Same reason and same way
- * as rung 47: the CHECK is the only thing that changes, so the schema's text is
+ * Migration 59: `tv` among devices.kind's allowed values. Same reason and same way
+ * as migration 47: the CHECK is the only thing that changes, so the schema's text is
  * widened rather than the table rebuilt and every device's settings copied for
  * nothing. A table rebuild is safe here (nothing references `devices`), but one
  * way of changing a CHECK in this repo is better than two.
@@ -2193,7 +2187,7 @@ function widenDeviceKinds(conn: Database.Database): void {
 function migrate(conn: Database.Database, path: string): void {
 	const current = conn.pragma('user_version', { simple: true }) as number;
 	// A database with data in it is copied before its schema moves
-	// (doc/BACKUPS.md). A new one (rung 0) has nothing to lose.
+	// (doc/BACKUPS.md). A new one (migration 0) has nothing to lose.
 	if (current > 0 && current < MIGRATIONS.length && path !== ':memory:') {
 		try {
 			const kept = snapshotBeforeMigration(conn, path, current);
@@ -2208,9 +2202,9 @@ function migrate(conn: Database.Database, path: string): void {
 }
 
 /**
- * Climb the ladder from wherever `conn` stands, up to rung `upTo`. Exported so
- * a test can stop a database at an old rung, fill it as it was, and watch the
- * next rung move it (tests/migrations-db.spec.ts).
+ * Run the migrations from wherever `conn` stands, up to migration `upTo`. Exported so
+ * a test can stop a database at an old migration, fill it as it was, and watch the
+ * next migration move it (tests/migrations-db.spec.ts).
  */
 export function climb(conn: Database.Database, upTo = MIGRATIONS.length): void {
 	const current = conn.pragma('user_version', { simple: true }) as number;

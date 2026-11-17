@@ -41,7 +41,7 @@ import type { SeriesDownloads } from '../download-types.ts';
 import { episodeStreams, probe, type StreamServer } from './streams.ts';
 
 /**
- * Downloading episodes (doc/ANIME.md, "Downloading"; card c157): one at a
+ * Downloading episodes (doc/ANIME.md, "Downloading"): one at a
  * time, in a lane of their own in the one queue, so a 400 MB episode never
  * holds up a 3 MB chapter. An episode's streams are resolved right before
  * (AnimePahe's only work through the engine, and go stale), and ffmpeg
@@ -96,7 +96,7 @@ const kindOfRow = (db: Database.Database, s: Pick<SeriesRow, 'id' | 'kind'>): Ki
 		?.kind ??
 	'anime';
 
-/** The kind's own top folder (card c991): `Anime/`, `Shows/`, `Movies/`, or its hidden twin. */
+/** The kind's own top folder: `Anime/`, `Shows/`, `Movies/`, or its hidden twin. */
 const topFolder = (db: Database.Database, s: SeriesRow) => {
 	const st = storageOf(kindOfRow(db, s));
 	return s.hidden ? st.hidden : st.folder;
@@ -106,7 +106,7 @@ const topFolder = (db: Database.Database, s: SeriesRow) => {
  * A film's folder name, Jellyfin's `<Title (Year)>`: TMDB's title and year
  * when the film is linked, else the source's title with its release words
  * taken off (`Lupin [Hindi-English] 1080p` → `Lupin`) and the year it names.
- * A show's and an anime's is the series' own title, as it always was.
+ * A show's and an anime's is the series' own title.
  */
 export function folderNameOf(
 	db: Database.Database,
@@ -121,8 +121,8 @@ export function folderNameOf(
 
 /**
  * The series' folder under the library folder, fixed at its first download
- * (rung 48): `Anime/<Series>`, `Shows/<Series>`, `Movies/<Title (Year)>`, or the
- * kind's hidden folder for a hidden one (c991).
+ * (migration 48): `Anime/<Series>`, `Shows/<Series>`, `Movies/<Title (Year)>`, or the
+ * kind's hidden folder for a hidden one.
  */
 export function seriesFolder(db: Database.Database, s: SeriesRow): string {
 	const known = db.prepare(`SELECT folder FROM anime_series WHERE series_id = ?`).get(s.id) as
@@ -164,7 +164,7 @@ function fileOfSeason(db: Database.Database, seriesId: number, season: number): 
 }
 
 /**
- * Where a season's episodes go (c282; doc/DOWNLOADS.md). A season with a
+ * Where a season's episodes go (doc/DOWNLOADS.md). A season with a
  * folder keeps it. **A season with files stays where they are**, whatever its
  * row says of its source: a MOVE re-keys the row and moves no file, so the
  * next episode lands beside the last (`series_season_facts_folder` is unique,
@@ -301,8 +301,8 @@ const genresOf = (db: Database.Database, seriesId: number): string[] =>
 	).map((r) => r.value);
 
 /**
- * A film's NFO (c991): Jellyfin's `<movie>`, with its TMDB id when linked
- * (c989), and the series' key, the entry's address and its position, so a
+ * A film's NFO: Jellyfin's `<movie>`, with its TMDB id when linked, and the
+ * series' key, the entry's address and its position, so a
  * rescan folds the file back onto both without a tvshow.nfo above it.
  */
 function filmNfo(
@@ -339,10 +339,10 @@ async function writeSeriesFiles(
 ): Promise<void> {
 	const genres = genresOf(db, s.id);
 	// Jellyfin's metadata plugins look a show up by these ids, so only a link
-	// to the show's own kind of entry gives them (c395, `ownEntry`): a manga's
+	// to the show's own kind of entry gives them (`ownEntry`): a manga's
 	// AniList or MAL id would fetch another work's metadata, or another show's.
 	// They are the show's: season 1's link, else the earliest season linked,
-	// read from the season rows (c381), so a show with only season 2 linked
+	// read from the season rows, so a show with only season 2 linked
 	// has them too. The first-season mirror, `series_links`, is not read.
 	const kind = kindOfRow(db, s);
 	// A season's own folder is its own show to Jellyfin, so the ids are that
@@ -368,7 +368,7 @@ async function writeSeriesFiles(
 				source: s.source,
 				anilist: link?.anilistId ?? null,
 				mal: link?.malId ?? null,
-				// A show's TMDB entry (c989), the whole show's, as every season links it.
+				// A show's TMDB entry, the whole show's, as every season links it.
 				tmdb: kindFacts(kind).catalogue.provider === 'tmdb' ? (tmdbFacts(s.id)?.id ?? null) : null,
 				kind
 			})
@@ -442,7 +442,7 @@ export async function downloadEpisode(entryId: number, d: AnimeDeps): Promise<st
 	const folder = place.folder;
 	const dir = join(d.library, folder);
 	const number = e.episode_number ?? e.position;
-	// A film is one file named as its folder (c991); everything else, a season's.
+	// A film is one file named as its folder; everything else, a season's.
 	const film = storageOf(kindOfRow(d.db, s)).layout === 'film';
 	const rel = film
 		? filmFile(posix.basename(folder), e.position)
@@ -461,13 +461,13 @@ export async function downloadEpisode(entryId: number, d: AnimeDeps): Promise<st
 		`UPDATE download_queue SET pages = 1000, done_pages = ? WHERE entry_id = ?`
 	);
 	const partial = `${path}.partial`;
-	// What's kept of each server's tracks: SETTINGS' DOWNLOADING (c160).
+	// What's kept of each server's tracks: SETTINGS' DOWNLOADING.
 	const keep = {
 		kept: keptOf(getSetting('anime_download_audio')),
 		subs: getSetting('anime_download_subs') === 'audio' ? ('audio' as const) : ('all' as const)
 	};
-	// Kept and tagged by language alone, as before c386 gave tracks variants
-	// (PT-BR, ES-419): SETTINGS' AUDIO KEPT names languages, and a file's
+	// Kept and tagged by language alone, without a track's variant (PT-BR,
+	// ES-419): SETTINGS' AUDIO KEPT names languages, and a file's
 	// tag is ISO 639-2's three letters, which have no variant.
 	const base = <T extends { lang: string }>(ts: T[]) =>
 		ts.map((t) => ({ ...t, lang: t.lang.split('-')[0] }));
@@ -696,7 +696,7 @@ export function rememberQuality(
 
 /**
  * Write a downloaded video series' NFOs again, in place, after what they say
- * changed without a download (c991): a TMDB link, an UNLINK or its UNDO (the
+ * changed without a download: a TMDB link, an UNLINK or its UNDO (the
  * NFO carries `<uniqueid type="tmdb">`), and the kind switch, which moves a
  * film's file into a show's place or back. Every file's own NFO beside it, in
  * the kind's shape (a `<movie>`, or an episode's), and a show's tvshow.nfo, so

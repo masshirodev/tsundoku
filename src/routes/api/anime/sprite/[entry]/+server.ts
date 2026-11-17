@@ -6,7 +6,7 @@ import { episodeRow } from '$lib/server/anime/streams';
 import { currentSprite, spritePath } from '$lib/server/anime/sprites';
 
 /**
- * A downloaded episode's seek preview (doc/ANIME.md, "The player"; c385): the
+ * A downloaded episode's seek preview (doc/ANIME.md, "The player"): the
  * sheet the workstation cut from the file it has now. A sprite of another
  * file is not one (`currentSprite` judges it, and deletes it), so this is a
  * 404 until the new one is made. The address carries `?v=<made at>`, so a new

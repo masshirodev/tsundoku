@@ -143,8 +143,8 @@ import {
 /** A Work's refusal (a part gone, a Work ended since), as a band on this screen, never a 500. */
 function refused(e: unknown) {
 	// A Work the screen read at another moment, or one that ended since, is
-	// c583's refusal: the band says LOOK AGAIN and `stale` lets a sheet tell it
-	// apart from a refusal it should keep open on (c584, c640).
+	// refused: the band says LOOK AGAIN and `stale` lets a sheet tell it
+	// apart from a refusal it should keep open on.
 	if (e instanceof StaleWorkError)
 		return fail(400, { message: e.message.toUpperCase(), stale: true });
 	if (e instanceof WorkError) return fail(400, { message: e.message.toUpperCase() });
@@ -152,7 +152,7 @@ function refused(e: unknown) {
 }
 
 /**
- * The moment of making the screen read its Work at (c640): every Work control
+ * The moment of making the screen read its Work at: every Work control
  * here posts it as `made`, and every writer refuses a Work under that id made
  * at another moment. `works.id` is reused once the newest Work ends, so a
  * screen drawn while the series was in Work A, posted after the series joined
@@ -167,7 +167,7 @@ function madeOf(form: FormData): number {
 
 /**
  * Where a video series' files go: its folder once it has one, else where its
- * first will, by the download's own rule (`folderNameOf`, c991): `Anime/` or
+ * first will, by the download's own rule (`folderNameOf`): `Anime/` or
  * `Shows/<Series>`, `Movies/<Title (Year)>`, or the kind's hidden folder.
  */
 function animeFolderOf(seriesId: number, kind: Kind, title: string, hidden: boolean): string {
@@ -191,8 +191,8 @@ function seriesId(raw: string): number {
 /**
  * Where the back cell leads, and what it says. `from` is set by the link that
  * opened the series: a shelf key, `continue`, a source's BROWSE page or the
- * search it was added from (an in-app path, card c262), a Work (`work:<id>`,
- * set by its run rows, W5), or nothing.
+ * search it was added from (an in-app path), a Work (`work:<id>`,
+ * set by its run rows), or nothing.
  */
 function backTo(from: string | null, seriesId: number, shelves: { key: string; name: string }[]) {
 	if (from?.startsWith('/')) {
@@ -209,7 +209,7 @@ function backTo(from: string | null, seriesId: number, shelves: { key: string; n
 	}
 	// From a Work's run: ← names the Work, and only when this series really is
 	// one of its parts. A stale or hand-typed id is not a claim the back cell
-	// can repeat, so it falls back to the library (W5; doc/NAVIGATION.md).
+	// can repeat, so it falls back to the library (doc/NAVIGATION.md).
 	if (from?.startsWith('work:')) {
 		const id = Number(from.slice(5));
 		const work = Number.isInteger(id) && id > 0 ? workOfSeries(seriesId) : null;
@@ -224,12 +224,11 @@ function backTo(from: string | null, seriesId: number, shelves: { key: string; n
 }
 
 /**
- * The origin an ADD carried to the series (c262), as UNDO gives it back: the
+ * The origin an ADD carried to the series, as UNDO gives it back: the
  * catalog it was found in, or a search with its query. The bare search page is
  * the preview's own fallback (`origin.ts`, `searchOrigin`), not a place the
  * entry was found, so it is no origin at all: a shared link that had no `from`
- * comes back without one, and its ← says SOURCES either way (c932's UNDO,
- * round 2).
+ * comes back without one, and its ← says SOURCES either way.
  */
 const addedOriginOf = (raw: string | null): string => {
 	const origin = sourceOrigin(raw);
@@ -259,19 +258,19 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 	const { shelves } = await parent();
 	const books = isBookSeries(series);
 	/**
-	 * A hand-made extra beside a doujin's books (c650): one entry of `?book=`,
+	 * A hand-made extra beside a doujin's books: one entry of `?book=`,
 	 * so the extra opens its own pages. Without one the series shows its books
-	 * (or its single book), as before. A novel's front matter is not this: its
-	 * chapters are the entry list, and `?book=` was ignored for it before c650,
-	 * so it stays ignored. `grouping` is the registry's question (the kinds
-	 * GROUP binds into books), not a kind's name (`doc/KINDS.md`).
+	 * (or its single book). A novel's front matter is not this: its
+	 * chapters are the entry list, and `?book=` is ignored for it. `grouping`
+	 * is the registry's question (the kinds GROUP binds into books), not a
+	 * kind's name (`doc/KINDS.md`).
 	 */
 	const hasExtras =
 		kindFacts(series.kind).grouping === 'books' && series.entries.some((e) => e.matter !== '');
 	// Only a single book can be suggested into a series, and only one with
 	// nothing beside it: `singletonCandidates` counts the `isBookSql` entries
 	// and the entries with no `edition_of`, so a book with a hand-made extra is
-	// not suggested whatever this says (c650). Counted by entry, as before.
+	// not suggested whatever this says. Counted by entry.
 	const single = kindFacts(series.kind).grouping === 'books' && series.entries.length === 1;
 	const bookParam = Number(url.searchParams.get('book'));
 	const root = rootOf(series.id);
@@ -280,20 +279,20 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		books || hasExtras ? (series.entries.find((e) => e.id === bookParam) ?? null) : null;
 	return {
 		series,
-		// TAGS search the series' own source too (c313); its filters only when IN <SOURCE> is followed (tag-search/).
+		// TAGS search the series' own source too; its filters only when IN <SOURCE> is followed (tag-search/).
 		tagSource: tagSourceOf(series.id, reveal),
 		back: backTo(url.searchParams.get('from'), series.id, shelves),
-		// Where this series sits in its Work (W5; doc/WORKS.md): one row under
+		// Where this series sits in its Work (doc/WORKS.md): one row under
 		// CONTINUE, its neighbours, and what the run offers at the end of this part.
 		work: seriesWorkRow(series.id, reveal),
-		// MIGHT CONTINUE <WORK> · AS PART N (W7; doc/WORKS.md, "The offer"): the
+		// MIGHT CONTINUE <WORK> · AS PART N (doc/WORKS.md, "The offer"): the
 		// one Work this title continues, for a series in none. It only offers.
 		workOffer: workOfferFor(series.id, reveal),
 		editing: url.searchParams.get('edit') === 'tags',
 		// A book of a series of books opened on its own: its pages. A doujin with
-		// an extra beside it takes one too (c650), which is how the extra is reached.
+		// an extra beside it takes one too, which is how the extra is reached.
 		book: openBook,
-		// The open book's own answer to READ ONLINE (c885): the reader's own rule
+		// The open book's own answer to READ ONLINE: the reader's own rule
 		// (`readsOnline`), never the group's state, so a book whose source has no
 		// extension -- or which holds no key at all -- is not offered it.
 		readOnline: openBook ? readsOnline(openBook.id) : false,
@@ -302,13 +301,13 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// Where a book can move to, or singles can be added: same root only.
 		otherSeries: seriesOfBooks(reveal).filter((o) => o.rootId === root && o.id !== series.id),
 		created: url.searchParams.get('created') === '1',
-		// A merged show (c283, S2): UNGROUP is its undo, and only a show that
+		// A merged show: UNGROUP is its undo, and only a show that
 		// has a journal offers it. An ordinary anime with seasons has none.
 		merged: mergeState(series.id),
 		// Japanese (doc/JAPANESE.md): OCR's progress, and the words looked up. Never for
 		// novels, which are text, nor anime, which has no pages (doc/ANIME.md).
 		ocr: kindFacts(series.kind).medium === 'pages' ? ocrPlace(series.id) : null,
-		// The PAGES grid's page menu (c26): where the covers come from now.
+		// The PAGES grid's page menu: where the covers come from now.
 		cover: coverState(series.id),
 		// A book here with a likely twin (doc/DUPLICATE-BOOKS.md): the band.
 		twin: twinBand(series.id, reveal),
@@ -317,25 +316,25 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		words: kindFacts(series.kind).medium === 'pages' ? wordsOf(series.id, reveal) : null,
 		// Its MyAnimeList / AniList entry (doc/LINKS.md): the LINK and COVER rows.
 		link: linkState(series.id),
-		// A film's or a show's TMDB link (c989): LISTS' TMDB line, SET UP → with no key.
+		// A film's or a show's TMDB link: LISTS' TMDB line, SET UP → with no key.
 		tmdb: tmdbLinkState(series.id),
-		// A film's or a show's screen (c992): its TMDB facts, its collection or
-		// seasons from c990's cache, its genre and its KIND row's folder.
+		// A film's or a show's screen: its TMDB facts, its collection or
+		// seasons from the cache, its genre and its KIND row's folder.
 		film: filmPage(series.id, series.kind, reveal),
-		// The kind switch's sheet (c991's move, c992's sheet): every kind it may
+		// The kind switch's sheet: every kind it may
 		// become, each with where its files would go, what changes and what stays,
 		// or why it can't. Read from the database alone: nothing moves until asked.
 		kindPlans: kindSwitchTargets(series.kind)
 			.map((k) => planKindSwitch(series.id, k))
 			.filter((p) => p !== null),
-		// An anime's seasons (c240): a link each, and the row folds round the one
-		// being watched. Null for anything else, which draws today's rows.
+		// An anime's seasons: a link each, and the row folds round the one
+		// being watched. Null for anything else, which draws the single-link rows.
 		seasons: isAnime(series.kind) ? (seriesSeasons(series.id)?.seasons ?? null) : null,
-		// The seasons before it and the one after (c358; doc/SERIES.md, "The
+		// The seasons before it and the one after (doc/SERIES.md, "The
 		// seasons around it"): from the relation cache alone, never AniList, so
 		// the screen never waits. Null for anything with no chain to read.
 		around: seasonsAroundOf(series.id, reveal),
-		// The same work's other forms (c700; doc/SERIES.md, "OTHER FORMS"): the
+		// The same work's other forms (doc/SERIES.md, "OTHER FORMS"): the
 		// same cache, read here and refreshed only by the link pass.
 		otherForms: otherFormsView(series.id, reveal),
 		// What each catalogue's list says, and what tsundoku sent (doc/TRACKING.md).
@@ -367,24 +366,24 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 			/^[\w~.:-]{1,512}$/.test(url.searchParams.get('added') ?? '')
 				? url.searchParams.get('added')
 				: null,
-		// Where the entry was found (c262), as the ADD carried it: UNDO goes back
+		// Where the entry was found, as the ADD carried it: UNDO goes back
 		// there, and puts it on the preview's own URL. In a form, not the action's
 		// `url`, because `?/undoSourceAdd` replaces the page's whole query.
 		// The search page is the preview's own fallback origin (`searchOrigin`),
 		// not something the entry was found in: a shared link that had no `from`
-		// must not come back with `?from=/downloads/search` invented on it (c932's
-		// UNDO, round 2). Its ← says SOURCES either way.
+		// must not come back with `?from=/downloads/search` invented on it.
+		// Its ← says SOURCES either way.
 		addedOrigin: addedOriginOf(url.searchParams.get('from')),
-		// ADD AND DOWNLOAD (card c205): how many it queued, or `down` when the queue didn't answer.
+		// ADD AND DOWNLOAD: how many it queued, or `down` when the queue didn't answer.
 		addedQueued: /^(\d+|down)$/.test(url.searchParams.get('queued') ?? '')
 			? url.searchParams.get('queued')
 			: null,
-		// MOVE (doc/MOVE.md; card c139): the SOURCE row, the NO VIDEO band, and
+		// MOVE (doc/MOVE.md): the SOURCE row, the NO VIDEO band, and
 		// what the series screen says just after a move.
 		move: moveState(series.id),
-		// Time read (card c443; doc/READING-LOG.md): the one summary, under the reveal filter.
+		// Time read (doc/READING-LOG.md): the one summary, under the reveal filter.
 		readMs: seriesReadingTime(series.id, reveal),
-		// HIGHLIGHTS (c701; doc/HIGHLIGHTS.md, Series S1–S2): the row's line, and
+		// HIGHLIGHTS (doc/HIGHLIGHTS.md): the row's line, and
 		// what DELETE's sheet says is kept. Null while the series has none, so
 		// the row is not drawn.
 		highlights: highlightsOf(series.id, reveal),
@@ -393,14 +392,14 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 				? {
 						added: Number(url.searchParams.get('added')) || 0,
 						kept: Number(url.searchParams.get('kept')) || 0,
-						// A MOVE BACK that took chapters away (c701): their highlights' line.
+						// A MOVE BACK that took chapters away: their highlights' line.
 						lost: Number(url.searchParams.get('lost')) || 0
 					}
 				: null
 	};
 };
 
-/** The series' highlights for its row and its DELETE (c701): the line, and how many each entry holds. */
+/** The series' highlights for its row and its DELETE: the line, and how many each entry holds. */
 function highlightsOf(seriesId: number, reveal: boolean) {
 	const list = seriesHighlights(seriesId, reveal);
 	if (list.length === 0) return null;
@@ -411,14 +410,14 @@ function highlightsOf(seriesId: number, reveal: boolean) {
 
 /**
  * The MOVED band's URL. `lost` only when a MOVE BACK took highlights' entries
- * away (c701), so every URL a move gave before it is the same.
+ * away, so every URL a move gave before it is the same.
  */
 function movedUrl(id: number, r: { added: number; kept: number; highlightsLost: number }): string {
 	const lost = r.highlightsLost ? `&lost=${r.highlightsLost}` : '';
 	return `/series/${id}?moved=1&added=${r.added}&kept=${r.kept}${lost}`;
 }
 
-/** DELETE THEM TOO (Out X4): the sheet's switch, posted as `highlights=1`. */
+/** DELETE THEM TOO: the sheet's switch, posted as `highlights=1`. */
 const withHighlights = (form: FormData) => form.get('highlights') === '1';
 
 /** The series' chosen cover, what automatic would give, and which entries' files carry one. */
@@ -459,7 +458,7 @@ function twinBand(seriesId: number, reveal: boolean) {
 }
 
 /**
- * Covers after the books move (c57): a series of books wears its first
+ * Covers after the books move: a series of books wears its first
  * book's cover, and a book taken out is a new series with none yet. Off the
  * request, never waited on, from the workstation's files only.
  */
@@ -476,7 +475,7 @@ function target(params: { id: string }, cookies: Parameters<Actions[string]>[0][
 /**
  * The season a form is about, when it names one: an anime's rows pass it. An
  * absent field is no season at all, not season 0 -- a comic's form has none,
- * and 0 is a real season (a flat list) (c240).
+ * and 0 is a real season (a flat list).
  */
 function seasonOf(form: FormData): { season?: number; part?: number } {
 	const season = seasonNamed(form.get('season'));
@@ -493,8 +492,8 @@ const entryIds = (form: FormData) =>
 
 export const actions: Actions = {
 	/**
-	 * MAKE IT A SHOW (Kind 4.2): the files move, then the kind. TMDB is asked
-	 * again as the new kind with an owner's search, which never links by itself
+	 * MAKE IT A SHOW: the files move, then the kind. TMDB is asked
+	 * again as the new kind with a reader's search, which never links by itself
 	 * ("and asks you before it links"); with no key, nothing is asked.
 	 */
 	switchKind: async ({ request, params, cookies }) => {
@@ -511,7 +510,7 @@ export const actions: Actions = {
 		if (!s.hidden) void tmdbSearchNow(s.id, tmdbQuery(s.title).query).catch(() => undefined);
 		return { kindSwitched: done };
 	},
-	/** NOT THIS on SEASON 4 IS OUT (c990, c992): no refresh offers it again. */
+	/** NOT THIS on SEASON 4 IS OUT: no refresh offers it again. */
 	declineOffer: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const offer = String((await request.formData()).get('offer') ?? '');
@@ -528,7 +527,7 @@ export const actions: Actions = {
 		const s = target(params, cookies);
 		return { kindUndone: await undoKindSwitch(s.id) };
 	},
-	/** A film's one file out of the queue (c992): only this series' own entries. */
+	/** A film's one file out of the queue: only this series' own entries. */
 	cancelDownload: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const own = new Set(s.entries.map((e) => e.id));
@@ -618,11 +617,11 @@ export const actions: Actions = {
 	 * KEEP BOTH on the SAME BOOK AS band: the pair never comes back.
 	 *
 	 * `decide` carries out the decisions waiting from before first, and answers
-	 * the ones it could not (c648): `refused` (dropped, so the pair is back at
+	 * the ones it could not: `refused` (dropped, so the pair is back at
 	 * the review undecided) and `failed` (a bug or the disk; still waiting).
 	 * This KEEP BOTH is recorded either way -- its INSERT runs after them -- so
 	 * the answer is a success that carries both lists, never a 409, which would
-	 * say this decision was not carried out (c671). The screen draws them as a
+	 * say this decision was not carried out. The screen draws them as a
 	 * note from `form`, which outlives the reload that takes the band away.
 	 */
 	keepBoth: async ({ request, params, cookies }) => {
@@ -654,8 +653,8 @@ export const actions: Actions = {
 	},
 
 	// The TRACKING sheet (Series Link 1m): status, to both catalogues, now. The
-	// score is the rating (c67), sent by the RATING row's own save. An anime
-	// sets the season the sheet is on (c240): the other seasons keep theirs.
+	// score is the rating, sent by the RATING row's own save. An anime
+	// sets the season the sheet is on: the other seasons keep theirs.
 	tracking: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const form = await request.formData();
@@ -667,7 +666,7 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
-	// TRY AGAIN on a LISTS line (Series Link 1n; c424): what failed, sent now.
+	// TRY AGAIN on a LISTS line: what failed, sent now.
 	// A season's line names its season, and only that season's sends go; a
 	// comic's names none, and both its lists go (MAL rides on AniList's line).
 	retryTracking: async ({ request, params, cookies }) => {
@@ -692,21 +691,21 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
-	// UNLINK (Series Link 1k): gone, and an import won't bring it back
+	// UNLINK: gone, and an import won't bring it back
 	// (doc/LINKS.md). On an anime it is the named season's link that goes, and
 	// with no season named (the one-season LINK row posts none) every season's
-	// (c240). Read through `seasonOf`, never `Number(form.get(...))`: an absent
+	// goes. Read through `seasonOf`, never `Number(form.get(...))`: an absent
 	// field is no season, and 0 is a real one.
 	unlink: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const unlinked = unlink(s.id, Date.now(), seasonOf(await request.formData()).season);
 		recover([s.id]);
-		// The band's UNDO carries what went (c520): every column, keyed by the
+		// The band's UNDO carries what went: every column, keyed by the
 		// series and its season and part, posted back to ?/undoUnlink.
 		return { unlinked };
 	},
 
-	// UNDO on UNLINK's band (c520): the link back exactly as it was, or a
+	// UNDO on UNLINK's band: the link back exactly as it was, or a
 	// refusal in the band's words when something linked or decided since.
 	undoUnlink: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
@@ -723,7 +722,7 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * RENAME on the FILE row (c526; doc/SERIES.md, "RENAME"): the owner's name
+	 * RENAME on the FILE row (doc/SERIES.md, "RENAME"): the reader's name
 	 * for the series, kept through scans, refreshes and imports. The band
 	 * carries the facts for UNDO, as the Work screen's does.
 	 */
@@ -755,7 +754,7 @@ export const actions: Actions = {
 	hide: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const hide = (await request.formData()).get('on') !== '0';
-		// A Work is hidden or shown whole (W4): a part goes through ?/hideWork,
+		// A Work is hidden or shown whole: a part goes through ?/hideWork,
 		// ?/hidePart (take out, then hide) or ?/showWork. No screen offers this
 		// action for a part, and a hand-posted one would leave it hidden among
 		// visible parts, so it refuses here too.
@@ -768,14 +767,14 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * HIDE ALL n on a series in a Work (W4; Work-States 4): a Work is hidden or
+	 * HIDE ALL n on a series in a Work: a Work is hidden or
 	 * shown whole, so one part never leaves it half-hidden. With reveal off this
 	 * screen no longer exists afterwards: the library carries the band and UNDO.
 	 *
-	 * The facts are what the press changed (c390), and a press that changed
-	 * nothing an UNDO may put back has no band (c469): a Work hidden in part
-	 * before it is settled hidden with no UNDO (decision 6 of wave 19, since an
-	 * UNDO could only half-hide it again), and a Work already hidden whole
+	 * The facts are what the press changed, and a press that changed
+	 * nothing an UNDO may put back has no band: a Work hidden in part
+	 * before it is settled hidden with no UNDO (an UNDO could only half-hide it
+	 * again), and a Work already hidden whole
 	 * changes nothing. A band there would say HIDDEN over an UNDO that answers
 	 * NOTHING TO UNDO; with reveal off it was `/?band=hidden&n=0`.
 	 */
@@ -810,7 +809,7 @@ export const actions: Actions = {
 	 * TAKE OUT on the HIDE sheet: the series leaves its Work and is hidden on
 	 * its own, so the other parts stay a Work. UNDO puts both back.
 	 *
-	 * One write (c390): `takeOutAndHide` takes it out and hides it in one
+	 * One write: `takeOutAndHide` takes it out and hides it in one
 	 * transaction, so a take-out that fails leaves nothing half done -- no part
 	 * hidden alone in its Work -- and the facts hold only what changed. A
 	 * refusal is answered as the library answers one, never as a 500.
@@ -833,7 +832,7 @@ export const actions: Actions = {
 		if (!isRevealed(cookies)) {
 			// TAKE OUT is not HIDE ALL n: only this series is hidden, and the rest
 			// of the Work is still on the shelf it stands on (`taken-out` says so,
-			// and the band tells the owner when the Work ended too).
+			// and the band says when the Work ended too).
 			const gone = new URLSearchParams({
 				band: 'taken-out',
 				name: work?.name ?? s.title,
@@ -849,11 +848,11 @@ export const actions: Actions = {
 	 * UNDO after either HIDE answer, on the screen that is still there (reveal
 	 * on): the library's own UNDO, `undoHideWhole` -- the take-outs put back
 	 * first, then only what the HIDE hid shown, in one write. A refusal from
-	 * either half rolls back both and is answered, not thrown (c390).
+	 * either half rolls back both and is answered, not thrown.
 	 */
 	undoHide: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		// Malformed facts, or a HIDE that was not this series', undo nothing (c585).
+		// Malformed facts, or a HIDE that was not this series', undo nothing.
 		const facts = hideFacts(parsePosted((await request.formData()).get('facts')), s.id);
 		if (!facts) return fail(400, { message: 'NOTHING TO UNDO' });
 		try {
@@ -866,8 +865,8 @@ export const actions: Actions = {
 
 	/**
 	 * UNHIDE on a part of a Work shows the Work whole, not this series alone: one
-	 * part visible among hidden ones is the diverged state W4's HIDE settles, and
-	 * the rule is a Work is hidden or shown whole at every door.
+	 * part visible among hidden ones is the diverged state HIDE settles, and
+	 * the rule is a Work is hidden or shown whole everywhere.
 	 */
 	showWork: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
@@ -882,8 +881,8 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * MOVE ↑ ↓ on the WORK row's sheet (W5): one step earlier or later in the
-	 * owner's order. The whole list is rewritten, as `reorder` requires, from
+	 * MOVE ↑ ↓ on the WORK row's sheet: one step earlier or later in the
+	 * reader's order. The whole list is rewritten, as `reorder` requires, from
 	 * every part the Work holds -- hidden ones too, or a partial list would
 	 * leave the rest wherever they fell.
 	 */
@@ -911,7 +910,7 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * TAKE OUT on the WORK row's sheet (W5): the series is its own again, and
+	 * TAKE OUT on the WORK row's sheet: the series is its own again, and
 	 * the Work ends if it is left with one. The band stays on this screen, since
 	 * the series itself is still here; the Work's name rides in the facts'
 	 * owner (`takenFrom`).
@@ -932,12 +931,12 @@ export const actions: Actions = {
 	/**
 	 * UNDO after the WORK row's TAKE OUT. The put-back refuses, never
 	 * overwrites, when the library has moved on (the series is in another
-	 * Work now, the Work has ended or another has its id: `putBack`, c308),
-	 * and the refusal is this screen's band, not a 500 (c468).
+	 * Work now, the Work has ended or another has its id: `putBack`),
+	 * and the refusal is this screen's band, not a 500.
 	 */
 	undoTakeOutWork: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		// Malformed facts, or another series' take-out, undo nothing (c585).
+		// Malformed facts, or another series' take-out, undo nothing.
 		const facts = takeOutFacts(parsePosted((await request.formData()).get('facts')), s.id);
 		if (!facts) return fail(400, { message: 'NOTHING TO UNDO' });
 		try {
@@ -949,12 +948,12 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * REVIEW → on MIGHT CONTINUE <WORK>, then the sheet's ADD 1 TO THE WORK
-	 * (W7): this series, and only this series, joins the Work the owner
-	 * picked, last. The sheet posts here because its ADD TO A WORK cell posts
+	 * REVIEW → on MIGHT CONTINUE <WORK>, then the sheet's ADD 1 TO THE WORK:
+	 * this series, and only this series, joins the Work the reader picked,
+	 * last. The sheet posts here because its ADD TO A WORK cell posts
 	 * `?/addToWork` relative to the page it is open on. Nothing else moves --
-	 * no rating, FAV, FOLLOW or link crosses between series (Works Calls,
-	 * question 6's NEVER list) -- and the band's UNDO takes it out again.
+	 * no rating, FAV, FOLLOW or link crosses between series -- and the band's
+	 * UNDO takes it out again.
 	 */
 	addToWork: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
@@ -1000,7 +999,7 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
-	/** NOT THIS on MIGHT CONTINUE <WORK>: never offered again (W1's `work_dismissals`). */
+	/** NOT THIS on MIGHT CONTINUE <WORK>: never offered again (`work_dismissals`). */
 	dismissWorkOffer: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const key = parseWorkDismissalKey(String((await request.formData()).get('key') ?? ''));
@@ -1159,7 +1158,7 @@ export const actions: Actions = {
 	ungroup: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const form = await request.formData();
-		// The show band's own form says what it is undoing (c283, round 2). A
+		// The show band's own form says what it is undoing. A
 		// second press, or a tab left on `?created=N&merge=1`, reaches here after
 		// the journal is gone; the show's first season still exists, so without
 		// this flag it would fall through to the books' take-out and delete the
@@ -1272,7 +1271,7 @@ export const actions: Actions = {
 	/**
 	 * DOWNLOAD (doc/DOWNLOADS.md): NEXT 10, ALL N, the bulk bar's selection,
 	 * a tap on one row, or the end page's DOWNLOAD FIRST 10 (`which=first`:
-	 * the first ten unread, whatever is under way, c534). Each chapter is decided again here, from what
+	 * the first ten unread, whatever is under way). Each chapter is decided again here, from what
 	 * the queue says now: one with no file is queued, a failed one retried, and
 	 * anything else is left alone.
 	 */
@@ -1313,7 +1312,7 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * REFRESH (card c220): ask the source once what it lists now, and make
+	 * REFRESH: ask the source once what it lists now, and make
 	 * entries of anything new. It queues nothing — FOLLOW decides downloads, and
 	 * this is a look — so the band it answers with says what arrived and leaves
 	 * NEXT or ALL to keep them.
@@ -1347,9 +1346,9 @@ export const actions: Actions = {
 			throw e;
 		}
 		if (!undone) return fail(409, { message: 'something of it is downloaded or read now' });
-		// Its own `from` (c262) goes back too, or the preview's ← says SOURCES after UNDO.
+		// Its own `from` goes back too, or the preview's ← says SOURCES after UNDO.
 		const origin = sourceOrigin(String(form.get('origin') ?? url.searchParams.get('from') ?? ''));
-		// A search's query goes back as `q` as well (c932, wave 46): the preview
+		// A search's query goes back as `q` as well: the preview
 		// reads where it was found from `q` alone (`downloads/source/[id]`'s
 		// load, `searchOrigin`), so `from=` on its own would leave ← on the bare
 		// search page, though the swipe back is right.
@@ -1385,8 +1384,8 @@ export const actions: Actions = {
 
 	/**
 	 * UNDO on MARKED READ THROUGH: unread again at the place each chapter was
-	 * left, through its own door because `?/mark read=0` clears the place
-	 * (MARK UNREAD starts a finished chapter from the top, c622). A chapter read
+	 * left, through its own action because `?/mark read=0` clears the place
+	 * (MARK UNREAD starts a finished chapter from the top). A chapter read
 	 * or marked since stays as it is, and the answer says how many.
 	 */
 	undoMarkThrough: async ({ request, params, cookies }) => {

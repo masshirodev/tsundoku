@@ -3,8 +3,8 @@ import { DEVICE_KEYS, DEVICE_KINDS, type DeviceKind, type Json } from '../settin
 import { mergeStamped, newerIn, type Stamped } from '../settings/stamped.ts';
 
 /**
- * Each device's own settings, kept on the workstation too (doc/SETTINGS.md,
- * "Devices"; the owner's answer to question 1). A browser keeps its
+ * Each device's own settings, kept on the server too (doc/SETTINGS.md,
+ * "Devices"). A browser keeps its
  * settings in its own storage, so the readers work offline, and sends them
  * here stamped; this keeps the newer of each key, and answers with whatever
  * here is newer than the browser's (a change this page made from another

@@ -4,7 +4,7 @@ import type { ChildNode, Element } from 'domhandler';
 /**
  * A chapter as a plugin gives it (`parseChapter`: a site's HTML, cut out of
  * its page) as the body of a chapter document in tsundoku's EPUB
- * (doc/NOVELS.md, "Downloading"; card c150). The reader rebuilds every book
+ * (doc/NOVELS.md, "Downloading"). The reader rebuilds every book
  * from an allowlist anyway (src/lib/reader/text-dom.ts); this is the same
  * allowlist on the way in, so the file is well-formed XHTML any reader opens,
  * and nothing from the site's page (a script, a tracker's image, a style)

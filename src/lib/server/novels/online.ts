@@ -13,12 +13,11 @@ import {
 } from './downloader.ts';
 
 /**
- * A novel's chapter read online (doc/READING-ONLINE.md, "Novels online"; card c167):
+ * A novel's chapter read online (doc/READING-ONLINE.md, "Novels online"):
  * a chapter with no file, of a series an installed plugin serves, fetched from
  * the plugin through the downloader's own cleaner and made a book of one
  * chapter in memory, which the text reader opens like any volume (its file is
- * `online:<entry>`). Nothing is written, and nothing kept past a few minutes
- * (the owner's answer to question 4).
+ * `online:<entry>`). Nothing is written, and nothing kept past a few minutes.
  */
 
 export const ONLINE_FILE = /^online:(\d+)$/;

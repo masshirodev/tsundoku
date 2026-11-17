@@ -6,11 +6,11 @@ import { SOURCE_KINDS, type SourceKind } from '../../library/kinds.ts';
 import { entryOriginSql } from '../season-facts.ts';
 
 /**
- * tsundoku's download queue (doc/DOWNLOADS.md; card c137): chapters, as
+ * tsundoku's download queue (doc/DOWNLOADS.md): chapters, as
  * entries, waiting for the worker. Keyed by tsundoku's own rows; what a
  * source calls them is the worker's business (engine_series,
  * engine_chapters). A novel's chapters wait in the same queue (doc/NOVELS.md,
- * "Downloading"; card c150), so PAUSE, the queue screen, RETRY and ↑ TO THE
+ * "Downloading"), so PAUSE, the queue screen, RETRY and ↑ TO THE
  * TOP are one; the novel worker takes those, the engine's the rest.
  */
 
@@ -226,7 +226,7 @@ export function failed(
 }
 
 /**
- * PAUSE and RESUME, the setting Suwayomi's backend used before c129
+ * PAUSE and RESUME, the setting Suwayomi's backend keeps
  * (`downloads_paused_at`), so the screens read one place whichever backend
  * runs.
  */

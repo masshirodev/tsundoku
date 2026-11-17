@@ -10,7 +10,7 @@ import {
 } from '$lib/library/highlights';
 
 /**
- * EXPORT (c701; Out X1): what the highlights page's filters show, as
+ * EXPORT: what the highlights page's filters show, as
  * Markdown. With `series=` it is that book, one heading per chapter in
  * reading order, saved as `<series>.md`; without, every series the filters
  * leave, grouped by series. `colours=tag` puts a quote's colour under it as a

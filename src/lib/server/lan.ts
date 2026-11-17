@@ -1,10 +1,10 @@
 import { networkInterfaces } from 'node:os';
 
 /**
- * The home network, for reading on a phone over Wi-Fi (doc/WIFI.md; card
- * c188): which of this computer's addresses a phone on the same Wi-Fi can
- * reach, and whether there is one. Pure where it can be: the interfaces are
- * passed in, so a spec draws any computer it likes.
+ * The home network, for reading on a phone over Wi-Fi (doc/WIFI.md): which
+ * of this computer's addresses a phone on the same Wi-Fi can reach, and
+ * whether there is one. Pure where it can be: the interfaces are passed in,
+ * so a spec draws any computer it likes.
  */
 
 type Interfaces = ReturnType<typeof networkInterfaces>;
@@ -68,8 +68,8 @@ export function publicAddresses(interfaces: Interfaces = networkInterfaces()): s
 
 /**
  * What Wi-Fi mode can do on this computer right now: listen at `address`
- * (and every other home-network address), or not, and why. `public` is the
- * handoff's "only a public address" (2D): the sign-in page would face the
+ * (and every other home-network address), or not, and why. `public` is
+ * "only a public address": the sign-in page would face the
  * internet, so ON can't be pressed.
  */
 export type LanReach =
@@ -114,7 +114,7 @@ export function networkOf(ip: string, netmask: string): string | null {
 
 /**
  * The home network a phone is on, for the firewall line SETTINGS offers to
- * copy (c721; doc/WIFI.md, "A firewall on the computer"): the computer's own
+ * copy (doc/WIFI.md, "A firewall on the computer"): the computer's own
  * address with its own adapter's netmask, so a /24 home network is let in as
  * that /24 and nothing wider. An address no adapter carries any more, or a
  * mask that can't be read, falls back to the private block it is in, which is

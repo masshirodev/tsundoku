@@ -30,7 +30,7 @@ import {
 
 /**
  * A source's page in BROWSE (Index-Browse, states popular, filters, phoneGrid;
- * doc/BROWSE.md; card c141). What the source has to answer is streamed into
+ * doc/BROWSE.md). What the source has to answer is streamed into
  * the page, so the bar and the tabs are there at once and a slow site (a
  * first visit through its browser check) fills in after.
  *
@@ -38,8 +38,8 @@ import {
  * are loaded, what MORE and back return to), `q` (a search in this source,
  * answered as a filtered list), the panel's `f*` choices, `panel` /
  * `find` for the two things script would otherwise toggle, and `from`, the
- * preview or series a tag was tapped on, for the back cell (c313). `again`
- * is TRY AGAIN on a site's check (c294), and is never kept.
+ * preview or series a tag was tapped on, for the back cell. `again`
+ * is TRY AGAIN on a site's check, and is never kept.
  */
 
 type Answer = {
@@ -70,7 +70,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 	const source = browseSource(params.source, reveal);
 	if (!source) error(404, 'not found');
 
-	// TRY AGAIN on a site's check that could not be passed (c294): the
+	// TRY AGAIN on a site's check that could not be passed: the
 	// ten-minute memos forget this site, then the page is its own URL again,
 	// so a reload or a later link doesn't forget them a second time.
 	if (url.searchParams.has('again')) {
@@ -118,22 +118,22 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		webviewMark: source.webview ? await mark() : null,
 		reveal,
 		// An incognito visit leaves nothing behind (doc/PRIVACY.md), the list's
-		// kept place included: the page keeps no snapshot for one (c930).
+		// kept place included: the page keeps no snapshot for one.
 		incognito: isIncognito(cookies),
 		mode,
 		pages,
 		q,
 		panel: url.searchParams.get('panel') === '1',
 		find: url.searchParams.get('find') === '1',
-		// ADD from a source that adds hidden, with reveal off (card c435): the
+		// ADD from a source that adds hidden, with reveal off: the
 		// preview lands here, since the hidden series isn't found, and says so,
-		// with what ADD AND DOWNLOAD queued and UNDO (c505).
+		// with what ADD AND DOWNLOAD queued and UNDO.
 		addedHidden,
-		// The shelves its series is on, for the band's chips (card c724).
+		// The shelves its series is on, for the band's chips.
 		addedShelves: bandShelves(addedHidden),
-		// SELECT's ticks note it, so the bulk bar can say "ADDS ITS 3 HIDDEN" (card c868).
+		// SELECT's ticks note it, so the bulk bar can say "ADDS ITS 3 HIDDEN".
 		addsHidden: sourceFlags(source.id).addedHidden,
-		// Arrived from a tag (c313): ← returns to where it was tapped, never anywhere else.
+		// Arrived from a tag: ← returns to where it was tapped, never anywhere else.
 		back: backOrigin(url.searchParams.get('from')),
 		// Without script a streamed promise never resolves, so the page waits for it instead.
 		answer: hasScript(cookies) ? answer : await answer
@@ -142,7 +142,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 
 export const actions: Actions = {
 	/**
-	 * UNDO on the ADDED band (c505; `undoAdded`, shared with BROWSE's band):
+	 * UNDO on the ADDED band (`undoAdded`, shared with BROWSE's band):
 	 * the series added hidden from this source's preview leaves the library
 	 * again while nothing of it is downloaded or read, and the preview opens
 	 * again. It asks the band's own facts, never whether the source is found
@@ -160,13 +160,13 @@ export const actions: Actions = {
 		// A refusal is drawn in the band it belongs to, and this page cannot draw
 		// one any more once the source is mostly hidden: its load 404s. Without
 		// script the answer would be "not found" instead of NO UNDO, so it lands
-		// on BROWSE, which draws every band, carrying the band and the code (c605).
+		// on BROWSE, which draws every band, carrying the band and the code.
 		if (!browseSource(params.source, reveal))
 			redirect(303, refusedLanding(form, url.searchParams.get('queued')));
 		return fail(r.status, { message: r.message });
 	},
 	/**
-	 * PUT ON A SHELF on the ADDED band (card c724; `shelveAdded`, shared with
+	 * PUT ON A SHELF on the ADDED band (`shelveAdded`, shared with
 	 * BROWSE's band): one chip, on or off, for the band's own series only.
 	 */
 	shelve: async ({ params, request }) => {

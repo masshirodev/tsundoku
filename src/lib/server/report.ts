@@ -12,9 +12,9 @@ import { wifiStatus } from './wifi.ts';
 import { scrub, type Scrub } from './report-scrub.ts';
 
 /**
- * SAVE A REPORT (SETTINGS › 05 — LIBRARY; doc/LOGS.md; card c193): one text
- * file a friend saves and sends the owner when something breaks. Nothing is
- * sent by itself (the owner, 2026-10-30).
+ * SAVE A REPORT (SETTINGS › 05 — LIBRARY; doc/LOGS.md): one text
+ * file a friend saves and sends when something breaks. Nothing is sent by
+ * itself.
  *
  * Hidden means hidden, in a file that leaves the house most of all: the logs
  * are not trusted to be clean, so everything goes through `scrub` on the way

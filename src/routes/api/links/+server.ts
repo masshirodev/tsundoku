@@ -54,19 +54,19 @@ type Body = {
 	unlink?: boolean;
 	undo?: 'link' | 'none' | 'search' | 'seasons';
 	was?: QueuedFrom;
-	/** LINK N SEASONS' UNDO: the seasons the post wrote, and each part as it stood (c595). */
+	/** LINK N SEASONS' UNDO: the seasons the post wrote, and each part as it stood. */
 	facts?: unknown;
-	/** One season of an anime (c240): FIND on its line, and LINK A TO SEASON n. */
+	/** One season of an anime: FIND on its line, and LINK A TO SEASON n. */
 	season?: number;
 	part?: number;
 	/**
-	 * `+ A SECOND PART`'s LINK (c350): the season's episode part 2 starts at.
+	 * `+ A SECOND PART`'s LINK: the season's episode part 2 starts at.
 	 * It must be part 1's count + 1, the one start the schema keeps.
 	 */
 	from?: number;
 	/**
 	 * LINK 3 SEASONS: the entries picked on the relations page. `season` with
-	 * it is the season the page is on, which the answer redraws (c465).
+	 * it is the season the page is on, which the answer redraws.
 	 */
 	seasons?: Pick[];
 };
@@ -77,7 +77,7 @@ type Body = {
  * hidden series is a 404 while reveal is off, and is never searched even
  * with it on -- only a pasted link, which sends nothing but its id.
  *
- * A season of an anime is its own decision (c240): the search asks the anime
+ * A season of an anime is its own decision: the search asks the anime
  * catalogue with that season's title, LINK writes that season's row, and
  * LINK 3 SEASONS writes the ones the relations offered.
  */
@@ -89,17 +89,17 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	const access = seriesAccess(seriesId, reveal);
 	if (!access) error(404, 'not found');
 	const kind = kindOf(seriesId);
-	// A kind a catalogue lists a season at a time (c240): its search, LINK and
+	// A kind a catalogue lists a season at a time: its search, LINK and
 	// their UNDO are the named season's.
 	const seasonal = isAnime(kind);
 	const season = Number.isInteger(b.season) ? Number(b.season) : undefined;
 	const part = Number.isInteger(b.part) && (b.part ?? 0) > 0 ? Number(b.part) : 1;
-	// A season holds two parts at most (`CHECK (part IN (1, 2))`; c350).
+	// A season holds two parts at most (`CHECK (part IN (1, 2))`).
 	if (part > 2) error(400, 'a season has two parts at most');
 	// The item a season's search and paste are drawn against: the part the page
-	// posted (c350), part 1's when it posted none. A season whose only row is
+	// posted, part 1's when it posted none. A season whose only row is
 	// part 2 (part 1 unlinked, e.g. a CHANGE of part 1 then its UNDO) posts
-	// `part: 2` and gets part 2's own search and candidates (c592), never part
+	// `part: 2` and gets part 2's own search and candidates, never part
 	// 1's.
 	const itemFor = () =>
 		seasonal && season !== undefined
@@ -111,7 +111,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	try {
 		if (b.undo === 'link') {
 			// A part 1 that would leave its season's part 2 without a part 1 is
-			// refused, saying so (c592): nothing changes.
+			// refused, saying so: nothing changes.
 			try {
 				undoLink(seriesId, season, part);
 			} catch (e) {
@@ -121,7 +121,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			recover(false);
 			return json({ ok: true });
 		}
-		// LINK N SEASONS' UNDO (c595): every season its band's post wrote, and
+		// LINK N SEASONS' UNDO: every season its band's post wrote, and
 		// only those, back as they stood. Refused whole when any was linked or
 		// decided again since.
 		if (b.undo === 'seasons') {
@@ -143,7 +143,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			return json({ ok: true });
 		}
 		if (b.unlink) {
-			// A second part's own UNLINK (c350) takes part 2's row alone, and
+			// A second part's own UNLINK takes part 2's row alone, and
 			// settles nothing: part 1 is still linked, so the season is too.
 			if (seasonal && season !== undefined && part === 2) {
 				undoSeasonLink(seriesId, season, 2);
@@ -171,8 +171,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 				seasonal && season !== undefined ? { season, part } : {}
 			);
 			// The review draws the series it just searched, so the item carries the catalogue
-			// it came from: the page files items by `service:id` (c298's search shows it). An
-			// anime's is the season's own search, the one record of it (c355).
+			// it came from: the page files items by `service:id`. An
+			// anime's is the season's own search, the one record of it.
 			const item = itemFor();
 			return json({ ...r, item: item ? { ...item, service: 'anilist' as const } : null });
 		}
@@ -191,8 +191,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 				);
 			const candidate = asReviewCandidate(item, await readPasted(p, item.kind));
 			// A pasted entry another season of the show holds is read, and said to
-			// be held, since LINK would refuse it (c418): the paste is a door that
-			// offers a season an entry too.
+			// be held, since LINK would refuse it: a paste offers a season an entry
+			// too.
 			const heldBy =
 				seasonal && season !== undefined ? seasonHolding(seriesId, season, part, candidate) : null;
 			return json({ candidate, held: heldBy ? `${holdsLine(heldBy)} · LINK REFUSES IT` : null });
@@ -200,7 +200,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		// LINK 3 SEASONS: every entry the relations page ticked, at once, each at
 		// its own part (a pair's part 2 is part 2's offer). The answer is what was
 		// written, and each pick refused with the season that holds its entry, so
-		// the page says the true count (c418).
+		// the page says the true count.
 		if (Array.isArray(b.seasons) && b.seasons.length) {
 			if (!kind || !seasonal) error(400, 'only a season is linked this way');
 			const picks = b.seasons
@@ -211,19 +211,19 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 					anilistId: p.anilistId
 				}));
 			const { linked, refused, facts } = linkPicks(seriesId, kind, picks);
-			// Nothing written is a refusal, as at every other link door; it still
+			// Nothing written is a refusal, as everywhere else a link is made; it still
 			// says which seasons, and why.
-			// Counted in seasons, not parts: a pair is one (round 2).
+			// Counted in seasons, not parts: a pair is one.
 			const count = seasonsLinked(linked, refused);
 			if (!linked.length) return json({ ok: false, ...count, refused }, { status: 409 });
 			recover(true);
-			// The season the page is on, as it now stands (c465): a partial link
+			// The season the page is on, as it now stands: a partial link
 			// leaves the page there, which redraws it from this rather than from
 			// the review it opened on.
 			const view = season !== undefined ? seriesSeasons(seriesId) : null;
 			const at = view?.seasons.find((s) => s.season === season) ?? null;
 			const review = at ? seasonReview(seriesId, at, view!.seasons.length, access.hidden) : null;
-			// `facts` is the band's UNDO (c595): what the post wrote, and what each
+			// `facts` is the band's UNDO: what the post wrote, and what each
 			// part it wrote stood as before.
 			return json({ ok: true, ...count, refused, review, facts });
 		}
@@ -233,7 +233,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 				? await readPasted({ service: 'anilist', id: b.link }, kind)
 				: offered(seriesId, b.link, season, part);
 			if (!c) error(409, 'not a candidate');
-			// `+ A SECOND PART` (c350): part 2 starts where part 1's count ends,
+			// `+ A SECOND PART`: part 2 starts where part 1's count ends,
 			// the one start the schema can keep; another start is refused, saying
 			// where it does start, and nothing is written.
 			const second = seasonal && season !== undefined && part === 2 && b.from !== undefined;
@@ -250,7 +250,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			if (!done) error(409, 'another season holds that entry');
 			// The cover follows in the background: the link's, if nothing comes before it.
 			recover(true);
-			// And the rest of the show, from the entry just chosen (c240).
+			// And the rest of the show, from the entry just chosen.
 			let relations = null;
 			// A second part's LINK goes back to the series: nothing more to offer.
 			if (seasonal && season !== undefined && !second)

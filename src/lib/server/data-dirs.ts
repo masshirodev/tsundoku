@@ -6,14 +6,13 @@ import { pathsFor } from './fspath.ts';
  * engine's store, OCR scratch and database snapshots (doc/DISTRIBUTION.md,
  * "One data directory").
  *
- * Everything derives from one folder, TSUNDOKU_HOME, so a friend's install
- * needs one setting and the workstation one line. Each folder's own variable
- * (LIBRARY_ROOT, COVER_DIR, ...) still wins over the derived default.
+ * Everything derives from one folder, TSUNDOKU_HOME, so an install needs one
+ * setting. Each folder's own variable (LIBRARY_ROOT, COVER_DIR, ...) still
+ * wins over the derived default.
  *
- * Unset, TSUNDOKU_HOME is the platform's place for app data. It used to be
- * /mnt/hdd2/tsundoku for everything, which only exists on the workstation;
- * the workstation now says so itself (TSUNDOKU_HOME in .env and every unit,
- * doc/SERVING.md).
+ * Unset, TSUNDOKU_HOME is the platform's place for app data. An install that
+ * keeps its data elsewhere says so itself (TSUNDOKU_HOME in .env and every
+ * unit, doc/SERVING.md).
  */
 
 type Env = Record<string, string | undefined>;
@@ -53,7 +52,7 @@ export function dataPaths(
 		novelStore: given(env.NOVEL_STORE) ?? p.join(engineStore, 'novels'),
 		ocrScratch: given(env.OCR_SCRATCH) ?? p.join(root, 'ocr-scratch'),
 		// Language packs: dictionaries downloaded on demand, never bundled
-		// (doc/LANGUAGES.md, c195).
+		// (doc/LANGUAGES.md).
 		packs: given(env.PACK_DIR) ?? p.join(root, 'packs'),
 		// A Python venv keeps its programs in Scripts\ on Windows, bin/ elsewhere.
 		mokuro:
@@ -65,7 +64,7 @@ export function dataPaths(
 }
 
 /**
- * Where IMPORT A BACKUP keeps the files it is given (c438, doc/IMPORT-BACKUP.md):
+ * Where IMPORT A BACKUP keeps the files it is given (doc/IMPORT-BACKUP.md):
  * the data folder's import area, never the library, so a backup is never
  * scanned as a book and never moves with the library. `IMPORT_DIR` wins, as
  * each folder's own variable does. Kept apart from dataPaths so its shape,
@@ -83,7 +82,7 @@ export function importArea(
 }
 
 /**
- * Where highlights keep their copies (c701, doc/HIGHLIGHTS.md): the data
+ * Where highlights keep their copies (doc/HIGHLIGHTS.md): the data
  * folder's own `highlights/`, never the library, so a delete's trash never
  * takes a copy and a scan never reads one as a book. `pages/`, `clips/` and
  * `stills/` under it. `HIGHLIGHTS_DIR` wins, as each folder's own variable

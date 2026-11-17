@@ -76,9 +76,8 @@ const authorization = () => ({ authorization: `Bearer ${process.env.ENGINE_TOKEN
 /**
  * A request to the engine that got no answer. A timeout is a slow source (a
  * site's browser check, a rate limit the solver waited out), not a missing
- * engine: only a refused or reset connection says the engine is down. Both
- * used to say down, and BROWSE told the owner the engine had stopped while
- * AnimePahe was rate-limiting (2026-10-29).
+ * engine: only a refused or reset connection says the engine is down, or
+ * BROWSE says the engine has stopped while a source is rate-limiting.
  */
 function unreachable(e: unknown, timeoutMs: number): EngineError {
 	if ((e as Error).name === 'TimeoutError')
@@ -150,8 +149,8 @@ export type CallOptions = {
 
 /**
  * Calls [method] of [ext]'s source, sending the APK only when the engine
- * says it doesn't have it (a handle never sent: since c131 the engine keeps
- * APKs across restarts).
+ * says it doesn't have it (a handle never sent: the engine keeps APKs across
+ * restarts).
  */
 export function call<T>(
 	ext: Extension,

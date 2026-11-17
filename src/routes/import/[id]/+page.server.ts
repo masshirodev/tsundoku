@@ -9,13 +9,13 @@ import { join } from '$lib/server/fspath';
 import { fromTv, TV_REFUSAL } from '$lib/server/import/tv';
 
 /**
- * One chosen file (c438): its preview while nothing is written
+ * One chosen file: its preview while nothing is written
  * (Import-Preview), its progress while it runs or waits (Import-Progress,
  * Import-File-States E), its result once it has (Import-Result). The page
  * follows the row's state; a refused file shows why.
  */
 export const load: PageServerLoad = ({ params, cookies, request }) => {
-	// The TV never imports (c511): refused before anything is read, its
+	// The TV never imports: refused before anything is read, its
 	// preview, its IMPORT and its result alike.
 	if (fromTv(request)) return { view: 'tv' as const, reason: TV_REFUSAL };
 	const id = Number(params.id);

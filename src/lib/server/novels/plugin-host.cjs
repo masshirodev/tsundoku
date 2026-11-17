@@ -1,7 +1,7 @@
 'use strict';
 /**
- * The host LNReader plugins run in (doc/NOVELS.md, "The plugin host"; card
- * c147). A child process of the app, started by host.ts under Node's
+ * The host LNReader plugins run in (doc/NOVELS.md, "The plugin host"). A
+ * child process of the app, started by host.ts under Node's
  * permission model with an empty environment: it may read only itself, the
  * address guard, the project's node_modules and the plugin store, and may not
  * write, spawn, start workers or load addons. Plugin code is evaluated in a vm
@@ -23,16 +23,16 @@
  * may be { op: 'config', allow: ['127.0.0.1:4170'] }: loopback ports the
  * parent opens on purpose, for tests. Nothing else can open one. When a site
  * answers with a browser check the host sends { op: 'challenge', id, url } and
- * the parent answers { op: 'challenge-result', id, ok, value } (card c152).
+ * the parent answers { op: 'challenge-result', id, ok, value }.
  * { id, op: 'forget', site } clears the refused memo below for that site's
- * hosts, and answers how many it cleared: TRY AGAIN on the source page (c294).
- * A host in that memo is in page mode (card c335): its requests go to the
+ * hosts, and answers how many it cleared: TRY AGAIN on the source page.
+ * A host in that memo is in page mode: its requests go to the
  * parent as { op: 'page', id, url, method, postData? }, answered
  * { op: 'page-result', id, ok, value: { url, status, contentType, body } } or
  * { op: 'page-result', id, ok: false, error, fixed?, unsent?, unchecked? },
  * where `fixed` marks a refusal no new solve can change, `unsent` one made
- * before the browser was asked (c630), and `unchecked` a page that came back
- * whose last address this app could not look up (c688). { id, op: 'modes' } answers the
+ * before the browser was asked, and `unchecked` a page that came back
+ * whose last address this app could not look up. { id, op: 'modes' } answers the
  * hosts in page mode and until when. The config message may carry refusedMs,
  * page mode's length, for tests.
  */
@@ -59,8 +59,8 @@ let allowed = new Set();
  * on any failure, as LNReader's runtime does, so a plugin whose site refused
  * it answers an empty list. When a call comes back empty, this is why
  * (`explained` below) — a refused address, a bot check's 403, a site down.
- * `urls` is where each request in the call ended, for a chapter's pictures
- * (c631): `{ asked, at }`, the address the plugin asked for and the one it
+ * `urls` is where each request in the call ended, for a chapter's pictures:
+ * `{ asked, at }`, the address the plugin asked for and the one it
  * finally read.
  */
 const trouble = new AsyncLocalStorage();
@@ -74,7 +74,7 @@ const note = (why) => {
  * stored as the URLs they name, not as the strings the plugin typed: a plugin
  * that spells a chapter `…/a b.html`, or with an upper-case host, asks for the
  * same page as the encoded spelling the downloader computes, and a literal
- * comparison would lose the address without saying so (c631).
+ * comparison would lose the address without saying so.
  */
 function noteAt(asked, at) {
 	const t = trouble.getStore();
@@ -134,7 +134,7 @@ function failedFetch(url, e) {
 async function guardedFetch(input, init = {}) {
 	let url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
 	// Where the plugin's own request began: a chapter's pictures are relative to
-	// the page this address ended at, not to the plugin's site (c631). `noteAt`
+	// the page this address ended at, not to the plugin's site. `noteAt`
 	// stores both as URLs, so another spelling of the same address still
 	// matches the chapter the plugin asked for.
 	const asked = url;
@@ -214,7 +214,7 @@ async function guardedFetch(input, init = {}) {
 	throw new Error('refused: too many redirects');
 }
 
-// ---- a site's browser check (doc/NOVELS.md, "Past a site's bot check"; c152) ---------------
+// ---- a site's browser check (doc/NOVELS.md, "Past a site's bot check") ---------------
 // The host refuses local addresses, and a solver is one, so it can't reach one
 // itself. It asks the parent over IPC, naming only the URL; the app checks the
 // address is on the internet and answers with that host's clearance cookies
@@ -239,7 +239,7 @@ const hostOf = (url) => new URL(url).hostname.toLowerCase();
  * Forgets the refusals of [site]'s hosts: one host is the other or under it,
  * as the app's `sameSite` (novels/solver.ts). Ten minutes is right for a
  * download's next chapter, but not for someone who just fixed the solver's
- * address or whose site changed its check and pressed TRY AGAIN (c294); the
+ * address or whose site changed its check and pressed TRY AGAIN; the
  * next call then pays one solve and one retry, and is remembered again if the
  * site still refuses.
  */
@@ -286,9 +286,9 @@ function askParent(msg) {
 const askChallenge = (url) =>
 	askParent({ op: 'challenge', url }).then((m) => (m && m.ok && m.value ? m.value : null));
 
-// ---- page mode: a check bound to the browser that solved it (doc/NOVELS.md; c335) ----------
+// ---- page mode: a check bound to the browser that solved it (doc/NOVELS.md) ----------
 // NovelFull and Scribble Hub refuse the clearance they just issued to any
-// client but the solver's own browser (measured 2026-11-02). A host whose
+// client but the solver's own browser (measured). A host whose
 // retry with a fresh clearance was still a check enters page mode then, for
 // the refused memo's ten minutes (from that refusal, not extended by use):
 // every request to it is a page the parent fetches through the solver, which
@@ -324,7 +324,7 @@ const pageUnchecked = (host, why) => `${host}'s page was fetched and not used: $
  * this app could not check (its own DNS, not the host's check). The phrase
  * "its check could not be passed" is what the browse page reads as a refused
  * check, and offers TRY AGAIN for, forgetting both memos (`again=1`). The
- * last of those (`unchecked`, c688) says no such thing, since no check
+ * last of those (`unchecked`) says no such thing, since no check
  * failed: its TRY AGAIN forgets nothing and asks the page again, which is a
  * new lookup, and pays no solve.
  */
@@ -338,7 +338,7 @@ function refusePage(host, why, unchecked = false) {
  * Fails a page-mode request the app answered, but never with a page, and for a
  * reason no solve can change: an address `checkPublic` refuses, one the
  * browser was redirected to off the internet, a document that is Chromium's
- * image page (c630). The sentence doesn't claim a check, so the browse page's
+ * image page. The sentence doesn't claim a check, so the browse page's
  * TRY AGAIN for it does not forget the memo (no `again=1`) and pays no new
  * solve: the host stays in page mode and the next call is one page again.
  */
@@ -352,7 +352,7 @@ function refuseFixed(host, why) {
  * Fails a request page mode won't send at all, before anything is asked. No
  * check was involved, so the sentence doesn't claim one: the browse page's
  * TRY AGAIN for it does not forget the memo (no `again=1`), so it pays no new
- * solve. Also where an address this app could not look up lands (c630): the
+ * solve. Also where an address this app could not look up lands: the
  * solver's browser was never asked, and asking again asks the lookup again.
  */
 function refuseShape(host, why) {
@@ -399,7 +399,7 @@ async function pageFetch(asked, url, opts, wantsFile) {
 	if (!m) refusePage(host, 'the app did not answer');
 	if (!m.ok || !m.value) {
 		const why = String(m.error || 'the solver gave no page');
-		// The app marks a refusal no new solve can change (c630): the address,
+		// The app marks a refusal no new solve can change: the address,
 		// or a document that is not a page. Saying a check failed would make
 		// the browse page's TRY AGAIN forget the memos for nothing.
 		if (m.fixed) refuseFixed(host, why);
@@ -790,8 +790,8 @@ function defaults(filters) {
 /**
  * The address the chapter's own request ended at, or null when the plugin
  * asked for something else (an API, a cover): a chapter's pictures are
- * relative to the page it was read from, and a redirect moves that page
- * (c631). [path] is the chapter, as the plugin was given it.
+ * relative to the page it was read from, and a redirect moves that page.
+ * [path] is the chapter, as the plugin was given it.
  */
 function chapterBase(t, site, path) {
 	let own;
@@ -833,7 +833,7 @@ async function handle(m) {
 	if (m.op === 'forget') return forgetRefused(m.site);
 	if (m.op === 'modes') return modes();
 	const p = load(m.file);
-	// A chapter and the page it came from (c631). Its HTML is the plugin's own
+	// A chapter and the page it came from. Its HTML is the plugin's own
 	// answer; the address is the one the chapter's request ended at, after any
 	// redirect, so the server can resolve the chapter's relative pictures.
 	if (m.op === 'chapter') {

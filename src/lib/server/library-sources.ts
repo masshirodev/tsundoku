@@ -81,7 +81,7 @@ export function libraryIndex(reveal: boolean) {
 	};
 	const db = getDb();
 	// A key's count is what its source supplies: a series' own key does not
-	// count the seasons that have another source (c282).
+	// count the seasons that have another source.
 	const ofKey = (key: string) =>
 		`e.series_id = s.id AND e.shadowed = 0 AND ${entryOriginSql('e', 's')} = ${key}`;
 	const rows = db
@@ -108,7 +108,7 @@ export function libraryIndex(reveal: boolean) {
 			GROUP BY s.id, f.origin_key ORDER BY s.id DESC`
 		)
 		.all() as Holding[];
-	// A book in a group is held at its own source (card c885), under the name
+	// A book in a group is held at its own source, under the name
 	// the source knows it by, so a result still says it's in the library.
 	const books = db
 		.prepare(
@@ -125,7 +125,7 @@ export function libraryIndex(reveal: boolean) {
 	// SAME TITLE only within a kind of source: an anime named as a manga is an
 	// adaptation, not a copy of it from elsewhere ("Oshi no Ko" on KickAssAnime
 	// isn't Weeb Central's), and a light novel isn't its manga either.
-	// By the names a series had or goes by too (c555): a source still calls
+	// By the names a series had or goes by too: a source still calls
 	// a renamed series by its old name, which a rename keeps in `alt_titles`.
 	// Titles are set last, so a result named as one series is titled and
 	// another was once called is the titled one's.
@@ -146,7 +146,7 @@ export function libraryIndex(reveal: boolean) {
 	// A twin in a mostly-hidden source is still a twin, but with reveal off the
 	// source isn't named: hidden means not named, not just not listed.
 	const use = sourceUse();
-	// Nor is a source whose own HIDDEN SOURCE switch is on (card c435).
+	// Nor is a source whose own HIDDEN SOURCE switch is on.
 	const switchedOff = reveal ? new Set<string>() : sourcesWith('hidden');
 	const nameable = (sourceId: string) =>
 		reveal ||
@@ -179,7 +179,7 @@ export function seriesForKey(key: string): QueueSeries | null {
 	const row = getDb()
 		.prepare(
 			`SELECT s.id,
-				-- The queue groups by key, so a book in a group goes by its own name there (c885).
+				-- The queue groups by key, so a book in a group goes by its own name there.
 				COALESCE((SELECT NULLIF(eo.source_title, '') FROM entry_origins eo
 					JOIN entries e ON e.id = eo.entry_id
 					WHERE e.series_id = s.id AND eo.origin_key = @key), s.title) AS title,

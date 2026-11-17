@@ -6,7 +6,7 @@ import type { Kind } from '../library/kinds.ts';
 import type { TmdbTitle } from '../library/tmdb.ts';
 
 /**
- * The one contract a catalogue answers (card c989, extracted when TMDB became
+ * The one contract a catalogue answers (extracted when TMDB became
  * the second; doc/LINKS.md, "The contract"): **search** a kind by a title,
  * with a year when one is known, best match first; and read **one entry by
  * id**, or null when the catalogue has none. Each answers in its own entry
@@ -14,8 +14,8 @@ import type { TmdbTitle } from '../library/tmdb.ts';
  * draws what only its catalogue knows (an anime's season, a film's runtime);
  * `entryOf` is the projection every screen can draw for either.
  *
- * Who goes through it: TMDB's every door (`tmdb-links.ts`), and AniList's
- * one-title doors, the review's SEARCH AGAIN on a season and a pasted
+ * Who goes through it: every TMDB call (`tmdb-links.ts`), and AniList's
+ * one-title paths, the review's SEARCH AGAIN on a season and a pasted
  * AniList id. AniList's background pass does not: it packs five titles into
  * each request (`searchMany`), and AniList's rate limit is the reason that
  * shape exists, so a one-title contract would cost it five requests for one.
@@ -64,7 +64,7 @@ const tmdb: CatalogueClient<TmdbTitle> = {
 type Clients = { anilist: CatalogueClient<Candidate>; tmdb: CatalogueClient<TmdbTitle> };
 const CLIENTS: Clients = { anilist, tmdb };
 
-/** The client for a provider: `catalogueClient(catalogueOf(kind))` when a door holds a kind. */
+/** The client for a provider: `catalogueClient(catalogueOf(kind))` when a caller holds a kind. */
 export const catalogueClient = <P extends CatalogueProvider>(provider: P): Clients[P] =>
 	CLIENTS[provider];
 

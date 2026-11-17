@@ -2,7 +2,7 @@ import type { PlannedTag } from './plan.ts';
 
 /**
  * A novel's EPUB as tsundoku's device writes it (doc/NOVELS.md,
- * "Downloading"; card c150). Pure: the writer (server/novels/downloader.ts)
+ * "Downloading"). Pure: the writer (server/novels/downloader.ts)
  * hands over the chapters' documents and gets the book's members back, and
  * the importer reads the manifest out of the file it finds.
  *

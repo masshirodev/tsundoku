@@ -3,15 +3,15 @@ import { visibleWhere } from './visibility.ts';
 import type { Kind } from '../library/types.ts';
 
 /**
- * Reading time, summarised from the reading log (card c443; doc/READING-LOG.md,
+ * Reading time, summarised from the reading log (doc/READING-LOG.md,
  * "Who reads it"). Every place that shows a time -- the series screen, HISTORY's
- * rows and its total, and later c35's metrics and the graphs -- asks this one
+ * rows and its total, and any metrics or graphs -- asks this one
  * function, so they cannot disagree about what counts:
  *
  * - **Only reading.** `open`, `page`, `finish`, `close`; a manual MARK READ is
  *   bookkeeping, and carries no time anyway.
  * - **Hidden means hidden.** The reveal filter (`visibleWhere`, the one rule in
- *   visibility.ts) is applied in SQL at every door, so a hidden series' time is
+ *   visibility.ts) is applied in SQL at every query, so a hidden series' time is
  *   not in its kind's total, nor HISTORY's, while reveal is off.
  * - **No 1970.** An event dated before `FIRST_PLAUSIBLE_DAY` is a bad clock,
  *   not reading (one live row has `at = 0`), and is left out of every
@@ -23,7 +23,7 @@ import type { Kind } from '../library/types.ts';
 /**
  * The first day a reading event can honestly carry. The oldest history
  * tsundoku can hold comes from Mihon's backups (and Tachiyomi's before it),
- * and Tachiyomi's first release was in 2015; the live log starts 2023-05-12.
+ * and Tachiyomi's first release was in 2015.
  * Anything earlier is a clock that was never set.
  */
 export const FIRST_PLAUSIBLE_DAY = '2015-01-01';
@@ -59,11 +59,11 @@ const GROUP: Record<By, { cols: string; order: string }> = {
 
 /**
  * Time read, grouped `by` series, kind, day, or series and day (a HISTORY row).
- * `since` is the group's first **timed** day, the first with `duration_ms > 0`
- * (card c483, the owner's (b)): where a total could be read as everything, the
- * screen says SINCE it, and a day logged with no time on it (an anime episode
- * before c443's rung, a novel's untimed rows) would date hours that only start
- * later. So a group is a row only where it holds some time: one with none has
+ * `since` is the group's first **timed** day, the first with
+ * `duration_ms > 0`: where a total could be read as everything, the screen
+ * says SINCE it, and a day logged with no time on it (an anime episode logged
+ * before episodes were timed, a novel's untimed rows) would date hours that
+ * only start later. So a group is a row only where it holds some time: one with none has
  * no total to date, and is no row (every reader takes a missing group as 0).
  */
 export function readingTime<B extends By>(by: B, scope: TimeScope): TimeRow<B>[] {
@@ -102,7 +102,7 @@ export function seriesReadingTime(seriesId: number, reveal: boolean): number {
 
 /**
  * Everything the viewer may see: the kinds' totals and their sum, each with its
- * first timed day; the sum's is the earliest of the kinds' (c483).
+ * first timed day; the sum's is the earliest of the kinds'.
  */
 export function readingTotals(reveal: boolean): {
 	ms: number;

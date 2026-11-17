@@ -86,7 +86,7 @@ function ownSource(s: SeriesRow): Source | null {
 	}
 	const first = firstEntry(s);
 	if (!first) return null;
-	// A text kind's EPUB carries its own cover (card c303: the medium, not the name).
+	// A text kind's EPUB carries its own cover (the medium, not the name).
 	if (kindFacts(s.kind).medium === 'text' && /\.epub$/i.test(first.file)) {
 		const path = join(s.path, first.file);
 		return {
@@ -99,7 +99,7 @@ function ownSource(s: SeriesRow): Source | null {
 
 /**
  * An EPUB's cover image: the member its package names, else the image its
- * `Cover` page holds (c835). Haibara's books have no manifest `cover-image`
+ * `Cover` page holds. Haibara's books have no manifest `cover-image`
  * and no `<meta name="cover">`, but each lists a Cover entry whose page is an
  * image alone, which `parsePackage` cannot see; the disk side can.
  */
@@ -158,7 +158,7 @@ function pageSource(s: SeriesRow): Source | null {
 }
 
 /**
- * A page the owner chose as the series' cover (the page menu), cut to the
+ * A page the user chose as the series' cover (the page menu), cut to the
  * tile from its top as any page is.
  */
 function chosenSource(s: SeriesRow): Source | null {
@@ -176,9 +176,9 @@ function chosenSource(s: SeriesRow): Source | null {
 }
 
 /**
- * A series of books (doujins grouped by the owner) wears its first book's
+ * A series of books (doujins grouped by the user) wears its first book's
  * cover: the page chosen for it, Hentoid's thumbnail, or its first page --
- * what the book's own tile shows in BOOKS (card c57).
+ * what the book's own tile shows in BOOKS.
  */
 function firstBookSource(s: SeriesRow): Source | null {
 	if (kindFacts(s.kind).grouping !== 'books') return null;
@@ -424,7 +424,7 @@ export async function refreshCover(
 		return true;
 	};
 
-	// The owner's choice, then a folded book's opening edition, then a series of books' first book, then the rest.
+	// The user's choice, then a folded book's opening edition, then a series of books' first book, then the rest.
 	for (const source of [chosenSource(s), editionSource(s), firstBookSource(s)]) {
 		if (!source) continue;
 		if (fresh(source.key)) return 'kept';
@@ -534,7 +534,7 @@ export async function readCover(
 
 /**
  * A book's own cover, for its tile in a series of books (doc/COVERS.md,
- * "Books"): the page the owner chose (`cover_page`), else the cover file its
+ * "Books"): the page the user chose (`cover_page`), else the cover file its
  * folder carries (Hentoid's thumbnail), else its first page. Made on first ask
  * and kept beside the series' covers, named by what it was made from, so a
  * new choice makes a new one.
@@ -598,12 +598,12 @@ export async function readBookCover(
 
 // ---- volumes -------------------------------------------------------------------
 
-/** A volume's cover, kept by its EPUB file: every chapter of the volume shares one (c835). */
+/** A volume's cover, kept by its EPUB file: every chapter of the volume shares one. */
 const volumeCoverDir = () => join(coverDir(), 'volumes');
 const volumeKey = (path: string) => createHash('sha1').update(path).digest('hex').slice(0, 20);
 
 /**
- * A volume's own cover (c835): the cover its EPUB carries, kept in the cover
+ * A volume's own cover: the cover its EPUB carries, kept in the cover
  * directory by its file, so no row names it and no column is new. A volume is
  * a file, not an entry: taking it out, UNGROUP, or a re-group in another order
  * leaves the same file, so its cover is kept; a rescan that replaces the file

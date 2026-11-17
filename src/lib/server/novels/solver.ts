@@ -3,7 +3,7 @@ import { checkPublic, NotPublicError } from '../net-guard.ts';
 
 /**
  * A site's browser check, solved for an LNReader plugin (doc/NOVELS.md, "Past
- * a site's bot check"; card c152).
+ * a site's bot check").
  *
  * The plugin host refuses local addresses on purpose, and a solver is one, so
  * a host can't reach one. It asks the app over IPC, naming only the URL; this
@@ -77,7 +77,7 @@ const underway = new Map<string, Promise<Clearance | null>>();
  * site's check can change in an afternoon.
  *
  * A solve that failed is not remembered here. FlareSolverr 3.4.6 reports its
- * own `status: 'error'` as an HTTP 500 (measured 2026-11-02), which `ask`
+ * own `status: 'error'` as an HTTP 500 (measured), which `ask`
  * throws on, as it does on a 200 that is not a solver's `ok` answer at all (a
  * `status: 'error'`, HTML from a proxy), and this app's 60 s budget can abort
  * before that answer arrives at all: either way the next call asks again, since
@@ -95,7 +95,7 @@ export function forgetFailedSolves(): void {
 
 /**
  * Forgets the memo for [site]'s hosts only: TRY AGAIN on a check that could
- * not be passed (c294), where the solver may just have been fixed or the
+ * not be passed, where the solver may just have been fixed or the
  * site's check changed. The host's own refused memo is forgotten beside it.
  */
 export function forgetFailedSolve(site: string): void {
@@ -167,7 +167,7 @@ async function ask(url: string, host: string): Promise<Clearance | null> {
 	// Not `null`: an answer of the solver's own that failed is the solver's
 	// trouble, not this host's, and must not be remembered against it.
 	if (!res.ok) throw new Error(`the solver answered ${res.status}`);
-	// Nor is a 200 that isn't a solver's `ok` answer (c334): Byparr speaks the
+	// Nor is a 200 that isn't a solver's `ok` answer: Byparr speaks the
 	// same protocol and may send its error as a 200, and a proxy or a mistyped
 	// NOVEL_SOLVER_URL answers with a page of HTML. Neither says anything about
 	// the host, so it throws and is not remembered.
@@ -204,10 +204,10 @@ function noteChecked(host: string, at: number): void {
 		.run(host, at);
 }
 
-// ---- a page through the solver's browser (doc/NOVELS.md, "A check bound to the browser"; c335) ----
+// ---- a page through the solver's browser (doc/NOVELS.md, "A check bound to the browser") ----
 //
 // NovelFull and Scribble Hub hand a solve a clearance and then refuse it to
-// any client but the browser that solved it (measured 2026-11-02, twice). For
+// any client but the browser that solved it (measured, twice). For
 // such a host the plugin host asks for the page itself, and this fetches it
 // through FlareSolverr's browser. What comes back is that browser's DOM after
 // its scripts ran, its status the browser's, after any redirects it followed.
@@ -223,11 +223,11 @@ export type Page = { url: string; status: number; contentType: string; body: str
  * call's trouble. `fixed` marks a refusal no new solve can change — an address
  * off the internet, a document that is not a page — so the host words it
  * without claiming a failed check and the browse page's TRY AGAIN leaves the
- * memos alone (c630). `unsent` marks one made before the browser was asked at
+ * memos alone. `unsent` marks one made before the browser was asked at
  * all, an address this app could not look up: a new solve is not the cure, so
  * the host words it as something it would not send and TRY AGAIN asks again
- * without forgetting the memos (c630). `unchecked` marks a page the browser
- * did fetch whose last address this app could not look up (c662, c688): no
+ * without forgetting the memos. `unchecked` marks a page the browser
+ * did fetch whose last address this app could not look up: no
  * check failed, so the host claims none, and TRY AGAIN asks the page again.
  */
 export type PageAnswer =
@@ -237,7 +237,7 @@ export type PageAnswer =
 const PAGE_MS = 60_000;
 
 /**
- * Chromium dying under FlareSolverr (c492, filed 2026-11-04): about every 25 s
+ * Chromium dying under FlareSolverr: about every 25 s
  * under load a request answers "invalid session id … browser has closed the
  * connection". That is the solver's browser, not the site, so it is asked once
  * more; any other failure is not.
@@ -294,7 +294,7 @@ async function pageOne(req: PageRequest, host: string, budget: number): Promise<
 	try {
 		await checkPublic(req.url);
 	} catch (e) {
-		// Only an address `checkPublic` refuses is permanent (c630): it really is
+		// Only an address `checkPublic` refuses is permanent: it really is
 		// local, or not an address. A lookup that failed (EAI_AGAIN, ENOTFOUND) is
 		// the network's and a retry may succeed, so it is not marked `fixed`; it
 		// never reached the browser either, so the host words it as unsent.
@@ -316,16 +316,15 @@ async function pageOne(req: PageRequest, host: string, budget: number): Promise<
 	try {
 		await checkPublic(answer.page.url);
 	} catch (e) {
-		// The first check ran before the browser was asked; this one runs after,
-		// on the address it ended on. Only an address `checkPublic` refuses is
-		// permanent here (c630, c662): a lookup that failed (EAI_AGAIN, ENOTFOUND)
-		// is the network's and a retry may succeed, so it is not `fixed`. It is
-		// not `unsent` either, since the browser was asked and this is its page's
-		// address: that flag is for a request the browser never saw, and the host
-		// words it "can't come through the solver". `unchecked` is this case's own
-		// (c688): the host's sentence claims no check, because none failed; the
-		// lookup was this app's. No site_check is written: its last address is
-		// unverified.
+		// The first check ran before the browser was asked; this one runs after, on
+		// the address it ended on. Only an address `checkPublic` refuses is permanent
+		// here: a lookup that failed (EAI_AGAIN, ENOTFOUND) is the network's and a
+		// retry may succeed, so it is not `fixed`. It is not `unsent` either, since
+		// the browser was asked and this is its page's address: that flag is for a
+		// request the browser never saw, and the host words it "can't come through
+		// the solver". `unchecked` is this case's own: the host's sentence claims no
+		// check, because none failed; the lookup was this app's. No site_check is
+		// written: its last address is unverified.
 		if (e instanceof NotPublicError)
 			return {
 				error: `the solver's browser ended at ${hostLabel(answer.page.url)}, which is not on the internet`,

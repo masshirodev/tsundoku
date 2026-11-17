@@ -40,8 +40,8 @@ type SeriesRow = {
 };
 
 /**
- * What GROUP may bind a series into, by its kind's `grouping` (doc/KINDS.md;
- * card c303): single books into a series of books (a doujin's), or EPUB
+ * What GROUP may bind a series into, by its kind's `grouping`
+ * (doc/KINDS.md): single books into a series of books (a doujin's), or EPUB
  * volumes into one novel. Never by the kind's name.
  */
 const bindsBooks = (s: Pick<SeriesRow, 'kind'>) => kindFacts(s.kind).grouping === 'books';
@@ -98,10 +98,10 @@ function alike(db: Database.Database, rootIds: number[]): boolean {
 const MIXED = "hidden and visible books can't share a series";
 
 /**
- * A book of its series, as SQL over an entries alias (c558; doc/FILTERS.md,
+ * A book of its series, as SQL over an entries alias (doc/FILTERS.md,
  * FORM): not shadowed -- an edition folded into its base, or a duplicate the
  * review set aside -- and not front or back matter, an extra. An extra
- * doesn't make a series (the owner, 2026-11-05), so a book and its extra are
+ * doesn't make a series, so a book and its extra are
  * one book. The library card's `entryCount` counts the same rows, which is
  * how the device's `isOneOff` agrees with the server.
  */
@@ -112,7 +112,7 @@ export const isBookSql = (e: string) => `(${e}.shadowed = 0 AND ${e}.matter = ''
  * kind GROUP binds into a series of books (the registry's `grouping`, never a
  * kind's name), holding one book or none (`isBookSql`). SERIES is everything
  * else. The device's `isOneOff` (src/lib/library/filters.ts) and
- * `isSingleton` below ask the same two questions (c558).
+ * `isSingleton` below ask the same two questions.
  */
 export const ONE_OFF_SQL = `(${kindsIn('books')} AND (SELECT COUNT(*) FROM entries e
 	WHERE e.series_id = s.id AND ${isBookSql('e')}) <= 1)`;
@@ -127,7 +127,7 @@ function bookCount(db: Database.Database, seriesId: number): number {
 }
 
 /**
- * A series that is one book, ONE-OFF's rule with exactly one (c558): a kind
+ * A series that is one book, ONE-OFF's rule with exactly one: a kind
  * that binds into a series of books, and one book, extras and editions left
  * out. Grouping it is a further question (`groupIntoSeries`): only a book
  * with nothing beside it can be moved whole today.
@@ -138,7 +138,7 @@ export function isSingleton(seriesId: number): boolean {
 	return !!s && bindsBooks(s) && bookCount(db, seriesId) === 1;
 }
 
-// ---- a book's own origin (rung 76; card c885; doc/BOOKS.md) ---------------------------------
+// ---- a book's own origin (migration 76; doc/BOOKS.md) ---------------------------
 
 /**
  * A series about to go keeps its key on its entries, with what the engine
@@ -173,7 +173,7 @@ function keepOrigin(db: Database.Database, series: SeriesRow, entryIds: number[]
 /**
  * Give a book back the key it kept, as the series' own, and the engine's row
  * with it. Before its entries move: a highlight takes the key of the series
- * its entry moves into (rung 72's trigger). A key something else now holds
+ * its entry moves into (migration 72's trigger). A key something else now holds
  * stays on the book, which still reads and downloads by it.
  */
 function giveOriginBack(db: Database.Database, seriesId: number, entryIds: number[]) {
@@ -342,7 +342,7 @@ export function groupIntoSeries(opts: {
 					throw new GroupingError(`"${s.title}" is not a single book`);
 				}
 				// A single book with an extra or a duplicate beside it is still
-				// one book (c558), but `absorb` moves the book alone, and deleting
+				// one book, but `absorb` moves the book alone, and deleting
 				// the emptied singleton would take what is left with it. So it
 				// refuses, rather than lose the extra; binding a book's extras
 				// along with it is a change of its own.
@@ -478,7 +478,7 @@ export function volumesOf<E extends { file: string }>(entries: E[]): E[][] {
 	return out;
 }
 
-/** The first of these series' own page directions, in their order, or NULL (c551). */
+/** The first of these series' own page directions, in their order, or NULL. */
 function textDirectionAmong(db: Database.Database, ids: number[]): string | null {
 	const get = db.prepare(`SELECT text_direction FROM series WHERE id = ?`);
 	for (const id of ids) {
@@ -525,7 +525,7 @@ function groupVolumes(
 		const first = db
 			.prepare(`SELECT direction, description FROM series WHERE id = ?`)
 			.get(books[0].id) as { direction: string | null; description: string };
-		// The page direction (c551; series.text_direction, rung 69) rides with the
+		// The page direction (series.text_direction, migration 69) rides with the
 		// layout: the first volume's own, else the first that has one. NULL is the
 		// default L→R, and 'rtl' its only stored value, so a novel any volume of
 		// which was set to R→L stays R→L once its volumes are one series.
@@ -684,7 +684,7 @@ export function takeOutVolumes(seriesId: number, files?: string[], now = Date.no
 							dirname(abs),
 							extra.direction,
 							extra.description,
-							// Each volume taken out reads as its series did (c551).
+							// Each volume taken out reads as its series did.
 							extra.text_direction,
 							// Its own again: the next scan finds it by its file.
 							origin && !db.prepare(`SELECT 1 FROM series WHERE origin_key = ?`).get(origin)
@@ -872,7 +872,7 @@ export function setBookFavourite(seriesId: number, entryId: number, on: boolean)
 
 /**
  * Visible one-book series: the only things a suggestion may name. One book
- * as ONE-OFF counts it (`isBookSql`, c558), and nothing beside it: a
+ * as ONE-OFF counts it (`isBookSql`), and nothing beside it: a
  * suggestion must be something GROUP can bind, and `groupIntoSeries` refuses
  * a book with an extra or a set-aside duplicate next to it (it moves the book
  * alone, and the emptied singleton's delete would take the rest with it). A
@@ -933,8 +933,8 @@ export type BookSeriesOption = { id: number; title: string; books: number; rootI
 /**
  * Series of books the viewer can see: where MOVE TO… and ADD TO EXISTING can
  * send a book. Grouping still refuses a target in another root. A series is
- * two books or more, and `books` counts them, as ONE-OFF does (`isBookSql`,
- * c558): a book with an extra or a folded edition is a one-off, not a series
+ * two books or more, and `books` counts them, as ONE-OFF does (`isBookSql`):
+ * a book with an extra or a folded edition is a one-off, not a series
  * of 2 BOOKS.
  */
 export function seriesOfBooks(reveal: boolean): BookSeriesOption[] {
@@ -1152,7 +1152,7 @@ export function foldEditions(
 					WHERE id = ?`
 				).run(baseSeries, position, baseEntry, lang, JSON.stringify(rowsOf(entry)), entry);
 				carryQueued(db, baseSeries, [entry]);
-				// What the owner did with it: kept by the book.
+				// What the user did with it: kept by the book.
 				db.prepare(
 					`UPDATE series SET rating = MAX(COALESCE(rating, 0), ?), favourite = MAX(favourite, ?) WHERE id = ?`
 				).run(s.rating, s.favourite, baseSeries);
@@ -1273,15 +1273,15 @@ export function unfoldEditions(
 		.immediate();
 }
 
-// ---- seasons of one show (S2; card c283; doc/WORKS.md) ----------------------
+// ---- seasons of one show (doc/WORKS.md) ----------------------------
 
 /**
- * A merged show (card c283, the second slice of c215). S1's series row stays
- * the show; every other season's episodes move onto it, `entries.season`
+ * A merged show. S1's series row stays the show; every other season's
+ * episodes move onto it, `entries.season`
  * becomes the sheet's order and `episode_number` stays the source's. Each
  * season's source, folder and link move into S1's per-season rows, and what
  * the merge changed is journalled so UNGROUP can put every series back under
- * its own id (`season_merges`, rung 77).
+ * its own id (`season_merges`, migration 77).
  *
  * The journal is a whole-copy of every series the merge touches, because the
  * rows a deleted series cascades are not all derivable from
@@ -1290,7 +1290,7 @@ export function unfoldEditions(
  * reference. `snapshotSeries` walks `sqlite_master` and `PRAGMA
  * foreign_key_list`, so a table that later names a series is carried without
  * a second list to keep. `highlights` names one without a foreign key, so the
- * same walk asks `series_id` too (round 2).
+ * same walk asks `series_id` too.
  *
  * The journal is a picture of **merge time**, and the show goes on being used
  * after it. An undo therefore restores the journal's rows and then carries
@@ -1307,11 +1307,11 @@ type EntrySnapshot = {
 	series_id: number;
 	season: number | null;
 	position: number;
-	/** Relative to its series' path at merge time; rewritten when it moves (round 2). */
+	/** Relative to its series' path at merge time; rewritten when it moves. */
 	file: string;
-	/** What the merge wrote into `file`, relative to the show's path (round 2). */
+	/** What the merge wrote into `file`, relative to the show's path. */
 	mergeFile: string;
-	/** `entries.available` at merge time (round 2). */
+	/** `entries.available` at merge time. */
 	available: number;
 };
 
@@ -1326,7 +1326,7 @@ type MergeJournal = {
 	 * Every journalled Work's members at merge time, a series outside the merge
 	 * included. The seasons' own rows ride in their snapshots; a member outside
 	 * the merge has no snapshot, so a reorder, an add or a take-out made while
-	 * merged would otherwise lose its place (round 3).
+	 * merged would otherwise lose its place.
 	 */
 	workMembers: { work_id: number; series_id: number; position: number }[];
 };
@@ -1361,7 +1361,7 @@ const ENTRY_TABLES = new Set<string>(['reading_events', 'download_queue', 'episo
  * Rows the merge moved onto the show that a later event can take away: a
  * finished download removes its queue row, a cleared failure its own. The undo
  * restores these only while they still exist, so it never queues a finished
- * episode again (round 2).
+ * episode again.
  */
 const RESTORE_ONLY_IF_PRESENT = new Set<string>(['download_queue', 'episode_failures']);
 
@@ -1486,10 +1486,9 @@ function releaseReservation(db: Database.Database, kind: 'series' | 'works', id:
 
 /**
  * Whether the row under a Work's id is the Work the journal names: the moment
- * it was made, alone (c583). `works.ts`' `mustBeWork(db, id, made)` and
+ * it was made, alone. `works.ts`' `mustBeWork(db, id, made)` and
  * `undoRename` decide the same way, and a rename while merged is an ordinary
- * owner action: the name must not make the owner's own Work a stranger
- * (round 3). Copied here because `works.ts` is another slot's file.
+ * user action: the name must not make the user's own Work a stranger.
  */
 const sameWorkMoment = (row: { created_at: number }, w: JsonRow): boolean =>
 	Number(row.created_at) === Number(w.created_at);
@@ -1502,9 +1501,9 @@ function workHoldingSeries(db: Database.Database, seriesId: number): number | nu
 }
 
 /**
- * Whether a journal member row may go back where it was: a series the owner has
- * grouped since is the owner's, and the undo never takes it out of that Work
- * (round 4). The show is no exception -- a season the owner grouped around it
+ * Whether a journal member row may go back where it was: a series the user has
+ * grouped since is theirs, and the undo never takes it out of that Work.
+ * The show is no exception -- a season the user grouped around it
  * stays there. A series in no Work, or still in the journal's Work (whose place
  * the journal's word sets), comes back.
  */
@@ -1520,28 +1519,27 @@ function canRestoreMember(db: Database.Database, m: JsonRow): boolean {
  * library and hidden — so this undo counts it nowhere and writes nothing onto
  * it. One test for the three loops that walk a journal's members: the plan
  * (`planWorkMembers`), the reinsertion (`restoreWorkMembers`) and the hide a
- * merge carried (`restoreAll`), so they cannot drift apart again (round 6's
- * medium, and round 2's low that named this loop).
+ * merge carried (`restoreAll`), so they cannot drift apart.
  */
 function willExist(db: Database.Database, seriesId: number | string | null): boolean {
 	return !!db.prepare(`SELECT 1 FROM series WHERE id = ? AND reserve_at IS NULL`).get(seriesId);
 }
 
 /**
- * The members each journal Work can have back: the ones the owner has not
- * grouped elsewhere since (round 4), and the ones whose series will exist when
- * the restore runs (round 5). The seasons are put back by `restoreAll` before
+ * The members each journal Work can have back: the ones the user has not
+ * grouped elsewhere since, and the ones whose series will exist when
+ * the restore runs. The seasons are put back by `restoreAll` before
  * the Work's row does (`journal.order`, a placeholder or not); a member
  * outside the merge is back only if its `series` row still is, because a
  * `deleteSeries` or a fold while merged takes it and the undo does not
  * re-create it. Counting a gone one would put the Work back and then
  * `restoreWorkMembers` skips it, leaving a Work of one. A Work of one cannot
- * exist, so a Work the owner ended while merged comes back only if two of its
+ * exist, so a Work the user ended while merged comes back only if two of its
  * members can.
  *
  * A placeholder (`reserve_at` set) is no series either: a second merge that
  * absorbed the outsider holds its id for that merge's own undo, and that undo
- * is what gives the member back (round 6). Counting it would put the Work back
+ * is what gives the member back. Counting it would put the Work back
  * around a hidden row that is out of the library.
  */
 function planWorkMembers(db: Database.Database, journal: MergeJournal): Map<number, JsonRow[]> {
@@ -1564,13 +1562,13 @@ function planWorkMembers(db: Database.Database, journal: MergeJournal): Map<numb
  * placeholder and re-inserting the journal's row would cascade every
  * `work_series` row of the Work, including members that are live series again
  * (a season taken out between the merge and the undo), so the placeholder's
- * id is reused instead (round 2).
+ * id is reused instead.
  *
- * Answers whether the id still names the journal's Work. A Work the owner
+ * Answers whether the id still names the journal's Work. A Work the user
  * ended while merged can have its id handed to a new Work, and the moment of
  * making is what tells the two apart; the journal's membership must not land
- * on the stranger (round 3). A Work that cannot come back with two members
- * stays ended, since a Work of one cannot exist (round 4).
+ * on the stranger. A Work that cannot come back with two members
+ * stays ended, since a Work of one cannot exist.
  */
 function restoreWorkRow(
 	db: Database.Database,
@@ -1686,8 +1684,8 @@ function restoreSnapshot(
 		const pk = primaryKey(db, group.table);
 		if (pk.length === 0) continue;
 		// A Work the undo cannot name any more (its id is a stranger's) gets no
-		// membership back (round 3), and a series the owner has grouped since is
-		// not taken out of that Work (round 4).
+		// membership back, and a series the user has grouped since is
+		// not taken out of that Work.
 		const rows =
 			group.table === 'work_series'
 				? group.rows.filter(
@@ -1697,7 +1695,7 @@ function restoreSnapshot(
 		const where = pk.map((c) => `${quoteName(c)} = @${c}`).join(' AND ');
 		const drop = db.prepare(`DELETE FROM ${quoteName(group.table)} WHERE ${where}`);
 		// A finished download takes its queue row and a cleared failure its own:
-		// a row gone since the merge is not put back (round 2).
+		// a row gone since the merge is not put back.
 		const present = RESTORE_ONLY_IF_PRESENT.has(group.table)
 			? db.prepare(`SELECT 1 FROM ${quoteName(group.table)} WHERE ${where}`)
 			: null;
@@ -1708,7 +1706,7 @@ function restoreSnapshot(
 			if (!exists) continue;
 			// An entry deleted while merged stays gone: its log row comes back
 			// with a null reference where the foreign key would null it, and a
-			// row that cannot outlive its entry is not put back (round 3).
+			// row that cannot outlive its entry is not put back.
 			const fixed = refs.length > 0 ? { ...row } : row;
 			let orphan = false;
 			for (const ref of refs) {
@@ -1726,7 +1724,7 @@ function restoreSnapshot(
  * A journal highlight exactly as it was, after the entries are back. Moving an
  * entry's season back fires `highlights_entry_numbered`, whose own job is to
  * rejoin a waiting highlight by number and season; the undo's picture of merge
- * time wins, and a later arrival can rejoin it again (round 2).
+ * time wins, and a later arrival can rejoin it again.
  */
 function restoreJournalHighlights(db: Database.Database, journal: MergeJournal, ids: number[]) {
 	for (const id of ids)
@@ -1744,7 +1742,7 @@ function restoreJournalHighlights(db: Database.Database, journal: MergeJournal, 
  * Put each journalled entry back on its own series. Its file is only the
  * journal's when it still holds what the merge wrote: a file gained while
  * merged is relative to the show's folder now, so it is rebased onto the
- * entry's own series instead of being erased (round 2). `liveTargetPath` is
+ * entry's own series instead of being erased. `liveTargetPath` is
  * the show's folder at the moment of the undo, before the journal restores it.
  */
 function restoreEntries(
@@ -1766,7 +1764,7 @@ function restoreEntries(
 		if (cur && cur.file !== mergeFile) {
 			// A file gained while merged is relative to the show's folder as it
 			// stood at the undo; a season with no folder of its own takes the
-			// file's own directory rather than losing it (round 3).
+			// file's own directory rather than losing it.
 			const named = moveFileOnto(
 				db,
 				e.series_id,
@@ -1794,7 +1792,7 @@ function readJournal(db: Database.Database, seriesId: number): MergeJournal | nu
 /**
  * Write the journal in place. `INSERT OR REPLACE` would delete and reinsert the
  * row, which cascades `season_reservations` away and would take the
- * placeholders with it (round 2). A first-season take-out moves the journal to
+ * placeholders with it. A first-season take-out moves the journal to
  * the next season's id, which the reservation's foreign key follows.
  */
 function writeJournal(
@@ -1858,7 +1856,7 @@ function rebaseFile(from: string, to: string, file: string): string {
 /**
  * The show's live per-season folders, by the season's original series id, read
  * before an undo deletes them: a folder a download gave a season while merged
- * names where its gained file actually is (round 3).
+ * names where its gained file actually is.
  */
 function liveSeasonFolders(
 	db: Database.Database,
@@ -1907,8 +1905,7 @@ function adoptFolder(
 /**
  * A moved file's name and its `available`, written together: the file is named
  * from its new series' folder, a series that has no folder takes the file's own
- * directory, and a file that cannot be named is no file, `available` included
- * (round 3).
+ * directory, and a file that cannot be named is no file, `available` included.
  */
 function moveFileOnto(
 	db: Database.Database,
@@ -1929,8 +1926,7 @@ function moveFileOnto(
 /**
  * The season a journal series originally numbered its entries with. A flat
  * list (every entry with a NULL season) answers NULL, so an episode added
- * while merged rejoins the flat list rather than becoming a season of one
- * (round 2).
+ * while merged rejoins the flat list rather than becoming a season of one.
  */
 function originalSeasonOf(journal: MergeJournal, id: number): number | null {
 	const own = journal.entries.filter((e) => e.series_id === id);
@@ -2064,7 +2060,7 @@ function carryCapturedRows(
 /**
  * An episode FOLLOW added while merged is on the show with a sheet season that
  * means nothing on its own: send it to the series of that season, give it that
- * season's own number, and resequence the series that received it (round 2).
+ * season's own number, and resequence the series that received it.
  */
 function rehomeAddedEntries(
 	db: Database.Database,
@@ -2093,8 +2089,8 @@ function rehomeAddedEntries(
 		const dest = journal.order[idx];
 		if (dest === undefined) continue;
 		// The added entry's file is relative to the show's folder as it stands now,
-		// which the journal may already have restored to an earlier one (round 2);
-		// a season with no folder takes the file's own directory (round 3).
+		// which the journal may already have restored to an earlier one;
+		// a season with no folder takes the file's own directory.
 		const named = moveFileOnto(
 			db,
 			dest,
@@ -2112,7 +2108,7 @@ function rehomeAddedEntries(
 /**
  * A series' live hide state, read before the journal puts its own back: a HIDE
  * or UNHIDE made while merged is the show's, and it decides every season's on
- * the undo (round 3).
+ * the undo.
  */
 function liveHiddenOf(db: Database.Database, id: number): number | null {
 	return (
@@ -2146,8 +2142,8 @@ function restoreAll(db: Database.Database, journal: MergeJournal, tables: ChildT
 	const captured = captureTargetRows(db, journal, tables);
 	const index = journalIndex(db, journal);
 	// The show's folder as it stands before the journal restores it: a file
-	// gained while merged is relative to this one (round 2), and its live
-	// per-season folders are where the downloader put those seasons (round 3).
+	// gained while merged is relative to this one, and its live
+	// per-season folders are where the downloader put those seasons.
 	const liveTargetPath = seriesPathOf(db, journal.target);
 	const liveFolders = liveSeasonFolders(db, journal);
 	const liveHidden = liveHiddenOf(db, journal.target);
@@ -2156,15 +2152,15 @@ function restoreAll(db: Database.Database, journal: MergeJournal, tables: ChildT
 	// journal puts each series' own back; anything written since is carried
 	// afterwards. `work_series` waits: deleting the show's row here would leave
 	// a Work short of members when a placeholder series goes, and the trigger
-	// would end it and cascade its outside member (round 2).
+	// would end it and cascade its outside member.
 	for (const table of new Set([...MERGE_TABLES, ...SEASON_TABLES]))
 		if (table !== 'work_series')
 			db.prepare(`DELETE FROM ${quoteName(table)} WHERE series_id = ?`).run(journal.target);
 	for (const id of journal.order) if (id !== journal.target) releaseReservation(db, 'series', id);
 	const lostWorks = new Set<number>();
 	// Which members can come back, read before any Work row is put back: a Work
-	// whose id a stranger holds, or whose members the owner has grouped
-	// elsewhere since, must not return (rounds 3 and 4).
+	// whose id a stranger holds, or whose members the user has grouped
+	// elsewhere since, must not return.
 	const plan = planWorkMembers(db, journal);
 	for (const w of journal.works)
 		if (!restoreWorkRow(db, journal, w, plan.get(Number(w.id))?.length ?? 0))
@@ -2183,10 +2179,10 @@ function restoreAll(db: Database.Database, journal: MergeJournal, tables: ChildT
 	restoreJournalHighlights(db, journal, journal.order);
 	carryCapturedRows(db, journal, captured, index);
 	// Privacy is not undone by putting the show back together: a HIDE or UNHIDE
-	// made while merged follows every season (round 3) and every other member
-	// of the Work, which is hidden whole (round 3's owner-action table). A
-	// series the owner has grouped elsewhere since is not its member, and the
-	// other Work must not be made mixed (round 4).
+	// made while merged follows every season and every other member
+	// of the Work, which is hidden whole. A
+	// series the user has grouped elsewhere since is not its member, and the
+	// other Work must not be made mixed.
 	if (liveHidden !== null && liveHidden !== journalHidden(journal)) {
 		for (const id of journal.order) applyHidden(db, id, liveHidden);
 		for (const m of journal.workMembers ?? [])
@@ -2202,15 +2198,15 @@ function restoreAll(db: Database.Database, journal: MergeJournal, tables: ChildT
 /**
  * The Work's membership as the journal has it: the seasons' own rows are in
  * their snapshots, and a member outside the merge has none, so its place would
- * otherwise follow whatever the owner did while merged (a reorder, an add, a
+ * otherwise follow whatever the user did while merged (a reorder, an add, a
  * take-out). A series still in the journal's Work gets its place back; a series
- * the owner has grouped since is left where the owner put it -- the undo never
+ * the user has grouped since is left where the user put it -- the undo never
  * takes a series out of a live Work it is not the journal's, and a Work is not
- * ended as a side effect of putting rows back (round 4).
+ * ended as a side effect of putting rows back.
  */
 function restoreWorkMembers(db: Database.Database, journal: MergeJournal, lostWorks: Set<number>) {
 	// The same test `planWorkMembers` counts with: a placeholder belongs to the
-	// second merge's journal, not this one (round 6).
+	// second merge's journal, not this one.
 	for (const m of journal.workMembers ?? []) {
 		if (lostWorks.has(Number(m.work_id))) continue;
 		if (!willExist(db, m.series_id)) continue;
@@ -2220,12 +2216,12 @@ function restoreWorkMembers(db: Database.Database, journal: MergeJournal, lostWo
 }
 
 /**
- * A Work the owner made around the show while merged follows the show (the
- * owner's decision, 2026-11-10), as the show's shelves do: on the first-season
+ * A Work the user made around the show while merged follows the show, as the
+ * show's shelves do: on the first-season
  * take-out the row that held the season which was the show moves to the season
  * that now is, at the same position. Only a Work made after the merge follows
  * -- a Work the journal restores is the merge's own -- and never one whose new
- * season already sits in another Work the owner made: two owner Works cannot
+ * season already sits in another Work the user made: two such Works cannot
  * both hold the show, so both are left as they are.
  */
 function followShowIntoOwnersWork(
@@ -2247,7 +2243,7 @@ function followShowIntoOwnersWork(
 	for (const row of rows) {
 		if (!owners(row.id)) continue;
 		// One Work holds a series: the new show leaves the journal's Work the
-		// restore put it in, and the owner's row takes its place.
+		// restore put it in, and the user's row takes its place.
 		db.prepare(`DELETE FROM work_series WHERE series_id = ?`).run(nextTarget);
 		db.prepare(`UPDATE work_series SET series_id = ? WHERE work_id = ? AND series_id = ?`).run(
 			nextTarget,
@@ -2260,7 +2256,7 @@ function followShowIntoOwnersWork(
 /**
  * A `work_series` row the merge added for the show is not in the journal:
  * remove it after the absorbed seasons are back, so the Work never passes
- * through a moment short of members (round 2).
+ * through a moment short of members.
  */
 function removeMergeAddedWorkRows(
 	db: Database.Database,
@@ -2335,7 +2331,7 @@ export function mergeSeasons(opts: {
 			if (workIds.length > 1) throw new GroupingError('a show cannot join two Works');
 			const workId = workIds[0] ?? null;
 			// Read before the merge writes: the Work's own members, the series
-			// outside the merge included, and each one's place (round 3).
+			// outside the merge included, and each one's place.
 			const workMembers =
 				workId === null
 					? []
@@ -2389,7 +2385,7 @@ export function mergeSeasons(opts: {
 			const target = order[0];
 			// The show's folder is the first season's that has one, so a streaming
 			// first season does not erase the later seasons' files; the journal's
-			// snapshot of the target row restores the empty path on undo (round 2).
+			// snapshot of the target row restores the empty path on undo.
 			const targetPath = data.find((d) => d.path !== '')?.path ?? '';
 			const paths = new Map(data.map((d) => [d.series.id, d.path]));
 			const entries = (
@@ -2407,9 +2403,9 @@ export function mergeSeasons(opts: {
 			const inList = order.join(', ');
 			const last = data[data.length - 1];
 
-			// FOLLOW asks the last season (c282), so the show is followed when it
+			// FOLLOW asks the last season, so the show is followed when it
 			// is: a last season nobody follows leaves the show unfollowed, and an
-			// earlier one being followed does not follow the show (round 2).
+			// earlier one being followed does not follow the show.
 			db.prepare(
 				`UPDATE series SET title = ?, rating = ?, favourite = ?, followed_at = ?, path = ? WHERE id = ?`
 			).run(
@@ -2450,7 +2446,7 @@ export function mergeSeasons(opts: {
 			}
 			// The episodes, their log rows and their queue follow the show; each
 			// moved episode's file is named from the show's folder, and one that
-			// cannot be named is no longer marked available (round 2).
+			// cannot be named is no longer marked available.
 			for (const d of data) {
 				const moved = db
 					.prepare(`SELECT id, file, available FROM entries WHERE series_id = ?`)
@@ -2530,8 +2526,8 @@ export function mergeSeasons(opts: {
 }
 
 /**
- * Whether a Work id is one a merge holds open, not a Work the owner can see
- * (c283, round 2). The sheet's ADD TO A WORK list reads this so a placeholder
+ * Whether a Work id is one a merge holds open, not a Work the user can see.
+ * The sheet's ADD TO A WORK list reads this so a placeholder
  * never appears there; every other Work reader joins `work_series`, which a
  * placeholder has none of.
  */
@@ -2555,7 +2551,7 @@ export function mergeState(seriesId: number): { seasons: number; madeAt: number 
  * own id, source, folder, link, rating, FAV, tags, shelves, Work and watched
  * state. The show's row is restored too, so a merge and its undo leave the
  * database as it was -- and whatever the show was used for in between rides
- * back to the series it belongs to (round 2).
+ * back to the series it belongs to.
  */
 export function ungroupSeasons(seriesId: number, now = Date.now()): number[] {
 	void now;
@@ -2581,7 +2577,7 @@ function endWorksOfOne(db: Database.Database) {
 }
 
 /**
- * Take one season out of a merged show (S3's SEASONS · EDIT; no screen yet).
+ * Take one season out of a merged show (SEASONS · EDIT; no screen yet).
  * A season becomes a series of its own again with its source, link, files and
  * watched state; the show keeps the rest, renumbered. The first season is the
  * show's own row, so taking it out hands the show to the next season and puts
@@ -2617,9 +2613,9 @@ export function takeOutSeason(seriesId: number, season: number, now = Date.now()
 				releaseReservation(db, 'series', taken);
 				// A Work the merge ended keeps its placeholder row: deleting it would
 				// cascade the show's own membership, and the Work would end with no
-				// reservation while the journal still lists it (round 2). One whose
+				// reservation while the journal still lists it. One whose
 				// id a stranger holds now is not the journal's, and the season's
-				// membership must not land on it (round 3).
+				// membership must not land on it.
 				const lostWorks = new Set<number>();
 				for (const w of journal.works) {
 					const id = Number(w.id);
@@ -2631,7 +2627,7 @@ export function takeOutSeason(seriesId: number, season: number, now = Date.now()
 				insertRow(db, 'series', snap.series, 'plain');
 				restoreSnapshot(db, taken, snap, lostWorks);
 				// A hide made while merged is the show's; the season goes out
-				// hidden with it (round 3).
+				// hidden with it.
 				if (liveHidden !== null && liveHidden !== journalHidden(journal))
 					applyHidden(db, taken, liveHidden);
 				restoreEntries(
@@ -2672,7 +2668,7 @@ export function takeOutSeason(seriesId: number, season: number, now = Date.now()
 					} else if (e.season > season) move.run(seriesId, e.season - 1, e.file, e.available, e.id);
 				}
 				// A log, queue or failure the show wrote for this season's episodes
-				// follows them out; the season's tracker state too (round 2).
+				// follows them out; the season's tracker state too.
 				const seasonRows = [...SEASON_CARRIED].map((table) => ({
 					table,
 					rows: db
@@ -2725,15 +2721,15 @@ export function takeOutSeason(seriesId: number, season: number, now = Date.now()
 				journal.order = journal.order.filter((id) => id !== taken);
 				journal.entries = journal.entries.filter((e) => e.series_id !== taken);
 				// A season out of the journal is out of its Work membership too: the
-				// show's later UNGROUP must not reach the series the owner has since
-				// made of it (round 4).
+				// show's later UNGROUP must not reach the series the user has since
+				// made of it.
 				journal.workMembers = (journal.workMembers ?? []).filter(
 					(m) => Number(m.series_id) !== taken
 				);
 				delete journal.snapshots[String(taken)];
 				writeJournal(db, journal, now);
 				// A Work that ends here keeps its id reserved for the undo: reserve
-				// after ending, never before, or a new Work takes the id (round 2).
+				// after ending, never before, or a new Work takes the id.
 				endWorksOfOne(db);
 				reserveReservations(db, journal, now);
 				return taken;
@@ -2764,12 +2760,12 @@ export function takeOutSeason(seriesId: number, season: number, now = Date.now()
 
 			restoreAll(db, journal, tables);
 			const nextTarget = journal.order[idx + 1];
-			// A Work the owner made around the show while merged follows the show
-			// (the owner's decision, 2026-11-10), as its shelves do below.
+			// A Work the user made around the show while merged follows the show,
+			// as its shelves do below.
 			followShowIntoOwnersWork(db, journal, taken, nextTarget);
 			// The show takes the first remaining season's folder that has one, as
 			// the merge does, rather than the next season's empty one: a streaming
-			// second season must not erase the last's files (round 3). The live
+			// second season must not erase the last's files. The live
 			// rows are the journal's again, with any folder the undo gave a gained
 			// file.
 			const nextPath =
@@ -2840,10 +2836,10 @@ export function takeOutSeason(seriesId: number, season: number, now = Date.now()
 			// The show's Work membership is the journal's, restored above: the
 			// next season keeps its own place, and the taken-out first season keeps
 			// its own like any taken-out season. The show is not reinserted into a
-			// Work the owner made around it since, and the Work it was in is not
-			// ended by the restore (round 4).
+			// Work the user made around it since, and the Work it was in is not
+			// ended by the restore.
 			// The episodes of the seasons that stay move to the new show, named
-			// from its folder now, and `available` goes with the file (round 3).
+			// from its folder now, and `available` goes with the file.
 			const liveFolders = new Map<number, string | null>();
 			for (const row of facts)
 				liveFolders.set(
@@ -2872,7 +2868,7 @@ export function takeOutSeason(seriesId: number, season: number, now = Date.now()
 				}
 			}
 			// The seasons that stay keep their reading log, queue and failures
-			// before their old rows go (round 2).
+			// before their old rows go.
 			const gone = journal.order.slice(2);
 			for (const table of ENTRY_TABLES)
 				for (const id of gone)
@@ -2890,12 +2886,12 @@ export function takeOutSeason(seriesId: number, season: number, now = Date.now()
 			);
 			journal.target = nextTarget;
 			journal.entries = journal.entries.filter((e) => e.series_id !== taken);
-			// The taken-out season is the journal's no more (round 4).
+			// The taken-out season is the journal's no more.
 			journal.workMembers = (journal.workMembers ?? []).filter(
 				(m) => Number(m.series_id) !== taken
 			);
 			writeJournal(db, journal, now, seriesId);
-			// A Work that ends here keeps its id reserved for the undo (round 2).
+			// A Work that ends here keeps its id reserved for the undo.
 			endWorksOfOne(db);
 			reserveReservations(db, journal, now);
 			return taken;

@@ -3,19 +3,19 @@ import { sourceKindChoices, type Kind, type SourceFamily } from '../../library/k
 import { keyFamily, sourceOfKey } from '../../library/downloads.ts';
 
 /**
- * The kind a source serves (card c986; doc/KINDS.md, "The kind a source
+ * The kind a source serves (doc/KINDS.md, "The kind a source
  * cannot name"), kept per source in the `settings` table as
  * `source.kind:<id>` = a kind's name. **No row is AUTO**: the plan's own
  * inference (a gallery's doujin, a "Manhwa" genre, a webtoon-only source),
- * which is what a friend never has to think about. A row is the owner's
+ * which is what a friend never has to think about. A row is the user's
  * explicit word, and it wins over every inference — including `manga` on a
  * gallery source, which is why the default is not "no row".
  *
  * What it decides is **new** series from that source, at the importers' one
- * writer (`import/write.ts`), which is every door: a Mihon backup, ADD from
- * BROWSE, an anime's ADD, a novel's, a sync and FOLLOW. A series already in
+ * writer (`import/write.ts`), which every path goes through: a Mihon backup, ADD
+ * from BROWSE, an anime's ADD, a novel's, a sync and FOLLOW. A series already in
  * the library keeps its own kind: this is a default, never a rewrite, and the
- * series screen's own switch is c992's.
+ * series screen has its own switch.
  *
  * `sourceFamilyOf` in the registry is the inverse of `SOURCE_KINDS`, one
  * family per kind, and that is still true: it decodes the word an APK family
@@ -44,7 +44,7 @@ export function sourceKind(sourceId: string, family: SourceFamily, db = getDb())
 /**
  * Writes a source's kind: `null` (AUTO) deletes the row. A kind the family
  * cannot serve is refused here, before anything is stored, so the settings
- * page and any later door cannot disagree about it.
+ * page and any later path cannot disagree about it.
  */
 export function setSourceKind(
 	sourceId: string,

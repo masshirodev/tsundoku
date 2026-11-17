@@ -13,15 +13,16 @@ import {
 } from '$lib/server/pairing';
 
 /**
- * A TV pairing itself with a typed code (c236; doc/TV.md, "Pairing";
- * TV-Pair.dc.html 9C and 9E). The app reaches this page once it has found the
- * computer; the computer's SETTINGS shows six digits beside the phone's QR.
+ * A TV pairing itself with a typed code (doc/TV.md, "Pairing"). The app reaches
+ * this page once it has found the computer; the computer's SETTINGS shows six
+ * digits beside the phone's QR.
  *
- * 9C and 9E are the computer's own route rather than the app's asset pages,
- * because the code is posted same-origin and the cookie that pairs the TV is
- * set here, exactly as `/pair/<code>` sets it for a phone: no CORS, no second
- * way to be signed in. That is also why this route is public (`hooks.server.ts`)
- * and why it never shows a code: the digits live on the computer's screen.
+ * The code entry and its answer are the computer's own route rather than the
+ * app's asset pages, because the code is posted same-origin and the cookie that
+ * pairs the TV is set here, exactly as `/pair/<code>` sets it for a phone: no
+ * CORS, no second way to be signed in. That is also why this route is public
+ * (`hooks.server.ts`) and why it never shows a code: the digits live on the
+ * computer's screen.
  */
 
 const SIX = /^\d{6}$/;
@@ -29,27 +30,25 @@ const SIX = /^\d{6}$/;
 const computerName = () => (hostname() || 'computer').toUpperCase();
 
 /**
- * A TV that opened this page with nothing it can type gets a code made here:
- * none yet, or one that has merely run out (c246; the owner's (b),
- * 2026-11-04). A burned code is not replaced -- five wrong tries need the
- * computer, 9D's reason -- and neither is a used one while the computer still
- * shows it ✓ USED (`TvPairing.renewForTv` has every state). The computer's
+ * A TV that opened this page with nothing it can type gets a code made here: none
+ * yet, or one that has merely run out. A burned code is not replaced -- five
+ * wrong tries need the computer -- and neither is a used one while the computer
+ * still shows it ✓ USED (`TvPairing.renewForTv` has every state). The computer's
  * WI-FI panel and DEVICES row read the new digits on their next refresh.
  */
 const ensureCode = (now: number) => tvPairing.renewForTv(now);
 
 /**
  * The state the page draws: `TvPairing.state`, the one rule SETTINGS' DEVICES
- * row and WI-FI panel read too (c581). A burned code is burned for good, so one
+ * row and WI-FI panel read too. A burned code is burned for good, so one
  * past its 10 minutes still says NO TRIES LEFT rather than THIS CODE EXPIRED,
- * whose remedy (a new code) this page would otherwise seem to owe it. Until
- * c581 this page held that rule alone, and the computer said EXPIRED.
+ * whose remedy (a new code) this page would otherwise seem to owe it.
  */
 const shown = (now: number) => tvPairing.state(now);
 
 export const load: PageServerLoad = ({ cookies, url, request }) => {
 	const now = Date.now();
-	// The TV's, or the phone app's on a phone or a tablet (c521): the words
+	// The TV's, or the phone app's on a phone or a tablet: the words
 	// and the layout follow it; the code, the cookie and every rule do not.
 	const device = appDevice(request.headers.get('user-agent') ?? '');
 	const paired = readPaired(cookies, url, (t) => pairedBy(t));
@@ -90,7 +89,7 @@ export const actions: Actions = {
 		const result = tvPairing.redeem(typed, Date.now(), pairedLabel(ua));
 		if (result === 'ok') {
 			const token = addPaired({ label: pairedLabel(ua), address: url.host });
-			// This origin's name (c530): another tsundoku on the computer keeps its own.
+			// This origin's name: another tsundoku on the computer keeps its own.
 			cookies.set(pairedCookie(url), token, PAIRED_COOKIE_OPTIONS);
 			redirect(303, '/pair/tv');
 		}

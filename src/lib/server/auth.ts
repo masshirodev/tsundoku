@@ -125,7 +125,7 @@ export function setSession(cookies: Cookies, value: string, url: URL) {
 }
 
 /**
- * A wrong password costs the guesser time: a phone on the same Wi-Fi (c188)
+ * A wrong password costs the guesser time: a phone on the same Wi-Fi
  * could otherwise try thousands a minute. scrypt's own ~50 ms is most of it.
  */
 export const slowDown = () => new Promise((ok) => setTimeout(ok, 400));

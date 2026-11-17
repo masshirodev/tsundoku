@@ -52,10 +52,10 @@ const DEFAULT_LANGUAGES = ['en', 'ja'];
 const LANGUAGE_CELLS = 12;
 
 /**
- * The EXTENSIONS row's counts (c725; doc/SETTINGS.md, "07 — BROWSE"): what
+ * The EXTENSIONS row's counts (doc/SETTINGS.md, "07 — BROWSE"): what
  * EXTENSIONS' own INSTALLED tab counts, from the same two views its load
  * reads (`installedView`, and the plugins through `pluginsShown`), so the two
- * doors never disagree, hidden ones included only inside reveal. Both are
+ * screens never disagree, hidden ones included only inside reveal. Both are
  * the database's record of what is installed and what its repositories
  * offer, so they answer whether or not the engine is running now.
  */
@@ -68,10 +68,10 @@ function extensionCounts(reveal: boolean): { installed: number; updates: number 
 }
 
 /**
- * SETTINGS, one page (doc/SETTINGS.md; card c171, Settings.dc.html): every
+ * SETTINGS, one page (doc/SETTINGS.md): every
  * setting once, in eight sections, each row saying where it's kept. The
  * library's values come from here; this device's are its browser's, and
- * another device's (2C) are the workstation's copy, listed under DEVICES.
+ * another device's are the computer's copy, listed under DEVICES.
  * Counts follow reveal, as every list does: hidden series aren't counted.
  */
 export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest, request }) => {
@@ -87,34 +87,34 @@ export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest
 	).n;
 	// Opening the page on the computer renews a spent code, and only opening
 	// it: a reload of its data (every `invalidateAll()` and enhanced form)
-	// reads the codes as they are, so a burn stays burned (c531). A client-side
+	// reads the codes as they are, so a burn stays burned. A client-side
 	// navigation here sends `?/renew` itself (`settingsVisit`).
 	const visit = settingsVisit({ isDataRequest, method: request.method });
 	const wifi = await (async () => {
-		// A phone's SETTINGS over Wi-Fi is shown no code, so it makes none either
-		// (c460), nor the firewall's lines, which are the computer's (c721).
+		// A phone's SETTINGS over Wi-Fi is shown no code, so it makes none either,
+		// nor the firewall's lines, which are the computer's.
 		const lan = locals.via === 'lan';
 		const w = await wifiAnswer({ renew: visit && !lan });
 		return w && lan ? { ...w, code: null, tv: null, firewall: null, noPhoneYet: false } : w;
 	})();
 	// With no WI-FI panel there is no row to carry the TV's six digits, so
-	// DEVICES shows them itself -- but only where the cookie they set is a
-	// door (tvBlockFor). A friend's install served over the tailnet has no
-	// panel and no door either: its TV signs in with the password. Nor has a
+	// DEVICES shows them itself -- but only where the cookie they set signs a
+	// TV in (tvBlockFor). A friend's install served over the tailnet has no
+	// panel and no TV cookie either: its TV signs in with the password. Nor has a
 	// token install with no ORIGIN (dev, preview, serve.ts's local mode):
-	// the hook refuses every TV's cookie there (c264).
+	// the hook refuses every TV's cookie there.
 	const tvHere = tvBlockHere(locals);
 	const tv = tvHere ? tvPanel({ renew: visit }) : null;
 	return {
 		values: libraryValues(),
 		counts: overrideCounts(reveal),
 		folded,
-		// SETTINGS > 05's IMPORT A BACKUP row says when the last one came in (c438).
+		// SETTINGS > 05's IMPORT A BACKUP row says when the last one came in.
 		lastImport: (() => {
 			const e = lastImport(reveal);
 			return e ? { at: e.at, app: e.app, series: e.counts.fresh + e.counts.merged } : null;
 		})(),
-		// What N SERIES DIFFER → opens (2A).
+		// What N SERIES DIFFER → opens.
 		lists: {
 			audio: overrides('audio', reveal),
 			subs: overrides('subs', reveal),
@@ -128,18 +128,18 @@ export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest
 		},
 		// Reading on a phone over Wi-Fi (doc/WIFI.md): a local friend's install
 		// only. Opening the page on the computer shows a code that works
-		// (wifi.ts); a phone sees the row and never a code (3E).
+		// (wifi.ts); a phone sees the row and never a code.
 		wifi,
 		viaLan: locals.via === 'lan',
-		// The TV's six digits where there is no WI-FI row to show them (c245).
+		// The TV's six digits where there is no WI-FI row to show them.
 		tv,
 		// Whether that row is drawn here at all, code or none: a client-side
-		// visit's load is a data request that makes no code (c531), so after a
+		// visit's load is a data request that makes no code, so after a
 		// restart `tv` is null until `?/renew` answers, and the row, its NEW
-		// CODE and the page's `?/renew` must not hang on it (round 2).
+		// CODE and the page's `?/renew` must not hang on it.
 		tvHere,
-		// The whole address the app types on the owner's tailnet install, where
-		// the digits' row has no last-number shortcut (c521): the instance's
+		// The whole address the app types on a tailnet install, where
+		// the digits' row has no last-number shortcut: the instance's
 		// public origin, which is what the request's URL is built from there.
 		appOrigin: tvHere ? url.origin : null,
 		paired: Object.fromEntries(
@@ -162,14 +162,14 @@ export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest
 			seenAt: d.seenAt,
 			settings: d.settings
 		})),
-		// CATALOGUES (Catalogue Links 1u, 1v; doc/TRACKING.md).
+		// CATALOGUES (doc/TRACKING.md).
 		catalogues: {
 			linked: linkCount(),
 			toReview: linkQueueCount(reveal) + ranobeQueueCount() + tmdbQueueCount(reveal),
 			accounts: accounts(),
-			// Ranobe's row (Ranobe 3a–3c; doc/RANOBE.md): no sign-in, a token in .env.
+			// Ranobe's row (doc/RANOBE.md): no sign-in, a token in .env.
 			ranobe: ranobeAccount(),
-			// TMDB's row (c993; Keys-Key): a key typed here, or the environment's.
+			// TMDB's row: a key typed here, or the environment's.
 			tmdb: tmdbKeyRow()
 		},
 		// How a sign-in went, coming back from the catalogue.
@@ -197,8 +197,8 @@ export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest
 					})()
 				: null,
 		// WEBVIEW (doc/SETTINGS.md, "07 — BROWSE"): the engine's headless browser
-		// for the extensions that need one, off unless this install turns it on
-		// (card c978). Drawn wherever 07 is and an engine is set up.
+		// for the extensions that need one, off unless this install turns it on.
+		// Drawn wherever 07 is and an engine is set up.
 		webview: downloadsBackend() === 'engine' && engineConfigured() ? await webviewView() : null
 	};
 };
@@ -221,7 +221,7 @@ function posted(form: FormData): { ok: true; v: Json | undefined } | { ok: false
 
 export const actions: Actions = {
 	/**
-	 * SAVE on TMDB's row (Keys-Key 3B, 3C, 3D, 3E): checked with TMDB first,
+	 * SAVE on TMDB's row: checked with TMDB first,
 	 * kept only if TMDB takes it. Offline is its own answer, so a good key is
 	 * never called wrong; the band counts what the next pass will look up.
 	 */
@@ -236,7 +236,7 @@ export const actions: Actions = {
 		if (outcome !== 'ok') return fail(422, { tmdbKey: outcome });
 		return { tmdbKey: 'saved' as const, waiting: waitingForAKey() };
 	},
-	/** REMOVE KEY (Keys-Key 3F): the key alone; links and overviews stay. */
+	/** REMOVE KEY: the key alone; links and overviews stay. */
 	tmdbKeyRemove: async () => {
 		removeTmdbKey();
 		return { tmdbKey: 'removed' as const };
@@ -249,13 +249,13 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 	/**
-	 * NEW CODE on DEVICES' TV block (c245): the six digits a remote types. The
+	 * NEW CODE on DEVICES' TV block: the six digits a remote types. The
 	 * page's own data is reloaded after it, which is how the new code is read --
-	 * `/api/pair/tv` answers at the computer only, and the owner's SETTINGS is
+	 * `/api/pair/tv` answers at the computer only, and the user's SETTINGS is
 	 * on the tailnet.
 	 *
 	 * The same rule that draws the block decides whether this can make one: no
-	 * other door may change a code nothing on its screen can use.
+	 * other action may change a code nothing on its screen can use.
 	 */
 	tvCode: async ({ locals }) => {
 		if (!tvBlockHere(locals)) return fail(403, { message: 'set on the computer only' });
@@ -263,7 +263,7 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 	/**
-	 * A client-side navigation into SETTINGS (c531): a real visit, which the
+	 * A client-side navigation into SETTINGS: a real visit, which the
 	 * load can't tell from a reload of the page's data, both being data
 	 * requests. The page sends this from `afterNavigate` when it has been
 	 * arrived at from another screen, then reloads its data to draw the result.
@@ -353,7 +353,7 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
-	/** ✕ on one series that differs, or CLEAR ALL N (2A): back on the default. */
+	/** ✕ on one series that differs, or CLEAR ALL N: back on the default. */
 	clear: async ({ request }) => {
 		const form = await request.formData();
 		const what = String(form.get('what'));
@@ -365,7 +365,7 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
-	/** Another device's value changed from here (2C): it takes it when it next opens. */
+	/** Another device's value changed from here: it takes it when it next opens. */
 	device: async ({ request }) => {
 		const form = await request.formData();
 		const id = String(form.get('device'));

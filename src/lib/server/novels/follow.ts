@@ -10,7 +10,7 @@ import { NovelSourceError, parseNovel } from './source.ts';
 import { writeBook } from './downloader.ts';
 
 /**
- * FOLLOW for a novel (doc/NOVELS.md, "FOLLOW"; card c151), as for a manga
+ * FOLLOW for a novel (doc/NOVELS.md, "FOLLOW"), as for a manga
  * (engine/backend.ts, followNew): every six hours its plugin is asked for the
  * novel again; a chapter it lists that no entry is becomes one, through the
  * importers' one writer with the same plan ADD used, and is queued unless
@@ -63,7 +63,7 @@ export function novelCheckedAt(seriesId: number, db: Database.Database = getDb()
  * queues what FOLLOW should. Returns how many arrived, and how many were
  * queued. Throws when the plugin can't answer: the check isn't recorded, so
  * the next step asks again. As for an anime, FOLLOW is not a condition:
- * REFRESH (card c220) asks a novel the owner doesn't follow, and queues
+ * REFRESH asks a novel the reader doesn't follow, and queues
  * nothing (`queue: false`).
  */
 export async function checkNovel(
@@ -96,7 +96,7 @@ export async function checkNovel(
 	let moved = 0;
 	db.transaction(() => {
 		if (fresh.length)
-			// Only the new chapters; nothing the owner set on the series moves.
+			// Only the new chapters; nothing the reader set on the series moves.
 			writeSeries(
 				{ ...plan, coverUrl: undefined, entries: fresh },
 				{ rootId: s.root_id, jobId: null, now, markMissing: false },

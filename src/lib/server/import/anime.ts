@@ -6,19 +6,18 @@ import { readEpisodeNfo, readMovieNfo, readTvshowNfo } from '../../library/anime
 import { storageOf, type Kind } from '../../library/kinds.ts';
 
 /**
- * The anime folders as series (doc/ANIME.md, "Downloading"; card c157):
+ * The anime folders as series (doc/ANIME.md, "Downloading"):
  * every series folder under `Anime/` and `Anime (hidden)/` with a
  * tvshow.nfo tsundoku wrote, and every episode in it with its .nfo, folded
  * onto the `aniyomi:` series and the episodes they name. The importer stays
  * the one place a file becomes an entry, as for chapters and books. A folder
  * someone else put there (no tsundoku key) is left alone.
  *
- * Every video kind is planned the same way from its own folders (card c991;
- * `storage` in kinds.ts): a show's under `Shows/` exactly as an anime's, and a
+ * Every video kind is planned the same way from its own folders (`storage`
+ * in kinds.ts): a show's under `Shows/` exactly as an anime's, and a
  * film's under `Movies/`, where a folder holds the film's file and its
  * `<movie>` NFO, which names the series and the entry both. A series is planned
- * with the kind its NFO says (`<tsundokukind>`), an anime when it says none,
- * as every file before c991.
+ * with the kind its NFO says (`<tsundokukind>`), an anime when it says none.
  */
 
 const listDirs = (dir: string) => {
@@ -145,7 +144,7 @@ export function planAnimeSeries(
 }
 
 /**
- * A film's folder (c991): the series and its entries from the `<movie>` NFO
+ * A film's folder: the series and its entries from the `<movie>` NFO
  * beside each file. A file whose NFO names another series' key is not this
  * folder's, and is left alone.
  */
@@ -262,7 +261,7 @@ function planAnimeDir(
 		originKey: show.key,
 		source: show.source || 'aniyomi',
 		title: show.title || show.key,
-		// The kind the folder's NFO says (c991): a show's, or an anime's.
+		// The kind the folder's NFO says: a show's, or an anime's.
 		kind: show.kind,
 		rating: 0,
 		favourite: false,

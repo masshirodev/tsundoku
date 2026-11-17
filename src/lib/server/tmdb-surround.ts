@@ -12,15 +12,15 @@ import {
 import type { TmdbCollection, TmdbShowFacts } from '../library/tmdb.ts';
 
 /**
- * What surrounds a film or a show, the workstation's half (card c990;
- * doc/LINKS.md, "What surrounds it"). TMDB's facts are cached per entry in
- * `tmdb_surroundings` (rung 81), filled by TMDB's timer and after a LINK, and
+ * What surrounds a film or a show, the server's half (doc/LINKS.md, "What
+ * surrounds it"). TMDB's facts are cached per entry in
+ * `tmdb_surroundings` (migration 81), filled by TMDB's timer and after a LINK, and
  * **only by id**: an entry the library already links, so nothing is searched
  * and no title leaves. A screen reads what is cached or draws nothing; it never
  * waits on TMDB.
  *
  * With no key nothing is fetched, and a cached answer from before the key
- * went is still drawn: it is TMDB's public catalogue, not the owner's.
+ * went is still drawn: it is TMDB's public catalogue, not the reader's.
  */
 
 /** How long a cached answer stands. A show still airing changes weekly; a finished one, or a collection, rarely. */

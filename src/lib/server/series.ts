@@ -149,7 +149,7 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		volume: e.volume,
 		originSource: names.get(e.origin_source) ?? '',
 		tags: [],
-		// An episode's own (doc/ANIME.md). Its picture is made on the workstation (c225).
+		// An episode's own (doc/ANIME.md). Its picture is made on the workstation.
 		episode:
 			kindFacts(card.kind).medium === 'video'
 				? {
@@ -203,11 +203,10 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
  * Mark entries read or unread. Only ids belonging to `seriesId` are touched,
  * so a crafted form cannot reach into another series.
  *
- * MARK UNREAD on a read entry starts it from the top (the owner's rule, c622,
- * 2026-11-07): its place, and a novel's offset beside it, go with the mark,
- * in both readers. A read entry's place is where the last read ended, so a
+ * MARK UNREAD on a read entry starts it from the top: its place, and a
+ * novel's offset beside it, go with the mark, in both readers. A read entry's place is where the last read ended, so a
  * ▶ CONTINUE that kept it would open a finished chapter on its last page. A
- * mistaken MARK READ THROUGH is put back by its own door,
+ * mistaken MARK READ THROUGH is put back by its own UNDO,
  * `undoMarkReadThrough`, never through this one.
  */
 export function markEntries(
@@ -229,7 +228,7 @@ export function markEntries(
 					AND read_at IS ${read ? '' : 'NOT '}NULL`
 				)
 				.all(seriesId, ...ids) as { id: number }[];
-			// Marked unread is remembered (rung 28), so an import doesn't bring an old read back.
+			// Marked unread is remembered (migration 28), so an import doesn't bring an old read back.
 			// `changing` is what actually moves, so an entry MARK UNREAD reaches here was read.
 			const place = read ? '' : ', last_position = NULL, last_offset = NULL';
 			const update = db.prepare(
@@ -260,7 +259,7 @@ export function markEntries(
 }
 
 /**
- * What a MARK READ THROUGH changed, as its band's UNDO posts it back (c666):
+ * What a MARK READ THROUGH changed, as its band's UNDO posts it back:
  * the stamp every entry it read now holds, and each one's place at the press.
  * `place` and `offset` are what each reader saved: an image's page or a
  * novel's block, and the novel's character beside it. Null is never opened.
@@ -299,14 +298,14 @@ export function markReadThrough(
 }
 
 /**
- * UNDO on MARKED READ THROUGH (c666): back to unread, each chapter at the
+ * UNDO on MARKED READ THROUGH: back to unread, each chapter at the
  * place the press saw, which MARK UNREAD's clear must never reach.
  *
  * The press writes no place, so a chapter still holding the one it handed
  * back needs nothing written but its marks: comparing is what restoring is
  * here, and it means a forged place can only fail to match. A chapter that
  * no longer holds this press's stamp or that place was read or marked since,
- * in another tab or on another device. That is the owner's newer word, so it
+ * in another tab or on another device. That is the user's newer word, so it
  * stays as it is and is counted in `kept`. No clock is compared.
  */
 export function undoMarkReadThrough(
@@ -442,7 +441,7 @@ export function readableEntry(seriesId: number, entryId: number, reveal: boolean
 	);
 }
 
-/** Where a series of [kind] starts reading, as SETTINGS has it (doc/SETTINGS.md; card c171). */
+/** Where a series of [kind] starts reading, as SETTINGS has it (doc/SETTINGS.md). */
 export function kindDirection(kind: Kind): Direction | undefined {
 	const key = `mode_${kind}`;
 	return isSettingKey(key) ? (getSetting(key) as Direction) : undefined;
@@ -453,7 +452,7 @@ export function setDirection(seriesId: number, direction: Direction | null): voi
 }
 
 /**
- * RENAME (c526; doc/SERIES.md, "RENAME"): the owner's own name for a series.
+ * RENAME (doc/SERIES.md, "RENAME"): the user's own name for a series.
  * `title` is written once, at the series' INSERT, and nothing after it writes
  * it back -- not a scan, a source's REFRESH, a backup import or a cover pass
  * (`tests/series-rename-db.spec.ts` runs each) -- so a rename sticks with no
@@ -499,15 +498,15 @@ export function renameSeries(seriesId: number, name: string): SeriesRenameFacts 
 /**
  * UNDO of a rename: the name and the alternative titles as they were. Only
  * while the series still carries the name this rename gave it; a later rename
- * is the owner's newer word, and an older band's UNDO must not undo it.
+ * is the user's newer word, and an older band's UNDO must not undo it.
  *
  * The facts come back from the page as posted JSON, so they are checked as
- * RENAME checks a typed name (c539 review, round 2): a blank title is
+ * RENAME checks a typed name: a blank title is
  * refused, and `alt_titles` is written only as a JSON list of strings, since
  * its readers (`ranobe-review.ts` among them) parse it bare.
  */
 export function undoRenameSeries(facts: SeriesRenameFacts): void {
-	// The name exactly as it was stored, spaces and all (c555): it is what a
+	// The name exactly as it was stored, spaces and all: it is what a
 	// source, a scan and the series' other names were matched against, and a
 	// trimmed one was a name it never had. Only a blank one is refused.
 	const title = typeof facts.title === 'string' ? facts.title : '';

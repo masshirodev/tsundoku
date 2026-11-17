@@ -1,7 +1,7 @@
 import { getDb } from './db.ts';
 
 /**
- * The library's own preferences (the SETTINGS screen; rung 24's `settings`),
+ * The library's own preferences (the SETTINGS screen; migration 24's `settings`),
  * as opposed to a device's (the READING sheet, in each browser): the language
  * a folded book opens in (doc/EDITIONS.md), when the download queue was paused
  * from tsundoku (doc/DOWNLOADS.md; '' while it isn't), and the languages
@@ -11,11 +11,11 @@ const DEFAULTS = {
 	edition_language: 'english',
 	downloads_paused_at: '',
 	// The languages BROWSE lists sources in, and the available extensions open
-	// filtered to (doc/BROWSE.md): the owner reads English and Japanese.
+	// filtered to (doc/BROWSE.md).
 	browse_languages: 'en,ja',
 	// The height episodes download at (doc/ANIME.md, "Downloading"; default 3).
 	anime_download_quality: '1080',
-	// The rest are the SETTINGS page's (doc/SETTINGS.md; card c171). Where a
+	// The rest are the SETTINGS page's (doc/SETTINGS.md). Where a
 	// series of each kind starts reading, until it remembers its own.
 	mode_manga: 'rtl',
 	mode_manhwa: 'vertical',
@@ -29,16 +29,16 @@ const DEFAULTS = {
 	// The player's last choice on any anime, with where and when: JSON, or ''.
 	anime_last: '',
 	// Audio a download keeps beside the original, comma-separated; '' keeps
-	// every track (c160). Subtitles: 'all', or 'audio' for the same languages.
+	// every track. Subtitles: 'all', or 'audio' for the same languages.
 	anime_download_audio: '',
 	anime_download_subs: 'all',
-	// GET STARTED's skipped steps (doc/ONBOARDING.md; card c208): a JSON list,
+	// GET STARTED's skipped steps (doc/ONBOARDING.md): a JSON list,
 	// kept on the computer so the PC and a paired phone show the same list.
 	start_skipped: '[]',
-	// A TMDB key typed in SETTINGS › CATALOGUES (c993; doc/LINKS.md, "Which
+	// A TMDB key typed in SETTINGS › CATALOGUES (doc/LINKS.md, "Which
 	// catalogue"): the install's own, '' for none. The environment's
-	// (TMDB_API_RC_TOKEN, TMDB_API_KEY) wins when it has one, so the
-	// workstation's Infisical key is never overridden from a screen. Beside it,
+	// (TMDB_API_RC_TOKEN, TMDB_API_KEY) wins when it has one, so a key the
+	// environment provides is never overridden from a screen. Beside it,
 	// when it last passed TMDB's check and when TMDB last refused it.
 	tmdb_key: '',
 	tmdb_key_checked_at: '',
@@ -62,7 +62,7 @@ export function clearSetting(key: SettingKey): void {
 	getDb().prepare(`DELETE FROM settings WHERE key = ?`).run(key);
 }
 
-/** Whether the owner set it, as opposed to it standing at its default. */
+/** Whether the user set it, as opposed to it standing at its default. */
 export function isSet(key: SettingKey): boolean {
 	return !!getDb().prepare(`SELECT 1 FROM settings WHERE key = ?`).get(key);
 }

@@ -5,7 +5,7 @@ import { workChoices } from '$lib/server/works';
 import { isRevealed } from '$lib/server/prefs';
 
 /**
- * What the selection's sheets list on `/search` (c838): GROUP's ADD TO
+ * What the selection's sheets list on `/search`: GROUP's ADD TO
  * EXISTING and ADD TO A WORK, and HIDE's count of a Work's series. The library
  * loads these with its page; the search loads them only while selecting, so a
  * keystroke of an ordinary search does not pay for them.

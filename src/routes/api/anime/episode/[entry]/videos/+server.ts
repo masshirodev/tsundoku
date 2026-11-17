@@ -24,8 +24,8 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
 	if (!Number.isInteger(id) || id <= 0) error(404, 'not found');
 	const incognito = isIncognito(cookies);
 	try {
-		// The source's own timestamps, then AniSkip for what it left empty
-		// (c239). Incognito asks neither, and a hidden series is never looked
+		// The source's own timestamps, then AniSkip for what it left empty.
+		// Incognito asks neither, and a hidden series is never looked
 		// up; both are enforced before any request leaves the app.
 		const s = await episodeStreams(
 			id,
@@ -41,15 +41,15 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
 		if (!incognito) {
 			wantPictures([id]);
 			// A season's downloaded episodes are fingerprinted for their opening
-			// and ending, in the background (c239). Incognito leaves nothing behind.
+			// and ending, in the background. Incognito leaves nothing behind.
 			wantSkipMarks(id);
 			// A downloaded episode's seek preview, made once from its file after
-			// its first play (c385); a streamed one has nothing to make.
+			// its first play; a streamed one has nothing to make.
 			if (s.servers.some((x) => x.n === 0)) wantSprite(id);
 		}
 		return json(s, { headers: { 'cache-control': 'private, no-store' } });
 	} catch (e) {
-		// The source service not answering is said without naming the engine (Player Waiting 3b).
+		// The source service not answering is said without naming the engine.
 		if (e instanceof EngineError) {
 			// A browser still downloading, or turned off, says nothing of the episode.
 			if (e.failure !== 'down' && e.failure !== 'webview' && !incognito) recordNoVideo(id);

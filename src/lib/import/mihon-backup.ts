@@ -3,9 +3,9 @@ import { Message, encode, type Msg } from './protobuf.ts';
 /**
  * Mihon's `.tachibk` (gunzipped), decoded into the parts tsundoku imports.
  * Field numbers are Mihon's published `Backup` schema, checked against a
- * real backup on 2026-09-23 (doc/IMPORT-MIHON.md has the table). Everything
- * else in the file -- preferences, extension repos -- is skipped. Trackers
- * were read from 2026-09-24, for catalogue links (doc/LINKS.md).
+ * real backup (doc/IMPORT-MIHON.md has the table). Everything else in the
+ * file -- preferences, extension repos -- is skipped. Trackers are read, for
+ * catalogue links (doc/LINKS.md).
  */
 
 /**
@@ -147,7 +147,7 @@ export function decodeBackup(raw: Uint8Array): MihonBackup {
 }
 
 /**
- * A backup chosen on IMPORT A BACKUP (c438), read as decodeBackup reads it but
+ * A backup chosen on IMPORT A BACKUP, read as decodeBackup reads it but
  * one series at a time: a series whose bytes don't decode is refused by its
  * title (or as untitled when even that is unreadable) and the rest still
  * come in. `fields` are the top-level field numbers present, which is what

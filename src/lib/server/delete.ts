@@ -22,8 +22,8 @@ import { heldBy, heldByEntry, removeHighlightRows, unlinkCopies } from './highli
  *    and source URLs, and both stay in Mihon's backup and on the other
  *    devices, so without one the next scan or sync would bring it back.
  *
- * Highlights are kept (c701; doc/HIGHLIGHTS.md): rung 72's triggers mark
- * them ORPHAN as the rows go, whichever door deletes. DELETE THEM TOO
+ * Highlights are kept (doc/HIGHLIGHTS.md): migration 72's triggers mark
+ * them ORPHAN as the rows go, whatever deletes them. DELETE THEM TOO
  * (`highlights: true`) removes them and their copies as well, in the same
  * transaction as the rows.
  *
@@ -126,7 +126,7 @@ export type DeleteResult = {
 
 export type DeleteOptions = { now?: number; highlights?: boolean };
 
-/** `now` alone is how the callers before c701 passed it; both shapes are taken. */
+/** `now` alone is how older callers pass it; both shapes are taken. */
 const optionsOf = (o: number | DeleteOptions | undefined): Required<DeleteOptions> =>
 	typeof o === 'number'
 		? { now: o, highlights: false }
@@ -171,7 +171,7 @@ export async function deleteSeries(
 		const theirs = highlights ? heldBy([id], reveal, db).ids : [];
 		const copies = db
 			.transaction((): string[] => {
-				// A grouped book's own key (card c885): the group's deletion buries
+				// A grouped book's own key: the group's deletion buries
 				// each book at its source, as its own would.
 				const ownKeys = (
 					db

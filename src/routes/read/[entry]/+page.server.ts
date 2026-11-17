@@ -33,8 +33,8 @@ import { setTextDirection, takesTextDirection, textDirectionOf } from './text-di
  * `p` it resumes where the entry was left, or starts it.
  */
 /**
- * The end page's DELETE confirmation (c655): the series screen's own first line,
- * and how many highlights the delete would leave orphaned (c701).
+ * The end page's DELETE confirmation: the series screen's own first line,
+ * and how many highlights the delete would leave orphaned.
  */
 function deleteAsk(series: SeriesPage, reveal: boolean) {
 	return {
@@ -127,14 +127,14 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			episodes,
 			index,
 			incognito: isIncognito(cookies),
-			// What it starts in (card c171): the series', SETTINGS', the last choice.
+			// What it starts in: the series', SETTINGS', the last choice.
 			player: playerStart(series.id),
 			// Not just this episode (doc/MOVE.md): the same NO SERVER on others.
 			failures: isIncognito(cookies) ? null : await noVideoLine(series.id),
 			// NO SERVER's ANOTHER SOURCE →, only where MOVE opens: never on a
-			// browsing record, whose cell is + ADD instead (c999).
+			// browsing record, whose cell is + ADD instead.
 			canMove: moveOpens(series.id),
-			// The Work's next part, where the last episode ends (doc/WORKS.md, W6).
+			// The Work's next part, where the last episode ends (doc/WORKS.md, "The end of a series").
 			work: workEndOf(series.id, reveal)
 		};
 	}
@@ -164,7 +164,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		const here = reading.entries[index] ?? entry;
 		const version = versions[here.file] ?? null;
 		// A browsing record (doc/READING-ONLINE.md): its preview, where the end page's
-		// + ADD posts (c655). The image branch below computes the same row.
+		// + ADD posts. The image branch below computes the same row.
 		const libraryRow = getDb()
 			.prepare(`SELECT in_library, origin_key FROM series WHERE id = ?`)
 			.get(series.id) as { in_library: number; origin_key: string | null };
@@ -186,7 +186,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 				effectiveDirection(series, series.kindDirection) === 'scroll'
 					? ('scroll' as const)
 					: ('paged' as const),
-			// Which way PAGED turns, the series' own or L→R (c440; doc/TEXT-READER.md).
+			// Which way PAGED turns, the series' own or L→R (doc/TEXT-READER.md).
 			textDirection: textDirectionOf(series.id),
 			version,
 			/** "1 EPUB · 3.1 MB" while it opens: the file's size, from its version. */
@@ -194,13 +194,13 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			versions,
 			incognito: isIncognito(cookies),
 			// A browsing record (doc/READING-ONLINE.md): its preview, where the end page's
-			// + ADD posts (c655).
+			// + ADD posts.
 			record: recordPreview,
-			// What the end page's DELETE asks with (c655).
+			// What the end page's DELETE asks with.
 			deleteAsk: deleteAsk(series, reveal),
-			// Its passages kept as highlights (c702), for the markers.
+			// Its passages kept as highlights, for the markers.
 			quotes: quoteHighlights(entry.id, reveal),
-			// The Work's next part, at the end of a novel's last volume (doc/WORKS.md, W6).
+			// The Work's next part, at the end of a novel's last volume (doc/WORKS.md, "The end of a series").
 			work: workEndOf(series.id, reveal)
 		};
 	}
@@ -286,7 +286,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 					label: e.label,
 					readAt: e.readAt,
 					available: e.available,
-					// The page menu (c26): each entry's own cover, and whether its files carry one.
+					// The page menu: each entry's own cover, and whether its files carry one.
 					coverPage: e.coverPage,
 					hasCoverFile: withCoverFile.has(e.id)
 				})),
@@ -311,7 +311,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			manifest: m,
 			// A browsing record (doc/READING-ONLINE.md): its preview, where the top bar's + ADD posts.
 			record: recordPreview,
-			// What the end page's DELETE asks with (c655).
+			// What the end page's DELETE asks with.
 			deleteAsk: deleteAsk(series, reveal),
 			pages,
 			start,
@@ -320,9 +320,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			/** Japanese: its pages get text blocks to look words up in (doc/JAPANESE.md). */
 			ocr: ocrStatus(series.id),
 			incognito: isIncognito(cookies),
-			// The Work's next part, at the end of this series (doc/WORKS.md, W6).
+			// The Work's next part, at the end of this series (doc/WORKS.md, "The end of a series").
 			work: workEndOf(series.id, reveal),
-			/** Its pages kept as highlights (c703): the cell, the scrubber's ticks, the gutter rule. */
+			/** Its pages kept as highlights: the cell, the scrubber's ticks, the gutter rule. */
 			highlights: pageHighlights(entry.id, reveal),
 			/** Its languages, for the switch in the top bar; null for a book in one. */
 			editions: folded
@@ -341,7 +341,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		};
 	};
 
-	// Read online (doc/READING-ONLINE.md, "Manga online"; card c166): the source may take
+	// Read online (doc/READING-ONLINE.md, "Manga online"): the source may take
 	// a while (a browser check is 20-45 s), so the page comes at once and the
 	// chapter streams in; a failure is the reader's waiting page, not an error.
 	if (readsOnline(entryId)) {
@@ -376,7 +376,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 
 export const actions: Actions = {
 	/**
-	 * REMEMBER on the text reader's DIRECTION row (c440): the series reads that
+	 * REMEMBER on the text reader's DIRECTION row: the series reads that
 	 * way from now on. The series is found as the page finds it, so a hidden
 	 * one is the same 404 with reveal off.
 	 */

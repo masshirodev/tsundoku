@@ -11,13 +11,13 @@ import {
 } from '$lib/server/highlights/quotes';
 
 /**
- * A quote from the text reader (card c702; doc/HIGHLIGHTS.md, "Quotes"). POST
+ * A quote from the text reader (doc/HIGHLIGHTS.md, "Quotes"). POST
  * keeps one and answers the highlight: the same place again answers the one
- * already there (`made: false`), which is what lets c842's queue resend safely.
+ * already there (`made: false`), which is what lets a queued POST be resent safely.
  * GET `?entry=` is that chapter's quotes, for a chapter opened after the page
- * was. PUT tells the workstation what the words said when a chapter was read.
+ * was. PUT tells the server what the words said when a chapter was read.
  *
- * Incognito makes none (Main 02) and moves none: reading makes nothing, and a
+ * Incognito makes none and moves none: reading makes nothing, and a
  * page opened before incognito began cannot make one after. Hidden means
  * hidden: a hidden series' entry is the same 404 without reveal.
  */

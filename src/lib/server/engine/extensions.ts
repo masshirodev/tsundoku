@@ -21,17 +21,17 @@ import { readCapped, readCappedText } from '../net-guard.ts';
 
 /**
  * Repositories, installed extensions and their sources' preferences
- * (doc/DOWNLOADS.md, "Extensions"; card c136). The engine keeps none of it:
+ * (doc/DOWNLOADS.md, "Extensions"). The engine keeps none of it:
  * it runs whatever APK it's handed, so what's installed, which version, which
  * source is in which extension, and every preference live here, and the APKs
  * themselves in the store under TSUNDOKU_HOME.
  *
  * An APK is installed only when it is signed, validly, by the key its
  * repository publishes (apk-signature.ts). tsundoku ships no repository: the
- * owner adds them (doc/ARCHITECTURE.md, "Downloading").
+ * reader adds them (doc/ARCHITECTURE.md, "Downloading").
  */
 
-/** The previous version is kept this long after an update, for BACK TO (c126). */
+/** The previous version is kept this long after an update, for BACK TO. */
 export const KEEP_PREVIOUS_MS = 7 * 24 * 60 * 60 * 1000;
 
 const storeDir = () => dataPaths().engineStore;
@@ -41,7 +41,7 @@ export const apkPath = (handle: string) => join(storeDir(), `${handle}.apk`);
 
 /**
  * Not signed by the key its repository lists. Carries both, so REVIEW can
- * show them side by side (c144); nothing was installed.
+ * show them side by side; nothing was installed.
  */
 export class UntrustedError extends Error {
 	signers: string[];
@@ -110,9 +110,9 @@ export async function webviewFlag(
 let flagsFilled = false;
 
 /**
- * Reads the WebView flag (rung 78) of every extension installed before it,
- * from its stored APK. Once a process: an install and a TRY AGAIN set the
- * flag themselves, so only rows from before the rung are ever unknown, and
+ * Reads the WebView flag (migration 78) of every extension installed before
+ * it, from its stored APK. Once a process: an install and a TRY AGAIN set the
+ * flag themselves, so only rows from before the migration are ever unknown, and
  * an APK missing from the store stays unknown until its next install.
  */
 export async function fillWebViewFlags(db: Database.Database = getDb()): Promise<number> {
@@ -154,8 +154,7 @@ export type RepoPreview = RepoMeta & { base: string; listings: Listing[] };
 
 /**
  * What a pasted address holds, before anything is added: its name, key and
- * listings (c126: "a pasted address answers with the repository's own name,
- * its count and kind before anything is added").
+ * listings, so REVIEW names the repository and its count and kind.
  */
 export async function previewRepo(
 	address: string,
@@ -215,7 +214,7 @@ export async function addRepo(
 
 /**
  * Reads a repository's index again. One that stopped answering keeps its
- * row and the index read before, and says since when (c126: Kohi-den's
+ * row and the index read before, and says since when (Kohi-den's
  * parked domain); what's installed from it keeps running.
  */
 export async function refreshRepo(
@@ -229,7 +228,7 @@ export async function refreshRepo(
 	if (!repo) return false;
 	try {
 		const p = await previewRepo(repo.base, fetcher);
-		// A repository whose key changed is no longer the one the owner added.
+		// A repository whose key changed is no longer the one the reader added.
 		if (p.fingerprint !== repo.fingerprint)
 			throw new UntrustedError('The repository’s signing key changed');
 		db.transaction(() => {
@@ -359,8 +358,8 @@ export async function install(
 	if (!listing) throw new RepoError(`No repository lists ${pkg}`);
 	let res = await fetcher(listing.apkUrl);
 	// The index this install read can be days old, and a repository deletes an
-	// APK when it publishes the next version: MoviesMod 16.4 answered 404 on a
-	// friend's computer once the repository had 16.5 (2026-11-15). Read that
+	// APK when it publishes the next version: MoviesMod 16.4 answered 404 once
+	// the repository had 16.5. Read that
 	// repository's index again, once, and ask for the APK it lists now.
 	if (res.status === 404 || res.status === 410) {
 		const gone = listing.apkUrl;
@@ -393,7 +392,7 @@ export async function install(
 	try {
 		info = (await loader(apk)).info;
 	} catch (e) {
-		// Kept installed, and said so: NEEDS A HAND · FAILED TO LOAD (c126).
+		// Kept installed, and said so: NEEDS A HAND · FAILED TO LOAD.
 		failed = (e as Error).message || 'failed to load';
 	}
 	const webview = await webviewFlag(info, handle);
@@ -450,7 +449,7 @@ function setSources(
 
 /**
  * BACK TO the version before the last update, within the week it's kept: a
- * broken update one tap from undone (c126, decided 2026-10-28).
+ * broken update one tap from undone.
  */
 export function back(pkg: string, now = Date.now(), db: Database.Database = getDb()): boolean {
 	const row = db
@@ -529,7 +528,7 @@ export type Installed = {
 	/** The repository's newer version, when it has one. */
 	update: string | null;
 	sources: { id: string; name: string; lang: string }[];
-	/** Its code uses a WebView (rung 78): NEEDS A WEBVIEW. False while not known. */
+	/** Its code uses a WebView (migration 78): NEEDS A WEBVIEW. False while not known. */
 	webview: boolean;
 };
 

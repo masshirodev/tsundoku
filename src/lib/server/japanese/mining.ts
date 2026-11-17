@@ -5,11 +5,12 @@ import { lookupJmdict } from './dict.ts';
 
 /**
  * Mining (doc/JAPANESE.md): every lookup is logged; looked-up words become
- * candidates; a candidate becomes a card in Kumiko only when approved, in a
+ * candidates; a candidate becomes a card in Kumiko (a flashcard app, over its
+ * HTTP API) only when approved, in a
  * batch. Nothing is ever sent without approval: auto-mining floods a deck.
  *
  * kotoba decides what's worth a card (`isMineable`, through `rankCandidates`);
- * the review lists what's left newest first, as the handoff draws it.
+ * the review lists what's left newest first.
  */
 
 export type LookupIn = {
@@ -54,7 +55,7 @@ export function logLookup(l: LookupIn, reveal: boolean, now = Date.now()): boole
 	return true;
 }
 
-/** A local day, as a number: a reading "session" for ranking, as yomu counts evenings. */
+/** A local day, as a number: a reading "session" for ranking, an evening's reading. */
 const dayOf = (at: number) => {
 	const d = new Date(at);
 	return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
@@ -160,7 +161,7 @@ export function sentCount(): number {
 
 type Kumiko = { url: string; token: string; deck: string };
 
-/** Where approved words go: yomu's deck in Kumiko (doc/JAPANESE.md). Null until set up. */
+/** Where approved words go: a deck in Kumiko (doc/JAPANESE.md). Null until set up. */
 export function kumiko(): Kumiko | null {
 	const token = process.env.KUMIKO_TOKEN;
 	const deck = process.env.KUMIKO_DECK;
@@ -168,7 +169,7 @@ export function kumiko(): Kumiko | null {
 	return { url: (process.env.KUMIKO_URL ?? 'https://kumiko.ink').replace(/\/$/, ''), token, deck };
 }
 
-/** One card, as yomu makes them (kotoba's composeCard), tagged as tsundoku's. */
+/** One card (kotoba's composeCard), tagged as tsundoku's. */
 function cardFor(lemma: string) {
 	const db = getDb();
 	const last = db
@@ -261,7 +262,7 @@ export async function flushPending(
 			});
 			if (!res.ok) break;
 			const body = (await res.json().catch(() => ({}))) as { id?: string; note?: { id?: string } };
-			// Sent only with Kumiko's word for it, as yomu counts it: a note id.
+			// Sent only with Kumiko's word for it: a note id.
 			const id = body.note?.id ?? body.id;
 			if (typeof id !== 'string') break;
 			db.prepare(

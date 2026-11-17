@@ -23,11 +23,11 @@ import {
 } from './pairing.ts';
 
 /**
- * WI-FI in SETTINGS (doc/WIFI.md; card c188): the app's view of the
- * listeners serve.ts runs in local mode (lan-listen.ts), through the one
- * object it leaves on `globalThis`. Absent everywhere else (the workstation,
- * dev, a test's preview), and then there's no WI-FI row at all: the
- * handoff draws it only for a local install.
+ * WI-FI in SETTINGS (doc/WIFI.md): the app's view of the listeners serve.ts
+ * runs in local mode (lan-listen.ts), through the one
+ * object it leaves on `globalThis`. Absent everywhere else (a tailnet
+ * install, dev, a test's preview), and then there's no WI-FI row at all: it
+ * is drawn only for a local install.
  */
 
 const control = () => (globalThis as { __tsundokuLan?: LanControl }).__tsundokuLan ?? null;
@@ -52,7 +52,7 @@ export function phoneOrigin(): string | null {
 	return lanOrigin(s.reach.address, c.port);
 }
 
-/** Which door a request came in by: `lan` only through a Wi-Fi listener (lan-listen.ts). */
+/** Which listener a request came in by: `lan` only through a Wi-Fi listener (lan-listen.ts). */
 export const viaLan = (headers: Headers) => headers.get('x-tsundoku-via') === 'lan';
 
 /** The Hosts a Wi-Fi request may name: the addresses it listens on now. */
@@ -60,21 +60,21 @@ export function lanHosts(): string[] {
 	return wifiStatus()?.listening ?? [];
 }
 
-// ---- What SETTINGS shows (doc/WIFI.md; Wifi.dc.html) ------------------------------
+// ---- What SETTINGS shows (doc/WIFI.md) ------------------------------------------
 
 export type WifiView = {
 	on: boolean;
-	/** home: listening (or about to); public: ON can't be pressed (2D); none: no address yet (2D). */
+	/** home: listening (or about to); public: ON can't be pressed; none: no address yet. */
 	reach: 'home' | 'public' | 'none';
 	/** The public address that rules ON out, or the home one a phone opens. */
 	address: string | null;
 	/** The address a phone opens, once it's listening. */
 	phone: string | null;
 	listening: boolean;
-	/** Windows asks, once: STARTING… names the dialog until the first start (2A). */
+	/** Windows asks, once: STARTING… names the dialog until the first start. */
 	firstTime: boolean;
 	error: string | null;
-	/** The address the router took away (2C), while a phone paired at it hasn't scanned again. */
+	/** The address the router took away, while a phone paired at it hasn't scanned again. */
 	changed: { from: string; to: string } | null;
 	code: {
 		url: string;
@@ -84,11 +84,11 @@ export type WifiView = {
 		usedAt: number | null;
 	} | null;
 	/**
-	 * The TV's six digits, beside the phone's code (c236): typed with a remote.
+	 * The TV's six digits, beside the phone's code: typed with a remote.
 	 * In every state a code can be in, burned and expired included: the panel
 	 * polls this view every 5 s, and only the page's load and NEW CODE may
 	 * replace a spent code (`wifiView`'s `renew` and `fresh`), so five wrong
-	 * tries on `/pair/tv` stay burned while the panel is open (c460).
+	 * tries on `/pair/tv` stay burned while the panel is open.
 	 */
 	tv: {
 		code: string;
@@ -102,12 +102,12 @@ export type WifiView = {
  * Whether a code is past showing: expired, burned, or used longer ago than the
  * 2 minutes the ✓ USED stays up. Then opening SETTINGS on the computer
  * replaces it (`wifiView({ renew })`, `tvPanel({ renew })`, on a real visit
- * only, `settingsVisit`, c531); NEW CODE and ON make one whatever the code
+ * only, `settingsVisit`); NEW CODE and ON make one whatever the code
  * (`fresh`), and so does the computer's own `POST /api/pair/tv`. Neither the
- * WI-FI panel's poll (`GET /api/wifi`, c460) nor the DEVICES row's refresh
- * (`tvCodeNow`, c265) makes one, and the TV's own page makes one only when
+ * WI-FI panel's poll (`GET /api/wifi`) nor the DEVICES row's refresh
+ * (`tvCodeNow`) makes one, and the TV's own page makes one only when
  * there is none, or the only one has merely expired or was used over these
- * 2 minutes ago, never over a burned one (`TvPairing.renewForTv`, c246).
+ * 2 minutes ago, never over a burned one (`TvPairing.renewForTv`).
  * doc/WIFI.md, "Which doors make a code", is the list.
  */
 const CODES: ('none' | 'live' | 'used' | 'expired' | 'burned')[] = ['none', 'expired', 'burned'];
@@ -120,13 +120,12 @@ const spent = (state: string, used: { at: number } | null | undefined, now: numb
 	(state === 'used' && !!used && now - used.at > USED_SHOWN_MS);
 
 /**
- * Whether a run of SETTINGS' load is a real visit to the page, the one door
- * besides NEW CODE and ON where a spent code is replaced (c531, the owner's
- * call of 2026-11-04): a document GET, which is the page opened, typed,
+ * Whether a run of SETTINGS' load is a real visit to the page, the one place
+ * besides NEW CODE and ON where a spent code is replaced: a document GET, which is the page opened, typed,
  * reloaded or come back to by the browser. A data request is not: the load
  * also reruns for every reload of the page's data (`invalidateAll()`, an
  * enhanced form, the layout's RESCAN or theme), and a code five wrong tries
- * burned while the owner changed an unrelated setting must stay burned.
+ * burned while the user changed an unrelated setting must stay burned.
  *
  * A client-side navigation into SETTINGS is a data request too, so it can't
  * be told from a reload here; the page sends `?/renew` for it instead, from
@@ -140,25 +139,24 @@ export function settingsVisit(o: { isDataRequest: boolean; method: string }): bo
 /**
  * Every state the WI-FI panel's TV code can be in: the view reads the code as
  * it is, as the DEVICES row's refresh does (`tvCodeNow`), so a code five wrong
- * tries burned is drawn BURNED until the owner makes another (c460). Until
- * c460 this was `'live' | 'used'`, because the view replaced the rest first.
+ * tries burned is drawn BURNED until the user makes another.
  */
 export type ShownTvState = Exclude<TvState, 'none'>;
 
 /**
  * The WI-FI panel's view (`GET /api/wifi`, the page's load, ON, OFF, NEW CODE).
  *
- * Read only unless asked. Which doors may make a code (c460):
+ * Read only unless asked. Which callers may make a code:
  * - `renew`: replace a spent code (`spent`), keeping a live one and a just-used
  *   one. Only a real visit to SETTINGS on the computer passes it (the load on
  *   a `settingsVisit`, and `?/renew` after a client-side navigation): opening
  *   the page shows a code that works, and a reload of its data never makes
- *   one (c531).
+ *   one.
  * - `fresh`: replace both codes whatever they are. ON and NEW CODE only.
  * - neither: the codes as they are, burned and expired included. The panel's
- *   5 s poll, OFF, and every door check. A poll that replaced a burned TV code
+ *   5 s poll, OFF, and every access check. A poll that replaced a burned TV code
  *   gave anyone on the Wi-Fi five more guesses every 5 s while the panel was
- *   open; a door check that did would make one on every request it guarded.
+ *   open; an access check that did would make one on every request it guarded.
  */
 export function wifiView(
 	o: { renew?: boolean; fresh?: boolean; now?: number } = {}
@@ -174,7 +172,7 @@ export function wifiView(
 	const renew = (state: string, used: { at: number } | null | undefined) =>
 		!!phone && (o.fresh || (o.renew && spent(state, used, now)));
 	if (renew(pairing.state(now), pairing.current()?.used)) pairing.fresh(now);
-	// The TV's code follows the same rule (c236): one beside the phone's, and NEW
+	// The TV's code follows the same rule: one beside the phone's, and NEW
 	// CODE replaces both, so the two countdowns can diverge only by a reopen.
 	if (renew(tvPairing.state(now), tvPairing.current()?.used)) tvPairing.fresh(now);
 	const c = pairing.current();
@@ -217,7 +215,7 @@ export function wifiView(
 }
 
 /**
- * The panel's view with what it says about a firewall (c721; doc/WIFI.md, "A
+ * The panel's view with what it says about a firewall (doc/WIFI.md, "A
  * firewall on the computer"): the server's platform, the firewall the probe
  * found on, the running app's port and the computer's own home network for
  * the lines to copy, and whether a live code has waited 30 s with nothing yet
@@ -264,16 +262,16 @@ export async function wifiAnswer(
 
 const portOf = (origin: string | null) => (origin ? `:${new URL(origin).port}` : '');
 
-// ---- The TV's digits where there is no WI-FI panel (c245) -------------------------
+// ---- The TV's digits where there is no WI-FI panel -------------------------
 
 export type TvPanel = {
 	code: string;
 	/**
 	 * Every state a code can be in. The load (`tvPanel`) gives live or used on
 	 * a real visit, since it replaces a spent code then (`renew`), and on a
-	 * reload of the page's data the code as it is, any state (c531); the row's
+	 * reload of the page's data the code as it is, any state; the row's
 	 * refresh (`tvCodeNow`) gives the code as it is too, burned and expired
-	 * included, and the row draws them (c265).
+	 * included, and the row draws them.
 	 */
 	state: Exclude<TvState, 'none'>;
 	minutes: number;
@@ -285,12 +283,12 @@ export type TvPanel = {
 
 /**
  * The TV's code as it is right now, spent or not, and nothing made: what the
- * DEVICES row's refresh (`GET /settings/tv`) answers with (c265).
+ * DEVICES row's refresh (`GET /settings/tv`) answers with.
  *
  * Read only, on purpose. Five wrong tries on `/pair/tv` burn the code, and
- * only the owner makes another (NEW CODE, or opening SETTINGS): a refresh
+ * only the user makes another (NEW CODE, or opening SETTINGS): a refresh
  * that replaced a burned code would give a guesser five more tries every time
- * the open page asked, which is no lockout at all (c265 round 2).
+ * the open page asked, which is no lockout at all.
  */
 export function tvCodeNow(now: number = Date.now()): TvPanel | null {
 	const c = tvPairing.current();
@@ -306,15 +304,15 @@ export function tvCodeNow(now: number = Date.now()): TvPanel | null {
 }
 
 /**
- * The TV's six digits on an install with no WI-FI panel to carry them: the
- * owner's own instance, served on the tailnet with the token, where there is
+ * The TV's six digits on an install with no WI-FI panel to carry them: an
+ * instance served on the tailnet with the token, where there is
  * no phone's QR and SETTINGS › 08 — DEVICES is the only place the code can be
- * seen (c245; doc/WIFI.md).
+ * seen (doc/WIFI.md).
  *
  * Freshness is `wifiView`'s rule: with `renew`, a live code is kept and counts
  * down, and anything spent (expired, burned, used longer ago than ✓ USED stays
- * up) is replaced. Only a real visit passes it (`settingsVisit`, `?/renew`;
- * c531); a reload of the page's data reads the code as it is, so a burn
+ * up) is replaced. Only a real visit passes it (`settingsVisit`,
+ * `?/renew`); a reload of the page's data reads the code as it is, so a burn
  * stays. `fresh` is NEW CODE. Only the page's load, `?/renew` and `?/tvCode`
  * call this; the row's refresh never does.
  */
@@ -330,15 +328,15 @@ export function tvPanel(
 /**
  * Whether this request may see or make the TV's six digits in SETTINGS ›
  * 08 — DEVICES: `tvBlockFor`, asked with this instance's and this request's
- * facts. Every door that draws the block or makes its code asks this one
+ * facts. Every route that draws the block or makes its code asks this one
  * function -- the load, `?/tvCode` (NEW CODE) and `GET /settings/tv` (the
  * row's refresh) -- so none can make a code that nothing on its screen can
- * use (c245, c264).
+ * use.
  */
 export function tvBlockHere(locals: { via: 'local' | 'lan'; paired: Paired | null }): boolean {
 	return tvBlockFor({
 		// Whether there is a panel at all, asked of the listeners: `wifiView()`
-		// here once made a code on every request the door guarded (c460).
+		// here once made a code on every request the check guarded.
 		hasWifi: wifiStatus() !== null,
 		viaLan: locals.via === 'lan',
 		paired: !!locals.paired,

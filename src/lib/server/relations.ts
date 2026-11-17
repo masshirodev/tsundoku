@@ -18,8 +18,8 @@ import {
 } from '../library/seasons-around.ts';
 
 /**
- * An anime's AniList relation graph, cached (card c358; doc/LINKS.md, "The
- * relation cache"; rung 73, `series_relations`). The link pass fills it
+ * An anime's AniList relation graph, cached (doc/LINKS.md, "The
+ * relation cache"; migration 73, `series_relations`). The link pass fills it
  * (`refreshRelations`, from `refreshLinks` and the background fill in
  * catalogue.ts and relations-fill.ts); the series screen reads it
  * (`seasonsAroundOf`) and never waits on AniList.
@@ -137,7 +137,7 @@ const inMangaCatalogue = (kind: Kind) => {
 };
 
 /**
- * A comic's or a novel's own AniList entry, for OTHER FORMS (c700): its link,
+ * A comic's or a novel's own AniList entry, for OTHER FORMS: its link,
  * unless that entry is another kind's. A novel linked to its comic only for the
  * cover would otherwise read the comic's relations as its own.
  */
@@ -178,7 +178,7 @@ async function askEntries(
 /**
  * Whether a request of several answered nothing at all. AniList voids the
  * whole request when one id can't be answered (HTTP 404, every alias null, the
- * good ones too; measured 2026-11-08, quoted in tests/other-forms-db.spec.ts),
+ * good ones too; measured, quoted in tests/other-forms-db.spec.ts),
  * so this says only that one of them is dead, not which.
  */
 const voided = (answers: Map<number, Answered | null>) =>
@@ -206,7 +206,7 @@ async function askAlone(
  * until it needs nothing. A walk that still needs entries after `MAX_ROUNDS`,
  * or a `first`, a `last` or a need of the walk's that AniList answers nothing
  * for, is not a graph: null, and the cache keeps what it had. An `others` id
- * is best effort (c700, round 2): it only adds OTHER FORMS' reach from that
+ * is best effort: it only adds OTHER FORMS' reach from that
  * season, so one AniList can't answer (deleted, or another catalogue's) is
  * left out and named in the graph's `unanswered`, for `relationsStale`.
  */
@@ -435,7 +435,7 @@ export async function refreshRelations(
 }
 
 /**
- * The comics' and novels' step of the pass (c700): one more ask, in AniList's
+ * The comics' and novels' step of the pass: one more ask, in AniList's
  * MANGA catalogue, of up to `limit` series whose one-hop graph is missing, for
  * another entry, or old. It shares the table and the staleness of the anime
  * walk; it has its own `limit`, so a large library of comics cannot keep an
@@ -515,7 +515,7 @@ async function refreshComics(
 	return { asked: due.length, refreshed, failed: due.length - refreshed };
 }
 
-/** One other form of a series' work, as the list's line draws it (c700). */
+/** One other form of a series' work, as the list's line draws it. */
 export type OtherForm = {
 	anilistId: number;
 	/** The library kind it would be: what FIND asks SEARCH THE SOURCES for. */
@@ -537,7 +537,7 @@ const formWord = (format: string, kind: Kind): string =>
 			: format.replace(/_/g, '-');
 
 /**
- * The same work's other forms, for the series screen (c700): from the cache
+ * The same work's other forms, for the series screen: from the cache
  * alone, never AniList, and one hop from the series' own entry or from each
  * season's. In the library means another series whose own link names that
  * entry and whose kind is that form's, never a title, and a hidden series is

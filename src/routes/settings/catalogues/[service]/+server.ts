@@ -8,7 +8,7 @@ const COOKIE = 'tsundoku_oauth';
 /**
  * SIGN IN →, both halves (doc/TRACKING.md). Without a code: off to the
  * catalogue, with a state (and MAL's verifier) kept in a short cookie. With
- * one: the catalogue sending the owner back here -- the redirect registered
+ * one: the catalogue sending the user back here -- the redirect registered
  * with each app is exactly this address -- and back to SETTINGS, saying how
  * it went. Behind the session, like every route.
  */

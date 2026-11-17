@@ -44,15 +44,15 @@ export function libraryRoot(): string {
 
 export type Source = {
 	name: 'Mihon' | 'Hentoid' | 'Library' | (typeof VIDEO_STORAGE)[number]['folder'];
-	/** What the band and the log call the job, when not the source's name: MIHON BACKUP (c438). */
+	/** What the band and the log call the job, when not the source's name: MIHON BACKUP. */
 	label?: string;
-	/** The job opened for it: IMPORT A BACKUP ties its row to the job (c438). */
+	/** The job opened for it: IMPORT A BACKUP ties its row to the job. */
 	started?(db: Database.Database, jobId: number): void;
 	/**
 	 * What the job's progress counts: bytes read (a scan), or series written (a
 	 * backup, whose bytes are read in one go before anything is written). The
 	 * job's `bytes_done`/`bytes_total` then hold series, and its label says so
-	 * (MIHON BACKUP): the band reads `162 OF 384 SERIES` (c438).
+	 * (MIHON BACKUP): the band reads `162 OF 384 SERIES`.
 	 */
 	counts?: 'series';
 	/** After each series is written: IMPORT A BACKUP keeps which series it brought, and counts. */
@@ -116,12 +116,12 @@ export function sourcesIn(library: string): Source[] {
  * a favourite, on no shelf, not linked, and in no Work. Not a delete: no
  * tombstone, so a download finished later imports as it would have.
  *
- * "Linked" is every row a link leaves (c382): `series_links` (a comic's, or an
- * anime's from before rung 62), and since rung 62 a season's own link or
- * decision, and since rung 80 a film's or a show's TMDB link or decision
- * (c989). The cascade would take those rows with the series. A Work is the owner's
+ * "Linked" is every row a link leaves: `series_links` (a comic's, or an
+ * anime's from before migration 62), a season's own link or decision
+ * (migration 62), and a film's or a show's TMDB link or decision (migration
+ * 80). The cascade would take those rows with the series. A Work is the user's
  * grouping, as a shelf is, and its delete would end the Work it leaves with
- * one (rung 61's trigger).
+ * one (migration 61's trigger).
  */
 export function prunePageless(
 	db: Database.Database,
@@ -183,11 +183,10 @@ function entriesIn(
 function sourcesAt(library: string, device: string | null): Source[] {
 	const out: Source[] = [];
 	const mihon = mihonRoot(library);
-	// c191: the mirror scan is gone (the tablet's, the phone's and Waydroid's
-	// `Mihon/` folders); what a library reads from a `Mihon/` folder now is a
-	// backup, and tsundoku's own downloads in the one device it writes
+	// Devices' `Mihon/` folders are not scanned; what a library reads from a
+	// `Mihon/` folder is a backup, and tsundoku's own downloads in the one device it writes
 	// (doc/IMPORT-MIHON.md, "Where it reads from"). A folder with no backup in
-	// it is no source (c268, c292): a scan of it would find nothing and leave
+	// it is no source: a scan of it would find nothing and leave
 	// no band, where refusing says where it looked. Asked here rather than in
 	// the plan, so no job is opened for it and the same answer serves the
 	// refusal's sentence.
@@ -234,8 +233,8 @@ function sourcesAt(library: string, device: string | null): Source[] {
 						for (const r of entriesIn(db, rootId, hentoid))
 							if (!folders.has(r.rel))
 								db.prepare(`UPDATE entries SET available = 0 WHERE id = ?`).run(r.id);
-						// A folder with no pages was never a book (c64): what an earlier
-						// import made of it goes, unless the owner touched it.
+						// A folder with no pages was never a book: what an earlier
+						// import made of it goes, unless the user touched it.
 						prunePageless(db, rootId, hentoid, pageless);
 					}
 				};
@@ -261,8 +260,8 @@ function sourcesAt(library: string, device: string | null): Source[] {
 		});
 	// Episodes and films tsundoku downloaded, in Jellyfin's layout (doc/ANIME.md,
 	// "Downloading"; doc/DOWNLOADS.md, "Where files go"): the library folder's
-	// own, since only the workstation downloads them. One source a video kind,
-	// each rooted at its own folder (c991: `Anime/`, `Shows/`, `Movies/`), so a
+	// own, since only the server downloads them. One source a video kind,
+	// each rooted at its own folder (`Anime/`, `Shows/`, `Movies/`), so a
 	// file just written attaches under the root that holds it, and a file gone
 	// from one is marked missing by that one alone. Named by the folder, as the
 	// Anime root always was, so an install's existing root keeps its identity.
@@ -296,8 +295,8 @@ export type SourceSummary = {
 	skipped: number;
 	backup?: string | null;
 	/**
-	 * Works a fold took a series out of (card c472; doc/IMPORT-MIHON.md, "Both
-	 * exist"): the owner's grouping the import could not keep. `droppedLine`
+	 * Works a fold took a series out of (doc/IMPORT-MIHON.md, "Both
+	 * exist"): the user's grouping the import could not keep. `droppedLine`
 	 * (fold.ts) is the line the summary prints for each.
 	 */
 	dropped: Dropped[];
@@ -309,7 +308,7 @@ let running: Promise<ImportSummary> | null = null;
 /**
  * Whether the running job is a scan of the library folder (runImport's) and
  * not one backup's import (runQueued's): only a scan is joined, because a
- * backup's job reads one file and never the folder (c438, round 2).
+ * backup's job reads one file and never the folder.
  */
 let runningScan = false;
 /** A scan waiting its turn behind a backup's import: a second call joins it. */
@@ -322,7 +321,7 @@ export const importRunning = (): Promise<ImportSummary> | null => running;
 export const scanWaits = (): boolean => queuedScan !== null || (running !== null && !runningScan);
 
 /**
- * Whether a scan really is queued behind a backup's import (c512, round 2):
+ * Whether a scan really is queued behind a backup's import:
  * someone asked for one and it has not started. Unlike `scanWaits`, false for
  * the whole of an IMPORT A BACKUP nobody asked a scan of. runImport sets the
  * queue synchronously when it queues and clears it just before the scan claims
@@ -365,7 +364,7 @@ function claimScan(library: string, opts: { now?: number; covers?: boolean }) {
 }
 
 /**
- * One source run as its own job once nothing else runs (c438: IMPORT A
+ * One source run as its own job once nothing else runs (IMPORT A
  * BACKUP). One import or scan at a time, as runImport keeps it; this one
  * waits its turn rather than joining the running one, because it reads a file
  * the running one knows nothing of. `waiting` is called when it has to wait.
@@ -398,7 +397,7 @@ function afterImport(running: Promise<ImportSummary>): void {
 				console.error('tsundoku: links after the scan failed:', e);
 			})
 		)
-		// The owner's lists, when signed in: links and what each says (doc/TRACKING.md).
+		// The user's lists, when signed in: links and what each says (doc/TRACKING.md).
 		.then(() => import('../tracking.ts').then((t) => t.readLists()))
 		// Novels and comics to Ranobe: links by id, editions, units, reads (doc/RANOBE.md).
 		.then(() =>
@@ -433,8 +432,8 @@ function rootOf(db: Database.Database, source: Source): number {
 }
 
 /**
- * What tsundoku's own downloaders just wrote, attached at once (card c170;
- * doc/DOWNLOADS.md, "Attaching"): each file's series planned by the source
+ * What tsundoku's own downloaders just wrote, attached at once
+ * (doc/DOWNLOADS.md, "Attaching"): each file's series planned by the source
  * that holds it, exactly as a scan plans it, and written by the same writer
  * with the same root and the same marking of what's gone. A later scan reads
  * the same files and changes nothing; it stays the cross-check, and the way
@@ -491,7 +490,7 @@ export async function attachWritten(
 	}
 	if (touched.size > 0) reconcileDuplicates([...touched], db);
 	// As a run does: BROWSE's per-source counts (`mostlyHidden`) are asked
-	// again once a series is new, ADDED HIDDEN's hidden ones included (c503).
+	// again once a series is new, ADDED HIDDEN's hidden ones included.
 	if (created) forgetSourceUse();
 	return left;
 }
@@ -578,7 +577,7 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 				}
 				// The band counts arrivals ("N SERIES SO FAR") and is shown while
 				// reveal may be off: nothing hidden, by series or by root, counts.
-				// A series its source's ADDED HIDDEN hid (c503) is hidden too.
+				// A series its source's ADDED HIDDEN hid is hidden too.
 				if (r.created && !series.hidden && !r.addedHidden && !source.hidden) p.seriesFound += 1;
 				if (++written % 20 === 0) {
 					flush();
@@ -597,14 +596,14 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 		flush();
 		finishJob(db, jobId, created, dropping);
 		// BROWSE's per-source counts (and so `mostlyHidden`) are asked again:
-		// the run added series, and ADDED HIDDEN may have hidden some (c503).
+		// the run added series, and ADDED HIDDEN may have hidden some.
 		forgetSourceUse();
 		return summary;
 	} catch (e) {
 		flush();
 		// Each series is written in its own transaction, so a fold before the
 		// throw stands: the log names what it dropped, the source that threw
-		// included (`dropping`), as it would at the end (c570).
+		// included (`dropping`), as it would at the end.
 		db.prepare(
 			`UPDATE scan_jobs SET finished_at = ?, failed_files = failed_files + 1, dropped = ? WHERE id = ?`
 		).run(Date.now(), JSON.stringify(dropping), jobId);
@@ -614,7 +613,7 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 
 /**
  * Where a scan with nothing to import looked: the library folder, and, when it
- * has a `Mihon/` folder, the folder in it a backup is read from (c268), so an
+ * has a `Mihon/` folder, the folder in it a backup is read from, so an
  * empty `Mihon/` answers with where the backup should have been.
  */
 export type Looked = { looked: string; backups: string | null };
@@ -665,11 +664,11 @@ export function startScan(
 export const SCAN_WAITS = 'WAITING · THE SCAN STARTS WHEN THE BACKUP’S IMPORT ENDS';
 
 /**
- * RESCAN's WAITING line as the sidebar draws it (c512): the sentence while a
+ * RESCAN's WAITING line as the sidebar draws it: the sentence while a
  * scan someone asked for is queued behind a backup's import (`scanQueued`, the
  * queue itself), and null before anyone asks and once it has started. Not
  * `scanWaits`: that answers whether a scan asked for now would wait, which is
- * true for a backup's whole import even when nobody pressed RESCAN (round 2).
+ * true for a backup's whole import even when nobody pressed RESCAN.
  * The layout's load hands it over on every page.
  */
 export const scanWaitsLine = (): string | null => (scanQueued() ? SCAN_WAITS : null);

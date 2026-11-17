@@ -33,7 +33,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	const reveal = isRevealed(cookies);
 	// SEARCH THE SOURCES after the titles (Download States 1e): how many it would
 	// ask. A library filtered to one kind (`?kind=`, carried from its search
-	// cell) asks that kind's sources, when one serves it (c699).
+	// cell) asks that kind's sources, when one serves it.
 	const asking = configured()
 		? await searchSources(reveal).then(
 				(all) => {
@@ -45,7 +45,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 			)
 		: null;
 	const result = search(input.text, reveal);
-	// A GROUP row's show line (c283; `season-facts.ts`), for what the search drew.
+	// A GROUP row's show line (`season-facts.ts`), for what the search drew.
 	const ids = [
 		...result.titles.map((t) => t.id),
 		...result.works.flatMap((w) => w.parts.map((p) => p.seriesId))
@@ -77,7 +77,7 @@ export const actions: Actions = {
 			redirect(303, '/');
 		}
 		if (input.type === 'page') redirect(303, input.href);
-		// The kind the search came with stays with it (c699).
+		// The kind the search came with stays with it.
 		const kind = url.searchParams.get('kind');
 		const withKind = kind ? `kind=${encodeURIComponent(kind)}` : '';
 		if (input.type === 'empty') redirect(303, withKind ? `/search?${withKind}` : '/search');

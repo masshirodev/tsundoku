@@ -9,13 +9,12 @@ import { pendingAnimeImports, startAnimeWorker } from '../anime/download.ts';
 
 /**
  * Whether downloading is on here: tsundoku's engine, when ENGINE_URL and
- * ENGINE_TOKEN are set (doc/DOWNLOADS.md). Until c129 (2026-10-28) this
- * chose between Suwayomi and the engine by DOWNLOADS_BACKEND.
+ * ENGINE_TOKEN are set (doc/DOWNLOADS.md).
  */
 export const downloadsBackend = (): 'engine' | 'none' => (engineConfigured() ? 'engine' : 'none');
 
 /**
- * What a downloader just wrote, attached at once (card c170; doc/DOWNLOADS.md,
+ * What a downloader just wrote, attached at once (doc/DOWNLOADS.md,
  * "Attaching"): the entry opens when the file lands, with no IMPORTING between.
  * A scan follows only for what didn't attach, or when one is already under
  * way: it was planned before these files existed, and writing its plan would
@@ -48,8 +47,8 @@ function importSoon() {
 
 /**
  * A scan already under way began before these chapters existed, and joining
- * it would miss them (seen live on 2026-10-28: two chapters written during a
- * scan stayed IMPORTING). So it is waited out, and a scan of its own follows.
+ * it would miss them (seen live: two chapters written during a scan stayed
+ * IMPORTING). So it is waited out, and a scan of its own follows.
  */
 async function importNow() {
 	importTimer = null;
@@ -70,8 +69,8 @@ const pendingImports = () =>
 	).n;
 /**
  * FOLLOW's step every ten minutes (followNew asks each followed series'
- * source every six hours, a few a run). The Suwayomi import timer posted it
- * until c129; the app runs it itself now, beside the worker.
+ * source every six hours, a few a run). The app runs it itself, beside the
+ * worker.
  */
 const FOLLOW_STEP_MS = 10 * 60 * 1000;
 let followTimer: ReturnType<typeof setInterval> | null = null;

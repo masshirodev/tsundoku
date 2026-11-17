@@ -5,11 +5,11 @@ import { dataPaths } from '../data-dirs.ts';
 import { KINDS, kindFacts } from '../../library/kinds.ts';
 
 /**
- * The nightly sweep of covers/episodes/ (doc/ANIME.md, "Episode pictures";
- * card c454). An episode's picture (`<id>.webp`) and its seek-preview sprite
+ * The nightly sweep of covers/episodes/ (doc/ANIME.md, "Episode pictures").
+ * An episode's picture (`<id>.webp`) and its seek-preview sprite
  * (`<id>.sprite.jpg` and `<id>.sprite.json`) are named after its entry id,
- * and no door that removes a series or an entry deletes them, so they stayed
- * on disk for good. The backup timer runs this after its snapshot.
+ * and nothing that removes a series or an entry deletes them, so they would
+ * stay on disk for good. The backup timer runs this after its snapshot.
  *
  * A file goes when its id is no longer an episode: no entry has it, or the
  * entry that has it now belongs to a series that is not video. SQLite gives

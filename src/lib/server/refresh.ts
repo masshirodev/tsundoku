@@ -10,7 +10,7 @@ import { extensionFor } from './engine/extensions.ts';
 import type { RefreshBatch } from '../library/types.ts';
 
 /**
- * REFRESH (card c220): ask a series' source, once, what it lists now, and make
+ * REFRESH: ask a series' source, once, what it lists now, and make
  * entries of anything new. It downloads nothing, whatever FOLLOW is doing —
  * FOLLOW stays the only thing that queues, on its own turn (doc/DOWNLOADS.md,
  * "FOLLOW"). The three kinds answer the same question through their own checks,
@@ -24,9 +24,9 @@ export type Refreshed = { kind: 'manga' | 'anime' | 'novel'; added: number };
 
 export async function refreshSeries(seriesId: number, now = Date.now()): Promise<Refreshed | null> {
 	const db = getDb();
-	// A group of one-offs (card c885; doc/BOOKS.md): every book's own source is
+	// A group of one-offs (doc/BOOKS.md): every book's own source is
 	// asked where its chapter stands. Nothing new becomes an entry, since a book
-	// is one entry the owner chose, and a chapter that appeared at its source
+	// is one entry the reader chose, and a chapter that appeared at its source
 	// would be a book nobody grouped. One source failing is not the group's.
 	const own = (
 		db.prepare(`SELECT origin_key FROM series WHERE id = ?`).get(seriesId) as
@@ -47,7 +47,7 @@ export async function refreshSeries(seriesId: number, now = Date.now()): Promise
 			return { kind: 'manga', added: 0 };
 		}
 	}
-	// The key FOLLOW asks (c282): a series' source, or its last season's when
+	// The key FOLLOW asks: a series' source, or its last season's when
 	// the seasons have their own. Which family answers is that key's.
 	const key = followOrigin(seriesId, db).key;
 	if (parseAnimeKey(key))
@@ -60,7 +60,7 @@ export async function refreshSeries(seriesId: number, now = Date.now()): Promise
 }
 
 /**
- * How many series one REFRESH run of a selection asks (card c221). Each source
+ * How many series one REFRESH run of a selection asks. Each source
  * answers in its own time, so a selection of sixty would hold one request open
  * for minutes; a run asks this many and the band offers the rest, one run at a
  * time, which is also what keeps a source that never answers from holding the
@@ -102,7 +102,7 @@ function within<T>(ask: Promise<T>, ms: number): Promise<T> {
 }
 
 /**
- * REFRESH over a selection (card c221), the library's bulk bar. Each selected
+ * REFRESH over a selection, the library's bulk bar. Each selected
  * series that has a source is asked through the same `refreshSeries`, in the
  * order the selection was made, and nothing is downloaded. A source that
  * throws or misses its deadline is one failure among the rest, never the end

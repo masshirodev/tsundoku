@@ -6,10 +6,10 @@ import type { Settled } from '$lib/library/settled';
 import { kindOfSource } from '../kinds.server';
 
 /**
- * One source asked the search page's query again (card c490): TRY ALL AGAIN
+ * One source asked the search page's query again: TRY ALL AGAIN
  * re-asks only the sources that did not answer. Only a source the page asks
  * (`searchSources`, so a mostly hidden one only inside reveal) answers, and
- * under `?kind=` (c699) only a source of that kind: a page searching ANIME
+ * under `?kind=` only a source of that kind: a page searching ANIME
  * re-asks its anime sources, never a manga one.
  */
 export const GET: RequestHandler = async ({ url, cookies }) => {

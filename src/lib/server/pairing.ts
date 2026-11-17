@@ -3,12 +3,12 @@ import { deviceLabel, isTvApp } from '../settings/catalog.ts';
 import { getDb } from './db.ts';
 
 /**
- * Pairing a phone over Wi-Fi (doc/WIFI.md; card c188). The computer shows a
+ * Pairing a phone over Wi-Fi (doc/WIFI.md). The computer shows a
  * code; the phone's camera opens it; the phone is signed in, as a device of
  * its own that SIGN OUT can end (a lost phone).
  *
  * - **The code** lives in memory, one at a time: good for 10 minutes and one
- *   phone, once (the owner's answers 02, via the handoff). Opening SETTINGS
+ *   phone, once. Opening SETTINGS
  *   makes a fresh one; a restart forgets it, which costs a new code.
  * - **A paired device** is a random token in its cookie and that token's
  *   SHA-256 here (v54, `paired_devices`), never the token: a copy of the
@@ -60,13 +60,13 @@ export class Pairing {
 /** The process's one pairing, shared by SETTINGS and /pair. */
 export const pairing = new Pairing();
 
-// ---- One paired cookie per origin (c530) -------------------------------------------
+// ---- One paired cookie per origin -------------------------------------------
 
 /**
  * The paired cookie's name on this origin. A browser's jar -- the TV's
  * WebView's included -- scopes a cookie by host, not by port or scheme, so
- * every tsundoku on one computer used to share `tsundoku_paired`: pairing a
- * second one signed the TV out of the first, and FORGET on either forgot both.
+ * every tsundoku on one computer would share one name: pairing a second one
+ * would sign the TV out of the first, and FORGET on either would forget both.
  *
  * A name may not hold `:`, so the origin is not written into it whole: the
  * port, the scheme's default when the URL has none, and `s` before it for
@@ -85,7 +85,7 @@ export function pairedCookie(url: URL | string): string {
 	return `${PAIRED_COOKIE}_${https ? 's' : ''}${u.port || (https ? '443' : '80')}`;
 }
 
-/** Any paired cookie's name: the per-origin ones and the shared one used before c530. */
+/** Any paired cookie's name: the per-origin ones and the shared `tsundoku_paired` older pairings carry. */
 export const PAIRED_COOKIE_NAME = /^tsundoku_paired(?:_s?\d+)?$/;
 
 /**
@@ -106,7 +106,7 @@ type Jar = {
 
 /**
  * The paired token a request carries for this origin: its own name first,
- * then the shared one, for a device paired before c530. What `/api/devices/sync`
+ * then the shared one, for a device paired under it. What `/api/devices/sync`
  * reads to join the row; by then `readPaired` has moved an old one over.
  */
 export function pairedToken(url: URL, get: (name: string) => string | undefined) {
@@ -115,9 +115,9 @@ export function pairedToken(url: URL, get: (name: string) => string | undefined)
 
 /**
  * The paired device this request's cookie names, if `check` takes its token
- * (`pairedBy`, or `friendPaired` for a friend's Wi-Fi door).
+ * (`pairedBy`, or `friendPaired` for a friend's Wi-Fi listener).
  *
- * A device paired before c530 carries only the shared name. If that token is
+ * A device paired under the shared name carries only that. If that token is
  * one of this server's own pairings, this request writes it again under this
  * origin's name and expires the shared one, so the device stays paired and is
  * never asked for digits again. A shared token this server does not know is
@@ -159,7 +159,7 @@ export const PAIRED_COOKIE_OPTIONS = {
 };
 
 /**
- * The TV's code (c236; doc/TV.md, "Claims to check"): six digits, typed with a
+ * The TV's code (doc/TV.md, "Claims to check"): six digits, typed with a
  * remote, because a TV has no camera. Six digits is a million guesses, so this
  * one has limits the phone's link never needed: five wrong tries burn it, and
  * a new one is made on the computer.
@@ -216,17 +216,16 @@ export class TvPairing {
 	}
 
 	/**
-	 * The one answer to "what is the TV's code now", which every door reads:
+	 * The one answer to "what is the TV's code now", which every caller reads:
 	 * SETTINGS' DEVICES row and its refresh (`tvCodeNow`), the WI-FI panel
 	 * (`wifiView`), `/pair/tv`'s page and its PAIR (`redeem`), and the
 	 * computer's `/api/pair/tv`.
 	 *
-	 * **Burned is burned for good** (c581): a code five wrong tries burned
-	 * stays `burned` past its 10 minutes, rather than turning `expired`. Until
-	 * c581 the clock was asked first, so the DEVICES row's refresh turned
-	 * BURNED into EXPIRED once the 10 minutes ran out, and restarted the 5 s
-	 * poll a burned code never needs, while `/pair/tv` kept NO TRIES LEFT by a
-	 * rule of its own. EXPIRED's remedy is one the TV's page makes by itself
+	 * **Burned is burned for good**: a code five wrong tries burned
+	 * stays `burned` past its 10 minutes, rather than turning `expired`. Asking
+	 * the clock first would turn the DEVICES row's BURNED into EXPIRED once
+	 * the 10 minutes ran out, and restart the 5 s poll a burned code never
+	 * needs, while `/pair/tv` kept NO TRIES LEFT by a rule of its own. EXPIRED's remedy is one the TV's page makes by itself
 	 * (`renewForTv`); a burned code's is the computer's alone, so the two must
 	 * never be told apart by the clock. A used code is `used` whatever its
 	 * tries: `redeem` never marks a burned code used.
@@ -240,7 +239,7 @@ export class TvPairing {
 	}
 
 	/**
-	 * `/pair/tv`'s own door (c246; the owner's (b), 2026-11-04): a TV that is
+	 * `/pair/tv`'s own renewal: a TV that is
 	 * not paired and arrives with no code to type, or with one that has merely
 	 * run out, gets a new one, so the page is never THIS CODE EXPIRED with
 	 * nothing to do but walk to the computer. True when it made one.
@@ -248,8 +247,7 @@ export class TvPairing {
 	 * - **None**: made.
 	 * - **Expired**, with tries left: replaced.
 	 * - **Burned** (five wrong tries): kept, past its 10 minutes or not
-	 *   (`state` says `burned` either way since c581). Only the computer makes
-	 *   another (9D's reason).
+	 *   (`state` says `burned` either way). Only the computer makes another.
 	 * - **Used**: replaced once it is older than the 2 minutes the computer
 	 *   keeps ✓ USED up (`TV_USED_SHOWN_MS`). A TV that is not paired and
 	 *   finds a used code is another device than the one that spent it, or the
@@ -257,10 +255,10 @@ export class TvPairing {
 	 *   turning ✓ USED and listing the TV that used it.
 	 * - **Live**: kept.
 	 *
-	 * The new code keeps the old one's wrong tries. `fresh` -- the owner, on
+	 * The new code keeps the old one's wrong tries. `fresh` -- the user, on
 	 * the computer -- is the only thing that gives five again, so a guesser
 	 * who opens this page every 10 minutes still has five wrong guesses per
-	 * code the owner makes, as before c246, not five per 10 minutes.
+	 * code made on the computer, not five per 10 minutes.
 	 */
 	renewForTv(now: number): boolean {
 		const c = this.code;
@@ -278,7 +276,7 @@ export class TvPairing {
 	/**
 	 * A TV typed `code`: once, within its 10 minutes, with a try to spare.
 	 * `wrong` is a guess that still leaves tries; the last one burns the code.
-	 * Asked in `state`'s order (c581), so a burned code past its 10 minutes
+	 * Asked in `state`'s order, so a burned code past its 10 minutes
 	 * answers `burned`, the band that says only the computer makes another.
 	 */
 	redeem(code: string, now: number, who: string): TvRedeemed {
@@ -299,7 +297,7 @@ export class TvPairing {
 /** The computer's one TV code, beside the phone's (`pairing`). */
 export const tvPairing = new TvPairing();
 
-// ---- The door a TV's cookie opens (c245) ------------------------------------------
+// ---- Where a TV's cookie signs in ------------------------------------------
 
 /** The names a request is the computer itself under: a TV's cookie is never a door there. */
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -310,9 +308,9 @@ const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
  * tailnet name in `https` mode, the tailnet address in `http`).
  *
  * Null when there is no origin to compare against, or when that origin is a
- * loopback one. The owner settled the door on 2026-11-02: the tailnet only,
- * never localhost -- the computer itself gains nothing from a TV's cookie --
- * and fail closed, so no origin means no door at all.
+ * loopback one: the tailnet only, never localhost -- the computer itself
+ * gains nothing from a TV's cookie -- and fail closed, so no origin means no
+ * door at all.
  */
 export function tailnetHost(origin: string | null | undefined): string | null {
 	if (!origin) return null;
@@ -340,24 +338,23 @@ export function tailnetDoor(
  * `ORIGIN` names a host that is not loopback (`tailnetHost`). The hook asks
  * `tailnetDoor` with the same `process.env.ORIGIN`, so this is false exactly
  * where the hook would refuse every TV's cookie: `yarn run dev`, `vite
- * preview` and `scripts/serve.ts` in `local` mode, none of which set one
- * (c264).
+ * preview` and `scripts/serve.ts` in `local` mode, none of which set one.
  */
 export const tvDoor = (origin: string | null | undefined = process.env.ORIGIN): boolean =>
 	tailnetHost(origin) !== null;
 
 /**
- * Whether SETTINGS › 08 — DEVICES draws the TV's six digits itself (c245,
- * doc/WIFI.md, "Where they show").
+ * Whether SETTINGS › 08 — DEVICES draws the TV's six digits itself
+ * (doc/WIFI.md, "Where they show").
  *
  * Only where the cookie those digits set is a door. On a friend's install the
  * WI-FI panel carries them, and a paired device is never shown the code that
  * would pair another. A friend's install served over the tailnet has no WI-FI
  * panel, but its guard reads a paired cookie only over Wi-Fi (`friendPaired`),
  * so drawing the digits there would pair a TV and land it on `/login` -- the
- * bug c245 exists to remove. The token install with no `ORIGIN` (`door`
+ * bug this check exists to prevent. The token install with no `ORIGIN` (`door`
  * false, `tvDoor`) is the same bug on another shape: the hook refuses every
- * paired cookie there, so a TV would pair and land on `/login` too (c264).
+ * paired cookie there, so a TV would pair and land on `/login` too.
  * The block is the token install's, served on its tailnet origin.
  */
 export function tvBlockFor(o: {

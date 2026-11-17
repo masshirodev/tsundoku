@@ -21,7 +21,7 @@ import {
 } from '$lib/library/highlights';
 
 /**
- * HIGHLIGHTS (doc/HIGHLIGHTS.md; card c701; the handoff's Page board): every
+ * HIGHLIGHTS (doc/HIGHLIGHTS.md): every
  * highlight newest first by day, or one series' in reading order with
  * `?series=`. The filters, the search and the open item are all in the URL,
  * so a reload, the back button and a link from the series screen land on the

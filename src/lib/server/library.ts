@@ -25,7 +25,7 @@ import {
 	type WorkTile
 } from '../library/works.ts';
 import { partsOfWorks, workRecords } from './works.ts';
-// ONE-OFF is books.ts's (c558): one rule for the shelf, the device and the
+// ONE-OFF is books.ts's: one rule for the shelf, the device and the
 // binder. A Mihon series with one chapter so far is still a series.
 import { ONE_OFF_SQL } from './books.ts';
 import type {
@@ -86,7 +86,7 @@ type CardRow = {
  * One grouped pass over the picked series' entries, not a subquery per
  * series: correlated counts re-ran MAX(last_opened_at) for every entry row,
  * and took the real library's ALL shelf 1.9 s (card "Make the library fast").
- * This takes about 16 ms, with the covering index `entries_card` (rung 12).
+ * This takes about 16 ms, with the covering index `entries_card` (migration 12).
  * MATERIALIZED keeps SQLite from flattening it back into the slow shape.
  */
 function cardQuery(where: string, order: string, limit = ''): string {
@@ -248,7 +248,7 @@ const randomOrder = (seed: number) => {
 const orderOf = (sort: Sort, dir: Dir, seed = 1) =>
 	sort === 'random' ? randomOrder(seed) : ORDER[sort](dir.toUpperCase() as 'ASC' | 'DESC');
 
-/** NEWEST on the NEW shelf is by arrival: added_at is the source's date (rung 34). */
+/** NEWEST on the NEW shelf is by arrival: added_at is the source's date (migration 34). */
 const orderFor = (opts: { shelf?: string; sort?: Sort; dir?: Dir; seed?: number }) => {
 	const sort = opts.sort ?? 'recent';
 	const dir = opts.dir ?? naturalDir(sort);
@@ -275,7 +275,7 @@ function progressTier(d: 'ASC' | 'DESC'): string {
 
 /**
  * Each sort in either direction (`?dir=`). RECENTLY READ counts a series
- * never opened as read when it was added (c524), so a new add is found at the
+ * never opened as read when it was added, so a new add is found at the
  * top of the default sort; turned round it's the exact mirror, the
  * longest-untouched first, where adding is the touch. The sort only: no
  * reading is written, so CONTINUE, HISTORY and tracking never see it. RATING's
@@ -294,7 +294,7 @@ const ORDER: Record<Exclude<Sort, 'random'>, (d: 'ASC' | 'DESC') => string> = {
  * always the newest, run() closes the rest first), while it runs or until it
  * is dismissed. Never an older one: an import that brought nothing dismisses
  * itself, and reaching past it handed the band back to whichever import last
- * brought something, days before (21 such on 2026-11-02, one dismissal each).
+ * brought something, days before (one dismissal per empty import).
  * The band is about it; the NEW shelf is not (NEW_SQL).
  */
 const CURRENT_SCAN_ID = `SELECT id FROM scan_jobs WHERE id = (SELECT MAX(id) FROM scan_jobs)
@@ -305,7 +305,7 @@ export const NEW_DAYS = 14;
 
 /**
  * The NEW shelf: a series that arrived (made by an import, or a chapter's
- * file came in, rung 34) in the last NEW_DAYS and hasn't been opened since.
+ * file came in, migration 34) in the last NEW_DAYS and hasn't been opened since.
  * Not tied to an import: a later one, or TIDY NEW, mustn't empty it.
  */
 const NEW_SQL = `(s.arrived_at > ? AND NOT EXISTS (SELECT 1 FROM entries e
@@ -336,7 +336,7 @@ const NOT_LANGUAGES = `('translated', 'rewrite', 'speechless', 'text cleaned')`;
 /**
  * Where a shelf key narrows the listing. Unknown keys fall back to all.
  * SERIES, ONE-OFF and the kind shelves (`k:<kind>`, any kind the registry
- * names) are no longer shelves (c436): a URL naming one is sent on to its
+ * names) are no longer shelves: a URL naming one is sent on to its
  * filter (`legacyShelf`), but a caller that still asks by the old key -- a
  * page asked for by a tab loaded before the change -- gets the same rows.
  */
@@ -453,7 +453,7 @@ function listWhere(opts: ListOpts): { sql: string; params: unknown[] } {
 }
 
 /**
- * The KIND band's counts (c436; doc/LIBRARY.md, "The KIND band"): the tiles
+ * The KIND band's counts (doc/LIBRARY.md, "The KIND band"): the tiles
  * on this shelf, every filter but KIND applied, in all and by kind, in one
  * grouped read. A Work counts once under each kind it has a picked part of
  * (a Work of a manga and its anime is one tile on MANGA and one on ANIME),
@@ -489,8 +489,8 @@ export function kindCounts(opts: ListOpts): {
 /**
  * The languages on a shelf as it stands without filters, as lower-case codes:
  * what LANGUAGE offers. Only what the viewer can see; never `translated`.
- * A kind chosen on the KIND band narrows it as the kind shelf it replaced did
- * (c436): MANHWA offers none, so choosing it drops JA (Library Filters 1c).
+ * A kind chosen on the KIND band narrows it as the kind shelf it replaced did:
+ * MANHWA offers none, so choosing it drops JA.
  */
 export function languagesOn(
 	opts: Omit<ListOpts, 'filters'> & { kind?: FilterKind | null }
@@ -644,9 +644,9 @@ type UnitRow = {
 /**
  * A Work's place in an order is its most recent part's (doc/WORKS.md, "The one
  * rule"): its latest read, its newest chapter, its latest added. The keys are
- * aggregates over every part, so a Work sits where the part the owner would
+ * aggregates over every part, so a Work sits where the part the user would
  * open sits, not where its first part was added. RECENTLY READ's key,
- * `touched`, is each part's last read or, never opened, its add (c524, as
+ * `touched`, is each part's last read or, never opened, its add (as
  * ORDER.recent), so a part just added lifts its Work as it would a series.
  */
 function unitOrder(sort: Sort, dir: Dir, shelf: string | undefined, seed = 1): string {
@@ -681,7 +681,7 @@ function unitOrder(sort: Sort, dir: Dir, shelf: string | undefined, seed = 1): s
  *
  * Three independent reads, never one per tile: the units here, the page's
  * cards in `cardsOf`, and every part of every Work on the page in
- * `partsOfWorks` (doc/handoff-notes/works.md, the W1 gaps).
+ * `partsOfWorks`.
  */
 function unitQuery(where: string, vis: string, order: string, limit = ''): string {
 	return `
@@ -831,7 +831,7 @@ export function continueReading(
 	const rows = db
 		.prepare(cardQuery(`s.id IN (SELECT s.id ${open})`, `t.last_opened DESC`))
 		.all() as CardRow[];
-	// A book in a series of books is named by its place in the owner's order
+	// A book in a series of books is named by its place in the user's order
 	// ("Book 3"), since its own label is just "Book" (doc/BOOKS.md).
 	const last = db.prepare(
 		`SELECT e.id, e.position, e.label, e.last_opened_at, e.read_at, e.last_position, e.duration_s, e.season, e.episode_number,
@@ -843,7 +843,7 @@ export function continueReading(
 	const cards = withEditions(rows.map(toCard));
 	const byId = new Map(cards.map((c) => [c.id, c]));
 
-	/** The label and the way in for a card, from the entry the owner last had open. */
+	/** The label and the way in for a card, from the entry the user last had open. */
 	function entryLine(card: LibraryCard) {
 		const entry = last.get(card.id) as
 			| {
@@ -909,7 +909,7 @@ export function continueReading(
 	// rule), and it sorts by its most recent part's last
 	// open. So the Work arm reads every part of a Work (`partsOfWorks`,
 	// `workRecords`, `cardsOf`) only for the Works the section shows, after
-	// the slice (c332), and `total` still counts every row.
+	// the slice, and `total` still counts every row.
 	const workKeys = db
 		.prepare(
 			`SELECT ws.work_id AS id,
@@ -1022,10 +1022,10 @@ export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[
 	if (opts.withNew || fresh > 0)
 		shelves.push({ key: 'new', name: m.nav_shelf_new(), kind: 'smart', count: fresh });
 	shelves.push({ key: 'all', name: m.nav_shelf_all(), kind: 'smart', count: n('1') });
-	// Shelves only (c436): what a thing is -- SERIES, ONE-OFF, MANGA, NOVELS,
-	// ANIME -- is no longer a shelf. Kinds are the library's KIND band
+	// Shelves only: what a thing is -- SERIES, ONE-OFF, MANGA, NOVELS,
+	// ANIME -- is not a shelf. Kinds are the library's KIND band
 	// (`kindCounts`), SERIES and ONE-OFF FILTER's FORM; DOWNLOADED, FAVOURITES
-	// and RATED became filters before them (Library Filters turn 3).
+	// and RATED are filters too.
 
 	const collections = db
 		.prepare(`SELECT id, name FROM collections ORDER BY position, id`)
@@ -1093,7 +1093,7 @@ export function search(query: string, reveal: boolean, limit = 30): SearchResult
 		(s) => s.kind !== 'smart' && s.name.toLowerCase().includes(query.trim().toLowerCase())
 	);
 
-	// A title match ranks above another name's (c555), and that above a tag
+	// A title match ranks above another name's, and that above a tag
 	// match, and each series appears once with the reason it matched. Another
 	// name is a member of `alt_titles` (a rename's old name, a seed's
 	// alternative), matched one by one, never the list's JSON text, so a
@@ -1159,7 +1159,7 @@ export function search(query: string, reveal: boolean, limit = 30): SearchResult
 	const workIds = workRows.map((w) => w.id);
 	const parts = byWork(partsOfWorks(workIds, reveal));
 	// The face is CONTINUE's part, or the last part once the run is read
-	// (`facePart`): a Work whose every part is finished is still one the owner
+	// (`facePart`): a Work whose every part is finished is still one the user
 	// typed the name of, and leaving it out of the hits would hide it entirely.
 	const faceIds = workIds
 		.map((id) => facePart(parts.get(id) ?? [])?.seriesId)
@@ -1216,7 +1216,7 @@ export function seriesDetail(id: number, reveal: boolean): SeriesDetail | null {
 }
 
 /**
- * Writes. Each takes the ids the owner acted on and touches only those; a
+ * Writes. Each takes the ids the user acted on and touches only those; a
  * bulk action over three series is three rows changed and nothing else.
  */
 function inList(ids: number[]): string {
@@ -1254,7 +1254,7 @@ export function setFavourite(ids: number[], favourite: boolean): number {
 /**
  * HIDE and UNHIDE. Hiding sets the series' own flag and takes back any
  * `public`. Unhiding clears it, and in a hidden root also makes the series
- * public -- otherwise UNHIDE would change nothing the owner could see.
+ * public -- otherwise UNHIDE would change nothing the user could see.
  */
 export function setHidden(ids: number[], hidden: boolean): number {
 	if (ids.length === 0) return 0;
@@ -1321,7 +1321,7 @@ export function currentScan(): ScanJob | null {
 }
 
 /**
- * How long the last finished scan took, in ms, for RESCAN's question (c525):
+ * How long the last finished scan took, in ms, for RESCAN's question:
  * a library scan's job, not a backup's import, which runs as a job too and
  * says so in its label. Null when none has finished.
  */

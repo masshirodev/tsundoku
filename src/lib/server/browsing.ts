@@ -5,7 +5,7 @@ import { hideIfAddedHidden } from './engine/source-flags.ts';
 import { KEEP_DAYS } from '../library/keep.ts';
 
 /**
- * Browsing records, past their first open (doc/READING-ONLINE.md; cards c161, c165):
+ * Browsing records, past their first open (doc/READING-ONLINE.md):
  * what one still holds, forgetting it, and pruning the ones nobody came back
  * to. A record is a series with `in_library = 0`; opening it again, ADD, and
  * the library's own reads live where they always did.
@@ -152,7 +152,7 @@ export function keepOrPromote(
 			db.prepare(
 				`UPDATE series SET in_library = 1, browsed_at = NULL, pruned_at = NULL, added_at = ?, arrived_at = ? WHERE id = ?`
 			).run(now, now, s.id);
-			// ADD from a source that adds hidden (card c435): it starts hidden.
+			// ADD from a source that adds hidden: it starts hidden.
 			hideIfAddedHidden(s.id, db);
 			forgetSourceUse();
 		}

@@ -48,7 +48,7 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
 const idOf = (params: { id: string }) => Number(params.id);
 
 /**
- * The moment of making the screen read its Work at (c583): every form here
+ * The moment of making the screen read its Work at: every form here
  * posts it as `made`, and every writer refuses a Work under the URL's id made
  * at another moment. `works.id` is reused once the newest Work ends, so a tab
  * left on `/work/1` after its Work ended would otherwise act on the next Work
@@ -62,9 +62,9 @@ function madeOf(form: FormData): number {
 }
 
 /**
- * A refusal the screen can say: W1's actions throw, and the band reads the
+ * A refusal the screen can say: the Work actions throw, and the band reads the
  * reason. A stale Work also says so as `stale`, the field the GROUP sheet
- * reads (c584), so every door that refuses one answers in the same shape.
+ * reads, so every path that refuses one answers in the same shape.
  */
 function refused(e: unknown) {
 	if (e instanceof StaleWorkError)
@@ -127,17 +127,16 @@ export const actions: Actions = {
 	},
 
 	undoTakeOut: async ({ request }) => {
-		// Whatever arrives is a claim: a stale page, a hand-made form or a
-		// truncated field can send anything, so the facts are read inside a
-		// guard and checked field by field before the write (c585's readers,
-		// c641). Malformed ones undo nothing, as a band, never a 500.
+		// Whatever arrives is a claim: a stale page, a hand-made form or a truncated
+		// field can send anything, so the facts are read inside a guard and checked
+		// field by field before the write. Malformed ones undo nothing, as a band,
+		// never a 500.
 		const facts = takeOutFactsList(parsePosted((await request.formData()).get('facts')));
 		if (!facts) return fail(400, { message: 'NOTHING TO UNDO' });
 		// Last first, as one write (`undoTakeOuts`): the second take-out is the
 		// one that ended the Work, and it restores every member the ending left
 		// behind. A series the library has moved on with since -- added to
-		// another Work, say -- refuses the whole UNDO, and the band says why
-		// (c308).
+		// another Work, say -- refuses the whole UNDO, and the band says why.
 		try {
 			undoTakeOuts(facts);
 		} catch (e) {
@@ -158,7 +157,7 @@ export const actions: Actions = {
 	},
 
 	undoAdd: async ({ request }) => {
-		// As TAKE OUT's UNDO above: a malformed band undoes nothing (c641).
+		// As TAKE OUT's UNDO above: a malformed band undoes nothing.
 		const facts = workAddFacts(parsePosted((await request.formData()).get('facts')));
 		if (!facts) return fail(400, { message: 'NOTHING TO UNDO' });
 		try {
@@ -182,7 +181,7 @@ export const actions: Actions = {
 
 	/**
 	 * The RENAMED band's UNDO: the old name back onto the Work the rename
-	 * named, by its id and moment (c583), never onto a newer Work given the id
+	 * named, by its id and moment, never onto a newer Work given the id
 	 * since. Facts that are not whole undo nothing, as a band, not a 500.
 	 */
 	undoRename: async ({ request }) => {

@@ -9,7 +9,7 @@ import { mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } 
 import { join } from './fspath.ts';
 
 /**
- * A friend's sign-in (doc/SIGN-IN.md; card c189): a password chosen on first
+ * A friend's sign-in (doc/SIGN-IN.md): a password chosen on first
  * open, or none, kept in `TSUNDOKU_HOME/login.json`. The workstation signs in
  * with its token instead (auth.ts), and never has this file.
  *

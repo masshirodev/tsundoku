@@ -18,7 +18,7 @@ const nextOf = (url: URL) => sameOriginPath(url.searchParams.get('next'), url.or
 
 export const load: PageServerLoad = ({ locals, url }) => {
 	if (locals.authed) redirect(303, nextOf(url));
-	// A pairing code that no longer works, sent here by /pair (doc/WIFI.md, 3B and 3C).
+	// A pairing code that no longer works, sent here by /pair (doc/WIFI.md).
 	const pair =
 		(['expired', 'used'] as const).find((p) => p === url.searchParams.get('pair')) ?? null;
 	const lan = locals.via === 'lan';

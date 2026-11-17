@@ -19,8 +19,8 @@ import { kindAsked, kindsServed } from '../downloads/search/source-kinds';
 import type { Kind } from '$lib/library/kinds';
 
 /**
- * BROWSE (Index-Browse, sources; doc/BROWSE.md; card c142): every installed
- * source in the owner's languages, RECENT first, then by kind. Read from
+ * BROWSE (sources; doc/BROWSE.md): every installed
+ * source in the user's languages, RECENT first, then by kind. Read from
  * tsundoku's own tables, so it draws even while the engine isn't answering.
  */
 export const load: PageServerLoad = async ({ cookies, url }) => {
@@ -28,12 +28,12 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 	const reveal = isRevealed(cookies);
 	// Sites the engine has passed a check for since it started, so their lines say so.
 	await noteSolvedChecks();
-	// Extensions installed before tsundoku asked whether they use a WebView, read once (rung 78).
+	// Extensions installed before tsundoku asked whether they use a WebView, read once (migration 78).
 	await fillWebViewFlags();
 	const added = await addedBand(url.searchParams, null, reveal);
 	const all = browseList(reveal);
 	// The KIND band (doc/BROWSE.md, "The KIND band"): each source's own kind,
-	// the one SEARCH THE SOURCES asks (the owner's choice, else its family's),
+	// the one SEARCH THE SOURCES asks (the user's choice, else its family's),
 	// so a Mihon source marked MANHWA is under MANHWA and an Aniyomi one marked
 	// SHOWS under SHOWS. The cells count sources, as reveal lets them be seen.
 	const sources = [...all.manga, ...all.anime, ...all.novels];
@@ -69,18 +69,18 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 		webviewMark: rows.some((r) => r.webview) ? await mark() : null,
 		reveal,
 		now: Date.now(),
-		// CONCEAL ITS SERIES outside reveal (card c523): the source is mostly
+		// CONCEAL ITS SERIES outside reveal: the source is mostly
 		// hidden now, so its settings page is not found and the band is here.
 		concealed: concealBand(url.searchParams),
-		// ADD outside reveal that left its source mostly hidden (c505): the
+		// ADD outside reveal that left its source mostly hidden: the
 		// source's page is not found, so the ADDED band is here. It names the
-		// source only when this viewer may see it (c605).
+		// source only when this viewer may see it.
 		added,
-		// The shelves its series is on, for the band's chips (card c724).
+		// The shelves its series is on, for the band's chips.
 		addedShelves: bandShelves(added),
 		// A refused UNDO from a source's page, which can no longer draw its own
-		// band (c605): the refusal's code is the URL's, its words are here --
-		// while it still holds, re-asked on every load (c664).
+		// band: the refusal's code is the URL's, its words are here --
+		// while it still holds, re-asked on every load.
 		refused: standingRefusal(url.searchParams.get('refused'), added)
 	};
 };

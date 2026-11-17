@@ -153,7 +153,7 @@ const hex = (n: number) =>
 // ---- the plan -------------------------------------------------------------------
 
 /**
- * The owner's progress, which Hentoid keeps per book as one page index across
+ * The reader's progress, which Hentoid keeps per book as one page index across
  * all its pages: the pages before it are read, the one it points at is where
  * reading stopped, and `completed` means all of it.
  */
@@ -259,7 +259,7 @@ export function planHentoidBook(f: HentoidFolder, rootPath: string, now: number)
 	const tags = book ? tagsOf(book) : [];
 	if (entries.length > 1) for (const e of entries) e.tags = tags;
 
-	// Hentoid's stars are out of 5; tsundoku rates out of 10 (c67).
+	// Hentoid's stars are out of 5; tsundoku rates out of 10.
 	const rating = (Math.max(0, Math.min(5, Math.round(book?.rating ?? 0))) * 2) as Rating;
 	return {
 		originKey,

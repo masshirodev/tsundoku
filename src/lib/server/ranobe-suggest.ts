@@ -15,11 +15,11 @@ import { bracketed, cleanTitle, normaliseTitle } from '../library/catalogue.ts';
 import { epubLang, suggestedPeople, volumeOf, workBundle } from '../library/ranobe.ts';
 
 /**
- * Suggesting a novel Ranobe lacks, from its EPUB (card c72; API-V1.md,
+ * Suggesting a novel Ranobe lacks, from its EPUB (API-V1.md,
  * "For Tsundoku", step 12; doc/RANOBE.md, "Suggesting a novel"). Only on the
- * owner's tap in the review, only through the app account, whose suggestions
- * wait for the owner on Ranobe: the files' metadata is rough, and the owner
- * corrects it there before approving. Never for a hidden series or Hentoid.
+ * user's tap in the review, only through the app account, whose suggestions
+ * wait for approval on Ranobe: the files' metadata is rough, and is corrected
+ * there before approving. Never for a hidden series or Hentoid.
  */
 
 type BundleAnswer = {
@@ -33,7 +33,7 @@ export class CannotSuggest extends Error {}
 /** What a series' EPUB says, for the bundle: its first file with a package. */
 async function fromFile(seriesId: number) {
 	const db = getDb();
-	// NEVER TRACKED (c522): a suggestion is a write to Ranobe, so nothing of the
+	// NEVER TRACKED: a suggestion is a write to Ranobe, so nothing of the
 	// series leaves the workstation. Saying it here keeps the bundle from being
 	// built and POSTed for a work that could never be tracked.
 	const never = db
@@ -160,7 +160,7 @@ export async function withdrawWork(seriesId: number): Promise<boolean> {
  * linked to the work it made, and its siblings -- the same title before a
  * volume number -- are searched again, so the new work comes to them as a
  * candidate. Rejected or withdrawn on Ranobe, the series is settled as not
- * there: the owner said no.
+ * there: Ranobe said no.
  */
 export async function checkWorkSuggestions(
 	now = Date.now()

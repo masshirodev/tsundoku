@@ -9,8 +9,7 @@ import { queueView, type QueueItem } from '../library/downloads.ts';
  * what moved over server-sent events: the chapter downloading and how far it
  * is, and a version that changes when anything else does, so a screen reads
  * its data again only then. Importing what arrives is the worker's
- * (engine/run.ts). Until c129 this was suwayomi-watch.ts, which also took
- * Suwayomi's backup and asked for the import.
+ * (engine/run.ts).
  */
 
 export type LiveMessage = {
@@ -100,7 +99,7 @@ export function listen(
 /**
  * On SIGTERM adapter-node closes the server and waits for its connections,
  * but a live screen's stream never ends by itself, so `systemctl restart`
- * sat out the 90 s stop timeout and was killed (2026-10-15). Ending the
+ * sits out the 90 s stop timeout and is killed. Ending the
  * streams, with the timer above unref'd, lets the process exit at once.
  */
 function stopAll() {

@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { askOne, asksSource, movable } from '../access.server';
 
 /**
- * One source asked the move page's query again (card c490): TRY AGAIN and
+ * One source asked the move page's query again: TRY AGAIN and
  * TRY ALL AGAIN re-ask only the sources that did not answer, never every
  * source. Only a source MOVE asks for this series answers; another is 404.
  * Answers the list's own Settled.

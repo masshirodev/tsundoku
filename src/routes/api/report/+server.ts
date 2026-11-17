@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import { buildReport } from '$lib/server/report';
 
 /**
- * SAVE A REPORT (doc/LOGS.md; card c193): the scrubbed report as a file to
+ * SAVE A REPORT (doc/LOGS.md): the scrubbed report as a file to
  * save and send. Signed in only (the hook), and never cached.
  */
 export const GET: RequestHandler = async () => {

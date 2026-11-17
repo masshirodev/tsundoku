@@ -3,9 +3,9 @@ import { isRevealed } from '$lib/server/prefs';
 import { candidates, decide, flushPending, kumiko, sentCount } from '$lib/server/japanese/mining';
 
 /**
- * Words (Index Japanese 3a; doc/JAPANESE.md, "Mining"): what was looked up
- * while reading Japanese, waiting for approval. Nothing reaches Kumiko
- * without it. Hidden series' words only with reveal on.
+ * Words (doc/JAPANESE.md, "Mining"): what was looked up while reading
+ * Japanese, waiting for approval. Nothing reaches Kumiko, the flashcard app
+ * the words are sent to, without it. Hidden series' words only with reveal on.
  */
 export const load: PageServerLoad = ({ cookies }) => ({
 	words: candidates(isRevealed(cookies)),

@@ -160,9 +160,8 @@ export const SERVE_MODES = ['https', 'http', 'local'] as const;
 export type ServeMode = (typeof SERVE_MODES)[number];
 
 /**
- * TSUNDOKU_SERVE, unset meaning https. Anything else is refused by name: until
- * `local` existed, every value but `https` meant the tailnet bind, so a typo
- * would have served the LAN-facing mode without a word.
+ * TSUNDOKU_SERVE, unset meaning https. Anything else is refused by name, so a
+ * typo never serves another mode without a word.
  */
 export function serveMode(value: string | undefined): ServeMode {
 	const v = (value ?? '').trim() || 'https';
@@ -202,9 +201,8 @@ export function loopbackRedirect(hostHeader: string | null, origin: string): str
 
 /**
  * The `tailscale` command. On Linux and macOS it's on PATH. Windows' installer
- * puts it in Program Files and leaves PATH alone (seen on Zen, 2026-10-30), so
- * a friend's https mode looked for a `tailscale` that wasn't there; Program
- * Files is checked first, then PATH, for an install somewhere else.
+ * puts it in Program Files and leaves PATH alone, so https mode would look
+ * for a `tailscale` that isn't there; Program Files is checked first, then PATH, for an install somewhere else.
  */
 export function tailscaleCommand(
 	platform: NodeJS.Platform,
@@ -256,8 +254,8 @@ export function readServing(text: string | null | undefined): Serving | null {
  * sends there. A web page can point a name of its own at 127.0.0.1 (DNS
  * rebinding) and then talk to the app as if it were its own site, the
  * origin check none the wiser, since to the browser it is the same origin.
- * The Host header still says the page's name, so it's refused on that
- * (card c189): with no password set, this check is all there is.
+ * The Host header still says the page's name, so it's refused on that:
+ * with no password set, this check is all there is.
  */
 export function foreignHost(hostHeader: string | null, origin: string): boolean {
 	if (!hostHeader) return true;
@@ -271,9 +269,8 @@ export function foreignHost(hostHeader: string | null, origin: string): boolean 
  * What the launcher and serve.ts set in the server's environment for that
  * one run (ops/release/launcher/plan.ts, scripts/serve.ts). An update starts
  * the installer from the server, and the installer starts the new version:
- * each inherits the one before's environment, so the new serve.ts found the
- * old one's ORIGIN, took the path from before Wi-Fi, and had no WI-FI
- * (2026.10.30.5 -> .6, a friend's; card c188). None of these is a friend's to
+ * each inherits the one before's environment, so the new serve.ts would find
+ * the old one's ORIGIN, take the old one's path, and lose WI-FI. None of these is a friend's to
  * set: their settings live in the data folder's .env.
  */
 export const SERVER_ENV = [
@@ -294,8 +291,8 @@ export const SERVER_ENV = [
 	'ENGINE_URL',
 	'ENGINE_TOKEN',
 	'ENGINE_SOLVER_URL',
-	// The address a signed-in owner's AniList token is posted to: only the
-	// e2e's stand-in sets it, and it must never be inherited (c298).
+	// The address a signed-in user's AniList token is posted to: only the
+	// e2e's stand-in sets it, and it must never be inherited.
 	'TSUNDOKU_ANILIST_URL',
 	'FFMPEG',
 	'FFPROBE'

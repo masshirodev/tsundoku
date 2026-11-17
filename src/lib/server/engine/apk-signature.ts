@@ -11,11 +11,10 @@ import { createHash, createPublicKey, verify, X509Certificate } from 'node:crypt
  * alone accepts a genuine signing block grafted onto other code, and a
  * signature check alone accepts code signed by anyone. An extension is code
  * the engine runs with the source's cookies, so an APK that fails either is
- * UNTRUSTED (doc/briefs/BROWSE.md) and never installed.
+ * UNTRUSTED (doc/BROWSE.md) and never installed.
  *
- * Every repository extension checked on 2026-10-28 (Keiyoushi's, Yuzono's)
- * was signed with v2 alone. v3 and v1-only APKs are refused rather than
- * half-checked.
+ * Every repository extension checked (Keiyoushi's, Yuzono's) was signed
+ * with v2 alone. v3 and v1-only APKs are refused rather than half-checked.
  */
 
 export class ApkSignatureError extends Error {}

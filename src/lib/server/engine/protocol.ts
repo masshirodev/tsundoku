@@ -90,7 +90,7 @@ export function failureOf(status: number, body: unknown): EngineFailure {
 	if (code === 429) return 'rate-limited';
 	// An extension that meets a rate limit often throws it as plain text, which
 	// the engine answers as a 500 ("You have been rate limited. Wait a few
-	// seconds and refresh": AnimePahe, 2026-10-29).
+	// seconds and refresh": AnimePahe).
 	const said = typeof body === 'object' && body && 'error' in body ? String(body.error) : '';
 	if (/rate.?limit|too many requests/i.test(said)) return 'rate-limited';
 	if (code === 403) return 'refused';

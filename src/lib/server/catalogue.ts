@@ -90,7 +90,7 @@ export class Unreachable extends Error {}
  * pass that stops at the same request each tick, one quiet request ten minutes.
  */
 export class AnilistDown extends Error {}
-/** A catalogue refused the owner's sign-in: expired or revoked (doc/TRACKING.md). */
+/** A catalogue refused the user's sign-in: expired or revoked (doc/TRACKING.md). */
 export class SignedOut extends Error {}
 
 type Fetch = typeof fetch;
@@ -187,13 +187,13 @@ function anilist(
 	return run;
 }
 
-/** An AniList query as the owner, for tracking (doc/TRACKING.md); the same one-at-a-time limit. */
+/** An AniList query as the signed-in user, for tracking (doc/TRACKING.md); the same one-at-a-time limit. */
 export const anilistAs = (token: string, query: string, variables: Record<string, unknown> = {}) =>
 	anilist(query, variables, token);
 
 /**
  * AniList asked without a token, as its search asks it: its catalogue is
- * public, and an entry's relations are no more private than its title (c240).
+ * public, and an entry's relations are no more private than its title.
  */
 export const anilistPublic = (query: string, variables: Record<string, unknown> = {}) =>
 	anilist(query, variables);
@@ -318,7 +318,7 @@ type LinkRow = {
 	filled_rating: number | null;
 	score: number | null;
 	format: string | null;
-	/** AniList's countryOfOrigin and start year (rung 70, c520); NULL until asked, '' when unknown. */
+	/** AniList's countryOfOrigin and start year (migration 70); NULL until asked, '' when unknown. */
 	country: string | null;
 	year: number | null;
 };
@@ -352,7 +352,7 @@ const fill = fillRating;
 
 /**
  * A MAL tracker from Mihon's backup (called by the import's writer, inside
- * its transaction). Sure, so it links at once, unless the owner unlinked this
+ * its transaction). Sure, so it links at once, unless the user unlinked this
  * series or linked it some other way; a tracker that moved to another entry
  * moves a link it made.
  */
@@ -367,7 +367,7 @@ export function linkFromTracker(
 			.prepare(`SELECT 1 FROM link_decisions WHERE series_id = ? AND decision = 'unlinked'`)
 			.get(seriesId) ||
 		// A series with season rows is linked by them: a row here would stand
-		// beside them and be read by nothing (c467).
+		// beside them and be read by nothing.
 		db.prepare(`SELECT 1 FROM series_season_links WHERE series_id = ? LIMIT 1`).get(seriesId)
 	)
 		return;
@@ -402,13 +402,13 @@ export function linkFromTracker(
 }
 
 /**
- * Link a series to an AniList entry the owner chose (the review, FIND, a
+ * Link a series to an AniList entry the user chose (the review, FIND, a
  * pasted link) or that matched exactly. Replaces a link it had. The series
  * leaves the review; its search and candidates are kept, so UNDO brings it
  * back as it was. AniSkip's answers go with the old link: the new MAL id must
- * be asked afresh (c299).
+ * be asked afresh.
  *
- * An anime links a season, not the series (c240, doc/LINKS.md): every door
+ * An anime links a season, not the series (doc/LINKS.md): every caller
  * that wrote `series_links` writes `series_season_links` instead. A caller
  * that names no season links the season that still wants a look
  * (`seasonToLook`), never one already linked or settled; only when every
@@ -449,7 +449,7 @@ export function link(seriesId: number, c: Candidate, via: Via, now = Date.now())
 }
 
 /**
- * A link from the owner's AniList list (doc/TRACKING.md): sure, since it's
+ * A link from the user's AniList list (doc/TRACKING.md): sure, since it's
  * their own entry, and its score fills an unrated series' rating once (1w).
  */
 export function linkFromList(
@@ -473,9 +473,9 @@ export function linkFromList(
 /**
  * UNDO, just after a LINK: the link goes, and a rating it gave goes with it
  * (if nobody changed it since). The series is back in the review. AniSkip's
- * answers go too: with no link there is no MAL entry (c299).
+ * answers go too: with no link there is no MAL entry.
  *
- * An anime's UNDO is the season's it acted on (c240), which every caller
+ * An anime's UNDO is the season's it acted on, which every caller
  * names; with none named it is the open season, since the season a LINK just
  * filled is no longer the one `seasonToLook` would answer.
  */
@@ -497,7 +497,7 @@ export function undoLink(seriesId: number, season?: number, part = 1): boolean {
 	})();
 }
 
-// ---- UNLINK, and its UNDO (c520) ----------------------------------------------------------
+// ---- UNLINK, and its UNDO ----------------------------------------------------------
 
 /** The columns a comic's link and a season's share past their keys. */
 const SHARED_COLUMNS = [
@@ -521,7 +521,7 @@ type TakenRow = Record<string, string | number | null>;
 type Decision = { decision: 'none' | 'unlinked'; at: number };
 
 /**
- * What UNLINK took, exactly, so its band's UNDO can put it back (c520). The
+ * What UNLINK took, exactly, so its band's UNDO can put it back. The
  * rows are keyed by the series and, for an anime, by season and part: never a
  * row id, which a later link could reuse. `at` is the UNLINK's own time, the
  * mark its decision rows carry; UNDO knows its own decision by it.
@@ -546,13 +546,13 @@ const pick = (r: Record<string, unknown> | undefined, cols: readonly string[]): 
 /**
  * UNLINK, on the series screen: the link goes and stays gone. An import won't
  * bring Mihon's tracker back, and the pass won't search it again; FIND and
- * PASTE A LINK still can. The rating it gave, long since the owner's, stays.
+ * PASTE A LINK still can. The rating it gave, long since the user's, stays.
  * AniSkip's answers go: the old MAL id's negatives are not this series'.
  *
  * An anime unlinks a season -- every part of it, since a season's line stands
  * for the whole season -- or every season it has when nobody said, which is
  * what the review's own UNLINK means. It answers what it took, for the
- * band's UNDO (c520).
+ * band's UNDO.
  */
 export function unlink(seriesId: number, now = Date.now(), season?: number): UnlinkFacts {
 	const db = getDb();
@@ -678,8 +678,8 @@ export function parseUnlinkFacts(raw: string, seriesId: number): UnlinkFacts | n
 	if (read.some((p) => p.bad || !Number.isInteger(p.season) || (p.part !== 1 && p.part !== 2)))
 		return null;
 	const link = f.link == null ? null : rowFrom(f.link, LINK_COLUMNS);
-	// A band drawn before rung 74 still posts `mirror`, a copy of a season row
-	// (c467). It is not read: the seasons' own rows are what UNDO puts back.
+	// A band drawn before migration 74 still posts `mirror`, a copy of a season
+	// row. It is not read: the seasons' own rows are what UNDO puts back.
 	if (f.link != null && !link) return null;
 	if (f.decision != null && !decisionFrom(f.decision)) return null;
 	return {
@@ -711,13 +711,13 @@ const insertRow = (
 };
 
 /**
- * UNDO on UNLINK's band (c520): the rows the UNLINK took, back as they were,
+ * UNDO on UNLINK's band: the rows the UNLINK took, back as they were,
  * and its decision ("no pass asks again") gone with it, so the next pass
  * treats the series as linked again. All or nothing, and never over a newer
  * act: a link made since, or a decision since (NONE OF THESE, another UNLINK),
  * refuses the whole UNDO. A second UNDO of the same facts finds its rows back
  * and says so. AniSkip's marks, which UNLINK cleared, are fetched again on the
- * next look as for any new link; they were never the owner's.
+ * next look as for any new link; they were never the user's.
  */
 export function undoUnlink(facts: UnlinkFacts): 'undone' {
 	const db = getDb();
@@ -824,7 +824,7 @@ export function undoNone(seriesId: number, season?: number, part = 1): boolean {
 	);
 }
 
-/** The season an anime's search door acts on: the one named, else the one that wants a look, else the open one. */
+/** The season an anime's search acts on: the one named, else the one that wants a look, else the open one. */
 function searchSeason(seriesId: number, o: { season?: number; part?: number }) {
 	return {
 		season: o.season ?? seasonToLook(seriesId) ?? openSeasonOf(seriesId),
@@ -832,7 +832,7 @@ function searchSeason(seriesId: number, o: { season?: number; part?: number }) {
 	};
 }
 
-/** SKIP: to the back of the queue. An anime's item is a season's, and so is its place (c352). */
+/** SKIP: to the back of the queue. An anime's item is a season's, and so is its place. */
 export function skip(seriesId: number, now = Date.now(), season?: number): void {
 	if (isAnime(kindOf(seriesId))) {
 		const at = searchSeason(seriesId, { season });
@@ -943,7 +943,7 @@ export async function readPasted(p: Pasted, kind: Kind): Promise<Candidate> {
 	return c;
 }
 
-/** A series' kind, for the doors that read a pasted link or ask for an id. */
+/** A series' kind, for the actions that read a pasted link or ask for an id. */
 export function kindOf(seriesId: number): Kind | null {
 	const r = getDb().prepare(`SELECT kind FROM series WHERE id = ?`).get(seriesId) as
 		{ kind: Kind } | undefined;
@@ -961,9 +961,9 @@ export function kindOf(seriesId: number): Kind | null {
 export async function resolveLinks(now = Date.now()): Promise<number> {
 	const db = getDb();
 	const waitingAll = db
-		// Also a link from before rung 26, which doesn't know its entry's format
-		// yet, and one from before rung 70, which doesn't know its country or year
-		// (c520). Not an anime's that has season rows: those are its links, and
+		// Also a link from before migration 26, which doesn't know its entry's
+		// format yet, and one from before migration 70, which doesn't know its
+		// country or year. Not an anime's that has season rows: those are its links, and
 		// the season keeps its own year.
 		.prepare(
 			`SELECT l.series_id, l.anilist_id, l.mal_id, s.kind,
@@ -978,10 +978,10 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 		anilist_id: number | null;
 		mal_id: number | null;
 		kind: Kind;
-		/** Resolved and its format known: only its country and year are asked (rung 70). */
+		/** Resolved and its format known: only its country and year are asked (migration 70). */
 		known: number;
 	}[];
-	// A kind AniList does not hold is another catalogue's to resolve (c988): a
+	// A kind AniList does not hold is another catalogue's to resolve: a
 	// film's or a show's TMDB id is never asked of AniList, which has no entry
 	// for it.
 	const waiting = waitingAll.filter((w) => anilistTypeOf(w.kind) !== null);
@@ -1009,8 +1009,8 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 		`UPDATE series_links SET anilist_id = ?, mal_id = COALESCE(?, mal_id), title = ?, cover_url = ?, resolved_at = ?,
 			format = ?, country = ?, year = ? WHERE series_id = ?`
 	);
-	// A link resolved before rung 70 learns only what it lacks: its title,
-	// cover and format were settled then, and the owner may have chosen them.
+	// A link resolved before migration 70 learns only what it lacks: its title,
+	// cover and format were settled then, and the user may have chosen them.
 	const backfill = db.prepare(`UPDATE series_links SET country = ?, year = ? WHERE series_id = ?`);
 	// Asked and not found: '' marks it asked, so the next pass doesn't ask again.
 	const none = db.prepare(
@@ -1047,9 +1047,9 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 }
 
 /**
- * The owner-facing queue, and the pass that fills it: what a catalogue of manga,
+ * The user-facing queue, and the pass that fills it: what a catalogue of manga,
  * novels and anime holds, never a doujin, never Hentoid's. An import's Mihon
- * tracker is the other door, and it can link a doujin (`resolveLinks`).
+ * tracker is the other way in, and it can link a doujin (`resolveLinks`).
  */
 // A browsing record (doc/READING-ONLINE.md) is never in the LINK queue: it isn't the library's.
 const LINKABLE_KINDS = KINDS.filter(
@@ -1058,15 +1058,15 @@ const LINKABLE_KINDS = KINDS.filter(
 const LINKABLE = `s.kind IN (${LINKABLE_KINDS.map((k) => `'${k}'`).join(', ')}) AND s.source != 'hentoid' AND ${IN_LIBRARY_SQL}`;
 
 /**
- * A series still wants a look: the one rule of "not linked and not settled"
- * (c240), at every door that asks it of a series -- the cover pass, the
+ * A series still wants a look: the one rule of "not linked and not settled",
+ * wherever it is asked of a series -- the cover pass, the
  * review queue and its count and `links --again` for a comic or a novel, and
  * the tracker lists' auto-link (`linkableByTitle`) for every kind. Those
- * doors ask an anime the same rule a season at a time (`seasonOpen`, below),
- * since its search and its queue item are a season's (wave 17).
+ * ask an anime the same rule a season at a time (`seasonOpen`, below),
+ * since its search and its queue item are a season's.
  *
  * A series with season rows (an anime linked or settled a season at a time,
- * rung 62) is decided by those rows alone: it wants a look while one of its
+ * migration 62) is decided by those rows alone: it wants a look while one of its
  * seasons has neither a link nor a decision. Computed from the rows rather
  * than cached on the series, so a season the source adds later puts the
  * series back by itself.
@@ -1074,9 +1074,9 @@ const LINKABLE = `s.kind IN (${LINKABLE_KINDS.map((k) => `'${k}'`).join(', ')}) 
  * A series with no season rows -- every comic and novel, and an anime nobody
  * has acted on -- keeps the series-level gate: no `series_links` row and no
  * `link_decisions` row, so a legacy NONE OF THESE still counts. An anime
- * linked before rung 62 was one of these, its one link ending the look while
- * season 2 was open, until rung 68 (c383) gave the link its season row; from
- * there the season rule above decides it.
+ * linked before migration 62 was one of these, its one link ending the look
+ * while season 2 was open, until migration 68 gave the link its season row;
+ * from there the season rule above decides it.
  *
  * Its TypeScript twin is `seasonToLook` (season-links.ts), which names the
  * season this lets a series in for; `IN_LINK_REVIEW` builds on it for
@@ -1098,8 +1098,8 @@ export const NEEDS_LOOK = `(CASE WHEN EXISTS (SELECT 1 FROM series_season_links 
 
 /**
  * The kinds a catalogue lists a season at a time: AniList's ANIME type, whose
- * every season (and MAL's) is its own entry (c240). Their link, search,
- * candidates and decisions are a season's rows (rung 62), never the
+ * every season (and MAL's) is its own entry. Their link, search,
+ * candidates and decisions are a season's rows (migration 62), never the
  * series-level `link_searches`/`link_candidates`, which are one search for the
  * whole series and so stand for no season in particular.
  */
@@ -1108,10 +1108,10 @@ const seasonal = (alias: string) =>
 	`${alias}.kind IN (${SEASONAL_KINDS.map((k) => `'${k}'`).join(', ')})`;
 
 /**
- * One season of `s` still wants a look (c240, wave 17): `season` (an SQL
+ * One season of `s` still wants a look: `season` (an SQL
  * expression) has neither a link nor a decision of its own, and -- for a
  * series with no season rows at all, which is every anime nobody has acted on
- * and every one linked before rung 62 -- the series-level gate holds too.
+ * and every one linked before migration 62 -- the series-level gate holds too.
  * `NEEDS_LOOK` is exactly "some season of the series passes this".
  */
 const seasonOpen = (season: string) => `(NOT EXISTS (SELECT 1 FROM series_season_links sl
@@ -1149,7 +1149,7 @@ const SEASONS_SQL = `SELECT DISTINCT e.series_id, COALESCE(e.season, 0) AS seaso
 /**
  * A series is in the AniList review: searched, and not linked or settled. A
  * comic or a novel by its series-level search; an anime when one of its open
- * seasons has a searched row of its own (c352: the queue holds an item a
+ * seasons has a searched row of its own (the queue holds an item a
  * season). Ranobe's review line asks this too (ranobe-review.ts).
  */
 export const IN_LINK_REVIEW = `(CASE WHEN ${seasonal('s')}
@@ -1167,7 +1167,7 @@ type SearchRow = {
 	kind: Kind;
 	query: string | null;
 	/**
-	 * An anime's season this row searches (c240): each open season is searched
+	 * An anime's season this row searches: each open season is searched
 	 * by its own title, against its own row. Null for a comic or a novel.
 	 */
 	season?: number | null;
@@ -1177,7 +1177,7 @@ type SearchRow = {
  * What the pass may search: manga, manhwa and novels with no link and no NONE
  * OF THESE or UNLINK, never searched or waiting on a SEARCH AGAIN; and each
  * open season of an anime whose own search hasn't run, or waits on a SEARCH
- * AGAIN (wave 17: never the series-level search, which is no season's).
+ * AGAIN (never the series-level search, which is no season's).
  * Never a hidden series, never Hentoid's. A SEARCH AGAIN goes first, then
  * the series with no cover.
  */
@@ -1222,11 +1222,10 @@ export const titlesOfRow = (r: { title: string; alt_titles: string | null }): st
 
 /**
  * Search AniList for each: the automatic pass links a sure match at once
- * ('exact'); the owner's own search (`autoLink: false`) only stores what it
- * found, even a single equal title, and waits for LINK (the owner's rule,
- * 2026-11-02). Either way the first four results wait for the review, and a
- * search that found nothing does too, so the owner can search again or paste
- * a link.
+ * ('exact'); a search the user runs (`autoLink: false`) only stores what it
+ * found, even a single equal title, and waits for LINK. Either way the first
+ * four results wait for the review, and a search that found nothing does
+ * too, so the user can search again or paste a link.
  */
 export async function searchSeries(
 	all: SearchRow[],
@@ -1235,12 +1234,12 @@ export async function searchSeries(
 ): Promise<{ linked: number; offered: number }> {
 	const autoLink = opts.autoLink ?? true;
 	const db = getDb();
-	// Only AniList's kinds are searched here (c988): a film's or a show's link
+	// Only AniList's kinds are searched here: a film's or a show's link
 	// is TMDB's, and its title never leaves for a catalogue that cannot hold it.
 	const searched = all.filter((r) => anilistTypeOf(r.kind) !== null);
-	// The owner's own title for a SEARCH AGAIN, as typed; the pass's cleaned,
+	// The user's own title for a SEARCH AGAIN, as typed; the pass's cleaned,
 	// with a shorter one to fall back on. An anime is searched by its season's
-	// own title, since each season is its own catalogue entry (c240): the
+	// own title, since each season is its own catalogue entry: the
 	// season the row names (`searchable` gives a row a season), or with none
 	// named the one that still wants a look, never the one CONTINUE is in,
 	// which may be linked already. An anime with no such season is not
@@ -1303,11 +1302,11 @@ export async function searchSeries(
 	rows.forEach((r, i) => {
 		const hits = found[i] ?? [];
 		const at = seasonOfRow[i];
-		// The by-hand query is the owner's choice of title, so it counts as one of
+		// The by-hand query is the user's choice of title, so it counts as one of
 		// the series'. A season past the first is judged by its own titles
 		// ("Show Season 2") and the typed query, never the series' plain one,
 		// which is season 1's entry: AniList's answer for "Show Season 2" lists
-		// "Show" too (wave 17, round 2). Not through `matchTitles`, whose cleaning
+		// "Show" too. Not through `matchTitles`, whose cleaning
 		// cuts "Season 2" off and gives the plain title back.
 		const titles =
 			at !== undefined && at > 1
@@ -1323,13 +1322,13 @@ export async function searchSeries(
 		const sure = crossed.has(i) ? null : sureMatch(titles, r.kind, hits);
 		db.transaction(() => {
 			if (isAnime(r.kind) && at !== undefined) {
-				// An anime's search is its season's, and stored once (c355): the
+				// An anime's search is its season's, and stored once: the
 				// season's own row and candidates, which the queue, FIND and the
 				// season's line all read. The series-level pair is never written
 				// for it, so it can never stand in for another season.
 				saveSeasonSearch(r.id, at, 1, queries[i], hits, now);
 				// A sure match links only the season searched, and only while it is
-				// still open: never a season with a link or a decision (the owner's
+				// still open: never a season with a link or a decision (the user's
 				// season 1, its score and its AniSkip answers stay as they were).
 				// And never an entry another season holds (`linkSeason` refuses it,
 				// and the save above left it out of the candidates): offered instead.
@@ -1356,10 +1355,10 @@ export async function searchSeries(
 
 /**
  * Search again every series the pass searched and couldn't link, with the
- * titles cleaned as they are now: `yarn run links --again`. The owner's own
+ * titles cleaned as they are now: `yarn run links --again`. The user's own
  * SEARCH AGAIN titles, NONE OF THESE and UNLINK are left alone. An anime's
  * searches are its seasons': each open season the pass searched by its own
- * title is searched again, a settled one never (wave 17).
+ * title is searched again, a settled one never.
  */
 export function requeueSearched(): number {
 	const db = getDb();
@@ -1374,7 +1373,7 @@ export function requeueSearched(): number {
 				.all() as { id: number; query: string; title: string }[]
 		)
 			// The pass's own query: the title, the title without Mihon's "...", or a
-			// cleaning of it. Anything else the owner typed.
+			// cleaning of it. Anything else the user typed.
 			.filter(
 				(r) =>
 					r.query === r.title ||
@@ -1420,7 +1419,7 @@ export function requeueSearched(): number {
 
 export type PassResult = {
 	resolved: number;
-	/** Anime whose relation graph was fetched and cached (c358; doc/LINKS.md, "The relation cache"). */
+	/** Anime whose relation graph was fetched and cached (doc/LINKS.md, "The relation cache"). */
 	relations?: number;
 	searched: number;
 	linked: number;
@@ -1428,7 +1427,7 @@ export type PassResult = {
 	unreachable: boolean;
 	/** Why AniList couldn't be reached, for the log. */
 	reason?: string;
-	/** Films and shows, TMDB's (c989): nothing searched without a key. */
+	/** Films and shows, TMDB's: nothing searched without a key. */
 	tmdb?: TmdbPassResult;
 	/** Why TMDB failed, when it did: its own, never AniList's `unreachable`. */
 	tmdbError?: string;
@@ -1438,7 +1437,7 @@ export type PassResult = {
  * The link pass, before the covers are made (after an import, and in
  * `yarn run covers` / `yarn run links`): MAL ids resolved, then up to
  * `limit` series searched, then the relations of up to `relations` anime
- * cached (c358). Unreachable is not an error: the next pass tries.
+ * cached. Unreachable is not an error: the next pass tries.
  */
 export async function refreshLinks(
 	opts: {
@@ -1457,7 +1456,7 @@ export async function refreshLinks(
 	markLinkPass();
 	try {
 		out.resolved = await resolveLinks(now);
-		// A season's own link, where only one id was known (c240).
+		// A season's own link, where only one id was known.
 		out.resolved += await resolveSeasonLinks(now);
 		const rows = searchable(opts.limit ?? 60);
 		for (let i = 0; i < rows.length; i += 25) {
@@ -1468,8 +1467,8 @@ export async function refreshLinks(
 			out.offered += r.offered;
 			opts.log?.(`links: ${out.searched} of ${rows.length} searched`);
 		}
-		// Last, so a link this pass made has its relations asked for in it
-		// (c358): the series screen's seasons around an anime come from here,
+		// Last, so a link this pass made has its relations asked for in it:
+		// the series screen's seasons around an anime come from here,
 		// never from a page load.
 		const r = await refreshRelations(anilistPublic, {
 			limit: opts.relations,
@@ -1488,7 +1487,7 @@ export async function refreshLinks(
 	}
 	// TMDB's films and shows, apart: an AniList outage or failure never stops
 	// it, and a TMDB failure never marks AniList unreachable. With no key it does
-	// nothing, and the first pass after a key is added is the backfill (c989).
+	// nothing, and the first pass after a key is added is the backfill.
 	try {
 		out.tmdb = await tmdbPass({ limit: opts.limit, now, log: opts.log });
 	} catch (e) {
@@ -1568,12 +1567,12 @@ export type ReviewItem = {
 	found: number;
 	/** Searched in some pass: false for a series FIND opens before any. */
 	searched: boolean;
-	/** When the last search ran: the review says "JUST NOW" for one the owner ran. */
+	/** When the last search ran: the review says "JUST NOW" for one the user ran. */
 	searchedAt: number | null;
 	cutShort: boolean;
 	candidates: ReviewCandidate[];
 	/**
-	 * An anime's season the item is for (c240): the one that still wants a look
+	 * An anime's season the item is for: the one that still wants a look
 	 * (`seasonToLook`), which LINK, NONE OF THESE and their UNDO post, so the
 	 * queue never leans on a default. Absent for a comic, a novel, and an anime
 	 * with every season settled.
@@ -1600,7 +1599,7 @@ type ItemRow = {
 	found: number;
 	searched_at: number | null;
 	skipped_at: number | null;
-	/** An anime's season the row's search is (c240); null for a comic or a novel. */
+	/** An anime's season the row's search is; null for a comic or a novel. */
 	season: number | null;
 };
 
@@ -1620,7 +1619,7 @@ const ITEM_SQL = `SELECT ${ITEM_COLS},
 
 /**
  * An anime's item for one season (the one bound as the first parameter): that
- * season's own search, never the series' (c240, wave 17).
+ * season's own search, never the series'.
  */
 const SEASON_ITEM_SQL = `SELECT ${ITEM_COLS},
 		COALESCE(ss.query, '') AS query, COALESCE(ss.found, 0) AS found, ss.searched_at, ss.skipped_at,
@@ -1628,7 +1627,7 @@ const SEASON_ITEM_SQL = `SELECT ${ITEM_COLS},
 	FROM (SELECT ? AS season, ? AS part) q JOIN series s JOIN roots r ON r.id = s.root_id
 	LEFT JOIN season_link_searches ss ON ss.series_id = s.id AND ss.season = q.season AND ss.part = q.part`;
 
-/** The queue's anime items: every open season with a searched row of its own (c352). */
+/** The queue's anime items: every open season with a searched row of its own. */
 const SEASON_QUEUE_SQL = `SELECT ${ITEM_COLS},
 		ss.query, ss.found, ss.searched_at, ss.skipped_at, ss.season AS season
 	FROM season_link_searches ss JOIN series s ON s.id = ss.series_id JOIN roots r ON r.id = s.root_id
@@ -1647,7 +1646,7 @@ function firstPageOf(seriesId: number): string | undefined {
 function itemOf(r: ItemRow, part = 1): ReviewItem {
 	const db = getDb();
 	const titles = titlesOfRow(r);
-	// An anime's item is one season's, or one of its parts' (c350, c592): its
+	// An anime's item is one season's, or one of its parts': its
 	// candidates are that part's own, checked against the part's episodes.
 	const season = isAnime(r.kind) ? r.season : null;
 	const own =
@@ -1655,8 +1654,8 @@ function itemOf(r: ItemRow, part = 1): ReviewItem {
 	const span = part > 1 ? own?.parts.find((p) => p.part === part) : null;
 	// What a part's candidates are checked against: its own episodes. Part 2's
 	// span exists once it is linked (`partsOf`); before that it is what part 1
-	// leaves, as `+ A SECOND PART` says (c350). An orphaned part 2's span is
-	// empty (nothing places it, c592), so the check falls back to the season's
+	// leaves, as `+ A SECOND PART` says. An orphaned part 2's span is
+	// empty (nothing places it), so the check falls back to the season's
 	// own listed count, less part 1's episodes where part 1 is linked.
 	const partOne = own?.parts.find((p) => p.part === 1)?.link ?? null;
 	const spanCount = span && span.to >= span.from ? span.to - span.from + 1 : null;
@@ -1721,10 +1720,10 @@ const QUEUE_ORDER = `ORDER BY skipped_at IS NOT NULL, skipped_at, found = 0, cov
 
 /**
  * The series to review: searched, not linked, not settled with NONE OF THESE
- * or UNLINK, with candidates, or none found. An anime is an item a season
- * (c352): each open season with a searched row of its own, carrying that
+ * or UNLINK, with candidates, or none found. An anime is an item a season:
+ * each open season with a searched row of its own, carrying that
  * season's search and candidates -- never another season's, and never the
- * series-level search (wave 17). A skipped one goes to the back. Hidden
+ * series-level search. A skipped one goes to the back. Hidden
  * series are never searched, so they're never here while reveal is off; the
  * filter is only belt and braces for one hidden since.
  */
@@ -1765,8 +1764,8 @@ export function linkQueueCount(reveal: boolean): number {
  * One series as the review shows it, whether or not it's in the queue: FIND
  * on its screen. An anime is shown as one season, or one part of one: the
  * one named, else the one that still wants a look, else the one CONTINUE is
- * in. `part` 2 is a season's second part by hand (c350), and the item a
- * season whose only row is part 2 stands on too (c592): its search, its
+ * in. `part` 2 is a season's second part by hand, and the item a
+ * season whose only row is part 2 stands on too: its search, its
  * candidates and its own share of the episodes.
  */
 export function reviewItem(
@@ -1792,7 +1791,7 @@ export function reviewItem(
  * A candidate the review offered for this series, for LINK. An anime's is the
  * season's own only (named, or the one that still wants a look): the queue
  * and FIND both draw a season's candidates, so one season's candidate is
- * never offered for another (wave 17; the series' own candidates, which
+ * never offered for another (the series' own candidates, which
  * belong to no season, are not asked).
  */
 export function offered(
@@ -1829,29 +1828,29 @@ export type LinkState = {
 		resolving: boolean;
 		/** Across kinds (a novel to its comic's entry): cover and details only, never tracked. */
 		coverOnly: boolean;
-		/** The entry is the other kind: a manga's on an anime, or an anime's on a manga (c298). */
+		/** The entry is the other kind: a manga's on an anime, or an anime's on a manga. */
 		wrongKind: boolean;
 		/**
 		 * The entry's own kind, from its stored format: what OPEN and the TRACKING
 		 * sheet must use, so a wrong-kind link opens the entry it names rather than
-		 * another work (c298). Null when the format isn't known yet.
+		 * another work. Null when the format isn't known yet.
 		 */
 		kind: Kind | null;
 		/**
 		 * The entry's stored format (`MANGA`, `NOVEL`, `TV`): the LISTS line's
-		 * meta names it (c424). Null until a pass or a link has read it.
+		 * meta names it. Null until a pass or a link has read it.
 		 */
 		format: string | null;
 		/**
 		 * Where the entry comes from (AniList's countryOfOrigin) and the year it
-		 * began (rung 70, c520): a comic's line says `MANHWA · 2020`. Null for a
+		 * began (migration 70): a comic's line says `MANHWA · 2020`. Null for a
 		 * link not asked yet, and for an anime, whose season keeps its own year.
 		 */
 		country: string | null;
 		year: number | null;
 	} | null;
 	/**
-	 * What settled it when no link stands: NONE OF THESE or an UNLINK (c424).
+	 * What settled it when no link stands: NONE OF THESE or an UNLINK.
 	 * The line says so in the decision's own word, and its FIND goes plain.
 	 */
 	decision: SeasonDecision | null;
@@ -1869,7 +1868,7 @@ export type LinkState = {
  * The LINK and COVER rows (Series Link 1k–1s). Null for a doujin: it is never
  * offered a row, although an import's Mihon tracker can link one
  * (`resolveLinks`).
- * An anime answers for one season (c240): the one the screen asked about, or
+ * An anime answers for one season: the one the screen asked about, or
  * the one CONTINUE is in.
  */
 export function linkState(seriesId: number, season?: number): LinkState | null {
@@ -1880,7 +1879,7 @@ export function linkState(seriesId: number, season?: number): LinkState | null {
 		)
 		.get(seriesId) as (ItemRow & { hidden: number }) | undefined;
 	if (!r || r.kind === 'doujin') return null;
-	// A film or a show is TMDB's (c989): its state is `tmdbLinkState`, never an AniList line.
+	// A film or a show is TMDB's: its state is `tmdbLinkState`, never an AniList line.
 	if (kindFacts(r.kind).catalogue.provider !== 'anilist') return null;
 	if (isAnime(r.kind)) return seasonLinkState(seriesId, r, season);
 	const l = linkOf(db, seriesId);
@@ -1920,9 +1919,9 @@ function decisionOf(db: Database.Database, seriesId: number): SeasonDecision | n
 
 /**
  * An anime's LINK row for one season: its own row, or the series' shape from
- * before rung 62 -- which `seriesSeasons` reads as the first season's, and only
+ * before migration 62 -- which `seriesSeasons` reads as the first season's, and only
  * for a series that has no season rows at all. A season with no row of its own
- * is not linked, whatever the open season or the mirror says (c240).
+ * is not linked, whatever the open season or the mirror says.
  */
 function seasonLinkState(
 	seriesId: number,
@@ -1934,7 +1933,7 @@ function seasonLinkState(
 	const sv = view?.seasons.find((s) => s.season === at) ?? null;
 	const l = sv?.link ?? null;
 	// Only the cover is read from the item; it is drawn as the season's, so no
-	// series-level search is asked for an anime (wave 17).
+	// series-level search is asked for an anime.
 	const item = itemOf({ ...r, chapters: sv?.aired ?? r.chapters, season: at });
 	return {
 		linked: l
@@ -1966,13 +1965,13 @@ function seasonLinkState(
  * The cover a link offers (doc/COVERS.md), for covers.ts and the review's cover
  * line, so the two can never disagree. An anime's is the open season's, else
  * its first season's (a cover is the series', and season 1's art is a cover of
- * it), else a link from before rung 62.
+ * it), else a link from before migration 62.
  */
 export function linkCover(
 	seriesId: number
 ): { provider: 'anilist' | 'tmdb'; id: number; url: string } | null {
 	const kind = kindOf(seriesId);
-	// A film's or a show's is its TMDB poster (c989): after the source's own
+	// A film's or a show's is its TMDB poster: after the source's own
 	// cover in the chain, so it fills in only where the source gave none.
 	if (kind && kindFacts(kind).catalogue.provider === 'tmdb') {
 		const t = getDb()
@@ -2000,7 +1999,7 @@ export function linkCover(
 }
 
 /**
- * The catalogue's names for a series, for OTHER NAMES on MOVE (c467): a comic's
+ * The catalogue's names for a series, for OTHER NAMES on MOVE: a comic's
  * link, or every season an anime has linked, in season order. Read from the
  * season rows, so a show with only season 2 linked still has its name.
  */
@@ -2019,7 +2018,7 @@ export function linkedNames(seriesId: number): string[] {
 
 /**
  * Series linked, for SETTINGS and the logs: a comic's or a novel's link, or
- * any season of an anime's (c240). An anime counts once.
+ * any season of an anime's. An anime counts once.
  */
 export function linkCount(): number {
 	return (
@@ -2079,14 +2078,13 @@ export type SearchNow =
 /**
  * SEARCH AGAIN (and FIND on a series never searched): AniList asked at once,
  * with this title only, in the series' own catalogue and kind. What it found
- * replaces the candidates and waits for LINK: a search the owner runs never
- * links by itself, even on one equal title (the owner's rule, 2026-11-02).
- * AniList out of reach, the search waits for the next pass instead, as it
- * used to.
+ * replaces the candidates and waits for LINK: a search the user runs never
+ * links by itself, even on one equal title. AniList out of reach, the search
+ * waits for the next pass instead.
  *
- * An anime searches one season (c240): a season's own title, in the anime
+ * An anime searches one season: a season's own title, in the anime
  * formats, kept against that season only -- the one record of it, which the
- * queue, FIND and the season's line all read (c355) -- and LINK writes that
+ * queue, FIND and the season's line all read -- and LINK writes that
  * season's row. With no season named, the season that still wants a look,
  * and only when every season is settled, the open one.
  */
@@ -2155,7 +2153,7 @@ export async function searchNow(
 
 /**
  * UNDO a SEARCH AGAIN: the search and the candidates it replaced come back.
- * A search the owner runs never makes a link (c298's rule), so there is
+ * A search the user runs never makes a link, so there is
  * nothing of the search's to take back here -- a link made by the review's
  * own LINK is undone by that decision's UNDO. A search that waited for the
  * pass (AniList out of reach) is taken back as before, with what `searchNow`
@@ -2215,7 +2213,7 @@ export function undoSearch(
 }
 
 /**
- * Series an entry on the owner's list could link to, by title: linkable, in
+ * Series an entry on the user's list could link to, by title: linkable, in
  * view, not linked and not settled (`NEEDS_LOOK`: an anime while one season
  * has neither) -- each under its titles, cleaned and normalised as a sure
  * match compares them (doc/TRACKING.md). The season an anime's entry lands on

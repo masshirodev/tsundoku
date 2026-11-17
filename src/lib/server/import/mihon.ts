@@ -21,11 +21,11 @@ import type { PlannedSeries } from '../../import/plan.ts';
  * The Mihon importer (doc/IMPORT-MIHON.md). It reads a Mihon backup at
  * `<library>/Mihon/autobackup` and, for tsundoku's own device only, that
  * device's `downloads/` -- in place, without moving a file -- and writes the
- * library from them. No other device's `Mihon/` folder is read (c191).
+ * library from them. No other device's `Mihon/` folder is read.
  *
  * Idempotent: a rescan finds each series by its origin key and each chapter
  * by its source URL, adds what is new, attaches files that have arrived,
- * moves read state forward, and leaves alone everything the owner may have
+ * moves read state forward, and leaves alone everything the user may have
  * edited since (rating, shelves, tags, hidden, title).
  */
 
@@ -67,7 +67,7 @@ export async function newestBackup(root: string): Promise<string | null> {
 }
 
 /**
- * Whether a `Mihon/` folder holds a backup to read (c268, c292): the same
+ * Whether a `Mihon/` folder holds a backup to read: the same
  * names newestBackup reads, asked synchronously, because the list of sources
  * is built before a job starts and an empty folder must refuse with where it
  * looked rather than start a scan that finds nothing.
@@ -213,9 +213,8 @@ export async function planMihonFolder(
 }
 
 /**
- * The backup on its own: the one import that survives c191, for a friend
- * moving here from Mihon. Nothing downloaded is read, and nothing on disk is
- * marked gone -- the folder is a place to drop a backup, not a device copy
+ * The backup on its own, for a friend moving here from Mihon. Nothing
+ * downloaded is read, and nothing on disk is marked gone -- the folder is a place to drop a backup, not a device copy
  * (doc/IMPORT-MIHON.md, "Where it reads from").
  */
 export async function planMihonBackup(

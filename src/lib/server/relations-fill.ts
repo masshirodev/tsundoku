@@ -1,14 +1,14 @@
 import { fillRelations, releaseAnilistWaits, type FillResult } from './catalogue.ts';
 
 /**
- * The relation cache's own timer (card c839; doc/LINKS.md, "How the cache
+ * The relation cache's own timer (doc/LINKS.md, "How the cache
  * fills"), started from `init` in hooks.server.ts, so a friend's install fills
  * too: `ops/systemd/` exists only on the workstation.
  *
  * Imports are relative and extension-ful, as catalogue.ts' are.
  *
  * **Why ten minutes.** AniList's limit is 30 requests a minute (the live
- * answer's `x-ratelimit-limit: 30`, 2026-11-08), and the queue spaces them
+ * answer's `x-ratelimit-limit: 30`), and the queue spaces them
  * 2.1 s apart, so a pass can't pass 28.6 a minute however long it runs. What
  * the interval decides is how much of that a pass may take:
  *

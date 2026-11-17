@@ -9,11 +9,11 @@ import {
 } from '$lib/server/pairing';
 
 /**
- * What a pairing code opens (doc/WIFI.md; card c188): the phone's camera reads
+ * What a pairing code opens (doc/WIFI.md): the phone's camera reads
  * the code on the computer's SETTINGS and opens this. Once, within its 10
  * minutes, it signs the phone in as a device of its own and shows the
- * welcome screen (3A); a used or expired code goes to the sign-in page, which
- * says which (3B, 3C). A phone that's already in goes straight to the library.
+ * welcome screen; a used or expired code goes to the sign-in page, which
+ * says which. A phone that's already in goes straight to the library.
  * Only over Wi-Fi: on the computer itself there's nothing to pair.
  */
 export const GET: RequestHandler = ({ params, request, cookies, locals, url }) => {
@@ -24,7 +24,7 @@ export const GET: RequestHandler = ({ params, request, cookies, locals, url }) =
 		// A code replaced by a newer one reads as expired: it's the same remedy.
 		redirect(303, `/login?pair=${result === 'used' ? 'used' : 'expired'}`);
 	const token = addPaired({ label: pairedLabel(ua), address: url.host });
-	// This origin's name (c530): another tsundoku on the computer keeps its own.
+	// This origin's name: another tsundoku on the computer keeps its own.
 	cookies.set(pairedCookie(url), token, PAIRED_COOKIE_OPTIONS);
 	redirect(303, '/welcome');
 };

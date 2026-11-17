@@ -3,9 +3,9 @@ import type { PlannedEntry, PlannedSeries, PlannedTag } from './plan.ts';
 import { animeKeyOf } from '../library/downloads.ts';
 
 /**
- * An anime from an Aniyomi source as a series to write (doc/ANIME.md; card
- * c154): what the engine's getDetailsAnime and getEpisodeList answered,
- * every episode NOT DOWNLOADED, through the importers' one writer. Pure.
+ * An anime from an Aniyomi source as a series to write (doc/ANIME.md): what the
+ * engine's getDetailsAnime and getEpisodeList answered, every episode NOT
+ * DOWNLOADED, through the importers' one writer. Pure.
  *
  * The season comes from the episode's name where the engine flattens a
  * source's seasons into one list ("Season 2 - Episode 3"), and otherwise from
@@ -27,7 +27,7 @@ export type AnimeEpisode = {
 
 export type AnimeDetails = {
 	sourceId: string;
-	/** The source's name: the series' `source`, as the handoff names it ("ANIMEPAHE"). */
+	/** The source's name: the series' `source` ("ANIMEPAHE"). */
 	sourceName: string;
 	url: string;
 	title: string;
@@ -45,7 +45,7 @@ export type AnimeDetails = {
  * the rest of the name. Also with no separator, when the episode follows the
  * season straight away ("Season 4  Ep 8", "S2 Episode 3"): a source that packs
  * its seasons into one entry names them so, and read without the season its
- * list came out interleaved by number (c998).
+ * list came out interleaved by number.
  */
 export function seasonOf(name: string): { season: number | null; rest: string } {
 	const bare = /^(?:.*?\s)?(?:season\s*(\d{1,3})|s(\d{1,3}))\s+((?:episode|ep)\b\.?\s*\d.*)$/i.exec(
@@ -70,7 +70,7 @@ export function seasonOf(name: string): { season: number | null; rest: string } 
 export function seasonOfTitle(title: string, url = ''): number | null {
 	const t = title.trim();
 	// "Lupin (Season 1-4)": a pack of seasons is no one season. Read as its
-	// first, it stamped season 1 on all four seasons' episodes (c998); with
+	// first, it stamped season 1 on all four seasons' episodes; with
 	// none, episodes that name their season still say it, and the rest stay flat.
 	if (seasonRange(t, url)) return null;
 	const after = /\bseason\s*(\d{1,3})\b/i.exec(t);
@@ -176,7 +176,7 @@ export function planAnime(d: AnimeDetails, episodes: AnimeEpisode[], now: number
 			tags.push({ namespace, value: v });
 	};
 	for (const g of d.genres ?? []) add('genre', g.toLowerCase());
-	// The importers' one split (c508): `/`, `;` and ` & ` too, and "Tanaka, Jr."
+	// The importers' one split: `/`, `;` and ` & ` too, and "Tanaka, Jr."
 	// one person, as Mihon's, LNReader's and the preview's are.
 	for (const a of people(d.author ?? '')) add('author', a);
 	for (const a of people(d.artist ?? '')) add('artist', a);

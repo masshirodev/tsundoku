@@ -10,7 +10,7 @@ import { followQueue, parseAnimeKey } from '../../library/downloads.ts';
 import { followOrigin, resequenceAnime, seasonFacts } from '../season-facts.ts';
 
 /**
- * FOLLOW for an anime (doc/ANIME.md, "FOLLOW"; card c158), as for a manga
+ * FOLLOW for an anime (doc/ANIME.md, "FOLLOW"), as for a manga
  * and a novel: its source asked at once when turned on, then every six
  * hours by FOLLOW's step; an episode it lists that no entry is becomes one
  * with ADD's own plan through the one writer, queued unless watched, fifty
@@ -26,7 +26,7 @@ function animeOf(db: Database.Database, seriesId: number) {
 		.get(seriesId) as
 		| { id: number; root_id: number; origin_key: string | null; followed_at: number | null }
 		| undefined;
-	// The last season's source, the one that can still air (c282): the
+	// The last season's source, the one that can still air: the
 	// series' own key for a series with no season rows, or whose last season
 	// has none (season-facts.ts).
 	const origin = followOrigin(seriesId, db);
@@ -64,7 +64,7 @@ export const animeCheckedAt = (seriesId: number, db: Database.Database = getDb()
  * how many arrived, and how many were queued. Throws when the source can't
  * answer (the check isn't recorded, so the next step asks again).
  *
- * FOLLOW is not a condition: REFRESH (card c220) asks a series the owner
+ * FOLLOW is not a condition: REFRESH asks a series the user
  * doesn't follow, and it downloads nothing (`queue: false`), so the two
  * can't disagree about what arriving means.
  */
@@ -103,7 +103,7 @@ export async function checkAnime(
 	const fresh = plan.entries.filter((e) => !had.has(e.sourceUrl));
 	db.transaction(() => {
 		if (fresh.length)
-			// Only the new episodes; nothing the owner set on the series moves.
+			// Only the new episodes; nothing the user set on the series moves.
 			writeSeries(
 				{ ...plan, coverUrl: undefined, entries: fresh },
 				{ rootId: s.root_id, jobId: null, now, markMissing: false },

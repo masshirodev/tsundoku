@@ -13,7 +13,7 @@ import { loopback } from './loopback.ts';
 import { episodeFile, episodeStreams, probe, videoOnly } from './streams.ts';
 
 /**
- * Episode pictures (doc/ANIME.md, "Episode pictures"; card c225). Neither
+ * Episode pictures (doc/ANIME.md, "Episode pictures"). Neither
  * KickAssAnime nor AnimePahe gives one, so an episode's picture is, best
  * first: the source's own (`thumb_url`, through the engine's /image/ proxy,
  * for an extension that sets one), else a frame of the downloaded file, else
@@ -150,7 +150,7 @@ async function frame(
  * all the time: doc/ANIME.md, "The player").
  */
 async function streamFrame(entryId: number, durationS: number | null): Promise<Buffer | null> {
-	// The workstation's own errand: reveal is the caller's to check, and was.
+	// The server's own errand: reveal is the caller's to check, and was.
 	const streams = await episodeStreams(entryId, true);
 	const { port, secret } = await loopback();
 	for (const server of streams?.servers ?? []) {

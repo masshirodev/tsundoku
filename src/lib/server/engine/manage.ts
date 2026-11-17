@@ -19,10 +19,10 @@ import { NO_EXT_FILTERS, searchMatches, type ExtFilters } from '../../library/ex
 import { novelListings, pluginsAvailable } from '../novels/plugins.ts';
 
 /**
- * EXTENSIONS, BROWSE's back room (Index-Extensions; doc/BROWSE.md,
- * "Extensions and repositories"; card c144): what the installed and
+ * EXTENSIONS, BROWSE's back room (doc/BROWSE.md,
+ * "Extensions and repositories"): what the installed and
  * available lists show, and what removing one does. The installing itself
- * is extensions.ts's (c134).
+ * is extensions.ts's.
  */
 
 // ---- installed ------------------------------------------------------------------------------
@@ -50,7 +50,7 @@ export type InstalledView = {
 };
 
 /**
- * The installed list (Index-Extensions, installed): NEEDS A HAND first, then
+ * The installed list: NEEDS A HAND first, then
  * UPDATES, then the rest. Hidden means hidden: an extension whose every
  * source is mostly hidden is listed only in reveal, so it isn't in UPDATE
  * ALL either, which updates only what's shown.
@@ -88,11 +88,11 @@ export function installedView(reveal: boolean, now = Date.now()): InstalledView 
 
 /**
  * The installed plugins hidden outside reveal: their `ln:<id>` is not among
- * the sources BROWSE may name, because the owner switched on its HIDDEN
- * SOURCE or because it is mostly hidden (card c435; doc/BROWSE.md, "Hidden
+ * the sources BROWSE may name, because the user switched on its HIDDEN
+ * SOURCE or because it is mostly hidden (doc/BROWSE.md, "Hidden
  * means hidden"). Plugin ids, without `ln:`. Inside reveal, none.
  * `pluginView` (novels/plugins.ts) counts each plugin's series through reveal
- * (c506) but lists every plugin, and `pluginsAvailable` takes no hidden
+ * but lists every plugin, and `pluginsAvailable` takes no hidden
  * source into account, so EXTENSIONS asks this, as `installedView` asks
  * `browseSources` for packages. It reads the app's database (`getDb()`), as
  * `browseSources` and `sourceUse` do.
@@ -132,7 +132,7 @@ export function pluginsShown<R extends { id: string }>(
  * AVAILABLE's NOVELS tab (`pluginsAvailable`) without an installed plugin
  * reveal hides: not a row, not in "+ N IN OTHER LANGUAGES", not in the
  * tab's count. A plugin not installed is never hidden: it has no use yet.
- * It takes no database (c506): what is hidden is read from the app's own,
+ * It takes no database: what is hidden is read from the app's own,
  * by `pluginsHidden`, so a `db` passed here would have answered rows from one
  * database with switches from another.
  */
@@ -184,13 +184,13 @@ export type AvailableView = {
 const LANGLESS = new Set(['all', 'multi', '']);
 
 /**
- * The available list (Index-Extensions, available; doc/BROWSE.md, "Filters"):
+ * The available list (doc/BROWSE.md, "Filters"):
  * every repository's listings of one kind, matching a search (case and
  * spacing ignored, against the extension's name and its sources'), narrowed
  * by AVAILABLE's filters (lib/library/ext-filters.ts). LANGUAGE starts from
  * SETTINGS' languages; none asked is every language. An 18+ extension is
- * listed for everyone, marked (the owner, 2026-10-31: Keiyoushi flags Weeb
- * Central, which a friend couldn't find); one whose every source here is
+ * listed for everyone, marked (Keiyoushi flags Weeb Central, which would
+ * otherwise be hard to find); one whose every source here is
  * mostly hidden still isn't, with reveal off: hidden means hidden.
  */
 export function availableView(opts: {

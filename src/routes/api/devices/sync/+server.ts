@@ -6,9 +6,9 @@ import { DEVICE_KINDS, deviceLabel, isTvApp, type DeviceKind } from '$lib/settin
 import { linkPaired, pairedToken } from '$lib/server/pairing';
 
 /**
- * A browser checking in (doc/SETTINGS.md, "Devices"; card c171): its stamped
- * settings in, what's newer here back. What it kept of the player's choices
- * before c171 comes along once, and the workstation takes it.
+ * A browser checking in (doc/SETTINGS.md, "Devices"): its stamped
+ * settings in, what's newer here back. What an older browser kept of the
+ * player's choices locally comes along once, and the computer takes it.
  */
 export const POST: RequestHandler = async ({ request, cookies, locals, url }) => {
 	const body = (await request.json().catch(() => null)) as {

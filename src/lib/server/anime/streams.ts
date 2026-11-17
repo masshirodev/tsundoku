@@ -33,8 +33,8 @@ import {
 } from '../../library/streams.ts';
 
 /**
- * An episode's streams, through tsundoku (doc/ANIME.md, "Streams"; card
- * c155). The engine resolves an episode's videos (getVideoList); every
+ * An episode's streams, through tsundoku (doc/ANIME.md,
+ * "Streams"). The engine resolves an episode's videos (getVideoList); every
  * address in them, and in every playlist behind them, becomes a token of
  * tsundoku's own (`/api/anime/media/<token>`), so the browser never reaches
  * the engine (it has no route to it, and mustn't hold its token) or the site
@@ -232,7 +232,7 @@ export async function serveSubtitle(token: string): Promise<Response> {
 
 /**
  * A track: [lang] its code, which the sheet shows and a choice keeps
- * (langCode, c386), and [name] the language in full, for the cell's title
+ * (langCode), and [name] the language in full, for the cell's title
  * and MORE's list. A downloaded file's tracks have codes alone.
  */
 export type Track = { lang: string; name?: string; src: string };
@@ -246,7 +246,7 @@ export type StreamQuality = {
 	subtitles: Track[];
 	/**
 	 * A downloaded file's seek preview, once the workstation has made it for
-	 * the file there is now (sprites.ts; c385). A stream has none: its
+	 * the file there is now (sprites.ts). A stream has none: its
 	 * preview is the player's hidden second picture.
 	 */
 	sprite?: Sprite | null;
@@ -400,8 +400,8 @@ async function fillAniSkip(entryId: number, servers: StreamServer[], now: number
 }
 
 /**
- * The episode's servers and their qualities, every address a token
- * (Player Waiting 3a/3b). [fresh] asks the source again: after a failure,
+ * The episode's servers and their qualities, every address a token.
+ * [fresh] asks the source again: after a failure,
  * since a stream that stopped may simply have gone stale. [lookup] lets the
  * player's resolve ask AniSkip for marks the source didn't give.
  */
@@ -511,10 +511,10 @@ export async function episodeStreams(
 		ending: null
 	};
 	// The source's own timestamps are the first finder: kept as its answer, so
-	// AniSkip and fingerprints can fill only what it left empty (c239).
+	// AniSkip and fingerprints can fill only what it left empty.
 	saveSourceMarks(entryId, found, getDb(), now);
 	// A source asked again too soon answers with fewer videos or none (AnimePahe,
-	// live 2026-10-29: 6, then 2, then 0, then 6 after 20 s), which isn't the
+	// measured: 6, then 2, then 0, then 6 after 20 s), which isn't the
 	// episode losing its videos: a recent full answer stays the one kept.
 	if (!servers.length && kept?.servers.length && now - kept.resolvedAt < KEEP_MS) {
 		if (lookup && (!kept.intro || !kept.ending)) {
@@ -542,7 +542,7 @@ export async function episodeStreams(
 /**
  * What a stream is: its length and bits a second, from its playlists (a
  * master's best variant's BANDWIDTH; a media playlist's segments). For
- * ALL N's ABOUT sizes (c157); getVideoList gives no bitrate.
+ * ALL N's ABOUT sizes; getVideoList gives no bitrate.
  */
 export async function probe(
 	src: string

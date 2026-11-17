@@ -5,25 +5,25 @@ import { KINDS, kindFacts } from '../library/kinds.ts';
 import { libraryWhere } from './visibility.ts';
 
 /**
- * What a series knows of each season's source (rung 75; card c282, the first
- * slice of c215; doc/WORKS.md, "Per-season sources"). A show merged from
- * several source entries keeps each one's key, folder and title here, one row
- * a season, beside c240's links (`series_season_links`) and never holding one.
+ * What a series knows of each season's source (migration 75; doc/WORKS.md,
+ * "Per-season sources"). A show merged from several source entries keeps
+ * each one's key, folder and title here, one row a season, beside the season
+ * links (`series_season_links`) and never holding one.
  *
  * **This module is the one answer to "where does this entry come from".**
  *
  * - **No row answers `series.origin_key`.** A series with no season rows, which
- *   is every series until a later slice writes one, reads exactly as it did. So
+ *   is every series while nothing writes one, reads as it always has. So
  *   does a season without a row in a series where other seasons have one, and a
  *   row whose `origin_key` is NULL.
- * - **An entry with no season is season 0**, c240's flat list (`episodeEntry`):
+ * - **An entry with no season is season 0**, a flat list (`episodeEntry`):
  *   the same entry must not be one season to its link and another to its source.
- * - **A book's own key comes before any season's** (rung 76; card c885;
+ * - **A book's own key comes before any season's** (migration 76;
  *   doc/BOOKS.md, "Where a book's origin lives"). A one-off grouped into a
  *   series of books keeps its key in `entry_origins`; its `entries.season` is
  *   NULL, so a season row could otherwise answer for it as season 0.
  * - **Two seasons may share a key** (one source entry listing both). Two
- *   *series* may not: `heldByOther` is what a door asks, as `series_origin`'s
+ *   *series* may not: `heldByOther` is what a writer asks, as `series_origin`'s
  *   unique index answers for `series.origin_key`.
  */
 
@@ -245,7 +245,7 @@ export function isSeasonFolder(
 	return seasonFolders(seriesId, db).some((f) => path === f || path.endsWith(`/${f}`));
 }
 
-// ---- a book's own origin (rung 76; card c885) ---------------------------------------------------
+// ---- a book's own origin (migration 76) ----------------------------------------------
 
 export type BookOrigin = {
 	entryId: number;
@@ -297,7 +297,7 @@ export function bookOrigins(seriesId: number, db: Database.Database = getDb()): 
 
 /**
  * The first book's key that FOLLOW's and REFRESH's row can ask: a Mihon
- * source's, the only family with a per-book downloader today.
+ * source's, the only family with a per-book downloader.
  */
 function firstBookKey(seriesId: number, db: Database.Database): string | null {
 	return (
@@ -315,8 +315,8 @@ function firstBookKey(seriesId: number, db: Database.Database): string | null {
 export class SeasonFactError extends Error {}
 
 /**
- * The one door that writes a row: a season's facts, whole. Nothing in c282
- * calls it but its specs (no slice writes a row yet); it is here so the rule
+ * The one function that writes a row: a season's facts, whole. Only its
+ * specs call it; it is here so the rule
  * the table cannot hold, that one source entry is one series, is never a rule
  * each writer has to remember.
  */
@@ -347,7 +347,7 @@ export function putSeasonFact(
 }
 
 /**
- * An anime's positions are one run across its seasons (rung 47): put them
+ * An anime's positions are one run across its seasons (migration 47): put them
  * back in reading order. Season facts mean episodes arrive from several
  * sources, each numbering from one, so a check needs this as a MOVE does.
  */
@@ -371,18 +371,18 @@ export function resequenceAnime(db: Database.Database, seriesId: number): void {
 }
 
 /**
- * The facts one GROUP AS ONE SHOW row's second line draws (c283's Build list;
- * `Seasons-Group.dc.html`, A1): `<SOURCE> · 12 EP. · 2026 · 6 WATCHED · 3 HERE`.
+ * The facts one GROUP AS ONE SHOW row's second line draws:
+ * `<SOURCE> · 12 EP. · 2026 · 6 WATCHED · 3 HERE`.
  * The episode count and WATCHED come off the library card the selection
  * already keeps; these three are the rest, and each one's writer is named
  * beside it:
  *
  * - **`source`** is the season's own source, the name its SOURCE row shows:
- *   `engine_sources.name` for the id in the key `seasonOrigin` answers (c282;
- *   `move.ts`'s `sourceName`). A series with no source answers null.
+ *   `engine_sources.name` for the id in the key `seasonOrigin` answers
+ *   (`move.ts`'s `sourceName`). A series with no source answers null.
  * - **`year`** is the season's AniList entry, `series_season_links.year`, which
- *   `season-links.ts` writes from the catalogue's `seasonYear` (the board's
- *   2023 and 2026 are Frieren's two seasons, not an arrival date).
+ *   `season-links.ts` writes from the catalogue's `seasonYear`, not an
+ *   arrival date.
  * - **`here`** is a file on disk: `entries.available = 1`, which for an anime
  *   is what `import/write.ts` sets when the episode's file is named. It is not
  *   "has a source" and not "watched".
@@ -402,7 +402,7 @@ export function showRowFacts(
 	// Only a kind whose seasons can merge draws this line (`mergeSeasons` asks
 	// the registry's `medium`), and the library asks for every tile it draws:
 	// without the narrowing this is five queries per tile for rows that can
-	// never show a word of it (round 2's low 8).
+	// never show a word of it.
 	const mergeable = KINDS.filter((k) => kindFacts(k).medium === 'video');
 	if (mergeable.length === 0) return out;
 	const rows = db

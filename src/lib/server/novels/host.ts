@@ -4,7 +4,7 @@ import type { PageAnswer, PageRequest } from './solver.ts';
 
 /**
  * The app's side of the LNReader plugin host (doc/NOVELS.md, "The plugin
- * host"; card c147). One child process, started on the first call and again
+ * host"). One child process, started on the first call and again
  * after it dies, running plugin-host.cjs under Node's permission model:
  *
  * - an empty environment, so no secret in .env is there to read;
@@ -27,17 +27,17 @@ import type { PageAnswer, PageRequest } from './solver.ts';
  * stop"). Closing that needs OS-level isolation of the network, which the
  * app does not have on every platform it runs on.
  *
- * A site's browser check (card c152) is the one thing the host can't do
+ * A site's browser check is the one thing the host can't do
  * itself, since a solver is a local address it refuses. It asks the parent
  * over IPC, naming only the URL; the app checks the address and answers with
  * that host's clearance cookies and user agent, or nothing. The host keeps a
  * jar per host, sends a secure one over https only, retries once, and
  * remembers for ten minutes a host whose retry was still a check, unless
- * `forgetRefused` is asked to forget it sooner (TRY AGAIN, c294).
+ * `forgetRefused` is asked to forget it sooner (TRY AGAIN).
  *
  * A host whose retry was still a check (NovelFull, Scribble Hub: their check
  * is bound to the browser that solved it) is in **page mode** for those ten
- * minutes (card c335): the host asks the parent for the page at a URL instead,
+ * minutes: the host asks the parent for the page at a URL instead,
  * the parent checks the address and fetches it through the solver's browser
  * (`fetchPage`), and the plugin's parse gets that HTML with the URL the
  * browser ended on.
@@ -56,7 +56,7 @@ export type HostOptions = {
 	timeoutMs?: number;
 	/** The app's solve for a site's check: the host's only way to one, and never set by tests that aren't testing it. */
 	solve?: (url: string) => Promise<Clearance | null>;
-	/** The app's page through the solver, for a host in page mode (c335): never the host's own. */
+	/** The app's page through the solver, for a host in page mode: never the host's own. */
 	page?: (req: PageRequest) => Promise<PageAnswer>;
 	/** How long a refused host stays in page mode, for tests; the host's own is ten minutes. */
 	refusedMs?: number;
@@ -207,11 +207,11 @@ export class NovelHost {
 	}
 
 	/**
-	 * A host in page mode asked for a URL's page (c335): the app fetches it
+	 * A host in page mode asked for a URL's page: the app fetches it
 	 * through the solver, which runs `checkPublic` first. Whatever goes wrong is
 	 * a sentence back, never a crash and never a silence: the host notes it as
 	 * the call's trouble. A refusal marked `fixed` is one a new solve cannot
-	 * change (`PageAnswer`), and the host says so in its own words (c630).
+	 * change (`PageAnswer`), and the host says so in its own words.
 	 */
 	async #answerPage(child: ChildProcess, id: number, req: PageRequest): Promise<void> {
 		let answer: PageAnswer = { error: 'this app has no solver to fetch a page through' };
@@ -231,9 +231,9 @@ export class NovelHost {
 		}
 		// As for a challenge: a restarted host's ids start again at 1. A refusal
 		// no new solve can change travels marked, so the host words it without
-		// claiming a failed check (c630); one made before the browser was asked
+		// claiming a failed check; one made before the browser was asked
 		// travels as unsent, and a page whose last address could not be looked up
-		// as unchecked (c688).
+		// as unchecked.
 		if (child !== this.#child || !child.connected) return;
 		if ('page' in answer) child.send({ op: 'page-result', id, ok: true, value: answer.page });
 		else
@@ -265,8 +265,8 @@ export class NovelHost {
 	}
 
 	/**
-	 * A chapter's HTML (`parseChapter`) and the address its own request ended at
-	 * (c631): a Node fetch's last hop, or — in page mode — the page the solver's
+	 * A chapter's HTML (`parseChapter`) and the address its own request ended
+	 * at: a Node fetch's last hop, or — in page mode — the page the solver's
 	 * browser ended on. A chapter's relative pictures are that page's, which a
 	 * redirect moves, not the plugin's site's. `url` is null when the plugin
 	 * asked the site for something else, and the caller falls back as it did.
@@ -283,7 +283,7 @@ export class NovelHost {
 	}
 
 	/**
-	 * Forgets the hosts of [site] whose clearance the site refused (c294):
+	 * Forgets the hosts of [site] whose clearance the site refused:
 	 * TRY AGAIN on the source page, so the next call solves afresh instead of
 	 * waiting out the ten minutes. A host that isn't running remembers nothing,
 	 * and is not started for this. Answers how many it forgot.
@@ -294,7 +294,7 @@ export class NovelHost {
 	}
 
 	/**
-	 * The hosts in page mode now, and until when (c335): what a spec reads to
+	 * The hosts in page mode now, and until when: what a spec reads to
 	 * pin the ten minutes, and what a probe prints. A host not running has none.
 	 */
 	pageHosts(): Promise<Record<string, number>> {

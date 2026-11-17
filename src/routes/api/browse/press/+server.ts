@@ -6,7 +6,7 @@ import type { Which } from '$lib/library/browse-press';
 import type { RequestHandler } from './$types';
 
 /**
- * One series of a SELECT press (card c868; doc/BROWSE.md, "The press"): `{ id,
+ * One series of a SELECT press (doc/BROWSE.md, "The press"): `{ id,
  * which }`, `which` one of none, first or all. The page asks this once per
  * series, one at a time per source; the answer is the series' own
  * (`PressAnswer`): added, skipped (in the library or being added by then), or

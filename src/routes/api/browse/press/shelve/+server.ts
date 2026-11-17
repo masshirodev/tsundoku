@@ -4,7 +4,7 @@ import { readPressSeries, shelvePress } from '$lib/server/browse-press';
 import type { RequestHandler } from './$types';
 
 /**
- * PUT ON A SHELF on a SELECT press's band (card c868; `shelvePress`): `{ items,
+ * PUT ON A SHELF on a SELECT press's band (`shelvePress`): `{ items,
  * collection, on }`, one chip's tap for every series the press added so far.
  * The band sends it again for each series added after a chip was chosen.
  */

@@ -5,10 +5,10 @@ import { SUB_SIZES, type SubSize } from '../../library/player.ts';
 
 /**
  * What the player starts an anime in (doc/ANIME.md, "The player";
- * doc/SETTINGS.md, "Watching"; card c171). Until c171 each browser kept a
- * series' audio and subtitles, and the last choice on any anime; now the
- * workstation does, so SETTINGS can set a default every anime starts in and
- * list the series that differ from it (the owner's answer to question 2).
+ * doc/SETTINGS.md, "Watching"). The server keeps a series' audio and
+ * subtitles, and the last choice on any anime, not each browser, so SETTINGS
+ * can set a default every anime starts in and list the series that differ
+ * from it.
  *
  * Where a track comes from, first that answers: the series' own choice, the
  * default set on SETTINGS, the last choice made on any anime (FOLLOW THE
@@ -34,8 +34,8 @@ export type PlayerStart = {
 type Last = Partial<Record<What, { v: string | null; seriesId: number; at: number }>>;
 
 /**
- * A track's code (langCode): two or three capitals, and since c386 a variant
- * or two after them -- PT-BR, ES-419, ZH-HANT, and ES-2 for the second of two
+ * A track's code (langCode): two or three capitals, and a variant or two
+ * after them -- PT-BR, ES-419, ZH-HANT, and ES-2 for the second of two
  * tracks that came to the same code. A whole word ("HUNGARIAN", which the
  * sheet once showed) never passed, so none is kept.
  */
@@ -174,8 +174,8 @@ export function lastChoice(
 }
 
 /**
- * What a browser kept before c171 (`tsundoku:anime:<series>:<what>`, and
- * `tsundoku:anime:<what>` for the last choice), taken once: a series' choice
+ * What a browser kept before the server did (`tsundoku:anime:<series>:<what>`,
+ * and `tsundoku:anime:<what>` for the last choice), taken once: a series' choice
  * here already is newer, so it stays.
  */
 export function adoptLegacy(keys: Record<string, unknown>, now = Date.now()): number {

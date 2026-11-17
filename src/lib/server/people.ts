@@ -98,8 +98,8 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 		downloaded: number;
 	}[];
 
-	// Each item's languages, as codes, for the FILTER panel's LANGUAGE (Library
-	// Filters 3i): a book's own tags and edition, a series' tags and editions.
+	// Each item's languages, as codes, for the FILTER panel's LANGUAGE: a
+	// book's own tags and edition, a series' tags and editions.
 	const NOT_LANGUAGES = `('translated', 'rewrite', 'speechless', 'text cleaned')`;
 	const codes = (rows: { id: number; name: string }[]) => {
 		const out = new Map<number, string[]>();
@@ -189,7 +189,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 			position: null,
 			total: null,
 			// GROUP takes one book with nothing beside it (`groupIntoSeries`), so a
-			// book with an extra or a set-aside duplicate is no singleton here (c558).
+			// book with an extra or a set-aside duplicate is no singleton here.
 			groupable: kindFacts(s.kind).grouping === 'books' && s.entries === 1 && s.whole === 1,
 			addedAt: s.addedAt,
 			entries: s.entries,

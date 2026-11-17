@@ -1,6 +1,6 @@
 /**
- * Taking out of a report what a friend wouldn't hand over (report.ts; doc/LOGS.md;
- * card c193). Pure, so it's tested on its own: hidden means hidden.
+ * Taking out of a report what a friend wouldn't hand over (report.ts;
+ * doc/LOGS.md). Pure, so it's tested on its own: hidden means hidden.
  */
 
 export type Scrub = {
@@ -20,8 +20,8 @@ export function scrub(text: string, s: Scrub): string {
 	for (const v of s.secrets.filter((x) => x.length >= 6))
 		out = out.replace(new RegExp(escape(v), 'g'), '[secret]');
 	// Cookies and pairing links, whatever their values: a log line can carry a
-	// request. A paired cookie is named for its origin since c530
-	// (`tsundoku_paired_42143`, `tsundoku_paired_s443`), and the old name stays.
+	// request. A paired cookie is named for its origin
+	// (`tsundoku_paired_42143`, `tsundoku_paired_s443`), and the plain `tsundoku_paired` too.
 	out = out
 		.replace(/\b(tsundoku_session|tsundoku_paired(?:_s?\d+)?)=[^;\s]+/g, '$1=[secret]')
 		.replace(/\/pair\/[\w-]+/g, '/pair/[code]')

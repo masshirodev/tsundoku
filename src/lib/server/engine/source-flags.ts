@@ -5,7 +5,7 @@ import type { Kind } from '../../library/kinds.ts';
 
 /**
  * A source's own switches in tsundoku (doc/BROWSE.md, "A source's own
- * switches"; card c435): set on its settings page, above the extension's own
+ * switches"): set on its settings page, above the extension's own
  * preferences, for every family (Mihon's and Aniyomi's extensions and
  * LNReader's plugins alike).
  *
@@ -15,18 +15,17 @@ import type { Kind } from '../../library/kinds.ts';
  *   hidden.
  * - `offHistory`, OFF HISTORY: its reads and watches never show in HISTORY.
  *   They are still recorded, so progress, CONTINUE and tracking are unchanged.
- * - `neverTracked`, NEVER TRACKED (c522): nothing from this source is sent to
+ * - `neverTracked`, NEVER TRACKED: nothing from this source is sent to
  *   AniList, MAL or Ranobe, and no edition is suggested for one of its novels.
  *   Reads still count locally (progress, CONTINUE and HISTORY are unchanged);
- *   only the catalogues hear nothing. The send doors ask it where a send is
+ *   only the catalogues hear nothing. The send paths ask it where a send is
  *   queued and where the queue is drained (`tracking.ts`'s `targets`,
  *   `ranobe.ts`'s sends and its edition suggestion), and the series screen's
  *   LISTS row says why instead of offering a send.
  *
  * Stored in the `settings` key/value table, one row per switch that is on
- * (`source.<flag>:<source id>` = '1'; off is no row), with no rung:
- * `src/lib/server/db.ts` is not this card's, and the table is already the
- * server's own state. A row per switch, rather than one JSON value per
+ * (`source.<flag>:<source id>` = '1'; off is no row), with no migration:
+ * the table is already the server's own state. A row per switch, rather than one JSON value per
  * source, is what lets SQL ask the question as a primary-key lookup
  * (`offHistorySql`), so HISTORY filters in SQL as every hidden rule does.
  * The source id is BROWSE's: an engine source's number, or `ln:<plugin>`.
@@ -80,8 +79,8 @@ export function setSourceFlag(sourceId: string, flag: SourceFlag, on: boolean, d
 
 /**
  * Every switch of many sources at once, keyed by BROWSE's id: one query per
- * switch, for the lists that ask about a whole extension (EXTENSIONS' SELECT,
- * card c696) rather than one source. An id nothing was set on is all off, as
+ * switch, for the lists that ask about a whole extension (EXTENSIONS'
+ * SELECT) rather than one source. An id nothing was set on is all off, as
  * `sourceFlags` answers.
  */
 export function sourceFlagsOf(
@@ -113,7 +112,7 @@ export type FlagFact = { sourceId: string; previous: boolean };
 
 /**
  * Sets one switch on many sources in one transaction, and answers each
- * source's value before the press (card c696). A phone's SELECT press changes
+ * source's value before the press. A phone's SELECT press changes
  * every source of every ticked extension, which is dozens of rows: they are
  * one write, so a failure part-way leaves nothing changed. UNDO is
  * `setSourceFlagValues` over these facts.
@@ -191,21 +190,21 @@ export function sourceIdSql(col: string): string {
 export const sourceFlagSql = (flag: SourceFlag, col = 's.origin_key') => {
 	const flagged = (key: string) =>
 		`EXISTS (SELECT 1 FROM settings sf WHERE sf.key = '${PREFIX[flag]}' || ${sourceIdSql(key)} AND sf.value = '1')`;
-	// A series is flagged when any book in it is (card c885): a group of books
+	// A series is flagged when any book in it is: a group of books
 	// from two sources stays out of what either source's switch keeps it out of.
 	if (col !== 's.origin_key') return flagged(col);
 	return `(${flagged(col)} OR EXISTS (SELECT 1 FROM entry_origins eo JOIN entries oe ON oe.id = eo.entry_id
 		WHERE oe.series_id = s.id AND ${flagged('eo.origin_key')}))`;
 };
 
-/** The series `s` holds a book from this source (`?`), its own key or a grouped book's (c885). */
+/** The series `s` holds a book from this source (`?`), its own key or a grouped book's. */
 const ofSourceSql = `(${sourceIdSql('s.origin_key')} = @source OR EXISTS (SELECT 1 FROM entry_origins eo
 	JOIN entries oe ON oe.id = eo.entry_id WHERE oe.series_id = s.id AND ${sourceIdSql('eo.origin_key')} = @source))`;
 
 /**
  * ADD's half of ADDED HIDDEN: a series that has just become the library's
  * (a new series written with ADD, or a browsing record promoted by it) starts
- * hidden when its source has the switch on. Every add door a source has calls
+ * hidden when its source has the switch on. Every add path a source has calls
  * this after the series is in the library: `addToLibrary` (engine/backend.ts),
  * `addNovel` (novels/source.ts), `addAnime` (engine/anime-source.ts) and
  * `keepOrPromote` (browsing.ts). A browsing record itself is not an add, and
@@ -227,7 +226,7 @@ export function hideIfAddedHidden(seriesId: number, db = getDb()): boolean {
 /**
  * A series' hidden state under the key a preview knows it by, in the library
  * or a browsing record, or null when nothing here has that key. ADD AND
- * DOWNLOAD reads it before and after its ADD (c505): only a series that was
+ * DOWNLOAD reads it before and after its ADD: only a series that was
  * not hidden before and is after was hidden by *this* ADD, and only that one
  * is queued outside reveal. Hidden is the one rule (`VISIBLE_SQL`), a hidden
  * root included.
@@ -244,8 +243,8 @@ export function hiddenByKey(key: string, db = getDb()): { id: number; hidden: bo
 }
 
 /**
- * An ADD, and whether it was this ADD that hid the series (c505). Every add
- * door also answers with a series already here (`keepOrPromote`), so the
+ * An ADD, and whether it was this ADD that hid the series. Every add
+ * path also answers with a series already here (`keepOrPromote`), so the
  * hidden state under `key` (the preview's) is read before and after: only a
  * series not hidden before and hidden after, and the one the ADD answered
  * with, was hidden by this ADD (ADDED HIDDEN, `hideIfAddedHidden`). A null
@@ -266,8 +265,8 @@ export async function addWatchingHidden(
 }
 
 /**
- * The source page's ADDED band after an ADD outside reveal landed there
- * (c505): the series the band's URL names, only while it is still the one
+ * The source page's ADDED band after an ADD outside reveal landed there:
+ * the series the band's URL names, only while it is still the one
  * added from that preview (its id and its key both: an id is reused once its
  * series is gone, so the id alone could name a series added later), still in
  * the library and still from this source. `touched` is UNDO's own refusal
@@ -292,14 +291,14 @@ export function addedHere(
 	return r ? { entries: r.entries, touched: r.touched > 0, kind: r.kind } : null;
 }
 
-// ---- CONCEAL ITS SERIES (c523) ------------------------------------------------------------------
+// ---- CONCEAL ITS SERIES ------------------------------------------------------------------
 
 /**
- * What CONCEAL would hide now, on a source's settings page (card c523;
- * doc/BROWSE.md, "Conceal its series"): `own`, every series in the library
+ * What CONCEAL would hide now, on a source's settings page
+ * (doc/BROWSE.md, "Conceal its series"): `own`, every series in the library
  * from the source that the library shows, and `others`, the shown parts from
  * other sources of the Works those are parts of, which go with them, since a
- * Work is never left half hidden (doc/WORKS.md, "The one rule"; c389). The
+ * Work is never left half hidden (doc/WORKS.md, "The one rule"). The
  * write itself is `setHiddenWhole`'s (works.ts), over `own`; this is only the
  * count the cell and its question say. A series hidden already, for its own
  * reasons or by its root, is in neither.
@@ -332,7 +331,7 @@ export function concealable(sourceId: string, db = getDb()): { own: number[]; ot
 }
 
 /**
- * A series' mark, for CONCEAL's UNDO (c523): six hex characters of its root,
+ * A series' mark, for CONCEAL's UNDO: six hex characters of its root,
  * key and path (its title when it has neither). The band carries each id
  * with its mark, because an id is given again once its series is gone, so an
  * id alone could name a series added after the press; UNDO shows only an id

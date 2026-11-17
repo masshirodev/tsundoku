@@ -26,7 +26,7 @@ import {
 } from './backend.ts';
 
 /**
- * An Aniyomi source's anime, previewed and added (doc/ANIME.md; card c154),
+ * An Aniyomi source's anime, previewed and added (doc/ANIME.md),
  * as backend.ts does a Mihon source's manga. BROWSE and search ask an anime
  * source through the same calls (callSource names them for it), so only
  * the preview, ADD and the key differ: an anime series is
@@ -96,8 +96,8 @@ export async function animeManga(id: string): Promise<SourceManga | null> {
 	if (!a) return null;
 	const now = Date.now();
 	const plan = planOf(a, now);
-	// "S3" in the preview wherever the plan knows a season at all, which since
-	// c219 includes the entry's own title: it's the only place the season is
+	// "S3" in the preview wherever the plan knows a season at all, which
+	// includes the entry's own title: it's the only place the season is
 	// said before ADD.
 	const seasons = plan.entries.some((e) => e.episode?.season != null);
 	const lang = (
@@ -158,13 +158,13 @@ export async function addAnime(id: string, now = Date.now()): Promise<number> {
 	if (existing) return keepOrPromote(existing, false, now, db);
 	const seriesId = await writeAnime(id, key, now, false);
 	db.prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, seriesId);
-	// ADD from a source that adds hidden (card c435): it starts hidden.
+	// ADD from a source that adds hidden: it starts hidden.
 	if (hideIfAddedHidden(seriesId, db)) forgetSourceUse();
 	return seriesId;
 }
 
 /**
- * Opening an anime from its preview without ADD (doc/READING-ONLINE.md; card c161):
+ * Opening an anime from its preview without ADD (doc/READING-ONLINE.md):
  * the series it is, the library's when it's in it, else a browsing record,
  * written on the first open, so the player, its progress and HISTORY work on
  * it as on any series. On no shelf until ADD.
@@ -192,8 +192,8 @@ async function writeAnime(
 	// another spelling of it mustn't make a second series.
 	plan.originKey = key;
 	plan.coverUrl = await coverAddress(a.details.thumbnail_url);
-	// The root of the kind it will have (c991): the source's own kind first, as
-	// writeSeries decides it (c986), so a film is the Movies root's and its file,
+	// The root of the kind it will have: the source's own kind first, as
+	// writeSeries decides it, so a film is the Movies root's and its file,
 	// under Movies/, is scanned by the root that holds the series.
 	const st = storageOf(sourceKindOfKey(key, db) ?? plan.kind);
 	const rootId = ensureNamedRoot(db, st.folder, join(libraryRoot(), st.folder), false);

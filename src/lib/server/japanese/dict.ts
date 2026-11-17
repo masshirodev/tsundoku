@@ -4,8 +4,8 @@ import { dictionaryAvailable, lookup, setJmdictPath } from 'kotoba/server';
 import type { Entry as PackEntry } from '../../languages/types.ts';
 
 /**
- * JMdict, through kotoba (doc/JAPANESE.md): the one database yomu and
- * tsundoku both read, `KOTOBA_JMDICT`, else `~/.local/share/kotoba/jmdict.db`
+ * JMdict, through kotoba (doc/JAPANESE.md): the database kotoba's tools
+ * build and read, `KOTOBA_JMDICT`, else `~/.local/share/kotoba/jmdict.db`
  * (built with `kotoba-build-dict`). Without it a lookup answers nothing.
  */
 setJmdictPath(
@@ -14,7 +14,7 @@ setJmdictPath(
 
 export { dictionaryAvailable };
 
-/** The line every Japanese entry ends with (doc/LANGUAGES.md; the handoff's Main 104). */
+/** The line every Japanese entry ends with (doc/LANGUAGES.md). */
 const SOURCE = {
 	name: 'JMdict · EDRDG',
 	licence: 'CC BY-SA 4.0',
@@ -40,7 +40,7 @@ export function define(q: JmdictQuery): PackEntry[] {
 		common: e.common,
 		senses: e.senses.map((s) => ({
 			pos: s.pos,
-			// JMdict's glosses are English; a PT-BR pack is c200's work.
+			// JMdict's glosses are English; PT-BR would come from a pack.
 			glosses: s.gloss.map((text) => ({ lang: 'en' as const, text }))
 		})),
 		source: SOURCE
@@ -50,8 +50,8 @@ export function define(q: JmdictQuery): PackEntry[] {
 /**
  * JMdict's own entries, for the one caller that needs them rather than a
  * panel: mining builds a flashcard out of kanji, kana and gloss arrays
- * (`mining.ts`). Japanese-only by design — a pack's other language mines
- * through c203, not here.
+ * (`mining.ts`). Japanese-only by design — a pack's other language does
+ * not mine through here.
  */
 export function lookupJmdict(q: JmdictQuery) {
 	return lookup(q.lemma, q.surface, q.reading).slice(0, 3);

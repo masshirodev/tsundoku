@@ -5,10 +5,10 @@ import { episodeEntry } from '../season-links.ts';
 import type { Range } from '../../library/streams.ts';
 
 /**
- * AniSkip (doc/ANIME.md, "Openings and endings"; card c239): the community's
+ * AniSkip (doc/ANIME.md, "Openings and endings"): the community's
  * opening and ending times, keyed by MyAnimeList **anime** id and episode
  * number. It is asked only for a series linked to an anime's MAL entry (a
- * manga's id is another show to AniSkip, c395), never for a hidden one, and
+ * manga's id is another show to AniSkip), never for a hidden one, and
  * only once: a 404 is an answer too, and is remembered for
  * `ANISKIP_RETRY_MS` (a new episode of a running show may be added later).
  *
@@ -64,7 +64,7 @@ export function aniSkipUrl(malId: number, episode: number, lengthS: number): str
 /**
  * Asks AniSkip for one episode, if there is anything to ask. Returns whether
  * it answered with a mark. The MAL entry is the episode's own season's, and
- * its number the one within that entry (`episodeEntry`, c349): season 2's
+ * its number the one within that entry (`episodeEntry`): season 2's
  * EP. 3 asks season 2's entry, never season 1's. A hidden series, a season
  * with no MAL link of its own, a link whose entry is not an anime's (or whose
  * format isn't known yet) and an episode whose length or number isn't known
@@ -87,10 +87,10 @@ export async function lookupAniSkip(
 	const episode = row.episode_number ?? (row.season === null ? row.position : null);
 	if (episode === null || !Number.isFinite(episode) || episode <= 0) return false;
 	// A MAL entry is one season (or one part of one): the episode's own
-	// season's link, never the series' first-season mirror (c349).
+	// season's link, never the series' first-season mirror.
 	const entry = episodeEntry(row.series_id, row.season, episode, db);
 	if (!entry || entry.malId === null || entry.malId <= 0) return false;
-	// No anime link, no lookup (c395): a manga's MAL id is an unrelated anime's
+	// No anime link, no lookup: a manga's MAL id is an unrelated anime's
 	// to AniSkip, and its answer would outrank the episode's own fingerprint.
 	if (!ownEntry(row.kind, entry.format)) return false;
 	const lengthS = opts.durationS ?? row.duration_s;

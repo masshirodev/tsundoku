@@ -12,7 +12,7 @@ const DECISIONS: Decision[] = ['keep', 'both', 'group', 'fold', 'apart'];
  * waits, on leaving the review. Both carrying-out answers bring `refused`
  * (decisions the library's state could not carry, with the reason, dropped so
  * the pair comes back to the review undecided) and `failed` (decisions a bug
- * or the disk stopped, which stay waiting) -- c648.
+ * or the disk stopped, which stay waiting).
  */
 export const POST: RequestHandler = async ({ request, cookies }) => {
 	const b = (await request.json().catch(() => null)) as {

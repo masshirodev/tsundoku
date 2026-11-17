@@ -11,8 +11,8 @@ import * as english from '$lib/server/languages/en';
  * Japanese answer it has always had. Japanese takes `?lemma=&surface=&reading=`
  * as its tokenizer gives them, up to three entries, common ones first;
  * English takes `?surface=&after=`, where `after` is the text following the
- * tap, and looks up to two words into it so "give up" wins over "give"
- * (c198). `available: false` when that pack's dictionary has not been built.
+ * tap, and looks up to two words into it so "give up" wins over "give".
+ * `available: false` when that pack's dictionary has not been built.
  */
 export const GET: RequestHandler = ({ url }) => {
 	const headers = { 'cache-control': 'private, max-age=86400' };

@@ -17,7 +17,7 @@ import { holdPost } from '../../test-hold.server';
 
 /**
  * A source's settings (Index-Browse, settings; Browse Calls, "Settings, per
- * type"; doc/BROWSE.md; card c145). The engine describes them
+ * type"; doc/BROWSE.md). The engine describes them
  * (`preferencesManga`) and tsundoku keeps the values, sending them with
  * every call, since the engine keeps none across a restart. The description
  * is asked for on each visit, so a source that grew a setting shows it; the
@@ -26,7 +26,7 @@ import { holdPost } from '../../test-hold.server';
 
 function source(id: string, reveal: boolean) {
 	if (downloadsBackend() !== 'engine') error(404, 'not found');
-	// Every family has the page (card c435): tsundoku's own switches are
+	// Every family has the page: tsundoku's own switches are
 	// every source's. Hidden means hidden: a hidden source's page is found
 	// only inside reveal, as its BROWSE page is.
 	const s = browseSource(id, reveal);
@@ -60,9 +60,9 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 	}
 	return {
 		source: s,
-		// tsundoku's own switches for it (card c435), above the extension's.
+		// tsundoku's own switches for it, above the extension's.
 		flags: sourceFlags(s.id),
-		// The kind it serves (card c986): what new series from it start as, and
+		// The kind it serves: what new series from it start as, and
 		// the kinds its family can be set to. No row is AUTO, the planner's own
 		// inference; a family with one kind (LNReader's, Aniyomi's today) draws
 		// no row.
@@ -75,11 +75,11 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 			.sort((a, b) => rank(order, a.key) - rank(order, b.key)),
 		down,
 		change: url.searchParams.get('change') ?? '',
-		// Where ← returns (cards c453, c727): the source page's tag origin, kept
+		// Where ← returns: the source page's tag origin, kept
 		// through here, or EXTENSIONS' list when its SETTINGS cell opened this.
 		// ← and every row keep it.
 		from: settingsOrigin(url.searchParams.get('from')),
-		// CONCEAL ITS SERIES (card c523): what the press would hide, its
+		// CONCEAL ITS SERIES: what the press would hide, its
 		// question without script (`?ask=conceal`), and the band after it.
 		conceal: concealCount(s.id),
 		askConceal: url.searchParams.get('ask') === 'conceal',
@@ -102,7 +102,7 @@ function landing(sourceId: string, reveal: boolean, from: string | null, query: 
 }
 
 export const actions: Actions = {
-	/** One of tsundoku's own switches (card c435): HIDDEN SOURCE, ADDED HIDDEN, OFF HISTORY. */
+	/** One of tsundoku's own switches: HIDDEN SOURCE, ADDED HIDDEN, OFF HISTORY. */
 	flag: async ({ params, cookies, request }) => {
 		const s = source(params.source, isRevealed(cookies));
 		const form = await request.formData();
@@ -111,8 +111,8 @@ export const actions: Actions = {
 		if (!isSourceFlag(flag)) return fail(400, { message: 'No such switch' });
 		if (value !== 'true' && value !== 'false') return fail(400, { message: 'Not on or off' });
 		const on = value === 'true';
-		// The browse world's hold (tests/browse-setup.ts, c636): off in any build
-		// the owner runs, and only the post that asks for it waits.
+		// The browse world's hold (tests/browse-setup.ts): off in any build
+		// a user runs, and only the post that asks for it waits.
 		await holdPost('flag', request);
 		setSourceFlag(s.id, flag, on);
 		// Hidden means hidden: hidden with reveal off, the source is no longer
@@ -121,7 +121,7 @@ export const actions: Actions = {
 		return { saved: `flag:${flag}` };
 	},
 	/**
-	 * The kind this source serves (card c986): the default for every series
+	 * The kind this source serves: the default for every series
 	 * added from it, and nothing to existing series. An empty value, or the
 	 * family's default, clears the row.
 	 */
@@ -135,7 +135,7 @@ export const actions: Actions = {
 		return { saved: 'kind' };
 	},
 	/**
-	 * CONCEAL ITS SERIES (card c523): every series from the source the library
+	 * CONCEAL ITS SERIES: every series from the source the library
 	 * shows, hidden now through the Work rule, with the band and UNDO. Refused
 	 * when nothing from it is shown (the cell is disabled then too).
 	 */

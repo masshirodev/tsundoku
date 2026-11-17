@@ -2,7 +2,7 @@ import { tmdbPass, type TmdbPassResult } from './tmdb-links.ts';
 import { refreshSurroundings } from './tmdb-surround.ts';
 
 /**
- * TMDB's own timer (card c989; doc/LINKS.md, "TMDB links"), started from
+ * TMDB's own timer (doc/LINKS.md, "TMDB links"), started from
  * `init` in hooks.server.ts beside the relation cache's. **This is what makes
  * "a key added later backfills" true**: the link pass otherwise runs only after
  * an import and from `yarn run links`, and a film comes from BROWSE's ADD, so a
@@ -50,7 +50,7 @@ type Pass = (opts: { limit: number; log: (line: string) => void }) => Promise<Tm
  */
 /**
  * A tick's work: the link pass, then what surrounds the entries the library
- * links (c990), stale ones only, by id. One tick, so the two never run beside
+ * links, stale ones only, by id. One tick, so the two never run beside
  * each other and the request budget above holds for both: twenty refreshes is
  * twenty requests more.
  */

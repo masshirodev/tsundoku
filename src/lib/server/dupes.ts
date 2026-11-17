@@ -39,7 +39,7 @@ import {
  *   library's state can't carry out is dropped, so the pair comes back to the
  *   review undecided rather than being retried on every load; one that fails
  *   for any other reason stays waiting and is answered under `failed`, so a
- *   bug can never take the library's load down (c648).
+ *   bug can never take the library's load down.
  */
 
 type Row = {
@@ -216,7 +216,7 @@ export async function findDuplicates(
 		)
 	);
 	const keep = new Set(found.map((p) => pairKey(p.a, p.b)));
-	// A pair the owner asked for (FOLD AS LANGUAGES, bits -1) stays until it's settled.
+	// A pair the reader asked for (FOLD AS LANGUAGES, bits -1) stays until it's settled.
 	for (const r of db.prepare(`SELECT a, b FROM dupe_pairs WHERE bits >= 0`).all() as {
 		a: number;
 		b: number;
@@ -235,7 +235,7 @@ export async function findDuplicates(
 
 		if (fresh) hashed += 2;
 		const rows = matchPages(ha, hb);
-		// The review shows every page of both: made now, not while the owner
+		// The review shows every page of both: made now, not while the reader
 		// waits -- for pairs it will show, not covers merely alike.
 		if (sameBook(rows, ha.length, hb.length))
 			for (const [id, n] of [
@@ -269,7 +269,7 @@ export async function findDuplicates(
  * FOLD AS LANGUAGES, from the library's selection (doc/EDITIONS.md): books
  * the covers didn't pair, offered to the review as if they had. Their pages
  * are hashed and lined up with the first's; a pair already settled is asked
- * again, since the owner asked. Stored with bits -1: first in the review, and
+ * again, since the reader asked. Stored with bits -1: first in the review, and
  * kept by the next import's pass, which drops pairs the covers no longer make.
  * Returns the first pair's key, or null when
  * the pages don't match (they aren't one book).
@@ -386,30 +386,30 @@ export type Decision = 'keep' | 'both' | 'group' | 'fold' | 'apart';
  * (`EditionError`), the grouping's (`GroupingError`, which KEEP's move into a
  * series of books raises too) and the delete's (`DeleteError`). Anything else
  * is a bug, not a refusal: `applyPending` leaves the decision waiting and
- * answers it under `failed`, so it is neither mistaken for a state the owner
+ * answers it under `failed`, so it is neither mistaken for a state the reader
  * can fix nor allowed to take a caller down.
  */
 export class DupeRefused extends Error {}
 
 /**
- * A decision refused, as `applyPending` answers it (c648): the pair, what was
+ * A decision refused, as `applyPending` answers it: the pair, what was
  * decided and the library's own reason, in the same words the API answers with.
  * The decision is gone, so the pair is back in the review undecided.
  */
 export type Refusal = { pair: string; decision: Decision; reason: string };
 
 /**
- * A decision that failed for a reason that is not a refusal (c648): a bug, or
+ * A decision that failed for a reason that is not a refusal: a bug, or
  * the disk, rather than the library's state. It is neither dropped nor marked
  * applied -- it stays waiting, so nothing is lost -- and it is answered so a
  * reader can say so and log it, but it never takes a caller down with it.
  */
 export type PendingFailed = { pair: string; decision: Decision; error: string };
 
-/** What one `applyPending` carried out, refused, and could not carry out (c648). */
+/** What one `applyPending` carried out, refused, and could not carry out. */
 export type PendingApplied = { applied: number; refused: Refusal[]; failed: PendingFailed[] };
 
-/** What carrying out the decisions waiting did, as `decide` answers it (c648). */
+/** What carrying out the decisions waiting did, as `decide` answers it. */
 export type Decided = { refused: Refusal[]; failed: PendingFailed[] };
 
 /**
@@ -456,19 +456,19 @@ function seriesOfEntries(ids: number[]): number[] {
  * Carry out the decisions waiting: on the next decision, or leaving the review.
  * The covers of every series a decision carried out touched are remade after,
  * off the request, from the files: GROUP makes a series of books, which wears
- * its first book's cover; FOLD and KEEP change what a series holds (card c63).
+ * its first book's cover; FOLD and KEEP change what a series holds.
  *
- * A decision this state refuses is dropped (c648), not left waiting: the pair
+ * A decision this state refuses is dropped, not left waiting: the pair
  * goes back to the review undecided, in the queue the next load draws, and the
- * answer says which pair and why. Leaving it waiting (c558's round 3) meant
- * the owner saw neither the pair nor a reason, could not undo it once the
- * screen's session ended, and every library load tried it again -- and queued
- * a cover refresh each time, because `touched` was filled before the try. A
+ * answer says which pair and why. Left waiting, the reader would see neither
+ * the pair nor a reason, could not undo it once the screen's session ended,
+ * and every library load would try it again -- and queue a cover refresh
+ * each time, because `touched` is filled before the try. A
  * library that no longer holds the books has the pair back and can settle it
  * again.
  *
  * Only a `DupeRefused` is a refusal. Anything else is a bug or the disk, not a
- * state the owner can fix: it is not dropped and not marked applied, it stays
+ * state the reader can fix: it is not dropped and not marked applied, it stays
  * waiting (so nothing is lost and the next load tries it again), and it is
  * logged and answered under `failed`. It is caught here, per decision, so one
  * decision that cannot be carried out neither aborts the ones behind it nor
@@ -527,7 +527,7 @@ export async function applyPending(now = Date.now()): Promise<PendingApplied> {
  * progress, shelves, a place in a series of books), then the other goes to
  * the trash as any delete does (doc/DELETING.md).
  *
- * What it takes over is one transaction (c648): a KEEP refused halfway (a
+ * What it takes over is one transaction: a KEEP refused halfway (a
  * book of another library folder, a series of books that isn't one any more)
  * leaves nothing of itself behind, not a shelf row for a copy that stayed
  * where it was. The delete that follows cannot be inside it -- its file move
@@ -539,7 +539,7 @@ export async function applyPending(now = Date.now()): Promise<PendingApplied> {
  * committed carry-over, so they cannot arise from the state the carry-over
  * leaves. What can fail there is the file move, which is not a refusal: the
  * carry-over stays, the decision waits, and `applyPending` answers it under
- * `failed` (c648's round 2).
+ * `failed`.
  */
 async function keepOne(keepId: number, loseId: number, now: number): Promise<void> {
 	const db = getDb();

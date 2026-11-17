@@ -1,7 +1,7 @@
 /**
  * Syncing the tablet into the library folder (doc/SYNC.md). Syncthing on the
  * tablet sends Mihon's, Hentoid's and the EPUB library's folders; on this
- * box they're receive-only and ignore deletes, so what the owner deletes on
+ * box they're receive-only and ignore deletes, so what the user deletes on
  * the tablet to free its space stays here. A timer asks the app to import
  * once Syncthing has finished and something arrived.
  *
@@ -12,7 +12,7 @@
 /**
  * Where each synced folder lands under LIBRARY_ROOT. The importer reads the
  * Hentoid and Library folders whole and the Mihon folder's `autobackup/`; its
- * `downloads/` and `local/` are kept and not read (c191, doc/SYNC.md).
+ * `downloads/` and `local/` are kept and not read (doc/SYNC.md).
  */
 export const SYNC_TARGETS = ['Mihon', 'Hentoid', 'Library'] as const;
 export type SyncTarget = (typeof SYNC_TARGETS)[number];

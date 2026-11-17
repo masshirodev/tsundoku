@@ -14,7 +14,7 @@ export const VISIBLE_SQL = `(s.hidden = 0 AND (r.hidden = 0 OR s.public = 1))`;
 export const visibleWhere = (reveal: boolean) => (reveal ? '1' : VISIBLE_SQL);
 
 /**
- * In the library, not a browsing record (doc/READING-ONLINE.md; card c161): a series
+ * In the library, not a browsing record (doc/READING-ONLINE.md): a series
  * opened from a source's preview without ADD is on no shelf, in no count, never
  * searched, linked or suggested. HISTORY and the readers are the only places
  * that see one; every read that lists the library adds this.
