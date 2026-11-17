@@ -110,15 +110,9 @@ Playwright specs, and review before it reaches `main`.
 
 ## Documentation
 
-[`doc/`](doc/) holds one document per feature or screen: the reader
-([`READER.md`](doc/READER.md), [`TEXT-READER.md`](doc/TEXT-READER.md)), the
-library and series screens ([`LIBRARY.md`](doc/LIBRARY.md),
-[`SERIES.md`](doc/SERIES.md)), importing ([`IMPORT-MIHON.md`](doc/IMPORT-MIHON.md),
-[`IMPORT-HENTOID.md`](doc/IMPORT-HENTOID.md), [`IMPORT-EPUB.md`](doc/IMPORT-EPUB.md)),
-offline ([`OFFLINE.md`](doc/OFFLINE.md)), the extension engine
-([`EXTENSION-ENGINE.md`](doc/EXTENSION-ENGINE.md)), releases and updates
-([`RELEASE.md`](doc/RELEASE.md), [`UPDATES.md`](doc/UPDATES.md)), and testing
-([`TESTING.md`](doc/TESTING.md)).
+[`doc/`](doc/) holds one document per feature, screen or part of the system;
+[`doc/README.md`](doc/README.md) is the index, and
+[`doc/ARCHITECTURE.md`](doc/ARCHITECTURE.md) the map of the whole.
 
 ## Licence
 
