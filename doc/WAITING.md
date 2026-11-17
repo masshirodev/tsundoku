@@ -1,8 +1,6 @@
 # Waiting
 
-The time between a tap and the next screen, on every screen. It's built from
-`Loading States.dc.html` in `design/handoff/`, the handoff for
-the brief `briefs/done/LOADING.md`.
+The time between a tap and the next screen, on every screen.
 
 It's one state shared by every screen (`src/lib/waiting.svelte.ts`), started
 and ended by the root layout from SvelteKit's `beforeNavigate` and
@@ -59,13 +57,13 @@ Per destination:
 
 - **Library shelf → library shelf:** CONTINUE, the tabs and the KIND band
   stay as they are. The grid goes to outline, and the label's right side
-  reads LOADING. A band tap (`?kind=`) is the same wait as a tab's (c436;
-  `tests/waiting-flow.e2e.ts` slows the band's MANGA, the sidebar's MANGA
-  shelf having gone).
+  reads LOADING. A band tap (`?kind=`) is the same wait as a tab's
+  (`tests/waiting-flow.e2e.ts` slows the band's MANGA).
 - **Elsewhere → library:** header, tabs, the KIND band's row (empty grey
   cells: its counts are the next screen's to say) and the grid in outline
   (`WaitingScreen`).
-- **Series:** opens with what the tapped tile knew (`SeriesOutline`). That's
+- **Series:** opens once the line shows (150 ms), not the frame after the
+  tap, with what the tapped tile knew (`SeriesOutline`). That's
   the real `SeriesPanel` in its `outline` mode:
   - cover, title, kind, rating, FAV and the list's counts are real;
   - rating and FAV already work;
@@ -74,10 +72,13 @@ Per destination:
     is known, so it can't open the wrong one.
 
   A series reached without a tile (a link) waits the full second and shows
-  the outline with no title.
+  the outline with no title. The series screen usually answers in about
+  50 ms, so an outline drawn at once would flash for a frame or two before
+  the real one on most taps; on a slow network it shows as soon as the line
+  does.
 
 - **Person or tag page:** the name comes from the URL, so it's drawn in full
-  over a grid in outline.
+  over a grid in outline, from 150 ms as a series is.
 - **History:** day labels and rows, all in outline.
 - **Search** never outlines. The last answer stays up under the line, because
   it's closer to right than an empty list.
@@ -90,26 +91,34 @@ it is lost.
 From 10 s the band says how long it has been asking, and the request carries
 on. ← BACK stays where you are: it navigates to the current URL, which
 replaces the stalled navigation and costs nothing. These bands say what is
-true now, so they carry no ✕ (c493, [`BANDS.md`](BANDS.md)).
+true now, so they carry no ✕ ([`BANDS.md`](BANDS.md)).
+
+The band has no CACHED · N →: reaching the cached shelf is itself a request to
+the workstation that isn't answering. The offline states
+([`OFFLINE.md`](OFFLINE.md)) take over once the device knows it's offline.
+
+Most waits stay under the line's threshold on a home Wi-Fi: the library's
+shelves answer in tens of milliseconds. The outline and the band are for a
+sleeping workstation and poor Wi-Fi.
 
 ## Writes that fail
 
-Rating and FAV, on the series screen and on library tiles, show their new
-value at once and save behind it (`src/lib/saves.svelte.ts`). When a save
+Rating and FAV, on the series screen and on library tiles, and a page set as
+a cover show their new value at once and save behind it (`src/lib/saves.svelte.ts`). When a save
 fails:
 
 - the new value stays, drawn dashed (on the series screen, the rating label
   reads NOT SAVED; on the library's tile, the FAV corner and the rating bars
-  wear the same dashed mark, c659, for as long as the page holds that tap,
+  wear the same dashed mark, for as long as the page holds that tap,
   a RETRY in flight included);
 - each failure keeps its own band: the store (`saves`) holds a list keyed by
   save (`fav:<id>`, `rating:<id>`, `cover:<entry>`), so a second failed field
   or tile does not take the first one's PUT BACK or RETRY, and the bands stack
   at the bottom, the newest where a lone band sits. The list is the app's, so
-  they survive leaving the screen that raised them (c739, c686);
+  they survive leaving the screen that raised them;
 - a tile drawn again after a trip away draws the stored value with no mark --
   the page no longer holds the tap, and the mark means "this value is not
-  stored", not "a save of this field failed" (c659);
+  stored", not "a save of this field failed";
 - a band at the bottom says "RATING 4 NOT SAVED · WORKSTATION DID NOT ANSWER ·
   TRIES AGAIN WITH THE NEXT REQUEST", with PUT BACK 3 and RETRY (a library
   tile's band names the tile, since several can be up at once, unless the
@@ -127,30 +136,15 @@ The value only goes back if you ask.
 Between chapters, the reader keeps its page box. On a chapter's first page the
 box names the chapter: "CH. 43 · P. 1".
 
-## Where it departs from the handoff
+## Limits
 
-- **Series and person pages open once the line shows (150 ms), not the frame
-  after the tap.** The handoff was drawn against this morning's measurements,
-  when the series screen took 230 ms. Since card c42 ("Make the library fast")
-  it takes about 50 ms. An optimistic screen drawn at once would flash for a
-  frame or two before the real one on most taps, so it waits for the same
-  150 ms as the line. On a slow network it's what the handoff drew.
-- **The handoff's scale is already out of date.** It placed the library's ALL
-  shelf (2.1 s) in the outline zone. The shelf now answers in about 65 ms, so
-  on the tablet's normal Wi-Fi nearly every wait stays under the line's
-  threshold. The outline and the band are for a sleeping workstation and poor
-  Wi-Fi.
-- **The not-answering band has no CACHED · N →.** Reaching the cached shelf is
-  itself a request to the workstation that isn't answering. The offline states
-  (OFFLINE.md) take over once the tablet knows it's offline.
-- **← BACK doesn't show the browser's copy at once (1m).** SvelteKit re-runs a
-  screen's data on back, and keeping every screen's last data to redraw it
-  first isn't built. Back waits like any navigation: pressed, then the line.
-- **The page box's bar still slides** rather than filling with the page's bytes
-  (1n). An `<img>` doesn't report its bytes. The box does name the chapter.
-- **Failed saves are tracked for rating and FAV** on the series screen and the
-  library's tiles. Shelves, HIDE, MARK READ and the reader's own rating and
-  FAV still quietly keep whatever the server says.
+- **← BACK doesn't show the browser's copy at once.** SvelteKit re-runs a
+  screen's data on back, and screens don't keep their last data to redraw it
+  first. Back waits like any navigation: pressed, then the line.
+- **The page box's bar slides** rather than filling with the page's bytes: an
+  `<img>` doesn't report its bytes.
+- **Only rating, FAV and a chosen cover keep a failed save.** Shelves, HIDE,
+  MARK READ and the reader's own rating and FAV keep whatever the server says.
 
 ## Tests
 

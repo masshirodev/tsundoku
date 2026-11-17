@@ -3,7 +3,7 @@
 The tablet keeps the chapters it is about to read, so reading goes on when the
 workstation can't be reached: on the train, with the Wi-Fi down, or with the
 workstation asleep. It's Mihon's download-ahead and delete-after-read, done in
-the browser. All of it needs a secure context, so it arrived with HTTPS
+the browser. All of it needs a secure context, so it needs HTTPS or localhost
 ([`SERVING.md`](SERVING.md)).
 
 ## What is kept
@@ -138,9 +138,8 @@ arriving late can't undo something read since.
 
 Reading progress waits in `localStorage` (above). **A highlight kept offline is
 the first other write that waits, and `src/lib/cache/pending-highlights.ts` is
-the mechanism for any like it** (c842): an item names its own address and body,
-so a page (H3) and a quote (H2) go through it; a rating or FAV could later, and
-doesn't yet. It is in IndexedDB, so it outlives the app being closed,
+the mechanism for any like it**: an item names its own address and body,
+so a page and a quote go through it; a rating or FAV does not. It is in IndexedDB, so it outlives the app being closed,
 and it's sent by the layout (`+layout.svelte`, on opening and whenever the
 device's connection comes back), so it doesn't need a reader open, where
 `flushPending` does.
@@ -173,13 +172,13 @@ It sends once by two things together: one row per key on the device (two
 presses are one) and the workstation answering the same thing asked again with
 the one it already made (a resend after a reload, a tab that died between the
 POST and the removal, the same page kept on two devices). So a new user of the
-queue needs a door that answers a repeat with what it already made.
+queue needs an endpoint that answers a repeat with what it already made.
 
 An item can change while it waits (`reviseHighlight`, which names the fields it
 changed in `revised`) and while its POST is out. So the sender reads the row again
 just before the POST, and again after: what was revised during it, and a colour
 chosen for a row that turned out to exist already, goes to the row the answer
-named by PATCH, beside the door (`/api/highlights/<id>`). An item taken back during
+named by PATCH, beside the endpoint (`/api/highlights/<id>`). An item taken back during
 its POST has what that POST **made** set aside by DELETE, and only that: an answer
 of a row already there leaves the row. Taken back because a later press covers it
 (a selection joining a waiting quote), and only once that press is kept, written
@@ -220,9 +219,8 @@ kept online it is forgotten; one still waiting is left exactly as it is.
   incognito, a hidden series or reveal, and a workstation that doesn't answer
   while the device says it's online.
 
-## Not yet
+## Limits
 
-- **Installing the PWA** (a web manifest and icons) is its own small step.
 - **Offline history, series and library screens** show the last copy seen.
   Changes made offline (a rating, FAV) need the network: only reading
   progress and highlights ("Writes that wait", above) are queued.

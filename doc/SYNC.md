@@ -6,13 +6,12 @@ reaches the workstation through [Syncthing](https://syncthing.net), and a timer
 imports what the importer reads:
 
 1. download on the tablet;
-2. Syncthing sends it to `LIBRARY_ROOT` on the workstation
-   (`/mnt/hdd2/tsundoku/tablet`);
+2. Syncthing sends it to `LIBRARY_ROOT` on the workstation;
 3. within ten minutes of Syncthing finishing, tsundoku imports the tablet's
    `Hentoid/` books and `Library/` EPUBs — the band, the NEW shelf and covers,
    the same as START SCAN — and the `Mihon/autobackup` backup beside them,
    which names a series and its chapters but attaches no files. A Mihon
-   download is **not** imported (c191): `Mihon/downloads/` and `Mihon/local/`
+   download is **not** imported: `Mihon/downloads/` and `Mihon/local/`
    are synced and kept, and no source reads them;
 4. delete it on the tablet to free the space. **The workstation keeps it.**
 
@@ -22,14 +21,14 @@ container on the workstation download too (below, "Other devices").
 
 ## How it's set up
 
-| Piece                  | Where                                                                           |
-| ---------------------- | ------------------------------------------------------------------------------- |
-| Syncthing, workstation | `syncthing.service`, a user unit (Arch's package). GUI on `127.0.0.1:8384`.     |
-| Syncthing, tablet      | Syncthing-Fork (F-Droid or Play), kept by researchxxl since Catfriend1 retired. |
-| The import timer       | `ops/systemd/tsundoku-sync.{service,timer}`: every 10 minutes, 5 after boot.    |
-| The timer's step       | `scripts/sync-import.ts` (`yarn run sync-import`)                               |
-| Accepting the folders  | `scripts/sync-setup.ts` (`yarn run sync-setup`)                                 |
-| The rules              | `src/lib/import/sync.ts`, tested in `tests/sync-domain.spec.ts`                 |
+| Piece                  | Where                                                                        |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| Syncthing, workstation | `syncthing.service`, a user unit (Arch's package). GUI on `127.0.0.1:8384`.  |
+| Syncthing, tablet      | Syncthing-Fork (F-Droid or Play).                                            |
+| The import timer       | `ops/systemd/tsundoku-sync.{service,timer}`: every 10 minutes, 5 after boot. |
+| The timer's step       | `scripts/sync-import.ts` (`yarn run sync-import`)                            |
+| Accepting the folders  | `scripts/sync-setup.ts` (`yarn run sync-setup`)                              |
+| The rules              | `src/lib/import/sync.ts`, tested in `tests/sync-domain.spec.ts`              |
 
 Three folders are synced, each landing in the library folder:
 
@@ -39,7 +38,7 @@ Three folders are synced, each landing in the library folder:
 | Hentoid's library folder                                       | `LIBRARY_ROOT/Hentoid` |
 | The EPUB folder (`Documents/Library`)                          | `LIBRARY_ROOT/Library` |
 
-Of the Mihon folder only `autobackup/` is read (c191): the backup names the
+Of the Mihon folder only `autobackup/` is read: the backup names the
 series and its chapters, and attaches no file. `downloads/` and `local/` are
 synced and kept and read by nothing, so a chapter downloaded on the tablet
 arrives as a file no source takes, and the backup names it as not downloaded.
@@ -99,34 +98,31 @@ It only asks when:
 
 ## Other devices
 
-The tablet (a Xiaomi Pad, `21051182G`), the phone (a Galaxy Z Fold6,
-`SM-F956B`) and Waydroid on the workstation (below) all download, and all
-sync. Each device keeps its own copy:
+The tablet, a phone and Waydroid on the workstation (below) can all
+download, and all sync. Each device keeps its own copy:
 
-| Device   | On the workstation                                    | Read now                                     |
-| -------- | ----------------------------------------------------- | -------------------------------------------- |
-| Tablet   | `LIBRARY_ROOT/{Mihon,Hentoid,Library}`                | `Hentoid` and `Library`; `Mihon` is a backup |
-| Phone    | `LIBRARY_ROOT/devices/phone/{Mihon,Hentoid,Library}`  | `Hentoid` and `Library`                      |
-| Waydroid | `LIBRARY_ROOT/devices/waydroid/Mihon`                 | nothing (c191)                               |
-| tsundoku | `LIBRARY_ROOT/devices/tsundoku/Mihon`                 | all of it: its own downloads                 |
-| Suwayomi | `LIBRARY_ROOT/devices/suwayomi/Mihon` (retired, kept) | nothing (c191)                               |
+| Device   | On the workstation                                   | Read now                                     |
+| -------- | ---------------------------------------------------- | -------------------------------------------- |
+| Tablet   | `LIBRARY_ROOT/{Mihon,Hentoid,Library}`               | `Hentoid` and `Library`; `Mihon` is a backup |
+| Phone    | `LIBRARY_ROOT/devices/phone/{Mihon,Hentoid,Library}` | `Hentoid` and `Library`                      |
+| Waydroid | `LIBRARY_ROOT/devices/waydroid/Mihon`                | nothing                                      |
+| tsundoku | `LIBRARY_ROOT/devices/tsundoku/Mihon`                | all of it: its own downloads                 |
 
 **A `Mihon/` folder is read as a device only for tsundoku's own downloads**
-(c191, [`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Where it reads from"). The
-tablet's, the phone's and Waydroid's are mirrors the importer no longer scans;
+([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Where it reads from"). The
+tablet's, the phone's and Waydroid's are mirrors the importer doesn't scan;
 their rows and files stay in the library, untouched. A backup is read from the
 library's own `Mihon/autobackup`, wherever it came from.
 
 tsundoku's downloads are written here into their folder directly
-([`DOWNLOADER.md`](DOWNLOADER.md)); Suwayomi's folder is what it wrote until it
-was retired (c129), and is not read any more.
+([`DOWNLOADER.md`](DOWNLOADER.md)).
 
 Why not one shared folder: the same chapter downloaded on both devices would
 be two versions of one path, and Syncthing would keep a conflict copy. So the
 devices stay apart on disk, and the importer merges their Hentoid and Library
-copies. (Before c191 each device's Mihon backup was read too, and one device's
-would have replaced the other's every scan; now only the library's own backup
-is read, at `LIBRARY_ROOT/Mihon/autobackup`.)
+copies. Only the library's own Mihon backup is read, at
+`LIBRARY_ROOT/Mihon/autobackup`: two devices' backups would replace each other
+every scan.
 
 **The importer reads what it is given** (`sourcesIn`, src/lib/server/import/index.ts):
 the library folder's own sources, then each folder under `devices/` — but only
@@ -145,10 +141,10 @@ What that means for each series:
   names its file from there (`widenTo`, src/lib/server/paths.ts):
   `H/.Hentoid/…` from the tablet, `devices/phone/H/.Hentoid/…` from the phone.
   Everything that reads a file joins the series path and the entry's file, so
-  nothing else needed to know.
+  nothing else needs to know.
 - **A chapter both devices have** keeps the copy already there. The second
   device's copy is on disk, unused.
-- **A series only one device has** stays in that device's folder, as before.
+- **A series only one device has** stays in that device's folder.
 - **Missing is per device.** A device answers only for files in its own
   folder, so the phone deleting a chapter never marks the tablet's copy not
   downloaded. Deletes are ignored on the workstation anyway (above), so this
@@ -160,28 +156,27 @@ What that means for each series:
   backup lists the manga yet) is the same series as the one the backup this
   plan carries names — this device's own, or the library's own — and the two
   are settled before anything is written
-  ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows it"; c89).
+  ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows it").
 - **Read progress** comes from the library's own Mihon backup — the tablet's
   `Mihon/autobackup`, which lands at `LIBRARY_ROOT/Mihon` — and only moves
   forward. A phone's or Waydroid's backup under `devices/<name>/Mihon/` is
-  not read (c191), so reading on those no longer arrives.
+  not read, so reading on those doesn't arrive.
 
 Grouping books and MOVE TO… name each book's file the same way
 (`rehome`, src/lib/server/books.ts). Grouping a tablet book with a
-phone-only one keeps both readable. Before this, grouping books from two
-folders silently broke the one not in the new series' folder.
+phone-only one keeps both readable.
 
 Tested in `tests/devices-import-db.spec.ts`.
 
 ## Setting it up
 
-On the workstation (done 2026-09-23):
+On the workstation (Arch Linux here):
 
 ```sh
 sudo pacman -S syncthing
 systemctl --user enable --now syncthing.service
 syncthing cli show system | grep myID        # this box's device ID
-ln -s ~/projects/tsundoku/ops/systemd/tsundoku-sync.{service,timer} ~/.config/systemd/user/
+ln -s ~/projects/tsundoku-jobs/ops/systemd/tsundoku-sync.{service,timer} ~/.config/systemd/user/
 systemctl --user daemon-reload && systemctl --user enable --now tsundoku-sync.timer
 ```
 
@@ -223,13 +218,12 @@ A folder whose label isn't recognised is left for `--as <folder id>=Mihon`
 (or `Hentoid`, `Library`).
 
 The first scan compares the tablet's files with the copy already here. Files
-that match are hashed, not sent. On `/mnt/hdd2` that takes a while for 165 GB,
-once.
+that match are hashed, not sent. On a large library on a spinning disk that
+takes a while, once.
 
 ### Waydroid
 
-Mihon also runs in Waydroid on the workstation itself (set up 2026-10-02), and
-syncs like any other device: Syncthing-Fork from F-Droid inside the container,
+Mihon can also run in Waydroid on the workstation itself, and syncs like any other device: Syncthing-Fork from F-Droid inside the container,
 Mihon's folder only. A bind mount or symlink can't replace it. Waydroid's
 shared storage (`~/.local/share/waydroid/data/media`) is owned by Android's
 media user (uid 1023), so the host can't read it. A path that isn't a Syncthing

@@ -1,8 +1,8 @@
 # Holding a finger on an image
 
 A finger held on an image does not open the browser's menu (save image,
-share, open in new tab). In the reader that menu came up over the page being
-read whenever a press lasted a little too long, and nothing in it is
+share, open in new tab). In the reader it would come up over the page being
+read whenever a press lasts a little too long, and nothing in it is
 something this library wants from a page: pages are kept for offline from the
 series' sheet ([`OFFLINE.md`](OFFLINE.md)), and a page is made a cover from
 the reader's own page menu ([`COVERS.md`](COVERS.md), "Chosen").
@@ -19,6 +19,6 @@ the reader's own page menu ([`COVERS.md`](COVERS.md), "Chosen").
   screen doesn't claim the right click itself (the vertical strip, a cover in
   a list).
 - **Not text.** Holding a finger on words still selects them; only images
-  lost their menu.
+  have no menu.
 
 Tested in `tests/reader-flow.e2e.ts` ("a finger held on a page…").

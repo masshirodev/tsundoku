@@ -1,10 +1,8 @@
 # Logs, and a report to send
 
-What a friend's install writes down, and how it reaches the owner when
-something breaks (card c193; the owner, 2026-10-30: "now that we are
-distributing to ppl, adding logs would be nice"). Decided with the owner: a
-file the friend saves and sends is enough, nothing is sent by itself, and the
-row uses Settings' existing idiom.
+What a friend's install writes down, and how it reaches whoever helps when
+something breaks: a file the friend saves and sends. Nothing is sent by
+itself.
 
 ## The logs
 
@@ -29,7 +27,7 @@ Started from the tray ([`TRAY.md`](TRAY.md), "Logs"), two more:
 `launcher.log`, the launcher's own lines, which a hidden window can't show,
 and `tray.log`, the tray's, in the default data folder.
 
-The workstation doesn't run the launcher: its logs are the journal
+A workstation that runs the bundle under systemd has the journal too
 (`journalctl --user -u tsundoku`, [`SERVING.md`](SERVING.md)).
 
 ## What the app writes
@@ -37,18 +35,18 @@ The workstation doesn't run the launcher: its logs are the journal
 The app's own lines go through `console`, so the launcher's rule stamps them
 by stream: `console.log` is INFO, `console.error` is ERROR.
 
-- **Skip marks** (c299): `tsundoku: skip-marks: …`, INFO for a season job and
+- **Skip marks**: `tsundoku: skip-marks: …`, INFO for a season job and
   each episode outcome (its file or stream, opening and ending found or not,
   a negative kept), and `WARN` (on stderr, so the log calls it ERROR) for a
   step that failed, naming the episode and the server. One line answers "why
   no skip on this episode".
-- **Extensions** (c983): `tsundoku: extensions: WARN <package> refused: …` for
+- **Extensions**: `tsundoku: extensions: WARN <package> refused: …` for
   every refused install, update (one line each in UPDATE ALL) and repository
   add, with the URL and what it answered, or for an APK not signed by its
-  repository's key, the keys it was signed with beside the expected one. The
-  band on EXTENSIONS is gone once dismissed; this is what a friend's REPORT
+  repository's key, the keys it was signed with beside the expected one. Once
+  the band on EXTENSIONS is dismissed, this is what a friend's REPORT
   shows instead ([`BROWSE.md`](BROWSE.md), "Extensions and repositories").
-- **Fingerprinting without chromaprint** (c299): on a build whose ffmpeg has
+- **Fingerprinting without chromaprint**: on a build whose ffmpeg has
   no chromaprint muxer and no `fpcalc` to fall back to, said once per run,
   naming the chromaprint package and `FPCALC`, so a friend's install can tell
   why no fingerprint arrives. A release bundle's own ffmpeg has the muxer, so

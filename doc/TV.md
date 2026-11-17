@@ -63,7 +63,7 @@ A token install is the other way in: served on the tailnet with
 on it, so the six digits are in SETTINGS › 08 — DEVICES itself, and the paired
 cookie `/pair/tv` sets is accepted by the guard for a request that came in on
 the instance's public host — the tailnet name — and ignored on a loopback one
-([`SIGN-IN.md`](SIGN-IN.md), "The workstation: a token"). The TV app reaches
+([`SIGN-IN.md`](SIGN-IN.md), "A token install"). The TV app reaches
 that host by TYPE THE WHOLE ADDRESS on the address screen,
 `https://name.ts.net:8443`, or by being handed it at launch
 (`adb shell am start … --es url …`, or a `tsundoku://connect?url=` link),

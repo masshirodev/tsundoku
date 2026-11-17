@@ -267,7 +267,7 @@ a time.
   Chrome"; `/api/devices/sync` also keeps its kind as `tv` (migration 59).
   In token mode its row says OVER TAILSCALE rather than OVER WI-FI, and its
   cookie signs in only on the instance's public host
-  ([`SIGN-IN.md`](SIGN-IN.md), "The workstation: a token").
+  ([`SIGN-IN.md`](SIGN-IN.md), "A token install").
 
 ## The screens
 

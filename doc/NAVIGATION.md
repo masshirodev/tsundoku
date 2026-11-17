@@ -2,10 +2,9 @@
 
 Going back comes back to the screen as it was left: the same shelf or tag,
 the same kind on the KIND band, the same order, the pages the grid had
-loaded, and the place in them. The owner's example: MANGA, A–Z, scrolled a
-few pages down; open a book, read it or not, go back, and be exactly there.
-MANGA was a shelf then (`?shelf=k:manga`); since c436 it is the band's
-`?kind=manga` on a shelf, which comes back the same way, being in the URL.
+loaded, and the place in them. For example: MANGA on the KIND band, A–Z,
+scrolled a few pages down; open a book, read it or not, go back, and be
+exactly there.
 
 ## Two ways back, one result
 
@@ -22,9 +21,9 @@ MANGA was a shelf then (`?shelf=k:manga`); since c436 it is the band's
 snapshot: the **library** (its loaded pages and scroll, per history entry,
 [`LIBRARY.md`](LIBRARY.md), "Pages") and **BROWSE's catalog for a source**
 (`src/routes/browse/[source]/+page.svelte`: the list's key, how many tiles it
-had drawn and the scroll, card c930; [`BROWSE.md`](BROWSE.md), "A way back
+had drawn and the scroll; [`BROWSE.md`](BROWSE.md), "A way back
 comes back to the place"). It is restored on a popstate only, so a reload and a
-forward visit keep today's behaviour (the top), and a list drawn under reveal
+forward visit start at the top, and a list drawn under reveal
 or incognito writes none at all. The catalog keeps a count, never the answer:
 the kept list would draw a series hidden since it was left, and a restore holds
 the place on an outline of that size until the server's answer for this visit
@@ -62,9 +61,9 @@ the shelf without its kind; walking history keeps it -- a person, history,
 the source it was added from, or the Work whose run opened it), the readers' ←
 and ← SERIES, the player's ← and ← SERIES, the end page's ← SERIES and LIBRARY,
 a person page's ←, and the Work screen's ← LIBRARY (`/work/N`). Code that leaves a screen
-by itself (the player's Escape) uses `goBackTo`, the same decision. The
-player's were plain links until 2026-11-02: on a TV, ← then BACK opened the
-player again (`tests/tv-player.e2e.ts`).
+by itself (the player's Escape) uses `goBackTo`, the same decision. As plain
+links, the player's would let ← then BACK on a TV open the player again
+(`tests/tv-player.e2e.ts`).
 
 Tested in `tests/library-flow.e2e.ts` ("the app's own ← buttons come back…"),
 which fails without it.
@@ -75,7 +74,7 @@ A source's preview (`/downloads/source/<id>`) knows where it was opened from:
 a source's BROWSE page (its `from`), else the search (`/downloads/search`, with
 its `q`). Its ← says BROWSE or SOURCES and goes there.
 
-That origin outlives the preview (card c262). + ADD TO LIBRARY, ADD AND
+That origin outlives the preview. + ADD TO LIBRARY, ADD AND
 DOWNLOAD, and opening the preview of a series that is already in the library
 all land on the series with `?from=<origin>`, as does a BROWSE tile of a series
 already in the library, which opens the series directly. The series' ← then says
@@ -95,7 +94,7 @@ A source's BROWSE page opened from a tag (an author, an artist or a genre on a
 preview, a tag on a series: [`BROWSE.md`](BROWSE.md), "Arriving from a tag")
 carries `from=<that preview or series>`, and its ← returns there, saying
 "Back to the preview" or "Back to the series". It is a plain link, not a back
-link (c864): a source's list and its tag search share the path `/browse/<id>`,
+link: a source's list and its tag search share the path `/browse/<id>`,
 so a back link would match the tag search the reader came through instead of
 the preview it names, and the two ←s would alternate for good. The preview's
 own ← is a plain link for the same reason; the catalog itself puts the tile's
@@ -103,12 +102,11 @@ focus back when that ← brings it back, and not on a forward visit or a reload
 (`restoreFocus`). It keeps `from` on every way
 to another list of the same source (POPULAR, LATEST, its search, FILTER's
 APPLY and RESET, MORE, SETTINGS and back), so ← still lands on the preview
-after the reader has looked around (card c453). Only an in-app
+after the reader has looked around. Only an in-app
 `/downloads/source/<id>` or `/series/<id>` path is accepted (`backOrigin`,
 `src/lib/library/tag-search.ts`); anything else leaves ← on BROWSE.
 
-A source's SETTINGS has one more origin: **EXTENSIONS** (card c727, wave
-33). EXTENSIONS' SETTINGS cell sends `from=/browse/extensions?<its tab and
+A source's SETTINGS has one more origin: **EXTENSIONS**. EXTENSIONS' SETTINGS cell sends `from=/browse/extensions?<its tab and
 filters>` (no open sheet: `extensionsFrom`), and the settings page's ← then
 says "Back to EXTENSIONS" and returns to the list; opened from the source's
 page it says "Back to <source>" and returns there, keeping a tag's origin as
@@ -119,8 +117,8 @@ with no such history (a new tab, a bookmark) it opens the address. Only the
 settings page accepts EXTENSIONS (`settingsOrigin`, tag-search.ts): its path
 must be exactly `/browse/extensions` as typed, and every refusal
 `backOrigin` makes holds for both, the encoded spellings included (`%2F%2F`,
-`%5C`, and a `.`/`..` segment spelled out or as `%2e`, which since wave 33
-`backOrigin` refuses even when the climb lands on an accepted screen).
+`%5C`, and a `.`/`..` segment spelled out or as `%2e`, which `backOrigin`
+refuses even when the climb lands on an accepted screen).
 Tested in `tests/tag-search.spec.ts` and `tests/browse-settings-back.e2e.ts`.
 
 ## From a Work
@@ -130,7 +128,7 @@ Run.svelte`), and the series' ← then says `← <WORK>` -- `← THE BREAKER` --
 opens the Work, as a back link, so it returns through history when the Work is
 a few entries back.
 
-The id is a claim, not a fact (W5). `backTo` in
+The id is a claim, not a fact. `backTo` in
 `src/routes/series/[id]/+page.server.ts` accepts it only when it is a positive
 integer _and_ the series really is a part of that Work; anything else -- a
 stale id, a hand-typed one, a Work that has since ended -- says `← LIBRARY`
@@ -138,7 +136,7 @@ rather than lying or 404ing. Tested in `tests/work-row-frame.e2e.ts`.
 
 ## From the highlights page
 
-`/highlights` (c701; [`HIGHLIGHTS.md`](HIGHLIGHTS.md)) keeps everything it
+`/highlights` ([`HIGHLIGHTS.md`](HIGHLIGHTS.md)) keeps everything it
 shows in its URL: the kind, the series, NO WAY BACK, the search and the open
 item (`?open=`). Opening an item replaces the history entry rather than adding
 one, so ← leaves the page instead of stepping back through the items read.
@@ -164,26 +162,25 @@ Some actions end what their own screen shows, then redirect somewhere else:
 | HIDE, with reveal off                                     | the library              |
 | DELETE on the series' last book                           | the library              |
 
-HIDE covers both of W4's answers. `HIDE ALL n` redirects with `band=hidden` and
+HIDE covers both answers a Work's HIDE can give. `HIDE ALL n` redirects with `band=hidden` and
 `TAKE OUT` with `band=taken-out`, so the library's band says which of them
 happened -- a Work hidden whole, or one series on its own again, naming the Work
 it left when that Work ended. UNDO from that band leaves the page it was on.
 
-Followed as an ordinary navigation, each one pushed a new history entry on
-top of a screen that no longer exists, so the system's back (a swipe on
-Android) landed on a 404: grouping two books from one's own screen and
-swiping back did exactly that (2026-09-25). Each now **replaces** the gone
-screen in history (`replacing` / `settleReplacing` in `src/lib/back.ts`), so
-back goes to wherever that screen was opened from. DELETE on the series
-itself already did (`leaveDeleted`).
+Followed as an ordinary navigation, each one would push a new history entry
+on top of a screen that no longer exists, so the system's back (a swipe on
+Android) would land on a 404. Each **replaces** the gone screen in history
+(`replacing` / `settleReplacing` in `src/lib/back.ts`), so back goes to
+wherever that screen was opened from. DELETE on the series itself does the
+same (`leaveDeleted`).
 
-**A preview ends in the same way** (card c932, stage 1). + ADD TO LIBRARY and
+**A preview ends in the same way**. + ADD TO LIBRARY and
 ADD AND DOWNLOAD end the preview, so the series they open takes its history
 entry rather than a new one: one swipe back from the new series is the catalog
 it was found in, at the place it was left ([`BROWSE.md`](BROWSE.md), "The add
 replaces the preview"). The ADDED band's **UNDO** ends the series in turn, so
 it replaces the series' entry too and lands on the preview with its `from=`
-(c262) kept: one swipe back from the preview is the catalog, and the preview's
+kept: one swipe back from the preview is the catalog, and the preview's
 ← still says BROWSE ([`SERIES.md`](SERIES.md), "The ADDED band's place in
 history"). The hidden band's UNDO, on the source page's route, does the same:
 it replaces its landing's entry and hands the preview the catalog the ADD
@@ -208,11 +205,10 @@ A screen keeps its own place in its URL with `replaceState`: the image reader
 writes `?p=` and the text reader `?at=` 800 ms after they settle, so a reload
 comes back to the page. Such a write lands on whatever history entry is current
 when it fires, and a reader stays mounted while the screen it is going to
-loads. BACK to the series moved the browser's entry first, and the reader's
-timer then wrote `/read/<id>?p=1` onto the series' entry: the series screen was
-drawn under the reader's URL, and its reload, share or BACK went to the reader
-(c565; `library-flow`'s ← case reproduced it 2 in 5 at a load of 45, wave 23).
-A late `goto` is worse: it replaces the navigation away with one back in.
+loads. BACK to the series moves the browser's entry first, and an unguarded
+reader timer would then write `/read/<id>?p=1` onto the series' entry: the
+series screen drawn under the reader's URL, and its reload, share or BACK
+going to the reader. A late `goto` is worse: it replaces the navigation away with one back in.
 
 So nothing late writes the URL or navigates once a reader is on its way out
 (`leavingReader()` in `src/lib/reader/leaving.ts`): a navigation to another
@@ -229,25 +225,12 @@ reader moves between chapters in place, writing `/read/<next id>` with
 as its own until the next real navigation, which `afterNavigate` reports
 (`forgetReaderMove`); an invalidation gives `page.url` a new object for the same
 entry and isn't one. Comparing against `page.url` alone
-froze the text reader's `?at=` and its progress after the first settle in the
-second chapter it read into (round 2 of wave 25). Each reader's
+would freeze the text reader's `?at=` and its progress after the first settle
+in the second chapter it reads into. Each reader's
 `beforeNavigate` also drops its settle timer when it leaves the reader route
 (its `close` event carries the place). Moving between chapters, `/read` to
 `/read`, is not leaving. The writers it covers, every one in
 `src/routes/read/`:
-
-**An in-place write keeps the history entry's own URL too** (c623).
-SvelteKit stores each history entry's URL in its state (`sveltekit:pageurl`,
-set by `replaceState` at `client.js:2573`, @sveltejs/kit 2.70.3), and a
-popstate into the entry navigates to that URL, not to `location`
-(`client.js:2883`). `replaceState` writes it from `page.url`, which stays at
-the last **real** navigation, so a reader that moves its chapter (the text
-reader) or its page (either reader) in place left history naming the old one:
-BACK to the series and forward again loaded the chapter the reader was opened
-at, not the one read on to. `keepHistoryUrl()` (`src/lib/reader/history.ts`)
-patches that key after each of the readers' own writes. Until it did, the
-address bar kept saying the right chapter while the page drew the first: a
-popstate navigation never rewrites the entry itself (`client.js:1873`).
 
 | Writer                                                 | Late?                         | Guarded |
 | ------------------------------------------------------ | ----------------------------- | ------- |
@@ -259,14 +242,27 @@ popstate navigation never rewrites the entry itself (`client.js:1873`).
 | The player's countdown into the next episode           | a 1 s interval                | yes     |
 | An edition switch, CH. ←/→, CONTINUE ON, ▶ NEXT        | the user's own press, at once | no      |
 
+**An in-place write keeps the history entry's own URL too**.
+SvelteKit stores each history entry's URL in its state (`sveltekit:pageurl`,
+set by `replaceState` at `client.js:2573`, @sveltejs/kit 2.70.3), and a
+popstate into the entry navigates to that URL, not to `location`
+(`client.js:2883`). `replaceState` writes it from `page.url`, which stays at
+the last **real** navigation, so a reader that moves its chapter (the text
+reader) or its page (either reader) in place would leave history naming the
+old one: BACK to the series and forward again would load the chapter the
+reader was opened at, not the one read on to, while the address bar said the
+right chapter (a popstate navigation never rewrites the entry itself,
+`client.js:1873`). `keepHistoryUrl()` (`src/lib/reader/history.ts`) patches
+that key after each of the readers' own writes.
+
 Tested in `tests/reader-flow.e2e.ts` and `tests/text-reader-flow.e2e.ts`
-("left at once, … never writes …onto the series it went back to (c565)"),
+("left at once, … never writes …onto the series it went back to"),
 which hold the series' data past the 800 ms and fail without it.
 `tests/text-reader-flow.e2e.ts` also reads on into a third chapter, in PAGED
 and in SCROLL ("…read on into a third chapter: the URL and progress follow
 every chapter…"): the window names each chapter's entry, a `page` event carries
 it, and a reload opens the last one. Both fail with the `page.url` comparison.
-c623's own cases go to the series and back by history: the text reader's
+The history-URL cases go to the series and back by history: the text reader's
 ("history into the reader entry after an in-place chapter move opens the
 chapter read on to, at its place") and the image reader's in incognito
 ("history into an image reader entry opens the page it settled on, in

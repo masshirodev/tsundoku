@@ -3,21 +3,20 @@
 tsundoku has one reader and no accounts, so signing in is one secret shared by
 every browser. There are two kinds of install, and they sign in differently.
 
-| Install                                         | Signs in with                  | Kept in                       |
-| ----------------------------------------------- | ------------------------------ | ----------------------------- |
-| The workstation (served from the checkout)      | `TSUNDOKU_TOKEN`               | Infisical, pulled into `.env` |
-| A friend's (a release, started by its launcher) | a password they chose, or none | `TSUNDOKU_HOME/login.json`    |
+| Install                                         | Signs in with                  | Kept in                    |
+| ----------------------------------------------- | ------------------------------ | -------------------------- |
+| A token install (`TSUNDOKU_TOKEN` in `.env`)    | `TSUNDOKU_TOKEN`               | `.env`                     |
+| A friend's (a release, started by its launcher) | a password they chose, or none | `TSUNDOKU_HOME/login.json` |
 
 Which one is `TSUNDOKU_LOGIN`: the launcher sets it to `password`
 (`ops/release/launcher/plan.ts`) **unless the data folder's `.env` names a
-`TSUNDOKU_TOKEN`**, and then the token signs in as on the workstation. That's
-for the workstation running the same bundle as its friends (c228, decided with
-the owner on 2026-11-01: "password when no token is set"); a friend's install
-never has a token, so nothing changes for them.
+`TSUNDOKU_TOKEN`**, and then the token signs in. That's for a workstation
+running the same bundle as its friends ([`SERVING.md`](SERVING.md)); a friend's
+install has no token, so it gets the password.
 
-## The workstation: a token
+## A token install
 
-Unchanged since the start: `TSUNDOKU_TOKEN`, typed once per browser at
+`TSUNDOKU_TOKEN`, typed once per browser at
 `/login`, and a session cookie derived from it (`src/lib/server/session.ts`),
 so rotating the token signs everything out. [`SECRETS.md`](SECRETS.md) says
 where it lives.
@@ -38,17 +37,17 @@ becomes `//evil.example`) and reads a backslash as a slash, so the value is
 resolved against the origin as the browser will, and kept only if it is still
 this origin (`tests/next-path.spec.ts`).
 
-**A TV paired on the tailnet signs in with its own cookie** (c245). The six
+**A TV paired on the tailnet signs in with its own cookie**. The six
 digits on SETTINGS › 08 — DEVICES ([`WIFI.md`](WIFI.md), "A TV's code") are
 typed into `/pair/tv`, which sets the same paired cookie a phone's link
-does, named for the instance's origin (`tsundoku_paired_<port>`, c530;
+does, named for the instance's origin (`tsundoku_paired_<port>`;
 [`WIFI.md`](WIFI.md), "One paired cookie per origin"); `hooks.server.ts` then accepts it in token mode for a request whose
 Host is the instance's public origin — the tailnet name `tailscale serve`
 answers on, or the tailnet address in plain-http mode (`ORIGIN`, as
 `scripts/serve.ts` sets it). On `localhost`, `127.0.0.1` or `[::1]` it is
 ignored, and when no origin is known no paired cookie is accepted at all:
 fail closed (`tailnetDoor` in `src/lib/server/pairing.ts`). So the digits are
-drawn only where `ORIGIN` names a tailnet host (`tvDoor`, c264): anywhere else
+drawn only where `ORIGIN` names a tailnet host (`tvDoor`): anywhere else
 a TV would pair and land on `/login`. The TV's DEVICES row carries SIGN OUT, like a phone's. The token still opens every browser;
 this only saves typing 24 characters with a remote.
 
@@ -58,19 +57,16 @@ WI-FI panel and signs a TV in with its password — or, with no password, not at
 all — even when it serves on the tailnet, because its guard reads a paired
 cookie only over Wi-Fi. Nothing on it promises a cookie its guard would refuse.
 
-## A friend's install: a password, or none (c189)
+## A friend's install: a password, or none
 
-Releases up to 2026.10.30.2 made a token on first start and printed it in the
-launcher's console window. A friend didn't see it there and was stuck at the
-sign-in page; the owner, 2026-10-30: "make the user set a password (or none) on
-first open", with an "are you sure?" for none.
+A friend sets a password, or none, on first open, rather than being handed a
+token printed in a console window they may never see.
 
 **SET UP.** Until `login.json` exists, every page is `/setup` (the API answers
 401). It offers a password, typed twice (at least 6 characters), or NO
 PASSWORD, which first says what it means: anyone at this computer opens the
 library, and nothing else can reach it. Choosing either signs this browser in
-and opens the library. The page reuses the sign-in page's parts and wasn't
-drawn in a handoff; the owner can ask for one.
+and opens the library. The page reuses the sign-in page's parts.
 
 **`login.json`** (`src/lib/server/login.ts`) holds the kind, an scrypt hash
 (`scrypt$N$r$p$salt$key`, Node's defaults, about 50 ms), never the password,
@@ -89,8 +85,8 @@ request, kept while its mtime is the same, so a reset takes effect at once.
   login counts as signed in only in local mode.
 - SETTINGS offers REMOVE only in local mode.
 
-Over Wi-Fi (c188, [`WIFI.md`](WIFI.md)) the rule holds without asking for a
-password: a request that comes in by the Wi-Fi door is never signed in by
+Over Wi-Fi ([`WIFI.md`](WIFI.md)) the rule holds without asking for a
+password: a request that comes in on the Wi-Fi listener is never signed in by
 "none", only by a pairing code's cookie or the password. So WI-FI can be on
 with no password, and a stranger on the same Wi-Fi meets a sign-in page with
 nothing to type.
@@ -103,7 +99,7 @@ the origin check can't see; with no password that check would be all there
 is.
 
 **Wrong passwords** wait 400 ms before the answer (`slowDown`), on top of
-scrypt's own time: a phone on the same Wi-Fi (c188) could otherwise try
+scrypt's own time: a phone on the same Wi-Fi could otherwise try
 thousands a minute.
 
 **SETTINGS > 08 — DEVICES > PASSWORD** (`src/routes/settings`): SET, CHANGE
@@ -116,10 +112,6 @@ password" the installer adds, deletes `login.json`. The next page is SET UP
 again; the library isn't touched. It works while tsundoku runs. The sign-in
 page says so under the field.
 
-**Updating from 2026.10.30.x.** The first open after the update is SET UP.
-The old `TSUNDOKU_TOKEN` line in the data folder's `.env` is left there and
-unused.
-
 ## Tests
 
 `tests/login.spec.ts` (the hash, the file, the reset), `tests/bind.spec.ts`
@@ -127,7 +119,7 @@ unused.
 friend's install of its own in the browser suite (`tests/friend-setup.ts`, the
 `friend` project): SET UP, NO PASSWORD's question, a password set twice, a
 second browser signing in, CHANGE and REMOVE in SETTINGS, the reset, and a
-foreign Host refused. `tests/friend-tailnet.e2e.ts` (c266, also the
+foreign Host refused. `tests/friend-tailnet.e2e.ts` (also the
 `friend` project) stands up two installs of its own the way
 `scripts/serve.ts` serves one on the tailnet: `http` mode, bound to
 127.0.0.1, `ORIGIN` on a tailnet-like host. On the friend's (a password set)

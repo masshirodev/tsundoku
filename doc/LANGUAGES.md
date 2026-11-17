@@ -4,12 +4,10 @@ A **language pack** is everything tsundoku needs to look a word up in one
 language: the rules that split text into words, and a dictionary to answer with.
 The reader and the panel never know which pack answered.
 
-Card c195 is the whole idea (decided with the owner 2026-10-30, "option 1"):
-**packs ship in the code, dictionaries download as data packs**, so a third party
-adds a language with a PR and nobody installs a plugin loader or trusts code
-from outside the repo. That card also carries the OCR half — reading a page's
-meaning off an image — which is not built. **This document describes the lookup
-half, and the English pack that is its first non-Japanese user (c198).**
+**Packs ship in the code, dictionaries are data packs**, so a third party adds
+a language with a PR and nobody installs a plugin loader or trusts code from
+outside the repo. This document describes the lookup, and the English pack,
+its first non-Japanese user.
 
 ## The contract
 
@@ -22,7 +20,7 @@ and the definitions come **from the workstation**.
   without furigana returns `[]` rather than the panel checking for a language.
 - **`Entry`** — `headword`, `reading`, `senses`, and `source`. A sense is
   `{ pos, glosses }`, and a gloss is `{ lang, text }` with `lang` in `'en'` or
-  `'pt'` (c200: definitions in English, PT-BR or both, per device).
+  `'pt'` (definitions in English, PT-BR or both, per device).
 - **`source`** — dictionary name, licence and URL, on every entry. Wiktionary is
   CC BY-SA 4.0, so the panel draws the line it names rather than the app having
   to remember.
@@ -90,7 +88,7 @@ yarn run pack:en --in <English.jsonl.gz> --out <en-wiktionary.db>
 yarn run pack:en:check                          # what it answers, and in what language
 ```
 
-Measured 2026-11-12, on the extract of 2026-10-30:
+Measured on one extract:
 
 |            |                                                            |
 | ---------- | ---------------------------------------------------------- |
@@ -101,7 +99,7 @@ Measured 2026-11-12, on the extract of 2026-10-30:
 | PT glosses | 39% of a word's senses, 32% of a form's, 27% of a phrase's |
 
 The last row is the honest one: PT-BR definitions exist for a minority of senses,
-which is why c200 requires the English fallback line rather than an empty sense.
+which is why a sense without one shows the English line rather than nothing.
 
 The build writes beside the target and renames at the end, so a reader sees
 either the old pack or the new one, never half of either.
@@ -110,12 +108,9 @@ either the old pack or the new one, never half of either.
 
 `TSUNDOKU_HOME/packs/en-wiktionary.db` (`PACK_DIR` overrides the folder,
 `TSUNDOKU_EN_PACK` the file). The path is read lazily and the database opened
-read-only, as JMdict is in kotoba: a missing pack means "no definitions", never
-a reader that will not open.
-
-The app does not download packs yet. Until it does, a pack is placed there by
-hand — which is enough for the workstation, and not enough for a friend's
-install; that is the download card c195 still owes.
+read-only, as JMdict is: a missing pack means "no definitions", never a reader
+that will not open. The app doesn't download packs: one is placed there by
+hand.
 
 ## Adding a language
 
@@ -131,9 +126,8 @@ install; that is the download card c195 still owes.
 
 `LookupPanel.svelte` takes a **pack**, not a language: it asks the pack to split
 the block, sets the words in the pack's face and size (Plex Sans JP 30px for
-Japanese, Plex Sans 24px for English — the handoff's Main 175), draws whatever
-ruby that language has, and renders one normalised entry with its source and
-licence line under it (Main 104). `packFor(locale)` picks the pack from the
+Japanese, Plex Sans 24px for English), draws whatever ruby that language has, and
+renders one normalised entry with its source and licence line under it. `packFor(locale)` picks the pack from the
 book's language, and a language with none shows no LOOK UP rather than a panel
 that answers nothing.
 
@@ -141,8 +135,9 @@ that answers nothing.
 the word and raises the reader's bar, and LOOK UP on that bar opens the panel —
 English and Japanese alike. A manga keeps the tap: a page has no text to select.
 
-## Not built yet
+## Limits
 
-- **Downloading a pack**, and the Dictionary tab in Browse (c204).
-- **OCR** for a language that has no text to select (c195, c196), and mining a
-  pack's words into flashcards (c203).
+- **A pack is placed by hand.** The app doesn't download one, and Browse has
+  no dictionary tab.
+- **No OCR** for a language other than Japanese, so a manga in English has no
+  LOOK UP; a pack's words are not mined into flashcards.

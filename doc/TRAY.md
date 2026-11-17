@@ -1,23 +1,19 @@
 # The tray: tsundoku with no window
 
-What a friend starts since card c222 ("Run in the background with a tray icon,
-not a console window"): `tsundoku.exe` on Windows, `./tsundoku` on Linux. It
+What a friend starts: `tsundoku.exe` on Windows, `./tsundoku` on Linux. It
 starts tsundoku with no console window and no terminal attached, puts the 積
 icon in the notification area, and keeps tsundoku to one copy per account.
 The launcher underneath is unchanged in what it starts and how it stops it
 ([`RELEASE.md`](RELEASE.md), "The launcher"). The tray only runs it with no
-window and gives a way to quit that isn't closing that window.
-
-The owner, 2026-11-01: "instead of letting ppl see the cmd on windows and the
-terminal on linux, can we run it in the bg and add the icon to tray? closing
-the terminal wouldnt quit it either that way, opening the app again would open
-the browser only too instead of restarting the server."
+window and gives a way to quit that isn't closing that window. Closing a
+terminal doesn't quit it, and opening the app again opens the browser rather
+than restarting the server.
 
 ## What a friend sees
 
 - **Starting it** (Start menu, or double-clicking `tsundoku.exe`; `./tsundoku`
   on Linux): no window. The icon appears by the clock, and the browser opens
-  once tsundoku answers, as before. On Linux, `./tsundoku` prints two lines
+  once tsundoku answers. On Linux, `./tsundoku` prints two lines
   and gives the terminal back. Closing that terminal changes nothing.
 - **Starting it again** while it runs: the browser opens on the running one.
   Nothing restarts, and this holds while the first is still starting too (the
@@ -36,7 +32,7 @@ the browser only too instead of restarting the server."
   "It stopped by itself: show its log", which opens `logs/tsundoku.log`.
   The tray never restarts the app by itself: one that stops at once would
   only stop again, unseen. START IT AGAIN, or OPEN, starts it again.
-  The launcher still restarts the engine and FlareSolverr on its own, as before.
+  The launcher still restarts the engine and FlareSolverr on its own.
 - **The words** follow the system's language: Brazilian Portuguese on a
   Portuguese system, otherwise English (`strings.go`). The app picks a
   device's language in its own settings ([`I18N.md`](I18N.md)). The tray has
@@ -67,11 +63,10 @@ sign-in and an update's relaunch use.
   `--quit` during that minute ends the wait at once, so the lock isn't held
   past it.
 
-## The old way is still there
+## In a window
 
 `tsundoku.cmd` (Windows) and `./tsundoku --foreground` (Linux) run the
-launcher in a window, as every release before c222 did: closing the window
-stops tsundoku. Reset password (`--reset-password`, the Start-menu entry)
+launcher in a window: closing the window stops tsundoku. Reset password (`--reset-password`, the Start-menu entry)
 goes that way too, since it has something to say and waits for Enter. The
 Tailscale and Wi-Fi smoke stages still start `tsundoku.cmd`: they test the
 network, not how it starts.
@@ -89,7 +84,7 @@ copy:
   `tsundoku.ico`), version info, and a manifest with DPI awareness.
 - **Linux**: `launcher/tsundoku-tray`, which `./tsundoku`, still a shell
   script, hands over to.
-- **Pure Go, no cgo**, so the workstation cross-compiles Windows' with no
+- **Pure Go, no cgo**, so a Linux machine cross-compiles Windows' with no
   Windows toolchain. fyne.io/systray draws the icon: the Win32 notification
   area on Windows, a StatusNotifierItem over D-Bus (godbus) on Linux.
   go-winres is a `tool` in `go.mod`, so its version is pinned with the
@@ -153,7 +148,7 @@ shares that console instead of opening its own. The launcher also passes
 
 - **Its own lines go to `logs/launcher.log`** (stamped and rotated like the
   others, [`LOGS.md`](LOGS.md)), not to stdout. Nobody reads a hidden
-  console, and SAVE A REPORT now carries them too. The window's "leave this
+  console, and SAVE A REPORT carries them too. The window's "leave this
   window open" lines are left out, and so is "press Enter".
 - **stdout carries events**, one per line, `@tsundoku ` and JSON
   (`ops/release/launcher/tray.ts`):
@@ -218,16 +213,7 @@ tsundoku that's someone else's.
 None of these can see a window: over SSH there's no desktop to show one on.
 That the console never appears rests on the PE header check above.
 
-On a real desktop, 2026-11-01:
+## Limits
 
-- **Linux, the workstation (Hyprland, SekaiPop's Quickshell tray)**: the
-  item registered with the StatusNotifierWatcher, its tooltip read
-  `tsundoku: http://localhost:42191` (a scratch data folder and ports, beside
-  the workstation's own tsundoku), its 64 px pixmap was there, and the menu
-  as the host reads it (`com.canonical.dbusmenu` GetLayout) was the table
-  above, START IT AGAIN hidden. QUIT, clicked through that menu over D-Bus,
-  stopped everything and removed `tray.json`.
-- **Windows: not yet seen.** Zen stops at its sign-in screen and the tests
-  have no password for it, so the icon, its menu, a left click and the
-  absence of a console flash on a real Windows desktop are for the owner to
-  look at once (card c222).
+- **No test sees a real Windows desktop.** The icon, its menu, a left click
+  and the absence of a console flash there are covered by no test.

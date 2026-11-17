@@ -1,16 +1,14 @@
 # Privacy: incognito, leaving the app, and the fingerprint gate
 
 These three extend reveal ([`LIBRARY.md`](LIBRARY.md), "Hidden means hidden").
-Design: `doc/design/handoff/Index Addendum.dc.html` and `Addendum States.dc.html`.
-Brief: `doc/briefs/done/BOOKS-ADDENDUM.md`, section 1.
 
 ## Incognito
 
 Reading that leaves no trace: no progress, no log row, no history, nothing in
 CONTINUE. **The row is never written.** It isn't written and then hidden.
 
-- **Turned on by typing `/incognito`** in any top search bar (c697;
-  [`BROWSE.md`](BROWSE.md), "Commands in every top search bar"), like
+- **Turned on by typing `/incognito`** in any top search bar
+  ([`BROWSE.md`](BROWSE.md), "Commands in every top search bar"), like
   `/reveal`. It's a
   separate command, not part of reveal. If it came on with reveal, hidden
   books could never be read or be in progress, and the series-of-books screen
@@ -21,7 +19,7 @@ CONTINUE. **The row is never written.** It isn't written and then hidden.
   `{ saved: false }` and never reaches `recordReading()`. The guarantee lives
   on the server, where the reader can't forget it. The reader shows NOT SAVED
   from that answer.
-- **A reader opened incognito sends nothing at all** (c680). The cookie alone
+- **A reader opened incognito sends nothing at all**. The cookie alone
   is not enough: END pressed in another tab ends incognito while the reader
   that opened with it keeps running, so a page still settling, a finish or
   the close on the way out would reach the server with no cookie and be
@@ -47,32 +45,30 @@ the page at once with the graphite ground and the wordmark, so the
 recent-apps thumbnail shows nothing. It does this every time, since it costs
 nothing. On return it uncovers the page where it was.
 
-**It does not end either mode** (the owner, 2026-11-12: ending them on every
-glance at another tab or app was too sensitive). Reveal and incognito survive
+**It does not end either mode**: ending them on every glance at another tab
+or app would be too sensitive. Reveal and incognito survive
 a trip to the background: HIDE AGAIN ends reveal, END ends incognito, and both
 are session cookies besides, so closing the browser does too. END pressed in
 another tab ends incognito while a reader opened with it is still open; the
-reader's own `data.incognito` keeps it from posting (the c680 cases in
+reader's own `data.incognito` keeps it from posting (the cases in
 `tests/privacy-flow.e2e.ts` and `tests/browse-player-hover.e2e.ts`).
 
 **Best effort, and nothing claims otherwise.** Android may take its thumbnail
 before the event fires, and a PWA can't block screenshots. The design says
 neither, and neither does the code.
 
-**Known gap:** closing the app outright (swiping it away) is an unload, and
+**Limit:** closing the app outright (swiping it away) is an unload, and
 the shield does not end the modes on one. They're session cookies, so a real
 browser restart ends them, but an Android PWA may keep its session across a
 swipe. Reveal ends on its own 12 hours after it was turned on, whatever the
-browser keeps (the signed value's expiry, above); incognito has no such end. If an app kept across swipes turns out to leave incognito on, the
-fix is the same kind of server-side expiry on its cookie.
+browser keeps (the signed value's expiry, below); incognito has no such end.
 
 ## The fingerprint gate for `/reveal`
 
 Once a device is enrolled, `/reveal` needs that device's fingerprint or screen
 lock: a WebAuthn assertion from a **platform** authenticator, with user
 verification **required**. The prompt is Android's own. tsundoku draws only
-the COMMAND row behind it, which holds nothing hidden (the addendum's
-fpPrompt, fpFail and fpCancel states).
+the COMMAND row behind it, which holds nothing hidden.
 
 - **`/lock`** enrols the device you're on. It's allowed while there is no gate
   yet, or while reveal is on, that is, only by someone already past the gate.
@@ -81,12 +77,12 @@ fpPrompt, fpFail and fpCancel states).
   plain command it always was. With one, the device signs a fresh challenge,
   `/api/unlock/verify` checks it (origin, relying party, user verified,
   counter), and only then sets the reveal cookie. It is typed in any top search
-  bar too (c697), but only `/search` draws the device prompt: behind a gate
+  bar too, but only `/search` draws the device prompt: behind a gate
   every other bar opens `/search` with the command and its intent in history
-  state, and the prompt rises there (c711). That answer from
+  state, and the prompt rises there. That answer from
   `src/routes/api/command/+server.ts` turns nothing on: only the device's
   signature does, and a link cannot carry the intent (a `?go=1` in the URL is
-  taken off and runs nothing, c710). A TV has no fingerprint and no screen
+  taken off and runs nothing). A TV has no fingerprint and no screen
   lock, so it refuses `/reveal` from every bar, `/search` included, before
   anything else is asked (`NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER`,
   [`TV.md`](TV.md)).
@@ -111,14 +107,14 @@ fpPrompt, fpFail and fpCancel states).
   nothing hidden.
 - **Ceremonies** are single-use, expire in two minutes, and are tied to the
   browser by an httpOnly, `SameSite=Strict` cookie. Credentials are the
-  `unlock_credentials` table (rung 8).
+  `unlock_credentials` table (migration 8).
 - **A refused fingerprint and a cancelled prompt look the same** from the
-  browser: both are `NotAllowedError`. So both show the design's failure
-  state, NOT UNLOCKED with TRY AGAIN and "FINGERPRINT NOT ACCEPTED · NOTHING
-  SHOWN / SCREEN LOCK ALSO WORKS", rather than guessing which it was. That's a
-  departure from fpCancel, which drew a cancel as the field emptied.
+  browser: both are `NotAllowedError`. So both show the failure state, NOT
+  UNLOCKED with TRY AGAIN and "FINGERPRINT NOT ACCEPTED · NOTHING SHOWN /
+  SCREEN LOCK ALSO WORKS", rather than guessing which it was; a cancel does
+  not just empty the field.
 
-WebAuthn needs a secure context, which the tailnet now provides
+WebAuthn needs a secure context, which the tailnet provides
 ([`SERVING.md`](SERVING.md)). The relying party is whatever host the app is
 served on: the tailnet name in production, localhost in development and
 tests. `tests/unlock-gate.e2e.ts` runs the whole flow with Chromium's virtual
@@ -129,10 +125,9 @@ database.
 ## What an import reports
 
 An import takes everything in the file or folder whatever the reveal mode,
-hidden series and a hidden root's (Hentoid) included: the owner's decision of
-2026-11-07 (c633), because a friend can't be expected to know to turn hidden
-mode on first. The screen that says what it brought keeps the rule even so:
-with reveal off, what belongs to hidden series is a **count in a section
-closed by default** (`3 IN HIDDEN SERIES`; the owner, 2026-11-08), never a
+hidden series and a hidden root's (Hentoid) included, because a friend can't
+be expected to know to turn hidden mode on first. The screen that says what it
+brought keeps the rule even so: with reveal off, what belongs to hidden series
+is a **count in a section closed by default** (`3 IN HIDDEN SERIES`), never a
 title or a Work's name, and those appear only with reveal on.
-[`IMPORT.md`](IMPORT.md), "The log", has the rule and the doors it holds at.
+[`IMPORT.md`](IMPORT.md), "The log", has the rule and where it is enforced.
