@@ -10,13 +10,11 @@ import {
 	slowDown
 } from '$lib/server/auth';
 import { sessionFor, verifyPassword } from '$lib/server/login';
+import { sameOriginPath } from '$lib/server/next-path';
 import { m } from '$lib/paraglide/messages';
 
-/** Where to go once signed in: a path in this app, never another site (`?next=//evil.example`). */
-const nextOf = (url: URL) => {
-	const next = url.searchParams.get('next') ?? '';
-	return next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\') ? next : '/';
-};
+/** Where to go once signed in: a path in this app, never another site (next-path.ts). */
+const nextOf = (url: URL) => sameOriginPath(url.searchParams.get('next'), url.origin);
 
 export const load: PageServerLoad = ({ locals, url }) => {
 	if (locals.authed) redirect(303, nextOf(url));
