@@ -1,7 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * The address the TV fills in for itself (TV-Pair.dc.html, 9B): its own
+ * The address the TV fills in for itself on the address screen: its own
  * network's first three numbers, so only the last one is typed. Pure, so the
  * parsing is tested without a socket.
  */
@@ -28,10 +28,10 @@ object Address {
 	 * `http://`, and a trailing slash or path is dropped. The whole-address
 	 * field is for Tailscale and another port, so https and a name are kept.
 	 *
-	 * The scheme and the host come back lower case, as [intentOrigin]
-	 * has them, and as WebView's URL and the page's own `location.origin`
-	 * do: `http://Zen.local:42143` typed in 9B is the server whose pages load
-	 * at `http://zen.local:42143`, so BridgeGuard, FailedLoad and
+	 * The scheme and the host come back lower case, as [intentOrigin] has
+	 * them, and as WebView's URL and the page's own `location.origin` do:
+	 * `http://Zen.local:42143` typed on the address screen is the server whose
+	 * pages load at `http://zen.local:42143`, so BridgeGuard, FailedLoad and
 	 * Servers.find must see one origin, not two. A scheme typed in capitals
 	 * (`HTTP://`) is a scheme, not a host to put `http://` before.
 	 */

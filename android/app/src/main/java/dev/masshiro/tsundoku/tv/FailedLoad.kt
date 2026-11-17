@@ -2,26 +2,25 @@ package dev.masshiro.tsundoku.tv
 
 /**
  * Which server's main-frame load just failed, so that its `onPageFinished`
- * does not make it the one in use (wave 21's round 2).
+ * does not make it the one in use.
  *
  * WebView calls `onPageFinished` for a URL whose load failed too, after
  * `onReceivedError`. Counted as a visit, a server opened from SERVERS that
  * does not answer would become the last used, and the next launch would try
  * the dead one first.
  *
- * The mark is ended two ways (wave 22's round 2). The failed load's
- * own finish consumes it, so every order WebView can report a failed load in
- * (started, error, finished; or a committed error page's error, started,
- * finished) skips exactly one finish. And the app's next attempt at that
- * origin ends it ([attempt], called by `MainActivity.open` before `loadUrl`:
- * launch, SERVERS and 9D's TRY AGAIN all go through it), because a failed
- * load need not finish at all: `onReceivedError` shows 9D at once, and WebView
+ * The mark is ended two ways. The failed load's own finish consumes it, so
+ * every order WebView can report a failed load in (started, error, finished; or
+ * a committed error page's error, started, finished) skips exactly one finish.
+ * And the app's next attempt at that origin ends it ([attempt], called by
+ * `MainActivity.open` before `loadUrl`: launch, SERVERS and the not-answering
+ * screen's TRY AGAIN all go through it), because a failed load need not finish
+ * at all: `onReceivedError` shows the not-answering screen at once, and WebView
  * may move straight on to the asset without a finish for the failed URL.
- * Wave 21 ended the mark at the next `onPageStarted`, which a committed error
- * page's start reaches before its finish; round 1 of wave 22 ended it only at
- * the finish, which let a mark with no finish swallow the retry's own visit.
- * An attempt is ordered after the failure by the app itself, so neither
- * happens.
+ * Ending the mark at the next `onPageStarted` would end it too early, since a
+ * committed error page's start comes before its finish; ending it only at the
+ * finish would let a mark with no finish swallow the retry's own visit. An
+ * attempt is ordered after the failure by the app itself, so neither happens.
  *
  * What is left: a navigation the app did not start (a link inside a server's
  * page, its own `location` change) is not an attempt. If such a load fails
@@ -71,7 +70,7 @@ class FailedLoad {
 		/** Not counted: a failed load's finish, or a server this TV does not know. */
 		SKIP,
 
-		/** The computer's /pair/tv, loaded: read what 9E says (`PAIRED_JS`). */
+		/** The computer's /pair/tv, loaded: read what the paired page says (`PAIRED_JS`). */
 		PAIRED_PAGE,
 
 		/** A server's page that loaded: it may become the one in use. */

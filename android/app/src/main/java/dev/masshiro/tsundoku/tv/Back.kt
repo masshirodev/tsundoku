@@ -6,10 +6,10 @@ import java.net.URI
  * Where BACK goes once the page has said it has nothing left to take
  * (`window.tsundokuBack()` false; doc/ANDROID.md, "BACK").
  *
- * Plain `goBack()` was the first answer, and on the first real TV (2026-11-02)
- * it never let the app close: the history still held the sign-in page, which
- * sends a signed-in visitor straight back to the library, and the library's
- * shelf tabs each leave an entry of their own. So:
+ * Plain `goBack()` is not enough: on a real TV it never lets the app close.
+ * The history still holds the sign-in page, which sends a signed-in visitor
+ * straight back to the library, and the library's shelf tabs each leave an
+ * entry of their own. So:
  *
  * - the library (`/`, any shelf or sort) is the app's home: BACK leaves, on
  *   the second press (LeaveWindow.kt, the first says so in a toast);
@@ -43,8 +43,7 @@ object Back {
 	}
 
 	/**
-	 * One line for the log saying why BACK headed for the way out (c859, the
-	 * half of the card that finds the bug still under it). `current` is the
+	 * One line for the log saying why BACK headed for the way out. `current` is the
 	 * history's own idea of where we are and `shown` is the WebView's; the two
 	 * disagreeing is one of the suspects.
 	 */
@@ -80,7 +79,7 @@ object Back {
 
 	/** A page nobody goes back to: it signs in, pairs, sets up, or is the app's own. */
 	fun passedOver(url: String): Boolean {
-		// The app's own page, served from WebViewAssetLoader since c549: its
+		// The app's own page, served from WebViewAssetLoader: its
 		// https path would otherwise read as an ordinary page of a computer.
 		if (BridgeGuard.isAsset(url)) return true
 		val path = pathOf(url) ?: return true

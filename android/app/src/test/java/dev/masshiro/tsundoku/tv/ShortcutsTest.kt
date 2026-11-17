@@ -35,7 +35,7 @@ class ShortcutsTest {
 	}
 
 	@Test
-	fun `every server's shortcut opens that server through c260's door`() {
+	fun `every server's shortcut opens that server through the connect link`() {
 		for (o in origins) {
 			val link = Shortcuts.linkFor(o)
 			assertTrue(link, link.startsWith("tsundoku://connect?url="))

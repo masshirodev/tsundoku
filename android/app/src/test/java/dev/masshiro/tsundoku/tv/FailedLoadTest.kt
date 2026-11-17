@@ -24,8 +24,8 @@ class FailedLoadTest {
 
 	@Test
 	fun `error, started, finished - a committed error page does not count either`() {
-		// The order wave 21's FailedLoad lost: its start cleared the mark the
-		// finish was about to read, and the dead server became the last used.
+		// The order that matters: a start that cleared the mark the finish was
+		// about to read would make the dead server the last used.
 		val f = FailedLoad()
 		f.failed(home)
 		f.started(home)
@@ -57,7 +57,7 @@ class FailedLoadTest {
 	}
 
 	@Test
-	fun `9D's asset starting in between does not end the mark`() {
+	fun `the not-answering screen's asset starting in between does not end the mark`() {
 		val f = FailedLoad()
 		f.started(home)
 		f.failed(home)
@@ -86,8 +86,9 @@ class FailedLoadTest {
 
 	@Test
 	fun `a failed load with no finish does not swallow the retry's visit`() {
-		// SERVERS -> B, B is down: onReceivedError shows 9D at once and the
-		// failed URL never finishes. B comes back, 9D's probe opens it again.
+		// SERVERS -> B, B is down: onReceivedError shows the not-answering
+		// screen at once and the failed URL never finishes. B comes back, that
+		// screen's probe opens it again.
 		val f = FailedLoad()
 		f.attempt(b)
 		f.failed(b)
@@ -97,7 +98,7 @@ class FailedLoadTest {
 	}
 
 	@Test
-	fun `attempt, error, started, finished - the card's order still skips once`() {
+	fun `attempt, error, started, finished - still skips once`() {
 		val f = FailedLoad()
 		f.attempt(b)
 		f.failed(b)
@@ -127,7 +128,7 @@ class FailedLoadTest {
 
 	@Test
 	fun `a failed pair-tv load consumes its mark, so the library load after it is a visit`() {
-		// No attempt between: 9E's own navigation to /pair/tv is not the
+		// No attempt between: the paired page's own navigation to /pair/tv is not the
 		// app's open, and its committed error page does finish.
 		val f = FailedLoad()
 		f.failed(b)
@@ -138,7 +139,7 @@ class FailedLoadTest {
 	}
 
 	@Test
-	fun `a pair-tv page that loaded is read for 9E's name, not counted`() {
+	fun `a pair-tv page that loaded is read for the paired page's name, not counted`() {
 		val f = FailedLoad()
 		f.started(b)
 		assertEquals(FailedLoad.Finish.PAIRED_PAGE, f.finish(b, "/pair/tv", known = true))

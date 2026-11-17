@@ -33,8 +33,8 @@ object Versions {
 	 * Android's `versionCode` for a version: YYYYMMDDNN, so every release is
 	 * newer to the installer than the one before (2026.11.05.2 is 2026110502).
 	 * N is two digits; a day's 100th release would collide, and none comes
-	 * near. A name that is no date version is 1, as every build was before
-	 * c614. app/build.gradle.kts computes the same, and VersionsTest pins both.
+	 * near. A name that is no date version is 1.
+	 * app/build.gradle.kts computes the same, and VersionsTest pins both.
 	 */
 	fun code(name: String?): Int {
 		val p = parts(name) ?: return 1

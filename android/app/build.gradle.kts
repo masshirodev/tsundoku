@@ -128,7 +128,6 @@ dependencies {
 	implementation("net.i2p.crypto:eddsa:0.3.0")
 	// WebViewAssetLoader: the app's own page is served at an https
 	// origin a message listener's origin rule can name, not from file://.
-	// 1.14.0 is what this machine's Gradle cache holds (doc/ANDROID.md).
 	implementation("androidx.webkit:webkit:1.14.0")
 	testImplementation("junit:junit:4.13.2")
 	// org.json for real in the JVM tests: android.jar's stubs return nothing.

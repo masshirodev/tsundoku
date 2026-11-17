@@ -1,7 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * Whose page may make the bridge write, and since c549 read the owner's
+ * Whose page may make the bridge write, and read the user's
  * things (the list, the TV's address, its network): the app's own asset page,
  * or a page of a server this TV already knows. `window.TsundokuTV` is injected into
  * every page and frame the WebView loads, and nothing keeps the WebView on
@@ -21,8 +21,8 @@ package dev.masshiro.tsundoku.tv
  * close that too is `WebViewCompat.addWebMessageListener` with origin rules
  * ([allowsMessage], below, is the rule such a listener would ask; it is
  * pinned by `MessageGuardTest` and not wired to anything yet).
- * `doc/ANDROID.md`, "Limits", says what that move still
- * needs; wave 29 moved the app's own page to `WebViewAssetLoader` (step 1),
+ * `doc/TV-APP.md`, "What it does not do yet", says what that move still
+ * needs; the app's own page loads through `WebViewAssetLoader` (step 1),
  * and the listener itself is step 3.
  *
  * Pure, so BridgeGuardTest and PairingBridgeTest pin it.
@@ -31,11 +31,14 @@ object BridgeGuard {
 	/** The host `WebViewAssetLoader` serves the app's own page from. */
 	const val ASSET_HOST = "appassets.androidplatform.net"
 
-	/** The app's own page (9A, 9B, 9D, S5, S7, S8, S9), whatever its launch token and fragment. */
+	/**
+	 * The app's own page (the pairing screens, RENAME and ADD A SERVER),
+	 * whatever its launch token and fragment.
+	 */
 	const val ASSET = "https://$ASSET_HOST/pair/index.html"
 
 	/**
-	 * The origin the pair page loads from since c549: `WebViewAssetLoader`
+	 * The origin the pair page loads from: `WebViewAssetLoader`
 	 * serves [ASSET] there in `MainActivity.shouldInterceptRequest`, and a real
 	 * network answer at that host is never trusted. The loader is mounted at
 	 * `/`, so any file under `assets/` is served there to a main-frame GET that
@@ -57,11 +60,11 @@ object BridgeGuard {
 	 * to [ASSET_HOST], case-blind, whatever its scheme, path, query or
 	 * fragment.
 	 *
-	 * [ASSET] is an ordinary https URL since wave 29, so any page the WebView
+	 * [ASSET] is an ordinary https URL, so any page the WebView
 	 * shows — a server's page, an external link followed from one, a frame in
 	 * either — can set `location` to it with a `#connect=` fragment and make
 	 * the pair page probe and `remember` an attacker's server. A `file://`
-	 * page could not be reached that way, which is what made the old URL safe.
+	 * page could not be reached that way.
 	 * `shouldOverrideUrlLoading` asks this of every navigation (the app's own
 	 * `loadUrl` never reaches that callback, and the page's own hash changes
 	 * are same-document).
@@ -69,9 +72,9 @@ object BridgeGuard {
 	fun refusesNavigation(url: String?): Boolean = isAssetHost(url)
 
 	/**
-	 * True for a request the asset loader must not answer (c549, rounds 3 and
-	 * 4): anything addressed to [ASSET_HOST] that is not the main frame's GET of
-	 * the launch's own [ASSET] URL.
+	 * True for a request the asset loader must not answer: anything addressed
+	 * to [ASSET_HOST] that is not the main frame's GET of the launch's own
+	 * [ASSET] URL.
 	 *
 	 * [refusesNavigation] cannot close this by itself: `shouldOverrideUrlLoading`
 	 * is not called for POST requests, and on a WebView that does not report a
@@ -81,7 +84,7 @@ object BridgeGuard {
 	 * `ASSET#connect=http://evil:42143` and the loader would serve the pair
 	 * page as the main document. The method is compared without case, and an
 	 * absent one is not a GET. A sub-frame's request for the host is refused
-	 * here too (round 2's embed), and every other host is somebody else's and
+	 * here too (an embed), and every other host is somebody else's and
 	 * is not refused.
 	 *
 	 * The last test is a **per-launch capability** rather than a navigation
@@ -137,7 +140,7 @@ object BridgeGuard {
 	 * The host [url] names, lower-cased, read the way a browser reads an
 	 * authority, or null when it names none.
 	 *
-	 * `java.net.URI` was the reader until c684, and it throws on characters a
+	 * Not `java.net.URI`: it throws on characters a
 	 * WebView leaves as they are: the URL standard's query percent-encode set
 	 * does not hold `|`, `{`, `}` or `^`, and its fragment set does not hold
 	 * `|` either, so `ASSET?x=|` or `ASSET#connect=|` had no host to it and
@@ -229,7 +232,7 @@ object BridgeGuard {
 	}
 
 	/**
-	 * What a message listener asks, one message at a time (c549 part (b); not
+	 * What a message listener asks, one message at a time (not
 	 * wired to anything yet). A JavaScript interface cannot say which frame
 	 * called it, so a third-party iframe inside a known server's page reaches
 	 * every call today. `WebViewCompat.addWebMessageListener` hands its callback
@@ -246,14 +249,14 @@ object BridgeGuard {
 	 * and `http://host/series/12` are refused as well as `http://host?x=1`.
 	 * Everything else is refused: the opaque `"null"` (a `file://` page's
 	 * report), an absent origin, `""`, `about:`, `data:`, `javascript:`, and
-	 * [ASSET] itself (a URL with a path is not an origin). The asset page now
-	 * loads from [ASSET_ORIGIN] through `WebViewAssetLoader` (c549, item 1 of
-	 * `doc/ANDROID.md`'s order), which is what makes this rule's asset branch
+	 * [ASSET] itself (a URL with a path is not an origin). The asset page
+	 * loads from [ASSET_ORIGIN] through `WebViewAssetLoader` (item 1 of
+	 * `doc/TV-APP.md`'s order), which is what makes this rule's asset branch
 	 * reachable; the listener itself is still item 3 and not built.
 	 *
 	 * A known server is compared through [Address.originOf], as the top-level
-	 * guard's is, and [Address.originOf] lower-cases the scheme and the host
-	 *: a message whose origin kept the host's capitals is the same
+	 * guard's is, and [Address.originOf] lower-cases the scheme and the host:
+	 * a message whose origin kept the host's capitals is the same
 	 * server, and so is one whose scheme is capitalised. Its http/https twin or
 	 * another port is not.
 	 */

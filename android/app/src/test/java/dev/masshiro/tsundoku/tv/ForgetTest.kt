@@ -6,8 +6,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * FORGET's two pure pieces (S4): the cookie lines it writes into the
- * WebView's jar, and the server's name it reads from 9E's first line.
+ * FORGET's two pure pieces: the cookie lines it writes into the WebView's
+ * jar, and the server's name it reads from the paired page's first line.
  */
 class ForgetTest {
 	@Test
@@ -28,7 +28,7 @@ class ForgetTest {
 	}
 
 	@Test
-	fun `9E's first line names the server, and any other page names nothing`() {
+	fun `the paired page's first line names the server, and any other page names nothing`() {
 		assertEquals("ZEN", Forget.pairedName("✓ PAIRED WITH ZEN · 192.168.1.23:42143"))
 		assertEquals("DESKTOP-7Q3K", Forget.pairedName("✓ PAIRED WITH DESKTOP-7Q3K · zen.tailnet.ts.net:8443"))
 		assertNull(Forget.pairedName(""))
@@ -87,16 +87,16 @@ class ForgetTest {
 	}
 
 	@Test
-	fun `9E's name comes from its attribute, and from its first line on an older server`() {
+	fun `the paired page's name comes from its attribute, and from its first line on an older server`() {
 		val line = "✓ PAIRED WITH ZEN · 192.168.1.23:42143"
 		assertEquals("ZEN", Forget.pairedNameFrom("ZEN\n$line"))
 		// The attribute wins over whatever the line says: a copy change loses nothing.
 		assertEquals("ZEN", Forget.pairedNameFrom("ZEN\nTHE LIBRARY IS ON THIS TV"))
 		assertEquals("DESKTOP-7Q3K", Forget.pairedNameFrom("  DESKTOP-7Q3K \n"))
-		// A server older than c545: no attribute, so the line is parsed.
+		// An older server: no attribute, so the line is parsed.
 		assertEquals("ZEN", Forget.pairedNameFrom("\n$line"))
 		assertNull(Forget.pairedNameFrom("\nTHE LIBRARY IS ON THIS TV"))
-		// Not 9E: PAIRED_JS answers "".
+		// Not the paired page: PAIRED_JS answers "".
 		assertNull(Forget.pairedNameFrom(""))
 		assertNull(Forget.pairedNameFrom(null))
 		assertNull(Forget.pairedNameFrom("\n"))

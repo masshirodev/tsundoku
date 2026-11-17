@@ -1,7 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * Standard base64 decoding, padded or not (c614: the release key and the
+ * Standard base64 decoding, padded or not (the release key and the
  * signature in `latest.json`). `java.util.Base64` is Android 8 and later, and
  * this app runs from 6; `android.util.Base64` has no body in JVM tests. Pure,
  * so B64Test pins it. Anything that isn't base64 is null.

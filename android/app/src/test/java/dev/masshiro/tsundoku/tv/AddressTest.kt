@@ -7,8 +7,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The address 9B writes for the TV, and 9D's third reason (c236;
- * TV-Pair.dc.html). Pure: the parsing is the part worth pinning.
+ * What the address screen writes for the TV, and the not-answering screen's
+ * third reason. Pure: the parsing is the part worth pinning.
  */
 class AddressTest {
 	@Test

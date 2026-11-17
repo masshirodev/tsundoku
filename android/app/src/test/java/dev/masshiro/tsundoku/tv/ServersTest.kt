@@ -8,7 +8,7 @@ import org.junit.Test
 
 /**
  * The TV's servers: the list, the launch choice, and the migration
- * from the one `address` an app paired before c261 kept.
+ * from the one `address` an app paired before the list existed kept.
  */
 class ServersTest {
 	private class Map : Servers.KeyValue {
@@ -35,7 +35,7 @@ class ServersTest {
 
 	@Test
 	fun `a TV paired before the update opens the same server, with one in the list`() {
-		// Exactly what PairingBridge.remember wrote before c261, and nothing else.
+		// Exactly what PairingBridge.remember wrote before the list, and nothing else.
 		kv.m["address"] = home
 		val list = servers.all()
 		assertEquals(listOf(home), list.map { it.origin })
@@ -52,7 +52,7 @@ class ServersTest {
 	}
 
 	@Test
-	fun `a TV that never paired has no list and launches 9A`() {
+	fun `a TV that never paired has no list and launches the first screen`() {
 		assertTrue(servers.all().isEmpty())
 		assertNull(servers.lastUsed())
 		assertFalse(kv.m.containsKey("servers"))
@@ -70,7 +70,7 @@ class ServersTest {
 		now = 2_000
 		assertTrue(servers.add(zen))
 		assertEquals(setOf(home, zen), servers.all().map { it.origin }.toSet())
-		// An add left at 9C: the library the TV was in still opens on launch.
+		// An add left at the code page: the library the TV was in still opens on launch.
 		assertEquals(home, servers.lastUsed()?.origin)
 		assertEquals(home, kv.m["address"])
 		// The same origin again is the same server, whatever its spelling.
@@ -103,7 +103,7 @@ class ServersTest {
 	}
 
 	@Test
-	fun `9D offers everyone but the one that did not answer, never silently another`() {
+	fun `the not-answering screen offers everyone but the one that did not answer, never silently another`() {
 		servers.add(home)
 		now = 1_100
 		servers.add(zen)
@@ -112,7 +112,8 @@ class ServersTest {
 		now = 2_000
 		servers.opened(zen)
 		// Launch's choice is the last used, answering or not: the activity
-		// probes it and shows 9D for it on a failure (MainActivity.onCreate).
+		// probes it and shows the not-answering screen for it on a failure
+		// (MainActivity.onCreate).
 		assertEquals(zen, servers.lastUsed()?.origin)
 		assertEquals(listOf(studio, home), servers.others(zen).map { it.origin })
 	}
@@ -168,7 +169,7 @@ class ServersTest {
 	}
 
 	@Test
-	fun `forget removes it, and forgetting the last leaves 9A`() {
+	fun `forget removes it, and forgetting the last leaves the first screen`() {
 		servers.add(home)
 		servers.add(zen)
 		now = 2_000

@@ -12,8 +12,8 @@ class BackTest {
 
 	@Test
 	fun `the library is home, so BACK leaves the app from it`() {
-		// The owner's TV, 2026-11-02: the sign-in behind the library sent BACK
-		// round to the library again, and the app never closed.
+		// The sign-in behind the library sent BACK round to the library again,
+		// and the app never closed.
 		assertNull(Back.steps("$host/", listOf("$host/login", "$host/?shelf=new")))
 		assertNull(Back.steps("$host/?shelf=all&sort=title", listOf("$host/")))
 		assertNull(Back.steps(host, emptyList()))
@@ -48,8 +48,8 @@ class BackTest {
 	fun `what counts as home and what is passed over`() {
 		assertTrue(Back.isHome("http://192.168.1.23:42143/"))
 		assertFalse(Back.isHome("http://192.168.1.23:42143/series/1"))
-		// The app's own page is never home and never a history stop, whatever
-		// its URL was before the asset loader.
+		// The app's own page is never home and never a history stop, at the
+		// asset loader's URL or at its `file://` one.
 		assertFalse(Back.isHome(BridgeGuard.ASSET))
 		assertTrue(Back.passedOver(BridgeGuard.ASSET))
 		assertTrue(Back.passedOver(BridgeGuard.ASSET + "#add"))
@@ -64,7 +64,7 @@ class BackTest {
 		assertEquals("$host/help", Back.forLog("$host/help?from=a#b"))
 		assertEquals("$host/", Back.forLog("$host/?shelf=all"))
 		assertEquals(host, Back.forLog(host))
-		// The asset page's capability and the door it was opened through.
+		// The asset page's capability and the link it was opened through.
 		assertEquals(
 			"https://appassets.androidplatform.net/pair/…",
 			Back.forLog("https://appassets.androidplatform.net/pair/index.html?t=SECRET#connect=https%3A%2F%2Fx")

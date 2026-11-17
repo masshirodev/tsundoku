@@ -1,14 +1,14 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * How far the page sits in from each edge on a phone or tablet (c521;
- * doc/ANDROID.md, "On a phone: the camera band and the keyboard").
+ * How far the page sits in from each edge on a phone or tablet
+ * (doc/PHONE-APP.md, "The camera band and the keyboard").
  *
  * The app targets SDK 36, so on Android 15 and later it is drawn edge to edge
  * whatever it asks, and the system bars are hidden besides (fullscreen, as the
  * design draws it). Left alone, the page would start under the camera cutout,
  * and the keyboard would cover the button the design pins to its top edge,
- * because edge to edge no longer shrinks the window for the keyboard
+ * because edge to edge does not shrink the window for the keyboard
  * (`adjustResize` stops doing it once the app draws behind the system bars).
  *
  * So the activity pads the WebView itself, by what this returns, and fills the
@@ -20,7 +20,7 @@ package dev.masshiro.tsundoku.tv
  * - **The cutout**, on whichever side it is: the top in portrait, a side when
  *   a phone or tablet is turned. Always, keyboard or not.
  * - **The keyboard**, at the bottom while it is open: the page ends on its top
- *   edge, so NEXT → rides it (PhoneApp-Board-Phone.dc.html, 9B).
+ *   edge, so NEXT → on the address screen rides it.
  * - **The home gesture**, at the bottom while the keyboard is closed: the
  *   design's 16 px above the gesture bar, so a pinned button is not in the
  *   strip a swipe up takes. With the bars hidden this is what remains of the
@@ -39,7 +39,7 @@ object Insets {
 	 * could) counts as 0.
 	 *
 	 * `edge` is a page that asked to be drawn edge to edge (the bridge's
-	 * `edge(true)`: the reader's manga and manhwa pages, c521): no cutout and
+	 * `edge(true)`: the reader's manga and manhwa pages): no cutout and
 	 * no gesture strip, the picture runs under the camera. The keyboard still
 	 * pads, should one open there; the page keeps its bars out of the band
 	 * itself, from the sizes `css` hands it.

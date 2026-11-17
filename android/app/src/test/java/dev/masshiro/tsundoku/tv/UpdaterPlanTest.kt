@@ -30,7 +30,7 @@ class UpdaterPlanTest {
 		assertFalse(Plan.offer(Release("2026.11.04", "2026-11-04", "", apk), "2026.11.05"))
 		// A release published before the apps were, with nothing for this one.
 		assertFalse(Plan.offer(Release("2026.11.06", "2026-11-06", "", null), "2026.11.05"))
-		// The owner's dev build is offered the next release.
+		// A dev build is offered the next release.
 		assertTrue(Plan.offer(Release("2026.11.06", "2026-11-06", "", apk), "2026.11.05-dev2"))
 	}
 

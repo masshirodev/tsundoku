@@ -1,8 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * The servers this TV has paired with (c261; doc/ANDROID.md, "Servers";
- * doc/handoffs/tv-servers/, "05 — what this asks of the app").
+ * The servers this TV has paired with (doc/TV-APP.md, "Servers").
  *
  * One entry per origin: the origin, the name the server gives itself (its
  * hostname, as `/pair/tv` says it), the TV's own name for it (empty unless
@@ -10,7 +9,7 @@ package dev.masshiro.tsundoku.tv
  * opened last: there is no default to mark, as the design decided.
  *
  * Pure apart from [KeyValue], so `ServersTest` pins the store, the migration
- * from the single `address` this app kept before c261, and the launch choice
+ * from the single `address` older versions of this app kept, and the launch choice
  * without an Android runtime. The activity and the bridge share one instance
  * over the `pairing` SharedPreferences.
  */
@@ -45,9 +44,10 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 		const val KEY_SERVERS = "servers"
 
 		/**
-		 * The one address this app remembered before c261, and still the last
-		 * used one's origin, kept in step on every write: an older APK installed
-		 * over this one then opens the same library rather than 9A.
+		 * The one address older versions of this app remembered, and still the
+		 * last used one's origin, kept in step on every write: an older APK
+		 * installed over this one then opens the same library rather than the
+		 * first screen.
 		 */
 		const val KEY_ADDRESS = "address"
 
@@ -115,7 +115,7 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 		 *
 		 * Every origin is read through [Address.originOf], so an entry stored
 		 * before a normalisation comes back normalised: one with its scheme's
-		 * own port (round 2 of c261), or one typed with capitals. Two
+		 * own port, or one typed with capitals. Two
 		 * lines that then name one origin are one server, and are folded by
 		 * [fold] rather than kept twice.
 		 */
@@ -134,7 +134,7 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 			}.groupBy { it.origin }.values.map(::fold)
 
 		/**
-		 * Entries that turned out to be one server (c548: `http://Zen.local`
+		 * Entries that turned out to be one server (`http://Zen.local`
 		 * stored beside `http://zen.local`). The one opened last wins, as the
 		 * list is ordered, then the one added last; a name the winner lacks
 		 * is taken from the others, as [move] carries the TV's name across
@@ -158,9 +158,9 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 	 * Every server, the one in use first, then by when each was last opened.
 	 * Two never opened (added, not paired yet) go newest added first.
 	 *
-	 * The first read after c261 finds no list and the old single address:
-	 * that address becomes a list of one, opened now, so a TV paired before
-	 * the update opens exactly as it did and is never asked to pair again
+	 * A read that finds no list but the old single address makes that address
+	 * a list of one, opened now, so a TV paired by an older version opens
+	 * exactly as it did and is never asked to pair again
 	 * (its cookie is the WebView's, and nothing here touches it). The jar
 	 * scopes cookies by host, not origin: two servers on one host share the
 	 * one paired cookie (doc/ANDROID.md, "Limits").
@@ -185,7 +185,7 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 		return list.sortedWith(compareByDescending<Server> { it.opened }.thenByDescending { it.added })
 	}
 
-	/** The server launch opens: the last used. Null: nothing is paired (9A). */
+	/** The server launch opens: the last used. Null: nothing is paired (the first screen). */
 	@Synchronized
 	fun lastUsed(): Server? = all().firstOrNull()
 
@@ -195,7 +195,7 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 		return all().firstOrNull { it.origin == clean }
 	}
 
-	/** Everyone but [origin], in the list's order: 9D's OR OPEN ANOTHER (S9). */
+	/** Everyone but [origin], in the list's order: the not-answering screen's OR OPEN ANOTHER. */
 	@Synchronized
 	fun others(origin: String): List<Server> {
 		val clean = Address.originOf(origin)
@@ -203,9 +203,9 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 	}
 
 	/**
-	 * A server answered: keep it. Adds rather than replaces (the design's
-	 * "`remember()` adds"), and never marks it in use: an add that is left at
-	 * 9C must not take launch away from the library the TV was in.
+	 * A server answered: keep it. Adds rather than replaces, and never marks
+	 * it in use: an add that is left at the code page must not take launch
+	 * away from the library the TV was in.
 	 * Returns true when it was new.
 	 */
 	@Synchronized
@@ -221,7 +221,7 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 	@Synchronized
 	fun opened(origin: String) = update(origin) { it.copy(opened = clock()) }
 
-	/** What the server calls itself (9E, or the library's own page saying it). */
+	/** What the server calls itself (the paired page, or the library's own page saying it). */
 	@Synchronized
 	fun named(origin: String, name: String) = update(origin) { it.copy(name = cleanName(name).uppercase()) }
 
@@ -240,7 +240,7 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 	}
 
 	/**
-	 * A server that moved (9D's CHANGE THE ADDRESS for that entry): the new
+	 * A server that moved (the not-answering screen's CHANGE THE ADDRESS for that entry): the new
 	 * address takes the entry's place and keeps the TV's name for it. The
 	 * server's own name is asked again, since it may not be the same computer.
 	 * If the new address is already another entry, that entry stays and the

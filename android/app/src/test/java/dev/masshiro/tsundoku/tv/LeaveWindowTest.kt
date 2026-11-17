@@ -201,11 +201,11 @@ class LeaveWindowTest {
 	}
 
 	/**
-	 * The doors a JVM test cannot run, as far as the source can say: the one
+	 * The exits a JVM test cannot run, as far as the source can say: the one
 	 * call to `finish()`, and the three things that feed the window.
 	 */
 	@Test
-	fun `every way out goes through the window, and the doors are wired`() {
+	fun `every way out goes through the window, and the exits are wired`() {
 		val activity = File("src/main/java/dev/masshiro/tsundoku/tv/MainActivity.kt").readText()
 		assertEquals(1, Regex("""\bfinish\(\)""").findAll(activity).count())
 		assertTrue(activity.contains("LeaveWindow.Verdict.LEAVE ->"))

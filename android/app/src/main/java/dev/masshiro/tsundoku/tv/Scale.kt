@@ -3,7 +3,7 @@ package dev.masshiro.tsundoku.tv
 /**
  * The page's scale (doc/TV.md, "Claims to check").
  *
- * The handoff is drawn in a 960x540 CSS-pixel frame. The WebView lays the page
+ * The design is drawn in a 960x540 CSS-pixel frame. The WebView lays the page
  * out at whatever width it is given, so the 1024px/1280px media queries would
  * fire on one TV and not another. `useWideViewPort=false` plus
  * `setInitialScale` pins the CSS viewport to 960 whatever the panel.
@@ -19,7 +19,7 @@ package dev.masshiro.tsundoku.tv
  * Pure, so the scale is tested without a device.
  */
 object Scale {
-	/** The handoff's width in CSS px. */
+	/** The design's width in CSS px. */
 	const val FRAME_WIDTH = 960
 
 	/**

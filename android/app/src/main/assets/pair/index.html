@@ -6,13 +6,13 @@
 		<title>Pair this TV · tsundoku</title>
 		<script>
 			/*
-			 * Which app is holding this page, before anything paints (c521;
-			 * doc/ANDROID.md). The width alone can't say: a TV is pinned at 960
+			 * Which app is holding this page, before anything paints
+			 * (doc/PHONE-APP.md). The width alone can't say: a TV is pinned at 960
 			 * CSS px and a tablet is wider. `data-form` is the layout (the TV's
 			 * frame, or the phone's and tablet's flow, split at 600 px);
 			 * `data-device` is the word the copy uses, from the screen's short
 			 * side, so a phone turned on its side is still a phone. No bridge
-			 * (this file opened in a browser) is the TV, as it always was.
+			 * (this file opened in a browser) is the TV.
 			 */
 			(function () {
 				var b = window.TsundokuTV;
@@ -24,10 +24,10 @@
 			})();
 		</script>
 		<!--
-			The TV app's own screens (TV-Pair.dc.html 9A, 9B, 9D). 9C and
-			9E are the computer's `/pair/tv`, because the code is posted there and
-			the paired cookie is set there; these three are before the TV can
-			reach anything.
+			The TV app's own screens: #welcome, #address and #lost. The code
+			screen and the paired screen are the computer's `/pair/tv`, because
+			the code is posted there and the paired cookie is set there; these
+			three are before the TV can reach anything.
 
 			Colours are the tokens of src/lib/styles/colors.css (dark), and the
 			sizes are tv.css's: a 960x540 frame, a 48px safe margin at the sides
@@ -35,21 +35,21 @@
 			the 4px+3px ink focus mark. No font is shipped: the TV's WebView uses
 			its own (Roboto), so the wordmark is the one exception to Plex.
 
-			On a phone or a tablet (PhoneApp-*.dc.html) the same screens
+			On a phone or a tablet the same screens
 			reflow: under 600 px a column, its one action pinned at the bottom
 			(the keyboard's top edge when it is open: the app pads the WebView
 			by it, Insets.kt); from 600 the TV's arrangement in flow at a 24 px
 			margin. Every rule for them is under html[data-form='mobile'], so the
-			TV's frame below is exactly what it was.
+			TV's frame below is untouched by them.
 
 			The bridge (`window.TsundokuTV`) gives the page the TV's own address,
 			a probe of a candidate, and the memory of the one that answered
 			(PairingBridge.kt). Everything else is this page.
 
-			c261 (doc/handoffs/tv-servers/, doc/ANDROID.md "Servers") adds the TV's
-			list of servers to four of these screens: 9B as ADD A SERVER (S7, #add),
-			9E after an add (S8, #added=), RENAME (S5, #rename=) and 9D with the
-			other servers offered (S9). SERVERS itself, its options and FORGET are
+			The TV's list of servers (doc/TV-APP.md "Servers") reaches four of
+			these screens: #address as ADD A SERVER (#add), ADDED after an add
+			(#added=), RENAME (#rename=) and #lost with the other servers
+			offered. SERVERS itself, its options and FORGET are
 			drawn by the web app's MORE, over the library they switch.
 		-->
 		<style>
@@ -208,7 +208,7 @@
 				flex-shrink: 0;
 				font: 400 14px/1.3 var(--font-mono);
 			}
-			/* 9A */
+			/* #welcome */
 			.welcome-head {
 				top: 112px;
 				display: flex;
@@ -241,7 +241,7 @@
 				align-items: center;
 				gap: 16px;
 			}
-			/* 9B */
+			/* #address */
 			.address-label {
 				top: 108px;
 				height: 36px;
@@ -302,18 +302,18 @@
 			.checking {
 				top: 368px;
 			}
-			/* c260 · a given address, checked before anything is typed. It is
-			   neither 9A nor 9B: the app was handed the address, so there is no
-			   field. The label keeps 9B's with-band rhythm below. */
+			/* A given address, checked before anything is typed. It is neither
+			   #welcome nor #address: the app was handed the address, so there is
+			   no field. The label keeps #address's with-band rhythm below. */
 			.connect {
 				top: 164px;
 				display: flex;
 				flex-direction: column;
 				gap: 16px;
 			}
-			/* 9B with a band: the band ends at 148, so the column moves down by
-			   its 56, exactly as 9C's does (doc/TV-APP.md). Every box still
-			   ends inside the 540 frame: the actions at 356 + 56, the checking
+			/* #address with a band: the band ends at 148, so the column moves
+			   down by its 56, exactly as the code screen's does (doc/TV-APP.md).
+			   Every box still ends inside the 540 frame: the actions at 356 + 56, the checking
 			   line at 424. */
 			#address.with-band .address-label {
 				top: 164px;
@@ -330,7 +330,7 @@
 			#address.with-band .checking {
 				top: 424px;
 			}
-			/* 9D */
+			/* #lost */
 			.lost-label {
 				top: 164px;
 				height: 36px;
@@ -374,9 +374,9 @@
 				display: flex;
 				gap: 16px;
 			}
-			/* c261 · S9: 9D with the other servers. The reasons narrow to 500 at
-			   the left and the others take 332 at 580 (TV-Servers.dc.html, lost);
-			   the rows are 60 high there, and the buttons move to 416. */
+			/* #lost with the other servers. The reasons narrow to 500 at the
+			   left and the others take 332 at 580; the rows are 60 high there,
+			   and the buttons move to 416. */
 			#lost.with-others .lost-label,
 			#lost.with-others .reasons {
 				right: auto;
@@ -481,14 +481,14 @@
 			.acc {
 				color: var(--accent);
 			}
-			/* S7 · 9B as ADD A SERVER: what BACK does, under the buttons. */
+			/* #address as ADD A SERVER: what BACK does, under the buttons. */
 			.add-back {
 				top: 392px;
 			}
 			#address.with-band .add-back {
 				top: 448px;
 			}
-			/* S8 · added. */
+			/* ADDED. */
 			.added-head {
 				top: 112px;
 				display: flex;
@@ -508,7 +508,7 @@
 				text-overflow: ellipsis;
 				min-width: 0;
 			}
-			/* S5 · RENAME: the field in the top half, above Android's keyboard. */
+			/* RENAME: the field in the top half, above Android's keyboard. */
 			.rename-label {
 				top: 100px;
 				height: 36px;
@@ -538,11 +538,10 @@
 				display: none !important;
 			}
 
-			/* ---- c521 · the phone and the tablet ---------------------------------
-			   PhoneApp-Phone.dc.html and PhoneApp-Tablet.dc.html, their literal
-			   values. The camera band and the gesture strip the design draws
-			   inside its frame (24 and 16) are the app's padding here, not the
-			   page's (Insets.kt). Text sizes are the design's at 100%: Android's
+			/* ---- the phone and the tablet ----------------------------------------
+			   The design's literal values. The camera band and the gesture strip
+			   the design draws inside its frame (24 and 16) are the app's padding
+			   here, not the page's (Insets.kt). Text sizes are the design's at 100%: Android's
 			   font size scales them through the WebView's textZoom (Form.kt),
 			   which is why every height below is a min-height. */
 			html[data-form='mobile'] {
@@ -550,7 +549,7 @@
 			}
 			@media (prefers-color-scheme: light) {
 				/* src/lib/styles/colors.css, light (Paper / ink): before pairing
-				   the app follows the phone's own setting (9C · LIGHT). */
+				   the app follows the phone's own setting. */
 				html[data-form='mobile'] {
 					--surface-page: oklch(0.965 0.006 95);
 					--surface-panel: oklch(0.93 0.008 95);
@@ -721,7 +720,7 @@
 					min-height: 48px;
 					font-size: 13px;
 				}
-				/* 9A */
+				/* #welcome */
 				html[data-form='mobile'] .welcome-head {
 					gap: 10px;
 					padding-top: 4px;
@@ -784,7 +783,7 @@
 				html[data-form='mobile'] .welcome-actions .meta {
 					padding-bottom: 4px;
 				}
-				/* 9B: TYPE THE WHOLE ADDRESS sits with the field it changes; NEXT
+				/* #address: TYPE THE WHOLE ADDRESS sits with the field it changes; NEXT
 				   is pinned to the bottom, on the keyboard's top edge. */
 				html[data-form='mobile'] .address {
 					min-height: 64px;
@@ -815,7 +814,7 @@
 					order: 1;
 					margin-top: auto;
 				}
-				/* 9D */
+				/* #lost */
 				html[data-form='mobile'] .reason .n {
 					width: 44px;
 					font: 500 13px var(--font-mono);
@@ -839,7 +838,7 @@
 				html[data-form='mobile'] .srv .meta {
 					font: 400 12px/1.3 var(--font-mono);
 				}
-				/* S5 */
+				/* RENAME */
 				html[data-form='mobile'] .rename-field {
 					height: 56px;
 					padding: 0 14px;
@@ -957,7 +956,7 @@
 				<div class="step" id="step">PAIR THIS TV</div>
 			</div>
 
-			<!-- 9A · the app's first screen -->
+			<!-- The app's first screen. -->
 			<section class="screen" id="welcome">
 				<div class="safe welcome-head">
 					<h1 id="welcome-title">Read from the couch</h1>
@@ -995,11 +994,11 @@
 				</div>
 			</section>
 
-			<!-- 9B · the address -->
+			<!-- The address. -->
 			<section class="screen" id="address" hidden>
-				<!-- c260: an address handed to the app that is not one it can
-				     open. The band is 9D's, and the column below moves by its 56
-				     (c246's rhythm), so it never covers the label. -->
+				<!-- An address handed to the app that is not one it can open.
+				     The band is #lost's, and the column below moves by its 56, so
+				     it never covers the label. -->
 				<div class="band" id="refused" role="status" hidden>
 					<div>○ THAT ADDRESS WAS REFUSED · NOTHING WAS SAVED</div>
 					<!-- Every rule Address.intentOrigin refuses by, and no other
@@ -1009,7 +1008,7 @@
 					     that this fits beside the first line at that width. -->
 					<div class="meta" id="refused-why">http(s)://HOST · NO LOGIN · PORT 1–65535</div>
 				</div>
-				<!-- S7: an address already in the list skips pairing and opens it. -->
+				<!-- An address already in the list skips pairing and opens it. -->
 				<div class="band" id="already" role="status" hidden>
 					<div id="already-line"></div>
 				</div>
@@ -1046,11 +1045,11 @@
 					</button>
 				</div>
 				<div class="safe meta checking" id="checking" role="status"></div>
-				<!-- S7: where BACK goes from an add. -->
+				<!-- Where BACK goes from an add. -->
 				<div class="safe meta add-back" id="add-back" hidden></div>
 			</section>
 
-			<!-- 9D · nothing answers -->
+			<!-- Nothing answers. -->
 			<section class="screen" id="lost" hidden>
 				<div class="band">
 					<div id="lost-title">○ NOTHING ANSWERS</div>
@@ -1077,7 +1076,7 @@
 						<div class="v" id="reason-3">This TV is on another Wi-Fi</div>
 					</div>
 				</div>
-				<!-- S9: the other servers, each probed; OK opens one. -->
+				<!-- The other servers, each probed; OK opens one. -->
 				<div class="lab others-label" id="others-label" hidden>
 					<div>OR OPEN ANOTHER</div>
 					<div id="others-count"></div>
@@ -1089,7 +1088,7 @@
 				</div>
 			</section>
 
-			<!-- S8 · 9E after an add: the app's own, in place of the computer's 9E. -->
+			<!-- After an add: the app's own paired screen, in place of the computer's. -->
 			<section class="screen" id="added" hidden>
 				<div class="safe added-head">
 					<div class="lab acc" id="added-lab"></div>
@@ -1103,7 +1102,7 @@
 				</div>
 			</section>
 
-			<!-- S5 · RENAME: the TV's own name for a server, kept on the TV only. -->
+			<!-- RENAME: the TV's own name for a server, kept on the TV only. -->
 			<section class="screen" id="rename" hidden>
 				<div class="safe rename-label lab"><div id="rename-label"></div></div>
 				<form id="rename-form">
@@ -1122,9 +1121,9 @@
 				<div class="safe meta rename-meta" id="rename-meta"></div>
 			</section>
 
-			<!-- c260 · a given address, checked before 9B: the app was handed one,
-			     so nobody types it. Not a drawn screen: 9B's own label and meta at
-			     the rhythm a band leaves them. Inside <main> so its absolute
+			<!-- A given address, checked before #address: the app was handed
+			     one, so nobody types it. Not a screen of its own: #address's label
+			     and meta at the rhythm a band leaves them. Inside <main> so its absolute
 			     position resolves against the frame every other block uses. -->
 			<div class="safe connect" id="connect" hidden>
 				<div class="lab">01 — THE COMPUTER'S ADDRESS · GIVEN AT LAUNCH</div>
@@ -1151,10 +1150,9 @@
 			const connectLine = document.getElementById('connect-line');
 			const refusedBand = document.getElementById('refused');
 			/*
-			 * The device the copy names: the TV's words are exactly what
-			 * they were; a phone or tablet says itself where the TV did, and the
-			 * phone's header is short, as the Wi-Fi phone screens' is
-			 * (PhoneApp-Calls.dc.html, THE FRAME).
+			 * The device the copy names: a phone or tablet says itself where
+			 * the TV would, and the phone's header is short, as the Wi-Fi phone
+			 * screens' is.
 			 */
 			const DEVICE = document.documentElement.dataset.device || 'tv';
 			const MOBILE = DEVICE !== 'tv';
@@ -1179,11 +1177,11 @@
 					.setAttribute('aria-label', `This ${WORD}'s name for the server`);
 			}
 
-			/* ---- c261: the TV's servers ------------------------------------------ */
+			/* ---- the TV's servers ------------------------------------------------ */
 			/*
 			 * The list is the bridge's (Servers.kt), the one in use first. An
 			 * older bridge, or none (this file opened in a browser), has no list:
-			 * every screen then behaves exactly as before c261.
+			 * every screen then behaves as if there were one server.
 			 */
 			function serverList() {
 				if (!bridge || typeof bridge.servers !== 'function') return [];
@@ -1199,7 +1197,7 @@
 			const inUse = () => serverList()[0] || null;
 			/** "LIVING ROOM, MASSHIRO'S, STUDIO": the names a meta line lists. */
 			const names = (list) => list.map((s) => String(s.shown).toUpperCase()).join(', ');
-			/** Back to the library the TV was in: the server in use (S7, S5, S8). */
+			/** Back to the library the TV was in: the server in use. */
 			function backToLibrary() {
 				const here = inUse();
 				if (!here || !bridge || typeof bridge.open !== 'function') return false;
@@ -1208,8 +1206,8 @@
 			}
 
 			/*
-			 * What 9B is for: pairing the first server, adding another (S7), or
-			 * giving a server that moved its new address (9D's CHANGE THE
+			 * What #address is for: pairing the first server, adding another, or
+			 * giving a server that moved its new address (#lost's CHANGE THE
 			 * ADDRESS on a server in the list).
 			 */
 			let mode = 'pair';
@@ -1246,7 +1244,7 @@
 				connectBox.hidden = true;
 				refusedBand.hidden = true;
 				screens.address.classList.remove('with-band');
-				// Every door into 9B starts clean: a probe a given address
+				// Every way into #address starts clean: a probe a given address
 				// superseded must not leave NEXT disabled or its
 				// CHECKING line behind.
 				if (name === 'address') {
@@ -1262,7 +1260,7 @@
 				if (start) start.focus();
 			}
 
-			/* ---- 9B: the address ------------------------------------------------ */
+			/* ---- the address ---------------------------------------------------- */
 			const form = document.getElementById('address-form');
 			const last = document.getElementById('last');
 			const wholeToggle = document.getElementById('whole-toggle');
@@ -1273,7 +1271,7 @@
 
 			function fill() {
 				const prefix = (bridge ? bridge.prefix() : '') || '192.168.1.';
-				// A phone drops http:// so the field fits 360 at 130% (9B).
+				// A phone drops http:// so the field fits 360 at 130%.
 				document.getElementById('prefix').textContent = (PHONE ? '' : 'http://') + prefix;
 				// The field stays: whole or not, it is what's typed in. Only the
 				// written-out prefix and port go.
@@ -1298,7 +1296,7 @@
 							? `THIS ${UPPER} IS AT ${own}, SO THE COMPUTER IS ${prefix}SOMETHING`
 							: `THIS TV IS AT ${own}, SO THE COMPUTER IS ${prefix}SOMETHING · THE REMOTE'S NUMBER KEYS TYPE HERE; WITHOUT THEM, MOVE THE MARK TO THE FIELD FOR THE PAD · BACK CLOSES IT`
 						: `THE ${UPPER} HAS NO WI-FI ADDRESS OF ITS OWN · TYPE THE COMPUTER'S ADDRESS: THE LAST NUMBER, OR THE WHOLE ONE`;
-				// S7: it names who is already here, and what BACK does.
+				// Adding: it names who is already here, and what BACK does.
 				const list = serverList();
 				const label = document.getElementById('address-label');
 				const addBack = document.getElementById('add-back');
@@ -1320,7 +1318,7 @@
 				}
 			}
 
-			/* 9B in one of its three modes, at its start. */
+			/* #address in one of its three modes, at its start. */
 			function addressAs(m, from = '') {
 				mode = m;
 				moving = from;
@@ -1335,7 +1333,8 @@
 				fill();
 				// A phone's keyboard pushes the page up rather than covering the
 				// buttons, so the field takes focus at once and the number
-				// keyboard opens (9B); the TV never does, for c247's pad.
+				// keyboard opens; the TV never does, because its number pad
+				// would cover the buttons.
 				if (MOBILE) {
 					last.focus();
 					showKeyboard();
@@ -1353,7 +1352,7 @@
 			}
 
 			last.addEventListener('keydown', (e) => {
-				// ← erases, as the design says (TV-Pair.dc.html, 9C's note).
+				// ← erases, as on the code screen.
 				// A hardware keyboard's ← moves the caret on a phone or tablet.
 				if (e.key === 'ArrowLeft' && !whole && !MOBILE) {
 					e.preventDefault();
@@ -1400,7 +1399,7 @@
 				refusedBand.hidden = true;
 				// The question's own band stays up, and the column stays under it.
 				if (!asking) screens.address.classList.remove('with-band');
-				// S7: an address already in the list is not paired again; it
+				// An address already in the list is not paired again; it
 				// opens. Compared by origin, as everything here is.
 				const there = mode !== 'pair' ? known(at) : null;
 				if (there) {
@@ -1425,18 +1424,18 @@
 				next.disabled = true;
 				// A late answer for this origin may have filled the 2 s window
 				// while the question was up; this press must not be swallowed by
-				// it, or CHECKING never ends (c683, as connect() does for c260).
+				// it, or CHECKING never ends (as connect() does for a given address).
 				// By origin: that is what the bridge answers with, and the field
-				// can hold a path or capitals the owner typed.
+				// can hold a path or capitals the user typed.
 				if (asking) seen.delete(atOrigin(at));
 				if (bridge) bridge.probe(at);
 				else checking.textContent = 'THE APP BRIDGE IS MISSING · THIS PAGE OPENS FROM THE APK';
 			}
 
 			wholeToggle.addEventListener('click', () => {
-				// On the question this is the way out: 9B as START leaves it, and
-				// an answer still owed to a CONNECT already pressed no longer
-				// counts, because the owner has just said otherwise.
+				// On the question this is the way out: #address as START leaves
+				// it, and an answer still owed to a CONNECT already pressed does
+				// not count, because the user has just said otherwise.
 				if (asking) {
 					lastOrigin = '';
 					addressAs('pair');
@@ -1450,7 +1449,7 @@
 				if (MOBILE) showKeyboard();
 			});
 
-			/* ---- c260: an address handed in from outside ----------------------- */
+			/* ---- an address handed in from outside ------------------------------ */
 			/*
 			 * Kotlin has already judged it (Given.door): this is an address the
 			 * list holds, so its answer opens it and stores nothing. A refused
@@ -1471,8 +1470,8 @@
 					return;
 				}
 				stopAsking();
-				// The third door into 9B's refusal state, and the one that used
-				// to leave the flag behind: hiding the screen does not hide the
+				// The third way into #address's refusal state, and the one most
+				// likely to leave the flag behind: hiding the screen does not hide the
 				// band, so a failure for this address would read as a failure
 				// for the refusal and be dropped.
 				refusedBand.hidden = true;
@@ -1499,12 +1498,12 @@
 				bridge.probe(at);
 			}
 
-			/* ---- c683: an address that arrived by a link ------------------------ */
+			/* ---- an address that arrived by a link ------------------------------ */
 			/*
 			 * Anything can fire tsundoku://connect, and an origin in the list
 			 * passes trusted() for every read and write the bridge guards. So an
-			 * address not in the list is put on 9B and waits: no probe and no
-			 * remember until the owner presses CONNECT, which is then the typed
+			 * address not in the list is put on #address and waits: no probe and
+			 * no remember until the user presses CONNECT, which is then the typed
 			 * path, the one place an answer is stored. The field is what gets
 			 * connected to, so what is shown is what is asked about; the meta
 			 * line carries it whole, because a field clips a long host.
@@ -1520,11 +1519,11 @@
 			 * meets that rule, and ask() fills the field past its maxLength, so
 			 * the limit is held here, where the question is drawn. Not in lost()
 			 * or connect(): nothing is asked about a server in the list, and one
-			 * over 80 characters still reaches 9D and opens.
+			 * over 80 characters still reaches #lost and opens.
 			 */
 			const MAX_ASKED = 80;
 			/*
-			 * 9B's band gives the rule an address broke, and a long one breaks
+			 * #address's band gives the rule an address broke, and a long one breaks
 			 * none of the rules in the hint. As short as that hint or shorter:
 			 * the row does not wrap, and sits beside NOTHING WAS SAVED at a TV's
 			 * 0.6 em. It is a sentence on a band, so it names no control.
@@ -1579,7 +1578,7 @@
 			 * included. Opening the library is a loadUrl, so this document runs
 			 * on until that navigation commits, and an answer landing before
 			 * then would otherwise store the address and leave for its
-			 * /pair/tv, taking the owner from the library they went back to.
+			 * /pair/tv, taking the user from the library they went back to.
 			 *
 			 * With no server the app answers the first BACK with a toast and
 			 * this document stays, so the question goes back to what it was
@@ -1599,16 +1598,16 @@
 			}
 
 			/*
-			 * A given address the activity refused: 9B, empty, with the band.
+			 * A given address the activity refused: #address, empty, with the band.
 			 * [why] is drawn every time, so the next refusal never keeps this
 			 * one's reason.
 			 */
 			const refusedWhy = document.getElementById('refused-why');
 			const BROKE_A_RULE = refusedWhy.textContent;
 			function refused(why = BROKE_A_RULE) {
-				// The second door into 9B, and the 9D retry outlives the screen
-				// unless it is stopped first: its next tick would probe the old
-				// origin, fail, and replace the refusal with 9D for an address
+				// The second way into #address, and #lost's retry outlives the
+				// screen unless it is stopped first: its next tick would probe the
+				// old origin, fail, and replace the refusal with #lost for an address
 				// nobody handed in. #change stops it the same way.
 				stopRetry();
 				mode = 'pair';
@@ -1626,7 +1625,7 @@
 			const seen = new Set();
 			window.tsundokuProbe = function (at, ok) {
 				if (typeof at !== 'string') return;
-				// S9: an answer for one of the other servers 9D offers is that
+				// An answer for one of the other servers #lost offers is that
 				// row's, and never the attempt's.
 				if (otherRows.has(at) && atOrigin(at) !== atOrigin(lastOrigin)) {
 					paintOther(at, ok ? 'ok' : 'no');
@@ -1645,7 +1644,7 @@
 				// A refusal band is up: a failure for an earlier attempt must not
 				// erase "NOTHING WAS SAVED". A success still pairs: the
 				// given address only replaced the remembered one after it answered.
-				// Every door into this state clears the flag (probe, show, connect),
+				// Every way into this state clears the flag (probe, show, connect),
 				// so a visible band means a refusal nothing has superseded yet.
 				if (!ok && !refusedBand.hidden) return;
 				// A given address is being checked with no screen in front of it
@@ -1656,8 +1655,8 @@
 					lastOrigin = at;
 					checking.textContent = '';
 					connectLine.textContent = '';
-					// c261: a server already in the list has its pairing: its
-					// library opens (a given address, or 9D's server back).
+					// A server already in the list has its pairing: its library
+					// opens (a given address, or #lost's server back).
 					const there = known(at);
 					if (there && mode !== 'move' && typeof bridge.open === 'function') {
 						bridge.open(there.origin);
@@ -1677,8 +1676,8 @@
 				}
 				next.disabled = false;
 				checking.textContent = '';
-				// A retry of the attempt 9D is already showing failed again: that
-				// is one more in the count, not a new 9D. Entering again would put
+				// A retry of the attempt #lost is already showing failed again:
+				// that is one more in the count, not a new #lost. Entering again would put
 				// the mark back on TRY AGAIN, rebuild the other servers' rows
 				// under it and probe each of them again, every 5 s.
 				if (!screens.lost.hidden && lostFor && atOrigin(at) === atOrigin(lostFor)) {
@@ -1688,16 +1687,16 @@
 				lost(at);
 			};
 
-			/* ---- 9D: nothing answers ------------------------------------------- */
+			/* ---- nothing answers ------------------------------------------------ */
 			const lostTitle = document.getElementById('lost-title');
 			const lostMeta = document.getElementById('lost-meta');
 			const reason3 = document.getElementById('reason-3');
 
-			/** The origin 9D was last entered for; its retries only repaint. */
+			/** The origin #lost was last entered for; its retries only repaint. */
 			let lostFor = '';
 
 			/*
-			 * Entering 9D: from #lost= for a server in the list, from a typed or
+			 * Entering #lost: from #lost= for a server in the list, from a typed or
 			 * given address that did not answer, or for another origin. Never a
 			 * retry of the same one, which the probe's answer above keeps to
 			 * paint(). Its retry stores what answers, so an origin nobody chose
@@ -1710,7 +1709,7 @@
 				const prefix = prefixOf(own);
 				const wanted = prefixOf(hostOf(at).replace(/:\d+.*$/, ''));
 				// A phone may be on mobile data, with no Wi-Fi to be "another" one
-				// (9D · ON MOBILE DATA); the bridge says which (Network.kt).
+				// (ON MOBILE DATA); the bridge says which (Network.kt).
 				const network = bridge && typeof bridge.network === 'function' ? bridge.network() : '';
 				reason3.textContent = own
 					? `This ${WORD} is on another Wi-Fi: it's at ${own}, not ${wanted.replace(/\.$/, '')}.`
@@ -1722,7 +1721,7 @@
 				startRetry();
 			}
 
-			/* ---- S9: the other servers, under 9D ------------------------------- */
+			/* ---- the other servers, under #lost --------------------------------- */
 			const othersBox = document.getElementById('others');
 			const othersLabel = document.getElementById('others-label');
 			/** origin -> its row, for the probe's answers. */
@@ -1742,7 +1741,7 @@
 				othersBox.replaceChildren();
 				const list = serverList().filter((s) => atOrigin(s.origin) !== atOrigin(at));
 				const here = known(at);
-				// 9D's title names the server by its name once it has one (S9).
+				// #lost's title names the server by its name once it has one.
 				if (here)
 					lostTitle.textContent = `○ NOTHING ANSWERS AT ${String(here.shown).toUpperCase()} · ${hostOf(at)}`;
 				screens.lost.classList.toggle('with-others', list.length > 0);
@@ -1812,7 +1811,7 @@
 				if (bridge) bridge.probe(lastOrigin);
 			});
 			document.getElementById('change').addEventListener('click', () => {
-				// A server in the list moved: 9B for that entry, not a new one.
+				// A server in the list moved: #address for that entry, not a new one.
 				// A move whose new address did not answer is still that entry's.
 				const there = known(lastOrigin) || (mode === 'move' && moving ? known(moving) : null);
 				addressAs(there ? 'move' : 'pair', there ? there.origin : '');
@@ -1821,7 +1820,7 @@
 				addressAs('pair');
 			});
 
-			/* ---- S8: added ------------------------------------------------------- */
+			/* ---- added ---------------------------------------------------------- */
 			let addedOrigin = '';
 			function added(origin) {
 				const s = known(origin);
@@ -1845,8 +1844,8 @@
 						: others.length === 1
 							? `${others[0].shown} is still here. `
 							: `${others[0].shown} and ${others.length - 1} more are still here. `;
-				// S8 is shown with two or more servers, so the library's bar has
-				// its server cell (S1) as well as MORE › SERVERS.
+				// ADDED is shown with two or more servers, so the library's bar has
+				// its server cell as well as MORE › SERVERS.
 				document.getElementById('added-prose').textContent =
 					still +
 					'Switch from the name at the top of the library, or MORE › SERVERS. Each keeps its own pairing, so switching never asks for digits again.';
@@ -1864,7 +1863,7 @@
 				renameScreen(addedOrigin, 'added');
 			});
 
-			/* ---- S5: rename ------------------------------------------------------ */
+			/* ---- rename --------------------------------------------------------- */
 			const renameField = document.getElementById('rename-field');
 			let renaming = '';
 			let renameFrom = '';
@@ -1884,12 +1883,12 @@
 					? `THE SERVER CALLS ITSELF ${s.name} · EMPTY GOES BACK TO THAT · KEPT ON THIS ${UPPER} ONLY`
 					: `THE SERVER HAS NOT SAID ITS NAME YET · EMPTY GOES BACK TO ITS ADDRESS · KEPT ON THIS ${UPPER} ONLY`;
 				// The field takes focus at once: the keyboard rising is the point
-				// of this screen (S5), unlike 9B's, where it covered the buttons.
+				// of this screen, unlike #address's, where it covered the buttons.
 				renameField.focus();
 				if (MOBILE) showKeyboard();
 				backStep = renameDone;
 			}
-			/** Where RENAME returns, saved or not: S8 it came from, or the library. */
+			/** Where RENAME returns, saved or not: ADDED it came from, or the library. */
 			function renameDone() {
 				if (renameFrom === 'added') {
 					added(renaming);
@@ -1960,23 +1959,23 @@
 				}
 			};
 			/*
-			 * A door that acts is taken once. #connect= probes and, on an
+			 * A fragment that acts is taken once. #connect= probes and, on an
 			 * answer, opens a server in the list; #ask= puts the question
-			 * up; #lost= opens 9D for a server in the list, whose retry opens it
+			 * up; #lost= opens #lost for a server in the list, whose retry opens it
 			 * once it answers, and asks about any other. The
 			 * entry keeps its fragment otherwise, and routeHash runs on every
 			 * load of it, so a history step back into it (any page the WebView
 			 * shows can call history.go(-n), and the entry carries the app's
 			 * own token) would check that address again, or put the question up
 			 * again long after the link. So the entry loses its fragment the
-			 * moment the door is taken, keeping the path and the query: ?t= is
+			 * moment the fragment is taken, keeping the path and the query: ?t= is
 			 * the launch's token,
 			 * without which the asset guard 404s the page
 			 * (BridgeGuard.carriesAssetToken). replaceState fires no
 			 * hashchange, and the screen already drawn is unchanged; what the
-			 * entry shows when it loads again is 9A, as any fragment-less load
+			 * entry shows when it loads again is #welcome, as any fragment-less load
 			 * does. #added=, #rename=, #bad= and #add write nothing without the
-			 * owner's input, so they are left as they are.
+			 * user's input, so they are left as they are.
 			 */
 			function settle() {
 				try {
@@ -1990,8 +1989,8 @@
 				if (hash.startsWith('lost=')) {
 					// The activity writes this for any main-frame load that failed,
 					// so a page can name an origin here by opening its own closed
-					// port, and 9D's retry stores what answers. Only the list's own
-					// reach 9D; one just remembered is in the list already.
+					// port, and #lost's retry stores what answers. Only the list's own
+					// reach #lost; one just remembered is in the list already.
 					const at = decode(hash.slice(5));
 					settle();
 					if (known(at)) lost(at);

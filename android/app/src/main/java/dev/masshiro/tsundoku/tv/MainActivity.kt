@@ -41,17 +41,18 @@ import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 
 /**
- * tsundoku on an Android TV (doc/TV-APP.md), and since c521 on a phone
- * or tablet too (doc/PHONE-APP.md): one activity for both, the differences in
+ * tsundoku on an Android TV (doc/TV-APP.md), and on a phone or
+ * tablet too (doc/PHONE-APP.md): one activity for both, the differences in
  * [Form]. A WebView that holds the same web app a phone or a computer opens,
  * and the things the page cannot do over plain http: a launcher presence, the
  * remote's keys (a TV's), the screen kept awake, and a way to be paired with
  * six digits. On a phone it also keeps the page out of the camera cutout and
  * above the keyboard (Insets.kt).
  *
- * The app's own screens (9A, 9B, 9D) are in `assets/pair/`; 9C and 9E are the
- * computer's `/pair/tv`, so the code is posted same-origin and the paired
- * cookie is the one `/pair/<code>` sets for a phone.
+ * The app's own screens (the first screen, the address screen, the
+ * not-answering screen) are in `assets/pair/`; the code page and the paired
+ * page are the computer's `/pair/tv`, so the code is posted same-origin and
+ * the paired cookie is the one `/pair/<code>` sets for a phone.
  */
 class MainActivity : ComponentActivity(), PairingBridge.Host {
 	private lateinit var webView: WebView
@@ -115,7 +116,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	/** The app updating itself; the page draws it through the bridge. */
 	private lateinit var updates: Updater
 
-	/** Which launch owns the WebView: a later door wins over an earlier answer. */
+	/** Which launch owns the WebView: a later launch wins over an earlier answer. */
 	private val attempts = Attempts()
 
 	/** The press that would leave only says so; the next one leaves (LeaveWindow.kt). */
@@ -210,14 +211,14 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		if (given != null) {
 			takeGiven(given)
 		} else if (remembered.isEmpty()) {
-			// 9A: nothing has been paired yet.
+			// The first screen: nothing has been paired yet.
 			loadAsset()
 		} else {
 			// On launch the last used server that answers opens its library;
-			// one that doesn't shows 9D for it, with the others under it (S9),
-			// never silently another. A launch handed an
+			// one that doesn't shows the not-answering screen for it, with the
+			// others under it, never silently another. A launch handed an
 			// address while this probe is out owns the screen, so a late answer
-			// is dropped rather than replacing its 9B.
+			// is dropped rather than replacing its address screen.
 			val mine = attempts.begin()
 			io.execute {
 				val ok = Probe.check(remembered)
@@ -228,8 +229,8 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 
 	/**
 	 * A singleTask app started again gets the new intent here, not in
-	 * `onCreate`: a second `am start` on a running TV must reach the same
-	 * door, or the address only works while the app is closed.
+	 * `onCreate`: a second `am start` on a running TV must be taken the
+	 * same way, or the address only works while the app is closed.
 	 */
 	override fun onNewIntent(intent: Intent) {
 		super.onNewIntent(intent)
@@ -288,7 +289,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 
 	/**
 	 * The one place every key is seen before the WebView can have it, and so
-	 * the door "any other key ends the window" uses. BACK's own events
+	 * where "any other key ends the window" is done. BACK's own events
 	 * pass through here too, which is the only way to see it repeat; that is
 	 * why the manifest turns the back-invoked path off, which at targetSdk 36
 	 * on Android 16 would otherwise take BACK before it reaches this method.
@@ -409,7 +410,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		s.domStorageEnabled = true
 		s.databaseEnabled = true
 		if (form.pinsWidth) {
-			// The page is pinned to the handoff's 960 CSS px whatever the panel
+			// The page is pinned to the design's 960 CSS px whatever the panel
 			// reports (Scale.kt, doc/TV.md "Claims to check").
 			s.useWideViewPort = false
 			s.loadWithOverviewMode = false
@@ -424,15 +425,15 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		}
 		// Android's font size on a phone, capped at 130; 100 on a TV (Form.kt).
 		s.textZoom = form.textZoom(resources.configuration.fontScale)
-		// Zoom is off on both: pinch and double tap do nothing (c521, the
-		// reason for the phone app at all; the page adds touch-action too).
+		// Zoom is off on both: pinch and double tap do nothing (the reason
+		// for the phone app at all; the page adds touch-action too).
 		s.setSupportZoom(false)
 		s.builtInZoomControls = false
 		s.displayZoomControls = false
 		// The player starts without an OK press: a TV has no "tap to play".
 		s.mediaPlaybackRequiresUserGesture = false
 		s.cacheMode = WebSettings.LOAD_DEFAULT
-		// The app's own page is served by WebViewAssetLoader now, so no
+		// The app's own page is served by WebViewAssetLoader, so no
 		// file:// URL needs reaching; a page that loads one is a page this app
 		// does not have.
 		s.allowFileAccess = false
@@ -473,8 +474,8 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			}
 
 			/**
-			 * Nothing navigates into the app's own page. Since
-			 * the page moved to [BridgeGuard.ASSET] it is an ordinary https URL,
+			 * Nothing navigates into the app's own page. At
+			 * [BridgeGuard.ASSET] it is an ordinary https URL,
 			 * so a server's page — or an external link followed from one — could
 			 * set `location` to it with `#connect=` and have the pair page add
 			 * an attacker's server. The app's own `loadUrl` never reaches this
@@ -513,16 +514,17 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 				request: WebResourceRequest,
 				error: WebResourceError
 			) {
-				// A remembered address that stopped answering: 9D, not the
-				// WebView's own grey page. Subresources are the page's business,
-				// and so is the app's own page: it has no server to lose.
+				// A remembered address that stopped answering: the
+				// not-answering screen, not the WebView's own grey page.
+				// Subresources are the page's business, and so is the app's own
+				// page: it has no server to lose.
 				if (!request.isForMainFrame || !isServerPage(request.url)) return
 				failedLoad.failed(originOf(request.url))
 				showLost(originOf(request.url))
 			}
 
 			/**
-			 * A page change ends the leave window. This is the door that
+			 * A page change ends the leave window. This is the callback that
 			 * sees SvelteKit's client navigations, which never reach
 			 * `onPageStarted` or `onPageFinished`; it fires for a load too.
 			 */
@@ -540,29 +542,30 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 
 			/**
 			 * A server's own page has loaded. Its library makes it the
-			 * one in use, which is what launch opens next; its 9E says its name,
-			 * and after an add, the app's own 9E (S8) takes over from it.
+			 * one in use, which is what launch opens next; its paired page says
+			 * its name, and after an add, the app's own added page takes over
+			 * from it.
 			 */
 			override fun onPageFinished(view: WebView, url: String) {
 				// The camera band takes the page's colour, whichever page it is
-				// (the app's own, or a server older than c521's, which never says).
+				// (the app's own, or an older server's, which never says).
 				if (form.padsInsets) {
 					view.evaluateJavascript(SURFACE_JS) { value -> readSurface(value) }
 					view.evaluateJavascript(Insets.cssScript(told), null)
 				}
 				val uri = Uri.parse(url)
-				// The code screen (9C) on a phone: once the page has hydrated, its
-				// field takes focus and the keyboard comes up. A server older than
-				// c521 never focuses it on a phone, and its 1 px field can't be
+				// The code page on a phone: once the page has hydrated, its
+				// field takes focus and the keyboard comes up. An older server
+				// never focuses it on a phone, and its 1 px field can't be
 				// tapped, so without this no digit could be typed there at all.
 				if (form.raisesKeyboard && uri.path == "/pair/tv") view.evaluateJavascript(CODE_FOCUS_JS, null)
 				// The app's own page is no server's: it is neither a
-				// visit nor a 9E, and its URL is not an origin.
+				// visit nor a paired page, and its URL is not an origin.
 				if (!isServerPage(uri)) return
 				val origin = originOf(uri)
 				val known = servers.find(origin)
 				// A failed load finishes too: it must not become the last used,
-				// and a failed /pair/tv is no 9E to read (FailedLoad.finish).
+				// and a failed /pair/tv is no paired page to read (FailedLoad.finish).
 				when (failedLoad.finish(origin, uri.path, known != null)) {
 					FailedLoad.Finish.SKIP -> return
 					FailedLoad.Finish.PAIRED_PAGE ->
@@ -574,9 +577,10 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		}
 
 	/**
-	 * 9E is on screen when its first line says PAIRED WITH. Its name is the
-	 * server's own; and when the TV already had another server and this one
-	 * has never been opened, this was an add, so S8 replaces it.
+	 * The paired page is on screen when its first line says PAIRED WITH. Its
+	 * name is the server's own; and when the TV already had another server and
+	 * this one has never been opened, this was an add, so the added page
+	 * replaces it.
 	 */
 	private fun pairedPage(known: Servers.Server, value: String?) {
 		val said = runCatching { org.json.JSONArray("[" + (value ?: "null") + "]").optString(0, "") }.getOrDefault("")
@@ -655,7 +659,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 
 	/**
 	 * The page took nothing: back to the screen before (Back.kt says which), or
-	 * toward the way out, which takes a second press. Every door out
+	 * toward the way out, which takes a second press. Every way out
 	 * is here, the library as home and "no earlier screen" alike.
 	 *
 	 * `at` is when the key was pressed, read before the page was asked.
@@ -694,13 +698,13 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		webView.loadUrl(origin)
 	}
 
-	/** The bridge's open (SERVERS, 9D's others, S8's OPEN →): that server's library. */
+	/** The bridge's open (SERVERS, the not-answering screen's others, the added page's OPEN →): that server's library. */
 	override fun openServer(origin: String) {
 		attempts.begin()
 		open(origin)
 	}
 
-	/** One of the app's own screens, from the bridge (S5, S7, 9A). */
+	/** One of the app's own screens, from the bridge (RENAME, ADD A SERVER, the first screen). */
 	override fun showAsset(hash: String) {
 		attempts.begin()
 		loadAsset(hash)
@@ -719,8 +723,8 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 
 	/**
 	 * The list changed: the launcher's shortcuts follow it, one per server,
-	 * each the `tsundoku://connect?url=` link c260's filter takes. A
-	 * launcher that shows no app shortcuts (an Android TV home screen may not)
+	 * each the `tsundoku://connect?url=` link the manifest's VIEW filter
+	 * takes. A launcher that shows no app shortcuts (an Android TV home screen may not)
 	 * simply never draws them; nothing else depends on it.
 	 */
 	override fun serversChanged() {
@@ -757,7 +761,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	/**
 	 * The address this launch was handed, from the extra the documented
 	 * command sends or from a `tsundoku://connect?url=` link. The extra wins
-	 * when both are there: it is what doc/ANDROID.md tells the owner to type,
+	 * when both are there: it is what doc/TV-APP.md tells the user to type,
 	 * and a launcher's link is the second way in.
 	 */
 	private fun givenAddress(intent: Intent?): String? {
@@ -769,15 +773,16 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	}
 
 	/**
-	 * The one place a given address is judged, whichever door it came through
-	 *. [Given.door] says which of the page's doors it takes: one
+	 * The one place a given address is judged, however it came in.
+	 * [Given.door] says which of the pair page's fragments it opens: one
 	 * already in the list is checked and opened, one that is not is asked
-	 * about and waits for CONNECT, and a refused one shows 9B's band. None of
+	 * about and waits for CONNECT, and a refused one shows the address
+	 * screen's band. None of
 	 * the three stores anything by itself.
 	 */
 	private fun takeGiven(raw: String) {
 		// This launch's page is the one in hand now: an answer still owed to
-		// an earlier door (the remembered address's probe) no longer counts.
+		// an earlier launch (the remembered address's probe) does not count.
 		attempts.begin()
 		loadAsset(Given.door(raw) { servers.find(it) != null }.fragment(Uri::encode))
 	}
@@ -793,9 +798,9 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	}
 
 	/**
-	 * An http(s) page that belongs to a server: the app's own page (c549,
-	 * served at [BridgeGuard.ASSET_HOST]) is not one, so it is never counted as
-	 * a visit and never shows 9D.
+	 * An http(s) page that belongs to a server: the app's own page (served
+	 * at [BridgeGuard.ASSET_HOST]) is not one, so it is never counted as a
+	 * visit and never shows the not-answering screen.
 	 */
 	private fun isServerPage(url: Uri): Boolean {
 		val scheme = url.scheme?.lowercase()
@@ -831,12 +836,12 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		private const val EXTRA_URL = "url"
 
 		/**
-		 * What 9E says of the server, if the computer's /pair/tv is on 9E:
-		 * `data-paired-name`, a newline, then the first line's text, which
-		 * is all a server older than c545 says (Forget.pairedNameFrom reads
-		 * both). "" on any other page. No double quote, backslash or dollar
-		 * sign inside: tests/tv-pair-origins.e2e.ts reads this literal out of
-		 * this file and runs it on the real 9E.
+		 * What the paired page says of the server, if the computer's /pair/tv
+		 * is on it: `data-paired-name`, a newline, then the first line's text,
+		 * which is all an older server says (Forget.pairedNameFrom reads both).
+		 * "" on any other page. No double quote, backslash or dollar sign
+		 * inside: tests/tv-pair-origins.e2e.ts reads this literal out of this
+		 * file and runs it on the real paired page.
 		 */
 		private const val PAIRED_JS =
 			"(function(){var m=document.querySelector('main.paired');if(!m)return '';var l=m.querySelector('.lab');return (m.getAttribute('data-paired-name')||'')+String.fromCharCode(10)+(l?l.textContent:'')})()"
@@ -850,15 +855,15 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			"(function(){try{var t=function(e){return e?getComputedStyle(e).backgroundColor:''};var c=t(document.body);var x=document.createElement('canvas');x.width=x.height=1;var g=x.getContext('2d');var read=function(v){g.clearRect(0,0,1,1);g.fillStyle='rgba(0,0,0,0)';g.fillStyle=v;g.fillRect(0,0,1,1);return g.getImageData(0,0,1,1).data};var d=read(c);if(d[3]<255){d=read(t(document.documentElement))}return d[3]<255?'':'rgb('+d[0]+', '+d[1]+', '+d[2]+')'}catch(e){return ''}})()"
 
 		/**
-		 * 9C's field focused, then the bridge asked for the keyboard, once the
-		 * page has hydrated (SvelteKit's announcer is there, or 3 s have gone):
+		 * The code page's field focused, then the bridge asked for the keyboard,
+		 * once the page has hydrated (SvelteKit's announcer is there, or 3 s have gone):
 		 * a digit typed before hydration is lost when Svelte takes the field.
-		 * Nothing on 9E, which has no field.
+		 * Nothing on the paired page, which has no field.
 		 */
 		private const val CODE_FOCUS_JS =
 			"(function(){var t=0;var go=function(){var e=document.querySelector('input[name=code]');if(!e)return;if(!document.getElementById('svelte-announcer')&&t<30){t++;setTimeout(go,100);return}e.focus();if(window.TsundokuTV&&window.TsundokuTV.keyboard)window.TsundokuTV.keyboard()};go()})()"
 
-		/** c236's contract: true means the page took BACK. */
+		/** `window.tsundokuBack`'s contract: true means the page took BACK. */
 		private const val BACK_JS =
 			"(function(){try{return typeof window.tsundokuBack==='function' ? !!window.tsundokuBack() : false}catch(e){return false}})()"
 	}

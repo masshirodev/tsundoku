@@ -3,9 +3,9 @@ package dev.masshiro.tsundoku.tv
 import java.net.URLEncoder
 
 /**
- * A launcher shortcut per remembered server (c287; doc/ANDROID.md, "Launcher
- * shortcuts"). Each is the `tsundoku://connect?url=` link c260's `VIEW` filter
- * already takes, so a shortcut opens exactly the door an `am start` does, and
+ * A launcher shortcut per remembered server (doc/TV-APP.md, "Launcher
+ * shortcuts"). Each is the `tsundoku://connect?url=` link the `VIEW` filter
+ * already takes, so a shortcut opens exactly what an `am start` does, and
  * the app needs no new way in.
  *
  * Dynamic, not a static `res/xml/shortcuts.xml`: a static shortcut is fixed
@@ -23,7 +23,7 @@ object Shortcuts {
 	/** A short label is what a launcher shows; 25 characters is the guidance for it. */
 	const val SHORT_LABEL = 25
 
-	/** The link a shortcut fires: c260's deep link, the origin encoded whole. */
+	/** The link a shortcut fires: the deep link, the origin encoded whole. */
 	fun linkFor(origin: String): String = "tsundoku://connect?url=" + URLEncoder.encode(origin, "UTF-8").replace("+", "%20")
 
 	/**

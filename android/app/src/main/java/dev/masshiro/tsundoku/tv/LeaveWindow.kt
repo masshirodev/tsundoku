@@ -1,10 +1,10 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * The second press BACK has to make before it leaves the app (c859;
- * doc/ANDROID.md, "BACK"). The owner's TV left on a BACK they meant as a step,
- * so the press that would leave now only says so; the next one, while the
- * window is open, leaves.
+ * The second press BACK has to make before it leaves the app (doc/TV-APP.md,
+ * "BACK"). A BACK meant as a step would otherwise leave the app, so the press
+ * that would leave only says so; the next one, while the window is open,
+ * leaves.
  *
  * The times are arguments, on `SystemClock.uptimeMillis()`'s clock, because
  * they are taken when the thing happened, not when the activity got round to
@@ -13,8 +13,8 @@ package dev.masshiro.tsundoku.tv
  * that happened after a press still counts against it, whichever arrived
  * first.
  *
- * Which door reaches each method is MainActivity's business, and the part a
- * JVM test cannot see: BACK's press through `OnBackPressedCallback`, another
+ * Which Android callback reaches each method is MainActivity's business, and
+ * the part a JVM test cannot see: BACK's press through `OnBackPressedCallback`, another
  * key through `dispatchKeyEvent`, a page change through
  * `doUpdateVisitedHistory`, which is the one SvelteKit's client navigation
  * reaches (`onPageFinished` never does).
@@ -54,14 +54,14 @@ class LeaveWindow(
 	 */
 	fun press(at: Long, held: Boolean = false): Verdict {
 		// Something else happened after this press, while the page was
-		// answering for it: the owner has moved on.
+		// answering for it: the user has moved on.
 		if (at <= ended) return Verdict.NOTHING
 		val since = open(at)
 		if (since == null) {
 			armed = at
 			return Verdict.TOAST
 		}
-		// One press delivered twice is the accident this card is about, so a
+		// One press delivered twice is the accident this window is for, so a
 		// BACK this soon after the one that opened the window is that press.
 		if (held || at - since <= doubled) return Verdict.NOTHING
 		armed = null
@@ -99,7 +99,7 @@ class LeaveWindow(
 
 		/**
 		 * How soon after the first press a second one is still that first
-		 * press (c859's decision, see doc/ANDROID.md). An IR remote repeats its
+		 * press (doc/TV-APP.md). An IR remote repeats its
 		 * frame about every 108 ms, so a doubled press is under ~220 ms; a
 		 * second press made after reading the toast takes far longer than
 		 * 400 ms. A deliberate fast double tap inside it costs one more press.

@@ -49,7 +49,7 @@ class BridgeGuardTest {
 		assertFalse(allows("data:text/html,<p>x"))
 		assertFalse(allows("javascript:alert(1)"))
 		// Another file the WebView could reach: allowFileAccess is off, and no
-		// page loads one. The asset page's old file:// URL is nobody's now.
+		// page loads one. The asset page's file:// URL is nobody's.
 		assertFalse(allows("file:///android_asset/pair/index.html"))
 		assertFalse(allows("file:///android_asset/pair/other.html"))
 		assertFalse(allows("file:///sdcard/Download/index.html"))
@@ -85,7 +85,7 @@ class BridgeGuardTest {
 
 	@Test
 	fun `a server typed with capitals is trusted on its lower-case pages`() {
-		// What 9B's TYPE THE WHOLE ADDRESS stored for http://Zen.local:42143,
+		// What the address screen's TYPE THE WHOLE ADDRESS stored for http://Zen.local:42143,
 		// read back through Servers.decode; WebView's URL is lower case.
 		val stored = Servers.decode("http://Zen.local:42143\tZEN\t\t5\t5").map { it.origin }.toSet()
 		assertTrue(BridgeGuard.allows("http://zen.local:42143/") { it in stored })
@@ -103,7 +103,7 @@ class BridgeGuardTest {
 				Address.originOf("https://zen.tailnet.ts.net:8443")
 			)
 		// A known server typed with a capitalised scheme is its own page, at
-		// any path, exactly as originOf reads it (the card's done line).
+		// any path, exactly as originOf reads it.
 		assertTrue(BridgeGuard.allows("HTTP://zen.local:42143/") { it in stored })
 		assertTrue(BridgeGuard.allows("HtTpS://ZEN.tailnet.ts.net:8443/series/3") { it in stored })
 		// A capitalised scheme does not widen the rule: an unknown host is
@@ -127,7 +127,7 @@ class BridgeGuardTest {
 		assertTrue(BridgeGuard.refusesNavigation("HTTPS://APPASSETS.androidplatform.net/pair/index.html"))
 		assertTrue(BridgeGuard.refusesNavigation("http://${BridgeGuard.ASSET_HOST}/anything?x=1#y"))
 		// A frame's request for the host is an embed; the main frame's is the
-		// app's own load, which the loader answers (round 3's rule, below).
+		// app's own load, which the loader answers (refusesAssetRequest, below).
 		// Every other page is somebody's to navigate to, known or not.
 		assertFalse(BridgeGuard.refusesNavigation("$home/"))
 		assertFalse(BridgeGuard.refusesNavigation("$zen/series/12"))
@@ -164,7 +164,7 @@ class BridgeGuardTest {
 		// A main-frame GET of the app's own URL is its loadAsset, and is served.
 		assertFalse(BridgeGuard.refusesAssetRequest(page, true, "GET", token))
 		assertFalse(BridgeGuard.refusesAssetRequest(page + "#add", true, "get", token))
-		// A frame's GET is an embed, refused as it was in round 2.
+		// A frame's GET is an embed, and refused.
 		assertTrue(
 			BridgeGuard.refusesAssetRequest(
 				"HTTPS://${BridgeGuard.ASSET_HOST}/pair/index.html?t=$token",
@@ -236,7 +236,7 @@ class BridgeGuardTest {
 	@Test
 	fun `a URL java_net_URI cannot parse is still read for its host, and refused at ours`() {
 		val token = "6a1f0c9e-2b7d-4a55-9d1e-3f8c0b2a7e64"
-		// The card's three, each of which makes java.net.URI throw (measured
+		// Three URLs, each of which makes java.net.URI throw (measured
 		// with jshell): `|` and `{` are left as they are in a query, and `|` in
 		// a fragment, by the URL standard's percent-encode sets. Read with
 		// java.net.URI they had no host, so the navigation was let through and

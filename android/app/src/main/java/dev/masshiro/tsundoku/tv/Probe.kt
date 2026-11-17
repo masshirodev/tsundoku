@@ -4,10 +4,11 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * "Does the computer answer?" (TV-Pair.dc.html, 9D). A cheap GET of
- * something only tsundoku serves, with a short timeout: the web app manifest,
- * whose name is tsundoku's. A router's login page, a NAS or a TV's own web
- * server answers nothing at that path, so 9D's three reasons can be true.
+ * "Does the computer answer?" (the pairing page's NOTHING ANSWERS). A cheap
+ * GET of something only tsundoku serves, with a short timeout: the web app
+ * manifest, whose name is tsundoku's. A router's login page, a NAS or a TV's
+ * own web server answers nothing at that path, so NOTHING ANSWERS' three
+ * reasons can be true.
  *
  * `accepts` is the pure part; `check` is the two lines of network around it.
  */

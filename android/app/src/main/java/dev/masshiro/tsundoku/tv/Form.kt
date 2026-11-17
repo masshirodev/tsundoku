@@ -1,8 +1,8 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * Which app this build is: the TV's, or the phone and tablet one (c521;
- * doc/ANDROID.md). One Gradle project builds both, as two product flavors
+ * Which app this build is: the TV's, or the phone and tablet one
+ * (doc/PHONE-APP.md). One Gradle project builds both, as two product flavors
  * sharing every line of pairing (`tv`, `mobile`); what differs between them is
  * decided here, from `BuildConfig.FORM`, so each difference is one tested
  * function rather than a branch buried in the activity.
@@ -20,13 +20,13 @@ package dev.masshiro.tsundoku.tv
  *
  * The bridge keeps the TV's name, `TsundokuTV`, on both: it is the contract
  * the web app already reads (MoreSheet's SERVERS, the layout's name), so the
- * phone gets c261's server list without a second bridge to keep in step.
+ * phone gets the same server list without a second bridge to keep in step.
  */
 enum class Form(val id: String) {
 	TV("tv"),
 	MOBILE("mobile");
 
-	/** The page width is pinned to the handoff's 960 only on a TV. */
+	/** The page width is pinned to 960 only on a TV. */
 	val pinsWidth: Boolean
 		get() = this == TV
 
@@ -72,7 +72,7 @@ enum class Form(val id: String) {
 	 * design's own sizes, so it stays 100. A phone follows Android's font size,
 	 * since a bigger font is the reader's own choice, but only up to 130%: the
 	 * web app's 60 px bars and clamped tile titles are fixed and clip past
-	 * that (PhoneApp-Calls.dc.html, question 2). A smaller font is honoured as
+	 * that. A smaller font is honoured as
 	 * it is. An unknown scale (0 or less) is 100.
 	 */
 	fun textZoom(fontScale: Float): Int {
@@ -82,10 +82,10 @@ enum class Form(val id: String) {
 	}
 
 	companion object {
-		/** The most a phone's text grows (question 2 of the design). */
+		/** The most a phone's text grows. */
 		const val MAX_TEXT_ZOOM = 130
 
-		/** The flavor's `BuildConfig.FORM`; anything unknown is the TV, as every build was before c521. */
+		/** The flavor's `BuildConfig.FORM`; anything unknown is the TV. */
 		fun of(id: String?): Form = entries.firstOrNull { it.id == id } ?: TV
 	}
 }

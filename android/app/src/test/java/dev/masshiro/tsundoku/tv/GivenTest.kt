@@ -153,7 +153,7 @@ class GivenTest {
 	}
 
 	@Test
-	fun `the fragment is the door's name and its encoded value`() {
+	fun `the fragment is the Door's name and its encoded value`() {
 		val encode: (String) -> String = { URLEncoder.encode(it, "UTF-8") }
 		assertEquals("#ask=https%3A%2F%2Fevil.example%3A8443", Given.door(evil, inList).fragment(encode))
 		assertEquals(
@@ -165,7 +165,7 @@ class GivenTest {
 
 	/** What a pure rule cannot see: that the app's two ends actually use it. */
 	@Test
-	fun `the activity asks this rule and writes no door of its own`() {
+	fun `the activity asks this rule and writes no fragment of its own`() {
 		val activity = File("src/main/java/dev/masshiro/tsundoku/tv/MainActivity.kt").readText()
 		assertTrue(activity.contains("Given.door(raw) { servers.find(it) != null }"))
 		assertTrue(activity.contains("Given.address("))
@@ -174,7 +174,7 @@ class GivenTest {
 	}
 
 	@Test
-	fun `the page takes every door the rule can name`() {
+	fun `the page takes every fragment the rule can name`() {
 		val page = File("src/main/assets/pair/index.html").readText()
 		for (name in listOf(Given.CONNECT, Given.ASK, Given.BAD, Given.LONG)) {
 			assertTrue(name, page.contains("hash.startsWith('$name=')"))

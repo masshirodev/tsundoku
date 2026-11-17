@@ -1,9 +1,9 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * What the app does with an address handed to it from outside (c260, c683;
- * doc/ANDROID.md, "An address from outside is asked about"): whichever of the
- * pair page's doors it goes through.
+ * What the app does with an address handed to it from outside (doc/TV-APP.md,
+ * "An address from outside is asked about"): which of the pair page's
+ * fragments it opens.
  *
  * The activity is exported and its `tsundoku://connect` filter is BROWSABLE,
  * so nothing about an intent says who sent it. A link tapped in a browser, an
@@ -16,8 +16,8 @@ package dev.masshiro.tsundoku.tv
  * the list** stores nothing when it opens, so it goes straight through; that
  * is every live shortcut, since a shortcut is only ever made from the list.
  * One that is **not** in the list is asked about: nothing is probed or
- * remembered until the owner presses CONNECT on the pair page. What the owner
- * types on 9B never comes through here at all.
+ * remembered until the user presses CONNECT on the pair page. What the user
+ * types on the address screen never comes through here at all.
  *
  * Pure, so `GivenTest` pins it: `android.net.Uri` and `Intent` are not there
  * in a JVM test, so the activity reads them and hands over strings.
@@ -30,18 +30,18 @@ object Given {
 	const val LONG = "long"
 
 	/**
-	 * The longest address the question will show: 9B's own limit for a whole
-	 * address (`last.maxLength`). The question exists to be read, and a host
-	 * long enough to run off the screen can hide the part that says whose it
-	 * is, so a longer one is refused rather than shown cut. It has its own
-	 * door so the band can say so: it breaks none of the rules `#bad=`'s hint
-	 * names. The page holds the same limit (`MAX_ASKED` in `ask()`) for the
-	 * doors to the question that do not pass through here, and `GivenTest`
-	 * pins the two together.
+	 * The longest address the question will show: the address screen's own
+	 * limit for a whole address (`last.maxLength`). The question exists to be
+	 * read, and a host long enough to run off the screen can hide the part
+	 * that says whose it is, so a longer one is refused rather than shown cut.
+	 * It has its own fragment so the band can say so: it breaks none of the
+	 * rules `#bad=`'s hint names. The page holds the same limit (`MAX_ASKED`
+	 * in `ask()`) for the ways to the question that do not pass through here,
+	 * and `GivenTest` pins the two together.
 	 */
 	const val MAX_ASKED = 80
 
-	/** Which door to take, and the value it carries. */
+	/** Which fragment to open, and the value it carries. */
 	data class Door(val name: String, val value: String) {
 		/** The fragment `MainActivity.loadAsset` appends; [encode] is `Uri.encode` there. */
 		fun fragment(encode: (String) -> String): String = "#$name=${encode(value)}"
@@ -61,9 +61,9 @@ object Given {
 	}
 
 	/**
-	 * The door for an address from outside. [known] is asked about the origin
-	 * [Address.intentOrigin] kept, never the raw string, so it answers for the
-	 * same value `Servers` stores.
+	 * The fragment for an address from outside. [known] is asked about the
+	 * origin [Address.intentOrigin] kept, never the raw string, so it answers
+	 * for the same value `Servers` stores.
 	 */
 	fun door(raw: String, known: (String) -> Boolean): Door {
 		val origin = Address.intentOrigin(raw) ?: return Door(BAD, raw)

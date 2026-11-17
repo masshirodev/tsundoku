@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The remote's keys the WebView may not deliver (c236; doc/TV.md, "The
+ * The remote's keys the WebView may not deliver (doc/TV.md, "The
  * remote"). The DOM names are what `src/lib/focus/keys.ts` and the player
  * listen for, so these tests pin the mapping and the event's shape.
  */

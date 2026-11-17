@@ -1,8 +1,8 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * The remote's keys, as DOM keys the page's focus layer understands (c236;
- * doc/TV.md, "The remote").
+ * The remote's keys, as DOM keys the page's focus layer understands
+ * (doc/TV.md, "The remote").
  *
  * The D-pad and OK reach the WebView as arrows and Enter by themselves, so
  * they are not here. MENU and the media keys do not: the WebView consumes them

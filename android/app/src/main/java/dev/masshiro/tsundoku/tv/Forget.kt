@@ -1,7 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * What FORGET does to the WebView's cookie jar (S4): the cookies the
+ * What FORGET does to the WebView's cookie jar: the cookies the
  * jar would send to that origin, expired, so adding the server back pairs
  * again with six digits instead of finding the old pairing still there.
  *
@@ -15,14 +15,14 @@ package dev.masshiro.tsundoku.tv
  *
  * The jar scopes cookies by host, not port or scheme, so what `getCookie`
  * hands back for one server also holds every other server's on the same
- * computer. Each server names its pairing for its own origin since c530
+ * computer. Each server names its pairing for its own origin
  * ([pairedCookie]), and FORGET leaves another origin's pairing alone: it
- * expires this origin's name, the shared name every server used before c530
- * (which a TV paired then may still carry until that server is next opened),
+ * expires this origin's name, the shared name older servers used (which a TV
+ * paired by one may still carry until that server is next opened),
  * and every cookie that is not a pairing.
  */
 object Forget {
-	/** The name every server gave its pairing before c530. */
+	/** The one name older servers gave every pairing. */
 	const val OLD_PAIRED = "tsundoku_paired"
 
 	/**
@@ -62,11 +62,11 @@ object Forget {
 	}
 
 	/**
-	 * The server's name from what MainActivity's `PAIRED_JS` read on 9E: the
-	 * `data-paired-name` attribute, a newline, then the first line's text
-	 *. The attribute wins, so a change to the label's words cannot lose
-	 * the name; a server older than c545 has no attribute, and its line is
-	 * parsed as before ([pairedName]). Null when the page is not 9E.
+	 * The server's name from what MainActivity's `PAIRED_JS` read on the
+	 * paired page: the `data-paired-name` attribute, a newline, then the first
+	 * line's text. The attribute wins, so a change to the label's words cannot
+	 * lose the name; an older server has no attribute, and its line is parsed
+	 * ([pairedName]). Null when the page is not the paired page.
 	 */
 	fun pairedNameFrom(said: String?): String? {
 		if (said.isNullOrEmpty()) return null
@@ -79,10 +79,10 @@ object Forget {
 	}
 
 	/**
-	 * 9E's first line, "✓ PAIRED WITH ZEN · 192.168.1.23:42143" (the computer's
-	 * `/pair/tv`), as the name the server gives itself; null when the page is
-	 * not 9E. Read rather than asked for: `/pair/tv` is the computer's page and
-	 * already says it (doc/handoffs/tv-servers, "The name").
+	 * The paired page's first line, "✓ PAIRED WITH ZEN · 192.168.1.23:42143"
+	 * (the computer's `/pair/tv`), as the name the server gives itself; null
+	 * when the page is not the paired page. Read rather than asked for:
+	 * `/pair/tv` is the computer's page and already says it.
 	 */
 	fun pairedName(line: String?): String? {
 		val m = Regex("PAIRED WITH\\s+(.+?)\\s+·").find(line ?: return null) ?: return null

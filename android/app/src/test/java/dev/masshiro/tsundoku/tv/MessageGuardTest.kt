@@ -5,29 +5,29 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The per-message rule c549's part (b) would install (`BridgeGuard.allowsMessage`):
+ * The per-message rule a web message listener would ask (`BridgeGuard.allowsMessage`):
  * a message from a frame may reach the bridge only when the frame is the main
  * one and its origin is the app's own page's origin or a server the TV knows.
  *
  * `WebViewCompat.addWebMessageListener` hands the rule a frame's `sourceOrigin`,
  * which is an **origin** (`scheme://host[:port]`) and never a URL with a path or
- * a fragment (round 2 of wave 27: every input here is origin-shaped, because the
- * rule judges the origin and not the URL a page was loaded from). Nothing calls
- * the rule yet (doc/ANDROID.md, "Limits"), so these cases are
+ * a fragment (so every input here is origin-shaped: the rule judges the origin
+ * and not the URL a page was loaded from). Nothing calls
+ * the rule yet (doc/TV-APP.md, "What it does not do yet"), so these cases are
  * the whole of it for now.
  */
 class MessageGuardTest {
 	private val home = "http://192.168.1.23:42143"
 	private val zen = "https://zen.tailnet.ts.net:8443"
 
-	/** What `Servers.find` would hold: c548's originOf writes every entry lower case. */
+	/** What `Servers.find` would hold: originOf writes every entry lower case. */
 	private val known = setOf(home, zen, "http://zen.local:42143")
 
 	private fun allows(origin: String?, mainFrame: Boolean) =
 		BridgeGuard.allowsMessage(origin, mainFrame) { it in known }
 
 	@Test
-	fun `a third-party frame inside a known server's page is refused (the card's done line)`() {
+	fun `a third-party frame inside a known server's page is refused`() {
 		// The rule cannot see the page the frame sits in, only the frame's own
 		// origin; that is enough. example.com's frame is not a main frame, and
 		// example.com is not a server this TV knows, so both halves refuse it.
@@ -66,9 +66,9 @@ class MessageGuardTest {
 
 	@Test
 	fun `the file asset's old URL is refused, and the asset URL is not an origin`() {
-		// Since wave 29 the page loads from ASSET_ORIGIN (WebViewAssetLoader),
+		// The page loads from ASSET_ORIGIN (WebViewAssetLoader),
 		// and a message's sourceOrigin is an origin: the URL the page was loaded
-		// from, with its path, is never one. No page loads a file:// URL now.
+		// from, with its path, is never one. No page loads a file:// URL.
 		assertFalse(allows(BridgeGuard.ASSET, true))
 		assertFalse(allows(BridgeGuard.ASSET + "#lost=x", true))
 		// Another file the WebView could reach is nobody's page.
@@ -79,7 +79,7 @@ class MessageGuardTest {
 
 	@Test
 	fun `a known server written with a path or a trailing slash is not an origin`() {
-		// Decided in round 2: refused, a bare trailing slash included. The
+		// Refused, a bare trailing slash included. The
 		// listener's sourceOrigin is an origin by the API's contract, so a
 		// string with any path, query or fragment is not one and is not trusted.
 		for (at in listOf("$home/", "$home/series/12", "$zen/pair/tv", "$home?x=1", "$home#top")) {
@@ -92,7 +92,7 @@ class MessageGuardTest {
 		// Address.originOf lower-cases the scheme and the host, so a
 		// sourceOrigin that kept a capital is the same server. Allowed as the
 		// main frame, refused below one. (The top-level URL rule, BridgeGuard
-		// .allows, still tests the scheme case-sensitively; see the notes.)
+		// .allows, still tests the scheme case-sensitively.)
 		assertTrue(allows("http://ZEN.local:42143", true))
 		assertTrue(allows("https://ZEN.tailnet.ts.net:8443", true))
 		assertTrue(allows("HTTP://zen.local:42143", true))

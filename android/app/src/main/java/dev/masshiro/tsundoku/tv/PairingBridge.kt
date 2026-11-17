@@ -9,26 +9,25 @@ import java.util.concurrent.Executors
 
 /**
  * What the app's own pages cannot do themselves (doc/TV.md, "Pairing"):
- * the TV's own address (for the prefix, and 9D's third reason), a probe of a
- * candidate address, and the servers this TV has paired with (c261;
- * doc/ANDROID.md, "Servers").
+ * the TV's own address (for the prefix, and the not-answering screen's third
+ * reason), a probe of a candidate address, and the servers this TV has paired
+ * with (doc/TV-APP.md, "Servers").
  *
  * The same object is on every page the WebView loads, the computer's library
  * included: that is how MORE › SERVERS, drawn by the web app, reads the list
  * and switches. So every call that writes, probes, or opens one of the app's
  * screens that writes first asks [BridgeGuard] whether the page in the
- * WebView is the app's own or a known server's, and does nothing otherwise
- *. Since c549 (the owner's (a), 2026-11-05) the reads that say
- * anything of the owner's ask it too: the list of servers is the owner's,
- * and so are the TV's address and its network. A refused read answers what
- * a TV that knows nothing would ("[]", ""), never an exception, so a page of
+ * WebView is the app's own or a known server's, and does nothing otherwise.
+ * The reads that say anything of the user's ask it too: the list of servers
+ * is the user's, and so are the TV's address and its network. A refused read
+ * answers what a TV that knows nothing would ("[]", ""), never an exception, so a page of
  * ours that is refused (none should be) draws as an unpaired TV. Every
  * method, and whether it is guarded:
  *
  * | Method           | Does                                   | Guarded |
  * | ---------------- | -------------------------------------- | ------- |
  * | `tvAddress`      | reads the TV's IPv4                    | yes: "" |
- * | `prefix`         | reads it, as 9B's prefix               | yes: "" |
+ * | `prefix`         | reads it, as the address prefix        | yes: "" |
  * | `defaultPort`    | reads a constant                       | no      |
  * | `remembered`     | reads the server in use                | yes: "" |
  * | `servers`        | reads the list                         | yes: [] |
@@ -39,10 +38,10 @@ import java.util.concurrent.Executors
  * | `rename`         | writes: the TV's name for a server     | yes     |
  * | `named`          | writes: the server's own name          | yes     |
  * | `probe`          | asks any address on the network        | yes     |
- * | `addServer`      | opens S7, which writes                 | yes     |
- * | `renameServer`   | opens S5, which writes                 | yes     |
+ * | `addServer`      | opens ADD A SERVER, which writes       | yes     |
+ * | `renameServer`   | opens RENAME, which writes             | yes     |
  * | `open`           | opens a known server's library         | no      |
- * | `welcome`        | opens 9A                               | no      |
+ * | `welcome`        | opens the first screen                 | no      |
  * | `form`           | reads which app this is         | no      |
  * | `network`        | reads home / data / none        | yes: "" |
  * | `surface`        | paints the camera band          | no      |
@@ -143,7 +142,7 @@ class PairingBridge(
 	@JavascriptInterface
 	fun form(): String = form.id
 
-	/** "home", "data" (a phone on mobile data) or "none": 9D's third reason. */
+	/** "home", "data" (a phone on mobile data) or "none": the not-answering screen's third reason. */
 	@JavascriptInterface
 	fun network(): String = if (trusted()) Network.state(found()).id else NOTHING
 
@@ -156,7 +155,8 @@ class PairingBridge(
 
 	/**
 	 * Raise the keyboard for the field the page has just focused:
-	 * the WebView does not, for focus given by a script on arrival (9B, 9C).
+	 * the WebView does not, for focus given by a script on arrival (the address
+	 * screen, the code page).
 	 * Nothing on a TV (Form.raisesKeyboard). Unguarded: it shows a keyboard and
 	 * writes nothing.
 	 */
@@ -214,7 +214,7 @@ class PairingBridge(
 	@JavascriptInterface
 	fun tvAddress(): String = if (trusted()) ownIpv4() ?: NOTHING else NOTHING
 
-	/** "192.168.1." — what 9B writes for the TV, or "" when there is no address. */
+	/** "192.168.1." — what the address screen writes for the TV, or "" when there is no address. */
 	@JavascriptInterface
 	fun prefix(): String = if (trusted()) Address.prefixOf(ownIpv4()) ?: NOTHING else NOTHING
 
@@ -252,8 +252,8 @@ class PairingBridge(
 
 	/**
 	 * Open that server's library. It becomes the one in use once its page has
-	 * loaded (MainActivity marks it), so a server that does not answer gets 9D
-	 * for it, never another (S9).
+	 * loaded (MainActivity marks it), so a server that does not answer gets the
+	 * not-answering screen for it, never another.
 	 */
 	@JavascriptInterface
 	fun open(origin: String) {
@@ -261,7 +261,7 @@ class PairingBridge(
 		host.onUi { host.openServer(clean) }
 	}
 
-	/** The TV's own name for it; empty gives back the server's name (S5). */
+	/** The TV's own name for it; empty gives back the server's name. */
 	@JavascriptInterface
 	fun rename(origin: String, name: String) {
 		if (!trusted()) return
@@ -278,15 +278,15 @@ class PairingBridge(
 	}
 
 	/**
-	 * FORGET (S4): the entry, and that origin's cookies, so adding it back
+	 * FORGET: the entry, and that origin's cookies, so adding it back
 	 * pairs again. Answers the list as it is now, for the page to decide where
-	 * to go (the next that answers, or 9A); refused, it answers "", which the
+	 * to go (the next that answers, or the first screen); refused, it answers "", which the
 	 * page reads as "nothing happened".
 	 */
 	@JavascriptInterface
 	fun forgetServer(origin: String): String {
 		// Refused, it answers no list at all: not "[]", which the page
-		// would read as "that was the last one" and send the TV to 9A while
+		// would read as "that was the last one" and send the TV to the first screen while
 		// every server is still stored. "" leaks nothing and is not a list.
 		if (!trusted()) return NOTHING
 		forgetOne(origin)
@@ -302,21 +302,21 @@ class PairingBridge(
 		}
 	}
 
-	/** A server that moved: the new address takes that entry's place (9D's CHANGE THE ADDRESS). */
+	/** A server that moved: the new address takes that entry's place (the not-answering screen's CHANGE THE ADDRESS). */
 	@JavascriptInterface
 	fun move(from: String, to: String) {
 		if (!trusted()) return
 		if (servers.move(from, to)) host.serversChanged()
 	}
 
-	/** + ADD A SERVER: 9B as ADD A SERVER · 1 OF 2 (S7), the app's own page. */
+	/** + ADD A SERVER: the address screen as ADD A SERVER · 1 OF 2, the app's own page. */
 	@JavascriptInterface
 	fun addServer() {
 		if (!trusted()) return
 		host.onUi { host.showAsset("#add") }
 	}
 
-	/** RENAME (S5), the app's own page: the field above Android's keyboard. */
+	/** RENAME, the app's own page: the field above Android's keyboard. */
 	@JavascriptInterface
 	fun renameServer(origin: String) {
 		if (!trusted()) return
@@ -324,7 +324,7 @@ class PairingBridge(
 		host.onUi { host.showAsset("#rename=" + android.net.Uri.encode(clean)) }
 	}
 
-	/** 9A again: the last server was forgotten. */
+	/** The first screen again: the last server was forgotten. */
 	@JavascriptInterface
 	fun welcome() {
 		host.onUi { host.showAsset("") }
@@ -342,7 +342,7 @@ class PairingBridge(
 
 	/**
 	 * The home address, Wi-Fi first and never a carrier's or a tunnel's: what
-	 * 9B's prefix must be (Network.homeV4 says why a phone needs the skip).
+	 * the address screen's prefix must be (Network.homeV4 says why a phone needs the skip).
 	 */
 	private fun ownIpv4(): String? = Network.homeV4(found())
 

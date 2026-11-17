@@ -6,8 +6,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * c306: a launch that lands inside the remembered address's probe owns the
- * WebView. Each case is the activity's sequence of doors and answers, with
+ * A launch that lands inside the remembered address's probe owns the
+ * WebView. Each case is the activity's sequence of launches and answers, with
  * the pages the WebView would be told to load written down in order.
  */
 class AttemptsTest {
@@ -20,7 +20,7 @@ class AttemptsTest {
 	private fun probeAnswered(attempt: Int, ok: Boolean, remembered: String) =
 		attempts.answer(attempt) { loaded += if (ok) remembered else "#lost=$remembered" }
 
-	/** onNewIntent → takeGiven: 9B is loaded at once. */
+	/** onNewIntent → takeGiven: the address screen is loaded at once. */
 	private fun given(origin: String) {
 		attempts.begin()
 		loaded += "#connect=$origin"
@@ -34,7 +34,7 @@ class AttemptsTest {
 	}
 
 	@Test
-	fun `a probe nobody interrupted shows 9D when nothing answers`() {
+	fun `a probe nobody interrupted shows the not-answering screen when nothing answers`() {
 		val mine = rememberedProbe()
 		assertTrue(probeAnswered(mine, false, "http://zen.local:42143"))
 		assertEquals(listOf("#lost=http://zen.local:42143"), loaded)
@@ -49,7 +49,7 @@ class AttemptsTest {
 	}
 
 	@Test
-	fun `a given address during the probe is not replaced by 9D naming the remembered one`() {
+	fun `a given address during the probe is not replaced by the not-answering screen naming the remembered one`() {
 		val mine = rememberedProbe()
 		given("http://192.168.1.23:42143")
 		assertFalse(probeAnswered(mine, false, "http://zen.local:42143"))
@@ -66,7 +66,7 @@ class AttemptsTest {
 	}
 
 	@Test
-	fun `each door's attempt is current until the next door opens`() {
+	fun `each launch's attempt is current until the next launch begins`() {
 		val first = attempts.begin()
 		assertTrue(attempts.current(first))
 		val second = attempts.begin()

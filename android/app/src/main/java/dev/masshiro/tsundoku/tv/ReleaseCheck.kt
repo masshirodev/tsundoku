@@ -8,8 +8,8 @@ import org.json.JSONObject
 import java.security.MessageDigest
 
 /**
- * A release's `latest.json`, opened as the computer opens it (c614;
- * doc/UPDATES.md, "The Android apps"; `openManifest` in
+ * A release's `latest.json`, opened as the computer opens it
+ * (doc/UPDATES.md, "The Android apps"; `openManifest` in
  * src/lib/server/update-manifest.ts). The manifest is a string and an ed25519
  * signature over exactly its bytes; the app refuses any it can't verify with
  * the release key's public half, and any APK whose size and SHA-256 aren't the

@@ -6,15 +6,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * What the TV build and the phone and tablet build do differently (c521;
- * Form.kt's table). Each row of that table is one test here.
+ * What the TV build and the phone and tablet build do differently
+ * (Form.kt's table). Each row of that table is one test here.
  */
 class FormTest {
 	@Test
 	fun `the flavor's id names its form, and anything else is the TV`() {
 		assertEquals(Form.TV, Form.of("tv"))
 		assertEquals(Form.MOBILE, Form.of("mobile"))
-		// Every build before c521 was the TV's, and BuildConfig.FORM may be absent.
+		// A build without flavors is the TV's, and BuildConfig.FORM may be absent.
 		assertEquals(Form.TV, Form.of(null))
 		assertEquals(Form.TV, Form.of(""))
 		assertEquals(Form.TV, Form.of("MOBILE"))
@@ -64,7 +64,7 @@ class FormTest {
 		assertEquals(100, Form.MOBILE.textZoom(1f))
 		assertEquals(115, Form.MOBILE.textZoom(1.15f))
 		assertEquals(130, Form.MOBILE.textZoom(1.3f))
-		// Past the cap the web app's fixed bars would clip (the design's question 2).
+		// Past the cap the web app's fixed bars would clip.
 		assertEquals(130, Form.MOBILE.textZoom(1.5f))
 		assertEquals(130, Form.MOBILE.textZoom(2f))
 	}
