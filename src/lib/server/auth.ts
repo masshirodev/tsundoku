@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Cookies } from '@sveltejs/kit';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { dataPaths } from './data-dirs.ts';
 import { readLogin, sessionFor, type Login } from './login.ts';
@@ -39,13 +40,23 @@ function constantTimeEquals(a: string, b: string): boolean {
 
 export type AuthMode = { configured: true } | { configured: false; devBypass: boolean };
 
+/**
+ * Whether a missing token lets every request in: only under `vite dev`.
+ *
+ * `dev` is fixed when the app is compiled, so no built bundle has the bypass
+ * whatever its environment says. Not NODE_ENV at run time: only
+ * scripts/serve.ts sets it, so `node build` started any other way, with no
+ * token, would serve the whole library to anyone who reached it.
+ */
+const devBypass = () => dev;
+
 export function authMode(): AuthMode {
 	const token = expectedToken();
 	if (token) return { configured: true };
 	// Refusing is the only safe default. Silently serving the contents of the
 	// library because a variable was forgotten is exactly how this becomes an
 	// open endpoint on a box with no firewall running.
-	return { configured: false, devBypass: env.NODE_ENV !== 'production' };
+	return { configured: false, devBypass: devBypass() };
 }
 
 export function checkToken(supplied: string): boolean {
@@ -56,7 +67,7 @@ export function checkToken(supplied: string): boolean {
 
 export function isValidSession(cookieValue: string | undefined): boolean {
 	const token = expectedToken();
-	if (!token) return env.NODE_ENV !== 'production';
+	if (!token) return devBypass();
 	if (!cookieValue) return false;
 	return constantTimeEquals(cookieValue, sessionValueFor(token));
 }
